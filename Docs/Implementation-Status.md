@@ -3608,6 +3608,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is Unreal's Quinn, animated by F-L4-015 (ADR-0066).
 - Conformance: CharacterMotorTests, SpringArmTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
 - Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMovementState` (ADR-0066).
+- **2026-10-04:** automation frames advance exactly the fixed-tick cap (`EngineHost.FrameTime`), so the scripted ThirdPerson run reproduces frame for frame on WARP and on a GPU; the stage's optional hardware pass failed before because the character was still airborne after 90 fast GPU frames.
 
 ## Deferred Simulation/Physics features with designed Stages
 

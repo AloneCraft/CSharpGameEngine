@@ -1,5 +1,14 @@
 # Conformance
 
+## 2026-10-04 探索 — 自動実行が描画の速さに依存していた
+- 意図: ADR-0067 決定 7（フレーム番号で入力を与え、各フレームのカメラ位置を観測する）と、`rigid.character-controller` の「実機は任意の追加パス」。
+- 観測（Fact）: `rigid.character-controller --adapter hardware` が「頂点から 0.005 m しか降りていない（0.3 m 以上が必要）」で失敗した（RTX 4060 Ti）。WARP では合格。実機で同じ自動実行を 2 回撮ると、30 フレーム目の位置が 5.87 m と −3.12 m のように食い違った。
+- 原因: 生成したゲームループは各フレームの経過時間を `Stopwatch` から取る。WARP は 1 フレームが遅く毎フレーム上限の 8 tick に達する（20 フレームで 15.7 m、毎フレーム約 7.85 tick）ので決定的に見えていただけで、実機ではフレームごとの tick 数が揺れ、90 フレームの間にジャンプの着地まで進まない。
+- 実装: `EngineHost.FrameTime` を足し、生成ループは EngineHost があるとき経過時間をそこから取る。自動実行の間は毎フレームちょうど上限（8 tick、`RuntimeAutomation.FixedFrameTime`）を進める。自動実行でなければ計測値のまま。
+- 自動化された証拠: `RuntimeAutomationTests`（固定時間で 1000 フレーム毎回 8 tick、余りもバックログも無い。自動実行でない EngineHost は計測値を返す）、`GameSystemEntryPointTests`（生成ループが `FrameTime` を通す）。
+- 実機の証拠: ThirdPerson を WARP と実機 2 回で自動実行し、カメラの軌跡が全フレームで一致した（最大差 0、以前の WARP の軌跡とも一致）。
+- 結果: Matches。
+
 ## 2026-10-04 M0100 探索 — 遠景で対数の Early-Z が効いていなかった
 - 意図: [Omni 仕様](Specifications/Omni.md) 不変条件 2a（保守的深度で早期の深度棄却を保つ）。
 - 観測（Fact）: 100〜1020 m の 24 層を手前から奥へ描くと、標準 0.097 ms に対し対数 1.738 ms（RTX 4060 Ti）。2〜48 m では 0.133 対 0.173 ms。単一の接点（8 m）の双曲線が遠くで低い一定値になるため。接点を約 500 m に移す実験で 0.262 ms になり、原因を確かめた。

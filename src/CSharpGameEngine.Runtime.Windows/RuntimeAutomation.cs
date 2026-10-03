@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Text.Json;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Runtime.Simulation;
 using TerraFX.Interop.DirectX;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
@@ -50,6 +51,13 @@ public sealed class RuntimeAutomation {
         var Report=Environment.GetEnvironmentVariable(ReportVariable);
         return new RuntimeAutomation(Frames,string.IsNullOrWhiteSpace(Capture)?null:Path.GetFullPath(Capture),Input,string.IsNullOrWhiteSpace(Report)?null:Path.GetFullPath(Report));
     }
+    /// <summary>
+    /// The elapsed time of one automation frame: exactly the scheduler's per-frame cap, expressed in ticks so the
+    /// integer accumulator advances by whole steps with no remainder (<see cref="EngineHost.FrameTime"/>).
+    /// </summary>
+    internal static (long ElapsedCounter,long CounterFrequency)FixedFrameTime(FixedTickScheduler Scheduler)=>
+        (Scheduler.MaximumStepsPerFrame,Scheduler.TickRate);
+
     /// <summary>Parses <see cref="InputVariable"/>; an empty value schedules nothing.</summary>
     public static bool TryParseInput(string?Text,out IReadOnlyList<RuntimeAutomationKeyHold>Holds,out string Error){
         List<RuntimeAutomationKeyHold>Result=[];

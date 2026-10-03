@@ -137,6 +137,7 @@ public sealed class GameSystemEntryPointTests {
                         public ref CSharpGameEngine.Entities.World World => ref world;
                         public CSharpGameEngine.Runtime.Simulation.FixedTickScheduler FixedTicks { get; } = new();
                         public CSharpGameEngine.Entities.State CreateState() => new(world);
+                        public (long ElapsedCounter, long CounterFrequency) FrameTime(long Measured, long Frequency) => (Measured, Frequency);
                         public void Dispose() { }
                     }
                 }
@@ -160,6 +161,10 @@ public sealed class GameSystemEntryPointTests {
         Assert.Contains("ref var World = ref EngineHost.World;",Text);
         Assert.Contains("var State = EngineHost.CreateState();",Text);
         Assert.Contains("GeneratedGameLoop.Run(ref State, EngineHost);",Text);
+        // The loop takes each frame's time from the host, so an automation run can fix it (RuntimeAutomation).
+        string Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
+        Assert.Contains("var (FrameCounter, FrameFrequency) = EngineHost.FrameTime(ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency);",Loop);
+        Assert.Contains("RunFrame(ref State, ref Systems, ref Scheduler, FrameCounter, FrameFrequency, EngineHost);",Loop);
     }
 
     [Fact]

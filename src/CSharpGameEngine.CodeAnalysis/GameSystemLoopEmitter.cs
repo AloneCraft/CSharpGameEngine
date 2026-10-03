@@ -8,6 +8,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <summary>Emits the persistent, system-major fixed-phase ECS loop.</summary>
 internal static class GameSystemLoopEmitter {
     private const string HintName="GameSystem.Loop.g.cs";
+    private const string EngineHostTypeName="global::CSharpGameEngine.Runtime.Windows.EngineHost";
 
     internal static bool HasDispatchSystem(IEnumerable<GameSystemResult> Systems)=>
         Systems.Any(static System=>System.Diagnostics.Length==0&&System.Methods.Any(static Method=>Method.Role==GameSystemMethodRole.Dispatch));
@@ -26,7 +27,7 @@ internal static class GameSystemLoopEmitter {
 
         List<SystemBinding> Systems=BuildSystemBindings(AllSystems);
         List<ContextBinding> Contexts=BuildContextBindings(AllSystems);
-        bool HasEngineHost=Contexts.Any(static Context=>Context.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Windows.EngineHost");
+        bool HasEngineHost=Contexts.Any(static Context=>Context.TypeFullyQualifiedName==EngineHostTypeName);
         Dictionary<string,string> ContextNameByFqn=Contexts.ToDictionary(static Binding=>Binding.TypeFullyQualifiedName,static Binding=>Binding.ParameterName,StringComparer.Ordinal);
 
         List<string> Lines=[
@@ -163,7 +164,13 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("                var CurrentCounter = global::System.Diagnostics.Stopwatch.GetTimestamp();");
         Lines.Add("                var ElapsedCounter = CurrentCounter - PreviousCounter;");
         Lines.Add("                PreviousCounter = CurrentCounter;");
-        Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency{BuildContextArgumentSuffix(Contexts)});");
+        if(HasEngineHost){
+            // An automation run advances a fixed time per frame, so it does not depend on the adapter's speed.
+            Lines.Add($"                var (FrameCounter, FrameFrequency) = {ContextNameByFqn[EngineHostTypeName]}.FrameTime(ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency);");
+            Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, FrameCounter, FrameFrequency{BuildContextArgumentSuffix(Contexts)});");
+        } else {
+            Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency{BuildContextArgumentSuffix(Contexts)});");
+        }
         Lines.Add("            }");
         Lines.Add("        } finally {");
         Lines.Add($"            Shutdown(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)});");

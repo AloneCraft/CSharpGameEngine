@@ -272,6 +272,16 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// <summary>環境変数で要求された自動検証。未設定ならnull(<see cref="RuntimeAutomation"/>)。</summary>
     public RuntimeAutomation?Automation { get; }=RuntimeAutomation.FromEnvironment();
 
+    /// <summary>
+    /// The elapsed time the generated game loop feeds one frame. An automation run advances exactly the fixed-tick cap
+    /// per frame (8 ticks at 60 Hz), so its frame-numbered input and observations do not depend on how fast the adapter
+    /// presents: WARP is slow enough to reach the cap every frame, a GPU is not. Otherwise the measured time.
+    /// </summary>
+    public (long ElapsedCounter,long CounterFrequency)FrameTime(long MeasuredElapsedCounter,long CounterFrequency)=>
+        this.Automation is null
+            ?(MeasuredElapsedCounter,CounterFrequency)
+            :RuntimeAutomation.FixedFrameTime(this.FixedTicks);
+
     /// <summary>1フレームを表示する。自動検証が規定フレーム数に達したらfalseを返し、ループ終了を要求する。</summary>
     internal bool Present(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
