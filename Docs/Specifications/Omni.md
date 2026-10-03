@@ -14,7 +14,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 | Mapping | Where | Vertex | Depth |
 |---|---|---|---|
 | `Standard` (default) | every camera unless selected otherwise | standard `VSMain` | hyperbolic depth of the perspective projection |
-| `Radial` | a Camera with `DepthMapping = Radial`, its thumbnails, the editor runtime view of such a scene | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
+| `Radial` | a scene Camera with `DepthMapping = Radial` (game and editor runtime view), or a camera preview that asks for it | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
 | `RadialObserver` | an observer inset (camera preview pass) | `RadialObserverVSMain` maps positions around the centre camera | raster depth of the mapped triangles |
 
 ## Curve
@@ -38,6 +38,12 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 9. Device recovery replays the depth mapping with the camera.
 10. Picking stays the CPU physical ray: the visible surface of a radial view is the nearest physical hit.
 11. Invalid radial parameters are rejected at the camera boundary with a typed error; nothing silently falls back to standard.
+
+## Authoring and editor
+
+- The scene `Camera` component has `DepthMapping` (`Standard` default, `Radial`) and `RadialTransitionMeters` (default 1). Scene JSON stores only changed values, so existing scenes stay standard.
+- `LevelLoad` copies them into the render camera when the level loads (like the exposure). The editor runtime view follows the scene camera: a radial scene camera makes the editor view radial and replaces the editor's focus-based near/far with the scene camera's NearZ/FarZ on every frame.
+- Camera thumbnails are drawn only by the isolated preview of an unbuilt game, which stays standard (non-goal); the renderer's per-preview depth mapping serves the observer view.
 
 ## Precision budget
 

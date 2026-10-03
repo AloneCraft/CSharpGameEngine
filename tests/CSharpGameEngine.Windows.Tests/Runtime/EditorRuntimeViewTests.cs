@@ -3,6 +3,7 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
 /// ADR-0070 B1 step 1: the runtime renders into the Scene Designer's surface and from its camera.
@@ -66,6 +67,43 @@ public sealed class EditorRuntimeViewTests {
         Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
     }
 
+    [WindowsOnlyFact]
+    public void RadialSceneCamera_RendersTheGameWithRadialDepthAndItsOwnClipRange(){
+        using var Surface=CreateSurface();
+        using var Host=new EngineHost();
+        Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+        Render(Host,SceneCamera:Near,Component:RadialCamera);
+        Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
+        Assert.Equal(RadialCamera.NearZ,Host.RenderCamera.NearZ);
+        Assert.Equal(RadialCamera.FarZ,Host.RenderCamera.FarZ);
+        Assert.Equal(2f,Host.RenderCamera.RadialTransitionMeters);
+        Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
+    }
+
+    [WindowsOnlyFact]
+    public void EditorCamera_FollowsARadialSceneCameraAndRendersWhatItRendersFromTheSamePose(){
+        // M0099: the editor view takes the scene camera's depth mapping and, for radial depth, its clip range (the
+        // editor's own focus-based near/far would undo radial depth), so from the same pose it renders the game's pixels.
+        using var Surface=CreateSurface();
+        string Game,Editor;
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Game=Render(Host,SceneCamera:Near,Component:RadialCamera);
+        }
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Host.SetEditorCamera(new EditorCameraPose(Near,RadialCamera.FovYRadians,0.5f,20f));
+            Editor=Render(Host,SceneCamera:Far,Component:RadialCamera,Frames:2);
+            Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
+            Assert.Equal(RadialCamera.NearZ,Host.RenderCamera.NearZ);
+            Assert.Equal(RadialCamera.FarZ,Host.RenderCamera.FarZ);
+            Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
+        }
+        Assert.Equal(Game,Editor);
+    }
+
+    private static Camera RadialCamera=>new() { DepthMapping=CameraDepthMapping.Radial,RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
+
     private static GraphicsDeviceOptions Warp=>new() { UseWarp=true,EnableDebugLayer=true };
 
     private static Win32Window CreateSurface()=>new(new Win32WindowOptions {
@@ -73,7 +111,7 @@ public sealed class EditorRuntimeViewTests {
     });
 
     /// <summary>Loads a level with one box (and a scene camera when given) and captures one frame.</summary>
-    private static string Render(EngineHost Host,Transform?SceneCamera){
+    private static string Render(EngineHost Host,Transform?SceneCamera,Camera?Component=null,int Frames=1){
         ref var World=ref Host.World;
         var App=new AppHost();
         var AppRuntime=new AppHostRuntime();
@@ -88,13 +126,18 @@ public sealed class EditorRuntimeViewTests {
         Load.Update(BoxEntity,ref BoxTransform,ref Box,ref State);
         if(SceneCamera is { }CameraPose){
             var CameraTransform=CameraPose;
-            var Camera=new Camera();
+            var Camera=Component??new Camera();
             var CameraEntity=World.Create(CameraTransform,Camera);
             Load.Update(CameraEntity,ref CameraTransform,ref Camera,ref State);
         }
         Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State);
         Assert.True(LevelRuntime.Loaded);
         Host.Present();
+        for(var Frame=1;Frame<Frames;Frame++){
+            // Later frames take LevelLoad's per-frame path, where the editor camera is applied again.
+            Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State);
+            Host.Present();
+        }
         Host.Renderer!.RenderFrame(CaptureForVerification:true);
         return Convert.ToHexString(SHA256.HashData(Host.Renderer.LastCapturedFrame!.Pixels));
     }

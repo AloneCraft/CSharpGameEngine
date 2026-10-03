@@ -139,6 +139,20 @@ internal struct LevelLoad:ISystem {
         if(!this.RosterCaptured)(this.PendingStaticMeshes??=[]).Add((Entity,Transform,Mesh));
     }
 
+    /// <summary>
+    /// M0099: the depth mapping is the scene camera's, in the editor too. A radial view also keeps the scene camera's
+    /// near and far planes, because the editor's focus-based range would undo what radial depth is for. Like the
+    /// exposure, it is read when the level loads.
+    /// </summary>
+    private static void ApplyDepthMapping(ref RenderCamera View,in Camera SceneCamera){
+        View.DepthMapping=SceneCamera.DepthMapping==CameraDepthMapping.Radial?RenderDepthMapping.Radial:RenderDepthMapping.Standard;
+        View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
+        if(View.DepthMapping==RenderDepthMapping.Radial){
+            View.NearZ=SceneCamera.NearZ;
+            View.FarZ=SceneCamera.FarZ;
+        }
+    }
+
     public void Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingPrimitives??=[]).Add((Entity,Transform,Mesh));
     }
@@ -174,6 +188,9 @@ internal struct LevelLoad:ISystem {
                     ActiveRenderCamera.FovYRadians=Editor.FovYRadians;
                     ActiveRenderCamera.NearZ=Editor.NearZ;
                     ActiveRenderCamera.FarZ=Editor.FarZ;
+                    if(this.ActiveCameraCount>0){
+                        ApplyDepthMapping(ref ActiveRenderCamera,this.PendingCamera);
+                    }
                 }
                 if(CameraStatus==FixedTransformStatus.Success){
                     // Presentation runs system-major. Refresh before later Renderable/light
@@ -254,6 +271,9 @@ internal struct LevelLoad:ISystem {
         }
         // Exposure is the scene's in the editor too: the view must look like the game.
         Camera.ExposureEv100=this.ActiveCameraCount>0?this.PendingCamera.ExposureEv100:new Camera().ExposureEv100;
+        if(this.ActiveCameraCount>0){
+            ApplyDepthMapping(ref Camera,this.PendingCamera);
+        }
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         Host.RegisterWorldGridMaterials(Scene.Materials);
         LevelRuntime.HasLastCameraWorldPose=true;

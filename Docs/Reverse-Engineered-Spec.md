@@ -301,7 +301,8 @@
 - Observed behavior: `Camera.DepthMapping = Radial` selects radial pipeline states that run the unchanged `VSMain` and wrap `PSMain`/`PreviewPSMain` (colour unchanged) with `SV_Depth = min(G(r)·InverseMaximumG, 0.99999994)`, where `G(r) = log2(1 + r/T)` uses a log1p correction and `r` a largest-component length. Fragments whose physical view depth exceeds `FarZ·(1 + 1/1024)` are discarded. Invalid radial parameters throw at `SetCamera`; a `RadialObserver` camera throws; `SetViewProjection` returns to standard.
 - Observed behavior: in radial mode the sky direction, sun cascades and AO prepass use the camera rotation with near `max(NearZ, min(0.01, FarZ/2))` and far `min(FarZ, near·65536)`; with near 0.1 m and far up to 6553.6 m that matrix equals the camera's, and the environment frame is bit-identical to the standard one. GI capture, shadow atlas and overlay are standard.
 - Observed behavior: a preview's `DepthMapping` selects standard, radial (`PreviewCleanRadialPSMain`) or observer (`RadialObserverVSMain` maps `T·G(|P − C|)` around `RadialCenter`) pipelines and writes its own packet; incomplete radial previews throw.
-- Result: Matches ADR-0076 for the renderer. Not yet present: Camera component fields, editor runtime view, observer component (M0099 Phases 5–6).
+- Observed behavior: the scene `Camera` component's `DepthMapping` (`Standard` default) and `RadialTransitionMeters` (1 m default) are copied into the render camera by `LevelLoad` at load; scene JSON without them stays standard. With an editor camera, the runtime view keeps the editor pose and field of view, and for a radial scene camera it takes the scene camera's NearZ/FarZ on every frame.
+- Result: Matches ADR-0076 for the renderer, the scene camera and the editor runtime view. Not yet present: observer component (M0099 Phase 6).
 
 ## RE-M0098 — World-space procedural grid material
 
