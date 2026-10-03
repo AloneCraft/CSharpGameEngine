@@ -154,6 +154,10 @@ Roslynにロードされない。
   M0009 で消えた `CSharpGameEngine.Ecs` 等を参照しており、読み込み不能な状態で放置されていた。
 
 
+## Radial (logarithmic) depth (ADR-0076, M0099)
+
+A camera chooses its depth mapping (`Camera.DepthMapping`, Standard by default). Radial depth is a property of the view, not an adapter: the Stage program keeps one vertex path, the radial pixel entries wrap the unchanged lighting entries and add `SV_Depth = log2(1 + r/T) / log2(1 + rMax/T)`, and `StageRenderer` chooses a radial pipeline family per view. Positions stay Q64.64 until the single camera-relative float conversion, so no mantissa/exponent packets or vertex warping are needed; only the optional observer inset (`RadialObserver`) compresses positions around the camera. The contract and non-goals are in [Omni](Specifications/Omni.md).
+
 ## Spatial partitioning
 
 L3 World owns a read-only fixed-point loose-octree snapshot. L3 Systems may own separate mutable indexes when their narrowed membership or update policy offsets duplicated storage and maintenance.

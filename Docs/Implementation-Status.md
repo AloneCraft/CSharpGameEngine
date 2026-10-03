@@ -3568,28 +3568,32 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L5-038 — Radial (logarithmic) depth camera
 
 - Layer: L5 — Integrated Runtime
-- Parent capability: World Scale
+- Parent capability: Rendering
 - Status: Implemented
-- Verification: TestVerified
+- Verification: TestVerified, RuntimeVerified (WARP)
 - Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0076-Native-Radial-Depth-Mapping.md`
+- Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L4-014, F-L0-009
 - Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
 - Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`); Stage ABI `stage-v8` with `RadialPSMain`/`PreviewRadialPSMain`/`PreviewCleanRadialPSMain`/`RadialObserverVSMain` in `StagePresentationShaderSource` and `FrameCB.DepthMapping0/1` (`radial_depth_2026_10_04.py`); `Graphics/Camera.DepthMapping`/`RadialTransitionMeters`; `StageRenderer` (radial pipeline family, `WriteDepthMapping`, `InvertibleViewProjection`, per-preview mapping, `ReadDepthForTesting`); `RenderCameraPreview.DepthMapping`/`Radial`/`RadialCenter`.
-- Current delta: scene `Camera.DepthMapping`/`RadialTransitionMeters` reach the render camera through `LevelLoad.ApplyDepthMapping`, in the game and in the editor runtime view (which then uses the scene camera's clip range). The depth mapping is read when the level loads, like the exposure. Editor camera thumbnails (isolated preview only) stay standard. The Visual Stage `rendering.radial-depth` does not exist yet (M0099 Phase 7).
+- Current delta: scene `Camera.DepthMapping`/`RadialTransitionMeters` reach the render camera through `LevelLoad.ApplyDepthMapping`, in the game and in the editor runtime view (which then uses the scene camera's clip range). The depth mapping is read when the level loads, like the exposure. Editor camera thumbnails (isolated preview only) stay standard. Early-Z does not apply to radial pipelines (performance not measured).
 - Conformance: `RadialDepthTests`; `ShaderGraphCompilerTests` (13 Stage entries, radial pixel entries write `SV_Depth`); `RadialDepthGpuIntegrationTests` (standard pixels in legacy and environment scenes, coplanar pairs at 2e4/1e15/5e18 m, depth equals the CPU encoding, extreme far planes, frame slots, radial thumbnails, invalid input, device recovery); `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`. Standard frames stay pinned by `StandardModeGoldenFrameTests`.
-- Next action: M0099 Phase 7 (Visual Stage `rendering.radial-depth`), after F-L5-039.
+- Next action: measure the radial pipelines' cost (no Early-Z) in `rendering.performance`; consider conservative depth if it matters.
 
 ## F-L5-039 — Radial observer view
 
 - Layer: L5 — Integrated Runtime
-- Parent capability: World Scale
+- Parent capability: Rendering
 - Status: Implemented
-- Verification: TestVerified
+- Verification: TestVerified, RuntimeVerified (WARP)
 - Intended specification: `Docs/Specifications/Omni.md#observer-view`
+- Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L5-038
 - Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
 - Implementation evidence: `RadialObserver` (`RuntimeComponents.cs`), `RadialObserverSync` and `RadialObserverView` (`RuntimeSystems.cs`), `EngineHost.AddRadialObserverPreview` and its submission in `SubmitEnvironment`, `RadialObserverVSMain`, the observer pipeline states and `PrepareObserverMarkers` in `StageRenderer`, `RenderCameraPreview.MarkRadialCenter`.
 - Current delta: game runtime only (not in the editor runtime view, whose previews belong to the editor); at most three insets; picking and gizmos inside the inset and a full-screen observer view are non-goals. Interpolation inside the inset is perspective in the compressed space (an approximation for visualization).
 - Conformance: `RadialObserverTests` (radial-only, inset placement, centre at the inset middle, far plane beyond the compressed world, unusable values, one inset in the game and none with a standard camera or an editor camera), `RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre` (the sphere appears where `T·G(r)` puts it, the main view outside the inset is unchanged, the marker is drawn).
-- Next action: show it in the Visual Stage `rendering.radial-depth` (M0099 Phase 7).
+- Next action: none planned; picking inside the inset and a full-screen observer view stay non-goals until a game needs them.
 
 ## F-L5-006 — Character Controller
 

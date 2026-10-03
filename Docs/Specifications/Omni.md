@@ -1,6 +1,6 @@
 # Omni — radial (logarithmic) depth specification
 
-- Status: Implementing (M0099). This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track what exists.
+- Status: Implemented (M0099, 2026-10-04). This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track the evidence.
 - Decision: [ADR-0076](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)
 - Reference: the Unity asset Omni (`D:\Unity\6.6\Omni\Assets\Omni`), ported natively without its URP adapter.
 - Target layers: L0 (StageRenderer), L4 (RenderServer), L5 (Runtime camera and observer), L6 (Stage shader ABI), L8 (editor runtime view)
@@ -65,4 +65,7 @@ Omni's Threshold curve; vertex warping for ordinary cameras; mantissa/exponent c
 
 - CPU: `RadialDepthTests`.
 - Standard regression: `StandardModeGoldenFrameTests` plus the existing exact WARP pixel tests.
-- GPU, runtime, editor and observer suites and the Visual Stage `rendering.radial-depth` are added by M0099 Phases 4–7.
+- Shader ABI: `ShaderGraphCompilerTests`.
+- GPU: `RadialDepthGpuIntegrationTests`, `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`.
+- Runtime and editor: `SceneCameraTests`, `SceneJsonRuntimeValuesTests`, `EditorRuntimeViewTests`, `RadialObserverTests`.
+- Visual Stage `rendering.radial-depth` (WARP required).

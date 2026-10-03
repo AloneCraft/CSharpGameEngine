@@ -157,6 +157,7 @@ Verified by Stage `rendering.skeletal-animation` ([M0091](../Milestones/M0091-Sk
 | F-L4-006 | 4 | `rendering.visibility` | Visual / Rendering | 1800s | Snapshot/visibility/LOD/instance oracle matches. |
 | F-L4-007 | 4 | `rendering.quality-profiles` | Visual / Rendering | 1800s | Quality profile reference tolerance holds. |
 | F-L4-015 | 5 | `rendering.skeletal-animation` | Visual / Rendering | 1800s | Skin/clip import in engine space, locomotion graph, and WARP compute skinning match analytic poses without debug-layer errors. |
+| F-L5-038, F-L5-039 | 6, 7 | `rendering.radial-depth` | Visual / Rendering | 1800s | Radial depth curve and budget, Stage radial entries, pinned standard frames, bit-identical radial colour, coplanar separation up to 5e18 m, CPU-equal depth, finite sky/cascades/AO with extreme far planes, scene camera and editor follow, observer inset, all on WARP without debug-layer errors. |
 | F-L0-009 | 5 | `rendering.device-recovery` | Visual / Rendering | 1800s | Legal state transitions and artifact-only rebuild. |
 | F-L8-018 | 5 | `vsix.rendering-preview` | Visual / VSIX | 1800s | Shared host protocol and no duplicate renderer. |
 | F-L7-023 | 6 | `rendering.performance` | Visual / Rendering | 7200s | Five warm-ups plus thirty WARP frame and 100,000-instance samples publish SHA-bound correctness/performance evidence. |

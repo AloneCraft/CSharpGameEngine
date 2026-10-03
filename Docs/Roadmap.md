@@ -46,7 +46,9 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 5 | F-L0-009 | Implemented | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
 | 5 | F-L8-018 | Implemented | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
 | 6 | F-L7-023 | Implemented | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |
+| 6 | F-L5-038 | Implemented | Radial (logarithmic) depth camera | F-L4-014, F-L0-009 | [Omni](Specifications/Omni.md) | `rendering.radial-depth` |
 | 7 | F-L7-024 | Implemented | Release evidence | F-L7-023, F-L8-018 | [Rendering](Specifications/Rendering.md) | `rendering.release` |
+| 7 | F-L5-039 | Implemented | Radial observer view | F-L5-038 | [Omni](Specifications/Omni.md#observer-view) | `rendering.radial-depth` |
 
 ### Asset / Content
 

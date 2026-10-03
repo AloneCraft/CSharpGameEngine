@@ -1,5 +1,14 @@
 # Conformance
 
+## 2026-10-04 M0099 Phase 5–7 — Camera コンポーネント、エディタの追従、観察ビュー、ステージ
+- 意図: [Omni 仕様](Specifications/Omni.md) の「Authoring and editor」と「Observer view」。
+- 実装: シーンの `Camera.DepthMapping`/`RadialTransitionMeters`、`LevelLoad.ApplyDepthMapping`（エディタのランタイムビューは毎フレームの経路でもシーンカメラの範囲を当て直す）、`RadialObserver`/`RadialObserverSync`/`RadialObserverView`、overlay での中央カメラの模型、Visual Stage `rendering.radial-depth`。
+- 自動化された証拠: `EditorRuntimeViewTests`（当て直しを外すと失敗することを確認）、`SceneCameraTests`、`SceneJsonRuntimeValuesTests`、`RadialObserverTests`、観察者の GPU テスト、`FeatureStageCatalogTests`、`rendering.radial-depth`（WARP で合格）。
+- 実機の証拠: ThirdPerson テンプレートのシーンを一時的に対数カメラ（near 0.01 m・far 1e12 m）と観察者に変えて WARP で 40 フレーム歩かせた（D3D12 エラー 0、カメラは標準の撮影と同じ位置）。メインビューは標準の撮影と小窓の外で平均 0.2 階調の差（8 階調を超える画素は 0.24%）で、小窓には圧縮したレベルと中央カメラの模型が写った（`.artifacts/M0099/phase7/radial_walked.png`）。差は near を 0.01 m にしたことで補助のビュー投影の範囲が変わり、影のカスケードと AO がわずかに変わったためと考えられる（推測）。撮影後にシーンを元に戻した。
+- 計画との差: 「カメラのサムネイルも対象カメラの方式に従う」は、サムネイルを描くのが未ビルドのゲームの分離プレビュー（対数は非目標）だけだと分かったので取りやめた。
+- 結果: Matches（F-L5-038、F-L5-039）。
+- 既知の差: 対数 PSO は Early-Z が効かない（性能は未計測）。観察ビューはゲームだけで、補間は圧縮空間での透視補間（可視化用の近似）。
+
 ## 2026-10-04 M0099 Phase 1–4 — 対数（放射）深度のレンダラー
 - 意図: [ADR-0076](Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)、[Omni 仕様](Specifications/Omni.md)。標準の描画は変えず、対数カメラは同じ色で対数の深度を書く。
 - 実装: 標準モードの基準フレーム（Phase 1）、CPU の数式（Phase 2）、Stage ABI `stage-v8`（Phase 3）、レンダラーの対数 PSO・深度方式パケット・補助のビュー投影・プレビューごとの方式（Phase 4）。
