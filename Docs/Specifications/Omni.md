@@ -30,7 +30,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 1. Standard views are bit-identical to the pre-M0099 renderer (`StandardModeGoldenFrameTests`).
 2. A radial view's colour comes from the unchanged `PSMain`; wherever the same surface wins, the pixel equals the standard pixel bit for bit on triangles that need no clipping, and within one 8-bit level on clipped triangles (the radial main pass clips with clip distances).
 2a. The radial main pass rasterizes the conservative depth `a − b/w`, tangent to the encoded depth at `8·max(T, NearZ)` and below it everywhere, and declares `SV_DepthGreaterEqual`, so the hardware keeps rejecting hidden fragments early. It runs without depth clipping and clips with the standard projection's near/far distances (`SV_ClipDistance`).
-3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear.
+3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear. Exact depth ties (a wireframe edge drawn from both of its triangles, exactly coincident duplicates) are settled by draw order in the standard mode and by rounding in the radial mode, so a shared wireframe edge may show its other face's colour.
 4. Every pass that writes a radial view's depth uses the same depth function.
 5. Lighting, shadows, fog, GI and normals use physical values; no Jacobian is applied to normals.
 6. Fragments beyond `FarZ · (1 + 1/1024)` of physical view depth are discarded (the margin keeps every fragment the projection's own far plane kept); NearZ is clipped by the standard projection.
