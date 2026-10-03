@@ -22,6 +22,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         View.Pitch=PitchDegrees*MathF.PI/180f;
         View.NearZ=NearZ;
         View.FarZ=FarZ;
+        View.DepthMapping=RenderDepthMapping.Standard;
         return View;
     }
     private static Camera Radial(Camera View){

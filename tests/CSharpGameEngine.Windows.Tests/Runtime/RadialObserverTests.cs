@@ -21,6 +21,7 @@ public sealed class RadialObserverTests {
     [Fact]
     public void Preview_IsOnlyMadeForARadialCamera(){
         var Standard=RenderCamera.CreateFirstPerson(Vector3.Zero);
+        Standard.DepthMapping=RenderDepthMapping.Standard;
         Assert.False(RadialObserverView.TryCreatePreview(Standard,1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out _));
         Assert.True(RadialObserverView.TryCreatePreview(RadialCenter(),1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out var Preview));
         Assert.Equal(RenderDepthMapping.RadialObserver,Preview.DepthMapping);

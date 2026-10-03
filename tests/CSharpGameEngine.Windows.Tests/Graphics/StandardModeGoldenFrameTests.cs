@@ -78,6 +78,8 @@ public sealed class StandardModeGoldenFrameTests {
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
         var View=Camera.CreateFirstPerson(new Vector3(0.3f,1.6f,-4f));
         View.Pitch=-12f*MathF.PI/180f;
+        // The factories choose radial depth; these frames pin the standard mode.
+        View.DepthMapping=RenderDepthMapping.Standard;
         var Environment=Case=="environment";
         var Frames=Environment?4:2;
         for(var Frame=0;Frame<Frames;Frame++){

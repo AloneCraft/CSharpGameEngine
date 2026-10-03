@@ -13,8 +13,8 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 | Mapping | Where | Vertex | Depth |
 |---|---|---|---|
-| `Standard` (default) | every camera unless selected otherwise | standard `VSMain` | hyperbolic depth of the perspective projection |
-| `Radial` | a scene Camera with `DepthMapping = Radial` (game and editor runtime view), or a camera preview that asks for it | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
+| `Radial` (default) | every render camera made by `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users); a scene Camera with `DepthMapping = Radial` (game and editor runtime view); a camera preview that asks for it | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
+| `Standard` | an explicit choice: a scene Camera's `DepthMapping` default, the editor's isolated previews and camera thumbnails (they hand the renderer a matrix), and the pinned standard frames | standard `VSMain` | hyperbolic depth of the perspective projection |
 | `RadialObserver` | an observer inset (camera preview pass) | `RadialObserverVSMain` maps positions around the centre camera | raster depth of the mapped triangles |
 
 ## Curve
