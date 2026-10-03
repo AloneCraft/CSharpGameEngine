@@ -259,9 +259,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `CreatePerspectiveFieldOfView`)はRUF化していない(Rendering境界は依然未確定、
     Spatial-RUF.md参照)。`BuildViewMatrix`静的ヘルパーを新設し`ModelRenderer`と共有する。
 - Conformance: Matches
-- Known deviations: `GetFlatRight()`の符号がRUFの`RightFromUpForward`(Handedness反映済み)と
-  数式として一致することは確認済みだが、実機での前後左右の直感一致は依然未確認(ADR-0016/ADR-0026参照)。
-- Next action: 実機確認で符号が逆であれば反転する。
+- Known deviations: `GetFlatRight()`はRUFの+R(`RightFromUpForward`)を返す。`GetView`は右手系の
+  `CreateLookAt`なので、+Fを向いたカメラでは+Rが画面の左に見える(画面の右はForward×Up=−R)。
+  `ApplyMouseDelta`/`GetFlatRight`を使うランタイムの経路は無く(2026-10-04確認、テストのみが呼ぶ)、
+  ThirdPersonの移動・視点入力は`CSharpGameEngine.Runtime.Character`が画面の右を使って扱う
+  (2026-10-01 eebdf4b、実機で左右の反転を確認して修正)。
+- Next action: 無し。これらのヘルパーを入力に使う場合は、画面の右として−Rを使う。
 
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
