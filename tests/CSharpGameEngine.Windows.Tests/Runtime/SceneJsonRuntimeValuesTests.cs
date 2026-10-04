@@ -35,6 +35,11 @@ public sealed class SceneJsonRuntimeValuesTests {
         [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)] public float PitchDegrees;
         public float Pitch;
     }
+    public struct Measures {
+        public decimal Price;
+        public double Ratio;
+        public float Speed;
+    }
     public readonly struct Cone([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)]float OuterDegrees) {
         public float OuterDegrees { get; }=OuterDegrees;
     }
@@ -119,6 +124,20 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Mode": "Dim" }"""),"Sample"));
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Small": 300 }"""),"Sample"));
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Missing": 1 }"""),"Sample"));
+    }
+
+    /// <summary>
+    /// A number reads as the generator's literal of it does: a decimal takes an exponent (<c>1.5e3m</c> compiles), and a
+    /// number beyond its member's type is a build error (SCENE203), so it does not fit here rather than becoming infinity.
+    /// </summary>
+    [Fact]
+    public void Numbers_ReadAsTheGeneratedLiteralsDo(){
+        var Value=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),
+            SceneJsonReader.Parse("""{ "Price": 1.5e3, "Ratio": 2E-3, "Speed": 1e-2 }"""),"Measures");
+        Assert.Equal((1.5e3m,2E-3d,1e-2f),(Value.Price,Value.Ratio,Value.Speed));
+        foreach(var Json in new[]{"""{ "Speed": 1e39 }""","""{ "Ratio": 1e400 }""","""{ "Price": 1e29 }"""}){
+            Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Measures),SceneJsonReader.Parse(Json),"Measures"));
+        }
     }
 
     /// <summary>ADR-0074 version 3: an angle's key may leave out the C# unit word, as the generator reads it.</summary>

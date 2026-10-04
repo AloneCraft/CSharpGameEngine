@@ -75,7 +75,17 @@ internal static class SceneJsonRuntimeValues {
 
     private static object Number(Type Type,string Text,string Where){
         IFormatProvider Culture=CultureInfo.InvariantCulture;
-        if(!Type.IsEnum&&Type.IsPrimitive&&Type!=typeof(bool)&&Type!=typeof(char)||Type.GetTypeCode(Type)==TypeCode.Decimal){
+        // A real reads as the generator's literal of it does: with an exponent (Convert rejects one for decimal), and a
+        // number beyond the type is a build error (SCENE203), which .NET's parse would read as infinity.
+        if(Type==typeof(float)){
+            return float.TryParse(Text,RealStyles,Culture,out var Single)&&float.IsFinite(Single)
+                ?Single
+                :throw Mismatch(Where,Type,"the number is beyond the range of float");
+        }
+        if(Type.GetTypeCode(Type) is TypeCode.Double or TypeCode.Decimal){
+            return Real(Type,Text)??throw Mismatch(Where,Type,"the number is beyond the range of "+Type.Name);
+        }
+        if(!Type.IsEnum&&Type.IsPrimitive&&Type!=typeof(bool)&&Type!=typeof(char)){
             try {
                 return Convert.ChangeType(Text,Type,Culture);
             } catch(Exception Error)when(Error is FormatException or OverflowException or InvalidCastException){
@@ -92,6 +102,20 @@ internal static class SceneJsonRuntimeValues {
             }
         }
         throw Mismatch(Where,Type,"a number needs a numeric member or a type convertible from float");
+    }
+
+    /// <summary>A JSON number's styles, as the compiler reads the generator's real literal (its minus sign is a separate token).</summary>
+    private const NumberStyles RealStyles=NumberStyles.AllowLeadingSign|NumberStyles.AllowDecimalPoint|NumberStyles.AllowExponent;
+
+    /// <summary>A finite double or a decimal from a JSON number, or null when the type cannot hold it.</summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static object?Real(Type Type,string Text){
+        if(Type.GetTypeCode(Type)==TypeCode.Decimal){
+            return decimal.TryParse(Text,RealStyles,CultureInfo.InvariantCulture,out var Decimal)?Decimal:null;
+        }
+        return double.TryParse(Text,RealStyles,CultureInfo.InvariantCulture,out var Double)&&double.IsFinite(Double)?Double:null;
     }
 
     private static object Collection(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
