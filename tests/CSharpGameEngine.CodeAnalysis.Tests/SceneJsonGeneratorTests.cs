@@ -182,6 +182,64 @@ public sealed class SceneJsonGeneratorTests {
             Condition.Get("if")!.Get("properties")!.Get("type")!.Get("const")!.Text=="Sample.Light"
             &&Condition.Get("then")!.Get("properties")!.Get("members")!.Get("$ref")!.Text=="#/definitions/type:Sample.Light");
     }
+    /// <summary>
+    /// A <c>ulong</c> member takes the whole range: the converter writes it, the document builds the same value, the
+    /// Scene Designer reads it back unchanged, a negative number is an error and the schema calls it an integer. The
+    /// JSON reader used to reject every ulong value that the converter and the Inspector write.
+    /// </summary>
+    [Fact]
+    public void UInt64Member_ConvertsAndBuildsItsWholeRange(){
+        const string Counter="""
+            namespace Sample {
+                public struct Counter { public ulong Big; public ulong Small; }
+                internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                    public bool Update(ref Counter counter, ref CSharpGameEngine.Entities.State state) => true;
+                }
+            }
+            """;
+        const string Scene="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Components=[new Sample.Counter { Big=18446744073709551615UL,Small=5UL }] };
+            }
+            """;
+        const string CounterDriver="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public static class Driver {
+                public static string Describe(){
+                    World World=new();
+                    Entity Root=World.GetSceneRoot(World.InstantiateScene<MainScene>());
+                    return World.TryGetComponent(Root,out Sample.Counter C)?C.Big+"|"+C.Small:"missing component";
+                }
+            }
+            """;
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Counter,Scene]);
+        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Compilation.GetTypeByMetadataName("Game.MainScene")!,Compilation,CancellationToken.None);
+        var Converted=CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,null);
+        Assert.Empty(Converted.Problems);
+        var Json=Converted.Text!;
+        Assert.Contains("\"Big\": 18446744073709551615",Json);
+
+        Assert.Empty(Analyze(Json,Counter));
+        var Built=GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Counter,CounterDriver]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+        Assert.Equal("18446744073709551615|5",Describe(Built));
+        var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Counter]);
+        var Designer=Base.AddSyntaxTrees(Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+            CSharpGameEngine.SceneAnalysis.Json.SceneJsonDesignerSource.Build(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base))!,
+            (Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)Base.SyntaxTrees.First().Options));
+        var DesignerModel=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Designer.GetTypeByMetadataName("Game.MainScene")!,Designer,CancellationToken.None);
+        Assert.False(DesignerModel.HasErrors,string.Join("\n",DesignerModel.Diagnostics));
+        Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(DesignerModel,null).Text);
+        Assert.Equal("SCENE203",Assert.Single(Analyze(Json.Replace("\"Small\": 5","\"Small\": -1"),Counter)).Id);
+        Assert.Equal("SCENE203",Assert.Single(Analyze(Json.Replace("18446744073709551615","18446744073709551616"),Counter)).Id);
+        var Schema=CSharpGameEngine.SceneAnalysis.Json.SceneJsonReader.Parse(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Counter])));
+        Assert.Equal("integer",Schema.Get("definitions")!.Get("type:Sample.Counter")!.Get("properties")!.Get("Big")!.Get("type")!.Text);
+    }
     [Fact]
     public void Generator_EmbedsTheSchemaAsAConstant(){
         var Result=GameSystemGeneratorTestHelper.RunGenerator(GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]),[]);

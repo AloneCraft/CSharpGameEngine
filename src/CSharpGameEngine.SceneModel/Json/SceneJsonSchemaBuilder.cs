@@ -152,7 +152,8 @@ internal static class SceneJsonSchemaBuilder {
             case SpecialType.System_UInt16:
             case SpecialType.System_Int32:
             case SpecialType.System_UInt32:
-            case SpecialType.System_Int64:return Typed("integer");
+            case SpecialType.System_Int64:
+            case SpecialType.System_UInt64:return Typed("integer");
         }
         if(Type is IArrayTypeSymbol Array){
             return SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Array.ElementType,Compilation,Definitions,Defined));

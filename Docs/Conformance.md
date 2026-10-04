@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — シーン JSON が ulong のメンバーを一切読めなかった
+- 意図: ADR-0070「シーン JSON は C# のシーンと同じシーンへコンパイルされる」。C# → JSON の変換器と Inspector は ulong を扱う（変換器は数値で書き、Inspector は `5UL` を書く）。
+- 観測（Fact）: ulong のメンバーは JSON の値の読み取りに無く、どの数値も SCENE203「a number needs a numeric member or a type convertible from float」になった。C# のシーンを変換した JSON や、JSON のシーンを Inspector で編集した結果がビルドできなかった。スキーマも ulong を整数として載せていなかった。整数の読み取りには ulong の上半分（long を超える値）だけのための分岐があり、対応するつもりで漏れていたと考えられる（推測）。
+- 実装: JSON の読み取りとスキーマに ulong を足した（0〜18446744073709551615、負の数と超過は SCENE203）。
+- 自動化された証拠: `SceneJsonGeneratorTests.UInt64Member_ConvertsAndBuildsItsWholeRange`（変換、ビルドした値、Scene Designer 経由の往復、範囲外、スキーマ。修正前は SCENE203 で失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — double と decimal の範囲外の数値が生成コードのコンパイルエラーになっていた
 - 意図: ADR-0070「SCENE203 はコンパイラーが拒否する値も含む。値を落として生成しない」。float の範囲外はすでに SCENE203 だった。
 - 観測（Fact）: double のメンバーに `1e400`、decimal のメンバーに `1e30` を書くと、シーンの診断は出ず、生成された `Game.MainScene.Scene.g.cs` が CS0594（浮動小数点定数が型の範囲外）になった。

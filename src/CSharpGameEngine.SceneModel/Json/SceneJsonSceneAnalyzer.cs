@@ -492,6 +492,7 @@ internal static class SceneJsonSceneAnalyzer {
             case SpecialType.System_Int32:return IntegerLiteral(Value,int.MinValue,(ulong)int.MaxValue,string.Empty,Mismatch);
             case SpecialType.System_UInt32:return IntegerLiteral(Value,uint.MinValue,uint.MaxValue,"(uint)",Mismatch);
             case SpecialType.System_Int64:return IntegerLiteral(Value,long.MinValue,(ulong)long.MaxValue,"(long)",Mismatch);
+            case SpecialType.System_UInt64:return IntegerLiteral(Value,0,ulong.MaxValue,"(ulong)",Mismatch);
         }
         if(Value.Kind==SceneJsonKind.Number){
             var Single=Compilation.GetSpecialType(SpecialType.System_Single);
