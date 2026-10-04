@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 生成コードが作れないオブジェクトがシーンの診断なしにコンパイルエラーになった
+- 意図: ADR-0070。実行時かコンパイラーが拒む値は、生成されたファイルではなく JSON の位置の SCENE203 にする（同日のコレクションの修正の続き）。
+- 観測（Fact）: オブジェクトは `new T(...) { ... }` として書かれる。入れ子のメンバーの型ごとに確かめたところ、`required` メンバーを省いた値（CS9035）、公開の引数なしコンストラクターが無いクラスでコンストラクターの引数を名指さない値（CS7036、非公開なら CS0122）、抽象クラス（CS0144）、`[Obsolete(..., true)]` のメンバーの設定（CS0619）が、シーンの診断なしに生成ファイルのコンパイルエラーになった。`ref`・`out` の引数を持つコンストラクターも、キーが引数名と一致すると選ばれて CS1620 になった。読み取り専用・get だけ・private set・static・const のメンバーやインデクサーは従来どおり SCENE202、init のメンバー・基底クラスのメンバー・ジェネリック型・省略可能な引数・params・in の引数はビルドできる。
+- 実装: 解析器は、抽象型を SCENE203 にし、コンストラクターを選ばないときに公開の引数なしコンストラクターがあるか、`[SetsRequiredMembers]` でないコンストラクターなら required メンバーがすべて代入されるか、型・メンバー・列挙子が error 指定の Obsolete でないかを確かめる。`ref`・`out`（と ref readonly）の引数や error 指定の Obsolete を持つコンストラクターは選ばない（メンバーへの代入になる）。ADR-0070 の SCENE203 の例に追記した。警告指定の Obsolete（CS0618）は、利用者のプロジェクトが警告をエラーにしていればビルドを止めるが、今回は扱っていない。
+- 自動化された証拠: `SceneJsonGeneratorTests.ObjectsTheGeneratedCodeCannotCreate_AreErrorsAtTheirJsonPosition`（修正前は有効な文書のビルドが CS1620 で失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — ランタイムビューが HashSet を拒み、ReadOnlyCollection・ImmutableList のメンバーでセッションごと終わり得た
 - 意図: ADR-0070 の決定 6。ランタイムビューはシーン JSON を生成器と同じ規則で読む。型が受け付けない値は「合わない値」（`InvalidOperationException`）として飛ばし、ビューは続く。
 - 観測（Fact）: `SceneJsonRuntimeValues` は JSON の配列を、配列で代入できる型と `ImmutableArray` 以外では `Activator.CreateInstance` で作って `IList` として詰めていた。生成器のコレクション式がビルドする `HashSet<T>`・`SortedSet<T>` は `IList` でないため合わない値になり、引数なしコンストラクターの無い `ReadOnlyCollection<T>`・`ImmutableList<T>` は `MissingMethodException` を投げた。`ApplySceneDocument` は `InvalidOperationException` しか捕まえないので、例外はランタイムビューの外へ出る（同日のテストで、生成器の受け付ける各型を確認）。オブジェクトの生成でも、引数なしコンストラクターの無いクラスで同じ例外が出得た。

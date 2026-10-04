@@ -290,6 +290,7 @@ internal static class SceneJsonSceneAnalyzer {
         var Properties=Value?.Properties??Array.Empty<SceneJsonProperty>();
         var Keys=new HashSet<string>(Properties.Select(static Property=>Property.Name),StringComparer.Ordinal);
         var Constructor=ChooseConstructor(Type,Keys);
+        var ProblemsBefore=Problems.Count;
         var Arguments=new List<string>();
         var Consumed=new HashSet<string>(StringComparer.Ordinal);
         // An angle named by both its C# name and its unit-free key is reported and set from the first of the two.
@@ -363,15 +364,53 @@ internal static class SceneJsonSceneAnalyzer {
                 ReportSameTarget(Earlier,Property,MemberSymbol.Name);
                 continue;
             }
+            if(IsObsoleteError(MemberSymbol)){
+                Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.ValueMismatch,Property.Value.Start,Property.Value.End,DisplayName+"."+Property.Name,
+                    MemberType.ToDisplayString(),$"'{MemberSymbol.Name}' is obsolete and cannot be set"));
+                continue;
+            }
             SeenMembers.Add(MemberSymbol.Name,Property.Name);
             RecordKey(Property,KeyOf(MemberSymbol));
             Assignments.Add(Identifier(MemberSymbol.Name)+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                 Angles,Unit??AngleUnitOf(MemberSymbol)));
         }
+        // new T(...) { ... } must compile: the generated file is no place for the error. Said only when nothing else was.
+        if(Value is not null&&Problems.Count==ProblemsBefore&&CreationProblem(Type,Constructor,SeenMembers) is { }Reason){
+            Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.ValueMismatch,Value.Start,Value.End,DisplayName,Type.ToDisplayString(),Reason));
+        }
         var Builder=new StringBuilder("new ").Append(TypeText).Append('(').Append(string.Join(", ",Arguments)).Append(')');
         if(Assignments.Count>0){ Builder.Append(" { ").Append(string.Join(", ",Assignments)).Append(" }"); }
         return Builder.ToString();
     }
+    /// <summary>
+    /// Why <c>new T(...) { ... }</c> would not compile, or null: an obsolete-as-error type, no constructor to call without
+    /// arguments when no constructor was chosen (CS7036, CS0122), or a required member the initializer leaves out (CS9035).
+    /// </summary>
+    private static string?CreationProblem(INamedTypeSymbol Type,IMethodSymbol?Constructor,Dictionary<string,string>SetMembers){
+        if(IsObsoleteError(Type)){ return "the type is obsolete and cannot be created"; }
+        if(Constructor is null&&!Type.InstanceConstructors.Any(static Candidate=>Candidate.DeclaredAccessibility==Accessibility.Public
+            &&IsCallableWithValues(Candidate)&&Candidate.Parameters.All(static Parameter=>Parameter.IsOptional))){
+            return "the type has no public constructor without parameters; name the parameters of one of its public constructors";
+        }
+        if(Constructor?.GetAttributes().Any(static Attribute=>
+            Attribute.AttributeClass?.ToDisplayString()=="System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute")==true){
+            return null;
+        }
+        for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
+            foreach(var Member in Current.GetMembers()){
+                if(Member is IFieldSymbol{ IsRequired:true } or IPropertySymbol{ IsRequired:true }&&!SetMembers.ContainsKey(Member.Name)){
+                    return $"the required member '{KeyOf(Member)}' needs a value";
+                }
+            }
+        }
+        return null;
+    }
+    private static bool IsCallableWithValues(IMethodSymbol Constructor)=>
+        !IsObsoleteError(Constructor)&&Constructor.Parameters.All(static Parameter=>Parameter.RefKind is RefKind.None or RefKind.In);
+    /// <summary>Whether a use of the symbol is a compile error: <c>[Obsolete(message, true)]</c>.</summary>
+    private static bool IsObsoleteError(ISymbol Symbol)=>Symbol.GetAttributes().Any(static Attribute=>
+        Attribute.AttributeClass?.ToDisplayString()=="System.ObsoleteAttribute"&&Attribute.ConstructorArguments.Length==2
+        &&Attribute.ConstructorArguments[1].Value is true);
     /// <summary>
     /// The public constructor whose parameters are all named by the keys (or have defaults) and that
     /// consumes the most keys. A parameterless constructor (implicit for structs) consumes none.
@@ -380,7 +419,8 @@ internal static class SceneJsonSceneAnalyzer {
         IMethodSymbol?Best=null;
         var BestCount=-1;
         foreach(var Candidate in Type.InstanceConstructors){
-            if(Candidate.DeclaredAccessibility!=Accessibility.Public){ continue; }
+            // A ref or out parameter cannot take a named value argument (CS1620), nor can an obsolete-as-error one be called.
+            if(Candidate.DeclaredAccessibility!=Accessibility.Public||!IsCallableWithValues(Candidate)){ continue; }
             var Count=0;
             var Usable=true;
             foreach(var Parameter in Candidate.Parameters){
@@ -475,7 +515,9 @@ internal static class SceneJsonSceneAnalyzer {
         if(Type.TypeKind==TypeKind.Enum){
             if(Value.Kind!=SceneJsonKind.String){ return Mismatch("an enum value is written as the member name string"); }
             var Member=Type.GetMembers(Value.Text!).OfType<IFieldSymbol>().FirstOrDefault(static Field=>Field.HasConstantValue);
-            return Member is null?Mismatch($"'{Value.Text}' is not a member of the enum"):SceneTypePredicates.ToFullyQualifiedName(Type)+"."+Identifier(Member.Name);
+            if(Member is null){ return Mismatch($"'{Value.Text}' is not a member of the enum"); }
+            if(IsObsoleteError(Member)){ return Mismatch($"'{Value.Text}' is obsolete and cannot be used"); }
+            return SceneTypePredicates.ToFullyQualifiedName(Type)+"."+Identifier(Member.Name);
         }
         switch(Type.SpecialType){
             case SpecialType.System_Boolean:
@@ -526,6 +568,7 @@ internal static class SceneJsonSceneAnalyzer {
         if(Value.Kind==SceneJsonKind.Object&&Type is INamedTypeSymbol Named&&Named.TypeKind is TypeKind.Struct or TypeKind.Class){
             // An object is emitted as new T(...) { ... }, which C# does not allow for a tuple type.
             if(Named.IsTupleType){ return Mismatch("a tuple cannot be written in scene JSON; use a struct with named members"); }
+            if(Named.IsAbstract){ return Mismatch("an abstract type cannot be created; use a concrete type"); }
             return ObjectExpression(Named,Value,MemberName,Compilation,Problems,Angles,Unit);
         }
         return Mismatch("this JSON value cannot be converted to the member's type");

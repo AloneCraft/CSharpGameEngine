@@ -526,6 +526,55 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
         Assert.Equal(Json.IndexOf(Member,StringComparison.Ordinal)+Member.IndexOf(": ",StringComparison.Ordinal)+2,Diagnostic.Location.SourceSpan.Start);
     }
+    private const string NestComponents="""
+        namespace Sample {
+            public struct Nest { public Must Must; public NoDefault Plain; public Shape Shape; public Old Old; public ByRef ByRef; }
+            public struct Must { public required int A; public int B; }
+            public sealed class NoDefault { public NoDefault(int A){ this.A=A; } public int A; }
+            public abstract class Shape { public int A; }
+            public struct Old { [System.Obsolete("Use B.",true)] public int A; public int B; }
+            public struct ByRef { public ByRef(ref int A){ this.A=A; } public int A; }
+            internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                public bool Update(ref Nest nest, ref CSharpGameEngine.Entities.State state) => true;
+            }
+        }
+        """;
+    private const string NestScene="""
+        {
+          "schemaVersion": 3,
+          "namespace": "Game",
+          "className": "MainScene",
+          "root": {
+            "id": "7c0c2c9e-6c56-4f46-9d0f-0c6f2c8f0001",
+            "name": "Root",
+            "components": [
+              { "type": "Sample.Nest", "members": { "Must": { "A": 1 }, "Plain": { "A": 2 }, "Old": { "B": 3 }, "ByRef": { "A": 4 } } }
+            ],
+            "children": []
+          }
+        }
+        """;
+    /// <summary>
+    /// An object is emitted as <c>new T(...) { ... }</c>, which did not compile, with no scene diagnostic, for a required
+    /// member left out (CS9035), a class without a public parameterless constructor (CS7036, CS0122), an abstract class
+    /// (CS0144) or an obsolete-as-error member (CS0619); they are SCENE203 at the value. A constructor with a ref
+    /// parameter was chosen for its key (CS1620); it is skipped, so the member is set instead.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Must\": { \"A\": 1 }","\"Must\": { \"B\": 1 }","the required member 'A' needs a value")]
+    [InlineData("\"Plain\": { \"A\": 2 }","\"Plain\": { }","no public constructor without parameters")]
+    [InlineData("\"Old\": { \"B\": 3 }","\"Old\": { \"A\": 3 }","'A' is obsolete")]
+    [InlineData("\"ByRef\": { \"A\": 4 }","\"ByRef\": { \"A\": 4 }, \"Shape\": { \"A\": 5 }","an abstract type cannot be created")]
+    public void ObjectsTheGeneratedCodeCannotCreate_AreErrorsAtTheirJsonPosition(string Original,string Replacement,string Reason){
+        Assert.Empty(Analyze(NestScene,NestComponents));
+        GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,NestComponents]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",NestScene)]);
+        Assert.Contains(Original,NestScene);
+        var Diagnostic=Assert.Single(Analyze(NestScene.Replace(Original,Replacement),NestComponents));
+        Assert.Equal("SCENE203",Diagnostic.Id);
+        Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
+    }
     /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {
