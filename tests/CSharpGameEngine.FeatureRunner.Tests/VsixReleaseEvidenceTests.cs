@@ -201,6 +201,19 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
     }
 
     [Fact]
+    public void FrozenInputWhosePackageIsNotInTheCheckoutSaysHowToFreezeOne(){
+        // The input document is tracked, but its package lives in the local .artifacts store (a fresh clone has none).
+        this.CreateInputsAndEvidence();
+        Directory.Delete(Path.Combine(this.Root,".artifacts","VsixReleaseInputs"),true);
+
+        var Missing=Assert.Throws<FileNotFoundException>(()=>
+            VsixReleaseEvidence.ReadCurrentPackage(this.Root,"Release"));
+
+        Assert.Contains(".artifacts/VsixReleaseInputs/",Missing.Message,StringComparison.Ordinal);
+        Assert.Contains("freeze-vsix-release-input",Missing.Message,StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CorruptFrozenInputIsRejected(){
         this.CreateInputsAndEvidence();
         VsixReleasePackage Package=VsixReleaseEvidence.ReadCurrentPackage(
