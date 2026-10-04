@@ -43,6 +43,8 @@ public sealed class SceneJsonCommitPlannerTests {
             [System.Flags]
             public enum Layers { None=0, A=1, B=2 }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public record struct Tuning(float Gain,LightMode Mode);
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Counters { public byte Tiny; public sbyte Signed; public short Small; public ushort Port; public int Count; public uint Big; public long Wide; public ulong Huge; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Lettered() { public char Letter='x'; public float Size=1.5f; }
@@ -418,6 +420,24 @@ public sealed class SceneJsonCommitPlannerTests {
             Candidate=>Candidate.MemberName==Name);
         var Edit=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Member,Expression),Seed.Reconciler,CancellationToken.None);
         Assert.False(Edit.Succeeded);
+    }
+    /// <summary>
+    /// A component written with constructor arguments (a positional record: scene JSON names the constructor's
+    /// parameters) shows each argument as a read-only row named by its key, as a nested value's arguments are shown.
+    /// The Inspector showed such a component with no rows at all, as if the document held no value for it.
+    /// </summary>
+    [Fact]
+    public void ConstructorArguments_AreShownReadOnly(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Tuning\",\n            \"members\": {\n              \"Gain\": 0.25,\n              \"Mode\": \"Bright\"\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Members=SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid()));
+        Assert.Equal(["Gain","Mode"],Members.Select(static Member=>Member.DisplayName));
+        Assert.Equal(["0.25f","global::CSharpGameEngine.Runtime.Windows.LightMode.Bright"],Members.Select(static Member=>Member.SourceExpression));
+        Assert.All(Members,static Member=>Assert.False(Member.IsEditable));
+        Assert.All(Members,static Member=>Assert.Equal(InspectorEditorKind.ReadOnly,Member.EditorKind));
     }
     [Fact]
     public void Move_KeepsDoubleMembersAsWritten(){

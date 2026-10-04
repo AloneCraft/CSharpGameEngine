@@ -260,8 +260,23 @@ internal static class SceneInspectorModelBuilder {
             NodeId,
             Component.TypeFullyQualifiedName,
             SceneInspectorTypeName.Simplify(Component.TypeFullyQualifiedName),
-            Component.Members.Select(Member=>
-                BuildRow(NodeId,Component.TypeFullyQualifiedName,[],Member,AllowEdit:true)).ToArray())).ToArray();
+            ConstructorArgumentRows(NodeId,Component).Concat(Component.Members.Select(Member=>
+                BuildRow(NodeId,Component.TypeFullyQualifiedName,[],Member,AllowEdit:true))).ToArray())).ToArray();
+    }
+
+    /// <summary>
+    /// A component written with constructor arguments (scene JSON names a constructor's parameters, as for a positional
+    /// record) shows each argument read-only, named by its parameter, as a nested value's arguments are: the edit
+    /// path sets initializer members only, so these are edited in the JSON view.
+    /// </summary>
+    private static IEnumerable<SceneInspectorRow>ConstructorArgumentRows(EditorNodeId NodeId,SceneComponent Component){
+        var Labels=ResolveArgumentLabels(Component.TypeSymbol,Component.ConstructorArguments.Length,out var Parameters);
+        for(var Index=0;Index<Component.ConstructorArguments.Length;Index++){
+            var Argument=Component.ConstructorArguments[Index];
+            yield return BuildRow(NodeId,Component.TypeFullyQualifiedName,[],new SceneComponentMember(Labels[Index],MemberSymbol:null,Argument,Argument.Location),
+                AllowEdit:false,Parameters.Count>Index?SceneJsonSceneAnalyzer.AngleUnitOf(Parameters[Index]):null,
+                Parameters.Count>Index?SceneJsonSceneAnalyzer.KeyOf(Parameters[Index]):null);
+        }
     }
 
     /// <summary>
