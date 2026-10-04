@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — システムのコードページに無い文字を含むパスの FBX を取り込めなかった
+- 意図: [ADR-0009](Decisions/ADR-0009-Fbx-Model-Import.md) の FBX 取り込み。利用者のフォルダー名やファイル名は日本語や空白を含むことがある。
+- 観測（Fact）: AssimpNet 4.1.0 はファイル名を `LPStr`（Windows では ANSI のコードページ）でネイティブへ渡す。日本語ロケールのこの PC では日本語のパスは通ったが、CP932 に無いハングルを含むパスでは Assimp が `"…\箱 ?? ??.fbx"` を開こうとして「Unable to open file」で失敗した。英語版 Windows（CI の windows-2022 を含む）では、日本語を含むパスがすべて同じように失敗する。glTF（SharpGLTF、マネージド）は日本語と空白を含むパーセントエンコードの URI でも生の URI でも取り込めた。
+- 実装: ファイルを開いて内容を `ImportFileFromStream` で渡す（拡張子を形式のヒント）。取り込みは FBX ファイル単体だけを読み、外部のテクスチャを使わないので、名前による解決は要らない。
+- 自動化された証拠: `FbxImporterTests.Import_BoxFbx_FromAPathOutsideTheAnsiCodePage_Succeeds`（日本語とハングルのパス。修正前は上の失敗）。既存の FBX のテストもすべて合格（Import.Tests 64 件）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 常駐ブリッジが待機時間の後に届いた要求を応答せずに切っていた（AUD-003 の退行）
 - 意図: ADR-0023「新しい接続が無いまま待機時間が過ぎたら受付をやめ、受け付けた要求を処理してから終わる」。AUD-003（同日）「要求の受信はサーバーの寿命と 30 秒の受信期限で終わる」。
 - 観測（Fact）: クリーンな checkout の Release のテスト実行（`verification.clean-build`）で `BridgeServerHostTests.IdleTimeout_DrainsAcceptedRequestBeforeExit` が失敗した（Debug では合格）。AUD-003 の修正は要求の受信を待機時間のトークンで打ち切っていたので、接続の後に待機時間（テストでは 50 ms）より遅れて届いた要求は、受信が取り消されて応答なしに切られた。接続してから 300 ms 待って要求を送ると、毎回 `Pipe is broken` になった。

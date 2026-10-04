@@ -20,6 +20,28 @@ public class FbxImporterTests {
         }
     }
 
+    /// <summary>
+    /// A path no single ANSI code page holds (Japanese and Korean names, or a Japanese folder on an English Windows)
+    /// imports. AssimpNet hands a file name to the native importer as an ANSI string, which turned such names into "?"
+    /// ("Unable to open file").
+    /// </summary>
+    [Fact]
+    public void Import_BoxFbx_FromAPathOutsideTheAnsiCodePage_Succeeds(){
+        var Folder=Path.Combine(Path.GetTempPath(),"cge 日本語 "+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Folder);
+        try {
+            var Path_=Path.Combine(Folder,"箱 한글 모델.fbx");
+            File.Copy(FixturePath("Box.fbx"),Path_);
+
+            var Result=FbxImporter.Import(Path_);
+
+            Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
+            Assert.True(Result.Mesh!.Indices.Count>0);
+        } finally {
+            Directory.Delete(Folder,true);
+        }
+    }
+
     [Fact]
     public void Import_BoxFbx_BoundingBox_IsPlausible(){
         var Result=FbxImporter.Import(FixturePath("Box.fbx"));

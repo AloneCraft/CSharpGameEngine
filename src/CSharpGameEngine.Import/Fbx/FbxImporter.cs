@@ -44,9 +44,14 @@ public static class FbxImporter {
 
             using AssimpContext Context=new();
             try {
-                Scene=Context.ImportFile(
-                    FullPath,
-                    PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.JoinIdenticalVertices);
+                // AssimpNet hands a file name to the native importer as an ANSI string, so a path outside the system code
+                // page (a Japanese folder on an English Windows) arrived as "?" and did not open. The importer reads the
+                // FBX file alone (no external textures), so it is given the file's bytes instead of its name.
+                using var Stream=File.OpenRead(FullPath);
+                Scene=Context.ImportFileFromStream(
+                    Stream,
+                    PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.JoinIdenticalVertices,
+                    Path.GetExtension(FullPath).TrimStart('.'));
             } catch(Exception Ex){
                 // Assimp has no single documented exhaustive exception list for malformed input; a
                 // bad file must never escape as an unhandled exception from this importer.

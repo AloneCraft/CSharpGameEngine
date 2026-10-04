@@ -30,14 +30,19 @@ glTF向けの純粋C#実装(`SharpGLTF.Core`)に相当する「依存ゼロで�
 ## 決定事項
 
 ### 1. `src/CSharpGameEngine.Import.Fbx`を新規作成(net10.0、`CSharpGameEngine.Import.Gltf`と同じ設計方針)
-`FbxImporter.Import(path)`は`AssimpContext.ImportFile`を`Triangulate | GenerateSmoothNormals |
-JoinIdenticalVertices`付きで呼び出し、最初のメッシュのposition/normal/uv/インデックス/
+`FbxImporter.Import(path)`はファイルを開いて`AssimpContext.ImportFileFromStream`(拡張子を形式のヒント)を
+`Triangulate | GenerateSmoothNormals | JoinIdenticalVertices`付きで呼び出し、最初のメッシュのposition/normal/uv/インデックス/
 diffuse色を抽出して、`Import.Gltf`と同形の`ImportedMesh`/`FbxImportResult`/
 `FbxImportDiagnostic`(独立した型、共有はしない)に詰めて返す。Assimpのネイティブログ出力
 (Error/Warning行)は`GltfImporter`と同じ契約で診断リストに集約し、コンソールへ直接書かない。
 
 スコープは意図的に最小限: 最初のメッシュのみ、シーングラフなし、マテリアルは拡散色のみ
 (テクスチャ抽出は今回の対象外、`BaseColorTextureBytes`は常に`null`)。
+
+(2026-10-04追記)ファイル名ではなく内容を渡す。AssimpNet 4.1.0 はファイル名を ANSI 文字列(LPStr)で
+ネイティブへ渡すので、システムのコードページに無い文字を含むパス(英語版 Windows の日本語フォルダーなど)は
+"?" に化けて開けなかった。FBX 単体だけを読む(外部テクスチャを使わない)ので、ストリームで足りる。
+テクスチャ抽出を足すときは、外部ファイルの解決に名前を使わない方法(自前の IOSystem など)が要る。
 
 ### 2. `Extension.csproj`に`RuntimeIdentifier`を追加(AssimpNetのネイティブDLL配置のため)
 NuGetは、消費側プロジェクトに明示的な`RuntimeIdentifier`が設定されている場合のみ、
