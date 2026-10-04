@@ -475,7 +475,7 @@ internal static class SceneJsonSceneAnalyzer {
         if(Type.TypeKind==TypeKind.Enum){
             if(Value.Kind!=SceneJsonKind.String){ return Mismatch("an enum value is written as the member name string"); }
             var Member=Type.GetMembers(Value.Text!).OfType<IFieldSymbol>().FirstOrDefault(static Field=>Field.HasConstantValue);
-            return Member is null?Mismatch($"'{Value.Text}' is not a member of the enum"):SceneTypePredicates.ToFullyQualifiedName(Type)+"."+Member.Name;
+            return Member is null?Mismatch($"'{Value.Text}' is not a member of the enum"):SceneTypePredicates.ToFullyQualifiedName(Type)+"."+Identifier(Member.Name);
         }
         switch(Type.SpecialType){
             case SpecialType.System_Boolean:
@@ -542,7 +542,7 @@ internal static class SceneJsonSceneAnalyzer {
         }
         return null;
     }
-    /// <summary>A member or parameter name as C# source: a reserved keyword (a field named <c>@class</c>) needs the verbatim prefix.</summary>
+    /// <summary>A member, parameter or enum member name as C# source: a reserved keyword (a field named <c>@class</c>) needs the verbatim prefix.</summary>
     private static string Identifier(string Name)=>SyntaxFacts.GetKeywordKind(Name)==SyntaxKind.None?Name:"@"+Name;
     /// <summary>2^63, the magnitude where a float stops fitting Q64.64's integer part (<c>LogicalScalar.TryFromSingle</c>).</summary>
     private const float LogicalScalarLimit=9.223372e18f;

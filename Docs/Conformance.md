@@ -10,8 +10,8 @@
 ## 2026-10-04 探索 — 予約語の名前のメンバーでシーン JSON の生成コードが壊れていた
 - 意図: ADR-0070「シーン JSON は C# のシーンと同じシーンへコンパイルされ、問題は JSON の位置のエラーになる」。
 - 観測（Fact）: `@class`・`@event` のフィールドや `@in`・`@out` のコンストラクター引数を持つコンポーネントを JSON シーンに書くと、生成コードが `new Sample.Odd { class = ... }` となり、CS1513 などのコンパイルエラーになった（シーンの診断は出ない）。古い M0002 の生成器で未対応とされていた識別子のエスケープが、今の JSON の経路にもなかった。C# のシーンの経路はソースの識別子（@ を含む）をそのまま使うので問題ない。
-- 実装: `SceneJsonSceneAnalyzer` が名前付き引数とメンバーの代入を書くとき、予約語には `@` を付ける。
-- 自動化された証拠: `SceneJsonKeywordMemberTests.MembersAndParametersNamedLikeKeywords_Build`（修正前はコンパイルエラー）。
+- 実装: `SceneJsonSceneAnalyzer` が名前付き引数・メンバーの代入・enum の値を書くとき、予約語には `@` を付ける（enum の値 `@default` は最初の修正で漏れていて、追加の探索で見つけた）。
+- 自動化された証拠: `SceneJsonKeywordMemberTests.MembersAndParametersNamedLikeKeywords_Build`（修正前はコンパイルエラー。enum の値も同じ）。
 - 結果: Matches。
 
 ## 2026-10-04 探索 — 要求の途中で止まったクライアントがホストの停止を妨げていた（監査 AUD-003）
