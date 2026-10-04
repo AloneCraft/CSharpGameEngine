@@ -100,7 +100,7 @@ internal static class SceneJsonCommitPlanner {
             return SceneSourceCommitPlan.Failure(Error);
         }
         var CanonicalProjection=Reconciler.Reconcile(Request.SceneKey,Canonical!,PredictedProjection);
-        var Changes=SceneTextChangePlanner.Plan(Context.Text,SourceText.From(NewText,Context.Text.Encoding));
+        var Changes=SceneTextChangePlanner.PlanMinimal(Context.Text,NewText);
         var WriteStep=new SceneTextWriteStep(Context.Text,Changes,SceneUndoTransactionNaming.Format(Request.UndoDescription));
         return SceneSourceCommitPlan.Success(Request.DocumentVersion!=Latest.DocumentVersion,Canonical!,CanonicalProjection,FinalRoot!,WriteStep);
     }

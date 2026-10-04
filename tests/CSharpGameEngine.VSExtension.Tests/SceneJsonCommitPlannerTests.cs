@@ -574,6 +574,21 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
+    /// <summary>
+    /// A write-back replaces only the edited text in the buffer: moving the Cube changes one character. The changes were
+    /// computed between unrelated texts, which gave one change over the whole document on every edit, so the JSON view
+    /// lost its place, folding and bookmarks each time (the flicker M0044 removed from the C# path).
+    /// </summary>
+    [Fact]
+    public void Move_ChangesOnlyTheEditedTextInTheBuffer(){
+        var Seed=CreateSeed(Document("1"),Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var Change=Assert.Single(Plan.WriteStep!.Changes);
+        Assert.Equal((Document("1").IndexOf("\"R\": 1,",StringComparison.Ordinal)+5,1,"3"),(Change.Span.Start,Change.Span.Length,Change.NewText));
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');

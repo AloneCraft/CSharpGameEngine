@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Designer の編集のたびに、VS の JSON バッファー全体が置き換わっていた
+- 意図: M0095 3-5a と M0044。書き戻しは変わった値だけを書き、VS のバッファーにも変わった範囲だけを適用する（全文置換は、ビューの位置が飛ぶちらつきの原因として M0044 で C# の経路から除いた）。
+- 観測（Fact）: JSON の書き戻しは、テキストのマージ（M0095）で差分を最小にした後、新旧のテキストの変更を `SourceText.GetTextChanges` で求めていた。血縁の無い 2 つのテキストでは、これはファイル全体を覆う 1 個の変更を返す（M0044 に記録済み）。Cube を動かしただけで変更は 983 文字中 983 文字になり、JSON ビューの位置・折りたたみ・ブックマークが編集のたびに失われ得た。コンポーネントのアイコンの編集（`ComponentIconGlyphMargin`）も同じだった。
+- 実装: 新旧のテキストの共通の先頭と末尾を除いた 1 個の変更を求める `SceneTextChangePlanner.PlanMinimal` を足し（CRLF とサロゲートペアの途中では区切らない）、両方の書き込みで使う。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_ChangesOnlyTheEditedTextInTheBuffer`（修正前は文書全体の 1 個の変更）、`SceneTextChangePlannerTests.PlanMinimal_ChangesOnlyTheDifferingMiddle`。
+- 結果: Matches。実際の VS のビューでの見た目は確かめていない（フォーカスを奪うため）。
+
 ## 2026-10-04 探索 — 文脈キーワードと同じ名前のシーンで、生成ファイルがコンパイルできなかった
 - 意図: ADR-0070。生成できないシーンは JSON の位置で報告し、生成しない。
 - 観測（Fact）: className は予約キーワード（`class` など）だけを拒んでいた。文脈キーワードを名前にすると、`var` は生成コードの暗黙の型の変数をシーンの型にして CS0029、`file`・`required` は修飾子として読まれて構文エラー、`scoped` はエラー（CS9062）、`record` は警告（CS8860）になり、いずれもシーンの診断は出なかった。
