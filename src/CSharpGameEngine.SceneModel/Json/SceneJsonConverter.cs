@@ -11,7 +11,7 @@ namespace CSharpGameEngine.SceneAnalysis.Json;
 /// document (ADR-0070 cutover). The document compiles to the same scene: a constructor call becomes an
 /// object keyed by the constructor's parameter names, member assignments add their member names, and
 /// constants, enum members and collections become JSON values. Values JSON cannot hold (non-constant
-/// static members, factory calls, unsupported syntax) are reported instead of guessed. The document is schema
+/// static members, factory calls, NaN and infinities, unsupported syntax) are reported instead of guessed. The document is schema
 /// version 3: every number inside an <c>[Angle]</c> member is written in turns, under the member's key without its
 /// C# unit word (ADR-0074).
 /// </summary>
@@ -124,7 +124,7 @@ internal static class SceneJsonConverter {
                     var Member=Value.Type.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(Field=>Field.HasConstantValue&&Equals(Field.ConstantValue,Value.ConstantValue));
                     if(Member is not null){ return SceneJsonOut.String(Member.Name); }
                 }
-                return Unit is { }AngleUnit&&Value.ConstantValue is float Angle
+                return Unit is { }AngleUnit&&Value.ConstantValue is float Angle&&!float.IsNaN(Angle)&&!float.IsInfinity(Angle)
                     ?SceneJsonOut.Number(SceneJsonAngles.FormatTurns(Angle,AngleUnit))
                     :Constant(Value.ConstantValue,Where,Problems);
         }
@@ -173,12 +173,17 @@ internal static class SceneJsonConverter {
             case null:return SceneJsonOut.Null();
             case bool Boolean:return SceneJsonOut.Boolean(Boolean);
             case string Text:return SceneJsonOut.String(Text);
-            case float Single:return SceneJsonOut.Number(SceneJsonNumbers.FormatSingle(Single));
+            case float Single when !float.IsNaN(Single)&&!float.IsInfinity(Single):return SceneJsonOut.Number(SceneJsonNumbers.FormatSingle(Single));
             case sbyte or byte or short or ushort or int or uint or long or ulong:
                 return SceneJsonOut.Number(((IFormattable)Value).ToString(null,CultureInfo.InvariantCulture));
-            case IFormattable Other:
-                // Double and decimal constants keep their round-trip text.
-                return SceneJsonOut.Number(Other.ToString("R",CultureInfo.InvariantCulture));
+            case IFormattable Other:{
+                // Double and decimal constants keep their round-trip text. NaN and the infinities (float or double) have
+                // none: a JSON number is finite.
+                var Text=Other.ToString("R",CultureInfo.InvariantCulture);
+                if(SceneJsonReader.IsNumber(Text)){ return SceneJsonOut.Number(Text); }
+                Problems.Add($"{Where}: {Text} has no JSON form; a JSON number is finite.");
+                return SceneJsonOut.Null();
+            }
         }
         Problems.Add($"{Where}: constant of type {Value.GetType().Name} has no JSON form.");
         return SceneJsonOut.Null();

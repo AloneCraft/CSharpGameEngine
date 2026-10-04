@@ -240,6 +240,41 @@ public sealed class SceneJsonGeneratorTests {
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Counter])));
         Assert.Equal("integer",Schema.Get("definitions")!.Get("type:Sample.Counter")!.Get("properties")!.Get("Big")!.Get("type")!.Text);
     }
+    /// <summary>
+    /// A C# constant without a JSON number (NaN, an infinity) is reported like any other value JSON cannot hold. The
+    /// converter used to throw for a float and to write an unreadable document for a double.
+    /// </summary>
+    [Theory]
+    [InlineData("Scale=2f","Scale=float.PositiveInfinity","Infinity")]
+    [InlineData("Scale=2f","Scale=float.NaN","NaN")]
+    [InlineData("Far=1e300","Far=double.NegativeInfinity","-Infinity")]
+    [InlineData("YawDegrees=90f","YawDegrees=float.NaN","NaN")]
+    public void Converter_ReportsANumberJsonCannotHold(string Original,string Replacement,string Text){
+        const string Lens="""
+            namespace Sample {
+                public struct Lens { public float Scale; public double Far; [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)] public float YawDegrees; }
+            }
+            """;
+        const string Scene="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Components=[new Sample.Lens { Scale=2f,Far=1e300,YawDegrees=90f }] };
+            }
+            """;
+        Assert.Empty(Convert(Scene).Problems);
+        var Converted=Convert(Scene.Replace(Original,Replacement));
+
+        Assert.Null(Converted.Text);
+        Assert.Contains(Text+" has no JSON form",Assert.Single(Converted.Problems));
+
+        CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Result Convert(string Source){
+            var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Lens,Source]);
+            var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Compilation.GetTypeByMetadataName("Game.MainScene")!,Compilation,CancellationToken.None);
+            Assert.False(Model.HasErrors,string.Join("\n",Model.Diagnostics));
+            return CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,null);
+        }
+    }
     [Fact]
     public void Generator_EmbedsTheSchemaAsAConstant(){
         var Result=GameSystemGeneratorTestHelper.RunGenerator(GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]),[]);

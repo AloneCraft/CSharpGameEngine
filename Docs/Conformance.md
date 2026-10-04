@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — C# のシーンの NaN と無限大で JSON への変換器が例外を投げていた
+- 意図: `SceneJsonConverter`「JSON に書けない値は推測せずに報告する」（ADR-0070 の移行、Scene Designer の書き戻し）。
+- 観測（Fact）: float のメンバーが `float.NaN`・`float.PositiveInfinity`（角度のメンバーも）だと `ArgumentOutOfRangeException` を投げた。double の `double.NaN`・`double.NegativeInfinity` は問題を報告せずに `NaN`・`-Infinity` を数値として書き、読み戻せない文書（JSON の数値ではない）を返した。decimal の定数は正しく書けていた（`"R"` 書式で例外になるという仮説は否定された）。
+- 実装: 書く数値の文字列が JSON の数値（`SceneJsonReader.IsNumber`）でなければ、その値を問題として報告し、文書を返さない。型に依らない判定にしたのは、製品コードで double を使わない（NUM001）ため。
+- 自動化された証拠: `SceneJsonGeneratorTests.Converter_ReportsANumberJsonCannotHold`（float・double・角度の 4 件。修正前は 4 件とも失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — シーン JSON が ulong のメンバーを一切読めなかった
 - 意図: ADR-0070「シーン JSON は C# のシーンと同じシーンへコンパイルされる」。C# → JSON の変換器と Inspector は ulong を扱う（変換器は数値で書き、Inspector は `5UL` を書く）。
 - 観測（Fact）: ulong のメンバーは JSON の値の読み取りに無く、どの数値も SCENE203「a number needs a numeric member or a type convertible from float」になった。C# のシーンを変換した JSON や、JSON のシーンを Inspector で編集した結果がビルドできなかった。スキーマも ulong を整数として載せていなかった。整数の読み取りには ulong の上半分（long を超える値）だけのための分岐があり、対応するつもりで漏れていたと考えられる（推測）。

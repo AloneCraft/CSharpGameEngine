@@ -18,6 +18,17 @@ internal static class SceneJsonReader {
         if(Position!=Text.Length){ throw new SceneJsonException("Unexpected text after the JSON value.",Position); }
         return Value;
     }
+    /// <summary>Whether <paramref name="Text"/> is exactly one JSON number (a double's NaN or infinity text is not).</summary>
+    internal static bool IsNumber(string Text){
+        if(string.IsNullOrEmpty(Text)){ return false; }
+        var Position=0;
+        try {
+            ReadNumber(Text,ref Position);
+        } catch(SceneJsonException){
+            return false;
+        }
+        return Position==Text.Length;
+    }
     /// <summary>1-based line and column of <paramref name="Position"/>, counting \n as the line break.</summary>
     internal static (int Line,int Column)LineAndColumn(string Text,int Position){
         var Line=1;
