@@ -1,5 +1,11 @@
 # Conformance
 
+## 2026-10-04 探索 — Scene Designer の書き戻しを実際のテンプレートのシーンで検証するテスト
+- 意図: 同日に直した Scene Designer の書き戻しの不具合（startupOrder の消失、VSIX の float の書き方、列挙型・文字列・LogicalScalar の編集、パレットの既定値）は、どれもスタブの型を使うテストでは見えず、実際のシーンとエンジンの型でしか再現しなかった。
+- 実装: `TemplateSceneEditingTests` は ThirdPerson テンプレートを、ビルドと同じコンパイル項目・定数・参照（`dotnet msbuild -getItem`）でコンパイルし、実際のシーンで Inspector の確定（同じ値はファイルを変えない、列挙型の別の選択はその 1 行だけ）、移動（Position の 1 行だけ、startupOrder を保つ）、パレットの全コンポーネントの追加を確かめる。`vsix.source-sync` が実行する。
+- 自動化された証拠: startupOrder の修正を一時的に戻すと 3 件中 2 件が失敗した。実行時間は約 16 秒。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — パレットからエンジンのコンポーネントの約半数をシーンに追加できなかった
 - 意図: [Editor-VSIX](Specifications/Editor-VSIX.md) のコンポーネント パレット（M0051）。追加したコンポーネントは宣言の既定値を持つ。
 - 観測（Fact）: 追加の初期値（`SceneComponentInitializerPolicy`）は既定値を C# の式の文字列として持ち、値は明示的な引数なしコンストラクターの代入からしか畳まなかった。エンジンのコンポーネントは主コンストラクター付き構造体のフィールド初期化子で既定値を持つので、float の既定値は値なしになり、変換器が JSON の `null` を書いて SCENE203 になった。列挙型の既定値は参照するフィールドが空で、変換器が `NullReferenceException` を投げた。実際のプロジェクトで、ThirdPerson の 37 種類中 17、UserEcsProject の 35 種類中 18 が追加できず（Transform、すべてのライト、SkyAtmosphere、CharacterMovement、Collider、RigidBody など）、C# のシーンの時代は式をそのまま書けたので表に出なかった。
