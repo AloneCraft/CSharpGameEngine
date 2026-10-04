@@ -168,6 +168,13 @@ internal static class SceneJsonConverter {
         }
         return Type.IsValueType?SceneJsonOut.Object():SceneJsonOut.Null();
     }
+    /// <summary>Whether <see cref="Constant"/> writes a C# constant as JSON (a char or a non-finite number has no form).</summary>
+    internal static bool HasJsonForm(object?Value)=>Value switch {
+        null or bool or string or sbyte or byte or short or ushort or int or uint or long or ulong=>true,
+        float Single=>!float.IsNaN(Single)&&!float.IsInfinity(Single),
+        IFormattable Other=>SceneJsonReader.IsNumber(SceneJsonNumbers.FormatOther(Other)),
+        _=>false,
+    };
     private static SceneJsonOut Constant(object?Value,string Where,List<string>Problems){
         switch(Value){
             case null:return SceneJsonOut.Null();

@@ -43,6 +43,8 @@ public sealed class SceneJsonCommitPlannerTests {
             [System.Flags]
             public enum Layers { None=0, A=1, B=2 }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Lettered() { public char Letter='x'; public float Size=1.5f; }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Route { public System.Collections.Generic.List<float> Speeds; public int[] Ids; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Tagged() {
@@ -344,6 +346,26 @@ public sealed class SceneJsonCommitPlannerTests {
             Seed.Reconciler,CancellationToken.None);
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
+    /// <summary>
+    /// A palette component's constant default that scene JSON cannot hold (a char) is left out, as any such default, so
+    /// the declared default applies at build. It was written as a constant the converter has no JSON form for, and the
+    /// whole add failed.
+    /// </summary>
+    [Fact]
+    public void PaletteComponent_LeavesOutAConstantJsonCannotHold(){
+        var Seed=CreateSeed(Document("1"),Version:1,Previous:null,new SceneProjectionReconciler());
+        var Type=Seed.Context.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Windows.Lettered")!;
+        var Initializer=SceneComponentInitializerPolicy.CreatePlan(Type,"global::CSharpGameEngine.Runtime.Windows.Lettered",Seed.Context.Compilation);
+        var Add=new AddComponentOperation(Key,Find(Seed.Snapshot,"Lamp"),Seed.Snapshot.DocumentVersion,"global::CSharpGameEngine.Runtime.Windows.Lettered",Initializer.Expression,Initializer.Members);
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Add Lettered",[],SceneTransformMemberMask.None,DirectOperations:[Add]),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
+        Assert.Contains("\"type\": \"CSharpGameEngine.Runtime.Windows.Lettered\"",After);
+        Assert.Contains("\"Size\": 1.5",After);
+        Assert.DoesNotContain("\"Letter\"",After);
     }
     [Fact]
     public void Move_KeepsDoubleMembersAsWritten(){

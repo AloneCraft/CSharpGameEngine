@@ -147,7 +147,8 @@ internal static class SceneComponentInitializerPolicy {
             return true;
         }
         if(Constant.HasValue&&(Constant.Value is not null||MemberType is not { IsValueType:true })){
-            Value=Literal(MemberType,Constant.Value,Text);
+            // A constant scene JSON cannot hold (a char, a NaN) is left out, as any default it cannot hold.
+            if(CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.HasJsonForm(Constant.Value)){ Value=Literal(MemberType,Constant.Value,Text); }
             return true;
         }
         if(Initializer is InvocationExpressionSyntax { ArgumentList.Arguments.Count:1 }Invocation
