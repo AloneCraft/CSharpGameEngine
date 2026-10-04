@@ -1,7 +1,8 @@
 # Scene Editor詳細設計(インタラクション基盤)
 
 本書は`Docs/シーンエディタの仕様.md`(要求仕様)を現行アーキテクチャへ写像したクラスレベルの
-詳細設計である。**全節の内容は計画済み(未実装)**。意思決定の根拠は
+詳細設計である。M0020 の Phase 0〜7(2026-08-16 完了)で実装した。M0020 が「意図的に除外したこと」に
+挙げた項目は本書の範囲外である。意思決定の根拠は
 [[ADR-0041-Scene-Editor-Interaction-Architecture]]、実装フェーズと完了条件は
 [[M0020-Scene-Editor-Interaction]]、既存基盤の決定は
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]を参照。実装が本書と食い違った場合は
