@@ -602,6 +602,52 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Contains("Label = null!",Scene.ToString(),StringComparison.Ordinal);
         Assert.Empty(Output.GetDiagnostics().Where(Diagnostic=>Diagnostic.Severity>=DiagnosticSeverity.Warning&&Diagnostic.Location.SourceTree==Scene));
     }
+    private const string NamingComponents="""
+        namespace Sample {
+            public struct Kit { public float Speed; }
+            public partial class Shared { }
+            internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                public bool Update(ref Kit kit, ref CSharpGameEngine.Entities.State state) => true;
+            }
+        }
+        namespace Game.Sub { public class Thing { } }
+        """;
+    private static string NamedScene(string Namespace,string ClassName)=>
+        "{ \"schemaVersion\": 3, \"namespace\": \""+Namespace+"\", \"className\": \""+ClassName+"\", \"root\": { \"components\": [ { \"type\": \"Sample.Kit\", \"members\": { \"Speed\": 1 } } ] } }";
+    /// <summary>
+    /// A scene whose full name is already a type (not a partial class) or a namespace is an error at its className, and
+    /// the scene is not generated. The generated partial class collided with it (CS0101, CS0260, CS0436) with no scene
+    /// diagnostic, as when a copied scene is renamed after a component.
+    /// </summary>
+    [Theory]
+    [InlineData("Sample","Kit","is already a type")]
+    [InlineData("Game","Sub","is already a namespace")]
+    [InlineData("System","String","is already a type")]
+    public void SceneClassNamingAnExistingTypeOrNamespace_IsAnErrorAtTheClassName(string Namespace,string ClassName,string Reason){
+        var Json=NamedScene(Namespace,ClassName);
+        var Diagnostic=Assert.Single(Analyze(Json,NamingComponents));
+        Assert.Equal("SCENE204",Diagnostic.Id);
+        Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
+        Assert.Equal(Json.IndexOf("\""+ClassName+"\"",StringComparison.Ordinal),Diagnostic.Location.SourceSpan.Start);
+        GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,NamingComponents]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+    }
+    /// <summary>
+    /// The analyzer in a build, and the editor, see the scene's own generated class; it is no conflict, nor is a user's
+    /// partial class of the name, which the generated one joins.
+    /// </summary>
+    [Theory]
+    [InlineData("Game","MainScene")]
+    [InlineData("Sample","Shared")]
+    public async Task SceneClassAndItsGeneratedFile_AreNotAConflict(string Namespace,string ClassName){
+        var Json=NamedScene(Namespace,ClassName);
+        AdditionalText[]Files=[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)];
+        Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],Files,optionsProvider:SceneProjectOptions.Instance)
+            .RunGeneratorsAndUpdateCompilation(GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,NamingComponents]),out var Output,out _);
+        Assert.Contains(Output.SyntaxTrees,Tree=>Tree.FilePath.EndsWith(Namespace+"."+ClassName+".Scene.g.cs",StringComparison.Ordinal));
+        Assert.Empty(await Output.WithAnalyzers([new SceneJsonDslAnalyzer()],SceneProjectOptions.Analyzer([.. Files])).GetAnalyzerDiagnosticsAsync());
+    }
     /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {

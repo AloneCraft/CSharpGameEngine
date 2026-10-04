@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 既存の型や名前空間と同じ名前のシーンで、生成ファイルがコンパイルできなかった
+- 意図: ADR-0070。シーン JSON の誤りはビルド時に JSON の位置で報告し、生成できないシーンは作らない。
+- 観測（Fact）: シーンは `namespace`・`className` の partial class として生成される。その完全名がプロジェクトの構造体や partial でないクラス（`Sample.Kit`）、static クラス、参照アセンブリの型（`CSharpGameEngine.Entities.World`、`System.String`）、名前空間（`Game.Sub`）と同じだと、シーンの診断なしに生成ファイルが CS0101・CS0260・CS0261 などでコンパイルできなかった（コピーしたシーンをコンポーネントの名前に変えたときなど）。利用者の partial class とは合体してビルドできる。
+- 実装: 解析器は、完全名が既存の型（partial class を除く）か名前空間なら、className の位置に SCENE204 を出し、そのシーンを生成しない。ビルド時の解析器と VS は生成済みのシーンクラスを含むコンパイルを見るので、生成ファイル（`{完全名}.Scene.g.cs`）の宣言は衝突にしない。ADR-0070 の SCENE204 に追記した。
+- 自動化された証拠: `SceneJsonGeneratorTests.SceneClassNamingAnExistingTypeOrNamespace_IsAnErrorAtTheClassName`（修正前は 3 件とも失敗）と、誤検出しないことの `SceneClassAndItsGeneratedFile_AreNotAConflict`。UserEcsProject と ThirdPerson テンプレートは警告・エラーなしでビルド。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 単位へ換算すると float を超える角度で、解析器と生成器ごと失敗した
 - 意図: ADR-0074。角度は回転数で書き、メンバーの単位（度・ラジアン）へ換算する。範囲外の値はその位置の SCENE203 になり、ほかのシーンの生成は続く。
 - 観測（Fact）: 回転数の値が float に収まっていても、度・ラジアンへ換算すると収まらないことがある（1e37 回転は度で無限大）。その無限大をリテラルへ整形する処理が `ArgumentOutOfRangeException`（JSON numbers must be finite）を投げ、解析器は AD0001 で止まり、生成器は CS8785 でプロジェクトの生成コードをすべて失った（度の 1e37、ラジアンの 1e38、コンストラクター引数のラジアン成分 1e38 で確認）。ランタイムビューは同じ値を合わない値として扱い、Inspector は無限大になる入力を受け付けないので影響しない。

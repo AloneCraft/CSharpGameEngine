@@ -173,6 +173,8 @@ internal static class SceneJsonSceneAnalyzer {
             ClassName=string.Empty;
         } else if(!IsIdentifier(ClassName)){
             Problems.Add(Invalid(Document.Get("className")!,$"'{ClassName}' is not a C# identifier."));
+        } else if(ClassNameConflict(Namespace,ClassName,Compilation) is { }Conflict){
+            Problems.Add(Invalid(Document.Get("className")!,Conflict));
         }
         int?StartupOrder=null;
         if(Document.Get("startupOrder") is { }Order){
@@ -692,5 +694,30 @@ internal static class SceneJsonSceneAnalyzer {
         return Value.Text;
     }
     private static SceneJsonProblem Invalid(SceneJsonValue At,string Message)=>new(SceneJsonDiagnostics.InvalidDocument,At.Start,At.End,Message);
+    /// <summary>
+    /// Why the scene class cannot be generated under this name, or null. The generated <c>partial class</c> joins a user's
+    /// partial class of the same name, but a type that is not (a struct, a non-partial class, a referenced assembly's type)
+    /// or a namespace of the same full name made the generated file fail to compile (CS0101, CS0260, CS0261, CS0436).
+    /// The scene's own generated file (<c>{FullName}.Scene.g.cs</c>, in the compilation an analyzer or the editor sees) is
+    /// not a conflict.
+    /// </summary>
+    private static string?ClassNameConflict(string?Namespace,string ClassName,Compilation Compilation){
+        var FullName=Namespace is null?ClassName:Namespace+"."+ClassName;
+        foreach(var Type in Compilation.GetTypesByMetadataName(FullName)){
+            var Declarations=Type.DeclaringSyntaxReferences.Where(static Reference=>
+                !Reference.SyntaxTree.FilePath.EndsWith(".Scene.g.cs",StringComparison.OrdinalIgnoreCase)).ToArray();
+            if(Type.DeclaringSyntaxReferences.IsEmpty
+                ||Declarations.Length>0&&(Type.TypeKind!=TypeKind.Class||Declarations.Any(static Reference=>
+                    Reference.GetSyntax() is not Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax Declaration
+                    ||!Declaration.Modifiers.Any(SyntaxKind.PartialKeyword)))){
+                return $"'{FullName}' is already a type of the project or its references; give the scene another className or namespace.";
+            }
+        }
+        INamespaceSymbol?Current=Compilation.GlobalNamespace;
+        foreach(var Segment in FullName.Split('.')){
+            Current=Current?.GetNamespaceMembers().FirstOrDefault(Member=>Member.Name==Segment);
+        }
+        return Current is null?null:$"'{FullName}' is already a namespace; give the scene another className or namespace.";
+    }
     private static bool IsIdentifier(string Value)=>SyntaxFacts.IsValidIdentifier(Value)&&SyntaxFacts.GetKeywordKind(Value)==SyntaxKind.None;
 }
