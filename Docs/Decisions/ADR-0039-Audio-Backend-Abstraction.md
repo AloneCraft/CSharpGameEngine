@@ -116,7 +116,7 @@ internal static class GameAudio
 
 | | 役割 |
 |---|---|
-| Component | `AudioSource { PositionX/Y/Z, Volume, Loop, AudioVoiceHandle? Voice }`、`AudioListener { PositionX/Y/Z }` |
+| Component | `AudioSource { PositionX/Y/Z, Volume, Loop, AudioVoiceHandle? Voice }`、`AudioListener { PositionX/Y/Z }`(当時の形。現在の`AudioSource`は`Volume`・`MinimumDistance`・`MaximumDistance`・`Loop`で、姿勢は同じNodeの`Transform`から取り、音声はEngineHostのAudio Serverが持つ。現行の正本は[Audio-Input-Platform](../Specifications/Audio-Input-Platform.md)) |
 | 遅延生成 | `LevelLoad`が`StageRenderer`生成と同じタイミングで`GameAudio.CreateEngine()`を呼び、`Level.Listener`/`Source`をコピーして実Entityを作る |
 | 毎フレーム同期・終了時破棄 | 新規`AudioPlayback : ISystem`が`Volume`を毎フレーム反映し、`!state.Enabled`で`Stop`+`DestroyVoice`。`Present`が`FramePresent.AudioEngine`を`DestroyEngine`する |
 
@@ -137,7 +137,8 @@ internal static class GameAudio
 - **距離減衰・3D定位は未実装**。`AudioSource`と`AudioListener`は別Entityであり、閉集合Archetypeの
   制約上、同一`Update`呼び出し内で両者を横断参照できない(ADR-0033)。`AudioListener`は将来拡張の
   器として位置データのみ持つ。距離減衰を実装する場合、両者を同一Entityにまとめるか、値を毎フレーム
-  コピーする別の仕組みが要る。
+  コピーする別の仕組みが要る。**(解消済み)** F-L4-012 でリスナー基準の距離減衰とパンを実装した
+  (`AudioSpatializer`。EngineHostがリスナーの姿勢を毎フレーム受け取り、各ソースをリスナー相対にする)。
 - 実オーディオ出力デバイスに依存するテスト(`XAudio2BackendTests`)は、デバイスが無い実行環境では
   失敗しうる(未検証、既存のGPU依存テストと同種のリスクとして許容)。
 - 「実際に耳で聞こえるか」は自動検証の対象外。ビルド成功・例外なし・HRESULT成功・プロセス生存確認
