@@ -657,9 +657,13 @@ internal static class SceneJsonSceneAnalyzer {
     private static string Identifier(string Name)=>SyntaxFacts.GetKeywordKind(Name)==SyntaxKind.None?Name:"@"+Name;
     /// <summary>2^63, the magnitude where a float stops fitting Q64.64's integer part (<c>LogicalScalar.TryFromSingle</c>).</summary>
     private const float LogicalScalarLimit=9.223372e18f;
-    /// <summary>A mismatch for a number a float cannot hold (its literal would not compile), or null.</summary>
+    /// <summary>
+    /// A mismatch for a number a float cannot hold (its literal would not compile), or null. The compiler's lexer decides,
+    /// as in <see cref="RealLiteral"/>: <c>float.TryParse</c> returns an infinity on .NET but fails on .NET Framework (the
+    /// VSIX and a build under Visual Studio's MSBuild), where reading only the infinity let such a number through.
+    /// </summary>
     private static string?FloatRange(SceneJsonValue Value,Func<string,string>Mismatch)=>
-        Value.Kind==SceneJsonKind.Number&&float.TryParse(Value.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var Number)&&float.IsInfinity(Number)
+        Value.Kind==SceneJsonKind.Number&&SyntaxFactory.ParseToken(Value.Text!.TrimStart('-')+"f").ContainsDiagnostics
             ?Mismatch("the number is beyond the range of float")
             :null;
     /// <summary>A number in its member's unit (a turns document's angle converted, as the emitted literal is), or null.</summary>
@@ -688,7 +692,11 @@ internal static class SceneJsonSceneAnalyzer {
         } else if(ulong.TryParse(Value.Text,NumberStyles.None,CultureInfo.InvariantCulture,out var Unsigned)){
             InRange=Unsigned<=Maximum;
         } else {
-            return Mismatch("expected an integer without a fraction or exponent");
+            // Past ulong's range both parses fail on digits alone: that is out of range, not a missing integer.
+            var Digits=Value.Text!.TrimStart('-');
+            return Mismatch(Digits.Length>0&&Digits.All(static Digit=>Digit>='0'&&Digit<='9')
+                ?"the integer is out of range"
+                :"expected an integer without a fraction or exponent");
         }
         if(!InRange){ return Mismatch("the integer is out of range"); }
         // A cast needs parentheses around a negative literal: (short)(-5), not (short)-5.

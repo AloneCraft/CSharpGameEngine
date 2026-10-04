@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-10-04 探索 — .NET Framework の VSIX では、float を超える数が SCENE203 にならなかった
+- 意図: ADR-0070 決定 4。値の型に収まらない数は、実行環境によらず JSON の位置の SCENE203 にする。
+- 観測（Fact）: ThirdPerson テンプレートの 16 シーンのうち実在する 3 シーンへの変異ファジング 150 件（net472）で、Position や EulerRuf の LogicalScalar を `1e39` にした文書が解析を通り、Designer の編集（名前変更・Inspector の確定）が「Infinity has no JSON form」で 10 件失敗した。解析器だけを net472 で呼ぶと、`1e39` は問題 0、`1e19`・`3.4e38` は SCENE203 だった。.NET Framework の `float.TryParse` は範囲外の数で false を返し（.NET は無限大を返す）、`float.Parse` は OverflowException になる。範囲検査は「解析できて無限大」だけを見ていたため、net472 では通っていた。plain の `float` メンバーは後続の字句解析（Roslyn）が弾くので漏れず、LogicalScalar のように float から変換できる型だけが漏れた。VS の MSBuild（.NET Framework）でのビルドでも同じで、診断ではなく生成ファイルのコンパイルエラーになる（コードからの推測。ビルドは未確認）。
+- 実装: `FloatRange` を `RealLiteral` と同じ Roslyn の字句解析にした（両ランタイムで正しく丸める）。`ulong` を超える整数の理由が「小数や指数のない整数が必要」になっていたのも「範囲外」に直した。
+- 自動化された証拠: `SceneJsonRangeTests`（`Shared` に置き、SceneModel.Tests の net10 と VSExtension.Tests の net472 の両方で走る。LogicalScalar・float・double・decimal・整数の境界）。LogicalScalar の 4 件は修正前の net472 で失敗した。
+- 結果: Matches。net10 だけで走る範囲検査（`SceneJsonGeneratorTests` の `ValuesTheRuntimeOrTheCompilerWouldReject_…`）では見えなかった。
+- 同じ型の残り: 実行環境の解析を使う他の箇所（`SceneJsonAngles.IsNumber` など）は、範囲外で false になる点が両ランタイムで同じ結果になることを確認した。`SceneJsonAngles.FromTurns` の `double.Parse` は net472 では最後の桁がずれ得る（同日の「VSIX の書き戻しが無関係な数値の書き方を変えていた」の項と同じ観測）が、float に丸めた後に値が変わるのは約 2^-29 の確率で、扱っていない。
+
 ## 2026-10-04 探索 — シェーダーグラフの重複した id が、検証ではなく ArgumentException になった
 - 意図: Shader-Graph 仕様。不正なグラフは検証の診断で報告し、生成はその診断を返す。
 - 観測（Fact）: Triangle グラフの配列要素を複製する・id を別の id に付け替える構造的な変異ファジング 3000 件のうち 371 件で、検証か HLSL 生成が「同じキーの項目が既に追加されています」の `ArgumentException` を投げた。検証器はノードを id の辞書にし（重複で例外）、循環の検査も同じ、サブグラフの重複は黙って飛ばしたので生成器の辞書で例外になった。リージョンの重複だけは診断になっていた。

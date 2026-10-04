@@ -590,11 +590,6 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal((Document("1").IndexOf("\"R\": 1,",StringComparison.Ordinal)+5,1,"3"),(Change.Span.Start,Change.Span.Length,Change.NewText));
     }
     /// <summary>
-    /// An edit leaves the author's spelling of other numbers alone. A float the author wrote with more digits than a float
-    /// holds (3.14159265358979, 16777217) was rewritten as the float's shortest text on every unrelated edit, which read
-    /// back the same but lost the author's digits and changed lines the edit had not touched.
-    /// </summary>
-    /// <summary>
     /// An edit writes a value as the tools on .NET write it. Since the document keeps a literal's spelling, the VSIX wrote
     /// .NET Framework's "R" text of the edited float (312985.125 for 312985.12), which reads back the same but differs from
     /// what the same edit writes on .NET.
@@ -608,6 +603,11 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         Assert.Equal(Document("1").Replace("\"R\": 1,","\"R\": 312985.12,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
+    /// <summary>
+    /// An edit leaves the author's spelling of other numbers alone. A float the author wrote with more digits than a float
+    /// holds (3.14159265358979, 16777217) was rewritten as the float's shortest text on every unrelated edit, which read
+    /// back the same but lost the author's digits and changed lines the edit had not touched.
+    /// </summary>
     [Fact]
     public void Move_KeepsTheAuthorsSpellingOfOtherNumbers(){
         foreach(var Value in new[]{"3.14159265358979","16777217","0.1","1.0","1e2","0.30000001192092896","100.0000001","-0","-3.14159265358979","-16777217","1E+20","-1.5e-45"}){
