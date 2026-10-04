@@ -212,9 +212,21 @@ internal static class ExternalBridgeProcess {
         }
     }
 
-    private static string QuoteArgument(string Argument){
+    /// <summary>
+    /// One argument quoted for the Windows command line, read back as itself (CommandLineToArgvW and .NET's parser):
+    /// backslashes are doubled where they precede a quote, inside or at the closing one, so <c>C:\Out\</c> does not
+    /// escape its closing quote and swallow the next argument.
+    /// </summary>
+    internal static string QuoteArgument(string Argument){
         if(Argument is null){ throw new ArgumentNullException(nameof(Argument)); }
-        return $"\"{Argument.Replace("\"","\\\"")}\"";
+        var Builder=new System.Text.StringBuilder("\"");
+        var Backslashes=0;
+        foreach(var Character in Argument){
+            if(Character=='\\'){ Backslashes++;continue; }
+            Builder.Append('\\',Character=='"'?Backslashes*2+1:Backslashes).Append(Character);
+            Backslashes=0;
+        }
+        return Builder.Append('\\',Backslashes*2).Append('"').ToString();
     }
 }
 
