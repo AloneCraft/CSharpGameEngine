@@ -67,6 +67,26 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         Assert.Equal(Expected,GameProjectGenerator.SafeIdentifier(ProjectName));
     }
 
+    /// <summary>A project named like a C# keyword gets a namespace the generated sources can declare (<c>namespace event.Gameplay;</c> does not parse).</summary>
+    [Theory]
+    [InlineData("event","_event")]
+    [InlineData("fixed","_fixed")]
+    [InlineData("record","record")]
+    public void SafeIdentifier_PrefixesAReservedKeyword(string ProjectName,string Expected){
+        Assert.Equal(Expected,GameProjectGenerator.SafeIdentifier(ProjectName));
+    }
+
+    [Fact]
+    public void Generate_WithAKeywordProjectName_WritesSourcesThatParse(){
+        var Project=Path.Combine(this.Root,"event");
+        GameProjectGenerator.Generate(RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson"),Project,"event","1.2.3",this.Root);
+        foreach(var File in Directory.EnumerateFiles(Project,"*.cs",SearchOption.AllDirectories)){
+            var Tree=Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(System.IO.File.ReadAllText(File),
+                new Microsoft.CodeAnalysis.CSharp.CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview));
+            Assert.True(!Tree.GetDiagnostics().Any(),File+": "+string.Join("; ",Tree.GetDiagnostics()));
+        }
+    }
+
     [Fact]
     public void CopySources_RenamesTheNamespaceAndSkipsBuildOutputAndTheProjectFile(){
         var Template=Path.Combine(this.Root,"template");

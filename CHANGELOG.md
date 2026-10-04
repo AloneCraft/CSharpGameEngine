@@ -27,6 +27,7 @@
 - Fixed the C# scene to JSON converter throwing for a `float.NaN` or infinity constant and writing an unreadable document for a `double` one: such a value is now reported like any other value JSON cannot hold.
 - Fixed scene JSON rejecting every value of a `ulong` member, although the C# scene converter and the Inspector write them; the schema now lists `ulong` members as integers.
 - Fixed a scene JSON number beyond the range of its `double` or `decimal` member generating code that did not compile: it is now a SCENE203 error at the number, as a number beyond `float` already was.
+- Fixed a game project named like a C# keyword (`event`, `fixed`) failing to compile: the template's namespaces now get a leading underscore for a reserved keyword.
 - Fixed a `PlayerController` whose `MinPitchDegrees` is above its `MaxPitchDegrees` throwing every frame: the pitch now stays between the two bounds whichever order they are written in.
 - Fixed the Inspector accepting `NaN` and `Infinity` in a float field and writing them into the scene as `NaNf` / `Infinityf`, which do not compile: the field now takes finite numbers only.
 - Fixed scene JSON documents whose components have members, constructor parameters or enum members named like C# keywords (a field declared `@class`) generating code that did not compile: the generated scene now writes those names with the verbatim prefix.

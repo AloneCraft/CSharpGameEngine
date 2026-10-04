@@ -19,7 +19,7 @@ The user decided (2026-09-30) on three points:
 1. **The template source stays the repository project.** It is built and tested there in SourceMode. Nothing is duplicated into a token-filled copy.
 2. **`GameProjectGenerator`** (`tools/CSharpGameEngine.ProjectTemplates`, linked into the VSIX and the Feature Runner) creates a game from the template source:
    - It copies the source except `bin/`, `obj/` and the template csproj.
-   - It replaces `CgeThirdPerson` with the project's safe identifier (Visual Studio's `$safeprojectname$` rule).
+   - It replaces `CgeThirdPerson` with the project's safe identifier (Visual Studio's `$safeprojectname$` rule; a C# reserved keyword such as `event` also gets a leading underscore, added 2026-10-04 because `namespace event.Gameplay;` does not parse).
    - It writes the PackageMode project file: TargetFramework, RuntimeIdentifier, RootNamespace and `PackageReference CSharpGameEngine.Sdk`.
    - It writes a `nuget.config` that adds the local engine feed to the user's sources.
 3. **The Visual Studio template** is `ProjectTemplates/CSharp/GameEngine/ThirdPerson` in the VSIX. It carries:

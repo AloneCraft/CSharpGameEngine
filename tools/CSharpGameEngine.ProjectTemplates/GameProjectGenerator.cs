@@ -22,7 +22,23 @@ internal static class GameProjectGenerator {
     // .cge holds the scene schema that each build writes for its own project (ADR-0070).
     private static readonly string[]SkippedDirectories=["bin","obj",".vs",".cge"];
 
-    /// <summary>A C# identifier for <paramref name="ProjectName"/>, as Visual Studio forms $safeprojectname$.</summary>
+    /// <summary>
+    /// C# reserved keywords: a namespace cannot be one (<c>namespace event.Gameplay;</c> does not parse). The list is
+    /// written out because the Feature Runner, which shares this file, does not reference Roslyn.
+    /// </summary>
+    private static readonly HashSet<string>ReservedKeywords=new(StringComparer.Ordinal){
+        "abstract","as","base","bool","break","byte","case","catch","char","checked","class","const","continue","decimal",
+        "default","delegate","do","double","else","enum","event","explicit","extern","false","finally","fixed","float","for",
+        "foreach","goto","if","implicit","in","int","interface","internal","is","lock","long","namespace","new","null",
+        "object","operator","out","override","params","private","protected","public","readonly","ref","return","sbyte",
+        "sealed","short","sizeof","stackalloc","static","string","struct","switch","this","throw","true","try","typeof",
+        "uint","ulong","unchecked","unsafe","ushort","using","virtual","void","volatile","while",
+    };
+
+    /// <summary>
+    /// A C# identifier for <paramref name="ProjectName"/>, as Visual Studio forms $safeprojectname$; a reserved keyword
+    /// also gets a leading underscore so the template's namespaces parse.
+    /// </summary>
     internal static string SafeIdentifier(string ProjectName){
         StringBuilder Builder=new();
         foreach(var Character in ProjectName??string.Empty){
@@ -31,7 +47,7 @@ internal static class GameProjectGenerator {
         if(Builder.Length==0){
             return "Game";
         }
-        if(char.IsDigit(Builder[0])){
+        if(char.IsDigit(Builder[0])||ReservedKeywords.Contains(Builder.ToString())){
             Builder.Insert(0,'_');
         }
         return Builder.ToString();

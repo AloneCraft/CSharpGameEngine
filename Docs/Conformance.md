@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — C# の予約語と同じ名前のゲーム プロジェクトはコンパイルできなかった
+- 意図: ADR-0068「テンプレートは名前空間をプロジェクトの安全な識別子に置き換え、作ったプロジェクトはそのままビルドできる」。
+- 観測（Fact）: プロジェクト名 `event` や `fixed` では、安全な識別子がそのまま `event` になり、生成した `Gameplay/PlayerStart.cs` などが `namespace event.Gameplay;` で CS1001 になった（シーン JSON の名前空間も「名前空間名ではない」で拒否される）。Visual Studio の `$safeprojectname$` が予約語をどう扱うかは、この環境では確かめられていない。
+- 実装: 安全な識別子が C# の予約語なら先頭に `_` を付ける（Feature Runner も同じファイルを使い、Roslyn を参照しないので、予約語の一覧を持つ）。文脈キーワード（`record` など）は識別子として使えるので変えない。
+- 自動化された証拠: `GameProjectGeneratorTests.SafeIdentifier_PrefixesAReservedKeyword`、`Generate_WithAKeywordProjectName_WritesSourcesThatParse`（修正前は CS1001）。
+- 結果: Matches。csproj の `RootNamespace` は Visual Studio の `$safeprojectname$` のままなので、Visual Studio が予約語をそのまま入れる場合は、新しく追加する項目の既定の名前空間だけが食い違う（ビルドには使われない）。
+
 ## 2026-10-04 探索 — PlayerController のピッチの上下を逆に書くとゲームが毎フレーム例外で止まった
 - 意図: `PlayerControl.AddLook`「ピッチはコントローラーの範囲に収める」。シーンで作者が書いた値で、ランタイムが落ちてはならない（同日のカメラ・環境光の修正と同じ考え方）。
 - 観測（Fact）: `MinPitchDegrees` が `MaxPitchDegrees` より大きい `PlayerController`（Inspector で 100 と打つなど）では、`Math.Clamp` が `ArgumentException: '60' cannot be greater than -30.` を投げ、FrameInput の入力システムから毎フレーム例外が出た。値の検査はどこにもなかった。
