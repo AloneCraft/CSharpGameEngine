@@ -453,6 +453,55 @@ public sealed class SceneJsonGeneratorTests {
         Walk(Model.Root!);
         return Builder.ToString();
     }
+    private const string ShelfComponents="""
+        namespace Sample {
+            public struct Shelf {
+                public System.Collections.Generic.List<int> Items; public System.Collections.Generic.HashSet<int> Tags;
+                public System.Collections.Immutable.ImmutableArray<int> Fixed; public System.Collections.Generic.Queue<int> Waiting;
+                public System.Collections.Generic.Dictionary<string,int> Counts; public (int A,int B) Pair; public int[,] Grid;
+            }
+            internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                public bool Update(ref Shelf shelf, ref CSharpGameEngine.Entities.State state) => true;
+            }
+        }
+        """;
+    private const string ShelfScene="""
+        {
+          "schemaVersion": 3,
+          "namespace": "Game",
+          "className": "MainScene",
+          "root": {
+            "id": "7c0c2c9e-6c56-4f46-9d0f-0c6f2c8f0001",
+            "name": "Root",
+            "components": [
+              { "type": "Sample.Shelf", "members": { "Items": [1, 2], "Tags": [3], "Fixed": [4] } }
+            ],
+            "children": []
+          }
+        }
+        """;
+    /// <summary>
+    /// A JSON array is emitted as a collection expression (an array creation for an array) and an object as
+    /// <c>new T(...) { ... }</c>. For a type C# cannot create that way the generated file did not compile (CS1061 for
+    /// <c>Queue&lt;T&gt;</c>, CS9215 for a dictionary, CS8181 for a tuple, CS0029 for a multidimensional array) and the
+    /// scene had no diagnostic; it is a SCENE203 at the value.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Waiting\": [1]","this collection type cannot be created")]
+    [InlineData("\"Counts\": [{ \"key\": \"a\", \"value\": 1 }]","this collection type cannot be created")]
+    [InlineData("\"Pair\": { \"A\": 1, \"B\": 2 }","a tuple cannot be written")]
+    [InlineData("\"Grid\": [1, 2]","a multidimensional array")]
+    public void ValuesTheGeneratedCodeCannotCreate_AreErrorsAtTheirJsonPosition(string Member,string Reason){
+        Assert.Empty(Analyze(ShelfScene,ShelfComponents));
+        GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,ShelfComponents]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",ShelfScene)]);
+        var Json=ShelfScene.Replace("\"Fixed\": [4]","\"Fixed\": [4], "+Member);
+        var Diagnostic=Assert.Single(Analyze(Json,ShelfComponents));
+        Assert.Equal("SCENE203",Diagnostic.Id);
+        Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
+        Assert.Equal(Json.IndexOf(Member,StringComparison.Ordinal)+Member.IndexOf(": ",StringComparison.Ordinal)+2,Diagnostic.Location.SourceSpan.Start);
+    }
     /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {

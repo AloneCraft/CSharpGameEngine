@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 生成コードが作れないコレクション・タプル・多次元配列がシーンの診断なしにコンパイルエラーになった
+- 意図: ADR-0070。実行時かコンパイラーが拒む値は、生成されたファイルではなく JSON の位置の SCENE203 にする。
+- 観測（Fact）: 生成器は JSON の配列をコレクション式（配列なら配列の生成）として、オブジェクトを `new T(...) { ... }` として書く。メンバーの型ごとに確かめたところ、`Queue<T>`・`Stack<T>`・`LinkedList<T>`（CS1061、Add が無い）、`Dictionary<K,V>`（CS9215）、`ISet<T>`（CS9174）、公開の引数なしコンストラクターが無い型（CS0122）、抽象型（CS0144）、タプル（CS8181）、多次元配列（CS0029）は、シーンの診断が出ずに生成されたファイルのコンパイルエラーになった。`List<T>`・`HashSet<T>`・`SortedSet<T>`・`ImmutableArray<T>`・`ReadOnlyCollection<T>`・リストのインターフェイス・Add を持つ独自の型・配列の配列は従来どおりビルドできる。
+- 実装: 解析器は、配列を書くメンバーの型がコレクション式で作れるか（リストのインターフェイス、`[CollectionBuilder]`、または公開の引数なしコンストラクターと要素を 1 つ取る公開の Add を持つ具象型）を確かめ、作れない型・タプル・多次元配列を SCENE203 にする（ADR-0070 の SCENE203 の例に追記）。
+- 自動化された証拠: `SceneJsonGeneratorTests.ValuesTheGeneratedCodeCannotCreate_AreErrorsAtTheirJsonPosition`（修正前は 4 件とも診断なし）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — ランタイムビューが指数付きの decimal を拒み、型を超える数を無限大として読んだ
 - 意図: ADR-0070 の決定 6。ランタイムビューはエディタのシーン JSON を生成器と同じ規則でリフレクションによって読む。
 - 観測（Fact）: 生成器は数をリテラル（`1.5e3m`、`2E-3d`）として書き、コンパイラーが読む。ランタイムビューは `Convert.ChangeType` で読んでいたため、decimal のメンバーの `1.5e3` は「not in a correct format」で合わなかった（ビルドは通る）。また float の `1e39`、double の `1e400` は生成器では SCENE203 だが、.NET の解析は無限大を返すので、ランタイムビューは無限大を適用した。

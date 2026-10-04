@@ -513,12 +513,19 @@ internal static class SceneJsonSceneAnalyzer {
         if(Value.Kind==SceneJsonKind.Array){
             var Element=Type is IArrayTypeSymbol Array?Array.ElementType:ElementTypeOf(Type,Compilation);
             if(Element is null){ return Mismatch("an array needs an array or collection member"); }
+            // The emitted array creation or collection expression must compile; the generated file is no place for the error.
+            if(Type is IArrayTypeSymbol{ Rank:>1 }){ return Mismatch("a multidimensional array cannot be written in scene JSON; use an array of arrays"); }
+            if(Type is not IArrayTypeSymbol&&!IsCollectionExpressionTarget(Type,Element,Compilation)){
+                return Mismatch("this collection type cannot be created from a list of elements (it needs a public parameterless constructor and a public Add that takes one element)");
+            }
             var Items=Value.Items.Select((Item,Index)=>ValueExpression(Element,Item,MemberName+"["+Index.ToString(CultureInfo.InvariantCulture)+"]",Compilation,Problems,Angles,Unit));
             return Type is IArrayTypeSymbol
                 ?"new "+SceneTypePredicates.ToFullyQualifiedName(Element)+"[] { "+string.Join(", ",Items)+" }"
                 :"["+string.Join(", ",Items)+"]";
         }
         if(Value.Kind==SceneJsonKind.Object&&Type is INamedTypeSymbol Named&&Named.TypeKind is TypeKind.Struct or TypeKind.Class){
+            // An object is emitted as new T(...) { ... }, which C# does not allow for a tuple type.
+            if(Named.IsTupleType){ return Mismatch("a tuple cannot be written in scene JSON; use a struct with named members"); }
             return ObjectExpression(Named,Value,MemberName,Compilation,Problems,Angles,Unit);
         }
         return Mismatch("this JSON value cannot be converted to the member's type");
@@ -535,6 +542,38 @@ internal static class SceneJsonSceneAnalyzer {
         return SceneJsonNumbers.FormatSingle(Angles.Turns
             ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
             :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture));
+    }
+    /// <summary>
+    /// Whether a collection expression creates this type (C# 12): one of the list interfaces, a type with a
+    /// <c>[CollectionBuilder]</c> (<c>ImmutableArray&lt;T&gt;</c>), or a concrete type with a public parameterless
+    /// constructor and a public <c>Add</c> that takes one element (<c>List&lt;T&gt;</c>, <c>HashSet&lt;T&gt;</c>; not
+    /// <c>Queue&lt;T&gt;</c>, <c>Stack&lt;T&gt;</c> or <c>Dictionary&lt;K,V&gt;</c>).
+    /// </summary>
+    private static bool IsCollectionExpressionTarget(ITypeSymbol Type,ITypeSymbol Element,Compilation Compilation){
+        if(Type is not INamedTypeSymbol Named){ return false; }
+        if(Named.TypeKind==TypeKind.Interface){
+            return Named.OriginalDefinition.SpecialType is SpecialType.System_Collections_Generic_IEnumerable_T
+                or SpecialType.System_Collections_Generic_IReadOnlyCollection_T or SpecialType.System_Collections_Generic_IReadOnlyList_T
+                or SpecialType.System_Collections_Generic_ICollection_T or SpecialType.System_Collections_Generic_IList_T;
+        }
+        if(Named.OriginalDefinition.GetAttributes().Any(static Attribute=>
+            Attribute.AttributeClass?.ToDisplayString()=="System.Runtime.CompilerServices.CollectionBuilderAttribute")){
+            return true;
+        }
+        if(Named.IsAbstract||Named.TypeKind==TypeKind.Class&&!Named.InstanceConstructors.Any(static Constructor=>
+            Constructor.DeclaredAccessibility==Accessibility.Public&&Constructor.Parameters.All(static Parameter=>Parameter.IsOptional))){
+            return false;
+        }
+        for(ITypeSymbol?Current=Named;Current is not null;Current=Current.BaseType){
+            foreach(var Add in Current.GetMembers("Add").OfType<IMethodSymbol>()){
+                if(!Add.IsStatic&&Add.DeclaredAccessibility==Accessibility.Public&&Add.Parameters.Length>=1
+                    &&Add.Parameters.Skip(1).All(static Parameter=>Parameter.IsOptional)
+                    &&Compilation.ClassifyConversion(Element,Add.Parameters[0].Type).IsImplicit){
+                    return true;
+                }
+            }
+        }
+        return false;
     }
     private static ITypeSymbol?ElementTypeOf(ITypeSymbol Type,Compilation Compilation){
         var Enumerable=Compilation.GetSpecialType(SpecialType.System_Collections_Generic_IEnumerable_T);
