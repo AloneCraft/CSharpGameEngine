@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 改行を含むノード名でゲームのビルドが壊れた
+- 意図: ADR-0070 のシーン JSON。ノードの `name` は任意の JSON 文字列。
+- 観測（Fact）: 生成器はノードごとに `// [パス] "名前"` という 1 行コメントを書き、名前をそのまま埋め込んでいた。名前に `\n` か、C# が行の終わりとして扱う U+2028・U+0085 があると、コメントがそこで終わり、名前の残りがコードになった。`"La\nthrow null;mp"` などの名前で、生成された `Game.MainScene.Scene.g.cs` が CS1002・CS1010 で失敗した。
+- 実装: コメントの名前を C# の文字列リテラルとして書く（`SymbolDisplay.FormatLiteral`。改行と表示できない文字はエスケープされる）。普通の名前の出力は変わらない。パスの表示はインデックスだけなので影響しない。
+- 自動化された証拠: `SceneJsonGeneratorTests.NodeNameWithALineBreak_Builds`（3 件。修正前はすべてコンパイルエラー）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — IME がオンだと Scene ビューの WASDQE が効かなかった
 - 意図: [Scene-Editor-Design](Specifications/Scene-Editor-Design.md)「Fly(RMB+WASDQE)」。ゲームのウィンドウの入力メソッドを同日に外した件と同じ形。
 - 観測（Fact）: Scene ビューのナビゲーションは WPF の `KeyDown` の `Args.Key` で W/A/S/D/Q/E/F/N を見る。ビューポートには入力メソッドが有効なままだった。WPF は IME が処理したキーを `Key.ImeProcessed`（本来のキーは `ImeProcessedKey`）として届けるので、コードのコメントのために日本語 IME をオンにしたまま Scene ビューを操作すると、ナビゲーションが動かないことになる（WPF の文書の動作。実際の IME の打鍵では確かめていない）。

@@ -105,6 +105,22 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(Describe(FromCSharp),Describe(FromJson));
     }
     /// <summary>
+    /// A node name is any JSON string, line breaks included. The generator wrote it into a one-line comment, so a name
+    /// with a line break (\n, or U+2028 and U+0085, at which C# also ends a line) put the rest of the name into the code.
+    /// </summary>
+    [Theory]
+    [InlineData("La\\nthrow null;mp")]
+    [InlineData("La\\u2028throw null;mp")]
+    [InlineData("La\\r\\u0085mp */ \\\" end")]
+    public void NodeNameWithALineBreak_Builds(string EscapedName){
+        var Json=JsonScene.Replace("\"name\": \"Lamp\"","\"name\": \""+EscapedName+"\"");
+        Assert.Contains(EscapedName,Json);
+        var FromJson=GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,Driver]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+        Assert.Equal("1.5|-2|0.2|3|Bright|a \"b\"|True|7|-5|-3.25",Describe(FromJson));
+    }
+    /// <summary>
     /// A scene is a JSON file under the project's Scenes folder (ADR-0070, revised 2026-10-01): the
     /// same document elsewhere, or with the old <c>.scene.json</c> name outside Scenes, is not built.
     /// </summary>
