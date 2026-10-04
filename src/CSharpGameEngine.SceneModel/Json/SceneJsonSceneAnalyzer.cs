@@ -574,8 +574,10 @@ internal static class SceneJsonSceneAnalyzer {
             }
             if(FloatRange(Value,Mismatch) is { }OutOfFloat){ return OutOfFloat; }
             // LogicalScalar's conversion from float throws beyond Q64.64 when the scene is instantiated.
+            // No value here is a number that fits float but that this runtime's parse rejects (.NET Framework, for text
+            // just above float.MaxValue that C# rounds down to it): far past Q64.64.
             if(SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar"
-                &&NumberIn(Value,Angles,Unit) is { }Scalar&&!(Math.Abs(Scalar)<LogicalScalarLimit)){
+                &&(NumberIn(Value,Angles,Unit) is not { }Scalar||!(Math.Abs(Scalar)<LogicalScalarLimit))){
                 return Mismatch("the number is beyond the Q64.64 range of about ±9.2e18");
             }
             return AngleText(Value,Angles,Unit)+"f";

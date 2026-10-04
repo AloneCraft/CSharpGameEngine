@@ -52,6 +52,8 @@ public sealed class SceneJsonRangeTests {
 
     [Theory]
     [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the Q64.64 range")]
+    // Just above float.MaxValue, where C# rounds down to it but .NET Framework's float.TryParse fails.
+    [InlineData("\"Height\": 9e18","\"Height\": 3.4028235677973366E+38","beyond the Q64.64 range")]
     [InlineData("\"Height\": 9e18","\"Height\": 1e39","beyond the range of float")]
     [InlineData("\"Height\": 9e18","\"Height\": -1e39","beyond the range of float")]
     [InlineData("\"Height\": 9e18","\"Height\": 9.9999999999999994E+38","beyond the range of float")]

@@ -6,7 +6,7 @@
 - 実装: `FloatRange` を `RealLiteral` と同じ Roslyn の字句解析にした（両ランタイムで正しく丸める）。`ulong` を超える整数の理由が「小数や指数のない整数が必要」になっていたのも「範囲外」に直した。
 - 自動化された証拠: `SceneJsonRangeTests`（`Shared` に置き、SceneModel.Tests の net10 と VSExtension.Tests の net472 の両方で走る。LogicalScalar・float・double・decimal・整数の境界）。LogicalScalar の 4 件は修正前の net472 で失敗した。
 - 結果: Matches。net10 だけで走る範囲検査（`SceneJsonGeneratorTests` の `ValuesTheRuntimeOrTheCompilerWouldReject_…`）では見えなかった。
-- 同じ型の残り: 実行環境の解析を使う他の箇所（`SceneJsonAngles.IsNumber` など）は、範囲外で false になる点が両ランタイムで同じ結果になることを確認した。`SceneJsonAngles.FromTurns` の `double.Parse` は net472 では最後の桁がずれ得る（同日の「VSIX の書き戻しが無関係な数値の書き方を変えていた」の項と同じ観測）が、float に丸めた後に値が変わるのは約 2^-29 の確率で、扱っていない。
+- 同じ型の残りの確認: 13 のメンバー型 × 80 の値（極端な値・境界・指数・長い桁、1080 通り）の解析結果（問題の ID と文言、出力する式）を net10 と net472 で比べた。差は LogicalScalar への `3.4028235677973366E+38`（float.MaxValue をわずかに上回り、C# は MaxValue に丸める）1 件だけで、net472 は「`float.TryParse` が失敗する」ため Q64.64 の範囲検査を飛ばし、シーンの生成時に例外になる形で通っていた。これも SCENE203 にし、差は 0 行になった（例外は両方 0 件）。`SceneJsonAngles.FromTurns` の `double.Parse` は net472 では最後の桁がずれ得る（同日の「VSIX の書き戻しが無関係な数値の書き方を変えていた」の項と同じ観測）が、float に丸めた後に値が変わるのは約 2^-29 の確率で、扱っていない。
 
 ## 2026-10-04 探索 — シェーダーグラフの重複した id が、検証ではなく ArgumentException になった
 - 意図: Shader-Graph 仕様。不正なグラフは検証の診断で報告し、生成はその診断を返す。
