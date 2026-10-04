@@ -44,6 +44,10 @@ public sealed class SceneJsonCommitPlannerTests {
             public enum Layers { None=0, A=1, B=2 }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public record struct Tuning(float Gain,LightMode Mode);
+            public static class Outer {
+                [CSharpGameEngine.Entities.SceneComponentOrder]
+                public struct Inner { public float Speed; }
+            }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Counters { public byte Tiny; public sbyte Signed; public short Small; public ushort Port; public int Count; public uint Big; public long Wide; public ulong Huge; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
@@ -522,6 +526,32 @@ public sealed class SceneJsonCommitPlannerTests {
             Seed.Reconciler,CancellationToken.None);
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
+    /// <summary>
+    /// A nested component type is named in the document as C# names it (Outer.Inner), which the converter, the schema and
+    /// the palette write. Only its metadata name (Outer+Inner) resolved, so every edit of a scene with one failed once
+    /// written back (SCENE201) and the palette could not add one. A document that uses the metadata name still reads.
+    /// </summary>
+    [Theory]
+    [InlineData("CSharpGameEngine.Runtime.Windows.Outer.Inner",true)]
+    [InlineData("CSharpGameEngine.Runtime.Windows.Outer+Inner",false)]
+    public void NestedComponentType_IsEditedAndAddedInItsCSharpForm(string TypeName,bool CSharpForm){
+        var Before=Document("1").Replace("\"type\": \"CSharpGameEngine.Runtime.Windows.Light\",","\"type\": \""+TypeName+"\",")
+            .Replace("\"Intensity\": 3","\"Speed\": 2");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Move=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Move.Succeeded,Move.ErrorMessage);
+        // The metadata name is written back in the C# form, once.
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,").Replace("Outer+Inner","Outer.Inner"),Move.WriteStep!.Before.WithChanges(Move.WriteStep.Changes).ToString());
+        if(!CSharpForm){ return; }
+        var Type=Seed.Context.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Windows.Outer+Inner")!;
+        var Initializer=SceneComponentInitializerPolicy.CreatePlan(Type,"global::CSharpGameEngine.Runtime.Windows.Outer.Inner",Seed.Context.Compilation);
+        var Add=new AddComponentOperation(Key,Find(Seed.Snapshot,"Cube"),Seed.Snapshot.DocumentVersion,"global::CSharpGameEngine.Runtime.Windows.Outer.Inner",Initializer.Expression,Initializer.Members);
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Add Inner",[],SceneTransformMemberMask.None,DirectOperations:[Add]),Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
     }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');

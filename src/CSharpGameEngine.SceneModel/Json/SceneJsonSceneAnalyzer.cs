@@ -256,9 +256,22 @@ internal static class SceneJsonSceneAnalyzer {
         if(Problems.Count!=ProblemCount){ return null; }
         return new SceneJsonComponent(SceneTypePredicates.ToFullyQualifiedName(Type!),Expression);
     }
+    /// <summary>
+    /// A nested type as C# and the scene document name it (<c>Ns.Outer.Inner</c>, as the converter, the schema and the
+    /// palette write it), whose metadata name joins nested types with '+': each dot from the right is tried as one. Only
+    /// the metadata name resolved, so every edit of a scene with a nested component failed once written back.
+    /// </summary>
+    private static INamedTypeSymbol?ResolveNestedType(string TypeName,Compilation Compilation){
+        var Name=TypeName;
+        for(var Dot=Name.LastIndexOf('.');Dot>0;Dot=Name.LastIndexOf('.',Dot-1)){
+            Name=Name.Substring(0,Dot)+"+"+Name.Substring(Dot+1);
+            if(Compilation.GetTypeByMetadataName(Name) is { }Nested){ return Nested; }
+        }
+        return null;
+    }
     /// <summary>A component type is a non-generic, non-reserved struct that is not a runtime companion.</summary>
     internal static bool TryResolveComponentType(string TypeName,Compilation Compilation,out INamedTypeSymbol?Type,out string Reason){
-        Type=Compilation.GetTypeByMetadataName(TypeName);
+        Type=Compilation.GetTypeByMetadataName(TypeName)??ResolveNestedType(TypeName,Compilation);
         if(Type is null){
             Reason="no type with this full name is visible to the project";
             return false;

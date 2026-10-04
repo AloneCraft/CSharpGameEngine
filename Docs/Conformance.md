@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 入れ子の型のコンポーネントを持つシーンを Designer で編集できなかった
+- 意図: ADR-0070。シーン JSON の `type` はコンポーネントの完全名で、生成器・Designer・ランタイムビューが同じ名前で同じ型を見つける。
+- 観測（Fact）: 変換器・スキーマ・パレットは型名を C# の書き方（`Ns.Outer.Inner`）で書くが、解析器は `GetTypeByMetadataName`、ランタイムビューは `Assembly.GetType` で解決していたので、入れ子の型はメタデータ名（`Ns.Outer+Inner`）でしか見つからなかった。そのため、メタデータ名で書いたシーンはビルドできても Designer のどの編集も書き戻しで `Outer.Inner` になって SCENE201 で失敗し、パレットからは追加できず、スキーマは入れ子の型を一覧から外していた。
+- 実装: 解析器とランタイムビューは、名前で見つからなければ右のドットから順に `+` として入れ子の型を探す。正式な書き方は C# の書き方で、メタデータ名で書いた文書も読め、最初の書き戻しで C# の書き方になる。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.NestedComponentType_IsEditedAndAddedInItsCSharpForm`、`SceneJsonGeneratorTests.NestedComponentType_BuildsByEitherName`（修正前はどちらも 2 件とも失敗）、`SceneJsonRuntimeValuesTests.NestedComponentTypes_AreFoundByEitherName`。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 既存の型や名前空間と同じ名前のシーンで、生成ファイルがコンパイルできなかった
 - 意図: ADR-0070。シーン JSON の誤りはビルド時に JSON の位置で報告し、生成できないシーンは作らない。
 - 観測（Fact）: シーンは `namespace`・`className` の partial class として生成される。その完全名がプロジェクトの構造体や partial でないクラス（`Sample.Kit`）、static クラス、参照アセンブリの型（`CSharpGameEngine.Entities.World`、`System.String`）、名前空間（`Game.Sub`）と同じだと、シーンの診断なしに生成ファイルが CS0101・CS0260・CS0261 などでコンパイルできなかった（コピーしたシーンをコンポーネントの名前に変えたときなど）。利用者の partial class とは合体してビルドできる。

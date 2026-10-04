@@ -210,12 +210,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     }
 
     /// <summary>A component type as the game build sees it: from the assemblies of the game's own context.</summary>
-    private Type?FindType(string FullName){
-        foreach(var Assembly in this.Context.Assemblies){
-            if(Assembly.GetType(FullName,throwOnError:false) is { }Type){ return Type; }
-        }
-        return null;
-    }
+    private Type?FindType(string FullName)=>SceneJsonRuntimeValues.FindType(this.Context.Assemblies,FullName);
 
     /// <summary>The designer's node paths ("(root)", "0", "0/1") mapped to their pre-order index.</summary>
     private static Dictionary<string,int>NodePaths(SceneJsonValue?Root){

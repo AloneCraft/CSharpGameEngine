@@ -648,6 +648,28 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Contains(Output.SyntaxTrees,Tree=>Tree.FilePath.EndsWith(Namespace+"."+ClassName+".Scene.g.cs",StringComparison.Ordinal));
         Assert.Empty(await Output.WithAnalyzers([new SceneJsonDslAnalyzer()],SceneProjectOptions.Analyzer([.. Files])).GetAnalyzerDiagnosticsAsync());
     }
+    /// <summary>
+    /// A nested component type builds by the name the converter, the schema and the palette write (Outer.Inner) as well as
+    /// by its metadata name (Outer+Inner); only the metadata name resolved (SCENE201), and the schema left nested types out.
+    /// </summary>
+    [Theory]
+    [InlineData("Sample.Outer.Inner")]
+    [InlineData("Sample.Outer+Inner")]
+    public void NestedComponentType_BuildsByEitherName(string TypeName){
+        const string Nested="""
+            namespace Sample {
+                public static class Outer { public struct Inner { public float Speed; } }
+                internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                    public bool Update(ref Outer.Inner inner, ref CSharpGameEngine.Entities.State state) => true;
+                }
+            }
+            """;
+        var Json=NamedScene("Game","MainScene").Replace("Sample.Kit",TypeName);
+        Assert.Empty(Analyze(Json,Nested));
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Nested]);
+        GameSystemGeneratorTestHelper.CompileAndLoad(Compilation,[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+        Assert.Contains("\"Sample.Outer.Inner\"",CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation),StringComparison.Ordinal);
+    }
     /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {

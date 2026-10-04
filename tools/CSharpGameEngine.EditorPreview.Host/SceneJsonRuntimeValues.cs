@@ -20,6 +20,21 @@ internal static class SceneJsonRuntimeValues {
     internal static object Component(Type Type,SceneJsonValue Members,string Where,bool Turns=false)=>
         Object(Type,Members,Where,new Reading(Turns),null);
 
+    /// <summary>
+    /// A component type by its document name, as the generator resolves it: the metadata name, or a nested type as C# and
+    /// the document name it (<c>Ns.Outer.Inner</c>), whose metadata name joins nested types with '+'.
+    /// </summary>
+    internal static Type?FindType(IEnumerable<Assembly>Assemblies,string FullName){
+        var Name=FullName;
+        for(var Dot=Name.Length;Dot>0;Dot=Name.LastIndexOf('.',Dot-1)){
+            if(Dot<Name.Length){ Name=Name.Substring(0,Dot)+"+"+Name.Substring(Dot+1); }
+            foreach(var Assembly in Assemblies){
+                if(Assembly.GetType(Name,throwOnError:false) is { }Type){ return Type; }
+            }
+        }
+        return null;
+    }
+
     /// <summary>Whether the document's angles are turns: <c>schemaVersion</c> 2 or later.</summary>
     internal static bool UsesTurns(SceneJsonValue Document)=>
         Document.Get("schemaVersion") is { Kind:SceneJsonKind.Number }Version

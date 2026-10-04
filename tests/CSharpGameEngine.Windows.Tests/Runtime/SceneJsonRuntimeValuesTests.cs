@@ -192,6 +192,18 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Equal(4,((Retired)SceneJsonRuntimeValues.Component(typeof(Retired),SceneJsonReader.Parse("""{ "A": 4 }"""),"Retired")).A);
     }
 
+    /// <summary>
+    /// The runtime view finds a nested component type by the name the document gives it, as C# names it (Outer.Inner) or
+    /// by its metadata name (Outer+Inner); only the metadata name was found, so such a scene asked for a rebuild.
+    /// </summary>
+    [Theory]
+    [InlineData("CSharpGameEngine.Windows.Tests.Runtime.SceneJsonRuntimeValuesTests.Pair")]
+    [InlineData("CSharpGameEngine.Windows.Tests.Runtime.SceneJsonRuntimeValuesTests+Pair")]
+    public void NestedComponentTypes_AreFoundByEitherName(string Name){
+        Assert.Equal(typeof(Pair),SceneJsonRuntimeValues.FindType([typeof(Pair).Assembly],Name));
+        Assert.Null(SceneJsonRuntimeValues.FindType([typeof(Pair).Assembly],Name+"Missing"));
+    }
+
     /// <summary>ADR-0074 version 3: an angle's key may leave out the C# unit word, as the generator reads it.</summary>
     [Fact]
     public void AngleKeys_ReadWithoutTheUnitWordAndByTheCSharpName(){
