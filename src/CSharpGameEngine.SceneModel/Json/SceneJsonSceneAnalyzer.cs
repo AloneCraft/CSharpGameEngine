@@ -523,6 +523,11 @@ internal static class SceneJsonSceneAnalyzer {
             if(IsObsoleteError(Member)){ return Mismatch($"'{Value.Text}' is obsolete and cannot be used"); }
             return SceneTypePredicates.ToFullyQualifiedName(Type)+"."+Identifier(Member.Name);
         }
+        // An angle in turns becomes its member's unit, where a number that fits float may not (1e37 turns in degrees):
+        // formatting that infinity as the literal threw, failing the analyzer and the whole generator (CS8785).
+        if(Unit is not null&&Angles.Turns&&NumberIn(Value,Angles,Unit) is { }Converted&&(float.IsInfinity(Converted)||float.IsNaN(Converted))){
+            return Mismatch($"the angle is beyond the range of float in {(Unit==SceneAngleUnit.Radians?"radians":"degrees")}");
+        }
         switch(Type.SpecialType){
             case SpecialType.System_Boolean:
                 return Value.Kind==SceneJsonKind.True?"true":Value.Kind==SceneJsonKind.False?"false":Mismatch("expected true or false");

@@ -91,6 +91,23 @@ public sealed class SceneJsonAngleTests {
         Assert.Contains("'Yaw' and 'YawDegrees'",string.Format(System.Globalization.CultureInfo.InvariantCulture,
             Problem.Descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture),Problem.Arguments),StringComparison.Ordinal);
     }
+    /// <summary>
+    /// A number in turns can fit a float and its member's unit not (1e37 turns in degrees). Formatting that infinity as
+    /// the literal threw: the analyzer failed (AD0001) and the generator dropped the whole project's output (CS8785).
+    /// It is a SCENE203 at the value, and the generator still emits the scene.
+    /// </summary>
+    [Theory]
+    [InlineData("1e37","0.25","0","degrees")]
+    [InlineData("0.25","1e38","0","radians")]
+    [InlineData("0.25","0.25","1e38","radians")]
+    public void AngleBeyondFloatInItsUnit_IsAnErrorAtTheValue(string Yaw,string Fov,string R,string Unit){
+        var Json=VersionThree(Yaw,Fov,R,"0");
+        var Problem=Assert.Single(SceneJsonSceneAnalyzer.Analyze(Json,Base()).Problems);
+        Assert.Contains("beyond the range of float in "+Unit,string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            Problem.Descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture),Problem.Arguments),StringComparison.Ordinal);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(Base(),[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+        Assert.DoesNotContain(Result.Diagnostics,static Diagnostic=>Diagnostic.Id=="CS8785");
+    }
     [Fact]
     public void Converter_WritesVersionThreeWithAnglesInTurnsUnderUnitFreeKeys(){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,"""
