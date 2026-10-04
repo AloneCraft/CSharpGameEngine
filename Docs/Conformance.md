@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — VSIX は decimal のメンバーを持つシーンへ編集を書き戻せなかった
+- 意図: ADR-0070 の Scene Designer の書き戻しは、シーン JSON が持てる値のメンバーなら型によらず動く（decimal の範囲は同日に SCENE203 として検査するようにした）。
+- 観測（Fact）: 変換器は decimal の定数を `ToString("R")` で書いていた。.NET の "R" は decimal を "G" と同じ文字列で書くが、.NET Framework（VSIX）には decimal の "R" が無く `FormatException` を投げる。decimal のメンバーを持つコンポーネントがあるシーンでは、どのノードの編集も書き戻せなかった。エンジンのコンポーネントには decimal のメンバーが無いので、影響するのは利用者が自分で書いた decimal のメンバーだけ。
+- 実装: decimal は書式なし（"G"）で書く。両方の実行環境で同じ文字列になり、スケールも保つ（`1.50` は `1.50` のまま）。.NET のツールが書く文字列は変わらない。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsDecimalMembersAsWritten`（net472。修正前は `FormatException`）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — VSIX の書き戻しが double のメンバーの書き方を変えていた
 - 意図: M0095「エディターの書き込みは変わった値だけを元のテキストへ戻す」。同日に float は .NET Framework と .NET で同じ文字列を書くよう直した。
 - 観測（Fact）: 変換器は double の定数を `ToString("R")` で書いていた。.NET Framework（VSIX）の "R" は最短の文字列ではなく、1/3 を `0.33333333333333331` と書き、.NET（ツール）は `0.3333333333333333` と書く。double のメンバーを持つコンポーネントがあるシーンで別のノードを動かすと、差分の適用は十進の文字列で比べるので、その double の行も書き換えた。エンジンのコンポーネントには double のメンバーが無い（NUM001）ので、影響するのは利用者が自分で書いた double のメンバーだけ。

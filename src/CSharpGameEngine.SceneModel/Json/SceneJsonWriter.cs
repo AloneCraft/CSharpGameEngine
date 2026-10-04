@@ -163,7 +163,7 @@ internal static class SceneJsonNumbers {
         (float)double.Parse(Text,NumberStyles.Float,CultureInfo.InvariantCulture)==Value;
     /// <summary>
     /// A double's shortest text of 15 to 17 digits that reads back to it ("R" differs between .NET Framework and .NET),
-    /// or any other constant's round-trip text.
+    /// or a decimal's exact text with its scale (1.50 stays 1.50; .NET Framework has no "R" for decimal).
     /// </summary>
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
@@ -175,7 +175,7 @@ internal static class SceneJsonNumbers {
                 if(double.Parse(Text,NumberStyles.Float,CultureInfo.InvariantCulture)==Double){ return Normalize(Text); }
             }
         }
-        return Value.ToString("R",CultureInfo.InvariantCulture);
+        return Value.ToString(null,CultureInfo.InvariantCulture);
     }
     /// <summary>"G" may produce "1E-05"; JSON accepts it. "-0" becomes "0" so a value has one spelling.</summary>
     private static string Normalize(string Text)=>Text=="-0"?"0":Text;

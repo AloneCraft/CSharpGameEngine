@@ -39,6 +39,8 @@ public sealed class SceneJsonCommitPlannerTests {
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Precise { public double Ratio; public double Tiny; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Priced { public decimal Price; public decimal Huge; }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Body() {
                 public float Mass=2.5f;
                 public ShapeKind Shape=ShapeKind.Sphere;
@@ -296,6 +298,23 @@ public sealed class SceneJsonCommitPlannerTests {
             "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
             "            \"type\": \"CSharpGameEngine.Runtime.Windows.Precise\",\n            \"members\": {\n              \"Ratio\": 0.3333333333333333,\n              \"Tiny\": 1E-300\n            }");
         Assert.Contains("\"Ratio\": 0.3333333333333333",Before);
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
+    /// <summary>
+    /// An edit elsewhere leaves a decimal member as it is. .NET Framework has no "R" format for decimal and threw, so
+    /// no edit could be written to a scene with a decimal member.
+    /// </summary>
+    [Fact]
+    public void Move_KeepsDecimalMembersAsWritten(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Priced\",\n            \"members\": {\n              \"Price\": 1.50,\n              \"Huge\": 79228162514264337593543950335\n            }");
+        Assert.Contains("\"Price\": 1.50",Before);
         var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
         var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
             new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),

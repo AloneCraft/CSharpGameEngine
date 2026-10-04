@@ -32,6 +32,7 @@
 - Fixed the Inspector failing every enum or text edit in a scene ("The Scene edit operation failed."): enum choices and strings such as `StaticMesh.AssetPath` now write back to the scene JSON.
 - Fixed every Scene Designer edit rewriting unrelated numbers such as `5.0000052` as `5.0000053`: the VSIX (.NET Framework) now writes a float with the same text as the tools.
 - Fixed a Scene Designer edit rewriting a `double` member of a user component (for example `0.3333333333333333` as `0.33333333333333331`): the VSIX now writes a double with the same shortest text as the tools.
+- Fixed the Scene Designer failing every edit of a scene that has a `decimal` member in a user component (.NET Framework has no "R" format for decimal): a decimal is now written as its exact text, as the tools write it.
 - Fixed the Scene Designer removing `startupOrder` from a startup scene on its first edit, after which the game no longer loaded that scene: the designer now reads a startup scene as one, so a write-back keeps the key.
 - Fixed a game project named like a C# keyword (`event`, `fixed`) failing to compile: the template's namespaces now get a leading underscore for a reserved keyword.
 - Fixed a `PlayerController` whose `MinPitchDegrees` is above its `MaxPitchDegrees` throwing every frame: the pitch now stays between the two bounds whichever order they are written in.
