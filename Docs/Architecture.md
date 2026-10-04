@@ -103,10 +103,10 @@ Roslynにロードされない。
   ADR-0071)が編集に使う。エディターの書き込みは変わった値だけを元のテキストへ戻し、作者の書式を保つ(M0095)。
   ゲームがビルド済みなら、Scene ビューはゲーム自身のランタイムで描く(ADR-0070 B1)。
 - シーンエディタのインタラクション(ナビゲーション・ピッキング・ギズモ・編集トランザクション)は
-  Phase 0〜3まで実装済みである。カメラ外部注入・階層Transform合成に加え、ナビゲーション、
-  CPUピッキングと双方向選択、Moveギズモ、Renderer定数だけのドラッグpreview、最新Roslyn世代への
-  `SetTransform(Position)`リベース、live text bufferへの1操作=1 Undo書き戻しを持つ。
-  Phase 4〜7(Rotate/Scale、修飾操作、Propertyギズモ、増分描画)は計画済み・未実装。
+  M0020のPhase 0〜7を実装済みである。カメラ外部注入・階層Transform合成に加え、ナビゲーション、
+  CPUピッキングと双方向選択、Move/Rotate/Scaleギズモと増分スナップ、Duplicate・Follow View・
+  頂点/面スナップ、Camera/Lightのプロパティギズモ、Renderer定数だけのドラッグpreview、
+  最新世代へのリベース、1操作=1 Undoの書き戻し、差分の増分更新(`SceneIncrementalUpdatePolicy`)を持つ。
   ギズモ軸はゲーム本体の実行時Camera行列規約を維持し、既定視点のワールド`+X`は画面左へ写る
   ([[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]])。要求仕様は`Docs/シーンエディタの仕様.md`、意思決定は
   [[ADR-0041-Scene-Editor-Interaction-Architecture]]、詳細設計は
