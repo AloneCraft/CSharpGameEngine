@@ -620,7 +620,7 @@ internal static class SceneJsonSceneAnalyzer {
     /// constructor and a public <c>Add</c> that takes one element (<c>List&lt;T&gt;</c>, <c>HashSet&lt;T&gt;</c>; not
     /// <c>Queue&lt;T&gt;</c>, <c>Stack&lt;T&gt;</c> or <c>Dictionary&lt;K,V&gt;</c>).
     /// </summary>
-    private static bool IsCollectionExpressionTarget(ITypeSymbol Type,ITypeSymbol Element,Compilation Compilation){
+    internal static bool IsCollectionExpressionTarget(ITypeSymbol Type,ITypeSymbol Element,Compilation Compilation){
         if(Type is not INamedTypeSymbol Named){ return false; }
         if(Named.TypeKind==TypeKind.Interface){
             return Named.OriginalDefinition.SpecialType is SpecialType.System_Collections_Generic_IEnumerable_T

@@ -155,12 +155,19 @@ internal static class SceneJsonSchemaBuilder {
             case SpecialType.System_Int64:
             case SpecialType.System_UInt64:return Typed("integer");
         }
+        // A value the build rejects (SCENE203) matches nothing, so the editor warns while typing as the build would.
         if(Type is IArrayTypeSymbol Array){
-            return SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Array.ElementType,Compilation,Definitions,Defined));
+            return Array.Rank>1
+                ?Unwritable("A multidimensional array cannot be written in scene JSON.")
+                :SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Array.ElementType,Compilation,Definitions,Defined));
         }
         if(Type.SpecialType==SpecialType.None&&CollectionElement(Type,Compilation) is { }Element){
-            return SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Element,Compilation,Definitions,Defined));
+            return SceneJsonSceneAnalyzer.IsCollectionExpressionTarget(Type,Element,Compilation)
+                ?SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Element,Compilation,Definitions,Defined))
+                :Unwritable("This collection type cannot be created from a list of elements.");
         }
+        if(Type is INamedTypeSymbol{ IsTupleType:true }){ return Unwritable("A tuple cannot be written in scene JSON."); }
+        if(Type is INamedTypeSymbol{ IsAbstract:true,TypeKind:TypeKind.Class }){ return Unwritable("An abstract type cannot be created."); }
         var AcceptsNumber=Compilation.ClassifyConversion(Compilation.GetSpecialType(SpecialType.System_Single),Type).IsImplicit;
         if(Type is INamedTypeSymbol Named&&Named.TypeKind is TypeKind.Struct or TypeKind.Class&&Named.SpecialType==SpecialType.None){
             var Object=Reference(Named,Compilation,Definitions,Defined);
@@ -168,9 +175,12 @@ internal static class SceneJsonSchemaBuilder {
         }
         return AcceptsNumber?Typed("number"):SceneJsonOut.Object();
     }
+    /// <summary>A schema no value matches, with the reason for the editor's warning.</summary>
+    private static SceneJsonOut Unwritable(string Reason)=>Described(SceneJsonOut.Object().Add("not",SceneJsonOut.Object()),Reason);
+    /// <summary>The element of an enumerable, the type itself included (an IEnumerable&lt;T&gt; member), as the analyzer reads it.</summary>
     private static ITypeSymbol?CollectionElement(ITypeSymbol Type,Compilation Compilation){
         var Enumerable=Compilation.GetSpecialType(SpecialType.System_Collections_Generic_IEnumerable_T);
-        foreach(var Interface in Type.AllInterfaces){
+        foreach(var Interface in Type.AllInterfaces.Prepend(Type as INamedTypeSymbol).OfType<INamedTypeSymbol>()){
             if(SymbolEqualityComparer.Default.Equals(Interface.OriginalDefinition,Enumerable)){ return Interface.TypeArguments[0]; }
         }
         return null;

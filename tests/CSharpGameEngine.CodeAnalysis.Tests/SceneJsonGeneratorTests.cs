@@ -691,6 +691,37 @@ public sealed class SceneJsonGeneratorTests {
             [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
     }
     /// <summary>
+    /// The schema the editor warns with while typing agrees with the build: a value the build rejects (SCENE203) for a
+    /// Queue, a dictionary, a tuple, a multidimensional array or an abstract type matches nothing, and an IEnumerable
+    /// member takes an array. The schema offered an array or an object for the rejected ones and none for IEnumerable.
+    /// </summary>
+    [Fact]
+    public void GeneratedSchema_AgreesWithTheBuildOnCollectionsAndObjects(){
+        const string Source="""
+            namespace Sample {
+                public abstract class Shape { public int A; }
+                public struct Bag {
+                    public System.Collections.Generic.List<int> Items; public System.Collections.Generic.HashSet<int> Tags;
+                    public System.Collections.Immutable.ImmutableArray<int> Fixed; public System.Collections.Generic.IEnumerable<int> Any;
+                    public System.Collections.Generic.Queue<int> Waiting; public System.Collections.Generic.Dictionary<string,int> Counts;
+                    public (int A,int B) Pair; public int[,] Grid; public Shape Outline;
+                }
+                internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                    public bool Update(ref Bag bag, ref CSharpGameEngine.Entities.State state) => true;
+                }
+            }
+            """;
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Source]);
+        var Members=CSharpGameEngine.SceneAnalysis.Json.SceneJsonReader.Parse(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation))
+            .Get("definitions")!.Get("type:Sample.Bag")!.Get("properties")!;
+        foreach(var Name in new[]{"Items","Tags","Fixed","Any"}){
+            Assert.Equal("array",Members.Get(Name)!.Get("type")!.Text);
+        }
+        foreach(var Name in new[]{"Waiting","Counts","Pair","Grid","Outline"}){
+            Assert.NotNull(Members.Get(Name)!.Get("not"));
+        }
+    }
+    /// <summary>
     /// A game whose systems do not run in the editor builds its generated files without a warning. The editor preview
     /// bridge declared and reset its system set without reading it then (CS0414), which stops a build that treats
     /// warnings as errors.
