@@ -102,6 +102,31 @@ public sealed class SceneEditConflictMergerTests {
         Assert.Empty(Result.Operations);
     }
 
+    /// <summary>
+    /// An Inspector commit leaves its original value out (a typed value is not a delta). When the document moved on
+    /// before the commit, the merger cannot tell whether the member changed, so it rejects the edit instead of letting the
+    /// last writer win; at the same version the typed value is applied.
+    /// </summary>
+    [Fact]
+    public void Merge_StaleMemberEditWithoutItsOriginal_IsRejected(){
+        SceneProjectionReconciler Reconciler=new();
+        var Started=CreatePropertySnapshot(1,"3f",Previous:null,Reconciler);
+        var Latest=CreatePropertySnapshot(2,"9f",Started,Reconciler);
+        var Light=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Light").Id;
+        SetComponentMemberOperation Edit=new(Key,Light,Started.DocumentVersion,"global::Sample.DirectionalLight","Intensity","4f");
+
+        var Stale=SceneEditConflictMerger.Merge(new SceneEditCommitRequest(
+            Key,Started.DocumentVersion,"Edit Intensity",[],SceneTransformMemberMask.None,DirectOperations:[Edit]),Latest);
+        var Current=SceneEditConflictMerger.Merge(new SceneEditCommitRequest(
+            Key,Latest.DocumentVersion,"Edit Intensity",[],SceneTransformMemberMask.None,DirectOperations:[Edit with { DocumentVersion=Latest.DocumentVersion }]),Latest);
+
+        Assert.False(Stale.Succeeded);
+        Assert.Contains("Intensity",Stale.ErrorMessage);
+        Assert.Empty(Stale.Operations);
+        Assert.True(Current.Succeeded,Current.ErrorMessage);
+        Assert.Equal("4f",Assert.IsType<SetComponentMemberOperation>(Assert.Single(Current.Operations)).ValueExpression);
+    }
+
     [Fact]
     public void Merge_PropertyMemberBecameNonLiteralExpression_Fails(){
         SceneProjectionReconciler Reconciler=new();
