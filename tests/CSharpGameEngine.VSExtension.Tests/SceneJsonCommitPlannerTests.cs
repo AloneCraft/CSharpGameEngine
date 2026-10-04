@@ -29,8 +29,17 @@ public sealed class SceneJsonCommitPlannerTests {
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Light { public float Intensity; }
             public enum LightMode { Off, Bright }
+            public readonly struct RufScalarVector {
+                public RufScalarVector(CSharpGameEngine.Numerics.LogicalScalar R,CSharpGameEngine.Numerics.LogicalScalar U,CSharpGameEngine.Numerics.LogicalScalar F){ this.R=R;this.U=U;this.F=F; }
+                public readonly CSharpGameEngine.Numerics.LogicalScalar R; public readonly CSharpGameEngine.Numerics.LogicalScalar U; public readonly CSharpGameEngine.Numerics.LogicalScalar F;
+            }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Mover { public CSharpGameEngine.Numerics.LogicalScalar Speed; public RufScalarVector Offset; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Lamp { public LightMode Mode; public string Label; }
+        }
+        namespace CSharpGameEngine.Numerics {
+            public readonly struct LogicalScalar { public static implicit operator LogicalScalar(float Value)=>default; }
         }
         """;
     private const string JsonPath=@"C:\Game\Scenes\MainScene.json";
@@ -203,6 +212,37 @@ public sealed class SceneJsonCommitPlannerTests {
         var LabelPlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,LabelRequest,Seed.Reconciler,CancellationToken.None);
         Assert.True(LabelPlan.Succeeded,LabelPlan.ErrorMessage);
         Assert.Equal(Before.Replace("\"Label\": \"a \\\"b\\\"\"","\"Label\": \"c\\\\d\""),LabelPlan.WriteStep!.Before.WithChanges(LabelPlan.WriteStep.Changes).ToString());
+    }
+    /// <summary>
+    /// LogicalScalar members (the engine's authored real numbers: character movement, spring arm, every RUF vector of a
+    /// Transform) are edited as floats in the Inspector, as their JSON numbers are read. They used to be read-only, so
+    /// the RUF vector editing the Inspector offers was unavailable for the engine's own vectors.
+    /// </summary>
+    [Fact]
+    public void InspectorEditsLogicalScalarMembersAsFloats(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Mover\",\n            \"members\": {\n              \"Speed\": 6,\n              \"Offset\": { \"R\": 1, \"U\": 2, \"F\": 3 }\n            }");
+        Assert.Contains("\"Speed\": 6",Before);
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Members=SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid()));
+        var Speed=Assert.Single(Members,static Member=>Member.MemberName=="Speed");
+        var OffsetU=Assert.Single(Members,static Member=>Member.MemberName=="U");
+        Assert.True(Speed.IsEditable);
+        Assert.Equal(InspectorEditorKind.Number,Speed.EditorKind);
+        Assert.True(OffsetU.IsEditable);
+        Assert.True(SceneInspectorValueFormat.TryFormatNumber(Speed.NumericType!.Value,"7.5",out var SpeedText));
+        Assert.True(SceneInspectorValueFormat.TryFormatNumber(OffsetU.NumericType!.Value,"-4",out var OffsetText));
+
+        var SpeedPlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Speed,SpeedText),Seed.Reconciler,CancellationToken.None);
+        Assert.True(SpeedPlan.Succeeded,SpeedPlan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"Speed\": 6","\"Speed\": 7.5"),SpeedPlan.WriteStep!.Before.WithChanges(SpeedPlan.WriteStep.Changes).ToString());
+        var OffsetPlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,OffsetU,OffsetText),Seed.Reconciler,CancellationToken.None);
+        Assert.True(OffsetPlan.Succeeded,OffsetPlan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"U\": 2,","\"U\": -4,"),OffsetPlan.WriteStep!.Before.WithChanges(OffsetPlan.WriteStep.Changes).ToString());
     }
     [Fact]
     public void Move_KeepsHandFormatting(){

@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Inspector でエンジンの実数（LogicalScalar）を編集できなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Inspector は列挙型・ベクトルなどをスキーマに合ったエディターで編集し、実数の正規の編集は float で行う」。Inspector はメンバー直下の RUF ベクトルの R/U/F を編集できるように作られている。
+- 観測（Fact）: エディターの種類は組み込みの数値型だけを数値エディターにし、エンジンの実数 `LogicalScalar`（Q64.64）は読み取り専用にしていた。ThirdPerson テンプレートの CharacterMovement（歩行速度・ジャンプ速度など）、SpringArm（腕の長さ）、Transform の Position/Scale の R/U/F はすべて LogicalScalar なので、Inspector では一つも変えられなかった。RUF ベクトルのテストは成分が float のスタブ型を使っていたので、本物の型との差に気付かなかった。
+- 実装: LogicalScalar のメンバーを数値エディターにし、float のリテラルとして確定する（シーン JSON はこの型を float として読む数値で持つので、失われる精度は無い）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.InspectorEditsLogicalScalarMembersAsFloats`（LogicalScalar のスタブ型。修正前は読み取り専用で失敗）。実際のシーン 21 個で、編集できるメンバー 1,225 件の同じ値の確定がすべてファイルを変えず、数値 936 件の +1 がすべてその 1 行だけを書き換えた（一時的な検証、未コミット）。
+- 結果: Matches。既知の差: Transform の `Rotation.EulerRuf.R/U/F` のような 3 段の入れ子は、書き戻しが 2 段までしか扱わないので読み取り専用のまま（回転はギズモで編集する）。
+
 ## 2026-10-04 探索 — Inspector で列挙型と文字列のメンバーを変えられなかった
 - 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Inspector は列挙型などをスキーマに合ったエディターで編集する」。ADR-0070 で全シーンが JSON になった。
 - 観測（Fact）: JSON シーンの書き戻しは、編集をモデルへ当てる `SceneModelEditApplier` が値の式を解釈できたときだけ成功する。その解釈は真偽値と数値だけで、列挙型のメンバー参照と文字列は「意味解析が要るので、C# のテキストを直接書き換える従来の経路へ落とす」としていた。JSON シーンにはその経路がないので、列挙型（PostProcessVolume.ToneMapper、PrimitiveMesh.Type、Collider.Shape、StaticMesh.Mobility など）と文字列（StaticMesh.AssetPath など）の Inspector の編集は、すべて「The Scene edit operation failed.」になった。実際のシーン 21 個で、列挙型 139 件と文字列 122 件が該当した。

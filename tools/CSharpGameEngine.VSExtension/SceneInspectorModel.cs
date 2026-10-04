@@ -116,12 +116,11 @@ internal sealed class SceneInspectorMemberRow:SceneInspectorRow {
 /// もう1段(以上)再帰的に重ねる。
 ///
 /// <para>
-/// <see cref="Rows"/>の葉は<b>常に読み取り専用として構築する</b>
-/// (<see cref="SceneInspectorModelBuilder.BuildRow"/>の<c>AllowEdit:false</c>)。
-/// <see cref="SceneModelEditApplier.TryApplySetMember"/>相当の適用経路はComponentの
-/// トップレベルMembersでしか名前一致を探さず、見つからなければ<b>黙って新規メンバーを
-/// Component直下に追加する</b>ため、ネストした子を安易に編集可能へ倒すと
-/// <c>Transform { …, X=5f }</c>のような存在しない偽メンバーが生える実害あるバグになる。
+/// <see cref="Rows"/>の葉は、メンバー直下のRUFベクトル(<c>R</c>/<c>U</c>/<c>F</c>)だけを編集可能にし、
+/// それ以外は読み取り専用として構築する。<see cref="SceneModelEditApplier"/>の入れ子の適用は
+/// <c>Member.R</c>のような2段だけを扱い、それより深い子(<c>Rotation.EulerRuf.R</c>)や
+/// RUF以外の名前を編集可能へ倒すと、<c>Transform { …, X=5f }</c>のような存在しない偽メンバーを
+/// 生やす実害あるバグになる。
 /// </para>
 /// </summary>
 internal sealed class SceneInspectorNestedRow:SceneInspectorRow {
@@ -311,7 +310,7 @@ internal static class SceneInspectorModelBuilder {
             IsEditable,
             Kind,
             Member.Value.ConstantValue,
-            Kind==InspectorEditorKind.Number?DeclaredType?.SpecialType:null,
+            Kind==InspectorEditorKind.Number?(IsLogicalScalar(DeclaredType)?SpecialType.System_Single:DeclaredType?.SpecialType):null,
             Candidates,
             [..ParentPath,Member.MemberName],
             AngleUnit:Angle,
@@ -387,6 +386,14 @@ internal static class SceneInspectorModelBuilder {
     /// <see cref="SceneValue.IsEditable"/>で既に確定しているので、残りの編集可能種別(Literal/
     /// EnumMember/Default)をCLR型からUIの入力コントロールへ振り分けるだけでよい。
     /// </summary>
+    /// <summary>
+    /// The engine's authored real number (Q64.64), edited as a float: scene JSON holds it as a number read through float
+    /// (ADR-0070), so a float literal loses nothing the document keeps. Character movement, the spring arm and every RUF
+    /// vector of a Transform are LogicalScalar.
+    /// </summary>
+    private static bool IsLogicalScalar(ITypeSymbol?Type)=>
+        Type is not null&&SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar";
+
     private static InspectorEditorKind DetermineEditorKind(SceneValue Value,ITypeSymbol?DeclaredType){
         if(Value.Kind==SceneValueKind.StaticMemberRef&&Value.ReferencedSymbol?.ContainingType is not null){
             return InspectorEditorKind.AssetReference;
@@ -396,6 +403,9 @@ internal static class SceneInspectorModelBuilder {
         }
         if(DeclaredType is { TypeKind:TypeKind.Enum }){
             return InspectorEditorKind.Enum;
+        }
+        if(IsLogicalScalar(DeclaredType)){
+            return InspectorEditorKind.Number;
         }
 
         return DeclaredType?.SpecialType switch {
