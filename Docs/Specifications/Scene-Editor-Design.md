@@ -115,6 +115,10 @@ aspect≥1では実効FOV=FovYとなり、横長・正方形の距離はPhase 0�
 | `Pan`(MMB Drag) | 視線を変えずカメラの右・上ベクトル方向へ`FocusPosition`と視点を平行移動。移動量はNavigationScale比例 |
 | `Orbit`(Alt+LMB) | `Yaw`/`Pitch`を回す。選択があればドラッグ開始時の選択中心(Focus Selectionと同じメッシュ境界の中心、メッシュが無ければギズモのピボット)を回転中心にし、その点のカメラ座標が変わらないよう視点を移す — 選択中心は画面上の同じ位置・同じ距離に留まり、そこにある真球は描画が変わらない(M0095、2026-10-01ユーザー要望)。選択が無ければ`FocusPosition`固定で旋回する。旋回中は選択のギズモを隠し、終われば戻す(Altを押しただけでは隠さないので、§6.2のAlt+ハンドルのDuplicateは使える)。基準はLookと同じ向きで、反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。Orbitは常にドラッグ量ベースで更新し、クリック位置のピクセル固定は行わない。 |
 
+ビューポートは文字を受け付けないので入力メソッドを持たない(`InputMethod.IsInputMethodEnabled=false`、
+2026-10-04)。IME がオンのままだと WPF は IME が処理したキーを`Key.ImeProcessed`として届けるため、
+WASDQE・F・N が効かなくなる。
+
 **ピクセル完全一致ドラッグ**(2026-08追加): RMBでクリックした点(方向)が、Lookの向きが
 「右ドラッグでYaw増・下ドラッグでPitch増」(`InvertLookX=ON`、`InvertLookY=ON`)の間は
 ドラッグ中カーソル先端に一致し続ける。Alt+LMB Orbitには適用しない。

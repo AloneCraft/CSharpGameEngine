@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — IME がオンだと Scene ビューの WASDQE が効かなかった
+- 意図: [Scene-Editor-Design](Specifications/Scene-Editor-Design.md)「Fly(RMB+WASDQE)」。ゲームのウィンドウの入力メソッドを同日に外した件と同じ形。
+- 観測（Fact）: Scene ビューのナビゲーションは WPF の `KeyDown` の `Args.Key` で W/A/S/D/Q/E/F/N を見る。ビューポートには入力メソッドが有効なままだった。WPF は IME が処理したキーを `Key.ImeProcessed`（本来のキーは `ImeProcessedKey`）として届けるので、コードのコメントのために日本語 IME をオンにしたまま Scene ビューを操作すると、ナビゲーションが動かないことになる（WPF の文書の動作。実際の IME の打鍵では確かめていない）。
+- 実装: ビューポート（`RenderHostGrid`）の `InputMethod.IsInputMethodEnabled` を false にした。Hierarchy の名前変更など、文字を受け付ける場所の IME はそのまま。
+- 自動化された証拠: 無し（VSIX のテストは WPF の要素を作らない）。ビルドと Scene Designer 関連のテスト 67 件は合格。
+- 結果: Matches（未検証: 実際の VS での打鍵）。
+
 ## 2026-10-04 探索 — ゲームのウィンドウに入力メソッドが付いていた（IME がオンだと移動キーが届かない）
 - 意図: [Audio-Input-Platform](Specifications/Audio-Input-Platform.md)「Keyboard, mouse, and gamepad controls」。ゲームのウィンドウは文字入力を持たない（`WM_CHAR` を扱わない）。
 - 観測（Fact）: キーボードは `WM_KEYDOWN`/`WM_KEYUP` の仮想キーで受け取り、キーボードの Raw Input は使っていない。ゲームのウィンドウには既定の入力コンテキストが付いていた（同じスレッドの `ImmGetContext` が 0 でない）。Windows は IME が処理したキーを `WM_KEYDOWN` の `VK_PROCESSKEY` として送るので、日本語 IME をひらがな入力のままゲームへ切り替えると W/A/S/D が届かないことになる（Windows の文書の動作。ユーザーの画面でフォーカスを奪ってキーを送る実験はしていない）。

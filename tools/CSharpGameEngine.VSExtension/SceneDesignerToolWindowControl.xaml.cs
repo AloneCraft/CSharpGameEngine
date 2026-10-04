@@ -48,6 +48,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         // ビューポート内をクリックしたときだけ(OnViewportActivated)フォーカスを与える。
         this.RenderHostGrid.Focusable=true;
         KeyboardNavigation.SetIsTabStop(this.RenderHostGrid,false);
+        // The viewport takes no text. With an IME open (a Japanese one left on for code comments), WPF delivers the keys
+        // it processes as Key.ImeProcessed, so WASDQE, F and N would not reach the viewport; it has no input method.
+        InputMethod.SetIsInputMethodEnabled(this.RenderHostGrid,false);
         this.Loaded+=this.OnLoaded;
         this.RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
         this.RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
