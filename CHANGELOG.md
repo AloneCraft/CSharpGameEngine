@@ -34,6 +34,7 @@
 - Fixed every Scene Designer edit rewriting unrelated numbers such as `5.0000052` as `5.0000053`: the VSIX (.NET Framework) now writes a float with the same text as the tools.
 - Fixed a Scene Designer edit rewriting a `double` member of a user component (for example `0.3333333333333333` as `0.33333333333333331`): the VSIX now writes a double with the same shortest text as the tools.
 - Fixed the Scene Designer still rewriting some unrelated numbers and angles: .NET Framework rounds digit ties away from zero (`312985.125` as `312985.13`, the tools write `312985.12`) and misreads some doubles. Scene numbers are now formatted with exact arithmetic, the same text on .NET Framework and .NET.
+- Fixed the component palette failing to add a user component whose enum default is a cast or a combination (`(Mode)1`, `Layers.A | Layers.B`): such a default is written as the member it names, or left out when no single member names it.
 - Fixed the Scene Designer failing every edit of a scene that has a `decimal` member in a user component (.NET Framework has no "R" format for decimal): a decimal is now written as its exact text, as the tools write it.
 - Fixed the Scene Designer removing `startupOrder` from a startup scene on its first edit, after which the game no longer loaded that scene: the designer now reads a startup scene as one, so a write-back keeps the key.
 - Fixed a game project named like a C# keyword (`event`, `fixed`) failing to compile: the template's namespaces now get a leading underscore for a reserved keyword.

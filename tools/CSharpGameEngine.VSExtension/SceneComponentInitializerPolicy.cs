@@ -102,8 +102,8 @@ internal static class SceneComponentInitializerPolicy {
     }
 
     /// <summary>
-    /// The value of a declared default, read with the semantic model of its declaration: a member of the member's enum,
-    /// a constant (<c>6360f</c>, <c>MathF.PI/4f</c>), or <c>LogicalScalar.FromSingle(constant)</c> (scene JSON reads a
+    /// The value of a declared default, read with the semantic model of its declaration: the member of the member's enum
+    /// that it names (by value, so a cast names one too), a constant (<c>6360f</c>, <c>MathF.PI/4f</c>), or <c>LogicalScalar.FromSingle(constant)</c> (scene JSON reads a
     /// LogicalScalar through float). <paramref name="Value"/> is null when the default has none of these forms, so the
     /// scene cannot hold it. False when the declaration is not in <paramref name="Compilation"/> (a referenced assembly,
     /// or no compilation): the text-only plan is used then.
@@ -132,6 +132,20 @@ internal static class SceneComponentInitializerPolicy {
             return true;
         }
         var Constant=Model.GetConstantValue(Initializer);
+        if(MemberType is INamedTypeSymbol { TypeKind:TypeKind.Enum }Enum){
+            // Scene JSON names one member ((ShapeKind)1 is "Sphere"); a value no single member names, such as a flags
+            // combination, has no JSON form and is left out.
+            var Named=Constant.HasValue
+                ?Enum.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(Field=>Field.HasConstantValue&&Equals(Field.ConstantValue,Constant.Value))
+                :null;
+            if(Named is not null){
+                var Name=SceneTypePredicates.ToFullyQualifiedName(Enum)+"."+Named.Name;
+                Value=new SceneValue(SceneValueKind.EnumMember,MemberType,Named.ConstantValue,Named,
+                    ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+                    Name,Name,SceneSourceLocation.None);
+            }
+            return true;
+        }
         if(Constant.HasValue&&(Constant.Value is not null||MemberType is not { IsValueType:true })){
             Value=Literal(MemberType,Constant.Value,Text);
             return true;

@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 列挙型の既定値をキャストや組み合わせで宣言したコンポーネントをパレットから追加できなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md) のコンポーネント パレット。追加したコンポーネントは宣言の既定値を持ち、シーン JSON が持てない既定値は書かずに省く（同日の修正）。
+- 観測（Fact）: 列挙型のメンバーの既定値は、列挙型のメンバーを直接参照するとき（`ShapeKind.Sphere`）だけ名前で書かれた。`(ShapeKind)1` や `Layers.A | Layers.B` のような式は定数の数値として書かれ、シーン JSON の列挙型はメンバー名の文字列なので、追加の書き戻しが SCENE203 で失敗した。エンジンのコンポーネントには無い形で、利用者のコンポーネントで起きる。
+- 実装: 列挙型の既定値は定数の値で列挙型のメンバーを引いて名前で書く。一つのメンバーが名指ししない値（フラグの組み合わせなど）はシーン JSON に書けないので省き、ビルド時に宣言の既定値が使われる。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.PaletteComponent_WritesEnumDefaultsByName`（修正前は上の SCENE203）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — VSIX と .NET のツールで数値の文字列がまだ違っていた（正確な丸め）
 - 意図: [ADR-0070](Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)「書き込みは変わった値だけを元のテキストへ戻す」。同日に float と double の書き方を両方の実行環境で同じ手順にした。
 - 観測（Fact）: 同じ入力を .NET Framework と .NET で書き比べた（約 400 万個）。float は約 3,000 個で文字列が違った。.NET Framework は丸めの中間（312985.125 の 8 桁）を 0 から遠い方へ丸め（`312985.13`）、.NET は偶数へ丸める（`312985.12`）。どちらも同じ float に戻るので値は同じだが、Scene Designer の編集が無関係な行を書き換える。値の大きい float（おおむね 1e5 以上）で起き、角度（度・回転数）でも 120 万個中 25 個あった。double は約 1.8 万個で違い、そのうち約 3,800 個は .NET Framework が書いた文字列を .NET で読むと別の double になった。.NET Framework は 15 桁や 17 桁へ丸めてから少ない桁へ丸め、double の解析も正しく丸めない（`0.00233238` を 1 ulp 違う double に読む）。

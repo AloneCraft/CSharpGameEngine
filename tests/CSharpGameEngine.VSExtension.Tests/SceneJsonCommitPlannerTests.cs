@@ -40,6 +40,15 @@ public sealed class SceneJsonCommitPlannerTests {
             public struct Precise { public double Ratio; public double Tiny; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Priced { public decimal Price; public decimal Huge; }
+            [System.Flags]
+            public enum Layers { None=0, A=1, B=2 }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Tagged() {
+                public ShapeKind Cast=(ShapeKind)1;
+                public Layers Mask=Layers.A|Layers.B;
+                public ShapeKind Unnamed=(ShapeKind)7;
+                public Layers Single=Layers.B;
+            }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Body() {
                 public float Mass=2.5f;
@@ -286,6 +295,28 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Contains("\"Enabled\": true",After);
         Assert.Contains("\"Count\": 0",After);
         Assert.DoesNotContain("\"Offset\"",After);
+    }
+    /// <summary>
+    /// An enum default is written as the member it names, whatever expression declares it ((ShapeKind)1 is Sphere). A
+    /// value no single member names (a flags combination) has no scene JSON form, so it is left out and the declared
+    /// default applies, as for any default JSON cannot hold. The constant was written as a number, which the enum's
+    /// member-name string rejected (SCENE203), so such a component could not be added.
+    /// </summary>
+    [Fact]
+    public void PaletteComponent_WritesEnumDefaultsByName(){
+        var Seed=CreateSeed(Document("1"),Version:1,Previous:null,new SceneProjectionReconciler());
+        var Tagged=Seed.Context.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Windows.Tagged")!;
+        var Initializer=SceneComponentInitializerPolicy.CreatePlan(Tagged,"global::CSharpGameEngine.Runtime.Windows.Tagged",Seed.Context.Compilation);
+        var Add=new AddComponentOperation(Key,Find(Seed.Snapshot,"Lamp"),Seed.Snapshot.DocumentVersion,"global::CSharpGameEngine.Runtime.Windows.Tagged",Initializer.Expression,Initializer.Members);
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Add Tagged",[],SceneTransformMemberMask.None,DirectOperations:[Add]),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
+        Assert.Contains("\"Cast\": \"Sphere\"",After);
+        Assert.Contains("\"Single\": \"B\"",After);
+        Assert.DoesNotContain("\"Mask\"",After);
+        Assert.DoesNotContain("\"Unnamed\"",After);
     }
     /// <summary>
     /// An edit elsewhere leaves a double member's text as it is. The VSIX (.NET Framework) wrote a double with its own
