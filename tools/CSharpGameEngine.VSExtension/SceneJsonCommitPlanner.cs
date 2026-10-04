@@ -70,8 +70,7 @@ internal static class SceneJsonCommitPlanner {
         }
         var BaseCompilation=Context.Compilation.RemoveSyntaxTrees(Context.Root.SyntaxTree);
         var OldText=Context.Text.ToString();
-        var Before=SceneJsonSceneAnalyzer.Analyze(OldText,BaseCompilation);
-        var OldIds=Before.NodeIdsByPath();
+        var OldIds=NodeIdsByPath(OldText);
         var JsonIdByEditorId=new Dictionary<EditorNodeId,string>();
         foreach(var Pair in OldIds){
             if(Latest.Projection.TryGetId(Pair.Key,out var EditorId)){ JsonIdByEditorId[EditorId]=Pair.Value; }
@@ -137,6 +136,26 @@ internal static class SceneJsonCommitPlanner {
         }
         Error=string.Empty;
         return true;
+    }
+    /// <summary>
+    /// Each node's id by its path, read from the JSON tree alone. The old text was analyzed in full again on every commit
+    /// just for these ids (component types and values included), which was half of a commit's time in a large scene.
+    /// The commit only runs on a document without errors, so its nodes are the analyzer's nodes at the same paths.
+    /// </summary>
+    private static Dictionary<NodePath,string>NodeIdsByPath(string JsonText){
+        var Result=new Dictionary<NodePath,string>();
+        void Walk(SceneJsonValue Node,System.Collections.Immutable.ImmutableArray<int>Path){
+            if(Node.Kind!=SceneJsonKind.Object){ return; }
+            if(Node.Get("id") is { Kind:SceneJsonKind.String,Text:{ Length:>0 }Id }){ Result[new NodePath(Path)]=Id; }
+            if(Node.Get("children") is { Kind:SceneJsonKind.Array }Children){
+                for(var Index=0;Index<Children.Items.Count;Index++){ Walk(Children.Items[Index],Path.Add(Index)); }
+            }
+        }
+        try {
+            if(SceneJsonReader.Parse(JsonText).Get("root") is { }Root){ Walk(Root,System.Collections.Immutable.ImmutableArray<int>.Empty); }
+        } catch(SceneJsonException){
+        }
+        return Result;
     }
     /// <summary>The same name and component types, which is all the reconciler tells siblings apart by.</summary>
     private static bool LooksTheSame(SceneNode Old,SceneNode New)=>

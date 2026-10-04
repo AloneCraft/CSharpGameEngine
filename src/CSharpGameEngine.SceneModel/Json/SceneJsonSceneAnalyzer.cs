@@ -99,7 +99,7 @@ internal sealed class SceneJsonScene {
     internal SceneJsonNode?Root { get; }
     internal ImmutableArray<SceneJsonProblem>Problems { get; }
     internal bool HasErrors=>!this.Problems.IsEmpty||this.Root is null;
-    /// <summary>Each node's id by its path; the editor carries ids across edits with it.</summary>
+    /// <summary>Each node's id by its path (the editor's write-back reads the same from the JSON tree alone).</summary>
     internal Dictionary<NodePath,string>NodeIdsByPath(){
         var Result=new Dictionary<NodePath,string>();
         void Walk(SceneJsonNode Node){
