@@ -8,6 +8,8 @@ public static class ShaderGraphValidator {
         var SubgraphById = new Dictionary<StableId, ShaderGraphSubgraph>();
         foreach (var Subgraph in Document.Subgraphs) {
             if (SubgraphById.ContainsKey(Subgraph.Id)) {
+                // A copied or merged file can hold one identity twice; the emitter keys subgraphs and nodes by identity.
+                Result.Diagnostics.Add(new ShaderGraphDiagnostic(ShaderGraphDiagnosticCode.DuplicateIdentity, ShaderGraphDiagnosticSeverity.Error, $"Subgraph identity '{Subgraph.Id}' is duplicated.", SubgraphId: Subgraph.Id));
                 continue;
             }
             SubgraphById.Add(Subgraph.Id,Subgraph);
@@ -26,7 +28,14 @@ public static class ShaderGraphValidator {
         return Result;
     }
     private static void ValidateSubgraph(ShaderGraphSubgraph Subgraph, Dictionary<StableId, ShaderGraphSubgraph> SubgraphById, ShaderGraphValidationResult Result) {
-        var NodeById = Subgraph.Nodes.ToDictionary(Node => Node.Id, Node => Node);
+        var NodeById = new Dictionary<StableId, ShaderGraphNode>();
+        foreach (var Node in Subgraph.Nodes) {
+            if (NodeById.ContainsKey(Node.Id)) {
+                Result.Diagnostics.Add(new ShaderGraphDiagnostic(ShaderGraphDiagnosticCode.DuplicateIdentity, ShaderGraphDiagnosticSeverity.Error, $"Node identity '{Node.Id}' is duplicated.", NodeId: Node.Id, SubgraphId: Subgraph.Id));
+                continue;
+            }
+            NodeById.Add(Node.Id, Node);
+        }
         var InEdges = new Dictionary<StableId, List<ShaderGraphEdge>>();
         foreach (var Edge in Subgraph.Edges) {
             if (!InEdges.ContainsKey(Edge.ToNodeId)) {
@@ -278,8 +287,10 @@ public static class ShaderGraphValidator {
         return true;
     }
     private static void ValidateCycle(ShaderGraphSubgraph Subgraph, List<ShaderGraphEdge> Edges, ShaderGraphValidationResult Result) {
-        var InCount = Subgraph.Nodes.ToDictionary(Node => Node.Id, _ => 0);
-        var Adj = Subgraph.Nodes.ToDictionary(Node => Node.Id, _ => new List<StableId>());
+        // A duplicated node identity is reported by ValidateSubgraph; the cycle check sees each identity once.
+        var NodeIds = Subgraph.Nodes.Select(Node => Node.Id).Distinct().ToList();
+        var InCount = NodeIds.ToDictionary(NodeId => NodeId, _ => 0);
+        var Adj = NodeIds.ToDictionary(NodeId => NodeId, _ => new List<StableId>());
         foreach (var Edge in Edges) {
             if (!InCount.ContainsKey(Edge.FromNodeId) || !InCount.ContainsKey(Edge.ToNodeId)) {
                 continue;

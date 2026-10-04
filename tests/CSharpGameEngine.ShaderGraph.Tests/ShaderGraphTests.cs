@@ -36,6 +36,27 @@ public class ShaderGraphTests {
         var Error = Assert.Throws<System.Text.Json.JsonException>(() => ShaderGraphCanonicalization.FromJson(Graph.ToJsonString()));
         Assert.Contains(" at " + Path + ".", Error.Message);
     }
+    /// <summary>
+    /// One identity twice (a node copied by hand in the JSON, a merged file) is a validation error, and emission reports it
+    /// instead of throwing. The validator and the emitter keyed nodes and subgraphs by identity and threw "An item with the
+    /// same key has already been added" (a structural fuzz of the Triangle graph hit it in 371 of 3000 documents).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DuplicatedIdentity_IsAValidationError(bool Subgraph) {
+        var Graph = BuildLayoutAwareGraph("duplicate");
+        var Root = Graph.Subgraphs[0];
+        if (Subgraph) {
+            Graph.Subgraphs.Add(new ShaderGraphSubgraph { Id = Root.Id });
+        } else {
+            Root.Nodes.Add(new ShaderGraphNode { Id = Root.Nodes[0].Id, Type = Root.Nodes[0].Type, Arguments = { new ShaderGraphArgument { Name = "Value", Value = "2.0" } } });
+        }
+        Assert.Contains(ShaderGraphValidator.Validate(Graph).Diagnostics, Diagnostic => Diagnostic.Code == ShaderGraphDiagnosticCode.DuplicateIdentity);
+        var Result = ShaderGraphEmitter.Emit(Graph);
+        Assert.False(Result.Success);
+        Assert.Contains(Result.Diagnostics, Diagnostic => Diagnostic.Code == ShaderGraphDiagnosticCode.DuplicateIdentity);
+    }
     [Fact]
     public void SemanticHash_IgnoresEditorLayout() {
         var Left=BuildLayoutAwareGraph("left");

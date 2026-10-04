@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — シェーダーグラフの重複した id が、検証ではなく ArgumentException になった
+- 意図: Shader-Graph 仕様。不正なグラフは検証の診断で報告し、生成はその診断を返す。
+- 観測（Fact）: Triangle グラフの配列要素を複製する・id を別の id に付け替える構造的な変異ファジング 3000 件のうち 371 件で、検証か HLSL 生成が「同じキーの項目が既に追加されています」の `ArgumentException` を投げた。検証器はノードを id の辞書にし（重複で例外）、循環の検査も同じ、サブグラフの重複は黙って飛ばしたので生成器の辞書で例外になった。リージョンの重複だけは診断になっていた。
+- 実装: 検証器がサブグラフとノードの重複した id を新しい診断 `DuplicateIdentity` にし、最初のものだけで検証を続ける。循環の検査は id を一意にして見る。生成器は先に検証するので、重複のある文書は診断を返す。
+- 自動化された証拠: `ShaderGraphTests.DuplicatedIdentity_IsAValidationError`（ノードとサブグラフ、修正前は例外）。修正後の構造的な変異ファジングは Triangle 3000 件・Model 1500 件で想定外の例外 0。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — シェーダーグラフの JSON の null が、検証ではなく NullReferenceException になった
 - 意図: Shader-Graph 仕様。グラフは正規形の JSON で、不正な内容は検証の診断か、不正な JSON としての例外で報告する。
 - 観測（Fact）: Triangle グラフの任意の箇所を null・削除・型違いに置き換える変異ファジング 3000 件のうち 161 件で、検証・HLSL 生成・正規形が NullReferenceException か ArgumentNullException を投げた（`"type": null`、`"arguments": null`、`"target": null`、ノードや引数の要素の null など）。System.Text.Json 8 はモデルが null を許さないメンバーやリストの要素にも null を入れる。エディターでは原因の分からないメッセージになり、外部変更の再読み込み（IOException と JsonException だけを捕まえる）では例外が UI スレッドへ漏れ得る（コードからの推測）。

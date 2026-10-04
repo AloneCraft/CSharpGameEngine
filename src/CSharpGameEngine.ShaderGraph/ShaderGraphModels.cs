@@ -6,7 +6,7 @@ public enum ShaderGraphTargetKind { Stage, Model, Triangle }
 public enum ShaderGraphValueType { Unknown, Float, Float2, Float3, Float4, Int, Bool, Texture2D, SamplerState }
 public enum ShaderGraphPortDirection { Input, Output }
 public enum ShaderGraphDiagnosticSeverity { Error, Warning }
-public enum ShaderGraphDiagnosticCode { UnknownNode, UnknownPort, MissingRequiredPort, TypeMismatch, CycleDetected, SubgraphRecursion, SubgraphMissing, ForRangeForbidden, ForRangeInvalidBounds, RegionInvalidNode, RegionInvalidControl, RegionOverlap, RegionValueEscape, ReturnInvalidScope, LoopIndexInvalidScope, MissingEntryPoint, EntryPointMismatch }
+public enum ShaderGraphDiagnosticCode { UnknownNode, UnknownPort, MissingRequiredPort, TypeMismatch, CycleDetected, SubgraphRecursion, SubgraphMissing, ForRangeForbidden, ForRangeInvalidBounds, RegionInvalidNode, RegionInvalidControl, RegionOverlap, RegionValueEscape, ReturnInvalidScope, LoopIndexInvalidScope, MissingEntryPoint, EntryPointMismatch, DuplicateIdentity }
 public enum ShaderGraphBuiltInCategory { Constant, Arithmetic, Vector, Output, Utility, Control, Subgraph }
 public enum ShaderGraphOpcode { Constant, Add, Subtract, Multiply, Divide, Lerp, Dot, Length, Normalize, Swizzle, Construct, Output, IfRegion, ForRangeRegion, Return, LoopIndex, SubgraphCall }
 public enum ShaderGraphRegionKind { Comment, If, ForRange }
