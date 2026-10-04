@@ -223,6 +223,26 @@ public class BridgeServerHostTests {
         await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
+    /// <summary>
+    /// The idle window ends the accept loop, not a connection already accepted: a request that arrives after the window
+    /// (a slow or busy client) is still answered, within the receive deadline. Ending the read with the idle window
+    /// dropped such a request without a response.
+    /// </summary>
+    [Fact]
+    public async Task IdleTimeout_DoesNotDropARequestStillArriving(){
+        var PipeName=UniquePipeName();
+        Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,"done"),TimeSpan.FromMilliseconds(50));
+        using NamedPipeClientStream Client=new(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
+        await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
+        await Task.Delay(300);
+
+        await BridgeWireMessage.WriteAsync(Client,CreateRequest("input","output"),CancellationToken.None);
+        var Result=await BridgeWireMessage.ReadAsync<AuthoringHostResult>(Client,CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(AuthoringHostTerminalState.Succeeded,Result.State);
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task VersionMismatch_DoesNotInvokeHandler(){
         var PipeName=UniquePipeName();

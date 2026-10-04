@@ -40,8 +40,11 @@ public static class BridgeServerHost {
         TimeSpan IdleTimeout,
         CancellationToken CancellationToken=default,
         int?OwnerProcessId=null){
-        using var IdleCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
-        using var Owner=ParentProcessLifetime.Attach(OwnerProcessId,IdleCts);
+        // The lifetime (the caller's token and the owner process) ends everything, a request still being received too.
+        // The idle window ends only the accept loop, which then drains the connections it accepted.
+        using var LifetimeCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
+        using var Owner=ParentProcessLifetime.Attach(OwnerProcessId,LifetimeCts);
+        using var IdleCts=CancellationTokenSource.CreateLinkedTokenSource(LifetimeCts.Token);
         IdleCts.CancelAfter(IdleTimeout);
         ConcurrentDictionary<Task,byte> ActiveRequests=new();
 
@@ -63,7 +66,7 @@ public static class BridgeServerHost {
             // first.
             IdleCts.CancelAfter(IdleTimeout);
 
-            var RequestTask=HandleConnectionAsync(Pipe,Handler,IdleCts.Token);
+            var RequestTask=HandleConnectionAsync(Pipe,Handler,LifetimeCts.Token);
             ActiveRequests.TryAdd(RequestTask,0);
             _=RequestTask.ContinueWith(
                 Completed=>ActiveRequests.TryRemove(Completed,out _),
@@ -80,8 +83,9 @@ public static class BridgeServerHost {
         await using(Pipe){
             AuthoringHostRequest Request;
             try {
-                // The accept loop drains accepted connections before it exits, so receiving must end with the server
-                // or after a deadline (audit AUD-003); a request still incomplete then has no one to answer.
+                // The accept loop drains accepted connections before it exits, so receiving must end with the server's
+                // lifetime or after a deadline (audit AUD-003); a request still incomplete then has no one to answer. The
+                // idle window does not end it: a request that arrives after the window is still answered.
                 Request=await BridgeWireMessage.ReadRequestAsync<AuthoringHostRequest>(
                     Pipe,BridgeWireMessage.RequestReceiveTimeout,Lifetime);
             } catch(OperationCanceledException){

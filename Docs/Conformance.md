@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 常駐ブリッジが待機時間の後に届いた要求を応答せずに切っていた（AUD-003 の退行）
+- 意図: ADR-0023「新しい接続が無いまま待機時間が過ぎたら受付をやめ、受け付けた要求を処理してから終わる」。AUD-003（同日）「要求の受信はサーバーの寿命と 30 秒の受信期限で終わる」。
+- 観測（Fact）: クリーンな checkout の Release のテスト実行（`verification.clean-build`）で `BridgeServerHostTests.IdleTimeout_DrainsAcceptedRequestBeforeExit` が失敗した（Debug では合格）。AUD-003 の修正は要求の受信を待機時間のトークンで打ち切っていたので、接続の後に待機時間（テストでは 50 ms）より遅れて届いた要求は、受信が取り消されて応答なしに切られた。接続してから 300 ms 待って要求を送ると、毎回 `Pipe is broken` になった。
+- 実装: 寿命（呼び出し元のトークンと所有者のプロセス）と待機時間を分けた。待機時間は受付ループだけを終わらせ、受け付けた接続の受信は寿命と受信期限で終わる。Preview Host には待機時間が無く、もともと寿命と期限だけで受信を打ち切っていた。
+- 自動化された証拠: `BridgeServerHostTests.IdleTimeout_DoesNotDropARequestStillArriving`（修正前は `Pipe is broken`）。AUD-003 の `Stop_EndsAConnectionThatStoppedMidRequest` も合格したまま（Bridge.Hosting.Tests 34 件を 5 回、Release でも 1 回）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 列挙型の既定値をキャストや組み合わせで宣言したコンポーネントをパレットから追加できなかった
 - 意図: [Editor-VSIX](Specifications/Editor-VSIX.md) のコンポーネント パレット。追加したコンポーネントは宣言の既定値を持ち、シーン JSON が持てない既定値は書かずに省く（同日の修正）。
 - 観測（Fact）: 列挙型のメンバーの既定値は、列挙型のメンバーを直接参照するとき（`ShapeKind.Sphere`）だけ名前で書かれた。`(ShapeKind)1` や `Layers.A | Layers.B` のような式は定数の数値として書かれ、シーン JSON の列挙型はメンバー名の文字列なので、追加の書き戻しが SCENE203 で失敗した。エンジンのコンポーネントには無い形で、利用者のコンポーネントで起きる。
