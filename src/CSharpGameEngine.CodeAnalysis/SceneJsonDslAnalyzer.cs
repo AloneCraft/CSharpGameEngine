@@ -11,8 +11,9 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// Reports SCENE201-205 on scene files (<c>Scenes\**\*.json</c>, <see cref="SceneFiles"/>) at the JSON line and column
 /// (ADR-0070). The generator runs the same <see cref="SceneJsonSceneAnalyzer"/> only to decide
 /// whether it can emit, so each problem is reported once. Two scenes with the same
-/// <c>startupOrder</c> are SCENE118, reported at each later scene's value; that needs every file, so it
-/// is reported when the compilation ends.
+/// <c>startupOrder</c> are SCENE118, reported at each later scene's value, and two scene files that declare the same
+/// class are SCENE207, reported at each later file's className; both need every file, so they are reported when the
+/// compilation ends. The first file by path owns the order or the class (the generator builds only that scene).
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
@@ -20,7 +21,8 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
     internal const string ProjectDirectoryProperty="build_property.ProjectDir";
     public override ImmutableArray<DiagnosticDescriptor>SupportedDiagnostics=>
         ImmutableArray.Create(SceneJsonDiagnostics.UnknownComponentType,SceneJsonDiagnostics.UnknownMember,SceneJsonDiagnostics.ValueMismatch,
-            SceneJsonDiagnostics.InvalidDocument,SceneJsonDiagnostics.DuplicateComponent,SceneDslDiagnostics.DuplicateStartupSceneOrder);
+            SceneJsonDiagnostics.InvalidDocument,SceneJsonDiagnostics.DuplicateComponent,SceneJsonDiagnostics.DuplicateScene,
+            SceneDslDiagnostics.DuplicateStartupSceneOrder);
     public override void Initialize(AnalysisContext Context){
         Context.EnableConcurrentExecution();
         Context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
@@ -30,6 +32,7 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
                 return;
             }
             ConcurrentBag<(int Order,string ClassName,string Path,Location Location)>StartupScenes=[];
+            ConcurrentBag<(string ClassName,string Path,Location Location)>Scenes=[];
             CompilationStart.RegisterAdditionalFileAction(FileContext=>{
                 var File=FileContext.AdditionalFile;
                 if(!IsSceneFile(File.Path,FileContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions)||File.GetText(FileContext.CancellationToken) is not { }Text){
@@ -39,9 +42,12 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
                 foreach(var Problem in Scene.Problems){
                     FileContext.ReportDiagnostic(Diagnostic.Create(Problem.Descriptor,Locate(File.Path,Text,Problem.Start,Problem.End),Problem.Arguments));
                 }
-                if(Scene.StartupOrder is { }Order&&StartupOrderValue(Text.ToString()) is { }Value){
-                    var ClassName=Scene.Namespace is null?Scene.ClassName:Scene.Namespace+"."+Scene.ClassName;
+                var ClassName=Scene.Namespace is null?Scene.ClassName:Scene.Namespace+"."+Scene.ClassName;
+                if(Scene.StartupOrder is { }Order&&TopLevelValue(Text.ToString(),"startupOrder") is { }Value){
                     StartupScenes.Add((Order,ClassName,File.Path,Locate(File.Path,Text,Value.Start,Value.End)));
+                }
+                if(Scene.ClassName.Length>0&&TopLevelValue(Text.ToString(),"className") is { }ClassValue){
+                    Scenes.Add((ClassName,File.Path,Locate(File.Path,Text,ClassValue.Start,ClassValue.End)));
                 }
             });
             CompilationStart.RegisterCompilationEndAction(EndContext=>{
@@ -52,12 +58,18 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
                         EndContext.ReportDiagnostic(Diagnostic.Create(SceneDslDiagnostics.DuplicateStartupSceneOrder,Later.Location,Group.Key,Ordered[0].ClassName,Later.ClassName));
                     }
                 }
+                foreach(var Group in Scenes.GroupBy(static Scene=>Scene.ClassName,System.StringComparer.Ordinal)){
+                    var Ordered=Group.OrderBy(static Scene=>Scene.Path,System.StringComparer.Ordinal).ToArray();
+                    foreach(var Later in Ordered.Skip(1)){
+                        EndContext.ReportDiagnostic(Diagnostic.Create(SceneJsonDiagnostics.DuplicateScene,Later.Location,Group.Key,System.IO.Path.GetFileName(Ordered[0].Path)));
+                    }
+                }
             });
         });
     }
-    private static SceneJsonValue?StartupOrderValue(string Text){
+    private static SceneJsonValue?TopLevelValue(string Text,string Key){
         try {
-            return SceneJsonReader.Parse(Text).Get("startupOrder");
+            return SceneJsonReader.Parse(Text).Get(Key);
         } catch(SceneJsonException){
             return null;
         }

@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 2 つのシーンファイルが同じクラスを宣言すると生成器ごと失敗した
+- 意図: [ADR-0070](Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)「ビルド時の問題は JSON の行と列に報告し、生成できないシーンを黙って落とさない」。
+- 観測（Fact）: シーンファイルをコピーして `className` を変えないと、生成器は同じシーンを 2 回追加しようとして「hintName 'Game.MainScene.Scene.g.cs' は一意である必要がある」の `ArgumentException` で失敗し（CS8785）、生成器の出力がすべて失われた。利用者に見えるのは生成器の失敗と、生成されなかった型に関する大量のエラーだった。
+- 実装: 生成器はパス順で最初のファイルのシーンだけを作る。`SceneJsonDslAnalyzer` は後のファイルの `className` に新しい SCENE207（どのファイルが先に宣言したかを示す）を報告する（startupOrder の重複 SCENE118 と同じく、全ファイルを見てコンパイルの終わりに報告）。
+- 自動化された証拠: `SceneJsonGeneratorTests.TwoFilesDeclaringTheSameScene_BuildOneAndReportTheOther`（修正前は CS8785）。`SceneDslAnalyzerTests.SupportedDiagnostics_AreExactlyWhatEachAnalyzerReports` に SCENE207 を追加。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 改行を含むノード名でゲームのビルドが壊れた
 - 意図: ADR-0070 のシーン JSON。ノードの `name` は任意の JSON 文字列。
 - 観測（Fact）: 生成器はノードごとに `// [パス] "名前"` という 1 行コメントを書き、名前をそのまま埋め込んでいた。名前に `\n` か、C# が行の終わりとして扱う U+2028・U+0085 があると、コメントがそこで終わり、名前の残りがコードになった。`"La\nthrow null;mp"` などの名前で、生成された `Game.MainScene.Scene.g.cs` が CS1002・CS1010 で失敗した。

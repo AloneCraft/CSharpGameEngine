@@ -136,6 +136,23 @@ public sealed class SceneJsonGeneratorTests {
         var Generated=string.Join("\n",Result.GeneratedTrees.Select(static Tree=>Tree.ToString()));
         Assert.Equal(Built,Generated.Contains("MainScene",StringComparison.Ordinal));
     }
+    /// <summary>
+    /// Two scene files that declare the same class (a copied file whose className was kept) build the first by path and
+    /// report SCENE207 at the later file's className. The generator added the same scene twice, which threw for the
+    /// duplicate hint name and dropped its whole output (CS8785).
+    /// </summary>
+    [Fact]
+    public async Task TwoFilesDeclaringTheSameScene_BuildOneAndReportTheOther(){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,Driver]);
+        AdditionalText[]Files=[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",JsonScene),new InMemoryAdditionalText(@"C:\Game\Scenes\Copy.json",JsonScene)];
+        var Built=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation,Files);
+        Assert.Equal("1.5|-2|0.2|3|Bright|a \"b\"|True|7|-5|-3.25",Describe(Built));
+        var Diagnostics=await Compilation.WithAnalyzers([new SceneJsonDslAnalyzer()],SceneProjectOptions.Analyzer([.. Files])).GetAnalyzerDiagnosticsAsync();
+        var Duplicate=Assert.Single(Diagnostics);
+        Assert.Equal("SCENE207",Duplicate.Id);
+        Assert.Equal(@"C:\Game\Scenes\MainScene.json",Duplicate.Location.GetLineSpan().Path);
+        Assert.Contains("Copy.json",Duplicate.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+    }
     [Fact]
     public void JsonWithoutProblems_ReportsNoDiagnostics(){
         Assert.Empty(Analyze(JsonScene));

@@ -119,6 +119,11 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 var ByFile=string.CompareOrdinal(A.FilePath,B.FilePath);
                 return ByFile!=0?ByFile:A.DeclarationPosition.CompareTo(B.DeclarationPosition);
             });
+            // Two scene files can declare the same class (a copied file). Only the first by path is built, as
+            // SceneJsonDslAnalyzer reports SCENE207 at the later ones; adding the same scene twice threw for its hint name
+            // and the whole generator output was lost.
+            HashSet<string>BuiltScenes=new(StringComparer.Ordinal);
+            ValidSceneDeclarations.RemoveAll(Scene=>!BuiltScenes.Add(Scene.ClassFullyQualifiedName));
 
             // 起動シーンは「クエリ{Bootstrap}を持つ合成System」として、実際に検出されたSystemと同じモデル・同じ
             // 実行順序(GameSystemExecutionOrder)へ合流する(理由はSceneStartupSystemEmitterのXMLコメント参照)。

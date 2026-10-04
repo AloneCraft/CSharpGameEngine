@@ -145,6 +145,6 @@ public sealed class SceneDslAnalyzerTests {
     public void SupportedDiagnostics_AreExactlyWhatEachAnalyzerReports(){
         // A reported ID missing from SupportedDiagnostics never reaches the IDE.
         Assert.Equal(["SCENE114","SCENE206"],new SceneDslAnalyzer().SupportedDiagnostics.Select(static D=>D.Id).Order(StringComparer.Ordinal));
-        Assert.Equal(["SCENE118","SCENE201","SCENE202","SCENE203","SCENE204","SCENE205"],new SceneJsonDslAnalyzer().SupportedDiagnostics.Select(static D=>D.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(["SCENE118","SCENE201","SCENE202","SCENE203","SCENE204","SCENE205","SCENE207"],new SceneJsonDslAnalyzer().SupportedDiagnostics.Select(static D=>D.Id).Order(StringComparer.Ordinal));
     }
 }

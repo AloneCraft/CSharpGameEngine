@@ -50,5 +50,19 @@ internal static class SceneJsonDiagnostics {
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
-    internal static readonly DiagnosticDescriptor[]All=[UnknownComponentType,UnknownMember,ValueMismatch,InvalidDocument,DuplicateComponent,CSharpSceneNotBuilt];
+    /// <summary>
+    /// Two scene files declare the same scene class (typically a copied file whose className was kept). Only the first by
+    /// path is built; reported at each later file's className.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DuplicateScene=new(
+        id:"SCENE207",
+        title:"Two scene files declare the same scene class",
+        messageFormat:"'{0}' is already declared by {1}; give this scene its own className or namespace",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true,
+        description:null,
+        helpLinkUri:null,
+        WellKnownDiagnosticTags.CompilationEnd);
+    internal static readonly DiagnosticDescriptor[]All=[UnknownComponentType,UnknownMember,ValueMismatch,InvalidDocument,DuplicateComponent,CSharpSceneNotBuilt,DuplicateScene];
 }
