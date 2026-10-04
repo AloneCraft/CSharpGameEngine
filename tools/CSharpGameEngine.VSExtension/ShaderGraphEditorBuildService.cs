@@ -71,14 +71,24 @@ internal static class ShaderGraphEditorBuildService {
         }
     }
     private static string Quote(string Value)=>ExternalBridgeProcess.QuoteArgument(Value);
-    private static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
+    /// <summary>
+    /// Runs the CLI and returns its exit code with its standard output and error. Standard error is read as it arrives:
+    /// read after standard output, a CLI that filled the error pipe first blocked forever, and the UI thread with it.
+    /// </summary>
+    internal static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
         var StartInfo=new ProcessStartInfo(Executable,Arguments) { WorkingDirectory=WorkingDirectory,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true };
-        using(var ChildProcess=System.Diagnostics.Process.Start(StartInfo)) {
-            if(ChildProcess is null) { return new ValueTuple<int,string>(-1,"Failed to start Shader Graph CLI."); }
+        var Error=new System.Text.StringBuilder();
+        using(var ChildProcess=new System.Diagnostics.Process { StartInfo=StartInfo }) {
+            ChildProcess.ErrorDataReceived+=(Sender,Line)=>{
+                if(Line.Data is not null) { lock(Error) { Error.AppendLine(Line.Data); } }
+            };
+            if(!ChildProcess.Start()) { return new ValueTuple<int,string>(-1,"Failed to start Shader Graph CLI."); }
+            ChildProcess.BeginErrorReadLine();
             var Output=ChildProcess.StandardOutput.ReadToEnd();
-            var Error=ChildProcess.StandardError.ReadToEnd();
+            // Without a timeout, this also waits for the error reader to reach the end of the stream.
             ChildProcess.WaitForExit();
-            string Combined=(Output+Environment.NewLine+Error).Trim();
+            string Combined;
+            lock(Error) { Combined=(Output+Environment.NewLine+Error).Trim(); }
             return new ValueTuple<int,string>(ChildProcess.ExitCode,Combined);
         }
     }
