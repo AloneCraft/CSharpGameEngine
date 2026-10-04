@@ -1,7 +1,8 @@
 # ADR-0030: C#コードをSceneの唯一の正本とするScene Authoring(Phase A)
 
 ## ステータス
-承認済み
+Superseded by [[ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World]]。シーンの正本はプロジェクトの
+`Scenes\**\*.json`になり、C#の`IScene`クラスによる方式はM0093 C3bで削除した(残っていればSCENE206)。
 
 ## 背景
 

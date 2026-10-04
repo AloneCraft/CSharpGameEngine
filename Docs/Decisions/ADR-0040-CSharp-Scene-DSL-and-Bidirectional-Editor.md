@@ -2,6 +2,10 @@
 
 ## ステータス
 
+一部 Superseded by [[ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World]]:作者が書くシーンはC#クラスではなく
+シーン JSON になった(C#の`IScene`はM0093 C3bで削除、SCENE206)。DSLの解析は、Scene DesignerがJSONシーンを同等のC#クラス
+(`SceneJsonDesignerSource`)として読む内部の経路として残っている。以下は当時の記録。
+
 承認済み。Phase 1〜9は実装済み(回顧録: [[M0019-CSharp-Scene-DSL]])。Editor→Code方向の配管
 (決定事項5)は実装済みだが製品コードからの呼び出しは未配線であり、その配線と入力・ギズモを含む
 インタラクション全体は[[ADR-0041-Scene-Editor-Interaction-Architecture]] / M0020で行う。
