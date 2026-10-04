@@ -100,6 +100,82 @@ internal static class SceneJsonDecimal {
         var Fraction=Digits.Length>1?"."+Digits.Substring(1):string.Empty;
         return Sign+Digits.Substring(0,1)+Fraction+"E"+(TextExponent<0?"-":"+")+Math.Abs(TextExponent).ToString("00",CultureInfo.InvariantCulture);
     }
+    /// <summary>
+    /// Whether a JSON number's text reads back as <paramref name="Value"/>, a float, double, decimal or integer constant,
+    /// through a correctly rounded parse. False for any other value, and for a power of ten beyond 400, which no such
+    /// constant needs and which would make the exact arithmetic slow.
+    /// </summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    internal static bool ReadsBack(string Text,object?Value){
+        var Negative=Text.StartsWith("-",StringComparison.Ordinal);
+        var Body=Negative?Text.Substring(1):Text;
+        var ExponentAt=Body.IndexOfAny(['e','E']);
+        var Mantissa=ExponentAt<0?Body:Body.Substring(0,ExponentAt);
+        if(!int.TryParse(ExponentAt<0?"0":Body.Substring(ExponentAt+1),NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Exponent)){
+            return false;
+        }
+        var Dot=Mantissa.IndexOf('.');
+        var Power=Exponent-(Dot<0?0:Mantissa.Length-Dot-1);
+        if(Math.Abs(Power)>400
+            ||!BigInteger.TryParse(Dot<0?Mantissa:Mantissa.Remove(Dot,1),NumberStyles.None,CultureInfo.InvariantCulture,out var Significand)){
+            return false;
+        }
+        // Parse needs a nonzero significand; a zero reads back as zero of either sign.
+        switch(Value){
+            case float Single:return RoundsToSingle(Negative,Significand,Power,Single);
+            case double Double:return Significand.IsZero?Double==0d:Parse(Negative,Significand,Power)==Double;
+            case decimal Exact:return decimal.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var Read)&&Read==Exact;
+            case sbyte or byte or short or ushort or int or uint or long or ulong:
+                return Power>=0&&(Negative?-Significand:Significand)*BigInteger.Pow(10,Power)
+                    ==new BigInteger(Convert.ToDecimal(Value,CultureInfo.InvariantCulture));
+            default:return false;
+        }
+    }
+    /// <summary>
+    /// Whether ±<paramref name="Significand"/> × 10^<paramref name="Power"/> rounds to <paramref name="Single"/> as C# rounds
+    /// a float literal: straight to the nearest float, ties to even. Rounding the nearest double again can land on a tie
+    /// the exact value is not on, so the value is compared with the midpoints to the neighbouring floats, which doubles hold
+    /// exactly.
+    /// </summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static bool RoundsToSingle(bool Negative,BigInteger Significand,int Power,float Single){
+        if(float.IsInfinity(Single)||float.IsNaN(Single)){ return false; }
+        var Lower=(Single+Neighbour(Single,-1))/2d;
+        var Upper=(Single+Neighbour(Single,1))/2d;
+        var Even=(BitConverter.ToInt32(BitConverter.GetBytes(Single),0)&1)==0;
+        var AboveLower=CompareExact(Negative,Significand,Power,Lower);
+        var BelowUpper=CompareExact(Negative,Significand,Power,Upper);
+        return (AboveLower>0||AboveLower==0&&Even)&&(BelowUpper<0||BelowUpper==0&&Even);
+    }
+    /// <summary>The float after a finite <paramref name="Single"/> in <paramref name="Direction"/> (+1 up, -1 down).</summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static double Neighbour(float Single,int Direction){
+        if(Single==0f){ return Direction*(double)float.Epsilon; }
+        var Bits=BitConverter.ToInt32(BitConverter.GetBytes(Single),0);
+        var Next=BitConverter.ToSingle(BitConverter.GetBytes(Single>0f==Direction>0?Bits+1:Bits-1),0);
+        // Past the largest float the next one would be as far away as the one before.
+        return float.IsInfinity(Next)?2d*Single-Neighbour(Single,-Direction):Next;
+    }
+    /// <summary>±<paramref name="Significand"/> × 10^<paramref name="Power"/> compared exactly with a finite <paramref name="Bound"/>.</summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static int CompareExact(bool Negative,BigInteger Significand,int Power,double Bound){
+        var Sign=Significand.IsZero?0:Negative?-1:1;
+        var BoundSign=Math.Sign(Bound);
+        if(Sign!=BoundSign||Sign==0){ return Sign.CompareTo(BoundSign); }
+        Decompose(BitConverter.DoubleToInt64Bits(Math.Abs(Bound)),out var Mantissa,out var Exponent);
+        var Left=Significand*(Power>=0?BigInteger.Pow(10,Power):BigInteger.One);
+        var Right=Mantissa*(Power<0?BigInteger.Pow(10,-Power):BigInteger.One);
+        if(Exponent>=0){ Right<<=Exponent; }else{ Left<<=-Exponent; }
+        return Sign*Left.CompareTo(Right);
+    }
     /// <summary>The double nearest to <paramref name="Significand"/> × 10^<paramref name="Power"/> (ties to even), or an infinity.</summary>
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]

@@ -114,6 +114,8 @@ internal static class SceneJsonConverter {
                 }
                 return Array;
             }
+            case SceneValueKind.Literal when Unit is null&&LiteralSpelling(Value) is { }Spelling:
+                return SceneJsonOut.Number(Spelling);
             case SceneValueKind.Literal:
             case SceneValueKind.ConstantExpression:
             case SceneValueKind.StaticMemberRef:
@@ -175,6 +177,18 @@ internal static class SceneJsonConverter {
         IFormattable Other=>SceneJsonReader.IsNumber(SceneJsonNumbers.FormatOther(Other)),
         _=>false,
     };
+    /// <summary>
+    /// A number literal's own spelling without its C# suffix (3.14159265358979f as 3.14159265358979), when that is a JSON
+    /// number. The compiler gave the literal its value from exactly this text, so the document builds the same value. The
+    /// merge keeps a number whose text is unchanged (M0095); written from the value instead, a number the author spelled
+    /// past its type's precision (100.0000001 for a float) was rewritten (as 100) by every edit of the scene.
+    /// </summary>
+    private static string?LiteralSpelling(SceneValue Value){
+        // A string, character, boolean or null literal is no JSON number with or without these letters. An edit's own
+        // literal (an Inspector or gizmo value formatted on .NET Framework) may not read back exactly: then the value's text.
+        var Text=Value.SourceExpressionText.TrimEnd('f','F','d','D','m','M','u','U','l','L');
+        return SceneJsonReader.IsNumber(Text)&&SceneJsonDecimal.ReadsBack(Text,Value.ConstantValue)?Text:null;
+    }
     private static SceneJsonOut Constant(object?Value,string Where,List<string>Problems){
         switch(Value){
             case null:return SceneJsonOut.Null();

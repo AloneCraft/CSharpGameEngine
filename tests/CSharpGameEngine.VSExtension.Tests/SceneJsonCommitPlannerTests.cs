@@ -589,6 +589,23 @@ public sealed class SceneJsonCommitPlannerTests {
         var Change=Assert.Single(Plan.WriteStep!.Changes);
         Assert.Equal((Document("1").IndexOf("\"R\": 1,",StringComparison.Ordinal)+5,1,"3"),(Change.Span.Start,Change.Span.Length,Change.NewText));
     }
+    /// <summary>
+    /// An edit leaves the author's spelling of other numbers alone. A float the author wrote with more digits than a float
+    /// holds (3.14159265358979, 16777217) was rewritten as the float's shortest text on every unrelated edit, which read
+    /// back the same but lost the author's digits and changed lines the edit had not touched.
+    /// </summary>
+    [Fact]
+    public void Move_KeepsTheAuthorsSpellingOfOtherNumbers(){
+        foreach(var Value in new[]{"3.14159265358979","16777217","0.1","1.0","1e2","0.30000001192092896","100.0000001","-0"}){
+            var Before=Document("1").Replace("\"Intensity\": 3","\"Intensity\": "+Value);
+            var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+            var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+                new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+                Seed.Reconciler,CancellationToken.None);
+            Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+            Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+        }
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');

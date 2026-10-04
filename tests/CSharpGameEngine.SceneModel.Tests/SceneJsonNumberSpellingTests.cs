@@ -62,6 +62,32 @@ public sealed class SceneJsonNumberSpellingTests {
         }
     }
 
+    /// <summary>
+    /// A kept author spelling must read back as the value everywhere: the check agrees with .NET's parse, which rounds
+    /// straight to a float as C# does a float literal, for texts of every length (over-precise ones included). The last
+    /// text lies just above the tie between 1 and the next float, so parsing a double first and rounding that again gives 1.
+    /// </summary>
+    [Fact]
+    public void ReadsBack_AgreesWithTheParse(){
+        foreach(var Value in SceneJsonNumberSamples.Singles().Where(float.IsFinite)){
+            for(var Digits=1;Digits<=20;Digits++){
+                var Text=((double)Value).ToString("G"+Digits,CultureInfo.InvariantCulture);
+                Assert.Equal(float.Parse(Text,CultureInfo.InvariantCulture)==Value,SceneJsonDecimal.ReadsBack(Text,Value));
+                Assert.Equal(float.Parse(Text,CultureInfo.InvariantCulture)==MathF.BitIncrement(Value),SceneJsonDecimal.ReadsBack(Text,MathF.BitIncrement(Value)));
+            }
+        }
+        foreach(var Value in SceneJsonNumberSamples.Doubles().Where(double.IsFinite)){
+            for(var Digits=1;Digits<=20;Digits++){
+                var Text=Value.ToString("G"+Digits,CultureInfo.InvariantCulture);
+                Assert.Equal(double.Parse(Text,CultureInfo.InvariantCulture)==Value,SceneJsonDecimal.ReadsBack(Text,Value));
+            }
+        }
+        Assert.Equal((true,true,false),(SceneJsonDecimal.ReadsBack("16777217",16777217),SceneJsonDecimal.ReadsBack("16777217",16777216f),SceneJsonDecimal.ReadsBack("16777219",16777218f)));
+        Assert.Equal((false,true),(SceneJsonDecimal.ReadsBack("1.0",1),SceneJsonDecimal.ReadsBack("0.10",0.1m)));
+        Assert.Equal((true,false),(SceneJsonDecimal.ReadsBack("1.0000000596046447755",MathF.BitIncrement(1f)),SceneJsonDecimal.ReadsBack("1.0000000596046447755",1f)));
+        Assert.Equal((true,false),(SceneJsonDecimal.ReadsBack("3.4028235677973366E+38",float.MaxValue),SceneJsonDecimal.ReadsBack("3.4028235677973367E+38",float.MaxValue)));
+    }
+
     [Fact]
     public void SampleDigest_IsTheOneTheVsixChecks()=>Assert.Equal(SceneJsonNumberSamples.Digest,SceneJsonNumberSamples.ComputeDigest());
 }
