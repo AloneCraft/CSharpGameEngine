@@ -229,6 +229,12 @@ internal static class SceneJsonRuntimeValues {
         ConstructorInfo?Best=null;
         var BestCount=-1;
         foreach(var Candidate in Type.GetConstructors(BindingFlags.Public|BindingFlags.Instance)){
+            // As the generator: a ref or out parameter cannot take a value, and an obsolete-as-error constructor cannot be called.
+            if(Candidate.GetParameters().Any(static Parameter=>Parameter.ParameterType.IsByRef&&!Parameter.IsIn)
+                ||Candidate.CustomAttributes.Any(static Attribute=>Attribute.AttributeType.FullName=="System.ObsoleteAttribute"
+                    &&Attribute.ConstructorArguments is [_,{ Value:true }])){
+                continue;
+            }
             var Count=0;
             var Usable=true;
             foreach(var Parameter in Candidate.GetParameters()){

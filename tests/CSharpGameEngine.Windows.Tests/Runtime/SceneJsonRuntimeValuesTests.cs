@@ -44,6 +44,14 @@ public sealed class SceneJsonRuntimeValuesTests {
         public IReadOnlyList<int> View;
         public Queue<int> Waiting;
     }
+    public struct ByRef {
+        public ByRef(ref int A){ this.A=A*10; }
+        public int A;
+    }
+    public struct Retired {
+        [Obsolete("Use the members.",true)] public Retired(int A){ this.A=A*10; }
+        public int A;
+    }
     public struct Measures {
         public decimal Price;
         public double Ratio;
@@ -171,6 +179,17 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Equal([4],Value.Frozen);
         Assert.Equal([6],Value.View);
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Shelves),SceneJsonReader.Parse("""{ "Waiting": [1] }"""),"Shelves"));
+    }
+
+    /// <summary>
+    /// The generator never calls a constructor with a ref or out parameter or one obsolete as an error (it sets the member
+    /// instead), so neither does the runtime view: it called them, and a constructor that changes the value made the view
+    /// differ from the built game.
+    /// </summary>
+    [Fact]
+    public void Constructors_TheGeneratorSkips_AreSkipped(){
+        Assert.Equal(4,((ByRef)SceneJsonRuntimeValues.Component(typeof(ByRef),SceneJsonReader.Parse("""{ "A": 4 }"""),"ByRef")).A);
+        Assert.Equal(4,((Retired)SceneJsonRuntimeValues.Component(typeof(Retired),SceneJsonReader.Parse("""{ "A": 4 }"""),"Retired")).A);
     }
 
     /// <summary>ADR-0074 version 3: an angle's key may leave out the C# unit word, as the generator reads it.</summary>
