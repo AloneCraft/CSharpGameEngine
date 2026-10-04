@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Inspector で列挙型と文字列のメンバーを変えられなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Inspector は列挙型などをスキーマに合ったエディターで編集する」。ADR-0070 で全シーンが JSON になった。
+- 観測（Fact）: JSON シーンの書き戻しは、編集をモデルへ当てる `SceneModelEditApplier` が値の式を解釈できたときだけ成功する。その解釈は真偽値と数値だけで、列挙型のメンバー参照と文字列は「意味解析が要るので、C# のテキストを直接書き換える従来の経路へ落とす」としていた。JSON シーンにはその経路がないので、列挙型（PostProcessVolume.ToneMapper、PrimitiveMesh.Type、Collider.Shape、StaticMesh.Mobility など）と文字列（StaticMesh.AssetPath など）の Inspector の編集は、すべて「The Scene edit operation failed.」になった。実際のシーン 21 個で、列挙型 139 件と文字列 122 件が該当した。
+- 実装: メンバーの宣言型が文字列なら文字列リテラルを、列挙型ならその列挙型のメンバーを、意味解析なしでモデルの値にする（解析器と同じ `EnumMember` の値）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.InspectorEnumAndTextEdits_WriteTheirLinesOnly`（修正前は上のエラー）。実際のシーン 21 個で、編集できる Inspector のメンバー 1,191 件すべてが同じ値の確定でファイルを変えず、列挙型 139 件すべてが別の選択肢でその 1 行だけを書き換えた（一時的な検証、未コミット）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — VSIX の書き戻しが無関係な数値の書き方を変えていた
 - 意図: M0095「エディターの書き込みは変わった値だけを元のテキストへ戻す」。`SceneJsonNumbers` は「.NET Framework と .NET で同じ文字列を書く」と約束している。
 - 観測（Fact）: 実際のシーン（UserEcsProject の FirstPersonStageScene）で、Inspector の任意のメンバーを同じ値で確定すると、別のノードの `"U": 24.896297` が `24.896298`、`"R": 5.0000052` が `5.0000053` に書き換わった（655 件中 356 件の確定）。.NET Framework（VSIX）は float をいったん 9 桁に丸めてから少ない桁に丸めるので、`5.00000524521` の G8 が `5.0000053` になり、.NET（ツール）は `5.0000052` を書く。値は同じ float だが、差分の適用は十進の文字列で比べるため、編集のたびに無関係な行が変わっていた。

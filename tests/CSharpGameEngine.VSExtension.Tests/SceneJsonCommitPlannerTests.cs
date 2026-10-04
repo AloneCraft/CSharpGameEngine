@@ -28,6 +28,9 @@ public sealed class SceneJsonCommitPlannerTests {
             }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Light { public float Intensity; }
+            public enum LightMode { Off, Bright }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Lamp { public LightMode Mode; public string Label; }
         }
         """;
     private const string JsonPath=@"C:\Game\Scenes\MainScene.json";
@@ -175,6 +178,31 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),After);
+    }
+    /// <summary>
+    /// The Inspector's enum and text editors write back to a JSON scene. Their values used to be accepted only as C#
+    /// text edits, which a JSON scene does not have, so every enum or string edit failed.
+    /// </summary>
+    [Fact]
+    public void InspectorEnumAndTextEdits_WriteTheirLinesOnly(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Lamp\",\n            \"members\": {\n              \"Mode\": \"Off\",\n              \"Label\": \"a \\\"b\\\"\"\n            }");
+        Assert.Contains("\"Mode\": \"Off\"",Before);
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Members=SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid()));
+        var Mode=Assert.Single(Members,static Member=>Member.MemberName=="Mode");
+        Assert.True(SceneInspectorCommitPlanner.TryCreateChoiceCommit(Key,Seed.Snapshot.DocumentVersion,Mode,"Bright",out var ModeRequest));
+        var ModePlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,ModeRequest,Seed.Reconciler,CancellationToken.None);
+        Assert.True(ModePlan.Succeeded,ModePlan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"Mode\": \"Off\"","\"Mode\": \"Bright\""),ModePlan.WriteStep!.Before.WithChanges(ModePlan.WriteStep.Changes).ToString());
+
+        var Label=Assert.Single(Members,static Member=>Member.MemberName=="Label");
+        var LabelRequest=SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Label,SceneInspectorValueFormat.FormatText("c\\d"));
+        var LabelPlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,LabelRequest,Seed.Reconciler,CancellationToken.None);
+        Assert.True(LabelPlan.Succeeded,LabelPlan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"Label\": \"a \\\"b\\\"\"","\"Label\": \"c\\\\d\""),LabelPlan.WriteStep!.Before.WithChanges(LabelPlan.WriteStep.Changes).ToString());
     }
     [Fact]
     public void Move_KeepsHandFormatting(){

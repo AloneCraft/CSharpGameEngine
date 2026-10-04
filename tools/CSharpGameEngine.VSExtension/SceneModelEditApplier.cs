@@ -589,6 +589,11 @@ internal static class SceneModelEditApplier {
         if(Existing is not null&&!Existing.Value.IsEditable){
             return false;
         }
+        if(TryCreateEnumOrTextValue(Operation.ValueExpression,GetDeclaredMemberType(Component,Operation.MemberName)??Existing?.Value.Type,
+            Existing,Component.Location,out var EnumOrText)){
+            Updated=ReplaceComponent(Node,Component,WithMembers(Component,SetMember(Component.Members,Existing,Operation.MemberName,EnumOrText,Component.Location)));
+            return true;
+        }
         if(!TryParseLiteral(Operation.ValueExpression,Existing,out var ConstantValue)){
             return false;
         }
@@ -712,6 +717,36 @@ internal static class SceneModelEditApplier {
             Node.ComponentsListLocation,Node.ChildrenListLocation);
         return true;
     }
+    /// <summary>
+    /// A string literal for a string member, or a member of the member's own enum type: the Inspector's text and enum
+    /// editors write these. Both resolve from the declared type without the semantic model, and a JSON scene (every scene
+    /// since M0093) has no C# text edit to fall back to, so without this every such edit failed.
+    /// </summary>
+    private static bool TryCreateEnumOrTextValue(
+        string Expression,Microsoft.CodeAnalysis.ITypeSymbol?Type,SceneComponentMember?Existing,SceneSourceLocation Fallback,out SceneValue Value){
+        Value=null!;
+        var Text=Expression.Trim();
+        var Syntax=Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ParseExpression(Text);
+        if(Syntax.ContainsDiagnostics){
+            return false;
+        }
+        if(Type?.SpecialType==Microsoft.CodeAnalysis.SpecialType.System_String
+            &&Syntax is Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax Literal&&Literal.RawKind==(int)Microsoft.CodeAnalysis.CSharp.SyntaxKind.StringLiteralExpression){
+            Value=CreateLiteral(Literal.Token.ValueText,Text,Existing,Fallback);
+            return true;
+        }
+        if(Type is Microsoft.CodeAnalysis.INamedTypeSymbol{ TypeKind:Microsoft.CodeAnalysis.TypeKind.Enum }Enum
+            &&Syntax is Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax Access
+            &&string.Equals(Access.Expression.ToString(),Enum.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat),System.StringComparison.Ordinal)
+            &&Enum.GetMembers(Access.Name.Identifier.ValueText).OfType<Microsoft.CodeAnalysis.IFieldSymbol>().FirstOrDefault(static Field=>Field.HasConstantValue) is { }Field){
+            Value=new SceneValue(SceneValueKind.EnumMember,Enum,Field.ConstantValue,Field,
+                ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+                EmitExpressionText:Text,SourceExpressionText:Text,Existing?.Value.Location??Fallback);
+            return true;
+        }
+        return false;
+    }
+
     /// <summary>
     /// リテラルとして確実に解釈できる式だけを受け付ける。定数式・静的参照・ファクトリ呼び出しなどは
     /// 解決にセマンティックモデルが要るため、ここでは素直に諦めて従来経路へ落とす。

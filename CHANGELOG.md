@@ -27,6 +27,7 @@
 - Fixed the C# scene to JSON converter throwing for a `float.NaN` or infinity constant and writing an unreadable document for a `double` one: such a value is now reported like any other value JSON cannot hold.
 - Fixed scene JSON rejecting every value of a `ulong` member, although the C# scene converter and the Inspector write them; the schema now lists `ulong` members as integers.
 - Fixed a scene JSON number beyond the range of its `double` or `decimal` member generating code that did not compile: it is now a SCENE203 error at the number, as a number beyond `float` already was.
+- Fixed the Inspector failing every enum or text edit in a scene ("The Scene edit operation failed."): enum choices and strings such as `StaticMesh.AssetPath` now write back to the scene JSON.
 - Fixed every Scene Designer edit rewriting unrelated numbers such as `5.0000052` as `5.0000053`: the VSIX (.NET Framework) now writes a float with the same text as the tools.
 - Fixed the Scene Designer removing `startupOrder` from a startup scene on its first edit, after which the game no longer loaded that scene: the designer now reads a startup scene as one, so a write-back keeps the key.
 - Fixed a game project named like a C# keyword (`event`, `fixed`) failing to compile: the template's namespaces now get a leading underscore for a reserved keyword.
