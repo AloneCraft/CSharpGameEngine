@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — シェーダーグラフの JSON の null が、検証ではなく NullReferenceException になった
+- 意図: Shader-Graph 仕様。グラフは正規形の JSON で、不正な内容は検証の診断か、不正な JSON としての例外で報告する。
+- 観測（Fact）: Triangle グラフの任意の箇所を null・削除・型違いに置き換える変異ファジング 3000 件のうち 161 件で、検証・HLSL 生成・正規形が NullReferenceException か ArgumentNullException を投げた（`"type": null`、`"arguments": null`、`"target": null`、ノードや引数の要素の null など）。System.Text.Json 8 はモデルが null を許さないメンバーやリストの要素にも null を入れる。エディターでは原因の分からないメッセージになり、外部変更の再読み込み（IOException と JsonException だけを捕まえる）では例外が UI スレッドへ漏れ得る（コードからの推測）。
+- 実装: `ShaderGraphCanonicalization.FromJson` が読み込み直後に、値が要る箇所の null を JSON のパス付きの `JsonException` にする。正規形の書き出しは null を省くので、正しいファイルは影響を受けない。
+- 自動化された証拠: `ShaderGraphTests.FromJson_RejectsANullTheGraphNeeds`（6 か所、修正前は例外にならない）。修正後の変異ファジングは Triangle 3000 件・Model 1500 件で想定外の例外 0。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 作者が桁の多い turns で書いた角度は、無関係な編集で書き直される
 - 意図: ADR-0074 決定 2。変更していない角度は編集のたびに同じ文字列のまま残る。
 - 観測（Fact）: `[Angle(AngleUnit.Degrees)]` のメンバーに `0.25`・`0.1` と書いたシーンで別のノードを動かすと、その行は変わらなかった。`0.12345678901234`・`0.333333333333` と書くと、`0.12345679`・`0.33333333` に書き換わった（値は同じ float）。角度は Designer の C# 表現にメンバーの単位（度）で入り、変換器はその値から最短の turns を書くので、作者の turns の綴りが残らない。角度でない数は同日の修正で作者の綴りを残す。

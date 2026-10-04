@@ -10,6 +10,32 @@ public class ShaderGraphTests {
         var ParsedJson = ShaderGraphCanonicalization.ToCanonicalJson(Parsed!);
         Assert.Equal(Json, ParsedJson);
     }
+    /// <summary>
+    /// A JSON null where the graph needs a value is malformed JSON that names its path. System.Text.Json put it into the
+    /// model, and validation, emission and the canonical form then threw a NullReferenceException that named nothing (a
+    /// mutation fuzz of the Triangle graph hit it in 161 of 3000 documents).
+    /// </summary>
+    [Theory]
+    [InlineData("target", "$.target")]
+    [InlineData("nodes[0].type", "$.subgraphs[0].nodes[0].type")]
+    [InlineData("nodes[0]", "$.subgraphs[0].nodes[0]")]
+    [InlineData("nodes[0].arguments", "$.subgraphs[0].nodes[0].arguments")]
+    [InlineData("edges", "$.subgraphs[0].edges")]
+    [InlineData("layout.nodes[0]", "$.layout.nodes[0]")]
+    public void FromJson_RejectsANullTheGraphNeeds(string Where, string Path) {
+        var Graph = System.Text.Json.Nodes.JsonNode.Parse(ShaderGraphCanonicalization.ToCanonicalJson(BuildLayoutAwareGraph("null")))!;
+        var Subgraph = Graph["subgraphs"]![0]!;
+        switch (Where) {
+            case "target": Graph["target"] = null; break;
+            case "nodes[0].type": Subgraph["nodes"]![0]!["type"] = null; break;
+            case "nodes[0]": Subgraph["nodes"]![0] = null; break;
+            case "nodes[0].arguments": Subgraph["nodes"]![0]!["arguments"] = null; break;
+            case "edges": Subgraph["edges"] = null; break;
+            case "layout.nodes[0]": Graph["layout"]!["nodes"]![0] = null; break;
+        }
+        var Error = Assert.Throws<System.Text.Json.JsonException>(() => ShaderGraphCanonicalization.FromJson(Graph.ToJsonString()));
+        Assert.Contains(" at " + Path + ".", Error.Message);
+    }
     [Fact]
     public void SemanticHash_IgnoresEditorLayout() {
         var Left=BuildLayoutAwareGraph("left");
