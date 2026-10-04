@@ -28,6 +28,20 @@ public sealed class BridgeExecutableLocatorTests:IDisposable {
     }
 
     [Fact]
+    public void BundledBridge_WinsOverARepositoryBuild(){
+        this.CreateExe("Release",RidSubfolder:null,DateTime.UtcNow);
+        var Extension=Path.Combine(this.RepoRoot,"extension");
+        var Bundled=Path.Combine(Extension,"Bridges","Sample.Bridge.Cli","Sample.Bridge.Cli.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(Bundled)!);
+        File.WriteAllText(Bundled,"apphost");
+        File.WriteAllText(Path.ChangeExtension(Bundled,".runtimeconfig.json"),"{}");
+
+        var Result=BridgeExecutableLocator.FindExecutable(Extension,this.RepoRoot,BridgeProjectRelativePath);
+
+        Assert.Equal(Bundled,Result);
+    }
+
+    [Fact]
     public void NoBuiltExecutable_ReturnsNull(){
         var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 

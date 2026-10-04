@@ -76,7 +76,11 @@ public sealed class PhysicsShapeAsset {
         return new PhysicsShapeAsset(Id,PhysicsShapeAssetKind.StaticTriangleMesh,VertexCopy,IndexCopy);
     }
 
+    /// <summary>Number of full vertex scans by <see cref="Support"/>; lets tests hold steady-state bounds queries off the vertex array.</summary>
+    internal long SupportScanCount;
+
     internal LogicalVector3 Support(LogicalVector3 Direction){
+        this.SupportScanCount++;
         int BestIndex=0;
         LogicalScalar Best=LogicalVector3.Dot(this.VertexStorage[0],Direction);
         for(int Index=1;Index<this.VertexStorage.Length;Index++){
@@ -126,17 +130,20 @@ public sealed class PhysicsShapeAsset {
 
     private static int[] BuildMeshBvh(LogicalVector3[] Vertices,int[] Indices,List<MeshNode> Nodes){
         int[] Triangles=Enumerable.Range(0,Indices.Length/3).ToArray();
-        BuildNode(Vertices,Indices,Triangles,0,Triangles.Length,Nodes);
+        // Each sort comparison used to recompute both centres (a Q64.64 division); compute them once.
+        LogicalVector3[] Centers=new LogicalVector3[Triangles.Length];
+        for(int Triangle=0;Triangle<Centers.Length;Triangle++){ Centers[Triangle]=TriangleCenter(Vertices,Indices,Triangle); }
+        BuildNode(Vertices,Indices,Centers,Triangles,0,Triangles.Length,Nodes);
         return Triangles;
     }
 
-    private static int BuildNode(LogicalVector3[] Vertices,int[] Indices,int[] Triangles,int Start,int Count,List<MeshNode> Nodes){
+    private static int BuildNode(LogicalVector3[] Vertices,int[] Indices,LogicalVector3[] Centers,int[] Triangles,int Start,int Count,List<MeshNode> Nodes){
         PhysicsAabb Bounds=TriangleBounds(Vertices,Indices,Triangles[Start]);
-        LogicalVector3 FirstCenter=TriangleCenter(Vertices,Indices,Triangles[Start]);
+        LogicalVector3 FirstCenter=Centers[Triangles[Start]];
         PhysicsAabb CenterBounds=new(FirstCenter,FirstCenter);
         for(int Index=1;Index<Count;Index++){
             Bounds=Combine(Bounds,TriangleBounds(Vertices,Indices,Triangles[Start+Index]));
-            LogicalVector3 Center=TriangleCenter(Vertices,Indices,Triangles[Start+Index]);
+            LogicalVector3 Center=Centers[Triangles[Start+Index]];
             CenterBounds=Combine(CenterBounds,new PhysicsAabb(Center,Center));
         }
         int NodeIndex=Nodes.Count;
@@ -147,10 +154,10 @@ public sealed class PhysicsShapeAsset {
         }
         LogicalVector3 Size=CenterBounds.Max-CenterBounds.Min;
         int Axis=Size.R>=Size.U&&Size.R>=Size.F?0:Size.U>=Size.F?1:2;
-        Array.Sort(Triangles,Start,Count,new TriangleCenterComparer(Vertices,Indices,Axis));
+        Array.Sort(Triangles,Start,Count,new TriangleCenterComparer(Centers,Axis));
         int LeftCount=Count/2;
-        int Left=BuildNode(Vertices,Indices,Triangles,Start,LeftCount,Nodes);
-        int Right=BuildNode(Vertices,Indices,Triangles,Start+LeftCount,Count-LeftCount,Nodes);
+        int Left=BuildNode(Vertices,Indices,Centers,Triangles,Start,LeftCount,Nodes);
+        int Right=BuildNode(Vertices,Indices,Centers,Triangles,Start+LeftCount,Count-LeftCount,Nodes);
         Nodes[NodeIndex]=new MeshNode(Bounds,Left,Right,0,0);
         return NodeIndex;
     }
@@ -224,10 +231,10 @@ public sealed class PhysicsShapeAsset {
     private static LogicalScalar Min(LogicalScalar Left,LogicalScalar Right)=>Left<Right?Left:Right;
     private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
 
-    private sealed class TriangleCenterComparer(LogicalVector3[] Vertices,int[] Indices,int Axis):IComparer<int> {
+    private sealed class TriangleCenterComparer(LogicalVector3[] Centers,int Axis):IComparer<int> {
         public int Compare(int Left,int Right){
-            LogicalVector3 LeftCenter=TriangleCenter(Vertices,Indices,Left);
-            LogicalVector3 RightCenter=TriangleCenter(Vertices,Indices,Right);
+            LogicalVector3 LeftCenter=Centers[Left];
+            LogicalVector3 RightCenter=Centers[Right];
             int Result=Axis switch {
                 0=>LeftCenter.R.CompareTo(RightCenter.R),
                 1=>LeftCenter.U.CompareTo(RightCenter.U),

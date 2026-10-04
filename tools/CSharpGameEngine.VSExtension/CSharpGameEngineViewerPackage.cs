@@ -20,6 +20,8 @@ namespace CSharpGameEngine.VSExtension;
 [PackageRegistration(UseManagedResourcesOnly=true,AllowsBackgroundLoading=true)]
 [Guid(PackageGuidString)]
 [ProvideMenuResource("Menus.ctmenu",1)]
+// Template wizards are named by simple assembly name in the vstemplates; this probing path lets VS resolve them.
+[ProvideBindingPath]
 [ProvideToolWindow(typeof(HierarchyToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Left,DockedWidth=300)]
@@ -31,8 +33,8 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(ComponentPaletteToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=300)]
-// Document Well is the primary Scene Designer host. This tool window remains registered only
-// as a recovery path when Visual Studio cannot create the external virtual document frame.
+// The Scene Editor (SceneJsonEditorFactory) is the Scene Designer's host. This tool window remains
+// registered only as a recovery path when Visual Studio cannot open the Scene Editor.
 [ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=500)]
@@ -45,6 +47,13 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideEditorLogicalView(typeof(ShaderGraphEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgeshadergraph",60)]
 [ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgesubgraph",60)]
+// ADR-0071: a scene JSON (Scenes\**\*.json) opens in the Scene Editor (Design / JSON). Registered
+// for .json above the JSON editor; other JSON is declined.
+[ProvideEditorFactory(typeof(SceneJsonEditorFactory),112,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
+[ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
+[ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.TextView_string)]
+[ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.Code_string)]
+[ProvideEditorExtension(typeof(SceneJsonEditorFactory),".json",SceneJsonEditorFactory.ExtensionPriority)]
 // Tools>Options > C# Game Engine > Scene Editor。120/121 は VSPackage.resx のカテゴリ名/ページ名。
 // GeneratePkgDefFile=true なので .pkgdef へ自動登録される(マニフェストの手編集は不要)。
 [ProvideOptionPage(typeof(SceneEditorOptionsPage),"C# Game Engine","Scene Editor",120,121,
@@ -56,7 +65,6 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     private AssetMetaWatcher?AssetMetaWatcher;
     private SceneWorkspaceService?SceneWorkspace;
     private SceneEditorSessionService?SceneSession;
-    private SceneDesignerDocumentManager?SceneDesignerDocuments;
     private ActiveDocumentTracker?DocumentTracker;
     private SceneSourceMarkerService?SourceMarkerService;
     private OpenSceneDesignerCommand?SceneDesignerCommand;
@@ -76,16 +84,19 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
         await ShowInspectorToolWindowCommand.InitializeAsync(this);
         await ShowComponentPaletteToolWindowCommand.InitializeAsync(this);
+        await OpenSceneEditorOptionsCommand.InitializeAsync(this);
+        await GameDiagnosticsCommands.InitializeAsync(this);
 
         this.RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
         this.RegisterEditorFactory(new ShaderGraphEditorFactory());
+        this.RegisterEditorFactory(new SceneJsonEditorFactory(this));
 
         SceneEditorSettings.ConfigureStoreProvider(
             ()=>new ShellSettingsManager(this).GetWritableSettingsStore(SettingsScope.UserSettings));
         SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
         await this.TryInitializeSceneSubsystemAsync();
 
-        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
+        this.RestartAssetMetaWatcher();
         this.ExperimentalToolWindowState=new ExperimentalToolWindowState(this);
         _=this.JoinableTaskFactory.RunAsync(async()=>{
             if(await this.WaitForSolutionOpenAsync()){
@@ -129,8 +140,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         }
         if(this.SceneSession is null){
             this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
-            this.SceneDesignerDocuments=new SceneDesignerDocumentManager(this);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
+            SceneJsonEditorPane.ConfigureSessionProvider(()=>this.SceneSession);
             InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             ComponentPaletteToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             this.SourceMarkerService=SceneSourceMarkerService.Start();
@@ -151,7 +162,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         }
         if(this.SceneDesignerCommand is null){
             this.SceneDesignerCommand=await OpenSceneDesignerCommand.InitializeAsync(
-                this,this.SceneSession,this.DocumentTracker,this.SceneDesignerDocuments!);
+                this,this.SceneSession,this.DocumentTracker);
             ActivityLog.LogInformation(
                 nameof(CSharpGameEngineViewerPackage),
                 "Scene authoring subsystem initialized with the live VisualStudioWorkspace.");
@@ -535,18 +546,6 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     /// </summary>
     private void OnWorkspaceModelChangedForHub(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // The command is placed both in a context menu and on the persistent product toolbar.
-        // A cold toolbar may not issue another BeforeQueryStatus after asynchronous Roslyn
-        // analysis completes, so update the owned OleMenuCommand from the completed immutable
-        // snapshot before asking the shell to repaint it.
-        this.SceneDesignerCommand?.RefreshStatus();
-        if(GetGlobalService(typeof(SVsUIShell))is IVsUIShell UIShell){
-            // The Scene analysis completes asynchronously after the toolbar's initial QueryStatus.
-            // A deferred refresh can remain queued indefinitely in a cold, otherwise idle hive,
-            // leaving the visible command disabled even though ActiveMenuSnapshot is complete.
-            // We are already on the UI thread and this update only reads the immutable snapshot.
-            ErrorHandler.ThrowOnFailure(UIShell.UpdateCommandUI(1));
-        }
         var Session=this.SceneSession;
         var HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsSaving(Key);
 
@@ -697,6 +696,12 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             :null;
     }
 
+    /// <summary>Watches the Assets folder of the current game project, replacing any previous watcher.</summary>
+    private void RestartAssetMetaWatcher(){
+        this.AssetMetaWatcher?.Dispose();
+        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
+    }
+
     protected override void Dispose(bool Disposing){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Disposing){
@@ -723,9 +728,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
             this.SceneSession?.Dispose();
             this.SceneSession=null;
-            this.SceneDesignerDocuments?.Dispose();
-            this.SceneDesignerDocuments=null;
             SceneDesignerToolWindowPane.ClearSessionProvider();
+            SceneJsonEditorPane.ClearSessionProvider();
             InspectorToolWindowPane.ClearSessionProvider();
             ComponentPaletteToolWindowPane.ClearSessionProvider();
             SceneEditorSettings.ConfigureStoreProvider(null);

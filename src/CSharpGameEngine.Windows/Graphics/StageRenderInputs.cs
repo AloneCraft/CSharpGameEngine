@@ -13,6 +13,16 @@ public readonly struct StageMeshCreateInfo {
 
     public required IReadOnlyList<Vector2>Uvs { get; init;}
     public required IReadOnlyList<uint>Indices { get; init;}
+
+    /// <summary>Skin influences of a skinned mesh (ADR-0066); null for rigid geometry. Each skinned mesh is skinned on its own, so instances need their own mesh.</summary>
+    public StageSkinCreateInfo?Skin { get; init;}
+}
+
+/// <summary>Eight joint indices and weights per vertex into a palette of <see cref="JointCount"/> matrices.</summary>
+public sealed class StageSkinCreateInfo {
+    public required int JointCount { get; init;}
+    public required IReadOnlyList<ushort>JointIndices { get; init;}
+    public required IReadOnlyList<float>Weights { get; init;}
 }
 
 /// <summary>
@@ -43,7 +53,22 @@ public readonly struct StageMaterialCreateInfo() {
 
     /// <summary>glTF-standard packed texture: G = roughness, B = metallic.</summary>
     public RenderTextureResource?MetallicRoughnessTexture { get; init;}
+
+    /// <summary>A world-space procedural grid drawn over the base colour (M0098), or null for an ordinary material.</summary>
+    public StageWorldGrid?WorldGrid { get; init;}
 }
+
+/// <summary>
+/// A procedural grid drawn per pixel from the world position, so it keeps a constant size on floors and walls
+/// regardless of mesh size or UVs (the shader projects it along the dominant world axes). The material's
+/// base colour is the surface between the lines.
+/// </summary>
+/// <param name="GridSizeMeters">Distance between the main grid lines.</param>
+/// <param name="SubGridDivisions">How many sub grid cells fit in one main grid cell.</param>
+/// <param name="WireHalfWidth">Half of a line's width as a fraction of its own cell (main and sub grid alike).</param>
+/// <param name="GridColor">Linear RGB of the main grid lines.</param>
+/// <param name="SubGridColor">Linear RGB of the sub grid lines.</param>
+public readonly record struct StageWorldGrid(float GridSizeMeters,int SubGridDivisions,float WireHalfWidth,Vector3 GridColor,Vector3 SubGridColor);
 
 /// <summary>One drawable: a (mesh, material) pair. Multiple objects may reference the same mesh and/or material index - e.g. twenty cubes sharing one baked mesh, or two different-shaped props sharing one flat-color material.</summary>
 public readonly struct StageObjectCreateInfo {

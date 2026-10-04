@@ -15,4 +15,7 @@ public sealed class ImportedMeshData {
 
     /// <summary>Triangle list; always a multiple of 3.</summary>
     public required IReadOnlyList<uint>Indices { get; init;}
+
+    /// <summary>JOINTS_n/WEIGHTS_n influences of a skinned primitive (ADR-0066); null for rigid geometry.</summary>
+    public ImportedSkinInfluences?Influences { get; init;}
 }

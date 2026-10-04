@@ -96,6 +96,45 @@ public sealed class RenderPreviewHostProcessTests {
         }
     }
 
+    /// <summary>
+    /// M0096 (ADR-0047): the Scene view's render server runs the editor world as well, so the Spatial debug overlay
+    /// asks that process, and a request without a world id gets the editor world. (Rendering here would also make the
+    /// view world publish, but a runtime view render in a new host after HostCrash's abrupt kill fails to create its
+    /// swap chain in this test process, a separate open issue recorded in M0096.)
+    /// </summary>
+    [Fact]
+    public async Task RuntimeViewHost_AnswersSpatialDebugWithTheEditorWorld(){
+        if(!OperatingSystem.IsWindows()){ return; }
+        Process?Host=null;
+        try {
+            using Win32Window Window=CreateWindow("Runtime");
+            string PipeName=$"CSharpGameEngine.Preview.Process.{Guid.NewGuid():N}";
+            Host=StartHost(PipeName);
+            RenderPreviewHostRequest Open=RenderPreviewRuntimeSessionTests.CreateRuntimeOpen(Window);
+            RenderPreviewHostResponse Opened=await SendWithConnectRetryAsync(PipeName,Open);
+            Assert.True(Opened.State==RenderPreviewHostResultState.Succeeded,$"{Opened.DiagnosticCode}: {Opened.Message}");
+            Assert.NotEqual(Guid.Empty,Opened.EditorSpatialWorldId);
+            using(NamedPipeClientStream Spatial=new(".",$"CSharpGameEngine.SpatialDebug.{Host.Id}",PipeDirection.InOut,PipeOptions.None)){
+                await Spatial.ConnectAsync(5_000);
+                byte[]Payload=System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { Command="snapshot",WorldId=(string?)null });
+                await Spatial.WriteAsync(BitConverter.GetBytes(Payload.Length));
+                await Spatial.WriteAsync(Payload);
+                byte[]Length=new byte[4];
+                await Spatial.ReadExactlyAsync(Length);
+                byte[]Body=new byte[BitConverter.ToInt32(Length,0)];
+                await Spatial.ReadExactlyAsync(Body);
+                using var Response=System.Text.Json.JsonDocument.Parse(Body);
+                Assert.Equal("ok",Response.RootElement.GetProperty("Status").GetString());
+                Assert.Equal(Opened.EditorSpatialWorldId,Response.RootElement.GetProperty("WorldId").GetGuid());
+            }
+            RenderPreviewHostResponse Closed=await SendAsync(PipeName,Command(Open,RenderPreviewHostCommand.Close,2));
+            Assert.True(Closed.State==RenderPreviewHostResultState.Succeeded,$"{Closed.DiagnosticCode}: {Closed.Message}");
+            Assert.True(Host.WaitForExit(10_000));
+        } finally {
+            StopOwnedProcess(Host);
+        }
+    }
+
     private static Win32Window CreateWindow(string Generation)=>new(new Win32WindowOptions {
         Title=$"CSharpGameEngine Out Of Process Preview Test {Generation}",
         Width=128,

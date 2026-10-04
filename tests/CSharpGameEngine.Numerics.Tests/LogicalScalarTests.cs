@@ -41,6 +41,15 @@ public sealed class LogicalScalarTests {
         Assert.Equal(new LogicalVector3(-3,6,-3),LogicalVector3.Cross(new(1,2,3),new(4,5,6)));
     }
     [Fact]
+    public void TryNormalizeAcceptsTheReceiverAsItsOwnOutput(){
+        var Direction=new LogicalVector3(3,0,4);
+        Assert.True(Direction.TryNormalize(out Direction));
+        Assert.Equal(LogicalScalar.FromInt64(3)/LogicalScalar.FromInt64(5),Direction.R);
+        var Rotation=new LogicalQuaternion(LogicalScalar.Zero,LogicalScalar.FromInt64(3),LogicalScalar.Zero,LogicalScalar.FromInt64(4));
+        Assert.True(Rotation.TryNormalize(out Rotation));
+        Assert.Equal(LogicalScalar.FromInt64(4)/LogicalScalar.FromInt64(5),Rotation.W);
+    }
+    [Fact]
     public void EulerAuthoringConvertsOnceToANormalizedLogicalQuaternion(){
         var Rotation=LogicalQuaternion.FromEulerRuf(new LogicalVector3(0,MathF.PI/2f,0));
 
@@ -168,4 +177,69 @@ public sealed class LogicalScalarTests {
         return Low;
     }
     private static double ToDouble(LogicalScalar Value)=>double.CreateChecked(Value.Raw)/18446744073709551616d;
+    [Fact]
+    public void ProductAndSquareRoot_MatchTheirReferencesExactly(){
+        var Random=new Random(5489);
+        UInt128 Next(){
+            var Bits=Random.Next(0,129);
+            var Value=(UInt128)(ulong)Random.NextInt64()<<64|(ulong)Random.NextInt64()|(UInt128)(ulong)Random.Next(0,2)<<127;
+            return Bits==128?Value:Value&(((UInt128)1<<Bits)-1);
+        }
+        UInt128[]Edges=[0,1,2,ulong.MaxValue,(UInt128)ulong.MaxValue+1,(UInt128)1<<127,((UInt128)1<<127)-1,UInt128.MaxValue];
+        foreach(var Left in Edges){
+            foreach(var Right in Edges){ Assert.Equal(LogicalScalar.MultiplyUnsignedLimbwiseLimbs(Left,Right),LogicalScalar.MultiplyUnsignedLimbs(Left,Right)); }
+        }
+        for(var Index=0;Index<200000;Index++){
+            var Left=Next();
+            var Right=Next();
+            Assert.Equal(LogicalScalar.MultiplyUnsignedLimbwiseLimbs(Left,Right),LogicalScalar.MultiplyUnsignedLimbs(Left,Right));
+        }
+        void CheckRoot(Int128 Raw){
+            var Value=LogicalScalar.FromRaw(Raw);
+            var Expected=LogicalScalar.TrySquareRootBinarySearch(Value,out var ExpectedRoot);
+            Assert.Equal(Expected,LogicalScalar.TrySquareRoot(Value,out var ActualRoot));
+            Assert.Equal(ExpectedRoot,ActualRoot);
+        }
+        foreach(var Raw in new Int128[]{-1,0,1,2,3,4,(Int128)1<<64,((Int128)1<<64)-1,((Int128)1<<64)+1,Int128.MaxValue,Int128.MaxValue-1,(Int128)1<<126}){ CheckRoot(Raw); }
+        for(var Index=0;Index<30000;Index++){
+            CheckRoot((Int128)(Next()>>1));
+            var Whole=(Int128)Random.NextInt64(1,1L<<40);
+            CheckRoot(Whole*Whole<<64);
+            CheckRoot((Whole*Whole<<64)-1);
+            CheckRoot((Whole*Whole<<64)+1);
+        }
+    }
+    [Fact]
+    public void ScaledDivision_MatchesTheShiftSubtractReferenceExactly(){
+        // Divisions sit on the deterministic simulation path, so the limb division must reproduce the
+        // bitwise reference's quotient, remainder and overflow verdict for every input class.
+        var Random=new Random(20260930);
+        UInt128 Next(){
+            var Bits=Random.Next(0,129);
+            var Value=((UInt128)(ulong)Random.NextInt64()<<64|(ulong)Random.NextInt64())^((UInt128)Random.Next()<<127);
+            return Bits==128?Value:Value&(((UInt128)1<<Bits)-1);
+        }
+        UInt128[]Edges=[0,1,2,3,ulong.MaxValue-1,ulong.MaxValue,(UInt128)ulong.MaxValue+1,(UInt128)1<<63,(UInt128)1<<64|1,(UInt128)1<<127,((UInt128)1<<127)-1,UInt128.MaxValue,UInt128.MaxValue-1];
+        void Check(UInt128 Numerator,UInt128 Denominator){
+            if(Denominator==0){ return; }
+            var Expected=LogicalScalar.TryDivideScaledBitwise(Numerator,Denominator,out var ExpectedQuotient,out var ExpectedRemainder);
+            var Actual=LogicalScalar.TryDivideScaled(Numerator,Denominator,out var ActualQuotient,out var ActualRemainder);
+            Assert.Equal(Expected,Actual);
+            if(Expected){
+                Assert.Equal(ExpectedQuotient,ActualQuotient);
+                Assert.Equal(ExpectedRemainder,ActualRemainder);
+            }
+        }
+        foreach(var Numerator in Edges){
+            foreach(var Denominator in Edges){ Check(Numerator,Denominator); }
+        }
+        for(var Index=0;Index<200000;Index++){
+            Check(Next(),Next());
+        }
+        for(var Index=0;Index<50000;Index++){
+            // Divisors near a limb boundary and numerators just above them exercise the estimate correction and add-back.
+            var Denominator=((UInt128)(ulong)Random.NextInt64()<<64)|(ulong)(Random.Next(0,4)==0?0:Random.NextInt64());
+            Check(Denominator*(UInt128)(ulong)Random.Next(1,1<<20)+(UInt128)(ulong)Random.Next(),Denominator|(UInt128)1<<64);
+        }
+    }
 }

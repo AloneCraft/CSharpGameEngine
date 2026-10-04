@@ -38,6 +38,30 @@ internal sealed class GizmoOverlayPrimitive {
     internal GizmoPrimitiveKind Kind { get; }
 
     internal IReadOnlyList<GizmoOverlayVertex>Vertices { get; }
+
+    /// <summary>
+    /// True when both overlays draw exactly the same primitives. The Scene view rebuilds its overlay
+    /// on every UI tick; comparing lets it request a new preview frame only when the overlay changed.
+    /// </summary>
+    internal static bool SameContent(IReadOnlyList<GizmoOverlayPrimitive>Left,IReadOnlyList<GizmoOverlayPrimitive>Right){
+        if(Left.Count!=Right.Count){
+            return false;
+        }
+        for(int Index=0;Index<Left.Count;Index++){
+            GizmoOverlayPrimitive First=Left[Index];
+            GizmoOverlayPrimitive Second=Right[Index];
+            if(First.Kind!=Second.Kind||First.Vertices.Count!=Second.Vertices.Count){
+                return false;
+            }
+            for(int Vertex=0;Vertex<First.Vertices.Count;Vertex++){
+                if(!First.Vertices[Vertex].Position.Equals(Second.Vertices[Vertex].Position)
+                    ||!First.Vertices[Vertex].Color.Equals(Second.Vertices[Vertex].Color)){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }
 
 internal readonly struct MoveGizmoFrame {
@@ -222,7 +246,8 @@ internal static partial class TransformGizmo {
             const int Segments=8;
             const float ShaftEnd=1.38f;
             const float ShaftRadius=0.025f;
-            const float ArrowRadius=0.085f;
+            // M0098 B: コーンの底を判定半径で描き、描いた矢印をTryHitMoveのカプセルに収める(以前の0.085は縁が外れた)。
+            const float ArrowRadius=AxisRadius;
             Vector3 Reference=Math.Abs(Vector3.Dot(Axis,Vector3.UnitY))<0.9f
                 ?Vector3.UnitY
                 :Vector3.UnitX;
@@ -289,28 +314,31 @@ internal static partial class TransformGizmo {
         return true;
     }
 
+    /// <summary>
+    /// レイ(<paramref name="RayDistance"/>≥0)と線分の最近点の厳密解(Ericson『Real-Time Collision Detection』5.1.9)。
+    /// 線分側をクランプしたらレイ側を解き直し、レイ側を0へクランプしたら線分側を解き直す。M0098 B: 解き直さないと、
+    /// 軸と浅い角度で矢印の先端を通るレイや、軸に平行なレイ(正射投影で軸の方向から見る)が、描いた矢印の上でも外れた。
+    /// </summary>
     private static void ClosestRaySegment(
         Vector3 RayOrigin,Vector3 RayDirection,Vector3 SegmentStart,Vector3 SegmentEnd,
         out float RayDistance,out float Distance){
-        Vector3 Segment=SegmentEnd-SegmentStart;
-        Vector3 Offset=RayOrigin-SegmentStart;
-        float A=Vector3.Dot(RayDirection,RayDirection);
-        float B=Vector3.Dot(RayDirection,Segment);
-        float C=Vector3.Dot(Segment,Segment);
-        float D=Vector3.Dot(RayDirection,Offset);
-        float E=Vector3.Dot(Segment,Offset);
-        float Denominator=(A*C)-(B*B);
-        float SegmentParameter;
-        if(Math.Abs(Denominator)<=1e-6f){
+        var Segment=SegmentEnd-SegmentStart;
+        var Offset=RayOrigin-SegmentStart;
+        var A=Vector3.Dot(RayDirection,RayDirection);
+        var B=Vector3.Dot(RayDirection,Segment);
+        var C=Vector3.Dot(Segment,Segment);
+        var D=Vector3.Dot(RayDirection,Offset);
+        var E=Vector3.Dot(Segment,Offset);
+        var Denominator=(A*C)-(B*B);
+        // 平行(長さに依存しない相対判定)なら線分のどの点でも距離は同じなので、始点から解く。
+        var SegmentParameter=Denominator>1e-6f*A*C?Clamp01(((A*E)-(B*D))/Denominator):0f;
+        RayDistance=((B*SegmentParameter)-D)/A;
+        if(RayDistance<0f){
             RayDistance=0f;
             SegmentParameter=Clamp01(E/C);
-        } else {
-            RayDistance=Math.Max(0f,((B*E)-(C*D))/Denominator);
-            SegmentParameter=Clamp01(((A*E)-(B*D))/Denominator);
         }
-
-        Vector3 OnRay=RayOrigin+(RayDirection*RayDistance);
-        Vector3 OnSegment=SegmentStart+(Segment*SegmentParameter);
+        var OnRay=RayOrigin+(RayDirection*RayDistance);
+        var OnSegment=SegmentStart+(Segment*SegmentParameter);
         Distance=Vector3.Distance(OnRay,OnSegment);
     }
 

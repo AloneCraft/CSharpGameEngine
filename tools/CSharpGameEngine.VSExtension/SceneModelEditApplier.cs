@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
+using SpecialType=Microsoft.CodeAnalysis.SpecialType;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -210,7 +211,7 @@ internal static class SceneModelEditApplier {
     }
 
     /// <summary>
-    /// M0036/M0038由来の複製(Alt+ドラッグ)。<see cref="SceneSourceEditor.ApplyDuplicateNode"/>と同じ方針:
+    /// M0036/M0038由来の複製(Alt+ドラッグ)。
     /// 元Nodeの構成をそのまま複製し、Transformだけ指定値へ差し替える。新しい兄弟として末尾に追記する
     /// (<see cref="TryAddNode"/>と同じ挿入位置)。
     /// </summary>
@@ -224,7 +225,7 @@ internal static class SceneModelEditApplier {
 
         var Source=GetAtPath(Root,TargetPath);
         var Transform=SceneComponentBindings.FindComponent(Source,SceneComponentRole.LocalTransform);
-        if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
+        if(Transform is null||SceneEditValues.IsGenerated(Transform.Location.FilePath)){
             return false;
         }
 
@@ -272,68 +273,18 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
-        // NewParentのPathは削除で兄弟インデックスがずれている可能性があるため、削除後のツリーで
-        // 同じEditorNodeIdを引き直す。IDの割り当ては呼び出し元(TryApply)のReconcilerと共有する
-        // 必要があるため、ここでは新規Reconcilerを使わず、単純な名前+Component構成の再帰探索で
-        // 対象を再特定する(削除操作はID空間を消費しないため、この場に限り軽量な再探索で足りる)。
-        if(!TryFindByIdentity(AfterRemoval,NewParentNode.Node,out var ResolvedNewParentPath)){
-            return false;
-        }
+        // 削除で後ろの兄弟が 1 つ前へずれるので、その兄弟(とその子孫)を通る新しい親の Path も同じ深さで 1 つ戻す。
+        // 以前は削除後の木を名前と Component の型構成で探し直していたため、同じ名前と構成のノード(並んだ "Group" など)
+        // があると、木の中で最初のそっくりなノードの下へ移していた。
+        var Depth=OldParentPath.Indices.Length;
+        var ResolvedNewParentPath=NewParentPath.IsDescendantOf(OldParentPath)&&NewParentPath.Indices[Depth]>TargetPath.Indices[^1]
+            ?new NodePath(NewParentPath.Indices.SetItem(Depth,NewParentPath.Indices[Depth]-1))
+            :NewParentPath;
 
         var ResolvedNewParent=GetAtPath(AfterRemoval,ResolvedNewParentPath);
         var ClampedIndex=Math.Max(0,Math.Min(Operation.NewIndex,ResolvedNewParent.Children.Length));
         NewPath=ResolvedNewParentPath.Append(ClampedIndex);
         return TryInsertChildAt(AfterRemoval,ResolvedNewParentPath,ClampedIndex,MovedContent,out Updated);
-    }
-
-    /// <summary>
-    /// 削除操作の直後に、削除前のNode参照(Name+Component構成で一意なはず)から現在のPathを
-    /// 再特定する。Reparent専用の軽量フォールバック — Reconcilerのように新規IDを払い出さない。
-    ///
-    /// <para>
-    /// M0051 Step 1-4(バグ修正): 以前は<c>ReferenceEquals</c>で探していたが、直前の
-    /// <see cref="TryRemoveChildAt"/>が木を関数的に作り直すため新親は**必ず別インスタンス**になり、
-    /// この関数は常にfalseを返していた。結果、<b>親を跨ぐReparentはmodel適用時に必ず失敗し、
-    /// Hierarchyのドラッグ&amp;ドロップでの
-    /// 親子変更が一切効かなかった</b>(実機報告「ヒエラルキーで編集しても取り消される」の一因)。
-    /// XMLコメントが記していた本来の意図(Name+Component構成での照合)どおりに実装し直した。
-    /// </para>
-    /// </summary>
-    private static bool TryFindByIdentity(SceneNode Root,SceneNode Target,out NodePath Found){
-        if(HasSameIdentity(Root,Target)){
-            Found=Root.Path;
-            return true;
-        }
-        for(var Index=0;Index<Root.Children.Length;Index++){
-            if(TryFindByIdentity(Root.Children[Index],Target,out Found)){
-                return true;
-            }
-        }
-        Found=default;
-        return false;
-    }
-
-    /// <summary>
-    /// Name+Component型構成での同一性。<see cref="SceneProjectionReconciler"/>の
-    /// <c>ExactKey</c>と同じ考え方(Nameだけでは一意にならないためComponent構成も併せて見る)。
-    /// </summary>
-    private static bool HasSameIdentity(SceneNode Left,SceneNode Right){
-        if(ReferenceEquals(Left,Right)){
-            return true;
-        }
-        if(!string.Equals(Left.Name,Right.Name,System.StringComparison.Ordinal)
-            ||Left.Components.Length!=Right.Components.Length){
-            return false;
-        }
-        for(var Index=0;Index<Left.Components.Length;Index++){
-            if(!string.Equals(
-                Left.Components[Index].TypeFullyQualifiedName,
-                Right.Components[Index].TypeFullyQualifiedName,
-                System.StringComparison.Ordinal)){
-                return false;
-            }
-        }
-        return true;
     }
 
     private static SceneNode GetAtPath(SceneNode Root,NodePath Path){
@@ -395,7 +346,7 @@ internal static class SceneModelEditApplier {
     private static bool TryAddNode(SceneNode Root,NodePath ParentPath,AddNodeOperation Operation,out SceneNode NewRoot){
         NewRoot=Root;
         var Parent=GetAtPath(Root,ParentPath);
-        if(SceneSourceEditor.IsGenerated(Parent.Location.FilePath)){
+        if(SceneEditValues.IsGenerated(Parent.Location.FilePath)){
             return false;
         }
 
@@ -436,7 +387,7 @@ internal static class SceneModelEditApplier {
         NewRoot=Root;
         var Parent=GetAtPath(Root,ParentPath);
         if(LocalIndex<0||LocalIndex>=Parent.Children.Length
-            ||SceneSourceEditor.IsGenerated(Parent.Children[LocalIndex].Location.FilePath)){
+            ||SceneEditValues.IsGenerated(Parent.Children[LocalIndex].Location.FilePath)){
             return false;
         }
 
@@ -468,7 +419,7 @@ internal static class SceneModelEditApplier {
         return true;
     }
 
-    /// <summary><see cref="SceneSourceEditor"/>の<c>CreateUniqueNodeName</c>と同じ規則(重複時は " (N)" を付与)。</summary>
+    /// <summary>兄弟と重複しない名前(重複時は " (N)" を付与)。</summary>
     private static string CreateUniqueNodeName(SceneNode Parent,string RequestedName){
         var BaseName=string.IsNullOrWhiteSpace(RequestedName)?"Node":RequestedName.Trim();
         var Names=Parent.Children
@@ -494,7 +445,7 @@ internal static class SceneModelEditApplier {
         SceneNode Node,SetTransformOperation Operation,out SceneNode Updated){
         Updated=Node;
         var Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
-        if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
+        if(Transform is null||SceneEditValues.IsGenerated(Transform.Location.FilePath)){
             return false;
         }
 
@@ -513,7 +464,7 @@ internal static class SceneModelEditApplier {
         SceneComponent Transform,SceneTransformValue Value,SceneTransformMemberMask Mask,
         out ImmutableArray<SceneComponentMember> Members){
         Members=Transform.Members;
-        foreach((string Name,Vector3 Vector,Vector3 Default)in SceneSourceEditor.EnumerateTransformVectors(Value,Mask)){
+        foreach((string Name,Vector3 Vector,Vector3 Default)in SceneEditValues.EnumerateTransformVectors(Value,Mask)){
             Vector3 Current=SceneTransformBinding.ReadVector(Transform,Name,Default);
             if(SceneTransformMath.NearlyEqual(Current.X,Vector.X)
                 &&SceneTransformMath.NearlyEqual(Current.Y,Vector.Y)
@@ -537,14 +488,14 @@ internal static class SceneModelEditApplier {
         SceneValue?Old=Existing?.Value;
         Microsoft.CodeAnalysis.ITypeSymbol?Type=Old?.Type??GetDeclaredMemberType(Component,Name);
         ImmutableArray<SceneValue>Arguments=[
-            CreateLiteral(Value.X,SceneSourceEditor.FormatFloat(Value.X),Existing,Fallback),
-            CreateLiteral(Value.Y,SceneSourceEditor.FormatFloat(Value.Y),Existing,Fallback),
-            CreateLiteral(Value.Z,SceneSourceEditor.FormatFloat(Value.Z),Existing,Fallback),
+            CreateLiteral(Value.X,SceneEditValues.FormatFloat(Value.X),Existing,Fallback),
+            CreateLiteral(Value.Y,SceneEditValues.FormatFloat(Value.Y),Existing,Fallback),
+            CreateLiteral(Value.Z,SceneEditValues.FormatFloat(Value.Z),Existing,Fallback),
         ];
         string TypeName=Type?.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat)??"LogicalVector3";
         if(Name=="Rotation"&&SceneTransformBinding.IsCanonicalTransform(Component)){
             const string VectorTypeName="global::CSharpGameEngine.Numerics.LogicalVector3";
-            string VectorText=$"new {VectorTypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
+            string VectorText=$"new {VectorTypeName}({SceneEditValues.FormatFloat(Value.X)}, {SceneEditValues.FormatFloat(Value.Y)}, {SceneEditValues.FormatFloat(Value.Z)})";
             SceneValue EulerValue=new(
                 SceneValueKind.ObjectCreation,Old?.Arguments.FirstOrDefault()?.Type,ConstantValue:null,ReferencedSymbol:null,
                 ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
@@ -555,7 +506,7 @@ internal static class SceneModelEditApplier {
                 ImmutableArray<SceneComponentMember>.Empty,[EulerValue],ImmutableArray<SceneValue>.Empty,
                 QuaternionText,QuaternionText,Old?.Location??Fallback);
         }
-        string Text=$"new {TypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
+        string Text=$"new {TypeName}({SceneEditValues.FormatFloat(Value.X)}, {SceneEditValues.FormatFloat(Value.Y)}, {SceneEditValues.FormatFloat(Value.Z)})";
         return new SceneValue(
             SceneValueKind.ObjectCreation,Type,ConstantValue:null,ReferencedSymbol:null,
             ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
@@ -566,7 +517,7 @@ internal static class SceneModelEditApplier {
         SceneNode Node,SetComponentMemberOperation Operation,out SceneNode Updated){
         Updated=Node;
         var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
-        if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
+        if(Component is null||SceneEditValues.IsGenerated(Component.Location.FilePath)){
             return false;
         }
 
@@ -589,7 +540,12 @@ internal static class SceneModelEditApplier {
         if(Existing is not null&&!Existing.Value.IsEditable){
             return false;
         }
-        if(!TryParseLiteral(Operation.ValueExpression,Existing,out var ConstantValue)){
+        if(TryCreateEnumOrTextValue(Operation.ValueExpression,GetDeclaredMemberType(Component,Operation.MemberName)??Existing?.Value.Type,
+            Existing,Component.Location,out var EnumOrText)){
+            Updated=ReplaceComponent(Node,Component,WithMembers(Component,SetMember(Component.Members,Existing,Operation.MemberName,EnumOrText,Component.Location)));
+            return true;
+        }
+        if(!TryParseLiteral(Operation.ValueExpression,GetDeclaredMemberType(Component,Operation.MemberName),Existing,out var ConstantValue)){
             return false;
         }
 
@@ -612,7 +568,7 @@ internal static class SceneModelEditApplier {
         }
         SceneValue ExistingValue=Top.Value.Arguments[Index];
         SceneComponentMember ExistingChild=new(Path[1],MemberSymbol:null,ExistingValue,ExistingValue.Location);
-        if(!ExistingValue.IsEditable||!TryParseLiteral(Operation.ValueExpression,ExistingChild,out var ConstantValue)){
+        if(!ExistingValue.IsEditable||!TryParseLiteral(Operation.ValueExpression,ExistingValue.Type,ExistingChild,out var ConstantValue)){
             return false;
         }
         SceneValue UpdatedChild=CreateLiteral(ConstantValue,Operation.ValueExpression.Trim(),ExistingChild,Component.Location);
@@ -635,9 +591,8 @@ internal static class SceneModelEditApplier {
         }
     }
     /// <summary>
-    /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。<see cref="SceneSourceEditor.ApplyAddComponent"/>
-    /// と同じ2つの前提を、書き戻し(保存)より前のこの層で確かめる — ここで弾いておけば、
-    /// 保存時になって初めて失敗するという体験を避けられる。
+    /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。書き戻しが成立する2つの前提を
+    /// この層で確かめる — ここで弾いておけば、書き戻しの時点で初めて失敗するという体験を避けられる。
     ///
     /// <para>
     /// 追加するComponentは<see cref="SceneSourceLocation.None"/>で構築する。<see cref="TryAddNode"/>が
@@ -651,14 +606,12 @@ internal static class SceneModelEditApplier {
         SceneNode Node,AddComponentOperation Operation,out SceneNode Updated){
         Updated=Node;
         if(Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
-            // SceneSourceEditor.ApplyAddComponentの「同じ型のComponentは既にNodeへ追加されています。」と
-            // 同じ判定。保存時になって初めて失敗させず、その場で弾く。
+            // 同じ型のComponentを1つのNodeへ2つ持てない(シーンJSONではSCENE205)。書き戻しの時点で
+            // 初めて失敗させず、その場で弾く。
             return false;
         }
-        if(SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
-            // ComponentsListLocationが無い(Components=[…]が未記述の)Nodeへの追加は、
-            // SceneSourceEditor.ApplyAddComponent側がまだ対応していない(「Nodeに編集可能な
-            // Componentsコレクションがありません。」)。保存時に必ず失敗するので、ここで揃えて弾く。
+        if(SceneEditValues.IsGenerated(Node.Location.FilePath)){
+            // 生成コードに宣言されたNodeは作者が編集できる文書を持たない。
             return false;
         }
 
@@ -682,12 +635,12 @@ internal static class SceneModelEditApplier {
         return true;
     }
 
-    /// <summary>M0051: <see cref="SceneSourceEditor.ApplyRemoveComponent"/>と対になる、予測モデル側のComponent削除。</summary>
+    /// <summary>M0051: 予測モデル側のComponent削除。</summary>
     private static bool TryApplyRemoveComponent(
         SceneNode Node,RemoveComponentOperation Operation,out SceneNode Updated){
         Updated=Node;
         var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
-        if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
+        if(Component is null||SceneEditValues.IsGenerated(Component.Location.FilePath)){
             return false;
         }
 
@@ -702,7 +655,7 @@ internal static class SceneModelEditApplier {
 
     private static bool TryApplyNormalizeComponents(SceneNode Node,out SceneNode Updated){
         Updated=Node;
-        if(SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
+        if(SceneEditValues.IsGenerated(Node.Location.FilePath)){
             return false;
         }
         ImmutableArray<SceneComponent>Components=SceneComponentOrdering.Normalize(Node.Components);
@@ -716,11 +669,42 @@ internal static class SceneModelEditApplier {
         return true;
     }
     /// <summary>
-    /// リテラルとして確実に解釈できる式だけを受け付ける。定数式・静的参照・ファクトリ呼び出しなどは
-    /// 解決にセマンティックモデルが要るため、ここでは素直に諦めて従来経路へ落とす。
+    /// A string literal for a string member, or a member of the member's own enum type: the Inspector's text and enum
+    /// editors write these. Both resolve from the declared type without the semantic model, and a JSON scene (every scene
+    /// since M0093) has no C# text edit to fall back to, so without this every such edit failed.
+    /// </summary>
+    private static bool TryCreateEnumOrTextValue(
+        string Expression,Microsoft.CodeAnalysis.ITypeSymbol?Type,SceneComponentMember?Existing,SceneSourceLocation Fallback,out SceneValue Value){
+        Value=null!;
+        var Text=Expression.Trim();
+        var Syntax=Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ParseExpression(Text);
+        if(Syntax.ContainsDiagnostics){
+            return false;
+        }
+        if(Type?.SpecialType==Microsoft.CodeAnalysis.SpecialType.System_String
+            &&Syntax is Microsoft.CodeAnalysis.CSharp.Syntax.LiteralExpressionSyntax Literal&&Literal.RawKind==(int)Microsoft.CodeAnalysis.CSharp.SyntaxKind.StringLiteralExpression){
+            Value=CreateLiteral(Literal.Token.ValueText,Text,Existing,Fallback);
+            return true;
+        }
+        if(Type is Microsoft.CodeAnalysis.INamedTypeSymbol{ TypeKind:Microsoft.CodeAnalysis.TypeKind.Enum }Enum
+            &&Syntax is Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax Access
+            &&string.Equals(Access.Expression.ToString(),Enum.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat),System.StringComparison.Ordinal)
+            &&Enum.GetMembers(Access.Name.Identifier.ValueText).OfType<Microsoft.CodeAnalysis.IFieldSymbol>().FirstOrDefault(static Field=>Field.HasConstantValue) is { }Field){
+            Value=new SceneValue(SceneValueKind.EnumMember,Enum,Field.ConstantValue,Field,
+                ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+                EmitExpressionText:Text,SourceExpressionText:Text,Existing?.Value.Location??Fallback);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 真偽値と数値のリテラルだけを受け付ける(列挙型と文字列は<see cref="TryCreateEnumOrTextValue"/>が扱う)。
+    /// 定数式・静的参照・ファクトリ呼び出しなどは解決にセマンティックモデルが要るため受け付けず、その編集は失敗する
+    /// (シーン JSON には C# のテキストを直接書き換える経路が無い)。
     /// </summary>
     private static bool TryParseLiteral(
-        string Expression,SceneComponentMember?Existing,out object?ConstantValue){
+        string Expression,Microsoft.CodeAnalysis.ITypeSymbol?DeclaredType,SceneComponentMember?Existing,out object?ConstantValue){
         ConstantValue=null;
         var Text=Expression.Trim();
         if(Text.Length==0){
@@ -729,6 +713,11 @@ internal static class SceneModelEditApplier {
         if(bool.TryParse(Text,out var Boolean)){
             ConstantValue=Boolean;
             return true;
+        }
+        // An integer member's value is parsed as an integer of its type, and fails out of its range: through float,
+        // 123456789 became 123456792 and the Inspector's U/L suffixes (4000000001U) did not parse at all.
+        if((DeclaredType??Existing?.Value.Type)?.SpecialType is { }Special&&IsIntegerType(Special)){
+            return TryParseInteger(Text,Special,out ConstantValue);
         }
 
         var HasFloatSuffix=Text.EndsWith("f",System.StringComparison.OrdinalIgnoreCase);
@@ -739,23 +728,48 @@ internal static class SceneModelEditApplier {
         }
 
         // 既存メンバーの定数型に合わせる(再解析後のConstantValueと型まで一致させるため)。
-        // 既存が無い/型が読めない場合はfサフィックスと小数点の有無で判断する。
-        if(Existing?.Value.ConstantValue is int&&!HasFloatSuffix&&Numeric.IndexOf('.')<0){
-            ConstantValue=(int)Number;
-            return true;
-        }
-        if(Existing?.Value.ConstantValue is null&&!HasFloatSuffix&&Numeric.IndexOf('.')<0){
-            ConstantValue=(int)Number;
+        // 既存が無い/型が読めない場合はfサフィックスと小数点の有無で判断する。整数は float を経由せず正確に読む。
+        if((Existing?.Value.ConstantValue is int or null)&&!HasFloatSuffix&&TryParseInteger(Numeric,SpecialType.System_Int32,out var Integer)){
+            ConstantValue=Integer;
             return true;
         }
         ConstantValue=Number;
         return true;
     }
 
+    private static bool IsIntegerType(SpecialType Type)=>
+        Type is SpecialType.System_SByte or SpecialType.System_Byte or SpecialType.System_Int16 or SpecialType.System_UInt16
+            or SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64;
+
+    /// <summary>
+    /// An integer of the given integer type from its text (an optional U, L or UL suffix, as the Inspector writes them);
+    /// false for a fraction, an exponent or a value out of the type's range.
+    /// </summary>
+    private static bool TryParseInteger(string Text,SpecialType Type,out object?Value){
+        Value=null;
+        var Digits=Text.TrimEnd('u','U','l','L');
+        if(long.TryParse(Digits,NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Signed)){
+            Value=Type switch {
+                SpecialType.System_SByte when Signed is >=sbyte.MinValue and <=sbyte.MaxValue=>(sbyte)Signed,
+                SpecialType.System_Byte when Signed is >=byte.MinValue and <=byte.MaxValue=>(byte)Signed,
+                SpecialType.System_Int16 when Signed is >=short.MinValue and <=short.MaxValue=>(short)Signed,
+                SpecialType.System_UInt16 when Signed is >=ushort.MinValue and <=ushort.MaxValue=>(ushort)Signed,
+                SpecialType.System_Int32 when Signed is >=int.MinValue and <=int.MaxValue=>(int)Signed,
+                SpecialType.System_UInt32 when Signed is >=uint.MinValue and <=uint.MaxValue=>(uint)Signed,
+                SpecialType.System_Int64=>Signed,
+                SpecialType.System_UInt64 when Signed>=0=>(ulong)Signed,
+                _=>null,
+            };
+        } else if(Type==SpecialType.System_UInt64&&ulong.TryParse(Digits,NumberStyles.None,CultureInfo.InvariantCulture,out var Unsigned)){
+            Value=Unsigned;
+        }
+        return Value is not null;
+    }
+
     private static ImmutableArray<SceneComponentMember>SetFloatMember(
         ImmutableArray<SceneComponentMember>Members,SceneComponentMember?Existing,
         string Name,float Value,SceneSourceLocation Fallback){
-        var Text=SceneSourceEditor.FormatFloat(Value);
+        var Text=SceneEditValues.FormatFloat(Value);
         var NewValue=CreateLiteral(Value,Text,Existing,Fallback);
         return SetMember(Members,Existing,Name,NewValue,Fallback);
     }

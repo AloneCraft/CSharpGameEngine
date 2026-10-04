@@ -63,6 +63,12 @@ public sealed unsafe class StageRenderer:IDisposable {
     public const DXGI_FORMAT DepthBufferFormat=DXGI_FORMAT_D32_FLOAT;
     private const DXGI_FORMAT HdrColorFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT MaterialTextureFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
+    /// <summary>
+    /// Material textures are typeless so one resident texture can be read through the view its slot
+    /// requires: glTF base colour and emissive are sRGB-encoded, normal and metallic-roughness are linear.
+    /// </summary>
+    private const DXGI_FORMAT MaterialTextureResourceFormat=DXGI_FORMAT_R8G8B8A8_TYPELESS;
+    private const DXGI_FORMAT MaterialColorTextureViewFormat=DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     private const float GltfImportEmissiveDefaultNits=100f;
     private const DXGI_FORMAT ShadowAtlasResourceFormat=DXGI_FORMAT_R32_TYPELESS;
     private const DXGI_FORMAT ShadowAtlasDsvFormat=DXGI_FORMAT_D32_FLOAT;
@@ -80,6 +86,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>Maximum local lights accepted per frame across point and spot submissions.</summary>
     public const int MaxLocalLights=1024;
     public const int MaxOverlayVertices=32_768;
+    /// <summary>Line vertices of the centre-camera marker drawn over one observer preview (M0099): a frustum of 8 lines.</summary>
+    private const int ObserverMarkerVertexCount=16;
+    /// <summary>Overlay vertices per frame slot: the caller's overlay, then one marker per camera preview.</summary>
+    private const int OverlayFrameVertexCapacity=MaxOverlayVertices+ObserverMarkerVertexCount*RenderCameraPreview.MaximumCount;
 
     /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
     public const int MaxPointLights=MaxLocalLights;
@@ -113,8 +123,14 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const int PointShadowProjectionConstantSlotOffset=1+MaxSpotShadowProjections;
     private const int AreaShadowProjectionConstantSlotOffset=
         PointShadowProjectionConstantSlotOffset+MaxPointShadowProjections;
-    private const int ShadowAtlasProjectionConstantSlotCount=
+    /// <summary>Cascade 0 keeps slot 0; cascades 1-3 follow every local-light projection slot.</summary>
+    private const int CascadeShadowConstantSlotOffset=
         AreaShadowProjectionConstantSlotOffset+MaxAreaAndEmissiveShadowProjections;
+    /// <summary>The camera view-projection of the ambient occlusion depth prepass (same depth-only pipeline).</summary>
+    private const int AmbientOcclusionPrepassConstantSlot=
+        CascadeShadowConstantSlotOffset+DirectionalShadowCascades.Count-1;
+    private const int ShadowAtlasProjectionConstantSlotCount=
+        AmbientOcclusionPrepassConstantSlot+1;
     private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
     private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
 
@@ -124,14 +140,28 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameCameraPositionOffset=64;  // float4 (xyz used)
     private const uint FrameDirectionalLightsOffset=80; // MaxDirectionalLights * DirectionalLightStride bytes
     private const uint FrameAmbientColorOffset=FrameDirectionalLightsOffset+(MaxDirectionalLights*DirectionalLightStride);
-    private const uint FrameFogParamsOffset=FrameAmbientColorOffset+16; // float4: x=density, y=heightFalloff
+    private const uint FrameFogParamsOffset=FrameAmbientColorOffset+16; // float4: x=density, y=heightFalloff, z=render origin altitude
     private const uint FrameFogColorOffset=FrameFogParamsOffset+16;     // float4 (xyz used)
     private const uint FrameExposureOffset=FrameFogColorOffset+16;      // float4: x=2^-EV100
     private const uint FrameLightCountsOffset=FrameExposureOffset+16;   // int4: x=local, y=shadow directional index, z=directional count, w=spot projections
     private const uint FrameForwardPlusGridOffset=FrameLightCountsOffset+16; // uint4: tile count X/Y, tile edge, tile cap
     private const uint FrameShadowViewProjectionOffset=FrameForwardPlusGridOffset+16;
     private const uint FrameDirectionalShadowAtlasUvScaleOffset=FrameShadowViewProjectionOffset+64;
-    private const uint FrameConstantsSize=FrameDirectionalShadowAtlasUvScaleOffset+16;
+    private const uint FrameSkyLightParamsOffset=FrameDirectionalShadowAtlasUvScaleOffset+16; // float4: x=sky light, y=physical fog, z=camera altitude m
+    private const uint FramePhysicalFogParamsOffset=FrameSkyLightParamsOffset+16; // float4: x=ray origin terms, y=falloff per metre, z=minimum transmittance, w=sky contribution
+    private const uint FramePhysicalFogColorOffset=FramePhysicalFogParamsOffset+16; // float4: rgb inscattering luminance
+    private const uint FrameCascadeViewProjectionOffset=FramePhysicalFogColorOffset+16; // 4 x float4x4 directional cascades
+    private const uint FrameCascadeSpheresOffset=FrameCascadeViewProjectionOffset+(64*DirectionalShadowCascades.Count); // float4: xyz centre, w radius
+    private const uint FrameCascadeUvScaleOffsetsOffset=FrameCascadeSpheresOffset+(16*DirectionalShadowCascades.Count); // float4 atlas quadrant per cascade
+    private const uint FrameCascadeDepthRangesOffset=FrameCascadeUvScaleOffsetsOffset+(16*DirectionalShadowCascades.Count); // float4: projection depth range metres
+    private const uint FrameGiGridOriginOffset=FrameCascadeDepthRangesOffset+16; // float4: xyz render-space position of probe (0,0,0)
+    private const uint FrameGiGridSpacingOffset=FrameGiGridOriginOffset+16; // float4: xyz metres between probes, w intensity
+    private const uint FrameGiGridCountsOffset=FrameGiGridSpacingOffset+16; // uint4: xyz probe counts, w probes per atlas row (0 = GI off)
+    private const uint FrameGiAtlasSizeOffset=FrameGiGridCountsOffset+16; // float4: irradiance atlas texels, distance atlas texels
+    private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
+    private const uint FrameDepthMapping0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
+    private const uint FrameDepthMapping1Offset=FrameDepthMapping0Offset+16; // float4: xyz observer centre (render space)
+    private const uint FrameConstantsSize=FrameDepthMapping1Offset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -147,6 +177,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint ObjectBaseColorFactorOffset=64; // float4
     private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic, z=presentation mode
     private const uint ObjectEmissiveFactorOffset=96;  // float4: xyz=emissive HDR, w=selection weight
+    private const uint ObjectWorldGridParamsOffset=112; // float4: x=grid size (m, 0 = no grid), y=sub grid divisions, z=wire half width
+    private const uint ObjectWorldGridColorOffset=128;  // float4: xyz=main grid line colour
+    private const uint ObjectWorldSubGridColorOffset=144; // float4: xyz=sub grid line colour
+    private const uint ObjectWorldGridAnchorOffset=160; // float4: xyz=render origin modulo the grid size (zero in world coordinates)
+    private const uint ObjectRadialRasterDepthOffset=176; // float4: xy=(a, b) of the object's conservative radial raster depth a - b/w (M0100)
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
@@ -297,9 +332,49 @@ public sealed unsafe class StageRenderer:IDisposable {
     private ID3D12PipelineState*CameraPreviewWireframePipelineState;
     private ID3D12PipelineState*OverlayTrianglePipelineState;
     private ID3D12PipelineState*OverlayLinePipelineState;
+    /// <summary>M0099: the radial depth pipeline states, indexed by <see cref="RadialPipeline"/>.</summary>
+    private ID3D12PipelineState*[]RadialPipelineStates=new ID3D12PipelineState*[(int)RadialPipeline.Count];
     private ID3D12RootSignature*ShadowRootSignature;
     private ID3D12PipelineState*ShadowPipelineState;
     private ID3D12RootSignature*PostProcessRootSignature;
+    private StageAtmosphere?Atmosphere;
+    private StageGlobalIllumination?GlobalIllumination;
+    private StageAmbientOcclusion?AmbientOcclusion;
+    private StageAutoExposure?AutoExposureStage;
+    private StageSkinning?Skinning;
+    private bool AutoExposureInitialized;
+    private readonly Stopwatch AutoExposureClock=Stopwatch.StartNew();
+    private TimeSpan LastAutoExposureTime;
+    private bool GlobalIlluminationDescriptorsLive;
+    private int AmbientOcclusionDescriptorGeneration;
+    private EnvironmentLightingSettings EnvironmentSettings=EnvironmentLightingSettings.Legacy;
+    private AtmosphereFrame CurrentAtmosphereFrame;
+    private float CameraAltitudeMeters;
+    private float RenderOriginAltitudeMeters;
+    private float CurrentCameraEv100;
+    private Vector3 CurrentAmbientColor=DefaultAmbientColor;
+    private FogParams CurrentFog=FogParams.None;
+    private Matrix4x4 CurrentViewProjection=Matrix4x4.Identity;
+    private Vector3 AtmosphereSunDirection=Vector3.UnitY;
+    private Vector3 CurrentCameraPosition;
+    private RenderDepthMapping CurrentDepthMapping;
+    private RadialDepthProjection CurrentRadialProjection;
+    /// <summary>The camera's rotation with the radial projection's finite auxiliary planes (radial mode only).</summary>
+    private Matrix4x4 CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
+    /// <summary>The radial main pass's view-projection: the camera's, with the conservative depth row (radial mode only).</summary>
+    /// <summary>The camera basis and field of view of the last <see cref="SetCamera"/>, for observer markers.</summary>
+    private bool HasCameraBasis;
+    /// <summary>Test-only GPU timestamps around the main pass's draws (performance evidence); null unless enabled.</summary>
+    private ID3D12QueryHeap*MainPassTimestampHeap;
+    private ID3D12Resource*MainPassTimestampReadback;
+    private ulong MainPassTimestampFrequency;
+    private uint LastTimedFrameIndex=uint.MaxValue;
+    private Vector3 CurrentCameraForward;
+    private Vector3 CurrentCameraUp;
+    private Vector3 CurrentCameraRight;
+    private float CurrentCameraTanHalfFovY;
+    private float CurrentCameraAspectRatio;
+    private Vector3 AtmosphereSunIlluminance;
     private ID3D12PipelineState*PostProcessPipelineState;
     private byte[]ShadowVertexShaderBytecode=[];
     private byte[]FullscreenVertexShaderBytecode=[];
@@ -308,6 +383,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     private byte[]PreviewCleanPixelShaderBytecode=[];
     private byte[]OverlayVertexShaderBytecode=[];
     private byte[]OverlayPixelShaderBytecode=[];
+    private byte[]RadialPixelShaderBytecode=[];
+    private byte[]PreviewRadialPixelShaderBytecode=[];
+    private byte[]PreviewCleanRadialPixelShaderBytecode=[];
+    private byte[]RadialObserverVertexShaderBytecode=[];
+    private byte[]RadialVertexShaderBytecode=[];
 
     // Per-mesh (indexed by meshIndex).
     private int MeshCount;
@@ -327,10 +407,14 @@ public sealed unsafe class StageRenderer:IDisposable {
     private float[]MaterialRoughnessFactors=[];
     private float[]MaterialMetallicFactors=[];
     private Vector3[]MaterialEmissiveNits=[];
+    private StageWorldGrid?[]MaterialWorldGrids=[];
+    private Vector3[]MaterialWorldGridAnchors=[];
 
     // Per-object (indexed by objectIndex).
     private int ObjectCount;
     private int[]ObjectMeshIndices=[];
+    /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
+    private Vector3[]MeshBoundsCentres=[];
     private int[]ObjectMaterialIndices=[];
     private Matrix4x4[]ObjectTransforms=[];
     private float[]ObjectSelectionWeights=[];
@@ -375,9 +459,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     // AddDirectionalLightTowardLight/point/spot lights are additive per frame. The legacy
     // SetDirectionalLight singleton is rewritten into every swap-chain frame slot until it is
     // replaced, matching the original setter's behaviour; additive counts reset so removed
-    // owning entities do not linger.
-    private int DirectionalLightCount=1;
-    private int DirectionalShadowIndex;
+    // owning entities do not linger. Nothing is lit before a light is submitted: starting at one
+    // (the default light written by InitializeConstantsToDefaults) lit only the first frame, and
+    // the end-of-frame reset then dropped it, so an unlit scene changed after one present.
+    private int DirectionalLightCount;
+    private int DirectionalShadowIndex=-1;
     private bool DirectionalLightsExplicitThisFrame;
     private bool DirectionalLightsPersistAcrossFrames;
     private readonly List<PhysicalLightCandidate>DirectionalShadowCandidates=[];
@@ -463,6 +549,34 @@ public sealed unsafe class StageRenderer:IDisposable {
     internal ShaderArtifactPackage LastKnownGoodShaderArtifact=>
         this.LastKnownGoodShaderPackage
         ??throw new InvalidOperationException("The renderer has no validated shader artifact.");
+
+    internal AtmosphereReadback ReadAtmosphereForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.Atmosphere!.ReadbackForTesting();
+    }
+
+    /// <summary>Test-only read of the GPU auto exposure state (EV100, scale, settled, valid); waits for the GPU.</summary>
+    internal Vector4 ReadAutoExposureStateForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.AutoExposureStage!.ReadStateForTesting();
+    }
+
+    /// <summary>Fixed adaptation step for deterministic tests; null measures wall-clock time between frames.</summary>
+    internal float?AutoExposureDeltaSecondsForTesting { get;set; }
+
+    internal (float[]Values,int Width,int Height) ReadAmbientOcclusionForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return (this.AmbientOcclusion!.ReadbackForTesting(),this.AmbientOcclusion.Width,this.AmbientOcclusion.Height);
+    }
+
+    internal GlobalIlluminationReadback ReadGlobalIlluminationForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.GlobalIllumination!.ReadbackForTesting();
+    }
 
     internal void RemoveDeviceForTesting(){
         this.ThrowIfDisposed();
@@ -637,6 +751,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.FenceValues[this.FrameIndex]=1;
 
         this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
+        this.Atmosphere=new StageAtmosphere(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.GlobalIllumination=new StageGlobalIllumination(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
+        this.AmbientOcclusion=new StageAmbientOcclusion(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.AutoExposureStage=new StageAutoExposure(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
+        this.Skinning=new StageSkinning(this.Device,this.ShaderArtifactPath,FrameCount);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -647,6 +767,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.CreateShadowRootSignature();
         this.CreatePostProcessRootSignature();
         this.CreatePipelineState();
+        this.CreateRadialPipelineStates();
         this.CreateShadowPipelineState();
         this.CreatePostProcessPipelineState();
         this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
@@ -733,7 +854,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private void CreateDepthBuffer(int Width,int Height){
-        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(DepthBufferFormat,(uint)Width,(uint)Height,mipLevels:1);
+        // Typeless so the sky composite can read depth as R32_FLOAT while the DSV stays D32_FLOAT.
+        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(DXGI_FORMAT_R32_TYPELESS,(uint)Width,(uint)Height,mipLevels:1);
         ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
@@ -754,7 +876,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void CreateHdrColorBuffer(int Width,int Height){
         D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(HdrColorFormat,(uint)Width,(uint)Height,mipLevels:1);
-        ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET|D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         D3D12_CLEAR_VALUE ClearValue=new(HdrColorFormat,0f,0);
         ID3D12Resource*Resource;
@@ -817,6 +939,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.FullscreenVertexShaderBytecode=Package.GetBytecode("FullscreenVS");
         this.PostProcessPixelShaderBytecode=Package.GetBytecode("PostProcessPS");
         this.ShadowVertexShaderBytecode=Package.GetBytecode("VSShadowMain");
+        this.RadialPixelShaderBytecode=Package.GetBytecode("RadialPSMain");
+        this.PreviewRadialPixelShaderBytecode=Package.GetBytecode("PreviewRadialPSMain");
+        this.PreviewCleanRadialPixelShaderBytecode=Package.GetBytecode("PreviewCleanRadialPSMain");
+        this.RadialObserverVertexShaderBytecode=Package.GetBytecode("RadialObserverVSMain");
+        this.RadialVertexShaderBytecode=Package.GetBytecode("RadialVSMain");
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
         this.LastKnownGoodShaderPackage=Package;
@@ -841,6 +968,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldFullscreenVertexShader=this.FullscreenVertexShaderBytecode;
         var OldPostProcessPixelShader=this.PostProcessPixelShaderBytecode;
         var OldShadowVertexShader=this.ShadowVertexShaderBytecode;
+        var OldRadialPixelShader=this.RadialPixelShaderBytecode;
+        var OldPreviewRadialPixelShader=this.PreviewRadialPixelShaderBytecode;
+        var OldPreviewCleanRadialPixelShader=this.PreviewCleanRadialPixelShaderBytecode;
+        var OldRadialObserverVertexShader=this.RadialObserverVertexShaderBytecode;
+        var OldRadialVertexShader=this.RadialVertexShaderBytecode;
+        var OldRadialPipelineStates=this.RadialPipelineStates;
         var OldPipelineState=this.PipelineState;
         var OldPresentationPipelineState=this.PresentationPipelineState;
         var OldWireframePipelineState=this.WireframePipelineState;
@@ -854,9 +987,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         try{
             this.ApplyShaderArtifact(Package);
             this.CreatePipelineState();
+            this.CreateRadialPipelineStates();
             this.CreateShadowPipelineState();
             this.CreatePostProcessPipelineState();
             this.WaitForGpuIdle();
+            ReleaseRadialPipelineStates(OldRadialPipelineStates);
             if(OldPipelineState!=null){ _=OldPipelineState->Release(); }
             if(OldPresentationPipelineState!=null){ _=OldPresentationPipelineState->Release(); }
             if(OldWireframePipelineState!=null){ _=OldWireframePipelineState->Release(); }
@@ -877,6 +1012,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.FullscreenVertexShaderBytecode=OldFullscreenVertexShader;
             this.PostProcessPixelShaderBytecode=OldPostProcessPixelShader;
             this.ShadowVertexShaderBytecode=OldShadowVertexShader;
+            this.RadialPixelShaderBytecode=OldRadialPixelShader;
+            this.PreviewRadialPixelShaderBytecode=OldPreviewRadialPixelShader;
+            this.PreviewCleanRadialPixelShaderBytecode=OldPreviewCleanRadialPixelShader;
+            this.RadialObserverVertexShaderBytecode=OldRadialObserverVertexShader;
+            this.RadialVertexShaderBytecode=OldRadialVertexShader;
+            if(this.RadialPipelineStates!=OldRadialPipelineStates){
+                ReleaseRadialPipelineStates(this.RadialPipelineStates);
+                this.RadialPipelineStates=OldRadialPipelineStates;
+            }
             if(this.PipelineState!=OldPipelineState){ _=this.PipelineState->Release();this.PipelineState=OldPipelineState; }
             if(this.PresentationPipelineState!=OldPresentationPipelineState){ _=this.PresentationPipelineState->Release();this.PresentationPipelineState=OldPresentationPipelineState; }
             if(this.WireframePipelineState!=OldWireframePipelineState){ _=this.WireframePipelineState->Release();this.WireframePipelineState=OldWireframePipelineState; }
@@ -976,7 +1120,25 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         AreaShadowProjectionsParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=10,RegisterSpace=0 };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[9];
+        D3D12_ROOT_PARAMETER SkyIrradianceParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        SkyIrradianceParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=11,RegisterSpace=0 };
+
+        D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
+            RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+            NumDescriptors=4,
+            BaseShaderRegister=12,
+        };
+
+        D3D12_ROOT_PARAMETER GlobalIlluminationParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&GlobalIlluminationRange };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[11];
         RootParams[0]=FrameParam;
         RootParams[1]=ObjectParam;
         RootParams[2]=TextureParam;
@@ -987,12 +1149,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         RootParams[6]=PointShadowProjectionsParam;
         RootParams[7]=AreaShadowMetadataParam;
         RootParams[8]=AreaShadowProjectionsParam;
+        RootParams[9]=SkyIrradianceParam;
+        RootParams[10]=GlobalIlluminationParam;
         D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
         StaticSamplers[0]=StaticSampler;
         StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=9,
+            NumParameters=11,
             pParameters=RootParams,
             NumStaticSamplers=2,
             pStaticSamplers=StaticSamplers,
@@ -1071,10 +1235,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[1];
+        D3D12_ROOT_PARAMETER PostProcessParams=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        PostProcessParams.Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=0,RegisterSpace=0,Num32BitValues=4 };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[2];
         RootParams[0]=SceneParam;
+        RootParams[1]=PostProcessParams;
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=1,
+            NumParameters=2,
             pParameters=RootParams,
             NumStaticSamplers=1,
             pStaticSamplers=&Sampler,
@@ -1138,13 +1309,64 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
+    private enum RadialPipeline {
+        Shipping,
+        Presentation,
+        Wireframe,
+        CameraPreview,
+        CameraPreviewWireframe,
+        Observer,
+        ObserverWireframe,
+        Count,
+    }
+
+    /// <summary>
+    /// M0099: the radial depth pipeline states. They share the standard root signature and depth test; the radial
+    /// pixel entries add SV_Depth and the observer vertex entry compresses positions. All are created or none.
+    /// </summary>
+    private void CreateRadialPipelineStates(){
+        var Created=new ID3D12PipelineState*[(int)RadialPipeline.Count];
+        try {
+            // The main pass rasterizes the conservative depth (RadialVSMain), which reaches zero beyond the near plane, so
+            // it runs without depth clipping and clips with the standard projection's distances (SV_ClipDistance).
+            Created[(int)RadialPipeline.Shipping]=this.CreateMeshPipelineState(
+                this.RadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
+            Created[(int)RadialPipeline.Presentation]=this.CreateMeshPipelineState(
+                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
+            Created[(int)RadialPipeline.Wireframe]=this.CreateMeshPipelineState(
+                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialVertexShaderBytecode,DepthClip:false);
+            Created[(int)RadialPipeline.CameraPreview]=this.CreateMeshPipelineState(
+                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+            Created[(int)RadialPipeline.CameraPreviewWireframe]=this.CreateMeshPipelineState(
+                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
+            Created[(int)RadialPipeline.Observer]=this.CreateMeshPipelineState(
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialObserverVertexShaderBytecode);
+            Created[(int)RadialPipeline.ObserverWireframe]=this.CreateMeshPipelineState(
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialObserverVertexShaderBytecode);
+        } catch {
+            ReleaseRadialPipelineStates(Created);
+            throw;
+        }
+        this.RadialPipelineStates=Created;
+    }
+
+    private static void ReleaseRadialPipelineStates(ID3D12PipelineState*[]PipelineStates){
+        for(var Index=0;Index<PipelineStates.Length;Index++){
+            if(PipelineStates[Index]!=null){
+                _=PipelineStates[Index]->Release();
+                PipelineStates[Index]=null;
+            }
+        }
+    }
+
     private ID3D12PipelineState*CreateMeshPipelineState(
-        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode){
+        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true){
+        var VertexShader=VertexShaderBytecode??this.VertexShaderBytecode;
         fixed(byte*PPosition="POSITION\0"u8)
         fixed(byte*PNormal="NORMAL\0"u8)
         fixed(byte*PTangent="TANGENT\0"u8)
         fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PVertexShader= this.VertexShaderBytecode)
+        fixed(byte*PVertexShader=VertexShader)
         fixed(byte*PPixelShader=PixelShaderBytecode){
             D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
                 new D3D12_INPUT_ELEMENT_DESC {
@@ -1178,7 +1400,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     NumElements=4,
                 },
                 pRootSignature= this.RootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.VertexShaderBytecode.Length },
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)VertexShader.Length },
                 PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)PixelShaderBytecode.Length },
                 RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState=D3D12_BLEND_DESC.DEFAULT,
@@ -1192,6 +1414,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             PsoDesc.RasterizerState.FillMode=FillMode;
+            PsoDesc.RasterizerState.DepthClipEnable=DepthClip?TRUE:FALSE;
             PsoDesc.RTVFormats[0]=HdrColorFormat;
 
             ID3D12PipelineState*PipelineState;
@@ -1355,11 +1578,29 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[this.MeshCount];
         this.IndexCounts=new uint[this.MeshCount];
 
+        this.MeshBoundsCentres=new Vector3[this.MeshCount];
         for(var I=0;I< this.MeshCount;I++){
             StageMeshCreateInfo Mesh=Meshes[I];
+            this.MeshBoundsCentres[I]=BoundsCentre(Mesh.Positions);
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
+            if(Mesh.Skin is{ }Skin){
+                // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
+                this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
+            }
         }
+    }
+
+    /// <summary>The centre of a mesh's axis-aligned bounds (its rest pose for a skinned mesh).</summary>
+    private static Vector3 BoundsCentre(IReadOnlyList<Vector3>Positions){
+        if(Positions.Count==0){ return Vector3.Zero; }
+        var Minimum=Positions[0];
+        var Maximum=Positions[0];
+        for(var I=1;I<Positions.Count;I++){
+            Minimum=Vector3.Min(Minimum,Positions[I]);
+            Maximum=Vector3.Max(Maximum,Positions[I]);
+        }
+        return (Minimum+Maximum)*0.5f;
     }
 
     private void CreateVertexBuffer(int MeshIndex,IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector4>Tangents,IReadOnlyList<Vector2>Uvs){
@@ -1430,6 +1671,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.MaterialRoughnessFactors=new float[this.MaterialCount];
         this.MaterialMetallicFactors=new float[this.MaterialCount];
         this.MaterialEmissiveNits=new Vector3[this.MaterialCount];
+        this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCount];
+        this.MaterialWorldGridAnchors=new Vector3[this.MaterialCount];
         Dictionary<Hash256,nint>ResidentTextures=[];
         List<nint>OwnedTextures=[];
 
@@ -1439,6 +1682,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
                 this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
                 this.MaterialMetallicFactors[I]=Material.MetallicFactor;
+                this.MaterialWorldGrids[I]=Material.WorldGrid;
                 this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
                     ?Material.EmissiveNits
                     :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
@@ -1464,7 +1708,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCount*5),
+            NumDescriptors=(uint)(this.MaterialCount*5+4),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -1483,6 +1727,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         for(var I=0;I< this.MaterialTextures.Length;I++){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/4)*5+(I%4), this.SrvDescriptorSize);
+            // Slots 0 (base colour) and 3 (emissive) hold colour data; 1 (normal) and 2
+            // (metallic-roughness) hold linear data.
+            SrvDesc.Format=I%4 is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
             this.Device.Device->CreateShaderResourceView(this.MaterialTextures[I],&SrvDesc,Handle);
         }
 
@@ -1496,6 +1743,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
             this.Device.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,Handle);
         }
+        this.WriteEnvironmentDescriptors();
 
         ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture){
             if(ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
@@ -1511,7 +1759,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// <summary>Uploads one already-validated canonical RGBA8 texture. Decode/fallback policy lives above L0.</summary>
     private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
         D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
-            MaterialTextureFormat,(uint)Texture.Width,(uint)Texture.Height,mipLevels:1);
+            MaterialTextureResourceFormat,(uint)Texture.Width,(uint)Texture.Height,mipLevels:1);
 
         D3D12_HEAP_PROPERTIES DefaultHeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         ID3D12Resource*GpuTexture;
@@ -1615,7 +1863,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
 
         uint OverlayBufferSize=checked(
-            (uint)(Unsafe.SizeOf<OverlayVertexGpu>()*MaxOverlayVertices*FrameCount));
+            (uint)(Unsafe.SizeOf<OverlayVertexGpu>()*OverlayFrameVertexCapacity*FrameCount));
         this.CreateUploadBuffer(
             OverlayBufferSize,out this.OverlayVertexBuffer,
             out this.OverlayVertexMapped,"creating the overlay vertex buffer");
@@ -1683,7 +1931,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteAmbientLight(Frame,DefaultAmbientColor);
             this.WriteFog(Frame,FogParams.None);
             this.WriteExposure(Frame,DefaultCamera.ExposureEv100);
-            this.WriteShadowViewProjection(Frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
+            this.WriteDepthMapping(Frame);
+            this.WriteDirectionalCascades(Frame,DefaultLightDirectionTowardLight);
             this.WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
             this.WriteAreaShadowDefaults(Frame);
 
@@ -1701,9 +1950,68 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
         this.ThrowIfDisposed();
         var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/ this.Height;
-        this.WriteViewProjection(this.FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
+        var DepthMapping=Camera.DepthMapping;
+        RadialDepthProjection RadialProjection=default;
+        if(DepthMapping==RenderDepthMapping.Radial){
+            if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
+                ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,AspectRatio,out RadialProjection)){
+                throw new ArgumentException("A radial camera needs a finite positive transition length, 0 < NearZ < FarZ (finite) and a valid field of view.",nameof(Camera));
+            }
+        } else if(DepthMapping!=RenderDepthMapping.Standard){
+            throw new ArgumentOutOfRangeException(nameof(Camera),"A camera's depth mapping is Standard or Radial; observer views are camera previews.");
+        }
+        var View=Camera.GetView();
+        this.WriteViewProjection(this.FrameIndex,View*Camera.GetProjection(AspectRatio));
         this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
         this.WriteExposure(this.FrameIndex,Camera.ExposureEv100);
+        this.CurrentDepthMapping=DepthMapping;
+        this.CurrentRadialProjection=RadialProjection;
+        this.CurrentAuxiliaryViewProjection=DepthMapping==RenderDepthMapping.Radial
+            ?View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio)
+            :Matrix4x4.Identity;
+        this.WriteDepthMapping(this.FrameIndex);
+        // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
+        this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);
+        this.CurrentCameraUp=new Vector3(View.M12,View.M22,View.M32);
+        this.CurrentCameraForward=-new Vector3(View.M13,View.M23,View.M33);
+        this.CurrentCameraTanHalfFovY=MathF.Tan(Camera.FovYRadians*0.5f);
+        this.CurrentCameraAspectRatio=AspectRatio;
+        this.HasCameraBasis=true;
+    }
+
+    /// <summary>
+    /// The view-projection given to the passes that invert it (sky direction, sun cascades, AO prepass). A
+    /// standard camera passes its own; a radial camera, whose far plane may make the matrix singular in float,
+    /// passes the auxiliary one (ADR-0076).
+    /// </summary>
+    private Matrix4x4 InvertibleViewProjection=>
+        this.CurrentDepthMapping==RenderDepthMapping.Radial?this.CurrentAuxiliaryViewProjection:this.CurrentViewProjection;
+
+    private void WriteDepthMapping(uint FrameIndex){
+        var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
+        Vector4 DepthMapping0=Radial
+            ?new((float)RenderDepthMapping.Radial,this.CurrentRadialProjection.Curve.TransitionMeters,this.CurrentRadialProjection.InverseMaximumG,this.CurrentRadialProjection.FarDiscardDepth)
+            :Vector4.Zero;
+        Vector4 DepthMapping1=Vector4.Zero;
+        var Slot=this.FrameSlot(FrameIndex);
+        Unsafe.CopyBlock(Slot+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
+    }
+
+    /// <summary>
+    /// M0100: each object's conservative radial raster depth, tangent at the view depth of its mesh's bounds centre
+    /// (the view-projection's W), so hidden fragments are rejected early at every distance and not only near one.
+    /// </summary>
+    private void WriteRadialRasterDepths(uint FrameIndex){
+        var ViewProjection=this.CurrentViewProjection;
+        for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+            var Centre=Vector3.Transform(this.MeshBoundsCentres[this.ObjectMeshIndices[ObjectIndex]],this.ObjectTransforms[ObjectIndex]);
+            var ViewDepth=Centre.X*ViewProjection.M14+Centre.Y*ViewProjection.M24+Centre.Z*ViewProjection.M34+ViewProjection.M44;
+            var Depth=this.CurrentRadialProjection.ConservativeDepthAt(ViewDepth);
+            Vector4 Packet=new(Depth.Limit,Depth.Slope,0f,0f);
+            var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+            Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectRadialRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
+        }
     }
 
     /// <summary>
@@ -1733,6 +2041,31 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteViewProjection(this.FrameIndex,ViewProjection);
         this.WriteCameraPosition(this.FrameIndex,CameraPosition);
         this.WriteExposure(this.FrameIndex,0f);
+        this.CurrentDepthMapping=RenderDepthMapping.Standard;
+        this.CurrentRadialProjection=default;
+        this.CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
+        this.WriteDepthMapping(this.FrameIndex);
+        this.HasCameraBasis=false;
+    }
+
+    /// <summary>
+    /// M0100: an isolated preview's camera-relative perspective matrix drawn with radial depth. The matrix is used as
+    /// given, so coverage, overlays and picking stay those of the caller's matrix; the radial packet, the
+    /// auxiliary matrix and each object's conservative raster depth are derived from it and <paramref name="Radial"/>.
+    /// </summary>
+    internal void SetViewProjection(
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
+        this.ThrowIfDisposed();
+        if(!RadialDepthProjection.IsPerspective(ViewProjection)
+            ||!RadialDepthCurve.TryCreate(Radial.TransitionMeters,out var Curve)
+            ||!RadialDepthProjection.TryCreate(Curve,Radial.NearZ,Radial.FarZ,Radial.FovYRadians,(float)this.Width/ this.Height,out var Projection)){
+            throw new ArgumentException("A radial view-projection must be a perspective one with a finite positive transition length, 0 < NearZ < FarZ (finite) and a valid field of view.",nameof(Radial));
+        }
+        this.SetViewProjection(ViewProjection,CameraPosition);
+        this.CurrentDepthMapping=RenderDepthMapping.Radial;
+        this.CurrentRadialProjection=Projection;
+        this.CurrentAuxiliaryViewProjection=Projection.CreateAuxiliaryViewProjection(ViewProjection);
+        this.WriteDepthMapping(this.FrameIndex);
     }
 
     /// <summary>
@@ -1813,8 +2146,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(SelectedShadowIndex!=this.DirectionalShadowIndex){
             this.DirectionalShadowIndex=SelectedShadowIndex;
             if(SelectedShadowIndex>=0){
-                this.WriteShadowViewProjection(
-                    this.FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
+                this.WriteDirectionalCascades(this.FrameIndex,DirectionTowardLight);
             }
         }
         this.WriteLightCounts(this.FrameIndex);
@@ -1840,8 +2172,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.DirectionalShadowIndex=-1;
             this.SelectedDirectionalShadowAtlasCandidate=null;
             this.DirectionalShadowCandidates.Clear();
+            this.RecordAtmosphereSun(Submission.DirectionTowardLight,Submission.ColorTimesIntensity);
             this.WriteDirectionalLight(
-                FrameIndex,0,Submission.DirectionTowardLight,Submission.ColorTimesIntensity,
+                FrameIndex,0,Submission.DirectionTowardLight,
+                this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
                 Submission.ShadowBiasMeters);
             if(Submission.CastsShadows){
                 var Candidate=new PhysicalLightCandidate(
@@ -1851,8 +2185,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.DirectionalShadowCandidates.Add(Candidate);
                 this.DirectionalShadowIndex=0;
                 this.SelectedDirectionalShadowAtlasCandidate=Candidate;
-                this.WriteShadowViewProjection(
-                    FrameIndex,BuildShadowViewProjection(Submission.DirectionTowardLight));
+                this.WriteDirectionalCascades(FrameIndex,Submission.DirectionTowardLight);
             }
             this.WriteLightCounts(FrameIndex);
             return;
@@ -1879,10 +2212,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.DirectionalShadowIndex=-1;
         this.SelectedDirectionalShadowAtlasCandidate=null;
         this.DirectionalShadowCandidates.Clear();
+        if(this.DirectionalLightCount>0){
+            this.RecordAtmosphereSun(Ranked[0].Submission.DirectionTowardLight,Ranked[0].Submission.ColorTimesIntensity);
+        }
         for(int Index=0;Index<this.DirectionalLightCount;Index++){
             DirectionalLightSubmission Submission=Ranked[Index].Submission;
             this.WriteDirectionalLight(
-                FrameIndex,Index,Submission.DirectionTowardLight,Submission.ColorTimesIntensity,
+                FrameIndex,Index,Submission.DirectionTowardLight,
+                this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
                 Submission.ShadowBiasMeters);
             this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(
                 Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
@@ -1898,8 +2235,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 }
                 this.DirectionalShadowIndex=Index;
                 this.SelectedDirectionalShadowAtlasCandidate=this.DirectionalShadowCandidates[Index];
-                this.WriteShadowViewProjection(
-                    FrameIndex,BuildShadowViewProjection(Ranked[Index].Submission.DirectionTowardLight));
+                this.WriteDirectionalCascades(FrameIndex,Ranked[Index].Submission.DirectionTowardLight);
                 break;
             }
         }
@@ -1915,15 +2251,273 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return MathF.Max(0f,Contribution);
     }
 
-    /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
+    /// <summary>
+    /// Replaces the persistent scene environment (ADR-0069): physical sky, sky light, physical fog,
+    /// exposure model and tone mapper. <see cref="EnvironmentLightingSettings.Legacy"/> restores the
+    /// original clear-colour, flat-ambient, legacy-fog and linear ACES output path.
+    /// </summary>
+    public void SetEnvironmentLighting(in EnvironmentLightingSettings Settings){
+        this.ThrowIfDisposed();
+        if(!Settings.IsValid){
+            throw new ArgumentException("Environment lighting settings must be finite and physically valid.",nameof(Settings));
+        }
+        this.EnvironmentSettings=Settings;
+        this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
+    }
+
+    /// <summary>Absolute camera height above the world origin in metres, used by the atmosphere and height fog.</summary>
+    public void SetCameraAltitude(float Meters){
+        this.ThrowIfDisposed();
+        if(!float.IsFinite(Meters)){
+            throw new ArgumentOutOfRangeException(nameof(Meters),"The camera altitude must be finite.");
+        }
+        this.CameraAltitudeMeters=Meters;
+    }
+
+    /// <summary>
+    /// Height above the world origin, in metres, of the render-space origin. The simplified height fog adds it to
+    /// the receiver's render-space height. Callers that render in world coordinates leave it at zero; the
+    /// camera-relative runtime passes the camera's altitude. Persists until changed.
+    /// </summary>
+    public void SetRenderOriginAltitude(float Meters){
+        this.ThrowIfDisposed();
+        if(!float.IsFinite(Meters)){
+            throw new ArgumentOutOfRangeException(nameof(Meters),"The render origin altitude must be finite.");
+        }
+        this.RenderOriginAltitudeMeters=Meters;
+        this.WriteFog(this.FrameIndex,this.CurrentFog);
+    }
+
+    /// <summary>
+    /// The render-space origin's world position reduced modulo the material's grid size, so the world-space grid
+    /// stays on the world lattice when the frame is rendered camera-relative. Each component lies in
+    /// [0, <see cref="StageWorldGrid.GridSizeMeters"/>]. Callers that render in world coordinates leave it at
+    /// zero. Persists until changed.
+    /// </summary>
+    public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
+        this.ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(MaterialIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MaterialIndex,this.MaterialCount);
+        if(this.MaterialWorldGrids[MaterialIndex] is not{ }Grid){
+            throw new ArgumentException($"Material {MaterialIndex} has no world grid.",nameof(MaterialIndex));
+        }
+        if(!(Anchor.X>=0f&&Anchor.X<=Grid.GridSizeMeters&&Anchor.Y>=0f&&Anchor.Y<=Grid.GridSizeMeters&&Anchor.Z>=0f&&Anchor.Z<=Grid.GridSizeMeters)){
+            throw new ArgumentOutOfRangeException(nameof(Anchor),"The world grid anchor must lie within one grid cell.");
+        }
+        this.MaterialWorldGridAnchors[MaterialIndex]=Anchor;
+    }
+
+    private Vector3 AttenuateForAtmosphere(Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity)=>
+        this.EnvironmentSettings.Atmosphere is SkyAtmosphereSettings Atmosphere
+            ?ColorTimesIntensity*AtmosphereTransmittance.Evaluate(Atmosphere,this.CameraAltitudeMeters,DirectionTowardLight)
+            :ColorTimesIntensity;
+
+    private void RecordAtmosphereSun(Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity){
+        this.AtmosphereSunDirection=Vector3.Normalize(DirectionTowardLight);
+        this.AtmosphereSunIlluminance=ColorTimesIntensity;
+    }
+
+    private void PrepareEnvironment(uint FrameIndex){
+        var Settings=this.EnvironmentSettings;
+        var SkyLightEnabled=0f;
+        if(Settings.Atmosphere is SkyAtmosphereSettings Atmosphere){
+            if(!Matrix4x4.Invert(this.InvertibleViewProjection,out var Inverse)){
+                Inverse=Matrix4x4.Identity;
+            }
+            this.CurrentAtmosphereFrame=new AtmosphereFrame(
+                Atmosphere,Settings.SkyLight??new SkyLightSettings(0f,Vector3.Zero),Settings.Fog,
+                this.AtmosphereSunDirection,this.AtmosphereSunIlluminance,Settings.SunAngularRadiusRadians,
+                this.CameraAltitudeMeters,this.CurrentExposureScale(),Inverse);
+            this.Atmosphere!.Update(this.CommandList,FrameIndex,this.CurrentAtmosphereFrame);
+            SkyLightEnabled=Settings.SkyLight is null?0f:1f;
+        }
+        Vector4 SkyLightParams=new(SkyLightEnabled,Settings.Fog is null?0f:1f,this.CameraAltitudeMeters,0f);
+        Vector4 FogParams=Settings.Fog is PhysicalHeightFogSettings Fog
+            ?new(Fog.RayOriginTerms(this.CameraAltitudeMeters),Fog.HeightFalloffPerMeter,1f-Fog.MaxOpacity,Fog.SkyAtmosphereContributionScale)
+            :Vector4.Zero;
+        Vector4 FogColor=Settings.Fog is PhysicalHeightFogSettings ColoredFog?new(ColoredFog.InscatteringLuminance,0f):Vector4.Zero;
+        var Slot=this.FrameSlot(FrameIndex);
+        Unsafe.CopyBlock(Slot+FrameSkyLightParamsOffset,&SkyLightParams,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FramePhysicalFogParamsOffset,&FogParams,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FramePhysicalFogColorOffset,&FogColor,(uint)sizeof(Vector4));
+        this.WriteGlobalIlluminationConstants(Slot);
+        var AmbientOcclusion=Settings.AmbientOcclusion is AmbientOcclusionSettings Occlusion
+            ?new Vector4(1f,Occlusion.Intensity,1f/this.Width,1f/this.Height)
+            :Vector4.Zero;
+        Unsafe.CopyBlock(Slot+FrameAmbientOcclusionOffset,&AmbientOcclusion,(uint)sizeof(Vector4));
+    }
+
+    /// <summary>
+    /// Ambient occlusion of indirect light (ADR-0069): a half-resolution camera depth prepass with
+    /// the depth-only shadow pipeline, then StageAmbientOcclusion's obscurance and blur passes.
+    /// </summary>
+    private void RenderAmbientOcclusion(){
+        if(this.EnvironmentSettings.AmbientOcclusion is not AmbientOcclusionSettings Settings){
+            return;
+        }
+        var AmbientOcclusion=this.AmbientOcclusion!;
+        if(AmbientOcclusion.Generation==0){
+            // First use only: later size changes happen in Resize after the GPU is idle.
+            AmbientOcclusion.EnsureSize(this.Width,this.Height);
+        }
+        if(this.AmbientOcclusionDescriptorGeneration!=AmbientOcclusion.Generation){
+            this.WriteEnvironmentDescriptors();
+        }
+        var ViewProjection=this.InvertibleViewProjection;
+        Unsafe.CopyBlock(this.ShadowConstantsSlot(this.FrameIndex,AmbientOcclusionPrepassConstantSlot),&ViewProjection,(uint)sizeof(Matrix4x4));
+        AmbientOcclusion.BeginPrepass(this.CommandList);
+        var Dsv=AmbientOcclusion.PrepassDsv;
+        this.CommandList->OMSetRenderTargets(0,null,FALSE,&Dsv);
+        this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
+        this.CommandList->SetPipelineState(this.ShadowPipelineState);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        this.RenderShadowAtlasProjection(new ShadowAtlasProjection(new ShadowAtlasTile(-1,0,0,AmbientOcclusion.Width,AmbientOcclusion.Height),AmbientOcclusionPrepassConstantSlot),Dsv);
+        AmbientOcclusion.RecordCompute(this.CommandList,this.FrameIndex,ViewProjection,this.CurrentCameraPosition,Settings);
+    }
+
+    private bool AutoExposureActive=>this.EnvironmentSettings.Exposure.Mode==ExposureMode.AutoHistogram;
+
+    /// <summary>
+    /// The CPU-side exposure scale. In histogram mode the Stage program and the sky composite read
+    /// the GPU-metered scale instead (ExposureParams.z); this nominal minimum-EV100 value remains for
+    /// consumers without access to the GPU state.
+    /// </summary>
+    private float CurrentExposureScale()=>this.EnvironmentSettings.Exposure.Scale(this.CurrentCameraEv100);
+
+    /// <summary>Seconds since the previous frame for exposure adaptation, clamped against stalls.</summary>
+    private float NextAutoExposureDeltaSeconds(){
+        var Now=this.AutoExposureClock.Elapsed;
+        var DeltaSeconds=this.AutoExposureDeltaSecondsForTesting??Math.Clamp((Now-this.LastAutoExposureTime).Ticks/(float)TimeSpan.TicksPerSecond,0f,0.25f);
+        this.LastAutoExposureTime=Now;
+        return DeltaSeconds;
+    }
+
+    private bool GlobalIlluminationActive=>
+        this.EnvironmentSettings.GlobalIllumination is not null&&this.GlobalIllumination!.IsSupported;
+
+    private void WriteGlobalIlluminationConstants(byte*Slot){
+        var Origin=Vector4.Zero;
+        var Spacing=Vector4.Zero;
+        uint*Counts=stackalloc uint[4]{ 0,0,0,0 };
+        if(this.GlobalIlluminationActive&&this.EnvironmentSettings.GlobalIllumination is GlobalIlluminationSettings Settings){
+            var ProbeCounts=Settings.ProbeCounts;
+            Origin=new Vector4(Settings.GridOrigin,0f);
+            Spacing=new Vector4(Settings.GridSpacing,Settings.Intensity);
+            Counts[0]=(uint)ProbeCounts.X;
+            Counts[1]=(uint)ProbeCounts.Y;
+            Counts[2]=(uint)ProbeCounts.Z;
+            Counts[3]=StageGlobalIllumination.ProbesPerAtlasRow;
+        }
+        var AtlasSize=new Vector4(
+            StageGlobalIllumination.IrradianceAtlasWidth,StageGlobalIllumination.IrradianceAtlasHeight,
+            StageGlobalIllumination.DistanceAtlasWidth,StageGlobalIllumination.DistanceAtlasHeight);
+        Unsafe.CopyBlock(Slot+FrameGiGridOriginOffset,&Origin,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameGiGridSpacingOffset,&Spacing,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameGiGridCountsOffset,Counts,16);
+        Unsafe.CopyBlock(Slot+FrameGiAtlasSizeOffset,&AtlasSize,(uint)sizeof(Vector4));
+    }
+
+    /// <summary>
+    /// Re-captures this frame's scheduled GI probes (ADR-0069). Every face is drawn with the lit
+    /// Stage pipeline from a copy of the frame constants: the probe is the camera, exposure is 1 so
+    /// the capture holds scene radiance, fog is off, and local lights are off because the Forward+
+    /// tile lists belong to the main camera. The previous GI result stays bound, so every refresh
+    /// adds one more bounce.
+    /// </summary>
+    private void RenderGlobalIlluminationProbes(){
+        if(!this.GlobalIlluminationActive||this.EnvironmentSettings.GlobalIllumination is not GlobalIlluminationSettings Settings){
+            return;
+        }
+        var GlobalIllumination=this.GlobalIllumination!;
+        GlobalIllumination.Schedule(Settings);
+        if(!this.GlobalIlluminationDescriptorsLive){
+            this.WriteEnvironmentDescriptors();
+        }
+        var Source=this.FrameSlot(this.FrameIndex);
+        GlobalIllumination.BeginCapture(this.CommandList);
+        this.BindMainPassState(this.PipelineState);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        D3D12_VIEWPORT Viewport=new(){ Width=StageGlobalIllumination.CaptureResolution,Height=StageGlobalIllumination.CaptureResolution,MaxDepth=1f };
+        RECT Scissor=new(){ right=StageGlobalIllumination.CaptureResolution,bottom=StageGlobalIllumination.CaptureResolution };
+        this.CommandList->RSSetViewports(1,&Viewport);
+        this.CommandList->RSSetScissorRects(1,&Scissor);
+        Vector4 ClearColor=Vector4.Zero;
+        for(var Index=0;Index<GlobalIllumination.ScheduledCount;Index++){
+            var ProbePosition=Settings.ProbePosition(GlobalIllumination.ScheduledProbe(Index));
+            for(var Face=0;Face<6;Face++){
+                var Capture=Index*6+Face;
+                var Destination=GlobalIllumination.CaptureFrameSlot(this.FrameIndex,Capture);
+                Unsafe.CopyBlock(Destination,Source,FrameConstantsSize);
+                var ViewProjection=StageGlobalIllumination.FaceViewProjection(ProbePosition,Face);
+                Unsafe.CopyBlock(Destination+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
+                var CameraPosition=new Vector4(ProbePosition,0f);
+                Unsafe.CopyBlock(Destination+FrameCameraPositionOffset,&CameraPosition,(uint)sizeof(Vector4));
+                ((float*)(Destination+FrameExposureOffset))[0]=1f;
+                ((float*)(Destination+FrameExposureOffset))[2]=0f;
+                ((float*)(Destination+FrameFogParamsOffset))[0]=0f;
+                ((float*)(Destination+FrameSkyLightParamsOffset))[1]=0f;
+                ((int*)(Destination+FrameLightCountsOffset))[0]=0;
+                ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
+                ((float*)(Destination+FrameDepthMapping0Offset))[0]=(float)RenderDepthMapping.Standard;
+                var Rtv=GlobalIllumination.CaptureRtv(Capture);
+                var Dsv=GlobalIllumination.CaptureDsv(Capture);
+                this.CommandList->OMSetRenderTargets(1,&Rtv,FALSE,&Dsv);
+                this.CommandList->ClearRenderTargetView(Rtv,(float*)&ClearColor,0,null);
+                this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
+                this.CommandList->SetGraphicsRootConstantBufferView(0,GlobalIllumination.CaptureFrameAddress(this.FrameIndex,Capture));
+                this.DrawObjects(ExcludedObjectIndex:-1);
+            }
+        }
+        GlobalIllumination.RecordConvolution(this.CommandList,this.FrameIndex,Settings,this.Atmosphere!.ShBufferAddress,
+            this.EnvironmentSettings.SkyLight is not null&&this.EnvironmentSettings.Atmosphere is not null);
+    }
+
+    /// <summary>Writes the Stage t12-t15 views (GI irradiance, GI distance, ambient occlusion, exposure state) after the material views.</summary>
+    private void WriteEnvironmentDescriptors(){
+        var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
+        this.GlobalIllumination!.WriteShadingDescriptors(
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+1,this.SrvDescriptorSize));
+        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+2,this.SrvDescriptorSize));
+        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+3,this.SrvDescriptorSize));
+        this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
+        this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
+    }
+
+    private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
+        new(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),this.MaterialCount*5,this.SrvDescriptorSize);
+
+    private void BindMainPassState(ID3D12PipelineState*ActivePipelineState,ulong FrameConstantsAddress=0){
+        this.CommandList->SetGraphicsRootSignature(this.RootSignature);
+        this.CommandList->SetPipelineState(ActivePipelineState);
+        ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
+        this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
+        this.CommandList->SetGraphicsRootConstantBufferView(0,FrameConstantsAddress!=0?FrameConstantsAddress:this.GetFrameConstantsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootDescriptorTable(10,this.GetGlobalIlluminationDescriptorTable());
+        this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(6,this.GetPointShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(7,this.GetAreaShadowMetadataAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(8,this.GetAreaShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(9,this.Atmosphere!.ShBufferAddress);
+    }
+
+    /// <summary>
+    /// Sets the flat ambient term (a stand-in for sky/indirect lighting). It persists until changed:
+    /// <see cref="RenderFrame"/> writes it into whichever frame slot it records, like the directional
+    /// lights and exposure, so a value set once never alternates with the other slot's contents.
+    /// </summary>
     public void SetAmbientLight(Vector3 Color){
         this.ThrowIfDisposed();
+        this.CurrentAmbientColor=Color;
         this.WriteAmbientLight(this.FrameIndex,Color);
     }
 
-    /// <summary>Sets the simplified exponential height fog for the frame currently being built. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
+    /// <summary>Sets the simplified exponential height fog; persists like <see cref="SetAmbientLight"/>. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
     public void SetFog(FogParams Fog){
         this.ThrowIfDisposed();
+        this.CurrentFog=Fog;
         this.WriteFog(this.FrameIndex,Fog);
     }
 
@@ -2079,7 +2673,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
         byte*Destination=this.OverlayVertexMapped+
-            ((nuint)this.FrameIndex*(nuint)MaxOverlayVertices*(nuint)Stride);
+            ((nuint)this.FrameIndex*(nuint)OverlayFrameVertexCapacity*(nuint)Stride);
         int OutputIndex=0;
         foreach(RenderOverlayVertex Vertex in Triangles){
             WriteOverlayVertex(Destination,Stride,OutputIndex++,Vertex);
@@ -2136,6 +2730,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new ArgumentOutOfRangeException(
                 nameof(Preview),
                 $"Camera preview {PreviewIndex} excluded object is outside the roster.");
+        }
+        if(!Enum.IsDefined(Preview.DepthMapping)
+            ||Preview.DepthMapping!=RenderDepthMapping.Standard&&Preview.Radial.Curve.TransitionMeters<=0f
+            ||Preview.DepthMapping==RenderDepthMapping.RadialObserver&&!IsFinite(Preview.RadialCenter)){
+            throw new ArgumentException(
+                $"Camera preview {PreviewIndex} needs a radial projection (and a finite centre for an observer).",
+                nameof(Preview));
         }
     }
 
@@ -2258,11 +2859,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteViewProjection(uint FrameIndex,Matrix4x4 ViewProjection){
+        this.CurrentViewProjection=ViewProjection;
         this.FrameViewProjections[FrameIndex]=ViewProjection;
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
     }
 
     private void WriteCameraPosition(uint FrameIndex,Vector3 CameraPosition){
+        this.CurrentCameraPosition=CameraPosition;
         Vector4 Packed=new(CameraPosition,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
     }
@@ -2284,7 +2887,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteFog(uint FrameIndex,FogParams Fog){
-        Vector4 FogParams0=new(Fog.Density,Fog.HeightFalloff,0f,0f);
+        Vector4 FogParams0=new(Fog.Density,Fog.HeightFalloff,this.RenderOriginAltitudeMeters,0f);
         Vector4 FogColor=new(Fog.Color,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogParamsOffset,&FogParams0,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogColorOffset,&FogColor,(uint)sizeof(Vector4));
@@ -2294,22 +2897,40 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(!float.IsFinite(ExposureEv100)){
             throw new ArgumentOutOfRangeException(nameof(ExposureEv100),"Camera exposure must be finite.");
         }
-        // EV100 is one stop per integer: +1 halves the HDR signal before ACES.
-        Vector4 Packed=new(PhysicalLightUnits.Ev100ToExposureScale(ExposureEv100),ExposureEv100,0f,0f);
+        // Legacy: EV100 is one stop per integer (+1 halves the HDR signal). PhysicalCamera mode
+        // replaces the camera EV with the environment's exposure settings (ADR-0069).
+        this.CurrentCameraEv100=ExposureEv100;
+        Vector4 Packed=new(this.CurrentExposureScale(),ExposureEv100,this.AutoExposureActive?1f:0f,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameExposureOffset,&Packed,(uint)sizeof(Vector4));
     }
 
-    private static Matrix4x4 BuildShadowViewProjection(Vector3 DirectionTowardLight){
-        Vector3 Direction=Vector3.Normalize(DirectionTowardLight);
-        Matrix4x4 View=Matrix4x4.CreateLookAt(-(Direction*35f),Vector3.Zero,Vector3.UnitY);
-        return View*Matrix4x4.CreateOrthographic(40f,40f,0.1f,80f);
+    /// <summary>
+    /// Fits the four directional cascades to the current camera (ADR-0069) and writes their
+    /// projections for both the shadow pass and the Stage program. Cascade 0 also fills the
+    /// single-projection fields that the preview shaders still sample.
+    /// </summary>
+    private void WriteDirectionalCascades(uint FrameIndex,Vector3 DirectionTowardLight){
+        var Cascades=DirectionalShadowCascades.Build(this.InvertibleViewProjection,this.CurrentCameraPosition,DirectionTowardLight);
+        var Slot=this.FrameSlot(FrameIndex);
+        var DepthRanges=Vector4.Zero;
+        for(var Cascade=0;Cascade<Cascades.Length;Cascade++){
+            var ViewProjection=Cascades[Cascade].ViewProjection;
+            var Sphere=new Vector4(Cascades[Cascade].Center,Cascades[Cascade].Radius);
+            var UvScaleOffset=Cascades[Cascade].Tile.UvScaleOffset;
+            Unsafe.CopyBlock(Slot+FrameCascadeViewProjectionOffset+(uint)(Cascade*64),&ViewProjection,(uint)sizeof(Matrix4x4));
+            Unsafe.CopyBlock(Slot+FrameCascadeSpheresOffset+(uint)(Cascade*16),&Sphere,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(Slot+FrameCascadeUvScaleOffsetsOffset+(uint)(Cascade*16),&UvScaleOffset,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(this.ShadowConstantsSlot(FrameIndex,CascadeConstantSlot(Cascade)),&ViewProjection,(uint)sizeof(Matrix4x4));
+            DepthRanges[Cascade]=Cascades[Cascade].DepthRangeMeters;
+        }
+        Unsafe.CopyBlock(Slot+FrameCascadeDepthRangesOffset,&DepthRanges,(uint)sizeof(Vector4));
+        var First=Cascades[0].ViewProjection;
+        var FirstUv=Cascades[0].Tile.UvScaleOffset;
+        Unsafe.CopyBlock(Slot+FrameShadowViewProjectionOffset,&First,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(Slot+FrameDirectionalShadowAtlasUvScaleOffset,&FirstUv,(uint)sizeof(Vector4));
     }
 
-    private void WriteShadowViewProjection(uint FrameIndex,Matrix4x4 ShadowViewProjection){
-        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameShadowViewProjectionOffset,&ShadowViewProjection,(uint)sizeof(Matrix4x4));
-        Unsafe.CopyBlock(this.ShadowConstantsSlot(FrameIndex,0),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
-        this.WriteDirectionalShadowAtlasUvScaleOffset(FrameIndex);
-    }
+    private static int CascadeConstantSlot(int Cascade)=>Cascade==0?0:CascadeShadowConstantSlotOffset+Cascade-1;
 
     private byte*ShadowConstantsSlot(uint FrameIndex,int Slot){
         if((uint)Slot>=(uint)ShadowAtlasProjectionConstantSlotCount){
@@ -2317,13 +2938,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         uint LinearSlot=(FrameIndex*(uint)ShadowAtlasProjectionConstantSlotCount)+(uint)Slot;
         return this.ShadowConstantsMapped+(LinearSlot*ConstantAlignment);
-    }
-
-    /// <summary>Writes the PhysicalShadowAtlasPlan tile-0 rectangle used by the directional shadow pass.</summary>
-    private void WriteDirectionalShadowAtlasUvScaleOffset(uint FrameIndex){
-        Vector4 UvScaleOffset=DirectionalShadowAtlasTile.UvScaleOffset;
-        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameDirectionalShadowAtlasUvScaleOffset,
-            &UvScaleOffset,(uint)sizeof(Vector4));
     }
 
     private byte*LocalLightsFrameSlot(uint FrameIndex)=>this.LocalLightsMapped+(FrameIndex*(LocalLightStride*(uint)MaxLocalLights));
@@ -2902,6 +3516,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.MaterialEmissiveNits[MaterialIndex],
             this.ObjectSelectionWeights[ObjectIndex]);
         Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
+
+        // A zero grid size means "no grid": the shader keeps the plain base colour.
+        var WorldGrid=this.MaterialWorldGrids[MaterialIndex];
+        Vector4 WorldGridParams=WorldGrid is{ }Grid?new Vector4(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,0f):Vector4.Zero;
+        Vector4 WorldGridColor=WorldGrid is{ }MainGrid?new Vector4(MainGrid.GridColor,0f):Vector4.Zero;
+        Vector4 WorldSubGridColor=WorldGrid is{ }SubGrid?new Vector4(SubGrid.SubGridColor,0f):Vector4.Zero;
+        Unsafe.CopyBlock(Destination+ObjectWorldGridParamsOffset,&WorldGridParams,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&WorldGridColor,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&WorldSubGridColor,(uint)sizeof(Vector4));
+        Vector4 WorldGridAnchor=new(this.MaterialWorldGridAnchors[MaterialIndex],0f);
+        Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&WorldGridAnchor,(uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex,int PassIndex=0){
@@ -3010,6 +3635,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
         this.CreateForwardPlusTileBuffer(Width,Height);
+        this.Atmosphere?.InvalidateSceneDescriptors();
+        if(this.AmbientOcclusion is { Generation:>0 }){
+            this.AmbientOcclusion.EnsureSize(Width,Height);
+        }
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.UpdateViewportAndScissor(Width,Height);
         this.RebuildEffectiveCameraPreviews();
@@ -3030,7 +3659,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->SetPipelineState(this.ShadowPipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         if(this.DirectionalShadowIndex>=0){
-            this.RenderShadowAtlasProjection(new ShadowAtlasProjection(DirectionalShadowAtlasTile,0),ShadowDsv);
+            for(var Cascade=0;Cascade<DirectionalShadowCascades.Count;Cascade++){
+                this.RenderShadowAtlasProjection(new ShadowAtlasProjection(DirectionalShadowCascades.TileFor(Cascade),CascadeConstantSlot(Cascade)),ShadowDsv);
+            }
         }
         foreach(ShadowAtlasProjection Projection in this.PointShadowAtlasProjections){
             this.RenderShadowAtlasProjection(Projection,ShadowDsv);
@@ -3073,10 +3704,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void RenderOverlay(){
         int TotalCount=
             this.OverlayTriangleVertexCount+this.OverlayLineVertexCount;
-        if(TotalCount==0){ return; }
+        int MarkerCount=this.PrepareObserverMarkers();
+        if(TotalCount==0&&MarkerCount==0){ return; }
         int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
         ulong FrameOffset=checked(
-            (ulong)this.FrameIndex*(ulong)MaxOverlayVertices*(ulong)Stride);
+            (ulong)this.FrameIndex*(ulong)OverlayFrameVertexCapacity*(ulong)Stride);
         ulong BaseAddress=this.OverlayVertexBuffer->GetGPUVirtualAddress()+FrameOffset;
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
         this.CommandList->SetGraphicsRootConstantBufferView(
@@ -3116,6 +3748,65 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CommandList->DrawInstanced(
                 (uint)this.OverlayLineVertexCount,1,0,0);
         }
+        if(MarkerCount>0){
+            // Each marker is drawn inside its observer preview with that preview's constants (observer view-projection).
+            this.CommandList->SetPipelineState(this.OverlayLinePipelineState);
+            this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+            for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+                RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+                if(!IsMarkedObserver(Preview)){ continue; }
+                D3D12_VERTEX_BUFFER_VIEW View=new(){
+                    BufferLocation=BaseAddress+(ulong)((MaxOverlayVertices+PreviewIndex*ObserverMarkerVertexCount)*Stride),
+                    SizeInBytes=(uint)(ObserverMarkerVertexCount*Stride),
+                    StrideInBytes=(uint)Stride,
+                };
+                RECT Rect=new(){ left=Preview.X,top=Preview.Y,right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height };
+                D3D12_VIEWPORT Viewport=new(){ TopLeftX=Preview.X,TopLeftY=Preview.Y,Width=Preview.Width,Height=Preview.Height,MinDepth=0f,MaxDepth=1f };
+                this.CommandList->SetGraphicsRootConstantBufferView(0,this.GetFrameConstantsAddress(this.FrameIndex,PreviewIndex+1));
+                this.CommandList->RSSetViewports(1,&Viewport);
+                this.CommandList->RSSetScissorRects(1,&Rect);
+                this.CommandList->IASetVertexBuffers(0,1,&View);
+                this.CommandList->DrawInstanced(ObserverMarkerVertexCount,1,0,0);
+            }
+        }
+    }
+
+    private bool IsMarkedObserver(in RenderCameraPreview Preview)=>
+        Preview.DepthMapping==RenderDepthMapping.RadialObserver&&Preview.MarkRadialCenter&&this.HasCameraBasis;
+
+    /// <summary>
+    /// Writes the centre-camera marker of every marked observer preview into its overlay slot: the main camera's view
+    /// frustum with its apex at the compressed world's centre, 5 % of that world's radius long, in observer-relative
+    /// coordinates. Returns how many markers were written.
+    /// </summary>
+    private int PrepareObserverMarkers(){
+        int Count=0;
+        int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
+        byte*Destination=this.OverlayVertexMapped+((nuint)this.FrameIndex*(nuint)OverlayFrameVertexCapacity*(nuint)Stride);
+        Vector4 Color=new(1f,0.85f,0.1f,1f);
+        Span<Vector3>Corners=stackalloc Vector3[4];
+        for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+            RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+            if(!IsMarkedObserver(Preview)){ continue; }
+            float Length=0.05f*Preview.Radial.ObservedWorldRadius;
+            Vector3 Apex=Preview.RadialCenter-Preview.CameraPosition;
+            Vector3 HalfUp=this.CurrentCameraUp*(Length*this.CurrentCameraTanHalfFovY);
+            Vector3 HalfRight=this.CurrentCameraRight*(Length*this.CurrentCameraTanHalfFovY*this.CurrentCameraAspectRatio);
+            Vector3 BaseCenter=Apex+this.CurrentCameraForward*Length;
+            Corners[0]=BaseCenter-HalfRight-HalfUp;
+            Corners[1]=BaseCenter+HalfRight-HalfUp;
+            Corners[2]=BaseCenter+HalfRight+HalfUp;
+            Corners[3]=BaseCenter-HalfRight+HalfUp;
+            int Output=MaxOverlayVertices+PreviewIndex*ObserverMarkerVertexCount;
+            for(int Corner=0;Corner<4;Corner++){
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Apex,Color));
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Corners[Corner],Color));
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Corners[Corner],Color));
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Corners[(Corner+1)%4],Color));
+            }
+            Count++;
+        }
+        return Count;
     }
 
     private void PrepareCameraPreviewConstants(uint FrameIndex){
@@ -3138,6 +3829,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // camera-dependent active set.
             int*LightCounts=(int*)(Destination+FrameLightCountsOffset);
             LightCounts[0]=0;
+            // Screen-space occlusion belongs to the primary camera's pixels.
+            ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
+            // Each preview carries its own depth mapping (M0099); a standard one never reads the packet.
+            Vector4 DepthMapping0=Preview.DepthMapping==RenderDepthMapping.Standard
+                ?Vector4.Zero
+                :new((float)Preview.DepthMapping,Preview.Radial.Curve.TransitionMeters,Preview.Radial.InverseMaximumG,Preview.Radial.FarDiscardDepth);
+            Vector4 DepthMapping1=new(Preview.DepthMapping==RenderDepthMapping.RadialObserver?Preview.RadialCenter:Vector3.Zero,0f);
+            Unsafe.CopyBlock(Destination+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(Destination+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
         }
     }
 
@@ -3166,13 +3866,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle,
         D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle){
         if(this.CameraPreviewCount==0){ return; }
-        ID3D12PipelineState*Pipeline=
-            this.PresentationMode==RenderPresentationMode.Wireframe
-                ?this.CameraPreviewWireframePipelineState
-                :this.CameraPreviewPipelineState;
+        var Wireframe=this.PresentationMode==RenderPresentationMode.Wireframe;
         Vector4 ClearColor=ClearColorVector;
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+            ID3D12PipelineState*Pipeline=Preview.DepthMapping switch {
+                RenderDepthMapping.Radial=>this.RadialPipelineStates[(int)(Wireframe?RadialPipeline.CameraPreviewWireframe:RadialPipeline.CameraPreview)],
+                RenderDepthMapping.RadialObserver=>this.RadialPipelineStates[(int)(Wireframe?RadialPipeline.ObserverWireframe:RadialPipeline.Observer)],
+                _=>Wireframe?this.CameraPreviewWireframePipelineState:this.CameraPreviewPipelineState,
+            };
             RECT Rect=new(){
                 left=Preview.X,top=Preview.Y,
                 right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height,
@@ -3197,6 +3899,75 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
+    /// <summary>Sets the skin palette (inverse bind * joint model per joint, row-vector convention) of a skinned mesh from the next frame on.</summary>
+    public void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
+        this.ThrowIfDisposed();
+        this.Skinning!.SetPalette(MeshIndex,Palette);
+    }
+
+    /// <summary>
+    /// Test-only: from the next frame on, brackets the main pass's draws with GPU timestamps so performance evidence
+    /// measures GPU time rather than presentation pacing (M0099).
+    /// </summary>
+    internal void EnableMainPassTimingForTesting(){
+        this.ThrowIfDisposed();
+        if(this.MainPassTimestampHeap!=null){ return; }
+        D3D12_QUERY_HEAP_DESC Desc=new(){ Type=D3D12_QUERY_HEAP_TYPE.D3D12_QUERY_HEAP_TYPE_TIMESTAMP,Count=FrameCount*2 };
+        ID3D12QueryHeap*Heap;
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateQueryHeap(&Desc,__uuidof<ID3D12QueryHeap>(),(void**)&Heap),
+            "ID3D12Device::CreateQueryHeap","creating the main-pass timestamp heap");
+        D3D12_HEAP_PROPERTIES ReadbackHeap=new(D3D12_HEAP_TYPE_READBACK);
+        var BufferDesc=D3D12_RESOURCE_DESC.Buffer(FrameCount*2*sizeof(ulong));
+        ID3D12Resource*Readback;
+        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&ReadbackHeap,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,null,__uuidof<ID3D12Resource>(),(void**)&Readback),
+            "ID3D12Device::CreateCommittedResource","creating the main-pass timestamp readback");
+        ulong Frequency;
+        D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->GetTimestampFrequency(&Frequency),"ID3D12CommandQueue::GetTimestampFrequency","reading the timestamp frequency");
+        this.MainPassTimestampHeap=Heap;
+        this.MainPassTimestampReadback=Readback;
+        this.MainPassTimestampFrequency=Frequency;
+    }
+
+    /// <summary>Test-only: GPU milliseconds of the last timed frame's main-pass draws, after the GPU is idle.</summary>
+    internal float ReadMainPassGpuMillisecondsForTesting(){
+        this.ThrowIfDisposed();
+        if(this.MainPassTimestampReadback==null||this.LastTimedFrameIndex==uint.MaxValue){
+            throw new InvalidOperationException("Main-pass timing is not enabled or no frame has been timed yet.");
+        }
+        this.WaitForGpuIdle();
+        ulong*Mapped;
+        D3D12_RANGE Range=new(){ Begin=(nuint)(this.LastTimedFrameIndex*2*sizeof(ulong)),End=(nuint)((this.LastTimedFrameIndex*2+2)*sizeof(ulong)) };
+        D3D12Diagnostics.EnsureSuccess(this.MainPassTimestampReadback->Map(0,&Range,(void**)&Mapped),"ID3D12Resource::Map","reading the main-pass timestamps");
+        try {
+            var Start=Mapped[this.LastTimedFrameIndex*2];
+            var End=Mapped[this.LastTimedFrameIndex*2+1];
+            return End>=Start?(End-Start)*1000f/this.MainPassTimestampFrequency:0f;
+        } finally {
+            D3D12_RANGE NoWrite=new();
+            this.MainPassTimestampReadback->Unmap(0,&NoWrite);
+        }
+    }
+
+    /// <summary>Test-only copy of the main depth buffer after the GPU is idle (row-major, width x height).</summary>
+    internal float[]ReadDepthForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        var (Data,RowPitch,Width,Height)=GpuTextureReadback.Read(this.Device!,this.DepthBuffer,D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        var Result=new float[Width*Height];
+        fixed(byte*Bytes=Data){
+            for(var Y=0;Y<Height;Y++){
+                new ReadOnlySpan<float>(Bytes+Y*RowPitch,Width).CopyTo(Result.AsSpan(Y*Width,Width));
+            }
+        }
+        return Result;
+    }
+
+    /// <summary>Test-only copy of a skinned mesh's current vertices (position, normal, tangent, uv; 48 bytes each).</summary>
+    internal byte[]ReadSkinnedVerticesForTesting(int MeshIndex){
+        this.WaitForGpuIdle();
+        return this.Skinning!.ReadSkinnedVerticesForTesting(MeshIndex);
+    }
+
     public void RenderFrame(bool CaptureForVerification=false){
         this.ThrowIfDisposed();
         this.TryReloadShaderArtifact();
@@ -3204,21 +3975,44 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return;
         }
 
+        // M0099: a radial camera uses the radial family, which adds SV_Depth to the same pixel entries.
+        var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
         ID3D12PipelineState*ActivePipelineState=
             this.PresentationMode==RenderPresentationMode.Wireframe
-                ?this.WireframePipelineState
+                ?Radial?this.RadialPipelineStates[(int)RadialPipeline.Wireframe]:this.WireframePipelineState
                 :this.PresentationMode!=RenderPresentationMode.Lit||this.SelectedObjectCount>0
-                    ?this.PresentationPipelineState
-                    :this.PipelineState;
+                    ?Radial?this.RadialPipelineStates[(int)RadialPipeline.Presentation]:this.PresentationPipelineState
+                    :Radial?this.RadialPipelineStates[(int)RadialPipeline.Shipping]:this.PipelineState;
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,ActivePipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
+        if(this.Skinning is{ HasMeshes:true }){
+            this.Skinning.Record(this.CommandList,this.FrameIndex);
+            this.CommandList->SetPipelineState(ActivePipelineState);
+        }
         this.PrepareDirectionalLights(this.FrameIndex);
         this.PrepareForwardPlusLocalLights(this.FrameIndex);
 
         this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
         this.RenderShadowAtlasProjections();
+        this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
+        this.WriteFog(this.FrameIndex,this.CurrentFog);
+        this.WriteDepthMapping(this.FrameIndex);
+        if(Radial){
+            this.WriteRadialRasterDepths(this.FrameIndex);
+        }
         this.PrepareCameraPreviewConstants(this.FrameIndex);
+        this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
+        this.PrepareEnvironment(this.FrameIndex);
+        var AutoExposureDeltaSeconds=this.NextAutoExposureDeltaSeconds();
+        if(!this.AutoExposureActive){
+            this.AutoExposureInitialized=false;
+        } else if(!this.AutoExposureInitialized){
+            this.AutoExposureStage!.RecordInitialize(this.CommandList,this.EnvironmentSettings.Exposure);
+            this.AutoExposureInitialized=true;
+        }
+        this.RenderGlobalIlluminationProbes();
+        this.RenderAmbientOcclusion();
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
@@ -3233,18 +4027,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
         this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
-        this.CommandList->SetGraphicsRootSignature(this.RootSignature);
-        this.CommandList->SetPipelineState(ActivePipelineState);
-
-        ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
-        this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
-        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetFrameConstantsAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(6,this.GetPointShadowProjectionAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(7,this.GetAreaShadowMetadataAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(8,this.GetAreaShadowProjectionAddress(this.FrameIndex));
+        this.BindMainPassState(ActivePipelineState);
 
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
@@ -3254,7 +4037,36 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+        if(this.MainPassTimestampHeap!=null){
+            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
+        }
         this.DrawObjects(ExcludedObjectIndex:-1);
+        if(this.MainPassTimestampHeap!=null){
+            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
+            this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
+                this.FrameIndex*2,2,this.MainPassTimestampReadback,(ulong)this.FrameIndex*2*sizeof(ulong));
+            this.LastTimedFrameIndex=this.FrameIndex;
+        }
+        var RanComputeAfterMainPass=false;
+        if(this.EnvironmentSettings.Atmosphere is not null){
+            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.DepthBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
+            RanComputeAfterMainPass=true;
+        }
+        if(this.AutoExposureActive){
+            // Metered before camera previews draw into the same target.
+            this.AutoExposureStage!.RecordMetering(this.CommandList,this.FrameIndex,this.HdrColorBuffer,this.Width,this.Height,this.EnvironmentSettings.Exposure,AutoExposureDeltaSeconds);
+            RanComputeAfterMainPass=true;
+        }
+        if(RanComputeAfterMainPass){
+            // Compute replaces the graphics PSO and descriptor heap, so the main-pass bindings are
+            // restored before camera previews draw with the Stage pipeline again.
+            this.BindMainPassState(ActivePipelineState);
+            fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+            fixed(RECT*PScissorRect=&this.ScissorRect){
+                this.CommandList->RSSetViewports(1,PViewport);
+                this.CommandList->RSSetScissorRects(1,PScissorRect);
+            }
+        }
         this.RenderCameraPreviews(HdrRtvHandle,DsvHandle);
 
         D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -3269,6 +4081,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12DescriptorHeap*PostSrvHeap= this.HdrSrvHeap;
         this.CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
         this.CommandList->SetGraphicsRootDescriptorTable(0, this.HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
+        float*PostProcessConstants=stackalloc float[4]{
+            this.EnvironmentSettings.ToneMapper==ToneMapper.UnrealFilmicSrgb?1f:0f,
+            this.EnvironmentSettings.BloomIntensity,0f,0f,
+        };
+        this.CommandList->SetGraphicsRoot32BitConstants(1,4,PostProcessConstants,0);
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
             this.CommandList->RSSetViewports(1,PViewport);
@@ -3438,6 +4255,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.ReleaseReadbackBuffer();
         this.ReleaseForwardPlusTileBuffer();
+        this.Atmosphere?.Dispose();
+        this.Atmosphere=null;
+        this.GlobalIllumination?.Dispose();
+        this.GlobalIllumination=null;
+        this.AmbientOcclusion?.Dispose();
+        this.AmbientOcclusion=null;
+        this.AutoExposureStage?.Dispose();
+        this.AutoExposureStage=null;
+        this.Skinning?.Dispose();
+        this.Skinning=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);
@@ -3566,6 +4393,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.OverlayLinePipelineState!=null){
             _=this.OverlayLinePipelineState->Release();
             this.OverlayLinePipelineState=null;
+        }
+        ReleaseRadialPipelineStates(this.RadialPipelineStates);
+        if(this.MainPassTimestampHeap!=null){
+            _=this.MainPassTimestampHeap->Release();
+            this.MainPassTimestampHeap=null;
+        }
+        if(this.MainPassTimestampReadback!=null){
+            _=this.MainPassTimestampReadback->Release();
+            this.MainPassTimestampReadback=null;
         }
 
         if(this.ShadowPipelineState!=null){

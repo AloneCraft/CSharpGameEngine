@@ -54,8 +54,8 @@ public sealed class VsixPackagingLocalizationTests {
         Assert.NotNull(Archive.GetEntry("ja-JP/Extension.vsixlangpack"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/templateManifest0.1033.vstman"));
         Assert.Contains(Archive.Entries,Entry=>Entry.FullName.StartsWith("ItemTemplates/templateManifest",StringComparison.Ordinal) && Entry.FullName.EndsWith(".1041.vstman",StringComparison.Ordinal));
-        var EnglishSource=ReadEntry(Archive,"ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.cs");
-        var JapaneseSource=ReadEntry(Archive,"ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.cs");
+        var EnglishSource=ReadEntry(Archive,"ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.json");
+        var JapaneseSource=ReadEntry(Archive,"ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.json");
         Assert.Equal(EnglishSource,JapaneseSource);
         var EnglishTemplate=XDocument.Parse(ReadEntry(Archive,"ItemTemplates/CSharp/GameEngine/1033/SceneFile/SceneFile.vstemplate"));
         var JapaneseTemplate=XDocument.Parse(ReadEntry(Archive,"ItemTemplates/CSharp/GameEngine/1041/SceneFile/SceneFile.vstemplate"));

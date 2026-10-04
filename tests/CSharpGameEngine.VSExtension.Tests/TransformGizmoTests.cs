@@ -285,13 +285,35 @@ public sealed class TransformGizmoTests {
     public void TryHitTransform_RayNearMoveArrowTip_ReturnsAxisX(){
         var Frame=MoveGizmoFrame.Create(
                                         Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
-        // M0033のMove矢印先端(AxisLength=1.35f)付近。ScaleAxisLength=1.0f/RotateRingRadius=0.78f
+        // Move矢印のコーンの手前(コーンは1.38fから先端AxisLength=1.60f)。ScaleAxisLength=1.0f/RotateRingRadius=0.78f
         // の帯より外側にあるため、Moveだけが応答するはずの領域。
         GizmoHandleId?Hit=TransformGizmo.TryHitTransform(
             Frame,new Vector3(1.3f,0f,-10f),Vector3.UnitZ,
             CameraForward:Vector3.UnitZ,CameraRight:Vector3.UnitX,CameraUp:Vector3.UnitY);
 
         Assert.Equal(GizmoHandleId.AxisX,Hit);
+    }
+
+    [Fact]
+    public void TryHitMove_GrazingRayThroughTheDrawnArrowhead_HitsTheAxis(){
+        var Frame=MoveGizmoFrame.Create(Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        // M0098 B: 軸と10°で、描いたコーンの内側の点(1.45,0.05,0)を通るレイ。軸の延長線との交点は先端(1.60)の先にあり、
+        // 線分側だけをクランプしてレイ側を解き直さないと、距離を0.134と誤って外していた。
+        var Angle=10f*FloatMath.Pi/180f;
+        var Direction=new Vector3(-FloatMath.Cos(Angle),FloatMath.Sin(Angle),0f);
+        var Hit=TransformGizmo.TryHitMove(Frame,new Vector3(1.45f,0.05f,0f)-(Direction*10f),Direction,out var RayDistance);
+        Assert.Equal(GizmoHandleId.AxisX,Hit);
+        Assert.InRange(RayDistance,9f,11f);
+    }
+
+    [Fact]
+    public void TryHitMove_RayParallelToTheAxisThroughTheArrowhead_HitsTheAxis(){
+        var Frame=MoveGizmoFrame.Create(Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        // M0098 B: 正射投影で軸の方向から見ると、レイは軸に平行になる。以前は平行の分岐でレイ側を始点に固定し、
+        // 先端まで8.4離れていると誤って外していた。
+        var Hit=TransformGizmo.TryHitMove(Frame,new Vector3(10f,0.03f,0f),-Vector3.UnitX,out var RayDistance);
+        Assert.Equal(GizmoHandleId.AxisX,Hit);
+        Assert.InRange(RayDistance,8f,10f);
     }
 
     [Fact]

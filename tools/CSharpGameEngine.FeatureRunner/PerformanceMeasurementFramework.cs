@@ -12,7 +12,8 @@ public enum PerformanceGateStatus { Passed,Failed,NotEvaluated,Unavailable }
 public sealed record PerformanceSample(int Index,long ElapsedNanoseconds,long AllocatedBytes);
 public sealed record PerformanceStatistics(long Minimum,long Median,long P95,long Mad,long Maximum);
 public sealed record PerformanceAbsoluteBudget(long MaximumMedianNanoseconds,long MaximumP95Nanoseconds,long MaximumP95AllocatedBytes);
-public sealed record PerformanceBaseline(long MedianNanoseconds,long P95Nanoseconds,long P95AllocatedBytes,int MaximumRegressionBasisPoints);
+/// <summary>A comparison baseline. A null <see cref="P95Nanoseconds"/> compares the median only.</summary>
+public sealed record PerformanceBaseline(long MedianNanoseconds,long? P95Nanoseconds,long P95AllocatedBytes,int MaximumRegressionBasisPoints);
 public sealed record PerformanceGateResult(PerformanceGateStatus Status,string Detail);
 public sealed record PerformanceAnalysis(PerformanceStatistics ElapsedNanoseconds,PerformanceStatistics AllocatedBytes,PerformanceGateResult Measurement,PerformanceGateResult AbsoluteBudget,PerformanceGateResult BaselineDelta,bool Passed);
 public sealed record PerformanceMeasurementPlan(string Id,string Configuration,string Unit,IReadOnlyDictionary<string,string>Workload,int WarmupCount,int SampleCount,PerformanceAbsoluteBudget?AbsoluteBudget,PerformanceBaseline?Baseline);
@@ -120,7 +121,7 @@ public static class PerformanceMeasurementFramework {
         if(Baseline is null){ return new PerformanceGateResult(PerformanceGateStatus.NotEvaluated,"No comparison baseline was configured."); }
         var Failures=new List<string>();
         if(IsRegression(Elapsed.Median,Baseline.MedianNanoseconds,Baseline.MaximumRegressionBasisPoints)){ Failures.Add("median"); }
-        if(IsRegression(Elapsed.P95,Baseline.P95Nanoseconds,Baseline.MaximumRegressionBasisPoints)){ Failures.Add("p95"); }
+        if(Baseline.P95Nanoseconds is { }P95&&IsRegression(Elapsed.P95,P95,Baseline.MaximumRegressionBasisPoints)){ Failures.Add("p95"); }
         if(IsRegression(Allocated.P95,Baseline.P95AllocatedBytes,Baseline.MaximumRegressionBasisPoints)){ Failures.Add("allocation p95"); }
         return Failures.Count==0?new PerformanceGateResult(PerformanceGateStatus.Passed,"Baseline delta passed."):new PerformanceGateResult(PerformanceGateStatus.Failed,$"Baseline regression exceeded {Baseline.MaximumRegressionBasisPoints} basis points for {string.Join(", ",Failures)}.");
     }

@@ -209,12 +209,17 @@ public static class VsixCompatibilityMatrixValidator {
         if(Check.Status=="Pending"){ return; }
         if(Check.ObservedUtc is null){ Errors.Add($"VSIX Experimental check {Check.Id} requires observedUtc."); }
         if(string.IsNullOrWhiteSpace(Check.EvidencePath)){ Errors.Add($"VSIX Experimental check {Check.Id} requires evidencePath.");return; }
-        string EvidencePath=Path.IsPathRooted(Check.EvidencePath)?Path.GetFullPath(Check.EvidencePath):Path.GetFullPath(Path.Combine(LedgerDirectory,Check.EvidencePath));
-        if(!File.Exists(EvidencePath)){ Errors.Add($"VSIX Experimental check {Check.Id} evidence does not exist: {Check.EvidencePath}");return; }
         if(Check.Status=="Passed"){
             if(Check.ExpiresUtc is null){ Errors.Add($"Passed VSIX Experimental check {Check.Id} requires expiresUtc."); }
             else if(RequirePassingEvidence&&Check.ExpiresUtc<=NowUtc){ Errors.Add($"Release VSIX compatibility requires unexpired evidence for check {Check.Id} (expired {Check.ExpiresUtc:u})."); }
             if(Check.ObservedUtc is not null&&Check.ExpiresUtc is not null&&Check.ExpiresUtc<=Check.ObservedUtc){ Errors.Add($"VSIX Experimental check {Check.Id} expiry must follow observation."); }
+        }
+        string EvidencePath=Path.IsPathRooted(Check.EvidencePath)?Path.GetFullPath(Check.EvidencePath):Path.GetFullPath(Path.Combine(LedgerDirectory,Check.EvidencePath));
+        if(!File.Exists(EvidencePath)){
+            // Run evidence lives under the untracked .artifacts root (ADR-0061), so a fresh checkout has none. Like
+            // freshness, only release validation demands it; an ordinary build keeps the recorded result.
+            if(RequirePassingEvidence){ Errors.Add($"VSIX Experimental check {Check.Id} evidence does not exist: {Check.EvidencePath}"); }
+            return;
         }
         if(Contract.Kind!="Automated"||Check.Status!="Passed"){ return; }
         ExperimentalEvidence?Evidence=ReadJson<ExperimentalEvidence>(EvidencePath,$"VSIX Experimental evidence {Check.Id}",Errors);

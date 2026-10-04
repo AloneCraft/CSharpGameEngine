@@ -25,13 +25,12 @@ namespace CSharpGameEngine.VSExtension;
 internal static class SceneEditorSettings {
     private const string CollectionPath=@"CSharpGameEngine\SceneEditor";
 
-    // Lookの水平・垂直は反転を既定とする。OptionsのReset to Defaultsもこの値を使う。
-    internal const bool DefaultInvertLookX=true;
-    internal const bool DefaultInvertLookY=true;
-
-    // Orbit(Alt+LMBドラッグ)もLookと独立した水平・垂直反転を既定とする。
-    internal const bool DefaultInvertOrbitX=true;
-    internal const bool DefaultInvertOrbitY=true;
+    // 反転スイッチは基準(SceneViewState.TickFly/ApplyOrbit)に対する反転で、既定はすべてオフ。
+    // OptionsのReset to Defaultsもこの値を使う。
+    internal const bool DefaultInvertLookX=false;
+    internal const bool DefaultInvertLookY=false;
+    internal const bool DefaultInvertOrbitX=false;
+    internal const bool DefaultInvertOrbitY=false;
 
     // 残り4項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
     // (以前は各Readのインラインリテラルだった)。
@@ -47,7 +46,10 @@ internal static class SceneEditorSettings {
 
     private static Func<WritableSettingsStore?>?StoreProvider;
     private const string NavigationSettingsMigrationVersionProperty=nameof(NavigationSettingsMigrationVersion);
-    private const int NavigationSettingsMigrationVersion=1;
+    // 版1: 旧既定(反転オン)へ揃えた。版2: 基準を旧既定の水平・Orbitと旧既定の逆の垂直Lookへ移し、
+    // 反転スイッチを「基準に対する反転」(既定オフ)にした。版3(M0096): Look・Orbitの垂直の基準を反転した。
+    // 値は基準に対する反転のまま変換しない(チェックの無い利用者が新しい既定の向きになる)。
+    private const int NavigationSettingsMigrationVersion=3;
 
     /// <summary>
     /// 設定がこのクラス経由で書き換えられたことの通知。Tools&gt;Options ページで値を変えたとき、
@@ -86,10 +88,19 @@ internal static class SceneEditorSettings {
             return;
         }
 
-        WriteInvertLookX(DefaultInvertLookX);
-        WriteInvertLookY(DefaultInvertLookY);
-        WriteInvertOrbitX(DefaultInvertOrbitX);
-        WriteInvertOrbitY(DefaultInvertOrbitY);
+        if(Version<1){
+            WriteInvertLookX(DefaultInvertLookX);
+            WriteInvertLookY(DefaultInvertLookY);
+            WriteInvertOrbitX(DefaultInvertOrbitX);
+            WriteInvertOrbitY(DefaultInvertOrbitY);
+        } else if(Version<2){
+            // 版1の値は旧基準に対する反転。水平とOrbitは式の基準も反転したので値の反転で見た目の向きが保たれ、
+            // 垂直Lookは式が同じなので値の反転でユーザーの依頼どおり実際の向きが1回だけ反転する。
+            WriteInvertLookX(!ReadInvertLookX());
+            WriteInvertLookY(!ReadInvertLookY());
+            WriteInvertOrbitX(!ReadInvertOrbitX());
+            WriteInvertOrbitY(!ReadInvertOrbitY());
+        }
         Store.SetString(CollectionPath,NavigationSettingsMigrationVersionProperty,NavigationSettingsMigrationVersion.ToString(CultureInfo.InvariantCulture));
     }
 

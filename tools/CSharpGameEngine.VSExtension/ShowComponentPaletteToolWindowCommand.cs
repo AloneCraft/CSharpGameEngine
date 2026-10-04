@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// M0052: <see cref="ComponentPaletteToolWindowPane"/> を表示するツールメニューのコマンド。
+/// M0052: <see cref="ComponentPaletteToolWindowPane"/> を表示する 拡張機能 > C# Game Engine メニューのコマンド。
 /// 構成は <see cref="ShowInspectorToolWindowCommand"/> と同一。
 /// </summary>
 internal sealed class ShowComponentPaletteToolWindowCommand {

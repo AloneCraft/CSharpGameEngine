@@ -10,11 +10,19 @@ public sealed record HermeticBuildCommand(string Phase,IReadOnlyList<string>Argu
 public sealed record HermeticBuildPlan(
     string RepositoryRoot,string WorkRoot,string ArtifactRoot,string PackageRoot,
     IReadOnlyList<HermeticBuildCommand>Commands){
+    /// <summary>
+    /// Set on every command: the build restores the tools it runs (ShaderGraph CLI, bridges, Preview Host) in nested
+    /// evaluations that a <c>--packages</c> argument does not reach, so they would otherwise restore from the
+    /// machine-wide folder and rewrite the isolated assets files during the build.
+    /// </summary>
+    public IReadOnlyDictionary<string,string>Environment=>new Dictionary<string,string>{["NUGET_PACKAGES"]=this.PackageRoot};
     public static HermeticBuildPlan Create(string RepositoryRoot,string?RunId=null){
         string Root=Path.GetFullPath(RepositoryRoot);
         string Solution=Path.Combine(Root,"CSharpGameEngine.slnx");
         if(!File.Exists(Solution)){ throw new FileNotFoundException("Canonical solution was not found.",Solution); }
-        string Id=RunId??Guid.NewGuid().ToString("N");
+        // Short: the VSIX build zips staged bridge files about 110 characters below the artifacts root, and the
+        // VSSDK packaging fails past MAX_PATH (260) on machines without long paths enabled.
+        string Id=RunId??Guid.NewGuid().ToString("N")[..12];
         if(Id.Length==0||Id.IndexOfAny(Path.GetInvalidFileNameChars())>=0){
             throw new ArgumentException("Clean-build run ID is invalid.",nameof(RunId));
         }
@@ -32,9 +40,12 @@ public sealed record HermeticBuildPlan(
             ]),
         };
         foreach(string Configuration in new[]{"Debug","Release"}){
+            // A plain build: the owned artifacts root starts empty, so there is nothing to be incremental against, and a
+            // Rebuild (--no-incremental) cleans the tools that projects build for their own use (shader compiler, scene
+            // schema writer, Feature Runner) after those projects built them (audit AUD-004).
             Commands.Add(new($"build-{Configuration}",[
                 "build",Solution,"--configuration",Configuration,
-                "--artifacts-path",Artifacts,"--no-restore","--no-incremental",
+                "--artifacts-path",Artifacts,"--no-restore",
                 "--disable-build-servers","--nologo","--verbosity","minimal",
             ]));
             Commands.Add(new($"test-{Configuration}",[
@@ -61,7 +72,7 @@ public static class HermeticBuildVerifier {
         try {
             foreach(HermeticBuildCommand Command in Plan.Commands){
                 CleanBuildCommandResult Result=await RunCommandAsync(
-                    Plan.RepositoryRoot,Command,CancellationToken).ConfigureAwait(false);
+                    Plan,Command,CancellationToken).ConfigureAwait(false);
                 Results.Add(Result);
                 await Output.WriteLineAsync(
                     $"{Command.Phase}: exit={Result.ExitCode} durationMs={Result.DurationMilliseconds}")
@@ -104,12 +115,13 @@ public static class HermeticBuildVerifier {
     }
 
     private static async Task<CleanBuildCommandResult>RunCommandAsync(
-        string RepositoryRoot,HermeticBuildCommand Command,CancellationToken CancellationToken){
+        HermeticBuildPlan Plan,HermeticBuildCommand Command,CancellationToken CancellationToken){
         var StartInfo=new ProcessStartInfo(){
-            FileName="dotnet",WorkingDirectory=RepositoryRoot,UseShellExecute=false,
+            FileName="dotnet",WorkingDirectory=Plan.RepositoryRoot,UseShellExecute=false,
             RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true,
         };
         foreach(string Argument in Command.Arguments){ StartInfo.ArgumentList.Add(Argument); }
+        foreach(var (Name,Value) in Plan.Environment){ StartInfo.Environment[Name]=Value; }
         using var Process=new Process(){StartInfo=StartInfo};
         Stopwatch Stopwatch=Stopwatch.StartNew();
         if(!Process.Start()){ throw new InvalidOperationException($"Could not start {Command.Phase}."); }

@@ -156,5 +156,6 @@ src/CSharpGameEngine.Windows        net10.0-windows / x64     TerraFX / DXC
   ([[ADR-0001-Layered-Architecture]]、レイヤーはFeature ID単位で追跡する)。
 - `UserGameProject`の実機描画は自動検証できていない(本統合は名前空間もロジックも変えていないため
   原理的に影響は無く、`--verify`付きスモークが代替検証になっている)。
-- `src/CSharpGameEngine.Entities/Generated/`が`.gitignore`に列挙されているにもかかわらずgit追跡下に
-  あるという不整合が存在する(本統合とは無関係の既存問題、未修正)。
+- (2026-10-04 解消)`src/CSharpGameEngine.Entities/Generated/`は`.gitignore`に列挙されているのに
+  git追跡下にあった。生成器が6つ書くうち3つだけが追跡され、改行をCRLFでチェックアウトする新しいcloneでは
+  ビルドがLFで書き直すたびに`git status`が変更ありと表示した。追跡をやめ、ディスク上のデバッグ用出力に戻した。

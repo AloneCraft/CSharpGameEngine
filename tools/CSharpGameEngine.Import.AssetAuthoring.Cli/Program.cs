@@ -1,9 +1,9 @@
 using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.Import.AssetAuthoring.Cli;
 
-if(args is["--serve",var PipeName]){
+if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
     await BridgeServerHost.RunAsync(
-        PipeName,AssetAuthoringBridgeWorker.Run,TimeSpan.FromMinutes(15));
+        PipeName,AssetAuthoringBridgeWorker.Run,TimeSpan.FromMinutes(15),OwnerProcessId:OwnerProcessId);
     return 0;
 }
 

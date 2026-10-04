@@ -259,11 +259,18 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `CreatePerspectiveFieldOfView`)はRUF化していない(Rendering境界は依然未確定、
     Spatial-RUF.md参照)。`BuildViewMatrix`静的ヘルパーを新設し`ModelRenderer`と共有する。
 - Conformance: Matches
-- Known deviations: `GetFlatRight()`の符号がRUFの`RightFromUpForward`(Handedness反映済み)と
-  数式として一致することは確認済みだが、実機での前後左右の直感一致は依然未確認(ADR-0016/ADR-0026参照)。
-- Next action: 実機確認で符号が逆であれば反転する。
+- Known deviations: `GetFlatRight()`はRUFの+R(`RightFromUpForward`)を返す。`GetView`は右手系の
+  `CreateLookAt`なので、+Fを向いたカメラでは+Rが画面の左に見える(画面の右はForward×Up=−R)。
+  `ApplyMouseDelta`/`GetFlatRight`を使うランタイムの経路は無く(2026-10-04確認、テストのみが呼ぶ)、
+  ThirdPersonの移動・視点入力は`CSharpGameEngine.Runtime.Character`が画面の右を使って扱う
+  (2026-10-01 eebdf4b、実機で左右の反転を確認して修正)。
+- Next action: 無し。これらのヘルパーを入力に使う場合は、画面の右として−Rを使う。
 
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
+
+- M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
+- M0099 Phase 4: radial depth mode (F-L5-038, ADR-0076). Seven radial pipeline states share the standard root signature; `SetCamera` validates the radial parameters, `WriteDepthMapping` appends the 32-byte packet every frame, and the sky, cascade and AO passes take `InvertibleViewProjection` (the camera matrix for a standard camera). Standard pipeline states and their frames are unchanged (`StandardModeGoldenFrameTests`).
+- M0099 Phase 0: the grid and the simplified height fog add the render origin back, because the runtime renders camera-relative. `ObjectCB.WorldGridAnchor` (176 bytes; the render origin modulo the grid size, set per material by `SetWorldGridAnchor`) and `FogParams0.z` (render origin altitude, `SetRenderOriginAltitude`) are zero for world-coordinate callers. `EngineHost` computes the anchor exactly in Q64.64 every frame; `RenderFrameState` carries both forward for device recovery. RenderOriginTests (EngineHost end to end), WorldGridGpuIntegrationTests camera-relative cases, RenderFrameStatePersistenceTests.
 
 - Layer: L0 — Platform / Native Backends
 - Parent capability: ECS駆動ステージ
@@ -310,9 +317,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Removal evidence: 旧L9アプリケーションの`Components.cs`、`SceneLoader.cs`、
   `TransformHierarchyRuntime.cs`、`Systems/Systems.cs`、`AudioRuntime.cs`と専用テストプロジェクトは
   `40f08e4`で削除済み。
-- Successor: 現行のアプリケーション側構成は`UserEcsProject/Components.cs`、
-  `UserEcsProject/StaticMeshSceneData.cs`、`UserEcsProject/Systems/RuntimeSystem.cs`、
-  `UserEcsProject/Scenes/FirstPersonStageScene.cs`。旧機能のうち手書きの階層同期・移動・距離減衰付き
+- Successor: 現行のアプリケーション側構成は`UserEcsProject/GameplayComponents.cs`と
+  `UserEcsProject/Scenes/*.json`(シーン JSON、ADR-0070)で、読み込みはエンジンの
+  `src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs`(`LevelLoad`)が行う。旧機能のうち手書きの階層同期・移動・距離減衰付き
   複数音源は同等移植されていないため、旧FeatureをImplementedとは扱わない。
 - Tests: 現行後継は`tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`と
   `tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs`で検証する。
@@ -327,9 +334,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified / RuntimeVerified
 - Implementation evidence:
   - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs (`RenderShadowPass`, HDR target, fullscreen post-process pass, resize/dispose paths)
-  - assets/Shaders/Stage.hlsl (`ShadowMap`, `ComputeDirectionalShadow`, `FullscreenVS`, `PostProcessPS`, `ToneMapAces`)
+  - assets/Shaders/Stage.cgeshadergraph with Shadow.cgesubgraph and Aces.cgesubgraph (the Stage shader moved from `Stage.hlsl` into the Shader Graph; `ShaderArtifactAbi` names its entries)
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Hlsl/HlslCompilerTests.cs (`Compile_StagePostProcessShaders_Succeeds`)
+  - tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs (the Stage graph compiles every entry, post-process included)
   - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs (6/6, including shadow/light output, resize,
     per-frame-slot stability, and shadow-casting)
 - Result: Scene lighting is rendered into `R16G16B16A16_FLOAT`; imported PBR base color, normal,
@@ -431,14 +438,14 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
 - Removal evidence: 旧L9アプリケーションの`PlayerController.cs`と`CharacterMotionTests.cs`は
-  `40f08e4`で削除済み。現行ツリーに同等の移動・重力・Jump処理は無い。
+  `40f08e4`で削除済み。旧実装のコードは残っていない。
 - Historical behavior:
   - `CharacterMotion.Compute`はWorld/Window/GPUに一切依存しない純粋関数。カメラ基準の
     WASD移動、重力減算、Y<=0での接地クランプ、接地時のみJump可、を行う。`LerpAngle`は
     最短経路で角度を補間する。
 - Conformance: NotApplicable(旧実装は存在しない)
 - Known deviations: 衝突判定・本格物理エンジンは無し(Y<=0の簡易接地クランプのみ)。
-- Next action: キャラクター操作が必要になった時点で現行`ISystem`上へ新規実装する。
+- Next action: なし。後継はF-L5-006(ADR-0067、`Runtime.Character`)として現行`ISystem`上へ新規実装済み。
 
 ## F-L8-001 — `OpenGameCommand`
 
@@ -464,6 +471,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   またはDXGI共有テクスチャ方式を再検討する。
 
 ## F-L0-005 — `GltfImporter.ImportScene`(ノードグラフ/PBRマテリアル/ライトのインポート)
+
+- M0098: `materials[].extras.CGE_world_grid` is read into `ImportedPbrMaterial.WorldGrid` (invalid values are reported and dropped), and a texture bound to a UV set other than TEXCOORD_0 is reported and left out instead of being sampled through TEXCOORD_0 (the engine has one UV set per vertex). GltfWorldGridImportTests.
+
+- M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; a differing channel is reported; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests.
 
 - M0088: ImportedLight is color-only with directional lux and point/spot cd variants, nullable range and lossless half-radian cones. GltfImporterSceneTests and UnrealLightSceneEmitterTests verify typed output; zero-inner imported cones need explicit authored resolution.
 
@@ -535,6 +546,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L7-005 — UEレベル取り込みパイプライン
 
+- M0098 / ADR-0075: `M_PrototypeGrid`系の材質は焼き付けない。書き出しがマニフェストの`materialGrids`へパラメーターを記録し(対応外の構成は失敗)、`CSharpGameEngine.Unreal.SceneImporter worldgrid`(`WorldGridGlbConverter`)がGLBの材質を`baseColorFactor`+`extras.CGE_world_grid`へ書き換える(ジオメトリは複製、冪等)。ThirdPersonテンプレートとFirstPersonの両方へ適用済み。`inspect_prototype_grid.py`はUE側の材質の実測用。WorldGridGlbConverterTests。
+
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: UE5.8 FirstPersonステージ移植
 - Status: Implemented
@@ -546,7 +559,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/UnrealExport/README.md
   - UserEcsProject/Assets/Stage/Lvl_FirstPerson/Meshes/*.glb
   - UserEcsProject/Scenes/FirstPersonStageAssets.cs
-  - UserEcsProject/Scenes/FirstPersonStageScene.cs
+  - UserEcsProject/Scenes/FirstPersonStageScene.json(ADR-0070 でC#のシーンから変換)
 - Tests: なし(UEエディタが無い環境では実行できない開発時専用ツールのため、C#テストスイートの
   対象外。現行のScene DSL生成・描画側は`SceneDslGeneratorEndToEndTests`/
   `RenderServerTests`で検証している)。
@@ -576,9 +589,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md(PlayerStart軸変換)
 - Removal evidence: 旧L9アプリケーションの`SceneDocument.cs`、`SceneLoader.cs`、`Program.cs`と
   専用テストは`40f08e4`で削除済み。
-- Successor: `UserEcsProject/Scenes/FirstPersonStageScene.cs`の宣言を
-  `SceneInstantiateEmitter`がECS生成コードへ変換し、`UserEcsProject/Systems/RuntimeSystem.cs`の
-  `LevelLoad`が`StaticMeshSceneData`と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
+- Successor: `UserEcsProject/Scenes/FirstPersonStageScene.json`のシーン JSON を
+  `SceneInstantiateEmitter`がECS生成コードへ変換し、`src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs`の
+  `LevelLoad`が`StaticMesh`部品と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
 - Historical behavior:
   - `GltfImporter.ImportScene`の結果と`scene_meta.json`を合成し、`StageRenderer`入力
     (`StageMeshCreateInfo[]`/`StageMaterialCreateInfo[]`/`StageObjectCreateInfo[]`)と
@@ -777,7 +790,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `SceneWindowControl.xaml(.cs)`、`SceneFileTests.cs`
   - 後継F-L8-010/F-L8-011で存続・再利用:
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs
-  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(F-L8-018で削除し、描画は共有のPreview Hostへ移った)
   - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs
   - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowPane.cs
   - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowControl.xaml(.cs)
@@ -1024,8 +1037,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/CSharpGameEngine.Bridge.Hosting/BridgeServerHost.cs
   - tools/CSharpGameEngine.Bridge.Hosting/BridgeWireMessage.cs
   - tools/CSharpGameEngine.Import.Gltf.Cli/Program.cs、GltfBridgeWorker.cs
-  - tools/CSharpGameEngine.Import.Fbx.Cli/Program.cs、FbxBridgeWorker.cs(`SemaphoreSlim`による
-    AssimpNetの`LogStream`排他制御含む)
+  - tools/CSharpGameEngine.Import.Fbx.Cli/Program.cs、FbxBridgeWorker.cs(AssimpNetの`LogStream`の
+    排他は`FbxImporter`自身が持つ)
   - tools/CSharpGameEngine.Primitive.Cli/Program.cs、PrimitiveBridgeWorker.cs
   - tools/CSharpGameEngine.VSExtension/ResidentBridgeClient.cs
   - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(3段フォールバックの調停役)
@@ -1036,14 +1049,17 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     同一プロセス内・子プロセス起動なし: 単発往復・8件並行リクエストの無混線・ハンドラ例外後の
     継続動作・アイドルタイムアウトでのループ終了)
   - tests/CSharpGameEngine.VSExtension.Tests/ResidentBridgeClientTests.cs(`ComputePipeName`の
-    決定性・repoRoot/ブリッジ違いでの別名)
+    決定性・repoRoot/ブリッジ/所有者違いでの別名、`--parent-process-id`付きの起動引数)
+  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeServerHostTests.cs(2026-10-01: 所有者の
+    終了・最初から存在しない所有者で、アイドルタイムアウトを待たずに終了する。`--serve`の引数解釈)
 - Reverse-engineered behavior:
   - 1リクエスト=1接続(パイプの多重化なし)。`BridgeServerHost`は接続ごとに独立した`Task`へ
     ディスパッチし、`SceneHwndHost`の並列メッシュロードにそのまま対応できる。
   - `ResidentBridgeClient`は`--serve`常駐サーバーへの接続を最初に試み、失敗時のみ`Mutex`
     (`Global\...`)経由で新規起動する。パイプ名は`ComputePipeName`が`repoRoot`+ブリッジ
-    フォルダ名からSHA256で決定的に生成する(`GetHashCode()`はプロセスごとにランダム化される
-    ため使用不可)。
+    フォルダ名+所有者のVSのプロセスIDからSHA256で決定的に生成する(`GetHashCode()`はプロセス
+    ごとにランダム化されるため使用不可)。常駐ブリッジは`--parent-process-id`の所有者が終了すると
+    終わる(拡張フォルダーをロックしたまま残らない、ADR-0023追記)。
   - **設計変更を要した実機検証結果**: 応答待機に当初`ThreadHelper.JoinableTaskFactory.Run`
     (VS threading analyzer VSTHRD002が推奨する、Task同期待機の標準的な回避策)を使ったところ、
     xunitテストから実行した際に毎回約10秒かかり常駐パスが常に失敗してtier2(直接exe起動)に
@@ -1051,8 +1067,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `JoinableTaskFactory`が正しく機能しなかった。生の`Thread`+`ManualResetEventSlim`による
     待機に置き換えて解決した(VSTHRD002の対象にもならず、VSホスト依存も無い)。
   - `FbxImporter.Import`がAssimpNetの`LogStream.Attach`/`Detach`(プロセス全体で共有される
-    ネイティブ状態)を呼び出しているため、`FbxBridgeWorker`のみ`SemaphoreSlim(1, 1)`で
-    インポート呼び出し自体を排他制御している。
+    ネイティブ状態)を呼び出しているため、`FbxImporter`自身がその区間を排他制御している
+    (並列の呼び出しはアクセス違反でプロセスを落としていた。ADR-0023 の 2026-10-04 追記)。
   - 実測(`Box.glb`、`ExternalBridgeProcess.RunAndReadJson`を同一プロセス内で3回連続呼び出し):
     1回目(コールド、サーバー新規起動)約222ms、2回目(再利用)約2ms、3回目(再利用)約1ms -
     ADR-0010追記の直接exe起動(~150-180ms)と比べてさらに約100〜150倍、当初の
@@ -1828,7 +1844,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     unloadと世代検証を担う。安定Node IDはRuntime型ではなくSceneModel側の`NodePath`で管理する。
 - Conformance: Matches
 - Known deviations: **(2026-08、M0049)** `IScene`/`Node`はファイル自体は削除していないが、
-  実際のScene(`UserEcsProject/Scenes/*.scene.json`)はどれもこの型を実装しなくなった
+  実際のScene(`UserEcsProject/Scenes/*.json`)はどれもこの型を実装しなくなった
   ([[M0049-Scene-Json-Persistence]])。Scene検知は`*.scene.json`ファイルの存在のみで行う
   (F-L7-019)。ファイルを残した理由は3テストプロジェクトの`.csproj`が直接リンクしていることと、
   VSIX側の解析器(F-L7-012)がM0050までこの型名を前提にしているため。
@@ -1836,6 +1852,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L7-012 — Scene DSL解析・Runtime生成(`SceneDslAnalyzer`/`SceneInstantiateEmitter`)
 
+- **M0093/ADR-0070 (2026-10-01):** Sceneの正本はシーン JSON になった（2026-10-01 からは `Scenes\**\*.json`、それまでは `*.scene.json`）。生成器はJSONからだけSceneを作り、C#のSceneクラスはSCENE206(ビルドエラー、変換コマンドを案内)。`SceneInstantiateEmitter`以降の生成は不変で、C# Scene DSLの解析はScene DesignerがJSONを読む内部表現(`SceneJsonDesignerSource`)としてだけ残る。
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
@@ -1872,6 +1889,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L7-013 — Scene DSL診断(SCENE100〜118)
 
+- **M0093/ADR-0070 (2026-10-01):** ビルドが報告するのはSCENE114(Scene外での`Node`構築・`Root`読み取り)と、JSONの`startupOrder`重複に対するSCENE118(後のJSONの値の位置)だけになった。ほかのSCENE1xxはScene Designerの内部解析の診断として残り、シーンJSONの誤りはSCENE201〜205が報告する。
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
@@ -2111,7 +2129,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.CodeAnalysis/GameSystemWorldEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemEntryPointEmitter.cs(M0015)
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemOrderAnalyzer.cs(M0016)
+  - (`GameSystemOrderAnalyzer.cs`(M0016)はADR-0073で削除し、順序付けは`GameSystemExecutionOrder.cs`へ統合した)
   - src/CSharpGameEngine.CodeAnalysis/GameSystemExecutionOrder.cs(M0016)
   - src/CSharpGameEngine.CodeAnalysis/SceneComponentSetCollector.cs
   - src/CSharpGameEngine.CodeAnalysis/SceneInstantiateEmitter.cs
@@ -2318,9 +2336,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.SceneModel/SceneDslDiagnostics.cs(SCENE200〜204)
   - src/CSharpGameEngine.Entities/Runtime.cs(`InstantiateScene<TScene>`の制約を
     `where TScene:IScene,ISceneDefinition`から`where TScene:ISceneDefinition`へ緩和)
-  - UserEcsProject/UserEcsProject.csproj(`<AdditionalFiles Include="Scenes/*.scene.json" />`)
-  - UserEcsProject/Scenes/MainScene.scene.json、FirstPersonStageScene.scene.json、
-    PrimitiveShowcaseBoxScene.scene.json、PrimitiveShowcaseSphereScene.scene.json
+  - UserEcsProject/UserEcsProject.csproj(`<AdditionalFiles Include="Scenes/**/*.json" />`、2026-10-01からGame.props経由)
+  - UserEcsProject/Scenes/MainScene.json、FirstPersonStageScene.json、
+    PrimitiveShowcaseBoxScene.json、PrimitiveShowcaseSphereScene.json
 - Tests:
   - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneJsonAnalyzerTests.cs(新規11件。リテラル値の
     宣言型別解決、enumメンバー名解決、複数子ノードの再帰的走査、SCENE200/201/202/203の各診断)
@@ -2405,7 +2423,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.Windows/Audio/XAudio2VoiceHandle.cs
   - src/CSharpGameEngine.Windows/Audio/AudioException.cs
   - src/CSharpGameEngine.Windows/Audio/AudioDiagnostics.cs
-  - UserEcsProject/AudioBackend.cs(プラットフォーム選択の集中点、`GameAudio`非ジェネリックFacade)
+  - src/CSharpGameEngine.Runtime.Windows/EngineHost.cs(Audio Serverの所有。ADR-0048以降はWindows Runtimeがバックエンドを選び、`UserEcsProject/AudioBackend.cs`の`GameAudio`Facadeは無くなった)
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Audio/XAudio2BackendTests.cs(実オーディオデバイスに対する
     CreateEngine→CreateVoice→SubmitBuffer→Start→Stop→DestroyVoice→DestroyEngineのスモークテスト、
@@ -2423,9 +2441,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     ハンドルへポインタを折り込んで返す設計、F-L1-007参照)。
   - VoiceはCOM `Release`ではなく`IXAudio2Voice::DestroyVoice()`で破棄する(XAudio2固有の非COM解放
     メソッド)。Engineは標準COM `Release`。
-  - `UserEcsProject/AudioBackend.cs`が唯一このバックエンドを名指しする場所(`global using`
-    エイリアス2行 + `GameAudio`Facade)。`UserEcsProject/Components.cs`/`Systems/RuntimeSystem.cs`/
-    `Scenes/MainScene.cs`はいずれも`CSharpGameEngine.Audio.XAudio2`を直接参照しない。
+  - ゲームのコードはこのバックエンドを名指ししない。当初は`UserEcsProject/AudioBackend.cs`が唯一の
+    選択箇所だったが、ADR-0048以降は共有のWindows Runtimeが選ぶ。
 - Conformance: Matches
 - Known deviations: `UserEcsProject`はADR-0039の単一Entity制約を維持する。旧L9ランタイムにあった
   Entityごとの音源、Listener位置、距離減衰は現行へ移植していない。
@@ -2447,9 +2464,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.Windows/Runtime/PrimitiveMesh.cs
   - src/CSharpGameEngine.Windows/Runtime/RenderServer.cs
   - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs(`ArbitraryTangentFor`を`internal`化して共有)
-  - UserEcsProject/Systems/RuntimeSystem.cs(`LevelLoad`に`{Transform,PrimitiveMesh}`用の宣言順
-    アキュムレータオーバーロードを追加)
-  - UserEcsProject/Scenes/PrimitiveShowcaseScene.cs(デモ、`MainScene.cs`は無変更)
+  - src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
+    アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
+  - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs(デデュープ、全`PrimitiveType`の
     妥当性、実WARP GPUパイプラインでのBox描画)
@@ -2496,7 +2513,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(新規)
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`.scene`読み込みをSceneModel解決へ全面改修)
-  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(`SceneRenderObject.NodeId`を`Guid`から
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(F-L8-018で削除し、描画は共有のPreview Hostへ移った)(`SceneRenderObject.NodeId`を`Guid`から
     `NodePath`へ変更)
   - tools/CSharpGameEngine.VSExtension/SceneWorkspaceService.cs(`AllModels`/`AllModelsChanged`を
     追加。アクティブドキュメント内の`IScene`実装を「最初の1件」だけでなく全件収集するよう拡張、
@@ -2834,7 +2851,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(FQN表化、
     `ExtractWorldTransform`→`ExtractLocalTransform`改名、`EnumerateNodes`のフラット列挙を
     `ParentWorld`を運ぶpre-order再帰へ置換)
-  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(`SetCamera`+`ConstantsDirty`追加、
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(F-L8-018で削除し、描画は共有のPreview Hostへ移った)(`SetCamera`+`ConstantsDirty`追加、
     `ComputeViewMatrix`/`ComputeProjectionMatrix`/`ComputeSceneBounds`/`BoundsCenter`/`BoundsRadius`
     削除、空リストの`throw`撤去と定数バッファ幅クランプ、更新経路を`RenderFrame`冒頭の1本へ統一)
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`ApplyCamera()`新設と毎フレーム・リサイズ・
@@ -3301,10 +3318,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L3 - Editor / Runtime Diagnostics
 - Status: Implemented
 - Verification: TestVerified (automated); UserEcs smoke pending
-- Implementation evidence: tools/CSharpGameEngine.VSExtension/SceneRenderer.cs; SceneHwndHost.cs; src/CSharpGameEngine.Entities/SpatialDebug.cs
+- Implementation evidence: tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs; RenderPreviewHostClient.cs (the render modes, drawn by the shared Preview Host since F-L8-018 deleted `SceneRenderer.cs`); SpatialDebugClient.cs; SpatialDebugOverlay.cs; src/CSharpGameEngine.Entities/SpatialDebug.cs
 - Tests: tests/CSharpGameEngine.VSExtension.Tests/SpatialDebugOverlayTests.cs
 
 ## F-L5-001 — Shared Windows ECS Runtime
+
+- M0089: Runtime.Lighting also owns the ADR-0069 environment Components (SkyAtmosphere, SkyLight, PostProcessVolume, ExponentialHeightFog, GlobalIlluminationVolume); Runtime.Windows collects them in EnvironmentCollect/EnvironmentCollection. EnvironmentComponentTests round-trip the snapshot codec.
 
 - M0088: portable Runtime.Lighting owns the four typed analytic components and optional LightShadow; Contracts owns validated physical units, Windows owns extraction. The old Windows light contracts are removed. See ADR-0064 and Docs/Specifications/Typed-Lighting.md.
 
@@ -3358,8 +3377,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L7 — Static Compiler / Bake
 - Status: Implemented
 - Verification: TestVerified in Debug and Release. The `rigid.physics` Stage passes 48/48 tests in both configurations; the Release CLI build and real GLB static-mesh/convex/prefracture cook smoke pass.
-- Evidence: `GeneratedSceneBakeHostEmitter.cs`, `GameSystemLoopEmitter.cs`, `PhysicsCache.cs`, `PhysicsWorldIntegration.cs`, `EngineHost.cs`, `tools/CSharpGameEngine.Physics.Cli/`, `GeneratedSceneBakeHostTests.cs`, and `PhysicsBakeTests.cs`.
-- Conformance: Matches. The source generator emits an exact fully-qualified C# Scene switch and a headless Fixed/Physics/PostPhysics tick path. The host streams canonical frames through bounded host-owned scratch storage, rejects cancellation/unknown scenes/early loop termination, and the CLI publishes through a same-directory temporary file so failure preserves the prior cache. VSIX Bake commands remain the separate F-L8-014 scope.
+- Evidence: `GeneratedSceneBakeHostEmitter.cs`, `GameSystemLoopEmitter.cs`, `PhysicsCache.cs`, `PhysicsWorldIntegration.cs`, `EngineHost.cs`, `tools/CSharpGameEngine.Physics.Cli/` (`GameBake.cs`), `GeneratedSceneBakeHostTests.cs`, `PhysicsBakeTests.cs`, and `EngineLayerSpec.cs`.
+- Conformance: Matches. The source generator emits an exact fully-qualified C# Scene switch and a headless Fixed/Physics/PostPhysics tick path. The host streams canonical frames through bounded host-owned scratch storage, rejects cancellation/unknown scenes/early loop termination, and the CLI publishes through a same-directory temporary file so failure preserves the prior cache. M0096 G: the CLI references no game; `bake --assembly <game.dll>` loads the game build into a collectible load context, points the game's content root at that build, and calls its generated `TryBake`. VSIX Bake commands remain the separate F-L8-014 scope.
 
 ## F-L8-014 — Scene View Physics control and debug overlay
 
@@ -3367,7 +3386,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for protocol-v2 validation, bounded body/contact/tree/bond overlay generation, canonical `global::` Destructible discovery, exact-host identity, source-closure hashing, target-local cache paths, live Scene commit before disk Bake, variable-argument versioned requests, timeout and client-disconnect cancellation, and Bake button wiring. Experimental Instance visual certification remains manual evidence rather than an implementation dependency.
 - Evidence: `PhysicsDebugClient.cs`, `PhysicsDebugOverlay.cs`, `PrefractureDebugService.cs`, `PhysicsSceneBakeService.cs`, `SceneHwndHost.cs`, `SceneDesignerToolWindowControl.xaml`, `ResidentBridgeClient.cs`, `BridgeServerHost.cs`, `PhysicsDebugOverlayTests.cs`, `PrefractureDebugServiceTests.cs`, `PhysicsSceneBakeServiceTests.cs`, and `BridgeServerHostTests.cs`.
-- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays and simulate/pause/step/reset are available. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses a source-fingerprinted exact host, publishes atomically, and propagates cancellation through the resident connection to the host handler.
+- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays are available. M0097: the editor world registers the bodies but does not advance time, so the overlay matches the drawn scene; the simulate/pause/step/reset controls were removed. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses an engine-fingerprinted exact host and, per scene project, a source-fingerprinted game build that the host loads (M0096 G), publishes atomically, and propagates cancellation through the resident connection to the host handler.
 
 ## F-L8-015 — VSIX English/Japanese localization
 
@@ -3548,6 +3567,51 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `ContentAddressedStoreTests`, `WorldCellRuntimeTests`, `WorldCellStreamingTests`, `WorldCellSpatialIndexTests`, `WorldCellEntityPayloadTests`, `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles`, Scene generator E2E, and `GeneratedWorldCellActivationTests`.
 - Next action: consume the published active-cell snapshot from F-L4-006 visibility and package the reachable CAS closure in F-L6-006.
 
+## F-L5-038 — Radial (logarithmic) depth camera
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: Rendering
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0076-Native-Radial-Depth-Mapping.md`
+- Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L4-014, F-L0-009
+- Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
+- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`); Stage ABI `stage-v10` with `RadialVSMain`/`RadialPSMain`/`PreviewRadialPSMain`/`PreviewCleanRadialPSMain`/`RadialObserverVSMain` in `StagePresentationShaderSource`, `FrameCB.DepthMapping0/1` and `ObjectCB.RadialRasterDepth` (`radial_depth_2026_10_04.py`, `radial_object_depth_2026_10_04.py`, `radial_object_depth_frame_2026_10_04.py`); `Graphics/Camera.DepthMapping`/`RadialTransitionMeters`; `StageRenderer` (radial pipeline family, `WriteDepthMapping`, `InvertibleViewProjection`, per-preview mapping, `ReadDepthForTesting`); `RenderCameraPreview.DepthMapping`/`Radial`/`RadialCenter`.
+- Current delta: the runtime (game and runtime view) ignores the scene `Camera`'s `Projection` and `OrthographicSize` and always draws a perspective; only the editor's camera thumbnails draw an orthographic scene camera (Conformance 2026-10-04, an open feature). Radial depth is the default of the scene `Camera` component (`SceneCameraTests`, `SceneJsonRuntimeValuesTests.Camera_ReadsTheDepthMappingAndIsRadialWhenAbsent`) and of the render camera factories (`Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit`; `CameraTests.Factories_ChooseRadialDepth`); standard is an explicit choice (M0100). Scene `Camera.DepthMapping`/`RadialTransitionMeters` reach the render camera through `LevelLoad.ApplyProjection`, in the game and in the editor runtime view (whose clip range then covers both the editor's and the scene camera's). They are read on every frame with the exposure, so value edits show on the next frame; an unusable value keeps the last usable projection (`LevelRuntime.InvalidCameraProperty`). The isolated preview (protocol 8) draws perspective views radial from the editor's matrix (`SetViewProjection` with `RadialViewParameters`) and camera thumbnails with their scene camera's mapping (`RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`, `RenderPreviewCameraPoseTests`, `SceneCameraPreviewPolicyTests.Build_ReadsTheDepthMappingAndIsRadialByDefault`). The radial main pass keeps early depth rejection through a conservative raster depth (`RadialVSMain`, `SV_DepthGreaterEqual`); clipped triangles may differ from standard by one 8-bit level.
+- Conformance: `RadialDepthTests`; `ShaderGraphCompilerTests` (14 Stage entries; the radial main pixel entries declare `SV_DepthGreaterEqual`, the thumbnail entry `SV_Depth`); `RadialDepthGpuIntegrationTests` (standard pixels in legacy and environment scenes, coplanar pairs at 2e4/1e15/5e18 m, depth equals the CPU encoding, extreme far planes, frame slots, radial thumbnails, invalid input, device recovery); `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`. Standard frames stay pinned by `StandardModeGoldenFrameTests`.
+- Next action: none required. Performance evidence: `RadialDepthPerformanceEvidence` (on demand; 24 front-to-back layers on an RTX 4060 Ti: 0.171 ms radial against 0.133 ms standard at 2–48 m, 0.123 against 0.091 ms at 100–1020 m with the per-object tangent). Precision evidence: `RadialDepthPrecisionEvidence` (on demand; within 4 ulps of a double oracle in the middle of the view on WARP and the RTX 4060 Ti, after replacing the hardware `log2`, which was up to 520,000 ulps off at 4 µm); `StagePresentationShaderSourceTests` keeps transcendental intrinsics out of the presentation entries.
+
+## F-L5-039 — Radial observer view
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: Rendering
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Specifications/Omni.md#observer-view`
+- Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L5-038
+- Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
+- Implementation evidence: `RadialObserver` (`RuntimeComponents.cs`), `RadialObserverSync` and `RadialObserverView` (`RuntimeSystems.cs`), `EngineHost.AddRadialObserverPreview` and its submission in `SubmitEnvironment`, `RadialObserverVSMain`, the observer pipeline states and `PrepareObserverMarkers` in `StageRenderer`, `RenderCameraPreview.MarkRadialCenter`.
+- Current delta: game runtime only (not in the editor runtime view, whose previews belong to the editor); at most three insets; picking and gizmos inside the inset and a full-screen observer view are non-goals. Interpolation inside the inset is perspective in the compressed space (an approximation for visualization).
+- Conformance: `RadialObserverTests` (radial-only, inset placement, centre at the inset middle, far plane beyond the compressed world, unusable values, one inset in the game and none with a standard camera or an editor camera), `RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre` (the sphere appears where `T·G(r)` puts it, the main view outside the inset is unchanged, the marker is drawn).
+- Next action: none planned; picking inside the inset and a full-screen observer view stay non-goals until a game needs them.
+
+## F-L5-006 — Character Controller
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: Rigid
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Decisions/ADR-0067-Kinematic-Character-Movement-And-Spring-Arm-Camera.md`
+- Stage: `rigid.character-controller` (`Executable`, Visual / Rigid, 1800s)
+- Depends on: F-L5-003, F-L4-010, F-L3-018
+- Implementation evidence: `src/CSharpGameEngine.Runtime.Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/CSharpGameEngine.Runtime.Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `templates/CSharpGameEngine.Templates.ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/CSharpGameEngine.FeatureRunner/ThirdPersonCharacterVerification.cs`
+- Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is Unreal's Quinn, animated by F-L4-015 (ADR-0066).
+- Conformance: CharacterMotorTests, SpringArmTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
+- Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMovementState` (ADR-0066).
+- **2026-10-04:** automation frames advance exactly the fixed-tick cap (`EngineHost.FrameTime`), so the scripted ThirdPerson run reproduces frame for frame on WARP and on a GPU; the stage's optional hardware pass failed before because the character was still airborne after 90 fast GPU frames.
+
 ## Deferred Simulation/Physics features with designed Stages
 
 All entries below remain `Deferred / Unverified`. Their intended behavior and deterministic Oracle are specified in `Docs/Feature-Stages.md`; implementation evidence does not yet exist, and explicit execution returns `NotImplemented`.
@@ -3556,7 +3620,6 @@ All entries below remain `Deferred / Unverified`. Their intended behavior and de
 |---|---|---|---|
 | F-L5-004 | Joints | `rigid.joints` | Unknown |
 | F-L5-005 | Ragdoll | `rigid.ragdoll` | Unknown |
-| F-L5-006 | Character Controller | `rigid.character-controller` | Unknown |
 | F-L5-007 | Vehicle | `rigid.vehicle` | Unknown |
 | F-L5-008 | Dynamic-Dynamic CCD | `rigid.dynamic-ccd` | Unknown |
 | F-L5-009 | Parallel Solver | `rigid.parallel-solver` | Unknown |
@@ -3687,6 +3750,42 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: `RenderQualityProfileTests` verify the compatibility baseline, Balanced/Cinematic scaling, all-features-disabled graph, deterministic independent builds, bounded one-stop EV100 behavior, and invalid cascade/resolution/exposure/AA rejection.
 - Next action: F-L8-018 moves the VSIX preview onto the same recovered Render Server boundary.
 
+## F-L4-014 — Physically based environment lighting
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
+- Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L4-007, F-L0-008
+- Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
+- Current delta: volumetric clouds, reflection probes and texture mipmaps are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated.
+- Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
+- Next action: texture mipmaps for baked Unreal atlases; volumetric clouds if they are brought into scope.
+
+## F-L4-015 — Skeletal meshes and animation
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#skeletal-meshes-and-animation`, `Docs/Decisions/ADR-0066-Skeletal-Meshes-And-Animation.md`
+- Stage: `rendering.skeletal-animation` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L4-007, F-L0-008
+- Implementation evidence:
+  - `src/CSharpGameEngine.Import/Gltf/{ImportedSkin,ImportedAnimationClip,GltfImporter}.cs`
+  - `src/CSharpGameEngine.Windows/Graphics/StageSkinning.cs` and `assets/Shaders/Skinning.hlsl`
+  - `src/CSharpGameEngine.Runtime.Animation/`
+  - `src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`
+  - the ThirdPerson template's `Mesh` node
+- Current delta:
+  - Only linear blend skinning.
+  - No retargeting, root motion, additive layers, IK, montages, or skinned-bound culling.
+  - The locomotion graph is the fixed ABP_Unarmed shape, not a general animation graph.
+- Conformance: GltfSkinAnimationImportTests, AnimationRuntimeTests and SkinningGpuIntegrationTests. The template shows Quinn idling and walking; see [M0091](Milestones/M0091-Skeletal-Animation.md).
+- Next action: direction-aware blending for strafing controls, and a general animation graph if more templates need one.
+
 ## F-L0-009 — D3D12 device recovery
 
 - Layer: L0 — Platform / Native Backends
@@ -3714,6 +3813,9 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `RenderPreviewHostProtocolTests`; `RenderPreviewRenderSessionTests`; `RenderPreviewHostProcessTests`; `RenderPreviewHostPipeTests`; `RenderPreviewHostSessionTableTests`; `RenderPreviewHostClientTests`; `RenderPreviewSceneBuilderTests`; `RenderSurfaceHostWindowTests`; `PackagedRenderPreviewHostTests`; `VsixManifestTests`; `RenderServerTests`.
 - Conformance: Matches for the automated F-L8-018 contract. The built VSIX contains the same-configuration framework-dependent apphost closure and offline Stage shader artifact, its apphost renders a real WARP frame with the D3D12 debug layer, and package/source tests reject `SceneRenderer`, `VorticeRenderer`, `NativeEvent`, Vortice, and SharpGen. Debug and Release VSIX suites pass 1,017 tests; focused common Render Server/Preview Host suites pass 13 in each configuration. Experimental Instance Scene Designer observation remains Pending, so this Feature is not `Verified` or `RuntimeVerified`.
 - Next action: F-L7-024 consumes the completed rendering performance reports in the scoped release closure. F-L8-023 owns executable transform/WARP/rebase/Undo conformance without reintroducing a renderer; the separate Experimental Instance `scene-designer` row remains Pending manual evidence.
+- **M0100 (2026-10-04):** protocol 8 carries a camera's depth mapping and transition length. The isolated preview draws every perspective view radial from the editor's matrix (orthographic views stay standard) and each camera thumbnail with its scene camera's mapping (radial by default). `RenderPreviewHostProtocolTests.ProtocolV8_ValidatesRadialCameras`, `RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`.
+- **M0099 (2026-10-04):** the runtime view follows a radial scene camera (F-L5-038, the default since M0100): the editor camera keeps its pose and field of view but takes the scene camera's depth mapping and, for radial depth, a clip range covering both its own and the scene camera's NearZ/FarZ (`EditorCamera_OnARadialSceneCamera_SeesBothItsOwnRangeAndTheScenes`). Picking stays the CPU physical ray. `EditorRuntimeViewTests.EditorCamera_FollowsARadialSceneCameraAndRendersWhatItRendersFromTheSamePose`. A value edit of the scene camera (exposure, depth mapping, transition length, a radial clip range) shows on the next frame instead of waiting for a reload; an unusable value keeps the last usable projection (`EditorCamera_TakesAValueEditOfTheSceneCameraOnTheNextFrame`, `SceneCamera_KeepsTheLastUsableProjectionWhileAnEditIsInvalid`).
+- **M0093/ADR-0070 (2026-10-01):** protocol 6 adds the runtime view. For a JSON scene whose game is built, the Scene View opens a `RenderPreviewRuntimeSession` that runs the game's own world and renderer, and streams the live scene JSON so value edits show without a build; a structural edit returns `BuildRequired`. A new build reopens the view, and an unbuilt game still gets the scene preview. Tests: `RenderPreviewRuntimeSessionTests`, `EditorRuntimeViewTests`, `EditorRuntimeViewBridgeTests`, `EditorCameraConventionTests`, `RenderPreviewCameraPoseTests` and `PackagedRuntimeViewTests`.
 
 ## F-L7-023 — Rendering performance evidence
 
@@ -3819,6 +3921,27 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: `RuntimeAssetStoreTests` covers joined retains, final release, dependency closure, cancellation isolation and eviction, manifest failure/cancellation/success, unsupported codecs, decode failure, IO concurrency bounds, and teardown/load races.
 - Next action: Consume the same manifest/handle boundary from F-L8-019 and record F-L7-028 performance evidence.
 
+## F-L6-009 — Engine SDK package and game project context
+
+- Layer: L6 — Content / Packaging
+- Parent capability: Asset / Content Pipeline
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md`
+- Stage: `vsix.project-template` (`Executable`, Visual / VSIX, 2400s)
+- Depends on: F-L6-006
+- Implementation evidence:
+  - `packaging/CSharpGameEngine.Sdk/` (package layout and NuGet entry points)
+  - `build/CSharpGameEngine.Game.props` and `build/CSharpGameEngine.ShaderGraph.targets` (Source and Package modes)
+  - `tools/CSharpGameEngine.VSExtension/CgeProjectContext.cs`
+  - the VSIX `Bridges/` payload
+  - `BridgeExecutableLocator`
+- Current delta:
+  - Physics Scene Bake and the legacy model viewer still need the engine repository.
+  - The package version is fixed at 0.1.0 until a release process assigns versions.
+- Conformance: `CgeProjectContextTests`, `BridgeExecutableLocatorTests` and `VsixManifestTests`. The Stage builds a project generated outside the repository from the package alone, with no restore or build input pointing into the repository, and plays it on WARP.
+- Next action: a dynamic-assembly Physics Bake Host for PackageMode projects, and versioned releases of the package.
+
 ## F-L6-006 — Shipping content manifest
 
 - Layer: L6 — Runtime Artifacts
@@ -3913,6 +4036,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L8-023 — Transform tool visual conformance
 
+- M0098 B (2026-10-04): every drawn Move-arrow pixel is grabbable. `ClosestRaySegment` solves the exact ray (t≥0) / segment closest points (re-solving after each clamp, scale-free parallel test), and the arrowhead base is drawn at the hit radius `AxisRadius` (was 0.085 > 0.08). Tests: `GizmoVisibleHitConsistencyTests` (pixel raster through `ScreenPointToRay`→`TryHitTransform`, and rays from 518 directions through the drawn triangles into `TryHitMove`), `TransformGizmoTests.TryHitMove_GrazingRayThroughTheDrawnArrowhead_HitsTheAxis`, `TryHitMove_RayParallelToTheAxisThroughTheArrowhead_HitsTheAxis`. The M0096 "tip not grabbable" observation was an automated drag disturbed after the hit succeeded (Docs/Milestones/M0098-ThirdPerson-World-Grid.md B). Known deviation: Scale end cubes extend beyond their 0.075 hit capsule (by computation; next action).
+
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
 - Status: Implemented
@@ -3941,22 +4066,24 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Matches
 - Next action: Keep `vsix.inspector-contracts` in changed/full/VSIX suites; F-L8-025 now commits its typed operations through the common source transaction.
 
-## F-L8-025 — C# source synchronization v2
+## F-L8-025 — Scene document synchronization
+
+- M0094/ADR-0071 (2026-10-01): the Scene Designer's document is the Scene Editor, opened by double-clicking a scene JSON (`Scenes\**\*.json`; `*.scene.json` until the same day). Its Design and JSON views share the JSON text buffer as the document data, so this synchronization contract is unchanged; the code-editor/Solution Explorer context menus and the external `.cgescene` virtual document are removed. Tests: `SceneJsonEditorTests`, `VsixMenuPlacementTests`.
 
 - M0088: 12 source-only ConvertLightOperation paths retain Node and shadow ownership, preserve local flux, require explicit directional quantities, reject source/default-contract conflicts and pass canonical verification through one native text write. No private Undo or runtime kind replacement.
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
 - Status: Implemented
-- Verification: TestVerified (95/95 focused and 950/950 complete VSIX tests in both Debug and Release; `vsix.source-sync` Passed in both configurations)
+- Verification: TestVerified (M0093 C3b: complete VSIX suite in Debug; the M0070 C# evidence below is historical)
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#authoring-model`
 - Stage: `vsix.source-sync` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-023, F-L8-024
-- Current delta: none for the automated contract. Each completed gesture resolves the latest Roslyn context, explicitly rebases or rejects stale input, applies the immutable operation batch, produces a minimal source edit, verifies it by recompiling and reanalyzing the edited C# tree, then writes the live buffer once. The published predicted snapshot is the canonical reanalysis result, with the operation projection used only as an identity basis for newly created nodes. Save persists the live C# document and never replays editor history.
-- Source of truth and ownership: C# `IScene` source and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
+- Current delta: interactive use in Visual Studio (JSON editor and Scene Designer side by side) is a pending manual check. Each completed gesture resolves the latest Roslyn context, explicitly rebases or rejects stale input, applies the immutable operation batch to the scene model, writes the model as canonical scene JSON with its node ids kept, re-reads it through the designer view, and writes only the changed lines to the live buffer once (ADR-0070 decision 5). The published predicted snapshot is the canonical re-read result, with the operation projection used only as an identity basis for newly created nodes. Save persists the live `*.scene.json` document and never replays editor history.
+- Source of truth and ownership: the scene JSON (`Scenes\**\*.json`) buffer and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
 - Conflict and lifecycle: transform deltas rebase onto the latest source; stale member edits without an observed original value reject instead of overwriting; live-buffer mismatch writes nothing; cancellation/failure clears pending landing state; an older analysis cannot consume another generation's identity; a completed mismatching landing is discarded as a superseding external edit; post-write closure is non-cancellable; Undo/Redo delegates to native text history and schedules Roslyn analysis.
-- Evidence: `SceneSourceCommitPlanner.cs`; `SceneSaveVerification.cs`; `SceneEditorSessionService.cs`; `SceneWorkspaceService.cs`; `SceneTextBufferWriter.cs`; `SceneEditConflictMerger.cs`; all Hierarchy/Inspector/Viewport callers. Removed legacy includes `SceneEditDocument`, `SceneTextUndoLedger`, text watermark policies, external landing policy, own-save landing policy, multi-step save writer, and their implementation-detail tests.
-- Tests: `PendingSourceLandingTests`; `SceneSourceCommitPlannerTests`; `SceneSourceTruthArchitectureTests`; `SceneEditConflictMergerTests`; `SceneSaveVerificationTests`; `SceneTextChangePlannerTests`; `SceneUndoRoutingPolicyTests`; `SceneDesignerUndoCommandPolicyTests`; `SceneUndoRedoKeyPolicyTests`; `SceneSavePolicyTests`; `SceneProjectionIdentityTests`; `SceneSourceEditorTests`; complete VSIX Debug/Release suites.
+- Evidence: `SceneSourceCommitPlanner.cs`; `SceneJsonCommitPlanner.cs`; `SceneJsonWorkspaceSource.cs`; `SceneEditorSessionService.cs`; `SceneWorkspaceService.cs`; `SceneTextBufferWriter.cs`; `SceneEditConflictMerger.cs`; all Hierarchy/Inspector/Viewport callers. Removed legacy includes `SceneEditDocument`, `SceneTextUndoLedger`, text watermark policies, external landing policy, own-save landing policy, multi-step save writer, and their implementation-detail tests; M0093 removed the C# scene writer (`SceneSourceEditor`) and `SceneSaveVerification`.
+- Tests: `PendingSourceLandingTests`; `SceneJsonCommitPlannerTests`; `SceneJsonWorkspaceSourceTests`; `SceneSourceTruthArchitectureTests`; `SceneEditConflictMergerTests`; `SceneModelEditApplierTests` (predictions checked by writing and re-reading scene JSON); `SceneTextChangePlannerTests`; `SceneUndoRoutingPolicyTests`; `SceneDesignerUndoCommandPolicyTests`; `SceneUndoRedoKeyPolicyTests`; `SceneSavePolicyTests`; `SceneProjectionIdentityTests`; `HierarchySourceSyncTests`; complete VSIX suites.
 - Conformance: Matches. One gesture maps to at most one native Undo transaction; consecutive gestures before/after Roslyn landing retain NodeId and avoid self-rebase; external stale input is rebased or rejected; source, model, selection identity, and Hub projection converge without a second authoring state.
 - Next action: Keep `vsix.source-sync` in changed/full/VSIX suites while F-L8-026 consumes this source and diagnostic boundary.
 
@@ -3974,23 +4101,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Error and lifecycle contract: request/protocol mismatch, non-monotonic or non-finite progress, invalid terminal progress, nonzero exit, and error diagnostics cannot become success. Cancelling ignores late progress until the terminal result. Host diagnostic codes remain typed through resident client and bridge exceptions. Partial output paths survive failure/cancel; the UI never infers completion from file names or button state.
 - Evidence: `AuthoringOperationPresentation`; typed `ResidentBridgeClient.TryRunDetailed` and `AuthoringHostOperationException`; `PhysicsSceneBakeService`; Scene Designer Bake progress/cancel/diagnostic/artifact surfaces; Asset Preview inline progress/diagnostic surface; focused presentation/orchestration/architecture/localization and shared host tests.
 - Conformance: Matches F-L8-026 without adding another source writer, build implementation, mutable operation Manager, retry layer, or renderer.
-- Next action: Keep `vsix.bake-integration` in changed/full/VSIX suites while F-L8-027 consumes only immutable on-demand runtime snapshots.
-
-## F-L8-027 — Read-only runtime debug tools
-
-- Layer: L8 — Visual Studio Authoring Environment
-- Parent capability: Editor / VSIX
-- Status: Implemented
-- Verification: Automated Debug/Release stage evidence
-- Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
-- Stage: `vsix.debug-tools` (`Executable`, Headless / VSIX, 1800s)
-- Depends on: F-L8-026
-- Current delta: none for the automated contract. Protocol v4 adds one bounded `Snapshot` query to the existing Preview Host session. It reports immutable device/fence/frame/object/texture/error counters, bounded D3D12 diagnostics, and the canonical L4 Render Graph declaration. The graph is explicitly marked `DeclaredPlan`; no per-pass GPU execution or timing is fabricated while the D3D12 graph executor remains future work.
-- Source of truth and ownership: the existing `RenderServer` remains the only renderer/device owner. Its device lifecycle and counters are observed on demand. `RenderQualityPlan` is the engine-owned declared topology. The VSIX owns only one validated immutable presentation and creates no timer, renderer, host session, profiler clock, runtime handle, or editable state.
-- Error and lifecycle contract: snapshot requests carry protocol/request/session/monotonic sequence identity and a two-second response budget. A capture failure consumes its sequence but leaves the runtime session usable. Null, oversized, malformed, version-mismatched, or envelope-inconsistent data is rejected. Transport loss or malformed successful data faults the client and uses the existing fresh-surface recovery path. Diagnostic truncation is explicit.
-- Evidence: protocol boundary tests; same-session/non-terminal Host table and Named Pipe tests; real common Render Server WARP non-mutation tests; net472 client correlation/failure tests; presentation/architecture/localization tests; existing Physics and Spatial read-only visualizers. `vsix.debug-tools` passed Debug (`20260901T111335750Z-single-29723561406e411ab222de69f27fc5f2`) and Release (`20260901T111501042Z-single-6dab6c9310fc4412a2ea5c1232d0f70a`).
-- Conformance: Matches F-L8-027 without adding a second renderer, polling loop, mutable debug Manager, fictitious timing, control command, or runtime ownership path.
-- Next action: Keep `vsix.debug-tools` in changed/full/VSIX suites as an input to the executable F-L8-028 compatibility contract.
+- Next action: Keep `vsix.bake-integration` in changed/full/VSIX suites.
 
 ## F-L8-028 — VSIX compatibility matrix
 
@@ -4000,7 +4111,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified in Debug and Release
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
 - Stage: `vsix.compatibility` (`Executable`, Headless / VSIX, 3600s)
-- Depends on: F-L8-027
+- Depends on: F-L8-026
 - Current delta: `Docs/Verification/VSIX-Compatibility-Matrix.json` is the single versioned compatibility contract. The validator checks the net472 VSIX and automation projects, amd64 Visual Studio 17.14+ installation/prerequisite manifest, .NET Framework 4.7.2 dependency, pinned VS SDK/Roslyn versions, neutral en-US plus ja-JP satellite/template packaging, CgeFixed development hive, isolated CgeAutomation evidence hive, Debug/Release CI cells, exact Experimental checks/owners, and the aggregate manual entry.
 - Evidence semantics: pre-release validation accepts a structurally valid explicit Pending state and never turns it into compatibility success. It also accepts a structurally valid Passed row whose observation has aged past its expiry, because the expiry window is a time-based approximation of source drift rather than a measurement of it, and an ordinary build must not be blocked by it. Passed automated rows additionally prove configuration, locale, CgeAutomation suffix, Visual Studio minimum version, four SHA-256 provenance fields, all-passing assertions, and observation. `--require-passing-evidence` fails every required Pending/Failed/expired row and the manual summary, so freshness is a release requirement; F-L8-029 must use that mode.
 - Evidence: repository/mutation/release-fail-closed tests in `VsixCompatibilityMatrixValidatorTests`, existing manifest/package/localization/layout/Experimental automation tests, and build-time validator execution. Full FeatureRunner tests pass 76/76 and full net472 VSIX tests pass 970/970 in both Debug and Release. `vsix.compatibility` passed Debug (`20260901T114505804Z-vsix-a650a39f789646f1b6369d30e7bd6c87`) and Release (`20260901T114546489Z-vsix-609836b366cc4b7c8a3d67cae87be3fd`).
@@ -4125,7 +4236,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `ecs.performance` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-031, F-L6-007
 - Current delta: None. Independent 1, 64, 65, and 128 Component compilations execute the generated query over 100,000 active entities for exactly five warm-ups and thirty samples with Tiered JIT disabled. Raw and common reports bind the exact one-word/two-word source shape, generated-source SHA-256, deterministic state SHA-256, query, worker count, timing, and zero allocation.
-- Conformance: Debug records diagnostic timing without treating non-optimized code as a shipping oracle. Release gates median at 6 ms, p95 at 8.33 ms, and allocation p95 at zero; the separately compiled 64-type single-word path additionally fails if its median or nearest-rank p95 regresses more than 20 percent from the one-type direct path. Missing, duplicate, extra, malformed, aliased, or tampered boundary evidence fails closed.
+- Conformance: Debug records diagnostic timing without treating non-optimized code as a shipping oracle. Release gates median at 6 ms, p95 at 8.33 ms, and allocation p95 at zero; the separately compiled 64-type single-word path additionally fails if its median regresses more than 20 percent from the one-type direct path (the cross-process p95 comparison was removed on 2026-10-04 because it failed in quiet runs whose medians agreed). Missing, duplicate, extra, malformed, aliased, or tampered boundary evidence fails closed.
 - Evidence: current Debug Stage `20260901T155813468Z-ecs-release-performance-920d1c8ed90d477288a1349f15c72996`; current Release Stage `20260901T160004976Z-ecs-release-performance-9358908023fa4e8386adbfd9b7b67e3b`. Release 1/64/65/128 medians are 484,600/526,750/638,900/563,850 ns, p95 values are 645,700/695,600/929,600/646,500 ns, and allocation p95 is zero for every boundary.
 - Next action: Use these four raw captures and reports in F-L7-033 canonical ECS release evidence.
 
@@ -4166,7 +4277,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#server-data-flow`
 - Stage: `platform.window-input` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L1-008
-- Current delta: Win32 keyboard, mouse button/wheel, raw relative mouse, device notification, QPC timestamp, repeat suppression, and forced release on focus/capture/device/window loss are implemented behind `DrainInputEvents()`.
+- Current delta: Win32 keyboard, mouse button/wheel, raw relative mouse, XInput pad 0 (Unreal key names), device notification, QPC timestamp, repeat suppression, and forced release on focus/capture/device/window loss are implemented behind `DrainInputEvents()`. Mouse-look capture clips the cursor only while the window has focus. Automation can inject scheduled keys (ADR-0067).
 - Conformance: Matches
 - Next action: Preserve QPC and forced-release behavior while adding future device kinds.
 
@@ -4193,7 +4304,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#input-contract`
 - Stage: `input.actions` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L0-010
-- Current delta: Stable raw-event ordering, context priority, chord evaluation, 1D/2D dead-zone, reserved actions, collision-checked rebind, context/device cancellation, and deterministic action frames are implemented.
+- Current delta: Stable raw-event ordering, context priority, chord evaluation, 1D/2D dead-zone, reserved actions, collision-checked rebind, context/device cancellation, and deterministic action frames are implemented. `ReadValue` sums an action's bindings after ordered Negate/Swizzle modifiers, and relative mouse axes accumulate per processed frame (Enhanced Input semantics, ADR-0067).
 - Conformance: Matches
 - Next action: Preserve deterministic trace/action identity while adding future composite bindings.
 
@@ -4225,20 +4336,6 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Matches. Successful XAudio2 or Silent recreation restores only explicitly eligible artifact voices at a defined logical frame and stops non-eligible voices with typed decisions; failed recreation preserves logical state for retry and never retains a native pointer.
 - Next action: Preserve the immutable audio/device recovery snapshot contract through F-L7-034 compatibility evidence.
 
-## F-L8-030 — Platform diagnostics viewer
-
-- Layer: L8 — Visual Studio Authoring Environment
-- Parent capability: Audio / Input / Platform
-- Status: Implemented
-- Verification: TestVerified (Protocol v5 bounds, Input/Audio owned copies, Preview Host NotOwned state, Host/client fail-close, WARP, net472 presentation/localization)
-- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
-- Stage: `vsix.platform-debug` (`Executable`, Headless / VSIX, 1800s)
-- Depends on: F-L4-012
-- Current delta: none. Protocol v5/debug snapshot v2 carries a bounded process envelope, at most 64 current input actions, and audio lifecycle/mixer/recovery counters. Runtime services copy their own truth; the isolated Preview Host reports typed `NotOwned` for Input/Audio rather than fabricating state.
-- Evidence: `RenderPreviewHostProtocol`, `InputServer.CaptureDebugSnapshot`, `AudioDeviceServer.CaptureDebugSnapshot`, `EngineHost.CapturePlatformDebugSnapshot`, `PlatformDebugSnapshotCapture`, Host/client validation, the existing localized Scene Designer Runtime Diagnostics presentation, and focused Contracts/Windows/WARP/net472 tests.
-- Conformance: Matches. One explicit refresh uses the existing Preview Host session, contains no native handle or engine-owned authoritative numeric state, does not render or poll, and malformed schema or generation/fence mismatch fails closed without creating a second runtime owner.
-- Next action: Preserve the validated compatibility matrix through F-L7-035 platform release closure.
-
 ## F-L7-034 — Platform compatibility evidence
 
 - Layer: L7 — Static Compiler / Bake
@@ -4247,8 +4344,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified (versioned matrix, CI/workflow agreement, executable prerequisite closure, optional hardware ledger separation, Debug/Release Stage)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
 - Stage: `platform.compatibility` (`Executable`, Headless / Foundation, 3600s)
-- Depends on: F-L8-030
-- Current delta: none. `Platform-Compatibility-Matrix.json` binds the exact Input, Audio, and diagnostics prerequisite Stages to mandatory Windows x64 Debug/Release solution, Windows-TFM, and WARP CI cells without copying their dynamic result state.
+- Depends on: F-L4-012
+- Current delta: none. `Platform-Compatibility-Matrix.json` binds the exact Input and Audio prerequisite Stages to mandatory Windows x64 Debug/Release solution, Windows-TFM, and WARP CI cells without copying their dynamic result state.
 - Evidence: `PlatformCompatibilityMatrixValidator`, CI/workflow bidirectional validation, focused synthetic/silent runtime tests, explicit `hardware-audio`/`hardware-d3d12` Manual Evidence references, and passing Debug (`20260901T134331089Z-full-eda58875a7414b48b8919b4233ae5ceb`) / Release (`20260901T134337227Z-full-22bf326925d14baea1832fce1751c8cf`) Stage results.
 - Conformance: Matches. Hardware observations remain supplemental and cannot replace synthetic Input, Silent Audio, or WARP correctness; missing, duplicated, promoted, mismatched, or non-executable references fail closed.
 - Next action: Aggregate configuration, adapter, device, and Stage provenance into F-L7-035 platform release evidence.
@@ -4312,13 +4409,13 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
 - Status: Implemented
-- Verification: TestVerified (isolated restore, no-incremental Debug/Release builds, no-build Debug/Release full tests, artifact counts/hashes, cleanup, stale-output regression)
+- Verification: TestVerified (isolated restore, fresh-root Debug/Release builds, no-build Debug/Release full tests, artifact counts/hashes, cleanup, stale-output regression)
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
 - Stage: `verification.clean-build` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-038
-- Current delta: none. Each run owns a unique `.artifacts/CleanBuild/work` subtree and isolated NuGet package/artifact roots; normal `bin/obj` outputs are neither cleaned nor consumed.
+- Current delta: none. Each run owns a unique `.artifacts/CleanBuild/work` subtree (a 12-character run ID, so the VSIX's staged bridge files stay under MAX_PATH) and isolated NuGet package/artifact roots; `NUGET_PACKAGES` points every command, including the restores nested in the build, at the isolated folder; normal `bin/obj` outputs are neither cleaned nor consumed (the ECS benchmark still writes its generated sources under its normal `obj`).
 - Evidence: versioned clean-build JSON, restore/build/test output hashes, managed assembly count, Debug/Release full-suite results, owned-root cleanup, and the isolated-output VSIX regression fix.
-- Conformance: Matches. Restore, no-incremental Debug/Release solution build, and no-build Debug/Release full tests run in one isolated graph. The first adversarial run exposed a stale normal-bin VSIX copy; the test project now selects the active `ArtifactsPath`, and the repeated full matrix passes.
+- Conformance: Matches. Restore, Debug/Release solution builds of the empty owned root, and no-build Debug/Release full tests run in one isolated graph. The first adversarial run exposed a stale normal-bin VSIX copy; the test project now selects the active `ArtifactsPath`, and the repeated full matrix passes. 2026-10-04: on a fresh git worktree the stage failed (it had last run on 2026-08-31 in the main tree, where it silently used the normal-bin shader/scene-schema/Feature Runner executables and the normal-bin VSIX); the build now restores and locates the tools it runs from their own build outputs, and the full matrix passes on a fresh worktree ([Conformance](Conformance.md)). The builds are plain builds of the empty owned root: a Rebuild (`--no-incremental`) cleaned tools that projects had built for their own use (audit AUD-004).
 - Next action: Apply the same provenance contract to governed golden updates in F-L7-040.
 
 ## F-L7-040 — Golden artifact policy
@@ -4470,6 +4567,31 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: Typed syntax-node graphs and recursive external production Subgraphs deterministically regenerate production HLSL, while high-level If/Else, statically bounded ForRange, LoopIndex, and typed Return lower with source mapping. All nine fixed-ABI entries compile and dependency-identical artifacts are reused.
 - Conformance: Matches
 - Next action: Extend the typed node catalog only with explicit ABI-compatible nodes.
+
+## F-L8-032 — ThirdPerson Visual Studio project template
+
+- M0098: the template's floor, walls and steps (the four `MI_PrototypeGrid_Gray` meshes) now draw Unreal's 1 m grid with 20 cm sub lines in world space instead of the baked textures that rendered as scrambled triangles (ADR-0075). Observed by launching the template on WARP and comparing the spawn view with the Unreal reference capture.
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX Roadmap
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP); interactive VS dialog creation is a manual check
+- Intended specification: `Docs/Decisions/ADR-0068-ThirdPerson-Project-Template.md`
+- Stage: `vsix.project-template` (`Executable`, Visual / VSIX, 2400s)
+- Depends on: F-L6-009, F-L8-031
+- Implementation evidence:
+  - `tools/CSharpGameEngine.ProjectTemplates/GameProjectGenerator.cs`
+  - `tools/CSharpGameEngine.VSExtension/GameProjectTemplateWizard.cs`
+  - `tools/CSharpGameEngine.VSExtension/ProjectTemplates/CSharp/GameEngine/ThirdPerson/`
+  - the VSIX `ProjectTemplateSources/` and `Packages/` payloads
+  - `tools/CSharpGameEngine.FeatureRunner/TemplatePackageVerification.cs`
+  - `THIRD_PARTY_NOTICES.md`
+- Current delta:
+  - Only the base Third Person template.
+  - No Combat, Platforming or SideScroller variants and no touch controls.
+  - Creation from the dialog has not been observed in an Experimental instance yet.
+- Conformance: `GameProjectGeneratorTests` and `VsixManifestTests`. The Stage generates "My ThirdPerson" in %TEMP%, builds it from the package, and plays it on WARP; see [M0092](Milestones/M0092-Sdk-Package-And-Project-Template.md).
+- Next action: record the interactive creation in the Experimental instance, and consider more template variants.
 
 ## F-L8-031 — Visual Shader Graph editor
 

@@ -16,7 +16,7 @@ internal static class TypedLightTestScene {
             File.ReadAllText(Path.Combine(Root,"src/CSharpGameEngine.Runtime.Lighting/LightComponents.cs")),
             File.ReadAllText(Path.Combine(Root,"src/CSharpGameEngine.Entities/SceneComponentOrderAttribute.cs")),
             File.ReadAllText(Path.Combine(Root,"src/CSharpGameEngine.Entities/SceneComponentIconAttribute.cs")),
-            "namespace CSharpGameEngine.Entities { public struct Transform {} }",
+            "namespace CSharpGameEngine.Entities { [SceneComponentOrder(SceneComponentCategory.Spatial,0)] public struct Transform {} }",
             "namespace CSharpGameEngine.Runtime.Windows { public enum CameraProjection { Perspective,Orthographic } public struct Camera { public CameraProjection Projection; public float FovYRadians; public float NearZ; public float FarZ; public float OrthographicSize; } }",
             Source,
         };

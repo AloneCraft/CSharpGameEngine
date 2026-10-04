@@ -1,0 +1,307 @@
+using System.Globalization;
+using System.Reflection;
+using CSharpGameEngine.SceneAnalysis.Json;
+
+namespace CSharpGameEngine.EditorPreview.Host;
+
+/// <summary>
+/// Turns a scene JSON value into a value of the game's own type by reflection (ADR-0070 decision 6).
+/// It follows the generator's rules (<c>SceneJsonSceneAnalyzer</c>): enums are member names, numbers
+/// fill numeric members or types with an implicit conversion from <c>float</c>, and objects use the
+/// public constructor that consumes the most keys and then settable members. The runtime view uses it
+/// to apply the editor's values to the running world; the generator has already checked the document.
+/// In a schema version 2 or later document every number inside an <c>[Angle]</c> member is in turns, and an angle's key
+/// may leave out the C# unit word (ADR-0074, <see cref="SceneJsonAngles.KeyFor"/>).
+/// </summary>
+internal static class SceneJsonRuntimeValues {
+    internal static object?Create(Type Type,SceneJsonValue Value,string Where)=>Create(Type,Value,Where,new Reading(Turns:false),null);
+
+    /// <summary>A component: its members object, read as the component type's object value.</summary>
+    internal static object Component(Type Type,SceneJsonValue Members,string Where,bool Turns=false)=>
+        Object(Type,Members,Where,new Reading(Turns),null);
+
+    /// <summary>
+    /// A component type by its document name, as the generator resolves it: the metadata name, or a nested type as C# and
+    /// the document name it (<c>Ns.Outer.Inner</c>), whose metadata name joins nested types with '+'.
+    /// </summary>
+    internal static Type?FindType(IEnumerable<Assembly>Assemblies,string FullName){
+        var Name=FullName;
+        for(var Dot=Name.Length;Dot>0;Dot=Name.LastIndexOf('.',Dot-1)){
+            if(Dot<Name.Length){ Name=Name.Substring(0,Dot)+"+"+Name.Substring(Dot+1); }
+            foreach(var Assembly in Assemblies){
+                if(Assembly.GetType(Name,throwOnError:false) is { }Type){ return Type; }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Whether the document's angles are turns: <c>schemaVersion</c> 2 or later.</summary>
+    internal static bool UsesTurns(SceneJsonValue Document)=>
+        Document.Get("schemaVersion") is { Kind:SceneJsonKind.Number }Version
+        &&int.TryParse(Version.Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Number)
+        &&Number>=SceneJsonAngles.TurnsSchemaVersion;
+
+    private sealed record Reading(bool Turns);
+
+    private static object?Create(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
+        if(Value.Kind==SceneJsonKind.Null){
+            return !Type.IsValueType||Nullable.GetUnderlyingType(Type) is not null
+                ?null
+                :throw Mismatch(Where,Type,"null is only valid for reference and nullable types");
+        }
+        if(Nullable.GetUnderlyingType(Type) is { }Underlying){ return Create(Underlying,Value,Where,Reading,Unit); }
+        if(Type.IsEnum){
+            return Value.Kind==SceneJsonKind.String&&Enum.GetNames(Type).Contains(Value.Text,StringComparer.Ordinal)
+                ?Enum.Parse(Type,Value.Text!)
+                :throw Mismatch(Where,Type,"an enum value is written as the member name string");
+        }
+        if(Type==typeof(bool)){
+            return Value.Kind switch {
+                SceneJsonKind.True=>true,
+                SceneJsonKind.False=>false,
+                _=>throw Mismatch(Where,Type,"expected true or false"),
+            };
+        }
+        if(Type==typeof(string)){
+            return Value.Kind==SceneJsonKind.String?Value.Text!:throw Mismatch(Where,Type,"expected a string");
+        }
+        if(Value.Kind==SceneJsonKind.Number){
+            // An angle in turns becomes the member's unit; the rest of the number rules then apply unchanged.
+            var Text=Unit is { }AngleUnit&&Reading.Turns&&SceneJsonAngles.IsNumber(Value.Text)
+                ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit).ToString("R",CultureInfo.InvariantCulture)
+                :Value.Text!;
+            return Number(Type,Text,Where);
+        }
+        if(Value.Kind==SceneJsonKind.Array){ return Collection(Type,Value,Where,Reading,Unit); }
+        if(Value.Kind==SceneJsonKind.Object&&(Type.IsValueType||Type.IsClass)){ return Object(Type,Value,Where,Reading,Unit); }
+        throw Mismatch(Where,Type,"this JSON value cannot be converted to the member's type");
+    }
+
+    /// <summary>The unit an <c>[Angle]</c> attribute declares, matched by name so the game's own load of Contracts counts.</summary>
+    private static SceneAngleUnit?AngleUnitOf(IEnumerable<CustomAttributeData>Attributes){
+        foreach(var Attribute in Attributes){
+            if(Attribute.AttributeType.FullName==SceneJsonAngles.AttributeFullName&&Attribute.ConstructorArguments is [{ }Argument]){
+                return SceneJsonAngles.UnitFromArgument(Argument.Value);
+            }
+        }
+        return null;
+    }
+
+    private static object Number(Type Type,string Text,string Where){
+        IFormatProvider Culture=CultureInfo.InvariantCulture;
+        // A real reads as the generator's literal of it does: with an exponent (Convert rejects one for decimal), and a
+        // number beyond the type is a build error (SCENE203), which .NET's parse would read as infinity.
+        if(Type==typeof(float)){
+            return float.TryParse(Text,RealStyles,Culture,out var Single)&&float.IsFinite(Single)
+                ?Single
+                :throw Mismatch(Where,Type,"the number is beyond the range of float");
+        }
+        if(Type.GetTypeCode(Type) is TypeCode.Double or TypeCode.Decimal){
+            return Real(Type,Text)??throw Mismatch(Where,Type,"the number is beyond the range of "+Type.Name);
+        }
+        if(!Type.IsEnum&&Type.IsPrimitive&&Type!=typeof(bool)&&Type!=typeof(char)){
+            try {
+                return Convert.ChangeType(Text,Type,Culture);
+            } catch(Exception Error)when(Error is FormatException or OverflowException or InvalidCastException){
+                throw Mismatch(Where,Type,Error.Message);
+            }
+        }
+        // The generator writes the literal with an f suffix into a target-typed position, so the type's
+        // implicit conversion from float (or a wider real reached from float) applies: boxing for an object or
+        // interface member (IComparable), else the type's own conversion.
+        if(Type.IsAssignableFrom(typeof(float))){
+            return float.TryParse(Text,RealStyles,Culture,out var Boxed)&&float.IsFinite(Boxed)
+                ?Boxed
+                :throw Mismatch(Where,Type,"the number is beyond the range of float");
+        }
+        foreach(var Conversion in Type.GetMethods(BindingFlags.Public|BindingFlags.Static)){
+            if(Conversion.Name=="op_Implicit"&&Conversion.ReturnType==Type
+                &&Conversion.GetParameters() is [{ }Only]
+                &&Type.GetTypeCode(Only.ParameterType) is TypeCode.Single or TypeCode.Double){
+                return Invoke(Where,Type,()=>Conversion.Invoke(null,[Convert.ChangeType(float.Parse(Text,Culture),Only.ParameterType,Culture)])!);
+            }
+        }
+        throw Mismatch(Where,Type,"a number needs a numeric member or a type convertible from float");
+    }
+
+    /// <summary>A JSON number's styles, as the compiler reads the generator's real literal (its minus sign is a separate token).</summary>
+    private const NumberStyles RealStyles=NumberStyles.AllowLeadingSign|NumberStyles.AllowDecimalPoint|NumberStyles.AllowExponent;
+
+    /// <summary>A finite double or a decimal from a JSON number, or null when the type cannot hold it.</summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static object?Real(Type Type,string Text){
+        if(Type.GetTypeCode(Type)==TypeCode.Decimal){
+            return decimal.TryParse(Text,RealStyles,CultureInfo.InvariantCulture,out var Decimal)?Decimal:null;
+        }
+        return double.TryParse(Text,RealStyles,CultureInfo.InvariantCulture,out var Double)&&double.IsFinite(Double)?Double:null;
+    }
+
+    private static object Collection(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
+        var Element=Type.IsArray?Type.GetElementType():ElementType(Type);
+        if(Element is null){ throw Mismatch(Where,Type,"an array needs an array or collection member"); }
+        var Items=Array.CreateInstance(Element,Value.Items.Count);
+        for(var Index=0;Index<Items.Length;Index++){
+            Items.SetValue(Create(Element,Value.Items[Index],Where+"["+Index.ToString(CultureInfo.InvariantCulture)+"]",Reading,Unit),Index);
+        }
+        if(Type.IsAssignableFrom(Items.GetType())){ return Items; }
+        if(Type.IsGenericType&&Type.GetGenericTypeDefinition().FullName=="System.Collections.Immutable.ImmutableArray`1"){
+            var Create=Type.Assembly.GetType("System.Collections.Immutable.ImmutableArray")!
+                .GetMethods().First(static Method=>Method.Name=="Create"&&Method.GetParameters() is [{ ParameterType.IsArray:true }]);
+            return Create.MakeGenericMethod(Element).Invoke(null,[Items])!;
+        }
+        // The rest as the generator's collection expression creates them: a type with a public parameterless constructor
+        // and a public Add for one element (List<T>, HashSet<T>), else a [CollectionBuilder] type (ImmutableList<T>,
+        // ReadOnlyCollection<T>) through its builder's CreateRange or a public constructor that takes the elements.
+        if(!Type.IsAbstract&&(Type.IsValueType||Type.GetConstructor(Type.EmptyTypes) is not null)&&AddMethod(Type,Element) is { }Add){
+            var Filled=Activator.CreateInstance(Type)!;
+            foreach(var Item in Items){ Invoke(Where,Type,()=>Add.Invoke(Filled,[Item])); }
+            return Filled;
+        }
+        if(CollectionBuilder(Type) is { }Builder){
+            foreach(var Method in Builder.GetMethods(BindingFlags.Public|BindingFlags.Static)){
+                if(Method.Name!="CreateRange"||!Method.IsGenericMethodDefinition||Method.GetGenericArguments().Length!=1){ continue; }
+                MethodInfo Closed;
+                try { Closed=Method.MakeGenericMethod(Element); } catch(ArgumentException){ continue; }
+                if(Closed.ReturnType==Type&&Closed.GetParameters() is [{ }Only]&&Only.ParameterType.IsAssignableFrom(Items.GetType())){
+                    return Invoke(Where,Type,()=>Closed.Invoke(null,[Items])!);
+                }
+            }
+            // A collection expression never calls a constructor with the elements, so only a builder type is made this way.
+            foreach(var Constructor in Type.GetConstructors()){
+                if(Constructor.GetParameters() is [{ }Only]&&Only.ParameterType.IsAssignableFrom(Items.GetType())){
+                    return Invoke(Where,Type,()=>Constructor.Invoke([Items]));
+                }
+            }
+        }
+        throw Mismatch(Where,Type,"this collection type cannot be created from a JSON array");
+    }
+
+    /// <summary>A public instance Add that takes one element (any further parameters optional).</summary>
+    private static MethodInfo?AddMethod(Type Type,Type Element)=>
+        Type.GetMethods(BindingFlags.Public|BindingFlags.Instance).FirstOrDefault(Method=>Method.Name=="Add"
+            &&Method.GetParameters() is [{ }First,..]&&First.ParameterType.IsAssignableFrom(Element)
+            &&Method.GetParameters().Skip(1).All(static Parameter=>Parameter.IsOptional));
+
+    /// <summary>The builder type a <c>[CollectionBuilder]</c> attribute names, matched by name as the game's own load sees it.</summary>
+    private static Type?CollectionBuilder(Type Type)=>
+        (Type.IsGenericType?Type.GetGenericTypeDefinition():Type).CustomAttributes
+            .FirstOrDefault(static Attribute=>Attribute.AttributeType.FullName=="System.Runtime.CompilerServices.CollectionBuilderAttribute")
+            ?.ConstructorArguments is [{ Value:Type Builder },..]?Builder:null;
+
+    private static Type?ElementType(Type Type)=>
+        Type.GetInterfaces().Prepend(Type)
+            .FirstOrDefault(static Interface=>Interface.IsGenericType&&Interface.GetGenericTypeDefinition()==typeof(IEnumerable<>))
+            ?.GetGenericArguments()[0];
+
+    private static object Object(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
+        var Keys=Value.Properties.Select(static Property=>Property.Name).ToHashSet(StringComparer.Ordinal);
+        var Constructor=ChooseConstructor(Type,Keys);
+        HashSet<string>Consumed=new(StringComparer.Ordinal);
+        object Instance;
+        if(Constructor is not null){
+            var Arguments=Constructor.GetParameters().Select(Parameter=>{
+                var Key=KeyOf(Type,Parameter.Name!,Parameter.CustomAttributes);
+                if((Value.Get(Parameter.Name!)??Value.Get(Key)) is { }Argument){
+                    Consumed.Add(Parameter.Name!);
+                    Consumed.Add(Key);
+                    return Create(Parameter.ParameterType,Argument,Where+"."+Parameter.Name,Reading,Unit??AngleUnitOf(Parameter.CustomAttributes));
+                }
+                return Parameter.DefaultValue;
+            }).ToArray();
+            Instance=Invoke(Where,Type,()=>Constructor.Invoke(Arguments));
+        } else {
+            // A struct's parameterless constructor runs its field initializers, as `new T { ... }` does. A class without
+            // one does not fit (the generated code would not compile either) rather than throwing past the caller.
+            try {
+                Instance=Activator.CreateInstance(Type)
+                    ??throw Mismatch(Where,Type,"the type cannot be constructed");
+            } catch(MemberAccessException){
+                throw Mismatch(Where,Type,"the type has no public parameterless constructor");
+            }
+        }
+        foreach(var Property in Value.Properties){
+            if(Consumed.Contains(Property.Name)){ continue; }
+            switch(FindSettableMember(Type,Property.Name)){
+                case FieldInfo Field:
+                    Field.SetValue(Instance,Create(Field.FieldType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Field.CustomAttributes)));
+                    break;
+                case PropertyInfo Member:{
+                    var MemberValue=Create(Member.PropertyType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Member.CustomAttributes));
+                    Invoke(Where+"."+Property.Name,Member.PropertyType,()=>{ Member.SetValue(Instance,MemberValue);return MemberValue; });
+                    break;
+                }
+                default:
+                    throw Mismatch(Where,Type,$"'{Property.Name}' is not a settable member or constructor parameter");
+            }
+        }
+        return Instance;
+    }
+
+    /// <summary>The generator's choice: the public constructor whose parameters are all named or defaulted and that consumes the most keys.</summary>
+    private static ConstructorInfo?ChooseConstructor(Type Type,HashSet<string>Keys){
+        ConstructorInfo?Best=null;
+        var BestCount=-1;
+        foreach(var Candidate in Type.GetConstructors(BindingFlags.Public|BindingFlags.Instance)){
+            // As the generator: a ref or out parameter cannot take a value, and an obsolete-as-error constructor cannot be called.
+            if(Candidate.GetParameters().Any(static Parameter=>Parameter.ParameterType.IsByRef&&!Parameter.IsIn)
+                ||Candidate.CustomAttributes.Any(static Attribute=>Attribute.AttributeType.FullName=="System.ObsoleteAttribute"
+                    &&Attribute.ConstructorArguments is [_,{ Value:true }])){
+                continue;
+            }
+            var Count=0;
+            var Usable=true;
+            foreach(var Parameter in Candidate.GetParameters()){
+                if(Keys.Contains(Parameter.Name!)||Keys.Contains(KeyOf(Type,Parameter.Name!,Parameter.CustomAttributes))){
+                    Count++;
+                } else if(!Parameter.HasDefaultValue){
+                    Usable=false;
+                    break;
+                }
+            }
+            if(Usable&&Count>BestCount){
+                Best=Candidate;
+                BestCount=Count;
+            }
+        }
+        return BestCount>0?Best:null;
+    }
+
+    /// <summary>The settable member a key names: by its C# name, or an angle by its unit-free key.</summary>
+    private static MemberInfo?FindSettableMember(Type Type,string Name){
+        if(FindSettableMemberNamed(Type,Name) is { }Named){ return Named; }
+        foreach(var Member in Type.GetMembers(BindingFlags.Public|BindingFlags.Instance)){
+            if(Member.Name!=Name&&KeyOf(Type,Member.Name,Member.CustomAttributes)==Name&&FindSettableMemberNamed(Type,Member.Name) is { }Angle){
+                return Angle;
+            }
+        }
+        return null;
+    }
+
+    private static MemberInfo?FindSettableMemberNamed(Type Type,string Name){
+        if(Type.GetField(Name,BindingFlags.Public|BindingFlags.Instance) is { IsInitOnly:false,IsLiteral:false }Field){ return Field; }
+        return Type.GetProperty(Name,BindingFlags.Public|BindingFlags.Instance) is { SetMethod.IsPublic:true }Property?Property:null;
+    }
+
+    /// <summary>The key of a member or constructor parameter, by the generator's rule (<c>SceneJsonSceneAnalyzer.KeyOf</c>).</summary>
+    private static string KeyOf(Type Type,string Name,IEnumerable<CustomAttributeData>Attributes)=>
+        AngleUnitOf(Attributes) is null?Name:SceneJsonAngles.KeyFor(Name,Key=>
+            Type.GetMember(Key,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static).Length>0
+            ||Type.GetConstructors(BindingFlags.Public|BindingFlags.Instance).Any(Constructor=>Constructor.GetParameters().Any(Parameter=>Parameter.Name==Key)));
+
+    private static InvalidOperationException Mismatch(string Where,Type Type,string Reason)=>
+        new($"The value for '{Where}' does not fit '{Type.FullName}': {Reason}.");
+
+    /// <summary>
+    /// Calls a conversion, constructor or setter of the game's type. A value the type itself rejects (a position beyond
+    /// the Q64.64 range, a negative light colour) does not fit either, so the caller can keep the last good value.
+    /// </summary>
+    private static T Invoke<T>(string Where,Type Type,Func<T>Call){
+        try {
+            return Call();
+        } catch(TargetInvocationException Error)when(Error.InnerException is { }Rejection){
+            throw Mismatch(Where,Type,Rejection.Message);
+        }
+    }
+}

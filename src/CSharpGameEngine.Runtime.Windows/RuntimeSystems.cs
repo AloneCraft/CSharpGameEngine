@@ -11,9 +11,6 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-[SystemOrder(1)]
-file sealed class Order;
-
 /// <summary>Transformの位置とローカル+Zを、ライト用のScale非依存なワールド入力へ写像する。</summary>
 internal static class LightTransform {
     internal static FixedTransformStatus TryGetRectanglePose(Entity Entity,EcsWorld World,EngineHost Host,
@@ -70,23 +67,27 @@ internal struct Window:ISystem {
     private Entity HostEntity;
     private bool HasHostEntity;
 
-    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,EngineHost Host,ref State State){
         if(!this.HasHostEntity){this.HostEntity=Entity;this.HasHostEntity=true;}
         else if(!this.HostEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
+        if(Host.ExternalSurface is not null){
+            // ADR-0070 B1: the editor owns the surface and its input.
+            return;
+        }
         if(Host.Window is null){
             Host.EnsureWindow(App);
-            return true;
+            return;
         }
         Win32Window Window=Host.Window;
         Window.PumpEvents();
+        Host.Automation?.ApplyInput(Window);
         Host.Input.ProcessEvents(Window.DrainInputEvents());
         if(Window.IsClosed){
             State.Enabled=false;
-            return false;
+            return;
         }
-        return true;
     }
 }
 
@@ -105,11 +106,14 @@ internal static class LightValidation {
     internal static LightShadowSettings? Shadow(Entity Entity,EcsWorld World)=>
         World.TryGetComponent(Entity,out LightShadow Value)?new LightShadowSettings(Value.Priority,Value.Bias):null;
 }
+// ADR-0073: the Presentation systems keep the order they had under [SystemOrder] as one chain:
+// SpringArmUpdate, this file's systems in declaration order, the animation systems, SkinnedMeshSync,
+// audio, Present. Edges between systems with no data dependency could be relaxed after analysis.
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Character.SpringArmUpdate))]
 internal struct LightShadowValidation:ISystem {
-    public bool Update(Entity Entity,ref LightShadow Shadow,ref LightShadowRuntime Runtime,ref State State){
+    public void Update(Entity Entity,ref LightShadow Shadow,ref LightShadowRuntime Runtime,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        return true;
     }
 }
 
@@ -119,27 +123,87 @@ internal struct LightShadowValidation:ISystem {
 /// {AppHost,Level}より後ろへ登録されるため、同一フレームで確定してはならない。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(LightShadowValidation))]
 internal struct LevelLoad:ISystem {
     private Entity LevelEntity;
     private bool HasLevelEntity;
     private List<(Entity Entity,Transform Transform,StaticMesh Mesh)>?PendingStaticMeshes;
     private List<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>?PendingPrimitives;
+    private List<(Entity Entity,Transform Transform,SkeletalMesh Mesh)>?PendingSkeletalMeshes;
     private Entity PendingCameraEntity;
     private Camera PendingCamera;
     private int ActiveCameraCount;
     private bool RosterCaptured;
 
-    public bool Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingStaticMeshes??=[]).Add((Entity,Transform,Mesh));
-        return true;
     }
 
-    public bool Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
+    /// <summary>
+    /// The projection the view is seen with: the field of view and clip range of the editor camera when the Scene
+    /// Designer supplies one (ADR-0070 B1), otherwise the scene camera's. The exposure and the depth mapping are the
+    /// scene camera's in the editor too, so the view looks like the game. A radial view covers any range at no cost, so
+    /// it sees at least what the scene camera sees (M0099: the editor's focus-based range alone would undo what radial
+    /// depth is for) and, in the editor, also what the designer frames (M0100).
+    /// </summary>
+    private static void ApplyProjection(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera){
+        if(Editor is { }EditorCamera){
+            View.FovYRadians=EditorCamera.FovYRadians;
+            View.NearZ=EditorCamera.NearZ;
+            View.FarZ=EditorCamera.FarZ;
+        } else if(HasSceneCamera){
+            View.FovYRadians=SceneCamera.FovYRadians;
+            View.NearZ=SceneCamera.NearZ;
+            View.FarZ=SceneCamera.FarZ;
+        }
+        if(!HasSceneCamera){
+            return;
+        }
+        View.ExposureEv100=SceneCamera.ExposureEv100;
+        View.DepthMapping=SceneCamera.DepthMapping==CameraDepthMapping.Radial?RenderDepthMapping.Radial:RenderDepthMapping.Standard;
+        View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
+        if(View.DepthMapping==RenderDepthMapping.Radial){
+            View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
+            View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
+        }
+    }
+
+    /// <summary>
+    /// Applies the projection (<see cref="ApplyProjection"/>) to <paramref name="View"/> unless <paramref name="Renderer"/> cannot use
+    /// the result, which keeps <paramref name="View"/>'s current one. Returns the first unusable member, or null.
+    /// </summary>
+    private static string?ProjectIfUsable(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera,RenderServer?Renderer){
+        var Projected=View;
+        ApplyProjection(ref Projected,Editor,HasSceneCamera,SceneCamera);
+        var Invalid=Renderer is null?null:InvalidProjectionProperty(Projected,Renderer.SurfaceWidth/(float)Renderer.SurfaceHeight);
+        if(Invalid is null){
+            View=Projected;
+        }
+        return Invalid;
+    }
+
+    /// <summary>The first member of <paramref name="View"/>'s projection the renderer cannot use, or null.</summary>
+    private static string?InvalidProjectionProperty(in RenderCamera View,float AspectRatio){
+        if(!(View.FovYRadians>0f&&View.FovYRadians<MathF.PI)){ return nameof(Camera.FovYRadians); }
+        if(!(float.IsFinite(View.NearZ)&&View.NearZ>0f)){ return nameof(Camera.NearZ); }
+        if(!(float.IsFinite(View.FarZ)&&View.FarZ>View.NearZ)){ return nameof(Camera.FarZ); }
+        if(!float.IsFinite(View.ExposureEv100)){ return nameof(Camera.ExposureEv100); }
+        if(View.DepthMapping==RenderDepthMapping.Radial){
+            if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
+            if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
+        }
+        return null;
+    }
+
+    public void Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingPrimitives??=[]).Add((Entity,Transform,Mesh));
-        return true;
     }
 
-    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref SkeletalMesh Mesh,ref State State){
+        if(!this.RosterCaptured)(this.PendingSkeletalMeshes??=[]).Add((Entity,Transform,Mesh));
+    }
+
+    public void Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
         if(!this.RosterCaptured&&Camera.Active){
             this.ActiveCameraCount++;
             if(this.ActiveCameraCount==1){
@@ -147,22 +211,26 @@ internal struct LevelLoad:ISystem {
                 this.PendingCamera=Camera;
             }
         }
-        return true;
     }
-    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,EngineHost Host,ref State State){
         if(!this.HasLevelEntity){this.LevelEntity=Entity;this.HasLevelEntity=true;}
         else if(!this.LevelEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one Level.");
         }
         if(LevelRuntime.Loaded){
-            FixedTransformResolveStatus CameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
-                this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
+            FixedTransformResolveStatus CameraResolveStatus=ResolveCamera(
+                Host,this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
             LevelRuntime.LastCameraWorldResolveStatus=CameraResolveStatus;
             if(CameraResolveStatus==FixedTransformResolveStatus.Success){
                 RenderCamera ActiveRenderCamera=Host.RenderCamera;
                 FixedTransformStatus CameraStatus=CameraTransform.TryApplyWorldOrientation(
                     CameraWorld,ref ActiveRenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
+                // A value edit (the Scene Designer's or the game's) replaces the scene camera's component, so the
+                // projection is taken again every frame. Like the lights, an unusable value keeps the last good one.
+                Camera SceneCamera=default;
+                var HasSceneCamera=this.ActiveCameraCount>0&&State.World.TryGetComponent(this.PendingCameraEntity,out SceneCamera);
+                LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref ActiveRenderCamera,Host.EditorCamera,HasSceneCamera,SceneCamera,Host.Renderer);
                 if(CameraStatus==FixedTransformStatus.Success){
                     // Presentation runs system-major. Refresh before later Renderable/light
                     // archetype executes so every GPU submission in this frame uses one camera origin.
@@ -175,37 +243,48 @@ internal struct LevelLoad:ISystem {
                     CameraResolveStatus);
             }
             Host.Renderer?.SetCamera(Host.RenderCamera);
-            return true;
+            return;
         }
-        if(Host.Window is not{ }Window){
+        Win32Window?Window=Host.Window;
+        if(Host.ExternalSurface is null&&Window is null){
             // Windowが未生成のフレームで集めたロースターは次フレームと二重集計されるため破棄する。
             this.PendingStaticMeshes=null;
             this.PendingPrimitives=null;
+            this.PendingSkeletalMeshes=null;
             this.PendingCameraEntity=default;
             this.PendingCamera=default;
             this.ActiveCameraCount=0;
-            return true;
+            return;
         }
         this.RosterCaptured=true;
-        if(this.ActiveCameraCount==0){
+        if(this.ActiveCameraCount==0&&Host.EditorCamera is null){
             throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
         }
-        if(this.ActiveCameraCount>1){
+        // ADR-0070 B1: the editor camera replaces every scene camera, and the editor's world (startup
+        // scenes plus the edited scene) may hold several, so only a game must have exactly one.
+        if(this.ActiveCameraCount>1&&Host.EditorCamera is null){
             throw new InvalidOperationException($"Runtime requires exactly one active Camera, but {this.ActiveCameraCount} were found.");
         }
 
         var Scene=StageSceneDataBuilder.Build(
             this.PendingStaticMeshes??=[],
-            this.PendingPrimitives??=[]);
-        var Renderer=RenderServer.Create(
-                                          Window.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
-                                          Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
+            this.PendingPrimitives??=[],
+            this.PendingSkeletalMeshes??=[]);
+        var Renderer=Host.ExternalSurface is { }Surface
+            ?RenderServer.Create(
+                                  Surface.Handle,Surface.Width,Surface.Height,Surface.DeviceOptions,
+                                  ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects)
+            :RenderServer.Create(
+                                  Window!.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
+                                  ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Host.OwnRenderer(Renderer);
-        Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
+        if(Window is not null){
+            Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
+        }
 
         var Camera=RenderCamera.CreateFirstPerson(Vector3.Zero);
-        FixedTransformResolveStatus InitialCameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
-            this.PendingCameraEntity,State.World,out FixedAffineTransform InitialCameraWorld,out var InitialCameraFrame);
+        FixedTransformResolveStatus InitialCameraResolveStatus=ResolveCamera(
+            Host,this.PendingCameraEntity,State.World,out FixedAffineTransform InitialCameraWorld,out var InitialCameraFrame);
         LevelRuntime.LastCameraWorldResolveStatus=InitialCameraResolveStatus;
         if(InitialCameraResolveStatus!=FixedTransformResolveStatus.Success){
             throw new InvalidOperationException(
@@ -220,11 +299,11 @@ internal struct LevelLoad:ISystem {
                 $"The active camera Transform basis cannot produce a renderer view: {InitialCameraStatus}.");
         }
 
-        Camera.FovYRadians= this.PendingCamera.FovYRadians;
-        Camera.NearZ= this.PendingCamera.NearZ;
-        Camera.FarZ= this.PendingCamera.FarZ;
-        Camera.ExposureEv100=this.PendingCamera.ExposureEv100;
+        // As on later frames, a scene value the renderer cannot use is named and keeps the default projection
+        // instead of failing the load (a saved zero near plane used to end the game and the Scene Designer's view).
+        LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref Camera,Host.EditorCamera,this.ActiveCameraCount>0,this.PendingCamera,Renderer);
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
+        Host.RegisterWorldGridMaterials(Scene.Materials);
         LevelRuntime.HasLastCameraWorldPose=true;
         LevelRuntime.Loaded=true;
         LevelRuntime.ShaderSemanticHash=Renderer.ShaderSemanticHash;
@@ -245,6 +324,7 @@ internal struct LevelLoad:ISystem {
             Renderer.SetObjectTransform(
                 ObjectIndex,
                 Scene.ObjectLocalTransforms[ObjectIndex]*CameraRelativeWorld);
+            Host.RegisterRenderObject(Scene.SourceEntities[ObjectIndex],ObjectIndex);
             State.World.CreateDeferred(
                 Scene.ObjectTransforms[ObjectIndex],
                 new Renderable {
@@ -285,16 +365,58 @@ internal struct LevelLoad:ISystem {
             }
         }
 
+        foreach(var (SkinnedEntity,MeshIndices) in Scene.SkinnedMeshes){
+            Host.RegisterSkinnedMeshes(SkinnedEntity,MeshIndices);
+        }
+
         this.RosterCaptured=true;
         this.PendingStaticMeshes=null;
         this.PendingPrimitives=null;
-        return true;
+        this.PendingSkeletalMeshes=null;
+    }
+
+    /// <summary>
+    /// The camera the frame is seen from: the editor camera when the Scene Designer supplies one
+    /// (ADR-0070 B1), otherwise the scene's active camera.
+    /// </summary>
+    private static FixedTransformResolveStatus ResolveCamera(
+        EngineHost Host,Entity SceneCamera,EcsWorld World,out FixedAffineTransform CameraWorld,out CSharpGameEngine.Contracts.ReferenceFrameId Frame){
+        if(Host.EditorCamera is not { }Editor){
+            return RuntimeWorldTransform.TryResolveWorld(SceneCamera,World,out CameraWorld,out Frame);
+        }
+        Frame=CSharpGameEngine.Contracts.ReferenceFrameId.Root;
+        return FixedAffineTransform.TryFromTransform(Editor.Pose,out CameraWorld) switch {
+            FixedTransformStatus.Success=>FixedTransformResolveStatus.Success,
+            FixedTransformStatus.NumericOverflow=>FixedTransformResolveStatus.NumericOverflow,
+            _=>FixedTransformResolveStatus.NonInvertible,
+        };
+    }
+}
+
+/// <summary>Hands each SkeletalMesh's palette to the renderer after the animators ran (ADR-0066). Submitted every frame so device recovery replays the current pose.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Animation.LocomotionAnimation))]
+internal struct SkinnedMeshSync:ISystem {
+    public void Update(Entity Entity,ref SkeletalMeshRuntime Runtime,EngineHost Host,ref State State){
+        if(Runtime.Palette is not{ }Palette||Host.Renderer is not{ }Renderer||!Host.TryGetSkinnedMeshes(Entity,out var MeshIndices)){
+            return;
+        }
+        foreach(var MeshIndex in MeshIndices){
+            Renderer.SetSkinPalette(MeshIndex,Palette);
+        }
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(LevelLoad))]
 internal struct CameraOriginSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
+        // ADR-0070 B1: the Scene Designer's camera replaces the scene camera. LevelLoad already set
+        // its pose this frame; taking the scene camera's here would draw every object relative to a
+        // camera the view is not seen from (the view then ignored the designer's wheel and orbit).
+        if(Host.EditorCamera is not null){
+            return;
+        }
         if(Camera.Active
             &&RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame)
                 ==FixedTransformResolveStatus.Success
@@ -304,17 +426,75 @@ internal struct CameraOriginSync:ISystem {
                 out _,out _)){
             Host.SetCameraPose(CameraWorld,CameraFrame);
         }
+    }
+}
+
+/// <summary>
+/// M0099 (ADR-0076): turns each enabled <see cref="RadialObserver"/> into an observer camera preview while the active
+/// camera is radial. Game runtime only: with an editor camera the previews are the editor's.
+/// </summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
+internal struct RadialObserverSync:ISystem {
+    public void Update(Entity Entity,ref Transform Transform,ref RadialObserver Observer,EngineHost Host,ref State State){
+        if(!Observer.Enabled||Host.EditorCamera is not null||Host.Renderer is not{ }Renderer){
+            return;
+        }
+        if(LightTransform.TryGetRectanglePose(Entity,State.World,Host,out var Eye,out var Forward,out var Up,out _)!=FixedTransformStatus.Success){
+            return;
+        }
+        if(RadialObserverView.TryCreatePreview(Host.RenderCamera,Renderer.SurfaceWidth,Renderer.SurfaceHeight,Observer,Eye,Forward,Up,out var Preview)){
+            Host.AddRadialObserverPreview(Preview);
+        }
+    }
+}
+
+/// <summary>The observer preview of a radial camera (M0099, Omni specification "Observer view").</summary>
+internal static class RadialObserverView {
+    /// <summary>
+    /// Builds the inset: the world compressed around the radial camera <paramref name="Center"/> (the render origin),
+    /// seen from <paramref name="EyeFromCenter"/> along <paramref name="Forward"/>/<paramref name="Up"/>. The far plane
+    /// encloses the compressed world. Returns false when the camera is not radial or a value is unusable.
+    /// </summary>
+    internal static bool TryCreatePreview(in RenderCamera Center,int SurfaceWidth,int SurfaceHeight,in RadialObserver Observer,
+        Vector3 EyeFromCenter,Vector3 Forward,Vector3 Up,out RenderCameraPreview Preview){
+        Preview=default;
+        if(Center.DepthMapping!=RenderDepthMapping.Radial||SurfaceWidth<=0||SurfaceHeight<=0
+            ||!RadialDepthCurve.TryCreate(Center.RadialTransitionMeters,out var Curve)
+            ||!RadialDepthProjection.TryCreate(Curve,Center.NearZ,Center.FarZ,Center.FovYRadians,SurfaceWidth/(float)SurfaceHeight,out var Projection)){
+            return false;
+        }
+        var X=(int)MathF.Round(Observer.ViewportX*SurfaceWidth);
+        var Y=(int)MathF.Round(Observer.ViewportY*SurfaceHeight);
+        var Width=(int)MathF.Round(Observer.ViewportWidth*SurfaceWidth);
+        var Height=(int)MathF.Round(Observer.ViewportHeight*SurfaceHeight);
+        if(Width<1||Height<1||!float.IsFinite(Observer.NearZ)||Observer.NearZ<=0f
+            ||!(Observer.FovYRadians>0f&&Observer.FovYRadians<MathF.PI)){
+            return false;
+        }
+        var Far=EyeFromCenter.Length()+1.05f*Projection.ObservedWorldRadius;
+        if(!float.IsFinite(Far)||Far<=Observer.NearZ){
+            return false;
+        }
+        var View=RenderCamera.CreateFirstPerson(Vector3.Zero);
+        if(!RenderCamera.IsIdentityWorldOrientation(Forward,Up)&&!View.TrySetWorldOrientation(Forward,Up)){
+            return false;
+        }
+        var ViewProjection=View.GetView()*Matrix4x4.CreatePerspectiveFieldOfView(Observer.FovYRadians,Width/(float)Height,Observer.NearZ,Far);
+        Preview=new RenderCameraPreview(X,Y,Width,Height,ViewProjection,EyeFromCenter,
+            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Observer.ShowCenterCamera);
         return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
 internal struct DirectionalLightSync:ISystem {
-    public bool Update(Entity Entity,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Illuminance.IsValid){Runtime.InvalidProperty="Illuminance";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Illuminance.IsValid){Runtime.InvalidProperty="Illuminance";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -325,43 +505,79 @@ internal struct DirectionalLightSync:ISystem {
                 Runtime.LastWorldForward=Forward;
                 Runtime.HasLastWorldForward=true;
             } else if(!Runtime.HasLastWorldForward){
-                return true;
+                return;
             }
             var Submission=new DirectionalLightSubmission(Runtime.LastWorldForward,Light.Color,Light.Illuminance,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddDirectionalLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(DirectionalLightSync))]
 internal struct AmbientLightSync:ISystem {
-    public bool Update(ref AmbientLight Light,EngineHost Host,ref State State){
-        Host.Renderer?.SetAmbientLight(
-            new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity);
-        return true;
+    public void Update(ref AmbientLight Light,EngineHost Host,ref State State){
+        var Ambient=new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity;
+        // Like the typed lights, a value the renderer cannot use keeps the last usable one: negative radiance (the tone
+        // mapper turns it white) or an overflowing one.
+        if(Light.ColorR>=0f&&Light.ColorG>=0f&&Light.ColorB>=0f&&Light.Intensity>=0f
+            &&float.IsFinite(Ambient.X)&&float.IsFinite(Ambient.Y)&&float.IsFinite(Ambient.Z)){
+            Host.Renderer?.SetAmbientLight(Ambient);
+        } else {
+            Host.Environment.InvalidReason=nameof(AmbientLight);
+        }
+        Host.Environment.AmbientSubmitted=true;
+    }
+}
+
+/// <summary>Collects the environment Components (ADR-0069); EngineHost submits them once before rendering.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(AmbientLightSync))]
+internal struct EnvironmentCollect:ISystem {
+    public void Update(ref SkyAtmosphere Value,EngineHost Host,ref State State){
+        Host.Environment.Atmosphere=Value;
+    }
+    public void Update(ref SkyLight Value,EngineHost Host,ref State State){
+        Host.Environment.SkyLight=Value;
+    }
+    public void Update(ref PostProcessVolume Value,EngineHost Host,ref State State){
+        Host.Environment.PostProcess=Value;
+    }
+    public void Update(ref ExponentialHeightFog Value,EngineHost Host,ref State State){
+        Host.Environment.Fog=Value;
+    }
+    public void Update(Entity Entity,ref GlobalIlluminationVolume Value,EngineHost Host,ref State State){
+        // The probe grid is placed in the renderer's camera-relative space like every object, so the
+        // absolute volume position never crosses a float boundary.
+        if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Entity,State.World,Host,out var Matrix,out _)!=FixedTransformStatus.Success){
+            Host.Environment.InvalidReason="GlobalIlluminationVolume.Transform";
+            return;
+        }
+        Host.Environment.GlobalIllumination=Value;
+        Host.Environment.GlobalIlluminationCenter=Matrix.Translation;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(EnvironmentCollect))]
 internal struct HeightFogSync:ISystem {
-    public bool Update(ref HeightFog Fog,EngineHost Host,ref State State){
+    public void Update(ref HeightFog Fog,EngineHost Host,ref State State){
         Host.Renderer?.SetFog(
             new FogParams(Fog.Density,Fog.HeightFalloff,new Vector3(Fog.ColorR,Fog.ColorG,Fog.ColorB)));
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(HeightFogSync))]
 internal struct PointLightSync:ISystem {
-    public bool Update(Entity Entity,ref PointLight Light,ref PointLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref PointLight Light,ref PointLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return true;}
-        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return;}
+        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -372,26 +588,26 @@ internal struct PointLightSync:ISystem {
                 Runtime.LastCameraRelativePosition=Position;
                 Runtime.HasLastCameraRelativePosition=true;
             } else if(!Runtime.HasLastCameraRelativePosition){
-                return true;
+                return;
             }
             var Submission=new PointLightSubmission(Runtime.LastCameraRelativePosition,Light.Color,Light.Flux,Light.Range,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddPointLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(PointLightSync))]
 internal struct SpotLightSync:ISystem {
-    public bool Update(Entity Entity,ref SpotLight Light,ref SpotLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref SpotLight Light,ref SpotLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return true;}
-        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return true;}
-        if(!Light.Cone.IsValid){Runtime.InvalidProperty="Cone";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return;}
+        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
+        if(!Light.Cone.IsValid){Runtime.InvalidProperty="Cone";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -404,26 +620,26 @@ internal struct SpotLightSync:ISystem {
                 Runtime.HasLastCameraRelativePosition=true;
                 Runtime.HasLastWorldForward=true;
             } else if(!Runtime.HasLastCameraRelativePosition||!Runtime.HasLastWorldForward){
-                return true;
+                return;
             }
             var Submission=new SpotLightSubmission(Runtime.LastCameraRelativePosition,Runtime.LastWorldForward,Light.Color,Light.Flux,Light.Range,Light.Cone,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddSpotLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(SpotLightSync))]
 internal struct RectAreaLightSync:ISystem {
-    public bool Update(Entity Entity,ref RectAreaLight Light,ref RectAreaLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref RectAreaLight Light,ref RectAreaLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Luminance.IsValid){Runtime.InvalidProperty="Luminance";return true;}
-        if(!Light.Size.IsValid){Runtime.InvalidProperty="Size";return true;}
-        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Luminance.IsValid){Runtime.InvalidProperty="Luminance";return;}
+        if(!Light.Size.IsValid){Runtime.InvalidProperty="Size";return;}
+        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetRectanglePose(
@@ -437,20 +653,20 @@ internal struct RectAreaLightSync:ISystem {
                 Runtime.HasLastCameraRelativePosition=true;
                 Runtime.HasLastWorldForward=true;
             } else if(!Runtime.HasLastCameraRelativePosition||!Runtime.HasLastWorldForward){
-                return true;
+                return;
             }
             var Submission=new RectAreaLightSubmission(Runtime.LastCameraRelativePosition,Runtime.LastWorldForward,Runtime.LastWorldUp,Light.Color,Light.Luminance,Light.Size,Light.Range,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddRectAreaLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(RectAreaLightSync))]
 internal struct TransformSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
         if(Host.Renderer is{ }Renderer){
             Entity SourceEntity=Renderable.HasSourceEntity?Renderable.SourceEntity:Entity;
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
@@ -462,7 +678,7 @@ internal struct TransformSync:ISystem {
                 Renderable.LastCameraRelativeWorld=CameraRelativeWorld;
                 Renderable.HasLastCameraRelativeWorld=true;
             } else if(!Renderable.HasLastCameraRelativeWorld){
-                return true;
+                return;
             }
 
             Matrix4x4 Local=Renderable.HasMeshLocalTransform
@@ -471,13 +687,14 @@ internal struct TransformSync:ISystem {
             Renderer.SetObjectTransform(
                 Renderable.ObjectIndex,Local*Renderable.LastCameraRelativeWorld);
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(TransformSync))]
+[RunsBefore(typeof(CSharpGameEngine.Runtime.Animation.SkeletalMeshSetup))]
 internal struct EmissiveMeshLightSync:ISystem {
-    public bool Update(
+    public void Update(
         Entity Entity,
         ref Transform Transform,
         ref EmissiveMeshLighting Lighting,
@@ -494,7 +711,7 @@ internal struct EmissiveMeshLightSync:ISystem {
                 Lighting.LastCameraRelativeWorld=CameraRelativeWorld;
                 Lighting.HasLastCameraRelativeWorld=true;
             } else if(!Lighting.HasLastCameraRelativeWorld){
-                return true;
+                return;
             }
 
             IReadOnlyList<EmissivePatch> Patches=EmissivePatchBuilder.Build(
@@ -512,7 +729,6 @@ internal struct EmissiveMeshLightSync:ISystem {
                 Lighting.ShadowPriority,
                 Lighting.ShadowBiasMeters);
         }
-        return true;
     }
 }
 
@@ -523,45 +739,41 @@ internal struct EmissiveMeshLightSync:ISystem {
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(20_000)]
+[RunsAfter(typeof(SkinnedMeshSync))]
 internal struct AudioFrameBegin:ISystem {
-    public bool Update(ref AppHostRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(ref AppHostRuntime Runtime,EngineHost Host,ref State State){
         Host.BeginAudioFrame();
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(20_001)]
+[RunsAfter(typeof(AudioFrameBegin))]
 internal struct AudioListenerSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref AudioListener Listener,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref AudioListener Listener,EngineHost Host,ref State State){
         FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
             Entity,State.World,out FixedAffineTransform Pose,out var Frame);
         if(Status==FixedTransformResolveStatus.Success){ Host.SetAudioListener(Entity,Pose,Frame); }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(20_002)]
+[RunsAfter(typeof(AudioListenerSync))]
 internal struct AudioSourceSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref AudioSource Source,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref AudioSource Source,EngineHost Host,ref State State){
         FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
             Entity,State.World,out FixedAffineTransform Pose,out var Frame);
         if(Status==FixedTransformResolveStatus.Success){
             Host.TrySubmitAudioSource(
                 Entity,Pose,Frame,Source.Volume,Source.MinimumDistance,Source.MaximumDistance,Source.Loop);
         }
-        return true;
     }
 }
 
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(30_000)]
+[RunsAfter(typeof(AudioSourceSync))]
 internal struct Present:ISystem {
-    public bool Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
-        if(State.Enabled){ Host.Present(); }
-        return true;
+    public void Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
+        if(State.Enabled&&!Host.Present()){ State.Enabled=false; }
     }
 }

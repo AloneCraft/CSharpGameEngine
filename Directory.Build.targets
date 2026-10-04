@@ -1,14 +1,16 @@
 <Project>
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'CSharpGameEngine.CodeAnalysis' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
+  <ItemGroup Condition="'$(CgeSkipEngineAnalyzerReference)' != 'true' and '$(MSBuildProjectName)' != 'CSharpGameEngine.CodeAnalysis' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
-  <!-- Logical numeric formats are runtime-owned. Every net10 application/test compilation gets
-       the library reference automatically; the library itself is excluded to avoid a cycle. -->
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'UserEcsProject' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Entities' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Windows.Tests' or '$(MSBuildProjectName)' == 'CSharpGameEngine.CodeAnalysis.Tests'">
+  <!-- Logical numeric formats are runtime-owned. Game projects receive the reference from
+       build/CSharpGameEngine.Game.props; the listed engine/test compilations get it here, and the
+       library itself is excluded to avoid a cycle. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Entities' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Windows.Tests' or '$(MSBuildProjectName)' == 'CSharpGameEngine.CodeAnalysis.Tests'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
   </ItemGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.ShaderGraph.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.SceneSchema.targets" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Showcase.targets" />
 </Project>
 

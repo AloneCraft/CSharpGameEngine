@@ -19,7 +19,56 @@ public static class ShaderGraphCanonicalization {
         return JsonSerializer.Serialize(Canonical, CanonicalOptions);
     }
     public static ShaderGraphDocument? FromJson(string Json) {
-        return JsonSerializer.Deserialize<ShaderGraphDocument>(Json, CanonicalOptions);
+        var Document = JsonSerializer.Deserialize<ShaderGraphDocument>(Json, CanonicalOptions);
+        if (Document is not null) {
+            RejectNulls(Document);
+        }
+        return Document;
+    }
+    /// <summary>
+    /// System.Text.Json 8 puts a JSON null into a member or list item the model declares non-null, and the validator,
+    /// the emitter and the canonical form then failed with a NullReferenceException that named nothing (in the editor and
+    /// the build). Such a null is malformed JSON for the graph, so it throws as malformed JSON does, naming its path.
+    /// </summary>
+    private static void RejectNulls(ShaderGraphDocument Document) {
+        Require(Document.Target, "$.target");
+        if (Document.EntryPoint is { } EntryPoint) {
+            Require(EntryPoint.Name, "$.entryPoint.name");
+        }
+        Items(Document.Subgraphs, "$.subgraphs", static (Subgraph, Path) => {
+            Items(Subgraph.Inputs, Path + ".inputs", static (Port, PortPath) => Require(Port.Name, PortPath + ".name"));
+            Items(Subgraph.Outputs, Path + ".outputs", static (Port, PortPath) => Require(Port.Name, PortPath + ".name"));
+            Items(Subgraph.Nodes, Path + ".nodes", static (Node, NodePath) => {
+                Require(Node.Type, NodePath + ".type");
+                Items(Node.Arguments, NodePath + ".arguments", static (Argument, ArgumentPath) => {
+                    Require(Argument.Name, ArgumentPath + ".name");
+                    Require(Argument.Value, ArgumentPath + ".value");
+                });
+            });
+            Items(Subgraph.Edges, Path + ".edges", static (Edge, EdgePath) => {
+                Require(Edge.FromPort, EdgePath + ".fromPort");
+                Require(Edge.ToPort, EdgePath + ".toPort");
+            });
+            Items(Subgraph.Regions, Path + ".regions", static (Region, RegionPath) => {
+                Require(Region.NodeIds, RegionPath + ".nodeIds");
+                Require(Region.ElseNodeIds, RegionPath + ".elseNodeIds");
+            });
+        });
+        Items(Document.Dependencies, "$.dependencies", static (Dependency, Path) => Require(Dependency.Path, Path + ".path"));
+        if (Document.Layout is { } Layout) {
+            Items(Layout.Nodes, "$.layout.nodes", static (Node, Path) => { });
+            Items(Layout.Regions, "$.layout.regions", static (Region, Path) => { });
+        }
+    }
+    private static T Require<T>(T? Value, string Path) where T : class {
+        return Value ?? throw new JsonException($"The Shader Graph has null where a value is required at {Path}.", Path, null, null);
+    }
+    private static void Items<T>(List<T>? List, string Path, Action<T, string> Check) where T : class {
+        Require(List, Path);
+        for (var Index = 0; Index < List!.Count; Index++) {
+            var ItemPath = Path + "[" + Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]";
+            Check(Require(List[Index], ItemPath), ItemPath);
+        }
     }
     public static string ComputeSemanticHash(ShaderGraphDocument Document) {
         var Semantic = Normalize(Document);

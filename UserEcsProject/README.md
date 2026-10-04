@@ -4,7 +4,7 @@
 `StageRenderer` に同期する最小のFBX描画PoCです。
 
 **Program.cs はありません。** `Main` はSGが生成します
-(`Generated/.../GameSystem.EntryPoint.g.cs`)。生成された `Main` が作るのは `World`・`State`・
+(生成器の出力 `GameSystem.EntryPoint.g.cs`)。生成された `Main` が作るのは `World`・`State`・
 `Bootstrap` シードEntityの3つだけで、ウィンドウ生成・FBX読み込み・`StageRenderer` 生成・
 OSイベント処理・`RenderFrame`・後始末まで、すべてSystemが行います。
 

@@ -41,8 +41,7 @@
       { "id": "dpi-scaling", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
       { "id": "escape-routing", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
       { "id": "physics-sidebar", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
-      { "id": "startup-layout", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
-      { "id": "preview-render-audio", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true }
+      { "id": "startup-layout", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true }
     ]
   }
 }

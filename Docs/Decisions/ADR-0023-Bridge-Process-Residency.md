@@ -49,11 +49,24 @@ ADR-0010追記(本ADRの直前の変更)で、`ExternalBridgeProcess.RunProcess`
 起きるため、診断テキストを戻り値として返すようにした(一発モードでは`Program.cs`が最後に
 まとめて出力する形に変わった - 進行に伴う逐次出力から完了後の一括出力への軽微な変更)。
 
-`Program.cs`は`args is ["--serve", var pipeName]`で常駐サーバーモードに分岐し、
-`BridgeServerHost.RunAsync(pipeName, XyzBridgeWorker.Run, TimeSpan.FromMinutes(15))`を呼ぶ。
-それ以外は既存の2引数モードのまま。
+`Program.cs`は`BridgeServeCommand.TryParse`で`--serve <pipe> [--parent-process-id <pid>]`を
+受け取ると常駐サーバーモードに分岐し、
+`BridgeServerHost.RunAsync(pipeName, XyzBridgeWorker.Run, TimeSpan.FromMinutes(15), OwnerProcessId: pid)`
+を呼ぶ。それ以外は既存の2引数モードのまま。
 
-**`FbxBridgeWorker`のみ`SemaphoreSlim(1, 1)`で`FbxImporter.Import`呼び出しを排他する**:
+**寿命は起動したVisual Studioに従う(2026-10-01追記)**: 常駐ブリッジは拡張のインストール先から
+起動されるため、終了したVSより長く残ると、次のF5デプロイで拡張フォルダーのDLLがロックされて
+失敗した(実験用ハイブで観測)。そこで次のようにした。
+- `ResidentBridgeClient`は自分のプロセスIDを`--parent-process-id`で渡す。
+- `BridgeServerHost`は`ParentProcessLifetime`(プレビューホストと共通、`Bridge.Hosting`)で所有者を監視し、
+  所有者が終了するとアイドルタイムアウトと同じ経路で受け付けを止め、処理中の要求を片付けて終了する。
+  (2026-10-04追記、監査AUD-003)要求の受信はサーバーの寿命と30秒の受信期限で終わる(`BridgeWireMessage.ReadRequestAsync`)。
+  以前は受信にトークンが無く、要求を途中まで送って接続を保ったクライアントがいると、片付けが終わらずブリッジが残った。
+- パイプ名とスポーン用Mutexは所有者のプロセスIDも含めて決める。別のVS(別のインストール先・別の
+  バージョン)が起動したブリッジには接続しない。
+- アイドルタイムアウト(15分)はそのまま残る。
+
+**`FbxImporter.Import`の呼び出しを排他する**（2026-10-04 の追記で、排他は`FbxImporter`自身へ移した）:
 `FbxImporter.Import`(`src/CSharpGameEngine.Import.Fbx/FbxImporter.cs`)は呼び出しのたびに
 AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロセス全体で共有される
 ネイティブロギング登録である。一発モードでは1プロセスにつき1回しか呼ばれないため問題に
@@ -61,6 +74,8 @@ AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロ�
 参照するシーンを`SceneHwndHost`が並列ロードする場合)。Attach/Detachの競合は診断メッセージの
 混線、最悪ネイティブ層の状態破壊につながりうるため、実際のインポート呼び出しだけをセマフォで
 直列化した(常駐化によるプロセス起動コスト削減という効果自体は失わない)。
+
+追記（2026-10-04）: `FbxImporter`は公開 API で、`ProviderNeutralImport`、Extension、テストもブリッジを通さずに呼ぶ。`ProviderNeutralImportTests`と`FbxImporterTests`が並列に動いた clean build で、テストホストがアクセス違反（0xC0000005）で落ちた。並列の`FbxImporter.Import`は毎回落ち、ログストリームなしの並列`AssimpContext.ImportFile`は落ちなかったので、原因はプロセス全体のログストリームの Attach/Detach の競合と確かめた。排他は`FbxImporter`の中（ログストリームを持つ区間）へ移し、ブリッジのセマフォは外した。
 
 ### 3. VSIX側`ResidentBridgeClient`(net472、`tools/CSharpGameEngine.VSExtension/`)
 

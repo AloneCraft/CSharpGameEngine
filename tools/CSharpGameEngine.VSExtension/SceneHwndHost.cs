@@ -87,9 +87,23 @@ internal sealed class SceneHwndHost:HwndHost {
     private string LastSpatialDebugStatus="";
     private IReadOnlyList<int>SpatialDebugProcessIds=[];
     private int?SelectedSpatialDebugProcessId;
-    private Process?EditorPreviewProcess;
-    private string?EditorPreviewSceneName;
-    private string?EditorPreviewTempDirectory;
+    private bool PreviewIsRuntime;
+    /// <summary>M0095 3-4: the runtime view open in flight off the UI thread; a newer request or a disposal bumps the generation.</summary>
+    private long RuntimeOpenGeneration;
+    private bool RuntimeOpenPending;
+    /// <summary>Held so the open stays observable and joinable by Visual Studio's shutdown.</summary>
+    private Microsoft.VisualStudio.Threading.JoinableTask?RuntimeOpenTask;
+    // The game build a JSON scene's runtime view is made from, and the write time of the one shown
+    // (MinValue when the scene preview stands in for it): a newer build replaces the view.
+    private string?WatchedBuild;
+    private DateTime ShownBuildTime;
+    private DateTime PendingBuildTime;
+    private DateTime NextBuildCheck;
+    private string?RuntimeViewTempDirectory;
+    // Why the Scene view is not showing the current edit in the game's runtime, kept over "displayed".
+    private string?RuntimeViewNote;
+    /// <summary>The scene JSON the runtime view last received; the document text it must keep matching.</summary>
+    private string?RuntimeViewSentSceneJson;
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
@@ -104,6 +118,8 @@ internal sealed class SceneHwndHost:HwndHost {
     // 知らない純粋な状態機械のままにするため、この管理はSceneHwndHostに閉じる。
     private bool LookUsesPixelLock;
     private Vector3 LookAnchorWorldDirection;
+    /// <summary>M0095: the selection's center captured when an Alt+LMB orbit begins; null orbits around the focus.</summary>
+    private Vector3?OrbitPivot;
 
     // M0020 Phase 3: Moveギズモと1操作=1編集トランザクション。
     private readonly EditTransactionController EditTransaction=new();
@@ -135,15 +151,6 @@ internal sealed class SceneHwndHost:HwndHost {
     private float ActiveRotateAccumulatedRadians;
     private float ActiveRotatePreviousRadians;
 
-    // M0036: シーンビューのCtrl+Z/Yで、実際のC#ソースUndo/Redo(唯一の編集履歴、ADR-0040)を待たず
-    // 3Dビューを即座にパッチするための軽量キャッシュ。どこにも書き込みを行わない表示の先読みで、
-    // 外れても実害は無い(Roslyn再解析が終われば必ず正しい状態へ収束する)。対象はMove/Rotate/Scale/
-    // SurfaceSnapのTransformコミットのみ(CompleteEditCommitの!WasProperty&&!WasDuplicateと同じ絞り)。
-    private IReadOnlyList<SceneTransformPreview>ActiveDragOriginalRoots=[];
-    private Stack<TransformUndoRecord>RecentTransformCommits=new();
-    private Stack<TransformUndoRecord>RecentTransformUndone=new();
-    private const int MaxRecentTransformCommits=20;
-
     // M0034: Shift+Ctrl押下中(マウス静止中でも1フレーム以内に四角を出すため、Renderingティックで
     // GetKeyStateポーリングする。既存のFly Fast/Precisionポーリングと同じ方式)。
     private bool SurfaceSnapArmed;
@@ -159,20 +166,6 @@ internal sealed class SceneHwndHost:HwndHost {
     internal event Action<string>?StatusChanged;
     internal event Action<string>?SpatialDebugStatusChanged;
     internal event Action<IReadOnlyList<int>,int?>?SpatialDebugProcessCandidatesChanged;
-
-    internal RenderPreviewDebugSnapshot CaptureRuntimeDebugSnapshot(){
-        RenderPreviewHostClient Client=this.PreviewClient
-            ??throw new InvalidOperationException(
-                VsixText.Get("RuntimeDebugPreviewUnavailable"));
-        try {
-            return Client.GetDebugSnapshot();
-        } catch(RenderPreviewHostException Error)when(!Error.SessionTerminated){
-            throw;
-        } catch(Exception Error){
-            this.HandleRenderFailure(Error);
-            throw;
-        }
-    }
 
     /// <summary>Pointerの<c>Down</c>で発火。WPF側は購読して<c>Keyboard.Focus</c>をここでだけ呼ぶ(ADR-0041 決定事項2)。</summary>
     internal event Action?ViewportActivated;
@@ -260,7 +253,6 @@ internal sealed class SceneHwndHost:HwndHost {
         this.PhysicsFractureCancellation?.Cancel();
         this.PhysicsFractureCancellation?.Dispose();
         this.PhysicsFractureCancellation=null;
-        this.StopEditorPreviewHost(WaitForExit:false);
         this.CancelEditTransaction();
         SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
         this.DetachSubscriptions();
@@ -325,9 +317,6 @@ internal sealed class SceneHwndHost:HwndHost {
         bool SameScene=this.TargetKey is { }PreviousKey&&PreviousKey.Equals(Snapshot.Key);
         if(!SameScene){
             this.PendingCameraReset=true;
-            // M0036: 別Sceneへ切り替えたら、先読みUndoキャッシュ(NodePathが別ファイルのものになる)を破棄する。
-            this.RecentTransformCommits.Clear();
-            this.RecentTransformUndone.Clear();
         }
 
         this.TargetKey=Snapshot.Key;
@@ -349,8 +338,6 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
 
-        this.EnsureEditorPreviewHost();
-
         if(this.Surface is not null){
             this.Rebuild();
         }
@@ -360,6 +347,12 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneRenderUpdateKind UpdateKind=SceneIncrementalUpdatePolicy.Classify(Snapshot.Diff);
         if(UpdateKind==SceneRenderUpdateKind.Rebuild){ return false; }
         if(UpdateKind==SceneRenderUpdateKind.None){
+            // The model diff only sees what the designer models; the runtime view draws the whole document.
+            if(this.PreviewIsRuntime&&this.RuntimeViewSentSceneJson is { }Sent
+                &&!string.Equals(Sent,this.LiveSceneJson(),StringComparison.Ordinal)
+                &&!this.TryReplacePreviewScene()){
+                return false;
+            }
             this.RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
             this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
@@ -373,6 +366,11 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.CurrentRenderObjects=Updated;
         this.PreviewFrameDirty=true;
+        // A runtime view draws the game's own world, not these render objects: a value edit reaches it
+        // only as the edited document (ADR-0070 B1 step 4), so send it as the full path does.
+        if(this.PreviewIsRuntime&&!this.TryReplacePreviewScene()){
+            return false;
+        }
         (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Updated);
         if(this.ViewState is { }State){
             State.LastKnownBoundsRadius=this.SceneBoundsRadius;
@@ -476,8 +474,8 @@ internal sealed class SceneHwndHost:HwndHost {
         this.PhysicsFractureCancellation=null;
         this.CurrentPhysicsFractureBonds=[];
         if(!this.PhysicsDebugEnabled||!this.PhysicsDebugOptions.Bonds||this.TargetModel is not { }Model){ return; }
-        string?Root=this.RepoRoot??RepoLocator.ResolveRepoRoot();
-        if(Root is null){ this.SetStatus(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));return; }
+        string?Root=this.RepoRoot??CgeProjectContext.Resolve(this.TargetFilePath)?.WorkspaceRoot;
+        if(Root is null){ this.SetStatus(VsixText.Get("Common_GameProjectNotFound"));return; }
         this.RepoRoot=Root;
         CancellationTokenSource Cancellation=new();
         this.PhysicsFractureCancellation=Cancellation;
@@ -509,18 +507,6 @@ internal sealed class SceneHwndHost:HwndHost {
         finally { Cancellation.Dispose(); }
     }
 #pragma warning restore VSTHRD100,VSTHRD109
-
-#pragma warning disable VSTHRD100,VSTHRD109
-    internal async void RequestPhysicsControl(string Command){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        int? ProcessId=this.ResolveDebugProcessId(out _);
-        if(ProcessId is null){ this.SetStatus(DebugStatusText.PhysicsProcessUnavailable());return; }
-        Guid? WorldId=this.CurrentPhysicsDebugSnapshot?.WorldId;
-        DebugClientStatus Status=DebugClientStatus.TransportFailure(DebugStatusReason.Disconnected);
-        await Task.Run(()=>PhysicsDebugClient.TryControl(ProcessId.Value,Command,WorldId,out Status));
-        this.SetStatus(DebugStatusText.Physics(Status));
-    }
-#pragma warning restore VSTHRD100,VSTHRD109
     internal void SetSpatialDebugProcessId(int?ProcessId){
         ThreadHelper.ThrowIfNotOnUIThread();
         int?ResolvedProcessId=ProcessId is { }Requested&&this.SpatialDebugProcessIds.Contains(Requested)?Requested:null;
@@ -534,23 +520,11 @@ internal sealed class SceneHwndHost:HwndHost {
         this.RefreshOverlay();
     }
 
-    private void EnsureEditorPreviewHost(){
-        var sceneName=this.TargetModel?.ClassFullyQualifiedName;
-        if(string.IsNullOrWhiteSpace(sceneName)){
-            return;
-        }
-        if(this.EditorPreviewProcess is { HasExited:false }&&string.Equals(this.EditorPreviewSceneName,sceneName,StringComparison.Ordinal)){
-            return;
-        }
-        this.StopEditorPreviewHost();
-        string? root=this.RepoRoot;
-        try{ root??=RepoLocator.ResolveRepoRoot(); }catch{ root=null; }
-        if(root is null){
-            return;
-        }
+    /// <summary>The built game assembly of the target scene's project (Debug), or the override in CGE_EDITOR_PREVIEW_ASSEMBLY.</summary>
+    private string?ResolveBuiltGameAssembly(CgeProjectContext context){
         string? assemblyPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_ASSEMBLY");
         if(assemblyPath is null){
-            string assemblyName=Path.GetFileNameWithoutExtension(this.SpatialDebugRuntimeProcessName??"UserEcsProject");
+            string assemblyName=Path.GetFileNameWithoutExtension(this.SpatialDebugRuntimeProcessName??context.AssemblyName);
             string? projectDirectory=Path.GetDirectoryName(this.TargetFilePath??string.Empty);
             while(projectDirectory is not null&&!Directory.GetFiles(projectDirectory,"*.csproj").Any()){
                 projectDirectory=Directory.GetParent(projectDirectory)?.FullName;
@@ -563,31 +537,16 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
             }
         }
-        assemblyPath??=Path.Combine(root,"UserEcsProject","bin","Debug","net10.0-windows10.0.19041.0","win-x64","UserEcsProject.dll");
-        string hostPath;
-        try { hostPath=RenderPreviewSceneBuilder.ResolveHostPath(root); }
-        catch(FileNotFoundException){ return; }
-        if(!File.Exists(assemblyPath)){
-            return;
-        }
-        try{
-            assemblyPath=this.PrepareEditorPreviewAssembly(assemblyPath);
-            ProcessStartInfo StartInfo=PreviewHostProcessStartInfo.Create(
-                hostPath,
-                $"--assembly {PreviewHostProcessStartInfo.Quote(assemblyPath)} "
-                +$"--scene {PreviewHostProcessStartInfo.Quote(sceneName!)}",
-                Path.GetDirectoryName(assemblyPath)??root);
-            this.EditorPreviewProcess=Process.Start(StartInfo);
-            this.EditorPreviewSceneName=sceneName;
-        }catch(Exception Ex) when(Ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception){
-            this.EditorPreviewProcess=null;
-            this.EditorPreviewSceneName=null;
-        }
+        return assemblyPath??context.OutputAssemblyPath("Debug");
     }
 
-    private string PrepareEditorPreviewAssembly(string AssemblyPath){
+    /// <summary>
+    /// Copies a game build's assemblies to a temporary folder and returns the copied assembly, so the
+    /// preview host never locks the build output a rebuild writes.
+    /// </summary>
+    private static string CopyGameBuild(string AssemblyPath,out string TempDirectory){
         string SourceDirectory=Path.GetDirectoryName(AssemblyPath)??throw new DirectoryNotFoundException();
-        string TempDirectory=Path.Combine(Path.GetTempPath(),"CSharpGameEngine.EditorPreview",Guid.NewGuid().ToString("N"));
+        TempDirectory=Path.Combine(Path.GetTempPath(),"CSharpGameEngine.EditorPreview",Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(TempDirectory);
         foreach(string FilePath in Directory.GetFiles(SourceDirectory)){
             string Extension=Path.GetExtension(FilePath);
@@ -598,46 +557,168 @@ internal sealed class SceneHwndHost:HwndHost {
             }
             File.Copy(FilePath,Path.Combine(TempDirectory,Path.GetFileName(FilePath)),overwrite:true);
         }
-        this.EditorPreviewTempDirectory=TempDirectory;
         return Path.Combine(TempDirectory,Path.GetFileName(AssemblyPath));
     }
-    private void StopEditorPreviewHost(bool WaitForExit=true){
-        Process? process=this.EditorPreviewProcess;
-        this.EditorPreviewProcess=null;
-        this.EditorPreviewSceneName=null;
-        string? tempDirectory=this.EditorPreviewTempDirectory;
-        this.EditorPreviewTempDirectory=null;
-        if(process is null){
-            DeleteEditorPreviewTempDirectory(tempDirectory);
-            return;
-        }
 
-        if(WaitForExit){
-            CleanupEditorPreviewHost(process,tempDirectory);
-            return;
+    /// <summary>
+    /// ADR-0070 B1: a runtime view of the built game for a JSON scene, so the Scene view shows what
+    /// the game renders. Null (the scene preview) when the scene is not JSON or the game is not built.
+    /// </summary>
+    private RuntimeViewPlan?TryPrepareRuntimeView(){
+        this.WatchedBuild=null;
+        this.ShownBuildTime=DateTime.MinValue;
+        if(!SceneJsonCommitPlanner.IsJsonDocument(this.TargetFilePath)
+            ||this.TargetModel?.ClassFullyQualifiedName is not { Length:>0 }SceneName){
+            return null;
         }
-        _=ThreadPool.QueueUserWorkItem(
-            _=>CleanupEditorPreviewHost(process,tempDirectory));
+        CgeProjectContext? Context;
+        try{ Context=CgeProjectContext.Resolve(this.TargetFilePath); }catch{ Context=null; }
+        if(Context is null||this.ResolveBuiltGameAssembly(Context) is not { }Build){
+            return null;
+        }
+        this.WatchedBuild=Build;
+        if(!File.Exists(Build)){
+            return null;
+        }
+        this.ShownBuildTime=File.GetLastWriteTimeUtc(Build);
+        return new RuntimeViewPlan(Build,SceneName,
+            string.Equals(Environment.GetEnvironmentVariable("CGE_GRAPHICS_ADAPTER"),"warp",StringComparison.OrdinalIgnoreCase));
     }
 
-    private static void CleanupEditorPreviewHost(
-        Process ProcessValue,string?TempDirectory){
+    private sealed record RuntimeViewPlan(string Build,string SceneName,bool UseWarp);
+
+    /// <summary>The outcome of an off-thread runtime view open; exactly one of Client and Error is set.</summary>
+    private sealed record RuntimeViewOpening(RenderPreviewHostClient?Client,string?TempDirectory,RenderPreviewHostResponse?Response,Exception?Error,bool BuildStillWriting);
+
+    /// <summary>
+    /// M0095 3-4: copies the game build, starts the preview host and opens the runtime view off the UI
+    /// thread; together they took 0.6 to 1.9 s and froze Visual Studio on every scene open and game build.
+    /// The view shows the pending state meanwhile, and <see cref="CompleteRuntimeViewOpen"/> takes the
+    /// result unless a newer request or a disposal superseded it.
+    /// </summary>
+    private void BeginRuntimeViewOpen(RuntimeViewPlan Plan,long SurfaceHandle,string HostPath,string ShaderArtifactPath,RenderPreviewScene Scene){
+        long Generation=++this.RuntimeOpenGeneration;
+        this.RuntimeOpenPending=true;
+        int Width=this.SurfaceWidth;
+        int Height=this.SurfaceHeight;
+        string SceneJson=this.LiveSceneJson();
+        this.RuntimeViewSentSceneJson=SceneJson;
+        this.RuntimeOpenTask=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
+            RuntimeViewOpening Opening=await Task.Run(()=>OpenRuntimeView(Plan,SurfaceHandle,Width,Height,HostPath,ShaderArtifactPath,Scene,SceneJson));
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            this.CompleteRuntimeViewOpen(Generation,Opening);
+        });
+    }
+
+    private static RuntimeViewOpening OpenRuntimeView(
+        RuntimeViewPlan Plan,long SurfaceHandle,int Width,int Height,string HostPath,string ShaderArtifactPath,RenderPreviewScene Scene,string SceneJson){
+        string?TempDirectory=null;
+        string Copy;
         try{
-            if(!ProcessValue.HasExited){
-                TryRequestEditorPreviewShutdown(ProcessValue.Id);
-                if(!ProcessValue.WaitForExit(2_000)){
-                    ProcessValue.Kill();
-                    ProcessValue.WaitForExit(1_000);
-                }
-            }
-        }catch(InvalidOperationException){
-        }catch(System.ComponentModel.Win32Exception){
-        }finally{
-            ProcessValue.Dispose();
+            Copy=CopyGameBuild(Plan.Build,out string CopyDirectory);
+            TempDirectory=CopyDirectory;
+        }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException){
+            // A build still writing its output: the scene preview until the build settles.
             DeleteEditorPreviewTempDirectory(TempDirectory);
+            return new RuntimeViewOpening(null,null,null,Error,BuildStillWriting:true);
+        }
+        RenderPreviewHostClient?Client=null;
+        try {
+            var Clock=Stopwatch.StartNew();
+            Client=RenderPreviewHostClient.Start(HostPath,TimeSpan.FromSeconds(120));
+            RenderPreviewHostResponse Opened=Client.Open(SurfaceHandle,Width,Height,ShaderArtifactPath,Scene,
+                new RenderPreviewRuntimeView {
+                    AssemblyPath=Copy,ContentDirectory=Path.GetDirectoryName(Plan.Build)!,SceneName=Plan.SceneName,UseWarp=Plan.UseWarp,
+                },SceneJson);
+            ActivityLog.LogInformation(nameof(SceneHwndHost),$"Runtime view of '{Plan.SceneName}' opened on '{Plan.Build}' in {Clock.ElapsedMilliseconds} ms, off the UI thread.");
+            return new RuntimeViewOpening(Client,TempDirectory,Opened,null,BuildStillWriting:false);
+        } catch(Exception Error)when(Error is RenderPreviewHostException or IOException or InvalidOperationException or TimeoutException){
+            Client?.Dispose();
+            DeleteEditorPreviewTempDirectory(TempDirectory);
+            return new RuntimeViewOpening(null,null,null,Error,BuildStillWriting:false);
         }
     }
 
+    /// <summary>Runs on the UI thread (<see cref="BeginRuntimeViewOpen"/> switches to it first).</summary>
+    private void CompleteRuntimeViewOpen(long Generation,RuntimeViewOpening Opening){
+        if(Generation!=this.RuntimeOpenGeneration||this.Surface is null||this.PreviewClient is not null){
+            // Superseded by a newer open or a disposal: the result is nobody's.
+            if(Opening.Client is { }Stale){
+                string?StaleTemp=Opening.TempDirectory;
+                _=ThreadPool.QueueUserWorkItem(_=>{
+                    Stale.Dispose();
+                    DeleteEditorPreviewTempDirectory(StaleTemp);
+                });
+            }
+            return;
+        }
+        this.RuntimeOpenPending=false;
+        if(Opening.Client is not { }Client){
+            if(Opening.BuildStillWriting){
+                this.ShownBuildTime=DateTime.MinValue;
+            } else {
+                ActivityLog.LogWarning(nameof(SceneHwndHost),Opening.Error?.ToString()??"The runtime view did not open.");
+                this.ShowRuntimeViewNote(VsixText.Format("SceneRuntimeViewUnavailable",Opening.Error?.Message??string.Empty));
+            }
+            try {
+                this.OpenScenePreview();
+            } catch(Exception Error){
+                this.HandleRenderFailure(Error);
+                return;
+            }
+        } else {
+            this.PreviewClient=Client;
+            this.PreviewIsRuntime=true;
+            this.RuntimeViewTempDirectory=Opening.TempDirectory;
+            this.ShowRuntimeViewState(Opening.Response!);
+        }
+        // Catch up with what changed while the view opened: the scene, the camera and the document.
+        if(!this.TryReplacePreviewScene()){
+            return;
+        }
+        this.RefreshCameraPreviews();
+        this.UpdateMoveGizmo();
+        this.SetStatus(this.RuntimeViewNote??VsixText.Format("SceneStatusDisplayed",this.TargetClassName??string.Empty));
+    }
+
+    /// <summary>
+    /// Once a second: when the game build differs from the one shown (a first build included) and has
+    /// kept its write time for a check, the view reopens on it, so a build shows without another edit.
+    /// </summary>
+    private void ReopenOnNewBuild(){
+        if(this.WatchedBuild is not { }Build||this.PreviewClient is null||DateTime.UtcNow<this.NextBuildCheck){
+            return;
+        }
+        this.NextBuildCheck=DateTime.UtcNow.AddSeconds(1);
+        DateTime BuildTime=File.Exists(Build)?File.GetLastWriteTimeUtc(Build):DateTime.MinValue;
+        bool Settled=BuildTime==this.PendingBuildTime;
+        this.PendingBuildTime=BuildTime;
+        if(BuildTime==DateTime.MinValue||BuildTime==this.ShownBuildTime||!Settled){
+            return;
+        }
+        ActivityLog.LogInformation(nameof(SceneHwndHost),$"The game build '{Build}' changed; reopening the runtime view.");
+        try {
+            this.DisposePreviewClient(ClearScene:false);
+            this.OpenOrReplacePreviewScene();
+            this.PreviewFrameDirty=true;
+        } catch(Exception Error){
+            this.HandleRenderFailure(Error);
+        }
+    }
+
+    private string LiveSceneJson()=>
+        this.TargetFilePath is { }Path
+            ?SceneWorkspaceService.Instance?.TryGetLiveText(Path)??(File.Exists(Path)?File.ReadAllText(Path):string.Empty)
+            :string.Empty;
+
+    private void ShowRuntimeViewState(RenderPreviewHostResponse Response){
+        this.ShowRuntimeViewNote(Response.BuildRequired?VsixText.Get("SceneRuntimeViewBuildRequired"):null);
+    }
+
+    private void ShowRuntimeViewNote(string?Note){
+        this.RuntimeViewNote=Note;
+        if(Note is not null){ this.SetStatus(Note); }
+    }
     private static void DeleteEditorPreviewTempDirectory(string?TempDirectory){
         if(TempDirectory is not null){
             try{ Directory.Delete(TempDirectory,recursive:true); }
@@ -646,19 +727,6 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
-    private static void TryRequestEditorPreviewShutdown(int ProcessId){
-        try{
-            using NamedPipeClientStream Pipe=new(
-                ".",$"CSharpGameEngine.EditorPreview.{ProcessId}",
-                PipeDirection.Out,PipeOptions.None);
-            Pipe.Connect(500);
-            using StreamWriter Writer=new(Pipe){AutoFlush=true};
-            Writer.WriteLine("shutdown");
-        }catch(TimeoutException){
-        }catch(IOException){
-        }catch(UnauthorizedAccessException){
-        }
-    }
     #pragma warning disable VSTHRD100
     private async void PollPhysicsDebug(object?Sender,EventArgs Args){
         if(!this.PhysicsDebugEnabled||this.PhysicsDebugRequestInFlight!=0){ return; }
@@ -678,11 +746,17 @@ internal sealed class SceneHwndHost:HwndHost {
         finally { Interlocked.Exchange(ref this.PhysicsDebugRequestInFlight,0); }
     }
 
+    /// <summary>
+    /// M0096 (ADR-0047): the editor world runs in the runtime view's render server, so its debug pipes are that
+    /// process's. Null without a runtime view.
+    /// </summary>
+    private int?EditorWorldProcessId=>this.PreviewIsRuntime?this.PreviewClient?.ProcessId:null;
+
     private int? ResolveDebugProcessId(out bool UseEditorPreview){
         IReadOnlyList<int> RuntimeIds=string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)?[]:SpatialDebugClient.FindProcessIds(this.SpatialDebugRuntimeProcessName);
         int? ProcessId=SpatialDebugProcessSelectionPolicy.Resolve(RuntimeIds,this.SelectedSpatialDebugProcessId);
         UseEditorPreview=false;
-        if((RuntimeIds.Count==0||ProcessId is null)&&this.EditorPreviewProcess is { HasExited:false }){ ProcessId=this.EditorPreviewProcess.Id;UseEditorPreview=true; }
+        if((RuntimeIds.Count==0||ProcessId is null)&&this.EditorWorldProcessId is { }EditorWorld){ ProcessId=EditorWorld;UseEditorPreview=true; }
         this.UpdateSpatialDebugProcessCandidates(RuntimeIds,UseEditorPreview?null:ProcessId);
         return ProcessId;
     }
@@ -706,7 +780,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(!this.GlobalSpatialOctreeEnabled||this.SpatialDebugRequestInFlight!=0){
             return;
         }
-        if(string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)&&this.EditorPreviewProcess is not { HasExited:false }){
+        if(string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)&&this.EditorWorldProcessId is null){
             this.UpdateSpatialDebugProcessCandidates([],null);
             this.ApplySpatialDebugResult(null,VsixText.Get("SceneSpatialRuntimeProjectUnavailable"));
             return;
@@ -714,8 +788,8 @@ internal sealed class SceneHwndHost:HwndHost {
         IReadOnlyList<int>RuntimeCandidateIds=string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)?[]:SpatialDebugClient.FindProcessIds(this.SpatialDebugRuntimeProcessName);
         int?ProcessId=SpatialDebugProcessSelectionPolicy.Resolve(RuntimeCandidateIds,this.SelectedSpatialDebugProcessId);
         bool UseEditorPreview=false;
-        if((RuntimeCandidateIds.Count==0||ProcessId is null)&&this.EditorPreviewProcess is { HasExited:false }){
-            ProcessId=this.EditorPreviewProcess.Id;
+        if((RuntimeCandidateIds.Count==0||ProcessId is null)&&this.EditorWorldProcessId is { }EditorWorld){
+            ProcessId=EditorWorld;
             UseEditorPreview=true;
         }
         this.UpdateSpatialDebugProcessCandidates(RuntimeCandidateIds,UseEditorPreview?null:ProcessId);
@@ -807,14 +881,18 @@ internal sealed class SceneHwndHost:HwndHost {
             SceneCameraPreview Camera=Item.Camera.WithAspectRatio(CardAspect);
             EffectiveLayout.Add(new SceneCameraPreviewLayoutItem(Camera,Rect,Item.Index));
             string CameraObjectId=Camera.NodePath.ToDisplayString();
+            RenderPreviewCamera PassCamera=new(){
+                ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
+                Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
+            };
+            // M0100: the thumbnail shows the scene camera's depth mapping (radial unless it chose standard).
+            RenderPreviewSceneBuilder.DescribePose(PassCamera,Camera.View,Camera.Projection,Camera.FovYRadians,
+                Camera.RadialDepth,Camera.RadialTransitionMeters);
             Passes.Add(new RenderPreviewCameraPass {
                 X=(int)FloatMath.Round(Rect.X),Y=(int)FloatMath.Round(Rect.Y),
                 Width=Math.Max(1,(int)FloatMath.Round(Rect.Width)),
                 Height=Math.Max(1,(int)FloatMath.Round(Rect.Height)),
-                Camera=new RenderPreviewCamera {
-                    ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
-                    Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
-                },
+                Camera=PassCamera,
                 ExcludedObjectId=this.GetPreviewRoster().Any(
                     Object=>Object.NodeId.Equals(Camera.NodePath))
                     ?CameraObjectId
@@ -842,6 +920,7 @@ internal sealed class SceneHwndHost:HwndHost {
                                       this.TickUndoRedoIfNeeded();
                                       this.UpdateSurfaceSnapArmed();
                                       this.ApplyCamera();
+                                      this.ReopenOnNewBuild();
                                       this.RenderSurfaceFrame();
                                    };
             CompositionTarget.Rendering+= this.RenderingHandler;
@@ -1128,6 +1207,8 @@ internal sealed class SceneHwndHost:HwndHost {
         if(Result.Capture==SceneCaptureAction.Begin){
             if(Result.State==SceneNavState.Flying){
                 this.CaptureLookAnchor(Event.X,Event.Y); }
+            if(Result.State==SceneNavState.Orbiting){
+                this.OrbitPivot=this.SelectionCenter(); }
         }
 
         switch(Result.Capture){
@@ -1190,7 +1271,11 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
                 break;
             case SceneNavState.Orbiting:
-                this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
+                if(this.OrbitPivot is { }Pivot){
+                    this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY,Pivot);
+                } else {
+                    this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
+                }
                 break;
             case SceneNavState.Panning:
                 this.ViewState?.ApplyPan(Result.DeltaX,Result.DeltaY);
@@ -1203,7 +1288,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// 十分(<see cref="SceneViewCamera.SolveLookOrientation"/>参照、ヒットテスト不要)。
     /// </summary>
     private void CaptureLookAnchor(int X,int Y){
-        this.LookUsesPixelLock= this.ViewState is { InvertLookX:false,InvertLookY:false };
+        this.LookUsesPixelLock= this.ViewState is { LookUsesPixelLock:true };
         if(!this.LookUsesPixelLock|| this.ViewState is not { } State){
             return;
         }
@@ -1212,11 +1297,7 @@ internal sealed class SceneHwndHost:HwndHost {
                                                                             State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
     }
 
-    /// <summary>
-    /// Alt+LMB Down時のアンカー捕捉。Orbitはカメラ位置自体が動くため、世界座標の点(距離込み)が
-    /// 必要(<see cref="SceneViewCamera.TrySolveOrbitYawPitch"/>参照)。何もヒットしなければ
-    /// 現在の注視平面との交点を仮のアンカーにする。
-    /// </summary>
+    /// <summary>LMB Down(Alt無し)のクリック選択用に、カーソル下のオブジェクトを拾う。</summary>
     private NodePath?TryPickAt(int X,int Y){
         if(this.ViewState is not { } State|| this.CurrentRenderObjects.Count==0){
             return null;
@@ -1314,7 +1395,8 @@ internal sealed class SceneHwndHost:HwndHost {
         List<GizmoOverlayPrimitive>Primitives=[];
         IReadOnlyList<GizmoOverlayPrimitive>TransformPrimitives=Array.Empty<GizmoOverlayPrimitive>();
         IReadOnlyList<GizmoOverlayPrimitive>PropertyPrimitives=Array.Empty<GizmoOverlayPrimitive>();
-        if(this.CurrentMoveGizmo is { }Frame&& this.ViewState is { }GizmoState){
+        bool ShowsGizmos=SceneGizmoVisibilityPolicy.ShowsGizmos(this.InputMachine?.State??SceneNavState.Idle);
+        if(ShowsGizmos&& this.CurrentMoveGizmo is { }Frame&& this.ViewState is { }GizmoState){
             Vector3 CameraForward=SceneViewCamera.GetForward(GizmoState.Yaw,GizmoState.Pitch);
             Vector3 CameraRight=SceneViewCamera.GetFlatRight(GizmoState.Yaw);
             Vector3 CameraUp=SceneViewCamera.GetUp(GizmoState.Yaw,GizmoState.Pitch);
@@ -1334,7 +1416,7 @@ internal sealed class SceneHwndHost:HwndHost {
             }
             TransformPrimitives=Combined;
         }
-        if(this.CurrentPropertyGizmo is { }PropertyFrame){
+        if(ShowsGizmos&& this.CurrentPropertyGizmo is { }PropertyFrame){
             PropertyPrimitives=PropertyGizmo.BuildOverlay(
                 PropertyFrame, this.HoveredGizmoHandle, this.ActiveGizmoHandle);
         }
@@ -1380,6 +1462,11 @@ internal sealed class SceneHwndHost:HwndHost {
                 VsixText.Format(
                     "ScenePreviewOverlayVertexLimitExceeded",TotalVertices,
                     RenderPreviewHostProtocol.MaximumOverlayVertexCount));
+        }
+        // ApplyCamera refreshes the overlay on every UI tick; an unchanged overlay must not request a
+        // frame, or the idle view re-renders at the display rate.
+        if(GizmoOverlayPrimitive.SameContent(this.CurrentOverlayPrimitives,Primitives)){
+            return;
         }
         this.CurrentOverlayPrimitives=Primitives;
         this.PreviewFrameDirty=true;
@@ -1469,11 +1556,6 @@ internal sealed class SceneHwndHost:HwndHost {
             return false;
         }
 
-        // M0036: コミット前のRoot Worldを退避しておく。Ctrl+Zの表示先読みパッチ(TryFastUndo)専用で、
-        // EditTransactionController.Targets(private)には外部からアクセスできないためここで複製する。
-        this.ActiveDragOriginalRoots=Targets
-                                    .Select(static Target=>new SceneTransformPreview(default,Target.NodePath,Target.OriginalWorld))
-                                    .ToArray();
         // M0037: 角度累積をドラッグ開始時にリセットする(Rotate以外では未使用のまま無害)。
         this.ActiveRotateAccumulatedRadians=0f;
         this.ActiveRotatePreviousRadians=0f;
@@ -1831,6 +1913,10 @@ internal sealed class SceneHwndHost:HwndHost {
             foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
                 this.UpdateCurrentObjectTransform(Descendant.NodePath,Descendant.World);
             }
+            // A runtime view kept the drag's last transforms; the unchanged document puts them back.
+            if(this.PreviewIsRuntime){
+                _=this.TryReplacePreviewScene();
+            }
         }
         if(this.FollowViewApplied&& this.HasActiveFollowViewSnapshot&& this.ViewState is { }State){
             this.ActiveFollowViewSnapshot.Restore(State);
@@ -1839,7 +1925,6 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.PreviewDescendantOriginals=[];
         this.ActiveDraggedRootPaths=[];
-        this.ActiveDragOriginalRoots=[];
         this.ActiveGizmoStartFrame=null;
         this.HasActiveFollowViewSnapshot=false;
         this.FollowViewApplied=false;
@@ -1861,29 +1946,6 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
-    /// <summary>
-    /// M0038: 予測でトランザクションを閉じた後にソース書き戻しが失敗したときの通知専用。
-    /// 表示の同期自体は<see cref="ResyncAfterCommitFailure"/>が別途行う(呼び出し側が両方呼ぶ)。
-    /// </summary>
-    internal void ReportCommitFailure(string?ErrorMessage){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        this.SetStatus(ErrorMessage??VsixText.Get("SceneCommitFailedRollback"));
-    }
-
-    /// <summary>
-    /// M0039: 直列の書き戻しチェーンのどこかが失敗したとき、呼び出し側
-    /// (<see cref="SceneDesignerToolWindowControl"/>)が
-    /// <c>Session.RefreshPinnedSnapshotFromSourceAsync</c>で画面をソースの真実へ強制同期した直後に
-    /// 呼ぶ。失敗より後の編集は「本当は起きていない前段の編集」を前提に予測されていた可能性があり
-    /// 信用できないため、先読みUndo/Redoスタックを丸ごと破棄する — 既存のProperty編集・複製・
-    /// 別Scene切替時のClearと同じ確立済みのidiom(このメソッド自体は表示の再構築は行わない。
-    /// それは<c>SetTarget</c>経由で<c>PinnedSnapshotChanged</c>が届いたときに起きる)。
-    /// </summary>
-    internal void ResyncAfterCommitFailure(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        this.RecentTransformCommits.Clear();
-        this.RecentTransformUndone.Clear();
-    }
 
     internal void CompleteEditCommit(bool Succeeded,string?ErrorMessage){
         if(this.EditTransaction.State!=EditTransactionState.Committing){
@@ -1912,10 +1974,6 @@ internal sealed class SceneHwndHost:HwndHost {
             this.ActiveGizmoHandle=null;
             this.HoveredGizmoHandle=null;
             this.CurrentPropertyGizmo=null;
-            // M0036: プロパティ編集はTransform用の先読みキャッシュの対象外。古い記録を残すと
-            // 別コミット種別のUndoに誤って使われかねないので丸ごと破棄する。
-            this.RecentTransformCommits.Clear();
-            this.RecentTransformUndone.Clear();
             if(Pending is not null){
                 this.SetTarget(Pending);
             } else {
@@ -1927,22 +1985,6 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         this.RemoveDuplicatePreview();
-        // M0036: 直近コミットを先読みUndo用に記録する(複製はNodePathが新規のため対象外、
-        // Transform自体が変わらないケースはFinalPreviews.Count==0で自然に除外される)。新しい
-        // コミットが起きたのでredo系列は破棄する(標準的なUndo/Redoの慣習)。
-        if(WasDuplicate){
-            this.RecentTransformCommits.Clear();
-            this.RecentTransformUndone.Clear();
-        } else if(FinalPreviews.Count>0){
-            this.RecentTransformCommits.Push(new TransformUndoRecord(this.ActiveDragOriginalRoots,FinalPreviews,FinalDescendants,FinalWorldDelta));
-            while(this.RecentTransformCommits.Count>MaxRecentTransformCommits){
-                this.RecentTransformCommits=new Stack<TransformUndoRecord>(this.RecentTransformCommits.Reverse().Skip(1));
-            }
-
-            this.RecentTransformUndone.Clear();
-        }
-
-        this.ActiveDragOriginalRoots=[];
         this.PreviewDescendantOriginals=[];
         this.ActiveDraggedRootPaths=[];
         this.ActiveGizmoStartFrame=null;
@@ -1973,7 +2015,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// <see cref="CompleteEditCommit"/>・<see cref="TryFastUndo"/>・<see cref="TryFastRedo"/>専用。
+    /// <see cref="CompleteEditCommit"/>専用。
     /// 指定したNodePathのRenderObjectだけを、指定のWorld行列へ差し替える(<see cref="SceneRenderObject"/>は
     /// initプロパティのみのクラスのため複製が必要)。対象が無ければ何もしない。
     /// </summary>
@@ -1999,41 +2041,6 @@ internal sealed class SceneHwndHost:HwndHost {
                                                                                  IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable }
                                                                              :Object).ToArray();
         this.PreviewFrameDirty=true;
-    }
-
-    /// <summary>
-    /// M0036: シーンビューのCtrl+Zから呼ばれる。実際のC#ソースUndoが成功した後に呼び出し側が呼ぶ想定
-    /// (<see cref="SceneDesignerToolWindowControl"/>参照)。直近のTransformコミットを、Roslyn再解析を
-    /// 待たずに3Dビューへ即座に巻き戻す表示専用の先読みパッチ。対応する記録が無ければ何もしない
-    /// (この場合は通常どおりRoslyn再解析待ちで反映される)。
-    /// </summary>
-    internal bool TryFastUndo(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.InputMachine is not { State:SceneNavState.Idle}|| this.RecentTransformCommits.Count==0){
-            return false;
-        }
-
-        TransformUndoRecord Record= this.RecentTransformCommits.Pop();
-        this.RecentTransformUndone.Push(Record);
-        this.ApplyFinalTransformsToRenderObjects(Record.RootsBefore,Record.Descendants,Matrix4x4.Identity);
-        this.CurrentMoveGizmo=null;
-        this.UpdateMoveGizmo();
-        return true;
-    }
-
-    /// <summary><see cref="TryFastUndo"/>の逆。元のコミットと同じ引数で<see cref="ApplyFinalTransformsToRenderObjects"/>を再生するだけ。</summary>
-    internal bool TryFastRedo(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.InputMachine is not { State:SceneNavState.Idle}|| this.RecentTransformUndone.Count==0){
-            return false;
-        }
-
-        TransformUndoRecord Record= this.RecentTransformUndone.Pop();
-        this.RecentTransformCommits.Push(Record);
-        this.ApplyFinalTransformsToRenderObjects(Record.RootsAfter,Record.Descendants,Record.WorldDelta);
-        this.CurrentMoveGizmo=null;
-        this.UpdateMoveGizmo();
-        return true;
     }
 
     /// <summary>
@@ -2178,6 +2185,21 @@ internal sealed class SceneHwndHost:HwndHost {
         State.FocusOnBounds(Center,Radius,this.AspectRatio);
     }
 
+    /// <summary>
+    /// The center of the selection, as Focus Selection frames it: the bounds of the selected objects' meshes,
+    /// or the gizmo's pivot for a selection without one (an empty node, a light). Null without a selection.
+    /// </summary>
+    private Vector3?SelectionCenter(){
+        if(this.SelectedNodePaths.Count==0){
+            return null;
+        }
+        List<SceneRenderObject>Selected=[..this.CurrentRenderObjects.Where(Object=> this.SelectedNodePaths.Contains(Object.NodeId))];
+        if(Selected.Count>0){
+            return SceneCameraFraming.ComputeSelectionBounds(Selected).Center;
+        }
+        return this.CurrentMoveGizmo is { }Gizmo?Gizmo.Pivot:null;
+    }
+
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
     private void Rebuild(){
         // Every rebuild supersedes the prior request, including paths that end before a worker is
@@ -2229,16 +2251,13 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private SceneRenderBuildResult BuildRenderObjects(SceneRenderBuildRequest Request){
-        this.RepoRoot??=RepoLocator.ResolveRepoRoot();
-        if(this.RepoRoot is null){
-            throw new InvalidOperationException(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
-        }
-
-        string RepoRoot=this.RepoRoot;
+        CgeProjectContext Context=CgeProjectContext.Resolve(Request.FilePath)
+            ??throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
+        this.RepoRoot??=Context.WorkspaceRoot;
         IReadOnlyList<SceneRenderObject>RenderObjects=SceneModelRenderObjectBuilder.Build(
             Request.Model,
-            EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,RepoRoot),
-            AssetPath=>SceneModelRenderObjectBuilder.ResolveStaticMeshViaBridge(AssetPath,RepoRoot));
+            EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,Context),
+            AssetPath=>SceneModelRenderObjectBuilder.ResolveStaticMeshViaBridge(AssetPath,Context));
         return new SceneRenderBuildResult(Request,RenderObjects);
     }
 
@@ -2315,7 +2334,9 @@ internal sealed class SceneHwndHost:HwndHost {
             this.PreviewFrameDirty=true;
             this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
-            this.SetStatus(VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
+            if(!this.RuntimeOpenPending){
+                this.SetStatus(this.RuntimeViewNote??VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
+            }
         } catch(Exception Ex){
             this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
@@ -2327,12 +2348,24 @@ internal sealed class SceneHwndHost:HwndHost {
     private void DisposePreviewClient(bool ClearScene,bool DisposeInBackground=false){
         RenderPreviewHostClient?Client=this.PreviewClient;
         this.PreviewClient=null;
+        // An open still in flight belongs to the view being disposed.
+        this.RuntimeOpenGeneration++;
+        this.RuntimeOpenPending=false;
+        string?RuntimeTemp=this.RuntimeViewTempDirectory;
+        this.RuntimeViewTempDirectory=null;
+        this.PreviewIsRuntime=false;
         if(Client is not null){
             if(DisposeInBackground){
-                _=ThreadPool.QueueUserWorkItem(_=>Client.Dispose());
+                _=ThreadPool.QueueUserWorkItem(_=>{
+                    Client.Dispose();
+                    DeleteEditorPreviewTempDirectory(RuntimeTemp);
+                });
             }else{
                 Client.Dispose();
+                DeleteEditorPreviewTempDirectory(RuntimeTemp);
             }
+        }else{
+            DeleteEditorPreviewTempDirectory(RuntimeTemp);
         }
         this.RenderedAnalysisGeneration=-1;
         this.PreviewFrameDirty=false;
@@ -2351,20 +2384,43 @@ internal sealed class SceneHwndHost:HwndHost {
             ??throw new InvalidOperationException("Scene preview surface is unavailable.");
         RenderPreviewScene Scene=RenderPreviewSceneBuilder.FromScene(
             this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
-            this.CurrentCameraPosition);
+            this.CurrentCameraPosition,this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
         if(this.PreviewClient is not null){
-            this.PreviewClient.ReplaceScene(Scene);
+            string SceneJson=this.PreviewIsRuntime?this.LiveSceneJson():string.Empty;
+            this.ShowRuntimeViewState(this.PreviewClient.ReplaceScene(Scene,SceneJson));
+            this.RuntimeViewSentSceneJson=this.PreviewIsRuntime?SceneJson:null;
             return;
         }
-
-        this.RepoRoot??=RepoLocator.ResolveRepoRoot();
-        if(this.RepoRoot is null){
-            throw new InvalidOperationException(
-                VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
+        if(this.RuntimeOpenPending){
+            // The runtime view is opening off the UI thread; it catches up with this scene when it lands.
+            return;
         }
-        string HostPath=RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot);
-        string ShaderArtifactPath=
-            RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot);
+        (string HostPath,string ShaderArtifactPath)=this.ResolvePreviewHost();
+        // ADR-0070 B1: the game's own runtime when the game is built; the scene preview otherwise.
+        this.RuntimeViewNote=null;
+        if(this.TryPrepareRuntimeView() is { }Plan){
+            this.BeginRuntimeViewOpen(Plan,Surface.Handle.ToInt64(),HostPath,ShaderArtifactPath,Scene);
+            return;
+        }
+        this.OpenScenePreview();
+    }
+
+    private (string HostPath,string ShaderArtifactPath)ResolvePreviewHost(){
+        this.RepoRoot??=CgeProjectContext.Resolve(this.TargetFilePath)?.WorkspaceRoot;
+        if(this.RepoRoot is null){
+            throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
+        }
+        return (RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot),RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot));
+    }
+
+    /// <summary>The scene preview (the designer's render objects), when there is no runtime view of a built game.</summary>
+    private void OpenScenePreview(){
+        RenderSurfaceWindow Surface=this.Surface
+            ??throw new InvalidOperationException("Scene preview surface is unavailable.");
+        RenderPreviewScene Scene=RenderPreviewSceneBuilder.FromScene(
+            this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
+            this.CurrentCameraPosition,this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
+        (string HostPath,string ShaderArtifactPath)=this.ResolvePreviewHost();
         RenderPreviewHostClient Client=RenderPreviewHostClient.Start(HostPath);
         try {
             Client.Open(
@@ -2396,7 +2452,20 @@ internal sealed class SceneHwndHost:HwndHost {
             this.PreviewSelectedNodePaths.Count>0
                 ?this.PreviewSelectedNodePaths
                 :this.SelectedNodePaths,
-            this.CurrentOverlayPrimitives,this.CurrentCameraPreviewPasses);
+            this.CurrentOverlayPrimitives,this.CurrentCameraPreviewPasses,
+            this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians,
+            this.RuntimeViewDragOverrides());
+
+    /// <summary>
+    /// M0096: during a transform gizmo drag a runtime view gets the dragged roots' transforms with every
+    /// frame; it ignores the designer's render objects, so the object would otherwise stand still until
+    /// the commit. Property drags and duplicate previews are not transforms of existing nodes.
+    /// </summary>
+    private RenderPreviewTransformOverride[]?RuntimeViewDragOverrides()=>
+        this.PreviewIsRuntime&&this.EditTransaction.State==EditTransactionState.Dragging
+            &&this.ActivePropertyDrag is null&&this.ActiveDuplicatePlan.Count==0
+            ?RenderPreviewSceneBuilder.DragOverrides(this.EditTransaction.CurrentTargets,this.EditTransaction.CurrentPreviews)
+            :null;
 
     private IReadOnlyList<SceneRenderObject>GetPreviewRoster(){
         if(this.CurrentPreviewRenderObjects.Count==0){
@@ -2512,14 +2581,4 @@ internal sealed class SceneHwndHost:HwndHost {
     private sealed record SceneRenderBuildResult(
         SceneRenderBuildRequest Request,
         IReadOnlyList<SceneRenderObject>RenderObjects);
-
-    /// <summary>M0036: <see cref="RecentTransformCommits"/>/<see cref="RecentTransformUndone"/>の1件分。</summary>
-    private readonly struct TransformUndoRecord(
-        IReadOnlyList<SceneTransformPreview>RootsBefore,IReadOnlyList<SceneTransformPreview>RootsAfter,
-        IReadOnlyList<SceneTransformPreview>Descendants,Matrix4x4 WorldDelta){
-        internal IReadOnlyList<SceneTransformPreview>RootsBefore { get; }=RootsBefore;
-        internal IReadOnlyList<SceneTransformPreview>RootsAfter { get; }=RootsAfter;
-        internal IReadOnlyList<SceneTransformPreview>Descendants { get; }=Descendants;
-        internal Matrix4x4 WorldDelta { get; }=WorldDelta;
-    }
 }

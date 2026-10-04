@@ -15,12 +15,33 @@ internal static class SceneTextChangePlanner {
     /// <paramref name="After"/>が<paramref name="Before"/>と血縁の無い(<c>WithChanges</c>由来でない)
     /// テキストのとき、実測で<b>ファイル全体を覆う1個の変更</b>を返す(18KBのファイルで1文字だけ
     /// 変えても span=(0,18531))。可能なら<see cref="Plan(SyntaxTree,SyntaxTree)"/>を使うこと。
-    /// こちらは血縁を作れない呼び出し元(<c>ComponentIconGlyphMargin</c>)専用に残している。
+    /// 血縁を作れない書き込み(シーン JSON の書き戻し、<c>ComponentIconGlyphMargin</c>)は
+    /// <see cref="PlanMinimal"/>を使う(2026-10-04 から。それまではこの全文置換だった)。
     /// </summary>
     internal static IReadOnlyList<TextChange>Plan(SourceText Before,SourceText After)=>
         After.GetTextChanges(Before)
             .OrderByDescending(static Change=>Change.Span.Start)
             .ToArray();
+
+    /// <summary>
+    /// The one change between two unrelated texts that leaves their common start and end alone, for a scene JSON
+    /// write-back: its text merge (M0095) already changes only the edited values, but <see cref="Plan(SourceText,SourceText)"/>
+    /// replaced the whole document on every edit. A boundary never splits a CRLF or a surrogate pair.
+    /// </summary>
+    internal static IReadOnlyList<TextChange>PlanMinimal(SourceText Before,string After){
+        var Old=Before.ToString();
+        var Limit=Math.Min(Old.Length,After.Length);
+        var Prefix=0;
+        while(Prefix<Limit&&Old[Prefix]==After[Prefix]){ Prefix++; }
+        if(Prefix==Old.Length&&Prefix==After.Length){ return []; }
+        var Suffix=0;
+        while(Suffix<Limit-Prefix&&Old[Old.Length-1-Suffix]==After[After.Length-1-Suffix]){ Suffix++; }
+        static bool Splits(string Text,int At)=>At>0&&At<Text.Length
+            &&(Text[At-1]=='\r'&&Text[At]=='\n'||char.IsHighSurrogate(Text[At-1])&&char.IsLowSurrogate(Text[At]));
+        while(Prefix>0&&(Splits(Old,Prefix)||Splits(After,Prefix))){ Prefix--; }
+        while(Suffix>0&&(Splits(Old,Old.Length-Suffix)||Splits(After,After.Length-Suffix))){ Suffix--; }
+        return [new TextChange(new TextSpan(Prefix,Old.Length-Prefix-Suffix),After.Substring(Prefix,After.Length-Prefix-Suffix))];
+    }
 
     /// <summary>
     /// M0044: 構文ツリー同士の差分。<paramref name="After"/>が<paramref name="Before"/>のrootへ
@@ -56,7 +77,7 @@ internal sealed class SceneTextBufferWriter {
         this.UndoHistoryRegistry=UndoHistoryRegistry??throw new ArgumentNullException(nameof(UndoHistoryRegistry));
 
     internal bool TryApply(ITextBuffer Buffer,SourceText Before,SourceText After,string UndoDescription)=>
-        this.TryApply(Buffer,Before,SceneTextChangePlanner.Plan(Before,After),UndoDescription);
+        this.TryApply(Buffer,Before,SceneTextChangePlanner.PlanMinimal(Before,After.ToString()),UndoDescription);
 
     /// <summary>
     /// 変更を開始位置の降順(<see cref="SceneTextChangePlanner"/>が整列済み)で適用する。

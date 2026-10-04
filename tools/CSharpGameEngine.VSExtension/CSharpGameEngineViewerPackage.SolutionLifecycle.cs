@@ -22,6 +22,16 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
             Solution.AdviseSolutionEvents(
                 this,out this.SolutionEventsCookie));
         this.SolutionEventsSource=Solution;
+        this.OnSolutionOpened();
+    }
+
+    /// <summary>Points <see cref="CgeProjectContext"/> at the open solution and restarts project-bound services (ADR-0065).</summary>
+    private void OnSolutionOpened(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        CgeProjectContext.SolutionPath=this.SolutionEventsSource is{ }Solution
+            &&ErrorHandler.Succeeded(Solution.GetSolutionInfo(out _,out var SolutionFile,out _))
+            &&!string.IsNullOrWhiteSpace(SolutionFile)?SolutionFile:null;
+        this.RestartAssetMetaWatcher();
     }
 
     private void DisposeSolutionLifecycle(){
@@ -43,7 +53,7 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
         // Scene documents are projections of C# authoring state. Release them before project
         // unload starts; waiting until package disposal can leave VisualStudioWorkspace and a
         // Preview Host alive while the shell is trying to unload their owning project.
-        this.SceneDesignerDocuments?.ReleaseRuntimeResourcesForSolutionClose();
+        SceneJsonEditorPane.ReleaseRuntimeResourcesForSolutionClose();
         this.SceneSession?.ClearPin();
         ActivityLog.LogInformation(
             nameof(CSharpGameEngineViewerPackage),
@@ -56,12 +66,20 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
         return VSConstants.S_OK;
     }
 
-    int IVsSolutionEvents.OnAfterCloseSolution(object Reserved)=>
-        VSConstants.S_OK;
+    int IVsSolutionEvents.OnAfterCloseSolution(object Reserved){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        CgeProjectContext.SolutionPath=null;
+        this.RestartAssetMetaWatcher();
+        return VSConstants.S_OK;
+    }
     int IVsSolutionEvents.OnAfterOpenProject(
         IVsHierarchy Hierarchy,int Added)=>VSConstants.S_OK;
     int IVsSolutionEvents.OnAfterOpenSolution(
-        object Reserved,int NewSolution)=>VSConstants.S_OK;
+        object Reserved,int NewSolution){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.OnSolutionOpened();
+        return VSConstants.S_OK;
+    }
     int IVsSolutionEvents.OnAfterLoadProject(
         IVsHierarchy StubHierarchy,IVsHierarchy RealHierarchy)=>
         VSConstants.S_OK;

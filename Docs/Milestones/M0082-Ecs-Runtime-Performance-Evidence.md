@@ -18,7 +18,7 @@ This closes both sides of the Component boundary: 1 and 64 emit one enable-mask 
 
 Debug timing is diagnostic because non-optimized code generation is not a shipping-performance oracle. Debug and Release both require zero managed allocation in every measured generated query.
 
-Release gates every boundary at 6,000,000 ns median and 8,330,000 ns p95. The independently compiled 64-type path is also compared against the one-type direct path; median or p95 regression above 20 percent fails. This relative tolerance is only a cross-process regression alarm. It does not replace or weaken the fixed simulation budget, and the structural test independently proves that no high-word field or branch enters the 1-64 generated shape.
+Release gates every boundary at 6,000,000 ns median and 8,330,000 ns p95. The independently compiled 64-type path is also compared against the one-type direct path; median regression above 20 percent fails (until 2026-10-04 the p95 was compared too; see the adversarial review). This relative tolerance is only a cross-process regression alarm. It does not replace or weaken the fixed simulation budget, and the structural test independently proves that no high-word field or branch enters the 1-64 generated shape.
 
 ## Failure contract
 
@@ -31,6 +31,8 @@ A capture failure cannot publish a partial raw report. Source generation output 
 The first complete implementation validated only the format and distinctness of the state and generated-source hashes. That still trusted the raw producer to describe its own output. The final validator independently reconstructs the deterministic final-state hash and independently hashes and inspects each persisted generator output.
 
 The first auxiliary cross-process comparison used a 15 percent p95 threshold. One otherwise-valid Release run measured 418,450/560,100 ns for one type and 445,800/650,000 ns for 64 types: median regression was 6.5 percent while the thirty-sample nearest-rank p95 differed by 16.0 percent. The product-wide 8.33 ms p95 gate passed by more than an order of magnitude and the source-shape oracle proved a single word. The relative alarm was fixed at 20 percent to avoid a one-sample process-noise cliff; the absolute budget, zero-allocation rule, and source-shape proof were retained.
+
+2026-10-04: the 20 percent p95 comparison failed the same way. A Release full suite failed at 953,400/786,000 ns (64/1 p95, +21 percent) while the next ECS release stage passed with 809,000/934,000 ns on the same commit, and one of three runs on an otherwise idle machine failed at 755,400/625,300 ns while the medians were 533,150/511,500 ns. Over seven runs the 64/1 median ratio stayed within 0.91 to 1.09 and the p95 ratio ranged from 0.87 to 1.21. The nearest-rank p95 of thirty samples is the second largest sample, so comparing it across two processes measures scheduling noise, and widening the threshold again would only move the cliff. The relative alarm now compares the median only (`PerformanceBaseline` with no p95); every p95 remains gated by the 8.33 ms absolute budget.
 
 Overengineering review kept one parameterized benchmark project rather than four copied projects. The four builds remain genuinely separate compilations because the preprocessor symbol and generated source are count-qualified and independently hashed.
 

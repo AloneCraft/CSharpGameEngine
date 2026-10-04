@@ -29,24 +29,29 @@ public sealed class SceneFileItemTemplateTests {
         Assert.Equal("true",Data.Element(TemplateNamespace+"ShowByDefault")?.Value);
         Assert.Equal("1",Data.Element(TemplateNamespace+"NumberOfParentCategoriesToRollUp")?.Value);
         Assert.Equal("CSharpGameEngine.SceneFile",Data.Element(TemplateNamespace+"TemplateID")?.Value);
-        Assert.Equal("Scene.cs",Data.Element(TemplateNamespace+"DefaultName")?.Value);
+        Assert.Equal("Scene.json",Data.Element(TemplateNamespace+"DefaultName")?.Value);
         Assert.Equal("__TemplateIcon.ico",Data.Element(TemplateNamespace+"Icon")?.Value);
     }
 
     [Fact]
-    public void Template_CreatesBasicStageAndUsesVisualStudioReplacementTokens(){
-        var Source=File.ReadAllText(Path.Combine(TemplateDirectory,"Scene.cs"));
+    public void Template_CreatesBasicStageSceneJsonAndUsesVisualStudioReplacementTokens(){
+        var Source=File.ReadAllText(Path.Combine(TemplateDirectory,"Scene.json"));
+        var Template=XDocument.Load(Path.Combine(TemplateDirectory,"SceneFile.vstemplate"));
+        XNamespace TemplateNamespace="http://schemas.microsoft.com/developer/vstemplate/2005";
 
-        Assert.Contains("namespace $rootnamespace$;",Source);
-        Assert.Contains("class $safeitemname$ : IScene",Source);
-        Assert.Contains("new AmbientLight()",Source);
-        Assert.Contains("new DirectionalLight()",Source);
-        Assert.Contains("new HeightFog()",Source);
-        Assert.Contains("new PrimitiveMesh { Type=PrimitiveType.Box }",Source);
-        Assert.Contains("new PlayerStart()",Source);
-        Assert.Contains("Position=new LogicalVector3(0f,-0.5f,0f)",Source);
-        Assert.Contains("Scale=new LogicalVector3(10f,1f,10f)",Source);
-        Assert.DoesNotContain("RotationW",Source);
+        Assert.Contains("\"namespace\": \"$rootnamespace$\"",Source);
+        Assert.Contains("\"className\": \"$safeitemname$\"",Source);
+        Assert.Contains("\"$schema\": \""+SceneFileTemplateWizard.SchemaToken+"\"",Source);
+        Assert.Contains("\"type\": \"CSharpGameEngine.Runtime.Windows.AmbientLight\"",Source);
+        Assert.Contains("\"type\": \"CSharpGameEngine.Runtime.Lighting.DirectionalLight\"",Source);
+        Assert.Contains("\"type\": \"CSharpGameEngine.Runtime.Windows.HeightFog\"",Source);
+        Assert.Contains("\"Type\": \"Box\"",Source);
+        Assert.Contains("\"Position\": { \"R\": 0, \"U\": -0.5, \"F\": 0 }",Source);
+        Assert.Contains("\"Scale\": { \"R\": 10, \"U\": 1, \"F\": 10 }",Source);
+        var Item=Assert.Single(Template.Root!.Element(TemplateNamespace+"TemplateContent")!.Elements(TemplateNamespace+"ProjectItem"));
+        Assert.Equal("$fileinputname$.json",(string?)Item.Attribute("TargetFileName"));
+        Assert.Equal("true",(string?)Item.Attribute("ReplaceParameters"));
+        Assert.Equal(typeof(SceneFileTemplateWizard).FullName,Template.Root.Element(TemplateNamespace+"WizardExtension")?.Element(TemplateNamespace+"FullClassName")?.Value);
     }
 
     [Fact]
@@ -79,10 +84,10 @@ public sealed class SceneFileItemTemplateTests {
         var TemplateManifest=Archive.GetEntry("ItemTemplates/templateManifest0.1033.vstman");
         Assert.NotNull(TemplateManifest);
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/SceneFile.vstemplate"));
-        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.cs"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.json"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/__TemplateIcon.ico"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/SceneFile.vstemplate"));
-        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.cs"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.json"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/__TemplateIcon.ico"));
         Assert.DoesNotContain(Archive.Entries,Entry=>Entry.FullName.StartsWith("CSharp/GameEngine/",StringComparison.Ordinal));
 

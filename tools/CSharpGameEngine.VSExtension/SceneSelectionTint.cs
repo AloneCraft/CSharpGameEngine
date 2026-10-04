@@ -9,7 +9,7 @@ namespace CSharpGameEngine.VSExtension;
 /// <para>
 /// Preview HostのGPU実行から「どのオブジェクトをどの強さで光らせるか」の判断を分離し、
 /// provider-neutral frame DTOをGPU無しで検証できるようにしている(このリポジトリが
-/// <c>SceneDesignerContextMenuPolicy</c>等で踏襲している方針)。
+/// 表示判定を純粋な関数へ分けて検証する方針)。
 /// </para>
 ///
 /// <para>

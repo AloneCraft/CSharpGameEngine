@@ -93,6 +93,41 @@ public sealed class InputServerTests {
         Assert.Contains("reserved",Error,StringComparison.OrdinalIgnoreCase);
     }
     [Fact]
+    public void ReadValue_ComposesEveryBindingWithUnrealStyleModifiers(){
+        // Unreal's IMC_Default: W swizzled to +Y, S swizzled and negated, A negated, D as is.
+        var Move=new InputActionId(StableId.Parse("5d9b2b0f-6a3d-4d1e-9d8f-2f3b9b2a4c11"));
+        InputControl Key(string Code)=>new(InputDeviceKind.Keyboard,Code);
+        var Map=new InputActionMap([new InputContext(Context,"Default",0,[
+            new InputBinding(Move,Key("W"),Modifiers:[new InputSwizzleModifier()]),
+            new InputBinding(Move,Key("S"),Modifiers:[new InputSwizzleModifier(),new InputNegateModifier()]),
+            new InputBinding(Move,Key("A"),Modifiers:[new InputNegateModifier()]),
+            new InputBinding(Move,Key("D")),
+        ])]);
+        var Server=new InputServer(Map);
+        Server.SetContextActive(Context,true,new MonotonicTimestamp(1));
+        Server.ProcessEvents([Event(2,1,Key("W"),InputEventKind.Pressed,InputValue.Pressed),Event(3,2,Key("D"),InputEventKind.Pressed,InputValue.Pressed)]);
+        Assert.Equal(new InputValue(1,1),Server.ReadValue(Move));
+        Server.ProcessEvents([Event(4,3,Key("W"),InputEventKind.Released,InputValue.Zero),Event(5,4,Key("S"),InputEventKind.Pressed,InputValue.Pressed),Event(6,5,Key("A"),InputEventKind.Pressed,InputValue.Pressed)]);
+        Assert.Equal(new InputValue(0,-1),Server.ReadValue(Move));
+        Server.SetContextActive(Context,false,new MonotonicTimestamp(7));
+        Assert.Equal(InputValue.Zero,Server.ReadValue(Move));
+    }
+    [Fact]
+    public void ReadValue_AccumulatesRelativeMouseDeltaForOneFrameOnly(){
+        var Look=new InputActionId(StableId.Parse("0b0c7a55-73b4-4a1f-9e0e-3a4c1c2d9f77"));
+        var Delta=new InputControl(InputDeviceKind.Mouse,"Delta",InputControlKind.RelativeAxis2D);
+        var Server=new InputServer(new InputActionMap([new InputContext(Context,"MouseLook",0,[new InputBinding(Look,Delta,Modifiers:[new InputNegateModifier(X:false,Y:true)])])]));
+        Server.SetContextActive(Context,true,new MonotonicTimestamp(1));
+        Server.ProcessEvents([
+            new InputEvent(new MonotonicTimestamp(2),Window,Keyboard,1,Delta,InputEventKind.ValueChanged,new InputValue(3,-2)),
+            new InputEvent(new MonotonicTimestamp(3),Window,Keyboard,2,Delta,InputEventKind.ValueChanged,new InputValue(1,5)),
+        ]);
+        Assert.Equal(new InputValue(4,-3),Server.ReadValue(Look));
+        Assert.Empty(Server.CurrentFrame);
+        Server.ProcessEvents([]);
+        Assert.Equal(InputValue.Zero,Server.ReadValue(Look));
+    }
+    [Fact]
     public void DeviceRemoval_CancelsHeldActions(){
         var Server=CreateServer();
         Server.ProcessEvents([Event(2,1,Space,InputEventKind.Pressed,InputValue.Pressed)]);
@@ -100,43 +135,6 @@ public sealed class InputServerTests {
         var Value=Assert.Single(Server.CurrentFrame);
         Assert.Equal(InputActionPhase.Canceled,Value.Phase);
         Assert.Equal(InputReleaseReason.DeviceRemoved,Value.ReleaseReason);
-    }
-    [Fact]
-    public void DebugSnapshot_IsBoundedImmutableCopyOfCurrentOwnedState(){
-        InputBinding[]Bindings=Enumerable.Range(0,65)
-            .Select(Index=>new InputBinding(
-                new InputActionId(StableId.FromName(
-                    StableId.Parse("ab0e711b-738b-5f0a-bb8b-c400e5d2e663"),
-                    $"diagnostic-action/{Index}")),Space))
-            .ToArray();
-        var Server=new InputServer(new InputActionMap([
-            new InputContext(Context,"Diagnostics",10,Bindings),
-        ]));
-        Server.SetContextActive(Context,true,new MonotonicTimestamp(1));
-        Server.ProcessEvents([Event(2,1,Space,InputEventKind.Pressed,InputValue.Pressed)]);
-
-        PlatformDebugInputSnapshot Snapshot=Server.CaptureDebugSnapshot();
-
-        Assert.Equal(PlatformDebugSubsystemState.Ready,Snapshot.State);
-        Assert.Equal(1,Snapshot.ActiveContextCount);
-        Assert.Equal(1,Snapshot.HeldControlCount);
-        Assert.Equal(65,Snapshot.ActiveActionCount);
-        Assert.True(Snapshot.ActionsTruncated);
-        Assert.Equal(RenderPreviewHostProtocol.MaximumPlatformDebugInputActionCount,
-            Snapshot.Actions.Length);
-        Assert.All(Snapshot.Actions,Action=>{
-            Assert.Equal(Window.ToString(),Action.WindowId);
-            Assert.Equal(Keyboard.ToString(),Action.DeviceId);
-            Assert.Equal(Context.ToString(),Action.ContextId);
-            Assert.Equal(PlatformDebugInputActionPhase.Started,Action.Phase);
-            Assert.Equal(1f,Action.RawX);
-            Assert.Equal(1f,Action.ValueX);
-        });
-
-        Server.ProcessEvents([Event(3,2,Space,InputEventKind.Released,InputValue.Zero)]);
-        Assert.All(Snapshot.Actions,Action=>
-            Assert.Equal(PlatformDebugInputActionPhase.Started,Action.Phase));
-        Assert.Equal(65,Snapshot.ActiveActionCount);
     }
     private static InputActionValue[]RunTrace(){
         var Server=CreateServer();

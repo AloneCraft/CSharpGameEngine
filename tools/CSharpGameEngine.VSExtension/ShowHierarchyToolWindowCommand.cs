@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu command that shows/creates <see cref="HierarchyToolWindowPane"/> (ADR-0020) - a manual
+/// Extensions > C# Game Engine menu command that shows/creates <see cref="HierarchyToolWindowPane"/> (ADR-0020) - a manual
 /// fallback since <see cref="CSharpGameEngineViewerPackage.InitializeAsync"/> also auto-shows it once
 /// at package load (so it behaves like Unity's always-docked Hierarchy by default).
 /// </summary>

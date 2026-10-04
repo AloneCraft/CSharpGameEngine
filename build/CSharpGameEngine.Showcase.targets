@@ -6,7 +6,16 @@
     <CgeShowcaseIntermediateManifest>$(CgeShowcaseIntermediateDirectory)feature-progress.json</CgeShowcaseIntermediateManifest>
   </PropertyGroup>
   <Target Name="BuildCgeFeatureRunner" BeforeTargets="GenerateCgeShowcaseManifest" Condition="'@(CgeShowcaseManifest)' != ''">
-    <MSBuild Projects="$(CgeFeatureRunnerProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" BuildInParallel="false" />
+    <!-- CgeFeatureRunnerExe is the RID-less output; a game's RuntimeIdentifier (an x64 test run of the solution, say) must not move it to win-x64\ and leave a stale exe there. -->
+    <!-- A project built on its own does not restore the runner; restore in a separate evaluation first. -->
+    <MSBuild Projects="$(CgeFeatureRunnerProject)" Targets="Restore" Properties="Configuration=$(Configuration);Platform=x64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" RemoveProperties="RuntimeIdentifier;SelfContained" BuildInParallel="false" />
+    <MSBuild Projects="$(CgeFeatureRunnerProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" RemoveProperties="RuntimeIdentifier;SelfContained" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeFeatureRunnerAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <!-- The apphost beside the built assembly, wherever the build put it (an artifacts path moves it). -->
+      <CgeFeatureRunnerExe>@(_CgeFeatureRunnerAssembly->'%(RootDir)%(Directory)%(Filename).exe')</CgeFeatureRunnerExe>
+    </PropertyGroup>
   </Target>
   <Target Name="GenerateCgeShowcaseManifest" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeFeatureRunner" Condition="'@(CgeShowcaseManifest)' != ''" Inputs="@(CgeShowcaseManifest);$(CgeFeatureRunnerExe)" Outputs="$(CgeShowcaseIntermediateManifest)">
     <MakeDir Directories="$(CgeShowcaseIntermediateDirectory)" />

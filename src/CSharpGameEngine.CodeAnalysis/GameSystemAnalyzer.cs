@@ -26,6 +26,8 @@ internal static class GameSystemAnalyzer {
     internal const string ReadOnlyComponentAttributeMetadataName="CSharpGameEngine.Entities.ReadOnlyComponentAttribute";
     internal const string ScheduledSystemAttributeMetadataName="CSharpGameEngine.Entities.ScheduledSystemAttribute";
     internal const string RunsAfterAttributeMetadataName="CSharpGameEngine.Entities.RunsAfterAttribute";
+    internal const string RunsBeforeAttributeMetadataName="CSharpGameEngine.Entities.RunsBeforeAttribute";
+    private const string EngineHostMetadataName="CSharpGameEngine.Runtime.Windows.EngineHost";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
 
@@ -82,6 +84,7 @@ internal static class GameSystemAnalyzer {
         var RealtimeInEditor=false;
         var IsScheduled=false;
         var RunsAfter=ImmutableArray.CreateBuilder<string>();
+        var RunsBefore=ImmutableArray.CreateBuilder<string>();
         foreach(var Attribute in SystemSymbol.GetAttributes()){
             if(Attribute.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Entities.ExecuteInEditorAttribute"){
                 ExecuteInEditor=true;
@@ -90,9 +93,12 @@ internal static class GameSystemAnalyzer {
                 IsScheduled=true;
             } else if(Attribute.AttributeClass?.ToDisplayString()==RunsAfterAttributeMetadataName
                 &&Attribute.ConstructorArguments.Length==1
-                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Dependency){
-                IsScheduled=true;
-                RunsAfter.Add(Dependency.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Earlier){
+                RunsAfter.Add(Earlier.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            } else if(Attribute.AttributeClass?.ToDisplayString()==RunsBeforeAttributeMetadataName
+                &&Attribute.ConstructorArguments.Length==1
+                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Later){
+                RunsBefore.Add(Later.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             }
         }
 
@@ -127,21 +133,11 @@ internal static class GameSystemAnalyzer {
             IsWorldSystem,
             IsScheduled,
             RunsAfter.ToImmutable(),
+            RunsBefore.ToImmutable(),
             TypeLocation,
             TypeLocation.SourceTree?.FilePath??string.Empty,
             TypeLocation.SourceSpan.Start);
     }
-
-    /// <summary>
-    /// <see cref="GameSystemResult.ClassFullyQualifiedName"/>と同じ規則(名前空間.型名、グローバル
-    /// 名前空間ならglobal::無しの型名のみ)で完全修飾名を作る。<see cref="GameSystemOrderAnalyzer"/>が
-    /// <c>[SystemOrder]</c>を直接付けられたSystemを、<see cref="GameSystemResult"/>側と同じキーで
-    /// 引き当てるために必要(2箇所が別々の規則で名前を作るとキーがズレて対応付けが失敗する)。
-    /// </summary>
-    internal static string ComputeClassFullyQualifiedName(INamedTypeSymbol Symbol)=>
-        Symbol.ContainingNamespace.IsGlobalNamespace
-            ?Symbol.Name
-            : $"{Symbol.ContainingNamespace.ToDisplayString()}.{Symbol.Name}";
 
     private static int GetDeclarationPosition(ISymbol Symbol){
         Location Location=Symbol.Locations.FirstOrDefault()??Location.None;
@@ -180,7 +176,7 @@ internal static class GameSystemAnalyzer {
                 Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ShutdownMethodMustReturnVoid,MethodLocation,Method.Name,Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
                 IsValid=false;
             }
-        } else if(Method.ReturnType.SpecialType!=SpecialType.System_Boolean){
+        } else if(!Method.ReturnsVoid&&Method.ReturnType.SpecialType!=SpecialType.System_Boolean){
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustReturnBool,MethodLocation,Method.Name,Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
             IsValid=false;
         }
@@ -296,14 +292,21 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            if(!SeenContextTypes.Add(ParameterTypeFqn)){
-                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+            // M0096 G: an interface the engine host implements (IPhysicsHost) is the host itself, so a portable
+            // system can take it and the loop passes the one host it already has.
+            var ContextTypeFqn=Parameter.Type.TypeKind==TypeKind.Interface
+                &&Method.ContainingAssembly.GetTypeByMetadataName(EngineHostMetadataName) is { }EngineHost
+                &&EngineHost.AllInterfaces.Contains(Parameter.Type,SymbolEqualityComparer.Default)
+                    ?EngineHost.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                    :ParameterTypeFqn;
+            if(!SeenContextTypes.Add(ContextTypeFqn)){
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ContextTypeFqn));
                 IsValid=false;
                 continue;
             }
 
             CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Context,Contexts.Count));
-            Contexts.Add(new GameSystemContextParameterModel(Parameter.Name,ParameterTypeFqn,IsReferenceType));
+            Contexts.Add(new GameSystemContextParameterModel(Parameter.Name,ContextTypeFqn,IsReferenceType));
         }
 
         if(HasTrailingState&&!IsSpawn){
@@ -319,7 +322,8 @@ internal static class GameSystemAnalyzer {
             return null;
         }
 
-        return new GameSystemMethodModel(Role,HasLeadingEntity,[.. Components],[.. Contexts],[.. CallOrder],GetDeclarationPosition(Method));
+        return new GameSystemMethodModel(Role,HasLeadingEntity,[.. Components],[.. Contexts],[.. CallOrder],GetDeclarationPosition(Method),
+            ReturnsBool:Role==GameSystemMethodRole.Dispatch&&!Method.ReturnsVoid);
     }
 
     private static string TypeFqn(IParameterSymbol Parameter)=>

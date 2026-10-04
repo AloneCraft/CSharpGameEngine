@@ -2,13 +2,14 @@
 
 - 製品表示名: `C# Game Engine`
 - 内部名: `CSharpGameEngine`
-- 現在の段階: 第3マイルストーン（glTFアセットのインポートと最小Viewer）
+- 現在の段階: SDKパッケージとVisual Studioの三人称テンプレート（M0092）
 
 ## Build
 ```bash
-dotnet restore
-dotnet build
+dotnet restore CSharpGameEngine.slnx
+dotnet build CSharpGameEngine.slnx
 ```
+リポジトリ直下には補助の`UserEcsProject.slnx`もあるので、ソリューションを指定します（指定しないとMSB1011で止まります）。
 
 ## Visual Studio VSIX
 
@@ -28,13 +29,13 @@ Visual StudioからF5を実行する場合も、起動構成は`CSharpGameEngine
 
 ## Test
 ```bash
-dotnet test
+dotnet test CSharpGameEngine.slnx
 ```
 
 GPU統合テスト（`CSharpGameEngine.Windows.Tests`内、`Category=GPU`）はWARPアダプタに対して実行され、
 非Windows環境では明示的にSkipされます。CPU側のみ実行する場合:
 ```bash
-dotnet test --filter "Category!=GPU"
+dotnet test CSharpGameEngine.slnx --filter "Category!=GPU"
 ```
 
 ## VS Code
@@ -65,6 +66,43 @@ dotnet run --project tools/CSharpGameEngine.FeatureRunner -- resume <run-result.
 ```
 
 将来機能もStageとOracleを列挙できますが、実装されるまで明示的な`NotImplemented`となり成功扱いされません。詳細は[Docs/Feature-Stages.md](Docs/Feature-Stages.md)を参照してください。
+
+## 新しいゲームを作る（三人称テンプレート）
+
+VSIXを入れたVisual Studioで「新しいプロジェクトの作成」を開き、「三人称」（英語UIでは「Third Person」）を選びます。作成先はリポジトリの外でも構いません。
+
+- 作成されるのは、Unreal EngineのThird Personテンプレートの移植です。レベル、ライティング、キャラクター移動、SpringArmカメラ、入力、Quinnのアニメーションを含みます。
+- 移動はWASD（または左スティック）、視点はマウス（または右スティック）、ジャンプはSpace（またはAボタン）です。
+- エンジンは`CSharpGameEngine.Sdk` NuGetパッケージから参照されます。VSIXに同梱のパッケージを、ウィザードが`%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`へ配置します。
+- 同梱のUnreal Engineコンテンツの条件は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
+
+リポジトリ内のテンプレート原本は`templates/CSharpGameEngine.Templates.ThirdPerson`です。次のコマンドで直接実行できます。
+
+```bash
+dotnet run --project templates/CSharpGameEngine.Templates.ThirdPerson -c Debug
+```
+
+## エンジンSDKパッケージ
+
+```bash
+dotnet pack packaging/CSharpGameEngine.Sdk -c Release
+```
+
+`.artifacts/packages/CSharpGameEngine.Sdk.<version>.nupkg`が出力されます。パッケージの構成は[ADR-0065](Docs/Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md)を参照してください。
+
+NuGetは一度展開したバージョンを`%USERPROFILE%\.nuget\packages\csharpgameengine.sdk\<version>`から使い続けます。バージョンを変えずに作り直したパッケージ（新しいVSIXに同梱されたものを含む）を生成済みのゲームへ反映するには、バージョンを上げるか、そのフォルダーを消してから復元し直します（`vsix.project-template`ステージは後者を行います）。
+
+ゲームのcsprojには次の3つを書きます。
+
+- `TargetFramework`（`net10.0-windows10.0.19041.0`）
+- `RuntimeIdentifier`（`win-x64`）
+- `PackageReference Include="CSharpGameEngine.Sdk"`
+
+リポジトリ外で生成・ビルド・実走までを検証するには、次を実行します。
+
+```bash
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run vsix.project-template --adapter warp
+```
 
 ## Engine Showcase
 
@@ -151,8 +189,9 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
   `tools/CSharpGameEngine.Extension`はヘッドレスのモデルビューア実行ファイルで、
   `--verify`によるピクセル検証を伴うレンダリング経路のスモークに使います（VSIXではありません）。
 - エンジン本体は Visual Studio から独立して実行できる設計方針です。
-- `src/`は5プロジェクトです（詳細:
-  [Docs/Decisions/ADR-0034-Project-Consolidation.md](Docs/Decisions/ADR-0034-Project-Consolidation.md)）。
+- `src/`は14のプロジェクトと6の共有プロジェクトです。一覧の正本は`CSharpGameEngine.slnx`、構成と層の境界は
+  [Docs/Architecture.md](Docs/Architecture.md)「プロジェクト構成」にあります。次の表は
+  [ADR-0034](Docs/Decisions/ADR-0034-Project-Consolidation.md)で決めた中核の5つです。
   **アセンブリ名と名前空間は意図的に一致していません** — 名前空間は統合前のまま維持されています。
 
   | プロジェクト | TFM | 含む名前空間 |

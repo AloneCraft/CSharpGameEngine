@@ -10,7 +10,13 @@
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\SpotLight.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\RectAreaLight.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\LightShadow.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\SkyAtmosphere.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\SkyLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PostProcessVolume.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\ExponentialHeightFog.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\GlobalIlluminationVolume.svg" />
     <Compile Include="$(MSBuildThisFileDirectory)LightComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)EnvironmentComponents.cs" />
     <Using Include="CSharpGameEngine.Runtime.Lighting" />
     <Using Include="CSharpGameEngine.Lighting" />
   </ItemGroup>

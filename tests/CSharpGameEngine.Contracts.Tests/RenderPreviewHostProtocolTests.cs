@@ -3,9 +3,56 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Contracts.Tests;
 
 public sealed class RenderPreviewHostProtocolTests {
+    /// <summary>
+    /// M0097: version 7 removed the runtime diagnostics snapshot. The command is gone, so a request that still
+    /// carries its old value is an unknown command. M0100: version 8 adds the camera's depth mapping.
+    /// </summary>
     [Fact]
-    public void ProtocolV5_ValidatesPresentationModeAndSelectionWeight(){
-        Assert.Equal(5,RenderPreviewHostProtocol.CurrentVersion);
+    public void Protocol_HasNoDiagnosticsSnapshotCommand(){
+        Assert.Equal(8,RenderPreviewHostProtocol.CurrentVersion);
+        Assert.DoesNotContain("Snapshot",Enum.GetNames(typeof(RenderPreviewHostCommand)));
+        Assert.Null(typeof(RenderPreviewHostResponse).GetProperty("DebugSnapshot"));
+        RenderPreviewHostRequest Request=CreateCommand((RenderPreviewHostCommand)6);
+        Assert.Contains("unknown",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ProtocolV8_ValidatesRadialCameras(){
+        // M0100: a radial camera needs a perspective matrix (its W is the view depth) and a usable projection; an
+        // orthographic or incomplete one is rejected rather than drawn standard.
+        var Perspective=System.Numerics.Matrix4x4.CreateLookAt(new(0f,1f,-4f),System.Numerics.Vector3.Zero,System.Numerics.Vector3.UnitY)
+            *System.Numerics.Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.1f,300f);
+        RenderPreviewHostRequest Request=CreateCommand(RenderPreviewHostCommand.UpdateFrame);
+        RenderPreviewCamera Camera=new(){
+            ViewProjection=new RenderPreviewMatrix4x4 { Values=[
+                Perspective.M11,Perspective.M12,Perspective.M13,Perspective.M14,
+                Perspective.M21,Perspective.M22,Perspective.M23,Perspective.M24,
+                Perspective.M31,Perspective.M32,Perspective.M33,Perspective.M34,
+                Perspective.M41,Perspective.M42,Perspective.M43,Perspective.M44] },
+            FovYRadians=0.8f,NearZ=0.1f,FarZ=300f,
+            DepthMapping=RenderPreviewDepthMapping.Radial,
+        };
+        Request.Frame=new RenderPreviewFrame { Camera=Camera };
+        Assert.Equal(1f,Camera.RadialTransitionMeters);
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
+        void AssertRejected(Action<RenderPreviewCamera>Change){
+            var Saved=(Camera.ViewProjection,Camera.FovYRadians,Camera.NearZ,Camera.RadialTransitionMeters,Camera.DepthMapping);
+            Change(Camera);
+            Assert.Contains("depth",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
+            (Camera.ViewProjection,Camera.FovYRadians,Camera.NearZ,Camera.RadialTransitionMeters,Camera.DepthMapping)=Saved;
+        }
+        AssertRejected(static Value=>Value.ViewProjection=RenderPreviewMatrix4x4.Identity);
+        AssertRejected(static Value=>Value.FovYRadians=0f);
+        AssertRejected(static Value=>Value.NearZ=0f);
+        AssertRejected(static Value=>Value.RadialTransitionMeters=0f);
+        AssertRejected(static Value=>Value.DepthMapping=(RenderPreviewDepthMapping)7);
+        Camera.DepthMapping=RenderPreviewDepthMapping.Standard;
+        Camera.ViewProjection=RenderPreviewMatrix4x4.Identity;
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
+    }
+
+    [Fact]
+    public void Protocol_ValidatesPresentationModeSelectionWeightAndCameraPose(){
         RenderPreviewHostRequest Request=CreateCommand(
             RenderPreviewHostCommand.UpdateFrame);
         Request.Frame=new RenderPreviewFrame {
@@ -32,6 +79,19 @@ public sealed class RenderPreviewHostProtocolTests {
         Request.Frame.Objects[0].SelectionWeight=0f;
         Request.Frame.PresentationMode=(RenderPreviewPresentationMode)255;
         Assert.Contains("presentation",Assert.IsType<string>(
+            RenderPreviewHostProtocol.Validate(Request)),
+            StringComparison.OrdinalIgnoreCase);
+
+        // Protocol 6 (ADR-0070 B1): the runtime view's camera carries its rotation and projection.
+        Request.Frame.PresentationMode=RenderPreviewPresentationMode.Wireframe;
+        Request.Frame.Camera.Rotation=[0f,0f,0f];
+        Assert.Contains("rotation",Assert.IsType<string>(
+            RenderPreviewHostProtocol.Validate(Request)),
+            StringComparison.OrdinalIgnoreCase);
+        Request.Frame.Camera.Rotation=[0f,0f,0f,1f];
+        Request.Frame.Camera.NearZ=10f;
+        Request.Frame.Camera.FarZ=1f;
+        Assert.Contains("projection",Assert.IsType<string>(
             RenderPreviewHostProtocol.Validate(Request)),
             StringComparison.OrdinalIgnoreCase);
     }
@@ -166,104 +226,11 @@ public sealed class RenderPreviewHostProtocolTests {
         Request=CreateCommand(RenderPreviewHostCommand.ReplaceScene);
         Assert.Contains("requires",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
 
-        Request=CreateCommand(RenderPreviewHostCommand.Snapshot);
+        Request=CreateCommand(RenderPreviewHostCommand.Close);
         Assert.Null(RenderPreviewHostProtocol.Validate(Request));
         Request.Width=1;
         Assert.Contains("must not include",Assert.IsType<string>(
             RenderPreviewHostProtocol.Validate(Request)),
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void DebugSnapshot_ValidatesVersionBoundsTopologyAndDiagnostics(){
-        RenderPreviewDebugSnapshot Snapshot=CreateDebugSnapshot();
-
-        Assert.Null(RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot));
-
-        Snapshot.SnapshotVersion++;
-        Assert.Contains("Unsupported",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.Ordinal);
-        Snapshot.SnapshotVersion=RenderPreviewHostProtocol.CurrentDebugSnapshotVersion;
-
-        Snapshot.Passes[0].Dependencies=[0];
-        Assert.Contains("dependency",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-        Snapshot.Passes[0].Dependencies=[];
-
-        Snapshot.Resources[0].AliasSlot=0;
-        Assert.Contains("lifetime",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-        Snapshot.Resources[0].AliasSlot=-1;
-
-        Snapshot.Diagnostics[0].Description=new string(
-            'x',RenderPreviewHostProtocol.MaximumDebugDiagnosticDescriptionLength+1);
-        Assert.Contains("description",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Resources[0].Format=null!;
-        Assert.Contains("descriptor",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.DiagnosticsTruncated=true;
-        Assert.Contains("capacity",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void PlatformDebugSnapshot_RejectsMalformedOwnedAndNotOwnedState(){
-        RenderPreviewDebugSnapshot Snapshot=CreateDebugSnapshot();
-        Assert.Equal(2,Snapshot.SnapshotVersion);
-        Assert.Null(RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(
-            Snapshot.Platform));
-
-        Snapshot.Platform.CounterFrequency=0;
-        Assert.Contains("counter",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Input.Actions[0].ValueX=float.NaN;
-        Assert.Contains("invalid",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Input.State=PlatformDebugSubsystemState.NotOwned;
-        Assert.Contains("not-owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Audio.Mode=PlatformDebugAudioBackendMode.NotOwned;
-        Assert.Contains("owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Input=new PlatformDebugInputSnapshot {
-            State=PlatformDebugSubsystemState.NotOwned,
-            ActionsTruncated=true,
-        };
-        Snapshot.Platform.Audio=new PlatformDebugAudioSnapshot {
-            State=PlatformDebugSubsystemState.NotOwned,
-            Mode=PlatformDebugAudioBackendMode.NotOwned,
-        };
-        Assert.Contains("not-owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot.Platform.Input.ActionsTruncated=false;
-        Snapshot.Platform.Audio.LastFailure="fabricated failure";
-        Assert.Contains("not-owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
             StringComparison.OrdinalIgnoreCase);
     }
 
@@ -363,75 +330,6 @@ public sealed class RenderPreviewHostProtocolTests {
                     World=RenderPreviewMatrix4x4.Identity,
                 },
             ],
-        },
-    };
-
-    internal static RenderPreviewDebugSnapshot CreateDebugSnapshot()=>new(){
-        GraphKind=RenderPreviewDebugGraphKind.DeclaredPlan,
-        DeviceState=RenderPreviewDebugDeviceState.Ready,
-        DeviceGeneration=2,
-        CompletedFence=8,
-        FramesRendered=3,
-        SurfaceWidth=64,
-        SurfaceHeight=48,
-        SceneObjectCount=1,
-        PrimaryObjectDrawCount=1,
-        ResidentMaterialTextureCount=1,
-        AdapterDescription="WARP",
-        IsWarp=true,
-        QualityProfile="Compatibility",
-        Passes=[new RenderPreviewDebugPass {
-            Index=0,Name="Present",Queue=RenderPreviewDebugQueue.Graphics,
-            ExecutionIndex=0,
-        }],
-        Resources=[new RenderPreviewDebugResource {
-            Index=0,Name="BackBuffer",Kind=RenderPreviewDebugResourceKind.Texture,
-            Width=64,Height=48,Format="rgba8",Imported=true,
-            FirstUse=0,LastUse=0,AliasSlot=-1,
-        }],
-        Transitions=[new RenderPreviewDebugTransition {
-            ResourceIndex=0,PassIndex=0,
-            Before=RenderPreviewDebugResourceState.External,
-            After=RenderPreviewDebugResourceState.Write,
-            SourceQueue=RenderPreviewDebugQueue.Graphics,
-            DestinationQueue=RenderPreviewDebugQueue.Graphics,
-        }],
-        Diagnostics=[new RenderPreviewDebugDiagnostic {
-            Severity=RenderPreviewDebugSeverity.Warning,
-            Category="Execution",Id="Example",Description="Bounded message",
-        }],
-        Platform=new PlatformDebugSnapshot {
-            CapturedCounter=123,
-            CounterFrequency=10_000_000,
-            OsDescription="Windows",
-            OsArchitecture="X64",
-            ProcessArchitecture="X64",
-            RuntimeDescription=".NET 10",
-            ProcessId=42,
-            Input=new PlatformDebugInputSnapshot {
-                State=PlatformDebugSubsystemState.Ready,
-                ActiveContextCount=1,
-                HeldControlCount=1,
-                ActiveActionCount=1,
-                Actions=[new PlatformDebugInputAction {
-                    TimestampTicks=120,
-                    WindowId="window",
-                    DeviceId="keyboard",
-                    Sequence=4,
-                    ContextId="gameplay",
-                    ActionId="jump",
-                    Phase=PlatformDebugInputActionPhase.Started,
-                    RawX=1f,
-                    ValueX=1f,
-                }],
-            },
-            Audio=new PlatformDebugAudioSnapshot {
-                State=PlatformDebugSubsystemState.Ready,
-                Mode=PlatformDebugAudioBackendMode.Silent,
-                Generation=1,
-                MaximumVoiceCount=128,
-                BusCount=1,
-            },
         },
     };
 

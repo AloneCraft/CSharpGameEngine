@@ -34,7 +34,13 @@ internal static class SpatialDebugHub {
     private static long LastRequestTicks;
     private static int Started;
     private static long Sequence;
+    /// <summary>
+    /// The world a request without a world id gets when several publish in one process (M0096: the Scene view's
+    /// render server holds the view world and the editor world, and the overlay shows the editor world).
+    /// </summary>
+    private static Guid PreferredWorldId;
     internal static string PipeName=>$"CSharpGameEngine.SpatialDebug.{Environment.ProcessId}";
+    internal static void Prefer(Guid WorldId)=>PreferredWorldId=WorldId;
     internal static void Publish(Guid WorldId,EntityLooseOctree Index){
         EnsureStarted();
         Indexes[WorldId]=Index;
@@ -64,6 +70,10 @@ internal static class SpatialDebugHub {
     private static void CaptureRequestedSnapshots(string?WorldId){
         if(Guid.TryParse(WorldId,out Guid Parsed)&&Indexes.TryGetValue(Parsed,out EntityLooseOctree?Selected)){
             Capture(Parsed,Selected);
+            return;
+        }
+        if(WorldId is null&&Indexes.TryGetValue(PreferredWorldId,out EntityLooseOctree?Preferred)){
+            Capture(PreferredWorldId,Preferred);
             return;
         }
         foreach(KeyValuePair<Guid,EntityLooseOctree>Pair in Indexes){
@@ -124,6 +134,9 @@ internal static class SpatialDebugHub {
     private static SpatialDebugSnapshot?ResolveSnapshot(string?WorldId){
         if(Guid.TryParse(WorldId,out Guid Parsed)&&Snapshots.TryGetValue(Parsed,out SpatialDebugSnapshot?Selected)){
             return Selected;
+        }
+        if(WorldId is null&&Snapshots.TryGetValue(PreferredWorldId,out SpatialDebugSnapshot?Preferred)){
+            return Preferred;
         }
         SpatialDebugSnapshot?Latest=null;
         foreach(SpatialDebugSnapshot Candidate in Snapshots.Values){

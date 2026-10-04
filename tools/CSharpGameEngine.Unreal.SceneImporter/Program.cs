@@ -1,12 +1,22 @@
-using System.Globalization;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using CSharpGameEngine.Unreal.SceneImporter;
 using CSharpGameEngine.Import.Gltf;
+using static CSharpGameEngine.Unreal.SceneImporter.SceneSourceFormatting;
+
+if(args.Length>0&&args[0]=="thirdperson"){
+    return ThirdPersonTemplateImporter.Run(args[1..]);
+}
+
+if(args.Length>0&&args[0]=="worldgrid"){
+    return WorldGridGlbConverter.Run(args[1..]);
+}
 
 if(args.Length!=3){
     Console.Error.WriteLine("Usage: CSharpGameEngine.Unreal.SceneImporter <manifest.json> <scene.cs> <assets.cs>");
+    Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter thirdperson <manifest.json> <template-project-directory>");
+    Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter worldgrid <manifest.json> <project-directory>");
     return 2;
 }
 
@@ -81,7 +91,7 @@ static string BuildSceneSource(
     IReadOnlyDictionary<string,ImportedSceneNode>MeshNodeByName,
     ImportedSceneNode DirectionalNode){
     var Light=(ImportedDirectionalLight)Scene.Lights[DirectionalNode.LightIndex!.Value];
-    var DirectionTowardLight=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
+    var TravelDirection=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
     ImportEnvironment Environment=Manifest.Environment;
 
     var Builder=new StringBuilder();
@@ -123,8 +133,8 @@ static string BuildSceneSource(
     Builder.AppendLine("            new Node {");
     Builder.AppendLine("                Name=\"DirectionalLight\",");
     Builder.AppendLine("                Components=[");
-    UnrealLightSceneEmitter.AppendDirectionalLightComponents(
-        Builder,DirectionTowardLight,new Vector3(Light.Color.R,Light.Color.G,Light.Color.B),Light.Illuminance.Lux,"                    ");
+    UnrealLightSceneEmitter.AppendDirectionalLightComponentsFromTravelDirection(
+        Builder,TravelDirection,new Vector3(Light.Color.R,Light.Color.G,Light.Color.B),Light.Illuminance.Lux,"                    ");
     Builder.AppendLine("                ],");
     Builder.AppendLine("            },");
 
@@ -144,53 +154,6 @@ static string BuildSceneSource(
     return Builder.ToString();
 }
 
-static void AppendAmbient(StringBuilder Builder,ImportAmbient Ambient){
-    Builder.AppendLine("            new AmbientLight {");
-    Builder.Append("                ColorR=").Append(F(Ambient.ColorRgb[0])).AppendLine(",");
-    Builder.Append("                ColorG=").Append(F(Ambient.ColorRgb[1])).AppendLine(",");
-    Builder.Append("                ColorB=").Append(F(Ambient.ColorRgb[2])).AppendLine(",");
-    Builder.Append("                Intensity=").Append(F(Ambient.Intensity)).AppendLine(",");
-    Builder.AppendLine("            },");
-}
-
-static void AppendFog(StringBuilder Builder,ImportFog Fog){
-    Builder.AppendLine("            new HeightFog {");
-    Builder.Append("                Density=").Append(F(Fog.Density)).AppendLine(",");
-    Builder.Append("                HeightFalloff=").Append(F(Fog.HeightFalloff)).AppendLine(",");
-    Builder.Append("                ColorR=").Append(F(Fog.ColorRgb[0])).AppendLine(",");
-    Builder.Append("                ColorG=").Append(F(Fog.ColorRgb[1])).AppendLine(",");
-    Builder.Append("                ColorB=").Append(F(Fog.ColorRgb[2])).AppendLine(",");
-    Builder.AppendLine("            },");
-}
-
-static void AppendTransform(StringBuilder Builder,Vector3 Translation,Quaternion Rotation,Vector3 Scale,string Indent){
-    Vector3 Euler=ToEulerRuf(Rotation);
-    Builder.Append(Indent).AppendLine("new Transform {");
-    Builder.Append(Indent).Append("    Position=new LogicalVector3(").Append(F(Translation.X)).Append(',').Append(F(Translation.Y)).Append(',').Append(F(Translation.Z)).AppendLine("),");
-    Builder.Append(Indent).Append("    Rotation=new LogicalQuaternion(new LogicalVector3(").Append(F(Euler.X)).Append(',').Append(F(Euler.Y)).Append(',').Append(F(Euler.Z)).AppendLine(")),");
-    Builder.Append(Indent).Append("    Scale=new LogicalVector3(").Append(F(Scale.X)).Append(',').Append(F(Scale.Y)).Append(',').Append(F(Scale.Z)).AppendLine("),");
-    Builder.Append(Indent).AppendLine("},");
-}
-
-static Vector3 ToEulerRuf(Quaternion Rotation){
-    Rotation=Quaternion.Normalize(Rotation);
-    float Pitch=MathF.Asin(Math.Clamp(2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z),-1f,1f));
-    float Yaw=MathF.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
-    float Roll=MathF.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
-    return new Vector3(Pitch,Yaw,Roll);
-}
-
-static string AssetMemberName(string AssetPath)=>Path.GetFileNameWithoutExtension(AssetPath);
-
-static string Escape(string Value)=>Value.Replace("\\","\\\\",StringComparison.Ordinal).Replace("\"","\\\"",StringComparison.Ordinal);
-
-static string F(float Value){
-    if(Value==0f){
-        return "0f";
-    }
-    return Value.ToString("R",CultureInfo.InvariantCulture)+"f";
-}
-
 internal sealed class ImportManifest {
     public int Version { get; set;}
     public string StagingGlb { get; set;}=string.Empty;
@@ -201,6 +164,7 @@ internal sealed class ImportManifest {
 
 internal sealed class ImportActor {
     public string Label { get; set;}=string.Empty;
+    public List<string>Materials { get; set;}=[];
     public string AssetPath { get; set;}=string.Empty;
     public string Mobility { get; set;}=string.Empty;
 }

@@ -1,5 +1,657 @@
 # Conformance
 
+## 2026-10-04 探索 — .NET Framework の VSIX では、float を超える数が SCENE203 にならなかった
+- 意図: ADR-0070 決定 4。値の型に収まらない数は、実行環境によらず JSON の位置の SCENE203 にする。
+- 観測（Fact）: ThirdPerson テンプレートの 16 シーンのうち実在する 3 シーンへの変異ファジング 150 件（net472）で、Position や EulerRuf の LogicalScalar を `1e39` にした文書が解析を通り、Designer の編集（名前変更・Inspector の確定）が「Infinity has no JSON form」で 10 件失敗した。解析器だけを net472 で呼ぶと、`1e39` は問題 0、`1e19`・`3.4e38` は SCENE203 だった。.NET Framework の `float.TryParse` は範囲外の数で false を返し（.NET は無限大を返す）、`float.Parse` は OverflowException になる。範囲検査は「解析できて無限大」だけを見ていたため、net472 では通っていた。plain の `float` メンバーは後続の字句解析（Roslyn）が弾くので漏れず、LogicalScalar のように float から変換できる型だけが漏れた。VS の MSBuild（.NET Framework）でのビルドでも同じで、診断ではなく生成ファイルのコンパイルエラーになる（コードからの推測。ビルドは未確認）。
+- 実装: `FloatRange` を `RealLiteral` と同じ Roslyn の字句解析にした（両ランタイムで正しく丸める）。`ulong` を超える整数の理由が「小数や指数のない整数が必要」になっていたのも「範囲外」に直した。
+- 自動化された証拠: `SceneJsonRangeTests`（`Shared` に置き、SceneModel.Tests の net10 と VSExtension.Tests の net472 の両方で走る。LogicalScalar・float・double・decimal・整数の境界）。LogicalScalar の 4 件は修正前の net472 で失敗した。
+- 結果: Matches。net10 だけで走る範囲検査（`SceneJsonGeneratorTests` の `ValuesTheRuntimeOrTheCompilerWouldReject_…`）では見えなかった。
+- 同じ型の残りの確認: 13 のメンバー型 × 80 の値（極端な値・境界・指数・長い桁、1080 通り）の解析結果（問題の ID と文言、出力する式）を net10 と net472 で比べた。差は LogicalScalar への `3.4028235677973366E+38`（float.MaxValue をわずかに上回り、C# は MaxValue に丸める）1 件だけで、net472 は「`float.TryParse` が失敗する」ため Q64.64 の範囲検査を飛ばし、シーンの生成時に例外になる形で通っていた。これも SCENE203 にし、差は 0 行になった（例外は両方 0 件）。`SceneJsonAngles.FromTurns` の `double.Parse` は net472 では最後の桁がずれ得る（同日の「VSIX の書き戻しが無関係な数値の書き方を変えていた」の項と同じ観測）が、float に丸めた後に値が変わるのは約 2^-29 の確率で、扱っていない。
+
+## 2026-10-04 探索 — シェーダーグラフの重複した id が、検証ではなく ArgumentException になった
+- 意図: Shader-Graph 仕様。不正なグラフは検証の診断で報告し、生成はその診断を返す。
+- 観測（Fact）: Triangle グラフの配列要素を複製する・id を別の id に付け替える構造的な変異ファジング 3000 件のうち 371 件で、検証か HLSL 生成が「同じキーの項目が既に追加されています」の `ArgumentException` を投げた。検証器はノードを id の辞書にし（重複で例外）、循環の検査も同じ、サブグラフの重複は黙って飛ばしたので生成器の辞書で例外になった。リージョンの重複だけは診断になっていた。
+- 実装: 検証器がサブグラフとノードの重複した id を新しい診断 `DuplicateIdentity` にし、最初のものだけで検証を続ける。循環の検査は id を一意にして見る。生成器は先に検証するので、重複のある文書は診断を返す。
+- 自動化された証拠: `ShaderGraphTests.DuplicatedIdentity_IsAValidationError`（ノードとサブグラフ、修正前は例外）。修正後の構造的な変異ファジングは Triangle 3000 件・Model 1500 件で想定外の例外 0。
+- 結果: Matches。
+
+## 2026-10-04 探索 — シェーダーグラフの JSON の null が、検証ではなく NullReferenceException になった
+- 意図: Shader-Graph 仕様。グラフは正規形の JSON で、不正な内容は検証の診断か、不正な JSON としての例外で報告する。
+- 観測（Fact）: Triangle グラフの任意の箇所を null・削除・型違いに置き換える変異ファジング 3000 件のうち 161 件で、検証・HLSL 生成・正規形が NullReferenceException か ArgumentNullException を投げた（`"type": null`、`"arguments": null`、`"target": null`、ノードや引数の要素の null など）。System.Text.Json 8 はモデルが null を許さないメンバーやリストの要素にも null を入れる。エディターでは原因の分からないメッセージになり、外部変更の再読み込み（IOException と JsonException だけを捕まえる）では例外が UI スレッドへ漏れ得る（コードからの推測）。
+- 実装: `ShaderGraphCanonicalization.FromJson` が読み込み直後に、値が要る箇所の null を JSON のパス付きの `JsonException` にする。正規形の書き出しは null を省くので、正しいファイルは影響を受けない。
+- 自動化された証拠: `ShaderGraphTests.FromJson_RejectsANullTheGraphNeeds`（6 か所、修正前は例外にならない）。修正後の変異ファジングは Triangle 3000 件・Model 1500 件で想定外の例外 0。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 作者が桁の多い turns で書いた角度は、無関係な編集で書き直される
+- 意図: ADR-0074 決定 2。変更していない角度は編集のたびに同じ文字列のまま残る。
+- 観測（Fact）: `[Angle(AngleUnit.Degrees)]` のメンバーに `0.25`・`0.1` と書いたシーンで別のノードを動かすと、その行は変わらなかった。`0.12345678901234`・`0.333333333333` と書くと、`0.12345679`・`0.33333333` に書き換わった（値は同じ float）。角度は Designer の C# 表現にメンバーの単位（度）で入り、変換器はその値から最短の turns を書くので、作者の turns の綴りが残らない。角度でない数は同日の修正で作者の綴りを残す。
+- 実装: 変更なし。ADR-0074 に既知の制限として明記した。直すには、変換器が古い文書の同じ位置の綴りを受け取り、角度の変換で同じ値に読めるならそれを残す必要がある。
+- 自動化された証拠: なし（観測は一時的なプローブ）。
+- 結果: Mismatch（文書化した制限）。
+
+## 2026-10-04 探索 — VSIX の編集が、.NET と違う綴りで値を書いていた
+- 意図: `SceneJsonNumbers` の契約。VSIX（.NET Framework）とツール（.NET）は同じ値に同じ文字列を書く（同日の「VSIX の書き戻しが無関係な数値の書き方を変えていた」の修正）。
+- 観測（Fact）: net472 で Cube の位置を 312985.125 へ動かすと `"R": 312985.125` を書いた。.NET の綴りは `312985.12`。編集の経路はリテラルを .NET Framework の `ToString("R")` で作る（9 桁に戻る）。変換器が作者の綴りを残すようになった（同日の前項）ため、そのリテラルの綴りがそのまま文書に出た。それまでは変換器が値から書き直していたので表に出なかった。
+- 実装: 編集のリテラルを作る箇所（移動・回転・拡大縮小の値、Inspector の数値、プロパティギズモ、競合の合成、初期化子の既定値、物理ライトの引数）を `SceneEditValues.SingleLiteral`（`SceneJsonNumbers.FormatSingle` と同じ綴り）にまとめた。表示用の文字列は変えていない。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_WritesTheValueAsDotNetSpellsIt`（修正前は失敗）、`SceneInspectorModelTests.TryFormatNumber_ValidInput_ProducesTypeCorrectLiteral`（312985.125）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 無関係な編集が、型の精度より多い桁で書いた数を書き直していた
+- 意図: M0095 3-5a。シーンエディタの書き戻しは、変わった値だけを元のテキストへ差し替え、作者の書式を残す。
+- 観測（Fact）: float のメンバーに `3.14159265358979`・`16777217`・`100.0000001`・`0.30000001192092896` と書いたシーンで Cube を動かすと、その行が `3.1415927`・`16777216`・`100`・`0.3` に書き換わった。値は同じ float だが、変換器が型の最短表記で出し、差し替えの判定が数値を文字列で比べるので別の値とみなした。
+- 実装: 変換器は、作者の数値リテラルの綴りが正しく丸める解析で同じ値に読み戻せる限りその綴りのまま出す（`SceneJsonDecimal.ReadsBack`。float は C# のリテラルと同じく float へ直接丸め、double を経た二重丸めはしない）。読み戻せない綴りは従来どおり型の表記で出す。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheAuthorsSpellingOfOtherNumbers`（修正前は失敗）、`SceneJsonNumberSpellingTests.ReadsBack_AgreesWithTheParse`（.NET の解析との一致と、二重丸めでずれるタイの直上の値）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 入力中の警告に使うスキーマが、ビルドの拒む値を許し、IEnumerable の配列を拒んでいた
+- 意図: ADR-0070 の決定 4。シーンのスキーマはビルドと同じ規則で値の形を示し、入力中に警告する。
+- 観測（Fact）: 同日にビルドが SCENE203 にした値（`Queue<T>`・辞書・`ISet<T>` などコレクション式で作れない型への配列、タプル、多次元配列、抽象型）に、スキーマは配列やオブジェクトを許していた。また要素型を型自身からは探さなかったので、`IEnumerable<int>` のメンバーへの配列（ビルドは通る）に警告を出した。
+- 実装: スキーマはビルドの拒むそれらの値を何にも合わない形（理由の説明付き）にし、コレクションの判定に解析器と同じ関数を使い、要素型を型自身からも探す。required メンバーの省略は、`[SetsRequiredMembers]` のコンストラクターとの組み合わせがあるので、スキーマには入れていない。
+- 自動化された証拠: `SceneJsonGeneratorTests.GeneratedSchema_AgreesWithTheBuildOnCollectionsAndObjects`（修正前は失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 大きなシーンで Designer の 1 回の編集に約 2 秒かかっていた
+- 意図: ギズモなどの編集は、確定のたびに待たされない（ADR-0040 の Reconciler の照合方針はそのまま）。
+- 観測（Fact）: 4000 ノードのシーンで Cube を動かすと、確定に 2046 ms かかった（1000 ノードで 389 ms）。内訳は、Reconciler 317 ms（1000 ノードで 21 ms の 2 乗の増え方。ノードごとに古い全ノードを走査して子を探していた）を 1 回の確定で 2 回、古いテキストの完全な解析（JSON の id を位置ごとに取り出すためだけ）、新しいテキストの解析 約 0.9 秒、マージ 157 ms、変換 75 ms。
+- 実装: Reconciler は親ごとの古い子の一覧を 1 回だけ作って引く（候補の順序は従来と同じで、照合の結果は変わらない）。書き戻しは古いテキストの id を JSON の木だけから読む（確定はエラーの無い文書でだけ動くので、解析器のノードと同じ位置になる）。
+- 自動化された証拠: 既存の Reconciler・書き戻しのテスト（区別できない兄弟の ID を推測しないことを含む）がすべて通る。計測（一時プローブ）: 4000 ノードで Reconciler 317 ms → 4 ms、確定 約 2.0 秒 → 約 1.5 秒（残りの大半は新しいテキストの解析）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — Designer の編集のたびに、VS の JSON バッファー全体が置き換わっていた
+- 意図: M0095 3-5a と M0044。書き戻しは変わった値だけを書き、VS のバッファーにも変わった範囲だけを適用する（全文置換は、ビューの位置が飛ぶちらつきの原因として M0044 で C# の経路から除いた）。
+- 観測（Fact）: JSON の書き戻しは、テキストのマージ（M0095）で差分を最小にした後、新旧のテキストの変更を `SourceText.GetTextChanges` で求めていた。血縁の無い 2 つのテキストでは、これはファイル全体を覆う 1 個の変更を返す（M0044 に記録済み）。Cube を動かしただけで変更は 983 文字中 983 文字になり、JSON ビューの位置・折りたたみ・ブックマークが編集のたびに失われ得た。コンポーネントのアイコンの編集（`ComponentIconGlyphMargin`）も同じだった。
+- 実装: 新旧のテキストの共通の先頭と末尾を除いた 1 個の変更を求める `SceneTextChangePlanner.PlanMinimal` を足し（CRLF とサロゲートペアの途中では区切らない）、両方の書き込みで使う。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_ChangesOnlyTheEditedTextInTheBuffer`（修正前は文書全体の 1 個の変更）、`SceneTextChangePlannerTests.PlanMinimal_ChangesOnlyTheDifferingMiddle`。
+- 結果: Matches。実際の VS のビューでの見た目は確かめていない（フォーカスを奪うため）。
+
+## 2026-10-04 探索 — 文脈キーワードと同じ名前のシーンで、生成ファイルがコンパイルできなかった
+- 意図: ADR-0070。生成できないシーンは JSON の位置で報告し、生成しない。
+- 観測（Fact）: className は予約キーワード（`class` など）だけを拒んでいた。文脈キーワードを名前にすると、`var` は生成コードの暗黙の型の変数をシーンの型にして CS0029、`file`・`required` は修飾子として読まれて構文エラー、`scoped` はエラー（CS9062）、`record` は警告（CS8860）になり、いずれもシーンの診断は出なかった。
+- 実装: className が文脈キーワードなら className の位置に SCENE204 を出し、シーンを生成しない（ADR-0070 の SCENE204 に追記）。`nameof`・`await`・`partial` なども拒むが、シーンの名前として避けるべきものとして扱う。名前空間の各部分は、試した範囲（`global`、`var`）で問題がないので変えていない。
+- 自動化された証拠: `SceneJsonGeneratorTests.SceneClassNamedLikeAContextualKeyword_IsAnErrorAtTheClassName`（修正前は 5 件とも失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — エディタで動くシステムの無いゲームで、生成ファイルに CS0414 の警告が出た
+- 意図: シーンとシステムから生成するコードは、警告なしでビルドできる（警告をエラーにするプロジェクトでも通る）。
+- 観測（Fact）: エディタのプレビューの橋渡し（`GeneratedEditorPreviewBridge`）は、システムの集合のフィールドを宣言して初期化でリセットするが、それを読むのはエディタで動くシステム（`[ExecuteInEditor]`）があるときのフレーム処理だけだった。そうしたシステムの無いゲームでは CS0414（代入されて使われないフィールド）になった。UserEcsProject と ThirdPerson はエディタのシステムを持つので出ていなかった。
+- 実装: エディタか実時間のシステムがあるときだけ、そのフィールドの宣言とリセットを生成する。
+- 自動化された証拠: `SceneJsonGeneratorTests.GameWithoutEditorSystems_BuildsItsGeneratedFilesWithoutWarnings`（修正前は CS0414）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 画像のヘッダーが大きさを主張すると、データが無くても数 GB を確保して「成功」した
+- 意図: デコードした画像は Direct3D 12 のテクスチャになる（`StageSceneDataBuilder`、`RenderTextureArtifactAdapter`）。使えない画像は、その理由を示して失敗する。
+- 観測（Fact）: `WicImageDecoder` は配列の最大長だけを上限にしていた。WIC はピクセルのデータが無い PNG でも成功を返すので、ヘッダーが 20000×20000 を主張する数十バイトのファイルで 1.6 GB を確保し、D3D12 のテクスチャの辺の上限（16384）を超える画像として成功を返した（16385×1 も成功）。
+- 実装: 辺が 16384 を超える画像は、ピクセルを読む前に「Direct3D 12 のテクスチャの辺を超える」として失敗させる。これで同日（7c945b5）の配列の最大長の判定には届かなくなったので、そのコードを除いた。
+- 自動化された証拠: `WicImageDecoderTests.Decode_ImageBeyondTheTextureLimit_FailsAsTooLarge`（修正前は 3 件とも成功を返した）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 同じ名前と構成の兄弟ノードの id が、無関係な編集のたびに新しい GUID になった
+- 意図: ADR-0070。ノードの `id` はエディタが編集をまたいで保つ（`NodeIdsByPath` の説明）。
+- 観測（Fact）: 書き戻しは JSON の `id` をエディタのノード ID を介して引き継ぐ。Reconciler は区別できない兄弟（同じ名前と Component の型構成）に ID を推測せず、解析のたびに新しい ID を振るので、そうした兄弟の `id` は対応が取れず、別のノード（Cube）を動かしただけで 2 つの "Lamp" の `id` 行が両方とも新しい GUID に書き換わった。
+- 実装: 予測した投影の ID から引き継げないノードは、同じ位置にあった古いノードが予測から消えていて、名前と構成が同じなら、その `id` を引き継ぐ。Reconciler の方針（推測しない）は変えていない。構造が変わる編集でそっくりな兄弟の位置がずれた場合は、位置で引き継ぐ（以前はすべて新しい GUID）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheIdsOfLookAlikeSiblings`（修正前は 2 行の `id` が変わった）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — Hierarchy で同じ名前のノードの下へドロップすると、最初のそっくりなノードの下へ移った
+- 意図: Hierarchy のドラッグ＆ドロップは、ドロップした先のノードの子にする。
+- 観測（Fact）: 親を跨ぐ付け替えは、元の位置から外した後の木で新しい親を名前と Component の型構成で探し直していた（M0051 で `ReferenceEquals` から直したもの）。同じ名前と構成のノード（並んだ "Group" など、手書きの JSON や移植したステージでよくある）があると、木の中で最初のそっくりなノードが見つかり、2 つ目・3 つ目の "Group" へドロップしても 1 つ目の下へ移った（文書もその形で書き戻される）。
+- 実装: 外した子より後ろの兄弟（とその子孫）を通る新しい親の Path は、同じ深さで 1 つ前へずれるので、計算で求める。名前と構成で探す `TryFindByIdentity` を削除し、M0051 に置き換えの注記を足した。区別できない兄弟に ID を推測しない Reconciler の方針は変えていない（そっくりなノードは編集後に新しい ID になる）。
+- 自動化された証拠: `SceneModelEditApplierTests.TryApply_ReparentNode_MovesUnderTheDroppedParentAmongLookAlikes`（修正前は 2 件とも 1 つ目の "Group" へ移った）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 入れ子の型のコンポーネントを持つシーンを Designer で編集できなかった
+- 意図: ADR-0070。シーン JSON の `type` はコンポーネントの完全名で、生成器・Designer・ランタイムビューが同じ名前で同じ型を見つける。
+- 観測（Fact）: 変換器・スキーマ・パレットは型名を C# の書き方（`Ns.Outer.Inner`）で書くが、解析器は `GetTypeByMetadataName`、ランタイムビューは `Assembly.GetType` で解決していたので、入れ子の型はメタデータ名（`Ns.Outer+Inner`）でしか見つからなかった。そのため、メタデータ名で書いたシーンはビルドできても Designer のどの編集も書き戻しで `Outer.Inner` になって SCENE201 で失敗し、パレットからは追加できず、スキーマは入れ子の型を一覧から外していた。
+- 実装: 解析器とランタイムビューは、名前で見つからなければ右のドットから順に `+` として入れ子の型を探す。正式な書き方は C# の書き方で、メタデータ名で書いた文書も読め、最初の書き戻しで C# の書き方になる。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.NestedComponentType_IsEditedAndAddedInItsCSharpForm`、`SceneJsonGeneratorTests.NestedComponentType_BuildsByEitherName`（修正前はどちらも 2 件とも失敗）、`SceneJsonRuntimeValuesTests.NestedComponentTypes_AreFoundByEitherName`。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 既存の型や名前空間と同じ名前のシーンで、生成ファイルがコンパイルできなかった
+- 意図: ADR-0070。シーン JSON の誤りはビルド時に JSON の位置で報告し、生成できないシーンは作らない。
+- 観測（Fact）: シーンは `namespace`・`className` の partial class として生成される。その完全名がプロジェクトの構造体や partial でないクラス（`Sample.Kit`）、static クラス、参照アセンブリの型（`CSharpGameEngine.Entities.World`、`System.String`）、名前空間（`Game.Sub`）と同じだと、シーンの診断なしに生成ファイルが CS0101・CS0260・CS0261 などでコンパイルできなかった（コピーしたシーンをコンポーネントの名前に変えたときなど）。利用者の partial class とは合体してビルドできる。
+- 実装: 解析器は、完全名が既存の型（partial class を除く）か名前空間なら、className の位置に SCENE204 を出し、そのシーンを生成しない。ビルド時の解析器と VS は生成済みのシーンクラスを含むコンパイルを見るので、生成ファイル（`{完全名}.Scene.g.cs`）の宣言は衝突にしない。ADR-0070 の SCENE204 に追記した。
+- 自動化された証拠: `SceneJsonGeneratorTests.SceneClassNamingAnExistingTypeOrNamespace_IsAnErrorAtTheClassName`（修正前は 3 件とも失敗）と、誤検出しないことの `SceneClassAndItsGeneratedFile_AreNotAConflict`。UserEcsProject と ThirdPerson テンプレートは警告・エラーなしでビルド。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 単位へ換算すると float を超える角度で、解析器と生成器ごと失敗した
+- 意図: ADR-0074。角度は回転数で書き、メンバーの単位（度・ラジアン）へ換算する。範囲外の値はその位置の SCENE203 になり、ほかのシーンの生成は続く。
+- 観測（Fact）: 回転数の値が float に収まっていても、度・ラジアンへ換算すると収まらないことがある（1e37 回転は度で無限大）。その無限大をリテラルへ整形する処理が `ArgumentOutOfRangeException`（JSON numbers must be finite）を投げ、解析器は AD0001 で止まり、生成器は CS8785 でプロジェクトの生成コードをすべて失った（度の 1e37、ラジアンの 1e38、コンストラクター引数のラジアン成分 1e38 で確認）。ランタイムビューは同じ値を合わない値として扱い、Inspector は無限大になる入力を受け付けないので影響しない。
+- 実装: 解析器は、回転数から換算した値が有限でなければ「the angle is beyond the range of float in degrees/radians」の SCENE203 にする。
+- 自動化された証拠: `SceneJsonAngleTests.AngleBeyondFloatInItsUnit_IsAnErrorAtTheValue`（修正前は 3 件とも例外）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 参照型のメンバーへの JSON の null で、生成ファイルに CS8625 の警告が出た
+- 意図: シーン JSON から生成するコードは、文書が正しければ警告なしでビルドできる（警告をエラーにするプロジェクトでも通る）。
+- 観測（Fact）: 生成器は JSON の null を `null` と書き、生成ファイルは `#nullable enable` なので、null 許容が有効なゲームで null 許容でない参照型のメンバー（`string`、`int[]`、入れ子の `string`）に null を書くと CS8625 になった。パレットは未設定の文字列や配列の既定値として null を書くので、追加しただけで警告が出る（警告をエラーにするリポジトリのプロジェクトではビルドが止まる）。警告指定の Obsolete のメンバー・列挙子の CS0618 も生成ファイルに出るが、利用者が廃止予定のものを使っている有益な警告なので変えていない。
+- 実装: 生成器は参照型への null を `null!` と書く（値は同じ null）。同じ式を読む Designer のモデルは `null!` を null のリテラルとして読み、Inspector には `null` と出す（定数式として読むと、null の文字列メンバーが読み取り専用になる）。
+- 自動化された証拠: `SceneJsonGeneratorTests.NullForANonNullableReferenceMember_BuildsWithoutWarnings`（修正前は CS8625）、`SceneJsonCommitPlannerTests.NullText_StaysEditable`（モデルの読み取りを外すと失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — ランタイムビューが、生成器の呼ばないコンストラクターを呼んでいた
+- 意図: ADR-0070 の決定 6。ランタイムビューは生成器と同じコンストラクターを選ぶ。
+- 観測（Fact）: 同日の修正で、生成器は `ref`・`out` の引数を持つコンストラクターと error 指定の Obsolete のコンストラクターを選ばず、メンバーへの代入にした。ランタイムビューはそれらを選んで呼んでいたので、値を加工するコンストラクター（`A*10`）では、ビルドしたゲームの 4 に対してビューは 40 になった。
+- 実装: ランタイムビューのコンストラクター選択でも、`in` 以外の参照渡しの引数を持つものと error 指定の Obsolete のものを除く。
+- 自動化された証拠: `SceneJsonRuntimeValuesTests.Constructors_TheGeneratorSkips_AreSkipped`（修正前は 40）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 生成コードが作れないオブジェクトがシーンの診断なしにコンパイルエラーになった
+- 意図: ADR-0070。実行時かコンパイラーが拒む値は、生成されたファイルではなく JSON の位置の SCENE203 にする（同日のコレクションの修正の続き）。
+- 観測（Fact）: オブジェクトは `new T(...) { ... }` として書かれる。入れ子のメンバーの型ごとに確かめたところ、`required` メンバーを省いた値（CS9035）、公開の引数なしコンストラクターが無いクラスでコンストラクターの引数を名指さない値（CS7036、非公開なら CS0122）、抽象クラス（CS0144）、`[Obsolete(..., true)]` のメンバーの設定（CS0619）が、シーンの診断なしに生成ファイルのコンパイルエラーになった。`ref`・`out` の引数を持つコンストラクターも、キーが引数名と一致すると選ばれて CS1620 になった。読み取り専用・get だけ・private set・static・const のメンバーやインデクサーは従来どおり SCENE202、init のメンバー・基底クラスのメンバー・ジェネリック型・省略可能な引数・params・in の引数はビルドできる。
+- 実装: 解析器は、抽象型を SCENE203 にし、コンストラクターを選ばないときに公開の引数なしコンストラクターがあるか、`[SetsRequiredMembers]` でないコンストラクターなら required メンバーがすべて代入されるか、型・メンバー・列挙子が error 指定の Obsolete でないかを確かめる。`ref`・`out`（と ref readonly）の引数や error 指定の Obsolete を持つコンストラクターは選ばない（メンバーへの代入になる）。ADR-0070 の SCENE203 の例に追記した。警告指定の Obsolete（CS0618）は、利用者のプロジェクトが警告をエラーにしていればビルドを止めるが、今回は扱っていない。
+- 自動化された証拠: `SceneJsonGeneratorTests.ObjectsTheGeneratedCodeCannotCreate_AreErrorsAtTheirJsonPosition`（修正前は有効な文書のビルドが CS1620 で失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — ランタイムビューが HashSet を拒み、ReadOnlyCollection・ImmutableList のメンバーでセッションごと終わり得た
+- 意図: ADR-0070 の決定 6。ランタイムビューはシーン JSON を生成器と同じ規則で読む。型が受け付けない値は「合わない値」（`InvalidOperationException`）として飛ばし、ビューは続く。
+- 観測（Fact）: `SceneJsonRuntimeValues` は JSON の配列を、配列で代入できる型と `ImmutableArray` 以外では `Activator.CreateInstance` で作って `IList` として詰めていた。生成器のコレクション式がビルドする `HashSet<T>`・`SortedSet<T>` は `IList` でないため合わない値になり、引数なしコンストラクターの無い `ReadOnlyCollection<T>`・`ImmutableList<T>` は `MissingMethodException` を投げた。`ApplySceneDocument` は `InvalidOperationException` しか捕まえないので、例外はランタイムビューの外へ出る（同日のテストで、生成器の受け付ける各型を確認）。オブジェクトの生成でも、引数なしコンストラクターの無いクラスで同じ例外が出得た。
+- 実装: コレクション式と同じ規則で作る。引数なしコンストラクターと要素 1 つの `Add` を持つ型は `Add` で、`[CollectionBuilder]` の型はその `CreateRange` か要素を取るコンストラクターで作り、それ以外（`Queue<T>` など、生成器では SCENE203）は合わない値にする。オブジェクトの生成の `MemberAccessException` も合わない値にする。
+- あわせて: 生成器は `object` やインターフェイス（`IComparable`）のメンバーへの数を float のリテラルとしてボックス化して代入するが、ランタイムビューは「float から変換できる型ではない」として拒んでいた。float を代入できる型にはボックス化した float を入れる。
+- 自動化された証拠: `SceneJsonRuntimeValuesTests.Collections_FillAsTheGeneratedCollectionExpressionDoes`（修正前は HashSet で失敗。一時プローブで、修正前の `ReadOnlyCollection`・`ImmutableList` は `MissingMethodException` を確認）、`Numbers_ReadAsTheGeneratedLiteralsDo` の object・IComparable の検査（修正前は失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — シーンスキーマを書けないビルド失敗で、エラー一覧に MSB3073 だけが出た
+- 意図: ADR-0070。ビルド後の手順がシーンの JSON Schema を `.cge/scene.schema.json` へ書く。失敗すればその原因がビルドのエラーとして出る。
+- 観測（Fact）: スキーマ CLI は失敗を `CGE-SCENE-SCHEMA failed: ...` と書いていた。MSBuild の `Exec` はこの行をメッセージとして扱うので、エラー一覧には MSB3073 だけが出る（同日のシェーダーグラフ CLI と同じ原因）。出力先がディレクトリで書けない場合で確認した。
+- 実装: 失敗を `スキーマのパス: error CGE-SCENE-SCHEMA: 本文` の正規形式で書く。テストのため本体を `Program.Run` に分けた。
+- 自動化された証拠: `SceneJsonGeneratorTests.SchemaTool_ReportsAFailedWriteAsABuildError`（修正前は失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — シェーダーグラフのビルド失敗で、エラー一覧に原因が出ず MSB3073 だけが出た
+- 意図: グラフの誤りはビルドの失敗として、その原因がわかる形で報告される。
+- 観測（Fact）: CLI は検証の診断を `SubgraphMissing: Root subgraph is missing.` の形で、読めないファイルを例外のスタックトレースとして標準エラーへ書いていた。MSBuild の `Exec` は正規形式（`ファイル: error コード: 本文`）の行だけをエラーにするので、ルートのサブグラフが無いグラフと空のファイルで、報告されたエラーは `MSB3073`（コマンドが終了コード 1 で終了）だけだった（一時プロジェクトの `Exec` で確認）。DXC の診断は `ファイル(行,列): Error: 本文` で、元から認識されていた。
+- 実装: 検証の診断を `グラフ: error|warning コード: 本文`（ノードがわかれば `[node ID]`）で書く。例外は `グラフ: error: 本文` の 1 行にし、JSON・入出力・アクセスの失敗以外の想定外の例外だけスタックトレースも書く。警告の行は検証が失敗したときだけ出るので、成功するビルドに警告は増えない。Shader-Graph.md に出力形式を追記した。
+- 自動化された証拠: `ShaderGraphCompilerTests.Failures_AreCanonicalBuildErrorsAtTheGraph`（修正前は失敗）。修正後の同じ `Exec` は `Broken.cgesubgraph : error SubgraphMissing: ...` と `Empty.cgesubgraph : error : The input does not contain any JSON tokens...` を報告した。
+- 結果: Matches。
+
+## 2026-10-04 探索 — シェーダーグラフの保存が、CLI の標準エラーが多いと Visual Studio ごと止まり得た
+- 意図: シェーダーグラフエディタは保存時にグラフをビルドし、CLI の出力を状態欄に出す。失敗は表示され、Visual Studio は止まらない。
+- 観測（Fact）: `ShaderGraphEditorBuildService.Run` は標準出力を最後まで読んでから標準エラーを読んでいた。子プロセスが標準エラーへパイプのバッファーを超えて書く（多数の診断、長い例外）と、子は書き込みで、親は標準出力の終わりで互いに待ち続ける。保存とビルドは UI スレッドで動くので Visual Studio が固まる。標準エラーへ約 66KB を書くプロセスで、修正前は 60 秒たっても戻らなかった。
+- 実装: 標準エラーはイベントで到着順に読み（`BeginErrorReadLine`）、標準出力を読み切った後に終了を待つ。リポジトリの他のプロセス起動は非同期読み取りで、この 1 か所だけだった。
+- 自動化された証拠: `ShaderGraphEditorTests.BuildService_ReadsALargeErrorStreamWithoutBlocking`（修正前は 60 秒で未完了）。
+- 結果: Matches。保存時のビルドが UI スレッドで同期に走ること自体（DXC の間は待たされる）は変えていない。
+
+## 2026-10-04 探索 — キーの並びが正規形と違うノードや空のリストを省いたノードを、どの編集でも子ごと書き直していた
+- 意図: M0095 3-5a。編集は変わった値だけを作者のテキストへ書き戻し、書式は残す。
+- 観測（Fact）: `SceneJsonTextMerge` はオブジェクトをキーの並び順で比べていた。作者がノードのキーを `name`・`id` の順に書く、空の `"children": []` を省く、ルートの空の `"components": []` を省くと、別のノードを動かすだけでそのノード（ルートなら文書全体）が子ごと正規形に書き直された（`Move_KeepsTheAuthorsKeyOrderAndOmittedLists` の 4 例中 3 例が修正前に失敗。メンバーの並びは変換器が作者の順を保つので通っていた）。id の無いノードも、id を足すためにノード全体が書き直された。
+- 実装: オブジェクトはキーの名前で比べる（並びは問わない）。ノードの空の `components`・`children` とコンポーネントの空の `members` は、省いたものと同じ値とする（文書の位置で判定し、メンバーの中の空の配列は値として扱う）。新しい文書だけにあるキーは、旧テキストにある直前のキーの後へ作者の字下げで 1 プロパティとして挿入する。キーを失ったオブジェクトと長さの変わった配列は従来どおり正規形で置き換える。M0095 の記述を更新した。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheAuthorsKeyOrderAndOmittedLists`、`SceneJsonTextMergeTests` の `ReorderedProperties_KeepTheAuthorsOrder`（旧 `ReorderedProperties_FallBackToTheNewObjectText` は旧動作を固定していたので改めた）、`EmptyListsTheAuthorLeftOut_StayOut`、`AddedKey_IsInsertedWithTheAuthorsSpacing`、`DroppedKey_ReplacesTheObject`。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 生成コードが作れないコレクション・タプル・多次元配列がシーンの診断なしにコンパイルエラーになった
+- 意図: ADR-0070。実行時かコンパイラーが拒む値は、生成されたファイルではなく JSON の位置の SCENE203 にする。
+- 観測（Fact）: 生成器は JSON の配列をコレクション式（配列なら配列の生成）として、オブジェクトを `new T(...) { ... }` として書く。メンバーの型ごとに確かめたところ、`Queue<T>`・`Stack<T>`・`LinkedList<T>`（CS1061、Add が無い）、`Dictionary<K,V>`（CS9215）、`ISet<T>`（CS9174）、公開の引数なしコンストラクターが無い型（CS0122）、抽象型（CS0144）、タプル（CS8181）、多次元配列（CS0029）は、シーンの診断が出ずに生成されたファイルのコンパイルエラーになった。`List<T>`・`HashSet<T>`・`SortedSet<T>`・`ImmutableArray<T>`・`ReadOnlyCollection<T>`・リストのインターフェイス・Add を持つ独自の型・配列の配列は従来どおりビルドできる。
+- 実装: 解析器は、配列を書くメンバーの型がコレクション式で作れるか（リストのインターフェイス、`[CollectionBuilder]`、または公開の引数なしコンストラクターと要素を 1 つ取る公開の Add を持つ具象型）を確かめ、作れない型・タプル・多次元配列を SCENE203 にする（ADR-0070 の SCENE203 の例に追記）。
+- 自動化された証拠: `SceneJsonGeneratorTests.ValuesTheGeneratedCodeCannotCreate_AreErrorsAtTheirJsonPosition`（修正前は 4 件とも診断なし）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — ランタイムビューが指数付きの decimal を拒み、型を超える数を無限大として読んだ
+- 意図: ADR-0070 の決定 6。ランタイムビューはエディタのシーン JSON を生成器と同じ規則でリフレクションによって読む。
+- 観測（Fact）: 生成器は数をリテラル（`1.5e3m`、`2E-3d`）として書き、コンパイラーが読む。ランタイムビューは `Convert.ChangeType` で読んでいたため、decimal のメンバーの `1.5e3` は「not in a correct format」で合わなかった（ビルドは通る）。また float の `1e39`、double の `1e400` は生成器では SCENE203 だが、.NET の解析は無限大を返すので、ランタイムビューは無限大を適用した。
+- 実装: float は float として、double と decimal は外部数値アダプター（`Real`）で、符号・小数点・指数を許す同じ書式で読み、型を超える数（無限大、decimal の範囲外）は合わない値にする。整数は従来どおり。
+- 自動化された証拠: `SceneJsonRuntimeValuesTests.Numbers_ReadAsTheGeneratedLiteralsDo`（修正前は decimal の `1.5e3` で失敗）。実際のシーンの全コンポーネントが生成コードの値と一致するテストも引き続き通る。
+- 結果: Matches。
+
+## 2026-10-04 探索 — コンストラクター引数で書かれたコンポーネントが Inspector で空に見えた
+- 意図: ADR-0070。シーン JSON のキーはコンポーネントの代入できるメンバーか、公開コンストラクターの引数名を名指す。Inspector は文書が持つ値を表示する（Editor-VSIX の Inspector の契約）。
+- 観測（Fact）: キーがコンストラクターの引数を名指すと（位置指定の `record struct Tuning(float Gain,LightMode Mode)` など）、解析器は `new Tuning(Gain: 0.25f, Mode: ...)` を書き、値はコンポーネントのコンストラクター引数になる。Inspector はコンポーネントの初期化子のメンバーだけを行にしていたため、そのコンポーネントを行の無い空のグループとして表示した。入れ子の値のコンストラクター引数は行になっていた。リポジトリの 29 のシーンファイル（39 の型）にはこの形のコンポーネントは無い。
+- 実装: コンポーネントのコンストラクター引数を、引数名（JSON のキー）を名前にした読み取り専用の行として初期化子のメンバーの前に出す（入れ子の値の引数と同じ扱い）。編集の経路は初期化子のメンバーだけを書くので、編集は JSON ビューで行う（仕様に明記）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.ConstructorArguments_AreShownReadOnly`（修正前は行が 0）。
+- 結果: Matches。編集できるようにするかはユーザー判断として残す。
+
+## 2026-10-04 探索 — int 以外の整数メンバーを Inspector で編集できず、大きな int は丸めて書いていた
+- 意図: Inspector は数値のメンバーを、宣言された型の値として正確に書き戻す（同じ値の確定はファイルを変えない）。
+- 観測（Fact）: シーン JSON は int 以外の整数を、オーバーロードを取り違えないようにキャスト付き（`(byte)(200)`、`(uint)(4000000000)`）で Designer 用の C# にする。Scene DSL のモデルはこれを定数式として読むため、byte・sbyte・short・ushort・uint・long・ulong のメンバーはすべて読み取り専用だった。また書き戻しの適用処理はすべての数値を float として解析していたため、int の `123456790` は `123456792` と書かれ、Inspector が付ける U・L・UL の接尾辞（`4000000001U`）は解析できずに「The Scene edit operation failed.」になった。
+- 実装: モデルは整数リテラルを整数型へキャストした形をリテラルとして読む（書き出す式はキャストのまま、Inspector に出す式はリテラルの部分）。適用処理は、宣言された型が整数ならその型の整数として接尾辞ごと正確に読み、範囲外や小数は失敗にする。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.IntegerMembers_AreEditable`（修正前は int・uint・long・ulong の 4 件が失敗）と `IntegerMember_RejectsAValueOutOfItsType`。
+- 結果: Matches。
+
+## 2026-10-04 探索 — パレットから char の既定値を持つコンポーネントを追加できなかった
+- 意図: パレットの追加は宣言の既定値を持ち、シーン JSON が持てない既定値は書かずに省く（同日の修正）。
+- 観測（Fact）: 定数の既定値は、JSON にできるかを確かめずにリテラルとして書いていた。`public char Letter='x';` を持つコンポーネントでは、変換器の「Char の定数は JSON にできない」で追加全体が失敗した（NaN の既定値も同じ）。
+- 実装: 変換器に、その定数を JSON に書けるかの判定（`SceneJsonConverter.HasJsonForm`、書く処理と同じ基準）を足し、書けない定数の既定値は省く。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.PaletteComponent_LeavesOutAConstantJsonCannotHold`（修正前は上の失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — List のメンバーを持つシーンを Scene Designer で編集できなかった
+- 意図: ADR-0070。シーン JSON の配列は、配列のメンバーにも `List<T>` などのコレクションのメンバーにも入る（スキーマは IEnumerable&lt;T&gt; を配列として示し、JSON の解析器はコレクション式で受け付け、ビルドも通る）。Designer は JSON を同等の C# クラスとして読む。
+- 観測（Fact）: Designer 用の C# はコレクションのメンバーをコレクション式 `[0.5f]` で持つが、Scene DSL のモデル（`SceneValueReader`）は配列以外のコレクションを SCENE110（静的に決まらない値）として拒んだ。利用者のコンポーネントに `List<float>` のメンバーが 1 つあるだけで、シーン全体が「C# の解析エラーがあるので保存できない」になり、Designer で一切編集できなかった（ビルドは通る）。
+- 実装: コレクション型を対象とするコレクション式を、配列と同じく要素を読む Collection の値として受け付ける（式は `[ … ]` のまま）。コレクションの初期化子や実行時に作るコレクションは今までどおり受け付けない。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.ListMember_KeepsTheSceneEditable`（修正前は上のエラー）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 巨大な大きさを主張する画像で、デコーダーから例外が漏れた
+- 意図: `WicImageDecoder`「壊れた画像は例外でなく失敗の結果で返す」（`Decode_GarbageBytes_FailsNotException` などのテストの約束）。
+- 観測（Fact）: 画素バッファの大きさを 32 ビットで `Width*4*Height` と計算していた。IHDR が 65535×65535 を主張する PNG（中身は空）で、プロジェクトのオーバーフロー検査が `OverflowException` を投げ、デコーダーの外へ漏れた（検査が無ければ桁あふれした大きさで確保していた）。マテリアルの成果物は寸法に上限を持つので、弱かったのはデコーダーだけ。
+- 実装: 大きさを 64 ビットで計算し、1 つの配列に収まらなければ「大きすぎる」失敗を返す。
+- 自動化された証拠: `WicImageDecoderTests.Decode_HeaderClaimingAHugeImage_FailsNotException`（3 件。修正前は 65535×65535 が `OverflowException`）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 2 つのシーンファイルが同じクラスを宣言すると生成器ごと失敗した
+- 意図: [ADR-0070](Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)「ビルド時の問題は JSON の行と列に報告し、生成できないシーンを黙って落とさない」。
+- 観測（Fact）: シーンファイルをコピーして `className` を変えないと、生成器は同じシーンを 2 回追加しようとして「hintName 'Game.MainScene.Scene.g.cs' は一意である必要がある」の `ArgumentException` で失敗し（CS8785）、生成器の出力がすべて失われた。利用者に見えるのは生成器の失敗と、生成されなかった型に関する大量のエラーだった。
+- 実装: 生成器はパス順で最初のファイルのシーンだけを作る。`SceneJsonDslAnalyzer` は後のファイルの `className` に新しい SCENE207（どのファイルが先に宣言したかを示す）を報告する（startupOrder の重複 SCENE118 と同じく、全ファイルを見てコンパイルの終わりに報告）。
+- 自動化された証拠: `SceneJsonGeneratorTests.TwoFilesDeclaringTheSameScene_BuildOneAndReportTheOther`（修正前は CS8785）。`SceneDslAnalyzerTests.SupportedDiagnostics_AreExactlyWhatEachAnalyzerReports` に SCENE207 を追加。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 改行を含むノード名でゲームのビルドが壊れた
+- 意図: ADR-0070 のシーン JSON。ノードの `name` は任意の JSON 文字列。
+- 観測（Fact）: 生成器はノードごとに `// [パス] "名前"` という 1 行コメントを書き、名前をそのまま埋め込んでいた。名前に `\n` か、C# が行の終わりとして扱う U+2028・U+0085 があると、コメントがそこで終わり、名前の残りがコードになった。`"La\nthrow null;mp"` などの名前で、生成された `Game.MainScene.Scene.g.cs` が CS1002・CS1010 で失敗した。
+- 実装: コメントの名前を C# の文字列リテラルとして書く（`SymbolDisplay.FormatLiteral`。改行と表示できない文字はエスケープされる）。普通の名前の出力は変わらない。パスの表示はインデックスだけなので影響しない。
+- 自動化された証拠: `SceneJsonGeneratorTests.NodeNameWithALineBreak_Builds`（3 件。修正前はすべてコンパイルエラー）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — IME がオンだと Scene ビューの WASDQE が効かなかった
+- 意図: [Scene-Editor-Design](Specifications/Scene-Editor-Design.md)「Fly(RMB+WASDQE)」。ゲームのウィンドウの入力メソッドを同日に外した件と同じ形。
+- 観測（Fact）: Scene ビューのナビゲーションは WPF の `KeyDown` の `Args.Key` で W/A/S/D/Q/E/F/N を見る。ビューポートには入力メソッドが有効なままだった。WPF は IME が処理したキーを `Key.ImeProcessed`（本来のキーは `ImeProcessedKey`）として届けるので、コードのコメントのために日本語 IME をオンにしたまま Scene ビューを操作すると、ナビゲーションが動かないことになる（WPF の文書の動作。実際の IME の打鍵では確かめていない）。
+- 実装: ビューポート（`RenderHostGrid`）の `InputMethod.IsInputMethodEnabled` を false にした。Hierarchy の名前変更など、文字を受け付ける場所の IME はそのまま。
+- 自動化された証拠: 無し（VSIX のテストは WPF の要素を作らない）。ビルドと Scene Designer 関連のテスト 67 件は合格。
+- 結果: Matches（未検証: 実際の VS での打鍵）。
+
+## 2026-10-04 探索 — ゲームのウィンドウに入力メソッドが付いていた（IME がオンだと移動キーが届かない）
+- 意図: [Audio-Input-Platform](Specifications/Audio-Input-Platform.md)「Keyboard, mouse, and gamepad controls」。ゲームのウィンドウは文字入力を持たない（`WM_CHAR` を扱わない）。
+- 観測（Fact）: キーボードは `WM_KEYDOWN`/`WM_KEYUP` の仮想キーで受け取り、キーボードの Raw Input は使っていない。ゲームのウィンドウには既定の入力コンテキストが付いていた（同じスレッドの `ImmGetContext` が 0 でない）。Windows は IME が処理したキーを `WM_KEYDOWN` の `VK_PROCESSKEY` として送るので、日本語 IME をひらがな入力のままゲームへ切り替えると W/A/S/D が届かないことになる（Windows の文書の動作。ユーザーの画面でフォーカスを奪ってキーを送る実験はしていない）。
+- 実装: ウィンドウを作った直後に `ImmAssociateContextEx(hwnd, NULL, 0)` で入力コンテキストとの関連付けを外す。失う機能は無い（文字入力を扱っていない）。
+- 自動化された証拠: `Win32WindowImeTests.GameWindow_HasNoInputMethodContext`（修正前は 0 でない入力コンテキスト）。
+- 結果: Matches。既知の未検証: 実際の日本語 IME での打鍵による確認。
+
+## 2026-10-04 探索 — システムのコードページに無い文字を含むパスの FBX を取り込めなかった
+- 意図: [ADR-0009](Decisions/ADR-0009-Fbx-Model-Import.md) の FBX 取り込み。利用者のフォルダー名やファイル名は日本語や空白を含むことがある。
+- 観測（Fact）: AssimpNet 4.1.0 はファイル名を `LPStr`（Windows では ANSI のコードページ）でネイティブへ渡す。日本語ロケールのこの PC では日本語のパスは通ったが、CP932 に無いハングルを含むパスでは Assimp が `"…\箱 ?? ??.fbx"` を開こうとして「Unable to open file」で失敗した。英語版 Windows（CI の windows-2022 を含む）では、日本語を含むパスがすべて同じように失敗する。glTF（SharpGLTF、マネージド）は日本語と空白を含むパーセントエンコードの URI でも生の URI でも取り込めた。
+- 実装: ファイルを開いて内容を `ImportFileFromStream` で渡す（拡張子を形式のヒント）。取り込みは FBX ファイル単体だけを読み、外部のテクスチャを使わないので、名前による解決は要らない。
+- 自動化された証拠: `FbxImporterTests.Import_BoxFbx_FromAPathOutsideTheAnsiCodePage_Succeeds`（日本語とハングルのパス。修正前は上の失敗）。既存の FBX のテストもすべて合格（Import.Tests 64 件）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 常駐ブリッジが待機時間の後に届いた要求を応答せずに切っていた（AUD-003 の退行）
+- 意図: ADR-0023「新しい接続が無いまま待機時間が過ぎたら受付をやめ、受け付けた要求を処理してから終わる」。AUD-003（同日）「要求の受信はサーバーの寿命と 30 秒の受信期限で終わる」。
+- 観測（Fact）: クリーンな checkout の Release のテスト実行（`verification.clean-build`）で `BridgeServerHostTests.IdleTimeout_DrainsAcceptedRequestBeforeExit` が失敗した（Debug では合格）。AUD-003 の修正は要求の受信を待機時間のトークンで打ち切っていたので、接続の後に待機時間（テストでは 50 ms）より遅れて届いた要求は、受信が取り消されて応答なしに切られた。接続してから 300 ms 待って要求を送ると、毎回 `Pipe is broken` になった。
+- 実装: 寿命（呼び出し元のトークンと所有者のプロセス）と待機時間を分けた。待機時間は受付ループだけを終わらせ、受け付けた接続の受信は寿命と受信期限で終わる。Preview Host には待機時間が無く、もともと寿命と期限だけで受信を打ち切っていた。
+- 自動化された証拠: `BridgeServerHostTests.IdleTimeout_DoesNotDropARequestStillArriving`（修正前は `Pipe is broken`）。AUD-003 の `Stop_EndsAConnectionThatStoppedMidRequest` も合格したまま（Bridge.Hosting.Tests 34 件を 5 回、Release でも 1 回）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 列挙型の既定値をキャストや組み合わせで宣言したコンポーネントをパレットから追加できなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md) のコンポーネント パレット。追加したコンポーネントは宣言の既定値を持ち、シーン JSON が持てない既定値は書かずに省く（同日の修正）。
+- 観測（Fact）: 列挙型のメンバーの既定値は、列挙型のメンバーを直接参照するとき（`ShapeKind.Sphere`）だけ名前で書かれた。`(ShapeKind)1` や `Layers.A | Layers.B` のような式は定数の数値として書かれ、シーン JSON の列挙型はメンバー名の文字列なので、追加の書き戻しが SCENE203 で失敗した。エンジンのコンポーネントには無い形で、利用者のコンポーネントで起きる。
+- 実装: 列挙型の既定値は定数の値で列挙型のメンバーを引いて名前で書く。一つのメンバーが名指ししない値（フラグの組み合わせなど）はシーン JSON に書けないので省き、ビルド時に宣言の既定値が使われる。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.PaletteComponent_WritesEnumDefaultsByName`（修正前は上の SCENE203）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — VSIX と .NET のツールで数値の文字列がまだ違っていた（正確な丸め）
+- 意図: [ADR-0070](Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)「書き込みは変わった値だけを元のテキストへ戻す」。同日に float と double の書き方を両方の実行環境で同じ手順にした。
+- 観測（Fact）: 同じ入力を .NET Framework と .NET で書き比べた（約 400 万個）。float は約 3,000 個で文字列が違った。.NET Framework は丸めの中間（312985.125 の 8 桁）を 0 から遠い方へ丸め（`312985.13`）、.NET は偶数へ丸める（`312985.12`）。どちらも同じ float に戻るので値は同じだが、Scene Designer の編集が無関係な行を書き換える。値の大きい float（おおむね 1e5 以上）で起き、角度（度・回転数）でも 120 万個中 25 個あった。double は約 1.8 万個で違い、そのうち約 3,800 個は .NET Framework が書いた文字列を .NET で読むと別の double になった。.NET Framework は 15 桁や 17 桁へ丸めてから少ない桁へ丸め、double の解析も正しく丸めない（`0.00233238` を 1 ulp 違う double に読む）。
+- 実装: `SceneJsonDecimal` が、2 進の正確な値から 1 回だけ偶数丸めで桁を作り、候補の文字列を正確に解析して読み戻しを確かめる（`BigInteger` による。.NET の書式と解析と同じ結果）。float・double・角度の書き方がこれを使う。読み取り（JSON の文字列から値へ）は今までどおり実行環境の解析を使う。リポジトリのシーンにある数値 474 種類は、両方の実行環境で同じ float と double に読めた（`-0` の符号だけが違う）。
+- 自動化された証拠: `SceneJsonNumberSpellingTests`（net10。乱数のビット列と短い 2 進小数の float・double 各 4 万個と角度 1 万個の 4 単位で、文字列が .NET 自身の書式と一致し、全体のダイジェストが定数と一致）、`SceneJsonNumbersRuntimeTests`（net472。同じダイジェストと、中間の丸め・double の例）。一時的な検証で、約 400 万個の入力で新しい実装の .NET の出力が以前の .NET の出力と 1 文字も変わらないことも確かめた。
+- 結果: Matches。
+
+## 2026-10-04 探索 — VSIX は decimal のメンバーを持つシーンへ編集を書き戻せなかった
+- 意図: ADR-0070 の Scene Designer の書き戻しは、シーン JSON が持てる値のメンバーなら型によらず動く（decimal の範囲は同日に SCENE203 として検査するようにした）。
+- 観測（Fact）: 変換器は decimal の定数を `ToString("R")` で書いていた。.NET の "R" は decimal を "G" と同じ文字列で書くが、.NET Framework（VSIX）には decimal の "R" が無く `FormatException` を投げる。decimal のメンバーを持つコンポーネントがあるシーンでは、どのノードの編集も書き戻せなかった。エンジンのコンポーネントには decimal のメンバーが無いので、影響するのは利用者が自分で書いた decimal のメンバーだけ。
+- 実装: decimal は書式なし（"G"）で書く。両方の実行環境で同じ文字列になり、スケールも保つ（`1.50` は `1.50` のまま）。.NET のツールが書く文字列は変わらない。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsDecimalMembersAsWritten`（net472。修正前は `FormatException`）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — VSIX の書き戻しが double のメンバーの書き方を変えていた
+- 意図: M0095「エディターの書き込みは変わった値だけを元のテキストへ戻す」。同日に float は .NET Framework と .NET で同じ文字列を書くよう直した。
+- 観測（Fact）: 変換器は double の定数を `ToString("R")` で書いていた。.NET Framework（VSIX）の "R" は最短の文字列ではなく、1/3 を `0.33333333333333331` と書き、.NET（ツール）は `0.3333333333333333` と書く。double のメンバーを持つコンポーネントがあるシーンで別のノードを動かすと、差分の適用は十進の文字列で比べるので、その double の行も書き換えた。エンジンのコンポーネントには double のメンバーが無い（NUM001）ので、影響するのは利用者が自分で書いた double のメンバーだけ。
+- 実装: double は G15 から G17 のうち double として読み戻せる最短の文字列で書く（両方の実行環境で同じ手順。NUM001 の境界は `SceneJsonNumbers.FormatOther`）。decimal は今までどおり自分の文字列で書く。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsDoubleMembersAsWritten`（net472。修正前は `0.33333333333333331` を書いて失敗）。
+- 結果: Matches（同日の追記: この手順でも .NET Framework では文字列が違う値が残っていた。上の「正確な丸め」の項目で置き換えた）。
+
+## 2026-10-04 探索 — Scene Designer の書き戻しを実際のテンプレートのシーンで検証するテスト
+- 意図: 同日に直した Scene Designer の書き戻しの不具合（startupOrder の消失、VSIX の float の書き方、列挙型・文字列・LogicalScalar の編集、パレットの既定値）は、どれもスタブの型を使うテストでは見えず、実際のシーンとエンジンの型でしか再現しなかった。
+- 実装: `TemplateSceneEditingTests` は ThirdPerson テンプレートを、ビルドと同じコンパイル項目・定数・参照（`dotnet msbuild -getItem`）でコンパイルし、実際のシーンで Inspector の確定（同じ値はファイルを変えない、列挙型の別の選択はその 1 行だけ）、移動（Position の 1 行だけ、startupOrder を保つ）、パレットの全コンポーネントの追加を確かめる。`vsix.source-sync` が実行する。
+- 自動化された証拠: startupOrder の修正を一時的に戻すと 3 件中 2 件が失敗した。実行時間は約 16 秒。
+- 結果: Matches。
+
+## 2026-10-04 探索 — パレットからエンジンのコンポーネントの約半数をシーンに追加できなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md) のコンポーネント パレット（M0051）。追加したコンポーネントは宣言の既定値を持つ。
+- 観測（Fact）: 追加の初期値（`SceneComponentInitializerPolicy`）は既定値を C# の式の文字列として持ち、値は明示的な引数なしコンストラクターの代入からしか畳まなかった。エンジンのコンポーネントは主コンストラクター付き構造体のフィールド初期化子で既定値を持つので、float の既定値は値なしになり、変換器が JSON の `null` を書いて SCENE203 になった。列挙型の既定値は参照するフィールドが空で、変換器が `NullReferenceException` を投げた。実際のプロジェクトで、ThirdPerson の 37 種類中 17、UserEcsProject の 35 種類中 18 が追加できず（Transform、すべてのライト、SkyAtmosphere、CharacterMovement、Collider、RigidBody など）、C# のシーンの時代は式をそのまま書けたので表に出なかった。
+- 実装: 既定値の式を構文のまま持ち、その宣言の意味モデルで読む（列挙型のメンバー、定数、`LogicalScalar.FromSingle(定数)`）。そのどれでもない既定値（静的メンバーなど、シーン JSON に書けないもの）は書かずに省き、ビルド時に同じ宣言の既定値が使われる。コンパイルが無いときは今までの文字列だけの計画のまま。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.PaletteComponent_IsWrittenWithItsDeclaredDefaults`（修正前は `NullReferenceException`）。実際のプロジェクトで、カタログの全コンポーネントを根ノードに追加すると、失敗は LightShadow 単独（「ライト 1 つに 1 つの影」の規則による、意図どおりのエラー）だけになった（一時的な検証、未コミット）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — Inspector でエンジンの実数（LogicalScalar）を編集できなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Inspector は列挙型・ベクトルなどをスキーマに合ったエディターで編集し、実数の正規の編集は float で行う」。Inspector はメンバー直下の RUF ベクトルの R/U/F を編集できるように作られている。
+- 観測（Fact）: エディターの種類は組み込みの数値型だけを数値エディターにし、エンジンの実数 `LogicalScalar`（Q64.64）は読み取り専用にしていた。ThirdPerson テンプレートの CharacterMovement（歩行速度・ジャンプ速度など）、SpringArm（腕の長さ）、Transform の Position/Scale の R/U/F はすべて LogicalScalar なので、Inspector では一つも変えられなかった。RUF ベクトルのテストは成分が float のスタブ型を使っていたので、本物の型との差に気付かなかった。
+- 実装: LogicalScalar のメンバーを数値エディターにし、float のリテラルとして確定する（シーン JSON はこの型を float として読む数値で持つので、失われる精度は無い）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.InspectorEditsLogicalScalarMembersAsFloats`（LogicalScalar のスタブ型。修正前は読み取り専用で失敗）。実際のシーン 21 個で、編集できるメンバー 1,225 件の同じ値の確定がすべてファイルを変えず、数値 936 件の +1 がすべてその 1 行だけを書き換えた（一時的な検証、未コミット）。
+- 結果: Matches。既知の差: Transform の `Rotation.EulerRuf.R/U/F` のような 3 段の入れ子は、書き戻しが 2 段までしか扱わないので読み取り専用のまま（回転はギズモで編集する）。
+
+## 2026-10-04 探索 — Inspector で列挙型と文字列のメンバーを変えられなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Inspector は列挙型などをスキーマに合ったエディターで編集する」。ADR-0070 で全シーンが JSON になった。
+- 観測（Fact）: JSON シーンの書き戻しは、編集をモデルへ当てる `SceneModelEditApplier` が値の式を解釈できたときだけ成功する。その解釈は真偽値と数値だけで、列挙型のメンバー参照と文字列は「意味解析が要るので、C# のテキストを直接書き換える従来の経路へ落とす」としていた。JSON シーンにはその経路がないので、列挙型（PostProcessVolume.ToneMapper、PrimitiveMesh.Type、Collider.Shape、StaticMesh.Mobility など）と文字列（StaticMesh.AssetPath など）の Inspector の編集は、すべて「The Scene edit operation failed.」になった。実際のシーン 21 個で、列挙型 139 件と文字列 122 件が該当した。
+- 実装: メンバーの宣言型が文字列なら文字列リテラルを、列挙型ならその列挙型のメンバーを、意味解析なしでモデルの値にする（解析器と同じ `EnumMember` の値）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.InspectorEnumAndTextEdits_WriteTheirLinesOnly`（修正前は上のエラー）。実際のシーン 21 個で、編集できる Inspector のメンバー 1,191 件すべてが同じ値の確定でファイルを変えず、列挙型 139 件すべてが別の選択肢でその 1 行だけを書き換えた（一時的な検証、未コミット）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — VSIX の書き戻しが無関係な数値の書き方を変えていた
+- 意図: M0095「エディターの書き込みは変わった値だけを元のテキストへ戻す」。`SceneJsonNumbers` は「.NET Framework と .NET で同じ文字列を書く」と約束している。
+- 観測（Fact）: 実際のシーン（UserEcsProject の FirstPersonStageScene）で、Inspector の任意のメンバーを同じ値で確定すると、別のノードの `"U": 24.896297` が `24.896298`、`"R": 5.0000052` が `5.0000053` に書き換わった（655 件中 356 件の確定）。.NET Framework（VSIX）は float をいったん 9 桁に丸めてから少ない桁に丸めるので、`5.00000524521` の G8 が `5.0000053` になり、.NET（ツール）は `5.0000052` を書く。値は同じ float だが、差分の適用は十進の文字列で比べるため、編集のたびに無関係な行が変わっていた。
+- 実装: float の正確な値を double として一度だけ丸めて書き、double として読み戻して確かめる（両方の実行環境で同じ手順。NUM001 の境界はこの 2 メソッド）。
+- 自動化された証拠: `SceneJsonNumbersRuntimeTests.SingleSpelling_IsTheSameAsOnDotNet`（net472。修正前は 2 件失敗）、`SceneJsonTests.SingleSpelling_IsTheShortestRoundTripText` に同じ値を追加（net10）。実際のシーン 21 個の Inspector の全メンバー（1,191 件）を同じ値で確定しても、ファイルは 1 文字も変わらなくなった（一時的な検証、未コミット）。
+- 結果: Matches（同日の追記: この手順でも .NET Framework では文字列が違う値が残っていた。上の「正確な丸め」の項目で置き換えた）。
+
+## 2026-10-04 探索 — Scene Designer で起動シーンを編集すると startupOrder が消え、ゲームがそのシーンを読み込まなくなった
+- 意図: ADR-0070「Scene Designer は JSON シーンを同等の C# クラスとして読み、同じ SceneModel を得る」「書き込みは変わった値だけを元のテキストへ戻す」(M0095)。
+- 観測（Fact）: `SceneJsonDesignerSource` は起動シーンの `startupOrder` を同等の C# クラスに写していなかった（C# のシーンでは `[StartupScene(Order = N)]`）。Designer のモデルは `IsStartupScene = false` になり、編集を書き戻すたびに変換器が `startupOrder` を書かず、差分の適用はルートのキーが変わったので文書全体を置き換えた。Lvl_ThirdPerson などの起動シーンを Designer で 1 回動かすだけで、ゲームが起動時にそのシーンを作らなくなる。リポジトリの実際のシーン 21 個を、プロジェクトと同じコンパイル（`dotnet msbuild -getItem:Compile -getItem:ReferencePath`）で読み込み→変換→書き戻すと、起動シーン 9 個が `startupOrder` を失い、他は同一だった。
+- 実装: デザイナー用の同等の C# クラスに `[global::CSharpGameEngine.Entities.StartupScene(Order = N)]` を付ける（ディスクには書かれず、SCENE206 の対象外）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheStartupOrderOfAStartupScene`（VSIX の書き戻しの経路。修正前は startupOrder が消えて失敗）、`SceneJsonGeneratorTests.DesignerSource_KeepsTheStartupOrder`。修正後は実際のシーン 21 個すべてが変更なしの往復でバイト単位で同一になった（一時的な検証、未コミット）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — ランタイムはシーンの Camera の正射影を無視して透視で描いている
+- 意図: シーンの `Camera` は `Projection`（Perspective/Orthographic）と `OrthographicSize` を持つ。Omni 仕様は「正射影のビューは標準の深度を使う（対数深度は透視が要る）」と定めている。
+- 観測（Fact）: `LevelLoad.ApplyProjection` は `FovYRadians`・`NearZ`・`FarZ`・露出・深度方式だけを写し、`Projection` と `OrthographicSize` を読まない。描画のカメラ（`Graphics/Camera.GetProjection`）も透視だけを作る。正射影のシーンカメラは、エディタのカメラのサムネイル（分離プレビュー）では正射影で描かれるが、ゲームとランタイムビューでは透視（既定の対数深度）で描かれる。
+- 判断: 実装しない（ユーザー判断）。視野角を前提にする箇所（影のカスケードの当てはめ、空の方向の逆行列、AO の深度の復元、Forward+ のタイル範囲、対数深度）が多く、正射影での空や影の振る舞いを決める必要がある、機能単位の仕事であるため。
+- 結果: Partial（既知の差）。
+
+## 2026-10-04 探索 — C# の予約語と同じ名前のゲーム プロジェクトはコンパイルできなかった
+- 意図: ADR-0068「テンプレートは名前空間をプロジェクトの安全な識別子に置き換え、作ったプロジェクトはそのままビルドできる」。
+- 観測（Fact）: プロジェクト名 `event` や `fixed` では、安全な識別子がそのまま `event` になり、生成した `Gameplay/PlayerStart.cs` などが `namespace event.Gameplay;` で CS1001 になった（シーン JSON の名前空間も「名前空間名ではない」で拒否される）。Visual Studio の `$safeprojectname$` が予約語をどう扱うかは、この環境では確かめられていない。
+- 実装: 安全な識別子が C# の予約語なら先頭に `_` を付ける（Feature Runner も同じファイルを使い、Roslyn を参照しないので、予約語の一覧を持つ）。文脈キーワード（`record` など）は識別子として使えるので変えない。
+- 自動化された証拠: `GameProjectGeneratorTests.SafeIdentifier_PrefixesAReservedKeyword`、`Generate_WithAKeywordProjectName_WritesSourcesThatParse`（修正前は CS1001）。
+- 結果: Matches。csproj の `RootNamespace` は Visual Studio の `$safeprojectname$` のままなので、Visual Studio が予約語をそのまま入れる場合は、新しく追加する項目の既定の名前空間だけが食い違う（ビルドには使われない）。
+
+## 2026-10-04 探索 — PlayerController のピッチの上下を逆に書くとゲームが毎フレーム例外で止まった
+- 意図: `PlayerControl.AddLook`「ピッチはコントローラーの範囲に収める」。シーンで作者が書いた値で、ランタイムが落ちてはならない（同日のカメラ・環境光の修正と同じ考え方）。
+- 観測（Fact）: `MinPitchDegrees` が `MaxPitchDegrees` より大きい `PlayerController`（Inspector で 100 と打つなど）では、`Math.Clamp` が `ArgumentException: '60' cannot be greater than -30.` を投げ、FrameInput の入力システムから毎フレーム例外が出た。値の検査はどこにもなかった。
+- 実装: 2 つのピッチの値を順序のない範囲として扱い、その間に収める（どちらの値も作者の意図した端なので、推測を最小にした）。
+- 自動化された証拠: `SpringArmTests.AddLook_KeepsPitchBetweenBoundsWrittenInEitherOrder`（修正前は上の例外）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 別のチェックアウトを対象にした Stage の結果が、カレントのリポジトリへ保存されていた
+- 意図: [Feature-Stages](Feature-Stages.md) の `--repository-root`。リリース証拠の Stage（`ecs.release` など）は、対象リポジトリの `.artifacts/FeatureStages` から、同じコミットの最近の合格結果を探す。
+- 観測（Fact）: メインツリーをカレントにして `run release.packages --repository-root <新しいワークツリー>` を実行すると、Stage はワークツリーで動いたが、結果はメインツリーの `.artifacts/FeatureStages` に保存された（`Program.cs` が保存先をカレントディレクトリから決めていた）。対象リポジトリで続けて実行するリリース証拠の Stage は、結果を見つけられない。コミットと鮮度で絞るので、古い結果を束ねることはない（その仮説は否定された）。
+- 実装: 保存先は、コマンドが `--repository-root` で指定したリポジトリにする（`FeatureRunnerApplication.ResultsRepositoryRoot`）。
+- 自動化された証拠: `FeatureRunnerApplicationTests.ResultsRepository_IsTheRepositoryRootTheCommandNames`。実機でも、メインツリーから `run runner.contract --repository-root <ワークツリー>` を実行すると、結果がワークツリーの `.artifacts/FeatureStages` に保存された。
+- 結果: Matches。
+
+## 2026-10-04 探索 — ECS 性能の 64 型と 1 型の p95 比較が揺らぎで失敗していた
+- 意図: [Ecs-Runtime](Specifications/Ecs-Runtime.md)「64 型の経路は 1 型の経路から 20% を超えて遅くならない（補助の警報）」。M0082 はこれを中央値と p95 の両方で比べていた。
+- 観測（Fact）: Release の full スイートで `ecs.performance` が失敗した（p95 が 953,400 対 786,000 ns、+21%）。同じコミットで直後の ECS リリース段は合格した（809,000 対 934,000 ns）。他に何も動かしていない状態でも 3 回中 1 回失敗した（p95 755,400 対 625,300 ns、中央値は 533,150 対 511,500 ns）。7 回の比率は、中央値 0.91〜1.09、p95 0.87〜1.21。30 標本の最近傍順位 p95 は上から 2 番目の 1 標本で、別プロセスどうしの比較は揺らぎを測っている。M0082 で 15% を 20% に広げたのと同じ崖が残っていた。
+- 実装: 相対の警報は中央値だけを比べる（`PerformanceBaseline` の p95 を null にできるようにした）。p95 は 8.33 ms の絶対予算で引き続きすべて判定する。閾値は広げていない。
+- 自動化された証拠: `PerformanceMeasurementFrameworkTests.BaselineWithoutP95ComparesTheMedianOnly`（p95 が外れても中央値だけの基準は合格し、中央値の 30% の遅れは失敗する）。
+- 結果: Matches（仕様の文言を中央値に明確化）。
+
+## 2026-10-04 探索 — C# のシーンの NaN と無限大で JSON への変換器が例外を投げていた
+- 意図: `SceneJsonConverter`「JSON に書けない値は推測せずに報告する」（ADR-0070 の移行、Scene Designer の書き戻し）。
+- 観測（Fact）: float のメンバーが `float.NaN`・`float.PositiveInfinity`（角度のメンバーも）だと `ArgumentOutOfRangeException` を投げた。double の `double.NaN`・`double.NegativeInfinity` は問題を報告せずに `NaN`・`-Infinity` を数値として書き、読み戻せない文書（JSON の数値ではない）を返した。decimal の定数は正しく書けていた（`"R"` 書式で例外になるという仮説は否定された）。
+- 実装: 書く数値の文字列が JSON の数値（`SceneJsonReader.IsNumber`）でなければ、その値を問題として報告し、文書を返さない。型に依らない判定にしたのは、製品コードで double を使わない（NUM001）ため。
+- 自動化された証拠: `SceneJsonGeneratorTests.Converter_ReportsANumberJsonCannotHold`（float・double・角度の 4 件。修正前は 4 件とも失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — シーン JSON が ulong のメンバーを一切読めなかった
+- 意図: ADR-0070「シーン JSON は C# のシーンと同じシーンへコンパイルされる」。C# → JSON の変換器と Inspector は ulong を扱う（変換器は数値で書き、Inspector は `5UL` を書く）。
+- 観測（Fact）: ulong のメンバーは JSON の値の読み取りに無く、どの数値も SCENE203「a number needs a numeric member or a type convertible from float」になった。C# のシーンを変換した JSON や、JSON のシーンを Inspector で編集した結果がビルドできなかった。スキーマも ulong を整数として載せていなかった。整数の読み取りには ulong の上半分（long を超える値）だけのための分岐があり、対応するつもりで漏れていたと考えられる（推測）。
+- 実装: JSON の読み取りとスキーマに ulong を足した（0〜18446744073709551615、負の数と超過は SCENE203）。
+- 自動化された証拠: `SceneJsonGeneratorTests.UInt64Member_ConvertsAndBuildsItsWholeRange`（変換、ビルドした値、Scene Designer 経由の往復、範囲外、スキーマ。修正前は SCENE203 で失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — double と decimal の範囲外の数値が生成コードのコンパイルエラーになっていた
+- 意図: ADR-0070「SCENE203 はコンパイラーが拒否する値も含む。値を落として生成しない」。float の範囲外はすでに SCENE203 だった。
+- 観測（Fact）: double のメンバーに `1e400`、decimal のメンバーに `1e30` を書くと、シーンの診断は出ず、生成された `Game.MainScene.Scene.g.cs` が CS0594（浮動小数点定数が型の範囲外）になった。
+- 実装: double と decimal のリテラルは、コンパイラーの字句解析（`SyntaxFactory.ParseToken`）が範囲外とするときに SCENE203 にする。製品コードで double を使わない（NUM001）ためと、判定をコンパイラーと同じにするため。
+- 自動化された証拠: `SceneJsonGeneratorTests.ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition` の double・decimal の 2 件（修正前は診断なしで失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — Inspector の数値欄が NaN と Infinity を受け付けていた
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Invalid text ... create no source operation」。`SceneInspectorValueFormat` は、生成ソースがコンパイルエラーになる入力を各型の `TryParse` で弾くと約束している。
+- 観測（Fact）: float の欄に `NaN`・`Infinity`・`-Infinity` と打つと、`float.TryParse` が成功し、式 `NaNf`・`Infinityf`・`-Infinityf` がソースへ書かれる（C# では未定義の識別子なのでコンパイルエラー。JSON の数値にもならない）。`1e39` は net472 の `TryParse` が失敗するので弾かれていた。角度の欄は有限の数値しか通さない。
+- 実装: float の欄は有限の値だけを受け付ける（それ以外は今までの「値を読めない」状態表示）。
+- 自動化された証拠: `SceneInspectorModelTests.TryFormatNumber_TextWithoutAFiniteNumber_Fails`（修正前は NaN と Infinity で成功していた）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 予約語の名前のメンバーでシーン JSON の生成コードが壊れていた
+- 意図: ADR-0070「シーン JSON は C# のシーンと同じシーンへコンパイルされ、問題は JSON の位置のエラーになる」。
+- 観測（Fact）: `@class`・`@event` のフィールドや `@in`・`@out` のコンストラクター引数を持つコンポーネントを JSON シーンに書くと、生成コードが `new Sample.Odd { class = ... }` となり、CS1513 などのコンパイルエラーになった（シーンの診断は出ない）。古い M0002 の生成器で未対応とされていた識別子のエスケープが、今の JSON の経路にもなかった。C# のシーンの経路はソースの識別子（@ を含む）をそのまま使うので問題ない。
+- 実装: `SceneJsonSceneAnalyzer` が名前付き引数・メンバーの代入・enum の値を書くとき、予約語には `@` を付ける（enum の値 `@default` は最初の修正で漏れていて、追加の探索で見つけた）。
+- 自動化された証拠: `SceneJsonKeywordMemberTests.MembersAndParametersNamedLikeKeywords_Build`（修正前はコンパイルエラー。enum の値も同じ）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 要求の途中で止まったクライアントがホストの停止を妨げていた（監査 AUD-003）
+- 意図: Editor / VSIX 仕様「Host boundary and protocol」（所有者の終了とともに終わる）と、監査 AUD-003「通信途中でも期限・取消が有効」。
+- 観測（Fact）: 要求の長さの 1 バイトだけを送って接続を保つと、Preview Host も常駐ブリッジも、停止を要求してから 5 秒以内に終わらなかった。接続後の受信に `CancellationToken.None` を渡していた。ブリッジは停止の前に処理中の要求を待つので、そのまま残る。
+- 実装: `BridgeWireMessage.ReadRequestAsync`（サーバーの寿命と 30 秒の受信期限）を両方のサーバーで使う。期限を過ぎた接続は応答せずに切る。
+- 自動化された証拠: `BridgeServerHostTests.Stop_EndsAConnectionThatStoppedMidRequest`、`RenderPreviewHostPipeTests.NamedPipe_StopsWhileAClientIsMidRequest`・`NamedPipe_DropsAClientThatDoesNotFinishItsRequestInTime`（修正前はいずれも失敗）。
+- 結果: Matches（監査.md の AUD-003、ADR-0023 に追記）。
+
+## 2026-10-04 探索 — 最後のアセットを読む間の取消が無視されていた（監査 AUD-002）
+- 意図: [Asset / Content 仕様](Specifications/Asset-Content-Pipeline.md)「失敗または取消は以前の Manifest を唯一の last-known-good として残す」。
+- 観測（Fact）: 最後の候補 artifact を読み終えた直後に呼出元が取消すと、`TryUpdateManifestAsync` は新 Manifest を有効にして成功を返した。取消の確認は各読み取りの前にしかなく、検証の後から公開までの間に無かった。
+- 実装: 公開のロックの中で取消を確かめ、旧 Manifest を保った取消結果を返す（他の取消の経路と同じ結果）。
+- 自動化された証拠: `RuntimeAssetStoreTests.ManifestUpdate_CancelledWhileItsLastArtifactIsRead_KeepsTheOldManifest`（修正前は失敗）。
+- 結果: Matches（監査.md の AUD-002 に追記）。
+
+## 2026-10-04 探索 — ライトを含むスナップショットが復元できなかった（監査 AUD-001）
+- 意図: [ECS 仕様](Specifications/Ecs-Runtime.md) のスナップショット契約（現在の Schema で取得した正規の Component 値を同じ World に復元できる）。
+- 観測（Fact）: 監査（2026-09-08）の P1 の項目が HEAD でも再現した。`DirectionalLight`・`PointLight`・`SpotLight`・`RectAreaLight`・`LightShadow` の codec 往復はすべて `payload is not canonical` になり、ライトと影を持つ `EngineShowcaseScene` をストリーミングした Cell は、Capture 直後の Restore に失敗した。原因は、System.Text.Json が読み取り専用の物理量（get のみのプロパティ）を設定できず既定値になり、再シリアライズとの正規バイト比較が一致しないこと。
+- 実装: 公開フィールドが無く setter の無いプロパティだけを持ち、唯一の公開コンストラクターの引数が状態のプロパティを名指す値型を、そのプロパティで書き、コンストラクターで読む（範囲外はコンストラクターの検査で codec のエラー）。記述子も同じ規則で、`IsValid` などの計算プロパティを含めない。init を持つ `LogicalVector3` などは従来どおり。
+- 自動化された証拠: `LightComponentSnapshotTests`（3 件。修正前は 3 件とも失敗）、Entities・CodeAnalysis・Windows のスナップショット関連テスト、`ecs.snapshot` ステージ。
+- 結果: Matches（監査.md の AUD-001 に追記）。
+
+## 2026-10-04 探索 — Rebuild で消費側が使うツールの出力が消えていた（監査 AUD-004）
+- 意図: F-L7-039（隔離した clean build）と、監査 AUD-004「正規ビルドが自身のツール出力を利用中に競合なく生成できる」。
+- 観測（Fact）: きれいな worktree の `verify-clean-build` で、Debug ビルドがまれに失敗した（CLI の exe が無く 9009、`ShaderGraph.Cli` の参照 DLL が無く CS0006）。消費側（TestHost）の Build の後に、同じセッションで `ShaderGraph.Cli` を Rebuild すると、exe は毎回消えた（消費側なしでは残った）。詳細ログでは、ソリューションと各消費側の入れ子の Build が CLI の同じ構成 ID に集まる。そのため Rebuild の Clean だけが、後から走る。
+- 実装: 隔離クリーンビルドは空の専用ルートを Rebuild せず、通常のビルドで作る（`HermeticBuildPlan`）。消費側の Clean の前にツールを Clean する target も試したが、`Platform` を外す SceneSchema CLI では別インスタンスになり、出力を消して悪化させたので採らなかった（監査.md の AUD-004 に追記）。
+- 自動化された証拠: `HermeticBuildVerifierTests`（ビルド段に `--no-incremental` がない）と、上の MSBuild プロジェクトの実験。
+- 結果: Partial。開発者の Rebuild にはこの順序の失敗が残り、構造的な対処は判断を待つ。
+
+## 2026-10-04 探索 — 並列の FBX 読み込みでテストホストが落ちていた
+- 意図: `FbxImporter`「壊れた入力でも例外を外へ出さない」と ADR-0023（AssimpNet の `LogStream` はプロセス全体の状態）。
+- 観測（Fact）: きれいな worktree の `verification.clean-build` で、`Import.Tests` のテストホストが `FbxImporterTests.Import_MalformedFile_ReturnsFailedNotException` の途中で落ちた（その前の実行では合格）。並列の `FbxImporter.Import`（正しいファイルだけでも）は 3 回とも 0xC0000005 で落ち、ログストリームなしの並列 `AssimpContext.ImportFile` は落ちなかった。排他はブリッジ（`FbxBridgeWorker`）にだけあり、`ProviderNeutralImportTests` は `FbxImporterTests` と並列に FBX を読む。
+- 実装: `FbxImporter` がログストリームを持つ区間を `Lock` で排他し、ブリッジの重複したセマフォを外した。
+- 自動化された証拠: `FbxImporterTests.ConcurrentImports_KeepTheProcessAndTheirOwnDiagnostics`（64 件を 8 並列。修正前はテストホストが落ち、修正後は各結果と、単独で読んだときと同じ診断を確かめる）。
+- 結果: Matches（ADR-0023 に追記）。
+
+## 2026-10-04 探索 — 対数のサムネイルの値ひとつで Scene ビュー全体が止まりえた
+- 意図: Editor-VSIX の「カメラの値が使えないときは、そのカードがエラーを示す」（FovY・NearZ/FarZ・正射影の大きさと同じ）と、プロトコル 8 の検証。
+- 観測（Fact、コードの経路から）: M0100 からサムネイルは `RadialTransitionMeters` をプレビューホストへ送る。VSIX の検証はこれを見ていなかった。プロトコルは不正なカメラが 1 台あると `UpdateFrame` 全体を拒み、ホストは作れない radial の投影で例外を投げる。そのため、Inspector で T に 0 を入力する途中や 0 を保存した状態では、Scene ビューのフレーム全体が失敗しえた。
+- 実装: `SceneCameraPreviewBinding` は radial の透視カメラについて、T が正で有限か、錐台の角の距離が有限か（ホストの `RadialDepthProjection.TryCreate` と同じ条件）を確かめ、だめならそのカードに `SceneCameraRadialTransitionInvalid` を出して送らない。
+- 自動化された証拠: `SceneCameraPreviewPolicyTests.Build_ReportsARadialCameraThePreviewHostCannotDraw`（修正前は失敗。standard と正射影は T を使わないので対象外）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 負の環境光で画面が白くなっていた
+- 意図: 型付きのライトとカメラの方針「使えない値は直前の使える値を保つ」、ADR-0069 の環境（使えない設定は Legacy に戻し `InvalidReason` に名前を残す）。
+- 観測（Fact）: 旧来の `AmbientLight` だけは検証を通らずにレンダラーへ渡っていた。強度 −1 の箱は暗くならず、中心が (255,255,255) になった。ACES の有理式は負の入力に正の値を返す（x = −1 で 1.25）。`HeightFog` の負の値は、シェーダーの `saturate` で「フォグなし」になるだけだった。
+- 実装: `AmbientLightSync` は、色と強度が負でなく、積が有限のときだけ送る。それ以外は直前の値を保ち、`InvalidReason` に `AmbientLight` を残す。
+- 自動化された証拠: `AmbientLightSyncTests.UnusableValue_KeepsTheLastUsableAmbient`（負の強度・負の色・あふれの 3 件。修正前は 3 件とも失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 使えない値を保存したシーンカメラで読み込みが落ちていた
+- 意図: [Omni 仕様](Specifications/Omni.md) と `LevelLoad` の方針「使えない値は直前の使える投影を保ち、メンバー名を `LevelRuntime.InvalidCameraProperty` に残す」（ライトの `InvalidProperty` と同じく、フレームを落とさない）。
+- 観測（Fact）: 毎フレームの経路はこの方針どおりだったが、読み込みは `ApplyProjection` の結果を検査せずにレンダラーへ渡していた。NearZ 0 または RadialTransitionMeters −1 のシーンカメラでは、ゲームでも Scene Designer のランタイムビューでも、読み込みが `ArgumentException`（A radial camera needs ...）で失敗した。ランタイムビューでは、エディタ自身の範囲は正しくても、対数の範囲がシーンカメラの近い面を含むので失敗する。
+- 実装: 読み込みと毎フレームで同じ `ProjectIfUsable` を使う。読み込みで使えない値は、既定の投影（`RenderCamera.CreateFirstPerson`）のまま名前を残し、値が直った次のフレームからシーンカメラの投影を使う。
+- 自動化された証拠: `EditorRuntimeViewTests.SceneCamera_LoadedWithAnUnusableValue_NamesItAndRendersOnceItIsFixed`（ゲーム・エディタ × NearZ・RadialTransitionMeters の 4 件。修正前は 4 件とも `ArgumentException` で失敗）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — きれいなチェックアウトで VSIX のテストと隔離クリーンビルドが通らなかった
+- 意図: F-L7-039（隔離した restore・artifacts のルートで、通常の `bin/obj` を消費しない）と、Roadmap の clean checkout 再現性。
+- 観測（Fact）: HEAD の新しい git worktree でスイートを回すと、VSExtension.Tests を含む 15 ステージ（`vsix.*` 全部、`rigid.physics`、`rendering.radial-depth` など）と、`ecs.performance`、`verification.clean-build`、それらに依存するリリースのステージが失敗した。
+  - `dotnet build tests/CSharpGameEngine.VSExtension.Tests` が NETSDK1004（ShaderGraph.Cli、次にブリッジの `project.assets.json` が無い）。ビルド中に動かすツール（ShaderGraph CLI、Preview Host、VSIX のブリッジ、Feature Runner）はどのテストの参照グラフにも無く、Restore なしで Build/Publish していた。主ツリーではソリューションの restore 済みなので見えなかった。
+  - `ecs.performance` はベンチマークを `dotnet run --no-restore` で起動し、誰も restore していなかった。
+  - `verification.clean-build`（主ツリーで最後に動いたのは 2026-08-31）は `--artifacts-path` で出力が移るのに、ShaderGraph・SceneSchema・Feature Runner の実行ファイルのパスが通常の `bin` を指していた。主ツリーには通常の `bin` に古い実行ファイルが残っているので、それを黙って使っていた（隔離の漏れ）。ほかに、VSIX のテンプレート用パッケージの置き場所が絶対パスの `IntermediateOutputPath` を連結して壊れていた。VSExtension.Tests の古い VSIX の項目を除く条件は、Link の区切り文字（`\` と `/`）が違って一度も一致せず、主ツリーでは通常の `bin` の VSIX をコピーしていた。32 文字の実行 ID は、VSIX が zip にするブリッジのファイルのパスを MAX_PATH の 1 文字先（深さ 40 文字のチェックアウトで 261 文字）へ押し出した。ビルド中の入れ子の restore には `--packages` が届かない。
+- 実装: ビルド中に動かすツールは、別の評価で先に Restore する（`SceneSchema.targets` の前例と同じ）。実行ファイルのパスはビルドの出力（`TargetOutputs`）から取る。`IsPathRooted` の場合分けを足し、古い VSIX の条件は両方の区切り文字に一致させる。clean-build は `NUGET_PACKAGES` を全コマンドに渡し、実行 ID を 12 文字にした。ベンチマークはキャプチャの前に一度 restore する。主ツリーの入れ子の restore はすべて no-op（`project.assets.json` を書き換えない）。
+- 自動化された証拠: `HermeticBuildVerifierTests`（入れ子の restore の packages、artifacts のルートの深さ）。新しい worktree で、VSExtension.Tests を単体でビルドすると 1081 件が合格した。`verify-clean-build` は restore と Debug・Release の build・test をすべて通過し（VSExtension 1081 件、Windows 417 件ほか）、`ecs.performance` は restore から合格した。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 範囲外の値を持つシーンがビルドを通り、起動時に落ちていた
+- 意図: ADR-0070「生成できないシーンを、値を黙って落としてビルドしない」と「Scene Designer はビルドが拒むものを拒む」。C# シーンの時代の `SceneDeclarationAnalyzer` は不正な物理量を診断していた。
+- 観測（Fact）: ThirdPerson の DirectionalLight の色を `R: -1` にするとビルドはエラー 0 で通り、ゲームは起動時のシーン生成で `LinearLightColor` の `ArgumentOutOfRangeException`（未処理）で落ちた。JSON の解析器（`SceneJsonSceneAnalyzer`）は物理量の範囲も `LogicalScalar` の範囲も見ておらず、float に収まらない数（1e39）は生成ファイルのコンパイルエラー（CS0594）として JSON ではない位置に出ていた。
+- 実装: 解析器が、物理量の型（`LightValueContract`）のコンストラクタ引数を同じ規則で、`LogicalScalar` への数を ±2^63 で、float への数を float の範囲で検査し、SCENE203 を JSON の位置に出す。
+- 自動化された証拠: `SceneJsonGeneratorTests.ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition`（3 件、検査を外すと 3 件とも失敗）。ThirdPerson に負の色を入れると `Lvl_ThirdPerson.json(1502,24): error SCENE203` でビルドが止まることを確かめた。リポジトリの全シーンはこの検査を通る（ソリューションのビルドがエラー 0）。
+- 結果: Matches。
+
+## 2026-10-04 探索 — 範囲外の値を入力するとランタイムビューが終わっていた
+- 意図: `RenderPreviewRuntimeSession.ApplySceneDocument`「文書の誤りは生成器が報告し、ビューは最後の正しい値を保つ」。
+- 観測（Fact）: `SceneJsonRuntimeValues.Component` は、型そのものが拒否する値（位置 1e30 で `LogicalScalar` の変換が `OverflowException`、ライトの色 −1 でコンストラクタが `ArgumentOutOfRangeException`）を、リフレクションの `TargetInvocationException` のまま投げた。`ApplySceneDocument` は `InvalidOperationException` しか捕まえないので `ReplaceScene` が失敗し、セッション表はそのセッションを削除・破棄していた。つまり Scene Designer で入力途中に範囲外の値を打つとランタイムビューが終わる。
+- 実装: 変換・コンストラクタ・プロパティの代入が投げた例外を、ほかの不一致と同じ `InvalidOperationException`（does not fit）にする。
+- 自動化された証拠: `SceneJsonRuntimeValuesTests.ValuesTheTypeItselfRejects_DoNotFit`（2 件）、`RenderPreviewRuntimeSessionTests.SceneDocument_EditsValuesLiveAndFlagsStructureForABuild`（範囲外の位置を受けてもセッションが続き、画像は最後の正しい値のまま）。いずれも修正前に失敗した。
+- 結果: Matches。
+
+## 2026-10-04 探索 — きれいなチェックアウトで Feature Runner がビルドできなかった
+- 意図: ADR-0061（Pending は明示的な未合格、失効はリリースの検証だけを止める）、Roadmap の clean checkout 再現性、CI の最初の手順（Feature Runner の `verify-ci-matrix`）。
+- 観測（Fact）: HEAD の git worktree でスイートを回すと多くのステージが失敗した。原因は Feature Runner のビルド後検証の `verify-vsix-compatibility` で、`VSIX-Experimental-Baseline.json` の Passed の行が、追跡外の `.artifacts/VsixObservations/...` にある証拠ファイルを要求していた（「evidence does not exist」6 件）。この機械にしかないファイルなので、新しいクローンや CI では Feature Runner がビルドできない。既存のテストは一時ディレクトリへ写した台帳で特定のエラーの有無だけを見ていて、気付かなかった。
+- 実装: 証拠ファイルの存在は、失効と同じくリリースの検証（`--require-passing-evidence`）だけが要求する。
+- 自動化された証拠: `VsixCompatibilityMatrixValidatorTests.PreReleaseValidationAcceptsPassedEvidenceThisCheckoutDoesNotHave`（修正前に失敗）。worktree で Feature Runner がビルドできることも確かめた。
+- 結果: Matches（ADR-0061 に追記）。
+
+## 2026-10-04 探索 — 自動実行が描画の速さに依存していた
+- 意図: ADR-0067 決定 7（フレーム番号で入力を与え、各フレームのカメラ位置を観測する）と、`rigid.character-controller` の「実機は任意の追加パス」。
+- 観測（Fact）: `rigid.character-controller --adapter hardware` が「頂点から 0.005 m しか降りていない（0.3 m 以上が必要）」で失敗した（RTX 4060 Ti）。WARP では合格。実機で同じ自動実行を 2 回撮ると、30 フレーム目の位置が 5.87 m と −3.12 m のように食い違った。
+- 原因: 生成したゲームループは各フレームの経過時間を `Stopwatch` から取る。WARP は 1 フレームが遅く毎フレーム上限の 8 tick に達する（20 フレームで 15.7 m、毎フレーム約 7.85 tick）ので決定的に見えていただけで、実機ではフレームごとの tick 数が揺れ、90 フレームの間にジャンプの着地まで進まない。
+- 実装: `EngineHost.FrameTime` を足し、生成ループは EngineHost があるとき経過時間をそこから取る。自動実行の間は毎フレームちょうど上限（8 tick、`RuntimeAutomation.FixedFrameTime`）を進める。自動実行でなければ計測値のまま。
+- 自動化された証拠: `RuntimeAutomationTests`（固定時間で 1000 フレーム毎回 8 tick、余りもバックログも無い。自動実行でない EngineHost は計測値を返す）、`GameSystemEntryPointTests`（生成ループが `FrameTime` を通す）。
+- 実機の証拠: ThirdPerson を WARP と実機 2 回で自動実行し、カメラの軌跡が全フレームで一致した（最大差 0、以前の WARP の軌跡とも一致）。
+- 結果: Matches。
+
+## 2026-10-04 M0100 探索 — 遠景で対数の Early-Z が効いていなかった
+- 意図: [Omni 仕様](Specifications/Omni.md) 不変条件 2a（保守的深度で早期の深度棄却を保つ）。
+- 観測（Fact）: 100〜1020 m の 24 層を手前から奥へ描くと、標準 0.097 ms に対し対数 1.738 ms（RTX 4060 Ti）。2〜48 m では 0.133 対 0.173 ms。単一の接点（8 m）の双曲線が遠くで低い一定値になるため。接点を約 500 m に移す実験で 0.262 ms になり、原因を確かめた。
+- 実装: 接点を物体ごとにした（ObjectCB `RadialRasterDepth`、ABI `stage-v10`、ADR-0076 追記）。
+- 自動化された証拠: `RadialDepthTests.ConservativeRasterDepth_NeverExceedsTheEncodedDepthWhereverItTouches`（9 つの接点で全域が下界、接点で 0.1 % 以内）、対数の GPU テスト（WARP と実機で全件合格）、`RadialDepthPerformanceEvidence`（遠い層 0.123 ms）。
+- 結果: Matches。
+
+## 2026-10-04 M0100 探索 — 実機の GPU で対数の前後判定が崩れていた
+- 意図: [Omni 仕様](Specifications/Omni.md) 不変条件 3（全スケールで前後が物理距離の順）と精度予算。
+- 観測（Fact）: 対数の GPU テストを一時的に RTX 4060 Ti で流すと 25 件中 2 件が失敗した（20 km・5 cm の 2 枚で赤が 99.5 %、4 µm の場面で標準と違う面）。WARP では合格。深度の誤差は実機で最大 52 万 ulp（4 µm）、WARP は 4 ulp 以下。
+- 切り分け: (1) 保守的深度の約束違反は、20 km ではラスタの下界（約 0.27）が深度（約 0.86）よりずっと小さく起こり得ない。(2) `log2` を float の級数に替えると 4 µm の誤差が 52 万 → 41.5 ulp、中心の深度が WARP と一致した。(3) 距離の大きさをラスタライザーの `SV_Position.w` から取っても誤差は変わらず、補間した位置の大きさの誤差ではなかった。(4) 残る誤差は画面の中心で 1.2〜2.6 ulp、端で 6〜41 ulp で、頂点のサブピクセルへの丸めと深度の勾配による。
+- 実装: シェーダーと CPU の `log2(1 + x)` を float の四則演算だけの級数にした（ADR-0076 追記）。
+- 自動化された証拠: `StagePresentationShaderSourceTests.PresentationEntries_AvoidTheHardwareLogarithmAndExponent`、`RadialDepthPrecisionEvidence`（実機・WARP とも中心 4 ulp 以内）。旧実装に戻すと両方とも失敗することを確かめた。修正後は対数の GPU テスト 25 件が実機でも全件合格した。
+- 結果: Matches。精度予算に、実機ではラスタライザーの丸めが画面の端の誤差を増やすことを書き足した。
+
+## 2026-10-04 M0099 探索 — シーンの Camera の値の編集がビューに届かなかった
+- 意図: [Rendering 仕様](Specifications/Rendering.md) の Scene ビューのランタイムビュー「編集は動作中の世界の部品の値を変える」。`RenderPreviewRuntimeSession.ReplaceScene` は値の編集を `TrySetComponent` で部品ごと差し替え、他の部品は Presentation のシステムが毎フレームレンダラーへ運ぶ。
+- 観測（Fact）: `LevelLoad` はシーンカメラの部品を読み込み時に一度だけ写していた（露出、M0099 で足した深度方式と T、ゲームでは FovY/NearZ/FarZ）。読み込み後に部品を差し替えても、エディタでもゲームでも描画カメラは標準・元の露出のままだった（`EditorRuntimeViewTests` の 2 件で再現、修正前に失敗）。部品は存在するので `BuildRequired` も立たず、ビューは黙って古い値で描き続けていた。M0099 の「露出と同じく読み込み時に読む」は前例に合わせただけで、根拠は無かった。
+- 実装: `LevelLoad.ApplyProjection` を読み込みと毎フレームの両方で使い、毎フレームは世界からシーンカメラの部品を読み直す。使えない値（入力途中の NearZ 0 など）はライトの `InvalidProperty` と同じく最後に使えた投影を保ち、`LevelRuntime.InvalidCameraProperty` に部品の名前を出す。
+- 自動化された証拠: `EditorRuntimeViewTests.EditorCamera_TakesAValueEditOfTheSceneCameraOnTheNextFrame`、`SceneCamera_TakesAValueEditOnTheNextFrameInTheGame`（編集後の画像が、その値で読み込んだ画像と一致）、`SceneCamera_KeepsTheLastUsableProjectionWhileAnEditIsInvalid`（5 件。検証を外すと 5 件とも失敗することを確かめた）。
+- 結果: Matches。アクティブなカメラの選び直し（`Active` の切り替え）は今も読み込み時だけ。
+
+## 2026-10-04 M0099 探索 — 対数の境界条件
+- 探索した条件: 表示モード（基本色・法線・ワイヤ・選択ありの Lit）、極小スケール（near 1e-7 m、マイクロメートルの場面）、標準と対数を毎フレーム切り替える、リサイズ、ワイヤ表示での観察者の小窓（`RadialDepthEdgeCaseTests`、8 件）。
+- 見つかった差: ワイヤ表示だけ、対数で 16 画素の色が標準と違った（例 23,3,3 対 157,46,23）。差の位置は箱と壁の面どうしが共有する辺だけだった。共有辺は 2 つの三角形から完全に同じ深度で描かれ、標準は先に描いた面が残る。対数は画素ごとに計算した深度の丸めで決まる。塗りつぶしでは共有辺の画素はフィルルールで一方の三角形にだけ属するので起きない。遮蔽の誤りではないので、仕様（Omni 不変条件 3）に既知の差として記録し、テストはワイヤ表示だけ差が 1% 以下であることを確かめる。
+- ほかの条件はすべて標準とビット一致した。
+- 結果: Matches（不変条件 3 に同値の決まり方を明記）。
+
+## 2026-10-04 M0099 追補 — 対数の主パスで Early-Z を取り戻す
+- 観測（GPU タイムスタンプ、`RadialDepthPerformanceEvidence`、RTX 4060 Ti）: `SV_Depth` を書く対数の主パスは、手前から奥へ描く 24 枚の全画面の板で標準の約 22 倍（2.972 ms 対 0.132 ms）。奥から手前では同じで、コストは Early-Z の喪失だけ。
+- 実装: 保守的深度（[ADR-0076 追記](Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)）。接線双曲線のラスタ深度、`SV_DepthGreaterEqual`、深度クリップ無効と標準の near/far の `SV_ClipDistance`、`RadialPixelInput`。
+- 証拠: 下界の性質テスト（全域で符号化した深度以下、接点で 0.1% 以内）、対数の GPU テスト 13 件、`ShaderGraphCompilerTests`（構造体が `VertexOutput` と一致し、空どうしで素通りしないこと）、標準の基準フレームは不変。計測は対数 0.171 ms、標準 0.124 ms。
+- 調べて分かったこと: 最初は near 面をまたぐ箱の補間が原因と仮説を立てたが、クリップ距離で切ると差は床（目の後ろから far 面の先まで広がる三角形）に散らばった 60 画素・最大 1 階調に移った。クリップの無い場面ではビット一致したので、クリップ距離による切断の丸めが原因と確定した。
+- 結果: Matches（不変条件 2 を「クリップされない三角形はビット一致、クリップされる三角形は 1 階調以内」に改めた。意図した仕様の変更として ADR に記録）。
+
+## 2026-10-04 M0099 Phase 5–7 — Camera コンポーネント、エディタの追従、観察ビュー、ステージ
+- 意図: [Omni 仕様](Specifications/Omni.md) の「Authoring and editor」と「Observer view」。
+- 実装: シーンの `Camera.DepthMapping`/`RadialTransitionMeters`、`LevelLoad.ApplyDepthMapping`（エディタのランタイムビューは毎フレームの経路でもシーンカメラの範囲を当て直す）、`RadialObserver`/`RadialObserverSync`/`RadialObserverView`、overlay での中央カメラの模型、Visual Stage `rendering.radial-depth`。
+- 自動化された証拠: `EditorRuntimeViewTests`（当て直しを外すと失敗することを確認）、`SceneCameraTests`、`SceneJsonRuntimeValuesTests`、`RadialObserverTests`、観察者の GPU テスト、`FeatureStageCatalogTests`、`rendering.radial-depth`（WARP で合格）。
+- 実機の証拠: ThirdPerson テンプレートのシーンを一時的に対数カメラ（near 0.01 m・far 1e12 m）と観察者に変えて WARP で 40 フレーム歩かせた（D3D12 エラー 0、カメラは標準の撮影と同じ位置）。メインビューは標準の撮影と小窓の外で平均 0.2 階調の差（8 階調を超える画素は 0.24%）で、小窓には圧縮したレベルと中央カメラの模型が写った（`.artifacts/M0099/phase7/radial_walked.png`）。差は near を 0.01 m にしたことで補助のビュー投影の範囲が変わり、影のカスケードと AO がわずかに変わったためと考えられる（推測）。撮影後にシーンを元に戻した。
+- 計画との差: 「カメラのサムネイルも対象カメラの方式に従う」は、サムネイルを描くのが未ビルドのゲームの分離プレビュー（対数は非目標）だけだと分かったので取りやめた。
+- 結果: Matches（F-L5-038、F-L5-039）。
+- 既知の差: 対数 PSO は Early-Z が効かない（性能は未計測。主パスは同日の追補で計測し、保守的深度で解消した）。観察ビューはゲームだけで、補間は圧縮空間での透視補間（可視化用の近似）。
+
+## 2026-10-04 M0099 Phase 1–4 — 対数（放射）深度のレンダラー
+- 意図: [ADR-0076](Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)、[Omni 仕様](Specifications/Omni.md)。標準の描画は変えず、対数カメラは同じ色で対数の深度を書く。
+- 実装: 標準モードの基準フレーム（Phase 1）、CPU の数式（Phase 2）、Stage ABI `stage-v8`（Phase 3）、レンダラーの対数 PSO・深度方式パケット・補助のビュー投影・プレビューごとの方式（Phase 4）。
+- 自動化された証拠: `StandardModeGoldenFrameTests`（7 場面の SHA-256 が全フェーズで不変）、`RadialDepthTests`（19 件）、`RadialDepthGpuIntegrationTests`（11 件: 旧照明と環境の両方で標準とビット一致、2e4・1e15・5e18 m のほぼ同一平面の分離、深度の読み戻しが CPU と一致、far 1e7/1e18 m で空・カスケード・AO が有限、フレームスロット、対数のサムネイル、不正な入力、デバイス復旧）、ホットリロード後の対数 PSO。
+- 調べて捨てた前提: 「標準深度は 20 km 先の 0.5 m 差を区別できない」は WARP では成り立たなかった（全面が正しく描けた）。標準が確実に失敗する 1e15 m 以遠の場面を判別に使った。環境の比較で出た差は、同じレンダラーで続けて描いたために GI の履歴が引き継がれたことが原因で、描画ごとに新しいレンダラーを使うと一致した。
+- 結果: レンダラーについて Matches。Camera コンポーネント、エディタ、観察ビューは未実装（Partial）。
+- 既知の差: 対数 PSO は `SV_Depth` を書くので Early-Z が効かない（性能は未計測。主パスは同日の追補で解消した）。
+
+## 2026-10-03 M0099 Phase 0 — ランタイムでワールドグリッドと旧フォグがカメラに付いて動いていた
+- 意図: ADR-0075 決定 2「ピクセルごとにワールド座標から線を計算する」。旧（簡易）高さフォグは受け手のワールドの高さで薄くなる。
+- 観測した原因（Fact）: ランタイムはカメラを描画空間の原点に置き（`LevelLoad`）、物体をカメラ相対で渡すので、シェーダーの `input.WorldPosition` はワールド座標ではない。グリッドの線と旧フォグの高さがそれをワールド座標として使っていた。`WorldGridGpuIntegrationTests` はワールド座標で `StageRenderer` を直接呼ぶので気付かず、M0098 の実機確認はカメラを動かさない静止画 1 枚だった。
+- 再現: カメラ相対で描いた床では、主線の位置の画素が暗くならず（主線 126、面 99）、旧フォグはワールド座標の描画と最大 56 階調ずれた（修正前に失敗することを確認）。
+- 実装: `ObjectCB.WorldGridAnchor`（描画原点をグリッドの間隔で割った余り）と `FogParams0.z`（描画原点の高度）をシェーダーへ足し（`render_origin_2026_10_03.py`）、`StageRenderer.SetWorldGridAnchor`/`SetRenderOriginAltitude`、`RenderServer` の同名 API と復旧用の引き継ぎを追加した。`EngineHost` が毎フレーム、カメラのフレーム内位置から余りを Q64.64 で正確に求めて渡す。ワールド座標で描く呼び出し側は 0 のままで出力が変わらない。
+- 自動化された証拠: `WorldGridGpuIntegrationTests` の 2 件（カメラ相対の床の線、旧フォグがワールド座標の描画と 2 階調以内）、`RenderOriginTests`（`EngineHost` を通した端から端: 0.75 m と 10000.75 m の視点で画素一致、半セルずらすと変化、高度 3 m の差でフォグが変化、余りの正確さ 6 件）、`RenderFrameStatePersistenceTests` の 1 件。`EngineHost` からの送信を外すと端から端の 2 件が失敗することを確かめた。ゴールデンの Stage HLSL ハッシュを更新した。
+- 実機の証拠: ThirdPerson を WARP で 40 フレーム歩かせて撮影した。修正前のビルドでは同じ位置で床の主線がカメラの真下（画面中央）を通り、修正後はワールドの格子に乗る（`.artifacts/M0099/phase0/walked_before_after_floor.png`）。
+- 結果: Matches（ADR-0075 決定 2 に一致）。
+- 既知の差: 余りはカメラの参照フレームで求めるので、別の参照フレームに置いた物体の格子はカメラのフレームの格子に揃う。
+
+## 2026-10-02 M0098 — ThirdPerson の地面のグリッドを UE と同じにする
+- 意図: ユーザーのスクリーンショット（床に崩れた模様）を受け、UE の参照画像と同じ 1m グリッドにする（[M0098](Milestones/M0098-ThirdPerson-World-Grid.md)、[ADR-0075](Decisions/ADR-0075-World-Space-Procedural-Grid-Material.md)）。
+- 観測した原因: UE の `M_PrototypeGrid` の焼き付け（4 つの GLB）。床の GLB は TEXCOORD_1 用の画像で、インポーターが TEXCOORD_0 で読んでいた。1024px の焼き付けでは UV1 で読めても床全体がぼやける。
+- 実装:
+  - UE の材質を実測し（`inspect_prototype_grid.py`）、同じ式をワールド空間の手続き的グリッドとして Stage シェーダーに加えた。
+  - 取り込みで GLB を `extras.CGE_world_grid` の材質へ書き換える。ThirdPerson と FirstPerson の両方に適用した。
+  - `texCoord` が 0 以外のテクスチャは、警告を出して読み込まない。
+- 自動化された証拠: 修正前に失敗するテストを追加した（インポーター 7、変換 4、材質の接続 1、WARP の描画 4）。ゴールデンの Stage HLSL ハッシュを更新した。
+- 実機の証拠: ThirdPerson テンプレートを WARP で起動して撮影し、UE の参照画像と見比べた。壁・床・段差のグリッドの間隔と色が揃っている。参照画像にはキャラクターが無い点だけが違う。
+- 結果: 意図と実装は一致する（MatchesWithDocumentedExtension: グリッドは描画の材質アーティファクトの外に添える）。
+- 既知の差: 斜めから見たときの線のフィルターは、UE の異方性フィルターと同じではない。Round / TopDark などの別のインスタンスは未対応（書き出しが失敗する）。
+- B（M0096 から、2026-10-04）: ギズモの R 軸の矢印の先端が掴めない。
+  - 観測（Fact）: M0096 の当時の画像では、押した画素で AxisX のドラッグが始まっていた（HUD が出て、箱が動いた）。送った座標から計算した移動量の約 30 倍動き、その後に取り消された。「ヒットテストが空」は誤った解釈で、自動化の副作用と推測する。
+  - 別に見つけた欠陥: yaw/pitch の全周で、描いた Move 矢印の 204/130197 画素が何にも当たらなかった。原因は 2 つ。`ClosestRaySegment` がクランプの後で解き直さなかったこと（116 画素、軸と浅い角度・平行）と、描いたコーンの底（0.085）が判定半径（0.08）からはみ出していたこと（88 画素）。
+  - 修正: レイと線分の最近点を厳密に解き、コーンの底を判定半径で描く。判定半径は広げていない。
+  - 自動化された証拠: `GizmoVisibleHitConsistencyTests`（画素ラスター: 204 → 88 → 0、全方位のレイ: 5963 → 4787 → 0）と `TransformGizmoTests` の 2 件（修正前は失敗）。
+  - 結果: Matches（描いた Move 矢印はすべて掴める。不変条件「見えているハンドルは掴める」、[Scene-Editor-Design](Specifications/Scene-Editor-Design.md) §6.3）。
+  - 既知の差: Scale の端の立方体は、描いた角が判定（半径 0.075 のカプセル）の外にある（計算による。次の作業）。
+
+## 2026-10-02 M0097 — Physics パネルを分かりやすくする
+- 意図: ユーザーの「意味が分からない。わかりやすくして」を受け、Physics パネルの分かりにくさの原因を直す（[M0097](Milestones/M0097-Physics-Panel-Clarity.md)）。
+- 観測と修正:
+  - A: シミュレート操作は、画面に描かれない編集用ワールドの物理を動かしていた。操作を削除し、編集用ワールドは時間を進めないようにした。
+  - B: ランタイム診断は物理と無関係で、今の Scene ビューでは動かなかった。機能ごと廃止した（F-L8-027 / F-L8-030、プロトコルの版は 7）。
+  - C: パネルを「物理のデバッグ表示」と「Bake」の 2 区画にした。説明とツールチップを付け、表示項目は親のチェックが外れている間は無効にした。
+  - D: 診断の代わりに、VS のデバッガーとプロファイラーを拡張機能メニューとツールバーから呼び出せるようにした。ツールバーにオプションも追加した。
+- 自動化された証拠: 各項目に修正前に失敗するテストを追加し、全 19 テストプロジェクトが成功した。
+  - 編集中に物理が進まないこと
+  - プロトコルの版 7
+  - パネルの構成
+  - メニューとツールバーの対応
+  - 診断ツールの候補とコレクターの引数
+- 実機の証拠（CgeAutomation ハイブ、`PrintWindow` と UIA、フォーカスは奪わない）:
+  - パネルの文言と、表示項目の有効・無効の切り替え。
+  - 物理の表示を出したまま 6 秒間、画面の変化は 0 ピクセル。
+  - ツールバーとメニューに、診断ツールとオプションがある。
+  - CoreCLR のアタッチ。
+  - CPU 計測の `.diagsession` の作成と表示。
+  - パフォーマンス プロファイラーが開く。
+  - 実機で見つかった Visual Studio 18 の 4 つの違いを直した:
+    - `Transports.Item("Default")` が使えない。
+    - エンジン名が日本語になる。
+    - ネイティブを一緒にアタッチすると VS が応答しなくなる。
+    - プロファイラーを開くコマンド名が違う。
+- 結果: 自動化された契約と実装は一致する。
+- 検証の限界:
+  - exe として起動したゲームに対して、コマンドから選ぶまでの一連の操作。ゲームのウィンドウがフォーカスを奪うため、自動では行わなかった。
+  - GPU 使用率を、実行中のプロセスを対象に計測できるか。
+  - ゲームの実行中に、速度・接触の表示がどう見えるか。
+
+## 2026-10-01 M0096 — ギズモの反映・上下反転の既定・RunsAfter 順序・角度の turns・プレビュー統合・層の修正
+- 意図: M0095 の後のユーザーの報告と判断を、修正前に失敗するテスト → 最小修正 → 全テスト → 文書の整合の順に実装する（[M0096](Milestones/M0096-Gizmo-Feedback-Ordering-Angles-And-Layers.md)、[ADR-0073](Decisions/ADR-0073-Relative-System-Order.md)、[ADR-0074](Decisions/ADR-0074-Scene-Json-Angles-In-Turns.md)）。
+- 観測と修正:
+  - A: ドラッグ中の値がランタイムビューに届かず、ギズモだけが動いていた。ドラッグの根ノードの値を `TransformOverrides` で送るようにした。
+  - B: Options の上下反転の既定を入れ替えた。設定の版は 3。
+  - C: 使われていないファイルとディレクトリを削除した。
+  - D: `[SystemOrder]` を廃止し、`[RunsAfter]` / `[RunsBefore]` と完全修飾名順の順序にした。
+  - E: シーン JSON の角度を schemaVersion 2 の turns で保存する。
+  - F: ランタイムビューのホストが編集ワールドも動かし、Scene ビューのホストは 1 プロセスになった。
+  - G: 物理と Character が `IPhysicsHost` を通るようにした。Physics.Cli はゲームを参照せず、シーンのゲームのビルドを読み込んで bake する。
+  - H: 角度の JSON のキーから C# の単位の語を外した（`FovYRadians` → `FovY`、schemaVersion 3。ユーザーの判断「JSON のキーだけ別名」）。
+- 自動化された証拠: 各項目に、修正前に失敗するテストを追加した。全 19 テストプロジェクトが成功した。テスト:
+  - ドラッグの上書きと取り消し
+  - 反転の基準の向きと設定の移行
+  - 順序（DAG、名前順、循環、欠落、エンジンの実効順）
+  - 角度（版 1 と版 2 の同等性、往復、Inspector の度）
+  - 編集ワールドの 15Hz と停止
+  - 層の境界（`EngineLayerSpec`）
+  - プロジェクトごとの依存ハッシュ
+  - 角度のキーの別名（生成器・ホスト・Inspector・移行）
+- 実機・実行の証拠:
+  - CgeAutomation ハイブで、`PostMessage` のドラッグ中と確定後のランタイム画像を確かめた。Scene ビューのホストは 1 プロセスになり、Spatial のパイプが応答した。
+  - CLI で UserEcsProject と ThirdPerson テンプレートのシーンを bake した。
+  - VSIX のサービスの既定の経路で、テンプレートのシーンを bake した。
+- 結果: 自動化された契約と実装は一致する。
+- 検証の限界:
+  - 実機で R 軸の矢印の先端を掴めなかった。→ M0098 B で解決: ヒットテストは空ではなく、自動化したドラッグが乱れて取り消されていた（推測）。同じ判定にあった別の欠陥を直した（M0098 の項目）。
+  - `HostCrash` のテストの後にスワップチェーンの作成が `E_ACCESSDENIED` になる（統合とは無関係、別タスク）。
+  - キーボードを伴う確認は手動に残す。
+
+## 2026-10-01 M0095 — テンプレート・シーンエディター・プログラミングモデルの探索的改善
+- 意図: テンプレート、編集フロー、シーンエディター、ゲームコード API の不具合と設計負債を、再現 → 最小修正 → 回帰確認の順に解消する（[M0095](Milestones/M0095-Editor-And-Programming-Model-Hardening.md)、[ADR-0072](Decisions/ADR-0072-Game-Code-Api-Simplification.md)）。
+- 観測: ランタイムビューへの値編集、複数タブでの Ctrl+Z / Ctrl+Y / Ctrl+S、閉じたタブのピン、手書き JSON の書式、起動時の Design ビュー、ランタイムビューを開く処理の UI スレッド占有、編集ワールドの再ビルド追従と停止の不具合を修正した。`void Update` と `State.FrameDeltaSeconds` を導入した。
+- 自動化された証拠: 各修正に修正前に失敗するテストを追加（キー持ち主の判定、ピン解除、書式保持、テキストマージ、オービット中心、ギズモの表示、経過時間、`void Update`、編集ワールドの停止）。全テストプロジェクトが成功。
+- 実機の証拠（CgeAutomation ハイブ、DTE と UI Automation のみ）: ランタイムビューの値編集（修正前 864 px → 修正後 334,711 px の変化）、タブを閉じた後の Hierarchy、NuGet 復元中の Design ビュー、ランタイムビューの非同期オープン（ActivityLog）、再ビルド後の編集ワールドの入れ替わり。
+- 結果: 自動化された契約と実装は一致する。ADR-0072 の決定 3 は既存のユーザー判断と衝突するため取り下げ、決定 5 はユーザー判断として保留。
+- 検証の限界: キーボード・マウス入力を伴う確認（Ctrl+Z の回数、Alt+LMB のオービット、Design ビューでの VS 標準 Undo との二重実行）は、ユーザーのフォーカスを奪わない方針のため手動確認として残す。UI 停止の `WM_NULL` 計測は STA の待機中のメッセージ処理のため判別できず、ActivityLog とコード経路で判断した。
+
 ## 2026-09-08 M0088 — Typed lighting
 - Intended: applicable-only light/physical-unit/optional-shadow contracts through source editing, importing, renderer submission and recovery.
 - Observed: portable typed ECS components, validated value structs, typed imports/submissions, reusable ordered replay, static physical-value editors and explicit source conversions follow ADR-0064.
@@ -79,16 +731,6 @@
 - Verification: Debug WARP, Release WARP, and Release RTX 4060 Ti Stages pass. Release WARP visibility is 5.086 ms median/6.650 ms p95; hardware frame is 8.344 ms median/8.691 ms p95; hardware visibility is 4.710 ms median/5.694 ms p95; all report allocation p95 zero.
 - Adversarial result: review rejected a loose 67 ms budget, product-wide JIT attributes, and WARP-as-hardware claims. A canonical multiple-batch regression uses the actual StableId comparison contract, and changed product code contains no `double` or `BigInteger`.
 - Result: Matches F-L7-023. F-L7-024 remains responsible for the bounded Rendering release aggregate.
-
-## 2026-09-01 M0079 Platform release evidence
-
-- Intended specification: F-L7-035 in Audio/Input/Platform, consuming the implemented F-L7-034 contract without taking over product-wide packaging or manifest ownership.
-- Implementation: PlatformReleaseEvidence re-executes platform.compatibility with the dedicated platform-release-prerequisite profile, then emits one canonical SHA-256 report over the matching configuration/Git/Warp result, 18 source and verification inputs, Windows x64 target, required QPC/synthetic/Silent/WARP modes, machine fingerprint, and current optional hardware rows.
-- Ownership: Stage files remain execution truth; matrix/workflow/ledger/source remain their own truths; the report is an immutable track snapshot. It creates no device owner, package, signature, SPDX document, installer, or second product release manifest.
-- Failure behavior: generation removes partial output. Revalidation rejects changed or escaped inputs/results, invalid Stage hash/assertions/timing, stale or non-release-profile provenance, noncanonical bytes, payload/machine hash mismatch, non-x64 capture, changed optional rows, and extra evidence files.
-- Verification: focused tests pass 25/25 in Debug and Release. platform.release passed Debug (20260901T135955088Z-full-dbd3216597ae47fc9accafb6fa8d5bf9) and Release (20260901T135955011Z-full-a0dae41606384a91a49b3fc0d67a9752); report hashes are 822f1feb7633f7ce2fcd9ef74ee0a45f27f0f28106788e70b6c23f9bbb1f9901 and 2b26dc75d215bf15f36dc89c790c0bb9b897767a66337b8a7160592e63bfe4d1.
-- Adversarial result: review required a dedicated prerequisite profile and independently verified captured OS/process x64 architecture. An ordinary full result cannot substitute. Overengineering review retained one scoped report and deferred package/sign/SBOM/global-manifest work to F-L7-045 through F-L7-048.
-- Result: Matches F-L7-035; optional hardware remains explicit Pending evidence rather than a fabricated pass.
 
 ## 2026-09-01 M0079 Platform release evidence
 

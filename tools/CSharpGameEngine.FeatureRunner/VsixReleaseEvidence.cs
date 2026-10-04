@@ -693,7 +693,7 @@ public static class VsixReleaseEvidence {
         if(!IsContained(Root,Full)){
             throw new InvalidDataException($"Path escaped repository root: {RelativePath}");
         }
-        if(!File.Exists(Full)){ throw new FileNotFoundException("Required file is missing.",Full); }
+        if(!File.Exists(Full)){ throw new FileNotFoundException($"Required file is missing: {RelativePath}",Full); }
         return Full;
     }
 

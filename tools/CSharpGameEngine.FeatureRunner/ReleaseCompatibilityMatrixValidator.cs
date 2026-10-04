@@ -31,7 +31,6 @@ public static class ReleaseCompatibilityMatrixValidator {
     private static readonly string[]ExpectedVsixChecks=[
         "shader-graph-1041","shader-graph-1033","scene-designer","dpi-scaling",
         "escape-routing","physics-sidebar","startup-layout",
-        "preview-render-audio",
     ];
     private static readonly string[]ExpectedOptionalHardwareCells=[
         "platform-hardware-audio","platform-hardware-d3d12",

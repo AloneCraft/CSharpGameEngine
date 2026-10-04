@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using CSharpGameEngine.SceneAnalysis.Tests;
 
 namespace CSharpGameEngine.VSExtension.Tests;
@@ -136,6 +137,8 @@ public sealed class SceneInspectorModelTests {
     [Theory]
     [InlineData("5",Microsoft.CodeAnalysis.SpecialType.System_Single,"5f")]
     [InlineData("-1.5",Microsoft.CodeAnalysis.SpecialType.System_Single,"-1.5f")]
+    // .NET's spelling, which the document keeps; .NET Framework's "R" wrote 312985.125f.
+    [InlineData("312985.125",Microsoft.CodeAnalysis.SpecialType.System_Single,"312985.12f")]
     [InlineData("3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"3")]
     [InlineData("-3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"-3")]
     [InlineData("4",Microsoft.CodeAnalysis.SpecialType.System_Int64,"4L")]
@@ -159,10 +162,15 @@ public sealed class SceneInspectorModelTests {
             Microsoft.CodeAnalysis.SpecialType.System_Int16,"99999",out _));
     }
 
-    [Fact]
-    public void TryFormatNumber_NonNumericText_Fails(){
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void TryFormatNumber_TextWithoutAFiniteNumber_Fails(string Text){
+        // float.TryParse accepts NaN and Infinity; their text would reach the source as the identifier "Infinityf".
         Assert.False(SceneInspectorValueFormat.TryFormatNumber(
-            Microsoft.CodeAnalysis.SpecialType.System_Single,"abc",out _));
+            Microsoft.CodeAnalysis.SpecialType.System_Single,Text,out _));
     }
 
     [Fact]
@@ -432,6 +440,52 @@ public sealed class SceneInspectorModelTests {
         return SceneDocumentSnapshot.Create(
             Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Model,HasBlockingErrors:false,Previous:null,new SceneProjectionReconciler());
     }
+
+    /// <summary>
+    /// ADR-0074: an angle member, and every number inside one (an Euler rotation's R, U, F), shows and takes degrees
+    /// while the source keeps the member's unit.
+    /// </summary>
+    [Fact]
+    public void Build_AngleMembers_ShowAndTakeDegrees(){
+        var Model=SceneAnalysisTestHelper.Analyze([SceneAnalysisTestHelper.CommonComponents,AngleTypes,"""
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node { Name="Eye",Components=[new Aim { FovRadians=1.5707964f,Plain=2f },new Pose { Rotation=new Turn(EulerRuf: new Euler(R: 0.7853982f,U: 0f,F: 0f)) }] }] };
+            }
+            """]);
+        var Snapshot=SceneDocumentSnapshot.Create(
+            Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Model,HasBlockingErrors:false,Previous:null,new SceneProjectionReconciler());
+        var Fov=BuildSingleMember(Snapshot,"Eye","FovRadians");
+        Assert.Equal(SceneAngleUnit.Radians,Fov.AngleUnit);
+        var FovRow=new InspectorMemberViewModel(Fov);
+        Assert.Equal("90",FovRow.DisplayText);
+        // The label is the scene JSON key, which leaves out the C# unit word (ADR-0074); edits still name the C# member.
+        Assert.Equal("Fov (°)",FovRow.MemberName);
+        Assert.Equal("FovRadians",Fov.MemberName);
+        Assert.True(SceneInspectorValueFormat.TryFormatAngle(Fov.NumericType!.Value,"45",Fov.AngleUnit!.Value,out var Expression));
+        Assert.Equal("0.7853982f",Expression);
+        Assert.Null(BuildSingleMember(Snapshot,"Eye","Plain").AngleUnit);
+        var Pitch=BuildSingleMember(Snapshot,"Eye","R");
+        Assert.Equal(SceneAngleUnit.Radians,Pitch.AngleUnit);
+        Assert.Equal("45",new InspectorMemberViewModel(Pitch).DisplayText);
+    }
+
+    private const string AngleTypes="""
+        namespace CSharpGameEngine.Contracts {
+            public enum AngleUnit:byte { Radians,Degrees }
+            [System.AttributeUsage(System.AttributeTargets.Field|System.AttributeTargets.Property|System.AttributeTargets.Parameter)]
+            public sealed class AngleAttribute:System.Attribute { public AngleAttribute(AngleUnit Unit){ this.Unit=Unit; } public AngleUnit Unit { get; } }
+        }
+        namespace Sample {
+            using CSharpGameEngine.Contracts;
+            public struct Aim { [Angle(AngleUnit.Radians)] public float FovRadians; public float Plain; }
+            public struct Euler { public Euler(float R,float U,float F){ this.R=R; this.U=U; this.F=F; } public float R; public float U; public float F; }
+            public struct Turn { public Turn([Angle(AngleUnit.Radians)] Euler EulerRuf){ this.EulerRuf=EulerRuf; } public Euler EulerRuf; }
+            public struct Pose { public Turn Rotation; }
+        }
+        """;
 
     private static SceneInspectorMember BuildSingleMember(SceneDocumentSnapshot Snapshot,string NodeName,string MemberName){
         var NodeId=Assert.Single(Snapshot.Projection!.Nodes,Node=>Node.Node.Name==NodeName).Id;

@@ -32,13 +32,13 @@ public struct AppHost {
 ///
 /// <para>
 /// <b>どの</b>レベルをどのシェーダーでどのカメラから見るかは全部ゲーム側の決定なので、値はすべて
-/// <c>MainScene</c>(Scenes/MainScene.cs)の<c>[SceneEntity]</c>宣言が入れる。LevelLoadはここに
+/// <c>MainScene</c>(Scenes/MainScene.json)の<c>[SceneEntity]</c>宣言が入れる。LevelLoadはここに
 /// 入っているものを読むだけで、リテラルを1つも持たない。
 /// </para>
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Level.svg")]
 public struct Level {
-    /// <summary>シェーダーのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
+    /// <summary>シェーダーのパス。ゲームのディレクトリ(<see cref="ContentRoot"/>)からの相対。</summary>
     public string ShaderArtifactPath;
 }
 
@@ -57,6 +57,40 @@ public struct AmbientLight {
         this.ColorG=1f;
         this.ColorB=1f;
         this.Intensity=1f;
+    }
+}
+
+/// <summary>
+/// M0099 (ADR-0076): an inset that shows the world compressed around the active radial camera, seen from outside
+/// through this node's Transform (Omni's RadialObserverRig). Drawn in the game only, while the active camera is
+/// radial; in the editor the camera previews belong to the editor.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.Camera,1)]
+[SceneComponentIcon("Assets/Editor/ComponentIcons/Camera.svg")]
+public struct RadialObserver {
+    public bool Enabled;
+    /// <summary>Left edge of the inset as a fraction of the surface width.</summary>
+    public float ViewportX;
+    /// <summary>Top edge of the inset as a fraction of the surface height.</summary>
+    public float ViewportY;
+    public float ViewportWidth;
+    public float ViewportHeight;
+    [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]
+    public float FovYRadians;
+    public float NearZ;
+    /// <summary>Draws the active camera's frustum at the centre of the compressed world.</summary>
+    public bool ShowCenterCamera;
+
+    /// <summary>A bottom-right inset with the active camera marked.</summary>
+    public RadialObserver(){
+        this.Enabled=true;
+        this.ViewportX=0.68f;
+        this.ViewportY=0.64f;
+        this.ViewportWidth=0.3f;
+        this.ViewportHeight=0.33f;
+        this.FovYRadians=MathF.PI/4f;
+        this.NearZ=0.1f;
+        this.ShowCenterCamera=true;
     }
 }
 
@@ -175,6 +209,8 @@ public struct LevelRuntime:IRuntimeComponent<Level> {
     public FixedTransformStatus LastCameraTransformStatus;
     /// <summary>Whether a valid Camera origin and view have been established.</summary>
     public bool HasLastCameraWorldPose;
+    /// <summary>The active Camera's member the renderer cannot use (the view keeps the last usable projection), or null.</summary>
+    public string?InvalidCameraProperty;
     public string?ShaderSemanticHash;
     public bool ShaderArtifactLoaded;
     public int ShaderArtifactDiagnosticCount;

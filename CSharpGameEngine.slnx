@@ -137,6 +137,7 @@
     <File Path="Directory.Build.targets" />
     <File Path="build/CSharpGameEngine.ShaderGraph.targets" />
     <File Path="build/CSharpGameEngine.Showcase.targets" />
+    <File Path="build/CSharpGameEngine.Game.props" />
     <File Path="global.json" />
     <File Path="README.md" />
   </Folder>
@@ -183,6 +184,10 @@
     <Project Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj" />
     <Project Path="src/CSharpGameEngine.Runtime.Lighting/CSharpGameEngine.Runtime.Lighting.shproj" />
     <File Path="src/CSharpGameEngine.Runtime.Lighting/CSharpGameEngine.Runtime.Lighting.projitems" />
+    <Project Path="src/CSharpGameEngine.Runtime.Animation/CSharpGameEngine.Runtime.Animation.shproj" />
+    <File Path="src/CSharpGameEngine.Runtime.Animation/CSharpGameEngine.Runtime.Animation.projitems" />
+    <Project Path="src/CSharpGameEngine.Runtime.Character/CSharpGameEngine.Runtime.Character.shproj" />
+    <File Path="src/CSharpGameEngine.Runtime.Character/CSharpGameEngine.Runtime.Character.projitems" />
     <File Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems" />
   </Folder>
   <Folder Name="/stages/">
@@ -195,9 +200,7 @@
     <Project Path="stages/CSharpGameEngine.FeatureStages.ProbabilityQuantum/CSharpGameEngine.FeatureStages.ProbabilityQuantum.csproj" />
     <Project Path="stages/CSharpGameEngine.FeatureStages.Rendering/CSharpGameEngine.FeatureStages.Rendering.csproj" />
     <Project Path="stages/CSharpGameEngine.FeatureStages.Rigid/CSharpGameEngine.FeatureStages.Rigid.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.shproj">
-      <Platform Project="AnyCPU" />
-    </Project>
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.shproj" />
     <File Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.projitems" />
     <Project Path="stages/CSharpGameEngine.FeatureStages.Vsix/CSharpGameEngine.FeatureStages.Vsix.csproj" />
   </Folder>
@@ -230,6 +233,12 @@
       <Platform Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/packaging/">
+    <Project Path="packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj" />
+  </Folder>
+  <Folder Name="/templates/">
+    <Project Path="templates/CSharpGameEngine.Templates.ThirdPerson/CSharpGameEngine.Templates.ThirdPerson.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <File Path="tools/UnrealExport/export_lvl_firstperson.py" />
     <File Path="tools/UnrealExport/run_export.cmd" />
@@ -252,6 +261,8 @@
     <Project Path="tools/CSharpGameEngine.Physics.Cli/CSharpGameEngine.Physics.Cli.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="tools/CSharpGameEngine.SceneJson.Cli/CSharpGameEngine.SceneJson.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.SceneSchema.Cli/CSharpGameEngine.SceneSchema.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj">
       <Platform Project="x64" />
     </Project>

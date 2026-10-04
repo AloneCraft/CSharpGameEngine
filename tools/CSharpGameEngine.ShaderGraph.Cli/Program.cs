@@ -24,10 +24,19 @@ internal static class ShaderGraphCli {
                 _=>UnknownCommand(Arguments[0]),
             };
         } catch(Exception Exception) {
-            Console.Error.WriteLine(Exception);
+            // MSBuild's Exec lists only a canonical line as an error; the rest of the output is a message under MSB3073.
+            // An unreadable or missing file is the author's to fix, so it is that line alone; anything else keeps its trace.
+            Console.Error.WriteLine((Arguments.Length>1?Arguments[1]+": ":string.Empty)+"error: "+Exception.Message);
+            if(Exception is not (JsonException or InvalidDataException or IOException or UnauthorizedAccessException)) {
+                Console.Error.WriteLine(Exception);
+            }
             return 1;
         }
     }
+    /// <summary>A graph diagnostic in MSBuild's canonical form, which a build lists as an error or warning at the graph.</summary>
+    private static string BuildMessage(string GraphPath,ShaderGraphDiagnostic Diagnostic)=>
+        $"{GraphPath}: {(Diagnostic.Severity==ShaderGraphDiagnosticSeverity.Error?"error":"warning")} {Diagnostic.Code}: {Diagnostic.Message}"
+        +(Diagnostic.NodeId is { }NodeId?$" [node {NodeId}]":string.Empty);
     private static int BuildCompute(string[]Arguments) {
         if(Arguments.Length<3||Arguments.Length>4) {
             WriteUsage();
@@ -97,7 +106,7 @@ internal static class ShaderGraphCli {
         var Document=Resolved.Composed;
         var Validation=ShaderGraphValidator.Validate(Document);
         foreach(var Diagnostic in Validation.Diagnostics) {
-            Console.Error.WriteLine($"{Diagnostic.Code}: {Diagnostic.Message}");
+            Console.Error.WriteLine(BuildMessage(Path.GetFullPath(Arguments[1]),Diagnostic));
         }
         if(!Validation.IsValid) {
             return 1;
@@ -124,7 +133,7 @@ internal static class ShaderGraphCli {
         var Validation=ShaderGraphValidator.Validate(Document);
         if(!Validation.IsValid) {
             foreach(var Diagnostic in Validation.Diagnostics) {
-                Console.Error.WriteLine($"{Diagnostic.Code}: {Diagnostic.Message}");
+                Console.Error.WriteLine(BuildMessage(GraphPath,Diagnostic));
             }
             return 1;
         }

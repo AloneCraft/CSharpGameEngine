@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -37,8 +38,11 @@ internal sealed class SceneInspectorMember {
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,string MemberName,string SourceExpression,
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
         IReadOnlyList<InspectorChoiceCandidate>Candidates,
-        IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null){
+        IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null,SceneAngleUnit?AngleUnit=null,
+        string?DisplayName=null){
         this.PhysicalContract=PhysicalContract;
+        this.AngleUnit=AngleUnit;
+        this.DisplayName=DisplayName??MemberName;
         this.NodeId=NodeId;
         this.ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
         this.MemberName=MemberName;
@@ -54,11 +58,22 @@ internal sealed class SceneInspectorMember {
     }
 
     internal LightValueContract?PhysicalContract{get;}
+    /// <summary>
+    /// ADR-0074: set for a number inside an <c>[Angle]</c> member. The row shows and takes degrees; the source keeps
+    /// this unit (<see cref="SceneInspectorValueFormat.FormatAngle"/>, <see cref="SceneInspectorValueFormat.TryFormatAngle"/>).
+    /// </summary>
+    internal SceneAngleUnit?AngleUnit { get; }
     internal EditorNodeId NodeId { get; }
 
     internal string ComponentTypeFullyQualifiedName { get; }
 
     internal string MemberName { get; }
+
+    /// <summary>
+    /// The label: the member's scene JSON key, which for an angle leaves out the C# unit word (ADR-0074), so the row
+    /// that shows degrees is not named "...Radians". <see cref="MemberName"/> stays the C# name that edits target.
+    /// </summary>
+    internal string DisplayName { get; }
 
     internal string SourceExpression { get; }
 
@@ -101,12 +116,11 @@ internal sealed class SceneInspectorMemberRow:SceneInspectorRow {
 /// もう1段(以上)再帰的に重ねる。
 ///
 /// <para>
-/// <see cref="Rows"/>の葉は<b>常に読み取り専用として構築する</b>
-/// (<see cref="SceneInspectorModelBuilder.BuildRow"/>の<c>AllowEdit:false</c>)。
-/// <see cref="SceneModelEditApplier.TryApplySetMember"/>相当の適用経路はComponentの
-/// トップレベルMembersでしか名前一致を探さず、見つからなければ<b>黙って新規メンバーを
-/// Component直下に追加する</b>ため、ネストした子を安易に編集可能へ倒すと
-/// <c>Transform { …, X=5f }</c>のような存在しない偽メンバーが生える実害あるバグになる。
+/// <see cref="Rows"/>の葉は、メンバー直下のRUFベクトル(<c>R</c>/<c>U</c>/<c>F</c>)だけを編集可能にし、
+/// それ以外は読み取り専用として構築する。<see cref="SceneModelEditApplier"/>の入れ子の適用は
+/// <c>Member.R</c>のような2段だけを扱い、それより深い子(<c>Rotation.EulerRuf.R</c>)や
+/// RUF以外の名前を編集可能へ倒すと、<c>Transform { …, X=5f }</c>のような存在しない偽メンバーを
+/// 生やす実害あるバグになる。
 /// </para>
 /// </summary>
 internal sealed class SceneInspectorNestedRow:SceneInspectorRow {
@@ -246,8 +260,23 @@ internal static class SceneInspectorModelBuilder {
             NodeId,
             Component.TypeFullyQualifiedName,
             SceneInspectorTypeName.Simplify(Component.TypeFullyQualifiedName),
-            Component.Members.Select(Member=>
-                BuildRow(NodeId,Component.TypeFullyQualifiedName,[],Member,AllowEdit:true)).ToArray())).ToArray();
+            ConstructorArgumentRows(NodeId,Component).Concat(Component.Members.Select(Member=>
+                BuildRow(NodeId,Component.TypeFullyQualifiedName,[],Member,AllowEdit:true))).ToArray())).ToArray();
+    }
+
+    /// <summary>
+    /// A component written with constructor arguments (scene JSON names a constructor's parameters, as for a positional
+    /// record) shows each argument read-only, named by its parameter, as a nested value's arguments are: the edit
+    /// path sets initializer members only, so these are edited in the JSON view.
+    /// </summary>
+    private static IEnumerable<SceneInspectorRow>ConstructorArgumentRows(EditorNodeId NodeId,SceneComponent Component){
+        var Labels=ResolveArgumentLabels(Component.TypeSymbol,Component.ConstructorArguments.Length,out var Parameters);
+        for(var Index=0;Index<Component.ConstructorArguments.Length;Index++){
+            var Argument=Component.ConstructorArguments[Index];
+            yield return BuildRow(NodeId,Component.TypeFullyQualifiedName,[],new SceneComponentMember(Labels[Index],MemberSymbol:null,Argument,Argument.Location),
+                AllowEdit:false,Parameters.Count>Index?SceneJsonSceneAnalyzer.AngleUnitOf(Parameters[Index]):null,
+                Parameters.Count>Index?SceneJsonSceneAnalyzer.KeyOf(Parameters[Index]):null);
+        }
     }
 
     /// <summary>
@@ -257,7 +286,9 @@ internal static class SceneInspectorModelBuilder {
     /// </summary>
     private static SceneInspectorRow BuildRow(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
-        SceneComponentMember Member,bool AllowEdit){
+        SceneComponentMember Member,bool AllowEdit,SceneAngleUnit?InheritedAngle=null,string?DisplayName=null){
+        var Angle=InheritedAngle??SceneJsonSceneAnalyzer.AngleUnitOf(Member.MemberSymbol);
+        var Display=DisplayName??(Member.MemberSymbol is { }Symbol?SceneJsonSceneAnalyzer.KeyOf(Symbol):Member.MemberName);
         var Physical=LightValueContract.Find(Member.Value.Type);
         if(Physical is not null&&Physical.TryRead(Member.Value,out var Values,out var Editable)){
             var CanEdit=AllowEdit&&Editable&&Physical.Validate(Values);
@@ -265,9 +296,9 @@ internal static class SceneInspectorModelBuilder {
                 NodeId,ComponentTypeFullyQualifiedName,Member.MemberName,Member.Value.SourceExpressionText,
                 CanEdit,CanEdit?InspectorEditorKind.PhysicalValue:InspectorEditorKind.ReadOnly,
                 string.Join(", ",Values.Select(Value=>Value.ToString("R",CultureInfo.InvariantCulture))),null,[],
-                [..ParentPath,Member.MemberName],Physical));
+                [..ParentPath,Member.MemberName],Physical,DisplayName:Display));
         }
-        if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Member.Value,AllowEdit)is { }Nested){
+        if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Display,Member.Value,AllowEdit,Angle)is { }Nested){
             return Nested;
         }
 
@@ -294,9 +325,11 @@ internal static class SceneInspectorModelBuilder {
             IsEditable,
             Kind,
             Member.Value.ConstantValue,
-            Kind==InspectorEditorKind.Number?DeclaredType?.SpecialType:null,
+            Kind==InspectorEditorKind.Number?(IsLogicalScalar(DeclaredType)?SpecialType.System_Single:DeclaredType?.SpecialType):null,
             Candidates,
-            [..ParentPath,Member.MemberName]));
+            [..ParentPath,Member.MemberName],
+            AngleUnit:Angle,
+            DisplayName:Display));
     }
 
     /// <summary>
@@ -306,32 +339,34 @@ internal static class SceneInspectorModelBuilder {
     /// </summary>
     private static SceneInspectorNestedRow?TryBuildNested(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
-        string MemberName,SceneValue Value,bool AllowEdit){
+        string MemberName,string DisplayName,SceneValue Value,bool AllowEdit,SceneAngleUnit?Angle){
         if(Value.Kind!=SceneValueKind.ObjectCreation||(Value.Members.IsEmpty&&Value.Arguments.IsEmpty)){
             return null;
         }
 
         IReadOnlyList<string>Path=[..ParentPath,MemberName];
-        var ArgumentLabels=ResolveArgumentLabels(Value.Type,Value.Arguments.Length);
+        var ArgumentLabels=ResolveArgumentLabels(Value.Type,Value.Arguments.Length,out var ArgumentParameters);
         bool AllowRufEdit=AllowEdit
             &&(ArgumentLabels.SequenceEqual(["R","U","F"],StringComparer.Ordinal)
                 ||Value.Members.Select(static Member=>Member.MemberName).SequenceEqual(["R","U","F"],StringComparer.Ordinal));
         List<SceneInspectorRow>Rows=[];
         foreach(var Member in Value.Members){
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit));
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit,Angle));
         }
 
         for(var Index=0;Index<Value.Arguments.Length;Index++){
             var Argument=Value.Arguments[Index];
             SceneComponentMember Synthetic=new(ArgumentLabels[Index],MemberSymbol:null,Argument,Argument.Location);
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit));
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit,
+                Angle??(ArgumentParameters.Count>Index?SceneJsonSceneAnalyzer.AngleUnitOf(ArgumentParameters[Index]):null),
+                ArgumentParameters.Count>Index?SceneJsonSceneAnalyzer.KeyOf(ArgumentParameters[Index]):null));
         }
 
         return new SceneInspectorNestedRow(
             NodeId,
             ComponentTypeFullyQualifiedName,
             Path,
-            MemberName,
+            DisplayName,
             Value.Type is { }Type?SceneInspectorTypeName.Simplify(SceneTypePredicates.ToFullyQualifiedName(Type)):MemberName,
             Rows);
     }
@@ -342,7 +377,8 @@ internal static class SceneInspectorModelBuilder {
     /// 引数の個数だけで探す。1つに絞れなければ(オーバーロードが複数、または型が未解決)、
     /// <c>[0]</c>のような合成ラベルへ縮退する。
     /// </summary>
-    private static IReadOnlyList<string>ResolveArgumentLabels(ITypeSymbol?Type,int ArgumentCount){
+    private static IReadOnlyList<string>ResolveArgumentLabels(ITypeSymbol?Type,int ArgumentCount,out IReadOnlyList<IParameterSymbol>Parameters){
+        Parameters=[];
         if(ArgumentCount==0){
             return [];
         }
@@ -350,6 +386,7 @@ internal static class SceneInspectorModelBuilder {
         if(Type is INamedTypeSymbol Named){
             var Matches=Named.Constructors.Where(Constructor=>Constructor.Parameters.Length==ArgumentCount).ToArray();
             if(Matches.Length==1){
+                Parameters=Matches[0].Parameters;
                 return Matches[0].Parameters.Select(static Parameter=>Parameter.Name).ToArray();
             }
         }
@@ -364,6 +401,14 @@ internal static class SceneInspectorModelBuilder {
     /// <see cref="SceneValue.IsEditable"/>で既に確定しているので、残りの編集可能種別(Literal/
     /// EnumMember/Default)をCLR型からUIの入力コントロールへ振り分けるだけでよい。
     /// </summary>
+    /// <summary>
+    /// The engine's authored real number (Q64.64), edited as a float: scene JSON holds it as a number read through float
+    /// (ADR-0070), so a float literal loses nothing the document keeps. Character movement, the spring arm and every RUF
+    /// vector of a Transform are LogicalScalar.
+    /// </summary>
+    private static bool IsLogicalScalar(ITypeSymbol?Type)=>
+        Type is not null&&SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar";
+
     private static InspectorEditorKind DetermineEditorKind(SceneValue Value,ITypeSymbol?DeclaredType){
         if(Value.Kind==SceneValueKind.StaticMemberRef&&Value.ReferencedSymbol?.ContainingType is not null){
             return InspectorEditorKind.AssetReference;
@@ -373,6 +418,9 @@ internal static class SceneInspectorModelBuilder {
         }
         if(DeclaredType is { TypeKind:TypeKind.Enum }){
             return InspectorEditorKind.Enum;
+        }
+        if(IsLogicalScalar(DeclaredType)){
+            return InspectorEditorKind.Number;
         }
 
         return DeclaredType?.SpecialType switch {
@@ -429,11 +477,13 @@ internal static class SceneInspectorValueFormat {
         Text=Text.Trim();
         switch(Type){
             case SpecialType.System_Single:
-                if(!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var SingleValue)){
+                // "NaN" and "Infinity" parse, but their text is no C# literal ("Infinityf") and no JSON number.
+                if(!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var SingleValue)
+                    ||float.IsNaN(SingleValue)||float.IsInfinity(SingleValue)){
                     Expression=string.Empty;
                     return false;
                 }
-                Expression=SingleValue.ToString("R",CultureInfo.InvariantCulture)+"f";
+                Expression=SceneEditValues.SingleLiteral(SingleValue);
                 return true;
             case SpecialType.System_Int64:
                 if(!long.TryParse(Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Int64Value)){
@@ -506,6 +556,24 @@ internal static class SceneInspectorValueFormat {
             :Expression;
 
     internal static string FormatText(string Value)=>SymbolDisplay.FormatLiteral(Value,quote:true);
+
+    /// <summary>ADR-0074: an angle number shown in degrees, whatever unit the source holds.</summary>
+    internal static string FormatAngle(string Expression,SceneAngleUnit Unit){
+        var Number=RemoveFloatSuffix(Expression);
+        return float.TryParse(Number,NumberStyles.Float,CultureInfo.InvariantCulture,out var Value)
+            ?SceneJsonAngles.FormatDegrees(Value,Unit)
+            :Number;
+    }
+
+    /// <summary>ADR-0074: degrees typed into an angle row, as the source expression in the member's unit.</summary>
+    internal static bool TryFormatAngle(SpecialType Type,string Degrees,SceneAngleUnit Unit,out string Expression){
+        Degrees=Degrees.Trim();
+        if(Type!=SpecialType.System_Single||!SceneJsonAngles.IsNumber(Degrees)){
+            Expression=string.Empty;
+            return false;
+        }
+        return TryFormatNumber(Type,SceneJsonAngles.FromDegrees(Degrees,Unit).ToString("R",CultureInfo.InvariantCulture),out Expression);
+    }
 }
 
 /// <summary>
@@ -515,8 +583,9 @@ internal static class SceneInspectorValueFormat {
 /// <see cref="SetComponentMemberOperation.OriginalValueExpression"/>は常に<c>null</c>で渡す。これを渡すと
 /// <see cref="SceneEditConflictMerger"/>が差分リベース(<c>Current + (Final - Original)</c>)を行う ——
 /// <see cref="PropertyGizmo"/>のドラッグ(相対ジェスチャ)には正しいが、Inspectorのタイプ入力(絶対値指定)
-/// には誤りである。ユーザーが「5にする」と打ったなら5になるべきで「+2する」ではないため、pass-through
-/// (last-write-wins)経路を通す。
+/// には誤りである。ユーザーが「5にする」と打ったなら5になるべきで「+2する」ではない。同じ版への確定は
+/// そのまま適用され、古い版への確定は外部の変更を上書きしないよう<see cref="SceneEditConflictMerger"/>が
+/// 拒否する(後勝ちにはしない)。
 /// </para>
 /// </summary>
 internal static class SceneInspectorCommitPlanner {

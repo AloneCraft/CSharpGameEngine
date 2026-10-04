@@ -140,6 +140,19 @@ public sealed class PhysicsWorldTests {
     }
 
     [Fact]
+    public void ConvexAssets_SideBySideOverlap_ResolvesAlongTheSeparatingAxis(){
+        PhysicsShapeAsset Cube=PhysicsShapeAsset.CreateConvex("cube",[
+            new(-1,-1,-1),new(1,-1,-1),new(1,1,-1),new(-1,1,-1),new(-1,-1,1),new(1,-1,1),new(1,1,1),new(-1,1,1)]);
+        Collider Convex=new() { Shape=ColliderShape.ConvexAsset,Asset="cube" };
+        Assert.True(new PhysicsNarrowPhase().TryCreateContact(
+            new PhysicsCollisionShape(Convex,LogicalVector3.Zero,LogicalQuaternion.Identity,Cube),
+            new PhysicsCollisionShape(Convex,new LogicalVector3(1.9f,0,0),LogicalQuaternion.Identity,Cube),
+            out PhysicsContactCandidate Contact));
+        Assert.True(Contact.Normal.R>LogicalScalar.FromSingle(0.999f),$"normal {Contact.Normal}");
+        Assert.True(Contact.Penetration>LogicalScalar.FromSingle(0.099f)&&Contact.Penetration<LogicalScalar.FromSingle(0.101f),$"penetration {Contact.Penetration}");
+    }
+
+    [Fact]
     public void MissingCookedAsset_IsRejectedWithoutMutatingWorld(){
         DeterministicPhysicsWorld World=new();
         PhysicsBodyDescription Description=new(
@@ -384,7 +397,7 @@ public sealed class PhysicsWorldTests {
         State State=new(EcsWorld);
         PhysicsBodySync System=new();
 
-        Assert.True(System.Update(Entity,ref Transform,ref Collider,Host,ref State));
+        System.Update(Entity,ref Transform,ref Collider,Host,ref State);
 
         Assert.True(Host.TryGetPhysicsSyncFailure(Entity,out var Fault));
         Assert.Equal(PhysicsFaultType.ReferenceFrameMismatch,Fault);
@@ -408,8 +421,8 @@ public sealed class PhysicsWorldTests {
         State State=new(EcsWorld);
         PhysicsSyncBegin Begin=new();
         PhysicsBodySync Sync=new();
-        Assert.True(Begin.Update(Host,ref State));
-        Assert.True(Sync.Update(Entity,ref Transform,ref Collider,Host,ref State));
+        Begin.Update(Host,ref State);
+        Sync.Update(Entity,ref Transform,ref Collider,Host,ref State);
         IReadOnlyPhysicsWorld FirstWorld=Host.PhysicsWorld;
 
         Host.SetPhysicsFrame(SecondFrame);

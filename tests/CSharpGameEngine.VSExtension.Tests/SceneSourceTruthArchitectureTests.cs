@@ -63,14 +63,13 @@ public sealed class SceneSourceTruthArchitectureTests {
 
     [Fact]
     public void PredictedSnapshotIsReanalyzedFromVerifiedSource(){
-        string Source=ReadSource("SceneSourceCommitPlanner.cs");
+        // ADR-0070: the written scene JSON is read back, and that canonical model is what lands.
+        string Source=ReadSource("SceneJsonCommitPlanner.cs");
 
-        Assert.Contains("TryVerifyAndAnalyze(",Source,StringComparison.Ordinal);
-        Assert.Contains("CanonicalModel",Source,StringComparison.Ordinal);
+        Assert.Contains("TryAnalyze(NewText",Source,StringComparison.Ordinal);
         Assert.Contains("CanonicalProjection",Source,StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "PredictedModel,PredictedProjection,Edited.Root,WriteStep",Source,
-            StringComparison.Ordinal);
+        Assert.Contains("SceneSourceCommitPlan.Success(Request.DocumentVersion!=Latest.DocumentVersion,Canonical!,CanonicalProjection",Source,StringComparison.Ordinal);
+        Assert.DoesNotContain("Success(Request.DocumentVersion!=Latest.DocumentVersion,Predicted,",Source,StringComparison.Ordinal);
     }
 
     [Fact]

@@ -23,6 +23,8 @@ internal sealed class PhysicsDomainRuntime:IDisposable {
     internal IReadOnlyPhysicsWorld World=>this.WorldStorage;
     internal PhysicsCommands Commands=>this.WorldStorage.Commands;
     internal DeterministicPhysicsWorld MutableWorld=>this.WorldStorage;
+    /// <summary>Cooked StaticMeshCollider triangles; kept for the domain's lifetime so replays reuse them.</summary>
+    internal StaticMeshCollisionCooker StaticMeshes { get; }=new();
     internal PhysicsCachePlaybackState CacheState=>this.CachePlayer?.State??PhysicsCachePlaybackState.Stopped;
 
     internal bool TryLoadCache(
@@ -83,6 +85,7 @@ internal sealed class PhysicsDomainRuntime:IDisposable {
         this.SyncFailures[Description.Entity]=Status switch {
             PhysicsUpdateStatus.InvalidMass=>PhysicsFaultType.InvalidMass,
             PhysicsUpdateStatus.NumericOverflow=>PhysicsFaultType.NumericOverflow,
+            PhysicsUpdateStatus.InvalidShape=>PhysicsFaultType.InvalidShape,
             _=>PhysicsFaultType.InvalidScale,
         };
     }
@@ -112,7 +115,6 @@ internal sealed class PhysicsDomainRuntime:IDisposable {
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
-        PhysicsSimulationControl.Unregister(this.DebugId);
         PhysicsDebugHub.Remove(this.DebugId);
         this.WorldStorage.Reset(0);
         this.SeenEntities.Clear();

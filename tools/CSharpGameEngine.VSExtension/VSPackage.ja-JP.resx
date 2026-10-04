@@ -38,6 +38,9 @@
   <data name="111" xml:space="preserve">
     <value>C# Game Engine Scene</value>
   </data>
+  <data name="112" xml:space="preserve">
+    <value>C# Game Engine シーン エディター</value>
+  </data>
   <data name="120" xml:space="preserve">
     <value>C# Game Engine</value>
   </data>
@@ -64,5 +67,11 @@
   </data>
   <data name="135" xml:space="preserve">
     <value>再利用可能な型付きVisual Shader Subgraphを作成します。</value>
+  </data>
+  <data name="136" xml:space="preserve">
+    <value>三人称</value>
+  </data>
+  <data name="137" xml:space="preserve">
+    <value>肩越しのカメラで操作するキャラクターのゲーム(Unreal EngineのThird Personテンプレートの移植)。キーボード・マウス・ゲームパッドで移動とカメラ操作ができます。</value>
   </data>
 </root>

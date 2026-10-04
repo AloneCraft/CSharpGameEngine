@@ -1,6 +1,6 @@
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -8,25 +8,15 @@ using Microsoft.CodeAnalysis.Operations;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// Scene DSLの診断を報告する<b>唯一の主体</b>(ADR-0040)。本リポジトリで初めての
-/// <see cref="DiagnosticAnalyzer"/>である。
-///
-/// <para>
-/// 既存の診断(SYSGEN/SCENE001-008/STARTUP)はすべてGeneratorの<c>SourceProductionContext</c>から
-/// 流れるが、Scene DSLだけはアナライザーにした。Generatorの診断はIDEのバックグラウンド解析サイクルに
-/// 縛られてスクイグルが遅れる一方、宣言DSLは<b>入力中の即時フィードバックが要件</b>だからである。
-/// アナライザーはコマンドラインビルドでも走るため、ビルド時の検証も同時に担保される。
-/// </para>
-///
-/// <para>
-/// <b><see cref="GameSystemGenerator"/>はSCENE1xxを報告しない。</b>同じ
-/// <see cref="SceneDeclarationAnalyzer"/>を走らせるが、結果は生成可否の判定にしか使わない。
-/// 両方が報告すると同じ箇所に二重のスクイグルが出る。
-/// </para>
+/// The C# side of the scene boundary (ADR-0070). Scenes are JSON documents under <c>Scenes</c>, reported by
+/// <see cref="SceneJsonDslAnalyzer"/>; in C# this analyzer reports only what must not remain there:
+/// a C# scene class or <c>[StartupScene]</c> (SCENE206, with the converter to run), and code that
+/// builds or reads scene <c>Node</c> trees (SCENE114, see below).
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
-    public override ImmutableArray<DiagnosticDescriptor>SupportedDiagnostics=>[.. SceneDslDiagnostics.All];
+    public override ImmutableArray<DiagnosticDescriptor>SupportedDiagnostics=>
+        ImmutableArray.Create(SceneDslDiagnostics.SceneDslTypeUsedOutsideDeclaration,SceneJsonDiagnostics.CSharpSceneNotBuilt);
 
     public override void Initialize(AnalysisContext Context){
         Context.EnableConcurrentExecution();
@@ -42,10 +32,8 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
                 return;
             }
 
-            SceneDslAnalysisState State=new();
-
             CompilationStart.RegisterSymbolAction(
-                Symbol=>AnalyzeNamedType(Symbol,State),
+                AnalyzeNamedType,
                 SymbolKind.NamedType);
 
             CompilationStart.RegisterOperationAction(
@@ -56,41 +44,26 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
                 AnalyzePropertyReference,
                 OperationKind.PropertyReference);
 
-            CompilationStart.RegisterCompilationEndAction(State.ReportStartupSceneOrderConflicts);
         });
     }
 
     /// <summary>
-    /// <c>IScene</c>実装クラスを<see cref="SceneDeclarationAnalyzer"/>へ渡し、得られた診断をそのまま流す。
-    /// <c>[StartupScene]</c>が<c>IScene</c>実装でない型に付いている場合(SCENE117)もここで拾う —
-    /// その属性は<c>Instantiate</c>を持たない型に対しては何の意味も持たず、静かに無視されるため。
+    /// ADR-0070: scenes are built only from scene JSON. A C# scene class, or a class that still
+    /// carries <c>[StartupScene]</c>, is SCENE206 so an unconverted scene cannot silently disappear from
+    /// the game. The Scene Designer still reads JSON scenes through the same C# DSL internally; that
+    /// designer view never enters the build.
     /// </summary>
-    private static void AnalyzeNamedType(SymbolAnalysisContext Context,SceneDslAnalysisState State){
+    private static void AnalyzeNamedType(SymbolAnalysisContext Context){
         var Type=(INamedTypeSymbol)Context.Symbol;
-        var ImplementsScene=SceneTypePredicates.ImplementsSceneInterface(Type);
-        (var IsStartupScene,var Order)=SceneDeclarationAnalyzer.ReadStartupScene(Type);
-
-        if(IsStartupScene&&!ImplementsScene){
-            Context.ReportDiagnostic(Diagnostic.Create(
-                SceneDslDiagnostics.StartupSceneMustImplementIScene,
-                Type.Locations.FirstOrDefault(),
-                Type.Name));
+        (var IsStartupScene,_)=SceneDeclarationAnalyzer.ReadStartupScene(Type);
+        if(!IsStartupScene&&!SceneTypePredicates.ImplementsSceneInterface(Type)){
             return;
         }
 
-        if(!ImplementsScene){
-            return;
-        }
-
-        var Model=SceneDeclarationAnalyzer.Analyze(Type,Context.Compilation,Context.CancellationToken);
-
-        foreach(var Diagnostic in Model.Diagnostics){
-            Context.ReportDiagnostic(Diagnostic);
-        }
-
-        if(IsStartupScene){
-            State.RecordStartupScene(Order,Model.ClassFullyQualifiedName,Type.Locations.FirstOrDefault());
-        }
+        Context.ReportDiagnostic(Diagnostic.Create(
+            SceneJsonDiagnostics.CSharpSceneNotBuilt,
+            Type.Locations.FirstOrDefault(),
+            SceneDeclarationAnalyzer.ComputeClassFullyQualifiedName(Type)));
     }
 
     /// <summary>
@@ -155,41 +128,5 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
     private static bool IsRootPropertyName(string Name){
         return Name==SceneDslWellKnownNames.RootPropertyName
             ||Name.EndsWith("."+SceneDslWellKnownNames.RootPropertyName,StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// <c>[StartupScene(Order = N)]</c>の重複(SCENE118)はコンパイル全体を見ないと判定できないため、
-    /// 型ごとの解析で収集してCompilationEndで報告する。
-    ///
-    /// <para>
-    /// <see cref="AnalysisContext.EnableConcurrentExecution"/>を有効にしているのでSymbolActionは
-    /// 並列に走る。状態は必ずスレッドセーフな構造で持つこと。
-    /// </para>
-    /// </summary>
-    private sealed class SceneDslAnalysisState {
-        private readonly ConcurrentDictionary<int,(string ClassFullyQualifiedName,Location?Location)>StartupScenesByOrder=new();
-        private readonly ConcurrentBag<(int Order,string ClassFullyQualifiedName,string ExistingClassFullyQualifiedName,Location?Location)>Conflicts=[];
-
-        internal void RecordStartupScene(int Order,string ClassFullyQualifiedName,Location?Location){
-            if(this.StartupScenesByOrder.TryAdd(Order,(ClassFullyQualifiedName,Location))){
-                return;
-            }
-
-            if(this.StartupScenesByOrder.TryGetValue(Order,out var Existing)
-                &&Existing.ClassFullyQualifiedName!=ClassFullyQualifiedName){
-                this.Conflicts.Add((Order,ClassFullyQualifiedName,Existing.ClassFullyQualifiedName,Location));
-            }
-        }
-
-        internal void ReportStartupSceneOrderConflicts(CompilationAnalysisContext Context){
-            foreach((var Order,var ClassFullyQualifiedName,var ExistingClassFullyQualifiedName,var Location)in this.Conflicts){
-                Context.ReportDiagnostic(Diagnostic.Create(
-                    SceneDslDiagnostics.DuplicateStartupSceneOrder,
-                    Location,
-                    Order,
-                    ExistingClassFullyQualifiedName,
-                    ClassFullyQualifiedName));
-            }
-        }
     }
 }

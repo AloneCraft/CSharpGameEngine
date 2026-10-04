@@ -32,9 +32,9 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
 
         Assert.Empty(await VsixReleaseEvidence.ValidateAsync(this.Root,ReportPath));
         Assert.Equal("Release",Report.Configuration);
-        Assert.Equal(8,Report.Observations.Count);
+        Assert.Equal(7,Report.Observations.Count);
         Assert.Equal(2,Report.Observations.Count(static Item=>Item.Kind=="Automated"));
-        Assert.Equal(6,Report.Observations.Count(static Item=>Item.Kind=="Manual"));
+        Assert.Equal(5,Report.Observations.Count(static Item=>Item.Kind=="Manual"));
         Assert.All(Report.Observations,Item=>
             Assert.Equal(Report.Package.PackageSha256,Item.PackageSha256));
         Assert.Equal("CgeRelease",Report.Lifecycle.RootSuffix);
@@ -198,6 +198,19 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
         Assert.StartsWith(
             ".artifacts/VsixReleaseInputs/",After.PackagePath,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FrozenInputWhosePackageIsNotInTheCheckoutSaysHowToFreezeOne(){
+        // The input document is tracked, but its package lives in the local .artifacts store (a fresh clone has none).
+        this.CreateInputsAndEvidence();
+        Directory.Delete(Path.Combine(this.Root,".artifacts","VsixReleaseInputs"),true);
+
+        var Missing=Assert.Throws<FileNotFoundException>(()=>
+            VsixReleaseEvidence.ReadCurrentPackage(this.Root,"Release"));
+
+        Assert.Contains(".artifacts/VsixReleaseInputs/",Missing.Message,StringComparison.Ordinal);
+        Assert.Contains("freeze-vsix-release-input",Missing.Message,StringComparison.Ordinal);
     }
 
     [Fact]

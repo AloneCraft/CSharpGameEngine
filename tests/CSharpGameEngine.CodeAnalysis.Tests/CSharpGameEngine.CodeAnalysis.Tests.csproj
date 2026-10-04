@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Entities\CSharpGameEngine.Entities.csproj" />
+    <ProjectReference Include="..\..\tools\CSharpGameEngine.SceneSchema.Cli\CSharpGameEngine.SceneSchema.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
@@ -568,7 +567,7 @@ internal static class PropertyGizmo {
     private static List<(string Name,float Value)>DirectionMembers(string Prefix,Vector3 Direction)=>[
         (Prefix+"X",Direction.X),(Prefix+"Y",Direction.Y),(Prefix+"Z",Direction.Z)];
 
-    private static string FormatFloat(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture)+"f";
+    private static string FormatFloat(float Value)=>SceneEditValues.SingleLiteral(Value);
 }
 
 internal sealed class PropertyGizmoDrag {

@@ -198,21 +198,6 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
         Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
     }
 
-    // ---- 保留中のメニュー状態 ----
-
-    [Fact]
-    public void PendingMenuState_IsUnavailableWithoutAnActiveDocument(){
-        Assert.Equal(
-            SceneDesignerTargetState.Unavailable,SceneAnalysisDebouncePolicy.PendingMenuState(null));
-    }
-
-    [Fact]
-    public void PendingMenuState_IsAnalyzingWithAnActiveDocument(){
-        Assert.Equal(
-            SceneDesignerTargetState.Analyzing,
-            SceneAnalysisDebouncePolicy.PendingMenuState(@"C:\Game\MainScene.cs"));
-    }
-
     // ---- ResolveDelay の意味が変わっていないこと(Step 1-6からの非退行) ----
 
     [Fact]

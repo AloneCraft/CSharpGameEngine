@@ -75,22 +75,23 @@ internal static class SceneModelRenderObjectBuilder {
     private static bool IsSkyDomeAsset(string?AssetPath)=>
         AssetPath is not null&&AssetPath.IndexOf("SkySphere",StringComparison.OrdinalIgnoreCase)>=0;
 
-    internal static SimpleMesh?ResolveViaBridge(string PrimitiveTypeEnumMemberName,string RepoRoot){
+    internal static SimpleMesh?ResolveViaBridge(string PrimitiveTypeEnumMemberName,CgeProjectContext Context){
         var BridgeKind=MapToBridgeKind(PrimitiveTypeEnumMemberName);
         if(BridgeKind is null)return null;
-        var DirectoryPath=Path.Combine(RepoRoot,"UserEcsProject","Assets","Primitives");
+        var DirectoryPath=Path.Combine(Context.AssetsDirectory,"Primitives");
         Directory.CreateDirectory(DirectoryPath);
         var GlbPath=Path.Combine(DirectoryPath,$"{BridgeKind}.glb");
         if(!File.Exists(GlbPath)){
-            ExternalBridgeProcess.RunProducingFile(PrimitiveBridgeProjectRelativePath,BridgeKind,GlbPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
+            ExternalBridgeProcess.RunProducingFile(PrimitiveBridgeProjectRelativePath,BridgeKind,GlbPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
         }
-        return MeshLoader.Load(GlbPath,RepoRoot);
+        return MeshLoader.Load(GlbPath,Context.WorkspaceRoot);
     }
 
-    internal static SimpleMesh?ResolveStaticMeshViaBridge(string AssetPath,string RepoRoot){
+    /// <summary>A StaticMesh <c>AssetPath</c> is relative to its game project (ADR-0065).</summary>
+    internal static SimpleMesh?ResolveStaticMeshViaBridge(string AssetPath,CgeProjectContext Context){
         if(string.IsNullOrWhiteSpace(AssetPath))return null;
-        var FullPath=Path.GetFullPath(Path.Combine(RepoRoot,"UserEcsProject",AssetPath));
-        return File.Exists(FullPath)?MeshLoader.Load(FullPath,RepoRoot):null;
+        var FullPath=Context.ResolveProjectPath(AssetPath);
+        return File.Exists(FullPath)?MeshLoader.Load(FullPath,Context.WorkspaceRoot):null;
     }
 
     private static string?MapToBridgeKind(string Name)=>Name switch {

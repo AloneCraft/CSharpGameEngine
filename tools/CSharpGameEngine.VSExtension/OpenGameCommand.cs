@@ -8,15 +8,13 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu command that launches UserEcsProject as a separate top-level window.
+/// Extensions > C# Game Engine menu command that launches UserEcsProject as a separate top-level window.
 /// The VSIX remains a .NET Framework process, so the net10.0 ECS application is intentionally
 /// started out of process rather than referenced or executed in-process.
 /// </summary>
 internal sealed class OpenGameCommand {
     public const int CommandId=0x0104;
     public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
-
-    private const string ProjectPath="UserEcsProject";
 
     private readonly AsyncPackage Package;
 
@@ -42,16 +40,15 @@ internal sealed class OpenGameCommand {
     }
 
     private void Execute(object Sender,EventArgs E){
-        var RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null){
-            this.ShowMessage(
-                             VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName),
-                             OLEMSGICON.OLEMSGICON_WARNING);
+        // Runs the game project of the open solution (ADR-0065), in or outside the engine repository.
+        var Context=CgeProjectContext.Resolve();
+        if(Context is null){
+            this.ShowMessage(VsixText.Get("Common_GameProjectNotFound"),OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
-        ProcessStartInfo StartInfo=new("dotnet", $"run --project \"{ProjectPath}\""){
-            WorkingDirectory=RepoRoot,
+        ProcessStartInfo StartInfo=new("dotnet", $"run --project \"{Context.ProjectFilePath}\""){
+            WorkingDirectory=Context.ProjectDirectory,
             UseShellExecute=false,
         };
 

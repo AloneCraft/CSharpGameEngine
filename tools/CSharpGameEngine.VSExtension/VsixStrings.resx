@@ -15,7 +15,7 @@
   <data name="ComponentPaletteEmpty" xml:space="preserve"><value>No Component types are available. Open a Scene.</value></data>
   <data name="ComponentPaletteCount" xml:space="preserve"><value>{0} / {1} items. Double-click or press Enter to add to the selected node.</value></data>
   <data name="HierarchyExpandCollapse" xml:space="preserve"><value>Expand or collapse</value></data>
-  <data name="HierarchyEmpty" xml:space="preserve"><value>Open a C# file that declares an IScene.</value></data>
+  <data name="HierarchyEmpty" xml:space="preserve"><value>Open a scene: a .json file in the project's Scenes folder.</value></data>
   <data name="InspectorEmpty" xml:space="preserve"><value>Select a node in the Scene View or Hierarchy.</value></data>
   <data name="InspectorRemoveComponentToolTip" xml:space="preserve"><value>Remove this Component</value></data>
   <data name="InspectorAnalysisPending" xml:space="preserve"><value>Waiting for analysis…</value></data>
@@ -35,33 +35,39 @@
   <data name="PhysicsPanelOpenToolTip" xml:space="preserve"><value>Open the Physics panel (N)</value></data>
   <data name="PhysicsPanelCloseToolTip" xml:space="preserve"><value>Close the Physics panel (N)</value></data>
   <data name="PhysicsLabel" xml:space="preserve"><value>Physics</value></data>
-  <data name="PhysicsSimulate" xml:space="preserve"><value>Simulate</value></data>
-  <data name="PhysicsPause" xml:space="preserve"><value>Pause</value></data>
-  <data name="PhysicsStep" xml:space="preserve"><value>Step</value></data>
-  <data name="PhysicsReset" xml:space="preserve"><value>Reset</value></data>
-  <data name="PhysicsBakeSelected" xml:space="preserve"><value>Bake Selected</value></data>
-  <data name="PhysicsBakeAll" xml:space="preserve"><value>Bake All</value></data>
+  <data name="PhysicsBakeSelected" xml:space="preserve"><value>Bake the selected scene</value></data>
+  <data name="PhysicsBakeAll" xml:space="preserve"><value>Bake every scene in the project</value></data>
   <data name="PhysicsBakeCancel" xml:space="preserve"><value>Cancel Bake</value></data>
   <data name="PhysicsBakeCancelling" xml:space="preserve"><value>Cancelling Physics Bake...</value></data>
-  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>Build an exact generated Bake Host and atomically bake the selected Scene.</value></data>
-  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>Build an exact generated Bake Host and atomically bake every Scene in the current project.</value></data>
+  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>Saves the selected scene, builds its game, and records the scene's physics.</value></data>
+  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>Does the same for every scene in the current project.</value></data>
   <data name="PhysicsBakeNoScene" xml:space="preserve"><value>No Scene is available to Bake.</value></data>
   <data name="PhysicsBakeStarting" xml:space="preserve"><value>Preparing exact Physics Bake Host for {0} Scene(s)...</value></data>
   <data name="PhysicsBakeSucceeded" xml:space="preserve"><value>Physics Bake completed for {0} Scene(s).</value></data>
   <data name="PhysicsBakeFailed" xml:space="preserve"><value>Physics Bake failed: {0}</value></data>
   <data name="PhysicsBakeCancelled" xml:space="preserve"><value>Physics Bake was cancelled.</value></data>
-  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>Open Selected Artifact</value></data>
+  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>Open the selected file</value></data>
   <data name="PhysicsBakeArtifactMissing" xml:space="preserve"><value>Bake artifact no longer exists: {0}</value></data>
   <data name="PhysicsBakeArtifactOpenFailed" xml:space="preserve"><value>Could not open the Bake artifact: {0}</value></data>
   <data name="AuthoringOperationProgress" xml:space="preserve"><value>{0} {1}</value></data>
-  <data name="PhysicsDebug" xml:space="preserve"><value>Debug</value></data>
-  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collider / AABB</value></data>
+  <data name="PhysicsDebug" xml:space="preserve"><value>Show the physics debug overlay</value></data>
+  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collision bounds (Collider / AABB)</value></data>
   <data name="PhysicsVelocity" xml:space="preserve"><value>Velocity</value></data>
-  <data name="PhysicsSleep" xml:space="preserve"><value>Sleep</value></data>
-  <data name="PhysicsCenterOfMass" xml:space="preserve"><value>Center of Mass</value></data>
-  <data name="PhysicsContacts" xml:space="preserve"><value>Contact Points / Normals</value></data>
-  <data name="PhysicsTree" xml:space="preserve"><value>Physics Broadphase Tree</value></data>
-  <data name="PhysicsBonds" xml:space="preserve"><value>Fracture Bonds</value></data>
+  <data name="PhysicsSleep" xml:space="preserve"><value>Sleeping bodies</value></data>
+  <data name="PhysicsCenterOfMass" xml:space="preserve"><value>Center of mass</value></data>
+  <data name="PhysicsContacts" xml:space="preserve"><value>Contact points and normals</value></data>
+  <data name="PhysicsTree" xml:space="preserve"><value>Collision partition tree (broadphase)</value></data>
+  <data name="PhysicsBonds" xml:space="preserve"><value>Fracture bonds</value></data>
+  <data name="PhysicsBakeDescription" xml:space="preserve"><value>Computes {0} ticks of a scene's physics and records them to a file the game can play back. Files go to the project's Assets/Physics/Bakes.</value></data>
+  <data name="PhysicsBakeHeading" xml:space="preserve"><value>Bake (precomputed physics)</value></data>
+  <data name="PhysicsBondsToolTip" xml:space="preserve"><value>Draws the links between the pieces of pre-fractured objects.</value></data>
+  <data name="PhysicsTreeToolTip" xml:space="preserve"><value>Draws the space partition the physics uses to find which bodies might collide.</value></data>
+  <data name="PhysicsContactsToolTip" xml:space="preserve"><value>Draws where bodies touch and the direction they push apart. Meaningful while the game runs.</value></data>
+  <data name="PhysicsCenterOfMassToolTip" xml:space="preserve"><value>Draws each rigid body's center of mass.</value></data>
+  <data name="PhysicsSleepToolTip" xml:space="preserve"><value>Marks bodies that have come to rest and stopped simulating. Meaningful while the game runs.</value></data>
+  <data name="PhysicsVelocityToolTip" xml:space="preserve"><value>Draws each moving body's velocity as an arrow. Time does not advance while editing, so this shows something while the game runs.</value></data>
+  <data name="PhysicsColliderAabbToolTip" xml:space="preserve"><value>Draws the box around each body's collider.</value></data>
+  <data name="PhysicsDebugDescription" xml:space="preserve"><value>Draws physics over the Scene view: the running game's physics while it runs, otherwise the edited scene's bodies where they are placed. Time does not advance while editing.</value></data>
   <data name="SceneSelectPrompt" xml:space="preserve"><value>Select a Scene.</value></data>
   <data name="SceneSpatialOff" xml:space="preserve"><value>Global Spatial Octree: off</value></data>
   <data name="OptionsNavigationHeader" xml:space="preserve"><value>Scene View navigation</value></data>
@@ -133,7 +139,6 @@
   <data name="WorkspaceAnalysisDataUnavailable" xml:space="preserve"><value>The information required for Roslyn analysis is unavailable: {0}</value></data>
   <data name="SourceEditSceneKeyMismatch" xml:space="preserve"><value>The target Scene does not match the operation SceneKey.</value></data>
   <data name="SourceEditNodeNotFound" xml:space="preserve"><value>The target Node was not found in the current Scene.</value></data>
-  <data name="SourceEditGeneratedSceneReadOnly" xml:space="preserve"><value>Generated .g.cs files cannot be edited from Scene Designer.</value></data>
   <data name="SourceEditOperationUnsupported" xml:space="preserve"><value>This Scene edit operation is not implemented by Source Editor.</value></data>
   <data name="SourceEditProjectionTargetMissing" xml:space="preserve"><value>The target Scene or Node was not found in the current projection.</value></data>
   <data name="SourceEditOperationFailed" xml:space="preserve"><value>The Scene edit operation failed.</value></data>
@@ -160,7 +165,6 @@
   <data name="SourceEditAddTargetCreationMissing" xml:space="preserve"><value>The target Node object creation expression was not found in source.</value></data>
   <data name="SourceEditComponentCollectionToRemoveMissing" xml:space="preserve"><value>The Components collection containing the Component to remove was not found in source.</value></data>
   <data name="SourceEditTargetTransformMissing" xml:space="preserve"><value>The target Node has no editable Transform Component.</value></data>
-  <data name="SourceEditGeneratedTransformReadOnly" xml:space="preserve"><value>A Transform in a generated .g.cs file cannot be edited.</value></data>
   <data name="SourceEditTransformCreationMissing" xml:space="preserve"><value>The Transform object creation expression was not found in source.</value></data>
   <data name="SourceEditTransformUpdateFailed" xml:space="preserve"><value>The Transform could not be updated.</value></data>
   <data name="SourceEditNodeCannotDuplicate" xml:space="preserve"><value>A Scene Root or a Node outside a Children list cannot be duplicated.</value></data>
@@ -171,12 +175,10 @@
   <data name="SourceEditDuplicateInsertionFailed" xml:space="preserve"><value>The duplicate could not be added to the parent Node Children syntax.</value></data>
   <data name="SourceEditTransformVectorNotLiteral" xml:space="preserve"><value>Transform.{0} is not a literal Vector3 and cannot be edited by the gizmo.</value></data>
   <data name="SourceEditTransformVectorInvalid" xml:space="preserve"><value>Transform.{0} has an invalid Vector3 expression.</value></data>
-  <data name="SourceEditGeneratedNodeAddReadOnly" xml:space="preserve"><value>Nodes cannot be added to a generated .g.cs file.</value></data>
   <data name="SourceEditAddTargetSyntaxMissing" xml:space="preserve"><value>The destination Node syntax was not found.</value></data>
   <data name="SourceEditInitialComponentsFailed" xml:space="preserve"><value>The initial Components for the new Node could not be created.</value></data>
   <data name="SourceEditChildrenExpressionUnsupported" xml:space="preserve"><value>The Children expression cannot be edited.</value></data>
   <data name="SourceEditRootCannotRemove" xml:space="preserve"><value>The Scene Root cannot be removed.</value></data>
-  <data name="SourceEditGeneratedNodeRemoveReadOnly" xml:space="preserve"><value>Nodes cannot be removed from a generated .g.cs file.</value></data>
   <data name="SourceEditRemoveTargetNotStaticChild" xml:space="preserve"><value>The removal target is not a static Children element.</value></data>
   <data name="SourceEditReparentParentMissing" xml:space="preserve"><value>A parent Node required for Reparent was not found.</value></data>
   <data name="SourceEditReparentCycle" xml:space="preserve"><value>A Node cannot be moved under itself or one of its descendants.</value></data>
@@ -189,6 +191,8 @@
   <data name="SourceEditNodeNameEmpty" xml:space="preserve"><value>A Node name cannot be empty.</value></data>
   <data name="SourceEditRenameSyntaxMissing" xml:space="preserve"><value>The syntax required for Rename was not found.</value></data>
   <data name="SourceEditNonFiniteTransform" xml:space="preserve"><value>A non-finite value cannot be written to a Transform.</value></data>
+  <data name="Common_GameProjectNotFound" xml:space="preserve"><value>No C# Game Engine game project was found. Open a solution with a project that references CSharpGameEngine.Sdk.</value></data>
+  <data name="PhysicsBake_RequiresEngineSource" xml:space="preserve"><value>Physics Bake builds its host from the engine sources and is only available for projects inside the engine repository.</value></data>
   <data name="Common_RepoRootNotFound" xml:space="preserve"><value>Repository root ({0}) was not found.</value></data>
   <data name="Common_ProductTitle" xml:space="preserve"><value>C# Game Engine</value></data>
   <data name="Common_ViewerTitle" xml:space="preserve"><value>C# Game Engine Viewer</value></data>
@@ -231,11 +235,24 @@
   <data name="OpenGame_LaunchFailed" xml:space="preserve"><value>UserEcsProject could not be started: {0}</value></data>
   <data name="OpenViewer_RepoRootNotFound" xml:space="preserve"><value>Repository root ({0}) was not found. This VSIX is a development skeleton and works only with the path embedded at build time. See ADR-0006 for details.</value></data>
   <data name="OpenViewer_LaunchFailed" xml:space="preserve"><value>The viewer could not be started: {0}</value></data>
+  <data name="SceneDesigner_OpenSceneJsonFirst" xml:space="preserve">
+    <value>Open a scene JSON (Scenes\*.json) to show it in the Scene Designer.</value>
+  </data>
+  <data name="SceneEditorDesignTab" xml:space="preserve">
+    <value>Design</value>
+  </data>
+  <data name="SceneEditorJsonTab" xml:space="preserve">
+    <value>JSON</value>
+  </data>
+  <data name="SceneEditorStarting" xml:space="preserve">
+    <value>Starting the scene system...</value>
+  </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Analyzing the Scene...</value></data>
-  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>The selected IScene implementation class was not found after the edit.</value></data>
-  <data name="SceneDesigner_OpenedInDocumentWell" xml:space="preserve"><value>{0} [Scene] was opened in the Document Well.</value></data>
-  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>The Document Well for {0} [Scene] could not be created ({1}). The Scene Designer panel was opened instead. Log: {2}</value></data>
-  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} could not be opened in the Document Well ({1}: {2}). See ActivityLog.xml for details.</value></data>
+  <data name="SceneFileOutsideScenes" xml:space="preserve"><value>{0} is outside the project's Scenes folder, so it is not a scene: the build ignores it and it opens as plain JSON. Move it under Scenes to make it a scene.</value></data>
+  <data name="SceneDesigner_NoScene" xml:space="preserve"><value>Open a scene: a .json file in the project's Scenes folder.</value></data>
+  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>This file does not contain one valid scene. Check the errors in its JSON view.</value></data>
+  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} could not be opened in the Scene Editor ({1}). The Scene Designer panel was opened instead.</value></data>
+  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} could not be opened ({1}: {2}). See ActivityLog.xml for details.</value></data>
   <data name="SceneDesigner_FallbackWindowUnavailable" xml:space="preserve"><value>The Scene Designer fallback ToolWindow could not be created.</value></data>
   <data name="FabWatch_StopCommand" xml:space="preserve"><value>Stop Fab Download Watch</value></data>
   <data name="FabWatch_StartCommand" xml:space="preserve"><value>Start Fab Download Watch</value></data>
@@ -253,6 +270,8 @@ Sign-in and downloads from Fab are not performed in this window. Always perform 
   <data name="FabWatch_Error" xml:space="preserve"><value>Fab download watch error: {0}</value></data>
   <data name="SceneStatusDisplayed" xml:space="preserve"><value>Displaying: {0}</value></data>
   <data name="SceneCameraDiagnostics" xml:space="preserve"><value>Camera Preview: objects={0}, frustum={1}, draws={2}, VP={3}</value></data>
+  <data name="SceneRuntimeViewUnavailable" xml:space="preserve"><value>The game runtime view is unavailable ({0}); showing the scene preview.</value></data>
+  <data name="SceneRuntimeViewBuildRequired" xml:space="preserve"><value>Build the project to see this structural change in the game runtime view.</value></data>
   <data name="SceneRenderFailed" xml:space="preserve"><value>Scene rendering failed. See ActivityLog.xml for details.</value></data>
   <data name="ScenePropertyEditing" xml:space="preserve"><value>Editing properties: {0}</value></data>
   <data name="SceneDuplicateUnsupported" xml:space="preserve"><value>A Scene Root or a Node whose parent Children cannot be resolved cannot be duplicated.</value></data>
@@ -262,7 +281,6 @@ Sign-in and downloads from Fab are not performed in this window. Always perform 
   <data name="ScenePropertyApplying" xml:space="preserve"><value>Applying the property edit to the C# source...</value></data>
   <data name="SceneToolCommitDiscarded" xml:space="preserve"><value>{0} could not be committed, so the change was discarded.</value></data>
   <data name="SceneToolApplying" xml:space="preserve"><value>Applying {0} to the C# source...</value></data>
-  <data name="SceneCommitFailedRollback" xml:space="preserve"><value>Applying the edit to the C# source failed. The edit will be rolled back.</value></data>
   <data name="SceneCommitFailed" xml:space="preserve"><value>Applying the edit to the C# source failed.</value></data>
   <data name="ScenePropertyApplied" xml:space="preserve"><value>The property was applied to the C# source. Press Ctrl+Z to undo.</value></data>
   <data name="SceneTransformApplied" xml:space="preserve"><value>Transform was applied to the C# source. Press Ctrl+Z to undo.</value></data>
@@ -340,35 +358,14 @@ Discard unsaved edits and reload it?</value></data>
   <data name="SceneCameraNearFarInvalid" xml:space="preserve">
     <value>Camera NearZ/FarZ values are invalid.</value>
   </data>
+  <data name="SceneCameraRadialTransitionInvalid" xml:space="preserve">
+    <value>Camera RadialTransitionMeters must be positive, and the radial depth needs a finite far plane.</value>
+  </data>
   <data name="SceneCameraFovInvalid" xml:space="preserve">
     <value>Camera FovYRadians must be between 0 and π.</value>
   </data>
   <data name="SceneCameraOrthographicSizeInvalid" xml:space="preserve">
     <value>Camera OrthographicSize must be positive.</value>
-  </data>
-  <data name="SceneDesignerMenuOpen" xml:space="preserve">
-    <value>Open in Scene Designer</value>
-  </data>
-  <data name="SceneDesignerMenuAnalyzingDisabled" xml:space="preserve">
-    <value>Open in Scene Designer (analyzing Scene)</value>
-  </data>
-  <data name="SceneDesignerMenuAnalysisFailedDisabled" xml:space="preserve">
-    <value>Open in Scene Designer (Scene analysis failed)</value>
-  </data>
-  <data name="SceneDesignerMenuNoSceneDisabled" xml:space="preserve">
-    <value>Open in Scene Designer (this file has no class that implements IScene)</value>
-  </data>
-  <data name="SceneDesignerMenuNonSceneTypeDisabled" xml:space="preserve">
-    <value>Open in Scene Designer (this class does not implement IScene)</value>
-  </data>
-  <data name="SceneDesignerMenuItemOpen" xml:space="preserve">
-    <value>Open {0} in Scene Designer</value>
-  </data>
-  <data name="SceneDesignerMenuItemOpenAtCaret" xml:space="preserve">
-    <value>Open {0} in Scene Designer (caret position)</value>
-  </data>
-  <data name="SceneDesignerMenuOverflow" xml:space="preserve">
-    <value>Select {0} more Scenes from the combo box in Scene Designer.</value>
   </data>
   <data name="SceneProjectionNodeCountMismatch" xml:space="preserve">
     <value>Node count differs ({0} / {1}).</value>
@@ -504,29 +501,6 @@ Discard unsaved edits and reload it?</value></data>
   </data>  <data name="ShaderGraphRegionLabel" xml:space="preserve">
     <value>{0}: {1}</value>
   </data>
-  <data name="RuntimeDebugLabel" xml:space="preserve"><value>Runtime Diagnostics</value></data>
-  <data name="RuntimeDebugRefresh" xml:space="preserve"><value>Refresh Snapshot</value></data>
-  <data name="RuntimeDebugRefreshToolTip" xml:space="preserve"><value>Request one immutable read-only snapshot from the existing Render Preview Host session.</value></data>
-  <data name="RuntimeDebugNoSnapshot" xml:space="preserve"><value>No runtime diagnostic snapshot has been requested.</value></data>
-  <data name="RuntimeDebugPreviewUnavailable" xml:space="preserve"><value>The Render Preview Host session is not ready.</value></data>
-  <data name="RuntimeDebugFailed" xml:space="preserve"><value>Runtime diagnostic snapshot failed: {0}</value></data>
-  <data name="RuntimeDebugGraphDeclared" xml:space="preserve"><value>Declared plan (not per-pass GPU execution evidence)</value></data>
-  <data name="RuntimeDebugSummary" xml:space="preserve"><value>Device={0} gen={1} fence={2} frames={3} objects={4} primary draws={5} textures={6} errors={7} adapter={8} WARP={9} graph={10}</value></data>
-  <data name="RuntimeDebugGraphSummary" xml:space="preserve"><value>Declared Render Graph: profile={0}, passes={1}, resources={2}, transitions={3}, surface={4}x{5}</value></data>
-  <data name="RuntimeDebugDiagnosticSummary" xml:space="preserve"><value>Bounded D3D12 diagnostics: shown={0}, truncated={1}</value></data>
-  <data name="RuntimeDebugPass" xml:space="preserve"><value>Pass exec={0} index={1} name={2} queue={3} dependencies={4}</value></data>
-  <data name="RuntimeDebugResource" xml:space="preserve"><value>Resource index={0} name={1} kind={2} shape={3} imported={4} lifetime={5}..{6} alias={7}</value></data>
-  <data name="RuntimeDebugBufferShape" xml:space="preserve"><value>{0} bytes</value></data>
-  <data name="RuntimeDebugTextureShape" xml:space="preserve"><value>{0}x{1} {2}</value></data>
-  <data name="RuntimeDebugTransition" xml:space="preserve"><value>Transition pass={0} resource={1} {2}-&gt;{3} queue={4}-&gt;{5} ownership={6}</value></data>
-  <data name="RuntimeDebugDiagnostic" xml:space="preserve"><value>Diagnostic {0} {1}/{2}: {3}</value></data>
-  <data name="RuntimeDebugNoDiagnostics" xml:space="preserve"><value>No bounded D3D12 diagnostics were reported.</value></data>
-  <data name="RuntimeDebugNoDependencies" xml:space="preserve"><value>none</value></data>
-  <data name="RuntimeDebugPlatformSummary" xml:space="preserve"><value>Platform: OS={0} OS arch={1} process arch={2} runtime={3} PID={4} captured counter={5}/{6}</value></data>
-  <data name="RuntimeDebugInputSummary" xml:space="preserve"><value>Input: state={0} contexts={1} held controls={2} active actions={3} shown actions={4} truncated={5} detail={6}</value></data>
-  <data name="RuntimeDebugInputAction" xml:space="preserve"><value>Input action: timestamp={0} window={1} device={2} sequence={3} context={4} action={5} phase={6} raw=({7},{8}) value=({9},{10}) release={11}</value></data>
-  <data name="RuntimeDebugAudioSummary" xml:space="preserve"><value>Audio: state={0} mode={1} generation={2} voices={3}/{4} buses={5} restored={6} stopped={7} recovery events={8} dropped={9} failure={10} detail={11}</value></data>
-  <data name="RuntimeDebugNoDetail" xml:space="preserve"><value>none</value></data>
   <data name="AssetAuthoring_State" xml:space="preserve"><value>Metadata state</value></data>
   <data name="AssetAuthoring_SourceUri" xml:space="preserve"><value>Source URI</value></data>
   <data name="AssetAuthoring_AssetId" xml:space="preserve"><value>Asset ID</value></data>
@@ -544,4 +518,29 @@ Discard unsaved edits and reload it?</value></data>
   <data name="LightConversionConflict" xml:space="preserve"><value>The light changed or cannot be converted. Refresh and try again.</value></data>
   <data name="LightPhysicalValueLabel" xml:space="preserve"><value>{0} ({1}; {2})</value></data>
   <data name="LightConversionDefault" xml:space="preserve"><value>Suggested default: {0}. Enter the value explicitly to accept it.</value></data>
+  <data name="Diagnostics_Title" xml:space="preserve"><value>C# Game Engine diagnostic tools</value></data>
+  <data name="Diagnostics_NoGameProject" xml:space="preserve"><value>No game project was found in the open solution.</value></data>
+  <data name="Diagnostics_AlreadyDebugged" xml:space="preserve"><value>The running game is already being debugged by this Visual Studio. A game started from a build has the debugger attached by default.</value></data>
+  <data name="Diagnostics_NoRunningGame" xml:space="preserve"><value>No running game was found. Start the game ({0}) and run the command again.</value></data>
+  <data name="Diagnostics_AttachDebugger" xml:space="preserve"><value>Attach the debugger</value></data>
+  <data name="Diagnostics_MeasureCpuUsage" xml:space="preserve"><value>Measure CPU Usage...</value></data>
+  <data name="Diagnostics_MeasureDotNetAllocations" xml:space="preserve"><value>Measure .NET Allocations...</value></data>
+  <data name="Diagnostics_StopMeasuring" xml:space="preserve"><value>Stop Measuring and Open the Result</value></data>
+  <data name="Diagnostics_ChooseTitle" xml:space="preserve"><value>Choose the game</value></data>
+  <data name="Diagnostics_ChoosePrompt" xml:space="preserve"><value>{0}: choose the running game.</value></data>
+  <data name="Diagnostics_ProcessRow" xml:space="preserve"><value>{0} (PID {1}, started {2})  {3}</value></data>
+  <data name="Diagnostics_Choose" xml:space="preserve"><value>Select</value></data>
+  <data name="Diagnostics_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Diagnostics_Attached" xml:space="preserve"><value>Attached the debugger to {0} (PID {1}).</value></data>
+  <data name="Diagnostics_AttachFailed" xml:space="preserve"><value>Could not attach the debugger to {0}: {1}</value></data>
+  <data name="Diagnostics_ProcessGone" xml:space="preserve"><value>the process has exited.</value></data>
+  <data name="Diagnostics_CollectorMissing" xml:space="preserve"><value>Visual Studio's profiler collector was not found ({0}). Install the profiling tools with the Visual Studio Installer.</value></data>
+  <data name="Diagnostics_CollectorFailed" xml:space="preserve"><value>The profiler collector failed: {0}</value></data>
+  <data name="Diagnostics_MeasuringStarted" xml:space="preserve"><value>Measuring {0} of {1} (PID {2}). Run the same command again to stop and open the result.</value></data>
+  <data name="Diagnostics_KindCpu" xml:space="preserve"><value>CPU usage</value></data>
+  <data name="Diagnostics_KindDotNet" xml:space="preserve"><value>.NET allocations</value></data>
+  <data name="Diagnostics_MeasuringStoppedOnExit" xml:space="preserve"><value>The game exited, so the measurement stopped. Opened the result: {0}</value></data>
+  <data name="Diagnostics_MeasuringStopped" xml:space="preserve"><value>Opened the measurement: {0}</value></data>
+  <data name="Diagnostics_GpuGuide" xml:space="preserve"><value>Opened the Performance Profiler. Check GPU Usage, and choose the running game as the Analysis Target.</value></data>
+  <data name="Diagnostics_ProfilerUnavailable" xml:space="preserve"><value>The Performance Profiler could not be opened: {0}</value></data>
 </root>

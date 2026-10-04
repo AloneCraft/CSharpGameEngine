@@ -10,11 +10,22 @@ namespace CSharpGameEngine.EditorPreview.Host;
 /// </summary>
 public static class RenderPreviewHostServer {
     public static Task RunAsync(string PipeName,CancellationToken CancellationToken=default)=>
-        RunAsync(PipeName,Request=>RenderPreviewRenderSession.Open(Request),CancellationToken);
+        RunAsync(PipeName,Open,CancellationToken);
 
-    public static async Task RunAsync(
+    /// <summary>A runtime view (ADR-0070 B1) when the Open request asks for one, otherwise the scene preview.</summary>
+    public static IRenderPreviewSession Open(RenderPreviewHostRequest Request)=>
+        Request.RuntimeView is null
+            ?RenderPreviewRenderSession.Open(Request)
+            :RenderPreviewRuntimeSession.Open(Request);
+
+    public static Task RunAsync(
         string PipeName,Func<RenderPreviewHostRequest,IRenderPreviewSession>Factory,
-        CancellationToken CancellationToken=default){
+        CancellationToken CancellationToken=default)=>
+        RunAsync(PipeName,Factory,BridgeWireMessage.RequestReceiveTimeout,CancellationToken);
+
+    internal static async Task RunAsync(
+        string PipeName,Func<RenderPreviewHostRequest,IRenderPreviewSession>Factory,
+        TimeSpan RequestReceiveTimeout,CancellationToken CancellationToken){
         if(string.IsNullOrWhiteSpace(PipeName)){ throw new ArgumentException("Pipe name is required.",nameof(PipeName)); }
         ArgumentNullException.ThrowIfNull(Factory);
         using RenderPreviewHostSessionTable Sessions=new(Factory);
@@ -28,14 +39,21 @@ public static class RenderPreviewHostServer {
             }
 
             try {
-                RenderPreviewHostRequest Request=
-                    await BridgeWireMessage.ReadAsync<RenderPreviewHostRequest>(Pipe,CancellationToken.None);
+                // Audit AUD-003: the host has one pipe instance, so a client that stops mid-request must give it up when
+                // the host stops or the receive deadline passes.
+                RenderPreviewHostRequest Request=await BridgeWireMessage.ReadRequestAsync<RenderPreviewHostRequest>(
+                    Pipe,RequestReceiveTimeout,CancellationToken);
                 RenderPreviewHostResponse Response=Sessions.Handle(Request);
-                await BridgeWireMessage.WriteAsync(Pipe,Response,CancellationToken.None);
+                await BridgeWireMessage.WriteAsync(Pipe,Response,CancellationToken);
                 if(Request.Command==RenderPreviewHostCommand.Close
                     &&Response.State==RenderPreviewHostResultState.Succeeded){
                     return;
                 }
+            } catch(OperationCanceledException)when(CancellationToken.IsCancellationRequested){
+                break;
+            } catch(OperationCanceledException){
+                // The client did not send its whole request in time: drop it and serve the next one.
+                continue;
             } catch(Exception Error)when(
                 Error is IOException or InvalidDataException or InvalidOperationException
                     or System.Text.Json.JsonException){

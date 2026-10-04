@@ -1,5 +1,9 @@
 # 仕様: Generated Entity Storage(AoS / ECS SoA)
 
+> **履歴の文書。** ここに書かれた`GenerateEntityGenerator`と`CSharpGameEngine.Generation.Abstractions`は
+> M0009([[ADR-0029-Dynamic-Archetype-Soa-Ecs]])で削除され、現在のECSは[[Ecs-Soa-Systems]]と
+> [Ecs-Runtime](Ecs-Runtime.md)が定める。Conformance・ADR-0024・Implementation-Status の記録が参照するため残している。
+
 このドキュメントは`GenerateEntityGenerator`(`CSharpGameEngine.CodeAnalysis`)が生成するEntityの
 仕様を記録する。設計判断の理由と代替案は[[ADR-0024-Generated-Entity-AoS-SoA]]を参照。
 

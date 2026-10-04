@@ -150,7 +150,7 @@ internal sealed class VsixExperimentalScenario {
         var EvidencePath=Path.Combine(RunRoot,"observation.json");
         var SolutionPath=Path.Combine(RepoRoot,"UserEcsProject.slnx");
         var ScenePath=Path.Combine(
-            RepoRoot,"UserEcsProject","Scenes","MainScene.cs");
+            RepoRoot,"UserEcsProject","Scenes","MainScene.json");
         RequireFile(SolutionPath,"User ECS solution");
         RequireFile(ScenePath,"Main Scene source");
         var Evidence=new VsixSceneObservationEvidence {
@@ -192,7 +192,7 @@ internal sealed class VsixExperimentalScenario {
                 TimeSpan.FromSeconds(Math.Min(600,Options.TimeoutSeconds)));
             CompleteFirstLaunch(Window);
             ActivateDocumentTab(
-                VisualStudioProcess.Id,"MainScene.cs",
+                VisualStudioProcess.Id,"MainScene.json",
                 TimeSpan.FromSeconds(Math.Min(600,Options.TimeoutSeconds)));
             DismissLineEndingDialog(VisualStudioProcess.Id);
             Window=WaitForTopLevelWindow(
@@ -205,11 +205,11 @@ internal sealed class VsixExperimentalScenario {
             Evidence.Assertions.Add(new VsixEvidenceAssertion {
                 Id="main-scene-open",
                 Passed=true,
-                Detail="MainScene.cs opened in the owned CgeFixed process."
+                Detail="MainScene.json opened in the owned CgeFixed process."
             });
             var EditorSurface=FindLargestEditorSurface(Window)
                 ??throw new OracleMismatchException(
-                    "The MainScene code editor surface was not exposed by UI Automation.");
+                    "The MainScene JSON editor surface was not exposed by UI Automation.");
             // Visual Studio can surface its line-ending prompt asynchronously after the document
             // tab is already active. Reject normalization before sending the real toolbar click;
             // otherwise the modal disables the owned main window and silently consumes the click.
@@ -530,36 +530,11 @@ internal sealed class VsixExperimentalScenario {
         string SelectionScreenshot,string ResizedScreenshot,
         string RuntimeTree,string SelectionTree,string SceneScreenshot,
         string ScenePath) {
-        var Refresh=RequireElement(Window,"RuntimeDebugRefreshButton");
-        Activate(Refresh);
-        WaitUntil(()=>{
-            var Current=FindTopLevelWindow(ProcessId);
-            var Summary=Current is null?null:FindById(Current,"RuntimeDebugSummaryText");
-            return Summary is not null&&Summary.Current.Name.IndexOf(
-                "WARP=True",StringComparison.OrdinalIgnoreCase)>=0;
-        },TimeSpan.FromSeconds(60),"Runtime Diagnostics did not report a WARP snapshot.");
-        Window=FindTopLevelWindow(ProcessId)!;
-        var SummaryText=RequireElement(Window,"RuntimeDebugSummaryText").Current.Name;
-        var RuntimeRowsText=GetElementText(RequireElement(Window,"RuntimeDebugRows"));
-        Observe(Evidence,"warp-rendered",
-            SummaryText.IndexOf("WARP=True",StringComparison.OrdinalIgnoreCase)>=0
-                &&ContainsReadyRuntimeState(SummaryText),
-            "The explicit Runtime Diagnostics snapshot reported WARP=True and rendered frames.");
         Observe(Evidence,"snapshot-rendered",
             File.Exists(SceneScreenshot)
                 &&new FileInfo(SceneScreenshot).Length>0
                 &&HasRenderedSceneVariation(SceneScreenshot),
             "The Scene Designer screenshot contained a non-uniform rendered Scene surface.");
-        Observe(Evidence,"audio-lifecycle-observed",
-            RuntimeRowsText.IndexOf("NotOwned",StringComparison.OrdinalIgnoreCase)>=0
-                &&(RuntimeRowsText.IndexOf("Audio:",StringComparison.OrdinalIgnoreCase)>=0
-                    ||RuntimeRowsText.IndexOf("オーディオ:",StringComparison.Ordinal)>=0),
-            "Runtime Diagnostics exposed the Preview Host audio lifecycle as typed NotOwned state.");
-        Observe(Evidence,"host-ownership-confirmed",
-            (SummaryText.IndexOf("Device=Ready",StringComparison.OrdinalIgnoreCase)>=0
-                ||SummaryText.IndexOf("デバイス=Ready",StringComparison.Ordinal)>=0)
-                &&RuntimeRowsText.IndexOf("NotOwned",StringComparison.OrdinalIgnoreCase)>=0,
-            "The Preview Host owned a ready render device while input/audio were explicitly NotOwned.");
         WriteAutomationTree(Window,RuntimeTree);
         CaptureWindow(Window.Current.NativeWindowHandle,RuntimeScreenshot);
 
@@ -707,13 +682,6 @@ internal sealed class VsixExperimentalScenario {
         // through a second UIA TransformPattern.Resize adds no product assertion and can block
         // indefinitely while Visual Studio is recalculating its docked layout. Leave the verified
         // resized window in place and let normal process shutdown own the remaining lifecycle.
-    }
-    private static bool ContainsReadyRuntimeState(string SummaryText) {
-        if(SummaryText.IndexOf("WARP=True",StringComparison.OrdinalIgnoreCase)<0) {
-            return false;
-        }
-        return SummaryText.IndexOf("Ready",StringComparison.OrdinalIgnoreCase)>=0
-            &&SummaryText.Any(char.IsDigit);
     }
     internal static bool HasRenderedSceneVariation(string ScreenshotPath) {
         using(var Screenshot=new Bitmap(ScreenshotPath)) {

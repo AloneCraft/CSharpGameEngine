@@ -13,18 +13,55 @@ public sealed class Win32InputEventAdapter {
         this.Clock=Clock??ReadTimestamp;
         this.KeyboardDevice=new InputDeviceId(StableId.FromName(DeviceNamespace,WindowId+"/keyboard"));
         this.MouseDevice=new InputDeviceId(StableId.FromName(DeviceNamespace,WindowId+"/mouse"));
+        this.GamepadDevice=new InputDeviceId(StableId.FromName(DeviceNamespace,WindowId+"/gamepad0"));
+    }
+    /// <summary>Unreal key names for the XInput buttons, by XINPUT_GAMEPAD bit.</summary>
+    private static readonly (ushort Mask,string Code)[]GamepadButtons=[
+        (0x0001,"Gamepad_DPad_Up"),(0x0002,"Gamepad_DPad_Down"),(0x0004,"Gamepad_DPad_Left"),(0x0008,"Gamepad_DPad_Right"),
+        (0x0010,"Gamepad_Special_Right"),(0x0020,"Gamepad_Special_Left"),(0x0040,"Gamepad_LeftThumbstick"),(0x0080,"Gamepad_RightThumbstick"),
+        (0x0100,"Gamepad_LeftShoulder"),(0x0200,"Gamepad_RightShoulder"),
+        (0x1000,"Gamepad_FaceButton_Bottom"),(0x2000,"Gamepad_FaceButton_Right"),(0x4000,"Gamepad_FaceButton_Left"),(0x8000,"Gamepad_FaceButton_Top"),
+    ];
+    public static InputControl GamepadLeftStick=>new(InputDeviceKind.Gamepad,"Gamepad_Left2D",InputControlKind.Axis2D);
+    public static InputControl GamepadRightStick=>new(InputDeviceKind.Gamepad,"Gamepad_Right2D",InputControlKind.Axis2D);
+    public static InputControl GamepadLeftTrigger=>new(InputDeviceKind.Gamepad,"Gamepad_LeftTriggerAxis",InputControlKind.Axis1D);
+    public static InputControl GamepadRightTrigger=>new(InputDeviceKind.Gamepad,"Gamepad_RightTriggerAxis",InputControlKind.Axis1D);
+    private GamepadSnapshot Gamepad;
+    /// <summary>
+    /// Turns a polled controller state into events: button presses/releases, stick and trigger value
+    /// changes, and Connected/Disconnected transitions (a disconnect releases everything held).
+    /// </summary>
+    public void RecordGamepad(in GamepadSnapshot State){
+        var Previous=this.Gamepad;
+        this.Gamepad=State;
+        if(!State.Connected){
+            if(Previous.Connected){ this.ReleaseDevice(this.GamepadDevice,InputReleaseReason.DeviceRemoved,true); }
+            return;
+        }
+        if(!Previous.Connected){ this.Enqueue(this.GamepadDevice,default,InputEventKind.Connected,InputValue.Zero); }
+        foreach(var (Mask,Code) in GamepadButtons){
+            var Down=(State.Buttons&Mask)!=0;
+            if(Down!=((Previous.Buttons&Mask)!=0)){ this.RecordButton(this.GamepadDevice,new InputControl(InputDeviceKind.Gamepad,Code),Down); }
+        }
+        if(State.LeftStick!=Previous.LeftStick){ this.Enqueue(this.GamepadDevice,GamepadLeftStick,InputEventKind.ValueChanged,new InputValue(State.LeftStick.X,State.LeftStick.Y)); }
+        if(State.RightStick!=Previous.RightStick){ this.Enqueue(this.GamepadDevice,GamepadRightStick,InputEventKind.ValueChanged,new InputValue(State.RightStick.X,State.RightStick.Y)); }
+        if(State.LeftTrigger!=Previous.LeftTrigger){ this.Enqueue(this.GamepadDevice,GamepadLeftTrigger,InputEventKind.ValueChanged,new InputValue(State.LeftTrigger,0)); }
+        if(State.RightTrigger!=Previous.RightTrigger){ this.Enqueue(this.GamepadDevice,GamepadRightTrigger,InputEventKind.ValueChanged,new InputValue(State.RightTrigger,0)); }
     }
     public static long TimestampFrequency=>Stopwatch.Frequency;
     public WindowId WindowId { get;}
     public InputDeviceId KeyboardDevice { get;}
     public InputDeviceId MouseDevice { get;}
-    public void RecordKey(int VirtualKeyCode,bool Pressed)=>this.RecordButton(this.KeyboardDevice,new InputControl(InputDeviceKind.Keyboard,KeyCode(VirtualKeyCode)),Pressed);
+    public InputDeviceId GamepadDevice { get;}
+    public void RecordKey(int VirtualKeyCode,bool Pressed)=>this.RecordKeyCode(KeyCode(VirtualKeyCode),Pressed);
+    /// <summary>Records a keyboard key by its control code (<see cref="KeyCode"/>); repeated presses are collapsed.</summary>
+    public void RecordKeyCode(string Code,bool Pressed)=>this.RecordButton(this.KeyboardDevice,new InputControl(InputDeviceKind.Keyboard,Code),Pressed);
     public void RecordMouseButton(string Code,bool Pressed)=>this.RecordButton(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,Code),Pressed);
     public void RecordMouseDelta(float DeltaX,float DeltaY){
         if(DeltaX==0&&DeltaY==0){ return; }
-        this.Enqueue(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,"Delta",InputControlKind.Axis2D),InputEventKind.ValueChanged,new InputValue(DeltaX,DeltaY));
+        this.Enqueue(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,"Delta",InputControlKind.RelativeAxis2D),InputEventKind.ValueChanged,new InputValue(DeltaX,DeltaY));
     }
-    public void RecordMouseWheel(float Delta)=>this.Enqueue(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,"Wheel",InputControlKind.Axis1D),InputEventKind.ValueChanged,new InputValue(Delta,0));
+    public void RecordMouseWheel(float Delta)=>this.Enqueue(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,"Wheel",InputControlKind.RelativeAxis1D),InputEventKind.ValueChanged,new InputValue(Delta,0));
     public void RecordFocusLost()=>this.ReleaseAll(InputReleaseReason.FocusLost);
     public void RecordCaptureReleased()=>this.ReleaseDevice(this.MouseDevice,InputReleaseReason.CaptureReleased,false);
     public void RecordDeviceRemoved()=>this.ReleaseAll(InputReleaseReason.DeviceRemoved,true);
@@ -35,8 +72,9 @@ public sealed class Win32InputEventAdapter {
         this.Pending.Clear();
         return Result;
     }
+    /// <summary>Unreal key names for letters, digits and the named keys; other virtual keys are VK_xx.</summary>
     public static string KeyCode(int VirtualKeyCode)=>VirtualKeyCode switch {
-        0x25=>"Left",0x26=>"Up",0x27=>"Right",0x28=>"Down",0x70=>"F1",
+        0x20=>"SpaceBar",0x25=>"Left",0x26=>"Up",0x27=>"Right",0x28=>"Down",0x70=>"F1",
         >=0x30 and <=0x39=>((char)VirtualKeyCode).ToString(),
         >=0x41 and <=0x5A=>((char)VirtualKeyCode).ToString(),
         _=>$"VK_{VirtualKeyCode:X2}",

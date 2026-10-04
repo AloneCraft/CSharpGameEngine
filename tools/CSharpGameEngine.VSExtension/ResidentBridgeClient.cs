@@ -26,13 +26,14 @@ internal static class ResidentBridgeClient {
     private static readonly TimeSpan SpawnRetryTimeout=TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Deterministic per-repo, per-bridge pipe name. Must not use <see cref="object.GetHashCode"/>/
-    /// <see cref="string.GetHashCode()"/> - both are randomized per-process since modern .NET, so a
-    /// second devenv.exe (or the same one restarted) would compute a different name and never find
-    /// an already-running server.
+    /// Deterministic per-repo, per-bridge, per-owner pipe name. The owner is the Visual Studio
+    /// process: its bridges run from its own extension install and end with it, so another Visual
+    /// Studio (another install, maybe another version) never connects to them. Must not use
+    /// <see cref="object.GetHashCode"/>/<see cref="string.GetHashCode()"/> - both are randomized
+    /// per-process since modern .NET.
     /// </summary>
-    internal static string ComputePipeName(string RepoRoot,string BridgeProjectRelativePath){
-        var Seed= $"{Path.GetFullPath(RepoRoot)}|{BridgeProjectRelativePath}";
+    internal static string ComputePipeName(string RepoRoot,string BridgeProjectRelativePath,int OwnerProcessId){
+        var Seed= $"{Path.GetFullPath(RepoRoot)}|{BridgeProjectRelativePath}|{OwnerProcessId}";
         using var Sha256=SHA256.Create();
         var Hash=Sha256.ComputeHash(Encoding.UTF8.GetBytes(Seed));
         var Hex=BitConverter.ToString(Hash).Replace("-","");
@@ -70,7 +71,7 @@ internal static class ResidentBridgeClient {
         out AuthoringHostResult?Result){
         if(Arguments is null){ throw new ArgumentNullException(nameof(Arguments)); }
         CancellationToken.ThrowIfCancellationRequested();
-        var PipeName=ComputePipeName(RepoRoot,BridgeProjectRelativePath);
+        var PipeName=ComputePipeName(RepoRoot,BridgeProjectRelativePath,OwnerProcessId);
         var Request=new AuthoringHostRequest {
             RequestId=Guid.NewGuid(),
             Operation=ClassifyOperation(BridgeProjectRelativePath),
@@ -164,6 +165,17 @@ internal static class ResidentBridgeClient {
         return Builder.ToString();
     }
 
+    private static readonly int OwnerProcessId=CurrentProcessId();
+
+    private static int CurrentProcessId(){
+        using Process Current=Process.GetCurrentProcess();
+        return Current.Id;
+    }
+
+    /// <summary>The bridge's command line: it serves <paramref name="PipeName"/> until this process exits (or it idles out).</summary>
+    internal static string ServeArguments(string PipeName,int OwnerProcessId)=>
+        $"--serve \"{PipeName}\" --parent-process-id {OwnerProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
     private static bool TryConnectOnly(string PipeName,TimeSpan ConnectTimeout){
         try {
             using NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.None);
@@ -205,7 +217,7 @@ internal static class ResidentBridgeClient {
                 return true;
             }
 
-            ProcessStartInfo StartInfo=new(ExecutablePath, $"--serve \"{PipeName}\""){
+            ProcessStartInfo StartInfo=new(ExecutablePath,ServeArguments(PipeName,OwnerProcessId)){
                 WorkingDirectory=RepoRoot,
                 UseShellExecute=false,
                 CreateNoWindow=true,

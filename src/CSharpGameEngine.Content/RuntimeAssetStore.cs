@@ -218,6 +218,12 @@ public sealed class RuntimeAssetStore:IAsyncDisposable {
             }
             lock(this.Gate){
                 this.ThrowIfDisposed();
+                // The commit boundary is the last point that observes the caller's cancellation (audit AUD-002): a cancel
+                // that arrived while the last artifact was read keeps the old manifest, as an earlier one does.
+                if(CancellationToken.IsCancellationRequested){
+                    this.LastManifestUpdateUsedLastKnownGoodValue=true;
+                    return new(false,true,true,this.ActiveManifest.Fingerprint,"Manifest update was cancelled; the last-known-good manifest remains active.");
+                }
                 this.ActiveManifest=Candidate;
                 this.LastManifestUpdateUsedLastKnownGoodValue=false;
                 return new(true,false,false,this.ActiveManifest.Fingerprint,string.Empty);

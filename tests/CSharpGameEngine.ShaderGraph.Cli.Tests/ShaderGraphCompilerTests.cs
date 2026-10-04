@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,9 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,14 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -49,6 +49,26 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="PreviewCleanPSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayPSMain");
+                // M0099 / ADR-0076: the radial entries exist and every radial pixel entry writes the radial depth; the
+                // main-pass ones declare it at least the conservative raster depth so early rejection still works.
+                foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain"}) {
+                    Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName==Entry);
+                    Assert.Contains($"RadialConservativePixelOutput {Entry}(RadialPixelInput input)",BuiltSource,StringComparison.Ordinal);
+                }
+                // RadialPixelInput mirrors VertexOutput member for member (only SV_Position gains its modifiers), so a
+                // member added to the Stage graph's VertexOutput cannot silently reach PSMain uninitialized.
+                static string[]Members(string Source,string Struct)=>System.Text.RegularExpressions.Regex.Match(Source,$@"struct {Struct}\s*\{{(?<Body>[^}}]*)\}}").Groups["Body"].Value
+                    .Split(';',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries)
+                    .Select(static Member=>Member.Replace("noperspective centroid ",string.Empty,StringComparison.Ordinal)).ToArray();
+                Assert.True(Members(BuiltSource,"VertexOutput").Length>=6,"VertexOutput must be found in the built source.");
+                Assert.Equal(Members(BuiltSource,"VertexOutput"),Members(BuiltSource,"RadialPixelInput"));
+                Assert.Equal([.. Members(BuiltSource,"VertexOutput"),"float2 ClipDistance : SV_ClipDistance0"],Members(BuiltSource,"RadialVertexOutput"));
+                Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName=="PreviewCleanRadialPSMain");
+                Assert.Contains("RadialPixelOutput PreviewCleanRadialPSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("float Depth : SV_Depth;",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("float Depth : SV_DepthGreaterEqual;",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialObserverVSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialVSMain");
             }
         } finally { Directory.Delete(DirectoryPath,true); }
     }
@@ -78,7 +98,11 @@ public sealed class ShaderGraphCompilerTests {
         var PbrDeclarationId=PbrRoot.Edges.First(Edge=>Edge.ToNodeId==PbrTranslation.Id).FromNodeId;
         Assert.Contains(Export.SourceMap.Entries,Entry=>Entry.NodeId==PbrDeclarationId.ToString());
         var Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Export.Hlsl)));
-        Assert.Equal("67C5652958550327DFB90C2059E1FE5778A0D0B59B0787D21919314A9D67DF81",Hash);
+        // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows), ADR-0075 (world-space
+        // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin), M0099 Phase 3 (FrameCB
+        // depth-mapping packet) and the M0099 conservative raster matrix intentionally changed the Stage program; the
+        // migrate/extract round trip was verified byte-identical before those edits.
+        Assert.Equal("06838A472BE0005545DEFE4DF113F093B9FD153F5DD446974BD44262DAEB6D63",Hash);
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {
@@ -138,6 +162,35 @@ public sealed class ShaderGraphCompilerTests {
             } finally { Console.SetError(OriginalError); }
             Assert.Contains("Subgraph",Error.ToString(),StringComparison.OrdinalIgnoreCase);
             Assert.False(File.Exists(ArtifactPath));
+        } finally { Directory.Delete(DirectoryPath,true); }
+    }
+    /// <summary>
+    /// A failure is one line in MSBuild's canonical form at the graph, so a build lists its cause. Diagnostics were written
+    /// as "SubgraphMissing: ..." and an unreadable file as a stack trace, which MSBuild's Exec logs only as messages: the
+    /// error list showed nothing but MSB3073 (the command exited with code 1).
+    /// </summary>
+    [Fact]
+    public void Failures_AreCanonicalBuildErrorsAtTheGraph() {
+        var DirectoryPath=Path.Combine(Path.GetTempPath(),"CgeShaderGraphErrors",Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(DirectoryPath);
+        try {
+            var Missing=Path.Combine(DirectoryPath,"Missing.cgesubgraph");
+            var Document=CreateSubgraph();
+            Document.RootSubgraphId=StableId.New();
+            File.WriteAllText(Missing,ShaderGraphCanonicalization.ToCanonicalJson(Document));
+            var Empty=Path.Combine(DirectoryPath,"Empty.cgesubgraph");
+            File.WriteAllText(Empty,string.Empty);
+            foreach(var (GraphPath,Expected) in new[]{(Missing,": error SubgraphMissing: Root subgraph is missing."),(Empty,": error: ")}) {
+                var OriginalError=Console.Error;
+                using var Error=new StringWriter();
+                try {
+                    Console.SetError(Error);
+                    Assert.Equal(1,global::ShaderGraphCli.Run(["validate",GraphPath]));
+                } finally { Console.SetError(OriginalError); }
+                var Lines=Error.ToString().Split(new[]{Environment.NewLine},StringSplitOptions.RemoveEmptyEntries);
+                Assert.Contains(Lines,Line=>Line.StartsWith(GraphPath+Expected,StringComparison.Ordinal));
+                Assert.DoesNotContain(Lines,Line=>Line.TrimStart().StartsWith("at ",StringComparison.Ordinal));
+            }
         } finally { Directory.Delete(DirectoryPath,true); }
     }
     private static string CopyStageFixture(string DirectoryPath) {

@@ -1,0 +1,145 @@
+using CSharpGameEngine.Entities;
+using CSharpGameEngine.Numerics;
+using CSharpGameEngine.Runtime.Character;
+using CSharpGameEngine.Runtime.Physics;
+namespace CSharpGameEngine.Runtime.Windows.Tests;
+/// <summary>ADR-0067: deterministic kinematic movement against triangle-mesh geometry, with Unreal's ThirdPerson values.</summary>
+public sealed class CharacterMotorTests {
+    private const int TickRate=60;
+    private static readonly LogicalScalar DeltaSeconds=LogicalScalar.One/LogicalScalar.FromInt64(TickRate);
+    private static readonly CharacterMovement Settings=new();
+    private sealed class Scene {
+        private readonly DeterministicPhysicsWorld World=new();
+        private readonly CharacterMotor Motor;
+        private ulong NextId=1;
+        public LogicalVector3 Position;
+        public CharacterMovementState State;
+        public CharacterInput Input;
+        public Scene(float StartY=2f,float StartZ=0f){
+            this.Motor=new CharacterMotor(this.World);
+            this.Position=new LogicalVector3(0,StartY,StartZ);
+            this.State.Facing=LogicalVector3.UnitF;
+            this.AddQuad(new(-20,0,-20),new(20,0,-20),new(20,0,20),new(-20,0,20));
+        }
+        public Scene AddQuad(LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,LogicalVector3 D){
+            var Id=$"mesh{this.NextId}";
+            this.World.Shapes.Add(PhysicsShapeAsset.CreateStaticTriangleMesh(Id,[A,B,C,D],[0,1,2,0,2,3]));
+            Assert.Equal(PhysicsUpdateStatus.Success,this.World.Upsert(new PhysicsBodyDescription(
+                new Entity((int)this.NextId),this.NextId,new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset=Id },null,
+                LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero)));
+            this.NextId++;
+            return this;
+        }
+        /// <summary>An axis-aligned box as six quads.</summary>
+        public Scene AddBox(float MinX,float MinY,float MinZ,float MaxX,float MaxY,float MaxZ){
+            LogicalVector3 P(float X,float Y,float Z)=>new(X,Y,Z);
+            this.AddQuad(P(MinX,MaxY,MinZ),P(MaxX,MaxY,MinZ),P(MaxX,MaxY,MaxZ),P(MinX,MaxY,MaxZ));
+            this.AddQuad(P(MinX,MinY,MinZ),P(MinX,MinY,MaxZ),P(MaxX,MinY,MaxZ),P(MaxX,MinY,MinZ));
+            this.AddQuad(P(MinX,MinY,MinZ),P(MaxX,MinY,MinZ),P(MaxX,MaxY,MinZ),P(MinX,MaxY,MinZ));
+            this.AddQuad(P(MinX,MinY,MaxZ),P(MinX,MaxY,MaxZ),P(MaxX,MaxY,MaxZ),P(MaxX,MinY,MaxZ));
+            this.AddQuad(P(MinX,MinY,MinZ),P(MinX,MaxY,MinZ),P(MinX,MaxY,MaxZ),P(MinX,MinY,MaxZ));
+            this.AddQuad(P(MaxX,MinY,MinZ),P(MaxX,MinY,MaxZ),P(MaxX,MaxY,MaxZ),P(MaxX,MaxY,MinZ));
+            return this;
+        }
+        public void Run(int Ticks,LogicalVector3 Move,bool JumpFirstTick=false,Action? AfterTick=null){
+            for(var Tick=0;Tick<Ticks;Tick++){
+                this.Input.Move=Move;
+                this.Input.Jump=JumpFirstTick&&Tick==0;
+                this.Motor.Step(Settings,ref this.Position,ref this.State,ref this.Input,DeltaSeconds);
+                AfterTick?.Invoke();
+            }
+        }
+        public float Y=>ToSingle(this.Position.U);
+        public float Z=>ToSingle(this.Position.F);
+        public float X=>ToSingle(this.Position.R);
+    }
+    private static float ToSingle(LogicalScalar Value)=>Value.TryToSingle(out var Result)?Result:float.NaN;
+    private static readonly LogicalVector3 Forward=LogicalVector3.UnitF;
+    [Fact]
+    public void FallsOntoTheFloorAndRestsAtItsHalfHeight(){
+        var Scene=new Scene();
+        Scene.Run(120,LogicalVector3.Zero);
+        Assert.Equal(CharacterMovementMode.Walking,Scene.State.Mode);
+        Assert.InRange(Scene.Y,0.899f,0.905f);
+        Assert.Equal(LogicalVector3.Zero,Scene.State.Velocity);
+    }
+    [Fact]
+    public void JumpReachesTheBallisticApex(){
+        var Scene=new Scene(StartY:0.9f);
+        Scene.Run(10,LogicalVector3.Zero);
+        var Ground=Scene.Y;
+        var Apex=Ground;
+        Scene.Run(90,LogicalVector3.Zero,JumpFirstTick:true,AfterTick:()=>Apex=MathF.Max(Apex,Scene.Y));
+        // v^2 / 2g = 5^2 / (2 * 9.80665) = 1.2747 m.
+        Assert.InRange(Apex-Ground,1.2747f-0.06f,1.2747f+0.06f);
+        Assert.Equal(CharacterMovementMode.Walking,Scene.State.Mode);
+        Assert.InRange(Scene.Y,Ground-0.005f,Ground+0.005f);
+    }
+    [Fact]
+    public void WalksAtMaxWalkSpeedAndBrakesToAStop(){
+        var Scene=new Scene(StartY:0.9f);
+        Scene.Run(120,Forward);
+        Assert.InRange(ToSingle(Scene.State.Velocity.F),5.99f,6.01f);
+        var Released=Scene.Z;
+        Scene.Run(60,LogicalVector3.Zero);
+        // Braking deceleration 20 m/s^2 without braking friction: 6^2 / (2 * 20) = 0.9 m.
+        Assert.InRange(Scene.Z-Released,0.8f,1.0f);
+        Assert.Equal(LogicalVector3.Zero,Scene.State.Velocity);
+    }
+    [Fact]
+    public void SlidesAlongAWall(){
+        var Scene=new Scene(StartY:0.9f).AddBox(1f,0f,-20f,2f,3f,20f);
+        var Diagonal=new LogicalVector3(LogicalScalar.FromSingle(0.7071068f),LogicalScalar.Zero,LogicalScalar.FromSingle(0.7071068f));
+        Scene.Run(120,Diagonal);
+        Assert.InRange(Scene.X,0.6f,0.66f);
+        Assert.True(Scene.Z>3f,$"z={Scene.Z}");
+        Assert.InRange(Scene.Y,0.899f,0.905f);
+    }
+    [Fact]
+    public void WalksUpAThirtyDegreeRampButNotAFiftyDegreeSlope(){
+        // Ramps start at z=2 and rise along +Z.
+        float Rise(float Degrees,float Run)=>MathF.Tan(Degrees*MathF.PI/180f)*Run;
+        var Ramp=new Scene(StartY:0.9f).AddQuad(new(-3,0,2),new(3,0,2),new(3,Rise(30f,6f),8),new(-3,Rise(30f,6f),8));
+        Ramp.Run(90,Forward);
+        Assert.True(Ramp.Y>1.9f,$"30 degrees: y={Ramp.Y}");
+        var Slope=new Scene(StartY:0.9f).AddQuad(new(-3,0,2),new(3,0,2),new(3,Rise(50f,6f),8),new(-3,Rise(50f,6f),8));
+        Slope.Run(90,Forward);
+        Assert.True(Slope.Y<1.05f,$"50 degrees: y={Slope.Y}");
+        Assert.True(Slope.Z<2.2f,$"50 degrees: z={Slope.Z}");
+    }
+    [Fact]
+    public void StepsOntoAFortyCentimetreStepButNotAFiftyCentimetreOne(){
+        var Low=new Scene(StartY:0.9f).AddBox(-3f,0f,2f,3f,0.4f,8f);
+        Low.Run(90,Forward);
+        Assert.InRange(Low.Y,1.29f,1.31f);
+        Assert.True(Low.Z>3f,$"z={Low.Z}");
+        var High=new Scene(StartY:0.9f).AddBox(-3f,0f,2f,3f,0.5f,8f);
+        High.Run(90,Forward);
+        Assert.InRange(High.Y,0.899f,0.905f);
+        Assert.InRange(High.Z,1.6f,1.66f);
+    }
+    [Fact]
+    public void TurnsTowardTheInputAtTheRotationRate(){
+        var Scene=new Scene(StartY:0.9f);
+        Scene.Run(1,LogicalVector3.UnitR);
+        // 500 degrees/s at 60 Hz: 8.333 degrees in one tick from +F toward +R.
+        var Degrees=MathF.Atan2(ToSingle(Scene.State.Facing.R),ToSingle(Scene.State.Facing.F))*180f/MathF.PI;
+        Assert.InRange(Degrees,8.3f,8.37f);
+        Scene.Run(10,LogicalVector3.UnitR);
+        Assert.Equal(LogicalVector3.UnitR,Scene.State.Facing);
+        var Rotation=CharacterMotor.FacingRotation(Scene.State.Facing);
+        Assert.True(Rotation.TryRotate(LogicalVector3.UnitF,out var Rotated));
+        Assert.InRange(ToSingle(Rotated.R),0.9999f,1.0001f);
+    }
+    [Fact]
+    public void RepeatedRunsAreBitIdentical(){
+        (LogicalVector3,CharacterMovementState) Play(){
+            var Scene=new Scene().AddBox(-3f,0f,2f,3f,0.4f,8f).AddBox(1f,0f,-20f,2f,3f,20f);
+            Scene.Run(40,new LogicalVector3(LogicalScalar.FromSingle(0.6f),LogicalScalar.Zero,LogicalScalar.FromSingle(0.8f)));
+            Scene.Run(30,Forward,JumpFirstTick:true);
+            Scene.Run(30,-LogicalVector3.UnitR);
+            return (Scene.Position,Scene.State);
+        }
+        Assert.Equal(Play(),Play());
+    }
+}

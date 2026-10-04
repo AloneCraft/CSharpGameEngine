@@ -16,6 +16,15 @@ public class CameraTests {
     }
 
     [Fact]
+    public void Factories_ChooseRadialDepth(){
+        // Radial depth is the engine's default (ADR-0076 addendum); standard depth is an explicit choice.
+        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,Camera.CreateDefault(Vector3.Zero).DepthMapping);
+        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,Camera.CreateFirstPerson(Vector3.Zero).DepthMapping);
+        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,Camera.CreateBoundsFit(Vector3.Zero,Vector3.One).DepthMapping);
+        Assert.Equal(CSharpGameEngine.Rendering.RadialDepthCurve.DefaultTransitionMeters,Camera.CreateDefault(Vector3.Zero).RadialTransitionMeters);
+    }
+
+    [Fact]
     public void GetForward_AtZeroYawZeroPitch_PointsAlongPositiveZ(){
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Camera.Pitch=0f;

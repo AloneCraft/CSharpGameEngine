@@ -37,6 +37,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     public SceneDesignerToolWindowControl(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.InitializeComponent();
+        this.PhysicsBakeDescriptionText.Text=VsixText.Format("PhysicsBakeDescription",PhysicsSceneBakeService.DefaultTickCount);
         this.EscapeRouter=new(this,this.HandleEscape);
         this.VsixIdentityText.Text=VsixBuildIdentity.DisplayText;
         this.VsixIdentityText.ToolTip=VsixBuildIdentity.ToolTipText;
@@ -47,6 +48,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         // ビューポート内をクリックしたときだけ(OnViewportActivated)フォーカスを与える。
         this.RenderHostGrid.Focusable=true;
         KeyboardNavigation.SetIsTabStop(this.RenderHostGrid,false);
+        // The viewport takes no text. With an IME open (a Japanese one left on for code comments), WPF delivers the keys
+        // it processes as Key.ImeProcessed, so WASDQE, F and N would not reach the viewport; it has no input method.
+        InputMethod.SetIsInputMethodEnabled(this.RenderHostGrid,false);
         this.Loaded+=this.OnLoaded;
         this.RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
         this.RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
@@ -92,8 +96,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// <summary>
     /// M0047: <see cref="SceneEditorSessionService.TryUndo"/>はDocumentを同期で戻し、その場で
     /// 正しい状態を配信する(<see cref="SceneEditorSessionService.PinnedSnapshotChanged"/>)ため、
-    /// M0036由来の先読みプレビュー(<c>Host.TryFastUndo</c>)はもう不要 — 正本の配信自体が
-    /// 既に即時なので、先読みを重ねると構造編集で古いTransformプレビューを誤って被せかねない。
+    /// 表示だけを先に戻す先読みは持たない。
     /// </summary>
     internal bool TryUndoFromCommand(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -133,14 +136,17 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// <summary>M0045: <see cref="SceneHwndHost.UndoRequested"/>の購読先。</summary>
     private void OnUndoKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.TryUndoFromCommand();
+        if(this.OwnsKeyboard){ this.TryUndoFromCommand(); }
     }
 
     /// <summary>M0045: <see cref="SceneHwndHost.RedoRequested"/>の購読先。</summary>
     private void OnRedoKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.TryRedoFromCommand();
+        if(this.OwnsKeyboard){ this.TryRedoFromCommand(); }
     }
+
+    /// <summary>M0095 1-2: of all open scene tabs, only the one showing the pinned scene acts on a key press.</summary>
+    private bool OwnsKeyboard=>SceneDesignerUndoCommandPolicy.IsKeyboardOwner(this.FixedSceneKey,this.Session?.PinnedSceneKey);
 
     /// <summary>
     /// M0047: <see cref="SceneHwndHost.SaveRequested"/>の購読先。Documentのセッション全履歴を
@@ -148,7 +154,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// </summary>
     private void OnSaveKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Session is not { }Session||Session.PinnedSceneKey is not { }Key){
+        if(!this.OwnsKeyboard||this.Session is not { }Session||Session.PinnedSceneKey is not { }Key){
             return;
         }
 
@@ -186,6 +192,18 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         });
     }
 
+    /// <summary>
+    /// ADR-0071: a Scene Editor tab shows only its own file's scene. The session pins one scene at a
+    /// time, so a tab ignores the pins and selections of other scenes (another tab brought to front).
+    /// </summary>
+    internal SceneKey?FixedSceneKey { get;set;}
+
+    /// <summary>A Scene Editor tab has one scene per file and hides the scene switcher.</summary>
+    internal bool ShowsSceneSelector {
+        get=>this.SceneSelector.Visibility==Visibility.Visible;
+        set=>this.SceneSelector.Visibility=value?Visibility.Visible:Visibility.Collapsed;
+    }
+
     internal void SetSession(SceneEditorSessionService Session){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||ReferenceEquals(this.Session,Session)){
@@ -198,7 +216,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Session.Selection.SelectionChanged+=this.OnSelectionChanged;
         Session.ActiveDocumentModelsChanged+=this.OnActiveDocumentModelsChanged;
 
-        if(Session.PinnedSnapshot is { } Snapshot){
+        if(Session.PinnedSnapshot is { } Snapshot&&SceneDesignerTargetFilter.Accepts(this.FixedSceneKey,Snapshot.Key)){
             this.ShowSnapshot(Snapshot);
         } else {
             this.ShowEmpty(VsixText.Get("SceneSelectPrompt"));
@@ -214,7 +232,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.ShowSnapshot(Snapshot);
 
         // SetSessionは同一セッションだと早期returnするため、Designerが既に開いている状態で
-        // コンテキストメニュー(OpenSceneDesignerCommand)から開くとカタログ再取得が走らず、
+        // 別の経路(ツールバーのOpenSceneDesignerCommand等)から開くとカタログ再取得が走らず、
         // SceneSelectorが表示中のシーンと食い違ったままになる(空欄のまま、あるいは直前に
         // 選んだ別シーンのまま)。Pinは呼び出し側で既に済んでいるのでここで選択を合わせ、
         // カタログが未取得のときだけ取得し直して完了時に反映させる。
@@ -232,9 +250,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private void OnPinnedSnapshotChanged(SceneDocumentSnapshot?Snapshot){
         this.DispatchToUi(()=>{
             ThreadHelper.ThrowIfNotOnUIThread();
+            if(this.FixedSceneKey is not null&&!SceneDesignerTargetFilter.Accepts(this.FixedSceneKey,Snapshot?.Key)){
+                return;
+            }
             if(Snapshot is null){
                 this.CancelSceneSelectionRequest();
-                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
+                this.ShowEmpty(VsixText.Get("SceneDesigner_NoScene"));
             } else {
                 this.ShowSnapshot(Snapshot);
                 this.TryRestoreDuplicateSelection(Snapshot);
@@ -251,7 +272,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnSelectionChanged(SceneSelection Selection){
         this.DispatchToUi(()=>{
-            if(this.Session?.PinnedSnapshot is { } Snapshot&&Snapshot.Key.Equals(Selection.Key)){
+            if(this.Session?.PinnedSnapshot is { } Snapshot&&Snapshot.Key.Equals(Selection.Key)
+                &&SceneDesignerTargetFilter.Accepts(this.FixedSceneKey,Snapshot.Key)){
                 this.Host?.SetSelection(Snapshot,Selection);
             }
         });
@@ -325,7 +347,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         this.Host=null;
-        this.ClearRuntimeDebugPresentation();
         this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.SpatialDebugStatusChanged-=this.OnSpatialDebugStatusChanged;
@@ -604,35 +625,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Tree:this.PhysicsTreeToggle.IsChecked==true,
             Bonds:this.PhysicsBondsToggle.IsChecked==true));
     }
-    private void OnPhysicsSimulate(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("simulate"); }
-    private void OnPhysicsPause(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("pause"); }
-    private void OnPhysicsStep(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("step"); }
-    private void OnPhysicsReset(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("reset"); }
     private void OnPhysicsBakeSelected(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.StartPhysicsBake(BakeAll:false);
-    }
-    private void OnRuntimeDebugRefresh(object Sender,RoutedEventArgs Args){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Host is not { }Host){
-            this.ClearRuntimeDebugPresentation();
-            return;
-        }
-        try {
-            RuntimeDebugSnapshotPresentation Presentation=
-                RuntimeDebugSnapshotPresentation.Create(
-                    Host.CaptureRuntimeDebugSnapshot());
-            this.RuntimeDebugSummaryText.Text=Presentation.Summary;
-            this.RuntimeDebugRows.ItemsSource=Presentation.Rows;
-        } catch(Exception Error){
-            this.RuntimeDebugRows.ItemsSource=null;
-            this.RuntimeDebugSummaryText.Text=
-                VsixText.Format("RuntimeDebugFailed",Error.Message);
-        }
-    }
-    private void ClearRuntimeDebugPresentation(){
-        this.RuntimeDebugRows.ItemsSource=null;
-        this.RuntimeDebugSummaryText.Text=VsixText.Get("RuntimeDebugNoSnapshot");
     }
     private void OnPhysicsBakeAll(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -655,8 +650,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ?Source.ToArray()
             :this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry Selected?[Selected]:[];
         if(Entries.Length==0){ this.StatusText.Text=VsixText.Get("PhysicsBakeNoScene");return; }
-        string?RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null){ this.StatusText.Text=VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName);return; }
+        // The exact Bake Host is built from the engine sources (ADR-0065): SourceMode projects only.
+        string?RepoRoot=CgeProjectContext.Resolve(Entries[0].FilePath)?.EngineRoot;
+        if(RepoRoot is null){ this.StatusText.Text=VsixText.Get("PhysicsBake_RequiresEngineSource");return; }
         this.PhysicsBakeCancellation?.Dispose();
         CancellationTokenSource Cancellation=new();
         this.PhysicsBakeCancellation=Cancellation;

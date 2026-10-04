@@ -1,0 +1,77 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CSharpGameEngine.FeatureStages.Deformable",
+  "className": "DeformableReferenceScene",
+  "root": {
+    "id": "d9ba15a8-f664-5464-8444-a1a071a202cb",
+    "name": "Deformable_Root",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 4,
+          "Case": 1
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "f05be040-7527-55d4-910d-3615a2c5d8c2",
+        "name": "Cloth",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 4,
+              "X": -3,
+              "Y": 2,
+              "ScaleX": 3,
+              "ScaleY": 0.1,
+              "ScaleZ": 3,
+              "Color": 4289415100
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8ed52c14-9ddd-5f89-8c1b-16526cf14468",
+        "name": "Rope",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 5,
+              "Y": 3,
+              "ScaleX": 0.15,
+              "ScaleY": 5,
+              "ScaleZ": 0.15,
+              "Color": 4294930499
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "aba18ad2-1fbd-5bf5-a7e8-16f0e3a73a11",
+        "name": "SoftBody",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 3,
+              "Y": 1.5,
+              "ScaleX": 2,
+              "ScaleY": 2,
+              "ScaleZ": 2,
+              "Color": 4280723098
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

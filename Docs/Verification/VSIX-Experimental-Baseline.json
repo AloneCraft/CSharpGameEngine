@@ -56,14 +56,6 @@
       "evidencePath": "../../.artifacts/VsixObservations/20260902T012400596Z-05a8d05462244436bc06f8b73a3f661c/startup-layout.json",
       "observedUtc": "2026-09-02T01:24:00.5968282+00:00",
       "expiresUtc": "2026-09-09T01:24:00.5968282+00:00"
-    },
-    {
-      "id": "preview-render-audio",
-      "owner": "editor-maintainer",
-      "status": "Passed",
-      "evidencePath": "../../.artifacts/VsixObservations/20260902T011258625Z-41daca5aa95c4c988117345e60fe703b/preview-render-audio.json",
-      "observedUtc": "2026-09-02T01:12:58.625933\u002B00:00",
-      "expiresUtc": "2026-09-09T01:12:58.625933\u002B00:00"
     }
   ]
 }

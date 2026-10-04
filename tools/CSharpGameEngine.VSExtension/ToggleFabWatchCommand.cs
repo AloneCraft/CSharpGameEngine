@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu/toolbar command that starts or stops <see cref="FabDownloadWatcher"/> (ADR-0011).
+/// Extensions > C# Game Engine menu/toolbar command that starts or stops <see cref="FabDownloadWatcher"/> (ADR-0011).
 /// Purely a local convenience: it copies files the user already downloaded via their own browser
 /// session on fab.com into <c>UserEcsProject/Assets/Fab/</c>. It never touches fab.com itself -
 /// see <see cref="OpenFabCommand"/> for that.
@@ -17,7 +17,7 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
     public const int CommandId=0x0102;
     public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private const string DestinationRelativePath=@"UserEcsProject\Assets\Fab";
+    private const string DestinationRelativePath="Fab";
 
     private readonly AsyncPackage Package;
     private readonly OleMenuCommand Command;
@@ -58,9 +58,9 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
             return;
         }
 
-        var RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null){
-            this.ShowMessage(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName),OLEMSGICON.OLEMSGICON_WARNING);
+        var Context=CgeProjectContext.Resolve();
+        if(Context is null){
+            this.ShowMessage(VsixText.Get("Common_GameProjectNotFound"),OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
@@ -73,7 +73,7 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
             return;
         }
 
-        var Destination=Path.Combine(RepoRoot,DestinationRelativePath);
+        var Destination=Path.Combine(Context.AssetsDirectory,DestinationRelativePath);
 
         this.Watcher?.Dispose();
         this.Watcher=new FabDownloadWatcher(DownloadsFolder,Destination, this.OnFileCopied, this.OnWatchError);

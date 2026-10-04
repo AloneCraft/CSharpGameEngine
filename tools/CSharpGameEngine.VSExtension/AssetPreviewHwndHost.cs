@@ -61,9 +61,9 @@ internal sealed class AssetPreviewHwndHost(string ModelPath) : HwndHost {
             VsixText.Get("AssetPreview_Loading")));
 
         try {
-            this.RepoRoot??=RepoLocator.ResolveRepoRoot();
+            this.RepoRoot??=CgeProjectContext.Resolve(this.ModelPath)?.WorkspaceRoot;
             if(this.RepoRoot is null){
-                throw new InvalidOperationException(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
+                throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
             }
 
             var Mesh=MeshLoader.Load(this.ModelPath, this.RepoRoot);

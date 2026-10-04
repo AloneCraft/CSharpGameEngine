@@ -1,7 +1,7 @@
 using CSharpGameEngine.FeatureStages;
 string RepositoryRoot;
 try {
-    RepositoryRoot=FeatureStageRepositoryLocator.Find();
+    RepositoryRoot=FeatureRunnerApplication.ResultsRepositoryRoot(args);
 } catch(Exception Ex){
     Console.Error.WriteLine(Ex.Message);
     return 2;

@@ -1,7 +1,8 @@
 # Scene Editor詳細設計(インタラクション基盤)
 
 本書は`Docs/シーンエディタの仕様.md`(要求仕様)を現行アーキテクチャへ写像したクラスレベルの
-詳細設計である。**全節の内容は計画済み(未実装)**。意思決定の根拠は
+詳細設計である。M0020 の Phase 0〜7(2026-08-16 完了)で実装した。M0020 が「意図的に除外したこと」に
+挙げた項目は本書の範囲外である。意思決定の根拠は
 [[ADR-0041-Scene-Editor-Interaction-Architecture]]、実装フェーズと完了条件は
 [[M0020-Scene-Editor-Interaction]]、既存基盤の決定は
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]を参照。実装が本書と食い違った場合は
@@ -109,18 +110,22 @@ aspect≥1では実効FOV=FovYとなり、横長・正方形の距離はPhase 0�
 
 | 概念操作 | 計算 |
 |---|---|
-| `Look`(RMB+Mouse) | 既定: `Yaw += Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch += Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。**反転がOFFの間はピクセル完全一致(下記)を使い、この式は反転ON時のみ使う** |
+| `Look`(RMB+Mouse、Alt+RMBも同じ) | 基準(反転スイッチOFF): 右ドラッグで`Yaw`が減り、下ドラッグで`Pitch`が下がる(水平は2026-10-01にユーザー確認、垂直はM0096でユーザーの依頼により、それまでチェックを入れたときの向きを既定にした)。`Yaw -= Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch -= Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。`InvertLookX=ON`かつ`InvertLookY=ON`のとき(右ドラッグでYaw増・下ドラッグでPitch増)はピクセル完全一致(下記)を使う |
 | `Fly`(RMB+WASDQE) | `位置 += (前後A/D左右Q/E上下の合成方向) * 速度 * Δt`。速度 = 基準 × `NavigationSpeedMultiplier` × (Shift: ×4 / Ctrl: ×0.25) |
 | `Pan`(MMB Drag) | 視線を変えずカメラの右・上ベクトル方向へ`FocusPosition`と視点を平行移動。移動量はNavigationScale比例 |
-| `Orbit`(Alt+LMB) | 既定: `Yaw`/`Pitch`を回し、視点位置を導出式で再計算(`FocusPosition`固定)。反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。Orbitは常にドラッグ量ベースで更新し、クリック位置のピクセル固定は行わない。 |
+| `Orbit`(Alt+LMB) | `Yaw`/`Pitch`を回す。選択があればドラッグ開始時の選択中心(Focus Selectionと同じメッシュ境界の中心、メッシュが無ければギズモのピボット)を回転中心にし、その点のカメラ座標が変わらないよう視点を移す — 選択中心は画面上の同じ位置・同じ距離に留まり、そこにある真球は描画が変わらない(M0095、2026-10-01ユーザー要望)。選択が無ければ`FocusPosition`固定で旋回する。旋回中は選択のギズモを隠し、終われば戻す(Altを押しただけでは隠さないので、§6.2のAlt+ハンドルのDuplicateは使える)。基準はLookと同じ向きで、反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。Orbitは常にドラッグ量ベースで更新し、クリック位置のピクセル固定は行わない。 |
 
-**ピクセル完全一致ドラッグ**(2026-08追加): RMBでクリックした点(方向)が、反転設定OFFの
-間はドラッグ中カーソル先端に一致し続ける。Alt+LMB Orbitには適用しない。
+ビューポートは文字を受け付けないので入力メソッドを持たない(`InputMethod.IsInputMethodEnabled=false`、
+2026-10-04)。IME がオンのままだと WPF は IME が処理したキーを`Key.ImeProcessed`として届けるため、
+WASDQE・F・N が効かなくなる。
+
+**ピクセル完全一致ドラッグ**(2026-08追加): RMBでクリックした点(方向)が、Lookの向きが
+「右ドラッグでYaw増・下ドラッグでPitch増」(`InvertLookX=ON`、`InvertLookY=ON`)の間は
+ドラッグ中カーソル先端に一致し続ける。Alt+LMB Orbitには適用しない。
 - Look: Eyeが回転中固定なので、クリック時の方向だけから`atan2`/`acos`のみで厳密な閉形式が
   導ける(`SceneViewCamera.SolveLookOrientation`)。
 - Orbit: ピクセル固定は行わず、マウスのフレーム差分をそのままYaw/Pitchへ適用する。
-- 反転がONの間はどちらも上表の`delta*sensitivity`式のまま(反転しながらの完全一致は定義上
-  不可能)。
+- それ以外の向きでは上表の`delta*sensitivity`式のまま(向きが逆の完全一致は定義上不可能)。
 | `Dolly`(Wheel、透視) | `FocusDistance *= pow(0.9, ホイールノッチ)`(下限クランプ) |
 | `Zoom`(Wheel、平行) | `OrthographicSize *= pow(0.9, ホイールノッチ)` |
 | `AdjustNavigationSpeed`(RMB+Wheel) | `NavigationSpeedMultiplier *= pow(1.2, ノッチ)`(上下限クランプ) |
@@ -291,9 +296,13 @@ CompoundGizmo(選択ノードごとに構成を決定)
 
 ### 6.3 ハンドルヒット判定
 
-解析形状で行う(§5参照): 軸=有限円柱(半径はスクリーン一定サイズから逆算)、リング=トーラス
-近似(レイ・平面交差+半径帯)、平面クアッド=矩形交差。ヒットしたハンドルが拘束
-(軸/平面/リング面)を決める。
+解析形状で行う(§5参照): 軸=カプセル(軸の線分からの距離、端は半球。半径はスクリーン一定サイズから逆算)、
+リング=トーラス近似(レイ・平面交差+半径帯)、平面クアッド=矩形交差。ヒットしたハンドルが拘束
+(軸/平面/リング面)を決める。レイと線分の距離は最近点の厳密解で求める(クランプの後に解き直す)。
+
+不変条件(M0098 B): 見えているハンドルは掴める。Moveの矢印は、描く形(シャフトとコーン)を判定の
+カプセルに収め(コーンの底は判定半径で描く)、`GizmoVisibleHitConsistencyTests`が画素ラスターと全方位のレイで
+確かめる。Scaleの端の立方体の角はまだ判定の外にある(既知の差)。
 
 ### 6.4 ドラッグ解決(拘束ソルバ)
 
@@ -436,15 +445,19 @@ enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Tr
 | `ProjectionMode` | string | `Perspective` |
 | `NavigationPreset` | string | `Default` |
 | `NavigationSpeedMultiplier` | float(文字列格納) | `1.0` |
-| `InvertLookX` / `InvertLookY` | bool | `true` |
-| `InvertOrbitX` / `InvertOrbitY` | bool | `true`(Lookと独立) |
+| `InvertLookX` / `InvertLookY` | bool | `false`(基準に対する反転) |
+| `InvertOrbitX` / `InvertOrbitY` | bool | `false`(基準に対する反転、Lookと独立) |
 
 `InvertLookX`/`InvertLookY`/`InvertOrbitX`/`InvertOrbitY`/`NavigationSpeedMultiplier`の5項目は
-Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追加、
+拡張機能 > C# Game Engine > オプション...(2026-10-01追加)、または Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追加、
 `SceneEditorOptionsPage`)。残る4項目は現在状態(ツールバー相当)またはプリセット未実装のため
 非公開。
 
-ナビゲーション反転の既定変更時は、VS user settingsの移行バージョンを確認し、未移行プロファイルの4軸を一度だけ`true`へ更新する。移行後にユーザーがOptionsで変更した値は保持する。
+ナビゲーション反転の基準を変えたときは、VS user settingsの移行バージョン(`NavigationSettingsMigrationVersion`)を上げ、既存プロファイルを一度だけ変換する。
+- 版1: 未移行プロファイルの4軸を旧既定(`true`)へ揃えた。
+- 版2(2026-10-01): 基準を「旧既定の水平・Orbit」と「旧既定の逆の垂直Look」へ移し、スイッチの既定をOFFにした。未移行プロファイルは既定(OFF)を書く。版1のプロファイルは4値を反転する。水平とOrbitは式の基準も反転したので見た目の向きが保たれ、垂直Lookは式が同じなのでユーザーの依頼どおり実際の向きが一度だけ反転する。
+- 版3(M0096): Look・Orbitの垂直の基準を反転した(それまでチェックを入れたときの向きが既定)。値は基準に対する反転のまま変換しないので、チェックの無いプロファイルは新しい既定の向きに、チェックを入れていたプロファイルはそれまでの既定の向きになる。
+- 移行後にユーザーがOptionsで変更した値は保持する。
 
 保存はツールウィンドウ非表示時と値変更時(デバウンス)。カメラ姿勢・`FocusPosition`・選択・
 ギズモ表示はセッション内のみ。**`SceneDeclaration`へSceneView状態を書くことは構造的に不可能**
@@ -460,9 +473,11 @@ Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追�
 
 ダブルクリックまたはEnterだけがprimaryの明示移動要求を発行する。Running Document Tableで対象文書が既に開いていることを確認できた場合に限り、そのテキストビューを前面化し、`SceneNode.Location.Span.Start`（通常は`new`の先頭）へキャレットを置く。未表示文書、消滅ノード、テキストビュー取得失敗では何もしない。
 
-## 10.2 ソリューションエクスプローラー起点の表示
+## 10.2 シーンを開く経路
 
-ソリューションエクスプローラーの`シーン デザイナーで開く`は、右クリック対象の`IScene`を即時解析してPinする。対象C#文書を開いたりアクティブ化したりしない。SceneSelectorのカタログは、アクティブ文書ではなくPin済み`SceneKey.ProjectId`を優先して取得する。
+コードエディタとソリューションエクスプローラーの右クリックメニューには、シーン用の項目を置かない（2026-10-01、ADR-0071）。パッケージが読み込まれる前は、VSが`.vsct`の既定値のまま右クリック項目を表示するため、以前は.csファイルにも「シーン デザイナーで開く」と「Scene」の行が並んでいた。
+
+シーン JSON（プロジェクトの`Scenes\**\*.json`、ADR-0070）はダブルクリックでシーン エディター（`SceneJsonEditorFactory`）に開く。タブの下の「デザイン / JSON」で表示を切り替える（XAMLエディターと同じ）。どちらの表示も同じJSONテキストバッファーを見るので、保存・`*`・Undo は VS のもの。タブが前面に来るとそのシーンをPinし、各タブのデザイナーは自分のシーンだけを表示する。ツールバーの`シーン デザイナーで開く`は、アクティブな`*.scene.json`をこのエディターのデザイン表示で開く。SceneSelectorのカタログは、アクティブ文書ではなくPin済み`SceneKey.ProjectId`を優先して取得する。
 
 カタログは補助UIであるため、取得不能・失敗時に表示済みのPin/`SceneHwndHost`を空状態へ戻してはならない。Sceneの再解析でRootが消失または解析エラーになった場合だけ、既存の空状態遷移を行う。
 
@@ -578,4 +593,7 @@ Scene View、Hierarchy、Inspector、Component Palette、Options、ダイアロ�
 
 Physicsの操作とデバッグ表示設定はScene Viewヘッダーから分離し、ビューポート右端の専用サイドバーへ配置する。既定は閉じた状態で、閉じているときは幅24 DIPの`<`タブだけを表示する。タブをクリックすると幅280 DIPのパネルを開き、パネル見出し右側の`>`で閉じる。パネルはネイティブ`HwndHost`の上へ重ねず、右列としてレイアウトするため、開閉時はビューポート幅も更新する。
 
-Scene Viewのビューポートがキーボードフォーカスを持つとき、`N`で同じ開閉操作を行う。`N`はVisual Studio全体のコマンドには登録せず、Scene Viewの入力処理だけで消費する。パネルの開閉状態は`SceneEditorSettings.ShowPhysicsPanel`へ保存し、未保存・不正値は閉じた状態へフォールバックする。`Simulate`、`Pause`、`Step`、`Reset`、Bake（Deferred）、Collider/AABB、Velocity、Sleep、Center of Massの既存処理とPhysics/Runtime・Editor Previewのデータ経路は変更しない。
+Scene Viewのビューポートがキーボードフォーカスを持つとき、`N`で同じ開閉操作を行う。`N`はVisual Studio全体のコマンドには登録せず、Scene Viewの入力処理だけで消費する。パネルの開閉状態は`SceneEditorSettings.ShowPhysicsPanel`へ保存し、未保存・不正値は閉じた状態へフォールバックする。パネルは2つの区画からなる(M0097)。
+- **物理のデバッグ表示**: 親のチェックと1行の説明、その下に字下げした7項目(当たり判定の範囲、速度、スリープ中の物体、重心、接触点と法線、当たり判定の分割木、破砕のつながり)。7項目は親のチェックが外れている間は無効(グレー)で、それぞれツールチップで何を描くかを説明する。ゲームの実行中はそのゲームの物理を、それ以外は編集用ワールドの物体を置いた位置で描く。編集用ワールドは時間を進めない。
+- **Bake(物理の事前計算)**: 何をするか(既定600ティックを記録し、ゲームが再生できる)と出力先(`Assets/Physics/Bakes`)の説明、選択中のシーン/全シーンのBake、進捗・キャンセル・成果物の一覧。
+- シミュレートの操作(Simulate/Pause/Step/Reset)とランタイム診断はM0097で削除した。診断にはVisual Studioのデバッガーとプロファイラーを使う(拡張機能メニューとツールバーの「診断ツール」)。

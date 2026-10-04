@@ -41,6 +41,23 @@ Focus loss, pointer capture release, window destruction, and hotplug force relea
 ## Input contract
 
 Action maps declare context priority, chord predicates, normalization, dead zones, and rebind policy. Rebind validates collision and reserved actions before it becomes active. A context transition emits releases for controls no longer valid; it cannot leave stale pressed state in gameplay. Diagnostics include timestamp, window/device/action IDs, context, raw value, transformed value, and release reason.
+### Value reads and modifiers (ADR-0067)
+
+Gameplay reads an action's current value with `InputServer.ReadValue`. The highest-priority active context that binds the action answers, and the value is the sum of all its bindings. This is how Unreal's Enhanced Input combines W/A/S/D into one 2D move.
+
+A binding transforms its raw value in a fixed order. The dead zone and scale apply first. The ordered `InputModifier` list follows: `InputNegateModifier` per axis, and `InputSwizzleModifier` for Unreal's YXZ swizzle.
+
+Relative controls are `RelativeAxis1D` and `RelativeAxis2D`: raw mouse movement and the wheel. They hold no state. The events of one `ProcessEvents` call are accumulated, and the sum is readable until the next call.
+
+Keyboard, mouse, and gamepad controls use Unreal key names (for example `SpaceBar`, `Gamepad_Left2D`, and `Gamepad_FaceButton_Bottom`), so imported mappings bind without translation. Raw mouse movement is `Delta`, which corresponds to Unreal's `Mouse2D`.
+
+XInput pad 0 is polled once per `DrainInputEvents()`. It emits button, stick, and trigger changes, plus Connected and Disconnected events; a disconnect releases every held control.
+
+Mouse-look capture hides and clips the cursor only while the window owns focus. `ClipCursor` is system-wide, so a background or hidden window applies the capture when it receives focus.
+
+The game window takes no text input, so it has no input method context: an open IME (a Japanese one in hiragana mode) would turn the keys it processes into `VK_PROCESSKEY`, and movement keys would not reach the game. The window removes its input context association when it is created.
+
+Automation input (`CGE_AUTOMATION_INPUT`, e.g. `W@20-40;SpaceBar@50-51`) presses keys by presented frame through the same adapter path as the window procedure.
 
 ## Audio contract and recovery
 
@@ -58,7 +75,6 @@ When a target feature lands, it replaces the affected native facade, input abstr
 
 Headless contract tests use the silent backend and WARP where graphics diagnostics are involved. Windows x64 Debug/Release are mandatory; actual audio hardware, GPU hardware, and Experimental Instance are supplemental evidence. Performance stores five warm-ups plus thirty samples, median/p95/MAD, backend mode, buffer configuration, and machine fingerprint.
 
-One explicitly requested diagnostic capture records the process monotonic counter and frequency, OS/runtime/process architecture, process ID, Input server state and at most 64 current action values, plus Audio device/backend generation, mixer counts, recovery counts, failure, and typed availability. Each subsystem copies its own current truth. The isolated Render Preview Host does not own runtime Input or Audio and must report `NotOwned` with zero owned counters. The existing Scene Designer Runtime Diagnostics view may project this envelope but cannot poll, retain a service, expose a native handle, synthesize elapsed timing, or turn `Unavailable`/`Faulted` into success. Host and client both validate bounds; malformed or generation/fence-inconsistent data fails closed.
 
 ## Stage oracle matrix
 
@@ -70,7 +86,6 @@ One explicitly requested diagnostic capture records the process monotonic counte
 | F-L4-010 | 3 | `input.actions` | Headless / Foundation | 900s | Deterministic actions for contexts/chords/rebind. |
 | F-L4-011 | 3 | `audio.mixer` | Headless / Foundation | 900s | Offline PCM mixer/voice/underrun oracle. |
 | F-L4-012 | 4 | `audio.spatial` | Headless / Foundation | 900s | Spatial/stream/device recovery policy. |
-| F-L8-030 | 5 | `vsix.platform-debug` | Headless / VSIX | 1800s | Read-only diagnostics snapshots. |
 | F-L7-034 | 6 | `platform.compatibility` | Headless / Foundation | 3600s | Required Windows cells separate optional hardware. |
 | F-L7-035 | 7 | `platform.release` | Headless / Foundation | 7200s | Scoped platform provenance and closure. |
 

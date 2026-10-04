@@ -222,9 +222,10 @@ public sealed unsafe class GraphicsDevice:IDisposable {
             _=Adapter->Release();
         }
 
+        // A game reads the adapter from the environment only; --warp is the viewer's and the triangle sample's option.
         throw new InvalidOperationException(
             $"No hardware adapter supporting Direct3D 12 (feature level {RequiredFeatureLevel}) was found. " +
-            "Pass --warp to explicitly use the WARP software adapter instead.");
+            $"Set {GraphicsDeviceOptionsResolver.AdapterEnvironmentVariable}=warp (or pass --warp to the viewer) to use the WARP software adapter instead.");
     }
 
     private static string ReadAdapterDescription(IDXGIAdapter1*Adapter){

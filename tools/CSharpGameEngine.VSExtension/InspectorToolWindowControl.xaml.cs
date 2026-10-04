@@ -735,7 +735,9 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
         SceneInspectorMember Member=ViewModel.Member;
         string?NewExpression=Member.EditorKind switch {
-            InspectorEditorKind.Number when Member.NumericType is { }Type
+            InspectorEditorKind.Number when Member.AngleUnit is { }Unit&&Member.NumericType is { }AngleType
+                &&SceneInspectorValueFormat.TryFormatAngle(AngleType,Text,Unit,out string AngleExpression)=>AngleExpression,
+            InspectorEditorKind.Number when Member.AngleUnit is null&&Member.NumericType is { }Type
                 &&SceneInspectorValueFormat.TryFormatNumber(Type,Text,out string Formatted)=>Formatted,
             InspectorEditorKind.PhysicalValue when Member.PhysicalContract?.TryFormatInput(Text,out string PhysicalExpression)==true=>PhysicalExpression,
             InspectorEditorKind.Text=>SceneInspectorValueFormat.FormatText(Text),

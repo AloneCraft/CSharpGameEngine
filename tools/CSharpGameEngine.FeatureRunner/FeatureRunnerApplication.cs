@@ -30,6 +30,8 @@ public sealed class FeatureRunnerApplication {
                 "verify-performance-framework"=>await this.RunVerifyPerformanceFrameworkAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-rendering-performance"=>await this.RunVerifyRenderingPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-rendering-release"=>await this.RunVerifyRenderingReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-thirdperson-character"=>await this.RunVerifyThirdPersonCharacterAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-template-package"=>await this.RunVerifyTemplatePackageAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-content-performance"=>await this.RunVerifyContentPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-ecs-performance"=>await this.RunVerifyEcsPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-ecs-release"=>await this.RunVerifyEcsReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
@@ -188,6 +190,49 @@ public sealed class FeatureRunnerApplication {
         }
         return RenderingReleaseEvidence.RunAsync(
             RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyTemplatePackageAsync(string[]Args,CancellationToken CancellationToken){
+        var (RepositoryRoot,Configuration,Adapter)=ParseTemplateRunArguments(Args);
+        return TemplatePackageVerification.RunAsync(RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken);
+    }
+    private static (string RepositoryRoot,string Configuration,string Adapter)ParseTemplateRunArguments(string[]Args){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        string Adapter="warp";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                case "--adapter" when Value is "warp" or "hardware": Adapter=Value;break;
+                case "--adapter": throw new ArgumentException("Adapter must be warp or hardware.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return (RepositoryRoot,Configuration,Adapter);
+    }
+    private Task<int>RunVerifyThirdPersonCharacterAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        string Adapter="warp";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                case "--adapter" when Value is "warp" or "hardware": Adapter=Value;break;
+                case "--adapter": throw new ArgumentException("Adapter must be warp or hardware.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return ThirdPersonCharacterVerification.RunAsync(
+            RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken);
     }
     private Task<int>RunVerifyContentReleaseAsync(string[]Args,CancellationToken CancellationToken){
         string RepositoryRoot=FeatureStageRepositoryLocator.Find();
@@ -574,6 +619,19 @@ public sealed class FeatureRunnerApplication {
         if(Results.All(static Result=>Result.Status is FeatureStageRunStatus.Passed or FeatureStageRunStatus.NotImplemented)){ return 3; }
         return 1;
     }
+    /// <summary>
+    /// The repository whose <c>.artifacts/FeatureStages</c> keeps a command's results: the one <c>--repository-root</c>
+    /// names, where the stages run and where release evidence looks for their results; otherwise the one around the
+    /// current directory.
+    /// </summary>
+    public static string ResultsRepositoryRoot(IReadOnlyList<string>Args){
+        for(var Index=1;Index+1<Args.Count;Index++){
+            if(Args[Index].Equals("--repository-root",StringComparison.OrdinalIgnoreCase)){
+                return FeatureStageRepositoryLocator.Find(Args[Index+1]);
+            }
+        }
+        return FeatureStageRepositoryLocator.Find();
+    }
     private static ParsedExecutionOptions ParseOptions(string[]Args,int StartIndex,string DefaultProfile){
         var RepositoryRoot=FeatureStageRepositoryLocator.Find();
         var Configuration="Debug";
@@ -679,6 +737,8 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("  verify-performance-framework [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-rendering-performance [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-rendering-release [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-thirdperson-character [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
+        this.Output.WriteLine("  verify-template-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-content-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-release [--repository-root <path>] [--configuration Debug|Release]");

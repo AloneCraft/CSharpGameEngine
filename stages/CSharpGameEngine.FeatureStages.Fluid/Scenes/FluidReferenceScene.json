@@ -1,0 +1,70 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CSharpGameEngine.FeatureStages.Fluid",
+  "className": "FluidReferenceScene",
+  "root": {
+    "id": "056dbb58-99a9-567c-a29a-2480e12aeb26",
+    "name": "Fluid_Tank",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 5,
+          "Case": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageVisual",
+        "members": {
+          "Primitive": 1,
+          "Y": 1,
+          "ScaleX": 8,
+          "ScaleY": 3,
+          "ScaleZ": 5,
+          "Color": 809674229
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "141703ae-95f3-5379-9ab0-2224b88a2d5a",
+        "name": "ParticleEmitter",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": -2,
+              "Y": 4,
+              "ScaleX": 0.5,
+              "ScaleY": 0.5,
+              "ScaleZ": 0.5,
+              "Color": 4280923894
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "aa4fd63f-dce5-53ae-8568-6a91f3163bc8",
+        "name": "GridVolume",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "X": 1,
+              "Y": 1.5,
+              "ScaleX": 4,
+              "ScaleY": 2.5,
+              "ScaleZ": 3,
+              "Color": 1079798720
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

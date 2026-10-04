@@ -53,6 +53,9 @@ internal sealed class SceneValueReader(
                 return this.Create(SceneValueKind.Default,Expression,ResolvedType,ConstantValue:null,ReferencedSymbol:null,"default");
 
             // 3) リテラル。トークンテキストをそのまま出して接尾辞(1.5f)・基数(0x1F)・区切り(1_000)を保存する。
+            //    参照型への null は null! で出す。生成ファイルは #nullable enable なので、null 許容でない参照型への null は
+            //    CS8625 の警告になる(警告をエラーにするプロジェクトではビルドが止まる)。この式は null 許容の文脈の外で
+            //    読まれ、宣言の注釈が見えないので、参照型には常に付ける(string? にも無害)。値は同じ null。
             case LiteralExpressionSyntax Literal:
                 return this.Create(
                     SceneValueKind.Literal,
@@ -60,7 +63,23 @@ internal sealed class SceneValueReader(
                     ResolvedType,
                     this.SemanticModel.GetConstantValue(Expression,this.CancellationToken).Value,
                     ReferencedSymbol:null,
-                    Literal.Token.Text);
+                    Literal.IsKind(SyntaxKind.NullLiteralExpression)&&ResolvedType is { IsReferenceType:true }?"null!":Literal.Token.Text);
+
+            // 3b) null!。シーン JSON は参照型の null をこう書く(上と同じ理由)。null のリテラルとして読み、Inspector に出す
+            //     元の式は null にする(定数式として読むと、null の文字列メンバーが読み取り専用になる)。
+            case PostfixUnaryExpressionSyntax { Operand:LiteralExpressionSyntax NullLiteral } Suppressed
+                when Suppressed.IsKind(SyntaxKind.SuppressNullableWarningExpression)&&NullLiteral.IsKind(SyntaxKind.NullLiteralExpression):
+                return new SceneValue(
+                    SceneValueKind.Literal,
+                    ResolvedType,
+                    ConstantValue:null,
+                    ReferencedSymbol:null,
+                    ImmutableArray<SceneComponentMember>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    "null!",
+                    NullLiteral.Token.Text,
+                    SceneSourceLocation.FromNode(Expression));
 
             // 4) 符号付きリテラル(-1.5f)。GetConstantValueでも取れるが、接尾辞を保存するためこちらで扱う。
             case PrefixUnaryExpressionSyntax { Operand:LiteralExpressionSyntax SignedLiteral } Prefix
@@ -72,6 +91,22 @@ internal sealed class SceneValueReader(
                     this.SemanticModel.GetConstantValue(Expression,this.CancellationToken).Value,
                     ReferencedSymbol:null,
                     Prefix.OperatorToken.Text+SignedLiteral.Token.Text);
+
+            // 4b) 整数のリテラルを整数型へキャストしたもの((byte)(200)、(long)(-5))。シーン JSON は int 以外の整数を
+            //     この形で書く(型が決まらない文脈で別のオーバーロードを選ばないため)。リテラルと同じく編集でき、
+            //     書き出す式はキャストのまま、Inspector に出す元の式はリテラルの部分にする。
+            case CastExpressionSyntax Cast when IntegerCastLiteral(Cast) is { }LiteralText:
+                return new SceneValue(
+                    SceneValueKind.Literal,
+                    ResolvedType,
+                    this.SemanticModel.GetConstantValue(Expression,this.CancellationToken).Value,
+                    ReferencedSymbol:null,
+                    ImmutableArray<SceneComponentMember>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    Cast.ToString(),
+                    LiteralText,
+                    SceneSourceLocation.FromNode(Expression));
 
             case ObjectCreationExpressionSyntax:
             case ImplicitObjectCreationExpressionSyntax:
@@ -157,13 +192,18 @@ internal sealed class SceneValueReader(
         }
 
         // コレクション式 [ … ] はターゲット型付けなので Type が null になる。ConvertedType が唯一の手がかり。
-        if(ResolvedType is not IArrayTypeSymbol ArrayType){
+        if(ResolvedType is not IArrayTypeSymbol){
             if(SceneTypePredicates.IsUnresolved(ResolvedType)){
                 return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
             }
 
-            this.ReportUnsupported(Expression,"non-array collection");
-            return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
+            // ADR-0070: a scene JSON array fills a collection member (List<T> and other IEnumerable<T> types, as the
+            // schema and the JSON analyzer allow) with a collection expression, read like an array's elements. A
+            // collection initializer or a collection built at run time is still not statically determined.
+            if(Expression is not CollectionExpressionSyntax||ResolvedType is not INamedTypeSymbol){
+                this.ReportUnsupported(Expression,"non-array collection");
+                return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
+            }
         }
 
         var Elements=ImmutableArray.CreateBuilder<SceneValue>();
@@ -175,13 +215,13 @@ internal sealed class SceneValueReader(
             ElementTexts.Add(Value.EmitExpressionText);
         }
 
-        var EmitText=SceneEmitExpressionWriter.WriteArrayCreation(
-            SceneEmitExpressionWriter.WriteTypeReference(ArrayType.ElementType),
-            ElementTexts);
+        var EmitText=ResolvedType is IArrayTypeSymbol ArrayType
+            ?SceneEmitExpressionWriter.WriteArrayCreation(SceneEmitExpressionWriter.WriteTypeReference(ArrayType.ElementType),ElementTexts)
+            :"["+string.Join(", ",ElementTexts)+"]";
 
         return new SceneValue(
             SceneValueKind.Collection,
-            ArrayType,
+            ResolvedType,
             ConstantValue:null,
             ReferencedSymbol:null,
             ImmutableArray<SceneComponentMember>.Empty,
@@ -370,6 +410,30 @@ internal sealed class SceneValueReader(
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// <c>(byte)(200)</c> や <c>(long)-5</c> のように整数型へキャストした(符号付き)整数リテラルなら、そのリテラルの
+    /// テキスト。それ以外は null。
+    /// </summary>
+    private static string?IntegerCastLiteral(CastExpressionSyntax Cast){
+        if(Cast.Type is not PredefinedTypeSyntax Predefined||!Predefined.Keyword.IsKind(SyntaxKind.SByteKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.ByteKeyword)&&!Predefined.Keyword.IsKind(SyntaxKind.ShortKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.UShortKeyword)&&!Predefined.Keyword.IsKind(SyntaxKind.IntKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.UIntKeyword)&&!Predefined.Keyword.IsKind(SyntaxKind.LongKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.ULongKeyword)){
+            return null;
+        }
+        var Inner=Cast.Expression;
+        while(Inner is ParenthesizedExpressionSyntax Parenthesized){ Inner=Parenthesized.Expression; }
+        return Inner switch {
+            LiteralExpressionSyntax Literal when Literal.IsKind(SyntaxKind.NumericLiteralExpression)=>Literal.Token.Text,
+            PrefixUnaryExpressionSyntax { Operand:LiteralExpressionSyntax Literal } Prefix
+                when Literal.IsKind(SyntaxKind.NumericLiteralExpression)
+                    &&(Prefix.IsKind(SyntaxKind.UnaryMinusExpression)||Prefix.IsKind(SyntaxKind.UnaryPlusExpression))
+                =>Prefix.OperatorToken.Text+Literal.Token.Text,
+            _=>null,
+        };
     }
 
     /// <summary>この式が<see cref="EnumerateCollectionElements"/>で要素を取り出せる形かどうか。</summary>

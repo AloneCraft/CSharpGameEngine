@@ -46,6 +46,8 @@ internal readonly struct PhysicsContactCandidate {
     }
 
     internal LogicalVector3 Normal { get; }
+    /// <summary>Face normal of the touched triangle, pointing toward the other shape; zero for contacts without a single face.</summary>
+    internal LogicalVector3 SurfaceNormal { get;init; }
     internal uint FeatureId { get; }
     internal int Count { get; }
     internal LogicalVector3 Position=>this.Point0;
@@ -77,7 +79,20 @@ internal sealed class PhysicsNarrowPhase {
     private const int MaximumEpaFaces=128;
     private static readonly LogicalScalar EpaTolerance=LogicalScalar.FromSingle(0.0001f);
     private static readonly LogicalScalar TriangleHalfThickness=LogicalScalar.FromSingle(0.0005f);
+    // Contact slack plus a margin for the support-mapped query bounds' rounding.
+    private static readonly LogicalScalar TriangleCullSlack=TriangleHalfThickness+LogicalScalar.FromSingle(0.001f);
     private readonly List<int> TriangleCandidates=[];
+    private readonly Dictionary<PhysicsShapeAsset,AssetBoundsEntry> AssetBounds=new(ReferenceEqualityComparer.Instance);
+    private const int MaximumPrimitiveBoundsEntries=256;
+    private readonly Dictionary<PrimitiveBoundsKey,AssetBoundsEntry> PrimitiveBounds=[];
+
+    private readonly record struct PrimitiveBoundsKey(
+        ColliderShape Shape,LogicalVector3 Center,LogicalVector3 HalfExtents,LogicalScalar Radius,LogicalScalar HalfHeight,LogicalQuaternion Rotation);
+
+    private readonly record struct AssetBoundsEntry(
+        LogicalQuaternion Rotation,LogicalVector3 ColliderCenter,
+        LogicalVector3 PositiveR,LogicalVector3 PositiveU,LogicalVector3 PositiveF,
+        LogicalVector3 NegativeR,LogicalVector3 NegativeU,LogicalVector3 NegativeF);
 
     private readonly record struct SupportPoint(LogicalVector3 Difference,LogicalVector3 First,LogicalVector3 Second);
     private readonly record struct EpaFace(int A,int B,int C,LogicalVector3 Normal,LogicalScalar Distance,bool Active);
@@ -99,6 +114,42 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     internal PhysicsAabb CalculateBounds(in PhysicsCollisionShape Shape){
+        if(Shape.Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh)){
+            // Character and spring-arm queries bound the same capsule dozens of times per tick; its
+            // support offsets depend only on the primitive's dimensions and rotation.
+            ShapeProxy PrimitiveProxy=new(Shape);
+            PrimitiveBoundsKey Key=new(Shape.Collider.Shape,Shape.Collider.Center,Shape.Collider.HalfExtents,Shape.Collider.Radius,Shape.Collider.HalfHeight,Shape.Rotation);
+            if(!this.PrimitiveBounds.TryGetValue(Key,out AssetBoundsEntry Primitive)){
+                if(this.PrimitiveBounds.Count>=MaximumPrimitiveBoundsEntries){ this.PrimitiveBounds.Clear(); }
+                Primitive=CreateBoundsEntry(PrimitiveProxy,Shape.Rotation,Shape.Collider.Center);
+                this.PrimitiveBounds.Add(Key,Primitive);
+            }
+            return OffsetBounds(PrimitiveProxy.Center,Primitive);
+        }
+        if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
+        // Asset supports scan every vertex, and static meshes are re-bounded several times per tick
+        // without moving. The six support points relative to the proxy centre depend only on the
+        // asset, rotation and collider centre, and the translation is an exact addition, so a cached
+        // entry reproduces CalculateBoundsUncached bit for bit.
+        ShapeProxy Proxy=new(Shape);
+        if(!this.AssetBounds.TryGetValue(Shape.Asset,out AssetBoundsEntry Entry)
+            ||Entry.Rotation!=Shape.Rotation||Entry.ColliderCenter!=Shape.Collider.Center){
+            Entry=CreateBoundsEntry(Proxy,Shape.Rotation,Shape.Collider.Center);
+            this.AssetBounds[Shape.Asset]=Entry;
+        }
+        return OffsetBounds(Proxy.Center,Entry);
+    }
+
+    private static AssetBoundsEntry CreateBoundsEntry(in ShapeProxy Proxy,LogicalQuaternion Rotation,LogicalVector3 ColliderCenter)=>new(
+        Rotation,ColliderCenter,
+        Proxy.Support(LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(LogicalVector3.UnitF)-Proxy.Center,
+        Proxy.Support(-LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitF)-Proxy.Center);
+
+    private static PhysicsAabb OffsetBounds(LogicalVector3 Center,in AssetBoundsEntry Entry)=>new(
+        new LogicalVector3((Center+Entry.NegativeR).R,(Center+Entry.NegativeU).U,(Center+Entry.NegativeF).F),
+        new LogicalVector3((Center+Entry.PositiveR).R,(Center+Entry.PositiveU).U,(Center+Entry.PositiveF).F));
+
+    internal static PhysicsAabb CalculateBoundsUncached(in PhysicsCollisionShape Shape){
         if(Shape.Collider.Shape is ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh){
             if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
         }
@@ -133,6 +184,11 @@ internal sealed class PhysicsNarrowPhase {
                 if(!Found||SphereContact.Penetration>Best.Penetration){ Best=SphereContact;Found=true; }
                 continue;
             }
+            if(Convex.Collider.Shape==ColliderShape.Capsule){
+                if(TryCapsuleTriangleContact(Convex,Mesh,A,B,C,MeshIsFirst,checked((uint)Triangle),out PhysicsContactCandidate CapsuleContact)
+                    &&(!Found||CapsuleContact.Penetration>Best.Penetration)){ Best=CapsuleContact;Found=true; }
+                continue;
+            }
             ShapeProxy TriangleProxy=new(Mesh.Position,Mesh.Rotation,A,B,C);
             bool Hit=MeshIsFirst
                 ?TryConvexContact(TriangleProxy,ConvexProxy,checked((uint)Triangle),out PhysicsContactCandidate Candidate)
@@ -144,6 +200,180 @@ internal sealed class PhysicsNarrowPhase {
         }
         Contact=Best;
         return Found;
+    }
+
+    /// <summary>
+    /// Every penetrating triangle of <paramref name="Mesh"/> against a sphere or capsule, in
+    /// triangle order, with normals pointing from the query shape into the mesh. Character
+    /// movement needs all of them (a floor and a wall at once), not only the deepest.
+    /// </summary>
+    internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results)=>
+        this.CollectMeshContacts(Query,Mesh,Results,true);
+
+    /// <param name="CullTriangles">
+    /// Skips leaf triangles whose bounds miss the query bounds widened by the contact slack. A
+    /// triangle within the contact radius has a point inside the swept query volume, so culling never
+    /// changes the result; tests compare against <see langword="false"/>.
+    /// </param>
+    internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results,bool CullTriangles){
+        if(Query.Collider.Shape is not (ColliderShape.Sphere or ColliderShape.Capsule)
+            ||Mesh.Asset is not { Kind:PhysicsShapeAssetKind.StaticTriangleMesh } Asset){ return 0; }
+        PhysicsAabb WorldBounds=this.CalculateBounds(Query);
+        if(!TryTransformBoundsToLocal(WorldBounds,Mesh.Position,Mesh.Rotation,out PhysicsAabb LocalBounds)){ return 0; }
+        this.TriangleCandidates.Clear();
+        Asset.QueryTriangles(LocalBounds,this.TriangleCandidates);
+        LogicalVector3 Slack=new(TriangleCullSlack,TriangleCullSlack,TriangleCullSlack);
+        PhysicsAabb CullBounds=new(LocalBounds.Min-Slack,LocalBounds.Max+Slack);
+        int Start=Results.Count;
+        foreach(int Triangle in this.TriangleCandidates){
+            Asset.GetTriangle(Triangle,out LogicalVector3 A,out LogicalVector3 B,out LogicalVector3 C);
+            if(CullTriangles&&!TriangleTouches(CullBounds,A,B,C)){ continue; }
+            bool Hit=Query.Collider.Shape==ColliderShape.Sphere
+                ?TrySphereTriangleContact(Query,Mesh,A,B,C,false,checked((uint)Triangle),out PhysicsContactCandidate Contact)
+                :TryCapsuleTriangleContact(Query,Mesh,A,B,C,false,checked((uint)Triangle),out Contact);
+            if(Hit){ Results.Add(Contact); }
+        }
+        return Results.Count-Start;
+    }
+
+    private static bool TriangleTouches(in PhysicsAabb Bounds,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C)=>
+        Max3(A.R,B.R,C.R)>=Bounds.Min.R&&Min3(A.R,B.R,C.R)<=Bounds.Max.R
+        &&Max3(A.U,B.U,C.U)>=Bounds.Min.U&&Min3(A.U,B.U,C.U)<=Bounds.Max.U
+        &&Max3(A.F,B.F,C.F)>=Bounds.Min.F&&Min3(A.F,B.F,C.F)<=Bounds.Max.F;
+
+    private static LogicalScalar Max3(LogicalScalar A,LogicalScalar B,LogicalScalar C){
+        LogicalScalar Result=A>B?A:B;
+        return Result>C?Result:C;
+    }
+
+    private static LogicalScalar Min3(LogicalScalar A,LogicalScalar B,LogicalScalar C){
+        LogicalScalar Result=A<B?A:B;
+        return Result<C?Result:C;
+    }
+
+    /// <summary>
+    /// Closed-form capsule-triangle contact: the closest points between the capsule's segment and
+    /// the triangle. A segment crossing the triangle is pushed out along the face normal toward the
+    /// capsule centre's side, deep enough to clear both segment ends.
+    /// </summary>
+    private static bool TryCapsuleTriangleContact(
+        in PhysicsCollisionShape Capsule,in PhysicsCollisionShape Mesh,
+        LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,bool MeshIsFirst,uint Feature,
+        out PhysicsContactCandidate Contact){
+        Contact=default;
+        if(!TryColliderCenter(Capsule,out LogicalVector3 Center)
+            ||!Capsule.Rotation.TryRotate(new LogicalVector3(LogicalScalar.Zero,Capsule.Collider.HalfHeight,LogicalScalar.Zero),out LogicalVector3 Axis)
+            ||!Mesh.Rotation.TryRotate(A,out A)||!Mesh.Rotation.TryRotate(B,out B)||!Mesh.Rotation.TryRotate(C,out C)){ return false; }
+        A+=Mesh.Position;B+=Mesh.Position;C+=Mesh.Position;
+        LogicalVector3 Bottom=Center-Axis;
+        LogicalVector3 Top=Center+Axis;
+        LogicalScalar Radius=Capsule.Collider.Radius+TriangleHalfThickness;
+        bool Crossing=ClosestSegmentTriangle(Bottom,Top,A,B,C,out LogicalVector3 OnSegment,out LogicalVector3 OnTriangle);
+        LogicalVector3 Delta=OnTriangle-OnSegment;
+        LogicalScalar DistanceSquared=Delta.LengthSquared;
+        if(!Crossing&&DistanceSquared>=Radius*Radius){ return false; }
+        LogicalVector3 Normal;
+        LogicalScalar Penetration;
+        if(Crossing||DistanceSquared.IsZero){
+            if(!LogicalVector3.Cross(B-A,C-A).TryNormalize(out LogicalVector3 Face)){ return false; }
+            LogicalVector3 Outward=LogicalVector3.Dot(Face,Center-A)>=LogicalScalar.Zero?Face:-Face;
+            LogicalScalar BottomHeight=LogicalVector3.Dot(Outward,Bottom-A);
+            LogicalScalar TopHeight=LogicalVector3.Dot(Outward,Top-A);
+            Normal=-Outward;
+            Penetration=Radius-(BottomHeight<TopHeight?BottomHeight:TopHeight);
+        }
+        else {
+            if(!LogicalScalar.TrySquareRoot(DistanceSquared,out LogicalScalar Distance)||!Delta.TryNormalize(out Normal)){ return false; }
+            Penetration=Radius-Distance;
+        }
+        if(MeshIsFirst){ Normal=-Normal; }
+        Contact=new PhysicsContactCandidate(OnTriangle,Normal,Penetration,Feature) { SurfaceNormal=FaceToward(A,B,C,Center) };
+        return true;
+    }
+
+    /// <summary>Closest points between segment PQ and triangle ABC; returns true when the segment crosses the triangle.</summary>
+    internal static bool ClosestSegmentTriangle(
+        LogicalVector3 P,LogicalVector3 Q,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,
+        out LogicalVector3 OnSegment,out LogicalVector3 OnTriangle){
+        LogicalVector3 Face=LogicalVector3.Cross(B-A,C-A);
+        LogicalScalar PHeight=LogicalVector3.Dot(Face,P-A);
+        LogicalScalar QHeight=LogicalVector3.Dot(Face,Q-A);
+        bool OppositeSides=PHeight<=LogicalScalar.Zero&&QHeight>=LogicalScalar.Zero||PHeight>=LogicalScalar.Zero&&QHeight<=LogicalScalar.Zero;
+        if(OppositeSides&&PHeight!=QHeight){
+            LogicalVector3 Crossing=P+(Q-P)*(PHeight/(PHeight-QHeight));
+            if(LogicalVector3.Dot(Face,LogicalVector3.Cross(B-A,Crossing-A))>=LogicalScalar.Zero
+                &&LogicalVector3.Dot(Face,LogicalVector3.Cross(C-B,Crossing-B))>=LogicalScalar.Zero
+                &&LogicalVector3.Dot(Face,LogicalVector3.Cross(A-C,Crossing-C))>=LogicalScalar.Zero){
+                OnSegment=Crossing;
+                OnTriangle=Crossing;
+                return true;
+            }
+        }
+        OnSegment=P;
+        OnTriangle=ClosestPointOnTriangle(P,A,B,C);
+        LogicalScalar Best=(OnTriangle-OnSegment).LengthSquared;
+        Consider(Q,ClosestPointOnTriangle(Q,A,B,C),ref Best,ref OnSegment,ref OnTriangle);
+        ClosestSegmentSegment(P,Q,A,B,out LogicalVector3 SegmentPoint,out LogicalVector3 EdgePoint);
+        Consider(SegmentPoint,EdgePoint,ref Best,ref OnSegment,ref OnTriangle);
+        ClosestSegmentSegment(P,Q,B,C,out SegmentPoint,out EdgePoint);
+        Consider(SegmentPoint,EdgePoint,ref Best,ref OnSegment,ref OnTriangle);
+        ClosestSegmentSegment(P,Q,C,A,out SegmentPoint,out EdgePoint);
+        Consider(SegmentPoint,EdgePoint,ref Best,ref OnSegment,ref OnTriangle);
+        return false;
+        static void Consider(LogicalVector3 Segment,LogicalVector3 Triangle,ref LogicalScalar Best,ref LogicalVector3 OnSegment,ref LogicalVector3 OnTriangle){
+            LogicalScalar Candidate=(Triangle-Segment).LengthSquared;
+            if(Candidate<Best){
+                Best=Candidate;
+                OnSegment=Segment;
+                OnTriangle=Triangle;
+            }
+        }
+    }
+
+    /// <summary>Closest points between segments P1Q1 and P2Q2 (Ericson, Real-Time Collision Detection 5.1.9).</summary>
+    internal static void ClosestSegmentSegment(
+        LogicalVector3 P1,LogicalVector3 Q1,LogicalVector3 P2,LogicalVector3 Q2,
+        out LogicalVector3 First,out LogicalVector3 Second){
+        LogicalVector3 D1=Q1-P1;
+        LogicalVector3 D2=Q2-P2;
+        LogicalVector3 R=P1-P2;
+        LogicalScalar A=LogicalVector3.Dot(D1,D1);
+        LogicalScalar E=LogicalVector3.Dot(D2,D2);
+        LogicalScalar F=LogicalVector3.Dot(D2,R);
+        LogicalScalar S;
+        LogicalScalar T;
+        if(A.IsZero&&E.IsZero){
+            S=LogicalScalar.Zero;
+            T=LogicalScalar.Zero;
+        }
+        else if(A.IsZero){
+            S=LogicalScalar.Zero;
+            T=Clamp01(F/E);
+        }
+        else {
+            LogicalScalar Cd=LogicalVector3.Dot(D1,R);
+            if(E.IsZero){
+                T=LogicalScalar.Zero;
+                S=Clamp01(-Cd/A);
+            }
+            else {
+                LogicalScalar Bd=LogicalVector3.Dot(D1,D2);
+                LogicalScalar Denominator=A*E-Bd*Bd;
+                S=Denominator.IsZero?LogicalScalar.Zero:Clamp01((Bd*F-Cd*E)/Denominator);
+                T=(Bd*S+F)/E;
+                if(T<LogicalScalar.Zero){
+                    T=LogicalScalar.Zero;
+                    S=Clamp01(-Cd/A);
+                }
+                else if(T>LogicalScalar.One){
+                    T=LogicalScalar.One;
+                    S=Clamp01((Bd-Cd)/A);
+                }
+            }
+        }
+        First=P1+D1*S;
+        Second=P2+D2*T;
+        static LogicalScalar Clamp01(LogicalScalar Value)=>Value<LogicalScalar.Zero?LogicalScalar.Zero:Value>LogicalScalar.One?LogicalScalar.One:Value;
     }
 
     private static bool TryPrimitiveContact(
@@ -415,8 +645,14 @@ internal sealed class PhysicsNarrowPhase {
         }
         else if(!LogicalScalar.TrySquareRoot(DistanceSquared,out Distance)||!Delta.TryNormalize(out Normal)){ return false; }
         if(MeshIsFirst){ Normal=-Normal; }
-        Contact=new PhysicsContactCandidate(Closest,Normal,Radius-Distance,Feature);
+        Contact=new PhysicsContactCandidate(Closest,Normal,Radius-Distance,Feature) { SurfaceNormal=FaceToward(A,B,C,Center) };
         return true;
+    }
+
+    /// <summary>Unit face normal of triangle ABC on the side of <paramref name="Point"/>; zero for a degenerate triangle.</summary>
+    private static LogicalVector3 FaceToward(LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,LogicalVector3 Point){
+        if(!LogicalVector3.Cross(B-A,C-A).TryNormalize(out LogicalVector3 Face)){ return LogicalVector3.Zero; }
+        return LogicalVector3.Dot(Face,Point-A)>=LogicalScalar.Zero?Face:-Face;
     }
 
     private static LogicalVector3 ClosestPointOnTriangle(

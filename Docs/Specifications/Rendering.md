@@ -5,14 +5,29 @@
 
 - Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
-- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0062](../Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md)
+- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0062](../Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md), [ADR-0069](../Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md)
 - Target layers: L0, L4, L6, L7, L8
+
+## Environment lighting
+ADR-0069 adds an opt-in physically based environment path driven by `SkyAtmosphere`, `SkyLight`, `PostProcessVolume`, `ExponentialHeightFog` and `GlobalIlluminationVolume` Components. `EngineHost` converts them once per frame into `EnvironmentLightingSettings`. A missing Component keeps the compatibility behavior (clear colour, flat ambient, legacy fog, `2^-EV100`, linear ACES).
+
+| Capability | Contract |
+|---|---|
+| Sky | Hillaire transmittance/multi-scattering/sky-view LUTs (`Atmosphere.hlsl`); far-plane composite; the brightest directional light is the sun and is attenuated by transmittance at the camera altitude. |
+| Sky light | SH9 irradiance of the sky, scaled by `SkyLight.Intensity`, with a lower-hemisphere colour; diffuse plus an analytic-BRDF rough reflection. |
+| Exposure/output | Physical camera `2^c / (1.2 * 2^EV100)` at a fixed EV100 or by GPU histogram auto exposure (10–90 % average, EV100 = log2 L + 3, clamped, SpeedUp/SpeedDown adaptation, state read at t15); Unreal filmic in AP1 plus sRGB OETF; bloom intensity. |
+| Fog | Unreal exponential height fog, closed form, per-metre density and falloff. |
+| Sun shadows | Four cascades (exponent-3 splits to 200 m), sphere-fit and texel-snapped, 512 px quadrants of atlas tile 0. |
+| Dynamic GI | Camera-relative probe grid (≤ 4096); round-robin six-face captures with the lit Stage pipeline; octahedral irradiance (8×8) and distance moments (16×16) with hysteresis; Chebyshev-weighted eight-probe sampling at t12/t13. |
+| Ambient occlusion | Half-resolution depth prepass, SAO plus depth-aware blur (`AmbientOcclusion.hlsl`) at t14; multiplies indirect light only. |
+
+Invariants: open-sky GI probes reproduce the SH irradiance, AO leaves direct light bit-identical, histogram exposure with MinEv100 == MaxEv100 equals the fixed camera bit for bit, an invalid GI volume disables only GI, GI requires typed UAV loads of RGBA16F/RG16F, and no shader-visible descriptor that an in-flight frame may read is rewritten. Verified by Stage `rendering.environment-lighting` ([M0089](../Milestones/M0089-Physically-Based-Environment-Lighting.md)). Not implemented: volumetric clouds, reflection probes, texture mipmaps.
 
 ## Scope and current baseline
 
 This specification defines the target rendering contract. The Shader Graph compiler, shader/material/texture artifact runtime, platform-independent Render Graph compiler, canonical RGBA8 D3D12 upload boundary, stable-ID snapshot visibility/LOD/instance batching, Render Graph quality profiles, D3D12 recovery state machine, and shared out-of-process Preview Host are implemented. The D3D12 graph executor remains subsequent work.
 
-The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, the WARP triangle stage, directional shadows, HDR, ACES, bloom, and point, spot, area, and emissive lighting/shadow work. Those capabilities are retained as regression baselines. The work tracked here adds graph ownership, artifact provenance, snapshot extraction, cascade/IBL/exposure/AA policy, recovery, and a common preview boundary.
+The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, the WARP triangle stage, directional shadows, HDR, ACES, bloom, and point, spot, area, and emissive lighting/shadow work. The opt-in environment path above (ADR-0069) adds a physical sky, sky light, cascaded sun shadows, dynamic GI and ambient occlusion. Those capabilities are retained as regression baselines. The work tracked here adds graph ownership, artifact provenance, snapshot extraction, cascade/IBL/exposure/AA policy, recovery, and a common preview boundary.
 
 ## Ownership and boundaries
 
@@ -75,6 +90,15 @@ The device state set is fixed: `Ready`, `Suspended`, `Recovering`, `Faulted`, an
 | Ready or Recovering | unrecoverable native failure | Faulted | Reject new work with a typed diagnostic. |
 | any non-Disposed | disposal | Disposed | Release queues, fences, and descriptors once. |
 
+**Persistent versus per-frame inputs.** Frame constants are double-buffered per frame in flight, and every frame must render identically whichever slot it uses.
+- **Persistent until changed:** ambient light, simplified fog, environment lighting, camera altitude, presentation mode and the `SetDirectionalLight` singleton. `RenderFrame` writes them into the slot it records.
+- **Replay:** `RenderServer`'s recovery replay state carries these forward from earlier frames, so a value set once survives device recovery.
+- **Per frame:** additive lights (`AddDirectionalLight`, point, spot, rect, emissive) are submitted every frame. Nothing is lit before the first submission; the renderer does not start from a default light.
+
+**Scene view runtime view (ADR-0070).** For a built game the Scene view is drawn by the game's own `EngineHost` and `RenderServer` inside the preview host, so it uses the runtime's environment, lights, materials, skinning, exposure and GI. One session keeps its device and swap chain from Open to Close: an edit changes component values in the running world and never rebuilds device state. A gizmo drag sends the dragged roots' local transforms with each frame (`RenderPreviewFrame.TransformOverrides`), applied to their `Transform` the same way. The editor camera replaces the scene camera at the point where `LevelLoad` applies it, and the designer's selection and gizmos are drawn over the image. The view keeps the scene camera's exposure and depth mapping, read on every frame like the other components, so editing them changes the view; while an edited value is unusable (a zero near plane while typing) the last usable projection stays and `LevelRuntime.InvalidCameraProperty` names the member.
+
+**Isolated preview depth (M0100).** The isolated preview (Scene view of an unbuilt game, Asset Preview) draws a perspective camera with radial depth from the editor's own view-projection (`RenderServer.SetViewProjection` with `RadialViewParameters`), so coverage, gizmos and picking stay those of the editor's matrix; an orthographic view stays standard. A camera thumbnail follows its scene camera's depth mapping.
+
 Preview/Import/Bake calls use the versioned host protocol described in [Editor-VSIX](Editor-VSIX.md). Cancellation, timeout, host crash, and version mismatch are visible state transitions, not retries that can appear successful.
 
 ## Visual and quality policy
@@ -96,6 +120,33 @@ Each feature implementation cuts over in its own change. It removes the replaced
 
 Rendering performance stages use exactly five warm-up iterations and thirty measured samples in an isolated process whose Tiered JIT mode is explicitly disabled and recorded, preventing compilation transitions from contaminating the sample set. The required WARP pass records a hidden 1280x720 frame, triangle readback oracle, zero debug-layer errors, allocation, median, p95, MAD, build identity, raw-report SHA-256, and machine fingerprint; WARP elapsed time is correctness evidence, not a hardware performance claim. The same run measures camera-relative selection and deterministic batching for 100,000 active instances. Debug records timing but gates correctness and allocation only because its non-optimized code generation is not a shipping-performance oracle. Release gates that CPU workload at median 6 ms, nearest-rank p95 8.33 ms, and allocation p95 zero. An optional Release hardware pass gates 1280x720 presentation p95 at 16.67 ms. Release evidence includes dependency closure, shader/artifact provenance, required WARP output, and unresolved diagnostic count.
 
+## Radial (logarithmic) depth
+ADR-0076 / M0099 ([Omni](Omni.md)): a camera may select `RenderDepthMapping.Radial`. The image is the standard one; the depth becomes `min(log2(1 + r/T) / log2(1 + rMax/T), 0.99999994)` of the physical distance `r`, so one D32 depth buffer orders surfaces from millimetres to the Q64.64 range.
+
+| Pass | Radial camera |
+|---|---|
+| Main (Lit, Presentation, Selection, Wireframe) | Radial pipeline family: `RadialVSMain` (the standard `VSMain` with the conservative raster depth `a − b/w` and the standard near/far as `SV_ClipDistance`, depth clipping off) plus `RadialPSMain`/`PreviewRadialPSMain`, which call the unchanged pixel entries and add `SV_DepthGreaterEqual`; fragments beyond `FarZ·(1 + 1/1024)` of physical view depth are discarded |
+| Camera previews | Per preview: standard, radial (`PreviewCleanRadialPSMain`) or radial observer (`RadialObserverVSMain` + `PreviewCleanPSMain`) |
+| Shadow atlas, GI capture, overlay | Unchanged (standard) |
+| Sky direction, sun cascades, AO prepass | The camera rotation with the auxiliary planes near `max(NearZ, min(0.01 m, FarZ/2))`, far `min(FarZ, near·65536)`; for an ordinary range this is exactly the camera projection |
+| Sky composite, Forward+ | Unchanged (radial depth stays below the 1.0 clear; Forward+ uses clip W and XY only) |
+
+Invariants: a standard camera's frames are unchanged (`StandardModeGoldenFrameTests`); a radial camera renders the standard pixels wherever the same surface wins (bit for bit on unclipped triangles, within one level on clipped ones), including the full environment path; depth order is correct at relative gaps of a few 1e-6 up to 5e18 m; the depth equals the CPU encoding; far planes of 1e7 m and 1e18 m keep the sky, cascades and AO finite; frame slots, hot reload and device recovery keep the radial state. Verified by `RadialDepthGpuIntegrationTests`, `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines` and `RadialDepthTests`. The radial main pass keeps early depth rejection through its conservative depth, tangent per object: on an RTX 4060 Ti, 24 full-screen layers drawn front to back take 0.171 ms against 0.133 ms standard between 2 and 48 m, and 0.123 ms against 0.091 ms between 100 and 1020 m (with plain `SV_Depth` 2.97 ms; with one tangent at 8 m 1.74 ms for the far layers), measured by `RadialDepthPerformanceEvidence` (`CGE_PERFORMANCE_EVIDENCE=1`).
+
+## Skeletal meshes and animation
+ADR-0066 adds skinned meshes. A `SkeletalMesh` Component names a glTF with exactly one skin. The roster gives each placement its own copy of the meshes, and `StageMeshCreateInfo.Skin` carries eight 16-bit joint/weight pairs per vertex.
+
+At the start of every frame, `Skinning.hlsl` rewrites each skinned mesh's default-heap vertex buffer from the latest palette. The palette is `InverseBind × JointModel` in row vectors and goes through a per-frame-slot upload ring. The shadow, GI-capture, AO and main passes then all draw the same pose. `RenderServer.SetSkinPalette` records the palette for device-recovery replay.
+
+`Runtime.Animation` evaluates `LocomotionAnimator` (Unreal's ABP_Unarmed graph) on the CPU in the Presentation phase.
+
+Invariants:
+- The rest palette is identity.
+- The quantized weights of a vertex sum to one.
+- A mesh keeps its bind pose until a palette arrives.
+
+Verified by Stage `rendering.skeletal-animation` ([M0091](../Milestones/M0091-Skeletal-Animation.md)).
+
 ## Stage oracle matrix
 
 | Feature | Level | Stage | Mode | Timeout | Oracle |
@@ -107,6 +158,8 @@ Rendering performance stages use exactly five warm-up iterations and thirty meas
 | F-L4-005 | 3 | `rendering.materials` | Visual / Rendering | 1800s | Material and texture result matches reference. |
 | F-L4-006 | 4 | `rendering.visibility` | Visual / Rendering | 1800s | Snapshot/visibility/LOD/instance oracle matches. |
 | F-L4-007 | 4 | `rendering.quality-profiles` | Visual / Rendering | 1800s | Quality profile reference tolerance holds. |
+| F-L4-015 | 5 | `rendering.skeletal-animation` | Visual / Rendering | 1800s | Skin/clip import in engine space, locomotion graph, and WARP compute skinning match analytic poses without debug-layer errors. |
+| F-L5-038, F-L5-039 | 6, 7 | `rendering.radial-depth` | Visual / Rendering | 1800s | Radial depth curve and budget, Stage radial entries, pinned standard frames, bit-identical radial colour, coplanar separation up to 5e18 m, CPU-equal depth, finite sky/cascades/AO with extreme far planes, scene camera and editor follow, observer inset, all on WARP without debug-layer errors. |
 | F-L0-009 | 5 | `rendering.device-recovery` | Visual / Rendering | 1800s | Legal state transitions and artifact-only rebuild. |
 | F-L8-018 | 5 | `vsix.rendering-preview` | Visual / VSIX | 1800s | Shared host protocol and no duplicate renderer. |
 | F-L7-023 | 6 | `rendering.performance` | Visual / Rendering | 7200s | Five warm-ups plus thirty WARP frame and 100,000-instance samples publish SHA-bound correctness/performance evidence. |

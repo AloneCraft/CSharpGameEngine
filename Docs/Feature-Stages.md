@@ -10,7 +10,7 @@
 
 Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
 
-The six non-physics tracks have 67 Roadmap rows registered one-to-one as Feature/target-Stage pairs. Every target now has an executable Stage; F-L8-029 remains explicitly `Implementing` until its environment evidence passes, while no non-physics target remains `NotImplemented`. `rendering.performance` records five warm-ups and thirty isolated frame plus 100,000-instance samples, treats WARP as correctness, and applies shipping timing gates only to Release. `vsix.host-lifecycle` executes the shared host/session tests and the net472 resident-client submission-boundary tests. `vsix.inspector-contracts` executes declared-type editor, typed choice, component palette/mutation, and source-reparse contracts. `vsix.source-sync` executes the latest-source one-shot planner, canonical verification reanalysis, Scene-scoped semantic-generation landing, stable identity, typed stale rebase/reject, native Undo routing, source-only Save, product-caller, and no-private-history architecture contracts. `vsix.bake-integration` executes immutable Import/Bake presentation, request/progress/result correlation, cancellation, typed host diagnostics, partial artifact links, localization, and false-success rejection together with the shared host session/wire/server contracts. `vsix.debug-tools` executes the common on-demand Render snapshot, while `vsix.platform-debug` additionally verifies protocol-v5 Platform/Input/Audio bounds, owned runtime copies, typed Preview Host `NotOwned`, Host/client fail-close, real WARP non-mutation, net472 presentation, architecture, and localization. `platform.compatibility` validates the exact executable prerequisite closure against mandatory Debug/Release solution, Windows-TFM, and WARP CI cells while hardware Audio/GPU stay optional ledger references. `vsix.compatibility` executes the versioned matrix validator plus focused manifest/package/localization/layout/automation tests; normal validation preserves explicit Pending evidence, while the separate release mode rejects it. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
+The six non-physics tracks have 65 Roadmap rows registered one-to-one as Feature/target-Stage pairs. Every target now has an executable Stage; F-L8-029 remains explicitly `Implementing` until its environment evidence passes, while no non-physics target remains `NotImplemented`. `rendering.performance` records five warm-ups and thirty isolated frame plus 100,000-instance samples, treats WARP as correctness, and applies shipping timing gates only to Release. `vsix.host-lifecycle` executes the shared host/session tests and the net472 resident-client submission-boundary tests. `vsix.inspector-contracts` executes declared-type editor, typed choice, component palette/mutation, and source-reparse contracts. `vsix.source-sync` executes the latest-source one-shot planner, canonical verification reanalysis, Scene-scoped semantic-generation landing, stable identity, typed stale rebase/reject, native Undo routing, source-only Save, product-caller, and no-private-history architecture contracts. `vsix.bake-integration` executes immutable Import/Bake presentation, request/progress/result correlation, cancellation, typed host diagnostics, partial artifact links, localization, and false-success rejection together with the shared host session/wire/server contracts. `vsix.debug-tools` and `vsix.platform-debug` were removed with F-L8-027 and F-L8-030 in M0097. `platform.compatibility` validates the exact executable prerequisite closure against mandatory Debug/Release solution, Windows-TFM, and WARP CI cells while hardware Audio/GPU stay optional ledger references. `vsix.compatibility` executes the versioned matrix validator plus focused manifest/package/localization/layout/automation tests; normal validation preserves explicit Pending evidence, while the separate release mode rejects it. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
 
 `platform.release` re-executes `platform.compatibility` with a release-only prerequisite profile and emits a configuration/Git/Warp-matched canonical Platform closure report; it does not create a product package or immutable product manifest.
 
@@ -54,7 +54,7 @@ resume <run-result.json> [options]
 
 ## 結果契約
 
-結果は`.artifacts/FeatureStages/*.run-result.json`へ保存し、Git管理しない。schemaは`csharp-game-engine-feature-run-result-v1`で、各Stageについて次を保持する。
+結果は対象リポジトリ(`--repository-root`、無ければカレントディレクトリを含むリポジトリ)の`.artifacts/FeatureStages/*.run-result.json`へ保存し、Git管理しない。リリース証拠のStageは同じリポジトリのこの結果を探す。schemaは`csharp-game-engine-feature-run-result-v1`で、各Stageについて次を保持する。
 
 - Stage ID、Feature ID、Pack、Configuration、Profile、Adapter
 - seed、tick数、Git commit、dirty状態
@@ -94,6 +94,7 @@ resume <run-result.json> [options]
 | `vsix.scene-editor` | VSIX | F-L8-010/011/012/015/016/017 | 編集・同期・localization・routing契約が成功 |
 | `spatial.runtime` | Foundation | F-L3-015/016/017 | Octree・snapshot・debug projection契約が成功 |
 | `rigid.physics` | Rigid | F-L5-001/002/003, F-L3-018, F-L6-002, F-L7-020, F-L8-014 | deterministic state/message/physics/artifact、generated headless Scene Bake、debug契約が成功 |
+| `rigid.character-controller` | Rigid | F-L5-006 | 休止・ジャンプ頂点・6 m/s歩行と制動・壁滑り・30°坂/40 cm段の登坂と50°/50 cmの拒否・完全再現、SpringArmの壁/床での短縮、ThirdPersonテンプレートのWARP実走(W→Spaceでカメラが水平に1 m以上移動、0.5 m以上上昇して着地、床抜けとD3D12エラーなし) |
 | `runner.contract` | Foundation | F-L7-021 | catalog・CLI選択・結果schemaテストが成功 |
 | `stage-packs.contract` | Foundation | F-L9-008 | 10個の独立PackがC# `IScene`を生成・実体化・unloadし、安定state hashを出力 |
 
@@ -103,7 +104,6 @@ resume <run-result.json> [options]
 |---|---|---|---|
 | F-L5-004 | `rigid.joints` | Rigid | pendulumとlocked jointの拘束drift |
 | F-L5-005 | `rigid.ragdoll` | Rigid | pose handoff、joint limit、最終state hash |
-| F-L5-006 | `rigid.character-controller` | Rigid | stair/slope sweep、penetration 0 |
 | F-L5-007 | `rigid.vehicle` | Rigid | acceleration、brake、suspension、lap state |
 | F-L5-008 | `rigid.dynamic-ccd` | Rigid | 高速対向BodyのTOI contactと非tunneling |
 | F-L5-009 | `rigid.parallel-solver` | Rigid | single-threadとgraph-coloringのhash一致 |
@@ -175,7 +175,7 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 
 ## M0066 shared Preview Host evidence
 
-`vsix.rendering-preview` / F-L8-018 is executable Visual/VSIX evidence. It runs the bound C# VSIX reference Scene, the versioned Preview protocol, common Render Server/session/process/pipe tests, Scene/Asset Preview client and fresh-HWND recovery tests, package-closure/legacy-removal tests, and the package-extracted apphost on WARP with the D3D12 debug layer. Neither this Stage nor the later automated F-L8-023 Stage converts the Pending Experimental Instance `scene-designer` ledger entry into a human-observed pass.
+`vsix.rendering-preview` / F-L8-018 is executable Visual/VSIX evidence. It runs the bound C# VSIX reference Scene, the versioned Preview protocol, common Render Server/session/process/pipe tests, Scene/Asset Preview client and fresh-HWND recovery tests, package-closure/legacy-removal tests, and the package-extracted apphost on WARP with the D3D12 debug layer. Since ADR-0070 it also runs the runtime view: the game bridge, the host's runtime session, the editor camera conversion, and the packaged host opening UserEcsProject's world and applying live scene JSON. Neither this Stage nor the later automated F-L8-023 Stage converts the Pending Experimental Instance `scene-designer` ledger entry into a human-observed pass.
 
 ## M0067 canonical numeric adversarial evidence
 
@@ -195,7 +195,7 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 
 ## M0084 product package and SBOM evidence
 
-`release.packages` / F-L7-045 is executable Headless/Foundation evidence. It publishes one deterministic Windows x64 portable archive, independently reopens its exact manifest and canonical SPDX 2.3 dependency/file closure, verifies restored NuGet package bytes and external signing inputs, safely extracts the package to a unique directory, executes the packaged viewer for one hidden WARP readback frame with zero D3D12 validation errors, recomputes the installed byte closure, and uninstalls with zero residue. The Stage consumes the exact prebuilt localized VSIX without rebuilding or repacking it; F-L7-046 through F-L7-048 retain compatibility, RC, and immutable-manifest ownership.
+`release.packages` / F-L7-045 is executable Headless/Foundation evidence. It publishes one deterministic Windows x64 portable archive, independently reopens its exact manifest and canonical SPDX 2.3 dependency/file closure, verifies restored NuGet package bytes and external signing inputs, safely extracts the package to a unique directory, executes the packaged viewer for one hidden WARP readback frame with zero D3D12 validation errors, recomputes the installed byte closure, and uninstalls with zero residue. The Stage consumes the exact prebuilt localized VSIX without rebuilding or repacking it; F-L7-046 through F-L7-048 retain compatibility, RC, and immutable-manifest ownership. In Release that VSIX is the frozen input named by `Docs/Verification/VSIX-Release-Input.json`, whose bytes live in the local `.artifacts/VsixReleaseInputs` store: a fresh checkout fails the Stage, naming the missing package, until a Release VSIX validated in Visual Studio is frozen with `freeze-vsix-release-input`.
 
 ## M0085 product release compatibility evidence
 

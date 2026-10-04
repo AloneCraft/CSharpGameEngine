@@ -1,0 +1,32 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "MainScene",
+  "startupOrder": 0,
+  "root": {
+    "id": "b5d1ee7b-eb79-59df-9e63-4565be7c3a81",
+    "name": "Application",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AppHost",
+        "members": {
+          "Title": "C# Game Engine - Visible Engine Showcase",
+          "Width": 1440,
+          "Height": 810
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Level",
+        "members": {
+          "ShaderArtifactPath": "Shaders/Stage.cgeshaderartifact"
+        }
+      },
+      {
+        "type": "UserEcsProject.Showcase.EngineShowcase",
+        "members": {}
+      }
+    ],
+    "children": []
+  }
+}

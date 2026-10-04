@@ -38,6 +38,8 @@ public static unsafe class WicImageDecoder {
     // RPC_E_CHANGEDMODE: COM was already initialized on this thread with a different concurrency
     // model. Not fatal - proceed without owning the CoInitializeEx call (skip CoUninitialize).
     private const int RPC_E_CHANGEDMODE=unchecked((int)0x80010106);
+    /// <summary>D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION.</summary>
+    private const uint MaxTextureSide=16384;
 
     public static WicDecodeResult Decode(byte[]EncodedBytes){
         ArgumentNullException.ThrowIfNull(EncodedBytes);
@@ -100,9 +102,16 @@ public static unsafe class WicImageDecoder {
             if(Width==0||Height==0){
                 return WicDecodeResult.Failed($"Decoded image has zero size ({Width}x{Height}).");
             }
+            // The image becomes a Direct3D 12 texture, whose sides are at most 16384. Beyond that it could not be used, and
+            // WIC decodes even a header with no pixel data, so one claiming 20000x20000 cost 1.6 GB before failing later.
+            if(Width>MaxTextureSide||Height>MaxTextureSide){
+                return WicDecodeResult.Failed($"Decoded image ({Width}x{Height}) exceeds the {MaxTextureSide}-pixel side of a Direct3D 12 texture.");
+            }
 
+            // At most 16384 x 16384 x 4 bytes (1 GiB), within one array.
+            var Size=(ulong)Width*Height*4;
             var Stride=Width*4;
-            var Pixels=new byte[Stride*Height];
+            var Pixels=new byte[Size];
             fixed(byte*PPixels=Pixels){
                 Hr=Converter->CopyPixels(null,Stride,(uint)Pixels.Length,PPixels);
             }

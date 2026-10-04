@@ -1,7 +1,9 @@
 # ADR-0020: シーンのダブルクリックプレビューとヒエラルキー(選択連動)
 
 ## ステータス
-承認済み
+一部 Superseded。`.scene.json`のダブルクリックプレビュー(`SceneFile.cs`/`SceneDocument.cs`)はM0020 Phase 0で削除し、
+シーンの編集は[[ADR-0071-Scene-Editor-Document-With-Design-And-Json-Views]]のシーン エディターが担う。
+Hierarchyツールウィンドウと選択の連動は残っている。以下は当時の記録。
 
 ## 背景
 

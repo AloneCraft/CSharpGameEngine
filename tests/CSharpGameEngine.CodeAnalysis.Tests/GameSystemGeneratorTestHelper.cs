@@ -147,10 +147,13 @@ internal static class GameSystemGeneratorTestHelper {
     internal static CSharpCompilation CreateApplicationCompilation(IEnumerable<(string?Path,string Source)>ExtraSources)=>
         CreateCompilation(ExtraSources).WithOptions(new CSharpCompilationOptions(OutputKind.ConsoleApplication));
 
-    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation Compilation){
-        GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        Driver=Driver.RunGenerators(Compilation);
-        return Driver.GetRunResult();
+    /// <summary>C# scene classes in the test sources reach the generator as scene JSON (<see cref="SceneTestJson"/>).</summary>
+    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation Compilation)=>
+        RunGenerator(Compilation,[]);
+
+    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation Compilation,IEnumerable<AdditionalText>AdditionalTexts){
+        var (WithoutScenes,Scenes)=SceneTestJson.Move(Compilation);
+        return CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],[.. AdditionalTexts,.. Scenes],optionsProvider:SceneProjectOptions.Instance).RunGenerators(WithoutScenes).GetRunResult();
     }
 
     internal static GeneratorDriverRunResult RunGenerator(params string[]ExtraSources)=>
@@ -163,8 +166,16 @@ internal static class GameSystemGeneratorTestHelper {
     internal static Assembly CompileAndLoad(params string[]ExtraSources)=>
         CompileAndLoad(CreateCompilation(ExtraSources));
 
-    internal static Assembly CompileAndLoad(CSharpCompilation Compilation){
-        GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
+    /// <summary>ADR-0070: the generator also reads the scene files (<c>Scenes\**\*.json</c>) among the additional files.</summary>
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation,IEnumerable<AdditionalText>AdditionalTexts){
+        var (WithoutScenes,Scenes)=SceneTestJson.Move(Compilation);
+        return CompileAndLoad(WithoutScenes,CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],[.. AdditionalTexts,.. Scenes],optionsProvider:SceneProjectOptions.Instance));
+    }
+
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation)=>
+        CompileAndLoad(Compilation,[]);
+
+    private static Assembly CompileAndLoad(CSharpCompilation Compilation,GeneratorDriver Driver){
         Driver=Driver.RunGeneratorsAndUpdateCompilation(Compilation,out var OutputCompilation,out var GeneratorDiagnostics);
 
         if(!GeneratorDiagnostics.IsEmpty){

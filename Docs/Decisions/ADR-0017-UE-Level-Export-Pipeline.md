@@ -109,9 +109,14 @@ UserGameProject/Assets/Stage/Lvl_FirstPerson/
   前提にしない設計にした。
 - `MI_FirstPersonColorway`は実際には**大半がフラットカラーへのベイク**(`SM_Ramp5`で確認:
   BaseColor=(1, 0.332, 0, 1)のオレンジ単色、Normal/MetallicRoughnessともテクスチャ無し・
-  フラットファクターのみ)であり、当初懸念していた「ワールド座標依存グリッドパターンの
-  UVベイク崩れ」は実質的に問題にならなかった(21/23マテリアルは実テクスチャ、
+  フラットファクターのみ)で、ベイクの問題は出なかった(21/23マテリアルは実テクスチャ、
   残り2マテリアルはフラットファクター)。
+- 一方、ワールド座標依存の`MI_PrototypeGrid_Gray`(親`M_PrototypeGrid`、21アクター)の
+  ベイクは**実際に崩れた**。床のGLBはTEXCOORD_1用の画像で、インポーターが
+  TEXCOORD_0で読んでいたため。1024pxの焼き付けでは床全体の解像度も足りない
+  (2026-10-02、ThirdPersonテンプレートで確認)。この材質は焼き付けず、ワールド空間の
+  手続き的グリッドで再現する(ADR-0075)。`texCoord`が0以外のテクスチャは、
+  警告を出して読み込まない。
 - `LogGLTFExporter`の警告(`SM_QuarterCylinder`のライトマップUV(channel 0、TEXCOORD_1)が
   54.24%重複)は実際に発生したが、これはセカンダリUV(ライトマップ用)についてであり、
   `ImportScene`が読むプライマリUV(TEXCOORD_0、ベースカラー/ノーマル/MR用)には影響しない。

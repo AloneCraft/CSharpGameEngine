@@ -78,6 +78,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private readonly Dictionary<Entity,ulong> StableIdByEntity=[];
     private readonly DeterministicAabbTree Broadphase=new();
     private readonly PhysicsNarrowPhase NarrowPhase=new();
+    private readonly List<PhysicsContactCandidate> ContactScratch=[];
     private readonly SortedList<(ulong First,ulong Second),CachedContact> ContactCache=new(PairKeyComparer.Instance);
     private readonly List<ulong> QueryCandidates=[];
     private readonly List<SimulationCommand> CommittedCommands=[];
@@ -279,6 +280,47 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Results.Add(new PhysicsSweepHit(Hit.Entity,Hit.StableId,ExpandedDistance,Ray.Origin+Ray.Direction*ExpandedDistance,Hit.Normal));
         }
         return new PhysicsQueryResult(PhysicsQueryStatus.Success,Results.Count-Start);
+    }
+
+    /// <summary>
+    /// Every penetration of a sphere or capsule placed at <paramref name="Position"/>: one contact per
+    /// penetrating triangle of a static triangle mesh and one per other body, ordered by stable ID
+    /// then feature. Normals point from the query shape into the body. Triggers are skipped.
+    /// </summary>
+    public PhysicsQueryResult CollectContacts(in Collider Shape,in LogicalVector3 Position,in LogicalQuaternion Rotation,PhysicsLayerMask Layers,List<PhysicsShapeContact> Results){
+        ArgumentNullException.ThrowIfNull(Results);
+        if(Shape.Shape is not (ColliderShape.Sphere or ColliderShape.Capsule)||Shape.Radius<=LogicalScalar.Zero||Shape.HalfHeight<LogicalScalar.Zero){
+            return new PhysicsQueryResult(PhysicsQueryStatus.InvalidInput,0);
+        }
+        int Start=Results.Count;
+        try {
+            PhysicsCollisionShape Query=new(Shape,Position,Rotation,null);
+            PhysicsAabb Bounds=this.NarrowPhase.CalculateBounds(Query);
+            this.QueryCandidates.Clear();
+            this.Broadphase.Query(Bounds,this.QueryCandidates);
+            this.QueryCandidates.Sort();
+            foreach(ulong StableId in this.QueryCandidates){
+                Body Body=this.Bodies[StableId];
+                if(Body.Faulted||!Layers.Contains(Body.Collider.Layer)||Body.Collider.IsTrigger){ continue; }
+                PhysicsCollisionShape Target=this.CreateShape(Body);
+                if(Body.Collider.Shape==ColliderShape.StaticTriangleMesh){
+                    this.ContactScratch.Clear();
+                    this.NarrowPhase.CollectMeshContacts(Query,Target,this.ContactScratch);
+                    foreach(PhysicsContactCandidate Contact in this.ContactScratch){
+                        Results.Add(new PhysicsShapeContact(Body.Entity,StableId,Contact.Position,Contact.Normal,Contact.Penetration,
+                            Contact.SurfaceNormal.LengthSquared.IsZero?-Contact.Normal:Contact.SurfaceNormal));
+                    }
+                }
+                else if(this.NarrowPhase.TryCreateContact(Query,Target,out PhysicsContactCandidate Contact)){
+                    Results.Add(new PhysicsShapeContact(Body.Entity,StableId,Contact.Position,Contact.Normal,Contact.Penetration,-Contact.Normal));
+                }
+            }
+            return new PhysicsQueryResult(PhysicsQueryStatus.Success,Results.Count-Start);
+        }
+        catch(OverflowException){
+            Results.RemoveRange(Start,Results.Count-Start);
+            return new PhysicsQueryResult(PhysicsQueryStatus.NumericOverflow,0);
+        }
     }
 
     public PhysicsQueryResult Overlap(in PhysicsAabb Bounds,PhysicsLayerMask Layers,List<PhysicsOverlapHit> Results){

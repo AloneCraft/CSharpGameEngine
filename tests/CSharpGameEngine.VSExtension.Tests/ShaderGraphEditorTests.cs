@@ -205,6 +205,20 @@ public sealed class ShaderGraphEditorTests {
         Assert.Equal($"Cge.ShaderGraph.Node.{NodeId}",ShaderGraphAutomationIds.Node(NodeId));
         Assert.Equal($"Cge.ShaderGraph.Argument.{NodeId}.Value",ShaderGraphAutomationIds.Argument(NodeId,"Value"));
     }
+    /// <summary>
+    /// The CLI's output is read without either pipe filling. Standard output was read to its end before standard error,
+    /// so a CLI that wrote more than a pipe buffer to standard error (many diagnostics, a long exception) waited for a
+    /// reader forever, and Visual Studio, which saves and builds a graph on the UI thread, hung with it.
+    /// </summary>
+    [Fact]
+    public async Task BuildService_ReadsALargeErrorStreamWithoutBlocking() {
+        var Shell=Environment.GetEnvironmentVariable("ComSpec")??"cmd.exe";
+        var Running=Task.Run(()=>ShaderGraphEditorBuildService.Run(Shell,"/d /c \"for /L %i in (1,1,3000) do @echo diagnostic line %i 1>&2\"",Path.GetTempPath()));
+        Assert.Same(Running,await Task.WhenAny(Running,Task.Delay(TimeSpan.FromSeconds(60))));
+        var (ExitCode,Output)=await Running;
+        Assert.Equal(0,ExitCode);
+        Assert.Contains("diagnostic line 3000",Output,StringComparison.Ordinal);
+    }
     [Fact]
     public void BuildService_ValidatesSubgraphsWithoutPublishingArtifacts() {
         Assert.Equal(ShaderGraphEditorBuildOperation.ValidateSubgraph,ShaderGraphEditorBuildService.GetOperation(SubgraphPath));

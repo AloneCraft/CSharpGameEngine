@@ -47,7 +47,9 @@ internal static class SceneEditConflictMerger {
                 if(Operation is SetComponentMemberOperation Member){
                     // A stale member edit without its observed original value cannot prove that it
                     // is not overwriting an external edit. Reject it instead of silently choosing
-                    // last-writer-wins. Inspector commits always carry the original expression.
+                    // last-writer-wins. Inspector commits leave the original out (a typed value must not
+                    // be rebased as a delta), so a stale Inspector commit is rejected; a property drag
+                    // carries its start value and is rebased below.
                     if(Member.OriginalValueExpression is null){
                         return SceneEditConflictMergeResult.Failure(
                             VsixText.Format("ConflictMemberExternallyChanged",Member.MemberName));
@@ -151,7 +153,7 @@ internal static class SceneEditConflictMerger {
             return false;
         }
         foreach((string Name,Vector3 _,Vector3 _) in
-            SceneSourceEditor.EnumerateTransformVectors(SceneTransformValue.Identity,Members)){
+            SceneEditValues.EnumerateTransformVectors(SceneTransformValue.Identity,Members)){
             for(int Index=0;Index<3;Index++){
                 if(SceneTransformBinding.CanEditVector(Transform,Name,Index)){ continue; }
                 ErrorMessage=VsixText.Format("ConflictTransformMemberNotEditable",Name);
@@ -176,5 +178,5 @@ internal static class SceneEditConflictMerger {
         return float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out Value);
     }
 
-    private static string FormatFloat(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture)+"f";
+    private static string FormatFloat(float Value)=>SceneEditValues.SingleLiteral(Value);
 }

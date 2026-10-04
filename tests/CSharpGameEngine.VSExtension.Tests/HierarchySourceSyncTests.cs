@@ -62,6 +62,24 @@ public sealed class HierarchySourceSyncTests {
         Assert.Empty(SceneSourceMarkerPlanner.Create(Analyze(),[Root.Append(99)]));
     }
 
+    [Fact]
+    public void MarkerAndNavigation_ForAJsonScene_PointAtTheNodeObjectInTheJson(){
+        var Model=Analyze();
+        const string Json="{ \"root\": { \"name\": \"Root\", \"children\": [ { \"name\": \"A\", \"children\": [ { \"name\": \"A0\" } ] }, { \"name\": \"B\" } ] } }";
+        var AStart=Json.IndexOf("{ \"name\": \"A\"",System.StringComparison.Ordinal);
+        var BStart=Json.IndexOf("{ \"name\": \"B\"",System.StringComparison.Ordinal);
+
+        var Ranges=SceneSourceMarkerPlanner.Create(Model,[A,A0,B],Json);
+
+        Assert.Equal(2,Ranges.Count);
+        Assert.Equal(AStart,Ranges[0].Span.Start);
+        Assert.Equal('}',Json[Ranges[0].Span.End-1]);
+        Assert.Equal(BStart,Ranges[1].Span.Start);
+        Assert.True(SceneSourceMarkerPlanner.TryCreateNavigation(Model,B,IsDocumentOpen:true,out _,out var Position,Json));
+        Assert.Equal(BStart,Position);
+        Assert.Empty(SceneSourceMarkerPlanner.Create(Model,[A],"{ not json"));
+    }
+
     private static SceneModel Analyze()=>SceneAnalysisTestHelper.Analyze("""
         using CSharpGameEngine.Entities;
         namespace Game;

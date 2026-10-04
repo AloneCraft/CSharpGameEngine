@@ -1,0 +1,121 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CSharpGameEngine.FeatureStages.Rigid",
+  "className": "RigidReferenceScene",
+  "root": {
+    "id": "388ff793-2ed3-5a7d-bf46-fab085e6f9f6",
+    "name": "Rigid_Ground",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 3,
+          "Case": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageVisual",
+        "members": {
+          "Primitive": 1,
+          "Y": -0.5,
+          "ScaleX": 12,
+          "ScaleY": 0.5,
+          "ScaleZ": 12,
+          "Color": 4282735204
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "eb97c44c-b4bc-5493-b6ba-606cf1d7cb79",
+        "name": "Stack_0",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "Y": 1,
+              "ScaleX": 1,
+              "ScaleY": 1,
+              "ScaleZ": 1,
+              "Color": 4293874512
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 0,
+              "Target": 1,
+              "Kind": 1
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d1c249ed-bf06-5afd-92bd-ef267c0da355",
+        "name": "Stack_1",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "Y": 2.1,
+              "ScaleX": 1,
+              "ScaleY": 1,
+              "ScaleZ": 1,
+              "Color": 4294953512
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 1,
+              "Target": 2,
+              "Kind": 1
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4a982a99-fcce-51fd-8539-1d1915e976fa",
+        "name": "Stack_2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "Y": 3.2,
+              "ScaleX": 1,
+              "ScaleY": 1,
+              "ScaleZ": 1,
+              "Color": 4284922730
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "fbae8fd7-04c7-5b85-9433-d822e040161b",
+        "name": "Projectile",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": -6,
+              "Y": 1.5,
+              "ScaleX": 0.5,
+              "ScaleY": 0.5,
+              "ScaleZ": 0.5,
+              "Color": 4282557941
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

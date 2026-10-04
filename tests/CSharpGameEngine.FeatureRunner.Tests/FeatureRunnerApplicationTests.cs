@@ -19,6 +19,23 @@ public sealed class FeatureRunnerApplicationTests {
         Assert.Contains("rigid.physics",Output.ToString(),StringComparison.Ordinal);
         Assert.Empty(Executor.ExecutedStageIds);
     }
+    /// <summary>
+    /// Results belong to the repository the stages ran against: release evidence looks for them there. They used to be
+    /// saved in the repository around the current directory.
+    /// </summary>
+    [Fact]
+    public void ResultsRepository_IsTheRepositoryRootTheCommandNames(){
+        string Other=Path.Combine(Path.GetTempPath(),"cge-runner-root-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(Other,"src"));
+        File.WriteAllText(Path.Combine(Other,"CSharpGameEngine.slnx"),"<Solution />");
+        try {
+            Assert.Equal(Other,FeatureRunnerApplication.ResultsRepositoryRoot(
+                ["run","ecs.performance","--configuration","Release","--repository-root",Path.Combine(Other,"src")]));
+            Assert.Equal(FeatureStageRepositoryLocator.Find(),FeatureRunnerApplication.ResultsRepositoryRoot(["run","ecs.performance"]));
+        } finally {
+            Directory.Delete(Other,true);
+        }
+    }
     [Fact]
     public async Task RunFeature_ExecutesItsStageAndPersistsAResult(){
         var Catalog=FeatureStageCatalog.CreateDefault();

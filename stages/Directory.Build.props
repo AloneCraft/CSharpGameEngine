@@ -5,10 +5,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- ADR-0070: write .cge/scene.schema.json after the build, the target of the stage scenes' "$schema". -->
+    <CgeGameProject>true</CgeGameProject>
   </PropertyGroup>
   <Import Project="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
+    <!-- ADR-0070: stage scenes are the *.json files under Scenes (SceneFiles), compiled by GameSystemGenerator. -->
+    <AdditionalFiles Include="Scenes\**\*.json" />
+    <CompilerVisibleProperty Include="ProjectDir" />
     <Compile Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\FixedTransform.cs" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialPartitioning.cs" />

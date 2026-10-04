@@ -237,6 +237,16 @@ public static class EcsPerformanceProbe {
         string Root=Path.GetFullPath(RepositoryRoot);
         string RawDirectory=Path.Combine(Root,".artifacts","EcsPerformance");
         Directory.CreateDirectory(RawDirectory);
+        // The captures build without restoring, and nothing else restores the benchmark project in a fresh
+        // checkout (it belongs to no test project's graph), so restore it once before the first capture.
+        ProcessResult Restore=await RunDotnetAsync(
+            Root,["restore",BenchmarkProject],false,CancellationToken).ConfigureAwait(false);
+        if(Restore.ExitCode!=0){
+            await Error.WriteLineAsync(
+                $"ECS benchmark restore exited with code {Restore.ExitCode}.").ConfigureAwait(false);
+            await Error.WriteLineAsync((Restore.StandardOutput+Restore.StandardError).Trim()).ConfigureAwait(false);
+            return 1;
+        }
         var Captures=new List<(string Path,byte[]Bytes,EcsRawPerformanceReport Report)>();
         foreach(int ComponentCount in RequiredComponentTypeCounts){
             string RawPath=Path.Combine(
@@ -330,13 +340,15 @@ public static class EcsPerformanceProbe {
             static Capture=>Capture.Report.ComponentTypeCount)){
             string RawHash=Convert.ToHexString(
                 SHA256.HashData(Capture.Bytes)).ToLowerInvariant();
+            // The one-type comparison is a median alarm. The nearest-rank p95 of thirty samples is a single
+            // sample, and two processes' p95 differed by more than 20 percent in quiet runs whose medians agreed
+            // within 7 percent; the absolute budget still gates every p95.
             PerformanceBaseline?Baseline=
                 Configuration=="Release"
                 &&Capture.Report.ComponentTypeCount==64
                 &&SingleTypeAnalysis is not null
                     ?new PerformanceBaseline(
-                        SingleTypeAnalysis.ElapsedNanoseconds.Median,
-                        SingleTypeAnalysis.ElapsedNanoseconds.P95,0,2000)
+                        SingleTypeAnalysis.ElapsedNanoseconds.Median,null,0,2000)
                     :null;
             PerformanceMeasurementPlan Plan=CreatePlan(
                 Capture.Report,RawHash,Baseline);
@@ -374,30 +386,40 @@ public static class EcsPerformanceProbe {
         Value is {Length:64}&&Value.All(static Character=>
             Character is >= '0' and <= '9' or >= 'a' and <= 'f');
 
-    private static async Task<ProcessResult>RunCaptureAsync(
+    private const string BenchmarkProject=
+        "tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj";
+
+    private static Task<ProcessResult>RunCaptureAsync(
         string RepositoryRoot,string Configuration,int ComponentTypeCount,
-        string RawPath,CancellationToken CancellationToken){
+        string RawPath,CancellationToken CancellationToken)=>
+        RunDotnetAsync(
+            RepositoryRoot,[
+                "run","--project",BenchmarkProject,
+                "--configuration",Configuration,
+                $"-p:EcsComponentCount={ComponentTypeCount}","--no-restore","--",
+                "--repository-root",RepositoryRoot,
+                "--configuration",Configuration,"--output",RawPath,
+            ],true,CancellationToken);
+
+    private static async Task<ProcessResult>RunDotnetAsync(
+        string RepositoryRoot,IReadOnlyList<string>Arguments,
+        bool DisableTieredCompilation,CancellationToken CancellationToken){
         var StartInfo=new ProcessStartInfo(){
             FileName="dotnet",WorkingDirectory=RepositoryRoot,
             UseShellExecute=false,RedirectStandardOutput=true,
             RedirectStandardError=true,CreateNoWindow=true,
         };
-        foreach(string Argument in new[]{
-            "run","--project",
-            "tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj",
-            "--configuration",Configuration,
-            $"-p:EcsComponentCount={ComponentTypeCount}","--no-restore","--",
-            "--repository-root",RepositoryRoot,
-            "--configuration",Configuration,"--output",RawPath,
-        }){
+        foreach(string Argument in Arguments){
             StartInfo.ArgumentList.Add(Argument);
         }
-        StartInfo.Environment["DOTNET_TieredCompilation"]="0";
-        StartInfo.Environment["COMPlus_TieredCompilation"]="0";
+        if(DisableTieredCompilation){
+            StartInfo.Environment["DOTNET_TieredCompilation"]="0";
+            StartInfo.Environment["COMPlus_TieredCompilation"]="0";
+        }
         using var Process=new Process(){StartInfo=StartInfo};
         if(!Process.Start()){
             throw new InvalidOperationException(
-                "Could not start ECS performance capture.");
+                $"Could not start dotnet {Arguments[0]}.");
         }
         Task<string>OutputTask=Process.StandardOutput.ReadToEndAsync(
             CancellationToken);

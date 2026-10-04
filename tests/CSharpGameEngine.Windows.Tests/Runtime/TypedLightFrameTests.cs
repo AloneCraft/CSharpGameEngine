@@ -35,10 +35,10 @@ public sealed class TypedLightFrameTests {
         var State=new State(World);
         using var Host=new EngineHost();
         var Sync=new PointLightSync();
-        Assert.True(Sync.Update(Entity,ref Light,ref Runtime,Host,ref State));
+        Sync.Update(Entity,ref Light,ref Runtime,Host,ref State);
         Assert.Equal("Range",Runtime.InvalidProperty);
         Light=new PointLight();
-        Assert.True(Sync.Update(Entity,ref Light,ref Runtime,Host,ref State));
+        Sync.Update(Entity,ref Light,ref Runtime,Host,ref State);
         Assert.Null(Runtime.InvalidProperty);
     }
     [Fact]

@@ -92,8 +92,31 @@ public sealed class GameSystemScheduleTests {
         Assert.DoesNotContain(Result.Results[0].GeneratedSources,static Source=>Source.HintName=="GameSystem.Schedule.g.cs");
     }
 
+    /// <summary>ADR-0073: [RunsAfter] orders execution for every system and does not opt into the schedule.</summary>
     [Fact]
-    public void MissingScheduledDependencyIsACompileError(){
+    public void RunsAfterAloneDoesNotOptIntoTheSchedule(){
+        var Result=Run(
+            """
+            internal struct FirstSystem : ISystem
+            {
+                public bool Update(ref Position position, ref State state) => true;
+            }
+
+            [RunsAfter(typeof(FirstSystem))]
+            internal struct SecondSystem : ISystem
+            {
+                public bool Update(ref Position position, ref State state) => true;
+            }
+            """);
+
+        Assert.Empty(Result.Diagnostics);
+        var Schedule=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Schedule.g.cs");
+        Assert.DoesNotContain("new(",Schedule);
+    }
+
+    /// <summary>A scheduled system may run after an unscheduled one; only a target that is no system is an error.</summary>
+    [Fact]
+    public void ScheduledSystemMayRunAfterAnUnscheduledSystem(){
         var Result=Run(
             """
             internal struct UnscheduledSystem : ISystem
@@ -108,7 +131,41 @@ public sealed class GameSystemScheduleTests {
             }
             """);
 
-        Assert.Single(Result.Diagnostics,static Diagnostic=>Diagnostic.Id=="SYSGEN030");
+        Assert.Empty(Result.Diagnostics);
+    }
+
+    /// <summary>
+    /// ADR-0073: the conflict check follows the execution order graph, so an unscheduled system between two
+    /// scheduled ones orders them, and the later one waits for the earlier one.
+    /// </summary>
+    [Fact]
+    public void UnscheduledSystemInBetweenOrdersAScheduledConflict(){
+        var Result=Run(
+            """
+            [ScheduledSystem]
+            internal struct WriteSystem : ISystem
+            {
+                public bool Update(ref Position position, ref State state) => true;
+            }
+
+            [RunsAfter(typeof(WriteSystem))]
+            internal struct MiddleSystem : ISystem
+            {
+                public bool Update(ref Velocity velocity, ref State state) => true;
+            }
+
+            [ScheduledSystem, RunsAfter(typeof(MiddleSystem))]
+            internal struct ReadSystem : ISystem
+            {
+                public bool Update([ReadOnlyComponent] in Position position, ref State state) => true;
+            }
+            """);
+
+        Assert.Empty(Result.Diagnostics);
+        var Schedule=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Schedule.g.cs");
+        Assert.Contains("0 => \"global::Game.WriteSystem\"",Schedule);
+        Assert.Contains("1 => \"global::Game.ReadSystem\"",Schedule);
+        Assert.Contains("new(1, 1, 1, 0, 1,",Schedule);
     }
 
     [Fact]
@@ -128,9 +185,10 @@ public sealed class GameSystemScheduleTests {
             }
             """);
 
-        var Diagnostic=Assert.Single(Result.Diagnostics,static Diagnostic=>Diagnostic.Id=="SYSGEN031");
-        Assert.Contains("global::Game.FirstSystem",Diagnostic.GetMessage());
-        Assert.Contains("global::Game.SecondSystem",Diagnostic.GetMessage());
+        var Diagnostic=Assert.Single(Result.Diagnostics);
+        Assert.Equal("SYSGEN034",Diagnostic.Id);
+        Assert.Contains("Game.FirstSystem",Diagnostic.GetMessage());
+        Assert.Contains("Game.SecondSystem",Diagnostic.GetMessage());
     }
 
     [Fact]

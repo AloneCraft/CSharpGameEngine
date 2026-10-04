@@ -42,15 +42,11 @@ public sealed class VsixUiLiteralGuardTests {
         "Label",
         "MenuItem",
         "SceneCameraPreview",
-        "SceneDesignerCommandPresentation",
-        "SceneDesignerMenuItem",
         "SceneEditCommitResult",
         "TextBlock",
         "ToolTip",
     };
     private static readonly HashSet<string>InvariantReturnMembers=new(StringComparer.Ordinal){
-        "SceneDesignerDocumentWindowException.DiagnosticText",
-        "SceneDesignerDocumentWindowException.CreateMessage",
         "VsixBuildIdentity.ActivityLogText",
         "VsixBuildIdentity.DisplayText",
     };

@@ -64,10 +64,12 @@ public struct PhysicsStableId:IRuntimeComponent<Collider> {
     public ulong Value;
 }
 
+[SceneComponentOrder(SceneComponentCategory.Spatial,23)]
 public struct PhysicsRotation() {
     public LogicalQuaternion Value = LogicalQuaternion.Identity;
 }
 
+[SceneComponentOrder(SceneComponentCategory.Spatial,24)]
 public struct PhysicsVelocity {
     public LogicalVector3 Linear;
     public LogicalVector3 Angular;
@@ -88,6 +90,7 @@ public enum PhysicsCachePlaybackState:byte {
     Faulted,
 }
 
+[SceneComponentOrder(SceneComponentCategory.Spatial,25)]
 public struct PhysicsCachePlayback {
     public string Cache;
     public PhysicsCachePlaybackState State;

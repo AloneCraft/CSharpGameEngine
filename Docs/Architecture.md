@@ -1,7 +1,7 @@
 # アーキテクチャ
 
 ## Typed lighting boundary (ADR-0064, M0088)
-The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lighting.md). Contracts owns validated physical quantities; portable Runtime.Lighting shared source owns Directional/Point/Spot/RectArea and optional LightShadow; Runtime.Windows owns fixed-transform extraction; Rendering owns applicable-only submissions; RenderServer owns ordered typed frame replay. C# IScene and native text Undo are the only authoring/history truth. Earlier light vocabulary below is historical where it conflicts with ADR-0064.
+The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lighting.md). Contracts owns validated physical quantities; portable Runtime.Lighting shared source owns Directional/Point/Spot/RectArea and optional LightShadow; Runtime.Windows owns fixed-transform extraction; Rendering owns applicable-only submissions; RenderServer owns ordered typed frame replay. Scene JSON (ADR-0070) and the editor's native text Undo are the only authoring/history truth. Earlier light vocabulary below is historical where it conflicts with ADR-0064.
 
 ## プロダクト
 - 表示名: `C# Game Engine`
@@ -32,8 +32,9 @@ The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lig
 
 ## プロジェクト構成(ADR-0034)
 
-`src/` は5プロジェクトである。この5つは分野で切ったのではなく、**ビルド形状の実際の違い**で
-切ってある(ADR-0034)。
+プロジェクトは分野で切ったのではなく、**ビルド形状の実際の違い**で切る(ADR-0034)。一覧の正本は
+`CSharpGameEngine.slnx`で、2026-10-01時点の`src/`は14のcsprojと6の共有プロジェクト(shproj)からなる。
+ADR-0034で決めた中核の5つは次のとおり。
 
 | プロジェクト | TFM | 境界の理由 |
 |---|---|---|
@@ -43,7 +44,17 @@ The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lig
 | `CSharpGameEngine.Import` | net10.0 | サードパーティのアセットSDK(SharpGLTF / AssimpNet)を抱える |
 | `CSharpGameEngine.Windows` | net10.0-windows10.0.19041.0 / x64 | windows TFM・x64・unsafe・TerraFX/DXCのネイティブ依存 |
 
-依存辺は3本のみ: `Entities → CodeAnalysis`(Analyzer参照)、`Import → Core`、`Windows → Core`。
+その後に加わったもの: `Audio`、`Content`、`Contracts`、`Numerics`、`Rendering`、`SceneModel`(シーン解析の共有ソース、
+netstandard2.0)、`ShaderArtifacts`、`ShaderGraph`、`World`の各csprojと、ゲームのコンパイルへソースとして入る共有プロジェクト
+`Runtime.Animation`/`Runtime.Character`/`Runtime.Lighting`/`Runtime.Physics`/`Runtime.Simulation`/`Runtime.Windows`。
+層の境界(M0096 G、`EngineLayerSpec`で検証):
+- `Runtime.Physics`/`Runtime.Character`はWindows専用の型を名指ししない。ホストの物理ドメインは`IPhysicsHost`
+  (`PhysicsDomainRegistry`)として受け取り、`EngineHost`がそれを実装する。`StaticMesh`/`MeshMobility`と、World変換の解決
+  (`RuntimeWorldTransform.TryResolveWorld`)はEntitiesの共有ソースにある(名前空間`CSharpGameEngine.Runtime.Windows`はシーン
+  JSONの互換のため維持)。
+- `tools/CSharpGameEngine.Physics.Cli`(L7)はゲームを参照しない。cook/inspectはECSを使わない物理ソースを取り込み、
+  Bakeは渡されたゲームのビルドを`bake --assembly <game.dll>`で収集可能なALCへ読み込み、生成された
+  `GeneratedSceneBakeHost.TryBake`を呼ぶ。
 
 **アセンブリ名と名前空間は一致しない**。これは意図的である(ADR-0034決定事項2)。
 `CSharpGameEngine.Core.dll`は`CSharpGameEngine.Core`/`.Spatial.Abstractions`/`.Spatial.Unity`/
@@ -69,34 +80,33 @@ Roslynにロードされない。
   いずれも `--verify` でピクセル検証まで行うため、CI/スモークのレンダリング経路検証に使う。
   Visual Studio 拡張の本体は別プロジェクト `tools/CSharpGameEngine.VSExtension`(net472、
   実際に`.vsix`を生成する)であり、重い処理は`Import.Gltf.Cli`/`Import.Fbx.Cli`/
-  `SceneAuthoring.Cli`への別プロセスブリッジへ逃がしている(ADR-0010/0019/0023)。
-- `UserGameProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**であり、
-  購入済みで手動配置される Fab アセットの置き場(`UserGameProject/Assets/Fab/`)を持つ。
-  ECS の唯一の実証場所でもある。
+  `Import.AssetAuthoring.Cli`/`Primitive.Cli`/`Physics.Cli`/`ShaderGraph.Cli`への別プロセスブリッジへ
+  逃がしている(ADR-0010/0019/0023)。
+- `UserEcsProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**で、ECS と
+  シーン JSON の実証場所である。新規プロジェクトの雛形は`templates/CSharpGameEngine.Templates.ThirdPerson`。
 - L3の唯一のECSランタイムは `src/CSharpGameEngine.Entities`(SoA専業、**閉集合(静的)Archetype**)
   である。ユーザーはComponent型(`struct`)と`ISystem`を実装する`struct`だけを書き、
   `src/CSharpGameEngine.CodeAnalysis` の `GameSystemGenerator` が`Update`/`Spawn`メソッドの
-  **引数の渡し方だけ**(属性ゼロ)から役割を推論して、Archetype型・`World.Create`
+  **引数の渡し方**から役割を推論して、Archetype型・`World.Create`
   オーバーロード・`GeneratedGameLoop`を生成する(ADR-0033、[[Ecs-Soa-Systems]]参照)。
   ユーザーはQuery・foreach・Chunk走査・ゲームループ・起動時のエンティティ生成を書かない。
-  実行順は**メソッドの記述順**で決まる。
+  `Update`は`void`が標準で、経過時間は`State.FrameDeltaSeconds`/`FixedDeltaSeconds`から読む(ADR-0072)。
+  Phaseは`[SystemPhase]`、Phaseの中の順序は`[RunsAfter]`/`[RunsBefore]`で受け取り、辺の無いもの同士は
+  完全修飾名順(ADR-0073)。
   歴史: `src/CSharpGameEngine.Ecs`(コンパイル時アーキタイプ型、ADR-0015)と
   `Generation.Abstractions`/`GenerateEntityGenerator`(AoS/SoA選択生成、ADR-0024)はADR-0029で、
   動的Archetype方式(ADR-0029)はADR-0033で、それぞれ削除済み(いずれもSuperseded)。
   `samples/` ディレクトリはADR-0034で廃止した。
-- Scene Authoring は `IScene` を実装するC#クラス(`Node`のobject-initializerグラフ)を正本とする
-  (ADR-0038。旧`[SceneDefinition]`方式=ADR-0030/0031はM0019 Phase 5で削除)。同じ宣言を
-  `GameSystemGenerator`が実行時生成(`Instantiate`)に、VSIXがライブRoslyn解析(`SceneModel`)に
-  使い、Scene デザイナー/ヒエラルキーは解析結果を250msデバウンスで表示する(ADR-0040、
-  [[M0019-CSharp-Scene-DSL]])。JSON方式の旧`src/CSharpGameEngine.Scene`はADR-0034で削除済み。
-  VSIX内の`*.scene`パーサ残骸(`SceneFile.cs`/`SceneNodeAdder.cs`/`PrimitiveSpawner.cs`)と
-  シェイプパレット一式は、M0020 Phase 0で**削除した**。読み取りも書き込みもライブRoslynの
-  `SceneModel`系(ADR-0040/0041)へ一本化されている。
+- Scene Authoring はプロジェクトの`Scenes`フォルダーにあるシーン JSON(`Scenes\**\*.json`)を正本とする
+  (ADR-0070。C#の`IScene`クラスによる方式はM0093 C3bで削除し、残っていればSCENE206)。同じ文書を
+  `GameSystemGenerator`が実行時生成(`Instantiate`)に、VSIXのシーン エディター(Design / JSON の2つのビュー、
+  ADR-0071)が編集に使う。エディターの書き込みは変わった値だけを元のテキストへ戻し、作者の書式を保つ(M0095)。
+  ゲームがビルド済みなら、Scene ビューはゲーム自身のランタイムで描く(ADR-0070 B1)。
 - シーンエディタのインタラクション(ナビゲーション・ピッキング・ギズモ・編集トランザクション)は
-  Phase 0〜3まで実装済みである。カメラ外部注入・階層Transform合成に加え、ナビゲーション、
-  CPUピッキングと双方向選択、Moveギズモ、Renderer定数だけのドラッグpreview、最新Roslyn世代への
-  `SetTransform(Position)`リベース、live text bufferへの1操作=1 Undo書き戻しを持つ。
-  Phase 4〜7(Rotate/Scale、修飾操作、Propertyギズモ、増分描画)は計画済み・未実装。
+  M0020のPhase 0〜7を実装済みである。カメラ外部注入・階層Transform合成に加え、ナビゲーション、
+  CPUピッキングと双方向選択、Move/Rotate/Scaleギズモと増分スナップ、Duplicate・Follow View・
+  頂点/面スナップ、Camera/Lightのプロパティギズモ、Renderer定数だけのドラッグpreview、
+  最新世代へのリベース、1操作=1 Undoの書き戻し、差分の増分更新(`SceneIncrementalUpdatePolicy`)を持つ。
   ギズモ軸はゲーム本体の実行時Camera行列規約を維持し、既定視点のワールド`+X`は画面左へ写る
   ([[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]])。要求仕様は`Docs/シーンエディタの仕様.md`、意思決定は
   [[ADR-0041-Scene-Editor-Interaction-Architecture]]、詳細設計は
@@ -118,7 +128,7 @@ Roslynにロードされない。
   Convention型は残っているので、実行時に選択して使うことは引き続きできる。
 - エンジンのRUF規約は`UnityCoordinateConvention`(左手系)に固定されている(ADR-0026)。
   `CSharpGameEngine.Graphics.D3D12`(Camera)・`CSharpGameEngine.Geometry`
-  (ProceduralMeshFactory)・`UserGameProject/Systems`(PlayerControlSystem/CameraSystem)の内部実装は
+  (ProceduralMeshFactory)の内部実装は
   RUF型経由で計算する(ADR-0026、ADR-0028)。`CSharpGameEngine.Import.Gltf`/`.Fbx`は
   `Spatial.Gltf`/`Spatial.Fbx`の各Conventionを使い、Import境界でソース形式の座標系からエンジン
   空間へ変換する(ADR-0027) — この変換により、ADR-0017が当初宣言していた「エンジン空間=glTF空間
@@ -126,9 +136,10 @@ Roslynにロードされない。
   ([[Spatial-RUF]]「未確定事項」参照)。
 
 ## ソリューションファイルの保守
-- `CSharpGameEngine.slnx` がこのリポジトリの唯一のソリューションファイルである。
+- `CSharpGameEngine.slnx` がこのリポジトリの正規のソリューションファイルで、全プロジェクトを登録する。
   Visual Studio によってレガシーな `CSharpGameEngine.sln` 形式から移行済みで、
-  そのファイルはもう存在しない。
+  そのファイルはもう存在しない。`UserEcsProject.slnx` は `UserEcsProject` だけを含む補助のソリューションで、
+  VSIX の実験用インスタンスでゲームを開くため（README の手順）にある。
 - リポジトリ直下と全サブフォルダにある `bin`、`obj`、`.git`、`.vs`、`.gitignore` で除外された
   ローカル `VSIXProject1` 以外の全 `.csproj` と
   `.shproj` は、配置場所に関係なく `CSharpGameEngine.slnx` に登録すること。登録漏れがあっても
@@ -139,10 +150,14 @@ Roslynにロードされない。
   ワイルドカードではなく `.projitems` に明示すること。
 - プロジェクトまたは共有プロジェクトファイルの追加・削除・移動・改名を行う際は、同じ変更の中で
   `CSharpGameEngine.slnx` を更新し、登録整合性テストを実行すること。
-- ソリューションが宣言しているプラットフォームは **x64 のみ**である。
+- ソリューションが宣言しているプラットフォームは **x64 と AnyCPU** である。x64 専用の Windows 依存プロジェクト（`CSharpGameEngine.Windows`、`Windows.Tests`、`TestHost`、`EditorPreview.Host`、`FeatureRunner` など）は x64 に、VSIX や `World` など一部は AnyCPU に、`CSharpGameEngine.slnx` の `<Platform Project=...>` でプロジェクトごとに対応付けている。
 - `UserGameProject.slnx`(2つ目のソリューションファイル)は ADR-0034 で削除した。
   M0009 で消えた `CSharpGameEngine.Ecs` 等を参照しており、読み込み不能な状態で放置されていた。
 
+
+## Radial (logarithmic) depth (ADR-0076, M0099)
+
+A camera chooses its depth mapping (`Camera.DepthMapping`). Radial is the engine's default (the scene Camera component and the render camera factories choose it); Standard stays an explicit choice and the comparison oracle. Radial depth is a property of the view, not an adapter: the Stage program keeps one vertex path, the radial pixel entries wrap the unchanged lighting entries and add `SV_Depth = log2(1 + r/T) / log2(1 + rMax/T)`, and `StageRenderer` chooses a radial pipeline family per view. Positions stay Q64.64 until the single camera-relative float conversion, so no mantissa/exponent packets or vertex warping are needed; only the optional observer inset (`RadialObserver`) compresses positions around the camera. The contract and non-goals are in [Omni](Specifications/Omni.md).
 
 ## Spatial partitioning
 
@@ -157,9 +172,13 @@ Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセ�
 
 ## Shared Windows ECS Runtime
 
-`CSharpGameEngine.Runtime.Windows` is a source-shared L5 runtime module. Its `.projitems` is compiled into the user ECS compilation together with Entities, the analyzer, and the selected fixed-precision profile. This keeps generated World/State APIs, hierarchy resolution, stage rendering, XAudio2 selection, and runtime companion components on one concrete Logical type.
+`CSharpGameEngine.Runtime.Windows` is a source-shared L5 runtime module. Its `.projitems` is compiled into the user ECS compilation together with Entities and the analyzer, on the single Q64.64 `LogicalScalar` of ADR-0063 (the former selectable precision profiles are gone). This keeps generated World/State APIs, hierarchy resolution, stage rendering, XAudio2 selection, and runtime companion components on one concrete Logical type.
 
 UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.
+
+**Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way.
+
+**How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `templates/CSharpGameEngine.Templates.ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
 
 ## Deterministic Simulation / Physics domains
 
@@ -177,13 +196,13 @@ Spatial/Physics debug protocolは不変の理由enum・wire token・数値DTOだ
 
 The Rendering, Asset/Content, Editor/VSIX, ECS/Runtime, Audio/Input/Platform, and Testing/CI/Release target designs are specified in `Docs/Specifications/` and adopted by ADR-0052 through ADR-0057. They are intended architecture, not evidence that their runtime bodies already exist.
 
-The target keeps Win32/D3D12/XAudio2 binding at L0, portable values at L1-L5, engine-owned runtime servers at L4, artifacts at L6, static compilers/bake at L7, and Visual Studio only at L8. Runtime L0-L6 must not reference Roslyn or Visual Studio SDK. C# `IScene` remains source of truth; artifacts/caches are reproducible and old readers are removed with an immediate feature cutover.
+The target keeps Win32/D3D12/XAudio2 binding at L0, portable values at L1-L5, engine-owned runtime servers at L4, artifacts at L6, static compilers/bake at L7, and Visual Studio only at L8. Runtime L0-L6 must not reference Roslyn or Visual Studio SDK. Scene JSON under each project's `Scenes` folder is the scene source of truth (ADR-0070); artifacts/caches are reproducible and old readers are removed with an immediate feature cutover.
 
 ECS preserves the generated one-to-sixty-four-component single-`ulong` generator path with no runtime mask cost. F-L3-020 extends only the Source Generator subset test to a second `ulong` for 65–128 Component types; generated Runtime dispatch remains direct Archetype loops. The Feature catalog v2 records this as an executable foundation Stage alongside tracks, dependency Levels, dependency IDs, oracle-bearing target Stages, and Visual alias registration.
 
 ## Autonomous Feature verification
 
-`CSharpGameEngine.FeatureRunner`はL7の独立CLIであり、L0〜L9のFeature IDを自動Stageへ対応付ける。L9 Stage PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分離し、process、timeout、artifact、再開単位を隔離する。Visual StageはC# `IScene`を正本にし、WARPを必須adapter、Hardwareを任意追加passとする。結果は`.artifacts/FeatureStages`のversioned JSONであり、source/artifactの正本関係を変えない。詳細はADR-0051と`Docs/Feature-Stages.md`を参照する。
+`CSharpGameEngine.FeatureRunner`はL7の独立CLIであり、L0〜L9のFeature IDを自動Stageへ対応付ける。L9 Stage PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分離し、process、timeout、artifact、再開単位を隔離する。Visual Stageはシーン JSON(ADR-0070)を正本にし、WARPを必須adapter、Hardwareを任意追加passとする。結果は`.artifacts/FeatureStages`のversioned JSONであり、source/artifactの正本関係を変えない。詳細はADR-0051と`Docs/Feature-Stages.md`を参照する。
 
 ### External provider boundary
 

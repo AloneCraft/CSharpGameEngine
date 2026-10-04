@@ -1,0 +1,1299 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "FirstPersonStageScene",
+  "root": {
+    "id": "35f9b751-008e-51a5-8555-44ffdb17cdc3",
+    "name": "Lvl_FirstPerson",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AmbientLight",
+        "members": {
+          "ColorR": 1,
+          "ColorG": 1,
+          "ColorB": 1,
+          "Intensity": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.HeightFog",
+        "members": {
+          "Density": 0.0436,
+          "HeightFalloff": 0.2,
+          "ColorR": 0.6,
+          "ColorG": 0.65,
+          "ColorB": 0.7
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "4c55a34f-2094-5e35-98e5-60ebef2e4504",
+        "name": "Floor",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 4, "U": 1, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
+              "Mobility": "Movable"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "45d2f9f0-b2d7-540f-800b-b38c2c0bdc0f",
+        "name": "SM_Cube",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "5d7a3306-8e66-5f52-978d-fe2514beda9d",
+        "name": "SM_Cube10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7012bc60-50a0-5389-a8a0-b59127f92fa2",
+        "name": "SM_Cube11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -120, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c9343a7f-6bf6-531f-81ff-738fd9ef6d35",
+        "name": "SM_Cube12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "77eafbf1-fa3d-589f-951e-66c7ca896ab6",
+        "name": "SM_Cube13",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 7.000001, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d5bfa638-2ce7-5a9c-b1c7-4fc0c63f2634",
+        "name": "SM_Cube14",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4.0000005 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8a13bd88-1f36-5998-8517-49f35d24b724",
+        "name": "SM_Cube15",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4.0000005 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e505e1b9-e98f-54cc-a1fe-4adb141ab876",
+        "name": "SM_Cube16",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -5, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4e78a10f-7a86-5244-a77a-360b837a14e1",
+        "name": "SM_Cube18",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 2, "F": 19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 38 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4d74acef-e279-5267-a4bd-9a560686f8c3",
+        "name": "SM_Cube17",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 19, "U": 2, "F": 20 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2c01fb4a-7369-58b6-80e0-b2be8559e0cc",
+        "name": "19",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 2, "F": -20 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 38 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6476b019-310b-50b3-8e57-3307155b00f2",
+        "name": "2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 18, "U": 0, "F": 20 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8aba0e68-90af-5661-b8af-bf498df7aab5",
+        "name": "20",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -20, "U": 40.454544, "F": 20 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "18870b09-37ff-5d15-b9b0-ee2df9436626",
+        "name": "3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -20, "U": 0, "F": 20 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4ad7dff3-ec56-5225-a8b3-6112df0eea77",
+        "name": "SM_Cube4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -18, "U": 0, "F": 18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 36 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e13b7dcb-09e8-5b7c-90ea-df66770065b3",
+        "name": "SM_Cube5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -18, "U": 0, "F": -20 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 36 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b3ba8796-da24-53d0-b671-d2a95ebc6313",
+        "name": "SM_Cube6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "3dd27aff-c47c-5026-9118-8b088f4bdabc",
+        "name": "SM_Cube7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "5b98d707-d2b8-5cb3-898c-c479a46b0928",
+        "name": "SM_Cylinder",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 18.62638, "U": 24.896297, "F": 19.469429 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 7, "U": 0.1, "F": 7 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cylinder_2bf8575b55.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": [
+          {
+            "id": "8d9f5f24-b8d5-5497-83a6-b20e6d6fe33f",
+            "name": "SM_Cube9",
+            "components": [
+              {
+                "type": "CSharpGameEngine.Entities.Transform",
+                "members": {
+                  "Position": { "R": -15, "U": 0, "F": 12 },
+                  "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+                  "Scale": { "R": 3, "U": 2, "F": 3 }
+                }
+              },
+              {
+                "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+                "members": {
+                  "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+                  "Mobility": "Static"
+                }
+              }
+            ],
+            "children": [
+              {
+                "id": "e1ec792d-bcd3-50fb-aef8-598a40c31432",
+                "name": "8",
+                "components": [
+                  {
+                    "type": "CSharpGameEngine.Entities.Transform",
+                    "members": {
+                      "Position": { "R": 11.337213, "U": -3.0517578E-05, "F": 12 },
+                      "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+                      "Scale": { "R": 6, "U": 2, "F": 3 }
+                    }
+                  },
+                  {
+                    "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+                    "members": {
+                      "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_7e024e0aa1.glb",
+                      "Mobility": "Static"
+                    }
+                  }
+                ],
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "548858a1-8d7c-597a-9750-a31173795f43",
+        "name": "SM_Cylinder2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 1, "U": 0, "F": 19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 5.0000052, "U": 4, "F": 5.0000052 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7648f9e2-bd93-591c-9155-62d22f3b0e3f",
+        "name": "SM_Cylinder3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0.099999994, "U": 0, "F": 19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 5.0000052, "U": 4, "F": 5.0000052 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "bdf97c8e-f5d1-5834-a486-876dad180e4d",
+        "name": "SM_Cylinder4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0.099999994, "U": 0, "F": -19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "1e3d4585-3a3f-5436-b5b0-00d7454408fe",
+        "name": "SM_Cylinder5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0.099999994, "U": 0, "F": -19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "090c9566-7e05-5b0a-af72-3b16e1ddd70d",
+        "name": "SM_Cylinder6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 73.7637, "F": 16.774727 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "06ac2a43-872a-5231-a3a6-faa96d4f8e5f",
+        "name": "SM_Cylinder7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 0, "F": 0.09999907 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ae8f3fc0-a4b0-5b62-b427-89c88a782adf",
+        "name": "SM_Cylinder8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 19, "U": 0, "F": 0.099999994 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.49999998, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4cc37e35-c8eb-5353-ac4a-da56efe4df8f",
+        "name": "SM_Cylinder9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 19, "U": 0, "F": 0.099999994 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e5f60618-c9d8-5aae-9ff9-70340b955fbc",
+        "name": "SM_QuarterCylinder",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "27838eb8-b34b-54c6-b607-440658e43d71",
+        "name": "SM_QuarterCylinder10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -1.9999996, "U": -1, "F": -2.1 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6.499999, "U": 2, "F": 6.499999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "68570e6b-c5b6-5f1e-967a-1002d9160390",
+        "name": "SM_QuarterCylinder11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": -1, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 6.5, "U": 2, "F": 6.5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "39a31ccd-05d1-5932-82bf-277a1ecbf0f4",
+        "name": "SM_QuarterCylinder12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": -1, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 6.499999, "U": 2, "F": 6.499999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "3e9fdb6a-c0b7-5749-860c-dc85a6bf33c1",
+        "name": "SM_QuarterCylinder2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ec74f95b-9644-5e12-8a9e-baa6dfc1416d",
+        "name": "SM_QuarterCylinder3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8410b451-4664-5583-b27b-7c2b3c084e8b",
+        "name": "SM_QuarterCylinder4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 5.999999, "U": 2, "F": 5.999999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ff6746b2-9d81-5ac6-81f6-341eec0dceb4",
+        "name": "SM_QuarterCylinder5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "1e2bd574-ba26-5a82-bc0d-e92d6800af70",
+        "name": "SM_QuarterCylinder6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 5.999999, "U": 2, "F": 5.999999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2760bf57-bde4-5264-840f-e2a905aa3bec",
+        "name": "SM_QuarterCylinder7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b2f70731-afd0-5ff5-8dfa-03912864706c",
+        "name": "SM_QuarterCylinder8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4869a253-5dbb-56cb-ac28-940e3e305223",
+        "name": "SM_QuarterCylinder9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": -1, "F": -2.1 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6.5, "U": 2, "F": 6.5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_236fd6061b.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "04dc4a9e-c70b-5fc1-8774-a8321452016f",
+        "name": "SM_Ramp",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 18, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "aae0807c-a7e1-5a1d-8eca-f975340ec7d8",
+        "name": "SM_Ramp10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": 5 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 4.0000005, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9a8e4b0f-fe54-59a2-909c-ad424e296c5f",
+        "name": "SM_Ramp11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 5, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 4.000001, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a0e8ce71-8791-5a6a-8d5d-99d9db8b1b65",
+        "name": "SM_Ramp12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": -5 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 4, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4925f0ba-303e-55f3-a907-4bfa2b646f49",
+        "name": "SM_Ramp2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ce649144-3a1f-5c85-8cc9-1b9e7c4b3e3a",
+        "name": "SM_Ramp3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": 18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "644c3369-dcf1-5fdf-a693-c42d6a56abed",
+        "name": "SM_Ramp4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": 12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "249643fc-45c0-5c6c-9db6-11123c7bb116",
+        "name": "SM_Ramp5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -18, "U": 0, "F": 12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "303186e8-6076-5761-958a-3672584336af",
+        "name": "SM_Ramp6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 2.9999995, "U": 2, "F": 3.9999995 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "53543464-708c-5622-9803-7fac521c4166",
+        "name": "SM_Ramp7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12, "U": 0, "F": -18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 2.9999995, "U": 2, "F": 3.9999995 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c035ebdb-08f7-5bf1-98f4-79f698cbb490",
+        "name": "SM_Ramp8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_422fe5cd24.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9a68ca89-e2c1-5a89-9780-2bc1ac7e2c2c",
+        "name": "SM_Ramp9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -5, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 4.0000005, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f2700487-3161-527d-afe4-b1676ba45e35",
+        "name": "SM_SkySphere",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 400, "U": 400, "F": 400 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_FirstPerson/Meshes/SM_SkySphere_f5cb2dbef4.glb",
+              "Mobility": "Static"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e5c7b53a-a874-5d27-9bc7-a2ee60e9274d",
+        "name": "DirectionalLight",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0.13754755, "U": 0.2213649, "F": 0.1607039 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.DirectionalLight",
+            "members": {
+              "Color": { "R": 1, "G": 1, "B": 1 },
+              "Illuminance": { "Lux": 100000 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 100,
+              "Bias": { "Meters": 0.005 }
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "215f1c23-b6a6-5e33-8c8e-80c176ae501a",
+        "name": "PlayerStart",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 3.020126, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "UserEcsProject.PlayerStart",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

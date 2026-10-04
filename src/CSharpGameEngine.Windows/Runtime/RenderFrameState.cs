@@ -17,18 +17,29 @@ internal sealed class RenderFrameState {
     private readonly float[]ObjectSelectionWeights;
     private readonly bool[]ObjectSelectionWeightSet;
     private readonly List<int>TouchedSelectionIndices=[];
+    private readonly Dictionary<int,Matrix4x4[]>SkinPalettes=[];
+    private readonly Dictionary<int,int>SkinPaletteLengths=[];
+    private readonly List<int>TouchedSkinMeshes=[];
     private readonly List<DirectionalLightSubmission>DirectionalLights=[];
     private readonly List<PointLightSubmission>PointLights=[];
     private readonly List<SpotLightSubmission>SpotLights=[];
     private readonly List<RectAreaLightSubmission>RectLights=[];
     private readonly List<EmissiveCommand>EmissiveLights=[];
     private readonly List<LightCommandIndex>LightOrder=[];
+    private readonly Dictionary<int,Vector3>WorldGridAnchors=[];
     private RenderCamera Camera;
     private Matrix4x4 ViewProjection;
     private Vector3 ViewProjectionCameraPosition;
+    private RadialViewParameters?ViewProjectionRadial;
     private float CameraAspectRatioOverride;
     private Vector3 AmbientLight;
     private FogParams Fog;
+    private EnvironmentLightingSettings Environment;
+    private float CameraAltitude;
+    private float RenderOriginAltitude;
+    private bool HasEnvironment;
+    private bool HasCameraAltitude;
+    private bool HasRenderOriginAltitude;
     private RenderPresentationMode PresentationMode;
     private bool HasCamera;
     private bool HasViewProjection;
@@ -54,11 +65,14 @@ internal sealed class RenderFrameState {
 
     public bool IsEmpty=>
         !this.HasCamera&&!this.HasViewProjection&&!this.HasAmbientLight&&!this.HasFog
+        &&!this.HasEnvironment&&!this.HasCameraAltitude&&!this.HasRenderOriginAltitude
+        &&this.WorldGridAnchors.Count==0
         &&!this.HasPresentationMode
         &&!this.HasOverlay
         &&!this.HasCameraPreviews
         &&this.LightOrder.Count==0
-        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0;
+        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0
+        &&this.TouchedSkinMeshes.Count==0;
 
     public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
         this.Camera=Camera;
@@ -68,9 +82,10 @@ internal sealed class RenderFrameState {
     }
 
     public void RecordViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,RadialViewParameters?Radial=null){
         this.ViewProjection=ViewProjection;
         this.ViewProjectionCameraPosition=CameraPosition;
+        this.ViewProjectionRadial=Radial;
         this.HasViewProjection=true;
         this.HasCamera=false;
     }
@@ -91,6 +106,25 @@ internal sealed class RenderFrameState {
     public void RecordFog(FogParams Fog){
         this.Fog=Fog;
         this.HasFog=true;
+    }
+
+    public void RecordEnvironment(in EnvironmentLightingSettings Settings){
+        this.Environment=Settings;
+        this.HasEnvironment=true;
+    }
+
+    public void RecordCameraAltitude(float Meters){
+        this.CameraAltitude=Meters;
+        this.HasCameraAltitude=true;
+    }
+
+    public void RecordRenderOriginAltitude(float Meters){
+        this.RenderOriginAltitude=Meters;
+        this.HasRenderOriginAltitude=true;
+    }
+
+    public void RecordWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
+        this.WorldGridAnchors[MaterialIndex]=Anchor;
     }
 
     public void RecordPoint(in PointLightSubmission Value){
@@ -120,6 +154,18 @@ internal sealed class RenderFrameState {
         if(this.ObjectTransformSet[ObjectIndex]){ return; }
         this.ObjectTransformSet[ObjectIndex]=true;
         this.TouchedObjectIndices.Add(ObjectIndex);
+    }
+
+    public void RecordSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
+        if(!this.SkinPalettes.TryGetValue(MeshIndex,out var Stored)||Stored.Length<Palette.Length){
+            Stored=new Matrix4x4[Palette.Length];
+            this.SkinPalettes[MeshIndex]=Stored;
+        }
+        Palette.CopyTo(Stored);
+        if(!this.SkinPaletteLengths.ContainsKey(MeshIndex)){
+            this.TouchedSkinMeshes.Add(MeshIndex);
+        }
+        this.SkinPaletteLengths[MeshIndex]=Palette.Length;
     }
 
     public void RecordPresentationMode(RenderPresentationMode Mode){
@@ -162,9 +208,50 @@ internal sealed class RenderFrameState {
         this.HasCameraPreviews=true;
     }
 
+    /// <summary>
+    /// Carries the renderer's persistent settings forward from the previous completed frame when this
+    /// frame did not set them. StageRenderer keeps ambient, fog, environment, camera and render origin
+    /// altitudes, world grid anchors and presentation mode until they change, so a recovery replay must
+    /// restore a value set once (the Scene view sets its ambient only when the preview is created) and
+    /// not only the last frame's.
+    /// </summary>
+    public void InheritPersistentSettings(RenderFrameState Previous){
+        ArgumentNullException.ThrowIfNull(Previous);
+        if(!this.HasAmbientLight&&Previous.HasAmbientLight){ this.RecordAmbient(Previous.AmbientLight); }
+        if(!this.HasFog&&Previous.HasFog){ this.RecordFog(Previous.Fog); }
+        if(!this.HasEnvironment&&Previous.HasEnvironment){ this.RecordEnvironment(Previous.Environment); }
+        if(!this.HasCameraAltitude&&Previous.HasCameraAltitude){ this.RecordCameraAltitude(Previous.CameraAltitude); }
+        if(!this.HasRenderOriginAltitude&&Previous.HasRenderOriginAltitude){ this.RecordRenderOriginAltitude(Previous.RenderOriginAltitude); }
+        foreach(var (MaterialIndex,Anchor) in Previous.WorldGridAnchors){
+            this.WorldGridAnchors.TryAdd(MaterialIndex,Anchor);
+        }
+        if(!this.HasPresentationMode&&Previous.HasPresentationMode){ this.RecordPresentationMode(Previous.PresentationMode); }
+    }
+
+    internal bool TryGetAmbientLight(out Vector3 Color){
+        Color=this.AmbientLight;
+        return this.HasAmbientLight;
+    }
+
+    internal bool TryGetFog(out FogParams Fog){
+        Fog=this.Fog;
+        return this.HasFog;
+    }
+
+    internal bool TryGetRenderOriginAltitude(out float Meters){
+        Meters=this.RenderOriginAltitude;
+        return this.HasRenderOriginAltitude;
+    }
+
+    internal bool TryGetWorldGridAnchor(int MaterialIndex,out Vector3 Anchor)=>
+        this.WorldGridAnchors.TryGetValue(MaterialIndex,out Anchor);
+
     public void Replay(StageRenderer Renderer){
         ArgumentNullException.ThrowIfNull(Renderer);
-        if(this.HasViewProjection){
+        if(this.HasViewProjection&&this.ViewProjectionRadial is { }Radial){
+            Renderer.SetViewProjection(
+                this.ViewProjection,this.ViewProjectionCameraPosition,Radial);
+        } else if(this.HasViewProjection){
             Renderer.SetViewProjection(
                 this.ViewProjection,this.ViewProjectionCameraPosition);
         } else if(this.HasCamera){
@@ -172,6 +259,12 @@ internal sealed class RenderFrameState {
         }
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
+        if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
+        if(this.HasCameraAltitude){ Renderer.SetCameraAltitude(this.CameraAltitude); }
+        if(this.HasRenderOriginAltitude){ Renderer.SetRenderOriginAltitude(this.RenderOriginAltitude); }
+        foreach(var (MaterialIndex,Anchor) in this.WorldGridAnchors){
+            Renderer.SetWorldGridAnchor(MaterialIndex,Anchor);
+        }
         foreach(var Command in this.LightOrder){
             switch(Command.Kind){
                 case LightCommandKind.SetDirectional:Renderer.SetLight(this.DirectionalLights[Command.Index]);break;
@@ -185,6 +278,9 @@ internal sealed class RenderFrameState {
         }
         foreach(int ObjectIndex in this.TouchedObjectIndices){
             Renderer.SetObjectTransform(ObjectIndex,this.ObjectTransforms[ObjectIndex]);
+        }
+        foreach(int MeshIndex in this.TouchedSkinMeshes){
+            Renderer.SetSkinPalette(MeshIndex,this.SkinPalettes[MeshIndex].AsSpan(0,this.SkinPaletteLengths[MeshIndex]));
         }
         if(this.HasPresentationMode){
             Renderer.SetPresentationMode(this.PresentationMode);
@@ -205,10 +301,16 @@ internal sealed class RenderFrameState {
     }
 
     public void Reset(){
+        this.TouchedSkinMeshes.Clear();
+        this.SkinPaletteLengths.Clear();
         this.HasCamera=false;
         this.HasViewProjection=false;
         this.HasAmbientLight=false;
         this.HasFog=false;
+        this.HasEnvironment=false;
+        this.HasCameraAltitude=false;
+        this.HasRenderOriginAltitude=false;
+        this.WorldGridAnchors.Clear();
         this.HasPresentationMode=false;
         this.HasOverlay=false;
         this.HasCameraPreviews=false;

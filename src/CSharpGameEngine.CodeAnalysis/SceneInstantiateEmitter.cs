@@ -147,7 +147,9 @@ internal static class SceneInstantiateEmitter {
                 Components[Index]=(Components[Index].TypeFullyQualifiedName,$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = {StableId}UL }}");
             }
         }
-        var NameComment=Node.Name is null?"(unnamed)": $"\"{Node.Name}\"";
+        // A node name is any string; written as a C# literal it cannot end the one-line comment early (a line break,
+        // or U+2028 and U+0085, at which C# also ends a line, would put the rest of the name into the code).
+        var NameComment=Node.Name is null?"(unnamed)":Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Node.Name,quote:true);
         Lines.Add($"        // [{Node.PathDisplay}] {NameComment}");
 
         var Archetype=Registry.FindArchetype([.. Components.Select(C=>ComponentIndexByType[C.TypeFullyQualifiedName])]);

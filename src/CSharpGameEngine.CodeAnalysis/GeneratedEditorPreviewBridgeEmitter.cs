@@ -37,6 +37,11 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             "        bool Matched = false;",
             "        switch (SceneName) {",
         ];
+        if(!HasEditorSystems&&!HasRealtimeSystems){
+            // Only an editor or realtime frame reads the system set; declared and reset without one, it was CS0414.
+            Lines.Remove("    private static GeneratedSystemSet PreviewSystems;");
+            Lines.Remove("        PreviewSystems = default;");
+        }
         if(HasEngineHost){
             int PreviewWorldFieldIndex=Lines.IndexOf("    private static global::CSharpGameEngine.Entities.World PreviewWorld;");
             Lines[PreviewWorldFieldIndex]="    private static global::CSharpGameEngine.Runtime.Windows.EngineHost? PreviewEngineHost;";
@@ -77,6 +82,10 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             Lines.Add("        PreviewState.World.PlaybackStructuralChanges(ref PreviewState);");
             if(HasSpatialIndex){ Lines.Add("        PreviewState.World.RefreshGlobalSpatialIndex();"); }
         }
+        if(HasSpatialIndex){
+            // M0096: the render server also holds the view world; the debug overlay shows this one.
+            Lines.Add("        PreviewState.World.PreferForSpatialDebug();");
+        }
         Lines.Add("        Initialized = true;");
         Lines.Add("        return true;");
         if(HasEngineHost){
@@ -88,6 +97,9 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             Lines.Add("        }");
         }
         Lines.Add("    }");
+        Lines.Add(HasSpatialIndex
+            ?"    internal static global::System.Guid EditorSpatialWorldId() => Initialized ? PreviewState.World.GlobalSpatialDebugWorldId : global::System.Guid.Empty;"
+            :"    internal static global::System.Guid EditorSpatialWorldId() => global::System.Guid.Empty;");
         Lines.Add("    internal static void TickOnChange() {");
         Lines.Add("        if (!Initialized || !PreviewState.Enabled) return;");
         if(HasEditorSystems){
@@ -104,6 +116,9 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         } else {
             Lines.Add("    internal static void TickRealtime() { }");
         }
+        if(HasEngineHost){
+            AddRuntimeView(Lines,Scenes,Registry);
+        }
         Lines.Add("    internal static void Shutdown() {");
         if(HasEditorSystems){
             Lines.Add($"        if (Initialized) GeneratedGameLoop.ShutdownEditor(ref PreviewState, ref PreviewSystems{HostArgument});");
@@ -117,6 +132,116 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("    }");
         Lines.Add("}");
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
+    }
+    /// <summary>
+    /// ADR-0070 B1: the Scene Designer's runtime view. The world is what the game starts with (every
+    /// startup scene in order) plus the scene being edited, rendered by the game's own Presentation
+    /// systems into the designer's surface from the designer's camera.
+    /// </summary>
+    private static void AddRuntimeView(List<string> Lines,IReadOnlyList<SceneEmitModel> Scenes,GameSystemRegistry Registry){
+        const string Host="global::CSharpGameEngine.Runtime.Windows.EngineHost";
+        Lines.Add($"    private static {Host}? ViewHost;");
+        Lines.Add("    private static global::CSharpGameEngine.Entities.State ViewState;");
+        Lines.Add("    private static GeneratedSystemSet ViewSystems;");
+        Lines.Add("    private static global::CSharpGameEngine.Entities.SceneInstance ViewEditedScene;");
+        Lines.Add("    /// <summary><paramref name=\"ContentDirectory\"/> is the game build's directory, which its content paths are relative to.</summary>");
+        Lines.Add("    internal static bool InitializeRuntimeView(string? SceneName, string ContentDirectory, nint Surface, int Width, int Height, bool UseWarp) {");
+        Lines.Add("        ShutdownRuntimeView();");
+        Lines.Add("        global::CSharpGameEngine.Entities.ContentRoot.Use(ContentDirectory);");
+        Lines.Add($"        var Host = new {Host}();");
+        Lines.Add("        try {");
+        Lines.Add("            Host.UseExternalSurface(Surface, Width, Height, new global::CSharpGameEngine.Graphics.D3D12.GraphicsDeviceOptions { UseWarp = UseWarp });");
+        Lines.Add("            ViewState = Host.CreateState();");
+        Lines.Add("            ViewSystems = default;");
+        Lines.Add("            bool Matched = SceneName is null;");
+        Lines.Add("            ViewEditedScene = global::CSharpGameEngine.Entities.SceneInstance.None;");
+        foreach(var Scene in Scenes.Where(static S=>S.IsStartupScene).OrderBy(static S=>S.StartupOrder).ThenBy(static S=>S.ClassFullyQualifiedName,StringComparer.Ordinal)){
+            Lines.Add("            {");
+            Lines.Add($"                var Instance = ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>();");
+            Lines.Add($"                if (SceneName == \"{Escape(Scene.ClassFullyQualifiedName)}\") {{ Matched = true; ViewEditedScene = Instance; }}");
+            Lines.Add("            }");
+        }
+        var Others=Scenes.Where(static S=>!S.IsStartupScene).OrderBy(static S=>S.ClassFullyQualifiedName,StringComparer.Ordinal).ToList();
+        if(Others.Count>0){
+            Lines.Add("            switch (SceneName) {");
+            foreach(var Scene in Others){
+                Lines.Add($"                case \"{Escape(Scene.ClassFullyQualifiedName)}\": ViewEditedScene = ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>(); Matched = true; break;");
+            }
+            Lines.Add("            }");
+        }
+        Lines.Add("            if (!Matched) { Host.Dispose(); return false; }");
+        Lines.Add("            ViewState.Enabled = true;");
+        Lines.Add("            ViewState.ExecutionMode = global::CSharpGameEngine.Entities.EngineExecutionMode.EditorPreview;");
+        Lines.Add("            ViewHost = Host;");
+        Lines.Add("            return true;");
+        Lines.Add("        } catch {");
+        Lines.Add("            Host.Dispose();");
+        Lines.Add("            throw;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    /// <summary>One frame seen from the designer's camera: a world position and a unit RUF rotation.</summary>");
+        Lines.Add("    internal static bool RenderRuntimeView(float PositionR, float PositionU, float PositionF, float RotationR, float RotationU, float RotationF, float RotationW, float FovYRadians, float NearZ, float FarZ) {");
+        Lines.Add("        if (ViewHost is null || !ViewState.Enabled) return false;");
+        Lines.Add("        var Pose = new global::CSharpGameEngine.Entities.Transform {");
+        Lines.Add("            Position = new global::CSharpGameEngine.Numerics.LogicalVector3(PositionR, PositionU, PositionF),");
+        Lines.Add("            Rotation = new global::CSharpGameEngine.Numerics.LogicalQuaternion(RotationR, RotationU, RotationF, RotationW),");
+        Lines.Add("        };");
+        Lines.Add("        ViewHost.SetEditorCamera(new global::CSharpGameEngine.Runtime.Windows.EditorCameraPose(Pose, FovYRadians, NearZ, FarZ));");
+        Lines.Add("        GeneratedGameLoop.RunPresentationFrame(ref ViewState, ref ViewSystems, ViewHost);");
+        Lines.Add("        return ViewState.Enabled;");
+        Lines.Add("    }");
+        Lines.Add("    internal static void ResizeRuntimeView(int Width, int Height) => ViewHost?.ResizeExternalSurface(Width, Height);");
+        Lines.Add("    /// <summary>Highlights the edited scene's nodes at <paramref name=\"NodeIndices\"/> (node pre-order).</summary>");
+        Lines.Add("    internal static void SetRuntimeViewSelection(int[] NodeIndices) {");
+        Lines.Add("        if (ViewHost is null) return;");
+        Lines.Add("        var Entities = ViewState.World.GetSceneEntities(ViewEditedScene);");
+        Lines.Add("        var Selected = new global::System.Collections.Generic.HashSet<global::CSharpGameEngine.Entities.Entity>();");
+        Lines.Add("        foreach (var Index in NodeIndices) { if ((uint)Index < (uint)Entities.Length) Selected.Add(Entities[Index]); }");
+        Lines.Add("        ViewHost.SetEditorSelection(Selected);");
+        Lines.Add("    }");
+        Lines.Add("    /// <summary>The designer's gizmos: seven floats per vertex (camera-relative position, then RGBA).</summary>");
+        Lines.Add("    internal static void SetRuntimeViewOverlay(float[] Triangles, float[] Lines) {");
+        Lines.Add("        ViewHost?.SetEditorOverlay(OverlayVertices(Triangles), OverlayVertices(Lines));");
+        Lines.Add("    }");
+        Lines.Add("    private static global::CSharpGameEngine.Rendering.RenderOverlayVertex[] OverlayVertices(float[] Values) {");
+        Lines.Add("        var Vertices = new global::CSharpGameEngine.Rendering.RenderOverlayVertex[Values.Length / 7];");
+        Lines.Add("        for (var Index = 0; Index < Vertices.Length; Index++) {");
+        Lines.Add("            var At = Index * 7;");
+        Lines.Add("            Vertices[Index] = new(new global::System.Numerics.Vector3(Values[At], Values[At + 1], Values[At + 2]), new global::System.Numerics.Vector4(Values[At + 3], Values[At + 4], Values[At + 5], Values[At + 6]));");
+        Lines.Add("        }");
+        Lines.Add("        return Vertices;");
+        Lines.Add("    }");
+        Lines.Add("    /// <summary>The edited scene's node count in the running world: its entities, in node pre-order.</summary>");
+        Lines.Add("    internal static int RuntimeViewNodeCount() => ViewHost is null ? 0 : ViewState.World.GetSceneEntities(ViewEditedScene).Length;");
+        Lines.Add("    /// <summary>A value edit: replaces the component of <paramref name=\"Value\"/>'s type on the edited scene's node. False when the built world does not have that component there.</summary>");
+        Lines.Add("    internal static bool TrySetRuntimeViewComponent(int NodeIndex, object Value) {");
+        Lines.Add("        if (ViewHost is null) return false;");
+        Lines.Add("        var Entities = ViewState.World.GetSceneEntities(ViewEditedScene);");
+        Lines.Add("        if ((uint)NodeIndex >= (uint)Entities.Length) return false;");
+        Lines.Add("        var Entity = Entities[NodeIndex];");
+        Lines.Add("        switch (Value) {");
+        for(var Index=0;Index<Registry.ComponentsByIndex.Length;Index++){
+            Lines.Add($"            case {Registry.ComponentsByIndex[Index].TypeFullyQualifiedName} Value{Index}: return ViewState.World.TrySetComponent(Entity, Value{Index});");
+        }
+        Lines.Add("            default: return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    /// <summary>Renders and reads back one frame for verification; null before the level has loaded.</summary>");
+        Lines.Add("    internal static global::CSharpGameEngine.Graphics.D3D12.PixelReadbackResult? CaptureRuntimeView() {");
+        Lines.Add("        if (ViewHost?.Renderer is not { } Renderer) return null;");
+        Lines.Add("        Renderer.RenderFrame(CaptureForVerification: true);");
+        Lines.Add("        return Renderer.LastCapturedFrame;");
+        Lines.Add("    }");
+        Lines.Add("    internal static void ShutdownRuntimeView() {");
+        Lines.Add("        if (ViewHost is null) return;");
+        Lines.Add("        try {");
+        Lines.Add("            GeneratedGameLoop.Shutdown(ref ViewState, ref ViewSystems, ViewHost);");
+        Lines.Add("        } finally {");
+        Lines.Add("            ViewHost.Dispose();");
+        Lines.Add("            ViewHost = null;");
+        Lines.Add("            ViewState.Enabled = false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
     }
     private static string Escape(string Value)=>Value.Replace("\\","\\\\").Replace("\"","\\\"");
 }

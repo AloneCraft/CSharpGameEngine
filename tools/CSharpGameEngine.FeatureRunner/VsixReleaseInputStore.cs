@@ -45,8 +45,17 @@ public static class VsixReleaseInputStore {
             throw new InvalidDataException(
                 $"Active VSIX release input must use {SchemaVersion} and Release.");
         }
-        VsixReleasePackage Package=VsixReleaseEvidence.InspectPackage(
-            Root,Document.PackagePath,Document.BuildDllPath);
+        VsixReleasePackage Package;
+        try {
+            Package=VsixReleaseEvidence.InspectPackage(
+                Root,Document.PackagePath,Document.BuildDllPath);
+        } catch(FileNotFoundException Missing){
+            // The document is tracked; the frozen bytes are in the local .artifacts store, which a fresh checkout lacks.
+            throw new FileNotFoundException(
+                $"The frozen Release VSIX that {ActiveRelativePath} names is not in this checkout ({Missing.Message}). "
+                +"Validate a Release VSIX in Visual Studio and freeze it with 'freeze-vsix-release-input'.",
+                Missing.FileName,Missing);
+        }
         if(Package.PackageSha256!=Document.PackageSha256
             ||Package.PackageByteLength!=Document.PackageByteLength
             ||Package.BuildDllSha256!=Document.BuildDllSha256

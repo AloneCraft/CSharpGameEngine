@@ -10,7 +10,8 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Owns one Scene Designer session while C# remains the only authoring source of truth.
+/// Owns one Scene Designer session. The live text buffer of the scene document (C#, or a
+/// scene JSON per ADR-0070) is the only authoring copy.
 /// Completed gestures are planned against one latest Roslyn generation, written to the live
 /// buffer as one native Undo unit, and replaced by the authoritative reparse.
 /// </summary>
@@ -81,6 +82,9 @@ internal sealed class SceneEditorSessionService : IDisposable {
         string FilePath,CancellationToken CancellationToken)=>
         this.Workspace.AnalyzeFileNowAsync(FilePath,CancellationToken);
 
+    internal Task WaitForDocumentAsync(string FilePath,CancellationToken CancellationToken)=>
+        this.Workspace.WaitForDocumentAsync(FilePath,CancellationToken);
+
     internal Task<ProjectSceneCatalog?>GetActiveProjectSceneCatalogAsync(
         CancellationToken CancellationToken)=>
         this.Workspace.GetActiveProjectSceneCatalogAsync(CancellationToken);
@@ -134,7 +138,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
     internal bool IsSaving(SceneKey Key)=>this.SourceWritesInFlight.Contains(Key);
 
     /// <summary>
-    /// Commits one completed gesture directly to the latest live C# buffer. A stale request is
+    /// Commits one completed gesture directly to the latest live scene buffer. A stale request is
     /// explicitly rebased or rejected before the native Undo transaction is opened.
     /// </summary>
     internal async Task<SceneEditCommitResult>CommitAsync(
@@ -247,7 +251,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
         return true;
     }
 
-    /// <summary>Persists the authoritative live C# buffer; it never performs edit writeback.</summary>
+    /// <summary>Persists the authoritative live scene buffer; it never performs edit writeback.</summary>
     internal async Task<SceneEditCommitResult>SaveAsync(
         SceneKey Key,CancellationToken CancellationToken){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
@@ -284,11 +288,6 @@ internal sealed class SceneEditorSessionService : IDisposable {
             :Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
                 Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
                 Request.Members)).ToArray();
-    }
-
-    internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        return this.Workspace.GetMenuSnapshot(FilePath);
     }
 
     private SceneDocumentSnapshot BuildCommitSnapshot(SceneKey Key,SceneModel Model){

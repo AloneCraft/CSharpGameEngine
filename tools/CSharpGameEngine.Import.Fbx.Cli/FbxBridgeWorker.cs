@@ -9,26 +9,14 @@ namespace CSharpGameEngine.Import.Fbx.Cli;
 /// logic. Returns diagnostics as a value instead of calling <see cref="Console"/> directly - those
 /// are process-wide statics that would race across the resident server's concurrent requests.
 ///
-/// <see cref="FbxImporter.Import"/> calls AssimpNet's <c>LogStream.Attach()</c>/<c>Detach()</c>
-/// around each import, which is process-wide native logging state, not per-call. In one-shot mode
-/// only one import ever runs per process, so this was never observable; the resident server can
-/// have several FBX imports in flight at once (e.g. a scene referencing multiple .fbx assets,
-/// loaded in parallel by SceneHwndHost), where concurrent Attach/Detach calls could interleave and
-/// cross-contaminate diagnostics or worse. <see cref="ImportGate"/> serializes the import itself so
-/// this can never happen - the rest of resident mode's speed benefit (skipping process/CLR startup)
-/// is unaffected.
+/// The resident server can have several FBX imports in flight at once (e.g. a scene referencing
+/// multiple .fbx assets, loaded in parallel by SceneHwndHost). <see cref="FbxImporter.Import"/>
+/// serializes the part that holds AssimpNet's process-wide log stream itself, so concurrent
+/// requests neither crash nor cross-contaminate diagnostics.
 /// </summary>
 internal static class FbxBridgeWorker {
-    private static readonly SemaphoreSlim ImportGate=new(1,1);
-
     public static(int ExitCode,string Output)Run(string InputPath,string OutputPath){
-        FbxImportResult Result;
-        ImportGate.Wait();
-        try {
-            Result=FbxImporter.Import(InputPath);
-        } finally {
-            ImportGate.Release();
-        }
+        FbxImportResult Result=FbxImporter.Import(InputPath);
 
         List<string>Lines=[];
         foreach(var Diagnostic in Result.Diagnostics){

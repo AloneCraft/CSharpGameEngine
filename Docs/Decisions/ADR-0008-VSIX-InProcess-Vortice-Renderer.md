@@ -1,7 +1,8 @@
 # ADR-0008: VSIXツールウィンドウへのインプロセスD3D12埋め込み(Vortice.Windows)
 
 ## ステータス
-承認済み
+Superseded by ADR-0052(共有の外部プロセス Preview Host、F-L8-018、2026-09-01)。本ADRのVSIX内レンダラー
+(`VorticeRenderer.cs`/`SceneRenderer.cs`)とVortice/SharpGen依存は削除済みで、以下の未解決事項も現行の制約ではない。
 
 ## 背景
 

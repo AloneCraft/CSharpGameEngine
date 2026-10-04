@@ -6,22 +6,19 @@ namespace CSharpGameEngine.Contracts;
 /// native graphics objects and engine-owned authoritative state never do.
 /// </summary>
 public static class RenderPreviewHostProtocol {
-    public const int CurrentVersion=5;
-    public const int CurrentDebugSnapshotVersion=2;
+    /// <summary>
+    /// 8 (M0100): a camera carries its depth mapping and radial transition length. 7 (M0097): the runtime diagnostics
+    /// snapshot command and its payload were removed.
+    /// </summary>
+    public const int CurrentVersion=8;
     public const int MaximumDimension=16_384;
     public const int MaximumMeshCount=4_096;
     public const int MaximumMaterialCount=4_096;
     public const int MaximumObjectCount=100_000;
     public const int MaximumOverlayVertexCount=32_768;
     public const int MaximumCameraPreviewCount=3;
-    public const int MaximumDebugPassCount=64;
-    public const int MaximumDebugResourceCount=64;
-    public const int MaximumDebugTransitionCount=256;
-    public const int MaximumDebugDiagnosticCount=64;
-    public const int MaximumDebugNameLength=128;
-    public const int MaximumDebugDiagnosticDescriptionLength=1_024;
-    public const int MaximumPlatformDebugTextLength=1_024;
-    public const int MaximumPlatformDebugInputActionCount=64;
+    /// <summary>pi as a float (netstandard2.0 has no MathF).</summary>
+    private const float Pi=3.14159274f;
 
     public static string?Validate(RenderPreviewHostRequest Request){
         if(Request is null){ return "Request is required."; }
@@ -34,6 +31,12 @@ public static class RenderPreviewHostProtocol {
         if(!Enum.IsDefined(typeof(RenderPreviewHostCommand),Request.Command)){
             return "Render preview host command is unknown.";
         }
+        if(Request.RuntimeView is not null&&Request.Command!=RenderPreviewHostCommand.Open){
+            return "Only Open may request a runtime view.";
+        }
+        if(Request.SceneJson.Length>0&&Request.Command is not (RenderPreviewHostCommand.Open or RenderPreviewHostCommand.ReplaceScene)){
+            return "Only Open and ReplaceScene carry a scene document.";
+        }
 
         return Request.Command switch {
             RenderPreviewHostCommand.Open=>ValidateOpen(Request),
@@ -42,270 +45,9 @@ public static class RenderPreviewHostProtocol {
             RenderPreviewHostCommand.Resize=>ValidateResize(Request),
             RenderPreviewHostCommand.Render=>ValidateRender(Request),
             RenderPreviewHostCommand.Close=>ValidateEmptyCommand(Request),
-            RenderPreviewHostCommand.Snapshot=>ValidateEmptyCommand(Request),
             _=>"Render preview host command is unknown.",
         };
     }
-
-    public static string?ValidateDebugSnapshot(RenderPreviewDebugSnapshot?Snapshot){
-        if(Snapshot is null){ return "Render debug snapshot is required."; }
-        if(Snapshot.SnapshotVersion!=CurrentDebugSnapshotVersion){
-            return $"Unsupported render debug snapshot {Snapshot.SnapshotVersion}; expected {CurrentDebugSnapshotVersion}.";
-        }
-        if(!Enum.IsDefined(typeof(RenderPreviewDebugGraphKind),Snapshot.GraphKind)){
-            return "Render debug graph kind is unknown.";
-        }
-        if(!Enum.IsDefined(typeof(RenderPreviewDebugDeviceState),Snapshot.DeviceState)){
-            return "Render debug device state is unknown.";
-        }
-        if(!ValidPositiveDimensions(Snapshot.SurfaceWidth,Snapshot.SurfaceHeight)){
-            return $"Render debug surface dimensions must both be between 1 and {MaximumDimension}.";
-        }
-        if(Snapshot.SceneObjectCount<0||Snapshot.SceneObjectCount>MaximumObjectCount
-            ||Snapshot.PrimaryObjectDrawCount<0
-            ||Snapshot.PrimaryObjectDrawCount>Snapshot.SceneObjectCount){
-            return "Render debug object counters are outside their supported range.";
-        }
-        if(Snapshot.ResidentMaterialTextureCount<0
-            ||Snapshot.ResidentMaterialTextureCount>MaximumMaterialCount
-            ||Snapshot.ErrorOrWorseMessageCount<0){
-            return "Render debug resource or error counters are outside their supported range.";
-        }
-        string?Error=ValidateDebugName(Snapshot.AdapterDescription,"adapter description");
-        if(Error is not null){ return Error; }
-        Error=ValidateDebugName(Snapshot.QualityProfile,"quality profile");
-        if(Error is not null){ return Error; }
-        if(Snapshot.Passes is null||Snapshot.Passes.Length is<1 or>MaximumDebugPassCount){
-            return $"Render debug pass count must be between 1 and {MaximumDebugPassCount}.";
-        }
-        if(Snapshot.Resources is null||Snapshot.Resources.Length is<1 or>MaximumDebugResourceCount){
-            return $"Render debug resource count must be between 1 and {MaximumDebugResourceCount}.";
-        }
-        if(Snapshot.Transitions is null
-            ||Snapshot.Transitions.Length>MaximumDebugTransitionCount){
-            return $"Render debug transition count must be between 0 and {MaximumDebugTransitionCount}.";
-        }
-        if(Snapshot.Diagnostics is null
-            ||Snapshot.Diagnostics.Length>MaximumDebugDiagnosticCount){
-            return $"Render debug diagnostic count must be between 0 and {MaximumDebugDiagnosticCount}.";
-        }
-        if(Snapshot.DiagnosticsTruncated
-            &&Snapshot.Diagnostics.Length!=MaximumDebugDiagnosticCount){
-            return "A truncated render debug diagnostic set must fill its bounded capacity.";
-        }
-        Error=ValidatePlatformDebugSnapshot(Snapshot.Platform);
-        if(Error is not null){ return Error; }
-
-        bool[]PassIndices=new bool[Snapshot.Passes.Length];
-        bool[]ExecutionIndices=new bool[Snapshot.Passes.Length];
-        for(int Position=0;Position<Snapshot.Passes.Length;Position++){
-            RenderPreviewDebugPass?Pass=Snapshot.Passes[Position];
-            if(Pass is null){ return $"Render debug pass {Position} is null."; }
-            if((uint)Pass.Index>=(uint)PassIndices.Length||PassIndices[Pass.Index]){
-                return $"Render debug pass {Position} has an invalid or duplicated index.";
-            }
-            if((uint)Pass.ExecutionIndex>=(uint)ExecutionIndices.Length
-                ||ExecutionIndices[Pass.ExecutionIndex]){
-                return $"Render debug pass {Position} has an invalid or duplicated execution index.";
-            }
-            PassIndices[Pass.Index]=true;
-            ExecutionIndices[Pass.ExecutionIndex]=true;
-            Error=ValidateDebugName(Pass.Name,$"pass {Position} name");
-            if(Error is not null){ return Error; }
-            if(!Enum.IsDefined(typeof(RenderPreviewDebugQueue),Pass.Queue)){
-                return $"Render debug pass {Position} queue is unknown.";
-            }
-            if(Pass.Dependencies is null||Pass.Dependencies.Length>Snapshot.Passes.Length){
-                return $"Render debug pass {Position} dependencies are invalid.";
-            }
-            HashSet<int>Dependencies=[];
-            foreach(int Dependency in Pass.Dependencies){
-                if((uint)Dependency>=(uint)Snapshot.Passes.Length
-                    ||Dependency==Pass.Index||!Dependencies.Add(Dependency)){
-                    return $"Render debug pass {Position} has an invalid dependency.";
-                }
-            }
-        }
-
-        bool[]ResourceIndices=new bool[Snapshot.Resources.Length];
-        for(int Position=0;Position<Snapshot.Resources.Length;Position++){
-            RenderPreviewDebugResource?Resource=Snapshot.Resources[Position];
-            if(Resource is null){ return $"Render debug resource {Position} is null."; }
-            if((uint)Resource.Index>=(uint)ResourceIndices.Length
-                ||ResourceIndices[Resource.Index]){
-                return $"Render debug resource {Position} has an invalid or duplicated index.";
-            }
-            ResourceIndices[Resource.Index]=true;
-            Error=ValidateDebugName(Resource.Name,$"resource {Position} name");
-            if(Error is not null){ return Error; }
-            if(!Enum.IsDefined(typeof(RenderPreviewDebugResourceKind),Resource.Kind)){
-                return $"Render debug resource {Position} kind is unknown.";
-            }
-            bool InvalidDescriptor=Resource.Kind switch {
-                RenderPreviewDebugResourceKind.Buffer=>Resource.ByteSize==0
-                    ||Resource.Width!=0||Resource.Height!=0
-                    ||!string.IsNullOrEmpty(Resource.Format),
-                RenderPreviewDebugResourceKind.Texture=>Resource.ByteSize!=0
-                    ||!ValidPositiveDimensions(Resource.Width,Resource.Height)
-                    ||string.IsNullOrWhiteSpace(Resource.Format)
-                    ||Resource.Format is null
-                    ||Resource.Format.Length>MaximumDebugNameLength,
-                _=>true,
-            };
-            if(InvalidDescriptor){
-                return $"Render debug resource {Position} descriptor is invalid.";
-            }
-            if(Resource.FirstUse<0||Resource.LastUse<Resource.FirstUse
-                ||Resource.LastUse>=Snapshot.Passes.Length
-                ||(Resource.Imported?Resource.AliasSlot!=-1:Resource.AliasSlot<0)){
-                return $"Render debug resource {Position} lifetime is invalid.";
-            }
-        }
-
-        for(int Position=0;Position<Snapshot.Transitions.Length;Position++){
-            RenderPreviewDebugTransition?Transition=Snapshot.Transitions[Position];
-            if(Transition is null){ return $"Render debug transition {Position} is null."; }
-            if((uint)Transition.ResourceIndex>=(uint)Snapshot.Resources.Length
-                ||(uint)Transition.PassIndex>=(uint)Snapshot.Passes.Length
-                ||!Enum.IsDefined(typeof(RenderPreviewDebugResourceState),Transition.Before)
-                ||!Enum.IsDefined(typeof(RenderPreviewDebugResourceState),Transition.After)
-                ||!Enum.IsDefined(typeof(RenderPreviewDebugQueue),Transition.SourceQueue)
-                ||!Enum.IsDefined(typeof(RenderPreviewDebugQueue),Transition.DestinationQueue)){
-                return $"Render debug transition {Position} is invalid.";
-            }
-        }
-        for(int Position=0;Position<Snapshot.Diagnostics.Length;Position++){
-            RenderPreviewDebugDiagnostic?Diagnostic=Snapshot.Diagnostics[Position];
-            if(Diagnostic is null){ return $"Render debug diagnostic {Position} is null."; }
-            if(!Enum.IsDefined(typeof(RenderPreviewDebugSeverity),Diagnostic.Severity)){
-                return $"Render debug diagnostic {Position} severity is unknown.";
-            }
-            Error=ValidateDebugName(Diagnostic.Category,$"diagnostic {Position} category");
-            if(Error is not null){ return Error; }
-            Error=ValidateDebugName(Diagnostic.Id,$"diagnostic {Position} id");
-            if(Error is not null){ return Error; }
-            if(string.IsNullOrWhiteSpace(Diagnostic.Description)
-                ||Diagnostic.Description.Length>MaximumDebugDiagnosticDescriptionLength){
-                return $"Render debug diagnostic {Position} description is invalid.";
-            }
-        }
-        return null;
-    }
-
-    public static string?ValidatePlatformDebugSnapshot(PlatformDebugSnapshot?Snapshot){
-        if(Snapshot is null){ return "Platform debug snapshot is required."; }
-        if(Snapshot.CapturedCounter<0||Snapshot.CounterFrequency<=0){
-            return "Platform debug monotonic counter values are invalid.";
-        }
-        string?Error=ValidatePlatformText(Snapshot.OsDescription,"OS description");
-        if(Error is not null){ return Error; }
-        Error=ValidatePlatformText(Snapshot.OsArchitecture,"OS architecture");
-        if(Error is not null){ return Error; }
-        Error=ValidatePlatformText(Snapshot.ProcessArchitecture,"process architecture");
-        if(Error is not null){ return Error; }
-        Error=ValidatePlatformText(Snapshot.RuntimeDescription,"runtime description");
-        if(Error is not null){ return Error; }
-        if(Snapshot.ProcessId<=0){ return "Platform debug process ID must be positive."; }
-        Error=ValidateInputDebugSnapshot(Snapshot.Input);
-        if(Error is not null){ return Error; }
-        return ValidateAudioDebugSnapshot(Snapshot.Audio);
-    }
-
-    private static string?ValidateInputDebugSnapshot(PlatformDebugInputSnapshot?Snapshot){
-        if(Snapshot is null){ return "Platform input debug snapshot is required."; }
-        if(!Enum.IsDefined(typeof(PlatformDebugSubsystemState),Snapshot.State)){
-            return "Platform input debug state is unknown.";
-        }
-        if(Snapshot.ActiveContextCount<0||Snapshot.HeldControlCount<0
-            ||Snapshot.ActiveActionCount<0){
-            return "Platform input debug counters cannot be negative.";
-        }
-        if(Snapshot.Actions is null
-            ||Snapshot.Actions.Length>MaximumPlatformDebugInputActionCount){
-            return $"Platform input debug action count must be between 0 and {MaximumPlatformDebugInputActionCount}.";
-        }
-        if(Snapshot.State==PlatformDebugSubsystemState.NotOwned
-            &&(Snapshot.ActiveContextCount!=0||Snapshot.HeldControlCount!=0
-                ||Snapshot.ActiveActionCount!=0||Snapshot.Actions.Length!=0
-                ||Snapshot.ActionsTruncated)){
-            return "A not-owned platform input snapshot cannot report owned state.";
-        }
-        if(Snapshot.ActionsTruncated
-            &&Snapshot.Actions.Length!=MaximumPlatformDebugInputActionCount){
-            return "A truncated platform input action set must fill its bounded capacity.";
-        }
-        string?Error=ValidateOptionalPlatformText(Snapshot.Detail,"input detail");
-        if(Error is not null){ return Error; }
-        for(int Index=0;Index<Snapshot.Actions.Length;Index++){
-            PlatformDebugInputAction?Action=Snapshot.Actions[Index];
-            if(Action is null){ return $"Platform input debug action {Index} is null."; }
-            if(Action.TimestampTicks<0||!Enum.IsDefined(
-                typeof(PlatformDebugInputActionPhase),Action.Phase)
-                ||!Enum.IsDefined(typeof(PlatformDebugInputReleaseReason),Action.ReleaseReason)
-                ||!IsFinite(Action.RawX)||!IsFinite(Action.RawY)
-                ||!IsFinite(Action.ValueX)||!IsFinite(Action.ValueY)){
-                return $"Platform input debug action {Index} contains an invalid value.";
-            }
-            foreach((string Value,string Name) in new[]{
-                (Action.WindowId,"window ID"),(Action.DeviceId,"device ID"),
-                (Action.ContextId,"context ID"),(Action.ActionId,"action ID")}){
-                Error=ValidatePlatformText(Value,$"input action {Index} {Name}");
-                if(Error is not null){ return Error; }
-            }
-        }
-        return null;
-    }
-
-    private static string?ValidateAudioDebugSnapshot(PlatformDebugAudioSnapshot?Snapshot){
-        if(Snapshot is null){ return "Platform audio debug snapshot is required."; }
-        if(!Enum.IsDefined(typeof(PlatformDebugSubsystemState),Snapshot.State)
-            ||!Enum.IsDefined(typeof(PlatformDebugAudioBackendMode),Snapshot.Mode)){
-            return "Platform audio debug state or backend mode is unknown.";
-        }
-        if(Snapshot.ActiveVoiceCount<0||Snapshot.MaximumVoiceCount<0
-            ||Snapshot.ActiveVoiceCount>Snapshot.MaximumVoiceCount
-            ||Snapshot.BusCount<0||Snapshot.RestoredVoiceCount<0
-            ||Snapshot.StoppedVoiceCount<0||Snapshot.RecoveryEventCount<0
-            ||Snapshot.DroppedRecoveryEventCount<0){
-            return "Platform audio debug counters are outside their supported range.";
-        }
-        string?Error=ValidateOptionalPlatformText(Snapshot.LastFailure,"audio failure");
-        if(Error is not null){ return Error; }
-        Error=ValidateOptionalPlatformText(Snapshot.Detail,"audio detail");
-        if(Error is not null){ return Error; }
-        if(Snapshot.State==PlatformDebugSubsystemState.NotOwned){
-            if(Snapshot.Mode!=PlatformDebugAudioBackendMode.NotOwned
-                ||Snapshot.Generation!=0||Snapshot.ActiveVoiceCount!=0
-                ||Snapshot.MaximumVoiceCount!=0||Snapshot.BusCount!=0
-                ||Snapshot.RestoredVoiceCount!=0||Snapshot.StoppedVoiceCount!=0
-                ||Snapshot.RecoveryEventCount!=0
-                ||Snapshot.DroppedRecoveryEventCount!=0
-                ||Snapshot.LastFailure is not null){
-                return "A not-owned platform audio snapshot cannot report owned state.";
-            }
-            return null;
-        }
-        if(Snapshot.Mode==PlatformDebugAudioBackendMode.NotOwned){
-            return "An owned platform audio snapshot cannot use the not-owned backend mode.";
-        }
-        if(Snapshot.State==PlatformDebugSubsystemState.Ready
-            &&(Snapshot.Mode is not PlatformDebugAudioBackendMode.XAudio2
-                and not PlatformDebugAudioBackendMode.Silent
-                ||Snapshot.Generation==0)){
-            return "A ready platform audio snapshot requires an active backend generation.";
-        }
-        return null;
-    }
-
-    private static string?ValidatePlatformText(string?Value,string Name)=>
-        Value is null||string.IsNullOrWhiteSpace(Value)
-            ||Value.Length>MaximumPlatformDebugTextLength
-            ?$"Platform debug {Name} is invalid."
-            :null;
-    private static string?ValidateOptionalPlatformText(string?Value,string Name)=>
-        Value is not null&&Value.Length>MaximumPlatformDebugTextLength
-            ?$"Platform debug {Name} is too long."
-            :null;
 
     private static string?ValidateOpen(RenderPreviewHostRequest Request){
         if(Request.SurfaceHandle==0){ return "Open requires a surface handle."; }
@@ -314,6 +56,13 @@ public static class RenderPreviewHostProtocol {
         }
         if(string.IsNullOrWhiteSpace(Request.ShaderArtifactPath)){ return "Open requires a shader artifact path."; }
         if(Request.Scene is null){ return "Open requires a scene."; }
+        if(Request.RuntimeView is { }RuntimeView){
+            if(string.IsNullOrWhiteSpace(RuntimeView.AssemblyPath)
+                ||!RuntimeView.AssemblyPath.EndsWith(".dll",StringComparison.OrdinalIgnoreCase)){
+                return "A runtime view requires the game assembly path.";
+            }
+            if(string.IsNullOrWhiteSpace(RuntimeView.SceneName)){ return "A runtime view requires the scene name."; }
+        }
         return ValidateScene(Request.Scene);
     }
 
@@ -371,6 +120,19 @@ public static class RenderPreviewHostProtocol {
         }
         if(Request.Frame.OverlayTriangles is null||Request.Frame.OverlayLines is null){
             return "Frame overlay arrays are required.";
+        }
+        if(Request.Frame.TransformOverrides is null||Request.Frame.TransformOverrides.Length>MaximumObjectCount){
+            return $"Frame transform override count must be between 0 and {MaximumObjectCount}.";
+        }
+        for(int Index=0;Index<Request.Frame.TransformOverrides.Length;Index++){
+            RenderPreviewTransformOverride?Override=Request.Frame.TransformOverrides[Index];
+            if(Override is null||string.IsNullOrWhiteSpace(Override.ObjectId)){
+                return $"Frame transform override {Index} needs an object identity.";
+            }
+            if(Override.Position is not { Length:3 }||Override.Rotation is not { Length:4 }||Override.Scale is not { Length:3 }
+                ||!Override.Position.All(IsFinite)||!Override.Rotation.All(IsFinite)||!Override.Scale.All(IsFinite)){
+                return $"Frame transform override {Index} needs a finite position (3), rotation (4) and scale (3).";
+            }
         }
         if(Request.Frame.CameraPreviews is null
             ||Request.Frame.CameraPreviews.Length>MaximumCameraPreviewCount){
@@ -443,11 +205,6 @@ public static class RenderPreviewHostProtocol {
 
     private static bool ValidPositiveDimensions(int Width,int Height)=>
         Width is>0 and<=MaximumDimension&&Height is>0 and<=MaximumDimension;
-
-    private static string?ValidateDebugName(string?Value,string Name)=>
-        Value is null||string.IsNullOrWhiteSpace(Value)||Value.Length>MaximumDebugNameLength
-            ?$"Render debug {Name} is invalid."
-            :null;
 
     private static string?ValidateScene(RenderPreviewScene Scene){
         if(Scene.Camera is null){ return "Scene camera is required."; }
@@ -546,6 +303,28 @@ public static class RenderPreviewHostProtocol {
         foreach(float Value in Camera.Position){
             if(!IsFinite(Value)){ return $"{Name} position must be finite."; }
         }
+        if(Camera.Rotation is null||Camera.Rotation.Length!=4){
+            return $"{Name} rotation must contain four values.";
+        }
+        foreach(float Value in Camera.Rotation){
+            if(!IsFinite(Value)){ return $"{Name} rotation must be finite."; }
+        }
+        if(!IsFinite(Camera.FovYRadians)||!IsFinite(Camera.NearZ)||!IsFinite(Camera.FarZ)
+            ||Camera.FovYRadians<0f||Camera.NearZ<0f||Camera.FarZ<Camera.NearZ){
+            return $"{Name} projection must be finite, non-negative and ordered.";
+        }
+        if(!Enum.IsDefined(typeof(RenderPreviewDepthMapping),Camera.DepthMapping)){
+            return $"{Name} depth mapping is unknown.";
+        }
+        if(Camera.DepthMapping==RenderPreviewDepthMapping.Radial){
+            float[]Values=Camera.ViewProjection.Values;
+            bool Perspective=Values[3]!=0f||Values[7]!=0f||Values[11]!=0f;
+            if(!Perspective||!(Camera.FovYRadians>0f&&Camera.FovYRadians<Pi)
+                ||!(Camera.NearZ>0f)||!(Camera.FarZ>Camera.NearZ)
+                ||!IsFinite(Camera.RadialTransitionMeters)||!(Camera.RadialTransitionMeters>0f)){
+                return $"{Name} radial depth needs a perspective view-projection, a field of view in (0, pi), 0 < NearZ < FarZ and a positive transition length.";
+            }
+        }
         return null;
     }
 
@@ -582,7 +361,6 @@ public enum RenderPreviewHostCommand:byte {
     Resize,
     Render,
     Close,
-    Snapshot,
 }
 
 public enum RenderPreviewHostResultState:byte {
@@ -592,6 +370,12 @@ public enum RenderPreviewHostResultState:byte {
     SessionNotFound,
     StaleSequence,
     HostCrashed,
+}
+
+/// <summary>How a preview camera turns distance into depth (M0099/M0100). Radial needs a perspective camera.</summary>
+public enum RenderPreviewDepthMapping:byte {
+    Standard,
+    Radial,
 }
 
 public enum RenderPreviewPresentationMode:byte {
@@ -614,6 +398,25 @@ public sealed class RenderPreviewHostRequest {
     public bool CaptureForVerification { get;set; }
     public RenderPreviewScene?Scene { get;set; }
     public RenderPreviewFrame?Frame { get;set; }
+    /// <summary>
+    /// ADR-0070 B1: on Open, render the built game's own world with its runtime (the game's startup
+    /// scenes plus <see cref="RenderPreviewRuntimeView.SceneName"/>) instead of <see cref="Scene"/>.
+    /// </summary>
+    public RenderPreviewRuntimeView?RuntimeView { get;set; }
+    /// <summary>
+    /// On Open and ReplaceScene of a runtime view: the edited scene's current scene JSON
+    /// document. Its values are applied to the running world without a build.
+    /// </summary>
+    public string SceneJson { get;set; }=string.Empty;
+}
+
+public sealed class RenderPreviewRuntimeView {
+    /// <summary>The built game assembly, usually a copy so that the build output stays writable.</summary>
+    public string AssemblyPath { get;set; }=string.Empty;
+    /// <summary>The game build's directory, which its content paths are relative to; empty means the assembly's.</summary>
+    public string ContentDirectory { get;set; }=string.Empty;
+    public string SceneName { get;set; }=string.Empty;
+    public bool UseWarp { get;set; }
 }
 
 public sealed class RenderPreviewHostResponse {
@@ -628,195 +431,16 @@ public sealed class RenderPreviewHostResponse {
     public string DiagnosticCode { get;set; }=string.Empty;
     public string Message { get;set; }=string.Empty;
     public RenderPreviewCameraDiagnostics[]CameraPreviews { get;set; }=[];
-    public RenderPreviewDebugSnapshot?DebugSnapshot { get;set; }
-}
-
-public enum RenderPreviewDebugGraphKind:byte {
-    DeclaredPlan,
-}
-
-public enum RenderPreviewDebugDeviceState:byte {
-    Ready,
-    Suspended,
-    Recovering,
-    Faulted,
-    Disposed,
-}
-
-public enum RenderPreviewDebugQueue:byte {
-    Graphics,
-    Compute,
-    Copy,
-}
-
-public enum RenderPreviewDebugResourceKind:byte {
-    Buffer,
-    Texture,
-}
-
-public enum RenderPreviewDebugResourceState:byte {
-    Undefined,
-    External,
-    Read,
-    Write,
-    ReadWrite,
-}
-
-public enum RenderPreviewDebugSeverity:byte {
-    Corruption,
-    Error,
-    Warning,
-    Information,
-    Message,
-}
-
-public sealed class RenderPreviewDebugSnapshot {
-    public int SnapshotVersion { get;set; }=RenderPreviewHostProtocol.CurrentDebugSnapshotVersion;
-    public RenderPreviewDebugGraphKind GraphKind { get;set; }
-    public RenderPreviewDebugDeviceState DeviceState { get;set; }
-    public uint DeviceGeneration { get;set; }
-    public ulong CompletedFence { get;set; }
-    public uint FramesRendered { get;set; }
-    public int SurfaceWidth { get;set; }
-    public int SurfaceHeight { get;set; }
-    public int SceneObjectCount { get;set; }
-    public int PrimaryObjectDrawCount { get;set; }
-    public int ResidentMaterialTextureCount { get;set; }
-    public int ErrorOrWorseMessageCount { get;set; }
-    public string AdapterDescription { get;set; }=string.Empty;
-    public bool IsWarp { get;set; }
-    public string QualityProfile { get;set; }=string.Empty;
-    public RenderPreviewDebugPass[]Passes { get;set; }=[];
-    public RenderPreviewDebugResource[]Resources { get;set; }=[];
-    public RenderPreviewDebugTransition[]Transitions { get;set; }=[];
-    public RenderPreviewDebugDiagnostic[]Diagnostics { get;set; }=[];
-    public bool DiagnosticsTruncated { get;set; }
-    public PlatformDebugSnapshot Platform { get;set; }=new();
-}
-
-public sealed class RenderPreviewDebugPass {
-    public int Index { get;set; }
-    public string Name { get;set; }=string.Empty;
-    public RenderPreviewDebugQueue Queue { get;set; }
-    public int ExecutionIndex { get;set; }
-    public int[]Dependencies { get;set; }=[];
-}
-
-public sealed class RenderPreviewDebugResource {
-    public int Index { get;set; }
-    public string Name { get;set; }=string.Empty;
-    public RenderPreviewDebugResourceKind Kind { get;set; }
-    public ulong ByteSize { get;set; }
-    public int Width { get;set; }
-    public int Height { get;set; }
-    public string Format { get;set; }=string.Empty;
-    public bool Imported { get;set; }
-    public int FirstUse { get;set; }
-    public int LastUse { get;set; }
-    public int AliasSlot { get;set; }
-}
-
-public sealed class RenderPreviewDebugTransition {
-    public int ResourceIndex { get;set; }
-    public int PassIndex { get;set; }
-    public RenderPreviewDebugResourceState Before { get;set; }
-    public RenderPreviewDebugResourceState After { get;set; }
-    public RenderPreviewDebugQueue SourceQueue { get;set; }
-    public RenderPreviewDebugQueue DestinationQueue { get;set; }
-    public bool QueueOwnershipTransfer { get;set; }
-}
-
-public sealed class RenderPreviewDebugDiagnostic {
-    public RenderPreviewDebugSeverity Severity { get;set; }
-    public string Category { get;set; }=string.Empty;
-    public string Id { get;set; }=string.Empty;
-    public string Description { get;set; }=string.Empty;
-}
-
-public enum PlatformDebugSubsystemState:byte {
-    NotOwned,
-    Unavailable,
-    Creating,
-    Ready,
-    Recovering,
-    Faulted,
-    Disposed,
-}
-
-public enum PlatformDebugAudioBackendMode:byte {
-    NotOwned,
-    None,
-    XAudio2,
-    Silent,
-}
-
-public enum PlatformDebugInputActionPhase:byte {
-    Started,
-    Performed,
-    Canceled,
-}
-
-public enum PlatformDebugInputReleaseReason:byte {
-    None,
-    PhysicalRelease,
-    FocusLost,
-    CaptureReleased,
-    DeviceRemoved,
-    WindowDestroyed,
-    ContextChanged,
-    Rebound,
-}
-
-public sealed class PlatformDebugSnapshot {
-    public long CapturedCounter { get;set; }
-    public long CounterFrequency { get;set; }
-    public string OsDescription { get;set; }=string.Empty;
-    public string OsArchitecture { get;set; }=string.Empty;
-    public string ProcessArchitecture { get;set; }=string.Empty;
-    public string RuntimeDescription { get;set; }=string.Empty;
-    public int ProcessId { get;set; }
-    public PlatformDebugInputSnapshot Input { get;set; }=new();
-    public PlatformDebugAudioSnapshot Audio { get;set; }=new();
-}
-
-public sealed class PlatformDebugInputSnapshot {
-    public PlatformDebugSubsystemState State { get;set; }
-    public int ActiveContextCount { get;set; }
-    public int HeldControlCount { get;set; }
-    public int ActiveActionCount { get;set; }
-    public PlatformDebugInputAction[]Actions { get;set; }=[];
-    public bool ActionsTruncated { get;set; }
-    public string?Detail { get;set; }
-}
-
-public sealed class PlatformDebugInputAction {
-    public long TimestampTicks { get;set; }
-    public string WindowId { get;set; }=string.Empty;
-    public string DeviceId { get;set; }=string.Empty;
-    public ulong Sequence { get;set; }
-    public string ContextId { get;set; }=string.Empty;
-    public string ActionId { get;set; }=string.Empty;
-    public PlatformDebugInputActionPhase Phase { get;set; }
-    public float RawX { get;set; }
-    public float RawY { get;set; }
-    public float ValueX { get;set; }
-    public float ValueY { get;set; }
-    public PlatformDebugInputReleaseReason ReleaseReason { get;set; }
-}
-
-public sealed class PlatformDebugAudioSnapshot {
-    public PlatformDebugSubsystemState State { get;set; }
-    public PlatformDebugAudioBackendMode Mode { get;set; }
-    public uint Generation { get;set; }
-    public int ActiveVoiceCount { get;set; }
-    public int MaximumVoiceCount { get;set; }
-    public int BusCount { get;set; }
-    public int RestoredVoiceCount { get;set; }
-    public int StoppedVoiceCount { get;set; }
-    public int RecoveryEventCount { get;set; }
-    public int DroppedRecoveryEventCount { get;set; }
-    public string?LastFailure { get;set; }
-    public string?Detail { get;set; }
+    /// <summary>
+    /// A runtime view whose scene document changed its structure (nodes or component types) since the
+    /// build it runs; the view shows the build's structure with the document's values until the next build.
+    /// </summary>
+    public bool BuildRequired { get;set; }
+    /// <summary>
+    /// M0096 (ADR-0047): the id the runtime view's editor world carries on the host process's Spatial debug pipe;
+    /// empty without one. A Spatial request without a world id already gets this world.
+    /// </summary>
+    public Guid EditorSpatialWorldId { get;set; }
 }
 
 public sealed class RenderPreviewScene {
@@ -833,6 +457,20 @@ public sealed class RenderPreviewFrame {
     public RenderPreviewOverlayVertex[]OverlayTriangles { get;set; }=[];
     public RenderPreviewOverlayVertex[]OverlayLines { get;set; }=[];
     public RenderPreviewCameraPass[]CameraPreviews { get;set; }=[];
+    /// <summary>
+    /// M0096: a runtime view draws the game's own world, not <see cref="Objects"/>, so a gizmo drag sends
+    /// the dragged nodes' parent-relative transforms here and the view applies them until the document
+    /// catches up (the commit's ReplaceScene, or a cancel's).
+    /// </summary>
+    public RenderPreviewTransformOverride[]TransformOverrides { get;set; }=[];
+}
+
+/// <summary>A node's parent-relative transform in RUF: Position (3), Rotation quaternion R, U, F, W (4), Scale (3).</summary>
+public sealed class RenderPreviewTransformOverride {
+    public string ObjectId { get;set; }=string.Empty;
+    public float[]Position { get;set; }=[0f,0f,0f];
+    public float[]Rotation { get;set; }=[0f,0f,0f,1f];
+    public float[]Scale { get;set; }=[1f,1f,1f];
 }
 
 public sealed class RenderPreviewCameraPass {
@@ -865,6 +503,15 @@ public sealed class RenderPreviewObjectTransform {
 public sealed class RenderPreviewCamera {
     public RenderPreviewMatrix4x4 ViewProjection { get;set; }=RenderPreviewMatrix4x4.Identity;
     public float[]Position { get;set; }=[0f,0f,0f];
+    /// <summary>The camera's world rotation as an RUF quaternion (R, U, F, W); a runtime view uses it with the projection below.</summary>
+    public float[]Rotation { get;set; }=[0f,0f,0f,1f];
+    public float FovYRadians { get;set; }
+    public float NearZ { get;set; }
+    public float FarZ { get;set; }
+    /// <summary>Protocol 8: an isolated preview draws a radial camera with radial depth from its matrix and the projection above.</summary>
+    public RenderPreviewDepthMapping DepthMapping { get;set; }
+    /// <summary>Transition length T of the radial depth curve in metres.</summary>
+    public float RadialTransitionMeters { get;set; }=1f;
 }
 
 public sealed class RenderPreviewMesh {

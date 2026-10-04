@@ -3,6 +3,21 @@
 ## Current typed-light contract update
 M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005 and F-L0-009 without adding a new feature identity. See [Typed Lighting](Specifications/Typed-Lighting.md) and [verification milestone](Milestones/M0088-Typed-Lighting.md).
 
+## Current environment-lighting update
+M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun shadows, dynamic GI and ambient occlusion) and refines F-L5-001 and F-L0-005. See [Rendering](Specifications/Rendering.md#environment-lighting) and the [verification milestone](Milestones/M0089-Physically-Based-Environment-Lighting.md).
+
+## Current character-movement update
+M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is playable. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
+
+## Current scene JSON and editor world update
+M0093/ADR-0070 refines F-L7-012, F-L7-013, F-L8-011 and F-L8-025. Scenes are JSON documents under each project's `Scenes` folder. They are checked against a per-project schema, turned into C# at build time, and edited in memory by the Scene Designer until Save. Every repository scene is converted, and a C# scene class is a build error (SCENE206). For a built game the Scene view is drawn by the game runtime, and value edits show without a build; a structural edit asks for one. M0094/ADR-0071 opens a scene JSON by double-click in the Scene Editor (Design / JSON tabs over one text buffer) and removes the scene context menus. Manual Visual Studio checks remain. See the [verification milestone](Milestones/M0093-Scene-Json-And-Editor-World.md).
+
+## Current SDK package and project template update
+M0092/ADR-0065/ADR-0068 add F-L6-009 and F-L8-032. Games build from the `CSharpGameEngine.Sdk` NuGet package anywhere; the VSIX finds the game project from the open solution and ships its bridges. Visual Studio's New Project dialog offers "Third Person / 三人称", which creates the ported Unreal template. See the [verification milestone](Milestones/M0092-Sdk-Package-And-Project-Template.md).
+
+## Current skeletal-animation update
+M0091/ADR-0066 adds F-L4-015. It adds glTF skins and clips, GPU compute skinning, and Unreal's ABP_Unarmed locomotion graph. The ThirdPerson template now shows Quinn idling, walking, jogging, jumping and landing. See [Rendering](Specifications/Rendering.md#skeletal-meshes-and-animation) and the [verification milestone](Milestones/M0091-Skeletal-Animation.md).
+
 ## Non-physics Feature index (authoritative)
 
 This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.
@@ -26,10 +41,14 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 3 | F-L4-005 | Implemented | Materials and textures | F-L6-004 | [Rendering](Specifications/Rendering.md) | `rendering.materials` |
 | 4 | F-L4-006 | Implemented | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
 | 4 | F-L4-007 | Implemented | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
+| 5 | F-L4-014 | Implemented | Physically based environment lighting | F-L4-007, F-L0-008 | [Rendering](Specifications/Rendering.md#environment-lighting) | `rendering.environment-lighting` |
+| 5 | F-L4-015 | Implemented | Skeletal meshes and animation | F-L4-007, F-L0-008 | [Rendering](Specifications/Rendering.md#skeletal-meshes-and-animation) | `rendering.skeletal-animation` |
 | 5 | F-L0-009 | Implemented | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
 | 5 | F-L8-018 | Implemented | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
 | 6 | F-L7-023 | Implemented | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |
+| 6 | F-L5-038 | Implemented | Radial (logarithmic) depth camera | F-L4-014, F-L0-009 | [Omni](Specifications/Omni.md) | `rendering.radial-depth` |
 | 7 | F-L7-024 | Implemented | Release evidence | F-L7-023, F-L8-018 | [Rendering](Specifications/Rendering.md) | `rendering.release` |
+| 7 | F-L5-039 | Implemented | Radial observer view | F-L5-038 | [Omni](Specifications/Omni.md#observer-view) | `rendering.radial-depth` |
 
 ### Asset / Content
 
@@ -42,6 +61,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 4 | F-L7-027 | Implemented | Cache recovery and GC | F-L7-026 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.cache-recovery` |
 | 5 | F-L4-008 | Implemented | Runtime asset handles | F-L7-027 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.runtime-load` |
 | 5 | F-L6-006 | Implemented | Shipping content manifest | F-L4-008 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.package` |
+| 6 | F-L6-009 | Implemented | Engine SDK package and game project context | F-L6-006 | [ADR-0065](Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md) | `vsix.project-template` |
 | 6 | F-L8-019 | Implemented | VSIX asset authoring | F-L6-006, F-L8-022 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `vsix.asset-authoring` |
 | 6 | F-L7-028 | Implemented | Performance evidence | F-L6-006 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.performance` |
 | 7 | F-L7-029 | Implemented | Release evidence | F-L7-028, F-L8-019 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.release` |
@@ -56,11 +76,11 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 3 | F-L8-022 | Implemented | Versioned authoring host | F-L8-021 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.host-lifecycle` |
 | 4 | F-L8-023 | Implemented | Transform visual conformance | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.transform-tools` |
 | 4 | F-L8-024 | Implemented | Typed inspector and palette | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.inspector-contracts` |
-| 5 | F-L8-025 | Implemented | C# source synchronization v2 | F-L8-023, F-L8-024 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.source-sync` |
+| 5 | F-L8-025 | Implemented | Scene document synchronization | F-L8-023, F-L8-024 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.source-sync` |
 | 5 | F-L8-026 | Implemented | Bake, asset, diagnostic UI | F-L8-025 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.bake-integration` |
-| 6 | F-L8-027 | Implemented | Read-only debug tools | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.debug-tools` |
-| 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-027 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
+| 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
 | 7 | F-L8-029 | Implementing | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
+| 7 | F-L8-032 | Implemented | ThirdPerson Visual Studio project template | F-L6-009, F-L8-031 | [ADR-0068](Decisions/ADR-0068-ThirdPerson-Project-Template.md) | `vsix.project-template` |
 
 ### ECS / Runtime
 
@@ -87,8 +107,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 3 | F-L4-010 | Implemented | Deterministic input actions | F-L0-010 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `input.actions` |
 | 3 | F-L4-011 | Implemented | Mixer and offline oracle | F-L4-009 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.mixer` |
 | 4 | F-L4-012 | Implemented | Spatial audio and recovery | F-L4-010, F-L4-011 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.spatial` |
-| 5 | F-L8-030 | Implemented | Platform diagnostics viewer | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `vsix.platform-debug` |
-| 6 | F-L7-034 | Implemented | Compatibility evidence | F-L8-030 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
+| 6 | F-L7-034 | Implemented | Compatibility evidence | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
 | 7 | F-L7-035 | Implemented | Release evidence | F-L7-034 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.release` |
 
 ### Testing / CI / Release
@@ -134,6 +153,8 @@ Implement cross-track work by dependency Level 1 through 7. At each Level, first
 ## Priority 2 — Rigid拡張
 
 F-L5-004 Joints → 005 Ragdoll/006 Character/007 Vehicle → 008 Dynamic CCD → 009 Parallel → 010 GPU → 011 Rollback。
+
+- F-L5-006: Implemented（M0090/ADR-0067）。walking/falling、壁滑り、坂・段差、SpringArm、ThirdPersonテンプレートのWARP実走まで検証済み。rigid bodyとの押し合いは未対応。
 
 ## Priority 3 — Deformable / Fluid / Destruction
 
@@ -266,7 +287,7 @@ glTF/FBX/Unrealの現在のimport垂直スライスを、stable identity、versi
 | 3 | Inspector/Paletteの型付き編集を拡張する（F-L8-024完了） | Scene model、asset identity | enum/vector/reference editor、validation、add/remove/reorder | 宣言member型を正本とし、不正・未宣言・同一入力ではsource操作を作らず、constructor既定値とruntime companion規則を維持する | `vsix.inspector-contracts`: typed editと再解析model一致 |
 | 4 | source sync、競合、Undo/Redoを完成させる（F-L8-025完了） | transform/inspector編集 | latest-source token、minimal text change、typed rebase/reject、canonical reanalysis | stale generationへ書かず、連続操作・外部編集・undo/redoで選択と表示が収束し、editor-owned historyを持たない | `vsix.source-sync`: operation sequence後のtext/model/selection identity一致 |
 | 4 | Bake、Asset、diagnostic UIをCLIへ接続する（F-L8-026完了） | Asset pipeline、各Bake Host | enabled command、progress/cancel、typed inline diagnostics、partial artifact link | UI独自のbuild処理を持たず、共通host DTOと同じrequest/progress/result/diagnostic identityを表示する | `vsix.bake-integration`: success/failure/cancel/false-success、host診断、部分artifact結果の一致 |
-| 5 | Render Graph viewer、profiler、debug visualizerを追加する（F-L8-027完了） | 既存Runtime debug projection（F-L3-017）、Render Graph | 読み取り専用viewer、frame capture summary、entity/component visualizer | Runtime ownershipを変更せず、要求駆動snapshotだけを表示する | `vsix.debug-tools`: protocol DTO、budget、disconnect/reconnect契約 |
+| 5 | Render Graph viewer、profiler、debug visualizerを追加する（F-L8-027 はM0097 で廃止。Scene Designer の診断の代わりに、VS のデバッガーとプロファイラーを拡張機能メニューから呼び出す） | 既存Runtime debug projection（F-L3-017）、Render Graph | 読み取り専用viewer、frame capture summary、entity/component visualizer | Runtime ownershipを変更せず、要求駆動snapshotだけを表示する | `vsix.debug-tools`: protocol DTO、budget、disconnect/reconnect契約 |
 | 6 | VS互換性、localization、DPI、accessibilityをRelease品質にする（F-L8-028 matrix/validator完了） | Editor機能一式 | 対応VS version matrix、resource parity、keyboard/focus、high-DPI layout | versioned matrixがnet472、VS 17.14+ amd64、neutral/en-US/ja-JP、CgeFixed/CgeAutomation、CI、詳細/manual evidenceを双方向照合し、Pendingを成功へ変換しない | `vsix.compatibility`: package tests、matrix validator、Experimental ledger sweep |
 | 7 | VSIX Release gateを完走する | compatibility | signed/installable VSIX候補、payload manifest、rollback手順 | `vsix` suite、Experimental Instance、install/update/uninstallが成功する | 既存`vsix` suite+`vsix.experimental-smoke` |
 
@@ -324,7 +345,7 @@ Win32 inputとXAudio2垂直スライスを、window/time/device lifecycle、acti
 | 3 | action mapping、rebind、device hotplugを実装する | input lifecycle | action/axis/chord schema、context、dead zone、rebind、gamepad adapter | 同じraw event列から同じaction列を生成し、disconnect時に入力がreleaseされる | `input.actions`: keyboard/mouse/gamepad traceとaction hash一致 |
 | 3 | mixer、bus、voiceを実装する | Audio lifecycle | bus graph、gain/pan、voice limit、offline buffer、underrun診断 | offline/silent referenceでsample数、gain、routing、loop境界が一致する | `audio.mixer`: offline PCM hash/peak/RMSとvoice lifecycle一致 |
 | 4 | streaming、spatial audio、device recoveryを実装する | mixer、Transform contract、artifact loader | decode/stream buffer、listener/source transform、attenuation、doppler policy、device change/recreate | coordinate conventionがRendering/Physicsと一致し、device再作成でvoice状態を規定通り復元する | `audio.spatial`: offline channel energy/attenuation、stream/recovery trace一致 |
-| 5 | Input/Audio diagnosticsとVSIX frontendを追加する | runtime contracts | device/voice/action inspector、meter、capture、設定UI | UIなしでもCLI/runtime APIが完結し、表示snapshotがruntimeを所有しない | `vsix.platform-debug`: disconnect/reconnect、snapshot budget、localization契約 |
+| 5 | Input/Audio diagnosticsとVSIX frontendを追加する（F-L8-030 はM0097 で廃止。Scene Designer の診断の代わりに、VS のデバッガーとプロファイラーを拡張機能メニューから呼び出す） | runtime contracts | device/voice/action inspector、meter、capture、設定UI | UIなしでもCLI/runtime APIが完結し、表示snapshotがruntimeを所有しない | `vsix.platform-debug`: disconnect/reconnect、snapshot budget、localization契約 |
 | 6 | Windows構成と実機matrixを検証する | Platform機能一式 | Debug/Release、device有無、DPI、keyboard layout、audio format別結果 | headless必須passが常に成功し、実機依存passは環境情報付きで分離保存される | `platform.compatibility`: synthetic必須pass+Hardware追加pass |
 | 7 | Platform Release gateを完走する | compatibility | native dependency/payload manifest、crash log、rollback情報 | clean machine相当で起動・入力・silent audio・実audio追加確認が成功する | `full`+`stress`+実機追加pass |
 

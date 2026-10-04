@@ -17,6 +17,23 @@ public sealed class Win32InputEventAdapterTests {
         Assert.Equal("P",Events[0].Control.Code);
     }
     [Fact]
+    public void Gamepad_EmitsConnectionButtonAndStickChangesAndReleasesOnDisconnect(){
+        var Adapter=new Win32InputEventAdapter(WindowId.Primary,()=>new MonotonicTimestamp(1));
+        Adapter.RecordGamepad(new GamepadSnapshot(true,0x1000,0f,0f,new System.Numerics.Vector2(0.5f,-0.25f),default));
+        var Connected=Adapter.Drain();
+        Assert.Collection(Connected,
+            EventValue=>Assert.Equal(InputEventKind.Connected,EventValue.Kind),
+            EventValue=>{Assert.Equal(InputEventKind.Pressed,EventValue.Kind);Assert.Equal("Gamepad_FaceButton_Bottom",EventValue.Control.Code);},
+            EventValue=>{Assert.Equal(Win32InputEventAdapter.GamepadLeftStick,EventValue.Control);Assert.Equal(new InputValue(0.5f,-0.25f),EventValue.Value);});
+        Assert.All(Connected,EventValue=>Assert.Equal(Adapter.GamepadDevice,EventValue.DeviceId));
+        Adapter.RecordGamepad(new GamepadSnapshot(true,0x1000,0f,0f,new System.Numerics.Vector2(0.5f,-0.25f),default));
+        Assert.Empty(Adapter.Drain());
+        Adapter.RecordGamepad(default);
+        var Disconnected=Adapter.Drain();
+        Assert.Contains(Disconnected,EventValue=>EventValue.Control.Code=="Gamepad_FaceButton_Bottom"&&EventValue.Kind==InputEventKind.Released&&EventValue.ReleaseReason==InputReleaseReason.DeviceRemoved);
+        Assert.Equal(InputEventKind.Disconnected,Disconnected[^1].Kind);
+    }
+    [Fact]
     public void CaptureAndDeviceRemoval_ReleaseOnlyOwnedState(){
         var Adapter=new Win32InputEventAdapter(WindowId.Primary,()=>new MonotonicTimestamp(1));
         Adapter.RecordKey(0x31,true);
@@ -37,7 +54,13 @@ public sealed class Win32InputEventAdapterTests {
         Adapter.RecordMouseWheel(1);
         var Events=Adapter.Drain();
         Assert.Equal([1UL,2UL],Events.Select(static EventValue=>EventValue.Sequence));
-        Assert.Equal(InputControlKind.Axis2D,Events[0].Control.Kind);
+        Assert.Equal(InputControlKind.RelativeAxis2D,Events[0].Control.Kind);
         Assert.True(Win32InputEventAdapter.TimestampFrequency>0);
+    }
+    [Fact]
+    public void KeyCodes_UseUnrealNamesForNamedKeys(){
+        Assert.Equal("SpaceBar",Win32InputEventAdapter.KeyCode(0x20));
+        Assert.Equal("W",Win32InputEventAdapter.KeyCode(0x57));
+        Assert.Equal("Left",Win32InputEventAdapter.KeyCode(0x25));
     }
 }

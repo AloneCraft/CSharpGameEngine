@@ -1,0 +1,49 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CSharpGameEngine.FeatureStages.Foundation",
+  "className": "FoundationReferenceScene",
+  "root": {
+    "id": "0a82c762-f18d-5b0e-8981-7480ad61f956",
+    "name": "Foundation_Root",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 1,
+          "Case": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageVisual",
+        "members": {
+          "Primitive": 1,
+          "ScaleX": 1,
+          "ScaleY": 1,
+          "ScaleZ": 1,
+          "Color": 4283400703
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "16d78a32-2f11-52c6-9ed5-afd55dc0f404",
+        "name": "Foundation_Child",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 2,
+              "ScaleX": 0.5,
+              "ScaleY": 0.5,
+              "ScaleZ": 0.5,
+              "Color": 4286695300
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

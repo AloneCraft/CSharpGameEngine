@@ -36,27 +36,6 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
 
         string CapturedHash=Session.LastFrameHash;
-        RenderPreviewDebugSnapshot FirstDebug=Session.CaptureDebugSnapshot();
-        RenderPreviewDebugSnapshot SecondDebug=Session.CaptureDebugSnapshot();
-        Assert.Null(RenderPreviewHostProtocol.ValidateDebugSnapshot(FirstDebug));
-        Assert.Equal(RenderPreviewDebugGraphKind.DeclaredPlan,FirstDebug.GraphKind);
-        Assert.Equal(RenderPreviewDebugDeviceState.Ready,FirstDebug.DeviceState);
-        Assert.True(FirstDebug.IsWarp);
-        Assert.Equal("Compatibility",FirstDebug.QualityProfile);
-        Assert.Equal(1,FirstDebug.SceneObjectCount);
-        Assert.Equal(1,FirstDebug.PrimaryObjectDrawCount);
-        Assert.Contains(FirstDebug.Passes,Pass=>Pass.Name=="Present");
-        Assert.True(FirstDebug.Platform.CapturedCounter>0);
-        Assert.Equal(PlatformDebugSubsystemState.NotOwned,FirstDebug.Platform.Input.State);
-        Assert.Equal(PlatformDebugSubsystemState.NotOwned,FirstDebug.Platform.Audio.State);
-        Assert.Equal(PlatformDebugAudioBackendMode.NotOwned,FirstDebug.Platform.Audio.Mode);
-        Assert.Contains("does not own",FirstDebug.Platform.Input.Detail,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("does not own",FirstDebug.Platform.Audio.Detail,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(FirstDebug.DeviceGeneration,SecondDebug.DeviceGeneration);
-        Assert.Equal(FirstDebug.CompletedFence,SecondDebug.CompletedFence);
-        Assert.Equal(FirstDebug.FramesRendered,SecondDebug.FramesRendered);
         Assert.Equal(CapturedHash,Session.LastFrameHash);
 
         string LitHash=Session.LastFrameHash;
@@ -117,10 +96,9 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.True(ModelPixelVerifier.Verify(
             Session.LastCapturedFrame!,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor).Success);
 
-        Session.ReplaceScene(Request.Scene);
+        Session.ReplaceScene(Request.Scene,string.Empty);
         Assert.Empty(Session.CameraPreviewDiagnostics);
         Assert.Equal(string.Empty,Session.LastFrameHash);
-        Assert.Equal(1u,Session.CaptureDebugSnapshot().FramesRendered);
     }
 
     [Fact]
@@ -203,6 +181,51 @@ public sealed class RenderPreviewRenderSessionTests {
     }
 
     internal static RenderPreviewHostRequest CreateOpenForHost(Win32Window Window)=>CreateOpen(Window);
+
+    [Fact]
+    public void WARP_RadialCameraDrawsTheStandardImageWithRadialDepth(){
+        // M0100: the isolated preview draws a radial camera (the VSIX's default for a perspective view) from its matrix.
+        // A box wholly in view renders the standard pixels; the depth is the radial one, also in a radial thumbnail.
+        if(!OperatingSystem.IsWindows()){ return; }
+        using Win32Window Window=new(new Win32WindowOptions {
+            Title="CSharpGameEngine Radial Isolated Preview Test",Width=128,Height=128,Visible=false,
+        });
+        RenderPreviewHostRequest Request=CreateOpen(Window);
+        GraphicsDeviceOptions Options=new(){ UseWarp=true,EnableDebugLayer=true };
+        using RenderPreviewRenderSession Session=RenderPreviewRenderSession.Open(Request,Options);
+        var View=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        View.FarZ=1e12f;
+        Matrix4x4 ViewProjection=View.GetView()*View.GetProjection(1f);
+        Vector3 Eye=View.GetEyePosition();
+        RenderPreviewCamera PreviewCamera(RenderPreviewDepthMapping Mapping)=>new(){
+            ViewProjection=Matrix(ViewProjection),Position=[Eye.X,Eye.Y,Eye.Z],
+            FovYRadians=View.FovYRadians,NearZ=View.NearZ,FarZ=View.FarZ,DepthMapping=Mapping,
+        };
+        RenderPreviewFrame Frame(RenderPreviewDepthMapping Mapping,bool Thumbnail)=>new(){
+            Camera=PreviewCamera(Mapping),
+            Objects=[new RenderPreviewObjectTransform { ObjectId="Root/Box",World=RenderPreviewMatrix4x4.Identity }],
+            CameraPreviews=Thumbnail?[new RenderPreviewCameraPass { X=64,Y=64,Width=64,Height=64,Camera=PreviewCamera(Mapping) }]:[],
+        };
+        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Standard,Thumbnail:false));
+        Session.RenderForVerification();
+        byte[]StandardPixels=Session.LastCapturedFrame!.Pixels.ToArray();
+        float StandardCentre=Session.ActiveServerForTesting.ReadDepthForTesting()[64*128+64];
+        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Radial,Thumbnail:false));
+        Session.RenderForVerification();
+        Assert.Equal(StandardPixels,Session.LastCapturedFrame!.Pixels.ToArray());
+        float RadialCentre=Session.ActiveServerForTesting.ReadDepthForTesting()[64*128+64];
+        // The box about 4 m away: standard depth with a 1e12 m far plane is about 0.98, radial depth about 0.06.
+        Assert.True(StandardCentre>0.9f,$"standard depth {StandardCentre}");
+        Assert.True(RadialCentre>0f&&RadialCentre<0.2f,$"radial depth {RadialCentre}");
+
+        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Standard,Thumbnail:true));
+        Session.RenderForVerification();
+        byte[]StandardThumbnail=Session.LastCapturedFrame!.Pixels.ToArray();
+        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Radial,Thumbnail:true));
+        Session.RenderForVerification();
+        Assert.Equal(StandardThumbnail,Session.LastCapturedFrame!.Pixels.ToArray());
+        Assert.Equal(0,Session.ErrorOrWorseMessageCount);
+    }
 
     private static RenderPreviewHostRequest CreateOpen(Win32Window Window){
         ProceduralMeshData Box=ProceduralMeshFactory.CreateBox(Vector3.One);

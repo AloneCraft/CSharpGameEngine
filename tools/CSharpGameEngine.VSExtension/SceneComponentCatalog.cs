@@ -92,31 +92,10 @@ internal static class SceneComponentCatalog {
             SceneComponentOrdering.GetSortKey(Type,FullyQualifiedName));
     }
 
-    private static bool IsAddable(INamedTypeSymbol Type,Compilation Compilation){
-        if(!SceneTypePredicates.IsNonNullableStruct(Type)
-            ||Type.IsRefLikeType
-            ||Type.IsImplicitlyDeclared
-            ||SceneTypePredicates.IsReservedComponent(SceneTypePredicates.ToFullyQualifiedName(Type))
-            ||SceneTypePredicates.ImplementsSystemInterface(Type)
-            // エンジンが実行時に埋めるComponent。作者が宣言するものではなく、随伴先を宣言すれば
-            // SGが自動付与する(SCENE119)。パレットへ出すと「追加しても中身が永久に空」になる。
-            ||SceneTypePredicates.ImplementsRuntimeComponentInterface(Type,Compilation)){
-            return false;
-        }
-
-        // 引数なしのdefault構築で追加できる型だけを許可する。C# required memberはobject initializerでの
-        // 明示指定を強制するため、requiredを持つ型はAddComponent operationの対象から除外する。
-        // (generic型の閉じたinstantiationも同じ型定義のメンバーを共有するため、この判定は型引数を
-        // 構築する前の型定義に対して行ってよい。)
-        foreach(var Member in Type.GetMembers()){
-            if(Member is IPropertySymbol { IsRequired:true }||Member is IFieldSymbol { IsRequired:true }){
-                return false;
-            }
-        }
-
-        return Type.Locations.Any(static Location=>Location.IsInSource)
-            ||Type.ContainingNamespace.ToDisplayString().StartsWith("CSharpGameEngine.Runtime.Windows",StringComparison.Ordinal);
-    }
+    private static bool IsAddable(INamedTypeSymbol Type,Compilation Compilation)=>
+        SceneTypePredicates.IsAddableComponent(Type,Compilation)
+        &&(Type.Locations.Any(static Location=>Location.IsInSource)
+            ||Type.ContainingNamespace.ToDisplayString().StartsWith("CSharpGameEngine.Runtime.Windows",StringComparison.Ordinal));
 
     /// <summary>
     /// <paramref name="OpenType"/>(generic Component型の定義)を、型引数を埋めて構築できる

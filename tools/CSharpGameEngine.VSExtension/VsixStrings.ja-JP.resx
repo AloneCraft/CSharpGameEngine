@@ -15,7 +15,7 @@
   <data name="ComponentPaletteEmpty" xml:space="preserve"><value>追加できるComponent型が見つかりません。Sceneを開いてください。</value></data>
   <data name="ComponentPaletteCount" xml:space="preserve"><value>{0} / {1} 件。ダブルクリックまたは Enter で、選択中のノードに追加します。</value></data>
   <data name="HierarchyExpandCollapse" xml:space="preserve"><value>展開または折りたたみ</value></data>
-  <data name="HierarchyEmpty" xml:space="preserve"><value>IScene を宣言する C# ファイルを開いてください。</value></data>
+  <data name="HierarchyEmpty" xml:space="preserve"><value>シーン（プロジェクトの Scenes フォルダーにある .json ファイル）を開いてください。</value></data>
   <data name="InspectorEmpty" xml:space="preserve"><value>Scene Viewまたはヒエラルキーでノードを選択してください。</value></data>
   <data name="InspectorRemoveComponentToolTip" xml:space="preserve"><value>このComponentを削除</value></data>
   <data name="InspectorAnalysisPending" xml:space="preserve"><value>解析待ち…</value></data>
@@ -35,33 +35,39 @@
   <data name="PhysicsPanelOpenToolTip" xml:space="preserve"><value>Physicsパネルを開く (N)</value></data>
   <data name="PhysicsPanelCloseToolTip" xml:space="preserve"><value>Physicsパネルを閉じる (N)</value></data>
   <data name="PhysicsLabel" xml:space="preserve"><value>Physics</value></data>
-  <data name="PhysicsSimulate" xml:space="preserve"><value>シミュレート</value></data>
-  <data name="PhysicsPause" xml:space="preserve"><value>一時停止</value></data>
-  <data name="PhysicsStep" xml:space="preserve"><value>ステップ</value></data>
-  <data name="PhysicsReset" xml:space="preserve"><value>リセット</value></data>
-  <data name="PhysicsBakeSelected" xml:space="preserve"><value>選択項目をBake</value></data>
-  <data name="PhysicsBakeAll" xml:space="preserve"><value>すべてBake</value></data>
+  <data name="PhysicsBakeSelected" xml:space="preserve"><value>選択中のシーンを Bake</value></data>
+  <data name="PhysicsBakeAll" xml:space="preserve"><value>プロジェクトの全シーンを Bake</value></data>
   <data name="PhysicsBakeCancel" xml:space="preserve"><value>Bakeをキャンセル</value></data>
   <data name="PhysicsBakeCancelling" xml:space="preserve"><value>Physics Bakeをキャンセルしています...</value></data>
-  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>選択Sceneと同じソースからBake Hostをビルドし、atomicにPhysics cacheを生成します。</value></data>
-  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>現在のprojectにある全Sceneを、同じexact Bake HostでatomicにBakeします。</value></data>
+  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>選択中のシーンを保存し、そのゲームをビルドしてから、シーンの物理を記録します。</value></data>
+  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>今のプロジェクトのすべてのシーンについて、同じように記録します。</value></data>
   <data name="PhysicsBakeNoScene" xml:space="preserve"><value>BakeできるSceneがありません。</value></data>
   <data name="PhysicsBakeStarting" xml:space="preserve"><value>{0} Scene用のexact Physics Bake Hostを準備しています...</value></data>
   <data name="PhysicsBakeSucceeded" xml:space="preserve"><value>{0} SceneのPhysics Bakeが完了しました。</value></data>
   <data name="PhysicsBakeFailed" xml:space="preserve"><value>Physics Bakeに失敗しました: {0}</value></data>
   <data name="PhysicsBakeCancelled" xml:space="preserve"><value>Physics Bakeをキャンセルしました。</value></data>
-  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>選択したartifactを開く</value></data>
+  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>選択したファイルを開く</value></data>
   <data name="PhysicsBakeArtifactMissing" xml:space="preserve"><value>Bake artifactが存在しません: {0}</value></data>
   <data name="PhysicsBakeArtifactOpenFailed" xml:space="preserve"><value>Bake artifactを開けませんでした: {0}</value></data>
   <data name="AuthoringOperationProgress" xml:space="preserve"><value>{0}：{1}</value></data>
-  <data name="PhysicsDebug" xml:space="preserve"><value>デバッグ</value></data>
-  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collider / AABB</value></data>
+  <data name="PhysicsDebug" xml:space="preserve"><value>物理のデバッグ表示</value></data>
+  <data name="PhysicsColliderAabb" xml:space="preserve"><value>当たり判定の範囲 (Collider / AABB)</value></data>
   <data name="PhysicsVelocity" xml:space="preserve"><value>速度</value></data>
-  <data name="PhysicsSleep" xml:space="preserve"><value>スリープ</value></data>
+  <data name="PhysicsSleep" xml:space="preserve"><value>スリープ中の物体</value></data>
   <data name="PhysicsCenterOfMass" xml:space="preserve"><value>重心</value></data>
-  <data name="PhysicsContacts" xml:space="preserve"><value>接触点 / 法線</value></data>
-  <data name="PhysicsTree" xml:space="preserve"><value>Physics broadphase tree</value></data>
-  <data name="PhysicsBonds" xml:space="preserve"><value>破砕 bond</value></data>
+  <data name="PhysicsContacts" xml:space="preserve"><value>接触点と法線</value></data>
+  <data name="PhysicsTree" xml:space="preserve"><value>当たり判定の分割木 (broadphase)</value></data>
+  <data name="PhysicsBonds" xml:space="preserve"><value>破砕のつながり (bond)</value></data>
+  <data name="PhysicsBakeDescription" xml:space="preserve"><value>シーンの物理を {0} ティック分計算して、ゲームが再生できるファイルに記録します。出力先はプロジェクトの Assets/Physics/Bakes です。</value></data>
+  <data name="PhysicsBakeHeading" xml:space="preserve"><value>Bake（物理の事前計算）</value></data>
+  <data name="PhysicsBondsToolTip" xml:space="preserve"><value>事前に割った物体の破片同士のつながりを表示します。</value></data>
+  <data name="PhysicsTreeToolTip" xml:space="preserve"><value>衝突しそうな物体を絞り込むための空間の分割を表示します。</value></data>
+  <data name="PhysicsContactsToolTip" xml:space="preserve"><value>物体同士が触れている点と、押し返す向きを表示します。ゲームの実行中に意味があります。</value></data>
+  <data name="PhysicsCenterOfMassToolTip" xml:space="preserve"><value>剛体の重心を点で表示します。</value></data>
+  <data name="PhysicsSleepToolTip" xml:space="preserve"><value>止まって計算を休んでいる物体を区別して表示します。ゲームの実行中に意味があります。</value></data>
+  <data name="PhysicsVelocityToolTip" xml:space="preserve"><value>動いている物体の速度を矢印で表示します。編集中は時間が進まないので、ゲームの実行中に意味があります。</value></data>
+  <data name="PhysicsColliderAabbToolTip" xml:space="preserve"><value>各物体の当たり判定を囲む箱を表示します。</value></data>
+  <data name="PhysicsDebugDescription" xml:space="preserve"><value>Scene ビューに物理の情報を重ねて表示します。ゲームを実行中はそのゲームの物理を、実行していないときは編集中のシーンの物体を置いた位置で表示します。編集中は時間を進めません。</value></data>
   <data name="SceneSelectPrompt" xml:space="preserve"><value>Sceneを選択してください。</value></data>
   <data name="SceneSpatialOff" xml:space="preserve"><value>Global Spatial Octree: オフ</value></data>
   <data name="OptionsNavigationHeader" xml:space="preserve"><value>Scene Viewのナビゲーション</value></data>
@@ -133,7 +139,6 @@
   <data name="WorkspaceAnalysisDataUnavailable" xml:space="preserve"><value>Roslyn解析に必要な情報を取得できませんでした: {0}</value></data>
   <data name="SourceEditSceneKeyMismatch" xml:space="preserve"><value>対象Sceneと操作のSceneKeyが一致しません。</value></data>
   <data name="SourceEditNodeNotFound" xml:space="preserve"><value>対象Nodeが現在のSceneに見つかりません。</value></data>
-  <data name="SourceEditGeneratedSceneReadOnly" xml:space="preserve"><value>生成された.g.csはScene Designerから編集できません。</value></data>
   <data name="SourceEditOperationUnsupported" xml:space="preserve"><value>このScene編集操作はSource Editorで未実装です。</value></data>
   <data name="SourceEditProjectionTargetMissing" xml:space="preserve"><value>対象SceneまたはNodeが現在の投影に見つかりません。</value></data>
   <data name="SourceEditOperationFailed" xml:space="preserve"><value>Scene編集操作に失敗しました。</value></data>
@@ -160,7 +165,6 @@
   <data name="SourceEditAddTargetCreationMissing" xml:space="preserve"><value>追加先Nodeのobject creation式がソースに見つかりません。</value></data>
   <data name="SourceEditComponentCollectionToRemoveMissing" xml:space="preserve"><value>削除するComponentのComponentsコレクションがソースに見つかりません。</value></data>
   <data name="SourceEditTargetTransformMissing" xml:space="preserve"><value>対象Nodeに編集可能なTransform Componentがありません。</value></data>
-  <data name="SourceEditGeneratedTransformReadOnly" xml:space="preserve"><value>生成された.g.csのTransformは編集できません。</value></data>
   <data name="SourceEditTransformCreationMissing" xml:space="preserve"><value>Transformのobject creation式がソースに見つかりません。</value></data>
   <data name="SourceEditTransformUpdateFailed" xml:space="preserve"><value>Transformを更新できません。</value></data>
   <data name="SourceEditNodeCannotDuplicate" xml:space="preserve"><value>Scene RootまたはChildrenリスト外のNodeは複製できません。</value></data>
@@ -171,12 +175,10 @@
   <data name="SourceEditDuplicateInsertionFailed" xml:space="preserve"><value>親NodeのChildren構文へ複製を追加できません。</value></data>
   <data name="SourceEditTransformVectorNotLiteral" xml:space="preserve"><value>Transform.{0}はリテラルVector3ではないためギズモで編集できません。</value></data>
   <data name="SourceEditTransformVectorInvalid" xml:space="preserve"><value>Transform.{0}のVector3式が無効です。</value></data>
-  <data name="SourceEditGeneratedNodeAddReadOnly" xml:space="preserve"><value>生成された.g.csにはNodeを追加できません。</value></data>
   <data name="SourceEditAddTargetSyntaxMissing" xml:space="preserve"><value>追加先Nodeの構文が見つかりません。</value></data>
   <data name="SourceEditInitialComponentsFailed" xml:space="preserve"><value>新規Nodeの初期Componentを生成できません。</value></data>
   <data name="SourceEditChildrenExpressionUnsupported" xml:space="preserve"><value>Childrenの式を編集できません。</value></data>
   <data name="SourceEditRootCannotRemove" xml:space="preserve"><value>Scene Rootは削除できません。</value></data>
-  <data name="SourceEditGeneratedNodeRemoveReadOnly" xml:space="preserve"><value>生成された.g.csからはNodeを削除できません。</value></data>
   <data name="SourceEditRemoveTargetNotStaticChild" xml:space="preserve"><value>削除対象がChildrenの静的な要素ではありません。</value></data>
   <data name="SourceEditReparentParentMissing" xml:space="preserve"><value>Reparentに必要な親Nodeが見つかりません。</value></data>
   <data name="SourceEditReparentCycle" xml:space="preserve"><value>自身または子孫へは移動できません。</value></data>
@@ -189,6 +191,8 @@
   <data name="SourceEditNodeNameEmpty" xml:space="preserve"><value>Node名は空にできません。</value></data>
   <data name="SourceEditRenameSyntaxMissing" xml:space="preserve"><value>Rename対象の構文が見つかりません。</value></data>
   <data name="SourceEditNonFiniteTransform" xml:space="preserve"><value>Transformへ非有限値は書き込めません。</value></data>
+  <data name="Common_GameProjectNotFound" xml:space="preserve"><value>C# Game Engineのゲームプロジェクトが見つかりませんでした。CSharpGameEngine.Sdkを参照するプロジェクトを含むソリューションを開いてください。</value></data>
+  <data name="PhysicsBake_RequiresEngineSource" xml:space="preserve"><value>物理ベイクはエンジンのソースからホストをビルドするため、エンジンリポジトリ内のプロジェクトでのみ使用できます。</value></data>
   <data name="Common_RepoRootNotFound" xml:space="preserve"><value>リポジトリルート({0})が見つかりませんでした。</value></data>
   <data name="Common_ProductTitle" xml:space="preserve"><value>C# Game Engine</value></data>
   <data name="Common_ViewerTitle" xml:space="preserve"><value>C# Game Engine ビューアー</value></data>
@@ -231,11 +235,24 @@
   <data name="OpenGame_LaunchFailed" xml:space="preserve"><value>UserEcsProjectの起動に失敗しました: {0}</value></data>
   <data name="OpenViewer_RepoRootNotFound" xml:space="preserve"><value>リポジトリルート({0})が見つかりませんでした。このVSIXは開発中のスケルトンであり、ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。</value></data>
   <data name="OpenViewer_LaunchFailed" xml:space="preserve"><value>ビューアの起動に失敗しました: {0}</value></data>
+  <data name="SceneDesigner_OpenSceneJsonFirst" xml:space="preserve">
+    <value>シーン デザイナーで表示するには、シーン JSON（Scenes\*.json）を開いてください。</value>
+  </data>
+  <data name="SceneEditorDesignTab" xml:space="preserve">
+    <value>デザイン</value>
+  </data>
+  <data name="SceneEditorJsonTab" xml:space="preserve">
+    <value>JSON</value>
+  </data>
+  <data name="SceneEditorStarting" xml:space="preserve">
+    <value>シーンの機能を起動しています...</value>
+  </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Sceneを解析しています...</value></data>
-  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>選択したIScene実装クラスは編集後に見つからなくなりました。</value></data>
-  <data name="SceneDesigner_OpenedInDocumentWell" xml:space="preserve"><value>{0} [Scene] をDocument Wellで開きました。</value></data>
-  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} [Scene] のDocument Well作成に失敗しました ({1})。Scene Designerパネルへフォールバックしました。ログ: {2}</value></data>
-  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} をDocument Wellで開けませんでした ({1}: {2})。詳細はActivityLog.xmlを確認してください。</value></data>
+  <data name="SceneFileOutsideScenes" xml:space="preserve"><value>{0} はプロジェクトの Scenes フォルダーの外にあるため、シーンとして扱われません（ビルド対象外で、通常の JSON として開きます）。シーンにするには Scenes の下へ移動してください。</value></data>
+  <data name="SceneDesigner_NoScene" xml:space="preserve"><value>シーン（プロジェクトの Scenes フォルダーにある .json ファイル）を開いてください。</value></data>
+  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>このファイルには有効なシーンが1つもありません。JSON ビューのエラーを確認してください。</value></data>
+  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} をシーン エディターで開けませんでした ({1})。代わりに Scene Designer パネルで開きました。</value></data>
+  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} を開けませんでした ({1}: {2})。詳細は ActivityLog.xml を確認してください。</value></data>
   <data name="SceneDesigner_FallbackWindowUnavailable" xml:space="preserve"><value>Scene DesignerのフォールバックToolWindowを作成できませんでした。</value></data>
   <data name="FabWatch_StopCommand" xml:space="preserve"><value>Fabダウンロード監視を停止</value></data>
   <data name="FabWatch_StartCommand" xml:space="preserve"><value>Fabダウンロード監視を開始</value></data>
@@ -253,6 +270,8 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="FabWatch_Error" xml:space="preserve"><value>Fabダウンロード監視でエラー: {0}</value></data>
   <data name="SceneStatusDisplayed" xml:space="preserve"><value>表示中: {0}</value></data>
   <data name="SceneCameraDiagnostics" xml:space="preserve"><value>Cameraプレビュー: オブジェクト={0}, 視錐台={1}, 描画={2}, VP={3}</value></data>
+  <data name="SceneRuntimeViewUnavailable" xml:space="preserve"><value>ゲームのランタイム表示を開けないため({0})、シーンのプレビューを表示しています。</value></data>
+  <data name="SceneRuntimeViewBuildRequired" xml:space="preserve"><value>この構造の変更をゲームのランタイム表示で見るには、プロジェクトをビルドしてください。</value></data>
   <data name="SceneRenderFailed" xml:space="preserve"><value>Sceneの表示に失敗しました。詳細はActivityLog.xmlを確認してください。</value></data>
   <data name="ScenePropertyEditing" xml:space="preserve"><value>プロパティ編集中: {0}</value></data>
   <data name="SceneDuplicateUnsupported" xml:space="preserve"><value>Scene Rootまたは親Childrenを解決できないNodeは複製できません。</value></data>
@@ -262,7 +281,6 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="ScenePropertyApplying" xml:space="preserve"><value>C#ソースへプロパティ編集を反映しています...</value></data>
   <data name="SceneToolCommitDiscarded" xml:space="preserve"><value>{0}を確定できなかったため変更を破棄しました。</value></data>
   <data name="SceneToolApplying" xml:space="preserve"><value>C#ソースへ{0}を反映しています...</value></data>
-  <data name="SceneCommitFailedRollback" xml:space="preserve"><value>C#ソースへの反映に失敗しました。編集は取り消されます。</value></data>
   <data name="SceneCommitFailed" xml:space="preserve"><value>C#ソースへの反映に失敗しました。</value></data>
   <data name="ScenePropertyApplied" xml:space="preserve"><value>プロパティをC#ソースへ反映しました。Ctrl+Zで元に戻せます。</value></data>
   <data name="SceneTransformApplied" xml:space="preserve"><value>TransformをC#ソースへ反映しました。Ctrl+Zで元に戻せます。</value></data>
@@ -340,35 +358,14 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="SceneCameraNearFarInvalid" xml:space="preserve">
     <value>CameraのNearZ/FarZの値が無効です。</value>
   </data>
+  <data name="SceneCameraRadialTransitionInvalid" xml:space="preserve">
+    <value>CameraのRadialTransitionMetersは正の値である必要があり、対数深度には有限の遠い面が必要です。</value>
+  </data>
   <data name="SceneCameraFovInvalid" xml:space="preserve">
     <value>CameraのFovYRadiansは0より大きくπ未満である必要があります。</value>
   </data>
   <data name="SceneCameraOrthographicSizeInvalid" xml:space="preserve">
     <value>CameraのOrthographicSizeは正の値である必要があります。</value>
-  </data>
-  <data name="SceneDesignerMenuOpen" xml:space="preserve">
-    <value>シーン デザイナーで開く</value>
-  </data>
-  <data name="SceneDesignerMenuAnalyzingDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（Sceneを解析中）</value>
-  </data>
-  <data name="SceneDesignerMenuAnalysisFailedDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（Scene解析に失敗）</value>
-  </data>
-  <data name="SceneDesignerMenuNoSceneDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（このファイルには IScene 実装クラスがありません）</value>
-  </data>
-  <data name="SceneDesignerMenuNonSceneTypeDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（このクラスは IScene を実装していません）</value>
-  </data>
-  <data name="SceneDesignerMenuItemOpen" xml:space="preserve">
-    <value>{0} をシーン デザイナーで開く</value>
-  </data>
-  <data name="SceneDesignerMenuItemOpenAtCaret" xml:space="preserve">
-    <value>{0} をシーン デザイナーで開く（カーソル位置）</value>
-  </data>
-  <data name="SceneDesignerMenuOverflow" xml:space="preserve">
-    <value>他 {0} 件はシーン デザイナーのコンボボックスから選択してください</value>
   </data>
   <data name="SceneProjectionNodeCountMismatch" xml:space="preserve">
     <value>ノード数が違います（{0} / {1}）。</value>
@@ -504,29 +501,6 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   </data>  <data name="ShaderGraphRegionLabel" xml:space="preserve">
     <value>{0}：{1}</value>
   </data>
-  <data name="RuntimeDebugLabel" xml:space="preserve"><value>ランタイム診断</value></data>
-  <data name="RuntimeDebugRefresh" xml:space="preserve"><value>スナップショットを更新</value></data>
-  <data name="RuntimeDebugRefreshToolTip" xml:space="preserve"><value>既存の Render Preview Host セッションから、不変かつ読み取り専用のスナップショットを1回だけ要求します。</value></data>
-  <data name="RuntimeDebugNoSnapshot" xml:space="preserve"><value>ランタイム診断スナップショットはまだ要求されていません。</value></data>
-  <data name="RuntimeDebugPreviewUnavailable" xml:space="preserve"><value>Render Preview Host セッションの準備ができていません。</value></data>
-  <data name="RuntimeDebugFailed" xml:space="preserve"><value>ランタイム診断スナップショットに失敗しました: {0}</value></data>
-  <data name="RuntimeDebugGraphDeclared" xml:space="preserve"><value>宣言済みプラン（GPUパス実行実績ではありません）</value></data>
-  <data name="RuntimeDebugSummary" xml:space="preserve"><value>デバイス={0} 世代={1} フェンス={2} フレーム={3} オブジェクト={4} 主描画={5} テクスチャ={6} エラー={7} アダプター={8} WARP={9} グラフ={10}</value></data>
-  <data name="RuntimeDebugGraphSummary" xml:space="preserve"><value>宣言済み Render Graph: プロファイル={0}、パス={1}、リソース={2}、遷移={3}、サーフェス={4}x{5}</value></data>
-  <data name="RuntimeDebugDiagnosticSummary" xml:space="preserve"><value>制限付き D3D12 診断: 表示={0}、省略={1}</value></data>
-  <data name="RuntimeDebugPass" xml:space="preserve"><value>パス 実行={0} インデックス={1} 名前={2} キュー={3} 依存={4}</value></data>
-  <data name="RuntimeDebugResource" xml:space="preserve"><value>リソース インデックス={0} 名前={1} 種類={2} 形状={3} インポート={4} 生存期間={5}..{6} エイリアス={7}</value></data>
-  <data name="RuntimeDebugBufferShape" xml:space="preserve"><value>{0} バイト</value></data>
-  <data name="RuntimeDebugTextureShape" xml:space="preserve"><value>{0}×{1} {2}</value></data>
-  <data name="RuntimeDebugTransition" xml:space="preserve"><value>遷移 パス={0} リソース={1} {2}-&gt;{3} キュー={4}-&gt;{5} 所有権={6}</value></data>
-  <data name="RuntimeDebugDiagnostic" xml:space="preserve"><value>診断 {0} {1}/{2}: {3}</value></data>
-  <data name="RuntimeDebugNoDiagnostics" xml:space="preserve"><value>制限内の D3D12 診断は報告されていません。</value></data>
-  <data name="RuntimeDebugNoDependencies" xml:space="preserve"><value>なし</value></data>
-  <data name="RuntimeDebugPlatformSummary" xml:space="preserve"><value>プラットフォーム: OS={0} OSアーキテクチャ={1} プロセスアーキテクチャ={2} ランタイム={3} PID={4} 取得カウンター={5}/{6}</value></data>
-  <data name="RuntimeDebugInputSummary" xml:space="preserve"><value>入力: 状態={0} コンテキスト={1} 保持コントロール={2} アクティブアクション={3} 表示アクション={4} 省略={5} 詳細={6}</value></data>
-  <data name="RuntimeDebugInputAction" xml:space="preserve"><value>入力アクション: タイムスタンプ={0} ウィンドウ={1} デバイス={2} シーケンス={3} コンテキスト={4} アクション={5} フェーズ={6} 生値=({7},{8}) 変換値=({9},{10}) 解放理由={11}</value></data>
-  <data name="RuntimeDebugAudioSummary" xml:space="preserve"><value>オーディオ: 状態={0} モード={1} 世代={2} ボイス={3}/{4} バス={5} 復元={6} 停止={7} 復旧イベント={8} 破棄={9} 障害={10} 詳細={11}</value></data>
-  <data name="RuntimeDebugNoDetail" xml:space="preserve"><value>なし</value></data>
   <data name="AssetAuthoring_State" xml:space="preserve"><value>メタデータ状態</value></data>
   <data name="AssetAuthoring_SourceUri" xml:space="preserve"><value>ソース URI</value></data>
   <data name="AssetAuthoring_AssetId" xml:space="preserve"><value>アセット ID</value></data>
@@ -544,4 +518,29 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="LightConversionConflict" xml:space="preserve"><value>ライトが変更されたか、変換できません。表示を更新して再実行してください。</value></data>
   <data name="LightPhysicalValueLabel" xml:space="preserve"><value>{0}（{1}・{2}）</value></data>
   <data name="LightConversionDefault" xml:space="preserve"><value>既定値の候補: {0}。採用する値を明示入力してください。</value></data>
+  <data name="Diagnostics_Title" xml:space="preserve"><value>C# Game Engine 診断ツール</value></data>
+  <data name="Diagnostics_NoGameProject" xml:space="preserve"><value>開いているソリューションにゲームのプロジェクトが見つかりません。</value></data>
+  <data name="Diagnostics_AlreadyDebugged" xml:space="preserve"><value>実行中のゲームは、この Visual Studio で既にデバッグ中です。ビルドして実行したゲームには、既定でデバッガーがアタッチされています。</value></data>
+  <data name="Diagnostics_NoRunningGame" xml:space="preserve"><value>実行中のゲームが見つかりません。ゲーム（{0}）を起動してから、もう一度実行してください。</value></data>
+  <data name="Diagnostics_AttachDebugger" xml:space="preserve"><value>デバッガーをアタッチ</value></data>
+  <data name="Diagnostics_MeasureCpuUsage" xml:space="preserve"><value>CPU 使用率を計測...</value></data>
+  <data name="Diagnostics_MeasureDotNetAllocations" xml:space="preserve"><value>.NET のメモリ割り当てを計測...</value></data>
+  <data name="Diagnostics_StopMeasuring" xml:space="preserve"><value>計測を停止して結果を開く</value></data>
+  <data name="Diagnostics_ChooseTitle" xml:space="preserve"><value>ゲームを選択</value></data>
+  <data name="Diagnostics_ChoosePrompt" xml:space="preserve"><value>{0}: 対象の実行中のゲームを選んでください。</value></data>
+  <data name="Diagnostics_ProcessRow" xml:space="preserve"><value>{0}（PID {1}、{2} に起動）  {3}</value></data>
+  <data name="Diagnostics_Choose" xml:space="preserve"><value>選択</value></data>
+  <data name="Diagnostics_Cancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="Diagnostics_Attached" xml:space="preserve"><value>{0}（PID {1}）にデバッガーをアタッチしました。</value></data>
+  <data name="Diagnostics_AttachFailed" xml:space="preserve"><value>{0} にデバッガーをアタッチできませんでした: {1}</value></data>
+  <data name="Diagnostics_ProcessGone" xml:space="preserve"><value>プロセスは終了しています。</value></data>
+  <data name="Diagnostics_CollectorMissing" xml:space="preserve"><value>Visual Studio のプロファイラーのコレクター（{0}）が見つかりません。Visual Studio インストーラーでプロファイリング ツールを入れてください。</value></data>
+  <data name="Diagnostics_CollectorFailed" xml:space="preserve"><value>プロファイラーのコレクターが失敗しました: {0}</value></data>
+  <data name="Diagnostics_MeasuringStarted" xml:space="preserve"><value>{1}（PID {2}）の{0}を計測しています。同じコマンドをもう一度実行すると、計測を止めて結果を開きます。</value></data>
+  <data name="Diagnostics_KindCpu" xml:space="preserve"><value>CPU 使用率</value></data>
+  <data name="Diagnostics_KindDotNet" xml:space="preserve"><value>.NET のメモリ割り当て</value></data>
+  <data name="Diagnostics_MeasuringStoppedOnExit" xml:space="preserve"><value>ゲームが終了したので計測を止め、結果を開きました: {0}</value></data>
+  <data name="Diagnostics_MeasuringStopped" xml:space="preserve"><value>計測の結果を開きました: {0}</value></data>
+  <data name="Diagnostics_GpuGuide" xml:space="preserve"><value>パフォーマンス プロファイラーを開きました。「GPU 使用率」に印を付け、「分析ターゲット」で実行中のゲームのプロセスを選んでください。</value></data>
+  <data name="Diagnostics_ProfilerUnavailable" xml:space="preserve"><value>パフォーマンス プロファイラーを開けませんでした: {0}</value></data>
 </root>

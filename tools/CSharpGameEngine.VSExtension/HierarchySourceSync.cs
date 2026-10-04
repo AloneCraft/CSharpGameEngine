@@ -102,15 +102,17 @@ internal readonly struct SceneSourceMarkerRange : IEquatable<SceneSourceMarkerRa
 
 /// <summary>Maps selected hierarchy paths to the declaration spans owned by the Scene model.</summary>
 internal static class SceneSourceMarkerPlanner {
-    internal static IReadOnlyList<SceneSourceMarkerRange> Create(SceneModel? Model,IReadOnlyList<NodePath> Paths){
+    /// <param name="JsonText">
+    /// The live text of a JSON scene (ADR-0070), whose node locations are looked up in the JSON rather
+    /// than in the model's designer view; <c>null</c> for a C# scene.
+    /// </param>
+    internal static IReadOnlyList<SceneSourceMarkerRange> Create(SceneModel? Model,IReadOnlyList<NodePath> Paths,string? JsonText=null){
         if(Model?.Root is null||Paths.Count==0){
             return [];
         }
 
         var Spans=Paths
-                 .Select(Model.FindNode)
-                 .Where(static Node=>Node is not null)
-                 .Select(static Node=>Node!.Location.Span)
+                 .Select(Path=>TryGetSpan(Model,Path,JsonText,out var Span)?Span:default)
                  .Where(static Span=>Span.Length>0)
                  .OrderBy(static Span=>Span.Start)
                  .ThenByDescending(static Span=>Span.Length)
@@ -138,15 +140,28 @@ internal static class SceneSourceMarkerPlanner {
 
     internal static bool TryCreateNavigation(
         SceneModel? Model,NodePath? PrimaryPath,bool IsDocumentOpen,
-        out string FilePath,out int Position){
+        out string FilePath,out int Position,string? JsonText=null){
         FilePath=string.Empty;
         Position=0;
-        if(!IsDocumentOpen||Model is null||PrimaryPath is not { } Path||Model.FindNode(Path) is not { } Node){
+        if(!IsDocumentOpen||Model is null||PrimaryPath is not { } Path||Model.FindNode(Path) is not { } Node
+            ||!TryGetSpan(Model,Path,JsonText,out var Span)){
             return false;
         }
 
         FilePath=Node.Location.FilePath;
-        Position=Node.Location.Span.Start;
+        Position=Span.Start;
+        return true;
+    }
+
+    private static bool TryGetSpan(SceneModel Model,NodePath Path,string? JsonText,out TextSpan Span){
+        Span=default;
+        if(JsonText is not null){
+            return CSharpGameEngine.SceneAnalysis.Json.SceneJsonNodeLocator.TryFind(JsonText,Path,out Span);
+        }
+        if(Model.FindNode(Path) is not { } Node){
+            return false;
+        }
+        Span=Node.Location.Span;
         return true;
     }
 }

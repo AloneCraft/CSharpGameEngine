@@ -87,8 +87,8 @@ internal static class PhysicsDebugHub {
                 :ToResponse(Snapshot);
         }
         else {
-            string Status=PhysicsSimulationControl.Apply(Request.Command,Request.WorldId);
-            Response=new PhysicsDebugResponse { Protocol=ProtocolVersion,Status=Status };
+            // M0097: the debug pipe only reads; the editor no longer drives the simulation.
+            Response=new PhysicsDebugResponse { Protocol=ProtocolVersion,Status="unsupported command" };
         }
         byte[] ResponseBytes=JsonSerializer.SerializeToUtf8Bytes(Response);
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(LengthBytes,ResponseBytes.Length);

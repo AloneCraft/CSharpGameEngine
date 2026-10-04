@@ -37,7 +37,7 @@ internal sealed class SceneComponentInitializerPlan {
         this.Members=Members;
     }
 
-    /// <summary>gesture commit時にC#ソースへ書き込むobject creation式。</summary>
+    /// <summary>追加するComponentのobject creation式(モデル上の式。シーン JSON へは<see cref="Members"/>から書く)。</summary>
     internal string Expression { get; }
 
     /// <summary>
@@ -77,27 +77,94 @@ internal static class SceneComponentInitializerPolicy {
         }
 
         var Defaults=ReadParameterlessConstructorDefaults(Type);
-        StringBuilder Builder=new();
+        List<string>Assignments=[];
         var MemberBuilder=ImmutableArray.CreateBuilder<SceneComponentMember>(Members.Length);
-        Builder.Append("new ").Append(FullyQualifiedName).Append(" { ");
-        for(var Index=0;Index<Members.Length;Index++){
-            if(Index>0){
-                Builder.Append(", ");
+        foreach(var Member in Members){
+            var HasDefault=Defaults.TryGetValue(Member.Name,out ExpressionSyntax?Initializer);
+            var ValueText=HasDefault?Initializer!.ToString():"default";
+            SceneValue Value;
+            if(HasDefault&&TryResolveDefault(Member,Initializer!,Compilation,out var Resolved)){
+                // A default the scene document cannot hold (a static member, a factory call) is left out, which
+                // keeps the same declared default when the scene is built.
+                if(Resolved is null){ continue; }
+                Value=Resolved;
+            } else {
+                Value=CreateValue(Member,ValueText,HasDefault,Compilation);
             }
-
-            var Member=Members[Index];
-            var HasDefault=Defaults.TryGetValue(Member.Name,out string?Expression);
-            var ValueText=HasDefault?Expression!:"default";
-            Builder.Append(Member.Name).Append('=').Append(ValueText);
-            MemberBuilder.Add(new SceneComponentMember(
-                Member.Name,Member,
-                CreateValue(Member,ValueText,HasDefault,Compilation),
-                SceneSourceLocation.None));
+            Assignments.Add(Member.Name+"="+ValueText);
+            MemberBuilder.Add(new SceneComponentMember(Member.Name,Member,Value,SceneSourceLocation.None));
         }
 
-        Builder.Append(" }");
-        return new SceneComponentInitializerPlan(Builder.ToString(),MemberBuilder.MoveToImmutable());
+        var Expression=Assignments.Count==0
+            ?"new "+FullyQualifiedName+"()"
+            :"new "+FullyQualifiedName+" { "+string.Join(", ",Assignments)+" }";
+        return new SceneComponentInitializerPlan(Expression,MemberBuilder.ToImmutable());
     }
+
+    /// <summary>
+    /// The value of a declared default, read with the semantic model of its declaration: the member of the member's enum
+    /// that it names (by value, so a cast names one too), a constant (<c>6360f</c>, <c>MathF.PI/4f</c>), or <c>LogicalScalar.FromSingle(constant)</c> (scene JSON reads a
+    /// LogicalScalar through float). <paramref name="Value"/> is null when the default has none of these forms, so the
+    /// scene cannot hold it. False when the declaration is not in <paramref name="Compilation"/> (a referenced assembly,
+    /// or no compilation): the text-only plan is used then.
+    /// </summary>
+    private static bool TryResolveDefault(ISymbol Member,ExpressionSyntax Initializer,Compilation?Compilation,out SceneValue?Value){
+        Value=null;
+        if(Compilation is null||!Compilation.ContainsSyntaxTree(Initializer.SyntaxTree)){
+            return false;
+        }
+        var MemberType=Member switch {
+            IFieldSymbol Field=>Field.Type,
+            IPropertySymbol Property=>Property.Type,
+            _=>null,
+        };
+        var Text=Initializer.ToString();
+        if(LightValueContract.Find(MemberType) is not null){
+            var Physical=CreateValue(Member,Text,true,Compilation);
+            Value=Physical.Kind==SceneValueKind.ObjectCreation?Physical:null;
+            return true;
+        }
+        var Model=Compilation.GetSemanticModel(Initializer.SyntaxTree);
+        if(Model.GetSymbolInfo(Initializer).Symbol is IFieldSymbol { HasConstantValue:true,ContainingType.TypeKind:TypeKind.Enum }EnumField){
+            Value=new SceneValue(SceneValueKind.EnumMember,MemberType,EnumField.ConstantValue,EnumField,
+                ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+                Text,Text,SceneSourceLocation.None);
+            return true;
+        }
+        var Constant=Model.GetConstantValue(Initializer);
+        if(MemberType is INamedTypeSymbol { TypeKind:TypeKind.Enum }Enum){
+            // Scene JSON names one member ((ShapeKind)1 is "Sphere"); a value no single member names, such as a flags
+            // combination, has no JSON form and is left out.
+            var Named=Constant.HasValue
+                ?Enum.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(Field=>Field.HasConstantValue&&Equals(Field.ConstantValue,Constant.Value))
+                :null;
+            if(Named is not null){
+                var Name=SceneTypePredicates.ToFullyQualifiedName(Enum)+"."+Named.Name;
+                Value=new SceneValue(SceneValueKind.EnumMember,MemberType,Named.ConstantValue,Named,
+                    ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+                    Name,Name,SceneSourceLocation.None);
+            }
+            return true;
+        }
+        if(Constant.HasValue&&(Constant.Value is not null||MemberType is not { IsValueType:true })){
+            // A constant scene JSON cannot hold (a char, a NaN) is left out, as any default it cannot hold.
+            if(CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.HasJsonForm(Constant.Value)){ Value=Literal(MemberType,Constant.Value,Text); }
+            return true;
+        }
+        if(Initializer is InvocationExpressionSyntax { ArgumentList.Arguments.Count:1 }Invocation
+            &&Model.GetSymbolInfo(Invocation).Symbol is IMethodSymbol { IsStatic:true,Name:"FromSingle" }Factory
+            &&SceneTypePredicates.ToFullyQualifiedName(Factory.ContainingType)=="global::CSharpGameEngine.Numerics.LogicalScalar"
+            &&Model.GetConstantValue(Invocation.ArgumentList.Arguments[0].Expression) is { HasValue:true,Value:float Single }){
+            Value=Literal(MemberType,Single,SceneEditValues.SingleLiteral(Single));
+            return true;
+        }
+        return true;
+    }
+
+    private static SceneValue Literal(ITypeSymbol?Type,object?ConstantValue,string Text)=>
+        new(SceneValueKind.Literal,Type,ConstantValue,ReferencedSymbol:null,
+            ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+            Text,Text,SceneSourceLocation.None);
 
     /// <summary>
     /// 再解析後に<see cref="SceneValueReader"/>が同じ式から作るであろう<see cref="SceneValue"/>を、
@@ -117,8 +184,7 @@ internal static class SceneComponentInitializerPolicy {
             var Arguments=PhysicalValues.Select(Value=>new SceneValue(
                 SceneValueKind.Literal,Compilation?.GetSpecialType(SpecialType.System_Single),Value,null,
                 ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
-                Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f",
-                Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f",SceneSourceLocation.None)).ToImmutableArray();
+                SceneEditValues.SingleLiteral(Value),SceneEditValues.SingleLiteral(Value),SceneSourceLocation.None)).ToImmutableArray();
             var Constructor=(MemberType as INamedTypeSymbol)?.InstanceConstructors.FirstOrDefault(Physical.MatchesConstructor);
             return new SceneValue(SceneValueKind.ObjectCreation,MemberType,null,Constructor,
                 ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
@@ -263,13 +329,13 @@ internal static class SceneComponentInitializerPolicy {
     }
 
     /// <summary>
-    /// パラメータなしコンストラクタが設定している既定値を<c>メンバー名 → 式テキスト</c>で返す。
+    /// パラメータなしコンストラクタが設定している既定値を<c>メンバー名 → 式</c>で返す。
     /// 受理するのは<c>this.X=&lt;式&gt;;</c>だけが並ぶ本体に限る — 条件分岐やメソッド呼び出しが
     /// 混ざっていたら意味を再現できないので、<b>1件も返さず</b>呼び出し側を縮退させる。
     /// </summary>
-    private static IReadOnlyDictionary<string,string>ReadParameterlessConstructorDefaults(INamedTypeSymbol Type){
-        Dictionary<string,string>Empty=[];
-        Dictionary<string,string>Defaults=[];
+    private static IReadOnlyDictionary<string,ExpressionSyntax>ReadParameterlessConstructorDefaults(INamedTypeSymbol Type){
+        Dictionary<string,ExpressionSyntax>Empty=[];
+        Dictionary<string,ExpressionSyntax>Defaults=[];
         foreach(var Member in EnumerateWritableMembers(Type)){
             var DeclarationSyntax=Member.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
             var Initializer=DeclarationSyntax switch {
@@ -277,7 +343,7 @@ internal static class SceneComponentInitializerPolicy {
                 PropertyDeclarationSyntax Property=>Property.Initializer?.Value,
                 _=>null,
             };
-            if(Initializer is not null){ Defaults[Member.Name]=Initializer.ToString(); }
+            if(Initializer is not null){ Defaults[Member.Name]=Initializer; }
         }
         var Constructor=Type.InstanceConstructors.FirstOrDefault(static Candidate=>Candidate.Parameters.Length==0);
         if(Constructor is null||Constructor.IsImplicitlyDeclared){
@@ -302,7 +368,7 @@ internal static class SceneComponentInitializerPolicy {
                 return Empty;
             }
 
-            Defaults[Name]=Assignment.Right.ToString();
+            Defaults[Name]=Assignment.Right;
         }
 
         return Defaults;

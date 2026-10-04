@@ -25,6 +25,28 @@ public sealed class SceneTextChangePlannerTests {
         Assert.Empty(SceneTextChangePlanner.Plan(Source,Source));
     }
 
+    /// <summary>
+    /// A scene JSON write-back changes only what differs between the texts, never splitting a CRLF or a surrogate pair,
+    /// and applying the change reproduces the new text. The unrelated-text overload replaced the whole document.
+    /// </summary>
+    [Theory]
+    [InlineData("{ \"R\": 1, \"U\": 0 }","{ \"R\": 3, \"U\": 0 }",7,1)]
+    [InlineData("abc","abXc",2,0)]
+    [InlineData("abXc","abc",2,1)]
+    [InlineData("a\r\nb","a\nb",1,2)]
+    [InlineData("x😀y","x😁y",1,2)]
+    [InlineData("same","same",-1,0)]
+    public void PlanMinimal_ChangesOnlyTheDifferingMiddle(string Before,string After,int Start,int Length){
+        var Changes=SceneTextChangePlanner.PlanMinimal(SourceText.From(Before),After);
+        Assert.Equal(After,SourceText.From(Before).WithChanges(Changes).ToString());
+        if(Start<0){
+            Assert.Empty(Changes);
+            return;
+        }
+        var Change=Assert.Single(Changes);
+        Assert.Equal((Start,Length),(Change.Span.Start,Change.Span.Length));
+    }
+
     [Fact]
     public void ApplyGuard_ExactLiveText_AllowsAtomicWrite(){
         Assert.True(SceneTextBufferApplyGuard.Matches(
@@ -108,7 +130,7 @@ public sealed class SceneTextChangePlannerTests {
         Assert.Equal(After.ToFullString(),Applied.ToString());
     }
 
-    /// <summary>SceneSourceEditorと同じく、元rootへ<c>ReplaceNode</c>して新rootを得る。</summary>
+    /// <summary>元rootへ<c>ReplaceNode</c>して新rootを得る(構文木どうしの差分を作るため)。</summary>
     private static SyntaxNode ReplaceLiterals(SyntaxNode Root,params (string Old,string New)[]Edits){
         var Current=Root;
         foreach(var Edit in Edits){

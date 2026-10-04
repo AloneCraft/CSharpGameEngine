@@ -12,11 +12,9 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// Sceneを足してもSystem由来のArchetype番号は動かない。
 ///
 /// <para>
-/// 実行順序(ADR-0033決定事項1)は「ソース上の記述順」。整列は<see cref="GameSystemExecutionOrder"/>に
-/// 委譲しており、キーは①<c>[SystemOrder]</c>をSystemへ直接付けた明示値 ②<c>[SystemOrder]</c>を
-/// ファイルマーカーへ付けたファイル既定値(いずれもADR-0036、宣言が無ければ0) ③ファイルパスの
-/// Ordinal順(後方互換のタイブレーク) ④宣言位置(同一struct内のオーバーロード順、
-/// <see cref="GameSystemAnalyzer"/>で整列済み)。
+/// 実行順序は<see cref="GameSystemExecutionOrder"/>に委譲する(ADR-0073: Phase順、Phaseの中は
+/// <c>[RunsAfter]</c>/<c>[RunsBefore]</c>のトポロジカル順、同着は完全修飾名)。同一struct内のオーバーロードは
+/// 宣言順(<see cref="GameSystemAnalyzer"/>で整列済み)。
 /// </para>
 ///
 /// <para>
@@ -33,10 +31,8 @@ internal static class GameSystemIndexAssigner {
 
     internal static GameSystemRegistry Assign(
         ImmutableArray<GameSystemResult>AllSystems,
-        IReadOnlyList<IReadOnlyList<string>>AdditionalComponentSets,
-        GameSystemOrderContext OrderContext){
-        List<GameSystemResult>ValidSystems=[.. AllSystems.Where(static S=>S.Diagnostics.Length==0)];
-        ValidSystems.Sort((A,B)=>GameSystemExecutionOrder.Compare(A,B,OrderContext));
+        IReadOnlyList<IReadOnlyList<string>>AdditionalComponentSets){
+        List<GameSystemResult>ValidSystems=GameSystemExecutionOrder.Order(AllSystems.Where(static S=>S.Diagnostics.Length==0));
 
         Dictionary<string,int>ComponentIndexByType=new(StringComparer.Ordinal);
         List<string>ComponentTypesByIndex=[];

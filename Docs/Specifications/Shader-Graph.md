@@ -9,9 +9,9 @@
 
 .cgeshadergraph is a root graph and .cgesubgraph is a reusable visual subgraph. Both are canonical UTF-8 JSON. Schema v1 stores stable GUID identity, target ABI, entry metadata, subgraphs, typed ports, nodes, edges, regions, external dependency IDs/paths, and editor layout.
 
-Canonical serialization orders identities and argument names. Semantic hashing removes node positions and region layout. Connection types must match exactly; conversions are explicit nodes. Unknown JSON node data survives load/save and validator diagnostics identify unsupported node types.
+Canonical serialization orders identities and argument names; it leaves out nulls, so a canonical file never holds one. A JSON null where the graph needs a value (the target, a list, a list item, a node type, an argument name or value, an edge port, a dependency path) is malformed JSON: loading throws a `JsonException` naming its path, as for any other malformed JSON. Semantic hashing removes node positions and region layout. Connection types must match exactly; conversions are explicit nodes. Unknown JSON node data survives load/save and validator diagnostics identify unsupported node types. A subgraph or node identity that appears twice (a node copied by hand in the JSON, a merged file) is a validation error (`DuplicateIdentity`), so generation reports it instead of failing.
 
-The fixed root target is Stage, Model, or Triangle. Stage has VSMain, PSMain, VSShadowMain, FullscreenVS, and PostProcessPS; Model and Triangle each have VSMain and PSMain.
+The fixed root target is Stage, Model, or Triangle. The Stage graph defines VSMain, PSMain, VSShadowMain, FullscreenVS, and PostProcessPS; the engine-owned `StagePresentationShaderSource` suffix adds PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain and the radial depth entries RadialPSMain, PreviewRadialPSMain, PreviewCleanRadialPSMain, RadialObserverVSMain and RadialVSMain (M0099, ADR-0076), 14 entries in the `stage-v10` contract (FrameCB ends with the depth-mapping packet; ObjectCB ends with `RadialRasterDepth`). Model and Triangle each have VSMain and PSMain.
 
 Dependencies resolve relative to their owning document and may be recursive. Resolution validates document identity and rejects missing files, recursion, node collisions, and top-level declaration-slot collisions. Production Stage owns PBR, Shadow, PCSS, and ACES as external typed-syntax Subgraphs whose original declaration slots are preserved during composition.
 
@@ -27,7 +27,7 @@ Custom HLSL and user DLL node providers are outside v1.
 
 ## Compiler CLI
 
-CSharpGameEngine.ShaderGraph.Cli provides validate, build, dump-hlsl, and publish. Validate/build/dump recursively compose external Subgraphs before graph validation and lowering. Build regenerates deterministic HLSL, compiles the fixed ABI with DXC, validates reflection, and writes one artifact. Generated HLSL and source maps are intermediate output only. Publish replaces the destination atomically.
+CSharpGameEngine.ShaderGraph.Cli provides validate, build, dump-hlsl, and publish. Validate/build/dump recursively compose external Subgraphs before graph validation and lowering. Build regenerates deterministic HLSL, compiles the fixed ABI with DXC, validates reflection, and writes one artifact. Generated HLSL and source maps are intermediate output only. Publish replaces the destination atomically. A failure is written in MSBuild's canonical form at the graph (`<graph>: error <Code>: <message>`, a warning as `warning`, with `[node <id>]` when one node is at fault; DXC diagnostics as `<hlsl>(<line>,<column>): Error: <message>`), so a build lists its cause and not only MSB3073; an unreadable or missing file is one such line without a stack trace.
 
 MSBuild compiles explicit CgeShaderGraph items and their CgeShaderSubgraph inputs into obj/.../ShaderGraph and publishes into the output Shaders directory. The root SemanticHash and recursive DependencyHash are distinct. Matching hashes, target/ABI, fixed entries, and compiler/DXC provenance reuse an existing valid artifact without invoking DXC.
 

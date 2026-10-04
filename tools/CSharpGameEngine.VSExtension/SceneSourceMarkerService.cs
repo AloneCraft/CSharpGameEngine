@@ -101,7 +101,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             this.MarkedBuffer=Buffer;
         }
 
-        var Ranges=SceneSourceMarkerPlanner.Create(Model,Paths);
+        var Ranges=SceneSourceMarkerPlanner.Create(Model,Paths,JsonTextOf(Model,Buffer));
         this.ReplaceOwnedTagSpans(Buffer,Ranges);
 
         if(SceneSourceMarkerScrollPolicy.ShouldScroll(ScrollBehavior,Ranges.Count)&&NativeBuffer is not null){
@@ -178,11 +178,14 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         }
         return this.OwnedTagSpans.Count>0;
     }
+    /// <summary>ADR-0070: a JSON scene's nodes are located in its live JSON text.</summary>
+    private static string? JsonTextOf(SceneModel Model,ITextBuffer Buffer)=>
+        SceneJsonCommitPlanner.IsJsonDocument(Model.FilePath)?Buffer.CurrentSnapshot.GetText():null;
     internal void Navigate(SceneModel? Model,NodePath Path){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out var FoundBuffer,out _)
             ||FoundBuffer is null
-            ||!SceneSourceMarkerPlanner.TryCreateNavigation(Model,Path,IsDocumentOpen:true,out var FilePath,out var Position)
+            ||!SceneSourceMarkerPlanner.TryCreateNavigation(Model,Path,IsDocumentOpen:true,out var FilePath,out var Position,JsonTextOf(Model,FoundBuffer))
             ||Package.GetGlobalService(typeof(SDTE))is not DTE Dte){
             LogInformation("Skipped hierarchy source navigation because the target document is not already open.");
             return;

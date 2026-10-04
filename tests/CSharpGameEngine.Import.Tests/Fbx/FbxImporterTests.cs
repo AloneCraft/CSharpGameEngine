@@ -20,6 +20,28 @@ public class FbxImporterTests {
         }
     }
 
+    /// <summary>
+    /// A path no single ANSI code page holds (Japanese and Korean names, or a Japanese folder on an English Windows)
+    /// imports. AssimpNet hands a file name to the native importer as an ANSI string, which turned such names into "?"
+    /// ("Unable to open file").
+    /// </summary>
+    [Fact]
+    public void Import_BoxFbx_FromAPathOutsideTheAnsiCodePage_Succeeds(){
+        var Folder=Path.Combine(Path.GetTempPath(),"cge 日本語 "+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Folder);
+        try {
+            var Path_=Path.Combine(Folder,"箱 한글 모델.fbx");
+            File.Copy(FixturePath("Box.fbx"),Path_);
+
+            var Result=FbxImporter.Import(Path_);
+
+            Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
+            Assert.True(Result.Mesh!.Indices.Count>0);
+        } finally {
+            Directory.Delete(Folder,true);
+        }
+    }
+
     [Fact]
     public void Import_BoxFbx_BoundingBox_IsPlausible(){
         var Result=FbxImporter.Import(FixturePath("Box.fbx"));
@@ -65,6 +87,32 @@ public class FbxImporterTests {
             Assert.Contains(Result.Diagnostics,D=>D.Severity==FbxImportDiagnosticSeverity.Error);
         } finally {
             File.Delete(TempPath);
+        }
+    }
+
+    [Fact]
+    public void ConcurrentImports_KeepTheProcessAndTheirOwnDiagnostics(){
+        // Assimp's log stream is process-wide; attaching and detaching it from parallel imports crashed the test host
+        // (ProviderNeutralImportTests imports FBX in parallel with this class), and a stream sees every import's messages.
+        var Box=FixturePath("Box.fbx");
+        var Malformed=Path.Combine(Path.GetTempPath(),$"malformed-{Guid.NewGuid():N}.fbx");
+        File.WriteAllText(Malformed,"this is not a valid FBX file");
+        try {
+            // Assimp's lines name the thread ("T1234:"), which differs between imports.
+            static string[]Lines(FbxImportResult Result)=>[.. Result.Diagnostics.Select(D=>System.Text.RegularExpressions.Regex.Replace(D.ToString()??"",@"\bT\d+:","T:"))];
+            var Alone=Lines(FbxImporter.Import(Box));
+            var Results=new FbxImportResult[64];
+            Parallel.For(0,Results.Length,new ParallelOptions { MaxDegreeOfParallelism=8 },Index=>
+                Results[Index]=FbxImporter.Import(Index%2==0?Box:Malformed));
+
+            for(var Index=0;Index<Results.Length;Index++){
+                Assert.Equal(Index%2==0,Results[Index].Success);
+                if(Index%2==0){
+                    Assert.Equal(Alone,Lines(Results[Index]));
+                }
+            }
+        } finally {
+            File.Delete(Malformed);
         }
     }
 }

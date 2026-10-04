@@ -1,0 +1,34 @@
+<Project>
+  <!--
+    ADR-0070: after a game project builds, write the scene JSON Schema that GameSystemGenerator embedded
+    in the assembly to .cge/scene.schema.json, so scene JSON files (Scenes\**\*.json) that point "$schema" at it get
+    warnings and completion in the VS JSON editor. Only projects that consume the engine's game props
+    (CgeGameProject) run it.
+  -->
+  <PropertyGroup>
+    <CgeSceneSchemaCliProject>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.SceneSchema.Cli\CSharpGameEngine.SceneSchema.Cli.csproj</CgeSceneSchemaCliProject>
+    <!-- PackageMode (ADR-0065) predefines the CLI shipped in the SDK package; SourceMode builds it from the repository
+         and BuildCgeSceneSchemaCli replaces this with the path the build produced (an artifacts path moves it). -->
+    <CgeSceneSchemaCli Condition="'$(CgeSceneSchemaCli)' == ''">$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.SceneSchema.Cli\bin\$(Configuration)\net10.0\CSharpGameEngine.SceneSchema.Cli.dll</CgeSceneSchemaCli>
+    <CgeSceneSchemaPath Condition="'$(CgeSceneSchemaPath)' == ''">$(MSBuildProjectDirectory)\.cge\scene.schema.json</CgeSceneSchemaPath>
+  </PropertyGroup>
+  <Target Name="BuildCgeSceneSchemaCli" BeforeTargets="WriteCgeSceneSchema" Condition="'$(CgeGameProject)' == 'true' and '$(CgeEngineMode)' != 'Package'">
+    <!-- A game built on its own does not restore this tool; restore in a separate evaluation first. -->
+    <MSBuild Projects="$(CgeSceneSchemaCliProject)" Targets="Restore"
+             Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform"
+             BuildInParallel="false" />
+    <MSBuild Projects="$(CgeSceneSchemaCliProject)" Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform"
+             BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeSceneSchemaCliAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <CgeSceneSchemaCli>@(_CgeSceneSchemaCliAssembly->'%(FullPath)')</CgeSceneSchemaCli>
+    </PropertyGroup>
+  </Target>
+  <Target Name="WriteCgeSceneSchema" AfterTargets="Build" Condition="'$(CgeGameProject)' == 'true'">
+    <Exec Command="dotnet &quot;$(CgeSceneSchemaCli)&quot; &quot;$(TargetPath)&quot; &quot;$(CgeSceneSchemaPath)&quot;" StandardOutputImportance="low" />
+  </Target>
+</Project>

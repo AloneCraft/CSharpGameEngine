@@ -131,11 +131,72 @@ public class BridgeServerHostTests {
     }
 
     [Fact]
+    public async Task Stop_EndsAConnectionThatStoppedMidRequest(){
+        // Audit AUD-003: the server drains accepted connections before it exits, so a client that sent part of a
+        // request and kept the pipe open used to keep the bridge (and the extension's locked files) alive.
+        var PipeName=UniquePipeName();
+        using var Stop=new CancellationTokenSource();
+        Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,""),TimeSpan.FromSeconds(30),Stop.Token);
+        using var Client=new NamedPipeClientStream(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
+        await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
+        await Client.WriteAsync(new byte[]{1});
+        await Client.FlushAsync();
+        await Task.Delay(100);
+
+        Stop.Cancel();
+
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task IdleTimeout_ExitsAcceptLoop(){
         var PipeName=UniquePipeName();
         Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,""),TimeSpan.FromMilliseconds(200));
 
         await ServerTask.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task OwnerExit_ExitsAcceptLoopLongBeforeTheIdleTimeout(){
+        using var Owner=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe","/c ping -n 60 127.0.0.1 >nul"){ UseShellExecute=false,CreateNoWindow=true })!;
+        Task ServerTask=BridgeServerHost.RunAsync(
+            UniquePipeName(),(_,_)=>(0,""),TimeSpan.FromMinutes(15),OwnerProcessId:Owner.Id);
+        await Task.Delay(200);
+        Assert.False(ServerTask.IsCompleted);
+
+        Owner.Kill(entireProcessTree:true);
+
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task OwnerAlreadyGone_ExitsAtOnce(){
+        using var Owner=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe","/c exit 0"){ UseShellExecute=false,CreateNoWindow=true })!;
+        Owner.WaitForExit();
+
+        await BridgeServerHost.RunAsync(
+            UniquePipeName(),(_,_)=>(0,""),TimeSpan.FromMinutes(15),OwnerProcessId:Owner.Id)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Theory]
+    [InlineData(new[]{ "--serve","Pipe" },"Pipe",null)]
+    [InlineData(new[]{ "--serve","Pipe","--parent-process-id","4242" },"Pipe",4242)]
+    public void ServeCommand_ReadsThePipeAndTheOwner(string[]Arguments,string Pipe,int?Owner){
+        Assert.True(BridgeServeCommand.TryParse(Arguments,out var PipeName,out var OwnerProcessId));
+        Assert.Equal(Pipe,PipeName);
+        Assert.Equal(Owner,OwnerProcessId);
+    }
+
+    [Theory]
+    [InlineData("input.glb output.json")]
+    [InlineData("--serve")]
+    [InlineData("--serve Pipe --parent-process-id -1")]
+    [InlineData("--serve Pipe --parent-process-id x")]
+    public void ServeCommand_RejectsOtherCommandLines(string CommandLine){
+        Assert.False(BridgeServeCommand.TryParse(CommandLine.Split(' '),out _,out _));
     }
 
     [Fact]
@@ -159,6 +220,26 @@ public class BridgeServerHostTests {
         Release.Set();
 
         Assert.Equal(AuthoringHostTerminalState.Succeeded,(await RequestTask).State);
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>
+    /// The idle window ends the accept loop, not a connection already accepted: a request that arrives after the window
+    /// (a slow or busy client) is still answered, within the receive deadline. Ending the read with the idle window
+    /// dropped such a request without a response.
+    /// </summary>
+    [Fact]
+    public async Task IdleTimeout_DoesNotDropARequestStillArriving(){
+        var PipeName=UniquePipeName();
+        Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,"done"),TimeSpan.FromMilliseconds(50));
+        using NamedPipeClientStream Client=new(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
+        await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
+        await Task.Delay(300);
+
+        await BridgeWireMessage.WriteAsync(Client,CreateRequest("input","output"),CancellationToken.None);
+        var Result=await BridgeWireMessage.ReadAsync<AuthoringHostResult>(Client,CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(AuthoringHostTerminalState.Succeeded,Result.State);
         await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
     }
 

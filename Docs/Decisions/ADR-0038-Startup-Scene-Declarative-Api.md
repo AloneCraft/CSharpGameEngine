@@ -2,10 +2,16 @@
 
 ## ステータス
 
+Superseded by [[ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World]]。起動シーンはシーン JSON の
+`startupOrder`で宣言し、残った`[StartupScene]`はSCENE206になる(`SceneEntityAttribute`は削除済み)。以下は当時の記録。
+
 承認済み。[[ADR-0033-Static-Archetype-Ecs-Migration]]の「属性を一切使わない構造的推論」原則は
 維持したまま、[[ADR-0036-System-Order-Attribute]]と同じ「構造から導出できない情報にだけ最小限の
 属性を許す」基準に沿って、起動時Entity生成を宣言的に書けるAPIを追加する。既存の`GeneratedGameLoop.Run(ref State)`
 シグネチャ・閉集合Archetype・実行順序モデル・Runtime Systemの責務分担は一切変更しない。
+
+起動シーンの順序の扱い(下の`SystemOrderByFqn`への合流)は[[ADR-0073-Relative-System-Order]]で置き換えた:
+合成SystemはFrameInputの先頭に`Order` → 完全修飾名の順で並ぶ。
 
 ## 背景
 

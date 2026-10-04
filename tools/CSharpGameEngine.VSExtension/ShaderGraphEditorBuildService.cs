@@ -15,10 +15,11 @@ internal static class ShaderGraphEditorBuildService {
     internal static ShaderGraphEditorBuildOperation GetOperation(string GraphPath)=>
         string.Equals(Path.GetExtension(GraphPath),".cgesubgraph",StringComparison.OrdinalIgnoreCase)?ShaderGraphEditorBuildOperation.ValidateSubgraph:ShaderGraphEditorBuildOperation.BuildRoot;
     internal static ShaderGraphEditorBuildResult BuildAndPublish(string GraphPath) {
-        var RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null) { return new ShaderGraphEditorBuildResult(false,"Repository root is unavailable.",null); }
-        var CliPath=FindCli(RepoRoot);
-        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not built. Build CSharpGameEngine.ShaderGraph.Cli first.",null); }
+        // The graph's game project decides where outputs go (ADR-0065); a graph outside any project builds beside itself.
+        var Context=CgeProjectContext.Resolve(GraphPath);
+        var RepoRoot=Context?.WorkspaceRoot??Path.GetDirectoryName(Path.GetFullPath(GraphPath))!;
+        var CliPath=FindCli(Context?.EngineRoot);
+        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not available. Reinstall the extension or build CSharpGameEngine.ShaderGraph.Cli.",null); }
         if(GetOperation(GraphPath)==ShaderGraphEditorBuildOperation.ValidateSubgraph) {
             var Validation=Run(CliPath,"validate "+Quote(GraphPath),RepoRoot);
             return Validation.ExitCode==0
@@ -33,14 +34,19 @@ internal static class ShaderGraphEditorBuildService {
         var Build=Run(CliPath,"build "+Quote(GraphPath)+" "+Quote(ArtifactPath)+" "+Quote(HlslPath)+" Debug",RepoRoot);
         if(Build.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Build.Output,HlslPath); }
         var Published=0;
-        foreach(var Existing in FindExistingRuntimeArtifacts(RepoRoot,Name+".cgeshaderartifact")) {
+        foreach(var Existing in FindExistingRuntimeArtifacts(Context,Name+".cgeshaderartifact")) {
             var Publish=Run(CliPath,"publish "+Quote(ArtifactPath)+" "+Quote(Existing),RepoRoot);
             if(Publish.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Publish.Output,HlslPath); }
             Published++;
         }
         return new ShaderGraphEditorBuildResult(true,$"Shader artifact built; published to {Published} active output(s).",HlslPath);
     }
-    private static string?FindCli(string RepoRoot) {
+    /// <summary>The compiler shipped with the extension, else a repository build (SourceMode development).</summary>
+    private static string?FindCli(string?EngineRoot) {
+        var Bundled=Path.Combine(BridgeExecutableLocator.ExtensionDirectory,"Bridges","CSharpGameEngine.ShaderGraph.Cli","CSharpGameEngine.ShaderGraph.Cli.exe");
+        if(File.Exists(Bundled)) { return Bundled; }
+        if(EngineRoot is null) { return null; }
+        var RepoRoot=EngineRoot;
         foreach(var Configuration in new[]{"Debug","Release"}) {
             foreach(var Architecture in new[]{"x64",string.Empty}) {
                 var Candidate=string.IsNullOrEmpty(Architecture)
@@ -51,9 +57,12 @@ internal static class ShaderGraphEditorBuildService {
         }
         return null;
     }
-    private static IEnumerable<string>FindExistingRuntimeArtifacts(string RepoRoot,string FileName) {
-        foreach(var RootName in new[]{"UserEcsProject","tests","tools"}) {
-            var Root=Path.Combine(RepoRoot,RootName);
+    /// <summary>Published copies in the game project's outputs, plus the engine repository's tests and tools in SourceMode.</summary>
+    private static IEnumerable<string>FindExistingRuntimeArtifacts(CgeProjectContext?Context,string FileName) {
+        if(Context is null) { yield break; }
+        List<string>Roots=[Context.ProjectDirectory];
+        if(Context.EngineRoot is{ }EngineRoot) { Roots.Add(Path.Combine(EngineRoot,"tests"));Roots.Add(Path.Combine(EngineRoot,"tools")); }
+        foreach(var Root in Roots) {
             if(!Directory.Exists(Root)) { continue; }
             foreach(var Candidate in Directory.EnumerateFiles(Root,FileName,SearchOption.AllDirectories)) {
                 var Segments=Candidate.Split(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
@@ -61,15 +70,25 @@ internal static class ShaderGraphEditorBuildService {
             }
         }
     }
-    private static string Quote(string Value)=>string.Concat((char)34,Value,(char)34);
-    private static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
+    private static string Quote(string Value)=>ExternalBridgeProcess.QuoteArgument(Value);
+    /// <summary>
+    /// Runs the CLI and returns its exit code with its standard output and error. Standard error is read as it arrives:
+    /// read after standard output, a CLI that filled the error pipe first blocked forever, and the UI thread with it.
+    /// </summary>
+    internal static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
         var StartInfo=new ProcessStartInfo(Executable,Arguments) { WorkingDirectory=WorkingDirectory,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true };
-        using(var ChildProcess=System.Diagnostics.Process.Start(StartInfo)) {
-            if(ChildProcess is null) { return new ValueTuple<int,string>(-1,"Failed to start Shader Graph CLI."); }
+        var Error=new System.Text.StringBuilder();
+        using(var ChildProcess=new System.Diagnostics.Process { StartInfo=StartInfo }) {
+            ChildProcess.ErrorDataReceived+=(Sender,Line)=>{
+                if(Line.Data is not null) { lock(Error) { Error.AppendLine(Line.Data); } }
+            };
+            if(!ChildProcess.Start()) { return new ValueTuple<int,string>(-1,"Failed to start Shader Graph CLI."); }
+            ChildProcess.BeginErrorReadLine();
             var Output=ChildProcess.StandardOutput.ReadToEnd();
-            var Error=ChildProcess.StandardError.ReadToEnd();
+            // Without a timeout, this also waits for the error reader to reach the end of the stream.
             ChildProcess.WaitForExit();
-            string Combined=(Output+Environment.NewLine+Error).Trim();
+            string Combined;
+            lock(Error) { Combined=(Output+Environment.NewLine+Error).Trim(); }
             return new ValueTuple<int,string>(ChildProcess.ExitCode,Combined);
         }
     }

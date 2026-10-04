@@ -56,13 +56,19 @@ internal readonly struct GameSystemMethodModel(
         ImmutableArray<GameSystemComponentParameterModel>Components,
         ImmutableArray<GameSystemContextParameterModel>Contexts,
         ImmutableArray<GameSystemParameterSlot>CallOrder,
-        int DeclarationPosition) {
+        int DeclarationPosition,
+        bool ReturnsBool) {
     internal readonly GameSystemMethodRole Role=Role;
     internal readonly bool HasLeadingEntityParameter=HasLeadingEntityParameter;
     internal readonly ImmutableArray<GameSystemComponentParameterModel>Components=Components;
     internal readonly ImmutableArray<GameSystemContextParameterModel>Contexts=Contexts;
     internal readonly ImmutableArray<GameSystemParameterSlot>CallOrder=CallOrder;
     internal readonly int DeclarationPosition=DeclarationPosition;
+    /// <summary>
+    /// ADR-0072: an Update returns void (the standard) or bool. Only a world system's false has an
+    /// effect (it ends the frame's remaining systems); an entity system's false never did anything.
+    /// </summary>
+    internal readonly bool ReturnsBool=ReturnsBool;
 }
 
 /// <summary>
@@ -80,9 +86,11 @@ internal readonly struct GameSystemResult(
         bool IsWorldSystem,
         bool IsScheduled,
         ImmutableArray<string>RunsAfterSystemFullyQualifiedNames,
+        ImmutableArray<string>RunsBeforeSystemFullyQualifiedNames,
         Location DeclarationLocation,
         string FilePath,
-        int DeclarationPosition) {
+        int DeclarationPosition,
+        int?StartupOrder=null) {
     internal readonly string?Namespace=Namespace;
     internal readonly string ClassName=ClassName;
     internal readonly ImmutableArray<GameSystemMethodModel>Methods=Methods;
@@ -93,13 +101,16 @@ internal readonly struct GameSystemResult(
     internal readonly bool IsWorldSystem=IsWorldSystem;
     internal readonly bool IsScheduled=IsScheduled;
     internal readonly ImmutableArray<string>RunsAfterSystemFullyQualifiedNames=RunsAfterSystemFullyQualifiedNames;
+    internal readonly ImmutableArray<string>RunsBeforeSystemFullyQualifiedNames=RunsBeforeSystemFullyQualifiedNames;
     internal readonly Location DeclarationLocation=DeclarationLocation;
 
     /// <summary>
-    /// 実行順序の決定に使う宣言位置。ADR-0033決定事項1により、実行順は「ソース上の記述順」。
-    /// 同一ファイル内は<see cref="DeclarationPosition"/>(SourceSpan.Start)昇順、
-    /// 複数ファイルにまたがる場合のみ<see cref="FilePath"/>のOrdinal順でタイブレークする。
+    /// 起動シーンの合成Systemだけが持つ<c>startupOrder</c>。FrameInputの他のSystemより前に、この値→完全修飾名の
+    /// 順で動く(ADR-0073決定事項4)。手書きのSystemはnull。
     /// </summary>
+    internal readonly int?StartupOrder=StartupOrder;
+
+    /// <summary>診断の位置と、起動シーンの合成Systemの出所を示すソース上の位置。実行順序には使わない(ADR-0073)。</summary>
     internal readonly string FilePath=FilePath;
     internal readonly int DeclarationPosition=DeclarationPosition;
 
@@ -135,55 +146,10 @@ internal readonly struct GameSystemArchetypeInfo(string Name,ImmutableArray<int>
 }
 
 /// <summary>
-/// <c>[SystemOrder]</c>の付け先2種類(ADR-0036)。<c>System</c>はそのSystem1つだけの順序、
-/// <c>FileMarker</c>はファイル内で自分の順序を持たない全Systemの既定順序になる。
-/// </summary>
-internal enum GameSystemOrderTargetKind {
-    System,
-    FileMarker,
-}
-
-/// <summary>
-/// <c>[SystemOrder]</c>属性(<see cref="GameSystemOrderAnalyzer"/>)を1つ付けた対象の解析結果。
-/// ファイル横断・Systemごとの実行順序は本来ADR-0033の「記述順」からは導出できない(構造的な
-/// 手がかりが無い)ため、この属性だけが例外的に許される宣言的キーになる(ADR-0036)。
-/// </summary>
-internal readonly struct GameSystemOrderResult(
-        GameSystemOrderTargetKind Kind,
-        string FilePath,
-        int Order,
-        string TargetName,
-        string?SystemFullyQualifiedName,
-        Location Location,
-        ImmutableArray<Diagnostic>Diagnostics) {
-    internal readonly GameSystemOrderTargetKind Kind=Kind;
-    internal readonly string FilePath=FilePath;
-    internal readonly int Order=Order;
-
-    /// <summary>診断メッセージ用の型名(Systemの場合もマーカーの場合も単純名)。</summary>
-    internal readonly string TargetName=TargetName;
-
-    /// <summary><see cref="GameSystemOrderTargetKind.System"/>のときだけ設定される、対象Systemの完全修飾名。<see cref="GameSystemResult.ClassFullyQualifiedName"/>と同じキー空間。</summary>
-    internal readonly string?SystemFullyQualifiedName=SystemFullyQualifiedName;
-
-    internal readonly Location Location=Location;
-    internal readonly ImmutableArray<Diagnostic>Diagnostics=Diagnostics;
-}
-
-/// <summary>
-/// <see cref="GameSystemExecutionOrder.Compare"/>が引く2種類のマップをまとめたもの。System単体の
-/// 明示指定がファイル既定より優先される(<see cref="GameSystemExecutionOrder"/>参照)。
-/// </summary>
-internal readonly struct GameSystemOrderContext(IReadOnlyDictionary<string,int>SystemOrderByFqn,IReadOnlyDictionary<string,int>FileOrderByPath) {
-    internal readonly IReadOnlyDictionary<string,int>SystemOrderByFqn=SystemOrderByFqn;
-    internal readonly IReadOnlyDictionary<string,int>FileOrderByPath=FileOrderByPath;
-}
-
-/// <summary>
 /// <see cref="GameSystemIndexAssigner.Assign"/>の出力。診断のあるSystemは<see cref="ValidSystems"/>
 /// から除外済み、<see cref="Archetypes"/>は決定的な出力順序(コンポーネント数昇順→インデックスタプル
-/// 辞書式昇順)で確定済み、<see cref="ValidSystems"/>は実行順序(記述順、<c>[SystemOrder]</c>があれば
-/// それを優先キーとする)で並んでいる。
+/// 辞書式昇順)で確定済み、<see cref="ValidSystems"/>は実行順序(<see cref="GameSystemExecutionOrder"/>、
+/// Phase順→Phase内の依存グラフ→完全修飾名)で並んでいる。
 /// </summary>
 internal readonly struct GameSystemRegistry(
         ImmutableArray<GameSystemComponentInfo>ComponentsByIndex,

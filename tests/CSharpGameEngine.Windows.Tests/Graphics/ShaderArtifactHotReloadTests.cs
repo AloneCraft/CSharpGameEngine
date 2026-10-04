@@ -50,6 +50,51 @@ public sealed class ShaderArtifactHotReloadTests {
             Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
         } finally { Directory.Delete(DirectoryPath,true); }
     }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void RenderServer_DebugHotReload_RebuildsTheRadialPipelines() {
+        // M0099: the radial pipeline states are rebuilt with the others and keep drawing the same pixels.
+        var Source=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
+        var DirectoryPath=Path.Combine(Path.GetTempPath(),"CgeShaderHotReload",Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(DirectoryPath);
+        var ArtifactPath=Path.Combine(DirectoryPath,"Stage.cgeshaderartifact");
+        File.Copy(Source,ArtifactPath);
+        try {
+            using Win32Window Window=new(new Win32WindowOptions { Title="CGE Radial Hot Reload Test",Width=128,Height=128,Visible=false });
+            StageMaterialCreateInfo Material=new(){ BaseColorFactor=new Vector4(0.9f,0.2f,0.1f,1f),RoughnessFactor=1f,MetallicFactor=0f };
+            (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+                StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
+                [new Vector3(0f,0.6f,0f),new Vector3(-0.6f,-0.6f,0f),new Vector3(0.6f,-0.6f,0f)],
+                [-Vector3.UnitZ,-Vector3.UnitZ,-Vector3.UnitZ],
+                [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
+                [0u,1u,2u],Material);
+            using var Renderer=RenderServer.Create(
+                Window.Handle,Window.ClientWidth,Window.ClientHeight,
+                new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
+                ArtifactPath,Meshes,Materials,Objects);
+            var View=Camera.CreateFirstPerson(new Vector3(0f,0f,-2f));
+            View.DepthMapping=RenderDepthMapping.Radial;
+            View.FarZ=1e9f;
+            byte[]RenderRadial(){
+                for(var Frame=0;Frame<2;Frame++){
+                    Renderer.SetCamera(View);
+                    Renderer.SetAmbientLight(new Vector3(1f));
+                    Renderer.SetObjectTransform(0,Matrix4x4.Identity);
+                    Renderer.RenderFrame(CaptureForVerification:Frame==1);
+                }
+                return Renderer.LastCapturedFrame!.Pixels.ToArray();
+            }
+            var Before=RenderRadial();
+            Assert.True(Before.Distinct().Count()>2,"The radial frame must show the triangle.");
+            var Artifact=ReadArtifact(ArtifactPath);
+            Artifact.SemanticHash="HOT-RELOAD-RADIAL";
+            WriteArtifactAtomic(ArtifactPath,Artifact);
+            RenderUntil(Window,Renderer,()=>Renderer.ShaderSemanticHash=="HOT-RELOAD-RADIAL");
+            Assert.Equal(Before,RenderRadial());
+            Assert.Empty(Renderer.ShaderArtifactDiagnostics);
+            Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
+        } finally { Directory.Delete(DirectoryPath,true); }
+    }
     private static ShaderArtifactDocument ReadArtifact(string PathValue) {
         using var Stream=File.OpenRead(PathValue);
         Assert.True(ShaderArtifactSerializer.TryRead(Stream,ShaderArtifactTargetKind.Stage,ShaderArtifactAbi.GetHash(ShaderArtifactTargetKind.Stage),out var Artifact,out var Error),Error);

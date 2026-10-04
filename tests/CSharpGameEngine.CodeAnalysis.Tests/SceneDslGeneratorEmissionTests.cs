@@ -231,8 +231,11 @@ public sealed class SceneDslGeneratorEmissionTests {
         var Result=GameSystemGeneratorTestHelper.RunGenerator([
             .. GameSystemGeneratorTestHelper.SceneDslSources,
             """
-            namespace CSharpGameEngine.Entities { public struct Transform { } }
-            namespace CSharpGameEngine.Runtime.Windows { public struct StaticMesh { } }
+            namespace CSharpGameEngine.Entities {
+                public sealed class SceneComponentOrderAttribute(int Category,int Order):System.Attribute { }
+                [SceneComponentOrder(0,0)] public struct Transform { }
+            }
+            namespace CSharpGameEngine.Runtime.Windows { [CSharpGameEngine.Entities.SceneComponentOrder(3,10)] public struct StaticMesh { } }
             """,
             """
             using CSharpGameEngine.Entities;

@@ -15,26 +15,40 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public class ResidentBridgeClientTests {
     [Fact]
     public void ComputePipeName_SameInputs_ReturnsSameName(){
-        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli");
-        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli");
+        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
+        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
 
         Assert.Equal(First,Second);
     }
 
     [Fact]
     public void ComputePipeName_DifferentRepoRoot_ReturnsDifferentName(){
-        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo-one",@"tools\CSharpGameEngine.Import.Gltf.Cli");
-        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo-two",@"tools\CSharpGameEngine.Import.Gltf.Cli");
+        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo-one",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
+        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo-two",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
 
         Assert.NotEqual(First,Second);
     }
 
     [Fact]
     public void ComputePipeName_DifferentBridgeProject_ReturnsDifferentName(){
-        var Gltf=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli");
-        var Fbx=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Fbx.Cli");
+        var Gltf=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
+        var Fbx=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Fbx.Cli",OwnerProcessId:100);
 
         Assert.NotEqual(Gltf,Fbx);
+    }
+
+    [Fact]
+    public void ComputePipeName_DifferentOwner_ReturnsDifferentName(){
+        // Each Visual Studio has its own bridges; another one (another install) never shares them.
+        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
+        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:200);
+
+        Assert.NotEqual(First,Second);
+    }
+
+    [Fact]
+    public void ServeArguments_NameTheOwnerTheBridgeEndsWith(){
+        Assert.Equal("--serve \"Pipe.Name\" --parent-process-id 4242",ResidentBridgeClient.ServeArguments("Pipe.Name",4242));
     }
 
     [Theory]

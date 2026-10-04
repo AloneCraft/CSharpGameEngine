@@ -14,25 +14,60 @@
           <CommandName>C# Game Engine</CommandName>
         </Strings>
       </Menu>
+      <!-- 2026-10-01: the engine's commands moved from the Tools menu to Extensions > C# Game Engine. -->
+      <Menu guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineExtensionsGroup" />
+        <Strings>
+          <ButtonText>C# Game Engine</ButtonText>
+          <CommandName>C# Game Engine</CommandName>
+        </Strings>
+      </Menu>
+      <!-- M0097: Visual Studio's debugger and profiler for a running game, also on the toolbar. -->
+      <Menu guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsGroup" />
+        <Strings>
+          <ButtonText>Diagnostic Tools</ButtonText>
+          <CommandName>Diagnostic Tools</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
-      <Group guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" priority="0x0600">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineExtensionsGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_EXTENSIONS" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" priority="0x0100">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineOptionsGroup" priority="0x0F00">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
       </Group>
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" priority="0x0000">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
       </Group>
-      <!-- ADR-0040 Phase 9: code-editor context menu only - deliberately not also placed on the
-           Tools menu / toolbar like every other command here, since it only makes sense for the file
-           currently being edited. Does not reuse the retired ADR-0031 group (see the Symbols
-           section). -->
-      <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsGroup" priority="0x0800">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" priority="0x0100">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsMenu" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarDiagnosticsGroup" priority="0x0800">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarOptionsGroup" priority="0x0F00">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
       </Group>
     </Groups>
 
     <Buttons>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneEditorOptionsCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineOptionsGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Options...</ButtonText>
+        </Strings>
+      </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerCommandId" priority="0x0100" type="Button">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="OpenFolder" />
@@ -101,16 +136,6 @@
            対象プロジェクトをビルドして別プロセスで CreateRuntime を実行する方式をやめ、SceneModel を
            直接描画する方式へ移行したため、このコマンド自体が不要になった。0x0101 と同様、この ID は
            再利用しないこと (既にインストール済みの VS がキーバインドやカスタマイズを保持している)。 -->
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerCommandId" priority="0x0100" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <Icon guid="ImageCatalogGuid" id="OpenFolder" />
-        <CommandFlag>IconIsMoniker</CommandFlag>
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <Strings>
-          <ButtonText>Open in Scene Designer</ButtonText>
-        </Strings>
-      </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerToolbarCommandId" priority="0x0000" type="Button">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
         <Icon guid="ImageCatalogGuid" id="OpenFolder" />
@@ -119,322 +144,38 @@
           <ButtonText>Open in Scene Designer</ButtonText>
         </Strings>
       </Button>
-      <!-- 同じファイルに複数の Scene がある場合の一覧 (0x0110〜0x012F の32スロット + 溢れ表示
-           0x0130)。以前は「シーン デザイナーで開く」という入れ子のサブメニュー (0x010A) の中に
-           置いていたが、サブメニュー本体の可視性を制御する手段がなく、Scene が1件だけのときも空の
-           サブメニューがグレー表示で常に居座って「シーン デザイナーで開く」が2つ並んでいた。
-           コンテキストメニュー直下へ平らに置くことで重複が構造的に起こり得なくなる。
-           priority は直接コマンド (0x0100) の後ろ。ButtonText は TextChanges で実行時に
-           差し替えるプレースホルダー。
-
-           なぜ DynamicItemStart をやめてスロットを固定 ID で並べているか:
-           DynamicItemStart は可変長で上限が無い代わりに、root ID (先頭項目) だけは
-           OleMenuCommandService.FindCommand が辞書の完全一致で解決して DynamicItemMatch を
-           通さない。そのため共有される MatchedCommandId が更新されず、「1番目を押したのに2番目の
-           シーンが開く」誘導ミスが起きていた (実機で確認済み)。root を実項目から外して常に非表示の
-           アンカーにする案も試したが、root を非表示にすると VS はそこで列挙を打ち切り項目が1つも
-           出なくなった (これも実機で確認済み) ため成立しなかった。スロットごとに固有の ID を持たせれば
-           クリックされた ID がそのままハンドラを特定するので、共有可変状態が無くなり誘導ミスが
-           原理的に起こり得ない。
-
-           代償は表示件数の上限 (32件) である。これはサブメニューに分けても回避できない —
-           リーフ1項目につき ID が1つ必要で、入れ子は見た目のグルーピングにすぎないため。
-           33件目以降が存在する場合は 0x0130 が「他 N 件は…」と表示され、黙って消えることはない
-           (シーン デザイナーのコンボボックスはプロジェクト内の全シーンを列挙する完全な経路)。 -->
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem00" priority="0x0200" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="AttachDebuggerToGameCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="DebugSelection" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Scene</ButtonText>
+          <ButtonText>Attach Debugger to the Running Game...</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem01" priority="0x0201" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="MeasureCpuUsageCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="Processor" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
         <Strings>
-          <ButtonText>Scene</ButtonText>
+          <ButtonText>Measure CPU Usage...</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem02" priority="0x0202" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="MeasureDotNetAllocationsCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="Memory" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
         <Strings>
-          <ButtonText>Scene</ButtonText>
+          <ButtonText>Measure .NET Allocations...</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem03" priority="0x0203" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="MeasureGpuUsageCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="GaugeRound" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem04" priority="0x0204" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem05" priority="0x0205" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem06" priority="0x0206" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem07" priority="0x0207" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem08" priority="0x0208" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem09" priority="0x0209" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem10" priority="0x020A" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem11" priority="0x020B" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem12" priority="0x020C" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem13" priority="0x020D" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem14" priority="0x020E" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem15" priority="0x020F" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem16" priority="0x0210" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem17" priority="0x0211" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem18" priority="0x0212" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem19" priority="0x0213" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem20" priority="0x0214" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem21" priority="0x0215" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem22" priority="0x0216" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem23" priority="0x0217" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem24" priority="0x0218" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem25" priority="0x0219" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem26" priority="0x021A" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem27" priority="0x021B" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem28" priority="0x021C" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem29" priority="0x021D" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem30" priority="0x021E" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSceneItem31" priority="0x021F" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <CommandFlag>TogglePatternAvailable</CommandFlag>
-        <Strings>
-          <ButtonText>Scene</ButtonText>
-        </Strings>
-      </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerOverflowCommandId" priority="0x0230" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>TextChanges</CommandFlag>
-        <Strings>
-          <ButtonText>More scenes</ButtonText>
+          <ButtonText>Measure GPU Usage...</ButtonText>
         </Strings>
       </Button>
     </Buttons>
@@ -465,14 +206,12 @@
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowComponentPaletteToolWindowCommandId" priority="0x0009">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
     </CommandPlacement>
-
-    <!-- M0020: ソリューションエクスプローラーの単一項目右クリックにも同じ34個のボタン
-         (SceneDesignerContextMenuGroup配下、Direct/32スロット/Overflow)をそのまま出す。新しい
-         ID/ボタンは追加しない。コードウィンドウの右クリックとSEの項目右クリックは同時に出ないため、
-         以前修正した「シーン デザイナーで開くが2つ並ぶ」問題は再発しない。フォルダや.cs以外の項目は
-         OpenSceneDesignerCommand側の既存の.cs限定ゲートで非表示になる。 -->
-    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
-      <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE" />
+    <!-- M0097: the toolbar carries every command of the Extensions menu: the Diagnostic Tools dropdown and Options. -->
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsMenu" priority="0x0100">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarDiagnosticsGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneEditorOptionsCommandId" priority="0x0100">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarOptionsGroup" />
     </CommandPlacement>
   </CommandPlacements>
 
@@ -493,8 +232,8 @@
       <!-- 0x0107/0x0108は退役済みで再利用しない(下記コメント参照)。0x0109はOpenSceneDesignerCommandIdが
            既に使っているため、Inspectorには次の空きである0x010Aを割り当てる。 -->
       <IDSymbol name="ShowInspectorToolWindowCommandId" value="0x010A" />
-      <!-- M0052: 0x010B が次の空き。0x0110〜0x0130 は Scene 一覧スロットなので、
-           これ以降に新しいコマンドを足す場合は 0x0131 以降を使うこと。 -->
+      <!-- M0052: 0x010B が次の空き。0x0110〜0x0130 は退役した Scene 一覧スロット
+           (ADR-0071) なので再利用しない。新しいコマンドは 0x0133 以降を使うこと。 -->
       <IDSymbol name="ShowComponentPaletteToolWindowCommandId" value="0x010B" />
       <!-- 0x0107 (ShowShapePaletteToolWindowCommandId) は M0020 Phase 0 で退役した。シェイプ
            パレットの配置先は .scene ファイルであり、ADR-0040 Phase 9 で読み取り経路がライブ Roslyn の
@@ -513,48 +252,32 @@
            挙動には影響していなかった) ため、2026-08 に宣言そのものを削除した。他の退役 ID と同様
            再利用しないこと。 -->
       <!-- ADR-0040 Phase 9. -->
-      <IDSymbol name="OpenSceneDesignerCommandId" value="0x0109" />
       <IDSymbol name="OpenSceneDesignerToolbarCommandId" value="0x0131" />
-      <IDSymbol name="SceneDesignerContextMenuGroup" value="0x1024" />
-      <IDSymbol name="OpenSceneDesignerSceneItem00" value="0x0110" />
-      <IDSymbol name="OpenSceneDesignerSceneItem01" value="0x0111" />
-      <IDSymbol name="OpenSceneDesignerSceneItem02" value="0x0112" />
-      <IDSymbol name="OpenSceneDesignerSceneItem03" value="0x0113" />
-      <IDSymbol name="OpenSceneDesignerSceneItem04" value="0x0114" />
-      <IDSymbol name="OpenSceneDesignerSceneItem05" value="0x0115" />
-      <IDSymbol name="OpenSceneDesignerSceneItem06" value="0x0116" />
-      <IDSymbol name="OpenSceneDesignerSceneItem07" value="0x0117" />
-      <IDSymbol name="OpenSceneDesignerSceneItem08" value="0x0118" />
-      <IDSymbol name="OpenSceneDesignerSceneItem09" value="0x0119" />
-      <IDSymbol name="OpenSceneDesignerSceneItem10" value="0x011A" />
-      <IDSymbol name="OpenSceneDesignerSceneItem11" value="0x011B" />
-      <IDSymbol name="OpenSceneDesignerSceneItem12" value="0x011C" />
-      <IDSymbol name="OpenSceneDesignerSceneItem13" value="0x011D" />
-      <IDSymbol name="OpenSceneDesignerSceneItem14" value="0x011E" />
-      <IDSymbol name="OpenSceneDesignerSceneItem15" value="0x011F" />
-      <IDSymbol name="OpenSceneDesignerSceneItem16" value="0x0120" />
-      <IDSymbol name="OpenSceneDesignerSceneItem17" value="0x0121" />
-      <IDSymbol name="OpenSceneDesignerSceneItem18" value="0x0122" />
-      <IDSymbol name="OpenSceneDesignerSceneItem19" value="0x0123" />
-      <IDSymbol name="OpenSceneDesignerSceneItem20" value="0x0124" />
-      <IDSymbol name="OpenSceneDesignerSceneItem21" value="0x0125" />
-      <IDSymbol name="OpenSceneDesignerSceneItem22" value="0x0126" />
-      <IDSymbol name="OpenSceneDesignerSceneItem23" value="0x0127" />
-      <IDSymbol name="OpenSceneDesignerSceneItem24" value="0x0128" />
-      <IDSymbol name="OpenSceneDesignerSceneItem25" value="0x0129" />
-      <IDSymbol name="OpenSceneDesignerSceneItem26" value="0x012A" />
-      <IDSymbol name="OpenSceneDesignerSceneItem27" value="0x012B" />
-      <IDSymbol name="OpenSceneDesignerSceneItem28" value="0x012C" />
-      <IDSymbol name="OpenSceneDesignerSceneItem29" value="0x012D" />
-      <IDSymbol name="OpenSceneDesignerSceneItem30" value="0x012E" />
-      <IDSymbol name="OpenSceneDesignerSceneItem31" value="0x012F" />
-      <IDSymbol name="OpenSceneDesignerOverflowCommandId" value="0x0130" />
+      <!-- ADR-0071: 0x0109 (OpenSceneDesignerCommandId), 0x0110-0x012F (the 32 scene slots),
+           0x0130 (overflow) and 0x1024 (SceneDesignerContextMenuGroup) are retired with the code-editor
+           and Solution Explorer context menus: a scene JSON opens in the Scene Editor by double-click.
+           Do not reuse them (installed Visual Studio instances keep key bindings and customizations). -->
+      <!-- 2026-10-01: Extensions > C# Game Engine menu. M0097 took 0x0133-0x0136 and 0x102A-0x102E; the next free
+           command ID is 0x0137. -->
+      <IDSymbol name="CSharpGameEngineMenu" value="0x1027" />
+      <IDSymbol name="CSharpGameEngineExtensionsGroup" value="0x1028" />
+      <IDSymbol name="CSharpGameEngineOptionsGroup" value="0x1029" />
+      <IDSymbol name="OpenSceneEditorOptionsCommandId" value="0x0132" />
+      <IDSymbol name="CSharpGameEngineDiagnosticsMenu" value="0x102A" />
+      <IDSymbol name="CSharpGameEngineDiagnosticsGroup" value="0x102B" />
+      <IDSymbol name="CSharpGameEngineDiagnosticsCommandsGroup" value="0x102C" />
+      <IDSymbol name="CSharpGameEngineToolbarDiagnosticsGroup" value="0x102D" />
+      <IDSymbol name="CSharpGameEngineToolbarOptionsGroup" value="0x102E" />
+      <IDSymbol name="AttachDebuggerToGameCommandId" value="0x0133" />
+      <IDSymbol name="MeasureCpuUsageCommandId" value="0x0134" />
+      <IDSymbol name="MeasureDotNetAllocationsCommandId" value="0x0135" />
+      <IDSymbol name="MeasureGpuUsageCommandId" value="0x0136" />
       <!-- 0x010A (OpenSceneDesignerSubmenuCommandId) / 0x1026 (SceneDesignerDynamicItemsGroup) /
            0x1025 (SceneDesignerSubmenu、宣言のみで未使用のまま残っていた) は「複数 Scene を入れ子の
            サブメニューで見せる」設計と一緒に退役した。<Menu> の可視性は QueryStatus に応答する
            コマンドを登録しないと制御できず、実際には登録されていなかったため、Scene が1件でも空の
-           サブメニューが常にグレー表示で残り「シーン デザイナーで開く」が2つ並んでいた。現在は
-           OpenSceneDesignerDynamicItemStart をコンテキストメニュー直下へ平らに置いている。
+           サブメニューが常にグレー表示で残り「シーン デザイナーで開く」が2つ並んでいた。その後の固定スロット方式も
+           ADR-0071 でコンテキストメニューごと退役した。
            0x0101/0x0107/0x0108 と同様、これらの ID は再利用しないこと (既にインストール済みの VS が
            キーバインドやカスタマイズを保持している)。 -->
     </GuidSymbol>

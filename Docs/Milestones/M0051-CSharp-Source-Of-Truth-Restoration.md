@@ -194,6 +194,8 @@ pin中Sceneと同じ対象、および解析対象が無くなった(null)通知
    falseを返していた。結果、**親を跨ぐReparentは`Document.TryApply`の時点で必ず失敗**し、
    Hierarchyのドラッグ&ドロップでの親子変更が一切効かなかった。XMLコメントが記していた本来の意図
    (Name+Component構成での照合)どおりに実装し直した。
+   （2026-10-04 に置き換え: この照合は同じ名前と構成のノードを区別できず、最初のそっくりなノードの下へ移していた。
+   今は削除でずれた新しい親の Path を計算で求め、`TryFindByIdentity` は無い。Conformance の同日の項目を参照）
 2. **`ApplyForSaveSteps`の事前Annotateが操作対象の親を注釈していなかった**(`ApplyBatch`は元から
    注釈している)。Remove/Reorder/Reparentの親がSpan一致フォールバックへ落ち、履歴2件目以降
    (兄弟をRenameしてからDelete等)で親のSpanがずれて保存が中止されていた。

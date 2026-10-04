@@ -44,4 +44,26 @@ public sealed class SceneDesignerUndoCommandPolicyTests {
             }
         }
     }
+    /// <summary>
+    /// M0095 1-2: every open scene tab polls the keyboard, so with Hierarchy or Inspector focused each
+    /// tab saw the same Ctrl+Z and the pinned scene stepped back once per open tab. Exactly one
+    /// designer, the one showing the pinned scene, owns a keyboard Undo, Redo or Save.
+    /// </summary>
+    [Fact]
+    public void KeyboardOwner_IsExactlyTheTabShowingThePinnedScene(){
+        var A=new SceneKey("project","Game.Scenes.A");
+        var B=new SceneKey("project","Game.Scenes.B");
+        var C=new SceneKey("project","Game.Scenes.C");
+        var Tabs=new[]{ A,B,C };
+        foreach(var Pinned in Tabs){
+            Assert.Equal(new[]{ Pinned },Tabs.Where(Tab=>SceneDesignerUndoCommandPolicy.IsKeyboardOwner(Tab,Pinned)).ToArray());
+        }
+        Assert.DoesNotContain(Tabs,Tab=>SceneDesignerUndoCommandPolicy.IsKeyboardOwner(Tab,null));
+    }
+    /// <summary>The Scene Designer tool window (no fixed scene) follows the pin, so it owns the keys whenever a scene is pinned.</summary>
+    [Fact]
+    public void KeyboardOwner_DesignerWithoutAFixedScene_OwnsThePinnedScene(){
+        Assert.True(SceneDesignerUndoCommandPolicy.IsKeyboardOwner(null,new SceneKey("project","Game.Scenes.A")));
+        Assert.False(SceneDesignerUndoCommandPolicy.IsKeyboardOwner(null,null));
+    }
 }

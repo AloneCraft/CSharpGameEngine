@@ -88,6 +88,7 @@ public sealed class RenderServer:IDisposable {
     public int SurfaceHeight=>this.Height;
 
     internal void RemoveDeviceForTesting()=>this.Backend.RemoveDeviceForTesting();
+    internal float[]ReadDepthForTesting()=>this.Backend.ReadDepthForTesting();
 
     private StageRenderer Backend{
         get{
@@ -151,6 +152,16 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition);
     }
 
+    /// <summary>
+    /// M0100: an isolated preview's perspective matrix drawn with radial depth; <paramref name="Radial"/> carries the
+    /// camera's field of view, clip range and transition length. Device recovery replays it.
+    /// </summary>
+    public void SetViewProjection(
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
+        this.Backend.SetViewProjection(ViewProjection,CameraPosition,Radial);
+        this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition,Radial);
+    }
+
     public void SetDirectionalLight(in DirectionalLightSubmission Value){
         Value.Validate();
         this.Backend.SetLight(Value);
@@ -168,6 +179,26 @@ public sealed class RenderServer:IDisposable {
     public void SetFog(FogParams Fog){
         this.Backend.SetFog(Fog);
         this.PendingFrame.RecordFog(Fog);
+    }
+    /// <summary>Scene environment (ADR-0069): physical sky, sky light, physical fog, exposure and tone mapper.</summary>
+    public void SetEnvironmentLighting(in EnvironmentLightingSettings Settings){
+        this.Backend.SetEnvironmentLighting(Settings);
+        this.PendingFrame.RecordEnvironment(Settings);
+    }
+    /// <summary>Absolute camera height above the world origin in metres for the atmosphere and height fog.</summary>
+    public void SetCameraAltitude(float Meters){
+        this.Backend.SetCameraAltitude(Meters);
+        this.PendingFrame.RecordCameraAltitude(Meters);
+    }
+    /// <summary>Height above the world origin of the render-space origin, for the simplified height fog (zero in world coordinates).</summary>
+    public void SetRenderOriginAltitude(float Meters){
+        this.Backend.SetRenderOriginAltitude(Meters);
+        this.PendingFrame.RecordRenderOriginAltitude(Meters);
+    }
+    /// <summary>The render-space origin reduced modulo a grid material's cell size, so the world-space grid stays on the world lattice.</summary>
+    public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
+        this.Backend.SetWorldGridAnchor(MaterialIndex,Anchor);
+        this.PendingFrame.RecordWorldGridAnchor(MaterialIndex,Anchor);
     }
 
     public void AddPointLight(in PointLightSubmission Value){
@@ -197,6 +228,12 @@ public sealed class RenderServer:IDisposable {
     public void SetObjectTransform(int ObjectIndex,Matrix4x4 World){
         this.Backend.SetObjectTransform(ObjectIndex,World);
         this.PendingFrame.RecordObjectTransform(ObjectIndex,World);
+    }
+
+    /// <summary>Sets a skinned mesh's palette (ADR-0066); recorded so device recovery replays the current pose.</summary>
+    public void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
+        this.Backend.SetSkinPalette(MeshIndex,Palette);
+        this.PendingFrame.RecordSkinPalette(MeshIndex,Palette);
     }
 
     public void SetPresentationMode(RenderPresentationMode Mode){
@@ -357,6 +394,7 @@ public sealed class RenderServer:IDisposable {
 
     private void CommitPendingFrame(){
         if(this.PendingFrame.IsEmpty){ return; }
+        this.PendingFrame.InheritPersistentSettings(this.CompletedFrame);
         RenderFrameState PreviousCompleted=this.CompletedFrame;
         this.CompletedFrame=this.PendingFrame;
         this.PendingFrame=PreviousCompleted;
@@ -384,6 +422,7 @@ public sealed class RenderServer:IDisposable {
                 Tangents=[.. Mesh.Tangents],
                 Uvs=[.. Mesh.Uvs],
                 Indices=[.. Mesh.Indices],
+                Skin=Mesh.Skin is{ }Skin?new StageSkinCreateInfo { JointCount=Skin.JointCount,JointIndices=[.. Skin.JointIndices],Weights=[.. Skin.Weights] }:null,
             };
         }
         return Result;
@@ -455,6 +494,11 @@ public sealed class RenderServer:IDisposable {
         }
         Writer.Write(Mesh.Indices.Count);
         foreach(uint Value in Mesh.Indices){ Writer.Write(Value); }
+        Writer.Write(Mesh.Skin?.JointCount??0);
+        if(Mesh.Skin is{ }Skin){
+            foreach(ushort Value in Skin.JointIndices){ Writer.Write(Value); }
+            foreach(float Value in Skin.Weights){ Writer.Write(Value); }
+        }
     }
 
     private static void WriteMaterial(
@@ -476,6 +520,14 @@ public sealed class RenderServer:IDisposable {
         WriteTexture(Writer,Material.NormalTexture);
         WriteTexture(Writer,Material.EmissiveTexture);
         WriteTexture(Writer,Material.MetallicRoughnessTexture);
+        Writer.Write(Material.WorldGrid is not null);
+        if(Material.WorldGrid is{ }Grid){
+            Writer.Write(Grid.GridSizeMeters);
+            Writer.Write(Grid.SubGridDivisions);
+            Writer.Write(Grid.WireHalfWidth);
+            Writer.Write(Grid.GridColor.X); Writer.Write(Grid.GridColor.Y); Writer.Write(Grid.GridColor.Z);
+            Writer.Write(Grid.SubGridColor.X); Writer.Write(Grid.SubGridColor.Y); Writer.Write(Grid.SubGridColor.Z);
+        }
     }
 
     private static void WriteTexture(

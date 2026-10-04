@@ -8,6 +8,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <summary>Emits the persistent, system-major fixed-phase ECS loop.</summary>
 internal static class GameSystemLoopEmitter {
     private const string HintName="GameSystem.Loop.g.cs";
+    private const string EngineHostTypeName="global::CSharpGameEngine.Runtime.Windows.EngineHost";
 
     internal static bool HasDispatchSystem(IEnumerable<GameSystemResult> Systems)=>
         Systems.Any(static System=>System.Diagnostics.Length==0&&System.Methods.Any(static Method=>Method.Role==GameSystemMethodRole.Dispatch));
@@ -26,7 +27,7 @@ internal static class GameSystemLoopEmitter {
 
         List<SystemBinding> Systems=BuildSystemBindings(AllSystems);
         List<ContextBinding> Contexts=BuildContextBindings(AllSystems);
-        bool HasEngineHost=Contexts.Any(static Context=>Context.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Windows.EngineHost");
+        bool HasEngineHost=Contexts.Any(static Context=>Context.TypeFullyQualifiedName==EngineHostTypeName);
         Dictionary<string,string> ContextNameByFqn=Contexts.ToDictionary(static Binding=>Binding.TypeFullyQualifiedName,static Binding=>Binding.ParameterName,StringComparer.Ordinal);
 
         List<string> Lines=[
@@ -56,6 +57,7 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("    }");
         Lines.Add($"    internal static void RunFrame({BuildSystemSetFrameParameterList(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
+        Lines.Add("        State.SetFrameDelta(ElapsedCounter, CounterFrequency);");
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FrameInput, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("        if (!State.Enabled) return;");
@@ -105,15 +107,28 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("        }");
         Lines.Add("    }");
 
+        // ADR-0070 B1: the Scene Designer's runtime view. It shows the world as the game presents it
+        // (every Presentation system) without input, simulation or physics advancing it.
+        Lines.Add($"    internal static void RunPresentationFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
+        Lines.Add("        if (!State.Enabled) return;");
+        Lines.Add("        State.MeasureFrameDelta();");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
+        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.Presentation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        Lines.Add("    }");
+
         bool HasEditorSystems=Systems.Any(static Binding=>Binding.System.ExecuteInEditor);
         bool HasRealtimeEditorSystems=Systems.Any(static Binding=>Binding.System.ExecuteInEditor&&Binding.System.RealtimeInEditor);
         if(HasEditorSystems){
             Lines.Add($"    internal static void RunEditorFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
+            Lines.Add("        State.MeasureFrameDelta();");
             Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
             if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
             Lines.Add("    }");
             if(HasRealtimeEditorSystems){
                 Lines.Add($"    internal static void RunEditorRealtimeFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
+                Lines.Add("        State.MeasureFrameDelta();");
                 Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
                 if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
                 Lines.Add("    }");
@@ -149,7 +164,13 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("                var CurrentCounter = global::System.Diagnostics.Stopwatch.GetTimestamp();");
         Lines.Add("                var ElapsedCounter = CurrentCounter - PreviousCounter;");
         Lines.Add("                PreviousCounter = CurrentCounter;");
-        Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency{BuildContextArgumentSuffix(Contexts)});");
+        if(HasEngineHost){
+            // An automation run advances a fixed time per frame, so it does not depend on the adapter's speed.
+            Lines.Add($"                var (FrameCounter, FrameFrequency) = {ContextNameByFqn[EngineHostTypeName]}.FrameTime(ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency);");
+            Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, FrameCounter, FrameFrequency{BuildContextArgumentSuffix(Contexts)});");
+        } else {
+            Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency{BuildContextArgumentSuffix(Contexts)});");
+        }
         Lines.Add("            }");
         Lines.Add("        } finally {");
         Lines.Add($"            Shutdown(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)});");
@@ -169,7 +190,9 @@ internal static class GameSystemLoopEmitter {
             if(Method.Role!=GameSystemMethodRole.Dispatch){ continue; }
             if(Binding.System.IsWorldSystem&&Method.Components.Length==0){
                 Lines.Add("            if (!State.Enabled) return;");
-                Lines.Add($"            if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)})) return;");
+                Lines.Add(Method.ReturnsBool
+                    ?$"            if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)})) return;"
+                    :$"            Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)});");
                 continue;
             }
             MethodComponentMask MethodMask=BuildMethodMask(Method,ComponentIndexByType);
@@ -184,7 +207,10 @@ internal static class GameSystemLoopEmitter {
                 foreach(GameSystemComponentParameterModel Component in Method.Components.Where(static Component=>!Component.IsReadOnly)){
                     Lines.Add($"                State.World.{Archetype.Name}.Mark{FieldNameByComponentFqn[Component.TypeFullyQualifiedName]}ChangedUnchecked(Index, Version);");
                 }
-                Lines.Add($"                if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)})) continue;");
+                // ADR-0072: an entity system's result has no effect (this is the loop's last statement), so a bool is discarded.
+                Lines.Add(Method.ReturnsBool
+                    ?$"                _ = Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});"
+                    :$"                Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});");
                 Lines.Add("            }");
             }
         }

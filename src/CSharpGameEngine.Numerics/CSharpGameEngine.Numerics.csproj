@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- AngleAttribute (ADR-0074) marks the Euler constructor's parameter as an angle. -->
+    <ProjectReference Include="..\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>CSharpGameEngine.Numerics.Tests</_Parameter1>
     </AssemblyAttribute>

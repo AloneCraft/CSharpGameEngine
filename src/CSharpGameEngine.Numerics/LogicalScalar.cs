@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Numerics;
 using System.Globalization;
 using System.Text;
 namespace CSharpGameEngine.Numerics;
@@ -188,12 +189,35 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         if(Value.Raw==0){ return true; }
         var Magnitude=(UInt128)Value.Raw;
         var Radicand=new UInt256(0,(ulong)Magnitude,(ulong)(Magnitude>>64),0);
+        // Integer Newton iteration from above converges to the unique floor square root of
+        // Magnitude·2^64, the value TrySquareRootBinarySearch finds with 96 bisection steps. The
+        // start 2^ceil(bits/2) is never below the root.
+        var RadicandBits=128-(int)UInt128.LeadingZeroCount(Magnitude)+64;
+        var Root=(UInt128)1<<((RadicandBits+1)/2);
+        while(true){
+            TryDivideScaled(Magnitude,Root,out var Quotient,out _);
+            var Next=(Root+Quotient)>>1;
+            if(Next>=Root){ break; }
+            Root=Next;
+        }
+        return TryRoundSquareRoot(Radicand,Root,out Result);
+    }
+    internal static bool TrySquareRootBinarySearch(LogicalScalar Value,out LogicalScalar Result){
+        Result=default;
+        if(Value.Raw<0){ return false; }
+        if(Value.Raw==0){ return true; }
+        var Magnitude=(UInt128)Value.Raw;
+        var Radicand=new UInt256(0,(ulong)Magnitude,(ulong)(Magnitude>>64),0);
         UInt128 Low=0;
         UInt128 High=(UInt128)1<<96;
         while(Low+1<High){
             var Middle=Low+((High-Low)>>1);
-            if(MultiplyUnsigned(Middle,Middle).CompareTo(Radicand)<=0){ Low=Middle; }else{ High=Middle; }
+            if(MultiplyUnsignedLimbwise(Middle,Middle).CompareTo(Radicand)<=0){ Low=Middle; }else{ High=Middle; }
         }
+        return TryRoundSquareRoot(Radicand,Low,out Result);
+    }
+    private static bool TryRoundSquareRoot(UInt256 Radicand,UInt128 Low,out LogicalScalar Result){
+        Result=default;
         var Remainder256=UInt256.Subtract(Radicand,MultiplyUnsigned(Low,Low));
         if(Remainder256.L2!=0||Remainder256.L3!=0){ return false; }
         var Remainder=(UInt128)Remainder256.L1<<64|Remainder256.L0;
@@ -255,7 +279,85 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         Result=new LogicalScalar((Int128)Magnitude);
         return true;
     }
-    private static bool TryDivideScaled(UInt128 NumeratorMagnitude,UInt128 Denominator,out UInt128 Quotient,out UInt128 Remainder){
+    /// <summary>
+    /// Truncated (<paramref name="NumeratorMagnitude"/> · 2^64) / <paramref name="Denominator"/> and its
+    /// remainder; false when the quotient needs more than 128 bits. Uses 64-bit-digit long division
+    /// (Knuth's algorithm D). Integer division has one answer, so this matches
+    /// <see cref="TryDivideScaledBitwise"/> exactly while avoiding its 192 shift-subtract steps.
+    /// </summary>
+    internal static bool TryDivideScaled(UInt128 NumeratorMagnitude,UInt128 Denominator,out UInt128 Quotient,out UInt128 Remainder){
+        var NumeratorHigh=(ulong)(NumeratorMagnitude>>64);
+        var NumeratorLow=(ulong)NumeratorMagnitude;
+        if(Denominator>>64==0){
+            // One-limb divisor: the quotient needs more than 128 bits exactly when the top limb is at least the divisor.
+            var Divisor=(ulong)Denominator;
+            if(NumeratorHigh>=Divisor){
+                Quotient=0;
+                Remainder=0;
+                return false;
+            }
+            var First=((UInt128)NumeratorHigh<<64)|NumeratorLow;
+            var FirstQuotient=First/Divisor;
+            var Second=(First%Divisor)<<64;
+            Quotient=(FirstQuotient<<64)|(Second/Divisor);
+            Remainder=Second%Divisor;
+            return true;
+        }
+        // Two-limb divisor: the quotient is below the numerator magnitude, so it always fits.
+        var Shift=BitOperations.LeadingZeroCount((ulong)(Denominator>>64));
+        var Normalized=Denominator<<Shift;
+        var DivisorHigh=(ulong)(Normalized>>64);
+        var DivisorLow=(ulong)Normalized;
+        Span<ulong>Digits=stackalloc ulong[4];
+        Digits[0]=0;
+        Digits[1]=NumeratorLow<<Shift;
+        Digits[2]=Shift==0?NumeratorHigh:(NumeratorHigh<<Shift)|(NumeratorLow>>(64-Shift));
+        Digits[3]=Shift==0?0:NumeratorHigh>>(64-Shift);
+        Quotient=0;
+        for(var Index=1;Index>=0;Index--){
+            var Top=((UInt128)Digits[Index+2]<<64)|Digits[Index+1];
+            var Estimate=Top/DivisorHigh;
+            var EstimateRemainder=Top%DivisorHigh;
+            while(Estimate>>64!=0||Estimate*DivisorLow>((EstimateRemainder<<64)|Digits[Index])){
+                Estimate--;
+                EstimateRemainder+=DivisorHigh;
+                if(EstimateRemainder>>64!=0){ break; }
+            }
+            var Digit=(ulong)Estimate;
+            var LowProduct=(UInt128)Digit*DivisorLow;
+            var HighProduct=(UInt128)Digit*DivisorHigh+(LowProduct>>64);
+            var Borrow=SubtractBorrow(ref Digits[Index],(ulong)LowProduct,0);
+            Borrow=SubtractBorrow(ref Digits[Index+1],(ulong)HighProduct,Borrow);
+            Borrow=SubtractBorrow(ref Digits[Index+2],(ulong)(HighProduct>>64),Borrow);
+            if(Borrow!=0){
+                Digit--;
+                var Carry=AddCarry(ref Digits[Index],DivisorLow,0);
+                Carry=AddCarry(ref Digits[Index+1],DivisorHigh,Carry);
+                Digits[Index+2]=unchecked(Digits[Index+2]+Carry);
+            }
+            Quotient|=(UInt128)Digit<<(64*Index);
+        }
+        Remainder=(((UInt128)Digits[1]<<64)|Digits[0])>>Shift;
+        return true;
+    }
+    private static ulong SubtractBorrow(ref ulong Target,ulong Value,ulong Borrow){
+        var Difference=unchecked(Target-Value);
+        var Next=Target<Value?1UL:0UL;
+        var Result=unchecked(Difference-Borrow);
+        if(Difference<Borrow){ Next=1; }
+        Target=Result;
+        return Next;
+    }
+    private static ulong AddCarry(ref ulong Target,ulong Value,ulong Carry){
+        var Sum=unchecked(Target+Value);
+        var Next=Sum<Target?1UL:0UL;
+        var Result=unchecked(Sum+Carry);
+        if(Result<Sum){ Next=1; }
+        Target=Result;
+        return Next;
+    }
+    /// <summary>The original shift-subtract division, kept as the reference for <see cref="TryDivideScaled"/>.</summary>
+    internal static bool TryDivideScaledBitwise(UInt128 NumeratorMagnitude,UInt128 Denominator,out UInt128 Quotient,out UInt128 Remainder){
         Quotient=0;
         Remainder=0;
         var Overflow=false;
@@ -273,7 +375,29 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         var SourceBit=Bit-64;
         return SourceBit is >=0 and <128?(Magnitude>>SourceBit)&1:0;
     }
+    /// <summary>Full 256-bit product from four 64×64 partial products; <see cref="MultiplyUnsignedLimbwise"/> is its reference.</summary>
+    internal static (ulong L0,ulong L1,ulong L2,ulong L3) MultiplyUnsignedLimbs(UInt128 Left,UInt128 Right){
+        var Product=MultiplyUnsigned(Left,Right);
+        return (Product.L0,Product.L1,Product.L2,Product.L3);
+    }
+    internal static (ulong L0,ulong L1,ulong L2,ulong L3) MultiplyUnsignedLimbwiseLimbs(UInt128 Left,UInt128 Right){
+        var Product=MultiplyUnsignedLimbwise(Left,Right);
+        return (Product.L0,Product.L1,Product.L2,Product.L3);
+    }
     private static UInt256 MultiplyUnsigned(UInt128 Left,UInt128 Right){
+        var LeftLow=(ulong)Left;
+        var LeftHigh=(ulong)(Left>>64);
+        var RightLow=(ulong)Right;
+        var RightHigh=(ulong)(Right>>64);
+        var LowLow=(UInt128)LeftLow*RightLow;
+        var LowHigh=(UInt128)LeftLow*RightHigh;
+        var HighLow=(UInt128)LeftHigh*RightLow;
+        var Middle=(LowLow>>64)+(ulong)LowHigh+(ulong)HighLow;
+        // The high half is the product divided by 2^128, which always fits in 128 bits.
+        var High=(Middle>>64)+(LowHigh>>64)+(HighLow>>64)+(UInt128)LeftHigh*RightHigh;
+        return new UInt256((ulong)LowLow,(ulong)Middle,(ulong)High,(ulong)(High>>64));
+    }
+    private static UInt256 MultiplyUnsignedLimbwise(UInt128 Left,UInt128 Right){
         Span<ulong>Limbs=stackalloc ulong[4];
         var LeftLow=(ulong)Left;
         var LeftHigh=(ulong)(Left>>64);

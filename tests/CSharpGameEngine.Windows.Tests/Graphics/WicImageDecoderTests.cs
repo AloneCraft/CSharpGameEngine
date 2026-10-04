@@ -22,6 +22,70 @@ public class WicImageDecoderTests {
         Assert.Equal(Result.Image.Width*Result.Image.Height*4,Result.Image.Pixels.Length);
     }
 
+    /// <summary>
+    /// An image whose header claims more pixels than one array holds (a broken or hostile file) fails like any other bad
+    /// image. The pixel buffer size was computed in unchecked 32-bit arithmetic, so 65535x65535 wrapped around and the
+    /// allocation threw out of the decoder.
+    /// </summary>
+    [WindowsOnlyTheory]
+    [InlineData(65535u,65535u)]
+    [InlineData(32768u,32768u)]
+    [InlineData(1073741825u,1u)]
+    public void Decode_HeaderClaimingAHugeImage_FailsNotException(uint Width,uint Height){
+        var Result=WicImageDecoder.Decode(Png(Width,Height));
+
+        Assert.False(Result.Success);
+        Assert.Null(Result.Image);
+        Assert.NotNull(Result.Error);
+    }
+
+    /// <summary>
+    /// A decoded image becomes a Direct3D 12 texture, whose sides are at most 16384, so a larger one fails as too large for
+    /// a texture before its pixels are read. A header that claimed 20000 x 20000 allocated 1.6 GB for the pixels first.
+    /// </summary>
+    [WindowsOnlyTheory]
+    [InlineData(16385u,1u)]
+    [InlineData(1u,16385u)]
+    [InlineData(20000u,20000u)]
+    public void Decode_ImageBeyondTheTextureLimit_FailsAsTooLarge(uint Width,uint Height){
+        var Before=GC.GetAllocatedBytesForCurrentThread();
+        var Result=WicImageDecoder.Decode(Png(Width,Height));
+        var Allocated=GC.GetAllocatedBytesForCurrentThread()-Before;
+
+        Assert.False(Result.Success);
+        Assert.Contains("16384",Result.Error,StringComparison.Ordinal);
+        Assert.True(Allocated<1<<20,$"allocated {Allocated} bytes");
+    }
+
+    /// <summary>An RGBA PNG whose IHDR claims <paramref name="Width"/> x <paramref name="Height"/> and whose IDAT is empty.</summary>
+    private static byte[]Png(uint Width,uint Height){
+        static void BigEndian(List<byte>Bytes,uint Value){ Bytes.Add((byte)(Value>>24));Bytes.Add((byte)(Value>>16));Bytes.Add((byte)(Value>>8));Bytes.Add((byte)Value); }
+        static uint Crc(IEnumerable<byte>Bytes){
+            var Crc=0xFFFFFFFFu;
+            foreach(var Byte in Bytes){
+                Crc^=Byte;
+                for(var Bit=0;Bit<8;Bit++){ Crc=(Crc&1)!=0?(Crc>>1)^0xEDB88320u:Crc>>1; }
+            }
+            return ~Crc;
+        }
+        static void Chunk(List<byte>Png,string Type,byte[]Data){
+            BigEndian(Png,(uint)Data.Length);
+            var Typed=new List<byte>(System.Text.Encoding.ASCII.GetBytes(Type));
+            Typed.AddRange(Data);
+            Png.AddRange(Typed);
+            BigEndian(Png,Crc(Typed));
+        }
+        var Png=new List<byte>{0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A};
+        var Header=new List<byte>();
+        BigEndian(Header,Width);
+        BigEndian(Header,Height);
+        Header.AddRange(new byte[]{8,6,0,0,0});
+        Chunk(Png,"IHDR",[.. Header]);
+        Chunk(Png,"IDAT",[0x78,0x9C,0x03,0x00,0x00,0x00,0x00,0x01]);
+        Chunk(Png,"IEND",[]);
+        return [.. Png];
+    }
+
     [WindowsOnlyFact]
     public void Decode_EmptyBytes_FailsCleanly(){
         var Result=WicImageDecoder.Decode([]);

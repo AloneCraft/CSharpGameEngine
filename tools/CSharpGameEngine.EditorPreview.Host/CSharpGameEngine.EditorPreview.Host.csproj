@@ -6,10 +6,21 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <Platforms>x64</Platforms>
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_ADAPTER</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="../../src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="../CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CSharpGameEngine.Windows.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ADR-0070 B1: the runtime view reads the editor's scene JSON with the generator's own reader. -->
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJson.cs" Link="SceneJson/SceneJson.cs" />
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonReader.cs" Link="SceneJson/SceneJsonReader.cs" />
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonAngles.cs" Link="SceneJson/SceneJsonAngles.cs" />
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonDecimal.cs" Link="SceneJson/SceneJsonDecimal.cs" />
   </ItemGroup>
 </Project>

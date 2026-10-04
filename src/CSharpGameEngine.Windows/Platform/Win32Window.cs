@@ -30,12 +30,15 @@ public sealed unsafe class Win32Window:IDisposable {
 
     private readonly Win32InputEventAdapter InputAdapter;
     private bool MouseCaptured;
+    private bool CaptureApplied;
+    private readonly bool IgnoreDeviceInput;
 
     public event Action<int,int>?Resized;
 
     public Win32Window(Win32WindowOptions Options){
         ArgumentNullException.ThrowIfNull(Options);
         this.InputAdapter=new Win32InputEventAdapter(Options.WindowId.IsValid?Options.WindowId:WindowId.Primary);
+        this.IgnoreDeviceInput=Options.IgnoreDeviceInput;
 
         EnsureDpiAwareness();
         EnsureClassRegistered();
@@ -75,6 +78,9 @@ public sealed unsafe class Win32Window:IDisposable {
 
         this.Hwnd=Hwnd;
         this.RegisterRawInput();
+        // The window takes no text, so it has no input method: an open IME (a Japanese one in hiragana mode) turns the
+        // keys it processes into VK_PROCESSKEY, and W/A/S/D would not reach the game.
+        _=NativeImmAssociateContextEx((nint)Hwnd.Value,0,0);
         this.RefreshClientSize();
 
         if(Options.Visible){
@@ -97,7 +103,13 @@ public sealed unsafe class Win32Window:IDisposable {
 
     public long InputTimestampFrequency=>Win32InputEventAdapter.TimestampFrequency;
 
-    public IReadOnlyList<InputEvent>DrainInputEvents()=>this.InputAdapter.Drain();
+    /// <summary>Polls the gamepad, then returns and clears every input event recorded since the last call.</summary>
+    public IReadOnlyList<InputEvent>DrainInputEvents(){
+        if(!this.IgnoreDeviceInput){
+            this.InputAdapter.RecordGamepad(XInputGamepad.Poll());
+        }
+        return this.InputAdapter.Drain();
+    }
 
     public void SetTitle(string Title){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
@@ -120,6 +132,12 @@ public sealed unsafe class Win32Window:IDisposable {
 
     public bool IsMouseCaptured=> this.MouseCaptured;
 
+    /// <summary>Records a keyboard key as if this window had received it (scripted automation input).</summary>
+    public void InjectKey(string Code,bool Pressed){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.InputAdapter.RecordKeyCode(Code,Pressed);
+    }
+
     /// <summary>
     /// Hides the cursor and clips it to this window (mouse-look style capture), or releases it.
     /// Relative motion is delivered through timestamped input events while capture owns the cursor.
@@ -134,12 +152,26 @@ public sealed unsafe class Win32Window:IDisposable {
         this.MouseCaptured=Captured;
 
         if(Captured){
+            // The cursor clip is system-wide: an unfocused window applies it on WM_SETFOCUS instead.
+            this.ApplyCapture(GetFocus()==this.Hwnd);
+        } else {
+            this.ApplyCapture(false);
+            this.InputAdapter.RecordCaptureReleased();
+        }
+    }
+
+    /// <summary>Hides and clips the cursor, or restores it, keeping ShowCursor calls balanced.</summary>
+    private void ApplyCapture(bool Apply){
+        if(Apply==this.CaptureApplied){
+            return;
+        }
+        this.CaptureApplied=Apply;
+        if(Apply){
             _=ShowCursor(FALSE);
             this.ClipCursorToClientArea();
         } else {
             _=ShowCursor(TRUE);
             _=ClipCursor(null);
-            this.InputAdapter.RecordCaptureReleased();
         }
     }
 
@@ -177,6 +209,9 @@ public sealed unsafe class Win32Window:IDisposable {
     }
 
     private void HandleRawInput(nint RawInputHandle){
+        if(this.IgnoreDeviceInput){
+            return;
+        }
         uint Size=0;
         if(NativeGetRawInputData(RawInputHandle,RidInput,null,&Size,(uint)sizeof(NativeRawInputHeader))==uint.MaxValue||Size<(uint)sizeof(NativeRawInputHeader)){ return; }
         var Buffer=stackalloc byte[(int)Size];
@@ -239,7 +274,9 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_KEYDOWN:
             case WM_SYSKEYDOWN:{
                     var VirtualKeyCode=(int)WParam.Value.ToUInt64();
-                    this.InputAdapter.RecordKey(VirtualKeyCode,true);
+                    if(!this.IgnoreDeviceInput){
+                        this.InputAdapter.RecordKey(VirtualKeyCode,true);
+                    }
                     // SYSKEY must still reach DefWindowProcW (Alt+F4, the system menu, etc.); plain
                     // WM_KEYDOWN is fully consumed since this is a game window with no default text
                     // input/accelerator behavior to preserve.
@@ -249,24 +286,25 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_KEYUP:
             case WM_SYSKEYUP:{
                     var VirtualKeyCode=(int)WParam.Value.ToUInt64();
-                    this.InputAdapter.RecordKey(VirtualKeyCode,false);
+                    if(!this.IgnoreDeviceInput){
+                        this.InputAdapter.RecordKey(VirtualKeyCode,false);
+                    }
                     return Msg==WM_SYSKEYUP?DefWindowProcW(Hwnd,Msg,WParam,LParam):0;
                 }
 
             case WM_KILLFOCUS:
                 // Keys can't be reliably tracked once another window owns input focus - clear all
                 // state so a key held down during an Alt-Tab doesn't appear "stuck" on return.
-                this.InputAdapter.RecordFocusLost();
-                if(this.MouseCaptured){
-                    _=ShowCursor(TRUE);
-                    _=ClipCursor(null);
+                // Injected keys do not belong to a physical device, so focus changes leave them held.
+                if(!this.IgnoreDeviceInput){
+                    this.InputAdapter.RecordFocusLost();
                 }
+                this.ApplyCapture(false);
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
             case WM_SETFOCUS:
                 if(this.MouseCaptured){
-                    _=ShowCursor(FALSE);
-                    this.ClipCursorToClientArea();
+                    this.ApplyCapture(true);
                 }
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
@@ -290,11 +328,8 @@ public sealed unsafe class Win32Window:IDisposable {
 
         this.Disposed=true;
 
-        if(this.MouseCaptured){
-            _=ShowCursor(TRUE);
-            _=ClipCursor(null);
-            this.MouseCaptured=false;
-        }
+        this.ApplyCapture(false);
+        this.MouseCaptured=false;
 
         if(!this.Destroyed&& this.Hwnd!=HWND.NULL){
             _=DestroyWindow(this.Hwnd);
@@ -351,6 +386,9 @@ public sealed unsafe class Win32Window:IDisposable {
     private static extern bool NativeRegisterRawInputDevices(NativeRawInputDevice*Devices,uint DeviceCount,uint StructureSize);
     [DllImport("user32.dll",EntryPoint="GetRawInputData",SetLastError=true)]
     private static extern uint NativeGetRawInputData(nint RawInput,uint Command,void*Data,uint*Size,uint HeaderSize);
+    [DllImport("imm32.dll",EntryPoint="ImmAssociateContextEx")]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool NativeImmAssociateContextEx(nint Hwnd,nint Context,uint Flags);
 
     [UnmanagedCallersOnly]
     private static LRESULT WndProc(HWND Hwnd,uint Msg,WPARAM WParam,LPARAM LParam){

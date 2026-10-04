@@ -642,17 +642,20 @@ public class StageGpuIntegrationTests {
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
-        // Nearly-top-down orbit camera targeting the world origin, so the captured frame's center
-        // pixel corresponds to the ground point directly below the blocker once the blocker is
-        // moved above the origin - no per-pixel-to-world-space projection math needed.
+        // Nearly-top-down orbit camera targeting the world origin; the center pixel is the ground at
+        // the origin. The light arrives at an angle and the blocker hangs beside the origin, so its
+        // shadow lands on that visible ground point instead of the blocker hiding it from the camera
+        // (an earlier revision sampled the blocker's own top face, which only looked "shadowed"
+        // while the shadow camera sat below the scene).
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Camera.Pitch=-89f*MathF.PI/180f;
         Camera.Distance=20f;
         Camera.FarZ=200f;
 
-        var LightDirection=Vector3.Normalize(new Vector3(0.05f,1f,0.05f));
+        var LightDirection=Vector3.Normalize(new Vector3(0.6f,1f,0f));
         Vector3 FarAway=new(500f,500f,500f);
-        Vector3 AboveOrigin=new(0f,4f,0f);
+        // Toward-light (0.6,1,0): a point at height 4 shadows the ground 2.4 m back along -X.
+        Vector3 AboveOrigin=new(2.4f,4f,0f);
 
         PixelColor RenderCenterWithBlockerAt(Vector3 BlockerPosition){
             Renderer.SetCamera(Camera);

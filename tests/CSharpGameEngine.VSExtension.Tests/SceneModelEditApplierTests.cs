@@ -13,8 +13,12 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// </summary>
 public sealed class SceneModelEditApplierTests {
     private const string TransformTypes="""
+        namespace CSharpGameEngine.Entities {
+            public sealed class SceneComponentOrderAttribute(int Category,int Order):System.Attribute { }
+        }
         namespace CSharpGameEngine.Runtime.Windows {
             public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
+            [CSharpGameEngine.Entities.SceneComponentOrder(0,0)]
             public struct Transform {
                 public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
@@ -256,8 +260,8 @@ public sealed class SceneModelEditApplierTests {
     }
 
     /// <summary>
-    /// SceneSourceEditor.ApplyAddComponentの「同じ型のComponentは既にNodeへ追加されています。」と
-    /// 同じ判定をモデル層でも行う。保存時になって初めて失敗させないため。
+    /// 1つのNodeに同じ型のComponentは2つ持てない(シーンJSONではSCENE205)。書き戻しの時点で
+    /// 初めて失敗させないため、モデル層で弾く。
     /// </summary>
     [Fact]
     public void TryApply_AddComponent_RejectsDuplicateComponentType(){
@@ -273,10 +277,7 @@ public sealed class SceneModelEditApplierTests {
     }
 
     /// <summary>
-    /// Components=[…]が未記述のNode(ComponentsListLocationがnull)への追加は、ソース層
-    /// (SceneSourceEditor.ApplyAddComponent)がまだ対応していない。保存時に必ず失敗するので、
-    /// モデル層でも揃えて弾く — ここを通してしまうと、Undo可能な編集としてセッションへ積まれた後、
-    /// 保存操作で初めて失敗が判明することになる。
+    /// Components=[…]が未記述のNode(ComponentsListLocationがnull)へも追加でき、Componentの一覧が作られる。
     /// </summary>
     [Fact]
     public void TryApply_AddComponent_CreatesComponentsListWhenItIsMissing(){
@@ -329,7 +330,7 @@ public sealed class SceneModelEditApplierTests {
     }
 
     /// <summary>
-    /// 契約テスト。AddComponentの予測結果が、ソース層で書き換えて再解析した真実と
+    /// 契約テスト。AddComponentの予測結果が、シーンJSONへ書いて読み戻した真実と
     /// (Componentの型構成として)一致することを固定する。<c>ModelApply_MatchesSourceApplyThenReanalyze</c>と
     /// 同様、<c>EmitExpressionText</c>の完全一致はモデル層の予測に求めない —
     /// <see cref="SceneModelStructuralSignature"/>と同じ理由で、値そのもの
@@ -370,18 +371,15 @@ public sealed class SceneModelEditApplierTests {
             Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out _));
         Assert.NotNull(FindNode(Predicted,"Cube").FindComponent("global::Sample.DirectionalLight"));
 
-        var Edited=SceneSourceEditor.Apply(
-                                           CSharpSyntaxTree.ParseText(SceneSource).GetRoot(),BaseProjection,Operation);
-        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        var Truth=SceneAnalysisTestHelper.Analyze(
-                                                  [TransformTypes,DirectionalLightType,Edited.Root!.ToFullString()]);
+        var Truth=SceneJsonRoundTrip.Reanalyze(
+            Predicted,SceneAnalysisTestHelper.CreateCompilation(TransformTypes,DirectionalLightType,SceneSource));
 
         Assert.NotNull(FindNode(Truth,"Cube").FindComponent("global::Sample.DirectionalLight"));
     }
 
     /// <summary>
     /// M0053の要。<c>SceneComponentInitializerPolicy.CreatePlan</c>が作る「書き込む式」と
-    /// 「メモリ内へ載せるメンバー」が、<b>保存して再解析した真実と一致する</b>ことを固定する。
+    /// 「メモリ内へ載せるメンバー」が、<b>シーンJSONへ書いて読み戻した真実と一致する</b>ことを固定する。
     ///
     /// <para>
     /// メモリ内メンバーを空にしていた頃は、追加直後のInspectorが「解析待ち…」のまま1項目も
@@ -426,20 +424,17 @@ public sealed class SceneModelEditApplierTests {
         Assert.True(SceneModelEditApplier.TryApply(
             Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out _));
 
-        var Edited=SceneSourceEditor.Apply(
-                                           CSharpSyntaxTree.ParseText(SceneSource).GetRoot(),BaseProjection,Operation);
-        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        var Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,LightType,Edited.Root!.ToFullString()]);
+        var Truth=SceneJsonRoundTrip.Reanalyze(Predicted,Compilation);
 
         var PredictedLamp=FindNode(Predicted,"Cube").FindComponent("global::Sample.Lamp");
         var TruthLamp=FindNode(Truth,"Cube").FindComponent("global::Sample.Lamp");
         Assert.NotNull(PredictedLamp);
         Assert.NotNull(TruthLamp);
 
-        // メンバー名・並び・ソース式・編集可否がすべて一致すること。
+        // メンバー名・並び・値・編集可否がすべて一致すること(JSONは2fを2、defaultをfalseと書くため、値は綴りでなく意味で比べる)。
         Assert.Equal(
-            TruthLamp!.Members.Select(static Member=>(Member.MemberName,Member.Value.SourceExpressionText,Member.Value.IsEditable)),
-            PredictedLamp!.Members.Select(static Member=>(Member.MemberName,Member.Value.SourceExpressionText,Member.Value.IsEditable)));
+            TruthLamp!.Members.Select(static Member=>(Member.MemberName,SceneJsonRoundTrip.Signature(Member.Value),Member.Value.IsEditable)),
+            PredictedLamp!.Members.Select(static Member=>(Member.MemberName,SceneJsonRoundTrip.Signature(Member.Value),Member.Value.IsEditable)));
 
         // コンストラクタ既定値が保たれ、指定の無いメンバーはdefaultになる。
         Assert.Equal(["Intensity","Enabled"],PredictedLamp.Members.Select(static Member=>Member.MemberName));
@@ -451,7 +446,7 @@ public sealed class SceneModelEditApplierTests {
     }
 
     /// <summary>
-    /// 契約テスト。RemoveComponentの予測結果が、ソース層で書き換えて再解析した真実と一致することを固定する。
+    /// 契約テスト。RemoveComponentの予測結果が、シーンJSONへ書いて読み戻した真実と一致することを固定する。
     /// </summary>
     [Fact]
     public void ModelApply_RemoveComponent_MatchesSourceApplyThenReanalyze(){
@@ -464,16 +459,13 @@ public sealed class SceneModelEditApplierTests {
             Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out _));
         Assert.Null(FindNode(Predicted,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
 
-        var Edited=SceneSourceEditor.Apply(
-                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
-        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        var Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
+        var Truth=SceneJsonRoundTrip.Reanalyze(Predicted,SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source));
 
         Assert.Null(FindNode(Truth,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
     }
 
     /// <summary>
-    /// 契約テスト。モデル層の予測と、ソース層で書き換えて再解析した真実が一致することを固定する。
+    /// 契約テスト。モデル層の予測と、シーンJSONへ書いて読み戻した真実が一致することを固定する。
     /// componentの<c>EmitExpressionText</c>だけは予測では作り直せない(解析層のemit規則の再実装に
     /// なるため)ので、<c>ComponentChanged</c>のみ許容し、それ以外の差分が出ないことを要求する。
     /// この差は再解析後にIncremental更新へ分類されるだけで、表示値には影響しない。
@@ -491,10 +483,7 @@ public sealed class SceneModelEditApplierTests {
         Assert.True(SceneModelEditApplier.TryApply(
             Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out var PredictedProjection));
 
-        var Edited=SceneSourceEditor.Apply(
-                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
-        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        var Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
+        var Truth=SceneJsonRoundTrip.Reanalyze(Predicted,SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source));
 
         var TruthProjection=Reconciler.Reconcile(Key,Truth,BaseProjection);
 
@@ -660,6 +649,44 @@ public sealed class SceneModelEditApplierTests {
         var MovedChild=PredictedProjection.Nodes.Single(N=>N.Id.Equals(Child));
         Assert.Equal(GroupB,MovedChild.ParentId);
         Assert.Equal(1f,ReadPosition(Predicted,"Child").X);
+    }
+
+    /// <summary>
+    /// A node moves under the parent it was dropped on, also when another node has the same name and component types
+    /// (two "Group" nodes). The new parent was found again after the removal by name and component types, so the first
+    /// look-alike in the tree took the node instead.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TryApply_ReparentNode_MovesUnderTheDroppedParentAmongLookAlikes(int TargetGroup){
+        const string Nested="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[
+                    new Node { Name="Group" },
+                    new Node { Name="Mover" },
+                    new Node { Name="Group" },
+                    new Node { Name="Group" },
+                ] };
+            }
+            """;
+        (var Base,var Projection,var Reconciler)=Analyze(Nested,IncludeTransformTypes:false);
+        var Groups=Projection.Nodes.Where(static Node=>Node.Node.Name=="Group").OrderBy(static Node=>Node.Node.Path.Indices[0]).ToArray();
+        var Mover=FindId(Projection,"Mover");
+
+        Assert.True(SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new ReparentNodeOperation(Key,Mover,DocumentVersion:1,Groups[TargetGroup].Id,NewIndex:0)],
+            out var Predicted,out var PredictedProjection));
+
+        var RootChildren=Predicted.Root!.Children;
+        Assert.Equal(3,RootChildren.Length);
+        Assert.Equal(TargetGroup,RootChildren.Select((Child,Index)=>(Child,Index)).Single(static Pair=>Pair.Child.Children.Length==1).Index);
+        // Indistinguishable siblings keep no guessed id (SceneProjectionReconciler), so the parent is checked by its place.
+        var ParentId=PredictedProjection.Nodes.Single(Node=>Node.Id.Equals(Mover)).ParentId!.Value;
+        Assert.Equal(TargetGroup,Assert.Single(PredictedProjection.Nodes.Single(Node=>Node.Id.Equals(ParentId)).Node.Path.Indices));
     }
 
     [Fact]

@@ -61,6 +61,7 @@ internal static class GameSystemWorldEmitter {
 
         for(var ComponentIndex=0;ComponentIndex<Registry.ComponentsByIndex.Length;ComponentIndex++){
             Lines.AddRange(BuildTryGetComponentOverload(ComponentIndex,Registry));
+            Lines.AddRange(BuildTrySetComponentOverload(ComponentIndex,Registry));
         }
 
         Lines.AddRange(BuildChangeTracking(Registry));
@@ -113,6 +114,37 @@ internal static class GameSystemWorldEmitter {
             "        return Entity;",
             "    }",
         ];
+    }
+
+    /// <summary>
+    /// Replaces a component's value in place and marks it changed, as a system write would; false when
+    /// the entity does not have the component. The Scene Designer's runtime view applies a value edit
+    /// this way (ADR-0070 B1); the entity keeps its archetype.
+    /// </summary>
+    private static List<string>BuildTrySetComponentOverload(int ComponentIndex,GameSystemRegistry Registry){
+        GameSystemComponentInfo Component=Registry.ComponentsByIndex[ComponentIndex];
+        List<string>Lines=[
+            $"    public bool TrySetComponent(Entity Entity,in {Component.TypeFullyQualifiedName} Value) {{",
+            "        if (!this.IsAlive(Entity)) {",
+            "            return false;",
+            "        }",
+            "        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);",
+            "        switch (Location.Archetype) {",
+        ];
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            if(!Archetype.ComponentIndices.Contains(ComponentIndex)){
+                continue;
+            }
+            Lines.Add($"            case Archetype.{Archetype.Name}:");
+            Lines.Add($"                this.{Archetype.Name}.Get{Component.FieldName}RefUnchecked(Location.Index) = Value;");
+            Lines.Add($"                this.{Archetype.Name}.Mark{Component.FieldName}ChangedUnchecked(Location.Index, this.AdvanceChangeVersion());");
+            Lines.Add("                return true;");
+        }
+        Lines.Add("            default:");
+        Lines.Add("                return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        return Lines;
     }
 
     private static List<string>BuildTryGetComponentOverload(int ComponentIndex,GameSystemRegistry Registry){
