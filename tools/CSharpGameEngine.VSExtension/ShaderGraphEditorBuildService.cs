@@ -70,7 +70,7 @@ internal static class ShaderGraphEditorBuildService {
             }
         }
     }
-    private static string Quote(string Value)=>string.Concat((char)34,Value,(char)34);
+    private static string Quote(string Value)=>ExternalBridgeProcess.QuoteArgument(Value);
     private static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
         var StartInfo=new ProcessStartInfo(Executable,Arguments) { WorkingDirectory=WorkingDirectory,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true };
         using(var ChildProcess=System.Diagnostics.Process.Start(StartInfo)) {
