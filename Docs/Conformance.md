@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Inspector の数値欄が NaN と Infinity を受け付けていた
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Invalid text ... create no source operation」。`SceneInspectorValueFormat` は、生成ソースがコンパイルエラーになる入力を各型の `TryParse` で弾くと約束している。
+- 観測（Fact）: float の欄に `NaN`・`Infinity`・`-Infinity` と打つと、`float.TryParse` が成功し、式 `NaNf`・`Infinityf`・`-Infinityf` がソースへ書かれる（C# では未定義の識別子なのでコンパイルエラー。JSON の数値にもならない）。`1e39` は net472 の `TryParse` が失敗するので弾かれていた。角度の欄は有限の数値しか通さない。
+- 実装: float の欄は有限の値だけを受け付ける（それ以外は今までの「値を読めない」状態表示）。
+- 自動化された証拠: `SceneInspectorModelTests.TryFormatNumber_TextWithoutAFiniteNumber_Fails`（修正前は NaN と Infinity で成功していた）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 予約語の名前のメンバーでシーン JSON の生成コードが壊れていた
 - 意図: ADR-0070「シーン JSON は C# のシーンと同じシーンへコンパイルされ、問題は JSON の位置のエラーになる」。
 - 観測（Fact）: `@class`・`@event` のフィールドや `@in`・`@out` のコンストラクター引数を持つコンポーネントを JSON シーンに書くと、生成コードが `new Sample.Odd { class = ... }` となり、CS1513 などのコンパイルエラーになった（シーンの診断は出ない）。古い M0002 の生成器で未対応とされていた識別子のエスケープが、今の JSON の経路にもなかった。C# のシーンの経路はソースの識別子（@ を含む）をそのまま使うので問題ない。

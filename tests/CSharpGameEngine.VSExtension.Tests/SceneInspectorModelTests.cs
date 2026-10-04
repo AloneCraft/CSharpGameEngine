@@ -160,10 +160,15 @@ public sealed class SceneInspectorModelTests {
             Microsoft.CodeAnalysis.SpecialType.System_Int16,"99999",out _));
     }
 
-    [Fact]
-    public void TryFormatNumber_NonNumericText_Fails(){
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public void TryFormatNumber_TextWithoutAFiniteNumber_Fails(string Text){
+        // float.TryParse accepts NaN and Infinity; their text would reach the source as the identifier "Infinityf".
         Assert.False(SceneInspectorValueFormat.TryFormatNumber(
-            Microsoft.CodeAnalysis.SpecialType.System_Single,"abc",out _));
+            Microsoft.CodeAnalysis.SpecialType.System_Single,Text,out _));
     }
 
     [Fact]

@@ -452,7 +452,9 @@ internal static class SceneInspectorValueFormat {
         Text=Text.Trim();
         switch(Type){
             case SpecialType.System_Single:
-                if(!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var SingleValue)){
+                // "NaN" and "Infinity" parse, but their text is no C# literal ("Infinityf") and no JSON number.
+                if(!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var SingleValue)
+                    ||float.IsNaN(SingleValue)||float.IsInfinity(SingleValue)){
                     Expression=string.Empty;
                     return false;
                 }
