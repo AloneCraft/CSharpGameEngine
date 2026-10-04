@@ -6,7 +6,7 @@ public static class PlayerControl {
     /// Adds look input in degrees like Unreal's AddControllerYaw/PitchInput: positive yaw turns toward
     /// the screen right. <see cref="PlayerController.ControlYawDegrees"/> turns +F toward +R, which a
     /// right-handed view (Matrix4x4.CreateLookAt) shows on the left, so the yaw input is subtracted.
-    /// Yaw wraps into [-180, 180) and pitch is clamped to the controller's range.
+    /// Yaw wraps into [-180, 180) and pitch stays between the controller's two pitch bounds, in either order.
     /// </summary>
     public static void AddLook(ref PlayerController Controller,float YawDegrees,float PitchDegrees){
         if(float.IsFinite(YawDegrees)){
@@ -14,7 +14,10 @@ public static class PlayerControl {
             Controller.ControlYawDegrees=Yaw>=180f?Yaw-360f:Yaw<-180f?Yaw+360f:Yaw;
         }
         if(float.IsFinite(PitchDegrees)){
-            Controller.ControlPitchDegrees=Math.Clamp(Controller.ControlPitchDegrees+PitchDegrees,Controller.MinPitchDegrees,Controller.MaxPitchDegrees);
+            // Math.Clamp throws for a minimum above the maximum; swapped bounds in a scene still name the range.
+            var Low=MathF.Min(Controller.MinPitchDegrees,Controller.MaxPitchDegrees);
+            var High=MathF.Max(Controller.MinPitchDegrees,Controller.MaxPitchDegrees);
+            Controller.ControlPitchDegrees=Math.Clamp(Controller.ControlPitchDegrees+PitchDegrees,Low,High);
         }
     }
     /// <summary>World rotation turning +F into the control direction: pitch about +R, then yaw about +U.</summary>

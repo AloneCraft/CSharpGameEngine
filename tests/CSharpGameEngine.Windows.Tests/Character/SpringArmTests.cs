@@ -50,6 +50,15 @@ public sealed class SpringArmTests {
         Assert.Equal(-89f,Controller.ControlPitchDegrees);
     }
     [Fact]
+    public void AddLook_KeepsPitchBetweenBoundsWrittenInEitherOrder(){
+        // Math.Clamp threw for a minimum above the maximum, so a scene with the bounds swapped crashed every frame.
+        PlayerController Controller=new() { MinPitchDegrees=60f,MaxPitchDegrees=-30f };
+        PlayerControl.AddLook(ref Controller,0f,100f);
+        Assert.Equal(60f,Controller.ControlPitchDegrees);
+        PlayerControl.AddLook(ref Controller,0f,-500f);
+        Assert.Equal(-30f,Controller.ControlPitchDegrees);
+    }
+    [Fact]
     public void MoveDirection_IsRelativeToControlYawAndClampedToUnitLength(){
         var Forward=PlayerControl.MoveDirection(new PlayerController { ControlYawDegrees=90f,ControlPitchDegrees=60f },0f,1f);
         Assert.InRange(ToSingle(Forward.R),0.9999f,1.0001f);

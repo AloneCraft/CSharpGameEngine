@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — PlayerController のピッチの上下を逆に書くとゲームが毎フレーム例外で止まった
+- 意図: `PlayerControl.AddLook`「ピッチはコントローラーの範囲に収める」。シーンで作者が書いた値で、ランタイムが落ちてはならない（同日のカメラ・環境光の修正と同じ考え方）。
+- 観測（Fact）: `MinPitchDegrees` が `MaxPitchDegrees` より大きい `PlayerController`（Inspector で 100 と打つなど）では、`Math.Clamp` が `ArgumentException: '60' cannot be greater than -30.` を投げ、FrameInput の入力システムから毎フレーム例外が出た。値の検査はどこにもなかった。
+- 実装: 2 つのピッチの値を順序のない範囲として扱い、その間に収める（どちらの値も作者の意図した端なので、推測を最小にした）。
+- 自動化された証拠: `SpringArmTests.AddLook_KeepsPitchBetweenBoundsWrittenInEitherOrder`（修正前は上の例外）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 別のチェックアウトを対象にした Stage の結果が、カレントのリポジトリへ保存されていた
 - 意図: [Feature-Stages](Feature-Stages.md) の `--repository-root`。リリース証拠の Stage（`ecs.release` など）は、対象リポジトリの `.artifacts/FeatureStages` から、同じコミットの最近の合格結果を探す。
 - 観測（Fact）: メインツリーをカレントにして `run release.packages --repository-root <新しいワークツリー>` を実行すると、Stage はワークツリーで動いたが、結果はメインツリーの `.artifacts/FeatureStages` に保存された（`Program.cs` が保存先をカレントディレクトリから決めていた）。対象リポジトリで続けて実行するリリース証拠の Stage は、結果を見つけられない。コミットと鮮度で絞るので、古い結果を束ねることはない（その仮説は否定された）。
