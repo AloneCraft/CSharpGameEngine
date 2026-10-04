@@ -47,7 +47,9 @@ internal static class SceneEditConflictMerger {
                 if(Operation is SetComponentMemberOperation Member){
                     // A stale member edit without its observed original value cannot prove that it
                     // is not overwriting an external edit. Reject it instead of silently choosing
-                    // last-writer-wins. Inspector commits always carry the original expression.
+                    // last-writer-wins. Inspector commits leave the original out (a typed value must not
+                    // be rebased as a delta), so a stale Inspector commit is rejected; a property drag
+                    // carries its start value and is rebased below.
                     if(Member.OriginalValueExpression is null){
                         return SceneEditConflictMergeResult.Failure(
                             VsixText.Format("ConflictMemberExternallyChanged",Member.MemberName));

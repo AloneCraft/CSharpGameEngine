@@ -568,8 +568,9 @@ internal static class SceneInspectorValueFormat {
 /// <see cref="SetComponentMemberOperation.OriginalValueExpression"/>は常に<c>null</c>で渡す。これを渡すと
 /// <see cref="SceneEditConflictMerger"/>が差分リベース(<c>Current + (Final - Original)</c>)を行う ——
 /// <see cref="PropertyGizmo"/>のドラッグ(相対ジェスチャ)には正しいが、Inspectorのタイプ入力(絶対値指定)
-/// には誤りである。ユーザーが「5にする」と打ったなら5になるべきで「+2する」ではないため、pass-through
-/// (last-write-wins)経路を通す。
+/// には誤りである。ユーザーが「5にする」と打ったなら5になるべきで「+2する」ではない。同じ版への確定は
+/// そのまま適用され、古い版への確定は外部の変更を上書きしないよう<see cref="SceneEditConflictMerger"/>が
+/// 拒否する(後勝ちにはしない)。
 /// </para>
 /// </summary>
 internal static class SceneInspectorCommitPlanner {
