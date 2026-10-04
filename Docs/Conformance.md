@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — パレットから char の既定値を持つコンポーネントを追加できなかった
+- 意図: パレットの追加は宣言の既定値を持ち、シーン JSON が持てない既定値は書かずに省く（同日の修正）。
+- 観測（Fact）: 定数の既定値は、JSON にできるかを確かめずにリテラルとして書いていた。`public char Letter='x';` を持つコンポーネントでは、変換器の「Char の定数は JSON にできない」で追加全体が失敗した（NaN の既定値も同じ）。
+- 実装: 変換器に、その定数を JSON に書けるかの判定（`SceneJsonConverter.HasJsonForm`、書く処理と同じ基準）を足し、書けない定数の既定値は省く。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.PaletteComponent_LeavesOutAConstantJsonCannotHold`（修正前は上の失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — List のメンバーを持つシーンを Scene Designer で編集できなかった
 - 意図: ADR-0070。シーン JSON の配列は、配列のメンバーにも `List<T>` などのコレクションのメンバーにも入る（スキーマは IEnumerable&lt;T&gt; を配列として示し、JSON の解析器はコレクション式で受け付け、ビルドも通る）。Designer は JSON を同等の C# クラスとして読む。
 - 観測（Fact）: Designer 用の C# はコレクションのメンバーをコレクション式 `[0.5f]` で持つが、Scene DSL のモデル（`SceneValueReader`）は配列以外のコレクションを SCENE110（静的に決まらない値）として拒んだ。利用者のコンポーネントに `List<float>` のメンバーが 1 つあるだけで、シーン全体が「C# の解析エラーがあるので保存できない」になり、Designer で一切編集できなかった（ビルドは通る）。
