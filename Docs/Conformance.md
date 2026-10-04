@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-10-04 探索 — ランタイムビューが HashSet を拒み、ReadOnlyCollection・ImmutableList のメンバーでセッションごと終わり得た
+- 意図: ADR-0070 の決定 6。ランタイムビューはシーン JSON を生成器と同じ規則で読む。型が受け付けない値は「合わない値」（`InvalidOperationException`）として飛ばし、ビューは続く。
+- 観測（Fact）: `SceneJsonRuntimeValues` は JSON の配列を、配列で代入できる型と `ImmutableArray` 以外では `Activator.CreateInstance` で作って `IList` として詰めていた。生成器のコレクション式がビルドする `HashSet<T>`・`SortedSet<T>` は `IList` でないため合わない値になり、引数なしコンストラクターの無い `ReadOnlyCollection<T>`・`ImmutableList<T>` は `MissingMethodException` を投げた。`ApplySceneDocument` は `InvalidOperationException` しか捕まえないので、例外はランタイムビューの外へ出る（同日のテストで、生成器の受け付ける各型を確認）。オブジェクトの生成でも、引数なしコンストラクターの無いクラスで同じ例外が出得た。
+- 実装: コレクション式と同じ規則で作る。引数なしコンストラクターと要素 1 つの `Add` を持つ型は `Add` で、`[CollectionBuilder]` の型はその `CreateRange` か要素を取るコンストラクターで作り、それ以外（`Queue<T>` など、生成器では SCENE203）は合わない値にする。オブジェクトの生成の `MemberAccessException` も合わない値にする。
+- あわせて: 生成器は `object` やインターフェイス（`IComparable`）のメンバーへの数を float のリテラルとしてボックス化して代入するが、ランタイムビューは「float から変換できる型ではない」として拒んでいた。float を代入できる型にはボックス化した float を入れる。
+- 自動化された証拠: `SceneJsonRuntimeValuesTests.Collections_FillAsTheGeneratedCollectionExpressionDoes`（修正前は HashSet で失敗。一時プローブで、修正前の `ReadOnlyCollection`・`ImmutableList` は `MissingMethodException` を確認）、`Numbers_ReadAsTheGeneratedLiteralsDo` の object・IComparable の検査（修正前は失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — シーンスキーマを書けないビルド失敗で、エラー一覧に MSB3073 だけが出た
 - 意図: ADR-0070。ビルド後の手順がシーンの JSON Schema を `.cge/scene.schema.json` へ書く。失敗すればその原因がビルドのエラーとして出る。
 - 観測（Fact）: スキーマ CLI は失敗を `CGE-SCENE-SCHEMA failed: ...` と書いていた。MSBuild の `Exec` はこの行をメッセージとして扱うので、エラー一覧には MSB3073 だけが出る（同日のシェーダーグラフ CLI と同じ原因）。出力先がディレクトリで書けない場合で確認した。

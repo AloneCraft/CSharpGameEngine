@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Globalization;
 using System.Reflection;
 using CSharpGameEngine.SceneAnalysis.Json;
@@ -93,7 +92,13 @@ internal static class SceneJsonRuntimeValues {
             }
         }
         // The generator writes the literal with an f suffix into a target-typed position, so the type's
-        // implicit conversion from float (or a wider real reached from float) applies.
+        // implicit conversion from float (or a wider real reached from float) applies: boxing for an object or
+        // interface member (IComparable), else the type's own conversion.
+        if(Type.IsAssignableFrom(typeof(float))){
+            return float.TryParse(Text,RealStyles,Culture,out var Boxed)&&float.IsFinite(Boxed)
+                ?Boxed
+                :throw Mismatch(Where,Type,"the number is beyond the range of float");
+        }
         foreach(var Conversion in Type.GetMethods(BindingFlags.Public|BindingFlags.Static)){
             if(Conversion.Name=="op_Implicit"&&Conversion.ReturnType==Type
                 &&Conversion.GetParameters() is [{ }Only]
@@ -131,12 +136,44 @@ internal static class SceneJsonRuntimeValues {
                 .GetMethods().First(static Method=>Method.Name=="Create"&&Method.GetParameters() is [{ ParameterType.IsArray:true }]);
             return Create.MakeGenericMethod(Element).Invoke(null,[Items])!;
         }
-        if(Activator.CreateInstance(Type) is IList List){
-            foreach(var Item in Items){ List.Add(Item); }
-            return List;
+        // The rest as the generator's collection expression creates them: a type with a public parameterless constructor
+        // and a public Add for one element (List<T>, HashSet<T>), else a [CollectionBuilder] type (ImmutableList<T>,
+        // ReadOnlyCollection<T>) through its builder's CreateRange or a public constructor that takes the elements.
+        if(!Type.IsAbstract&&(Type.IsValueType||Type.GetConstructor(Type.EmptyTypes) is not null)&&AddMethod(Type,Element) is { }Add){
+            var Filled=Activator.CreateInstance(Type)!;
+            foreach(var Item in Items){ Invoke(Where,Type,()=>Add.Invoke(Filled,[Item])); }
+            return Filled;
         }
-        throw Mismatch(Where,Type,"this collection type cannot be filled from a JSON array");
+        if(CollectionBuilder(Type) is { }Builder){
+            foreach(var Method in Builder.GetMethods(BindingFlags.Public|BindingFlags.Static)){
+                if(Method.Name!="CreateRange"||!Method.IsGenericMethodDefinition||Method.GetGenericArguments().Length!=1){ continue; }
+                MethodInfo Closed;
+                try { Closed=Method.MakeGenericMethod(Element); } catch(ArgumentException){ continue; }
+                if(Closed.ReturnType==Type&&Closed.GetParameters() is [{ }Only]&&Only.ParameterType.IsAssignableFrom(Items.GetType())){
+                    return Invoke(Where,Type,()=>Closed.Invoke(null,[Items])!);
+                }
+            }
+            // A collection expression never calls a constructor with the elements, so only a builder type is made this way.
+            foreach(var Constructor in Type.GetConstructors()){
+                if(Constructor.GetParameters() is [{ }Only]&&Only.ParameterType.IsAssignableFrom(Items.GetType())){
+                    return Invoke(Where,Type,()=>Constructor.Invoke([Items]));
+                }
+            }
+        }
+        throw Mismatch(Where,Type,"this collection type cannot be created from a JSON array");
     }
+
+    /// <summary>A public instance Add that takes one element (any further parameters optional).</summary>
+    private static MethodInfo?AddMethod(Type Type,Type Element)=>
+        Type.GetMethods(BindingFlags.Public|BindingFlags.Instance).FirstOrDefault(Method=>Method.Name=="Add"
+            &&Method.GetParameters() is [{ }First,..]&&First.ParameterType.IsAssignableFrom(Element)
+            &&Method.GetParameters().Skip(1).All(static Parameter=>Parameter.IsOptional));
+
+    /// <summary>The builder type a <c>[CollectionBuilder]</c> attribute names, matched by name as the game's own load sees it.</summary>
+    private static Type?CollectionBuilder(Type Type)=>
+        (Type.IsGenericType?Type.GetGenericTypeDefinition():Type).CustomAttributes
+            .FirstOrDefault(static Attribute=>Attribute.AttributeType.FullName=="System.Runtime.CompilerServices.CollectionBuilderAttribute")
+            ?.ConstructorArguments is [{ Value:Type Builder },..]?Builder:null;
 
     private static Type?ElementType(Type Type)=>
         Type.GetInterfaces().Prepend(Type)
@@ -160,9 +197,14 @@ internal static class SceneJsonRuntimeValues {
             }).ToArray();
             Instance=Invoke(Where,Type,()=>Constructor.Invoke(Arguments));
         } else {
-            // A struct's parameterless constructor runs its field initializers, as `new T { ... }` does.
-            Instance=Activator.CreateInstance(Type)
-                ??throw Mismatch(Where,Type,"the type cannot be constructed");
+            // A struct's parameterless constructor runs its field initializers, as `new T { ... }` does. A class without
+            // one does not fit (the generated code would not compile either) rather than throwing past the caller.
+            try {
+                Instance=Activator.CreateInstance(Type)
+                    ??throw Mismatch(Where,Type,"the type cannot be constructed");
+            } catch(MemberAccessException){
+                throw Mismatch(Where,Type,"the type has no public parameterless constructor");
+            }
         }
         foreach(var Property in Value.Properties){
             if(Consumed.Contains(Property.Name)){ continue; }

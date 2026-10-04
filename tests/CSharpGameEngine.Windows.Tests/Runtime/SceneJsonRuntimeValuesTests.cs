@@ -35,10 +35,21 @@ public sealed class SceneJsonRuntimeValuesTests {
         [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)] public float PitchDegrees;
         public float Pitch;
     }
+    public struct Shelves {
+        public HashSet<int> Tags;
+        public SortedSet<int> Sorted;
+        public System.Collections.ObjectModel.Collection<int> Plain;
+        public System.Collections.ObjectModel.ReadOnlyCollection<int> Fixed;
+        public ImmutableList<int> Frozen;
+        public IReadOnlyList<int> View;
+        public Queue<int> Waiting;
+    }
     public struct Measures {
         public decimal Price;
         public double Ratio;
         public float Speed;
+        public object Boxed;
+        public IComparable Comparable;
     }
     public readonly struct Cone([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)]float OuterDegrees) {
         public float OuterDegrees { get; }=OuterDegrees;
@@ -135,9 +146,31 @@ public sealed class SceneJsonRuntimeValuesTests {
         var Value=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),
             SceneJsonReader.Parse("""{ "Price": 1.5e3, "Ratio": 2E-3, "Speed": 1e-2 }"""),"Measures");
         Assert.Equal((1.5e3m,2E-3d,1e-2f),(Value.Price,Value.Ratio,Value.Speed));
-        foreach(var Json in new[]{"""{ "Speed": 1e39 }""","""{ "Ratio": 1e400 }""","""{ "Price": 1e29 }"""}){
+        // An object or interface member takes the generated float literal boxed.
+        var Boxed=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),SceneJsonReader.Parse("""{ "Boxed": 2.5, "Comparable": 3 }"""),"Measures");
+        Assert.Equal((object)2.5f,Boxed.Boxed);
+        Assert.Equal((IComparable)3f,Boxed.Comparable);
+        foreach(var Json in new[]{"""{ "Speed": 1e39 }""","""{ "Ratio": 1e400 }""","""{ "Price": 1e29 }""","""{ "Boxed": 1e39 }"""}){
             Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Measures),SceneJsonReader.Parse(Json),"Measures"));
         }
+    }
+
+    /// <summary>
+    /// A JSON array fills each collection the generated collection expression creates. Only IList types were filled, so a
+    /// HashSet member did not fit, and a ReadOnlyCollection or ImmutableList member threw MissingMethodException past the
+    /// runtime view, which then ended. A Queue, which the generated code cannot create (SCENE203), does not fit.
+    /// </summary>
+    [Fact]
+    public void Collections_FillAsTheGeneratedCollectionExpressionDoes(){
+        var Value=(Shelves)SceneJsonRuntimeValues.Component(typeof(Shelves),SceneJsonReader.Parse(
+            """{ "Tags": [3, 1], "Sorted": [5, 2], "Plain": [7], "Fixed": [8, 9], "Frozen": [4], "View": [6] }"""),"Shelves");
+        Assert.Equal(new HashSet<int>{1,3},Value.Tags);
+        Assert.Equal([2,5],Value.Sorted);
+        Assert.Equal([7],Value.Plain);
+        Assert.Equal([8,9],Value.Fixed);
+        Assert.Equal([4],Value.Frozen);
+        Assert.Equal([6],Value.View);
+        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Shelves),SceneJsonReader.Parse("""{ "Waiting": [1] }"""),"Shelves"));
     }
 
     /// <summary>ADR-0074 version 3: an angle's key may leave out the C# unit word, as the generator reads it.</summary>
