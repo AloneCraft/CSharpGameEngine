@@ -39,6 +39,24 @@ public class WicImageDecoderTests {
         Assert.NotNull(Result.Error);
     }
 
+    /// <summary>
+    /// A decoded image becomes a Direct3D 12 texture, whose sides are at most 16384, so a larger one fails as too large for
+    /// a texture before its pixels are read. A header that claimed 20000 x 20000 allocated 1.6 GB for the pixels first.
+    /// </summary>
+    [WindowsOnlyTheory]
+    [InlineData(16385u,1u)]
+    [InlineData(1u,16385u)]
+    [InlineData(20000u,20000u)]
+    public void Decode_ImageBeyondTheTextureLimit_FailsAsTooLarge(uint Width,uint Height){
+        var Before=GC.GetAllocatedBytesForCurrentThread();
+        var Result=WicImageDecoder.Decode(Png(Width,Height));
+        var Allocated=GC.GetAllocatedBytesForCurrentThread()-Before;
+
+        Assert.False(Result.Success);
+        Assert.Contains("16384",Result.Error,StringComparison.Ordinal);
+        Assert.True(Allocated<1<<20,$"allocated {Allocated} bytes");
+    }
+
     /// <summary>An RGBA PNG whose IHDR claims <paramref name="Width"/> x <paramref name="Height"/> and whose IDAT is empty.</summary>
     private static byte[]Png(uint Width,uint Height){
         static void BigEndian(List<byte>Bytes,uint Value){ Bytes.Add((byte)(Value>>24));Bytes.Add((byte)(Value>>16));Bytes.Add((byte)(Value>>8));Bytes.Add((byte)Value); }
