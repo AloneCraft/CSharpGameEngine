@@ -312,7 +312,7 @@ internal static class SceneJsonSceneAnalyzer {
                 }
                 Consumed.Add(Property.Name);
                 RecordKey(Property,Key);
-                Arguments.Add(Parameter.Name+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
+                Arguments.Add(Identifier(Parameter.Name)+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                     Angles,Unit??AngleUnitOf(Parameter)));
             }
             // A physical light value's constructor rejects values outside its range when the scene is instantiated,
@@ -365,7 +365,7 @@ internal static class SceneJsonSceneAnalyzer {
             }
             SeenMembers.Add(MemberSymbol.Name,Property.Name);
             RecordKey(Property,KeyOf(MemberSymbol));
-            Assignments.Add(MemberSymbol.Name+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
+            Assignments.Add(Identifier(MemberSymbol.Name)+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                 Angles,Unit??AngleUnitOf(MemberSymbol)));
         }
         var Builder=new StringBuilder("new ").Append(TypeText).Append('(').Append(string.Join(", ",Arguments)).Append(')');
@@ -542,6 +542,8 @@ internal static class SceneJsonSceneAnalyzer {
         }
         return null;
     }
+    /// <summary>A member or parameter name as C# source: a reserved keyword (a field named <c>@class</c>) needs the verbatim prefix.</summary>
+    private static string Identifier(string Name)=>SyntaxFacts.GetKeywordKind(Name)==SyntaxKind.None?Name:"@"+Name;
     /// <summary>2^63, the magnitude where a float stops fitting Q64.64's integer part (<c>LogicalScalar.TryFromSingle</c>).</summary>
     private const float LogicalScalarLimit=9.223372e18f;
     /// <summary>A mismatch for a number a float cannot hold (its literal would not compile), or null.</summary>
