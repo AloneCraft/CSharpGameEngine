@@ -317,9 +317,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Removal evidence: 旧L9アプリケーションの`Components.cs`、`SceneLoader.cs`、
   `TransformHierarchyRuntime.cs`、`Systems/Systems.cs`、`AudioRuntime.cs`と専用テストプロジェクトは
   `40f08e4`で削除済み。
-- Successor: 現行のアプリケーション側構成は`UserEcsProject/Components.cs`、
-  `UserEcsProject/StaticMeshSceneData.cs`、`UserEcsProject/Systems/RuntimeSystem.cs`、
-  `UserEcsProject/Scenes/FirstPersonStageScene.cs`。旧機能のうち手書きの階層同期・移動・距離減衰付き
+- Successor: 現行のアプリケーション側構成は`UserEcsProject/GameplayComponents.cs`と
+  `UserEcsProject/Scenes/*.json`(シーン JSON、ADR-0070)で、読み込みはエンジンの
+  `src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs`(`LevelLoad`)が行う。旧機能のうち手書きの階層同期・移動・距離減衰付き
   複数音源は同等移植されていないため、旧FeatureをImplementedとは扱わない。
 - Tests: 現行後継は`tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`と
   `tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs`で検証する。
@@ -334,9 +334,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified / RuntimeVerified
 - Implementation evidence:
   - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs (`RenderShadowPass`, HDR target, fullscreen post-process pass, resize/dispose paths)
-  - assets/Shaders/Stage.hlsl (`ShadowMap`, `ComputeDirectionalShadow`, `FullscreenVS`, `PostProcessPS`, `ToneMapAces`)
+  - assets/Shaders/Stage.cgeshadergraph with Shadow.cgesubgraph and Aces.cgesubgraph (the Stage shader moved from `Stage.hlsl` into the Shader Graph; `ShaderArtifactAbi` names its entries)
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Hlsl/HlslCompilerTests.cs (`Compile_StagePostProcessShaders_Succeeds`)
+  - tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs (the Stage graph compiles every entry, post-process included)
   - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs (6/6, including shadow/light output, resize,
     per-frame-slot stability, and shadow-casting)
 - Result: Scene lighting is rendered into `R16G16B16A16_FLOAT`; imported PBR base color, normal,
@@ -559,7 +559,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/UnrealExport/README.md
   - UserEcsProject/Assets/Stage/Lvl_FirstPerson/Meshes/*.glb
   - UserEcsProject/Scenes/FirstPersonStageAssets.cs
-  - UserEcsProject/Scenes/FirstPersonStageScene.cs
+  - UserEcsProject/Scenes/FirstPersonStageScene.json(ADR-0070 でC#のシーンから変換)
 - Tests: なし(UEエディタが無い環境では実行できない開発時専用ツールのため、C#テストスイートの
   対象外。現行のScene DSL生成・描画側は`SceneDslGeneratorEndToEndTests`/
   `RenderServerTests`で検証している)。
@@ -589,9 +589,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md(PlayerStart軸変換)
 - Removal evidence: 旧L9アプリケーションの`SceneDocument.cs`、`SceneLoader.cs`、`Program.cs`と
   専用テストは`40f08e4`で削除済み。
-- Successor: `UserEcsProject/Scenes/FirstPersonStageScene.cs`の宣言を
-  `SceneInstantiateEmitter`がECS生成コードへ変換し、`UserEcsProject/Systems/RuntimeSystem.cs`の
-  `LevelLoad`が`StaticMeshSceneData`と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
+- Successor: `UserEcsProject/Scenes/FirstPersonStageScene.json`のシーン JSON を
+  `SceneInstantiateEmitter`がECS生成コードへ変換し、`src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs`の
+  `LevelLoad`が`StaticMesh`部品と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
 - Historical behavior:
   - `GltfImporter.ImportScene`の結果と`scene_meta.json`を合成し、`StageRenderer`入力
     (`StageMeshCreateInfo[]`/`StageMaterialCreateInfo[]`/`StageObjectCreateInfo[]`)と
@@ -790,7 +790,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `SceneWindowControl.xaml(.cs)`、`SceneFileTests.cs`
   - 後継F-L8-010/F-L8-011で存続・再利用:
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs
-  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(F-L8-018で削除し、描画は共有のPreview Hostへ移った)
   - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs
   - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowPane.cs
   - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowControl.xaml(.cs)
@@ -2129,7 +2129,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.CodeAnalysis/GameSystemWorldEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemEntryPointEmitter.cs(M0015)
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemOrderAnalyzer.cs(M0016)
+  - (`GameSystemOrderAnalyzer.cs`(M0016)はADR-0073で削除し、順序付けは`GameSystemExecutionOrder.cs`へ統合した)
   - src/CSharpGameEngine.CodeAnalysis/GameSystemExecutionOrder.cs(M0016)
   - src/CSharpGameEngine.CodeAnalysis/SceneComponentSetCollector.cs
   - src/CSharpGameEngine.CodeAnalysis/SceneInstantiateEmitter.cs
@@ -2423,7 +2423,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.Windows/Audio/XAudio2VoiceHandle.cs
   - src/CSharpGameEngine.Windows/Audio/AudioException.cs
   - src/CSharpGameEngine.Windows/Audio/AudioDiagnostics.cs
-  - UserEcsProject/AudioBackend.cs(プラットフォーム選択の集中点、`GameAudio`非ジェネリックFacade)
+  - src/CSharpGameEngine.Runtime.Windows/EngineHost.cs(Audio Serverの所有。ADR-0048以降はWindows Runtimeがバックエンドを選び、`UserEcsProject/AudioBackend.cs`の`GameAudio`Facadeは無くなった)
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Audio/XAudio2BackendTests.cs(実オーディオデバイスに対する
     CreateEngine→CreateVoice→SubmitBuffer→Start→Stop→DestroyVoice→DestroyEngineのスモークテスト、
@@ -2441,9 +2441,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     ハンドルへポインタを折り込んで返す設計、F-L1-007参照)。
   - VoiceはCOM `Release`ではなく`IXAudio2Voice::DestroyVoice()`で破棄する(XAudio2固有の非COM解放
     メソッド)。Engineは標準COM `Release`。
-  - `UserEcsProject/AudioBackend.cs`が唯一このバックエンドを名指しする場所(`global using`
-    エイリアス2行 + `GameAudio`Facade)。`UserEcsProject/Components.cs`/`Systems/RuntimeSystem.cs`/
-    `Scenes/MainScene.cs`はいずれも`CSharpGameEngine.Audio.XAudio2`を直接参照しない。
+  - ゲームのコードはこのバックエンドを名指ししない。当初は`UserEcsProject/AudioBackend.cs`が唯一の
+    選択箇所だったが、ADR-0048以降は共有のWindows Runtimeが選ぶ。
 - Conformance: Matches
 - Known deviations: `UserEcsProject`はADR-0039の単一Entity制約を維持する。旧L9ランタイムにあった
   Entityごとの音源、Listener位置、距離減衰は現行へ移植していない。
@@ -2465,9 +2464,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.Windows/Runtime/PrimitiveMesh.cs
   - src/CSharpGameEngine.Windows/Runtime/RenderServer.cs
   - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs(`ArbitraryTangentFor`を`internal`化して共有)
-  - UserEcsProject/Systems/RuntimeSystem.cs(`LevelLoad`に`{Transform,PrimitiveMesh}`用の宣言順
-    アキュムレータオーバーロードを追加)
-  - UserEcsProject/Scenes/PrimitiveShowcaseScene.cs(デモ、`MainScene.cs`は無変更)
+  - src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
+    アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
+  - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs(デデュープ、全`PrimitiveType`の
     妥当性、実WARP GPUパイプラインでのBox描画)
@@ -2514,7 +2513,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(新規)
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`.scene`読み込みをSceneModel解決へ全面改修)
-  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(`SceneRenderObject.NodeId`を`Guid`から
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(F-L8-018で削除し、描画は共有のPreview Hostへ移った)(`SceneRenderObject.NodeId`を`Guid`から
     `NodePath`へ変更)
   - tools/CSharpGameEngine.VSExtension/SceneWorkspaceService.cs(`AllModels`/`AllModelsChanged`を
     追加。アクティブドキュメント内の`IScene`実装を「最初の1件」だけでなく全件収集するよう拡張、
@@ -2852,7 +2851,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(FQN表化、
     `ExtractWorldTransform`→`ExtractLocalTransform`改名、`EnumerateNodes`のフラット列挙を
     `ParentWorld`を運ぶpre-order再帰へ置換)
-  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(`SetCamera`+`ConstantsDirty`追加、
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(F-L8-018で削除し、描画は共有のPreview Hostへ移った)(`SetCamera`+`ConstantsDirty`追加、
     `ComputeViewMatrix`/`ComputeProjectionMatrix`/`ComputeSceneBounds`/`BoundsCenter`/`BoundsRadius`
     削除、空リストの`throw`撤去と定数バッファ幅クランプ、更新経路を`RenderFrame`冒頭の1本へ統一)
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`ApplyCamera()`新設と毎フレーム・リサイズ・
@@ -3319,7 +3318,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L3 - Editor / Runtime Diagnostics
 - Status: Implemented
 - Verification: TestVerified (automated); UserEcs smoke pending
-- Implementation evidence: tools/CSharpGameEngine.VSExtension/SceneRenderer.cs; SceneHwndHost.cs; src/CSharpGameEngine.Entities/SpatialDebug.cs
+- Implementation evidence: tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs; RenderPreviewHostClient.cs (the render modes, drawn by the shared Preview Host since F-L8-018 deleted `SceneRenderer.cs`); SpatialDebugClient.cs; SpatialDebugOverlay.cs; src/CSharpGameEngine.Entities/SpatialDebug.cs
 - Tests: tests/CSharpGameEngine.VSExtension.Tests/SpatialDebugOverlayTests.cs
 
 ## F-L5-001 — Shared Windows ECS Runtime
