@@ -385,7 +385,8 @@ public sealed class SceneJsonGeneratorTests {
     /// <summary>The designer reads a startup scene as one (its <c>startupOrder</c> survives the round trip back to JSON).</summary>
     [Fact]
     public void DesignerSource_KeepsTheStartupOrder(){
-        var Json=JsonScene.Replace("  \"className\": \"MainScene\",\n","  \"className\": \"MainScene\",\n  \"startupOrder\": -3,\n");
+        // The raw string has the checkout's line endings (CRLF in a fresh clone on Windows).
+        var Json=JsonScene.Replace("\r\n","\n").Replace("  \"className\": \"MainScene\",\n","  \"className\": \"MainScene\",\n  \"startupOrder\": -3,\n");
         Assert.Contains("\"startupOrder\": -3",Json);
         var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
         var Scene=CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base);
