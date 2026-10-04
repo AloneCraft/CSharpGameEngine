@@ -651,6 +651,44 @@ public sealed class SceneModelEditApplierTests {
         Assert.Equal(1f,ReadPosition(Predicted,"Child").X);
     }
 
+    /// <summary>
+    /// A node moves under the parent it was dropped on, also when another node has the same name and component types
+    /// (two "Group" nodes). The new parent was found again after the removal by name and component types, so the first
+    /// look-alike in the tree took the node instead.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TryApply_ReparentNode_MovesUnderTheDroppedParentAmongLookAlikes(int TargetGroup){
+        const string Nested="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[
+                    new Node { Name="Group" },
+                    new Node { Name="Mover" },
+                    new Node { Name="Group" },
+                    new Node { Name="Group" },
+                ] };
+            }
+            """;
+        (var Base,var Projection,var Reconciler)=Analyze(Nested,IncludeTransformTypes:false);
+        var Groups=Projection.Nodes.Where(static Node=>Node.Node.Name=="Group").OrderBy(static Node=>Node.Node.Path.Indices[0]).ToArray();
+        var Mover=FindId(Projection,"Mover");
+
+        Assert.True(SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new ReparentNodeOperation(Key,Mover,DocumentVersion:1,Groups[TargetGroup].Id,NewIndex:0)],
+            out var Predicted,out var PredictedProjection));
+
+        var RootChildren=Predicted.Root!.Children;
+        Assert.Equal(3,RootChildren.Length);
+        Assert.Equal(TargetGroup,RootChildren.Select((Child,Index)=>(Child,Index)).Single(static Pair=>Pair.Child.Children.Length==1).Index);
+        // Indistinguishable siblings keep no guessed id (SceneProjectionReconciler), so the parent is checked by its place.
+        var ParentId=PredictedProjection.Nodes.Single(Node=>Node.Id.Equals(Mover)).ParentId!.Value;
+        Assert.Equal(TargetGroup,Assert.Single(PredictedProjection.Nodes.Single(Node=>Node.Id.Equals(ParentId)).Node.Path.Indices));
+    }
+
     [Fact]
     public void TryApply_ReparentNode_RejectsMovingIntoOwnDescendant(){
         const string Nested="""

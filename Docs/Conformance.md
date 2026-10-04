@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Hierarchy で同じ名前のノードの下へドロップすると、最初のそっくりなノードの下へ移った
+- 意図: Hierarchy のドラッグ＆ドロップは、ドロップした先のノードの子にする。
+- 観測（Fact）: 親を跨ぐ付け替えは、元の位置から外した後の木で新しい親を名前と Component の型構成で探し直していた（M0051 で `ReferenceEquals` から直したもの）。同じ名前と構成のノード（並んだ "Group" など、手書きの JSON や移植したステージでよくある）があると、木の中で最初のそっくりなノードが見つかり、2 つ目・3 つ目の "Group" へドロップしても 1 つ目の下へ移った（文書もその形で書き戻される）。
+- 実装: 外した子より後ろの兄弟（とその子孫）を通る新しい親の Path は、同じ深さで 1 つ前へずれるので、計算で求める。名前と構成で探す `TryFindByIdentity` を削除し、M0051 に置き換えの注記を足した。区別できない兄弟に ID を推測しない Reconciler の方針は変えていない（そっくりなノードは編集後に新しい ID になる）。
+- 自動化された証拠: `SceneModelEditApplierTests.TryApply_ReparentNode_MovesUnderTheDroppedParentAmongLookAlikes`（修正前は 2 件とも 1 つ目の "Group" へ移った）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 入れ子の型のコンポーネントを持つシーンを Designer で編集できなかった
 - 意図: ADR-0070。シーン JSON の `type` はコンポーネントの完全名で、生成器・Designer・ランタイムビューが同じ名前で同じ型を見つける。
 - 観測（Fact）: 変換器・スキーマ・パレットは型名を C# の書き方（`Ns.Outer.Inner`）で書くが、解析器は `GetTypeByMetadataName`、ランタイムビューは `Assembly.GetType` で解決していたので、入れ子の型はメタデータ名（`Ns.Outer+Inner`）でしか見つからなかった。そのため、メタデータ名で書いたシーンはビルドできても Designer のどの編集も書き戻しで `Outer.Inner` になって SCENE201 で失敗し、パレットからは追加できず、スキーマは入れ子の型を一覧から外していた。

@@ -273,68 +273,18 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
-        // NewParentのPathは削除で兄弟インデックスがずれている可能性があるため、削除後のツリーで
-        // 同じEditorNodeIdを引き直す。IDの割り当ては呼び出し元(TryApply)のReconcilerと共有する
-        // 必要があるため、ここでは新規Reconcilerを使わず、単純な名前+Component構成の再帰探索で
-        // 対象を再特定する(削除操作はID空間を消費しないため、この場に限り軽量な再探索で足りる)。
-        if(!TryFindByIdentity(AfterRemoval,NewParentNode.Node,out var ResolvedNewParentPath)){
-            return false;
-        }
+        // 削除で後ろの兄弟が 1 つ前へずれるので、その兄弟(とその子孫)を通る新しい親の Path も同じ深さで 1 つ戻す。
+        // 以前は削除後の木を名前と Component の型構成で探し直していたため、同じ名前と構成のノード(並んだ "Group" など)
+        // があると、木の中で最初のそっくりなノードの下へ移していた。
+        var Depth=OldParentPath.Indices.Length;
+        var ResolvedNewParentPath=NewParentPath.IsDescendantOf(OldParentPath)&&NewParentPath.Indices[Depth]>TargetPath.Indices[^1]
+            ?new NodePath(NewParentPath.Indices.SetItem(Depth,NewParentPath.Indices[Depth]-1))
+            :NewParentPath;
 
         var ResolvedNewParent=GetAtPath(AfterRemoval,ResolvedNewParentPath);
         var ClampedIndex=Math.Max(0,Math.Min(Operation.NewIndex,ResolvedNewParent.Children.Length));
         NewPath=ResolvedNewParentPath.Append(ClampedIndex);
         return TryInsertChildAt(AfterRemoval,ResolvedNewParentPath,ClampedIndex,MovedContent,out Updated);
-    }
-
-    /// <summary>
-    /// 削除操作の直後に、削除前のNode参照(Name+Component構成で一意なはず)から現在のPathを
-    /// 再特定する。Reparent専用の軽量フォールバック — Reconcilerのように新規IDを払い出さない。
-    ///
-    /// <para>
-    /// M0051 Step 1-4(バグ修正): 以前は<c>ReferenceEquals</c>で探していたが、直前の
-    /// <see cref="TryRemoveChildAt"/>が木を関数的に作り直すため新親は**必ず別インスタンス**になり、
-    /// この関数は常にfalseを返していた。結果、<b>親を跨ぐReparentはmodel適用時に必ず失敗し、
-    /// Hierarchyのドラッグ&amp;ドロップでの
-    /// 親子変更が一切効かなかった</b>(実機報告「ヒエラルキーで編集しても取り消される」の一因)。
-    /// XMLコメントが記していた本来の意図(Name+Component構成での照合)どおりに実装し直した。
-    /// </para>
-    /// </summary>
-    private static bool TryFindByIdentity(SceneNode Root,SceneNode Target,out NodePath Found){
-        if(HasSameIdentity(Root,Target)){
-            Found=Root.Path;
-            return true;
-        }
-        for(var Index=0;Index<Root.Children.Length;Index++){
-            if(TryFindByIdentity(Root.Children[Index],Target,out Found)){
-                return true;
-            }
-        }
-        Found=default;
-        return false;
-    }
-
-    /// <summary>
-    /// Name+Component型構成での同一性。<see cref="SceneProjectionReconciler"/>の
-    /// <c>ExactKey</c>と同じ考え方(Nameだけでは一意にならないためComponent構成も併せて見る)。
-    /// </summary>
-    private static bool HasSameIdentity(SceneNode Left,SceneNode Right){
-        if(ReferenceEquals(Left,Right)){
-            return true;
-        }
-        if(!string.Equals(Left.Name,Right.Name,System.StringComparison.Ordinal)
-            ||Left.Components.Length!=Right.Components.Length){
-            return false;
-        }
-        for(var Index=0;Index<Left.Components.Length;Index++){
-            if(!string.Equals(
-                Left.Components[Index].TypeFullyQualifiedName,
-                Right.Components[Index].TypeFullyQualifiedName,
-                System.StringComparison.Ordinal)){
-                return false;
-            }
-        }
-        return true;
     }
 
     private static SceneNode GetAtPath(SceneNode Root,NodePath Path){
