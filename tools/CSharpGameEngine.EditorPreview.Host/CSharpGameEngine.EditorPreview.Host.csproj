@@ -21,5 +21,6 @@
     <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJson.cs" Link="SceneJson/SceneJson.cs" />
     <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonReader.cs" Link="SceneJson/SceneJsonReader.cs" />
     <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonAngles.cs" Link="SceneJson/SceneJsonAngles.cs" />
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonDecimal.cs" Link="SceneJson/SceneJsonDecimal.cs" />
   </ItemGroup>
 </Project>

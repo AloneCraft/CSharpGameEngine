@@ -80,13 +80,12 @@ internal static class SceneJsonAngles {
             _=>1d,
         };
         var Quotient=Value/Scale;
-        // "G1" writes 90 as "9E+01"; an ordinary magnitude keeps positional digits.
+        // "G1" writes 90 as "9E+01"; an ordinary magnitude keeps positional digits. The digits and the parse are exact
+        // (SceneJsonDecimal), so the VSIX writes the same text as the tools; the product is Multiply's.
         var Positional=Math.Abs(Quotient)>=1e-4&&Math.Abs(Quotient)<1e15;
-        for(var Digits=1;Digits<=17;Digits++){
-            var Text=Quotient.ToString("G"+Digits.ToString(CultureInfo.InvariantCulture),CultureInfo.InvariantCulture);
-            if(Positional&&Text.IndexOf('E')>=0){ continue; }
-            if(Multiply(Text,Kind)==Value){ return Text=="-0"?"0":Text; }
-        }
-        return Quotient.ToString("R",CultureInfo.InvariantCulture);
+        var Text=SceneJsonDecimal.Shortest(Quotient,1,17,Positional,Parsed=>(float)(Parsed*Scale)==Value);
+        if(Text is not null){ return Text=="-0"?"0":Text; }
+        // No text of Quotient converts back: its own shortest text, as "R" writes it.
+        return SceneJsonDecimal.Shortest(Quotient,1,17,false,Parsed=>Parsed==Quotient,NotationDigits:15)!;
     }
 }

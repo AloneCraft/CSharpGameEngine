@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — VSIX と .NET のツールで数値の文字列がまだ違っていた（正確な丸め）
+- 意図: [ADR-0070](Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)「書き込みは変わった値だけを元のテキストへ戻す」。同日に float と double の書き方を両方の実行環境で同じ手順にした。
+- 観測（Fact）: 同じ入力を .NET Framework と .NET で書き比べた（約 400 万個）。float は約 3,000 個で文字列が違った。.NET Framework は丸めの中間（312985.125 の 8 桁）を 0 から遠い方へ丸め（`312985.13`）、.NET は偶数へ丸める（`312985.12`）。どちらも同じ float に戻るので値は同じだが、Scene Designer の編集が無関係な行を書き換える。値の大きい float（おおむね 1e5 以上）で起き、角度（度・回転数）でも 120 万個中 25 個あった。double は約 1.8 万個で違い、そのうち約 3,800 個は .NET Framework が書いた文字列を .NET で読むと別の double になった。.NET Framework は 15 桁や 17 桁へ丸めてから少ない桁へ丸め、double の解析も正しく丸めない（`0.00233238` を 1 ulp 違う double に読む）。
+- 実装: `SceneJsonDecimal` が、2 進の正確な値から 1 回だけ偶数丸めで桁を作り、候補の文字列を正確に解析して読み戻しを確かめる（`BigInteger` による。.NET の書式と解析と同じ結果）。float・double・角度の書き方がこれを使う。読み取り（JSON の文字列から値へ）は今までどおり実行環境の解析を使う。リポジトリのシーンにある数値 474 種類は、両方の実行環境で同じ float と double に読めた（`-0` の符号だけが違う）。
+- 自動化された証拠: `SceneJsonNumberSpellingTests`（net10。乱数のビット列と短い 2 進小数の float・double 各 4 万個と角度 1 万個の 4 単位で、文字列が .NET 自身の書式と一致し、全体のダイジェストが定数と一致）、`SceneJsonNumbersRuntimeTests`（net472。同じダイジェストと、中間の丸め・double の例）。一時的な検証で、約 400 万個の入力で新しい実装の .NET の出力が以前の .NET の出力と 1 文字も変わらないことも確かめた。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — VSIX は decimal のメンバーを持つシーンへ編集を書き戻せなかった
 - 意図: ADR-0070 の Scene Designer の書き戻しは、シーン JSON が持てる値のメンバーなら型によらず動く（decimal の範囲は同日に SCENE203 として検査するようにした）。
 - 観測（Fact）: 変換器は decimal の定数を `ToString("R")` で書いていた。.NET の "R" は decimal を "G" と同じ文字列で書くが、.NET Framework（VSIX）には decimal の "R" が無く `FormatException` を投げる。decimal のメンバーを持つコンポーネントがあるシーンでは、どのノードの編集も書き戻せなかった。エンジンのコンポーネントには decimal のメンバーが無いので、影響するのは利用者が自分で書いた decimal のメンバーだけ。
@@ -12,7 +19,7 @@
 - 観測（Fact）: 変換器は double の定数を `ToString("R")` で書いていた。.NET Framework（VSIX）の "R" は最短の文字列ではなく、1/3 を `0.33333333333333331` と書き、.NET（ツール）は `0.3333333333333333` と書く。double のメンバーを持つコンポーネントがあるシーンで別のノードを動かすと、差分の適用は十進の文字列で比べるので、その double の行も書き換えた。エンジンのコンポーネントには double のメンバーが無い（NUM001）ので、影響するのは利用者が自分で書いた double のメンバーだけ。
 - 実装: double は G15 から G17 のうち double として読み戻せる最短の文字列で書く（両方の実行環境で同じ手順。NUM001 の境界は `SceneJsonNumbers.FormatOther`）。decimal は今までどおり自分の文字列で書く。
 - 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsDoubleMembersAsWritten`（net472。修正前は `0.33333333333333331` を書いて失敗）。
-- 結果: Matches。
+- 結果: Matches（同日の追記: この手順でも .NET Framework では文字列が違う値が残っていた。上の「正確な丸め」の項目で置き換えた）。
 
 ## 2026-10-04 探索 — Scene Designer の書き戻しを実際のテンプレートのシーンで検証するテスト
 - 意図: 同日に直した Scene Designer の書き戻しの不具合（startupOrder の消失、VSIX の float の書き方、列挙型・文字列・LogicalScalar の編集、パレットの既定値）は、どれもスタブの型を使うテストでは見えず、実際のシーンとエンジンの型でしか再現しなかった。
@@ -46,7 +53,7 @@
 - 観測（Fact）: 実際のシーン（UserEcsProject の FirstPersonStageScene）で、Inspector の任意のメンバーを同じ値で確定すると、別のノードの `"U": 24.896297` が `24.896298`、`"R": 5.0000052` が `5.0000053` に書き換わった（655 件中 356 件の確定）。.NET Framework（VSIX）は float をいったん 9 桁に丸めてから少ない桁に丸めるので、`5.00000524521` の G8 が `5.0000053` になり、.NET（ツール）は `5.0000052` を書く。値は同じ float だが、差分の適用は十進の文字列で比べるため、編集のたびに無関係な行が変わっていた。
 - 実装: float の正確な値を double として一度だけ丸めて書き、double として読み戻して確かめる（両方の実行環境で同じ手順。NUM001 の境界はこの 2 メソッド）。
 - 自動化された証拠: `SceneJsonNumbersRuntimeTests.SingleSpelling_IsTheSameAsOnDotNet`（net472。修正前は 2 件失敗）、`SceneJsonTests.SingleSpelling_IsTheShortestRoundTripText` に同じ値を追加（net10）。実際のシーン 21 個の Inspector の全メンバー（1,191 件）を同じ値で確定しても、ファイルは 1 文字も変わらなくなった（一時的な検証、未コミット）。
-- 結果: Matches。
+- 結果: Matches（同日の追記: この手順でも .NET Framework では文字列が違う値が残っていた。上の「正確な丸め」の項目で置き換えた）。
 
 ## 2026-10-04 探索 — Scene Designer で起動シーンを編集すると startupOrder が消え、ゲームがそのシーンを読み込まなくなった
 - 意図: ADR-0070「Scene Designer は JSON シーンを同等の C# クラスとして読み、同じ SceneModel を得る」「書き込みは変わった値だけを元のテキストへ戻す」(M0095)。

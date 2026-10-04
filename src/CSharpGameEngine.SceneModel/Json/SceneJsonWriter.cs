@@ -140,40 +140,25 @@ internal static class SceneJsonWriter {
 /// .NET Framework and .NET, so the VSIX and the tools write the same text for the same value.
 /// </summary>
 internal static class SceneJsonNumbers {
+    // The double boundary of the numeric policy (NUM001) is these two methods and SceneJsonDecimal, which rounds and
+    // parses exactly on both runtimes (.NET Framework's own formatting and parsing differ from .NET's).
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
     internal static string FormatSingle(float Value){
         if(float.IsNaN(Value)||float.IsInfinity(Value)){ throw new ArgumentOutOfRangeException(nameof(Value),"JSON numbers must be finite."); }
-        for(var Digits=6;Digits<=9;Digits++){
-            var Text=Rounded(Value,Digits);
-            if(ParsesTo(Text,Value)){ return Normalize(Text); }
-        }
-        return Normalize(Rounded(Value,9));
+        return Normalize(SceneJsonDecimal.Shortest(Value,6,9,false,Parsed=>(float)Parsed==Value)??SceneJsonDecimal.Format(Value,9));
     }
-    // The double boundary of the numeric policy (NUM001) is these two methods and FormatOther. .NET Framework rounds a
-    // float to nine digits before it rounds to fewer (5.00000524521 is "5.0000053" with G8, .NET writes "5.0000052"); the
-    // float's exact value, as a double, rounds once on both runtimes. Parsing goes the same way on both too.
-#if CGE_NUMERIC_ADAPTER
-    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
-#endif
-    private static string Rounded(float Value,int Digits)=>
-        ((double)Value).ToString("G"+Digits.ToString(CultureInfo.InvariantCulture),CultureInfo.InvariantCulture);
-#if CGE_NUMERIC_ADAPTER
-    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
-#endif
-    private static bool ParsesTo(string Text,float Value)=>
-        (float)double.Parse(Text,NumberStyles.Float,CultureInfo.InvariantCulture)==Value;
     /// <summary>
-    /// A double's shortest text of 15 to 17 digits that reads back to it ("R" differs between .NET Framework and .NET),
-    /// or a decimal's exact text with its scale (1.50 stays 1.50; .NET Framework has no "R" for decimal).
+    /// A double's shortest text of 15 to 17 digits that reads back to it, or a decimal's exact text with its scale (1.50
+    /// stays 1.50; .NET Framework has no "R" for decimal).
     /// </summary>
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
 #endif
     internal static string FormatOther(IFormattable Value){
         if(Value is double Double&&!double.IsNaN(Double)&&!double.IsInfinity(Double)){
-            for(var Digits=15;Digits<=17;Digits++){
-                var Text=Double.ToString("G"+Digits.ToString(CultureInfo.InvariantCulture),CultureInfo.InvariantCulture);
-                if(double.Parse(Text,NumberStyles.Float,CultureInfo.InvariantCulture)==Double){ return Normalize(Text); }
-            }
+            return Normalize(SceneJsonDecimal.Shortest(Double,15,17,false,Parsed=>Parsed==Double)??SceneJsonDecimal.Format(Double,17));
         }
         return Value.ToString(null,CultureInfo.InvariantCulture);
     }

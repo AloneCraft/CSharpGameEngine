@@ -35,6 +35,7 @@ The user asked for an Unreal/Unity-like editor:
    - Numbers, booleans and strings use their JSON forms. Enums are member-name strings.
    - A struct value is a JSON object. The object's keys are either settable members (an object initializer) or the parameter names of a public constructor.
    - Floats are written in their shortest round-trip form. The writer changes only the values that were edited and keeps key order, so one edit is a one-line diff.
+   - A number has one text whichever runtime writes it: the VSIX (.NET Framework) and the tools (.NET) round digits and parse exactly, ties to even (`SceneJsonDecimal`; 2026-10-04), because .NET Framework's own formatting and parsing differ from .NET's.
 3. **C# is generated at build time.**
    - `GameSystemGenerator` reads the scene files from `AdditionalFiles` and builds the existing `SceneEmitModel`. The emitters are unchanged, and the generated C# is compiled in the same build.
    - With `EmitCompilerGeneratedFiles` the C# is also written to `obj/Generated` for inspection.
