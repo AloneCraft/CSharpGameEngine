@@ -1,0 +1,34 @@
+#!/bin/sh
+# Refuses a push that would send any file at or above the size limit, checking every
+# commit the remote does not have yet - not just the tip - because GitHub rejects the
+# whole push when any commit in it carries a file over 100 MB, even one deleted later.
+# Limit: git config hooks.maxFileSizeMB (default 50, GitHub's large-file warning size).
+
+LimitMb=$(git config --get hooks.maxFileSizeMB || echo 50)
+LimitBytes=$((LimitMb * 1024 * 1024))
+Remote="$1"
+ZeroSha=0000000000000000000000000000000000000000
+Found=0
+
+while read LocalRef LocalSha RemoteRef RemoteSha; do
+    case "$LocalSha" in *[!0]*) ;; *) continue ;; esac
+    case "$RemoteSha" in
+        *[!0]*) Range="$RemoteSha..$LocalSha" ;;
+        *) Range="$LocalSha --not --remotes=$Remote" ;;
+    esac
+    Large=$(git rev-list --objects $Range |
+        git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' |
+        awk -v Limit="$LimitBytes" '$1 == "blob" && $2 >= Limit { printf "  %.1f MB  %s\n", $2 / 1048576, substr($0, index($0, $3)) }' |
+        sort -u)
+    if [ -n "$Large" ]; then
+        echo "pre-push: $LocalRef contains files of ${LimitMb} MB or more:" >&2
+        echo "$Large" >&2
+        Found=1
+    fi
+done
+
+if [ "$Found" -ne 0 ]; then
+    echo "pre-push: remove them from the history (not just the latest commit) or raise hooks.maxFileSizeMB." >&2
+    exit 1
+fi
+exit 0

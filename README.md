@@ -11,6 +11,13 @@ dotnet build CSharpGameEngine.slnx
 ```
 リポジトリ直下には補助の`UserEcsProject.slnx`もあるので、ソリューションを指定します（指定しないとMSB1011で止まります）。
 
+## Git フック（大きいファイルの混入防止）
+クローンごとに一度だけ有効化します。
+```bash
+git config core.hooksPath .githooks
+```
+50MB以上のファイルをステージしたコミット（`pre-commit`）と、未送信のどのコミットかに50MB以上のファイルを含むプッシュ（`pre-push`）を拒否します。上限は`git config hooks.maxFileSizeMB <MB>`で変えられます。GitHubは100MBを超えるファイルを含むプッシュ全体を拒否するため、最新コミットで消しても履歴に残っていれば送れません。
+
 ## Visual Studio VSIX
 
 `CSharpGameEngine.VSExtension`を最新のビルドで起動するには、先に`CgeFixed`実験インスタンスをすべて閉じてから、リポジトリ直下のPowerShellで次を実行します。
@@ -165,7 +172,7 @@ dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb
 ```
 
 自分で購入・ダウンロードしたFabアセット（glTF/GLB形式）を表示する場合は、
-`UserEcsProject/Assets/Fab/`配下に配置し、`--model`でそのパスを指定してください。
+`UserEcsProject/Assets/Fab/`配下に配置し、`--model`でそのパスを指定してください（`Assets/Fab/`は`.gitignore`で除外され、コミットされません）。
 ```bash
 dotnet run --project tools/CSharpGameEngine.Extension -- --model UserEcsProject/Assets/Fab/<アセット名>/<ファイル名>.gltf
 ```

@@ -54,3 +54,6 @@ __pycache__/
 
 # Generated per-project scene JSON Schema (ADR-0070)
 .cge/
+
+# Marketplace assets dropped by the Fab watcher (ADR-0011): large and not ours to redistribute
+**/Assets/Fab/

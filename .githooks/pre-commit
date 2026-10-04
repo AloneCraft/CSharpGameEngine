@@ -1,0 +1,27 @@
+#!/bin/sh
+# Refuses a commit that stages a file at or above the size limit, so it never enters the
+# history (once committed, deleting it later does not shrink what a push must send).
+# Limit: git config hooks.maxFileSizeMB (default 50, GitHub's large-file warning size).
+
+LimitMb=$(git config --get hooks.maxFileSizeMB || echo 50)
+LimitBytes=$((LimitMb * 1024 * 1024))
+Found=0
+
+Staged=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=AMCR)
+OldIfs=$IFS
+IFS='
+'
+for Path in $Staged; do
+    Size=$(git cat-file -s ":$Path" 2>/dev/null) || continue
+    if [ "$Size" -ge "$LimitBytes" ]; then
+        awk -v P="$Path" -v S="$Size" -v L="$LimitMb" 'BEGIN { printf "pre-commit: %s is %.1f MB (limit %s MB)\n", P, S / 1048576, L }' >&2
+        Found=1
+    fi
+done
+IFS=$OldIfs
+
+if [ "$Found" -ne 0 ]; then
+    echo "pre-commit: unstage the file (git rm --cached <path>) and add it to .gitignore, or raise hooks.maxFileSizeMB." >&2
+    exit 1
+fi
+exit 0
