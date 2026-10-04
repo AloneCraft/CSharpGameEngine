@@ -55,6 +55,8 @@ XInput pad 0 is polled once per `DrainInputEvents()`. It emits button, stick, an
 
 Mouse-look capture hides and clips the cursor only while the window owns focus. `ClipCursor` is system-wide, so a background or hidden window applies the capture when it receives focus.
 
+The game window takes no text input, so it has no input method context: an open IME (a Japanese one in hiragana mode) would turn the keys it processes into `VK_PROCESSKEY`, and movement keys would not reach the game. The window removes its input context association when it is created.
+
 Automation input (`CGE_AUTOMATION_INPUT`, e.g. `W@20-40;SpaceBar@50-51`) presses keys by presented frame through the same adapter path as the window procedure.
 
 ## Audio contract and recovery

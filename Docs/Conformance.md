@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — ゲームのウィンドウに入力メソッドが付いていた（IME がオンだと移動キーが届かない）
+- 意図: [Audio-Input-Platform](Specifications/Audio-Input-Platform.md)「Keyboard, mouse, and gamepad controls」。ゲームのウィンドウは文字入力を持たない（`WM_CHAR` を扱わない）。
+- 観測（Fact）: キーボードは `WM_KEYDOWN`/`WM_KEYUP` の仮想キーで受け取り、キーボードの Raw Input は使っていない。ゲームのウィンドウには既定の入力コンテキストが付いていた（同じスレッドの `ImmGetContext` が 0 でない）。Windows は IME が処理したキーを `WM_KEYDOWN` の `VK_PROCESSKEY` として送るので、日本語 IME をひらがな入力のままゲームへ切り替えると W/A/S/D が届かないことになる（Windows の文書の動作。ユーザーの画面でフォーカスを奪ってキーを送る実験はしていない）。
+- 実装: ウィンドウを作った直後に `ImmAssociateContextEx(hwnd, NULL, 0)` で入力コンテキストとの関連付けを外す。失う機能は無い（文字入力を扱っていない）。
+- 自動化された証拠: `Win32WindowImeTests.GameWindow_HasNoInputMethodContext`（修正前は 0 でない入力コンテキスト）。
+- 結果: Matches。既知の未検証: 実際の日本語 IME での打鍵による確認。
+
 ## 2026-10-04 探索 — システムのコードページに無い文字を含むパスの FBX を取り込めなかった
 - 意図: [ADR-0009](Decisions/ADR-0009-Fbx-Model-Import.md) の FBX 取り込み。利用者のフォルダー名やファイル名は日本語や空白を含むことがある。
 - 観測（Fact）: AssimpNet 4.1.0 はファイル名を `LPStr`（Windows では ANSI のコードページ）でネイティブへ渡す。日本語ロケールのこの PC では日本語のパスは通ったが、CP932 に無いハングルを含むパスでは Assimp が `"…\箱 ?? ??.fbx"` を開こうとして「Unable to open file」で失敗した。英語版 Windows（CI の windows-2022 を含む）では、日本語を含むパスがすべて同じように失敗する。glTF（SharpGLTF、マネージド）は日本語と空白を含むパーセントエンコードの URI でも生の URI でも取り込めた。

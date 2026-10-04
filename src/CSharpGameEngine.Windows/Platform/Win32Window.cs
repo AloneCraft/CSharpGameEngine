@@ -78,6 +78,9 @@ public sealed unsafe class Win32Window:IDisposable {
 
         this.Hwnd=Hwnd;
         this.RegisterRawInput();
+        // The window takes no text, so it has no input method: an open IME (a Japanese one in hiragana mode) turns the
+        // keys it processes into VK_PROCESSKEY, and W/A/S/D would not reach the game.
+        _=NativeImmAssociateContextEx((nint)Hwnd.Value,0,0);
         this.RefreshClientSize();
 
         if(Options.Visible){
@@ -383,6 +386,9 @@ public sealed unsafe class Win32Window:IDisposable {
     private static extern bool NativeRegisterRawInputDevices(NativeRawInputDevice*Devices,uint DeviceCount,uint StructureSize);
     [DllImport("user32.dll",EntryPoint="GetRawInputData",SetLastError=true)]
     private static extern uint NativeGetRawInputData(nint RawInput,uint Command,void*Data,uint*Size,uint HeaderSize);
+    [DllImport("imm32.dll",EntryPoint="ImmAssociateContextEx")]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool NativeImmAssociateContextEx(nint Hwnd,nint Context,uint Flags);
 
     [UnmanagedCallersOnly]
     private static LRESULT WndProc(HWND Hwnd,uint Msg,WPARAM WParam,LPARAM LParam){
