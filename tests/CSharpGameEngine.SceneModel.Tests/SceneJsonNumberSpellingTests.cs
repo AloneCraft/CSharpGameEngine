@@ -88,6 +88,18 @@ public sealed class SceneJsonNumberSpellingTests {
         Assert.Equal((true,false),(SceneJsonDecimal.ReadsBack("3.4028235677973366E+38",float.MaxValue),SceneJsonDecimal.ReadsBack("3.4028235677973367E+38",float.MaxValue)));
     }
 
+    /// <summary>An exponent at or past the ends of int is no reason to throw: the text is then written from the value.</summary>
+    [Theory]
+    [InlineData("1e-2147483648")]
+    [InlineData("1e2147483647")]
+    [InlineData("1.5e-2147483648")]
+    [InlineData("1e-9223372036854775808")]
+    [InlineData("1e99999999999999999999")]
+    public void ReadsBack_IsFalseForExtremeExponents(string Text){
+        Assert.False(SceneJsonDecimal.ReadsBack(Text,0f));
+        Assert.False(SceneJsonDecimal.ReadsBack(Text,0d));
+    }
+
     [Fact]
     public void SampleDigest_IsTheOneTheVsixChecks()=>Assert.Equal(SceneJsonNumberSamples.Digest,SceneJsonNumberSamples.ComputeDigest());
 }

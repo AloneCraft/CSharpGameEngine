@@ -102,8 +102,9 @@ internal static class SceneJsonDecimal {
     }
     /// <summary>
     /// Whether a JSON number's text reads back as <paramref name="Value"/>, a float, double, decimal or integer constant,
-    /// through a correctly rounded parse. False for any other value, and for a power of ten beyond 400, which no such
-    /// constant needs and which would make the exact arithmetic slow.
+    /// through a correctly rounded parse. False for any other value, and for a power of ten beyond 400 or an exponent
+    /// beyond 1000, which no author's spelling of such a constant needs and which would make the exact arithmetic slow;
+    /// the converter then writes the value's own text.
     /// </summary>
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
@@ -113,15 +114,17 @@ internal static class SceneJsonDecimal {
         var Body=Negative?Text.Substring(1):Text;
         var ExponentAt=Body.IndexOfAny(['e','E']);
         var Mantissa=ExponentAt<0?Body:Body.Substring(0,ExponentAt);
-        if(!int.TryParse(ExponentAt<0?"0":Body.Substring(ExponentAt+1),NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Exponent)){
+        if(!long.TryParse(ExponentAt<0?"0":Body.Substring(ExponentAt+1),NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Exponent)){
             return false;
         }
         var Dot=Mantissa.IndexOf('.');
-        var Power=Exponent-(Dot<0?0:Mantissa.Length-Dot-1);
-        if(Math.Abs(Power)>400
+        // In long and bounded before the digits after the point are taken off, so no exponent wraps (-2^31 has no Abs).
+        var LongPower=Exponent<-1000||Exponent>1000?Exponent:Exponent-(Dot<0?0:Mantissa.Length-Dot-1);
+        if(LongPower<-400||LongPower>400
             ||!BigInteger.TryParse(Dot<0?Mantissa:Mantissa.Remove(Dot,1),NumberStyles.None,CultureInfo.InvariantCulture,out var Significand)){
             return false;
         }
+        var Power=(int)LongPower;
         // Parse needs a nonzero significand; a zero reads back as zero of either sign.
         switch(Value){
             case float Single:return RoundsToSingle(Negative,Significand,Power,Single);
