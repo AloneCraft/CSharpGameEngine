@@ -39,8 +39,8 @@ internal struct MovementSystem : ISystem
 }
 ```
 
-実行可能な完全版は`UserGameProject/`(`Components.cs`・`Systems/Systems.cs`・`Program.cs`)を参照。
-`Program.cs`を持たない構成(エントリポイントもSGが生成する)の実例は`UserEcsProject/`。
+実行可能な実例は`UserEcsProject/`(`GameplayComponents.cs`・`Showcase/ShowcaseSystems.cs`、エントリポイントもSGが生成する)と
+ThirdPersonテンプレート(`templates/CSharpGameEngine.Templates.ThirdPerson/`)を参照。
 
 ## 推論規則
 
