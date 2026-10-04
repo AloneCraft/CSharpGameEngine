@@ -326,7 +326,7 @@ public sealed class SceneJsonGeneratorTests {
             }
         }
         namespace Sample {
-            public struct Lamp { public CSharpGameEngine.Lighting.LinearLightColor Color; public CSharpGameEngine.Numerics.LogicalScalar Height; public float Scale; }
+            public struct Lamp { public CSharpGameEngine.Lighting.LinearLightColor Color; public CSharpGameEngine.Numerics.LogicalScalar Height; public float Scale; public double Far; public decimal Price; }
             internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
                 public bool Update(ref Lamp lamp, ref CSharpGameEngine.Entities.State state) => true;
             }
@@ -341,7 +341,7 @@ public sealed class SceneJsonGeneratorTests {
             "id": "7c0c2c9e-6c56-4f46-9d0f-0c6f2c8f0001",
             "name": "Root",
             "components": [
-              { "type": "Sample.Lamp", "members": { "Color": { "R": 1, "G": 0.5, "B": 0 }, "Height": 9e18, "Scale": 3e38 } }
+              { "type": "Sample.Lamp", "members": { "Color": { "R": 1, "G": 0.5, "B": 0 }, "Height": 9e18, "Scale": 3e38, "Far": -1e308, "Price": 7.9e28 } }
             ],
             "children": []
           }
@@ -351,9 +351,11 @@ public sealed class SceneJsonGeneratorTests {
     [InlineData("\"R\": 1,","\"R\": -1,","a LinearLightColor needs finite non-negative values")]
     [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the Q64.64 range")]
     [InlineData("\"Scale\": 3e38","\"Scale\": 1e39","beyond the range of float")]
+    [InlineData("\"Far\": -1e308","\"Far\": -1e309","beyond the range of double")]
+    [InlineData("\"Price\": 7.9e28","\"Price\": 7.93e28","beyond the range of decimal")]
     public void ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition(string Original,string Replacement,string Reason){
         // These build, then throw when the scene is instantiated (a light value's constructor, LogicalScalar's
-        // conversion) or fail to compile in the generated file (a float literal beyond float), so the build reports them.
+        // conversion) or fail to compile in the generated file (a real literal beyond its type), so the build reports them.
         Assert.Empty(Analyze(RangedScene,RangedComponents));
         Assert.Contains(Original,RangedScene);
         var Diagnostic=Assert.Single(Analyze(RangedScene.Replace(Original,Replacement),RangedComponents));

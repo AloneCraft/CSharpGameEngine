@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — double と decimal の範囲外の数値が生成コードのコンパイルエラーになっていた
+- 意図: ADR-0070「SCENE203 はコンパイラーが拒否する値も含む。値を落として生成しない」。float の範囲外はすでに SCENE203 だった。
+- 観測（Fact）: double のメンバーに `1e400`、decimal のメンバーに `1e30` を書くと、シーンの診断は出ず、生成された `Game.MainScene.Scene.g.cs` が CS0594（浮動小数点定数が型の範囲外）になった。
+- 実装: double と decimal のリテラルは、コンパイラーの字句解析（`SyntaxFactory.ParseToken`）が範囲外とするときに SCENE203 にする。製品コードで double を使わない（NUM001）ためと、判定をコンパイラーと同じにするため。
+- 自動化された証拠: `SceneJsonGeneratorTests.ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition` の double・decimal の 2 件（修正前は診断なしで失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — Inspector の数値欄が NaN と Infinity を受け付けていた
 - 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Invalid text ... create no source operation」。`SceneInspectorValueFormat` は、生成ソースがコンパイルエラーになる入力を各型の `TryParse` で弾くと約束している。
 - 観測（Fact）: float の欄に `NaN`・`Infinity`・`-Infinity` と打つと、`float.TryParse` が成功し、式 `NaNf`・`Infinityf`・`-Infinityf` がソースへ書かれる（C# では未定義の識別子なのでコンパイルエラー。JSON の数値にもならない）。`1e39` は net472 の `TryParse` が失敗するので弾かれていた。角度の欄は有限の数値しか通さない。

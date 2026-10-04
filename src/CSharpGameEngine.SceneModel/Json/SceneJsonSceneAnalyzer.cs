@@ -558,8 +558,17 @@ internal static class SceneJsonSceneAnalyzer {
             ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
             :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture);
     }
-    private static string RealLiteral(string Text,SceneJsonValue Value,string Suffix,Func<string,string>Mismatch)=>
-        Value.Kind==SceneJsonKind.Number?Text+Suffix:Mismatch("expected a number");
+    /// <summary>
+    /// A real literal, or a mismatch for a number its type cannot hold: the compiler's lexer decides, as it rejects the
+    /// generated literal (CS0594). A JSON minus sign is a separate C# token, so it is left out of the check.
+    /// </summary>
+    private static string RealLiteral(string Text,SceneJsonValue Value,string Suffix,Func<string,string>Mismatch){
+        if(Value.Kind!=SceneJsonKind.Number){ return Mismatch("expected a number"); }
+        if(SyntaxFactory.ParseToken(Text.TrimStart('-')+Suffix).ContainsDiagnostics){
+            return Mismatch("the number is beyond the range of "+(Suffix=="m"?"decimal":"double"));
+        }
+        return Text+Suffix;
+    }
     private static string IntegerLiteral(SceneJsonValue Value,long Minimum,ulong Maximum,string Cast,Func<string,string>Mismatch){
         if(Value.Kind!=SceneJsonKind.Number){ return Mismatch("expected an integer"); }
         bool InRange;
