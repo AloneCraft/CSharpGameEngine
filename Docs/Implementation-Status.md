@@ -4036,6 +4036,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L8-023 — Transform tool visual conformance
 
+- M0098 B (2026-10-04): every drawn Move-arrow pixel is grabbable. `ClosestRaySegment` solves the exact ray (t≥0) / segment closest points (re-solving after each clamp, scale-free parallel test), and the arrowhead base is drawn at the hit radius `AxisRadius` (was 0.085 > 0.08). Tests: `GizmoVisibleHitConsistencyTests` (pixel raster through `ScreenPointToRay`→`TryHitTransform`, and rays from 518 directions through the drawn triangles into `TryHitMove`), `TransformGizmoTests.TryHitMove_GrazingRayThroughTheDrawnArrowhead_HitsTheAxis`, `TryHitMove_RayParallelToTheAxisThroughTheArrowhead_HitsTheAxis`. The M0096 "tip not grabbable" observation was an automated drag disturbed after the hit succeeded (Docs/Milestones/M0098-ThirdPerson-World-Grid.md B). Known deviation: Scale end cubes extend beyond their 0.075 hit capsule (by computation; next action).
+
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
 - Status: Implemented
