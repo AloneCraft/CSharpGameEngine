@@ -67,7 +67,7 @@
 ## Phase 2 で否定・保留した仮説
 - 「VS 経由と E2E 経由の出力差（ReadMe.md）を無くす」: ADR-0068 により、vstemplate の ReadMe は VSSDK にプロジェクトファイルをアーカイブさせるための項目で、外せない。差は ReadMe だけでビルドに影響しないため、生成器のコメントに例外として明記した。
 - 「`ThirdPerson.csproj.template` と `GameProjectGenerator.ProjectFile` の二重管理」: 一致は既存の `GameProjectGeneratorTests` が守っており、現状維持。
-- 「`PublishToFeed` が同サイズのパッケージを同一とみなすため古い中身が残る」: 起こりうるが、NuGet のグローバルキャッシュも同じバージョンを再利用するため、運用は修正ごとのバージョン更新で回っている。未対応。
+- 「`PublishToFeed` が同サイズのパッケージを同一とみなすため古い中身が残る」: 起こりうるが、NuGet のグローバルキャッシュも同じバージョンを再利用するため、運用は修正ごとのバージョン更新で回っている。未対応(2026-10-04 対応: `PublishToFeed` は中身をバイトで比べる。NuGet のグローバルキャッシュが同じバージョンを使い続けることは README に書いた)。
 
 ## 3-4 プレビューの同期呼び出しの計測
 - 計測（WARP、640×360、`PrimitiveShowcaseBoxScene`、一時的な計測テスト）: ホスト起動 64〜183 ms、ランタイムビューの Open 242〜1,159 ms、最初の Render 278〜515 ms。毎フレームの UpdateFrame+Render は中央値 30〜51 ms だが、UpdateFrame だけの往復は中央値 0.5 ms で、「リクエストごとのパイプ再接続が遅い」という仮説は否定された（フレームの時間は WARP の描画そのもの）。

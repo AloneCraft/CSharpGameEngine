@@ -154,4 +154,18 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         Assert.Equal("package",File.ReadAllText(Published));
         Assert.Equal(WriteTime,File.GetLastWriteTimeUtc(Published));
     }
+
+    [Fact]
+    public void PublishToFeed_ReplacesARebuiltPackageOfTheSameLength(){
+        // The package keeps its version while it is rebuilt (ADR-0065); equal length does not make it the same package.
+        var Package=Path.Combine(this.Root,"CSharpGameEngine.Sdk.0.1.0.nupkg");
+        File.WriteAllText(Package,"package");
+        var Feed=Path.Combine(this.Root,"feed");
+        GameProjectGenerator.PublishToFeed(Package,Feed);
+        File.WriteAllText(Package,"pAckage");
+
+        GameProjectGenerator.PublishToFeed(Package,Feed);
+
+        Assert.Equal("pAckage",File.ReadAllText(Path.Combine(Feed,"CSharpGameEngine.Sdk.0.1.0.nupkg")));
+    }
 }

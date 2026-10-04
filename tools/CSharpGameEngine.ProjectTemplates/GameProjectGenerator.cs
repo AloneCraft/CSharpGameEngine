@@ -116,10 +116,43 @@ internal static class GameProjectGenerator {
     internal static void PublishToFeed(string PackagePath,string FeedDirectory){
         Directory.CreateDirectory(FeedDirectory);
         var Destination=Path.Combine(FeedDirectory,Path.GetFileName(PackagePath));
-        if(File.Exists(Destination)&&new FileInfo(Destination).Length==new FileInfo(PackagePath).Length){
+        if(File.Exists(Destination)&&SameContent(Destination,PackagePath)){
             return;
         }
         File.Copy(PackagePath,Destination,true);
+    }
+
+    /// <summary>
+    /// Byte equality: the package keeps its version while it is rebuilt (ADR-0065), and a rebuilt package can have the
+    /// old one's length.
+    /// </summary>
+    private static bool SameContent(string Left,string Right){
+        if(new FileInfo(Left).Length!=new FileInfo(Right).Length){
+            return false;
+        }
+        using var LeftStream=File.OpenRead(Left);
+        using var RightStream=File.OpenRead(Right);
+        var LeftBuffer=new byte[81920];
+        var RightBuffer=new byte[LeftBuffer.Length];
+        while(true){
+            var Read=LeftStream.Read(LeftBuffer,0,LeftBuffer.Length);
+            if(Read==0){
+                return true;
+            }
+            var Offset=0;
+            while(Offset<Read){
+                var RightRead=RightStream.Read(RightBuffer,Offset,Read-Offset);
+                if(RightRead==0){
+                    return false;
+                }
+                Offset+=RightRead;
+            }
+            for(var Index=0;Index<Read;Index++){
+                if(LeftBuffer[Index]!=RightBuffer[Index]){
+                    return false;
+                }
+            }
+        }
     }
 
     /// <summary>Creates a complete game project: sources, <c>&lt;ProjectName&gt;.csproj</c> and <c>nuget.config</c>.</summary>
