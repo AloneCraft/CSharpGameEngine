@@ -482,6 +482,26 @@ public sealed class SceneJsonCommitPlannerTests {
         var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),After);
     }
+    /// <summary>
+    /// The author's key order and the lists or ids they leave out are layout, not values: moving the Cube writes its one
+    /// position line. The merge compared objects by their names in order, so any edit rewrote, in canonical form, every
+    /// object written in another order or without an empty list (a whole node, with its children), and a node without an id.
+    /// </summary>
+    [Theory]
+    [InlineData("        \"id\": \"LAMP\",\n        \"name\": \"Lamp\",\n","        \"name\": \"Lamp\",\n        \"id\": \"LAMP\",\n")]
+    [InlineData("        ],\n        \"children\": []\n      }\n    ]","        ]\n      }\n    ]")]
+    [InlineData("              \"RotationW\": 1,\n              \"ScaleX\": 1,\n","              \"ScaleX\": 1,\n              \"RotationW\": 1,\n")]
+    [InlineData("    \"components\": [],\n    \"children\": [\n","    \"children\": [\n")]
+    public void Move_KeepsTheAuthorsKeyOrderAndOmittedLists(string Original,string Replacement){
+        var Before=Document("1").Replace(Original.Replace("LAMP",LampId),Replacement.Replace("LAMP",LampId));
+        Assert.NotEqual(Document("1"),Before);
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');

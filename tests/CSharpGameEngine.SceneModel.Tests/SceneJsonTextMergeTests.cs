@@ -37,11 +37,45 @@ public sealed class SceneJsonTextMergeTests {
         Assert.Equal(Old.Replace("\"X\":1.0","\"X\":4"),SceneJsonTextMerge.Merge(Old,Edited));
     }
 
+    /// <summary>
+    /// Key order is the author's layout. Objects were compared by their keys in order, so an author's order other than
+    /// the canonical one made every edit rewrite that object (a whole node with its children) in canonical form.
+    /// </summary>
     [Fact]
-    public void ReorderedProperties_FallBackToTheNewObjectText(){
+    public void ReorderedProperties_KeepTheAuthorsOrder(){
         var Edited=Canonical.Replace("\"members\": { \"X\": 1, \"Y\": 2 }","\"members\": { \"Y\": 2, \"X\": 1 }");
+        Assert.Equal(HandFormatted,SceneJsonTextMerge.Merge(HandFormatted,Edited));
+        var Moved=Edited.Replace("\"Y\": 2","\"Y\": 5");
+        Assert.Equal(HandFormatted.Replace("\"Y\": 2","\"Y\": 5"),SceneJsonTextMerge.Merge(HandFormatted,Moved));
+    }
+
+    /// <summary>A node's empty components or children and a component's empty members read the same left out, so they stay out.</summary>
+    [Fact]
+    public void EmptyListsTheAuthorLeftOut_StayOut(){
+        const string Old="{\n  \"root\": {\n    \"name\": \"Root\",\n    \"children\": [ { \"name\": \"Leaf\", \"components\": [ { \"type\": \"T\" } ] } ]\n  }\n}\n";
+        const string New="{\n  \"root\": {\n    \"name\": \"Root\",\n    \"components\": [],\n    \"children\": [\n      {\n        \"name\": \"Leaf\",\n        \"components\": [ { \"type\": \"T\", \"members\": {} } ],\n        \"children\": []\n      }\n    ]\n  }\n}\n";
+        Assert.Equal(Old,SceneJsonTextMerge.Merge(Old,New));
+        Assert.Equal(Old.Replace("\"Leaf\"","\"Leaf2\""),SceneJsonTextMerge.Merge(Old,New.Replace("\"Leaf\"","\"Leaf2\"")));
+    }
+
+    /// <summary>
+    /// A key the new document adds is one inserted property, after the nearest key before it that the old text has and
+    /// with the author's spacing, not a canonical rewrite of the object. Inside members an empty list is a value.
+    /// </summary>
+    [Fact]
+    public void AddedKey_IsInsertedWithTheAuthorsSpacing(){
+        const string Old="{\n  \"root\": {\n    \"name\": \"Root\",\n    \"components\": [ { \"type\": \"T\", \"members\": { \"X\":1.0, \"Z\": 3 } } ]\n  }\n}\n";
+        var WithId=SceneJsonTextMerge.Merge(Old,"{ \"root\": { \"id\": \"a\", \"name\": \"Root\", \"components\": [ { \"type\": \"T\", \"members\": { \"X\": 1, \"Z\": 3 } } ], \"children\": [] } }");
+        Assert.Equal(Old.Replace("    \"name\": \"Root\",","    \"id\": \"a\",\n    \"name\": \"Root\","),WithId);
+        var WithMember=SceneJsonTextMerge.Merge(Old,"{ \"root\": { \"name\": \"Root\", \"components\": [ { \"type\": \"T\", \"members\": { \"X\": 1, \"Y\": [], \"Z\": 3 } } ] } }");
+        Assert.Equal(Old.Replace("\"X\":1.0,","\"X\":1.0, \"Y\": [],"),WithMember);
+    }
+
+    [Fact]
+    public void DroppedKey_ReplacesTheObject(){
+        var Edited=Canonical.Replace("\"members\": { \"X\": 1, \"Y\": 2 }","\"members\": { \"X\": 1 }");
         var Merged=SceneJsonTextMerge.Merge(HandFormatted,Edited);
-        Assert.Contains("\"members\": { \"Y\": 2, \"X\": 1 }",Merged);
+        Assert.Contains("\"members\": { \"X\": 1 }",Merged);
         Assert.True(SceneJsonTextMerge.SameValue(SceneJsonReader.Parse(Merged),SceneJsonReader.Parse(Edited)));
     }
 

@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — キーの並びが正規形と違うノードや空のリストを省いたノードを、どの編集でも子ごと書き直していた
+- 意図: M0095 3-5a。編集は変わった値だけを作者のテキストへ書き戻し、書式は残す。
+- 観測（Fact）: `SceneJsonTextMerge` はオブジェクトをキーの並び順で比べていた。作者がノードのキーを `name`・`id` の順に書く、空の `"children": []` を省く、ルートの空の `"components": []` を省くと、別のノードを動かすだけでそのノード（ルートなら文書全体）が子ごと正規形に書き直された（`Move_KeepsTheAuthorsKeyOrderAndOmittedLists` の 4 例中 3 例が修正前に失敗。メンバーの並びは変換器が作者の順を保つので通っていた）。id の無いノードも、id を足すためにノード全体が書き直された。
+- 実装: オブジェクトはキーの名前で比べる（並びは問わない）。ノードの空の `components`・`children` とコンポーネントの空の `members` は、省いたものと同じ値とする（文書の位置で判定し、メンバーの中の空の配列は値として扱う）。新しい文書だけにあるキーは、旧テキストにある直前のキーの後へ作者の字下げで 1 プロパティとして挿入する。キーを失ったオブジェクトと長さの変わった配列は従来どおり正規形で置き換える。M0095 の記述を更新した。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheAuthorsKeyOrderAndOmittedLists`、`SceneJsonTextMergeTests` の `ReorderedProperties_KeepTheAuthorsOrder`（旧 `ReorderedProperties_FallBackToTheNewObjectText` は旧動作を固定していたので改めた）、`EmptyListsTheAuthorLeftOut_StayOut`、`AddedKey_IsInsertedWithTheAuthorsSpacing`、`DroppedKey_ReplacesTheObject`。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 生成コードが作れないコレクション・タプル・多次元配列がシーンの診断なしにコンパイルエラーになった
 - 意図: ADR-0070。実行時かコンパイラーが拒む値は、生成されたファイルではなく JSON の位置の SCENE203 にする。
 - 観測（Fact）: 生成器は JSON の配列をコレクション式（配列なら配列の生成）として、オブジェクトを `new T(...) { ... }` として書く。メンバーの型ごとに確かめたところ、`Queue<T>`・`Stack<T>`・`LinkedList<T>`（CS1061、Add が無い）、`Dictionary<K,V>`（CS9215）、`ISet<T>`（CS9174）、公開の引数なしコンストラクターが無い型（CS0122）、抽象型（CS0144）、タプル（CS8181）、多次元配列（CS0029）は、シーンの診断が出ずに生成されたファイルのコンパイルエラーになった。`List<T>`・`HashSet<T>`・`SortedSet<T>`・`ImmutableArray<T>`・`ReadOnlyCollection<T>`・リストのインターフェイス・Add を持つ独自の型・配列の配列は従来どおりビルドできる。

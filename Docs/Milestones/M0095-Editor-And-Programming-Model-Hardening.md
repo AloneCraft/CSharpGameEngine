@@ -83,7 +83,7 @@
 ## 3-5 手書きの書式と未知のキー
 - 3-5a の再現: `SceneJsonCommitPlannerTests` の文書で `"ScaleX": 1` を `"ScaleX":1` に、`ScaleY` と `ScaleZ` を 1 行にまとめてからキューブを動かすと、期待（`"R": 1` → `"R": 3` だけが変わる）に対し、書式を整えた行も書き換わる。既存のテストは正規形の文書だけを使うため検出していなかった。M0093 C1 の「span-preserving writer」はコミット経路で使われていない。
 - 3-5b の再現: 同じ文書に `"editorNote"` を足すと、`SceneJsonCommitPlanner.TryAnalyze` が `SCENE204: 'editorNote' is not a document key` で失敗する。何も書き込まれないのでデータは失われないが、その文書は Design ビューで編集できない。
-- 3-5a の修正: `SceneJsonCommitPlanner.Plan` は正規形の全文を作った後、`SceneJsonTextMerge.Merge` で元のテキストと JSON の木どうしで比べ、値の変わったスカラーだけを差し替える。キーの並びや配列の長さが変わったオブジェクト・配列（ノード追加など）はその部分だけ正規形で置き換える。結果が新しい文書と同じ値として読めなければ正規形を使う。数値は型へ変換せず、符号・有効数字・指数の文字列で厳密に比べる（`1.0` と `1` は同じ、`16777217` と `16777216` は別）。`Move_KeepsHandFormatting` は修正前に失敗し、修正後に通る。
+- 3-5a の修正: `SceneJsonCommitPlanner.Plan` は正規形の全文を作った後、`SceneJsonTextMerge.Merge` で元のテキストと JSON の木どうしで比べ、値の変わったスカラーだけを差し替える。新しい文書だけにあるキーはその 1 プロパティを作者の字下げで挿入し、キーを失ったオブジェクトと長さの変わった配列（ノード追加など）はその部分だけ正規形で置き換える。キーの並びと、空の `components`・`children`・`members` の省略は作者の書式として残す（2026-10-04 改訂。それまではオブジェクトをキーの並び順で比べていたため、並びが正規形と違うオブジェクトや空のリストを省いたノードを、どの編集でも子ごと正規形に書き直していた。`Move_KeepsTheAuthorsKeyOrderAndOmittedLists`）。結果が新しい文書と同じ値として読めなければ正規形を使う。数値は型へ変換せず、符号・有効数字・指数の文字列で厳密に比べる（`1.0` と `1` は同じ、`16777217` と `16777216` は別）。`Move_KeepsHandFormatting` は修正前に失敗し、修正後に通る。
 
 ## 未解決: VSIX ビルドの nupkg ロック
 - 観測: VSIX をビルドした直後の次のビルドで、`obj\Debug\net472\Packages\CSharpGameEngine.Sdk.*.nupkg` の削除または書き込みが「別プロセスが使用中」で失敗することがある（このセッションで 5 回）。すぐに再実行すると成功する。
