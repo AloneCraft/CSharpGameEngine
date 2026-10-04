@@ -161,6 +161,21 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Contains(Diagnostic,Error,StringComparison.Ordinal);
     }
     /// <summary>M0095 3-5: a gesture on a hand-formatted document changes the edited value only.</summary>
+    /// <summary>
+    /// An edit keeps a startup scene a startup scene. The designer's model used to lose <c>startupOrder</c>, so the
+    /// first edit rewrote the document without it and the game stopped loading the scene.
+    /// </summary>
+    [Fact]
+    public void Move_KeepsTheStartupOrderOfAStartupScene(){
+        var Before=Document("1").Replace("  \"className\": \"MainScene\",\n","  \"className\": \"MainScene\",\n  \"startupOrder\": 2,\n");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),After);
+    }
     [Fact]
     public void Move_KeepsHandFormatting(){
         var Before=Document("1")

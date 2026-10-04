@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Scene Designer で起動シーンを編集すると startupOrder が消え、ゲームがそのシーンを読み込まなくなった
+- 意図: ADR-0070「Scene Designer は JSON シーンを同等の C# クラスとして読み、同じ SceneModel を得る」「書き込みは変わった値だけを元のテキストへ戻す」(M0095)。
+- 観測（Fact）: `SceneJsonDesignerSource` は起動シーンの `startupOrder` を同等の C# クラスに写していなかった（C# のシーンでは `[StartupScene(Order = N)]`）。Designer のモデルは `IsStartupScene = false` になり、編集を書き戻すたびに変換器が `startupOrder` を書かず、差分の適用はルートのキーが変わったので文書全体を置き換えた。Lvl_ThirdPerson などの起動シーンを Designer で 1 回動かすだけで、ゲームが起動時にそのシーンを作らなくなる。リポジトリの実際のシーン 21 個を、プロジェクトと同じコンパイル（`dotnet msbuild -getItem:Compile -getItem:ReferencePath`）で読み込み→変換→書き戻すと、起動シーン 9 個が `startupOrder` を失い、他は同一だった。
+- 実装: デザイナー用の同等の C# クラスに `[global::CSharpGameEngine.Entities.StartupScene(Order = N)]` を付ける（ディスクには書かれず、SCENE206 の対象外）。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheStartupOrderOfAStartupScene`（VSIX の書き戻しの経路。修正前は startupOrder が消えて失敗）、`SceneJsonGeneratorTests.DesignerSource_KeepsTheStartupOrder`。修正後は実際のシーン 21 個すべてが変更なしの往復でバイト単位で同一になった（一時的な検証、未コミット）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — ランタイムはシーンの Camera の正射影を無視して透視で描いている
 - 意図: シーンの `Camera` は `Projection`（Perspective/Orthographic）と `OrthographicSize` を持つ。Omni 仕様は「正射影のビューは標準の深度を使う（対数深度は透視が要る）」と定めている。
 - 観測（Fact）: `LevelLoad.ApplyProjection` は `FovYRadians`・`NearZ`・`FarZ`・露出・深度方式だけを写し、`Projection` と `OrthographicSize` を読まない。描画のカメラ（`Graphics/Camera.GetProjection`）も透視だけを作る。正射影のシーンカメラは、エディタのカメラのサムネイル（分離プレビュー）では正射影で描かれるが、ゲームとランタイムビューでは透視（既定の対数深度）で描かれる。

@@ -382,6 +382,22 @@ public sealed class SceneJsonGeneratorTests {
         var Ids=Scene.NodeIdsByPath();
         Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json",Path=>Ids.TryGetValue(Path,out var Id)?Id:null).Text);
     }
+    /// <summary>The designer reads a startup scene as one (its <c>startupOrder</c> survives the round trip back to JSON).</summary>
+    [Fact]
+    public void DesignerSource_KeepsTheStartupOrder(){
+        var Json=JsonScene.Replace("  \"className\": \"MainScene\",\n","  \"className\": \"MainScene\",\n  \"startupOrder\": -3,\n");
+        Assert.Contains("\"startupOrder\": -3",Json);
+        var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
+        var Scene=CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base);
+        var Designer=Base.AddSyntaxTrees(Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(CSharpGameEngine.SceneAnalysis.Json.SceneJsonDesignerSource.Build(Scene)!,
+            (Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)Base.SyntaxTrees.First().Options,@"C:\Game\Scenes\MainScene.json"));
+        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Designer.GetTypeByMetadataName("Game.MainScene")!,Designer,CancellationToken.None);
+
+        Assert.True(Model.IsStartupScene);
+        Assert.Equal(-3,Model.StartupOrder);
+        var Ids=Scene.NodeIdsByPath();
+        Assert.Contains("  \"className\": \"MainScene\",\n  \"startupOrder\": -3,\n",CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json",Path=>Ids.TryGetValue(Path,out var Id)?Id:null).Text);
+    }
     /// <summary>Node names, component types and member values, independent of how the source was written.</summary>
     private static string Semantic(CSharpGameEngine.SceneAnalysis.SceneModel Model){
         var Builder=new System.Text.StringBuilder();

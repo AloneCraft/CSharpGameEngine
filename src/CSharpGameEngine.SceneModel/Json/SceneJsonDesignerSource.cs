@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.SceneAnalysis.Json;
@@ -10,12 +11,18 @@ namespace CSharpGameEngine.SceneAnalysis.Json;
 internal static class SceneJsonDesignerSource {
     private const string NodeType="global::CSharpGameEngine.Entities.Node";
     private const string SceneInterface="global::CSharpGameEngine.Entities.IScene";
+    private const string StartupSceneAttribute="global::CSharpGameEngine.Entities.StartupScene";
     /// <summary><c>null</c> when the document has problems or no root.</summary>
     internal static string?Build(SceneJsonScene Scene){
         if(Scene.HasErrors||Scene.Root is null){ return null; }
         var Builder=new StringBuilder();
         Builder.Append("// Scene Designer view of a scene JSON document (ADR-0070).\n");
         if(Scene.Namespace is not null){ Builder.Append("namespace ").Append(Scene.Namespace).Append(";\n"); }
+        // A startup scene reads as one, as its C# class did; otherwise a designer edit writes the document without
+        // its startupOrder and the game stops loading the scene.
+        if(Scene.StartupOrder is { }Order){
+            Builder.Append('[').Append(StartupSceneAttribute).Append("(Order = ").Append(Order.ToString(CultureInfo.InvariantCulture)).Append(")]\n");
+        }
         Builder.Append("partial class ").Append(Scene.ClassName).Append(" : ").Append(SceneInterface).Append(" {\n");
         Builder.Append("    public ").Append(NodeType).Append(" Root => ");
         AppendNode(Builder,Scene.Root,2);
