@@ -610,7 +610,7 @@ public sealed class SceneJsonCommitPlannerTests {
     }
     [Fact]
     public void Move_KeepsTheAuthorsSpellingOfOtherNumbers(){
-        foreach(var Value in new[]{"3.14159265358979","16777217","0.1","1.0","1e2","0.30000001192092896","100.0000001","-0"}){
+        foreach(var Value in new[]{"3.14159265358979","16777217","0.1","1.0","1e2","0.30000001192092896","100.0000001","-0","-3.14159265358979","-16777217","1E+20","-1.5e-45"}){
             var Before=Document("1").Replace("\"Intensity\": 3","\"Intensity\": "+Value);
             var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
             var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
