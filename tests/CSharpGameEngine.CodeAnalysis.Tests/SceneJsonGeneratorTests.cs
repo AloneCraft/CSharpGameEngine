@@ -340,6 +340,30 @@ public sealed class SceneJsonGeneratorTests {
             System.IO.Directory.Delete(Directory,recursive:true);
         }
     }
+    /// <summary>
+    /// A schema the post-build step cannot write fails the build with its cause: the line is in MSBuild's canonical form at
+    /// the schema. It was "CGE-SCENE-SCHEMA failed: ...", which Exec logs as a message, so the error list showed only MSB3073.
+    /// </summary>
+    [Fact]
+    public void SchemaTool_ReportsAFailedWriteAsABuildError(){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
+        Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create(new GameSystemGenerator()).RunGeneratorsAndUpdateCompilation(Compilation,out var Output,out _);
+        var Directory=Path.Combine(Path.GetTempPath(),"cge-scene-schema-"+Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(Directory);
+        var OriginalError=Console.Error;
+        try {
+            var AssemblyPath=Path.Combine(Directory,"Game.dll");
+            Assert.True(Output.Emit(AssemblyPath).Success);
+            using var Error=new StringWriter();
+            Console.SetError(Error);
+            // The schema path is a directory, so writing it fails.
+            Assert.Equal(1,CSharpGameEngine.SceneSchema.Cli.Program.Run([AssemblyPath,Directory]));
+            Assert.StartsWith(Directory+": error CGE-SCENE-SCHEMA: ",Error.ToString(),StringComparison.Ordinal);
+        } finally {
+            Console.SetError(OriginalError);
+            System.IO.Directory.Delete(Directory,recursive:true);
+        }
+    }
     [Fact]
     public void Converter_TurnsTheCSharpSceneIntoJsonThatBuildsTheSameWorld(){
         var CSharpCompilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,CSharpScene,Driver]);

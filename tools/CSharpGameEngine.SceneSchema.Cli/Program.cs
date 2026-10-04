@@ -8,7 +8,9 @@ namespace CSharpGameEngine.SceneSchema.Cli;
 /// content changes, so the VS JSON editor does not reload it on every build.
 /// </summary>
 internal static class Program {
-    private static int Main(string[] Arguments){
+    private static int Main(string[] Arguments)=>Run(Arguments);
+
+    internal static int Run(string[] Arguments){
         if(Arguments.Length!=2){
             Console.Error.WriteLine("usage: CSharpGameEngine.SceneSchema.Cli <game assembly> <output schema>");
             return 2;
@@ -22,7 +24,8 @@ internal static class Program {
             Console.WriteLine($"CGE-SCENE-SCHEMA {(Written?"written":"unchanged")} path={Arguments[1]}");
             return 0;
         } catch(Exception Error) when(Error is IOException or BadImageFormatException or UnauthorizedAccessException){
-            Console.Error.WriteLine($"CGE-SCENE-SCHEMA failed: {Error.Message}");
+            // MSBuild's canonical form, so the build lists the cause at the schema and not only MSB3073.
+            Console.Error.WriteLine($"{Arguments[1]}: error CGE-SCENE-SCHEMA: {Error.Message}");
             return 1;
         }
     }

@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — シーンスキーマを書けないビルド失敗で、エラー一覧に MSB3073 だけが出た
+- 意図: ADR-0070。ビルド後の手順がシーンの JSON Schema を `.cge/scene.schema.json` へ書く。失敗すればその原因がビルドのエラーとして出る。
+- 観測（Fact）: スキーマ CLI は失敗を `CGE-SCENE-SCHEMA failed: ...` と書いていた。MSBuild の `Exec` はこの行をメッセージとして扱うので、エラー一覧には MSB3073 だけが出る（同日のシェーダーグラフ CLI と同じ原因）。出力先がディレクトリで書けない場合で確認した。
+- 実装: 失敗を `スキーマのパス: error CGE-SCENE-SCHEMA: 本文` の正規形式で書く。テストのため本体を `Program.Run` に分けた。
+- 自動化された証拠: `SceneJsonGeneratorTests.SchemaTool_ReportsAFailedWriteAsABuildError`（修正前は失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — シェーダーグラフのビルド失敗で、エラー一覧に原因が出ず MSB3073 だけが出た
 - 意図: グラフの誤りはビルドの失敗として、その原因がわかる形で報告される。
 - 観測（Fact）: CLI は検証の診断を `SubgraphMissing: Root subgraph is missing.` の形で、読めないファイルを例外のスタックトレースとして標準エラーへ書いていた。MSBuild の `Exec` は正規形式（`ファイル: error コード: 本文`）の行だけをエラーにするので、ルートのサブグラフが無いグラフと空のファイルで、報告されたエラーは `MSB3073`（コマンドが終了コード 1 で終了）だけだった（一時プロジェクトの `Exec` で確認）。DXC の診断は `ファイル(行,列): Error: 本文` で、元から認識されていた。
