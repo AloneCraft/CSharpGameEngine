@@ -575,6 +575,33 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal("SCENE203",Diagnostic.Id);
         Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
     }
+    /// <summary>
+    /// A JSON null for a reference member the game declares non-nullable (the palette writes one for an unset string or
+    /// array) builds without a warning. The generated file is #nullable enable, so the plain null was CS8625, an error
+    /// in a project that treats warnings as errors.
+    /// </summary>
+    [Fact]
+    public void NullForANonNullableReferenceMember_BuildsWithoutWarnings(){
+        const string Component="""
+            #nullable enable
+            namespace Sample {
+                public struct Labelled { public string Label; public int[] Ids; public string? Note; public int? Count; }
+                internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                    public bool Update(ref Labelled labelled, ref CSharpGameEngine.Entities.State state) => true;
+                }
+            }
+            """;
+        var Json=NestScene.Replace("""{ "type": "Sample.Nest", "members": { "Must": { "A": 1 }, "Plain": { "A": 2 }, "Old": { "B": 3 }, "ByRef": { "A": 4 } } }""",
+            """{ "type": "Sample.Labelled", "members": { "Label": null, "Ids": null, "Note": null, "Count": null } }""");
+        Assert.Contains("Sample.Labelled",Json);
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Component]);
+        Assert.Empty(Analyze(Json,Component));
+        Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)],
+            optionsProvider:SceneProjectOptions.Instance).RunGeneratorsAndUpdateCompilation(Compilation,out var Output,out _);
+        var Scene=Assert.Single(Output.SyntaxTrees,static Tree=>Tree.FilePath.Contains("Scene.g",StringComparison.Ordinal));
+        Assert.Contains("Label = null!",Scene.ToString(),StringComparison.Ordinal);
+        Assert.Empty(Output.GetDiagnostics().Where(Diagnostic=>Diagnostic.Severity>=DiagnosticSeverity.Warning&&Diagnostic.Location.SourceTree==Scene));
+    }
     /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {

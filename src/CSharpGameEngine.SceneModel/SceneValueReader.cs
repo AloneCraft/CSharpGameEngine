@@ -53,6 +53,9 @@ internal sealed class SceneValueReader(
                 return this.Create(SceneValueKind.Default,Expression,ResolvedType,ConstantValue:null,ReferencedSymbol:null,"default");
 
             // 3) リテラル。トークンテキストをそのまま出して接尾辞(1.5f)・基数(0x1F)・区切り(1_000)を保存する。
+            //    参照型への null は null! で出す。生成ファイルは #nullable enable なので、null 許容でない参照型への null は
+            //    CS8625 の警告になる(警告をエラーにするプロジェクトではビルドが止まる)。この式は null 許容の文脈の外で
+            //    読まれ、宣言の注釈が見えないので、参照型には常に付ける(string? にも無害)。値は同じ null。
             case LiteralExpressionSyntax Literal:
                 return this.Create(
                     SceneValueKind.Literal,
@@ -60,7 +63,23 @@ internal sealed class SceneValueReader(
                     ResolvedType,
                     this.SemanticModel.GetConstantValue(Expression,this.CancellationToken).Value,
                     ReferencedSymbol:null,
-                    Literal.Token.Text);
+                    Literal.IsKind(SyntaxKind.NullLiteralExpression)&&ResolvedType is { IsReferenceType:true }?"null!":Literal.Token.Text);
+
+            // 3b) null!。シーン JSON は参照型の null をこう書く(上と同じ理由)。null のリテラルとして読み、Inspector に出す
+            //     元の式は null にする(定数式として読むと、null の文字列メンバーが読み取り専用になる)。
+            case PostfixUnaryExpressionSyntax { Operand:LiteralExpressionSyntax NullLiteral } Suppressed
+                when Suppressed.IsKind(SyntaxKind.SuppressNullableWarningExpression)&&NullLiteral.IsKind(SyntaxKind.NullLiteralExpression):
+                return new SceneValue(
+                    SceneValueKind.Literal,
+                    ResolvedType,
+                    ConstantValue:null,
+                    ReferencedSymbol:null,
+                    ImmutableArray<SceneComponentMember>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    "null!",
+                    NullLiteral.Token.Text,
+                    SceneSourceLocation.FromNode(Expression));
 
             // 4) 符号付きリテラル(-1.5f)。GetConstantValueでも取れるが、接尾辞を保存するためこちらで扱う。
             case PrefixUnaryExpressionSyntax { Operand:LiteralExpressionSyntax SignedLiteral } Prefix

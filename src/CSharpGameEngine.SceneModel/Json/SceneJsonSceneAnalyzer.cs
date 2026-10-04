@@ -507,7 +507,11 @@ internal static class SceneJsonSceneAnalyzer {
             return "default";
         }
         if(Value.Kind==SceneJsonKind.Null){
-            return Type.IsReferenceType||Type.OriginalDefinition.SpecialType==SpecialType.System_Nullable_T?"null":Mismatch("null is only valid for reference and nullable types");
+            // A reference type's null is null!: the generated file is #nullable enable, so null for a member the game declares
+            // non-nullable (the palette writes one for an unset string or array) was a CS8625 warning, an error where
+            // warnings are errors. The value is the same null.
+            if(Type.IsReferenceType){ return "null!"; }
+            return Type.OriginalDefinition.SpecialType==SpecialType.System_Nullable_T?"null":Mismatch("null is only valid for reference and nullable types");
         }
         if(Type is INamedTypeSymbol{ OriginalDefinition.SpecialType:SpecialType.System_Nullable_T }Nullable){
             return ValueExpression(Nullable.TypeArguments[0],Value,MemberName,Compilation,Problems,Angles,Unit);

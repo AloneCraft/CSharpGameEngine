@@ -249,6 +249,27 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"Label\": \"a \\\"b\\\"\"","\"Label\": \"c\\\\d\""),LabelPlan.WriteStep!.Before.WithChanges(LabelPlan.WriteStep.Changes).ToString());
     }
     /// <summary>
+    /// A null string stays an editable text value. Scene JSON writes a reference type's null as null! (so the generated
+    /// code does not warn), and the model reads that as the null literal, not as a read-only constant expression.
+    /// </summary>
+    [Fact]
+    public void NullText_StaysEditable(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Lamp\",\n            \"members\": {\n              \"Label\": null\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Label=Assert.Single(SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid())),
+            static Member=>Member.MemberName=="Label");
+        Assert.True(Label.IsEditable);
+        Assert.Equal(InspectorEditorKind.Text,Label.EditorKind);
+        Assert.Equal("null",Label.SourceExpression);
+        // The text field sends only a changed value, always as a quoted string (InspectorTextCommitPolicy, FormatText).
+        var Edit=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Label,SceneInspectorValueFormat.FormatText("Lit")),Seed.Reconciler,CancellationToken.None);
+        Assert.True(Edit.Succeeded,Edit.ErrorMessage);
+        Assert.Equal(Before.Replace("\"Label\": null","\"Label\": \"Lit\""),Edit.WriteStep!.Before.WithChanges(Edit.WriteStep.Changes).ToString());
+    }
+    /// <summary>
     /// LogicalScalar members (the engine's authored real numbers: character movement, spring arm, every RUF vector of a
     /// Transform) are edited as floats in the Inspector, as their JSON numbers are read. They used to be read-only, so
     /// the RUF vector editing the Inspector offers was unavailable for the engine's own vectors.
