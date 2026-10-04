@@ -164,6 +164,35 @@ public sealed class ShaderGraphCompilerTests {
             Assert.False(File.Exists(ArtifactPath));
         } finally { Directory.Delete(DirectoryPath,true); }
     }
+    /// <summary>
+    /// A failure is one line in MSBuild's canonical form at the graph, so a build lists its cause. Diagnostics were written
+    /// as "SubgraphMissing: ..." and an unreadable file as a stack trace, which MSBuild's Exec logs only as messages: the
+    /// error list showed nothing but MSB3073 (the command exited with code 1).
+    /// </summary>
+    [Fact]
+    public void Failures_AreCanonicalBuildErrorsAtTheGraph() {
+        var DirectoryPath=Path.Combine(Path.GetTempPath(),"CgeShaderGraphErrors",Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(DirectoryPath);
+        try {
+            var Missing=Path.Combine(DirectoryPath,"Missing.cgesubgraph");
+            var Document=CreateSubgraph();
+            Document.RootSubgraphId=StableId.New();
+            File.WriteAllText(Missing,ShaderGraphCanonicalization.ToCanonicalJson(Document));
+            var Empty=Path.Combine(DirectoryPath,"Empty.cgesubgraph");
+            File.WriteAllText(Empty,string.Empty);
+            foreach(var (GraphPath,Expected) in new[]{(Missing,": error SubgraphMissing: Root subgraph is missing."),(Empty,": error: ")}) {
+                var OriginalError=Console.Error;
+                using var Error=new StringWriter();
+                try {
+                    Console.SetError(Error);
+                    Assert.Equal(1,global::ShaderGraphCli.Run(["validate",GraphPath]));
+                } finally { Console.SetError(OriginalError); }
+                var Lines=Error.ToString().Split(new[]{Environment.NewLine},StringSplitOptions.RemoveEmptyEntries);
+                Assert.Contains(Lines,Line=>Line.StartsWith(GraphPath+Expected,StringComparison.Ordinal));
+                Assert.DoesNotContain(Lines,Line=>Line.TrimStart().StartsWith("at ",StringComparison.Ordinal));
+            }
+        } finally { Directory.Delete(DirectoryPath,true); }
+    }
     private static string CopyStageFixture(string DirectoryPath) {
         Directory.CreateDirectory(DirectoryPath);
         var SourceDirectory=Path.GetDirectoryName(GraphPath("Stage"))!;

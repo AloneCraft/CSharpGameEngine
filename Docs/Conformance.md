@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — シェーダーグラフのビルド失敗で、エラー一覧に原因が出ず MSB3073 だけが出た
+- 意図: グラフの誤りはビルドの失敗として、その原因がわかる形で報告される。
+- 観測（Fact）: CLI は検証の診断を `SubgraphMissing: Root subgraph is missing.` の形で、読めないファイルを例外のスタックトレースとして標準エラーへ書いていた。MSBuild の `Exec` は正規形式（`ファイル: error コード: 本文`）の行だけをエラーにするので、ルートのサブグラフが無いグラフと空のファイルで、報告されたエラーは `MSB3073`（コマンドが終了コード 1 で終了）だけだった（一時プロジェクトの `Exec` で確認）。DXC の診断は `ファイル(行,列): Error: 本文` で、元から認識されていた。
+- 実装: 検証の診断を `グラフ: error|warning コード: 本文`（ノードがわかれば `[node ID]`）で書く。例外は `グラフ: error: 本文` の 1 行にし、JSON・入出力・アクセスの失敗以外の想定外の例外だけスタックトレースも書く。警告の行は検証が失敗したときだけ出るので、成功するビルドに警告は増えない。Shader-Graph.md に出力形式を追記した。
+- 自動化された証拠: `ShaderGraphCompilerTests.Failures_AreCanonicalBuildErrorsAtTheGraph`（修正前は失敗）。修正後の同じ `Exec` は `Broken.cgesubgraph : error SubgraphMissing: ...` と `Empty.cgesubgraph : error : The input does not contain any JSON tokens...` を報告した。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — シェーダーグラフの保存が、CLI の標準エラーが多いと Visual Studio ごと止まり得た
 - 意図: シェーダーグラフエディタは保存時にグラフをビルドし、CLI の出力を状態欄に出す。失敗は表示され、Visual Studio は止まらない。
 - 観測（Fact）: `ShaderGraphEditorBuildService.Run` は標準出力を最後まで読んでから標準エラーを読んでいた。子プロセスが標準エラーへパイプのバッファーを超えて書く（多数の診断、長い例外）と、子は書き込みで、親は標準出力の終わりで互いに待ち続ける。保存とビルドは UI スレッドで動くので Visual Studio が固まる。標準エラーへ約 66KB を書くプロセスで、修正前は 60 秒たっても戻らなかった。

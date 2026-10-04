@@ -27,7 +27,7 @@ Custom HLSL and user DLL node providers are outside v1.
 
 ## Compiler CLI
 
-CSharpGameEngine.ShaderGraph.Cli provides validate, build, dump-hlsl, and publish. Validate/build/dump recursively compose external Subgraphs before graph validation and lowering. Build regenerates deterministic HLSL, compiles the fixed ABI with DXC, validates reflection, and writes one artifact. Generated HLSL and source maps are intermediate output only. Publish replaces the destination atomically.
+CSharpGameEngine.ShaderGraph.Cli provides validate, build, dump-hlsl, and publish. Validate/build/dump recursively compose external Subgraphs before graph validation and lowering. Build regenerates deterministic HLSL, compiles the fixed ABI with DXC, validates reflection, and writes one artifact. Generated HLSL and source maps are intermediate output only. Publish replaces the destination atomically. A failure is written in MSBuild's canonical form at the graph (`<graph>: error <Code>: <message>`, a warning as `warning`, with `[node <id>]` when one node is at fault; DXC diagnostics as `<hlsl>(<line>,<column>): Error: <message>`), so a build lists its cause and not only MSB3073; an unreadable or missing file is one such line without a stack trace.
 
 MSBuild compiles explicit CgeShaderGraph items and their CgeShaderSubgraph inputs into obj/.../ShaderGraph and publishes into the output Shaders directory. The root SemanticHash and recursive DependencyHash are distinct. Matching hashes, target/ABI, fixed entries, and compiler/DXC provenance reuse an existing valid artifact without invoking DXC.
 
