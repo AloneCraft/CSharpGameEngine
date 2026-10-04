@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — int 以外の整数メンバーを Inspector で編集できず、大きな int は丸めて書いていた
+- 意図: Inspector は数値のメンバーを、宣言された型の値として正確に書き戻す（同じ値の確定はファイルを変えない）。
+- 観測（Fact）: シーン JSON は int 以外の整数を、オーバーロードを取り違えないようにキャスト付き（`(byte)(200)`、`(uint)(4000000000)`）で Designer 用の C# にする。Scene DSL のモデルはこれを定数式として読むため、byte・sbyte・short・ushort・uint・long・ulong のメンバーはすべて読み取り専用だった。また書き戻しの適用処理はすべての数値を float として解析していたため、int の `123456790` は `123456792` と書かれ、Inspector が付ける U・L・UL の接尾辞（`4000000001U`）は解析できずに「The Scene edit operation failed.」になった。
+- 実装: モデルは整数リテラルを整数型へキャストした形をリテラルとして読む（書き出す式はキャストのまま、Inspector に出す式はリテラルの部分）。適用処理は、宣言された型が整数ならその型の整数として接尾辞ごと正確に読み、範囲外や小数は失敗にする。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.IntegerMembers_AreEditable`（修正前は int・uint・long・ulong の 4 件が失敗）と `IntegerMember_RejectsAValueOutOfItsType`。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — パレットから char の既定値を持つコンポーネントを追加できなかった
 - 意図: パレットの追加は宣言の既定値を持ち、シーン JSON が持てない既定値は書かずに省く（同日の修正）。
 - 観測（Fact）: 定数の既定値は、JSON にできるかを確かめずにリテラルとして書いていた。`public char Letter='x';` を持つコンポーネントでは、変換器の「Char の定数は JSON にできない」で追加全体が失敗した（NaN の既定値も同じ）。

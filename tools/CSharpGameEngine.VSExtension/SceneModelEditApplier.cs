@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
+using SpecialType=Microsoft.CodeAnalysis.SpecialType;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -594,7 +595,7 @@ internal static class SceneModelEditApplier {
             Updated=ReplaceComponent(Node,Component,WithMembers(Component,SetMember(Component.Members,Existing,Operation.MemberName,EnumOrText,Component.Location)));
             return true;
         }
-        if(!TryParseLiteral(Operation.ValueExpression,Existing,out var ConstantValue)){
+        if(!TryParseLiteral(Operation.ValueExpression,GetDeclaredMemberType(Component,Operation.MemberName),Existing,out var ConstantValue)){
             return false;
         }
 
@@ -617,7 +618,7 @@ internal static class SceneModelEditApplier {
         }
         SceneValue ExistingValue=Top.Value.Arguments[Index];
         SceneComponentMember ExistingChild=new(Path[1],MemberSymbol:null,ExistingValue,ExistingValue.Location);
-        if(!ExistingValue.IsEditable||!TryParseLiteral(Operation.ValueExpression,ExistingChild,out var ConstantValue)){
+        if(!ExistingValue.IsEditable||!TryParseLiteral(Operation.ValueExpression,ExistingValue.Type,ExistingChild,out var ConstantValue)){
             return false;
         }
         SceneValue UpdatedChild=CreateLiteral(ConstantValue,Operation.ValueExpression.Trim(),ExistingChild,Component.Location);
@@ -753,7 +754,7 @@ internal static class SceneModelEditApplier {
     /// (シーン JSON には C# のテキストを直接書き換える経路が無い)。
     /// </summary>
     private static bool TryParseLiteral(
-        string Expression,SceneComponentMember?Existing,out object?ConstantValue){
+        string Expression,Microsoft.CodeAnalysis.ITypeSymbol?DeclaredType,SceneComponentMember?Existing,out object?ConstantValue){
         ConstantValue=null;
         var Text=Expression.Trim();
         if(Text.Length==0){
@@ -762,6 +763,11 @@ internal static class SceneModelEditApplier {
         if(bool.TryParse(Text,out var Boolean)){
             ConstantValue=Boolean;
             return true;
+        }
+        // An integer member's value is parsed as an integer of its type, and fails out of its range: through float,
+        // 123456789 became 123456792 and the Inspector's U/L suffixes (4000000001U) did not parse at all.
+        if((DeclaredType??Existing?.Value.Type)?.SpecialType is { }Special&&IsIntegerType(Special)){
+            return TryParseInteger(Text,Special,out ConstantValue);
         }
 
         var HasFloatSuffix=Text.EndsWith("f",System.StringComparison.OrdinalIgnoreCase);
@@ -772,17 +778,42 @@ internal static class SceneModelEditApplier {
         }
 
         // 既存メンバーの定数型に合わせる(再解析後のConstantValueと型まで一致させるため)。
-        // 既存が無い/型が読めない場合はfサフィックスと小数点の有無で判断する。
-        if(Existing?.Value.ConstantValue is int&&!HasFloatSuffix&&Numeric.IndexOf('.')<0){
-            ConstantValue=(int)Number;
-            return true;
-        }
-        if(Existing?.Value.ConstantValue is null&&!HasFloatSuffix&&Numeric.IndexOf('.')<0){
-            ConstantValue=(int)Number;
+        // 既存が無い/型が読めない場合はfサフィックスと小数点の有無で判断する。整数は float を経由せず正確に読む。
+        if((Existing?.Value.ConstantValue is int or null)&&!HasFloatSuffix&&TryParseInteger(Numeric,SpecialType.System_Int32,out var Integer)){
+            ConstantValue=Integer;
             return true;
         }
         ConstantValue=Number;
         return true;
+    }
+
+    private static bool IsIntegerType(SpecialType Type)=>
+        Type is SpecialType.System_SByte or SpecialType.System_Byte or SpecialType.System_Int16 or SpecialType.System_UInt16
+            or SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64;
+
+    /// <summary>
+    /// An integer of the given integer type from its text (an optional U, L or UL suffix, as the Inspector writes them);
+    /// false for a fraction, an exponent or a value out of the type's range.
+    /// </summary>
+    private static bool TryParseInteger(string Text,SpecialType Type,out object?Value){
+        Value=null;
+        var Digits=Text.TrimEnd('u','U','l','L');
+        if(long.TryParse(Digits,NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Signed)){
+            Value=Type switch {
+                SpecialType.System_SByte when Signed is >=sbyte.MinValue and <=sbyte.MaxValue=>(sbyte)Signed,
+                SpecialType.System_Byte when Signed is >=byte.MinValue and <=byte.MaxValue=>(byte)Signed,
+                SpecialType.System_Int16 when Signed is >=short.MinValue and <=short.MaxValue=>(short)Signed,
+                SpecialType.System_UInt16 when Signed is >=ushort.MinValue and <=ushort.MaxValue=>(ushort)Signed,
+                SpecialType.System_Int32 when Signed is >=int.MinValue and <=int.MaxValue=>(int)Signed,
+                SpecialType.System_UInt32 when Signed is >=uint.MinValue and <=uint.MaxValue=>(uint)Signed,
+                SpecialType.System_Int64=>Signed,
+                SpecialType.System_UInt64 when Signed>=0=>(ulong)Signed,
+                _=>null,
+            };
+        } else if(Type==SpecialType.System_UInt64&&ulong.TryParse(Digits,NumberStyles.None,CultureInfo.InvariantCulture,out var Unsigned)){
+            Value=Unsigned;
+        }
+        return Value is not null;
     }
 
     private static ImmutableArray<SceneComponentMember>SetFloatMember(

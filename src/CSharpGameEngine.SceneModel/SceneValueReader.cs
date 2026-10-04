@@ -73,6 +73,22 @@ internal sealed class SceneValueReader(
                     ReferencedSymbol:null,
                     Prefix.OperatorToken.Text+SignedLiteral.Token.Text);
 
+            // 4b) 整数のリテラルを整数型へキャストしたもの((byte)(200)、(long)(-5))。シーン JSON は int 以外の整数を
+            //     この形で書く(型が決まらない文脈で別のオーバーロードを選ばないため)。リテラルと同じく編集でき、
+            //     書き出す式はキャストのまま、Inspector に出す元の式はリテラルの部分にする。
+            case CastExpressionSyntax Cast when IntegerCastLiteral(Cast) is { }LiteralText:
+                return new SceneValue(
+                    SceneValueKind.Literal,
+                    ResolvedType,
+                    this.SemanticModel.GetConstantValue(Expression,this.CancellationToken).Value,
+                    ReferencedSymbol:null,
+                    ImmutableArray<SceneComponentMember>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    ImmutableArray<SceneValue>.Empty,
+                    Cast.ToString(),
+                    LiteralText,
+                    SceneSourceLocation.FromNode(Expression));
+
             case ObjectCreationExpressionSyntax:
             case ImplicitObjectCreationExpressionSyntax:
                 return this.ReadObjectCreation(Expression,ResolvedType,Depth);
@@ -375,6 +391,30 @@ internal sealed class SceneValueReader(
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// <c>(byte)(200)</c> や <c>(long)-5</c> のように整数型へキャストした(符号付き)整数リテラルなら、そのリテラルの
+    /// テキスト。それ以外は null。
+    /// </summary>
+    private static string?IntegerCastLiteral(CastExpressionSyntax Cast){
+        if(Cast.Type is not PredefinedTypeSyntax Predefined||!Predefined.Keyword.IsKind(SyntaxKind.SByteKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.ByteKeyword)&&!Predefined.Keyword.IsKind(SyntaxKind.ShortKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.UShortKeyword)&&!Predefined.Keyword.IsKind(SyntaxKind.IntKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.UIntKeyword)&&!Predefined.Keyword.IsKind(SyntaxKind.LongKeyword)
+            &&!Predefined.Keyword.IsKind(SyntaxKind.ULongKeyword)){
+            return null;
+        }
+        var Inner=Cast.Expression;
+        while(Inner is ParenthesizedExpressionSyntax Parenthesized){ Inner=Parenthesized.Expression; }
+        return Inner switch {
+            LiteralExpressionSyntax Literal when Literal.IsKind(SyntaxKind.NumericLiteralExpression)=>Literal.Token.Text,
+            PrefixUnaryExpressionSyntax { Operand:LiteralExpressionSyntax Literal } Prefix
+                when Literal.IsKind(SyntaxKind.NumericLiteralExpression)
+                    &&(Prefix.IsKind(SyntaxKind.UnaryMinusExpression)||Prefix.IsKind(SyntaxKind.UnaryPlusExpression))
+                =>Prefix.OperatorToken.Text+Literal.Token.Text,
+            _=>null,
+        };
     }
 
     /// <summary>この式が<see cref="EnumerateCollectionElements"/>で要素を取り出せる形かどうか。</summary>

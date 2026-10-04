@@ -43,6 +43,8 @@ public sealed class SceneJsonCommitPlannerTests {
             [System.Flags]
             public enum Layers { None=0, A=1, B=2 }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Counters { public byte Tiny; public sbyte Signed; public short Small; public ushort Port; public int Count; public uint Big; public long Wide; public ulong Huge; }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Lettered() { public char Letter='x'; public float Size=1.5f; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Route { public System.Collections.Generic.List<float> Speeds; public int[] Ids; }
@@ -366,6 +368,56 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Contains("\"type\": \"CSharpGameEngine.Runtime.Windows.Lettered\"",After);
         Assert.Contains("\"Size\": 1.5",After);
         Assert.DoesNotContain("\"Letter\"",After);
+    }
+    /// <summary>
+    /// Integer members are edited exactly. Scene JSON writes one other than int with a cast ((byte)(200)) so an
+    /// overloaded constructor gets the right type, and the Scene DSL model read that cast as a constant expression, so
+    /// the Inspector showed every byte, short, uint or long member as read-only; the edit then parsed every number as a
+    /// float, so 123456790 was written as 123456792 and the U/L suffixes of uint, long and ulong did not parse.
+    /// </summary>
+    [Theory]
+    [InlineData("Tiny","200","201")]
+    [InlineData("Signed","-100","-99")]
+    [InlineData("Small","-5","-4")]
+    [InlineData("Port","65534","65535")]
+    [InlineData("Count","123456789","123456790")]
+    [InlineData("Big","4000000000","4000000001")]
+    [InlineData("Wide","-9000000000","-8999999999")]
+    [InlineData("Huge","18446744073709551614","18446744073709551615")]
+    public void IntegerMembers_AreEditable(string Name,string Value,string Next){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Counters\",\n            \"members\": {\n              \""+Name+"\": "+Value+"\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Member=Assert.Single(SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid())),
+            Candidate=>Candidate.MemberName==Name);
+        Assert.True(Member.IsEditable);
+        Assert.Equal(InspectorEditorKind.Number,Member.EditorKind);
+        Assert.Equal(Value,Member.SourceExpression);
+        var Same=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Member,Member.SourceExpression),Seed.Reconciler,CancellationToken.None);
+        Assert.True(Same.Succeeded,Same.ErrorMessage);
+        Assert.Equal(Before,Same.WriteStep!.Before.WithChanges(Same.WriteStep.Changes).ToString());
+        Assert.True(SceneInspectorValueFormat.TryFormatNumber(Member.NumericType!.Value,Next,out var Expression));
+        var Edit=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Member,Expression),Seed.Reconciler,CancellationToken.None);
+        Assert.True(Edit.Succeeded,Edit.ErrorMessage);
+        Assert.Equal(Before.Replace("\""+Name+"\": "+Value,"\""+Name+"\": "+Next),Edit.WriteStep!.Before.WithChanges(Edit.WriteStep.Changes).ToString());
+    }
+    [Theory]
+    [InlineData("Tiny","256")]
+    [InlineData("Signed","-129")]
+    [InlineData("Count","1.5")]
+    [InlineData("Huge","-1")]
+    public void IntegerMember_RejectsAValueOutOfItsType(string Name,string Expression){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Counters\",\n            \"members\": {\n              \""+Name+"\": 1\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Member=Assert.Single(SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid())),
+            Candidate=>Candidate.MemberName==Name);
+        var Edit=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Member,Expression),Seed.Reconciler,CancellationToken.None);
+        Assert.False(Edit.Succeeded);
     }
     [Fact]
     public void Move_KeepsDoubleMembersAsWritten(){
