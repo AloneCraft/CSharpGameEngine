@@ -40,6 +40,25 @@ public sealed class PerformanceMeasurementFrameworkTests {
     }
 
     [Fact]
+    public void BaselineWithoutP95ComparesTheMedianOnly(){
+        // Thirty samples' nearest-rank p95 is one sample; a baseline from another process leaves it out.
+        PerformanceSample[]TailHeavy=[.. Enumerable.Range(0,30).Select(Index=>new PerformanceSample(Index,Index>=27?500:100,0))];
+        PerformanceSample[]Slower=[.. Enumerable.Range(0,30).Select(Index=>new PerformanceSample(Index,130,0))];
+
+        PerformanceAnalysis Tail=PerformanceMeasurementFramework.Analyze(
+            CreatePlan(Baseline:new PerformanceBaseline(100,100,0,2000)),TailHeavy);
+        PerformanceAnalysis MedianOnlyTail=PerformanceMeasurementFramework.Analyze(
+            CreatePlan(Baseline:new PerformanceBaseline(100,null,0,2000)),TailHeavy);
+        PerformanceAnalysis MedianOnlySlower=PerformanceMeasurementFramework.Analyze(
+            CreatePlan(Baseline:new PerformanceBaseline(100,null,0,2000)),Slower);
+
+        Assert.Equal(PerformanceGateStatus.Failed,Tail.BaselineDelta.Status);
+        Assert.Equal(PerformanceGateStatus.Passed,MedianOnlyTail.BaselineDelta.Status);
+        Assert.Equal(PerformanceGateStatus.Failed,MedianOnlySlower.BaselineDelta.Status);
+        Assert.Contains("median",MedianOnlySlower.BaselineDelta.Detail,StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MissingOrUnmeasurableSamplesNeverPass(){
         PerformanceMeasurementPlan Plan=CreatePlan();
         PerformanceSample[]Samples=[.. Enumerable.Range(0,29).Select(Index=>new PerformanceSample(Index,10,0))];

@@ -340,13 +340,15 @@ public static class EcsPerformanceProbe {
             static Capture=>Capture.Report.ComponentTypeCount)){
             string RawHash=Convert.ToHexString(
                 SHA256.HashData(Capture.Bytes)).ToLowerInvariant();
+            // The one-type comparison is a median alarm. The nearest-rank p95 of thirty samples is a single
+            // sample, and two processes' p95 differed by more than 20 percent in quiet runs whose medians agreed
+            // within 7 percent; the absolute budget still gates every p95.
             PerformanceBaseline?Baseline=
                 Configuration=="Release"
                 &&Capture.Report.ComponentTypeCount==64
                 &&SingleTypeAnalysis is not null
                     ?new PerformanceBaseline(
-                        SingleTypeAnalysis.ElapsedNanoseconds.Median,
-                        SingleTypeAnalysis.ElapsedNanoseconds.P95,0,2000)
+                        SingleTypeAnalysis.ElapsedNanoseconds.Median,null,0,2000)
                     :null;
             PerformanceMeasurementPlan Plan=CreatePlan(
                 Capture.Report,RawHash,Baseline);

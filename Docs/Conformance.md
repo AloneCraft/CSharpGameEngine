@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — ECS 性能の 64 型と 1 型の p95 比較が揺らぎで失敗していた
+- 意図: [Ecs-Runtime](Specifications/Ecs-Runtime.md)「64 型の経路は 1 型の経路から 20% を超えて遅くならない（補助の警報）」。M0082 はこれを中央値と p95 の両方で比べていた。
+- 観測（Fact）: Release の full スイートで `ecs.performance` が失敗した（p95 が 953,400 対 786,000 ns、+21%）。同じコミットで直後の ECS リリース段は合格した（809,000 対 934,000 ns）。他に何も動かしていない状態でも 3 回中 1 回失敗した（p95 755,400 対 625,300 ns、中央値は 533,150 対 511,500 ns）。7 回の比率は、中央値 0.91〜1.09、p95 0.87〜1.21。30 標本の最近傍順位 p95 は上から 2 番目の 1 標本で、別プロセスどうしの比較は揺らぎを測っている。M0082 で 15% を 20% に広げたのと同じ崖が残っていた。
+- 実装: 相対の警報は中央値だけを比べる（`PerformanceBaseline` の p95 を null にできるようにした）。p95 は 8.33 ms の絶対予算で引き続きすべて判定する。閾値は広げていない。
+- 自動化された証拠: `PerformanceMeasurementFrameworkTests.BaselineWithoutP95ComparesTheMedianOnly`（p95 が外れても中央値だけの基準は合格し、中央値の 30% の遅れは失敗する）。
+- 結果: Matches（仕様の文言を中央値に明確化）。
+
 ## 2026-10-04 探索 — C# のシーンの NaN と無限大で JSON への変換器が例外を投げていた
 - 意図: `SceneJsonConverter`「JSON に書けない値は推測せずに報告する」（ADR-0070 の移行、Scene Designer の書き戻し）。
 - 観測（Fact）: float のメンバーが `float.NaN`・`float.PositiveInfinity`（角度のメンバーも）だと `ArgumentOutOfRangeException` を投げた。double の `double.NaN`・`double.NegativeInfinity` は問題を報告せずに `NaN`・`-Infinity` を数値として書き、読み戻せない文書（JSON の数値ではない）を返した。decimal の定数は正しく書けていた（`"R"` 書式で例外になるという仮説は否定された）。
