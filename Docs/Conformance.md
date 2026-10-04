@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 別のチェックアウトを対象にした Stage の結果が、カレントのリポジトリへ保存されていた
+- 意図: [Feature-Stages](Feature-Stages.md) の `--repository-root`。リリース証拠の Stage（`ecs.release` など）は、対象リポジトリの `.artifacts/FeatureStages` から、同じコミットの最近の合格結果を探す。
+- 観測（Fact）: メインツリーをカレントにして `run release.packages --repository-root <新しいワークツリー>` を実行すると、Stage はワークツリーで動いたが、結果はメインツリーの `.artifacts/FeatureStages` に保存された（`Program.cs` が保存先をカレントディレクトリから決めていた）。対象リポジトリで続けて実行するリリース証拠の Stage は、結果を見つけられない。コミットと鮮度で絞るので、古い結果を束ねることはない（その仮説は否定された）。
+- 実装: 保存先は、コマンドが `--repository-root` で指定したリポジトリにする（`FeatureRunnerApplication.ResultsRepositoryRoot`）。
+- 自動化された証拠: `FeatureRunnerApplicationTests.ResultsRepository_IsTheRepositoryRootTheCommandNames`。実機でも、メインツリーから `run runner.contract --repository-root <ワークツリー>` を実行すると、結果がワークツリーの `.artifacts/FeatureStages` に保存された。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — ECS 性能の 64 型と 1 型の p95 比較が揺らぎで失敗していた
 - 意図: [Ecs-Runtime](Specifications/Ecs-Runtime.md)「64 型の経路は 1 型の経路から 20% を超えて遅くならない（補助の警報）」。M0082 はこれを中央値と p95 の両方で比べていた。
 - 観測（Fact）: Release の full スイートで `ecs.performance` が失敗した（p95 が 953,400 対 786,000 ns、+21%）。同じコミットで直後の ECS リリース段は合格した（809,000 対 934,000 ns）。他に何も動かしていない状態でも 3 回中 1 回失敗した（p95 755,400 対 625,300 ns、中央値は 533,150 対 511,500 ns）。7 回の比率は、中央値 0.91〜1.09、p95 0.87〜1.21。30 標本の最近傍順位 p95 は上から 2 番目の 1 標本で、別プロセスどうしの比較は揺らぎを測っている。M0082 で 15% を 20% に広げたのと同じ崖が残っていた。

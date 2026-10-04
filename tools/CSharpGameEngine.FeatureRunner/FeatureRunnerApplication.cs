@@ -619,6 +619,19 @@ public sealed class FeatureRunnerApplication {
         if(Results.All(static Result=>Result.Status is FeatureStageRunStatus.Passed or FeatureStageRunStatus.NotImplemented)){ return 3; }
         return 1;
     }
+    /// <summary>
+    /// The repository whose <c>.artifacts/FeatureStages</c> keeps a command's results: the one <c>--repository-root</c>
+    /// names, where the stages run and where release evidence looks for their results; otherwise the one around the
+    /// current directory.
+    /// </summary>
+    public static string ResultsRepositoryRoot(IReadOnlyList<string>Args){
+        for(var Index=1;Index+1<Args.Count;Index++){
+            if(Args[Index].Equals("--repository-root",StringComparison.OrdinalIgnoreCase)){
+                return FeatureStageRepositoryLocator.Find(Args[Index+1]);
+            }
+        }
+        return FeatureStageRepositoryLocator.Find();
+    }
     private static ParsedExecutionOptions ParseOptions(string[]Args,int StartIndex,string DefaultProfile){
         var RepositoryRoot=FeatureStageRepositoryLocator.Find();
         var Configuration="Debug";

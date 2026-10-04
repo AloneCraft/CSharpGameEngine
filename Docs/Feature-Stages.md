@@ -54,7 +54,7 @@ resume <run-result.json> [options]
 
 ## 結果契約
 
-結果は`.artifacts/FeatureStages/*.run-result.json`へ保存し、Git管理しない。schemaは`csharp-game-engine-feature-run-result-v1`で、各Stageについて次を保持する。
+結果は対象リポジトリ(`--repository-root`、無ければカレントディレクトリを含むリポジトリ)の`.artifacts/FeatureStages/*.run-result.json`へ保存し、Git管理しない。リリース証拠のStageは同じリポジトリのこの結果を探す。schemaは`csharp-game-engine-feature-run-result-v1`で、各Stageについて次を保持する。
 
 - Stage ID、Feature ID、Pack、Configuration、Profile、Adapter
 - seed、tick数、Git commit、dirty状態
