@@ -15,17 +15,17 @@ F-L4-002 / F-L8-010が当時の一次記録)。本書は2026-08にコミット�
 
 | Phase | コミット | 内容 |
 |---|---|---|
-| 1 | `15d15d1` | C# Scene DSL共通解析基盤: `src/CSharpGameEngine.SceneModel/`(共有ソース、netstandard2.0、`SceneDeclarationAnalyzer`/`SceneModel`/`NodePath`) |
-| 2 | `3f8fa35` | Scene DSLアナライザー: `SceneDslAnalyzer`(SCENE100〜118診断。SGブリッジ側は診断を出さず二重スキグルを回避) |
-| 3 | `4f4a2bc` | `SceneInstance`ランタイムとEntity破棄: `World.InstantiateScene<TScene>()`/`UnloadScene`/`DestroyDeferred`等 |
-| 4 | `e6c135f` | Scene DSLからRuntime ECSへの直接生成: `SceneModelBridge`→`SceneEmitModel`→`SceneInstantiateEmitter`/`SceneStartupSystemEmitter` |
-| 5 | `81c462e` | Scene定義を`IScene`へ一本化し旧機構(`[SceneDefinition]`/`SceneDefinitionGenerator`、ADR-0030世代)を削除 |
-| 6 | `224bd6a` | エンジン標準Component群+`RenderServer`: `PrimitiveMesh`/`PrimitiveType`(F-L4-002) |
+| 1 | `f80a10f` | C# Scene DSL共通解析基盤: `src/CSharpGameEngine.SceneModel/`(共有ソース、netstandard2.0、`SceneDeclarationAnalyzer`/`SceneModel`/`NodePath`) |
+| 2 | `2eb3e82` | Scene DSLアナライザー: `SceneDslAnalyzer`(SCENE100〜118診断。SGブリッジ側は診断を出さず二重スキグルを回避) |
+| 3 | `403e2db` | `SceneInstance`ランタイムとEntity破棄: `World.InstantiateScene<TScene>()`/`UnloadScene`/`DestroyDeferred`等 |
+| 4 | `a3aed37` | Scene DSLからRuntime ECSへの直接生成: `SceneModelBridge`→`SceneEmitModel`→`SceneInstantiateEmitter`/`SceneStartupSystemEmitter` |
+| 5 | `904a9b4` | Scene定義を`IScene`へ一本化し旧機構(`[SceneDefinition]`/`SceneDefinitionGenerator`、ADR-0030世代)を削除 |
+| 6 | `62def96` | エンジン標準Component群+`RenderServer`: `PrimitiveMesh`/`PrimitiveType`(F-L4-002) |
 | 7 | (欠番) | Phase 7を名乗る単独コミットは履歴に存在しない |
-| 8前半 | `a315e38` | VSIXヒエラルキーをlive Roslynベースへ(`SceneWorkspaceService`+250msデバウンス解析) |
-| 9 | `45c909c` | VSIX Scene Viewを`.scene`からSceneModel(ライブRoslyn)描画へ移行(F-L8-010)。`SceneFileEditorFactory`/`SceneWindowPane`等の`.scene`ドキュメントタブ系を削除 |
+| 8前半 | `9935245` | VSIXヒエラルキーをlive Roslynベースへ(`SceneWorkspaceService`+250msデバウンス解析) |
+| 9 | `cfe3726` | VSIX Scene Viewを`.scene`からSceneModel(ライブRoslyn)描画へ移行(F-L8-010)。`SceneFileEditorFactory`/`SceneWindowPane`等の`.scene`ドキュメントタブ系を削除 |
 
-Phase 9以後、`394ff04`がEditor→Code方向の配管層を一括追加した(Phase 10の準備。呼び出し元は未配線):
+Phase 9以後、`9813781`がEditor→Code方向の配管層を一括追加した(Phase 10の準備。呼び出し元は未配線):
 
 ### `tools/CSharpGameEngine.VSExtension/`(セッション契約と書き込み配管)
 
@@ -48,7 +48,7 @@ Phase 9以後、`394ff04`がEditor→Code方向の配管層を一括追加した
 - `TransformWorldResolver.cs`: メモ化付きlocal→world解決(`Cycle`/`DeadParent`/`MissingTransform`
   ステータス)。ランタイム用で、エディタ側は未使用。
 
-続く`eeaae1b`/`40f08e4`で、複数`IScene`クラスの選択を`ScenePickerDialog`から
+続く`bd9a8e4`/`40286e0`で、複数`IScene`クラスの選択を`ScenePickerDialog`から
 `SceneDesignerToolWindowControl`内の`SceneSelector`コンボボックスへ置き換え、宣言からの表示を確認した。
 
 ### テスト
@@ -61,13 +61,13 @@ Phase 9以後、`394ff04`がEditor→Code方向の配管層を一括追加した
 - `SceneTextChangePlannerTests.cs`、`SceneEditorSessionContractsTests.cs`、
   `SceneInspectorModelTests.cs`、`SceneComponentCatalogTests.cs`、
   `SceneModelRenderObjectBuilderTests.cs`、`RenderSurfaceFocusPolicyTests.cs`ほか
-  (`394ff04`で追加されたVSExtension.Testsの契約テスト群)。
+  (`9813781`で追加されたVSExtension.Testsの契約テスト群)。
 - `TransformTests.cs`/`TransformWorldResolverTests.cs`/`SceneCameraTests.cs`(Runtime側)。
 
 ### ドキュメント
 
 当時はADR-0040初版(41行)のみで、しかも日本語が全て`?`に文字化けした状態でコミットされていた
-(コミット`394ff04`のblob時点で破損、git復元不能)。2026-08にADR-0040を全面改稿し、本書(M0019)を
+(コミット`9813781`のblob時点で破損、git復元不能)。2026-08にADR-0040を全面改稿し、本書(M0019)を
 回顧録として追加、文字化けした12ファイルのコメント・エラーメッセージ文字列を書き直した。
 
 ## 検証結果(実際に実行して確認)

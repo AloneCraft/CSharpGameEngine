@@ -6,7 +6,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class StartupAutoOpenPolicyTests {
     private const string TargetSolution=@"G:\GitHub\CSharpGameEngine\UserEcsProject.slnx";
 
-    /// <summary>Start Window から起動した場合のフォールバックが生きていること(394ff04で復元した挙動)。</summary>
+    /// <summary>Start Window から起動した場合のフォールバックが生きていること(9813781で復元した挙動)。</summary>
     [Fact]
     public void NoSolutionAtAll_OpensTheUserEcsProject(){
         Assert.True(StartupAutoOpenPolicy.ShouldOpenUserEcsProject(
@@ -72,7 +72,7 @@ public sealed class StartupAutoOpenPolicyTests {
             ["devenv.exe","/rootsuffix","Exp",TargetSolution]));
     }
 
-    /// <summary>引数なし起動(394ff04本来の対象、Start Windowに落ちるケース)ではフォールバックが必要。</summary>
+    /// <summary>引数なし起動(9813781本来の対象、Start Windowに落ちるケース)ではフォールバックが必要。</summary>
     [Fact]
     public void CommandLineAlreadySpecifiesASolution_FalseWhenLaunchedWithoutArguments(){
         Assert.False(StartupAutoOpenPolicy.CommandLineAlreadySpecifiesASolution(["devenv.exe"]));

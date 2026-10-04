@@ -24,7 +24,7 @@ SceneView状態を宣言へ保存しない原則(§20)。
   (直前の所有者へ即時返却)しか処理しない。
 - この振る舞いは`RenderSurfaceFocusPolicy`として意図的に設計されたもの。ネイティブ子HWNDが
   Win32フォーカスを保持するとWPFの`Keyboard.FocusedElement`と脱同期し、**VS全体の**Tab/Backspace/
-  Deleteがセッション終了まで壊れる実バグ(コミット`a162478`)への対策であり、無効化できない。
+  Deleteがセッション終了まで壊れる実バグ(コミット`840d5c1`)への対策であり、無効化できない。
 - Editor→Code配管(`SceneSourceEditor`/`SceneTextBufferWriter`)は完成済みだが呼び出し元ゼロ。
   `SceneEditOperationKind`11種のうち実装は2種。
 - カメラは`SceneRenderer`内の固定計算(bounds中心+`normalize(1,0.75,1)*radius*3`、FOV 45°)で、
@@ -280,7 +280,7 @@ slot再利用時だけ待つ。resize・資源破棄・disposeの全体待機は
 - **VSコマンド+キーバインディング(.vsct)でW/E/R等を定義**: VS流儀でカスタマイズ性は高いが、
   修飾なし単键のグローバルキーバインドはコードエディタのタイピングと衝突しやすく、スコープ制御も
   ツールウィンドウ単位では効かない。ツールウィンドウ内WPFの`KeyDown`で足りるため不採用。
-- **ネイティブ子HWNDにWin32フォーカスを持たせて`WM_KEYDOWN`を直接受ける**: コミット`a162478`で
+- **ネイティブ子HWNDにWin32フォーカスを持たせて`WM_KEYDOWN`を直接受ける**: コミット`840d5c1`で
   実証済みのVS全体フォーカス破壊バグを再発させる。`RenderSurfaceFocusPolicy`の存在理由そのもので
   あり不採用。
 - **カメラ数学の共有ソース化**(`SceneModel`と同じ`<Compile Include>`方式): 採らない理由は依存の

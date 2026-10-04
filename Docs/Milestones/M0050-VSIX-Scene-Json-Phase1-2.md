@@ -186,7 +186,7 @@ Experimental Instance)ではなく通常起動のメインhiveで、かつ**Visu
 付き起動でない限りActivityLog.xmlへ実質書き込まない**ため、`ActivityLog.LogError`は呼ばれて
 いたはずでも詳細を確認する手段が無かった。
 
-ログが読めない状態での対応として、以下の防御的改善を行った(コミット`847ea3b`):
+ログが読めない状態での対応として、以下の防御的改善を行った(コミット`02ab48d`):
 
 1. `SceneWorkspaceService.AnalyzeAllAsync`を`Solution.ContainsAdditionalDocument(DocumentId)`
    で種別を先に確定させてから分岐する順序に変更し、`Solution.GetDocument`がAdditionalDocument

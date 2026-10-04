@@ -221,13 +221,13 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             return new IntPtr(MA_NOACTIVATE);
         }
 
-        // これは a162478 以来のネイティブD3D12子HWNDにおけるWin32/WPFフォーカス不整合の防御です。
+        // これは 840d5c1 以来のネイティブD3D12子HWNDにおけるWin32/WPFフォーカス不整合の防御です。
         // Packageの起動方法や初期ToolWindowの非アクティブ表示とは別層で維持します。
         if(FocusAction==RenderSurfaceFocusAction.ReturnFocus){
             // Surfaceは純粋な描画先でキーボード入力を所有しない。ここで実フォーカスを保持すると
             // WPFのHwndHost/HwndSourceとWin32のフォーカスがずれ、VS全体でTab、Backspace、
             // Deleteなどがコードエディタへ届かなくなる（通常の文字入力だけ動く場合がある）。
-            // a162478では親HWNDへ戻していたが、現在の親はScene Designer ToolWindowである。
+            // 840d5c1では親HWNDへ戻していたが、現在の親はScene Designer ToolWindowである。
             // WM_SETFOCUSのwParam（直前の所有者）を優先しないと、次のTabがコード編集ではなく
             // VSシェルのフォーカス巡回としてナビゲーションバーへ移動してしまう。
             RenderSurfaceWindow?FocusedInstance;

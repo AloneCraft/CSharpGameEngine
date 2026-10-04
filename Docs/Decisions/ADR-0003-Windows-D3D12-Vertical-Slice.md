@@ -181,4 +181,4 @@ TestHost.exe triangle --hidden --frames 3 --warp --debug-layer --verify
 Note on how these executables must be launched: running them as `dotnet <app>.dll` (through the
 muxer) fails to load `dxcompiler`, because the app directory is not added to the native DLL search
 path in that mode. Launching the generated apphost `.exe` works. This behaviour predates ADR-0034 -
-it was reproduced identically on the pre-consolidation commit `f17fbd5` in a separate worktree.
+it was reproduced identically on the pre-consolidation commit `30ed648` in a separate worktree.

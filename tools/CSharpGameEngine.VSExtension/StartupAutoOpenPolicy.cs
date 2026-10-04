@@ -33,7 +33,7 @@ internal static class StartupAutoOpenPolicy {
     /// </para>
     ///
     /// <para>
-    /// このフォールバック本来の対象(<c>394ff04</c>)は「引数なしで<c>devenv.exe /rootsuffix Exp</c>が
+    /// このフォールバック本来の対象(<c>9813781</c>)は「引数なしで<c>devenv.exe /rootsuffix Exp</c>が
     /// 起動されStart Windowに落ちた場合の復旧」であり、その場合はこの関数がfalseを返すので
     /// 既存のポーリング経路がそのまま働く。
     /// </para>

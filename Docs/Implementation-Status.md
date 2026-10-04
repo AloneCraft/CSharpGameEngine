@@ -175,7 +175,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.CodeAnalysis/EcsArchetypeAnalyzer.cs
   - src/CSharpGameEngine.CodeAnalysis/EcsArchetypeEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/EcsArchetypeModel.cs
-  - 削除済みの旧L9アプリケーション`Components.cs`/`Archetypes.cs`(履歴は`40f08e4`以前)
+  - 削除済みの旧L9アプリケーション`Components.cs`/`Archetypes.cs`(履歴は`40286e0`以前)
 - Tests:
   - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEmissionTests.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEndToEndTests.cs
@@ -263,7 +263,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `CreateLookAt`なので、+Fを向いたカメラでは+Rが画面の左に見える(画面の右はForward×Up=−R)。
   `ApplyMouseDelta`/`GetFlatRight`を使うランタイムの経路は無く(2026-10-04確認、テストのみが呼ぶ)、
   ThirdPersonの移動・視点入力は`CSharpGameEngine.Runtime.Character`が画面の右を使って扱う
-  (2026-10-01 eebdf4b、実機で左右の反転を確認して修正)。
+  (2026-10-01 8903973、実機で左右の反転を確認して修正)。
 - Next action: 無し。これらのヘルパーを入力に使う場合は、画面の右として−Rを使う。
 
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
@@ -312,11 +312,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L3-014 — 旧L9 runtime component/system/resource stage(削除済み)
 
 - Layer: L3 — ECS / runtime resources
-- Status: Removed(2026-08、`40f08e4`)
+- Status: Removed(2026-08、`40286e0`)
 - Verification: NotApplicable(削除前はTestVerified / RuntimeVerified)
 - Removal evidence: 旧L9アプリケーションの`Components.cs`、`SceneLoader.cs`、
   `TransformHierarchyRuntime.cs`、`Systems/Systems.cs`、`AudioRuntime.cs`と専用テストプロジェクトは
-  `40f08e4`で削除済み。
+  `40286e0`で削除済み。
 - Successor: 現行のアプリケーション側構成は`UserEcsProject/GameplayComponents.cs`と
   `UserEcsProject/Scenes/*.json`(シーン JSON、ADR-0070)で、読み込みはエンジンの
   `src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs`(`LevelLoad`)が行う。旧機能のうち手書きの階層同期・移動・距離減衰付き
@@ -414,10 +414,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - Layer: L9 — Game / Application
 - Parent capability: ECS駆動ステージ
-- Status: Removed(2026-08、`40f08e4`)
+- Status: Removed(2026-08、`40286e0`)
 - Verification: NotApplicable(削除前はRuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
-- Removal evidence: 旧L9アプリケーションの`Program.cs`とプロジェクトは`40f08e4`で削除済み。
+- Removal evidence: 旧L9アプリケーションの`Program.cs`とプロジェクトは`40286e0`で削除済み。
 - Successor: `UserEcsProject/UserEcsProject.csproj`は手書き`Main`を持たず、
   `src/CSharpGameEngine.CodeAnalysis/GameSystemEntryPointEmitter.cs`が
   `GeneratedEntryPoint.Main`と`GeneratedGameLoop.Run`を生成する(F-L7-015)。
@@ -434,11 +434,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - Layer: L9 — Game / Application
 - Parent capability: ECS駆動ステージ
-- Status: Removed(2026-08、`40f08e4`)
+- Status: Removed(2026-08、`40286e0`)
 - Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
 - Removal evidence: 旧L9アプリケーションの`PlayerController.cs`と`CharacterMotionTests.cs`は
-  `40f08e4`で削除済み。旧実装のコードは残っていない。
+  `40286e0`で削除済み。旧実装のコードは残っていない。
 - Historical behavior:
   - `CharacterMotion.Compute`はWorld/Window/GPUに一切依存しない純粋関数。カメラ基準の
     WASD移動、重力減算、Y<=0での接地クランプ、接地時のみJump可、を行う。`LerpAngle`は
@@ -582,13 +582,13 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - Layer: L9 — Game / Application
 - Parent capability: UE5.8 FirstPersonステージ移植
-- Status: Removed(2026-08、`40f08e4`)
+- Status: Removed(2026-08、`40286e0`)
 - Verification: NotApplicable(削除前はTestVerified、RuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0017-UE-Level-Export-Pipeline.md、
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md、
   Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md(PlayerStart軸変換)
 - Removal evidence: 旧L9アプリケーションの`SceneDocument.cs`、`SceneLoader.cs`、`Program.cs`と
-  専用テストは`40f08e4`で削除済み。
+  専用テストは`40286e0`で削除済み。
 - Successor: `UserEcsProject/Scenes/FirstPersonStageScene.json`のシーン JSON を
   `SceneInstantiateEmitter`がECS生成コードへ変換し、`src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs`の
   `LevelLoad`が`StaticMesh`部品と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
@@ -629,12 +629,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - Layer: L9 — Game / Application
 - Parent capability: UE5.8 FirstPersonステージ移植
-- Status: Removed(2026-08、`40f08e4`)
+- Status: Removed(2026-08、`40286e0`)
 - Verification: NotApplicable(削除前はTestVerified、RuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md、
   Docs/Decisions/ADR-0028-Ecs-Gameplay-Ruf-Boundary.md(RUF境界配置)
 - Removal evidence: 旧L9アプリケーションの`Components.cs`、`Systems/Systems.cs`、旧分割System群と
-  専用`PlayerControlSystemTests.cs`は`40f08e4`までに削除済み。
+  専用`PlayerControlSystemTests.cs`は`40286e0`までに削除済み。
 - Successor: `UserEcsProject/Systems/RuntimeSystem.cs`はWindow、LevelLoad、Transform/Light/Audio同期を
   現行`ISystem`契約で実装するが、旧`InputState`/`CharacterMotion`/Jump/PlayerControlは移植していない。
 - Historical behavior:
@@ -751,12 +751,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `tools/CSharpGameEngine.VSExtension/SceneFile.cs`としてVSIX内に存続していたが、M0020 Phase 0で
   削除した(読み取り経路はライブRoslyn`SceneModel`へ完全移行済み、F-L8-010)。当時の記録として(F-L8-003)、
   エディタ機能そのものは失われていない。
-- Implementation evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
+- Implementation evidence(削除済み。履歴はgitの`30ed648`以前を参照):
   - ~~src/CSharpGameEngine.Scene/{Transform,SceneNode,SceneGraph,SceneNodeTree,SceneJson}.cs~~
-  - ~~旧L9アプリケーションの`DefaultScene.scene`~~(`40f08e4`で削除)
-  - ~~旧L9アプリケーションの`Assets/DefaultScene/Box.glb`~~(`40f08e4`で削除)
+  - ~~旧L9アプリケーションの`DefaultScene.scene`~~(`40286e0`で削除)
+  - ~~旧L9アプリケーションの`Assets/DefaultScene/Box.glb`~~(`40286e0`で削除)
 - Tests: 8件のうち7件は削除対象そのもののテストなのでカバレッジ損失なし。残る1件
-  (出荷されていた旧`DefaultScene.scene`を読む唯一のテスト)も`40f08e4`で削除済み:
+  (出荷されていた旧`DefaultScene.scene`を読む唯一のテスト)も`40286e0`で削除済み:
   - ~~tests/CSharpGameEngine.VSExtension.Tests/DefaultSceneFileTests.cs~~
 - Reverse-engineered behavior(削除時点の記録として保持):
   - EditorSpec §3のJSONスキーマ(`schemaVersion`/`nodes[].{id,name,parentId,transform,
@@ -944,7 +944,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   (`SceneModelRenderObjectBuilder.ResolveViaBridge`)が利用している。
 - Superseded by: 宣言の直接編集(`SceneEditOperation`、M0020 Phase 3以降)+ ヒエラルキー編集
   マイルストーン。
-- Implementation evidence(削除済み。履歴はgitの`e2033ed`以前を参照):
+- Implementation evidence(削除済み。履歴はgitの`313c328`以前を参照):
   - tools/CSharpGameEngine.Primitive.Cli/Program.cs(**存続** — 描画側が利用)
   - ~~tools/CSharpGameEngine.VSExtension/ShapePaletteToolWindowPane.cs~~
   - ~~tools/CSharpGameEngine.VSExtension/ShapePaletteControl.xaml(.cs)~~
@@ -1002,7 +1002,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   (net472用の`Path.GetRelativePath`ポリフィル)も他の消費者が無いため一緒に落とした — ヒエラルキー
   編集マイルストーンで必要になったら書き直す。
 - Superseded by: `SceneEditOperation`ベースのソース挿入(ヒエラルキー編集マイルストーン)。
-- Implementation evidence(削除済み。履歴はgitの`e2033ed`以前を参照):
+- Implementation evidence(削除済み。履歴はgitの`313c328`以前を参照):
   - ~~tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs~~
   - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowControl.xaml(.cs)(`AllowDrop`と
     `DragEnter`/`DragOver`/`Drop`束縛、および対応する5メソッドを削除。TreeView本体は存続)
@@ -1396,7 +1396,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - 失われた範囲: **「コンパイル時に1つだけリンクする」機構だけ**である。Convention型
   (`UnityCoordinateConvention`等)は`CSharpGameEngine.Core`内に名前空間ごと残っており、
   実行時に選択して使うことは引き続きできる(F-L1-002/F-L1-003は`Implemented`のまま)。
-- Implementation evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
+- Implementation evidence(削除済み。履歴はgitの`30ed648`以前を参照):
   - ~~src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props~~
   - ~~samples/SpatialPresetDemo/{SpatialPresetDemo.csproj,ProjectSpatial.cs,Program.cs}~~
 - Tests: なし(MSBuildレベルのBuild Error検証はxunitで表現しづらいため、`dotnet build`/
@@ -2045,8 +2045,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: NotApplicable
 - Intended specification: Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
   (機構ごと退役。後継はADR-0040 / M0019)
-- Removal evidence(2026-08時点で実際にファイルの有無を確認): 旧`Scene1.cs`は`81c462e`で、
-  旧L9アプリケーションの残りは`40f08e4`で削除済み。現行のユーザープロジェクトは`UserEcsProject`。
+- Removal evidence(2026-08時点で実際にファイルの有無を確認): 旧`Scene1.cs`は`904a9b4`で、
+  旧L9アプリケーションの残りは`40286e0`で削除済み。現行のユーザープロジェクトは`UserEcsProject`。
 - Tests: なし(退役)。
 - Reverse-engineered behavior(歴史的記録。以下は退役した実装の説明):
   - `Root`→`MainCamera`(Position/Rotation/Scale/CameraRig)/`Player`(Position/Rotation/Scale/
@@ -2583,7 +2583,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `SceneModelRenderObjectBuilder`のTransform型ハードコード(`global::UserEcsProject.Transform`)に
   起因する「実シーンが全ノードIdentityで原点に固まって描画される」バグの修正と、階層Transform
   合成を行う([[ADR-0041-Scene-Editor-Interaction-Architecture]])。旧`ScenePickerDialog.xaml(.cs)`は
-  その後のコミット(`eeaae1b`/`40f08e4`)で
+  その後のコミット(`bd9a8e4`/`40286e0`)で
   `SceneDesignerToolWindowControl`内の`SceneSelector`コンボボックスへ置き換えられて削除済み
   (歴史的記録として残す)。
 

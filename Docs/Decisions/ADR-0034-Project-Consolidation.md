@@ -189,7 +189,7 @@ src/CSharpGameEngine.Windows/       Graphics/ + Platform/ + Hlsl/
   - 両CLIブリッジの実変換 → `exit=0` / `Success:true`(FBX側はネイティブ`assimp.dll`のロードにも成功)
 
 `dotnet <app>.dll`形式(muxer経由)で起動すると`dxcompiler`のロードに失敗するが、これは統合着手前の
-コミット`f17fbd5`を別ワークツリーに展開して同一コマンドを実行し、**まったく同じ失敗が出ることを
+コミット`30ed648`を別ワークツリーに展開して同一コマンドを実行し、**まったく同じ失敗が出ることを
 確認済み**である。本統合による退行ではなく、muxer経由ではアプリディレクトリがネイティブDLL探索
 パスに入らないという起動方法の問題。apphostの`.exe`経由なら成功する。
 

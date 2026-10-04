@@ -8,14 +8,14 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 ## 進捗
 | 項目 | 内容 | 状態 |
 |---|---|---|
-| A | ランタイムビューで、選択したギズモを操作しても確定まで画面のオブジェクトが動かない | 完了（82bf9b0、SDK 0.1.5 は d3b6c4e） |
-| B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（8589960） |
-| C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（dbb9fc1） |
-| D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（122e316、ADR-0073、SDK 0.1.6 は 24bd2d3）。`[RunsBefore]` を追加した（下記） |
-| E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（d63ef02、ADR-0074、SDK 0.1.7 は 21e9b6f） |
-| F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（9b17de6、ADR-0047 に追記、SDK 0.1.8 は 1688528） |
-| G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 完了（6f8b056、SDK 0.1.9 は b22dcdd） |
-| H | 角度の JSON のキーから C# の単位の語を外す（ユーザー判断「JSON のキーだけ別名」） | 完了（b7e6b1b、ADR-0074 決定 5、SDK 0.1.10 は e14259d） |
+| A | ランタイムビューで、選択したギズモを操作しても確定まで画面のオブジェクトが動かない | 完了（640622f、SDK 0.1.5 は 149d056） |
+| B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（642f77c） |
+| C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（885f429） |
+| D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（977a7b9、ADR-0073、SDK 0.1.6 は 59fdd59）。`[RunsBefore]` を追加した（下記） |
+| E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（60bbea8、ADR-0074、SDK 0.1.7 は 41c50e8） |
+| F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（e0f0728、ADR-0047 に追記、SDK 0.1.8 は 746ca61） |
+| G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 完了（f082b0a、SDK 0.1.9 は e6fc6ca） |
+| H | 角度の JSON のキーから C# の単位の語を外す（ユーザー判断「JSON のキーだけ別名」） | 完了（f2c3723、ADR-0074 決定 5、SDK 0.1.10 は 41a7537） |
 
 ## A. ギズモ操作をランタイムビューに反映
 - 原因: ドラッグ中、VSIX は動かしたオブジェクトの行列を `RenderPreviewFrame.Objects[].World` で送るが、ランタイムビュー（`RenderPreviewRuntimeSession.UpdateFrame`）は `Objects` を選択表示にしか使わない。ゲームのワールドは文書の値で描くので、テキストに書き込まれる確定までオブジェクトは動かず、ギズモだけが動いていた。

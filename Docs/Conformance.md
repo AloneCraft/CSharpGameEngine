@@ -81,7 +81,7 @@
 ## 2026-10-04 探索 — 画像のヘッダーが大きさを主張すると、データが無くても数 GB を確保して「成功」した
 - 意図: デコードした画像は Direct3D 12 のテクスチャになる（`StageSceneDataBuilder`、`RenderTextureArtifactAdapter`）。使えない画像は、その理由を示して失敗する。
 - 観測（Fact）: `WicImageDecoder` は配列の最大長だけを上限にしていた。WIC はピクセルのデータが無い PNG でも成功を返すので、ヘッダーが 20000×20000 を主張する数十バイトのファイルで 1.6 GB を確保し、D3D12 のテクスチャの辺の上限（16384）を超える画像として成功を返した（16385×1 も成功）。
-- 実装: 辺が 16384 を超える画像は、ピクセルを読む前に「Direct3D 12 のテクスチャの辺を超える」として失敗させる。これで同日（7c945b5）の配列の最大長の判定には届かなくなったので、そのコードを除いた。
+- 実装: 辺が 16384 を超える画像は、ピクセルを読む前に「Direct3D 12 のテクスチャの辺を超える」として失敗させる。これで同日（6739eef）の配列の最大長の判定には届かなくなったので、そのコードを除いた。
 - 自動化された証拠: `WicImageDecoderTests.Decode_ImageBeyondTheTextureLimit_FailsAsTooLarge`（修正前は 3 件とも成功を返した）。
 - 結果: Matches。
 
@@ -1087,7 +1087,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   Convention型自体は`CSharpGameEngine.Core`内に名前空間ごと残っており、実行時選択は引き続き可能
   (RE-L1-002 / RE-L1-003 は有効なまま)。
 - Confidence: High
-- Evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
+- Evidence(削除済み。履歴はgitの`30ed648`以前を参照):
   - ~~src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props~~
   - ~~samples/SpatialPresetDemo/ProjectSpatial.cs、Program.cs~~
   - Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md「検証結果」節の実行コマンドと結果(存続)
@@ -1486,11 +1486,11 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 ## 2026-08 StageRenderer FrameCB frame-slot sizing fix
 
-- Mismatch → now Matches: `585abf6` added a `ShadowViewProjection` field to `FrameCB`, growing it to
+- Mismatch → now Matches: `34c004a` added a `ShadowViewProjection` field to `FrameCB`, growing it to
   560 bytes, but left the double-buffered per-frame-slot stride at the unrelated
   `ConstantAlignment=512`. `SetDirectionalLight`'s per-frame write (`UserEcsProject/Systems/RuntimeSystem.cs`)
   therefore corrupted/overran the adjacent frame slot every other frame — the "ぐちゃぐちゃな表示"
-  (scrambled display) `585abf6`'s own commit message self-reported. Independently, `LevelLoad` called
+  (scrambled display) `34c004a`'s own commit message self-reported. Independently, `LevelLoad` called
   `Renderer.SetCamera` only once at load instead of every frame, so one of the two frame slots stayed
   pinned to the constructor-time default camera instead of the scene camera.
 - Fix: `StageRenderer.FrameConstantsStride` is now derived from `FrameConstantsSize` (rounded up to
@@ -1529,7 +1529,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Mismatch → now Matches: `Docs/Decisions/ADR-0040-...md`(初版41行)とVSIX/Runtime/テストの
   計12コードファイルは、日本語コメント・エラーメッセージ文字列が全て literal `?` に化けた状態で
-  コミットされていた(`394ff04`のblob時点で破損。`git show 394ff04:<file>`で確認、履歴からの
+  コミットされていた(`9813781`のblob時点で破損。`git show 9813781:<file>`で確認、履歴からの
   復元は不能)。ADR-0040は日本語で全面改稿し(当初「Phase 11で文書化」と先送りしていた正式文書化)、
   12ファイルのコメント・メッセージ文字列はコード理解に基づいて書き直した(ロジック行は無変更)。
 - ObsoleteSpecification removed: `Docs/EditorSpec.md`(`.scene` JSON前提の目標仕様書。ギズモ・
@@ -3252,7 +3252,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   で調査し、`devenv.exe /RootSuffix Exp`(F5デバッグのExperimental Instance)ではなく通常起動の
   メインhiveでテストされていたこと、**Visual Studioは`/Log`スイッチ付き起動でない限り
   ActivityLog.xmlへ実質書き込まない**ためログから詳細を確認できないことを特定した。
-- **防御的修正**(前項の続き、コミット`847ea3b`): `AnalyzeAllAsync`を`ContainsAdditionalDocument`
+- **防御的修正**(前項の続き、コミット`02ab48d`): `AnalyzeAllAsync`を`ContainsAdditionalDocument`
   で種別確定してから分岐する順序に変更、`AnalyzeJsonAsync`のBuild呼び出しをtry/catchで囲み
   `SceneModel.Failed`へ変換、ステータスバーに`Ex.GetType().Name`/`Ex.Message`を直接表示。
 - **Phase 4前倒し実施**: 「ログに頼らず原因を確認できるようにする」の延長として、
@@ -3339,7 +3339,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   全文再生成により、無関係な値まで`1.0`→`1`、`0.2`→`0.200000003`と表記が変わる)。
   C#経路は`SyntaxAnnotation`ベースの最小差分なのでこのノイズが構造的に発生しない。
   IntelliSense・Roslyn警告に加え**差分の綺麗さでもC#が優る**ことが実データで確認できた。
-- **Step 1-1(形式復帰)**: git履歴(`c04fc1d^`)から4つのC# Sceneファイル・
+- **Step 1-1(形式復帰)**: git履歴(`2a04acc^`)から4つのC# Sceneファイル・
   `GameSystemGenerator`のC#構文プロバイダー・テスト5本・`Runtime.cs`の制約を復元し、
   JSON関連を削除した。**M0049直前のコミットを一時チェックアウトして生成物を採取・比較し、
   生成コード10ファイルすべてがバイト単位で完全一致することを確認**(復元の正確さの機械的証拠)。

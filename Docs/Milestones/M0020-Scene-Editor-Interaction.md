@@ -629,7 +629,7 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
 - **(2026-08-16 追加)** Hierarchy起点だけが、既に開いているC#文書の`new Node { ... }` Spanを非選択背景マークする。通常操作はコードエディタを開かずフォーカスも奪わない。ダブルクリック/Enterだけがprimaryの`new`先頭へ移動する。Experimental Instanceの確認項目として、連続選択・親子/複数マーク・未表示文書非オープンを残す。
 
 - **新規に判明した別タスク規模の負債**: `Docs/Implementation-Status.md`に`UserGameProject`への参照が
-  62箇所ある。`UserGameProject`はM0019 Phase 5(`81c462e`)で撤去され現行は`UserEcsProject`なので、
+  62箇所ある。`UserGameProject`はM0019 Phase 5(`904a9b4`)で撤去され現行は`UserEcsProject`なので、
   上記3件と同種の陳腐化が広範に残っている可能性が高い。台帳全体の棚卸しは本マイルストーンの
   スコープ外とし、別タスクとして起こす。
 

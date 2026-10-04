@@ -26,8 +26,8 @@ C#経路は`SyntaxAnnotation`ベースの最小差分なのでこの種のノイ
 
 ## Step 1-1: 形式のC#復帰
 
-M0049(コミット`c04fc1d`)以前のファイルがgit履歴からそのまま復元できることを確認し、大半を
-`git show c04fc1d^:<path>`/`git checkout c04fc1d^ --`で戻した。
+M0049(コミット`2a04acc`)以前のファイルがgit履歴からそのまま復元できることを確認し、大半を
+`git show 2a04acc^:<path>`/`git checkout 2a04acc^ --`で戻した。
 
 - **復元**: `UserEcsProject/Scenes/`の`MainScene.cs`(24行)・`FirstPersonStageScene.cs`
   (1053行、58ノード)・`FirstPersonStageAssets.cs`(17行)・`PrimitiveShowcaseScene.cs`(41行)、

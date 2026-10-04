@@ -153,7 +153,7 @@ unproject(§6で使用): `Inverse(View * Projection)`でNDC→ワールド。透
 1.5倍ずれる)。ホイール量は両経路とも`WHEEL_DELTA=120`単位なので変換不要。
 
 **既存の初期値**: `SceneDesignerToolWindowControl`のコンストラクタは現在`RenderHostGrid.Focusable=false`
-かつ`IsTabStop=false`を設定している(F5起動時のフォーカス奪取バグ対策、コミット`394ff04`)。Phase 1では
+かつ`IsTabStop=false`を設定している(F5起動時のフォーカス奪取バグ対策、コミット`9813781`)。Phase 1では
 `Focusable`のみ`true`へ反転し、`IsTabStop=false`は維持する(Tabがここへ着地しないようにする)。
 フォーカス移動はビューポート内のマウス押下時のみに限り、`OnLoaded`/`ShowSnapshot`等では行わない。
 

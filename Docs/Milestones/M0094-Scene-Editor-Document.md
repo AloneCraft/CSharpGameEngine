@@ -9,8 +9,8 @@ Scenes open by double-click in one editor tab with a Design view and a JSON view
 ## Steps
 | Step | Content | Status |
 |---|---|---|
-| 1 | Remove the context-menu group, its 34 buttons and the code behind them. A test keeps every `.vsct` off `IDM_VS_CTXT_*` | Done (d0729ee) |
-| 2 | `SceneJsonEditorFactory` for `.json` (declines non-scene files), `SceneJsonEditorPane` with Design/JSON tabs over the shared text buffer, per-tab scene filter, toolbar command opening the editor; the external virtual document is removed | Done (62b46fd) |
+| 1 | Remove the context-menu group, its 34 buttons and the code behind them. A test keeps every `.vsct` off `IDM_VS_CTXT_*` | Done (af6b5ed) |
+| 2 | `SceneJsonEditorFactory` for `.json` (declines non-scene files), `SceneJsonEditorPane` with Design/JSON tabs over the shared text buffer, per-tab scene filter, toolbar command opening the editor; the external virtual document is removed | Done (ee4024e) |
 | 3 | Scene files become `Scenes\**\*.json` (user request, 2026-10-01; ADR-0070 decision 1 revised): one rule `SceneFiles.IsScene` for the build (`ProjectDir`), the generator, the analyzers and the extension; the 29 repository scenes renamed (the 10 FeatureStages scenes moved into `Scenes/`); the converter, item template, project generator, export scripts and release closure follow. MyGame3's `Lvl_ThirdPerson.cs` converted to `Scenes/Lvl_ThirdPerson.json` | Done (this commit) |
 
 ## Experimental instance checks (CgeAutomation hive, 2026-10-01)
