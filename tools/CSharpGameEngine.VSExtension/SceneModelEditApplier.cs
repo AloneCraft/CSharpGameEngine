@@ -748,8 +748,9 @@ internal static class SceneModelEditApplier {
     }
 
     /// <summary>
-    /// リテラルとして確実に解釈できる式だけを受け付ける。定数式・静的参照・ファクトリ呼び出しなどは
-    /// 解決にセマンティックモデルが要るため、ここでは素直に諦めて従来経路へ落とす。
+    /// 真偽値と数値のリテラルだけを受け付ける(列挙型と文字列は<see cref="TryCreateEnumOrTextValue"/>が扱う)。
+    /// 定数式・静的参照・ファクトリ呼び出しなどは解決にセマンティックモデルが要るため受け付けず、その編集は失敗する
+    /// (シーン JSON には C# のテキストを直接書き換える経路が無い)。
     /// </summary>
     private static bool TryParseLiteral(
         string Expression,SceneComponentMember?Existing,out object?ConstantValue){
