@@ -177,9 +177,9 @@ internal static class SceneJsonConverter {
             case sbyte or byte or short or ushort or int or uint or long or ulong:
                 return SceneJsonOut.Number(((IFormattable)Value).ToString(null,CultureInfo.InvariantCulture));
             case IFormattable Other:{
-                // Double and decimal constants keep their round-trip text. NaN and the infinities (float or double) have
-                // none: a JSON number is finite.
-                var Text=Other.ToString("R",CultureInfo.InvariantCulture);
+                // Double constants get the same shortest text on .NET Framework and .NET (SceneJsonNumbers); decimal keeps
+                // its own text. NaN and the infinities (float or double) have none: a JSON number is finite.
+                var Text=SceneJsonNumbers.FormatOther(Other);
                 if(SceneJsonReader.IsNumber(Text)){ return SceneJsonOut.Number(Text); }
                 Problems.Add($"{Where}: {Text} has no JSON form; a JSON number is finite.");
                 return SceneJsonOut.Null();

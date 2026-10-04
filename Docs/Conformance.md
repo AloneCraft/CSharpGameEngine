@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — VSIX の書き戻しが double のメンバーの書き方を変えていた
+- 意図: M0095「エディターの書き込みは変わった値だけを元のテキストへ戻す」。同日に float は .NET Framework と .NET で同じ文字列を書くよう直した。
+- 観測（Fact）: 変換器は double の定数を `ToString("R")` で書いていた。.NET Framework（VSIX）の "R" は最短の文字列ではなく、1/3 を `0.33333333333333331` と書き、.NET（ツール）は `0.3333333333333333` と書く。double のメンバーを持つコンポーネントがあるシーンで別のノードを動かすと、差分の適用は十進の文字列で比べるので、その double の行も書き換えた。エンジンのコンポーネントには double のメンバーが無い（NUM001）ので、影響するのは利用者が自分で書いた double のメンバーだけ。
+- 実装: double は G15 から G17 のうち double として読み戻せる最短の文字列で書く（両方の実行環境で同じ手順。NUM001 の境界は `SceneJsonNumbers.FormatOther`）。decimal は今までどおり自分の文字列で書く。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsDoubleMembersAsWritten`（net472。修正前は `0.33333333333333331` を書いて失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — Scene Designer の書き戻しを実際のテンプレートのシーンで検証するテスト
 - 意図: 同日に直した Scene Designer の書き戻しの不具合（startupOrder の消失、VSIX の float の書き方、列挙型・文字列・LogicalScalar の編集、パレットの既定値）は、どれもスタブの型を使うテストでは見えず、実際のシーンとエンジンの型でしか再現しなかった。
 - 実装: `TemplateSceneEditingTests` は ThirdPerson テンプレートを、ビルドと同じコンパイル項目・定数・参照（`dotnet msbuild -getItem`）でコンパイルし、実際のシーンで Inspector の確定（同じ値はファイルを変えない、列挙型の別の選択はその 1 行だけ）、移動（Position の 1 行だけ、startupOrder を保つ）、パレットの全コンポーネントの追加を確かめる。`vsix.source-sync` が実行する。

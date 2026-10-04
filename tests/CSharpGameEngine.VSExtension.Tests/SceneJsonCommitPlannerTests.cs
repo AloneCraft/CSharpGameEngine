@@ -37,6 +37,8 @@ public sealed class SceneJsonCommitPlannerTests {
             public struct Mover { public CSharpGameEngine.Numerics.LogicalScalar Speed; public RufScalarVector Offset; }
             public enum ShapeKind { Box, Sphere }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Precise { public double Ratio; public double Tiny; }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Body() {
                 public float Mass=2.5f;
                 public ShapeKind Shape=ShapeKind.Sphere;
@@ -282,6 +284,24 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Contains("\"Enabled\": true",After);
         Assert.Contains("\"Count\": 0",After);
         Assert.DoesNotContain("\"Offset\"",After);
+    }
+    /// <summary>
+    /// An edit elsewhere leaves a double member's text as it is. The VSIX (.NET Framework) wrote a double with its own
+    /// "R" text (1/3 as 0.33333333333333331, where the tools write 0.3333333333333333), so the merge saw a changed value
+    /// and every edit rewrote the line.
+    /// </summary>
+    [Fact]
+    public void Move_KeepsDoubleMembersAsWritten(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Precise\",\n            \"members\": {\n              \"Ratio\": 0.3333333333333333,\n              \"Tiny\": 1E-300\n            }");
+        Assert.Contains("\"Ratio\": 0.3333333333333333",Before);
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
     [Fact]
     public void Move_KeepsHandFormatting(){
