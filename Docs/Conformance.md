@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — パレットからエンジンのコンポーネントの約半数をシーンに追加できなかった
+- 意図: [Editor-VSIX](Specifications/Editor-VSIX.md) のコンポーネント パレット（M0051）。追加したコンポーネントは宣言の既定値を持つ。
+- 観測（Fact）: 追加の初期値（`SceneComponentInitializerPolicy`）は既定値を C# の式の文字列として持ち、値は明示的な引数なしコンストラクターの代入からしか畳まなかった。エンジンのコンポーネントは主コンストラクター付き構造体のフィールド初期化子で既定値を持つので、float の既定値は値なしになり、変換器が JSON の `null` を書いて SCENE203 になった。列挙型の既定値は参照するフィールドが空で、変換器が `NullReferenceException` を投げた。実際のプロジェクトで、ThirdPerson の 37 種類中 17、UserEcsProject の 35 種類中 18 が追加できず（Transform、すべてのライト、SkyAtmosphere、CharacterMovement、Collider、RigidBody など）、C# のシーンの時代は式をそのまま書けたので表に出なかった。
+- 実装: 既定値の式を構文のまま持ち、その宣言の意味モデルで読む（列挙型のメンバー、定数、`LogicalScalar.FromSingle(定数)`）。そのどれでもない既定値（静的メンバーなど、シーン JSON に書けないもの）は書かずに省き、ビルド時に同じ宣言の既定値が使われる。コンパイルが無いときは今までの文字列だけの計画のまま。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.PaletteComponent_IsWrittenWithItsDeclaredDefaults`（修正前は `NullReferenceException`）。実際のプロジェクトで、カタログの全コンポーネントを根ノードに追加すると、失敗は LightShadow 単独（「ライト 1 つに 1 つの影」の規則による、意図どおりのエラー）だけになった（一時的な検証、未コミット）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — Inspector でエンジンの実数（LogicalScalar）を編集できなかった
 - 意図: [Editor-VSIX](Specifications/Editor-VSIX.md)「Inspector は列挙型・ベクトルなどをスキーマに合ったエディターで編集し、実数の正規の編集は float で行う」。Inspector はメンバー直下の RUF ベクトルの R/U/F を編集できるように作られている。
 - 観測（Fact）: エディターの種類は組み込みの数値型だけを数値エディターにし、エンジンの実数 `LogicalScalar`（Q64.64）は読み取り専用にしていた。ThirdPerson テンプレートの CharacterMovement（歩行速度・ジャンプ速度など）、SpringArm（腕の長さ）、Transform の Position/Scale の R/U/F はすべて LogicalScalar なので、Inspector では一つも変えられなかった。RUF ベクトルのテストは成分が float のスタブ型を使っていたので、本物の型との差に気付かなかった。

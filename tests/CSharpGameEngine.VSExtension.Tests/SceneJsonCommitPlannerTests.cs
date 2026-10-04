@@ -35,11 +35,25 @@ public sealed class SceneJsonCommitPlannerTests {
             }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Mover { public CSharpGameEngine.Numerics.LogicalScalar Speed; public RufScalarVector Offset; }
+            public enum ShapeKind { Box, Sphere }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Body() {
+                public float Mass=2.5f;
+                public ShapeKind Shape=ShapeKind.Sphere;
+                public CSharpGameEngine.Numerics.LogicalScalar Speed=CSharpGameEngine.Numerics.LogicalScalar.FromSingle(6f);
+                public RufScalarVector Offset=Origin;
+                public bool Enabled=true;
+                public int Count;
+                public static readonly RufScalarVector Origin=new(1f,2f,3f);
+            }
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Lamp { public LightMode Mode; public string Label; }
         }
         namespace CSharpGameEngine.Numerics {
-            public readonly struct LogicalScalar { public static implicit operator LogicalScalar(float Value)=>default; }
+            public readonly struct LogicalScalar {
+                public static implicit operator LogicalScalar(float Value)=>default;
+                public static LogicalScalar FromSingle(float Value)=>default;
+            }
         }
         """;
     private const string JsonPath=@"C:\Game\Scenes\MainScene.json";
@@ -243,6 +257,31 @@ public sealed class SceneJsonCommitPlannerTests {
             SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,OffsetU,OffsetText),Seed.Reconciler,CancellationToken.None);
         Assert.True(OffsetPlan.Succeeded,OffsetPlan.ErrorMessage);
         Assert.Equal(Before.Replace("\"U\": 2,","\"U\": -4,"),OffsetPlan.WriteStep!.Before.WithChanges(OffsetPlan.WriteStep.Changes).ToString());
+    }
+    /// <summary>
+    /// A component added from the palette is written with its declared defaults. The defaults were kept only as C# text,
+    /// so a float or enum default came out as null (SCENE203) or threw, and the engine's own components (Transform, the
+    /// lights, CharacterMovement, ...) could not be added to a scene. A default JSON cannot hold (a static member) is
+    /// left out, which keeps the same default when the scene is built.
+    /// </summary>
+    [Fact]
+    public void PaletteComponent_IsWrittenWithItsDeclaredDefaults(){
+        var Seed=CreateSeed(Document("1"),Version:1,Previous:null,new SceneProjectionReconciler());
+        var Body=Seed.Context.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Windows.Body")!;
+        var Initializer=SceneComponentInitializerPolicy.CreatePlan(Body,"global::CSharpGameEngine.Runtime.Windows.Body",Seed.Context.Compilation);
+        var Add=new AddComponentOperation(Key,Find(Seed.Snapshot,"Lamp"),Seed.Snapshot.DocumentVersion,"global::CSharpGameEngine.Runtime.Windows.Body",Initializer.Expression,Initializer.Members);
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Add Body",[],SceneTransformMemberMask.None,DirectOperations:[Add]),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
+        Assert.Contains("\"type\": \"CSharpGameEngine.Runtime.Windows.Body\"",After);
+        Assert.Contains("\"Mass\": 2.5",After);
+        Assert.Contains("\"Shape\": \"Sphere\"",After);
+        Assert.Contains("\"Speed\": 6",After);
+        Assert.Contains("\"Enabled\": true",After);
+        Assert.Contains("\"Count\": 0",After);
+        Assert.DoesNotContain("\"Offset\"",After);
     }
     [Fact]
     public void Move_KeepsHandFormatting(){
