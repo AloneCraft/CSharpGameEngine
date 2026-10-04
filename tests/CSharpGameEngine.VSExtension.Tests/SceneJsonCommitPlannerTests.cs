@@ -553,6 +553,27 @@ public sealed class SceneJsonCommitPlannerTests {
             new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Add Inner",[],SceneTransformMemberMask.None,DirectOperations:[Add]),Seed.Reconciler,CancellationToken.None);
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
     }
+    /// <summary>
+    /// Node ids stay across edits also for siblings with the same name and component types. The reconciler gives such
+    /// siblings a new editor id on every analysis, and the write-back carried JSON ids by editor id, so moving any node
+    /// replaced every look-alike's id with a new GUID.
+    /// </summary>
+    [Fact]
+    public void Move_KeepsTheIdsOfLookAlikeSiblings(){
+        var LampBlock="      {\n        \"id\": \""+LampId+"\",\n        \"name\": \"Lamp\",";
+        var Before=Document("1");
+        var Start=Before.IndexOf(LampBlock,StringComparison.Ordinal);
+        var End=Before.IndexOf("\n    ]\n  }\n}",StringComparison.Ordinal);
+        var Twin=Before.Substring(Start,End-Start).Replace(LampId,"0f3c6c7a-0000-4000-8000-0000000000aa");
+        Before=Before.Substring(0,End)+",\n"+Twin+Before.Substring(End);
+        var Reconciler=new SceneProjectionReconciler();
+        var Seed=CreateSeed(Before,Version:1,Previous:null,Reconciler);
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');

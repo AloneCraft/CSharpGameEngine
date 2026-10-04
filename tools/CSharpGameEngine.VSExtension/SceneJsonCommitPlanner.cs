@@ -76,10 +76,19 @@ internal static class SceneJsonCommitPlanner {
         foreach(var Pair in OldIds){
             if(Latest.Projection.TryGetId(Pair.Key,out var EditorId)){ JsonIdByEditorId[EditorId]=Pair.Value; }
         }
-        string?IdFor(NodePath Path)=>
-            PredictedProjection.TryGetId(Path,out var EditorId)&&JsonIdByEditorId.TryGetValue(EditorId,out var Id)
-                ?Id
-                :Guid.NewGuid().ToString("D");
+        string?IdFor(NodePath Path){
+            if(!PredictedProjection.TryGetId(Path,out var EditorId)){ return Guid.NewGuid().ToString("D"); }
+            if(JsonIdByEditorId.TryGetValue(EditorId,out var Id)){ return Id; }
+            // Siblings with the same name and component types get a new editor id on every analysis (the reconciler does
+            // not guess between them), so their ids were replaced on every edit. Such a node keeps the id of the old node
+            // at its place when that node looks the same and the prediction no longer has its editor id.
+            if(OldIds.TryGetValue(Path,out var OldId)&&Latest.Projection.TryGetId(Path,out var OldEditorId)
+                &&!PredictedProjection.TryGetNode(OldEditorId,out _)&&Latest.Projection.TryGetNode(OldEditorId,out var OldNode)
+                &&PredictedProjection.TryGetNode(EditorId,out var NewNode)&&LooksTheSame(OldNode.Node,NewNode.Node)){
+                return OldId;
+            }
+            return Guid.NewGuid().ToString("D");
+        }
         var Converted=SceneJsonConverter.Convert(Predicted,SchemaReferenceOf(OldText),IdFor);
         if(Converted.Text is null){
             return SceneSourceCommitPlan.Failure(string.Join(Environment.NewLine,Converted.Problems));
@@ -129,6 +138,11 @@ internal static class SceneJsonCommitPlanner {
         Error=string.Empty;
         return true;
     }
+    /// <summary>The same name and component types, which is all the reconciler tells siblings apart by.</summary>
+    private static bool LooksTheSame(SceneNode Old,SceneNode New)=>
+        string.Equals(Old.Name,New.Name,StringComparison.Ordinal)
+        &&Old.Components.Select(static Component=>Component.TypeFullyQualifiedName)
+            .SequenceEqual(New.Components.Select(static Component=>Component.TypeFullyQualifiedName),StringComparer.Ordinal);
     private static string?SchemaReferenceOf(string JsonText){
         try {
             return SceneJsonReader.Parse(JsonText).Get("$schema") is { Kind:SceneJsonKind.String }Schema?Schema.Text:null;
