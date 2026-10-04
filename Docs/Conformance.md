@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — エディタで動くシステムの無いゲームで、生成ファイルに CS0414 の警告が出た
+- 意図: シーンとシステムから生成するコードは、警告なしでビルドできる（警告をエラーにするプロジェクトでも通る）。
+- 観測（Fact）: エディタのプレビューの橋渡し（`GeneratedEditorPreviewBridge`）は、システムの集合のフィールドを宣言して初期化でリセットするが、それを読むのはエディタで動くシステム（`[ExecuteInEditor]`）があるときのフレーム処理だけだった。そうしたシステムの無いゲームでは CS0414（代入されて使われないフィールド）になった。UserEcsProject と ThirdPerson はエディタのシステムを持つので出ていなかった。
+- 実装: エディタか実時間のシステムがあるときだけ、そのフィールドの宣言とリセットを生成する。
+- 自動化された証拠: `SceneJsonGeneratorTests.GameWithoutEditorSystems_BuildsItsGeneratedFilesWithoutWarnings`（修正前は CS0414）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 画像のヘッダーが大きさを主張すると、データが無くても数 GB を確保して「成功」した
 - 意図: デコードした画像は Direct3D 12 のテクスチャになる（`StageSceneDataBuilder`、`RenderTextureArtifactAdapter`）。使えない画像は、その理由を示して失敗する。
 - 観測（Fact）: `WicImageDecoder` は配列の最大長だけを上限にしていた。WIC はピクセルのデータが無い PNG でも成功を返すので、ヘッダーが 20000×20000 を主張する数十バイトのファイルで 1.6 GB を確保し、D3D12 のテクスチャの辺の上限（16384）を超える画像として成功を返した（16385×1 も成功）。

@@ -670,6 +670,22 @@ public sealed class SceneJsonGeneratorTests {
         GameSystemGeneratorTestHelper.CompileAndLoad(Compilation,[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
         Assert.Contains("\"Sample.Outer.Inner\"",CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation),StringComparison.Ordinal);
     }
+    /// <summary>
+    /// A game whose systems do not run in the editor builds its generated files without a warning. The editor preview
+    /// bridge declared and reset its system set without reading it then (CS0414), which stops a build that treats
+    /// warnings as errors.
+    /// </summary>
+    [Fact]
+    public void GameWithoutEditorSystems_BuildsItsGeneratedFilesWithoutWarnings(){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,NamingComponents]);
+        Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",NamedScene("Game","MainScene"))],optionsProvider:SceneProjectOptions.Instance)
+            .RunGeneratorsAndUpdateCompilation(Compilation,out var Output,out _);
+        var Generated=Output.SyntaxTrees.Where(static Tree=>Tree.FilePath.EndsWith(".g.cs",StringComparison.Ordinal)).ToHashSet();
+        Assert.Contains(Generated,static Tree=>Tree.ToString().Contains("GeneratedEditorPreviewBridge",StringComparison.Ordinal));
+        Assert.Empty(Output.GetDiagnostics().Where(Diagnostic=>Diagnostic.Severity>=DiagnosticSeverity.Warning
+            &&Diagnostic.Location.SourceTree is { }Tree&&Generated.Contains(Tree)).Select(static Diagnostic=>Diagnostic.ToString()));
+    }
     /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {

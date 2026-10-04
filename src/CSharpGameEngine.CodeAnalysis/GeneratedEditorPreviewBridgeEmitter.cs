@@ -37,6 +37,11 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             "        bool Matched = false;",
             "        switch (SceneName) {",
         ];
+        if(!HasEditorSystems&&!HasRealtimeSystems){
+            // Only an editor or realtime frame reads the system set; declared and reset without one, it was CS0414.
+            Lines.Remove("    private static GeneratedSystemSet PreviewSystems;");
+            Lines.Remove("        PreviewSystems = default;");
+        }
         if(HasEngineHost){
             int PreviewWorldFieldIndex=Lines.IndexOf("    private static global::CSharpGameEngine.Entities.World PreviewWorld;");
             Lines[PreviewWorldFieldIndex]="    private static global::CSharpGameEngine.Runtime.Windows.EngineHost? PreviewEngineHost;";
