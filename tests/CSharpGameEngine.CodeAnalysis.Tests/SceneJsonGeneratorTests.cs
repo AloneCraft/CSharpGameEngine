@@ -671,6 +671,26 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Contains("\"Sample.Outer.Inner\"",CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation),StringComparison.Ordinal);
     }
     /// <summary>
+    /// A scene class named like a C# contextual keyword is an error at its className and is not generated: 'var' turned
+    /// the generated code's implicitly typed locals into the scene type, 'file' and 'required' parsed as modifiers,
+    /// 'scoped' is an error and 'record' a warning, all in the generated file with no scene diagnostic.
+    /// </summary>
+    [Theory]
+    [InlineData("var")]
+    [InlineData("file")]
+    [InlineData("required")]
+    [InlineData("scoped")]
+    [InlineData("record")]
+    public void SceneClassNamedLikeAContextualKeyword_IsAnErrorAtTheClassName(string ClassName){
+        var Json=NamedScene("Game",ClassName);
+        var Diagnostic=Assert.Single(Analyze(Json,NamingComponents));
+        Assert.Equal("SCENE204",Diagnostic.Id);
+        Assert.Contains("contextual keyword",Diagnostic.GetMessage(),StringComparison.Ordinal);
+        GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,NamingComponents]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+    }
+    /// <summary>
     /// A game whose systems do not run in the editor builds its generated files without a warning. The editor preview
     /// bridge declared and reset its system set without reading it then (CS0414), which stops a build that treats
     /// warnings as errors.

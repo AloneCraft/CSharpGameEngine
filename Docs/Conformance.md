@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 文脈キーワードと同じ名前のシーンで、生成ファイルがコンパイルできなかった
+- 意図: ADR-0070。生成できないシーンは JSON の位置で報告し、生成しない。
+- 観測（Fact）: className は予約キーワード（`class` など）だけを拒んでいた。文脈キーワードを名前にすると、`var` は生成コードの暗黙の型の変数をシーンの型にして CS0029、`file`・`required` は修飾子として読まれて構文エラー、`scoped` はエラー（CS9062）、`record` は警告（CS8860）になり、いずれもシーンの診断は出なかった。
+- 実装: className が文脈キーワードなら className の位置に SCENE204 を出し、シーンを生成しない（ADR-0070 の SCENE204 に追記）。`nameof`・`await`・`partial` なども拒むが、シーンの名前として避けるべきものとして扱う。名前空間の各部分は、試した範囲（`global`、`var`）で問題がないので変えていない。
+- 自動化された証拠: `SceneJsonGeneratorTests.SceneClassNamedLikeAContextualKeyword_IsAnErrorAtTheClassName`（修正前は 5 件とも失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — エディタで動くシステムの無いゲームで、生成ファイルに CS0414 の警告が出た
 - 意図: シーンとシステムから生成するコードは、警告なしでビルドできる（警告をエラーにするプロジェクトでも通る）。
 - 観測（Fact）: エディタのプレビューの橋渡し（`GeneratedEditorPreviewBridge`）は、システムの集合のフィールドを宣言して初期化でリセットするが、それを読むのはエディタで動くシステム（`[ExecuteInEditor]`）があるときのフレーム処理だけだった。そうしたシステムの無いゲームでは CS0414（代入されて使われないフィールド）になった。UserEcsProject と ThirdPerson はエディタのシステムを持つので出ていなかった。

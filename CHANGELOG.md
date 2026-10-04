@@ -55,6 +55,7 @@
 - Fixed every Scene Designer edit replacing the `id` of each node that has a sibling with the same name and component types with a new GUID: such a node now keeps the id of the node at its place.
 - Fixed an image whose header claims more than 16384 pixels on a side decoding "successfully" (a header with no pixel data claiming 20000x20000 allocated 1.6 GB): it now fails as too large for a Direct3D 12 texture before its pixels are read.
 - Fixed a game without systems that run in the editor getting a CS0414 warning in the generated editor preview bridge, which stops a build that treats warnings as errors.
+- Fixed a scene className that is a C# contextual keyword (`var`, `file`, `required`, `scoped`, `record`) breaking the generated code without a scene diagnostic: it is now SCENE204 at the className.
 - Fixed an image whose header claims more pixels than one array holds (65535x65535, a broken or hostile file) throwing an overflow out of the WIC decoder: it now fails like any other bad image.
 - Fixed two scene files that declare the same class (a copied file whose `className` was kept) making the generator fail and drop all its output (CS8785): the first file by path is built and each later one gets SCENE207 at its `className`, naming the file that declared it first.
 - Fixed a scene node name with a line break (`\n`, or U+2028 / U+0085, which C# also ends a line at) breaking the game's build: the generator wrote the name into a one-line comment as it was; it now writes it as an escaped C# literal.

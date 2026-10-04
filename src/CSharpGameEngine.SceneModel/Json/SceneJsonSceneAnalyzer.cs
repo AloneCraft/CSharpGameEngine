@@ -173,6 +173,10 @@ internal static class SceneJsonSceneAnalyzer {
             ClassName=string.Empty;
         } else if(!IsIdentifier(ClassName)){
             Problems.Add(Invalid(Document.Get("className")!,$"'{ClassName}' is not a C# identifier."));
+        } else if(SyntaxFacts.GetContextualKeywordKind(ClassName)!=SyntaxKind.None){
+            // A class named like a contextual keyword breaks or changes the generated code: 'var' turns its implicitly
+            // typed locals into the scene type, 'file' and 'required' parse as modifiers, 'scoped' is an error, 'record' a warning.
+            Problems.Add(Invalid(Document.Get("className")!,$"'{ClassName}' is a C# contextual keyword; give the scene another className."));
         } else if(ClassNameConflict(Namespace,ClassName,Compilation) is { }Conflict){
             Problems.Add(Invalid(Document.Get("className")!,Conflict));
         }
