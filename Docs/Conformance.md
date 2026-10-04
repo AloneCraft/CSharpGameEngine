@@ -1,5 +1,11 @@
 # Conformance
 
+## 2026-10-04 探索 — ランタイムはシーンの Camera の正射影を無視して透視で描いている
+- 意図: シーンの `Camera` は `Projection`（Perspective/Orthographic）と `OrthographicSize` を持つ。Omni 仕様は「正射影のビューは標準の深度を使う（対数深度は透視が要る）」と定めている。
+- 観測（Fact）: `LevelLoad.ApplyProjection` は `FovYRadians`・`NearZ`・`FarZ`・露出・深度方式だけを写し、`Projection` と `OrthographicSize` を読まない。描画のカメラ（`Graphics/Camera.GetProjection`）も透視だけを作る。正射影のシーンカメラは、エディタのカメラのサムネイル（分離プレビュー）では正射影で描かれるが、ゲームとランタイムビューでは透視（既定の対数深度）で描かれる。
+- 判断: 実装しない（ユーザー判断）。視野角を前提にする箇所（影のカスケードの当てはめ、空の方向の逆行列、AO の深度の復元、Forward+ のタイル範囲、対数深度）が多く、正射影での空や影の振る舞いを決める必要がある、機能単位の仕事であるため。
+- 結果: Partial（既知の差）。
+
 ## 2026-10-04 探索 — C# の予約語と同じ名前のゲーム プロジェクトはコンパイルできなかった
 - 意図: ADR-0068「テンプレートは名前空間をプロジェクトの安全な識別子に置き換え、作ったプロジェクトはそのままビルドできる」。
 - 観測（Fact）: プロジェクト名 `event` や `fixed` では、安全な識別子がそのまま `event` になり、生成した `Gameplay/PlayerStart.cs` などが `namespace event.Gameplay;` で CS1001 になった（シーン JSON の名前空間も「名前空間名ではない」で拒否される）。Visual Studio の `$safeprojectname$` が予約語をどう扱うかは、この環境では確かめられていない。
