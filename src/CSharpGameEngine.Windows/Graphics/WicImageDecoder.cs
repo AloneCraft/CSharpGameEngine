@@ -101,8 +101,13 @@ public static unsafe class WicImageDecoder {
                 return WicDecodeResult.Failed($"Decoded image has zero size ({Width}x{Height}).");
             }
 
+            // A broken or hostile header can claim more pixels than one array holds: a bad image, not an overflow.
+            var Size=(ulong)Width*Height*4;
+            if(Size>(ulong)Array.MaxLength){
+                return WicDecodeResult.Failed($"Decoded image is too large ({Width}x{Height}).");
+            }
             var Stride=Width*4;
-            var Pixels=new byte[Stride*Height];
+            var Pixels=new byte[Size];
             fixed(byte*PPixels=Pixels){
                 Hr=Converter->CopyPixels(null,Stride,(uint)Pixels.Length,PPixels);
             }

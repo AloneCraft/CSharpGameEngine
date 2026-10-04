@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 巨大な大きさを主張する画像で、デコーダーから例外が漏れた
+- 意図: `WicImageDecoder`「壊れた画像は例外でなく失敗の結果で返す」（`Decode_GarbageBytes_FailsNotException` などのテストの約束）。
+- 観測（Fact）: 画素バッファの大きさを 32 ビットで `Width*4*Height` と計算していた。IHDR が 65535×65535 を主張する PNG（中身は空）で、プロジェクトのオーバーフロー検査が `OverflowException` を投げ、デコーダーの外へ漏れた（検査が無ければ桁あふれした大きさで確保していた）。マテリアルの成果物は寸法に上限を持つので、弱かったのはデコーダーだけ。
+- 実装: 大きさを 64 ビットで計算し、1 つの配列に収まらなければ「大きすぎる」失敗を返す。
+- 自動化された証拠: `WicImageDecoderTests.Decode_HeaderClaimingAHugeImage_FailsNotException`（3 件。修正前は 65535×65535 が `OverflowException`）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 2 つのシーンファイルが同じクラスを宣言すると生成器ごと失敗した
 - 意図: [ADR-0070](Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)「ビルド時の問題は JSON の行と列に報告し、生成できないシーンを黙って落とさない」。
 - 観測（Fact）: シーンファイルをコピーして `className` を変えないと、生成器は同じシーンを 2 回追加しようとして「hintName 'Game.MainScene.Scene.g.cs' は一意である必要がある」の `ArgumentException` で失敗し（CS8785）、生成器の出力がすべて失われた。利用者に見えるのは生成器の失敗と、生成されなかった型に関する大量のエラーだった。
