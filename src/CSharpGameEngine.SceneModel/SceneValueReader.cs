@@ -157,13 +157,18 @@ internal sealed class SceneValueReader(
         }
 
         // コレクション式 [ … ] はターゲット型付けなので Type が null になる。ConvertedType が唯一の手がかり。
-        if(ResolvedType is not IArrayTypeSymbol ArrayType){
+        if(ResolvedType is not IArrayTypeSymbol){
             if(SceneTypePredicates.IsUnresolved(ResolvedType)){
                 return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
             }
 
-            this.ReportUnsupported(Expression,"non-array collection");
-            return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
+            // ADR-0070: a scene JSON array fills a collection member (List<T> and other IEnumerable<T> types, as the
+            // schema and the JSON analyzer allow) with a collection expression, read like an array's elements. A
+            // collection initializer or a collection built at run time is still not statically determined.
+            if(Expression is not CollectionExpressionSyntax||ResolvedType is not INamedTypeSymbol){
+                this.ReportUnsupported(Expression,"non-array collection");
+                return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
+            }
         }
 
         var Elements=ImmutableArray.CreateBuilder<SceneValue>();
@@ -175,13 +180,13 @@ internal sealed class SceneValueReader(
             ElementTexts.Add(Value.EmitExpressionText);
         }
 
-        var EmitText=SceneEmitExpressionWriter.WriteArrayCreation(
-            SceneEmitExpressionWriter.WriteTypeReference(ArrayType.ElementType),
-            ElementTexts);
+        var EmitText=ResolvedType is IArrayTypeSymbol ArrayType
+            ?SceneEmitExpressionWriter.WriteArrayCreation(SceneEmitExpressionWriter.WriteTypeReference(ArrayType.ElementType),ElementTexts)
+            :"["+string.Join(", ",ElementTexts)+"]";
 
         return new SceneValue(
             SceneValueKind.Collection,
-            ArrayType,
+            ResolvedType,
             ConstantValue:null,
             ReferencedSymbol:null,
             ImmutableArray<SceneComponentMember>.Empty,

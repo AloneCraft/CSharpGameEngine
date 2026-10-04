@@ -43,6 +43,8 @@ public sealed class SceneJsonCommitPlannerTests {
             [System.Flags]
             public enum Layers { None=0, A=1, B=2 }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct Route { public System.Collections.Generic.List<float> Speeds; public int[] Ids; }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Tagged() {
                 public ShapeKind Cast=(ShapeKind)1;
                 public Layers Mask=Layers.A|Layers.B;
@@ -323,6 +325,26 @@ public sealed class SceneJsonCommitPlannerTests {
     /// "R" text (1/3 as 0.33333333333333331, where the tools write 0.3333333333333333), so the merge saw a changed value
     /// and every edit rewrote the line.
     /// </summary>
+    /// <summary>
+    /// A user component's collection member (List&lt;T&gt;, which the schema and the build accept as a JSON array) does not
+    /// stop the Designer: the designer source holds it as a collection expression, which the Scene DSL model rejected as
+    /// a "non-array collection" (SCENE110), so the whole scene could not be edited although it built.
+    /// </summary>
+    [Fact]
+    public void ListMember_KeepsTheSceneEditable(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Route\",\n            \"members\": {\n              \"Speeds\": [0.5, 2],\n              \"Ids\": [1, 2]\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Members=SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid()));
+        Assert.Contains(Members,static Member=>Member.MemberName=="Speeds");
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
     [Fact]
     public void Move_KeepsDoubleMembersAsWritten(){
         var Before=Document("1").Replace(
