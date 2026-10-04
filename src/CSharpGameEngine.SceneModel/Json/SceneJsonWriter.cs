@@ -136,18 +136,31 @@ internal static class SceneJsonWriter {
 }
 /// <summary>
 /// Number text for scene values. A float is written in the shortest form that parses back to the
-/// same float (trying 6 to 9 significant digits), which is identical on .NET Framework and .NET, so
-/// the VSIX and the tools write the same text for the same value.
+/// same float (trying 6 to 9 significant digits), identical on .NET Framework and .NET, so the VSIX
+/// and the tools write the same text for the same value.
 /// </summary>
 internal static class SceneJsonNumbers {
     internal static string FormatSingle(float Value){
         if(float.IsNaN(Value)||float.IsInfinity(Value)){ throw new ArgumentOutOfRangeException(nameof(Value),"JSON numbers must be finite."); }
         for(var Digits=6;Digits<=9;Digits++){
-            var Text=Value.ToString("G"+Digits.ToString(CultureInfo.InvariantCulture),CultureInfo.InvariantCulture);
-            if(float.Parse(Text,NumberStyles.Float,CultureInfo.InvariantCulture)==Value){ return Normalize(Text); }
+            var Text=Rounded(Value,Digits);
+            if(ParsesTo(Text,Value)){ return Normalize(Text); }
         }
-        return Normalize(Value.ToString("G9",CultureInfo.InvariantCulture));
+        return Normalize(Rounded(Value,9));
     }
+    // The double boundary of the numeric policy (NUM001) is these two methods. .NET Framework rounds a float to nine
+    // digits before it rounds to fewer (5.00000524521 is "5.0000053" with G8, .NET writes "5.0000052"); the float's exact
+    // value, as a double, rounds once on both runtimes. Parsing goes the same way on both too.
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static string Rounded(float Value,int Digits)=>
+        ((double)Value).ToString("G"+Digits.ToString(CultureInfo.InvariantCulture),CultureInfo.InvariantCulture);
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static bool ParsesTo(string Text,float Value)=>
+        (float)double.Parse(Text,NumberStyles.Float,CultureInfo.InvariantCulture)==Value;
     /// <summary>"G" may produce "1E-05"; JSON accepts it. "-0" becomes "0" so a value has one spelling.</summary>
     private static string Normalize(string Text)=>Text=="-0"?"0":Text;
 }

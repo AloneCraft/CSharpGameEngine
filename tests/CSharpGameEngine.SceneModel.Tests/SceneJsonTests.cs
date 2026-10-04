@@ -49,6 +49,8 @@ public sealed class SceneJsonTests {
     [InlineData(1.5707964f,"1.5707964")]
     [InlineData(44.765083f,"44.765083")]
     [InlineData(-5.722046E-06f,"-5.722046E-06")]
+    [InlineData(5.0000052f,"5.0000052")]
+    [InlineData(24.896297f,"24.896297")]
     public void SingleSpelling_IsTheShortestRoundTripText(float Value,string Expected){
         var Text=SceneJsonNumbers.FormatSingle(Value);
         Assert.Equal(Expected,Text);
