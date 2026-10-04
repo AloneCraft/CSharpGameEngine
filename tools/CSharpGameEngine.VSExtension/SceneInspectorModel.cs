@@ -483,7 +483,7 @@ internal static class SceneInspectorValueFormat {
                     Expression=string.Empty;
                     return false;
                 }
-                Expression=SingleValue.ToString("R",CultureInfo.InvariantCulture)+"f";
+                Expression=SceneEditValues.SingleLiteral(SingleValue);
                 return true;
             case SpecialType.System_Int64:
                 if(!long.TryParse(Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Int64Value)){

@@ -1,9 +1,16 @@
 # Conformance
 
+## 2026-10-04 探索 — VSIX の編集が、.NET と違う綴りで値を書いていた
+- 意図: `SceneJsonNumbers` の契約。VSIX（.NET Framework）とツール（.NET）は同じ値に同じ文字列を書く（同日の「VSIX の書き戻しが無関係な数値の書き方を変えていた」の修正）。
+- 観測（Fact）: net472 で Cube の位置を 312985.125 へ動かすと `"R": 312985.125` を書いた。.NET の綴りは `312985.12`。編集の経路はリテラルを .NET Framework の `ToString("R")` で作る（9 桁に戻る）。変換器が作者の綴りを残すようになった（同日の前項）ため、そのリテラルの綴りがそのまま文書に出た。それまでは変換器が値から書き直していたので表に出なかった。
+- 実装: 編集のリテラルを作る箇所（移動・回転・拡大縮小の値、Inspector の数値、プロパティギズモ、競合の合成、初期化子の既定値、物理ライトの引数）を `SceneEditValues.SingleLiteral`（`SceneJsonNumbers.FormatSingle` と同じ綴り）にまとめた。表示用の文字列は変えていない。
+- 自動化された証拠: `SceneJsonCommitPlannerTests.Move_WritesTheValueAsDotNetSpellsIt`（修正前は失敗）、`SceneInspectorModelTests.TryFormatNumber_ValidInput_ProducesTypeCorrectLiteral`（312985.125）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 無関係な編集が、型の精度より多い桁で書いた数を書き直していた
 - 意図: M0095 3-5a。シーンエディタの書き戻しは、変わった値だけを元のテキストへ差し替え、作者の書式を残す。
 - 観測（Fact）: float のメンバーに `3.14159265358979`・`16777217`・`100.0000001`・`0.30000001192092896` と書いたシーンで Cube を動かすと、その行が `3.1415927`・`16777216`・`100`・`0.3` に書き換わった。値は同じ float だが、変換器が型の最短表記で出し、差し替えの判定が数値を文字列で比べるので別の値とみなした。
-- 実装: 変換器は、作者の数値リテラルの綴りが正しく丸める解析で同じ値に読み戻せる限りその綴りのまま出す（`SceneJsonDecimal.ReadsBack`。float は C# のリテラルと同じく float へ直接丸め、double を経た二重丸めはしない）。読み戻せない綴り（.NET Framework の "R" が作った編集の値など）は従来どおり型の表記で出す。
+- 実装: 変換器は、作者の数値リテラルの綴りが正しく丸める解析で同じ値に読み戻せる限りその綴りのまま出す（`SceneJsonDecimal.ReadsBack`。float は C# のリテラルと同じく float へ直接丸め、double を経た二重丸めはしない）。読み戻せない綴りは従来どおり型の表記で出す。
 - 自動化された証拠: `SceneJsonCommitPlannerTests.Move_KeepsTheAuthorsSpellingOfOtherNumbers`（修正前は失敗）、`SceneJsonNumberSpellingTests.ReadsBack_AgreesWithTheParse`（.NET の解析との一致と、二重丸めでずれるタイの直上の値）。
 - 結果: Matches。
 

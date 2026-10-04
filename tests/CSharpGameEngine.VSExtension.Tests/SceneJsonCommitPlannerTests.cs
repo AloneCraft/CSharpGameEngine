@@ -594,6 +594,20 @@ public sealed class SceneJsonCommitPlannerTests {
     /// holds (3.14159265358979, 16777217) was rewritten as the float's shortest text on every unrelated edit, which read
     /// back the same but lost the author's digits and changed lines the edit had not touched.
     /// </summary>
+    /// <summary>
+    /// An edit writes a value as the tools on .NET write it. Since the document keeps a literal's spelling, the VSIX wrote
+    /// .NET Framework's "R" text of the edited float (312985.125 for 312985.12), which reads back the same but differs from
+    /// what the same edit writes on .NET.
+    /// </summary>
+    [Fact]
+    public void Move_WritesTheValueAsDotNetSpellsIt(){
+        var Seed=CreateSeed(Document("1"),Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(312985.125f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Document("1").Replace("\"R\": 1,","\"R\": 312985.12,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
     [Fact]
     public void Move_KeepsTheAuthorsSpellingOfOtherNumbers(){
         foreach(var Value in new[]{"3.14159265358979","16777217","0.1","1.0","1e2","0.30000001192092896","100.0000001","-0"}){

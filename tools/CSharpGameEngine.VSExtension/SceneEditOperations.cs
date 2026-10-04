@@ -157,8 +157,18 @@ internal static class SceneEditValues {
         if(float.IsNaN(Value)||float.IsInfinity(Value)){
             throw new ArgumentOutOfRangeException(nameof(Value),VsixText.Get("SourceEditNonFiniteTransform"));
         }
-        return Value.ToString("R",CultureInfo.InvariantCulture)+"f";
+        return SingleLiteral(Value);
     }
+
+    /// <summary>
+    /// A float as the C# literal of an edit, spelled as the scene JSON spells the value on .NET too: the document keeps a
+    /// literal's spelling, and .NET Framework's "R" writes some floats with other digits (312985.125 where .NET writes
+    /// 312985.12). A NaN or an infinity, which no JSON number spells, is written as "R" writes it.
+    /// </summary>
+    internal static string SingleLiteral(float Value)=>
+        (float.IsNaN(Value)||float.IsInfinity(Value)
+            ?Value.ToString("R",CultureInfo.InvariantCulture)
+            :CSharpGameEngine.SceneAnalysis.Json.SceneJsonNumbers.FormatSingle(Value))+"f";
 
     /// <summary>Shared by <see cref="SceneModelEditApplier"/> and <see cref="SceneEditConflictMerger"/>.</summary>
     internal static bool IsGenerated(string?FilePath)=>

@@ -137,6 +137,8 @@ public sealed class SceneInspectorModelTests {
     [Theory]
     [InlineData("5",Microsoft.CodeAnalysis.SpecialType.System_Single,"5f")]
     [InlineData("-1.5",Microsoft.CodeAnalysis.SpecialType.System_Single,"-1.5f")]
+    // .NET's spelling, which the document keeps; .NET Framework's "R" wrote 312985.125f.
+    [InlineData("312985.125",Microsoft.CodeAnalysis.SpecialType.System_Single,"312985.12f")]
     [InlineData("3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"3")]
     [InlineData("-3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"-3")]
     [InlineData("4",Microsoft.CodeAnalysis.SpecialType.System_Int64,"4L")]

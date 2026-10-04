@@ -184,8 +184,9 @@ internal static class SceneJsonConverter {
     /// past its type's precision (100.0000001 for a float) was rewritten (as 100) by every edit of the scene.
     /// </summary>
     private static string?LiteralSpelling(SceneValue Value){
-        // A string, character, boolean or null literal is no JSON number with or without these letters. An edit's own
-        // literal (an Inspector or gizmo value formatted on .NET Framework) may not read back exactly: then the value's text.
+        // A string, character, boolean or null literal is no JSON number with or without these letters. A literal whose
+        // value was not read from its text by C#'s rules (an edit's value parsed on .NET Framework, whose parse does not
+        // round correctly) may not read back exactly: then the value's text.
         var Text=Value.SourceExpressionText.TrimEnd('f','F','d','D','m','M','u','U','l','L');
         return SceneJsonReader.IsNumber(Text)&&SceneJsonDecimal.ReadsBack(Text,Value.ConstantValue)?Text:null;
     }

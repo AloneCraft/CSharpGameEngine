@@ -178,5 +178,5 @@ internal static class SceneEditConflictMerger {
         return float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out Value);
     }
 
-    private static string FormatFloat(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture)+"f";
+    private static string FormatFloat(float Value)=>SceneEditValues.SingleLiteral(Value);
 }

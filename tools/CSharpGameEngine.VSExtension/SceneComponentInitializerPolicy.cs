@@ -155,7 +155,7 @@ internal static class SceneComponentInitializerPolicy {
             &&Model.GetSymbolInfo(Invocation).Symbol is IMethodSymbol { IsStatic:true,Name:"FromSingle" }Factory
             &&SceneTypePredicates.ToFullyQualifiedName(Factory.ContainingType)=="global::CSharpGameEngine.Numerics.LogicalScalar"
             &&Model.GetConstantValue(Invocation.ArgumentList.Arguments[0].Expression) is { HasValue:true,Value:float Single }){
-            Value=Literal(MemberType,Single,Single.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f");
+            Value=Literal(MemberType,Single,SceneEditValues.SingleLiteral(Single));
             return true;
         }
         return true;
@@ -184,8 +184,7 @@ internal static class SceneComponentInitializerPolicy {
             var Arguments=PhysicalValues.Select(Value=>new SceneValue(
                 SceneValueKind.Literal,Compilation?.GetSpecialType(SpecialType.System_Single),Value,null,
                 ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
-                Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f",
-                Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f",SceneSourceLocation.None)).ToImmutableArray();
+                SceneEditValues.SingleLiteral(Value),SceneEditValues.SingleLiteral(Value),SceneSourceLocation.None)).ToImmutableArray();
             var Constructor=(MemberType as INamedTypeSymbol)?.InstanceConstructors.FirstOrDefault(Physical.MatchesConstructor);
             return new SceneValue(SceneValueKind.ObjectCreation,MemberType,null,Constructor,
                 ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
