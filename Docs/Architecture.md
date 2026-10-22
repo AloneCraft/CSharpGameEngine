@@ -192,7 +192,7 @@ UserEcsProject remains an L9 composition root for scenes, gameplay components, a
 | エディタの宣言 | 属性(アイコン、表示順) | L8 が読む |
 
 - ECS のコードがソースでしか足せないのは、`World` と `State` が生成器の完成させる partial 型で、Archetype の空間がゲームごとに 1 つだからである。生成器は 1 つで、ユーザーは生成器を足さない。
-- エンジンのプラグイン: Vehicles(`plugins/CSharpGameEngine.Vehicles`、UE の ChaosVehicles に当たる)。
+- エンジンのプラグイン: Vehicles(`plugins/CSharpGameEngine.Vehicles`、UE の ChaosVehicles に当たる)、Navigation(`plugins/CSharpGameEngine.Navigation`、UE の NavigationSystem と Recast に当たる。Runtime は L5 のソース、Cook モジュールは L7 で、ビルドが別のプロセスで動かして `Assets/Navigation/<Id>.cgenav` を焼く。M0106)。
 - 取り込みは `build/CSharpGameEngine.Game.targets`(プロジェクトファイルの後に読む)、エンジンの版は `build/CSharpGameEngine.Version.props`。
 
 ## Deterministic Simulation / Physics domains

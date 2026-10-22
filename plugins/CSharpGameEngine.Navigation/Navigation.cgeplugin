@@ -1,0 +1,7 @@
+{
+  "Name": "Navigation",
+  "Version": "0.1.0",
+  "EngineVersion": ">=0.1.16",
+  "Description": "Navigation meshes and path following (UE's NavigationSystem and Recast). A Cook module bakes a scene's static collision into Assets/Navigation/<Id>.cgenav at build time; NavAgent characters follow MoveIntent.MoveTo along an A* route (M0106).",
+  "Dependencies": []
+}

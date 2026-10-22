@@ -1,0 +1,27 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeTopDown.Scenes",
+  "className": "TopDownNavigation",
+  "startupOrder": 3,
+  "root": {
+    "id": "3f0c5b1e-7a64-4d2b-9c58-2b8e1f6a4d93",
+    "name": "NavMeshBoundsVolume",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": 0, "F": 0 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Navigation.NavMeshBounds",
+        "members": {
+          "Id": "Lvl_TopDown",
+          "HalfExtents": { "R": 22.5, "U": 3.75, "F": 22.5 }
+        }
+      }
+    ],
+    "children": []
+  }
+}

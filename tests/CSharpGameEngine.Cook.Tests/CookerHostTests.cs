@@ -34,6 +34,15 @@ public sealed class EscapingCooker:IAssetCooker {
     }
 }
 
+public sealed class ChattyCooker:IAssetCooker {
+    public string Name=>"Chatty";
+    public IReadOnlyList<string> InputExtensions=>[".messages"];
+    public CookResult Cook(CookRequest Request){
+        File.WriteAllText(Path.Combine(Request.OutputDirectory,"m.out"),"x");
+        return new CookResult(true,["m.out"],["a note"]);
+    }
+}
+
 public sealed class FailingCooker:IAssetCooker {
     public string Name=>"Failing";
     public IReadOnlyList<string> InputExtensions=>[".txt"];
@@ -63,7 +72,7 @@ public sealed class CookerHostTests:IDisposable {
     public void TheModulesCookers_AreFoundInNameOrder_AndAreTheHostsContractType(){
         using var Host=CookerHost.Load(Module);
 
-        Assert.Equal(["Clock","Escaping","Failing","Upper"],Host.Cookers.Select(static Cooker=>Cooker.Name));
+        Assert.Equal(["Chatty","Clock","Escaping","Failing","Upper"],Host.Cookers.Select(static Cooker=>Cooker.Name));
         // The module was loaded into its own context, but IAssetCooker is the host's: the cast in Load would have failed otherwise.
         Assert.NotSame(typeof(UpperCooker).Assembly,Host.Cookers[0].GetType().Assembly);
     }
@@ -109,9 +118,24 @@ public sealed class CookerHostTests:IDisposable {
         using var Host=CookerHost.Load(Module);
         var Input=this.Input("a.txt","x");
 
-        var Error=Assert.Throws<InvalidOperationException>(()=>CookerHost.Cook(Host.Select(Input,"Failing"),Input,Path.Combine(this.Root,"out"),this.Root,Verify:false));
+        var Error=Assert.ThrowsAny<InvalidOperationException>(()=>CookerHost.Cook(Host.Select(Input,"Failing"),Input,Path.Combine(this.Root,"out"),this.Root,Verify:false));
 
         Assert.Contains("the input is broken",Error.Message);
+        // The cooker's own lines are kept, so that a build can read them as diagnostics (M0106).
+        Assert.Equal(["the input is broken"],Assert.IsType<CookerHost.CookFailedException>(Error).Messages);
+    }
+
+    [Fact]
+    public void ACookerThatSucceeds_HandsItsMessagesToTheCaller(){
+        using var Host=CookerHost.Load(Module);
+        var Input=this.Input("m.messages","x");
+        List<string>Messages=[];
+
+        var Outputs=CookerHost.Cook(Host.Select(Input,"Chatty"),Input,Path.Combine(this.Root,"out"),this.Root,Verify:true,Messages);
+
+        Assert.Equal(["m.out"],Outputs);
+        // A verifying run cooks twice; only the first run's notes are passed on.
+        Assert.Equal(["a note"],Messages);
     }
 
     [Fact]

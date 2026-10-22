@@ -39,6 +39,63 @@ public sealed class ClickToMoveVerificationTests {
         var Failures=ClickToMoveVerification.Evaluate(Report(Walk,Drift,Errors,Audio),out _);
         Assert.Contains(Failures,Failure=>Failure.Contains(Expected,StringComparison.OrdinalIgnoreCase));
     }
+    /// <summary>
+    /// A report of the navigated run (M0106): the camera starts at (-6.36, 13.78, -6.36), the character walks along <paramref name="Route"/> (R, F offsets from the start, one leg per
+    /// 8 frames) and the camera height falls by <paramref name="Descent"/> over the first 12 frames of the walk (the ramp), then stays.
+    /// </summary>
+    private static JsonElement NavigatedReport((float R,float F)[]?Route=null,float Descent=2.1f,float DropFrame=0f,int D3D12Errors=0){
+        Route??=[(0f,0f),(0.9f,4.5f),(1.3f,7.7f),(2.2f,9.0f),(6.0f,8.3f),(7.06f,8.06f)];
+        var Positions=new List<float[]?>();
+        for(var Frame=0;Frame<ClickToMoveVerification.Frames;Frame++){
+            if(Frame<3){
+                Positions.Add(null);
+                continue;
+            }
+            var Walked=Math.Clamp((Frame-ClickToMoveVerification.ClickStartFrame+1)/8f,0f,Route.Length-1f);
+            var Leg=Math.Min((int)Walked,Route.Length-2);
+            var Along=Walked-Leg;
+            var R=Route[Leg].R+(Route[Leg+1].R-Route[Leg].R)*Along;
+            var F=Route[Leg].F+(Route[Leg+1].F-Route[Leg].F)*Along;
+            var Fell=Frame<ClickToMoveVerification.ClickStartFrame?0f:Math.Clamp((Frame-ClickToMoveVerification.ClickStartFrame)/12f,0f,1f)*Descent;
+            // A fall: the whole descent in one frame.
+            if(DropFrame>0f){ Fell=Frame>=DropFrame?Descent:0f; }
+            Positions.Add([-6.36f+R,13.78f-Fell,-6.36f+F]);
+        }
+        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.Frames,d3d12Errors=D3D12Errors,audioRequests=12,cameraPositions=Positions });
+        return JsonDocument.Parse(Json).RootElement.Clone();
+    }
+    [Fact]
+    public void EvaluateNavigated_AcceptsARouteDownTheRampAroundTheWallEnd(){
+        var Failures=ClickToMoveVerification.EvaluateNavigated(NavigatedReport(),out var Summary);
+        Assert.Empty(Failures);
+        Assert.Contains("wallEnd=0.00",Summary,StringComparison.Ordinal);
+        Assert.Contains("goalError=0.00",Summary,StringComparison.Ordinal);
+    }
+    [Fact]
+    public void EvaluateNavigated_RejectsAStraightWalkThatNeverGoesAroundTheWall(){
+        var Failures=ClickToMoveVerification.EvaluateNavigated(NavigatedReport(Route:[(0f,0f),(7.06f,8.06f)]),out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains("wall",StringComparison.OrdinalIgnoreCase)&&Failure.Contains("did not go around",StringComparison.Ordinal));
+        Assert.Contains(Failures,Failure=>Failure.Contains("times longer",StringComparison.Ordinal));
+    }
+    [Fact]
+    public void EvaluateNavigated_RejectsAFallOffThePlatform(){
+        var Failures=ClickToMoveVerification.EvaluateNavigated(NavigatedReport(DropFrame:26f),out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains("fell off the platform",StringComparison.Ordinal));
+    }
+    [Fact]
+    public void EvaluateNavigated_RejectsAWalkThatStopsFarFromTheRoutesEnd(){
+        var Failures=ClickToMoveVerification.EvaluateNavigated(NavigatedReport(Route:[(0f,0f),(0.9f,4.5f),(1.3f,7.7f),(2.2f,9.0f),(3.5f,8.8f)]),out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains("the route ends at",StringComparison.Ordinal));
+    }
+    [Fact]
+    public void EvaluateNavigated_ReportsTheDebugLayerToo(){
+        Assert.Contains(ClickToMoveVerification.EvaluateNavigated(NavigatedReport(D3D12Errors:3),out _),Failure=>Failure.Contains("debug layer",StringComparison.Ordinal));
+    }
+    [Fact]
+    public void TheStraightEvaluation_DoesNotJudgeTheRoute(){
+        // The straight run (navigation off) is the pre-M0106 walk: the same report is fine for it whatever its route.
+        Assert.Empty(ClickToMoveVerification.Evaluate(NavigatedReport(Route:[(0f,0f),(7.06f,8.06f)],Descent:0f),out _));
+    }
     [Fact]
     public void Evaluate_AcceptsAReportWithoutAudioFields(){
         Assert.Empty(ClickToMoveVerification.Evaluate(Report(AudioRequests:null),out _));

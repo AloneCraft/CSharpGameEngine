@@ -423,3 +423,15 @@
   - `Lifetime` は固定 tick ごとに 1 tick 分(1 / `FixedTickRate` 秒)減り、0 以下で壊れる(残りが 0 なら最初の tick)。Scene の根なら Scene ごと壊れる。
   - `ParticleBurst` は最初の固定 tick に 1 回だけ、ノードのワールド位置から `Count`(0〜256 に収める)個の粒子を出す。方向と速さは `Seed` から決まる。粒子は毎 tick 動き、重力で落ち、生まれてからの割合で大きさが `StartScale` から `EndScale` へ直線で変わる(動きは寿命を数える前に読む)。
 - Result: Matches ADR-0078(M0105)。
+
+## RE-M0106 — ナビメッシュのベイクと経路追従
+
+- Confidence: High(単体テスト、決定的な物理の世界での実際の `CharacterMotor`、WARP の実走、SDK パッケージから作ったゲームの実行で確認)。実機の GPU と VS のボタンは未確認
+- Evidence: `plugins/CSharpGameEngine.Navigation/Runtime/NavMesh.cs`・`NavMesh.Query.cs`・`NavigationComponents.cs`・`Navigation.cs`・`NavigationSystems.cs`、`Cook/NavMeshBuilder.cs`・`SceneGeometry.cs`・`NavMeshCooker.cs`、`Navigation.plugin.items`、`CharacterComponents.cs`(`MoveIntent`)、`NavigationCookService.cs`
+- Observed behavior:
+  - `.cgenav`: 印 `CGENAV01`、設定 6 つと原点 3 つ(`LogicalScalar`)、格子の幅と奥行き、多角形(MinX、MinZ、MaxX、MaxZ、Y の `int32`。Max は含まない)、portal(多角形 A・B と、格子の線の上の軸に平行の線分)。同じ入力から同じバイト列。壊れたファイルは、あらゆる切り詰め・後ろの余り・異常な件数・格子の外の長方形・存在しない多角形・境の上に無い portal・不正な設定で、例外ではなく理由つきで断る。
+  - 焼く: `NavMeshBounds` の領域(同じ `Id` は和)と、起動シーンの `StaticMesh` + `StaticMeshCollider` の三角形と `RigidBody` の無い `Collider` の箱を、`LogicalScalar` と整数だけで、ボクセル化 → 歩ける面の絞り込み(閉じた形の底面が重なる床、低い出っ張り、崖と険しい坂、頭のつかえ) → 接続 → 半径ぶんの縁からの距離(2/3 の距離変換) → 同じ高さの長方形 → portal にする。格子の縁の 1 セルは崖として外れ、そのうえで半径 `ceil(AgentRadius / CellSize)` セルぶん離れる。床の高さは、面を含むボクセルの上端(最大 1 段高い)。
+  - 経路: 出発点は、点を含む(または `2 × AgentRadius + CellSize` 以内の)多角形のうち、床の高さが背丈の範囲で一番近いもの。無ければ経路は無い。A*(費用は整数、同じ費用は番号の小さい方)、境の上の点は、現在の位置から目的地への最短の通り方に一番近い点。目的地の多角形へ着けば完全な経路、着けなければ、行ける多角形のうち目的地に一番近い点までの部分経路(`IsPartial`)。funnel で角だけにする。
+  - 歩く: `NavigationSteering`(PhysicsSimulation、`CharacterMotionUpdate` の前)が、`MoveIntent.Destination` への経路を探し、次の経由点を `MoveIntent.Waypoint` へ置く。通過点は最高速度のまま `NavAgent.WaypointRadius`(0.3 m)に入ったら次へ、最後の点は `Destination` と同じ減速で止まる。目的地が 0.25 m 以上動いた、または経路の線から 1.5 m 以上離れたら探し直す。ナビメッシュが無い・出発点が外なら、経由点を置かず、従来の直線。`HasDestination` が false になると経路を捨てる。
+  - ビルド: `CgeCookNavigation` が、`NavMeshBounds` を含むシーンごとに Cook CLI を別のプロセスで動かし、`Assets/Navigation/<Id>.cgenav` を出力へ複製する。シーン・アセット・ツールが新しいときだけ。失敗はビルドのエラー。
+- Result: Matches ADR-0078(M0106)。

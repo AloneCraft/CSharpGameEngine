@@ -25,6 +25,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private CancellationTokenSource?CatalogCancellation;
     private CancellationTokenSource?SceneSelectionCancellation;
     private CancellationTokenSource?PhysicsBakeCancellation;
+    private CancellationTokenSource?NavigationCookCancellation;
     private AuthoringOperationSnapshot?PhysicsBakeOperation;
     private long CatalogGeneration;
     private bool UpdatingSelector;
@@ -566,6 +567,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.PhysicsBakeCancellation?.Cancel();
         this.PhysicsBakeCancellation?.Dispose();
         this.PhysicsBakeCancellation=null;
+        this.NavigationCookCancellation?.Cancel();
+        this.NavigationCookCancellation?.Dispose();
+        this.NavigationCookCancellation=null;
         this.Loaded-=this.OnLoaded;
         this.DetachSession();
         this.DetachHost();
@@ -729,6 +733,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void UpdatePhysicsBakeButtons(){
         ThreadHelper.ThrowIfNotOnUIThread();
+        this.NavigationCookButton.IsEnabled=this.NavigationCookCancellation is null&&this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry;
         bool HasEntries=this.SceneSelector.ItemsSource is IEnumerable<ProjectSceneCatalogEntry>Entries&&Entries.Any();
         bool Running=this.PhysicsBakeOperation is { IsTerminal:false };
         this.PhysicsBakeAllButton.IsEnabled=!Running&&HasEntries;
@@ -736,6 +741,66 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             &&this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry;
         this.PhysicsBakeCancelButton.Visibility=Running?Visibility.Visible:Visibility.Collapsed;
         this.PhysicsBakeCancelButton.IsEnabled=this.PhysicsBakeOperation?.CanCancel==true;
+    }
+
+    /// <summary>ADR-0079/M0106: 選択中のシーンのゲームのナビメッシュを、ビルドと同じ手順(<c>CgeCookNavigation</c>)で焼く。</summary>
+    private void OnNavigationCook(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.NavigationCookCancellation is not null){ return; }
+        if(this.SceneSelector.SelectedItem is not ProjectSceneCatalogEntry Entry){
+            this.ShowNavigationCook(VsixText.Get("NavigationCookNoScene"),string.Empty);
+            return;
+        }
+        if(!NavigationCookService.HasNavigationVolume(Entry.FilePath)){
+            this.ShowNavigationCook(VsixText.Get("NavigationCookNoVolume"),string.Empty);
+            return;
+        }
+        var Cancellation=new CancellationTokenSource();
+        this.NavigationCookCancellation=Cancellation;
+        this.NavigationCookButton.IsEnabled=false;
+        this.ShowNavigationCook(VsixText.Get("NavigationCookRunning"),string.Empty);
+        _=this.RunNavigationCookAsync(Entry,Cancellation);
+    }
+
+    private async Task RunNavigationCookAsync(ProjectSceneCatalogEntry Entry,CancellationTokenSource Cancellation){
+        NavigationCookResult Result;
+        try {
+            if(this.Session is not { }Session){
+                Result=new NavigationCookResult(false,VsixText.Get("SessionEnded"),[],[]);
+            } else {
+                // 保存していないシーンの編集も、焼く前に書き出す(物理のベイクと同じ)。
+                var Prepared=await Session.PrepareForBakeAsync([Entry],Cancellation.Token).ConfigureAwait(false);
+                Result=Prepared.Succeeded
+                    ?await Task.Run(()=>NavigationCookService.Cook(Entry.FilePath,Cancellation.Token),Cancellation.Token).ConfigureAwait(false)
+                    :new NavigationCookResult(false,Prepared.ErrorMessage??VsixText.Get("SessionSaveFailed"),[],[]);
+            }
+        } catch(OperationCanceledException){
+            Result=new NavigationCookResult(false,VsixText.Get("NavigationCookCancelled"),[],[]);
+        } catch(Exception Exception){
+            ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Exception.ToString());
+            Result=new NavigationCookResult(false,Exception.Message,[],[]);
+        }
+        this.DispatchToUi(()=>{
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if(!ReferenceEquals(this.NavigationCookCancellation,Cancellation)){ return; }
+            this.NavigationCookCancellation=null;
+            Cancellation.Dispose();
+            this.UpdatePhysicsBakeButtons();
+            this.ShowNavigationCook(
+                Result.Succeeded?VsixText.Format("NavigationCookSucceeded",Result.OutputPaths.Count):VsixText.Format("NavigationCookFailed",Result.Message),
+                string.Join(Environment.NewLine,Result.Diagnostics));
+            if(Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+                StatusBar.SetText(this.NavigationCookStatusText.Text);
+            }
+        });
+    }
+
+    private void ShowNavigationCook(string Status,string Diagnostics){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.NavigationCookStatusText.Text=Status;
+        this.NavigationCookStatusText.Visibility=Visibility.Visible;
+        this.NavigationCookDiagnosticText.Text=Diagnostics;
+        this.NavigationCookDiagnosticText.Visibility=string.IsNullOrEmpty(Diagnostics)?Visibility.Collapsed:Visibility.Visible;
     }
 
     private void OnPhysicsBakeProgress(

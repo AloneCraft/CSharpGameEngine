@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <HasSharedItems>true</HasSharedItems>
+    <Import_RootNamespace>CSharpGameEngine.Navigation</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)NavMesh.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)NavMesh.Query.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)NavigationComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)NavigationDefaults.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)NavigationSystems.cs" />
+    <Using Include="CSharpGameEngine.Navigation" />
+  </ItemGroup>
+</Project>

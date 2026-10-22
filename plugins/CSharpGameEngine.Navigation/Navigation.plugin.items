@@ -1,0 +1,71 @@
+<Project>
+  <!--
+    What the enabled Navigation plugin adds to the game (ADR-0079/M0106). Paths are written with MSBuildThisFileDirectory: items are evaluated
+    after every property, so they must not use the CgePlugin* properties that each plugin overwrites.
+
+    The build bakes the navigation meshes: every scene of the game that holds a CSharpGameEngine.Navigation.NavMeshBounds is cooked with the plugin's
+    Cook module (CSharpGameEngine.Navigation.Cook) through CSharpGameEngine.Cook.Cli, in a process of its own, into
+    obj\...\cge-navigation\Assets\Navigation\<Id>.cgenav, which is copied next to the game as Assets\Navigation\<Id>.cgenav. The bake runs again when a scene, an asset or
+    a tool is newer than the last run, and a failure is a build error (the Cook module prints "scene.json: error NAVnnn: message").
+    CgeCookNavigation is also the target the Visual Studio extension runs for its "Cook navigation meshes" button.
+    A target's Condition is evaluated before its DependsOnTargets run, so the conditions on the scenes found by a target sit on the tasks.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Runtime\CSharpGameEngine.Navigation.Runtime.projitems" Label="Shared" />
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Navigation.cgeplugin" />
+  </ItemGroup>
+  <PropertyGroup>
+    <CgeNavigationCookProject>$(MSBuildThisFileDirectory)Cook\CSharpGameEngine.Navigation.Cook.csproj</CgeNavigationCookProject>
+    <!-- PackageMode: the SDK package carries the built Cook module next to its sources; SourceMode builds it (_CgeBuildNavigationTools). -->
+    <CgeNavigationCookModule Condition="'$(CgeEngineMode)' == 'Package'">$(MSBuildThisFileDirectory)Cook\lib\CSharpGameEngine.Navigation.Cook.dll</CgeNavigationCookModule>
+  </PropertyGroup>
+
+  <Target Name="_CgeFindNavigationScenes" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <CgeNavigationCookDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\$(IntermediateOutputPath)cge-navigation'))</CgeNavigationCookDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CgeNavigationSceneFile Include="Scenes\**\*.json" />
+      <CgeNavigationScene Include="@(_CgeNavigationSceneFile)" Condition="$([System.IO.File]::ReadAllText('%(FullPath)').Contains('CSharpGameEngine.Navigation.NavMeshBounds'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_CgeBuildNavigationTools" DependsOnTargets="_CgeFindNavigationScenes" Condition="'$(DesignTimeBuild)' != 'true' and '$(CgeEngineMode)' != 'Package'">
+    <!-- A game built on its own does not restore these tools; restore in a separate evaluation first (as the shader and scene schema tools do). -->
+    <MSBuild Condition="'@(CgeNavigationScene)' != ''" Projects="$(CgeEngineRoot)tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" Targets="Restore"
+             Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false" />
+    <MSBuild Condition="'@(CgeNavigationScene)' != ''" Projects="$(CgeEngineRoot)tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookCliAssembly" />
+    </MSBuild>
+    <MSBuild Condition="'@(CgeNavigationScene)' != ''" Projects="$(CgeNavigationCookProject)" Targets="Restore"
+             Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false" />
+    <MSBuild Condition="'@(CgeNavigationScene)' != ''" Projects="$(CgeNavigationCookProject)" Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookModuleAssembly" />
+    </MSBuild>
+    <PropertyGroup Condition="'@(CgeNavigationScene)' != ''">
+      <CgeCookCli>@(_CgeNavigationCookCliAssembly->'%(FullPath)')</CgeCookCli>
+      <CgeNavigationCookModule>@(_CgeNavigationCookModuleAssembly->'%(FullPath)')</CgeNavigationCookModule>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="_CgeRunNavigationCook" DependsOnTargets="_CgeFindNavigationScenes;_CgeBuildNavigationTools" Condition="'$(DesignTimeBuild)' != 'true'"
+          Inputs="@(AdditionalFiles);$(CgeCookCli);$(CgeNavigationCookModule)" Outputs="$(CgeNavigationCookDirectory).stamp">
+    <RemoveDir Condition="'@(CgeNavigationScene)' != ''" Directories="$(CgeNavigationCookDirectory)" />
+    <MakeDir Condition="'@(CgeNavigationScene)' != ''" Directories="$(CgeNavigationCookDirectory)" />
+    <Exec Condition="'@(CgeNavigationScene)' != ''" Command="dotnet &quot;$(CgeCookCli)&quot; cook &quot;$(CgeNavigationCookModule)&quot; &quot;%(CgeNavigationScene.FullPath)&quot; &quot;$(CgeNavigationCookDirectory)&quot; --project &quot;$(MSBuildProjectDirectory)&quot;" />
+    <Touch Files="$(CgeNavigationCookDirectory).stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="CgeCookNavigation" BeforeTargets="AssignTargetPaths" DependsOnTargets="_CgeRunNavigationCook" Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <CgeNavigationOutput Include="$(CgeNavigationCookDirectory)\Assets\Navigation\*.cgenav" />
+      <None Include="@(CgeNavigationOutput)" Link="Assets\Navigation\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

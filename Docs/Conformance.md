@@ -4085,3 +4085,17 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `RecycledEntityTransformTests`(3)、`RenderServerDynamicObjectTests`(4、WARP)、`RenderRosterTests`(6、WARP)、`SpawnerLifetimeParticleTests`(13)、`SceneSpawnGeneratorTests`(4)、`ClickToMoveVerificationTests`(+4)、`verify-thirdperson-character --template TopDown`。全テスト失敗 0。
 - 既知の差: UE は目印を、押していた時間が短かったときの離した瞬間に出す(こちらは押した瞬間。押していた時間は M0108)。UE の矢印が帯に沿って流れる動き(`TexCoordY`)は、縮みで代えた。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成(`PhysicsStableId`)は未実装。実機の GPU での見た目と、初めて使う資産の読み込みの引っかかり(`WaitForGpuIdle`)は測っていない(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-23 探索 — ナビメッシュのベイクと経路追従(ADR-0078、M0106)
+- 意図: TopDown のクリック移動を、UE の `SimpleMoveToLocation` のように、ナビメッシュの経路で歩かせる。最初の実際の Cook(M0103 の契約の利用)として、ビルド中の自動実行と VSIX のボタンを足す。
+- 観測(Fact):
+  - UE5.8 TopDown のナビメッシュの値: NavMeshBoundsVolume は位置 (0, 0, 0)、範囲 (2250, 2250, 375) cm。レベルの RecastNavMesh は AgentRadius 35、AgentHeight 144、AgentMaxSlope 44(`DefaultEngine.ini` は AgentRadius 34、CellSize 19、CellHeight 10。AgentMaxStepHeight 35 は `RecastNavMesh.h` の既定)。CellSize・CellHeight・AgentMaxStepHeight は Python から読めなかった。
+  - 修正前の TopDown は直線で歩き、中央の台(高さ 2 m)のふちから飛び降りて目的地へ行った(10.845 m、1 フレームで最大 0.67 m の落下)。
+  - テンプレートのメッシュ(54 個)の三角形は外向きの巻き順で、床は厚さ 0.5 m の閉じた板。閉じた形が床に載っていると、形の内側に歩ける面が島として残る(底面と床の上面が同じ高さで重なる)。
+  - 単体テストが見つけた不具合を直した: funnel の左右の取り違え(スロープの一直線が折れ線になった)、境の真ん中を通る費用で大きな長方形の間を遠い側へ回る経路、閉じた形の内側の島、壁の中の目的地で壁を押し続ける最後の区間。
+  - 実走(WARP): 同じ入力を 2 回。ナビメッシュを切ると 10.845 m・足音 7 回(M0105 と同じ)。使うと、台のスロープを下り、壁の端を回って、(7.06, 8.06) へ着いて止まった(経路 14.87 m、直線 10.72 m の 1.39 倍、壁の端まで 0.30 m、1 フレームの高さの落ち 0.40 m)。D3D12 のエラー 0。
+  - TopDown のレベルを焼くと、541 個の多角形、747 個の portal、28,916 バイト。`--verify`(2 回)を入れて 2.7 秒。
+- 実装: M0106(`Docs/Milestones/M0106-Navmesh-Bake-And-Path-Following.md`)。決定: Navigation プラグイン(Runtime はソース、Cook は DLL)、領域は別のシーンの `NavMeshBounds`、格子の長方形の多角形(Recast の輪郭の単純化は無い)、経路は整数だけの A* と funnel、ナビメッシュが無い・出発点が外なら直線、着けないなら一番近い行ける点で止まる、最後の点は止まる点(`MoveIntent.WaypointIsEnd`)、ビルドが焼く(`CgeCookNavigation`)、VSIX のボタンは同じターゲットを動かす。
+- 自動化された証拠: `CSharpGameEngine.Navigation.Tests`(新規 57)、`NavigationSteeringTests`(5)、`CharacterMotorTests`(+4)、`NavigationCookServiceTests`(8)、`ClickToMoveVerificationTests`(+6)、`verify-thirdperson-character --template TopDown`、`verify-template-package`(TopDown・ThirdPerson・Vehicle)。
+- 既知の差: UE のナビメッシュは、輪郭を単純化した斜めの辺の多角形、タイル、動的な再生成を持つ。こちらは格子に沿った長方形で、経路の角は縁の格子点にそろう。複数の歩く者の大きさ、領域の種類(費用)、ジャンプのリンクは無い。球・カプセル・凸形状の `Collider` は読まない。実機の GPU と VS の実機のボタンは検証していない。UE は経路の追従に固定の制動距離(200 cm)を使うが、こちらはキャラクターの制動から計算する。
+- 結果: MatchesWithDocumentedExtension。

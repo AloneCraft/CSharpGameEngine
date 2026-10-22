@@ -93,6 +93,50 @@ public sealed class CharacterMotorTests {
         Assert.True(Intent.Direction.LengthSquared.IsZero);
     }
     [Fact]
+    public void APassingWaypoint_IsSteeredToAtFullSpeedAndNeverEndsTheWalk(){
+        // ADR-0079/M0106: 経路探索のプラグインが置く経由点。目的地(遠い)ではなく経由点へ、最高速度の向きで向く。近くても止まらない。
+        var Intent=new MoveIntent { Waypoint=new LogicalVector3(0,0,0.05f),HasWaypoint=true,WaypointIsEnd=false };
+        Intent.MoveTo(new LogicalVector3(40,0,0));
+        Intent.Steer(Settings,LogicalVector3.Zero);
+        Assert.True(Intent.HasDestination);
+        Assert.Equal(Forward,Intent.Direction);
+        // 重なったときは向きを持たず、目的地も取り消さない。
+        Intent.Steer(Settings,new LogicalVector3(0,0,0.05f));
+        Assert.True(Intent.HasDestination);
+        Assert.True(Intent.Direction.LengthSquared.IsZero);
+    }
+    [Fact]
+    public void AnEndWaypoint_SlowsDownAndStopsLikeADestination(){
+        var Intent=new MoveIntent { Waypoint=new LogicalVector3(0,0,2),HasWaypoint=true,WaypointIsEnd=true };
+        Intent.MoveTo(new LogicalVector3(40,0,0));
+        Intent.Steer(Settings,new LogicalVector3(0,0,1.7f));
+        Assert.True(Intent.HasDestination);
+        Assert.True(Intent.Direction.LengthSquared<LogicalScalar.One,"An approach inside the braking distance is slower than full speed.");
+        Intent.Steer(Settings,new LogicalVector3(0,0,1.95f));
+        Assert.False(Intent.HasDestination);
+        Assert.False(Intent.HasWaypoint);
+    }
+    [Fact]
+    public void StopAndAMissingDestination_ClearTheWaypoint(){
+        var Intent=new MoveIntent { Waypoint=new LogicalVector3(1,0,1),HasWaypoint=true };
+        Intent.Steer(Settings,LogicalVector3.Zero);
+        Assert.False(Intent.HasWaypoint);
+        Intent.HasWaypoint=true;
+        Intent.MoveTo(new LogicalVector3(3,0,3));
+        Intent.Stop();
+        Assert.False(Intent.HasWaypoint);
+        Assert.False(Intent.HasDestination);
+    }
+    [Fact]
+    public void WithoutAWaypoint_SteerIsTheStraightWalkItWas(){
+        // 経路探索のプラグインが無い・経路が無いときは、MoveIntent は従来どおり目的地へ直線で向く。
+        var Intent=new MoveIntent();
+        Intent.MoveTo(new LogicalVector3(0,0,40));
+        Intent.Steer(Settings,LogicalVector3.Zero);
+        Assert.Equal(Forward,Intent.Direction);
+        Assert.False(Intent.HasWaypoint);
+    }
+    [Fact]
     public void ASteerWithoutADestinationLeavesTheDirectionAlone(){
         var Intent=new MoveIntent { Direction=Forward };
         Intent.Steer(Settings,LogicalVector3.Zero);

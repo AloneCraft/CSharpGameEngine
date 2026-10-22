@@ -101,7 +101,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 |---|---|---|
 | ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方 |
 | FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
-| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Hit.Point)` で出す(押した瞬間。UE は短押しの離した瞬間)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索はせず直線で歩く(`MoveIntent.MoveTo`) |
+| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Hit.Point)` で出す(押した瞬間。UE は短押しの離した瞬間)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索は Navigation プラグイン(`plugins/CSharpGameEngine.Navigation`。csproj の `<CgePlugins>Navigation</CgePlugins>`、M0106)。`Scenes/TopDownNavigation.json` の `NavMeshBounds`(UE の NavMeshBoundsVolume)の領域で、ビルドがレベルの静的な衝突形状から `Assets/Navigation/Lvl_TopDown.cgenav` を焼き、キャラクターの `NavAgent` が `MoveIntent.MoveTo` の目的地への経路(台のスロープを下り、壁の端を回る)に沿って歩く。`Lvl_TopDown.json` は UE から書き出した生成物なので、領域は別のシーンに置いた |
 | Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。速度とギアは画面の文字(`ScreenText`。UI_Vehicle の配置、M0104)で出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
@@ -158,7 +158,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 
 ### エンジンに存在しないもの
 - 実行時に作った `SkeletalMesh`(スキニングの準備はレンダラーの作成時。後から作ったものは描かれず、診断を 1 回出す)。StaticMesh と PrimitiveMesh は、M0105 から後で作っても描かれる。
-- TopDown の経路探索(直線で歩く `MoveTo` のみ) / Vehicle の Chaos 相当の車両物理(簡易モデルのみ) / `Terrain`。
+- Vehicle の Chaos 相当の車両物理(簡易モデルのみ) / `Terrain`。(TopDown の経路探索は M0106 で実装済み。ナビメッシュの無いゲームでは、`MoveTo` は従来どおり直線で歩く。)
 
 ### 共通コード
 `PlayerControls` が ThirdPerson と FirstPerson で同一。エンジンが標準の「歩くキャラクター操作」を提供するか、サンプルごとに明示するかは確認したい。

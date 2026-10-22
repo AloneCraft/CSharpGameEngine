@@ -63,10 +63,18 @@ public struct MoveIntent {
     /// <summary>歩いて向かう地点(ADR-0077)。<see cref="HasDestination"/>のあいだ、毎tick<see cref="Direction"/>をこの地点へ向けて書き換える。</summary>
     public LogicalVector3 Destination;
     public bool HasDestination;
+    /// <summary>
+    /// 目的地の手前の経由点(ADR-0079/M0106)。経路探索のプラグイン(Navigation)が置く。<see cref="HasWaypoint"/>のあいだ、<see cref="Steer"/>は
+    /// <see cref="Destination"/>ではなくここへ向ける。<see cref="WaypointIsEnd"/>が false なら通過点(最高速度のまま、着いたかどうかは置いた側が決める)、
+    /// true なら最後の点(<see cref="Destination"/>と同じく減速して止まり、着いたら<see cref="Stop"/>)。置くプラグインが無ければ使われない。
+    /// </summary>
+    public LogicalVector3 Waypoint;
+    public bool HasWaypoint;
+    public bool WaypointIsEnd;
     /// <summary>Asks for a jump; the next tick consumes it if the character is on the ground.</summary>
     public void Jump()=>this.JumpRequested=true;
     /// <summary>
-    /// 地点を指して、そこまで歩かせる。経路探索はせず、高さを無視した直線で向かう(障害物はコリジョンで止まる)。
+    /// 地点を指して、そこまで歩かせる。高さを無視して向かう。経路探索のプラグイン(Navigation)があれば、その経路(経由点)に沿って歩き、無ければ直線で歩く(障害物はコリジョンで止まる)。
     /// 着いたら<see cref="HasDestination"/>は false に戻る。
     /// </summary>
     public void MoveTo(LogicalVector3 Point){
@@ -76,20 +84,30 @@ public struct MoveIntent {
     /// <summary>目的地を取り消して、その場に止まる。</summary>
     public void Stop(){
         this.HasDestination=false;
+        this.HasWaypoint=false;
         this.Direction=default;
     }
     private static readonly LogicalScalar ArrivalRadius=LogicalScalar.FromSingle(0.15f);
     private static readonly LogicalScalar SlowestApproach=LogicalScalar.FromSingle(0.25f);
     /// <summary>
-    /// 目的地(<see cref="MoveTo"/>)へ向けて<see cref="Direction"/>を書く。毎tick、キャラクターの現在位置から呼ぶ。
-    /// 制動距離の手前から長さを縮めて減速するので、行き過ぎずに止まる。着いたら目的地を取り消す。
+    /// 目的地(<see cref="MoveTo"/>)、または経由点(<see cref="Waypoint"/>)へ向けて<see cref="Direction"/>を書く。毎tick、キャラクターの現在位置から呼ぶ。
+    /// 通過点でない地点には、制動距離の手前から長さを縮めて減速するので、行き過ぎずに止まる。着いたら目的地を取り消す。
     /// </summary>
     public void Steer(in CharacterMotion Settings,LogicalVector3 Position){
         if(!this.HasDestination){
+            this.HasWaypoint=false;
             return;
         }
-        var Planar=new LogicalVector3(this.Destination.R-Position.R,LogicalScalar.Zero,this.Destination.F-Position.F);
-        if(!LogicalScalar.TrySquareRoot(Planar.LengthSquared,out var Distance)||Distance<=ArrivalRadius){
+        var Target=this.HasWaypoint?this.Waypoint:this.Destination;
+        var Passing=this.HasWaypoint&&!this.WaypointIsEnd;
+        var Planar=new LogicalVector3(Target.R-Position.R,LogicalScalar.Zero,Target.F-Position.F);
+        var HasDistance=LogicalScalar.TrySquareRoot(Planar.LengthSquared,out var Distance);
+        if(Passing){
+            // 通過点: 最高速度のまま向ける。重なったときは向きを持たない(次の tick に置く側が次の点へ進める)。
+            this.Direction=HasDistance&&!Distance.IsZero?Planar/Distance:default;
+            return;
+        }
+        if(!HasDistance||Distance<=ArrivalRadius){
             this.Stop();
             return;
         }

@@ -4662,7 +4662,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L7 — Static Compiler / Bake（生成器と取り込み）、L5（プラグインの Runtime）、L8（パレットとスキーマ）
 - Parent capability: ECS Source Generator / SDK package
-- Status: Implemented（Cook のビルド中の実行と VSIX のボタン、データアセットの Designer での編集は未実装）
+- Status: Implemented（データアセットの Designer での編集は未実装。Cook のビルド中の実行と VSIX のボタンは M0106 で実装、F-L5-042）
 - Verification: TestVerified + 実走（`verify-plugin-package`、`verify-template-package --template Vehicle`、WARP）
 - Intended specification: `Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Milestones/M0103-Plugins-And-Assets.md`
 - Implementation evidence:
@@ -4675,7 +4675,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`（129/200/512）、`GameSystemGeneratorDiagnosticsTests`（名前の重なり）、`SceneFilesTests`、`SceneComponentCatalogTests`、`GameProjectGeneratorTests`、`CookerHostTests`、`PluginPackageVerificationTests`
 - Current delta: 3 つの置き場所のプラグイン、`[EngineService]`、`[DataAsset]`、Library の DLL、Cook の CLI、Component の上限 512、エンジンのプラグイン Vehicles、`#`・`;` を含むフォルダのゲーム。
 - Conformance: Matches（Cook と Designer の残りは文書化した未実装）
-- Next action: M0104（画面 UI）。Cook の実際の利用は M0106（ナビメッシュ）。
+- Next action: データアセットの Designer での編集、プラグインの一覧の表示。Cook の実際の利用(ビルド中の自動実行と VSIX のボタン)は M0106 で実装した(F-L5-042)。
 
 ## F-L5-040 — 画面 UI(文字と画像の重ね描き)
 
@@ -4714,3 +4714,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: Entity の生成・破棄・メッシュの追加が差分で描画へ反映される(破棄した Entity の描画物は消える)。`Spawner.Spawn<TScene>(位置)`、`Lifetime`、`ParticleBurst`。スロットを再利用した Entity の位置解決の失敗(Generation 固定)を直した。TopDown はクリックで目印が出て、0.7 秒で消える。
 - Conformance: Matches(ADR-0078 の範囲。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成、実機の GPU での測定は未実装)
 - Next action: M0106(ナビメッシュのベイクと経路追従)。
+
+## F-L5-042 — ナビメッシュのベイクと経路追従(最初の実際の Cook)
+
+- Layer: L5 — Runtime(Navigation プラグインの `NavMesh`・`Navigator`・`NavAgent`・`NavigationSteering`)、L7 — Cook(`NavMeshCooker`・`NavMeshBuilder`)とビルド(`CgeCookNavigation`)、L8 — VSIX の「ナビメッシュ」のボタン
+- Parent capability: Plugins / Cook / Character
+- Status: Implemented
+- Verification: TestVerified + 実走(WARP。`verify-thirdperson-character --template TopDown`、SDK パッケージから作った TopDown と ThirdPerson・Vehicle)
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Milestones/M0106-Navmesh-Bake-And-Path-Following.md`
+- Implementation evidence:
+  - `plugins/CSharpGameEngine.Navigation/`(`Navigation.cgeplugin`、`.plugin.props`、`.plugin.items`(ビルドのターゲット `CgeCookNavigation`)、`Runtime/*`、`Cook/*`)
+  - `src/CSharpGameEngine.Runtime.Character/CharacterComponents.cs`(`MoveIntent.Waypoint`・`HasWaypoint`・`WaypointIsEnd`、`Steer`)
+  - `tools/CSharpGameEngine.Cook.Cli/`(`CookFailedException`、メッセージの出力)、`packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj`(Cook モジュールを `plugins/…/Cook/lib/` へ)、`build/CSharpGameEngine.Version.props`(0.1.17)
+  - `tools/CSharpGameEngine.VSExtension/NavigationCookService.cs`、`SceneDesignerToolWindowControl.xaml(.cs)`、`VsixStrings*.resx`
+  - `tools/CSharpGameEngine.FeatureRunner/ClickToMoveVerification.cs`、`TemplatePackageVerification.cs`(TopDown)
+  - `Templates/CSharpGameEngine.Templates.TopDown/`(`Scenes/TopDownNavigation.json`、`TopDownCharacter.json` の `NavAgent`、csproj の `CgePlugins`)
+- Tests: `tests/CSharpGameEngine.Navigation.Tests/`(`NavMeshFormatTests`、`NavMeshBuilderTests`、`NavMeshRouteTests`、`SceneGeometryTests`、`NavMeshCookerTests`、`TopDownLevelTests`)、`tests/CSharpGameEngine.Windows.Tests/Character/NavigationSteeringTests.cs`・`CharacterMotorTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/NavigationCookServiceTests.cs`、`GameProjectGeneratorTests`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
+- Current delta: シーンの `NavMeshBounds` と静的な衝突形状から、ビルドが `Assets/Navigation/<Id>.cgenav` を決定的に焼く(UE5.8 TopDown の RecastNavMesh の値)。`NavAgent` を持つキャラクターは、`MoveIntent.MoveTo` の目的地への経路(A* と funnel、整数だけで解く)に沿って歩く。ナビメッシュが無いときは直線、着けないときは行ける一番近い点まで。TopDown が使い、台のスロープを下り、壁の端を回って着く。
+- Conformance: MatchesWithDocumentedExtension(Recast の輪郭の単純化と斜めの辺、タイル、動的な再生成は無い。長方形の多角形)
+- Next action: M0107(キャラクターとアニメーション)。TopDown の短押しと長押しの区別は M0108。既存の `Physics.Cli bake` の Cook への載せ直しは未着手。

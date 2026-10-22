@@ -226,6 +226,7 @@
     </Project>
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Cook.Tests/CSharpGameEngine.Cook.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Navigation.Tests/CSharpGameEngine.Navigation.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.FeatureRunner.Tests/CSharpGameEngine.FeatureRunner.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
@@ -245,6 +246,14 @@
     <File Path="plugins/CSharpGameEngine.Vehicles/Vehicles.plugin.items" />
     <Project Path="plugins/CSharpGameEngine.Vehicles/Runtime/CSharpGameEngine.Vehicles.Runtime.shproj" />
     <File Path="plugins/CSharpGameEngine.Vehicles/Runtime/CSharpGameEngine.Vehicles.Runtime.projitems" />
+  </Folder>
+  <Folder Name="/plugins/CSharpGameEngine.Navigation/">
+    <File Path="plugins/CSharpGameEngine.Navigation/Navigation.cgeplugin" />
+    <File Path="plugins/CSharpGameEngine.Navigation/Navigation.plugin.props" />
+    <File Path="plugins/CSharpGameEngine.Navigation/Navigation.plugin.items" />
+    <Project Path="plugins/CSharpGameEngine.Navigation/Runtime/CSharpGameEngine.Navigation.Runtime.shproj" />
+    <File Path="plugins/CSharpGameEngine.Navigation/Runtime/CSharpGameEngine.Navigation.Runtime.projitems" />
+    <Project Path="plugins/CSharpGameEngine.Navigation/Cook/CSharpGameEngine.Navigation.Cook.csproj" />
   </Folder>
   <Folder Name="/samples/Plugins/Weather/">
     <File Path="samples/Plugins/Weather/Weather.cgeplugin" />

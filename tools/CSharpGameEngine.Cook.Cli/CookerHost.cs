@@ -9,6 +9,11 @@ namespace CSharpGameEngine.Cook.Cli;
 /// context; the contract assembly is taken from this host so that <see cref="IAssetCooker"/> is the same type on both sides.
 /// </summary>
 internal sealed class CookerHost:IDisposable {
+    /// <summary>A cooker reported failure. <see cref="Messages"/> are its own lines, printed as they are so that a build can read them as diagnostics.</summary>
+    internal sealed class CookFailedException(string CookerName,IReadOnlyList<string>Messages):InvalidOperationException($"The cooker {CookerName} failed: {string.Join(" ",Messages)}") {
+        internal IReadOnlyList<string> Messages { get; }=Messages;
+    }
+
     private readonly CookModuleLoadContext Context;
 
     private CookerHost(CookModuleLoadContext Context,IReadOnlyList<IAssetCooker> Cookers){
@@ -52,16 +57,16 @@ internal sealed class CookerHost:IDisposable {
     /// <summary>
     /// Cooks <paramref name="InputPath"/> into <paramref name="OutputDirectory"/>. With <paramref name="Verify"/> it cooks twice into
     /// separate folders first and fails unless both wrote the same files with the same bytes (a cooker must be deterministic).
-    /// Returns the written files, relative to <paramref name="OutputDirectory"/>.
+    /// Returns the written files, relative to <paramref name="OutputDirectory"/>; the messages a successful cooker reported (warnings, statistics) go to <paramref name="Messages"/>.
     /// </summary>
-    internal static IReadOnlyList<string> Cook(IAssetCooker Cooker,string InputPath,string OutputDirectory,string ProjectDirectory,bool Verify){
+    internal static IReadOnlyList<string> Cook(IAssetCooker Cooker,string InputPath,string OutputDirectory,string ProjectDirectory,bool Verify,IList<string>?Messages=null){
         var Input=Path.GetFullPath(InputPath);
         if(!File.Exists(Input)){ throw new FileNotFoundException($"The input was not found: {Input}",Input); }
         var Scratch=Path.Combine(Path.GetTempPath(),"cge-cook-"+Guid.NewGuid().ToString("N"));
         try {
-            var First=CookInto(Cooker,Input,Path.Combine(Scratch,"1"),ProjectDirectory);
+            var First=CookInto(Cooker,Input,Path.Combine(Scratch,"1"),ProjectDirectory,Messages);
             if(Verify){
-                var Second=CookInto(Cooker,Input,Path.Combine(Scratch,"2"),ProjectDirectory);
+                var Second=CookInto(Cooker,Input,Path.Combine(Scratch,"2"),ProjectDirectory,null);
                 if(!First.SequenceEqual(Second,StringComparer.Ordinal)){
                     throw new InvalidOperationException($"The cooker {Cooker.Name} is not deterministic: two runs wrote different files ({string.Join(", ",First)} / {string.Join(", ",Second)}).");
                 }
@@ -83,11 +88,14 @@ internal sealed class CookerHost:IDisposable {
         }
     }
 
-    private static IReadOnlyList<string> CookInto(IAssetCooker Cooker,string Input,string Directory,string ProjectDirectory){
+    private static IReadOnlyList<string> CookInto(IAssetCooker Cooker,string Input,string Directory,string ProjectDirectory,IList<string>?Messages){
         System.IO.Directory.CreateDirectory(Directory);
         var Result=Cooker.Cook(new CookRequest(Input,Directory,Path.GetFullPath(ProjectDirectory)));
         if(!Result.Succeeded){
-            throw new InvalidOperationException($"The cooker {Cooker.Name} failed: {string.Join(" ",Result.Messages)}");
+            throw new CookFailedException(Cooker.Name,Result.Messages);
+        }
+        if(Messages is not null){
+            foreach(var Message in Result.Messages){ Messages.Add(Message); }
         }
         var Root=Path.GetFullPath(Directory)+Path.DirectorySeparatorChar;
         List<string> Outputs=[];

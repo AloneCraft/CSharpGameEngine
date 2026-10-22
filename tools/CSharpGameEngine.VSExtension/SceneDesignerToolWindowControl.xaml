@@ -123,6 +123,13 @@
                                 <TextBlock x:Name="PhysicsBakeDiagnosticText" TextWrapping="Wrap" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,12" Visibility="Collapsed" />
                                 <ListBox x:Name="PhysicsBakeArtifactList" MaxHeight="96" Margin="0,0,0,4" Visibility="Collapsed" SelectionChanged="OnPhysicsBakeArtifactSelectionChanged" />
                                 <Button x:Name="PhysicsBakeOpenArtifactButton" Content="{local:Loc PhysicsBakeOpenArtifact}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="7,1" Visibility="Collapsed" IsEnabled="False" Click="OnPhysicsBakeOpenArtifact" />
+                                <Separator Margin="0,0,0,8" />
+                                <!-- ADR-0079/M0106: the same bake the build runs, for the selected scene's game (the Navigation plugin's CgeCookNavigation target). -->
+                                <TextBlock Text="{local:Loc NavigationCookHeading}" FontWeight="SemiBold" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,4" />
+                                <TextBlock Text="{local:Loc NavigationCookDescription}" TextWrapping="Wrap" Opacity="0.8" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,6" />
+                                <Button x:Name="NavigationCookButton" Content="{local:Loc NavigationCookButton}" HorizontalAlignment="Left" Margin="0,0,0,4" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc NavigationCookToolTip}" Click="OnNavigationCook" />
+                                <TextBlock x:Name="NavigationCookStatusText" TextWrapping="Wrap" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,4" Visibility="Collapsed" />
+                                <TextBlock x:Name="NavigationCookDiagnosticText" TextWrapping="Wrap" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,12" Visibility="Collapsed" />
                             </StackPanel>
                         </ScrollViewer>
                     </DockPanel>

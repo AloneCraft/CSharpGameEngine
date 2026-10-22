@@ -22,7 +22,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 | NuGet パッケージ | Fab のプラグイン | `PackageReference` で有効(パッケージの `build/<Id>.targets` が自分を取り込む) |
 
 - 取り込みは `build/CSharpGameEngine.Game.targets` が行う。プロジェクトファイルの後に読まれるので、`CgePlugins` が見える(リポジトリでは `Directory.Build.targets`、パッケージでは `CSharpGameEngine.Sdk.targets` から読む)。
-- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`)。Vehicle テンプレートと UserEcsProject が有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
+- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`。Vehicle テンプレートが有効にする)と Navigation(`plugins/CSharpGameEngine.Navigation`。TopDown テンプレートが有効にする。M0106)。UserEcsProject は両方を有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
 
 ## 3. プラグインの形
 ```
@@ -36,7 +36,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
   Scenes/                   シーン(ゲームのシーンと同じ扱い。startupOrder があれば起動時に読まれる)
 ```
 - Library モジュール(任意): DLL。`[assembly: PluginLibrary]` を付ける。公開 struct はパレットとスキーマに出る。`World`・`State`・`Entity`・`ISystem` を名指ししない。NuGet のプラグインはパッケージの `lib/` に入れる。
-- Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。
+- Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。Navigation は `Cook/CSharpGameEngine.Navigation.Cook.csproj`(ソースはエンジンのリポジトリでビルドされ、SDK パッケージでは `Cook/lib/` に出力が入る)。
 - 見本: `samples/Plugins/Weather`(プロジェクトのプラグイン)、`samples/Plugins/CSharpGameEngine.Samples.Lightning`(NuGet のプラグイン。Library の DLL と Runtime のソース)。
 
 ### マニフェスト `<名前>.cgeplugin`
@@ -103,13 +103,22 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 - `CSharpGameEngine.Cook.Cli`(パッケージでは `$(CgeCookCli)`)が、別のプロセスで DLL を読んで動かす。
   - `list <module.dll>`: 処理の名前と拡張子。
   - `cook <module.dll> <入力> <出力フォルダ> [--project <フォルダ>] [--cooker <名前>] [--verify]`: 書いたファイルを出力フォルダからの相対パスで出す。
+  - 処理が成功のとき返したメッセージ(警告や統計)は標準エラーへ、失敗のときは処理のメッセージを 1 行ずつ標準エラーへ出す。MSBuild の `Exec` が読めるように、処理は `ファイル: error コード: 内容` の形で返す。
 - 守ること(違えば失敗):
   - 出力は出力フォルダの中だけ。
   - 書くと言ったファイルは在る。
   - `--verify` なら 2 回の実行でファイルとバイト列が一致する(決定的)。
-- 読み込みは専用の AssemblyLoadContext。契約の DLL だけをホストと共有する。
+- 読み込みは専用の AssemblyLoadContext。契約の DLL だけをホストと共有する。モジュールの依存は、モジュールの隣の `.deps.json`(プロジェクトに `EnableDynamicLoading` と `CopyLocalLockFileAssemblies` を付ける)で解く。
 - 終了コード: 0 成功、1 失敗、2 使い方の誤り。
-- まだ無いもの: ビルド中の自動実行と、VSIX のボタン。最初の実際の Cook(M0106 のナビメッシュ)で足す。
+
+### 実例: ナビメッシュ(Navigation プラグイン、M0106)
+- 入力はシーンの JSON。シーンの `NavMeshBounds`(UE の NavMeshBoundsVolume)が領域と歩く者の大きさを決め、起動シーンの静的な衝突形状から `Assets/Navigation/<Id>.cgenav` を書く([M0106](../Milestones/M0106-Navmesh-Bake-And-Path-Following.md))。
+- ビルド中の自動実行: プラグインの `Navigation.plugin.items` が、`Scenes/**/*.json` のうち `CSharpGameEngine.Navigation.NavMeshBounds` を含むシーンごとに、Cook を別のプロセスで動かす(ターゲット `CgeCookNavigation`。`AssignTargetPaths` の前)。
+  - 出力は `obj/…/cge-navigation/Assets/Navigation/<Id>.cgenav` で、ビルドが `Assets/Navigation/` へ複製する(出力に入る)。
+  - シーン、`Assets/**` のファイル、Cook CLI、プラグインの Cook モジュールのどれかが、前回より新しいときだけ作り直す(`Inputs`/`Outputs` とスタンプ)。リポジトリのビルド(SourceMode)は Cook CLI とモジュールをビルドしてから使い、パッケージのビルド(PackageMode)は `tools/Cook/` と `plugins/…/Cook/lib/` を使う。
+  - 失敗は処理の `error NAVnnn` 行がそのままビルドのエラーになる。
+- VSIX: Scene Designer の「ナビメッシュ」の節のボタンが、選択したシーンのゲームのプロジェクトで同じターゲットを `dotnet msbuild -t:CgeCookNavigation` で動かし、出力と診断を表示する(`NavigationCookService`)。物理のベイクのように、エンジンのソースの場所には頼らない。
+- まだ無いもの: 既存の `Physics.Cli bake` の Cook への載せ直し(ベイクの形が違う: ゲームのアセンブリを読んで世界を回す)。
 
 ## 7. データアセット `[DataAsset]` と `.cgeasset`
 ```json

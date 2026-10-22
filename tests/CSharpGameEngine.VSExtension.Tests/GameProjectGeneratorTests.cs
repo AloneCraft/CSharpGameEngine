@@ -154,7 +154,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
 
     [Theory]
     [InlineData("ThirdPerson","")]
-    [InlineData("TopDown","")]
+    [InlineData("TopDown","Navigation")]
     [InlineData("Vehicle","Vehicles")]
     public void TheGeneratedProject_EnablesTheTemplatesEnginePlugins(string TemplateName,string Plugins){
         // ADR-0079: the template's own project file names its engine plugins; the package-mode project carries them over.

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Cook module of the Navigation engine plugin (ADR-0079/M0106): an IAssetCooker that bakes a scene's static collision into a navigation mesh
+    (Assets/Navigation/<Id>.cgenav). CSharpGameEngine.Cook.Cli loads this DLL in its own process; the build runs it before the game is copied
+    (Navigation.plugin.items), and the SDK package carries the built output next to this folder's sources.
+    The mesh format and the path search are the Runtime module's sources, compiled here too, so the writer and the game's reader are the same code.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CSharpGameEngine.Navigation.Cook</AssemblyName>
+    <RootNamespace>CSharpGameEngine.Navigation.Cook</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- The Cook host resolves the module's dependencies from its .deps.json, next to the DLL. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Runtime\NavMesh.cs;..\Runtime\NavMesh.Query.cs;..\Runtime\NavigationDefaults.cs" Link="Runtime\%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Navigation.Tests</_Parameter1></AssemblyAttribute>
+  </ItemGroup>
+</Project>

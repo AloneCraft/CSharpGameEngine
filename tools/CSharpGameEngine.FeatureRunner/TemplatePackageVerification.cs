@@ -6,7 +6,7 @@ namespace CSharpGameEngine.FeatureStages;
 /// temporary folder outside the repository, exactly as the Visual Studio wizard does. It is restored
 /// from a feed that holds only the packed CSharpGameEngine.Sdk package, built, and played with the
 /// scripted input of rigid.character-controller (the Vehicle template is driven instead; it also proves that the
-/// package's engine plugins build, ADR-0079). No generated build input may point back into the repository.
+/// package's engine plugins build, ADR-0079; the TopDown template is clicked instead, and its build bakes the navigation mesh with the package's Cook module, M0106). No generated build input may point back into the repository.
 /// </summary>
 public static class TemplatePackageVerification {
     public const string ProjectName="My ThirdPerson";
@@ -46,7 +46,9 @@ public static class TemplatePackageVerification {
         var Result=Template switch{
             "ThirdPerson"=>await ThirdPersonCharacterVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
             "Vehicle"=>await VehicleDriveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
-            _=>throw new ArgumentException($"The package check drives ThirdPerson or Vehicle, not {Template}.",nameof(Template)),
+            // The TopDown game bakes its navigation mesh from the package's Navigation plugin while it builds (ADR-0079/M0106) and walks along it.
+            "TopDown"=>await ClickToMoveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
+            _=>throw new ArgumentException($"The package check drives ThirdPerson, TopDown or Vehicle, not {Template}.",nameof(Template)),
         };
         if(Result==0){
             try {

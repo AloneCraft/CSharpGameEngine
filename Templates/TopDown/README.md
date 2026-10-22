@@ -8,5 +8,5 @@ UE5.8 の Top Down テンプレート相当。**まだビルドできない**(�
 - カメラは `OrbitCamera` の `FollowYaw: false`(向きを固定し、距離と角度だけで追従)。
 
 論点:
-- UE はナビメッシュで経路を探す。理想コードは `Intent.MoveTo(Point)` と書くだけにしてあり、経路探索は未実装の機能として別に決める必要がある。
+- UE はナビメッシュで経路を探す。理想コードは `Intent.MoveTo(Point)` と書くだけにしてあり、経路探索は M0106 の Navigation プラグインが担う(キャラクターに `NavAgent`、シーンに `NavMeshBounds` を置くだけで、`MoveTo` が経路に沿って歩く。コードは変わらない)。
 - `Physics` / `Spawner` は、引数の型で受け取るサービス。

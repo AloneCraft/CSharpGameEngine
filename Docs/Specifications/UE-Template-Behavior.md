@@ -83,11 +83,11 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | Controller の既定値 | `PressedThreshold=0.5` s、`FXCursor=FX_Cursor_Success`、カーソルを表示、クリックのイベントを有効にする | 一部 | M0108 |
 | `IA_SetDestination_Click` Started | `StopMovement()`。カーソルの下に当たりがあれば `CachedDestination = 当たりの位置` | 未(押したら止まる処理が無い) | M0108 |
 | 同 Triggered(押している間) | 当たりがあれば `CachedDestination` を更新し、`Follow(位置)` = `AddMovementInput(GetDirectionUnitVector(Pawn の位置, 位置), 1.0)` | 一部(今は `MoveTo` で目的地へ歩く) | M0108 |
-| 同 Canceled / Completed(離した) | 押していた時間 `ElapsedSeconds < PressedThreshold` なら `MoveTo(CachedDestination)` = `SimpleMoveToLocation`(ナビメッシュの経路)+ `SpawnSystemAtLocation(FXCursor, 位置)` | 一部(目印は `Spawner.Spawn<CursorMarker>` で出す。M0105 済。ただし押した瞬間に出す。経路と短押しの判定は未) | M0106・M0108 |
+| 同 Canceled / Completed(離した) | 押していた時間 `ElapsedSeconds < PressedThreshold` なら `MoveTo(CachedDestination)` = `SimpleMoveToLocation`(ナビメッシュの経路)+ `SpawnSystemAtLocation(FXCursor, 位置)` | 一部(目印は `Spawner.Spawn<CursorMarker>` で出す。M0105 済。ただし押した瞬間に出す。経路は M0106 済: `MoveIntent.MoveTo` が Navigation プラグインのナビメッシュの経路に沿って歩く。短押しの判定は未) | M0106 済(経路)・M0108(短押し) |
 | `GetLocationUnderCursor` | `GetHitResultUnderCursorByChannel(Visibility, bTraceComplex=true)` の `bBlockingHit` と `Location` | 済(`Picking.TryPick`、三角形メッシュへの正確な光線) | — |
 | ReceivePossess と OnDestroyed | Pawn のクラスを覚え、壊れたら全 PlayerStart から無作為に 1 つを選んで生成し、Possess する | 未 | M0107 |
 | Character の値 | 腕 1400、Pitch −50 / Yaw 45(絶対回転)、衝突なし、カメラの遅れ追従(速さ 3)、FOV 55。歩行 600、加速と制動 1000、重力 1.5、空中制御 0.05、旋回 640°/s、カプセル 42 / 96 | 一部(遅れ追従が無い) | M0107 |
-| 経路の追従 | `FixedPathBrakingDistance=200`、`bUseFixedBrakingDistanceForPaths`、`bUseAccelerationForPaths` | 未 | M0106 |
+| 経路の追従 | `FixedPathBrakingDistance=200`、`bUseFixedBrakingDistanceForPaths`、`bUseAccelerationForPaths` | 一部(経路の最後の点で、キャラクターの制動から計算した距離で減速して止まる。途中の点は最高速度で通り、`NavAgent.WaypointRadius`(0.3 m)に入ったら次へ。固定の制動距離 200 cm と、経路の追従で加速度を使うかの区別は無い)。目的地に着けないときは、UE の `SimpleMoveToLocation`(部分経路を許す)と同じく、行ける中で一番近い点まで歩いて止まる | M0106 済 |
 | `FX_Cursor_Success` | Niagara の `SimpleSpriteBurst`: Spawn Burst Instantaneous で Spawn Count 1・Spawn Time 0、Loop Duration 0.7 s、Loop Count 1。粒子の Lifetime 0.7 s、色 (1,1,1,1)、位置のずれ・速度・回転の力は 0。描画はメッシュ `SM_CursorMesh`(材質 `M_Cursor`: BLEND_Masked、基本色 = `Color` × 矢印のテクスチャ、粗さ 1、`TexCoordY` ← `NormalizedLoopAge`) | 一部(`ParticleBurst` の Count 1・Lifetime 0.7、`SM_CursorMesh` の矢印をアルファの切り抜きから形状にした glb。`TexCoordY` の流れは縮み 1→0.25 で代用。押した瞬間に出す)。M0105。`SpawnSystemAtLocation(FXCursor, 位置)` は `Spawner.Spawn<CursorMarker>` | M0105 済。短押しで出す条件は M0108 |
 
 ## Vehicle(既定の Pawn は `BP_VehicleAdvSportsCar`、親は `BP_VehicleAdvPawnBase`)
@@ -153,4 +153,4 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 |---|---|---|---|
 | ライティング | Lumen の GI と反射、DirectionalLight(可動)、SkyLight(リアルタイムキャプチャ)、SkyAtmosphere、VolumetricCloud、ExponentialHeightFog、空の球、PostProcessVolume(ThirdPerson と Vehicle) | 一部(雲・空の球・Lumen 相当が無い) | M0110・M0111 |
 | Vehicle の地面 | Landscape(実行時の仮想テクスチャ、Ground/Road の層、物理マテリアルの Slippery / NonSlippery)、Landscape のスプラインの道 | 一部(平らな板) | M0109・M0112 |
-| TopDown のナビメッシュ | NavMeshBoundsVolume、RecastNavMesh | 未 | M0106 |
+| TopDown のナビメッシュ | NavMeshBoundsVolume(位置 (0, 0, 0)、範囲 (2250, 2250, 375) cm)、RecastNavMesh(レベルのアクターは AgentRadius 35、AgentHeight 144、AgentMaxSlope 44、TileSizeUU 1000、MergeRegionSize 400、WATERSHED。`DefaultEngine.ini` は CellSize 19、CellHeight 10。AgentMaxStepHeight 35 は `RecastNavMesh.h` の既定) | 一部(Cook がシーンの静的な衝突形状から格子のナビメッシュを焼く。値はこの行のとおり。Recast の輪郭の単純化と斜めの辺、分割したタイル、動的な再生成は無い) | M0106 済 |

@@ -38,6 +38,10 @@
         "members": {}
       },
       {
+        "type": "CSharpGameEngine.Navigation.NavAgent",
+        "members": {}
+      },
+      {
         "type": "CSharpGameEngine.Runtime.Character.ViewAngles",
         "members": {
           "Yaw": 0.125,

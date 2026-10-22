@@ -32,9 +32,15 @@ try {
         }
     }
     var Selected=Host.Select(args[2],Name);
-    var Outputs=CookerHost.Cook(Selected,args[2],args[3],Project??Path.GetDirectoryName(Path.GetFullPath(args[2]))!,Verify);
+    List<string>Messages=[];
+    var Outputs=CookerHost.Cook(Selected,args[2],args[3],Project??Path.GetDirectoryName(Path.GetFullPath(args[2]))!,Verify,Messages);
+    // The cooker's own notes (warnings, statistics) go to standard error so that standard output stays the list of files.
+    foreach(var Message in Messages){ Console.Error.WriteLine(Message); }
     foreach(var Output in Outputs){ Console.WriteLine(Output); }
     return 0;
+} catch(CookerHost.CookFailedException Failure){
+    foreach(var Message in Failure.Messages){ Console.Error.WriteLine(Message); }
+    return 1;
 } catch(Exception Error) when(Error is IOException or InvalidOperationException or BadImageFormatException or UnauthorizedAccessException){
     Console.Error.WriteLine(Error.Message);
     return 1;

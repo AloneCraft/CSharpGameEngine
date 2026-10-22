@@ -3,9 +3,11 @@ using System.Globalization;
 using System.Text.Json;
 namespace CSharpGameEngine.FeatureStages;
 /// <summary>
-/// TopDownテンプレートのクリック移動の実走検証(ADR-0077)。画面上部の1点を数フレームだけクリックし、その地点まで歩いて止まることを
+/// TopDownテンプレートのクリック移動の実走検証(ADR-0077、ADR-0079/M0106)。画面上部の1点を数フレームだけクリックし、その地点まで歩いて止まることを
 /// カメラ位置の推移で判定する。カメラは固定の角度でキャラクターに追従するので、その水平移動がキャラクターの歩行になる。
 /// 固定tickは1フレームに上限回数だけ進むので、判定は距離の範囲と停止の有無に限る。
+/// 同じ入力を 2 回走らせる。(1) ナビメッシュを切って(<c>CGE_NAVIGATION_DISABLED=1</c>)従来どおりの直線で歩く(中央の台のふちから飛び降りる)、
+/// (2) ナビメッシュを使って、台のスロープを下り、壁の端を回って、同じ床の目的地へ着く。
 /// </summary>
 public static class ClickToMoveVerification {
     public const int Frames=80;
@@ -17,9 +19,23 @@ public static class ClickToMoveVerification {
     public const float MinimumWalkMeters=2f;
     /// <summary>カーソルを追い続けた場合のように行き過ぎていない上限(m)。目的地は数mの先。</summary>
     public const float MaximumWalkMeters=12f;
+    /// <summary>ナビメッシュで歩くときの上限(m)。出発点から着いた位置までは直線で 10.7 m ほど。</summary>
+    public const float MaximumNavigatedWalkMeters=16f;
     /// <summary>最後の10フレームの動きがこの距離(m)未満なら止まったとみなす。</summary>
     public const float MaximumFinalDriftMeters=0.1f;
     public const int SettledFrames=10;
+    /// <summary>ナビメッシュで歩いたときの、着く位置(出発点からの水平の動き、R と F)と許す誤差(m)。台のスロープの先、壁の端を回った床の上。</summary>
+    public const float NavigatedGoalR=7.06f;
+    public const float NavigatedGoalF=8.06f;
+    public const float NavigatedGoalTolerance=1.0f;
+    /// <summary>経路が回る壁の端(出発点からの R と F)と、そこへ近づくべき距離(m)。スロープの通路の壁の端で、直線ではここを通らない。</summary>
+    public const float WallEndR=2.2f;
+    public const float WallEndF=9.0f;
+    public const float WallEndTolerance=1.2f;
+    /// <summary>経路の長さの、出発点から着いた位置までの直線に対する下限の倍率。回り込んでいれば 1.25 倍は超える(実走は 1.39)。</summary>
+    public const float MinimumDetourRatio=1.25f;
+    /// <summary>1フレームのカメラの高さの落ち方の上限(m)。台から飛び降りると 0.6 m を超える落ち方をし、スロープを下る間は 0.4 m 以内。</summary>
+    public const float MaximumFrameDropMeters=0.5f;
     public static string InputSchedule=>string.Create(CultureInfo.InvariantCulture,$"MouseLeft@{ClickStartFrame}-{ClickEndFrame}");
     public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Executable=ThirdPersonCharacterVerification.ExecutablePath(RepositoryRoot,Configuration,"TopDown");
@@ -28,6 +44,15 @@ public static class ClickToMoveVerification {
             return 2;
         }
         var Evidence=Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller","TopDown",Adapter);
+        return await RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+    }
+    /// <summary>Runs a built TopDown game twice (straight with the navigation mesh switched off, then along the navigation mesh) and judges both reports.</summary>
+    public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
+        var Straight=await RunOnceAsync(Executable,Evidence,Adapter,false,Output,Error,CancellationToken).ConfigureAwait(false);
+        var Navigated=await RunOnceAsync(Executable,Path.Combine(Evidence,"navigation"),Adapter,true,Output,Error,CancellationToken).ConfigureAwait(false);
+        return Straight!=0?Straight:Navigated;
+    }
+    private static async Task<int>RunOnceAsync(string Executable,string Evidence,string Adapter,bool Navigated,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         Directory.CreateDirectory(Evidence);
         var ReportPath=Path.Combine(Evidence,"report.json");
         File.Delete(ReportPath);
@@ -43,6 +68,10 @@ public static class ClickToMoveVerification {
         Start.Environment["CGE_AUTOMATION_CURSOR"]=Cursor;
         Start.Environment["CGE_AUTOMATION_REPORT"]=ReportPath;
         Start.Environment["CGE_AUTOMATION_CAPTURE"]=Path.Combine(Evidence,"final.png");
+        // The same input twice: a world without the navigation mesh is the straight walk of before M0106.
+        if(Navigated){ Start.Environment.Remove("CGE_NAVIGATION_DISABLED"); }
+        else { Start.Environment["CGE_NAVIGATION_DISABLED"]="1"; }
+        var Label=Navigated?"navigated":"straight";
         using var Process=System.Diagnostics.Process.Start(Start)??throw new InvalidOperationException("Could not start the TopDown template.");
         var Standard=Process.StandardOutput.ReadToEndAsync(CancellationToken);
         var Diagnostics=Process.StandardError.ReadToEndAsync(CancellationToken);
@@ -50,19 +79,25 @@ public static class ClickToMoveVerification {
         await Output.WriteAsync(await Standard.ConfigureAwait(false)).ConfigureAwait(false);
         await Error.WriteAsync(await Diagnostics.ConfigureAwait(false)).ConfigureAwait(false);
         if(Process.ExitCode!=0||!File.Exists(ReportPath)){
-            await Error.WriteLineAsync($"The TopDown template exited with {Process.ExitCode} and report present={File.Exists(ReportPath)}.").ConfigureAwait(false);
+            await Error.WriteLineAsync($"The TopDown template ({Label}) exited with {Process.ExitCode} and report present={File.Exists(ReportPath)}.").ConfigureAwait(false);
             return 1;
         }
         using var Report=JsonDocument.Parse(await File.ReadAllBytesAsync(ReportPath,CancellationToken).ConfigureAwait(false));
-        var Failures=Evaluate(Report.RootElement,out var Summary);
-        await Output.WriteLineAsync("CGE-TOPDOWN-CLICK "+Summary).ConfigureAwait(false);
+        var Failures=Navigated?EvaluateNavigated(Report.RootElement,out var Summary):Evaluate(Report.RootElement,out Summary);
+        await Output.WriteLineAsync((Navigated?"CGE-TOPDOWN-CLICK-NAVIGATED ":"CGE-TOPDOWN-CLICK ")+Summary).ConfigureAwait(false);
         foreach(var Failure in Failures){
             await Error.WriteLineAsync(Failure).ConfigureAwait(false);
         }
         return Failures.Count==0?0:1;
     }
-    /// <summary>レポートを判定し、失敗理由を返す(空なら合格)。<paramref name="Summary"/>は観測値の要約。</summary>
-    public static IReadOnlyList<string>Evaluate(JsonElement Report,out string Summary){
+    /// <summary>ナビメッシュを切った(直線の)歩行のレポートを判定し、失敗理由を返す(空なら合格)。<paramref name="Summary"/>は観測値の要約。</summary>
+    public static IReadOnlyList<string>Evaluate(JsonElement Report,out string Summary)=>EvaluateCore(Report,false,out Summary);
+    /// <summary>
+    /// ナビメッシュで歩いた(M0106)レポートを判定する。直線の歩行と同じ判定(着いて止まる、足音、目印)に加えて、台のふちから飛び降りずにスロープを下り、
+    /// 壁の端を回って、決まった床の位置に着いていること。位置は、出発点(クリックの前のフレーム)のカメラからの動きで測る。
+    /// </summary>
+    public static IReadOnlyList<string>EvaluateNavigated(JsonElement Report,out string Summary)=>EvaluateCore(Report,true,out Summary);
+    private static IReadOnlyList<string>EvaluateCore(JsonElement Report,bool Navigated,out string Summary){
         List<string>Failures=[];
         Summary=string.Empty;
         if(!Report.TryGetProperty("schema",out var Schema)||Schema.GetString()!="cge-automation-report/1"){
@@ -86,8 +121,9 @@ public static class ClickToMoveVerification {
         if(Walk<MinimumWalkMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Clicking the ground moved the camera {Walk:F3} m horizontally; expected at least {MinimumWalkMeters} m."));
         }
-        if(Walk>MaximumWalkMeters){
-            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera moved {Walk:F3} m horizontally; expected at most {MaximumWalkMeters} m (the destination is a few metres away)."));
+        var WalkLimit=Navigated?MaximumNavigatedWalkMeters:MaximumWalkMeters;
+        if(Walk>WalkLimit){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera moved {Walk:F3} m horizontally; expected at most {WalkLimit} m (the destination is a few metres away)."));
         }
         if(Drift>=MaximumFinalDriftMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera still moved {Drift:F3} m in the last {SettledFrames} frames; the character did not stop at the destination."));
@@ -95,8 +131,38 @@ public static class ClickToMoveVerification {
         if(Audio==0){
             Failures.Add("Walking to the destination asked for no footstep sound.");
         }
+        if(Navigated){ EvaluateRoute(Positions,Failures,ref Summary); }
         EvaluateMarker(Report,Failures,ref Summary);
         return Failures;
+    }
+    /// <summary>
+    /// The route along the navigation mesh (ADR-0079/M0106), from the camera: it ends at the expected floor position, wraps the wall end of the ramp corridor, is
+    /// longer than the straight line between its ends, and never drops like a fall from the platform.
+    /// </summary>
+    private static void EvaluateRoute(float[]?[]Positions,List<string>Failures,ref string Summary){
+        var Origin=Positions[ClickStartFrame-1]!;
+        var Path=Enumerable.Range(ClickStartFrame-1,Frames-ClickStartFrame+1).Select(Frame=>(R:Positions[Frame]![0]-Origin[0],F:Positions[Frame]![2]-Origin[2])).ToArray();
+        var Final=Path[^1];
+        var Length=0f;
+        for(var Index=1;Index<Path.Length;Index++){ Length+=MathF.Sqrt(((Path[Index].R-Path[Index-1].R)*(Path[Index].R-Path[Index-1].R))+((Path[Index].F-Path[Index-1].F)*(Path[Index].F-Path[Index-1].F))); }
+        var Straight=MathF.Sqrt((Final.R*Final.R)+(Final.F*Final.F));
+        var WallEnd=Path.Min(Point=>MathF.Sqrt(((Point.R-WallEndR)*(Point.R-WallEndR))+((Point.F-WallEndF)*(Point.F-WallEndF))));
+        var Drop=0f;
+        for(var Frame=ClickStartFrame-1;Frame<Frames-1;Frame++){ Drop=MathF.Max(Drop,Positions[Frame]![1]-Positions[Frame+1]![1]); }
+        var Goal=MathF.Sqrt(((Final.R-NavigatedGoalR)*(Final.R-NavigatedGoalR))+((Final.F-NavigatedGoalF)*(Final.F-NavigatedGoalF)));
+        Summary+=string.Create(CultureInfo.InvariantCulture,$" final=({Final.R:F2},{Final.F:F2}) goalError={Goal:F2} pathLength={Length:F2} straight={Straight:F2} wallEnd={WallEnd:F2} maxFrameDrop={Drop:F2}");
+        if(Goal>NavigatedGoalTolerance){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The character stopped at ({Final.R:F2}, {Final.F:F2}) from where it started; the route ends at ({NavigatedGoalR}, {NavigatedGoalF}) within {NavigatedGoalTolerance} m."));
+        }
+        if(WallEnd>WallEndTolerance){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The route never came within {WallEndTolerance} m of the wall end ({WallEndR}, {WallEndF}) (closest {WallEnd:F2} m); it did not go around the wall."));
+        }
+        if(Length<Straight*MinimumDetourRatio){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The route was {Length:F2} m long for a straight distance of {Straight:F2} m; a route around the wall is at least {MinimumDetourRatio} times longer."));
+        }
+        if(Drop>MaximumFrameDropMeters){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera dropped {Drop:F2} m in one frame; walking down the ramp drops at most {MaximumFrameDropMeters} m, so the character fell off the platform."));
+        }
     }
     /// <summary>
     /// ADR-0078/M0105: the click puts a marker in the world (the cursor burst) and its lifetime takes it out again. The renderer's object count per frame

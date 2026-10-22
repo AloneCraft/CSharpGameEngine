@@ -58,7 +58,7 @@
 ## 段階 8. Cook
 - `CSharpGameEngine.Cooking`(`IAssetCooker`、`CookRequest`、`CookResult`)と `CSharpGameEngine.Cook.Cli`(`list`、`cook … [--verify]`)。専用の AssemblyLoadContext で読み、契約だけを共有する。出力フォルダの外への書き込み、書くと言って書かないこと、`--verify` で 2 回の結果が違うことを拒否する。
 - テスト: `CookerHostTests`(6 件)。CLI も別のプロセスで動かして確かめた(`list`、`cook --verify` が成功、決定的でない処理は終了コード 1、使い方の誤りは 2)。
-- 残り: ビルド中の自動実行と VSIX のボタンは、最初の実際の Cook(M0106 のナビメッシュ)で足す。既存の `Physics.Cli bake` はまだこの上に載せ直していない。
+- 残り(2026-10-23 更新): ビルド中の自動実行と VSIX のボタンは、最初の実際の Cook(ナビメッシュ)と一緒に [M0106](M0106-Navmesh-Bake-And-Path-Following.md) で足した。既存の `Physics.Cli bake` はまだこの上に載せ直していない。
 
 ## 段階 9. SDK パッケージ
 - 版を `build/CSharpGameEngine.Version.props`(`CgeEngineVersion` 0.1.16)の 1 か所にした。パッケージに `plugins/`、`build/CSharpGameEngine.Game.targets`、`lib/…/CSharpGameEngine.Cooking.dll`、`tools/Cook/` を足した。
@@ -80,5 +80,5 @@
 
 ## 完了の判定
 - 依頼への答え: プラグイン(コード)とアセット(データ)の違い、機能を足す 3 つの場所、足し方の表(ECS はソース、ECS を使わない処理は DLL、生成ルールはユーザーが足さずに属性で広げる)を ADR-0079 と仕様に書き、その通りに動くことを 3 つの置き場所の実走で確かめた。
-- 未実装(文書化): Cook のビルド中の実行と VSIX のボタン(M0106)、データアセットの Designer での編集、プラグインの一覧の表示、NuGet のプラグインの Library の DLL を実行時のプレビューが確実に読むこと、`Physics.Cli bake` の Cook への載せ直し。
+- 未実装(文書化): データアセットの Designer での編集(Cook のビルド中の実行と VSIX のボタンは M0106 で実装済み)、プラグインの一覧の表示、NuGet のプラグインの Library の DLL を実行時のプレビューが確実に読むこと、`Physics.Cli bake` の Cook への載せ直し。
 - 意図と観測の一致: MatchesWithDocumentedExtension。

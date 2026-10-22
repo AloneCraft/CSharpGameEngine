@@ -8,5 +8,7 @@
   <PropertyGroup>
     <RootNamespace>CgeTopDown</RootNamespace>
     <AssemblyName>CgeTopDown</AssemblyName>
+    <!-- The engine plugins this game uses (ADR-0079). Navigation bakes the level's navigation mesh at build time (M0106). -->
+    <CgePlugins>Navigation</CgePlugins>
   </PropertyGroup>
 </Project>

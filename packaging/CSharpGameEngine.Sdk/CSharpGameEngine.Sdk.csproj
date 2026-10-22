@@ -79,7 +79,12 @@
     <MSBuild Projects="$(CgeRepositoryRoot)tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeCookCli" />
     </MSBuild>
+    <!-- ADR-0079/M0106: the Navigation plugin's Cook module, built here and carried next to the plugin's sources (Navigation.plugin.items runs it from Cook\lib). -->
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Navigation\Cook\CSharpGameEngine.Navigation.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookModule" />
+    </MSBuild>
     <PropertyGroup>
+      <_CgeNavigationCookDirectory>@(_CgeNavigationCookModule->'%(RootDir)%(Directory)')</_CgeNavigationCookDirectory>
       <_CgeShaderCliDirectory>@(_CgeShaderCli->'%(RootDir)%(Directory)')</_CgeShaderCliDirectory>
       <_CgeSceneSchemaCliDirectory>@(_CgeSceneSchemaCli->'%(RootDir)%(Directory)')</_CgeSceneSchemaCliDirectory>
       <_CgeCookCliDirectory>@(_CgeCookCli->'%(RootDir)%(Directory)')</_CgeCookCliDirectory>
@@ -90,6 +95,8 @@
       <None Include="$(_CgeShaderCliDirectory)**\*" Exclude="$(_CgeShaderCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\ShaderGraph\" />
       <!-- Top level only: the CLI has no dependencies, and an x64 test run of the solution leaves a win-x64\ copy below it that would be packed twice. -->
       <None Include="$(_CgeSceneSchemaCliDirectory)*" Exclude="$(_CgeSceneSchemaCliDirectory)*.pdb" Pack="true" PackagePath="tools\SceneSchema\" />
+      <!-- The Cook module with its dependencies (the host shares CSharpGameEngine.Cooking with it, so that one is left out). -->
+      <None Include="$(_CgeNavigationCookDirectory)*" Exclude="$(_CgeNavigationCookDirectory)*.pdb;$(_CgeNavigationCookDirectory)CSharpGameEngine.Cooking.dll" Pack="true" PackagePath="plugins\CSharpGameEngine.Navigation\Cook\lib\" />
       <!-- ADR-0079: runs a plugin's Cook module in its own process (top level only, for the same reason as above). -->
       <None Include="$(_CgeCookCliDirectory)*" Exclude="$(_CgeCookCliDirectory)*.pdb" Pack="true" PackagePath="tools\Cook\" />
     </ItemGroup>

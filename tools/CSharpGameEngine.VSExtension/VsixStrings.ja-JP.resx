@@ -60,6 +60,16 @@
   <data name="PhysicsBonds" xml:space="preserve"><value>破砕のつながり (bond)</value></data>
   <data name="PhysicsBakeDescription" xml:space="preserve"><value>シーンの物理を {0} ティック分計算して、ゲームが再生できるファイルに記録します。出力先はプロジェクトの Assets/Physics/Bakes です。</value></data>
   <data name="PhysicsBakeHeading" xml:space="preserve"><value>Bake（物理の事前計算）</value></data>
+  <data name="NavigationCookHeading" xml:space="preserve"><value>ナビメッシュ</value></data>
+  <data name="NavigationCookDescription" xml:space="preserve"><value>選択中のシーンのゲームのナビメッシュを、ビルドと同じ手順(Navigation プラグイン)で焼きます。ファイルはビルド出力の Assets/Navigation に書かれます。</value></data>
+  <data name="NavigationCookButton" xml:space="preserve"><value>ナビメッシュを焼く</value></data>
+  <data name="NavigationCookToolTip" xml:space="preserve"><value>選択中のシーンを保存し、そのゲームのプロジェクトで Navigation プラグインの Cook を実行します。</value></data>
+  <data name="NavigationCookNoScene" xml:space="preserve"><value>焼けるシーンがありません。</value></data>
+  <data name="NavigationCookNoVolume" xml:space="preserve"><value>選択中のシーンには NavMeshBounds が無いので、焼くナビメッシュがありません。</value></data>
+  <data name="NavigationCookRunning" xml:space="preserve"><value>ナビメッシュを焼いています...</value></data>
+  <data name="NavigationCookSucceeded" xml:space="preserve"><value>{0} 個のナビメッシュのファイルを焼きました。</value></data>
+  <data name="NavigationCookFailed" xml:space="preserve"><value>ナビメッシュを焼けませんでした: {0}</value></data>
+  <data name="NavigationCookCancelled" xml:space="preserve"><value>ナビメッシュの Bake をキャンセルしました。</value></data>
   <data name="PhysicsBondsToolTip" xml:space="preserve"><value>事前に割った物体の破片同士のつながりを表示します。</value></data>
   <data name="PhysicsTreeToolTip" xml:space="preserve"><value>衝突しそうな物体を絞り込むための空間の分割を表示します。</value></data>
   <data name="PhysicsContactsToolTip" xml:space="preserve"><value>物体同士が触れている点と、押し返す向きを表示します。ゲームの実行中に意味があります。</value></data>

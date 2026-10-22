@@ -60,6 +60,16 @@
   <data name="PhysicsBonds" xml:space="preserve"><value>Fracture bonds</value></data>
   <data name="PhysicsBakeDescription" xml:space="preserve"><value>Computes {0} ticks of a scene's physics and records them to a file the game can play back. Files go to the project's Assets/Physics/Bakes.</value></data>
   <data name="PhysicsBakeHeading" xml:space="preserve"><value>Bake (precomputed physics)</value></data>
+  <data name="NavigationCookHeading" xml:space="preserve"><value>Navigation mesh</value></data>
+  <data name="NavigationCookDescription" xml:space="preserve"><value>Bakes the navigation mesh of the selected scene's game with the same step the build runs (the Navigation plugin). The files are written to the build output's Assets/Navigation.</value></data>
+  <data name="NavigationCookButton" xml:space="preserve"><value>Cook navigation meshes</value></data>
+  <data name="NavigationCookToolTip" xml:space="preserve"><value>Saves the selected scene and runs the Navigation plugin's cook for its game project.</value></data>
+  <data name="NavigationCookNoScene" xml:space="preserve"><value>No scene is available to cook.</value></data>
+  <data name="NavigationCookNoVolume" xml:space="preserve"><value>The selected scene has no NavMeshBounds, so there is no navigation mesh to bake.</value></data>
+  <data name="NavigationCookRunning" xml:space="preserve"><value>Baking the navigation meshes...</value></data>
+  <data name="NavigationCookSucceeded" xml:space="preserve"><value>Baked {0} navigation mesh file(s).</value></data>
+  <data name="NavigationCookFailed" xml:space="preserve"><value>Navigation mesh bake failed: {0}</value></data>
+  <data name="NavigationCookCancelled" xml:space="preserve"><value>The navigation mesh bake was cancelled.</value></data>
   <data name="PhysicsBondsToolTip" xml:space="preserve"><value>Draws the links between the pieces of pre-fractured objects.</value></data>
   <data name="PhysicsTreeToolTip" xml:space="preserve"><value>Draws the space partition the physics uses to find which bodies might collide.</value></data>
   <data name="PhysicsContactsToolTip" xml:space="preserve"><value>Draws where bodies touch and the direction they push apart. Meaningful while the game runs.</value></data>

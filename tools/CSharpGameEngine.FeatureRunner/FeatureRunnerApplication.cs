@@ -199,7 +199,7 @@ public sealed class FeatureRunnerApplication {
         for(int Index=0;Index<Args.Length;Index++){
             if(Index>0&&string.Equals(Args[Index],"--template",StringComparison.OrdinalIgnoreCase)){
                 if(Index+1>=Args.Length){ throw new ArgumentException("Missing value for --template."); }
-                Template=Args[++Index] is "ThirdPerson" or "Vehicle"?Args[Index]:throw new ArgumentException("Template must be ThirdPerson or Vehicle.");
+                Template=Args[++Index] is "ThirdPerson" or "TopDown" or "Vehicle"?Args[Index]:throw new ArgumentException("Template must be ThirdPerson, TopDown or Vehicle.");
                 continue;
             }
             Rest.Add(Args[Index]);
@@ -757,7 +757,7 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("  verify-rendering-performance [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-rendering-release [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-thirdperson-character [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware] [--template ThirdPerson|FirstPerson|TopDown|Vehicle]");
-        this.Output.WriteLine("  verify-template-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware] [--template ThirdPerson|Vehicle]");
+        this.Output.WriteLine("  verify-template-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware] [--template ThirdPerson|TopDown|Vehicle]");
         this.Output.WriteLine("  verify-plugin-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-content-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-performance [--repository-root <path>] [--configuration Debug|Release]");
