@@ -4072,3 +4072,16 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 未確認のまま残る: 車の前面(ヘッドライト)と側面を、エンジンで同じ角度から見る方法が無い(自動実行にカメラの指定が無い)ため、UE の前斜めの画像との比較はできていない。灯火の発光とガラスの透け方は、後ろ姿の比較からしか言えない。ヘッドライトとブレーキランプの点灯は M0109 の機能で、現在は未実装。
 - 反映: ADR-0078 の表と M0112(テンプレートの仕上げ)に、Vehicle の Landscape の路面とトラック(Spline のメッシュ)、傾斜、アーチの取り込みを足した。空と雲は M0110、反射と間接光は M0111。
 - 結果: Differs(Vehicle のレベルの見た目。上の差を M0110〜M0112 で埋める)。
+
+## 2026-10-22 探索 — 実行時の生成と使い捨てエフェクト(ADR-0078、M0105)
+- 意図: ゲームの実行中に Entity と Scene を作り、描き、寿命で消せるようにする。TopDown でクリックした地点に UE の `FX_Cursor_Success` の目印を出す。
+- 観測(Fact):
+  - `FixedTransform` の Generation 固定は本当だった。スロットを再利用した Entity(Generation 2 以上)は `TryGetComponent(new Entity(Id))` が false を返し、位置が解決できなかった(修正前に `RecycledEntityTransformTests` の 2 件と、描画まで通す `RenderRosterTests` の 3 件が失敗した)。解決器のキーを `Entity` 全体にして直した。
+  - `[EngineService]` が `sealed` で `IDisposable` でないと、生成されたループの後始末が CS8121 でコンパイルできなかった(`Spawner` を足して初めて出た)。`object` を挟んで直した。
+  - UE の `FX_Cursor_Success`(Niagara)は、Spawn Count 1、Loop Duration 0.7 s、粒子の Lifetime 0.7 s、色 (1, 1, 1, 1)、速度 0 のバーストで、描画はメッシュ `SM_CursorMesh`。材質 `M_Cursor` は BLEND_Masked で、`TexCoordY` に `NormalizedLoopAge` を結んでテクスチャの V をずらす。`SM_CursorMesh` は帯の四角形 21 枚で、矢印はテクスチャのアルファの切り抜き。エンジンはアルファの切り抜きを描かないので、帯のままだと全体が黒く出る(そこで、切り抜きを形状へ移した)。
+  - WARP の TopDown: 80 フレームでクリックはフレーム 20。描画物の数は 56 → 57(5 フレーム)→ 56。移動 10.845 m、最後の 10 フレームの動き 0.000 m、足音 7 回、D3D12 のエラー 0。目印は矢印 3 本の形で、地面に影つきで出た。
+  - ほかのテンプレートの値は M0104 のときと同じ: ThirdPerson 15.700 m、FirstPerson 16.000 m、Vehicle 48.281 m・38.3°・HUD 28 状態。SDK パッケージから作った ThirdPerson と Vehicle も同じ。
+- 実装: M0105(`Docs/Milestones/M0105-Runtime-Spawn-And-Effects.md`)。決定: 描画物は Entity の増減に追従する(レンダラーの作成だけは読み込み時の一覧から)、`Spawner.Spawn<TScene>(位置)`(`Scenes.X` の値の形は、名前空間 `Scenes` と重なるので書けない)、`Lifetime` は固定 tick で数えて Scene の根なら Scene ごと壊す、粒子は不透明のメッシュで描画契約は変えない。
+- 自動化された証拠: `RecycledEntityTransformTests`(3)、`RenderServerDynamicObjectTests`(4、WARP)、`RenderRosterTests`(6、WARP)、`SpawnerLifetimeParticleTests`(13)、`SceneSpawnGeneratorTests`(4)、`ClickToMoveVerificationTests`(+4)、`verify-thirdperson-character --template TopDown`。全テスト失敗 0。
+- 既知の差: UE は目印を、押していた時間が短かったときの離した瞬間に出す(こちらは押した瞬間。押していた時間は M0108)。UE の矢印が帯に沿って流れる動き(`TexCoordY`)は、縮みで代えた。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成(`PhysicsStableId`)は未実装。実機の GPU での見た目と、初めて使う資産の読み込みの引っかかり(`WaitForGpuIdle`)は測っていない(WARP のみ)。
+- 結果: MatchesWithDocumentedExtension。

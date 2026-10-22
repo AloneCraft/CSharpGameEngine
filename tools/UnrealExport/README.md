@@ -133,3 +133,17 @@ dotnet run --project tools\CSharpGameEngine.Unreal.SceneImporter -- logic .artif
   - 入口(イベント・入力・関数)から実行の流れをたどり、純粋なノードを式に展開する。
   - 状態機械は、状態・遷移・条件式にする。アニメーションのポーズは木にする。
 - 出力先の `.artifacts/UnrealExport/logic/` はリポジトリに入れない。UE の版が変わったら、流し直して差分を見る。
+
+## アルファの切り抜きのメッシュ(ADR-0078、M0105)
+
+エンジンの Stage シェーダーにはアルファテストが無い(描画契約 `stage-v11` を変えない)。UE の `M_Cursor`(TopDown のクリック地点の目印 `SM_CursorMesh`)のような BLEND_Masked の材質は、矢印をテクスチャのアルファで切り抜くので、そのまま不透明に描くと帯全体が黒く出る。
+
+```cmd
+set CGE_SK_STATIC=1
+tools\UnrealExport\run_export_skeletal_mesh.cmd TopDown /Game/TopDown/Cursor/SM_CursorMesh .artifacts\UnrealExport\cursor\SM_CursorMesh.glb
+python tools\UnrealExport\cut_masked_mesh.py .artifacts\UnrealExport\cursor\SM_CursorMesh.glb Templates\CSharpGameEngine.Templates.TopDown\Assets\Cursor\SM_CursorMesh.glb 24
+```
+
+- `cut_masked_mesh.py <入力.glb> <出力.glb> [四角形の一辺の分割数]`: 帯の四角形(2 枚の三角形が辺を共有する)を分割数 × 分割数に割り、ベースカラーのテクスチャのアルファが材質の `alphaCutoff` 以上のセルだけを残す。残したテクセルの平均色を `baseColorFactor` にして、テクスチャは持たせない。`doubleSided` なら、向きと法線を反転した複製を足す(レンダラーは裏面を捨て、両面のフラグを持たない)。
+- 結果は `Assets/Cursor/SM_CursorMesh.glb`(6,312 三角形、色は線形 (0.0023, 0.1283, 0.5353))。UE の Niagara と材質から読んだ値は `Docs/Milestones/M0105-Runtime-Spawn-And-Effects.md`。
+- 四角形の組でないメッシュ、UV が軸に揃っていない四角形は、そのことを言って止まる。

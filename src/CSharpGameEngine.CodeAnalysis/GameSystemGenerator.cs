@@ -246,7 +246,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             }
 
             foreach(var SceneDeclaration in ValidSceneDeclarations){
-                SceneInstantiateEmitter.Emit(Spc,SceneDeclaration,Registry,RuntimeComponents);
+                SceneInstantiateEmitter.Emit(Spc,SceneDeclaration,Registry,RuntimeComponents,Source.Gate.HasSceneSpawnContract);
 
                 if(SceneDeclaration.IsStartupScene){
                     SceneStartupSystemEmitter.EmitHiddenSystem(Spc,SceneDeclaration);

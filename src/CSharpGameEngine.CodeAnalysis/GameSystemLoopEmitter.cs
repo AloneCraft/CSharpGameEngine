@@ -65,7 +65,8 @@ internal static class GameSystemLoopEmitter {
         if(Plan.Services.Count>0){
             Lines.Add("    internal static void DisposeServices(ref GeneratedSystemSet Systems) {");
             foreach(string ServiceField in Plan.Services.Values.Reverse()){
-                Lines.Add($"        if (Systems.{ServiceField} is global::System.IDisposable {ServiceField}Disposable) {ServiceField}Disposable.Dispose();");
+                // Through object: a sealed service that is not IDisposable cannot be tested against the interface directly (CS8121).
+                Lines.Add($"        if ((object?)Systems.{ServiceField} is global::System.IDisposable {ServiceField}Disposable) {ServiceField}Disposable.Dispose();");
                 Lines.Add($"        Systems.{ServiceField} = null;");
             }
             Lines.Add("    }");

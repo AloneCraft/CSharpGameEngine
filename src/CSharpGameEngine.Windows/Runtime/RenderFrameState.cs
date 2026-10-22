@@ -11,11 +11,11 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// allocating a new command graph every frame.
 /// </summary>
 internal sealed class RenderFrameState {
-    private readonly Matrix4x4[]ObjectTransforms;
-    private readonly bool[]ObjectTransformSet;
+    private Matrix4x4[]ObjectTransforms;
+    private bool[]ObjectTransformSet;
     private readonly List<int>TouchedObjectIndices=[];
-    private readonly float[]ObjectSelectionWeights;
-    private readonly bool[]ObjectSelectionWeightSet;
+    private float[]ObjectSelectionWeights;
+    private bool[]ObjectSelectionWeightSet;
     private readonly List<int>TouchedSelectionIndices=[];
     private readonly Dictionary<int,Matrix4x4[]>SkinPalettes=[];
     private readonly Dictionary<int,int>SkinPaletteLengths=[];
@@ -66,6 +66,16 @@ internal sealed class RenderFrameState {
         this.ObjectTransformSet=new bool[ObjectCount];
         this.ObjectSelectionWeights=new float[ObjectCount];
         this.ObjectSelectionWeightSet=new bool[ObjectCount];
+    }
+
+    /// <summary>Objects added after creation (M0105) get indices past the first capacity, and a rebuilt renderer may hold more slots than the server first did.</summary>
+    private void EnsureObjectCapacity(int Required){
+        if(this.ObjectTransforms.Length>=Required){ return; }
+        var Length=Math.Max(Required,this.ObjectTransforms.Length*2);
+        Array.Resize(ref this.ObjectTransforms,Length);
+        Array.Resize(ref this.ObjectTransformSet,Length);
+        Array.Resize(ref this.ObjectSelectionWeights,Length);
+        Array.Resize(ref this.ObjectSelectionWeightSet,Length);
     }
 
     public bool IsEmpty=>
@@ -153,9 +163,8 @@ internal sealed class RenderFrameState {
         }
     }
     public void RecordObjectTransform(int ObjectIndex,in Matrix4x4 Transform){
-        if((uint)ObjectIndex>=(uint)this.ObjectTransforms.Length){
-            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(ObjectIndex);
+        this.EnsureObjectCapacity(ObjectIndex+1);
         this.ObjectTransforms[ObjectIndex]=Transform;
         if(this.ObjectTransformSet[ObjectIndex]){ return; }
         this.ObjectTransformSet[ObjectIndex]=true;
@@ -180,9 +189,8 @@ internal sealed class RenderFrameState {
     }
 
     public void RecordObjectSelectionWeight(int ObjectIndex,float Weight){
-        if((uint)ObjectIndex>=(uint)this.ObjectSelectionWeights.Length){
-            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(ObjectIndex);
+        this.EnsureObjectCapacity(ObjectIndex+1);
         this.ObjectSelectionWeights[ObjectIndex]=Weight;
         if(this.ObjectSelectionWeightSet[ObjectIndex]){ return; }
         this.ObjectSelectionWeightSet[ObjectIndex]=true;

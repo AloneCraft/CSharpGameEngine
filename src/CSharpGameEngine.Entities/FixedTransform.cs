@@ -163,9 +163,9 @@ public enum FixedTransformResolveStatus {
 /// <see cref="FixedAffineTransform.TryToCameraRelativeMatrix"/> only after resolution.
 /// </summary>
 public sealed class FixedTransformWorldResolver {
-    private readonly Dictionary<int,FixedAffineTransform>WorldByEntity=[];
-    private readonly Dictionary<int,FixedTransformResolveStatus>StatusByEntity=[];
-    private readonly HashSet<int>Resolving=[];
+    private readonly Dictionary<Entity,FixedAffineTransform>WorldByEntity=[];
+    private readonly Dictionary<Entity,FixedTransformResolveStatus>StatusByEntity=[];
+    private readonly HashSet<Entity>Resolving=[];
 
     public void BeginFrame(){
         this.WorldByEntity.Clear();
@@ -174,44 +174,44 @@ public sealed class FixedTransformWorldResolver {
     }
 
     public FixedTransformResolveStatus Resolve(
-        int EntityId,
+        Entity Entity,
         TryGetLocalTransform GetTransform,
         TryGetParentEntity GetParent,
         out FixedAffineTransform World){
-        if(this.WorldByEntity.TryGetValue(EntityId,out World)){
+        if(this.WorldByEntity.TryGetValue(Entity,out World)){
             return FixedTransformResolveStatus.Success;
         }
-        if(this.StatusByEntity.TryGetValue(EntityId,out FixedTransformResolveStatus PreviousStatus)){
+        if(this.StatusByEntity.TryGetValue(Entity,out FixedTransformResolveStatus PreviousStatus)){
             World=default;
             return PreviousStatus;
         }
-        if(!this.Resolving.Add(EntityId)){
+        if(!this.Resolving.Add(Entity)){
             World=default;
-            return this.StatusByEntity[EntityId]=FixedTransformResolveStatus.Cycle;
+            return this.StatusByEntity[Entity]=FixedTransformResolveStatus.Cycle;
         }
 
         try {
-            if(!GetTransform(EntityId,out Transform Local)){
+            if(!GetTransform(Entity,out Transform Local)){
                 World=default;
-                return this.StatusByEntity[EntityId]=FixedTransformResolveStatus.MissingTransform;
+                return this.StatusByEntity[Entity]=FixedTransformResolveStatus.MissingTransform;
             }
             FixedTransformStatus LocalStatus=FixedAffineTransform.TryFromTransform(Local,out FixedAffineTransform LocalWorld);
             if(LocalStatus!=FixedTransformStatus.Success){
                 World=default;
-                return this.StatusByEntity[EntityId]=LocalStatus==FixedTransformStatus.NonInvertible
+                return this.StatusByEntity[Entity]=LocalStatus==FixedTransformStatus.NonInvertible
                     ?FixedTransformResolveStatus.NonInvertible
                     :FixedTransformResolveStatus.NumericOverflow;
             }
-            if(!GetParent(EntityId,out int ParentEntityId)){
-                this.WorldByEntity.Add(EntityId,World=LocalWorld);
+            if(!GetParent(Entity,out Entity ParentEntity)){
+                this.WorldByEntity.Add(Entity,World=LocalWorld);
                 return FixedTransformResolveStatus.Success;
             }
 
             FixedTransformResolveStatus ParentStatus=this.Resolve(
-                ParentEntityId,GetTransform,GetParent,out FixedAffineTransform ParentWorld);
+                ParentEntity,GetTransform,GetParent,out FixedAffineTransform ParentWorld);
             if(ParentStatus!=FixedTransformResolveStatus.Success){
                 World=default;
-                return this.StatusByEntity[EntityId]=ParentStatus==FixedTransformResolveStatus.MissingTransform
+                return this.StatusByEntity[Entity]=ParentStatus==FixedTransformResolveStatus.MissingTransform
                     ?FixedTransformResolveStatus.DeadParent
                     :ParentStatus;
             }
@@ -220,12 +220,12 @@ public sealed class FixedTransformWorldResolver {
                 LocalWorld,ParentWorld,out World);
             if(ComposeStatus!=FixedTransformStatus.Success){
                 World=default;
-                return this.StatusByEntity[EntityId]=FixedTransformResolveStatus.NumericOverflow;
+                return this.StatusByEntity[Entity]=FixedTransformResolveStatus.NumericOverflow;
             }
-            this.WorldByEntity.Add(EntityId,World);
+            this.WorldByEntity.Add(Entity,World);
             return FixedTransformResolveStatus.Success;
         } finally {
-            this.Resolving.Remove(EntityId);
+            this.Resolving.Remove(Entity);
         }
     }
 }
@@ -246,9 +246,8 @@ internal static partial class RuntimeWorldTransform {
         Entity Entity,EcsWorld EcsWorld,out FixedAffineTransform World,out ReferenceFrameId Frame){
         FixedTransformWorldResolver Resolver=new();
         FixedTransformResolveStatus Status=Resolver.Resolve(
-            Entity.Id,
-            (int EntityId,out Transform Transform)=>{
-                Entity Candidate=new(EntityId);
+            Entity,
+            (Entity Candidate,out Transform Transform)=>{
                 if(EcsWorld.TryGetComponent(Candidate,out Transform)){
                     return true;
                 }
@@ -264,12 +263,12 @@ internal static partial class RuntimeWorldTransform {
                 Transform=default;
                 return false;
             },
-            (int EntityId,out int ParentEntityId)=>{
-                if(EcsWorld.TryGetComponent(new Entity(EntityId),out Parent Parent)){
-                    ParentEntityId=Parent.Value.Id;
+            (Entity Candidate,out Entity ParentEntity)=>{
+                if(EcsWorld.TryGetComponent(Candidate,out Parent Parent)){
+                    ParentEntity=Parent.Value;
                     return true;
                 }
-                ParentEntityId=default;
+                ParentEntity=default;
                 return false;
             },out World);
         if(Status!=FixedTransformResolveStatus.Success){ Frame=default;return Status; }
@@ -295,5 +294,5 @@ internal static partial class RuntimeWorldTransform {
     }
 }
 
-public delegate bool TryGetLocalTransform(int EntityId,out Transform Transform);
-public delegate bool TryGetParentEntity(int EntityId,out int ParentEntityId);
+public delegate bool TryGetLocalTransform(Entity Entity,out Transform Transform);
+public delegate bool TryGetParentEntity(Entity Entity,out Entity ParentEntity);

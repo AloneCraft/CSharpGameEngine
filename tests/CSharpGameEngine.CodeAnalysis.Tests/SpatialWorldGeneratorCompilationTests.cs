@@ -6,8 +6,8 @@ public sealed class SpatialWorldGeneratorCompilationTests {
             namespace CSharpGameEngine.Entities {
                 public struct SpatialBounds { }
                 public struct Transform { }
-                public delegate bool TryGetLocalTransform(int EntityId,out Transform Transform);
-                public delegate bool TryGetParentEntity(int EntityId,out int ParentEntityId);
+                public delegate bool TryGetLocalTransform(Entity Entity,out Transform Transform);
+                public delegate bool TryGetParentEntity(Entity Entity,out Entity ParentEntity);
                 public partial struct World {
                     partial void SynchronizeGlobalSpatialIndexCore();
                     public void RefreshGlobalSpatialIndex() { }

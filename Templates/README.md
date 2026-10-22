@@ -36,7 +36,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 | 7 | `Start` メソッド | `ReturnToGround.Start`。初回フラグ不要 | Entity が条件に初めて合った時を ECS が検出 |
 | 8 | ユーザーコードに `TryToSingle` を書かない | `Locomotion.Speed=…Length` | 境界の変換をエンジンが担う |
 | 9 | シーンJSONの簡素化 | `className`/`namespace` はファイル位置から。Component は短い型名のキー。`Instance` で別シーンを配置し、上書きもできる | Roslyn が型名を解決し、曖昧なら診断 |
-| 10 | 実行時スポーンの型付き参照 | `Spawner.Spawn(Scenes.CursorMarker,Hit.Point)` | シーンJSONごとに型を生成 |
+| 10 | 実行時スポーンの型付き参照 | `Spawner.Spawn<CursorMarker>(Hit.Point)`(提案は `Spawner.Spawn(Scenes.CursorMarker,Hit.Point)` だったが、Scene のクラスの名前空間が `Scenes` なので値の形は書けない) | シーンJSONごとに型を生成 |
 | 11 | エンジン標準の Component | `Lifetime`(自然に消える)、`CameraRig`、`ScreenText`、`AudioSource.Sound` | 繰り返し書くコードをデータに寄せる |
 
 ### シーンJSONの書式(提案)
@@ -90,8 +90,8 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 | 7 | `Start` メソッド | 見送り(ADR-0077) |
 | 8 | `TryToSingle` を書かない | 一部(`Turn(Look)`/`Planar(Stick)`。`Locomotion` の入力は float のまま) |
 | 9 | シーン JSON の簡素化 | 未実装(読み手が 3 つあり、Designer の書き戻しもあるため) |
-| 10 | 実行時スポーンの型付き参照 | 未実装(`LevelLoad` が描画物の一覧を初回に固定する問題が先) |
-| 11 | エンジン標準の Component | 一部(`AudioListener` はあるが `Lifetime`・`CameraRig`・`ScreenText` は未実装) |
+| 10 | 実行時スポーンの型付き参照 | 実装済み(M0105。`Spawner.Spawn<TScene>(位置)`。根に `Transform` がある Scene だけが渡せる。Scene は呼んだフレームの終わりに現れる) |
+| 11 | エンジン標準の Component | 一部(`AudioListener`、`ScreenText`・`ScreenImage`(M0104)、`Lifetime`・`ParticleBurst`(M0105)はある。`CameraRig` は未実装) |
 | 名前の清算 | `CharacterMotion` など | 実装済み(`GameWindow` への統合、`ViewAngles` の turns 化、`Capsule` の入れ子は未実装) |
 | 音 | `Audio.Play`(XAudio2 のワンショット、`.wav` を直接読む) | 実装済み。素材は UE5 の Epic 教材のコンテンツから取り込んだ(`tools/UnrealExport/import_template_sounds.ps1`。テンプレート自身には音声が無い)。Vehicle は無音 |
 
@@ -101,7 +101,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 |---|---|---|
 | ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方 |
 | FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
-| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch`・クリック位置の目印(`Spawner`)は未実装。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索はせず直線で歩く(`MoveIntent.MoveTo`) |
+| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Hit.Point)` で出す(押した瞬間。UE は短押しの離した瞬間)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索はせず直線で歩く(`MoveIntent.MoveTo`) |
 | Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。速度とギアは画面の文字(`ScreenText`。UI_Vehicle の配置、M0104)で出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
@@ -157,9 +157,8 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 - `Footstep` を v1 から外す案もある。
 
 ### エンジンに存在しないもの
-- 実行時スポーンの描画: `LevelLoad` が描画物の一覧を初回に固定する(`RuntimeSystems.cs` L259/L372)ため、後から出したメッシュは描画されない。
+- 実行時に作った `SkeletalMesh`(スキニングの準備はレンダラーの作成時。後から作ったものは描かれず、診断を 1 回出す)。StaticMesh と PrimitiveMesh は、M0105 から後で作っても描かれる。
 - TopDown の経路探索(直線で歩く `MoveTo` のみ) / Vehicle の Chaos 相当の車両物理(簡易モデルのみ) / `Terrain`。
-- 潜在バグ: `FixedTransform.cs` L251/L268 が `new Entity(EntityId)` で Generation=1 固定のため、スロット再利用後の Entity の位置解決が失敗する疑い。実行時に生成・破棄を繰り返す前に要確認。
 
 ### 共通コード
 `PlayerControls` が ThirdPerson と FirstPerson で同一。エンジンが標準の「歩くキャラクター操作」を提供するか、サンプルごとに明示するかは確認したい。

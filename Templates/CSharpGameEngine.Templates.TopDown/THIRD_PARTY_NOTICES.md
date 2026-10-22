@@ -6,7 +6,9 @@
 
 The sound effects in `Assets/Sounds/` (footstep, jump, landing) were exported from Epic's learning-course content (Northwood: GameplayDesigner footsteps and ShooterGame foley) of the Unreal Engine 5 projects of the project owner, under the same agreement.
 
-The C# Game Engine project bundles this content unchanged, at its owner's decision. Anyone who uses or redistributes it is responsible for complying with the agreement.
+`Assets/Cursor/SM_CursorMesh.glb` is derived from the template's `SM_CursorMesh` and its material `M_Cursor` (the cursor marker, `FX_Cursor_Success`): `tools/UnrealExport/cut_masked_mesh.py` cuts the arrow, which the material masks out of a texture, into the geometry, because the engine draws no alpha mask. It is covered by the same agreement.
+
+The C# Game Engine project bundles the rest of this content unchanged, at its owner's decision. Anyone who uses or redistributes it is responsible for complying with the agreement.
 
 ## Engine package dependencies
 

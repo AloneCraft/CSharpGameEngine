@@ -28,8 +28,17 @@ internal static class SceneInstantiateEmitter {
     private const string ScenePayloadNamespace="bf538397-e844-5b55-87ad-05eb497a1271";
     internal const string ParentFullyQualifiedName="global::CSharpGameEngine.Entities.Parent";
     internal const string SceneNodeTagFullyQualifiedName="global::CSharpGameEngine.Entities.SceneNodeTag";
+    internal const string TransformFullyQualifiedName="global::CSharpGameEngine.Entities.Transform";
+    private const string SpawnableSceneInterfaceFullyQualifiedName="global::CSharpGameEngine.Entities.ISpawnableScene";
+    private const string SceneSpawnFullyQualifiedName="global::CSharpGameEngine.Entities.SceneSpawn";
+    private const string LogicalVector3FullyQualifiedName="global::CSharpGameEngine.Numerics.LogicalVector3";
+    private const string LogicalQuaternionFullyQualifiedName="global::CSharpGameEngine.Numerics.LogicalQuaternion";
 
-    internal static void Emit(SourceProductionContext Context,SceneEmitModel Scene,GameSystemRegistry Registry,SceneRuntimeComponentMap RuntimeComponents){
+    /// <summary>根ノードが Transform を持つ Scene だけが、位置を指定して実行時に生成できる(M0105)。持たない Scene は <c>ISpawnableScene</c> を実装せず、<c>Spawner.Spawn</c> に渡せない。</summary>
+    internal static bool CanSpawnAt(SceneEmitModel Scene)=>
+        Scene.Root is { } Root&&Root.Components.Any(static C=>C.TypeFullyQualifiedName==TransformFullyQualifiedName);
+
+    internal static void Emit(SourceProductionContext Context,SceneEmitModel Scene,GameSystemRegistry Registry,SceneRuntimeComponentMap RuntimeComponents,bool SpawnSupport=false){
         if(!Scene.CanEmit||Scene.Root is not { } Root){
             return;
         }
@@ -46,7 +55,10 @@ internal static class SceneInstantiateEmitter {
             Lines.Add($"namespace {Scene.Namespace};");
         }
 
-        Lines.Add($"partial class {Scene.ClassName} : {SceneDefinitionInterfaceFullyQualifiedName} {{");
+        var Spawnable=SpawnSupport&&CanSpawnAt(Scene);
+        Lines.Add(Spawnable
+            ?$"partial class {Scene.ClassName} : {SceneDefinitionInterfaceFullyQualifiedName}, {SpawnableSceneInterfaceFullyQualifiedName} {{"
+            :$"partial class {Scene.ClassName} : {SceneDefinitionInterfaceFullyQualifiedName} {{");
         Lines.Add("    /// <summary>Scene定義はRuntime instanceではないため、外部から構築できないようにする(ADR-0040)。</summary>");
         Lines.Add($"    private {Scene.ClassName}() {{");
         Lines.Add("    }");
@@ -75,6 +87,21 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"    static {SceneInstanceFullyQualifiedName} {SceneDefinitionInterfaceFullyQualifiedName}.InstantiateDeferred(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add("        return InstantiateDeferred(ref World);");
         Lines.Add("    }");
+        if(Spawnable){
+            // ADR-0078/M0105: the same deferred construction with the root's Transform replaced by the position (and rotation) the game passes.
+            Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferredAt(ref {WorldFullyQualifiedName} World, {LogicalVector3FullyQualifiedName} Position) {{");
+            Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
+            EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:true,RootTransformPlacement:SceneSpawnFullyQualifiedName+".At({0}, Position)");
+            Lines.Add($"        World.EndSceneInstanceDeferred(Instance, {Root.LocalName});");
+            Lines.Add("        return Instance;");
+            Lines.Add("    }");
+            Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferredAt(ref {WorldFullyQualifiedName} World, {LogicalVector3FullyQualifiedName} Position, {LogicalQuaternionFullyQualifiedName} Rotation) {{");
+            Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
+            EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:true,RootTransformPlacement:SceneSpawnFullyQualifiedName+".At({0}, Position, Rotation)");
+            Lines.Add($"        World.EndSceneInstanceDeferred(Instance, {Root.LocalName});");
+            Lines.Add("        return Instance;");
+            Lines.Add("    }");
+        }
         Lines.Add($"    public static void InstantiateCell(ref {WorldFullyQualifiedName} World, global::CSharpGameEngine.Contracts.WorldCellId Cell) {{");
         Lines.Add("        if (!Cell.IsValid) throw new global::System.ArgumentException(\"A valid world-cell ID is required.\", nameof(Cell));");
         EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:false,Cell:true);
@@ -139,8 +166,17 @@ internal static class SceneInstantiateEmitter {
         Dictionary<string,int>ComponentIndexByType,
         SceneRuntimeComponentMap RuntimeComponents,
         bool Deferred,
-        bool Cell=false){
+        bool Cell=false,
+        string?RootTransformPlacement=null){
         var Components=BuildEffectiveComponents(Node,ParentLocalName,RuntimeComponents);
+        if(RootTransformPlacement is not null&&ParentLocalName is null){
+            // The root's authored Transform, wrapped so the game's position (and rotation) replaces the authored ones.
+            for(int Index=0;Index<Components.Count;Index++){
+                if(Components[Index].TypeFullyQualifiedName==TransformFullyQualifiedName&&Components[Index].EmitExpressionText is { }Authored){
+                    Components[Index]=(TransformFullyQualifiedName,string.Format(RootTransformPlacement,Authored));
+                }
+            }
+        }
         for(int Index=0;Index<Components.Count;Index++){
             if(Components[Index].TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId"){
                 ulong StableId=BuildStableId(SceneFullyQualifiedName+"/"+Node.PathDisplay);

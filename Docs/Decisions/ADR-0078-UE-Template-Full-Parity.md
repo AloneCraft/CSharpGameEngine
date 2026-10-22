@@ -54,7 +54,7 @@
 ### 4. マイルストーン
 計画の段階 0〜2 を、M0102(解析)、M0103(プラグインとアセットの仕組み。ADR-0079。車両・ナビメッシュ・破壊をプラグインとして作るので先に置く)、M0104(画面 UI)、M0105(実行時の生成と使い捨てエフェクト)、M0106(ナビメッシュ)、M0107(キャラクターとアニメーション)、M0108(入力の拡張)、M0109(Chaos 相当の車両)、M0110〜M0111(Lumen 相当)、M0112(テンプレートの仕上げ)、M0113(破壊)とする。各マイルストーンの決定は、そのマイルストーンの文書に書き、この ADR の表を更新する。
 
-完了したマイルストーン: M0102(解析)、M0103(プラグインとアセット)、M0104(画面 UI。[M0104](../Milestones/M0104-Screen-UI.md): 描画契約 `stage-v11`、SDF のフォント、`ScreenText`・`ScreenImage`、Vehicle の HUD)。
+完了したマイルストーン: M0102(解析)、M0103(プラグインとアセット)、M0104(画面 UI。[M0104](../Milestones/M0104-Screen-UI.md): 描画契約 `stage-v11`、SDF のフォント、`ScreenText`・`ScreenImage`、Vehicle の HUD)、M0105(実行時の生成と使い捨てエフェクト。[M0105](../Milestones/M0105-Runtime-Spawn-And-Effects.md): 描画物が Entity の増減に追従する(描画契約は変えない)、`FixedTransform` の Generation 固定の修正、`Spawner.Spawn<TScene>(位置)` と `ISpawnableScene`、`Lifetime`、`ParticleBurst`、TopDown のクリック地点の目印)。
 
 ## 結果
 - UE の処理を推測ではなく、ノードの接続から読める。実装と UE の差は `UE-Template-Behavior.md` の表の行ごとに、出典のノードと実装・テストを並べて追える。

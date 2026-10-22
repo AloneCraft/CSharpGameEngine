@@ -27,6 +27,8 @@ public sealed class RuntimeAutomation {
     private readonly List<Vector3?>CameraPositions=[];
     /// <summary>One entry per presented frame: a fingerprint of the screen layer's vertices (ADR-0078/M0104), 0 when the frame had none.</summary>
     private readonly List<ulong>ScreenLayerFingerprints=[];
+    /// <summary>One entry per presented frame: how many objects the renderer drew (ADR-0078/M0105), so a spawned effect shows as a rise and its end as a fall.</summary>
+    private readonly List<int>RenderObjectCounts=[];
     private RuntimeAutomation(int ExitAfterFrames,string?CapturePath,IReadOnlyList<RuntimeAutomationKeyHold>Input,string?ReportPath){
         this.ExitAfterFrames=ExitAfterFrames;
         this.CapturePath=CapturePath;
@@ -108,6 +110,7 @@ public sealed class RuntimeAutomation {
         this.PresentedFrames++;
         this.CameraPositions.Add(CameraPosition);
         this.ScreenLayerFingerprints.Add(ScreenLayerFingerprint);
+        this.RenderObjectCounts.Add(Renderer.ActiveObjectCount);
         if(this.Completed&&this.ReportPath is not null){
             this.WriteReport(Renderer.ErrorOrWorseMessageCount);
         }
@@ -154,6 +157,11 @@ public sealed class RuntimeAutomation {
         Writer.WriteStartArray("screenLayerFingerprints");
         foreach(var Fingerprint in this.ScreenLayerFingerprints){
             Writer.WriteStringValue(Fingerprint.ToString("x16",CultureInfo.InvariantCulture));
+        }
+        Writer.WriteEndArray();
+        Writer.WriteStartArray("renderObjectCounts");
+        foreach(var Count in this.RenderObjectCounts){
+            Writer.WriteNumberValue(Count);
         }
         Writer.WriteEndArray();
         Writer.WriteEndObject();

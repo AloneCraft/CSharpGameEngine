@@ -3,8 +3,8 @@
 UE5.8 の Top Down テンプレート相当。**まだビルドできない**(仕組みは [`../README.md`](../README.md))。
 
 - `Code/ClickToMove.cs`: クリック(またはタッチ)した地面を目的地にする。押している間はカーソルを追い、押した瞬間だけ目印を出す。
-  - 実行時スポーン: `Spawner.Spawn(Scenes.CursorMarker,Hit.Point)`。`Scenes.CursorMarker` は `Scenes/CursorMarker.json` から生成される型付きの参照で、位置を渡せる。
-  - 目印は `Scenes/CursorMarker.json` の `"Lifetime": 1.5` で自然に消える。消すコードは書かない。
+  - 実行時スポーン: `Spawner.Spawn<CursorMarker>(Hit.Point)`(M0105 で実装した形。`CursorMarker` は `Scenes/CursorMarker.json` から生成される型で、位置を渡せる。`Scenes.CursorMarker` と値で書く提案は、Scene のクラスの名前空間が `Scenes` と重なるため採らなかった)。
+  - 目印は `Scenes/CursorMarker.json` の根の `Lifetime`(秒)で自然に消える。消すコードは書かない。
 - カメラは `OrbitCamera` の `FollowYaw: false`(向きを固定し、距離と角度だけで追従)。
 
 論点:

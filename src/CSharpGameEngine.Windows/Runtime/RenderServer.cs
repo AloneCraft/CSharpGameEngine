@@ -25,9 +25,12 @@ public sealed class RenderServer:IDisposable {
     private readonly nint Hwnd;
     private readonly GraphicsDeviceOptions DeviceOptions;
     private readonly string ShaderArtifactPath;
-    private readonly StageMeshCreateInfo[]Meshes;
-    private readonly StageMaterialCreateInfo[]Materials;
-    private readonly StageObjectCreateInfo[]Objects;
+    // The roster the renderer is rebuilt from after a device loss. It starts as the one given to Create and grows with AddMesh,
+    // AddMaterial and AddObject; a removed object keeps its slot, marked Removed, so every index stays what the caller holds (M0105).
+    private readonly List<StageMeshCreateInfo>Meshes;
+    private readonly List<StageMaterialCreateInfo>Materials;
+    private readonly List<StageObjectCreateInfo>Objects;
+    private bool ObjectRosterArtifactStale;
     private readonly RenderDeviceLifecycle Lifecycle;
     private RenderFrameState PendingFrame;
     private RenderFrameState CompletedFrame;
@@ -49,14 +52,14 @@ public sealed class RenderServer:IDisposable {
         this.Height=Height;
         this.DeviceOptions=DeviceOptions;
         this.ShaderArtifactPath=ShaderArtifactPath;
-        this.Meshes=Meshes;
-        this.Materials=Materials;
-        this.Objects=Objects;
+        this.Meshes=[.. Meshes];
+        this.Materials=[.. Materials];
+        this.Objects=[.. Objects];
         this.Renderer=Renderer;
         this.AppliedShaderPackage=Renderer.LastKnownGoodShaderArtifact;
         this.Lifecycle=new RenderDeviceLifecycle(ArtifactClosure);
-        this.PendingFrame=new RenderFrameState(Objects.Length);
-        this.CompletedFrame=new RenderFrameState(Objects.Length);
+        this.PendingFrame=new RenderFrameState(Objects.Length+StageRenderer.DynamicObjectHeadroom);
+        this.CompletedFrame=new RenderFrameState(Objects.Length+StageRenderer.DynamicObjectHeadroom);
         this.DeclaredQualityPlanValue=RenderQualityPlan.Build(
             checked((uint)Width),checked((uint)Height),
             RenderQualityProfile.Compatibility);
@@ -87,6 +90,14 @@ public sealed class RenderServer:IDisposable {
     public RenderQualityPlan DeclaredQualityPlan=>this.DeclaredQualityPlanValue;
     public int SurfaceWidth=>this.Width;
     public int SurfaceHeight=>this.Height;
+    /// <summary>The meshes the renderer holds, created and added ones alike. A mesh index is valid for the life of the server.</summary>
+    public int MeshCount=>this.Meshes.Count;
+    /// <summary>The materials the renderer holds, created and added ones alike.</summary>
+    public int MaterialCount=>this.Materials.Count;
+    /// <summary>How many more materials <see cref="AddMaterial"/> accepts.</summary>
+    public int FreeMaterialSlots=>this.Backend.FreeMaterialSlots;
+    /// <summary>The objects drawn now (not counting removed ones).</summary>
+    public int ActiveObjectCount=>this.Backend.ActiveObjectCount;
 
     internal void RemoveDeviceForTesting()=>this.Backend.RemoveDeviceForTesting();
     internal float[]ReadDepthForTesting()=>this.Backend.ReadDepthForTesting();
@@ -130,6 +141,64 @@ public sealed class RenderServer:IDisposable {
         } catch {
             Renderer.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Adds one mesh to the renderer (M0105) and returns its index. The mesh joins the roster a device loss rebuilds from.
+    /// A skinned mesh is refused: its skinning pass is set up at creation.
+    /// </summary>
+    public int AddMesh(StageMeshCreateInfo Mesh){
+        var Owned=CloneMeshes([Mesh])[0];
+        var Index=this.Backend.AddMesh(Owned);
+        if(Index!=this.Meshes.Count){
+            throw new InvalidOperationException("The renderer and the Render Server disagree on the mesh count.");
+        }
+        var Closure=new List<AssetArtifactReference>(this.Lifecycle.RequiredArtifacts);
+        Closure.Insert(1+Index,CreateArtifact($"mesh/{Index}",Writer=>WriteMesh(Writer,Owned)));
+        this.Meshes.Add(Owned);
+        this.Lifecycle.ReplaceRequiredArtifacts(Closure);
+        return Index;
+    }
+
+    /// <summary>
+    /// Adds one material (M0105) and returns its index, or -1 when <see cref="FreeMaterialSlots"/> is 0. Uploading its textures waits
+    /// for the GPU once.
+    /// </summary>
+    public int AddMaterial(StageMaterialCreateInfo Material){
+        var Index=this.Backend.AddMaterial(Material);
+        if(Index<0){ return -1; }
+        if(Index!=this.Materials.Count){
+            throw new InvalidOperationException("The renderer and the Render Server disagree on the material count.");
+        }
+        var Closure=new List<AssetArtifactReference>(this.Lifecycle.RequiredArtifacts);
+        Closure.Insert(1+this.Meshes.Count+Index,CreateArtifact($"material/{Index}",Writer=>WriteMaterial(Writer,Material)));
+        this.Materials.Add(Material);
+        this.Lifecycle.ReplaceRequiredArtifacts(Closure);
+        return Index;
+    }
+
+    /// <summary>
+    /// Starts drawing one more object (M0105) and returns its index, or -1 when the renderer's headroom
+    /// (<see cref="StageRenderer.DynamicObjectHeadroom"/>) is used up. A removed object's index is handed out again. The object
+    /// stays at the origin until <see cref="SetObjectTransform"/> places it.
+    /// </summary>
+    public int AddObject(int MeshIndex,int MaterialIndex){
+        var Index=this.Backend.AddObject(MeshIndex,MaterialIndex);
+        if(Index<0){ return -1; }
+        var Info=new StageObjectCreateInfo { MeshIndex=MeshIndex,MaterialIndex=MaterialIndex };
+        if(Index==this.Objects.Count){ this.Objects.Add(Info); } else { this.Objects[Index]=Info; }
+        this.ObjectRosterArtifactStale=true;
+        return Index;
+    }
+
+    /// <summary>Stops drawing one object (M0105). Its index is handed out again by <see cref="AddObject"/>.</summary>
+    public void RemoveObject(int ObjectIndex){
+        this.Backend.RemoveObject(ObjectIndex);
+        var Info=this.Objects[ObjectIndex];
+        if(!Info.Removed){
+            this.Objects[ObjectIndex]=new StageObjectCreateInfo { MeshIndex=Info.MeshIndex,MaterialIndex=Info.MaterialIndex,Removed=true };
+            this.ObjectRosterArtifactStale=true;
         }
     }
 
@@ -311,6 +380,7 @@ public sealed class RenderServer:IDisposable {
             }
             Renderer.RenderFrame(CaptureForVerification);
             _=this.ObserveCompletedFence(Renderer);
+            this.RefreshObjectRosterArtifact();
             this.SynchronizeArtifactClosure(Renderer);
             this.CommitPendingFrame();
         } catch(D3D12Exception Exception){
@@ -408,6 +478,15 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.Reset();
     }
 
+    /// <summary>Publishes the object roster's new identity once per frame, not once per added or removed object.</summary>
+    private void RefreshObjectRosterArtifact(){
+        if(!this.ObjectRosterArtifactStale){ return; }
+        this.ObjectRosterArtifactStale=false;
+        var Closure=new List<AssetArtifactReference>(this.Lifecycle.RequiredArtifacts);
+        Closure[^1]=CreateObjectRosterArtifact(this.Objects);
+        this.Lifecycle.ReplaceRequiredArtifacts(Closure);
+    }
+
     private void SynchronizeArtifactClosure(StageRenderer Renderer){
         ShaderArtifactPackage Package=Renderer.LastKnownGoodShaderArtifact;
         if(ReferenceEquals(Package,this.AppliedShaderPackage)){ return; }
@@ -452,15 +531,19 @@ public sealed class RenderServer:IDisposable {
             Result.Add(CreateArtifact(
                 $"material/{Index}",Writer=>WriteMaterial(Writer,Material)));
         }
-        Result.Add(CreateArtifact("object-roster",Writer=>{
+        Result.Add(CreateObjectRosterArtifact(Objects));
+        return[.. Result];
+    }
+
+    private static AssetArtifactReference CreateObjectRosterArtifact(IReadOnlyList<StageObjectCreateInfo>Objects)=>
+        CreateArtifact("object-roster",Writer=>{
             Writer.Write(Objects.Count);
             foreach(StageObjectCreateInfo Object in Objects){
                 Writer.Write(Object.MeshIndex);
                 Writer.Write(Object.MaterialIndex);
+                Writer.Write(Object.Removed);
             }
-        }));
-        return[.. Result];
-    }
+        });
 
     private static AssetArtifactReference CreateShaderArtifact(
         ShaderArtifactPackage ShaderPackage)=>CreateArtifact("shader/stage",Writer=>{

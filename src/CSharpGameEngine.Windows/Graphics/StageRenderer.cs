@@ -399,8 +399,11 @@ public sealed unsafe partial class StageRenderer:IDisposable {
 
     // Per-material (indexed by materialIndex). Four material textures plus one shared shadow SRV.
     private int MaterialCount;
+    /// <summary>The materials the descriptor heap has room for: the created ones plus <see cref="DynamicMaterialHeadroom"/> that <see cref="AddMaterial"/> can fill later (M0105).</summary>
+    private int MaterialCapacity;
     private ID3D12Resource*[]MaterialTextures=[];
-    private ID3D12Resource*[]OwnedMaterialTextures=[];
+    private readonly List<nint>OwnedMaterialTextures=[];
+    private readonly Dictionary<Hash256,nint>ResidentTextures=[];
     private ID3D12DescriptorHeap*SrvHeap;
     private uint SrvDescriptorSize;
     private Vector4[]MaterialBaseColorFactors=[];
@@ -410,8 +413,12 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private StageWorldGrid?[]MaterialWorldGrids=[];
     private Vector3[]MaterialWorldGridAnchors=[];
 
-    // Per-object (indexed by objectIndex).
+    // Per-object (indexed by objectIndex). ObjectCount is the number of slots handed out so far (a removed object leaves its slot
+    // free for the next AddObject); ObjectCapacity is how many the constant buffer has room for (M0105).
     private int ObjectCount;
+    private int ObjectCapacity;
+    private bool[]ObjectActive=[];
+    private readonly List<int>FreeObjectSlots=[];
     private int[]ObjectMeshIndices=[];
     /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
     private Vector3[]MeshBoundsCentres=[];
@@ -541,7 +548,15 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     public IReadOnlyList<string>ShaderArtifactDiagnostics { get;private set;}=[];
 
     public uint FramesRendered { get;private set;}
-    public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Length;
+    public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Count;
+    /// <summary>Objects <see cref="AddObject"/> can add beyond the ones the renderer was created with (M0105).</summary>
+    public const int DynamicObjectHeadroom=4096;
+    /// <summary>Materials <see cref="AddMaterial"/> can add beyond the ones the renderer was created with (M0105).</summary>
+    public const int DynamicMaterialHeadroom=256;
+    /// <summary>How many more materials <see cref="AddMaterial"/> accepts.</summary>
+    public int FreeMaterialSlots=>this.MaterialCapacity-this.MaterialCount;
+    /// <summary>How many objects are drawn now.</summary>
+    public int ActiveObjectCount=>this.ObjectCount-this.FreeObjectSlots.Count;
     internal ulong CompletedFence=>this.Fence==null?0:this.Fence->GetCompletedValue();
 
     public PixelReadbackResult?LastCapturedFrame { get;private set;}
@@ -1590,6 +1605,55 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
+    /// <summary>
+    /// Adds one mesh after creation (M0105): a game that spawns an Entity whose asset no earlier Entity used. The buffers are
+    /// separate resources, so nothing the GPU draws with is touched. Returns the new mesh index. A skinned mesh cannot be added:
+    /// its skinning pass is set up at creation.
+    /// </summary>
+    public int AddMesh(StageMeshCreateInfo Mesh){
+        this.ThrowIfDisposed();
+        if(Mesh.Positions.Count==0||Mesh.Positions.Count!=Mesh.Normals.Count
+            ||Mesh.Positions.Count!=Mesh.Tangents.Count||Mesh.Positions.Count!=Mesh.Uvs.Count
+            ||Mesh.Indices.Count==0){
+            throw new ArgumentException("A mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.",nameof(Mesh));
+        }
+        if(Mesh.Skin is not null){
+            throw new ArgumentException("A mesh added after creation cannot be skinned.",nameof(Mesh));
+        }
+        var Index=this.MeshCount;
+        this.GrowMeshArrays(Index+1);
+        this.MeshBoundsCentres[Index]=BoundsCentre(Mesh.Positions);
+        this.CreateVertexBuffer(Index,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
+        this.CreateIndexBuffer(Index,Mesh.Indices);
+        this.MeshCount=Index+1;
+        return Index;
+    }
+
+    private void GrowMeshArrays(int Required){
+        if(this.VertexBuffers.Length>=Required){ return; }
+        var Length=Math.Max(Required,Math.Max(16,this.VertexBuffers.Length*2));
+        var VertexBuffers=new ID3D12Resource*[Length];
+        var IndexBuffers=new ID3D12Resource*[Length];
+        var VertexBufferViews=new D3D12_VERTEX_BUFFER_VIEW[Length];
+        var IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[Length];
+        var IndexCounts=new uint[Length];
+        var MeshBoundsCentres=new Vector3[Length];
+        for(var I=0;I<this.MeshCount;I++){
+            VertexBuffers[I]=this.VertexBuffers[I];
+            IndexBuffers[I]=this.IndexBuffers[I];
+            VertexBufferViews[I]=this.VertexBufferViews[I];
+            IndexBufferViews[I]=this.IndexBufferViews[I];
+            IndexCounts[I]=this.IndexCounts[I];
+            MeshBoundsCentres[I]=this.MeshBoundsCentres[I];
+        }
+        this.VertexBuffers=VertexBuffers;
+        this.IndexBuffers=IndexBuffers;
+        this.VertexBufferViews=VertexBufferViews;
+        this.IndexBufferViews=IndexBufferViews;
+        this.IndexCounts=IndexCounts;
+        this.MeshBoundsCentres=MeshBoundsCentres;
+    }
+
     private void CreateMeshBuffers(IReadOnlyList<StageMeshCreateInfo>Meshes){
         this.MeshCount=Meshes.Count;
         this.VertexBuffers=new ID3D12Resource*[this.MeshCount];
@@ -1686,49 +1750,18 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo>Materials){
         this.MaterialCount=Materials.Count;
-        this.MaterialTextures=new ID3D12Resource*[this.MaterialCount*4];
-        this.MaterialBaseColorFactors=new Vector4[this.MaterialCount];
-        this.MaterialRoughnessFactors=new float[this.MaterialCount];
-        this.MaterialMetallicFactors=new float[this.MaterialCount];
-        this.MaterialEmissiveNits=new Vector3[this.MaterialCount];
-        this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCount];
-        this.MaterialWorldGridAnchors=new Vector3[this.MaterialCount];
-        Dictionary<Hash256,nint>ResidentTextures=[];
-        List<nint>OwnedTextures=[];
-
-        try {
-            for(var I=0;I< this.MaterialCount;I++){
-                StageMaterialCreateInfo Material=Materials[I];
-                this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
-                this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
-                this.MaterialMetallicFactors[I]=Material.MetallicFactor;
-                this.MaterialWorldGrids[I]=Material.WorldGrid;
-                this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
-                    ?Material.EmissiveNits
-                    :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
-
-                this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
-                    Material.BaseColorTexture??RenderMaterialDefaults.White);
-                this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
-                    Material.NormalTexture??RenderMaterialDefaults.FlatNormal);
-                this.MaterialTextures[(I*4)+2]=GetOrCreateTexture(
-                    Material.MetallicRoughnessTexture??RenderMaterialDefaults.White);
-                this.MaterialTextures[(I*4)+3]=GetOrCreateTexture(
-                    Material.EmissiveTexture??RenderMaterialDefaults.White);
-            }
-        } catch {
-            foreach(nint Pointer in OwnedTextures){ _=((ID3D12Resource*)Pointer)->Release(); }
-            Array.Clear(this.MaterialTextures);
-            throw;
-        }
-        this.OwnedMaterialTextures=new ID3D12Resource*[OwnedTextures.Count];
-        for(int Index=0;Index<OwnedTextures.Count;Index++){
-            this.OwnedMaterialTextures[Index]=(ID3D12Resource*)OwnedTextures[Index];
-        }
+        this.MaterialCapacity=this.MaterialCount+DynamicMaterialHeadroom;
+        this.MaterialTextures=new ID3D12Resource*[this.MaterialCapacity*4];
+        this.MaterialBaseColorFactors=new Vector4[this.MaterialCapacity];
+        this.MaterialRoughnessFactors=new float[this.MaterialCapacity];
+        this.MaterialMetallicFactors=new float[this.MaterialCapacity];
+        this.MaterialEmissiveNits=new Vector3[this.MaterialCapacity];
+        this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCapacity];
+        this.MaterialWorldGridAnchors=new Vector3[this.MaterialCapacity];
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCount*5+4),
+            NumDescriptors=(uint)(this.MaterialCapacity*5+4),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -1737,43 +1770,110 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.SrvHeap=SrvHeap;
         this.SrvDescriptorSize= this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-        D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart=SrvHeap->GetCPUDescriptorHandleForHeapStart();
+        try {
+            for(var I=0;I< this.MaterialCount;I++){
+                this.SetUpMaterial(I,Materials[I]);
+            }
+        } catch {
+            this.ReleaseOwnedMaterialTextures();
+            Array.Clear(this.MaterialTextures);
+            throw;
+        }
+        this.WriteEnvironmentDescriptors();
+    }
+
+    /// <summary>
+    /// Adds one material after creation (M0105). Its textures are uploaded now, which waits for the GPU once, so the first spawn of an
+    /// asset the game has not drawn yet costs a frame. Returns the new material index, or -1 when the
+    /// <see cref="DynamicMaterialHeadroom"/> is used up.
+    /// </summary>
+    public int AddMaterial(StageMaterialCreateInfo Material){
+        this.ThrowIfDisposed();
+        if(this.MaterialCount>=this.MaterialCapacity){ return -1; }
+        // The texture upload resets the first command allocator, which a frame still in flight may be using.
+        this.WaitForGpuIdle();
+        var Index=this.MaterialCount;
+        var OwnedBefore=this.OwnedMaterialTextures.Count;
+        try {
+            this.SetUpMaterial(Index,Material);
+        } catch {
+            for(var I=this.OwnedMaterialTextures.Count-1;I>=OwnedBefore;I--){
+                var Pointer=this.OwnedMaterialTextures[I];
+                this.ResidentTextures.Remove(this.OwnedTextureHashes[Pointer]);
+                this.OwnedTextureHashes.Remove(Pointer);
+                _=((ID3D12Resource*)Pointer)->Release();
+                this.OwnedMaterialTextures.RemoveAt(I);
+            }
+            throw;
+        }
+        this.MaterialCount=Index+1;
+        return Index;
+    }
+
+    private readonly Dictionary<nint,Hash256>OwnedTextureHashes=[];
+
+    /// <summary>Fills one material's per-material state, uploads its textures (sharing the resident ones) and writes its five descriptors.</summary>
+    private void SetUpMaterial(int I,StageMaterialCreateInfo Material){
+        this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
+        this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
+        this.MaterialMetallicFactors[I]=Material.MetallicFactor;
+        this.MaterialWorldGrids[I]=Material.WorldGrid;
+        this.MaterialWorldGridAnchors[I]=Vector3.Zero;
+        this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
+            ?Material.EmissiveNits
+            :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
+
+        this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
+            Material.BaseColorTexture??RenderMaterialDefaults.White);
+        this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
+            Material.NormalTexture??RenderMaterialDefaults.FlatNormal);
+        this.MaterialTextures[(I*4)+2]=GetOrCreateTexture(
+            Material.MetallicRoughnessTexture??RenderMaterialDefaults.White);
+        this.MaterialTextures[(I*4)+3]=GetOrCreateTexture(
+            Material.EmissiveTexture??RenderMaterialDefaults.White);
+
+        D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
             Format=MaterialTextureFormat,
             ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         SrvDesc.Texture2D.MipLevels=1;
-
-        for(var I=0;I< this.MaterialTextures.Length;I++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/4)*5+(I%4), this.SrvDescriptorSize);
+        for(var Slot=0;Slot<4;Slot++){
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+Slot, this.SrvDescriptorSize);
             // Slots 0 (base colour) and 3 (emissive) hold colour data; 1 (normal) and 2
             // (metallic-roughness) hold linear data.
-            SrvDesc.Format=I%4 is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
-            this.Device.Device->CreateShaderResourceView(this.MaterialTextures[I],&SrvDesc,Handle);
+            SrvDesc.Format=Slot is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
+            this.Device!.Device->CreateShaderResourceView(this.MaterialTextures[(I*4)+Slot],&SrvDesc,Handle);
         }
-
         D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
             Format=ShadowAtlasSrvFormat,
             ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         ShadowSrvDesc.Texture2D.MipLevels=1;
-        for(var I=0;I< this.MaterialCount;I++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
-            this.Device.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,Handle);
-        }
-        this.WriteEnvironmentDescriptors();
+        D3D12_CPU_DESCRIPTOR_HANDLE ShadowHandle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
+        this.Device!.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,ShadowHandle);
 
         ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture){
-            if(ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
+            if(this.ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
                 return(ID3D12Resource*)Existing;
             }
             ID3D12Resource*Created=this.CreateTextureResource(Texture);
-            ResidentTextures.Add(Texture.ContentHash,(nint)Created);
-            OwnedTextures.Add((nint)Created);
+            this.ResidentTextures.Add(Texture.ContentHash,(nint)Created);
+            this.OwnedMaterialTextures.Add((nint)Created);
+            this.OwnedTextureHashes[(nint)Created]=Texture.ContentHash;
             return Created;
         }
+    }
+
+    private void ReleaseOwnedMaterialTextures(){
+        foreach(var Pointer in this.OwnedMaterialTextures){
+            _=((ID3D12Resource*)Pointer)->Release();
+        }
+        this.OwnedMaterialTextures.Clear();
+        this.OwnedTextureHashes.Clear();
+        this.ResidentTextures.Clear();
     }
 
     /// <summary>Uploads one already-validated canonical RGBA8 texture. Decode/fallback policy lives above L0.</summary>
@@ -1843,16 +1943,65 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void CreateObjectMappings(IReadOnlyList<StageObjectCreateInfo>Objects){
         this.ObjectCount=Objects.Count;
-        this.ObjectMeshIndices=new int[this.ObjectCount];
-        this.ObjectMaterialIndices=new int[this.ObjectCount];
-        this.ObjectTransforms=new Matrix4x4[this.ObjectCount];
-        this.ObjectSelectionWeights=new float[this.ObjectCount];
+        this.ObjectCapacity=this.ObjectCount+DynamicObjectHeadroom;
+        this.ObjectMeshIndices=new int[this.ObjectCapacity];
+        this.ObjectMaterialIndices=new int[this.ObjectCapacity];
+        this.ObjectTransforms=new Matrix4x4[this.ObjectCapacity];
+        this.ObjectSelectionWeights=new float[this.ObjectCapacity];
+        this.ObjectActive=new bool[this.ObjectCapacity];
 
         for(var I=0;I< this.ObjectCount;I++){
             this.ObjectMeshIndices[I]=Objects[I].MeshIndex;
             this.ObjectMaterialIndices[I]=Objects[I].MaterialIndex;
             this.ObjectTransforms[I]=Matrix4x4.Identity;
+            this.ObjectActive[I]=!Objects[I].Removed;
+            if(Objects[I].Removed){ this.FreeObjectSlots.Add(I); }
         }
+    }
+
+    /// <summary>
+    /// Adds one drawn object after creation (M0105): an Entity spawned while the game runs. Reuses the slot of a removed object when
+    /// there is one. Returns the object index, or -1 when the <see cref="DynamicObjectHeadroom"/> is used up. The object starts at
+    /// the origin; set its transform every frame like any other. Only the current frame's constants are written, so a frame still in
+    /// flight keeps drawing what it was given.
+    /// </summary>
+    public int AddObject(int MeshIndex,int MaterialIndex){
+        this.ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(MeshIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MeshIndex,this.MeshCount);
+        ArgumentOutOfRangeException.ThrowIfNegative(MaterialIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MaterialIndex,this.MaterialCount);
+        int Index;
+        if(this.FreeObjectSlots.Count>0){
+            Index=this.FreeObjectSlots[^1];
+            this.FreeObjectSlots.RemoveAt(this.FreeObjectSlots.Count-1);
+        } else if(this.ObjectCount<this.ObjectCapacity){
+            Index=this.ObjectCount++;
+        } else {
+            return -1;
+        }
+        this.ObjectMeshIndices[Index]=MeshIndex;
+        this.ObjectMaterialIndices[Index]=MaterialIndex;
+        this.ObjectTransforms[Index]=Matrix4x4.Identity;
+        this.ObjectSelectionWeights[Index]=0f;
+        this.ObjectActive[Index]=true;
+        this.CameraPreviewDiagnosticsDirty=true;
+        this.WriteObjectConstants(this.FrameIndex,Index);
+        return Index;
+    }
+
+    /// <summary>Stops drawing one object (M0105). Its slot is handed out again by a later <see cref="AddObject"/>. Removing a removed object does nothing.</summary>
+    public void RemoveObject(int ObjectIndex){
+        this.ThrowIfDisposed();
+        if((uint)ObjectIndex>=(uint)this.ObjectCount){
+            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
+        }
+        if(!this.ObjectActive[ObjectIndex]){ return; }
+        if(this.ObjectSelectionWeights[ObjectIndex]>0f){ this.SelectedObjectCount--; }
+        this.ObjectSelectionWeights[ObjectIndex]=0f;
+        this.ObjectActive[ObjectIndex]=false;
+        this.FreeObjectSlots.Add(ObjectIndex);
+        this.CameraPreviewDiagnosticsDirty=true;
     }
 
     private void CreateConstantBuffers(){
@@ -1879,7 +2028,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateUploadBuffer(AreaShadowProjectionBufferSize,out this.AreaShadowProjectionBuffer,
             out this.AreaShadowProjectionMapped,"creating the area shadow-projection StructuredBuffer");
 
-        var ObjectBufferSize=ConstantAlignment*(uint)this.ObjectCount*FrameCount;
+        var ObjectBufferSize=ConstantAlignment*(uint)this.ObjectCapacity*FrameCount;
         this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
 
         uint OverlayBufferSize=checked(
@@ -1957,7 +2106,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteAreaShadowDefaults(Frame);
 
             for(var ObjectIndex=0;ObjectIndex< this.ObjectCount;ObjectIndex++){
-                this.WriteObjectConstants(Frame,ObjectIndex);
+                if(this.ObjectActive[ObjectIndex]){ this.WriteObjectConstants(Frame,ObjectIndex); }
             }
         }
     }
@@ -2025,11 +2174,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void WriteRadialRasterDepths(uint FrameIndex){
         var ViewProjection=this.CurrentViewProjection;
         for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+            if(!this.ObjectActive[ObjectIndex]){ continue; }
             var Centre=Vector3.Transform(this.MeshBoundsCentres[this.ObjectMeshIndices[ObjectIndex]],this.ObjectTransforms[ObjectIndex]);
             var ViewDepth=Centre.X*ViewProjection.M14+Centre.Y*ViewProjection.M24+Centre.Z*ViewProjection.M34+ViewProjection.M44;
             var Depth=this.CurrentRadialProjection.ConservativeDepthAt(ViewDepth);
             Vector4 Packet=new(Depth.Limit,Depth.Slope,0f,0f);
-            var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+            var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
             Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectRadialRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
         }
     }
@@ -2496,16 +2646,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         this.GlobalIllumination!.WriteShadingDescriptors(
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5,this.SrvDescriptorSize),
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+1,this.SrvDescriptorSize));
-        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+2,this.SrvDescriptorSize));
-        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+3,this.SrvDescriptorSize));
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+1,this.SrvDescriptorSize));
+        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+2,this.SrvDescriptorSize));
+        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+3,this.SrvDescriptorSize));
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
         this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
     }
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
-        new(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),this.MaterialCount*5,this.SrvDescriptorSize);
+        new(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),this.MaterialCapacity*5,this.SrvDescriptorSize);
 
     private void BindMainPassState(ID3D12PipelineState*ActivePipelineState,ulong FrameConstantsAddress=0){
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
@@ -2653,7 +2803,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(!Enum.IsDefined(Mode)){ throw new ArgumentOutOfRangeException(nameof(Mode)); }
         this.PresentationMode=Mode;
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
+            if(this.ObjectActive[ObjectIndex]){ this.WriteObjectConstants(this.FrameIndex,ObjectIndex); }
         }
     }
 
@@ -2666,6 +2816,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new ArgumentOutOfRangeException(
                 nameof(Weight),"Selection weight must be finite and between zero and one.");
         }
+        if(!this.ObjectActive[ObjectIndex]){ return; }
         float Previous=this.ObjectSelectionWeights[ObjectIndex];
         if(Previous<=0f&&Weight>0f){ this.SelectedObjectCount++; }
         if(Previous>0f&&Weight<=0f){ this.SelectedObjectCount--; }
@@ -2800,6 +2951,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
             int Candidates=0;
             for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+                if(!this.ObjectActive[ObjectIndex]){ continue; }
                 Vector3 Position=Vector3.Transform(
                     Vector3.Zero,this.ObjectTransforms[ObjectIndex]);
                 Vector4 Clip=Vector4.Transform(
@@ -2809,11 +2961,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     Candidates++;
                 }
             }
-            int DrawCalls=this.ObjectCount-
-                (Preview.ExcludedObjectIndex>=0?1:0);
+            int DrawCalls=this.ActiveObjectCount-
+                (Preview.ExcludedObjectIndex>=0&&this.ObjectActive[Preview.ExcludedObjectIndex]?1:0);
             this.CameraPreviewDiagnostics[PreviewIndex]=
                 new RenderCameraPreviewDiagnostics(
-                    this.ObjectCount,Candidates,DrawCalls,
+                    this.ActiveObjectCount,Candidates,DrawCalls,
                     ComputeMatrixHash(Preview.ViewProjection));
         }
         Array.Clear(
@@ -3516,7 +3668,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteObjectConstants(uint FrameIndex,int ObjectIndex){
-        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
         var Destination= this.ObjectConstantsMapped+(Slot*ConstantAlignment);
 
         Matrix4x4 World= this.ObjectTransforms[ObjectIndex];
@@ -3576,7 +3728,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ForwardPlusTileListBuffer->GetGPUVirtualAddress()+(FrameIndex*this.ForwardPlusTileFrameSize);
 
     private ulong GetObjectConstantsAddress(uint FrameIndex,int ObjectIndex){
-        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
         return this.ObjectConstantsBuffer->GetGPUVirtualAddress()+(Slot*ConstantAlignment);
     }
 
@@ -3710,6 +3862,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->RSSetViewports(1,&ShadowViewport);
         this.CommandList->RSSetScissorRects(1,&ShadowScissor);
         for(var I=0;I< this.ObjectCount;I++){
+            if(!this.ObjectActive[I]){ continue; }
             var MeshIndex= this.ObjectMeshIndices[I];
             this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
@@ -3863,7 +4016,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void DrawObjects(int ExcludedObjectIndex){
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            if(ObjectIndex==ExcludedObjectIndex){ continue; }
+            if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]){ continue; }
             int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
             this.CommandList->SetGraphicsRootConstantBufferView(
                 1,this.GetObjectConstantsAddress(this.FrameIndex,ObjectIndex));
@@ -4365,13 +4518,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.SrvHeap=null;
         }
 
-        for(var I=0;I< this.OwnedMaterialTextures.Length;I++){
-            if(this.OwnedMaterialTextures[I]!=null){
-                _= this.OwnedMaterialTextures[I]->Release();
-                this.OwnedMaterialTextures[I]=null;
-            }
-        }
-        this.OwnedMaterialTextures=[];
+        this.ReleaseOwnedMaterialTextures();
         this.MaterialTextures=[];
 
         for(var I=0;I< this.IndexBuffers.Length;I++){

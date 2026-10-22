@@ -137,7 +137,7 @@ public sealed class TransformTests {
         FixedTransformWorldResolver Resolver=new();
 
         FixedTransformResolveStatus ResolveStatus=Resolver.Resolve(
-            2,TryGetTransform,TryGetParent,out FixedAffineTransform World);
+            new Entity(2),TryGetTransform,TryGetParent,out FixedAffineTransform World);
         FixedTransformStatus MatrixStatus=World.TryToCameraRelativeMatrix(
             Parent,out Matrix4x4 Matrix);
 
@@ -146,8 +146,8 @@ public sealed class TransformTests {
         Assert.Equal(0.125f,Matrix.M41);
         Assert.Equal(2f,Matrix.M42);
 
-        bool TryGetTransform(int EntityId,out Transform Result){
-            switch(EntityId){
+        bool TryGetTransform(Entity Candidate,out Transform Result){
+            switch(Candidate.Index){
                 case 1:
                     Result=Parent;
                     return true;
@@ -160,9 +160,9 @@ public sealed class TransformTests {
             }
         }
 
-        static bool TryGetParent(int EntityId,out int ParentEntityId){
-            ParentEntityId=EntityId==2?1:default;
-            return EntityId==2;
+        static bool TryGetParent(Entity Candidate,out Entity ParentEntity){
+            ParentEntity=Candidate.Index==2?new Entity(1):default;
+            return Candidate.Index==2;
         }
     }
 
@@ -176,10 +176,10 @@ public sealed class TransformTests {
 
         Assert.Equal(
             FixedTransformResolveStatus.Success,
-            Resolver.Resolve(2,TryGetTransform,TryGetParent,out FixedAffineTransform CameraWorld));
+            Resolver.Resolve(new Entity(2),TryGetTransform,TryGetParent,out FixedAffineTransform CameraWorld));
         Assert.Equal(
             FixedTransformResolveStatus.Success,
-            Resolver.Resolve(3,TryGetTransform,TryGetParent,out FixedAffineTransform ObjectWorld));
+            Resolver.Resolve(new Entity(3),TryGetTransform,TryGetParent,out FixedAffineTransform ObjectWorld));
 
         FixedTransformStatus Status=ObjectWorld.TryToCameraRelativeMatrix(
             CameraWorld,out Matrix4x4 CameraRelative);
@@ -189,8 +189,8 @@ public sealed class TransformTests {
         Assert.Equal(1f,CameraRelative.M42);
         Assert.Equal(0f,CameraRelative.M43);
 
-        bool TryGetTransform(int EntityId,out Transform Result){
-            switch(EntityId){
+        bool TryGetTransform(Entity Candidate,out Transform Result){
+            switch(Candidate.Index){
                 case 1:
                     Result=Root;
                     return true;
@@ -206,9 +206,9 @@ public sealed class TransformTests {
             }
         }
 
-        static bool TryGetParent(int EntityId,out int ParentEntityId){
-            ParentEntityId=EntityId is 2 or 3?1:default;
-            return EntityId is 2 or 3;
+        static bool TryGetParent(Entity Candidate,out Entity ParentEntity){
+            ParentEntity=Candidate.Index is 2 or 3?new Entity(1):default;
+            return Candidate.Index is 2 or 3;
         }
     }
 
@@ -224,7 +224,7 @@ public sealed class TransformTests {
 
         Assert.Equal(
             FixedTransformResolveStatus.Success,
-            Resolver.Resolve(3,TryGetTransform,TryGetParent,out FixedAffineTransform CameraWorld));
+            Resolver.Resolve(new Entity(3),TryGetTransform,TryGetParent,out FixedAffineTransform CameraWorld));
         Assert.Equal(
             FixedTransformStatus.Success,
             CameraWorld.TryGetCameraBasis(out Vector3 Forward,out Vector3 Up));
@@ -245,8 +245,8 @@ public sealed class TransformTests {
         Assert.Equal(0f,CameraRelative.M42);
         Assert.Equal(0f,CameraRelative.M43);
 
-        bool TryGetTransform(int EntityId,out Transform Result){
-            switch(EntityId){
+        bool TryGetTransform(Entity Candidate,out Transform Result){
+            switch(Candidate.Index){
                 case 1:
                     Result=Root;
                     return true;
@@ -262,9 +262,9 @@ public sealed class TransformTests {
             }
         }
 
-        static bool TryGetParent(int EntityId,out int ParentEntityId){
-            ParentEntityId=EntityId switch { 2=>1,3=>2,_=>default };
-            return EntityId is 2 or 3;
+        static bool TryGetParent(Entity Candidate,out Entity ParentEntity){
+            ParentEntity=Candidate.Index switch { 2=>new Entity(1),3=>new Entity(2),_=>default };
+            return Candidate.Index is 2 or 3;
         }
     }
 

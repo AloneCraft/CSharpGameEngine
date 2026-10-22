@@ -410,3 +410,16 @@
   - 指紋は頂点のバイト列の FNV-1a(64 ビット)で、レポートには 16 桁の 16 進で入る。
   - Vehicle の HUD: 速度は |前進速度| × 3.6 を偶数丸め(MidpointRounding.ToEven)して 3 桁のゼロ詰め(1000 で巻き戻る)、ギアは後退 R・ニュートラル N・前進は段の数字。
 - Result: Matches ADR-0078(M0104)。
+
+## RE-M0105 — 実行時の生成と使い捨てエフェクト
+
+- Confidence: High(単体テスト、WARP の画像と描画物の数の推移、SDK パッケージから作ったゲームの実行で確認)。実機の GPU は未確認
+- Evidence: `StageRenderer.cs`(`AddObject`・`RemoveObject`・`AddMesh`・`AddMaterial`)、`RenderServer.cs`、`RenderRoster.cs`、`RuntimeSystems.cs`(`StaticMeshBind`・`PrimitiveMeshBind`・`TransformSync`)、`Spawner.cs`、`Lifetime.cs`、`ParticleBurst.cs`、`ISpawnableScene.cs`、`SceneInstantiateEmitter.cs`、`FixedTransform.cs`
+- Observed behavior:
+  - 描画物の余裕は 4096 個、マテリアルは 256 個。使い切ると追加は断られ(`AddObject` は -1)、その Entity は描かれない。診断は 1 回。外したオブジェクトの番号は次の追加で使われる。
+  - 描かれる Entity は、生きていて `StaticMesh`・`PrimitiveMesh`・`SkeletalMesh` のどれかを持つもの。壊れるか、メッシュを失うと、次のフレームの `TransformSync` で外れる。位置が解決できない Entity は、置けるまで描かれない(カメラの位置に出ない)。
+  - 読めない資産(存在しない、スキン付き、マテリアルの余裕が足りない)は、診断を 1 回出して描かない。同じ資産は再び読もうとしない。
+  - `Spawner.Spawn<TScene>(位置)` は、根の位置を置き換える(回転と拡縮は Scene に書いた値、回転を渡すと回転も)。Scene は呼んだフレームの終わりに現れ、描かれるのは次のフレームから。同じ Scene を続けて呼ぶと、独立した複製になる。
+  - `Lifetime` は固定 tick ごとに 1 tick 分(1 / `FixedTickRate` 秒)減り、0 以下で壊れる(残りが 0 なら最初の tick)。Scene の根なら Scene ごと壊れる。
+  - `ParticleBurst` は最初の固定 tick に 1 回だけ、ノードのワールド位置から `Count`(0〜256 に収める)個の粒子を出す。方向と速さは `Seed` から決まる。粒子は毎 tick 動き、重力で落ち、生まれてからの割合で大きさが `StartScale` から `EndScale` へ直線で変わる(動きは寿命を数える前に読む)。
+- Result: Matches ADR-0078(M0105)。

@@ -17,6 +17,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)ScreenUi.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)RenderRoster.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Spawner.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Lifetime.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ParticleBurst.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeWorldTransform.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeSystems.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeAutomation.cs" />

@@ -8,13 +8,13 @@ public sealed class SceneRootIdentityTransformTests {
     public void Resolve_ComposesWithIdentitySceneRootThatHasNoAuthoredTransform(){
         FixedTransformWorldResolver Resolver=new();
 
-        var Status=Resolver.Resolve(2,
-            (int Id,out Transform Value)=>{
-                if(Id==2){
+        var Status=Resolver.Resolve(new Entity(2),
+            (Entity Id,out Transform Value)=>{
+                if(Id==new Entity(2)){
                     Value=new Transform { Position=new LogicalVector3(0f,3f,0f) };
                     return true;
                 }
-                if(Id==1){
+                if(Id==new Entity(1)){
                     // Logical Scene roots may own environment data without an authored Transform.
                     Value=new Transform();
                     return true;
@@ -22,9 +22,9 @@ public sealed class SceneRootIdentityTransformTests {
                 Value=default;
                 return false;
             },
-            (int Id,out int Parent)=>{
-                Parent=1;
-                return Id==2;
+            (Entity Id,out Entity Parent)=>{
+                Parent=new Entity(1);
+                return Id==new Entity(2);
             },out FixedAffineTransform World);
 
         Assert.Equal(FixedTransformResolveStatus.Success,Status);

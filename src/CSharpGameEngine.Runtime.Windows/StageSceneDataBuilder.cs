@@ -24,7 +24,13 @@ internal sealed class StageSceneDataBuilder {
         Transform[]ObjectTransforms,
         Matrix4x4[]ObjectLocalTransforms,
         Entity[]SourceEntities,
-        (Entity Entity,int[]MeshIndices)[]SkinnedMeshes){
+        (Entity Entity,int[]MeshIndices)[]SkinnedMeshes,
+        Dictionary<string,AssetTemplate>StaticAssets,
+        Dictionary<PrimitiveType,int>PrimitiveMeshIndices,
+        int PrimitiveMaterialIndex){
+        this.StaticAssets=StaticAssets;
+        this.PrimitiveMeshIndices=PrimitiveMeshIndices;
+        this.PrimitiveMaterialIndex=PrimitiveMaterialIndex;
         this.SkinnedMeshes=SkinnedMeshes;
         this.Meshes=Meshes;
         this.Materials=Materials;
@@ -43,6 +49,11 @@ internal sealed class StageSceneDataBuilder {
     public Entity[]SourceEntities { get;}
     /// <summary>The renderer meshes each SkeletalMesh entity skins with its palette.</summary>
     public (Entity Entity,int[]MeshIndices)[]SkinnedMeshes { get;}
+    /// <summary>The meshes and materials each StaticMesh asset became, by resolved path: what an Entity spawned later reuses (M0105).</summary>
+    internal Dictionary<string,AssetTemplate>StaticAssets { get;}
+    /// <summary>The renderer mesh of each primitive type a PrimitiveMesh used, and the one material they share (M0105).</summary>
+    internal Dictionary<PrimitiveType,int>PrimitiveMeshIndices { get;}
+    internal int PrimitiveMaterialIndex { get;}
 
     public static StageSceneDataBuilder Build(
         IReadOnlyList<(Entity Entity,Transform Transform,StaticMesh Mesh)>StaticMeshes,
@@ -56,6 +67,8 @@ internal sealed class StageSceneDataBuilder {
         List<Matrix4x4>ObjectLocalTransforms=[];
         List<Entity>SourceEntities=[];
         Dictionary<string,AssetTemplate>Templates=new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<PrimitiveType,int>PrimitiveMeshIndices=[];
+        var PrimitiveMaterialIndex=-1;
 
         foreach(var Placement in StaticMeshes){
             var FullPath=ContentRoot.Resolve(Placement.Mesh.AssetPath);
@@ -116,6 +129,11 @@ internal sealed class StageSceneDataBuilder {
         }
 
         if(Primitives.Count>0){
+            // BuildPrimitiveRoster gives each distinct type one mesh, in the order the types first appear, and all of them one material.
+            foreach(var Primitive in Primitives){
+                PrimitiveMeshIndices.TryAdd(Primitive.Mesh.Type,Meshes.Count+PrimitiveMeshIndices.Count);
+            }
+            PrimitiveMaterialIndex=Materials.Count;
             (var PrimitiveMeshes,var PrimitiveMaterials,var PrimitiveObjects)=
                 RenderServer.BuildPrimitiveRoster([.. Primitives.Select(Item=>Item.Mesh.Type)],Meshes.Count,Materials.Count);
             Meshes.AddRange(PrimitiveMeshes);
@@ -133,10 +151,11 @@ internal sealed class StageSceneDataBuilder {
         }
 
         return new StageSceneDataBuilder([.. Meshes],[.. Materials],[.. Objects],
-            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities],[.. SkinnedMeshes]);
+            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities],[.. SkinnedMeshes],
+            Templates,PrimitiveMeshIndices,PrimitiveMaterialIndex);
     }
 
-    private static AssetTemplate LoadAsset(string FullPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
+    internal static AssetTemplate LoadAsset(string FullPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
         var Result=GltfImporter.ImportScene(FullPath);
         if(!Result.Success||Result.Scene is not{ }Scene){
             throw new InvalidOperationException($"StaticMesh '{FullPath}' の読み込みに失敗しました: {string.Join("; ",Result.Diagnostics)}");
@@ -248,6 +267,6 @@ internal sealed class StageSceneDataBuilder {
             RenderAssetNamespace,$"{SourceHash}/material/{MaterialIndex}/{Slot}")),null);
 
 
-    private sealed record AssetTemplate(AssetObject[]Objects);
-    private readonly record struct AssetObject(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);
+    internal sealed record AssetTemplate(AssetObject[]Objects);
+    internal readonly record struct AssetObject(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);
 }

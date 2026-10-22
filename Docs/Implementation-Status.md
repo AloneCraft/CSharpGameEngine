@@ -2480,8 +2480,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     純粋関数(静的ビルド関数 — このリポジトリに`Server`/`Registry`接尾辞のステートフルクラスの
     先例が無いため)。同じ`PrimitiveType`は1つの`StageMeshCreateInfo`にデデュープする。全プリミティブは
     1つの共有デフォルトマテリアルを使う(個別マテリアル指定はスコープ外)。
-  - `StageRenderer.Create`はメッシュ/マテリアル/オブジェクトのロースターをCreate時に一括で要求し、
-    構築後に追加するAPIを持たない(このリポジトリの全レンダラーに共通する制約)。そのため
+  - `StageRenderer.Create`はメッシュ/マテリアル/オブジェクトのロースターをCreate時に一括で要求する
+    (構築後に足す`AddObject`・`AddMesh`・`AddMaterial`と`RemoveObject`はM0105で加わった。F-L5-041)。そのため
     `LevelLoad`に、`{AppHost,Level}`用オーバーロードより先に宣言した`{Transform,PrimitiveMesh}`用
     オーバーロードを追加し、Scene DSLが撒いたプリミティブを先に集めてから.glbロースターへ連結して
     1回の`StageRenderer.Create`に渡す(同一struct内のオーバーロード宣言順がArchetype登録順・
@@ -2495,8 +2495,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     (F-L7-017の追記参照): 複数の合成Systemが共有`Bootstrap.Done`を直接読み書きしていたため、
     宣言順が2番目以降の`StartupScene`が常に無視されていた。
 - Conformance: Matches
-- Known deviations: プリミティブごとの色/マテリアル指定は無し。起動後の動的な追加・削除は不可
-  (全レンダラー共通の「Create時にロースター確定」という制約を踏襲)。削除済み旧L9側の並行
+- Known deviations: プリミティブごとの色/マテリアル指定は無し。起動後の動的な追加・削除は、
+  M0105(F-L5-041)で可能になった(レンダラーの作成だけはレベルを読んだ時点の一覧から行う)。削除済み旧L9側の並行
   コンポーネント体系(`MeshRenderer`/`RenderSync`)とは統合せず、現行Scene DSLへ一本化した。
 - Next action: なし。Phase 9(VSIX Scene ViewをSceneModel描画へ)がこの`PrimitiveMesh`語彙を前提として
   実装済み(F-L8-010参照)。
@@ -4694,4 +4694,23 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `FontAtlasTests`、`FontBakerTests`、`ScreenUiTests`、`ScreenLayerTests`、`AssetCatalogTests`、`ShaderGraphCompilerTests`、`VehicleDriveVerificationTests`
 - Current delta: 文字(SDF のフォント)と画像・矩形を、描き終えたフレームの上に UMG のアンカーとピボットで置ける。Vehicle の HUD は画面の文字になった。
 - Conformance: Matches(ADR-0078 の範囲。9 分割の画像、字詰め、ASCII と Latin-1 の外の文字、入力を受ける UI は未実装)
-- Next action: M0105(実行時の生成と使い捨てエフェクト)。
+- Next action: なし(M0105 は F-L5-041)。
+
+## F-L5-041 — 実行時の生成と使い捨てエフェクト
+
+- Layer: L5 — Runtime(`RenderRoster`・`Spawner`・`Lifetime`・`ParticleBurst`)、L0 — 描画(`StageRenderer`・`RenderServer` の増減)、L3 — ECS(`FixedTransformWorldResolver`)、L7(生成器の `ISpawnableScene`)
+- Parent capability: Windows Runtime / ECS Source Generator
+- Status: Implemented
+- Verification: TestVerified + 実走(WARP。`verify-thirdperson-character --template TopDown`、4 テンプレートと SDK パッケージから作った ThirdPerson・Vehicle)
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Specifications/Rendering.md#dynamic-objects`、`Docs/Milestones/M0105-Runtime-Spawn-And-Effects.md`
+- Implementation evidence:
+  - `src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(`AddObject`・`RemoveObject`・`AddMesh`・`AddMaterial`、余裕、有効フラグ)、`StageRenderInputs.cs`(`Removed`)、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`
+  - `src/CSharpGameEngine.Runtime.Windows/RenderRoster.cs`、`RuntimeSystems.cs`(`StaticMeshBind`・`PrimitiveMeshBind`・`SkeletalMeshBindNotice`、`TransformSync` の外し)、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`renderObjectCounts`)
+  - `src/CSharpGameEngine.Runtime.Windows/Spawner.cs`、`Lifetime.cs`、`ParticleBurst.cs`
+  - `src/CSharpGameEngine.Entities/FixedTransform.cs`、`SpatialWorld.cs`、`ISpawnableScene.cs`
+  - `src/CSharpGameEngine.CodeAnalysis/SceneInstantiateEmitter.cs`、`GenerationGate.cs`、`GameSystemLoopEmitter.cs`、`SpatialWorldEmitter.cs`
+  - `Templates/CSharpGameEngine.Templates.TopDown/Scenes/CursorMarker.json`、`Assets/Cursor/SM_CursorMesh.glb`、`Gameplay/ClickToMove.cs`、`tools/UnrealExport/cut_masked_mesh.py`
+- Tests: `RecycledEntityTransformTests`、`RenderServerDynamicObjectTests`、`RenderRosterTests`、`SpawnerLifetimeParticleTests`、`SceneSpawnGeneratorTests`、`TransformWorldResolverTests`、`ClickToMoveVerificationTests`
+- Current delta: Entity の生成・破棄・メッシュの追加が差分で描画へ反映される(破棄した Entity の描画物は消える)。`Spawner.Spawn<TScene>(位置)`、`Lifetime`、`ParticleBurst`。スロットを再利用した Entity の位置解決の失敗(Generation 固定)を直した。TopDown はクリックで目印が出て、0.7 秒で消える。
+- Conformance: Matches(ADR-0078 の範囲。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成、実機の GPU での測定は未実装)
+- Next action: M0106(ナビメッシュのベイクと経路追従)。

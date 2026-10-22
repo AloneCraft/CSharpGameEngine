@@ -1,0 +1,33 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeTopDown.Scenes",
+  "className": "CursorMarker",
+  "root": {
+    "id": "5d0b3f6e-8c1a-4a53-9d2e-7b4c91e0a6f2",
+    "name": "FX_Cursor_Success",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.ParticleBurst",
+        "members": {
+          "AssetPath": "Assets/Cursor/SM_CursorMesh.glb",
+          "Count": 1,
+          "Lifetime": 0.7,
+          "StartScale": 1,
+          "EndScale": 0.25
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Lifetime",
+        "members": {
+          "Seconds": 0.7
+        }
+      }
+    ],
+    "children": []
+  }
+}

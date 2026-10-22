@@ -307,6 +307,8 @@ internal struct LevelLoad:ISystem {
         LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref Camera,Host.EditorCamera,this.ActiveCameraCount>0,this.PendingCamera,Renderer);
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         Host.RegisterWorldGridMaterials(Scene.Materials);
+        // From here on the renderer's objects follow the Entities (M0105): the ones just turned into objects count as bound.
+        Host.Roster=RenderRoster.FromScene(Scene);
         LevelRuntime.HasLastCameraWorldPose=true;
         LevelRuntime.Loaded=true;
         LevelRuntime.ShaderSemanticHash=Renderer.ShaderSemanticHash;
@@ -343,28 +345,13 @@ internal struct LevelLoad:ISystem {
                 });
             StageMaterialCreateInfo Material=Scene.Materials[
                 Scene.Objects[ObjectIndex].MaterialIndex];
-            Vector3 EmissiveNits=Material.EmissiveNits!=Vector3.Zero
-                ?Material.EmissiveNits
-                :Material.EmissiveFactor*100f;
-            if(EmissiveNits.X>0f||EmissiveNits.Y>0f||EmissiveNits.Z>0f){
+            var Emission=RenderRoster.EmissionOf(Material);
+            if(RenderRoster.IsEmissive(Emission.Nits)){
                 State.World.CreateDeferred(
                     Scene.ObjectTransforms[ObjectIndex],
-                    new EmissiveMeshLighting {
-                        Mesh=Scene.Meshes[Scene.Objects[ObjectIndex].MeshIndex],
-                        EmissiveNits=EmissiveNits,
-                        EmissiveTextureLuminanceScale=Material.EmissiveTextureLuminanceScale,
-                        SourceEntity=Scene.SourceEntities[ObjectIndex],
-                        HasSourceEntity=true,
-                        MeshLocalTransform=Scene.ObjectLocalTransforms[ObjectIndex],
-                        LastCameraRelativeWorld=CameraRelativeWorld,
-                        RangeMeters=20f,
-                        CastsShadows=true,
-                        ShadowPriority=0,
-                        ShadowBiasMeters=0.005f,
-                        HasLastCameraRelativeWorld=true,
-                        LastTransformStatus=FixedTransformStatus.Success,
-                        LastWorldResolveStatus=ResolveStatus,
-                    });
+                    RenderRoster.NewEmissiveLighting(
+                        Scene.SourceEntities[ObjectIndex],Scene.Meshes[Scene.Objects[ObjectIndex].MeshIndex],Emission,
+                        Scene.ObjectLocalTransforms[ObjectIndex],CameraRelativeWorld,ResolveStatus));
             }
         }
 
@@ -670,6 +657,16 @@ internal struct RectAreaLightSync:ISystem {
 [RunsAfter(typeof(RectAreaLightSync))]
 internal struct TransformSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
+        if(Renderable.ObjectIndex<0){
+            return;
+        }
+        if(Renderable.HasSourceEntity&&!RenderRoster.IsDrawnSource(Renderable.SourceEntity,State.World)){
+            // M0105: the Entity was destroyed or lost its mesh; its object stops being drawn and this wrapper goes with it.
+            Host.ReleaseRenderObject(Renderable.SourceEntity,Renderable.ObjectIndex);
+            Renderable.ObjectIndex=-1;
+            State.World.DestroyDeferred(Entity,ref State);
+            return;
+        }
         if(Host.Renderer is{ }Renderer){
             Entity SourceEntity=Renderable.HasSourceEntity?Renderable.SourceEntity:Entity;
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
@@ -703,6 +700,10 @@ internal struct EmissiveMeshLightSync:ISystem {
         ref EmissiveMeshLighting Lighting,
         EngineHost Host,
         ref State State){
+        if(Lighting.HasSourceEntity&&!RenderRoster.IsDrawnSource(Lighting.SourceEntity,State.World)){
+            State.World.DestroyDeferred(Entity,ref State);
+            return;
+        }
         if(Host.Renderer is { }Renderer){
             Entity SourceEntity=Lighting.HasSourceEntity?Lighting.SourceEntity:Entity;
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
@@ -732,6 +733,36 @@ internal struct EmissiveMeshLightSync:ISystem {
                 Lighting.ShadowPriority,
                 Lighting.ShadowBiasMeters);
         }
+    }
+}
+
+/// <summary>ADR-0078/M0105: gives an Entity that has a <see cref="StaticMesh"/> and is not drawn yet its renderer objects.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
+[RunsBefore(typeof(TransformSync))]
+internal struct StaticMeshBind:ISystem {
+    public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,EngineHost Host,ref State State){
+        Host.Roster?.BindStaticMesh(Entity,in Transform,in Mesh,Host,ref State);
+    }
+}
+
+/// <summary>ADR-0078/M0105: the same for a <see cref="PrimitiveMesh"/>.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
+[RunsBefore(typeof(TransformSync))]
+internal struct PrimitiveMeshBind:ISystem {
+    public void Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,EngineHost Host,ref State State){
+        Host.Roster?.BindPrimitiveMesh(Entity,in Transform,in Mesh,Host,ref State);
+    }
+}
+
+/// <summary>ADR-0078/M0105: reports a <see cref="SkeletalMesh"/> that appeared after the level loaded, which is not drawn.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
+[RunsBefore(typeof(TransformSync))]
+internal struct SkeletalMeshBindNotice:ISystem {
+    public void Update(Entity Entity,ref Transform Transform,ref SkeletalMesh Mesh,EngineHost Host,ref State State){
+        Host.Roster?.NoteSkeletalMesh(Entity);
     }
 }
 

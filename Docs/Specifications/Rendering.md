@@ -142,6 +142,16 @@ ADR-0078 / M0104. After the frame is tone mapped and the overlay is drawn, the s
 - Placement is UMG's: an element's `Pivot` sits on the screen's `Anchor` plus an offset; sizes and offsets are pixels of a screen whose shorter side is 1080 and are scaled to the surface. The Stage contract entries are `ScreenVSMain`/`ScreenPSMain` (`stage-v11`).
 - Evidence: `FontAtlasTests`, `FontBakerTests`, `ScreenUiTests`, `ScreenLayerTests` (WARP: placement, blend, one-frame lifetime, device recovery, distance-field threshold), and the Vehicle template's HUD in `VehicleDriveVerification` (`screenLayerFingerprints`).
 
+## Dynamic objects
+ADR-0078 / M0105. The renderer is still created from a roster (meshes, materials, objects), which `LevelLoad` collects from the Entities that exist when the level loads. After that the roster follows the world instead of staying fixed.
+
+- `StageRenderer` and `RenderServer` can add and remove drawn objects while running: `AddObject(mesh, material)` returns an index (the slot of a removed object is handed out again, `-1` when the headroom of `DynamicObjectHeadroom` = 4096 is used up), `RemoveObject(index)` stops drawing it. `AddMesh` adds a mesh (a separate buffer pair, never skinned) and `AddMaterial` a material (`DynamicMaterialHeadroom` = 256; its textures are uploaded after one `WaitForGpuIdle`, so the first use of an asset costs a frame). The object constant buffer and the material descriptor heap are sized for the headroom at creation; the environment descriptors sit after the material slots.
+- An added object's constants are written to the current frame's slot only; the per-frame `SetObjectTransform` fills the others. Every pass (main, shadow, probe capture, camera previews, radial raster depth) skips removed objects.
+- `RenderServer` keeps the roster it rebuilds from after a device loss: it grows with each add, and a removed object keeps its index marked `Removed`. The required-artifact closure (mesh, material and object-roster identities) is updated, the object roster once per frame. `RenderFrameState` grows its per-object arrays to the indices used.
+- In the runtime, `RenderRoster` (`EngineHost.Roster`) binds Entities: Presentation systems `StaticMeshBind` and `PrimitiveMeshBind` give a not-yet-drawn Entity its objects (loading and adding an asset the renderer has not seen), and a `Renderable` wrapper whose source Entity is gone or lost its mesh component removes its object and itself. A `SkeletalMesh` that appears after the load is not drawn (skinning is set up at creation) and is reported once.
+- The Stage shader contract does not change (`stage-v11`).
+- Evidence: `RenderServerDynamicObjectTests` (WARP: add, remove, slot reuse, mesh and material, device loss, headroom), `RenderRosterTests` (WARP, through the generated Presentation phase), `SpawnerLifetimeParticleTests`, and the TopDown click marker in `ClickToMoveVerification` (`renderObjectCounts`).
+
 ## Skeletal meshes and animation
 ADR-0066 adds skinned meshes. A `SkeletalMesh` Component names a glTF with exactly one skin. The roster gives each placement its own copy of the meshes, and `StageMeshCreateInfo.Skin` carries eight 16-bit joint/weight pairs per vertex.
 

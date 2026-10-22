@@ -8,7 +8,7 @@ internal struct ClickToMove:ISystem {
         }
         Intent.MoveTo(Hit.Point);
         if(Input.SetDestination.Pressed){
-            Spawner.Spawn(Scenes.CursorMarker,Hit.Point);
+            Spawner.Spawn<CursorMarker>(Hit.Point);
         }
     }
 }

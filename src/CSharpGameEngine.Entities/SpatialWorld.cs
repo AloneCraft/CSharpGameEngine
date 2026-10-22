@@ -62,7 +62,7 @@ public partial struct World {
             this.ExcludeGlobalSpatialEntity(Entity,SpatialSyncFailure.InvalidBounds,Report);
             return;
         }
-        FixedTransformResolveStatus ResolveStatus=this.SpatialState.Resolver.Resolve(Entity.Id,GetTransform,GetParent,out FixedAffineTransform WorldTransform);
+        FixedTransformResolveStatus ResolveStatus=this.SpatialState.Resolver.Resolve(Entity,GetTransform,GetParent,out FixedAffineTransform WorldTransform);
         if(ResolveStatus!=FixedTransformResolveStatus.Success){
             this.ExcludeGlobalSpatialEntity(Entity,ToSpatialFailure(ResolveStatus),Report);
             return;

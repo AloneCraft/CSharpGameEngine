@@ -95,7 +95,34 @@ public static class ClickToMoveVerification {
         if(Audio==0){
             Failures.Add("Walking to the destination asked for no footstep sound.");
         }
+        EvaluateMarker(Report,Failures,ref Summary);
         return Failures;
+    }
+    /// <summary>
+    /// ADR-0078/M0105: the click puts a marker in the world (the cursor burst) and its lifetime takes it out again. The renderer's object count per frame
+    /// shows it: above what it was before the click at some frame after it, and back to that count at the end. A report without the counts (an older
+    /// run) is not judged on the marker.
+    /// </summary>
+    private static void EvaluateMarker(JsonElement Report,List<string>Failures,ref string Summary){
+        if(!Report.TryGetProperty("renderObjectCounts",out var CountsElement)||CountsElement.ValueKind!=JsonValueKind.Array){
+            return;
+        }
+        var Counts=CountsElement.EnumerateArray().Select(static Item=>Item.GetInt32()).ToArray();
+        if(Counts.Length<Frames){
+            Failures.Add($"Expected {Frames} render object counts, found {Counts.Length}.");
+            return;
+        }
+        var Before=Counts[ClickStartFrame-1];
+        var Peak=Counts.Skip(ClickStartFrame).Max();
+        var After=Counts[^1];
+        var FirstUp=Array.FindIndex(Counts,ClickStartFrame,Count=>Count>Before);
+        var Gone=FirstUp<0?-1:Array.FindIndex(Counts,FirstUp,Count=>Count<=Before);
+        Summary+=string.Create(CultureInfo.InvariantCulture,$" renderObjects={Before}->{Peak}->{After} markerFrames={(FirstUp<0?0:(Gone<0?Counts.Length:Gone)-FirstUp)}");
+        if(Peak<=Before){
+            Failures.Add($"Clicking the ground showed no marker: the renderer drew {Before} objects before the click and never more after it.");
+        } else if(After!=Before){
+            Failures.Add($"The marker did not go away: the renderer drew {Before} objects before the click and {After} at the end.");
+        }
     }
     private static float Planar(float[]From,float[]To)=>MathF.Sqrt(((To[0]-From[0])*(To[0]-From[0]))+((To[2]-From[2])*(To[2]-From[2])));
 }

@@ -51,6 +51,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
     private readonly Dictionary<Entity,List<int>>RenderObjectsBySource=[];
     private (int MaterialIndex,LogicalScalar CellMeters)[]WorldGridMaterials=[];
+    /// <summary>ADR-0078/M0105: keeps the renderer's objects in step with the Entities after the level loaded. Null until <see cref="LevelLoad"/> has built the renderer.</summary>
+    internal RenderRoster?Roster { get;set;}
     private readonly RenderCameraPreview[]RadialObserverPreviews=new RenderCameraPreview[RenderCameraPreview.MaximumCount];
     private int RadialObserverPreviewCount;
     private bool RadialObserverPreviewsSubmitted;
@@ -255,10 +257,16 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// although the renderer works camera-relative.
     /// </summary>
     internal void RegisterWorldGridMaterials(IReadOnlyList<StageMaterialCreateInfo>Materials){
-        List<(int,LogicalScalar)>Grids=[];
+        this.WorldGridMaterials=[];
+        this.AppendWorldGridMaterials(0,Materials);
+    }
+
+    /// <summary>The same for materials added to the renderer after the level loaded (M0105); <paramref name="FirstIndex"/> is the index the first of them got.</summary>
+    internal void AppendWorldGridMaterials(int FirstIndex,IReadOnlyList<StageMaterialCreateInfo>Materials){
+        List<(int,LogicalScalar)>Grids=[.. this.WorldGridMaterials];
         for(var Index=0;Index<Materials.Count;Index++){
             if(Materials[Index].WorldGrid is{ }Grid&&LogicalScalar.TryFromSingle(Grid.GridSizeMeters,out var CellMeters)&&CellMeters.Raw>0){
-                Grids.Add((Index,CellMeters));
+                Grids.Add((FirstIndex+Index,CellMeters));
             }
         }
         this.WorldGridMaterials=[.. Grids];
@@ -290,6 +298,23 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
             this.RenderObjectsBySource[Source]=Objects=[];
         }
         Objects.Add(ObjectIndex);
+    }
+
+    /// <summary>Stops drawing one renderer object of <paramref name="Source"/> (M0105): the Entity was destroyed or lost its mesh.</summary>
+    internal void ReleaseRenderObject(Entity Source,int ObjectIndex){
+        if(this.Roster is{ }Roster){
+            Roster.Release(Source,ObjectIndex,this);
+        } else {
+            this.Renderer?.RemoveObject(ObjectIndex);
+            this.UnregisterRenderObject(Source,ObjectIndex);
+        }
+    }
+
+    /// <summary>Forgets that a renderer object belonged to <paramref name="Source"/>: the object stopped being drawn (M0105).</summary>
+    internal void UnregisterRenderObject(Entity Source,int ObjectIndex){
+        if(!this.RenderObjectsBySource.TryGetValue(Source,out var Objects)){ return; }
+        Objects.Remove(ObjectIndex);
+        if(Objects.Count==0){ this.RenderObjectsBySource.Remove(Source); }
     }
 
     /// <summary>ADR-0070 B1: highlights the renderer objects of the Scene Designer's selected entities.</summary>

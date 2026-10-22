@@ -24,8 +24,8 @@
 - 書いたもの: 4 つのテンプレートの `Code/*.cs`、`Scenes/*.json`、README。`.csproj` は置かない。置き場所は `Templates/`（ユーザー指示 2026-10-20: 先頭大文字）。
 - レビューの結論: 全項目が実装可能。ただし `Start`、全面的なフェーズ推論、型付き `Assets` は縮める・見送る。理由は ADR-0077 §2。
 - 見つかった問題（実装前の事実）:
-  - 実行時に出したメッシュは描画されない（`LevelLoad` の描画物の一覧が初回で固定）。
-  - `FixedTransform.cs` が Entity を Generation=1 固定で引き直す（スロット再利用後に位置解決が失敗する疑い）。未再現。
+  - 実行時に出したメッシュは描画されない（`LevelLoad` の描画物の一覧が初回で固定）。→ M0105 で、描画物が Entity の増減に追従するようになった。
+  - `FixedTransform.cs` が Entity を Generation=1 固定で引き直す（スロット再利用後に位置解決が失敗する疑い）。未再現。→ M0105 で再現し、解決器のキーを `Entity` 全体にして直した。
   - ECS から音が鳴らせない（WAV のデコーダー、ミキサーの出力経路、`AudioSource` のクリップが無い）。
 
 ## 段階 1. 引数の役割表
@@ -102,7 +102,7 @@
 - TopDown（`Templates/CSharpGameEngine.Templates.TopDown`）: 入力はクリック。`[Mouse(MouseButton.Left)] Button SetDestination` と `[Pointer] Pointer Cursor` を宣言する（`Pointer` はクライアント領域の割合と `Inside`。`Read` の第 3 引数に `EngineHost.Cursor` が渡る）。`Picking` サービス（`EngineHost.Picking`）が、カメラの姿勢と画角（`Picking.TryCreateRay`）でポインターを通る光線を作り、物理の静的コリジョンに当てた最も近い点を返す。`ClickToMove` は `Picking.TryPick` の点を `MoveIntent.MoveTo` に渡すだけで、歩行は `CharacterMotionUpdate` が毎 tick `MoveIntent.Steer` で目的地へ向ける（直線、高さは無視、制動距離の手前から減速して行き過ぎずに止まる。着いたら `HasDestination` が false に戻る）。UE のナビメッシュは無く、経路探索はしない。固定のカメラは `ViewAngles`（Yaw 45°、Pitch −50°）を回さない `OrbitCamera`（`Distance` 14、衝突なし）で作った。理想コードの `Touch`・`Spawner.Spawn`（クリック位置の目印）・`Cursor.Ray` は未実装（`Cursor.Ray` は `Picking` に置き換えた）。
 - 自動検証: `CGE_AUTOMATION_CURSOR=x,y`（カーソルの割合）と `MouseLeft` の入力（`Win32Window.InjectMouseButton`）を追加した。`verify-thirdperson-character --template TopDown` は `ClickToMoveVerification` が判定する（画面上部の 1 点を 5 フレームだけクリックし、離したあとも目的地まで歩いて止まること）。WARP で歩行 10.845 m、最後の 10 フレームの移動 0.000 m、D3D12 のエラー 0、`audioRequests=7` で合格。最終フレームの画像でもキャラクターが固定カメラの中央に立っている。
 - テスト: `InputActionsGeneratorTests` に Mouse ボタンと Pointer の 1 件（既存の `Read` の期待値は 3 引数に更新）、`PickingTests`（光線の向きと画角、カメラの姿勢、不正な入力）、`CharacterMotorTests` に `MoveTo` の 3 件（目的地の 0.5 m 以内に止まり行き過ぎない、`Stop`、目的地が無ければ何もしない）、`ClickToMoveVerificationTests`。
-- 残したもの: `Touch`、実行時に生成する目印（`Spawner`）、ナビメッシュ、`Vehicle`（車両の物理、Landscape の代わりの地面、HUD）、VS のテンプレートへの登録。
+- 残したもの: `Touch`、実行時に生成する目印（`Spawner`。M0105 で実装）、ナビメッシュ、`Vehicle`（車両の物理、Landscape の代わりの地面、HUD）、VS のテンプレートへの登録。
 
 ## 段階 9. Vehicle の移植と VS テンプレートの登録
 - 事実: UE の Vehicle テンプレートは Chaos Vehicle（車輪ごとの物理）で動く。エンジンには車両物理も、画面上の文字も、地形も無い。実コードを見ると、**物理の `Raycast` は静的三角形メッシュに対しても外接ボックス（AABB）としか交差を見ていなかった**（坂の手前の何も無い所にも当たる）。このため、地面に沿って走る車にも、TopDown のクリックにも不正確だった。

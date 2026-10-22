@@ -1,0 +1,207 @@
+using System.Numerics;
+using CSharpGameEngine.Entities;
+using CSharpGameEngine.Graphics.D3D12;
+namespace CSharpGameEngine.Runtime.Windows;
+/// <summary>
+/// ADR-0078/M0105: the drawn objects follow the Entities. <see cref="LevelLoad"/> still builds the renderer from the Entities that
+/// exist when the level loads; from then on this keeps the renderer's objects in step with the world. An Entity that gains a
+/// <see cref="StaticMesh"/> or <see cref="PrimitiveMesh"/> (spawned, or moved to a shape that has one) gets its objects added; when it
+/// is destroyed or loses the mesh, its objects stop being drawn (<see cref="Release"/>, called by the renderable wrappers).
+/// A mesh asset no Entity has used yet is loaded and uploaded the first time one is bound, which costs one frame.
+/// What is not followed: a <see cref="SkeletalMesh"/> spawned later (its skinning pass is set up at renderer creation) and a changed
+/// <see cref="StaticMesh.AssetPath"/> on an Entity that is already drawn.
+/// </summary>
+internal sealed class RenderRoster {
+    private readonly Dictionary<string,StageSceneDataBuilder.AssetTemplate>StaticAssets;
+    private readonly Dictionary<PrimitiveType,int>PrimitiveMeshes;
+    private int PrimitiveMaterial;
+    private readonly HashSet<Entity>Bound=[];
+    private readonly Dictionary<int,StageMeshCreateInfo>EmissiveMeshes=[];
+    private readonly List<(Vector3 Nits,float LuminanceScale)>MaterialEmission=[];
+    private readonly HashSet<string>FailedAssets=new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string>DiagnosticList=[];
+    private bool ReportedSkeletalMesh;
+    private bool ReportedHeadroom;
+    private RenderRoster(StageSceneDataBuilder Scene){
+        this.StaticAssets=new(Scene.StaticAssets,StringComparer.OrdinalIgnoreCase);
+        this.PrimitiveMeshes=new(Scene.PrimitiveMeshIndices);
+        this.PrimitiveMaterial=Scene.PrimitiveMaterialIndex;
+        foreach(var Material in Scene.Materials){
+            this.MaterialEmission.Add(EmissionOf(Material));
+        }
+        for(var Index=0;Index<Scene.Objects.Length;Index++){
+            this.NoteEmissiveMesh(Scene.Objects[Index].MeshIndex,Scene.Objects[Index].MaterialIndex,Scene.Meshes[Scene.Objects[Index].MeshIndex]);
+        }
+        foreach(var Source in Scene.SourceEntities){
+            this.Bound.Add(Source);
+        }
+    }
+    /// <summary>The roster of a level just loaded: every Entity <paramref name="Scene"/> turned into objects counts as bound.</summary>
+    internal static RenderRoster FromScene(StageSceneDataBuilder Scene)=>new(Scene);
+    /// <summary>What went wrong binding an Entity (an asset that did not load, no room left), one line each, for the log and the tests.</summary>
+    internal IReadOnlyList<string>Diagnostics=>this.DiagnosticList;
+    /// <summary>How many objects could not be added because the renderer's headroom was used up.</summary>
+    internal int DroppedObjects { get;private set;}
+    internal bool IsBound(Entity Source)=>this.Bound.Contains(Source);
+    internal static (Vector3 Nits,float LuminanceScale)EmissionOf(in StageMaterialCreateInfo Material)=>(
+        Material.EmissiveNits!=Vector3.Zero?Material.EmissiveNits:Material.EmissiveFactor*100f,
+        Material.EmissiveTextureLuminanceScale);
+    internal static bool IsEmissive(Vector3 Nits)=>Nits.X>0f||Nits.Y>0f||Nits.Z>0f;
+    /// <summary>Whether an Entity still has something to draw: it is alive and has a mesh component.</summary>
+    internal static bool IsDrawnSource(Entity Source,CSharpGameEngine.Entities.World World)=>
+        World.IsAlive(Source)
+        &&(World.TryGetComponent(Source,out StaticMesh _)
+            ||World.TryGetComponent(Source,out PrimitiveMesh _)
+            ||World.TryGetComponent(Source,out CSharpGameEngine.Runtime.Animation.SkeletalMesh _));
+    private void NoteEmissiveMesh(int MeshIndex,int MaterialIndex,StageMeshCreateInfo Mesh){
+        if(IsEmissive(this.MaterialEmission[MaterialIndex].Nits)){
+            this.EmissiveMeshes.TryAdd(MeshIndex,Mesh);
+        }
+    }
+    /// <summary>The wrapper that submits an emissive object's light patches every frame; made at load and for every object bound later.</summary>
+    internal static EmissiveMeshLighting NewEmissiveLighting(Entity Source,StageMeshCreateInfo Mesh,(Vector3 Nits,float LuminanceScale)Emission,
+        Matrix4x4 MeshLocalTransform,Matrix4x4 CameraRelativeWorld,FixedTransformResolveStatus ResolveStatus)=>new(){
+        Mesh=Mesh,
+        EmissiveNits=Emission.Nits,
+        EmissiveTextureLuminanceScale=Emission.LuminanceScale,
+        SourceEntity=Source,
+        HasSourceEntity=true,
+        MeshLocalTransform=MeshLocalTransform,
+        LastCameraRelativeWorld=CameraRelativeWorld,
+        RangeMeters=20f,
+        CastsShadows=true,
+        ShadowPriority=0,
+        ShadowBiasMeters=0.005f,
+        HasLastCameraRelativeWorld=true,
+        LastTransformStatus=FixedTransformStatus.Success,
+        LastWorldResolveStatus=ResolveStatus,
+    };
+    internal void BindStaticMesh(Entity Source,in Transform Transform,in StaticMesh Mesh,EngineHost Host,ref State State){
+        if(this.Bound.Contains(Source)||Host.Renderer is not{ }Renderer){ return; }
+        if(string.IsNullOrEmpty(Mesh.AssetPath)){
+            this.Fail(string.Empty,$"A StaticMesh on {Source} names no asset.");
+            return;
+        }
+        var FullPath=ContentRoot.Resolve(Mesh.AssetPath);
+        if(!this.TryGetStaticAsset(FullPath,Renderer,Host,out var Asset)){ return; }
+        this.BindObjects(Source,in Transform,Asset.Objects,Renderer,Host,ref State);
+    }
+    internal void BindPrimitiveMesh(Entity Source,in Transform Transform,in PrimitiveMesh Mesh,EngineHost Host,ref State State){
+        if(this.Bound.Contains(Source)||Host.Renderer is not{ }Renderer){ return; }
+        if(!this.TryGetPrimitive(Mesh.Type,Renderer,out var MeshIndex,out var MaterialIndex)){ return; }
+        this.BindObjects(Source,in Transform,[new StageSceneDataBuilder.AssetObject(MeshIndex,MaterialIndex,Matrix4x4.Identity)],Renderer,Host,ref State);
+    }
+    /// <summary>A SkeletalMesh found after the level loaded is not drawn; say so once instead of failing silently.</summary>
+    internal void NoteSkeletalMesh(Entity Source){
+        if(this.ReportedSkeletalMesh||this.Bound.Contains(Source)){ return; }
+        this.ReportedSkeletalMesh=true;
+        this.DiagnosticList.Add($"A SkeletalMesh on {Source} appeared after the level loaded. Skinned meshes are set up with the renderer, so it is not drawn.");
+    }
+    /// <summary>Stops drawing one object of <paramref name="Source"/> and lets the Entity bind again if it gets a mesh later.</summary>
+    internal void Release(Entity Source,int ObjectIndex,EngineHost Host){
+        if(ObjectIndex>=0&&Host.Renderer is{ } Renderer){
+            Renderer.RemoveObject(ObjectIndex);
+        }
+        Host.UnregisterRenderObject(Source,ObjectIndex);
+        this.Bound.Remove(Source);
+    }
+    private void BindObjects(Entity Source,in Transform Transform,ReadOnlySpan<StageSceneDataBuilder.AssetObject>Objects,RenderServer Renderer,EngineHost Host,ref State State){
+        // Without a place the object would be drawn at the camera; the Entity is tried again next frame.
+        if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Source,State.World,Host,out var CameraRelative,out var ResolveStatus)!=FixedTransformStatus.Success){ return; }
+        var Added=0;
+        foreach(var Object in Objects){
+            var Index=Renderer.AddObject(Object.MeshIndex,Object.MaterialIndex);
+            if(Index<0){
+                this.DroppedObjects++;
+                if(!this.ReportedHeadroom){
+                    this.ReportedHeadroom=true;
+                    this.DiagnosticList.Add($"The renderer has no room for more than {StageRenderer.DynamicObjectHeadroom} objects added after the level loaded; the rest are not drawn.");
+                }
+                continue;
+            }
+            Renderer.SetObjectTransform(Index,Object.LocalTransform*CameraRelative);
+            Host.RegisterRenderObject(Source,Index);
+            State.World.CreateDeferred(Transform,new Renderable {
+                ObjectIndex=Index,
+                SourceEntity=Source,
+                HasSourceEntity=true,
+                MeshLocalTransform=Object.LocalTransform,
+                HasMeshLocalTransform=true,
+                LastCameraRelativeWorld=CameraRelative,
+                HasLastCameraRelativeWorld=true,
+                LastTransformStatus=FixedTransformStatus.Success,
+                LastWorldResolveStatus=ResolveStatus,
+            });
+            var Emission=this.MaterialEmission[Object.MaterialIndex];
+            if(IsEmissive(Emission.Nits)&&this.EmissiveMeshes.TryGetValue(Object.MeshIndex,out var EmissiveMesh)){
+                State.World.CreateDeferred(Transform,NewEmissiveLighting(Source,EmissiveMesh,Emission,Object.LocalTransform,CameraRelative,ResolveStatus));
+            }
+            Added++;
+        }
+        if(Added>0){ this.Bound.Add(Source); }
+    }
+    private bool TryGetStaticAsset(string FullPath,RenderServer Renderer,EngineHost Host,out StageSceneDataBuilder.AssetTemplate Asset){
+        if(this.StaticAssets.TryGetValue(FullPath,out Asset!)){ return true; }
+        if(this.FailedAssets.Contains(FullPath)){ return false; }
+        List<StageMeshCreateInfo>Meshes=[];
+        List<StageMaterialCreateInfo>Materials=[];
+        StageSceneDataBuilder.AssetTemplate Loaded;
+        try {
+            Loaded=StageSceneDataBuilder.LoadAsset(FullPath,Meshes,Materials);
+        } catch(Exception Error) when(Error is InvalidOperationException or InvalidDataException or IOException){
+            this.Fail(FullPath,Error.Message);
+            return false;
+        }
+        if(Meshes.Any(Mesh=>Mesh.Skin is not null)){
+            this.Fail(FullPath,$"The StaticMesh '{FullPath}' has a skinned mesh, which cannot be added after the level loaded.");
+            return false;
+        }
+        if(Renderer.FreeMaterialSlots<Materials.Count){
+            this.Fail(FullPath,$"The renderer has no room for the {Materials.Count} materials of '{FullPath}'.");
+            return false;
+        }
+        var MeshBase=Renderer.MeshCount;
+        var MaterialBase=Renderer.MaterialCount;
+        foreach(var Mesh in Meshes){
+            Renderer.AddMesh(Mesh);
+        }
+        foreach(var Material in Materials){
+            Renderer.AddMaterial(Material);
+            this.MaterialEmission.Add(EmissionOf(Material));
+        }
+        Host.AppendWorldGridMaterials(MaterialBase,Materials);
+        Asset=new StageSceneDataBuilder.AssetTemplate([.. Loaded.Objects.Select(Object=>new StageSceneDataBuilder.AssetObject(MeshBase+Object.MeshIndex,MaterialBase+Object.MaterialIndex,Object.LocalTransform))]);
+        foreach(var Object in Loaded.Objects){
+            this.NoteEmissiveMesh(MeshBase+Object.MeshIndex,MaterialBase+Object.MaterialIndex,Meshes[Object.MeshIndex]);
+        }
+        this.StaticAssets.Add(FullPath,Asset);
+        return true;
+    }
+    private bool TryGetPrimitive(PrimitiveType Type,RenderServer Renderer,out int MeshIndex,out int MaterialIndex){
+        MaterialIndex=this.PrimitiveMaterial;
+        if(this.PrimitiveMeshes.TryGetValue(Type,out MeshIndex)&&MaterialIndex>=0){ return true; }
+        var Key="primitive:"+Type;
+        if(this.FailedAssets.Contains(Key)){ return false; }
+        if(!Enum.IsDefined(Type)){
+            this.Fail(Key,$"The PrimitiveMesh type {(int)Type} is not a known primitive.");
+            return false;
+        }
+        var (Meshes,Materials,_)=RenderServer.BuildPrimitiveRoster([Type],0,0);
+        if(MaterialIndex<0){
+            if(Renderer.FreeMaterialSlots<1){
+                this.Fail(Key,"The renderer has no room for the primitive material.");
+                return false;
+            }
+            MaterialIndex=Renderer.AddMaterial(Materials[0]);
+            this.PrimitiveMaterial=MaterialIndex;
+            this.MaterialEmission.Add(EmissionOf(Materials[0]));
+        }
+        MeshIndex=Renderer.AddMesh(Meshes[0]);
+        this.PrimitiveMeshes.Add(Type,MeshIndex);
+        return true;
+    }
+    private void Fail(string Key,string Message){
+        this.FailedAssets.Add(Key);
+        this.DiagnosticList.Add(Message);
+    }
+}

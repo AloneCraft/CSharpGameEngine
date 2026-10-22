@@ -34,8 +34,7 @@ internal static class SpatialWorldEmitter {
             }
             Lines.Add($"        for (int Index = 0; Index < this.{Archetype.Name}.Count; Index++) {{");
             Lines.Add($"            this.SynchronizeGlobalSpatialEntity(this.{Archetype.Name}.GetEntityRefUnchecked(Index), this.{Archetype.Name}.Get{SpatialBoundsField}RefUnchecked(Index),");
-            Lines.Add($"                (int EntityId, out {TransformFullyQualifiedName} Transform) => {{");
-            Lines.Add("                    Entity Candidate = new(EntityId);");
+            Lines.Add($"                (Entity Candidate, out {TransformFullyQualifiedName} Transform) => {{");
             Lines.Add("                    if (World.TryGetComponent(Candidate, out Transform)) return true;");
             Lines.Add("                    SceneInstance OwningScene = World.GetOwningScene(Candidate);");
             Lines.Add("                    if (World.IsAlive(Candidate) && !OwningScene.IsNone && World.GetSceneRoot(OwningScene).Equals(Candidate)) {");
@@ -46,9 +45,9 @@ internal static class SpatialWorldEmitter {
             Lines.Add("                    return false;");
             Lines.Add("                },");
             if(ParentIndex>=0){
-                Lines.Add($"                (int EntityId, out int ParentEntityId) => {{ if (World.TryGetComponent(new Entity(EntityId), out {ParentFullyQualifiedName} Parent)) {{ ParentEntityId = Parent.Value.Id; return true; }} ParentEntityId = default; return false; }});");
+                Lines.Add($"                (Entity Candidate, out Entity ParentEntity) => {{ if (World.TryGetComponent(Candidate, out {ParentFullyQualifiedName} Parent)) {{ ParentEntity = Parent.Value; return true; }} ParentEntity = default; return false; }});");
             } else {
-                Lines.Add("                (int EntityId, out int ParentEntityId) => { ParentEntityId = default; return false; });");
+                Lines.Add("                (Entity Candidate, out Entity ParentEntity) => { ParentEntity = default; return false; });");
             }
             Lines.Add("        }");
         }

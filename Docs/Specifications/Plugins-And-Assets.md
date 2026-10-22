@@ -96,6 +96,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 - `IDisposable` なら、`Shutdown`(と `ShutdownEditor`)の最後に、型名の逆順で破棄する。破棄したフィールドは null に戻る。
 - 引数なしで作るサービスだけを使う System は、`EngineHost` を要らない。
 - `EngineHost` のプロパティのサービス(`Audio`、`Hud` など)は今のまま。
+- `sealed` で `IDisposable` でないクラスも使える(後始末は `object` を介して調べる)。エンジン自身の `[EngineService]` に、Scene を実行中に作る `Spawner`(M0105。`Spawner.Spawn<TScene>(位置)`。根に `Transform` を持つ Scene だけが渡せる。`SpawnerFlush` が各フレームの終わりに作る)がある。
 
 ## 6. Cook モジュール(取り込みとベイク)
 - `CSharpGameEngine.Cooking` の `IAssetCooker`(`Name`、`InputExtensions`、`Cook(CookRequest)`)を、public で引数なしのコンストラクターを持つクラスで実装する。

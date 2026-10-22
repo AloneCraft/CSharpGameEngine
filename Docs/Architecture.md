@@ -99,7 +99,7 @@ Roslynにロードされない。
   `samples/` ディレクトリはADR-0034で廃止した。
 - Scene Authoring はプロジェクトの`Scenes`フォルダーにあるシーン JSON(`Scenes\**\*.json`)を正本とする
   (ADR-0070。C#の`IScene`クラスによる方式はM0093 C3bで削除し、残っていればSCENE206)。同じ文書を
-  `GameSystemGenerator`が実行時生成(`Instantiate`)に、VSIXのシーン エディター(Design / JSON の2つのビュー、
+  `GameSystemGenerator`が実行時生成(`Instantiate`、位置つきは`Spawner.Spawn<TScene>`、M0105)に、VSIXのシーン エディター(Design / JSON の2つのビュー、
   ADR-0071)が編集に使う。エディターの書き込みは変わった値だけを元のテキストへ戻し、作者の書式を保つ(M0095)。
   ゲームがビルド済みなら、Scene ビューはゲーム自身のランタイムで描く(ADR-0070 B1)。
 - シーンエディタのインタラクション(ナビゲーション・ピッキング・ギズモ・編集トランザクション)は

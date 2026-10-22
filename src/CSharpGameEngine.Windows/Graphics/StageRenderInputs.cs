@@ -74,6 +74,8 @@ public readonly record struct StageWorldGrid(float GridSizeMeters,int SubGridDiv
 public readonly struct StageObjectCreateInfo {
     public required int MeshIndex { get; init;}
     public required int MaterialIndex { get; init;}
+    /// <summary>The slot is free: the object was removed after creation (M0105). Only the Render Server sets it, when it rebuilds a renderer after a device loss.</summary>
+    public bool Removed { get; init;}
 }
 
 /// <summary>Simplified exponential height fog (ADR-0018): density falls off with height above ground (Y=0), rather than modeling UE's separate second-fog-layer/inscattering-cubemap features.</summary>
