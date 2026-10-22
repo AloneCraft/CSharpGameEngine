@@ -51,6 +51,11 @@ internal sealed class RenderFrameState {
     private int OverlayTriangleCount;
     private int OverlayLineCount;
     private bool HasOverlay;
+    private RenderScreenVertex[]ScreenVertices=[];
+    private RenderScreenBatch[]ScreenBatches=[];
+    private int ScreenVertexCount;
+    private int ScreenBatchCount;
+    private bool HasScreenLayer;
     private RenderCameraPreview[]CameraPreviews=[];
     private int CameraPreviewCount;
     private bool HasCameraPreviews;
@@ -69,6 +74,7 @@ internal sealed class RenderFrameState {
         &&this.WorldGridAnchors.Count==0
         &&!this.HasPresentationMode
         &&!this.HasOverlay
+        &&!this.HasScreenLayer
         &&!this.HasCameraPreviews
         &&this.LightOrder.Count==0
         &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0
@@ -199,6 +205,20 @@ internal sealed class RenderFrameState {
         this.HasOverlay=true;
     }
 
+    public void RecordScreenLayer(ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches){
+        if(this.ScreenVertices.Length<Vertices.Length){
+            this.ScreenVertices=new RenderScreenVertex[Vertices.Length];
+        }
+        if(this.ScreenBatches.Length<Batches.Length){
+            this.ScreenBatches=new RenderScreenBatch[Batches.Length];
+        }
+        Vertices.CopyTo(this.ScreenVertices);
+        Batches.CopyTo(this.ScreenBatches);
+        this.ScreenVertexCount=Vertices.Length;
+        this.ScreenBatchCount=Batches.Length;
+        this.HasScreenLayer=true;
+    }
+
     public void RecordCameraPreviews(ReadOnlySpan<RenderCameraPreview>Previews){
         if(this.CameraPreviews.Length<Previews.Length){
             this.CameraPreviews=new RenderCameraPreview[Previews.Length];
@@ -294,6 +314,11 @@ internal sealed class RenderFrameState {
                 this.OverlayTriangles.AsSpan(0,this.OverlayTriangleCount),
                 this.OverlayLines.AsSpan(0,this.OverlayLineCount));
         }
+        if(this.HasScreenLayer){
+            Renderer.SetScreenLayer(
+                this.ScreenVertices.AsSpan(0,this.ScreenVertexCount),
+                this.ScreenBatches.AsSpan(0,this.ScreenBatchCount));
+        }
         if(this.HasCameraPreviews){
             Renderer.SetCameraPreviews(
                 this.CameraPreviews.AsSpan(0,this.CameraPreviewCount));
@@ -313,6 +338,9 @@ internal sealed class RenderFrameState {
         this.WorldGridAnchors.Clear();
         this.HasPresentationMode=false;
         this.HasOverlay=false;
+        this.HasScreenLayer=false;
+        this.ScreenVertexCount=0;
+        this.ScreenBatchCount=0;
         this.HasCameraPreviews=false;
         this.OverlayTriangleCount=0;
         this.OverlayLineCount=0;

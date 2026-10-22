@@ -3,7 +3,7 @@ using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 public sealed class VehicleDriveVerificationTests {
     /// <summary>A report shaped like the template run: the camera follows a car that drives forward and bends right while it is steered.</summary>
-    private static JsonElement Report(float TravelMeters=60f,float TurnDegrees=12f,float Height=2.7f,int D3D12Errors=0,int Frames=VehicleDriveVerification.Frames,bool Stationary=false){
+    private static JsonElement Report(float TravelMeters=60f,float TurnDegrees=12f,float Height=2.7f,int D3D12Errors=0,int Frames=VehicleDriveVerification.Frames,bool Stationary=false,int HudStates=20,bool WithHud=true){
         var Positions=new List<float[]?>();
         var R=44.5f;
         var F=6f;
@@ -24,7 +24,11 @@ public sealed class VehicleDriveVerificationTests {
             }
             Positions.Add([R,Height,F]);
         }
-        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions });
+        // 走り出す前は一定の画面、走り出したあとは HudStates 通りの文字の画面(0 は何も描かない)。
+        var Fingerprints=Enumerable.Range(0,Frames).Select(Frame=>Frame<VehicleDriveVerification.ThrottleStartFrame?"00000000000000aa":HudStates==0?"0000000000000000":((Frame%HudStates)+1).ToString("x16")).ToArray();
+        var Json=WithHud
+            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions,screenLayerFingerprints=Fingerprints })
+            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions });
         return JsonDocument.Parse(Json).RootElement.Clone();
     }
     [Fact]
@@ -48,6 +52,18 @@ public sealed class VehicleDriveVerificationTests {
         var Failures=VehicleDriveVerification.Evaluate(Report(Stationary:true),out _);
         Assert.Contains(Failures,Failure=>Failure.Contains("Holding W",StringComparison.Ordinal));
         Assert.Contains(Failures,Failure=>Failure.Contains("heading is unknown",StringComparison.Ordinal));
+    }
+    [Theory]
+    [InlineData(1,"HUD took")]
+    [InlineData(0,"HUD took")]
+    public void Evaluate_ReportsAHudThatDoesNotChange(int States,string Expected){
+        var Failures=VehicleDriveVerification.Evaluate(Report(HudStates:States),out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains(Expected,StringComparison.Ordinal));
+    }
+    [Fact]
+    public void Evaluate_ReportsAMissingHudRecord(){
+        var Failures=VehicleDriveVerification.Evaluate(Report(WithHud:false),out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains("screenLayerFingerprints",StringComparison.Ordinal));
     }
     [Fact]
     public void Evaluate_RejectsAShortReport(){

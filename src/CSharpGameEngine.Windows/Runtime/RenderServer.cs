@@ -77,6 +77,7 @@ public sealed class RenderServer:IDisposable {
     public uint FramesRendered=>this.Backend.FramesRendered;
     public ulong CompletedFence=>this.LastCompletedFence;
     public int ResidentMaterialTextureCount=>this.Backend.ResidentMaterialTextureCount;
+    public int ResidentScreenTextureCount=>this.Backend.ResidentScreenTextureCount;
     public PixelReadbackResult?LastCapturedFrame=>this.Backend.LastCapturedFrame;
     /// <summary>
     /// Canonical L4 declaration for the configured compatibility pipeline. The current D3D12
@@ -256,6 +257,12 @@ public sealed class RenderServer:IDisposable {
         ReadOnlySpan<RenderOverlayVertex>Lines){
         this.Backend.SetOverlay(Triangles,Lines);
         this.PendingFrame.RecordOverlay(Triangles,Lines);
+    }
+
+    /// <summary>The game's UI over the finished frame (ADR-0078/M0104). Set it every frame; a frame without it draws none.</summary>
+    public void SetScreenLayer(ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches){
+        this.Backend.SetScreenLayer(Vertices,Batches);
+        this.PendingFrame.RecordScreenLayer(Vertices,Batches);
     }
 
     public void SetCameraPreviews(ReadOnlySpan<RenderCameraPreview>Previews){

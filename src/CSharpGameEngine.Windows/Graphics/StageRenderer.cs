@@ -56,7 +56,7 @@ public readonly struct MeshCreateInfo {
 /// subsumed by the new one (a 1x1 fallback texture per slot reproduces the old solid-color look
 /// exactly), so a third copy of the swap chain/RTV/DSV/fence/Resize plumbing would add no value.
 /// </summary>
-public sealed unsafe class StageRenderer:IDisposable {
+public sealed unsafe partial class StageRenderer:IDisposable {
     public const int FrameCount=2;
     private const int CameraPassCount=1+RenderCameraPreview.MaximumCount;
     public const DXGI_FORMAT BackBufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -766,10 +766,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.CreateRootSignature();
         this.CreateShadowRootSignature();
         this.CreatePostProcessRootSignature();
+        this.CreateScreenRootSignature();
         this.CreatePipelineState();
         this.CreateRadialPipelineStates();
         this.CreateShadowPipelineState();
         this.CreatePostProcessPipelineState();
+        this.CreateScreenPipelineState();
         this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateMeshBuffers(Meshes);
         this.CreateMaterialResources(Materials);
@@ -938,6 +940,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.OverlayPixelShaderBytecode=Package.GetBytecode("OverlayPSMain");
         this.FullscreenVertexShaderBytecode=Package.GetBytecode("FullscreenVS");
         this.PostProcessPixelShaderBytecode=Package.GetBytecode("PostProcessPS");
+        this.ApplyScreenShaders(Package);
         this.ShadowVertexShaderBytecode=Package.GetBytecode("VSShadowMain");
         this.RadialPixelShaderBytecode=Package.GetBytecode("RadialPSMain");
         this.PreviewRadialPixelShaderBytecode=Package.GetBytecode("PreviewRadialPSMain");
@@ -984,12 +987,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldOverlayLinePipelineState=this.OverlayLinePipelineState;
         var OldShadowPipelineState=this.ShadowPipelineState;
         var OldPostProcessPipelineState=this.PostProcessPipelineState;
+        var OldScreenVertexShader=this.ScreenVertexShaderBytecode;
+        var OldScreenPixelShader=this.ScreenPixelShaderBytecode;
+        var OldScreenPipelineState=this.ScreenPipelineState;
         try{
             this.ApplyShaderArtifact(Package);
             this.CreatePipelineState();
             this.CreateRadialPipelineStates();
             this.CreateShadowPipelineState();
             this.CreatePostProcessPipelineState();
+            this.CreateScreenPipelineState();
             this.WaitForGpuIdle();
             ReleaseRadialPipelineStates(OldRadialPipelineStates);
             if(OldPipelineState!=null){ _=OldPipelineState->Release(); }
@@ -1001,6 +1008,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(OldOverlayLinePipelineState!=null){ _=OldOverlayLinePipelineState->Release(); }
             if(OldShadowPipelineState!=null){ _=OldShadowPipelineState->Release(); }
             if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
+            if(OldScreenPipelineState!=null){ _=OldScreenPipelineState->Release(); }
             this.CommitShaderArtifact(Package);
         }catch(Exception Exception){
             this.VertexShaderBytecode=OldVertexShader;
@@ -1017,6 +1025,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.PreviewCleanRadialPixelShaderBytecode=OldPreviewCleanRadialPixelShader;
             this.RadialObserverVertexShaderBytecode=OldRadialObserverVertexShader;
             this.RadialVertexShaderBytecode=OldRadialVertexShader;
+            this.ScreenVertexShaderBytecode=OldScreenVertexShader;
+            this.ScreenPixelShaderBytecode=OldScreenPixelShader;
+            if(this.ScreenPipelineState!=OldScreenPipelineState){ _=this.ScreenPipelineState->Release();this.ScreenPipelineState=OldScreenPipelineState; }
             if(this.RadialPipelineStates!=OldRadialPipelineStates){
                 ReleaseRadialPipelineStates(this.RadialPipelineStates);
                 this.RadialPipelineStates=OldRadialPipelineStates;
@@ -1212,6 +1223,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void CreatePostProcessRootSignature(){
+        this.PostProcessRootSignature=this.CreateSrvAndConstantsRootSignature(D3D12_ROOT_SIGNATURE_FLAG_NONE,nameof(this.CreatePostProcessRootSignature));
+    }
+
+    /// <summary>
+    /// The root signature of the passes that read one texture and four constants: 0 = pixel SRV table t0, 1 = four 32-bit constants b0, and a
+    /// linear clamp sampler s0. The post-process pass uses it as is; the screen layer adds the input-assembler flag.
+    /// </summary>
+    private ID3D12RootSignature*CreateSrvAndConstantsRootSignature(D3D12_ROOT_SIGNATURE_FLAGS Flags,string Context){
         D3D12_DESCRIPTOR_RANGE SceneRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
             NumDescriptors=1,
@@ -1249,6 +1268,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             pParameters=RootParams,
             NumStaticSamplers=1,
             pStaticSamplers=&Sampler,
+            Flags=Flags,
         };
 
         ID3DBlob*SignatureBlob=null;
@@ -1256,11 +1276,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         try {
             D3D12Diagnostics.EnsureSuccess(
                 D3D12SerializeRootSignature(&RootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION_1,&SignatureBlob,&ErrorBlob),
-                nameof(this.CreatePostProcessRootSignature),nameof(this.CreatePostProcessRootSignature));
+                Context,Context);
             ID3D12RootSignature*Signature;
             D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),
-                nameof(this.CreatePostProcessRootSignature),nameof(this.CreatePostProcessRootSignature));
-            this.PostProcessRootSignature=Signature;
+                Context,Context);
+            return Signature;
         } finally {
             if(SignatureBlob!=null){ _=SignatureBlob->Release(); }
             if(ErrorBlob!=null){ _=ErrorBlob->Release(); }
@@ -4095,6 +4115,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         this.CommandList->DrawInstanced(3,1,0,0);
         this.RenderOverlay();
+        this.DrawScreenLayer();
 
         if(CaptureForVerification){
             this.EnsureReadbackBuffer();
@@ -4314,6 +4335,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             _= this.ObjectConstantsBuffer->Release();
             this.ObjectConstantsBuffer=null;
         }
+        this.ReleaseScreenResources();
         if(this.OverlayVertexBuffer!=null){
             this.OverlayVertexBuffer->Unmap(0,null);
             this.OverlayVertexMapped=null;

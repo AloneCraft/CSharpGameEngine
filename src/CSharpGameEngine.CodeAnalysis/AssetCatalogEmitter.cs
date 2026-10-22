@@ -10,7 +10,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <summary>
 /// ADR-0077 stage 7: <c>Assets/</c> の下のファイルから、型付きのアセット参照 <c>Assets.Sounds.Jump</c> を生成する。
 /// ファイルの一覧(AdditionalFiles)だけを使い、中身は読まない。<c>.wav</c> は <c>SoundAsset</c>、<c>.glb</c>/<c>.gltf</c>/<c>.fbx</c> は
-/// <c>ModelAsset</c>、<c>.png</c>/<c>.jpg</c> は <c>TextureAsset</c>。シーン JSON が <c>"Assets/…"</c> で書いたパスに対応するファイルが
+/// <c>ModelAsset</c>、<c>.png</c>/<c>.jpg</c> は <c>TextureAsset</c>、<c>.cgefont</c> は <c>FontAsset</c>。シーン JSON が <c>"Assets/…"</c> で書いたパスに対応するファイルが
 /// 無ければ SCENE208(エラー)にする。
 /// </summary>
 internal static class AssetCatalogEmitter {
@@ -68,6 +68,7 @@ internal static class AssetCatalogEmitter {
             ".wav"=>"SoundAsset",
             ".glb" or ".gltf" or ".fbx"=>"ModelAsset",
             ".png" or ".jpg" or ".jpeg"=>"TextureAsset",
+            ".cgefont"=>"FontAsset",
             DataAssetExtension=>DataAssetKind,
             _=>null,
         };

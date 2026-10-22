@@ -59,6 +59,7 @@
     <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Character\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Character\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Character\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Character\" />
     <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Lighting\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Lighting\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Lighting\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Lighting\" />
     <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Windows\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Windows\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Windows\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Windows\" />
+    <None Include="$(CgeRepositoryRoot)assets\Fonts\*" Pack="true" PackagePath="assets\Fonts\" />
     <None Include="$(CgeRepositoryRoot)assets\Shaders\*.cgeshadergraph;$(CgeRepositoryRoot)assets\Shaders\*.cgesubgraph;$(CgeRepositoryRoot)assets\Shaders\*.hlsl;$(CgeRepositoryRoot)assets\Shaders\*.hlsli" Pack="true" PackagePath="assets\Shaders\" />
   </ItemGroup>
   <!-- Builds the engine libraries, the analyzer and the shader compiler, then adds their outputs to the package. -->

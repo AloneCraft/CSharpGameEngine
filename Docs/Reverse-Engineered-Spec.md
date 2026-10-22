@@ -396,3 +396,17 @@
   - `.cgeasset` は `schemaVersion` 3 だけを受け、型は `[DataAsset]` の非ジェネリックの struct か class。値はシーンの Component と同じ式になり、カタログの `public static readonly T 名前 = 式;` になる。問題があればその項目を出さない。
   - パッケージから作ったゲーム（ThirdPerson + Weather + Lightning）の 888 tick: Weather の更新 888 回・雨量 2664.0、Lightning の落雷 888 回・エネルギー 17760.0。名前を挙げていない Vehicles は生成コードに現れない。
 - Result: Matches ADR-0079。
+
+## RE-M0104 — 画面 UI
+
+- Confidence: High(単体テスト、WARP の画像と指紋、パッケージから作ったゲームの実行で確認)。実機の GPU は未確認
+- Evidence: `ScreenUi.cs`、`RuntimeSystems.cs`(`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`)、`StageRenderer.ScreenLayer.cs`、`StagePresentationShaderSource`(`ScreenVSMain`・`ScreenPSMain`)、`FontAtlas`、`ScreenTextLayout`、`FontBaker`
+- Observed behavior:
+  - 要素は、レイヤーの昇順、同じレイヤーでは集めた順に並ぶ。隣り合う同じテクスチャと同じシェーディングはバッチにまとまる。非表示の要素、空の文字、大きさが 0 以下の文字、非有限の値、幅か高さが負の画像は描かない。
+  - 短辺 1080 を基準に、`min(幅, 高さ) / 1080`(0.1〜8 に制限)で大きさとオフセットを拡縮する。四角形の左上は整数の画素に丸める。
+  - 文字は 1 グリフ 6 頂点、空白は頂点を出さない。字詰めは無い。無い文字は `?`。
+  - 読めないフォントと画像は、1 回だけ診断(標準エラーにも `CGE-SCREEN-UI`)を出して、その要素を描かない。
+  - レイヤーはそのフレームだけ有効。`Build` は集めた要素を忘れる。
+  - 指紋は頂点のバイト列の FNV-1a(64 ビット)で、レポートには 16 桁の 16 進で入る。
+  - Vehicle の HUD: 速度は |前進速度| × 3.6 を偶数丸め(MidpointRounding.ToEven)して 3 桁のゼロ詰め(1000 で巻き戻る)、ギアは後退 R・ニュートラル N・前進は段の数字。
+- Result: Matches ADR-0078(M0104)。

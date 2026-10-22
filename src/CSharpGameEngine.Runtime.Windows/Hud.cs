@@ -1,7 +1,7 @@
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
 /// ゲームが画面に出す情報の入口(ADR-0077)。System の引数に <c>Hud Hud</c> と書くと、生成されたループが <c>EngineHost.Hud</c> を渡す。
-/// 画面上の文字(UIの描画)はまだ無いので、今はウィンドウのタイトルバーに出す。車の速度計がこれを使う。
+/// 画面の文字は <c>ScreenText</c>(M0104)で出す。これはウィンドウのタイトルバーに出す、デバッグ用の簡単な経路。
 /// 同じ文字を毎フレーム渡しても、変わったときにだけウィンドウを更新する。
 /// </summary>
 public sealed class Hud {

@@ -24,6 +24,7 @@
     <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
     <CgeIncludeDefaultStageShaders Condition="'$(CgeIncludeDefaultStageShaders)' == ''">true</CgeIncludeDefaultStageShaders>
     <CgeCopyAssets Condition="'$(CgeCopyAssets)' == ''">true</CgeCopyAssets>
+    <CgeIncludeDefaultFonts Condition="'$(CgeIncludeDefaultFonts)' == ''">true</CgeIncludeDefaultFonts>
     <!-- The shared engine sources need these outside the repository, where Directory.Build.props does not apply. -->
     <LangVersion Condition="'$(LangVersion)' == ''">14</LangVersion>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
@@ -51,7 +52,7 @@
     <AdditionalFiles Include="Scenes\**\*.json" />
     <!-- ADR-0077: the file list of Assets (not the contents) becomes the typed catalog Assets.* and lets the generator check
          the paths that scenes name. -->
-    <AdditionalFiles Include="Assets\**\*.wav;Assets\**\*.glb;Assets\**\*.gltf;Assets\**\*.fbx;Assets\**\*.png;Assets\**\*.jpg;Assets\**\*.jpeg" Exclude="Assets\Editor\**" />
+    <AdditionalFiles Include="Assets\**\*.wav;Assets\**\*.glb;Assets\**\*.gltf;Assets\**\*.fbx;Assets\**\*.png;Assets\**\*.jpg;Assets\**\*.jpeg;Assets\**\*.cgefont" Exclude="Assets\Editor\**" />
     <!-- ADR-0079: a data asset's contents are read too; the generator compiles each into its [DataAsset] type's value. -->
     <AdditionalFiles Include="Assets\**\*.cgeasset" />
     <CompilerVisibleProperty Include="ProjectDir" />
@@ -82,6 +83,11 @@
     <CgeComputeShader Include="$(CgeEngineShaderRoot)AmbientOcclusion.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)LuminanceHistogram.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Skinning.hlsl" />
+  </ItemGroup>
+
+  <!-- ADR-0078/M0104: the engine's baked fonts (Roboto Regular and Light) land in Fonts\ next to the game, where ScreenText looks. -->
+  <ItemGroup Condition="'$(CgeIncludeDefaultFonts)' == 'true'">
+    <None Include="$(CgeEngineRoot)assets\Fonts\*.cgefont" Link="Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">

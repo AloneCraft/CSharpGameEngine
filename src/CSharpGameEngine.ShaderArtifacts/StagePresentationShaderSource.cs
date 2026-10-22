@@ -240,5 +240,52 @@ float4 OverlayPSMain(OverlayVertexOutput input) : SV_Target
 {
     return input.Color;
 }
+
+struct ScreenVertexInput
+{
+    float2 Position : POSITION;
+    float2 Uv : TEXCOORD0;
+    float4 Color : COLOR;
+};
+
+struct ScreenVertexOutput
+{
+    float4 Position : SV_Position;
+    float2 Uv : TEXCOORD0;
+    float4 Color : COLOR;
+};
+
+// The screen layer (M0104): the game's UI over the tone-mapped frame. It uses the post-process root signature:
+// t0 is the batch's texture, s0 a linear clamp sampler and b0 four root constants (x: 0 image, 1 distance field).
+Texture2D ScreenTexture : register(t0);
+SamplerState ScreenSampler : register(s0);
+cbuffer ScreenCB : register(b0)
+{
+    float4 ScreenParams;
+}
+
+// The vertex positions arrive already in clip space: the renderer converts the layer's pixels when it receives them.
+ScreenVertexOutput ScreenVSMain(ScreenVertexInput input)
+{
+    ScreenVertexOutput output;
+    output.Position = float4(input.Position, 0.0, 1.0);
+    output.Uv = input.Uv;
+    output.Color = input.Color;
+    return output;
+}
+
+float4 ScreenPSMain(ScreenVertexOutput input) : SV_Target
+{
+    float4 texel = ScreenTexture.Sample(ScreenSampler, input.Uv);
+    if (ScreenParams.x > 0.5)
+    {
+        // Distance field: 0.5 is the outline. One pixel of the screen is fwidth(distance) of distance, so the edge is one pixel wide.
+        float distance = texel.a;
+        float edgeWidth = max(fwidth(distance), 1.0 / 255.0);
+        float coverage = smoothstep(0.5 - edgeWidth, 0.5 + edgeWidth, distance);
+        return float4(input.Color.rgb, input.Color.a * coverage);
+    }
+    return texel * input.Color;
+}
 """;
 }

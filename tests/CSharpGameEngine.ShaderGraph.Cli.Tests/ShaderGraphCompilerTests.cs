@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,14 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,16 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -49,6 +49,11 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="PreviewCleanPSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayPSMain");
+                // M0104: the screen layer's entries (ADR-0078).
+                Assert.Contains("ScreenVSMain",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("ScreenPSMain",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenVSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenPSMain");
                 // M0099 / ADR-0076: the radial entries exist and every radial pixel entry writes the radial depth; the
                 // main-pass ones declare it at least the conservative raster depth so early rejection still works.
                 foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain"}) {

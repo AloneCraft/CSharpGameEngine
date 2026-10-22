@@ -4676,3 +4676,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 3 つの置き場所のプラグイン、`[EngineService]`、`[DataAsset]`、Library の DLL、Cook の CLI、Component の上限 512、エンジンのプラグイン Vehicles、`#`・`;` を含むフォルダのゲーム。
 - Conformance: Matches（Cook と Designer の残りは文書化した未実装）
 - Next action: M0104（画面 UI）。Cook の実際の利用は M0106（ナビメッシュ）。
+
+## F-L5-040 — 画面 UI(文字と画像の重ね描き)
+
+- Layer: L5 — Runtime(`ScreenText`・`ScreenImage`・`ScreenUi`)、L0 — 描画(画面レイヤー)、L7(フォントの焼き込み)
+- Parent capability: Windows Runtime / StageRenderer
+- Status: Implemented
+- Verification: TestVerified + 実走(WARP。`VehicleDriveVerification`、`verify-template-package --template Vehicle`)
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Specifications/Rendering.md#screen-layer`、`Docs/Milestones/M0104-Screen-UI.md`
+- Implementation evidence:
+  - `src/CSharpGameEngine.Rendering/RenderScreenLayer.cs`、`Fonts/FontAtlas.cs`、`Fonts/ScreenTextLayout.cs`
+  - `src/CSharpGameEngine.Windows/Graphics/StageRenderer.ScreenLayer.cs`、`StageRenderer.cs`(画面用のルートシグネチャとパイプライン)、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`
+  - `src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`(`stage-v11`)
+  - `src/CSharpGameEngine.Runtime.Windows/ScreenUi.cs`、`RuntimeSystems.cs`(`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`)、`EngineHost.cs`、`RuntimeAutomation.cs`(`screenLayerFingerprints`)
+  - `tools/CSharpGameEngine.FontBaker/`、`assets/Fonts/`、`build/CSharpGameEngine.Game.props`(`CgeIncludeDefaultFonts`)、`AssetCatalogEmitter.cs`(`FontAsset`)
+  - `Templates/CSharpGameEngine.Templates.Vehicle/Gameplay/Speedometer.cs`、`Scenes/SportsCar.json`
+- Tests: `FontAtlasTests`、`FontBakerTests`、`ScreenUiTests`、`ScreenLayerTests`、`AssetCatalogTests`、`ShaderGraphCompilerTests`、`VehicleDriveVerificationTests`
+- Current delta: 文字(SDF のフォント)と画像・矩形を、描き終えたフレームの上に UMG のアンカーとピボットで置ける。Vehicle の HUD は画面の文字になった。
+- Conformance: Matches(ADR-0078 の範囲。9 分割の画像、字詰め、ASCII と Latin-1 の外の文字、入力を受ける UI は未実装)
+- Next action: M0105(実行時の生成と使い捨てエフェクト)。

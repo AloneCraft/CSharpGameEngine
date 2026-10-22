@@ -80,6 +80,21 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// <summary>画面に出す情報の入口(ADR-0077)。System の引数に <c>Hud</c> と書くと、これが渡される。</summary>
     public Hud Hud=>this.HudStorage??=new Hud(this);
     internal void SetWindowTitle(string Title)=>this.Window?.SetTitle(Title);
+    private ScreenUi?UiStorage;
+    /// <summary>画面に文字と画像を出す入口(ADR-0078/M0104)。System の引数に <c>ScreenUi</c> と書くと、これが渡される。</summary>
+    public ScreenUi Ui=>this.UiStorage??=new ScreenUi(this);
+    /// <summary>このフレームに集まった画面 UI をレンダラーへ渡す。何も無ければ画面レイヤーは設定しない(そのフレームは UI を描かない)。</summary>
+    internal void SubmitScreenUi(){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.ScreenLayerFingerprint=0;
+        if(this.UiStorage is not { }Ui||this.Renderer is not { }Surface){ return; }
+        if(Ui.Build(Surface.SurfaceWidth,Surface.SurfaceHeight,out var Vertices,out var Batches)){
+            Surface.SetScreenLayer(Vertices,Batches);
+            if(this.Automation is not null){ this.ScreenLayerFingerprint=ScreenUi.Fingerprint(Vertices); }
+        }
+    }
+    /// <summary>自動検証が読む、このフレームの画面レイヤーの頂点の指紋(UI が無いフレームは 0)。</summary>
+    internal ulong ScreenLayerFingerprint { get;private set; }
     private Picking?PickingStorage;
     /// <summary>ポインターの下の物を求める入口(ADR-0077)。System の引数に <c>Picking</c> と書くと、これが渡される。</summary>
     public Picking Picking=>this.PickingStorage??=new Picking(this);
@@ -326,7 +341,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         if((this.ExternalSurface is not null||this.Window is { IsMinimized:false })&&this.Renderer is { } Renderer){
             this.SubmitEnvironment(Renderer);
             Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
-            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition(),this.Sound.FlushedRequests,this.AudioDevice?.OneShotsStarted??0);
+            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition(),this.Sound.FlushedRequests,this.AudioDevice?.OneShotsStarted??0,this.ScreenLayerFingerprint);
         }
         return this.Automation is not { Completed:true };
     }

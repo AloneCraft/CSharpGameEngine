@@ -25,6 +25,8 @@ public static class VehicleDriveVerification {
     /// <summary>カメラの高さの範囲(m)。地面の上の車の後ろの高さは約2.7 m。地面の抜けや空への飛び出しを弾く。</summary>
     public const float MinimumCameraHeight=1f;
     public const float MaximumCameraHeight=6f;
+    /// <summary>走り出したあとのHUD(速度とギアの文字)の画面レイヤーが、これだけ違う状態を取る。速度の数字が変わるので、止まったままの画面では満たせない。</summary>
+    public const int MinimumHudStates=3;
     public static string InputSchedule=>string.Create(CultureInfo.InvariantCulture,$"W@{ThrottleStartFrame}-{ThrottleEndFrame};D@{SteerStartFrame}-{SteerEndFrame}");
     public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Executable=ThirdPersonCharacterVerification.ExecutablePath(RepositoryRoot,Configuration,"Vehicle");
@@ -90,9 +92,10 @@ public static class VehicleDriveVerification {
         var Straight=Heading(Positions[StraightFrom]!,Positions[StraightTo]!);
         var Turned=Heading(Positions[TurnedFrom]!,Positions[TurnedTo]!);
         var Turn=Straight is { } Before&&Turned is { } After?AngleBetween(Before,After):float.NaN;
+        var HudStates=DistinctHudStates(Report,out var HudRecorded);
         var Lowest=Positions.Skip(ThrottleStartFrame-1).Min(static Position=>Position![1]);
         var Highest=Positions.Skip(ThrottleStartFrame-1).Max(static Position=>Position![1]);
-        Summary=string.Create(CultureInfo.InvariantCulture,$"travel={Travel:F3} turn={Turn:F1} lowest={Lowest:F3} highest={Highest:F3} d3d12Errors={Errors}");
+        Summary=string.Create(CultureInfo.InvariantCulture,$"travel={Travel:F3} turn={Turn:F1} lowest={Lowest:F3} highest={Highest:F3} hudStates={HudStates} d3d12Errors={Errors}");
         if(Travel<MinimumTravelMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Holding W moved the camera {Travel:F3} m horizontally; expected at least {MinimumTravelMeters} m."));
         }
@@ -105,7 +108,19 @@ public static class VehicleDriveVerification {
         if(Lowest<MinimumCameraHeight||Highest>MaximumCameraHeight){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera height ranged from {Lowest:F3} to {Highest:F3} m; expected {MinimumCameraHeight} to {MaximumCameraHeight} m (the car should stay on the ground)."));
         }
+        if(!HudRecorded){
+            Failures.Add("The report has no screenLayerFingerprints; the HUD cannot be judged.");
+        }
+        else if(HudStates<MinimumHudStates){
+            Failures.Add($"The HUD took {HudStates} distinct state(s) after the car started; expected at least {MinimumHudStates} (the speed readout should change while driving).");
+        }
         return Failures;
+    }
+    /// <summary>走り出したあとのフレームで、画面レイヤーの指紋(0=何も描かない)が取った、0でない値の種類の数。</summary>
+    private static int DistinctHudStates(JsonElement Report,out bool Recorded){
+        Recorded=Report.TryGetProperty("screenLayerFingerprints",out var Fingerprints)&&Fingerprints.ValueKind==JsonValueKind.Array;
+        if(!Recorded){ return 0; }
+        return Fingerprints.EnumerateArray().Skip(ThrottleStartFrame-1).Select(static Item=>Item.GetString()).Where(static Text=>!string.IsNullOrEmpty(Text)&&Text!="0000000000000000").Distinct(StringComparer.Ordinal).Count();
     }
     private static float Planar(float[]From,float[]To)=>MathF.Sqrt(((To[0]-From[0])*(To[0]-From[0]))+((To[2]-From[2])*(To[2]-From[2])));
     /// <summary>水平な移動の向き(単位ベクトル)。ほとんど動いていなければ null。</summary>

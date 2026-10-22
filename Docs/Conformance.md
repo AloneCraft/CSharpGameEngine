@@ -4035,3 +4035,15 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`（.editorconfig の往復を含む）、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`、`CookerHostTests`、`PluginPackageVerificationTests`、`verify-plugin-package`、`verify-template-package --template Vehicle`。
 - 既知の差: Cook のビルド中の実行と VSIX のボタン、データアセットの Designer での編集、プラグインの一覧の表示、NuGet のプラグインの Library の DLL を実行時のプレビューが確実に読むことは未実装。
 - 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-22 探索 — 画面 UI(ADR-0078、M0104)
+- 意図: UE の `UI_Vehicle` のような画面の文字と画像を、描き終えたフレームの上に重ねる。Vehicle の速度計をタイトルバーから画面へ移す。
+- 観測(Fact):
+  - D3D12 のデバッグ層は、`ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT` の無いルートシグネチャで頂点バッファのパイプラインを使うと MISSING_ROOT_SIGNATURE_FLAGS を出した。画面用に別のルートシグネチャを作って消えた。
+  - 距離変換は全探索と一致した。円盤の試験の最初の期待値は、画素の中心を数え違えていた(試験の誤りで、実装は正しかった)。
+  - Roboto の Regular と Light を焼いて、走行中の Vehicle は `3` と `073 Km/h` を描いた。停止時は `N` と `000`。
+  - WARP で 60 フレーム: 画面レイヤーの状態は 28 種類、移動 48.281 m、曲がり 38.3°、D3D12 のエラー 0。SDK パッケージから作った My Vehicle も同じで、`Fonts\` はパッケージ経由で届いた。
+- 実装: M0104。
+- 自動化された証拠: `FontAtlasTests`、`FontBakerTests`(17)、`ScreenUiTests`、`ScreenLayerTests`(WARP)、`AssetCatalogTests`、`ShaderGraphCompilerTests`、`VehicleDriveVerificationTests`、`verify-template-package --template Vehicle`。全テスト失敗 0。
+- 既知の差: 9 分割の画像、字詰め、ASCII・Latin-1・一部の約物の外の文字(日本語を含む)、入力を受ける UI。実機の GPU での見た目とフレーム時間は測っていない(WARP のみ)。Vehicle の車・床・壁は、材質に絵柄が無く灰色に見える(画面 UI とは別の事象で、原因は未調査)。
+- 結果: MatchesWithDocumentedExtension。

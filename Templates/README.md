@@ -102,7 +102,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 | ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方 |
 | FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
 | TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch`・クリック位置の目印(`Spawner`)は未実装。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索はせず直線で歩く(`MoveIntent.MoveTo`) |
-| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。画面上の文字が無いので `Speedometer` は `Hud` でタイトルバーに出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
+| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。速度とギアは画面の文字(`ScreenText`。UI_Vehicle の配置、M0104)で出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
 
@@ -158,7 +158,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 
 ### エンジンに存在しないもの
 - 実行時スポーンの描画: `LevelLoad` が描画物の一覧を初回に固定する(`RuntimeSystems.cs` L259/L372)ため、後から出したメッシュは描画されない。
-- TopDown の経路探索(直線で歩く `MoveTo` のみ) / Vehicle の Chaos 相当の車両物理(簡易モデルのみ) / `ScreenText`(`Hud` がタイトルバーに出すだけ) / `Terrain`。
+- TopDown の経路探索(直線で歩く `MoveTo` のみ) / Vehicle の Chaos 相当の車両物理(簡易モデルのみ) / `Terrain`。
 - 潜在バグ: `FixedTransform.cs` L251/L268 が `new Entity(EntityId)` で Generation=1 固定のため、スロット再利用後の Entity の位置解決が失敗する疑い。実行時に生成・破棄を繰り返す前に要確認。
 
 ### 共通コード

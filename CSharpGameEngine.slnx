@@ -149,6 +149,9 @@
     <File Path="assets/Shaders/Shadow.cgesubgraph" />
     <File Path="assets/Shaders/Pcss.cgesubgraph" />
     <File Path="assets/Shaders/Aces.cgesubgraph" />
+    <File Path="assets/Fonts/Roboto-Regular.cgefont" />
+    <File Path="assets/Fonts/Roboto-Light.cgefont" />
+    <File Path="assets/Fonts/ROBOTO_LICENSE.txt" />
     <File Path="assets/TestFixtures/Gltf/Box.glb" />
     <File Path="assets/TestFixtures/Gltf/BoxTextured.glb" />
     <File Path="assets/TestFixtures/Gltf/Triangle.gltf" />
@@ -217,6 +220,7 @@
     <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Numerics.Tests/CSharpGameEngine.Numerics.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Rendering.Tests/CSharpGameEngine.Rendering.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.FontBaker.Tests/CSharpGameEngine.FontBaker.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj">
       <Platform Project="AnyCPU" />
     </Project>
@@ -297,6 +301,7 @@
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj" />
+    <Project Path="tools/CSharpGameEngine.FontBaker/CSharpGameEngine.FontBaker.csproj" />
     <Project Path="tools/CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj">
       <Platform Project="x64" />
     </Project>

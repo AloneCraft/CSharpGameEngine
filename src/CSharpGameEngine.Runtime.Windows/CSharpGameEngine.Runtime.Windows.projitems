@@ -14,6 +14,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Audio.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Picking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Hud.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ScreenUi.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeWorldTransform.cs" />
@@ -30,5 +31,7 @@
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\Level.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PlayerStart.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\Renderable.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\ScreenImage.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\ScreenText.svg" />
   </ItemGroup>
 </Project>

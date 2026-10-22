@@ -197,6 +197,94 @@
           }
         ],
         "children": []
+      },
+      {
+        "id": "0ba571b2-93d5-481c-a431-b193ba71a89b",
+        "name": "Hud_SpeedValue",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.ScreenText",
+            "members": {
+              "Text": "000",
+              "Font": "Fonts/Roboto-Regular.cgefont",
+              "Size": 40,
+              "Alignment": "Center",
+              "Anchor": "BottomRight",
+              "Pivot": "BottomCenter",
+              "OffsetX": -148,
+              "OffsetY": -66
+            }
+          },
+          {
+            "type": "CgeVehicle.SpeedReadout",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "5cefba15-323b-4346-afb7-6fb0a6c0f93c",
+        "name": "Hud_SpeedLabel",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.ScreenText",
+            "members": {
+              "Text": "Km/h",
+              "Font": "Fonts/Roboto-Light.cgefont",
+              "Size": 15,
+              "Alignment": "Center",
+              "Anchor": "BottomRight",
+              "Pivot": "BottomCenter",
+              "OffsetX": -148,
+              "OffsetY": -48
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d33a7482-9cb3-44da-9d2e-8bc22c8e4b0d",
+        "name": "Hud_GearValue",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.ScreenText",
+            "members": {
+              "Text": "N",
+              "Font": "Fonts/Roboto-Regular.cgefont",
+              "Size": 40,
+              "Alignment": "Center",
+              "Anchor": "BottomRight",
+              "Pivot": "BottomCenter",
+              "OffsetX": -295.5,
+              "OffsetY": -66
+            }
+          },
+          {
+            "type": "CgeVehicle.GearReadout",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9c151a1e-eff4-4e67-9c2d-72be2e3a4945",
+        "name": "Hud_GearLabel",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.ScreenText",
+            "members": {
+              "Text": "Gear",
+              "Font": "Fonts/Roboto-Light.cgefont",
+              "Size": 15,
+              "Alignment": "Center",
+              "Anchor": "BottomRight",
+              "Pivot": "BottomCenter",
+              "OffsetX": -295.5,
+              "OffsetY": -48
+            }
+          }
+        ],
+        "children": []
       }
     ]
   }

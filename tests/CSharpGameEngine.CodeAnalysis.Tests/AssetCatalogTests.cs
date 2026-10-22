@@ -49,6 +49,18 @@ public sealed class AssetCatalogTests {
     }
 
     [Fact]
+    public void ABakedFont_BecomesAFontAsset(){
+        var Result=Run(File("Assets/Fonts/Display.cgefont"),File("Assets/Fonts/Display.ttf"));
+
+        Assert.Empty(Result.Diagnostics);
+        var Catalog=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Assets.g.cs");
+
+        Assert.Contains("global::CSharpGameEngine.Authoring.FontAsset Display = new(\"Assets/Fonts/Display.cgefont\");",Catalog);
+        // The source font is not an asset kind: only the baked file is read by the game.
+        Assert.DoesNotContain("Display_ttf",Catalog);
+    }
+
+    [Fact]
     public void NamesThatAreNotIdentifiers_AreMadeIntoOnes_AndSameStemsDoNotCollide(){
         var Result=Run(File("Assets/Models/3d box.glb"),File("Assets/Models/Box.glb"),File("Assets/Models/Box.fbx"));
         var Catalog=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Assets.g.cs");

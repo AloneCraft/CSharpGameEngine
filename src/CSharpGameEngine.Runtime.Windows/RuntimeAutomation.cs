@@ -25,6 +25,8 @@ public sealed class RuntimeAutomation {
     public const string CursorVariable="CGE_AUTOMATION_CURSOR";
     public const string ReportSchema="cge-automation-report/1";
     private readonly List<Vector3?>CameraPositions=[];
+    /// <summary>One entry per presented frame: a fingerprint of the screen layer's vertices (ADR-0078/M0104), 0 when the frame had none.</summary>
+    private readonly List<ulong>ScreenLayerFingerprints=[];
     private RuntimeAutomation(int ExitAfterFrames,string?CapturePath,IReadOnlyList<RuntimeAutomationKeyHold>Input,string?ReportPath){
         this.ExitAfterFrames=ExitAfterFrames;
         this.CapturePath=CapturePath;
@@ -99,12 +101,13 @@ public sealed class RuntimeAutomation {
         return Parts.Length==2&&float.TryParse(Parts[0],NumberStyles.Float,CultureInfo.InvariantCulture,out var X)&&float.TryParse(Parts[1],NumberStyles.Float,CultureInfo.InvariantCulture,out var Y)?(X,Y):null;
     }
     internal bool CapturesNextFrame=>this.CapturePath is not null&&this.PresentedFrames+1==this.ExitAfterFrames;
-    internal void RecordPresented(RenderServer Renderer,Vector3?CameraPosition,int AudioRequests=0,int AudioStarted=0){
+    internal void RecordPresented(RenderServer Renderer,Vector3?CameraPosition,int AudioRequests=0,int AudioStarted=0,ulong ScreenLayerFingerprint=0){
         this.AudioRequests=AudioRequests;
         this.AudioStarted=AudioStarted;
         var Captured=this.CapturesNextFrame;
         this.PresentedFrames++;
         this.CameraPositions.Add(CameraPosition);
+        this.ScreenLayerFingerprints.Add(ScreenLayerFingerprint);
         if(this.Completed&&this.ReportPath is not null){
             this.WriteReport(Renderer.ErrorOrWorseMessageCount);
         }
@@ -145,6 +148,12 @@ public sealed class RuntimeAutomation {
             Writer.WriteNumberValue(Value.Y);
             Writer.WriteNumberValue(Value.Z);
             Writer.WriteEndArray();
+        }
+        Writer.WriteEndArray();
+        // Hexadecimal text: a 64-bit value does not survive a JSON number.
+        Writer.WriteStartArray("screenLayerFingerprints");
+        foreach(var Fingerprint in this.ScreenLayerFingerprints){
+            Writer.WriteStringValue(Fingerprint.ToString("x16",CultureInfo.InvariantCulture));
         }
         Writer.WriteEndArray();
         Writer.WriteEndObject();

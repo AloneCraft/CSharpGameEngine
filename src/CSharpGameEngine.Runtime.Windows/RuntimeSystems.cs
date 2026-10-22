@@ -773,8 +773,35 @@ internal struct AudioSourceSync:ISystem {
 }
 
 
+/// <summary>ADR-0078/M0104: hands every visible <see cref="ScreenText"/> to the screen UI service.</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(AudioSourceSync))]
+internal struct ScreenTextCollect:ISystem {
+    public void Update(in ScreenText Text,ScreenUi Ui){
+        Ui.Add(in Text);
+    }
+}
+
+/// <summary>ADR-0078/M0104: hands every visible <see cref="ScreenImage"/> to the screen UI service.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(ScreenTextCollect))]
+internal struct ScreenImageCollect:ISystem {
+    public void Update(in ScreenImage Image,ScreenUi Ui){
+        Ui.Add(in Image);
+    }
+}
+
+/// <summary>ADR-0078/M0104: sets the frame's screen layer, just before the frame is presented.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(ScreenImageCollect))]
+internal struct ScreenUiSubmit:ISystem {
+    public void Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
+        Host.SubmitScreenUi();
+    }
+}
+
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(ScreenUiSubmit))]
 internal struct Present:ISystem {
     public void Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
         Host.Sound.Flush();

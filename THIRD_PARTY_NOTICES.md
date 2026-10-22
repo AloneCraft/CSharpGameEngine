@@ -8,6 +8,10 @@ The other templates (FirstPerson, TopDown, Vehicle) carry content exported the s
 
 The C# Game Engine project bundles this content unchanged, at its owner's decision. Anyone who uses or redistributes it is responsible for complying with the agreement.
 
+## Fonts
+
+`assets/Fonts/Roboto-Regular.cgefont` and `Roboto-Light.cgefont` (shipped in the CSharpGameEngine.Sdk package and copied into every game's `Fonts/`) are the Roboto Regular and Light typefaces baked to signed distance field atlases by `tools/CSharpGameEngine.FontBaker`, from the font files that Unreal Engine 5.8 ships (`Engine/Content/Slate/Fonts`). Roboto is © Google and is licensed under the Apache License, Version 2.0; the license text is `assets/Fonts/ROBOTO_LICENSE.txt` and travels with the SDK package.
+
 ## Engine package dependencies
 
 A game restores these libraries through the CSharpGameEngine.Sdk package:
