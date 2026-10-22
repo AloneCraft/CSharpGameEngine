@@ -88,17 +88,23 @@ public sealed class TemplateSoundTests {
         return Directory?.FullName??throw new InvalidOperationException("The repository root was not found.");
     }
 
+    /// <summary>テンプレートの効果音(UE5 の Epic 教材から取り込んだ実素材。M0101 段階 5)が、エンジンで読めて、短く、無音でない。</summary>
     [Theory]
-    [InlineData("Jump.wav")]
-    [InlineData("Land.wav")]
-    [InlineData("Footstep.wav")]
-    public void ThePlaceholderSoundIsADecodableShortMonoClip(string Name){
-        var Path=System.IO.Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.ThirdPerson","Assets","Sounds",Name);
+    [InlineData("ThirdPerson","Jump.wav")]
+    [InlineData("ThirdPerson","Land.wav")]
+    [InlineData("ThirdPerson","Footstep.wav")]
+    [InlineData("FirstPerson","Jump.wav")]
+    [InlineData("FirstPerson","Land.wav")]
+    [InlineData("FirstPerson","Footstep.wav")]
+    [InlineData("TopDown","Land.wav")]
+    [InlineData("TopDown","Footstep.wav")]
+    public void TheTemplateSoundIsADecodableShortClip(string Template,string Name){
+        var Path=System.IO.Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates."+Template,"Assets","Sounds",Name);
 
         Assert.True(WavReader.TryRead(File.ReadAllBytes(Path),out var Clip,out var Error),Error);
 
-        Assert.Equal(1,Clip!.Channels);
-        Assert.InRange(Clip.DurationSeconds,0.05f,0.5f);
+        Assert.InRange(Clip!.Channels,1,2);
+        Assert.InRange(Clip.DurationSeconds,0.05f,2f);
         Assert.Contains(Clip.Samples.ToArray(),static Sample=>Sample!=0);
     }
 }

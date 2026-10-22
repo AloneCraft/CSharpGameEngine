@@ -4,6 +4,8 @@
 
 `Templates/CSharpGameEngine.Templates.ThirdPerson/Assets/` (copied into every game created from the Third Person template) contains content exported from Unreal Engine 5.8, from the Third Person template (`TP_ThirdPersonBP`) and its shared Characters and LevelPrototyping content packs. This includes the SKM_Quinn_Simple mannequin, its animations, and the level meshes and textures. The content is © Epic Games, Inc. and is licensed under the Unreal Engine End User License Agreement (https://www.unrealengine.com/eula). Its use and redistribution are subject to that agreement.
 
+The other templates (FirstPerson, TopDown, Vehicle) carry content exported the same way from the First Person, Top Down and Vehicle templates, and the footstep, jump and landing sounds of the first three come from Epic's learning-course content (Northwood) of the Unreal Engine 5 projects of the project owner; each template folder has its own `THIRD_PARTY_NOTICES.md`.
+
 The C# Game Engine project bundles this content unchanged, at its owner's decision. Anyone who uses or redistributes it is responsible for complying with the agreement.
 
 ## Engine package dependencies

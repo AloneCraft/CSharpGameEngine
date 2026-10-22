@@ -2,6 +2,7 @@
 setlocal
 
 rem Usage: run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]
+rem Note: the FirstPerson template now uses a copy of the ThirdPerson level (same layout, and this export loses the green material), so do not re-export it.
 rem Imports the level of a UE5.8 game template project (G:\UE\5.8\<Template>, made by create_template_project.ps1) into
 rem Templates\CSharpGameEngine.Templates.<Template>: static meshes as glb, the level as scene JSON (ADR-0070), the world grid.
 rem The character is authored by hand from dump_blueprint.py's output; this script does not touch it.

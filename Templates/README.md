@@ -93,14 +93,14 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 | 10 | 実行時スポーンの型付き参照 | 未実装(`LevelLoad` が描画物の一覧を初回に固定する問題が先) |
 | 11 | エンジン標準の Component | 一部(`AudioListener` はあるが `Lifetime`・`CameraRig`・`ScreenText` は未実装) |
 | 名前の清算 | `CharacterMotion` など | 実装済み(`GameWindow` への統合、`ViewAngles` の turns 化、`Capsule` の入れ子は未実装) |
-| 音 | `Audio.Play`(XAudio2 のワンショット、`.wav` を直接読む) | 実装済み。素材は合成した仮の音。UE の素材の取り込みは未達 |
+| 音 | `Audio.Play`(XAudio2 のワンショット、`.wav` を直接読む) | 実装済み。素材は UE5 の Epic 教材のコンテンツから取り込んだ(`tools/UnrealExport/import_template_sounds.ps1`。テンプレート自身には音声が無い)。Vehicle は無音 |
 
 移植済みのテンプレート(ビルドできる出荷物。WARP の `verify-thirdperson-character --template <名前>` で検証済み):
 
 | テンプレート | プロジェクト | 理想コードとの差 |
 |---|---|---|
 | ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方 |
-| FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。`FirstPerson` の `Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
+| FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
 | TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch`・クリック位置の目印(`Spawner`)は未実装。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索はせず直線で歩く(`MoveIntent.MoveTo`) |
 | Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。画面上の文字が無いので `Speedometer` は `Hud` でタイトルバーに出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
 

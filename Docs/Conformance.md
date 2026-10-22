@@ -3980,7 +3980,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 観測（Fact）: ThirdPerson テンプレートを WARP で動かすと、ジャンプ、着地、足音のイベントから 15 件の音の要求が出て、実機の XAudio2 で 15 件すべてが再生された（`audioRequests=15`、`audioStarted=15`）。歩行 15.700 m、跳躍 1.228 m、D3D12 のエラー 0 は変わらない。受け手の `CharacterSounds` は `[SystemPhase]`・`[RunsAfter]` なしで、送り手 `CharacterMotionUpdate`（PhysicsSimulation）の後に動く。
 - 実装: `Audio`、`WavReader`/`PcmClip`、`AudioDeviceServer.PlayOneShot`、`Events.cs`、`GameSystemEventWiring`、`GameSystemLoopEmitter`（キュー、読み取り位置、破棄）、`CharacterEvents`。
 - 自動化された証拠: `GameSystemEventTests` 6 件、`GameSystemServiceTests` 3 件、`WavReaderTests` 6 件、`AudioServiceTests` 3 件、`TemplateSoundTests` 3 件、`ThirdPersonCharacterVerificationTests`（音の契約）。
-- 既知の差: ADR-0056 の「コーデックはビルド時に変換」は未実施で、`.wav` の容器を実行時に読む（文書化した拡張）。素材は合成した仮の音で、UE のコンテンツではない。耳での確認は未実施。
+- 既知の差: ADR-0056 の「コーデックはビルド時に変換」は未実施で、`.wav` の容器を実行時に読む（文書化した拡張）。素材は最初は合成した仮の音で、のちに UE5 の Epic 教材のコンテンツへ差し替えた（M0101 段階 5）。耳での確認は未実施。
 - 結果: MatchesWithDocumentedExtension。
 
 ## 2026-10-22 探索 — 型付きアセット（ADR-0077 段階 7）
@@ -3996,7 +3996,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 観測（Fact）: `Templates/CSharpGameEngine.Templates.FirstPerson` は、ThirdPerson と同じ `PlayerControls` のまま WARP で歩行 16.000 m、跳躍 0.863 m、`audioRequests=15`、D3D12 のエラー 0。`Templates/CSharpGameEngine.Templates.TopDown` は、画面上部の 1 点を 5 フレームだけクリックすると、離したあとも目的地まで 10.845 m 歩いて止まり（最後の 10 フレームの移動 0.000 m）、`audioRequests=7`、D3D12 のエラー 0。ThirdPerson は改名前と同じ値（歩行 15.700 m、跳躍 1.228 m）のまま。
 - 実装: `Core/InputActionDeclarations.cs`（`MouseButton`、`Pointer`、`[Pointer]`、`[Mouse(MouseButton)]`）、`InputActionsEmitter`（`Read` の第 3 引数）、`EngineHost.Cursor`/`Picking`/`TryPointerRay`、`Runtime.Windows/Picking.cs`、`MoveIntent.MoveTo`/`Stop`/`Steer`、`CharacterMotionUpdate`、`RuntimeAutomation`（`CGE_AUTOMATION_CURSOR`、`MouseLeft`）、`Win32Window.InjectMouseButton`/`TryGetCursorClient`、`tools/UnrealExport` の `export_level.py`・`export_skeletal_mesh.py`・`create_template_project.ps1`・`dump_blueprint.py`、`LevelTemplateImporter`。
 - 自動化された証拠: `InputActionsGeneratorTests`（Mouse ボタンと Pointer）、`PickingTests`、`CharacterMotorTests`（`MoveTo` 3 件）、`ClickToMoveVerificationTests`、`verify-thirdperson-character --template FirstPerson|TopDown`（WARP）。
-- 既知の差: UE のクリック移動はナビメッシュで経路を探すが、こちらは直線（障害物はコリジョンで止まる）。`Touch`、クリック位置の目印（`Spawner.Spawn`）、理想コードの `Cursor.Ray` は未実装（`Cursor.Ray` は `Picking` に置き換え）。出典は UE5.7 のテンプレート（UE5.8 のインストールに Templates が無い）。TopDown・FirstPerson の効果音は合成した仮の音。`Vehicle` は未着手。VS のテンプレートへの登録は未実施。
+- 既知の差: UE のクリック移動はナビメッシュで経路を探すが、こちらは直線（障害物はコリジョンで止まる）。`Touch`、クリック位置の目印（`Spawner.Spawn`）、理想コードの `Cursor.Ray` は未実装（`Cursor.Ray` は `Picking` に置き換え）。出典は UE5.7 のテンプレート（UE5.8 のインストールに Templates が無い）。効果音は、のちに UE5 の Epic 教材のコンテンツから取り込んだ（M0101 段階 5 の素材）。
 - 結果: MatchesWithDocumentedExtension（FirstPerson・TopDown の範囲）。
 
 ## 2026-10-22 探索 — Vehicle の移植と VS テンプレートの登録（ADR-0077 段階 9）
