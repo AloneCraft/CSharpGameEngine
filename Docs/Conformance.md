@@ -4045,5 +4045,17 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - WARP で 60 フレーム: 画面レイヤーの状態は 28 種類、移動 48.281 m、曲がり 38.3°、D3D12 のエラー 0。SDK パッケージから作った My Vehicle も同じで、`Fonts\` はパッケージ経由で届いた。
 - 実装: M0104。
 - 自動化された証拠: `FontAtlasTests`、`FontBakerTests`(17)、`ScreenUiTests`、`ScreenLayerTests`(WARP)、`AssetCatalogTests`、`ShaderGraphCompilerTests`、`VehicleDriveVerificationTests`、`verify-template-package --template Vehicle`。全テスト失敗 0。
-- 既知の差: 9 分割の画像、字詰め、ASCII・Latin-1・一部の約物の外の文字(日本語を含む)、入力を受ける UI。実機の GPU での見た目とフレーム時間は測っていない(WARP のみ)。Vehicle の車・床・壁は、材質に絵柄が無く灰色に見える(画面 UI とは別の事象で、原因は未調査)。
+- 既知の差: 9 分割の画像、字詰め、ASCII・Latin-1・一部の約物の外の文字(日本語を含む)、入力を受ける UI。実機の GPU での見た目とフレーム時間は測っていない(WARP のみ)。Vehicle の車・床・壁が灰色に見えた件は、別の項(2026-10-22 探索 — 書き出した glb の材質)で原因を特定して直した。
 - 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-22 探索 — 書き出した glb の材質(Vehicle と TopDown が灰色)
+- 意図: Vehicle の画面が全面灰色だった(ユーザーの指摘)。UE と同じ見た目にする。
+- 観測(Fact):
+  - Vehicle の glb(車・壁・コーン・トンネル)は、画像 0・テクスチャ 0 で、材質は `pbrMetallicRoughness:{}` だけだった。UV は付いていた。TopDown の Manny とレベルのメッシュも同じだった。ThirdPerson と FirstPerson の glb には材質があった。
+  - 違いは書き出しの起動オプション。ThirdPerson は描画デバイスありで、Vehicle と TopDown は `-nullrhi`。UE の glTF エクスポーターは、描画デバイスが無いと材質を空で書く。
+  - UE の探針で、レベルの全メッシュが `M_TintCol`(ベクトルパラメーター `Col` = (1, 0.095, 0) だけの不透明な材質)を使い、車は `M_SportsCarBase` 系で基本色・MRA・法線のテクスチャを持つことを確かめた。
+  - 描画デバイスありで書き直すと、車は画像 8 枚(`SM_SportsCar`)と 7 枚(ホイール)、壁とコーンは `baseColorFactor` [1, 0.095, 0]。シーン JSON は変わらず、glb だけが変わった。
+  - エンジンで走らせると、Vehicle はオレンジのレベルと塗装つきの車、黒いタイヤ。TopDown は格子の床、青い斜面、白い Manny。D3D12 のエラー 0。Vehicle の実走は 28 の HUD 状態・移動 48.281 m・曲がり 38.3°(変わらず)、TopDown のクリック移動は 10.845 m。
+- 実装: `run_export_level.cmd`・`run_export_skeletal_mesh.cmd` から `-nullrhi` を外し、`export_vehicle_car.py` を足した。`TemplateExportMaterialTests` で、材質がすべて空の glb を失敗にする。
+- 既知の差: 床は UE では Landscape(エンジンに地形が無いので、壁と同じ材質の板で代えている。M0101)。UE の画面との並べた比較(参照画像)は、Vehicle ではまだ取っていない。車のヘッドライト・ブレーキランプの発光、ガラスの透過の見え方は未確認。ミップマップ(M0110)が無いので、遠くのテクスチャはちらつく可能性がある。
+- 結果: Matches(書き出しの範囲)。

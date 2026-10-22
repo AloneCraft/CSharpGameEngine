@@ -104,6 +104,13 @@ FirstPerson / TopDown / Vehicle の理想コード(`Templates/`)と、将来の�
   - 取り込み(2026-10-22): `run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]` がステージを `Templates\CSharpGameEngine.Templates.<名前>` へ取り込む(静的メッシュを glb、レベルをシーン JSON、Vehicle 以外はワールドグリッドも)。キャラクターの値は `run_dump_blueprint.cmd` の出力から手で書く。マネキンのメッシュは `run_export_skeletal_mesh.cmd`、Vehicle の車の静的メッシュ(`SM_SportsCar`・`_Glass`・`_Wheel`)は `CGE_SK_STATIC=1` を付けた同じスクリプトで書き出す(`SKM_SportsCar` は物理用の骨格だけで、見た目ではない)。Vehicle のレベルの Landscape は glTF に書き出せないので、`export_level.py` が同じ大きさの 1 m の板を作業中のエディターのワールドにだけ足して代える(保存しない)。`probe_vehicle_level.py`(`run_probe_vehicle_level.cmd`)は、レベルのクラスの一覧・Landscape の位置・メッシュの配置を UE のログ(`G:\UE\5.8\Vehicle\Saved\Logs\Vehicle.log` の `[UnrealExport]` 行)へ出す。
   - **3つとも、音声アセット(SoundWave、SoundCue)は1つも無い。** 効果音は UE のテンプレートからは取り込めない。
 
+## 材質を残した書き出し(2026-10-22)
+
+- 事実: UE の glTF エクスポーターは、エディターに描画デバイスが無いと(`-nullrhi`)、材質を読めず空の材質(`pbrMetallicRoughness:{}`)を書く。Vehicle と TopDown の glb は `-nullrhi` で書き出していたため、車・壁・床・Manny が白い既定の材質になり、灰色に見えた。描画デバイスありで書き出すと、車は画像 8 枚(基本色・金属粗さ・遮蔽・法線)、壁やコーンは `baseColorFactor`(M_TintCol)が出る。
+- 直し: `run_export_level.cmd` と `run_export_skeletal_mesh.cmd` から `-nullrhi` を外した(材質を読まない解析のスクリプトは付けたままでよい)。車は `run_export_vehicle_car.cmd [出力先]`(`export_vehicle_car.py`)で、本体・ガラス・タイヤを材質つきで書く。既定の出力先は Vehicle テンプレートの `Assets/Vehicles/SportsCar`。
+- 材質の調査: `run_probe_vehicle_materials.cmd`(`probe_vehicle_materials.py`)は、Vehicle のメッシュごとの材質の連鎖・テクスチャ・パラメーターと、M_TintCol の入力ノードを `CGE_PROBE_OUT` のファイルへ書く。この環境の Python のログは標準出力に出ないので、結果はファイルへ書く。
+- 回帰の防止: `TemplateExportMaterialTests`(`CSharpGameEngine.Import.Tests`)が、4 つのテンプレートの `Assets` の glb で、メッシュがあるのに材質がすべて空のものを失敗にする。
+
 ## Blueprint の処理の解析(ADR-0078、M0102)
 
 テンプレートの挙動を、推測ではなくノードの接続から読むための書き出し。結果は `Docs/Specifications/UE-Template-Behavior.md` にまとめてある。

@@ -1,6 +1,7 @@
 @echo off
 setlocal
 
+rem No -nullrhi: the glTF exporter reads and bakes materials through the render device, and without one it writes empty materials (a grey level).
 rem Usage: run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]
 rem Note: the FirstPerson template now uses a copy of the ThirdPerson level (same layout, and this export loses the green material), so do not re-export it.
 rem Imports the level of a UE5.8 game template project (G:\UE\5.8\<Template>, made by create_template_project.ps1) into
@@ -33,7 +34,7 @@ if exist "%MANIFEST%" del /q "%MANIFEST%"
 "%UE_EDITOR_CMD%" "G:\UE\5.8\%TEMPLATE%\%TEMPLATE%.uproject" ^
   -ExecutePythonScript="%SCRIPT_DIR%export_level.py" ^
   -EnablePlugins=PythonScriptPlugin,GLTFExporter ^
-  -stdout -unattended -NoSplash -nosound -nullrhi
+  -stdout -unattended -NoSplash -nosound
 if errorlevel 1 exit /b %errorlevel%
 if not exist "%MANIFEST%" (
   echo Unreal export did not produce manifest.json. 1>&2
