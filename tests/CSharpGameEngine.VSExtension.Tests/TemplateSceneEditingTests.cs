@@ -26,7 +26,7 @@ public sealed class TemplateSceneEditingTests {
         var Root=new DirectoryInfo(AppContext.BaseDirectory);
         while(Root is not null&&!File.Exists(Path.Combine(Root.FullName,"CSharpGameEngine.slnx"))){ Root=Root.Parent; }
         Assert.NotNull(Root);
-        var Project=Path.Combine(Root!.FullName,"templates","CSharpGameEngine.Templates.ThirdPerson");
+        var Project=Path.Combine(Root!.FullName,"Templates","CSharpGameEngine.Templates.ThirdPerson");
         var StartInfo=new ProcessStartInfo("dotnet",
             "msbuild \""+Path.Combine(Project,"CSharpGameEngine.Templates.ThirdPerson.csproj")+"\" -nologo -restore -target:ResolveReferences"
             +" -getItem:Compile -getItem:ReferencePath -getProperty:DefineConstants -p:Configuration=Debug"){

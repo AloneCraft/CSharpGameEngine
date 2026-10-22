@@ -5,7 +5,7 @@ namespace CSharpGameEngine.FeatureStages;
 /// <summary>
 /// rigid.character-controllerのテンプレート実走検証(ADR-0067)。ThirdPersonテンプレートの実行ファイルを
 /// 自動検証フック付きで起動し、フレーム指定のキー入力(W押下→Space)に対するカメラ位置の推移を判定する。
-/// カメラはSpringArmでキャラクターに追従するため、その位置でキャラクターの移動とジャンプを観測する。
+/// カメラはOrbitCameraでキャラクターに追従するため、その位置でキャラクターの移動とジャンプを観測する。
 /// 固定tickは壁時計で進むので、判定は距離の下限と着地の有無に限り、正確な位置は比べない。
 /// </summary>
 public static class ThirdPersonCharacterVerification {
@@ -18,16 +18,30 @@ public static class ThirdPersonCharacterVerification {
     public const float MinimumDescentMeters=0.3f;
     /// <summary>床(高さ0)の上に立つカメラの高さは約1 m。これを大きく下回るのは床の抜けとみなす。</summary>
     public const float MinimumCameraHeight=0.5f;
+    /// <summary>ジャンプ(Jumped)と着地(Landed)のたびに音を鳴らす要求が1回ずつある(ADR-0077)。歩行の足音(Footstep)はそれ以上。</summary>
+    public const int MinimumAudioRequests=2;
     public static string InputSchedule=>string.Create(CultureInfo.InvariantCulture,$"W@{WalkStartFrame}-{WalkEndFrame};SpaceBar@{JumpFrame}-{JumpFrame+1}");
-    public static string ExecutablePath(string RepositoryRoot,string Configuration)=>Path.Combine(
-        RepositoryRoot,"templates","CSharpGameEngine.Templates.ThirdPerson","bin",Configuration,"net10.0-windows10.0.19041.0","win-x64","CgeThirdPerson.exe");
-    public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
-        var Executable=ExecutablePath(RepositoryRoot,Configuration);
+    public static string ExecutablePath(string RepositoryRoot,string Configuration,string Template="ThirdPerson")=>Path.Combine(
+        RepositoryRoot,"Templates","CSharpGameEngine.Templates."+Template,"bin",Configuration,"net10.0-windows10.0.19041.0","win-x64","Cge"+Template+".exe");
+    public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken,string Template="ThirdPerson"){
+        if(Template=="TopDown"){
+            // 操作がキー入力ではなくクリックなので、判定も別(クリックした地点まで歩いて止まる)。
+            return await ClickToMoveVerification.RunAsync(RepositoryRoot,Configuration,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+        }
+        if(Template=="Vehicle"){
+            // 操作が歩行ではなく運転なので、判定も別(進んで、曲がって、地面の上にいる)。
+            return await VehicleDriveVerification.RunAsync(RepositoryRoot,Configuration,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+        }
+        var Executable=ExecutablePath(RepositoryRoot,Configuration,Template);
         if(!File.Exists(Executable)){
-            await Error.WriteLineAsync($"The ThirdPerson template is not built: {Executable}").ConfigureAwait(false);
+            await Error.WriteLineAsync($"The {Template} template is not built: {Executable}").ConfigureAwait(false);
             return 2;
         }
-        return await RunGameAsync(Executable,Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Adapter),Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+        // ThirdPerson keeps its original evidence folder; the other templates (ADR-0077: the same walk, jump and sound contract) get their own.
+        var Evidence=Template=="ThirdPerson"
+            ?Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Adapter)
+            :Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Template,Adapter);
+        return await RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
     }
     /// <summary>Runs a built ThirdPerson game with the scripted input and judges its report (<see cref="Evaluate"/>).</summary>
     public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
@@ -88,7 +102,10 @@ public static class ThirdPersonCharacterVerification {
         var Rise=Apex-AfterWalk[1];
         var Descent=Apex-Positions[^1]![1];
         var Lowest=Positions.Skip(WalkStartFrame-1).Min(static Position=>Position![1]);
-        Summary=string.Create(CultureInfo.InvariantCulture,$"walk={Walk:F3} rise={Rise:F3} descent={Descent:F3} lowest={Lowest:F3} d3d12Errors={Errors}");
+        // Older reports carry no audio fields; only a report that has them is held to the sound contract.
+        var Audio=Report.TryGetProperty("audioRequests",out var AudioElement)?AudioElement.GetInt32():-1;
+        var AudioSuffix=Audio<0?string.Empty:string.Create(CultureInfo.InvariantCulture,$" audioRequests={Audio}");
+        Summary=string.Create(CultureInfo.InvariantCulture,$"walk={Walk:F3} rise={Rise:F3} descent={Descent:F3} lowest={Lowest:F3} d3d12Errors={Errors}{AudioSuffix}");
         if(Walk<MinimumWalkMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Holding W moved the camera {Walk:F3} m horizontally; expected at least {MinimumWalkMeters} m."));
         }
@@ -97,6 +114,9 @@ public static class ThirdPersonCharacterVerification {
         }
         if(Descent<MinimumDescentMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera came down {Descent:F3} m from the jump apex; expected at least {MinimumDescentMeters} m."));
+        }
+        if(Audio>=0&&Audio<MinimumAudioRequests){
+            Failures.Add($"The jump and the landing asked for {Audio} sound(s); expected at least {MinimumAudioRequests}.");
         }
         if(Lowest<MinimumCameraHeight){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The camera dropped to {Lowest:F3} m, below the {MinimumCameraHeight} m floor bound."));

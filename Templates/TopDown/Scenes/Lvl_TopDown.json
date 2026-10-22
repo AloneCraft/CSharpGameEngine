@@ -1,0 +1,16 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "DirectionalLight": { "Illuminance": 10 },
+  "SkyLight": { "Intensity": 1 },
+  "Children": {
+    "Floor": {
+      "Mesh": "Stage/SM_Template_Map_Floor",
+      "Collider": "Mesh"
+    },
+    "Block": {
+      "Transform": { "Position": [5, 1, -4], "Scale": [3, 2, 3] },
+      "Mesh": "Stage/SM_Cube",
+      "Collider": "Mesh"
+    }
+  }
+}

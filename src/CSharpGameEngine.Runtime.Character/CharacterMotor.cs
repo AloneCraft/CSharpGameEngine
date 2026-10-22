@@ -8,7 +8,7 @@ namespace CSharpGameEngine.Runtime.Character;
 /// capsule straight up without touching the velocity (horizontal speed is kept on ramps, as in
 /// Unreal) and any other contact is a wall (horizontal push only). Floors are faces whose own normal
 /// is walkable, so the capsule can perch on a step's edge; walking snaps to floors within
-/// MaxStepHeight and retries blocked moves raised by MaxStepHeight. The world is only read.
+/// StepHeight and retries blocked moves raised by StepHeight. The world is only read.
 /// </summary>
 public sealed class CharacterMotor {
     public const int ResolveIterations=4;
@@ -22,31 +22,31 @@ public sealed class CharacterMotor {
     private static readonly LogicalScalar Half=LogicalScalar.One/LogicalScalar.FromInt64(2);
     private readonly List<PhysicsShapeContact>Contacts=[];
     private readonly DeterministicPhysicsWorld World;
-    private CharacterMovement Settings;
+    private CharacterMotion Settings;
     private Collider Capsule;
     private LogicalScalar WalkableCos;
     public CharacterMotor(DeterministicPhysicsWorld World){
         this.World=World??throw new ArgumentNullException(nameof(World));
     }
     /// <summary>Advances <paramref name="Position"/> (the capsule centre) and <paramref name="State"/> by <paramref name="DeltaSeconds"/>; consumes the jump request.</summary>
-    public void Step(in CharacterMovement Settings,ref LogicalVector3 Position,ref CharacterMovementState State,ref CharacterInput Input,LogicalScalar DeltaSeconds){
+    public void Step(in CharacterMotion Settings,ref LogicalVector3 Position,ref CharacterMotionState State,ref MoveIntent Input,LogicalScalar DeltaSeconds){
         this.Configure(Settings);
-        var Move=new LogicalVector3(Input.Move.R,LogicalScalar.Zero,Input.Move.F);
+        var Move=new LogicalVector3(Input.Direction.R,LogicalScalar.Zero,Input.Direction.F);
         var InputAmount=Length(Move);
         if(InputAmount>LogicalScalar.One){
             Move/=InputAmount;
             InputAmount=LogicalScalar.One;
         }
         var Direction=InputAmount.IsZero?LogicalVector3.Zero:Move/InputAmount;
-        if(Input.Jump&&State.Mode==CharacterMovementMode.Walking){
-            State.Velocity=new LogicalVector3(State.Velocity.R,Settings.JumpZVelocity,State.Velocity.F);
-            State.Mode=CharacterMovementMode.Falling;
+        if(Input.JumpRequested&&State.Mode==CharacterMotionMode.Walking){
+            State.Velocity=new LogicalVector3(State.Velocity.R,Settings.JumpSpeed,State.Velocity.F);
+            State.Mode=CharacterMotionMode.Falling;
         }
-        Input.Jump=false;
+        Input.JumpRequested=false;
         this.UpdateVelocity(ref State,Direction,InputAmount,DeltaSeconds);
         this.Move(ref Position,ref State,DeltaSeconds);
-        if(Settings.OrientRotationToMovement&&!InputAmount.IsZero){
-            State.Facing=this.RotateToward(State.Facing,Direction,Settings.RotationRateDegrees*DegreesToRadians*DeltaSeconds);
+        if(Settings.FaceMovement&&!InputAmount.IsZero){
+            State.Facing=this.RotateToward(State.Facing,Direction,Settings.TurnRateDegrees*DegreesToRadians*DeltaSeconds);
         }
     }
     /// <summary>Yaw rotation turning +F into <paramref name="Facing"/> (horizontal unit vector); identity for a zero facing.</summary>
@@ -70,20 +70,20 @@ public sealed class CharacterMotor {
         }
         return new LogicalVector3(Forward.R,LogicalScalar.Zero,Forward.F).TryNormalize(out var Facing)?Facing:LogicalVector3.UnitF;
     }
-    private void Configure(in CharacterMovement Settings){
+    private void Configure(in CharacterMotion Settings){
         this.Settings=Settings;
         var Radius=Settings.CapsuleRadius;
         var SegmentHalf=Settings.CapsuleHalfHeight-Radius;
         this.Capsule=new Collider { Shape=ColliderShape.Capsule,Radius=Radius,HalfHeight=SegmentHalf<LogicalScalar.Zero?LogicalScalar.Zero:SegmentHalf };
-        LogicalMath.TrySinCos(Settings.WalkableFloorAngleDegrees*DegreesToRadians,out _,out this.WalkableCos);
+        LogicalMath.TrySinCos(Settings.MaxSlopeDegrees*DegreesToRadians,out _,out this.WalkableCos);
     }
-    private void UpdateVelocity(ref CharacterMovementState State,LogicalVector3 Direction,LogicalScalar InputAmount,LogicalScalar DeltaSeconds){
+    private void UpdateVelocity(ref CharacterMotionState State,LogicalVector3 Direction,LogicalScalar InputAmount,LogicalScalar DeltaSeconds){
         var Settings=this.Settings;
         var Horizontal=new LogicalVector3(State.Velocity.R,LogicalScalar.Zero,State.Velocity.F);
         var Vertical=State.Velocity.U;
-        if(State.Mode==CharacterMovementMode.Walking){
-            var MaxSpeed=Max(Settings.MaxWalkSpeed*InputAmount,Settings.MinAnalogWalkSpeed);
-            Horizontal=CalculateVelocity(Horizontal,Direction,Settings.MaxAcceleration*InputAmount,Settings.GroundFriction,Settings.BrakingFriction,Settings.BrakingDecelerationWalking,MaxSpeed,DeltaSeconds);
+        if(State.Mode==CharacterMotionMode.Walking){
+            var MaxSpeed=Max(Settings.WalkSpeed*InputAmount,Settings.MinAnalogWalkSpeed);
+            Horizontal=CalculateVelocity(Horizontal,Direction,Settings.Acceleration*InputAmount,Settings.GroundFriction,Settings.BrakingFriction,Settings.Braking,MaxSpeed,DeltaSeconds);
             Vertical=LogicalScalar.Zero;
         }
         else {
@@ -91,7 +91,7 @@ public sealed class CharacterMotor {
             if(Horizontal.LengthSquared<Settings.AirControlBoostVelocityThreshold*Settings.AirControlBoostVelocityThreshold){
                 AirControl*=Settings.AirControlBoostMultiplier;
             }
-            Horizontal=CalculateVelocity(Horizontal,Direction,Settings.MaxAcceleration*InputAmount*AirControl,LogicalScalar.Zero,LogicalScalar.Zero,Settings.BrakingDecelerationFalling,Settings.MaxWalkSpeed,DeltaSeconds);
+            Horizontal=CalculateVelocity(Horizontal,Direction,Settings.Acceleration*InputAmount*AirControl,LogicalScalar.Zero,LogicalScalar.Zero,Settings.AirBraking,Settings.WalkSpeed,DeltaSeconds);
             Vertical-=Gravity*Settings.GravityScale*DeltaSeconds;
         }
         State.Velocity=new LogicalVector3(Horizontal.R,Vertical,Horizontal.F);
@@ -113,7 +113,7 @@ public sealed class CharacterMotor {
         var NewSpeed=Length(Velocity);
         return NewSpeed>MaxSpeed?Velocity/NewSpeed*MaxSpeed:Velocity;
     }
-    private void Move(ref LogicalVector3 Position,ref CharacterMovementState State,LogicalScalar DeltaSeconds){
+    private void Move(ref LogicalVector3 Position,ref CharacterMotionState State,LogicalScalar DeltaSeconds){
         var Displacement=State.Velocity*DeltaSeconds;
         var MaxSubStep=this.Settings.CapsuleRadius*Half;
         var Distance=Length(Displacement);
@@ -125,27 +125,27 @@ public sealed class CharacterMotor {
         for(var Index=0;Index<SubSteps;Index++){
             this.MoveSubStep(ref Position,ref State,SubDisplacement);
         }
-        if(State.Mode==CharacterMovementMode.Walking){
-            if(this.TryFindFloor(Position,this.Settings.MaxStepHeight+FloorProbeDistance,out var FloorHeight,out _)){
+        if(State.Mode==CharacterMotionMode.Walking){
+            if(this.TryFindFloor(Position,this.Settings.StepHeight+FloorProbeDistance,out var FloorHeight,out _)){
                 Position=new LogicalVector3(Position.R,FloorHeight,Position.F);
             }
             else {
-                State.Mode=CharacterMovementMode.Falling;
+                State.Mode=CharacterMotionMode.Falling;
             }
         }
     }
-    private void MoveSubStep(ref LogicalVector3 Position,ref CharacterMovementState State,LogicalVector3 Displacement){
+    private void MoveSubStep(ref LogicalVector3 Position,ref CharacterMotionState State,LogicalVector3 Displacement){
         var Start=Position;
         var StartVelocity=State.Velocity;
         Position+=Displacement;
         var Blocked=this.Resolve(ref Position,ref State);
-        if(!Blocked||State.Mode!=CharacterMovementMode.Walking||this.Settings.MaxStepHeight<=LogicalScalar.Zero){
+        if(!Blocked||State.Mode!=CharacterMotionMode.Walking||this.Settings.StepHeight<=LogicalScalar.Zero){
             return;
         }
-        // A wall stopped a walking move: retry it raised by MaxStepHeight and keep it if it lands on a
-        // walkable floor whose contact point is at most MaxStepHeight above the feet (Unreal's rule)
+        // A wall stopped a walking move: retry it raised by StepHeight and keep it if it lands on a
+        // walkable floor whose contact point is at most StepHeight above the feet (Unreal's rule)
         // and gets further than the blocked move.
-        var Raised=Start+LogicalVector3.UnitU*this.Settings.MaxStepHeight;
+        var Raised=Start+LogicalVector3.UnitU*this.Settings.StepHeight;
         if(this.Collect(Raised)>0){
             return;
         }
@@ -155,8 +155,8 @@ public sealed class CharacterMotor {
             return;
         }
         var Feet=Start.U-this.Settings.CapsuleHalfHeight;
-        if(!this.TryFindFloor(Stepped,this.Settings.MaxStepHeight+FloorProbeDistance,out var FloorHeight,out var FloorPoint)
-            ||FloorPoint-Feet>this.Settings.MaxStepHeight+Skin
+        if(!this.TryFindFloor(Stepped,this.Settings.StepHeight+FloorProbeDistance,out var FloorHeight,out var FloorPoint)
+            ||FloorPoint-Feet>this.Settings.StepHeight+Skin
             ||HorizontalDistanceSquared(Stepped,Start)<=HorizontalDistanceSquared(Position,Start)){
             return;
         }
@@ -164,7 +164,7 @@ public sealed class CharacterMotor {
         State.Velocity=SteppedState.Velocity;
     }
     /// <summary>Pushes out of the deepest contact up to four times; true when a wall (non-walkable contact while walking) blocked the move.</summary>
-    private bool Resolve(ref LogicalVector3 Position,ref CharacterMovementState State){
+    private bool Resolve(ref LogicalVector3 Position,ref CharacterMotionState State){
         var Blocked=false;
         for(var Iteration=0;Iteration<ResolveIterations;Iteration++){
             if(this.Collect(Position)==0){
@@ -177,13 +177,13 @@ public sealed class CharacterMotor {
                 }
             }
             var Outward=-Deepest.Normal;
-            if(State.Mode==CharacterMovementMode.Walking&&Outward.U>=this.WalkableCos){
+            if(State.Mode==CharacterMotionMode.Walking&&Outward.U>=this.WalkableCos){
                 Position+=LogicalVector3.UnitU*(Deepest.Penetration/Outward.U+Skin);
                 continue;
             }
             var Push=Outward;
             var PushDistance=Deepest.Penetration;
-            if(State.Mode==CharacterMovementMode.Walking){
+            if(State.Mode==CharacterMotionMode.Walking){
                 var Flat=new LogicalVector3(Outward.R,LogicalScalar.Zero,Outward.F);
                 var FlatLength=Length(Flat);
                 if(FlatLength>SpeedEpsilon){
@@ -197,8 +197,8 @@ public sealed class CharacterMotor {
             if(Into<LogicalScalar.Zero){
                 State.Velocity-=Push*Into;
             }
-            if(State.Mode==CharacterMovementMode.Falling&&this.Supports(Deepest)&&State.Velocity.U<=LogicalScalar.Zero){
-                State.Mode=CharacterMovementMode.Walking;
+            if(State.Mode==CharacterMotionMode.Falling&&this.Supports(Deepest)&&State.Velocity.U<=LogicalScalar.Zero){
+                State.Mode=CharacterMotionMode.Walking;
                 State.Velocity=new LogicalVector3(State.Velocity.R,LogicalScalar.Zero,State.Velocity.F);
             }
         }

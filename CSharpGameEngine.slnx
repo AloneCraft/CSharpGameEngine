@@ -236,8 +236,12 @@
   <Folder Name="/packaging/">
     <Project Path="packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj" />
   </Folder>
-  <Folder Name="/templates/">
-    <Project Path="templates/CSharpGameEngine.Templates.ThirdPerson/CSharpGameEngine.Templates.ThirdPerson.csproj" />
+  <Folder Name="/Templates/">
+    <File Path="Templates/README.md" />
+    <Project Path="Templates/CSharpGameEngine.Templates.ThirdPerson/CSharpGameEngine.Templates.ThirdPerson.csproj" />
+    <Project Path="Templates/CSharpGameEngine.Templates.FirstPerson/CSharpGameEngine.Templates.FirstPerson.csproj" />
+    <Project Path="Templates/CSharpGameEngine.Templates.TopDown/CSharpGameEngine.Templates.TopDown.csproj" />
+    <Project Path="Templates/CSharpGameEngine.Templates.Vehicle/CSharpGameEngine.Templates.Vehicle.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <File Path="tools/UnrealExport/export_lvl_firstperson.py" />
@@ -286,5 +290,45 @@
   </Folder>
   <Folder Name="/UserEcsProject/">
     <Project Path="UserEcsProject/UserEcsProject.csproj" />
+  </Folder>
+  <Folder Name="/Templates/ThirdPerson/">
+    <File Path="Templates/ThirdPerson/README.md" />
+    <File Path="Templates/ThirdPerson/Scenes/Game.json" />
+    <File Path="Templates/ThirdPerson/Scenes/Lvl_ThirdPerson.json" />
+    <File Path="Templates/ThirdPerson/Scenes/Character.json" />
+    <File Path="Templates/ThirdPerson/Code/PlayerActions.cs" />
+    <File Path="Templates/ThirdPerson/Code/PlayerControls.cs" />
+    <File Path="Templates/ThirdPerson/Code/CharacterAnimation.cs" />
+    <File Path="Templates/ThirdPerson/Code/CharacterSounds.cs" />
+    <File Path="Templates/ThirdPerson/Code/Respawn.cs" />
+  </Folder>
+  <Folder Name="/Templates/FirstPerson/">
+    <File Path="Templates/FirstPerson/README.md" />
+    <File Path="Templates/FirstPerson/Scenes/Game.json" />
+    <File Path="Templates/FirstPerson/Scenes/Lvl_FirstPerson.json" />
+    <File Path="Templates/FirstPerson/Scenes/Character.json" />
+    <File Path="Templates/FirstPerson/Code/PlayerActions.cs" />
+    <File Path="Templates/FirstPerson/Code/PlayerControls.cs" />
+    <File Path="Templates/FirstPerson/Code/ArmsFollowView.cs" />
+    <File Path="Templates/FirstPerson/Code/FootstepSounds.cs" />
+  </Folder>
+  <Folder Name="/Templates/TopDown/">
+    <File Path="Templates/TopDown/README.md" />
+    <File Path="Templates/TopDown/Scenes/Game.json" />
+    <File Path="Templates/TopDown/Scenes/Lvl_TopDown.json" />
+    <File Path="Templates/TopDown/Scenes/Character.json" />
+    <File Path="Templates/TopDown/Scenes/CursorMarker.json" />
+    <File Path="Templates/TopDown/Code/PlayerActions.cs" />
+    <File Path="Templates/TopDown/Code/ClickToMove.cs" />
+  </Folder>
+  <Folder Name="/Templates/Vehicle/">
+    <File Path="Templates/Vehicle/README.md" />
+    <File Path="Templates/Vehicle/Scenes/Game.json" />
+    <File Path="Templates/Vehicle/Scenes/VehicleBasic.json" />
+    <File Path="Templates/Vehicle/Scenes/SportsCar.json" />
+    <File Path="Templates/Vehicle/Code/PlayerActions.cs" />
+    <File Path="Templates/Vehicle/Code/VehicleControls.cs" />
+    <File Path="Templates/Vehicle/Code/Speedometer.cs" />
+    <File Path="Templates/Vehicle/Code/EngineSound.cs" />
   </Folder>
 </Solution>

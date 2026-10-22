@@ -16,7 +16,6 @@ SYSGEN008 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN010 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN011 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN012 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
-SYSGEN013 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN014 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN015 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN016 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
@@ -33,6 +32,17 @@ SYSGEN032 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN033 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN034 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN035 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN036 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN037 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN038 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN039 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN040 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN041 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN042 | CSharpGameEngine.Entities.CodeGen | Warning | GameSystemDiagnostics
+INPUT001 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
+INPUT002 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
+INPUT003 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
+INPUT004 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 SCENE100 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE101 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE102 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
@@ -62,3 +72,4 @@ SCENE204 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE205 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE206 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE207 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
+SCENE208 | CSharpGameEngine.Entities.CodeGen | Error | AssetCatalogEmitter

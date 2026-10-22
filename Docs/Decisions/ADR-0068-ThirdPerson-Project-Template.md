@@ -8,7 +8,7 @@ The ThirdPerson port has everything a user needs:
 - the character, camera and input (ADR-0067);
 - Quinn's animation (ADR-0066).
 
-It lives in the repository as an ordinary compilable project, `templates/CSharpGameEngine.Templates.ThirdPerson`, whose namespace is `CgeThirdPerson`.
+It lives in the repository as an ordinary compilable project, `Templates/CSharpGameEngine.Templates.ThirdPerson`, whose namespace is `CgeThirdPerson`.
 
 The user decided (2026-09-30) on three points:
 - a Visual Studio New Project entry;
@@ -56,6 +56,13 @@ The user decided (2026-09-30) on three points:
 - `VsixManifestTests` checks the template, the sources and the package in the VSIX.
 - Stage `vsix.project-template` generates "My ThirdPerson" in %TEMP%, builds it from the package alone, and plays it on WARP.
 - Interactive creation from the Visual Studio dialog is a manual check ([M0092](../Milestones/M0092-Sdk-Package-And-Project-Template.md)).
+
+## Addendum (2026-10-22): more templates
+FirstPerson, TopDown and Vehicle ports (ADR-0077/M0101 stages 8 and 9) use the same mechanism, so the extension offers four project templates. Nothing about the mechanism changed:
+- each is a compilable project `Templates/CSharpGameEngine.Templates.<name>` with namespace `Cge<name>`, registered in `CSharpGameEngine.slnx`;
+- each has `ProjectTemplates/CSharp/GameEngine/<name>` (`.vstemplate`, `.csproj.template`, `ReadMe.md`, icon) with its own name and description resources (IDs 138–143, English and Japanese), and its sources under `ProjectTemplateSources/<name>`;
+- `GameProjectGenerator` takes the template name and derives the namespace to replace and the level to open (`GeneratedProject_StartupSceneIsASceneOfTheProject` and `EveryOfferedTemplate_HasAVsTemplateWithItsOwnResourceStrings` cover all four).
+The Stage `vsix.project-template` still builds and plays only "My ThirdPerson"; the other three are built and played in place by `verify-thirdperson-character --template <name>`.
 
 ## Related features
 F-L8-032 (this ADR), F-L6-009 (ADR-0065), F-L5-006, F-L4-015, F-L4-014.

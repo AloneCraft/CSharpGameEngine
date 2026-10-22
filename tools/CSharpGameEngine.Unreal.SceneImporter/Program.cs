@@ -9,12 +9,17 @@ if(args.Length>0&&args[0]=="thirdperson"){
     return ThirdPersonTemplateImporter.Run(args[1..]);
 }
 
+if(args.Length>0&&args[0]=="level"){
+    return LevelTemplateImporter.Run(args[1..]);
+}
+
 if(args.Length>0&&args[0]=="worldgrid"){
     return WorldGridGlbConverter.Run(args[1..]);
 }
 
 if(args.Length!=3){
     Console.Error.WriteLine("Usage: CSharpGameEngine.Unreal.SceneImporter <manifest.json> <scene.cs> <assets.cs>");
+    Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter level <manifest.json> <template-project-directory> <TemplateName> <LevelName>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter thirdperson <manifest.json> <template-project-directory>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter worldgrid <manifest.json> <project-directory>");
     return 2;

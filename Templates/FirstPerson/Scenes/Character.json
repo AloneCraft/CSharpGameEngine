@@ -1,0 +1,25 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "CharacterMotion": {
+    "Capsule": { "Radius": 0.3, "HalfHeight": 0.9 },
+    "WalkSpeed": 5,
+    "JumpSpeed": 4.5,
+    "AirControl": 0.5,
+    "FaceMovement": false
+  },
+  "ViewAngles": { "MinPitch": -0.24, "MaxPitch": 0.24 },
+  "MoveIntent": {},
+  "Children": {
+    "Eyes": {
+      "Transform": { "Position": [0, 0.7, 0] },
+      "Camera": { "Active": true, "Fov": 0.18, "Far": 1000 },
+      "EyeCamera": {},
+      "Children": {
+        "Arms": {
+          "SkeletalMesh": "Characters/Mannequins/SKM_Manny_Arms",
+          "Locomotion": { "Idle": "Characters/Mannequins/Anims/MM_Idle" }
+        }
+      }
+    }
+  }
+}

@@ -3943,3 +3943,66 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Invariants: one static matrix; source/project/CI/automation/ledger agreement; `net472` and `amd64` Visual Studio 17.14+; CgeFixed and CgeAutomation never collapse; dynamic evidence status exists only in the ledgers; Pending never becomes Passed; strict release mode rejects all required non-passing or stale evidence.
 - Tests: repository agreement, Debug/Release configuration, target/manifest/CI drift, missing detailed check, aggregate summary mismatch, malformed passed automated evidence, release fail-closed, plus existing package/localization/layout/automation contracts.
 - Result: Matches the automated F-L8-028 contract. Human Experimental/DPI/accessibility evidence remains visibly Pending and is a deliberate F-L8-029 release blocker.
+
+## 2026-10-20 探索 — System の引数の役割表（ADR-0077 段階 1）
+- 意図: ADR-0077 §1。末尾の `ref State` は任意、`in` の非 nullable struct は読み取りの Component、Context は参照型の値渡し。
+- 観測（Fact）: `GameSystemAnalyzer.AnalyzeMethod` が `State` なしの `Update` を受け付け、生成された呼び出しは `ref State` を渡さない。`in Position` は `in State.World.Archetype0.GetPositionRefUnchecked(Index)` で渡され、`MarkPositionChangedUnchecked` を出さない。`in` と `ref` で同じ型を受けると SYSGEN011。
+- 実装: `GameSystemAnalyzer.cs`、`GameSystemDiagnostics.cs`（SYSGEN013 削除）。
+- 自動化された証拠: `GameSystemGeneratorDiagnosticsTests` の新規 3 件と CodeAnalysis.Tests 220/220。`Templates/CSharpGameEngine.Templates.ThirdPerson` と UserEcsProject のビルド。
+- 結果: Matches（段階 1 の範囲）。
+
+## 2026-10-20 探索 — UE 由来の名前の清算（ADR-0077 段階 2）
+- 意図: ADR-0077 §2 の M2。キャラクター・カメラ・アニメーションの型とフィールドを、エンジン独自の名前にする。動作は変えない。
+- 観測（Fact）: ソリューション全体がビルドでき、テンプレートのシーン JSON が新しい名前で読める。改名後のテンプレートを WARP で動かすと、W と Space で 15.7 m 歩き、1.228 m 跳ね、D3D12 のエラー 0 で着地した（`verify-thirdperson-character`）。
+- 実装: 型とフィールドの置換（M0101 段階 2 に一覧）。`MoveIntent.Jump()`、`CharacterMotionState.OnGround`/`Falling` を追加。
+- 自動化された証拠: CodeAnalysis.Tests 220/220、VSExtension.Tests 1175/1175、SceneModel.Tests 203/203、`Runtime.Windows.Tests` 185/185。
+- 既知の差: `GameWindow` の統合と `ViewAngles` の turns 化は未実装（Partial）。`Windows.Tests` の全件実行は WARP の描画テストでテストホストが落ちるが、変更前の `HEAD` でも同じ（環境）。
+- 結果: MatchesWithDocumentedExtension（改名の範囲）。
+
+## 2026-10-21 探索 — `in Parent<T>`（ADR-0077 段階 3）
+- 意図: ADR-0077 §2 の M3。親の Component を型で読む。親が死んでいる、または `T` を持たない子は呼ばない。親へは書かない。
+- 観測（Fact）: 生成されたループは、子の `Parent` から親を引き、`TryGetComponent(親, out T)` が成功したときだけ `Parent<T>(親, 値)` を渡して呼ぶ。親の無い子（存在しない Entity を指す `Parent`）と、親を `Destroy` した後の子は、呼ばれず、子の `ref` Component も変更済みにならない。
+- 実装: `GameSystemAnalyzer`、`GameSystemIndexAssigner`、`GameSystemLoopEmitter`、`Entities/Parent.cs`。`OrbitCameraUpdate` と ThirdPerson テンプレートの `ThirdPersonAnimation` が使う。
+- 自動化された証拠: `GameSystemParentRelationTests` 7 件、CodeAnalysis.Tests 227/227、全プロジェクトの合格、`verify-thirdperson-character`（WARP）が改名前と同じ値。
+- 既知の差: 親の `T` は変更検出と `[ScheduledSystem]` の競合検査に現れない（Partial）。`HierarchyQueryRegistration` は残した。
+- 結果: MatchesWithDocumentedExtension（`Parent<T>` が親 Entity も持つ点は、理想コードにない追加）。
+
+## 2026-10-22 探索 — `[InputActions]`（ADR-0077 段階 4）
+- 意図: ADR-0077 §2 の M4。入力を構造体で宣言し、ID・入力マップ・据え付け・毎フレームの読み取りを生成する。入力を読む System は FrameInput で `Window` の後に動き、`[SystemPhase]`・`[RunsAfter]` を書かせない。
+- 観測（Fact）: ThirdPerson テンプレートの `PlayerActions` から、`ContextId`、メンバー名由来の Action の ID、`CreateContext()`、`Read()`、`GeneratedInputActions.CreateServer()` が生成される。`in PlayerActions` を取る `PlayerControls` は `Systems.Input0` を読んで呼ばれ、FrameInput に入る。WARP で W と Space を送ると、従来と同じ値（歩行 15.700 m、跳躍 1.228 m、D3D12 のエラー 0）になった。
+- 実装: `Core/InputActionDeclarations.cs`、`InputActionsEmitter`、`GameSystemAnalyzer`（Resource の役割、既定フェーズ、暗黙の `RunsAfter`）、`GameSystemLoopEmitter`（保持、更新、据え付け）、`AppHost.CaptureMouse`。
+- 自動化された証拠: `InputActionsGeneratorTests` 10 件、CodeAnalysis.Tests 237/237、`verify-thirdperson-character`（WARP）。
+- 既知の差: マウスの視点（`Look`）は自動実行で再現できないので、実行での確認は未実施（生成コードの形のテストのみ）。`Axis`・`Pointer`・`Touch`・トリガーは未実装。理想コードとの違い: ゲームパッドの列挙は `Pad`、視点は `Look` 型。
+- 結果: MatchesWithDocumentedExtension（ThirdPerson の範囲）。
+
+## 2026-10-22 探索 — 音とイベント（ADR-0077 段階 5・6）
+- 意図: ADR-0077 §2 の M5・M6。`Audio.Play` で ECS から音を鳴らす。イベントを型で送受信し、受け手の順序とフェーズを自動で決める。
+- 観測（Fact）: ThirdPerson テンプレートを WARP で動かすと、ジャンプ、着地、足音のイベントから 15 件の音の要求が出て、実機の XAudio2 で 15 件すべてが再生された（`audioRequests=15`、`audioStarted=15`）。歩行 15.700 m、跳躍 1.228 m、D3D12 のエラー 0 は変わらない。受け手の `CharacterSounds` は `[SystemPhase]`・`[RunsAfter]` なしで、送り手 `CharacterMotionUpdate`（PhysicsSimulation）の後に動く。
+- 実装: `Audio`、`WavReader`/`PcmClip`、`AudioDeviceServer.PlayOneShot`、`Events.cs`、`GameSystemEventWiring`、`GameSystemLoopEmitter`（キュー、読み取り位置、破棄）、`CharacterEvents`。
+- 自動化された証拠: `GameSystemEventTests` 6 件、`GameSystemServiceTests` 3 件、`WavReaderTests` 6 件、`AudioServiceTests` 3 件、`TemplateSoundTests` 3 件、`ThirdPersonCharacterVerificationTests`（音の契約）。
+- 既知の差: ADR-0056 の「コーデックはビルド時に変換」は未実施で、`.wav` の容器を実行時に読む（文書化した拡張）。素材は合成した仮の音で、UE のコンテンツではない。耳での確認は未実施。
+- 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-22 探索 — 型付きアセット（ADR-0077 段階 7）
+- 意図: ADR-0077 §2 の M7。`Assets/` のファイルを型付きの参照として使い、ファイルが無い・名前の誤りをコンパイルエラーにする。
+- 観測（Fact）: ThirdPerson テンプレートから `Assets.Sounds.Jump` などが生成され、`Audio.Play(Assets.Sounds.Jump, …)` が動く。SDK を pack して「My ThirdPerson」をパッケージだけでビルドして WARP で動かすと、歩行 15.700 m、跳躍 1.228 m、`audioRequests=15`。シーンが無いアセットを名指しすると SCENE208 が JSON の行に出る。
+- 実装: `AssetCatalogEmitter`、`Core/Authoring/AssetReferences.cs`、`Game.props`（AdditionalFiles）、`Audio` の `SoundAsset`。
+- 自動化された証拠: `AssetCatalogTests` 5 件、CodeAnalysis.Tests 251/251、`verify-template-package`（WARP）。
+- 既知の差: シーン JSON の資産メンバーは文字列で、型は付かない（存在だけを検査する。ADR-0070 §2 の「struct は JSON オブジェクト」との衝突を避けた）。`ModelAsset` は静的メッシュ・骨格・クリップを区別しない（拡張子では決まらない）。
+- 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-22 探索 — FirstPerson・TopDown の移植（ADR-0077 段階 8）
+- 意図: ADR-0077 の理想コードを、UE の FirstPerson・TopDown テンプレートを出典にした 2 つの出荷物で確かめる。TopDown は、ポインター入力、画面からの 3D の位置の取得、目的地への歩行を要する。
+- 観測（Fact）: `Templates/CSharpGameEngine.Templates.FirstPerson` は、ThirdPerson と同じ `PlayerControls` のまま WARP で歩行 16.000 m、跳躍 0.863 m、`audioRequests=15`、D3D12 のエラー 0。`Templates/CSharpGameEngine.Templates.TopDown` は、画面上部の 1 点を 5 フレームだけクリックすると、離したあとも目的地まで 10.845 m 歩いて止まり（最後の 10 フレームの移動 0.000 m）、`audioRequests=7`、D3D12 のエラー 0。ThirdPerson は改名前と同じ値（歩行 15.700 m、跳躍 1.228 m）のまま。
+- 実装: `Core/InputActionDeclarations.cs`（`MouseButton`、`Pointer`、`[Pointer]`、`[Mouse(MouseButton)]`）、`InputActionsEmitter`（`Read` の第 3 引数）、`EngineHost.Cursor`/`Picking`/`TryPointerRay`、`Runtime.Windows/Picking.cs`、`MoveIntent.MoveTo`/`Stop`/`Steer`、`CharacterMotionUpdate`、`RuntimeAutomation`（`CGE_AUTOMATION_CURSOR`、`MouseLeft`）、`Win32Window.InjectMouseButton`/`TryGetCursorClient`、`tools/UnrealExport` の `export_level.py`・`export_skeletal_mesh.py`・`create_template_project.ps1`・`dump_blueprint.py`、`LevelTemplateImporter`。
+- 自動化された証拠: `InputActionsGeneratorTests`（Mouse ボタンと Pointer）、`PickingTests`、`CharacterMotorTests`（`MoveTo` 3 件）、`ClickToMoveVerificationTests`、`verify-thirdperson-character --template FirstPerson|TopDown`（WARP）。
+- 既知の差: UE のクリック移動はナビメッシュで経路を探すが、こちらは直線（障害物はコリジョンで止まる）。`Touch`、クリック位置の目印（`Spawner.Spawn`）、理想コードの `Cursor.Ray` は未実装（`Cursor.Ray` は `Picking` に置き換え）。出典は UE5.7 のテンプレート（UE5.8 のインストールに Templates が無い）。TopDown・FirstPerson の効果音は合成した仮の音。`Vehicle` は未着手。VS のテンプレートへの登録は未実施。
+- 結果: MatchesWithDocumentedExtension（FirstPerson・TopDown の範囲）。
+
+## 2026-10-22 探索 — Vehicle の移植と VS テンプレートの登録（ADR-0077 段階 9）
+- 意図: ADR-0077 の理想コードを、UE の Vehicle テンプレートを出典にした出荷物で確かめる。車両の動き、地面に沿う接地、画面への出力が要る。あわせて 4 つのテンプレートを VS の新規プロジェクトに出す。
+- 観測（Fact）: 実コードを読むと、物理の `Raycast` は静的三角形メッシュに対しても外接ボックスとの交差しか見ておらず、坂の手前の何も無い所にも当たった（探査用の一時テストで、坂の端の外に高さ 0.55 m の光線が当たることを確認した）。三角形そのものへ当てるようにしたあと、`Templates/CSharpGameEngine.Templates.Vehicle` を WARP で動かすと、W を押し続けて途中で右へ切ると、カメラの移動 48.281 m、進む向きの変化 38.3°、高さ 2.685 m（一定）、D3D12 のエラー 0。最終フレームで車は壁際に後ろ姿で止まっている。ThirdPerson・FirstPerson・TopDown は同じ値（歩行 15.700 m、16.000 m、クリック移動 10.845 m）。シーン JSON の角度は回転数で、`MaxSteering` に 34 と書くと 12240° になって過剰に曲がった（0.0944444 に直して解消）。
+- 実装: `PhysicsNarrowPhase.TryRaycastMesh`、`DeterministicPhysicsWorld.Raycast`、`Vehicle`/`VehicleState`/`VehicleIntent`/`VehicleMotor`/`VehicleMotionUpdate`/`VehicleChaseView`、`Hud`/`EngineHost.Hud`、`GameProjectGenerator`（テンプレート名対応）、`GameProjectTemplateWizard`、`VSExtension.csproj`、`VSPackage*.resx`、`tools/UnrealExport` の `export_level.py`（Vehicle、Landscape の代わりの板）・`export_skeletal_mesh.py`（静的メッシュ）・`probe_vehicle_level.py`。
+- 自動化された証拠: `PhysicsMeshRaycastTests`、`VehicleMotorTests`、`VehicleDriveVerificationTests`、`GameProjectGeneratorTests`・`VsixManifestTests`（4 テンプレート）、`verify-thirdperson-character --template Vehicle`（WARP）。Windows.Tests 491 合格（2 スキップ）、VSExtension.Tests 1185、FeatureRunner.Tests 179。
+- 既知の差: UE の Chaos Vehicle（車輪ごとの物理、サスペンション、トルク曲線と変速、タイヤの滑り）ではなく簡易モデル。エンジン音、車輪の回転・ステア、画面上の文字（速度とギアはタイトルバー）、リセット、カメラ切り替え、`Axis` 入力、地形（Landscape は同じ大きさの板で代用）は未実装。`Sweep` は静的三角形メッシュを扱わない。VS のダイアログからの新規作成は手動確認（ADR-0068 のとおり）で、自動検証は `vsix.project-template` が ThirdPerson だけ。
+- 結果: MatchesWithDocumentedExtension（Vehicle は簡易モデルの範囲）。

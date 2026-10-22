@@ -2,7 +2,7 @@
 
 Runs in the GUI editor (UnrealEditor.exe, not -Cmd) so Lumen and the sky have rendered frames
 to converge. A SceneCapture2D is placed at the template character's initial camera pose
-(PlayerStart + SpringArm 400 cm, FOV 90) and captured after warm-up ticks. The image is written
+(PlayerStart + OrbitCamera 400 cm, FOV 90) and captured after warm-up ticks. The image is written
 to .artifacts and is only a visual comparison reference; it is never shipped.
 """
 

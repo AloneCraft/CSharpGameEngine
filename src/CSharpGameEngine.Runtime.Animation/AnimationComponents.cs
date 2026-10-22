@@ -24,13 +24,13 @@ public struct SkeletalMeshRuntime:IRuntimeComponent<SkeletalMesh> {
 /// <see cref="VerticalSpeed"/> each frame; the speeds are the blend space's sample points (m/s).
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,3)]
-public struct LocomotionAnimator() {
-    public string IdleClip="";
-    public string WalkClip="";
-    public string JogClip="";
-    public string JumpClip="";
-    public string FallClip="";
-    public string LandClip="";
+public struct Locomotion() {
+    public string Idle="";
+    public string Walk="";
+    public string Jog="";
+    public string Jump="";
+    public string Fall="";
+    public string Land="";
     public float WalkSpeed=3f;
     public float JogSpeed=6f;
     public float BlendSeconds=0.2f;
@@ -40,7 +40,7 @@ public struct LocomotionAnimator() {
     /// <summary>Upward speed this frame (m/s); positive while rising.</summary>
     public float VerticalSpeed=0f;
 }
-public struct LocomotionAnimatorRuntime:IRuntimeComponent<LocomotionAnimator> {
+public struct LocomotionRuntime:IRuntimeComponent<Locomotion> {
     public LocomotionStateMachine?Machine;
     public JointPose[]?Pose;
     public string?Error;

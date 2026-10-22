@@ -1,0 +1,28 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeTopDown.Scenes",
+  "className": "TopDownGameMode",
+  "startupOrder": 0,
+  "root": {
+    "id": "7b601166-a8a5-4008-91ec-8faf18b70426",
+    "name": "GameMode",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AppHost",
+        "members": {
+          "Title": "Top Down",
+          "Width": 1280,
+          "Height": 720
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Level",
+        "members": {
+          "ShaderArtifactPath": "Shaders/Stage.cgeshaderartifact"
+        }
+      }
+    ],
+    "children": []
+  }
+}

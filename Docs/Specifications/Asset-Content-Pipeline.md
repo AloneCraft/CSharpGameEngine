@@ -95,3 +95,12 @@ Content performance records five warm-ups plus thirty cold/incremental samples, 
 | F-L7-029 | 7 | `content.release` | Headless / Foundation | 7200s | Closure, schema, SBOM input, package evidence. |
 
 F-L2-004, F-L7-025, F-L6-005, F-L7-026, F-L7-027, F-L4-008, F-L6-006, F-L8-019, F-L7-028, and F-L7-029 are `Implemented` with executable stages. `content.release` first produces configuration-qualified F-L7-028 reports, then publishes and reopens a canonical runtime-loadable content package and emits one canonical SHA-bound report over the exact package closure, owned schema sources, bounded project/toolchain SBOM inputs, and those performance reports. It rejects missing, extra, stale, relocated, reparse-point, non-canonical, or modified evidence. It does not duplicate the SPDX/sign/install responsibilities of F-L7-045 or the formal immutable product manifest owned by F-L7-048.
+
+## 型付きアセット参照(`Assets.*`、ADR-0077)
+
+ゲームプロジェクトの `Assets/` の下のファイルは、Source Generator が `internal static class Assets` として型付きの参照にする(フォルダごとに入れ子のクラス、ファイルごとに静的な読み取り専用フィールド)。
+
+- 種類は拡張子で決まる: `.wav` → `SoundAsset`、`.glb`/`.gltf`/`.fbx` → `ModelAsset`、`.png`/`.jpg`/`.jpeg` → `TextureAsset`(`CSharpGameEngine.Authoring`。中身はプロジェクト相対のパスで、文字列への暗黙の変換を持つ)。`Assets/Editor` は対象外。
+- 使うのは、ファイルの一覧(`Game.props` が AdditionalFiles に加える)だけで、中身は読まない。ファイルを足す・消すと、参照のコンパイルエラーとして現れる。
+- シーン JSON が `"Assets/…"` と書いたパスに対応するファイルが無ければ SCENE208(エラー)。
+- シーン JSON のメンバーは文字列のまま。`ModelAsset` は静的メッシュ・骨格・クリップを区別しない。

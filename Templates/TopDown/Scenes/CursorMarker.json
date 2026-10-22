@@ -1,0 +1,5 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "Mesh": "Cursor/SM_CursorMesh",
+  "Lifetime": 1.5
+}

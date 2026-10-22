@@ -161,7 +161,7 @@ public sealed class GameSystemGeneratorEmissionTests {
 
                                                               internal struct ContextSystem : ISystem
                                                               {
-                                                                  public bool Update(ref Position position, in FrameContext frame, Log log, ref State state) => true;
+                                                                  public bool Update(ref Position position, FrameContext frame, Log log, ref State state) => true;
                                                               }
                                                               """);
 
@@ -169,10 +169,10 @@ public sealed class GameSystemGeneratorEmissionTests {
 
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 
-        // 構造体Contextは`in`、参照型Contextは値渡し(属性は一切使わず、ref-kindだけで判別される)。
-        Assert.Contains("in global::Sample.FrameContext FrameContext",Text);
+        // Contextは参照型の値渡し(属性は一切使わず、ref-kindと型の種類だけで判別される)。
+        Assert.Contains("global::Sample.FrameContext FrameContext",Text);
         Assert.Contains("global::Sample.Log Log",Text);
-        Assert.Contains("ContextSystem.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), in FrameContext, Log, ref State)",Text);
+        Assert.Contains("ContextSystem.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), FrameContext, Log, ref State)",Text);
     }
 
     [Fact]
@@ -213,11 +213,11 @@ public sealed class GameSystemGeneratorEmissionTests {
 
                                                               internal struct BrokenSystem : ISystem
                                                               {
-                                                                  public bool Update(ref Velocity velocity) => true;
+                                                                  public static bool Update(ref Velocity velocity, ref State state) => true;
                                                               }
                                                               """);
 
-        Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN013");
+        Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN004");
 
         var Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 

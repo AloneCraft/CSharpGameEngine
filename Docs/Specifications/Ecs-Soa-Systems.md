@@ -40,7 +40,7 @@ internal struct MovementSystem : ISystem
 ```
 
 実行可能な実例は`UserEcsProject/`(`GameplayComponents.cs`・`Showcase/ShowcaseSystems.cs`、エントリポイントもSGが生成する)と
-ThirdPersonテンプレート(`templates/CSharpGameEngine.Templates.ThirdPerson/`)を参照。
+ThirdPersonテンプレート(`Templates/CSharpGameEngine.Templates.ThirdPerson/`)を参照。
 
 ## 推論規則
 
@@ -280,15 +280,24 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 | SYSGEN009 | **欠番**(到達不能。`ref`でないパラメータは壊れたComponentではなく正当なContextになるため) |
 | SYSGEN010〜011 | Component型(非nullable struct必須、同一メソッド内での型重複禁止) |
 | SYSGEN012 | 先頭`Entity`引数は値渡し・第1引数 |
-| SYSGEN013 | `Update`は末尾に`ref State`が必要 |
+| SYSGEN013 | **欠番**(ADR-0077で`ref State`を任意にした) |
 | SYSGEN014 | `Entity`/`State`をComponentに使えない |
 | SYSGEN015 | `Update`も`Spawn`も持たない`ISystem` |
 | SYSGEN016〜017 | `Spawn`固有(`void`必須、Entity/State引数不可) |
-| SYSGEN018〜019 | Context引数(`in`(struct)または値渡し(参照型)、同一メソッド内での型重複禁止) |
+| SYSGEN018〜019 | Context引数(値渡しの参照型。`in`の非nullable structはComponentの読み取りになる(ADR-0077)。同一メソッド内での型重複禁止) |
 | SYSGEN020 | 異なるComponent型が同じ単純名を持つ(生成フィールド名が衝突する) |
 | SYSGEN021 | Context引数があるためエントリポイントを生成できない(ADR-0035) |
 | SYSGEN026 | 1コンパイルのComponent型が上限128を超える |
 | SYSGEN027 | 同じ作者Componentを複数のRuntime companion Componentが主張する |
+| SYSGEN032〜035 | 順序・スケジュール(ADR-0073) |
+| SYSGEN036 | `Parent<T>`は`in`で渡し、`T`は非nullable struct。`Spawn`では使えない(ADR-0077) |
+| SYSGEN037 | 同じメソッドで親の`T`と自分の`T`(または2つ目の`Parent<T>`)を受けられない(ADR-0077) |
+| SYSGEN038 | `[InputActions]` の構造体は `in` で受ける(`Spawn` では使えない)(ADR-0077) |
+| SYSGEN039 | イベント引数の形の誤り(`in` 以外、`IEvent` でない、`Spawn`/`Shutdown`、2 つ目のイベント)(ADR-0077) |
+| SYSGEN040 | イベントを受けるメソッドが Component・Entity・`Parent<T>` も取る(ADR-0077) |
+| SYSGEN041 | イベントの受け手が、送り手より早いフェーズにある(ADR-0077) |
+| SYSGEN042 | 受けるイベントを送る System が無い(警告)(ADR-0077) |
+| INPUT001〜004 | `[InputActions]` の宣言(partial struct、メンバーの型、割り当てが型に合う、割り当てがある)(ADR-0077) |
 
 診断が1件でもある`ISystem` structは、そのstruct分の出力を丸ごとスキップする。
 
@@ -339,3 +348,14 @@ The generated ECS compilation imports `CSharpGameEngine.Runtime.Windows.projitem
 ## System-major phase scheduling
 
 Source GeneratorはSystem-majorでコードを生成し、Runtime/Editor Previewごとに永続`GeneratedSystemSet`を1つ所有する。`IWorldSystem.Update(ref State)`はcomponent queryを持たないWorld systemである。`SystemPhase`はFrameInput、FixedSimulation、PhysicsSimulation、PostPhysics、Presentationを定義し、`SystemOrder`後にphase内の決定順で実行する。既定ユーザーSystemはFixedSimulation、bootstrapはFrameInputである。
+
+## 親のComponentを読む(`in Parent<T>`、ADR-0077)
+
+`Update`/`Shutdown`の引数に`in Parent<T>`(`T`は非nullable struct)を書くと、親Entityの`T`を読める。
+
+- 生成されたループは、子のArchetypeが暗黙に持つ`Parent`から親Entityを引き、`World.TryGetComponent(親, out T)`で値を取って渡す。**親が死んでいる、または`T`を持たない子はスキップされる**(既定値は渡さない。スキップされた子の`ref`Componentは変更済みにならない)。
+- 渡されるのは親の値の**コピー**(`Parent<T>.Value`)と親Entity本人(`Parent<T>.Entity`)。親へ書き戻すことはできない。親の別のComponentは`Entity`を使って`TryGetComponent`で読む。
+- `T`は(子のArchetypeに属さなくても)Componentとして登録されるので、`TryGetComponent<T>`のオーバーロードが生成される。登録のためだけの空の`Spawn`は要らない。
+- 同じメソッドで同じ`T`を自分の引数(`ref T`/`in T`)としても受けること、同じ`T`の`Parent<T>`を2つ書くことはできない(SYSGEN037)。親と子が同じArchetypeに属し得るので、書き込みと読み取りが順序に依存するため。
+- Componentを1つも取らず`Parent<T>`だけのメソッドは書けない(SYSGEN008)。
+- 親子の変更検出と依存の追跡は、親の`T`には及ばない(`[ScheduledSystem]`の競合検査は子の`Parent`の読み取りだけを見る)。

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name Package="{aec17804-e2e4-46e7-b373-de11af816203}" ID="140" />
+    <Description Package="{aec17804-e2e4-46e7-b373-de11af816203}" ID="141" />
+    <Icon>__TemplateIcon.ico</Icon>
+    <ProjectType>CSharp</ProjectType>
+    <LanguageTag>csharp</LanguageTag>
+    <PlatformTag>windows</PlatformTag>
+    <ProjectTypeTag>games</ProjectTypeTag>
+    <TemplateID>CSharpGameEngine.TopDown</TemplateID>
+    <DefaultName>MyGame</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <CreateNewFolder>true</CreateNewFolder>
+    <CreateInPlace>true</CreateInPlace>
+    <SortOrder>30</SortOrder>
+    <NumberOfParentCategoriesToRollUp>1</NumberOfParentCategoriesToRollUp>
+  </TemplateData>
+  <TemplateContent>
+    <!-- The sources come from the wizard (GameProjectTemplateWizard); only the project file is a template. -->
+    <Project File="TopDown.csproj.template" TargetFileName="$projectname$.csproj" ReplaceParameters="true">
+      <ProjectItem ReplaceParameters="true" TargetFileName="ReadMe.md">ReadMe.md</ProjectItem>
+    </Project>
+  </TemplateContent>
+  <WizardExtension>
+    <Assembly>CSharpGameEngine.VSExtension</Assembly>
+    <FullClassName>CSharpGameEngine.VSExtension.GameProjectTemplateWizard</FullClassName>
+  </WizardExtension>
+</VSTemplate>

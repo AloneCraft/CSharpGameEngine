@@ -1,0 +1,36 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "Vehicle": {
+    "Mass": 1500,
+    "Engine": { "MaxTorque": 600, "MaxRpm": 6500 },
+    "Gears": { "Reverse": -3.2, "Forward": [3.5, 2.2, 1.5, 1.1, 0.9] },
+    "Wheels": [
+      { "Name": "FrontLeft", "Position": [-0.8, -0.3, 1.4], "Radius": 0.35, "Steer": true },
+      { "Name": "FrontRight", "Position": [0.8, -0.3, 1.4], "Radius": 0.35, "Steer": true },
+      { "Name": "RearLeft", "Position": [-0.8, -0.3, -1.4], "Radius": 0.35, "Drive": true, "Handbrake": true },
+      { "Name": "RearRight", "Position": [0.8, -0.3, -1.4], "Radius": 0.35, "Drive": true, "Handbrake": true }
+    ]
+  },
+  "VehicleIntent": {},
+  "CameraRig": { "Active": 0 },
+  "Children": {
+    "Body": {
+      "Mesh": "Vehicles/SportsCar/SM_SportsCar_Body",
+      "Collider": "Box"
+    },
+    "ChaseCamera": {
+      "OrbitCamera": { "Distance": 6, "Pitch": -0.06, "FollowYaw": true },
+      "Camera": { "Fov": 0.17, "Far": 2000 }
+    },
+    "HoodCamera": {
+      "Transform": { "Position": [0, 0.9, 0.6] },
+      "Camera": { "Fov": 0.2, "Far": 2000 }
+    },
+    "Engine": {
+      "AudioSource": { "Sound": "Sounds/Engine_Loop", "Loop": true, "Range": [2, 60] }
+    },
+    "Hud": {
+      "ScreenText": { "Anchor": "BottomRight", "Size": 0.04 }
+    }
+  }
+}

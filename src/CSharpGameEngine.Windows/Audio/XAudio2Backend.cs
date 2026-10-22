@@ -109,6 +109,26 @@ public readonly unsafe struct XAudio2Backend:IAudioBackend<XAudio2EngineHandle,X
             ((IXAudio2SourceVoice*)Voice.VoicePointer)->SetVolume(Volume,(uint)XAUDIO2_COMMIT_NOW),
             "IXAudio2Voice::SetVolume","setting voice volume");
 
+
+    /// <summary>True once the voice has played every submitted buffer (a one-shot can then be destroyed).</summary>
+    public static bool IsFinished(in XAudio2VoiceHandle Voice){
+        XAUDIO2_VOICE_STATE State;
+        ((IXAudio2SourceVoice*)Voice.VoicePointer)->GetState(&State,(uint)XAUDIO2_VOICE_NOSAMPLESPLAYED);
+        return State.BuffersQueued==0;
+    }
+
+    /// <summary>Equal-power pan of a mono voice onto the stereo mastering voice (-1 left, 0 centre, 1 right).</summary>
+    public static void SetMonoPan(in XAudio2VoiceHandle Voice,float Pan){
+        var Angle=(Math.Clamp(Pan,-1f,1f)+1f)*(MathF.PI/4f);
+        var Levels=stackalloc float[2];
+        Levels[0]=MathF.Cos(Angle);
+        Levels[1]=MathF.Sin(Angle);
+        AudioDiagnostics.EnsureSuccess(
+            ((IXAudio2SourceVoice*)Voice.VoicePointer)->SetOutputMatrix(null,1,2,Levels,(uint)XAUDIO2_COMMIT_NOW),
+            "IXAudio2Voice::SetOutputMatrix","panning a voice");
+    }
+
+
     public static void DestroyVoice(in XAudio2VoiceHandle Voice){
         if(Voice.VoicePointer!=0){
             ((IXAudio2SourceVoice*)Voice.VoicePointer)->DestroyVoice();

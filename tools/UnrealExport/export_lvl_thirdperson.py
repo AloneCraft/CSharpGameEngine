@@ -3,8 +3,8 @@
 Runs inside the staging project built by prepare_thirdperson_project.ps1 (a copy of
 Templates/TP_ThirdPersonBP plus its shared content packs). Nothing is saved back to Unreal.
 Outputs:
-- templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/*.glb
-- templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/*.glb
+- Templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/*.glb
+- Templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/*.glb
 - .artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json (level, character, input, blend space)
 """
 
@@ -40,7 +40,7 @@ ANIMATIONS = {
     "Land": "/Game/Characters/Mannequins/Anims/Unarmed/Jump/MM_Land",
 }
 REPO_ROOT = os.environ.get("CSGE_REPO_ROOT", "G:/GitHub/CSharpGameEngine").replace("\\", "/")
-TEMPLATE_DIR = f"{REPO_ROOT}/templates/CSharpGameEngine.Templates.ThirdPerson"
+TEMPLATE_DIR = f"{REPO_ROOT}/Templates/CSharpGameEngine.Templates.ThirdPerson"
 STAGE_ASSET_PREFIX = "Assets/Stage/Lvl_ThirdPerson/Meshes"
 CHARACTER_ASSET_PREFIX = "Assets/Characters/Mannequins"
 MESH_OUTPUT_DIR = f"{TEMPLATE_DIR}/{STAGE_ASSET_PREFIX}"

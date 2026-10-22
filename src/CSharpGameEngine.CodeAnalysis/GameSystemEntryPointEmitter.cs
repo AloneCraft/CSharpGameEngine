@@ -136,7 +136,8 @@ internal static class GameSystemEntryPointEmitter {
 
         bool HasEngineHost=Registry.ValidSystems.SelectMany(static System=>System.Methods)
             .SelectMany(static Method=>Method.Contexts)
-            .Any(static Context=>Context.TypeFullyQualifiedName==EngineHostFullyQualifiedName);
+            .Any(static Context=>Context.TypeFullyQualifiedName==EngineHostFullyQualifiedName)
+            ||Registry.ValidSystems.SelectMany(static System=>System.Methods).Any(static Method=>Method.NeedsHost);
         if(HasEngineHost){
             int WorldIndex=Lines.IndexOf("        var World = new global::CSharpGameEngine.Entities.World();");
             Lines[WorldIndex]=$"        using var EngineHost = new {EngineHostFullyQualifiedName}();";

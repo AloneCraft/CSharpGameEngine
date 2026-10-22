@@ -1,0 +1,91 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeFirstPerson.Scenes",
+  "className": "FirstPersonCharacter",
+  "startupOrder": 2,
+  "root": {
+    "id": "5d2a9e47-3c18-5b60-8a0d-7e91c4b2f6a3",
+    "name": "BP_FirstPersonCharacter",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": 3.0201263, "F": 0 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": 0.25, "F": 0 } }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMotion",
+        "members": {
+          "CapsuleRadius": 0.34,
+          "CapsuleHalfHeight": 0.96,
+          "WalkSpeed": 6,
+          "MinAnalogWalkSpeed": 0.2,
+          "Acceleration": 20.48,
+          "Braking": 20.48,
+          "AirBraking": 15,
+          "GroundFriction": 8,
+          "BrakingFriction": 0,
+          "JumpSpeed": 4.2,
+          "AirControl": 0.6,
+          "AirControlBoostMultiplier": 2,
+          "AirControlBoostVelocityThreshold": 0.25,
+          "GravityScale": 1,
+          "StepHeight": 0.45,
+          "MaxSlope": 0.12434745,
+          "TurnRate": 1,
+          "FaceMovement": false
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMotionState",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.MoveIntent",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.ViewAngles",
+        "members": {
+          "Yaw": 0.25
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "8e41b0c2-9a35-5d77-b2f4-1c6d0a93e857",
+        "name": "Eyes",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Character.OrbitCamera",
+            "members": {
+              "Pivot": { "R": 0, "U": 0.64, "F": 0 },
+              "Distance": 0,
+              "Radius": 0.12,
+              "Collide": false
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true,
+              "FovY": 0.16309864,
+              "FarZ": 1000
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.AudioListener",
+            "members": {}
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

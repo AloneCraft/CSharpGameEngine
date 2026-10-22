@@ -15,10 +15,10 @@ public sealed class GeneratedSystemOrderTests {
     ];
     private static readonly string[]FixedSimulation=["ShowcaseFixedMotion"];
     private static readonly string[]PhysicsSimulation=[
-        "PhysicsSyncBegin","PhysicsBodySync","StaticMeshColliderSync","PhysicsStep","PhysicsTransformWriteback","CharacterMovementUpdate",
+        "PhysicsSyncBegin","PhysicsBodySync","StaticMeshColliderSync","PhysicsStep","PhysicsTransformWriteback","CharacterMotionUpdate",
     ];
     private static readonly string[]Presentation=[
-        "SpringArmUpdate","LightShadowValidation","LevelLoad","CameraOriginSync","DirectionalLightSync","AmbientLightSync",
+        "OrbitCameraUpdate","LightShadowValidation","LevelLoad","CameraOriginSync","DirectionalLightSync","AmbientLightSync",
         "EnvironmentCollect","HeightFogSync","PointLightSync","SpotLightSync","RectAreaLightSync","TransformSync",
         "EmissiveMeshLightSync","SkeletalMeshSetup","LocomotionAnimation","SkinnedMeshSync","AudioFrameBegin",
         "AudioListenerSync","AudioSourceSync","Present","ShowcaseDashboard",

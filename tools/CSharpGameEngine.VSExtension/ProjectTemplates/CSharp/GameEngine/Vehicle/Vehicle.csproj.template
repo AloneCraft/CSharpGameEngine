@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- C# Game Engine game project. The CSharpGameEngine.Sdk package supplies the runtime, the ECS generator, the default shaders and the build conventions. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>$safeprojectname$</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CSharpGameEngine.Sdk" Version="$cgeengineversion$" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,15 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "DirectionalLight": { "Illuminance": 10 },
+  "SkyLight": { "Intensity": 1 },
+  "Children": {
+    "Ground": {
+      "Terrain": "Maps/LI_Ground",
+      "Collider": "Mesh"
+    },
+    "Track": {
+      "Mesh": "Meshes/SM_Track_10M",
+      "Collider": "Mesh"
+    }
+  }
+}

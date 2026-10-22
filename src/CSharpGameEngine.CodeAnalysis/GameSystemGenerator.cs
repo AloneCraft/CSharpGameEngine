@@ -91,6 +91,39 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                                        .Where(static Result=>Result.HasValue)
                                        .Select(static(Result,_)=>Result!.Value);
 
+        // ADR-0077 stage 7: the typed asset catalog (Assets.Sounds.Jump) and the check that scenes name existing asset files.
+        var AssetPaths=Context.AdditionalTextsProvider
+                              .Combine(Context.AnalyzerConfigOptionsProvider)
+                              .Select(static(Pair,_)=>{
+                                  Pair.Right.GlobalOptions.TryGetValue("build_property.ProjectDir",out var Directory);
+                                  return AssetCatalogEmitter.RelativeAssetPath(Pair.Left.Path,Directory);
+                              })
+                              .Where(static Path=>Path is not null)
+                              .Select(static(Path,_)=>Path!)
+                              .Collect();
+        var SceneTexts=Context.AdditionalTextsProvider
+                              .Combine(Context.AnalyzerConfigOptionsProvider)
+                              .Where(static Pair=>SceneJsonDslAnalyzer.IsSceneFile(Pair.Left.Path,Pair.Right.GlobalOptions))
+                              .Select(static(Pair,Ct)=>(Pair.Left.Path,Text:Pair.Left.GetText(Ct)))
+                              .Where(static Pair=>Pair.Text is not null)
+                              .Select(static(Pair,_)=>(Pair.Path,Text:Pair.Text!))
+                              .Collect();
+        var RuntimeGate=Context.CompilationProvider.Select(static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
+        Context.RegisterSourceOutput(AssetPaths.Combine(RuntimeGate),static(Spc,Data)=>{
+            if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.Emit(Spc,Data.Left); }
+        });
+        Context.RegisterSourceOutput(AssetPaths.Combine(SceneTexts).Combine(RuntimeGate),static(Spc,Data)=>{
+            if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.ReportMissing(Spc,Data.Left.Left,Data.Left.Right); }
+        });
+
+        // ADR-0077 stage 4: [InputActions] structs become an input map plus a per-frame Read.
+        var InputActionOutputs=Context.SyntaxProvider.ForAttributeWithMetadataName(
+                                                                              InputActionsEmitter.AttributeMetadataName,
+                                                                              static(Node,_)=>Node is TypeDeclarationSyntax,
+                                                                              static(Ctx,Ct)=>InputActionsEmitter.Transform(Ctx,Ct))
+                                       .Collect();
+        Context.RegisterSourceOutput(InputActionOutputs,static(Spc,Outputs)=>InputActionsEmitter.Emit(Spc,Outputs));
+
         Context.RegisterSourceOutput(Systems,static(Spc,Result)=>GameSystemDiagnostics.ReportAll(Spc,Result));
 
         // Compilationそのものをキャッシュキーに含めると、キーストロークのたびに重い生成段が丸ごと
@@ -135,6 +168,13 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             }
 
             ImmutableArray<GameSystemResult>AllSystemResults=[.. SystemResults,.. ValidStartupSystems];
+
+            // ADR-0077 stage 6: event receivers take their phase and order from the systems that send the event.
+            List<Diagnostic>WiringDiagnostics=[];
+            AllSystemResults=GameSystemEventWiring.Apply(AllSystemResults,WiringDiagnostics);
+            foreach(var WiringDiagnostic in WiringDiagnostics){
+                Spc.ReportDiagnostic(WiringDiagnostic);
+            }
 
             foreach(var OrderDiagnostic in GameSystemExecutionOrder.Validate(AllSystemResults)){
                 Spc.ReportDiagnostic(OrderDiagnostic);

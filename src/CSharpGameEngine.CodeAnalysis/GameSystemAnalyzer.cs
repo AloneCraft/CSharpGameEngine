@@ -8,11 +8,12 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// パラメータの役割はすべて構造的に判別する:
 /// <list type="number">
 /// <item>先頭・値渡し・型が<c>Entity</c> → Entityスロット(任意)</item>
-/// <item>末尾・<c>ref State</c> → Stateスロット(<c>Update</c>では必須)</item>
-/// <item>それ以外で<c>ref</c>の非nullable struct → Component</item>
-/// <item>それ以外(<c>ref</c>でないもの。structは<c>in</c>、参照型は値渡し) → Context</item>
+/// <item>末尾・<c>ref State</c> → Stateスロット(任意。ADR-0077)</item>
+/// <item><c>ref</c>の非nullable struct → 書き込むComponent</item>
+/// <item><c>in</c>の非nullable struct → 読み取るComponent(ADR-0077。<c>[ReadOnlyComponent] in</c>と同じ)</item>
+/// <item>それ以外(参照型は値渡し) → Context</item>
 /// </list>
-/// Componentは<c>ref</c>必須・Contextは<c>ref</c>禁止なので、ref-kindだけで曖昧性なく判別できる。
+/// 書き込みは<c>ref</c>・読み取りは<c>in</c>・Contextは参照型の値渡しなので、ref-kindと型の種類だけで曖昧性なく判別できる。
 /// ランタイム型へは完全修飾名の文字列としてのみ参照し、CSharpGameEngine.CodeAnalysisから
 /// CSharpGameEngine.Entitiesへのアセンブリ参照は発生させない(ADR-0001)。
 /// </summary>
@@ -30,6 +31,11 @@ internal static class GameSystemAnalyzer {
     private const string EngineHostMetadataName="CSharpGameEngine.Runtime.Windows.EngineHost";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
+    internal const string WindowSystemMetadataName="CSharpGameEngine.Runtime.Windows.Window";
+    internal const string EventInterfaceMetadataName="CSharpGameEngine.Entities.IEvent";
+    internal const string EventWriterMetadataName="CSharpGameEngine.Entities.EventWriter<T>";
+    internal const string ParentRelationMetadataName="CSharpGameEngine.Entities.Parent<T>";
+    internal const string ParentComponentFullyQualifiedName="global::CSharpGameEngine.Entities.Parent";
 
     private const string UpdateMethodName="Update";
     private const string SpawnMethodName="Spawn";
@@ -102,10 +108,20 @@ internal static class GameSystemAnalyzer {
             }
         }
 
-        var Phase=MethodModels.Any(static Method=>Method.Components.Any(static Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Entities.Bootstrap"))?0:1;
+        var ReadsInput=MethodModels.Any(static Method=>Method.Resources.Length>0);
+        // ADR-0077: a system that reads [InputActions] runs in FrameInput, after the engine's Window system has pumped the events,
+        // so a game never writes [SystemPhase] or [RunsAfter(typeof(Window))] for input. An explicit [SystemPhase] still wins.
+        if(ReadsInput&&SystemSymbol.ContainingAssembly.GetTypeByMetadataName(WindowSystemMetadataName) is { }WindowSystem){
+            var WindowFqn=WindowSystem.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            if(!RunsAfter.Contains(WindowFqn)){ RunsAfter.Add(WindowFqn); }
+        }
+
+        var PhaseIsExplicit=false;
+        var Phase=MethodModels.Any(static Method=>Method.Components.Any(static Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Entities.Bootstrap")||Method.Resources.Length>0)?0:1;
         foreach(var Attribute in SystemSymbol.GetAttributes()){
             if(Attribute.AttributeClass?.ToDisplayString()==SystemPhaseAttributeMetadataName
                 &&Attribute.ConstructorArguments.Length==1){
+                PhaseIsExplicit=true;
                 object? Value=Attribute.ConstructorArguments[0].Value;
                 Phase=Value switch {
                     byte ByteValue=>ByteValue,
@@ -136,8 +152,12 @@ internal static class GameSystemAnalyzer {
             RunsBefore.ToImmutable(),
             TypeLocation,
             TypeLocation.SourceTree?.FilePath??string.Empty,
-            TypeLocation.SourceSpan.Start);
+            TypeLocation.SourceSpan.Start,
+            PhaseIsExplicit:PhaseIsExplicit);
     }
+
+    internal static bool IsEventStruct(ITypeSymbol Type)=>
+        Type.TypeKind==TypeKind.Struct&&Type.AllInterfaces.Any(static Interface=>Interface.ToDisplayString()==EventInterfaceMetadataName);
 
     private static int GetDeclarationPosition(ISymbol Symbol){
         Location Location=Symbol.Locations.FirstOrDefault()??Location.None;
@@ -217,14 +237,18 @@ internal static class GameSystemAnalyzer {
                 ScanEndExclusive=Parameters.Length-1;
             }
         } else if(HasTrailingState){
+            // ADR-0077: the trailing `ref State` is optional. A system that does not need the world or the frame
+            // time simply leaves it out, and the loop passes nothing.
             ScanEndExclusive=Parameters.Length-1;
-        } else {
-            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustEndWithRefState,MethodLocation,Method.Name));
-            IsValid=false;
         }
 
         List<GameSystemComponentParameterModel>Components=[];
         List<GameSystemContextParameterModel>Contexts=[];
+        List<GameSystemRelationParameterModel>Relations=[];
+        List<GameSystemResourceParameterModel>Resources=[];
+        List<GameSystemServiceParameterModel>Services=[];
+        List<GameSystemEventParameterModel>EventReads=[];
+        List<GameSystemEventParameterModel>EventWrites=[];
         List<GameSystemParameterSlot>CallOrder=[];
         HashSet<string>SeenComponentTypes=new(StringComparer.Ordinal);
         HashSet<string>SeenContextTypes=new(StringComparer.Ordinal);
@@ -245,6 +269,82 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
+            // ADR-0077 stage 6: events. `in EventWriter<T>` sends them, `in T` (T : IEvent) receives one at a time.
+            if(Parameter.Type is INamedTypeSymbol { IsGenericType:true } WriterType
+                &&WriterType.ConstructedFrom.ToDisplayString()==EventWriterMetadataName){
+                if(IsSpawn||Parameter.RefKind!=RefKind.In||WriterType.TypeArguments.Length!=1||!IsEventStruct(WriterType.TypeArguments[0])){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EventParameterInvalid,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
+                    IsValid=false;
+                    continue;
+                }
+
+                var WrittenFqn=WriterType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                if(EventWrites.Any(Existing=>Existing.EventTypeFullyQualifiedName==WrittenFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EventParameterInvalid,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.EventWrite,EventWrites.Count));
+                EventWrites.Add(new GameSystemEventParameterModel(Parameter.Name,WrittenFqn));
+                continue;
+            }
+
+            if(Parameter.Type.TypeKind==TypeKind.Struct&&IsEventStruct(Parameter.Type)){
+                if(IsSpawn||IsShutdown||Parameter.RefKind!=RefKind.In||EventReads.Count>0){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EventParameterInvalid,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.EventRead,EventReads.Count));
+                EventReads.Add(new GameSystemEventParameterModel(Parameter.Name,ParameterTypeFqn));
+                continue;
+            }
+
+            // ADR-0077 stage 4: an [InputActions] struct is a per-frame resource, not a component. Checked before the generic
+            // `in` struct rule, which would make it a component and never match any entity.
+            if(Parameter.Type.TypeKind==TypeKind.Struct
+                &&Parameter.Type.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==InputActionsEmitter.AttributeMetadataName)){
+                if(IsSpawn||Parameter.RefKind!=RefKind.In){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.InputActionsMustBePassedByIn,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
+                    IsValid=false;
+                    continue;
+                }
+
+                if(Resources.Any(Existing=>Existing.TypeFullyQualifiedName==ParameterTypeFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Resource,Resources.Count));
+                Resources.Add(new GameSystemResourceParameterModel(Parameter.Name,ParameterTypeFqn));
+                continue;
+            }
+
+            // ADR-0077: `in Parent<T>` reads component T from the parent entity. It is checked before the generic
+            // `in` struct rule because Parent<T> is itself a non-nullable struct.
+            if(Parameter.Type is INamedTypeSymbol { IsGenericType:true } RelationType
+                &&RelationType.ConstructedFrom.ToDisplayString()==ParentRelationMetadataName){
+                if(IsSpawn||Parameter.RefKind!=RefKind.In||RelationType.TypeArguments.Length!=1||!IsNonNullableStruct(RelationType.TypeArguments[0])){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ParentRelationParameterInvalid,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
+                    IsValid=false;
+                    continue;
+                }
+
+                var RelatedFqn=RelationType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                if(Relations.Any(Existing=>Existing.ComponentTypeFullyQualifiedName==RelatedFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ParentRelationConflictsWithComponent,MethodLocation,Method.Name,RelatedFqn));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.ParentRelation,Relations.Count));
+                Relations.Add(new GameSystemRelationParameterModel(Parameter.Name,RelatedFqn));
+                continue;
+            }
+
             if(IsReadOnlyComponent){
                 if(Parameter.RefKind!=RefKind.In||!IsNonNullableStruct(Parameter.Type)){
                     Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ReadOnlyComponentMustBeInStruct,
@@ -253,6 +353,20 @@ internal static class GameSystemAnalyzer {
                     continue;
                 }
 
+                if(!SeenComponentTypes.Add(ParameterTypeFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Component,Components.Count));
+                Components.Add(new GameSystemComponentParameterModel(Parameter.Name,ParameterTypeFqn,IsReadOnly:true));
+                continue;
+            }
+
+            // ADR-0077: `in T` on a struct reads the component. It replaces `[ReadOnlyComponent] in T`, which is still
+            // accepted above. Primitives and enums stay what they were, a by-`in` value context.
+            if(Parameter.RefKind==RefKind.In&&Parameter.Type.SpecialType==SpecialType.None&&Parameter.Type.TypeKind==TypeKind.Struct&&IsNonNullableStruct(Parameter.Type)){
                 if(!SeenComponentTypes.Add(ParameterTypeFqn)){
                     Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
                     IsValid=false;
@@ -292,6 +406,22 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
+            // ADR-0077 stage 5: a reference-type parameter whose type is a property of EngineHost (Audio, ...) is a service:
+            // the loop passes Host.<Property>. This generalizes the IPhysicsHost rule below; a system needs no [Context] ceremony.
+            if(Parameter.Type.TypeKind==TypeKind.Class
+                &&Method.ContainingAssembly.GetTypeByMetadataName(EngineHostMetadataName) is { }ServiceHost
+                &&ServiceHost.GetMembers().OfType<IPropertySymbol>().FirstOrDefault(Property=>!Property.IsStatic&&Property.GetMethod is not null&&SymbolEqualityComparer.Default.Equals(Property.Type,Parameter.Type)) is { }ServiceProperty){
+                if(Services.Any(Existing=>Existing.TypeFullyQualifiedName==ParameterTypeFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Service,Services.Count));
+                Services.Add(new GameSystemServiceParameterModel(Parameter.Name,ParameterTypeFqn,ServiceProperty.Name));
+                continue;
+            }
+
             // M0096 G: an interface the engine host implements (IPhysicsHost) is the host itself, so a portable
             // system can take it and the loop passes the one host it already has.
             var ContextTypeFqn=Parameter.Type.TypeKind==TypeKind.Interface
@@ -313,17 +443,35 @@ internal static class GameSystemAnalyzer {
             CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.State,0));
         }
 
-        if(Components.Count==0&&!IsWorldSystem){
+        if(EventReads.Count>0&&(Components.Count>0||Relations.Count>0||HasLeadingEntity)){
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EventConsumerCannotTakeEntities,MethodLocation,Method.Name));
+            IsValid=false;
+        } else if(Components.Count==0&&!IsWorldSystem&&EventReads.Count==0){
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustHaveAtLeastOneComponentParameter,MethodLocation,Method.Name));
             IsValid=false;
         }
+
+        if(Relations.Count>0){
+            foreach(var Relation in Relations){
+                if(SeenComponentTypes.Contains(Relation.ComponentTypeFullyQualifiedName)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ParentRelationConflictsWithComponent,MethodLocation,Method.Name,Relation.ComponentTypeFullyQualifiedName));
+                    IsValid=false;
+                }
+            }
+
+            // The child's archetype carries Parent (the scene gives every child one); the loop reads it to find the parent.
+            if(IsValid&&!SeenComponentTypes.Contains(ParentComponentFullyQualifiedName)){
+                Components.Add(new GameSystemComponentParameterModel(string.Empty,ParentComponentFullyQualifiedName,IsReadOnly:true));
+            }
+        }
+
 
         if(!IsValid){
             return null;
         }
 
         return new GameSystemMethodModel(Role,HasLeadingEntity,[.. Components],[.. Contexts],[.. CallOrder],GetDeclarationPosition(Method),
-            ReturnsBool:Role==GameSystemMethodRole.Dispatch&&!Method.ReturnsVoid);
+            ReturnsBool:Role==GameSystemMethodRole.Dispatch&&!Method.ReturnsVoid,[.. Relations],[.. Resources],[.. Services],[.. EventReads],[.. EventWrites]);
     }
 
     private static string TypeFqn(IParameterSymbol Parameter)=>

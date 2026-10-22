@@ -1,0 +1,9 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "Startup": true,
+  "GameWindow": { "Title": "Vehicle", "Size": [1280, 720] },
+  "Children": {
+    "Stage": { "Instance": "VehicleBasic" },
+    "Car": { "Instance": "SportsCar", "Transform": { "Position": [0, 1, 0] } }
+  }
+}

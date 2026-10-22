@@ -8,8 +8,8 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.TemplateWizard;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// Creates a C# Game Engine game from the ThirdPerson template (ADR-0068). The VSIX carries the
-/// template source (ProjectTemplateSources/ThirdPerson) and the engine SDK package (Packages/);
+/// Creates a C# Game Engine game from a project template (ADR-0068: ThirdPerson, FirstPerson, TopDown, Vehicle). The VSIX carries the
+/// template sources (ProjectTemplateSources/&lt;name&gt;) and the engine SDK package (Packages/);
 /// the wizard places the package in the local feed, writes the sources with the new project's
 /// namespace and a nuget.config, and lets the template write the PackageMode project file. After
 /// creation it opens the startup level.
@@ -26,7 +26,7 @@ public sealed class GameProjectTemplateWizard:IWizard {
         var ProjectDirectory=ReplacementsDictionary["$destinationdirectory$"];
         var ExtensionDirectory=Path.GetDirectoryName(typeof(GameProjectTemplateWizard).Assembly.Location)!;
         ReplacementsDictionary[GameProjectGenerator.EngineVersionToken]=CreateProject(ExtensionDirectory,TemplateName,ProjectDirectory,ReplacementsDictionary["$safeprojectname$"],null);
-        this.StartupScene=Path.Combine(ProjectDirectory,GameProjectGenerator.StartupScenePath);
+        this.StartupScene=Path.Combine(ProjectDirectory,GameProjectGenerator.StartupSceneOf(TemplateName));
     }
     /// <summary>
     /// Publishes the bundled package to the local feed (under <paramref name="FeedRoot"/>, by default
@@ -35,7 +35,7 @@ public sealed class GameProjectTemplateWizard:IWizard {
     /// </summary>
     internal static string CreateProject(string ExtensionDirectory,string TemplateName,string ProjectDirectory,string RootNamespace,string?FeedRoot){
         var (EngineVersion,FeedDirectory)=PrepareFeed(ExtensionDirectory,FeedRoot);
-        GameProjectGenerator.CopySources(Path.Combine(ExtensionDirectory,TemplateSourceFolder,TemplateName),ProjectDirectory,RootNamespace);
+        GameProjectGenerator.CopySources(Path.Combine(ExtensionDirectory,TemplateSourceFolder,TemplateName),ProjectDirectory,RootNamespace,TemplateName);
         File.WriteAllText(Path.Combine(ProjectDirectory,"nuget.config"),GameProjectGenerator.NuGetConfig(FeedDirectory));
         return EngineVersion;
     }

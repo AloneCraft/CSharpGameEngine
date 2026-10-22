@@ -138,7 +138,7 @@ ADR-0066 adds skinned meshes. A `SkeletalMesh` Component names a glTF with exact
 
 At the start of every frame, `Skinning.hlsl` rewrites each skinned mesh's default-heap vertex buffer from the latest palette. The palette is `InverseBind × JointModel` in row vectors and goes through a per-frame-slot upload ring. The shadow, GI-capture, AO and main passes then all draw the same pose. `RenderServer.SetSkinPalette` records the palette for device-recovery replay.
 
-`Runtime.Animation` evaluates `LocomotionAnimator` (Unreal's ABP_Unarmed graph) on the CPU in the Presentation phase.
+`Runtime.Animation` evaluates `Locomotion` (Unreal's ABP_Unarmed graph) on the CPU in the Presentation phase.
 
 Invariants:
 - The rest palette is identity.

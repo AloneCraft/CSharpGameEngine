@@ -110,7 +110,62 @@ public sealed class AudioDeviceServer:IDisposable {
         }
     }
 
+    private readonly List<XAudio2VoiceHandle>OneShots=[];
+
+    /// <summary>How many one-shots were requested (also in silent mode, where nothing is heard). A test and a diagnostic read this.</summary>
+    public int OneShotsRequested { get;private set; }
+
+    /// <summary>How many one-shots a device actually started.</summary>
+    public int OneShotsStarted { get;private set; }
+
+    /// <summary>
+    /// Plays <paramref name="Clip"/> once on its own source voice (ADR-0077). <paramref name="Gain"/> is the final volume
+    /// (volume times distance attenuation); <paramref name="Pan"/> places a mono clip between the stereo speakers.
+    /// Returns false when nothing was started (silent mode, a device fault); the finished voices are freed by
+    /// <see cref="ReapOneShots"/>.
+    /// </summary>
+    public bool PlayOneShot(global::CSharpGameEngine.Audio.PcmClip Clip,float Gain,float Pan){
+        ObjectDisposedException.ThrowIf(this.State==AudioDeviceState.Disposed,this);
+        ArgumentNullException.ThrowIfNull(Clip);
+        this.OneShotsRequested++;
+        if(this.Mode!=AudioBackendMode.XAudio2||!this.HasEngine||!float.IsFinite(Gain)||Gain<=0f){ return false; }
+        XAudio2VoiceHandle Voice=default;
+        var Created=false;
+        try {
+            Voice=XAudio2Backend.CreateVoice(this.Engine,Clip.SampleRate,Clip.Channels);
+            Created=true;
+            Voice=XAudio2Backend.SubmitBuffer(Voice,Clip.Samples,false);
+            XAudio2Backend.SetVolume(Voice,Math.Min(Gain,4f));
+            if(Clip.Channels==1){ XAudio2Backend.SetMonoPan(Voice,Pan); }
+            XAudio2Backend.Start(Voice);
+            this.OneShots.Add(Voice);
+            this.OneShotsStarted++;
+            return true;
+        }
+        catch(AudioException Exception){
+            this.LastFailure=Exception.Message;
+            if(Created){ XAudio2Backend.DestroyVoice(Voice); }
+            return false;
+        }
+    }
+
+    /// <summary>Destroys the one-shot voices that have finished playing. Call once per frame.</summary>
+    public void ReapOneShots(){
+        for(var Index=this.OneShots.Count-1;Index>=0;Index--){
+            if(XAudio2Backend.IsFinished(this.OneShots[Index])){
+                XAudio2Backend.DestroyVoice(this.OneShots[Index]);
+                this.OneShots.RemoveAt(Index);
+            }
+        }
+    }
+
+    private void ReleaseOneShots(){
+        foreach(var Voice in this.OneShots){ XAudio2Backend.DestroyVoice(Voice); }
+        this.OneShots.Clear();
+    }
+
     private void ReleaseEngine(){
+        this.ReleaseOneShots();
         if(!this.HasEngine){ return; }
         this.HasEngine=false;
         XAudio2EngineHandle Owned=this.Engine;

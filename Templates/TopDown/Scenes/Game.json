@@ -1,0 +1,9 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "Startup": true,
+  "GameWindow": { "Title": "Top Down", "Size": [1280, 720] },
+  "Children": {
+    "Stage": { "Instance": "Lvl_TopDown" },
+    "Player": { "Instance": "Character", "Transform": { "Position": [0, 1, 0] } }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeFirstPerson.Scenes",
+  "className": "FirstPersonGameMode",
+  "startupOrder": 0,
+  "root": {
+    "id": "0b6f7d3e-6e4a-5c1f-9d1e-2a7c4f1b8e10",
+    "name": "GameMode",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AppHost",
+        "members": {
+          "Title": "First Person",
+          "Width": 1280,
+          "Height": 720,
+          "CaptureMouse": true
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Level",
+        "members": {
+          "ShaderArtifactPath": "Shaders/Stage.cgeshaderartifact"
+        }
+      }
+    ],
+    "children": []
+  }
+}

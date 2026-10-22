@@ -1,0 +1,1561 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeTopDown.Scenes",
+  "className": "Lvl_TopDown",
+  "startupOrder": 1,
+  "root": {
+    "id": "de6043bd-b949-5413-8d93-ae47b8ebd93d",
+    "name": "Lvl_TopDown",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.SkyAtmosphere",
+        "members": {
+          "BottomRadiusKm": 6360,
+          "AtmosphereHeightKm": 60,
+          "GroundAlbedoR": 0.40197778,
+          "GroundAlbedoG": 0.40197778,
+          "GroundAlbedoB": 0.40197778,
+          "RayleighScatteringR": 0.175287,
+          "RayleighScatteringG": 0.40960723,
+          "RayleighScatteringB": 1,
+          "RayleighScatteringScale": 0.0331,
+          "RayleighExponentialDistributionKm": 8,
+          "MieScatteringR": 1,
+          "MieScatteringG": 1,
+          "MieScatteringB": 1,
+          "MieScatteringScale": 0.003996,
+          "MieAbsorptionR": 1,
+          "MieAbsorptionG": 1,
+          "MieAbsorptionB": 1,
+          "MieAbsorptionScale": 0.000444,
+          "MieAnisotropy": 0.8,
+          "MieExponentialDistributionKm": 1.2,
+          "OtherAbsorptionR": 0.34556085,
+          "OtherAbsorptionG": 0.99999994,
+          "OtherAbsorptionB": 0.045188725,
+          "OtherAbsorptionScale": 0.001881,
+          "OtherTentTipAltitudeKm": 25,
+          "OtherTentWidthKm": 30,
+          "MultiScatteringFactor": 1,
+          "SunDiskAngle": 0.0020436111
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.SkyLight",
+        "members": {
+          "Intensity": 1,
+          "LowerHemisphereR": 0,
+          "LowerHemisphereG": 0,
+          "LowerHemisphereB": 0
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.ExponentialHeightFog",
+        "members": {
+          "FogDensity": 0.0436,
+          "FogHeightFalloff": 0.2,
+          "FogHeight": -68.5,
+          "FogMaxOpacity": 1,
+          "InscatteringLuminanceR": 0,
+          "InscatteringLuminanceG": 0,
+          "InscatteringLuminanceB": 0,
+          "SkyAtmosphereAmbientContributionScale": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.PostProcessVolume",
+        "members": {
+          "ExposureMethod": "AutoHistogram",
+          "MinEv100": -10,
+          "MaxEv100": 20,
+          "AutoExposureSpeedUp": 3,
+          "AutoExposureSpeedDown": 1,
+          "ExposureCompensation": 1,
+          "ToneMapper": "UnrealFilmic",
+          "BloomIntensity": 0.675,
+          "AmbientOcclusionIntensity": 0.5,
+          "AmbientOcclusionRadiusMeters": 2
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "43d7bf56-ed2b-56fa-8c4a-7a9806361d43",
+        "name": "Floor",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 4, "U": 1, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
+              "Mobility": "Movable"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b489c1bb-3f2f-52e5-9fc8-3cc7adc65f92",
+        "name": "SM_Cube",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": 12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6ac16967-ebc8-5d17-aa88-2eb761d7e5f6",
+        "name": "SM_Cube10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f6050d81-7cdc-5ff5-9e91-ed8315905434",
+        "name": "SM_Cube11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "de592052-f049-527e-8153-1b224327b56c",
+        "name": "SM_Cube12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "321cd8bf-a843-5fc5-821d-71773feccde1",
+        "name": "SM_Cube13",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 7.000001, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "87f05642-6ed5-5655-8b0d-e4db173c9a2e",
+        "name": "SM_Cube14",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "af91f2df-1d26-5cee-ba8b-2fca149282b9",
+        "name": "SM_Cube15",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b5e61557-67d7-52da-9a89-7eaf9b678c7e",
+        "name": "SM_Cube16",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -5, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "0730201a-a22e-5a27-a9b1-75e0d53cdd40",
+        "name": "SM_Cube17",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -20, "U": 2, "F": 19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "bcbbbf00-d7b3-5a1e-981a-0fe7cdd28205",
+        "name": "SM_Cube18",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 2, "F": -19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 38 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6f2dbd62-dade-563d-a2eb-4925312678b6",
+        "name": "SM_Cube19",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 20, "U": 2, "F": -19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 38 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d85b1248-dc77-5e67-81f5-81d63a870f85",
+        "name": "SM_Cube2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -20, "U": 0, "F": 18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "876e4876-deac-562e-8250-729048a80ddd",
+        "name": "SM_Cube20",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -20, "U": 2, "F": -19.999998 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 1, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d0d13cb8-c897-5274-8efb-de88457a4da1",
+        "name": "SM_Cube3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -20, "U": 0, "F": -19.999998 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 40 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "fe2d03e4-1cb1-553c-bcac-608f38fe44c0",
+        "name": "SM_Cube4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -18, "U": 0, "F": -18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 36 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2ef9a5bc-7153-549b-b188-56b3c1a9e9c2",
+        "name": "SM_Cube5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 20, "U": 0, "F": -18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 2, "U": 2, "F": 36 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "35af6e01-015b-5ae0-a93e-f31dccee59b6",
+        "name": "SM_Cube6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "23ea20fc-3445-5bd4-9347-1b63ef62487d",
+        "name": "SM_Cube7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": 12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4330b7cb-236e-5588-af96-d67282896e6b",
+        "name": "SM_Cube8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7608b8a6-9076-5b6e-b2b9-0119dc96c9f6",
+        "name": "SM_Cube9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 3 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "0ca2f420-59ef-5755-b89c-d5adc173aaf1",
+        "name": "SM_Cylinder",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 2, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 7, "U": 0.1, "F": 7 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Cylinder_e5baa95a87.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "7ae2a829-edf0-57dc-a55b-c4369120ad3a",
+        "name": "SM_Cylinder2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 0, "F": 0.10000058 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 5.0000052, "U": 4, "F": 5.0000052 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "dbde2662-5280-5477-8def-00d2e8a93918",
+        "name": "SM_Cylinder3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -19, "U": 0, "F": 0.10000058 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 5.0000052, "U": 4, "F": 5.0000052 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "3665e69e-c412-51c4-b5d0-b473c2b067da",
+        "name": "SM_Cylinder4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 19, "U": 0, "F": 0.099999666 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "55deea57-1fee-58b2-8efe-82029bac2ca9",
+        "name": "SM_Cylinder5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 19, "U": 0, "F": 0.099999666 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "92fb165e-d103-585f-9464-b99ea18a7a50",
+        "name": "SM_Cylinder6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.09999948, "U": 0, "F": -19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "36cf9e16-e675-5218-9dd4-8ff56d181019",
+        "name": "SM_Cylinder7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.09999948, "U": 0, "F": -19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c71b9629-4fe5-5c21-9dbd-055204a9fe1b",
+        "name": "SM_Cylinder8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.09999948, "U": 0, "F": 19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9cf80a54-339c-504c-8380-9d1272c3642a",
+        "name": "SM_Cylinder9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.09999948, "U": 0, "F": 19 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 5, "U": 4, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "aa9b5a1e-cd1e-58d1-9fd7-bffcea80438e",
+        "name": "SM_QuarterCylinder",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "43eb5b80-e6a0-5596-836e-d9c4f0f8e821",
+        "name": "SM_QuarterCylinder10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -1.9999996, "U": -1, "F": -2.1 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 6.499999, "U": 2, "F": 6.499999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6b3863f2-6d55-5f49-9fb9-7f879c9bcde0",
+        "name": "SM_QuarterCylinder11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": -1, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 6.5, "U": 2, "F": 6.5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e0ccef84-0d35-5f62-b39c-5b1294b66725",
+        "name": "SM_QuarterCylinder12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": -1, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 6.499999, "U": 2, "F": 6.499999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2c1909db-9243-5689-8497-2d39ff724a3e",
+        "name": "SM_QuarterCylinder2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "1d66cac9-2cca-5304-b514-c217c72fc33b",
+        "name": "SM_QuarterCylinder3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 5.999999, "U": 2, "F": 5.999999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "0a97d008-3cae-5fb5-bb68-8c4bc6fd6433",
+        "name": "SM_QuarterCylinder4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d75b9c86-a341-500c-a058-f5a4029dac0e",
+        "name": "SM_QuarterCylinder5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e850a032-3493-5832-a294-8817205da927",
+        "name": "SM_QuarterCylinder6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 5.999999, "U": 2, "F": 5.999999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "307e7bbf-4ff1-542d-b090-260784030067",
+        "name": "SM_QuarterCylinder7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 5.999999, "U": 2, "F": 5.999999 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b77eca4d-915e-5a6c-9e0c-f637aae567dc",
+        "name": "SM_QuarterCylinder8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 6, "U": 2, "F": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6e08b6a9-fcce-59a4-8780-ab026e006a12",
+        "name": "SM_QuarterCylinder9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": -1, "F": -2.1 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 6.5, "U": 2, "F": 6.5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "99dc96bc-1437-58a3-9263-1b6bca88a5fd",
+        "name": "SM_Ramp",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": 18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c35e6d7e-bc64-50bf-a41b-c29d67ffa619",
+        "name": "SM_Ramp10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0, "F": 5 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } },
+              "Scale": { "R": 4.000001, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "1fae49ff-fcbd-58af-ad4b-be9fcad71d3a",
+        "name": "SM_Ramp11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 5, "U": 0, "F": -2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999997, "F": 0 } },
+              "Scale": { "R": 4.000001, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d68dd391-fabe-5ae9-ab45-270666c6dc57",
+        "name": "SM_Ramp12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": 0, "F": -5 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 4, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "0687a875-5e49-5199-af94-d5ed238876fd",
+        "name": "SM_Ramp2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 15, "U": 0, "F": 12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "87ea12ae-abb1-55a5-b120-7f5b1703dd03",
+        "name": "SM_Ramp3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -18, "U": 0, "F": 12.000001 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9bb5c664-b720-5a92-aec6-6137e6799fc7",
+        "name": "SM_Ramp4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12, "U": 0, "F": 15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 2.9999995, "U": 2, "F": 3.9999995 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b5d5ac07-12ea-562b-8a03-078e33037b26",
+        "name": "SM_Ramp5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -12.000001, "U": 0, "F": -18 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.24999995, "F": 0 } },
+              "Scale": { "R": 2.9999995, "U": 2, "F": 3.9999995 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ec1819ea-9031-59b2-b6d2-1ef92da6a475",
+        "name": "SM_Ramp6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -15, "U": 0, "F": -12 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9f583afa-236a-53ea-b172-6d6072129239",
+        "name": "SM_Ramp7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 18, "U": 0, "F": -12.000001 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.49999998, "F": 0 } },
+              "Scale": { "R": 3, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c5d6397e-02d1-527d-b0cc-afd30b8d00e9",
+        "name": "SM_Ramp8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 12, "U": 0, "F": -15 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 2.9999995, "U": 2, "F": 3.9999995 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "afe25061-b0c2-572c-aac3-43e83aebb65e",
+        "name": "SM_Ramp9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -5, "U": 0, "F": 2 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.24999997, "F": 0 } },
+              "Scale": { "R": 4.000001, "U": 2, "F": 4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_3808c5dfe2.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "39c9b4e4-5212-5943-968c-1ae7a2bd2226",
+        "name": "DirectionalLight",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0.13754755, "U": 0.2213649, "F": 0.11694573 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.DirectionalLight",
+            "members": {
+              "Color": { "R": 1, "G": 1, "B": 1 },
+              "Illuminance": { "Lux": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 100,
+              "Bias": { "Meters": 0.005 }
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a23dc5d9-816c-5d11-8756-f93ecb2fbfa8",
+        "name": "GlobalIlluminationVolume",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 1.9073486E-06, "U": 2.15, "F": -5.722046E-06 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.GlobalIlluminationVolume",
+            "members": {
+              "HalfExtentX": 20.000002,
+              "HalfExtentY": 1.85,
+              "HalfExtentZ": 20.000008,
+              "ProbeSpacingMeters": 2.5
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b31f5a2e-fa2f-5ba9-9b17-f33bdc28d3c7",
+        "name": "PlayerStart",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 3.020126, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.25000003, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CgeTopDown.PlayerStart",
+            "members": {}
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

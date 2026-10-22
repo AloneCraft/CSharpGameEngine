@@ -218,6 +218,7 @@ public sealed class FeatureRunnerApplication {
         string RepositoryRoot=FeatureStageRepositoryLocator.Find();
         string Configuration="Debug";
         string Adapter="warp";
+        string Template="ThirdPerson";
         for(int Index=1;Index<Args.Length;Index++){
             string Argument=Args[Index];
             if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
@@ -228,11 +229,13 @@ public sealed class FeatureRunnerApplication {
                 case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
                 case "--adapter" when Value is "warp" or "hardware": Adapter=Value;break;
                 case "--adapter": throw new ArgumentException("Adapter must be warp or hardware.");
+                case "--template" when Value is "ThirdPerson" or "FirstPerson" or "TopDown" or "Vehicle": Template=Value;break;
+                case "--template": throw new ArgumentException("Template must be ThirdPerson, FirstPerson, TopDown or Vehicle.");
                 default: throw new ArgumentException($"Unknown option: {Argument}");
             }
         }
         return ThirdPersonCharacterVerification.RunAsync(
-            RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken);
+            RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken,Template);
     }
     private Task<int>RunVerifyContentReleaseAsync(string[]Args,CancellationToken CancellationToken){
         string RepositoryRoot=FeatureStageRepositoryLocator.Find();
@@ -737,7 +740,7 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("  verify-performance-framework [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-rendering-performance [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-rendering-release [--repository-root <path>] [--configuration Debug|Release]");
-        this.Output.WriteLine("  verify-thirdperson-character [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
+        this.Output.WriteLine("  verify-thirdperson-character [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware] [--template ThirdPerson|FirstPerson|TopDown|Vehicle]");
         this.Output.WriteLine("  verify-template-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-content-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-performance [--repository-root <path>] [--configuration Debug|Release]");

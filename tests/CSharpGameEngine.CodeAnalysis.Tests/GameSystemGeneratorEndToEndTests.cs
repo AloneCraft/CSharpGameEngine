@@ -16,7 +16,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
         public struct Velocity { public float X; }
         public struct Health { public int Value; }
         public struct MovableTag { }
-        public readonly struct FrameContext
+        public sealed class FrameContext
         {
             public FrameContext(float deltaTime) { this.DeltaTime = deltaTime; }
             public float DeltaTime { get; }
@@ -487,7 +487,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
 
             internal struct MoveSystem : ISystem
             {
-                public bool Update(ref Position position, in FrameContext frame, ref State state)
+                public bool Update(ref Position position, FrameContext frame, ref State state)
                 {
                     position.X += frame.DeltaTime;
                     return true;
@@ -506,7 +506,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
                     MoveSystem system = new();
                     FrameContext frame = new(0.5f);
                     var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
-                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000, in frame);
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000, frame);
 
                     if (world.Archetype0.GetPositionRefUnchecked(0).X != 0.5f) return "FAIL:X=" + world.Archetype0.GetPositionRefUnchecked(0).X;
 

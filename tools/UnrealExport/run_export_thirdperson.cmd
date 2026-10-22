@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem Imports the UE5.8 ThirdPerson (BP) template into templates\CSharpGameEngine.Templates.ThirdPerson.
+rem Imports the UE5.8 ThirdPerson (BP) template into Templates\CSharpGameEngine.Templates.ThirdPerson.
 rem export_lvl_thirdperson.py refuses to replace existing generated assets unless --force is given.
 set "UE_ROOT=C:\Program Files\Epic Games\UE_5.8"
 set "UE_EDITOR_CMD=%UE_ROOT%\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
@@ -10,7 +10,7 @@ for %%I in ("%SCRIPT_DIR%..\..") do set "REPO_ROOT=%%~fI"
 set "CSGE_REPO_ROOT=%REPO_ROOT%"
 set "PYTHON_SCRIPT=%SCRIPT_DIR%export_lvl_thirdperson.py"
 set "MANIFEST=%REPO_ROOT%\.artifacts\UnrealExport\Lvl_ThirdPerson\manifest.json"
-set "TEMPLATE_DIR=%REPO_ROOT%\templates\CSharpGameEngine.Templates.ThirdPerson"
+set "TEMPLATE_DIR=%REPO_ROOT%\Templates\CSharpGameEngine.Templates.ThirdPerson"
 
 if /I "%~1"=="--force" set "CSGE_UNREAL_EXPORT_FORCE=1"
 

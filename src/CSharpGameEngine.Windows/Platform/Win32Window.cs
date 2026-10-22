@@ -138,6 +138,27 @@ public sealed unsafe class Win32Window:IDisposable {
         this.InputAdapter.RecordKeyCode(Code,Pressed);
     }
 
+    /// <summary>Records a mouse button (<c>Left</c>, <c>Right</c>, <c>Middle</c>) as if this window had received it (scripted automation input).</summary>
+    public void InjectMouseButton(string Code,bool Pressed){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.InputAdapter.RecordMouseButton(Code,Pressed);
+    }
+
+    /// <summary>The cursor in client pixels. False when the cursor position cannot be read.</summary>
+    public bool TryGetCursorClient(out int X,out int Y){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        POINT Point;
+        if(!GetCursorPos(&Point)||!ScreenToClient(this.Hwnd,&Point)){
+            X=0;
+            Y=0;
+            return false;
+        }
+
+        X=Point.x;
+        Y=Point.y;
+        return true;
+    }
+
     /// <summary>
     /// Hides the cursor and clips it to this window (mouse-look style capture), or releases it.
     /// Relative motion is delivered through timestamped input events while capture owns the cursor.

@@ -1,0 +1,40 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "CharacterMotion": {
+    "Capsule": { "Radius": 0.35, "HalfHeight": 0.9 },
+    "WalkSpeed": 6,
+    "Acceleration": 15,
+    "Braking": 20,
+    "AirBraking": 15,
+    "GroundFriction": 8,
+    "JumpSpeed": 5,
+    "AirControl": 0.35,
+    "StepHeight": 0.45,
+    "MaxSlope": 0.1243,
+    "TurnRate": 1.3889,
+    "FaceMovement": true
+  },
+  "ViewAngles": { "Yaw": 0.25 },
+  "MoveIntent": {},
+  "Respawn": { "KillHeight": -20 },
+  "Children": {
+    "Mesh": {
+      "Transform": { "Position": [0, -0.89, 0], "Rotation": [0, 0.5, 0] },
+      "SkeletalMesh": "Characters/Mannequins/SKM_Quinn_Simple",
+      "Locomotion": {
+        "Idle": "Characters/Mannequins/Anims/MM_Idle",
+        "Walk": "Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd",
+        "Jog": "Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd",
+        "Jump": "Characters/Mannequins/Anims/MM_Jump",
+        "Fall": "Characters/Mannequins/Anims/MM_Fall_Loop",
+        "Land": "Characters/Mannequins/Anims/MM_Land",
+        "WalkSpeed": 3,
+        "JogSpeed": 6
+      }
+    },
+    "Camera": {
+      "OrbitCamera": { "Pivot": [0, 0.085, 0], "Distance": 4, "Radius": 0.12, "Collide": true },
+      "Camera": { "Active": true, "Fov": 0.163, "Far": 1000 }
+    }
+  }
+}

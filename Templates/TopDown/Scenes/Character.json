@@ -1,0 +1,24 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "CharacterMotion": {
+    "Capsule": { "Radius": 0.35, "HalfHeight": 0.9 },
+    "WalkSpeed": 6,
+    "FaceMovement": true
+  },
+  "MoveIntent": { "StopDistance": 0.3 },
+  "Children": {
+    "Mesh": {
+      "Transform": { "Position": [0, -0.89, 0], "Rotation": [0, 0.5, 0] },
+      "SkeletalMesh": "Characters/Mannequins/SKM_Quinn_Simple",
+      "Locomotion": {
+        "Idle": "Characters/Mannequins/Anims/MM_Idle",
+        "Walk": "Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd",
+        "Jog": "Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd"
+      }
+    },
+    "Camera": {
+      "OrbitCamera": { "Distance": 12, "Pitch": -0.17, "Yaw": 0, "FollowYaw": false, "Collide": false },
+      "Camera": { "Active": true, "Fov": 0.14, "Far": 1000 }
+    }
+  }
+}

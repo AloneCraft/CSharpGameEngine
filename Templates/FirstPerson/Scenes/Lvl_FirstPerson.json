@@ -1,0 +1,22 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "DirectionalLight": { "Illuminance": 10 },
+  "SkyLight": { "Intensity": 1 },
+  "ExponentialHeightFog": { "Density": 0.02 },
+  "Children": {
+    "Floor": {
+      "Mesh": "Stage/SM_Template_Map_Floor",
+      "Collider": "Mesh"
+    },
+    "Wall": {
+      "Transform": { "Position": [6, 1.5, 0], "Scale": [0.5, 3, 8] },
+      "Mesh": "Stage/SM_Cube",
+      "Collider": "Mesh"
+    },
+    "Ramp": {
+      "Transform": { "Position": [-5, 0, 3] },
+      "Mesh": "Stage/SM_Ramp",
+      "Collider": "Mesh"
+    }
+  }
+}

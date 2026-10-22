@@ -94,6 +94,8 @@ public sealed class VsixManifestTests {
             ProjectRoot,"tools","CSharpGameEngine.VSExtension","NativeEvent.cs")));
     }
 
+    private static string GameProjectGeneratorStartup(string Template)=>CSharpGameEngine.ProjectTemplates.GameProjectGenerator.StartupSceneOf(Template);
+
     [Fact]
     public void VsixPackage_ContainsPreviewContractsWithoutNativeRendererAssemblies(){
         string VsixPath=Path.Combine(
@@ -114,10 +116,14 @@ public sealed class VsixManifestTests {
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.runtimeconfig.json",Entries);
         }
         Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
-        Assert.Contains("ProjectTemplates/CSharp/GameEngine/1033/ThirdPerson/ThirdPerson.vstemplate",Entries);
-        Assert.Contains("ProjectTemplates/CSharp/GameEngine/1041/ThirdPerson/ThirdPerson.csproj.template",Entries);
-        Assert.Contains("ProjectTemplateSources/ThirdPerson/Scenes/Lvl_ThirdPerson.json",Entries);
+        foreach(var Template in new[]{"ThirdPerson","FirstPerson","TopDown","Vehicle"}){
+            Assert.Contains($"ProjectTemplates/CSharp/GameEngine/1033/{Template}/{Template}.vstemplate",Entries);
+            Assert.Contains($"ProjectTemplates/CSharp/GameEngine/1041/{Template}/{Template}.csproj.template",Entries);
+            Assert.Contains($"ProjectTemplateSources/{Template}/{GameProjectGeneratorStartup(Template)}",Entries);
+        }
         Assert.Contains("ProjectTemplateSources/ThirdPerson/Assets/Characters/Mannequins/SKM_Quinn_Simple.glb",Entries);
+        Assert.Contains("ProjectTemplateSources/TopDown/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",Entries);
+        Assert.Contains("ProjectTemplateSources/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar.glb",Entries);
         Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith("ProjectTemplateSources/",StringComparison.Ordinal)&&(Entry.Contains("/bin/")||Entry.Contains("/obj/")||Entry.EndsWith(".csproj",StringComparison.Ordinal)));
         Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(
             "Vortice.",StringComparison.OrdinalIgnoreCase));

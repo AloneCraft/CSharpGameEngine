@@ -76,4 +76,22 @@
   <data name="137" xml:space="preserve">
     <value>A playable character with an over-the-shoulder camera, ported from Unreal Engine's Third Person template. Move and look around with the keyboard, mouse or a gamepad.</value>
   </data>
+  <data name="138" xml:space="preserve">
+    <value>First Person</value>
+  </data>
+  <data name="139" xml:space="preserve">
+    <value>A playable character seen through its own eyes, ported from Unreal Engine's First Person template. Move and look around with the keyboard, mouse or a gamepad.</value>
+  </data>
+  <data name="142" xml:space="preserve">
+    <value>Vehicle</value>
+  </data>
+  <data name="143" xml:space="preserve">
+    <value>A sports car to drive around a flat arena, ported from Unreal Engine's Vehicle template with a simplified vehicle model. Steer with the keyboard or a gamepad; the speed and gear show in the title bar.</value>
+  </data>
+  <data name="140" xml:space="preserve">
+    <value>Top Down</value>
+  </data>
+  <data name="141" xml:space="preserve">
+    <value>A character you send somewhere by clicking the ground, seen from a fixed camera above, ported from Unreal Engine's Top Down template.</value>
+  </data>
 </root>

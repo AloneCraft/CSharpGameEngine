@@ -73,6 +73,44 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     public ReferenceFrameSnapshot FrameSnapshot=>this.FrameGraphStorage.Current;
     public IReadOnlyList<AudioSourceSnapshot>AudioSources=>this.AudioSourcesStorage;
     public AudioMixer Audio=>this.EnsureAudioDevice().Mixer;
+    private Audio?SoundStorage;
+    /// <summary>ゲームコードが効果音を鳴らす入口(ADR-0077)。System の引数に <c>Audio</c> と書くと、これが渡される。</summary>
+    public Audio Sound=>this.SoundStorage??=new Audio(this);
+    private Hud?HudStorage;
+    /// <summary>画面に出す情報の入口(ADR-0077)。System の引数に <c>Hud</c> と書くと、これが渡される。</summary>
+    public Hud Hud=>this.HudStorage??=new Hud(this);
+    internal void SetWindowTitle(string Title)=>this.Window?.SetTitle(Title);
+    private Picking?PickingStorage;
+    /// <summary>ポインターの下の物を求める入口(ADR-0077)。System の引数に <c>Picking</c> と書くと、これが渡される。</summary>
+    public Picking Picking=>this.PickingStorage??=new Picking(this);
+    /// <summary>
+    /// このフレームのポインター。自動検証の <c>CGE_AUTOMATION_CURSOR</c> があればそれ、なければウィンドウ上の実際のカーソル。
+    /// ウィンドウが無い、領域の外にあるときは <c>Inside</c> が false。
+    /// </summary>
+    public CSharpGameEngine.Input.Pointer Cursor{
+        get{
+            if(this.Automation?.ScriptedCursor is { }Scripted){ return new CSharpGameEngine.Input.Pointer(Scripted.X,Scripted.Y,true); }
+            if(this.Window is not { }Surface||Surface.ClientWidth<=0||Surface.ClientHeight<=0||!Surface.TryGetCursorClient(out var X,out var Y)){ return default; }
+            var Inside=X>=0&&Y>=0&&X<Surface.ClientWidth&&Y<Surface.ClientHeight;
+            return new CSharpGameEngine.Input.Pointer(X/(float)Surface.ClientWidth,Y/(float)Surface.ClientHeight,Inside);
+        }
+    }
+    /// <summary>
+    /// カメラからポインター(クライアント領域の割合)を通る光線を物理のフレームで返す。カメラが無い、カメラが物理と別の
+    /// 参照フレームにある、数値が収まらないときは false。
+    /// </summary>
+    internal bool TryPointerRay(float X,float Y,out PhysicsRay Ray){
+        Ray=default;
+        if(!this.HasCameraPose||this.CameraFrame!=this.Physics.Frame||!(this.RenderCamera.FovYRadians>0f)){ return false; }
+        var Width=this.Window?.ClientWidth??0;
+        var Height=this.Window?.ClientHeight??0;
+        if(this.Window is null&&this.Renderer is { }Surface){
+            Width=Surface.SurfaceWidth;
+            Height=Surface.SurfaceHeight;
+        }
+        if(Width<=0||Height<=0){ return false; }
+        return Picking.TryCreateRay(this.CameraFrameLocalOrigin.Logical,this.RenderCamera.FovYRadians,Width/(float)Height,X,Y,out Ray);
+    }
     /// <summary>M0096 G: the physics domains, which the physics and character systems reach through <see cref="IPhysicsHost"/>.</summary>
     public PhysicsDomainRegistry Physics { get; }
     public IReadOnlyPhysicsWorld PhysicsWorld=>this.Physics.Active.World;
@@ -288,7 +326,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         if((this.ExternalSurface is not null||this.Window is { IsMinimized:false })&&this.Renderer is { } Renderer){
             this.SubmitEnvironment(Renderer);
             Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
-            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition());
+            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition(),this.Sound.FlushedRequests,this.AudioDevice?.OneShotsStarted??0);
         }
         return this.Automation is not { Completed:true };
     }
@@ -334,6 +372,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
 
     internal void BeginAudioFrame(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.AudioDevice?.ReapOneShots();
         this.AudioSourcesStorage.Clear();
         this.AudioListenerFrameLocalPose=default;
         this.AudioListenerFrame=default;
@@ -353,6 +392,19 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         this.AudioListenerFrameLocalPose=FrameLocalPose;
         this.AudioListenerFrame=Frame;
         this.HasAudioListener=true;
+    }
+
+    /// <summary>
+    /// A world position's distance and pan relative to the listener (ADR-0077). False when the entity has no resolvable pose or
+    /// no AudioListener was submitted this frame; the caller then plays the sound unspatialized.
+    /// </summary>
+    internal bool TrySpatialize(Entity Source,out AudioSpatialMix Mix){
+        Mix=default;
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        if(!this.HasAudioListener){ return false; }
+        if(RuntimeWorldTransform.TryResolveWorld(Source,this.World,out FixedAffineTransform Pose,out var Frame)!=FixedTransformResolveStatus.Success){ return false; }
+        if(RuntimeWorldTransform.TryToCameraRelativeMatrix(Pose,Frame,this.AudioListenerFrameLocalPose,this.AudioListenerFrame,this.FrameSnapshot,out Matrix4x4 Relative)!=FixedTransformStatus.Success){ return false; }
+        return AudioSpatializer.TryCalculate(Relative.Translation,AudioSpatialParameters.Default,out Mix);
     }
 
     internal bool TrySubmitAudioSource(Entity Entity,in FixedAffineTransform FrameLocalPose,

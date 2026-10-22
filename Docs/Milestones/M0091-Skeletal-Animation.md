@@ -31,7 +31,7 @@ Commands executed from the repository root:
 ```text
 dotnet test tests/CSharpGameEngine.Import.Tests -c Debug --filter "FullyQualifiedName~GltfSkinAnimationImportTests"
 dotnet test tests/CSharpGameEngine.Windows.Tests -c Debug --filter "FullyQualifiedName~AnimationRuntimeTests|FullyQualifiedName~SkinningGpuIntegrationTests"
-dotnet run --project tools/CSharpGameEngine.Unreal.SceneImporter --no-build -- thirdperson .artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json templates/CSharpGameEngine.Templates.ThirdPerson
+dotnet run --project tools/CSharpGameEngine.Unreal.SceneImporter --no-build -- thirdperson .artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json Templates/CSharpGameEngine.Templates.ThirdPerson
 CGE_AUTOMATION_FRAMES=150 CGE_AUTOMATION_CAPTURE=<png> CgeThirdPerson.exe
 CGE_AUTOMATION_FRAMES=110 CGE_AUTOMATION_INPUT=D@80-110 CGE_AUTOMATION_CAPTURE=<png> CgeThirdPerson.exe
 dotnet test CSharpGameEngine.slnx -c Release

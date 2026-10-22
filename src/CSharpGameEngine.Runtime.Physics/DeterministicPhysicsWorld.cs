@@ -251,6 +251,13 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             foreach(ulong StableId in this.QueryCandidates){
                 Body Body=this.Bodies[StableId];
                 if(!Layers.Contains(Body.Collider.Layer)){ continue; }
+                if(Body.Collider.Shape==ColliderShape.StaticTriangleMesh){
+                    // 三角形メッシュは外接ボックスではなく、三角形そのものに当てる(坂や穴のある形でも正確)。
+                    if(!Body.Faulted&&this.NarrowPhase.TryRaycastMesh(Ray,this.CreateShape(Body),out LogicalScalar MeshDistance,out LogicalVector3 MeshNormal)){
+                        Results.Add(new PhysicsRayHit(Body.Entity,StableId,MeshDistance,Ray.Origin+Ray.Direction*MeshDistance,MeshNormal));
+                    }
+                    continue;
+                }
                 if(TryRayAabb(Ray,CalculateBounds(Body),out LogicalScalar Distance,out LogicalVector3 Normal)){
                     Results.Add(new PhysicsRayHit(Body.Entity,StableId,Distance,Ray.Origin+Ray.Direction*Distance,Normal));
                 }

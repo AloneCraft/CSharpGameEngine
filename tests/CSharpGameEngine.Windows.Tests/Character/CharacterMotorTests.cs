@@ -7,14 +7,14 @@ namespace CSharpGameEngine.Runtime.Windows.Tests;
 public sealed class CharacterMotorTests {
     private const int TickRate=60;
     private static readonly LogicalScalar DeltaSeconds=LogicalScalar.One/LogicalScalar.FromInt64(TickRate);
-    private static readonly CharacterMovement Settings=new();
+    private static readonly CharacterMotion Settings=new();
     private sealed class Scene {
         private readonly DeterministicPhysicsWorld World=new();
         private readonly CharacterMotor Motor;
         private ulong NextId=1;
         public LogicalVector3 Position;
-        public CharacterMovementState State;
-        public CharacterInput Input;
+        public CharacterMotionState State;
+        public MoveIntent Input;
         public Scene(float StartY=2f,float StartZ=0f){
             this.Motor=new CharacterMotor(this.World);
             this.Position=new LogicalVector3(0,StartY,StartZ);
@@ -43,8 +43,8 @@ public sealed class CharacterMotorTests {
         }
         public void Run(int Ticks,LogicalVector3 Move,bool JumpFirstTick=false,Action? AfterTick=null){
             for(var Tick=0;Tick<Ticks;Tick++){
-                this.Input.Move=Move;
-                this.Input.Jump=JumpFirstTick&&Tick==0;
+                this.Input.Direction=Move;
+                this.Input.JumpRequested=JumpFirstTick&&Tick==0;
                 this.Motor.Step(Settings,ref this.Position,ref this.State,ref this.Input,DeltaSeconds);
                 AfterTick?.Invoke();
             }
@@ -59,9 +59,44 @@ public sealed class CharacterMotorTests {
     public void FallsOntoTheFloorAndRestsAtItsHalfHeight(){
         var Scene=new Scene();
         Scene.Run(120,LogicalVector3.Zero);
-        Assert.Equal(CharacterMovementMode.Walking,Scene.State.Mode);
+        Assert.Equal(CharacterMotionMode.Walking,Scene.State.Mode);
         Assert.InRange(Scene.Y,0.899f,0.905f);
         Assert.Equal(LogicalVector3.Zero,Scene.State.Velocity);
+    }
+    [Fact]
+    public void WalksToADestinationAndStopsThereWithoutOvershooting(){
+        var Scene=new Scene(StartY:0.9f);
+        Scene.Run(10,LogicalVector3.Zero);
+        Scene.Input.MoveTo(new LogicalVector3(6,0,8));
+        var Farthest=0f;
+        for(var Tick=0;Tick<600&&Scene.Input.HasDestination;Tick++){
+            Scene.Input.Steer(Settings,Scene.Position);
+            Scene.Run(1,Scene.Input.Direction);
+            Farthest=MathF.Max(Farthest,MathF.Sqrt(Scene.X*Scene.X+Scene.Z*Scene.Z));
+        }
+        Assert.False(Scene.Input.HasDestination);
+        Scene.Run(60,LogicalVector3.Zero);
+        // 目的地は(6, 8)で原点から10 m。減速して止まるので、着いた位置は目的地の0.5 m以内で、行き過ぎも0.5 m以内。
+        Assert.InRange(MathF.Sqrt(((Scene.X-6f)*(Scene.X-6f))+((Scene.Z-8f)*(Scene.Z-8f))),0f,0.5f);
+        Assert.InRange(Farthest,0f,10.5f);
+        Assert.Equal(LogicalVector3.Zero,Scene.State.Velocity);
+    }
+    [Fact]
+    public void StopCancelsTheDestinationAndTheDirection(){
+        var Intent=new MoveIntent();
+        Intent.MoveTo(new LogicalVector3(1,0,1));
+        Intent.Steer(Settings,LogicalVector3.Zero);
+        Assert.True(Intent.HasDestination);
+        Assert.False(Intent.Direction.LengthSquared.IsZero);
+        Intent.Stop();
+        Assert.False(Intent.HasDestination);
+        Assert.True(Intent.Direction.LengthSquared.IsZero);
+    }
+    [Fact]
+    public void ASteerWithoutADestinationLeavesTheDirectionAlone(){
+        var Intent=new MoveIntent { Direction=Forward };
+        Intent.Steer(Settings,LogicalVector3.Zero);
+        Assert.Equal(Forward,Intent.Direction);
     }
     [Fact]
     public void JumpReachesTheBallisticApex(){
@@ -72,7 +107,7 @@ public sealed class CharacterMotorTests {
         Scene.Run(90,LogicalVector3.Zero,JumpFirstTick:true,AfterTick:()=>Apex=MathF.Max(Apex,Scene.Y));
         // v^2 / 2g = 5^2 / (2 * 9.80665) = 1.2747 m.
         Assert.InRange(Apex-Ground,1.2747f-0.06f,1.2747f+0.06f);
-        Assert.Equal(CharacterMovementMode.Walking,Scene.State.Mode);
+        Assert.Equal(CharacterMotionMode.Walking,Scene.State.Mode);
         Assert.InRange(Scene.Y,Ground-0.005f,Ground+0.005f);
     }
     [Fact]
@@ -133,7 +168,7 @@ public sealed class CharacterMotorTests {
     }
     [Fact]
     public void RepeatedRunsAreBitIdentical(){
-        (LogicalVector3,CharacterMovementState) Play(){
+        (LogicalVector3,CharacterMotionState) Play(){
             var Scene=new Scene().AddBox(-3f,0f,2f,3f,0.4f,8f).AddBox(1f,0f,-20f,2f,3f,20f);
             Scene.Run(40,new LogicalVector3(LogicalScalar.FromSingle(0.6f),LogicalScalar.Zero,LogicalScalar.FromSingle(0.8f)));
             Scene.Run(30,Forward,JumpFirstTick:true);

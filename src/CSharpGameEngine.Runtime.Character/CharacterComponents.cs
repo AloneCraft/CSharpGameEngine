@@ -2,7 +2,7 @@ using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
-public enum CharacterMovementMode:byte {
+public enum CharacterMotionMode:byte {
     Walking,
     Falling,
 }
@@ -13,44 +13,89 @@ public enum CharacterMovementMode:byte {
 /// the hemispheres, as in Unreal.
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,10)]
-public struct CharacterMovement() {
+public struct CharacterMotion() {
     public LogicalScalar CapsuleRadius=LogicalScalar.FromSingle(0.35f);
     public LogicalScalar CapsuleHalfHeight=LogicalScalar.FromSingle(0.9f);
-    public LogicalScalar MaxWalkSpeed=LogicalScalar.FromSingle(6f);
+    public LogicalScalar WalkSpeed=LogicalScalar.FromSingle(6f);
     public LogicalScalar MinAnalogWalkSpeed=LogicalScalar.FromSingle(0.2f);
-    public LogicalScalar MaxAcceleration=LogicalScalar.FromSingle(15f);
-    public LogicalScalar BrakingDecelerationWalking=LogicalScalar.FromSingle(20f);
-    public LogicalScalar BrakingDecelerationFalling=LogicalScalar.FromSingle(15f);
+    public LogicalScalar Acceleration=LogicalScalar.FromSingle(15f);
+    public LogicalScalar Braking=LogicalScalar.FromSingle(20f);
+    public LogicalScalar AirBraking=LogicalScalar.FromSingle(15f);
     public LogicalScalar GroundFriction=LogicalScalar.FromSingle(8f);
     /// <summary>Friction while braking without input (Unreal's separate braking friction × factor).</summary>
     public LogicalScalar BrakingFriction=LogicalScalar.Zero;
-    public LogicalScalar JumpZVelocity=LogicalScalar.FromSingle(5f);
+    public LogicalScalar JumpSpeed=LogicalScalar.FromSingle(5f);
     public LogicalScalar AirControl=LogicalScalar.FromSingle(0.35f);
     public LogicalScalar AirControlBoostMultiplier=LogicalScalar.FromSingle(2f);
     public LogicalScalar AirControlBoostVelocityThreshold=LogicalScalar.FromSingle(0.25f);
     public LogicalScalar GravityScale=LogicalScalar.One;
-    public LogicalScalar MaxStepHeight=LogicalScalar.FromSingle(0.45f);
+    public LogicalScalar StepHeight=LogicalScalar.FromSingle(0.45f);
     [Angle(AngleUnit.Degrees)]
-    public LogicalScalar WalkableFloorAngleDegrees=LogicalScalar.FromSingle(44.765083f);
+    public LogicalScalar MaxSlopeDegrees=LogicalScalar.FromSingle(44.765083f);
     [Angle(AngleUnit.Degrees)]
-    public LogicalScalar RotationRateDegrees=LogicalScalar.FromSingle(500f);
-    public bool OrientRotationToMovement=true;
+    public LogicalScalar TurnRateDegrees=LogicalScalar.FromSingle(500f);
+    public bool FaceMovement=true;
+    /// <summary>地面を歩いて、この距離(m)進むごとに <see cref="Footstep"/> を1回送る。0以下なら送らない。</summary>
+    public LogicalScalar StepLength=LogicalScalar.FromSingle(1.2f);
     public PhysicsLayerMask CollidesWith=PhysicsLayerMask.All;
 }
 /// <summary>Authoritative movement state; part of the snapshot so replays continue deterministically.</summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,11)]
-public struct CharacterMovementState {
+public struct CharacterMotionState {
     public LogicalVector3 Velocity;
-    public CharacterMovementMode Mode;
+    public CharacterMotionMode Mode;
     /// <summary>Horizontal unit facing; zero until the first tick initializes it from the Transform.</summary>
     public LogicalVector3 Facing;
+    /// <summary>前回の <see cref="Footstep"/> からの歩行距離(m)。</summary>
+    public LogicalScalar StrideDistance;
+    /// <summary>True while standing on a walkable floor (ADR-0077). Derived from <see cref="Mode"/>, so it is not stored.</summary>
+    public readonly bool OnGround=>this.Mode==CharacterMotionMode.Walking;
+    public readonly bool Falling=>this.Mode==CharacterMotionMode.Falling;
 }
 /// <summary>
-/// What the controller asks for this fixed tick: a world-space horizontal direction whose length
+/// What the player wants this fixed tick (ADR-0077): a world-space horizontal direction whose length
 /// (at most 1) scales acceleration and speed, and a jump request consumed by the next tick.
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,12)]
-public struct CharacterInput {
-    public LogicalVector3 Move;
-    public bool Jump;
+public struct MoveIntent {
+    public LogicalVector3 Direction;
+    public bool JumpRequested;
+    /// <summary>歩いて向かう地点(ADR-0077)。<see cref="HasDestination"/>のあいだ、毎tick<see cref="Direction"/>をこの地点へ向けて書き換える。</summary>
+    public LogicalVector3 Destination;
+    public bool HasDestination;
+    /// <summary>Asks for a jump; the next tick consumes it if the character is on the ground.</summary>
+    public void Jump()=>this.JumpRequested=true;
+    /// <summary>
+    /// 地点を指して、そこまで歩かせる。経路探索はせず、高さを無視した直線で向かう(障害物はコリジョンで止まる)。
+    /// 着いたら<see cref="HasDestination"/>は false に戻る。
+    /// </summary>
+    public void MoveTo(LogicalVector3 Point){
+        this.Destination=Point;
+        this.HasDestination=true;
+    }
+    /// <summary>目的地を取り消して、その場に止まる。</summary>
+    public void Stop(){
+        this.HasDestination=false;
+        this.Direction=default;
+    }
+    private static readonly LogicalScalar ArrivalRadius=LogicalScalar.FromSingle(0.15f);
+    private static readonly LogicalScalar SlowestApproach=LogicalScalar.FromSingle(0.25f);
+    /// <summary>
+    /// 目的地(<see cref="MoveTo"/>)へ向けて<see cref="Direction"/>を書く。毎tick、キャラクターの現在位置から呼ぶ。
+    /// 制動距離の手前から長さを縮めて減速するので、行き過ぎずに止まる。着いたら目的地を取り消す。
+    /// </summary>
+    public void Steer(in CharacterMotion Settings,LogicalVector3 Position){
+        if(!this.HasDestination){
+            return;
+        }
+        var Planar=new LogicalVector3(this.Destination.R-Position.R,LogicalScalar.Zero,this.Destination.F-Position.F);
+        if(!LogicalScalar.TrySquareRoot(Planar.LengthSquared,out var Distance)||Distance<=ArrivalRadius){
+            this.Stop();
+            return;
+        }
+        var Ramp=Settings.Braking>LogicalScalar.Zero?Settings.WalkSpeed*Settings.WalkSpeed/(Settings.Braking*LogicalScalar.FromInt64(2)):LogicalScalar.One;
+        var Scale=Ramp>LogicalScalar.Zero?Distance/Ramp:LogicalScalar.One;
+        Scale=Scale<SlowestApproach?SlowestApproach:Scale>LogicalScalar.One?LogicalScalar.One:Scale;
+        this.Direction=Planar/Distance*Scale;
+    }
 }

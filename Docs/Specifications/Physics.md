@@ -20,7 +20,7 @@ Broadphaseはdomain-local dynamic AABB treeで、active bodyだけを対象に�
 
 ## Queryとdebug
 
-Raycast/Sweep/Overlapは呼出側Listへ追記し失敗時に追加分を戻す。Physics broadphaseはGlobal Octreeと別である。Debug snapshotは要求時だけ列挙し、adapter内で検証済みのfloat projectionへ変換する。Scene Viewは最大512 Bodyを独立頂点予算で描画する。
+Raycast/Sweep/Overlapは呼出側Listへ追記し失敗時に追加分を戻す。Raycastは、静的三角形メッシュのBodyには三角形そのもの(メッシュのBVHで候補を絞り、Möller–Trumboreで両面を判定する。法線は光線に向いた側。ADR-0077/M0101段階9)に当て、それ以外の形は従来どおり外接AABBに当てる。SweepはStaticTriangleMeshを扱わない。Physics broadphaseはGlobal Octreeと別である。Debug snapshotは要求時だけ列挙し、adapter内で検証済みのfloat projectionへ変換する。Scene Viewは最大512 Bodyを独立頂点予算で描画する。
 
 ## Artifact
 

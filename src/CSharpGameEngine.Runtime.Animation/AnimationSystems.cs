@@ -21,7 +21,7 @@ internal struct SkeletalMeshSetup:ISystem {
     }
 }
 /// <summary>
-/// Evaluates <see cref="LocomotionAnimator"/> once per presented frame on wall-clock time and writes
+/// Evaluates <see cref="Locomotion"/> once per presented frame on wall-clock time and writes
 /// the skinning palette. Presentation data: the pose never feeds back into the simulation.
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
@@ -29,15 +29,15 @@ internal struct SkeletalMeshSetup:ISystem {
 internal struct LocomotionAnimation:ISystem {
     /// <summary>Longest step one frame may advance the animation, so a hitch does not skip whole states.</summary>
     private const float MaximumDeltaSeconds=0.1f;
-    public void Update(ref SkeletalMeshRuntime Mesh,ref LocomotionAnimator Animator,ref LocomotionAnimatorRuntime Runtime,ref State State){
+    public void Update(ref SkeletalMeshRuntime Mesh,ref Locomotion Animator,ref LocomotionRuntime Runtime,ref State State){
         if(Mesh.Skeleton is not{ }Skeleton||Mesh.Palette is null||Mesh.Model is null||Runtime.Error is not null){
             return;
         }
         if(Runtime.Machine is null){
             try {
                 var Clips=new LocomotionClips(
-                    SkeletalAssetCache.Clip(Animator.IdleClip,Skeleton),SkeletalAssetCache.Clip(Animator.WalkClip,Skeleton),SkeletalAssetCache.Clip(Animator.JogClip,Skeleton),
-                    SkeletalAssetCache.Clip(Animator.JumpClip,Skeleton),SkeletalAssetCache.Clip(Animator.FallClip,Skeleton),SkeletalAssetCache.Clip(Animator.LandClip,Skeleton));
+                    SkeletalAssetCache.Clip(Animator.Idle,Skeleton),SkeletalAssetCache.Clip(Animator.Walk,Skeleton),SkeletalAssetCache.Clip(Animator.Jog,Skeleton),
+                    SkeletalAssetCache.Clip(Animator.Jump,Skeleton),SkeletalAssetCache.Clip(Animator.Fall,Skeleton),SkeletalAssetCache.Clip(Animator.Land,Skeleton));
                 Runtime.Machine=new LocomotionStateMachine(Skeleton,Clips,Animator.WalkSpeed,Animator.JogSpeed,Animator.BlendSeconds);
                 Runtime.Pose=new JointPose[Skeleton.JointCount];
             }

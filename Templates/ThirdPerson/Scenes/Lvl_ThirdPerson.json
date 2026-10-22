@@ -1,0 +1,33 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "SkyAtmosphere": {},
+  "SkyLight": { "Intensity": 1 },
+  "ExponentialHeightFog": { "Density": 0.0436, "HeightFalloff": 0.2, "Height": -68.5 },
+  "PostProcessVolume": { "Exposure": "AutoHistogram", "ToneMapper": "UnrealFilmic", "Bloom": 0.675, "AmbientOcclusion": 0.5 },
+  "Children": {
+    "Floor": {
+      "Mesh": "Stage/SM_Template_Map_Floor",
+      "Collider": "Mesh"
+    },
+    "SM_Cube": {
+      "Transform": { "Position": [12, 0, -15], "Scale": [6, 2, 3] },
+      "Mesh": "Stage/SM_Cube",
+      "Collider": "Mesh"
+    },
+    "SM_Cube10": {
+      "Transform": { "Position": [-12, 0, 15], "Rotation": [0, -0.5, 0], "Scale": [6, 2, 3] },
+      "Mesh": "Stage/SM_Cube",
+      "Collider": "Mesh"
+    },
+    "SM_Cube11": {
+      "Transform": { "Position": [-12, 0, -15], "Rotation": [0, 0.25, 0], "Scale": [3, 2, 3] },
+      "Mesh": "Stage/SM_Cube",
+      "Collider": "Mesh"
+    },
+    "SM_Cube12": {
+      "Transform": { "Position": [-15, 0, -12], "Rotation": [0, 0.25, 0], "Scale": [6, 2, 3] },
+      "Mesh": "Stage/SM_Cube",
+      "Collider": "Mesh"
+    }
+  }
+}

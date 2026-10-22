@@ -437,7 +437,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Removed(2026-08、`40286e0`)
 - Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
-- Removal evidence: 旧L9アプリケーションの`PlayerController.cs`と`CharacterMotionTests.cs`は
+- Removal evidence: 旧L9アプリケーションの`ViewAngles.cs`と`CharacterMotionTests.cs`は
   `40286e0`で削除済み。旧実装のコードは残っていない。
 - Historical behavior:
   - `CharacterMotion.Compute`はWorld/Window/GPUに一切依存しない純粋関数。カメラ基準の
@@ -3606,10 +3606,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: `Docs/Decisions/ADR-0067-Kinematic-Character-Movement-And-Spring-Arm-Camera.md`
 - Stage: `rigid.character-controller` (`Executable`, Visual / Rigid, 1800s)
 - Depends on: F-L5-003, F-L4-010, F-L3-018
-- Implementation evidence: `src/CSharpGameEngine.Runtime.Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/CSharpGameEngine.Runtime.Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `templates/CSharpGameEngine.Templates.ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/CSharpGameEngine.FeatureRunner/ThirdPersonCharacterVerification.cs`
+- Implementation evidence: `src/CSharpGameEngine.Runtime.Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/CSharpGameEngine.Runtime.Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `Templates/CSharpGameEngine.Templates.ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/CSharpGameEngine.FeatureRunner/ThirdPersonCharacterVerification.cs`
 - Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is Unreal's Quinn, animated by F-L4-015 (ADR-0066).
-- Conformance: CharacterMotorTests, SpringArmTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
-- Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMovementState` (ADR-0066).
+- Conformance: CharacterMotorTests, OrbitCameraTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
+- Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMotionState` (ADR-0066).
 - **2026-10-04:** automation frames advance exactly the fixed-tick cap (`EngineHost.FrameTime`), so the scripted ThirdPerson run reproduces frame for frame on WARP and on a GPU; the stage's optional hardware pass failed before because the character was still airborne after 90 fast GPU frames.
 
 ## Deferred Simulation/Physics features with designed Stages
@@ -4618,3 +4618,27 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: The default UserEcsProject starts a fixed-camera ECS/physics/rendering gallery with a 360 DIP localized Win32 dashboard, catalog-derived Feature/Stage progress, deterministic Input Actions, Pause/Step controls, machine-readable child title, and WARP evidence automation.
 - Conformance: Matches
 - Next action: Optional showcase playback may consume the canonical `.cgephyscache` output; the editor-triggered Bake path itself is complete under F-L8-014.
+
+## F-L7-050 — ゲームコードの書き方の簡素化（System の引数の役割表）
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: ECS Source Generator
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0077-Gameplay-Code-Simplification.md`、`Templates/README.md`（理想コード）
+- Implementation evidence:
+  - `src/CSharpGameEngine.CodeAnalysis/GameSystemAnalyzer.cs`（末尾の `ref State` を任意にする。`in` の非 nullable struct を読み取りの Component にする）
+  - `src/CSharpGameEngine.CodeAnalysis/GameSystemDiagnostics.cs`（SYSGEN013 を削除）
+  - `src/CSharpGameEngine.Core/InputActionDeclarations.cs`、`src/CSharpGameEngine.CodeAnalysis/InputActionsEmitter.cs`（`[InputActions]`。INPUT001〜004、SYSGEN038）
+  - `src/CSharpGameEngine.Entities/Parent.cs`（`Parent<T>`）、`GameSystemIndexAssigner.cs`、`GameSystemLoopEmitter.cs`（`in Parent<T>` の解決。SYSGEN036/037）
+- Tests:
+  - `tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs`（`UpdateWithoutTrailingState_IsAccepted`、`InStruct_IsAReadOnlyComponentAndDoesNotReportAContext`、`InAndRefOfTheSameComponent_ReportsSysgen011`）
+  - `tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemParentRelationTests.cs`
+  - `tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`
+  - `tests/CSharpGameEngine.Windows.Tests/Runtime/PickingTests.cs`、`Character/CharacterMotorTests.cs`（`MoveTo`）
+  - `tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`、`VehicleDriveVerificationTests.cs`
+  - `tests/CSharpGameEngine.Windows.Tests/Character/VehicleMotorTests.cs`、`Physics/PhysicsMeshRaycastTests.cs`
+  - `tests/CSharpGameEngine.VSExtension.Tests/GameProjectGeneratorTests.cs`、`VsixManifestTests.cs`（4 テンプレート）
+- Current delta: 段階 1〜9（M0101）。Vehicle テンプレートを移植（簡易の車両モデル `Vehicle`/`VehicleMotor`、速度とギアをタイトルバーに出す `Hud`）。物理の `Raycast` が静的三角形メッシュの三角形そのものに当たるようになった。4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）を VS の新規プロジェクトに登録した。FirstPerson・TopDown テンプレートを移植（`Pointer`、`Picking`、`MoveIntent.MoveTo`、自動検証の `CGE_AUTOMATION_CURSOR`/`MouseLeft`。`Touch`・`Spawner` は未着手）。型付きアセット `Assets.*`（SCENE208）を追加。音（`Audio` サービス、WAV、XAudio2 のワンショット）とイベント（`EventWriter<T>`、`in T`。`Jumped`/`Landed`/`Footstep`）を追加。`[InputActions]`（入力を構造体で宣言。ID と入力マップは生成、入力を読む System は FrameInput で `Window` の後）を追加。`in Parent<T>`（親の Component を型で読む。親が死んでいる・`T` を持たない子はスキップ）を追加。引数の役割表を `ref`=書く、`in`=読む、参照型=Context とし、キャラクター・カメラ・アニメーションの UE 由来の型名とフィールド名を清算した（`CharacterMotion`、`MoveIntent`、`ViewAngles`、`OrbitCamera`、`Locomotion` ほか）。`GameWindow` の統合、フェーズの推論は未実装（ADR-0077 §2）。
+- Conformance: Matches（段階 1 の範囲）
+- Next action: Vehicle の車輪の動きとエンジン音、M0101 段階 10（フェーズの推論、`GameWindow` の統合）。

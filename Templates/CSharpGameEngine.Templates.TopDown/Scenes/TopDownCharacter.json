@@ -1,0 +1,115 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeTopDown.Scenes",
+  "className": "TopDownCharacter",
+  "startupOrder": 2,
+  "root": {
+    "id": "79f4cf3b-c080-4c9e-97e7-48e462655d08",
+    "name": "BP_TopDownCharacter",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": 3.020126, "F": 0 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": 0.25, "F": 0 } }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMotion",
+        "members": {
+          "CapsuleRadius": 0.42,
+          "CapsuleHalfHeight": 0.96,
+          "WalkSpeed": 6,
+          "Acceleration": 10,
+          "Braking": 10,
+          "AirControl": 0.05,
+          "GravityScale": 1.5,
+          "TurnRate": 1.7777778,
+          "FaceMovement": true
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMotionState",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.MoveIntent",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.ViewAngles",
+        "members": {
+          "Yaw": 0.125,
+          "Pitch": -0.1388889
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "0c16368e-7af9-4dff-b0a0-c4e663cfb656",
+        "name": "Mesh",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": -0.96, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Animation.SkeletalMesh",
+            "members": {
+              "AssetPath": "Assets/Characters/Mannequins/SKM_Manny_Simple.glb"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Animation.Locomotion",
+            "members": {
+              "Idle": "Assets/Characters/Mannequins/Anims/MM_Idle.glb",
+              "Walk": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
+              "Jog": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
+              "Jump": "Assets/Characters/Mannequins/Anims/MM_Jump.glb",
+              "Fall": "Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
+              "Land": "Assets/Characters/Mannequins/Anims/MM_Land.glb",
+              "WalkSpeed": 3,
+              "JogSpeed": 6
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8eefaab0-6efe-4700-88ce-3aa2eb4fa8f4",
+        "name": "TopDownCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Character.OrbitCamera",
+            "members": {
+              "Distance": 14,
+              "Radius": 0.12,
+              "Collide": false
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true,
+              "FovY": 0.09067,
+              "FarZ": 1000
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.AudioListener",
+            "members": {}
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

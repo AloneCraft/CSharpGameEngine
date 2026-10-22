@@ -39,8 +39,25 @@ internal static class GameSystemLoopEmitter {
         foreach(SystemBinding System in Systems){
             Lines.Add($"    internal {System.TypeReference} {System.VariableName};");
         }
+        // ADR-0077 stage 4: each [InputActions] struct is a per-frame resource held here and refreshed before a system reads it.
+        LoopPlan Plan=BuildPlan(AllSystems);
+        foreach(KeyValuePair<string,string> Resource in Plan.Resources){
+            Lines.Add($"    internal {Resource.Key} {Resource.Value};");
+        }
+        if(Plan.Resources.Count>0){ Lines.Add("    internal bool InputInstalled;"); }
+        foreach(KeyValuePair<string,string> Event in Plan.Events){
+            Lines.Add($"    internal global::System.Collections.Generic.List<{Event.Key}>? {Event.Value};");
+        }
+        foreach(string ReadField in Plan.EventReads.Values){
+            Lines.Add($"    internal int {ReadField};");
+        }
         Lines.Add("}");
         Lines.Add("internal static class GeneratedGameLoop {");
+        // ADR-0077 stage 6: events live for one frame. Every entry that begins a frame or a tick run drops them.
+        Lines.Add("    internal static void ClearEvents(ref GeneratedSystemSet Systems) {");
+        foreach(string EventField in Plan.Events.Values){ Lines.Add($"        Systems.{EventField}?.Clear();"); }
+        foreach(string ReadField in Plan.EventReads.Values){ Lines.Add($"        Systems.{ReadField} = 0;"); }
+        Lines.Add("    }");
         Lines.Add($"    private static void RunSimulationTick({BuildSimulationTickParameterList(Contexts)}) {{");
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, EditorOnly, RealtimeOnly);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
@@ -52,12 +69,17 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("    }");
         Lines.Add($"    internal static void RunBakeTick(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
+        Lines.Add("        ClearEvents(ref Systems);");
         Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
         if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        if (State.Enabled) State.World.RefreshGlobalSpatialIndex();"); }
         Lines.Add("    }");
         Lines.Add($"    internal static void RunFrame({BuildSystemSetFrameParameterList(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
         Lines.Add("        State.SetFrameDelta(ElapsedCounter, CounterFrequency);");
+        Lines.Add("        ClearEvents(ref Systems);");
+        if(Plan.Resources.Count>0){
+            Lines.Add($"        if (!Systems.InputInstalled) {{ {ContextNameByFqn[EngineHostTypeName]}.SetInput(global::CSharpGameEngine.Generated.GeneratedInputActions.CreateServer()); Systems.InputInstalled = true; }}");
+        }
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FrameInput, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("        if (!State.Enabled) return;");
@@ -99,7 +121,7 @@ internal static class GameSystemLoopEmitter {
             bool IsEditor=Binding.System.ExecuteInEditor;
             bool IsRealtime=Binding.System.RealtimeInEditor;
             Lines.Add($"        if (Phase == (global::CSharpGameEngine.Entities.SystemPhase){Binding.System.Phase} && (!EditorOnly || {Bool(IsEditor)}) && (!RealtimeOnly || {Bool(IsRealtime)})) {{");
-            Lines.AddRange(BuildSystemDispatch(Binding,Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn));
+            Lines.AddRange(BuildSystemDispatch(Binding,Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn,Plan));
             Lines.Add("        }");
         }
         Lines.Add("        } finally {");
@@ -112,6 +134,7 @@ internal static class GameSystemLoopEmitter {
         Lines.Add($"    internal static void RunPresentationFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
         Lines.Add("        State.MeasureFrameDelta();");
+        Lines.Add("        ClearEvents(ref Systems);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.Presentation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
@@ -123,12 +146,14 @@ internal static class GameSystemLoopEmitter {
         if(HasEditorSystems){
             Lines.Add($"    internal static void RunEditorFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
             Lines.Add("        State.MeasureFrameDelta();");
+        Lines.Add("        ClearEvents(ref Systems);");
             Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
             if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
             Lines.Add("    }");
             if(HasRealtimeEditorSystems){
                 Lines.Add($"    internal static void RunEditorRealtimeFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
                 Lines.Add("        State.MeasureFrameDelta();");
+        Lines.Add("        ClearEvents(ref Systems);");
                 Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
                 if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
                 Lines.Add("    }");
@@ -136,7 +161,7 @@ internal static class GameSystemLoopEmitter {
             Lines.Add($"    internal static void ShutdownEditor(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
             Lines.Add("        State.World.BeginSystemExecution();");
             Lines.Add("        try {");
-            Lines.AddRange(BuildShutdown(Systems.Where(static Binding=>Binding.System.ExecuteInEditor).Reverse(),Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn));
+            Lines.AddRange(BuildShutdown(Systems.Where(static Binding=>Binding.System.ExecuteInEditor).Reverse(),Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn,Plan));
             Lines.Add("        } finally {");
             Lines.Add("            State.World.EndSystemExecution();");
             Lines.Add("        }");
@@ -147,7 +172,7 @@ internal static class GameSystemLoopEmitter {
         Lines.Add($"    internal static void Shutdown(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
         Lines.Add("        State.World.BeginSystemExecution();");
         Lines.Add("        try {");
-        Lines.AddRange(BuildShutdown(Systems.AsEnumerable().Reverse(),Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn));
+        Lines.AddRange(BuildShutdown(Systems.AsEnumerable().Reverse(),Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn,Plan));
         Lines.Add("        } finally {");
         Lines.Add("            State.World.EndSystemExecution();");
         Lines.Add("        }");
@@ -183,16 +208,36 @@ internal static class GameSystemLoopEmitter {
     private static IEnumerable<string> BuildSystemDispatch(
         SystemBinding Binding,GameSystemRegistry Registry,List<ContextBinding> Contexts,
         Dictionary<string,int> ComponentIndexByType,Dictionary<string,string> FieldNameByComponentFqn,
-        Dictionary<string,string> ContextNameByFqn){
+        Dictionary<string,string> ContextNameByFqn,LoopPlan Plan){
         List<string> Lines=[];
         var WideMask=Registry.ComponentsByIndex.Length>64;
         foreach(GameSystemMethodModel Method in Binding.System.Methods){
             if(Method.Role!=GameSystemMethodRole.Dispatch){ continue; }
+            foreach(GameSystemResourceParameterModel Resource in Method.Resources){
+                Lines.Add($"            Systems.{Plan.Resources[Resource.TypeFullyQualifiedName]} = {Resource.TypeFullyQualifiedName}.Read({ContextNameByFqn[EngineHostTypeName]}.Input, global::System.Math.Min(State.FrameDeltaSeconds, 0.1f), {ContextNameByFqn[EngineHostTypeName]}.Cursor);");
+            }
+            foreach(GameSystemEventParameterModel Written in Method.EventWrites){
+                Lines.Add($"            Systems.{Plan.Events[Written.EventTypeFullyQualifiedName]} ??= new global::System.Collections.Generic.List<{Written.EventTypeFullyQualifiedName}>();");
+            }
+            if(Method.EventReads.Length>0){
+                // One call per event sent so far this frame; later sends in the same frame are read too (the index keeps its place).
+                var Read=Method.EventReads[0];
+                var QueueField=Plan.Events[Read.EventTypeFullyQualifiedName];
+                var IndexField=Plan.EventReads[ReadKey(Binding.System,Method)];
+                Lines.Add($"            while (Systems.{QueueField} is {{ }} {Read.ParameterName}Queue && Systems.{IndexField} < {Read.ParameterName}Queue.Count) {{");
+                Lines.Add("                if (!State.Enabled) return;");
+                Lines.Add($"                var {Read.ParameterName}Value = {Read.ParameterName}Queue[Systems.{IndexField}++];");
+                Lines.Add(Method.ReturnsBool
+                    ?$"                _ = Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)});"
+                    :$"                Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
+                Lines.Add("            }");
+                continue;
+            }
             if(Binding.System.IsWorldSystem&&Method.Components.Length==0){
                 Lines.Add("            if (!State.Enabled) return;");
                 Lines.Add(Method.ReturnsBool
-                    ?$"            if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)})) return;"
-                    :$"            Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)});");
+                    ?$"            if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)})) return;"
+                    :$"            Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
                 continue;
             }
             MethodComponentMask MethodMask=BuildMethodMask(Method,ComponentIndexByType);
@@ -201,6 +246,7 @@ internal static class GameSystemLoopEmitter {
                 Lines.Add($"            for (var Index = State.World.{Archetype.Name}.Count - 1; Index >= 0; Index--) {{");
                 Lines.Add("                if (!State.Enabled) return;");
                 Lines.Add($"                if (!State.World.{Archetype.Name}.IsEntityEnabledUnchecked(Index) || !State.World.{Archetype.Name}.AreComponentsEnabledUnchecked(Index, 0x{MethodMask.Low:X16}UL{(WideMask?$", 0x{MethodMask.High:X16}UL":string.Empty)})) continue;");
+                Lines.AddRange(BuildRelationResolution(Method,Archetype,"                ",FieldNameByComponentFqn));
                 if(Method.Components.Any(static Component=>!Component.IsReadOnly)){
                     Lines.Add("                var Version = State.World.AdvanceChangeVersion();");
                 }
@@ -209,8 +255,8 @@ internal static class GameSystemLoopEmitter {
                 }
                 // ADR-0072: an entity system's result has no effect (this is the loop's last statement), so a bool is discarded.
                 Lines.Add(Method.ReturnsBool
-                    ?$"                _ = Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});"
-                    :$"                Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});");
+                    ?$"                _ = Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn,Plan)});"
+                    :$"                Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
                 Lines.Add("            }");
             }
         }
@@ -220,14 +266,14 @@ internal static class GameSystemLoopEmitter {
     private static IEnumerable<string> BuildShutdown(
         IEnumerable<SystemBinding> Systems,GameSystemRegistry Registry,List<ContextBinding> Contexts,
         Dictionary<string,int> ComponentIndexByType,Dictionary<string,string> FieldNameByComponentFqn,
-        Dictionary<string,string> ContextNameByFqn){
+        Dictionary<string,string> ContextNameByFqn,LoopPlan Plan){
         List<string> Lines=[];
         var WideMask=Registry.ComponentsByIndex.Length>64;
         foreach(SystemBinding Binding in Systems){
             foreach(GameSystemMethodModel Method in Binding.System.Methods.Reverse()){
                 if(Method.Role!=GameSystemMethodRole.Shutdown){ continue; }
                 if(Binding.System.IsWorldSystem&&Method.Components.Length==0){
-                    Lines.Add($"        Systems.{Binding.VariableName}.Shutdown({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)});");
+                    Lines.Add($"        Systems.{Binding.VariableName}.Shutdown({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
                     continue;
                 }
                 MethodComponentMask MethodMask=BuildMethodMask(Method,ComponentIndexByType);
@@ -236,13 +282,14 @@ internal static class GameSystemLoopEmitter {
                     if(!Contains(Archetype,MethodMask,WideMask)){ continue; }
                     Lines.Add($"        for (var Index = State.World.{Archetype.Name}.Count - 1; Index >= 0; Index--) {{");
                     Lines.Add($"            if (!State.World.{Archetype.Name}.IsEntityEnabledUnchecked(Index) || !State.World.{Archetype.Name}.AreComponentsEnabledUnchecked(Index, 0x{MethodMask.Low:X16}UL{(WideMask?$", 0x{MethodMask.High:X16}UL":string.Empty)})) continue;");
+                    Lines.AddRange(BuildRelationResolution(Method,Archetype,"            ",FieldNameByComponentFqn));
                     if(Method.Components.Any(static Component=>!Component.IsReadOnly)){
                         Lines.Add("            var Version = State.World.AdvanceChangeVersion();");
                     }
                     foreach(GameSystemComponentParameterModel Component in Method.Components.Where(static Component=>!Component.IsReadOnly)){
                         Lines.Add($"            State.World.{Archetype.Name}.Mark{FieldNameByComponentFqn[Component.TypeFullyQualifiedName]}ChangedUnchecked(Index, Version);");
                     }
-                    Lines.Add($"            Systems.{Binding.VariableName}.Shutdown({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});");
+                    Lines.Add($"            Systems.{Binding.VariableName}.Shutdown({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
                     Lines.Add("        }");
                 }
             }
@@ -251,7 +298,7 @@ internal static class GameSystemLoopEmitter {
     }
 
     private static string BuildCallArguments(GameSystemMethodModel Method,GameSystemArchetypeInfo? Archetype,
-        Dictionary<string,string> ContextNameByFqn,Dictionary<string,string> FieldNameByComponentFqn){
+        Dictionary<string,string> ContextNameByFqn,Dictionary<string,string> FieldNameByComponentFqn,LoopPlan Plan){
         List<string> Arguments=[];
         foreach(GameSystemParameterSlot Slot in Method.CallOrder){
             switch(Slot.Role){
@@ -269,9 +316,39 @@ internal static class GameSystemLoopEmitter {
                 case GameSystemParameterRole.State:
                     Arguments.Add("ref State");
                     break;
+                case GameSystemParameterRole.Service:
+                    Arguments.Add($"{ContextNameByFqn[EngineHostTypeName]}.{Method.Services[Slot.Index].PropertyName}");
+                    break;
+                case GameSystemParameterRole.EventRead:
+                    Arguments.Add($"in {Method.EventReads[Slot.Index].ParameterName}Value");
+                    break;
+                case GameSystemParameterRole.EventWrite:
+                    Arguments.Add($"new global::CSharpGameEngine.Entities.EventWriter<{Method.EventWrites[Slot.Index].EventTypeFullyQualifiedName}>(Systems.{Plan.Events[Method.EventWrites[Slot.Index].EventTypeFullyQualifiedName]}!)");
+                    break;
+                case GameSystemParameterRole.Resource:
+                    Arguments.Add($"in Systems.{Plan.Resources[Method.Resources[Slot.Index].TypeFullyQualifiedName]}");
+                    break;
+                case GameSystemParameterRole.ParentRelation:
+                    Arguments.Add($"new global::CSharpGameEngine.Entities.Parent<{Method.Relations[Slot.Index].ComponentTypeFullyQualifiedName}>(ParentEntity{Slot.Index}, ParentValue{Slot.Index})");
+                    break;
             }
         }
         return string.Join(", ",Arguments);
+    }
+
+    /// <summary>
+    /// ADR-0077: resolves each <c>in Parent&lt;T&gt;</c> before the call. A child whose parent is dead or has no T is skipped
+    /// (the entity is not stamped as changed and nothing is passed in its place).
+    /// </summary>
+    private static IEnumerable<string> BuildRelationResolution(GameSystemMethodModel Method,GameSystemArchetypeInfo Archetype,string Indent,Dictionary<string,string> FieldNameByComponentFqn){
+        List<string> Lines=[];
+        if(Method.Relations.Length==0){ return Lines; }
+        var ParentField=FieldNameByComponentFqn[GameSystemAnalyzer.ParentComponentFullyQualifiedName];
+        for(var Index=0;Index<Method.Relations.Length;Index++){
+            Lines.Add($"{Indent}var ParentEntity{Index} = State.World.{Archetype.Name}.Get{ParentField}RefUnchecked(Index).Value;");
+            Lines.Add($"{Indent}if (!State.World.TryGetComponent(ParentEntity{Index}, out {Method.Relations[Index].ComponentTypeFullyQualifiedName} ParentValue{Index})) continue;");
+        }
+        return Lines;
     }
 
     private static MethodComponentMask BuildMethodMask(GameSystemMethodModel Method,Dictionary<string,int> ComponentIndexByType){
@@ -314,8 +391,40 @@ internal static class GameSystemLoopEmitter {
         return Systems;
     }
 
+    /// <summary>The extra fields of <c>GeneratedSystemSet</c> the loop needs (ADR-0077): input resources, event queues and read positions.</summary>
+    private sealed class LoopPlan {
+        internal readonly Dictionary<string,string> Resources=new(StringComparer.Ordinal);
+        internal readonly Dictionary<string,string> Events=new(StringComparer.Ordinal);
+        internal readonly Dictionary<string,string> EventReads=new(StringComparer.Ordinal);
+    }
+
+    private static string ReadKey(GameSystemResult System,GameSystemMethodModel Method)=>System.ClassFullyQualifiedName+"#"+Method.DeclarationPosition;
+
+    private static LoopPlan BuildPlan(List<GameSystemResult> SourceSystems){
+        LoopPlan Plan=new();
+        SortedSet<string> ResourceTypes=new(StringComparer.Ordinal);
+        SortedSet<string> EventTypes=new(StringComparer.Ordinal);
+        foreach(GameSystemResult System in SourceSystems){
+            foreach(GameSystemMethodModel Method in System.Methods){
+                foreach(GameSystemResourceParameterModel Resource in Method.Resources){ ResourceTypes.Add(Resource.TypeFullyQualifiedName); }
+                foreach(GameSystemEventParameterModel Event in Method.EventReads){ EventTypes.Add(Event.EventTypeFullyQualifiedName); }
+                foreach(GameSystemEventParameterModel Event in Method.EventWrites){ EventTypes.Add(Event.EventTypeFullyQualifiedName); }
+            }
+        }
+        foreach(string Type in ResourceTypes){ Plan.Resources[Type]="Input"+Plan.Resources.Count; }
+        foreach(string Type in EventTypes){ Plan.Events[Type]="Events"+Plan.Events.Count; }
+        foreach(GameSystemResult System in SourceSystems){
+            foreach(GameSystemMethodModel Method in System.Methods){
+                if(Method.EventReads.Length>0){ Plan.EventReads[ReadKey(System,Method)]="EventRead"+Plan.EventReads.Count; }
+            }
+        }
+        return Plan;
+    }
+
     private static List<ContextBinding> BuildContextBindings(List<GameSystemResult> SourceSystems){
         Dictionary<string,bool> ReferenceKinds=new(StringComparer.Ordinal);
+        // ADR-0077: reading an [InputActions] struct needs the host (its input server), even when no system names it.
+        if(SourceSystems.Any(static System=>System.Methods.Any(static Method=>Method.NeedsHost))){ ReferenceKinds[EngineHostTypeName]=true; }
         foreach(GameSystemResult System in SourceSystems){
             foreach(GameSystemMethodModel Method in System.Methods){
                 if(Method.Role is not (GameSystemMethodRole.Dispatch or GameSystemMethodRole.Shutdown)){ continue; }

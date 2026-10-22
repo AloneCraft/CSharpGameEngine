@@ -23,7 +23,7 @@ public static class TemplatePackageVerification {
         var Feed=Path.Combine(Work,"feed");
         GameProjectGenerator.PublishToFeed(Package,Feed);
         var ProjectDirectory=Path.Combine(Work,ProjectName);
-        var ProjectFile=GameProjectGenerator.Generate(Path.Combine(RepositoryRoot,"templates","CSharpGameEngine.Templates.ThirdPerson"),ProjectDirectory,ProjectName,Version,Feed);
+        var ProjectFile=GameProjectGenerator.Generate(Path.Combine(RepositoryRoot,"Templates","CSharpGameEngine.Templates.ThirdPerson"),ProjectDirectory,ProjectName,Version,Feed);
         await Output.WriteLineAsync($"CGE-TEMPLATE-PACKAGE generated {ProjectFile} from {Path.GetFileName(Package)}").ConfigureAwait(false);
         // The package keeps its version while it is rebuilt, so drop a cached copy to restore this exact build.
         var CachedPackage=Path.Combine(Environment.GetEnvironmentVariable("NUGET_PACKAGES")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),".nuget","packages"),GameProjectGenerator.SdkPackageId.ToLowerInvariant(),Version);

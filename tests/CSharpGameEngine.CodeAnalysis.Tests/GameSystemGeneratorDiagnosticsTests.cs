@@ -167,15 +167,49 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
     }
 
     [Fact]
-    public void UpdateWithoutTrailingState_ReportsSysgen013(){
-        AssertHasDiagnostic(
+    public void UpdateWithoutTrailingState_IsAccepted(){
+        // ADR-0077: the trailing `ref State` is optional; SYSGEN013 no longer exists.
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+
             """
             internal struct NoStateSystem : ISystem
             {
-                public bool Update(ref Position position) => true;
+                public void Update(ref Position position) { }
+            }
+            """);
+
+        Assert.Empty(Result.Diagnostics);
+        Assert.Contains("NoStateSystem.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index))",GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs"));
+    }
+
+    [Fact]
+    public void InStruct_IsAReadOnlyComponentAndDoesNotReportAContext(){
+        // ADR-0077: `in T` on a struct reads the component (what `[ReadOnlyComponent] in T` used to say).
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+
+            """
+            internal struct ReadSystem : ISystem
+            {
+                public void Update(in Position position, ref Velocity velocity) { }
+            }
+            """);
+
+        Assert.Empty(Result.Diagnostics);
+        var Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
+
+        Assert.Contains("ReadSystem.Update(in State.World.Archetype0.GetPositionRefUnchecked(Index), ref State.World.Archetype0.GetVelocityRefUnchecked(Index))",Loop);
+        Assert.DoesNotContain("MarkPositionChangedUnchecked",Loop);
+        Assert.Contains("MarkVelocityChangedUnchecked",Loop);
+    }
+
+    [Fact]
+    public void InAndRefOfTheSameComponent_ReportsSysgen011(){
+        AssertHasDiagnostic(
+            """
+            internal struct ConflictSystem : ISystem
+            {
+                public void Update(in Position position, ref Position again) { }
             }
             """,
-            "SYSGEN013");
+            "SYSGEN011");
     }
 
     [Fact]
@@ -246,10 +280,10 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
             """
             internal struct DuplicateContextSystem : ISystem
             {
-                public bool Update(ref Position position, in Frame a, in Frame b, ref State state) => true;
+                public bool Update(ref Position position, Frame a, Frame b, ref State state) => true;
             }
 
-            public readonly struct Frame { }
+            public sealed class Frame { }
             """,
             "SYSGEN019");
     }

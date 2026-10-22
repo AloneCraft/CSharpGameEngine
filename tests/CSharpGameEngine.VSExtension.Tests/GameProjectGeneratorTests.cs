@@ -31,10 +31,15 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     /// CopySources renames the template namespace as plain text, so in the real template source it may
     /// only appear as the namespace itself: an identifier such as CgeThirdPersonCharacter would be renamed too.
     /// </summary>
-    [Fact]
-    public void TemplateSource_UsesItsNamespaceOnlyAsTheNamespace(){
-        var Template=RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson");
-        var Whole=new System.Text.RegularExpressions.Regex(@"(?<![A-Za-z0-9_])"+GameProjectGenerator.TemplateNamespace+@"(?![A-Za-z0-9_])");
+    [Theory]
+    [InlineData("ThirdPerson")]
+    [InlineData("FirstPerson")]
+    [InlineData("TopDown")]
+    [InlineData("Vehicle")]
+    public void TemplateSource_UsesItsNamespaceOnlyAsTheNamespace(string TemplateName){
+        var Template=RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName);
+        var TemplateNamespace=GameProjectGenerator.NamespaceOf(TemplateName);
+        var Whole=new System.Text.RegularExpressions.Regex(@"(?<![A-Za-z0-9_])"+TemplateNamespace+@"(?![A-Za-z0-9_])");
         var Files=Directory.EnumerateFiles(Template,"*",SearchOption.AllDirectories)
             .Where(static File=>File.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)||File.EndsWith(".json",StringComparison.OrdinalIgnoreCase))
             .Where(static File=>!File.Contains(Path.DirectorySeparatorChar+"bin"+Path.DirectorySeparatorChar)&&!File.Contains(Path.DirectorySeparatorChar+"obj"+Path.DirectorySeparatorChar))
@@ -42,17 +47,45 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         Assert.NotEmpty(Files);
         foreach(var File in Files){
             var Text=System.IO.File.ReadAllText(File);
-            var All=Text.Split([GameProjectGenerator.TemplateNamespace],StringSplitOptions.None).Length-1;
-            Assert.True(All==Whole.Matches(Text).Count,$"{File} uses '{GameProjectGenerator.TemplateNamespace}' inside another identifier.");
+            var All=Text.Split([TemplateNamespace],StringSplitOptions.None).Length-1;
+            Assert.True(All==Whole.Matches(Text).Count,$"{File} uses '{TemplateNamespace}' inside another identifier.");
+        }
+    }
+
+    /// <summary>Each template the wizard offers has its project template, its two string resources and a source folder to copy from.</summary>
+    [Fact]
+    public void EveryOfferedTemplate_HasAVsTemplateWithItsOwnResourceStrings(){
+        var Templates=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine");
+        var Resources=System.Xml.Linq.XDocument.Load(RepositoryFile("tools","CSharpGameEngine.VSExtension","VSPackage.resx"));
+        var JapaneseResources=System.Xml.Linq.XDocument.Load(RepositoryFile("tools","CSharpGameEngine.VSExtension","VSPackage.ja-JP.resx"));
+        var Seen=new System.Collections.Generic.HashSet<string>();
+        foreach(var Name in GameProjectGenerator.TemplateNames){
+            Assert.True(Directory.Exists(RepositoryFile("Templates","CSharpGameEngine.Templates."+Name)),Name);
+            var Template=System.Xml.Linq.XDocument.Load(Path.Combine(Templates,Name,Name+".vstemplate"));
+            System.Xml.Linq.XNamespace Schema="http://schemas.microsoft.com/developer/vstemplate/2005";
+            var Data=Template.Root!.Element(Schema+"TemplateData")!;
+            Assert.Equal("CSharpGameEngine."+Name,Data.Element(Schema+"TemplateID")?.Value);
+            Assert.True(File.Exists(Path.Combine(Templates,Name,Name+".csproj.template")),Name);
+            Assert.True(File.Exists(Path.Combine(Templates,Name,"ReadMe.md")),Name);
+            foreach(var Element in new[]{"Name","Description"}){
+                var Id=Data.Element(Schema+Element)!.Attribute("ID")!.Value;
+                Assert.True(Seen.Add(Id),$"Resource ID {Id} of {Name} is used twice.");
+                Assert.Contains(Resources.Root!.Elements("data"),Item=>Item.Attribute("name")?.Value==Id);
+                Assert.Contains(JapaneseResources.Root!.Elements("data"),Item=>Item.Attribute("name")?.Value==Id);
+            }
         }
     }
 
     /// <summary>The wizard opens <see cref="GameProjectGenerator.StartupScenePath"/> after creation: it exists and is a scene by the build's rule (ADR-0070).</summary>
-    [Fact]
-    public void GeneratedProject_StartupSceneIsASceneOfTheProject(){
+    [Theory]
+    [InlineData("ThirdPerson")]
+    [InlineData("FirstPerson")]
+    [InlineData("TopDown")]
+    [InlineData("Vehicle")]
+    public void GeneratedProject_StartupSceneIsASceneOfTheProject(string TemplateName){
         var Project=Path.Combine(this.Root,"My Game");
-        var Created=GameProjectGenerator.CopySources(RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson"),Project,"My_Game");
-        var Startup=Path.GetFullPath(Path.Combine(Project,GameProjectGenerator.StartupScenePath));
+        var Created=GameProjectGenerator.CopySources(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName),Project,"My_Game",TemplateName);
+        var Startup=Path.GetFullPath(Path.Combine(Project,GameProjectGenerator.StartupSceneOf(TemplateName)));
         Assert.Contains(Startup,Created.Select(Path.GetFullPath));
         Assert.True(CSharpGameEngine.SceneAnalysis.Json.SceneFiles.IsScene(Startup,Project));
         Assert.Contains("\"namespace\": \"My_Game.Scenes\"",File.ReadAllText(Startup));
@@ -79,7 +112,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [Fact]
     public void Generate_WithAKeywordProjectName_WritesSourcesThatParse(){
         var Project=Path.Combine(this.Root,"event");
-        GameProjectGenerator.Generate(RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson"),Project,"event","1.2.3",this.Root);
+        GameProjectGenerator.Generate(RepositoryFile("Templates","CSharpGameEngine.Templates.ThirdPerson"),Project,"event","1.2.3",this.Root);
         foreach(var File in Directory.EnumerateFiles(Project,"*.cs",SearchOption.AllDirectories)){
             var Tree=Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(System.IO.File.ReadAllText(File),
                 new Microsoft.CodeAnalysis.CSharp.CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview));
@@ -108,15 +141,19 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         Assert.False(File.Exists(Path.Combine(Project,"Template.csproj")));
     }
 
-    [Fact]
-    public void TemplateProjectFile_IsTheGeneratorsProjectFileWithTemplateTokens(){
-        var Template=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine","ThirdPerson","ThirdPerson.csproj.template");
+    [Theory]
+    [InlineData("ThirdPerson")]
+    [InlineData("FirstPerson")]
+    [InlineData("TopDown")]
+    [InlineData("Vehicle")]
+    public void TemplateProjectFile_IsTheGeneratorsProjectFileWithTemplateTokens(string TemplateName){
+        var Template=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine",TemplateName,TemplateName+".csproj.template");
         Assert.Equal(GameProjectGenerator.ProjectFile("$safeprojectname$",GameProjectGenerator.EngineVersionToken),File.ReadAllText(Template));
     }
 
     [Fact]
     public void Generate_WritesAPackageModeProjectAndItsFeed(){
-        var Template=RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson");
+        var Template=RepositoryFile("Templates","CSharpGameEngine.Templates.ThirdPerson");
         var Project=Path.Combine(this.Root,"My Game");
         var ProjectFile=GameProjectGenerator.Generate(Template,Project,"My Game","1.2.3",@"C:\feeds\cge & co");
 

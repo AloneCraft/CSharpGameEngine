@@ -16,6 +16,8 @@ public struct AppHost {
     public string Title;
     public int Width;
     public int Height;
+    /// <summary>trueなら、ウィンドウがマウスを捕捉して視点入力に使う(ADR-0077)。自動実行(automation)では捕捉しない。</summary>
+    public bool CaptureMouse;
 
 
     /// <summary>パレットから追加した直後でも開けるウィンドウになるための既定値。</summary>

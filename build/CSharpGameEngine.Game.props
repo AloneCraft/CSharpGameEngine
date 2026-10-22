@@ -45,6 +45,9 @@
     <!-- ADR-0070: scene documents are the *.json files under Scenes (SceneFiles), compiled to C# by
          GameSystemGenerator in the same build. The generator finds them with ProjectDir. -->
     <AdditionalFiles Include="Scenes\**\*.json" />
+    <!-- ADR-0077: the file list of Assets (not the contents) becomes the typed catalog Assets.* and lets the generator check
+         the paths that scenes name. -->
+    <AdditionalFiles Include="Assets\**\*.wav;Assets\**\*.glb;Assets\**\*.gltf;Assets\**\*.fbx;Assets\**\*.png;Assets\**\*.jpg;Assets\**\*.jpeg" Exclude="Assets\Editor\**" />
     <CompilerVisibleProperty Include="ProjectDir" />
   </ItemGroup>
 

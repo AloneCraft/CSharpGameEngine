@@ -81,6 +81,9 @@ internal struct Window:ISystem {
             return;
         }
         Win32Window Window=Host.Window;
+        if(App.CaptureMouse&&Host.Automation is null&&!Window.IsMouseCaptured){
+            Window.SetMouseCaptured(true);
+        }
         Window.PumpEvents();
         Host.Automation?.ApplyInput(Window);
         Host.Input.ProcessEvents(Window.DrainInputEvents());
@@ -107,10 +110,10 @@ internal static class LightValidation {
         World.TryGetComponent(Entity,out LightShadow Value)?new LightShadowSettings(Value.Priority,Value.Bias):null;
 }
 // ADR-0073: the Presentation systems keep the order they had under [SystemOrder] as one chain:
-// SpringArmUpdate, this file's systems in declaration order, the animation systems, SkinnedMeshSync,
+// OrbitCameraUpdate, this file's systems in declaration order, the animation systems, SkinnedMeshSync,
 // audio, Present. Edges between systems with no data dependency could be relaxed after analysis.
 [SystemPhase(SystemPhase.Presentation)]
-[RunsAfter(typeof(CSharpGameEngine.Runtime.Character.SpringArmUpdate))]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Character.OrbitCameraUpdate))]
 internal struct LightShadowValidation:ISystem {
     public void Update(Entity Entity,ref LightShadow Shadow,ref LightShadowRuntime Runtime,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
@@ -774,6 +777,7 @@ internal struct AudioSourceSync:ISystem {
 [RunsAfter(typeof(AudioSourceSync))]
 internal struct Present:ISystem {
     public void Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
+        Host.Sound.Flush();
         if(State.Enabled&&!Host.Present()){ State.Enabled=false; }
     }
 }

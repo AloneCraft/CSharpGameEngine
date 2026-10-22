@@ -307,7 +307,7 @@ public sealed class SceneJsonCommitPlannerTests {
     /// <summary>
     /// A component added from the palette is written with its declared defaults. The defaults were kept only as C# text,
     /// so a float or enum default came out as null (SCENE203) or threw, and the engine's own components (Transform, the
-    /// lights, CharacterMovement, ...) could not be added to a scene. A default JSON cannot hold (a static member) is
+    /// lights, CharacterMotion, ...) could not be added to a scene. A default JSON cannot hold (a static member) is
     /// left out, which keeps the same default when the scene is built.
     /// </summary>
     [Fact]

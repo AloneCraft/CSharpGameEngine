@@ -70,7 +70,7 @@ internal static class GameSystemGeneratorTestHelper {
         public struct Health { public int Value; }
         public struct PlayerTag { }
         public struct MovableTag { }
-        public readonly struct FrameContext
+        public sealed class FrameContext
         {
             public FrameContext(float deltaTime) { this.DeltaTime = deltaTime; }
             public float DeltaTime { get; }

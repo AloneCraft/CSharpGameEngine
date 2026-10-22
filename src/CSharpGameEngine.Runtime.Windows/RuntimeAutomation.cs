@@ -21,6 +21,8 @@ public sealed class RuntimeAutomation {
     /// <summary><c>Code@Start-End</c>を<c>;</c>で区切った押下予定。StartからEnd直前までの表示フレームの間、押下し続ける。</summary>
     public const string InputVariable="CGE_AUTOMATION_INPUT";
     public const string ReportVariable="CGE_AUTOMATION_REPORT";
+    /// <summary>The scripted cursor, <c>x,y</c> as fractions of the client area (0..1 from the top left). A run with it never reads the real cursor.</summary>
+    public const string CursorVariable="CGE_AUTOMATION_CURSOR";
     public const string ReportSchema="cge-automation-report/1";
     private readonly List<Vector3?>CameraPositions=[];
     private RuntimeAutomation(int ExitAfterFrames,string?CapturePath,IReadOnlyList<RuntimeAutomationKeyHold>Input,string?ReportPath){
@@ -81,11 +83,25 @@ public sealed class RuntimeAutomation {
     internal void ApplyInput(Win32Window Window){
         var Frame=this.PresentedFrames;
         foreach(var Code in this.Input.Select(static Hold=>Hold.Code).Distinct(StringComparer.Ordinal)){
-            Window.InjectKey(Code,this.Input.Any(Hold=>Hold.Code==Code&&Hold.Contains(Frame)));
+            var Held=this.Input.Any(Hold=>Hold.Code==Code&&Hold.Contains(Frame));
+            // "MouseLeft" holds the left mouse button; anything else is a keyboard key.
+            if(Code.StartsWith("Mouse",StringComparison.Ordinal)){ Window.InjectMouseButton(Code["Mouse".Length..],Held); }
+            else { Window.InjectKey(Code,Held); }
         }
     }
+    /// <summary>Sound requests the game made so far (ADR-0077), and how many a device actually started. A verification reads them from the report.</summary>
+    private int AudioRequests;
+    private int AudioStarted;
+    /// <summary>The scripted cursor as fractions of the client area, or null to use the real one.</summary>
+    internal (float X,float Y)? ScriptedCursor { get;}=ParseCursor(Environment.GetEnvironmentVariable(CursorVariable));
+    private static (float X,float Y)?ParseCursor(string?Text){
+        var Parts=(Text??string.Empty).Split(',',StringSplitOptions.TrimEntries);
+        return Parts.Length==2&&float.TryParse(Parts[0],NumberStyles.Float,CultureInfo.InvariantCulture,out var X)&&float.TryParse(Parts[1],NumberStyles.Float,CultureInfo.InvariantCulture,out var Y)?(X,Y):null;
+    }
     internal bool CapturesNextFrame=>this.CapturePath is not null&&this.PresentedFrames+1==this.ExitAfterFrames;
-    internal void RecordPresented(RenderServer Renderer,Vector3?CameraPosition){
+    internal void RecordPresented(RenderServer Renderer,Vector3?CameraPosition,int AudioRequests=0,int AudioStarted=0){
+        this.AudioRequests=AudioRequests;
+        this.AudioStarted=AudioStarted;
         var Captured=this.CapturesNextFrame;
         this.PresentedFrames++;
         this.CameraPositions.Add(CameraPosition);
@@ -115,6 +131,8 @@ public sealed class RuntimeAutomation {
         Writer.WriteString("schema",ReportSchema);
         Writer.WriteNumber("frames",this.PresentedFrames);
         Writer.WriteNumber("d3d12Errors",D3D12Errors);
+        Writer.WriteNumber("audioRequests",this.AudioRequests);
+        Writer.WriteNumber("audioStarted",this.AudioStarted);
         // Frame-local camera positions (in the camera's reference frame), one entry per presented frame.
         Writer.WriteStartArray("cameraPositions");
         foreach(var Position in this.CameraPositions){

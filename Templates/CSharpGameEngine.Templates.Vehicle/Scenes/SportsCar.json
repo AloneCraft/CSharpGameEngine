@@ -1,0 +1,203 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeVehicle.Scenes",
+  "className": "SportsCar",
+  "startupOrder": 2,
+  "root": {
+    "id": "0a7c1e52-3b9d-4f60-8a14-5d2e9c7b6f31",
+    "name": "BP_VehicleAdvSportsCar",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 44.5, "U": 1.02, "F": 0 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": -0.5, "F": 0 } }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.Vehicle",
+        "members": {
+          "Wheelbase": 2.642,
+          "Track": 1.8,
+          "RideHeight": 0.28,
+          "SuspensionTravel": 0.3,
+          "TopSpeed": 42,
+          "ReverseSpeed": 10,
+          "Acceleration": 10,
+          "BrakeDeceleration": 16,
+          "MaxSteering": 0.0944444
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.VehicleState",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.VehicleIntent",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.ViewAngles",
+        "members": {
+          "Yaw": 0.5,
+          "Pitch": -0.0222222
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "5e83b0d4-7a16-4c29-9f05-1b6a3d8e2c47",
+        "name": "Body",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": -0.28, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.25, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar.glb"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c2d94a17-0e5b-4837-a6f1-8b3e7d1052a9",
+        "name": "Glass",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": -0.28, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.25, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Glass.glb"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "91f6e3a8-4d2c-4b70-85e9-3a7c0b1d6f52",
+        "name": "Wheel_FL",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0.9, "U": -0.03, "F": 1.35 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "3b8a5d62-9c07-4e14-b2f3-6d1e9a4c7058",
+        "name": "Wheel_FR",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.9, "U": -0.03, "F": 1.35 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e7142c90-5a3b-4d68-91c4-0f8b2e6a3d75",
+        "name": "Wheel_BL",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0.9, "U": -0.015, "F": -1.292 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6d05f8b3-2e91-4a7c-8d46-b1a3c5e07f29",
+        "name": "Wheel_BR",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.9, "U": -0.015, "F": -1.292 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a4c7e019-8f35-4b2d-9e60-7d1b3f5a8c42",
+        "name": "ChaseCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Character.OrbitCamera",
+            "members": {
+              "Pivot": { "R": 0, "U": 1.5, "F": 0 },
+              "Distance": 6.5,
+              "Radius": 0.12,
+              "Collide": true
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true,
+              "FovY": 0.16309864,
+              "FarZ": 1000
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.AudioListener",
+            "members": {}
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

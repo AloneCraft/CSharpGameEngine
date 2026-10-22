@@ -78,15 +78,15 @@ dotnet run --project tools/CSharpGameEngine.FeatureRunner -- resume <run-result.
 
 VSIXを入れたVisual Studioで「新しいプロジェクトの作成」を開き、「三人称」（英語UIでは「Third Person」）を選びます。作成先はリポジトリの外でも構いません。
 
-- 作成されるのは、Unreal EngineのThird Personテンプレートの移植です。レベル、ライティング、キャラクター移動、SpringArmカメラ、入力、Quinnのアニメーションを含みます。
+- 作成されるのは、Unreal EngineのThird Personテンプレートの移植です。レベル、ライティング、キャラクター移動、OrbitCameraカメラ、入力、Quinnのアニメーションを含みます。
 - 移動はWASD（または左スティック）、視点はマウス（または右スティック）、ジャンプはSpace（またはAボタン）です。
 - エンジンは`CSharpGameEngine.Sdk` NuGetパッケージから参照されます。VSIXに同梱のパッケージを、ウィザードが`%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`へ配置します。
 - 同梱のUnreal Engineコンテンツの条件は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
 
-リポジトリ内のテンプレート原本は`templates/CSharpGameEngine.Templates.ThirdPerson`です。次のコマンドで直接実行できます。
+リポジトリ内のテンプレート原本は`Templates/CSharpGameEngine.Templates.ThirdPerson`です。次のコマンドで直接実行できます。
 
 ```bash
-dotnet run --project templates/CSharpGameEngine.Templates.ThirdPerson -c Debug
+dotnet run --project Templates/CSharpGameEngine.Templates.ThirdPerson -c Debug
 ```
 
 ## エンジンSDKパッケージ

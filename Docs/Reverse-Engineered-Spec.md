@@ -317,3 +317,59 @@
 - Observed behavior: a texture bound to a UV set other than TEXCOORD_0 is reported and not imported.
 - Observed behavior: `worldgrid` rewrites a grid material's GLB by copying POSITION/NORMAL/TANGENT/TEXCOORD_0 and the indices into a new model; running it again produces identical bytes, and variants without a grid material are not touched.
 - Result: Matches ADR-0075. Not reproduced: Unreal's anisotropic filtering at grazing angles, and grid instances other than `MI_PrototypeGrid_Gray`'s configuration (the export fails for those).
+
+## RE-M0101 — System の引数の役割表
+
+- Confidence: High（解析器の分岐とテストで直接確認）
+- Evidence: `GameSystemAnalyzer.AnalyzeMethod`、`GameSystemLoopEmitter.BuildCallArguments`、`GameSystemGeneratorDiagnosticsTests`
+- Observed behavior: 先頭の値渡し `Entity`、末尾の `ref State`（任意）を取り除いた残りを、`ref`（非 nullable struct）=書き込む Component、`in`（プリミティブ以外の非 nullable struct）=読み取る Component、`[ReadOnlyComponent] in`=同じ、参照型の値渡し=Context として分類する。`in` の読み取りは変更バージョンを刻まない。`State` を持たないメソッドの呼び出しは `ref State` を渡さない。`in` のクラスや `ref` の参照型は SYSGEN018。
+- Result: Matches ADR-0077 §1。
+
+## RE-M0101b — キャラクター・カメラ・アニメーションの Component 名
+
+- Confidence: High（型定義、生成コード、テンプレートの JSON、WARP での実行で確認）
+- Evidence: `src/CSharpGameEngine.Runtime.Character/CharacterComponents.cs`、`PlayerCameraComponents.cs`、`src/CSharpGameEngine.Runtime.Animation/AnimationComponents.cs`、`Templates/CSharpGameEngine.Templates.ThirdPerson/Scenes/ThirdPersonCharacter.json`、`ThirdPersonCharacterVerification`
+- Observed behavior: ゲームが使う Component は `CharacterMotion`（設定）、`CharacterMotionState`（速度・モード・向きと `OnGround`/`Falling`）、`MoveIntent`（`Direction`、`JumpRequested`、`Jump()`）、`ViewAngles`（`YawDegrees`/`PitchDegrees` と上下の制限）、`OrbitCamera`（`Pivot`、`Distance`、`Radius`、`Collide`）、`Locomotion`（6 つのクリップと速度）。シーン JSON のキーは、`[Angle]` の項目で単位の語を除く（`MaxSlope`、`TurnRate`、`Yaw`）。動作は改名前と同じ。
+- Result: Matches ADR-0077（M2 の改名の範囲）。
+
+## RE-M0101c — `in Parent<T>`
+
+- Confidence: High（解析器の分岐、生成コード、実行テストで確認）
+- Evidence: `GameSystemAnalyzer.AnalyzeMethod`、`GameSystemIndexAssigner.Assign`、`GameSystemLoopEmitter.BuildRelationResolution`、`GameSystemParentRelationTests`
+- Observed behavior: `Update`/`Shutdown` の `in Parent<T>` は、メソッドの Component に読み取りの `Parent` を暗黙に加え、`T` を登録する。生成されたループは、Entity ごとに `var ParentEntityN = …Parent.Value;` と `TryGetComponent(ParentEntityN, out T ParentValueN)` を実行し、失敗したら `continue` する（変更バージョンの刻印より前）。成功したら `new Parent<T>(ParentEntityN, ParentValueN)` を渡す。値はコピーで、書き戻せない。
+- Result: Matches ADR-0077 §2（M3）。
+
+## RE-M0101d — `[InputActions]`
+
+- Confidence: High（生成コード、テンプレートのビルド、WARP での実行で確認）。マウスの視点は Medium（コードの形のみ）。
+- Evidence: `Core/InputActionDeclarations.cs`、`InputActionsEmitter`、`GameSystemAnalyzer`、`GameSystemLoopEmitter`、`InputActionsGeneratorTests`、`verify-thirdperson-character`
+- Observed behavior: `[InputActions] partial struct` の public な `Stick`/`Look`/`Button` フィールドと `[Keys]`/`[Gamepad]`/`[Mouse]` から、`InputContext` を生成する。Stick のキーは Up=Swizzle、Down=Swizzle+Negate、Left=Negate、Right=そのまま。マウスの移動量は Y を反転する。`Look` はマウスの移動量 × `MouseTurnsPerCount` と、スティック × `StickTurnsPerSecond` × フレーム時間（0.1 秒で丸め）の和。`Button` は `ReadValue` が 0 でなければ Held、`CurrentFrame` の Started/Canceled が Pressed/Released。`in` の構造体を取る Update/Shutdown は、呼び出しの前にその構造体を読み直す。入力を読む System の既定フェーズは FrameInput、順序は `Window` の後。
+- Result: Matches ADR-0077 §2（M4）。
+
+## RE-M0101e — `Audio` サービスとイベント
+
+- Confidence: High（生成コード、コンパイルして実行するテスト、WARP と実機の XAudio2 での実行で確認）
+- Evidence: `Runtime.Windows/Audio.cs`、`EngineHost.Sound`、`AudioDeviceServer.PlayOneShot`、`WavReader`、`GameSystemEventWiring`、`GameSystemLoopEmitter`、`GameSystemEventTests`、`verify-thirdperson-character`
+- Observed behavior: `Audio.Play`/`PlayLocal` は要求を貯め、`Present` の直前の `Flush` でクリップ（`WavReader` が `PcmClip` にする。キャッシュあり）を読み、`Source` の距離の減衰と左右の定位を掛けて、`AudioDeviceServer.PlayOneShot` に渡す。XAudio2 では source voice ごとに再生し、終わったものを毎フレーム破棄する。イベントは `GeneratedSystemSet` のキューに積まれ、受け手は読み取り位置から 1 件ずつ呼ばれる。キューと位置はフレームの頭で空になる。`[SystemPhase]` のない受け手は、送り手の最も遅いフェーズに入り、同じフェーズの送り手の後に並ぶ。
+- Result: Matches ADR-0077 §2（M5・M6）。
+
+## RE-M0101f — 型付きアセット `Assets.*`
+
+- Confidence: High（生成コード、テンプレートのビルド、パッケージ経由の実行で確認）
+- Evidence: `AssetCatalogEmitter`、`Core/Authoring/AssetReferences.cs`、`Game.props`、`AssetCatalogTests`、`verify-template-package`
+- Observed behavior: `ProjectDir` の下の `Assets/` の `.wav`/`.glb`/`.gltf`/`.fbx`/`.png`/`.jpg`/`.jpeg`（`Assets/Editor` を除く）の一覧から、`internal static class Assets` を生成する。フォルダごとに入れ子のクラス、ファイルごとに `SoundAsset`/`ModelAsset`/`TextureAsset` の静的な読み取り専用フィールドを持つ。ランタイムのマーカー（ISystem など）が無いプロジェクトでは出さない。シーン JSON の文字列値 `"Assets/…"` が一覧に無ければ SCENE208。
+- Result: Matches ADR-0077 §2（M7）。
+
+## RE-M0101g — `Pointer` と `Picking`（クリック移動）
+
+- Confidence: High（生成コード、光線の単体テスト、WARP での実行で確認）。実機のマウスのカーソルは Medium（自動実行の `CGE_AUTOMATION_CURSOR` で代用）。
+- Evidence: `Core/InputActionDeclarations.cs`、`InputActionsEmitter`、`EngineHost.Cursor`、`Runtime.Windows/Picking.cs`、`MoveIntent`、`CharacterMotionUpdate`、`PickingTests`、`CharacterMotorTests`、`ClickToMoveVerification`
+- Observed behavior: `[Pointer] Pointer` のメンバーは、`Read` の第 3 引数 `EngineHost.Cursor`（クライアント領域の左上を 0、右下を 1 とした割合と `Inside`）で毎フレーム埋まる。`CGE_AUTOMATION_CURSOR=x,y` があればそれを使う。`Picking.TryPick(Pointer, out PickHit)` は、カメラの姿勢・縦の視野角・ウィンドウの縦横比から光線（最大 2000 m）を作り、物理の静的コリジョンに当てて最も近い点を返す。カメラが物理と別の参照フレームにある、ポインターが領域の外、何にも当たらないときは false。`MoveIntent.MoveTo(Point)` は目的地を持ち、`CharacterMotionUpdate` が毎 tick `Steer` で `Direction` を水平の単位ベクトルに書く。目的地までの水平距離が制動距離（歩行速度² ÷ 2 ÷ 制動）より近いと、長さを距離に比例して縮め（下限 0.25）、0.15 m 以内で `Stop()` して `HasDestination` を false に戻す。
+- Result: Matches ADR-0077 §2（TopDown の入力）。
+
+## RE-M0101h — 簡易の車両モデルと三角形メッシュへの光線
+
+- Confidence: High（単体テスト 22 ケース、WARP での実行、最終フレームの画像で確認）。実機のキー入力と実際の運転感覚は Low（自動実行の入力のみ）。
+- Evidence: `VehicleComponents.cs`、`VehicleMotor.cs`、`VehicleSystems.cs`、`PhysicsNarrowPhase.TryRaycastMesh`、`VehicleMotorTests`、`PhysicsMeshRaycastTests`、`VehicleDriveVerification`
+- Observed behavior: `VehicleMotor.Step` は 1 固定 tick に、(1) 4 つの車輪の位置（車体の中心から前後 `Wheelbase/2`、左右 `Track/2`、上に 0.5 m）から車体の下へ光線を飛ばし、急でない面に当たった車輪が 2 つ以上なら接地とみなす。(2) 接地中は、ワールドの速度を車の前と右（前×上）に分け、前の速度に、アクセル（`Acceleration×Drive×(1−速度/TopSpeed)`）、進む向きと逆に踏むブレーキ（`BrakeDeceleration`）または後退、自然な減速（`RollingDeceleration`、止まるところで終わる）、ハンドブレーキ（ブレーキの半分）を足し、横の速度を `Grip`（ハンドブレーキ中は `HandbrakeGrip`）の割合で毎秒消す。進む向きの前（後退なら後ろ）の 2 隅から水平な光線を飛ばし、急な面（法線の上向き成分が 0.6 未満）までの隙間で、このtickの前進を打ち切る。ハンドル（`SteeringRate` で近づく）から前輪の角度（`MaxSteeringDegrees` を `1+|速度|/SteeringFalloffSpeed` で割る）を作り、旋回の角速度 `速度×tan(角度)/Wheelbase` を `MaxLateralAcceleration/|速度|` で頭打ちにして、上向きの軸のまわりに回す（右へ切ると上向きの軸のまわりでは負）。位置を速度で進める。(3) 空中は重力で飛び、上向きを世界の上へゆっくり戻す。(4) 進めたあとにもう一度 4 点を調べ、接地なら、4 点の平均から法線の向きに `RideHeight` の所へ高さを寄せ（めり込みはすぐ、下がるのは毎秒 25 の割合）、面の法線へ向きを寄せ（毎秒 12 の割合）、着地したtickは地面へ入る速度を消す。`Raycast` の静的三角形メッシュは、置き場所でローカルに移した光線を、BVH の候補の三角形と Möller–Trumbore（両面）で判定し、最も近い点と、光線に向いた側の面の法線を返す。
+- Result: Matches ADR-0077 §2（段階 9）。

@@ -7,18 +7,28 @@ using System.Text;
 namespace CSharpGameEngine.ProjectTemplates;
 
 /// <summary>
-/// Turns the template source project (templates/CSharpGameEngine.Templates.ThirdPerson) into a new
+/// Turns the template source project (Templates/CSharpGameEngine.Templates.ThirdPerson) into a new
 /// game project that builds from the CSharpGameEngine.Sdk package (ADR-0065, ADR-0068). Shared by the
 /// Visual Studio project-template wizard and the package end-to-end Stage, so both create the same
 /// project; only the Visual Studio template adds a ReadMe.md, the item that makes the VSSDK archive the
 /// template's project file (ADR-0068). The template source stays an ordinary compilable project; its namespace
-/// <see cref="TemplateNamespace"/> is replaced here rather than through template tokens.
+/// (<see cref="NamespaceOf"/>, <c>CgeThirdPerson</c> for ThirdPerson) is replaced here rather than through template tokens.
 /// </summary>
 internal static class GameProjectGenerator {
-    internal const string TemplateNamespace="CgeThirdPerson";
+    internal const string DefaultTemplate="ThirdPerson";
+    internal const string TemplateNamespace="Cge"+DefaultTemplate;
     internal const string SdkPackageId="CSharpGameEngine.Sdk";
     internal const string EngineVersionToken="$cgeengineversion$";
-    internal const string StartupScenePath="Scenes/Lvl_ThirdPerson.json";
+    internal const string StartupScenePath="Scenes/Lvl_"+DefaultTemplate+".json";
+    /// <summary>The templates the extension offers, which are the folders Templates/CSharpGameEngine.Templates.&lt;name&gt;.</summary>
+    internal static readonly string[]TemplateNames=["ThirdPerson","FirstPerson","TopDown","Vehicle"];
+    /// <summary>The namespace a template's source declares (and that <see cref="CopySources"/> renames): <c>Cge&lt;name&gt;</c>.</summary>
+    internal static string NamespaceOf(string TemplateName)=>"Cge"+TemplateName;
+    /// <summary>The level the wizard opens after creating a project from <paramref name="TemplateName"/>.</summary>
+    internal static string StartupSceneOf(string TemplateName)=>TemplateName switch {
+        "Vehicle"=>"Scenes/Lvl_VehicleBasic.json",
+        _=>"Scenes/Lvl_"+TemplateName+".json",
+    };
     // .cge holds the scene schema that each build writes for its own project (ADR-0070).
     private static readonly string[]SkippedDirectories=["bin","obj",".vs",".cge"];
 
@@ -59,7 +69,8 @@ internal static class GameProjectGenerator {
     /// JSON documents (their <c>namespace</c> and game type names).
     /// Returns the created files.
     /// </summary>
-    internal static IReadOnlyList<string>CopySources(string TemplateDirectory,string ProjectDirectory,string RootNamespace){
+    internal static IReadOnlyList<string>CopySources(string TemplateDirectory,string ProjectDirectory,string RootNamespace,string TemplateName=DefaultTemplate){
+        var SourceNamespace=NamespaceOf(TemplateName);
         var Source=Path.GetFullPath(TemplateDirectory).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
         if(!Directory.Exists(Source)){
             throw new DirectoryNotFoundException($"The template source was not found: {Source}");
@@ -80,7 +91,7 @@ internal static class GameProjectGenerator {
             Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);
             if(string.Equals(Path.GetExtension(File),".cs",StringComparison.OrdinalIgnoreCase)
                 ||IsSceneFile(Segments)){
-                System.IO.File.WriteAllText(Destination,System.IO.File.ReadAllText(File).Replace(TemplateNamespace,RootNamespace),new UTF8Encoding(false));
+                System.IO.File.WriteAllText(Destination,System.IO.File.ReadAllText(File).Replace(SourceNamespace,RootNamespace),new UTF8Encoding(false));
             }
             else {
                 System.IO.File.Copy(File,Destination,true);
@@ -172,10 +183,10 @@ internal static class GameProjectGenerator {
     }
 
     /// <summary>Creates a complete game project: sources, <c>&lt;ProjectName&gt;.csproj</c> and <c>nuget.config</c>.</summary>
-    internal static string Generate(string TemplateDirectory,string ProjectDirectory,string ProjectName,string EngineVersion,string FeedDirectory){
+    internal static string Generate(string TemplateDirectory,string ProjectDirectory,string ProjectName,string EngineVersion,string FeedDirectory,string TemplateName=DefaultTemplate){
         var RootNamespace=SafeIdentifier(ProjectName);
         Directory.CreateDirectory(ProjectDirectory);
-        CopySources(TemplateDirectory,ProjectDirectory,RootNamespace);
+        CopySources(TemplateDirectory,ProjectDirectory,RootNamespace,TemplateName);
         var ProjectPath=Path.Combine(ProjectDirectory,ProjectName+".csproj");
         File.WriteAllText(ProjectPath,ProjectFile(RootNamespace,EngineVersion),new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(ProjectDirectory,"nuget.config"),NuGetConfig(FeedDirectory),new UTF8Encoding(false));

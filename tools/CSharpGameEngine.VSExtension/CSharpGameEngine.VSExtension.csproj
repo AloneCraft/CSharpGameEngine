@@ -187,6 +187,12 @@
     <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderSubgraph\ShaderSubgraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
     <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\ThirdPerson\ThirdPerson.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
     <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\ThirdPerson\ThirdPerson.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\FirstPerson\FirstPerson.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\FirstPerson\FirstPerson.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\TopDown\TopDown.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\TopDown\TopDown.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\Vehicle\Vehicle.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\Vehicle\Vehicle.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
   </ItemGroup>
 
   <ItemGroup>
@@ -277,6 +283,12 @@
       <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\ShaderSubgraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
       <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1033\ThirdPerson.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
       <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1041\ThirdPerson.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1033\FirstPerson.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1041\FirstPerson.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1033\TopDown.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1041\TopDown.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1033\Vehicle.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1041\Vehicle.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
     </ItemGroup>
   </Target>
 
@@ -324,9 +336,9 @@
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" Platform="AnyCPU" />
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj" Platform="x64" />
   </ItemGroup>
-  <!-- ADR-0068: the ThirdPerson project template needs its source project and the engine SDK package it restores from. -->
+  <!-- ADR-0068: each project template (ThirdPerson, FirstPerson, TopDown, Vehicle) needs its source project and the engine SDK package it restores from. -->
   <PropertyGroup>
-    <CgeTemplateSourceDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../templates/CSharpGameEngine.Templates.ThirdPerson/'))</CgeTemplateSourceDirectory>
+    <CgeTemplateSourceRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../Templates/'))</CgeTemplateSourceRoot>
     <CgeSdkPackageProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj'))</CgeSdkPackageProject>
   </PropertyGroup>
   <Target Name="StageProjectTemplateContentForVsix" BeforeTargets="GetVsixSourceItems">
@@ -342,9 +354,21 @@
         <VSIXSubPath>Packages</VSIXSubPath>
       </VSIXSourceItem>
       <!-- The same folders GameProjectGenerator.CopySources skips at any depth, so the VSIX carries only what a new project receives. -->
-      <_CgeTemplateSource Include="$(CgeTemplateSourceDirectory)**/*" Exclude="$(CgeTemplateSourceDirectory)**/bin/**;$(CgeTemplateSourceDirectory)**/obj/**;$(CgeTemplateSourceDirectory)**/.vs/**;$(CgeTemplateSourceDirectory)**/.cge/**;$(CgeTemplateSourceDirectory)*.csproj" />
-      <VSIXSourceItem Include="@(_CgeTemplateSource)">
+      <_CgeThirdPersonSource Include="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.ThirdPerson/**/*" Exclude="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.ThirdPerson/**/bin/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.ThirdPerson/**/obj/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.ThirdPerson/**/.vs/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.ThirdPerson/**/.cge/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.ThirdPerson/*.csproj" />
+      <VSIXSourceItem Include="@(_CgeThirdPersonSource)">
         <VSIXSubPath>ProjectTemplateSources/ThirdPerson/%(RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+      <_CgeFirstPersonSource Include="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.FirstPerson/**/*" Exclude="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.FirstPerson/**/bin/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.FirstPerson/**/obj/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.FirstPerson/**/.vs/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.FirstPerson/**/.cge/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.FirstPerson/*.csproj" />
+      <VSIXSourceItem Include="@(_CgeFirstPersonSource)">
+        <VSIXSubPath>ProjectTemplateSources/FirstPerson/%(RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+      <_CgeTopDownSource Include="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.TopDown/**/*" Exclude="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.TopDown/**/bin/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.TopDown/**/obj/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.TopDown/**/.vs/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.TopDown/**/.cge/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.TopDown/*.csproj" />
+      <VSIXSourceItem Include="@(_CgeTopDownSource)">
+        <VSIXSubPath>ProjectTemplateSources/TopDown/%(RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+      <_CgeVehicleSource Include="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.Vehicle/**/*" Exclude="$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.Vehicle/**/bin/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.Vehicle/**/obj/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.Vehicle/**/.vs/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.Vehicle/**/.cge/**;$(CgeTemplateSourceRoot)CSharpGameEngine.Templates.Vehicle/*.csproj" />
+      <VSIXSourceItem Include="@(_CgeVehicleSource)">
+        <VSIXSubPath>ProjectTemplateSources/Vehicle/%(RecursiveDir)</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>

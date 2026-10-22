@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UE5.8 FirstPersonテンプレートの移植。リポジトリ内ではSourceModeでビルド・検証する。名前空間CgeFirstPersonはテンプレート作成時にWizardが置換する。
+  -->
+  <Import Project="..\..\build\CSharpGameEngine.Game.props" />
+
+  <PropertyGroup>
+    <RootNamespace>CgeFirstPerson</RootNamespace>
+    <AssemblyName>CgeFirstPerson</AssemblyName>
+  </PropertyGroup>
+</Project>

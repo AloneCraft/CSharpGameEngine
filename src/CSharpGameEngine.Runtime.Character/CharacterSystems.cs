@@ -9,9 +9,9 @@ namespace CSharpGameEngine.Runtime.Character;
 /// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(PhysicsTransformWriteback))]
-internal struct CharacterMovementUpdate:ISystem {
+internal struct CharacterMotionUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,CharacterMotor>Motors=[];
-    public void Update(ref Transform Transform,ref CharacterMovement Movement,ref CharacterMovementState MovementState,ref CharacterInput Input,IPhysicsHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref CharacterMotion Movement,ref CharacterMotionState MovementState,ref MoveIntent Input,in EventWriter<Jumped> Jumps,in EventWriter<Landed> Lands,in EventWriter<Footstep> Steps,IPhysicsHost Host,ref State State){
         if(Transform.Frame!=Host.Physics.Frame){
             return;
         }
@@ -21,38 +21,64 @@ internal struct CharacterMovementUpdate:ISystem {
             MovementState.Facing=CharacterMotor.FacingOf(Transform.Rotation);
         }
         var Position=Transform.Position;
+        Input.Steer(Movement,Position);
+        var WasWalking=MovementState.Mode==CharacterMotionMode.Walking;
+        var WasVerticalSpeed=MovementState.Velocity.U;
+        var JumpWanted=Input.JumpRequested;
+        var DeltaSeconds=LogicalScalar.One/LogicalScalar.FromInt64(State.FixedTickRate);
         try {
-            Motor.Step(Movement,ref Position,ref MovementState,ref Input,LogicalScalar.One/LogicalScalar.FromInt64(State.FixedTickRate));
+            Motor.Step(Movement,ref Position,ref MovementState,ref Input,DeltaSeconds);
         }
         catch(OverflowException){
             // A numerically invalid configuration leaves the character where it was this tick.
             return;
         }
         Transform.Position=Position;
-        if(Movement.OrientRotationToMovement){
+        if(Movement.FaceMovement){
             Transform.Rotation=CharacterMotor.FacingRotation(MovementState.Facing);
+        }
+        // ADR-0077: what happened this tick, for the sound and animation code that listens.
+        if(WasWalking&&JumpWanted&&MovementState.Mode==CharacterMotionMode.Falling){
+            Jumps.Send(new Jumped { Source=Entity });
+        }
+        if(!WasWalking&&MovementState.Mode==CharacterMotionMode.Walking){
+            var Impact=0f;
+            if(WasVerticalSpeed.TryToSingle(out var Fall)){
+                Impact=Math.Clamp(-Fall/8f,0f,1f);
+            }
+            Lands.Send(new Landed { Source=Entity,Impact=Impact });
+            MovementState.StrideDistance=LogicalScalar.Zero;
+        }
+        if(MovementState.Mode==CharacterMotionMode.Walking&&Movement.StepLength>LogicalScalar.Zero){
+            var Sideways=MovementState.Velocity.R;
+            var Forward=MovementState.Velocity.F;
+            if(LogicalScalar.TrySquareRoot(Sideways*Sideways+Forward*Forward,out var Speed)){
+                MovementState.StrideDistance+=Speed*DeltaSeconds;
+                while(MovementState.StrideDistance>=Movement.StepLength){
+                    MovementState.StrideDistance-=Movement.StepLength;
+                    Steps.Send(new Footstep { Source=Entity });
+                }
+            }
+        } else {
+            MovementState.StrideDistance=LogicalScalar.Zero;
         }
     }
 }
-/// <summary>Registers PlayerController with the generated World lookup surface that SpringArmUpdate reads through the parent.</summary>
-internal struct PlayerControllerQueryRegistration:ISystem { public void Spawn(ref PlayerController Controller){} }
 /// <summary>
 /// Places spring-arm cameras after the fixed ticks and before the renderer takes the camera pose
 /// (CameraOriginSync, order 1). The arm's entity must be a direct child of a character root with a
-/// <see cref="PlayerController"/>; its local Transform is rewritten so the world pose is the control
+/// <see cref="ViewAngles"/>; its local Transform is rewritten so the world pose is the control
 /// rotation at the arm's end.
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
-internal struct SpringArmUpdate:ISystem {
-    private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,SpringArmSolver>Solvers=[];
-    public void Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,IPhysicsHost Host,ref State State){
-        if(!State.World.TryGetComponent(Entity,out Parent Parent)
-            ||!State.World.TryGetComponent(Parent.Value,out Transform Owner)
-            ||!State.World.TryGetComponent(Parent.Value,out PlayerController Controller)
-            ||Owner.Frame!=Host.Physics.Frame){
+internal struct OrbitCameraUpdate:ISystem {
+    private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,OrbitCameraSolver>Solvers=[];
+    public void Update(ref Transform Transform,ref OrbitCamera Arm,in Parent<ViewAngles> Pawn,IPhysicsHost Host,ref State State){
+        var Controller=Pawn.Value;
+        if(!State.World.TryGetComponent(Pawn.Entity,out Transform Owner)||Owner.Frame!=Host.Physics.Frame){
             return;
         }
-        var Solver=Solvers.GetValue(Host.Physics.Active.MutableWorld,static Key=>new SpringArmSolver(Key));
+        var Solver=Solvers.GetValue(Host.Physics.Active.MutableWorld,static Key=>new OrbitCameraSolver(Key));
         var Control=PlayerControl.ControlRotation(Controller);
         var Inverse=Owner.Rotation.Conjugate();
         try {

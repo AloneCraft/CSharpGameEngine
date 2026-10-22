@@ -11,6 +11,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)EngineHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Audio.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Picking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Hud.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeWorldTransform.cs" />

@@ -89,14 +89,14 @@ Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake wor
 - `Bridges/` holds the glTF, FBX, asset-authoring, primitive and shader-compiler bridges.
 - `PreviewHost/` holds the Preview Host.
 - `Packages/` holds the engine SDK package.
-- `ProjectTemplates/` holds the Third Person template, and `ProjectTemplateSources/` its sources.
+- `ProjectTemplates/` holds the Third Person, First Person, Top Down and Vehicle templates, and `ProjectTemplateSources/<name>` their sources (ADR-0077/M0101 stage 9).
 
 **SourceMode-only features.** Physics Scene Bake and the legacy model viewer need the engine repository. Physics Bake reports this instead of failing.
 
-**New game.** The Third Person template creates a PackageMode game through `GameProjectTemplateWizard`:
+**New game.** The four templates (Third Person, First Person, Top Down, Vehicle) create a PackageMode game through `GameProjectTemplateWizard`; the template is named by the `.vstemplate` file that started the wizard:
 - The bundled package goes to `%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`.
-- The wizard writes the sources with the new namespace and a `nuget.config`.
-- `Scenes/Lvl_ThirdPerson.json` opens after creation.
+- The wizard writes the sources of `ProjectTemplateSources/<name>` with the new namespace (the template's `Cge<name>` is replaced) and a `nuget.config`.
+- The level opens after creation: `Scenes/Lvl_<name>.json`, which for Vehicle is `Scenes/Lvl_VehicleBasic.json`.
 
 ## Manual and automated evidence
 

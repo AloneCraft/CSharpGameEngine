@@ -83,7 +83,7 @@ Roslynにロードされない。
   `Import.AssetAuthoring.Cli`/`Primitive.Cli`/`Physics.Cli`/`ShaderGraph.Cli`への別プロセスブリッジへ
   逃がしている(ADR-0010/0019/0023)。
 - `UserEcsProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**で、ECS と
-  シーン JSON の実証場所である。新規プロジェクトの雛形は`templates/CSharpGameEngine.Templates.ThirdPerson`。
+  シーン JSON の実証場所である。新規プロジェクトの雛形は`Templates/CSharpGameEngine.Templates.ThirdPerson`。
 - L3の唯一のECSランタイムは `src/CSharpGameEngine.Entities`(SoA専業、**閉集合(静的)Archetype**)
   である。ユーザーはComponent型(`struct`)と`ISystem`を実装する`struct`だけを書き、
   `src/CSharpGameEngine.CodeAnalysis` の `GameSystemGenerator` が`Update`/`Spawn`メソッドの
@@ -178,7 +178,7 @@ UserEcsProject remains an L9 composition root for scenes, gameplay components, a
 
 **Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way.
 
-**How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `templates/CSharpGameEngine.Templates.ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
+**How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `Templates/CSharpGameEngine.Templates.ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
 
 ## Deterministic Simulation / Physics domains
 

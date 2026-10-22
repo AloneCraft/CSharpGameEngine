@@ -68,6 +68,15 @@ internal static class GameSystemIndexAssigner {
                 if(Method.Components.Length>0){
                     RegisterSet([.. Method.Components.Select(static C=>C.TypeFullyQualifiedName)]);
                 }
+
+                // ADR-0077: a Parent<T> relation reads T from another entity through World.TryGetComponent, so T needs a
+                // component index (and its TryGetComponent overload) even if no method of this child archetype owns it.
+                foreach(var Relation in Method.Relations){
+                    if(!ComponentIndexByType.ContainsKey(Relation.ComponentTypeFullyQualifiedName)){
+                        ComponentIndexByType.Add(Relation.ComponentTypeFullyQualifiedName,ComponentTypesByIndex.Count);
+                        ComponentTypesByIndex.Add(Relation.ComponentTypeFullyQualifiedName);
+                    }
+                }
             }
         }
 

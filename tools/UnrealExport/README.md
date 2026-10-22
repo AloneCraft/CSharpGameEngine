@@ -31,7 +31,7 @@ SkyAtmosphere、VolumetricCloud、Brush、Blueprint、GameMode、アニメーシ
 
 # Unreal ThirdPerson Template Import
 
-UE5.8の`Templates\TP_ThirdPersonBP`と共有Content Pack(LevelPrototyping/Characters/Input)から、`templates/CSharpGameEngine.Templates.ThirdPerson`のシーンJSON・C#と資産を生成する開発用ツールです(ADR-0067/0068/0069)。
+UE5.8の`Templates\TP_ThirdPersonBP`と共有Content Pack(LevelPrototyping/Characters/Input)から、`Templates/CSharpGameEngine.Templates.ThirdPerson`のシーンJSON・C#と資産を生成する開発用ツールです(ADR-0067/0068/0069)。
 
 - `Program Files`配下のUEには書き込みません。
 - `prepare_thirdperson_project.ps1`が`.artifacts/UnrealExport/TP_ThirdPerson/`へステージング用プロジェクトを組み立て、そこで書き出します。
@@ -63,11 +63,11 @@ tools\UnrealExport\run_export_thirdperson.cmd --force
   - GIボリューム
   - PlayerStart
 - `Scenes/ThirdPersonAssets.cs`: `[SceneAssets]`資産カタログ。
-- `Scenes/ThirdPersonCharacter.json`: BP_ThirdPersonCharacterの実値をmへ換算した移動設定、PlayerController、SpringArmカメラ。
-- `Input/ThirdPersonInput.cs`: IMC_Default/IMC_MouseLookの入力マップ。
+- `Scenes/ThirdPersonCharacter.json`: BP_ThirdPersonCharacterの実値をmへ換算した移動設定、ViewAngles、OrbitCameraカメラ。
+- 入力は生成しない。`Gameplay/PlayerActions.cs`(手書き、`[InputActions]`)が、UEのIMC_Default/IMC_MouseLookに相当する(ADR-0077)。
 - `.artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json`: 取り込み元の実値。Git／ランタイムの対象外です。
 
-移植先の無いUEの機能が有効な値で来た場合、取り込みは黙って捨てずに失敗します。対象はカメララグ、SpringArmのオフセット、未対応の入力modifierなどです。
+移植先の無いUEの機能が有効な値で来た場合、取り込みは黙って捨てずに失敗します。対象はカメララグ、OrbitCameraのオフセット、未対応の入力modifierなどです。
 
 ## プロトタイプグリッド(ADR-0075)
 
@@ -84,3 +84,22 @@ set CSGE_GRID_MANIFEST=%CD%\.artifacts\UnrealExport\Lvl_ThirdPerson\manifest.jso
 ```
 
 - `inspect_prototype_grid.py`は、UE側の材質(インスタンスのパラメーター、親材質と関数の式、`T_GridChecker_A`のPNG)を`.artifacts/UnrealExport/Lvl_ThirdPerson/prototype_grid.json`へ書き出す調査用スクリプト。
+
+## UE5.8のゲーム系テンプレートの参照プロジェクト(`G:\UE\5.8\`)
+
+FirstPerson / TopDown / Vehicle の理想コード(`Templates/`)と、将来の取り込みの参照元として、UEの新規プロジェクトと同じ構成のプロジェクトを `G:\UE\5.8\` に作る。UE5.8のインストールには `Templates\` が無い(確認: 2026-10-22)ため、元はUE5.7の Blueprint 版テンプレート(`TP_FirstPersonBP`・`TP_TopDownBP`・`TP_VehicleAdvBP`)と共有コンテンツ(`TemplateResources`)で、`EngineAssociation` を 5.8 にしてある。5.7のアセットは5.8のエディターが読み込み時に5.8へ上げる(保存しない限り元ファイルは変わらない)。
+
+| 作るプロジェクト | 元のテンプレート | 展開した共有パック | 起動マップ |
+|---|---|---|---|
+| `G:\UE\5.8\FirstPerson` | `TP_FirstPersonBP` | Characters、LevelPrototyping、Input | `/Game/FirstPerson/Lvl_FirstPerson` |
+| `G:\UE\5.8\TopDown` | `TP_TopDownBP` | LevelPrototyping、Characters、Cursor | `/Game/TopDown/Lvl_TopDown` |
+| `G:\UE\5.8\Vehicle` | `TP_VehicleAdvBP` | Vehicles、Input | `/Game/VehicleTemplate/Maps/Lvl_VehicleBasic` |
+
+- 作る: `powershell -File tools\UnrealExport\create_template_project.ps1 -Name FirstPerson`(`TopDown`、`Vehicle`。既にあるときは `-Force`)。ジャンル別のバリアント(Shooter、Horror、Strategy、TwinStick、Offroad、TimeTrial など)は含めない(UEの新規プロジェクトの「バリアント: なし」と同じ)。
+- 開けるかを確かめる: `tools\UnrealExport\run_probe.cmd FirstPerson`(`CGE_PROBE_MAP` に起動マップを渡す)。UE5.8のエディター(`UnrealEditor-Cmd`、描画なし)で起動マップを読み込み、アクターの種類とアセットの種類を `.artifacts\UnrealExport\probe_<名前>.json` へ書く。何も保存しない。
+- 2026-10-22 の観測(3つとも UE5.8 で開けて、レベルが読み込めた):
+  - FirstPerson: レベルのアクター 63(StaticMeshActor 55、PlayerStart 1、環境 6)。InputAction 4、AnimSequence 97、SkeletalMesh 2、WidgetBlueprint 2、Niagara 1。
+  - TopDown: レベルのアクター 65(StaticMeshActor 55、NavMeshBoundsVolume 1、RecastNavMesh 1、PlayerStart 1)。InputAction 2、Niagara 4(カーソルの演出)、StaticMesh 16。ナビメッシュが前提のテンプレート。
+  - Vehicle: レベルのアクター 38(Landscape 1、StaticMeshActor 24、RuntimeVirtualTextureVolume 1、PostProcessVolume 1)。Blueprint 14、InputAction 12、InputMappingContext 5、CurveFloat 2(トルク曲線)、PhysicalMaterial 2、WidgetBlueprint 4(HUD)、SkeletalMesh 2(車)。
+  - 取り込み(2026-10-22): `run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]` がステージを `Templates\CSharpGameEngine.Templates.<名前>` へ取り込む(静的メッシュを glb、レベルをシーン JSON、Vehicle 以外はワールドグリッドも)。キャラクターの値は `run_dump_blueprint.cmd` の出力から手で書く。マネキンのメッシュは `run_export_skeletal_mesh.cmd`、Vehicle の車の静的メッシュ(`SM_SportsCar`・`_Glass`・`_Wheel`)は `CGE_SK_STATIC=1` を付けた同じスクリプトで書き出す(`SKM_SportsCar` は物理用の骨格だけで、見た目ではない)。Vehicle のレベルの Landscape は glTF に書き出せないので、`export_level.py` が同じ大きさの 1 m の板を作業中のエディターのワールドにだけ足して代える(保存しない)。`probe_vehicle_level.py`(`run_probe_vehicle_level.cmd`)は、レベルのクラスの一覧・Landscape の位置・メッシュの配置を UE のログ(`G:\UE\5.8\Vehicle\Saved\Logs\Vehicle.log` の `[UnrealExport]` 行)へ出す。
+  - **3つとも、音声アセット(SoundWave、SoundCue)は1つも無い。** 効果音は UE のテンプレートからは取り込めない。

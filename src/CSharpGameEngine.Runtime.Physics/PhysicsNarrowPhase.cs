@@ -236,6 +236,54 @@ internal sealed class PhysicsNarrowPhase {
         return Results.Count-Start;
     }
 
+    /// <summary>
+    /// 光線が静的三角形メッシュに最初に当たる点(両面。三角形の向きは問わない)。光線はワールドの座標で、メッシュの置き場所
+    /// (<see cref="PhysicsCollisionShape.Position"/>・<see cref="PhysicsCollisionShape.Rotation"/>)でメッシュのローカルへ移して判定する。
+    /// <paramref name="Normal"/>は当たった三角形の面の法線で、光線に向いた側(ワールド)。メッシュの外接ボックスではなく三角形そのものに当たるので、
+    /// 坂や穴のある形でも正確。
+    /// </summary>
+    internal bool TryRaycastMesh(in PhysicsRay Ray,in PhysicsCollisionShape Mesh,out LogicalScalar Distance,out LogicalVector3 Normal){
+        Distance=default;
+        Normal=default;
+        if(Mesh.Asset is not { Kind:PhysicsShapeAssetKind.StaticTriangleMesh } Asset){ return false; }
+        LogicalQuaternion Inverse=Mesh.Rotation.Conjugate();
+        if(!Inverse.TryRotate(Ray.Origin-Mesh.Position,out LogicalVector3 Origin)||!Inverse.TryRotate(Ray.Direction,out LogicalVector3 Direction)){ return false; }
+        LogicalVector3 End=Origin+Direction*Ray.MaxDistance;
+        PhysicsAabb Bounds=new(
+            new LogicalVector3(Min3(Origin.R,End.R,End.R),Min3(Origin.U,End.U,End.U),Min3(Origin.F,End.F,End.F)),
+            new LogicalVector3(Max3(Origin.R,End.R,End.R),Max3(Origin.U,End.U,End.U),Max3(Origin.F,End.F,End.F)));
+        this.TriangleCandidates.Clear();
+        Asset.QueryTriangles(Bounds,this.TriangleCandidates);
+        bool Found=false;
+        LogicalScalar Best=Ray.MaxDistance;
+        LogicalVector3 BestNormal=default;
+        foreach(int Triangle in this.TriangleCandidates){
+            Asset.GetTriangle(Triangle,out LogicalVector3 A,out LogicalVector3 B,out LogicalVector3 C);
+            // Möller–Trumbore。行列式が0なら光線は三角形と平行。
+            LogicalVector3 Edge1=B-A;
+            LogicalVector3 Edge2=C-A;
+            LogicalVector3 P=LogicalVector3.Cross(Direction,Edge2);
+            LogicalScalar Determinant=LogicalVector3.Dot(Edge1,P);
+            if(Determinant.IsZero){ continue; }
+            LogicalVector3 ToOrigin=Origin-A;
+            LogicalScalar U=LogicalVector3.Dot(ToOrigin,P)/Determinant;
+            if(U<LogicalScalar.Zero||U>LogicalScalar.One){ continue; }
+            LogicalVector3 Q=LogicalVector3.Cross(ToOrigin,Edge1);
+            LogicalScalar V=LogicalVector3.Dot(Direction,Q)/Determinant;
+            if(V<LogicalScalar.Zero||U+V>LogicalScalar.One){ continue; }
+            LogicalScalar T=LogicalVector3.Dot(Edge2,Q)/Determinant;
+            if(T<LogicalScalar.Zero||T>Best||(Found&&T==Best)){ continue; }
+            LogicalVector3 Face=LogicalVector3.Cross(Edge1,Edge2);
+            if(!Face.TryNormalize(out Face)){ continue; }
+            Found=true;
+            Best=T;
+            BestNormal=LogicalVector3.Dot(Face,Direction)>LogicalScalar.Zero?-Face:Face;
+        }
+        if(!Found||!Mesh.Rotation.TryRotate(BestNormal,out Normal)){ return false; }
+        Distance=Best;
+        return true;
+    }
+
     private static bool TriangleTouches(in PhysicsAabb Bounds,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C)=>
         Max3(A.R,B.R,C.R)>=Bounds.Min.R&&Min3(A.R,B.R,C.R)<=Bounds.Max.R
         &&Max3(A.U,B.U,C.U)>=Bounds.Min.U&&Min3(A.U,B.U,C.U)<=Bounds.Max.U

@@ -105,14 +105,6 @@ internal static class GameSystemDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
-    internal static readonly DiagnosticDescriptor UpdateMethodMustEndWithRefState=new(
-        id:"SYSGEN013",
-        title:"Update method must end with a trailing 'ref State' parameter",
-        messageFormat:"Method '{0}' does not end with a 'ref State' parameter",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
-
     internal static readonly DiagnosticDescriptor EntityOrStateMustNotBeUsedAsComponent=new(
         id:"SYSGEN014",
         title:"Entity/State must not be used as a component parameter",
@@ -263,6 +255,62 @@ internal static class GameSystemDiagnostics {
         messageFormat:"'{0}' declares [{1}] on '{2}', but '{0}' runs in the {3} phase and '{2}' in the {4} phase, so the phase order already decides the opposite",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor ParentRelationParameterInvalid=new(
+        id:"SYSGEN036",
+        title:"A Parent<T> parameter must be an 'in' parameter of an Update or Shutdown method, with T a non-nullable struct",
+        messageFormat:"Parameter '{0}' of method '{1}' is a Parent<T> relation that is not an 'in' parameter, or T is not a non-nullable struct, or the method is a Spawn",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor ParentRelationConflictsWithComponent=new(
+        id:"SYSGEN037",
+        title:"A method cannot read a component from the parent and also take or repeat it",
+        messageFormat:"Method '{0}' takes '{1}' as a Parent<T> and also as a component or a second Parent<T>; the entity and its parent are different entities, so split the method",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor InputActionsMustBePassedByIn=new(
+        id:"SYSGEN038",
+        title:"An [InputActions] struct must be an 'in' parameter of an Update or Shutdown method",
+        messageFormat:"Parameter '{0}' of method '{1}' is an [InputActions] struct that is not an 'in' parameter, or the method is a Spawn",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor EventParameterInvalid=new(
+        id:"SYSGEN039",
+        title:"An event parameter must be 'in TEvent' or 'in EventWriter<TEvent>' of an Update method, with TEvent a struct implementing IEvent",
+        messageFormat:"Parameter '{0}' of method '{1}' is an event parameter that is not an 'in' parameter, whose type is not a struct implementing IEvent, that belongs to a Spawn or Shutdown, or is a second event of the method",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor EventConsumerCannotTakeEntities=new(
+        id:"SYSGEN040",
+        title:"A method that receives an event cannot also take components, an Entity or a Parent<T>",
+        messageFormat:"Method '{0}' receives an event and also iterates entities; the event has no entity of its own, so split the method (carry the entity in the event)",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor EventReceivedBeforeItIsSent=new(
+        id:"SYSGEN041",
+        title:"An event is received in an earlier phase than the one that sends it",
+        messageFormat:"'{0}' receives {1} in the {2} phase, but '{3}' sends it in the later {4} phase, so the event would be dropped at the next frame",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor EventNeverSent=new(
+        id:"SYSGEN042",
+        title:"An event is received but no system sends it",
+        messageFormat:"'{0}' receives {1}, but no system takes an EventWriter<{1}>, so it never runs",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Warning,
         isEnabledByDefault:true);
 
     internal static void ReportAll(SourceProductionContext Context,GameSystemResult Result){

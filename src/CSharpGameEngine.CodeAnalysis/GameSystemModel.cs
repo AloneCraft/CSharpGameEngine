@@ -24,6 +24,16 @@ internal enum GameSystemParameterRole {
     Component,
     Context,
     State,
+    /// <summary><c>in Parent&lt;T&gt;</c>(ADR-0077)。親Entityの<c>T</c>を引いて渡す。</summary>
+    ParentRelation,
+    /// <summary><c>in T</c>で受けた<c>[InputActions]</c>のstruct(ADR-0077)。毎フレームの入力値をシングルトンとして渡す。</summary>
+    Resource,
+    /// <summary>EngineHostのプロパティの型の参照型引数(ADR-0077)。<c>Audio</c>など。呼び出しでは<c>Host.プロパティ</c>を渡す。</summary>
+    Service,
+    /// <summary><c>in T</c>(<c>T</c>は<c>IEvent</c>)。送られたイベント1件ごとに呼ぶ(ADR-0077)。</summary>
+    EventRead,
+    /// <summary><c>in EventWriter&lt;T&gt;</c>。イベントを送る口を渡す。</summary>
+    EventWrite,
 }
 
 /// <summary>
@@ -49,6 +59,31 @@ internal readonly struct GameSystemContextParameterModel(string ParameterName,st
     internal readonly bool IsReferenceType=IsReferenceType;
 }
 
+/// <summary><c>in Parent&lt;T&gt;</c>引数(ADR-0077)。<c>T</c>を親Entityから読む。</summary>
+internal readonly struct GameSystemRelationParameterModel(string ParameterName,string ComponentTypeFullyQualifiedName) {
+    internal readonly string ParameterName=ParameterName;
+    internal readonly string ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
+}
+
+/// <summary><c>in T</c>(<c>T</c>は<c>[InputActions]</c>)引数(ADR-0077)。</summary>
+internal readonly struct GameSystemResourceParameterModel(string ParameterName,string TypeFullyQualifiedName) {
+    internal readonly string ParameterName=ParameterName;
+    internal readonly string TypeFullyQualifiedName=TypeFullyQualifiedName;
+}
+
+/// <summary>EngineHostが持つサービス(ADR-0077)。</summary>
+internal readonly struct GameSystemServiceParameterModel(string ParameterName,string TypeFullyQualifiedName,string PropertyName) {
+    internal readonly string ParameterName=ParameterName;
+    internal readonly string TypeFullyQualifiedName=TypeFullyQualifiedName;
+    internal readonly string PropertyName=PropertyName;
+}
+
+/// <summary>イベントの引数(受け手の<c>in T</c>、送り手の<c>in EventWriter&lt;T&gt;</c>)。</summary>
+internal readonly struct GameSystemEventParameterModel(string ParameterName,string EventTypeFullyQualifiedName) {
+    internal readonly string ParameterName=ParameterName;
+    internal readonly string EventTypeFullyQualifiedName=EventTypeFullyQualifiedName;
+}
+
 /// <summary>1つの<c>Update</c>/<c>Spawn</c>オーバーロードの解析結果。</summary>
 internal readonly struct GameSystemMethodModel(
         GameSystemMethodRole Role,
@@ -57,7 +92,12 @@ internal readonly struct GameSystemMethodModel(
         ImmutableArray<GameSystemContextParameterModel>Contexts,
         ImmutableArray<GameSystemParameterSlot>CallOrder,
         int DeclarationPosition,
-        bool ReturnsBool) {
+        bool ReturnsBool,
+        ImmutableArray<GameSystemRelationParameterModel>Relations=default,
+        ImmutableArray<GameSystemResourceParameterModel>Resources=default,
+        ImmutableArray<GameSystemServiceParameterModel>Services=default,
+        ImmutableArray<GameSystemEventParameterModel>EventReads=default,
+        ImmutableArray<GameSystemEventParameterModel>EventWrites=default) {
     internal readonly GameSystemMethodRole Role=Role;
     internal readonly bool HasLeadingEntityParameter=HasLeadingEntityParameter;
     internal readonly ImmutableArray<GameSystemComponentParameterModel>Components=Components;
@@ -69,6 +109,18 @@ internal readonly struct GameSystemMethodModel(
     /// effect (it ends the frame's remaining systems); an entity system's false never did anything.
     /// </summary>
     internal readonly bool ReturnsBool=ReturnsBool;
+    /// <summary>親から読むComponent(<c>in Parent&lt;T&gt;</c>)。子のArchetypeには<c>Parent</c>が暗黙に含まれる。</summary>
+    internal readonly ImmutableArray<GameSystemRelationParameterModel>Relations=Relations.IsDefault?ImmutableArray<GameSystemRelationParameterModel>.Empty:Relations;
+    /// <summary><c>in T</c>で受ける<c>[InputActions]</c>のstruct。Entityには依存しない。</summary>
+    internal readonly ImmutableArray<GameSystemResourceParameterModel>Resources=Resources.IsDefault?ImmutableArray<GameSystemResourceParameterModel>.Empty:Resources;
+    /// <summary>EngineHostのプロパティとして渡す参照型引数。</summary>
+    internal readonly ImmutableArray<GameSystemServiceParameterModel>Services=Services.IsDefault?ImmutableArray<GameSystemServiceParameterModel>.Empty:Services;
+    /// <summary>呼び出しにEngineHost(Context)が要るか。入力とサービスは、どのSystemもEngineHostを名指ししなくても要求する。</summary>
+    /// <summary>このメソッドが受けるイベント(0または1種類)。あれば、Entityを回さずイベントごとに呼ぶ。</summary>
+    internal readonly ImmutableArray<GameSystemEventParameterModel>EventReads=EventReads.IsDefault?ImmutableArray<GameSystemEventParameterModel>.Empty:EventReads;
+    /// <summary>このメソッドが送るイベントの種類。</summary>
+    internal readonly ImmutableArray<GameSystemEventParameterModel>EventWrites=EventWrites.IsDefault?ImmutableArray<GameSystemEventParameterModel>.Empty:EventWrites;
+    internal bool NeedsHost=>this.Resources.Length>0||this.Services.Length>0;
 }
 
 /// <summary>
@@ -90,7 +142,8 @@ internal readonly struct GameSystemResult(
         Location DeclarationLocation,
         string FilePath,
         int DeclarationPosition,
-        int?StartupOrder=null) {
+        int?StartupOrder=null,
+        bool PhaseIsExplicit=false) {
     internal readonly string?Namespace=Namespace;
     internal readonly string ClassName=ClassName;
     internal readonly ImmutableArray<GameSystemMethodModel>Methods=Methods;
@@ -109,6 +162,15 @@ internal readonly struct GameSystemResult(
     /// 順で動く(ADR-0073決定事項4)。手書きのSystemはnull。
     /// </summary>
     internal readonly int?StartupOrder=StartupOrder;
+
+    /// <summary>[SystemPhase]を書いたか。書いていなければ、イベントの受け手の既定フェーズは送り手から決まる(ADR-0077)。</summary>
+    internal readonly bool PhaseIsExplicit=PhaseIsExplicit;
+
+    /// <summary>フェーズと「後に動く」対象だけを変えた写し(イベントの配線用)。</summary>
+    internal GameSystemResult With(int Phase,ImmutableArray<string>RunsAfter)=>new(this.Namespace,this.ClassName,this.Methods,this.Diagnostics,this.ExecuteInEditor,this.RealtimeInEditor,Phase,this.IsWorldSystem,this.IsScheduled,RunsAfter,this.RunsBeforeSystemFullyQualifiedNames,this.DeclarationLocation,this.FilePath,this.DeclarationPosition,this.StartupOrder,this.PhaseIsExplicit);
+
+    /// <summary>診断を足した写し。診断があるSystemは出力から丸ごと外れる。</summary>
+    internal GameSystemResult WithDiagnostics(ImmutableArray<Diagnostic>Added)=>new(this.Namespace,this.ClassName,this.Methods,this.Diagnostics.AddRange(Added),this.ExecuteInEditor,this.RealtimeInEditor,this.Phase,this.IsWorldSystem,this.IsScheduled,this.RunsAfterSystemFullyQualifiedNames,this.RunsBeforeSystemFullyQualifiedNames,this.DeclarationLocation,this.FilePath,this.DeclarationPosition,this.StartupOrder,this.PhaseIsExplicit);
 
     /// <summary>診断の位置と、起動シーンの合成Systemの出所を示すソース上の位置。実行順序には使わない(ADR-0073)。</summary>
     internal readonly string FilePath=FilePath;

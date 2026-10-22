@@ -1,0 +1,9 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "Startup": true,
+  "GameWindow": { "Title": "Third Person", "Size": [1280, 720], "CaptureMouse": true },
+  "Children": {
+    "Stage": { "Instance": "Lvl_ThirdPerson" },
+    "Player": { "Instance": "Character", "Transform": { "Position": [0, 3.02, 0], "Rotation": [0, 0.25, 0] } }
+  }
+}

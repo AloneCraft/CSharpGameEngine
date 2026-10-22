@@ -6,10 +6,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)CharacterComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CharacterEvents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CharacterMotor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CharacterSystems.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PlayerCamera.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PlayerCameraComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)VehicleComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)VehicleMotor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)VehicleSystems.cs" />
     <Using Include="CSharpGameEngine.Runtime.Character" />
   </ItemGroup>
 </Project>

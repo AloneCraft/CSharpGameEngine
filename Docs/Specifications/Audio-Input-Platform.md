@@ -96,3 +96,39 @@ All rows are Implemented/TestVerified with executable stages. `Platform-Compatib
 `Win32Window.DrainInputEvents()` is the only public raw-input boundary. Keyboard, mouse buttons/wheel, raw relative mouse, focus/capture loss, device removal, and destruction become ordered `InputEvent` values; the removed polling APIs are not retained. `AppHostRuntime` owns one `InputServer`, and the FrameInput phase finalizes exactly one action frame before simulation.
 
 Showcase actions use stable IDs and a dedicated context. Context priority, chords, one/two-dimensional dead zones, reserved actions, rebind collision checks, forced cancellation/release, and canonical action hashing are covered by Debug/Release contract stages.
+
+## 入力の宣言(`[InputActions]`、ADR-0077)
+
+ゲームは、操作を `[InputActions] partial struct` で宣言する。メンバーは `Stick`(2 軸の状態値)・`Look`(このフレームに視点を回す量 turns)・`Button`(`Held`/`Pressed`/`Released`)・`Pointer`(画面上のカーソル)で、割り当ては `[Keys]`・`[Gamepad(Pad.*)]`・`[Mouse(MouseAxis.Delta)]` で書く。
+
+- Source Generator が `InputContext`、Action の ID(型名とメンバー名から `StableId.FromName`)、毎フレームの `Read` を生成し、全構造体を 1 つの `InputServer`(`GeneratedInputActions.CreateServer()`)にまとめる。最初の `RunFrame` で 1 回だけ据え付ける。
+- System は `in PlayerActions` で受ける。呼び出しの前に、その時点の `InputServer` から読み直す。入力を読む System は、`[SystemPhase]` を書かなければ FrameInput に入り、エンジンの `Window` System の後に動く。固定フェーズに置くと、tick が 0 回のフレームで `Pressed` を逃し、複数 tick のフレームで同じ `Look` を重ねて受けるので、明示しないこと。
+- `Look` はマウスの移動量(`MouseTurnsPerCount`)と、スティックの倒した量にフレーム時間を掛けたもの(`StickTurnsPerSecond`)を同じ単位にする。
+- `AppHost.CaptureMouse` が true なら、ウィンドウがマウスを捕捉する(自動実行を除く)。
+- 診断: INPUT001(partial struct でない)、INPUT002(メンバーの型)、INPUT003(割り当てが型に合わない)、INPUT004(割り当てなし)、SYSGEN038(`in` 以外、`Spawn`)。
+- マウスのボタンは `[Mouse(MouseButton.Left)]` で `Button` に割り当てる。`[Pointer] Pointer` は画面上のカーソル(クライアント領域の左上を 0、右下を 1 とした割合と `Inside`)で、`Read` の第 3 引数 `EngineHost.Cursor` が毎フレーム埋める。3D の位置は `Picking` サービス(System の引数に `Picking` と書く)が求める。`Picking.TryPick(Pointer, out PickHit)` は、カメラの姿勢・縦の視野角・ウィンドウの縦横比でポインターを通る光線(最大 2000 m)を作り、物理の静的コリジョンの最も近い当たり(`Entity`、`Point`、`Normal`、`Distance`)を返す。カメラが物理と別の参照フレームにある、ポインターが領域の外、何にも当たらないときは false。
+- 自動検証: `CGE_AUTOMATION_CURSOR=x,y`(割合)がカーソルを代わりに与え、`CGE_AUTOMATION_INPUT` の `MouseLeft@開始-終了` がマウスの左ボタンを押す。
+- 未実装: `Axis`・`Touch`・トリガー、実行時の再割り当て、コンテキストの切り替え。
+
+## 画面への出力(`Hud`、ADR-0077)
+
+System の引数に `Hud Hud` と書くと、生成されたループが `EngineHost.Hud` を渡す(`Audio` と同じく、`EngineHost` のプロパティの型で渡すサービス)。`Hud.SetTitle(string)` はウィンドウのタイトルバーの文字を替える。同じ文字を毎フレーム渡しても、変わったときにだけウィンドウを更新する。画面上の文字の描画(UI)はまだ無いので、Vehicle テンプレートの速度計(速度とギア)がこれを使う。ウィンドウが無い実行(エディターのプレビューなど)では何もしない。
+
+## 効果音(`Audio`、ADR-0077)
+
+ゲームの System は `Audio Audio` を引数に取ると、`EngineHost.Sound` を受け取る(EngineHost のプロパティの型と同じ参照型の引数は、生成されたループがそのプロパティを渡す)。
+
+- `Audio.Play(string Sound, Entity Source, float Volume = 1)`: `Source`(Entity)の位置から鳴らす。リスナー(`AudioListener`)との距離で音量が下がり、モノラルのクリップは左右に振られる。リスナーが無ければ距離なしで鳴る。
+- `Audio.PlayLocal(string Sound, float Volume = 1)`: 位置を持たない音。
+- `Sound` はプロジェクト相対の `.wav` のパス(出力先へコピーされる `Assets/` の下)。PCM 8/16/24 ビットと 32 ビット float、モノラルとステレオを読む。圧縮形式、壊れた・無いファイルは、理由を標準エラーに 1 回出して無視する。
+- 要求は貯めておき、フレームの最後(`Present` の直前)にまとめて処理する。リスナーの姿勢が確定した後なので、System の実行順に依らない。1 フレームに 32 件を超える分は捨てる。
+- 再生は `AudioDeviceServer.PlayOneShot`。XAudio2 ではクリップごとに source voice を作り、終わったものを毎フレーム破棄する。無音の代替では鳴らさず、要求数だけ数える。
+- 未実装: 常時鳴る音(`AudioSource` のクリップ)、距離減衰の設定、3D の定位、ビルド時の `.cgeaudio` への変換(ADR-0056)。
+
+## イベント(ADR-0077)
+
+`IEvent` を実装した struct がイベントになる。送り手は `in EventWriter<T>` を引数に取って `Send` し、受け手は `in T` を引数に取る(Entity、Component、`Parent<T>` は同時に取れない)。
+
+- 受け手は、そのフレームに送られたイベント 1 件ごとに呼ばれる。同じフレームの後で送られたものも、読み取り位置が進むので 1 回ずつ読む。イベントはフレームの頭で破棄される。
+- `[SystemPhase]` を書かない受け手は、送り手の最も遅いフェーズに入り、同じフェーズの送り手の後に並ぶ。受け手が送り手より早いフェーズを明示すると SYSGEN041、送り手がいないと SYSGEN042(警告)。
+- キャラクターは `Jumped`、`Landed`(`Impact` は 0〜1)、`Footstep`(`CharacterMotion.StepLength` を歩くごとに 1 回)を送る。どれも `Source`(キャラクターの Entity)を持つ。
