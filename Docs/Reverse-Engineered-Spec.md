@@ -373,3 +373,14 @@
 - Evidence: `VehicleComponents.cs`、`VehicleMotor.cs`、`VehicleSystems.cs`、`PhysicsNarrowPhase.TryRaycastMesh`、`VehicleMotorTests`、`PhysicsMeshRaycastTests`、`VehicleDriveVerification`
 - Observed behavior: `VehicleMotor.Step` は 1 固定 tick に、(1) 4 つの車輪の位置（車体の中心から前後 `Wheelbase/2`、左右 `Track/2`、上に 0.5 m）から車体の下へ光線を飛ばし、急でない面に当たった車輪が 2 つ以上なら接地とみなす。(2) 接地中は、ワールドの速度を車の前と右（前×上）に分け、前の速度に、アクセル（`Acceleration×Drive×(1−速度/TopSpeed)`）、進む向きと逆に踏むブレーキ（`BrakeDeceleration`）または後退、自然な減速（`RollingDeceleration`、止まるところで終わる）、ハンドブレーキ（ブレーキの半分）を足し、横の速度を `Grip`（ハンドブレーキ中は `HandbrakeGrip`）の割合で毎秒消す。進む向きの前（後退なら後ろ）の 2 隅から水平な光線を飛ばし、急な面（法線の上向き成分が 0.6 未満）までの隙間で、このtickの前進を打ち切る。ハンドル（`SteeringRate` で近づく）から前輪の角度（`MaxSteeringDegrees` を `1+|速度|/SteeringFalloffSpeed` で割る）を作り、旋回の角速度 `速度×tan(角度)/Wheelbase` を `MaxLateralAcceleration/|速度|` で頭打ちにして、上向きの軸のまわりに回す（右へ切ると上向きの軸のまわりでは負）。位置を速度で進める。(3) 空中は重力で飛び、上向きを世界の上へゆっくり戻す。(4) 進めたあとにもう一度 4 点を調べ、接地なら、4 点の平均から法線の向きに `RideHeight` の所へ高さを寄せ（めり込みはすぐ、下がるのは毎秒 25 の割合）、面の法線へ向きを寄せ（毎秒 12 の割合）、着地したtickは地面へ入る速度を消す。`Raycast` の静的三角形メッシュは、置き場所でローカルに移した光線を、BVH の候補の三角形と Möller–Trumbore（両面）で判定し、最も近い点と、光線に向いた側の面の法線を返す。
 - Result: Matches ADR-0077 §2（段階 9）。
+
+## RE-M0102 — T3D から疑似コードへ
+
+- Confidence: High（単体テストと、4 テンプレートの実データで確認）
+- Evidence: `T3dDocument`、`BlueprintLogicWriter`、`BlueprintLogicWriterTests`、`.artifacts/UnrealExport/logic/*/*.logic.txt`
+- Observed behavior:
+  - `T3dDocument` は、`Begin Object … End Object` を ExportPath ごとのオブジェクトにし、属性と `CustomProperties Pin` を読む。ピンの `LinkedTo` は、ノード名とピン ID の組になる。
+  - `BlueprintLogicWriter` は、入口のノード（イベント、入力、関数）から実行ピンをたどって文を書く。データのピンは純粋なノードを式として展開し、knot は透過にする。分岐は出力ピンごとに字下げする。ubergraph の空の入れ物は飛ばす。
+  - 状態機械は、状態、別名状態（「from any of」）、遷移と条件式にする。アニメーションのポーズは、出力から入力へさかのぼる木にする。
+  - 値が 20000 文字を超えたら切る。同じパスのグラフは 1 回だけ書く。
+- Result: Matches ADR-0078 §1。

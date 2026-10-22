@@ -4642,3 +4642,18 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 段階 1〜9（M0101）。Vehicle テンプレートを移植（簡易の車両モデル `Vehicle`/`VehicleMotor`、速度とギアをタイトルバーに出す `Hud`）。物理の `Raycast` が静的三角形メッシュの三角形そのものに当たるようになった。4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）を VS の新規プロジェクトに登録した。FirstPerson・TopDown テンプレートを移植（`Pointer`、`Picking`、`MoveIntent.MoveTo`、自動検証の `CGE_AUTOMATION_CURSOR`/`MouseLeft`。`Touch`・`Spawner` は未着手）。型付きアセット `Assets.*`（SCENE208）を追加。音（`Audio` サービス、WAV、XAudio2 のワンショット）とイベント（`EventWriter<T>`、`in T`。`Jumped`/`Landed`/`Footstep`）を追加。`[InputActions]`（入力を構造体で宣言。ID と入力マップは生成、入力を読む System は FrameInput で `Window` の後）を追加。`in Parent<T>`（親の Component を型で読む。親が死んでいる・`T` を持たない子はスキップ）を追加。引数の役割表を `ref`=書く、`in`=読む、参照型=Context とし、キャラクター・カメラ・アニメーションの UE 由来の型名とフィールド名を清算した（`CharacterMotion`、`MoveIntent`、`ViewAngles`、`OrbitCamera`、`Locomotion` ほか）。`GameWindow` の統合、フェーズの推論は未実装（ADR-0077 §2）。
 - Conformance: Matches（段階 1 の範囲）
 - Next action: Vehicle の車輪の動きとエンジン音、M0101 段階 10（フェーズの推論、`GameWindow` の統合）。
+
+## F-L7-051 — UE テンプレートの処理の解析（T3D から疑似コード）
+
+- Layer: L7 — Static Compiler / Bake（開発用の取り込みツール）
+- Parent capability: Unreal import
+- Status: Implemented
+- Verification: TestVerified（読み取りと疑似コード）。UE からの書き出しは手動の実行。
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Milestones/M0102-UE-Template-Logic-Analysis.md`、`Docs/Specifications/UE-Template-Behavior.md`
+- Implementation evidence:
+  - `tools/UnrealExport/dump_blueprint_logic.py`、`run_dump_blueprint_logic.cmd`（T3D、生成クラス、既定オブジェクト、コンポーネントの全属性）
+  - `tools/CSharpGameEngine.Unreal.SceneImporter/T3dDocument.cs`、`BlueprintLogicWriter.cs`、`Program.cs`（`logic` コマンド）
+- Tests: `tests/CSharpGameEngine.Import.Tests/Unreal/BlueprintLogicWriterTests.cs`
+- Current delta: 4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）の全 Blueprint を書き出し、疑似コードにして、挙動仕様の表にした。実装は M0103 以降（ADR-0078 §4）。
+- Conformance: Matches
+- Next action: M0103（プラグインとアセットの仕組み、ADR-0079）。

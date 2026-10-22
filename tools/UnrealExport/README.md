@@ -103,3 +103,25 @@ FirstPerson / TopDown / Vehicle の理想コード(`Templates/`)と、将来の�
   - Vehicle: レベルのアクター 38(Landscape 1、StaticMeshActor 24、RuntimeVirtualTextureVolume 1、PostProcessVolume 1)。Blueprint 14、InputAction 12、InputMappingContext 5、CurveFloat 2(トルク曲線)、PhysicalMaterial 2、WidgetBlueprint 4(HUD)、SkeletalMesh 2(車)。
   - 取り込み(2026-10-22): `run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]` がステージを `Templates\CSharpGameEngine.Templates.<名前>` へ取り込む(静的メッシュを glb、レベルをシーン JSON、Vehicle 以外はワールドグリッドも)。キャラクターの値は `run_dump_blueprint.cmd` の出力から手で書く。マネキンのメッシュは `run_export_skeletal_mesh.cmd`、Vehicle の車の静的メッシュ(`SM_SportsCar`・`_Glass`・`_Wheel`)は `CGE_SK_STATIC=1` を付けた同じスクリプトで書き出す(`SKM_SportsCar` は物理用の骨格だけで、見た目ではない)。Vehicle のレベルの Landscape は glTF に書き出せないので、`export_level.py` が同じ大きさの 1 m の板を作業中のエディターのワールドにだけ足して代える(保存しない)。`probe_vehicle_level.py`(`run_probe_vehicle_level.cmd`)は、レベルのクラスの一覧・Landscape の位置・メッシュの配置を UE のログ(`G:\UE\5.8\Vehicle\Saved\Logs\Vehicle.log` の `[UnrealExport]` 行)へ出す。
   - **3つとも、音声アセット(SoundWave、SoundCue)は1つも無い。** 効果音は UE のテンプレートからは取り込めない。
+
+## Blueprint の処理の解析(ADR-0078、M0102)
+
+テンプレートの挙動を、推測ではなくノードの接続から読むための書き出し。結果は `Docs/Specifications/UE-Template-Behavior.md` にまとめてある。
+
+```cmd
+tools\UnrealExport\run_dump_blueprint_logic.cmd G:\UE\5.8\Vehicle .artifacts\UnrealExport\logic\Vehicle /Game/VehicleTemplate/Blueprints/SportsCar/BP_VehicleAdvSportsCar /Game/VehicleTemplate/Blueprints/BP_VehicleAdvPlayerController
+dotnet run --project tools\CSharpGameEngine.Unreal.SceneImporter -- logic .artifacts\UnrealExport\logic\Vehicle
+```
+
+- `run_dump_blueprint_logic.cmd <プロジェクト> <出力先> <資産のパス...>` は、描画なしのエディターで資産ごとに次を書く(何も保存しない)。
+  - `<名前>.t3d`: 資産のテキスト書き出しの全文。これが正本。
+  - `.class.t3d`、`.defaults.t3d`: 生成クラスと既定オブジェクト。T3D は既定値からの差分だけを書く。
+  - `.components.txt`: 既定オブジェクトと各コンポーネントの全属性。編集専用の属性は、エンジンのヘッダーの `UPROPERTY` から名前を拾って読む。
+  - `.graphs.json`: ノードとピンの一覧。UE のロケールの文字列が入るので参考扱い。
+  - `.dsl.txt`: EditorToolset の逆コンパイラの出力。ヘッドレスでは空になるので使わない。
+  - `_summary.json`: 書いたものとエラー。
+- Python のログは `-stdout` に出ない。`<プロジェクト>\Saved\Logs\<プロジェクト>.log` の `[UnrealExport]` 行を見る。
+- `logic <出力先>` は、各 `.t3d` から疑似コード `<名前>.logic.txt` を書く。
+  - 入口(イベント・入力・関数)から実行の流れをたどり、純粋なノードを式に展開する。
+  - 状態機械は、状態・遷移・条件式にする。アニメーションのポーズは木にする。
+- 出力先の `.artifacts/UnrealExport/logic/` はリポジトリに入れない。UE の版が変わったら、流し直して差分を見る。

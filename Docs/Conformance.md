@@ -4006,3 +4006,16 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `PhysicsMeshRaycastTests`、`VehicleMotorTests`、`VehicleDriveVerificationTests`、`GameProjectGeneratorTests`・`VsixManifestTests`（4 テンプレート）、`verify-thirdperson-character --template Vehicle`（WARP）。Windows.Tests 491 合格（2 スキップ）、VSExtension.Tests 1185、FeatureRunner.Tests 179。
 - 既知の差: UE の Chaos Vehicle（車輪ごとの物理、サスペンション、トルク曲線と変速、タイヤの滑り）ではなく簡易モデル。エンジン音、車輪の回転・ステア、画面上の文字（速度とギアはタイトルバー）、リセット、カメラ切り替え、`Axis` 入力、地形（Landscape は同じ大きさの板で代用）は未実装。`Sweep` は静的三角形メッシュを扱わない。VS のダイアログからの新規作成は手動確認（ADR-0068 のとおり）で、自動検証は `vsix.project-template` が ThirdPerson だけ。
 - 結果: MatchesWithDocumentedExtension（Vehicle は簡易モデルの範囲）。
+
+## 2026-10-22 探索 — UE テンプレートの処理の解析（ADR-0078、M0102）
+- 意図: 4 テンプレートの Blueprint の処理を、推測ではなくノードの接続から読む。
+- 観測（Fact）:
+  - UE5.8 の EditorToolset の逆コンパイラ `read_graph_dsl` は、ヘッドレスのエディターでは、どのグラフでも空を返した。
+  - T3D の書き出しには、グラフ、状態機械、遷移の条件、ウィジェット、入力の割り当てが全部入っていた。ただし既定値からの差分だけで、車両の移動コンポーネントのエンジン・変速・車輪の設定は出なかった。
+  - 編集専用の属性は、Python の `dir()` に出ないが、名前を指定すれば `get_editor_property` で読めた。
+  - 書き出し: ThirdPerson 18 資産、FirstPerson 21、TopDown 10、Vehicle 27。どれもエラー 0。
+  - 推測との差: 歩きの判定は「速度 3 以上」ではなく `GroundSpeed > 0.01 && 加速度 ≠ 0` だった。
+- 実装: `dump_blueprint_logic.py`（エンジンのヘッダーの `UPROPERTY` から属性名を拾う）、`T3dDocument`、`BlueprintLogicWriter`。
+- 自動化された証拠: `BlueprintLogicWriterTests`。
+- 既知の差: 状態機械の出力は、実データで確かめただけで単体テストが無い。`.graphs.json` には UE のロケールの文字列が入る。
+- 結果: Matches（解析の範囲）。

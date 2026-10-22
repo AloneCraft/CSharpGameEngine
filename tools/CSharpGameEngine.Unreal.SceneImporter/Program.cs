@@ -17,11 +17,16 @@ if(args.Length>0&&args[0]=="worldgrid"){
     return WorldGridGlbConverter.Run(args[1..]);
 }
 
+if(args.Length>0&&args[0]=="logic"){
+    return BlueprintLogicWriter.Run(args[1..]);
+}
+
 if(args.Length!=3){
     Console.Error.WriteLine("Usage: CSharpGameEngine.Unreal.SceneImporter <manifest.json> <scene.cs> <assets.cs>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter level <manifest.json> <template-project-directory> <TemplateName> <LevelName>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter thirdperson <manifest.json> <template-project-directory>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter worldgrid <manifest.json> <project-directory>");
+    Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter logic <directory with .t3d files>");
     return 2;
 }
 
