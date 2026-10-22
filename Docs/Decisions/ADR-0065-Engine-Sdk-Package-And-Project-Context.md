@@ -73,3 +73,9 @@ The repository's `Directory.Build.targets` also adds the analyzer and the shader
 
 ## Related features
 F-L6-009 (this ADR), F-L8-032 (ADR-0068), F-L8-018 (Preview Host bundling).
+
+## Addendum 2026-10-22: plugins, Cook and one version (ADR-0079, M0103)
+- The package gained `plugins/` (the engine plugins, enabled per game with `CgePlugins`), `build/CSharpGameEngine.Game.targets` (imported by `CSharpGameEngine.Sdk.targets` after the project file, so `CgePlugins` is known), `build/CSharpGameEngine.Version.props`, `lib/.../CSharpGameEngine.Cooking.dll` and `tools/Cook/` (the Cook CLI, `$(CgeCookCli)`).
+- The version is written once, as `CgeEngineVersion` in `build/CSharpGameEngine.Version.props`; the package takes it as its NuGet version and the generator checks plugin manifests against it. 0.1.16 is the first version with plugins.
+- The `src/` and `plugins/` wildcards moved out of the packing target to evaluation time, without `%(RecursiveDir)` in `PackagePath` (NuGet keeps each wildcard file's folder itself). Inside the target, the unqualified `%(RecursiveDir)` batched over the other `None` items and packed stray copies (`src/<module>/win-x64/`, `src/CSharpGameEngine.Runtime.Windows/Assets/Editor/ComponentIcons/*.cs` in 0.1.15; 245 entries; 0.1.16 has 176 and no copies of the sources. The shader CLI's own `tools/ShaderGraph/win-x64/` copy, left by an x64 build of the CLI, was already in 0.1.15 and is unchanged).
+- `verify-template-package --template Vehicle` builds a package-mode game that enables an engine plugin; `verify-plugin-package` adds a project plugin and a package plugin.

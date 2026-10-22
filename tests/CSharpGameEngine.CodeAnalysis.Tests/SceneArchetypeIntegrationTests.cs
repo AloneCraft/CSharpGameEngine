@@ -141,6 +141,9 @@ public sealed class SceneArchetypeIntegrationTests {
     [Theory]
     [InlineData(65)]
     [InlineData(128)]
+    [InlineData(129)]
+    [InlineData(200)]
+    [InlineData(512)]
     public void WideComponentMasksDoNotAliasHighComponentsOntoLowComponents(int ComponentCount){
         var ComponentSource=string.Join("\n",Enumerable.Range(0,ComponentCount).Select(static Index=>$"public struct C{Index} {{ public int Value; }}"));
         var CombinedParameters=string.Join(", ",Enumerable.Range(0,ComponentCount).Select(static Index=>$"ref C{Index} c{Index}"));
@@ -160,11 +163,17 @@ public sealed class SceneArchetypeIntegrationTests {
         Assert.Equal(2,Occurrences(Loop,"Systems.Low.Update("));
         Assert.Equal(2,Occurrences(Loop,"Systems.High.Update("));
         Assert.Contains("ComponentEnabledHigh",Types,StringComparison.Ordinal);
+        // ADR-0079: one more word per 64 component types after the first 128.
+        Assert.Equal(ComponentCount>128,Types.Contains("ComponentEnabledWord2",StringComparison.Ordinal));
+        Assert.Equal(ComponentCount>448,Types.Contains("ComponentEnabledWord7",StringComparison.Ordinal));
     }
 
     [Theory]
     [InlineData(65)]
     [InlineData(128)]
+    [InlineData(129)]
+    [InlineData(200)]
+    [InlineData(512)]
     public void WideComponentMasksCompileAndExecuteHighComponentQueries(int ComponentCount){
         var ComponentSource=string.Join("\n",Enumerable.Range(0,ComponentCount).Select(static Index=>$"public struct C{Index} {{ public int Value; }}"));
         var CombinedParameters=string.Join(", ",Enumerable.Range(0,ComponentCount).Select(static Index=>$"ref C{Index} c{Index}"));

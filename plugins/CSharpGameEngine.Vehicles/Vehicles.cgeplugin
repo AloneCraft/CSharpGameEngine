@@ -1,0 +1,7 @@
+{
+  "Name": "Vehicles",
+  "Version": "0.1.0",
+  "EngineVersion": ">=0.1.16",
+  "Description": "Cars: the vehicle components and systems (UE's ChaosVehicles plugin). M0101 stage 9's simplified model until the Chaos-equivalent model of M0109.",
+  "Dependencies": []
+}

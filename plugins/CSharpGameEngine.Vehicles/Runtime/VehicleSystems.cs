@@ -1,7 +1,8 @@
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
-namespace CSharpGameEngine.Runtime.Character;
+using CSharpGameEngine.Runtime.Character;
+namespace CSharpGameEngine.Vehicles;
 /// <summary>
 /// 車を1固定tickに1回進める。キャラクターと同じく、物理の更新の後で静的なコリジョンが同期されてから動く。
 /// 車は根のノードで、Transformの位置は車体の中心(物理の座標系)。

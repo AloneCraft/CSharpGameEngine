@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    The Lightning package plugin (ADR-0079), imported by the package's build\CSharpGameEngine.Samples.Lightning.targets.
+    Every plugin writes these three properties itself: MSBuild imports one file only once per project.
+  -->
+  <PropertyGroup>
+    <CgePluginEnabled>false</CgePluginEnabled>
+    <CgePluginEnabled Condition="'$(_CgePluginLocation)' != 'Engine' or $([System.String]::Copy(';$(CgePlugins);').Contains(';Lightning;'))">true</CgePluginEnabled>
+    <CgePluginRoots Condition="'$(CgePluginEnabled)' == 'true'">$(CgePluginRoots)|Lightning=$(MSBuildThisFileDirectory)</CgePluginRoots>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)Lightning.plugin.items" Condition="'$(CgePluginEnabled)' == 'true'" />
+</Project>

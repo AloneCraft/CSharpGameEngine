@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
+using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -14,7 +15,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </summary>
 internal static class AssetCatalogEmitter {
     internal const string HintName="GameSystem.Assets.g.cs";
-    private static readonly Regex AssetPathPattern=new("\"(Assets/[^\"\\\\]+)\"",RegexOptions.Compiled);
+    private static readonly Regex AssetPathPattern=new("\"((?:Plugins/[^\"/\\\\]+/)?Assets/[^\"\\\\]+)\"",RegexOptions.Compiled);
 
     internal static readonly DiagnosticDescriptor MissingAsset=new(
         id:"SCENE208",
@@ -24,9 +25,22 @@ internal static class AssetCatalogEmitter {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
-    /// <summary>プロジェクト相対の `/` 区切りのパス。<c>Assets/</c>の外、または知らない拡張子なら null。</summary>
-    internal static string?RelativeAssetPath(string FullPath,string?ProjectDir){
+    /// <summary>
+    /// 出力フォルダ相対の `/` 区切りのパス。ゲームのアセットは<c>Assets/…</c>、プラグインのアセットは<c>Plugins/&lt;名前&gt;/Assets/…</c>
+    /// (ADR-0079。プロジェクトのプラグインはプロジェクト相対のパスがそのままこの形で、エンジンとパッケージのプラグインはビルドがこの場所へコピーする)。
+    /// どの<c>Assets/</c>の外でもない、または知らない拡張子なら null。
+    /// </summary>
+    internal static string?RelativeAssetPath(string FullPath,string?ProjectDir,IReadOnlyList<PluginRoot>?PluginRoots=null){
         var Path=FullPath.Replace('\\','/');
+        if(PluginRoots is not null){
+            foreach(var Plugin in PluginRoots){
+                var PluginRootPath=Plugin.Directory.Replace('\\','/');
+                if(!PluginRootPath.EndsWith("/",StringComparison.Ordinal)){ PluginRootPath+="/"; }
+                if(!Path.StartsWith(PluginRootPath+"Assets/",StringComparison.OrdinalIgnoreCase)){ continue; }
+                var PluginRelative=SceneFiles.PluginsFolderName+"/"+Plugin.Name+"/"+Path.Substring(PluginRootPath.Length);
+                return KindOf(PluginRelative) is not null?PluginRelative:null;
+            }
+        }
         string Relative;
         if(!string.IsNullOrEmpty(ProjectDir)){
             var Root=ProjectDir!.Replace('\\','/');
@@ -39,7 +53,13 @@ internal static class AssetCatalogEmitter {
             Relative=Path.Substring(At+1);
         }
 
-        return Relative.StartsWith("Assets/",StringComparison.Ordinal)&&KindOf(Relative) is not null?Relative:null;
+        return (Relative.StartsWith("Assets/",StringComparison.Ordinal)||IsProjectPluginAsset(Relative))&&KindOf(Relative) is not null?Relative:null;
+    }
+
+    /// <summary><c>Plugins/&lt;名前&gt;/Assets/…</c>: a project plugin's asset.</summary>
+    private static bool IsProjectPluginAsset(string Relative){
+        var Segments=Relative.Split('/');
+        return Segments.Length>3&&Segments[0]==SceneFiles.PluginsFolderName&&Segments[2]=="Assets";
     }
 
     private static string?KindOf(string Path){
@@ -48,18 +68,49 @@ internal static class AssetCatalogEmitter {
             ".wav"=>"SoundAsset",
             ".glb" or ".gltf" or ".fbx"=>"ModelAsset",
             ".png" or ".jpg" or ".jpeg"=>"TextureAsset",
+            DataAssetExtension=>DataAssetKind,
             _=>null,
         };
     }
 
-    internal static void Emit(SourceProductionContext Context,ImmutableArray<string>AssetPaths){
+    /// <summary>A data asset (ADR-0079): one value of a <c>[DataAsset]</c> type, compiled like a scene component.</summary>
+    internal const string DataAssetExtension=".cgeasset";
+    private const string DataAssetKind="DataAsset";
+
+    /// <summary>A data asset file read against the compilation: its value as C#, or the problems that keep it out of the catalog.</summary>
+    internal readonly struct DataAssetModel(string RelativePath,string?TypeFullyQualifiedName,string?Expression,ImmutableArray<Diagnostic>Diagnostics) {
+        internal readonly string RelativePath=RelativePath;
+        internal readonly string?TypeFullyQualifiedName=TypeFullyQualifiedName;
+        internal readonly string?Expression=Expression;
+        internal readonly ImmutableArray<Diagnostic>Diagnostics=Diagnostics;
+    }
+
+    internal static DataAssetModel?AnalyzeDataAsset(AdditionalText File,string?RelativePath,Compilation Compilation,CancellationToken CancellationToken){
+        if(RelativePath is null||!RelativePath.EndsWith(DataAssetExtension,StringComparison.OrdinalIgnoreCase)||File.GetText(CancellationToken) is not { }Text){
+            return null;
+        }
+        var Value=CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.AnalyzeDataAsset(Text.ToString(),Compilation,out var Problems);
+        return new DataAssetModel(RelativePath,Value?.TypeFullyQualifiedName,Value?.EmitExpressionText,
+            [.. Problems.Select(Problem=>Diagnostic.Create(Problem.Descriptor,SceneJsonDslAnalyzer.Locate(File.Path,Text,Problem.Start,Problem.End),Problem.Arguments))]);
+    }
+
+    internal static void Emit(SourceProductionContext Context,ImmutableArray<string>AssetPaths,ImmutableArray<DataAssetModel>DataAssets=default){
         if(AssetPaths.IsEmpty){ return; }
+        Dictionary<string,DataAssetModel>DataByPath=new(StringComparer.Ordinal);
+        foreach(var Data in DataAssets.IsDefault?[]:DataAssets){
+            foreach(var Problem in Data.Diagnostics){ Context.ReportDiagnostic(Problem); }
+            DataByPath[Data.RelativePath]=Data;
+        }
         var Root=new Folder("Assets");
         foreach(var Path in AssetPaths.Distinct(StringComparer.Ordinal).OrderBy(static P=>P,StringComparer.Ordinal)){
             var Segments=Path.Split('/');
             var Current=Root;
-            for(var Index=1;Index<Segments.Length-1;Index++){
-                Current=Current.Child(Segments[Index]);
+            // Assets/Sounds/Jump.wav → Assets.Sounds.Jump; Plugins/Vehicles/Assets/Car.glb → Assets.Plugins.Vehicles.Car (ADR-0079).
+            IEnumerable<string>Folders=IsProjectPluginAsset(Path)
+                ?[Segments[0],Segments[1],.. Segments.Skip(3).Take(Segments.Length-4)]
+                :Segments.Skip(1).Take(Segments.Length-2);
+            foreach(var Folder in Folders){
+                Current=Current.Child(Folder);
             }
 
             var FileName=Segments[Segments.Length-1];
@@ -71,7 +122,7 @@ internal static class AssetCatalogEmitter {
             "#nullable enable",
             "/// <summary>The project's asset files as typed references (ADR-0077). A missing file or a wrong name is a compile error.</summary>",
         ];
-        Write(Root,0,Lines);
+        Write(Root,0,Lines,DataByPath);
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
     }
 
@@ -88,14 +139,19 @@ internal static class AssetCatalogEmitter {
         }
     }
 
-    private static void Write(Folder Node,int Depth,List<string>Lines){
+    private static void Write(Folder Node,int Depth,List<string>Lines,Dictionary<string,DataAssetModel>DataByPath){
         var Indent=new string(' ',Depth*4);
         Lines.Add($"{Indent}internal static class {Node.Name} {{");
         foreach(var Entry in Node.Entries){
-            Lines.Add($"{Indent}    public static readonly global::CSharpGameEngine.Authoring.{Entry.Kind} {Entry.Name} = new(\"{Entry.Path}\");");
+            if(Entry.Kind!=DataAssetKind){
+                Lines.Add($"{Indent}    public static readonly global::CSharpGameEngine.Authoring.{Entry.Kind} {Entry.Name} = new(\"{Entry.Path}\");");
+            } else if(DataByPath.TryGetValue(Entry.Path,out var Data)&&Data.TypeFullyQualifiedName is { }Type&&Data.Expression is { }Expression){
+                // A data asset is its value itself; a document with problems is left out (they are reported).
+                Lines.Add($"{Indent}    public static readonly {Type} {Entry.Name} = {Expression};");
+            }
         }
 
-        foreach(var Child in Node.Children){ Write(Child,Depth+1,Lines); }
+        foreach(var Child in Node.Children){ Write(Child,Depth+1,Lines,DataByPath); }
         Lines.Add($"{Indent}}}");
     }
 

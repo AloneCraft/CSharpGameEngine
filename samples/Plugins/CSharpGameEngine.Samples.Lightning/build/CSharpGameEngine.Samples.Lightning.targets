@@ -1,0 +1,7 @@
+<Project>
+  <!-- NuGet imports this after the game's project file (ADR-0079); a package plugin is always enabled. -->
+  <PropertyGroup>
+    <_CgePluginLocation>Package</_CgePluginLocation>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\plugin\Lightning.plugin.props" />
+</Project>

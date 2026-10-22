@@ -53,6 +53,8 @@
     <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Core\InputActionDeclarations.cs" Link="TestAssets\Core\InputActionDeclarations.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\EngineServiceAttribute.cs" Link="TestAssets\Core\EngineServiceAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\DataAssetAttribute.cs" Link="TestAssets\Core\DataAssetAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

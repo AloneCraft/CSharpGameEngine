@@ -1,6 +1,6 @@
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
-using CSharpGameEngine.Runtime.Character;
+using CSharpGameEngine.Vehicles;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>ADR-0077: 簡易の車両モデル。決定的な物理世界の床・坂・壁の上で、前後の速度、ハンドル、接地を確かめる。</summary>

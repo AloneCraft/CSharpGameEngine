@@ -132,10 +132,10 @@ resume <run-result.json> [options]
 
 科学計算Stageは再現可能なreference実装と明記した誤差予算を検証する。研究成果、認証、現実世界での安全性を主張しない。
 
-## 基盤Stageと128型上限
+## 基盤Stageと512型上限
 
-- `foundation.extended-ecs-mask` / F-L3-020は`Executable`である。1–64 Component型はSource Generator内のlow `ulong`だけで処理し、65–128はlow/high二語へ分岐する。生成Runtimeへmask照合は残らない。
-- Stageは64、65、128型境界の生成と65/128 high-component queryの実行、129型のSYSGEN026を検証する。
+- `foundation.extended-ecs-mask` / F-L3-020は`Executable`である。1–64 Component型はSource Generator内のlow `ulong`だけで処理し、65–128はlow/high二語、それ以上は64型ごとに1語を足す(ADR-0079で上限を128から512へ)。生成Runtimeへmask照合は残らない。
+- Stageは64、65、128、129、200、512型の生成と高いindexのComponentのqueryの実行、513型のSYSGEN026を検証する。
 - D3D12 compute/readback と deterministic job runtime は独立 executable Stage で検証する。L4 adapter、field/graph artifact、pose bridge、volume renderer、thermal field は予約済み NotImplemented Stage を維持する。
 
 ## 外部ライブラリ境界

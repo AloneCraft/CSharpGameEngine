@@ -166,7 +166,7 @@ KeplerとDirect N-bodyのreference Oracleを先に確立し、Barnes–Hut、FMM
 
 ## Deferred and specified foundation
 
-- F-L3-020 Extended ECS mask: `Implemented`。1–64 single-mask pathを不変に保ち、65–128だけをdual-maskへ分岐し、129以上をSYSGEN026で拒否する。
+- F-L3-020 Extended ECS mask: `Implemented`。1–64 single-mask pathを不変に保ち、65–128だけをdual-maskへ分岐する。上限はADR-0079で512に広げ、513以上をSYSGEN026で拒否する。
 - F-L0-008 D3D12 compute/readbackは`Implemented`。offline fixed-ABI Compute artifactをWARPでdispatchし、CPU vectorとの一致とdebug-layer error 0を検証する。
 - F-L3-019 deterministic job runtime (`Implemented`; executable Stage is `foundation.deterministic-jobs`)。
 - F-L4-003 engine-owned simulation contracts and optional L4 adapters。
@@ -200,7 +200,7 @@ KeplerとDirect N-bodyのreference Oracleを先に確立し、Barnes–Hut、FMM
 - `.cs`とオリジナルassetをSource、L6 cache/artifactを再生成可能な出力とする。外部libraryの型をComponent、公開API、Command/Event、artifact schemaへ漏らさない。
 - OS/native/driver bindingはWin32/D3D12と同じL0に置く。Runtimeで使う任意のgeometry、codec、shader、compute等のproviderはL4 adapterの背後に置き、source import SDKはL7 import境界内に閉じ込める。上位からproviderを直接参照せず、providerを置換してもengine-owned CPU referenceと同じOracleを使う。
 - Visual StageはWARPを必須とし、Hardwareは追加passとする。Hardware成功でWARP失敗を相殺しない。
-- ECS Component型は128を上限とする。1〜64のsingle-mask生成pathを維持し、65〜128だけをdual-mask生成pathへ分岐する。
+- ECS Component型は512を上限とする(ADR-0079で128から拡張)。1〜64のsingle-mask生成pathを維持し、65〜128はdual-mask、それ以上は64型ごとに1語を足す。
 - C#変更は型推論可能なローカル宣言で`var`を使う。project/shared projectを変更した場合は同じ変更で`CSharpGameEngine.slnx`を同期する。
 - 各項目の完了には、実装、単体/結合Stage、Debug/Release、最終コードからのreverse engineering、Conformance判定、Feature ledger・関連仕様・Milestone更新を含む。
 

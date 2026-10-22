@@ -1,6 +1,6 @@
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
-namespace CSharpGameEngine.Runtime.Character;
+namespace CSharpGameEngine.Vehicles;
 /// <summary>
 /// 車の1固定tick(ADR-0077)。決定的な物理世界を読むだけで、<see cref="LogicalScalar"/>で解く。
 /// 前後の速度と横方向の速度を車体の向きで分けて、前後はアクセル・ブレーキ・自然な減速、横は<see cref="Vehicle.Grip"/>で消す。

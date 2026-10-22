@@ -60,12 +60,13 @@ internal static class SceneJsonSchemaBuilder {
     }
     /// <summary>
     /// Component candidates: non-generic structs that the scene JSON check accepts, declared in the
-    /// game's compilation (including the engine's shared runtime sources) or in the engine's
-    /// assemblies (Camera and PrimitiveMesh live in CSharpGameEngine.Windows; StaticMesh is in the Entities sources).
+    /// game's compilation (including the engine's shared runtime sources and the plugins' Runtime modules), in the engine's
+    /// assemblies (Camera and PrimitiveMesh live in CSharpGameEngine.Windows; StaticMesh is in the Entities sources), or in a
+    /// plugin's Library module (<c>[assembly: PluginLibrary]</c>, ADR-0079).
     /// </summary>
     internal static IEnumerable<INamedTypeSymbol>EnumerateComponentTypes(Compilation Compilation){
         var Assemblies=new List<IAssemblySymbol>{ Compilation.Assembly };
-        Assemblies.AddRange(Compilation.SourceModule.ReferencedAssemblySymbols.Where(static Assembly=>Assembly.Name.StartsWith("CSharpGameEngine",StringComparison.Ordinal)));
+        Assemblies.AddRange(Compilation.SourceModule.ReferencedAssemblySymbols.Where(static Assembly=>Assembly.Name.StartsWith("CSharpGameEngine",StringComparison.Ordinal)||IsPluginLibrary(Assembly)));
         foreach(var Assembly in Assemblies){
             foreach(var Type in EnumerateTypes(Assembly.GlobalNamespace)){
                 if(Type.TypeKind!=TypeKind.Struct||Type.IsGenericType||!IsVisibleTo(Type,Compilation)){ continue; }
@@ -76,6 +77,10 @@ internal static class SceneJsonSchemaBuilder {
             }
         }
     }
+    internal const string PluginLibraryAttributeMetadataName="CSharpGameEngine.Authoring.PluginLibraryAttribute";
+    /// <summary>Whether a referenced DLL is a plugin's Library module (<c>[assembly: PluginLibrary]</c>, ADR-0079).</summary>
+    internal static bool IsPluginLibrary(IAssemblySymbol Assembly)=>
+        Assembly.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==PluginLibraryAttributeMetadataName);
     private static IEnumerable<INamedTypeSymbol>EnumerateTypes(INamespaceSymbol Namespace){
         foreach(var Member in Namespace.GetMembers()){
             if(Member is INamespaceSymbol Child){

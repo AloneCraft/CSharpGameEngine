@@ -1,4 +1,4 @@
-﻿; Unshipped analyzer release
+; Unshipped analyzer release
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
 
 ### New Rules
@@ -39,6 +39,7 @@ SYSGEN039 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN040 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN041 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN042 | CSharpGameEngine.Entities.CodeGen | Warning | GameSystemDiagnostics
+SYSGEN043 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 INPUT001 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 INPUT002 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 INPUT003 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
@@ -73,3 +74,8 @@ SCENE205 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE206 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE207 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE208 | CSharpGameEngine.Entities.CodeGen | Error | AssetCatalogEmitter
+PLUGIN001 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
+PLUGIN002 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
+PLUGIN003 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
+PLUGIN004 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
+PLUGIN005 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer

@@ -148,7 +148,22 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [InlineData("Vehicle")]
     public void TemplateProjectFile_IsTheGeneratorsProjectFileWithTemplateTokens(string TemplateName){
         var Template=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine",TemplateName,TemplateName+".csproj.template");
-        Assert.Equal(GameProjectGenerator.ProjectFile("$safeprojectname$",GameProjectGenerator.EngineVersionToken),File.ReadAllText(Template));
+        var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName));
+        Assert.Equal(GameProjectGenerator.ProjectFile("$safeprojectname$",GameProjectGenerator.EngineVersionToken,Plugins),File.ReadAllText(Template));
+    }
+
+    [Theory]
+    [InlineData("ThirdPerson","")]
+    [InlineData("TopDown","")]
+    [InlineData("Vehicle","Vehicles")]
+    public void TheGeneratedProject_EnablesTheTemplatesEnginePlugins(string TemplateName,string Plugins){
+        // ADR-0079: the template's own project file names its engine plugins; the package-mode project carries them over.
+        var Project=Path.Combine(this.Root,TemplateName);
+        var ProjectFile=GameProjectGenerator.Generate(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName),Project,"Game","1.2.3",@"C:\feed",TemplateName);
+        var Text=File.ReadAllText(ProjectFile);
+
+        Assert.Equal(Plugins.Length>0,Text.Contains("<CgePlugins>"+Plugins+"</CgePlugins>",StringComparison.Ordinal));
+        Assert.Equal(Plugins.Length>0,Text.Contains("CgePlugins",StringComparison.Ordinal));
     }
 
     [Fact]

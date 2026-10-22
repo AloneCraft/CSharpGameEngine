@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    ADR-0079: the contract of a plugin's Cook module. A Cook DLL implements IAssetCooker to import or bake files (for example a
+    navigation mesh from a level); CSharpGameEngine.Cook.Cli loads it in its own process, never inside Visual Studio or the game.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>

@@ -107,6 +107,31 @@ public sealed class SceneComponentCatalogTests {
         Assert.DoesNotContain("global::Referenced.MetadataComponent",Names);
     }
 
+    [Fact]
+    public void Build_ListsThePublicStructsOfAPluginLibrary(){
+        // ADR-0079: a plugin's Library module is a DLL that says so with [assembly: PluginLibrary]; its components are offered.
+        var Library=SceneAnalysisTestHelper.CreateCompilation(
+            """
+            [assembly: CSharpGameEngine.Authoring.PluginLibrary]
+            namespace CSharpGameEngine.Authoring { [System.AttributeUsage(System.AttributeTargets.Assembly)] public sealed class PluginLibraryAttribute : System.Attribute { } }
+            namespace Weather {
+                public struct Rain { public float Rate; }
+                internal struct Hidden { public int Value; }
+            }
+            """);
+        using MemoryStream AssemblyImage=new();
+        var EmitResult=Library.Emit(AssemblyImage);
+        Assert.True(EmitResult.Success,string.Join(Environment.NewLine,EmitResult.Diagnostics));
+        var Consumer=SceneAnalysisTestHelper.CreateCompilation("namespace Local { public struct SourceComponent { public int Value; } }")
+            .AddReferences(MetadataReference.CreateFromImage(AssemblyImage.ToArray()));
+
+        var Names=SceneComponentCatalog.Build(Consumer).Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+
+        Assert.Contains("global::Weather.Rain",Names);
+        Assert.DoesNotContain("global::Weather.Hidden",Names);
+        Assert.Contains("\"Weather.Rain\"",CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Consumer),StringComparison.Ordinal);
+    }
+
     // ---- generic Component型(型引数を制約から機械的に埋められる場合だけ許可する) ----
 
     /// <summary>

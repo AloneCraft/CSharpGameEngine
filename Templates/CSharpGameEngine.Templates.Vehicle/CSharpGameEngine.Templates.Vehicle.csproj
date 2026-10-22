@@ -8,5 +8,7 @@
   <PropertyGroup>
     <RootNamespace>CgeVehicle</RootNamespace>
     <AssemblyName>CgeVehicle</AssemblyName>
+    <!-- The engine plugins this game uses (ADR-0079). -->
+    <CgePlugins>Vehicles</CgePlugins>
   </PropertyGroup>
 </Project>

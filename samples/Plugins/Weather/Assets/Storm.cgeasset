@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 3,
+  "type": "Weather.StormSetup",
+  "members": {
+    "RateMultiplier": 2,
+    "Gusts": 7
+  }
+}

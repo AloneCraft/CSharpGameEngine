@@ -1,0 +1,34 @@
+<Project>
+  <!--
+    The game's plugins (ADR-0079). Imported after the project file (by Directory.Build.targets in the repository and by
+    CSharpGameEngine.Sdk.targets from the package), so the project's CgePlugins property is known here; Game.props comes too early.
+    - Project plugins: every Plugins\<Name>\<Name>.plugin.props of the game. Placing the folder enables it.
+    - Engine plugins: every plugins\<Folder>\<Name>.plugin.props of the engine. Only those named in CgePlugins
+      (for example <CgePlugins>Vehicles</CgePlugins>) are enabled; each plugin's props decides from _CgePluginLocation.
+    - Package plugins: a NuGet package's build\<Id>.targets imports its own <Name>.plugin.props, which is always enabled.
+  -->
+  <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
+    <_CgePluginLocation>Project</_CgePluginLocation>
+  </PropertyGroup>
+  <Import Project="$(MSBuildProjectDirectory)\Plugins\*\*.plugin.props" Condition="'$(CgeGameProject)' == 'true'" />
+  <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
+    <_CgePluginLocation>Engine</_CgePluginLocation>
+  </PropertyGroup>
+  <Import Project="$(CgeEngineRoot)plugins\*\*.plugin.props" Condition="'$(CgeGameProject)' == 'true'" />
+  <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
+    <_CgePluginLocation>Package</_CgePluginLocation>
+  </PropertyGroup>
+
+  <!--
+    The paths the generator reads (ADR-0079). They reach it through the generated .editorconfig, whose reader cuts a value at '#' or
+    ';', so a game under C:\C#\ lost its ProjectDir. They are written with '#' as '?h' and ';' as '?s' ('?' cannot occur in a Windows
+    path; '%XX' would be unescaped by MSBuild itself). Computed when the .editorconfig is written, after every plugin (a package plugin's
+    targets may come after this file) has added itself to CgePluginRoots.
+  -->
+  <Target Name="CgeEncodeGeneratorPaths" BeforeTargets="GenerateMSBuildEditorConfigFileShouldRun" Condition="'$(CgeGameProject)' == 'true'">
+    <PropertyGroup>
+      <CgeProjectDirectory>$(MSBuildProjectDirectory.Replace('#','?h').Replace(';','?s'))\</CgeProjectDirectory>
+      <CgePluginRootsEncoded>$(CgePluginRoots.Replace('#','?h').Replace(';','?s'))</CgePluginRootsEncoded>
+    </PropertyGroup>
+  </Target>
+</Project>

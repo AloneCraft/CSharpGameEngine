@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 3,
+  "namespace": "Weather.Scenes",
+  "className": "WeatherScene",
+  "startupOrder": 100,
+  "root": {
+    "id": "6f1d2a40-8b3c-4e5d-9a71-0c2b4e6f8a13",
+    "name": "Cloud",
+    "components": [
+      {
+        "type": "Weather.Rain",
+        "members": {
+          "Rate": 1.5
+        }
+      },
+      {
+        "type": "Weather.Intensity",
+        "members": {
+          "Value": 1
+        }
+      }
+    ],
+    "children": []
+  }
+}

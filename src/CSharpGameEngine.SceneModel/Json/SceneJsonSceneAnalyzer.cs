@@ -197,6 +197,56 @@ internal static class SceneJsonSceneAnalyzer {
         return new SceneJsonScene(Namespace,ClassName,StartupOrder,Root,Problems.ToImmutableArray(),DocumentVersion,Angles.Values.ToImmutableArray(),
             Angles.KeyRenames.ToImmutableArray());
     }
+    internal const string DataAssetAttributeMetadataName="CSharpGameEngine.Authoring.DataAssetAttribute";
+    private static readonly string[]DataAssetKeys=["$schema","schemaVersion","type","members"];
+    /// <summary>
+    /// Reads a data asset document (<c>*.cgeasset</c>, ADR-0079): one value of a <c>[DataAsset]</c> type, written like a scene component,
+    /// <c>{ "schemaVersion": 3, "type": "Full.TypeName", "members": { … } }</c>, with the same value rules (and angles in turns).
+    /// Returns the type and the C# expression that creates the value, or null with the problems.
+    /// </summary>
+    internal static SceneJsonComponent?AnalyzeDataAsset(string Text,Compilation Compilation,out ImmutableArray<SceneJsonProblem>Problems){
+        List<SceneJsonProblem>Found=[];
+        SceneJsonComponent?Result=null;
+        try {
+            var Document=SceneJsonReader.Parse(Text);
+            Result=AnalyzeDataAssetDocument(Document,Compilation,Found);
+        } catch(SceneJsonException Error){
+            Found.Add(new SceneJsonProblem(SceneJsonDiagnostics.InvalidDocument,Error.Position,Error.Position+1,Error.Message));
+        }
+        Problems=Found.ToImmutableArray();
+        return Problems.IsEmpty?Result:null;
+    }
+    private static SceneJsonComponent?AnalyzeDataAssetDocument(SceneJsonValue Document,Compilation Compilation,List<SceneJsonProblem>Problems){
+        if(Document.Kind!=SceneJsonKind.Object){
+            Problems.Add(Invalid(Document,"A data asset must be a JSON object."));
+            return null;
+        }
+        RejectUnknownKeys(Document,DataAssetKeys,"data asset",Problems);
+        var Version=Document.Get("schemaVersion");
+        if(Version is not { Kind:SceneJsonKind.Number,Text:"3" }){
+            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be {SchemaVersion}."));
+        }
+        var TypeValue=Document.Get("type");
+        if(TypeValue is null||TypeValue.Kind!=SceneJsonKind.String||string.IsNullOrWhiteSpace(TypeValue.Text)){
+            Problems.Add(Invalid(TypeValue??Document,"A data asset needs a 'type' string with the full name of a [DataAsset] type."));
+            return null;
+        }
+        var TypeName=TypeValue.Text!;
+        var Type=Compilation.GetTypeByMetadataName(TypeName)??ResolveNestedType(TypeName,Compilation);
+        if(Type is null||Type.IsGenericType||Type.TypeKind is not (TypeKind.Struct or TypeKind.Class)
+            ||!Type.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==DataAssetAttributeMetadataName)){
+            Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.UnknownComponentType,TypeValue.Start,TypeValue.End,TypeName,
+                Type is null?"no type with this full name is visible to the project":"the type is not a non-generic struct or class marked [DataAsset]"));
+            return null;
+        }
+        var Members=Document.Get("members");
+        if(Members is not null&&Members.Kind!=SceneJsonKind.Object){
+            Problems.Add(Invalid(Members,"'members' must be a JSON object."));
+            return null;
+        }
+        var Expression=ObjectExpression(Type,Members,TypeName,Compilation,Problems,new AngleReading(Turns:true),null);
+        return new SceneJsonComponent(SceneTypePredicates.ToFullyQualifiedName(Type),Expression);
+    }
     private static SceneJsonNode?AnalyzeNode(SceneJsonValue Node,ImmutableArray<int>Path,Compilation Compilation,List<SceneJsonProblem>Problems,AngleReading Angles){
         if(Node.Kind!=SceneJsonKind.Object){
             Problems.Add(Invalid(Node,"A node must be a JSON object."));

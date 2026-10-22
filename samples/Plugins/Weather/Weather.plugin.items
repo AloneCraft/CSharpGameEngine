@@ -1,0 +1,11 @@
+<Project>
+  <!-- What the Weather plugin adds to the game (ADR-0079): its Runtime sources, manifest, scenes and assets. -->
+  <Import Project="$(MSBuildThisFileDirectory)Runtime\Weather.Runtime.projitems" Label="Shared" />
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Weather.cgeplugin" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Scenes\**\*.json" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Assets\**\*.cgeasset;$(MSBuildThisFileDirectory)Assets\**\*.wav;$(MSBuildThisFileDirectory)Assets\**\*.glb;$(MSBuildThisFileDirectory)Assets\**\*.png" />
+    <!-- At run time the assets are where the catalog says: Plugins\Weather\Assets\... next to the game. -->
+    <None Include="$(MSBuildThisFileDirectory)Assets\**\*" Link="Plugins\Weather\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

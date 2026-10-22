@@ -101,8 +101,11 @@ internal static class GameProjectGenerator {
         return Created;
     }
 
-    /// <summary>The game project file: Game.props conventions arrive through the SDK package; only what restore needs is local.</summary>
-    internal static string ProjectFile(string RootNamespace,string EngineVersion)=>
+    /// <summary>
+    /// The game project file: Game.props conventions arrive through the SDK package; only what restore needs is local, plus the
+    /// engine plugins the template uses (<paramref name="Plugins"/>, the template's <c>CgePlugins</c>; ADR-0079).
+    /// </summary>
+    internal static string ProjectFile(string RootNamespace,string EngineVersion,string Plugins="")=>
         "<Project Sdk=\"Microsoft.NET.Sdk\">\r\n"
         +"  <!-- C# Game Engine game project. The CSharpGameEngine.Sdk package supplies the runtime, the ECS generator, the default shaders and the build conventions. -->\r\n"
         +"  <PropertyGroup>\r\n"
@@ -110,11 +113,28 @@ internal static class GameProjectGenerator {
         +"    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>\r\n"
         +"    <RuntimeIdentifier>win-x64</RuntimeIdentifier>\r\n"
         +"    <RootNamespace>"+RootNamespace+"</RootNamespace>\r\n"
+        +(Plugins.Length==0?string.Empty:"    <CgePlugins>"+Plugins+"</CgePlugins>\r\n")
         +"  </PropertyGroup>\r\n"
         +"  <ItemGroup>\r\n"
         +"    <PackageReference Include=\""+SdkPackageId+"\" Version=\""+EngineVersion+"\" />\r\n"
         +"  </ItemGroup>\r\n"
         +"</Project>\r\n";
+
+    /// <summary>
+    /// The engine plugins a template source project enables: the value of its <c>&lt;CgePlugins&gt;</c>, or empty (ADR-0079). The template's
+    /// own project file is the one place this is written, so the generated project and the template build the same game.
+    /// </summary>
+    internal static string PluginsOf(string TemplateDirectory){
+        foreach(var ProjectPath in Directory.EnumerateFiles(TemplateDirectory,"*.csproj",SearchOption.TopDirectoryOnly)){
+            var Text=File.ReadAllText(ProjectPath);
+            const string Open="<CgePlugins>";
+            var Start=Text.IndexOf(Open,StringComparison.Ordinal);
+            if(Start<0){ continue; }
+            var End=Text.IndexOf("</CgePlugins>",Start,StringComparison.Ordinal);
+            if(End>Start){ return Text.Substring(Start+Open.Length,End-Start-Open.Length).Trim(); }
+        }
+        return string.Empty;
+    }
 
     /// <summary>Adds the local engine package feed to the user's configured sources (the engine's dependencies still come from them).</summary>
     internal static string NuGetConfig(string FeedDirectory)=>
@@ -188,7 +208,7 @@ internal static class GameProjectGenerator {
         Directory.CreateDirectory(ProjectDirectory);
         CopySources(TemplateDirectory,ProjectDirectory,RootNamespace,TemplateName);
         var ProjectPath=Path.Combine(ProjectDirectory,ProjectName+".csproj");
-        File.WriteAllText(ProjectPath,ProjectFile(RootNamespace,EngineVersion),new UTF8Encoding(false));
+        File.WriteAllText(ProjectPath,ProjectFile(RootNamespace,EngineVersion,PluginsOf(TemplateDirectory)),new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(ProjectDirectory,"nuget.config"),NuGetConfig(FeedDirectory),new UTF8Encoding(false));
         return ProjectPath;
     }

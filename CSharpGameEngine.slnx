@@ -165,6 +165,7 @@
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
+    <Project Path="src/CSharpGameEngine.Cooking/CSharpGameEngine.Cooking.csproj" />
     <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
@@ -220,6 +221,7 @@
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Cook.Tests/CSharpGameEngine.Cook.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.FeatureRunner.Tests/CSharpGameEngine.FeatureRunner.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
@@ -232,6 +234,26 @@
     <Project Path="tests/CSharpGameEngine.ShaderGraph.Cli.Tests/CSharpGameEngine.ShaderGraph.Cli.Tests.csproj">
       <Platform Project="x64" />
     </Project>
+  </Folder>
+  <Folder Name="/plugins/CSharpGameEngine.Vehicles/">
+    <File Path="plugins/CSharpGameEngine.Vehicles/Vehicles.cgeplugin" />
+    <File Path="plugins/CSharpGameEngine.Vehicles/Vehicles.plugin.props" />
+    <File Path="plugins/CSharpGameEngine.Vehicles/Vehicles.plugin.items" />
+    <Project Path="plugins/CSharpGameEngine.Vehicles/Runtime/CSharpGameEngine.Vehicles.Runtime.shproj" />
+    <File Path="plugins/CSharpGameEngine.Vehicles/Runtime/CSharpGameEngine.Vehicles.Runtime.projitems" />
+  </Folder>
+  <Folder Name="/samples/Plugins/Weather/">
+    <File Path="samples/Plugins/Weather/Weather.cgeplugin" />
+    <File Path="samples/Plugins/Weather/Weather.plugin.props" />
+    <File Path="samples/Plugins/Weather/Weather.plugin.items" />
+    <File Path="samples/Plugins/Weather/Assets/Storm.cgeasset" />
+    <File Path="samples/Plugins/Weather/Scenes/Weather.json" />
+    <Project Path="samples/Plugins/Weather/Runtime/Weather.Runtime.shproj" />
+    <File Path="samples/Plugins/Weather/Runtime/Weather.Runtime.projitems" />
+  </Folder>
+  <Folder Name="/samples/Plugins/Lightning/">
+    <Project Path="samples/Plugins/CSharpGameEngine.Samples.Lightning/CSharpGameEngine.Samples.Lightning.csproj" />
+    <File Path="samples/Plugins/CSharpGameEngine.Samples.Lightning/plugin/Runtime/Lightning.Runtime.projitems" />
   </Folder>
   <Folder Name="/packaging/">
     <Project Path="packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj" />
@@ -266,6 +288,7 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="tools/CSharpGameEngine.SceneJson.Cli/CSharpGameEngine.SceneJson.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.Cook.Cli/CSharpGameEngine.Cook.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.SceneSchema.Cli/CSharpGameEngine.SceneSchema.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj">
       <Platform Project="x64" />

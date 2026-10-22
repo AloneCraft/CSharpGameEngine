@@ -9,6 +9,8 @@
     <CgeEngineRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))\</CgeEngineRoot>
     <CgeShaderGraphCliExe>$(CgeEngineRoot)tools\ShaderGraph\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
     <CgeSceneSchemaCli>$(CgeEngineRoot)tools\SceneSchema\CSharpGameEngine.SceneSchema.Cli.dll</CgeSceneSchemaCli>
+    <!-- ADR-0079: run a plugin's Cook module with "dotnet $(CgeCookCli) cook <module.dll> <input> <output-directory>". -->
+    <CgeCookCli>$(CgeEngineRoot)tools\Cook\CSharpGameEngine.Cook.Cli.dll</CgeCookCli>
   </PropertyGroup>
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Game.props" />
 </Project>

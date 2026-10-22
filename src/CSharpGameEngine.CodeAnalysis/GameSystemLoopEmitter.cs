@@ -51,6 +51,9 @@ internal static class GameSystemLoopEmitter {
         foreach(string ReadField in Plan.EventReads.Values){
             Lines.Add($"    internal int {ReadField};");
         }
+        foreach(KeyValuePair<string,string> Service in Plan.Services){
+            Lines.Add($"    internal {Service.Key}? {Service.Value};");
+        }
         Lines.Add("}");
         Lines.Add("internal static class GeneratedGameLoop {");
         // ADR-0077 stage 6: events live for one frame. Every entry that begins a frame or a tick run drops them.
@@ -58,6 +61,15 @@ internal static class GameSystemLoopEmitter {
         foreach(string EventField in Plan.Events.Values){ Lines.Add($"        Systems.{EventField}?.Clear();"); }
         foreach(string ReadField in Plan.EventReads.Values){ Lines.Add($"        Systems.{ReadField} = 0;"); }
         Lines.Add("    }");
+        // ADR-0079: the [EngineService] objects are disposed at shutdown, in reverse field order (the fields are sorted by type name).
+        if(Plan.Services.Count>0){
+            Lines.Add("    internal static void DisposeServices(ref GeneratedSystemSet Systems) {");
+            foreach(string ServiceField in Plan.Services.Values.Reverse()){
+                Lines.Add($"        if (Systems.{ServiceField} is global::System.IDisposable {ServiceField}Disposable) {ServiceField}Disposable.Dispose();");
+                Lines.Add($"        Systems.{ServiceField} = null;");
+            }
+            Lines.Add("    }");
+        }
         Lines.Add($"    private static void RunSimulationTick({BuildSimulationTickParameterList(Contexts)}) {{");
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, EditorOnly, RealtimeOnly);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
@@ -164,6 +176,7 @@ internal static class GameSystemLoopEmitter {
             Lines.AddRange(BuildShutdown(Systems.Where(static Binding=>Binding.System.ExecuteInEditor).Reverse(),Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn,Plan));
             Lines.Add("        } finally {");
             Lines.Add("            State.World.EndSystemExecution();");
+            if(Plan.Services.Count>0){ Lines.Add("            DisposeServices(ref Systems);"); }
             Lines.Add("        }");
             Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
             Lines.Add("    }");
@@ -175,6 +188,7 @@ internal static class GameSystemLoopEmitter {
         Lines.AddRange(BuildShutdown(Systems.AsEnumerable().Reverse(),Registry,Contexts,ComponentIndexByType,FieldNameByComponentFqn,ContextNameByFqn,Plan));
         Lines.Add("        } finally {");
         Lines.Add("            State.World.EndSystemExecution();");
+        if(Plan.Services.Count>0){ Lines.Add("            DisposeServices(ref Systems);"); }
         Lines.Add("        }");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("    }");
@@ -210,7 +224,6 @@ internal static class GameSystemLoopEmitter {
         Dictionary<string,int> ComponentIndexByType,Dictionary<string,string> FieldNameByComponentFqn,
         Dictionary<string,string> ContextNameByFqn,LoopPlan Plan){
         List<string> Lines=[];
-        var WideMask=Registry.ComponentsByIndex.Length>64;
         foreach(GameSystemMethodModel Method in Binding.System.Methods){
             if(Method.Role!=GameSystemMethodRole.Dispatch){ continue; }
             foreach(GameSystemResourceParameterModel Resource in Method.Resources){
@@ -240,12 +253,12 @@ internal static class GameSystemLoopEmitter {
                     :$"            Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
                 continue;
             }
-            MethodComponentMask MethodMask=BuildMethodMask(Method,ComponentIndexByType);
+            var MethodMask=ComponentMask.Build(Method.Components.Select(Component=>ComponentIndexByType[Component.TypeFullyQualifiedName]),Registry.MaskWordCount);
             foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
-                if(!Contains(Archetype,MethodMask,WideMask)){ continue; }
+                if(!ComponentMask.Contains(Archetype.Mask,MethodMask)){ continue; }
                 Lines.Add($"            for (var Index = State.World.{Archetype.Name}.Count - 1; Index >= 0; Index--) {{");
                 Lines.Add("                if (!State.Enabled) return;");
-                Lines.Add($"                if (!State.World.{Archetype.Name}.IsEntityEnabledUnchecked(Index) || !State.World.{Archetype.Name}.AreComponentsEnabledUnchecked(Index, 0x{MethodMask.Low:X16}UL{(WideMask?$", 0x{MethodMask.High:X16}UL":string.Empty)})) continue;");
+                Lines.Add($"                if (!State.World.{Archetype.Name}.IsEntityEnabledUnchecked(Index) || !State.World.{Archetype.Name}.AreComponentsEnabledUnchecked(Index, {ComponentMask.Literals(MethodMask)})) continue;");
                 Lines.AddRange(BuildRelationResolution(Method,Archetype,"                ",FieldNameByComponentFqn));
                 if(Method.Components.Any(static Component=>!Component.IsReadOnly)){
                     Lines.Add("                var Version = State.World.AdvanceChangeVersion();");
@@ -268,7 +281,6 @@ internal static class GameSystemLoopEmitter {
         Dictionary<string,int> ComponentIndexByType,Dictionary<string,string> FieldNameByComponentFqn,
         Dictionary<string,string> ContextNameByFqn,LoopPlan Plan){
         List<string> Lines=[];
-        var WideMask=Registry.ComponentsByIndex.Length>64;
         foreach(SystemBinding Binding in Systems){
             foreach(GameSystemMethodModel Method in Binding.System.Methods.Reverse()){
                 if(Method.Role!=GameSystemMethodRole.Shutdown){ continue; }
@@ -276,12 +288,12 @@ internal static class GameSystemLoopEmitter {
                     Lines.Add($"        Systems.{Binding.VariableName}.Shutdown({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
                     continue;
                 }
-                MethodComponentMask MethodMask=BuildMethodMask(Method,ComponentIndexByType);
+                var MethodMask=ComponentMask.Build(Method.Components.Select(Component=>ComponentIndexByType[Component.TypeFullyQualifiedName]),Registry.MaskWordCount);
                 for(int ArchetypeIndex=Registry.Archetypes.Length-1;ArchetypeIndex>=0;ArchetypeIndex--){
                     GameSystemArchetypeInfo Archetype=Registry.Archetypes[ArchetypeIndex];
-                    if(!Contains(Archetype,MethodMask,WideMask)){ continue; }
+                    if(!ComponentMask.Contains(Archetype.Mask,MethodMask)){ continue; }
                     Lines.Add($"        for (var Index = State.World.{Archetype.Name}.Count - 1; Index >= 0; Index--) {{");
-                    Lines.Add($"            if (!State.World.{Archetype.Name}.IsEntityEnabledUnchecked(Index) || !State.World.{Archetype.Name}.AreComponentsEnabledUnchecked(Index, 0x{MethodMask.Low:X16}UL{(WideMask?$", 0x{MethodMask.High:X16}UL":string.Empty)})) continue;");
+                    Lines.Add($"            if (!State.World.{Archetype.Name}.IsEntityEnabledUnchecked(Index) || !State.World.{Archetype.Name}.AreComponentsEnabledUnchecked(Index, {ComponentMask.Literals(MethodMask)})) continue;");
                     Lines.AddRange(BuildRelationResolution(Method,Archetype,"            ",FieldNameByComponentFqn));
                     if(Method.Components.Any(static Component=>!Component.IsReadOnly)){
                         Lines.Add("            var Version = State.World.AdvanceChangeVersion();");
@@ -317,7 +329,12 @@ internal static class GameSystemLoopEmitter {
                     Arguments.Add("ref State");
                     break;
                 case GameSystemParameterRole.Service:
-                    Arguments.Add($"{ContextNameByFqn[EngineHostTypeName]}.{Method.Services[Slot.Index].PropertyName}");
+                    GameSystemServiceParameterModel Service=Method.Services[Slot.Index];
+                    Arguments.Add(Service.Source switch{
+                        GameSystemServiceSource.Parameterless=>$"(Systems.{Plan.Services[Service.TypeFullyQualifiedName]} ??= new {Service.TypeFullyQualifiedName}())",
+                        GameSystemServiceSource.TakesHost=>$"(Systems.{Plan.Services[Service.TypeFullyQualifiedName]} ??= new {Service.TypeFullyQualifiedName}({ContextNameByFqn[EngineHostTypeName]}))",
+                        _=>$"{ContextNameByFqn[EngineHostTypeName]}.{Service.PropertyName}",
+                    });
                     break;
                 case GameSystemParameterRole.EventRead:
                     Arguments.Add($"in {Method.EventReads[Slot.Index].ParameterName}Value");
@@ -351,27 +368,6 @@ internal static class GameSystemLoopEmitter {
         return Lines;
     }
 
-    private static MethodComponentMask BuildMethodMask(GameSystemMethodModel Method,Dictionary<string,int> ComponentIndexByType){
-        ulong Low=0;
-        ulong High=0;
-        foreach(GameSystemComponentParameterModel Component in Method.Components){
-            var Index=ComponentIndexByType[Component.TypeFullyQualifiedName];
-            if(Index<64){ Low|=1UL<<Index; }
-            else { High|=1UL<<(Index-64); }
-        }
-        return new MethodComponentMask(Low,High);
-    }
-
-    private static bool Contains(GameSystemArchetypeInfo Archetype,MethodComponentMask Method,bool WideMask){
-        if((Archetype.MaskLow&Method.Low)!=Method.Low){ return false; }
-        return !WideMask||(Archetype.MaskHigh&Method.High)==Method.High;
-    }
-
-    private readonly struct MethodComponentMask(ulong Low,ulong High){
-        internal readonly ulong Low=Low;
-        internal readonly ulong High=High;
-    }
-
     private readonly struct SystemBinding(string TypeReference,string VariableName,GameSystemResult System){
         internal readonly string TypeReference=TypeReference;
         internal readonly string VariableName=VariableName;
@@ -391,11 +387,15 @@ internal static class GameSystemLoopEmitter {
         return Systems;
     }
 
-    /// <summary>The extra fields of <c>GeneratedSystemSet</c> the loop needs (ADR-0077): input resources, event queues and read positions.</summary>
+    /// <summary>
+    /// The extra fields of <c>GeneratedSystemSet</c> the loop needs: input resources, event queues and read positions (ADR-0077), and the
+    /// [EngineService] objects (ADR-0079).
+    /// </summary>
     private sealed class LoopPlan {
         internal readonly Dictionary<string,string> Resources=new(StringComparer.Ordinal);
         internal readonly Dictionary<string,string> Events=new(StringComparer.Ordinal);
         internal readonly Dictionary<string,string> EventReads=new(StringComparer.Ordinal);
+        internal readonly Dictionary<string,string> Services=new(StringComparer.Ordinal);
     }
 
     private static string ReadKey(GameSystemResult System,GameSystemMethodModel Method)=>System.ClassFullyQualifiedName+"#"+Method.DeclarationPosition;
@@ -404,8 +404,12 @@ internal static class GameSystemLoopEmitter {
         LoopPlan Plan=new();
         SortedSet<string> ResourceTypes=new(StringComparer.Ordinal);
         SortedSet<string> EventTypes=new(StringComparer.Ordinal);
+        SortedSet<string> ServiceTypes=new(StringComparer.Ordinal);
         foreach(GameSystemResult System in SourceSystems){
             foreach(GameSystemMethodModel Method in System.Methods){
+                foreach(GameSystemServiceParameterModel Service in Method.Services){
+                    if(Service.Source!=GameSystemServiceSource.HostProperty){ ServiceTypes.Add(Service.TypeFullyQualifiedName); }
+                }
                 foreach(GameSystemResourceParameterModel Resource in Method.Resources){ ResourceTypes.Add(Resource.TypeFullyQualifiedName); }
                 foreach(GameSystemEventParameterModel Event in Method.EventReads){ EventTypes.Add(Event.EventTypeFullyQualifiedName); }
                 foreach(GameSystemEventParameterModel Event in Method.EventWrites){ EventTypes.Add(Event.EventTypeFullyQualifiedName); }
@@ -413,6 +417,7 @@ internal static class GameSystemLoopEmitter {
         }
         foreach(string Type in ResourceTypes){ Plan.Resources[Type]="Input"+Plan.Resources.Count; }
         foreach(string Type in EventTypes){ Plan.Events[Type]="Events"+Plan.Events.Count; }
+        foreach(string Type in ServiceTypes){ Plan.Services[Type]="Service"+Plan.Services.Count; }
         foreach(GameSystemResult System in SourceSystems){
             foreach(GameSystemMethodModel Method in System.Methods){
                 if(Method.EventReads.Length>0){ Plan.EventReads[ReadKey(System,Method)]="EventRead"+Plan.EventReads.Count; }

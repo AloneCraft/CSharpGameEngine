@@ -3451,13 +3451,13 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: ECS Runtime / Planetary World
 - Status: Implemented
-- Verification: Automated; `foundation.extended-ecs-mask` executes the 64/65/128 boundaries and 129-type diagnostic
-- Intended specification: `Docs/Feature-Stages.md#基盤stageと64型上限`
+- Verification: Automated; `foundation.extended-ecs-mask` executes the 64/65/128/129/200/512 boundaries and 513-type diagnostic
+- Intended specification: `Docs/Feature-Stages.md#基盤stageと512型上限`
 - Stage: `foundation.extended-ecs-mask` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-021
-- Current behavior: `GameSystemIndexAssigner.MaxComponentTypes` is 128. Generator-time subset selection uses only the low word for 1–64 types and low/high words for 65–128; generated Runtime dispatch remains direct Archetype loops with no runtime mask matching.
-- Target behavior: preserve the 1–64 low-word path, execute 65–128 without high/low aliasing, and emit SYSGEN026 for 129 or more.
-- Conformance: Matches the required 128-type planetary workload; 65 and 128 compile and execute high-component queries in the automated oracle.
+- Current behavior: `GameSystemIndexAssigner.MaxComponentTypes` is 512 (ADR-0079: plugins share the budget; it was 128). Generator-time subset selection uses only the low word for 1–64 types, low/high words for 65–128, and one more word per further 64 types (`ComponentMask`); the 1–128 generated code is unchanged. Generated Runtime dispatch remains direct Archetype loops with no runtime mask matching.
+- Target behavior: preserve the 1–64 low-word path, execute 65–512 without aliasing between words, and emit SYSGEN026 for 513 or more.
+- Conformance: Matches the required 128-type planetary workload and the plugin budget; 65, 128, 129, 200 and 512 compile and execute high-component queries in the automated oracle.
 - Next action: include the executable Stage in clean Debug/Release and stress closure.
 
 ## F-L1-009 — Canonical LogicalScalar and float boundary
@@ -4657,3 +4657,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）の全 Blueprint を書き出し、疑似コードにして、挙動仕様の表にした。実装は M0103 以降（ADR-0078 §4）。
 - Conformance: Matches
 - Next action: M0103（プラグインとアセットの仕組み、ADR-0079）。
+
+## F-L7-052 — プラグインとデータアセット
+
+- Layer: L7 — Static Compiler / Bake（生成器と取り込み）、L5（プラグインの Runtime）、L8（パレットとスキーマ）
+- Parent capability: ECS Source Generator / SDK package
+- Status: Implemented（Cook のビルド中の実行と VSIX のボタン、データアセットの Designer での編集は未実装）
+- Verification: TestVerified + 実走（`verify-plugin-package`、`verify-template-package --template Vehicle`、WARP）
+- Intended specification: `Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Milestones/M0103-Plugins-And-Assets.md`
+- Implementation evidence:
+  - `build/CSharpGameEngine.Game.targets`、`build/CSharpGameEngine.Version.props`、`plugins/CSharpGameEngine.Vehicles/`、`samples/Plugins/`
+  - `src/CSharpGameEngine.CodeAnalysis/PluginManifest.cs`、`PluginManifestAnalyzer.cs`、`ComponentMask.cs`、`AssetCatalogEmitter.cs`、`GameSystemAnalyzer.cs`（`[EngineService]`）、`GameSystemLoopEmitter.cs`
+  - `src/CSharpGameEngine.SceneModel/Json/SceneFiles.cs`（`PluginRoot`、`GeneratorPath`）、`SceneJsonSceneAnalyzer.cs`（`AnalyzeDataAsset`）、`SceneJsonSchemaBuilder.cs`
+  - `src/CSharpGameEngine.Core/Authoring/EngineServiceAttribute.cs`、`DataAssetAttribute.cs`、`PluginLibraryAttribute.cs`
+  - `src/CSharpGameEngine.Cooking/`、`tools/CSharpGameEngine.Cook.Cli/`
+  - `tools/CSharpGameEngine.FeatureRunner/PluginPackageVerification.cs`、`TemplatePackageVerification.cs`（`--template`）
+- Tests: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`（129/200/512）、`GameSystemGeneratorDiagnosticsTests`（名前の重なり）、`SceneFilesTests`、`SceneComponentCatalogTests`、`GameProjectGeneratorTests`、`CookerHostTests`、`PluginPackageVerificationTests`
+- Current delta: 3 つの置き場所のプラグイン、`[EngineService]`、`[DataAsset]`、Library の DLL、Cook の CLI、Component の上限 512、エンジンのプラグイン Vehicles、`#`・`;` を含むフォルダのゲーム。
+- Conformance: Matches（Cook と Designer の残りは文書化した未実装）
+- Next action: M0104（画面 UI）。Cook の実際の利用は M0106（ナビメッシュ）。

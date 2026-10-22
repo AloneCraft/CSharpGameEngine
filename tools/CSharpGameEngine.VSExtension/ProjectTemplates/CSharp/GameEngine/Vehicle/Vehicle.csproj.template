@@ -5,6 +5,7 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RootNamespace>$safeprojectname$</RootNamespace>
+    <CgePlugins>Vehicles</CgePlugins>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CSharpGameEngine.Sdk" Version="$cgeengineversion$" />

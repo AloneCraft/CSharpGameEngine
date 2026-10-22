@@ -9,8 +9,15 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 internal sealed class SceneProjectOptions:AnalyzerConfigOptionsProvider {
     internal const string ProjectDirectory=@"C:\Game\";
     internal const string ScenesDirectory=ProjectDirectory+@"Scenes\";
+    /// <summary>An enabled engine plugin named Vehicles (ADR-0079), outside the project folder as in a real build.</summary>
+    internal const string EnginePluginDirectory=@"C:\Engine\plugins\CSharpGameEngine.Vehicles\";
+    internal const string EngineVersion="0.1.16";
     internal static readonly SceneProjectOptions Instance=new();
-    private static readonly Options Global=new(new(){ ["build_property.ProjectDir"]=ProjectDirectory });
+    private static readonly Options Global=new(new(){
+        ["build_property.ProjectDir"]=ProjectDirectory,
+        ["build_property.CgePluginRootsEncoded"]="|Vehicles="+EnginePluginDirectory,
+        ["build_property.CgeEngineVersion"]=EngineVersion,
+    });
     private static readonly Options Empty=new([]);
     public override AnalyzerConfigOptions GlobalOptions=>Global;
     public override AnalyzerConfigOptions GetOptions(SyntaxTree Tree)=>Empty;

@@ -7,23 +7,24 @@ namespace CSharpGameEngine.CodeAnalysis;
 
 internal readonly struct GameSystemScheduleEntryModel(
         int SystemIndex,GameSystemResult System,int Wave,
-        ulong ReadLow,ulong ReadHigh,ulong WriteLow,ulong WriteHigh,
+        ImmutableArray<ulong>Read,ImmutableArray<ulong>Write,
         ImmutableArray<int>Predecessors) {
     internal readonly int SystemIndex=SystemIndex;
     internal readonly GameSystemResult System=System;
     internal readonly int Wave=Wave;
-    internal readonly ulong ReadLow=ReadLow;
-    internal readonly ulong ReadHigh=ReadHigh;
-    internal readonly ulong WriteLow=WriteLow;
-    internal readonly ulong WriteHigh=WriteHigh;
+    /// <summary>読むComponentと書くComponentのビット(<see cref="GameSystemScheduleModel.WordCount"/>語)。</summary>
+    internal readonly ImmutableArray<ulong>Read=Read;
+    internal readonly ImmutableArray<ulong>Write=Write;
     internal readonly ImmutableArray<int>Predecessors=Predecessors;
 }
 
 internal readonly struct GameSystemScheduleModel(
         ImmutableArray<GameSystemScheduleEntryModel>Entries,
-        ImmutableArray<Diagnostic>Diagnostics) {
+        ImmutableArray<Diagnostic>Diagnostics,
+        int WordCount=GameSystemScheduleAnalyzer.MinimumWordCount) {
     internal readonly ImmutableArray<GameSystemScheduleEntryModel>Entries=Entries;
     internal readonly ImmutableArray<Diagnostic>Diagnostics=Diagnostics;
+    internal readonly int WordCount=WordCount;
     internal bool CanEmit=>this.Diagnostics.IsEmpty;
 }
 
@@ -32,7 +33,11 @@ internal readonly struct GameSystemScheduleModel(
 /// the same per-phase graph as execution order (ADR-0073): an unscheduled system in between still orders them.
 /// </summary>
 internal static class GameSystemScheduleAnalyzer {
+    /// <summary>The schedule entries always carry at least the Low and High words (their shape before ADR-0079 widened the mask).</summary>
+    internal const int MinimumWordCount=2;
+
     internal static GameSystemScheduleModel Build(GameSystemRegistry Registry){
+        var WordCount=Math.Max(MinimumWordCount,Registry.MaskWordCount);
         GameSystemResult[]All=[.. Registry.ValidSystems];
         List<int>[]AllDependents=GameSystemExecutionOrder.SamePhaseDependents(All);
         // A cycle is SYSGEN034 (GameSystemExecutionOrder.Validate); there is no schedule to build.
@@ -49,11 +54,11 @@ internal static class GameSystemScheduleAnalyzer {
             static Component=>Component.TypeFullyQualifiedName,
             static Component=>Component.Index,
             StringComparer.Ordinal);
-        AccessMask[]Accesses=[.. Scheduled.Select(Index=>BuildAccessMask(All[Index],ComponentIndexByType))];
+        AccessMask[]Accesses=[.. Scheduled.Select(Index=>BuildAccessMask(All[Index],ComponentIndexByType,WordCount))];
         List<Diagnostic>Diagnostics=[];
         AddConflictDiagnostics(All,Scheduled,AllDependents,Accesses,Registry.ComponentsByIndex,Diagnostics);
         if(Diagnostics.Count>0){
-            return new([], [.. Diagnostics]);
+            return new([], [.. Diagnostics],WordCount);
         }
         int[][]Predecessors=[.. Scheduled.Select(Index=>NearestScheduledPredecessors(Index,AllPredecessors,ScheduledIndexByAllIndex))];
         int[]Waves=new int[Scheduled.Length];
@@ -64,10 +69,10 @@ internal static class GameSystemScheduleAnalyzer {
             AccessMask Access=Accesses[Index];
             Entries.Add(new(
                 Index,All[Scheduled[Index]],Wave,
-                Access.ReadLow,Access.ReadHigh,Access.WriteLow,Access.WriteHigh,
+                Access.Read,Access.Write,
                 [.. Predecessors[Index]]));
         }
-        return new([.. Entries],[]);
+        return new([.. Entries],[],WordCount);
     }
 
     /// <summary>
@@ -92,25 +97,16 @@ internal static class GameSystemScheduleAnalyzer {
     }
 
     private static AccessMask BuildAccessMask(
-        GameSystemResult System,IReadOnlyDictionary<string,int>ComponentIndexByType){
-        ulong ReadLow=0;
-        ulong ReadHigh=0;
-        ulong WriteLow=0;
-        ulong WriteHigh=0;
+        GameSystemResult System,IReadOnlyDictionary<string,int>ComponentIndexByType,int WordCount){
+        List<int>Read=[];
+        List<int>Write=[];
         foreach(GameSystemMethodModel Method in System.Methods){
             if(Method.Role!=GameSystemMethodRole.Dispatch){ continue; }
             foreach(GameSystemComponentParameterModel Component in Method.Components){
-                var Index=ComponentIndexByType[Component.TypeFullyQualifiedName];
-                if(Component.IsReadOnly){
-                    if(Index<64){ ReadLow|=1UL<<Index; }
-                    else { ReadHigh|=1UL<<(Index-64); }
-                } else {
-                    if(Index<64){ WriteLow|=1UL<<Index; }
-                    else { WriteHigh|=1UL<<(Index-64); }
-                }
+                (Component.IsReadOnly?Read:Write).Add(ComponentIndexByType[Component.TypeFullyQualifiedName]);
             }
         }
-        return new(ReadLow,ReadHigh,WriteLow,WriteHigh);
+        return new(ComponentMask.Build(Read,WordCount),ComponentMask.Build(Write,WordCount));
     }
 
     /// <summary>
@@ -141,13 +137,11 @@ internal static class GameSystemScheduleAnalyzer {
     private static bool TryFindConflict(
         AccessMask Left,AccessMask Right,ImmutableArray<GameSystemComponentInfo>Components,
         out string ComponentName){
-        var Low=(Left.WriteLow&(Right.ReadLow|Right.WriteLow))
-            |(Right.WriteLow&(Left.ReadLow|Left.WriteLow));
-        var High=(Left.WriteHigh&(Right.ReadHigh|Right.WriteHigh))
-            |(Right.WriteHigh&(Left.ReadHigh|Left.WriteHigh));
         for(var Index=0;Index<Components.Length;Index++){
-            var Conflicts=Index<64?(Low&(1UL<<Index))!=0:(High&(1UL<<(Index-64)))!=0;
-            if(Conflicts){
+            var Word=ComponentMask.WordOf(Index);
+            var Conflict=(Left.Write[Word]&(Right.Read[Word]|Right.Write[Word]))
+                |(Right.Write[Word]&(Left.Read[Word]|Left.Write[Word]));
+            if((Conflict&(1UL<<ComponentMask.BitOf(Index)))!=0){
                 ComponentName=Components[Index].TypeFullyQualifiedName;
                 return true;
             }
@@ -201,44 +195,43 @@ internal static class GameSystemScheduleAnalyzer {
         return Wave;
     }
 
-    private readonly struct AccessMask(
-        ulong ReadLow,ulong ReadHigh,ulong WriteLow,ulong WriteHigh) {
-        internal readonly ulong ReadLow=ReadLow;
-        internal readonly ulong ReadHigh=ReadHigh;
-        internal readonly ulong WriteLow=WriteLow;
-        internal readonly ulong WriteHigh=WriteHigh;
+    private readonly struct AccessMask(ImmutableArray<ulong>Read,ImmutableArray<ulong>Write) {
+        internal readonly ImmutableArray<ulong>Read=Read;
+        internal readonly ImmutableArray<ulong>Write=Write;
     }
 }
 
 internal static class GameSystemScheduleEmitter {
     internal static void Emit(SourceProductionContext Context,GameSystemScheduleModel Schedule){
         if(!Schedule.CanEmit){ return; }
+        // ReadLow, ReadHigh, (ReadWord2, ...), WriteLow, WriteHigh, (WriteWord2, ...).
+        string[]Fields=[
+            .. Enumerable.Range(0,Schedule.WordCount).Select(static Word=>"Read"+ComponentMask.WordName(Word)),
+            .. Enumerable.Range(0,Schedule.WordCount).Select(static Word=>"Write"+ComponentMask.WordName(Word)),
+        ];
         List<string>Lines=[
             "// <auto-generated/>",
             "#nullable enable",
             "namespace CSharpGameEngine.Generated;",
             "internal readonly struct GeneratedSystemScheduleEntry {",
-            "    internal GeneratedSystemScheduleEntry(int SystemIndex, int Phase, int Wave, int PredecessorStart, int PredecessorCount, ulong ReadLow, ulong ReadHigh, ulong WriteLow, ulong WriteHigh) {",
+            "    internal GeneratedSystemScheduleEntry(int SystemIndex, int Phase, int Wave, int PredecessorStart, int PredecessorCount, "+string.Join(", ",Fields.Select(static Field=>"ulong "+Field))+") {",
             "        this.SystemIndex = SystemIndex; this.Phase = Phase; this.Wave = Wave;",
             "        this.PredecessorStart = PredecessorStart; this.PredecessorCount = PredecessorCount;",
-            "        this.ReadLow = ReadLow; this.ReadHigh = ReadHigh; this.WriteLow = WriteLow; this.WriteHigh = WriteHigh;",
+            "        "+string.Join(" ",Fields.Select(static Field=>$"this.{Field} = {Field};")),
             "    }",
             "    internal readonly int SystemIndex;",
             "    internal readonly int Phase;",
             "    internal readonly int Wave;",
             "    internal readonly int PredecessorStart;",
             "    internal readonly int PredecessorCount;",
-            "    internal readonly ulong ReadLow;",
-            "    internal readonly ulong ReadHigh;",
-            "    internal readonly ulong WriteLow;",
-            "    internal readonly ulong WriteHigh;",
+            .. Fields.Select(static Field=>$"    internal readonly ulong {Field};"),
             "}",
             "internal static class GeneratedSystemSchedule {",
             "    private static readonly GeneratedSystemScheduleEntry[] ScheduleEntries = [",
         ];
         var PredecessorStart=0;
         foreach(GameSystemScheduleEntryModel Entry in Schedule.Entries){
-            Lines.Add($"        new({Entry.SystemIndex}, {Entry.System.Phase}, {Entry.Wave}, {PredecessorStart}, {Entry.Predecessors.Length}, 0x{Entry.ReadLow:X16}UL, 0x{Entry.ReadHigh:X16}UL, 0x{Entry.WriteLow:X16}UL, 0x{Entry.WriteHigh:X16}UL),");
+            Lines.Add($"        new({Entry.SystemIndex}, {Entry.System.Phase}, {Entry.Wave}, {PredecessorStart}, {Entry.Predecessors.Length}, {ComponentMask.Literals(Entry.Read)}, {ComponentMask.Literals(Entry.Write)}),");
             PredecessorStart+=Entry.Predecessors.Length;
         }
         Lines.Add("    ];");

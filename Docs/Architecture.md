@@ -176,9 +176,24 @@ Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセ�
 
 UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.
 
-**Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way.
+**Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way. Vehicles are not one of them: they are the engine plugin `plugins/CSharpGameEngine.Vehicles`, compiled into the games that enable it (ADR-0079).
 
 **How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `Templates/CSharpGameEngine.Templates.ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
+
+## プラグイン(ADR-0079)
+
+プラグインは、エンジンの外から機能を足す単位で、ゲームのプロジェクトの `Plugins/<名前>`、エンジンの `plugins/`(SDK パッケージに同梱)、NuGet パッケージの 3 か所に置ける。仕様は `Docs/Specifications/Plugins-And-Assets.md`。
+
+| モジュール | 形 | レイヤー |
+|---|---|---|
+| Runtime | 共有ソース(`.projitems`)。ゲームと同じコンパイルに入る。Component、System、`[EngineService]`、イベント | L5(ゲームの中ではエンジンの Runtime.* と同じ扱い) |
+| Library | DLL(`[assembly: PluginLibrary]`)。`World`・`State`・`Entity`・`ISystem` を名指ししない | L4〜L5 |
+| Cook | DLL(`IAssetCooker`)。`CSharpGameEngine.Cook.Cli` が別のプロセスで動かす | L7 |
+| エディタの宣言 | 属性(アイコン、表示順) | L8 が読む |
+
+- ECS のコードがソースでしか足せないのは、`World` と `State` が生成器の完成させる partial 型で、Archetype の空間がゲームごとに 1 つだからである。生成器は 1 つで、ユーザーは生成器を足さない。
+- エンジンのプラグイン: Vehicles(`plugins/CSharpGameEngine.Vehicles`、UE の ChaosVehicles に当たる)。
+- 取り込みは `build/CSharpGameEngine.Game.targets`(プロジェクトファイルの後に読む)、エンジンの版は `build/CSharpGameEngine.Version.props`。
 
 ## Deterministic Simulation / Physics domains
 
@@ -198,7 +213,7 @@ The Rendering, Asset/Content, Editor/VSIX, ECS/Runtime, Audio/Input/Platform, an
 
 The target keeps Win32/D3D12/XAudio2 binding at L0, portable values at L1-L5, engine-owned runtime servers at L4, artifacts at L6, static compilers/bake at L7, and Visual Studio only at L8. Runtime L0-L6 must not reference Roslyn or Visual Studio SDK. Scene JSON under each project's `Scenes` folder is the scene source of truth (ADR-0070); artifacts/caches are reproducible and old readers are removed with an immediate feature cutover.
 
-ECS preserves the generated one-to-sixty-four-component single-`ulong` generator path with no runtime mask cost. F-L3-020 extends only the Source Generator subset test to a second `ulong` for 65–128 Component types; generated Runtime dispatch remains direct Archetype loops. The Feature catalog v2 records this as an executable foundation Stage alongside tracks, dependency Levels, dependency IDs, oracle-bearing target Stages, and Visual alias registration.
+ECS preserves the generated one-to-sixty-four-component single-`ulong` generator path with no runtime mask cost. F-L3-020 extends only the Source Generator subset test to a second `ulong` for 65–128 Component types, and ADR-0079 adds one word per further 64 types up to 512; generated Runtime dispatch remains direct Archetype loops. The Feature catalog v2 records this as an executable foundation Stage alongside tracks, dependency Levels, dependency IDs, oracle-bearing target Stages, and Visual alias registration.
 
 ## Autonomous Feature verification
 
@@ -213,4 +228,4 @@ ECS preserves the generated one-to-sixty-four-component single-`ulong` generator
 
 ### Static ECS mask boundary
 
-現行のComponent型上限は128である。Source GeneratorのArchetype部分集合判定は1–64型ではlow `ulong`だけを使い、65–128型でlow/high二語へ分岐する。生成Runtimeにはmask判定が残らず、129型以上はSYSGEN026で拒否する。
+現行のComponent型上限は512である(ADR-0079。プラグインがゲームと同じ番号の空間を使うため、128から広げた)。Source GeneratorのArchetype部分集合判定は64型ごとに1語の`ulong`を使い(`ComponentMask`、語の名前はLow・High・Word2…)、1–64型はlow一語、65–128型はlow/high二語で、この範囲の生成コードは広げる前と同じ文字列である。生成Runtimeにはmask判定が残らず、513型以上はSYSGEN026で拒否する。

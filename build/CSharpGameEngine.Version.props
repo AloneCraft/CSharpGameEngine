@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    The engine's version, in one place (ADR-0079). The SDK package takes it as its NuGet version, and Game.props passes it to the
+    generator (CgeEngineVersion) so a plugin manifest's EngineVersion range is checked against it (PLUGIN005).
+    Bump it with every change to the package contents: NuGet keeps using a version it has already extracted (ADR-0065).
+  -->
+  <PropertyGroup>
+    <CgeEngineVersion>0.1.16</CgeEngineVersion>
+  </PropertyGroup>
+</Project>

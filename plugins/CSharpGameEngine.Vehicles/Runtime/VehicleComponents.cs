@@ -1,7 +1,7 @@
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
-namespace CSharpGameEngine.Runtime.Character;
+namespace CSharpGameEngine.Vehicles;
 /// <summary>
 /// 簡易の車両モデル(ADR-0077)。UEのChaos Vehicleのような車輪ごとの物理ではなく、アーケード風に、前後の速度・横滑り・ハンドル・
 /// 接地を<see cref="LogicalScalar"/>で解く。値はメートル・秒・度。Transformの位置は車体の中心で、車は根のノードにする。

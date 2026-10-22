@@ -1,5 +1,5 @@
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Runtime.Character;
+using CSharpGameEngine.Vehicles;
 namespace CgeVehicle;
 /// <summary>
 /// BP_VehicleAdvPlayerControllerの操作に相当する。操作を車の望み(<c>VehicleIntent</c>)へ写すだけで、エンジン・ブレーキ・ハンドル・

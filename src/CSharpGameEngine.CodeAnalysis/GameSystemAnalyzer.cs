@@ -159,6 +159,27 @@ internal static class GameSystemAnalyzer {
     internal static bool IsEventStruct(ITypeSymbol Type)=>
         Type.TypeKind==TypeKind.Struct&&Type.AllInterfaces.Any(static Interface=>Interface.ToDisplayString()==EventInterfaceMetadataName);
 
+    internal const string EngineServiceAttributeMetadataName="CSharpGameEngine.Authoring.EngineServiceAttribute";
+
+    internal static bool IsEngineService(INamedTypeSymbol Type)=>
+        Type.TypeKind==TypeKind.Class&&Type.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==EngineServiceAttributeMetadataName);
+
+    /// <summary>
+    /// How the loop makes an [EngineService] class: a parameterless constructor, or one that takes the EngineHost. Null when it can do
+    /// neither (abstract, generic, no such constructor, or the constructor is not visible to the game).
+    /// </summary>
+    private static GameSystemServiceSource?ServiceSourceOf(INamedTypeSymbol Type,IAssemblySymbol GameAssembly){
+        if(Type.IsAbstract||Type.IsGenericType){ return null; }
+        var SameAssembly=SymbolEqualityComparer.Default.Equals(Type.ContainingAssembly,GameAssembly);
+        GameSystemServiceSource?Source=null;
+        foreach(IMethodSymbol Constructor in Type.InstanceConstructors){
+            if(!(Constructor.DeclaredAccessibility==Accessibility.Public||SameAssembly&&Constructor.DeclaredAccessibility==Accessibility.Internal)){ continue; }
+            if(Constructor.Parameters.Length==0){ return GameSystemServiceSource.Parameterless; }
+            if(Constructor.Parameters.Length==1&&Constructor.Parameters[0].Type.ToDisplayString()==EngineHostMetadataName){ Source=GameSystemServiceSource.TakesHost; }
+        }
+        return Source;
+    }
+
     private static int GetDeclarationPosition(ISymbol Symbol){
         Location Location=Symbol.Locations.FirstOrDefault()??Location.None;
         return Location.SourceSpan.Start;
@@ -419,6 +440,24 @@ internal static class GameSystemAnalyzer {
 
                 CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Service,Services.Count));
                 Services.Add(new GameSystemServiceParameterModel(Parameter.Name,ParameterTypeFqn,ServiceProperty.Name));
+                continue;
+            }
+
+            // ADR-0079: a class marked [EngineService] (a game's or a plugin's) is a service the generated loop owns: it is made
+            // on first use and passed to every system that names it.
+            if(Parameter.Type is INamedTypeSymbol ServiceType&&IsEngineService(ServiceType)){
+                if(Services.Any(Existing=>Existing.TypeFullyQualifiedName==ParameterTypeFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+                    IsValid=false;
+                    continue;
+                }
+                if(ServiceSourceOf(ServiceType,Method.ContainingAssembly) is not { }Source){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EngineServiceCannotBeMade,Parameter.Locations.FirstOrDefault(),ParameterTypeFqn));
+                    IsValid=false;
+                    continue;
+                }
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Service,Services.Count));
+                Services.Add(new GameSystemServiceParameterModel(Parameter.Name,ParameterTypeFqn,string.Empty,Source));
                 continue;
             }
 

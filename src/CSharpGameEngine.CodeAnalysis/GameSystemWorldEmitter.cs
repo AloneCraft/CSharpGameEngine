@@ -199,14 +199,15 @@ internal static class GameSystemWorldEmitter {
         Lines.Add("            default: return false;");
         Lines.Add("        }");
         Lines.Add("    }");
-        Lines.Add("    private void GetEffectiveEnableState(in EntityLocation Location, out bool EntityIsEnabled, out ulong Low"+(Registry.ComponentsByIndex.Length>64?", out ulong High":string.Empty)+") {");
+        var WordCount=Registry.MaskWordCount;
+        Lines.Add("    private void GetEffectiveEnableState(in EntityLocation Location, out bool EntityIsEnabled, "+string.Join(", ",Enumerable.Range(0,WordCount).Select(static Word=>"out ulong "+ComponentMask.WordName(Word)))+") {");
         Lines.Add("        switch (Location.Archetype) {");
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
             Lines.Add($"            case Archetype.{Archetype.Name}:");
             Lines.Add($"                EntityIsEnabled = this.{Archetype.Name}.IsEntityEnabledUnchecked(Location.Index);");
-            Lines.Add($"                Low = this.{Archetype.Name}.GetComponentEnabledLowUnchecked(Location.Index) | ~0x{Archetype.MaskLow:X16}UL;");
-            if(Registry.ComponentsByIndex.Length>64){
-                Lines.Add($"                High = this.{Archetype.Name}.GetComponentEnabledHighUnchecked(Location.Index) | ~0x{Archetype.MaskHigh:X16}UL;");
+            for(var Word=0;Word<WordCount;Word++){
+                var Name=ComponentMask.WordName(Word);
+                Lines.Add($"                {Name} = this.{Archetype.Name}.GetComponentEnabled{Name}Unchecked(Location.Index) | ~{ComponentMask.Literal(Archetype.Mask[Word])};");
             }
             Lines.Add("                return;");
         }
@@ -367,10 +368,10 @@ internal static class GameSystemWorldEmitter {
             $"            this.{Archetype.Name}.Overwrite(Location.Index, this.AdvanceChangeVersion(), {Parameters});",
             "            return;",
             "        }",
-            $"        this.GetEffectiveEnableState(in Location, out var EntityIsEnabled, out var EnabledLow{(Registry.ComponentsByIndex.Length>64?", out var EnabledHigh":string.Empty)});",
+            $"        this.GetEffectiveEnableState(in Location, out var EntityIsEnabled, {string.Join(", ",Enumerable.Range(0,Registry.MaskWordCount).Select(static Word=>"out var Enabled"+ComponentMask.WordName(Word)))});",
             $"        int DestinationIndex = this.{Archetype.Name}.Count;",
             $"        this.{Archetype.Name}.Add(Command.Entity, this.AdvanceChangeVersion(), {Parameters});",
-            $"        this.{Archetype.Name}.SetEnableStateUnchecked(DestinationIndex, EntityIsEnabled, EnabledLow & 0x{Archetype.MaskLow:X16}UL{(Registry.ComponentsByIndex.Length>64?$", EnabledHigh & 0x{Archetype.MaskHigh:X16}UL":string.Empty)});",
+            $"        this.{Archetype.Name}.SetEnableStateUnchecked(DestinationIndex, EntityIsEnabled, {string.Join(", ",Enumerable.Range(0,Registry.MaskWordCount).Select(Word=>$"Enabled{ComponentMask.WordName(Word)} & {ComponentMask.Literal(Archetype.Mask[Word])}"))});",
             "        this.Detach(Command.Entity);",
             // タプルごと代入するとSceneSlotが消えてArchetype移動でScene所有権を失う。必ずフィールド単位で更新する。
             "        ref var Updated = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);",

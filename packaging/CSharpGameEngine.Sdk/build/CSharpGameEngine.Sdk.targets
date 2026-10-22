@@ -3,4 +3,6 @@
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.ShaderGraph.targets" />
   <!-- The scene JSON Schema for editor warnings (ADR-0070). -->
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.SceneSchema.targets" />
+  <!-- The game's plugins (ADR-0079), after the project file so its CgePlugins is known. -->
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Game.targets" />
 </Project>

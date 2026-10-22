@@ -164,8 +164,8 @@ internal static class GameSystemDiagnostics {
 
     internal static readonly DiagnosticDescriptor ComponentSimpleNameCollision=new(
         id:"SYSGEN020",
-        title:"Two component types must not share a simple name",
-        messageFormat:"Component types '{0}' and '{1}' share the simple name '{2}'; generated Archetype fields would collide",
+        title:"Two component types must not share a generated name",
+        messageFormat:"Component types '{0}' and '{1}' would both be named '{2}' in the generated World; rename one of them",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
@@ -184,14 +184,13 @@ internal static class GameSystemDiagnostics {
         isEnabledByDefault:true);
 
     /// <summary>
-    /// Archetypeの一致判定はSource Generator内の二語の<c>ulong</c>マスクで行う。
-    /// 1–64型はlow wordだけ、65–128型はlow/high wordを使い、生成Runtimeへmask照合を残さない。
-    /// 129型目は表現できないため、ビットの折り返しで部分集合判定が壊れる前に明示的に拒否する。
+    /// Archetypeの一致判定はSource Generator内の<c>ulong</c>の語の並びで行う(<see cref="ComponentMask"/>)。
+    /// 1–64型は1語、65–128型は2語で、64型ごとに1語を足す。上限(ADR-0079で512)を超えたら明示的に拒否する。
     /// </summary>
     internal static readonly DiagnosticDescriptor TooManyComponentTypes=new(
         id:"SYSGEN026",
-        title:"A compilation must not declare more than 128 distinct component types",
-        messageFormat:"This compilation declares {0} distinct component types, but the archetype mask is 128 bits wide so at most {1} are supported",
+        title:"A compilation must not declare more distinct component types than the archetype mask holds",
+        messageFormat:"This compilation declares {0} distinct component types, but at most {1} are supported",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
@@ -311,6 +310,14 @@ internal static class GameSystemDiagnostics {
         messageFormat:"'{0}' receives {1}, but no system takes an EventWriter<{1}>, so it never runs",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Warning,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor EngineServiceCannotBeMade=new(
+        id:"SYSGEN043",
+        title:"An [EngineService] class needs a constructor the generated loop can call",
+        messageFormat:"'{0}' is an [EngineService], but it is abstract or generic, or has no public constructor that takes nothing or one EngineHost",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
     internal static void ReportAll(SourceProductionContext Context,GameSystemResult Result){

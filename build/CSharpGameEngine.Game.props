@@ -28,8 +28,12 @@
     <LangVersion Condition="'$(LangVersion)' == ''">14</LangVersion>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
+    <!-- ADR-0079: a project plugin's files come in through its <Name>.plugin.items (Game.targets), not the SDK's default globs:
+         its Library and Cook modules are separate assemblies and must not compile into the game. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Plugins\**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Version.props" />
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Physics\CSharpGameEngine.Runtime.Physics.projitems" Label="Shared" />
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Animation\CSharpGameEngine.Runtime.Animation.projitems" Label="Shared" />
@@ -48,7 +52,14 @@
     <!-- ADR-0077: the file list of Assets (not the contents) becomes the typed catalog Assets.* and lets the generator check
          the paths that scenes name. -->
     <AdditionalFiles Include="Assets\**\*.wav;Assets\**\*.glb;Assets\**\*.gltf;Assets\**\*.fbx;Assets\**\*.png;Assets\**\*.jpg;Assets\**\*.jpeg" Exclude="Assets\Editor\**" />
+    <!-- ADR-0079: a data asset's contents are read too; the generator compiles each into its [DataAsset] type's value. -->
+    <AdditionalFiles Include="Assets\**\*.cgeasset" />
     <CompilerVisibleProperty Include="ProjectDir" />
+    <!-- ADR-0079: the engine version a plugin manifest is checked against, and the project and enabled plugins' folders, encoded so
+         the .editorconfig keeps a '#' or ';' in them (CgeEncodeGeneratorPaths in Game.targets). -->
+    <CompilerVisibleProperty Include="CgeEngineVersion" />
+    <CompilerVisibleProperty Include="CgeProjectDirectory" />
+    <CompilerVisibleProperty Include="CgePluginRootsEncoded" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">

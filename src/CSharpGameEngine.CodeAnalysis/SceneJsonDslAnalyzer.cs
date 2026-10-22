@@ -74,8 +74,22 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
             return null;
         }
     }
+    /// <summary>
+    /// The project folder with <c>#</c> and <c>;</c> written as <c>?h</c> and <c>?s</c> (<see cref="GeneratorPath"/>); the build's ProjectDir
+    /// is cut at those characters by the .editorconfig reader, so it is only the fallback.
+    /// </summary>
+    internal const string EncodedProjectDirectoryProperty="build_property.CgeProjectDirectory";
+    /// <summary>The enabled plugins' folders (ADR-0079), <c>|Name=Folder</c> pairs encoded the same way; their <c>Scenes</c> folders hold scenes too.</summary>
+    internal const string PluginRootsProperty="build_property.CgePluginRootsEncoded";
     internal static bool IsSceneFile(string Path,AnalyzerConfigOptions GlobalOptions)=>
-        GlobalOptions.TryGetValue(ProjectDirectoryProperty,out var ProjectDirectory)&&SceneFiles.IsScene(Path,ProjectDirectory);
+        ProjectDirectoryOf(GlobalOptions) is { }ProjectDirectory
+        &&SceneFiles.IsScene(Path,ProjectDirectory,PluginRootsOf(GlobalOptions));
+    internal static string?ProjectDirectoryOf(AnalyzerConfigOptions GlobalOptions)=>
+        GlobalOptions.TryGetValue(EncodedProjectDirectoryProperty,out var Encoded)&&Encoded.Length>0?GeneratorPath.Decode(Encoded)
+        :GlobalOptions.TryGetValue(ProjectDirectoryProperty,out var ProjectDirectory)?ProjectDirectory
+        :null;
+    internal static IReadOnlyList<PluginRoot>PluginRootsOf(AnalyzerConfigOptions GlobalOptions)=>
+        PluginRoot.Parse(GlobalOptions.TryGetValue(PluginRootsProperty,out var Value)?Value:null);
     internal static Location Locate(string Path,SourceText Text,int Start,int End){
         var Length=Text.Length;
         var SpanStart=System.Math.Min(System.Math.Max(Start,0),Length);

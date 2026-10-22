@@ -1,0 +1,7 @@
+{
+  "Name": "Lightning",
+  "Version": "1.0.0",
+  "EngineVersion": ">=0.1.16",
+  "Description": "Sample package plugin (ADR-0079): a Library DLL with components, and a Runtime module with a system and an [EngineService].",
+  "Dependencies": []
+}

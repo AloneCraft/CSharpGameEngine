@@ -26,8 +26,11 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </para>
 /// </summary>
 internal static class GameSystemIndexAssigner {
-    /// <summary>二語のArchetypeマスクで表現できるComponent型数の上限(SYSGEN026)。</summary>
-    internal const int MaxComponentTypes=128;
+    /// <summary>
+    /// Component型数の上限(SYSGEN026)。マスクは64型ごとに1語を足す(<see cref="ComponentMask"/>)。プラグインがゲームと同じ番号の
+    /// 空間を使うため、二語(128)から八語に広げた(ADR-0079)。
+    /// </summary>
+    internal const int MaxComponentTypes=512;
 
     internal static GameSystemRegistry Assign(
         ImmutableArray<GameSystemResult>AllSystems,
@@ -86,7 +89,7 @@ internal static class GameSystemIndexAssigner {
 
         var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
 
-        // 129個目以降は二語のマスクで表現できないため、生成を明示的に拒否する。
+        // 上限を超えたら、生成を明示的に拒否する。
         if(ComponentTypesByIndex.Count>MaxComponentTypes){
             Diagnostics.Add(Diagnostic.Create(
                 GameSystemDiagnostics.TooManyComponentTypes,
@@ -99,45 +102,54 @@ internal static class GameSystemIndexAssigner {
 
         // comboByKeyは挿入順を保つDictionaryではないため、出現順は別途記録したリストから取る。
         List<GameSystemArchetypeInfo>Archetypes=[];
+        var WordCount=ComponentMask.WordCount(ComponentTypesByIndex.Count);
 
         for(var ArchetypeIndex=0;ArchetypeIndex<CombosInDiscoveryOrder.Count;ArchetypeIndex++){
             var Combo=CombosInDiscoveryOrder[ArchetypeIndex];
-            ulong MaskLow=0;
-            ulong MaskHigh=0;
-
-            foreach(var Index in Combo){
-                if(Index<64){ MaskLow|=1UL<<Index; }
-                else { MaskHigh|=1UL<<(Index-64); }
-            }
-
-            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{ArchetypeIndex}",[.. Combo],MaskLow,MaskHigh));
+            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{ArchetypeIndex}",[.. Combo],ComponentMask.Build(Combo,WordCount)));
         }
 
         return new GameSystemRegistry(ComponentsByIndex,[.. Archetypes],[.. ValidSystems],Diagnostics.ToImmutable());
     }
 
     /// <summary>
-    /// 生成される<c>ArchetypeNN</c>のフィールド名にはComponent型の単純名を使う(サンプルに忠実)。
-    /// 異なる名前空間の同名型が2つあるとフィールド名が衝突するため、SYSGEN020で明示的に弾く。
+    /// 生成される<c>ArchetypeNN</c>のフィールド名と<c>EcsComponentType</c>の名前には、Component型の単純名を使う(サンプルに忠実)。
+    /// 異なる名前空間の同名型(例: 2つのプラグインの<c>Wheel</c>)は、名前空間を含めた名前(<c>Vehicles_Wheel</c>)にする(ADR-0079)。
+    /// それでも重なるとき(<c>Vehicles_Wheel</c>という単純名の型がほかにある)だけ、SYSGEN020で明示的に弾く。
     /// </summary>
     private static ImmutableArray<GameSystemComponentInfo>BuildComponents(List<string>ComponentTypesByIndex,ImmutableArray<Diagnostic>.Builder Diagnostics){
-        Dictionary<string,string>TypeBySimpleName=new(StringComparer.Ordinal);
+        Dictionary<string,int>SimpleNameCounts=new(StringComparer.Ordinal);
+        foreach(var TypeFqn in ComponentTypesByIndex){
+            var SimpleName=ExtractSimpleTypeName(TypeFqn);
+            SimpleNameCounts[SimpleName]=SimpleNameCounts.TryGetValue(SimpleName,out var Count)?Count+1:1;
+        }
+        Dictionary<string,string>TypeByFieldName=new(StringComparer.Ordinal);
         var Builder=ImmutableArray.CreateBuilder<GameSystemComponentInfo>(ComponentTypesByIndex.Count);
 
         for(var Index=0;Index<ComponentTypesByIndex.Count;Index++){
             var TypeFqn=ComponentTypesByIndex[Index];
             var SimpleName=ExtractSimpleTypeName(TypeFqn);
+            var FieldName=SimpleNameCounts[SimpleName]>1?QualifiedFieldName(TypeFqn):SimpleName;
 
-            if(TypeBySimpleName.TryGetValue(SimpleName,out var Existing)){
-                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ComponentSimpleNameCollision,Location.None,Existing,TypeFqn,SimpleName));
+            if(TypeByFieldName.TryGetValue(FieldName,out var Existing)){
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ComponentSimpleNameCollision,Location.None,Existing,TypeFqn,FieldName));
             } else {
-                TypeBySimpleName.Add(SimpleName,TypeFqn);
+                TypeByFieldName.Add(FieldName,TypeFqn);
             }
 
-            Builder.Add(new GameSystemComponentInfo(Index,TypeFqn,SimpleName));
+            Builder.Add(new GameSystemComponentInfo(Index,TypeFqn,FieldName));
         }
 
         return Builder.ToImmutable();
+    }
+
+    /// <summary><c>global::Vehicles.Wheel</c> → <c>Vehicles_Wheel</c>.</summary>
+    private static string QualifiedFieldName(string TypeFullyQualifiedName){
+        const string GlobalPrefix="global::";
+        var Value=TypeFullyQualifiedName.StartsWith(GlobalPrefix,StringComparison.Ordinal)
+            ?TypeFullyQualifiedName.Substring(GlobalPrefix.Length)
+            :TypeFullyQualifiedName;
+        return Value.Replace('.','_');
     }
 
     internal static string ExtractSimpleTypeName(string TypeFullyQualifiedName){

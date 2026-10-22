@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    A project plugin (ADR-0079): copy this folder to <Game>\Plugins\Weather and the game builds it.
+    Every plugin writes these three properties itself: MSBuild imports one file only once per project, so a shared file would decide
+    for the first plugin only. A project plugin is always enabled; the condition is the same in every plugin so they can be moved.
+  -->
+  <PropertyGroup>
+    <CgePluginEnabled>false</CgePluginEnabled>
+    <CgePluginEnabled Condition="'$(_CgePluginLocation)' != 'Engine' or $([System.String]::Copy(';$(CgePlugins);').Contains(';Weather;'))">true</CgePluginEnabled>
+    <CgePluginRoots Condition="'$(CgePluginEnabled)' == 'true'">$(CgePluginRoots)|Weather=$(MSBuildThisFileDirectory)</CgePluginRoots>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)Weather.plugin.items" Condition="'$(CgePluginEnabled)' == 'true'" />
+</Project>

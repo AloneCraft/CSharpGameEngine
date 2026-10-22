@@ -71,11 +71,23 @@ internal readonly struct GameSystemResourceParameterModel(string ParameterName,s
     internal readonly string TypeFullyQualifiedName=TypeFullyQualifiedName;
 }
 
-/// <summary>EngineHostが持つサービス(ADR-0077)。</summary>
-internal readonly struct GameSystemServiceParameterModel(string ParameterName,string TypeFullyQualifiedName,string PropertyName) {
+/// <summary>サービスの作り方。</summary>
+internal enum GameSystemServiceSource {
+    /// <summary>EngineHostのプロパティ(ADR-0077)。<c>Audio</c>など。</summary>
+    HostProperty,
+    /// <summary><c>[EngineService]</c>のクラスで、引数なしのコンストラクターで作る(ADR-0079)。</summary>
+    Parameterless,
+    /// <summary><c>[EngineService]</c>のクラスで、EngineHostを1つ取るコンストラクターで作る(ADR-0079)。</summary>
+    TakesHost,
+}
+
+/// <summary>Systemの引数のサービス。<see cref="PropertyName"/>は<see cref="GameSystemServiceSource.HostProperty"/>のときだけ。</summary>
+internal readonly struct GameSystemServiceParameterModel(string ParameterName,string TypeFullyQualifiedName,string PropertyName,GameSystemServiceSource Source=GameSystemServiceSource.HostProperty) {
     internal readonly string ParameterName=ParameterName;
     internal readonly string TypeFullyQualifiedName=TypeFullyQualifiedName;
     internal readonly string PropertyName=PropertyName;
+    internal readonly GameSystemServiceSource Source=Source;
+    internal bool NeedsHost=>this.Source!=GameSystemServiceSource.Parameterless;
 }
 
 /// <summary>イベントの引数(受け手の<c>in T</c>、送り手の<c>in EventWriter&lt;T&gt;</c>)。</summary>
@@ -113,14 +125,14 @@ internal readonly struct GameSystemMethodModel(
     internal readonly ImmutableArray<GameSystemRelationParameterModel>Relations=Relations.IsDefault?ImmutableArray<GameSystemRelationParameterModel>.Empty:Relations;
     /// <summary><c>in T</c>で受ける<c>[InputActions]</c>のstruct。Entityには依存しない。</summary>
     internal readonly ImmutableArray<GameSystemResourceParameterModel>Resources=Resources.IsDefault?ImmutableArray<GameSystemResourceParameterModel>.Empty:Resources;
-    /// <summary>EngineHostのプロパティとして渡す参照型引数。</summary>
+    /// <summary>サービスとして渡す参照型引数(EngineHostのプロパティと<c>[EngineService]</c>のクラス)。</summary>
     internal readonly ImmutableArray<GameSystemServiceParameterModel>Services=Services.IsDefault?ImmutableArray<GameSystemServiceParameterModel>.Empty:Services;
-    /// <summary>呼び出しにEngineHost(Context)が要るか。入力とサービスは、どのSystemもEngineHostを名指ししなくても要求する。</summary>
     /// <summary>このメソッドが受けるイベント(0または1種類)。あれば、Entityを回さずイベントごとに呼ぶ。</summary>
     internal readonly ImmutableArray<GameSystemEventParameterModel>EventReads=EventReads.IsDefault?ImmutableArray<GameSystemEventParameterModel>.Empty:EventReads;
     /// <summary>このメソッドが送るイベントの種類。</summary>
     internal readonly ImmutableArray<GameSystemEventParameterModel>EventWrites=EventWrites.IsDefault?ImmutableArray<GameSystemEventParameterModel>.Empty:EventWrites;
-    internal bool NeedsHost=>this.Resources.Length>0||this.Services.Length>0;
+    /// <summary>呼び出しにEngineHost(Context)が要るか。入力とホストのサービスは、どのSystemもEngineHostを名指ししなくても要求する。</summary>
+    internal bool NeedsHost=>this.Resources.Length>0||this.Services.Any(static Service=>Service.NeedsHost);
 }
 
 /// <summary>
@@ -194,11 +206,11 @@ internal readonly struct GameSystemComponentInfo(int Index,string TypeFullyQuali
 /// <c>World.Create</c>/<c>MoveArchetype</c>のパラメータ順もこれに従うため、呼び出し側は自分が
 /// 宣言したとおりの順序で引数を渡せる(内部インデックスの並びを知る必要がない)。
 /// </summary>
-internal readonly struct GameSystemArchetypeInfo(string Name,ImmutableArray<int>ComponentIndices,ulong MaskLow,ulong MaskHigh) {
+internal readonly struct GameSystemArchetypeInfo(string Name,ImmutableArray<int>ComponentIndices,ImmutableArray<ulong>Mask) {
     internal readonly string Name=Name;
     internal readonly ImmutableArray<int>ComponentIndices=ComponentIndices;
-    internal readonly ulong MaskLow=MaskLow;
-    internal readonly ulong MaskHigh=MaskHigh;
+    /// <summary>このArchetypeが持つComponentのビット。語数はレジストリの全Archetypeで同じ(<see cref="ComponentMask"/>)。</summary>
+    internal readonly ImmutableArray<ulong>Mask=Mask;
 
     internal string ListFieldName=> $"List{this.Name}";
 
@@ -222,6 +234,8 @@ internal readonly struct GameSystemRegistry(
     internal readonly ImmutableArray<GameSystemArchetypeInfo>Archetypes=Archetypes;
     internal readonly ImmutableArray<GameSystemResult>ValidSystems=ValidSystems;
     internal readonly ImmutableArray<Diagnostic>Diagnostics=Diagnostics;
+    /// <summary>Componentの有効マスクの語数(1語=64種類)。</summary>
+    internal int MaskWordCount=>ComponentMask.WordCount(this.ComponentsByIndex.Length);
 
     /// <summary>
     /// 指定したComponentインデックスの<b>集合</b>に一致するArchetypeを引く(順序は問わない -

@@ -1,0 +1,7 @@
+{
+  "Name": "Weather",
+  "Version": "1.0.0",
+  "EngineVersion": ">=0.1.16",
+  "Description": "Sample project plugin (ADR-0079): a Runtime module with a component, a system, an [EngineService] and a [DataAsset], and a startup scene.",
+  "Dependencies": []
+}

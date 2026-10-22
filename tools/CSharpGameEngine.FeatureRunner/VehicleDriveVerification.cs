@@ -33,6 +33,10 @@ public static class VehicleDriveVerification {
             return 2;
         }
         var Evidence=Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller","Vehicle",Adapter);
+        return await RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+    }
+    /// <summary>Drives a built Vehicle game (the template here, or a project generated from the package) and judges its report.</summary>
+    public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         Directory.CreateDirectory(Evidence);
         var ReportPath=Path.Combine(Evidence,"report.json");
         File.Delete(ReportPath);

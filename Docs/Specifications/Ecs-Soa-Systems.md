@@ -287,7 +287,7 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 | SYSGEN018〜019 | Context引数(値渡しの参照型。`in`の非nullable structはComponentの読み取りになる(ADR-0077)。同一メソッド内での型重複禁止) |
 | SYSGEN020 | 異なるComponent型が同じ単純名を持つ(生成フィールド名が衝突する) |
 | SYSGEN021 | Context引数があるためエントリポイントを生成できない(ADR-0035) |
-| SYSGEN026 | 1コンパイルのComponent型が上限128を超える |
+| SYSGEN026 | 1コンパイルのComponent型が上限512を超える(ADR-0079。プラグインのComponentも数える) |
 | SYSGEN027 | 同じ作者Componentを複数のRuntime companion Componentが主張する |
 | SYSGEN032〜035 | 順序・スケジュール(ADR-0073) |
 | SYSGEN036 | `Parent<T>`は`in`で渡し、`T`は非nullable struct。`Spawn`では使えない(ADR-0077) |
@@ -327,7 +327,7 @@ Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。�
 
 - Archetypeは`Update`/`Spawn`で宣言した閉集合に限られる。実行時に任意の構成を作ることはできない。
 - Source Generator内の部分集合判定は1–64型ではlow `ulong`だけを使い、65–128型ではlow/high二語を使う。maskは生成するArchetype loopの選択にだけ使われ、生成Runtimeへは残らない。
-- F-L3-020は実装済みであり、129型以上はSYSGEN026で明示的に拒否する。
+- F-L3-020は実装済みである。ADR-0079で上限を512に広げ(64型ごとにマスクの語を1つ足す)、513型以上はSYSGEN026で明示的に拒否する。
 - Archetype名は出現順の連番なので、Systemを増減すると既存Archetypeの番号がずれる(ユーザーコードは
   Archetype名を参照しないため実害は無いが、生成コードを名指しするテストは影響を受ける)。
 - 辺の無いSystem同士の順序は完全修飾名に依存する(ADR-0073)。順序に意味があるなら`[RunsAfter]`/`[RunsBefore]`を書く。

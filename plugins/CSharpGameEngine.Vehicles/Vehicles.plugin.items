@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    What the enabled Vehicles plugin adds to the game (ADR-0079). Paths are written with MSBuildThisFileDirectory: items are evaluated
+    after every property, so they must not use the CgePlugin* properties that each plugin overwrites.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Runtime\CSharpGameEngine.Vehicles.Runtime.projitems" Label="Shared" />
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Vehicles.cgeplugin" />
+  </ItemGroup>
+</Project>

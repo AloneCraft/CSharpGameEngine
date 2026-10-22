@@ -289,13 +289,37 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
     }
 
     [Fact]
-    public void ComponentTypesSharingASimpleName_ReportsSysgen020(){
+    public void ComponentTypesSharingASimpleName_AreNamedWithTheirNamespaces(){
+        // ADR-0079: two plugins may each have a Position; only those two get namespace-qualified generated names.
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+"""
+            internal struct SharingSystem : ISystem
+            {
+                public bool Update(ref Position a, ref Other.Position b, ref Velocity v, ref State state) => true;
+            }
+
+            namespace Other
+            {
+                public struct Position { public float X; }
+            }
+            """);
+
+        Assert.Empty(Result.Diagnostics);
+        var Types=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Types.g.cs");
+        Assert.Contains("Sample_Position = 0,",Types);
+        Assert.Contains("Sample_Other_Position = 1,",Types);
+        Assert.Contains("Velocity = 2,",Types);
+    }
+
+    [Fact]
+    public void AQualifiedNameThatIsAnotherTypesSimpleName_ReportsSysgen020(){
         AssertHasDiagnostic(
             """
             internal struct CollidingSystem : ISystem
             {
-                public bool Update(ref Position a, ref Other.Position b, ref State state) => true;
+                public bool Update(ref Position a, ref Other.Position b, ref Sample_Other_Position c, ref State state) => true;
             }
+
+            public struct Sample_Other_Position { public float X; }
 
             namespace Other
             {

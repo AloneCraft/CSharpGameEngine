@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 3,
+  "namespace": "Lightning.Scenes",
+  "className": "LightningScene",
+  "startupOrder": 101,
+  "root": {
+    "id": "a24c7e19-3f6b-4d82-b05e-9e1c3a7d5f60",
+    "name": "Storm Cell",
+    "components": [
+      {
+        "type": "Lightning.Bolt",
+        "members": {}
+      },
+      {
+        "type": "Lightning.Intensity",
+        "members": {
+          "Value": 2
+        }
+      }
+    ],
+    "children": []
+  }
+}

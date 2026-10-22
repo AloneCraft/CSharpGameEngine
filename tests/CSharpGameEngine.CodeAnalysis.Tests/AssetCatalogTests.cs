@@ -87,6 +87,39 @@ public sealed class AssetCatalogTests {
     }
 
     [Fact]
+    public void PluginAssets_AreUnderAssetsPlugins_WithTheirOutputPaths(){
+        // ADR-0079: a project plugin's asset (Plugins/<Name>/Assets) keeps its project path; an engine plugin's is copied to the same form.
+        var Result=Run(
+            File("Plugins/Weather/Assets/Sounds/Rain.wav"),
+            new InMemoryAdditionalText(SceneProjectOptions.EnginePluginDirectory+@"Assets\Cars\Sedan.glb",""),
+            File("Plugins/Weather/Readme/Notes.wav"));
+        var Catalog=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Assets.g.cs");
+
+        Assert.Contains("internal static class Plugins {",Catalog);
+        Assert.Contains("SoundAsset Rain = new(\"Plugins/Weather/Assets/Sounds/Rain.wav\");",Catalog);
+        Assert.Contains("ModelAsset Sedan = new(\"Plugins/Vehicles/Assets/Cars/Sedan.glb\");",Catalog);
+        Assert.Contains("internal static class Weather {",Catalog);
+        Assert.Contains("internal static class Vehicles {",Catalog);
+        // A plugin file outside its Assets folder is not an asset.
+        Assert.DoesNotContain("Notes",Catalog);
+    }
+
+    [Fact]
+    public void ASceneThatNamesAPluginAsset_IsCheckedLikeAGameAsset(){
+        const string Scene="""
+            { "schemaVersion": 3, "className": "Main", "root": { "id": "11111111-1111-5111-8111-111111111111", "name": "Main",
+              "components": [
+                { "type": "Sample.Mesh", "members": { "AssetPath": "Plugins/Vehicles/Assets/Cars/Sedan.glb" } },
+                { "type": "Sample.Mesh", "members": { "AssetPath": "Plugins/Vehicles/Assets/Cars/Missing.glb" } }
+              ], "children": [] } }
+            """;
+        var Result=Run(new InMemoryAdditionalText(SceneProjectOptions.EnginePluginDirectory+@"Assets\Cars\Sedan.glb",""),new InMemoryAdditionalText(Root+@"Scenes\Main.json",Scene));
+        var Diagnostic=Assert.Single(Result.Diagnostics,static D=>D.Id=="SCENE208");
+
+        Assert.Contains("Plugins/Vehicles/Assets/Cars/Missing.glb",Diagnostic.GetMessage());
+    }
+
+    [Fact]
     public void ASceneThatNamesAnExistingAsset_IsAccepted(){
         const string Scene="""
             { "schemaVersion": 3, "className": "Main", "root": { "id": "11111111-1111-5111-8111-111111111111", "name": "Main",

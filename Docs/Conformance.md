@@ -4019,3 +4019,19 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `BlueprintLogicWriterTests`。
 - 既知の差: 状態機械の出力は、実データで確かめただけで単体テストが無い。`.graphs.json` には UE のロケールの文字列が入る。
 - 結果: Matches（解析の範囲）。
+
+## 2026-10-22 探索 — プラグインとアセット（ADR-0079、M0103）
+- 意図: UE のプラグインとアセットのように、ユーザーが機能（コード）とデータを足せるようにする。エンジンの車両も同じ形のプラグインにする。
+- 観測（Fact）:
+  - 上限を 512 に広げたあとも、UserEcsProject と 4 テンプレートの生成ファイル 115 個は、変更前（fb7c951）とバイト単位で一致した。
+  - パッケージの検証で、3 つの不具合が見つかった。
+    - MSBuild は同じファイルを 1 回しか取り込まない（MSB4011）。共通の判定ファイルが最初のプラグインにしか効かず、2 つ目のシーンが作られず、名前を挙げていない Vehicles が取り込まれた。
+    - 生成器へ渡すプロパティは .editorconfig を通り、値の `;` と `#` から後ろが捨てられる（`AnalyzerConfig.Parse` で確認）。`;` で区切ったプラグインの根が空になった。
+    - 同じ理由で、`#` を含むフォルダ（`%TEMP%\cge#probe\My Game`）のゲームは ProjectDir が切れ、`Assets` が無いという CS0103 でビルドに失敗した。ADR-0070 から続いていた。
+  - 直したあと、パッケージから作った ThirdPerson + Weather（プロジェクトのプラグイン）+ Lightning（NuGet のプラグイン）は、WARP で歩行 15.700 m・跳躍 1.228 m（変わらず）。Weather の更新 888 回・雨量 2664.0（= 888 × 3）、Lightning の落雷 888 回・エネルギー 17760.0（= 888 × 20）、D3D12 のエラー 0。Vehicle は移動 48.281 m・曲がり 38.3°（車両をプラグインへ移す前と同じ）。
+  - SDK パッケージ 0.1.15 には、共有ソースの余分な写し（`src/<モジュール>/win-x64/…` など）が入っていた。0.1.16 では無い。
+  - パスの書き換えのあと、作業フォルダを `%TEMP%\cge#hash\…` にした同じ検証も、同じ値で合格した。
+- 実装: ADR-0079 §7、M0103 の段階 1〜11。
+- 自動化された証拠: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`（.editorconfig の往復を含む）、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`、`CookerHostTests`、`PluginPackageVerificationTests`、`verify-plugin-package`、`verify-template-package --template Vehicle`。
+- 既知の差: Cook のビルド中の実行と VSIX のボタン、データアセットの Designer での編集、プラグインの一覧の表示、NuGet のプラグインの Library の DLL を実行時のプレビューが確実に読むことは未実装。
+- 結果: MatchesWithDocumentedExtension。

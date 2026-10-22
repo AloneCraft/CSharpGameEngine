@@ -102,9 +102,22 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 | ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方 |
 | FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
 | TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch`・クリック位置の目印(`Spawner`)は未実装。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索はせず直線で歩く(`MoveIntent.MoveTo`) |
-| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。画面上の文字が無いので `Speedometer` は `Hud` でタイトルバーに出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
+| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。画面上の文字が無いので `Speedometer` は `Hud` でタイトルバーに出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
+
+### プラグインを作る(ADR-0079)
+- 機能(Component、System、サービス、データの型)を足すときはプラグインにする。値だけを足すときはアセット。作り方の全体は `Docs/Specifications/Plugins-And-Assets.md`。
+- いちばん簡単な形は、ゲームの `Plugins/<名前>/` に置くプロジェクトのプラグイン。`samples/Plugins/Weather` をコピーして、名前を変えれば始められる。
+- 置いたフォルダは次のとおり。
+  - `<名前>.cgeplugin`: マニフェスト。
+  - `<名前>.plugin.props`: 有効かを決める。名前を 2 か所変える。
+  - `<名前>.plugin.items`: 取り込む項目。
+  - `Runtime/`: ソース。
+  - `Assets/`: アセット。コードからは `Assets.Plugins.<名前>.*` で指す。
+  - `Scenes/`: シーン。
+- 配るときは NuGet パッケージにする(`samples/Plugins/CSharpGameEngine.Samples.Lightning`)。ECS の型を使わない処理は、`lib/` の DLL に置いてよい。
+- 動作の確認: `CSharpGameEngine.FeatureRunner verify-plugin-package`。SDK パッケージから作ったゲームに、2 つの見本を入れてビルドし、動かす。
 
 参照プロジェクト: UE5.8 のインストールには Templates が無いため、UE5.7 の Blueprint 版テンプレートから `G:\UE\5.8\FirstPerson`・`TopDown`・`Vehicle` を作った(`tools/UnrealExport/create_template_project.ps1`)。3 つとも UE5.8 のエディターで開けて、起動マップが読み込めることを確認した(`run_probe.cmd`。観測は `tools/UnrealExport/README.md`)。理想コードの名前と構成は、これらのプロジェクトのアセット(InputAction、Blueprint、レベル)を参照して決める。FirstPerson と TopDown は、ステージ・キャラクターの値・マネキンのメッシュを取り込んで移植した(`tools/UnrealExport/README.md`)。Vehicle もステージ(Landscape は同じ大きさの板で代用)と車の静的メッシュを取り込んだ。3 つとも音声アセットは無いので、効果音は UE のテンプレートからは取り込めない。
 

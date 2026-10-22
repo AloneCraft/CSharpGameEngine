@@ -60,7 +60,9 @@ internal static class SceneComponentCatalog {
 
     internal static IReadOnlyList<SceneComponentCatalogEntry>Build(Compilation Compilation){
         List<SceneComponentCatalogEntry>Entries=[];
-        foreach(var Type in EnumerateTypes(Compilation.Assembly.GlobalNamespace)){
+        // ADR-0079: a plugin's Runtime module is part of the game's compilation; its Library module (a DLL) says what it is.
+        var PluginLibraries=Compilation.SourceModule.ReferencedAssemblySymbols.Where(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.IsPluginLibrary);
+        foreach(var Type in EnumerateTypes(Compilation.Assembly.GlobalNamespace).Concat(PluginLibraries.SelectMany(static Library=>EnumerateTypes(Library.GlobalNamespace).Where(static Type=>Type.DeclaredAccessibility==Accessibility.Public)))){
             if(!IsAddable(Type,Compilation)){
                 continue;
             }
@@ -95,7 +97,8 @@ internal static class SceneComponentCatalog {
     private static bool IsAddable(INamedTypeSymbol Type,Compilation Compilation)=>
         SceneTypePredicates.IsAddableComponent(Type,Compilation)
         &&(Type.Locations.Any(static Location=>Location.IsInSource)
-            ||Type.ContainingNamespace.ToDisplayString().StartsWith("CSharpGameEngine.Runtime.Windows",StringComparison.Ordinal));
+            ||Type.ContainingNamespace.ToDisplayString().StartsWith("CSharpGameEngine.Runtime.Windows",StringComparison.Ordinal)
+            ||CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.IsPluginLibrary(Type.ContainingAssembly));
 
     /// <summary>
     /// <paramref name="OpenType"/>(generic Component型の定義)を、型引数を埋めて構築できる

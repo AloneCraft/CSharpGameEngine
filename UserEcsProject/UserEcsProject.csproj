@@ -3,6 +3,11 @@
   <!-- エンジン取り込み規約はゲームプロジェクト共通のGame.propsに集約する(ADR-0065)。 -->
   <Import Project="..\build\CSharpGameEngine.Game.props" />
 
+  <PropertyGroup>
+    <!-- The engine showcase builds with every engine plugin (ADR-0079); CSharpGameEngine.Windows.Tests tests them through it. -->
+    <CgePlugins>Vehicles</CgePlugins>
+  </PropertyGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>CSharpGameEngine.Windows.Tests</_Parameter1>

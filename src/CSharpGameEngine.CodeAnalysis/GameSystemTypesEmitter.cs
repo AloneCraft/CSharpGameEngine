@@ -52,15 +52,15 @@ internal static class GameSystemTypesEmitter {
         List<(string TypeFullyQualifiedName,string FieldName)>Components=BuildComponentFields(Archetype,Registry);
         var Parameters=string.Join(", ",Components.Select(C=> $"{C.TypeFullyQualifiedName} {C.FieldName}"));
         var Arguments=string.Join(", ",Components.Select(C=>C.FieldName));
-        var WideMask=Registry.ComponentsByIndex.Length>64;
+        // One ChunkList per mask word (ComponentEnabledLow, ComponentEnabledHigh, ComponentEnabledWord2, ...).
+        string[]Words=[.. Enumerable.Range(0,Registry.MaskWordCount).Select(ComponentMask.WordName)];
 
         List<string>Lines=[
             $"public sealed class {Archetype.Name} : IArchetype {{",
             "    private readonly ChunkList<Entity> Entities = new();",
             "    private readonly ChunkList<bool> EntityEnabled = new();",
-            "    private readonly ChunkList<ulong> ComponentEnabledLow = new();",
         ];
-        if(WideMask){ Lines.Add("    private readonly ChunkList<ulong> ComponentEnabledHigh = new();"); }
+        foreach(var Word in Words){ Lines.Add($"    private readonly ChunkList<ulong> ComponentEnabled{Word} = new();"); }
 
         foreach((var TypeFqn,var FieldName)in Components){
             Lines.Add($"    private readonly ChunkList<{TypeFqn}> {ToColumnName(FieldName)} = new();");
@@ -81,8 +81,7 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        int Index = this.Count;");
         Lines.Add("        this.Entities.EnsureCapacity(Index + 1);");
         Lines.Add("        this.EntityEnabled.EnsureCapacity(Index + 1);");
-        Lines.Add("        this.ComponentEnabledLow.EnsureCapacity(Index + 1);");
-        if(WideMask){ Lines.Add("        this.ComponentEnabledHigh.EnsureCapacity(Index + 1);"); }
+        foreach(var Word in Words){ Lines.Add($"        this.ComponentEnabled{Word}.EnsureCapacity(Index + 1);"); }
 
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.EnsureCapacity(Index + 1);");
@@ -91,8 +90,7 @@ internal static class GameSystemTypesEmitter {
 
         Lines.Add("        this.Entities.GetRefUnchecked(Index) = Entity;");
         Lines.Add("        this.EntityEnabled.GetRefUnchecked(Index) = true;");
-        Lines.Add($"        this.ComponentEnabledLow.GetRefUnchecked(Index) = 0x{Archetype.MaskLow:X16}UL;");
-        if(WideMask){ Lines.Add($"        this.ComponentEnabledHigh.GetRefUnchecked(Index) = 0x{Archetype.MaskHigh:X16}UL;"); }
+        for(var Word=0;Word<Words.Length;Word++){ Lines.Add($"        this.ComponentEnabled{Words[Word]}.GetRefUnchecked(Index) = {ComponentMask.Literal(Archetype.Mask[Word])};"); }
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.GetRefUnchecked(Index) = {FieldName};");
             Lines.Add($"        this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index) = Version;");
@@ -108,8 +106,7 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("            MovedEntity = this.Entities.GetRefUnchecked(Last);");
         Lines.Add("            this.Entities.GetRefUnchecked(Index) = MovedEntity;");
         Lines.Add("            this.EntityEnabled.GetRefUnchecked(Index) = this.EntityEnabled.GetRefUnchecked(Last);");
-        Lines.Add("            this.ComponentEnabledLow.GetRefUnchecked(Index) = this.ComponentEnabledLow.GetRefUnchecked(Last);");
-        if(WideMask){ Lines.Add("            this.ComponentEnabledHigh.GetRefUnchecked(Index) = this.ComponentEnabledHigh.GetRefUnchecked(Last);"); }
+        foreach(var Word in Words){ Lines.Add($"            this.ComponentEnabled{Word}.GetRefUnchecked(Index) = this.ComponentEnabled{Word}.GetRefUnchecked(Last);"); }
         foreach((var _,var FieldName)in Components){
             var Column=ToColumnName(FieldName);
             Lines.Add($"            this.{Column}.GetRefUnchecked(Index) = this.{Column}.GetRefUnchecked(Last);");
@@ -139,8 +136,7 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("    private void ClearLast(int Index) {");
         Lines.Add("        this.Entities.ClearAtUnchecked(Index);");
         Lines.Add("        this.EntityEnabled.ClearAtUnchecked(Index);");
-        Lines.Add("        this.ComponentEnabledLow.ClearAtUnchecked(Index);");
-        if(WideMask){ Lines.Add("        this.ComponentEnabledHigh.ClearAtUnchecked(Index);"); }
+        foreach(var Word in Words){ Lines.Add($"        this.ComponentEnabled{Word}.ClearAtUnchecked(Index);"); }
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.ClearAtUnchecked(Index);");
             Lines.Add($"        this.{ToVersionColumnName(FieldName)}.ClearAtUnchecked(Index);");
@@ -158,34 +154,33 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        this.AssertIndex(Index);");
         Lines.Add("        this.EntityEnabled.GetRefUnchecked(Index) = Enabled;");
         Lines.Add("    }");
-        Lines.Add("    internal ulong GetComponentEnabledLowUnchecked(int Index) {");
-        Lines.Add("        this.AssertIndex(Index);");
-        Lines.Add("        return this.ComponentEnabledLow.GetRefUnchecked(Index);");
-        Lines.Add("    }");
-        if(WideMask){
-            Lines.Add("    internal ulong GetComponentEnabledHighUnchecked(int Index) {");
+        foreach(var Word in Words){
+            Lines.Add($"    internal ulong GetComponentEnabled{Word}Unchecked(int Index) {{");
             Lines.Add("        this.AssertIndex(Index);");
-            Lines.Add("        return this.ComponentEnabledHigh.GetRefUnchecked(Index);");
+            Lines.Add($"        return this.ComponentEnabled{Word}.GetRefUnchecked(Index);");
             Lines.Add("    }");
         }
-        Lines.Add("    internal void SetEnableStateUnchecked(int Index, bool EntityIsEnabled, ulong Low"+(WideMask?", ulong High":string.Empty)+") {");
+        Lines.Add($"    internal void SetEnableStateUnchecked(int Index, bool EntityIsEnabled, {ComponentMask.Parameters(Words.Length)}) {{");
         Lines.Add("        this.AssertIndex(Index);");
         Lines.Add("        this.EntityEnabled.GetRefUnchecked(Index) = EntityIsEnabled;");
-        Lines.Add("        this.ComponentEnabledLow.GetRefUnchecked(Index) = Low;");
-        if(WideMask){ Lines.Add("        this.ComponentEnabledHigh.GetRefUnchecked(Index) = High;"); }
+        foreach(var Word in Words){ Lines.Add($"        this.ComponentEnabled{Word}.GetRefUnchecked(Index) = {Word};"); }
         Lines.Add("    }");
-        Lines.Add("    internal bool AreComponentsEnabledUnchecked(int Index, ulong Low"+(WideMask?", ulong High":string.Empty)+") {");
+        Lines.Add($"    internal bool AreComponentsEnabledUnchecked(int Index, {ComponentMask.Parameters(Words.Length)}) {{");
         Lines.Add("        this.AssertIndex(Index);");
-        Lines.Add("        if ((this.ComponentEnabledLow.GetRefUnchecked(Index) & Low) != Low) return false;");
-        Lines.Add(WideMask
-            ?"        return (this.ComponentEnabledHigh.GetRefUnchecked(Index) & High) == High;"
-            :"        return true;");
+        for(var Word=0;Word<Words.Length-1;Word++){
+            Lines.Add($"        if ((this.ComponentEnabled{Words[Word]}.GetRefUnchecked(Index) & {Words[Word]}) != {Words[Word]}) return false;");
+        }
+        var LastWord=Words[Words.Length-1];
+        Lines.Add(Words.Length==1
+            ?$"        if ((this.ComponentEnabled{LastWord}.GetRefUnchecked(Index) & {LastWord}) != {LastWord}) return false;"
+            :$"        return (this.ComponentEnabled{LastWord}.GetRefUnchecked(Index) & {LastWord}) == {LastWord};");
+        if(Words.Length==1){ Lines.Add("        return true;"); }
         Lines.Add("    }");
 
         foreach((var TypeFqn,var FieldName)in Components){
             var Component=Registry.ComponentsByIndex.Single(C=>C.TypeFullyQualifiedName==TypeFqn);
-            var Word=Component.Index<64?"Low":"High";
-            var Bit=Component.Index<64?Component.Index:Component.Index-64;
+            var Word=ComponentMask.WordName(ComponentMask.WordOf(Component.Index));
+            var Bit=ComponentMask.BitOf(Component.Index);
             Lines.Add($"    public ref {TypeFqn} Get{FieldName}RefUnchecked(int Index) {{");
             Lines.Add("        this.AssertIndex(Index);");
             Lines.Add($"        return ref this.{ToColumnName(FieldName)}.GetRefUnchecked(Index);");

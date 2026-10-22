@@ -2,18 +2,17 @@ using System.Diagnostics;
 using CSharpGameEngine.ProjectTemplates;
 namespace CSharpGameEngine.FeatureStages;
 /// <summary>
-/// The product end-to-end check of ADR-0065/0068. The ThirdPerson template is generated into a
+/// The product end-to-end check of ADR-0065/0068. A template (ThirdPerson by default) is generated into a
 /// temporary folder outside the repository, exactly as the Visual Studio wizard does. It is restored
 /// from a feed that holds only the packed CSharpGameEngine.Sdk package, built, and played with the
-/// scripted input of rigid.character-controller. No generated build input may point back into the
-/// repository.
+/// scripted input of rigid.character-controller (the Vehicle template is driven instead; it also proves that the
+/// package's engine plugins build, ADR-0079). No generated build input may point back into the repository.
 /// </summary>
 public static class TemplatePackageVerification {
     public const string ProjectName="My ThirdPerson";
-    public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
-        var Package=Directory.Exists(Path.Combine(RepositoryRoot,".artifacts","packages"))
-            ?Directory.GetFiles(Path.Combine(RepositoryRoot,".artifacts","packages"),GameProjectGenerator.SdkPackageId+".*.nupkg").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault()
-            :null;
+    public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken,string Template="ThirdPerson"){
+        var ProjectName=Template=="ThirdPerson"?TemplatePackageVerification.ProjectName:"My "+Template;
+        var Package=FindSdkPackage(RepositoryRoot);
         if(Package is null){
             await Error.WriteLineAsync("No CSharpGameEngine.Sdk package in .artifacts/packages; run dotnet pack packaging/CSharpGameEngine.Sdk first.").ConfigureAwait(false);
             return 2;
@@ -23,13 +22,10 @@ public static class TemplatePackageVerification {
         var Feed=Path.Combine(Work,"feed");
         GameProjectGenerator.PublishToFeed(Package,Feed);
         var ProjectDirectory=Path.Combine(Work,ProjectName);
-        var ProjectFile=GameProjectGenerator.Generate(Path.Combine(RepositoryRoot,"Templates","CSharpGameEngine.Templates.ThirdPerson"),ProjectDirectory,ProjectName,Version,Feed);
+        var ProjectFile=GameProjectGenerator.Generate(Path.Combine(RepositoryRoot,"Templates","CSharpGameEngine.Templates."+Template),ProjectDirectory,ProjectName,Version,Feed,Template);
         await Output.WriteLineAsync($"CGE-TEMPLATE-PACKAGE generated {ProjectFile} from {Path.GetFileName(Package)}").ConfigureAwait(false);
         // The package keeps its version while it is rebuilt, so drop a cached copy to restore this exact build.
-        var CachedPackage=Path.Combine(Environment.GetEnvironmentVariable("NUGET_PACKAGES")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),".nuget","packages"),GameProjectGenerator.SdkPackageId.ToLowerInvariant(),Version);
-        if(Directory.Exists(CachedPackage)){
-            Directory.Delete(CachedPackage,true);
-        }
+        DropCachedPackage(GameProjectGenerator.SdkPackageId,Version);
         var Build=await RunDotnetAsync(["build",ProjectFile,"--configuration",Configuration,"--nologo"],ProjectDirectory,CancellationToken).ConfigureAwait(false);
         await Output.WriteAsync(Build.Output).ConfigureAwait(false);
         if(Build.ExitCode!=0){
@@ -44,8 +40,14 @@ public static class TemplatePackageVerification {
             return 1;
         }
         var Executable=Path.Combine(ProjectDirectory,"bin",Configuration,"net10.0-windows10.0.19041.0","win-x64",ProjectName+".exe");
-        var Evidence=Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Adapter);
-        var Result=await ThirdPersonCharacterVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+        var Evidence=Template=="ThirdPerson"
+            ?Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Adapter)
+            :Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Template,Adapter);
+        var Result=Template switch{
+            "ThirdPerson"=>await ThirdPersonCharacterVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
+            "Vehicle"=>await VehicleDriveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
+            _=>throw new ArgumentException($"The package check drives ThirdPerson or Vehicle, not {Template}.",nameof(Template)),
+        };
         if(Result==0){
             try {
                 Directory.Delete(Work,true);
@@ -69,7 +71,19 @@ public static class TemplatePackageVerification {
         }
         return Leaks;
     }
-    private static async Task<(int ExitCode,string Output)>RunDotnetAsync(IReadOnlyList<string>Arguments,string WorkingDirectory,CancellationToken CancellationToken){
+    /// <summary>The newest CSharpGameEngine.Sdk package in .artifacts/packages, or null.</summary>
+    public static string?FindSdkPackage(string RepositoryRoot)=>
+        Directory.Exists(Path.Combine(RepositoryRoot,".artifacts","packages"))
+            ?Directory.GetFiles(Path.Combine(RepositoryRoot,".artifacts","packages"),GameProjectGenerator.SdkPackageId+".*.nupkg").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault()
+            :null;
+    /// <summary>Removes a package version from the NuGet cache, because a rebuilt package keeps its version (ADR-0065).</summary>
+    public static void DropCachedPackage(string PackageId,string Version){
+        var Cached=Path.Combine(Environment.GetEnvironmentVariable("NUGET_PACKAGES")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),".nuget","packages"),PackageId.ToLowerInvariant(),Version);
+        if(Directory.Exists(Cached)){
+            Directory.Delete(Cached,true);
+        }
+    }
+    internal static async Task<(int ExitCode,string Output)>RunDotnetAsync(IReadOnlyList<string>Arguments,string WorkingDirectory,CancellationToken CancellationToken){
         var Start=new ProcessStartInfo("dotnet") { WorkingDirectory=WorkingDirectory,UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true };
         foreach(var Argument in Arguments){
             Start.ArgumentList.Add(Argument);

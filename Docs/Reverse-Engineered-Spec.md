@@ -253,7 +253,7 @@
 
 - Confidence: High.
 - Evidence: `GameSystemIndexAssigner`, `GameSystemLoopEmitter`, `SceneArchetypeIntegrationTests`, and generated loop structure.
-- Observed behavior: Component indices 0–63 use the low `ulong` during generation; indices 64–127 use a high `ulong`. A 129th distinct type emits SYSGEN026. Both paths select direct Archetype loops at generation time, so generated Runtime performs no mask matching.
+- Observed behavior: Component indices 0–63 use the low `ulong` during generation; indices 64–127 use a high `ulong`, and each further 64 indices one more word (Word2…Word7, ADR-0079). A 513th distinct type emits SYSGEN026. Both paths select direct Archetype loops at generation time, so generated Runtime performs no mask matching.
 - Result: Matches the implemented 128-type contract while preserving the 1–64 single-mask path.
 # RE-M0063 - VSIX Experimental evidence and Shader Graph UI automation
 
@@ -384,3 +384,15 @@
   - 状態機械は、状態、別名状態（「from any of」）、遷移と条件式にする。アニメーションのポーズは、出力から入力へさかのぼる木にする。
   - 値が 20000 文字を超えたら切る。同じパスのグラフは 1 回だけ書く。
 - Result: Matches ADR-0078 §1。
+
+## RE-M0103 — プラグインの取り込み、サービス、データアセット
+
+- Confidence: High（単体テスト、生成コード、パッケージから作ったゲームの WARP での実行で確認）
+- Evidence: `Game.targets`、`Vehicles.plugin.props`、`GameSystemAnalyzer.ServiceSourceOf`、`GameSystemLoopEmitter`（`DisposeServices`）、`AssetCatalogEmitter`、`SceneJsonSceneAnalyzer.AnalyzeDataAsset`、`PluginManifestAnalyzer`、`verify-plugin-package`
+- Observed behavior:
+  - `Game.targets` はプロジェクトファイルの後に読まれ、`_CgePluginLocation` を Project・Engine・Package と変えながら `Plugins/*/*.plugin.props` とエンジンの `plugins/*/*.plugin.props` を取り込む。各 `.plugin.props` は、Engine の場所なら `CgePlugins` に名前があるときだけ有効にし、有効なら `CgePluginRoots` に `|名前=フォルダ` を足し、`.plugin.items` を取り込む。
+  - `.editorconfig` を書く直前に、`CgeProjectDirectory` と `CgePluginRootsEncoded` を `#`→`?h`、`;`→`?s` で作る。生成器はこれを先に読み、無ければ `ProjectDir` を使う。
+  - `[EngineService]` の引数は `(Systems.ServiceN ??= new T())` または `new T(EngineHost)` で渡す。フィールドは型名の順。`Shutdown`・`ShutdownEditor` の最後に逆順で `IDisposable` を破棄し、null に戻す。
+  - `.cgeasset` は `schemaVersion` 3 だけを受け、型は `[DataAsset]` の非ジェネリックの struct か class。値はシーンの Component と同じ式になり、カタログの `public static readonly T 名前 = 式;` になる。問題があればその項目を出さない。
+  - パッケージから作ったゲーム（ThirdPerson + Weather + Lightning）の 888 tick: Weather の更新 888 回・雨量 2664.0、Lightning の落雷 888 回・エネルギー 17760.0。名前を挙げていない Vehicles は生成コードに現れない。
+- Result: Matches ADR-0079。

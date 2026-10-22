@@ -16,7 +16,7 @@
         }
       },
       {
-        "type": "CSharpGameEngine.Runtime.Character.Vehicle",
+        "type": "CSharpGameEngine.Vehicles.Vehicle",
         "members": {
           "Wheelbase": 2.642,
           "Track": 1.8,
@@ -30,11 +30,11 @@
         }
       },
       {
-        "type": "CSharpGameEngine.Runtime.Character.VehicleState",
+        "type": "CSharpGameEngine.Vehicles.VehicleState",
         "members": {}
       },
       {
-        "type": "CSharpGameEngine.Runtime.Character.VehicleIntent",
+        "type": "CSharpGameEngine.Vehicles.VehicleIntent",
         "members": {}
       },
       {

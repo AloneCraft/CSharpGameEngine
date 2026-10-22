@@ -12,6 +12,8 @@
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.ShaderGraph.targets" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.SceneSchema.targets" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Showcase.targets" />
+  <!-- The game projects' plugins (ADR-0079); the package imports it from CSharpGameEngine.Sdk.targets. -->
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Game.targets" />
 </Project>
 
 

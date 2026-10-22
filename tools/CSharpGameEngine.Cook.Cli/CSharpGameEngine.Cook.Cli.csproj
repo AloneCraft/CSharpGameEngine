@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    ADR-0079: runs a plugin's Cook module (an IAssetCooker DLL) in its own process. The DLL loads in a collectible
+    AssemblyLoadContext with its own dependencies; only the contract assembly (CSharpGameEngine.Cooking) is shared with this host.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Cook.Tests</_Parameter1></AssemblyAttribute>
+  </ItemGroup>
+</Project>

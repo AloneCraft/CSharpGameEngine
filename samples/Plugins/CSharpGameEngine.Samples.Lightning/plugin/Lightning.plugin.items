@@ -1,0 +1,8 @@
+<Project>
+  <!-- The Lightning plugin's Runtime sources, manifest and scenes. Its Library DLL comes in through the package's lib folder. -->
+  <Import Project="$(MSBuildThisFileDirectory)Runtime\Lightning.Runtime.projitems" Label="Shared" />
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Lightning.cgeplugin" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Scenes\**\*.json" />
+  </ItemGroup>
+</Project>

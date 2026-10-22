@@ -95,8 +95,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
         var AssetPaths=Context.AdditionalTextsProvider
                               .Combine(Context.AnalyzerConfigOptionsProvider)
                               .Select(static(Pair,_)=>{
-                                  Pair.Right.GlobalOptions.TryGetValue("build_property.ProjectDir",out var Directory);
-                                  return AssetCatalogEmitter.RelativeAssetPath(Pair.Left.Path,Directory);
+                                  return AssetCatalogEmitter.RelativeAssetPath(Pair.Left.Path,SceneJsonDslAnalyzer.ProjectDirectoryOf(Pair.Right.GlobalOptions),SceneJsonDslAnalyzer.PluginRootsOf(Pair.Right.GlobalOptions));
                               })
                               .Where(static Path=>Path is not null)
                               .Select(static(Path,_)=>Path!)
@@ -108,9 +107,21 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                               .Where(static Pair=>Pair.Text is not null)
                               .Select(static(Pair,_)=>(Pair.Path,Text:Pair.Text!))
                               .Collect();
+        // ADR-0079: a data asset (*.cgeasset) is also a catalog member, whose value is compiled from its JSON like a scene component.
+        var DataAssets=Context.AdditionalTextsProvider
+                              .Combine(Context.AnalyzerConfigOptionsProvider)
+                              .Select(static(Pair,_)=>{
+                                  return (File:Pair.Left,Path:AssetCatalogEmitter.RelativeAssetPath(Pair.Left.Path,SceneJsonDslAnalyzer.ProjectDirectoryOf(Pair.Right.GlobalOptions),SceneJsonDslAnalyzer.PluginRootsOf(Pair.Right.GlobalOptions)));
+                              })
+                              .Where(static Pair=>Pair.Path is not null&&Pair.Path.EndsWith(AssetCatalogEmitter.DataAssetExtension,StringComparison.OrdinalIgnoreCase))
+                              .Combine(Context.CompilationProvider)
+                              .Select(static(Pair,Ct)=>AssetCatalogEmitter.AnalyzeDataAsset(Pair.Left.File,Pair.Left.Path,Pair.Right,Ct))
+                              .Where(static Model=>Model.HasValue)
+                              .Select(static(Model,_)=>Model!.Value)
+                              .Collect();
         var RuntimeGate=Context.CompilationProvider.Select(static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
-        Context.RegisterSourceOutput(AssetPaths.Combine(RuntimeGate),static(Spc,Data)=>{
-            if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.Emit(Spc,Data.Left); }
+        Context.RegisterSourceOutput(AssetPaths.Combine(DataAssets).Combine(RuntimeGate),static(Spc,Data)=>{
+            if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.Emit(Spc,Data.Left.Left,Data.Left.Right); }
         });
         Context.RegisterSourceOutput(AssetPaths.Combine(SceneTexts).Combine(RuntimeGate),static(Spc,Data)=>{
             if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.ReportMissing(Spc,Data.Left.Left,Data.Left.Right); }
