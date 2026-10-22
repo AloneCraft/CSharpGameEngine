@@ -8,7 +8,9 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// <see cref="StaticMesh"/> or <see cref="PrimitiveMesh"/> (spawned, or moved to a shape that has one) gets its objects added; when it
 /// is destroyed or loses the mesh, its objects stop being drawn (<see cref="Release"/>, called by the renderable wrappers).
 /// A mesh asset no Entity has used yet is loaded and uploaded the first time one is bound, which costs one frame.
-/// What is not followed: a <see cref="SkeletalMesh"/> spawned later (its skinning pass is set up at renderer creation) and a changed
+/// A <see cref="CSharpGameEngine.Runtime.Animation.SkeletalMesh"/> spawned later (M0107: a respawned character) gets its own copy of the asset's skinned
+/// meshes and materials, which join the renderer's skinning pass (the first one costs a GPU wait); when that Entity is gone its copy goes back to a
+/// pool for the next Entity of the same asset, so respawning over and over does not grow the renderer. What is not followed: a changed
 /// <see cref="StaticMesh.AssetPath"/> on an Entity that is already drawn.
 /// </summary>
 internal sealed class RenderRoster {
@@ -20,7 +22,8 @@ internal sealed class RenderRoster {
     private readonly List<(Vector3 Nits,float LuminanceScale)>MaterialEmission=[];
     private readonly HashSet<string>FailedAssets=new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string>DiagnosticList=[];
-    private bool ReportedSkeletalMesh;
+    private readonly Dictionary<Entity,StageSceneDataBuilder.SkeletalInstance>SkeletalOwners=[];
+    private readonly Dictionary<string,List<StageSceneDataBuilder.SkeletalInstance>>FreeSkeletal=new(StringComparer.OrdinalIgnoreCase);
     private bool ReportedHeadroom;
     private RenderRoster(StageSceneDataBuilder Scene){
         this.StaticAssets=new(Scene.StaticAssets,StringComparer.OrdinalIgnoreCase);
@@ -34,6 +37,9 @@ internal sealed class RenderRoster {
         }
         foreach(var Source in Scene.SourceEntities){
             this.Bound.Add(Source);
+        }
+        foreach(var Instance in Scene.SkeletalInstances){
+            this.SkeletalOwners[Instance.Entity]=Instance;
         }
     }
     /// <summary>The roster of a level just loaded: every Entity <paramref name="Scene"/> turned into objects counts as bound.</summary>
@@ -91,11 +97,81 @@ internal sealed class RenderRoster {
         if(!this.TryGetPrimitive(Mesh.Type,Renderer,out var MeshIndex,out var MaterialIndex)){ return; }
         this.BindObjects(Source,in Transform,[new StageSceneDataBuilder.AssetObject(MeshIndex,MaterialIndex,Matrix4x4.Identity)],Renderer,Host,ref State);
     }
-    /// <summary>A SkeletalMesh found after the level loaded is not drawn; say so once instead of failing silently.</summary>
-    internal void NoteSkeletalMesh(Entity Source){
-        if(this.ReportedSkeletalMesh||this.Bound.Contains(Source)){ return; }
-        this.ReportedSkeletalMesh=true;
-        this.DiagnosticList.Add($"A SkeletalMesh on {Source} appeared after the level loaded. Skinned meshes are set up with the renderer, so it is not drawn.");
+    /// <summary>
+    /// Gives an Entity that has a <see cref="CSharpGameEngine.Runtime.Animation.SkeletalMesh"/> and is not drawn yet its renderer objects (M0107): a copy of the asset's meshes
+    /// and materials that an earlier Entity of the asset gave back, or a new copy added to the renderer.
+    /// </summary>
+    internal void BindSkeletalMesh(Entity Source,in Transform Transform,in CSharpGameEngine.Runtime.Animation.SkeletalMesh Mesh,EngineHost Host,ref State State){
+        if(this.Bound.Contains(Source)||Host.Renderer is not{ }Renderer){ return; }
+        if(string.IsNullOrEmpty(Mesh.AssetPath)){
+            // Said once per Entity, not every frame.
+            var NoAsset=$"skeletal-without-asset:{Source}";
+            if(!this.FailedAssets.Contains(NoAsset)){
+                this.Fail(NoAsset,$"A SkeletalMesh on {Source} names no asset.");
+            }
+            return;
+        }
+        var FullPath=CSharpGameEngine.Runtime.Animation.SkeletalAssetCache.ResolvePath(Mesh.AssetPath);
+        if(this.FailedAssets.Contains(FullPath)){ return; }
+        var Reused=this.FreeSkeletal.TryGetValue(FullPath,out var Pool)&&Pool.Count>0;
+        StageSceneDataBuilder.SkeletalInstance?Instance;
+        if(Reused){
+            Instance=Pool![^1];
+            Pool.RemoveAt(Pool.Count-1);
+        } else {
+            Instance=this.AddSkeletalInstance(FullPath,Mesh.AssetPath,Renderer,Host);
+            if(Instance is null){ return; }
+        }
+        this.BindObjects(Source,in Transform,Instance.Template.Objects,Renderer,Host,ref State);
+        if(!this.Bound.Contains(Source)){
+            // No place to draw it yet (or no room): the copy waits for the next try.
+            if(!this.FreeSkeletal.TryGetValue(FullPath,out Pool)){
+                this.FreeSkeletal[FullPath]=Pool=[];
+            }
+            Pool.Add(Instance);
+            return;
+        }
+        this.SkeletalOwners[Source]=Instance with { Entity=Source };
+        Host.RegisterSkinnedMeshes(Source,Instance.SkinnedMeshIndices);
+        if(Reused){
+            // The copy still holds its last owner's pose; start the new Entity from the bind pose until its animator writes one.
+            var Identity=Enumerable.Repeat(Matrix4x4.Identity,CSharpGameEngine.Runtime.Animation.SkeletalAssetCache.Skeleton(Mesh.AssetPath).JointCount).ToArray();
+            foreach(var MeshIndex in Instance.SkinnedMeshIndices){
+                Renderer.SetSkinPalette(MeshIndex,Identity);
+            }
+        }
+    }
+    /// <summary>Adds a new copy of a skeletal asset's meshes and materials to the renderer; null (with a diagnostic) when it cannot be loaded or does not fit.</summary>
+    private StageSceneDataBuilder.SkeletalInstance?AddSkeletalInstance(string FullPath,string AssetPath,RenderServer Renderer,EngineHost Host){
+        List<StageMeshCreateInfo>Meshes=[];
+        List<StageMaterialCreateInfo>Materials=[];
+        StageSceneDataBuilder.AssetTemplate Template;
+        int[]Skinned;
+        try {
+            (Template,Skinned)=StageSceneDataBuilder.LoadSkeletalAsset(AssetPath,Meshes,Materials);
+        } catch(Exception Error) when(Error is InvalidOperationException or InvalidDataException or IOException or ArgumentException or UnauthorizedAccessException){
+            this.Fail(FullPath,Error.Message);
+            return null;
+        }
+        if(Renderer.FreeMaterialSlots<Materials.Count){
+            this.Fail(FullPath,$"The renderer has no room for the {Materials.Count} materials of '{FullPath}'.");
+            return null;
+        }
+        var MeshBase=Renderer.MeshCount;
+        var MaterialBase=Renderer.MaterialCount;
+        foreach(var Mesh in Meshes){
+            Renderer.AddMesh(Mesh);
+        }
+        foreach(var Material in Materials){
+            Renderer.AddMaterial(Material);
+            this.MaterialEmission.Add(EmissionOf(Material));
+        }
+        Host.AppendWorldGridMaterials(MaterialBase,Materials);
+        var Objects=Template.Objects.Select(Object=>new StageSceneDataBuilder.AssetObject(MeshBase+Object.MeshIndex,MaterialBase+Object.MaterialIndex,Object.LocalTransform)).ToArray();
+        foreach(var Object in Template.Objects){
+            this.NoteEmissiveMesh(MeshBase+Object.MeshIndex,MaterialBase+Object.MaterialIndex,Meshes[Object.MeshIndex]);
+        }
+        return new StageSceneDataBuilder.SkeletalInstance(default,FullPath,new StageSceneDataBuilder.AssetTemplate(Objects),[.. Skinned.Select(Index=>MeshBase+Index)]);
     }
     /// <summary>Stops drawing one object of <paramref name="Source"/> and lets the Entity bind again if it gets a mesh later.</summary>
     internal void Release(Entity Source,int ObjectIndex,EngineHost Host){
@@ -104,6 +180,15 @@ internal sealed class RenderRoster {
         }
         Host.UnregisterRenderObject(Source,ObjectIndex);
         this.Bound.Remove(Source);
+        if(this.SkeletalOwners.TryGetValue(Source,out var Owner)&&!Host.HasRenderObjects(Source)){
+            // The last object of a skeletal Entity: its meshes and materials wait for the next Entity of the asset.
+            this.SkeletalOwners.Remove(Source);
+            Host.UnregisterSkinnedMeshes(Source);
+            if(!this.FreeSkeletal.TryGetValue(Owner.FullPath,out var Pool)){
+                this.FreeSkeletal[Owner.FullPath]=Pool=[];
+            }
+            Pool.Add(Owner);
+        }
     }
     private void BindObjects(Entity Source,in Transform Transform,ReadOnlySpan<StageSceneDataBuilder.AssetObject>Objects,RenderServer Renderer,EngineHost Host,ref State State){
         // Without a place the object would be drawn at the camera; the Entity is tried again next frame.

@@ -4099,3 +4099,18 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `CSharpGameEngine.Navigation.Tests`(新規 57)、`NavigationSteeringTests`(5)、`CharacterMotorTests`(+4)、`NavigationCookServiceTests`(8)、`ClickToMoveVerificationTests`(+6)、`verify-thirdperson-character --template TopDown`、`verify-template-package`(TopDown・ThirdPerson・Vehicle)。
 - 既知の差: UE のナビメッシュは、輪郭を単純化した斜めの辺の多角形、タイル、動的な再生成を持つ。こちらは格子に沿った長方形で、経路の角は縁の格子点にそろう。複数の歩く者の大きさ、領域の種類(費用)、ジャンプのリンクは無い。球・カプセル・凸形状の `Collider` は読まない。実機の GPU と VS の実機のボタンは検証していない。UE は経路の追従に固定の制動距離(200 cm)を使うが、こちらはキャラクターの制動から計算する。
 - 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-23 探索 — キャラクターとアニメーション(ADR-0078、M0107)
+- 意図: UE の ABP_Unarmed(8 方向のブレンドスペース、遷移の時間、足の IK)、FirstPerson の腕と体、TopDown のカメラの遅れ追従と平面の拘束、Pawn が壊れたときのリスポーンを、3 つの Character シーンとテンプレートに入れる。
+- 観測(Fact):
+  - UE5.8 のプローブ(`probe_character_animation.py`): KillZ は ThirdPerson・FirstPerson・TopDown が −1048575 cm、Vehicle が −5000 cm。どのレベルも `PlayerStart` は 1 つ。`CtrlRig_FPWarp` の `Ctrl_Head`・`Ctrl_Shoulder_L/R` の初期値は基準姿勢の `head`・`upperarm_l/r` の位置と一致する(`BodyOffset` は別の値)。TopDown の `PlaneConstraintNormal` は (0, 0, 0)。
+  - ABP_Unarmed のグラフ: `Direction` の `select` は、`bOrientRotationToMovement` が真のとき ±45° に制限する。**これまでの `UE-Template-Behavior.md` の行は条件が逆だった**(直した)。
+  - 8 方向のクリップは足踏みで、移動を持たない。接地している足の動きを逆にした向きが進む向き。測ると、シーンでは `Walk_Right` は +R(前を向いたとき画面の左)へ進む。インポーターの Z の反転とレンダラーの右手系のビューで、メッシュは UE の見た目の鏡像になる(既存の性質)。最初の実装は右を `forward × up` としたため符号が逆で、単体テストを通っていた。実際の Mannequin のクリップの進む向きを測る `TheDirectionalClipsTravelTheWayTheyAreNamed` が見つけ、符号を直した。
+  - UE の substepping(`CameraLagMaxTimeStep` 1/60)は、フレームレートが低いほど遅れが大きい(60 fps で 1.8〜2.05 m、30 fps で 2.2〜2.8 m)。最初に書いた「フレームレートによらない」テストは UE の挙動と違っていた。
+  - 後から作る `SkeletalMesh` の追加はパレットのリングを作り直すので GPU の待ちが 1 回入る。2 つ目以降はプールから使う。リスポーンを繰り返しても描画物は増えない。
+  - アニメーションを UE から書き出すとき、描画のデバイスがあるとプレビューのメッシュのマテリアルが入って 1 本 3.7〜10 MB になった。`-nullrhi` と `compact-animations` でジョイントとクリップだけにすると、既存の 6 本は書き出し直した結果とバイト単位で同じだった。
+  - 実走(WARP): ThirdPerson 15.700 m・上昇 1.228 m、FirstPerson 16.000 m・0.863 m、Vehicle 48.281 m・38.3°(以上、修正前と同じ)。TopDown はカメラの遅れ追従で、ナビメッシュなし 10.845 m → 9.865 m、ナビメッシュあり (7.06, 8.06) → (6.75, 7.14)(キャラクターの位置で測る `focusPositions` に変えて期待値を更新した。意図した変更)。D3D12 のエラー 0。
+- 実装: M0107(`Docs/Milestones/M0107-Characters-And-Animation.md`)。決定: 状態機械の作り直し、足の IK は解析的な 2 ボーン IK と光線、一人称は腕のポーズのコピー + FABRIK の補正 + カメラ空間の変換による描画(描画契約は変えない)、遅れ追従は UE の式、平面の拘束は UE の値のまま、リスポーンは `KillZ` + `PlayerStarts` + `Spawner`。
+- 自動化された証拠: `LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`・`TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`(+2)・`SkinningGpuIntegrationTests`(+2)・`ClickToMoveVerificationTests`(+1)、`verify-thirdperson-character`(3 テンプレート)、`verify-template-package`(ThirdPerson・TopDown・Vehicle)。
+- 既知の差: UE の足の IK は PBIK と球のトレース。こちらは光線と 2 ボーン IK(地面の法線への足首の傾きは無い)。FABRIK の `Weight` は補間の係数と読んだ(推測)。一人称のカメラは頭のボーンでなく固定の目の位置。「持ち主にだけ見える」はカメラに見える・影を落とすのフラグで表す。実機の GPU と VS の実機は未検証。
+- 結果: MatchesWithDocumentedExtension。

@@ -9,8 +9,11 @@
     <Compile Include="$(MSBuildThisFileDirectory)CharacterEvents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CharacterMotor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CharacterSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FootIkSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)LocomotionObserver.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PlayerCamera.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PlayerCameraComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Respawn.cs" />
     <Using Include="CSharpGameEngine.Runtime.Character" />
   </ItemGroup>
 </Project>

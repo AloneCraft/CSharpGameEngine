@@ -6,6 +6,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)AnimationClip.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)BlendSpace2D.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FirstPersonRig.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FootIk.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PoseBlending.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TwoBoneIk.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)AnimationComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)AnimationSystems.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LocomotionStateMachine.cs" />

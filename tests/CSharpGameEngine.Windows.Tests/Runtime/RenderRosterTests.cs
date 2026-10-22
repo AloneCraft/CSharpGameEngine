@@ -184,4 +184,71 @@ public sealed class RenderRosterTests {
         for(var Index=0;Index<3;Index++){ Assert.Equal(Before.Hash,Game.Capture().Hash); }
         Assert.Single(Game.Host.Roster!.Diagnostics);
     }
+    private static string Mannequin(){
+        var Directory=new DirectoryInfo(AppContext.BaseDirectory);
+        while(Directory is not null&&!File.Exists(System.IO.Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
+        return System.IO.Path.Combine(Directory?.FullName??throw new InvalidOperationException("The repository root was not found."),"Templates","CSharpGameEngine.Templates.ThirdPerson","Assets","Characters","Mannequins","SKM_Quinn_Simple.glb");
+    }
+    /// <summary>
+    /// ADR-0078/M0107: a character spawned after the level loaded (a respawned pawn) gets its own copy of the skinned meshes and materials; when it is gone the copy
+    /// goes back to a pool, so a pawn that respawns again and again does not grow the renderer; a second one at the same time takes a second copy.
+    /// </summary>
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void ASkeletalMeshSpawnedAfterTheLevelLoadedIsDrawnAndItsMeshesAreReusedByTheNextOne(){
+        using var Game=new Game();
+        Game.World.Create(new Transform { Position=new LogicalVector3(0f,0f,8f) },new PrimitiveMesh { Type=PrimitiveType.Box });
+        var Empty=Game.Capture();
+        var Placement=new Transform { Position=new LogicalVector3(0f,0f,0f) };
+        var First=Game.World.Create(Placement,new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=Mannequin() });
+        var Drawn=Game.Capture();
+        Assert.True(Game.Host.Roster!.IsBound(First));
+        Assert.NotEqual(Empty.Hash,Drawn.Hash);
+        Assert.True(Drawn.Covered>Empty.Covered+200,$"{Drawn.Covered} pixels against {Empty.Covered}");
+        Assert.True(Game.Host.TryGetSkinnedMeshes(First,out var FirstMeshes));
+        var Renderer=Game.Host.Renderer!;
+        var Meshes=Renderer.MeshCount;
+        var Materials=Renderer.MaterialCount;
+        var Objects=Renderer.ActiveObjectCount;
+        // Gone: the picture is the empty level again, and the Entity no longer owns meshes.
+        Game.World.Destroy(First);
+        Assert.Equal(Empty.Hash,Game.Capture().Hash);
+        Assert.False(Game.Host.TryGetSkinnedMeshes(First,out _));
+        Assert.Equal(Objects-FirstMeshes.Length,Renderer.ActiveObjectCount);
+        // The next one takes the pool's copy: the same picture, no new meshes or materials.
+        var Again=Game.World.Create(Placement,new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=Mannequin() });
+        Assert.Equal(Drawn.Hash,Game.Capture().Hash);
+        Assert.Equal(Meshes,Renderer.MeshCount);
+        Assert.Equal(Materials,Renderer.MaterialCount);
+        Assert.True(Game.Host.TryGetSkinnedMeshes(Again,out var AgainMeshes));
+        Assert.Equal(FirstMeshes,AgainMeshes);
+        // Many respawns in a row stay at the same size.
+        for(var Round=0;Round<12;Round++){
+            Game.World.Destroy(Again);
+            Game.Frame();
+            Again=Game.World.Create(Placement,new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=Mannequin() });
+            Game.Frame();
+        }
+        Assert.Equal(Meshes,Renderer.MeshCount);
+        Assert.Equal(Materials,Renderer.MaterialCount);
+        Assert.Equal(Drawn.Hash,Game.Capture().Hash);
+        // A second one at the same time needs a second copy.
+        var Beside=Game.World.Create(new Transform { Position=new LogicalVector3(1.2f,0f,0f) },new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=Mannequin() });
+        var Two=Game.Capture();
+        Assert.True(Game.Host.Roster.IsBound(Beside));
+        Assert.True(Renderer.MeshCount>Meshes);
+        Assert.True(Two.Covered>Drawn.Covered);
+        Assert.Empty(Game.Host.Roster.Diagnostics);
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void ASkeletalMeshThatCannotBeLoadedIsReportedOnceAndDrawsNothing(){
+        using var Game=new Game();
+        SpawnPrimitive(Game,PrimitiveType.Box,0f);
+        var Before=Game.Capture();
+        Game.World.Create(new Transform { Position=new LogicalVector3(1.5f,0f,0f) },new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath="Fixtures/Missing.glb" });
+        Game.World.Create(new Transform { Position=new LogicalVector3(-1.5f,0f,0f) },new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=string.Empty });
+        for(var Index=0;Index<3;Index++){ Assert.Equal(Before.Hash,Game.Capture().Hash); }
+        Assert.Equal(2,Game.Host.Roster!.Diagnostics.Count);
+    }
 }

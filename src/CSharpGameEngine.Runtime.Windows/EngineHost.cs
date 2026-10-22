@@ -337,6 +337,10 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// <summary>Records which renderer meshes a SkeletalMesh entity skins (ADR-0066).</summary>
     internal void RegisterSkinnedMeshes(Entity Entity,int[]MeshIndices)=>this.SkinnedMeshIndices[Entity]=MeshIndices;
     internal bool TryGetSkinnedMeshes(Entity Entity,out int[]MeshIndices)=>this.SkinnedMeshIndices.TryGetValue(Entity,out MeshIndices!);
+    /// <summary>Forgets which renderer meshes a SkeletalMesh entity skinned (M0107): the Entity is gone and its meshes go back to the roster's pool.</summary>
+    internal void UnregisterSkinnedMeshes(Entity Entity)=>this.SkinnedMeshIndices.Remove(Entity);
+    /// <summary>Whether any renderer object still belongs to <paramref name="Source"/>.</summary>
+    internal bool HasRenderObjects(Entity Source)=>this.RenderObjectsBySource.ContainsKey(Source);
 
     internal bool TryGetCameraPose(out FixedAffineTransform Origin,out ReferenceFrameId Frame){
         Origin=this.CameraFrameLocalOrigin;
@@ -366,10 +370,16 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         if((this.ExternalSurface is not null||this.Window is { IsMinimized:false })&&this.Renderer is { } Renderer){
             this.SubmitEnvironment(Renderer);
             Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
-            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition(),this.Sound.FlushedRequests,this.AudioDevice?.OneShotsStarted??0,this.ScreenLayerFingerprint);
+            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition(),this.Sound.FlushedRequests,this.AudioDevice?.OneShotsStarted??0,this.ScreenLayerFingerprint,this.AutomationFocusPosition);
         }
         return this.Automation is not { Completed:true };
     }
+
+    /// <summary>
+    /// Where the Entity the active camera hangs from is (ADR-0078/M0107; the character a spring arm follows), in the camera's reference frame, or null for a camera
+    /// with no parent. A camera that lags behind its character no longer says where the character is, so an automation report carries both.
+    /// </summary>
+    internal Vector3? AutomationFocusPosition { get;set;}
 
     private Vector3? AutomationCameraPosition()=>
         this.HasCameraPose&&this.CameraFrameLocalOrigin.M41.TryToSingle(out var R)&&this.CameraFrameLocalOrigin.M42.TryToSingle(out var U)&&this.CameraFrameLocalOrigin.M43.TryToSingle(out var F)

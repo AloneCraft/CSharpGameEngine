@@ -17,6 +17,15 @@ if(args.Length>0&&args[0]=="worldgrid"){
     return WorldGridGlbConverter.Run(args[1..]);
 }
 
+if(args.Length==2&&args[0]=="compact-animations"){
+    // tools/UnrealExport/export_mannequin_animations.py writes the preview mesh into every clip; this keeps the joints and the clip only.
+    foreach(var ClipPath in Directory.EnumerateFiles(Path.GetFullPath(args[1]),"*.glb").OrderBy(Item=>Item,StringComparer.Ordinal)){
+        var Joints=AnimationGlbCompactor.CompactInPlace(ClipPath);
+        Console.WriteLine($"{Path.GetFileName(ClipPath)}: {Joints} animated joints, {new FileInfo(ClipPath).Length} bytes.");
+    }
+    return 0;
+}
+
 if(args.Length>0&&args[0]=="logic"){
     return BlueprintLogicWriter.Run(args[1..]);
 }
@@ -27,6 +36,7 @@ if(args.Length!=3){
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter thirdperson <manifest.json> <template-project-directory>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter worldgrid <manifest.json> <project-directory>");
     Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter logic <directory with .t3d files>");
+    Console.Error.WriteLine("       CSharpGameEngine.Unreal.SceneImporter compact-animations <directory with animation .glb files>");
     return 2;
 }
 

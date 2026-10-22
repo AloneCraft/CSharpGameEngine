@@ -26,7 +26,9 @@
           "AirControl": 0.05,
           "GravityScale": 1.5,
           "TurnRate": 1.7777778,
-          "FaceMovement": true
+          "FaceMovement": true,
+          "ConstrainToPlane": true,
+          "SnapToPlaneAtStart": true
         }
       },
       {
@@ -47,6 +49,10 @@
           "Yaw": 0.125,
           "Pitch": -0.1388889
         }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.KillZ",
+        "members": {}
       }
     ],
     "children": [
@@ -72,13 +78,31 @@
             "members": {
               "Idle": "Assets/Characters/Mannequins/Anims/MM_Idle.glb",
               "Walk": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
+              "WalkForwardRight": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
+              "WalkRight": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
+              "WalkBackwardRight": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
+              "WalkBackward": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
+              "WalkBackwardLeft": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
+              "WalkLeft": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
+              "WalkForwardLeft": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
               "Jog": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
+              "JogForwardRight": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
+              "JogRight": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
+              "JogBackwardRight": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
+              "JogBackward": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
+              "JogBackwardLeft": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
+              "JogLeft": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
+              "JogForwardLeft": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
               "Jump": "Assets/Characters/Mannequins/Anims/MM_Jump.glb",
               "Fall": "Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
               "Land": "Assets/Characters/Mannequins/Anims/MM_Land.glb",
               "WalkSpeed": 3,
               "JogSpeed": 6
             }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Animation.FootIk",
+            "members": {}
           }
         ],
         "children": []
@@ -96,7 +120,8 @@
             "members": {
               "Distance": 14,
               "Radius": 0.12,
-              "Collide": false
+              "Collide": false,
+              "Lag": 3
             }
           },
           {

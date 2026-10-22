@@ -43,6 +43,12 @@
           "Yaw": 0.5,
           "Pitch": -0.0222222
         }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.KillZ",
+        "members": {
+          "Height": -50
+        }
       }
     ],
     "children": [

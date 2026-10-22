@@ -30,32 +30,33 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | イベント | 処理 | 状態 | 担当 |
 |---|---|---|---|
 | BlueprintInitializeAnimation | `Character = cast<Character>(GetOwningActor())`、`MovementComponent` を保持 | 済(Parent で代用) | — |
-| BlueprintUpdateAnimation(`Character` が有効なとき、順に 3 つ) | (0) `Velocity = 移動.Velocity`、`GroundSpeed = VSizeXY(Velocity)`、`Direction = bOrientRotationToMovement なら CalculateDirection(Velocity, 回転) をそのまま、そうでなければ ±45° に制限` | 一部(Direction 無し) | M0107 |
-| | (1) `ShouldMove = GroundSpeed > 0.01 && GetCurrentAcceleration() ≠ 0` | 未(速度だけで判定) | M0107 |
+| BlueprintUpdateAnimation(`Character` が有効なとき、順に 3 つ) | (0) `Velocity = 移動.Velocity`、`GroundSpeed = VSizeXY(Velocity)`、`Direction = bOrientRotationToMovement なら CalculateDirection(Velocity, 回転) を ±45° に制限、そうでなければそのまま`(グラフの `select` は Index=`bOrientRotationToMovement`、真で Clamp) | 実装済み(`LocomotionObserverTests.CalculateDirection_IgnoresTheLengthsOfItsInputsAndRefusesAZeroFacing`、`Observe_TurningTowardTheMovementLimitsTheDirectionButStrafingDoesNot`、`Observe_UsesTheBodysRotationNotTheWorldAxes`、`MannequinAssetTests.TheDirectionalClipsTravelTheWayTheyAreNamed`。符号はクリップの進む向きを測って決めた) | M0107 |
+| | (1) `ShouldMove = GroundSpeed > 0.01 && GetCurrentAcceleration() ≠ 0` | 実装済み(`LocomotionObserverTests.Observe_MovingAndPushedShouldMove`、`Observe_CoastingOrStandingStillShouldNotMove`。加速度は `MoveIntent.Direction ≠ 0` で代える) | M0107 |
 | | (2) `IsFalling = 移動.IsFalling()` | 済 | — |
 
 ### `ABP_Unarmed`(アニメーショングラフ)
 - 出力 ← ControlRig `CR_Mannequin_FootIK`(`ShouldDoIKTrace = !IsFalling`)← Slot `DefaultSlot` ← 状態機械 `Main States`
-  - 足の IK: 未(M0107)。スロット: 対象外(モンタージュを再生しない)。
+  - 足の IK: 実装済み(M0107。`FootIkTests`、`LocomotionObserverTests.GroundHeight_*`、`MannequinAssetTests.TheFootIkOnTheRealMannequinLowersThePelvisAndKeepsTheFeetOnTheirGround`)。UE の PBIK と球のトレースの代わりに、解析的な 2 ボーン IK と光線(差は M0107 の文書)。スロット: 対象外(モンタージュを再生しない)。
 - 状態機械 `Main States`: 状態は Locomotion(状態機械 `Locomotion` を入れ子に持つ)、Jump、Fall Loop、Land。別名状態 `To Falling`(Locomotion と Land から)と `To Land`。入口は Locomotion。
 
   | 遷移 | 条件 | ブレンド | 状態 |
   |---|---|---|---|
-  | To Falling → Jump | `IsFalling && Velocity(Z) > 100` | 0.15 s、Cubic | 一部(条件を確かめる) |
-  | To Falling → Fall Loop(優先 2) | `IsFalling` | 0.4 s | 一部 |
-  | Jump → Fall Loop | Jump の再生の終わりで自動 | 0.3 s | 一部 |
-  | To Land → Land | `!IsFalling` | 0.1 s | 一部 |
-  | Land → Locomotion | Land の再生の終わりで自動、または `ShouldMove` | 0.4 s / 0.5 s | 一部 |
+  | To Falling → Jump | `IsFalling && Velocity(Z) > 100` | 0.15 s、Cubic | 実装済み(`LocomotionGraphTests.Jump_CrossFadesInOverTheirTimesAndFallsWhenThreeTenthsOfASecondRemain`) |
+  | To Falling → Fall Loop(優先 2) | `IsFalling` | 0.4 s | 実装済み(`LocomotionGraphTests.FallLoop_UsesTheFourTenthsSecondFade`) |
+  | Jump → Fall Loop | Jump の再生の終わりで自動 | 0.3 s | 実装済み(クリップの残り 0.3 s で。`Jump_CrossFadesInOverTheirTimesAndFallsWhenThreeTenthsOfASecondRemain`) |
+  | To Land → Land | `!IsFalling` | 0.1 s | 実装済み(`LocomotionGraphTests.Landing_GoesToLandThenBackToLocomotionWhenFourTenthsRemainOrTheCharacterShouldMove`、`Land_ToFallingAgainStartsJumpOrFallFromThere`) |
+  | Land → Locomotion | Land の再生の終わりで自動、または `ShouldMove` | 0.4 s / 0.5 s | 実装済み(同上。残り 0.4 s で 0.4 s、`ShouldMove` で 0.5 s) |
+  | 遷移の途中で別の遷移 | 画面にあったポーズから新しいブレンドを始める | | 実装済み(`LocomotionGraphTests.AnInterruptedFadeContinuesFromWhatWasOnScreen`) |
 
 - 状態機械 `Locomotion`:
   - 状態: Idle(`MM_Idle`)と Walk / Run(ブレンドスペース `BS_Idle_Walk_Run`、X=`Direction`、Y=`GroundSpeed`、同期グループ Locomotion)。
-  - 遷移: Idle → Walk/Run は `ShouldMove`、逆は `!ShouldMove`(0.3 s)。
-  - 状態: 一部(M0107)。今は Walk と Jog の 2 本を速度で混ぜるだけで、方向が無い。
+  - 遷移: Idle → Walk/Run は `ShouldMove`(0.2 s)、逆は `!ShouldMove`(0.3 s)。
+  - 状態: 実装済み(M0107。`LocomotionGraphTests.LocomotionMoveStates_FollowShouldMoveNotTheSpeed`、`IdleToMove_UsesTheTwoTenthsSecondCubicCrossFade`)。
 - `BS_Idle_Walk_Run`:
   - X(方向)は −180〜180°、Y(速度)は 0 / 300 / 600。
   - 300 に Walk の 8 方向、600 に Jog の 8 方向を置く。0 は Idle。
   - 補間の速さは毎秒 5。
-  - M0107 で全部の素材を取り込む。
+  - 実装済み(M0107。`BlendSpace2D`: `LocomotionGraphTests.BlendSpace_*`、`TheBlendSpacePhaseRunsAtTheWeightedLengthOfItsClips`、`Locomotion_UnnamedDirectionsUseTheForwardClip`)。16 本のクリップは 3 つのテンプレートの `Assets/Characters/Mannequins/Anims/` に取り込んだ(`tools/UnrealExport/export_mannequin_animations.py`)。ブレンドスペースの Y=0 の行は Idle のクリップで、状態機械の Idle 状態とは別に持つ(ABP の構造のとおり)。
 
 ## ThirdPerson
 | 対象 | 内容(値) | 状態 | 担当 |
@@ -68,12 +69,12 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 |---|---|---|---|
 | `BP_FirstPersonCharacter.Move` | 制御の向きではなく、Actor の右と前(`GetActorRightVector`、`GetActorForwardVector`)。体の Yaw は制御に従う(`bUseControllerRotationYaw`) | 済(結果は同じ) | — |
 | 移動の値 | 歩行 600、ジャンプ 420、加速と制動 2048、空中の制動 1500、空中制御 0.6、旋回 360°/s、カプセル 34 / 96、段差 45、歩ける斜面 44.77° | 済 | — |
-| `BP_FirstPersonCameraManager` | `ViewPitchMin=-70`、`ViewPitchMax=80`、`DefaultFOV=90` | 未(既定の ±89° のまま) | M0107 |
-| カメラ | `bUsePawnControlRotation`。一人称の FOV 70 と一人称の縮尺 0.6 を使う(腕だけをこの FOV と縮尺で描く)。位置 (2.79, 5.88, 0)、回転 (Yaw 90, Roll −90)。ボーンに付く(推測: 頭) | 一部(目の高さと FOV 90 だけ) | M0107 |
-| `FirstPersonMesh` | Manny、`ABP_FP_Copy`、持ち主にだけ見える、影を落とさない、一人称の描画 | 未 | M0107 |
-| `CharacterMesh0` | Manny、`ABP_Unarmed`、位置 (−20, 0, −96)、Yaw −90、ワールドの描画(持ち主には見えないが影は落とす) | 未 | M0107 |
-| `ABP_FP_Copy` | 体のポーズをコピー(`CopyPoseFromMesh`、親のメッシュ)→ ControlRig `CtrlRig_FPWarp` | 未 | M0107 |
-| `CtrlRig_FPWarp` | spine_01〜spine_04 の FABRIK で背骨を後ろへ引いて頭をカメラに合わせ、upperarm_l / upperarm_r を前へ押す | 未 | M0107 |
+| `BP_FirstPersonCameraManager` | `ViewPitchMin=-70`、`ViewPitchMax=80`、`DefaultFOV=90` | 実装済み(`TemplateCharacterSceneTests.TheFirstPersonCameraManagerLimitsThePitchToMinus70AndPlus80Degrees`) | M0107 |
+| カメラ | `bUsePawnControlRotation`。一人称の FOV 70 と一人称の縮尺 0.6 を使う(腕だけをこの FOV と縮尺で描く)。位置 (2.79, 5.88, 0)、回転 (Yaw 90, Roll −90)。ボーンに付く(推測: 頭。目の位置の計算は頭のボーンの座標系を前提にした) | 実装済み(`TemplateCharacterSceneTests.TheFirstPersonEyeIsWhereTheRigsHeadAndTheCameraOffsetPutIt`、`FirstPersonViewWarpTests`)。目は頭のボーンでなく、体に対して固定の位置(`Ctrl_Head` が頭を固定するので) | M0107 |
+| `FirstPersonMesh` | Manny、`ABP_FP_Copy`、持ち主にだけ見える、影を落とさない、一人称の描画 | 実装済み(`TemplateCharacterSceneTests.TheFirstPersonBodyIsHiddenFromTheCameraButCastsItsShadowAndTheArmsCastNone`、`RenderServerVisibilityTests`、`FirstPersonViewWarpTests`)。「持ち主にだけ」はカメラに見える・影を落とすの 2 つのフラグで表す | M0107 |
+| `CharacterMesh0` | Manny、`ABP_Unarmed`、位置 (−20, 0, −96)、Yaw −90、ワールドの描画(持ち主には見えないが影は落とす) | 実装済み(同上、`EveryTemplateCharacterHasTheEightDirectionsOfWalkingAndJoggingAndAFootIk`) | M0107 |
+| `ABP_FP_Copy` | 体のポーズをコピー(`CopyPoseFromMesh`、親のメッシュ)→ ControlRig `CtrlRig_FPWarp` | 実装済み(`FirstPersonPoseUpdate`。`MannequinAssetTests.TheFirstPersonWarpPutsTheHeadAndUpperArmsOnTheirControlsAndTheHandsFollow`) | M0107 |
+| `CtrlRig_FPWarp` | spine_01〜spine_04 の FABRIK で背骨を後ろへ引いて頭をカメラに合わせ、upperarm_l / upperarm_r を前へ押す | 実装済み(`MannequinAssetTests.TheFirstPersonWarpPullsTheSpineTowardTheBodyOffsetAtHalfWeightKeepingItsLengths`、`TheFirstPersonWarpAtFullWeightReachesAReachableOffsetAndStretchesTowardAFarOne`、`TheFirstPersonWarpRefusesASkeletonItCannotWarp`)。コントロールの値は UE のプローブで読んだ(`BodyOffset` 以外は基準姿勢の骨と一致) | M0107 |
 | Controller | ThirdPerson と同じ(`DelayUntilNextTick` が無い) | 済 | — |
 
 ## TopDown
@@ -85,8 +86,10 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | 同 Triggered(押している間) | 当たりがあれば `CachedDestination` を更新し、`Follow(位置)` = `AddMovementInput(GetDirectionUnitVector(Pawn の位置, 位置), 1.0)` | 一部(今は `MoveTo` で目的地へ歩く) | M0108 |
 | 同 Canceled / Completed(離した) | 押していた時間 `ElapsedSeconds < PressedThreshold` なら `MoveTo(CachedDestination)` = `SimpleMoveToLocation`(ナビメッシュの経路)+ `SpawnSystemAtLocation(FXCursor, 位置)` | 一部(目印は `Spawner.Spawn<CursorMarker>` で出す。M0105 済。ただし押した瞬間に出す。経路は M0106 済: `MoveIntent.MoveTo` が Navigation プラグインのナビメッシュの経路に沿って歩く。短押しの判定は未) | M0106 済(経路)・M0108(短押し) |
 | `GetLocationUnderCursor` | `GetHitResultUnderCursorByChannel(Visibility, bTraceComplex=true)` の `bBlockingHit` と `Location` | 済(`Picking.TryPick`、三角形メッシュへの正確な光線) | — |
-| ReceivePossess と OnDestroyed | Pawn のクラスを覚え、壊れたら全 PlayerStart から無作為に 1 つを選んで生成し、Possess する | 未 | M0107 |
-| Character の値 | 腕 1400、Pitch −50 / Yaw 45(絶対回転)、衝突なし、カメラの遅れ追従(速さ 3)、FOV 55。歩行 600、加速と制動 1000、重力 1.5、空中制御 0.05、旋回 640°/s、カプセル 42 / 96 | 一部(遅れ追従が無い) | M0107 |
+| ReceivePossess と OnDestroyed | Pawn のクラスを覚え、壊れたら全 PlayerStart から無作為に 1 つを選んで生成し、Possess する | 実装済み(`RespawnTests`、`RenderRosterTests.ASkeletalMeshSpawnedAfterTheLevelLoadedIsDrawnAndItsMeshesAreReusedByTheNextOne`。テンプレートの `RespawnPlayer`。Possess は、新しい Pawn が入力を受けてカメラが引き継ぐことで表す。TopDown のレベルの PlayerStart は 1 つ) | M0107 |
+| Character の値 | 腕 1400、Pitch −50 / Yaw 45(絶対回転)、衝突なし、カメラの遅れ追従(速さ 3)、FOV 55。歩行 600、加速と制動 1000、重力 1.5、空中制御 0.05、旋回 640°/s、カプセル 42 / 96 | 実装済み(`CameraLagTests`、`TemplateCharacterSceneTests.TheTopDownCameraLagsAtSpeed3AndThePlaneConstraintHasUnrealsZeroNormal`) | M0107 |
+| 平面への拘束 | `bConstrainToPlane`、`bSnapToPlaneAtStart`。`PlaneConstraintNormal` は (0, 0, 0)(UE の `ConstrainDirectionToPlane` は法線との内積を引くので、法線 0 は何も拘束しない) | 実装済み(`CharacterPlaneConstraintTests`。TopDown のシーンは UE と同じ値で拘束にならない) | M0107 |
+| `KillZ`(ThirdPerson・FirstPerson・TopDown・Vehicle 共通。PlayerStart はどのレベルも 1 つ) | `WorldSettings.KillZ` = −1048575 cm(UE の既定。Vehicle は −5000 cm)。`bEnableWorldBoundsChecks`。下回った Pawn は壊れる | 実装済み(`RespawnTests.APawnBelowItsKillZIsDestroyedAtTheNextTick`、`TheDefaultKillZIsUnrealsDefaultOfMinus1048575Centimetres`、`KillZOnTheRootOfASceneDestroysTheWholeScene`、`EveryTemplatePawnCarriesUnrealsDefaultKillZ`) | M0107 |
 | 経路の追従 | `FixedPathBrakingDistance=200`、`bUseFixedBrakingDistanceForPaths`、`bUseAccelerationForPaths` | 一部(経路の最後の点で、キャラクターの制動から計算した距離で減速して止まる。途中の点は最高速度で通り、`NavAgent.WaypointRadius`(0.3 m)に入ったら次へ。固定の制動距離 200 cm と、経路の追従で加速度を使うかの区別は無い)。目的地に着けないときは、UE の `SimpleMoveToLocation`(部分経路を許す)と同じく、行ける中で一番近い点まで歩いて止まる | M0106 済 |
 | `FX_Cursor_Success` | Niagara の `SimpleSpriteBurst`: Spawn Burst Instantaneous で Spawn Count 1・Spawn Time 0、Loop Duration 0.7 s、Loop Count 1。粒子の Lifetime 0.7 s、色 (1,1,1,1)、位置のずれ・速度・回転の力は 0。描画はメッシュ `SM_CursorMesh`(材質 `M_Cursor`: BLEND_Masked、基本色 = `Color` × 矢印のテクスチャ、粗さ 1、`TexCoordY` ← `NormalizedLoopAge`) | 一部(`ParticleBurst` の Count 1・Lifetime 0.7、`SM_CursorMesh` の矢印をアルファの切り抜きから形状にした glb。`TexCoordY` の流れは縮み 1→0.25 で代用。押した瞬間に出す)。M0105。`SpawnSystemAtLocation(FXCursor, 位置)` は `Spawner.Spawn<CursorMarker>` | M0105 済。短押しで出す条件は M0108 |
 
@@ -146,7 +149,7 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | BeginPlay | ローカルのときだけ `IMC_Vehicle_Default`(優先 0)を足す。ハンドル用はオプション。タッチでなければ `IMC_Vehicle_MouseLook` を足す。`UI_Vehicle`(`bIsMPH=false`)を作って画面に足す | 一部 | M0104 |
 | Tick | 移動コンポーネントが有効なら、`UpdateSpeed(GetForwardSpeed())`、`UpdateGear(GetCurrentGear())` | 一部(タイトルバー) | M0104 |
 | `UI_Vehicle` | 単位の表示は km/h か MPH。速度は `|速度 cm/s| × (MPH なら 0.022、km/h なら 0.036)` を整数 3 桁で表示する。ギアは −1→R、0→N、それ以外は数字 | 一部 | M0104 |
-| ReceivePossess と On Pawn Destroyed | 移動コンポーネントを保持する。壊れたら最初の PlayerStart に同じクラスを生成して Possess する | 未 | M0107 |
+| ReceivePossess と On Pawn Destroyed | 移動コンポーネントを保持する。壊れたら最初の PlayerStart に同じクラスを生成して Possess する | 実装済み(`RespawnTests.PickFirstTakesTheStartNotedFirstAndPickRandomIsDeterministicForASeed`。テンプレートの `RespawnVehicle`。Vehicle の `KillZ` は −50 m) | M0107 |
 
 ## レベル(4 つ共通)
 | 対象 | 内容 | 状態 | 担当 |

@@ -146,7 +146,7 @@ public sealed class RenderServer:IDisposable {
 
     /// <summary>
     /// Adds one mesh to the renderer (M0105) and returns its index. The mesh joins the roster a device loss rebuilds from.
-    /// A skinned mesh is refused: its skinning pass is set up at creation.
+    /// A skinned mesh joins the skinning pass (M0107); the renderer waits for the GPU once to grow it.
     /// </summary>
     public int AddMesh(StageMeshCreateInfo Mesh){
         var Owned=CloneMeshes([Mesh])[0];
@@ -310,6 +310,15 @@ public sealed class RenderServer:IDisposable {
         if(!Enum.IsDefined(Mode)){ throw new ArgumentOutOfRangeException(nameof(Mode)); }
         this.Backend.SetPresentationMode(Mode);
         this.PendingFrame.RecordPresentationMode(Mode);
+    }
+
+    /// <summary>
+    /// Chooses where one object is drawn (M0107): out of the camera's view (UE's OwnerNoSee) and/or out of the shadow maps (CastShadow off). Recorded with
+    /// the frame, so a game that sets it every frame keeps it through a device recovery.
+    /// </summary>
+    public void SetObjectVisibility(int ObjectIndex,bool VisibleInView,bool CastsShadow){
+        this.Backend.SetObjectVisibility(ObjectIndex,VisibleInView,CastsShadow);
+        this.PendingFrame.RecordObjectVisibility(ObjectIndex,VisibleInView,CastsShadow);
     }
 
     public void SetObjectSelectionWeight(int ObjectIndex,float Weight){

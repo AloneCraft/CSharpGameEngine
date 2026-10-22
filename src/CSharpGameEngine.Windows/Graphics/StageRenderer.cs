@@ -418,6 +418,10 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private int ObjectCount;
     private int ObjectCapacity;
     private bool[]ObjectActive=[];
+    /// <summary>Objects the camera does not see (UE's OwnerNoSee): the main pass, the GI probes and the camera previews skip them; shadows still use them (M0107).</summary>
+    private bool[]ObjectHiddenFromView=[];
+    /// <summary>Objects that cast no shadow (UE's CastShadow off): the shadow passes skip them (M0107).</summary>
+    private bool[]ObjectNoShadow=[];
     private readonly List<int>FreeObjectSlots=[];
     private int[]ObjectMeshIndices=[];
     /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
@@ -1607,8 +1611,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     /// <summary>
     /// Adds one mesh after creation (M0105): a game that spawns an Entity whose asset no earlier Entity used. The buffers are
-    /// separate resources, so nothing the GPU draws with is touched. Returns the new mesh index. A skinned mesh cannot be added:
-    /// its skinning pass is set up at creation.
+    /// separate resources, so nothing the GPU draws with is touched. Returns the new mesh index. A skinned mesh (M0107: a character spawned
+    /// after the level loaded) also joins the skinning pass; that grows the palette ring a frame in flight may still read, so it waits for the GPU once.
     /// </summary>
     public int AddMesh(StageMeshCreateInfo Mesh){
         this.ThrowIfDisposed();
@@ -1618,13 +1622,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new ArgumentException("A mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.",nameof(Mesh));
         }
         if(Mesh.Skin is not null){
-            throw new ArgumentException("A mesh added after creation cannot be skinned.",nameof(Mesh));
+            this.WaitForGpuIdle();
         }
         var Index=this.MeshCount;
         this.GrowMeshArrays(Index+1);
         this.MeshBoundsCentres[Index]=BoundsCentre(Mesh.Positions);
         this.CreateVertexBuffer(Index,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
         this.CreateIndexBuffer(Index,Mesh.Indices);
+        if(Mesh.Skin is{ }Skin){
+            // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
+            this.VertexBufferViews[Index]=this.Skinning!.AddMesh(Index,this.VertexBuffers[Index],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
+        }
         this.MeshCount=Index+1;
         return Index;
     }
@@ -1949,6 +1957,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObjectTransforms=new Matrix4x4[this.ObjectCapacity];
         this.ObjectSelectionWeights=new float[this.ObjectCapacity];
         this.ObjectActive=new bool[this.ObjectCapacity];
+        this.ObjectHiddenFromView=new bool[this.ObjectCapacity];
+        this.ObjectNoShadow=new bool[this.ObjectCapacity];
 
         for(var I=0;I< this.ObjectCount;I++){
             this.ObjectMeshIndices[I]=Objects[I].MeshIndex;
@@ -1985,9 +1995,25 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObjectTransforms[Index]=Matrix4x4.Identity;
         this.ObjectSelectionWeights[Index]=0f;
         this.ObjectActive[Index]=true;
+        this.ObjectHiddenFromView[Index]=false;
+        this.ObjectNoShadow[Index]=false;
         this.CameraPreviewDiagnosticsDirty=true;
         this.WriteObjectConstants(this.FrameIndex,Index);
         return Index;
+    }
+
+    /// <summary>
+    /// Chooses where one object is drawn (M0107; UE's OwnerNoSee / OnlyOwnerSee and CastShadow): <paramref name="VisibleInView"/> false keeps it out of the camera's
+    /// pass (and the GI probes' and previews'), <paramref name="CastsShadow"/> false keeps it out of every shadow map. Both default to true when an object is
+    /// added. The choice stays until it is changed; it needs no per-frame call.
+    /// </summary>
+    public void SetObjectVisibility(int ObjectIndex,bool VisibleInView,bool CastsShadow){
+        this.ThrowIfDisposed();
+        if((uint)ObjectIndex>=(uint)this.ObjectCount){
+            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
+        }
+        this.ObjectHiddenFromView[ObjectIndex]=!VisibleInView;
+        this.ObjectNoShadow[ObjectIndex]=!CastsShadow;
     }
 
     /// <summary>Stops drawing one object (M0105). Its slot is handed out again by a later <see cref="AddObject"/>. Removing a removed object does nothing.</summary>
@@ -3862,7 +3888,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->RSSetViewports(1,&ShadowViewport);
         this.CommandList->RSSetScissorRects(1,&ShadowScissor);
         for(var I=0;I< this.ObjectCount;I++){
-            if(!this.ObjectActive[I]){ continue; }
+            if(!this.ObjectActive[I]||this.ObjectNoShadow[I]){ continue; }
             var MeshIndex= this.ObjectMeshIndices[I];
             this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
@@ -4016,7 +4042,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void DrawObjects(int ExcludedObjectIndex){
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]){ continue; }
+            if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]||this.ObjectHiddenFromView[ObjectIndex]){ continue; }
             int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
             this.CommandList->SetGraphicsRootConstantBufferView(
                 1,this.GetObjectConstantsAddress(this.FrameIndex,ObjectIndex));

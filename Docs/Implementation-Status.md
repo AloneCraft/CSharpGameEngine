@@ -4712,7 +4712,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `Templates/CSharpGameEngine.Templates.TopDown/Scenes/CursorMarker.json`、`Assets/Cursor/SM_CursorMesh.glb`、`Gameplay/ClickToMove.cs`、`tools/UnrealExport/cut_masked_mesh.py`
 - Tests: `RecycledEntityTransformTests`、`RenderServerDynamicObjectTests`、`RenderRosterTests`、`SpawnerLifetimeParticleTests`、`SceneSpawnGeneratorTests`、`TransformWorldResolverTests`、`ClickToMoveVerificationTests`
 - Current delta: Entity の生成・破棄・メッシュの追加が差分で描画へ反映される(破棄した Entity の描画物は消える)。`Spawner.Spawn<TScene>(位置)`、`Lifetime`、`ParticleBurst`。スロットを再利用した Entity の位置解決の失敗(Generation 固定)を直した。TopDown はクリックで目印が出て、0.7 秒で消える。
-- Conformance: Matches(ADR-0078 の範囲。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成、実機の GPU での測定は未実装)
+- Conformance: Matches(ADR-0078 の範囲。ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成、実機の GPU での測定は未実装。後から作る `SkeletalMesh` は M0107 で実装、F-L5-043)
 - Next action: M0106(ナビメッシュのベイクと経路追従)。
 
 ## F-L5-042 — ナビメッシュのベイクと経路追従(最初の実際の Cook)
@@ -4732,4 +4732,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `tests/CSharpGameEngine.Navigation.Tests/`(`NavMeshFormatTests`、`NavMeshBuilderTests`、`NavMeshRouteTests`、`SceneGeometryTests`、`NavMeshCookerTests`、`TopDownLevelTests`)、`tests/CSharpGameEngine.Windows.Tests/Character/NavigationSteeringTests.cs`・`CharacterMotorTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/NavigationCookServiceTests.cs`、`GameProjectGeneratorTests`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
 - Current delta: シーンの `NavMeshBounds` と静的な衝突形状から、ビルドが `Assets/Navigation/<Id>.cgenav` を決定的に焼く(UE5.8 TopDown の RecastNavMesh の値)。`NavAgent` を持つキャラクターは、`MoveIntent.MoveTo` の目的地への経路(A* と funnel、整数だけで解く)に沿って歩く。ナビメッシュが無いときは直線、着けないときは行ける一番近い点まで。TopDown が使い、台のスロープを下り、壁の端を回って着く。
 - Conformance: MatchesWithDocumentedExtension(Recast の輪郭の単純化と斜めの辺、タイル、動的な再生成は無い。長方形の多角形)
-- Next action: M0107(キャラクターとアニメーション)。TopDown の短押しと長押しの区別は M0108。既存の `Physics.Cli bake` の Cook への載せ直しは未着手。
+- Next action: TopDown の短押しと長押しの区別は M0108。既存の `Physics.Cli bake` の Cook への載せ直しは未着手。(キャラクターとアニメーションは M0107 で実装した、F-L5-043。)
+
+## F-L5-043 — キャラクターとアニメーション(8 方向ブレンド、足の IK、一人称、カメラの遅れ、平面の拘束、リスポーン)
+
+- Layer: L5 — Runtime(`Runtime.Animation`: `BlendSpace2D`・`PoseBlending`・`LocomotionStateMachine`・`TwoBoneIk`・`FootIk`・`FirstPersonRig`。`Runtime.Character`: `LocomotionObserver`・`FootIkSystems`・`Respawn`・`OrbitCamera` の遅れ追従と `SocketOffset`・`CharacterMotion` の平面の拘束。`Runtime.Windows`: `FirstPersonView`・`MeshVisibility`・`RenderRoster` の後から作る `SkeletalMesh`)、L4 — 描画(`StageRenderer.SetObjectVisibility`・スキンつきの `AddMesh`)、L7 — 書き出し(`tools/UnrealExport` のアニメーションとプローブ、`SceneImporter compact-animations`)
+- Parent capability: Windows Runtime / Character / Skeletal Animation
+- Status: Implemented
+- Verification: TestVerified + 実走(WARP。`verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown)、`verify-template-package`(ThirdPerson・TopDown・Vehicle。SDK 0.1.18))。全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクト、失敗 0(Windows.Tests 700、VSExtension.Tests 1197、FeatureRunner.Tests 201)
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0066-Skeletal-Meshes-And-Animation.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Milestones/M0107-Characters-And-Animation.md`
+- Implementation evidence:
+  - `src/CSharpGameEngine.Runtime.Animation/`(`BlendSpace2D.cs`、`PoseBlending.cs`、`LocomotionStateMachine.cs`、`TwoBoneIk.cs`、`FootIk.cs`、`FirstPersonRig.cs`、`AnimationComponents.cs`、`AnimationSystems.cs`、`Skeleton.cs`)
+  - `src/CSharpGameEngine.Runtime.Character/`(`LocomotionObserver.cs`、`FootIkSystems.cs`、`Respawn.cs`、`CharacterComponents.cs`、`CharacterMotor.cs`、`CharacterSystems.cs`、`PlayerCamera.cs`、`PlayerCameraComponents.cs`)
+  - `src/CSharpGameEngine.Runtime.Windows/`(`FirstPersonView.cs`、`RuntimeSystems.cs`、`RenderRoster.cs`、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`focusPositions`))、`src/CSharpGameEngine.Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`)
+  - `Templates/`: 3 つの Character シーン、`FirstPersonAnimation.cs`・`TopDownAnimation.cs`・`ThirdPersonAnimation.cs`・`RespawnPlayer.cs`・`RespawnVehicle.cs`、`Assets/Characters/Mannequins/Anims/`、FirstPerson の `SKM_Manny_Simple.glb`、`build/CSharpGameEngine.Version.props`(0.1.18)
+  - `tools/UnrealExport/`(`export_mannequin_animations.py`、`probe_character_animation.py`)、`tools/CSharpGameEngine.FeatureRunner/ClickToMoveVerification.cs`・`FeatureStageCatalog.cs`
+- Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Animation/LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`AnimationRuntimeTests`・`Graphics/SkinningGpuIntegrationTests`、`Character/LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`、`Runtime/TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`)、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
+- Current delta: ABP_Unarmed の状態機械と 8 方向のブレンドスペース(UE の遷移の時間と Cubic)、足の IK、FirstPerson の腕(ポーズのコピーと背骨・肩の補正、一人称の FOV 70 と縮尺 0.6)と体(カメラに見えず影を落とす)、TopDown のカメラの遅れ追従(速さ 3)と平面への拘束(UE と同じく法線 0)、`KillZ` と PlayerStart でのリスポーン、後から作る `SkeletalMesh` の描画。描画の契約(`stage-v*`)は変えていない。
+- Conformance: MatchesWithDocumentedExtension(足の IK は解析的な 2 ボーン IK と光線、一人称のカメラは頭のボーンに付けない、FABRIK の重みの解釈、実機の GPU は未検証。詳しくは M0107 の文書)
+- Next action: M0108(入力の拡張、TopDown の短押しと長押し)。

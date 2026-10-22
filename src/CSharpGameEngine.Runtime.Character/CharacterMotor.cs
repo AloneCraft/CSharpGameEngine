@@ -31,7 +31,11 @@ public sealed class CharacterMotor {
     /// <summary>Advances <paramref name="Position"/> (the capsule centre) and <paramref name="State"/> by <paramref name="DeltaSeconds"/>; consumes the jump request.</summary>
     public void Step(in CharacterMotion Settings,ref LogicalVector3 Position,ref CharacterMotionState State,ref MoveIntent Input,LogicalScalar DeltaSeconds){
         this.Configure(Settings);
-        var Move=new LogicalVector3(Input.Direction.R,LogicalScalar.Zero,Input.Direction.F);
+        if(Settings.ConstrainToPlane&&Settings.SnapToPlaneAtStart&&!State.PlaneSnapped){
+            Position=this.ConstrainLocation(Position);
+        }
+        State.PlaneSnapped=true;
+        var Move=this.ConstrainDirection(new LogicalVector3(Input.Direction.R,LogicalScalar.Zero,Input.Direction.F));
         var InputAmount=Length(Move);
         if(InputAmount>LogicalScalar.One){
             Move/=InputAmount;
@@ -44,6 +48,7 @@ public sealed class CharacterMotor {
         }
         Input.JumpRequested=false;
         this.UpdateVelocity(ref State,Direction,InputAmount,DeltaSeconds);
+        State.Velocity=this.ConstrainDirection(State.Velocity);
         this.Move(ref Position,ref State,DeltaSeconds);
         if(Settings.FaceMovement&&!InputAmount.IsZero){
             State.Facing=this.RotateToward(State.Facing,Direction,Settings.TurnRateDegrees*DegreesToRadians*DeltaSeconds);
@@ -114,7 +119,8 @@ public sealed class CharacterMotor {
         return NewSpeed>MaxSpeed?Velocity/NewSpeed*MaxSpeed:Velocity;
     }
     private void Move(ref LogicalVector3 Position,ref CharacterMotionState State,LogicalScalar DeltaSeconds){
-        var Displacement=State.Velocity*DeltaSeconds;
+        var Origin=Position;
+        var Displacement=this.ConstrainDirection(State.Velocity*DeltaSeconds);
         var MaxSubStep=this.Settings.CapsuleRadius*Half;
         var Distance=Length(Displacement);
         var SubSteps=1;
@@ -133,6 +139,22 @@ public sealed class CharacterMotor {
                 State.Mode=CharacterMotionMode.Falling;
             }
         }
+        // Depenetration and the floor snap may push along the normal too; like UE's SafeMoveUpdatedComponent, the whole move is flattened onto the plane.
+        Position=Origin+this.ConstrainDirection(Position-Origin);
+    }
+    /// <summary>UE's ConstrainDirectionToPlane: the part of <paramref name="Direction"/> along the plane's normal is removed. Unchanged without a constraint or with a zero normal.</summary>
+    private LogicalVector3 ConstrainDirection(LogicalVector3 Direction){
+        if(!this.Settings.ConstrainToPlane||!this.Settings.PlaneNormal.TryNormalize(out var Normal)){
+            return Direction;
+        }
+        return Direction-(Normal*LogicalVector3.Dot(Direction,Normal));
+    }
+    /// <summary>UE's ConstrainLocationToPlane: the point projected onto the plane through the origin (used once, for SnapToPlaneAtStart). Unchanged without a constraint or with a zero normal.</summary>
+    private LogicalVector3 ConstrainLocation(LogicalVector3 Point){
+        if(!this.Settings.ConstrainToPlane||!this.Settings.PlaneNormal.TryNormalize(out var Normal)){
+            return Point;
+        }
+        return Point-(Normal*LogicalVector3.Dot(Point-this.Settings.PlaneOrigin,Normal));
     }
     private void MoveSubStep(ref LogicalVector3 Position,ref CharacterMotionState State,LogicalVector3 Displacement){
         var Start=Position;

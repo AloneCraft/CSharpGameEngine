@@ -17,6 +17,10 @@ internal sealed class RenderFrameState {
     private float[]ObjectSelectionWeights;
     private bool[]ObjectSelectionWeightSet;
     private readonly List<int>TouchedSelectionIndices=[];
+    private bool[]ObjectVisibleInView;
+    private bool[]ObjectCastsShadow;
+    private bool[]ObjectVisibilitySet;
+    private readonly List<int>TouchedVisibilityIndices=[];
     private readonly Dictionary<int,Matrix4x4[]>SkinPalettes=[];
     private readonly Dictionary<int,int>SkinPaletteLengths=[];
     private readonly List<int>TouchedSkinMeshes=[];
@@ -66,6 +70,9 @@ internal sealed class RenderFrameState {
         this.ObjectTransformSet=new bool[ObjectCount];
         this.ObjectSelectionWeights=new float[ObjectCount];
         this.ObjectSelectionWeightSet=new bool[ObjectCount];
+        this.ObjectVisibleInView=new bool[ObjectCount];
+        this.ObjectCastsShadow=new bool[ObjectCount];
+        this.ObjectVisibilitySet=new bool[ObjectCount];
     }
 
     /// <summary>Objects added after creation (M0105) get indices past the first capacity, and a rebuilt renderer may hold more slots than the server first did.</summary>
@@ -76,6 +83,9 @@ internal sealed class RenderFrameState {
         Array.Resize(ref this.ObjectTransformSet,Length);
         Array.Resize(ref this.ObjectSelectionWeights,Length);
         Array.Resize(ref this.ObjectSelectionWeightSet,Length);
+        Array.Resize(ref this.ObjectVisibleInView,Length);
+        Array.Resize(ref this.ObjectCastsShadow,Length);
+        Array.Resize(ref this.ObjectVisibilitySet,Length);
     }
 
     public bool IsEmpty=>
@@ -87,7 +97,7 @@ internal sealed class RenderFrameState {
         &&!this.HasScreenLayer
         &&!this.HasCameraPreviews
         &&this.LightOrder.Count==0
-        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0
+        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0&&this.TouchedVisibilityIndices.Count==0
         &&this.TouchedSkinMeshes.Count==0;
 
     public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
@@ -195,6 +205,16 @@ internal sealed class RenderFrameState {
         if(this.ObjectSelectionWeightSet[ObjectIndex]){ return; }
         this.ObjectSelectionWeightSet[ObjectIndex]=true;
         this.TouchedSelectionIndices.Add(ObjectIndex);
+    }
+
+    public void RecordObjectVisibility(int ObjectIndex,bool VisibleInView,bool CastsShadow){
+        ArgumentOutOfRangeException.ThrowIfNegative(ObjectIndex);
+        this.EnsureObjectCapacity(ObjectIndex+1);
+        this.ObjectVisibleInView[ObjectIndex]=VisibleInView;
+        this.ObjectCastsShadow[ObjectIndex]=CastsShadow;
+        if(this.ObjectVisibilitySet[ObjectIndex]){ return; }
+        this.ObjectVisibilitySet[ObjectIndex]=true;
+        this.TouchedVisibilityIndices.Add(ObjectIndex);
     }
 
     public void RecordOverlay(
@@ -317,6 +337,9 @@ internal sealed class RenderFrameState {
             Renderer.SetObjectSelectionWeight(
                 ObjectIndex,this.ObjectSelectionWeights[ObjectIndex]);
         }
+        foreach(int ObjectIndex in this.TouchedVisibilityIndices){
+            Renderer.SetObjectVisibility(ObjectIndex,this.ObjectVisibleInView[ObjectIndex],this.ObjectCastsShadow[ObjectIndex]);
+        }
         if(this.HasOverlay){
             Renderer.SetOverlay(
                 this.OverlayTriangles.AsSpan(0,this.OverlayTriangleCount),
@@ -367,6 +390,10 @@ internal sealed class RenderFrameState {
             this.ObjectSelectionWeightSet[ObjectIndex]=false;
         }
         this.TouchedSelectionIndices.Clear();
+        foreach(int ObjectIndex in this.TouchedVisibilityIndices){
+            this.ObjectVisibilitySet[ObjectIndex]=false;
+        }
+        this.TouchedVisibilityIndices.Clear();
     }
 
     private enum LightCommandKind:byte {SetDirectional,Directional,Point,Spot,Rect,Emissive}

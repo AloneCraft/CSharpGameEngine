@@ -36,4 +36,23 @@ public struct OrbitCamera() {
     public LogicalScalar Radius=LogicalScalar.FromSingle(0.12f);
     public bool Collide=true;
     public PhysicsLayerMask CollidesWith=PhysicsLayerMask.All;
+    /// <summary>
+    /// Offset of the camera from the arm's end, in the camera's own frame (R, U, F; UE's SocketOffset). It is added after the arm is shortened for
+    /// obstacles, so the probe still runs along the arm itself.
+    /// </summary>
+    public LogicalVector3 SocketOffset=LogicalVector3.Zero;
+    /// <summary>UE's CameraLagSpeed (per second), ADR-0078/M0107: the arm's pivot follows its target by this fraction of the remaining distance per second. 0 follows at once.</summary>
+    public LogicalScalar Lag=LogicalScalar.Zero;
+    /// <summary>UE's CameraLagMaxTimeStep (seconds): a frame longer than this is lagged in steps of this length, so the lag does not depend on the frame rate.</summary>
+    public LogicalScalar LagMaxTimeStep=LogicalScalar.FromSingle(1f/60f);
+    /// <summary>UE's CameraLagMaxDistance (m): the pivot never falls further behind than this. 0 is unlimited.</summary>
+    public LogicalScalar LagMaxDistance=LogicalScalar.Zero;
+    /// <summary>UE's CameraRotationLagSpeed (per second): the view rotation follows the control rotation by this fraction per second (a slerp). 0 follows at once.</summary>
+    public LogicalScalar RotationLag=LogicalScalar.Zero;
+}
+/// <summary>What the lagging spring arm remembers from the last frame (<see cref="OrbitCamera.Lag"/>, <see cref="OrbitCamera.RotationLag"/>); not part of the snapshot.</summary>
+public struct OrbitCameraRuntime:IRuntimeComponent<OrbitCamera> {
+    public LogicalVector3 Pivot;
+    public System.Numerics.Quaternion Rotation;
+    public bool HasPrevious;
 }

@@ -22,7 +22,7 @@ ADR-0078 の「クリック地点の目印」(TopDown の `FX_Cursor_Success`)�
 - 追加したオブジェクトの定数は、いまのフレームの枠にだけ書く(他の枠は、描画中のフレームが読むかもしれない)。毎フレーム `SetObjectTransform` で全部の枠が埋まる。
 - デバイスを失ったときは、`RenderServer` が持つ一覧から作り直す。外した物は `Removed` の印を付けて番号を残す(呼び出し側が持つ番号が変わらない)。成果物の閉包(メッシュ・マテリアル・オブジェクト一覧の同一性)も更新する(オブジェクト一覧はフレームに 1 回)。`RenderFrameState` の配列は、使う番号に合わせて自動で伸びる。
 - ランタイム側は `RenderRoster`(`EngineHost.Roster`)が持つ。Presentation の `StaticMeshBind`・`PrimitiveMeshBind` が、まだ描かれていない Entity の描画物を作り(初めて見る資産は読み込んでレンダラーへ足す)、位置もその場で置く。Entity が壊れるか、メッシュの Component を失ったら、`Renderable` の包みが `TransformSync` の中で自分の描画物を外して自分を壊す(`EmissiveMeshLighting` の包みも同じ)。
-- 描かれないもの(文書化した未実装): 後から作った `SkeletalMesh`(スキニングの準備はレンダラーの作成時。`SkeletalMeshBindNotice` が診断を 1 回出す)、すでに描かれている Entity の `StaticMesh.AssetPath` の書き換え。
+- 描かれないもの(文書化した未実装): 後から作った `SkeletalMesh`(M0105 の時点。スキニングの準備はレンダラーの作成時だった。M0107 で描かれるようになった)、すでに描かれている Entity の `StaticMesh.AssetPath` の書き換え。
 
 ### 2. `FixedTransform` の Generation 固定: 根本原因を直した
 - 原因: 解決器が `int` の Entity 番号をキーにして、Component の取得のたびに `new Entity(Id)`(Generation 1)を作り直していた。親の `Parent.Value.Id` も同じ。
@@ -85,7 +85,7 @@ ADR-0078 の「クリック地点の目印」(TopDown の `FX_Cursor_Success`)�
 
 ## 範囲外(未実装)
 - ビルボードの向き、透明・加算の粒子、粒子ごとの色、UE の `TexCoordY` のような材質の時間変化(描画契約の変更が要る)。
-- 後から作った `SkeletalMesh` の描画(リスポーンのキャラクターの生成は M0107 で扱う)。
+- 後から作った `SkeletalMesh` の描画(リスポーンのキャラクターの生成は M0107 で扱う)。→ M0107 で実装した(`SkeletalMeshBindNotice` は無くなった)。
 - 物理の体を持つ Scene の同時の複数生成(`PhysicsStableId`)。
 - 押していた時間の測定(短押しだけで目印を出す UE の条件は M0108)。
 - 実機の GPU での見た目とフレーム時間、最初の 1 体の引っかかり(`WaitForGpuIdle`)の測定(WARP のみ)。

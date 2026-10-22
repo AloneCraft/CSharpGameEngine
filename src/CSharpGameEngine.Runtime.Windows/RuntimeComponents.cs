@@ -170,6 +170,8 @@ public struct Renderable:IRuntimeComponent {
     public bool HasLastCameraRelativeWorld;
     public FixedTransformStatus LastTransformStatus;
     public FixedTransformResolveStatus LastWorldResolveStatus;
+    /// <summary>The object has been given a <see cref="MeshVisibility"/> (M0107), so it is put back to the default if the component goes away.</summary>
+    public bool VisibilityApplied;
 }
 
 public struct LightShadowRuntime:IRuntimeComponent<LightShadow> {

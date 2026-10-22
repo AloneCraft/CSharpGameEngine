@@ -73,7 +73,7 @@ internal struct CharacterMotionUpdate:ISystem {
 [SystemPhase(SystemPhase.Presentation)]
 internal struct OrbitCameraUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,OrbitCameraSolver>Solvers=[];
-    public void Update(ref Transform Transform,ref OrbitCamera Arm,in Parent<ViewAngles> Pawn,IPhysicsHost Host,ref State State){
+    public void Update(ref Transform Transform,ref OrbitCamera Arm,ref OrbitCameraRuntime Memory,in Parent<ViewAngles> Pawn,IPhysicsHost Host,ref State State){
         var Controller=Pawn.Value;
         if(!State.World.TryGetComponent(Pawn.Entity,out Transform Owner)||Owner.Frame!=Host.Physics.Frame){
             return;
@@ -82,7 +82,31 @@ internal struct OrbitCameraUpdate:ISystem {
         var Control=PlayerControl.ControlRotation(Controller);
         var Inverse=Owner.Rotation.Conjugate();
         try {
-            if(!Solver.TrySolve(Arm,Owner.Position,Owner.Rotation,Control,out var CameraPosition,out _)
+            if(!Owner.Rotation.TryRotate(Arm.Pivot,out var PivotOffset)){
+                return;
+            }
+            var Pivot=Owner.Position+PivotOffset;
+            var DeltaSeconds=State.FrameDeltaSeconds;
+            // ADR-0078/M0107: UE's camera lag. The first frame has nothing to lag from, so the camera starts where it should be.
+            if(Arm.Lag.TryToSingle(out var LagSpeed)&&LagSpeed>0f&&Memory.HasPrevious){
+                Arm.LagMaxTimeStep.TryToSingle(out var MaxTimeStep);
+                Arm.LagMaxDistance.TryToSingle(out var MaxDistance);
+                Pivot=CameraLag.Pivot(Memory.Pivot,Pivot,DeltaSeconds,LagSpeed,MaxTimeStep,MaxDistance);
+            }
+            if(Arm.RotationLag.TryToSingle(out var RotationLagSpeed)&&RotationLagSpeed>0f&&Control.TryToSingle(out var Target)){
+                if(Memory.HasPrevious){
+                    Arm.LagMaxTimeStep.TryToSingle(out var MaxTimeStep);
+                    Target=CameraLag.Rotation(Memory.Rotation,Target,DeltaSeconds,RotationLagSpeed,MaxTimeStep);
+                    var Lagged=new LogicalQuaternion(LogicalScalar.FromSingle(Target.X),LogicalScalar.FromSingle(Target.Y),LogicalScalar.FromSingle(Target.Z),LogicalScalar.FromSingle(Target.W));
+                    if(Lagged.TryNormalize(out var Normalized)){
+                        Control=Normalized;
+                    }
+                }
+                Memory.Rotation=Target;
+            }
+            Memory.Pivot=Pivot;
+            Memory.HasPrevious=true;
+            if(!Solver.TrySolveFrom(Arm,Pivot,Control,out var CameraPosition,out _)
                 ||!Inverse.TryRotate(CameraPosition-Owner.Position,out var Local)
                 ||!LogicalQuaternion.TryMultiply(Inverse,Control,out var LocalRotation)
                 ||Owner.Scale.R.IsZero||Owner.Scale.U.IsZero||Owner.Scale.F.IsZero){

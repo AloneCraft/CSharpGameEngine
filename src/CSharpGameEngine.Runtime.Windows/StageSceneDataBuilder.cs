@@ -25,6 +25,7 @@ internal sealed class StageSceneDataBuilder {
         Matrix4x4[]ObjectLocalTransforms,
         Entity[]SourceEntities,
         (Entity Entity,int[]MeshIndices)[]SkinnedMeshes,
+        SkeletalInstance[]SkeletalInstances,
         Dictionary<string,AssetTemplate>StaticAssets,
         Dictionary<PrimitiveType,int>PrimitiveMeshIndices,
         int PrimitiveMaterialIndex){
@@ -32,6 +33,7 @@ internal sealed class StageSceneDataBuilder {
         this.PrimitiveMeshIndices=PrimitiveMeshIndices;
         this.PrimitiveMaterialIndex=PrimitiveMaterialIndex;
         this.SkinnedMeshes=SkinnedMeshes;
+        this.SkeletalInstances=SkeletalInstances;
         this.Meshes=Meshes;
         this.Materials=Materials;
         this.Objects=Objects;
@@ -49,6 +51,8 @@ internal sealed class StageSceneDataBuilder {
     public Entity[]SourceEntities { get;}
     /// <summary>The renderer meshes each SkeletalMesh entity skins with its palette.</summary>
     public (Entity Entity,int[]MeshIndices)[]SkinnedMeshes { get;}
+    /// <summary>The meshes, materials and objects each SkeletalMesh entity at load became: what a later Entity of the same asset reuses once this one is gone (M0107).</summary>
+    internal SkeletalInstance[]SkeletalInstances { get;}
     /// <summary>The meshes and materials each StaticMesh asset became, by resolved path: what an Entity spawned later reuses (M0105).</summary>
     internal Dictionary<string,AssetTemplate>StaticAssets { get;}
     /// <summary>The renderer mesh of each primitive type a PrimitiveMesh used, and the one material they share (M0105).</summary>
@@ -61,6 +65,7 @@ internal sealed class StageSceneDataBuilder {
         IReadOnlyList<(Entity Entity,Transform Transform,SkeletalMesh Mesh)>?SkeletalMeshes=null){
         List<StageMeshCreateInfo>Meshes=[];
         List<(Entity Entity,int[]MeshIndices)>SkinnedMeshes=[];
+        List<SkeletalInstance>SkeletalInstances=[];
         List<StageMaterialCreateInfo>Materials=[];
         List<StageObjectCreateInfo>Objects=[];
         List<Transform>ObjectTransforms=[];
@@ -87,45 +92,15 @@ internal sealed class StageSceneDataBuilder {
 
         foreach(var Placement in SkeletalMeshes??[]){
             // Each placement skins its own copy of the meshes, so two characters can hold different poses.
-            var Imported=SkeletalAssetCache.Scene(Placement.Mesh.AssetPath??string.Empty);
-            var Skin=Imported.Skins[0];
-            var MeshOffset=Meshes.Count;
-            var MaterialOffset=Materials.Count;
-            List<int>Skinned=[];
-            for(var Index=0;Index<Imported.Meshes.Count;Index++){
-                var Mesh=Imported.Meshes[Index];
-                var IsSkinned=Imported.Nodes.Any(Node=>Node.MeshIndex==Index&&Node.SkinIndex is not null);
-                if(IsSkinned&&Mesh.Influences is null){
-                    throw new InvalidDataException($"SkeletalMesh '{Placement.Mesh.AssetPath}' has a skinned primitive without JOINTS/WEIGHTS.");
-                }
-                if(IsSkinned){
-                    Skinned.Add(Meshes.Count);
-                }
-                Meshes.Add(new StageMeshCreateInfo {
-                    Positions=Mesh.Positions,
-                    Normals=Mesh.Normals,
-                    Tangents=Mesh.Tangents,
-                    Uvs=Mesh.Uvs,
-                    Indices=Mesh.Indices,
-                    Skin=IsSkinned?new StageSkinCreateInfo { JointCount=Skin.JointNames.Count,JointIndices=Mesh.Influences!.JointIndices,Weights=Mesh.Influences.Weights }:null,
-                });
+            var (Template,Skinned)=LoadSkeletalAsset(Placement.Mesh.AssetPath??string.Empty,Meshes,Materials);
+            foreach(AssetObject Object in Template.Objects){
+                Objects.Add(new StageObjectCreateInfo { MeshIndex=Object.MeshIndex,MaterialIndex=Object.MaterialIndex });
+                ObjectTransforms.Add(Placement.Transform);
+                ObjectLocalTransforms.Add(Object.LocalTransform);
+                SourceEntities.Add(Placement.Entity);
             }
-            var FullPath=SkeletalAssetCache.ResolvePath(Placement.Mesh.AssetPath??string.Empty);
-            var SourceHash=Hash256.Compute(File.ReadAllBytes(FullPath));
-            RenderMaterialCatalog MaterialCatalog=new();
-            for(var Index=0;Index<Imported.Materials.Count;Index++){
-                Materials.Add(BakeMaterial(MaterialCatalog,Imported.Materials[Index],SourceHash,Index));
-            }
-            foreach(var Node in Imported.Nodes){
-                if(Node.MeshIndex is int MeshIndex&&Node.MaterialIndex is int MaterialIndex){
-                    Objects.Add(new StageObjectCreateInfo { MeshIndex=MeshOffset+MeshIndex,MaterialIndex=MaterialOffset+MaterialIndex });
-                    ObjectTransforms.Add(Placement.Transform);
-                    // The skin places skinned geometry (glTF ignores a skinned node's own transform).
-                    ObjectLocalTransforms.Add(Node.SkinIndex is null?Node.WorldTransform:Matrix4x4.Identity);
-                    SourceEntities.Add(Placement.Entity);
-                }
-            }
-            SkinnedMeshes.Add((Placement.Entity,[.. Skinned]));
+            SkinnedMeshes.Add((Placement.Entity,Skinned));
+            SkeletalInstances.Add(new SkeletalInstance(Placement.Entity,SkeletalAssetCache.ResolvePath(Placement.Mesh.AssetPath??string.Empty),Template,Skinned));
         }
 
         if(Primitives.Count>0){
@@ -151,7 +126,7 @@ internal sealed class StageSceneDataBuilder {
         }
 
         return new StageSceneDataBuilder([.. Meshes],[.. Materials],[.. Objects],
-            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities],[.. SkinnedMeshes],
+            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities],[.. SkinnedMeshes],[.. SkeletalInstances],
             Templates,PrimitiveMeshIndices,PrimitiveMaterialIndex);
     }
 
@@ -188,6 +163,50 @@ internal sealed class StageSceneDataBuilder {
             throw new InvalidOperationException($"StaticMesh '{FullPath}' に描画可能なノードがありません。");
         }
         return new AssetTemplate([.. Objects]);
+    }
+
+    /// <summary>
+    /// Appends one copy of a skeletal glTF's meshes and materials to <paramref name="Meshes"/> and <paramref name="Materials"/> (the renderer skins each copy with
+    /// its own palette) and returns its objects, with the renderer mesh indices of the skinned ones. The indices count from the lists' lengths on entry.
+    /// </summary>
+    internal static (AssetTemplate Template,int[]SkinnedMeshIndices)LoadSkeletalAsset(string AssetPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
+        var Imported=SkeletalAssetCache.Scene(AssetPath);
+        var Skin=Imported.Skins[0];
+        var MeshOffset=Meshes.Count;
+        var MaterialOffset=Materials.Count;
+        List<int>Skinned=[];
+        for(var Index=0;Index<Imported.Meshes.Count;Index++){
+            var Mesh=Imported.Meshes[Index];
+            var IsSkinned=Imported.Nodes.Any(Node=>Node.MeshIndex==Index&&Node.SkinIndex is not null);
+            if(IsSkinned&&Mesh.Influences is null){
+                throw new InvalidDataException($"SkeletalMesh '{AssetPath}' has a skinned primitive without JOINTS/WEIGHTS.");
+            }
+            if(IsSkinned){
+                Skinned.Add(Meshes.Count);
+            }
+            Meshes.Add(new StageMeshCreateInfo {
+                Positions=Mesh.Positions,
+                Normals=Mesh.Normals,
+                Tangents=Mesh.Tangents,
+                Uvs=Mesh.Uvs,
+                Indices=Mesh.Indices,
+                Skin=IsSkinned?new StageSkinCreateInfo { JointCount=Skin.JointNames.Count,JointIndices=Mesh.Influences!.JointIndices,Weights=Mesh.Influences.Weights }:null,
+            });
+        }
+        var FullPath=SkeletalAssetCache.ResolvePath(AssetPath);
+        var SourceHash=Hash256.Compute(File.ReadAllBytes(FullPath));
+        RenderMaterialCatalog MaterialCatalog=new();
+        for(var Index=0;Index<Imported.Materials.Count;Index++){
+            Materials.Add(BakeMaterial(MaterialCatalog,Imported.Materials[Index],SourceHash,Index));
+        }
+        List<AssetObject>Objects=[];
+        foreach(var Node in Imported.Nodes){
+            if(Node.MeshIndex is int MeshIndex&&Node.MaterialIndex is int MaterialIndex){
+                // The skin places skinned geometry (glTF ignores a skinned node's own transform).
+                Objects.Add(new AssetObject(MeshOffset+MeshIndex,MaterialOffset+MaterialIndex,Node.SkinIndex is null?Node.WorldTransform:Matrix4x4.Identity));
+            }
+        }
+        return (new AssetTemplate([.. Objects]),[.. Skinned]);
     }
 
     private static StageMaterialCreateInfo BakeMaterial(
@@ -268,5 +287,7 @@ internal sealed class StageSceneDataBuilder {
 
 
     internal sealed record AssetTemplate(AssetObject[]Objects);
+    /// <summary>A SkeletalMesh Entity's share of the renderer: the asset it came from, its objects and the renderer meshes it skins.</summary>
+    internal sealed record SkeletalInstance(Entity Entity,string FullPath,AssetTemplate Template,int[]SkinnedMeshIndices);
     internal readonly record struct AssetObject(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);
 }

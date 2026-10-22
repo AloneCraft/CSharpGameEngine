@@ -418,7 +418,7 @@
 - Observed behavior:
   - 描画物の余裕は 4096 個、マテリアルは 256 個。使い切ると追加は断られ(`AddObject` は -1)、その Entity は描かれない。診断は 1 回。外したオブジェクトの番号は次の追加で使われる。
   - 描かれる Entity は、生きていて `StaticMesh`・`PrimitiveMesh`・`SkeletalMesh` のどれかを持つもの。壊れるか、メッシュを失うと、次のフレームの `TransformSync` で外れる。位置が解決できない Entity は、置けるまで描かれない(カメラの位置に出ない)。
-  - 読めない資産(存在しない、スキン付き、マテリアルの余裕が足りない)は、診断を 1 回出して描かない。同じ資産は再び読もうとしない。
+  - 読めない資産(存在しない、マテリアルの余裕が足りない。M0107 から、スキン付きのメッシュは `SkeletalMesh` なら読める)は、診断を 1 回出して描かない。同じ資産は再び読もうとしない。
   - `Spawner.Spawn<TScene>(位置)` は、根の位置を置き換える(回転と拡縮は Scene に書いた値、回転を渡すと回転も)。Scene は呼んだフレームの終わりに現れ、描かれるのは次のフレームから。同じ Scene を続けて呼ぶと、独立した複製になる。
   - `Lifetime` は固定 tick ごとに 1 tick 分(1 / `FixedTickRate` 秒)減り、0 以下で壊れる(残りが 0 なら最初の tick)。Scene の根なら Scene ごと壊れる。
   - `ParticleBurst` は最初の固定 tick に 1 回だけ、ノードのワールド位置から `Count`(0〜256 に収める)個の粒子を出す。方向と速さは `Seed` から決まる。粒子は毎 tick 動き、重力で落ち、生まれてからの割合で大きさが `StartScale` から `EndScale` へ直線で変わる(動きは寿命を数える前に読む)。
@@ -435,3 +435,19 @@
   - 歩く: `NavigationSteering`(PhysicsSimulation、`CharacterMotionUpdate` の前)が、`MoveIntent.Destination` への経路を探し、次の経由点を `MoveIntent.Waypoint` へ置く。通過点は最高速度のまま `NavAgent.WaypointRadius`(0.3 m)に入ったら次へ、最後の点は `Destination` と同じ減速で止まる。目的地が 0.25 m 以上動いた、または経路の線から 1.5 m 以上離れたら探し直す。ナビメッシュが無い・出発点が外なら、経由点を置かず、従来の直線。`HasDestination` が false になると経路を捨てる。
   - ビルド: `CgeCookNavigation` が、`NavMeshBounds` を含むシーンごとに Cook CLI を別のプロセスで動かし、`Assets/Navigation/<Id>.cgenav` を出力へ複製する。シーン・アセット・ツールが新しいときだけ。失敗はビルドのエラー。
 - Result: Matches ADR-0078(M0106)。
+
+## RE-M0107 — キャラクターとアニメーション
+
+- Confidence: High(単体テスト、実際の Mannequin の資産、WARP の実走、SDK パッケージから作ったゲームの実行で確認)。実機の GPU と VS の実機は未確認。足の IK の見た目と UE の比較、FABRIK の `Weight` の解釈は推測を含む
+- Evidence: `Runtime.Animation/`(`BlendSpace2D.cs`・`PoseBlending.cs`・`LocomotionStateMachine.cs`・`TwoBoneIk.cs`・`FootIk.cs`・`FirstPersonRig.cs`)、`Runtime.Character/`(`LocomotionObserver.cs`・`FootIkSystems.cs`・`Respawn.cs`・`PlayerCamera.cs`・`CharacterMotor.cs`)、`Runtime.Windows/`(`FirstPersonView.cs`・`RenderRoster.cs`・`RuntimeSystems.cs`)、`StageRenderer.SetObjectVisibility`
+- Observed behavior:
+  - 動きの入力(`LocomotionObserver.Observe`): `Speed` は水平速度の長さ。`Direction`(度、−180〜180)は水平速度と体の前向きの符号つきの角度で、前を向いたときの +R 側が正(右のクリップが進む側)。`FaceMovement` なら ±45° に制限する。`ShouldMove` は `Speed > 0.0001 m/s` かつ `MoveIntent.Direction` が 0 でないとき。`Falling` は移動の状態、`VerticalSpeed` は上向きの速度(m/s)。
+  - 状態機械(`LocomotionStateMachine`): Locomotion(入れ子の Idle / Move)、Jump、Fall Loop、Land。落下を始めると、`VerticalSpeed > 1` なら Jump(0.15 s)、でなければ Fall Loop(0.4 s)。Jump はクリップの残りが 0.3 s で Fall Loop(0.3 s)。落下が終わると Land(0.1 s)。Land は残り 0.4 s で Locomotion(0.4 s)、`ShouldMove` なら Locomotion(0.5 s)。Idle → Move は 0.2 s、Move → Idle は 0.3 s。すべて Cubic(3t² − 2t³)で、遷移の途中の別の遷移は画面にあったポーズから始める。
+  - ブレンドスペース(`BlendSpace2D`): X は 45° ごとの 9 列(−180〜180)、Y は 0 / 歩行速度 / 走行速度(Y=0 は Idle のクリップ)。格子の三角形分割は、X の左半分が「左下から右上」、右半分が「右下から左上」の対角線。重みは目標へ毎秒 5 の指数的な近づき方で、合計は 1。ブレンドスペースの 16 本のクリップは、重みつきの長さに合わせた 1 つの位相で進む。
+  - 足の IK(`FootIkUpdate`): 足首の少し前(0.05 m)から、メッシュの原点 + 0.3 m の高さから − 0.5 m の高さまで光線を下ろし、当たった高さをその足の目標のずれにする(当たらなければ 0、落下中は 0)。ずれは毎秒 10 で補間。骨盤は低い方の足に合わせて下げ、足は 2 ボーン IK(膝は今の曲がりを保ち、足首の向きは動かさない)で届く範囲まで引く。
+  - 一人称(`FirstPersonPoseUpdate`): 体のポーズ(足の IK のあと)を腕のスケルトンへ写し、`spine_01` は動かさず `spine_01`〜`spine_04` を FABRIK(最大 10 回、精度 1 cm、重み 0.5)で `BodyOffset` へ寄せ、`head` を基準姿勢の位置と向きへ、`upperarm_l/r` を基準姿勢の位置へ置く(前腕と手は剛体で追従)。腕の描画は、カメラ相対のワールド行列に、カメラ空間の `(縮尺 × 広がり, 縮尺 × 広がり, 縮尺)` を掛ける(縮尺 0.6、広がり = tan(90° / 2) / tan(70° / 2))。体は `VisibleToCamera=false`(カメラのパスに描かれず、影のパスには描かれる)、腕は `CastsShadow=false`。
+  - カメラの遅れ(`CameraLag`): 軸の位置は `VInterpTo`(距離 × clamp(dt × 速さ))、回転は slerp。1 フレームが `LagMaxTimeStep`(1/60 s)より長いと、刻んで進める(UE の substepping と同じ式)。`LagMaxDistance` を超えて離れない。新しい Pawn のカメラは最初のフレームで遅れずに置かれる。`SocketOffset` は腕を縮めたあとのカメラの座標系のずれ。
+  - 平面への拘束(`CharacterMotion.ConstrainToPlane`): 入力・速度・各移動の変位から、法線(使うとき正規化)の成分を引く。法線が 0 なら何もしない。`SnapToPlaneAtStart` は最初の tick に平面へ寄せる。
+  - `KillZ`(PostPhysics): 位置の高さが `Height`(既定 −10485.75 m)より低い Pawn を壊す(根なら Scene ごと)。壊したら `PawnDestroyed` を送る。`PlayerStarts.TryPick(World, First | Random, 種)` が PlayerStart を選ぶ(無作為は SplitMix64 の決定的な選び方)。テンプレートの `RespawnPlayer`・`RespawnVehicle` が `Spawner.Spawn` で新しい Pawn を出し、カメラが引き継ぐ。
+  - 後から作る `SkeletalMesh`: `RenderRoster.BindSkeletalMesh` が資産ごとのプールからスキンつきメッシュとマテリアルの組を使い、足りなければ `AddMesh` で足す(パレットのリングの作り直しで GPU の待ちが 1 回)。Entity が消えると組はプールへ戻る。
+- Result: MatchesWithDocumentedExtension(ADR-0078 / M0107。足の IK は解析的な 2 ボーン IK、一人称のカメラは固定の目の位置。差は `Docs/Milestones/M0107-Characters-And-Animation.md`)。

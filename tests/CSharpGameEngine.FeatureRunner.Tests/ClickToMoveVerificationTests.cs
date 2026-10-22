@@ -44,7 +44,7 @@ public sealed class ClickToMoveVerificationTests {
     /// 8 frames) and the camera height falls by <paramref name="Descent"/> over the first 12 frames of the walk (the ramp), then stays.
     /// </summary>
     private static JsonElement NavigatedReport((float R,float F)[]?Route=null,float Descent=2.1f,float DropFrame=0f,int D3D12Errors=0){
-        Route??=[(0f,0f),(0.9f,4.5f),(1.3f,7.7f),(2.2f,9.0f),(6.0f,8.3f),(7.06f,8.06f)];
+        Route??=[(0f,0f),(0.9f,4.5f),(1.3f,7.7f),(2.2f,9.0f),(6.0f,8.3f),(6.75f,7.14f)];
         var Positions=new List<float[]?>();
         for(var Frame=0;Frame<ClickToMoveVerification.Frames;Frame++){
             if(Frame<3){
@@ -73,7 +73,7 @@ public sealed class ClickToMoveVerificationTests {
     }
     [Fact]
     public void EvaluateNavigated_RejectsAStraightWalkThatNeverGoesAroundTheWall(){
-        var Failures=ClickToMoveVerification.EvaluateNavigated(NavigatedReport(Route:[(0f,0f),(7.06f,8.06f)]),out _);
+        var Failures=ClickToMoveVerification.EvaluateNavigated(NavigatedReport(Route:[(0f,0f),(6.75f,7.14f)]),out _);
         Assert.Contains(Failures,Failure=>Failure.Contains("wall",StringComparison.OrdinalIgnoreCase)&&Failure.Contains("did not go around",StringComparison.Ordinal));
         Assert.Contains(Failures,Failure=>Failure.Contains("times longer",StringComparison.Ordinal));
     }
@@ -94,7 +94,7 @@ public sealed class ClickToMoveVerificationTests {
     [Fact]
     public void TheStraightEvaluation_DoesNotJudgeTheRoute(){
         // The straight run (navigation off) is the pre-M0106 walk: the same report is fine for it whatever its route.
-        Assert.Empty(ClickToMoveVerification.Evaluate(NavigatedReport(Route:[(0f,0f),(7.06f,8.06f)],Descent:0f),out _));
+        Assert.Empty(ClickToMoveVerification.Evaluate(NavigatedReport(Route:[(0f,0f),(6.75f,7.14f)],Descent:0f),out _));
     }
     [Fact]
     public void Evaluate_AcceptsAReportWithoutAudioFields(){
@@ -126,5 +126,31 @@ public sealed class ClickToMoveVerificationTests {
     public void Evaluate_DoesNotCountAMarkerThatWasAlreadyThereBeforeTheClick(){
         // The scene had one more object from the start; only a rise after the click is the marker.
         Assert.Contains(ClickToMoveVerification.Evaluate(Report(RenderObjects:Objects(0,ClickToMoveVerification.Frames)),out _),Failure=>Failure.Contains("no marker",StringComparison.Ordinal));
+    }
+    /// <summary>
+    /// ADR-0078/M0107: the camera lags behind the character, so a report that carries <c>focusPositions</c> (where the character was) is judged on those. Here the camera
+    /// never leaves its start and would fail every check, while the character walks a good route.
+    /// </summary>
+    [Fact]
+    public void EvaluateNavigated_JudgesTheCharactersPositionsWhenTheReportHasThemNotTheLaggingCamera(){
+        var Route=new (float R,float F)[] { (0f,0f),(0.9f,4.5f),(1.3f,7.7f),(2.2f,9.0f),(6.0f,8.3f),(6.75f,7.14f) };
+        var Focus=new List<float[]?>();
+        var Camera=new List<float[]?>();
+        for(var Frame=0;Frame<ClickToMoveVerification.Frames;Frame++){
+            if(Frame<3){
+                Focus.Add(null);
+                Camera.Add(null);
+                continue;
+            }
+            var Walked=Math.Clamp((Frame-ClickToMoveVerification.ClickStartFrame+1)/8f,0f,Route.Length-1f);
+            var Leg=Math.Min((int)Walked,Route.Length-2);
+            var Along=Walked-Leg;
+            Focus.Add([Route[Leg].R+((Route[Leg+1].R-Route[Leg].R)*Along),1f,Route[Leg].F+((Route[Leg+1].F-Route[Leg].F)*Along)]);
+            Camera.Add([0f,13f,0f]);
+        }
+        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.Frames,d3d12Errors=0,audioRequests=12,cameraPositions=Camera,focusPositions=Focus });
+        var Failures=ClickToMoveVerification.EvaluateNavigated(JsonDocument.Parse(Json).RootElement,out var Summary);
+        Assert.Empty(Failures);
+        Assert.Contains("final=(6.75,7.14)",Summary,StringComparison.Ordinal);
     }
 }

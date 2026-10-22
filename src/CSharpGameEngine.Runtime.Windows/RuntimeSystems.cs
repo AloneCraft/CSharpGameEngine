@@ -137,6 +137,9 @@ internal struct LevelLoad:ISystem {
     private Camera PendingCamera;
     private int ActiveCameraCount;
     private bool RosterCaptured;
+    // ADR-0078/M0107: when the pawn the camera belonged to is destroyed and a new one spawns, the new pawn's camera takes over.
+    private Entity ReplacementCameraEntity;
+    private bool HasReplacementCamera;
 
     public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingStaticMeshes??=[]).Add((Entity,Transform,Mesh));
@@ -214,6 +217,10 @@ internal struct LevelLoad:ISystem {
                 this.PendingCamera=Camera;
             }
         }
+        else if(this.RosterCaptured&&Camera.Active&&Entity!=this.PendingCameraEntity){
+            this.ReplacementCameraEntity=Entity;
+            this.HasReplacementCamera=true;
+        }
     }
     public void Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,EngineHost Host,ref State State){
         if(!this.HasLevelEntity){this.LevelEntity=Entity;this.HasLevelEntity=true;}
@@ -221,6 +228,11 @@ internal struct LevelLoad:ISystem {
             throw new InvalidOperationException("Runtime requires exactly one Level.");
         }
         if(LevelRuntime.Loaded){
+            if(this.HasReplacementCamera&&!State.World.IsAlive(this.PendingCameraEntity)){
+                this.PendingCameraEntity=this.ReplacementCameraEntity;
+                this.ActiveCameraCount=1;
+            }
+            this.HasReplacementCamera=false;
             FixedTransformResolveStatus CameraResolveStatus=ResolveCamera(
                 Host,this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
             LevelRuntime.LastCameraWorldResolveStatus=CameraResolveStatus;
@@ -386,6 +398,8 @@ internal struct LevelLoad:ISystem {
 /// <summary>Hands each SkeletalMesh's palette to the renderer after the animators ran (ADR-0066). Submitted every frame so device recovery replays the current pose.</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CSharpGameEngine.Runtime.Animation.LocomotionAnimation))]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Character.FootIkUpdate))]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Character.FirstPersonPoseUpdate))]
 internal struct SkinnedMeshSync:ISystem {
     public void Update(Entity Entity,ref SkeletalMeshRuntime Runtime,EngineHost Host,ref State State){
         if(Runtime.Palette is not{ }Palette||Host.Renderer is not{ }Renderer||!Host.TryGetSkinnedMeshes(Entity,out var MeshIndices)){
@@ -415,6 +429,13 @@ internal struct CameraOriginSync:ISystem {
             &&RenderCamera.TryNormalizeOrientation(Forward,Up,
                 out _,out _)){
             Host.SetCameraPose(CameraWorld,CameraFrame);
+            // M0107: the character the camera hangs from, for an automation report (a lagging camera does not show where it is).
+            Host.AutomationFocusPosition=null;
+            if(State.World.TryGetComponent(Entity,out Parent Hanger)
+                &&RuntimeWorldTransform.TryResolveWorld(Hanger.Value,State.World,out FixedAffineTransform HangerWorld,out _)==FixedTransformResolveStatus.Success
+                &&HangerWorld.M41.TryToSingle(out var HangerR)&&HangerWorld.M42.TryToSingle(out var HangerU)&&HangerWorld.M43.TryToSingle(out var HangerF)){
+                Host.AutomationFocusPosition=new Vector3(HangerR,HangerU,HangerF);
+            }
         }
     }
 }
@@ -684,8 +705,20 @@ internal struct TransformSync:ISystem {
             Matrix4x4 Local=Renderable.HasMeshLocalTransform
                 ?Renderable.MeshLocalTransform
                 :Matrix4x4.Identity;
-            Renderer.SetObjectTransform(
-                Renderable.ObjectIndex,Local*Renderable.LastCameraRelativeWorld);
+            var World=Local*Renderable.LastCameraRelativeWorld;
+            // ADR-0078/M0107: a first-person mesh is drawn with its own field of view and scale, and a mesh can be kept out of the camera's picture
+            // or out of the shadows. Only meshes that carry the components pay for them.
+            if(State.World.TryGetComponent(SourceEntity,out FirstPersonView FirstPerson)){
+                World*=FirstPersonViewWarp.Matrix(Host.RenderCamera,FirstPerson);
+            }
+            Renderer.SetObjectTransform(Renderable.ObjectIndex,World);
+            if(State.World.TryGetComponent(SourceEntity,out MeshVisibility Visibility)){
+                Renderer.SetObjectVisibility(Renderable.ObjectIndex,Visibility.VisibleToCamera,Visibility.CastsShadow);
+                Renderable.VisibilityApplied=true;
+            } else if(Renderable.VisibilityApplied){
+                Renderer.SetObjectVisibility(Renderable.ObjectIndex,true,true);
+                Renderable.VisibilityApplied=false;
+            }
         }
     }
 }
@@ -756,13 +789,13 @@ internal struct PrimitiveMeshBind:ISystem {
     }
 }
 
-/// <summary>ADR-0078/M0105: reports a <see cref="SkeletalMesh"/> that appeared after the level loaded, which is not drawn.</summary>
+/// <summary>ADR-0078/M0107: gives a <see cref="SkeletalMesh"/> that appeared after the level loaded (a respawned character) its renderer objects.</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
 [RunsBefore(typeof(TransformSync))]
-internal struct SkeletalMeshBindNotice:ISystem {
+internal struct SkeletalMeshBind:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref SkeletalMesh Mesh,EngineHost Host,ref State State){
-        Host.Roster?.NoteSkeletalMesh(Entity);
+        Host.Roster?.BindSkeletalMesh(Entity,in Transform,in Mesh,Host,ref State);
     }
 }
 
@@ -771,6 +804,15 @@ internal struct SkeletalMeshBindNotice:ISystem {
 /// roots today. RuntimeWorldTransform resolves arbitrary future reparenting through this API.
 /// </summary>
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
+
+/// <summary>
+/// ADR-0078/M0107: <see cref="TransformSync"/> reads <see cref="MeshVisibility"/> and <see cref="FirstPersonView"/> from the mesh Entity, which needs the generated
+/// World to know them as Components even in a game whose scenes do not use them.
+/// </summary>
+internal struct MeshPresentationRegistration:ISystem {
+    public void Spawn(ref MeshVisibility Visibility){}
+    public void Spawn(ref FirstPersonView View){}
+}
 
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(SkinnedMeshSync))]

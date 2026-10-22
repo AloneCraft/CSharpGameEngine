@@ -35,10 +35,15 @@ internal struct LocomotionAnimation:ISystem {
         }
         if(Runtime.Machine is null){
             try {
-                var Clips=new LocomotionClips(
-                    SkeletalAssetCache.Clip(Animator.Idle,Skeleton),SkeletalAssetCache.Clip(Animator.Walk,Skeleton),SkeletalAssetCache.Clip(Animator.Jog,Skeleton),
+                var Walk=new AnimationClip[LocomotionDirection.Count];
+                var Jog=new AnimationClip[LocomotionDirection.Count];
+                for(var Direction=0;Direction<LocomotionDirection.Count;Direction++){
+                    Walk[Direction]=SkeletalAssetCache.Clip(Animator.WalkClip(Direction),Skeleton);
+                    Jog[Direction]=SkeletalAssetCache.Clip(Animator.JogClip(Direction),Skeleton);
+                }
+                var Clips=new LocomotionClips(SkeletalAssetCache.Clip(Animator.Idle,Skeleton),Walk,Jog,
                     SkeletalAssetCache.Clip(Animator.Jump,Skeleton),SkeletalAssetCache.Clip(Animator.Fall,Skeleton),SkeletalAssetCache.Clip(Animator.Land,Skeleton));
-                Runtime.Machine=new LocomotionStateMachine(Skeleton,Clips,Animator.WalkSpeed,Animator.JogSpeed,Animator.BlendSeconds);
+                Runtime.Machine=new LocomotionStateMachine(Skeleton,Clips,Animator.WalkSpeed,Animator.JogSpeed,Animator.BlendWeightSpeed);
                 Runtime.Pose=new JointPose[Skeleton.JointCount];
             }
             catch(Exception Ex) when(Ex is InvalidDataException or IOException or ArgumentException or UnauthorizedAccessException){
@@ -50,7 +55,7 @@ internal struct LocomotionAnimation:ISystem {
             return;
         }
         var DeltaSeconds=Math.Min(State.FrameDeltaSeconds,MaximumDeltaSeconds);
-        Machine.Update(DeltaSeconds,Animator.Speed,Animator.Falling,Animator.VerticalSpeed,Pose);
+        Machine.Update(DeltaSeconds,new LocomotionInput(Animator.Speed,Animator.Direction,Animator.ShouldMove,Animator.Falling,Animator.VerticalSpeed),Pose);
         Skeleton.ComputePalette(Pose,Mesh.Model,Mesh.Palette);
     }
 }

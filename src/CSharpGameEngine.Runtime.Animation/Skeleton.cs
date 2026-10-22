@@ -45,6 +45,10 @@ public sealed class Skeleton {
     public int JointCount=>this.JointNames.Count;
     public ReadOnlySpan<JointPose>Rest=>this.RestPose;
     public int ParentOf(int Joint)=>this.Parents[Joint];
+    /// <summary>The transform the root joints sit in (the skin's skeleton transform).</summary>
+    public Matrix4x4 RootTransform=>this.Root;
+    /// <summary>The joints ordered so every parent precedes its children.</summary>
+    public ReadOnlySpan<int>ParentsFirstOrder=>this.EvaluationOrder;
     public int IndexOf(string Name)=>this.IndexByName.TryGetValue(Name,out var Index)?Index:-1;
     public static Skeleton FromImported(ImportedSkin Skin){
         ArgumentNullException.ThrowIfNull(Skin);
@@ -54,6 +58,16 @@ public sealed class Skeleton {
             Rest[Joint]=new JointPose { Translation=Skin.RestTranslations[Joint],Rotation=Skin.RestRotations[Joint],Scale=Skin.RestScales[Joint] };
         }
         return new Skeleton([.. Skin.JointNames],[.. Skin.ParentIndices],Rest,[.. Skin.InverseBindMatrices],Skin.SkeletonTransform);
+    }
+    /// <summary>Writes each joint's model matrix for <paramref name="Local"/> (the skinning palette without the inverse bind).</summary>
+    public void ComputeModel(ReadOnlySpan<JointPose>Local,Span<Matrix4x4>Model){
+        if(Local.Length<this.JointCount||Model.Length<this.JointCount){
+            throw new ArgumentException($"The skeleton has {this.JointCount} joints.");
+        }
+        foreach(var Joint in this.EvaluationOrder){
+            var Parent=this.Parents[Joint];
+            Model[Joint]=Local[Joint].ToMatrix()*(Parent<0?this.Root:Model[Parent]);
+        }
     }
     /// <summary>Writes each joint's model matrix and skinning matrix for <paramref name="Local"/>.</summary>
     public void ComputePalette(ReadOnlySpan<JointPose>Local,Span<Matrix4x4>Model,Span<Matrix4x4>Palette){

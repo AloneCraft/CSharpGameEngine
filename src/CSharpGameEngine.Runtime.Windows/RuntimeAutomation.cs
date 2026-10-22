@@ -25,6 +25,8 @@ public sealed class RuntimeAutomation {
     public const string CursorVariable="CGE_AUTOMATION_CURSOR";
     public const string ReportSchema="cge-automation-report/1";
     private readonly List<Vector3?>CameraPositions=[];
+    /// <summary>One entry per presented frame: where the Entity the camera hangs from is (the character a spring arm follows), or null (M0107).</summary>
+    private readonly List<Vector3?>FocusPositions=[];
     /// <summary>One entry per presented frame: a fingerprint of the screen layer's vertices (ADR-0078/M0104), 0 when the frame had none.</summary>
     private readonly List<ulong>ScreenLayerFingerprints=[];
     /// <summary>One entry per presented frame: how many objects the renderer drew (ADR-0078/M0105), so a spawned effect shows as a rise and its end as a fall.</summary>
@@ -103,12 +105,13 @@ public sealed class RuntimeAutomation {
         return Parts.Length==2&&float.TryParse(Parts[0],NumberStyles.Float,CultureInfo.InvariantCulture,out var X)&&float.TryParse(Parts[1],NumberStyles.Float,CultureInfo.InvariantCulture,out var Y)?(X,Y):null;
     }
     internal bool CapturesNextFrame=>this.CapturePath is not null&&this.PresentedFrames+1==this.ExitAfterFrames;
-    internal void RecordPresented(RenderServer Renderer,Vector3?CameraPosition,int AudioRequests=0,int AudioStarted=0,ulong ScreenLayerFingerprint=0){
+    internal void RecordPresented(RenderServer Renderer,Vector3?CameraPosition,int AudioRequests=0,int AudioStarted=0,ulong ScreenLayerFingerprint=0,Vector3?FocusPosition=null){
         this.AudioRequests=AudioRequests;
         this.AudioStarted=AudioStarted;
         var Captured=this.CapturesNextFrame;
         this.PresentedFrames++;
         this.CameraPositions.Add(CameraPosition);
+        this.FocusPositions.Add(FocusPosition);
         this.ScreenLayerFingerprints.Add(ScreenLayerFingerprint);
         this.RenderObjectCounts.Add(Renderer.ActiveObjectCount);
         if(this.Completed&&this.ReportPath is not null){
@@ -140,19 +143,9 @@ public sealed class RuntimeAutomation {
         Writer.WriteNumber("audioRequests",this.AudioRequests);
         Writer.WriteNumber("audioStarted",this.AudioStarted);
         // Frame-local camera positions (in the camera's reference frame), one entry per presented frame.
-        Writer.WriteStartArray("cameraPositions");
-        foreach(var Position in this.CameraPositions){
-            if(Position is not{ }Value){
-                Writer.WriteNullValue();
-                continue;
-            }
-            Writer.WriteStartArray();
-            Writer.WriteNumberValue(Value.X);
-            Writer.WriteNumberValue(Value.Y);
-            Writer.WriteNumberValue(Value.Z);
-            Writer.WriteEndArray();
-        }
-        Writer.WriteEndArray();
+        WritePositions(Writer,"cameraPositions",this.CameraPositions);
+        // Where the camera's parent (the character) was, one entry per presented frame; null when the camera has no parent (M0107).
+        WritePositions(Writer,"focusPositions",this.FocusPositions);
         // Hexadecimal text: a 64-bit value does not survive a JSON number.
         Writer.WriteStartArray("screenLayerFingerprints");
         foreach(var Fingerprint in this.ScreenLayerFingerprints){
@@ -165,6 +158,21 @@ public sealed class RuntimeAutomation {
         }
         Writer.WriteEndArray();
         Writer.WriteEndObject();
+    }
+    private static void WritePositions(Utf8JsonWriter Writer,string Name,List<Vector3?>Positions){
+        Writer.WriteStartArray(Name);
+        foreach(var Position in Positions){
+            if(Position is not{ }Value){
+                Writer.WriteNullValue();
+                continue;
+            }
+            Writer.WriteStartArray();
+            Writer.WriteNumberValue(Value.X);
+            Writer.WriteNumberValue(Value.Y);
+            Writer.WriteNumberValue(Value.Z);
+            Writer.WriteEndArray();
+        }
+        Writer.WriteEndArray();
     }
     /// <summary>R8G8B8A8のReadback結果を、行ピッチを除いた不透明RGBのPNGとして保存する。</summary>
     public static void WritePng(PixelReadbackResult Frame,string Path){

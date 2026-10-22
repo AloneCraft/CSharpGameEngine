@@ -38,6 +38,16 @@ public struct CharacterMotion() {
     /// <summary>地面を歩いて、この距離(m)進むごとに <see cref="Footstep"/> を1回送る。0以下なら送らない。</summary>
     public LogicalScalar StepLength=LogicalScalar.FromSingle(1.2f);
     public PhysicsLayerMask CollidesWith=PhysicsLayerMask.All;
+    /// <summary>
+    /// UE's bConstrainToPlane (ADR-0078/M0107): input, velocity and every move are flattened onto the plane through <see cref="PlaneOrigin"/> with
+    /// the normal <see cref="PlaneNormal"/>, so the character cannot leave it. The normal is normalized when used; a zero normal (what UE's TopDown
+    /// character has: bConstrainToPlane on, PlaneConstraintNormal unset) constrains nothing.
+    /// </summary>
+    public bool ConstrainToPlane=false;
+    public LogicalVector3 PlaneNormal=LogicalVector3.Zero;
+    public LogicalVector3 PlaneOrigin=LogicalVector3.Zero;
+    /// <summary>UE's bSnapToPlaneAtStart: the first tick moves the character onto the plane (when <see cref="ConstrainToPlane"/>).</summary>
+    public bool SnapToPlaneAtStart=false;
 }
 /// <summary>Authoritative movement state; part of the snapshot so replays continue deterministically.</summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,11)]
@@ -48,6 +58,8 @@ public struct CharacterMotionState {
     public LogicalVector3 Facing;
     /// <summary>前回の <see cref="Footstep"/> からの歩行距離(m)。</summary>
     public LogicalScalar StrideDistance;
+    /// <summary>The first tick has run, so <see cref="CharacterMotion.SnapToPlaneAtStart"/> has had its turn.</summary>
+    public bool PlaneSnapped;
     /// <summary>True while standing on a walkable floor (ADR-0077). Derived from <see cref="Mode"/>, so it is not stored.</summary>
     public readonly bool OnGround=>this.Mode==CharacterMotionMode.Walking;
     public readonly bool Falling=>this.Mode==CharacterMotionMode.Falling;

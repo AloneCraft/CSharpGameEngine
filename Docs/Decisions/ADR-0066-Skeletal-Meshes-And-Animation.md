@@ -35,21 +35,22 @@ Observed facts:
    - `SkeletalAssetCache`, a single import per path that the renderer roster and the animators share.
    - Components:
      - `SkeletalMesh` (asset path);
-     - `LocomotionAnimator` (clip paths, walk/jog speeds, blend time, and per-frame inputs Speed, Falling and VerticalSpeed);
+     - `Locomotion` (clip paths for eight walk and eight jog directions plus Idle, Jump, Fall and Land, walk/jog speeds, and per-frame inputs Speed, Direction, ShouldMove, Falling and VerticalSpeed; named `LocomotionAnimator` when this ADR was written);
      - their runtime companions.
    - Presentation systems: setup (order 11), locomotion (12) and the renderer sync (13). Evaluation uses wall-clock time capped at 0.1 s per frame. Animation is presentation data and never feeds the simulation.
-4. **Locomotion graph.** `LocomotionStateMachine` reproduces ABP_Unarmed.
-   - Locomotion blends Idle → Walk → Jog along the blend space's forward column (3 and 6 m/s). The template turns the character toward its movement, so the direction axis stays at 0.
-   - Walk and Jog share one normalized phase, so their steps stay in sync.
-   - Leaving the ground enters Jump (while rising) or Fall.
-   - Jump hands over to the looping Fall one blend time before it ends.
-   - Touching down plays Land, which yields to Locomotion when it finishes or when moving faster than 1 m/s.
-   - Each state change cross-fades for 0.2 s from a snapshot of the last output pose.
+4. **Locomotion graph.** `LocomotionStateMachine` reproduces ABP_Unarmed (rebuilt in M0107 / ADR-0078 with the values read from the UE graph; see `UE-Template-Behavior.md`).
+   - Locomotion is a nested machine: Idle and Move. Move is the 2D blend space `BS_Idle_Walk_Run` (`BlendSpace2D`: X is the signed `Direction` toward +R, Y is the ground speed; walk at 3 m/s and jog at 6 m/s, eight directions each; UE's triangulation; the weights approach their targets at 5 per second).
+   - The blend space's clips share one normalized phase advanced at the weighted length of the clips, so their steps stay in sync.
+   - Idle to Move follows `ShouldMove` (0.2 s), Move to Idle follows its negation (0.3 s).
+   - Leaving the ground enters Jump when rising faster than 1 m/s (0.15 s), otherwise Fall Loop (0.4 s). Jump hands over to Fall Loop 0.3 s before it ends (0.3 s).
+   - Touching down plays Land (0.1 s), which yields to Locomotion 0.4 s before it ends (0.4 s) or at once when `ShouldMove` (0.5 s).
+   - Every transition cross-fades with a cubic curve (`PoseFade`) from a snapshot of the pose that was on screen, so an interrupted fade continues from there.
+   - Foot IK (`FootIk`: two-bone IK on a ground ray) and the first-person warp (`FirstPersonRig`) are applied after the graph (M0107).
 5. **Template.** The importer emits a `Mesh` child of the character.
    - Its Transform is Unreal's relative location converted to the character frame, (0, −0.89, 0).
    - Its rotation is Unreal's relative yaw minus 90°, which is 180° for Quinn. This matches the observed −F facing.
-   - It carries `SkeletalMesh` (Quinn) and `LocomotionAnimator` with the six clips and the blend-space speeds.
-   - A template system (`ThirdPersonAnimation`, the ABP event-graph equivalent) feeds the parent's `CharacterMovementState` into the animator.
+   - It carries `SkeletalMesh` (Quinn) and `Locomotion` with the clips and the blend-space speeds.
+   - A template system (`ThirdPersonAnimation`, the ABP event-graph equivalent) feeds the parent's motion state into the animator through `LocomotionObserver`.
    - The capsule stand-in of ADR-0067 is removed.
 
 ## Alternatives considered

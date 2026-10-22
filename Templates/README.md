@@ -99,10 +99,10 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 
 | テンプレート | プロジェクト | 理想コードとの差 |
 |---|---|---|
-| ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方 |
-| FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0) |
-| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Hit.Point)` で出す(押した瞬間。UE は短押しの離した瞬間)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索は Navigation プラグイン(`plugins/CSharpGameEngine.Navigation`。csproj の `<CgePlugins>Navigation</CgePlugins>`、M0106)。`Scenes/TopDownNavigation.json` の `NavMeshBounds`(UE の NavMeshBoundsVolume)の領域で、ビルドがレベルの静的な衝突形状から `Assets/Navigation/Lvl_TopDown.cgenav` を焼き、キャラクターの `NavAgent` が `MoveIntent.MoveTo` の目的地への経路(台のスロープを下り、壁の端を回る)に沿って歩く。`Lvl_TopDown.json` は UE から書き出した生成物なので、領域は別のシーンに置いた |
-| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。速度とギアは画面の文字(`ScreenText`。UI_Vehicle の配置、M0104)で出す。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
+| ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方。M0107 で、歩きと走りの 8 方向(`Locomotion` の 16 本のクリップ)、足の IK(`FootIk`)、`KillZ` を足した |
+| FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0)。M0107 で、体(`CharacterMesh0`。カメラに見えず影だけを落とす)と腕(`FirstPersonMesh`。一人称の FOV 70・縮尺 0.6 で描き、影は落とさない)の 2 つの Manny、`FirstPersonAnimation`(`Locomotion` を体へ渡す)、`PlayerControls` の体の Yaw(`bUseControllerRotationYaw`)、視点の上下の制限 −70°〜80°(`BP_FirstPersonCameraManager`)、目の位置(`Eyes` の `Pivot`)を足した |
+| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Hit.Point)` で出す(押した瞬間。UE は短押しの離した瞬間)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索は Navigation プラグイン(`plugins/CSharpGameEngine.Navigation`。csproj の `<CgePlugins>Navigation</CgePlugins>`、M0106)。`Scenes/TopDownNavigation.json` の `NavMeshBounds`(UE の NavMeshBoundsVolume)の領域で、ビルドがレベルの静的な衝突形状から `Assets/Navigation/Lvl_TopDown.cgenav` を焼き、キャラクターの `NavAgent` が `MoveIntent.MoveTo` の目的地への経路(台のスロープを下り、壁の端を回る)に沿って歩く。`Lvl_TopDown.json` は UE から書き出した生成物なので、領域は別のシーンに置いた。M0107 で、カメラの遅れ追従(`OrbitCamera.Lag` 3)、キャラクターのアニメーション(`TopDownAnimation`)、平面への拘束(UE と同じ値で、法線 0 のため拘束にならない)、`KillZ` と `RespawnPlayer`(壊れたら無作為の PlayerStart に `TopDownCharacter` を出す)を足した |
+| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle ではなく簡易の車両モデル(`Vehicle`/`VehicleIntent`、`VehicleMotor`)。車両はエンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`)にあり、csproj の `<CgePlugins>Vehicles</CgePlugins>` で有効にする(ADR-0079)。速度とギアは画面の文字(`ScreenText`。UI_Vehicle の配置、M0104)で出す。`KillZ`(−50 m)より下へ落ちた車は壊れ、`RespawnVehicle` が最初の PlayerStart に新しい車を出す(M0107)。エンジン音・車輪の動き・リセット・カメラ切り替え・`Axis` 入力は未実装。Landscape は平らな板で代用 |
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
 
@@ -157,11 +157,11 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 - `Footstep` を v1 から外す案もある。
 
 ### エンジンに存在しないもの
-- 実行時に作った `SkeletalMesh`(スキニングの準備はレンダラーの作成時。後から作ったものは描かれず、診断を 1 回出す)。StaticMesh と PrimitiveMesh は、M0105 から後で作っても描かれる。
+- (実行時に作った `SkeletalMesh` は M0107 から描かれる。メッシュの組を足すときはパレットのリングを作り直すので GPU の待ちが入る。消えた Entity の組はプールへ戻って使い回す。)StaticMesh と PrimitiveMesh は、M0105 から後で作っても描かれる。
 - Vehicle の Chaos 相当の車両物理(簡易モデルのみ) / `Terrain`。(TopDown の経路探索は M0106 で実装済み。ナビメッシュの無いゲームでは、`MoveTo` は従来どおり直線で歩く。)
 
 ### 共通コード
-`PlayerControls` が ThirdPerson と FirstPerson で同一。エンジンが標準の「歩くキャラクター操作」を提供するか、サンプルごとに明示するかは確認したい。
+`PlayerControls` は ThirdPerson と FirstPerson でほぼ同一(FirstPerson だけ、体の向きを視点の Yaw に合わせる 1 行がある)。エンジンが標準の「歩くキャラクター操作」を提供するか、サンプルごとに明示するかは確認したい。
 
 ### 実装順の案(各段階でリポジトリがビルドできる状態を保つ)
 1. 役割表の作り直し・`ref State` の任意化・サービスの解決

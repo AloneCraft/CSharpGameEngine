@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace CSharpGameEngine.FeatureStages;
 /// <summary>
 /// TopDownテンプレートのクリック移動の実走検証(ADR-0077、ADR-0079/M0106)。画面上部の1点を数フレームだけクリックし、その地点まで歩いて止まることを
-/// カメラ位置の推移で判定する。カメラは固定の角度でキャラクターに追従するので、その水平移動がキャラクターの歩行になる。
+/// キャラクターの位置の推移で判定する(レポートの <c>focusPositions</c>。カメラはキャラクターに遅れて追従するので、カメラ位置では歩行の経路にならない)。
 /// 固定tickは1フレームに上限回数だけ進むので、判定は距離の範囲と停止の有無に限る。
 /// 同じ入力を 2 回走らせる。(1) ナビメッシュを切って(<c>CGE_NAVIGATION_DISABLED=1</c>)従来どおりの直線で歩く(中央の台のふちから飛び降りる)、
 /// (2) ナビメッシュを使って、台のスロープを下り、壁の端を回って、同じ床の目的地へ着く。
@@ -24,10 +24,14 @@ public static class ClickToMoveVerification {
     /// <summary>最後の10フレームの動きがこの距離(m)未満なら止まったとみなす。</summary>
     public const float MaximumFinalDriftMeters=0.1f;
     public const int SettledFrames=10;
-    /// <summary>ナビメッシュで歩いたときの、着く位置(出発点からの水平の動き、R と F)と許す誤差(m)。台のスロープの先、壁の端を回った床の上。</summary>
-    public const float NavigatedGoalR=7.06f;
-    public const float NavigatedGoalF=8.06f;
-    public const float NavigatedGoalTolerance=1.0f;
+    /// <summary>
+    /// ナビメッシュで歩いたときの、着く位置(出発点からの水平の動き、R と F)と許す誤差(m)。台のスロープの先、壁の端を回った床の上。
+    /// カメラがキャラクターに遅れて追従する(M0107。UEの CameraLagSpeed 3)ので、クリックを押している間にカーソルの下の地面がカメラの遅れの分だけ手前になり、
+    /// 目的地は M0106 の (7.06, 8.06) より約 1 m 手前の (6.75, 7.14) になる。
+    /// </summary>
+    public const float NavigatedGoalR=6.75f;
+    public const float NavigatedGoalF=7.14f;
+    public const float NavigatedGoalTolerance=0.5f;
     /// <summary>経路が回る壁の端(出発点からの R と F)と、そこへ近づくべき距離(m)。スロープの通路の壁の端で、直線ではここを通らない。</summary>
     public const float WallEndR=2.2f;
     public const float WallEndF=9.0f;
@@ -108,9 +112,9 @@ public static class ClickToMoveVerification {
         if(Errors!=0){
             Failures.Add($"The D3D12 debug layer reported {Errors} error(s).");
         }
-        var Positions=Report.GetProperty("cameraPositions").EnumerateArray().Select(static Item=>Item.ValueKind==JsonValueKind.Array?(float[]?)[.. Item.EnumerateArray().Select(static Value=>Value.GetSingle())]:null).ToArray();
+        var Positions=CharacterPositions(Report);
         if(Positions.Length<Frames||Positions.Skip(ClickStartFrame-1).Any(static Position=>Position is null)){
-            Failures.Add($"Expected {Frames} frames with a camera pose from frame {ClickStartFrame-1}, found {Positions.Length}.");
+            Failures.Add($"Expected {Frames} frames with a character position from frame {ClickStartFrame-1}, found {Positions.Length}.");
             return Failures;
         }
         var Walk=Planar(Positions[ClickStartFrame-1]!,Positions[Frames-1]!);
@@ -189,6 +193,14 @@ public static class ClickToMoveVerification {
         } else if(After!=Before){
             Failures.Add($"The marker did not go away: the renderer drew {Before} objects before the click and {After} at the end.");
         }
+    }
+    /// <summary>
+    /// Where the character was each frame: the position of the Entity the camera hangs from (<c>focusPositions</c>, M0107), because the camera lags behind the
+    /// character (UE's CameraLagSpeed 3) and no longer shows its path; a report without them (an older run) falls back to the camera.
+    /// </summary>
+    private static float[]?[]CharacterPositions(JsonElement Report){
+        var Name=Report.TryGetProperty("focusPositions",out var Focus)&&Focus.ValueKind==JsonValueKind.Array&&Focus.EnumerateArray().Skip(ClickStartFrame-1).Any(static Item=>Item.ValueKind==JsonValueKind.Array)?"focusPositions":"cameraPositions";
+        return [.. Report.GetProperty(Name).EnumerateArray().Select(static Item=>Item.ValueKind==JsonValueKind.Array?(float[]?)[.. Item.EnumerateArray().Select(static Value=>Value.GetSingle())]:null)];
     }
     private static float Planar(float[]From,float[]To)=>MathF.Sqrt(((To[0]-From[0])*(To[0]-From[0]))+((To[2]-From[2])*(To[2]-From[2])));
 }

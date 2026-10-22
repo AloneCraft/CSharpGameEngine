@@ -16,6 +16,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Hud.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ScreenUi.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FirstPersonView.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RenderRoster.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Spawner.cs" />
