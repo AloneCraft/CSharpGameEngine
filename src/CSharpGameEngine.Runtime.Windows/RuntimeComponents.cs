@@ -172,6 +172,8 @@ public struct Renderable:IRuntimeComponent {
     public FixedTransformResolveStatus LastWorldResolveStatus;
     /// <summary>The object has been given a <see cref="MeshVisibility"/> (M0107), so it is put back to the default if the component goes away.</summary>
     public bool VisibilityApplied;
+    /// <summary>The object has been given a <see cref="MeshEmissive"/> (M0109), so its emission is put back to 1 if the component goes away.</summary>
+    public bool EmissiveApplied;
 }
 
 public struct LightShadowRuntime:IRuntimeComponent<LightShadow> {

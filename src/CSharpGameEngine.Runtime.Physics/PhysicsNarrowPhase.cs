@@ -174,6 +174,9 @@ internal sealed class PhysicsNarrowPhase {
         if(!TryTransformBoundsToLocal(WorldBounds,Mesh.Position,Mesh.Rotation,out PhysicsAabb LocalBounds)){ return false; }
         this.TriangleCandidates.Clear();
         Asset.QueryTriangles(LocalBounds,this.TriangleCandidates);
+        // ADR-0078/M0109: a box resting on or pushed against a mesh touches it with a face, so it gets one point per corner below the touched face
+        // (up to four). A single deepest point let a box on a mesh floor rock, spin and sink (the vehicle's body). Edge-on touches fall back to GJK.
+        if(Convex.Collider.Shape==ColliderShape.Box&&this.TryBoxMeshManifold(Convex,Mesh,Asset,MeshIsFirst,out Contact)){ return true; }
         bool Found=false;
         PhysicsContactCandidate Best=default;
         ShapeProxy ConvexProxy=new(Convex);
@@ -200,6 +203,88 @@ internal sealed class PhysicsNarrowPhase {
         }
         Contact=Best;
         return Found;
+    }
+
+    /// <summary>
+    /// The corners of a box that lie below a candidate triangle's face (between the face and the box's own depth along it) and project inside the
+    /// triangle. The face of the deepest such corner sets the normal; corners under faces turned more than about 18 degrees away from it are left
+    /// for the next tick. Each corner counts once (its deepest face), and the four deepest corners, in corner order, form the patch. The face is
+    /// taken on the side of the box's centre, so a box pressed into a thin wall is pushed back out of the side it came from.
+    /// </summary>
+    private bool TryBoxMeshManifold(in PhysicsCollisionShape Box,in PhysicsCollisionShape Mesh,PhysicsShapeAsset Asset,bool MeshIsFirst,out PhysicsContactCandidate Contact){
+        Contact=default;
+        if(!TryColliderCenter(Box,out LogicalVector3 Center)){ return false; }
+        LogicalVector3 Half=Box.Collider.HalfExtents;
+        Span<LogicalVector3>Corners=stackalloc LogicalVector3[8];
+        for(int Index=0;Index<8;Index++){
+            LogicalVector3 Local=new((Index&1)==0?-Half.R:Half.R,(Index&2)==0?-Half.U:Half.U,(Index&4)==0?-Half.F:Half.F);
+            if(!Box.Rotation.TryRotate(Local,out LogicalVector3 World)){ return false; }
+            Corners[Index]=Center+World;
+        }
+        if(!Box.Rotation.TryRotate(LogicalVector3.UnitR,out LogicalVector3 AxisR)||!Box.Rotation.TryRotate(LogicalVector3.UnitU,out LogicalVector3 AxisU)
+            ||!Box.Rotation.TryRotate(LogicalVector3.UnitF,out LogicalVector3 AxisF)){ return false; }
+        Span<LogicalScalar>CornerDepth=stackalloc LogicalScalar[8];
+        Span<int>CornerTriangle=stackalloc int[8];
+        Span<LogicalVector3>CornerNormal=stackalloc LogicalVector3[8];
+        CornerTriangle.Fill(-1);
+        foreach(int Triangle in this.TriangleCandidates){
+            Asset.GetTriangle(Triangle,out LogicalVector3 A,out LogicalVector3 B,out LogicalVector3 C);
+            if(!Mesh.Rotation.TryRotate(A,out A)||!Mesh.Rotation.TryRotate(B,out B)||!Mesh.Rotation.TryRotate(C,out C)){ continue; }
+            A+=Mesh.Position;B+=Mesh.Position;C+=Mesh.Position;
+            LogicalVector3 Face=FaceToward(A,B,C,Center);
+            if(Face.LengthSquared.IsZero){ continue; }
+            // The box's half thickness along the face: corners deeper than the whole box lie on the face's far side.
+            LogicalScalar Thickness=Abs(LogicalVector3.Dot(AxisR,Face))*Half.R+Abs(LogicalVector3.Dot(AxisU,Face))*Half.U+Abs(LogicalVector3.Dot(AxisF,Face))*Half.F;
+            LogicalScalar Deepest=-(Thickness+Thickness);
+            for(int Index=0;Index<8;Index++){
+                LogicalScalar Height=LogicalVector3.Dot(Corners[Index]-A,Face);
+                if(Height>=TriangleHalfThickness||Height<=Deepest){ continue; }
+                LogicalScalar Depth=TriangleHalfThickness-Height;
+                if(CornerTriangle[Index]>=0&&Depth<=CornerDepth[Index]){ continue; }
+                if(!InsideTriangle(Corners[Index]-Face*Height,A,B,C)){ continue; }
+                CornerDepth[Index]=Depth;
+                CornerTriangle[Index]=Triangle;
+                CornerNormal[Index]=Face;
+            }
+        }
+        int Best=-1;
+        for(int Index=0;Index<8;Index++){
+            if(CornerTriangle[Index]>=0&&(Best<0||CornerDepth[Index]>CornerDepth[Best])){ Best=Index; }
+        }
+        if(Best<0){ return false; }
+        LogicalVector3 Normal=CornerNormal[Best];
+        LogicalScalar SameFace=LogicalScalar.FromSingle(0.95f);
+        Span<LogicalVector3>Points=stackalloc LogicalVector3[4];
+        Span<LogicalScalar>Penetrations=stackalloc LogicalScalar[4];
+        int Count=0;
+        // The four deepest corners on the chosen face, kept in corner order so the patch is the same for the same pose.
+        Span<bool>Taken=stackalloc bool[8];
+        for(int Pick=0;Pick<4;Pick++){
+            int Next=-1;
+            for(int Index=0;Index<8;Index++){
+                if(Taken[Index]||CornerTriangle[Index]<0||LogicalVector3.Dot(CornerNormal[Index],Normal)<SameFace){ continue; }
+                if(Next<0||CornerDepth[Index]>CornerDepth[Next]){ Next=Index; }
+            }
+            if(Next<0){ break; }
+            Taken[Next]=true;
+        }
+        for(int Index=0;Index<8;Index++){
+            if(!Taken[Index]){ continue; }
+            Points[Count]=Corners[Index];
+            Penetrations[Count]=CornerDepth[Index];
+            Count++;
+        }
+        // The contact normal points from the first shape into the second: the face normal points from the mesh toward the box.
+        Contact=PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,checked((uint)CornerTriangle[Best]),Points,Penetrations,Count) with { SurfaceNormal=Normal };
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="Point"/> (in the triangle's plane) lies inside triangle ABC, its edges included.</summary>
+    private static bool InsideTriangle(LogicalVector3 Point,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C){
+        LogicalVector3 Normal=LogicalVector3.Cross(B-A,C-A);
+        return LogicalVector3.Dot(LogicalVector3.Cross(B-A,Point-A),Normal)>=LogicalScalar.Zero
+            &&LogicalVector3.Dot(LogicalVector3.Cross(C-B,Point-B),Normal)>=LogicalScalar.Zero
+            &&LogicalVector3.Dot(LogicalVector3.Cross(A-C,Point-C),Normal)>=LogicalScalar.Zero;
     }
 
     /// <summary>

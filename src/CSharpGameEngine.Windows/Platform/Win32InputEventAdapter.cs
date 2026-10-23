@@ -60,7 +60,7 @@ public sealed class Win32InputEventAdapter {
     }
     private GamepadSnapshot Injected=new(true,0,0f,0f,default,default);
     private static readonly (string Code,ushort Mask)[]InjectableButtons=[
-        ("GamepadSouth",0x1000),("GamepadEast",0x2000),("GamepadWest",0x4000),("GamepadNorth",0x8000),("GamepadLeftShoulder",0x0100),("GamepadRightShoulder",0x0200),
+        ("GamepadSouth",0x1000),("GamepadEast",0x2000),("GamepadWest",0x4000),("GamepadNorth",0x8000),("GamepadLeftShoulder",0x0100),("GamepadRightShoulder",0x0200),("GamepadBack",0x0020),("GamepadStart",0x0010),
     ];
     private static readonly string[]InjectableAxes=["GamepadLeftX","GamepadLeftY","GamepadRightX","GamepadRightY","GamepadLeftTrigger","GamepadRightTrigger"];
     /// <summary>Whether <paramref name="Code"/> names a scripted gamepad axis, trigger or button (<see cref="InjectGamepad"/>).</summary>

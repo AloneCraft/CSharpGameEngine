@@ -91,7 +91,7 @@ internal static class InputActionsEmitter {
                     var Component=Attribute.ConstructorArguments.Length>=2?EnumName(Attribute.ConstructorArguments[1]):null;
                     var IsStick=Pad is "LeftStick" or "RightStick";
                     var IsTrigger=Pad is "LeftTrigger" or "RightTrigger";
-                    var IsButton=Pad is "South" or "East" or "West" or "North" or "LeftShoulder" or "RightShoulder";
+                    var IsButton=Pad is "South" or "East" or "West" or "North" or "LeftShoulder" or "RightShoulder" or "Back" or "Start";
                     var Fits=Pad is not null&&(Attribute.ConstructorArguments.Length<2||Component is not null)&&Kind switch {
                         FieldKind.Stick=>IsStick&&Component is null,
                         FieldKind.Look=>IsStick,
@@ -282,7 +282,7 @@ internal static class InputActionsEmitter {
             string Swizzle="new "+Input+".InputSwizzleModifier()";
             string[] InvertItems(PadBinding Pad)=>Pad.Invert?new[] { Negate }:Array.Empty<string>();
             string Modifiers(params string[] Items)=>Items.Length==0?string.Empty:$", Modifiers: new {Input}.InputModifier[] {{ {string.Join(", ",Items)} }}";
-            string PadButtonCode(string Pad)=>Pad switch { "South"=>"Gamepad_FaceButton_Bottom","East"=>"Gamepad_FaceButton_Right","West"=>"Gamepad_FaceButton_Left","LeftShoulder"=>"Gamepad_LeftShoulder","RightShoulder"=>"Gamepad_RightShoulder",_=>"Gamepad_FaceButton_Top" };
+            string PadButtonCode(string Pad)=>Pad switch { "South"=>"Gamepad_FaceButton_Bottom","East"=>"Gamepad_FaceButton_Right","West"=>"Gamepad_FaceButton_Left","LeftShoulder"=>"Gamepad_LeftShoulder","RightShoulder"=>"Gamepad_RightShoulder","Back"=>"Gamepad_Special_Left","Start"=>"Gamepad_Special_Right",_=>"Gamepad_FaceButton_Top" };
             string PadButton(PadBinding Pad)=> $"new {Core}.InputControl({Core}.InputDeviceKind.Gamepad, \"{PadButtonCode(Pad.Pad)}\")";
             if(this.Kind==FieldKind.Stick){
                 foreach(var Set in this.Keys){

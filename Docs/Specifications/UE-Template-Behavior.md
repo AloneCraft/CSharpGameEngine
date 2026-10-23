@@ -94,66 +94,69 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | `FX_Cursor_Success` | Niagara の `SimpleSpriteBurst`: Spawn Burst Instantaneous で Spawn Count 1・Spawn Time 0、Loop Duration 0.7 s、Loop Count 1。粒子の Lifetime 0.7 s、色 (1,1,1,1)、位置のずれ・速度・回転の力は 0。描画はメッシュ `SM_CursorMesh`(材質 `M_Cursor`: BLEND_Masked、基本色 = `Color` × 矢印のテクスチャ、粗さ 1、`TexCoordY` ← `NormalizedLoopAge`) | 一部(`ParticleBurst` の Count 1・Lifetime 0.7、`SM_CursorMesh` の矢印をアルファの切り抜きから形状にした glb。`TexCoordY` の流れは縮み 1→0.25 で代用。短押しの離した瞬間に出す。M0108 で押した瞬間から変えた)。M0105。`SpawnSystemAtLocation(FXCursor, 位置)` は `Spawner.Spawn<CursorMarker>` | M0105 済。短押しで出す条件は M0108 済 |
 
 ## Vehicle(既定の Pawn は `BP_VehicleAdvSportsCar`、親は `BP_VehicleAdvPawnBase`)
+M0109 で Chaos 相当に作り直した(Vehicles プラグイン。[M0109](../Milestones/M0109-Chaos-Vehicle.md))。式は UE 5.7 の ChaosVehiclesCore と ChaosVehicles プラグインのソース(`C:\Program Files\Epic Games\UE_5.7\Engine\...`)から、値は T3D・コンポーネントの書き出しと `tools/UnrealExport/probe_vehicle_physics.py`・`probe_vehicle_brake_lights.py`(UE を起動して読んだ値)から取った。試験は `tests/CSharpGameEngine.Windows.Tests/Character/ChaosVehicleTests.cs`(以下 `ChaosVehicleTests.`)と `Physics/PhysicsForceCommandTests.cs`。
 
 ### 入力(`IMC_Vehicle_Default`、`IMC_Vehicle_MouseLook`)
 | アクション(型) | キー | 処理 | 状態 | 担当 |
 |---|---|---|---|---|
-| `IA_Throttle`(Axis1D) | W、Up、Gamepad_FaceButton_Left、Gamepad_RightTriggerAxis | Triggered/Completed → `SetThrottleInput(値)` | 実装済み(`PlayerActions.Throttle`: `[Keys(W, Up)]`・`[Gamepad(Pad.RightTrigger)]`・`[Gamepad(Pad.West)]` の `Axis`。実走 `CGE-VEHICLE-DRIVE-ANALOG-THROTTLE`: 半分のトリガーはキーの 0.56 倍しか進まない)。簡易の車両モデルへは `VehicleIntent.Drive = Throttle - Brake` で渡す。`SetThrottleInput` に当たる別の入力は Chaos の車両(M0109) | M0108 済・M0109 |
-| `IA_Brake`(Axis1D、Pressed/Released) | S、Down、Gamepad_FaceButton_Bottom、Gamepad_LeftTriggerAxis | Triggered → `SetBrakeInput(値)`、Started → `BrakeLights(true)`、Completed → `SetBrakeInput`・`BrakeLights(false)` | 一部(`PlayerActions.Brake` は S・Down・左トリガー・南ボタンの `Axis`。簡易の車両へは `Drive` の負の側。ブレーキランプと別の `SetBrakeInput` は M0109) | M0109 |
-| `IA_Steering`(Axis1D) | D、A(Negate)、Right、Left(Negate)、Gamepad_LeftX | → `SetSteeringInput(値)` | 済(M0108 でアナログに: `PlayerActions.Steering` は `[Keys(D, Right)]`・`[NegativeKeys(A, Left)]`・`[Gamepad(Pad.LeftStick, StickAxis.X)]` の `Axis`。実走 `CGE-VEHICLE-DRIVE-ANALOG-STEERING`: 半分のスティックはキーの 0.82 倍の角度) | M0109 |
-| `IA_Handbrake` | SpaceBar、Gamepad_LeftShoulder | Triggered → `SetHandbrakeInput(true)`・`BrakeLights(true)`、Completed → false | 一部(M0108 で左ショルダー `Pad.LeftShoulder` を割り当てた。以前は南ボタンで、UE ではブレーキの割り当てと重なっていた。ブレーキランプは無し) | M0109 |
-| `IA_ToggleCamera` | Tab、Gamepad_Special_Left | 後ろのカメラを止め、FlipFlop で前と後ろのカメラを交互に有効にする | 未 | M0109 |
-| `IA_Reset` | BackSpace、Gamepad_Special_Right | リセット(下記) | 未 | M0109 |
-| `IA_LookAround`(Axis1D) | Gamepad_RightX、MouseX(`IMC_Vehicle_MouseLook`) | 後ろの腕を Yaw に `値` だけ回す | 一部(入力は実装済み: `PlayerActions.LookAround` は `[Mouse(MouseAxis.DeltaX)]`・`[Gamepad(Pad.RightStick, StickAxis.X)]` の `Look`。横だけを返すことは `InputActionBindingTests` で固定。後ろの腕を回す処理は無い。Vehicle のウィンドウはマウスを捕捉しないので、マウスの移動は届かない) | M0109 |
-| `IA_Headlights` | L | FlipFlop でヘッドライトの表示を切り替える | 未 | M0109 |
+| `IA_Throttle`(Axis1D) | W、Up、Gamepad_FaceButton_Left、Gamepad_RightTriggerAxis | Triggered/Completed → `SetThrottleInput(値)` | 実装済み(M0108 のアナログの `PlayerActions.Throttle` を、M0109 で別の入力 `VehicleIntent.Throttle` に渡す。`ChaosVehicleTests.FullThrottleReachesOneHundredKilometresPerHourInAboutFourSecondsAndChangesGearAtSixThousand`、実走 `CGE-VEHICLE-DRIVE-ANALOG-THROTTLE`) | M0108・M0109 済 |
+| `IA_Brake`(Axis1D、Pressed/Released) | S、Down、Gamepad_FaceButton_Bottom、Gamepad_LeftTriggerAxis | Triggered → `SetBrakeInput(値)`、Started → `BrakeLights(true)`、Completed → `SetBrakeInput`・`BrakeLights(false)` | 実装済み(`VehicleIntent.Brake`。止まると後退(`ChaosVehicleTests.HoldingTheBrakeAfterStoppingReversesInReverseGear`)。ブレーキランプはテンプレートの `BrakeLightControl`(0 からの踏み込みで点け、0 へ戻ると消す)。実走の画像 `.artifacts/m0109/brake/rear_zoom.png`) | M0109 済 |
+| `IA_Steering`(Axis1D) | D、A(Negate)、Right、Left(Negate)、Gamepad_LeftX | → `SetSteeringInput(値)` | 実装済み(M0108 のアナログ。M0109 で舵角はアッカーマン: `ChaosVehicleTests.SteeringRightTurnsRightWithAckermannAnglesAndATightRadiusAtLowSpeed`、実走 `CGE-VEHICLE-DRIVE-ANALOG-STEERING`) | M0109 済 |
+| `IA_Handbrake` | SpaceBar、Gamepad_LeftShoulder | Triggered → `SetHandbrakeInput(true)`・`BrakeLights(true)`、Completed → false | 実装済み(`VehicleIntent.Handbrake`。`ChaosVehicleTests.TheHandbrakeLocksTheRearWheelsSoTheCarSlidesSideways`。ブレーキランプは押している間点き、離すと消える。ブレーキを踏んだまま離すと消えるのも UE と同じ) | M0109 済 |
+| `IA_ToggleCamera` | Tab、Gamepad_Special_Left | 後ろのカメラを止め、FlipFlop で前と後ろのカメラを交互に有効にする | 実装済み(テンプレートの `CameraToggle` が、マーカー `VehicleCameraSwitch` の付いた 2 台のカメラの `Camera.Active` を押すたびに反転する。描画は、表示中のカメラが無効になり別のカメラが有効になったら切り替える(`RuntimeSystems` の `LevelLoad`)。ゲームパッドは新しい `Pad.Back`。実走 `.artifacts/m0109/camera/`: Tab でボンネットの視点へ) | M0109 済 |
+| `IA_Reset` | BackSpace、Gamepad_Special_Right | リセット(下記) | 実装済み(テンプレートの `VehicleControls` が `VehicleIntent.Reset()`。ゲームパッドは新しい `Pad.Start`。実走 `.artifacts/m0109/reset/`: 0.5 m 上がって止まる) | M0109 済 |
+| `IA_LookAround`(Axis1D) | Gamepad_RightX、MouseX(`IMC_Vehicle_MouseLook`) | 後ろの腕を Yaw に `値` だけ回す | 実装済み(テンプレートの `LookAround` が `VehicleCameraLook.YawDegrees` に `値 × 360`(エンジンの視点の入力は回転数)を足し、`VehicleChaseView` が腕の Yaw を車の Yaw + その角にする。実走 `.artifacts/m0109/look/`: マウスの横の移動でカメラが回り、離すと戻る。Vehicle のウィンドウはマウスを捕捉しないので、実機のマウスの移動は届かない(自動実行の注入とゲームパッドは届く)) | M0109 済 |
+| `IA_Headlights` | L | FlipFlop でヘッドライトの表示を切り替える | 実装済み(テンプレートの `HeadlightToggle` が 光の隣の `LightVisibility.Visible`(M0109 で足した)を反転する。実走 `.artifacts/m0109/headlights/`。下の「ヘッドライト」のとおり、UE でも左だけが切り替わる) | M0109 済 |
 | ハンドルコントローラー(`IMC_SteeringWheel`)、XR、タッチ | — | — | 対象外 | — |
 
 ### `BP_VehicleAdvPawnBase`
 | イベント | 処理(値) | 状態 | 担当 |
 |---|---|---|---|
-| Tick | `Mesh.SetAngularDamping(接地なら 0、空中なら 3)`。`InterpsToOriginalRotation`: 後ろの腕の Yaw を `FInterpTo(現在, 0, Δt, 速さ 1)` で前へ戻す | 未 | M0109 |
-| BeginPlay | 移動コンポーネントを `ChaosWheeledVehicleMovementComponent` として保持。`Flipped Check` を 3 秒ごとに繰り返す | 未 | M0109 |
-| `Flipped Check` | `Dot(Mesh の上, (0,0,1)) < −0.2` が 2 回続けて真なら `Manual Reset`。真でなければ記録を消す | 未 | M0109 |
-| `Manual Reset` / `IA_Reset` | `位置 + (0,0,50)`、Roll と Pitch を 0、Yaw はそのまま、テレポート。角速度と速度を 0 | 未 | M0109 |
+| Tick | `Mesh.SetAngularDamping(移動.IsMovingOnGround() なら 0、そうでなければ 3)`。`InterpsToOriginalRotation`: 後ろの腕の Yaw を `FInterpTo(現在, 0, Δt, 速さ 1)` で前へ戻す | 実装済み。**事実**: 車両の移動コンポーネントは `IsMovingOnGround` を上書きせず、`UNavMovementComponent` の既定(常に false)を返す(UE 5.7 の `NavMovementComponent.h`)。したがって UE の実際の角速度の減衰は、地上でも空中でも常に 3。エンジンもシーンの `RigidBody.AngularDamping` = 3 で同じにした(`PhysicsForceCommandTests.AngularDampingSlowsTheSpinByItsRateEachTickAndZeroKeepsIt`)。腕は `VehicleCameraLook.ReturnSpeed` = 1 の FInterpTo | M0109 済 |
+| BeginPlay | 移動コンポーネントを `ChaosWheeledVehicleMovementComponent` として保持。`Flipped Check` を 3 秒ごとに繰り返す | 実装済み(`Vehicle.FlipCheckSeconds` = 3。固定 tick で 180 tick ごと) | M0109 済 |
+| `Flipped Check` | `Dot(Mesh の上, (0,0,1)) < −0.2` が 2 回続けて真なら `Manual Reset`。真でなければ記録を消す(リセットでは消さない) | 実装済み(`ChaosVehicleTests.AnUpsideDownCarIsResetAfterTwoFlippedChecksThreeSecondsApart`) | M0109 済 |
+| `Manual Reset` / `IA_Reset` | `位置 + (0,0,50)`、Roll と Pitch を 0、Yaw はそのまま、テレポート。角速度と速度を 0 | 実装済み(`ChaosVehicleTests.TheResetLiftsTheCarHalfAMetreUprightKeepsItsYawAndStopsIt`。UE の Actor の原点(メッシュの原点)を `Vehicle.ResetPivot` で表し、その点を持ち上げてその点のまわりに直す。物理の `Teleport` と新しい `SetVelocity`) | M0109 済 |
 | `BrakeLights(Is Braking)` | (SportsCar で上書き) | — | — |
 
 ### `BP_VehicleAdvSportsCar`
 | 対象 | 内容(値) | 状態 | 担当 |
 |---|---|---|---|
-| Construction Script | ボディのマテリアル 0 番から動的マテリアルを作る | 未 | M0109 |
-| `BrakeLights` | `BrakeLightPower = ブレーキ中 200 / 通常 4` | 未 | M0109 |
-| `IA_Headlights` | FlipFlop で `Headlight_L` の表示を切り替える(右は子として付く) | 未 | M0109 |
-| ヘッドライト | スポット、3000 lm、内 22.49° / 外 50.30°、減衰半径 16384、左 (200, −66.8, 65.1) Yaw −30、右 (200, 72.0, 65.1) Yaw 40、最初は非表示 | 未 | M0109 |
-| 後ろのカメラ | 腕 381.02、ソケット z 71.80、FOV 110(Pawn 基底の 650 / 150 / 90 を上書き)、遅れ 10(最大 50)、回転の遅れ 2、Yaw だけを継ぐ | 一部(6.5 m・FOV 90) | M0109 |
-| 前のカメラ | 腕 0、位置 (30, 0, 120)、遅れなし | 未 | M0109 |
-| 車輪のメッシュ | 前左・後左は Yaw −90、前右・後右は Yaw 90。骨 `Phys_Wheel_*` に付く | 済(静止) | M0109(回転・ステア) |
-| `ABP_SportsCar` | MeshRefPose → WheelController(車輪の回転・ステア・サスペンション)→ 部品空間 → ControlRig `CtrlRig_SportsCar` | 未 | M0109 |
+| Construction Script | `Mesh`(骨格メッシュ `VehicleMesh`)のマテリアル 0 番から動的マテリアルを作る | 実装済み(実行時にマテリアルの発光を変える `MeshEmissive`(描画の物体ごとの倍率。描画契約は変えない))。**事実**: UE の `VehicleMesh` は 4 頂点の見えない骨格メッシュ(`visible=False`)で、マテリアル 0 番は `WorldGridMaterial`。見える車体(`Chasis_Main` の `M_SportsCarBase`)の発光は `EmissivePower × 宣言の無い Named Reroute` で 0。つまり UE のこのテンプレートではブレーキランプは光らない(`probe_vehicle_brake_lights.py`)。**決定**: 意図(ブレーキで光る)を採り、見える車体のテールランプを光らせる | M0109 済 |
+| `BrakeLights` | `BrakeLightPower = ブレーキ中 200 / 通常 4` | 実装済み(テンプレートの `BrakeLights` と `BrakeLightControl` が `MeshEmissive.Scale` に BrakeLightPower を書く。車体の glb の発光は UE の `T_SportsCar_Lights_M` の赤のチャンネル(シャシーの UV 0 のテールランプの範囲)を 100 nits で入れたもの(`tools/UnrealExport/add_brake_light_emission.py`)。UE の値 1 を 100 nits とするのは推測(UE の発光の値は露出に依る相対値。昼の光でもブレーキで見えるように選んだ)。実走の画像 `.artifacts/m0109/brake/rear_zoom.png` と `idle/rear_zoom.png`) | M0109 済 |
+| `IA_Headlights` | FlipFlop で `Headlight_L` の表示を切り替える(`bPropagateToChildren=false`) | 実装済み(マーカー `HeadlightSwitch` は左だけ)。**事実**: `Headlight_R` は `Headlight_L` の子ではなく `VehicleMesh` に付く(SCS と実行時の `get_attach_parent`)ので、UE でも右は点かない。同じにした | M0109 済 |
+| ヘッドライト | スポット、3000 lm、減衰半径 16384 cm、左 (200, −66.8, 65.1) Yaw −30、右 (200, 72.0, 65.1) Yaw 40、最初は非表示。円錐: **右**だけが内 22.49° / 外 50.30°、左は UE の既定の内 0° / 外 44°(M0102 の表は左右とも右の値と書いていた) | 実装済み(`SportsCar.json` の `Headlight_L`・`Headlight_R`。半角を全角にして `SpotConeAngles` に入れる。左の内 0° はエンジンが正の角を求めるので 0.036°。影あり(`LightShadow`)) | M0109 済 |
+| 後ろのカメラ | 腕 381.02、ソケット z 71.80、FOV 110(水平。Pawn 基底の 650 / 150 / 90 を上書き)、腕の位置 z 75、遅れ 10(最大 50)、回転の遅れ 2、Yaw だけを継ぐ、衝突なし | 実装済み(`OrbitCamera`: 重心から見た腕の位置、`Distance` 3.81、`SocketOffset` 0.718、`Lag` 10、`LagMaxDistance` 0.5、`RotationLag` 2、`Collide` false。FOV は 16:9 の縦 77.55°) | M0109 済 |
+| 前のカメラ | 腕 0、位置 (30, 0, 120)、遅れなし、最初は無効(`bAutoActivate=False`)、FOV 90 | 実装済み(車体の子の固定のカメラ。車体の向きをそのまま継ぐ(UE の腕は Pitch と Roll も継ぐ)) | M0109 済 |
+| 車輪のメッシュ | 前左・後左は Yaw −90(と X の鏡映)、前右・後右は Yaw 90。骨 `Phys_Wheel_*` に付く | 実装済み(`VehicleWheelVisual` と `VehicleWheelPose`。休みの姿勢に、回転の角(前進で前が下がる)、舵角、サスペンションの上下を重ねる。`ChaosVehicleTests.TheWheelPoseRaisesTurnsAndSpinsTheWheelFromItsRest`) | M0109 済 |
+| `ABP_SportsCar` | MeshRefPose → WheelController(車輪の回転・ステア・サスペンション)→ 部品空間 → ControlRig `CtrlRig_SportsCar` | 一部(WheelController は上の行。`CtrlRig_SportsCar` は見えない骨格メッシュのダンパーと車軸の骨だけを動かし、見えるメッシュは付いていないので作らない) | M0109 |
 
 ### Chaos の移動(`VehicleMovementComp`、`SportsCar_Wheels*`)
+値は `Templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(`[DataAsset] VehicleSetup`。SI 単位に直した。`ChaosVehicleTests.TheTemplateAssetCarriesTheValuesTheTestsDriveWith`)。
 | 項目 | 値 | 状態 | 担当 |
 |---|---|---|---|
-| 車体 | 質量 1500 kg、空気抵抗 0.31、ダウンフォース 0.3、車体の幅 180・高さ 144、慣性の倍率 1、重心の上書きなし | 未(簡易モデル) | M0109 |
-| エンジン | 最大トルク 750、最大回転 7000、アイドル 900、エンジンブレーキ 0.2、回転の上がり MOI 5、下がり 600/s。トルク曲線(回転→比): 1000→0.5、1800→0.9、3500→1.0、6000→0.8、7000→0 | 未 | M0109 |
-| 変速 | 自動、自動後退、最終比 2.81、前進 4.25 / 2.52 / 1.66 / 1.22 / 1.00、後退 4.04、上げ 6000 / 下げ 2000、変速時間 0.2 s、効率 0.9 | 未 | M0109 |
-| 操舵 | アッカーマン、角度比 0.7、速度による曲線: 0 km/h→1.0、20→0.8、60→0.4、120→0.3 | 未 | M0109 |
-| 差動 | 後輪駆動(前後の配分 0.5) | 未 | M0109 |
-| 入力の変化の速さ | アクセル・ブレーキは上がり 6、下がり 10(線形)。ハンドルは上がり 2.5、下がり 5(二乗)。ハンドブレーキは 12 / 12 | 未 | M0109 |
-| 前輪 | 半径 39、幅 35、質量 20、コーナリング剛性 1000、摩擦の倍率 3、滑りのしきい値 20、スキッドのしきい値 20、最大舵角 40°、ブレーキトルク 4500、ハンドブレーキは効かない、駆動しない | 未 | M0109 |
-| 後輪 | 半径 40、幅 40、摩擦の倍率 4、しきい値 100、舵角 0、ブレーキトルク 1500、ハンドブレーキ 6000、駆動する | 未 | M0109 |
-| サスペンション(前後同じ) | 上下の最大 10、減衰比 0.5、ばね 250、予圧 50、荷重比 0.5、ロールバー 0.15、光線で測る | 未 | M0109 |
-| その他 | 停止のしきい値 10、逆向きのしきい値 100、眠りのしきい値 10、眠る斜面 0.866、アイドルのブレーキ 0 | 未 | M0109 |
+| 車体 | 質量 1500 kg、空気抵抗 0.31、ダウンフォース 0.3、車体の幅 180・高さ 144、慣性の倍率 1、重心の上書きなし(物理アセットの重心は (−6.96, 0.04, 50.09) cm) | 実装済み(剛体は質量 1500 の箱 1.9 × 0.9 × 4.5 m。根は重心。空気抵抗とダウンフォースは UE の式(後退ではダウンフォースが持ち上げる向きになるのも UE のまま)。慣性は箱の値で、UE の物理アセットの形の慣性ではない) | M0109 済 |
+| エンジン | 最大トルク 750、最大回転 7000、アイドル 900、エンジンブレーキ 0.2、回転の上がり MOI 5、下がり 600/s。トルク曲線(回転→比): 1000→0.5、1800→0.9、3500→1.0、6000→0.8、7000→0 | 実装済み(UE の 21 点の標本と直線の補間、ギアが入っていないと自由に回り、入っていると車輪から決まる回転へ毎秒 4 で近づく、エンジンブレーキ = 回転数 × 0.2 N·m。`ChaosVehicleTests.TheEngineFollowsUesTorqueCurveGearsAndSprungMasses`、`ReleasingTheThrottleInGearSlowsTheCarByEngineBraking`) | M0109 済 |
+| 変速 | 自動、自動後退、最終比 2.81、前進 4.25 / 2.52 / 1.66 / 1.22 / 1.00、後退 4.04、上げ 6000 / 下げ 2000、変速時間 0.2 s、効率 0.9 | 実装済み(変速中はニュートラル。空中と空転中は変速しない。ブレーキで後退へ、アクセルで 1 速へすぐ入れる。`FullThrottleReaches…`(5962 rpm で 2 速へ、12 tick のニュートラル)、`TheTopSpeedIsLimitedByTheAirInFifthGear`) | M0109 済 |
+| 操舵 | アッカーマン、角度比 0.7、速度による曲線: 0→1.0、20→0.8、60→0.4、120→0.3。**横軸はマイル毎時**(UE の `ProcessSteering` が `CmSToMPH` で渡す。M0102 の表は km/h と書いていた) | 実装済み(棒の幾何は UE の `FAckermannSim` を cm で解く。内側の車輪が 40°。`FullLockAtFiveMetresPerSecondTurnsTheFrontWheelsTheirFortyDegreesOnTheInside`) | M0109 済 |
+| 差動 | 後輪駆動(前後の配分 0.5) | 実装済み(後輪 2 つが半分ずつ) | M0109 済 |
+| 入力の変化の速さ | アクセル・ブレーキは上がり 6、下がり 10(線形)。ハンドルは上がり 2.5、下がり 5(二乗)。ハンドブレーキは 12 / 12。エンジンへはアクセルの二乗 | 実装済み(`InputRatesRiseAndFallAtUesSpeeds`) | M0109 済 |
+| 前輪 | 半径 39、幅 35、質量 20、コーナリング剛性 1000(内部 ×10000)、摩擦の倍率 3、滑りのしきい値 20、スキッドのしきい値 20、最大舵角 40°、ブレーキトルク 4500、ハンドブレーキは効かない、駆動しない | 実装済み(UE の `FSimpleWheelSim::Simulate`: 縦はブレーキか駆動、横は滑りの角 × 剛性(止めるのに要る力まで)、両方を荷重 × 地面の摩擦 × 倍率の円で切る。`FullBrakesStopFromOneHundredKilometresPerHourInAbout20Metres`(18.0 m)) | M0109 済 |
+| 後輪 | 半径 40、幅 40、摩擦の倍率 4、しきい値 100、舵角 0、ブレーキトルク 1500、ハンドブレーキ 6000、駆動する | 実装済み(`ALowFrictionSurfaceSpinsTheRearWheelsAndAcceleratesSlower`) | M0109 済 |
+| サスペンション(前後同じ) | 上下の最大 10、減衰比 0.5、ばね 250、予圧 50、荷重比 0.5、ロールバー 0.15、光線で測る | 一部(UE の力のサスペンション(`p.Vehicle.DisableConstraintSuspension=1` のときの `ApplySuspensionForces`): ばね 25000 N/m、減衰 = 比 × 2√(k × ばね上の質量)、荷重比、ロールバー。`RestsOnItsSuspensionsWithEveryWheelOnTheGroundThenSleeps`、`AHeavierCarSinksFurtherOnTheSameSprings`、`ACarDrivenOffARampFliesAndLandsOnItsWheels`。UE の既定は物理のソルバーの中のサスペンションの制約(ばね ×0.25 と予圧、縮みきりのハードストップ)で、エンジンには無い。縮みきると力は増えず、車体の箱が床に当たって支える) | M0109 |
+| その他 | 停止のしきい値 10、逆向きのしきい値 100、眠りのしきい値 10、眠る斜面 0.866、アイドルのブレーキ 0 | 実装済み(UE の `CalcThrottleBrakeInput` と `ProcessSleeping`(15 回続くと眠り、操作で覚める)。眠るときは物理の新しい `Sleep` 命令で剛体も眠らせる) | M0109 済 |
+| エンジン音 | (テンプレートに音の資産は無い。ADR-0078 §2) | 未(既存の音は一発の再生だけで、ループと音程の変更が無い) | — |
 
 ### Controller と HUD
 | 対象 | 内容 | 状態 | 担当 |
 |---|---|---|---|
 | BeginPlay | ローカルのときだけ `IMC_Vehicle_Default`(優先 0)を足す。ハンドル用はオプション。タッチでなければ `IMC_Vehicle_MouseLook` を足す。`UI_Vehicle`(`bIsMPH=false`)を作って画面に足す | 一部 | M0104 |
-| Tick | 移動コンポーネントが有効なら、`UpdateSpeed(GetForwardSpeed())`、`UpdateGear(GetCurrentGear())` | 一部(タイトルバー) | M0104 |
+| Tick | 移動コンポーネントが有効なら、`UpdateSpeed(GetForwardSpeed())`、`UpdateGear(GetCurrentGear())` | 実装済み(M0109 から本当のギア。変速中は N、ブレーキで R) | M0104・M0109 済 |
 | `UI_Vehicle` | 単位の表示は km/h か MPH。速度は `|速度 cm/s| × (MPH なら 0.022、km/h なら 0.036)` を整数 3 桁で表示する。ギアは −1→R、0→N、それ以外は数字 | 一部 | M0104 |
-| ReceivePossess と On Pawn Destroyed | 移動コンポーネントを保持する。壊れたら最初の PlayerStart に同じクラスを生成して Possess する | 実装済み(`RespawnTests.PickFirstTakesTheStartNotedFirstAndPickRandomIsDeterministicForASeed`。テンプレートの `RespawnVehicle`。Vehicle の `KillZ` は −50 m) | M0107 |
+| ReceivePossess と On Pawn Destroyed | 移動コンポーネントを保持する。壊れたら最初の PlayerStart に同じクラスを生成して Possess する | 実装済み(`RespawnTests.PickFirstTakesTheStartNotedFirstAndPickRandomIsDeterministicForASeed`。テンプレートの `RespawnVehicle`。Vehicle の `KillZ` は −50 m。M0109: 生成した車の剛体は生成した向きで作る(`VehicleBodySetup`)) | M0107 |
 
 ## レベル(4 つ共通)
 | 対象 | 内容 | 状態 | 担当 |
 |---|---|---|---|
 | ライティング | Lumen の GI と反射、DirectionalLight(可動)、SkyLight(リアルタイムキャプチャ)、SkyAtmosphere、VolumetricCloud、ExponentialHeightFog、空の球、PostProcessVolume(ThirdPerson と Vehicle) | 一部(雲・空の球・Lumen 相当が無い) | M0110・M0111 |
-| Vehicle の地面 | Landscape(実行時の仮想テクスチャ、Ground/Road の層、物理マテリアルの Slippery / NonSlippery)、Landscape のスプラインの道 | 一部(平らな板) | M0109・M0112 |
+| Vehicle の地面 | Landscape(実行時の仮想テクスチャ、Ground/Road の層、物理マテリアルの Slippery / NonSlippery)、Landscape のスプラインの道。**事実**(M0109 の `probe_vehicle_physics.py`): Slippery と NonSlippery の摩擦はどちらも 1.0(違いは反発 0.4 と 0、結合は Multiply)、Landscape の既定の物理マテリアルは NonSlippery、層の情報(`LI_Ground`・`LI_Road`)に物理マテリアルは無い。置かれた立方体とコーンは既定の物理マテリアル(摩擦 0.7、反発 0.3) | 一部(路面ごとの摩擦は実装済み: `StaticMeshCollider.Material`(M0109)で、地面の板は摩擦 1.0・反発 0、他は 0.7・0.3。タイヤは当たった面の摩擦を読む(`ALowFrictionSurfaceSpinsTheRearWheelsAndAcceleratesSlower`)。地面は平らな板のまま) | M0109 済・M0112 |
 | TopDown のナビメッシュ | NavMeshBoundsVolume(位置 (0, 0, 0)、範囲 (2250, 2250, 375) cm)、RecastNavMesh(レベルのアクターは AgentRadius 35、AgentHeight 144、AgentMaxSlope 44、TileSizeUU 1000、MergeRegionSize 400、WATERSHED。`DefaultEngine.ini` は CellSize 19、CellHeight 10。AgentMaxStepHeight 35 は `RecastNavMesh.h` の既定) | 一部(Cook がシーンの静的な衝突形状から格子のナビメッシュを焼く。値はこの行のとおり。Recast の輪郭の単純化と斜めの辺、分割したタイル、動的な再生成は無い) | M0106 済 |

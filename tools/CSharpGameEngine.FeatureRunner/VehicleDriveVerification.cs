@@ -14,11 +14,15 @@ public static class VehicleDriveVerification {
     public const int ThrottleEndFrame=50;
     public const int SteerStartFrame=24;
     public const int SteerEndFrame=29;
-    /// <summary>ハンドルを切る前の直進の区間と、切ったあとの区間(フレーム)。それぞれの水平移動の向きを比べる。</summary>
+    /// <summary>
+    /// ハンドルを切る前の直進の区間と、切ったあとの区間(フレーム)。それぞれの水平移動の向きを比べる。
+    /// M0109: 切ったあとの区間はハンドルを戻した直後(30〜34)。Chaos 相当の車は UE の値で速く(0-100 km/h 約 3 秒)、WARP では 1 フレームに数 tick 進むので、
+    /// 右へ曲がった車は 37 フレームごろにレベルの壁(PlayerStart から +R の壁まで約 18 m)に当たる。以前の区間(34〜42)は壁の跳ね返りを測っていた。
+    /// </summary>
     public const int StraightFrom=14;
     public const int StraightTo=22;
-    public const int TurnedFrom=34;
-    public const int TurnedTo=42;
+    public const int TurnedFrom=30;
+    public const int TurnedTo=34;
     public const float MinimumTravelMeters=20f;
     /// <summary>ハンドルを切ったあとの進む向きが、切る前からこれだけは変わる(度)。</summary>
     public const float MinimumTurnDegrees=5f;

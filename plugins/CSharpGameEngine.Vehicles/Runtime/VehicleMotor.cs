@@ -1,99 +1,42 @@
+using System.Runtime.CompilerServices;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Vehicles;
 /// <summary>
-/// 車の1固定tick(ADR-0077)。決定的な物理世界を読むだけで、<see cref="LogicalScalar"/>で解く。
-/// 前後の速度と横方向の速度を車体の向きで分けて、前後はアクセル・ブレーキ・自然な減速、横は<see cref="Vehicle.Grip"/>で消す。
-/// ハンドルは前輪の角度から旋回の速さを求める(自転車モデル)。接地は4つの車輪の位置から車体の下へ飛ばした光線で調べ、
-/// 当たった4点から地面の高さと傾きを求めて、車体をそこへ寄せる。接地している車輪が2つ未満なら、空中として重力で飛ぶ。
-/// 進む向きの壁(急な面)には光線で当たり、前後の速度を失う。右はこのエンジンの座標系で、前×上の向き(+Rは左)。
+/// 車の 1 固定 tick(ADR-0078/M0109)。UE の ChaosWheeledVehicleMovementComponent の 1 回の物理の tick を、決定的な物理世界の上で同じ順に行う:
+/// ゲームのスレッドの入力の処理(後退と 1 速の選択、アクセルとブレーキの読み替え、入力の速さ、眠り)、光線のサスペンション、ブレーキのトルク、
+/// 空気抵抗、エンジンと変速、ばね・ダンパー・ロールバー、操舵、タイヤの摩擦。力は車輪ごとに 1 つにまとめて、その車輪の位置に
+/// <see cref="PhysicsCommands.ForceAtPoint"/> で加え、空気の力は重心に <see cref="PhysicsCommands.Force"/> で加える。物理世界がこの tick を進めるときに効く。
+/// UE の BP_VehicleAdvPawnBase の転倒の判定とリセットもここで行う。右はこのエンジンの座標系で、前 × 上(+R は左)。
 /// </summary>
 public sealed class VehicleMotor {
-    private static readonly LogicalScalar Gravity=LogicalScalar.FromSingle(9.80665f);
-    private static readonly LogicalScalar DegreesToRadians=LogicalMath.Pi/LogicalScalar.FromInt64(180);
-    private static readonly LogicalScalar Half=LogicalScalar.One/LogicalScalar.FromInt64(2);
-    private static readonly LogicalScalar Quarter=LogicalScalar.One/LogicalScalar.FromInt64(4);
-    /// <summary>車輪の光線の始点を、車体の中心からこれだけ上に置く(m)。車体が地面に少し沈んでも、光線が地面の下から始まらない。</summary>
-    private static readonly LogicalScalar RayLift=LogicalScalar.FromSingle(0.5f);
-    /// <summary>止まっているとみなす前後の速度(m/s)。これ未満で逆向きに踏むと、ブレーキでなく発進になる。</summary>
-    private static readonly LogicalScalar StopSpeed=LogicalScalar.FromSingle(0.5f);
-    private static readonly LogicalScalar HeightFollow=LogicalScalar.FromSingle(25f);
-    private static readonly LogicalScalar AlignRate=LogicalScalar.FromSingle(12f);
-    private static readonly LogicalScalar AirAlignRate=LogicalScalar.FromSingle(1.5f);
-    /// <summary>これより急な面(法線の上向き成分がこれ未満)は壁とみなす。</summary>
-    private static readonly LogicalScalar WallSlope=LogicalScalar.FromSingle(0.6f);
-    /// <summary>前の車軸から、前の端(バンパー)までの距離(m)。壁の光線の始点。</summary>
-    private static readonly LogicalScalar NoseReach=LogicalScalar.FromSingle(0.9f);
-    /// <summary>壁の手前に残す隙間(m)。</summary>
-    private static readonly LogicalScalar WallSkin=LogicalScalar.FromSingle(0.05f);
-    /// <summary>壁の光線を、このtickの前進の距離よりさらに先まで伸ばす長さ(m)。</summary>
-    private static readonly LogicalScalar WallLookAhead=LogicalScalar.FromSingle(0.1f);
-    private static readonly LogicalScalar[]Fronts=[Half,-Half];
-    private static readonly LogicalScalar[]Sides=[-Half,Half];
-    private readonly List<PhysicsRayHit>Hits=[];
+    /// <summary>UE の FSimpleWheelSim::Simulate の K(止めるのに要る力の係数)。</summary>
+    private static readonly LogicalScalar StopForceFactor=LogicalScalar.ParseInvariant("0.4");
+    /// <summary>UE のエンジンが目標の回転数へ近づく速さ(1/s。FSimpleEngineSim::Simulate の 4)。</summary>
+    private static readonly LogicalScalar EngineFollowRate=LogicalScalar.FromInt64(4);
+    /// <summary>UE の GVehicleDebugParams.ControlInputWakeTolerance。</summary>
+    private static readonly LogicalScalar WakeTolerance=LogicalScalar.ParseInvariant("0.02");
+    /// <summary>UE の GVehicleDebugParams.SleepCounterThreshold。</summary>
+    private const int SleepCounterThreshold=15;
+    /// <summary>UE の摩擦の円の判定の 0.05(内部の cm の力の二乗)を N の二乗に直した値。</summary>
+    private static readonly LogicalScalar FrictionCircleThreshold=LogicalScalar.ParseInvariant("0.000005");
+    /// <summary>車輪が固まったときに角速度に掛ける比(UE の 0.9)。</summary>
+    private static readonly LogicalScalar LockedSpinDecay=LogicalScalar.ParseInvariant("0.9");
     private readonly DeterministicPhysicsWorld World;
+    private readonly List<PhysicsRayHit>Hits=[];
+    private readonly ConditionalWeakTable<VehicleWheelMount[],VehicleTuning>Tunings=[];
     public VehicleMotor(DeterministicPhysicsWorld World){
         this.World=World??throw new ArgumentNullException(nameof(World));
     }
-    /// <summary>車体の中心<paramref name="Position"/>・向き<paramref name="Rotation"/>・<paramref name="State"/>を、<paramref name="DeltaSeconds"/>だけ進める。</summary>
-    public void Step(in Vehicle Settings,ref LogicalVector3 Position,ref LogicalQuaternion Rotation,ref VehicleState State,in VehicleIntent Intent,LogicalScalar DeltaSeconds){
-        var Drive=ClampUnit(Intent.Drive);
-        var Handbrake=Intent.Handbrake;
-        State.Steering=Approach(State.Steering,ClampUnit(Intent.Steering),Settings.SteeringRate*DeltaSeconds);
-        Basis(Rotation,out var Forward,out var Right,out var Up);
-        var Ground=this.Probe(Settings,Position,Forward,Right,Up,out var Average,out var Normal);
-        if(Ground){
-            var Velocity=State.Velocity;
-            var Speed=LogicalVector3.Dot(Velocity,Forward);
-            var Lateral=LogicalVector3.Dot(Velocity,Right);
-            Speed=this.Longitudinal(Settings,Speed,Drive,Handbrake,DeltaSeconds);
-            var Grip=Handbrake?Settings.HandbrakeGrip:Settings.Grip;
-            Lateral-=Lateral*Min(LogicalScalar.One,Grip*DeltaSeconds);
-            if(this.TryFindWall(Settings,Position,Forward,Right,Speed,DeltaSeconds,out var Gap)){
-                // 壁までの隙間で、このtickの前進を打ち切る(壁に着いたら前後の速度は失う)。壁には入り込まない。
-                var Allowed=Max(LogicalScalar.Zero,Gap-WallSkin);
-                if(Abs(Speed)*DeltaSeconds>Allowed){
-                    Speed=Sign(Speed)*Allowed/DeltaSeconds;
-                }
-            }
-            State.Velocity=Forward*Speed+Right*Lateral;
-            if(this.TryYaw(Settings,Speed,State.Steering,DeltaSeconds,out var Yaw)&&LogicalQuaternion.TryMultiply(Rotation,Yaw,out var Turned)){
-                Rotation=Turned;
-            }
-            Position+=State.Velocity*DeltaSeconds;
-        }
-        else {
-            State.Velocity=new LogicalVector3(State.Velocity.R,State.Velocity.U-Gravity*Settings.GravityScale*DeltaSeconds,State.Velocity.F);
-            Position+=State.Velocity*DeltaSeconds;
-            Align(ref Rotation,Up,LogicalVector3.UnitU,AirAlignRate*DeltaSeconds);
-        }
-        Basis(Rotation,out Forward,out Right,out Up);
-        State.OnGround=this.Probe(Settings,Position,Forward,Right,Up,out Average,out Normal);
-        if(State.OnGround){
-            // 光線の4点の平均から法線の向きにRideHeight離れた所が、車体の中心の高さ。下がるときはなだらかに、めり込むときはすぐに直す。
-            var Target=Average+Normal*Settings.RideHeight;
-            var Follow=Target.U>Position.U?LogicalScalar.One:Min(LogicalScalar.One,HeightFollow*DeltaSeconds);
-            Position=new LogicalVector3(Position.R,Position.U+(Target.U-Position.U)*Follow,Position.F);
-            Align(ref Rotation,Up,Normal,AlignRate*DeltaSeconds);
-            Basis(Rotation,out Forward,out Right,out Up);
-            if(!Ground){
-                // 着地: 地面の向きの速度は残し、地面へ入る速度だけを消す。
-                var Into=LogicalVector3.Dot(State.Velocity,Normal);
-                if(Into<LogicalScalar.Zero){
-                    State.Velocity-=Normal*Into;
-                }
-            }
-            var Along=LogicalVector3.Dot(State.Velocity,Forward);
-            var Across=LogicalVector3.Dot(State.Velocity,Right);
-            State.Velocity=Forward*Along+Right*Across;
-            State.ForwardSpeed=Along;
-        }
-        else {
-            State.ForwardSpeed=LogicalVector3.Dot(State.Velocity,Forward);
-        }
-        State.Gear=GearOf(Settings,State.ForwardSpeed);
+    /// <summary>車の設定と車輪の取り付けから求めた値。設定が無ければ null。</summary>
+    public VehicleTuning?TuningOf(in Vehicle Car){
+        if(Car.Setup is not { }Setup||Car.Wheels is null){ return null; }
+        if(this.Tunings.TryGetValue(Car.Wheels,out var Existing)&&ReferenceEquals(Existing.Setup,Setup)){ return Existing; }
+        var Created=new VehicleTuning(Setup,Car.Wheels);
+        this.Tunings.AddOrUpdate(Car.Wheels,Created);
+        return Created;
     }
-    /// <summary>車体の前・右(前×上)・上の向き。</summary>
+    /// <summary>車体の前・右(前 × 上)・上の向き。</summary>
     public static void Basis(LogicalQuaternion Rotation,out LogicalVector3 Forward,out LogicalVector3 Right,out LogicalVector3 Up){
         if(!Rotation.TryRotate(LogicalVector3.UnitF,out Forward)||!Rotation.TryRotate(LogicalVector3.UnitU,out Up)){
             Forward=LogicalVector3.UnitF;
@@ -101,165 +44,434 @@ public sealed class VehicleMotor {
         }
         Right=LogicalVector3.Cross(Forward,Up);
     }
-    /// <summary>速度の絶対値から決める表示用のギア。後退は-1、ほぼ停止は0、前進は1から<see cref="Vehicle.GearCount"/>。</summary>
-    public static int GearOf(in Vehicle Settings,LogicalScalar ForwardSpeed){
-        if(Settings.GearCount<=0||(ForwardSpeed<StopSpeed&&ForwardSpeed>-StopSpeed)){
-            return 0;
+    /// <summary>
+    /// 車体の剛体 <paramref name="Body"/> に、<paramref name="Tick"/> の力の命令を積む。車の設定が無い、剛体が無い・動的でない、眠っているときは何もしない
+    /// (眠っているかは状態に書く)。積んだら真。
+    /// </summary>
+    public bool Step(in Vehicle Car,ref VehicleState State,ref VehicleIntent Intent,CSharpGameEngine.Entities.Entity Body,ulong Tick,LogicalScalar DeltaSeconds){
+        if(this.TuningOf(Car) is not { }Tuning||!this.World.TryGetBodyState(Body,out var BodyState)||BodyState.MotionType!=PhysicsMotionType.Dynamic){
+            return false;
         }
-        if(ForwardSpeed<LogicalScalar.Zero){
-            return -1;
+        var Setup=Tuning.Setup;
+        var Commands=this.World.Commands;
+        var Source=BodyState.StableId;
+        uint Sequence=0;
+        Basis(BodyState.Rotation,out var Forward,out var Right,out var Up);
+        var Velocity=BodyState.Velocity.Linear;
+        State.ForwardSpeed=LogicalVector3.Dot(Velocity,Forward);
+        State.ResetThisTick=false;
+        // BP_VehicleAdvPawnBase: IA_Reset と、3 秒ごとの Flipped Check(2 回続けて上の向きが -0.2 より下ならリセット。前の結果はリセットでは消さない)。
+        var Reset=Intent.ResetRequested;
+        Intent.ResetRequested=false;
+        if(Car.FlipCheckSeconds>LogicalScalar.Zero&&DeltaSeconds>LogicalScalar.Zero){
+            var Interval=(int)Math.Max(1L,(long)((Car.FlipCheckSeconds/DeltaSeconds+VehicleChaos.Half).Raw>>64));
+            State.FlipCheckTicks++;
+            if(State.FlipCheckTicks>=Interval){
+                State.FlipCheckTicks=0;
+                if(Up.U<Car.FlippedUpDot){
+                    if(State.PreviousFlipCheck){ Reset=true; }
+                    else { State.PreviousFlipCheck=true; }
+                }
+                else {
+                    State.PreviousFlipCheck=false;
+                }
+            }
         }
-        if(Settings.TopSpeed<=LogicalScalar.Zero){
-            return 1;
+        if(Reset){
+            this.ResetPose(Car,BodyState,Forward,Tick,Source,ref Sequence);
+            State.ResetThisTick=true;
+            State.Sleeping=false;
+            State.SleepCounter=0;
+            return true;
         }
-        var Fraction=ForwardSpeed/Settings.TopSpeed*LogicalScalar.FromInt64(Settings.GearCount);
-        var Gear=1;
-        while(Gear<Settings.GearCount&&Fraction>=LogicalScalar.FromInt64(Gear)){
-            Gear++;
+        // UE の UpdateState(ゲームのスレッド): 後退と 1 速の選択、アクセルとブレーキの読み替え、入力の速さ。
+        var RawThrottle=Unit(Intent.Throttle);
+        var RawBrake=Unit(Intent.Brake);
+        var RawSteering=Signed(Intent.Steering);
+        var RawHandbrake=Intent.Handbrake?LogicalScalar.One:LogicalScalar.Zero;
+        if(Setup.ReverseAsBrake){
+            if(RawBrake>VehicleChaos.KindaSmallNumber&&State.Gear>=0&&State.TargetGear>=0){ SetGear(ref State,Tuning,-1,true); }
+            else if(RawThrottle>VehicleChaos.KindaSmallNumber&&State.Gear<=0&&State.TargetGear<=0){ SetGear(ref State,Tuning,1,true); }
         }
-        return Gear;
+        else if(Setup.Transmission.Automatic&&RawThrottle>VehicleChaos.KindaSmallNumber&&State.Gear==0&&State.TargetGear==0){
+            SetGear(ref State,Tuning,1,true);
+        }
+        ThrottleAndBrake(Setup,State,RawThrottle,RawBrake,out var ModifiedThrottle,out var ModifiedBrake);
+        State.Steering=VehicleChaos.InterpInput(Setup.SteeringInputRate,DeltaSeconds,State.Steering,RawSteering);
+        State.Throttle=VehicleChaos.InterpInput(Setup.ThrottleInputRate,DeltaSeconds,State.Throttle,ModifiedThrottle);
+        State.Brake=VehicleChaos.InterpInput(Setup.BrakeInputRate,DeltaSeconds,State.Brake,ModifiedBrake);
+        State.Handbrake=VehicleChaos.InterpInput(Setup.HandbrakeInputRate,DeltaSeconds,State.Handbrake,RawHandbrake);
+        var Throttle=VehicleChaos.ControlFunction(Setup.ThrottleInputRate,State.Throttle);
+        var Brake=VehicleChaos.ControlFunction(Setup.BrakeInputRate,State.Brake);
+        var Steering=VehicleChaos.ControlFunction(Setup.SteeringInputRate,State.Steering);
+        var Handbrake=VehicleChaos.ControlFunction(Setup.HandbrakeInputRate,State.Handbrake);
+        // UE の ProcessSleeping: 操作が無く、全輪が接地し、傾きが小さく、遅い状態が 15 回続いたら眠らせる。眠っている間は力を加えない。
+        if(State.Sleeping&&!BodyState.IsSleeping){ State.SleepCounter=0; }
+        State.Sleeping=BodyState.IsSleeping;
+        var Pressed=Throttle>=WakeTolerance||Brake>=WakeTolerance||VehicleChaos.Abs(Steering-State.PreviousSteering)>=WakeTolerance;
+        State.PreviousSteering=Steering;
+        if(Pressed){
+            State.Sleeping=false;
+            State.SleepCounter=0;
+        }
+        else if(!State.Sleeping&&Tuning.WheelCount>0&&State.WheelsOnGround==Tuning.WheelCount&&Up.U>Setup.SleepSlopeLimit
+            &&Velocity.LengthSquared<Setup.SleepThreshold*Setup.SleepThreshold){
+            if(State.SleepCounter<SleepCounterThreshold){
+                State.SleepCounter++;
+            }
+            else {
+                State.Sleeping=true;
+                Commands.Sleep(Tick,Source,Sequence++,Body);
+            }
+        }
+        if(State.Sleeping){ return true; }
+        this.Simulate(Tuning,ref State,BodyState,Forward,Right,Up,Throttle,Brake,Steering,Handbrake,Body,Car.CollidesWith,Tick,Source,ref Sequence,DeltaSeconds);
+        return true;
     }
-    private LogicalScalar Longitudinal(in Vehicle Settings,LogicalScalar Speed,LogicalScalar Drive,bool Handbrake,LogicalScalar DeltaSeconds){
-        var Acceleration=LogicalScalar.Zero;
-        if(Drive>LogicalScalar.Zero){
-            if(Speed<-StopSpeed){
-                Acceleration=Settings.BrakeDeceleration*Drive;
-            }
-            else {
-                Acceleration=Settings.Acceleration*Drive*Max(LogicalScalar.Zero,LogicalScalar.One-Max(Speed,LogicalScalar.Zero)/Settings.TopSpeed);
+    /// <summary>UE の CalcThrottleBrakeInput。</summary>
+    private static void ThrottleAndBrake(VehicleSetup Setup,in VehicleState State,LogicalScalar RawThrottle,LogicalScalar RawBrake,out LogicalScalar Throttle,out LogicalScalar Brake){
+        Brake=RawBrake;
+        Throttle=RawThrottle;
+        if(!Setup.ReverseAsBrake){
+            if(RawBrake<VehicleChaos.SmallNumber&&RawThrottle<VehicleChaos.SmallNumber&&VehicleChaos.Abs(State.ForwardSpeed)<Setup.StopThreshold){ Brake=LogicalScalar.One; }
+            return;
+        }
+        if(RawThrottle>LogicalScalar.Zero){
+            // 後ろへ動いているのに前へ進みたい: bThrottleAsBrake ならブレーキ。
+            if(Setup.ThrottleAsBrake&&State.ForwardSpeed< -Setup.WrongDirectionThreshold){
+                Brake=LogicalScalar.One;
+                Throttle=LogicalScalar.Zero;
             }
         }
-        else if(Drive<LogicalScalar.Zero){
-            if(Speed>StopSpeed){
-                Acceleration=Settings.BrakeDeceleration*Drive;
+        else if(RawBrake>LogicalScalar.Zero){
+            // 前へ動いているのに後ろへ下がりたい: ブレーキ。止まりかけ(後退のギア)なら、ブレーキの値でアクセルを踏む。
+            if(State.ForwardSpeed>Setup.WrongDirectionThreshold){
+                Brake=LogicalScalar.One;
+                Throttle=LogicalScalar.Zero;
+            }
+            else if(State.TargetGear<0){
+                Throttle=RawBrake;
+                Brake=LogicalScalar.Zero;
+            }
+        }
+        else if(!(State.ForwardSpeed<Setup.StopThreshold&&State.ForwardSpeed> -Setup.StopThreshold)){
+            Brake=Setup.IdleBrakeInput;
+        }
+        Throttle=VehicleChaos.Clamp(Throttle,LogicalScalar.Zero,LogicalScalar.One);
+        Brake=VehicleChaos.Clamp(Brake,LogicalScalar.Zero,LogicalScalar.One);
+    }
+    /// <summary>UE の FSimpleTransmissionSim::SetGear。すぐにでなければ、変速の時間だけニュートラルを通る。</summary>
+    private static void SetGear(ref VehicleState State,VehicleTuning Tuning,int Gear,bool Immediate){
+        var Transmission=Tuning.Setup.Transmission;
+        Gear=Math.Clamp(Gear,-Transmission.ReverseGearRatios.Length,Transmission.ForwardGearRatios.Length);
+        State.TargetGear=Gear;
+        if(State.TargetGear==State.Gear){ return; }
+        if(Immediate||Transmission.GearChangeTime.IsZero){
+            State.Gear=State.TargetGear;
+        }
+        else {
+            State.Gear=0;
+            State.GearChangeTime=Transmission.GearChangeTime;
+        }
+    }
+    /// <summary>
+    /// UE の Manual Reset: 車をその場で <see cref="Vehicle.ResetLift"/> だけ上げ、Roll と Pitch を 0 に、Yaw はそのままにして、速度と角速度を 0 にする。
+    /// UE は Actor の原点(<see cref="Vehicle.ResetPivot"/>)を動かすので、その点を基準に回す。
+    /// </summary>
+    private void ResetPose(in Vehicle Car,in PhysicsBodyState BodyState,LogicalVector3 Forward,ulong Tick,ulong Source,ref uint Sequence){
+        var Yaw=VehicleChaos.Atan2(Forward.R,Forward.F);
+        if(!LogicalQuaternion.TryCreateAxisAngle(LogicalVector3.UnitU,Yaw,out var Upright)){ Upright=LogicalQuaternion.Identity; }
+        if(!BodyState.Rotation.TryRotate(Car.ResetPivot,out var PivotNow)||!Upright.TryRotate(Car.ResetPivot,out var PivotAfter)){
+            PivotNow=PivotAfter=LogicalVector3.Zero;
+        }
+        var Origin=BodyState.Position+PivotNow+LogicalVector3.UnitU*Car.ResetLift;
+        var Commands=this.World.Commands;
+        Commands.Teleport(Tick,Source,Sequence++,BodyState.Entity,Origin-PivotAfter,Upright);
+        Commands.SetVelocity(Tick,Source,Sequence++,BodyState.Entity,LogicalVector3.Zero,LogicalVector3.Zero);
+    }
+    /// <summary>UE の物理のスレッドの 1 tick(UpdateState・ApplyInput・UpdateSimulation)。</summary>
+    private void Simulate(VehicleTuning Tuning,ref VehicleState State,in PhysicsBodyState BodyState,LogicalVector3 Forward,LogicalVector3 Right,LogicalVector3 Up,
+        LogicalScalar Throttle,LogicalScalar Brake,LogicalScalar Steering,LogicalScalar Handbrake,CSharpGameEngine.Entities.Entity Body,PhysicsLayerMask Layers,ulong Tick,ulong Source,ref uint Sequence,LogicalScalar DeltaSeconds){
+        var Setup=Tuning.Setup;
+        var Count=Tuning.WheelCount;
+        var Position=BodyState.Position;
+        var Linear=BodyState.Velocity.Linear;
+        var Angular=BodyState.Velocity.Angular;
+        Span<VehicleWheelState>Wheels=stackalloc VehicleWheelState[4];
+        for(var Index=0;Index<Count;Index++){ Wheels[Index]=State.WheelAt(Index); }
+        Span<LogicalVector3>WheelWorld=stackalloc LogicalVector3[4];
+        Span<LogicalVector3>WheelForce=stackalloc LogicalVector3[4];
+        Span<LogicalScalar>LocalForward=stackalloc LogicalScalar[4];
+        Span<LogicalScalar>LocalRight=stackalloc LogicalScalar[4];
+        Span<LogicalScalar>HitDistance=stackalloc LogicalScalar[4];
+        Span<LogicalVector3>HitPoint=stackalloc LogicalVector3[4];
+        Span<LogicalVector3>HitNormal=stackalloc LogicalVector3[4];
+        Span<bool>Traced=stackalloc bool[4];
+        Span<bool>EngineBraking=stackalloc bool[4];
+        Span<LogicalScalar>Loads=stackalloc LogicalScalar[4];
+        // UE の UpdateState: 車輪の位置と速さ、サスペンションの光線、接地。
+        var OnGround=0;
+        for(var Index=0;Index<Count;Index++){
+            var Wheel=Tuning.Wheels[Index];
+            if(!BodyState.Rotation.TryRotate(Tuning.Mounts[Index].Position,out var Offset)){ throw new OverflowException(); }
+            WheelWorld[Index]=Position+Offset;
+            var PointVelocity=Linear+LogicalVector3.Cross(Angular,Offset);
+            LocalForward[Index]=LogicalVector3.Dot(PointVelocity,Forward);
+            LocalRight[Index]=LogicalVector3.Dot(PointVelocity,Right);
+            var Start=WheelWorld[Index]+Up*Wheel.SuspensionMaxRaise;
+            var Length=Wheel.SuspensionMaxRaise+Wheel.SuspensionMaxDrop+Wheel.Radius;
+            Traced[Index]=this.TryTrace(Start,-Up,Length,Body,Layers,out HitDistance[Index],out HitPoint[Index],out HitNormal[Index],out var Surface);
+            if(Traced[Index]){
+                OnGround++;
+                Wheels[Index].SurfaceFriction=Surface;
+            }
+            Wheels[Index].InContact=Traced[Index];
+        }
+        State.OnGround=OnGround>0;
+        State.WheelsOnGround=OnGround;
+        // UE の ApplyInput: エンジンへのアクセル(二乗)、ブレーキとエンジンブレーキとハンドブレーキのトルク。
+        var EngineThrottle=Tuning.HasEngine?Throttle*Throttle:LogicalScalar.Zero;
+        State.EngineThrottle=EngineThrottle;
+        var EngineBrakingTorque=Tuning.HasEngine?State.EngineRpm*Setup.Engine.EngineBrakeEffect:LogicalScalar.Zero;
+        for(var Index=0;Index<Count;Index++){
+            var Wheel=Tuning.Wheels[Index];
+            var EngineBrakingForce=Throttle<VehicleChaos.SmallNumber&&VehicleChaos.Abs(State.ForwardSpeed)>VehicleChaos.SmallNumber&&Tuning.EngineEnabled[Index]
+                ?EngineBrakingTorque
+                :LogicalScalar.Zero;
+            if(Wheel.AffectedByBrake){
+                var BrakeTorque=Wheel.MaxBrakeTorque*Brake;
+                Wheels[Index].BrakeTorque=BrakeTorque+EngineBrakingForce;
+                EngineBraking[Index]=VehicleChaos.Abs(EngineBrakingForce)>VehicleChaos.Abs(BrakeTorque);
             }
             else {
-                Acceleration=Settings.Acceleration*Drive*Max(LogicalScalar.Zero,LogicalScalar.One-Max(-Speed,LogicalScalar.Zero)/Settings.ReverseSpeed);
+                // UE のとおり、ブレーキの効かない車輪にはアクセルに関わらずエンジンブレーキをかける。
+                Wheels[Index].BrakeTorque=EngineBrakingTorque;
+                EngineBraking[Index]=true;
+            }
+            if(Handbrake>LogicalScalar.Zero&&Wheel.AffectedByHandbrake){
+                Wheels[Index].BrakeTorque=Handbrake*Wheel.MaxHandbrakeTorque;
+                EngineBraking[Index]=false;
+            }
+        }
+        // UE の ApplyAerodynamics: 重心に、前後の空気抵抗と上下のダウンフォース(進む向きと逆の符号)。
+        var AirSign=State.ForwardSpeed<LogicalScalar.Zero?LogicalScalar.One:-LogicalScalar.One;
+        var Common=VehicleChaos.AirDensity*State.ForwardSpeed*State.ForwardSpeed*AirSign;
+        var Aerodynamic=Forward*(Tuning.DragConstant*Common)+Up*(Tuning.DownforceConstant*Common);
+        if(!Aerodynamic.LengthSquared.IsZero){ this.World.Commands.Force(Tick,Source,Sequence++,Body,Aerodynamic); }
+        // UE の ProcessMechanicalSimulation: エンジンの回転、自動変速、駆動トルク。
+        if(Tuning.HasEngine){
+            var WheelRpm=LogicalScalar.Zero;
+            for(var Index=0;Index<Count;Index++){
+                if(Tuning.EngineEnabled[Index]){ WheelRpm=VehicleChaos.Abs(Wheels[Index].Omega*VehicleChaos.RpmPerRadianPerSecond); }
+            }
+            var EngineRpmFromWheels=WheelRpm*Tuning.GearRatio(State.Gear);
+            var WheelSpeedRpm=VehicleChaos.Abs(EngineRpmFromWheels);
+            var OutOfGear=State.Gear==0||State.Gear!=State.TargetGear;
+            this.SimulateEngine(Tuning,ref State,OutOfGear,EngineRpmFromWheels,EngineThrottle,DeltaSeconds);
+            var Spinning=false;
+            for(var Index=0;Index<Count;Index++){
+                if(VehicleChaos.Abs(Wheels[Index].SlipMagnitude)>Tuning.Wheels[Index].SlipThreshold){ Spinning=true; }
+            }
+            SimulateTransmission(Tuning,ref State,State.OnGround&&!Spinning,DeltaSeconds);
+            var TransmissionTorque=EngineThrottle*Tuning.EngineTorqueAt(State.EngineRpm)*Tuning.GearRatio(State.Gear)*Setup.Transmission.Efficiency;
+            if(WheelSpeedRpm>Setup.Engine.MaxRpm){ TransmissionTorque=LogicalScalar.Zero; }
+            for(var Index=0;Index<Count;Index++){
+                Wheels[Index].DriveTorque=Tuning.EngineEnabled[Index]?TransmissionTorque*Tuning.TorqueRatio[Index]:LogicalScalar.Zero;
             }
         }
         else {
-            Acceleration=-Sign(Speed)*Min(Settings.RollingDeceleration,Abs(Speed)/DeltaSeconds);
+            for(var Index=0;Index<Count;Index++){ Wheels[Index].DriveTorque=LogicalScalar.Zero; }
         }
-        if(Handbrake){
-            Acceleration-=Sign(Speed)*Min(Settings.BrakeDeceleration*Half,Abs(Speed)/DeltaSeconds);
+        // UE の ApplySuspensionForces: ばね・ダンパーの力を車輪の位置に上向きに加え、タイヤの荷重を決める。外れた車輪は伸びきる。
+        for(var Index=0;Index<Count;Index++){
+            var Wheel=Tuning.Wheels[Index];
+            var MaximumLength=Wheel.SuspensionMaxRaise+Wheel.SuspensionMaxDrop;
+            if(Traced[Index]){
+                var Displacement=MaximumLength-VehicleChaos.Max(LogicalScalar.Zero,HitDistance[Index]-Wheel.Radius);
+                var SpringSpeed=(Wheels[Index].LastDisplacement-Displacement)/DeltaSeconds;
+                var SpringForce=Displacement*Wheel.SpringRate-SpringSpeed*Tuning.Damping[Index];
+                Wheels[Index].SpringDisplacement=Displacement;
+                Wheels[Index].LastDisplacement=Displacement;
+                Wheels[Index].SpringForce=SpringForce;
+                WheelForce[Index]+=Up*SpringForce;
+                var Load=Wheel.WheelLoadRatio*SpringForce+(LogicalScalar.One-Wheel.WheelLoadRatio)*Tuning.RestingForce[Index];
+                Wheels[Index].Load=Load;
+                Loads[Index]=Load;
+                Wheels[Index].SuspensionOffset=VehicleChaos.Clamp(LogicalVector3.Dot(HitPoint[Index]-WheelWorld[Index],Up)+Wheel.Radius,-Wheel.SuspensionMaxDrop,Wheel.SuspensionMaxRaise);
+            }
+            else {
+                Wheels[Index].SpringDisplacement=LogicalScalar.Zero;
+                Wheels[Index].SpringForce=LogicalScalar.Zero;
+                Wheels[Index].Load=LogicalScalar.Zero;
+                Loads[Index]=LogicalScalar.Zero;
+                Wheels[Index].SuspensionOffset=-Wheel.SuspensionMaxDrop;
+            }
         }
-        var Next=Speed+Acceleration*DeltaSeconds;
-        if((Speed>LogicalScalar.Zero&&Next<LogicalScalar.Zero&&Drive<=LogicalScalar.Zero)||(Speed<LogicalScalar.Zero&&Next>LogicalScalar.Zero&&Drive>=LogicalScalar.Zero)){
-            // ブレーキや自然な減速は、止まるところで終わる(そのまま逆向きには走り出さない)。
-            Next=LogicalScalar.Zero;
+        foreach(var (First,Second) in Tuning.Axles){
+            var Difference=(Loads[First]-Loads[Second])*Tuning.Wheels[First].RollbarScaling;
+            WheelForce[First]+=Up*Difference;
+            WheelForce[Second]-=Up*Difference;
         }
-        return Next;
+        // UE の ProcessSteering: 速さの効きを掛けた入力から、車輪ごとの舵角。
+        var SteeringInput=Steering*Tuning.SteeringScale(State.ForwardSpeed);
+        for(var Index=0;Index<Count;Index++){
+            Wheels[Index].SteeringAngleDegrees=Tuning.WheelSteeringAngle(Index,SteeringInput);
+        }
+        // UE の ApplyWheelFrictionForces: 舵の向きのタイヤの力を、地面の法線と車の右から作る向きで、車輪の位置に加える。
+        var MassPerWheel=Count>0?Setup.Mass/LogicalScalar.FromInt64(Count):LogicalScalar.Zero;
+        for(var Index=0;Index<Count;Index++){
+            var Wheel=Tuning.Wheels[Index];
+            var Contact=Loads[Index]>VehicleChaos.SmallNumber;
+            VehicleChaos.SinCos(Wheels[Index].SteeringAngleDegrees*VehicleChaos.RadiansPerDegree,out var Sin,out var Cos);
+            var WheelForward=LocalForward[Index]*Cos+LocalRight[Index]*Sin;
+            var WheelSide=-(LocalForward[Index]*Sin)+LocalRight[Index]*Cos;
+            if(!Contact){
+                WheelForward=LogicalScalar.Zero;
+                WheelSide=LogicalScalar.Zero;
+            }
+            SimulateWheel(Wheel,Tuning.Inertia[Index],ref Wheels[Index],Contact,Contact?Loads[Index]:LogicalScalar.Zero,WheelForward,WheelSide,EngineBraking[Index],MassPerWheel,DeltaSeconds,out var Longitudinal,out var Lateral);
+            if(!Contact||!Traced[Index]){ continue; }
+            var LocalLongitudinal=Longitudinal*Cos-Lateral*Sin;
+            var LocalLateral=Longitudinal*Sin+Lateral*Cos;
+            var Normal=HitNormal[Index];
+            var GroundForward=LogicalVector3.Cross(Normal,Right);
+            var GroundRight=LogicalVector3.Cross(GroundForward,Normal);
+            WheelForce[Index]+=GroundForward*LocalLongitudinal+GroundRight*LocalLateral;
+        }
+        for(var Index=0;Index<Count;Index++){
+            if(!WheelForce[Index].LengthSquared.IsZero){ this.World.Commands.ForceAtPoint(Tick,Source,Sequence++,Body,WheelForce[Index],WheelWorld[Index]); }
+        }
+        State.Wheel0=Count>0?Wheels[0]:default;
+        State.Wheel1=Count>1?Wheels[1]:default;
+        State.Wheel2=Count>2?Wheels[2]:default;
+        State.Wheel3=Count>3?Wheels[3]:default;
     }
-    /// <summary>前輪の角度と前後の速度から求めた、このtickの旋回(上向きの軸のまわり)。右に切ると、上向きの軸のまわりでは負の向き。</summary>
-    private bool TryYaw(in Vehicle Settings,LogicalScalar Speed,LogicalScalar Steering,LogicalScalar DeltaSeconds,out LogicalQuaternion Yaw){
-        Yaw=LogicalQuaternion.Identity;
-        if(Settings.Wheelbase<=LogicalScalar.Zero){
-            return false;
+    /// <summary>UE の FSimpleEngineSim::SetEngineRPM と Simulate。ギアが入っていなければ自由に回り、入っていれば車輪から決まる回転へ近づく。アイドルより下がらない。</summary>
+    private void SimulateEngine(VehicleTuning Tuning,ref VehicleState State,bool FreeRunning,LogicalScalar EngineRpmFromWheels,LogicalScalar EngineThrottle,LogicalScalar DeltaSeconds){
+        var Engine=Tuning.Setup.Engine;
+        var IdleOmega=Engine.IdleRpm/VehicleChaos.RpmPerRadianPerSecond;
+        var MaximumOmega=Engine.MaxRpm/VehicleChaos.RpmPerRadianPerSecond;
+        var Omega=State.EngineOmega;
+        if(FreeRunning){
+            var Torque=EngineThrottle*Tuning.EngineTorqueAt(State.EngineRpm);
+            Omega+=Torque*DeltaSeconds/Engine.RevUpMoi;
+            var Fraction=MaximumOmega.IsZero?LogicalScalar.Zero:(Omega-VehicleChaos.Half*IdleOmega)/MaximumOmega;
+            Omega-=Engine.RevDownRate*Fraction*Fraction*DeltaSeconds;
         }
-        var Angle=Steering*Settings.MaxSteeringDegrees*DegreesToRadians/(LogicalScalar.One+Abs(Speed)/Max(Settings.SteeringFalloffSpeed,LogicalScalar.One));
-        if(!LogicalMath.TrySinCos(Angle,out var Sin,out var Cos)||Cos.IsZero){
-            return false;
+        else {
+            var Target=VehicleChaos.Clamp(VehicleChaos.Abs(EngineRpmFromWheels),Engine.IdleRpm,Engine.MaxRpm)/VehicleChaos.RpmPerRadianPerSecond;
+            Omega+=(Target-Omega)*EngineFollowRate*DeltaSeconds;
         }
-        var YawRate=Speed*(Sin/Cos)/Settings.Wheelbase;
-        if(Settings.MaxLateralAcceleration>LogicalScalar.Zero){
-            // タイヤが出せる横方向の加速度の限界: |速度×角速度|がこれを超えないように、角速度を抑える。
-            var Limit=Settings.MaxLateralAcceleration/Max(Abs(Speed),LogicalScalar.One);
-            YawRate=YawRate>Limit?Limit:YawRate<-Limit?-Limit:YawRate;
+        if(Omega<IdleOmega){ Omega=IdleOmega; }
+        State.EngineOmega=Omega;
+        State.EngineRpm=Omega*VehicleChaos.RpmPerRadianPerSecond;
+    }
+    /// <summary>UE の FSimpleTransmissionSim::Simulate: 自動変速は、変速中でなく許されているとき、上げの回転数以上で 1 段上げ、下げの回転数以下で 1 段下げる(1 速より下へは下げない)。</summary>
+    private static void SimulateTransmission(VehicleTuning Tuning,ref VehicleState State,bool AllowedToChangeGear,LogicalScalar DeltaSeconds){
+        var Transmission=Tuning.Setup.Transmission;
+        if(Transmission.Automatic&&State.Gear==State.TargetGear&&AllowedToChangeGear){
+            if(State.EngineRpm>=Transmission.ChangeUpRpm){
+                SetGear(ref State,Tuning,State.Gear>0?State.TargetGear+1:State.TargetGear-1,false);
+            }
+            else if(State.EngineRpm<=Transmission.ChangeDownRpm&&Math.Abs(State.Gear)>1){
+                SetGear(ref State,Tuning,State.Gear>0?State.TargetGear-1:State.TargetGear+1,false);
+            }
         }
-        return LogicalQuaternion.TryCreateAxisAngle(LogicalVector3.UnitU,-YawRate*DeltaSeconds,out Yaw);
+        if(State.Gear!=State.TargetGear){
+            State.GearChangeTime-=DeltaSeconds;
+            if(State.GearChangeTime<=LogicalScalar.Zero){
+                State.GearChangeTime=LogicalScalar.Zero;
+                State.Gear=State.TargetGear;
+            }
+        }
     }
     /// <summary>
-    /// 進む向きの車体の前(後退なら後ろ)の2隅から、水平な光線を飛ばして、急な面(壁)までの隙間(m)を求める。
-    /// 光線の長さはこのtickの前進の距離に余裕を足したもので、それより遠い壁は見ない。緩やかな面(坂)は壁ではない。
+    /// UE の FSimpleWheelSim::Simulate: 縦はブレーキか駆動の力、横は滑りの角 × コーナリング剛性(止めるのに要る力まで)。両方を摩擦の円(荷重 × 地面の摩擦 ×
+    /// 倍率)で切る。駆動の余りとブレーキの固まりで車輪の回転を決める。<paramref name="Longitudinal"/> と <paramref name="Lateral"/> は舵の向きの力(N)。
     /// </summary>
-    private bool TryFindWall(in Vehicle Settings,LogicalVector3 Position,LogicalVector3 Forward,LogicalVector3 Right,LogicalScalar Speed,LogicalScalar DeltaSeconds,out LogicalScalar Gap){
-        Gap=default;
-        if(Speed.IsZero){
-            return false;
-        }
-        var Heading=new LogicalVector3(Forward.R,LogicalScalar.Zero,Forward.F);
-        if(!Heading.TryNormalize(out Heading)){
-            return false;
-        }
-        var Direction=Speed<LogicalScalar.Zero?-Heading:Heading;
-        var Reach=Settings.Wheelbase*Half+NoseReach;
-        var Distance=Abs(Speed)*DeltaSeconds+WallLookAhead;
-        var Found=false;
-        foreach(var Side in Sides){
-            var Origin=Position+Direction*Reach+Right*(Settings.Track*Side);
-            this.Hits.Clear();
-            this.World.Raycast(new PhysicsRay(Origin,Direction,Distance),Settings.CollidesWith,this.Hits);
-            foreach(var Hit in this.Hits){
-                if(Abs(Hit.Normal.U)<WallSlope&&(!Found||Hit.Distance<Gap)){
-                    Found=true;
-                    Gap=Hit.Distance;
+    private static void SimulateWheel(in VehicleWheelSetup Wheel,LogicalScalar Inertia,ref VehicleWheelState State,bool Contact,LogicalScalar Load,LogicalScalar Forward,LogicalScalar Side,
+        bool EngineBraking,LogicalScalar MassPerWheel,LogicalScalar DeltaSeconds,out LogicalScalar Longitudinal,out LogicalScalar Lateral){
+        Longitudinal=LogicalScalar.Zero;
+        Lateral=LogicalScalar.Zero;
+        var Radius=Wheel.Radius;
+        var SlipAngle=VehicleChaos.SlipAngle(Side,Forward);
+        var DriveForce=State.DriveTorque/Radius;
+        var BrakeForce=State.BrakeTorque/Radius;
+        var Grip=Load*State.SurfaceFriction*Wheel.FrictionForceMultiplier;
+        var Braking=State.BrakeTorque>VehicleChaos.Abs(State.DriveTorque);
+        var Locked=false;
+        var Excess=LogicalScalar.Zero;
+        if(Load>VehicleChaos.SmallNumber){
+            if(VehicleChaos.Abs(DriveForce)>Grip){
+                Excess=(VehicleChaos.Abs(DriveForce)-Grip)*Radius*(DriveForce<LogicalScalar.Zero?-LogicalScalar.One:LogicalScalar.One);
+            }
+            if(Braking){
+                var StopForce=VehicleChaos.Abs(MassPerWheel*StopForceFactor*Forward/DeltaSeconds);
+                Longitudinal=VehicleChaos.Clamp(BrakeForce,-StopForce,StopForce);
+                if(Forward>LogicalScalar.Zero){ Longitudinal=-Longitudinal; }
+            }
+            else {
+                Longitudinal=DriveForce;
+            }
+            var SideStopForce=VehicleChaos.Abs(MassPerWheel*StopForceFactor*Side/DeltaSeconds);
+            Lateral=VehicleChaos.Min(SlipAngle*Wheel.CorneringStiffness,SideStopForce);
+            if(Side>LogicalScalar.Zero){ Lateral=-Lateral; }
+            var LengthSquared=Longitudinal*Longitudinal+Lateral*Lateral;
+            if(LengthSquared>FrictionCircleThreshold){
+                var Length=VehicleChaos.Sqrt(LengthSquared);
+                var Clip=Grip/Length;
+                if(Clip<LogicalScalar.One){
+                    if(Braking&&!EngineBraking){ Locked=true; }
+                    Longitudinal*=Clip*Wheel.SideSlipModifier;
+                    Lateral*=Clip*Wheel.SideSlipModifier;
                 }
             }
         }
-        return Found;
+        else if(VehicleChaos.Abs(State.Omega)<Wheel.MaxWheelspinRotation){
+            Excess=State.DriveTorque;
+        }
+        var SlipOmega=Inertia.IsZero?LogicalScalar.Zero:VehicleChaos.Clamp(Excess/Inertia*DeltaSeconds,-Wheel.MaxWheelspinRotation,Wheel.MaxWheelspinRotation);
+        if(Locked){
+            State.Omega*=LockedSpinDecay;
+        }
+        else if(Contact){
+            State.Omega=Forward/Radius+SlipOmega;
+        }
+        else {
+            State.Omega+=SlipOmega;
+        }
+        // UE は回転の角を FMath::Modf で 1 回転の内に戻す(符号は残る)。
+        var Angle=State.AngularPosition+State.Omega*DeltaSeconds;
+        var Turns=Angle.Raw/LogicalMath.TwoPi.Raw;
+        State.AngularPosition=Angle-LogicalMath.TwoPi*LogicalScalar.FromInt64((long)Turns);
+        State.SlipMagnitude=State.Omega*Radius-Forward;
+        State.SkidMagnitude=Side;
+        if(!Contact){
+            Longitudinal=LogicalScalar.Zero;
+            Lateral=LogicalScalar.Zero;
+        }
     }
     /// <summary>
-    /// 4つの車輪の位置から車体の下へ光線を飛ばす。2つ以上が地面に当たれば接地で、<paramref name="Average"/>は4点(外れた車輪は伸びきった位置)の平均、
-    /// <paramref name="Normal"/>は4点が作る面の法線(上向き)。
+    /// サスペンションの光線(UE の PerformSuspensionTraces の Raycast)。車体自身は飛ばす。当たれば始点からの距離、点、法線、地面の摩擦(UE の物理マテリアルの Friction)。
     /// </summary>
-    private bool Probe(in Vehicle Settings,LogicalVector3 Position,LogicalVector3 Forward,LogicalVector3 Right,LogicalVector3 Up,out LogicalVector3 Average,out LogicalVector3 Normal){
-        Average=Position;
-        Normal=Up;
-        var Length=RayLift+Settings.RideHeight+Settings.SuspensionTravel;
-        Span<LogicalVector3>Points=stackalloc LogicalVector3[4];
-        var Touching=0;
-        var Index=0;
-        foreach(var Front in Fronts){
-            foreach(var Side in Sides){
-                var Origin=Position+Up*RayLift+Forward*(Settings.Wheelbase*Front)+Right*(Settings.Track*Side);
-                this.Hits.Clear();
-                this.World.Raycast(new PhysicsRay(Origin,-Up,Length),Settings.CollidesWith,this.Hits);
-                var Found=false;
-                var Nearest=LogicalScalar.Zero;
-                var Point=Origin-Up*Length;
-                foreach(var Hit in this.Hits){
-                    if(Hit.Normal.U>=WallSlope&&(!Found||Hit.Distance<Nearest)){
-                        Found=true;
-                        Nearest=Hit.Distance;
-                        Point=Hit.Point;
-                    }
-                }
-                if(Found){
-                    Touching++;
-                }
-                Points[Index++]=Point;
-            }
+    private bool TryTrace(LogicalVector3 Start,LogicalVector3 Direction,LogicalScalar Length,CSharpGameEngine.Entities.Entity Body,PhysicsLayerMask Layers,
+        out LogicalScalar Distance,out LogicalVector3 Point,out LogicalVector3 Normal,out LogicalScalar Friction){
+        Distance=LogicalScalar.Zero;
+        Point=LogicalVector3.Zero;
+        Normal=LogicalVector3.UnitU;
+        Friction=LogicalScalar.One;
+        this.Hits.Clear();
+        this.World.Raycast(new PhysicsRay(Start,Direction,Length),Layers,this.Hits);
+        foreach(var Hit in this.Hits){
+            if(Hit.Entity==Body){ continue; }
+            Distance=Hit.Distance;
+            Point=Hit.Point;
+            Normal=Hit.Normal;
+            if(this.World.TryGetMaterial(Hit.Entity,out var Material)){ Friction=Material.Friction; }
+            return true;
         }
-        if(Touching<2){
-            return false;
-        }
-        Average=(Points[0]+Points[1]+Points[2]+Points[3])*Quarter;
-        // 前の2点(0,1)と後ろの2点(2,3)。左右は-Right側、+Right側の順。
-        var Across=(Points[1]+Points[3])-(Points[0]+Points[2]);
-        var Along=(Points[0]+Points[1])-(Points[2]+Points[3]);
-        if(LogicalVector3.Cross(Across,Along).TryNormalize(out var Candidate)&&Candidate.U>LogicalScalar.Zero){
-            Normal=Candidate;
-        }
-        return true;
+        return false;
     }
-    /// <summary>車体の上<paramref name="Up"/>を、<paramref name="Target"/>へ、角度の<paramref name="Blend"/>(0から1)の割合だけ回す。小さい角度の近似。</summary>
-    private static void Align(ref LogicalQuaternion Rotation,LogicalVector3 Up,LogicalVector3 Target,LogicalScalar Blend){
-        var Axis=LogicalVector3.Cross(Up,Target);
-        if(Axis.LengthSquared.IsZero){
-            return;
-        }
-        var K=Min(LogicalScalar.One,Blend)*Half;
-        var Delta=new LogicalQuaternion(Axis.R*K,Axis.U*K,Axis.F*K,LogicalScalar.One);
-        if(Delta.TryNormalize(out Delta)&&LogicalQuaternion.TryMultiply(Delta,Rotation,out var Aligned)&&Aligned.TryNormalize(out Aligned)){
-            Rotation=Aligned;
-        }
-    }
-    private static LogicalScalar ClampUnit(float Value)=>float.IsFinite(Value)?LogicalScalar.FromSingle(Math.Clamp(Value,-1f,1f)):LogicalScalar.Zero;
-    private static LogicalScalar ClampUnit(LogicalScalar Value)=>Value<-LogicalScalar.One?-LogicalScalar.One:Value>LogicalScalar.One?LogicalScalar.One:Value;
-    private static LogicalScalar Approach(LogicalScalar Value,LogicalScalar Target,LogicalScalar MaxStep)=>
-        Target>Value?Min(Target,Value+MaxStep):Max(Target,Value-MaxStep);
-    private static LogicalScalar Sign(LogicalScalar Value)=>Value>LogicalScalar.Zero?LogicalScalar.One:Value<LogicalScalar.Zero?-LogicalScalar.One:LogicalScalar.Zero;
-    private static LogicalScalar Abs(LogicalScalar Value)=>Value<LogicalScalar.Zero?-Value:Value;
-    private static LogicalScalar Min(LogicalScalar Left,LogicalScalar Right)=>Left<Right?Left:Right;
-    private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
+    private static LogicalScalar Unit(float Value)=>float.IsFinite(Value)?LogicalScalar.FromSingle(Math.Clamp(Value,0f,1f)):LogicalScalar.Zero;
+    private static LogicalScalar Signed(float Value)=>float.IsFinite(Value)?LogicalScalar.FromSingle(Math.Clamp(Value,-1f,1f)):LogicalScalar.Zero;
 }

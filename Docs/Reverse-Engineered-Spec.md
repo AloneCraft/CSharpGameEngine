@@ -369,10 +369,12 @@
 
 ## RE-M0101h — 簡易の車両モデルと三角形メッシュへの光線
 
+- 失効(2026-10-23、M0109): 簡易の車両モデル(下の (1)〜(4))は Chaos 相当の車に置き換えた。今の車の振る舞いは RE-M0109。三角形メッシュへの光線(最後の文)は今も有効。
+
 - Confidence: High（単体テスト 22 ケース、WARP での実行、最終フレームの画像で確認）。実機のキー入力と実際の運転感覚は Low（自動実行の入力のみ）。
 - Evidence: `VehicleComponents.cs`、`VehicleMotor.cs`、`VehicleSystems.cs`、`PhysicsNarrowPhase.TryRaycastMesh`、`VehicleMotorTests`、`PhysicsMeshRaycastTests`、`VehicleDriveVerification`
 - Observed behavior: `VehicleMotor.Step` は 1 固定 tick に、(1) 4 つの車輪の位置（車体の中心から前後 `Wheelbase/2`、左右 `Track/2`、上に 0.5 m）から車体の下へ光線を飛ばし、急でない面に当たった車輪が 2 つ以上なら接地とみなす。(2) 接地中は、ワールドの速度を車の前と右（前×上）に分け、前の速度に、アクセル（`Acceleration×Drive×(1−速度/TopSpeed)`）、進む向きと逆に踏むブレーキ（`BrakeDeceleration`）または後退、自然な減速（`RollingDeceleration`、止まるところで終わる）、ハンドブレーキ（ブレーキの半分）を足し、横の速度を `Grip`（ハンドブレーキ中は `HandbrakeGrip`）の割合で毎秒消す。進む向きの前（後退なら後ろ）の 2 隅から水平な光線を飛ばし、急な面（法線の上向き成分が 0.6 未満）までの隙間で、このtickの前進を打ち切る。ハンドル（`SteeringRate` で近づく）から前輪の角度（`MaxSteeringDegrees` を `1+|速度|/SteeringFalloffSpeed` で割る）を作り、旋回の角速度 `速度×tan(角度)/Wheelbase` を `MaxLateralAcceleration/|速度|` で頭打ちにして、上向きの軸のまわりに回す（右へ切ると上向きの軸のまわりでは負）。位置を速度で進める。(3) 空中は重力で飛び、上向きを世界の上へゆっくり戻す。(4) 進めたあとにもう一度 4 点を調べ、接地なら、4 点の平均から法線の向きに `RideHeight` の所へ高さを寄せ（めり込みはすぐ、下がるのは毎秒 25 の割合）、面の法線へ向きを寄せ（毎秒 12 の割合）、着地したtickは地面へ入る速度を消す。`Raycast` の静的三角形メッシュは、置き場所でローカルに移した光線を、BVH の候補の三角形と Möller–Trumbore（両面）で判定し、最も近い点と、光線に向いた側の面の法線を返す。
-- Result: Matches ADR-0077 §2（段階 9）。
+- Result: ObsoleteSpecification(車両。M0109 で置き換え)。三角形メッシュへの光線は Matches ADR-0077 §2(段階 9)。
 
 ## RE-M0102 — T3D から疑似コードへ
 
@@ -464,3 +466,19 @@
   - TopDown(`ClickToMove`): 押した瞬間に `MoveIntent.Stop()` して、カーソルの下の地面を `ClickDestination` に覚える。押している間は、地面が見つかれば覚え直し、Pawn の位置からその点への 3 次元の単位ベクトルを `MoveIntent.Direction` に直接書く(見つからないフレームは 0)。離した瞬間に、`ReleasedBefore(0.5)` かつ覚えた地面があれば `MoveTo`(ナビメッシュの経路)と目印の `Spawner.Spawn<CursorMarker>`、そうでなければ `Stop()`。
   - Vehicle: `PlayerActions` は `Axis Throttle`(W・Up・右トリガー・西ボタン)、`Axis Brake`(S・Down・左トリガー・南ボタン)、`Axis Steering`(D/Right と A/Left、左スティックの横)、`Button Handbrake`(Space・左ショルダー)、`Look LookAround`(マウスの横・右スティックの横。使われない)。`VehicleControls` は `Drive = Throttle - Brake`、`Steering = Steering`、`Handbrake = Handbrake.Held`。
 - Result: MatchesWithDocumentedExtension(ADR-0078 / M0108。差は `Docs/Milestones/M0108-Input-Extensions.md`)。
+
+## RE-M0109 — Chaos 相当の車両と物理の命令
+
+- Confidence: High(単体テスト `ChaosVehicleTests` 25 件と `PhysicsForceCommandTests` 9 件、`LogicalMathAtan2Tests`、WARP の実走と画像で確認)。UE の Chaos との数値の一致は Medium(式は UE 5.7 のソースを移したが、UE を同じ入力で走らせて比べてはいない)。実機の入力と運転感覚は Low(自動実行の入力のみ)。
+- Evidence: `plugins/CSharpGameEngine.Vehicles/Runtime/`(`VehicleSetup.cs`・`VehicleChaos.cs`・`VehicleComponents.cs`・`VehicleMotor.cs`・`VehicleSystems.cs`)、`Runtime.Physics/PhysicsContracts.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsNarrowPhase.cs`・`PhysicsComponents.cs`・`StaticMeshCollision.cs`、`Runtime.Windows/FirstPersonView.cs`(`MeshEmissive`)・`RuntimeSystems.cs`・`RenderRoster.cs`、`Windows/Graphics/StageRenderer.cs`、`Numerics/LogicalMath.cs`、テンプレートの `Gameplay/` と `Scenes/SportsCar.json`
+- Observed behavior:
+  - 物理の命令はそのtickの最初に(tick、送り手、番号)の順で適用される。`ForceAtPoint` は線速度に F/m·Δt、角速度に I⁻¹(r × F)·Δt を足す(r は点 − 物体の位置)。`Torque` は角速度だけ、`SetVelocity` は両方を置き換えて起こし、`Sleep` は速度を 0 にして眠らせる(同じ tick の眠りの更新が `Sleep` イベントを出す)。`LinearDamping`・`AngularDamping` は重力の後に速度へ max(0, 1 − 減衰·Δt) を掛ける。
+  - 箱と三角形メッシュの接触: 触れた三角形の面より下で面への射影が三角形の中にある箱の角を、面の向き(箱の中心の側)ごとに集め、一番深い角の面に近い面の角から最大 4 点。角が入らなければ GJK/EPA の 1 点。
+  - `VehicleMotor.Step` は 1 tick に: (1) 剛体の状態を読み、3 秒(180 tick)ごとに上の向きの鉛直成分が −0.2 未満かを調べ、2 回続いたか `ResetRequested` ならリセット(Actor の原点を 0.5 m 上げ、Yaw だけを残した向きに、速度を 0)してその tick は力を加えない。(2) 入力: ブレーキで後退、アクセルで 1 速へすぐ入れ、前へ 1 m/s より速いときのブレーキは 1(アクセル 0)、後退のギアならブレーキの値をアクセルにする。アクセル・ブレーキ・ハンドブレーキは線形、ハンドルは二乗で、上がり・下がりの速さで均す。(3) 操作が 0.02 未満で、全輪が接地し、上の向きの鉛直成分が 0.866 より大きく、速さが 0.1 m/s 未満の状態が 15 回続くと物理の `Sleep` を送り、眠っている間は力を加えない。(4) 4 輪の光線(休みの位置の 0.1 m 上から、0.1 + 0.1 + 半径の長さ、車体を除く)、エンジンへアクセルの二乗、ブレーキのトルク(ブレーキ × 最大 + アクセルが 0 で動いている駆動輪のエンジンブレーキ = 回転数 × 0.2、ハンドブレーキは置き換え)、空気抵抗とダウンフォース(0.5·ρ·A·係数·v²、進む向きと逆)を重心に、エンジン(ギアが入っていれば車輪から決まる回転へ毎秒 4、なければ自由に回る。アイドルより下がらない)、自動変速(変速中でなく、接地して空転していなければ、6000 rpm 以上で上げ 2000 rpm 以下で下げ、0.2 秒ニュートラル)、駆動トルク(トルク × ギア比 × 効率を後輪で半分ずつ。車輪から決まる回転が最大を超えると 0)、ばね(縮み × 25000 − 縮む速さ × 減衰)を上向きに、荷重(0.5 × ばね + 0.5 × 静止の荷重)、ロールバー(左右の荷重の差 × 0.15)、舵角(入力 × 速さの効き(マイル毎時)から、アッカーマンの棒の幾何で内側が 40°)、タイヤ(縦はブレーキか駆動、横は滑りの角 × 1e5 N/rad を止めるのに要る力まで、両方を 荷重 × 路面の摩擦 × 倍率 の円で切り、切られてブレーキ中なら車輪を止める。車輪の角速度は地面の速さ/半径 + 余りの駆動)を地面の法線と車の右から作る向きで、車輪ごとに 1 つの `ForceAtPoint` で加える。
+  - SportsCar の値で: 静止の重心の高さ 0.583 m、前輪の荷重 3375 N・後輪 3963 N、車輪は休みの位置より前 4.3 cm・後 6.8 cm 上。0〜100 km/h 3.42 秒、1 速から 2 速へ 5962 rpm 付近で上げて 12 tick ニュートラル、最高速 約 269 km/h(5 速、空気抵抗と釣り合う)、100 km/h からの全ブレーキで 18.0 m・1.28 秒、5 m/s 付近の全舵で半径 4.2 m(左 30.8°・右 37.4°)、坂(3 m)から 68 tick 浮いて着地、壁の手前 2.25 m で止まる。
+  - System: FixedSimulation の `VehicleBodySetup`(最初の tick に剛体の向き、毎 tick 質量)、PhysicsSimulation の `VehicleMotionUpdate`(静的メッシュの同期の後、物理の tick の前)と `VehicleBodyWriteback`(物理の向きを Transform へ)、PostPhysics の `VehicleWheelPose`(子の車輪を休みの姿勢 + 上下・舵・回転)、Presentation の `VehicleChaseView`(腕の Yaw = 車の Yaw + 見回し、見回しは FInterpTo で 0 へ。`OrbitCameraUpdate` の前)。
+  - スナップショット: `Vehicle`(データアセットの参照と車輪の配列を持つ設定)は `[EcsSnapshotTransient]` で入らず、復元では読み直したシーンの値のまま。`VehicleState`・`VehicleIntent`・`VehicleWheelVisual`・`VehicleCameraLook` は入る。
+  - 描画: `MeshEmissive` を持つメッシュの物体は、毎フレーム発光の倍率が物体の定数に入る(既定 1、外すと 1 に戻る)。そのメッシュは発光で周りを照らさない。`LightVisibility.Visible` が偽のノードの光(4 種のどれでも)は出さない。表示中のカメラが無効になり有効な別のカメラがあれば、その次のフレームから描画のカメラが替わる。
+  - テンプレート: Tab で前と後ろのカメラ、L で左のヘッドライト、BackSpace でリセット、マウスの横・右スティックで見回し(離すと戻る)、ブレーキ(0 からの踏み込みで点き 0 で消える)とハンドブレーキ(押している間)でテールランプが 200 倍(通常 4 倍)に光る。
+- Intended behavior: `Docs/Specifications/UE-Template-Behavior.md` の Vehicle(UE のテンプレートの挙動)。
+- Result: MatchesWithDocumentedExtension(差は M0109 の文書: 力のサスペンション(UE の既定は制約)、ブレーキランプを光らせる(UE では光らない)、慣性は箱、エンジン音なし)。

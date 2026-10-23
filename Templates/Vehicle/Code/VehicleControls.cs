@@ -12,7 +12,10 @@ internal struct VehicleControls:ISystem {
         }
     }
 }
-/// <summary>カメラの切り替え。CameraRigは子のカメラを列挙しており、Nextで次の1台だけを有効にする。</summary>
+/// <summary>
+/// カメラの切り替え。CameraRigは子のカメラを列挙しており、Nextで次の1台だけを有効にする(理想)。
+/// 実装(M0109)は、前と後ろのカメラに付けたマーカーのCamera.Activeを押すたびに反転する(UEのFlipFlopと同じ結果)。
+/// </summary>
 internal struct CameraSwitch:ISystem {
     public void Update(in PlayerActions Input,ref CameraRig Rig){
         if(Input.ToggleCamera.Pressed){

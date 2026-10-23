@@ -21,6 +21,9 @@ internal sealed class RenderFrameState {
     private bool[]ObjectCastsShadow;
     private bool[]ObjectVisibilitySet;
     private readonly List<int>TouchedVisibilityIndices=[];
+    private float[]ObjectEmissiveScales;
+    private bool[]ObjectEmissiveScaleSet;
+    private readonly List<int>TouchedEmissiveIndices=[];
     private readonly Dictionary<int,Matrix4x4[]>SkinPalettes=[];
     private readonly Dictionary<int,int>SkinPaletteLengths=[];
     private readonly List<int>TouchedSkinMeshes=[];
@@ -73,6 +76,8 @@ internal sealed class RenderFrameState {
         this.ObjectVisibleInView=new bool[ObjectCount];
         this.ObjectCastsShadow=new bool[ObjectCount];
         this.ObjectVisibilitySet=new bool[ObjectCount];
+        this.ObjectEmissiveScales=new float[ObjectCount];
+        this.ObjectEmissiveScaleSet=new bool[ObjectCount];
     }
 
     /// <summary>Objects added after creation (M0105) get indices past the first capacity, and a rebuilt renderer may hold more slots than the server first did.</summary>
@@ -86,6 +91,8 @@ internal sealed class RenderFrameState {
         Array.Resize(ref this.ObjectVisibleInView,Length);
         Array.Resize(ref this.ObjectCastsShadow,Length);
         Array.Resize(ref this.ObjectVisibilitySet,Length);
+        Array.Resize(ref this.ObjectEmissiveScales,Length);
+        Array.Resize(ref this.ObjectEmissiveScaleSet,Length);
     }
 
     public bool IsEmpty=>
@@ -97,7 +104,7 @@ internal sealed class RenderFrameState {
         &&!this.HasScreenLayer
         &&!this.HasCameraPreviews
         &&this.LightOrder.Count==0
-        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0&&this.TouchedVisibilityIndices.Count==0
+        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0&&this.TouchedVisibilityIndices.Count==0&&this.TouchedEmissiveIndices.Count==0
         &&this.TouchedSkinMeshes.Count==0;
 
     public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
@@ -215,6 +222,16 @@ internal sealed class RenderFrameState {
         if(this.ObjectVisibilitySet[ObjectIndex]){ return; }
         this.ObjectVisibilitySet[ObjectIndex]=true;
         this.TouchedVisibilityIndices.Add(ObjectIndex);
+    }
+
+    /// <summary>ADR-0078/M0109: the factor on one object's material emission (<see cref="StageRenderer.SetObjectEmissiveScale"/>).</summary>
+    public void RecordObjectEmissiveScale(int ObjectIndex,float Scale){
+        ArgumentOutOfRangeException.ThrowIfNegative(ObjectIndex);
+        this.EnsureObjectCapacity(ObjectIndex+1);
+        this.ObjectEmissiveScales[ObjectIndex]=Scale;
+        if(this.ObjectEmissiveScaleSet[ObjectIndex]){ return; }
+        this.ObjectEmissiveScaleSet[ObjectIndex]=true;
+        this.TouchedEmissiveIndices.Add(ObjectIndex);
     }
 
     public void RecordOverlay(
@@ -340,6 +357,9 @@ internal sealed class RenderFrameState {
         foreach(int ObjectIndex in this.TouchedVisibilityIndices){
             Renderer.SetObjectVisibility(ObjectIndex,this.ObjectVisibleInView[ObjectIndex],this.ObjectCastsShadow[ObjectIndex]);
         }
+        foreach(int ObjectIndex in this.TouchedEmissiveIndices){
+            Renderer.SetObjectEmissiveScale(ObjectIndex,this.ObjectEmissiveScales[ObjectIndex]);
+        }
         if(this.HasOverlay){
             Renderer.SetOverlay(
                 this.OverlayTriangles.AsSpan(0,this.OverlayTriangleCount),
@@ -394,6 +414,10 @@ internal sealed class RenderFrameState {
             this.ObjectVisibilitySet[ObjectIndex]=false;
         }
         this.TouchedVisibilityIndices.Clear();
+        foreach(int ObjectIndex in this.TouchedEmissiveIndices){
+            this.ObjectEmissiveScaleSet[ObjectIndex]=false;
+        }
+        this.TouchedEmissiveIndices.Clear();
     }
 
     private enum LightCommandKind:byte {SetDirectional,Directional,Point,Spot,Rect,Emissive}

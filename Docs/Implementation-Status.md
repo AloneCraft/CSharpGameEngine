@@ -4637,11 +4637,11 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`
   - `tests/CSharpGameEngine.Windows.Tests/Runtime/PickingTests.cs`、`Character/CharacterMotorTests.cs`（`MoveTo`）
   - `tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`、`VehicleDriveVerificationTests.cs`
-  - `tests/CSharpGameEngine.Windows.Tests/Character/VehicleMotorTests.cs`、`Physics/PhysicsMeshRaycastTests.cs`
+  - `Physics/PhysicsMeshRaycastTests.cs`(車両の `VehicleMotorTests` は M0109 で `ChaosVehicleTests` に置き換えた。F-L5-045)
   - `tests/CSharpGameEngine.VSExtension.Tests/GameProjectGeneratorTests.cs`、`VsixManifestTests.cs`（4 テンプレート）
 - Current delta: 段階 1〜9（M0101）。Vehicle テンプレートを移植（簡易の車両モデル `Vehicle`/`VehicleMotor`、速度とギアをタイトルバーに出す `Hud`）。物理の `Raycast` が静的三角形メッシュの三角形そのものに当たるようになった。4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）を VS の新規プロジェクトに登録した。FirstPerson・TopDown テンプレートを移植（`Pointer`、`Picking`、`MoveIntent.MoveTo`、自動検証の `CGE_AUTOMATION_CURSOR`/`MouseLeft`。`Touch`・`Spawner` は未着手）。型付きアセット `Assets.*`（SCENE208）を追加。音（`Audio` サービス、WAV、XAudio2 のワンショット）とイベント（`EventWriter<T>`、`in T`。`Jumped`/`Landed`/`Footstep`）を追加。`[InputActions]`（入力を構造体で宣言。ID と入力マップは生成、入力を読む System は FrameInput で `Window` の後）を追加。`in Parent<T>`（親の Component を型で読む。親が死んでいる・`T` を持たない子はスキップ）を追加。引数の役割表を `ref`=書く、`in`=読む、参照型=Context とし、キャラクター・カメラ・アニメーションの UE 由来の型名とフィールド名を清算した（`CharacterMotion`、`MoveIntent`、`ViewAngles`、`OrbitCamera`、`Locomotion` ほか）。`GameWindow` の統合、フェーズの推論は未実装（ADR-0077 §2）。
 - Conformance: Matches（段階 1 の範囲）
-- Next action: Vehicle の車輪の動きとエンジン音、M0101 段階 10（フェーズの推論、`GameWindow` の統合）。
+- Next action: M0101 段階 10（フェーズの推論、`GameWindow` の統合）。Vehicle の車輪の動きは M0109(F-L5-045)で実装した。エンジン音は未実装。
 
 ## F-L7-051 — UE テンプレートの処理の解析（T3D から疑似コード）
 
@@ -4769,4 +4769,23 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `tests/CSharpGameEngine.Core.Tests/InputActionValueTypesTests.cs`、`tests/CSharpGameEngine.Windows.Tests/Input/InputActionBindingTests.cs`・`Win32InputEventAdapterTests.cs`・`Runtime/RuntimeAutomationTests.cs`、`tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`・`VehicleDriveVerificationTests.cs`
 - Current delta: `[InputActions]` が 1 軸のアナログ値 `Axis`(キー ±1、トリガー、スティックの片方の軸、ボタン。不感帯・倍率・反転。複数の割り当ては足して -1〜1)、`Button.HeldSeconds`(押した瞬間 0、離した瞬間に押していた時間。`ReleasedBefore` が短押し)、マウスと右スティックの片方の軸だけの `Look` を持つ。自動実行の入力はゲームパッドの軸・トリガー・ボタンとマウスの移動量を再現できる。TopDown は UE のとおり、押している間はカーソルへ直接歩き、0.5 秒未満で離した瞬間に `MoveTo` と目印を出す(長押しは離して止まるだけ)。Vehicle はアナログのアクセル・ブレーキ・ハンドル。
 - Conformance: MatchesWithDocumentedExtension(経過時間は各フレームの時間(0.1 秒で頭打ち)の足し算、離したフレームの値はそのフレームの時間を含む。Vehicle の `LookAround` は入力の宣言だけで、後ろの腕を回す処理と、`Drive = Throttle - Brake` の合成は Chaos の車両(M0109)まで。`Touch` は未実装。詳しくは M0108 の文書)
-- Next action: M0109(Chaos 相当の車両。`IA_Brake`・`IA_Handbrake`・`IA_LookAround`・`IA_Reset`・`IA_ToggleCamera`・ヘッドライト)。
+- Next action: (Chaos 相当の車両と `IA_Brake`・`IA_Handbrake`・`IA_LookAround`・`IA_Reset`・`IA_ToggleCamera`・ヘッドライトは M0109 で実装した、F-L5-045。)
+
+## F-L5-045 — Chaos 相当の車両(動的剛体の車体、光線のサスペンション、エンジンと変速、アッカーマン、タイヤ、転倒とリセット、ブレーキランプ、ヘッドライト、カメラ)
+
+- Layer: L1 — `Numerics`(`LogicalMath.TryAtan2`)、L1/L7 — 入力(`Pad.Back`・`Pad.Start`、`InputActionsEmitter`)、L4 — 物理の契約(`Runtime.Physics`: `PhysicsCommands.ForceAtPoint`・`Torque`・`SetVelocity`・`Sleep`、`RigidBody.LinearDamping`・`AngularDamping`、`TryGetMaterial`、`StaticMeshCollider.Material`、箱と三角形メッシュの 4 点の接触)、L5 — Vehicles プラグイン(`plugins/CSharpGameEngine.Vehicles`: `VehicleSetup`・`VehicleChaos`・`VehicleMotor`・System)、描画(`MeshEmissive`・`StageRenderer.SetObjectEmissiveScale`、`Runtime.Lighting` の `LightVisibility`、カメラの切り替え)、L9 — Vehicle テンプレート
+- Parent capability: Physics / Plugins / Templates
+- Status: Implemented(UE の制約のサスペンション、エンジン音、`CtrlRig_SportsCar` は未実装。M0109 の文書の表)
+- Verification: TestVerified + 実走(WARP。`verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown・Vehicle)、`verify-template-package`(ThirdPerson・TopDown・Vehicle。SDK 0.1.20))。全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクトで失敗 0(Windows.Tests 753 合格・2 スキップ、VSExtension.Tests 1197、CodeAnalysis.Tests 338、FeatureRunner.Tests 222、Core.Tests 154、Numerics.Tests 32)
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Specifications/Physics.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Specifications/Typed-Lighting.md`、`Docs/Milestones/M0109-Chaos-Vehicle.md`
+- Implementation evidence:
+  - `plugins/CSharpGameEngine.Vehicles/Runtime/`(`VehicleSetup.cs`、`VehicleChaos.cs`、`VehicleComponents.cs`、`VehicleMotor.cs`、`VehicleSystems.cs`)、`Vehicles.cgeplugin`(0.2.0)
+  - `src/CSharpGameEngine.Runtime.Physics/`(`PhysicsContracts.cs`、`DeterministicPhysicsWorld.cs`、`PhysicsComponents.cs`、`PhysicsNarrowPhase.cs`、`StaticMeshCollision.cs`)、`src/CSharpGameEngine.Numerics/LogicalMath.cs`
+  - `src/CSharpGameEngine.Runtime.Lighting/LightComponents.cs`(`LightVisibility`)、`src/CSharpGameEngine.Runtime.Windows/`(`FirstPersonView.cs` の `MeshEmissive`、`RuntimeSystems.cs`、`RenderRoster.cs`、`RuntimeComponents.cs`)、`src/CSharpGameEngine.Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`、`Platform/Win32InputEventAdapter.cs`)
+  - `src/CSharpGameEngine.Core/InputActionDeclarations.cs`、`src/CSharpGameEngine.CodeAnalysis/InputActionsEmitter.cs`
+  - `Templates/CSharpGameEngine.Templates.Vehicle/`(`Gameplay/VehicleControls.cs`・`VehicleCameras.cs`・`VehicleLights.cs`・`PlayerActions.cs`、`Scenes/SportsCar.json`・`Lvl_VehicleBasic.json`、`Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`・`SM_SportsCar.glb`)、`build/CSharpGameEngine.Version.props`(0.1.20)
+  - `tools/UnrealExport/`(`probe_vehicle_physics.py`、`probe_vehicle_brake_lights.py`、`probe_vehicle_emissive.py`、`add_brake_light_emission.py`)、`tools/CSharpGameEngine.FeatureRunner/VehicleDriveVerification.cs`(曲がりの窓 30〜34)
+- Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Character/ChaosVehicleTests`・`ChaosVehicleTrack`、`Physics/PhysicsForceCommandTests`、`Runtime/TypedLightFrameTests`、`Runtime/PersistentComponentSnapshotTests`)、`tests/CSharpGameEngine.Numerics.Tests/LogicalMathAtan2Tests.cs`。旧 `Character/VehicleMotorTests` は削除
+- Current delta: 車体は動的剛体(1500 kg、角速度の減衰 3)、車輪ごとの光線の力のサスペンションとロールバー、UE のタイヤ(横滑りの角 × コーナリング剛性、荷重 × 路面の摩擦 × 倍率で頭打ち)、21 点のトルク曲線・アイドル・エンジンブレーキ、5 速の自動変速(6000/2000 rpm、変速中はニュートラル、ブレーキで後退)、アッカーマンと速さの曲線(マイル毎時)、空気抵抗とダウンフォース、入力の速さ、眠り、転倒(3 秒ごと 2 回)とリセット。テンプレートはブレーキランプ(`MeshEmissive` 200/4)、左のヘッドライト(L)、前後のカメラ(Tab)、見回し、リセット(BackSpace)。描画契約(`stage-v11`)とシェーダーは変えていない。WARP: 52.014 m・30.5°。
+- Conformance: MatchesWithDocumentedExtension(力のサスペンション(UE の既定は制約)、慣性は箱、ブレーキランプは UE と違って光る(UE の発光 1 を 100 nits とするのは推測)、エンジン音なし、UE と同じ入力での数値の比較はしていない。詳しくは M0109 の文書)
+- Next action: M0110〜M0111(Lumen 相当。ADR-0078 §4)。UE の制約のサスペンションとエンジン音(ループと音程の変わる音)は未着手。

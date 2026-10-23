@@ -148,3 +148,8 @@ python tools\UnrealExport\cut_masked_mesh.py .artifacts\UnrealExport\cursor\SM_C
 - `cut_masked_mesh.py <入力.glb> <出力.glb> [四角形の一辺の分割数]`: 帯の四角形(2 枚の三角形が辺を共有する)を分割数 × 分割数に割り、ベースカラーのテクスチャのアルファが材質の `alphaCutoff` 以上のセルだけを残す。残したテクセルの平均色を `baseColorFactor` にして、テクスチャは持たせない。`doubleSided` なら、向きと法線を反転した複製を足す(レンダラーは裏面を捨て、両面のフラグを持たない)。
 - 結果は `Assets/Cursor/SM_CursorMesh.glb`(6,312 三角形、色は線形 (0.0023, 0.1283, 0.5353))。UE の Niagara と材質から読んだ値は `Docs/Milestones/M0105-Runtime-Spawn-And-Effects.md`。
 - 四角形の組でないメッシュ、UV が軸に揃っていない四角形は、そのことを言って止まる。
+## Chaos の車両の値とブレーキランプ(ADR-0078、M0109)
+- `run_probe_vehicle_physics.cmd <出力のファイル>`(`probe_vehicle_physics.py`): 物理マテリアル(Slippery・NonSlippery・既定)、Lvl_VehicleBasic の Landscape と層の情報、置かれたメッシュの物理マテリアル、SportsCar を一時的に置いて読む車輪の骨の位置・重心・腕とカメラとヘッドライトの値。何も保存しない。
+- `run_probe_vehicle_brake_lights.cmd <出力のファイル>`(`probe_vehicle_brake_lights.py`): BrakeLights が値を書く `VehicleMesh` が見えるか、各メッシュのマテリアルの連鎖とパラメーター、発光の入力の式。結果: `VehicleMesh` は 4 頂点の見えないメッシュで、マテリアル 0 番は `WorldGridMaterial`。見える車体の発光は 0(UE ではブレーキランプは光らない)。
+- `run_probe_vehicle_emissive.cmd <出力のファイル>`(`probe_vehicle_emissive.py`): `M_SportsCarBase` の発光の式をたどり、`T_SportsCar_Lights_M` などのテクスチャを出力のファイルの隣に PNG で書き出す。マテリアルの T3D は `run_dump_blueprint_logic.cmd G:\UE\5.8\Vehicle <出力> /Game/Vehicles/SportsCar/Materials/M_SportsCarBase` で読める(発光の Named Reroute は宣言の無い使用で、値は 0)。
+- `add_brake_light_emission.py <glb> <png> <マテリアル> <係数>`: glb のマテリアルに発光のテクスチャを足す。テンプレートの `SM_SportsCar.glb` は、`T_SportsCar_Lights_M` の赤のチャンネルだけを赤にした PNG(テールランプ。シャシーの UV 0)を、マテリアル 0(`M_SportsCarChasis`)に係数 1(100 nits)で足した。export_vehicle_car.py の書き出しのあとに 1 回だけ実行する。

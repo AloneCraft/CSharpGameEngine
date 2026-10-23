@@ -5,8 +5,10 @@
     <Import_RootNamespace>CSharpGameEngine.Vehicles</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)VehicleChaos.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)VehicleComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)VehicleMotor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)VehicleSetup.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)VehicleSystems.cs" />
     <Using Include="CSharpGameEngine.Vehicles" />
   </ItemGroup>

@@ -58,6 +58,13 @@ public struct RigidBody() {
     public LogicalScalar GravityFactor = LogicalScalar.One;
     public bool AllowSleep = true;
     public PhysicsCcdMode Ccd;
+    /// <summary>
+    /// UE's LinearDamping (1/s, ADR-0078/M0109): every tick the linear velocity is multiplied by max(0, 1 - LinearDamping × Δt). 0 keeps it.
+    /// A system may change it while the game runs; the body takes the value at the next synchronisation.
+    /// </summary>
+    public LogicalScalar LinearDamping;
+    /// <summary>UE's AngularDamping (1/s, ADR-0078/M0109), the same for the angular velocity (the vehicle sets 3 in the air and 0 on the ground).</summary>
+    public LogicalScalar AngularDamping;
 }
 
 public struct PhysicsStableId:IRuntimeComponent<Collider> {

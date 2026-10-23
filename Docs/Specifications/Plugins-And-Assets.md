@@ -22,7 +22,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 | NuGet パッケージ | Fab のプラグイン | `PackageReference` で有効(パッケージの `build/<Id>.targets` が自分を取り込む) |
 
 - 取り込みは `build/CSharpGameEngine.Game.targets` が行う。プロジェクトファイルの後に読まれるので、`CgePlugins` が見える(リポジトリでは `Directory.Build.targets`、パッケージでは `CSharpGameEngine.Sdk.targets` から読む)。
-- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`。Vehicle テンプレートが有効にする)と Navigation(`plugins/CSharpGameEngine.Navigation`。TopDown テンプレートが有効にする。M0106)。UserEcsProject は両方を有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
+- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)と Navigation(`plugins/CSharpGameEngine.Navigation`。TopDown テンプレートが有効にする。M0106)。UserEcsProject は両方を有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
 
 ## 3. プラグインの形
 ```
@@ -128,6 +128,12 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 - 生成器が C# の値にして、カタログの静的メンバーにする: `Assets/Cars/Sport.cgeasset` → `Assets.Cars.Sport`、プラグインの `Assets/Storm.cgeasset` → `Assets.Plugins.Weather.Storm`。型はデータの型そのもので、`Assets.Cars.Sport.Mass` のように読む。実行時の読み込みもリフレクションも無い。
 - 不正な文書はシーンと同じ診断(SCENE201〜205)を `.cgeasset` の行と列に出し、カタログから外す。
 - まだ無いもの: Designer での編集と、シーンの値からの参照(コードから参照する)。
+
+### 実例: 車の設定 `VehicleSetup`(Vehicles プラグイン、M0109)
+- 型はエンジンのプラグインの `[DataAsset] public sealed class VehicleSetup`(`plugins/CSharpGameEngine.Vehicles/Runtime/VehicleSetup.cs`)。UE の `ChaosWheeledVehicleMovementComponent` と `ChaosVehicleWheel` の値: 質量、空気抵抗、`Engine`(トルク曲線の点の配列、最大トルク、回転数)、`Transmission`(ギア比の配列、変速の回転数)、`Steering`(アッカーマン、速さの曲線)、差動、`FrontWheel`・`RearWheel`(車輪とサスペンション)、入力の速さ、眠り。入れ子の struct と配列もシーンと同じ書き方で書ける。
+- 値はゲームのアセット `Templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(UE の `BP_VehicleAdvSportsCar` の値を SI 単位に直したもの)。カタログでは `Assets.Vehicles.SportsCar.SportsCarSetup`(ファイル名をフォルダ名と同じにすると、クラスと同じ名前のメンバーになりコンパイルできないので、`…Setup` とした)。
+- シーンからは参照できないので、ゲームのコードが車の Component へ入れる: `internal struct UseSportsCarSetup:ISystem { public void Update(ref Vehicle Car){ Car.Setup??=Assets.Vehicles.SportsCar.SportsCarSetup; } }`。設定の無い車は力を加えない(物理だけで落ちる)。
+- 角度の値(`MaxSteerAngleDegrees`)は、シーンと同じく JSON では回転数(`"MaxSteerAngle": 0.1111111111111111` = 40°)。
 
 ## 8. アセットの置き場所とカタログ
 | ファイル | 実行時のパス | カタログ |

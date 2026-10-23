@@ -1,8 +1,8 @@
 using CSharpGameEngine.Input;
 namespace CgeVehicle;
 /// <summary>
-/// UEのEnhanced Input(IA_Throttle、IA_Brake、IA_Steering、IA_Handbrake、IA_LookAround)に相当する操作の宣言。入力マップ・ID・据え付けは
-/// Source Generatorが作り、値は毎フレーム、この構造体を<c>in</c>で受けたSystemへ渡される。
+/// UEのEnhanced Input(IMC_Vehicle_Default と IMC_Vehicle_MouseLook)に相当する操作の宣言。入力マップ・ID・据え付けはSource Generatorが作り、
+/// 値は毎フレーム、この構造体を<c>in</c>で受けたSystemへ渡される。
 /// アクセル・ブレーキ・ハンドルは1軸のアナログ値(<see cref="Axis"/>)で、キーは押している間±1、トリガーとスティックは倒した量になる。
 /// </summary>
 [InputActions]
@@ -26,8 +26,19 @@ public partial struct PlayerActions {
     [Keys(Key.Space)]
     [Gamepad(Pad.LeftShoulder)]
     public Button Handbrake;
-    /// <summary>見回し(横だけ)。マウスの横の動きと右スティックの横(UEの<c>IA_LookAround</c>。後ろの腕を回す処理はChaosの車両と同じM0109で作る)。</summary>
+    /// <summary>見回し(横だけ)。マウスの横の動きと右スティックの横(UEの<c>IA_LookAround</c>)。</summary>
     [Mouse(MouseAxis.DeltaX)]
     [Gamepad(Pad.RightStick,StickAxis.X)]
     public Look LookAround;
+    /// <summary>前と後ろのカメラの切り替え。Tabとゲームパッドの左の特別なボタン(UEの<c>IA_ToggleCamera</c>: Tab、Gamepad_Special_Left)。</summary>
+    [Keys(Key.Tab)]
+    [Gamepad(Pad.Back)]
+    public Button ToggleCamera;
+    /// <summary>その場でのリセット。BackSpaceとゲームパッドの右の特別なボタン(UEの<c>IA_Reset</c>: BackSpace、Gamepad_Special_Right)。</summary>
+    [Keys(Key.Backspace)]
+    [Gamepad(Pad.Start)]
+    public Button Reset;
+    /// <summary>ヘッドライトの切り替え。L(UEの<c>IA_Headlights</c>)。</summary>
+    [Keys(Key.L)]
+    public Button Headlights;
 }

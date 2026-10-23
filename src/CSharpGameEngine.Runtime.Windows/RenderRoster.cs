@@ -53,6 +53,11 @@ internal sealed class RenderRoster {
         Material.EmissiveNits!=Vector3.Zero?Material.EmissiveNits:Material.EmissiveFactor*100f,
         Material.EmissiveTextureLuminanceScale);
     internal static bool IsEmissive(Vector3 Nits)=>Nits.X>0f||Nits.Y>0f||Nits.Z>0f;
+    /// <summary>
+    /// Whether an emissive mesh also lights its surroundings (its light patches). A mesh with a <see cref="MeshEmissive"/> (ADR-0078/M0109: lamps that the game
+    /// turns up and down, as brake lights) only glows on its surface: its emission changes every frame and is a small part of a large mesh.
+    /// </summary>
+    internal static bool LightsTheScene(Entity Source,CSharpGameEngine.Entities.World World)=>!World.TryGetComponent(Source,out MeshEmissive _);
     /// <summary>Whether an Entity still has something to draw: it is alive and has a mesh component.</summary>
     internal static bool IsDrawnSource(Entity Source,CSharpGameEngine.Entities.World World)=>
         World.IsAlive(Source)
@@ -218,7 +223,7 @@ internal sealed class RenderRoster {
                 LastWorldResolveStatus=ResolveStatus,
             });
             var Emission=this.MaterialEmission[Object.MaterialIndex];
-            if(IsEmissive(Emission.Nits)&&this.EmissiveMeshes.TryGetValue(Object.MeshIndex,out var EmissiveMesh)){
+            if(IsEmissive(Emission.Nits)&&LightsTheScene(Source,State.World)&&this.EmissiveMeshes.TryGetValue(Object.MeshIndex,out var EmissiveMesh)){
                 State.World.CreateDeferred(Transform,NewEmissiveLighting(Source,EmissiveMesh,Emission,Object.LocalTransform,CameraRelative,ResolveStatus));
             }
             Added++;

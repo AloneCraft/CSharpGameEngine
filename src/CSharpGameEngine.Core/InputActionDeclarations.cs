@@ -28,6 +28,10 @@ public enum Pad {
     /// <summary>右のトリガー(RT/R2)。<see cref="Axis"/>に割り当てる。</summary>
     RightTrigger,
     LeftShoulder,RightShoulder,
+    /// <summary>左の特別なボタン(Back/View/Select。UE の Gamepad_Special_Left)。M0109: Vehicle のカメラの切り替え。</summary>
+    Back,
+    /// <summary>右の特別なボタン(Start/Menu。UE の Gamepad_Special_Right)。M0109: Vehicle のリセット。</summary>
+    Start,
 }
 /// <summary>スティックの片方の軸だけを使うときの軸(<see cref="GamepadAttribute"/>の第2引数)。Yは上が正。</summary>
 public enum StickAxis {

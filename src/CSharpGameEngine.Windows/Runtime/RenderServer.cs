@@ -321,6 +321,15 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordObjectVisibility(ObjectIndex,VisibleInView,CastsShadow);
     }
 
+    /// <summary>
+    /// Multiplies one object's material emission by <paramref name="Scale"/> (ADR-0078/M0109: a material scalar the game changes while it runs, as the
+    /// Vehicle's brake lights). 1 is the material's own emission. Recorded with the frame, so it survives a device recovery.
+    /// </summary>
+    public void SetObjectEmissiveScale(int ObjectIndex,float Scale){
+        this.Backend.SetObjectEmissiveScale(ObjectIndex,Scale);
+        this.PendingFrame.RecordObjectEmissiveScale(ObjectIndex,Scale);
+    }
+
     public void SetObjectSelectionWeight(int ObjectIndex,float Weight){
         if(!float.IsFinite(Weight)||Weight<0f||Weight>1f){
             throw new ArgumentOutOfRangeException(

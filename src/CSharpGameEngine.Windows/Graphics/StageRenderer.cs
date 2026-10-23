@@ -422,6 +422,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private bool[]ObjectHiddenFromView=[];
     /// <summary>Objects that cast no shadow (UE's CastShadow off): the shadow passes skip them (M0107).</summary>
     private bool[]ObjectNoShadow=[];
+    /// <summary>Each object's factor on its material's emission (ADR-0078/M0109: a material scalar a game changes at run time, as brake lights). 1 by default.</summary>
+    private float[]ObjectEmissiveScales=[];
     private readonly List<int>FreeObjectSlots=[];
     private int[]ObjectMeshIndices=[];
     /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
@@ -1959,6 +1961,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObjectActive=new bool[this.ObjectCapacity];
         this.ObjectHiddenFromView=new bool[this.ObjectCapacity];
         this.ObjectNoShadow=new bool[this.ObjectCapacity];
+        this.ObjectEmissiveScales=new float[this.ObjectCapacity];
+        Array.Fill(this.ObjectEmissiveScales,1f);
 
         for(var I=0;I< this.ObjectCount;I++){
             this.ObjectMeshIndices[I]=Objects[I].MeshIndex;
@@ -1997,6 +2001,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObjectActive[Index]=true;
         this.ObjectHiddenFromView[Index]=false;
         this.ObjectNoShadow[Index]=false;
+        this.ObjectEmissiveScales[Index]=1f;
         this.CameraPreviewDiagnosticsDirty=true;
         this.WriteObjectConstants(this.FrameIndex,Index);
         return Index;
@@ -2014,6 +2019,24 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         this.ObjectHiddenFromView[ObjectIndex]=!VisibleInView;
         this.ObjectNoShadow[ObjectIndex]=!CastsShadow;
+    }
+
+    /// <summary>
+    /// Multiplies one object's material emission (its emissive nits, which the shader multiplies by the emissive texture) by <paramref name="Scale"/>
+    /// (ADR-0078/M0109). It writes the object's existing emissive constant, so the Stage shader contract does not change. 1 is the material's own
+    /// emission; the value stays until it is changed.
+    /// </summary>
+    public void SetObjectEmissiveScale(int ObjectIndex,float Scale){
+        this.ThrowIfDisposed();
+        if((uint)ObjectIndex>=(uint)this.ObjectCount){
+            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
+        }
+        if(!float.IsFinite(Scale)||Scale<0f){
+            throw new ArgumentOutOfRangeException(nameof(Scale),"Emissive scale must be finite and not negative.");
+        }
+        if(this.ObjectEmissiveScales[ObjectIndex]==Scale){ return; }
+        this.ObjectEmissiveScales[ObjectIndex]=Scale;
+        this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
     }
 
     /// <summary>Stops drawing one object (M0105). Its slot is handed out again by a later <see cref="AddObject"/>. Removing a removed object does nothing.</summary>
@@ -3711,7 +3734,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
 
         Vector4 EmissiveNits=new(
-            this.MaterialEmissiveNits[MaterialIndex],
+            this.MaterialEmissiveNits[MaterialIndex]*this.ObjectEmissiveScales[ObjectIndex],
             this.ObjectSelectionWeights[ObjectIndex]);
         Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
 

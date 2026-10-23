@@ -4006,6 +4006,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `PhysicsMeshRaycastTests`、`VehicleMotorTests`、`VehicleDriveVerificationTests`、`GameProjectGeneratorTests`・`VsixManifestTests`（4 テンプレート）、`verify-thirdperson-character --template Vehicle`（WARP）。Windows.Tests 491 合格（2 スキップ）、VSExtension.Tests 1185、FeatureRunner.Tests 179。
 - 既知の差: UE の Chaos Vehicle（車輪ごとの物理、サスペンション、トルク曲線と変速、タイヤの滑り）ではなく簡易モデル。エンジン音、車輪の回転・ステア、画面上の文字（速度とギアはタイトルバー）、リセット、カメラ切り替え、`Axis` 入力、地形（Landscape は同じ大きさの板で代用）は未実装（この記録の時点。画面上の文字は M0104、`Axis` 入力は M0108 で実装した）。`Sweep` は静的三角形メッシュを扱わない。VS のダイアログからの新規作成は手動確認（ADR-0068 のとおり）で、自動検証は `vsix.project-template` が ThirdPerson だけ。
 - 結果: MatchesWithDocumentedExtension（Vehicle は簡易モデルの範囲）。
+- 後の更新(2026-10-23、M0109): 簡易モデルと `VehicleMotorTests` は Chaos 相当の車と `ChaosVehicleTests` に置き換えた(下の M0109 の記録)。
 
 ## 2026-10-22 探索 — UE テンプレートの処理の解析（ADR-0078、M0102）
 - 意図: 4 テンプレートの Blueprint の処理を、推測ではなくノードの接続から読む。
@@ -4126,4 +4127,19 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 実装: M0108(`Docs/Milestones/M0108-Input-Extensions.md`)。決定: `Axis`(複数の割り当ては足して -1〜1)、`Button.HeldSeconds`(各フレームの時間の足し算、離したフレームはそのフレームを含む)、`ReleasedBefore`(厳密な不等号)、スティックの軸を 1D の制御としても報告、自動実行の入力に値、TopDown の `ClickDestination` Component、Vehicle の `Drive = Throttle - Brake`。
 - 自動化された証拠: `InputActionValueTypesTests`(Core、+22)、`InputActionBindingTests`(Windows、+29)、`Win32InputEventAdapterTests`(更新)、`RuntimeAutomationTests`(+11)、`InputActionsGeneratorTests`(+35)、`ClickToMoveVerificationTests`(+10)、`VehicleDriveVerificationTests`(+11)、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(ThirdPerson・TopDown・Vehicle)。
 - 既知の差: UE の `ElapsedSeconds` と、離したフレームの値が 1 フレーム(0.1 秒以内)ずれうる(UE のソースで確かめていない)。Vehicle の `IA_LookAround` は入力の宣言だけで後ろの腕を回さず、Vehicle のウィンドウはマウスを捕捉しないのでマウスの移動は届かない。`Drive = Throttle - Brake` は簡易の車両モデルのため(別々の入力は M0109)。`Touch` は未実装。実機のゲームパッドとマウスは未検証。
+- 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-23 探索 — Chaos 相当の車両(ADR-0078、M0109)
+- 意図: Vehicles プラグインの簡易の車両モデル(運動学)を、UE の ChaosVehicles 相当(動的剛体の車体、車輪ごとの光線のサスペンション、トルク曲線と自動変速、アッカーマン、タイヤの摩擦、空気抵抗、転倒とリセット)に置き換え、Vehicle テンプレートのブレーキランプ・ヘッドライト・車輪の動き・カメラの切り替えと見回しを UE のとおりにする。
+- 観測(Fact):
+  - UE 5.8 には ChaosVehiclesCore のヘッダーしか無く、UE 5.7 に実装の `.cpp` がある。テンプレートは 5.7 で作られたので、5.7 のソースを式の正本とした。
+  - UE ではブレーキランプは光らない: `BrakeLights` が書く `VehicleMesh` は 4 頂点の見えない骨格メッシュで、マテリアルは `WorldGridMaterial`。見える車体のマテリアルの発光は宣言の無い Named Reroute を掛けるので 0(`probe_vehicle_brake_lights.py`・`probe_vehicle_emissive.py`)。
+  - UE の車の角速度の減衰は常に 3(`IsMovingOnGround` を車の移動コンポーネントが上書きせず、常に false)。右のヘッドライトは `VehicleMesh` に付き、L で切り替わらない。操舵の速さの曲線の横軸はマイル毎時。Slippery と NonSlippery の摩擦はどちらも 1.0。
+  - UE の既定のサスペンションはソルバーの中の制約。力のサスペンションは `p.Vehicle.DisableConstraintSuspension=1` のときの経路。
+  - 物理の既存の制限: 動的な箱と静的な三角形メッシュの接触は一番深い 1 点で、車体が揺れて回り、床を抜けた(修正した)。`ContinuousStatic` は静的な物体を外接箱で扱い、傾いた車体を止めた(車には使わない。記録した)。
+  - 最初の全テストで 2 つ: クラスと配列の欄を持つ `Vehicle` で生成された `World` の型の初期化が例外になる(スナップショットの値の型の規則。`Vehicle` を `[EcsSnapshotTransient]` にした)、`SpotLight` に足した `bool Visible` で VS 拡張の光の型の変換が作れない(光の型は物理量の欄だけという契約。補助のコンポーネント `LightVisibility` に移した)。
+  - 実走(WARP): 修正前 Vehicle 48.281 m・38.3°(窓 34〜42)、修正後 52.014 m・30.5°(窓 30〜34。新しい車は約 37 フレームでレベルの壁に当たり、以前の窓は跳ね返りを測っていた)。右トリガー 0.5 は 23.172 m、左スティック 0.5 は 9.4°。ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m・(6.79, 6.84) は変わらない。パッケージ(SDK 0.1.20)から作ったゲームも同じ値。D3D12 のエラーは 0。
+- 実装: M0109(`Docs/Milestones/M0109-Chaos-Vehicle.md`)。決定: UE の式を `LogicalScalar` で移す、力のサスペンション、根は重心、`VehicleSetup` データアセット、ブレーキランプは `MeshEmissive`(UE の発光 1 を 100 nits とする推測)、ヘッドライトは `LightVisibility`、`Vehicle` はスナップショットに入れない、カメラは `Camera.Active` の反転、エンジン音は作らない。
+- 自動化された証拠: `ChaosVehicleTests`(Windows、25。旧 `VehicleMotorTests` は削除)、`PhysicsForceCommandTests`(Windows、9)、`TypedLightFrameTests.LightVisibility_HidesOnlyItsOwnLightAndKeepsItsValidation`、`PersistentComponentSnapshotTests`、`LogicalMathAtan2Tests`(Numerics、14)、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(ThirdPerson・TopDown・Vehicle)。
+- 既知の差: 制約のサスペンションではない(縮みきりは車体の箱が支える)、慣性は箱、ブレーキランプは UE と違って光る、エンジン音と `CtrlRig_SportsCar` は無い、UE を同じ入力で走らせた数値の比較はしていない、実機の入力は未検証。
 - 結果: MatchesWithDocumentedExtension。

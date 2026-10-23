@@ -16,17 +16,43 @@
         }
       },
       {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Box",
+          "HalfExtents": { "R": 0.95, "U": 0.45, "F": 2.25 },
+          "Material": { "Friction": 0.7, "Restitution": 0 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {
+          "MotionType": "Dynamic",
+          "Mass": 1500,
+          "LinearDamping": 0.01,
+          "AngularDamping": 3
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {}
+      },
+      {
         "type": "CSharpGameEngine.Vehicles.Vehicle",
         "members": {
-          "Wheelbase": 2.642,
-          "Track": 1.8,
-          "RideHeight": 0.28,
-          "SuspensionTravel": 0.3,
-          "TopSpeed": 42,
-          "ReverseSpeed": 10,
-          "Acceleration": 10,
-          "BrakeDeceleration": 16,
-          "MaxSteering": 0.0944444
+          "Wheels": [
+            { "Position": { "R": 0.9, "U": -0.2509, "F": 1.4196 }, "Axle": "Front" },
+            { "Position": { "R": -0.9, "U": -0.2509, "F": 1.4196 }, "Axle": "Front" },
+            { "Position": { "R": 0.9, "U": -0.2359, "F": -1.2224 }, "Axle": "Rear" },
+            { "Position": { "R": -0.9, "U": -0.2359, "F": -1.2224 }, "Axle": "Rear" }
+          ],
+          "ResetLift": 0.5,
+          "ResetPivot": { "R": 0, "U": -0.5009, "F": 0.0696 },
+          "FlipCheckSeconds": 3,
+          "FlippedUpDot": -0.2
         }
       },
       {
@@ -38,10 +64,16 @@
         "members": {}
       },
       {
+        "type": "CSharpGameEngine.Vehicles.VehicleCameraLook",
+        "members": {
+          "ReturnSpeed": 1
+        }
+      },
+      {
         "type": "CSharpGameEngine.Runtime.Character.ViewAngles",
         "members": {
           "Yaw": 0.5,
-          "Pitch": -0.0222222
+          "Pitch": 0
         }
       },
       {
@@ -59,7 +91,7 @@
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": 0, "U": -0.28, "F": 0 },
+              "Position": { "R": 0, "U": -0.5009, "F": 0.0696 },
               "Rotation": { "EulerRuf": { "R": 0, "U": -0.25, "F": 0 } }
             }
           },
@@ -67,6 +99,19 @@
             "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
             "members": {
               "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar.glb"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.MeshEmissive",
+            "members": {
+              "Scale": 4
+            }
+          },
+          {
+            "type": "CgeVehicle.BrakeLights",
+            "members": {
+              "BrakingPower": 200,
+              "IdlePower": 4
             }
           }
         ],
@@ -79,7 +124,7 @@
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": 0, "U": -0.28, "F": 0 },
+              "Position": { "R": 0, "U": -0.5009, "F": 0.0696 },
               "Rotation": { "EulerRuf": { "R": 0, "U": -0.25, "F": 0 } }
             }
           },
@@ -99,7 +144,7 @@
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": 0.9, "U": -0.03, "F": 1.35 },
+              "Position": { "R": 0.9, "U": -0.2509, "F": 1.4196 },
               "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
             }
           },
@@ -107,6 +152,12 @@
             "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
             "members": {
               "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Vehicles.VehicleWheelVisual",
+            "members": {
+              "Wheel": 0
             }
           }
         ],
@@ -119,7 +170,7 @@
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": -0.9, "U": -0.03, "F": 1.35 },
+              "Position": { "R": -0.9, "U": -0.2509, "F": 1.4196 },
               "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
             }
           },
@@ -127,6 +178,12 @@
             "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
             "members": {
               "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Vehicles.VehicleWheelVisual",
+            "members": {
+              "Wheel": 1
             }
           }
         ],
@@ -139,7 +196,7 @@
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": 0.9, "U": -0.015, "F": -1.292 },
+              "Position": { "R": 0.9, "U": -0.2359, "F": -1.2224 },
               "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
             }
           },
@@ -147,6 +204,12 @@
             "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
             "members": {
               "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Vehicles.VehicleWheelVisual",
+            "members": {
+              "Wheel": 2
             }
           }
         ],
@@ -159,7 +222,7 @@
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": -0.9, "U": -0.015, "F": -1.292 },
+              "Position": { "R": -0.9, "U": -0.2359, "F": -1.2224 },
               "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
             }
           },
@@ -168,13 +231,19 @@
             "members": {
               "AssetPath": "Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb"
             }
+          },
+          {
+            "type": "CSharpGameEngine.Vehicles.VehicleWheelVisual",
+            "members": {
+              "Wheel": 3
+            }
           }
         ],
         "children": []
       },
       {
         "id": "a4c7e019-8f35-4b2d-9e60-7d1b3f5a8c42",
-        "name": "ChaseCamera",
+        "name": "BackCamera",
         "components": [
           {
             "type": "CSharpGameEngine.Entities.Transform",
@@ -183,23 +252,127 @@
           {
             "type": "CSharpGameEngine.Runtime.Character.OrbitCamera",
             "members": {
-              "Pivot": { "R": 0, "U": 1.5, "F": 0 },
-              "Distance": 6.5,
+              "Pivot": { "R": 0, "U": 0.2491, "F": 0.0696 },
+              "Distance": 3.8102005,
               "Radius": 0.12,
-              "Collide": true
+              "Collide": false,
+              "SocketOffset": { "R": 0, "U": 0.71798057, "F": 0 },
+              "Lag": 10,
+              "LagMaxDistance": 0.5,
+              "RotationLag": 2
             }
           },
           {
             "type": "CSharpGameEngine.Runtime.Windows.Camera",
             "members": {
               "Active": true,
-              "FovY": 0.16309864,
+              "FovY": 0.21541722,
               "FarZ": 1000
             }
           },
           {
             "type": "CSharpGameEngine.Runtime.Windows.AudioListener",
             "members": {}
+          },
+          {
+            "type": "CgeVehicle.VehicleCameraSwitch",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4f2b8e61-7c3d-4a95-b0e8-2d6c9f1a3e57",
+        "name": "FrontCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0.6991, "F": 0.3696 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": false,
+              "FovY": 0.16309864,
+              "FarZ": 1000
+            }
+          },
+          {
+            "type": "CgeVehicle.VehicleCameraSwitch",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8e6a1d24-5b9f-4c37-a2e0-7f3b9d4c1a68",
+        "name": "Headlight_L",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0.66847672, "U": 0.150041, "F": 2.0696 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.083333333, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.SpotLight",
+            "members": {
+              "Color": { "R": 1, "G": 1, "B": 1 },
+              "Flux": { "Lumens": 3000 },
+              "Range": { "Meters": 163.84 },
+              "Cone": { "InnerFullAngle": 0.0001, "OuterFullAngle": 0.24444444 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightVisibility",
+            "members": {
+              "Visible": false
+            }
+          },
+          {
+            "type": "CgeVehicle.HeadlightSwitch",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b1c9e37f-2a64-4d8b-95f1-0e7c3a6d2b49",
+        "name": "Headlight_R",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -0.71954847, "U": 0.150041, "F": 2.0696 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.11111111, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.SpotLight",
+            "members": {
+              "Color": { "R": 1, "G": 1, "B": 1 },
+              "Flux": { "Lumens": 3000 },
+              "Range": { "Meters": 163.84 },
+              "Cone": { "InnerFullAngle": 0.12493333, "OuterFullAngle": 0.27942222 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightVisibility",
+            "members": {
+              "Visible": false
+            }
           }
         ],
         "children": []

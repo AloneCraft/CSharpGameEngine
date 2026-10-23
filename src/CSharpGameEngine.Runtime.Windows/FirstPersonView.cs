@@ -13,6 +13,16 @@ public struct MeshVisibility() {
     public bool CastsShadow=true;
 }
 /// <summary>
+/// A factor on a mesh's material emission that the game changes while it runs (ADR-0078/M0109): UE's dynamic material instance with a scalar parameter
+/// on the emissive input, as the Vehicle's brake lights (<c>BrakeLightPower</c>). The mesh's materials keep their own emissive colour and texture; each is
+/// multiplied by <see cref="Scale"/>. Entities without the component draw their materials as authored.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.Rendering,12)]
+public struct MeshEmissive() {
+    /// <summary>The factor on the materials' emission (0 or more; 1 is as authored).</summary>
+    public float Scale=1f;
+}
+/// <summary>
 /// UE's first person rendering of a primitive (FirstPersonPrimitiveType.FIRST_PERSON, ADR-0078/M0107): the mesh is drawn as if the camera's horizontal
 /// field of view were <see cref="FieldOfViewDegrees"/> instead of the view's own <see cref="DefaultFieldOfViewDegrees"/>, and scaled by <see cref="Scale"/>
 /// toward the camera so it does not poke into walls. Both are a change of the mesh's camera-space position (<see cref="FirstPersonViewWarp"/>), so the

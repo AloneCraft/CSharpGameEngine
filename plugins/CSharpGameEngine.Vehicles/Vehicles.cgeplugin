@@ -1,7 +1,7 @@
 {
   "Name": "Vehicles",
-  "Version": "0.1.0",
-  "EngineVersion": ">=0.1.16",
-  "Description": "Cars: the vehicle components and systems (UE's ChaosVehicles plugin). M0101 stage 9's simplified model until the Chaos-equivalent model of M0109.",
+  "Version": "0.2.0",
+  "EngineVersion": ">=0.1.20",
+  "Description": "Cars: UE's ChaosVehicles equivalent (M0109). A dynamic rigid body on ray-cast suspensions per wheel, a torque curve and automatic gearbox, Ackermann steering, tyre friction against the surface's physical material, aerodynamics, the flipped check and reset, and the wheel, camera and VehicleSetup data asset.",
   "Dependencies": []
 }

@@ -42,6 +42,24 @@ public sealed class TypedLightFrameTests {
         Assert.Null(Runtime.InvalidProperty);
     }
     [Fact]
+    public void LightVisibility_HidesOnlyItsOwnLightAndKeepsItsValidation(){
+        // ADR-0078/M0109: UE の SetVisibility。無いか Visible なら表示、偽ならその光だけを出さない。値の検査は表示に関わらず行う。
+        // このコンパイルの World には、光と LightVisibility を両方持つアーキタイプが無いので、LightVisibility だけの Entity で確かめる。
+        var World=new CSharpGameEngine.Entities.World();
+        var Plain=World.Create(new Transform(),new PointLight(),new PointLightRuntime(),new LightShadow(),new LightShadowRuntime(),new Parent());
+        var Hidden=World.Create(new LightVisibility { Visible=false });
+        var Shown=World.Create(new LightVisibility());
+        Assert.False(LightValidation.Hidden(Plain,World));
+        Assert.True(LightValidation.Hidden(Hidden,World));
+        Assert.False(LightValidation.Hidden(Shown,World));
+        var Light=new SpotLight();
+        var Runtime=new SpotLightRuntime();
+        var State=new State(World);
+        using var Host=new EngineHost();
+        new SpotLightSync().Update(Hidden,ref Light,ref Runtime,Host,ref State);
+        Assert.Equal("LightMultiplicity",Runtime.InvalidProperty);
+    }
+    [Fact]
     public void FrameRecording_PreservesCrossTypeOrderAndAllocatesNothingAfterWarmup(){
         var Frame=new RenderFrameState(0);
         var Directional=new DirectionalLightSubmission(Vector3.UnitZ,White,new(100f),Shadow);

@@ -204,6 +204,9 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             try {
                 LogicalVector3 Acceleration=Gravity*RigidBody.GravityFactor;
                 Body.Velocity.Linear+=Acceleration*FixedDelta;
+                // ADR-0078/M0109: UE's (Chaos's) linear and angular damping, v × max(0, 1 - damping × Δt). Zero damping leaves the velocity exact.
+                if(!RigidBody.LinearDamping.IsZero){ Body.Velocity.Linear*=DampingFactor(RigidBody.LinearDamping); }
+                if(!RigidBody.AngularDamping.IsZero){ Body.Velocity.Angular*=DampingFactor(RigidBody.AngularDamping); }
                 Body.Position=this.IntegratePositionWithCcd(Body,PreviousPosition,Body.Position+Body.Velocity.Linear*FixedDelta);
                 Body.Rotation=IntegrateRotation(Body.Rotation,Body.Velocity.Angular);
                 this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
@@ -353,6 +356,16 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         return true;
     }
 
+    /// <summary>The surface material of a body (ADR-0078/M0109): a vehicle's tyre reads the friction of what its ray hit, as UE reads the hit's physical material.</summary>
+    public bool TryGetMaterial(Entity Entity,out PhysicsMaterial Material){
+        if(!this.StableIdByEntity.TryGetValue(Entity,out ulong StableId)||!this.Bodies.TryGetValue(StableId,out Body? Body)){
+            Material=default;
+            return false;
+        }
+        Material=Body.Collider.Material;
+        return true;
+    }
+
     public int CollectDebugBodies(List<PhysicsDebugBody> Results,int MaximumCount=8192){
         ArgumentNullException.ThrowIfNull(Results);
         if(MaximumCount<0){ throw new ArgumentOutOfRangeException(nameof(MaximumCount)); }
@@ -481,6 +494,28 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                     case PhysicsCommandType.Impulse when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
                         Body.Velocity.Linear+=Command.Vector/RigidBody.Mass;
                         Wake(Body,Tick,this.MutableEvents);
+                        break;
+                    case PhysicsCommandType.ForceAtPoint when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
+                        // ADR-0078/M0109: the force moves the centre of mass as Force does and turns the body by its moment about it.
+                        Body.Velocity.Linear+=Command.Vector/RigidBody.Mass*FixedDelta;
+                        Body.Velocity.Angular+=ApplyInverseInertia(Body,LogicalVector3.Cross(Command.Point-Body.Position,Command.Vector))*FixedDelta;
+                        Wake(Body,Tick,this.MutableEvents);
+                        break;
+                    case PhysicsCommandType.Torque when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
+                        Body.Velocity.Angular+=ApplyInverseInertia(Body,Command.Vector)*FixedDelta;
+                        Wake(Body,Tick,this.MutableEvents);
+                        break;
+                    case PhysicsCommandType.SetVelocity when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
+                        Body.Velocity=new PhysicsVelocity { Linear=Command.Vector,Angular=Command.Point };
+                        Wake(Body,Tick,this.MutableEvents);
+                        break;
+                    case PhysicsCommandType.Sleep when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
+                        if(!Body.IsSleeping){
+                            // The tick's sleep update counts the last tick and reports the Sleep event, as for a body that came to rest by itself.
+                            Body.IsSleeping=true;
+                            Body.SleepTicks=59;
+                            Body.Velocity=PhysicsVelocity.Zero;
+                        }
                         break;
                     case PhysicsCommandType.Teleport when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
                     case PhysicsCommandType.KinematicTarget when Body.RigidBody is { MotionType:PhysicsMotionType.Kinematic }:
@@ -771,6 +806,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Mass*Third*(Half.R*Half.R+Half.F*Half.F),
             Mass*Third*(Half.R*Half.R+Half.U*Half.U));
     }
+
+    private static LogicalScalar DampingFactor(LogicalScalar Damping)=>Max(LogicalScalar.Zero,LogicalScalar.One-Damping*FixedDelta);
 
     private static LogicalVector3 PointVelocity(Body Body,LogicalVector3 Point)=>
         Body.Velocity.Linear+LogicalVector3.Cross(Body.Velocity.Angular,Point-Body.Position);

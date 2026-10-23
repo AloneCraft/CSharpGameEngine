@@ -106,6 +106,8 @@ internal static class LightValidation {
         if(World.TryGetComponent(Entity,out LightShadow Shadow)&&!Shadow.Bias.IsValid){return "LightShadow.Bias";}
         return null;
     }
+    /// <summary>The node's <see cref="LightVisibility"/> hides its light: the light is checked as usual but not submitted.</summary>
+    internal static bool Hidden(Entity Entity,EcsWorld World)=>World.TryGetComponent(Entity,out LightVisibility Visibility)&&!Visibility.Visible;
     internal static LightShadowSettings? Shadow(Entity Entity,EcsWorld World)=>
         World.TryGetComponent(Entity,out LightShadow Value)?new LightShadowSettings(Value.Priority,Value.Bias):null;
 }
@@ -228,7 +230,10 @@ internal struct LevelLoad:ISystem {
             throw new InvalidOperationException("Runtime requires exactly one Level.");
         }
         if(LevelRuntime.Loaded){
-            if(this.HasReplacementCamera&&!State.World.IsAlive(this.PendingCameraEntity)){
+            // The camera that is drawn changes when it is destroyed (M0107: a respawned pawn's camera takes over) or when the game turns it off and
+            // another on (ADR-0078/M0109: the Vehicle's front and back cameras, UE's Activate/Deactivate of a camera component).
+            if(this.HasReplacementCamera&&(!State.World.IsAlive(this.PendingCameraEntity)
+                ||!State.World.TryGetComponent(this.PendingCameraEntity,out Camera Current)||!Current.Active)){
                 this.PendingCameraEntity=this.ReplacementCameraEntity;
                 this.ActiveCameraCount=1;
             }
@@ -358,7 +363,7 @@ internal struct LevelLoad:ISystem {
             StageMaterialCreateInfo Material=Scene.Materials[
                 Scene.Objects[ObjectIndex].MaterialIndex];
             var Emission=RenderRoster.EmissionOf(Material);
-            if(RenderRoster.IsEmissive(Emission.Nits)){
+            if(RenderRoster.IsEmissive(Emission.Nits)&&RenderRoster.LightsTheScene(Scene.SourceEntities[ObjectIndex],State.World)){
                 State.World.CreateDeferred(
                     Scene.ObjectTransforms[ObjectIndex],
                     RenderRoster.NewEmissiveLighting(
@@ -506,6 +511,7 @@ internal struct DirectionalLightSync:ISystem {
         if(Runtime.InvalidProperty is not null){return;}
         if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
         if(!Light.Illuminance.IsValid){Runtime.InvalidProperty="Illuminance";return;}
+        if(LightValidation.Hidden(Entity,State.World)){return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -589,6 +595,7 @@ internal struct PointLightSync:ISystem {
         if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
         if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return;}
         if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
+        if(LightValidation.Hidden(Entity,State.World)){return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -619,6 +626,7 @@ internal struct SpotLightSync:ISystem {
         if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return;}
         if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
         if(!Light.Cone.IsValid){Runtime.InvalidProperty="Cone";return;}
+        if(LightValidation.Hidden(Entity,State.World)){return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -651,6 +659,7 @@ internal struct RectAreaLightSync:ISystem {
         if(!Light.Luminance.IsValid){Runtime.InvalidProperty="Luminance";return;}
         if(!Light.Size.IsValid){Runtime.InvalidProperty="Size";return;}
         if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
+        if(LightValidation.Hidden(Entity,State.World)){return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetRectanglePose(
@@ -718,6 +727,15 @@ internal struct TransformSync:ISystem {
             } else if(Renderable.VisibilityApplied){
                 Renderer.SetObjectVisibility(Renderable.ObjectIndex,true,true);
                 Renderable.VisibilityApplied=false;
+            }
+            // ADR-0078/M0109: a material emission the game changes at run time (the Vehicle's brake lights).
+            if(State.World.TryGetComponent(SourceEntity,out MeshEmissive Emissive)){
+                var Scale=float.IsFinite(Emissive.Scale)?MathF.Max(0f,Emissive.Scale):1f;
+                Renderer.SetObjectEmissiveScale(Renderable.ObjectIndex,Scale);
+                Renderable.EmissiveApplied=true;
+            } else if(Renderable.EmissiveApplied){
+                Renderer.SetObjectEmissiveScale(Renderable.ObjectIndex,1f);
+                Renderable.EmissiveApplied=false;
             }
         }
     }
@@ -806,12 +824,15 @@ internal struct SkeletalMeshBind:ISystem {
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
 
 /// <summary>
-/// ADR-0078/M0107: <see cref="TransformSync"/> reads <see cref="MeshVisibility"/> and <see cref="FirstPersonView"/> from the mesh Entity, which needs the generated
-/// World to know them as Components even in a game whose scenes do not use them.
+/// ADR-0078/M0107, M0109: <see cref="TransformSync"/> reads <see cref="MeshVisibility"/>, <see cref="FirstPersonView"/> and <see cref="MeshEmissive"/> from the
+/// mesh Entity, and the light syncs read <see cref="LightVisibility"/> from the light's Entity, which needs the generated World to know them as Components
+/// even in a game whose scenes do not use them.
 /// </summary>
 internal struct MeshPresentationRegistration:ISystem {
     public void Spawn(ref MeshVisibility Visibility){}
     public void Spawn(ref FirstPersonView View){}
+    public void Spawn(ref MeshEmissive Emissive){}
+    public void Spawn(ref LightVisibility Visibility){}
 }
 
 [SystemPhase(SystemPhase.Presentation)]

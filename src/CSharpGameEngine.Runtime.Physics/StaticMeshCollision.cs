@@ -15,6 +15,8 @@ namespace CSharpGameEngine.Runtime.Physics;
 [SceneComponentOrder(SceneComponentCategory.Spatial,22)]
 public struct StaticMeshCollider() {
     public PhysicsLayer Layer;
+    /// <summary>The surface's friction and restitution (UE's physical material of the mesh, ADR-0078/M0109): a vehicle's tyres read the friction under them.</summary>
+    public PhysicsMaterial Material=new();
 }
 /// <summary>Imports StaticMesh triangles and bakes them into world-placed triangle-mesh shape assets.</summary>
 internal sealed class StaticMeshCollisionCooker {
@@ -136,7 +138,7 @@ internal struct StaticMeshColliderSync:ISystem {
         }
         Domain.ApplyBody(new PhysicsBodyDescription(
             Entity,PhysicsDomainRuntime.ResolveStableId(Entity,State.World),
-            new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset=Id,Layer=MeshCollider.Layer },null,
+            new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset=Id,Layer=MeshCollider.Layer,Material=MeshCollider.Material },null,
             LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero));
     }
 }

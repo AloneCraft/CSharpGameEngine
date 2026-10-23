@@ -8,13 +8,31 @@ Physicsは60 Hz整数tickの`PhysicsSimulation` phaseで実行する。FrameInpu
 
 `Collider`のみはStatic、`Collider + RigidBody(Dynamic)`はPhysics所有姿勢、KinematicはCommand targetで移動する。Dynamicの直接Transform編集は禁止しTeleportを使う。Dynamic Triangle MeshとDynamicの親・非One Scaleは拒否する。
 
+### 命令(`PhysicsCommands`)と減衰(ADR-0078/M0109)
+命令は対象のtickを持ち、そのtickの`Step`の最初(重力と積分の前)に、(tick、送り手のstable ID、番号)の順で適用する。動的でない物体への力・速度・眠りの命令は何もしない。
+
+| 命令 | 効果 |
+|---|---|
+| `Force(力)` | 線速度 += 力 / 質量 × Δt(重心) |
+| `Impulse(力積)` | 線速度 += 力積 / 質量 |
+| `ForceAtPoint(力, ワールドの点)` | `Force`と同じ線速度の変化に加えて、角速度 += I⁻¹((点 − 重心) × 力) × Δt。I は形の慣性(箱は m(b² + c²)/3 など)をワールドへ回したもの |
+| `Torque(トルク)` | 角速度 += I⁻¹ トルク × Δt |
+| `SetVelocity(線速度, 角速度)` | 両方を置き換えて起こす(UEの`SetPhysicsLinearVelocity`・`SetPhysicsAngularVelocityInDegrees`) |
+| `Sleep()` | 速度を0にしてすぐ眠らせる(同じtickの眠りの更新が`Sleep`イベントを出す)。後の力・力積・テレポート・速度の命令で起きる |
+| `Teleport(位置, 向き)` | 動的な物体の姿勢を置き換えて起こす(速度は変えない) |
+| `SetKinematicTarget(位置, 向き)` | キネマティックな物体の次の姿勢 |
+
+- 点の力の命令の`Point`は`PhysicsCommand.Point`(既定値つきの末尾の引数)で、`SetVelocity`では角速度に使う。
+- `RigidBody.LinearDamping`・`AngularDamping`(1/s。既定0)は、毎tickの重力の後に速度へ max(0, 1 − 減衰 × Δt) を掛ける(UE・Chaosの減衰)。0なら速度はそのまま(以前と同じ値)。Systemが実行中に書き換えてよく、次の同期で剛体に入る。
+- `DeterministicPhysicsWorld.TryGetMaterial(Entity)`は物体の`PhysicsMaterial`を返す(車両のタイヤが、光線が当たった面の摩擦を読む。UEのヒットの物理マテリアル)。`StaticMeshCollider.Material`(既定はこれまでと同じ摩擦0.5・反発0)が静的メッシュの物体の材質になる。
+
 ## 数値と決定性
 
 authoritativeなposition、rotation、scale、velocity、mass、solver値はsigned Q64.64 LogicalScalarだけを使う。GPU、audio、UIへ渡すdomain/camera相対値だけをfloatへ変換する。製品Physicsコードはdouble、BigInteger、旧Logical profile、PhysicsScalarを保持しない。stable IDと明示的な決定順を使い、overflowは直前の有効poseへrollbackしてbodyを停止し、Fault eventを発行する。
 
 ## Collisionとsolver
 
-Broadphaseはdomain-local dynamic AABB treeで、active bodyだけを対象にする。Box/Sphereは回転を含む解析的narrow phase、任意Convex/Capsuleはsupport-mapped GJK/EPA、Static Triangle Meshはimmutable cooked BVHを正本とする。contact cacheはBegin/Persist/End、最大4点manifold、warm-start impulseを一つの状態として所有する。solverはvelocity 8回、position 3回のsequential impulseで、linear/angular inertia、friction、restitution、trigger、sleep/wakeを処理する。ContinuousStaticはdynamic body対static bodyの保守的sweepでtunnelingを防ぐ。
+Broadphaseはdomain-local dynamic AABB treeで、active bodyだけを対象にする。Box/Sphereは回転を含む解析的narrow phase、任意Convex/Capsuleはsupport-mapped GJK/EPA、Static Triangle Meshはimmutable cooked BVHを正本とする。動的な箱と静的な三角形メッシュの接触は、箱の8つの角のうち、触れた三角形の面より下にあり(箱の中心の側を面の表とする)面への射影が三角形の中にある角を集め、一番深い角の面の法線に近い(内積0.95以上)面の角から深い順に最大4点を1つのmanifoldにする(M0109。それまでは一番深い三角形の1点だけで、メッシュの床の上の箱が揺れて回り、沈んだ)。面に角が入らない触れ方(辺と辺)は従来のGJK/EPAの1点。球とカプセルは従来どおり三角形ごとの解析的な接触の一番深い1点。contact cacheはBegin/Persist/End、最大4点manifold、warm-start impulseを一つの状態として所有する。solverはvelocity 8回、position 3回のsequential impulseで、linear/angular inertia、friction、restitution、trigger、sleep/wakeを処理する。ContinuousStaticはdynamic body対static bodyの保守的sweepでtunnelingを防ぐ。既知の制限(M0109で見つけた): ContinuousStaticは静的な物体を外接箱で扱うので、大きな三角形メッシュ(地面)の外接箱を物体の外接箱の半分だけ広げた範囲の中では、その tick の移動が0に切られる(傾いた車体が地面の上で止まった)。車体は離散(既定)にした。数kmの三角形1枚と箱のGJKは`LogicalScalar`の範囲を超える(試験の床は100 mの格子に分ける)。
 
 定常tickは事前確保したscratch、直接binary search、comparison-allocationを持たないin-place sortを使う。Debug/Release双方で、empty、contact-free、box-box、sphere-boxのwarmed tickがmanaged allocation 0であることをテストする。
 

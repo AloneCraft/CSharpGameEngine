@@ -4,7 +4,7 @@
 
 `Assets/` contains content exported from Unreal Engine 5.8, from the Vehicle template (`TP_VehicleAdvBP`). This includes the sports car meshes (SM_SportsCar, SM_SportsCar_Glass, SM_SportsCar_Wheel) and the level meshes. The content is © Epic Games, Inc. and is licensed under the Unreal Engine End User License Agreement (https://www.unrealengine.com/eula). Its use and redistribution are subject to that agreement.
 
-The C# Game Engine project bundles this content unchanged, at its owner's decision. Anyone who uses or redistributes it is responsible for complying with the agreement.
+The C# Game Engine project bundles this content unchanged, at its owner's decision, with one addition: SM_SportsCar.glb carries an emissive texture made from the red channel of the template's T_SportsCar_Lights_M (the tail lights, for the brake lights; tools/UnrealExport/add_brake_light_emission.py). The vehicle values in Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset are the template's vehicle movement settings converted to SI units. Anyone who uses or redistributes it is responsible for complying with the agreement.
 
 ## Engine package dependencies
 
