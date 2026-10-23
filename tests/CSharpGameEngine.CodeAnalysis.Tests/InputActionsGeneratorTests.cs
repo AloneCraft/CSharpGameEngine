@@ -230,4 +230,189 @@ public sealed class InputActionsGeneratorTests {
 
         Assert.Contains(Run(Unbound).Diagnostics,D=>D.Id=="INPUT004");
     }
+
+    private const string Driving="""
+        using CSharpGameEngine.Input;
+
+        namespace Game;
+
+        [InputActions]
+        public partial struct DriveActions
+        {
+            [Keys(Key.W, Key.Up)]
+            [Gamepad(Pad.RightTrigger)]
+            [Gamepad(Pad.West)]
+            public Axis Throttle;
+            [Keys(Key.S)]
+            [Gamepad(Pad.LeftTrigger, DeadZone = 0.05f, Scale = 1.5f)]
+            public Axis Brake;
+            [Keys(Key.D)]
+            [NegativeKeys(Key.A, Key.Left)]
+            [Gamepad(Pad.LeftStick, StickAxis.X, Invert = true)]
+            public Axis Steering;
+            [Mouse(MouseAxis.DeltaX)]
+            [Gamepad(Pad.RightStick, StickAxis.X)]
+            public Look Around;
+            [Mouse(MouseAxis.DeltaY)]
+            [Gamepad(Pad.RightStick, StickAxis.Y)]
+            public Look Tilt;
+            [Keys(Key.Space)]
+            [Gamepad(Pad.LeftShoulder)]
+            public Button Handbrake;
+        }
+        """;
+
+    [Fact]
+    public void AnAxis_BindsKeysNegativeKeysTriggersStickAxesAndButtonsAndReadsAClampedValue(){
+        var Result=Run(Driving);
+
+        Assert.Empty(Result.Diagnostics);
+        var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_DriveActions.g.cs");
+
+        // Keys are +1 and NegativeKeys are -1; the trigger and the stick axis are controls of their own with the default dead zones (trigger 0.1, stick 0.2).
+        Assert.Contains("Id_Throttle, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x57)))",Source);
+        Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x41)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
+        Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x25)), Modifiers:",Source);
+        Assert.Contains("Id_Throttle, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightTrigger, DeadZone: 0.1f)",Source);
+        Assert.Contains("Id_Brake, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftTrigger, DeadZone: 0.05f, Scale: 1.5f)",Source);
+        Assert.Contains("Id_Steering, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftX, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
+        Assert.Contains("\"Gamepad_FaceButton_Left\"",Source);
+        // Several bindings add up, then Axis.FromSum clamps to -1..1 and turns NaN into 0.
+        Assert.Contains("Result.Throttle = global::CSharpGameEngine.Input.Axis.FromSum(V.X);",Source);
+        Assert.Contains("StableId.FromName(IdNamespace, \"Game.DriveActions.Brake\")",Source);
+    }
+
+    [Fact]
+    public void ALookCanTakeOneAxisOfTheMouseAndOfAStick(){
+        var Result=Run(Driving);
+        var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_DriveActions.g.cs");
+
+        // MouseX alone masks Y; MouseY alone masks X and keeps the sign flip so that moving up looks up.
+        Assert.Contains("\"Delta\", global::CSharpGameEngine.Core.InputControlKind.RelativeAxis2D), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputMaskModifier(X: false, Y: true) })",Source);
+        Assert.Contains("{ new global::CSharpGameEngine.Input.InputMaskModifier(X: true, Y: false), new global::CSharpGameEngine.Input.InputNegateModifier(X: false, Y: true) })",Source);
+        // A stick's Y axis becomes the look's Y by a swizzle; X needs none.
+        Assert.Contains("Id_Around_Stick, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightX, DeadZone: 0.2f)",Source);
+        Assert.Contains("Id_Tilt_Stick, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightY, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier() })",Source);
+    }
+
+    [Fact]
+    public void AButton_ReadsItsHeldSecondsFromTheServerWithTheFrameTime(){
+        var Result=Run(Actions);
+        var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_PlayerActions.g.cs");
+
+        Assert.Contains("var Held = !Server.ReadValue(Id_Jump).IsZero;",Source);
+        Assert.Contains("Result.Jump = new global::CSharpGameEngine.Input.Button(Held, Pressed, Released, Server.TrackHold(Id_Jump, Held, Pressed, Released, DeltaSeconds));",Source);
+        // The read still takes the same three arguments, so the generated loop is unchanged.
+        Assert.Contains("Read(global::CSharpGameEngine.Input.InputServer Server, float DeltaSeconds, global::CSharpGameEngine.Input.Pointer CursorPointer)",Source);
+    }
+
+    [Fact]
+    public void AGamepadButtonOnAnAxisAndAShoulderOnAButton_UseUnrealsKeyNames(){
+        var Result=Run(Driving);
+        var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_DriveActions.g.cs");
+
+        Assert.Contains("\"Gamepad_LeftShoulder\"",Source);
+    }
+
+    [Theory]
+    [InlineData("[Gamepad(Pad.LeftStick)] public Axis A;")]
+    [InlineData("[Gamepad(Pad.LeftStick, StickAxis.X)] public Stick A;")]
+    [InlineData("[Gamepad(Pad.LeftTrigger)] public Stick A;")]
+    [InlineData("[Gamepad(Pad.LeftTrigger)] public Look A;")]
+    [InlineData("[Gamepad(Pad.LeftTrigger, StickAxis.X)] public Axis A;")]
+    [InlineData("[Gamepad(Pad.South, StickAxis.X)] public Button A;")]
+    [InlineData("[Gamepad(Pad.LeftTrigger)] public Button A;")]
+    [InlineData("[Mouse(MouseAxis.DeltaX)] public Axis A;")]
+    [InlineData("[Mouse(MouseAxis.DeltaY)] public Button A;")]
+    [InlineData("[Mouse(MouseButton.Left)] public Axis A;")]
+    [InlineData("[NegativeKeys(Key.A)] public Button A;")]
+    [InlineData("[NegativeKeys(Key.A)] public Stick A;")]
+    [InlineData("[NegativeKeys()] public Axis A;")]
+    [InlineData("[Keys()] public Axis A;")]
+    [InlineData("[Keys(Key.W)] public Look A;")]
+    [InlineData("[Pointer] public Axis A;")]
+    public void ABindingThatDoesNotFitTheNewMemberTypes_ReportsInput003(string Member){
+        var Source=$$"""
+            using CSharpGameEngine.Input;
+
+            namespace Game;
+
+            [InputActions]
+            public partial struct Misfit
+            {
+                {{Member}}
+            }
+            """;
+
+        Assert.Contains(Run(Source).Diagnostics,D=>D.Id=="INPUT003");
+    }
+
+    [Theory]
+    [InlineData("DeadZone = 1f")]
+    [InlineData("DeadZone = 1.5f")]
+    [InlineData("DeadZone = -0.1f")]
+    [InlineData("DeadZone = float.NaN")]
+    [InlineData("DeadZone = float.PositiveInfinity")]
+    [InlineData("Scale = 0f")]
+    [InlineData("Scale = -1f")]
+    [InlineData("Scale = float.NaN")]
+    [InlineData("Scale = float.PositiveInfinity")]
+    public void ADeadZoneOrScaleOutOfRange_ReportsInput005(string Argument){
+        var Source=$$"""
+            using CSharpGameEngine.Input;
+
+            namespace Game;
+
+            [InputActions]
+            public partial struct Bad
+            {
+                [Gamepad(Pad.RightTrigger, {{Argument}})] public Axis A;
+            }
+            """;
+        var Result=Run(Source);
+
+        Assert.Contains(Result.Diagnostics,D=>D.Id=="INPUT005");
+        Assert.DoesNotContain(Result.GeneratedTrees,Tree=>Tree.FilePath.Contains("Game_Bad",StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("DeadZone = 0f")]
+    [InlineData("DeadZone = 0.999f")]
+    [InlineData("Scale = 0.001f")]
+    [InlineData("Scale = 100f")]
+    [InlineData("Invert = true")]
+    public void TheEdgesOfTheValidRange_AreAccepted(string Argument){
+        var Source=$$"""
+            using CSharpGameEngine.Input;
+
+            namespace Game;
+
+            [InputActions]
+            public partial struct Edge
+            {
+                [Gamepad(Pad.RightTrigger, {{Argument}})] public Axis A;
+            }
+            """;
+
+        Assert.Empty(Run(Source).Diagnostics);
+    }
+
+    [Fact]
+    public void ADeadZoneOrScaleOnAGamepadButton_ReportsInput005(){
+        const string Button="""
+            using CSharpGameEngine.Input;
+
+            namespace Game;
+
+            [InputActions]
+            public partial struct Pad1
+            {
+                [Gamepad(Pad.South, DeadZone = 0.1f)] public Button Jump;
+                [Gamepad(Pad.West, Invert = true)] public Axis Fire;
+            }
+            """;
+        var Diagnostics=Run(Button).Diagnostics.Where(static D=>D.Id=="INPUT005").ToArray();
+
+        Assert.Equal(2,Diagnostics.Length);
+    }
 }

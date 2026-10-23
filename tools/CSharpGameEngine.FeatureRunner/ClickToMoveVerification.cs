@@ -12,7 +12,7 @@ namespace CSharpGameEngine.FeatureStages;
 public static class ClickToMoveVerification {
     public const int Frames=80;
     public const int ClickStartFrame=20;
-    public const int ClickEndFrame=25;
+    public const int ClickEndFrame=24;
     /// <summary>カーソルの位置(クライアント領域の割合)。画面の中央上寄りで、キャラクターの前方の地面を指す。</summary>
     public const string Cursor="0.5,0.1";
     /// <summary>クリックを離したあとも目的地へ歩き続けて、これだけは動く(m)。</summary>
@@ -27,10 +27,10 @@ public static class ClickToMoveVerification {
     /// <summary>
     /// ナビメッシュで歩いたときの、着く位置(出発点からの水平の動き、R と F)と許す誤差(m)。台のスロープの先、壁の端を回った床の上。
     /// カメラがキャラクターに遅れて追従する(M0107。UEの CameraLagSpeed 3)ので、クリックを押している間にカーソルの下の地面がカメラの遅れの分だけ手前になり、
-    /// 目的地は M0106 の (7.06, 8.06) より約 1 m 手前の (6.75, 7.14) になる。
+    /// 目的地は M0106 の (7.06, 8.06) より約 1 m 手前になる。M0108 では短押しの判定(0.5 秒未満)のためクリックを 1 フレーム短くし(4 フレーム押す)、押している間は直接歩く(UE の Follow)ので、着く位置は (6.79, 6.84) になる(M0107 は (6.75, 7.14))。
     /// </summary>
-    public const float NavigatedGoalR=6.75f;
-    public const float NavigatedGoalF=7.14f;
+    public const float NavigatedGoalR=6.79f;
+    public const float NavigatedGoalF=6.84f;
     public const float NavigatedGoalTolerance=0.5f;
     /// <summary>経路が回る壁の端(出発点からの R と F)と、そこへ近づくべき距離(m)。スロープの通路の壁の端で、直線ではここを通らない。</summary>
     public const float WallEndR=2.2f;
@@ -40,6 +40,17 @@ public static class ClickToMoveVerification {
     public const float MinimumDetourRatio=1.25f;
     /// <summary>1フレームのカメラの高さの落ち方の上限(m)。台から飛び降りると 0.6 m を超える落ち方をし、スロープを下る間は 0.4 m 以内。</summary>
     public const float MaximumFrameDropMeters=0.5f;
+    /// <summary>
+    /// 長押し(M0108)の実走。同じ場所を<see cref="LongPressEndFrame"/>まで押し続ける(フレームの時間は 0.1 秒に頭打ちなので約 2.5 秒。UE の <c>PressedThreshold</c> 0.5 秒を大きく超える)。
+    /// 押している間はカーソルの下の地面の向きへ直接歩き続け、離しても目的地へは歩かず、目印も出ない。
+    /// </summary>
+    public const int LongPressFrames=90;
+    public const int LongPressEndFrame=45;
+    /// <summary>長押しの間に歩くべき最低の距離(m)。押している間、目的地へ着いて止まるのでなくカーソルを追い続けていること。</summary>
+    public const float MinimumLongPressWalkMeters=4f;
+    /// <summary>離したあとにさらに歩く距離の上限(m)。制動だけで止まる(目的地まで歩き続けない)こと。歩行速度 6 m/s、制動 10 m/s² の制動距離は約 1.8 m。</summary>
+    public const float MaximumWalkAfterReleaseMeters=2.5f;
+    public static string LongPressSchedule=>string.Create(CultureInfo.InvariantCulture,$"MouseLeft@{ClickStartFrame}-{LongPressEndFrame}");
     public static string InputSchedule=>string.Create(CultureInfo.InvariantCulture,$"MouseLeft@{ClickStartFrame}-{ClickEndFrame}");
     public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Executable=ThirdPersonCharacterVerification.ExecutablePath(RepositoryRoot,Configuration,"TopDown");
@@ -54,9 +65,10 @@ public static class ClickToMoveVerification {
     public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Straight=await RunOnceAsync(Executable,Evidence,Adapter,false,Output,Error,CancellationToken).ConfigureAwait(false);
         var Navigated=await RunOnceAsync(Executable,Path.Combine(Evidence,"navigation"),Adapter,true,Output,Error,CancellationToken).ConfigureAwait(false);
-        return Straight!=0?Straight:Navigated;
+        var Held=await RunOnceAsync(Executable,Path.Combine(Evidence,"long-press"),Adapter,true,Output,Error,CancellationToken,true).ConfigureAwait(false);
+        return Straight!=0?Straight:Navigated!=0?Navigated:Held;
     }
-    private static async Task<int>RunOnceAsync(string Executable,string Evidence,string Adapter,bool Navigated,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
+    private static async Task<int>RunOnceAsync(string Executable,string Evidence,string Adapter,bool Navigated,TextWriter Output,TextWriter Error,CancellationToken CancellationToken,bool LongPress=false){
         Directory.CreateDirectory(Evidence);
         var ReportPath=Path.Combine(Evidence,"report.json");
         File.Delete(ReportPath);
@@ -67,15 +79,15 @@ public static class ClickToMoveVerification {
             RedirectStandardOutput=true,
         };
         Start.Environment["CGE_GRAPHICS_ADAPTER"]=Adapter;
-        Start.Environment["CGE_AUTOMATION_FRAMES"]=Frames.ToString(CultureInfo.InvariantCulture);
-        Start.Environment["CGE_AUTOMATION_INPUT"]=InputSchedule;
+        Start.Environment["CGE_AUTOMATION_FRAMES"]=(LongPress?LongPressFrames:Frames).ToString(CultureInfo.InvariantCulture);
+        Start.Environment["CGE_AUTOMATION_INPUT"]=LongPress?LongPressSchedule:InputSchedule;
         Start.Environment["CGE_AUTOMATION_CURSOR"]=Cursor;
         Start.Environment["CGE_AUTOMATION_REPORT"]=ReportPath;
         Start.Environment["CGE_AUTOMATION_CAPTURE"]=Path.Combine(Evidence,"final.png");
         // The same input twice: a world without the navigation mesh is the straight walk of before M0106.
         if(Navigated){ Start.Environment.Remove("CGE_NAVIGATION_DISABLED"); }
         else { Start.Environment["CGE_NAVIGATION_DISABLED"]="1"; }
-        var Label=Navigated?"navigated":"straight";
+        var Label=LongPress?"long press":Navigated?"navigated":"straight";
         using var Process=System.Diagnostics.Process.Start(Start)??throw new InvalidOperationException("Could not start the TopDown template.");
         var Standard=Process.StandardOutput.ReadToEndAsync(CancellationToken);
         var Diagnostics=Process.StandardError.ReadToEndAsync(CancellationToken);
@@ -87,8 +99,8 @@ public static class ClickToMoveVerification {
             return 1;
         }
         using var Report=JsonDocument.Parse(await File.ReadAllBytesAsync(ReportPath,CancellationToken).ConfigureAwait(false));
-        var Failures=Navigated?EvaluateNavigated(Report.RootElement,out var Summary):Evaluate(Report.RootElement,out Summary);
-        await Output.WriteLineAsync((Navigated?"CGE-TOPDOWN-CLICK-NAVIGATED ":"CGE-TOPDOWN-CLICK ")+Summary).ConfigureAwait(false);
+        var Failures=LongPress?EvaluateLongPress(Report.RootElement,out var Summary):Navigated?EvaluateNavigated(Report.RootElement,out Summary):Evaluate(Report.RootElement,out Summary);
+        await Output.WriteLineAsync((LongPress?"CGE-TOPDOWN-LONG-PRESS ":Navigated?"CGE-TOPDOWN-CLICK-NAVIGATED ":"CGE-TOPDOWN-CLICK ")+Summary).ConfigureAwait(false);
         foreach(var Failure in Failures){
             await Error.WriteLineAsync(Failure).ConfigureAwait(false);
         }
@@ -101,6 +113,57 @@ public static class ClickToMoveVerification {
     /// 壁の端を回って、決まった床の位置に着いていること。位置は、出発点(クリックの前のフレーム)のカメラからの動きで測る。
     /// </summary>
     public static IReadOnlyList<string>EvaluateNavigated(JsonElement Report,out string Summary)=>EvaluateCore(Report,true,out Summary);
+    /// <summary>
+    /// 長押し(M0108)のレポートを判定する。押している間に<see cref="MinimumLongPressWalkMeters"/>以上歩き(カーソルを追って歩き続ける)、離したあとは
+    /// <see cref="MaximumWalkAfterReleaseMeters"/>以内で止まり(目的地まで歩き続けない)、最後に動いていないこと。目印は出ない(短押しだけが出す)。
+    /// </summary>
+    public static IReadOnlyList<string>EvaluateLongPress(JsonElement Report,out string Summary){
+        List<string>Failures=[];
+        Summary=string.Empty;
+        if(!Report.TryGetProperty("schema",out var Schema)||Schema.GetString()!="cge-automation-report/1"){
+            Failures.Add("The automation report schema is not cge-automation-report/1.");
+            return Failures;
+        }
+        var Errors=Report.GetProperty("d3d12Errors").GetInt32();
+        if(Errors!=0){
+            Failures.Add($"The D3D12 debug layer reported {Errors} error(s).");
+        }
+        var Positions=CharacterPositions(Report);
+        if(Positions.Length<LongPressFrames||Positions.Skip(ClickStartFrame-1).Any(static Position=>Position is null)){
+            Failures.Add($"Expected {LongPressFrames} frames with a character position from frame {ClickStartFrame-1}, found {Positions.Length}.");
+            return Failures;
+        }
+        var Held=Planar(Positions[ClickStartFrame-1]!,Positions[LongPressEndFrame-1]!);
+        var After=Planar(Positions[LongPressEndFrame-1]!,Positions[LongPressFrames-1]!);
+        var Drift=Planar(Positions[LongPressFrames-SettledFrames-1]!,Positions[LongPressFrames-1]!);
+        // Still walking at the end of the hold: the last 5 frames moved, so it followed the cursor rather than arrived somewhere.
+        var StillWalking=Planar(Positions[LongPressEndFrame-6]!,Positions[LongPressEndFrame-1]!);
+        Summary=string.Create(CultureInfo.InvariantCulture,$"walkWhileHeld={Held:F3} walkAfterRelease={After:F3} walkingAtRelease={StillWalking:F3} finalDrift={Drift:F3} d3d12Errors={Errors}");
+        if(Held<MinimumLongPressWalkMeters){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Holding the button walked the character {Held:F3} m; expected at least {MinimumLongPressWalkMeters} m toward the cursor."));
+        }
+        if(StillWalking<0.5f){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The character moved only {StillWalking:F3} m in the last 5 frames of the hold; it stopped following the cursor."));
+        }
+        if(After>MaximumWalkAfterReleaseMeters){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The character walked {After:F3} m after the button was released; a long press must only brake (at most {MaximumWalkAfterReleaseMeters} m), not walk on to a destination."));
+        }
+        if(Drift>=MaximumFinalDriftMeters){
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The character still moved {Drift:F3} m in the last {SettledFrames} frames."));
+        }
+        if(Report.TryGetProperty("renderObjectCounts",out var CountsElement)&&CountsElement.ValueKind==JsonValueKind.Array){
+            var Counts=CountsElement.EnumerateArray().Select(static Item=>Item.GetInt32()).ToArray();
+            if(Counts.Length>=LongPressFrames){
+                var Before=Counts[ClickStartFrame-1];
+                var Peak=Counts.Skip(ClickStartFrame).Max();
+                Summary+=string.Create(CultureInfo.InvariantCulture,$" renderObjects={Before}->{Peak}");
+                if(Peak>Before){
+                    Failures.Add($"A long press showed a marker: the renderer drew {Before} objects before the click and {Peak} at most after it; only a short press makes one.");
+                }
+            }
+        }
+        return Failures;
+    }
     private static IReadOnlyList<string>EvaluateCore(JsonElement Report,bool Navigated,out string Summary){
         List<string>Failures=[];
         Summary=string.Empty;
@@ -190,6 +253,9 @@ public static class ClickToMoveVerification {
         Summary+=string.Create(CultureInfo.InvariantCulture,$" renderObjects={Before}->{Peak}->{After} markerFrames={(FirstUp<0?0:(Gone<0?Counts.Length:Gone)-FirstUp)}");
         if(Peak<=Before){
             Failures.Add($"Clicking the ground showed no marker: the renderer drew {Before} objects before the click and never more after it.");
+        } else if(FirstUp>=0&&FirstUp<ClickEndFrame){
+            // M0108: UE spawns the cursor effect in MoveTo, which only a short press's release calls; it does not appear when the button goes down.
+            Failures.Add($"The marker appeared at frame {FirstUp}, while the button was still down (released at frame {ClickEndFrame}); it must appear when a short press is released.");
         } else if(After!=Before){
             Failures.Add($"The marker did not go away: the renderer drew {Before} objects before the click and {After} at the end.");
         }

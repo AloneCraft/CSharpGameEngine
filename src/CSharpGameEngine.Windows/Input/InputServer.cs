@@ -18,6 +18,10 @@ public sealed record InputNegateModifier(bool X=true,bool Y=true):InputModifier 
 public sealed record InputSwizzleModifier:InputModifier {
     public override InputValue Apply(InputValue Value)=>new(Value.Y,Value.X);
 }
+/// <summary>Zeroes the selected axes (M0108): a mouse delta used for its X or Y alone, as Unreal's MouseX / MouseY.</summary>
+public sealed record InputMaskModifier(bool X=false,bool Y=false):InputModifier {
+    public override InputValue Apply(InputValue Value)=>new(this.X?0:Value.X,this.Y?0:Value.Y);
+}
 public sealed record InputBinding(InputActionId ActionId,InputControl Control,IReadOnlyList<InputControl>?Chord=null,float DeadZone=0,float Scale=1,bool Reserved=false,IReadOnlyList<InputModifier>?Modifiers=null) {
     public IReadOnlyList<InputControl>RequiredControls=>this.Chord??[];
     public IReadOnlyList<InputModifier>ValueModifiers=>this.Modifiers??[];
@@ -42,6 +46,53 @@ public sealed class InputServer {
         if(this.Contexts.Count!=Map.Contexts.Count){ throw new ArgumentException("Input context IDs must be unique.",nameof(Map)); }
     }
     public IReadOnlyList<InputActionValue>CurrentFrame=>this.Frame;
+    private readonly Dictionary<InputActionId,HoldClock>HoldClocks=[];
+    /// <summary>Counts the <see cref="ProcessEvents"/> calls (one per presented frame); a hold time is advanced once per count however often it is read.</summary>
+    public ulong FrameNumber { get;private set;}
+    /// <summary>
+    /// How long a button action has been held, for <c>Button.HeldSeconds</c> (M0108). The press frame reads 0; each later held frame adds its own
+    /// <paramref name="DeltaSeconds"/>; the release frame reads the whole time held (including that frame's delta), as Unreal's ElapsedSeconds on
+    /// Completed/Canceled; every other frame reads 0. A press and release inside one frame read 0. A negative or non-finite delta counts as 0.
+    /// Asking again within the same <see cref="FrameNumber"/> returns the first answer without advancing, so several systems may read one struct.
+    /// </summary>
+    public float TrackHold(InputActionId ActionId,bool Held,bool Pressed,bool Released,float DeltaSeconds){
+        if(!this.HoldClocks.TryGetValue(ActionId,out var Clock)){
+            Clock=new HoldClock();
+            this.HoldClocks[ActionId]=Clock;
+        }
+        if(Clock.HasAnswer&&Clock.AnsweredFrame==this.FrameNumber){ return Clock.Answer; }
+        var Delta=float.IsFinite(DeltaSeconds)&&DeltaSeconds>0?DeltaSeconds:0;
+        var Result=0f;
+        if(Released){
+            Result=Clock.Active?Clock.Seconds+Delta:0;
+            Clock.Active=false;
+            Clock.Seconds=0;
+        }
+        if(Held){
+            if(Pressed||!Clock.Active){
+                Clock.Active=true;
+                Clock.Seconds=0;
+                if(!Released){ Result=0; }
+            } else if(!Released){
+                Clock.Seconds+=Delta;
+                Result=Clock.Seconds;
+            }
+        } else if(!Released){
+            Clock.Active=false;
+            Clock.Seconds=0;
+        }
+        Clock.HasAnswer=true;
+        Clock.AnsweredFrame=this.FrameNumber;
+        Clock.Answer=Result;
+        return Result;
+    }
+    private sealed class HoldClock {
+        internal bool Active;
+        internal float Seconds;
+        internal bool HasAnswer;
+        internal ulong AnsweredFrame;
+        internal float Answer;
+    }
     public static string ComputeActionHash(IEnumerable<InputActionValue>Values){
         ArgumentNullException.ThrowIfNull(Values);
         using var Stream=new MemoryStream();
@@ -92,6 +143,7 @@ public sealed class InputServer {
     private static bool IsRelative(InputControl Control)=>Control.Kind is InputControlKind.RelativeAxis1D or InputControlKind.RelativeAxis2D;
     public void ProcessEvents(IEnumerable<InputEvent>Events){
         ArgumentNullException.ThrowIfNull(Events);
+        this.FrameNumber++;
         this.Frame.Clear();
         this.RelativeFrame.Clear();
         foreach(var EventValue in Events.OrderBy(static Value=>Value.Timestamp.Ticks).ThenBy(static Value=>Value.DeviceId.ToString(),StringComparer.Ordinal).ThenBy(static Value=>Value.Sequence)){

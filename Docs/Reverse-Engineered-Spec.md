@@ -451,3 +451,16 @@
   - `KillZ`(PostPhysics): 位置の高さが `Height`(既定 −10485.75 m)より低い Pawn を壊す(根なら Scene ごと)。壊したら `PawnDestroyed` を送る。`PlayerStarts.TryPick(World, First | Random, 種)` が PlayerStart を選ぶ(無作為は SplitMix64 の決定的な選び方)。テンプレートの `RespawnPlayer`・`RespawnVehicle` が `Spawner.Spawn` で新しい Pawn を出し、カメラが引き継ぐ。
   - 後から作る `SkeletalMesh`: `RenderRoster.BindSkeletalMesh` が資産ごとのプールからスキンつきメッシュとマテリアルの組を使い、足りなければ `AddMesh` で足す(パレットのリングの作り直しで GPU の待ちが 1 回)。Entity が消えると組はプールへ戻る。
 - Result: MatchesWithDocumentedExtension(ADR-0078 / M0107。足の IK は解析的な 2 ボーン IK、一人称のカメラは固定の目の位置。差は `Docs/Milestones/M0107-Characters-And-Animation.md`)。
+
+## RE-M0108 — 入力の拡張
+
+- Confidence: High(単体テスト、生成されたコードの文字列、WARP の実走、SDK パッケージから作ったゲームの実行で確認)。実機のゲームパッド・マウスは未確認(自動実行は実機の入力を読まない)。UE の `ElapsedSeconds` との 1 フレームの差は推測(UE のソースは読んでいない)
+- Evidence: `Core/InputActionDeclarations.cs`、`Windows/Input/InputServer.cs`、`Windows/Platform/Win32InputEventAdapter.cs`・`Win32Window.cs`、`CodeAnalysis/InputActionsEmitter.cs`、`Runtime.Windows/RuntimeAutomation.cs`、`Templates/CSharpGameEngine.Templates.TopDown/Gameplay/ClickToMove.cs`、`Templates/CSharpGameEngine.Templates.Vehicle/Gameplay/`
+- Observed behavior:
+  - `Axis`(`Value` は -1〜1): `[Keys]` の各キーが +1、`[NegativeKeys]` の各キーが -1、トリガーは 0〜1、スティックの片方の軸(`Gamepad_LeftX/LeftY/RightX/RightY` の 1D の制御。Y は上が正)は -1〜1、ボタンは押している間 +1。割り当ての合計を `Axis.FromSum` が -1〜1 に丸め、NaN と無限大は 0。`[Gamepad]` の値は不感帯(既定: スティック 0.2、トリガー 0.1。以下は 0、それより上は残りの幅へ引き伸ばす)、倍率、反転の順に整える。ボタンには書けず、不感帯が 0 以上 1 未満でない・倍率が有限で 0 より大きくないものは INPUT005。
+  - `Button.HeldSeconds`: `InputServer.TrackHold` が操作ごとの時計を持つ。押したフレームは 0、押している間は各フレームの経過時間(`Read` に渡す値は 0.1 秒で頭打ち)を足した値、離したフレームはそれまでの合計(そのフレームの経過時間を含む)、それ以外は 0。同じフレームで押して離すと 0、離したフレームに押し直すと離した値を返して新しい時計を 0 から始める。同じ `FrameNumber`(`ProcessEvents` の回数)の読み直しは進まない。負・NaN・無限大の経過時間は 0。`ReleasedBefore(秒)` は離したフレームで `HeldSeconds < 秒`(ちょうど同じ長さは偽)。
+  - `Look` は `MouseAxis.DeltaX`(横だけ)・`DeltaY`(縦だけ。上が正)と、スティックの片方の軸(`StickAxis`)を受ける。`InputMaskModifier` が反対の軸を 0 にし、スティックの Y は `InputSwizzleModifier` で `Look` の Y へ移る。
+  - 自動実行の入力 `コード=値@開始-終了`: `GamepadLeftX|LeftY|RightX|RightY|LeftTrigger|RightTrigger` は範囲の間その値で外は 0(コントローラーは最初の呼び出しで接続され、それまでの値を保つ)、`GamepadSouth|East|West|North|LeftShoulder|RightShoulder` は 0 以外で押す、`MouseDeltaX|MouseDeltaY` は範囲の各フレームに値のカウントだけ動かす。値は有限の数だけで、未知の `Gamepad*`・`MouseDelta*` と、値を取らないコードへの `=` は起動時に拒否する。
+  - TopDown(`ClickToMove`): 押した瞬間に `MoveIntent.Stop()` して、カーソルの下の地面を `ClickDestination` に覚える。押している間は、地面が見つかれば覚え直し、Pawn の位置からその点への 3 次元の単位ベクトルを `MoveIntent.Direction` に直接書く(見つからないフレームは 0)。離した瞬間に、`ReleasedBefore(0.5)` かつ覚えた地面があれば `MoveTo`(ナビメッシュの経路)と目印の `Spawner.Spawn<CursorMarker>`、そうでなければ `Stop()`。
+  - Vehicle: `PlayerActions` は `Axis Throttle`(W・Up・右トリガー・西ボタン)、`Axis Brake`(S・Down・左トリガー・南ボタン)、`Axis Steering`(D/Right と A/Left、左スティックの横)、`Button Handbrake`(Space・左ショルダー)、`Look LookAround`(マウスの横・右スティックの横。使われない)。`VehicleControls` は `Drive = Throttle - Brake`、`Steering = Steering`、`Handbrake = Handbrake.Held`。
+- Result: MatchesWithDocumentedExtension(ADR-0078 / M0108。差は `Docs/Milestones/M0108-Input-Extensions.md`)。

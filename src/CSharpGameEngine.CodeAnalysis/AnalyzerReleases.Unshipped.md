@@ -44,6 +44,7 @@ INPUT001 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 INPUT002 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 INPUT003 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 INPUT004 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
+INPUT005 | CSharpGameEngine.Input.CodeGen | Error | InputActionsDiagnostics
 SCENE100 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE101 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE102 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics

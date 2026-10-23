@@ -18,7 +18,10 @@ namespace CSharpGameEngine.Runtime.Windows;
 public sealed class RuntimeAutomation {
     public const string FramesVariable="CGE_AUTOMATION_FRAMES";
     public const string CaptureVariable="CGE_AUTOMATION_CAPTURE";
-    /// <summary><c>Code@Start-End</c>を<c>;</c>で区切った押下予定。StartからEnd直前までの表示フレームの間、押下し続ける。</summary>
+    /// <summary>
+    /// <c>Code[=Value]@Start-End</c>を<c>;</c>で区切った押下予定。StartからEnd直前までの表示フレームの間、押下し続ける。
+    /// <c>Value</c>は、ゲームパッドの軸・トリガー(<c>GamepadRightTrigger=0.5@10-40</c>)の値と、マウスの移動量(<c>MouseDeltaX=12@5-9</c>。範囲の各フレームのカウント)に書く(M0108)。
+    /// </summary>
     public const string InputVariable="CGE_AUTOMATION_INPUT";
     public const string ReportVariable="CGE_AUTOMATION_REPORT";
     /// <summary>The scripted cursor, <c>x,y</c> as fractions of the client area (0..1 from the top left). A run with it never reads the real cursor.</summary>
@@ -78,22 +81,55 @@ public sealed class RuntimeAutomation {
                 ||!int.TryParse(Entry.AsSpan(At+1,Dash-At-1),NumberStyles.None,CultureInfo.InvariantCulture,out var Start)
                 ||!int.TryParse(Entry.AsSpan(Dash+1),NumberStyles.None,CultureInfo.InvariantCulture,out var End)
                 ||End<=Start||Entry.AsSpan(0,At).ContainsAny(' ','\t')){
-                Error=$"'{Entry}' is not Code@Start-End with Start < End.";
+                Error=$"'{Entry}' is not Code[=Value]@Start-End with Start < End.";
                 return false;
             }
-            Result.Add(new RuntimeAutomationKeyHold(Entry[..At],Start,End));
+            var Code=Entry[..At];
+            var Value=1f;
+            var ValueAt=Code.IndexOf('=');
+            if(ValueAt>=0){
+                // M0108: an analog control takes its value (a gamepad axis or trigger, or the mouse counts per frame).
+                if(!float.TryParse(Code.AsSpan(ValueAt+1),NumberStyles.Float,CultureInfo.InvariantCulture,out Value)||!float.IsFinite(Value)){
+                    Error=$"'{Entry}' has a value that is not a finite number.";
+                    return false;
+                }
+                Code=Code[..ValueAt];
+                if(!IsAnalogCode(Code)){
+                    Error=$"'{Entry}': '{Code}' does not take a value; only GamepadLeftX/LeftY/RightX/RightY, GamepadLeftTrigger/RightTrigger, the gamepad buttons and MouseDeltaX/MouseDeltaY do.";
+                    return false;
+                }
+            }
+            if(Code.Length==0
+                ||Code.StartsWith("Gamepad",StringComparison.Ordinal)&&!Win32InputEventAdapter.IsGamepadInjectionCode(Code)
+                ||Code.StartsWith("MouseDelta",StringComparison.Ordinal)&&!IsMouseDeltaCode(Code)){
+                Error=$"'{Entry}' names an unknown control '{Code}'.";
+                return false;
+            }
+            Result.Add(new RuntimeAutomationKeyHold(Code,Start,End,Value));
         }
         return true;
     }
-    /// <summary>Holds each scheduled key while the frame about to be presented is inside one of its ranges.</summary>
+    private static bool IsMouseDeltaCode(string Code)=>Code is "MouseDeltaX" or "MouseDeltaY";
+    private static bool IsAnalogCode(string Code)=>IsMouseDeltaCode(Code)||Win32InputEventAdapter.IsGamepadInjectionCode(Code);
+    /// <summary>
+    /// Holds each scheduled key while the frame about to be presented is inside one of its ranges. <c>MouseLeft</c> holds the left mouse button, <c>MouseDeltaX</c> and
+    /// <c>MouseDeltaY</c> move the mouse by their value in counts every frame of the range, <c>Gamepad…</c> sets a controller axis, trigger or button to its value
+    /// (0 outside the range), and anything else is a keyboard key (M0108).
+    /// </summary>
     internal void ApplyInput(Win32Window Window){
         var Frame=this.PresentedFrames;
+        var DeltaX=0f;
+        var DeltaY=0f;
         foreach(var Code in this.Input.Select(static Hold=>Hold.Code).Distinct(StringComparer.Ordinal)){
-            var Held=this.Input.Any(Hold=>Hold.Code==Code&&Hold.Contains(Frame));
-            // "MouseLeft" holds the left mouse button; anything else is a keyboard key.
-            if(Code.StartsWith("Mouse",StringComparison.Ordinal)){ Window.InjectMouseButton(Code["Mouse".Length..],Held); }
+            var Active=this.Input.FirstOrDefault(Hold=>Hold.Code==Code&&Hold.Contains(Frame));
+            var Held=Active.Code is not null;
+            if(Code=="MouseDeltaX"){ if(Held){ DeltaX+=Active.Value; } }
+            else if(Code=="MouseDeltaY"){ if(Held){ DeltaY+=Active.Value; } }
+            else if(Code.StartsWith("Mouse",StringComparison.Ordinal)){ Window.InjectMouseButton(Code["Mouse".Length..],Held); }
+            else if(Code.StartsWith("Gamepad",StringComparison.Ordinal)){ Window.InjectGamepad(Code,Held?Active.Value:0f); }
             else { Window.InjectKey(Code,Held); }
         }
+        if(DeltaX!=0f||DeltaY!=0f){ Window.InjectMouseDelta(DeltaX,DeltaY); }
     }
     /// <summary>Sound requests the game made so far (ADR-0077), and how many a device actually started. A verification reads them from the report.</summary>
     private int AudioRequests;
@@ -228,7 +264,10 @@ public sealed class RuntimeAutomation {
         return Crc;
     }
 }
-/// <summary>One scheduled key hold: pressed from <see cref="StartFrame"/> up to, not including, <see cref="EndFrame"/>.</summary>
-public readonly record struct RuntimeAutomationKeyHold(string Code,int StartFrame,int EndFrame) {
+/// <summary>
+/// One scheduled hold: pressed from <see cref="StartFrame"/> up to, not including, <see cref="EndFrame"/>. <see cref="Value"/> is 1 for a key or button, and the
+/// amount for an analog control (a gamepad axis or trigger; the mouse counts moved per frame).
+/// </summary>
+public readonly record struct RuntimeAutomationKeyHold(string Code,int StartFrame,int EndFrame,float Value=1f) {
     public bool Contains(int Frame)=>Frame>=this.StartFrame&&Frame<this.EndFrame;
 }

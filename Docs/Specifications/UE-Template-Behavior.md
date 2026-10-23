@@ -81,30 +81,30 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | 対象 | 内容(値) | 状態 | 担当 |
 |---|---|---|---|
 | `IMC_Default` | `IA_SetDestination_Click` ← LeftMouseButton、`IA_SetDestination_Touch` ← Touch1 | クリックは済、タッチは対象外 | — |
-| Controller の既定値 | `PressedThreshold=0.5` s、`FXCursor=FX_Cursor_Success`、カーソルを表示、クリックのイベントを有効にする | 一部 | M0108 |
-| `IA_SetDestination_Click` Started | `StopMovement()`。カーソルの下に当たりがあれば `CachedDestination = 当たりの位置` | 未(押したら止まる処理が無い) | M0108 |
-| 同 Triggered(押している間) | 当たりがあれば `CachedDestination` を更新し、`Follow(位置)` = `AddMovementInput(GetDirectionUnitVector(Pawn の位置, 位置), 1.0)` | 一部(今は `MoveTo` で目的地へ歩く) | M0108 |
-| 同 Canceled / Completed(離した) | 押していた時間 `ElapsedSeconds < PressedThreshold` なら `MoveTo(CachedDestination)` = `SimpleMoveToLocation`(ナビメッシュの経路)+ `SpawnSystemAtLocation(FXCursor, 位置)` | 一部(目印は `Spawner.Spawn<CursorMarker>` で出す。M0105 済。ただし押した瞬間に出す。経路は M0106 済: `MoveIntent.MoveTo` が Navigation プラグインのナビメッシュの経路に沿って歩く。短押しの判定は未) | M0106 済(経路)・M0108(短押し) |
+| Controller の既定値 | `PressedThreshold=0.5` s、`FXCursor=FX_Cursor_Success`、カーソルを表示、クリックのイベントを有効にする | 実装済み(`ClickToMove.PressedThreshold` = 0.5 s。`Button.ReleasedBefore`、`InputActionBindingTests.AHoldOfExactlyTheThreshold…`、`InputActionValueTypesTests.ARelease_IsShortOnlyWhen…`。`FXCursor` は `CursorMarker`、カーソルは表示のまま(TopDown は `CaptureMouse` なし)、クリックのイベントは `Picking.TryPick`) | M0108 |
+| `IA_SetDestination_Click` Started | `StopMovement()`。カーソルの下に当たりがあれば `CachedDestination = 当たりの位置` | 実装済み(`ClickToMove` が `Button.Pressed` で `MoveIntent.Stop()` を呼び、`ClickDestination`(`CachedDestination`)に当たりを覚える。WARP の実走 `CGE-TOPDOWN-CLICK` / `-LONG-PRESS`)。当たりが無いときは覚え直さない | M0108 |
+| 同 Triggered(押している間) | 当たりがあれば `CachedDestination` を更新し、`Follow(位置)` = `AddMovementInput(GetDirectionUnitVector(Pawn の位置, 位置), 1.0)` | 実装済み(`Button.Held` の間、当たりがあれば `ClickDestination` を更新し、`MoveIntent.Direction` に Pawn の位置から当たりへの 3 次元の単位ベクトルを直接書く。ナビメッシュは使わない。当たりが無いフレームは入力 0。実走 `CGE-TOPDOWN-LONG-PRESS`: 押している間に 17.414 m 歩き続ける) | M0108 |
+| 同 Canceled / Completed(離した) | 押していた時間 `ElapsedSeconds < PressedThreshold` なら `MoveTo(CachedDestination)` = `SimpleMoveToLocation`(ナビメッシュの経路)+ `SpawnSystemAtLocation(FXCursor, 位置)` | 実装済み(`Button.ReleasedBefore(0.5)` が真のとき、覚えた位置へ `MoveIntent.MoveTo`(M0106: Navigation プラグインのナビメッシュの経路)と `Spawner.Spawn<CursorMarker>`(M0105)。偽(長押し)なら `MoveIntent.Stop()` だけ。目印は短押しの離したフレームに出て、押した瞬間には出ない: `ClickToMoveVerification` が目印の出るフレームを判定する) | M0106 済(経路)・M0108 済(短押し) |
 | `GetLocationUnderCursor` | `GetHitResultUnderCursorByChannel(Visibility, bTraceComplex=true)` の `bBlockingHit` と `Location` | 済(`Picking.TryPick`、三角形メッシュへの正確な光線) | — |
 | ReceivePossess と OnDestroyed | Pawn のクラスを覚え、壊れたら全 PlayerStart から無作為に 1 つを選んで生成し、Possess する | 実装済み(`RespawnTests`、`RenderRosterTests.ASkeletalMeshSpawnedAfterTheLevelLoadedIsDrawnAndItsMeshesAreReusedByTheNextOne`。テンプレートの `RespawnPlayer`。Possess は、新しい Pawn が入力を受けてカメラが引き継ぐことで表す。TopDown のレベルの PlayerStart は 1 つ) | M0107 |
 | Character の値 | 腕 1400、Pitch −50 / Yaw 45(絶対回転)、衝突なし、カメラの遅れ追従(速さ 3)、FOV 55。歩行 600、加速と制動 1000、重力 1.5、空中制御 0.05、旋回 640°/s、カプセル 42 / 96 | 実装済み(`CameraLagTests`、`TemplateCharacterSceneTests.TheTopDownCameraLagsAtSpeed3AndThePlaneConstraintHasUnrealsZeroNormal`) | M0107 |
 | 平面への拘束 | `bConstrainToPlane`、`bSnapToPlaneAtStart`。`PlaneConstraintNormal` は (0, 0, 0)(UE の `ConstrainDirectionToPlane` は法線との内積を引くので、法線 0 は何も拘束しない) | 実装済み(`CharacterPlaneConstraintTests`。TopDown のシーンは UE と同じ値で拘束にならない) | M0107 |
 | `KillZ`(ThirdPerson・FirstPerson・TopDown・Vehicle 共通。PlayerStart はどのレベルも 1 つ) | `WorldSettings.KillZ` = −1048575 cm(UE の既定。Vehicle は −5000 cm)。`bEnableWorldBoundsChecks`。下回った Pawn は壊れる | 実装済み(`RespawnTests.APawnBelowItsKillZIsDestroyedAtTheNextTick`、`TheDefaultKillZIsUnrealsDefaultOfMinus1048575Centimetres`、`KillZOnTheRootOfASceneDestroysTheWholeScene`、`EveryTemplatePawnCarriesUnrealsDefaultKillZ`) | M0107 |
 | 経路の追従 | `FixedPathBrakingDistance=200`、`bUseFixedBrakingDistanceForPaths`、`bUseAccelerationForPaths` | 一部(経路の最後の点で、キャラクターの制動から計算した距離で減速して止まる。途中の点は最高速度で通り、`NavAgent.WaypointRadius`(0.3 m)に入ったら次へ。固定の制動距離 200 cm と、経路の追従で加速度を使うかの区別は無い)。目的地に着けないときは、UE の `SimpleMoveToLocation`(部分経路を許す)と同じく、行ける中で一番近い点まで歩いて止まる | M0106 済 |
-| `FX_Cursor_Success` | Niagara の `SimpleSpriteBurst`: Spawn Burst Instantaneous で Spawn Count 1・Spawn Time 0、Loop Duration 0.7 s、Loop Count 1。粒子の Lifetime 0.7 s、色 (1,1,1,1)、位置のずれ・速度・回転の力は 0。描画はメッシュ `SM_CursorMesh`(材質 `M_Cursor`: BLEND_Masked、基本色 = `Color` × 矢印のテクスチャ、粗さ 1、`TexCoordY` ← `NormalizedLoopAge`) | 一部(`ParticleBurst` の Count 1・Lifetime 0.7、`SM_CursorMesh` の矢印をアルファの切り抜きから形状にした glb。`TexCoordY` の流れは縮み 1→0.25 で代用。押した瞬間に出す)。M0105。`SpawnSystemAtLocation(FXCursor, 位置)` は `Spawner.Spawn<CursorMarker>` | M0105 済。短押しで出す条件は M0108 |
+| `FX_Cursor_Success` | Niagara の `SimpleSpriteBurst`: Spawn Burst Instantaneous で Spawn Count 1・Spawn Time 0、Loop Duration 0.7 s、Loop Count 1。粒子の Lifetime 0.7 s、色 (1,1,1,1)、位置のずれ・速度・回転の力は 0。描画はメッシュ `SM_CursorMesh`(材質 `M_Cursor`: BLEND_Masked、基本色 = `Color` × 矢印のテクスチャ、粗さ 1、`TexCoordY` ← `NormalizedLoopAge`) | 一部(`ParticleBurst` の Count 1・Lifetime 0.7、`SM_CursorMesh` の矢印をアルファの切り抜きから形状にした glb。`TexCoordY` の流れは縮み 1→0.25 で代用。短押しの離した瞬間に出す。M0108 で押した瞬間から変えた)。M0105。`SpawnSystemAtLocation(FXCursor, 位置)` は `Spawner.Spawn<CursorMarker>` | M0105 済。短押しで出す条件は M0108 済 |
 
 ## Vehicle(既定の Pawn は `BP_VehicleAdvSportsCar`、親は `BP_VehicleAdvPawnBase`)
 
 ### 入力(`IMC_Vehicle_Default`、`IMC_Vehicle_MouseLook`)
 | アクション(型) | キー | 処理 | 状態 | 担当 |
 |---|---|---|---|---|
-| `IA_Throttle`(Axis1D) | W、Up、Gamepad_FaceButton_Left、Gamepad_RightTriggerAxis | Triggered/Completed → `SetThrottleInput(値)` | 一部(デジタルだけ) | M0108・M0109 |
-| `IA_Brake`(Axis1D、Pressed/Released) | S、Down、Gamepad_FaceButton_Bottom、Gamepad_LeftTriggerAxis | Triggered → `SetBrakeInput(値)`、Started → `BrakeLights(true)`、Completed → `SetBrakeInput`・`BrakeLights(false)` | 一部 | M0109 |
-| `IA_Steering`(Axis1D) | D、A(Negate)、Right、Left(Negate)、Gamepad_LeftX | → `SetSteeringInput(値)` | 済 | M0109 |
-| `IA_Handbrake` | SpaceBar、Gamepad_LeftShoulder | Triggered → `SetHandbrakeInput(true)`・`BrakeLights(true)`、Completed → false | 一部(ブレーキランプ無し) | M0109 |
+| `IA_Throttle`(Axis1D) | W、Up、Gamepad_FaceButton_Left、Gamepad_RightTriggerAxis | Triggered/Completed → `SetThrottleInput(値)` | 実装済み(`PlayerActions.Throttle`: `[Keys(W, Up)]`・`[Gamepad(Pad.RightTrigger)]`・`[Gamepad(Pad.West)]` の `Axis`。実走 `CGE-VEHICLE-DRIVE-ANALOG-THROTTLE`: 半分のトリガーはキーの 0.56 倍しか進まない)。簡易の車両モデルへは `VehicleIntent.Drive = Throttle - Brake` で渡す。`SetThrottleInput` に当たる別の入力は Chaos の車両(M0109) | M0108 済・M0109 |
+| `IA_Brake`(Axis1D、Pressed/Released) | S、Down、Gamepad_FaceButton_Bottom、Gamepad_LeftTriggerAxis | Triggered → `SetBrakeInput(値)`、Started → `BrakeLights(true)`、Completed → `SetBrakeInput`・`BrakeLights(false)` | 一部(`PlayerActions.Brake` は S・Down・左トリガー・南ボタンの `Axis`。簡易の車両へは `Drive` の負の側。ブレーキランプと別の `SetBrakeInput` は M0109) | M0109 |
+| `IA_Steering`(Axis1D) | D、A(Negate)、Right、Left(Negate)、Gamepad_LeftX | → `SetSteeringInput(値)` | 済(M0108 でアナログに: `PlayerActions.Steering` は `[Keys(D, Right)]`・`[NegativeKeys(A, Left)]`・`[Gamepad(Pad.LeftStick, StickAxis.X)]` の `Axis`。実走 `CGE-VEHICLE-DRIVE-ANALOG-STEERING`: 半分のスティックはキーの 0.82 倍の角度) | M0109 |
+| `IA_Handbrake` | SpaceBar、Gamepad_LeftShoulder | Triggered → `SetHandbrakeInput(true)`・`BrakeLights(true)`、Completed → false | 一部(M0108 で左ショルダー `Pad.LeftShoulder` を割り当てた。以前は南ボタンで、UE ではブレーキの割り当てと重なっていた。ブレーキランプは無し) | M0109 |
 | `IA_ToggleCamera` | Tab、Gamepad_Special_Left | 後ろのカメラを止め、FlipFlop で前と後ろのカメラを交互に有効にする | 未 | M0109 |
 | `IA_Reset` | BackSpace、Gamepad_Special_Right | リセット(下記) | 未 | M0109 |
-| `IA_LookAround`(Axis1D) | Gamepad_RightX、MouseX(`IMC_Vehicle_MouseLook`) | 後ろの腕を Yaw に `値` だけ回す | 未 | M0109 |
+| `IA_LookAround`(Axis1D) | Gamepad_RightX、MouseX(`IMC_Vehicle_MouseLook`) | 後ろの腕を Yaw に `値` だけ回す | 一部(入力は実装済み: `PlayerActions.LookAround` は `[Mouse(MouseAxis.DeltaX)]`・`[Gamepad(Pad.RightStick, StickAxis.X)]` の `Look`。横だけを返すことは `InputActionBindingTests` で固定。後ろの腕を回す処理は無い。Vehicle のウィンドウはマウスを捕捉しないので、マウスの移動は届かない) | M0109 |
 | `IA_Headlights` | L | FlipFlop でヘッドライトの表示を切り替える | 未 | M0109 |
 | ハンドルコントローラー(`IMC_SteeringWheel`)、XR、タッチ | — | — | 対象外 | — |
 

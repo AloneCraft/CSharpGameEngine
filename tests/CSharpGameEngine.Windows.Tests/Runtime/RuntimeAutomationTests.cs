@@ -34,6 +34,33 @@ public sealed class RuntimeAutomationTests {
         Assert.False(Holds[0].Contains(40));
     }
     [Fact]
+    public void TryParseInput_ReadsTheValueOfAnAnalogControl(){
+        // M0108: a trigger or stick axis takes its value, the mouse its counts per frame; a key or button without a value is 1.
+        Assert.True(RuntimeAutomation.TryParseInput("GamepadRightTrigger=0.5@10-40;GamepadLeftX=-1@12-20;MouseDeltaX=-12.5@5-9;GamepadSouth@1-2;W@3-4",out var Holds,out var Error),Error);
+        Assert.Equal([
+            new RuntimeAutomationKeyHold("GamepadRightTrigger",10,40,0.5f),
+            new RuntimeAutomationKeyHold("GamepadLeftX",12,20,-1f),
+            new RuntimeAutomationKeyHold("MouseDeltaX",5,9,-12.5f),
+            new RuntimeAutomationKeyHold("GamepadSouth",1,2),
+            new RuntimeAutomationKeyHold("W",3,4)],Holds);
+        Assert.Equal(1f,Holds[3].Value);
+    }
+    [Theory]
+    [InlineData("W=1@1-2","does not take a value")]
+    [InlineData("MouseLeft=1@1-2","does not take a value")]
+    [InlineData("GamepadLeftX=abc@1-2","not a finite number")]
+    [InlineData("GamepadLeftX=NaN@1-2","not a finite number")]
+    [InlineData("GamepadLeftX=Infinity@1-2","not a finite number")]
+    [InlineData("GamepadLeftX=@1-2","not a finite number")]
+    [InlineData("GamepadMiddle@1-2","unknown control")]
+    [InlineData("GamepadMiddle=1@1-2","does not take a value")]
+    [InlineData("MouseDeltaZ@1-2","unknown control")]
+    [InlineData("=1@1-2","does not take a value")]
+    public void TryParseInput_RejectsABadAnalogEntry(string Text,string Reason){
+        Assert.False(RuntimeAutomation.TryParseInput(Text,out _,out var Error));
+        Assert.Contains(Reason,Error,StringComparison.Ordinal);
+    }
+    [Fact]
     public void TryParseInput_AcceptsAnEmptySchedule(){
         Assert.True(RuntimeAutomation.TryParseInput(null,out var Holds,out _));
         Assert.Empty(Holds);

@@ -3972,7 +3972,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 観測（Fact）: ThirdPerson テンプレートの `PlayerActions` から、`ContextId`、メンバー名由来の Action の ID、`CreateContext()`、`Read()`、`GeneratedInputActions.CreateServer()` が生成される。`in PlayerActions` を取る `PlayerControls` は `Systems.Input0` を読んで呼ばれ、FrameInput に入る。WARP で W と Space を送ると、従来と同じ値（歩行 15.700 m、跳躍 1.228 m、D3D12 のエラー 0）になった。
 - 実装: `Core/InputActionDeclarations.cs`、`InputActionsEmitter`、`GameSystemAnalyzer`（Resource の役割、既定フェーズ、暗黙の `RunsAfter`）、`GameSystemLoopEmitter`（保持、更新、据え付け）、`AppHost.CaptureMouse`。
 - 自動化された証拠: `InputActionsGeneratorTests` 10 件、CodeAnalysis.Tests 237/237、`verify-thirdperson-character`（WARP）。
-- 既知の差: マウスの視点（`Look`）は自動実行で再現できないので、実行での確認は未実施（生成コードの形のテストのみ）。`Axis`・`Pointer`・`Touch`・トリガーは未実装。理想コードとの違い: ゲームパッドの列挙は `Pad`、視点は `Look` 型。
+- 既知の差: マウスの視点（`Look`）は自動実行で再現できないので、実行での確認は未実施（生成コードの形のテストのみ）。`Axis`・`Pointer`・`Touch`・トリガーは未実装(この記録の時点。`Pointer` は M0101 の後、`Axis` とトリガーと `Look` の片方の軸は M0108 で実装した)。理想コードとの違い: ゲームパッドの列挙は `Pad`、視点は `Look` 型。
 - 結果: MatchesWithDocumentedExtension（ThirdPerson の範囲）。
 
 ## 2026-10-22 探索 — 音とイベント（ADR-0077 段階 5・6）
@@ -4004,7 +4004,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 観測（Fact）: 実コードを読むと、物理の `Raycast` は静的三角形メッシュに対しても外接ボックスとの交差しか見ておらず、坂の手前の何も無い所にも当たった（探査用の一時テストで、坂の端の外に高さ 0.55 m の光線が当たることを確認した）。三角形そのものへ当てるようにしたあと、`Templates/CSharpGameEngine.Templates.Vehicle` を WARP で動かすと、W を押し続けて途中で右へ切ると、カメラの移動 48.281 m、進む向きの変化 38.3°、高さ 2.685 m（一定）、D3D12 のエラー 0。最終フレームで車は壁際に後ろ姿で止まっている。ThirdPerson・FirstPerson・TopDown は同じ値（歩行 15.700 m、16.000 m、クリック移動 10.845 m）。シーン JSON の角度は回転数で、`MaxSteering` に 34 と書くと 12240° になって過剰に曲がった（0.0944444 に直して解消）。
 - 実装: `PhysicsNarrowPhase.TryRaycastMesh`、`DeterministicPhysicsWorld.Raycast`、`Vehicle`/`VehicleState`/`VehicleIntent`/`VehicleMotor`/`VehicleMotionUpdate`/`VehicleChaseView`、`Hud`/`EngineHost.Hud`、`GameProjectGenerator`（テンプレート名対応）、`GameProjectTemplateWizard`、`VSExtension.csproj`、`VSPackage*.resx`、`tools/UnrealExport` の `export_level.py`（Vehicle、Landscape の代わりの板）・`export_skeletal_mesh.py`（静的メッシュ）・`probe_vehicle_level.py`。
 - 自動化された証拠: `PhysicsMeshRaycastTests`、`VehicleMotorTests`、`VehicleDriveVerificationTests`、`GameProjectGeneratorTests`・`VsixManifestTests`（4 テンプレート）、`verify-thirdperson-character --template Vehicle`（WARP）。Windows.Tests 491 合格（2 スキップ）、VSExtension.Tests 1185、FeatureRunner.Tests 179。
-- 既知の差: UE の Chaos Vehicle（車輪ごとの物理、サスペンション、トルク曲線と変速、タイヤの滑り）ではなく簡易モデル。エンジン音、車輪の回転・ステア、画面上の文字（速度とギアはタイトルバー）、リセット、カメラ切り替え、`Axis` 入力、地形（Landscape は同じ大きさの板で代用）は未実装。`Sweep` は静的三角形メッシュを扱わない。VS のダイアログからの新規作成は手動確認（ADR-0068 のとおり）で、自動検証は `vsix.project-template` が ThirdPerson だけ。
+- 既知の差: UE の Chaos Vehicle（車輪ごとの物理、サスペンション、トルク曲線と変速、タイヤの滑り）ではなく簡易モデル。エンジン音、車輪の回転・ステア、画面上の文字（速度とギアはタイトルバー）、リセット、カメラ切り替え、`Axis` 入力、地形（Landscape は同じ大きさの板で代用）は未実装（この記録の時点。画面上の文字は M0104、`Axis` 入力は M0108 で実装した）。`Sweep` は静的三角形メッシュを扱わない。VS のダイアログからの新規作成は手動確認（ADR-0068 のとおり）で、自動検証は `vsix.project-template` が ThirdPerson だけ。
 - 結果: MatchesWithDocumentedExtension（Vehicle は簡易モデルの範囲）。
 
 ## 2026-10-22 探索 — UE テンプレートの処理の解析（ADR-0078、M0102）
@@ -4083,7 +4083,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - ほかのテンプレートの値は M0104 のときと同じ: ThirdPerson 15.700 m、FirstPerson 16.000 m、Vehicle 48.281 m・38.3°・HUD 28 状態。SDK パッケージから作った ThirdPerson と Vehicle も同じ。
 - 実装: M0105(`Docs/Milestones/M0105-Runtime-Spawn-And-Effects.md`)。決定: 描画物は Entity の増減に追従する(レンダラーの作成だけは読み込み時の一覧から)、`Spawner.Spawn<TScene>(位置)`(`Scenes.X` の値の形は、名前空間 `Scenes` と重なるので書けない)、`Lifetime` は固定 tick で数えて Scene の根なら Scene ごと壊す、粒子は不透明のメッシュで描画契約は変えない。
 - 自動化された証拠: `RecycledEntityTransformTests`(3)、`RenderServerDynamicObjectTests`(4、WARP)、`RenderRosterTests`(6、WARP)、`SpawnerLifetimeParticleTests`(13)、`SceneSpawnGeneratorTests`(4)、`ClickToMoveVerificationTests`(+4)、`verify-thirdperson-character --template TopDown`。全テスト失敗 0。
-- 既知の差: UE は目印を、押していた時間が短かったときの離した瞬間に出す(こちらは押した瞬間。押していた時間は M0108)。UE の矢印が帯に沿って流れる動き(`TexCoordY`)は、縮みで代えた。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成(`PhysicsStableId`)は未実装。実機の GPU での見た目と、初めて使う資産の読み込みの引っかかり(`WaitForGpuIdle`)は測っていない(WARP のみ)。
+- 既知の差: UE は目印を、押していた時間が短かったときの離した瞬間に出す(M0105 の時点では押した瞬間に出していた。M0108 で、押していた時間を測って短押しの離した瞬間に直した)。UE の矢印が帯に沿って流れる動き(`TexCoordY`)は、縮みで代えた。後から作る `SkeletalMesh`、ビルボードと透明の粒子、粒子ごとの色、物理の体を持つ Scene の同時の複数生成(`PhysicsStableId`)は未実装。実機の GPU での見た目と、初めて使う資産の読み込みの引っかかり(`WaitForGpuIdle`)は測っていない(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension。
 
 ## 2026-10-23 探索 — ナビメッシュのベイクと経路追従(ADR-0078、M0106)
@@ -4113,4 +4113,17 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 実装: M0107(`Docs/Milestones/M0107-Characters-And-Animation.md`)。決定: 状態機械の作り直し、足の IK は解析的な 2 ボーン IK と光線、一人称は腕のポーズのコピー + FABRIK の補正 + カメラ空間の変換による描画(描画契約は変えない)、遅れ追従は UE の式、平面の拘束は UE の値のまま、リスポーンは `KillZ` + `PlayerStarts` + `Spawner`。
 - 自動化された証拠: `LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`・`TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`(+2)・`SkinningGpuIntegrationTests`(+2)・`ClickToMoveVerificationTests`(+1)、`verify-thirdperson-character`(3 テンプレート)、`verify-template-package`(ThirdPerson・TopDown・Vehicle)。
 - 既知の差: UE の足の IK は PBIK と球のトレース。こちらは光線と 2 ボーン IK(地面の法線への足首の傾きは無い)。FABRIK の `Weight` は補間の係数と読んだ(推測)。一人称のカメラは頭のボーンでなく固定の目の位置。「持ち主にだけ見える」はカメラに見える・影を落とすのフラグで表す。実機の GPU と VS の実機は未検証。
+- 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-23 探索 — 入力の拡張(ADR-0078、M0108)
+- 意図: `[InputActions]` に 1 軸のアナログ値・押していた時間・マウスの片方の軸を足し、TopDown のクリック移動(短押しと長押し)と Vehicle のアナログのアクセル・ブレーキ・ハンドルを UE のとおりにする。
+- 観測(Fact):
+  - UE の `BP_TopDownController`(`.artifacts/UnrealExport/logic/TopDown/BP_TopDownController.logic.txt`): Started は `StopMovement()` と `CachedDestination` の更新、Triggered は `CachedDestination` を更新して `Follow`(`AddMovementInput(GetDirectionUnitVector(Pawn の位置, 位置), 1)`。ナビメッシュを使わない)、Canceled と Completed は `ElapsedSeconds < PressedThreshold` なら `MoveTo`(`SimpleMoveToLocation` と、その中の `SpawnSystemAtLocation(FXCursor)`)。目印は `MoveTo` の中にあるので、短押しの離した瞬間だけに出る(M0105 は押した瞬間に出していた)。
+  - 自動実行の 1 フレームは 8/60 秒だが、`Read` に渡す経過時間は 0.1 秒で頭打ち。M0107 までのクリック(フレーム 20 から 25 の前まで、5 フレーム)は、離したフレームの `HeldSeconds` がちょうど 0.5 秒で、短押しの判定が厳密な不等号なので長押しに分かれる。実走のクリックは 4 フレーム(0.4 秒)に短くした。
+  - 実走(WARP): ThirdPerson 15.700 m、FirstPerson 16.000 m、Vehicle 48.281 m・38.3°(以上、修正前と同じ)。TopDown はナビメッシュなし 9.865 m → 9.606 m、ナビメッシュあり (6.75, 7.14) → (6.79, 6.84)。切り分け: クリックを 4 フレームにして、直接歩く処理を入れずに(M0107 の `ClickToMove` のまま)走らせると 9.625 m と (6.63, 6.67)。つまり変化の大半はクリックを 1 フレーム短くしたことで、押している間の直接歩きが加える差は 0.02 m と 0.2 m ほど。D3D12 のエラーは 0。
+  - 長押し(フレーム 20 から 45 の前まで): 押している間に 17.414 m 歩き(中央の台から落ちるところまで。UE の `Follow` も台の縁を知らない)、離したあとは 0.378 m で止まり、目印は出ない(描画物 56 → 56)。
+  - Vehicle: 右トリガー 0.5 とキーのハンドルは、キーのアクセルの 0.56 倍(26.889 m / 48.281 m)しか進まない。左スティック 0.5 とキーのアクセルは、キーのハンドルの 0.82 倍の角度(31.5° / 38.3°)。
+- 実装: M0108(`Docs/Milestones/M0108-Input-Extensions.md`)。決定: `Axis`(複数の割り当ては足して -1〜1)、`Button.HeldSeconds`(各フレームの時間の足し算、離したフレームはそのフレームを含む)、`ReleasedBefore`(厳密な不等号)、スティックの軸を 1D の制御としても報告、自動実行の入力に値、TopDown の `ClickDestination` Component、Vehicle の `Drive = Throttle - Brake`。
+- 自動化された証拠: `InputActionValueTypesTests`(Core、+22)、`InputActionBindingTests`(Windows、+29)、`Win32InputEventAdapterTests`(更新)、`RuntimeAutomationTests`(+11)、`InputActionsGeneratorTests`(+35)、`ClickToMoveVerificationTests`(+10)、`VehicleDriveVerificationTests`(+11)、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(ThirdPerson・TopDown・Vehicle)。
+- 既知の差: UE の `ElapsedSeconds` と、離したフレームの値が 1 フレーム(0.1 秒以内)ずれうる(UE のソースで確かめていない)。Vehicle の `IA_LookAround` は入力の宣言だけで後ろの腕を回さず、Vehicle のウィンドウはマウスを捕捉しないのでマウスの移動は届かない。`Drive = Throttle - Brake` は簡易の車両モデルのため(別々の入力は M0109)。`Touch` は未実装。実機のゲームパッドとマウスは未検証。
 - 結果: MatchesWithDocumentedExtension。

@@ -26,6 +26,11 @@ public sealed class Win32InputEventAdapter {
     public static InputControl GamepadRightStick=>new(InputDeviceKind.Gamepad,"Gamepad_Right2D",InputControlKind.Axis2D);
     public static InputControl GamepadLeftTrigger=>new(InputDeviceKind.Gamepad,"Gamepad_LeftTriggerAxis",InputControlKind.Axis1D);
     public static InputControl GamepadRightTrigger=>new(InputDeviceKind.Gamepad,"Gamepad_RightTriggerAxis",InputControlKind.Axis1D);
+    /// <summary>One axis of a stick as its own control (Unreal's Gamepad_LeftX / Gamepad_LeftY / Gamepad_RightX / Gamepad_RightY, M0108): a dead zone per axis, not by length.</summary>
+    public static InputControl GamepadLeftX=>new(InputDeviceKind.Gamepad,"Gamepad_LeftX",InputControlKind.Axis1D);
+    public static InputControl GamepadLeftY=>new(InputDeviceKind.Gamepad,"Gamepad_LeftY",InputControlKind.Axis1D);
+    public static InputControl GamepadRightX=>new(InputDeviceKind.Gamepad,"Gamepad_RightX",InputControlKind.Axis1D);
+    public static InputControl GamepadRightY=>new(InputDeviceKind.Gamepad,"Gamepad_RightY",InputControlKind.Axis1D);
     private GamepadSnapshot Gamepad;
     /// <summary>
     /// Turns a polled controller state into events: button presses/releases, stick and trigger value
@@ -45,8 +50,45 @@ public sealed class Win32InputEventAdapter {
         }
         if(State.LeftStick!=Previous.LeftStick){ this.Enqueue(this.GamepadDevice,GamepadLeftStick,InputEventKind.ValueChanged,new InputValue(State.LeftStick.X,State.LeftStick.Y)); }
         if(State.RightStick!=Previous.RightStick){ this.Enqueue(this.GamepadDevice,GamepadRightStick,InputEventKind.ValueChanged,new InputValue(State.RightStick.X,State.RightStick.Y)); }
+        // The same movement once more per axis, for bindings that use one axis of a stick (M0108).
+        if(State.LeftStick.X!=Previous.LeftStick.X){ this.Enqueue(this.GamepadDevice,GamepadLeftX,InputEventKind.ValueChanged,new InputValue(State.LeftStick.X,0)); }
+        if(State.LeftStick.Y!=Previous.LeftStick.Y){ this.Enqueue(this.GamepadDevice,GamepadLeftY,InputEventKind.ValueChanged,new InputValue(State.LeftStick.Y,0)); }
+        if(State.RightStick.X!=Previous.RightStick.X){ this.Enqueue(this.GamepadDevice,GamepadRightX,InputEventKind.ValueChanged,new InputValue(State.RightStick.X,0)); }
+        if(State.RightStick.Y!=Previous.RightStick.Y){ this.Enqueue(this.GamepadDevice,GamepadRightY,InputEventKind.ValueChanged,new InputValue(State.RightStick.Y,0)); }
         if(State.LeftTrigger!=Previous.LeftTrigger){ this.Enqueue(this.GamepadDevice,GamepadLeftTrigger,InputEventKind.ValueChanged,new InputValue(State.LeftTrigger,0)); }
         if(State.RightTrigger!=Previous.RightTrigger){ this.Enqueue(this.GamepadDevice,GamepadRightTrigger,InputEventKind.ValueChanged,new InputValue(State.RightTrigger,0)); }
+    }
+    private GamepadSnapshot Injected=new(true,0,0f,0f,default,default);
+    private static readonly (string Code,ushort Mask)[]InjectableButtons=[
+        ("GamepadSouth",0x1000),("GamepadEast",0x2000),("GamepadWest",0x4000),("GamepadNorth",0x8000),("GamepadLeftShoulder",0x0100),("GamepadRightShoulder",0x0200),
+    ];
+    private static readonly string[]InjectableAxes=["GamepadLeftX","GamepadLeftY","GamepadRightX","GamepadRightY","GamepadLeftTrigger","GamepadRightTrigger"];
+    /// <summary>Whether <paramref name="Code"/> names a scripted gamepad axis, trigger or button (<see cref="InjectGamepad"/>).</summary>
+    public static bool IsGamepadInjectionCode(string Code)=>Array.IndexOf(InjectableAxes,Code)>=0||Array.Exists(InjectableButtons,Pair=>Pair.Code==Code);
+    /// <summary>
+    /// Sets one control of a scripted controller (automation, M0108) and records the change: axes and triggers take <paramref name="Value"/> (a non-finite value reads 0),
+    /// buttons are down for a non-zero value. The controller is connected from the first call and keeps what the earlier calls set.
+    /// </summary>
+    public void InjectGamepad(string Code,float Value){
+        var State=this.Injected;
+        var Amount=float.IsFinite(Value)?Value:0f;
+        State=Code switch {
+            "GamepadLeftX"=>State with { LeftStick=new System.Numerics.Vector2(Amount,State.LeftStick.Y) },
+            "GamepadLeftY"=>State with { LeftStick=new System.Numerics.Vector2(State.LeftStick.X,Amount) },
+            "GamepadRightX"=>State with { RightStick=new System.Numerics.Vector2(Amount,State.RightStick.Y) },
+            "GamepadRightY"=>State with { RightStick=new System.Numerics.Vector2(State.RightStick.X,Amount) },
+            "GamepadLeftTrigger"=>State with { LeftTrigger=Amount },
+            "GamepadRightTrigger"=>State with { RightTrigger=Amount },
+            _=>State with { Buttons=ApplyButton(State.Buttons,Code,Amount!=0f) },
+        };
+        this.Injected=State;
+        this.RecordGamepad(State);
+    }
+    private static ushort ApplyButton(ushort Buttons,string Code,bool Down){
+        foreach(var (ButtonCode,Mask) in InjectableButtons){
+            if(ButtonCode==Code){ return Down?(ushort)(Buttons|Mask):(ushort)(Buttons&~Mask); }
+        }
+        throw new ArgumentException($"'{Code}' is not a scripted gamepad control.",nameof(Code));
     }
     public static long TimestampFrequency=>Stopwatch.Frequency;
     public WindowId WindowId { get;}

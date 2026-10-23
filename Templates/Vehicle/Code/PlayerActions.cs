@@ -1,27 +1,28 @@
 using CSharpGameEngine.Input;
 namespace Vehicle;
-/// <summary>車の操作。アナログ軸(Axis)は-1〜1または0〜1に正規化され、キーボードでは押している間1になる。</summary>
+/// <summary>車の操作。アナログ軸(Axis)は-1〜1に丸められ、キーでは押している間±1になる(M0108で実装した書き方)。</summary>
 [InputActions]
 public partial struct PlayerActions {
     [Keys(Key.W,Key.Up)]
-    [Gamepad(Trigger.Right)]
+    [Gamepad(Pad.RightTrigger)]
+    [Gamepad(Pad.West)]
     public Axis Throttle;
     [Keys(Key.S,Key.Down)]
-    [Gamepad(Trigger.Left)]
+    [Gamepad(Pad.LeftTrigger)]
+    [Gamepad(Pad.South)]
     public Axis Brake;
-    [Keys(Negative:Key.A,Positive:Key.D)]
-    [Keys(Negative:Key.Left,Positive:Key.Right)]
-    [Gamepad(Pad.LeftStick,Component.X)]
+    [Keys(Key.D,Key.Right)]
+    [NegativeKeys(Key.A,Key.Left)]
+    [Gamepad(Pad.LeftStick,StickAxis.X)]
     public Axis Steering;
     [Keys(Key.Space)]
-    [Gamepad(Pad.West)]
+    [Gamepad(Pad.LeftShoulder)]
     public Button Handbrake;
-    [Keys(Key.R)]
+    [Keys(Key.Backspace)]
     public Button Reset;
-    [Keys(Key.C)]
-    [Gamepad(Pad.North)]
+    [Keys(Key.Tab)]
     public Button ToggleCamera;
-    [Mouse(MouseAxis.Delta)]
-    [Gamepad(Pad.RightStick)]
-    public Look Look;
+    [Mouse(MouseAxis.DeltaX)]
+    [Gamepad(Pad.RightStick,StickAxis.X)]
+    public Look LookAround;
 }

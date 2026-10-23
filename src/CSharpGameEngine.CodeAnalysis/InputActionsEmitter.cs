@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,7 +10,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <summary>
 /// ADR-0077 stage 4: <c>[InputActions] partial struct</c>の宣言から、入力マップのContext・ActionのID・毎フレームの
 /// <c>Read</c>を生成する。IDは<c>StableId.FromName</c>で型名とメンバー名から決める(GUIDを書かせない)。
-/// 値(<c>Stick</c>/<c>Look</c>/<c>Button</c>)の意味は<c>CSharpGameEngine.Input</c>の宣言型にあり、ここは割り当てを
+/// 値(<c>Stick</c>/<c>Look</c>/<c>Button</c>/<c>Axis</c>)の意味は<c>CSharpGameEngine.Input</c>の宣言型にあり、ここは割り当てを
 /// <c>InputBinding</c>へ写すだけ。生成されたコードはランタイム型を完全修飾名で参照する(CodeAnalysisは参照しない: ADR-0001)。
 /// </summary>
 internal static class InputActionsEmitter {
@@ -17,6 +18,8 @@ internal static class InputActionsEmitter {
     private const string InputNamespace="CSharpGameEngine.Input";
     private const string IdNamespace="9d6c1a52-4e0b-5b8a-8f43-5a1f0c7d2e19";
     internal const string AggregatorHintName="GameSystem.InputActions.g.cs";
+    private const float StickDeadZone=0.2f;
+    private const float TriggerDeadZone=0.1f;
 
     internal sealed class Output(string Fqn,string HintName,string Source,ImmutableArray<Diagnostic>Diagnostics):IEquatable<Output> {
         internal readonly string Fqn=Fqn;
@@ -29,7 +32,16 @@ internal static class InputActionsEmitter {
         public override int GetHashCode()=>(this.Fqn.GetHashCode()*397)^this.Source.GetHashCode();
     }
 
-    private enum FieldKind { Stick,Look,Button,Pointer }
+    private enum FieldKind { Stick,Look,Button,Pointer,Axis }
+
+    /// <summary>One <c>[Gamepad]</c> on a member: the control, the stick axis if only one is used, and the dead zone, scale and inversion after defaults (M0108).</summary>
+    private sealed class PadBinding(string Pad,string?Component,float DeadZone,float Scale,bool Invert) {
+        internal readonly string Pad=Pad;
+        internal readonly string?Component=Component;
+        internal readonly float DeadZone=DeadZone;
+        internal readonly float Scale=Scale;
+        internal readonly bool Invert=Invert;
+    }
 
     internal static Output Transform(GeneratorAttributeSyntaxContext Context,System.Threading.CancellationToken Token){
         var Type=(INamedTypeSymbol)Context.TargetSymbol;
@@ -60,27 +72,48 @@ internal static class InputActionsEmitter {
                 var Name=Attribute.AttributeClass?.ToDisplayString();
                 if(Name==InputNamespace+".KeysAttribute"){
                     var Keys=ReadKeys(Attribute);
-                    if(Kind==FieldKind.Look||Kind==FieldKind.Pointer||Kind==FieldKind.Stick&&Keys.Count!=4||Kind==FieldKind.Button&&Keys.Count==0){
+                    if(Kind==FieldKind.Look||Kind==FieldKind.Pointer||Kind==FieldKind.Stick&&Keys.Count!=4||(Kind==FieldKind.Button||Kind==FieldKind.Axis)&&Keys.Count==0){
                         Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.BindingDoesNotFit,Location,Field.Name,"Keys"));
                         Valid=false;
                     } else {
                         Model.Keys.Add(Keys);
                     }
-                } else if(Name==InputNamespace+".GamepadAttribute"&&Attribute.ConstructorArguments.Length==1){
-                    var Pad=EnumName(Attribute.ConstructorArguments[0]);
-                    var IsStick=Pad is "LeftStick" or "RightStick";
-                    if(Pad is null||Kind==FieldKind.Pointer||Kind==FieldKind.Button&&IsStick||Kind!=FieldKind.Button&&!IsStick){
-                        Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.BindingDoesNotFit,Location,Field.Name,"Gamepad("+Pad+")"));
+                } else if(Name==InputNamespace+".NegativeKeysAttribute"){
+                    var Keys=ReadKeys(Attribute);
+                    if(Kind!=FieldKind.Axis||Keys.Count==0){
+                        Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.BindingDoesNotFit,Location,Field.Name,"NegativeKeys"));
                         Valid=false;
                     } else {
-                        Model.Pads.Add(Pad);
+                        Model.NegativeKeys.Add(Keys);
+                    }
+                } else if(Name==InputNamespace+".GamepadAttribute"&&Attribute.ConstructorArguments.Length>=1){
+                    var Pad=EnumName(Attribute.ConstructorArguments[0]);
+                    var Component=Attribute.ConstructorArguments.Length>=2?EnumName(Attribute.ConstructorArguments[1]):null;
+                    var IsStick=Pad is "LeftStick" or "RightStick";
+                    var IsTrigger=Pad is "LeftTrigger" or "RightTrigger";
+                    var IsButton=Pad is "South" or "East" or "West" or "North" or "LeftShoulder" or "RightShoulder";
+                    var Fits=Pad is not null&&(Attribute.ConstructorArguments.Length<2||Component is not null)&&Kind switch {
+                        FieldKind.Stick=>IsStick&&Component is null,
+                        FieldKind.Look=>IsStick,
+                        FieldKind.Button=>IsButton,
+                        FieldKind.Axis=>IsTrigger||IsStick&&Component is not null||IsButton,
+                        _=>false,
+                    };
+                    if(Fits&&(IsTrigger||IsButton)&&Component is not null){ Fits=false; }
+                    if(!Fits){
+                        Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.BindingDoesNotFit,Location,Field.Name,"Gamepad("+Pad+(Component is null?string.Empty:","+Component)+")"));
+                        Valid=false;
+                    } else if(ReadPad(Attribute,Pad!,Component,IsButton,Location,Field.Name,Diagnostics) is { } Binding){
+                        Model.Pads.Add(Binding);
+                    } else {
+                        Valid=false;
                     }
                 } else if(Name==InputNamespace+".MouseAttribute"){
-                    var IsButton=Attribute.ConstructorArguments.Length==1&&Attribute.ConstructorArguments[0].Type?.Name=="MouseButton";
-                    if(IsButton&&Kind==FieldKind.Button&&EnumName(Attribute.ConstructorArguments[0]) is { } MouseButtonName){
+                    var IsMouseButton=Attribute.ConstructorArguments.Length==1&&Attribute.ConstructorArguments[0].Type?.Name=="MouseButton";
+                    if(IsMouseButton&&Kind==FieldKind.Button&&EnumName(Attribute.ConstructorArguments[0]) is { } MouseButtonName){
                         Model.MouseButtons.Add(MouseButtonName);
-                    } else if(!IsButton&&Kind==FieldKind.Look){
-                        Model.HasMouse=true;
+                    } else if(!IsMouseButton&&Kind==FieldKind.Look&&Attribute.ConstructorArguments.Length==1&&EnumName(Attribute.ConstructorArguments[0]) is { } MouseAxisName){
+                        Model.MouseAxes.Add(MouseAxisName);
                     } else {
                         Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.BindingDoesNotFit,Location,Field.Name,"Mouse"));
                         Valid=false;
@@ -95,7 +128,7 @@ internal static class InputActionsEmitter {
                 }
             }
 
-            if(Valid&&Model.Keys.Count==0&&Model.Pads.Count==0&&!Model.HasMouse&&Model.MouseButtons.Count==0&&!Model.HasPointer){
+            if(Valid&&Model.Keys.Count==0&&Model.NegativeKeys.Count==0&&Model.Pads.Count==0&&Model.MouseAxes.Count==0&&Model.MouseButtons.Count==0&&!Model.HasPointer){
                 Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.NoBinding,Location,Field.Name,Type.Name));
                 Valid=false;
             }
@@ -108,6 +141,44 @@ internal static class InputActionsEmitter {
         }
 
         return new Output(Fqn,HintName,BuildSource(Type,Fqn,Fields),Diagnostics.ToImmutable());
+    }
+
+    /// <summary>
+    /// Reads the dead zone, scale and inversion written on a <c>[Gamepad]</c> (M0108). A dead zone outside 0..1, a scale that is not a finite number above 0 (NaN included:
+    /// a written value is never mistaken for "not written"), or any of the three on a button is INPUT005 and gives null. A dead zone that is not written is 0.2 for a stick and 0.1 for a trigger.
+    /// </summary>
+    private static PadBinding?ReadPad(AttributeData Attribute,string Pad,string?Component,bool IsButton,Location Location,string FieldName,ImmutableArray<Diagnostic>.Builder Diagnostics){
+        float? DeadZone=null;
+        var Scale=1f;
+        var Invert=false;
+        var Failed=false;
+        foreach(var Argument in Attribute.NamedArguments){
+            var Text=Argument.Key;
+            if(IsButton){
+                Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.InvalidBindingParameter,Location,FieldName,Text,"a button has no dead zone, scale or inversion"));
+                Failed=true;
+            } else if(Text=="DeadZone"&&Argument.Value.Value is float Dead){
+                if(!(Dead>=0f&&Dead<1f)){
+                    Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.InvalidBindingParameter,Location,FieldName,"DeadZone="+Dead.ToString("R",CultureInfo.InvariantCulture),"it must be at least 0 and below 1"));
+                    Failed=true;
+                } else {
+                    DeadZone=Dead;
+                }
+            } else if(Text=="Scale"&&Argument.Value.Value is float Factor){
+                if(!(Factor>0f&&!float.IsInfinity(Factor))){
+                    Diagnostics.Add(Diagnostic.Create(InputActionsDiagnostics.InvalidBindingParameter,Location,FieldName,"Scale="+Factor.ToString("R",CultureInfo.InvariantCulture),"it must be a finite number above 0 (use Invert to flip the sign)"));
+                    Failed=true;
+                } else {
+                    Scale=Factor;
+                }
+            } else if(Text=="Invert"&&Argument.Value.Value is bool Flip){
+                Invert=Flip;
+            }
+        }
+
+        if(Failed){ return null; }
+        var IsTrigger=Pad is "LeftTrigger" or "RightTrigger";
+        return new PadBinding(Pad,Component,IsButton?0f:DeadZone??(IsTrigger?TriggerDeadZone:StickDeadZone),Scale,Invert);
     }
 
     internal static void Emit(SourceProductionContext Context,ImmutableArray<Output>Outputs){
@@ -178,8 +249,9 @@ internal static class InputActionsEmitter {
         internal readonly string Name=Name;
         internal readonly FieldKind Kind=Kind;
         internal readonly List<List<int>>Keys=[];
-        internal readonly List<string>Pads=[];
-        internal bool HasMouse;
+        internal readonly List<List<int>>NegativeKeys=[];
+        internal readonly List<PadBinding>Pads=[];
+        internal readonly List<string>MouseAxes=[];
         internal readonly List<string>MouseButtons=[];
         internal bool HasPointer;
 
@@ -188,12 +260,18 @@ internal static class InputActionsEmitter {
                 yield break;
             }
             if(this.Kind==FieldKind.Look){
-                if(this.HasMouse){ yield return "_Mouse"; }
+                if(this.MouseAxes.Count>0){ yield return "_Mouse"; }
                 if(this.Pads.Count>0){ yield return "_Stick"; }
             } else {
                 yield return string.Empty;
             }
         }
+
+        /// <summary>The literal of a float for the generated source: round-trip text, with the suffix.</summary>
+        private static string Float(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture)+"f";
+
+        /// <summary>The <c>DeadZone</c> and <c>Scale</c> arguments of a pad binding (the scale is left out when it is 1).</summary>
+        private static string Shaping(PadBinding Pad)=>", DeadZone: "+Float(Pad.DeadZone)+(Pad.Scale==1f?string.Empty:", Scale: "+Float(Pad.Scale));
 
         internal IEnumerable<string>Bindings(){
             const string Core="global::CSharpGameEngine.Core";
@@ -202,6 +280,10 @@ internal static class InputActionsEmitter {
             string Key(int Code)=> $"new {Core}.InputControl({Core}.InputDeviceKind.Keyboard, {Adapter}.KeyCode(0x{Code:X2}))";
             string Negate="new "+Input+".InputNegateModifier()";
             string Swizzle="new "+Input+".InputSwizzleModifier()";
+            string[] InvertItems(PadBinding Pad)=>Pad.Invert?new[] { Negate }:Array.Empty<string>();
+            string Modifiers(params string[] Items)=>Items.Length==0?string.Empty:$", Modifiers: new {Input}.InputModifier[] {{ {string.Join(", ",Items)} }}";
+            string PadButtonCode(string Pad)=>Pad switch { "South"=>"Gamepad_FaceButton_Bottom","East"=>"Gamepad_FaceButton_Right","West"=>"Gamepad_FaceButton_Left","LeftShoulder"=>"Gamepad_LeftShoulder","RightShoulder"=>"Gamepad_RightShoulder",_=>"Gamepad_FaceButton_Top" };
+            string PadButton(PadBinding Pad)=> $"new {Core}.InputControl({Core}.InputDeviceKind.Gamepad, \"{PadButtonCode(Pad.Pad)}\")";
             if(this.Kind==FieldKind.Stick){
                 foreach(var Set in this.Keys){
                     yield return $"new {Input}.InputBinding(Id_{this.Name}, {Key(Set[0])}, Modifiers: new {Input}.InputModifier[] {{ {Swizzle} }})";
@@ -210,14 +292,49 @@ internal static class InputActionsEmitter {
                     yield return $"new {Input}.InputBinding(Id_{this.Name}, {Key(Set[3])})";
                 }
                 foreach(var Pad in this.Pads){
-                    yield return $"new {Input}.InputBinding(Id_{this.Name}, {Adapter}.Gamepad{Pad}, DeadZone: 0.2f)";
+                    yield return $"new {Input}.InputBinding(Id_{this.Name}, {Adapter}.Gamepad{Pad.Pad}{Shaping(Pad)}{Modifiers(InvertItems(Pad))})";
                 }
             } else if(this.Kind==FieldKind.Look){
-                if(this.HasMouse){
-                    yield return $"new {Input}.InputBinding(Id_{this.Name}_Mouse, new {Core}.InputControl({Core}.InputDeviceKind.Mouse, \"Delta\", {Core}.InputControlKind.RelativeAxis2D), Modifiers: new {Input}.InputModifier[] {{ new {Input}.InputNegateModifier(X: false, Y: true) }})";
+                foreach(var Mouse in this.MouseAxes){
+                    // The mouse delta is negated in Y so that moving up looks up; DeltaX and DeltaY keep one axis of it.
+                    string[] Items=Mouse switch {
+                        "DeltaX"=>new[] { $"new {Input}.InputMaskModifier(X: false, Y: true)" },
+                        "DeltaY"=>new[] { $"new {Input}.InputMaskModifier(X: true, Y: false)",$"new {Input}.InputNegateModifier(X: false, Y: true)" },
+                        _=>new[] { $"new {Input}.InputNegateModifier(X: false, Y: true)" },
+                    };
+                    yield return $"new {Input}.InputBinding(Id_{this.Name}_Mouse, new {Core}.InputControl({Core}.InputDeviceKind.Mouse, \"Delta\", {Core}.InputControlKind.RelativeAxis2D){Modifiers(Items)})";
                 }
                 foreach(var Pad in this.Pads){
-                    yield return $"new {Input}.InputBinding(Id_{this.Name}_Stick, {Adapter}.Gamepad{Pad}, DeadZone: 0.2f)";
+                    if(Pad.Component is null){
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}_Stick, {Adapter}.Gamepad{Pad.Pad}{Shaping(Pad)}{Modifiers(InvertItems(Pad))})";
+                    } else {
+                        // One axis of the stick: its own control, and for Y the value moves to the Y of the look.
+                        var AxisItems=new List<string>();
+                        if(Pad.Component=="Y"){ AxisItems.Add(Swizzle); }
+                        if(Pad.Invert){ AxisItems.Add(Negate); }
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}_Stick, {Adapter}.Gamepad{Pad.Pad.Replace("Stick",string.Empty)}{Pad.Component}{Shaping(Pad)}{Modifiers(AxisItems.ToArray())})";
+                    }
+                }
+            } else if(this.Kind==FieldKind.Axis){
+                foreach(var Set in this.Keys){
+                    foreach(var Code in Set){
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}, {Key(Code)})";
+                    }
+                }
+                foreach(var Set in this.NegativeKeys){
+                    foreach(var Code in Set){
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}, {Key(Code)}{Modifiers(Negate)})";
+                    }
+                }
+                foreach(var Pad in this.Pads){
+                    var Invert=Pad.Invert?Modifiers(Negate):string.Empty;
+                    if(Pad.Pad is "LeftTrigger" or "RightTrigger"){
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}, {Adapter}.Gamepad{Pad.Pad}{Shaping(Pad)}{Invert})";
+                    } else if(Pad.Component is not null){
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}, {Adapter}.Gamepad{Pad.Pad.Replace("Stick",string.Empty)}{Pad.Component}{Shaping(Pad)}{Invert})";
+                    } else {
+                        yield return $"new {Input}.InputBinding(Id_{this.Name}, {PadButton(Pad)})";
+                    }
                 }
             } else {
                 foreach(var Set in this.Keys){
@@ -229,8 +346,7 @@ internal static class InputActionsEmitter {
                     yield return $"new {Input}.InputBinding(Id_{this.Name}, new {Core}.InputControl({Core}.InputDeviceKind.Mouse, \"{MouseButton}\"))";
                 }
                 foreach(var Pad in this.Pads){
-                    var Code=Pad switch { "South"=>"Gamepad_FaceButton_Bottom","East"=>"Gamepad_FaceButton_Right","West"=>"Gamepad_FaceButton_Left",_=>"Gamepad_FaceButton_Top" };
-                    yield return $"new {Input}.InputBinding(Id_{this.Name}, new {Core}.InputControl({Core}.InputDeviceKind.Gamepad, \"{Code}\"))";
+                    yield return $"new {Input}.InputBinding(Id_{this.Name}, {PadButton(Pad)})";
                 }
             }
         }
@@ -242,8 +358,10 @@ internal static class InputActionsEmitter {
             }
             if(this.Kind==FieldKind.Stick){
                 yield return $"        {{ var V = Server.ReadValue(Id_{this.Name}); Result.{this.Name} = new {Input}.Stick(V.X, V.Y); }}";
+            } else if(this.Kind==FieldKind.Axis){
+                yield return $"        {{ var V = Server.ReadValue(Id_{this.Name}); Result.{this.Name} = {Input}.Axis.FromSum(V.X); }}";
             } else if(this.Kind==FieldKind.Look){
-                var Mouse=this.HasMouse?$"Server.ReadValue(Id_{this.Name}_Mouse)":$"{Core}.InputValue.Zero";
+                var Mouse=this.MouseAxes.Count>0?$"Server.ReadValue(Id_{this.Name}_Mouse)":$"{Core}.InputValue.Zero";
                 var Stick=this.Pads.Count>0?$"Server.ReadValue(Id_{this.Name}_Stick)":$"{Core}.InputValue.Zero";
                 yield return "        {";
                 yield return $"            var M = {Mouse};";
@@ -254,7 +372,8 @@ internal static class InputActionsEmitter {
                 yield return "        {";
                 yield return "            var Pressed = false; var Released = false;";
                 yield return $"            foreach (var Action in Frame) {{ if (Action.ActionId != Id_{this.Name}) continue; if (Action.Phase == {Core}.InputActionPhase.Started) Pressed = true; else if (Action.Phase == {Core}.InputActionPhase.Canceled) Released = true; }}";
-                yield return $"            Result.{this.Name} = new {Input}.Button(!Server.ReadValue(Id_{this.Name}).IsZero, Pressed, Released);";
+                yield return $"            var Held = !Server.ReadValue(Id_{this.Name}).IsZero;";
+                yield return $"            Result.{this.Name} = new {Input}.Button(Held, Pressed, Released, Server.TrackHold(Id_{this.Name}, Held, Pressed, Released, DeltaSeconds));";
                 yield return "        }";
             }
         }
@@ -265,6 +384,7 @@ internal static class InputActionsEmitter {
         InputNamespace+".Look"=>FieldKind.Look,
         InputNamespace+".Button"=>FieldKind.Button,
         InputNamespace+".Pointer"=>FieldKind.Pointer,
+        InputNamespace+".Axis"=>FieldKind.Axis,
         _=>null,
     };
 
@@ -318,8 +438,8 @@ internal static class InputActionsDiagnostics {
 
     internal static readonly DiagnosticDescriptor UnsupportedField=new(
         id:"INPUT002",
-        title:"An [InputActions] member must be a public Stick, Look or Button field",
-        messageFormat:"Member '{0}' of '{1}' must be a public instance field of type Stick, Look or Button",
+        title:"An [InputActions] member must be a public Stick, Look, Button, Axis or Pointer field",
+        messageFormat:"Member '{0}' of '{1}' must be a public instance field of type Stick, Look, Button, Axis or Pointer",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
@@ -327,7 +447,7 @@ internal static class InputActionsDiagnostics {
     internal static readonly DiagnosticDescriptor BindingDoesNotFit=new(
         id:"INPUT003",
         title:"A binding does not fit the member's type",
-        messageFormat:"Member '{0}' cannot use {1}: Stick takes 4 keys or a gamepad stick, Look takes the mouse delta or a gamepad stick, Button takes keys or a gamepad button",
+        messageFormat:"Member '{0}' cannot use {1}: Stick takes 4 keys or a gamepad stick, Look takes the mouse delta (whole, DeltaX or DeltaY) or a gamepad stick (whole or one axis), Button takes keys, mouse buttons or a gamepad button, Axis takes Keys/NegativeKeys, a gamepad trigger, one axis of a gamepad stick or a gamepad button",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
@@ -336,6 +456,14 @@ internal static class InputActionsDiagnostics {
         id:"INPUT004",
         title:"An [InputActions] member has no binding",
         messageFormat:"Member '{0}' of '{1}' has no [Keys], [Gamepad] or [Mouse] attribute, so it can never change",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor InvalidBindingParameter=new(
+        id:"INPUT005",
+        title:"A [Gamepad] dead zone, scale or inversion is not valid",
+        messageFormat:"Member '{0}' has {1} on a [Gamepad]: {2}",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);

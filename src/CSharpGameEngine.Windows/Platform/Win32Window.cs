@@ -144,6 +144,18 @@ public sealed unsafe class Win32Window:IDisposable {
         this.InputAdapter.RecordMouseButton(Code,Pressed);
     }
 
+    /// <summary>Sets a scripted gamepad control (<see cref="Win32InputEventAdapter.InjectGamepad"/>; automation input).</summary>
+    public void InjectGamepad(string Code,float Value){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.InputAdapter.InjectGamepad(Code,Value);
+    }
+
+    /// <summary>Records a mouse movement of this many counts as if this window had received it (scripted automation input).</summary>
+    public void InjectMouseDelta(float DeltaX,float DeltaY){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.InputAdapter.RecordMouseDelta(DeltaX,DeltaY);
+    }
+
     /// <summary>The cursor in client pixels. False when the cursor position cannot be read.</summary>
     public bool TryGetCursorClient(out int X,out int Y){
         ObjectDisposedException.ThrowIf(this.Disposed,this);

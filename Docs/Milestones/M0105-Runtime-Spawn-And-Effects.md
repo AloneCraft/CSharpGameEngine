@@ -53,7 +53,7 @@ ADR-0078 の「クリック地点の目印」(TopDown の `FX_Cursor_Success`)�
   - 描画はメッシュ `SM_CursorMesh`。材質 `M_Cursor` は BLEND_Masked で、基本色 = パラメーター `Color` × 矢印のテクスチャ、不透明マスクはそのアルファ、粗さ 1。パラメーター `TexCoordY`(既定 0.58)に `Emitter.NormalizedLoopAge` を結び、テクスチャの V をずらす(矢印が帯に沿って流れる)。
 - 写した値: `Count` 1、`Lifetime` 0.7(粒子と Scene の根)。`StartScale` 1 から `EndScale` 0.25 へ縮む。UE の `TexCoordY` による矢印の流れは、シェーダーの契約を変えずには写せないので、縮みで代えた。
 - 形: エンジンはアルファの切り抜きを描かない。`SM_CursorMesh`(UE5.8 から `run_export_skeletal_mesh.cmd` + `CGE_SK_STATIC=1` で書き出した glb)は 3 本の帯の四角形(21 枚)で、矢印はテクスチャの切り抜きなので、そのまま不透明に描くと帯全体が黒く出る。`tools/UnrealExport/cut_masked_mesh.py` が、帯の四角形を 24×24 に割り、テクスチャのアルファが `alphaCutoff`(0.3333)以上のセルだけを残して、矢印の形を形状にした(色は残したテクセルの平均を材質の係数にし、テクスチャは持たせない。両面)。結果は 6,312 三角形(両面)、色は線形 (0.0023, 0.1283, 0.5353)。
-- `ClickToMove` が押した瞬間に `Spawner.Spawn<CursorMarker>(Hit.Point)` を呼ぶ。UE は「押していた時間が短かったときの離した瞬間」に出す。押していた時間を測る入力は M0108 なので、ここでは押した瞬間に出す。
+- `ClickToMove` が押した瞬間に `Spawner.Spawn<CursorMarker>(Hit.Point)` を呼ぶ。UE は「押していた時間が短かったときの離した瞬間」に出す。押していた時間を測る入力は M0108 なので、ここでは押した瞬間に出す。(M0108 で、押していた時間を測って短押しの離した瞬間に出すように変えた。)
 
 ## 作ったもの
 | 層 | 中身 |
@@ -87,5 +87,5 @@ ADR-0078 の「クリック地点の目印」(TopDown の `FX_Cursor_Success`)�
 - ビルボードの向き、透明・加算の粒子、粒子ごとの色、UE の `TexCoordY` のような材質の時間変化(描画契約の変更が要る)。
 - 後から作った `SkeletalMesh` の描画(リスポーンのキャラクターの生成は M0107 で扱う)。→ M0107 で実装した(`SkeletalMeshBindNotice` は無くなった)。
 - 物理の体を持つ Scene の同時の複数生成(`PhysicsStableId`)。
-- 押していた時間の測定(短押しだけで目印を出す UE の条件は M0108)。
+- 押していた時間の測定(短押しだけで目印を出す UE の条件は M0108 で実装した)。
 - 実機の GPU での見た目とフレーム時間、最初の 1 体の引っかかり(`WaitForGpuIdle`)の測定(WARP のみ)。

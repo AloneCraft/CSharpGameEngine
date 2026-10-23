@@ -73,4 +73,39 @@ public sealed class VehicleDriveVerificationTests {
     public void TheDriveIsScheduledAsThrottleAndASteer(){
         Assert.Equal("W@10-50;D@24-29",VehicleDriveVerification.InputSchedule);
     }
+    [Fact]
+    public void TheAnalogDrivesUseHalfATriggerWithTheKeySteeringAndHalfAStickWithTheKeyThrottle(){
+        Assert.Equal("GamepadRightTrigger=0.5@10-50;D@24-29",VehicleDriveVerification.AnalogThrottleSchedule);
+        Assert.Equal("W@10-50;GamepadLeftX=0.5@24-29",VehicleDriveVerification.AnalogSteeringSchedule);
+    }
+    [Fact]
+    public void Evaluate_DoesNotHoldAnAnalogDriveToTheKeyDrivesMinimums(){
+        // Half a trigger goes less far and half a stick turns less than the 20 m and 5 degrees that the key drive must reach.
+        Assert.Empty(VehicleDriveVerification.Evaluate(Report(TravelMeters:8f,TurnDegrees:1f),out _,AnalogDrive:true));
+        Assert.NotEmpty(VehicleDriveVerification.Evaluate(Report(TravelMeters:8f,TurnDegrees:1f),out _));
+    }
+    [Fact]
+    public void Measure_ReadsTheTravelAndTheTurnOfAReport(){
+        var Measured=VehicleDriveVerification.Measure(Report(TravelMeters:60f,TurnDegrees:12f));
+        Assert.InRange(Measured.Travel,40f,61f);
+        Assert.InRange(Measured.Turn,5f,15f);
+        Assert.Equal(default,VehicleDriveVerification.Measure(Report(Frames:30)));
+    }
+    [Fact]
+    public void EvaluateAnalog_AcceptsHalfValuesThatTravelLessAndTurnLess(){
+        Assert.Empty(VehicleDriveVerification.EvaluateAnalog(new VehicleDriveVerification.Measurement(48f,38f),new VehicleDriveVerification.Measurement(27f,59f),new VehicleDriveVerification.Measurement(52f,31f),out var Summary));
+        Assert.Contains("halfTriggerTravel=27.000",Summary,StringComparison.Ordinal);
+    }
+    [Theory]
+    [InlineData(48f,48f,10f,"at most")]
+    [InlineData(48f,60f,10f,"at most")]
+    [InlineData(48f,1f,10f,"expected at least")]
+    [InlineData(48f,float.NaN,10f,"expected at least")]
+    [InlineData(48f,27f,38f,"expected less")]
+    [InlineData(48f,27f,45f,"expected less")]
+    [InlineData(48f,27f,0f,"expected at least")]
+    public void EvaluateAnalog_RejectsValuesThatActLikeOnOffSwitches(float Keys,float HalfTrigger,float HalfStickTurn,string Expected){
+        var Failures=VehicleDriveVerification.EvaluateAnalog(new VehicleDriveVerification.Measurement(Keys,38f),new VehicleDriveVerification.Measurement(HalfTrigger,59f),new VehicleDriveVerification.Measurement(52f,HalfStickTurn),out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains(Expected,StringComparison.Ordinal));
+    }
 }

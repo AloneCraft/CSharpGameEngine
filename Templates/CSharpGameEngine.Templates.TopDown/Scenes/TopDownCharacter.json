@@ -40,6 +40,10 @@
         "members": {}
       },
       {
+        "type": "CgeTopDown.ClickDestination",
+        "members": {}
+      },
+      {
         "type": "CSharpGameEngine.Navigation.NavAgent",
         "members": {}
       },

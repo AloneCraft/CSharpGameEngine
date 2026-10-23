@@ -4732,7 +4732,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `tests/CSharpGameEngine.Navigation.Tests/`(`NavMeshFormatTests`、`NavMeshBuilderTests`、`NavMeshRouteTests`、`SceneGeometryTests`、`NavMeshCookerTests`、`TopDownLevelTests`)、`tests/CSharpGameEngine.Windows.Tests/Character/NavigationSteeringTests.cs`・`CharacterMotorTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/NavigationCookServiceTests.cs`、`GameProjectGeneratorTests`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
 - Current delta: シーンの `NavMeshBounds` と静的な衝突形状から、ビルドが `Assets/Navigation/<Id>.cgenav` を決定的に焼く(UE5.8 TopDown の RecastNavMesh の値)。`NavAgent` を持つキャラクターは、`MoveIntent.MoveTo` の目的地への経路(A* と funnel、整数だけで解く)に沿って歩く。ナビメッシュが無いときは直線、着けないときは行ける一番近い点まで。TopDown が使い、台のスロープを下り、壁の端を回って着く。
 - Conformance: MatchesWithDocumentedExtension(Recast の輪郭の単純化と斜めの辺、タイル、動的な再生成は無い。長方形の多角形)
-- Next action: TopDown の短押しと長押しの区別は M0108。既存の `Physics.Cli bake` の Cook への載せ直しは未着手。(キャラクターとアニメーションは M0107 で実装した、F-L5-043。)
+- Next action: (TopDown の短押しと長押しの区別は M0108 で実装した、F-L5-044。)既存の `Physics.Cli bake` の Cook への載せ直しは未着手。(キャラクターとアニメーションは M0107 で実装した、F-L5-043。)
 
 ## F-L5-043 — キャラクターとアニメーション(8 方向ブレンド、足の IK、一人称、カメラの遅れ、平面の拘束、リスポーン)
 
@@ -4750,4 +4750,23 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Animation/LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`AnimationRuntimeTests`・`Graphics/SkinningGpuIntegrationTests`、`Character/LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`、`Runtime/TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`)、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
 - Current delta: ABP_Unarmed の状態機械と 8 方向のブレンドスペース(UE の遷移の時間と Cubic)、足の IK、FirstPerson の腕(ポーズのコピーと背骨・肩の補正、一人称の FOV 70 と縮尺 0.6)と体(カメラに見えず影を落とす)、TopDown のカメラの遅れ追従(速さ 3)と平面への拘束(UE と同じく法線 0)、`KillZ` と PlayerStart でのリスポーン、後から作る `SkeletalMesh` の描画。描画の契約(`stage-v*`)は変えていない。
 - Conformance: MatchesWithDocumentedExtension(足の IK は解析的な 2 ボーン IK と光線、一人称のカメラは頭のボーンに付けない、FABRIK の重みの解釈、実機の GPU は未検証。詳しくは M0107 の文書)
-- Next action: M0108(入力の拡張、TopDown の短押しと長押し)。
+- Next action: (入力の拡張と TopDown の短押しと長押しは M0108 で実装した、F-L5-044。)次は M0109(Chaos 相当の車両)。
+
+## F-L5-044 — 入力の拡張(1 軸のアナログ値、押していた時間、片方の軸、TopDown の短押しと長押し)
+
+- Layer: L0/L5 — Core の宣言型(`Axis`・`Button.HeldSeconds`・`Pad`・`StickAxis`・`MouseAxis`・`[NegativeKeys]`・`[Gamepad]` の `DeadZone`/`Scale`/`Invert`)、Windows の入力(`InputServer.TrackHold`・`FrameNumber`・`InputMaskModifier`、`Win32InputEventAdapter` のスティックの軸と自動実行の入力)、L7 — `InputActionsEmitter`(`Axis`、INPUT005)、L5 — `RuntimeAutomation` の入力、L9 — TopDown の `ClickToMove`・`ClickDestination`、Vehicle の `PlayerActions`・`VehicleControls`
+- Parent capability: Input / Source Generator / Templates
+- Status: Implemented
+- Verification: TestVerified + 実走(WARP。`verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown(短押し 2 種と長押し)・Vehicle(キーとアナログ 2 種))、`verify-template-package`(ThirdPerson・TopDown・Vehicle。SDK 0.1.19))。全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクトで失敗 0(Windows.Tests 740、VSExtension.Tests 1197、FeatureRunner.Tests 222、CodeAnalysis.Tests 338、Core.Tests 154、Navigation.Tests 57)
+- Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0077-Gameplay-Code-Simplification.md`、`Docs/Specifications/Audio-Input-Platform.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Milestones/M0108-Input-Extensions.md`
+- Implementation evidence:
+  - `src/CSharpGameEngine.Core/InputActionDeclarations.cs`(`Axis`、`Button.HeldSeconds`・`ReleasedBefore`、`Pad` の末尾への追加、`StickAxis`、`MouseAxis.DeltaX/DeltaY`、`NegativeKeysAttribute`、`GamepadAttribute`)
+  - `src/CSharpGameEngine.Windows/Input/InputServer.cs`(`TrackHold`・`FrameNumber`・`InputMaskModifier`)、`src/CSharpGameEngine.Windows/Platform/Win32InputEventAdapter.cs`(`Gamepad_LeftX/LeftY/RightX/RightY`、`InjectGamepad`)、`Win32Window.cs`(`InjectGamepad`・`InjectMouseDelta`)
+  - `src/CSharpGameEngine.CodeAnalysis/InputActionsEmitter.cs`(`Axis`、`NegativeKeys`、片方の軸、INPUT005)、`AnalyzerReleases.Unshipped.md`
+  - `src/CSharpGameEngine.Runtime.Windows/RuntimeAutomation.cs`(`コード=値@開始-終了`、`MouseDeltaX/Y`、`Gamepad*`)
+  - `Templates/CSharpGameEngine.Templates.TopDown/`(`Gameplay/ClickToMove.cs`、`Scenes/TopDownCharacter.json` の `ClickDestination`)、`Templates/CSharpGameEngine.Templates.Vehicle/Gameplay/`(`PlayerActions.cs`・`VehicleControls.cs`)、`build/CSharpGameEngine.Version.props`(0.1.19)
+  - `tools/CSharpGameEngine.FeatureRunner/ClickToMoveVerification.cs`(目印のフレーム、長押し)・`VehicleDriveVerification.cs`(アナログ)
+- Tests: `tests/CSharpGameEngine.Core.Tests/InputActionValueTypesTests.cs`、`tests/CSharpGameEngine.Windows.Tests/Input/InputActionBindingTests.cs`・`Win32InputEventAdapterTests.cs`・`Runtime/RuntimeAutomationTests.cs`、`tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`・`VehicleDriveVerificationTests.cs`
+- Current delta: `[InputActions]` が 1 軸のアナログ値 `Axis`(キー ±1、トリガー、スティックの片方の軸、ボタン。不感帯・倍率・反転。複数の割り当ては足して -1〜1)、`Button.HeldSeconds`(押した瞬間 0、離した瞬間に押していた時間。`ReleasedBefore` が短押し)、マウスと右スティックの片方の軸だけの `Look` を持つ。自動実行の入力はゲームパッドの軸・トリガー・ボタンとマウスの移動量を再現できる。TopDown は UE のとおり、押している間はカーソルへ直接歩き、0.5 秒未満で離した瞬間に `MoveTo` と目印を出す(長押しは離して止まるだけ)。Vehicle はアナログのアクセル・ブレーキ・ハンドル。
+- Conformance: MatchesWithDocumentedExtension(経過時間は各フレームの時間(0.1 秒で頭打ち)の足し算、離したフレームの値はそのフレームの時間を含む。Vehicle の `LookAround` は入力の宣言だけで、後ろの腕を回す処理と、`Drive = Throttle - Brake` の合成は Chaos の車両(M0109)まで。`Touch` は未実装。詳しくは M0108 の文書)
+- Next action: M0109(Chaos 相当の車両。`IA_Brake`・`IA_Handbrake`・`IA_LookAround`・`IA_Reset`・`IA_ToggleCamera`・ヘッドライト)。

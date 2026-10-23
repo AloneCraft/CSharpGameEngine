@@ -99,16 +99,25 @@ Showcase actions use stable IDs and a dedicated context. Context priority, chord
 
 ## 入力の宣言(`[InputActions]`、ADR-0077)
 
-ゲームは、操作を `[InputActions] partial struct` で宣言する。メンバーは `Stick`(2 軸の状態値)・`Look`(このフレームに視点を回す量 turns)・`Button`(`Held`/`Pressed`/`Released`)・`Pointer`(画面上のカーソル)で、割り当ては `[Keys]`・`[Gamepad(Pad.*)]`・`[Mouse(MouseAxis.Delta)]` で書く。
+ゲームは、操作を `[InputActions] partial struct` で宣言する。メンバーは `Stick`(2 軸の状態値)・`Look`(このフレームに視点を回す量 turns)・`Button`(`Held`/`Pressed`/`Released`/`HeldSeconds`)・`Axis`(1 軸のアナログ値)・`Pointer`(画面上のカーソル)で、割り当ては `[Keys]`・`[NegativeKeys]`・`[Gamepad(Pad.*)]`・`[Mouse(MouseAxis.*)]` で書く。
 
 - Source Generator が `InputContext`、Action の ID(型名とメンバー名から `StableId.FromName`)、毎フレームの `Read` を生成し、全構造体を 1 つの `InputServer`(`GeneratedInputActions.CreateServer()`)にまとめる。最初の `RunFrame` で 1 回だけ据え付ける。
 - System は `in PlayerActions` で受ける。呼び出しの前に、その時点の `InputServer` から読み直す。入力を読む System は、`[SystemPhase]` を書かなければ FrameInput に入り、エンジンの `Window` System の後に動く。固定フェーズに置くと、tick が 0 回のフレームで `Pressed` を逃し、複数 tick のフレームで同じ `Look` を重ねて受けるので、明示しないこと。
 - `Look` はマウスの移動量(`MouseTurnsPerCount`)と、スティックの倒した量にフレーム時間を掛けたもの(`StickTurnsPerSecond`)を同じ単位にする。
 - `AppHost.CaptureMouse` が true なら、ウィンドウがマウスを捕捉する(自動実行を除く)。
-- 診断: INPUT001(partial struct でない)、INPUT002(メンバーの型)、INPUT003(割り当てが型に合わない)、INPUT004(割り当てなし)、SYSGEN038(`in` 以外、`Spawn`)。
+- 診断: INPUT001(partial struct でない)、INPUT002(メンバーの型)、INPUT003(割り当てが型に合わない)、INPUT004(割り当てなし)、INPUT005(`[Gamepad]` の不感帯・倍率・反転が不正。M0108)、SYSGEN038(`in` 以外、`Spawn`)。
 - マウスのボタンは `[Mouse(MouseButton.Left)]` で `Button` に割り当てる。`[Pointer] Pointer` は画面上のカーソル(クライアント領域の左上を 0、右下を 1 とした割合と `Inside`)で、`Read` の第 3 引数 `EngineHost.Cursor` が毎フレーム埋める。3D の位置は `Picking` サービス(System の引数に `Picking` と書く)が求める。`Picking.TryPick(Pointer, out PickHit)` は、カメラの姿勢・縦の視野角・ウィンドウの縦横比でポインターを通る光線(最大 2000 m)を作り、物理の静的コリジョンの最も近い当たり(`Entity`、`Point`、`Normal`、`Distance`)を返す。カメラが物理と別の参照フレームにある、ポインターが領域の外、何にも当たらないときは false。
-- 自動検証: `CGE_AUTOMATION_CURSOR=x,y`(割合)がカーソルを代わりに与え、`CGE_AUTOMATION_INPUT` の `MouseLeft@開始-終了` がマウスの左ボタンを押す。
-- 未実装: `Axis`・`Touch`・トリガー、実行時の再割り当て、コンテキストの切り替え。
+- 自動検証: `CGE_AUTOMATION_CURSOR=x,y`(割合)がカーソルを代わりに与え、`CGE_AUTOMATION_INPUT` の `MouseLeft@開始-終了` がマウスの左ボタンを押す。アナログの入力は `コード=値@開始-終了`(下の「1 軸のアナログ値」)。
+- 未実装: `Touch`、実行時の再割り当て、コンテキストの切り替え。
+
+### 1 軸のアナログ値、押していた時間、片方の軸(M0108)
+
+- `Axis`(`Value` は -1 から 1)。割り当ては `[Keys(Key…)]`(どれかを押している間 +1)、`[NegativeKeys(Key…)]`(-1。両方なら打ち消し合って 0)、`[Gamepad(Pad.LeftTrigger|RightTrigger)]`(0 から 1)、`[Gamepad(Pad.LeftStick|RightStick, StickAxis.X|Y)]`(スティックの片方の軸。Y は上が正)、`[Gamepad(Pad.South…)]`(ボタン。押している間 +1)。複数の割り当ては足し合わせ、`Axis.FromSum` で -1 から 1 に丸める(NaN と無限大は 0)。`Axis` は `float` へ暗黙に変換できる(`Throttle - Brake`)。
+- `[Gamepad]` の `DeadZone`(0 以上 1 未満。書かなければスティック 0.2、トリガー 0.1)・`Scale`(有限で 0 より大きい。不感帯のあとに掛ける)・`Invert`(符号の反転)。範囲外、NaN、ボタンに書いたものは INPUT005。2 軸の `Stick`/`Look` のスティックでは、不感帯は倒した長さに掛かり、片方の軸のときは軸ごとに掛かる(アダプターがスティックの軸を `Gamepad_LeftX/LeftY/RightX/RightY`(1D)としても報告する)。
+- `Pad` に `LeftTrigger`・`RightTrigger`・`LeftShoulder`・`RightShoulder` を足した(値の並びは変えず末尾)。`Gamepad_LeftTriggerAxis`・`Gamepad_RightTriggerAxis` は元からアダプターが報告していた。
+- `Look` はマウスの片方の軸だけ(`[Mouse(MouseAxis.DeltaX|DeltaY)]`。UE の MouseX / MouseY。縦は上が正)と、スティックの片方の軸(`StickAxis`)も受ける。`InputMaskModifier` がもう一方の軸を 0 にする。
+- `Button.HeldSeconds`: 押したフレームは 0、押している間は押してから今のフレームまでの時間、離したフレームはそれまで押していた時間(そのフレームの経過時間を含む。UE の `ElapsedSeconds` に当たる)、それ以外は 0。同じフレームで押して離したときは 0。時間は各フレームの経過時間(`Read` は 0.1 秒に頭打ち)の足し算で、`InputServer.TrackHold` が持つ。同じフレーム(`InputServer.FrameNumber`)の読み直しは進めないので、複数の System が同じ構造体を受けてもよい。負・NaN・無限大の経過時間は 0 とみなす。`Button.ReleasedBefore(秒)` は離したフレームで `HeldSeconds` が厳密に小さいとき true(UE の `ElapsedSeconds < PressedThreshold`。ちょうど同じ長さは長押し)。
+- 自動実行の入力: `コード=値@開始-終了`。`GamepadLeftX|LeftY|RightX|RightY`(-1 から 1)、`GamepadLeftTrigger|RightTrigger`(0 から 1)、`GamepadSouth|East|West|North|LeftShoulder|RightShoulder`(0 以外で押す)は範囲の間その値で、外は 0。`MouseDeltaX|MouseDeltaY` は範囲の各フレームに動かすマウスの移動量(カウント)。値は有限の数だけ。キー・マウスのボタンは値を持たない。未知の `Gamepad*`・`MouseDelta*` は起動時に拒否する。自動実行のウィンドウは実機のゲームパッドを読まない。
 
 ## 画面への出力(`Hud`、ADR-0077)
 
