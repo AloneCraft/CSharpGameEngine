@@ -36,7 +36,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private const uint PassSkyBackground=4;
     private const uint PassCloudNoise=5;
     private const uint PassCloudPanorama=6;
-    private const uint PassCount=7;
+    private const uint PassSkyRadianceMap=7;
+    private const uint PassCount=8;
     private const uint ConstantsStride=512;
     private const int TransmittanceWidth=256;
     private const int TransmittanceHeight=64;
@@ -56,7 +57,11 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private const uint UavSceneColor=9;
     private const uint UavCloudPanorama=10;
     private const uint UavCloudNoise=11;
-    private const uint DescriptorCount=12;
+    private const uint SrvSkyRadianceMap=12;
+    private const uint UavSkyRadianceMap=13;
+    private const uint DescriptorCount=14;
+    /// <summary>Texels per side of the sky radiance map (M0111), octahedral with +Z as the pole.</summary>
+    internal const int SkyRadianceMapSize=128;
     private const DXGI_FORMAT CloudPanoramaFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT CloudNoiseFormat=DXGI_FORMAT_R16_FLOAT;
     /// <summary>Texels of the tiling cloud noise volume per side (Atmosphere.hlsl CloudNoiseSize).</summary>
@@ -73,6 +78,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private ID3D12Resource*ShBuffer;
     private ID3D12Resource*CloudPanorama;
     private ID3D12Resource*CloudNoise;
+    private ID3D12Resource*SkyRadianceMap;
     private CloudKey?CloudPanoramaKey;
     private int CloudRefreshPhase;
     private int CloudSkyLightVersion;
@@ -108,6 +114,15 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     internal int CloudViewSamples { get; }
     /// <summary>Whether the cloud panorama holds this frame's clouds (it is refreshed in <see cref="Update"/> when the frame has clouds).</summary>
     private bool CloudsDrawn;
+    private bool SkyRadianceMapCurrent;
+    /// <summary>
+    /// ADR-0078/M0111: set by the renderer while the Lumen-like lighting runs; <see cref="Update"/> then keeps <see cref="SkyRadianceMapResource"/>
+    /// (the sky light's radiance by direction, octahedral like the GI probes, <see cref="SkyRadianceMapSize"/> texels per side) up to date with the
+    /// sky light SH.
+    /// </summary>
+    internal bool SkyRadianceMapRequested { get;set; }
+    /// <summary>The sky radiance map (shader-readable once the sky has been updated; null before).</summary>
+    internal ID3D12Resource*SkyRadianceMapResource=>this.SkyRadianceMap;
     /// <summary>Records the LUT and sky light passes. Leaves every LUT and the SH buffer readable by shaders.</summary>
     internal void Update(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame){
         this.EnsurePipeline();
@@ -138,6 +153,12 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         if(this.SkyViewState!=State){
             this.DispatchSh(CommandList,FrameIndex,Constants);
             this.SkyViewState=State;
+            this.SkyRadianceMapCurrent=false;
+        }
+        // M0111: the sky by direction for the Lumen-like rays that leave the scene, only while something reads it.
+        if(this.SkyRadianceMapRequested&&!this.SkyRadianceMapCurrent){
+            this.Dispatch(CommandList,FrameIndex,PassSkyRadianceMap,Constants,this.SkyRadianceMap,UavSkyRadianceMap,SkyRadianceMapSize,SkyRadianceMapSize);
+            this.SkyRadianceMapCurrent=true;
         }
         this.HasValidSkyLight=true;
         this.LastSunDirection=Frame.SunDirection;
@@ -382,6 +403,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         // M0110: the cloud targets exist with the sky, so their descriptors are written once and never while a frame may read them.
         this.CloudPanorama=this.CreateCloudTexture(false,CloudPanoramaFormat,(ulong)this.CloudPanoramaWidth,(uint)this.CloudPanoramaHeight,1,SrvCloudPanorama,UavCloudPanorama);
         this.CloudNoise=this.CreateCloudTexture(true,CloudNoiseFormat,CloudNoiseSize,CloudNoiseSize,CloudNoiseSize,SrvCloudNoise,UavCloudNoise);
+        this.SkyRadianceMap=this.CreateLut(SkyRadianceMapSize,SkyRadianceMapSize,SrvSkyRadianceMap,UavSkyRadianceMap);
     }
     private ID3D12Resource*CreateCloudTexture(bool Volume,DXGI_FORMAT Format,ulong Width,uint Height,ushort Depth,uint SrvSlot,uint UavSlot){
         var Desc=Volume?D3D12_RESOURCE_DESC.Tex3D(Format,Width,Height,Depth,1):D3D12_RESOURCE_DESC.Tex2D(Format,Width,Height,1,1);
@@ -588,6 +610,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         if(this.ShBuffer!=null){ _=this.ShBuffer->Release(); }
         if(this.CloudPanorama!=null){ _=this.CloudPanorama->Release(); }
         if(this.CloudNoise!=null){ _=this.CloudNoise->Release(); }
+        if(this.SkyRadianceMap!=null){ _=this.SkyRadianceMap->Release(); }
     }
     private readonly record struct SkyViewKey(Vector3 SunDirection,Vector3 SunIlluminance,float AltitudeBucket,SkyLightSettings SkyLight);
     /// <summary>The sky light depends on the sky view and on which refresh of the cloud panorama it saw (-1 = no clouds).</summary>

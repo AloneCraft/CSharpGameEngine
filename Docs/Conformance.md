@@ -4159,7 +4159,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - 遠景のちらつき: 格子の床の遠景が平均の色へ収束し、ちらつきが減った(数値は上のとおり)。
   - 車の塗装の暗さと金属の反射: 変わっていない(間接光と反射は M0111)。
   - Vehicle の Landscape の路面・トラック・傾斜・アーチ: 変わっていない(M0112)。
-- 実装: M0110(`Docs/Milestones/M0110-Lumen-Foundation-And-Missing-Visuals.md`)。決定: ミップは CPU で決定的(sRGB は線形で平均)、雲は Atmosphere.hlsl のパノラマ(1/16 更新)、空の球は空の合成で外側の面を空に置き換える、メッシュの距離場はビルドの CLI で作る(Cook でない)、グローバル距離場は世界の整数ボクセルのトロイダルなクリップマップ、`stage-v11` は変えない。
+- 実装: M0110(`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`)。決定: ミップは CPU で決定的(sRGB は線形で平均)、雲は Atmosphere.hlsl のパノラマ(1/16 更新)、空の球は空の合成で外側の面を空に置き換える、メッシュの距離場はビルドの CLI で作る(Cook でない)、グローバル距離場は世界の整数ボクセルのトロイダルなクリップマップ、描画契約は `stage-v12`(材質のサンプラーが異方性。2026-10-24 訂正: 以前は「`stage-v11` は変えない」と書いていたが、実装は v12)。
 - 自動化された証拠: `RenderTextureMipChainTests`(18)、`MeshDistanceFieldTests`(8)、`EnvironmentComponentTests`(+6)、`MaterialMipmapGpuIntegrationTests`(2)、`VolumetricCloudGpuIntegrationTests`(6)、`GlobalDistanceFieldGpuIntegrationTests`(8)、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)。
 - 既知の差: 雲の形(UE のテクスチャを取り込んでいない)、雲の影、実機の GPU での見た目とフレーム時間(WARP のみ)、UE の Lumen と違い反射・間接光はまだ変わらない(M0111)、スキンのメッシュには距離場が無い。
 - 結果: MatchesWithDocumentedExtension(雲・空の球・ミップ・距離場)。Vehicle のレベルの見た目は引き続き Differs(M0111・M0112)。
@@ -4190,3 +4190,16 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `ChaosVehicleTests`(+5)、`PhysicsForceCommandTests`(+4)。修正を外した状態で、ギアの 1 件を除いて失敗することを確認した。WARP: Vehicle 57.150 m・30.5°、ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m / (6.79, 6.84)、`verify-template-package`(SDK 0.1.22)の 3 テンプレート。
 - 既知の差: 左の車輪の X の鏡映は未実装。5° 以上傾いた壁への衝突の回転は物理として残る。面から 5 cm は選んだ値で、他の値とは比べていない。
 - 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-24 探索 — Lumen 相当の動的 GI と反射(ADR-0078、M0111)
+- 意図: UE のテンプレートと同じく Lumen の GI と反射で描く(サーフェスキャッシュ、最終収集、反射)。ADR-0069 の DDGI は代替の段に残し、WARP の既定の画面と実走の値は変えない。
+- 観測(Fact):
+  - UE 5.8 の 4 テンプレートは r.DynamicGlobalIlluminationMethod=1・r.ReflectionMethod=1(Lumen)、r.Lumen.HardwareRayTracing=1、r.Lumen.TraceMeshSDFs=0、ScreenProbeGather.DownsampleFactor 16。ThirdPerson と Vehicle の PostProcessVolume は Lumen の欄を上書きしていない(UE の既定値)。FirstPerson・TopDown には Lumen の欄の PostProcessVolume が無い(`probe_lumen.py`)。
+  - WARP の試験(High 段): 色のにじみ R/G 1.412 対 0.627、鏡の床の反射 IoU 0.84・重心の誤差 1.19 画素、粗さで反射がぼける(赤みの最大 6.69 > 6.58 > 0.76)、20 フレームで 5 % 以内に収束し 2 回の描画がビット単位で同じ、動く箱に光が追従、局所光と発光が間接光に届く。Medium では Lumen の設定がフレームを変えない。
+  - Epic 段は WARP の試験一式で装置の削除(`DEVICE_REMOVAL_PROCESS_NOT_AT_FAULT`)が断続的に起き、2 回の描画が 2 通りの値になることもあった。High では起きない。原因は未解決。
+  - 実走(WARP、既定 Medium): ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m・(6.79, 6.84)、Vehicle 57.150 m・30.5°(すべて変わらない)。D3D12 のエラー 0。High で 8 フレームすべて Lumen、エラー 0。
+- UE の参照画像との再比較(M0110 の項の続き): ThirdPerson は床の中央の明るさが UE と同じ(185.3 対 186.5)。陰の面は UE より明るく(右奥の壁 7.8 対 68.4、斜面の陰 95.0 対 146.4)、Lumen で DDGI より明るくなった。マネキンに床の緑の照り返しが乗り、DDGI の床の三角形の漏れは消えた。Vehicle は車の影と車体の下に床の照り返しの赤み、金属に空の青が映る。塗装のクリアコートの反射は無い。床とトラックは M0112 のまま。2026-10-22 の項の「車の塗装の暗さと金属の反射が無い」は一部解消(金属の反射は出る、塗装の艶は無い)。
+- 実装: M0111(`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`)。決定: UE の Scalability の段(High 以上で Lumen、Medium 以下で DDGI)、既定は実機 High・WARP Medium、箱の 6 面のカード、世界に固定したクリップマップの放射輝度キャッシュ、距離場の当たりをメッシュの距離場で確かめる、描画契約 `stage-v13`。
+- 自動化された証拠: `LumenGpuIntegrationTests`(9)、`LumenSurfaceCacheLayoutTests`(7)、`EnvironmentComponentTests`(+2)、`ShaderGraphCompilerTests`、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(SDK 0.1.23)。
+- 既知の差: 陰が UE より明るい、塗装の艶、カードは箱の 6 面だけ、ハードウェアのレイトレーシング・半透明・多重の反射は無い、既定の段は UE の Epic でなく High、Epic の WARP での装置の削除は未解決、実機の GPU は未確認(WARP のみ)。
+- 結果: MatchesWithDocumentedExtension(仕組み)。見た目は Differs(陰の明るさ、Vehicle の床)。

@@ -497,3 +497,16 @@
   - グローバル距離場: `GlobalDistanceField` があるフレームで、描画の前に更新する。段 L のボクセルは 0.5 m × 2^L、クリップは原点のボクセルから 32 ボクセル手前を 8 の倍数に切り下げた角から 64 ボクセル。作り直すブリックは、前のフレームのクリップに無かったもの、動いた・現れた・消えた物体(行列の回転と拡大が 1e-5 を超えて変わるか、位置がカメラの動き分と 1 mm を超えて違う)の前後の範囲 + 4 ボクセルにかかるもの。ブリックの各ボクセルは、届く物体ごとにメッシュの距離場(局所の空間での三線形 + 箱の外の距離)× 最小の拡大の最小を取り、±4 ボクセルに切る。行列が有限でないか逆行列が無い物体と、距離場の無いメッシュの物体は入らない。
 - Intended behavior: `Docs/Specifications/Rendering.md` の環境ライティングとメッシュの距離場、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5。
 - Result: MatchesWithDocumentedExtension(差は M0110 の文書の「範囲外・残り」)。
+
+## RE-M0111 — Lumen 相当の動的 GI と反射
+
+- Confidence: High(WARP の GPU 試験 9 件と単体試験、テンプレートの実走で確認)。UE の Lumen との見た目の一致は Medium(参照画像を目で比べた)。実機の GPU と Epic 段は Low(未確認、WARP では不安定)。
+- Evidence: `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`EnvironmentLighting.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`
+- Observed behavior:
+  - 有効になる条件: `RenderScalability.GlobalIllumination` が High 以上、`EnvironmentLightingSettings.Lumen` があり(`PostProcessVolume.GlobalIlluminationMethod` が Lumen で値が範囲内)、グローバル距離場がある。どれかが欠けたフレームは DDGI と空の光のフレーム(M0110 と同じ)で、Lumen の履歴は捨てる。反射は、さらに `Reflections` が High 以上で `ReflectionMethod` が Lumen のとき。
+  - 段: 実機 High・WARP Medium が既定。`CGE_SCALABILITY_GI`・`CGE_SCALABILITY_REFLECTIONS` が low/medium/high/epic か 0〜3 で置き換え、反射を省くと GI に従う。不正な値は起動時に `InvalidOperationException`。
+  - 物体: 距離場のあるメッシュで、行列が有限で逆行列があり、境界球がカメラから Scene View Distance(既定 200 m)以内の物体だけがカードを持つ。カードは箱(1 % + 1 mm 太らせる)の 6 面で、解像度は 1 m あたり 4 × Scene Detail × Surface Cache Resolution テクセルの 2 のべき乗(8〜最大)。大きさが 4 倍を超えて変わると作り直す。新しいカードは近い順に撮り、撮ったカード・発光の倍率が変わった物体・巡回のカードを予算のテクセルまで照らす。
+  - 放射輝度キャッシュ: 間隔 2 m(0.5 m のボクセル 4 つ)から段ごとに 2 倍、世界の格子に固定。クリップに新しく入ったプローブを細かい段・近い順に、残りの予算を段 L に 2/3 ずつ巡回で追跡し、値は前の値と 0.75 で混ぜる。追跡したプローブはその次のフレームから使う。
+  - 画素: 拡散の照度(Lumen の t16)があればプローブボリュームと空の光の拡散を置き換え、Skylight Leaking × 空の光の照度を下限にする。反射(t17)があれば反射の照度を置き換える。履歴は前のフレームのカメラと距離・法線が合う画素だけ。
+- Intended behavior: `Docs/Specifications/Rendering.md` の環境ライティング(Lumen の行)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5。
+- Result: MatchesWithDocumentedExtension(差は M0111 の文書の「UE との差」と「範囲外・残り」)。

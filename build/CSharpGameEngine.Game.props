@@ -86,6 +86,7 @@
     <CgeComputeShader Include="$(CgeEngineShaderRoot)LuminanceHistogram.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Skinning.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)GlobalDistanceField.hlsl" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)Lumen.hlsl" />
   </ItemGroup>
 
   <!-- ADR-0078/M0104: the engine's baked fonts (Roboto Regular and Light) land in Fonts\ next to the game, where ScreenText looks. -->

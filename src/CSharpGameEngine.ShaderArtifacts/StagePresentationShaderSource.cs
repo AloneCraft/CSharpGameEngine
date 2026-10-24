@@ -8,6 +8,7 @@ namespace CSharpGameEngine.ShaderArtifacts;
 /// The radial entries (M0099, ADR-0076) wrap the standard pixel entries unchanged and add the
 /// radial depth; FrameCB.DepthMapping0/1 carry their packet and ObjectCB.RadialRasterDepth each object's
 /// conservative raster depth for the main pass, which the standard entries never read.
+/// The Lumen entries (M0111) write the surface prepass and the surface cache cards from the same material inputs as PSMain.
 /// </summary>
 public static class StagePresentationShaderSource {
     public const string Source="""
@@ -286,6 +287,55 @@ float4 ScreenPSMain(ScreenVertexOutput input) : SV_Target
         return float4(input.Color.rgb, input.Color.a * coverage);
     }
     return texel * input.Color;
+}
+
+// ADR-0078/M0111: the Lumen-like lighting's entries. Both draw with VSMain and the Stage root signature.
+float3 LumenShadingNormal(VertexOutput input)
+{
+    float3 vertexNormal = normalize(input.Normal);
+    float3 tangent = normalize(input.Tangent.xyz - vertexNormal * dot(vertexNormal, input.Tangent.xyz));
+    float3 bitangent = cross(vertexNormal, tangent) * input.Tangent.w;
+    float3x3 tbn = float3x3(tangent, bitangent, vertexNormal);
+    float3 normalSampleTs = normalize(NormalTexture.Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
+    return normalize(mul(normalSampleTs, tbn));
+}
+
+struct LumenSurfaceOutput
+{
+    float4 NormalRoughness : SV_Target0;
+    float Distance : SV_Target1;
+};
+
+// The surface prepass the final gather and the reflections read: the shading normal and roughness PSMain uses and the distance from the camera
+// (which PSMain compares with its own to know it shades the same surface).
+LumenSurfaceOutput LumenSurfacePSMain(VertexOutput input)
+{
+    float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * MaterialParams.x), 0.045);
+    LumenSurfaceOutput output;
+    output.NormalRoughness = float4(LumenShadingNormal(input), roughness);
+    output.Distance = length(input.WorldPosition - CameraPositionWS.xyz);
+    return output;
+}
+
+struct LumenCardOutput
+{
+    float4 Albedo : SV_Target0;
+    float4 Normal : SV_Target1;
+    float4 Emissive : SV_Target2;
+};
+
+// The surface cache capture: one mesh in its own space (the host gives it an identity World) through a card's orthographic projection. The
+// albedo is the diffuse colour (a metal has none), the normal is in the mesh's space and the emission leaves out the object's run-time scale,
+// which the card lighting applies.
+LumenCardOutput LumenCardPSMain(VertexOutput input)
+{
+    float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
+    float metallic = saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).b * MaterialParams.y);
+    LumenCardOutput output;
+    output.Albedo = float4(baseColor * (1.0 - metallic), 1.0);
+    output.Normal = float4(LumenShadingNormal(input) * 0.5 + 0.5, 1.0);
+    output.Emissive = float4(EmissiveTexture.Sample(LinearSampler, input.Uv).rgb * EmissiveNits.xyz, 1.0);
+    return output;
 }
 """;
 }

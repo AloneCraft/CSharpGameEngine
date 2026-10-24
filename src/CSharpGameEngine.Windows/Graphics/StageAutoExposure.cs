@@ -54,6 +54,8 @@ internal sealed unsafe class StageAutoExposure:IDisposable {
     }
     /// <summary>GPU address of the float4 exposure state; valid, and shader-readable between frames, from construction.</summary>
     internal ulong StateAddress=>this.State->GetGPUVirtualAddress();
+    /// <summary>The state buffer (in <see cref="ShaderResourceState"/> between passes); M0111 copies its exposure as the scene colour history's.</summary>
+    internal ID3D12Resource*StateResource=>this.State;
     internal static float BinWidth=>(MaxLog2Luminance-MinLog2Luminance)/BinCount;
     /// <summary>Writes a structured-buffer view of the state (one float4) for the Stage program's t15.</summary>
     internal void WriteShadingDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE Handle){

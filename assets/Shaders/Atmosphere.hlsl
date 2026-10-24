@@ -51,6 +51,7 @@ static const uint PassSkyLightSh = 3;
 static const uint PassSkyBackground = 4;
 static const uint PassCloudNoise = 5;
 static const uint PassCloudPanorama = 6;
+static const uint PassSkyRadianceMap = 7;
 static const uint CloudNoiseSize = 32;
 static const float2 TransmittanceLutSize = float2(256.0, 64.0);
 static const float2 MultiScatteringLutSize = float2(32.0, 32.0);
@@ -834,6 +835,19 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
     if (pass == PassSkyView)
     {
         OutputTexture[pixel] = float4(ComputeSkyView(uv), 1.0);
+        return;
+    }
+    if (pass == PassSkyRadianceMap)
+    {
+        // ADR-0078/M0111: the sky light's radiance (atmosphere and clouds, no sun disk) by direction, octahedrally mapped with +Z as the pole like
+        // the GI probes, for the Lumen-like rays that leave the scene. It is refreshed whenever the sky light SH is.
+        float2 e = uv * 2.0 - 1.0;
+        float3 direction = float3(e, 1.0 - abs(e.x) - abs(e.y));
+        if (direction.z < 0.0)
+        {
+            direction.xy = (1.0 - abs(direction.yx)) * select(direction.xy >= 0.0, float2(1.0, 1.0), float2(-1.0, -1.0));
+        }
+        OutputTexture[pixel] = float4(SkyLightRadiance(normalize(direction)) * SunIlluminance.w, 1.0);
         return;
     }
     if (pass == PassSkyBackground)

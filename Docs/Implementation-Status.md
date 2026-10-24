@@ -3762,7 +3762,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
 - Current delta: reflection probes are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated. Volumetric clouds, the sky sphere and texture mipmaps were added by M0110 (F-L4-016, F-L4-017); the DDGI probes become M0111's fallback tier (ADR-0069 追記).
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
-- Next action: M0111 (Lumen-like GI and reflections over the global distance field, F-L4-018).
+- Next action: done by M0111 (F-L4-019, Lumen-like GI and reflections); the DDGI probe volume of this item is now the Medium-and-below fallback tier.
 
 ## F-L4-015 — Skeletal meshes and animation
 
@@ -4823,13 +4823,13 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
 - Current delta: 雲は上半球のパノラマ(WARP 1024 × 256・24 サンプル)。形はエンジンのノイズ。風は 10 m/s・45°(エンジンの選択)。空の球は合成の判定で、新しいメッシュの描画は無い。
 - Conformance: MatchesWithDocumentedExtension(値は UE、形と描き方はエンジン。M0110 の文書の表)
-- Next action: M0111(GI と反射)。雲の影と UE の雲のテクスチャは必要になったとき。
+- Next action: 雲の影と UE の雲のテクスチャは必要になったとき(GI と反射は M0111、F-L4-019 で実装)。
 
 ## F-L4-018 — グローバル距離場(カメラまわりのクリップマップ)
 
 - Layer: L0 — 描画(`StageGlobalDistanceField`、`GlobalDistanceField.hlsl`)、L5 — `Runtime.Lighting`(`GlobalDistanceField`)・`Runtime.Windows`(`WorldVoxelGrid`、`StageSceneDataBuilder.LoadDistanceFields`)
 - Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
-- Status: Implemented(描画には使わない。M0111 がトレースする)
+- Status: Implemented(画面には直接描かない。M0111 の Lumen 相当の GI と反射(F-L4-019)がトレースする)
 - Verification: TestVerified + RuntimeVerified(WARP。テンプレートで距離場つきメッシュと場の物体を数えた)
 - Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(グローバル距離場の行)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
 - Stage: `rendering.environment-lighting`(試験を足した)
@@ -4840,7 +4840,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
 - Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
 - Conformance: MatchesWithDocumentedExtension(UE の Lumen のグローバル距離場より粗い。M0110 の文書)
-- Next action: M0111 のサーフェスキャッシュ・最終収集・反射でトレースする。
+- Next action: なし(M0111 の F-L4-019 がトレースに使う)
 
 ## F-L7-053 — メッシュの距離場(ビルド時の生成)
 
@@ -4856,3 +4856,21 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)
 - Next action: なし
+
+## F-L4-019 — Lumen 相当の動的 GI と反射(サーフェスキャッシュ、最終収集、反射)
+
+- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v13`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
+- Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
+- Status: Implemented(実機の GPU は未確認。Epic 段は WARP で不安定)
+- Verification: TestVerified + RuntimeVerified(WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v13`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
+- Stage: `rendering.environment-lighting`(Lumen の試験を足した)
+- Depends on: F-L4-018、F-L4-014
+- Implementation evidence:
+  - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`
+  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v13`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
+  - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
+- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 18、ハッシュの更新)、`StandardModeGoldenFrameTests`(7 つのハッシュは不変)
+- Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
+- Conformance: MatchesWithDocumentedExtension(M0111 の文書の UE との差)
+- Next action: 実機の GPU での見た目・フレーム時間と Epic の確認。WARP の Epic での装置の削除の原因(パスごとのシェーダーへの分割を試す)。

@@ -108,7 +108,8 @@ public readonly record struct EnvironmentLightingSettings(
     AmbientOcclusionSettings?AmbientOcclusion=null,
     VolumetricCloudSettings?Clouds=null,
     SkySphereSettings?SkySphere=null,
-    GlobalDistanceFieldSettings?DistanceField=null){
+    GlobalDistanceFieldSettings?DistanceField=null,
+    LumenSettings?Lumen=null){
     public static EnvironmentLightingSettings Legacy=>new(null,null,null,ExposureSettings.Legacy,ToneMapper.LegacyAces,1.8f,0.00465f);
     public bool IsValid=>(this.Atmosphere is null||this.Atmosphere.Value.IsValid)
         &&(this.SkyLight is null||this.SkyLight.Value.IsValid)
@@ -118,6 +119,7 @@ public readonly record struct EnvironmentLightingSettings(
         &&(this.Clouds is null||this.Clouds.Value.IsValid)
         &&(this.SkySphere is null||this.SkySphere.Value.IsValid)
         &&(this.DistanceField is null||this.DistanceField.Value.IsValid)
+        &&(this.Lumen is null||this.Lumen.Value.IsValid)
         &&this.Exposure.IsValid&&float.IsFinite(this.BloomIntensity)&&this.BloomIntensity>=0f
         &&float.IsFinite(this.SunAngularRadiusRadians)&&this.SunAngularRadiusRadians>0f&&this.SunAngularRadiusRadians<0.5f;
 }
@@ -197,6 +199,111 @@ public readonly record struct GlobalDistanceFieldSettings(float VoxelSizeMeters,
 }
 /// <summary>Three 64-bit integers: a voxel's coordinates on the world's voxel grid.</summary>
 public readonly record struct LongVector3(long X,long Y,long Z);
+/// <summary>
+/// The scene's Lumen-like dynamic global illumination and reflections (ADR-0078/M0111) in Unreal's PostProcessVolume terms. Distances are metres
+/// (Unreal's centimetres / 100); the qualities and speeds keep Unreal's scales (1 is the default). <see cref="GlobalIllumination"/> and
+/// <see cref="Reflections"/> are Unreal's Global Illumination Method and Reflection Method set to Lumen. The renderer uses these only when its
+/// scalability (<see cref="RenderScalability"/>) allows Lumen and the environment has a global distance field to trace; otherwise the probe volume
+/// (DDGI) and the sky light keep lighting the scene as before. Nothing is baked: the surface cache, the radiance cache and the screen probes are
+/// recomputed every frame.
+/// </summary>
+public readonly record struct LumenSettings(
+    bool GlobalIllumination,
+    bool Reflections,
+    float SceneLightingQuality,
+    float SceneDetail,
+    float SceneViewDistanceMeters,
+    float SceneLightingUpdateSpeed,
+    float FinalGatherQuality,
+    float FinalGatherLightingUpdateSpeed,
+    bool FinalGatherScreenTraces,
+    float MaxTraceDistanceMeters,
+    float DiffuseColorBoost,
+    float SkylightLeaking,
+    float ReflectionQuality,
+    float MaxRoughnessToTraceReflections,
+    bool ReflectionScreenTraces,
+    float SurfaceCacheResolution){
+    /// <summary>Unreal 5.8's PostProcessVolume defaults, which all four templates use (tools/UnrealExport/probe_lumen.py).</summary>
+    public static LumenSettings Unreal=>new(true,true,1f,1f,200f,1f,1f,1f,true,200f,1f,0f,1f,0.4f,true,1f);
+    public bool IsValid=>
+        InRange(this.SceneLightingQuality,0.25f,4f)&&InRange(this.SceneDetail,0.25f,4f)
+        &&InRange(this.SceneViewDistanceMeters,1f,100000f)&&InRange(this.SceneLightingUpdateSpeed,0.5f,4f)
+        &&InRange(this.FinalGatherQuality,0.25f,4f)&&InRange(this.FinalGatherLightingUpdateSpeed,0.5f,4f)
+        &&InRange(this.MaxTraceDistanceMeters,1f,100000f)&&InRange(this.DiffuseColorBoost,1f,4f)&&InRange(this.SkylightLeaking,0f,1f)
+        &&InRange(this.ReflectionQuality,0.25f,4f)&&InRange(this.MaxRoughnessToTraceReflections,0f,1f)&&InRange(this.SurfaceCacheResolution,0.5f,1f);
+    private static bool InRange(float Value,float Minimum,float Maximum)=>float.IsFinite(Value)&&Value>=Minimum&&Value<=Maximum;
+}
+/// <summary>Unreal's scalability levels (sg.GlobalIlluminationQuality / sg.ReflectionQuality 0-3).</summary>
+public enum ScalabilityLevel {
+    Low,
+    Medium,
+    High,
+    Epic,
+}
+/// <summary>
+/// The adapter-level quality of the dynamic lighting (ADR-0078/M0111), Unreal's sg.GlobalIlluminationQuality and sg.ReflectionQuality. As in
+/// Unreal's BaseScalability.ini, Lumen's GI needs High or Epic (High traces a screen probe every 32 pixels, Epic every 16) and Lumen's reflections
+/// need High (half resolution) or Epic (full resolution). Below that the renderer keeps the probe volume (DDGI) and the sky light's specular, the
+/// frames of M0110 and earlier (Unreal's Medium uses an irradiance-field final gather, the counterpart of the probe volume). The default is High on
+/// a hardware adapter and Medium on WARP, which draws on the CPU. Epic (Unreal's templates) is opt-in: on WARP it intermittently lost the device
+/// and was not bit-reproducible (M0111), and it has not been run on a hardware GPU yet.
+/// </summary>
+public readonly record struct RenderScalability(ScalabilityLevel GlobalIllumination,ScalabilityLevel Reflections){
+    public static RenderScalability Epic=>new(ScalabilityLevel.Epic,ScalabilityLevel.Epic);
+    public static RenderScalability High=>new(ScalabilityLevel.High,ScalabilityLevel.High);
+    public static RenderScalability Medium=>new(ScalabilityLevel.Medium,ScalabilityLevel.Medium);
+    public static RenderScalability DefaultFor(bool IsWarp)=>IsWarp?Medium:High;
+    public bool AllowsLumenGlobalIllumination=>this.GlobalIllumination>=ScalabilityLevel.High;
+    /// <summary>Lumen's reflections also need Lumen's GI (their rough lobes and misses read its probes).</summary>
+    public bool AllowsLumenReflections=>this.AllowsLumenGlobalIllumination&&this.Reflections>=ScalabilityLevel.High;
+}
+/// <summary>Unreal's r.Lumen.Visualize for debugging (ADR-0078/M0111): what the frame shows instead of the lit scene while Lumen runs.</summary>
+public enum LumenVisualization {
+    None,
+    /// <summary>The final gather's diffuse irradiance on a white surface.</summary>
+    Diffuse,
+    /// <summary>The reflected radiance.</summary>
+    Reflections,
+    /// <summary>The surface cache's radiance where each pixel's surface is (black where no card saw it).</summary>
+    SurfaceCache,
+}
+/// <summary>
+/// Reads <see cref="RenderScalability"/> overrides from CGE_SCALABILITY_GI and CGE_SCALABILITY_REFLECTIONS (low, medium, high, epic), and the debugging
+/// view from CGE_LUMEN_VISUALIZE (none, diffuse, reflections, surfacecache).
+/// </summary>
+public static class RenderScalabilityResolver {
+    public const string GlobalIlluminationVariable="CGE_SCALABILITY_GI";
+    public const string ReflectionsVariable="CGE_SCALABILITY_REFLECTIONS";
+    public const string VisualizeVariable="CGE_LUMEN_VISUALIZE";
+    public static LumenVisualization VisualizationFromEnvironment()=>(Environment.GetEnvironmentVariable(VisualizeVariable)??string.Empty).Trim().ToLowerInvariant() switch {
+        ""or"none"=>LumenVisualization.None,
+        "diffuse"=>LumenVisualization.Diffuse,
+        "reflections"=>LumenVisualization.Reflections,
+        "surfacecache"=>LumenVisualization.SurfaceCache,
+        _=>throw new InvalidOperationException($"{VisualizeVariable} must be none, diffuse, reflections or surfacecache."),
+    };
+    /// <summary>The adapter's default, with each level a variable names replacing it; the reflections follow the GI level when only that is named.</summary>
+    public static RenderScalability FromEnvironment(bool IsWarp)=>Resolve(IsWarp,Environment.GetEnvironmentVariable(GlobalIlluminationVariable),Environment.GetEnvironmentVariable(ReflectionsVariable));
+    public static RenderScalability Resolve(bool IsWarp,string?GlobalIllumination,string?Reflections){
+        var Default=RenderScalability.DefaultFor(IsWarp);
+        var Gi=Parse(GlobalIllumination,GlobalIlluminationVariable)??Default.GlobalIllumination;
+        var Reflection=Parse(Reflections,ReflectionsVariable)??(string.IsNullOrWhiteSpace(GlobalIllumination)?Default.Reflections:Gi);
+        return new RenderScalability(Gi,Reflection);
+    }
+    private static ScalabilityLevel?Parse(string?Text,string Variable){
+        if(string.IsNullOrWhiteSpace(Text)){
+            return null;
+        }
+        return Text.Trim().ToLowerInvariant() switch {
+            "low" or "0"=>ScalabilityLevel.Low,
+            "medium" or "1"=>ScalabilityLevel.Medium,
+            "high" or "2"=>ScalabilityLevel.High,
+            "epic" or "3"=>ScalabilityLevel.Epic,
+            _=>throw new InvalidOperationException($"{Variable} must be low, medium, high or epic."),
+        };
+    }
+}
 /// <summary>
 /// Screen-space ambient occlusion of indirect light (ADR-0069), in Unreal Engine's terms:
 /// <see cref="Intensity"/> blends between no occlusion (0) and the full obscurance (1) and

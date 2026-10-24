@@ -43,3 +43,7 @@ F-L4-014 (new), F-L5-001 (Runtime.Lighting Components), F-L0-005 (`GltfImporter.
 ## 追記(2026-10-23、ADR-0078 / M0110)
 - ユーザーの決定(ADR-0078)で、GI と反射は Lumen 相当(M0111: サーフェスキャッシュ、グローバル距離場への最終収集、反射)にする。この ADR の DDGI プローブ(決定 7)は捨てずに、低品質と WARP の「代替の段」として残し、設定で切り替える。M0110 は M0111 の土台(メッシュの距離場とグローバル距離場)を作った。
 - 「Known gaps」のうち、ボリュメトリック雲とテクスチャのミップマップは M0110 で実装した(`VolumetricCloud`、材質テクスチャの全ミップと異方性 8)。空の光の SH は雲を含む(雲のパノラマを一巡するたびに作り直す)。反射プローブ、局所光の GI、プローブの移動は M0111 の範囲。詳細は [M0110](../Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md)。
+## 追記(2026-10-24、ADR-0078 / M0111)
+- Lumen 相当の GI と反射(サーフェスキャッシュ、画面のプローブの最終収集、放射輝度キャッシュ、反射)を M0111 で作った。決定 7 の DDGI プローブは「代替の段」になった: `RenderScalability` の GI が Medium 以下(WARP の既定)か、グローバル距離場が無いか、`PostProcessVolume.GlobalIlluminationMethod` が None のときに、この ADR のとおり動く。High 以上(実機の既定)では Lumen が拡散と反射を置き換え、DDGI の撮影は止まる。
+- 代替の段のフレームは M0110 までとビット単位で同じ(Lumen の設定があっても、Medium では画素が変わらないことを試験で確かめた)。
+- 「Known gaps」のうち、局所光の GI(サーフェスキャッシュが局所光で照らされる)と反射(画面と距離場の反射)は Lumen の段で埋まった。代替の段には残る。詳細は [M0111](../Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md)。

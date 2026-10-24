@@ -39,6 +39,9 @@ public sealed class RuntimeAutomation {
     /// <summary>ADR-0078/M0110: meshes with a distance field and objects in the global distance field, at the last frame.</summary>
     private int DistanceFieldMeshes;
     private int DistanceFieldObjects;
+    /// <summary>ADR-0078/M0111: whether the last frame was lit by the Lumen-like GI, and the frames that were.</summary>
+    private bool LumenActive;
+    private int LumenFrames;
     /// <summary>One entry per presented frame: wall-clock milliseconds since the previous frame was presented (M0110: WARP frame time evidence).</summary>
     private readonly List<float>FrameMilliseconds=[];
     private readonly System.Diagnostics.Stopwatch FrameClock=new();
@@ -170,6 +173,10 @@ public sealed class RuntimeAutomation {
         this.RenderObjectCounts.Add(Renderer.ActiveObjectCount);
         this.DistanceFieldMeshes=Renderer.DistanceFieldMeshCount;
         this.DistanceFieldObjects=Renderer.DistanceFieldObjectCount;
+        this.LumenActive=Renderer.LumenActive;
+        if(this.LumenActive){
+            this.LumenFrames++;
+        }
         this.FrameMilliseconds.Add(this.FrameClock.IsRunning?this.FrameClock.ElapsedTicks*(1000f/System.Diagnostics.Stopwatch.Frequency):0f);
         this.FrameClock.Restart();
         if(this.Completed&&this.ReportPath is not null){
@@ -217,6 +224,8 @@ public sealed class RuntimeAutomation {
         Writer.WriteEndArray();
         Writer.WriteNumber("distanceFieldMeshes",this.DistanceFieldMeshes);
         Writer.WriteNumber("distanceFieldObjects",this.DistanceFieldObjects);
+        Writer.WriteBoolean("lumenActive",this.LumenActive);
+        Writer.WriteNumber("lumenFrames",this.LumenFrames);
         Writer.WriteStartArray("frameMilliseconds");
         foreach(var Milliseconds in this.FrameMilliseconds){
             Writer.WriteNumberValue(MathF.Round(Milliseconds,2));

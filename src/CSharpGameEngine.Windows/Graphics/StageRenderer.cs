@@ -163,7 +163,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
     private const uint FrameDepthMapping0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
     private const uint FrameDepthMapping1Offset=FrameDepthMapping0Offset+16; // float4: xyz observer centre (render space)
-    private const uint FrameConstantsSize=FrameDepthMapping1Offset+16;
+    private const uint FrameLumenParamsOffset=FrameDepthMapping1Offset+16; // float4: x Lumen diffuse (t16), y Lumen reflections (t17) (M0111)
+    private const uint FrameConstantsSize=FrameLumenParamsOffset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -432,6 +433,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private int[]ObjectMeshIndices=[];
     /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
     private Vector3[]MeshBoundsCentres=[];
+    private Vector3[]MeshBoundsMinimums=[];
+    private Vector3[]MeshBoundsMaximums=[];
     private int[]ObjectMaterialIndices=[];
     private Matrix4x4[]ObjectTransforms=[];
     private float[]ObjectSelectionWeights=[];
@@ -793,6 +796,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
         this.Skinning=new StageSkinning(this.Device,this.ShaderArtifactPath,FrameCount);
         this.GlobalDistanceField=new StageGlobalDistanceField(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.Lumen=new StageLumen(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride,ConstantAlignment);
+        this.Scalability=RenderScalability.DefaultFor(this.Device.IsWarp);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -983,6 +988,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PreviewCleanRadialPixelShaderBytecode=Package.GetBytecode("PreviewCleanRadialPSMain");
         this.RadialObserverVertexShaderBytecode=Package.GetBytecode("RadialObserverVSMain");
         this.RadialVertexShaderBytecode=Package.GetBytecode("RadialVSMain");
+        this.LumenSurfacePixelShaderBytecode=Package.GetBytecode("LumenSurfacePSMain");
+        this.LumenCardPixelShaderBytecode=Package.GetBytecode("LumenCardPSMain");
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
         this.LastKnownGoodShaderPackage=Package;
@@ -1026,6 +1033,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldScreenVertexShader=this.ScreenVertexShaderBytecode;
         var OldScreenPixelShader=this.ScreenPixelShaderBytecode;
         var OldScreenPipelineState=this.ScreenPipelineState;
+        var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
+        var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
+        var OldLumenSurfacePipelineState=this.LumenSurfacePipelineState;
+        var OldLumenCardPipelineState=this.LumenCardPipelineState;
         try{
             this.ApplyShaderArtifact(Package);
             this.CreatePipelineState();
@@ -1045,6 +1056,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(OldShadowPipelineState!=null){ _=OldShadowPipelineState->Release(); }
             if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
             if(OldScreenPipelineState!=null){ _=OldScreenPipelineState->Release(); }
+            if(OldLumenSurfacePipelineState!=null){ _=OldLumenSurfacePipelineState->Release(); }
+            if(OldLumenCardPipelineState!=null){ _=OldLumenCardPipelineState->Release(); }
             this.CommitShaderArtifact(Package);
         }catch(Exception Exception){
             this.VertexShaderBytecode=OldVertexShader;
@@ -1063,6 +1076,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.RadialVertexShaderBytecode=OldRadialVertexShader;
             this.ScreenVertexShaderBytecode=OldScreenVertexShader;
             this.ScreenPixelShaderBytecode=OldScreenPixelShader;
+            this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
+            this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
+            if(this.LumenSurfacePipelineState!=OldLumenSurfacePipelineState){ _=this.LumenSurfacePipelineState->Release();this.LumenSurfacePipelineState=OldLumenSurfacePipelineState; }
+            if(this.LumenCardPipelineState!=OldLumenCardPipelineState){ _=this.LumenCardPipelineState->Release();this.LumenCardPipelineState=OldLumenCardPipelineState; }
             if(this.ScreenPipelineState!=OldScreenPipelineState){ _=this.ScreenPipelineState->Release();this.ScreenPipelineState=OldScreenPipelineState; }
             if(this.RadialPipelineStates!=OldRadialPipelineStates){
                 ReleaseRadialPipelineStates(this.RadialPipelineStates);
@@ -1177,7 +1194,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=4,
+            NumDescriptors=EnvironmentDescriptorCount,
             BaseShaderRegister=12,
         };
 
@@ -1333,7 +1350,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12PipelineState*CameraPreviewWireframe=null;
         ID3D12PipelineState*OverlayTriangles=null;
         ID3D12PipelineState*OverlayLines=null;
+        ID3D12PipelineState*LumenSurface=null;
+        ID3D12PipelineState*LumenCard=null;
         try {
+            LumenSurface=this.CreateMeshPipelineState(this.LumenSurfacePixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
+                RenderTargets:[StageLumen.SurfaceNormalFormat,StageLumen.SurfaceDistanceFormat]);
+            LumenCard=this.CreateMeshPipelineState(this.LumenCardPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
+                RenderTargets:[StageLumen.CardAlbedoFormat,StageLumen.CardNormalFormat,StageLumen.CardEmissiveFormat]);
             Standard=this.CreateMeshPipelineState(
                 this.PixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
             Presentation=this.CreateMeshPipelineState(
@@ -1355,7 +1378,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CameraPreviewWireframePipelineState=CameraPreviewWireframe;
             this.OverlayTrianglePipelineState=OverlayTriangles;
             this.OverlayLinePipelineState=OverlayLines;
+            this.LumenSurfacePipelineState=LumenSurface;
+            this.LumenCardPipelineState=LumenCard;
         } catch {
+            if(LumenSurface!=null){ _=LumenSurface->Release(); }
+            if(LumenCard!=null){ _=LumenCard->Release(); }
             if(Standard!=null){ _=Standard->Release(); }
             if(Presentation!=null){ _=Presentation->Release(); }
             if(Wireframe!=null){ _=Wireframe->Release(); }
@@ -1418,7 +1445,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private ID3D12PipelineState*CreateMeshPipelineState(
-        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true){
+        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true,DXGI_FORMAT[]?RenderTargets=null){
         var VertexShader=VertexShaderBytecode??this.VertexShaderBytecode;
         fixed(byte*PPosition="POSITION\0"u8)
         fixed(byte*PNormal="NORMAL\0"u8)
@@ -1465,7 +1492,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
                 SampleMask=uint.MaxValue,
                 PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-                NumRenderTargets=1,
+                NumRenderTargets=(uint)(RenderTargets?.Length??1),
                 DSVFormat=DepthBufferFormat,
                 SampleDesc=new DXGI_SAMPLE_DESC(1,0),
             };
@@ -1474,6 +1501,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             PsoDesc.RasterizerState.FillMode=FillMode;
             PsoDesc.RasterizerState.DepthClipEnable=DepthClip?TRUE:FALSE;
             PsoDesc.RTVFormats[0]=HdrColorFormat;
+            // M0111: the Lumen surface prepass and card captures write several targets.
+            for(var Target=0;Target<(RenderTargets?.Length??0);Target++){
+                PsoDesc.RTVFormats[Target]=RenderTargets![Target];
+            }
 
             ID3D12PipelineState*PipelineState;
             D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&PipelineState),
@@ -1646,6 +1677,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var Index=this.MeshCount;
         this.GrowMeshArrays(Index+1);
         this.MeshBoundsCentres[Index]=BoundsCentre(Mesh.Positions);
+        (this.MeshBoundsMinimums[Index],this.MeshBoundsMaximums[Index])=Bounds(Mesh.Positions);
         this.CreateVertexBuffer(Index,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
         this.CreateIndexBuffer(Index,Mesh.Indices);
         if(Mesh.Skin is{ }Skin){
@@ -1667,6 +1699,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[Length];
         var IndexCounts=new uint[Length];
         var MeshBoundsCentres=new Vector3[Length];
+        var MeshBoundsMinimums=new Vector3[Length];
+        var MeshBoundsMaximums=new Vector3[Length];
         for(var I=0;I<this.MeshCount;I++){
             VertexBuffers[I]=this.VertexBuffers[I];
             IndexBuffers[I]=this.IndexBuffers[I];
@@ -1674,6 +1708,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             IndexBufferViews[I]=this.IndexBufferViews[I];
             IndexCounts[I]=this.IndexCounts[I];
             MeshBoundsCentres[I]=this.MeshBoundsCentres[I];
+            MeshBoundsMinimums[I]=this.MeshBoundsMinimums[I];
+            MeshBoundsMaximums[I]=this.MeshBoundsMaximums[I];
         }
         this.VertexBuffers=VertexBuffers;
         this.IndexBuffers=IndexBuffers;
@@ -1681,6 +1717,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.IndexBufferViews=IndexBufferViews;
         this.IndexCounts=IndexCounts;
         this.MeshBoundsCentres=MeshBoundsCentres;
+        this.MeshBoundsMinimums=MeshBoundsMinimums;
+        this.MeshBoundsMaximums=MeshBoundsMaximums;
     }
 
     private void CreateMeshBuffers(IReadOnlyList<StageMeshCreateInfo>Meshes){
@@ -1692,9 +1730,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.IndexCounts=new uint[this.MeshCount];
 
         this.MeshBoundsCentres=new Vector3[this.MeshCount];
+        this.MeshBoundsMinimums=new Vector3[this.MeshCount];
+        this.MeshBoundsMaximums=new Vector3[this.MeshCount];
         for(var I=0;I< this.MeshCount;I++){
             StageMeshCreateInfo Mesh=Meshes[I];
             this.MeshBoundsCentres[I]=BoundsCentre(Mesh.Positions);
+            (this.MeshBoundsMinimums[I],this.MeshBoundsMaximums[I])=Bounds(Mesh.Positions);
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
             if(Mesh.Skin is{ }Skin){
@@ -1703,6 +1744,18 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             }
             this.GlobalDistanceField!.SetMesh(I,Mesh.Skin is null?Mesh.DistanceField:null);
         }
+    }
+
+    /// <summary>A mesh's axis-aligned bounds (M0111: the box of its surface cache cards).</summary>
+    private static (Vector3 Minimum,Vector3 Maximum)Bounds(IReadOnlyList<Vector3>Positions){
+        if(Positions.Count==0){ return (Vector3.Zero,Vector3.Zero); }
+        var Minimum=Positions[0];
+        var Maximum=Positions[0];
+        for(var I=1;I<Positions.Count;I++){
+            Minimum=Vector3.Min(Minimum,Positions[I]);
+            Maximum=Vector3.Max(Maximum,Positions[I]);
+        }
+        return (Minimum,Maximum);
     }
 
     /// <summary>The centre of a mesh's axis-aligned bounds (its rest pose for a skinned mesh).</summary>
@@ -1791,7 +1844,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCapacity*5+4),
+            NumDescriptors=(uint)(this.MaterialCapacity*5+EnvironmentDescriptorCount),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -2684,7 +2737,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private bool GlobalIlluminationActive=>
-        this.EnvironmentSettings.GlobalIllumination is not null&&this.GlobalIllumination!.IsSupported;
+        this.EnvironmentSettings.GlobalIllumination is not null&&this.GlobalIllumination!.IsSupported&&!this.LumenActiveThisFrame;
 
     private void WriteGlobalIlluminationConstants(byte*Slot){
         var Origin=Vector4.Zero;
@@ -2706,6 +2759,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FrameGiGridSpacingOffset,&Spacing,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FrameGiGridCountsOffset,Counts,16);
         Unsafe.CopyBlock(Slot+FrameGiAtlasSizeOffset,&AtlasSize,(uint)sizeof(Vector4));
+        // M0111: the Stage program reads the Lumen diffuse (x) and reflections (y) only while Lumen runs; zero keeps every earlier frame's path.
+        var Lumen=this.LumenActiveThisFrame
+            ?new Vector4(1f,this.EnvironmentSettings.Lumen is { Reflections:true }&&this.Scalability.AllowsLumenReflections?1f:0f,0f,0f)
+            :Vector4.Zero;
+        Unsafe.CopyBlock(Slot+FrameLumenParamsOffset,&Lumen,(uint)sizeof(Vector4));
     }
 
     /// <summary>
@@ -2749,6 +2807,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 ((float*)(Destination+FrameSkyLightParamsOffset))[1]=0f;
                 ((int*)(Destination+FrameLightCountsOffset))[0]=0;
                 ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
+                *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
                 ((float*)(Destination+FrameDepthMapping0Offset))[0]=(float)RenderDepthMapping.Standard;
                 var Rtv=GlobalIllumination.CaptureRtv(Capture);
                 var Dsv=GlobalIllumination.CaptureDsv(Capture);
@@ -2763,7 +2822,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.EnvironmentSettings.SkyLight is not null&&this.EnvironmentSettings.Atmosphere is not null);
     }
 
-    /// <summary>Writes the Stage t12-t15 views (GI irradiance, GI distance, ambient occlusion, exposure state) after the material views.</summary>
+    /// <summary>
+    /// Writes the Stage t12-t17 views (GI irradiance, GI distance, ambient occlusion, exposure state, and M0111's Lumen diffuse irradiance and
+    /// reflections) after the material views.
+    /// </summary>
     private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         this.GlobalIllumination!.WriteShadingDescriptors(
@@ -2771,8 +2833,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+1,this.SrvDescriptorSize));
         this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+2,this.SrvDescriptorSize));
         this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+3,this.SrvDescriptorSize));
+        this.Lumen!.WriteShadingDescriptors(
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+4,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+5,this.SrvDescriptorSize));
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
         this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
+        this.LumenDescriptorGeneration=this.Lumen.Generation;
     }
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
@@ -3929,6 +3995,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateHdrColorBuffer(Width,Height);
         this.CreateForwardPlusTileBuffer(Width,Height);
         this.Atmosphere?.InvalidateSceneDescriptors();
+        if(this.Lumen is not null){
+            // The GPU is idle: the Stage t16/t17 views go back to null until the next Lumen frame makes targets of the new size.
+            this.Lumen.ReleaseScreen();
+            this.WriteEnvironmentDescriptors();
+        }
         if(this.AmbientOcclusion is { Generation:>0 }){
             this.AmbientOcclusion.EnsureSize(Width,Height);
         }
@@ -4123,8 +4194,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // camera-dependent active set.
             int*LightCounts=(int*)(Destination+FrameLightCountsOffset);
             LightCounts[0]=0;
-            // Screen-space occlusion belongs to the primary camera's pixels.
+            // Screen-space occlusion and the Lumen outputs belong to the primary camera's pixels.
             ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
+            *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
             // Each preview carries its own depth mapping (M0099); a standard one never reads the packet.
             Vector4 DepthMapping0=Preview.DepthMapping==RenderDepthMapping.Standard
                 ?Vector4.Zero
@@ -4284,6 +4356,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.Skinning.Record(this.CommandList,this.FrameIndex);
             this.CommandList->SetPipelineState(ActivePipelineState);
         }
+        this.LumenActiveThisFrame=this.LumenWanted;
+        if(!this.LumenActiveThisFrame){
+            this.Lumen!.InvalidateHistory();
+        }
+        this.Atmosphere!.SkyRadianceMapRequested=this.LumenActiveThisFrame;
         this.PrepareDirectionalLights(this.FrameIndex);
         this.PrepareForwardPlusLocalLights(this.FrameIndex);
 
@@ -4307,6 +4384,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         this.UpdateGlobalDistanceField();
         this.RenderGlobalIlluminationProbes();
+        this.RenderLumen();
         this.RenderAmbientOcclusion();
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
@@ -4351,6 +4429,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // Metered before camera previews draw into the same target.
             this.AutoExposureStage!.RecordMetering(this.CommandList,this.FrameIndex,this.HdrColorBuffer,this.Width,this.Height,this.EnvironmentSettings.Exposure,AutoExposureDeltaSeconds);
             RanComputeAfterMainPass=true;
+        }
+        if(this.LumenActiveThisFrame){
+            // M0111: the lit frame (sky included, before the previews) is next frame's screen traces' colour.
+            this.Lumen!.CopySceneColor(this.CommandList,this.HdrColorBuffer);
+            if(this.LumenVisualization!=LumenVisualization.None){
+                this.Lumen.RecordVisualize(this.CommandList,this.FrameIndex,this.LumenVisualization,this.HdrColorBuffer);
+                RanComputeAfterMainPass=true;
+            }
         }
         if(RanComputeAfterMainPass){
             // Compute replaces the graphics PSO and descriptor heap, so the main-pass bindings are
@@ -4421,6 +4507,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.MoveToNextFrame();
         this.Device.PollDebugMessages();
         this.FramesRendered++;
+        this.LumenActiveLastFrame=this.LumenActiveThisFrame;
 
         // All additive light counts (and the data they gate) have already been submitted to the
         // GPU above; reset so the next frame starts from zero and only reflects lights that call
@@ -4563,6 +4650,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.Skinning=null;
         this.GlobalDistanceField?.Dispose();
         this.GlobalDistanceField=null;
+        this.Lumen?.Dispose();
+        this.Lumen=null;
+        if(this.LumenSurfacePipelineState!=null){
+            _=this.LumenSurfacePipelineState->Release();
+            this.LumenSurfacePipelineState=null;
+        }
+        if(this.LumenCardPipelineState!=null){
+            _=this.LumenCardPipelineState->Release();
+            this.LumenCardPipelineState=null;
+        }
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

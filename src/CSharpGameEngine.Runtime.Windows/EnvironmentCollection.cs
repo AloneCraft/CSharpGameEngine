@@ -101,7 +101,26 @@ internal sealed class EnvironmentCollection {
             this.InvalidReason=nameof(GlobalDistanceField);
             DistanceField=null;
         }
-        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination,AmbientOcclusion,Clouds,Sphere,DistanceField);
+        var Lumen=Post is PostProcessVolume Volume?ToLumenSettings(Volume):(LumenSettings?)null;
+        if(Lumen is { IsValid:false }){
+            // An unusable Lumen value only turns Lumen off; the probe volume and the sky light stay.
+            this.InvalidReason=nameof(LumenSettings);
+            Lumen=null;
+        }
+        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination,AmbientOcclusion,Clouds,Sphere,DistanceField,Lumen);
+    }
+    /// <summary>
+    /// The renderer's Lumen settings from the PostProcessVolume (ADR-0078/M0111), or null when neither its GI nor its reflections use Lumen. The
+    /// reflections need Lumen's GI, so a volume with only Lumen reflections gets neither.
+    /// </summary>
+    internal static LumenSettings?ToLumenSettings(in PostProcessVolume Volume){
+        if(Volume.GlobalIlluminationMethod!=GlobalIlluminationMethod.Lumen){
+            return null;
+        }
+        return new LumenSettings(true,Volume.ReflectionMethod==ReflectionMethod.Lumen,Volume.LumenSceneLightingQuality,Volume.LumenSceneDetail,
+            Volume.LumenSceneViewDistanceMeters,Volume.LumenSceneLightingUpdateSpeed,Volume.LumenFinalGatherQuality,Volume.LumenFinalGatherLightingUpdateSpeed,
+            Volume.LumenFinalGatherScreenTraces,Volume.LumenMaxTraceDistanceMeters,Volume.LumenDiffuseColorBoost,Volume.LumenSkylightLeaking,Volume.LumenReflectionQuality,
+            Volume.LumenMaxRoughnessToTraceReflections,Volume.LumenReflectionsScreenTraces,Volume.LumenSurfaceCacheResolution);
     }
     /// <summary>
     /// The renderer's clouds from the component: the camera's place over the world and the wind's travel since the game started, both in

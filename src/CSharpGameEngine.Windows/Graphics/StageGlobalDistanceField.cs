@@ -85,6 +85,22 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
     /// <summary>Per level: (x voxel size, y truncation, z resolution, w 1 / resolution), the render-space corner of the clip and the texel of that corner.</summary>
     internal (Vector4 Scale,Vector4 Origin,Vector4 Texel)[]ClipmapConstants { get; }=new (Vector4,Vector4,Vector4)[MaximumLevels];
     internal ID3D12Resource*Level(int Index)=>this.Levels[Index];
+    /// <summary>
+    /// M0111: the record of a renderer mesh in <see cref="MeshRecordAddress"/> (its distance field's bounds, voxel size, resolution and offset in
+    /// <see cref="MeshDistanceAddress"/>), false for a mesh without a field. Valid from the next <see cref="Update"/> on.
+    /// </summary>
+    internal bool TryGetMeshRecord(int MeshIndex,out int Record){
+        Record=-1;
+        if((uint)MeshIndex>=(uint)this.MeshEntries.Count||this.MeshEntries[MeshIndex] is not{ }Entry){
+            return false;
+        }
+        Record=Entry.Record;
+        return true;
+    }
+    /// <summary>The mesh records (32 bytes each, see GlobalDistanceField.hlsl's MeshRecord) after an <see cref="Update"/>, or 0 before.</summary>
+    internal ulong MeshRecordAddress=>this.MeshRecordBuffer!=null?this.MeshRecordBuffer->GetGPUVirtualAddress():0;
+    /// <summary>The meshes' distances (half floats, read as words) after an <see cref="Update"/>, or 0 before.</summary>
+    internal ulong MeshDistanceAddress=>this.MeshDistanceBuffer!=null?this.MeshDistanceBuffer->GetGPUVirtualAddress():0;
     /// <summary>Records the distance field of one renderer mesh (null when it has none); used from the next <see cref="Update"/>.</summary>
     internal void SetMesh(int MeshIndex,MeshDistanceField?Field){
         while(this.MeshEntries.Count<=MeshIndex){

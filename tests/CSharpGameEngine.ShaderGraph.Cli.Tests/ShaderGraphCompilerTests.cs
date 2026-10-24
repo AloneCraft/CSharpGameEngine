@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,16 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,18 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -74,6 +74,12 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains("float Depth : SV_DepthGreaterEqual;",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialObserverVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialVSMain");
+                // M0111: the Lumen surface prepass writes the normal and roughness and the distance; the card capture writes three targets.
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="LumenSurfacePSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="LumenCardPSMain");
+                Assert.Contains("LumenSurfaceOutput LumenSurfacePSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("float4 Emissive : SV_Target2;",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("Texture2D LumenDiffuseTexture : register(t16);",BuiltSource,StringComparison.Ordinal);
             }
         } finally { Directory.Delete(DirectoryPath,true); }
     }
@@ -105,9 +111,10 @@ public sealed class ShaderGraphCompilerTests {
         var Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Export.Hlsl)));
         // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows), ADR-0075 (world-space
         // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin), M0099 Phase 3 (FrameCB
-        // depth-mapping packet) and the M0099 conservative raster matrix intentionally changed the Stage program; the
+        // depth-mapping packet), the M0099 conservative raster matrix and M0111 (FrameCB.LumenParams, t16/t17 and PSMain's
+        // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) intentionally changed the Stage program; the
         // migrate/extract round trip was verified byte-identical before those edits.
-        Assert.Equal("06838A472BE0005545DEFE4DF113F093B9FD153F5DD446974BD44262DAEB6D63",Hash);
+        Assert.Equal("31CEC5284B43354C78C4CE2C2F20B9B5976E5781728618B7CE20864C209184D7",Hash);
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {

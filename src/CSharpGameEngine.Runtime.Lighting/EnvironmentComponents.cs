@@ -64,7 +64,25 @@ public enum ToneMapperKind {
     /// <summary>Unreal Engine's filmic curve followed by the sRGB transfer function.</summary>
     UnrealFilmic,
 }
-/// <summary>Scene-wide (unbound) post-process settings: exposure, tone mapping and bloom.</summary>
+/// <summary>Unreal's Global Illumination Method (ADR-0078/M0111).</summary>
+public enum GlobalIlluminationMethod {
+    /// <summary>No Lumen: the probe volume (<see cref="GlobalIlluminationVolume"/>) and the sky light light the scene, as before M0111.</summary>
+    None,
+    /// <summary>The Lumen-like dynamic GI (surface cache, radiance cache, screen probes), where the adapter's scalability allows it.</summary>
+    Lumen,
+}
+/// <summary>Unreal's Reflection Method (ADR-0078/M0111).</summary>
+public enum ReflectionMethod {
+    /// <summary>No Lumen reflections: the sky light's specular, as before M0111.</summary>
+    None,
+    /// <summary>The Lumen-like reflections (screen traces, then the distance field and the surface cache), where the scalability allows them.</summary>
+    Lumen,
+}
+/// <summary>
+/// Scene-wide (unbound) post-process settings: exposure, tone mapping, bloom, and (ADR-0078/M0111) Unreal's Lumen settings with Unreal's defaults,
+/// which the four UE 5.8 templates use unchanged (tools/UnrealExport/probe_lumen.py). Distances are metres (Unreal's centimetres / 100). Lumen needs a
+/// <see cref="GlobalDistanceField"/> in the scene and an adapter whose scalability is High or Epic (the default on a GPU; WARP keeps the probe volume).
+/// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,62)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/PostProcessVolume.svg")]
 public struct PostProcessVolume() {
@@ -83,6 +101,36 @@ public struct PostProcessVolume() {
     public float AmbientOcclusionIntensity=0.5f;
     /// <summary>World-space ambient occlusion radius in metres (Unreal's 200 cm).</summary>
     public float AmbientOcclusionRadiusMeters=2f;
+    public GlobalIlluminationMethod GlobalIlluminationMethod=GlobalIlluminationMethod.Lumen;
+    public ReflectionMethod ReflectionMethod=ReflectionMethod.Lumen;
+    /// <summary>Scales how many surface cache texels are lit each frame (Unreal's Lumen Scene Lighting Quality, 0.25-4).</summary>
+    public float LumenSceneLightingQuality=1f;
+    /// <summary>Scales the surface cache's texels per metre (Unreal's Lumen Scene Detail, 0.25-4).</summary>
+    public float LumenSceneDetail=1f;
+    /// <summary>Objects farther than this get no surface cache cards (Unreal's Lumen Scene View Distance, 20000 cm).</summary>
+    public float LumenSceneViewDistanceMeters=200f;
+    /// <summary>Scales the surface cache's lighting budget per frame (Unreal's Lumen Scene Lighting Update Speed, 0.5-4).</summary>
+    public float LumenSceneLightingUpdateSpeed=1f;
+    /// <summary>Screen probes every 16 pixels at Epic divided by this (Unreal's Final Gather Quality, 0.25-4).</summary>
+    public float LumenFinalGatherQuality=1f;
+    /// <summary>Scales the radiance cache's probes per frame and the final gather's new-sample weight (Unreal's Final Gather Lighting Update Speed).</summary>
+    public float LumenFinalGatherLightingUpdateSpeed=1f;
+    /// <summary>Whether the final gather traces the screen before the distance field (Unreal's Final Gather Screen Traces).</summary>
+    public bool LumenFinalGatherScreenTraces=true;
+    /// <summary>The longest ray (Unreal's Max Trace Distance, 20000 cm).</summary>
+    public float LumenMaxTraceDistanceMeters=200f;
+    /// <summary>Multiplies the surface cache's albedo, at most to 1 (Unreal's Diffuse Color Boost, 1-4).</summary>
+    public float LumenDiffuseColorBoost=1f;
+    /// <summary>The final gather's irradiance is at least this fraction of the open sky's (Unreal's Skylight Leaking, 0-1; an art knob against black interiors).</summary>
+    public float LumenSkylightLeaking=0f;
+    /// <summary>Reflections at full resolution at Epic when at least 0.75, else every 2 x 2 pixels (Unreal's Lumen Reflection Quality).</summary>
+    public float LumenReflectionQuality=1f;
+    /// <summary>Rougher surfaces reflect the final gather's probes instead of tracing (Unreal's Max Roughness To Trace Reflections, 0.4).</summary>
+    public float LumenMaxRoughnessToTraceReflections=0.4f;
+    /// <summary>Whether the reflections trace the screen before the distance field (Unreal's Lumen Reflections Screen Traces).</summary>
+    public bool LumenReflectionsScreenTraces=true;
+    /// <summary>Scales the surface cache's resolution (Unreal's Surface Cache Resolution, 0.5-1).</summary>
+    public float LumenSurfaceCacheResolution=1f;
 }
 /// <summary>
 /// Unreal Engine's exponential height fog. <see cref="FogDensity"/> and <see cref="FogHeightFalloff"/>

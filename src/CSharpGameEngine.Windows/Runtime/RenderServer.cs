@@ -101,6 +101,29 @@ public sealed class RenderServer:IDisposable {
     /// <summary>Meshes with a distance field, and objects in the global distance field at the last frame (ADR-0078/M0110).</summary>
     public int DistanceFieldMeshCount=>this.Backend.DistanceFieldMeshCount;
     public int DistanceFieldObjectCount=>this.Backend.DistanceFieldObjectCount;
+    /// <summary>
+    /// The adapter-level quality of the dynamic lighting (ADR-0078/M0111): Lumen's GI and reflections run at High and Epic. The default is the
+    /// adapter's (<see cref="RenderScalability.DefaultFor"/>); a value set here survives device recovery.
+    /// </summary>
+    public RenderScalability Scalability{
+        get=>this.ScalabilityValue??this.Backend.Scalability;
+        set{
+            this.ScalabilityValue=value;
+            this.Backend.Scalability=value;
+        }
+    }
+    private RenderScalability?ScalabilityValue;
+    /// <summary>Debugging (Unreal's r.Lumen.Visualize, M0111): while Lumen runs, the frame shows this instead of the lit scene. Survives device recovery.</summary>
+    public LumenVisualization LumenVisualization{
+        get=>this.LumenVisualizationValue;
+        set{
+            this.LumenVisualizationValue=value;
+            this.Backend.LumenVisualization=value;
+        }
+    }
+    private LumenVisualization LumenVisualizationValue;
+    /// <summary>Whether the last frame lit the scene with the Lumen-like GI (M0111) rather than the probe volume and the sky light.</summary>
+    public bool LumenActive=>this.Backend.LumenActiveLastFrame;
 
     internal void RemoveDeviceForTesting()=>this.Backend.RemoveDeviceForTesting();
     internal float[]ReadDepthForTesting()=>this.Backend.ReadDepthForTesting();
@@ -454,6 +477,10 @@ public sealed class RenderServer:IDisposable {
                 this.ShaderArtifactPath,ShaderPackage,
                 this.Meshes,this.Materials,this.Objects);
             this.Renderer=Replacement;
+            if(this.ScalabilityValue is{ }Scalability){
+                Replacement.Scalability=Scalability;
+            }
+            Replacement.LumenVisualization=this.LumenVisualizationValue;
             this.AppliedShaderPackage=ShaderPackage;
             this.FenceBase=CompletedFence;
             RenderFrameState RecoveryFrame=

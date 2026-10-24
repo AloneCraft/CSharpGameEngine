@@ -239,6 +239,9 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
             Renderer.Dispose();
             throw new InvalidOperationException("EngineHost already owns a renderer.");
         }
+        // ADR-0078/M0111: the adapter's default scalability (Lumen on a GPU, the probe volume on WARP) unless CGE_SCALABILITY_GI / _REFLECTIONS name one.
+        Renderer.Scalability=RenderScalabilityResolver.FromEnvironment(Renderer.IsWarp);
+        Renderer.LumenVisualization=RenderScalabilityResolver.VisualizationFromEnvironment();
         this.Renderer=Renderer;
     }
 

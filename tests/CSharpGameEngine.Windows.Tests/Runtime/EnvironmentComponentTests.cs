@@ -102,6 +102,38 @@ public sealed class EnvironmentComponentTests {
         Clock.Advance(-5,60);
         Assert.Equal(80f+1f/3f,Clock.Seconds,4);
     }
+    [Fact]
+    public void PostProcessVolume_LumenDefaultsAreUnrealsAndMapToTheRenderer(){
+        // ADR-0078/M0111: the four UE 5.8 templates use Lumen GI and reflections with the PostProcessVolume defaults (probe_lumen.py).
+        var Volume=new PostProcessVolume();
+        Assert.Equal(GlobalIlluminationMethod.Lumen,Volume.GlobalIlluminationMethod);
+        Assert.Equal(ReflectionMethod.Lumen,Volume.ReflectionMethod);
+        Assert.Equal(LumenSettings.Unreal,EnvironmentCollection.ToLumenSettings(Volume));
+        Assert.Equal(LumenSettings.Unreal,new EnvironmentCollection { PostProcess=Volume }.Build().Lumen);
+        AssertRoundTrip(new PostProcessVolume { GlobalIlluminationMethod=GlobalIlluminationMethod.None,ReflectionMethod=ReflectionMethod.None,LumenFinalGatherQuality=2f,LumenFinalGatherScreenTraces=false,LumenMaxTraceDistanceMeters=50f });
+        var Tuned=EnvironmentCollection.ToLumenSettings(new PostProcessVolume { ReflectionMethod=ReflectionMethod.None,LumenFinalGatherQuality=2f,LumenMaxRoughnessToTraceReflections=0.6f,LumenReflectionsScreenTraces=false });
+        Assert.Equal(LumenSettings.Unreal with { Reflections=false,FinalGatherQuality=2f,MaxRoughnessToTraceReflections=0.6f,ReflectionScreenTraces=false },Tuned);
+    }
+    [Fact]
+    public void PostProcessVolume_WithoutLumenOrWithUnusableValuesKeepsTheProbeVolume(){
+        Assert.Null(EnvironmentCollection.ToLumenSettings(new PostProcessVolume { GlobalIlluminationMethod=GlobalIlluminationMethod.None }));
+        // Lumen reflections need Lumen's GI (their rough lobes read its probes): reflections alone give neither.
+        Assert.Null(EnvironmentCollection.ToLumenSettings(new PostProcessVolume { GlobalIlluminationMethod=GlobalIlluminationMethod.None,ReflectionMethod=ReflectionMethod.Lumen }));
+        Assert.Null(new EnvironmentCollection().Build().Lumen);
+        foreach(var Broken in new[]{
+            new PostProcessVolume { LumenFinalGatherQuality=float.NaN },
+            new PostProcessVolume { LumenSceneViewDistanceMeters=0f },
+            new PostProcessVolume { LumenMaxRoughnessToTraceReflections=1.5f },
+            new PostProcessVolume { LumenSkylightLeaking=-0.1f },
+        }){
+            var Collection=new EnvironmentCollection { Atmosphere=new SkyAtmosphere(),SkyLight=new SkyLight(),PostProcess=Broken };
+            var Settings=Collection.Build();
+            Assert.True(Settings.IsValid);
+            Assert.Null(Settings.Lumen);
+            Assert.NotNull(Settings.SkyLight);
+            Assert.Equal(nameof(LumenSettings),Collection.InvalidReason);
+        }
+    }
     private static void AssertRoundTrip<T>(T Value)where T:struct{
         Assert.False(EcsSnapshotComponentCodec<T>.IsTransient);
         var Payload=EcsSnapshotComponentCodec<T>.Serialize(Value);
