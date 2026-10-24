@@ -328,7 +328,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         private static Camera CreateView(Vector3 Position,float Pitch){
             var View=Camera.CreateFirstPerson(Position);
             View.Pitch=Pitch;
-            View.DepthMapping=RenderDepthMapping.Standard;
+            View.DepthMapping=RenderDepthMapping.Radial;
             return View;
         }
         private static StageMaterialCreateInfo Material(Vector3 Color,float Roughness=0.9f,float Metallic=0f,Vector3 Emissive=default)=>
