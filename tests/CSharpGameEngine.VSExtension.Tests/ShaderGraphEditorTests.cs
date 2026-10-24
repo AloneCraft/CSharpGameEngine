@@ -127,6 +127,7 @@ public sealed class ShaderGraphEditorTests {
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Shadow.cgesubgraph"));
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Pcss.cgesubgraph"));
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Aces.cgesubgraph"));
+        Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Depth.cgesubgraph"));
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Model.cgeshadergraph"));
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Triangle.cgeshadergraph"));
         var PkgDef=Archive.GetEntry("CSharpGameEngine.VSExtension.pkgdef");

@@ -149,6 +149,7 @@
     <File Path="assets/Shaders/Shadow.cgesubgraph" />
     <File Path="assets/Shaders/Pcss.cgesubgraph" />
     <File Path="assets/Shaders/Aces.cgesubgraph" />
+    <File Path="assets/Shaders/Depth.cgesubgraph" />
     <File Path="assets/Fonts/Roboto-Regular.cgefont" />
     <File Path="assets/Fonts/Roboto-Light.cgefont" />
     <File Path="assets/Fonts/ROBOTO_LICENSE.txt" />

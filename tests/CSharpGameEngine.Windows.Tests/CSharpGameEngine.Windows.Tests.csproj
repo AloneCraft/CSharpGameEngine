@@ -53,6 +53,7 @@
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Shadow.cgesubgraph" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Pcss.cgesubgraph" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Aces.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\..\assets\Shaders\Depth.cgesubgraph" />
     <!-- From the former Graphics.D3D12.Tests. -->
     <None Include="..\..\assets\TestFixtures\Gltf\Box.glb" Link="Fixtures\Box.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Fixtures\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />

@@ -34,6 +34,7 @@ SUBGRAPHS = {
     "Shadow": ("Shadow", ["ComputeAtlasShadowProjected;", "ComputeDirectionalShadow", "ComputeAtlasShadowProjected", "ComputeSpotShadow", "SelectPointShadowFace", "ComputePointShadow"]),
     "Pcss": ("PCSS", ["AreaPcssBlockerOffsets", "AreaPcssFilterOffsets", "LinearizeAreaShadowDepth", "ProjectAreaShadowDistance", "ComputeAreaShadow"]),
     "Aces": ("ACES", ["ToneMapAces"]),
+    "Depth": ("Depth", ["RadialMaximumDepth", "RadialLog2OnePlus", "RadialSafeLength", "RadialG", "EncodeRadialDepth", "IsBeyondRadialFarPlane"]),
 }
 
 
@@ -102,7 +103,7 @@ def main():
     try:
         dump = os.path.join(work, "dump.hlsl")
         run("dump-hlsl", os.path.join(SHADERS, "Stage.cgeshadergraph"), dump)
-        composed = open(dump, "rb").read().decode("utf-8")
+        composed = open(dump, "rb").read().decode("utf-8").replace("\r\n", "\n")
         suffix = presentation_suffix()
         if not composed.endswith(suffix):
             raise RuntimeError("The composed Stage HLSL does not end with StagePresentationShaderSource.")
@@ -117,7 +118,10 @@ def main():
             run("extract-subgraph-internal", graph, os.path.join(work, file_name + ".cgesubgraph"), subgraph_name, ",".join(map(str, indices)))
         replacements = {}
         for file_name in SUBGRAPHS:
-            original = json.load(open(os.path.join(SHADERS, file_name + ".cgesubgraph"), encoding="utf-8"))["id"]
+            existing = os.path.join(SHADERS, file_name + ".cgesubgraph")
+            if not os.path.exists(existing):
+                continue
+            original = json.load(open(existing, encoding="utf-8"))["id"]
             replacements[json.load(open(os.path.join(work, file_name + ".cgesubgraph"), encoding="utf-8"))["id"]] = original
         replacements[json.load(open(graph, encoding="utf-8"))["id"]] = json.load(open(os.path.join(SHADERS, "Stage.cgeshadergraph"), encoding="utf-8"))["id"]
         for file_name in ["Stage.cgeshadergraph"] + [name + ".cgesubgraph" for name in SUBGRAPHS]:
@@ -128,12 +132,12 @@ def main():
         run("validate", graph)
         check = os.path.join(work, "check.hlsl")
         run("dump-hlsl", graph, check)
-        composed_check = open(check, "rb").read().decode("utf-8")
+        composed_check = open(check, "rb").read().decode("utf-8").replace("\r\n", "\n")
         golden = hashlib.sha256(composed_check[:len(composed_check) - len(suffix)].encode("utf-8")).hexdigest().upper()
         for file_name in ["Stage.cgeshadergraph"] + [name + ".cgesubgraph" for name in SUBGRAPHS]:
             shutil.copyfile(os.path.join(work, file_name), os.path.join(SHADERS, file_name))
         print("updated Stage graph;", len(declarations), "top-level declarations")
-        print("golden composed Stage HLSL SHA-256 (ShaderGraphCompilerTests):", golden)
+        print("composed Stage HLSL SHA-256 with LF newlines (the pinned value in ShaderGraphCompilerTests hashes the emitter output as it is; copy it from the failing assertion):", golden)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
