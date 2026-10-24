@@ -482,3 +482,16 @@
   - テンプレート: Tab で前と後ろのカメラ、L で左のヘッドライト、BackSpace でリセット、マウスの横・右スティックで見回し(離すと戻る)、ブレーキ(0 からの踏み込みで点き 0 で消える)とハンドブレーキ(押している間)でテールランプが 200 倍(通常 4 倍)に光る。
 - Intended behavior: `Docs/Specifications/UE-Template-Behavior.md` の Vehicle(UE のテンプレートの挙動)。
 - Result: MatchesWithDocumentedExtension(差は M0109 の文書: 力のサスペンション(UE の既定は制約)、ブレーキランプを光らせる(UE では光らない)、慣性は箱、エンジン音なし)。
+
+## RE-M0110 — Lumen 相当の土台(ミップ、雲、空の球、メッシュの距離場、グローバル距離場)
+
+- Confidence: High(単体テストと WARP の GPU 試験、テンプレートの実走と画像で確認)。UE の雲との見た目の一致は Medium(参照画像を目で比べた。形はエンジンのノイズ)。実機の GPU は Low(未確認)。
+- Evidence: `src/CSharpGameEngine.Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`EnvironmentLighting.cs`、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
+- Observed behavior:
+  - 材質テクスチャ: 4 つの欄のテクスチャは、(内容のハッシュ、色空間)ごとに 1 つ常駐する。基本色と発光は sRGB、法線と金属・粗さは線形。段の数は floor(log2(max(幅, 高さ))) + 1、各段は前の段の半分(切り捨て、最小 1)で、目標の画素は覆う元の画素の重なりの長さを重みにした整数の平均(半分は切り上げ)。sRGB の RGB は定数の表で 16 ビットの線形へ戻して平均し、最も近い 8 ビットのコードへ(同点は上)。段から段へは 16 ビット。s0 は異方性 8・wrap、全段を見る。画面レイヤーのテクスチャは 1 段。
+  - 雲: `VolumetricCloud` があり大気があるフレームで、最初(または雲・大気・太陽が変わったとき)にパノラマ(WARP 1024 × 256)の全画素を、以降は 4 × 4 の区画の Bayer の順の 1 画素ずつを描く。各画素は、その方向の視線が雲の殻(半径 R + 5 km から R + 15 km)に入る点から最大 50 km を 24 サンプル(画素ごとに固定の乱数のずれ)で積分し、透過率が 0.005 を下回ったら止める。空の合成は、遠平面の画素(と空の球の外の画素)の空と太陽の円盤の輝度に、パノラマの「残る割合」を掛け、雲の輝度を足し、そのあと高さの霧と露出をかける。空の光の SH は、雲があるとき雲を含み、一巡ごとに作り直す。雲の時間はフレームの経過時間の和(自動実行では 8/60 秒ずつ)、風は 10 m/s で +F から 45°。
+  - 空の球: `SkySphere` と大気があれば、深度が遠平面でない画素も、面の位置(標準の深度は逆行列、放射の深度は T(2^(dG) − 1) の距離)が球の中心から半径より遠ければ空にする。
+  - メッシュの距離場: ビルドはゲームの `Assets\**\*.glb` ごとに `obj\...\DistanceFields\<path>.glb.cgesdf` を作り(glb か CLI が新しいときだけ)、出力の glb の隣へコピーする。項目はメッシュごと(取り込みの順)で、骨格メッシュの項目は空。ランタイムは内容のハッシュが合う項目だけを使う。基本形状は実行時に作る(プロセスで 1 回)。
+  - グローバル距離場: `GlobalDistanceField` があるフレームで、描画の前に更新する。段 L のボクセルは 0.5 m × 2^L、クリップは原点のボクセルから 32 ボクセル手前を 8 の倍数に切り下げた角から 64 ボクセル。作り直すブリックは、前のフレームのクリップに無かったもの、動いた・現れた・消えた物体(行列の回転と拡大が 1e-5 を超えて変わるか、位置がカメラの動き分と 1 mm を超えて違う)の前後の範囲 + 4 ボクセルにかかるもの。ブリックの各ボクセルは、届く物体ごとにメッシュの距離場(局所の空間での三線形 + 箱の外の距離)× 最小の拡大の最小を取り、±4 ボクセルに切る。行列が有限でないか逆行列が無い物体と、距離場の無いメッシュの物体は入らない。
+- Intended behavior: `Docs/Specifications/Rendering.md` の環境ライティングとメッシュの距離場、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5。
+- Result: MatchesWithDocumentedExtension(差は M0110 の文書の「範囲外・残り」)。

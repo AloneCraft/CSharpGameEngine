@@ -77,6 +77,14 @@
           "AmbientOcclusionIntensity": 0.5,
           "AmbientOcclusionRadiusMeters": 2
         }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.VolumetricCloud",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.GlobalDistanceField",
+        "members": {}
       }
     ],
     "children": [

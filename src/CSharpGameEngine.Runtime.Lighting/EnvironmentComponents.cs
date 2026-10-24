@@ -121,3 +121,77 @@ public struct GlobalIlluminationVolume() {
     public float Hysteresis=0.5f;
     public float Intensity=1f;
 }
+/// <summary>
+/// Volumetric clouds (ADR-0078/M0110): Unreal's VolumetricCloud component together with the values of its default cloud material
+/// (<c>m_SimpleVolumetricCloud_Inst</c>), read from the UE 5.8 templates (all four levels use the same ones). A shell of the planet between
+/// <see cref="LayerBottomAltitudeKm"/> and its top is ray marched toward the sun after Hillaire, lit by the sun through the atmosphere and by the
+/// sky light, and drawn over the sky. The cloud shapes are the engine's own noise (Unreal's come from its cloud textures); the wind moves them.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,65)]
+[SceneComponentIcon("Assets/Editor/ComponentIcons/VolumetricCloud.svg")]
+public struct VolumetricCloud() {
+    /// <summary>Altitude of the bottom of the cloud layer above the ground (Unreal's Layer Bottom Altitude).</summary>
+    public float LayerBottomAltitudeKm=5f;
+    /// <summary>Thickness of the cloud layer (Unreal's Layer Height).</summary>
+    public float LayerHeightKm=10f;
+    /// <summary>Clouds whose layer starts farther than this along a view ray are not traced (Unreal's Tracing Start Max Distance).</summary>
+    public float TracingStartMaxDistanceKm=350f;
+    /// <summary>The longest stretch of a view ray traced inside the layer (Unreal's Tracing Max Distance).</summary>
+    public float TracingMaxDistanceKm=50f;
+    /// <summary>Extinction of the densest cloud per metre (the material's Cloud_GlobalDensity).</summary>
+    public float Density=0.008f;
+    /// <summary>Shifts how much of the sky is covered: 0 is about half, negative is less (the material's Cloud_GlobalCoverage).</summary>
+    public float Coverage=-0.2f;
+    /// <summary>Size of the cloud layout pattern (the material's Layout_CloudGlobalScale).</summary>
+    public float LayoutScaleKm=256f;
+    /// <summary>Single-scattering albedo (the material's Cloud_AlbedoColor).</summary>
+    public float AlbedoR=0.98f;
+    public float AlbedoG=0.98f;
+    public float AlbedoB=0.98f;
+    /// <summary>The dual-lobe Henyey-Greenstein phase: the two eccentricities and the blend toward the second (the material's Phase_Controls).</summary>
+    public float PhaseG=0.8f;
+    public float PhaseG2=0.166667f;
+    public float PhaseBlend=0.575f;
+    /// <summary>Hillaire's multiple-scattering approximation per octave: contribution, occlusion and eccentricity factors (the material's Multiscatter_Controls).</summary>
+    public float MultiScatteringContribution=0.666667f;
+    public float MultiScatteringOcclusion=0.25f;
+    public float MultiScatteringEccentricity=0.18f;
+    /// <summary>How much the sky light is dimmed at the bottom of the layer (Unreal's Sky Light Cloud Bottom Occlusion).</summary>
+    public float SkyLightCloudBottomOcclusion=0.5f;
+    /// <summary>Tracing stops once the view ray's transmittance falls below this (Unreal's Stop Tracing Transmittance Threshold).</summary>
+    public float StopTracingTransmittanceThreshold=0.005f;
+    /// <summary>Wind speed moving the clouds. Unreal animates its default clouds through Layout_WindControls; this speed is the engine's choice.</summary>
+    public float WindSpeedMetersPerSecond=10f;
+    /// <summary>The direction the wind blows toward, clockwise from +F seen from above (+R at 90).</summary>
+    [Angle(AngleUnit.Degrees)]
+    public float WindDirectionDegrees=45f;
+}
+/// <summary>
+/// The sky sphere (ADR-0078/M0110): Unreal's <c>SM_SkySphere</c> drawn with <c>M_SimpleSkyDome</c>, an unlit "Is Sky" material whose colour is
+/// the SkyAtmosphere's view luminance plus its sun disk. The engine draws exactly that sky (with the clouds) on every pixel that is not covered
+/// by geometry closer than the sphere: geometry beyond <see cref="RadiusMeters"/> from the Entity's position is hidden by the sky, as Unreal's
+/// dome hides it. Without a <see cref="SkyAtmosphere"/> it has no effect. Rotation and scale of the Transform are ignored.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,66)]
+[SceneComponentIcon("Assets/Editor/ComponentIcons/SkySphere.svg")]
+public struct SkySphere() {
+    /// <summary>Radius of the sphere. Unreal's SM_SkySphere is 40.96 m and the templates scale it 400 times: 16.384 km.</summary>
+    public float RadiusMeters=16384f;
+}
+/// <summary>
+/// The global distance field (ADR-0078/M0110): clipmaps of the scene's signed distance around the camera, made every frame from the mesh distance
+/// fields the build writes for each glTF, for the Lumen-like lighting (M0111) to trace. Unreal makes it when the project's "Generate Mesh Distance
+/// Fields" is on, as its templates have it for Lumen; here a level with this component gets it. The values are the engine's choice for WARP (Unreal's
+/// first clipmap reaches 25 m): <see cref="ClipmapCount"/> levels of <see cref="Resolution"/>^3 voxels, the finest of <see cref="VoxelSizeMeters"/>.
+/// It changes nothing on screen by itself.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,67)]
+[SceneComponentIcon("Assets/Editor/ComponentIcons/GlobalDistanceField.svg")]
+public struct GlobalDistanceField() {
+    /// <summary>Voxel size of the finest clipmap; each next one doubles it.</summary>
+    public float VoxelSizeMeters=0.5f;
+    /// <summary>Clipmaps (1-4).</summary>
+    public int ClipmapCount=4;
+    /// <summary>Voxels per side of each clipmap (16-128, a multiple of 8).</summary>
+    public int Resolution=64;
+}

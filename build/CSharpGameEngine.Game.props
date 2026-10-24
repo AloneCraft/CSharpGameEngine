@@ -25,6 +25,8 @@
     <CgeIncludeDefaultStageShaders Condition="'$(CgeIncludeDefaultStageShaders)' == ''">true</CgeIncludeDefaultStageShaders>
     <CgeCopyAssets Condition="'$(CgeCopyAssets)' == ''">true</CgeCopyAssets>
     <CgeIncludeDefaultFonts Condition="'$(CgeIncludeDefaultFonts)' == ''">true</CgeIncludeDefaultFonts>
+    <!-- ADR-0078/M0110: Unreal's "Generate Mesh Distance Fields" (on in its templates, needed by Lumen). The build makes each glTF's distance fields. -->
+    <CgeGenerateMeshDistanceFields Condition="'$(CgeGenerateMeshDistanceFields)' == ''">true</CgeGenerateMeshDistanceFields>
     <!-- The shared engine sources need these outside the repository, where Directory.Build.props does not apply. -->
     <LangVersion Condition="'$(LangVersion)' == ''">14</LangVersion>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
@@ -83,11 +85,16 @@
     <CgeComputeShader Include="$(CgeEngineShaderRoot)AmbientOcclusion.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)LuminanceHistogram.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Skinning.hlsl" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)GlobalDistanceField.hlsl" />
   </ItemGroup>
 
   <!-- ADR-0078/M0104: the engine's baked fonts (Roboto Regular and Light) land in Fonts\ next to the game, where ScreenText looks. -->
   <ItemGroup Condition="'$(CgeIncludeDefaultFonts)' == 'true'">
     <None Include="$(CgeEngineRoot)assets\Fonts\*.cgefont" Link="Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CgeGenerateMeshDistanceFields)' == 'true'">
+    <CgeMeshDistanceFieldSource Include="Assets\**\*.glb" Exclude="Assets\Editor\**" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">

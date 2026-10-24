@@ -13,6 +13,9 @@
   <ItemGroup>
     <ProjectReference Include="../../src/CSharpGameEngine.ShaderGraph/CSharpGameEngine.ShaderGraph.csproj" />
     <ProjectReference Include="../../src/CSharpGameEngine.ShaderArtifacts/CSharpGameEngine.ShaderArtifacts.csproj" />
+    <!-- ADR-0078/M0110: build-distance-fields reads glTF meshes with the engine's importer and writes their distance fields. -->
+    <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
+    <ProjectReference Include="../../src/CSharpGameEngine.Rendering/CSharpGameEngine.Rendering.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(PkgMicrosoft_Direct3D_DXC)/build/native/bin/x64/dxcompiler.dll" Link="dxcompiler.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />

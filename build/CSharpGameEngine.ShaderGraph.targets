@@ -5,8 +5,9 @@
          and BuildCgeShaderGraphCli replaces this with the path the build produced (an artifacts path moves it). -->
     <CgeShaderGraphCliExe Condition="'$(CgeShaderGraphCliExe)' == ''">$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\bin\x64\$(Configuration)\net10.0-windows10.0.19041.0\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
     <CgeShaderGraphIntermediateDirectory>$(IntermediateOutputPath)ShaderGraph\</CgeShaderGraphIntermediateDirectory>
+    <CgeMeshDistanceFieldIntermediateDirectory>$(IntermediateOutputPath)DistanceFields\</CgeMeshDistanceFieldIntermediateDirectory>
   </PropertyGroup>
-  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders" Condition="('@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != '') and '$(CgeEngineMode)' != 'Package'">
+  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders;CompileCgeMeshDistanceFields" Condition="('@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != '' or '@(CgeMeshDistanceFieldSource)' != '') and '$(CgeEngineMode)' != 'Package'">
     <!-- A project built on its own does not restore this tool; restore in a separate evaluation first. -->
     <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Restore"
              Properties="Configuration=$(Configuration);Platform=x64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
@@ -33,6 +34,27 @@
     <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />
     <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build &quot;%(CgeShaderGraph.FullPath)&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).cgeshaderartifact&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).generated.hlsl&quot; &quot;$(Configuration)&quot;" />
     <Touch Files="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')" />
+  </Target>
+  <!--
+    ADR-0078/M0110: the mesh distance fields of every glTF in CgeMeshDistanceFieldSource (Game.props: the game's Assets\**\*.glb), made by the same
+    CLI as the shader artifacts into obj\...\DistanceFields\ and copied next to the game as Assets\<path>.glb.cgesdf, where the runtime looks for them
+    when it loads the glTF. One file per glTF, rebuilt only when that glTF or the CLI is newer. It is geometry made ahead of the game; no lighting is baked.
+  -->
+  <Target Name="CompileCgeMeshDistanceFields" BeforeTargets="AssignTargetPaths" DependsOnTargets="BuildCgeShaderGraphCli"
+          Condition="'@(CgeMeshDistanceFieldSource)' != '' and '$(DesignTimeBuild)' != 'true'"
+          Inputs="@(CgeMeshDistanceFieldSource);$(CgeShaderGraphCliExe)"
+          Outputs="@(CgeMeshDistanceFieldSource->'$(CgeMeshDistanceFieldIntermediateDirectory)%(RecursiveDir)%(Filename)%(Extension).cgesdf')">
+    <MakeDir Directories="$(CgeMeshDistanceFieldIntermediateDirectory)" />
+    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build-distance-fields &quot;%(CgeMeshDistanceFieldSource.FullPath)&quot; &quot;$(CgeMeshDistanceFieldIntermediateDirectory)%(CgeMeshDistanceFieldSource.RecursiveDir)%(CgeMeshDistanceFieldSource.Filename)%(CgeMeshDistanceFieldSource.Extension).cgesdf&quot;" />
+    <Touch Files="@(CgeMeshDistanceFieldSource->'$(CgeMeshDistanceFieldIntermediateDirectory)%(RecursiveDir)%(Filename)%(Extension).cgesdf')" />
+  </Target>
+  <Target Name="CollectCgeMeshDistanceFields" BeforeTargets="AssignTargetPaths" DependsOnTargets="CompileCgeMeshDistanceFields"
+          Condition="'@(CgeMeshDistanceFieldSource)' != '' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <None Include="@(CgeMeshDistanceFieldSource->'$(CgeMeshDistanceFieldIntermediateDirectory)%(RecursiveDir)%(Filename)%(Extension).cgesdf')"
+            Link="Assets\%(CgeMeshDistanceFieldSource.RecursiveDir)%(CgeMeshDistanceFieldSource.Filename)%(CgeMeshDistanceFieldSource.Extension).cgesdf"
+            CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
   </Target>
   <Target Name="PublishCgeShaderArtifacts" AfterTargets="Build" DependsOnTargets="CompileCgeShaderGraphs" Condition="'@(CgeShaderGraph)' != ''">
     <MakeDir Directories="$(TargetDir)Shaders" />

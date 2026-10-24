@@ -54,8 +54,8 @@ internal static class ThirdPersonTemplateImporter {
         var ScenesDirectory=Path.Combine(TemplateDirectory,"Scenes");
         Directory.CreateDirectory(ScenesDirectory);
         var Utf8=new UTF8Encoding(encoderShouldEmitUTF8Identifier:false);
-        // Unreal draws the sky dome with an IsSky material that samples SkyAtmosphere; the glTF bake
-        // cannot represent it, so SkyAtmosphere rendering replaces those actors (ADR-0069).
+        // Unreal draws the sky dome with an IsSky material that samples SkyAtmosphere; the glTF bake cannot represent it, so the
+        // SkySphere component (M0110) stands for those actors and the renderer draws the atmosphere on it (ADR-0069).
         var SkyDomeAssets=Manifest.Actors.Where(Actor=>SkyDomeActors.Contains(Actor.Label)).Select(Actor=>Actor.AssetPath).ToHashSet(StringComparer.Ordinal);
         foreach(var Asset in SkyDomeAssets.Where(Asset=>Manifest.Actors.All(Actor=>SkyDomeActors.Contains(Actor.Label)||Actor.AssetPath!=Asset))){
             File.Delete(Path.Combine(TemplateDirectory,Asset));
@@ -64,7 +64,7 @@ internal static class ThirdPersonTemplateImporter {
         File.WriteAllText(Path.Combine(ScenesDirectory,"ThirdPersonAssets.cs"),BuildAssetsSource(Manifest,SkyDomeAssets),Utf8);
         File.WriteAllText(Path.Combine(ScenesDirectory,"Lvl_ThirdPerson.cs"),BuildLevelSource(Manifest,Scene,MeshNodeByName,DirectionalNodes[0],SkyDomeActors),Utf8);
         File.WriteAllText(Path.Combine(ScenesDirectory,"ThirdPersonCharacter.cs"),ThirdPersonGameplayEmitter.BuildCharacterSource(Manifest.Character,Manifest.Environment.PlayerStart),Utf8);
-        Console.WriteLine($"Generated {Manifest.Actors.Count-SkyDomeActors.Count} StaticMesh nodes from {Manifest.RenderVariants.Count-SkyDomeAssets.Count} render variants; {SkyDomeActors.Count} sky dome actor(s) replaced by SkyAtmosphere.");
+        Console.WriteLine($"Generated {Manifest.Actors.Count-SkyDomeActors.Count} StaticMesh nodes from {Manifest.RenderVariants.Count-SkyDomeAssets.Count} render variants; {SkyDomeActors.Count} sky dome actor(s) became SkySphere nodes.");
         return 0;
     }
     private static string BuildAssetsSource(ThirdPersonManifest Manifest,IReadOnlySet<string>SkippedAssets){
@@ -121,6 +121,29 @@ internal static class ThirdPersonTemplateImporter {
             .Append(",AutoExposureSpeedUp=").Append(F(Post.AutoExposureSpeedUp)).Append(",AutoExposureSpeedDown=").Append(F(Post.AutoExposureSpeedDown))
             .Append(",ExposureCompensation=").Append(F(Post.ExposureCompensation)).Append(",ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=").Append(F(Post.BloomIntensity))
             .Append(",AmbientOcclusionIntensity=").Append(F(Post.AmbientOcclusionIntensity)).Append(",AmbientOcclusionRadiusMeters=").Append(F(Post.AmbientOcclusionRadiusCm*0.01f)).AppendLine(" },");
+        if(Lighting.VolumetricCloud){
+            // M0110: the templates' VolumetricCloud keeps the component's defaults with the default cloud material, which are the component's defaults here.
+            Builder.AppendLine("            new VolumetricCloud(),");
+        }
+    }
+    /// <summary>
+    /// M0110: each sky dome actor becomes a node with a <c>SkySphere</c> at the actor's position; the radius is the farthest vertex of its mesh
+    /// as placed (Unreal's SM_SkySphere, 40.96 m, scaled 400 times: 16.384 km).
+    /// </summary>
+    internal static void AppendSkySpheres(StringBuilder Builder,ThirdPersonManifest Manifest,ImportedScene Scene,IReadOnlyDictionary<string,ImportedSceneNode>MeshNodeByName,IReadOnlySet<string>SkyDomeActors){
+        foreach(var Actor in Manifest.Actors.Where(Item=>SkyDomeActors.Contains(Item.Label)).OrderBy(Item=>Item.Label,StringComparer.Ordinal)){
+            var Node=MeshNodeByName[Actor.Label];
+            var Mesh=Scene.Meshes[Node.MeshIndex!.Value];
+            var Center=Node.WorldTransform.Translation;
+            var Radius=Mesh.Positions.Max(Position=>Vector3.Distance(Vector3.Transform(Position,Node.WorldTransform),Center));
+            Builder.AppendLine("            new Node {");
+            Builder.Append("                Name=\"").Append(Escape(Actor.Label)).AppendLine("\",");
+            Builder.AppendLine("                Components=[");
+            AppendTransform(Builder,Center,Quaternion.Identity,Vector3.One,"                    ");
+            Builder.Append("                    new SkySphere { RadiusMeters=").Append(F(Radius)).AppendLine(" },");
+            Builder.AppendLine("                ],");
+            Builder.AppendLine("            },");
+        }
     }
     private static void AppendRgb(StringBuilder Builder,string Name,float[]Value)=>
         Builder.Append("                ").Append(Name).Append("R=").Append(F(Value[0])).Append(',').Append(Name).Append("G=").Append(F(Value[1])).Append(',').Append(Name).Append("B=").Append(F(Value[2])).AppendLine(",");
@@ -182,6 +205,7 @@ internal static class ThirdPersonTemplateImporter {
             .Append(",HalfExtentZ=").Append(F(Volume.HalfExtent.Z)).Append(",ProbeSpacingMeters=").Append(F(Volume.SpacingMeters)).AppendLine(" },");
         Builder.AppendLine("                ],");
         Builder.AppendLine("            },");
+        AppendSkySpheres(Builder,Manifest,Scene,MeshNodeByName,SkyDomeActors);
         var Player=Manifest.Environment.PlayerStart;
         Builder.AppendLine("            new Node {");
         Builder.Append("                Name=\"").Append(Escape(Player.Name)).AppendLine("\",");

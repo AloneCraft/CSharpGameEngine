@@ -249,7 +249,8 @@ public class StageGpuIntegrationTests {
                                                 ]);
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
-        Assert.Equal(4,Renderer.ResidentMaterialTextureCount);
+        // Red, blue and the normal map once each, and the shared white once per colour space (M0110: base colour averages its mips in sRGB, metallic-roughness linearly).
+        Assert.Equal(5,Renderer.ResidentMaterialTextureCount);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);

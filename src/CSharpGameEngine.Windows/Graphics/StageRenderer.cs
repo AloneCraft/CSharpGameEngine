@@ -70,6 +70,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const DXGI_FORMAT MaterialTextureResourceFormat=DXGI_FORMAT_R8G8B8A8_TYPELESS;
     private const DXGI_FORMAT MaterialColorTextureViewFormat=DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     private const float GltfImportEmissiveDefaultNits=100f;
+    /// <summary>The material sampler's anisotropy (M0110; Unreal's r.MaxAnisotropy default).</summary>
+    internal const uint MaterialMaxAnisotropy=8;
     private const DXGI_FORMAT ShadowAtlasResourceFormat=DXGI_FORMAT_R32_TYPELESS;
     private const DXGI_FORMAT ShadowAtlasDsvFormat=DXGI_FORMAT_D32_FLOAT;
     private const DXGI_FORMAT ShadowAtlasSrvFormat=DXGI_FORMAT_R32_FLOAT;
@@ -342,6 +344,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private StageAmbientOcclusion?AmbientOcclusion;
     private StageAutoExposure?AutoExposureStage;
     private StageSkinning?Skinning;
+    private StageGlobalDistanceField?GlobalDistanceField;
     private bool AutoExposureInitialized;
     private readonly Stopwatch AutoExposureClock=Stopwatch.StartNew();
     private TimeSpan LastAutoExposureTime;
@@ -403,7 +406,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private int MaterialCapacity;
     private ID3D12Resource*[]MaterialTextures=[];
     private readonly List<nint>OwnedMaterialTextures=[];
-    private readonly Dictionary<Hash256,nint>ResidentTextures=[];
+    /// <summary>Material textures by content and colour space (M0110: an sRGB and a linear use of the same texels average their mips differently).</summary>
+    private readonly Dictionary<(Hash256 Hash,RenderTextureColorSpace ColorSpace),nint>ResidentTextures=[];
     private ID3D12DescriptorHeap*SrvHeap;
     private uint SrvDescriptorSize;
     private Vector4[]MaterialBaseColorFactors=[];
@@ -563,6 +567,10 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     public int FreeMaterialSlots=>this.MaterialCapacity-this.MaterialCount;
     /// <summary>How many objects are drawn now.</summary>
     public int ActiveObjectCount=>this.ObjectCount-this.FreeObjectSlots.Count;
+    /// <summary>Meshes with a distance field (ADR-0078/M0110).</summary>
+    public int DistanceFieldMeshCount=>this.GlobalDistanceField?.MeshesWithFields??0;
+    /// <summary>Objects in the global distance field at the last frame (0 without one).</summary>
+    public int DistanceFieldObjectCount=>this.GlobalDistanceField?.LastFieldObjects??0;
     internal ulong CompletedFence=>this.Fence==null?0:this.Fence->GetCompletedValue();
 
     public PixelReadbackResult?LastCapturedFrame { get;private set;}
@@ -577,6 +585,12 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         return this.Atmosphere!.ReadbackForTesting();
     }
 
+    /// <summary>Test-only read of the cloud panorama (M0110); waits for the GPU.</summary>
+    internal (Vector4[]Texels,int Width,int Height) ReadCloudPanoramaForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.Atmosphere!.ReadCloudPanoramaForTesting();
+    }
     /// <summary>Test-only read of the GPU auto exposure state (EV100, scale, settled, valid); waits for the GPU.</summary>
     internal Vector4 ReadAutoExposureStateForTesting(){
         this.ThrowIfDisposed();
@@ -778,6 +792,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.AutoExposureStage=new StageAutoExposure(this.Device,this.ShaderArtifactPath,FrameCount);
         this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
         this.Skinning=new StageSkinning(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.GlobalDistanceField=new StageGlobalDistanceField(this.Device,this.ShaderArtifactPath,FrameCount);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -1092,8 +1107,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
+        // M0110: material textures have mips; anisotropic filtering (Unreal's default r.MaxAnisotropy 8) keeps grazing surfaces sharp.
         D3D12_STATIC_SAMPLER_DESC StaticSampler=new(){
-            Filter=D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+            Filter=D3D12_FILTER_ANISOTROPIC,
+            MaxAnisotropy=MaterialMaxAnisotropy,
             AddressU=D3D12_TEXTURE_ADDRESS_MODE_WRAP,
             AddressV=D3D12_TEXTURE_ADDRESS_MODE_WRAP,
             AddressW=D3D12_TEXTURE_ADDRESS_MODE_WRAP,
@@ -1635,6 +1652,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
             this.VertexBufferViews[Index]=this.Skinning!.AddMesh(Index,this.VertexBuffers[Index],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
         }
+        // M0110: a skinned mesh moves its vertices every frame, so its rest-pose field would be wrong; Unreal leaves skinned meshes out too.
+        this.GlobalDistanceField!.SetMesh(Index,Mesh.Skin is null?Mesh.DistanceField:null);
         this.MeshCount=Index+1;
         return Index;
     }
@@ -1682,6 +1701,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
                 this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
             }
+            this.GlobalDistanceField!.SetMesh(I,Mesh.Skin is null?Mesh.DistanceField:null);
         }
     }
 
@@ -1820,7 +1840,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return Index;
     }
 
-    private readonly Dictionary<nint,Hash256>OwnedTextureHashes=[];
+    private readonly Dictionary<nint,(Hash256 Hash,RenderTextureColorSpace ColorSpace)>OwnedTextureHashes=[];
 
     /// <summary>Fills one material's per-material state, uploads its textures (sharing the resident ones) and writes its five descriptors.</summary>
     private void SetUpMaterial(int I,StageMaterialCreateInfo Material){
@@ -1833,14 +1853,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ?Material.EmissiveNits
             :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
 
+        // Slots 0 (base colour) and 3 (emissive) hold sRGB colour; 1 (normal) and 2 (metallic-roughness) hold linear data. The
+        // colour space also decides how the mips are averaged (M0110).
         this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
-            Material.BaseColorTexture??RenderMaterialDefaults.White);
+            Material.BaseColorTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
         this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
-            Material.NormalTexture??RenderMaterialDefaults.FlatNormal);
+            Material.NormalTexture??RenderMaterialDefaults.FlatNormal,RenderTextureColorSpace.Linear);
         this.MaterialTextures[(I*4)+2]=GetOrCreateTexture(
-            Material.MetallicRoughnessTexture??RenderMaterialDefaults.White);
+            Material.MetallicRoughnessTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Linear);
         this.MaterialTextures[(I*4)+3]=GetOrCreateTexture(
-            Material.EmissiveTexture??RenderMaterialDefaults.White);
+            Material.EmissiveTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
 
         D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
@@ -1848,7 +1870,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
-        SrvDesc.Texture2D.MipLevels=1;
+        // Every mip of the texture (M0110); -1 is D3D12's "all levels from the most detailed one".
+        SrvDesc.Texture2D.MipLevels=uint.MaxValue;
         for(var Slot=0;Slot<4;Slot++){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+Slot, this.SrvDescriptorSize);
             // Slots 0 (base colour) and 3 (emissive) hold colour data; 1 (normal) and 2
@@ -1865,18 +1888,26 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         D3D12_CPU_DESCRIPTOR_HANDLE ShadowHandle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
         this.Device!.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,ShadowHandle);
 
-        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture){
-            if(this.ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
+        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
+            var Key=(Texture.ContentHash,ColorSpace);
+            if(this.ResidentTextures.TryGetValue(Key,out nint Existing)){
                 return(ID3D12Resource*)Existing;
             }
-            ID3D12Resource*Created=this.CreateTextureResource(Texture);
-            this.ResidentTextures.Add(Texture.ContentHash,(nint)Created);
+            var Chain=RenderTextureMipChain.Build(Texture,ColorSpace);
+            var LevelCount=MaterialMipLevelLimitForTesting>0?Math.Min(MaterialMipLevelLimitForTesting,Chain.Levels.Count):Chain.Levels.Count;
+            ID3D12Resource*Created=this.CreateTextureResource(Chain.Levels,LevelCount);
+            this.ResidentTextures.Add(Key,(nint)Created);
             this.OwnedMaterialTextures.Add((nint)Created);
-            this.OwnedTextureHashes[(nint)Created]=Texture.ContentHash;
+            this.OwnedTextureHashes[(nint)Created]=Key;
             return Created;
         }
     }
 
+    /// <summary>
+    /// Test-only cap on the mip levels uploaded for material textures (M0110), so one test can render the same texture without mips (1) and with
+    /// them (0 = every level) and measure the difference. Production code never sets it; GPU tests run one at a time.
+    /// </summary>
+    internal static int MaterialMipLevelLimitForTesting { get;set; }
     private void ReleaseOwnedMaterialTextures(){
         foreach(var Pointer in this.OwnedMaterialTextures){
             _=((ID3D12Resource*)Pointer)->Release();
@@ -1886,19 +1917,26 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ResidentTextures.Clear();
     }
 
-    /// <summary>Uploads one already-validated canonical RGBA8 texture. Decode/fallback policy lives above L0.</summary>
+    /// <summary>Uploads one already-validated canonical RGBA8 texture with a single level (the screen layer's). Decode/fallback policy lives above L0.</summary>
     private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
+        return this.CreateTextureResource(RenderTextureMipChain.TopLevelOnly(Texture).Levels,1);
+    }
+    /// <summary>Uploads the first <paramref name="LevelCount"/> levels of a texture (M0110: a material texture's whole mip chain) in one copy.</summary>
+    private ID3D12Resource*CreateTextureResource(IReadOnlyList<RenderTextureMipLevel>Levels,int LevelCount){
+        var Base=Levels[0];
         D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
-            MaterialTextureResourceFormat,(uint)Texture.Width,(uint)Texture.Height,mipLevels:1);
+            MaterialTextureResourceFormat,(uint)Base.Width,(uint)Base.Height,mipLevels:(ushort)LevelCount);
 
         D3D12_HEAP_PROPERTIES DefaultHeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         ID3D12Resource*GpuTexture;
         D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&DefaultHeapProps,D3D12_HEAP_FLAG_NONE,&TextureDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&GpuTexture),
             "ID3D12Device::CreateCommittedResource","creating a material texture");
 
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
+        var Footprints=new D3D12_PLACED_SUBRESOURCE_FOOTPRINT[LevelCount];
         ulong TotalBytes;
-        this.Device.Device->GetCopyableFootprints(&TextureDesc,0,1,0,&Footprint,null,null,&TotalBytes);
+        fixed(D3D12_PLACED_SUBRESOURCE_FOOTPRINT*PFootprints=Footprints){
+            this.Device.Device->GetCopyableFootprints(&TextureDesc,0,(uint)LevelCount,0,PFootprints,null,null,&TotalBytes);
+        }
 
         D3D12_HEAP_PROPERTIES UploadHeapProps=new(D3D12_HEAP_TYPE_UPLOAD);
         D3D12_RESOURCE_DESC StagingDesc=D3D12_RESOURCE_DESC.Buffer(TotalBytes);
@@ -1913,12 +1951,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12_RANGE NoRead=new();
             byte*Mapped;
             D3D12Diagnostics.EnsureSuccess(Staging->Map(0,&NoRead,(void**)&Mapped),"ID3D12Resource::Map","mapping a material texture upload staging buffer");
-
-            var SrcRowPitch=(uint)Texture.Width*4;
-            var DstRowPitch=Footprint.Footprint.RowPitch;
-            fixed(byte*PSrc=Texture.Pixels){
-                for(uint Y=0;Y<(uint)Texture.Height;Y++){
-                    Unsafe.CopyBlock(Mapped+(Y*DstRowPitch),PSrc+(Y*SrcRowPitch),SrcRowPitch);
+            for(var Level=0;Level<LevelCount;Level++){
+                var Source=Levels[Level];
+                var SrcRowPitch=(uint)Source.Width*4;
+                var DstRowPitch=Footprints[Level].Footprint.RowPitch;
+                var Destination=Mapped+Footprints[Level].Offset;
+                fixed(byte*PSrc=Source.Pixels){
+                    for(uint Y=0;Y<(uint)Source.Height;Y++){
+                        Unsafe.CopyBlock(Destination+(Y*DstRowPitch),PSrc+(Y*SrcRowPitch),SrcRowPitch);
+                    }
                 }
             }
             Staging->Unmap(0,null);
@@ -1926,11 +1967,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12Diagnostics.EnsureSuccess(this.CommandAllocators[0]->Reset(),"ID3D12CommandAllocator::Reset","resetting the allocator for a material texture upload");
             D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(this.CommandAllocators[0],null),"ID3D12GraphicsCommandList::Reset","resetting the command list for a material texture upload");
 
-            D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=GpuTexture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-            Dst.SubresourceIndex=0;
-            D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=Staging,Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-            Src.PlacedFootprint=Footprint;
-            this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
+            for(var Level=0;Level<LevelCount;Level++){
+                D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=GpuTexture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+                Dst.SubresourceIndex=(uint)Level;
+                D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=Staging,Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+                Src.PlacedFootprint=Footprints[Level];
+                this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
+            }
 
             D3D12_RESOURCE_BARRIER ToShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(GpuTexture,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             this.CommandList->ResourceBarrier(1,&ToShaderResource);
@@ -2543,10 +2586,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(!Matrix4x4.Invert(this.InvertibleViewProjection,out var Inverse)){
                 Inverse=Matrix4x4.Identity;
             }
+            // M0110: the sky sphere test needs the stored depth back as a distance; a radial camera's depth is log2(1 + r / T) / G.
+            var DepthMapping=this.CurrentDepthMapping==RenderDepthMapping.Radial
+                ?new Vector3(1f,this.CurrentRadialProjection.Curve.TransitionMeters,1f/this.CurrentRadialProjection.InverseMaximumG)
+                :Vector3.Zero;
             this.CurrentAtmosphereFrame=new AtmosphereFrame(
                 Atmosphere,Settings.SkyLight??new SkyLightSettings(0f,Vector3.Zero),Settings.Fog,
                 this.AtmosphereSunDirection,this.AtmosphereSunIlluminance,Settings.SunAngularRadiusRadians,
-                this.CameraAltitudeMeters,this.CurrentExposureScale(),Inverse);
+                this.CameraAltitudeMeters,this.CurrentExposureScale(),Inverse,
+                Settings.Clouds,Settings.SkySphere,DepthMapping,this.CurrentCameraPosition);
             this.Atmosphere!.Update(this.CommandList,FrameIndex,this.CurrentAtmosphereFrame);
             SkyLightEnabled=Settings.SkyLight is null?0f:1f;
         }
@@ -2596,6 +2644,30 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private bool AutoExposureActive=>this.EnvironmentSettings.Exposure.Mode==ExposureMode.AutoHistogram;
 
+    /// <summary>
+    /// ADR-0078/M0110: keeps the global distance field around the camera up to date (for M0111's tracing); nothing when the environment has none.
+    /// It reads only the objects' render-space matrices, so a camera move rewrites only the bricks the clipmaps newly cover.
+    /// </summary>
+    private void UpdateGlobalDistanceField(){
+        if(this.EnvironmentSettings.DistanceField is not GlobalDistanceFieldSettings Settings){
+            return;
+        }
+        this.GlobalDistanceField!.Update(this.CommandList,this.FrameIndex,Settings,this.ObjectActive,this.ObjectMeshIndices,this.ObjectTransforms,this.ObjectCount,this.WaitForGpuIdle);
+    }
+    /// <summary>Test-only copy of one global distance field level (M0110); waits for the GPU.</summary>
+    internal (float[]Values,int Resolution,LongVector3 ClipMinimum) ReadGlobalDistanceFieldForTesting(int Level){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.GlobalDistanceField!.ReadLevelForTesting(Level);
+    }
+    /// <summary>Test-only sphere tracing through the global distance field as M0111 will (M0110); waits for the GPU.</summary>
+    internal Vector4[] TraceGlobalDistanceFieldForTesting(ReadOnlySpan<(Vector3 Origin,Vector3 Direction,float Length)>Rays){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.GlobalDistanceField!.TraceForTesting(Rays);
+    }
+    /// <summary>The global distance field's state for tests and diagnostics (M0110).</summary>
+    internal StageGlobalDistanceField GlobalDistanceFieldForTesting=>this.GlobalDistanceField!;
     /// <summary>
     /// The CPU-side exposure scale. In histogram mode the Stage program and the sky composite read
     /// the GPU-metered scale instead (ExposureParams.z); this nominal minimum-EV100 value remains for
@@ -4233,6 +4305,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.AutoExposureStage!.RecordInitialize(this.CommandList,this.EnvironmentSettings.Exposure);
             this.AutoExposureInitialized=true;
         }
+        this.UpdateGlobalDistanceField();
         this.RenderGlobalIlluminationProbes();
         this.RenderAmbientOcclusion();
 
@@ -4488,6 +4561,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.AutoExposureStage=null;
         this.Skinning?.Dispose();
         this.Skinning=null;
+        this.GlobalDistanceField?.Dispose();
+        this.GlobalDistanceField=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

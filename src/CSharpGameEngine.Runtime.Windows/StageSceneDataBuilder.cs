@@ -138,12 +138,14 @@ internal sealed class StageSceneDataBuilder {
 
         var MeshOffset=Meshes.Count;
         var MaterialOffset=Materials.Count;
-        Meshes.AddRange(Scene.Meshes.Select(Mesh=>new StageMeshCreateInfo {
+        var Fields=LoadDistanceFields(FullPath,Scene);
+        Meshes.AddRange(Scene.Meshes.Select((Mesh,Index)=>new StageMeshCreateInfo {
             Positions=Mesh.Positions,
             Normals=Mesh.Normals,
             Tangents=Mesh.Tangents,
             Uvs=Mesh.Uvs,
             Indices=Mesh.Indices,
+            DistanceField=Fields[Index],
         }));
         byte[]SourceBytes=File.ReadAllBytes(FullPath);
         Hash256 SourceHash=Hash256.Compute(SourceBytes);
@@ -165,6 +167,27 @@ internal sealed class StageSceneDataBuilder {
         return new AssetTemplate([.. Objects]);
     }
 
+    /// <summary>
+    /// ADR-0078/M0110: the mesh distance fields the build wrote next to the glTF (<c>&lt;asset&gt;.glb.cgesdf</c>), one per mesh in the importer's order.
+    /// A missing or unreadable file, or an entry made from other triangles than the loaded mesh (its content hash differs), leaves that mesh without
+    /// a field: it is then not in the global distance field, and the game still runs.
+    /// </summary>
+    internal static MeshDistanceField?[]LoadDistanceFields(string FullPath,ImportedScene Scene){
+        var Fields=new MeshDistanceField?[Scene.Meshes.Count];
+        var FieldPath=FullPath+".cgesdf";
+        if(!File.Exists(FieldPath)){
+            return Fields;
+        }
+        if(!MeshDistanceFieldCodec.TryRead(File.ReadAllBytes(FieldPath),out var Entries,out _)||Entries.Count!=Scene.Meshes.Count){
+            return Fields;
+        }
+        for(var Index=0;Index<Fields.Length;Index++){
+            if(Entries[Index].Field is{ }Field&&Field.MeshHash==MeshDistanceField.ComputeMeshHash(Scene.Meshes[Index].Positions,Scene.Meshes[Index].Indices)){
+                Fields[Index]=Field;
+            }
+        }
+        return Fields;
+    }
     /// <summary>
     /// Appends one copy of a skeletal glTF's meshes and materials to <paramref name="Meshes"/> and <paramref name="Materials"/> (the renderer skins each copy with
     /// its own palette) and returns its objects, with the renderer mesh indices of the skinned ones. The indices count from the lists' lengths on entry.

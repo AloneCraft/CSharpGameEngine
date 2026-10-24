@@ -157,6 +157,6 @@ M0109 で Chaos 相当に作り直した(Vehicles プラグイン。[M0109](../M
 ## レベル(4 つ共通)
 | 対象 | 内容 | 状態 | 担当 |
 |---|---|---|---|
-| ライティング | Lumen の GI と反射、DirectionalLight(可動)、SkyLight(リアルタイムキャプチャ)、SkyAtmosphere、VolumetricCloud、ExponentialHeightFog、空の球、PostProcessVolume(ThirdPerson と Vehicle) | 一部(雲・空の球・Lumen 相当が無い) | M0110・M0111 |
+| ライティング | Lumen の GI と反射、DirectionalLight(可動)、SkyLight(リアルタイムキャプチャ)、SkyAtmosphere、VolumetricCloud、ExponentialHeightFog、空の球、PostProcessVolume(ThirdPerson と Vehicle) | 一部(雲・空の球・メッシュの距離場とグローバル距離場は M0110 で実装。Lumen 相当の GI と反射が無い) | M0110(済)・M0111 |
 | Vehicle の地面 | Landscape(実行時の仮想テクスチャ、Ground/Road の層、物理マテリアルの Slippery / NonSlippery)、Landscape のスプラインの道。**事実**(M0109 の `probe_vehicle_physics.py`): Slippery と NonSlippery の摩擦はどちらも 1.0(違いは反発 0.4 と 0、結合は Multiply)、Landscape の既定の物理マテリアルは NonSlippery、層の情報(`LI_Ground`・`LI_Road`)に物理マテリアルは無い。置かれた立方体とコーンは既定の物理マテリアル(摩擦 0.7、反発 0.3) | 一部(路面ごとの摩擦は実装済み: `StaticMeshCollider.Material`(M0109)で、地面の板は摩擦 1.0・反発 0、他は 0.7・0.3。タイヤは当たった面の摩擦を読む(`ALowFrictionSurfaceSpinsTheRearWheelsAndAcceleratesSlower`)。地面は平らな板のまま) | M0109 済・M0112 |
 | TopDown のナビメッシュ | NavMeshBoundsVolume(位置 (0, 0, 0)、範囲 (2250, 2250, 375) cm)、RecastNavMesh(レベルのアクターは AgentRadius 35、AgentHeight 144、AgentMaxSlope 44、TileSizeUU 1000、MergeRegionSize 400、WATERSHED。`DefaultEngine.ini` は CellSize 19、CellHeight 10。AgentMaxStepHeight 35 は `RecastNavMesh.h` の既定) | 一部(Cook がシーンの静的な衝突形状から格子のナビメッシュを焼く。値はこの行のとおり。Recast の輪郭の単純化と斜めの辺、分割したタイル、動的な再生成は無い) | M0106 済 |

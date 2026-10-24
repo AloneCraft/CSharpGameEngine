@@ -3760,9 +3760,9 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-007, F-L0-008
 - Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
-- Current delta: volumetric clouds, reflection probes and texture mipmaps are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated.
+- Current delta: reflection probes are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated. Volumetric clouds, the sky sphere and texture mipmaps were added by M0110 (F-L4-016, F-L4-017); the DDGI probes become M0111's fallback tier (ADR-0069 追記).
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
-- Next action: texture mipmaps for baked Unreal atlases; volumetric clouds if they are brought into scope.
+- Next action: M0111 (Lumen-like GI and reflections over the global distance field, F-L4-018).
 
 ## F-L4-015 — Skeletal meshes and animation
 
@@ -4789,3 +4789,70 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 車体は動的剛体(1500 kg、角速度の減衰 3)、車輪ごとの光線の力のサスペンションとロールバー、UE のタイヤ(横滑りの角 × コーナリング剛性、荷重 × 路面の摩擦 × 倍率で頭打ち)、21 点のトルク曲線・アイドル・エンジンブレーキ、5 速の自動変速(6000/2000 rpm、変速中はニュートラル、ブレーキで後退)、アッカーマンと速さの曲線(マイル毎時)、空気抵抗とダウンフォース、入力の速さ、眠り、転倒(3 秒ごと 2 回)とリセット。テンプレートはブレーキランプ(`MeshEmissive` 200/4)、左のヘッドライト(L)、前後のカメラ(Tab)、見回し、リセット(BackSpace)。描画契約(`stage-v11`)とシェーダーは変えていない。WARP: 52.014 m・30.5°。
 - Conformance: MatchesWithDocumentedExtension(力のサスペンション(UE の既定は制約)、慣性は箱、ブレーキランプは UE と違って光る(UE の発光 1 を 100 nits とするのは推測)、エンジン音なし、UE と同じ入力での数値の比較はしていない。詳しくは M0109 の文書)
 - Next action: M0110〜M0111(Lumen 相当。ADR-0078 §4)。UE の制約のサスペンションとエンジン音(ループと音程の変わる音)は未着手。
+
+## F-L4-016 — 材質テクスチャのミップマップと異方性フィルター
+
+- Layer: L1 — `CSharpGameEngine.Rendering`(`RenderTextureMipChain`)、L0 — 描画(`StageRenderer` のアップロードとサンプラー)
+- Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
+- Status: Implemented
+- Verification: TestVerified + RuntimeVerified(WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(材質テクスチャの行)、`Docs/Specifications/Shader-Graph.md`(`stage-v12`)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
+- Stage: `rendering.environment-lighting`(試験を足した)、`rendering.materials`
+- Depends on: F-L4-005、F-L4-014
+- Implementation evidence:
+  - `src/CSharpGameEngine.Rendering/RenderTextureMipChain.cs`(面積加重の箱フィルター、整数の重み、sRGB は 16 ビットの線形の表で平均、表は定数)
+  - `src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(全ミップのアップロード、色空間ごとの常駐、異方性 8 の s0、`MaterialMipLevelLimitForTesting`)、`src/CSharpGameEngine.ShaderArtifacts/ShaderArtifactAbi.cs`(`stage-v12`: `s0-anisotropic-wrap`)
+- Tests: `tests/CSharpGameEngine.Rendering.Tests/RenderTextureMipChainTests.cs`(18)、`tests/CSharpGameEngine.Windows.Tests/Graphics/MaterialMipmapGpuIntegrationTests.cs`(2、WARP)、`StageGpuIntegrationTests`(常駐数 4 → 5)、`StandardModeGoldenFrameTests`(7 つのハッシュは不変)
+- Current delta: ミップは読み込み時に作る(成果物の形式は変えない)。画面レイヤーは 1 段のまま。WARP の 256 × 144 の市松の床で、遠景(地平線の下 10 行)の分散 1267.5 → 0.0、カメラを 0.37 m 動かした 2 フレームの差 9.50 → 0.00、近景の分散 4256.6 → 3953.4(保たれる)。
+- Conformance: Matches(UE は取り込み時にミップを作り、既定の異方性は 8。こちらは読み込み時)
+- Next action: なし(Kaiser のフィルターや BC 圧縮は必要になったとき)
+
+## F-L4-017 — ボリュメトリック雲と空の球
+
+- Layer: L0 — 描画(`StageAtmosphere`、`Atmosphere.hlsl`)、L5 — `Runtime.Lighting`(`VolumetricCloud`、`SkySphere`)・`Runtime.Windows`(`EnvironmentCollection`、`EngineHost`)、L7 — 取り込み(`probe_sky_and_clouds.py`、`Unreal.SceneImporter`)、L9 — テンプレート
+- Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
+- Status: Implemented(地面への雲の影、遠くのジオメトリの手前の雲は未実装)
+- Verification: TestVerified + RuntimeVerified(WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(雲と空の球の行)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
+- Stage: `rendering.environment-lighting`(試験を足した)
+- Depends on: F-L4-014
+- Implementation evidence:
+  - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/CSharpGameEngine.Windows/Graphics/StageAtmosphere.cs`、`EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
+  - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
+  - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/CSharpGameEngine.Unreal.SceneImporter/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
+- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
+- Current delta: 雲は上半球のパノラマ(WARP 1024 × 256・24 サンプル)。形はエンジンのノイズ。風は 10 m/s・45°(エンジンの選択)。空の球は合成の判定で、新しいメッシュの描画は無い。
+- Conformance: MatchesWithDocumentedExtension(値は UE、形と描き方はエンジン。M0110 の文書の表)
+- Next action: M0111(GI と反射)。雲の影と UE の雲のテクスチャは必要になったとき。
+
+## F-L4-018 — グローバル距離場(カメラまわりのクリップマップ)
+
+- Layer: L0 — 描画(`StageGlobalDistanceField`、`GlobalDistanceField.hlsl`)、L5 — `Runtime.Lighting`(`GlobalDistanceField`)・`Runtime.Windows`(`WorldVoxelGrid`、`StageSceneDataBuilder.LoadDistanceFields`)
+- Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
+- Status: Implemented(描画には使わない。M0111 がトレースする)
+- Verification: TestVerified + RuntimeVerified(WARP。テンプレートで距離場つきメッシュと場の物体を数えた)
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(グローバル距離場の行)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
+- Stage: `rendering.environment-lighting`(試験を足した)
+- Depends on: F-L7-053
+- Implementation evidence:
+  - `src/CSharpGameEngine.Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
+  - `src/CSharpGameEngine.Runtime.Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
+- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
+- Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
+- Conformance: MatchesWithDocumentedExtension(UE の Lumen のグローバル距離場より粗い。M0110 の文書)
+- Next action: M0111 のサーフェスキャッシュ・最終収集・反射でトレースする。
+
+## F-L7-053 — メッシュの距離場(ビルド時の生成)
+
+- Layer: L1 — `CSharpGameEngine.Rendering`(`MeshDistanceField`、`MeshDistanceFieldBuilder`、`MeshDistanceFieldCodec`)、L7 — ビルド(`ShaderGraph.Cli build-distance-fields`、`ShaderGraph.targets`、`Game.props`)
+- Parent capability: Static Compiler / Bake(ジオメトリの前処理。ライティングは焼かない)
+- Status: Implemented
+- Verification: TestVerified + RuntimeVerified(テンプレートのビルドが glb ごとに `.glb.cgesdf` を作り、ランタイムが読む)
+- Intended specification: `Docs/Specifications/Rendering.md`(メッシュの距離場)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
+- Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
+- Depends on: F-L7-049
+- Implementation evidence: `src/CSharpGameEngine.Rendering/MeshDistanceField.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`(基本形状は実行時)
+- Tests: `tests/CSharpGameEngine.Rendering.Tests/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
+- Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
+- Conformance: Matches(決定的。UE の解像度より粗い)
+- Next action: なし

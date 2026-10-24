@@ -77,9 +77,36 @@
           "AmbientOcclusionIntensity": 0.5,
           "AmbientOcclusionRadiusMeters": 2
         }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.VolumetricCloud",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.GlobalDistanceField",
+        "members": {}
       }
     ],
     "children": [
+      {
+        "id": "fa029124-b828-5cf7-93a7-309fdded0c19",
+        "name": "SM_SkySphere",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.SkySphere",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
       {
         "id": "43d7bf56-ed2b-56fa-8c4a-7a9806361d43",
         "name": "Floor",

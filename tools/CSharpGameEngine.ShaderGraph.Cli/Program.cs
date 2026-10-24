@@ -17,6 +17,7 @@ internal static class ShaderGraphCli {
                 "validate"=>Validate(Arguments),
                 "build"=>Build(Arguments),
                 "build-compute"=>BuildCompute(Arguments),
+                "build-distance-fields"=>BuildDistanceFields(Arguments),
                 "dump-hlsl"=>DumpHlsl(Arguments),
                 "publish"=>Publish(Arguments),
                 "extract-subgraph-internal"=>ExtractSubgraphInternal(Arguments),
@@ -95,6 +96,44 @@ internal static class ShaderGraphCli {
         }
         WriteAtomicBytes(ArtifactPath,Buffer.ToArray());
         Console.WriteLine($"built {ArtifactPath} {SourceHash}");
+        return 0;
+    }
+    /// <summary>
+    /// ADR-0078/M0110: the mesh distance fields of one glTF, made at build time like a shader artifact (the geometry is prepared ahead of the game;
+    /// no lighting is baked). One entry per mesh in the importer's order; a mesh drawn only skinned gets no field. An identical file is left untouched.
+    /// </summary>
+    private static int BuildDistanceFields(string[]Arguments) {
+        if(Arguments.Length!=3) {
+            WriteUsage();
+            return 2;
+        }
+        string SourcePath=Path.GetFullPath(Arguments[1]);
+        string OutputPath=Path.GetFullPath(Arguments[2]);
+        var Imported=CSharpGameEngine.Import.Gltf.GltfImporter.ImportScene(SourcePath);
+        if(!Imported.Success||Imported.Scene is not { }Scene) {
+            Console.Error.WriteLine($"{SourcePath}: error MSDF001: the glTF could not be imported: {string.Join("; ",Imported.Diagnostics)}");
+            return 1;
+        }
+        var Skinned=Scene.Nodes.Where(Node=>Node.SkinIndex is not null&&Node.MeshIndex is not null).Select(Node=>Node.MeshIndex!.Value).ToHashSet();
+        List<(CSharpGameEngine.Contracts.Hash256 MeshHash,CSharpGameEngine.Rendering.MeshDistanceField?Field)>Entries=[];
+        var Fields=0;
+        for(var Index=0;Index<Scene.Meshes.Count;Index++) {
+            var Mesh=Scene.Meshes[Index];
+            var Hash=CSharpGameEngine.Rendering.MeshDistanceField.ComputeMeshHash(Mesh.Positions,Mesh.Indices);
+            CSharpGameEngine.Rendering.MeshDistanceField?Field=null;
+            if(!Skinned.Contains(Index)) {
+                try {
+                    Field=CSharpGameEngine.Rendering.MeshDistanceFieldBuilder.Build(Mesh.Positions,Mesh.Indices);
+                } catch(ArgumentException Error) {
+                    Console.Error.WriteLine($"{SourcePath}: error MSDF002: mesh {Index}: {Error.Message}");
+                    return 1;
+                }
+            }
+            if(Field is not null) { Fields++; }
+            Entries.Add((Hash,Field));
+        }
+        WriteAtomicBytes(OutputPath,CSharpGameEngine.Rendering.MeshDistanceFieldCodec.Write(Entries));
+        Console.WriteLine($"built {OutputPath} {Fields}/{Scene.Meshes.Count} meshes");
         return 0;
     }
     private static int Validate(string[]Arguments) {
@@ -350,6 +389,7 @@ internal static class ShaderGraphCli {
         Console.Error.WriteLine("validate <graph>");
         Console.Error.WriteLine("build <graph> <artifact> [generated-hlsl] [Debug|Release]");
         Console.Error.WriteLine("build-compute <hlsl> <artifact> [Debug|Release]");
+        Console.Error.WriteLine("build-distance-fields <gltf> <output.cgesdf>");
         Console.Error.WriteLine("dump-hlsl <graph> [output]");
         Console.Error.WriteLine("publish <artifact> <output>");
         Console.Error.WriteLine("extract-subgraph-internal <root-graph> <subgraph> <name> <indices>");

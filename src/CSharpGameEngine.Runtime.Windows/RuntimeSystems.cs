@@ -575,6 +575,21 @@ internal struct EnvironmentCollect:ISystem {
         Host.Environment.GlobalIllumination=Value;
         Host.Environment.GlobalIlluminationCenter=Matrix.Translation;
     }
+    public void Update(ref VolumetricCloud Value,EngineHost Host,ref State State){
+        Host.Environment.Clouds=Value;
+    }
+    public void Update(ref GlobalDistanceField Value,EngineHost Host,ref State State){
+        Host.Environment.DistanceField=Value;
+    }
+    public void Update(Entity Entity,ref SkySphere Value,EngineHost Host,ref State State){
+        // ADR-0078/M0110: like the probe volume, the sphere's centre is placed in the camera-relative render space.
+        if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Entity,State.World,Host,out var Matrix,out _)!=FixedTransformStatus.Success){
+            Host.Environment.InvalidReason="SkySphere.Transform";
+            return;
+        }
+        Host.Environment.SkySphere=Value;
+        Host.Environment.SkySphereCenter=Matrix.Translation;
+    }
 }
 
 [SystemPhase(SystemPhase.Presentation)]

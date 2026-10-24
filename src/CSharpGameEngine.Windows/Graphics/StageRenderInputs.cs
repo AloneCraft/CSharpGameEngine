@@ -16,6 +16,8 @@ public readonly struct StageMeshCreateInfo {
 
     /// <summary>Skin influences of a skinned mesh (ADR-0066); null for rigid geometry. Each skinned mesh is skinned on its own, so instances need their own mesh.</summary>
     public StageSkinCreateInfo?Skin { get; init;}
+    /// <summary>The mesh's signed distance field (ADR-0078/M0110), made ahead of the game; objects of a mesh that has one are in the global distance field.</summary>
+    public MeshDistanceField?DistanceField { get; init;}
 }
 
 /// <summary>Eight joint indices and weights per vertex into a palette of <see cref="JointCount"/> matrices.</summary>

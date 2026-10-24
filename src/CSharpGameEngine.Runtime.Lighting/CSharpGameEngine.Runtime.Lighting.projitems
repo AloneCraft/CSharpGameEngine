@@ -15,6 +15,9 @@
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PostProcessVolume.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\ExponentialHeightFog.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\GlobalIlluminationVolume.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\VolumetricCloud.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\SkySphere.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\GlobalDistanceField.svg" />
     <Compile Include="$(MSBuildThisFileDirectory)LightComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)EnvironmentComponents.cs" />
     <Using Include="CSharpGameEngine.Runtime.Lighting" />

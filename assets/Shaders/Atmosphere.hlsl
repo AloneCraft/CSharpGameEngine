@@ -18,15 +18,30 @@ cbuffer AtmosphereCB : register(b0)
     float4 FogColor;             // rgb inscattering luminance, w sky-atmosphere ambient contribution scale
     row_major float4x4 InverseViewProjection; // camera-relative clip -> world
     uint4 Pass;                  // x pass, y output width, z output height, w 1 = exposure from ExposureState (histogram auto exposure)
+    // ADR-0078/M0110 volumetric clouds (Hillaire 2016 "Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite").
+    float4 CloudLayer;           // x layer bottom radius km, y layer top radius km, z tracing start max km, w tracing max km
+    float4 CloudShape;           // x extinction per km, y coverage, z layout scale km, w stop-tracing transmittance
+    float4 CloudAlbedo;          // rgb albedo, w sky light bottom occlusion
+    float4 CloudPhase;           // x g, y g2, z blend, w 1 = clouds over the sky (and in the sky light), 0 = no clouds
+    float4 CloudMultiScattering; // x contribution, y occlusion, z eccentricity, w view samples per texel
+    float4 CloudPosition;        // xy camera over the planet km (R, F), zw wind offset km (R, F)
+    uint4 CloudUpdate;           // x phase 0-15, y 1 = every texel, z panorama width, w panorama height
+    float4 SkySphere;            // xyz centre (render space m), w radius m (0 = no sky sphere)
+    float4 SkySphereDepth;       // x depth mapping (0 standard, 1 radial), y radial transition T m, z G = log2(1 + rMax / T)
+    float4 CameraPosition;       // xyz camera (render space m)
 };
 Texture2D<float4> TransmittanceLut : register(t0);
 Texture2D<float4> MultiScatteringLut : register(t1);
 Texture2D<float4> SkyViewLut : register(t2);
 Texture2D<float> SceneDepth : register(t3);
+Texture2D<float4> CloudPanorama : register(t5);
+Texture3D<float> CloudNoise : register(t6);
 RWTexture2D<float4> OutputTexture : register(u0);
 RWStructuredBuffer<float4> ShOutput : register(u1);
+RWTexture3D<float> CloudNoiseOutput : register(u2);
 StructuredBuffer<float4> ExposureState : register(t4);
 SamplerState LinearClamp : register(s0);
+SamplerState LinearWrap : register(s1);
 
 static const float PI = 3.14159265359;
 static const uint PassTransmittance = 0;
@@ -34,6 +49,9 @@ static const uint PassMultiScattering = 1;
 static const uint PassSkyView = 2;
 static const uint PassSkyLightSh = 3;
 static const uint PassSkyBackground = 4;
+static const uint PassCloudNoise = 5;
+static const uint PassCloudPanorama = 6;
+static const uint CloudNoiseSize = 32;
 static const float2 TransmittanceLutSize = float2(256.0, 64.0);
 static const float2 MultiScatteringLutSize = float2(32.0, 32.0);
 static const float2 SkyViewLutSize = float2(192.0, 108.0);
@@ -339,14 +357,341 @@ float3 SampleSkyLuminance(float3 worldDir)
     return SkyViewLut.SampleLevel(LinearClamp, uv, 0).rgb;
 }
 
-// Radiance the sky light sees: atmosphere above the horizon, the authored colour below it.
+float3 EvaluateShIrradiance(float3 n)
+{
+    return ShOutput[0].rgb * 0.282095
+        + ShOutput[1].rgb * 0.488603 * n.y
+        + ShOutput[2].rgb * 0.488603 * n.z
+        + ShOutput[3].rgb * 0.488603 * n.x
+        + ShOutput[4].rgb * 1.092548 * n.x * n.y
+        + ShOutput[5].rgb * 1.092548 * n.y * n.z
+        + ShOutput[6].rgb * 0.315392 * (3.0 * n.z * n.z - 1.0)
+        + ShOutput[7].rgb * 1.092548 * n.x * n.z
+        + ShOutput[8].rgb * 0.546274 * (n.x * n.x - n.y * n.y);
+}
+
+// ---- Volumetric clouds (ADR-0078/M0110) ----
+// The clouds are traced into a panorama of the upper hemisphere around the camera (u = azimuth from +F, v = sqrt(elevation / 90 deg) so the
+// horizon gets more rows). Each texel holds rgb = cloud luminance (already through the air in front of it) and a = the factor the sky behind
+// it keeps. The sky composite and the sky light read it by direction.
+uint CloudHash(uint3 v)
+{
+    v = v * 1664525u + 1013904223u;
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    v ^= v >> 16u;
+    v.x += v.y * v.z;
+    v.y += v.z * v.x;
+    v.z += v.x * v.y;
+    return v.x ^ v.y ^ v.z;
+}
+
+float CloudHash01(uint3 v)
+{
+    return (float)(CloudHash(v) >> 8) * (1.0 / 16777216.0);
+}
+
+float3 CloudGradient(int3 cell, int period)
+{
+    uint3 wrapped = (uint3)((cell % period + period) % period);
+    uint h = CloudHash(wrapped);
+    return float3((float)(h & 1023u), (float)((h >> 10) & 1023u), (float)((h >> 20) & 1023u)) / 511.5 - 1.0;
+}
+
+// Gradient noise that tiles every `period` cells, about -1 to 1.
+float CloudPerlin(float3 x, int period)
+{
+    float3 cell = floor(x);
+    int3 i = (int3)cell;
+    float3 f = x - cell;
+    float3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    float n000 = dot(CloudGradient(i + int3(0, 0, 0), period), f - float3(0.0, 0.0, 0.0));
+    float n100 = dot(CloudGradient(i + int3(1, 0, 0), period), f - float3(1.0, 0.0, 0.0));
+    float n010 = dot(CloudGradient(i + int3(0, 1, 0), period), f - float3(0.0, 1.0, 0.0));
+    float n110 = dot(CloudGradient(i + int3(1, 1, 0), period), f - float3(1.0, 1.0, 0.0));
+    float n001 = dot(CloudGradient(i + int3(0, 0, 1), period), f - float3(0.0, 0.0, 1.0));
+    float n101 = dot(CloudGradient(i + int3(1, 0, 1), period), f - float3(1.0, 0.0, 1.0));
+    float n011 = dot(CloudGradient(i + int3(0, 1, 1), period), f - float3(0.0, 1.0, 1.0));
+    float n111 = dot(CloudGradient(i + int3(1, 1, 1), period), f - float3(1.0, 1.0, 1.0));
+    float nx00 = lerp(n000, n100, u.x);
+    float nx10 = lerp(n010, n110, u.x);
+    float nx01 = lerp(n001, n101, u.x);
+    float nx11 = lerp(n011, n111, u.x);
+    return lerp(lerp(nx00, nx10, u.y), lerp(nx01, nx11, u.y), u.z);
+}
+
+// One minus the distance to the nearest feature point (one per cell), tiling every `cells` cells: 1 at a point, about 0 between points.
+float CloudWorley(float3 x, int cells)
+{
+    float3 cell = floor(x);
+    int3 i = (int3)cell;
+    float3 f = x - cell;
+    float nearest = 1.0;
+    [unroll] for (int z = -1; z <= 1; z++)
+    {
+        [unroll] for (int y = -1; y <= 1; y++)
+        {
+            [unroll] for (int xOffset = -1; xOffset <= 1; xOffset++)
+            {
+                int3 neighbour = i + int3(xOffset, y, z);
+                uint3 wrapped = (uint3)((neighbour % cells + cells) % cells);
+                float3 feature = float3(CloudHash01(wrapped), CloudHash01(wrapped + 97u), CloudHash01(wrapped + 389u));
+                float3 offset = float3(xOffset, y, z) + feature - f;
+                nearest = min(nearest, dot(offset, offset));
+            }
+        }
+    }
+    return 1.0 - saturate(sqrt(nearest));
+}
+
+// The tiling Perlin-Worley noise of the cloud shapes (Schneider's Nubis): billowing Perlin eroded toward Worley cells.
+float CloudPerlinWorley(float3 uvw)
+{
+    float perlin = 0.5 * CloudPerlin(uvw * 4.0, 4) + 0.25 * CloudPerlin(uvw * 8.0, 8) + 0.125 * CloudPerlin(uvw * 16.0, 16);
+    perlin = saturate(0.5 + 0.5 * perlin / 0.875);
+    float worley = 0.625 * CloudWorley(uvw * 4.0, 4) + 0.25 * CloudWorley(uvw * 8.0, 8) + 0.125 * CloudWorley(uvw * 16.0, 16);
+    float perlinWorley = (perlin - (worley - 1.0)) / (2.0 - worley);
+    // The raw values gather between about 0.58 and 0.75 (the 5 % and 95 % points measured over the volume); spread them over 0..1 so the
+    // coverage thresholds below mean what they say.
+    return saturate((perlinWorley - 0.585) / (0.746 - 0.585));
+}
+
+float CloudRemap(float value, float low, float high)
+{
+    return saturate((value - low) / max(high - low, 1e-4));
+}
+
+// Cloud extinction per km at a planet-centred position (km). The field is fixed to the world (the camera's position over the planet) and
+// carried by the wind.
+float CloudExtinction(float3 p, out float heightFraction)
+{
+    float radius = length(p);
+    heightFraction = saturate((radius - CloudLayer.x) / (CloudLayer.y - CloudLayer.x));
+    float2 world = CloudPosition.xy + float2(p.x, p.z) - CloudPosition.zw;
+    float layout = CloudNoise.SampleLevel(LinearWrap, float3(world / (CloudShape.z * 0.125), 0.5), 0);
+    // Unreal's Cloud_GlobalCoverage shifts the coverage around one half: -0.2 leaves a blue sky with scattered cumulus.
+    float coverage = saturate(0.5 * layout + 0.18 + 0.5 * CloudShape.y);
+    // Cumulus: flat bases, tops a kilometre or two up in the 10 km layer, sparser higher.
+    float profile = saturate(heightFraction * 50.0) * saturate((0.22 - heightFraction) / 0.14);
+    float altitude = radius - CloudLayer.x;
+    float3 q = float3(world.x, altitude, world.y);
+    float base = CloudNoise.SampleLevel(LinearWrap, q / 12.0, 0);
+    float cover = coverage * profile;
+    float shape = CloudRemap(base, 1.0 - cover, 1.0);
+    if (shape <= 0.0)
+    {
+        return 0.0;
+    }
+    float detail = CloudNoise.SampleLevel(LinearWrap, q / 2.0 + 0.37, 0);
+    shape = CloudRemap(shape, (1.0 - detail) * 0.35, 1.0);
+    return shape * CloudShape.x;
+}
+
+float HenyeyGreenstein(float g, float cosTheta)
+{
+    float denominator = max(1.0 + g * g - 2.0 * g * cosTheta, 1e-4);
+    return (1.0 - g * g) / (4.0 * PI * denominator * sqrt(denominator));
+}
+
+float CloudPhaseFunction(float cosTheta, float eccentricityScale)
+{
+    return lerp(HenyeyGreenstein(CloudPhase.x * eccentricityScale, cosTheta), HenyeyGreenstein(CloudPhase.y * eccentricityScale, cosTheta), CloudPhase.z);
+}
+
+// Optical depth from a cloud sample toward the sun: six segments growing quadratically to 4.32 km.
+float CloudOpticalDepthToSun(float3 p, float3 sunDir)
+{
+    float tau = 0.0;
+    float previous = 0.0;
+    [loop] for (uint i = 1; i <= 6; i++)
+    {
+        float t = 0.12 * (float)(i * i);
+        float heightFraction;
+        tau += CloudExtinction(p + sunDir * (0.5 * (t + previous)), heightFraction) * (t - previous);
+        previous = t;
+    }
+    return tau;
+}
+
+float3 CloudPanoramaDirection(float2 uv)
+{
+    float elevation = uv.y * uv.y * (0.5 * PI);
+    float azimuth = (uv.x - 0.5) * 2.0 * PI;
+    float horizontal = cos(elevation);
+    return float3(sin(azimuth) * horizontal, sin(elevation), cos(azimuth) * horizontal);
+}
+
+float2 CloudPanoramaUv(float3 worldDir)
+{
+    float elevation = asin(saturate(worldDir.y));
+    return float2(atan2(worldDir.x, worldDir.z) / (2.0 * PI) + 0.5, sqrt(elevation / (0.5 * PI)));
+}
+
+float4 SampleCloudPanoramaTexel(float2 uv)
+{
+    float2 size = float2(CloudUpdate.zw);
+    uv.y = clamp(uv.y, 0.5 / size.y, 1.0 - 0.5 / size.y);
+    return CloudPanorama.SampleLevel(LinearWrap, uv, 0);
+}
+
+// Bilinear read, for the sky light's coarse sampling.
+float4 SampleCloudPanorama(float3 worldDir)
+{
+    if (worldDir.y <= 0.0)
+    {
+        return float4(0.0, 0.0, 0.0, 1.0);
+    }
+    return SampleCloudPanoramaTexel(CloudPanoramaUv(worldDir));
+}
+
+// Cubic B-spline read from four bilinear taps (Sigg and Hadwiger), for the sky the camera sees: the panorama is magnified several times,
+// and a bilinear read shows its texel grid along the cloud edges.
+float4 SampleCloudPanoramaSmooth(float3 worldDir)
+{
+    if (worldDir.y <= 0.0)
+    {
+        return float4(0.0, 0.0, 0.0, 1.0);
+    }
+    float2 size = float2(CloudUpdate.zw);
+    float2 position = CloudPanoramaUv(worldDir) * size - 0.5;
+    float2 cell = floor(position);
+    float2 f = position - cell;
+    float2 f2 = f * f;
+    float2 f3 = f2 * f;
+    float2 w0 = (1.0 / 6.0) * (-f3 + 3.0 * f2 - 3.0 * f + 1.0);
+    float2 w1 = (1.0 / 6.0) * (3.0 * f3 - 6.0 * f2 + 4.0);
+    float2 w2 = (1.0 / 6.0) * (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0);
+    float2 w3 = (1.0 / 6.0) * f3;
+    float2 g0 = w0 + w1;
+    float2 g1 = w2 + w3;
+    float2 h0 = (cell + 0.5 + w1 / g0 - 1.0) / size;
+    float2 h1 = (cell + 0.5 + w3 / g1 + 1.0) / size;
+    return g0.x * (g0.y * SampleCloudPanoramaTexel(float2(h0.x, h0.y)) + g1.y * SampleCloudPanoramaTexel(float2(h0.x, h1.y)))
+        + g1.x * (g0.y * SampleCloudPanoramaTexel(float2(h1.x, h0.y)) + g1.y * SampleCloudPanoramaTexel(float2(h1.x, h1.y)));
+}
+
+// Marches one view ray through the cloud layer (Hillaire's energy-conserving integration).
+float4 TraceCloud(float3 dir, float jitter)
+{
+    float viewRadius = GroundAlbedo.w;
+    float3 origin = float3(0.0, viewRadius, 0.0);
+    float tBottom = RaySphereIntersectNearest(origin, dir, CloudLayer.x);
+    float tTop = RaySphereIntersectNearest(origin, dir, CloudLayer.y);
+    float tEnter;
+    float tExit;
+    if (viewRadius < CloudLayer.x)
+    {
+        if (tBottom < 0.0 || tTop < 0.0)
+        {
+            return float4(0.0, 0.0, 0.0, 1.0);
+        }
+        tEnter = tBottom;
+        tExit = tTop;
+    }
+    else if (viewRadius < CloudLayer.y)
+    {
+        tEnter = 0.0;
+        tExit = tBottom >= 0.0 ? tBottom : max(tTop, 0.0);
+    }
+    else
+    {
+        if (tTop < 0.0)
+        {
+            return float4(0.0, 0.0, 0.0, 1.0);
+        }
+        tEnter = tTop;
+        tExit = tTop + CloudLayer.w;
+    }
+    if (tEnter > CloudLayer.z || tExit <= tEnter)
+    {
+        return float4(0.0, 0.0, 0.0, 1.0);
+    }
+    tExit = min(tExit, tEnter + CloudLayer.w);
+    uint sampleCount = max((uint)CloudMultiScattering.w, 1u);
+    // The sky light on the clouds is the clear sky's mean radiance over the upper hemisphere (the zenith and four directions 30 degrees up),
+    // read from the sky view LUT: it does not see the clouds, so the panorama never feeds back into itself.
+    float3 skyAmbient = SampleSkyLuminance(float3(0.0, 1.0, 0.0)) * 0.5;
+    skyAmbient += SampleSkyLuminance(float3(0.866025, 0.5, 0.0)) * 0.125;
+    skyAmbient += SampleSkyLuminance(float3(-0.866025, 0.5, 0.0)) * 0.125;
+    skyAmbient += SampleSkyLuminance(float3(0.0, 0.5, 0.866025)) * 0.125;
+    skyAmbient += SampleSkyLuminance(float3(0.0, 0.5, -0.866025)) * 0.125;
+    skyAmbient *= SunIlluminance.rgb * SunIlluminance.w;
+    float dt = (tExit - tEnter) / (float)sampleCount;
+    float3 sunDir = SunDirection.xyz;
+    float cosTheta = dot(dir, sunDir);
+    float3 luminance = 0.0;
+    float transmittance = 1.0;
+    float weightSum = 0.0;
+    float distanceSum = 0.0;
+    [loop] for (uint s = 0; s < sampleCount; s++)
+    {
+        float t = tEnter + ((float)s + jitter) * dt;
+        float3 p = origin + dir * t;
+        float heightFraction;
+        float extinction = CloudExtinction(p, heightFraction);
+        if (extinction <= 0.0)
+        {
+            continue;
+        }
+        float pRadius = length(p);
+        float3 up = p / pRadius;
+        float3 sunLuminance = SunIlluminance.rgb * SampleTransmittance(pRadius, dot(sunDir, up));
+        float tauSun = CloudOpticalDepthToSun(p, sunDir);
+        float sunTerm = 0.0;
+        float contribution = 1.0;
+        float occlusion = 1.0;
+        float eccentricity = 1.0;
+        [unroll] for (uint octave = 0; octave < 3; octave++)
+        {
+            sunTerm += contribution * CloudPhaseFunction(cosTheta, eccentricity) * exp(-tauSun * occlusion);
+            contribution *= CloudMultiScattering.x;
+            occlusion *= CloudMultiScattering.y;
+            eccentricity *= CloudMultiScattering.z;
+        }
+        float3 ambient = skyAmbient * lerp(1.0 - CloudAlbedo.w, 1.0, heightFraction);
+        float3 source = extinction * CloudAlbedo.rgb * (sunLuminance * sunTerm + ambient);
+        float sampleTransmittance = exp(-extinction * dt);
+        float3 integrated = (source - source * sampleTransmittance) / extinction;
+        luminance += transmittance * integrated;
+        float weight = transmittance * (1.0 - sampleTransmittance);
+        weightSum += weight;
+        distanceSum += weight * t;
+        transmittance *= sampleTransmittance;
+        if (transmittance < CloudShape.w)
+        {
+            break;
+        }
+    }
+    if (weightSum <= 0.0)
+    {
+        return float4(0.0, 0.0, 0.0, 1.0);
+    }
+    // The air between the camera and the clouds: the transmittance to the luminance-weighted cloud depth dims the clouds and leaves that
+    // much of the sky's in-scattering in front of them.
+    float3 cloudPoint = origin + dir * (distanceSum / weightSum);
+    float cloudRadius = length(cloudPoint);
+    float3 toTop = SampleTransmittance(viewRadius, dir.y);
+    float3 cloudToTop = SampleTransmittance(cloudRadius, dot(dir, cloudPoint / cloudRadius));
+    float3 aerial = saturate(toTop / max(cloudToTop, 1e-4));
+    float skyKept = transmittance + (1.0 - transmittance) * (1.0 - dot(aerial, 1.0 / 3.0));
+    return float4(luminance * aerial, skyKept);
+}
+
+// Radiance the sky light sees: atmosphere (and clouds) above the horizon, the authored colour below it.
 float3 SkyLightRadiance(float3 worldDir)
 {
     if (worldDir.y < 0.0)
     {
         return LowerHemisphere.rgb;
     }
-    return SampleSkyLuminance(worldDir) * SunIlluminance.rgb;
+    float3 sky = SampleSkyLuminance(worldDir) * SunIlluminance.rgb;
+    if (CloudPhase.w > 0.0)
+    {
+        float4 cloud = SampleCloudPanorama(worldDir);
+        sky = sky * cloud.a + cloud.rgb;
+    }
+    return sky;
 }
 
 float3 ApplyHeightFog(float3 color, float3 cameraToReceiver, float3 skyAmbientLuminance)
@@ -367,19 +712,6 @@ float3 ApplyHeightFog(float3 color, float3 cameraToReceiver, float3 skyAmbientLu
 }
 
 groupshared float3 ShPartial[64][9];
-
-float3 EvaluateShIrradiance(float3 n)
-{
-    return ShOutput[0].rgb * 0.282095
-        + ShOutput[1].rgb * 0.488603 * n.y
-        + ShOutput[2].rgb * 0.488603 * n.z
-        + ShOutput[3].rgb * 0.488603 * n.x
-        + ShOutput[4].rgb * 1.092548 * n.x * n.y
-        + ShOutput[5].rgb * 1.092548 * n.y * n.z
-        + ShOutput[6].rgb * 0.315392 * (3.0 * n.z * n.z - 1.0)
-        + ShOutput[7].rgb * 1.092548 * n.x * n.z
-        + ShOutput[8].rgb * 0.546274 * (n.x * n.x - n.y * n.y);
-}
 
 void ProjectSh(float3 direction, float3 radiance, float weight, inout float3 coefficients[9])
 {
@@ -450,6 +782,32 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
         }
         return;
     }
+    if (pass == PassCloudNoise)
+    {
+        uint3 voxel = dispatchThreadId;
+        if (voxel.x >= CloudNoiseSize || voxel.y >= CloudNoiseSize || voxel.z >= CloudNoiseSize)
+        {
+            return;
+        }
+        CloudNoiseOutput[voxel] = CloudPerlinWorley(((float3)voxel + 0.5) / (float)CloudNoiseSize);
+        return;
+    }
+    if (pass == PassCloudPanorama)
+    {
+        // Either every texel, or one texel of each 4 x 4 block in Bayer order, so 16 frames refresh the whole panorama.
+        static const uint2 bayerOffsets[16] = {
+            uint2(0, 0), uint2(2, 2), uint2(2, 0), uint2(0, 2), uint2(1, 1), uint2(3, 3), uint2(3, 1), uint2(1, 3),
+            uint2(1, 0), uint2(3, 2), uint2(3, 0), uint2(1, 2), uint2(0, 1), uint2(2, 3), uint2(2, 1), uint2(0, 3) };
+        uint2 texel = CloudUpdate.y != 0u ? dispatchThreadId.xy : dispatchThreadId.xy * 4u + bayerOffsets[CloudUpdate.x & 15u];
+        if (texel.x >= CloudUpdate.z || texel.y >= CloudUpdate.w)
+        {
+            return;
+        }
+        float2 panoramaUv = ((float2)texel + 0.5) / float2(CloudUpdate.zw);
+        // A fixed start offset per texel: the panorama is the same each time it is refreshed with the same inputs.
+        OutputTexture[texel] = TraceCloud(CloudPanoramaDirection(panoramaUv), CloudHash01(uint3(texel, 7u)));
+        return;
+    }
     uint2 pixel = dispatchThreadId.xy;
     if (pixel.x >= Pass.y || pixel.y >= Pass.z)
     {
@@ -481,11 +839,33 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
     if (pass == PassSkyBackground)
     {
         float depth = SceneDepth.Load(int3(pixel, 0));
+        float2 ndc = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
         if (depth < 1.0)
         {
-            return;
+            // M0110: with a sky sphere (Unreal's SM_SkySphere and its Is Sky material), geometry farther than the sphere is covered by the sky.
+            if (SkySphere.w <= 0.0)
+            {
+                return;
+            }
+            float3 surface;
+            if (SkySphereDepth.x == 0.0)
+            {
+                float4 surfacePoint = mul(float4(ndc, depth, 1.0), InverseViewProjection);
+                surface = surfacePoint.xyz / surfacePoint.w;
+            }
+            else
+            {
+                // Radial depth (ADR-0076): depth = log2(1 + r / T) / G, so r = T (2^(depth G) - 1) along the pixel's ray.
+                float4 farRay = mul(float4(ndc, 1.0, 1.0), InverseViewProjection);
+                float4 nearRay = mul(float4(ndc, 0.0, 1.0), InverseViewProjection);
+                float3 rayDir = normalize(farRay.xyz / farRay.w - nearRay.xyz / nearRay.w);
+                surface = CameraPosition.xyz + rayDir * (SkySphereDepth.y * (exp2(depth * SkySphereDepth.z) - 1.0));
+            }
+            if (length(surface - SkySphere.xyz) <= SkySphere.w)
+            {
+                return;
+            }
         }
-        float2 ndc = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
         float4 farPoint = mul(float4(ndc, 1.0, 1.0), InverseViewProjection);
         float4 nearPoint = mul(float4(ndc, 0.0, 1.0), InverseViewProjection);
         float3 worldDir = normalize(farPoint.xyz / farPoint.w - nearPoint.xyz / nearPoint.w);
@@ -506,6 +886,12 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
         // The fog's sky contribution is the sky light's zenith irradiance expressed as the
         // luminance of an equivalent uniform sky (E/pi); geometry fog in the Stage shader uses the
         // same SH value so sky and surfaces fade into one colour.
+        if (CloudPhase.w > 0.0)
+        {
+            // M0110: the clouds in front of the sky (and of the sun disk).
+            float4 cloud = SampleCloudPanoramaSmooth(worldDir);
+            luminance = luminance * cloud.a + cloud.rgb;
+        }
         float3 skyAmbient = EvaluateShIrradiance(float3(0.0, 1.0, 0.0)) / PI;
         luminance = ApplyHeightFog(luminance, worldDir * 1000000.0, skyAmbient);
         float exposure = LowerHemisphere.w;

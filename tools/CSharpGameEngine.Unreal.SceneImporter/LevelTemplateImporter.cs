@@ -48,7 +48,7 @@ internal static class LevelTemplateImporter {
         if(DirectionalNodes.Length!=1){
             throw new InvalidOperationException($"Expected one directional light node, found {DirectionalNodes.Length}.");
         }
-        // The sky dome is an IsSky material the glTF bake cannot represent; SkyAtmosphere replaces it (ADR-0069).
+        // The sky dome is an IsSky material the glTF bake cannot represent; a SkySphere node stands for it (ADR-0069, M0110).
         var SkyDomeAssets=Manifest.Actors.Where(Actor=>SkyDomeActors.Contains(Actor.Label)).Select(Actor=>Actor.AssetPath).ToHashSet(StringComparer.Ordinal);
         foreach(var Asset in SkyDomeAssets.Where(Asset=>Manifest.Actors.All(Actor=>SkyDomeActors.Contains(Actor.Label)||Actor.AssetPath!=Asset))){
             File.Delete(Path.Combine(TemplateDirectory,Asset));
@@ -59,7 +59,7 @@ internal static class LevelTemplateImporter {
         var Utf8=new UTF8Encoding(encoderShouldEmitUTF8Identifier:false);
         File.WriteAllText(Path.Combine(ScenesDirectory,Names.AssetsClass+".cs"),BuildAssetsSource(Manifest,SkyDomeAssets,Names),Utf8);
         File.WriteAllText(Path.Combine(ScenesDirectory,Names.LevelClass+".cs"),ThirdPersonTemplateImporter.BuildLevelSource(Manifest,Scene,MeshNodeByName,DirectionalNodes[0],SkyDomeActors,Names),Utf8);
-        Console.WriteLine($"Generated {Manifest.Actors.Count-SkyDomeActors.Count} StaticMesh nodes from {Manifest.RenderVariants.Count-SkyDomeAssets.Count} render variants; {SkyDomeActors.Count} sky dome actor(s) replaced by SkyAtmosphere.");
+        Console.WriteLine($"Generated {Manifest.Actors.Count-SkyDomeActors.Count} StaticMesh nodes from {Manifest.RenderVariants.Count-SkyDomeAssets.Count} render variants; {SkyDomeActors.Count} sky dome actor(s) became SkySphere nodes.");
         return 0;
     }
     private static string BuildAssetsSource(ThirdPersonManifest Manifest,IReadOnlySet<string>SkippedAssets,LevelNames Names){

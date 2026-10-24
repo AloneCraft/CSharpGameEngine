@@ -359,10 +359,15 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// per frame (8 ticks at 60 Hz), so its frame-numbered input and observations do not depend on how fast the adapter
     /// presents: WARP is slow enough to reach the cap every frame, a GPU is not. Otherwise the measured time.
     /// </summary>
-    public (long ElapsedCounter,long CounterFrequency)FrameTime(long MeasuredElapsedCounter,long CounterFrequency)=>
-        this.Automation is null
+    public (long ElapsedCounter,long CounterFrequency)FrameTime(long MeasuredElapsedCounter,long CounterFrequency){
+        var Time=this.Automation is null
             ?(MeasuredElapsedCounter,CounterFrequency)
             :RuntimeAutomation.FixedFrameTime(this.FixedTicks);
+        this.CloudClock.Advance(Time.Item1,Time.Item2);
+        return Time;
+    }
+    /// <summary>The game time the clouds move by (ADR-0078/M0110): the frames' elapsed time, so an automation run's clouds are the same on every adapter.</summary>
+    private EnvironmentClock CloudClock;
 
     /// <summary>1フレームを表示する。自動検証が規定フレーム数に達したらfalseを返し、ループ終了を要求する。</summary>
     internal bool Present(){
@@ -387,6 +392,18 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
 
     private void SubmitEnvironment(RenderServer Renderer){
         var Collected=this.Environment;
+        if(this.HasCameraPose&&this.CameraFrameLocalOrigin.M41.TryToSingle(out var CameraR)&&this.CameraFrameLocalOrigin.M43.TryToSingle(out var CameraF)){
+            Collected.CameraHorizontalMeters=new Vector2(CameraR,CameraF);
+        }
+        Collected.CloudSeconds=this.CloudClock.Seconds;
+        // M0110: the global distance field's voxels sit on the world grid; the camera is the render-space origin.
+        if(Collected.DistanceField is { }Field&&this.HasCameraPose
+            &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M41,Field.VoxelSizeMeters,out var VoxelR,out var RemainderR)
+            &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M42,Field.VoxelSizeMeters,out var VoxelU,out var RemainderU)
+            &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M43,Field.VoxelSizeMeters,out var VoxelF,out var RemainderF)){
+            Collected.DistanceFieldOriginVoxel=new LongVector3(VoxelR,VoxelU,VoxelF);
+            Collected.DistanceFieldOriginRemainder=new Vector3(RemainderR,RemainderU,RemainderF);
+        }
         var Settings=Collected.Build();
         if(!Settings.IsValid){
             Collected.InvalidReason="EnvironmentLightingSettings";

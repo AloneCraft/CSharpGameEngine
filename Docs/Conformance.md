@@ -4069,7 +4069,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - UE の床は Landscape の舗装(市松模様の路面材質)で、Landscape の Spline に沿った縁石つきのトラック(`SM_Track_10M`、白とオレンジ)、傾斜、アーチ(トンネル)がある。エンジンは壁と同じ材質の平らな板 1 枚で、これらが全く無い(オレンジ一色の床)。**最大の差。** 壁の色は UE では黄みのオレンジと暗い赤茶で、エンジンのオレンジと赤に近い(照明の差を除く)。
   - UE の空は雲のある青空(VolumetricCloud)、エンジンは雲の無い勾配。
   - 車の塗装はどちらもオレンジ。UE は明るく、エンジンは暗く赤い(間接光と反射の差)。UE の後ろ姿には銀色のマフラーと灯火のまとまりがあるが、エンジンは暗いガラスの塊に見え、金属の反射が無い。
-  - ミップマップは無い(`StageRenderer.cs` の材質テクスチャは `mipLevels:1`)。ちらつきの量は測っていない。
+  - ミップマップは無い(`StageRenderer.cs` の材質テクスチャは `mipLevels:1`)。ちらつきの量は測っていない。(2026-10-23 の M0110 で解消。材質テクスチャは全ミップと異方性 8 になり、ちらつきの減り方を測った。雲も M0110 で入った。)
 - 未確認のまま残る: 車の前面(ヘッドライト)と側面を、エンジンで同じ角度から見る方法が無い(自動実行にカメラの指定が無い)ため、UE の前斜めの画像との比較はできていない。灯火の発光とガラスの透け方は、後ろ姿の比較からしか言えない。ヘッドライトとブレーキランプの点灯は M0109 の機能で、現在は未実装。
 - 反映: ADR-0078 の表と M0112(テンプレートの仕上げ)に、Vehicle の Landscape の路面とトラック(Spline のメッシュ)、傾斜、アーチの取り込みを足した。空と雲は M0110、反射と間接光は M0111。
 - 結果: Differs(Vehicle のレベルの見た目。上の差を M0110〜M0112 で埋める)。
@@ -4142,4 +4142,39 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 実装: M0109(`Docs/Milestones/M0109-Chaos-Vehicle.md`)。決定: UE の式を `LogicalScalar` で移す、力のサスペンション、根は重心、`VehicleSetup` データアセット、ブレーキランプは `MeshEmissive`(UE の発光 1 を 100 nits とする推測)、ヘッドライトは `LightVisibility`、`Vehicle` はスナップショットに入れない、カメラは `Camera.Active` の反転、エンジン音は作らない。
 - 自動化された証拠: `ChaosVehicleTests`(Windows、25。旧 `VehicleMotorTests` は削除)、`PhysicsForceCommandTests`(Windows、9)、`TypedLightFrameTests.LightVisibility_HidesOnlyItsOwnLightAndKeepsItsValidation`、`PersistentComponentSnapshotTests`、`LogicalMathAtan2Tests`(Numerics、14)、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(ThirdPerson・TopDown・Vehicle)。
 - 既知の差: 制約のサスペンションではない(縮みきりは車体の箱が支える)、慣性は箱、ブレーキランプは UE と違って光る、エンジン音と `CtrlRig_SportsCar` は無い、UE を同じ入力で走らせた数値の比較はしていない、実機の入力は未検証。
+- 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-23 探索 — Lumen 相当の土台と見た目の不足(ADR-0078、M0110)
+- 意図: 「Vehicle の UE 参照画像との比較」で分かった差(雲が無い、ミップが無い、空の球が無い)を埋め、M0111 のトレースの土台(メッシュの距離場とグローバル距離場)を作る。
+- 観測(Fact):
+  - UE の 4 レベルの雲は同じ値(Layer Bottom 5 km、Height 10 km、材質 `m_SimpleVolumetricCloud_Inst` の Density 0.008・Coverage −0.2 など)。空の球は ThirdPerson・FirstPerson・TopDown にあり(半径 16.384 km、材質は SkyAtmosphere の見え方だけ)、Vehicle には無い。
+  - ミップ: 64×64 の市松の床を地平線へ向けた WARP の画像で、遠景の分散 1267.5 → 0.0、2 フレーム間の差 9.50 → 0.00。近景の分散は 4256.6 → 3953.4(潰れない)。
+  - 雲: 雲あり/なしで空の画素の 71%(13624/19200。床を除く上 1/3)が変わり、パノラマの 44% が「空の半分以上を雲が覆う」。最初のフレームは全パノラマで +128 ms 程度、以降は 1/16 更新で雲なしと同程度。
+  - 距離場: 立方体の距離は半精度の誤差内で正確、グローバル距離場の全段の最大誤差 0.04 m。カメラを動かしたあとに再計算されたブリックは 64 → 16(段 0)で、一度に作った場と同じ。
+  - 修正で見つけた不具合: `RenderServer` がメッシュを複製するとき距離場の欄を落とし、ゲームの物体がグローバル距離場に入らなかった(試験 `RenderServer_KeepsEachMeshsDistanceField…` が修正前に失敗、修正後に成功)。
+  - 材質テクスチャの常駐数が色空間ごとの共有になり、既存の `StageGpuIntegrationTests` の期待値が 4 → 5(共有の白が基本色と金属粗さで別)。意図した変更。
+  - 実走(WARP): ThirdPerson 15.700 m、FirstPerson 16.000 m、Vehicle 52.014 m・30.5°、TopDown 9.606 m・ナビありは (6.79, 6.84)(以上、M0109 のときと同じ)。D3D12 のエラー 0。標準フレームの 7 つのハッシュは不変。
+- UE の参照画像との再比較(目視。`.artifacts/UnrealExport/Lvl_*/ue_reference_*` とエンジンの最終フレーム):
+  - 空: UE は青空に積雲。エンジンも青空に積雲が出るようになった(形は UE のテクスチャでなくエンジンのノイズなので、同じ雲ではない。差)。
+  - 遠景のちらつき: 格子の床の遠景が平均の色へ収束し、ちらつきが減った(数値は上のとおり)。
+  - 車の塗装の暗さと金属の反射: 変わっていない(間接光と反射は M0111)。
+  - Vehicle の Landscape の路面・トラック・傾斜・アーチ: 変わっていない(M0112)。
+- 実装: M0110(`Docs/Milestones/M0110-Lumen-Foundation-And-Missing-Visuals.md`)。決定: ミップは CPU で決定的(sRGB は線形で平均)、雲は Atmosphere.hlsl のパノラマ(1/16 更新)、空の球は空の合成で外側の面を空に置き換える、メッシュの距離場はビルドの CLI で作る(Cook でない)、グローバル距離場は世界の整数ボクセルのトロイダルなクリップマップ、`stage-v11` は変えない。
+- 自動化された証拠: `RenderTextureMipChainTests`(18)、`MeshDistanceFieldTests`(8)、`EnvironmentComponentTests`(+6)、`MaterialMipmapGpuIntegrationTests`(2)、`VolumetricCloudGpuIntegrationTests`(6)、`GlobalDistanceFieldGpuIntegrationTests`(8)、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)。
+- 既知の差: 雲の形(UE のテクスチャを取り込んでいない)、雲の影、実機の GPU での見た目とフレーム時間(WARP のみ)、UE の Lumen と違い反射・間接光はまだ変わらない(M0111)、スキンのメッシュには距離場が無い。
+- 結果: MatchesWithDocumentedExtension(雲・空の球・ミップ・距離場)。Vehicle のレベルの見た目は引き続き Differs(M0111・M0112)。
+
+## 2026-10-23 探索 — Lumen 相当の土台と見た目の不足(ADR-0078、M0110)
+- 意図: UE の参照画像との比較(2026-10-22)で分かった「雲が無い」「ミップマップが無い」を埋め、空の球を取り込み、M0111 がトレースするメッシュの距離場とグローバル距離場を作る。静的なライティングのベイクは作らない。
+- 観測(Fact):
+  - UE 5.8 の 4 レベルの `VolumetricCloud` と雲の材質 `m_SimpleVolumetricCloud_Inst` の値は同じ(下端 5 km、厚さ 10 km、密度 0.008、被覆 −0.2 など)。`SM_SkySphere`(ThirdPerson・FirstPerson・TopDown。Vehicle には無い)の材質 `M_SimpleSkyDome` は Unlit・Is Sky で、色は大気のビューの輝度と太陽の円盤だけ。半径 40.96 m × 400。
+  - ミップ: WARP の市松の床で、遠景の分散 1267.5 → 0.0、カメラを 0.37 m 動かした 2 フレームの差 9.50 → 0.00、近景の分散は保たれる(4256.6 → 3953.4)。7 つの黄金フレームのハッシュは不変(既定の 1 × 1 のテクスチャは 1 段)。
+  - 雲: 密度 0 の雲は雲の無いフレームとビット単位で同じ。2 回の描画でフレームとパノラマが同じ。雲のノイズの値が 0.58〜0.75 に集まって空の 75 % を覆っていた(分布を測って 0〜1 へ広げた)。最初の全面の更新で空の光の SH が 0 のため点の格子が見えた(雲の環境光を晴れた空から取るようにした)。
+  - グローバル距離場: 箱の正確な距離との差 0.040 m 以内、カメラの移動で 64 中 16 ブリックだけ作り直し、物体の移動で 12 ブリック。差分の結果は一度に作った場と等しい(物体の移動はビット単位、カメラの移動は 1.2e-7 以内)。距離場は画素を変えない。
+  - `RenderServer` のメッシュの写しが距離場を落とし、ゲームでは距離場つきメッシュが 0 だった(修正前に失敗する試験で確かめて直した)。直した後の ThirdPerson は距離場つきメッシュ 8・場の物体 54。
+  - 実走(WARP): ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m・(6.79, 6.84)、Vehicle 52.014 m・30.5°(すべて変わらない)。D3D12 のエラー 0。フレーム時間は他の負荷の揺れの範囲で、増えたとは言えない。
+- UE の参照画像との再比較: ThirdPerson は青空に白い積雲が散らばる空になり、UE とほぼ同じ見た目(UE の雲は縁がより滑らか)。Vehicle も雲のある青空になった(空の青と雲の陰はこちらが暗い。露出と間接光・反射は M0111)。床とトラックは M0112 のまま。2026-10-22 の項の「雲が無い」「ミップマップは無い」は解消した。
+- 実装: M0110(`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`)。決定: ミップは読み込み時に CPU で作る、異方性 8、`stage-v12`、雲は上半球のパノラマ(16 フレームで一巡)、空の球は合成の判定、メッシュの距離場はビルド時(ShaderGraph CLI)、グローバル距離場は 4 段 × 64³ のトーラス状のクリップマップとブリックの差分更新、DDGI は M0111 の代替の段。
+- 自動化された証拠: `RenderTextureMipChainTests`(18)、`MeshDistanceFieldTests`(8)、`MaterialMipmapGpuIntegrationTests`(2)、`VolumetricCloudGpuIntegrationTests`(6)、`GlobalDistanceFieldGpuIntegrationTests`(8)、`EnvironmentComponentTests`(+6)、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)。
+- 既知の差: 雲の形はエンジンのノイズ(UE の雲のテクスチャは取り込んでいない)、風は 10 m/s・45°(推測ではなくエンジンの選択)、地面への雲の影と遠くのジオメトリの手前の雲は無い、メッシュの距離場とグローバル距離場は UE より粗い、ハードウェアのレイトレーシングとナナイトは無い。実機の GPU での見た目とフレーム時間は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension。

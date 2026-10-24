@@ -40,3 +40,6 @@ The ThirdPerson template port (UE5.8 `Lvl_ThirdPerson`) rendered with almost no 
 WARP oracles and unit tests are recorded in [M0089](../Milestones/M0089-Physically-Based-Environment-Lighting.md). They cover the atmosphere LUT against the CPU reference, cascade fitting, sun shadows, GI (sky reproduction, wall distance and colour, colour bleeding), AO (crease, open surfaces, sky, direct-light invariance), the Component snapshot round trip and `KHR_texture_transform`. Hardware GPU and interactive VSIX verification are not implied.
 ## Related features
 F-L4-014 (new), F-L5-001 (Runtime.Lighting Components), F-L0-005 (`GltfImporter.ImportScene`). See [Rendering](../Specifications/Rendering.md#environment-lighting).
+## 追記(2026-10-23、ADR-0078 / M0110)
+- ユーザーの決定(ADR-0078)で、GI と反射は Lumen 相当(M0111: サーフェスキャッシュ、グローバル距離場への最終収集、反射)にする。この ADR の DDGI プローブ(決定 7)は捨てずに、低品質と WARP の「代替の段」として残し、設定で切り替える。M0110 は M0111 の土台(メッシュの距離場とグローバル距離場)を作った。
+- 「Known gaps」のうち、ボリュメトリック雲とテクスチャのミップマップは M0110 で実装した(`VolumetricCloud`、材質テクスチャの全ミップと異方性 8)。空の光の SH は雲を含む(雲のパノラマを一巡するたびに作り直す)。反射プローブ、局所光の GI、プローブの移動は M0111 の範囲。詳細は [M0110](../Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md)。

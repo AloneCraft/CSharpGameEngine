@@ -105,16 +105,98 @@ public readonly record struct EnvironmentLightingSettings(
     float BloomIntensity,
     float SunAngularRadiusRadians,
     GlobalIlluminationSettings?GlobalIllumination=null,
-    AmbientOcclusionSettings?AmbientOcclusion=null){
+    AmbientOcclusionSettings?AmbientOcclusion=null,
+    VolumetricCloudSettings?Clouds=null,
+    SkySphereSettings?SkySphere=null,
+    GlobalDistanceFieldSettings?DistanceField=null){
     public static EnvironmentLightingSettings Legacy=>new(null,null,null,ExposureSettings.Legacy,ToneMapper.LegacyAces,1.8f,0.00465f);
     public bool IsValid=>(this.Atmosphere is null||this.Atmosphere.Value.IsValid)
         &&(this.SkyLight is null||this.SkyLight.Value.IsValid)
         &&(this.Fog is null||this.Fog.Value.IsValid)
         &&(this.GlobalIllumination is null||this.GlobalIllumination.Value.IsValid)
         &&(this.AmbientOcclusion is null||this.AmbientOcclusion.Value.IsValid)
+        &&(this.Clouds is null||this.Clouds.Value.IsValid)
+        &&(this.SkySphere is null||this.SkySphere.Value.IsValid)
+        &&(this.DistanceField is null||this.DistanceField.Value.IsValid)
         &&this.Exposure.IsValid&&float.IsFinite(this.BloomIntensity)&&this.BloomIntensity>=0f
         &&float.IsFinite(this.SunAngularRadiusRadians)&&this.SunAngularRadiusRadians>0f&&this.SunAngularRadiusRadians<0.5f;
 }
+/// <summary>
+/// Volumetric clouds (ADR-0078/M0110) in Unreal's units: kilometres for the layer and the tracing distances, extinction per metre, the
+/// material's coverage, albedo, phase and multiple-scattering controls. <see cref="CameraPositionKm"/> is where the camera is over the planet
+/// (world R and F, kilometres) and <see cref="WindOffsetKm"/> how far the wind has carried the clouds; both move the clouds the camera sees and
+/// are written every frame. The clouds need the atmosphere: without <see cref="EnvironmentLightingSettings.Atmosphere"/> they are not drawn.
+/// </summary>
+public readonly record struct VolumetricCloudSettings(
+    float LayerBottomAltitudeKm,
+    float LayerHeightKm,
+    float TracingStartMaxDistanceKm,
+    float TracingMaxDistanceKm,
+    float DensityPerMeter,
+    float Coverage,
+    float LayoutScaleKm,
+    Vector3 Albedo,
+    float PhaseG,
+    float PhaseG2,
+    float PhaseBlend,
+    float MultiScatteringContribution,
+    float MultiScatteringOcclusion,
+    float MultiScatteringEccentricity,
+    float SkyLightBottomOcclusion,
+    float StopTracingTransmittanceThreshold,
+    Vector2 CameraPositionKm,
+    Vector2 WindOffsetKm){
+    /// <summary>The values of Unreal's VolumetricCloud with its default material, as the UE 5.8 templates use them.</summary>
+    public static VolumetricCloudSettings Unreal=>new(5f,10f,350f,50f,0.008f,-0.2f,256f,new Vector3(0.98f),0.8f,0.166667f,0.575f,0.666667f,0.25f,0.18f,0.5f,0.005f,Vector2.Zero,Vector2.Zero);
+    public bool IsValid=>
+        float.IsFinite(this.LayerBottomAltitudeKm)&&this.LayerBottomAltitudeKm>=0f&&this.LayerBottomAltitudeKm<=1000f
+        &&float.IsFinite(this.LayerHeightKm)&&this.LayerHeightKm>0f&&this.LayerHeightKm<=1000f
+        &&float.IsFinite(this.TracingStartMaxDistanceKm)&&this.TracingStartMaxDistanceKm>0f
+        &&float.IsFinite(this.TracingMaxDistanceKm)&&this.TracingMaxDistanceKm>0f
+        &&float.IsFinite(this.DensityPerMeter)&&this.DensityPerMeter>=0f&&this.DensityPerMeter<=10f
+        &&float.IsFinite(this.Coverage)&&this.Coverage>=-1f&&this.Coverage<=1f
+        &&float.IsFinite(this.LayoutScaleKm)&&this.LayoutScaleKm>0f
+        &&SkyAtmosphereSettings.IsFiniteNonNegative(this.Albedo)&&this.Albedo.X<=1f&&this.Albedo.Y<=1f&&this.Albedo.Z<=1f
+        &&this.PhaseG>-1f&&this.PhaseG<1f&&this.PhaseG2>-1f&&this.PhaseG2<1f
+        &&float.IsFinite(this.PhaseBlend)&&this.PhaseBlend>=0f&&this.PhaseBlend<=1f
+        &&float.IsFinite(this.MultiScatteringContribution)&&this.MultiScatteringContribution>=0f&&this.MultiScatteringContribution<=1f
+        &&float.IsFinite(this.MultiScatteringOcclusion)&&this.MultiScatteringOcclusion>=0f&&this.MultiScatteringOcclusion<=1f
+        &&float.IsFinite(this.MultiScatteringEccentricity)&&this.MultiScatteringEccentricity>=0f&&this.MultiScatteringEccentricity<=1f
+        &&float.IsFinite(this.SkyLightBottomOcclusion)&&this.SkyLightBottomOcclusion>=0f&&this.SkyLightBottomOcclusion<=1f
+        &&float.IsFinite(this.StopTracingTransmittanceThreshold)&&this.StopTracingTransmittanceThreshold>=0f&&this.StopTracingTransmittanceThreshold<1f
+        &&float.IsFinite(this.CameraPositionKm.X)&&float.IsFinite(this.CameraPositionKm.Y)
+        &&float.IsFinite(this.WindOffsetKm.X)&&float.IsFinite(this.WindOffsetKm.Y);
+}
+/// <summary>
+/// The sky sphere (ADR-0078/M0110, Unreal's SM_SkySphere with M_SimpleSkyDome): the sky is drawn on every pixel whose surface is farther than
+/// <see cref="RadiusMeters"/> from <see cref="Center"/> (render space, so it moves with the camera origin like every object) as well as on the
+/// pixels no geometry covers.
+/// </summary>
+public readonly record struct SkySphereSettings(Vector3 Center,float RadiusMeters){
+    public bool IsValid=>float.IsFinite(this.Center.X)&&float.IsFinite(this.Center.Y)&&float.IsFinite(this.Center.Z)
+        &&float.IsFinite(this.RadiusMeters)&&this.RadiusMeters>0f;
+}
+/// <summary>
+/// The global distance field (ADR-0078/M0110): <see cref="ClipmapCount"/> clipmaps of <see cref="Resolution"/>^3 voxels around the camera, the finest
+/// with voxels of <see cref="VoxelSizeMeters"/> and each next one twice as coarse, made from the objects' mesh distance fields and kept up to date a
+/// brick at a time. The voxels are fixed to the world: <see cref="OriginVoxel"/> is the world voxel (of the finest level) the render-space origin is in,
+/// and <see cref="OriginRemainder"/> how far the origin is past that voxel's corner, so the field does not swim when the camera moves. A caller that
+/// renders in world coordinates leaves both at zero.
+/// </summary>
+public readonly record struct GlobalDistanceFieldSettings(float VoxelSizeMeters,int ClipmapCount,int Resolution,LongVector3 OriginVoxel,Vector3 OriginRemainder){
+    public const int MaximumClipmapCount=4;
+    public static GlobalDistanceFieldSettings Default=>new(0.5f,4,64,default,Vector3.Zero);
+    public bool IsValid=>
+        float.IsFinite(this.VoxelSizeMeters)&&this.VoxelSizeMeters>=0.01f&&this.VoxelSizeMeters<=100f
+        &&this.ClipmapCount is>=1 and<=MaximumClipmapCount
+        &&this.Resolution is>=16 and<=128&&this.Resolution%8==0
+        &&float.IsFinite(this.OriginRemainder.X)&&float.IsFinite(this.OriginRemainder.Y)&&float.IsFinite(this.OriginRemainder.Z)
+        &&this.OriginRemainder.X>=0f&&this.OriginRemainder.Y>=0f&&this.OriginRemainder.Z>=0f
+        &&this.OriginRemainder.X<=this.VoxelSizeMeters&&this.OriginRemainder.Y<=this.VoxelSizeMeters&&this.OriginRemainder.Z<=this.VoxelSizeMeters
+        &&Math.Abs(this.OriginVoxel.X)<(1L<<52)&&Math.Abs(this.OriginVoxel.Y)<(1L<<52)&&Math.Abs(this.OriginVoxel.Z)<(1L<<52);
+}
+/// <summary>Three 64-bit integers: a voxel's coordinates on the world's voxel grid.</summary>
+public readonly record struct LongVector3(long X,long Y,long Z);
 /// <summary>
 /// Screen-space ambient occlusion of indirect light (ADR-0069), in Unreal Engine's terms:
 /// <see cref="Intensity"/> blends between no occlusion (0) and the full obscurance (1) and

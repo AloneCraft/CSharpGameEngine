@@ -98,6 +98,9 @@ public sealed class RenderServer:IDisposable {
     public int FreeMaterialSlots=>this.Backend.FreeMaterialSlots;
     /// <summary>The objects drawn now (not counting removed ones).</summary>
     public int ActiveObjectCount=>this.Backend.ActiveObjectCount;
+    /// <summary>Meshes with a distance field, and objects in the global distance field at the last frame (ADR-0078/M0110).</summary>
+    public int DistanceFieldMeshCount=>this.Backend.DistanceFieldMeshCount;
+    public int DistanceFieldObjectCount=>this.Backend.DistanceFieldObjectCount;
 
     internal void RemoveDeviceForTesting()=>this.Backend.RemoveDeviceForTesting();
     internal float[]ReadDepthForTesting()=>this.Backend.ReadDepthForTesting();
@@ -527,6 +530,8 @@ public sealed class RenderServer:IDisposable {
                 Uvs=[.. Mesh.Uvs],
                 Indices=[.. Mesh.Indices],
                 Skin=Mesh.Skin is{ }Skin?new StageSkinCreateInfo { JointCount=Skin.JointCount,JointIndices=[.. Skin.JointIndices],Weights=[.. Skin.Weights] }:null,
+                // ADR-0078/M0110: a distance field is immutable, so the copy shares it (a device recovery rebuilds the global distance field from it).
+                DistanceField=Mesh.DistanceField,
             };
         }
         return Result;
@@ -607,6 +612,14 @@ public sealed class RenderServer:IDisposable {
             foreach(ushort Value in Skin.JointIndices){ Writer.Write(Value); }
             foreach(float Value in Skin.Weights){ Writer.Write(Value); }
         }
+        // M0110: the distance field is part of what the renderer was given; a mesh without one keeps the identity it had before.
+        if(Mesh.DistanceField is{ }Field){
+            Writer.Write(Field.MeshHash.ToByteArray());
+            Writer.Write(Field.ResolutionX); Writer.Write(Field.ResolutionY); Writer.Write(Field.ResolutionZ);
+            Writer.Write(Field.BoundsMin.X); Writer.Write(Field.BoundsMin.Y); Writer.Write(Field.BoundsMin.Z);
+            Writer.Write(Field.VoxelSize);
+            foreach(Half Value in Field.Distances){ Writer.Write(Value); }
+        }
     }
 
     private static void WriteMaterial(
@@ -666,7 +679,9 @@ public sealed class RenderServer:IDisposable {
 
         var Meshes=new StageMeshCreateInfo[DistinctTypes.Count];
         for(var Index=0;Index<DistinctTypes.Count;Index++){
-            Meshes[Index]=ToStageMesh(CreateProceduralMesh(DistinctTypes[Index]));
+            var Mesh=ToStageMesh(CreateProceduralMesh(DistinctTypes[Index]));
+            // M0110: a primitive is made here, not by the build, so its distance field is made here too (once per process).
+            Meshes[Index]=Mesh with { DistanceField=PrimitiveDistanceFields.GetOrAdd(DistinctTypes[Index],_=>MeshDistanceFieldBuilder.Build(Mesh.Positions,Mesh.Indices)) };
         }
 
         StageMaterialCreateInfo[]Materials=[
@@ -731,6 +746,7 @@ public sealed class RenderServer:IDisposable {
     };
 
     /// <summary>Synthesizes Uvs (unused - every primitive uses the flat default material, never a real texture) and Tangents via StageRenderer's own untextured-mesh adapter logic, so this stays byte-for-byte consistent with the legacy MeshCreateInfo path instead of a second, divergent implementation.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<PrimitiveType,MeshDistanceField?>PrimitiveDistanceFields=new();
     private static StageMeshCreateInfo ToStageMesh(ProceduralMeshData Mesh){
         var VertexCount=Mesh.Positions.Length;
         var Uvs=new Vector2[VertexCount];

@@ -45,6 +45,63 @@ public sealed class EnvironmentComponentTests {
         Assert.NotNull(Settings.SkyLight);
         Assert.Equal("GlobalIlluminationVolume",Collection.InvalidReason);
     }
+    [Fact]
+    public void VolumetricCloudAndSkySphere_RoundTripThroughTheSnapshotCodec(){
+        AssertRoundTrip(new VolumetricCloud { LayerBottomAltitudeKm=2f,Density=0.02f,Coverage=0.3f,WindDirectionDegrees=180f });
+        AssertRoundTrip(new SkySphere { RadiusMeters=5000f });
+    }
+    [Fact]
+    public void VolumetricCloud_DefaultsAreUnrealsTemplateValues(){
+        // M0110: the four UE 5.8 template levels use the VolumetricCloud component's defaults with m_SimpleVolumetricCloud_Inst.
+        var Settings=EnvironmentCollection.ToCloudSettings(new VolumetricCloud(),Vector2.Zero,0f);
+        Assert.Equal(VolumetricCloudSettings.Unreal,Settings);
+        Assert.True(Settings.IsValid);
+    }
+    [Fact]
+    public void VolumetricCloud_CarriesTheCameraPositionAndTheWindInKilometres(){
+        var Settings=EnvironmentCollection.ToCloudSettings(new VolumetricCloud { WindSpeedMetersPerSecond=20f,WindDirectionDegrees=90f },new Vector2(1500f,-250f),100f);
+        Assert.Equal(1.5f,Settings.CameraPositionKm.X,5);
+        Assert.Equal(-0.25f,Settings.CameraPositionKm.Y,5);
+        // 20 m/s for 100 s toward +R (90 degrees clockwise from +F) is 2 km.
+        Assert.Equal(2f,Settings.WindOffsetKm.X,4);
+        Assert.Equal(0f,Settings.WindOffsetKm.Y,4);
+    }
+    [Fact]
+    public void VolumetricCloud_UnusableValuesDisableOnlyTheClouds(){
+        var Collection=new EnvironmentCollection {
+            Atmosphere=new SkyAtmosphere(),
+            SkyLight=new SkyLight(),
+            Clouds=new VolumetricCloud { Density=float.NaN },
+        };
+        var Settings=Collection.Build();
+        Assert.True(Settings.IsValid);
+        Assert.Null(Settings.Clouds);
+        Assert.NotNull(Settings.Atmosphere);
+        Assert.Equal(nameof(VolumetricCloud),Collection.InvalidReason);
+    }
+    [Fact]
+    public void SkySphere_BuildsACameraRelativeSphereAndRejectsAZeroRadius(){
+        var Collection=new EnvironmentCollection { Atmosphere=new SkyAtmosphere(),SkySphere=new SkySphere(),SkySphereCenter=new Vector3(0f,-1.7f,0f) };
+        Assert.Equal(new SkySphereSettings(new Vector3(0f,-1.7f,0f),16384f),Collection.Build().SkySphere);
+        var Broken=new EnvironmentCollection { Atmosphere=new SkyAtmosphere(),SkySphere=new SkySphere { RadiusMeters=0f } };
+        var Settings=Broken.Build();
+        Assert.True(Settings.IsValid);
+        Assert.Null(Settings.SkySphere);
+        Assert.Equal(nameof(SkySphere),Broken.InvalidReason);
+    }
+    [Fact]
+    public void EnvironmentClock_SumsElapsedCountersWithoutLosingTheRemainder(){
+        var Clock=new EnvironmentClock();
+        for(var Frame=0;Frame<600;Frame++){
+            Clock.Advance(8,60);
+        }
+        Assert.Equal(80f,Clock.Seconds);
+        Clock.Advance(1,3);
+        Assert.Equal(80f+1f/3f,Clock.Seconds,4);
+        Clock.Advance(0,60);
+        Clock.Advance(-5,60);
+        Assert.Equal(80f+1f/3f,Clock.Seconds,4);
+    }
     private static void AssertRoundTrip<T>(T Value)where T:struct{
         Assert.False(EcsSnapshotComponentCodec<T>.IsTransient);
         var Payload=EcsSnapshotComponentCodec<T>.Serialize(Value);

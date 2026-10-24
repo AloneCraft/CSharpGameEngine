@@ -47,6 +47,7 @@
     <CgeComputeShader Include="../../assets/Shaders/AmbientOcclusion.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/LuminanceHistogram.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/Skinning.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/GlobalDistanceField.hlsl" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Pbr.cgesubgraph" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Shadow.cgesubgraph" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Pcss.cgesubgraph" />

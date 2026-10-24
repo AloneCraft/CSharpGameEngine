@@ -34,6 +34,12 @@ public sealed class RuntimeAutomation {
     private readonly List<ulong>ScreenLayerFingerprints=[];
     /// <summary>One entry per presented frame: how many objects the renderer drew (ADR-0078/M0105), so a spawned effect shows as a rise and its end as a fall.</summary>
     private readonly List<int>RenderObjectCounts=[];
+    /// <summary>ADR-0078/M0110: meshes with a distance field and objects in the global distance field, at the last frame.</summary>
+    private int DistanceFieldMeshes;
+    private int DistanceFieldObjects;
+    /// <summary>One entry per presented frame: wall-clock milliseconds since the previous frame was presented (M0110: WARP frame time evidence).</summary>
+    private readonly List<float>FrameMilliseconds=[];
+    private readonly System.Diagnostics.Stopwatch FrameClock=new();
     private RuntimeAutomation(int ExitAfterFrames,string?CapturePath,IReadOnlyList<RuntimeAutomationKeyHold>Input,string?ReportPath){
         this.ExitAfterFrames=ExitAfterFrames;
         this.CapturePath=CapturePath;
@@ -150,6 +156,10 @@ public sealed class RuntimeAutomation {
         this.FocusPositions.Add(FocusPosition);
         this.ScreenLayerFingerprints.Add(ScreenLayerFingerprint);
         this.RenderObjectCounts.Add(Renderer.ActiveObjectCount);
+        this.DistanceFieldMeshes=Renderer.DistanceFieldMeshCount;
+        this.DistanceFieldObjects=Renderer.DistanceFieldObjectCount;
+        this.FrameMilliseconds.Add(this.FrameClock.IsRunning?this.FrameClock.ElapsedTicks*(1000f/System.Diagnostics.Stopwatch.Frequency):0f);
+        this.FrameClock.Restart();
         if(this.Completed&&this.ReportPath is not null){
             this.WriteReport(Renderer.ErrorOrWorseMessageCount);
         }
@@ -191,6 +201,13 @@ public sealed class RuntimeAutomation {
         Writer.WriteStartArray("renderObjectCounts");
         foreach(var Count in this.RenderObjectCounts){
             Writer.WriteNumberValue(Count);
+        }
+        Writer.WriteEndArray();
+        Writer.WriteNumber("distanceFieldMeshes",this.DistanceFieldMeshes);
+        Writer.WriteNumber("distanceFieldObjects",this.DistanceFieldObjects);
+        Writer.WriteStartArray("frameMilliseconds");
+        foreach(var Milliseconds in this.FrameMilliseconds){
+            Writer.WriteNumberValue(MathF.Round(Milliseconds,2));
         }
         Writer.WriteEndArray();
         Writer.WriteEndObject();
