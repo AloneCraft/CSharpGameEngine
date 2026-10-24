@@ -2,7 +2,7 @@
 
 - Status: Implemented (M0099, 2026-10-04); radial depth is the default of every view since M0100 (2026-10-04), standard depth an explicit choice. This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track the evidence.
 - Decision: [ADR-0076](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)
-- Reference: the Unity asset Omni (`D:\Unity\6.6\Omni\Assets\Omni`), ported natively without its URP adapter.
+- Reference: the Unity asset Omni (`G:\Unity\6.6\Omni\Assets\Omni`), ported natively without its URP adapter.
 - Target layers: L0 (StageRenderer), L4 (RenderServer), L5 (Runtime camera and observer), L6 (Stage shader ABI), L8 (editor runtime view, isolated preview, preview host protocol)
 
 ## Product outcome
