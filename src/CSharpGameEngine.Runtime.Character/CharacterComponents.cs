@@ -21,6 +21,8 @@ public struct CharacterMotion() {
     public LogicalScalar Acceleration=LogicalScalar.FromSingle(15f);
     public LogicalScalar Braking=LogicalScalar.FromSingle(20f);
     public LogicalScalar AirBraking=LogicalScalar.FromSingle(15f);
+    /// <summary>UE の <c>FixedPathBrakingDistance</c>(<c>bUseFixedBrakingDistanceForPaths</c>。m)。経路の最後の点へ近づくとき、この距離の手前から減速する。0 ならキャラクターの制動(速さの 2 乗 ÷ 2 × 制動)から計算する(ADR-0078/M0112。TopDown は 2 m)。</summary>
+    public LogicalScalar FixedPathBrakingDistance=LogicalScalar.Zero;
     public LogicalScalar GroundFriction=LogicalScalar.FromSingle(8f);
     /// <summary>Friction while braking without input (Unreal's separate braking friction × factor).</summary>
     public LogicalScalar BrakingFriction=LogicalScalar.Zero;
@@ -123,7 +125,9 @@ public struct MoveIntent {
             this.Stop();
             return;
         }
-        var Ramp=Settings.Braking>LogicalScalar.Zero?Settings.WalkSpeed*Settings.WalkSpeed/(Settings.Braking*LogicalScalar.FromInt64(2)):LogicalScalar.One;
+        // 経路の最後の点(Navigation の経路追従)には UE の固定の制動距離を使う。目的地へ直線で歩くときと、経路の通過点には使わない。
+        var FixedRamp=this.HasWaypoint&&this.WaypointIsEnd&&Settings.FixedPathBrakingDistance>LogicalScalar.Zero;
+        var Ramp=FixedRamp?Settings.FixedPathBrakingDistance:Settings.Braking>LogicalScalar.Zero?Settings.WalkSpeed*Settings.WalkSpeed/(Settings.Braking*LogicalScalar.FromInt64(2)):LogicalScalar.One;
         var Scale=Ramp>LogicalScalar.Zero?Distance/Ramp:LogicalScalar.One;
         Scale=Scale<SlowestApproach?SlowestApproach:Scale>LogicalScalar.One?LogicalScalar.One:Scale;
         this.Direction=Planar/Distance*Scale;

@@ -23,6 +23,7 @@
           "WalkSpeed": 6,
           "Acceleration": 10,
           "Braking": 10,
+          "FixedPathBrakingDistance": 2,
           "AirControl": 0.05,
           "GravityScale": 1.5,
           "TurnRate": 1.7777778,

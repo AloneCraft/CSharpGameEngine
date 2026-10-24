@@ -4874,3 +4874,31 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
 - Conformance: MatchesWithDocumentedExtension(M0111 の文書の UE との差)
 - Next action: 実機の GPU での見た目・フレーム時間と Epic の確認。WARP の Epic での装置の削除の原因(パスごとのシェーダーへの分割を試す)。
+
+## F-L9-010 — Vehicle のレベルの地面(Landscape の三角形メッシュ、Spline のトラック)
+
+- Layer: L9 — Game / Application(`Templates/CSharpGameEngine.Templates.Vehicle` のレベル)、L7 — 取り込み(`tools/UnrealExport` の読み出しと `build_vehicle_ground.py`)
+- Parent capability: Templates / UE テンプレートの完全移植(ADR-0078 §2・§6)
+- Status: Implemented(実機の GPU は未確認)
+- Verification: TestVerified + RuntimeVerified(WARP。`verify-thirdperson-character --template Vehicle`、`verify-template-package --template Vehicle`)
+- Intended specification: `Docs/Specifications/UE-Template-Behavior.md`(Vehicle の地面)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §6、`Docs/Milestones/M0112-Template-Finishing.md`
+- Implementation evidence:
+  - `Templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb`・`Track_Road.glb`・`Track_Curbs.glb`、`Scenes/Lvl_VehicleBasic.json`(`Landscape`・`Track`・`TrackCurbs`)
+  - `tools/UnrealExport/probe_vehicle_landscape_heights.py`・`probe_vehicle_surfaces.py`・`probe_vehicle_ground_materials.py`・`probe_vehicle_ground_t3d.py`・`capture_vehicle_ground_color.py`・`build_vehicle_ground.py`(各 `run_*.cmd`)、`tools/UnrealExport/README.md`
+- Tests: `tests/CSharpGameEngine.Windows.Tests/Character/VehicleLevelTests.cs`(21)、`ChaosVehicleTrack.AddGltf`
+- Current delta: 地形は 1 m 格子の高さの三角形メッシュ(UE の対角線)で、色は照明なしの基本色の撮影。縁石は描くだけで衝突を持たない(物理の箱と三角形メッシュの接触が 1 tick に 1 つの面の向きしか使わないため)。層の重みと RVT は撮影に焼いたので、Landscape の層は編集できない。UE のアーチ(`SM_Tunnel`)・コーン・壁は M0102 から取り込み済みで、丘の上に載るようになった。
+- Conformance: MatchesWithDocumentedExtension(UE の参照画像と構図が同じ。陰の明るさは差が残る。M0112 の文書)
+- Next action: 物理の箱と三角形メッシュの接触を複数の面の向きに対応させ、縁石に衝突を付ける。実機の GPU。
+
+## F-L5-046 — テンプレートの仕上げ(経路の固定の制動距離、挙動仕様の完成、4 つのレベルの環境、FirstPerson のパッケージ検証)
+
+- Layer: L5 — `Runtime.Character`(`CharacterMotion.FixedPathBrakingDistance`、`MoveIntent.Steer`)、L9 — テンプレートのシーン、L7 — `FeatureRunner`(`verify-template-package --template FirstPerson`)
+- Parent capability: Templates / UE テンプレートの完全移植(ADR-0078)
+- Status: Implemented
+- Verification: TestVerified + RuntimeVerified(WARP。`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(4 テンプレート。SDK 0.1.24))
+- Intended specification: `Docs/Specifications/UE-Template-Behavior.md`(「一部」「未」の行を 0 にした)、`Docs/Milestones/M0112-Template-Finishing.md`
+- Implementation evidence: `src/CSharpGameEngine.Runtime.Character/CharacterComponents.cs`、`Templates/CSharpGameEngine.Templates.TopDown/Scenes/TopDownCharacter.json`、`tools/CSharpGameEngine.FeatureRunner/TemplatePackageVerification.cs`・`FeatureRunnerApplication.cs`・`FeatureStageCatalog.cs`、`tools/CSharpGameEngine.VSExtension/ProjectTemplates/CSharp/GameEngine/Vehicle/ReadMe.md`、`Templates/README.md`・`Templates/Vehicle/README.md`、`build/CSharpGameEngine.Version.props`(0.1.24)
+- Tests: `CharacterMotorTests.AnEndWaypoint_BrakesOverTheFixedPathBrakingDistanceWhenTheSettingsHaveOne`、`TemplateCharacterSceneTests.TheTopDownCharacterBrakesOverUesFixedPathBrakingDistanceOfTwoMetres`、`TemplateLightingSceneTests`(4)
+- Current delta: 作らないと決めた行(エンジン音、制約のサスペンション、左の車輪の鏡映、`M_Cursor` の UV の流れ、`CtrlRig_SportsCar`、Recast のタイルなど)は理由つきで文書に書いた。陰の明るさは UE との差が残る(M0112)。
+- Conformance: MatchesWithDocumentedExtension
+- Next action: M0113(破壊)。

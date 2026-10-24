@@ -4203,3 +4203,16 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `LumenGpuIntegrationTests`(9)、`LumenSurfaceCacheLayoutTests`(7)、`EnvironmentComponentTests`(+2)、`ShaderGraphCompilerTests`、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(SDK 0.1.23)。
 - 既知の差: 陰が UE より明るい、塗装の艶、カードは箱の 6 面だけ、ハードウェアのレイトレーシング・半透明・多重の反射は無い、既定の段は UE の Epic でなく High、Epic の WARP での装置の削除は未解決、実機の GPU は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension(仕組み)。見た目は Differs(陰の明るさ、Vehicle の床)。
+
+## 2026-10-25 探索 — テンプレートの仕上げ(ADR-0078、M0112)
+- 意図: Vehicle のレベルを UE の Landscape・Spline のトラック・丘・アーチに近づけ、4 つのレベルの見た目を UE と比べ直し、`UE-Template-Behavior.md` の「一部」「未」の行を決める。
+- 観測(Fact):
+  - UE の Vehicle の Landscape は平らではない(中央に最大 2.84 m の丘)。M0102〜M0109 の「平ら」は誤りだった。Spline は半径 45 m の輪に `SM_Track_10M` を 16 個(1.6 倍)。物理マテリアルは Landscape が Slippery(摩擦 1、反発 0.4)、トラックが NonSlippery(摩擦 1、反発 0)。UE の三角形の分けは (x, y)-(x+1, y+1) の対角線(格子の間の高さが 0.002 cm 以内で一致)。
+  - 縁石と路面と地形を物理に置くと、縁石の斜面と平らな地面にまたがった車体が沈んだ(`TryBoxMeshManifold` が 1 tick に 1 つの面の向きしか使わない)。路面と地形だけなら沈まない。縁石は描くだけにした。
+  - **UE の SceneCapture2D の参照画像は Lumen の GI を含まない**(GI を切っても 0.1/255 しか変わらず、右奥の壁は GI を切ったビューポートと同じ 7)。Lumen を含むビューポートに取り直すと、右奥の壁は 7.3 → 30(収束の途中)。M0111 の「陰が UE より明るい(7.8 対 68.4)」は Lumen の無い UE との差で、実際の差は 1.1〜1.65 倍だった。
+  - 空の雲の割合は UE 0.289、エンジン 0.711。雲を消すと右奥の壁が 46.7 → 37.6。`Coverage` を −0.8 にすると 0.287 で、陰の面が線形で 1.23〜1.65 倍 → 1.11〜1.34 倍、日向の背の壁は 0.87 → 0.80 倍。エンジンの AO は同じ場面で約 1 %(UE は 6〜13 %)。
+  - WARP の実走: Vehicle 62.613 m・27.8°(57.150 m・30.5° から。路面と地形の上を走る)、ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m / ナビあり (6.80, 6.83)(固定の制動距離 2 m で (6.79, 6.84) から)、長押し 17.414 m。`verify-template-package`(SDK 0.1.24)の ThirdPerson・FirstPerson・TopDown・Vehicle。D3D12 のエラー 0。
+- 実装: M0112(`Docs/Milestones/M0112-Template-Finishing.md`)。決定: 地形は静的な三角形メッシュ、色は真上からの基本色の撮影、トラックは UE の `SplineMeshCommon.ush` の式で曲げた路面(衝突あり)と縁石(描くだけ)、`CharacterMotion.FixedPathBrakingDistance`、「一部」「未」の行はすべて実装済みか作らない(エンジン音・制約のサスペンション・左の車輪の鏡映・`M_Cursor` の UV の流れ・`CtrlRig_SportsCar`・Recast のタイル)、`VolumetricCloud.Coverage` −0.8、`verify-template-package` に FirstPerson。
+- 自動化された証拠: `VehicleLevelTests`(21)、`TemplateLightingSceneTests`(4)、`TemplateCharacterSceneTests`(+1)、`CharacterMotorTests`(+1)、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(4 テンプレート、SDK 0.1.24)。
+- 既知の差: 陰の明るさ(陰の面 1.1〜1.3 倍、日向の背の壁 0.8 倍。エンジンの AO が効かない、UE の Lumen の溜め方が候補)、Vehicle の路面の暗さ(UE の約 1/3)、縁石の衝突が無い、雲の形、実機の GPU は未確認(WARP のみ)。
+- 結果: MatchesWithDocumentedExtension(Vehicle のレベルの構図と材質)。見た目の陰の明るさと路面の暗さは Differs。

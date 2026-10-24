@@ -80,7 +80,7 @@
       },
       {
         "type": "CSharpGameEngine.Runtime.Lighting.VolumetricCloud",
-        "members": {}
+        "members": { "Coverage": -0.8 }
       },
       {
         "type": "CSharpGameEngine.Runtime.Lighting.GlobalDistanceField",

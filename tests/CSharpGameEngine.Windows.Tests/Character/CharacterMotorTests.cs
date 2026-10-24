@@ -117,6 +117,25 @@ public sealed class CharacterMotorTests {
         Assert.False(Intent.HasWaypoint);
     }
     [Fact]
+    public void AnEndWaypoint_BrakesOverTheFixedPathBrakingDistanceWhenTheSettingsHaveOne(){
+        // ADR-0078/M0112: UE の FixedPathBrakingDistance(TopDown は 200 cm)。設定が無ければ、制動から計算した距離(速さ 6、制動 20 では 0.9 m)の手前から減速する。
+        // 固定の距離があるときは、経路の最後の点へ 2 m の手前から減速する。目的地へ直線で歩くとき(経由点が無いとき)には使わない。
+        var Fixed=new CharacterMotion { FixedPathBrakingDistance=LogicalScalar.FromSingle(2f) };
+        var Direct=new MoveIntent { Waypoint=new LogicalVector3(0,0,10),HasWaypoint=true,WaypointIsEnd=true };
+        Direct.MoveTo(new LogicalVector3(0,0,10));
+        Direct.Steer(Settings,new LogicalVector3(0,0,8.5f));
+        Assert.Equal(Forward,Direct.Direction);
+        var Braked=new MoveIntent { Waypoint=new LogicalVector3(0,0,10),HasWaypoint=true,WaypointIsEnd=true };
+        Braked.MoveTo(new LogicalVector3(0,0,10));
+        Braked.Steer(Fixed,new LogicalVector3(0,0,8.5f));
+        var Scale=LogicalScalar.TrySquareRoot(Braked.Direction.LengthSquared,out var Length)?Length:LogicalScalar.Zero;
+        Assert.InRange(Scale.TryToSingle(out var Value)?Value:float.NaN,0.7f,0.8f);
+        var Straight=new MoveIntent();
+        Straight.MoveTo(new LogicalVector3(0,0,10));
+        Straight.Steer(Fixed,new LogicalVector3(0,0,8.5f));
+        Assert.Equal(Forward,Straight.Direction);
+    }
+    [Fact]
     public void StopAndAMissingDestination_ClearTheWaypoint(){
         var Intent=new MoveIntent { Waypoint=new LogicalVector3(1,0,1),HasWaypoint=true };
         Intent.Steer(Settings,LogicalVector3.Zero);

@@ -8,4 +8,4 @@ set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "CSGE_REPO_ROOT=%%~fI"
 "%UE_EDITOR%" "G:\UE\5.8\Vehicle\Vehicle.uproject" ^
   -ExecCmds="py %SCRIPT_DIR%capture_vehicle_reference.py" ^
-  -EnablePlugins=PythonScriptPlugin -NoSplash -nosound
+  -EnablePlugins=PythonScriptPlugin -NoSplash -nosound -unattended

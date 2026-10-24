@@ -26,7 +26,10 @@ public static class VehicleDriveVerification {
     public const float MinimumTravelMeters=20f;
     /// <summary>ハンドルを切ったあとの進む向きが、切る前からこれだけは変わる(度)。</summary>
     public const float MinimumTurnDegrees=5f;
-    /// <summary>カメラの高さの範囲(m)。地面の上の車の後ろの高さは約2.7 m。地面の抜けや空への飛び出しを弾く。</summary>
+    /// <summary>
+    /// カメラの高さの範囲(m)。地面の抜けや空への飛び出しを弾く。M0112: レベルが UE の Landscape になったので、根拠を測り直した。路面(高さ 0.08 m)の上の追従カメラは約 1.5〜1.65 m
+    /// (WARP の実走で最低 1.534、最高 1.645)。中央の丘(最大 2.84 m)の上まで登っても 4.5 m 以下で、地面を抜ければ 1 m を割る(縁石を衝突に含めたときは -47 m まで落ちた)。
+    /// </summary>
     public const float MinimumCameraHeight=1f;
     public const float MaximumCameraHeight=6f;
     /// <summary>走り出したあとのHUD(速度とギアの文字)の画面レイヤーが、これだけ違う状態を取る。速度の数字が変わるので、止まったままの画面では満たせない。</summary>

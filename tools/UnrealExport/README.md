@@ -153,3 +153,30 @@ python tools\UnrealExport\cut_masked_mesh.py .artifacts\UnrealExport\cursor\SM_C
 - `run_probe_vehicle_brake_lights.cmd <出力のファイル>`(`probe_vehicle_brake_lights.py`): BrakeLights が値を書く `VehicleMesh` が見えるか、各メッシュのマテリアルの連鎖とパラメーター、発光の入力の式。結果: `VehicleMesh` は 4 頂点の見えないメッシュで、マテリアル 0 番は `WorldGridMaterial`。見える車体の発光は 0(UE ではブレーキランプは光らない)。
 - `run_probe_vehicle_emissive.cmd <出力のファイル>`(`probe_vehicle_emissive.py`): `M_SportsCarBase` の発光の式をたどり、`T_SportsCar_Lights_M` などのテクスチャを出力のファイルの隣に PNG で書き出す。マテリアルの T3D は `run_dump_blueprint_logic.cmd G:\UE\5.8\Vehicle <出力> /Game/Vehicles/SportsCar/Materials/M_SportsCarBase` で読める(発光の Named Reroute は宣言の無い使用で、値は 0)。
 - `add_brake_light_emission.py <glb> <png> <マテリアル> <係数>`: glb のマテリアルに発光のテクスチャを足す。テンプレートの `SM_SportsCar.glb` は、`T_SportsCar_Lights_M` の赤のチャンネルだけを赤にした PNG(テールランプ。シャシーの UV 0)を、マテリアル 0(`M_SportsCarChasis`)に係数 1(100 nits)で足した。export_vehicle_car.py の書き出しのあとに 1 回だけ実行する。
+
+## Vehicle のレベルの地面: Landscape と Spline のトラック(ADR-0078、M0112)
+UE の glTF エクスポーターは Landscape と、Landscape Spline の `SplineMeshComponent` を書き出せない(エンジンにも地形のコンポーネントが無い)。Vehicle のレベルの床は、UE を 3 回起動して値を読み、Python で静的なメッシュに組み立てる。
+
+```cmd
+set CGE_PROBE_OUT=.artifacts\m0112\landscape_heights.json
+tools\UnrealExport\run_probe_vehicle_landscape.cmd tools\UnrealExport\probe_vehicle_landscape_heights.py
+set CGE_SK_STATIC=1
+tools\UnrealExport\run_export_skeletal_mesh.cmd Vehicle /Game/VehicleTemplate/Meshes/SM_Track_10M .artifacts\m0112\track\SM_Track_10M.glb
+tools\UnrealExport\run_capture_vehicle_ground_color.cmd
+copy .artifacts\UnrealExport\Lvl_VehicleBasic\ground_color .artifacts\m0112\ground_color_src.png
+python tools\UnrealExport\build_vehicle_ground.py .artifacts\m0112\landscape_heights.json .artifacts\m0112\track\SM_Track_10M.glb .artifacts\m0112\ground_color_src.png Templates\CSharpGameEngine.Templates.Vehicle
+```
+
+- `probe_vehicle_landscape_heights.py`(`run_probe_vehicle_landscape.cmd <スクリプト>`。`CGE_PROBE_OUT` が結果の JSON): Landscape の高さを、100 cm 間隔の格子の真上からの衝突のライン トレースで読む(127 × 127 点。Python から高さのデータは読めないので、衝突の高さがそのまま正本になる)。同時に、16 個の `SplineMeshComponent`(`SM_Track_10M` を Spline に沿って曲げたもの)の `SplineMeshParams`(始点・終点の位置と接線・縮尺・ロール)を書く。
+- `probe_vehicle_surfaces.py`: Slippery・NonSlippery の物理マテリアル(摩擦 1.0 で掛け算、反発 0.4 と 0)と、トラックの下の面、格子の間の 400 点の高さ。メッシュの三角形の分け方を、格子の間の高さが UE の衝突と合うかで決めた(各格子を (x, y)-(x+1, y+1) の対角線で分ける方が 0.002 cm 以内、もう一方の対角線は最大 1.26 cm ずれた)。
+- `probe_vehicle_ground_materials.py`・`probe_vehicle_ground_t3d.py`: `M_Landscape`・`M_Track` の式の全体(`M_Track` は Material Attributes で、入力ノードからは読めないので T3D で書く)。`M_Landscape` は Ground 層を灰色 (0.26) と `RoadCol`(橙 (1, 0.095, 0))の斜面の混ぜ合わせ、Road 層を橙にし、粗さ 0.8。Road 層は Spline が輪の幅 ±8 m に塗り、外へ 5 m で落ちる。
+- `capture_vehicle_ground_color.py`(`run_capture_vehicle_ground_color.cmd`、GUI エディター): 真上から、Landscape だけを `SCS_BASE_COLOR`(照明なしの色)で 2048 画素に撮る(画像の右が UE の +Y、上が +X)。層の重みと斜面の色、RVT を、式を読み解かずにそのまま写せる。同じ起動で、照明つきの真上の画像(`ue_reference_topdown`)も撮る。
+- `capture_vehicle_reference.py`(`run_capture_vehicle_reference.cmd`): 比較の参照画像。Vehicle のチェイスカメラは水平 110° なので、FOV 110 で撮る(2026-10-22 の最初の組は 90 だった)。丘を見る `ue_reference_hill` と、車の脇から路面を見る `ue_reference_track_side` を足した。
+- `build_vehicle_ground.py`: 上の結果から `Assets/Stage/Lvl_VehicleBasic/Meshes/` の `Landscape_Terrain.glb`(高さから作った三角形メッシュ。平らな 7 m 四方は 2 枚の三角形)、`Track_Road.glb`(路面。衝突あり)、`Track_Curbs.glb`(縁石。描くだけ)を書き、シーン JSON の `Ground` の板を `Landscape`・`Track`・`TrackCurbs` に替える。Spline のメッシュの曲げ方は UE の `SplineMeshCommon.ush`(`SplineMeshCalcSlice`)の式。同じ入力で何度流しても同じ結果になる。
+- `capture_lumen_reference_check.py`(`run_capture_lumen_reference_check.cmd`): UE の参照画像の撮り方の違い(SceneCapture2D、状態を持ち越す SceneCapture2D、エディターのビューポートのスクリーンショット)で、陰の明るさが変わるかを調べる(M0112)。
+
+## UE の参照画像の撮り方と Lumen(M0112)
+- **SceneCapture2D の画像は Lumen の GI を含まない。** `capture_thirdperson_lumen_toggle.py` と `capture_lumen_reference_check.py` で、GI の方法を切っても SceneCapture の画像は変わらない(255 のうち 0.1)ことを確かめた。エディターのビューポートのスクリーンショット(`unreal.AutomationLibrary.take_high_res_screenshot`)は GI を含み、切ると暗い所が約 10 % 落ちる。`ShowFlag.GlobalIllumination`・`LumenGlobalIllumination` を `SceneCapture2D.show_flag_settings` に入れても変わらない。M0111 までの「陰が UE より明るい」の数値は、この Lumen の無い画像との比較だった。
+- `capture_thirdperson_viewport.py`(`run_capture_thirdperson_viewport.cmd`): ThirdPerson の PlayerStart のカメラの位置を、ビューポートの `take_high_res_screenshot` で撮る(`TP_ThirdPerson\Saved\Screenshots\WindowsEditor\` へ UE が書く)。Lumen の間接光は撮り始めてから 1000 tick 以上かけてゆっくり明るくなるので、500 tick おきに 3 枚撮って落ち着き方を見て、そのあと AO・Lumen の短距離の AO・GI を順に切った画像を撮る(コンソールコマンド `ShowFlag.AmbientOcclusion 0`、`r.Lumen.ScreenProbeGather.ShortRangeAO 0`、`r.DynamicGlobalIlluminationMethod 0`)。
+- `capture_thirdperson_lighting_split.py`(`run_capture_thirdperson_lighting_split.cmd`): SceneCapture2D の画像を、`SkyLighting`・`AmbientOcclusion` のフラグで分ける(Lumen は含まない)。
+- エンジン側の撮影は `CGE_AUTOMATION_FRAMES`・`CGE_AUTOMATION_CAPTURE` と `CGE_SCALABILITY_GI=high`。**エンジンの画像は UE の左右の鏡像になる**(既存の性質。M0107)ので、領域を比べるときは片方を左右反転する。

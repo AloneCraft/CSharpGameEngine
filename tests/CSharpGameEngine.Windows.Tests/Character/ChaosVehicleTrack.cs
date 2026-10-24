@@ -66,7 +66,7 @@ internal sealed class ChaosVehicleTrack {
     internal Vehicle Vehicle;
     internal VehicleState State;
     internal VehicleIntent Intent;
-    internal ChaosVehicleTrack(bool Floor=true,float StartHeight=0.7f,VehicleSetup?Setup=null,LogicalScalar?Friction=null,LogicalQuaternion?Rotation=null){
+    internal ChaosVehicleTrack(bool Floor=true,float StartHeight=0.7f,VehicleSetup?Setup=null,LogicalScalar?Friction=null,LogicalQuaternion?Rotation=null,LogicalVector3?Start=null){
         this.Motor=new VehicleMotor(this.World);
         Setup??=SportsCar();
         if(Floor){
@@ -84,7 +84,7 @@ internal sealed class ChaosVehicleTrack {
         Assert.Equal(PhysicsUpdateStatus.Success,this.World.Upsert(new PhysicsBodyDescription(
             this.Car,1000,new Collider { Shape=ColliderShape.Box,HalfExtents=new(L("0.95"),L("0.45"),L("2.25")),Material=new PhysicsMaterial { Friction=L("0.7") } },
             new RigidBody { MotionType=PhysicsMotionType.Dynamic,Mass=Setup.Mass,LinearDamping=L("0.01"),AngularDamping=3 },
-            new LogicalVector3(0,LogicalScalar.FromSingle(StartHeight),0),Rotation??LogicalQuaternion.Identity,PhysicsVelocity.Zero)));
+            Start??new LogicalVector3(0,LogicalScalar.FromSingle(StartHeight),0),Rotation??LogicalQuaternion.Identity,PhysicsVelocity.Zero)));
     }
     /// <summary>R は -100 から 100、F は -100 から <paramref name="Length"/> m の、まっすぐな長い道(最高速の試験)。</summary>
     internal ChaosVehicleTrack AddStrip(int Length){
@@ -125,6 +125,44 @@ internal sealed class ChaosVehicleTrack {
         Assert.Equal(PhysicsUpdateStatus.Success,this.World.Upsert(new PhysicsBodyDescription(
             new Entity((int)this.NextShape),this.NextShape,
             new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset=Id,Material=new PhysicsMaterial { Friction=Friction } },null,
+            LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero)));
+        this.NextShape++;
+        return this;
+    }
+    /// <summary>
+    /// M0112: レベルの glb(地形やトラック)の三角形を、そのまま静的な三角形メッシュにする。ゲームの <c>StaticMeshCollider</c> が焼くのと同じ三角形
+    /// (ノードのワールド変換を掛けた頂点と、縮退を除いた面)で、シーンでは原点に単位変換で置かれる。
+    /// </summary>
+    internal ChaosVehicleTrack AddGltf(string Path,LogicalScalar Friction,LogicalScalar Restitution)=>this.AddGltf([Path],Friction,Restitution);
+    internal ChaosVehicleTrack AddGltf(string[]Paths,LogicalScalar Friction,LogicalScalar Restitution){
+        List<LogicalVector3>Vertices=[];
+        List<int>Indices=[];
+        foreach(var Path in Paths){
+        var Result=CSharpGameEngine.Import.Gltf.GltfImporter.ImportScene(Path);
+        Assert.True(Result.Success,string.Join("; ",Result.Diagnostics.Select(static Item=>Item.Message)));
+        foreach(var Node in Result.Scene!.Nodes){
+            if(Node.MeshIndex is not int MeshIndex){ continue; }
+            var Mesh=Result.Scene.Meshes[MeshIndex];
+            var Offset=Vertices.Count;
+            foreach(var Position in Mesh.Positions){
+                var World=System.Numerics.Vector3.Transform(Position,Node.WorldTransform);
+                Vertices.Add(new LogicalVector3(LogicalScalar.FromSingle(World.X),LogicalScalar.FromSingle(World.Y),LogicalScalar.FromSingle(World.Z)));
+            }
+            for(var Index=0;Index<Mesh.Indices.Count;Index+=3){
+                var A=Vertices[Offset+(int)Mesh.Indices[Index]];
+                if(!LogicalVector3.Cross(Vertices[Offset+(int)Mesh.Indices[Index+1]]-A,Vertices[Offset+(int)Mesh.Indices[Index+2]]-A).LengthSquared.IsZero){
+                    Indices.Add(Offset+(int)Mesh.Indices[Index]);
+                    Indices.Add(Offset+(int)Mesh.Indices[Index+1]);
+                    Indices.Add(Offset+(int)Mesh.Indices[Index+2]);
+                }
+            }
+        }
+        }
+        var Id=$"mesh{this.NextShape}";
+        this.World.Shapes.Add(PhysicsShapeAsset.CreateStaticTriangleMesh(Id,Vertices,Indices));
+        Assert.Equal(PhysicsUpdateStatus.Success,this.World.Upsert(new PhysicsBodyDescription(
+            new Entity((int)this.NextShape),this.NextShape,
+            new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset=Id,Material=new PhysicsMaterial { Friction=Friction,Restitution=Restitution } },null,
             LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero)));
         this.NextShape++;
         return this;

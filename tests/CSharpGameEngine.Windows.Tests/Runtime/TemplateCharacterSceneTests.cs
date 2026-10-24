@@ -31,6 +31,12 @@ public sealed class TemplateCharacterSceneTests {
     }
     private static float Turns(JsonElement Members,string Name,float Default=0f)=>Members.TryGetProperty(Name,out var Value)?Value.GetSingle():Default;
     [Fact]
+    public void TheTopDownCharacterBrakesOverUesFixedPathBrakingDistanceOfTwoMetres(){
+        // BP_TopDownCharacter's CharacterMovement: FixedPathBrakingDistance 200 cm with bUseFixedBrakingDistanceForPaths (M0112).
+        var Motion=Members(Scene("TopDown","TopDownCharacter"),"CharacterMotion");
+        Assert.Equal(2f,Motion.GetProperty("FixedPathBrakingDistance").GetSingle());
+    }
+    [Fact]
     public void TheFirstPersonCameraManagerLimitsThePitchToMinus70AndPlus80Degrees(){
         // BP_FirstPersonCameraManager: ViewPitchMin -70, ViewPitchMax 80 (the controller's default is -89 to 89).
         var View=Members(Scene("FirstPerson","FirstPersonCharacter"),"ViewAngles");

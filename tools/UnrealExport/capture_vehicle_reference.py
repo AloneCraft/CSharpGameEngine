@@ -14,6 +14,9 @@ import unreal
 REPO_ROOT = os.environ.get("CSGE_REPO_ROOT", "G:/GitHub/CSharpGameEngine").replace("\\", "/")
 OUTPUT_DIR = f"{REPO_ROOT}/.artifacts/UnrealExport/Lvl_VehicleBasic"
 WARMUP_TICKS = 240
+# The Vehicle template's chase camera is 110 degrees wide (BP_VehicleAdvSportsCar's back camera; 77.55 degrees vertical at 16:9), and the engine's
+# automation camera keeps the scene camera's field of view, so the references use it too (M0112; the first set, 2026-10-22, used 90).
+FOV_DEGREES = 110.0
 CAR_BLUEPRINT = "/Game/VehicleTemplate/Blueprints/SportsCar/BP_VehicleAdvSportsCar"
 state = {"ticks": 0, "handle": None, "captures": []}
 
@@ -28,7 +31,7 @@ def add_capture(actors, name: str, location: unreal.Vector, rotation: unreal.Rot
     component = capture.get_editor_property("capture_component2d")
     target = unreal.RenderingLibrary.create_render_target2d(capture, 1280, 720, unreal.TextureRenderTargetFormat.RTF_RGBA8_SRGB)
     component.set_editor_property("texture_target", target)
-    component.set_editor_property("fov_angle", 90.0)
+    component.set_editor_property("fov_angle", FOV_DEGREES)
     component.set_editor_property("capture_source", unreal.SceneCaptureSource.SCS_FINAL_TONE_CURVE_HDR)
     component.set_editor_property("capture_every_frame", True)
     state["captures"].append((name, component, target))
@@ -47,6 +50,9 @@ def begin() -> None:
     add_capture(actors, "ue_reference_chase", engine_to_ue(44.5, 2.6846242, 5.6282177), unreal.Rotator(roll=0.0, pitch=-8.0, yaw=90.0))
     # A front three-quarter view for the headlights, glass and paint.
     add_capture(actors, "ue_reference_front_three_quarter", unreal.Vector(start_location.x + 450.0, start_location.y + 450.0, start_location.z + 150.0), unreal.Rotator(roll=0.0, pitch=-10.0, yaw=-135.0))
+    # Over the hill looking toward the tunnel and the ring track (M0112), and along the track from beside the car.
+    add_capture(actors, "ue_reference_hill", unreal.Vector(-1800.0, -3200.0, 900.0), unreal.Rotator(roll=0.0, pitch=-18.0, yaw=50.0))
+    add_capture(actors, "ue_reference_track_side", unreal.Vector(start_location.x - 600.0, start_location.y - 1500.0, start_location.z + 120.0), unreal.Rotator(roll=0.0, pitch=-6.0, yaw=60.0))
     state["handle"] = unreal.register_slate_post_tick_callback(tick)
 
 

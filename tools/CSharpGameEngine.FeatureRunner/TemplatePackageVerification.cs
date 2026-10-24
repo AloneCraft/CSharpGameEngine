@@ -44,11 +44,12 @@ public static class TemplatePackageVerification {
             ?Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Adapter)
             :Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Template,Adapter);
         var Result=Template switch{
-            "ThirdPerson"=>await ThirdPersonCharacterVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
+            // FirstPerson walks and jumps like ThirdPerson (the same scripted input and judgement; M0112 added it to the package check).
+            "ThirdPerson" or "FirstPerson"=>await ThirdPersonCharacterVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
             "Vehicle"=>await VehicleDriveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
             // The TopDown game bakes its navigation mesh from the package's Navigation plugin while it builds (ADR-0079/M0106) and walks along it.
             "TopDown"=>await ClickToMoveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
-            _=>throw new ArgumentException($"The package check drives ThirdPerson, TopDown or Vehicle, not {Template}.",nameof(Template)),
+            _=>throw new ArgumentException($"The package check drives ThirdPerson, FirstPerson, TopDown or Vehicle, not {Template}.",nameof(Template)),
         };
         if(Result==0){
             try {

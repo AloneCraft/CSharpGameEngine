@@ -510,3 +510,16 @@
   - 画素: 拡散の照度(Lumen の t16)があればプローブボリュームと空の光の拡散を置き換え、Skylight Leaking × 空の光の照度を下限にする。反射(t17)があれば反射の照度を置き換える。履歴は前のフレームのカメラと距離・法線が合う画素だけ。
 - Intended behavior: `Docs/Specifications/Rendering.md` の環境ライティング(Lumen の行)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5。
 - Result: MatchesWithDocumentedExtension(差は M0111 の文書の「UE との差」と「範囲外・残り」)。
+
+## RE-M0112 — Vehicle のレベルの地面と、テンプレートの仕上げ
+
+- Confidence: High(単体試験 `VehicleLevelTests`・`CharacterMotorTests`・`TemplateLightingSceneTests`・`TemplateCharacterSceneTests` と、WARP の実走で確認)。UE の見た目との一致は Medium(参照画像を目と領域の平均輝度で比べた。陰の明るさは差が残る)。実機の GPU は Low(未確認)。
+- Evidence: `Templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/*.glb`・`Scenes/Lvl_VehicleBasic.json`、`tools/UnrealExport/build_vehicle_ground.py`、`src/CSharpGameEngine.Runtime.Character/CharacterComponents.cs`(`MoveIntent.Steer`)、`src/CSharpGameEngine.Runtime.Physics/PhysicsNarrowPhase.cs`(`TryBoxMeshManifold`)
+- Observed behavior:
+  - Vehicle のレベルの地面は 3 つの `StaticMesh`: `Landscape`(三角形メッシュ。`StaticMeshCollider`、摩擦 1・反発 0.4)、`Track`(曲げた路面。`StaticMeshCollider`、摩擦 1・反発 0)、`TrackCurbs`(縁石。衝突なし)。原点に単位の Transform で置く。メッシュの頂点は UE のエクスポーターの glTF 空間((X, Z, Y) m)で、インポーターが R = X、U = Z、F = −Y に写す。
+  - 地形の高さは 127 × 127 点の 1 m 格子(UE の衝突のライン トレース)。各格子を (x, y)-(x+1, y+1) の対角線で 2 枚の三角形に分け、7 m 四方がすべて高さ 0 なら 2 枚の三角形にまとめる(5,959 頂点・11,496 三角形)。法線は高さの中心差分。UV は真上からの撮影の範囲(画像の右が UE の +Y、上が +X)。
+  - トラックは UE の `SplineMeshCommon.ush` の式(エルミート曲線の位置と向き、縮尺・ロール・オフセットの線形補間、`cross(up, 向き)` の枠)で、`SM_Track_10M` の 16 個の配置から曲げる。法線は枠の回転だけで(縮尺は掛けない)、三角形の向きはもとのメッシュのまま。
+  - 縁石に衝突が無いのは、`TryBoxMeshManifold` が 1 tick に 1 つの面の向き(一番深い角の面と 0.95 以上の内積の角)の patch しか作らず、縁石の斜面と平らな地面にまたがった車体から地面の支えが消えるため(試験の再現: 路面+縁石+地形で沈み、路面+地形では沈まない)。
+  - `MoveIntent.Steer` は、経由点があり `WaypointIsEnd` で `CharacterMotion.FixedPathBrakingDistance > 0` のとき、その距離の手前から減速する(長さ = 距離 ÷ 固定の距離。下限 0.25)。0 のときと、経由点が無いとき・通過点のときは従来の制動から計算した距離。
+- Intended behavior: `Docs/Specifications/UE-Template-Behavior.md`(Vehicle の地面、TopDown の経路の追従)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §6。
+- Result: MatchesWithDocumentedExtension(差は M0112 の文書の「範囲外・残り」)。

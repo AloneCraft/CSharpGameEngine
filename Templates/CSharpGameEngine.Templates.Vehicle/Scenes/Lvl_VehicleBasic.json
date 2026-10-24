@@ -80,7 +80,7 @@
       },
       {
         "type": "CSharpGameEngine.Runtime.Lighting.VolumetricCloud",
-        "members": {}
+        "members": { "Coverage": -0.8 }
       },
       {
         "type": "CSharpGameEngine.Runtime.Lighting.GlobalDistanceField",
@@ -193,27 +193,75 @@
         "children": []
       },
       {
-        "id": "bbe77852-ae7e-5c1b-bdf6-558ec57d15ac",
-        "name": "Ground",
+        "id": "a636b647-bd43-5c5c-ba9f-569e75f282b9",
+        "name": "Landscape",
         "components": [
           {
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
-              "Position": { "R": 0, "U": -0.5, "F": 0 },
+              "Position": { "R": 0, "U": 0, "F": 0 },
               "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
-              "Scale": { "R": 127, "U": 1, "F": 127 }
+              "Scale": { "R": 1, "U": 1, "F": 1 }
             }
           },
           {
             "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
             "members": {
-              "AssetPath": "Assets/Stage/Lvl_VehicleBasic/Meshes/Cube_00292bb170.glb",
+              "AssetPath": "Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb",
+              "Mobility": "Static"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": { "Material": { "Friction": 1, "Restitution": 0.4 } }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "85d49428-1d00-5417-8115-abf792850d4b",
+        "name": "Track",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Road.glb",
               "Mobility": "Static"
             }
           },
           {
             "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
             "members": { "Material": { "Friction": 1, "Restitution": 0 } }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2d604eec-9b20-582d-aed0-b51b63ddc58d",
+        "name": "TrackCurbs",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.StaticMesh",
+            "members": {
+              "AssetPath": "Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Curbs.glb",
+              "Mobility": "Static"
+            }
           }
         ],
         "children": []
