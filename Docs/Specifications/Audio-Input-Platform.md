@@ -107,7 +107,7 @@ Showcase actions use stable IDs and a dedicated context. Context priority, chord
 - `AppHost.CaptureMouse` が true なら、ウィンドウがマウスを捕捉する(自動実行を除く)。
 - 診断: INPUT001(partial struct でない)、INPUT002(メンバーの型)、INPUT003(割り当てが型に合わない)、INPUT004(割り当てなし)、INPUT005(`[Gamepad]` の不感帯・倍率・反転が不正。M0108)、SYSGEN038(`in` 以外、`Spawn`)。
 - マウスのボタンは `[Mouse(MouseButton.Left)]` で `Button` に割り当てる。`[Pointer] Pointer` は画面上のカーソル(クライアント領域の左上を 0、右下を 1 とした割合と `Inside`)で、`Read` の第 3 引数 `EngineHost.Cursor` が毎フレーム埋める。3D の位置は `Picking` サービス(System の引数に `Picking` と書く)が求める。`Picking.TryPick(Pointer, out PickHit)` は、カメラの姿勢・縦の視野角・ウィンドウの縦横比でポインターを通る光線(最大 2000 m)を作り、物理の静的コリジョンの最も近い当たり(`Entity`、`Point`、`Normal`、`Distance`)を返す。カメラが物理と別の参照フレームにある、ポインターが領域の外、何にも当たらないときは false。
-- 自動検証: `CGE_AUTOMATION_CURSOR=x,y`(割合)がカーソルを代わりに与え、`CGE_AUTOMATION_INPUT` の `MouseLeft@開始-終了` がマウスの左ボタンを押す。アナログの入力は `コード=値@開始-終了`(下の「1 軸のアナログ値」)。
+- 自動検証: `CGE_AUTOMATION_CURSOR=x,y`(割合)がカーソルを代わりに与え、`CGE_AUTOMATION_INPUT` の `MouseLeft@開始-終了` がマウスの左ボタンを押す。アナログの入力は `コード=値@開始-終了`(下の「1 軸のアナログ値」)。 `CGE_AUTOMATION_CAMERA=r,u,f,ヨー度,ピッチ度` は、シーンのカメラを、そのカメラが付いている Entity から世界の軸で (r, u, f) だけ離れた位置、ヨー(U の軸)とピッチ(R の軸)の向きのカメラに替える(車を横から撮るなどの調べ用。M0109)。
 - 未実装: `Touch`、実行時の再割り当て、コンテキストの切り替え。
 
 ### 1 軸のアナログ値、押していた時間、片方の軸(M0108)

@@ -240,6 +240,7 @@ internal struct LevelLoad:ISystem {
             this.HasReplacementCamera=false;
             FixedTransformResolveStatus CameraResolveStatus=ResolveCamera(
                 Host,this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
+            if(CameraResolveStatus==FixedTransformResolveStatus.Success){ ApplyAutomationCamera(Host,this.PendingCameraEntity,State.World,ref CameraWorld); }
             LevelRuntime.LastCameraWorldResolveStatus=CameraResolveStatus;
             if(CameraResolveStatus==FixedTransformResolveStatus.Success){
                 RenderCamera ActiveRenderCamera=Host.RenderCamera;
@@ -386,6 +387,27 @@ internal struct LevelLoad:ISystem {
     /// The camera the frame is seen from: the editor camera when the Scene Designer supplies one
     /// (ADR-0070 B1), otherwise the scene's active camera.
     /// </summary>
+    /// <summary>
+    /// <see cref="RuntimeAutomation.CameraVariable"/>: replaces the camera's world pose by one at an offset from the Entity the camera hangs from (a debug view for filming a
+    /// vehicle from the side). The same replacement is applied in <see cref="CameraOriginSync"/>, so the renderer's origin and the camera agree.
+    /// </summary>
+    internal static void ApplyAutomationCamera(EngineHost Host,Entity Camera,EcsWorld World,ref FixedAffineTransform CameraWorld){
+        if(Host.Automation?.CameraOverride is not{ }Values||!World.TryGetComponent(Camera,out Parent Hanger)
+            ||RuntimeWorldTransform.TryResolveWorld(Hanger.Value,World,out FixedAffineTransform HangerWorld,out _)!=FixedTransformResolveStatus.Success){
+            return;
+        }
+        var Offset=new LogicalVector3(LogicalScalar.FromSingle(Values[0]),LogicalScalar.FromSingle(Values[1]),LogicalScalar.FromSingle(Values[2]));
+        var Position=HangerWorld.Logical.Translation+Offset;
+        if(!LogicalQuaternion.TryCreateAxisAngle(LogicalVector3.UnitU,LogicalScalar.FromSingle(Values[3]*(MathF.PI/180f)),out var Yaw)
+            ||!LogicalQuaternion.TryCreateAxisAngle(LogicalVector3.UnitR,LogicalScalar.FromSingle(Values[4]*(MathF.PI/180f)),out var Pitch)
+            ||!LogicalQuaternion.TryMultiply(Yaw,Pitch,out var Rotation)){
+            return;
+        }
+        var Replaced=new Transform { Position=Position,Rotation=Rotation };
+        if(FixedAffineTransform.TryFromTransform(Replaced,out var Result)==FixedTransformStatus.Success){
+            CameraWorld=Result;
+        }
+    }
     private static FixedTransformResolveStatus ResolveCamera(
         EngineHost Host,Entity SceneCamera,EcsWorld World,out FixedAffineTransform CameraWorld,out CSharpGameEngine.Contracts.ReferenceFrameId Frame){
         if(Host.EditorCamera is not { }Editor){
@@ -433,6 +455,7 @@ internal struct CameraOriginSync:ISystem {
                 ==FixedTransformStatus.Success
             &&RenderCamera.TryNormalizeOrientation(Forward,Up,
                 out _,out _)){
+            LevelLoad.ApplyAutomationCamera(Host,Entity,State.World,ref CameraWorld);
             Host.SetCameraPose(CameraWorld,CameraFrame);
             // M0107: the character the camera hangs from, for an automation report (a lagging camera does not show where it is).
             Host.AutomationFocusPosition=null;

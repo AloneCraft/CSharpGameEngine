@@ -26,6 +26,8 @@ public sealed class RuntimeAutomation {
     public const string ReportVariable="CGE_AUTOMATION_REPORT";
     /// <summary>The scripted cursor, <c>x,y</c> as fractions of the client area (0..1 from the top left). A run with it never reads the real cursor.</summary>
     public const string CursorVariable="CGE_AUTOMATION_CURSOR";
+    /// <summary>Debug view: <c>r,u,f,yawDegrees,pitchDegrees</c>. The scene camera is replaced by a camera at that world offset from the Entity it hangs from, turned by that yaw (about U) and pitch (about R), so a run can be filmed from the side of a vehicle (M0109).</summary>
+    public const string CameraVariable="CGE_AUTOMATION_CAMERA";
     public const string ReportSchema="cge-automation-report/1";
     private readonly List<Vector3?>CameraPositions=[];
     /// <summary>One entry per presented frame: where the Entity the camera hangs from is (the character a spring arm follows), or null (M0107).</summary>
@@ -141,6 +143,16 @@ public sealed class RuntimeAutomation {
     private int AudioRequests;
     private int AudioStarted;
     /// <summary>The scripted cursor as fractions of the client area, or null to use the real one.</summary>
+    internal float[]?CameraOverride { get;}=ParseCameraOverride(Environment.GetEnvironmentVariable(CameraVariable));
+    private static float[]?ParseCameraOverride(string?Text){
+        var Parts=(Text??string.Empty).Split(',',StringSplitOptions.TrimEntries);
+        var Values=new float[5];
+        if(Parts.Length!=5){ return null; }
+        for(var Index=0;Index<5;Index++){
+            if(!float.TryParse(Parts[Index],NumberStyles.Float,CultureInfo.InvariantCulture,out Values[Index])||!float.IsFinite(Values[Index])){ return null; }
+        }
+        return Values;
+    }
     internal (float X,float Y)? ScriptedCursor { get;}=ParseCursor(Environment.GetEnvironmentVariable(CursorVariable));
     private static (float X,float Y)?ParseCursor(string?Text){
         var Parts=(Text??string.Empty).Split(',',StringSplitOptions.TrimEntries);

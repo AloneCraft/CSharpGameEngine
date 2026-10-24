@@ -28,6 +28,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         internal LogicalScalar NormalImpulse;
         internal LogicalScalar TangentImpulse;
         internal LogicalVector3 Tangent;
+        /// <summary>The speed this point leaves the surface at, from the approach speed before the solve (every iteration aims at the same value).</summary>
+        internal LogicalScalar Bounce;
+        /// <summary>A speculative point (negative penetration) that reaches the surface in this step, so it is held like a touching one.</summary>
+        internal bool Reaching;
+        /// <summary>The approach speed of the last step was an impact (above the bounce threshold), so its impulse is not carried into the next step as a support force.</summary>
+        internal bool Impacted;
     }
 
     private sealed class CachedContact(Body First,Body Second) {
@@ -639,6 +645,11 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
             CachedContact Contact=this.ContactCache.Values[ContactIndex];
             if(!Contact.Active||Contact.IsTrigger){ continue; }
+            for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){ PrepareBounce(Contact,PointIndex); }
+        }
+        for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+            CachedContact Contact=this.ContactCache.Values[ContactIndex];
+            if(!Contact.Active||Contact.IsTrigger){ continue; }
             for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
                 CachedPoint Point=Contact.Points[PointIndex];
                 LogicalVector3 WarmImpulse=Contact.Normal*Point.NormalImpulse+Point.Tangent*Point.TangentImpulse;
@@ -650,7 +661,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                 CachedContact Contact=this.ContactCache.Values[ContactIndex];
                 if(!Contact.Active||Contact.IsTrigger){ continue; }
                 for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
-                    SolveVelocity(Contact,PointIndex,Iteration==0);
+                    SolveVelocity(Contact,PointIndex);
                 }
             }
         }
@@ -663,12 +674,35 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         }
     }
 
-    private static void SolveVelocity(CachedContact Contact,int PointIndex,bool ApplyRestitution){
+    /// <summary>
+    /// Takes the point's bounce from its approach speed before any impulse of this step. Aiming every iteration at that one value keeps the points of a face-on impact
+    /// equal; a bounce taken from the speed as the iterations change it differed point to point and spun the body. A speculative point (negative penetration: a corner a
+    /// little above the face, ADR-0078/M0109) bounces only if it reaches the face in this tick.
+    /// </summary>
+    private static void PrepareBounce(CachedContact Contact,int PointIndex){
         ref CachedPoint Point=ref Contact.Points[PointIndex];
         LogicalVector3 Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
         LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Contact.Normal);
         LogicalScalar Restitution=Min(Contact.First.Collider.Material.Restitution,Contact.Second.Collider.Material.Restitution);
-        LogicalScalar Target=ApplyRestitution&&NormalVelocity<-RestitutionVelocityThreshold?-NormalVelocity*Restitution:LogicalScalar.Zero;
+        LogicalScalar Gap=Point.Penetration<LogicalScalar.Zero?-Point.Penetration:LogicalScalar.Zero;
+        // The impulse that stopped an impact is not what holds the body afterwards: warm-starting it would throw the body back off the surface at the impact speed, and the
+        // iterations that take it out again leave the points' leftovers as a spin (a car at 30 m/s into a wall).
+        if(Point.Impacted){
+            Point.NormalImpulse=LogicalScalar.Zero;
+            Point.TangentImpulse=LogicalScalar.Zero;
+        }
+        Point.Impacted=NormalVelocity<-RestitutionVelocityThreshold;
+        Point.Reaching=Gap.IsZero||-NormalVelocity*FixedDelta>Gap;
+        Point.Bounce=Point.Reaching&&NormalVelocity<-RestitutionVelocityThreshold?-NormalVelocity*Restitution:LogicalScalar.Zero;
+    }
+
+    private static void SolveVelocity(CachedContact Contact,int PointIndex){
+        ref CachedPoint Point=ref Contact.Points[PointIndex];
+        LogicalVector3 Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
+        LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Contact.Normal);
+        // A speculative point that does not reach the surface in this step is free; one that does is held like a touching point (a corner a few millimetres off the wall
+        // that kept approaching would turn the body).
+        LogicalScalar Target=Point.Reaching?Point.Bounce:Point.Penetration/FixedDelta;
         LogicalScalar Effective=EffectiveMass(Contact,Point,Contact.Normal);
         if(Effective<=LogicalScalar.Zero){ return; }
         LogicalScalar Delta=(Target-NormalVelocity)/Effective;

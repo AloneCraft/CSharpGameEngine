@@ -4178,3 +4178,15 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `RenderTextureMipChainTests`(18)、`MeshDistanceFieldTests`(8)、`MaterialMipmapGpuIntegrationTests`(2)、`VolumetricCloudGpuIntegrationTests`(6)、`GlobalDistanceFieldGpuIntegrationTests`(8)、`EnvironmentComponentTests`(+6)、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)。
 - 既知の差: 雲の形はエンジンのノイズ(UE の雲のテクスチャは取り込んでいない)、風は 10 m/s・45°(推測ではなくエンジンの選択)、地面への雲の影と遠くのジオメトリの手前の雲は無い、メッシュの距離場とグローバル距離場は UE より粗い、ハードウェアのレイトレーシングとナナイトは無い。実機の GPU での見た目とフレーム時間は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension。
+
+## 2026-10-24 探索 — Vehicle の実機の不具合(車輪の向き、壁の衝突、ギアの N。ADR-0078、M0109 の追補)
+- 意図: ユーザーの実機の観測(「タイヤの向きがめちゃくちゃ」「車体が進むとあり得ない回転」「走行中に N」「壁際で傾く」)の根本原因を、再現して直す。
+- 観測(Fact):
+  - 横からのカメラ(`CGE_AUTOMATION_CAMERA`)で、車輪の接地面が横から見えた(車軸が前後を向く)。取り込んだ車輪メッシュの車軸は F で、シーンの休みの向きは 0 と半回転だった(車体と窓だけ −0.25 回転)。UE の車輪コンポーネントは左 Yaw −90(X の鏡映)・右 Yaw 90。
+  - 時速約 100 km で壁へ当たると、ヨー −2.7 rad/s・ロール −5.5 rad/s で約 48° 倒れた。当たる tick の接触の点は 2 つ(下の角だけ。上の角は 20 mm 手前)。衝突の力積を次の tick に持ち越すと、止まった車体が 2.6 m/s で投げ返された。
+  - 変速は UE と同じく N を通る(`TransmissionSystem.cpp`)。1 速から 2 速は約 85 km/h で、ユーザーの観測と一致する。40 秒の全開走行で、N は変速ごとの 10〜14 tick だけだった。
+  - 反発 0 の傾き 1.5° の箱が 30 m/s で壁へ当たる単体の再現で、回転は直す前に 2〜4 rad/s、直した後に 0.9 rad/s 以下。
+- 実装: M0109 文書の追補。決定: 車輪の休みの向きを左 −0.25・右 +0.25 回転、面から 5 cm の角を投機的な点に、反発を点ごとに 1 度だけ決める、衝突の tick の力積を持ち越さない、ギアは変更しない、`CGE_AUTOMATION_CAMERA`。
+- 自動化された証拠: `ChaosVehicleTests`(+5)、`PhysicsForceCommandTests`(+4)。修正を外した状態で、ギアの 1 件を除いて失敗することを確認した。WARP: Vehicle 57.150 m・30.5°、ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m / (6.79, 6.84)、`verify-template-package`(SDK 0.1.22)の 3 テンプレート。
+- 既知の差: 左の車輪の X の鏡映は未実装。5° 以上傾いた壁への衝突の回転は物理として残る。面から 5 cm は選んだ値で、他の値とは比べていない。
+- 結果: MatchesWithDocumentedExtension。

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Vehicles;
@@ -370,6 +371,127 @@ public sealed class ChaosVehicleTests(ITestOutputHelper Output) {
         Assert.True(CSharpGameEngine.Entities.EcsSnapshotComponentCodec<VehicleState>.TryDeserialize(Payload,out var Restored,out var Error),Error);
         Assert.Equal(Driving,Restored);
         Assert.True(Restored.Gear>0);
+    }
+    private static string RepositoryRoot(){
+        var Root=AppContext.BaseDirectory;
+        while(Root is not null&&!File.Exists(Path.Combine(Root,"CSharpGameEngine.slnx"))){ Root=Path.GetDirectoryName(Root); }
+        return Root??throw new InvalidOperationException("CSharpGameEngine.slnx was not found above the test binaries.");
+    }
+    /// <summary>取り込んだ(エンジンの座標の)メッシュの、R・U・F それぞれの大きさ(m)。</summary>
+    private static (float R,float U,float F)MeshSize(string Asset){
+        var Result=GltfImporter.ImportScene(Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.Vehicle","Assets","Vehicles","SportsCar",Asset));
+        Assert.True(Result.Success,string.Join("; ",Result.Diagnostics.Select(static Item=>Item.Message)));
+        var Points=Result.Scene!.Meshes.SelectMany(static Mesh=>Mesh.Positions).ToArray();
+        return (Points.Max(static P=>P.X)-Points.Min(static P=>P.X),Points.Max(static P=>P.Y)-Points.Min(static P=>P.Y),Points.Max(static P=>P.Z)-Points.Min(static P=>P.Z));
+    }
+    /// <summary>シーンの子ノードの休みの Yaw(回転数。EulerRuf の U)。</summary>
+    private static float SceneYawTurns(string Node){
+        using var Scene=JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.Vehicle","Scenes","SportsCar.json")));
+        static JsonElement?Find(JsonElement Current,string Name){
+            if(Current.GetProperty("name").GetString()==Name){ return Current; }
+            foreach(var Child in Current.GetProperty("children").EnumerateArray()){ if(Find(Child,Name) is { }Found){ return Found; } }
+            return null;
+        }
+        var Found=Find(Scene.RootElement.GetProperty("root"),Node)??throw new InvalidOperationException(Node);
+        var Transform=Found.GetProperty("components").EnumerateArray().First(static Item=>Item.GetProperty("type").GetString()=="CSharpGameEngine.Entities.Transform");
+        return Transform.GetProperty("members").GetProperty("Rotation").GetProperty("EulerRuf").GetProperty("U").GetSingle();
+    }
+    [Fact]
+    public void TheSceneTurnsTheCarMeshesSoTheBodyRunsAlongForwardAndEachWheelAxleLiesAlongTheSideAxis(){
+        // M0109 の修正: 取り込んだメッシュの軸(車体は長い辺が R、車輪の車軸は F)に、シーンの休みの向きを掛けたとき、車体は F が長く、車輪の車軸(一番短い辺)は R になる。
+        // 車輪の休みの向きが 0 と半回転だったときは、車軸が前後を向いていた(横から見ると接地面が見えた)。
+        static (float R,float U,float F)Turned((float R,float U,float F)Size,float Turns){
+            Assert.InRange(Math.Abs(Turns*4f-MathF.Round(Turns*4f)),0f,1e-4f);
+            return Math.Abs((int)MathF.Round(Turns*4f))%2==1?(Size.F,Size.U,Size.R):Size;
+        }
+        var Body=Turned(MeshSize("SM_SportsCar.glb"),SceneYawTurns("Body"));
+        Assert.True(Body.F>Body.R*1.5f,$"body {Body}");
+        var Glass=Turned(MeshSize("SM_SportsCar_Glass.glb"),SceneYawTurns("Glass"));
+        Assert.True(Glass.F>Glass.R*1.5f,$"glass {Glass}");
+        var Wheel=MeshSize("SM_SportsCar_Wheel.glb");
+        foreach(var Name in new[]{"Wheel_FL","Wheel_FR","Wheel_BL","Wheel_BR"}){
+            var Resting=Turned(Wheel,SceneYawTurns(Name));
+            Assert.True(Resting.R<0.5f&&Resting.U>0.7f&&Resting.F>0.7f,$"{Name}: the axle lies along R when R is the short side, got {Resting}");
+        }
+        // 左右の車輪は互いに半回転(車輪の向きは左右で入れ替わる)。
+        Assert.Equal(0.5f,Math.Abs(SceneYawTurns("Wheel_FL")-SceneYawTurns("Wheel_FR")),3);
+        Assert.Equal(SceneYawTurns("Wheel_FL"),SceneYawTurns("Wheel_BL"),3);
+        Assert.Equal(SceneYawTurns("Wheel_FR"),SceneYawTurns("Wheel_BR"),3);
+    }
+    [Theory]
+    [InlineData("Wheel_FL",0f,0f)]
+    [InlineData("Wheel_FR",1.3f,0f)]
+    [InlineData("Wheel_FL",5.9f,30f)]
+    [InlineData("Wheel_BR",-2.4f,-40f)]
+    public void TheWheelMeshAxleStaysAlongTheCarsSideAxisWhateverItsSpinAndTurnsWithTheSteeringAboutUp(string Node,float Spin,float SteerDegrees){
+        var Size=MeshSize("SM_SportsCar_Wheel.glb");
+        // 取り込んだ車輪メッシュの車軸(一番短い辺)の向き。
+        var Axle=Size.R<Size.F?LogicalVector3.UnitR:LogicalVector3.UnitF;
+        Assert.True(Math.Min(Size.R,Size.F)<Size.U*0.6f);
+        var Rest=LogicalQuaternion.FromEulerRuf(new LogicalVector3(0,LogicalScalar.FromSingle(SceneYawTurns(Node)*2f*MathF.PI),0));
+        var Visual=new VehicleWheelVisual { RestRotation=Rest,RestPosition=LogicalVector3.Zero,Captured=true };
+        var Wheel=new VehicleWheelState { AngularPosition=LogicalScalar.FromSingle(Spin),SteeringAngleDegrees=LogicalScalar.FromSingle(SteerDegrees) };
+        Assert.True(VehicleWheelVisual.TryPose(Visual,Wheel,out _,out var Pose));
+        Assert.True(Pose.TryRotate(Axle,out var World));
+        // 回転の角では車軸は動かない。舵角だけ、上の軸のまわりに水平に回る。
+        Assert.InRange(MathF.Abs(F(World.U)),0f,1e-3f);
+        Assert.Equal(MathF.Cos(SteerDegrees*MathF.PI/180f),MathF.Abs(F(World.R)),3);
+    }
+    [Fact]
+    public void AFullThrottleHeadOnImpactAtAWallStopsTheCarWithoutSpinningOrTumblingIt(){
+        // M0109 の修正: 速い車が壁へ当たる tick は、前の下の角だけが壁に入り(上の角は数 mm 手前)、その 2 点に衝撃のすべてが掛かって、車体が
+        // 回り出し(ヨー・ロールとも 2〜5 rad/s)、横倒しになった。数 mm 手前の角も接触の点に加え、同じ値に止める。
+        var Car=new ChaosVehicleTrack();
+        Car.AddQuad(new(-60,0,62.5f),new(60,0,62.5f),new(60,15,62.5f),new(-60,15,62.5f));
+        Car.Run(60);
+        var Strongest=0f;
+        var Lowest=1f;
+        var Hit=false;
+        for(var Tick=0;Tick<60*12;Tick++){
+            Car.Run(1,Throttle:1f);
+            if(Car.Z>50f){ Hit=true; }
+            if(Car.Z>59f){
+                var Angular=Car.Body.Velocity.Angular;
+                Strongest=MathF.Max(Strongest,MathF.Max(MathF.Abs(F(Angular.R)),MathF.Max(MathF.Abs(F(Angular.U)),MathF.Abs(F(Angular.F)))));
+                Lowest=MathF.Min(Lowest,Car.UpDot);
+            }
+        }
+        Assert.True(Hit);
+        Output.WriteLine($"strongest {Strongest:F2} rad/s, lowest up {Lowest:F3}, final z {Car.Z:F2}");
+        // 範囲の根拠: 直したあとの値は 0.5 rad/s 以下、上は 1.000。直す前は 5 rad/s 以上で、上の向きは 0.88 まで傾いた。
+        Assert.InRange(Strongest,0f,1.0f);
+        Assert.InRange(Lowest,0.99f,1.0001f);
+        Assert.InRange(Car.Z,59.5f,60.5f);
+        Assert.InRange(MathF.Abs(Car.HeadingDegrees),0f,3f);
+    }
+    [Fact]
+    public void TheGearIsNeutralOnlyForTheChangeTimeOfAShiftAndTheNextGearFollows(){
+        // UE の変速は、ニュートラルを通って GearChangeTime(0.2 s)待つ(TransmissionSystem.cpp: CurrentGear = 0)。N の表示は、走行中にはその間だけ。
+        var Car=new ChaosVehicleTrack();
+        Car.AddStrip(2500);
+        Car.Run(60);
+        var Runs=new List<(int Length,int Before,int After)>();
+        var Neutral=0;
+        var Before=0;
+        var Previous=0;
+        for(var Tick=0;Tick<60*40;Tick++){
+            Car.Run(1,Throttle:1f);
+            var Gear=Car.State.Gear;
+            if(Gear==0&&Car.Speed>5f){
+                if(Neutral==0){ Before=Previous; }
+                Neutral++;
+            }
+            else if(Neutral>0){
+                Runs.Add((Neutral,Before,Gear));
+                Neutral=0;
+            }
+            if(Gear!=0){ Previous=Gear; }
+        }
+        Assert.True(Runs.Count>=4,$"shifts {Runs.Count}");
+        foreach(var Run in Runs){
+            Assert.InRange(Run.Length,10,14);
+            Assert.Equal(Run.Before+1,Run.After);
+        }
     }
     [Fact]
     public void TheWheelPoseRaisesTurnsAndSpinsTheWheelFromItsRest(){

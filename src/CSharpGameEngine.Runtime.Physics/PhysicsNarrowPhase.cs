@@ -79,6 +79,12 @@ internal sealed class PhysicsNarrowPhase {
     private const int MaximumEpaFaces=128;
     private static readonly LogicalScalar EpaTolerance=LogicalScalar.FromSingle(0.0001f);
     private static readonly LogicalScalar TriangleHalfThickness=LogicalScalar.FromSingle(0.0005f);
+    /// <summary>
+    /// How far above a mesh face a box's corner still joins the contact patch (ADR-0078/M0109). A fast box meets a face with the lowest corners first (30 m/s is half a metre a tick),
+    /// so a patch of the entered corners alone puts the whole impact on two points and spins the box; the corners just above the face carry their share, as speculative points
+    /// (a negative penetration: the solver lets them approach only as fast as they can before touching).
+    /// </summary>
+    private static readonly LogicalScalar BoxMeshSpeculativeMargin=LogicalScalar.FromSingle(0.05f);
     // Contact slack plus a margin for the support-mapped query bounds' rounding.
     private static readonly LogicalScalar TriangleCullSlack=TriangleHalfThickness+LogicalScalar.FromSingle(0.001f);
     private readonly List<int> TriangleCandidates=[];
@@ -207,7 +213,7 @@ internal sealed class PhysicsNarrowPhase {
 
     /// <summary>
     /// The corners of a box that lie below a candidate triangle's face (between the face and the box's own depth along it) and project inside the
-    /// triangle. The face of the deepest such corner sets the normal; corners under faces turned more than about 18 degrees away from it are left
+    /// triangle. The face of the deepest such corner sets the normal (corners within <see cref="BoxMeshSpeculativeMargin"/> above a face join as speculative points); corners under faces turned more than about 18 degrees away from it are left
     /// for the next tick. Each corner counts once (its deepest face), and the four deepest corners, in corner order, form the patch. The face is
     /// taken on the side of the box's centre, so a box pressed into a thin wall is pushed back out of the side it came from.
     /// </summary>
@@ -238,7 +244,7 @@ internal sealed class PhysicsNarrowPhase {
             LogicalScalar Deepest=-(Thickness+Thickness);
             for(int Index=0;Index<8;Index++){
                 LogicalScalar Height=LogicalVector3.Dot(Corners[Index]-A,Face);
-                if(Height>=TriangleHalfThickness||Height<=Deepest){ continue; }
+                if(Height>=TriangleHalfThickness+BoxMeshSpeculativeMargin||Height<=Deepest){ continue; }
                 LogicalScalar Depth=TriangleHalfThickness-Height;
                 if(CornerTriangle[Index]>=0&&Depth<=CornerDepth[Index]){ continue; }
                 if(!InsideTriangle(Corners[Index]-Face*Height,A,B,C)){ continue; }
@@ -249,8 +255,9 @@ internal sealed class PhysicsNarrowPhase {
         }
         int Best=-1;
         for(int Index=0;Index<8;Index++){
-            if(CornerTriangle[Index]>=0&&(Best<0||CornerDepth[Index]>CornerDepth[Best])){ Best=Index; }
+            if(CornerTriangle[Index]>=0&&CornerDepth[Index]>LogicalScalar.Zero&&(Best<0||CornerDepth[Index]>CornerDepth[Best])){ Best=Index; }
         }
+        // A face none of whose corners has entered it is no contact: corners within the margin are speculative and only join a face that was entered.
         if(Best<0){ return false; }
         LogicalVector3 Normal=CornerNormal[Best];
         LogicalScalar SameFace=LogicalScalar.FromSingle(0.95f);

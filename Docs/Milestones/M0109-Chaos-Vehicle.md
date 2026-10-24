@@ -119,7 +119,7 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 | タイヤの摩擦・路面の摩擦 | 実装 | UE の Slippery と NonSlippery は同じ摩擦 1.0 なので、見た目の差は無い |
 | エンジン・変速・操舵・空気・ブレーキ | 実装 | UE の数値との一致は中程度(UE の制約のサスペンションでの荷重の配り方と、物理のソルバーの違い) |
 | 空中・転倒・リセット | 実装 | |
-| 車輪の見た目・ヘッドライト | 実装 | 右のヘッドライトは UE と同じく切り替わらない |
+| 車輪の見た目・ヘッドライト | 実装(車輪の向きは追補で修正) | 右のヘッドライトは UE と同じく切り替わらない。左の車輪の X の鏡映は未実装(エンジンの Transform は鏡映を描画できない) |
 | ブレーキランプ | 実装(UE から逸脱) | UE では光らない(事実)。意図を採って光らせた。UE の発光 1 を 100 nits とするのは推測 |
 | カメラ(前後、見回し、遅れ) | 実装 | 実機のマウスとゲームパッドは未検証 |
 | リスポーン | 実装 | |
@@ -132,3 +132,30 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 - 最初の全テストで 2 つの欠陥が見つかり、根本から直した: `Vehicle` の参照型の欄によるスナップショットの型の初期化の例外(決定 6)と、`SpotLight` に足した `bool Visible` による VS 拡張の光の型の変換の失敗(決定 9。`LightVisibility` に移した)。
 - `verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown・Vehicle)と、SDK 0.1.20 のパッケージから作ったゲームの `verify-template-package`(ThirdPerson・TopDown・Vehicle)が通る。最初のパッケージ検証は `.artifacts/packages` の最新の 0.1.19 を使って失敗した(`Pad.Back` が無い)ので、`dotnet pack packaging/CSharpGameEngine.Sdk -c Release` で 0.1.20 を作ってやり直した。
 - 車の振る舞いの範囲の決め方: UE の式と値から見積もった物理の量(最高速は空気抵抗とエンジンの釣り合い、ブレーキの距離はタイヤの摩擦の上限など)。UE を同じ入力で走らせた数値との比較はしていない。
+
+## 追補(2026-10-24): 実機で見つかった 2 つの不具合
+ユーザーの実機の観測: 「タイヤの向きがめちゃくちゃ」「車体が進むとあり得ない回転」「壁際で傾く」「走行中にギアが N のまま」。再現は `CGE_AUTOMATION_CAMERA`(車の横から撮るカメラ。`RuntimeAutomation`)と、アナログ入力でのゆっくりした走り、一時の計測(毎フレームの車体の向き・各車輪の舵角と回転と接地)で行った。
+
+### 事実
+- **車輪の車軸が前後を向いていた**(WARP の横からの画像、`.artifacts/m0109/bug1/crop60.png`: 横から見ると車輪の接地面が見える)。原因: 取り込んだ車輪メッシュ(glTF の Z が薄い辺 0.35 m。エンジンの座標では F)の車軸は、休みの向きが 0 だと F を向く。シーンの車輪の休みの向きは 0 と半回転で、車体と窓にだけ −0.25 回転が入っていた。UE の車輪コンポーネントは、左が Yaw −90(と X の鏡映)、右が Yaw 90(`BP_VehicleAdvSportsCar.class.t3d`)で、シーンは M0101 のとき UE の値を写していなかった。回転の軸は `UnitR` で正しく、休みの向きが違っていた。直しは左 −0.25 回転・右 +0.25 回転(左右で半回転の差は同じ)。直後の画像(`bug2/crop.png`、`bug2r/crop.png`)は、左右とも円盤の面とリムが外を向く。`TryPose` の合成順は `舵角 × 回転 × 休み`(休みが先に掛かる)で、回転は車体の R の軸のまわり、舵角は U の軸のまわり。
+  - 回避策ではない根拠: 車体・窓の −0.25 回転は同じ原因(取り込んだメッシュの軸と車の座標の差)に対する同じ種類の休みの向き。3 つのメッシュの外形(取り込み後)と休みの向きの整合を単体テストにした。取り込み側(`GltfAxisConversion`: glTF の (X, Y, Z) → (R, U, −F))は、UE の書き出しの軸の取り方(UE の X が glTF の Z)と矛盾しない(車体の長い辺が X に出る)ので、変換は変えていない。
+- **壁へ速く当たると車体が回って横倒しになる**(`bug3/montage.png`: 時速約 100 km で正面から壁へ当たると、ヨーが −2.7 rad/s、ロールが −5.5 rad/s、車体の上向きが 0.62 まで傾き、約 48° 倒れた)。根本原因 2 つ(物理、`Runtime.Physics`):
+  1. 時速 100 km は 1 tick で 0.5 m。わずかに傾いた車体の前の面は、下の 2 つの角だけが数 mm 壁へ入り、上の 2 つの角は 20 mm 手前にある。入った角だけを接触の点にしていたので、衝撃の全部が下の 2 点に掛かり、車体が回った(manifold の点の数は 2)。
+  2. 衝突の tick の力積(30 m/s を止める大きさ)を、次の tick にそのまま持ち越して(warm start)いた。止まった車体を衝突の速さで投げ返し、それを取り除く繰り返し(8 回)の残りが、点ごとに違う値の回転になった。反発も最初の繰り返しだけが狙い、あとの繰り返しは 0 を狙っていた。
+- **ギアの N は UE と同じ振る舞い**(`TransmissionSystem.cpp`: 変速のとき `CurrentGear = 0` でニュートラルを通り、`GearChangeTime` 0.2 s 待つ)。1 速から 2 速への変速は約 85 km/h(約 23.7 m/s、6000 rpm)で、画面の N はその 0.2 秒。ユーザーの「85 km/h で N」はこの瞬間(ゲームの描画が遅いと長く見える)。走行中に N のままになる状態は再現できなかった(40 秒の全開走行で、N は変速ごとの 10〜14 tick だけで、次のギアが +1 で続く)。ギアは変更していない。
+- 壁際で車体が少し傾く(ロール 4° ほど、前輪が浮く)のは、ハンドルを右いっぱいに切ったまま壁へ押し付け続けた姿勢(接地 3 輪)で、UE でも同じ種類の挙動(壁に沿って滑る)。
+
+### 決定
+- 物理の接触(`PhysicsNarrowPhase.TryBoxMeshManifold`、`DeterministicPhysicsWorld`): 面から 5 cm 以内の角も投機的な点(負の貫入)として、入った角のある面の manifold に加える。その tick に面へ届く(接近速さ × Δt > 隙間)点は、触れている点と同じ値に止め、届かない点は制約しない。反発は繰り返しの前の接近速さから点ごとに 1 度だけ決める。衝突の tick の力積は次の tick に持ち越さない。詳しくは `Docs/Specifications/Physics.md`。
+- 面から 5 cm の根拠: 傾き 3° までの面を 1 つの面として扱える大きさで、時速 100 km の速さで届く点の隙間より小さく、落ちてくる傾いた箱の上の角を止めない(届かない点は何も制約しない)。値は単体テストと走りから選んだ推測で、他の値(2〜10 cm)との比較はしていない。
+- 他のテンプレート(ThirdPerson・FirstPerson・TopDown)は箱と三角形メッシュの接触を使わない(カプセル)ので値は変わらない。
+
+### 検証
+- 単体テスト(修正を外すと失敗することを確認した): `TheSceneTurnsTheCarMeshesSoTheBodyRunsAlongForwardAndEachWheelAxleLiesAlongTheSideAxis`(取り込んだ 3 つのメッシュの軸とシーンの休みの向き)、`TheWheelMeshAxleStaysAlongTheCarsSideAxisWhateverItsSpinAndTurnsWithTheSteeringAboutUp`(車軸が回転の角で動かず、舵角で水平に回る)、`AFullThrottleHeadOnImpactAtAWallStopsTheCarWithoutSpinningOrTumblingIt`(全開で壁へ。直した値は 0.5 rad/s 以下・上向き 1.000、直す前は 5 rad/s 以上・0.88)、`AFastFlatBoxTiltedAFewDegreesHitsAWallWithoutSpinning`(傾き ±1.5°・反発 0 と 0.3 の 4 通り。直した値 0.9 rad/s 以下、直す前 1.1〜4.0)。`TheGearIsNeutralOnlyForTheChangeTimeOfAShiftAndTheNextGearFollows`(変速のときだけ N で 10〜14 tick。UE と同じ振る舞いの記録で、修正前から通る)。
+- 実走(WARP): 横から見て左右の車輪が円盤(リムの面が外向き)、壁へ全開で当たっても車体は水平のまま止まる(上向き (0, 1.00, 0.03) 以内)、旋回中の前輪が舵角に従う(上からの画像 `bug6/frame_Vehicle_26.png`)。Vehicle の走り: 52.014 m → 57.150 m(壁へ当たってからの動きが変わった。転がる前の壁際の跳ね返りがなくなった)、曲がり 30.5° は同じ、半分のトリガー 23.172 → 23.173 m、半分のスティック 61.190 → 61.235 m・9.4° は同じ。ThirdPerson 15.700 m・FirstPerson 16.000 m・TopDown 9.606 m / (6.79, 6.84) は変わらない。D3D12 のエラーは 0。SDK は 0.1.22。
+- 全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクトで失敗 0(Windows.Tests 786 合格・2 スキップ、VSExtension.Tests 1197、CodeAnalysis.Tests 338、FeatureRunner.Tests 222、SceneModel.Tests 212)。`verify-thirdperson-character`(4 テンプレート)と `verify-template-package`(ThirdPerson・TopDown・Vehicle。SDK 0.1.22)も通る。
+
+### 残る不確実性
+- 時速 100 km 以上で傾いた壁(5° 以上)へ当たる場合の回転は、投機的な点の範囲(5 cm)を超えるので、その分は物理として回る。
+- 左の車輪の X の鏡映(UE)は未実装なので、左のタイヤのトレッドの向きだけが UE と違う可能性がある。
+- 実機のゲームで画面の N がまだ長く見えるなら、描画の遅さ(WARP ではなく実機の GPU でも 1 フレームに複数 tick 進む)が原因で、ギアの変更ではない(推測)。

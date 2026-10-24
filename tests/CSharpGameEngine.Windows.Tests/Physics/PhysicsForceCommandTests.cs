@@ -128,6 +128,34 @@ public sealed class PhysicsForceCommandTests {
         Assert.True(F(State.Velocity.Angular.LengthSquared)<1e-6f);
         Assert.True(F(State.Velocity.Linear.LengthSquared)<1e-6f);
     }
+    [Theory]
+    [InlineData(0.026f,0f)]
+    [InlineData(-0.026f,0f)]
+    [InlineData(0.026f,0.3f)]
+    [InlineData(-0.026f,0.3f)]
+    public void AFastFlatBoxTiltedAFewDegreesHitsAWallWithoutSpinning(float PitchRadians,float Restitution){
+        // M0109: 30 m/s は 1 tick で 0.5 m。傾いた箱の前の面は、下の角が数 mm 壁へ入った tick に、上の角は数 mm 手前にある。入った角だけを接触の点にすると、
+        // 衝撃の全部が下の 2 点に掛かり、箱が 2〜5 rad/s で回った。手前の角も(その tick に壁へ届くなら)同じ値に止めると、止まりきるまで回らない。
+        DeterministicPhysicsWorld World=new();
+        World.Shapes.Add(PhysicsShapeAsset.CreateStaticTriangleMesh("wall",[new(-60,-8,20),new(60,-8,20),new(60,8,20),new(-60,8,20)],[0,1,2,0,2,3]));
+        Assert.Equal(PhysicsUpdateStatus.Success,World.Upsert(new PhysicsBodyDescription(
+            new Entity(1),1,new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset="wall",Material=new PhysicsMaterial { Restitution=LogicalScalar.FromSingle(Restitution) } },null,
+            LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero)));
+        Assert.Equal(PhysicsUpdateStatus.Success,World.Upsert(new PhysicsBodyDescription(
+            new Entity(2),2,new Collider { Shape=ColliderShape.Box,HalfExtents=new LogicalVector3(LogicalScalar.FromSingle(0.95f),LogicalScalar.FromSingle(0.45f),LogicalScalar.FromSingle(2.25f)),Material=new PhysicsMaterial { Restitution=LogicalScalar.FromSingle(Restitution) } },
+            new RigidBody { MotionType=PhysicsMotionType.Dynamic,Mass=1500,GravityFactor=0,AllowSleep=false },new LogicalVector3(0,0,10),
+            LogicalQuaternion.FromEulerRuf(new LogicalVector3(LogicalScalar.FromSingle(PitchRadians),0,0)),new PhysicsVelocity { Linear=new LogicalVector3(0,0,30) })));
+        var Strongest=0f;
+        for(ulong Index=1;Index<=60;Index++){
+            World.Step(Index);
+            var Angular=BodyOf(World,new Entity(2)).Velocity.Angular;
+            Strongest=MathF.Max(Strongest,MathF.Max(MathF.Abs(F(Angular.R)),MathF.Max(MathF.Abs(F(Angular.U)),MathF.Abs(F(Angular.F)))));
+        }
+        var State=BodyOf(World,new Entity(2));
+        // 範囲の根拠: 直したあとの回転は 0.9 rad/s 以下(傾いた面の下の角が先に当たる分)。直す前は 2〜4 rad/s(反発 0)。
+        Assert.True(Strongest<1.2f,$"the box spun at {Strongest:F2} rad/s");
+        Assert.True(F(State.Position.F)<17.8f,$"the box went through the wall: {F(State.Position.F)}");
+    }
     [Fact]
     public void ABoxDrivenIntoAThinWallStopsOnTheSideItCameFrom(){
         DeterministicPhysicsWorld World=new();

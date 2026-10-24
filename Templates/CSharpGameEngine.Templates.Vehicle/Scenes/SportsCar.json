@@ -145,7 +145,7 @@
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
               "Position": { "R": 0.9, "U": -0.2509, "F": 1.4196 },
-              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.25, "F": 0 } }
             }
           },
           {
@@ -171,7 +171,7 @@
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
               "Position": { "R": -0.9, "U": -0.2509, "F": 1.4196 },
-              "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.25, "F": 0 } }
             }
           },
           {
@@ -197,7 +197,7 @@
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
               "Position": { "R": 0.9, "U": -0.2359, "F": -1.2224 },
-              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } }
+              "Rotation": { "EulerRuf": { "R": 0, "U": -0.25, "F": 0 } }
             }
           },
           {
@@ -223,7 +223,7 @@
             "type": "CSharpGameEngine.Entities.Transform",
             "members": {
               "Position": { "R": -0.9, "U": -0.2359, "F": -1.2224 },
-              "Rotation": { "EulerRuf": { "R": 0, "U": 0.5, "F": 0 } }
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0.25, "F": 0 } }
             }
           },
           {
