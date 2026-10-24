@@ -1,6 +1,6 @@
 # M0114 — 対数ネイティブの描画(標準深度の削除)
 - 日付: 2026-10-25
-- 状態: 計画(2026-10-25 に ADR-0080 を Accepted。実装はこれから)
+- 状態: 実装中(段階 1 完了 2026-10-25)
 - 決定: [ADR-0080](../Decisions/ADR-0080-Logarithmic-Native-Depth.md)(ADR-0076 を一部 Superseded)
 - ABI: `stage-v14`、プレビューのプロトコル 9
 
@@ -25,3 +25,24 @@
 
 ## 機能 ID
 F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039、F-L0-002、F-L4-002、F-L8-018
+
+## 実行結果
+
+### 段階 1(2026-10-25、WARP、192 × 108)
+- 標準の 7 ハッシュは共有シーン(`GoldenFrameScene`)へ付け替えた後も不変(`StandardModeGoldenFrameTests.StandardFrames_MatchTheirPinnedHashes` 合格)。
+- 標準と対数の最後の比較(`LogarithmicFrames_EqualTheStandardFramesWithinOneLevel`、基準: 各チャンネル 1 階調以内・違う画素 1 % 以下、ワイヤーフレームは違う画素 1 % 以下)は 7 ケースすべて合格。証拠は `.artifacts/M0114/golden/`(PNG・raw・`parity.json`)。
+
+| ケース | 違う画素(20736 中) | 最大の階調差 | 標準の SHA-256 | 対数の SHA-256(固定) |
+|---|---|---|---|---|
+| legacy-lit | 6 | 1 | 3F7940D2... | 3E56DB8C... |
+| environment | 1 | 1 | E16BAAAA... | 9D47DDD9... |
+| selection | 6 | 1 | 2A65C348... | 19F90F94... |
+| base-color | 0 | 0 | C1321971... | C1321971...(同一) |
+| normal | 0 | 0 | A0C9623A... | A0C9623A...(同一) |
+| wireframe | 29 | 192 | 25DB6AB1... | E115C10F... |
+| previews-and-overlay | 6 | 1 | A823A163... | 5A7F4B3A... |
+
+- 違う画素は、主パスの床が目の面と近平面をまたぎ、クリップされる三角形があるため(ADR-0076 追記の帰結)。ワイヤーフレームの 29 画素は、共有辺の同じ深度の決着が、標準では描画順、対数では丸めになるため(Omni 仕様の不変条件 3)。
+- 対数の 7 ハッシュを `StageGoldenFrameTests` に固定した。
+- 深度オラクル `LogarithmicDepthOracleTests`(`DepthOracle`、倍精度との比較)は 4e-6 m・0.5 m・50 m・2e4 m・1e15 m・5e18 m で、画面中央 4 ulp 以内、全画素で深度 < 1.0 に合格(WARP)。
+- `GoldenFrameDump`(`CGE_GOLDEN_DUMP`・`CGE_GOLDEN_BASELINE`)を足した。付け替えの規則(ADR-0080 §7)で使う。
