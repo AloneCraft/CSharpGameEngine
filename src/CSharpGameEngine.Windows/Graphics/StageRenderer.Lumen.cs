@@ -93,6 +93,7 @@ public sealed unsafe partial class StageRenderer {
                 var Projection=Capture.Projection;
                 Unsafe.CopyBlock(FrameDestination+FrameViewProjectionOffset,&Projection,(uint)sizeof(Matrix4x4));
                 *(Vector4*)(FrameDestination+FrameLumenParamsOffset)=Vector4.Zero;
+                *(Vector4*)(FrameDestination+FrameDepthMapping0Offset)=Vector4.Zero;
                 this.WriteLumenCaptureObjectConstants(Lumen.CaptureObjectSlot(this.FrameIndex,Index),Capture.ObjectIndex);
                 Lumen.ClearCard(this.CommandList,Capture);
                 D3D12_VIEWPORT Viewport=new(){ TopLeftX=Capture.X,TopLeftY=Capture.Y,Width=Capture.Width,Height=Capture.Height,MinDepth=0f,MaxDepth=1f };

@@ -67,3 +67,11 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 明示的なステージのフィルターに `LumenSurfaceDepthTests` を追加。先行段階で追加した `StageGoldenFrameTests` と `LogarithmicDepthOracleTests` も `rendering.radial-depth` に登録した。
 
 - FeatureRunner のカタログ整合性・描画ステージ接続は 2 件合格。今回の全コマンドで測定した物理メモリ使用率の最大値は 72%。
+
+### 段階 3(a) の主エントリー統合(2026-10-25)
+- `VSMain`/`PSMain` に対数深度を統合した。単一の `VertexOutput` と、色・`SV_DepthGreaterEqual` を返す `StagePixelOutput` に移行。`RadialPixelInput`・`RadialVertexOutput`・`ToVertexOutput` を削除。旧エントリー名は ABI の別名として直接委譲するだけとなった。標準 API と PSO の削除は段階 4。
+- 正射影のカード撮影で主カメラの対数パケットを引き継がないよう、撮影用の線形パケットを明示。別ビューはラスタ深度の重み 0、主ビューは物体ごとの接線を重み 1 で使用。観察ビューの深度は写像後の位置から同じ PS が書く。
+- Windows.Tests: 対数深度・境界条件、標準と対数のゴールデン、深度オラクル、Lumen 表面の遠距離遮蔽、カード撮影、スキニングの 43 件合格。対数 7 SHA は付け替え無しで合格。`ShaderGraphCompilerTests` 15 件、`StagePresentationShaderSourceTests` 1 件合格。ビルドは警告 0・エラー 0。
+- Stage グラフのソースハッシュは意図した構造変更により 153236B9... → A72EB7E8...。画素ハッシュは不変。
+- 証拠: `.artifacts/M0119/native-build.log`、`native-regression.log`、`native-shader-tests.log`、`native-presentation-tests.log`、各 `*.memory.json`。この段階の最大メモリ使用率は 71%。
+- 次: 物理距離ターゲット `SceneDistance` と空の合成、DDGI の撮影距離、AO、旧 API と PSO の除去。全マイルストーンは未完了。

@@ -3582,6 +3582,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `RadialDepthTests`; `ShaderGraphCompilerTests` (14 Stage entries; the radial main pixel entries declare `SV_DepthGreaterEqual`, the thumbnail entry `SV_Depth`); `RadialDepthGpuIntegrationTests` (standard pixels in legacy and environment scenes, coplanar pairs at 2e4/1e15/5e18 m, depth equals the CPU encoding, extreme far planes, frame slots, radial thumbnails, invalid input, device recovery); `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`. Standard frames stay pinned by `StandardModeGoldenFrameTests`.
 - Next action: none required. Performance evidence: `RadialDepthPerformanceEvidence` (on demand; 24 front-to-back layers on an RTX 4060 Ti: 0.171 ms radial against 0.133 ms standard at 2–48 m, 0.123 against 0.091 ms at 100–1020 m with the per-object tangent). Precision evidence: `RadialDepthPrecisionEvidence` (on demand; within 4 ulps of a double oracle in the middle of the view on WARP and the RTX 4060 Ti, after replacing the hardware `log2`, which was up to 520,000 ulps off at 4 µm); `StagePresentationShaderSourceTests` keeps transcendental intrinsics out of the presentation entries.
 
+- M0119 migration: Stage グラフ本体の VSMain/PSMain に深度を統合し、単一の VertexOutput/StagePixelOutput に移行した。旧エントリー名は現在別名。GPU 回帰 43 件、ShaderGraphCompilerTests 15 件、StagePresentationShaderSourceTests 1 件合格。7 つの対数画素ハッシュは不変。標準 API・PSO の削除、距離ターゲット、DDGI/AO の移行は残る。
+
 ## F-L5-039 — Radial observer view
 
 - Layer: L5 — Integrated Runtime

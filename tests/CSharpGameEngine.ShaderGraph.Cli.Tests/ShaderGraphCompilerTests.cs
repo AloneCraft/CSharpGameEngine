@@ -54,24 +54,18 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains("ScreenPSMain",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenPSMain");
-                // M0099 / ADR-0076: the radial entries exist and every radial pixel entry writes the radial depth; the
-                // main-pass ones declare it at least the conservative raster depth so early rejection still works.
-                foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain"}) {
-                    Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName==Entry);
-                    Assert.Contains($"RadialConservativePixelOutput {Entry}(RadialPixelInput input)",BuiltSource,StringComparison.Ordinal);
-                }
-                // RadialPixelInput mirrors VertexOutput member for member (only SV_Position gains its modifiers), so a
-                // member added to the Stage graph's VertexOutput cannot silently reach PSMain uninitialized.
-                static string[]Members(string Source,string Struct)=>System.Text.RegularExpressions.Regex.Match(Source,$@"struct {Struct}\s*\{{(?<Body>[^}}]*)\}}").Groups["Body"].Value
-                    .Split(';',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries)
-                    .Select(static Member=>Member.Replace("noperspective centroid ",string.Empty,StringComparison.Ordinal)).ToArray();
-                Assert.True(Members(BuiltSource,"VertexOutput").Length>=6,"VertexOutput must be found in the built source.");
-                Assert.Equal(Members(BuiltSource,"VertexOutput"),Members(BuiltSource,"RadialPixelInput"));
-                Assert.Equal([.. Members(BuiltSource,"VertexOutput"),"float2 ClipDistance : SV_ClipDistance0"],Members(BuiltSource,"RadialVertexOutput"));
-                Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName=="PreviewCleanRadialPSMain");
-                Assert.Contains("RadialPixelOutput PreviewCleanRadialPSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
-                Assert.Contains("float Depth : SV_Depth;",BuiltSource,StringComparison.Ordinal);
+                // The Stage graph owns depth and a single vertex/pixel interface. Legacy ABI names are only aliases.
+                Assert.Contains("StagePixelOutput PSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("StagePixelOutput CompleteStageSurface(VertexOutput input, float4 color)",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("float Depth : SV_DepthGreaterEqual;",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("float2 ClipDistance : SV_ClipDistance0;",BuiltSource,StringComparison.Ordinal);
+                Assert.DoesNotContain("struct RadialPixelInput",BuiltSource,StringComparison.Ordinal);
+                Assert.DoesNotContain("struct RadialVertexOutput",BuiltSource,StringComparison.Ordinal);
+                Assert.DoesNotContain("ToVertexOutput(",BuiltSource,StringComparison.Ordinal);
+                foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain","PreviewCleanRadialPSMain"}) {
+                    Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName==Entry);
+                    Assert.Contains($"StagePixelOutput {Entry}(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                }
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialObserverVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialVSMain");
                 // M0111: the Lumen surface prepass writes the normal and roughness and the distance; the card capture writes three targets.
@@ -115,7 +109,7 @@ public sealed class ShaderGraphCompilerTests {
         // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) and M0119 (the logarithmic depth functions
         // become the Depth subgraph, edits/depth_subgraph_2026_10_25.py) intentionally changed the Stage program; the
         // migrate/extract round trip was verified byte-identical before those edits.
-        Assert.True(Hash=="153236B9E545677099237CCF2F2C8E6D55A869C04296AF546C3AE1C027D354B6",Hash);
+        Assert.True(Hash=="A72EB7E80D154AE4CE2F6C276B16E2C2D3FDDEEC42004525E15F1D7D992BEF89",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {

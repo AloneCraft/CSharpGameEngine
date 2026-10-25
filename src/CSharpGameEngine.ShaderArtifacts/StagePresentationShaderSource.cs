@@ -5,9 +5,8 @@ namespace CSharpGameEngine.ShaderArtifacts;
 /// They share the Stage resource layout and are part of its hashed ABI; runtime never compiles
 /// this source. MaterialParams.z carries the presentation mode and EmissiveNits.w carries the
 /// selection weight. The shipping Stage entries intentionally ignore both components.
-/// The radial entries (M0099, ADR-0076) wrap the standard pixel entries unchanged and add the
-/// radial depth; FrameCB.DepthMapping0/1 carry their packet and ObjectCB.RadialRasterDepth each object's
-/// conservative raster depth for the main pass, which the standard entries never read.
+/// The Stage graph owns view depth and its single vertex/pixel interface (ADR-0084). During migration the legacy
+/// radial entry names delegate directly to those entries; they no longer transform vertices or add depth.
 /// The Lumen entries (M0111) write the surface prepass and the surface cache cards from the same material inputs as PSMain.
 /// </summary>
 public static class StagePresentationShaderSource {
@@ -45,126 +44,48 @@ float4 PreviewSurfacePSMain(VertexOutput input)
         float3 normalWs = normalize(mul(normalSampleTs, tbn));
         return float4(saturate(normalWs * 0.5 + 0.5), 1.0);
     }
+    return PSMain(input).Color;
+}
+
+StagePixelOutput PreviewPSMain(VertexOutput input)
+{
+    if (DepthMapping0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
+    {
+        discard;
+    }
+    float4 surface = PreviewSurfacePSMain(input);
+    float selectionWeight = EmissiveNits.w;
+    return CompleteStageSurface(input, float4(saturate(surface.rgb + selectionWeight * PreviewSelectionTint), surface.a));
+}
+
+StagePixelOutput PreviewCleanPSMain(VertexOutput input)
+{
+    if (DepthMapping0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
+    {
+        discard;
+    }
+    return CompleteStageSurface(input, PreviewSurfacePSMain(input));
+}
+
+// Transitional ABI names: the Stage graph now performs the depth work itself.
+VertexOutput RadialVSMain(VertexInput input)
+{
+    return VSMain(input);
+}
+
+StagePixelOutput RadialPSMain(VertexOutput input)
+{
     return PSMain(input);
 }
 
-float4 PreviewPSMain(VertexOutput input) : SV_Target
+StagePixelOutput PreviewRadialPSMain(VertexOutput input)
 {
-    float4 surface = PreviewSurfacePSMain(input);
-    float selectionWeight = EmissiveNits.w;
-    return float4(saturate(surface.rgb + selectionWeight * PreviewSelectionTint), surface.a);
+    return PreviewPSMain(input);
 }
 
-float4 PreviewCleanPSMain(VertexOutput input) : SV_Target
+StagePixelOutput PreviewCleanRadialPSMain(VertexOutput input)
 {
-    return PreviewSurfacePSMain(input);
-}
-
-struct RadialPixelOutput
-{
-    float4 Color : SV_Target;
-    float Depth : SV_Depth;
-};
-
-// RadialVSMain rasterizes the depth a - b/w, which never exceeds the encoded depth, so the shader promises a depth at
-// least the rasterized one and the hardware may still reject hidden fragments before running it.
-struct RadialConservativePixelOutput
-{
-    float4 Color : SV_Target;
-    float Depth : SV_DepthGreaterEqual;
-};
-
-// The radial main pass rasterizes its conservative depth without depth clipping (that depth reaches zero nearer than
-// its tangent), so it clips with the standard projection's own near and far distances instead. Clip distances round a
-// clipped vertex differently from the depth planes, so values interpolated on a clipped triangle may differ from the
-// standard ones by one 8-bit level; unclipped triangles keep them exactly. The members mirror VertexOutput
-// (ShaderGraphCompilerTests keeps them in step).
-struct RadialVertexOutput
-{
-    float4 Position : SV_Position;
-    float3 WorldPosition : TEXCOORD0;
-    float3 Normal : NORMAL;
-    float4 Tangent : TANGENT;
-    float2 Uv : TEXCOORD1;
-    float4 ShadowPosition : TEXCOORD2;
-    float2 ClipDistance : SV_ClipDistance0;
-};
-
-// A pixel shader that declares SV_DepthGreaterEqual must read SV_Position with centroid, no-perspective interpolation;
-// the other members mirror VertexOutput and are handed to the standard pixel entries unchanged. Without MSAA the
-// centroid is the pixel centre, so SV_Position keeps its value.
-struct RadialPixelInput
-{
-    noperspective centroid float4 Position : SV_Position;
-    float3 WorldPosition : TEXCOORD0;
-    float3 Normal : NORMAL;
-    float4 Tangent : TANGENT;
-    float2 Uv : TEXCOORD1;
-    float4 ShadowPosition : TEXCOORD2;
-};
-
-VertexOutput ToVertexOutput(RadialPixelInput input)
-{
-    VertexOutput output;
-    output.Position = input.Position;
-    output.WorldPosition = input.WorldPosition;
-    output.Normal = input.Normal;
-    output.Tangent = input.Tangent;
-    output.Uv = input.Uv;
-    output.ShadowPosition = input.ShadowPosition;
-    return output;
-}
-
-RadialVertexOutput RadialVSMain(VertexInput input)
-{
-    VertexOutput standard = VSMain(input);
-    RadialVertexOutput output;
-    // (a, b) = ObjectCB.RadialRasterDepth is tangent at this object's own view depth (M0100), so hidden fragments are
-    // rejected early at every distance; X, Y and W are the standard ones.
-    output.Position = float4(standard.Position.xy, RadialRasterDepth.x * standard.Position.w - RadialRasterDepth.y, standard.Position.w);
-    output.WorldPosition = standard.WorldPosition;
-    output.Normal = standard.Normal;
-    output.Tangent = standard.Tangent;
-    output.Uv = standard.Uv;
-    output.ShadowPosition = standard.ShadowPosition;
-    output.ClipDistance = float2(standard.Position.z, standard.Position.w - standard.Position.z);
-    return output;
-}
-
-RadialConservativePixelOutput RadialPSMain(RadialPixelInput input)
-{
-    if (IsBeyondRadialFarPlane(input.WorldPosition))
-    {
-        discard;
-    }
-    RadialConservativePixelOutput output;
-    output.Color = PSMain(ToVertexOutput(input));
-    output.Depth = EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz);
-    return output;
-}
-
-RadialConservativePixelOutput PreviewRadialPSMain(RadialPixelInput input)
-{
-    if (IsBeyondRadialFarPlane(input.WorldPosition))
-    {
-        discard;
-    }
-    RadialConservativePixelOutput output;
-    output.Color = PreviewPSMain(ToVertexOutput(input));
-    output.Depth = EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz);
-    return output;
-}
-
-RadialPixelOutput PreviewCleanRadialPSMain(VertexOutput input)
-{
-    if (IsBeyondRadialFarPlane(input.WorldPosition))
-    {
-        discard;
-    }
-    RadialPixelOutput output;
-    output.Color = PreviewCleanPSMain(input);
-    output.Depth = EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz);
-    return output;
+    return PreviewCleanPSMain(input);
 }
 
 VertexOutput RadialObserverVSMain(VertexInput input)
@@ -173,7 +94,10 @@ VertexOutput RadialObserverVSMain(VertexInput input)
     float3 fromCenter = output.WorldPosition - DepthMapping1.xyz;
     float distanceMeters = RadialSafeLength(fromCenter);
     float3 mapped = distanceMeters > 0.0 ? fromCenter * (DepthMapping0.y * RadialG(distanceMeters) / distanceMeters) : fromCenter;
-    output.Position = mul(float4(mapped - (CameraPositionWS.xyz - DepthMapping1.xyz), 1.0), ViewProjection);
+    output.DepthPosition = mapped - (CameraPositionWS.xyz - DepthMapping1.xyz);
+    float4 clip = mul(float4(output.DepthPosition, 1.0), ViewProjection);
+    output.Position = float4(clip.xy, 0.0, clip.w);
+    output.ClipDistance = float2(clip.z, clip.w - clip.z);
     return output;
 }
 

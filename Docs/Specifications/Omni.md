@@ -1,7 +1,7 @@
 # Omni — radial (logarithmic) depth specification
 
 - Status: Implemented (M0099, 2026-10-04); radial depth is the default of every view since M0100 (2026-10-04), standard depth an explicit choice. This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track the evidence.
-- Decision: [ADR-0076](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)
+- Decision: [ADR-0076](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md); implementation migration [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md) / M0119 (in progress).
 - Reference: the Unity asset Omni (`G:\Unity\6.6\Omni\Assets\Omni`), ported natively without its URP adapter.
 - Target layers: L0 (StageRenderer), L4 (RenderServer), L5 (Runtime camera and observer), L6 (Stage shader ABI), L8 (editor runtime view, isolated preview, preview host protocol)
 
@@ -13,9 +13,9 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 | Mapping | Where | Vertex | Depth |
 |---|---|---|---|
-| `Radial` (default) | every scene Camera unless it chooses Standard (game and editor runtime view); every perspective view of the editor's isolated preview (Scene view of an unbuilt game, Asset Preview) and the thumbnails of radial scene cameras; every render camera made by `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users) | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
+| `Radial` (default) | every scene Camera unless it chooses Standard (game and editor runtime view); every perspective view of the editor's isolated preview (Scene view of an unbuilt game, Asset Preview) and the thumbnails of radial scene cameras; every render camera made by `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users) | `VSMain`: physical X/Y/W and conservative raster Z | native `PSMain` writes `SV_DepthGreaterEqual = min(G(r) · InverseMaximumG, 0.99999994)` |
 | `Standard` | an explicit choice: a scene Camera with `DepthMapping = Standard` and its thumbnail, an orthographic view (radial depth needs a perspective), and the pinned standard frames | standard `VSMain` | hyperbolic depth of the perspective projection |
-| `RadialObserver` | an observer inset (camera preview pass) | `RadialObserverVSMain` maps positions around the centre camera | raster depth of the mapped triangles |
+| `RadialObserver` | an observer inset (camera preview pass) | `RadialObserverVSMain` maps positions around the centre camera | logarithmic distance in the mapped geometry, through the same pixel entry |
 
 ## Curve
 
@@ -28,7 +28,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 ## Invariants
 
 1. Standard views are bit-identical to the pre-M0099 renderer (`StandardModeGoldenFrameTests`).
-2. A radial view's colour comes from the unchanged `PSMain`; wherever the same surface wins, the pixel equals the standard pixel bit for bit on triangles that need no clipping, and within one 8-bit level on clipped triangles (the radial main pass clips with clip distances).
+2. A radial view's colour comes from the same Stage shading expression in `PSMain`; wherever the same surface wins, the pixel equals the standard pixel bit for bit on triangles that need no clipping, and within one 8-bit level on clipped triangles (the radial main pass clips with clip distances).
 2a. The radial main pass rasterizes the conservative depth `a − b/w`, below the encoded depth everywhere, and declares `SV_DepthGreaterEqual`, so the hardware keeps rejecting hidden fragments early. Each object's `(a, b)` (`ObjectCB.RadialRasterDepth`, `RadialDepthProjection.ConservativeDepthAt`) is tangent at the view depth of its mesh's bounds centre, taken from the view-projection's W, so rejection works at every distance (a single tangent rejected only near itself). It runs without depth clipping and clips with the standard projection's near/far distances (`SV_ClipDistance`).
 3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear. Exact depth ties (a wireframe edge drawn from both of its triangles, exactly coincident duplicates) are settled by draw order in the standard mode and by rounding in the radial mode, so a shared wireframe edge may show its other face's colour.
 4. Every pass that writes a radial view's depth uses the same depth function.
@@ -71,3 +71,7 @@ Omni's Threshold curve; vertex warping for ordinary cameras; mantissa/exponent c
 - GPU: `RadialDepthGpuIntegrationTests`, `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`.
 - Runtime and editor: `SceneCameraTests`, `SceneJsonRuntimeValuesTests`, `EditorRuntimeViewTests`, `RadialObserverTests`.
 - Visual Stage `rendering.radial-depth` (WARP required).
+
+## M0119 の実装移行(進行中)
+Stage グラフの `VSMain` が保守的なラスタ深度と近遠のクリップ距離を出し、`PSMain` が `StagePixelOutput` の色と深度を出す。`VertexOutput` は VS/PS 共通の 1 つで、`noperspective centroid` の `SV_Position` を持つ。`RadialPixelInput`・`RadialVertexOutput`・`ToVertexOutput` は削除した。旧 `RadialVSMain`・`RadialPSMain`・表示用の `Radial*` エントリーは現在 ABI 名の別名として直接委譲するだけで、深度付加や座標変換は行わない。標準深度の選択と二系統の PSO の削除は後続段階。
+`DepthMapping1.w` は主ビューの保守的深度を有効にする重み(1)。別ビューのサムネイルは 0 とし、主カメラ用の物体の接線を流用しない。観察ビューは写像後の位置を `DepthPosition` に渡し、同じ PS が単調な深度を書く。Lumen のカードは正射影なので、撮影時に深度パケットを線形へ明示的に切り替える。

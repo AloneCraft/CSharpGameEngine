@@ -60,3 +60,5 @@ External production Subgraphs and first-class structured If/ForRange/Return auth
 
 ## 対数ネイティブへの移行(M0119、Implementing)
 `stage-v14` への移行中。Lumen の表面前パスは `LumenSurfacePSMain` で既存の法線・粗さ・物理距離に加え `SV_Depth` を書く。対数カメラは共有の `EncodeRadialDepth` を使い、頂点は保守的な深度と明示的な近遠クリップ距離を使う。これにより、far 1e18 m・手前の面 1e7 m の場合でも、主画面と同じ面を Lumen が読む。標準カメラは現在のラスタ深度を明示的に返す。現在のエントリー数は 18、CB 配置は v13 と同じ。ADR-0084 で決定した標準経路・ラッパーの削除と、14 エントリーへの切り替えは後続段階。古いハッシュの成果物は再生成する。
+
+M0119 の次段階で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つようになった。ピクセル出力は `StagePixelOutput`(色と `SV_DepthGreaterEqual`)、単一の `VertexOutput` が VS と PS の契約。`CompleteStageSurface` が表示用を含む最終深度を共有する。現在の旧 `Radial*` エントリーは直接委譲する別名で、追加の深度処理は無い。複製した古い Stage グラフは、新しい構造体・ヘルパーを含むグラフへ更新してから成果物を再生成する必要がある。

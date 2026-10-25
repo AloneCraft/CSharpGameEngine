@@ -1418,12 +1418,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     /// <summary>
     /// M0099: the radial depth pipeline states. They share the standard root signature and depth test; the radial
-    /// pixel entries add SV_Depth and the observer vertex entry compresses positions. All are created or none.
+    /// entry names currently alias the native Stage depth entries; the observer vertex entry compresses positions. All are created or none.
     /// </summary>
     private void CreateRadialPipelineStates(){
         var Created=new ID3D12PipelineState*[(int)RadialPipeline.Count];
         try {
-            // The main pass rasterizes the conservative depth (RadialVSMain), which reaches zero beyond the near plane, so
+            // The main pass rasterizes the conservative depth (VSMain; RadialVSMain is an ABI alias), which reaches zero beyond the near plane, so
             // it runs without depth clipping and clips with the standard projection's distances (SV_ClipDistance).
             Created[(int)RadialPipeline.Shipping]=this.CreateMeshPipelineState(
                 this.RadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
@@ -2317,7 +2317,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector4 DepthMapping0=Radial
             ?new((float)RenderDepthMapping.Radial,this.CurrentRadialProjection.Curve.TransitionMeters,this.CurrentRadialProjection.InverseMaximumG,this.CurrentRadialProjection.FarDiscardDepth)
             :Vector4.Zero;
-        Vector4 DepthMapping1=Vector4.Zero;
+        Vector4 DepthMapping1=Radial?new Vector4(0f,0f,0f,1f):Vector4.Zero;
         var Slot=this.FrameSlot(FrameIndex);
         Unsafe.CopyBlock(Slot+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
@@ -4352,7 +4352,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return;
         }
 
-        // M0099: a radial camera uses the radial family, which adds SV_Depth to the same pixel entries.
+        // M0119: the legacy radial family now aliases Stage entries that own view depth themselves.
         var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
         ID3D12PipelineState*ActivePipelineState=
             this.PresentationMode==RenderPresentationMode.Wireframe

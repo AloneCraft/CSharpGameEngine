@@ -516,3 +516,9 @@
 - Evidence: `src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`(`LumenSurfacePSMain`)、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(前パスの PSO とその解放・ホットリロード)、`StageRenderer.Lumen.cs`、`tests/CSharpGameEngine.Windows.Tests/Graphics/LumenSurfaceDepthTests.cs`。
 - Observed behavior: 対数カメラの Lumen 表面前パスは、主画面と同じ深度の符号化とクリップ距離を使う。far が 1e18 m の場合も、近距離の精度を失う双曲深度の比較で奥の面を選ぶことがなく、画素中心の解析光線に沿った物理距離で最近面を検証できる。
 - Result: この前パスについては ADR-0084 と一致。主シェーダーの一本化、DDGI・AO の移行、標準経路の削除は未実施。
+
+## RE-M0119-NativeStageDepth — 主エントリーが所有する深度
+- Confidence: High(生成 HLSL、DXC 全エントリーコンパイル、WARP)
+- Evidence: `edits/native_depth_2026_10_25.py`、`assets/Shaders/Stage.cgeshadergraph`、`StagePresentationShaderSource.cs`、`StageRenderer.WriteDepthMapping`、`StageRenderer.Lumen`、`ShaderGraphCompilerTests`。
+- Observed: VSMain/PSMain が物理空間で色を計算して深度を直接出す。旧 Radial の VS/PS 名は別名で、入出力の写しと深度付加をしない。補間の構造体は 1 つ。カード撮影は線形、観察ビューは写像後の距離を使う。GPU 回帰 43 件合格、7 つの対数 SHA は変更なし。
+- Result: 主エントリーへの統合は ADR-0084 と一致。移行全体は Partial。
