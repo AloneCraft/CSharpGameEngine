@@ -31,7 +31,7 @@ CLI = os.path.join(REPO, "tools", "CSharpGameEngine.ShaderGraph.Cli", "bin", "x6
                    "net10.0-windows10.0.19041.0", "CSharpGameEngine.ShaderGraph.Cli.exe")
 SUBGRAPHS = {
     "Pbr": ("PBR", ["PI", "DistributionGgx", "VisibilitySmithGgxCorrelated", "FresnelSchlick", "EvaluateLitSurface", "DistanceAttenuation"]),
-    "Shadow": ("Shadow", ["ComputeAtlasShadowProjected;", "ComputeDirectionalShadow", "ComputeAtlasShadowProjected", "ComputeSpotShadow", "SelectPointShadowFace", "ComputePointShadow"]),
+    "Shadow": ("Shadow", ["ComputeAtlasShadowProjected;", "ComputeAtlasShadowProjected", "ComputeSpotShadow", "SelectPointShadowFace", "ComputePointShadow"]),
     "Pcss": ("PCSS", ["AreaPcssBlockerOffsets", "AreaPcssFilterOffsets", "LinearizeAreaShadowDepth", "ProjectAreaShadowDistance", "ComputeAreaShadow"]),
     "Aces": ("ACES", ["ToneMapAces"]),
     "Depth": ("Depth", ["RadialMaximumDepth", "RadialLog2OnePlus", "RadialSafeLength", "RadialG", "EncodeRadialDepth", "IsBeyondRadialFarPlane"]),

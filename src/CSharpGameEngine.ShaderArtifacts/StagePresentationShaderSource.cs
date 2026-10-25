@@ -5,8 +5,7 @@ namespace CSharpGameEngine.ShaderArtifacts;
 /// They share the Stage resource layout and are part of its hashed ABI; runtime never compiles
 /// this source. MaterialParams.z carries the presentation mode and EmissiveNits.w carries the
 /// selection weight. The shipping Stage entries intentionally ignore both components.
-/// The Stage graph owns view depth and its single vertex/pixel interface (ADR-0084). During migration the legacy
-/// radial entry names delegate directly to those entries; they no longer transform vertices or add depth.
+/// The Stage graph owns view depth and its single vertex/pixel interface (ADR-0084).
 /// The Lumen entries (M0111) write the surface prepass and the surface cache cards from the same material inputs as PSMain.
 /// </summary>
 public static class StagePresentationShaderSource {
@@ -49,7 +48,7 @@ float4 PreviewSurfacePSMain(VertexOutput input)
 
 StagePixelOutput PreviewPSMain(VertexOutput input)
 {
-    if (DepthMapping0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
+    if (DepthEncoding0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
     {
         discard;
     }
@@ -60,41 +59,20 @@ StagePixelOutput PreviewPSMain(VertexOutput input)
 
 StagePixelOutput PreviewCleanPSMain(VertexOutput input)
 {
-    if (DepthMapping0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
+    if (DepthEncoding0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
     {
         discard;
     }
     return CompleteStageSurface(input, PreviewSurfacePSMain(input));
 }
 
-// Transitional ABI names: the Stage graph now performs the depth work itself.
-VertexOutput RadialVSMain(VertexInput input)
-{
-    return VSMain(input);
-}
-
-StagePixelOutput RadialPSMain(VertexOutput input)
-{
-    return PSMain(input);
-}
-
-StagePixelOutput PreviewRadialPSMain(VertexOutput input)
-{
-    return PreviewPSMain(input);
-}
-
-StagePixelOutput PreviewCleanRadialPSMain(VertexOutput input)
-{
-    return PreviewCleanPSMain(input);
-}
-
-VertexOutput RadialObserverVSMain(VertexInput input)
+VertexOutput ObserverVSMain(VertexInput input)
 {
     VertexOutput output = VSMain(input);
-    float3 fromCenter = output.WorldPosition - DepthMapping1.xyz;
+    float3 fromCenter = output.WorldPosition - DepthEncoding1.xyz;
     float distanceMeters = RadialSafeLength(fromCenter);
-    float3 mapped = distanceMeters > 0.0 ? fromCenter * (DepthMapping0.y * RadialG(distanceMeters) / distanceMeters) : fromCenter;
-    output.DepthPosition = mapped - (CameraPositionWS.xyz - DepthMapping1.xyz);
+    float3 mapped = distanceMeters > 0.0 ? fromCenter * (DepthEncoding0.y * RadialG(distanceMeters) / distanceMeters) : fromCenter;
+    output.DepthPosition = mapped - (CameraPositionWS.xyz - DepthEncoding1.xyz);
     float4 clip = mul(float4(output.DepthPosition, 1.0), ViewProjection);
     output.Position = float4(clip.xy, 0.0, clip.w);
     output.ClipDistance = float2(clip.z, clip.w - clip.z);
@@ -172,7 +150,7 @@ float3 LumenShadingNormal(VertexOutput input)
     return normalize(mul(normalSampleTs, tbn));
 }
 
-struct LumenSurfaceOutput
+struct SurfacePrepassOutput
 {
     float4 NormalRoughness : SV_Target0;
     float Distance : SV_Target1;
@@ -181,17 +159,17 @@ struct LumenSurfaceOutput
 
 // The surface prepass the final gather and the reflections read: the shading normal and roughness PSMain uses and the distance from the camera
 // (which PSMain compares with its own to know it shades the same surface).
-LumenSurfaceOutput LumenSurfacePSMain(VertexOutput input)
+SurfacePrepassOutput SurfacePrepassPSMain(VertexOutput input)
 {
-    if (DepthMapping0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
+    if (DepthEncoding0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
     {
         discard;
     }
     float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * MaterialParams.x), 0.045);
-    LumenSurfaceOutput output;
+    SurfacePrepassOutput output;
     output.NormalRoughness = float4(LumenShadingNormal(input), roughness);
     output.Distance = RadialSafeLength(input.WorldPosition - CameraPositionWS.xyz);
-    output.Depth = DepthMapping0.x == 1.0 ? EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz) : input.Position.z;
+    output.Depth = DepthEncoding0.x == 1.0 ? EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz) : input.Position.z;
     return output;
 }
 

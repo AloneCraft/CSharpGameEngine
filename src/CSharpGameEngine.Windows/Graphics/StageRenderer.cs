@@ -144,9 +144,9 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const uint FrameExposureOffset=FrameFogColorOffset+16;      // float4: x=2^-EV100
     private const uint FrameLightCountsOffset=FrameExposureOffset+16;   // int4: x=local, y=shadow directional index, z=directional count, w=spot projections
     private const uint FrameForwardPlusGridOffset=FrameLightCountsOffset+16; // uint4: tile count X/Y, tile edge, tile cap
-    private const uint FrameShadowViewProjectionOffset=FrameForwardPlusGridOffset+16;
-    private const uint FrameDirectionalShadowAtlasUvScaleOffset=FrameShadowViewProjectionOffset+64;
-    private const uint FrameSkyLightParamsOffset=FrameDirectionalShadowAtlasUvScaleOffset+16; // float4: x=sky light, y=physical fog, z=camera altitude m
+    private const uint FrameInverseViewProjectionOffset=FrameForwardPlusGridOffset+16;
+    private const uint FrameViewportSizeOffset=FrameInverseViewProjectionOffset+64;
+    private const uint FrameSkyLightParamsOffset=FrameViewportSizeOffset+16; // float4: x=sky light, y=physical fog, z=camera altitude m
     private const uint FramePhysicalFogParamsOffset=FrameSkyLightParamsOffset+16; // float4: x=ray origin terms, y=falloff per metre, z=minimum transmittance, w=sky contribution
     private const uint FramePhysicalFogColorOffset=FramePhysicalFogParamsOffset+16; // float4: rgb inscattering luminance
     private const uint FrameCascadeViewProjectionOffset=FramePhysicalFogColorOffset+16; // 4 x float4x4 directional cascades
@@ -158,9 +158,9 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const uint FrameGiGridCountsOffset=FrameGiGridSpacingOffset+16; // uint4: xyz probe counts, w probes per atlas row (0 = GI off)
     private const uint FrameGiAtlasSizeOffset=FrameGiGridCountsOffset+16; // float4: irradiance atlas texels, distance atlas texels
     private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
-    private const uint FrameDepthMapping0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
-    private const uint FrameDepthMapping1Offset=FrameDepthMapping0Offset+16; // float4: xyz observer centre (render space)
-    private const uint FrameLumenParamsOffset=FrameDepthMapping1Offset+16; // float4: x Lumen diffuse (t16), y Lumen reflections (t17) (M0111)
+    private const uint FrameDepthEncoding0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
+    private const uint FrameDepthEncoding1Offset=FrameDepthEncoding0Offset+16; // float4: xyz observer centre (render space)
+    private const uint FrameLumenParamsOffset=FrameDepthEncoding1Offset+16; // float4: x Lumen diffuse (t16), y Lumen reflections (t17) (M0111)
     private const uint FrameConstantsSize=FrameLumenParamsOffset+16;
 
     /// <summary>
@@ -181,7 +181,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const uint ObjectWorldGridColorOffset=128;  // float4: xyz=main grid line colour
     private const uint ObjectWorldSubGridColorOffset=144; // float4: xyz=sub grid line colour
     private const uint ObjectWorldGridAnchorOffset=160; // float4: xyz=render origin modulo the grid size (zero in world coordinates)
-    private const uint ObjectRadialRasterDepthOffset=176; // float4: xy=(a, b) of the object's conservative radial raster depth a - b/w (M0100)
+    private const uint ObjectConservativeRasterDepthOffset=176; // float4: xy=(a, b) of the object's conservative radial raster depth a - b/w (M0100)
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
@@ -333,8 +333,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private ID3D12PipelineState*CameraPreviewWireframePipelineState;
     private ID3D12PipelineState*OverlayTrianglePipelineState;
     private ID3D12PipelineState*OverlayLinePipelineState;
-    /// <summary>M0099: the radial depth pipeline states, indexed by <see cref="RadialPipeline"/>.</summary>
-    private ID3D12PipelineState*[]RadialPipelineStates=new ID3D12PipelineState*[(int)RadialPipeline.Count];
+    private ID3D12PipelineState*ObserverPipelineState;
+    private ID3D12PipelineState*ObserverWireframePipelineState;
     private ID3D12RootSignature*ShadowRootSignature;
     private ID3D12PipelineState*ShadowPipelineState;
     private ID3D12RootSignature*PostProcessRootSignature;
@@ -385,11 +385,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private byte[]PreviewCleanPixelShaderBytecode=[];
     private byte[]OverlayVertexShaderBytecode=[];
     private byte[]OverlayPixelShaderBytecode=[];
-    private byte[]RadialPixelShaderBytecode=[];
-    private byte[]PreviewRadialPixelShaderBytecode=[];
-    private byte[]PreviewCleanRadialPixelShaderBytecode=[];
-    private byte[]RadialObserverVertexShaderBytecode=[];
-    private byte[]RadialVertexShaderBytecode=[];
+    private byte[]ObserverVertexShaderBytecode=[];
 
     // Per-mesh (indexed by meshIndex).
     private int MeshCount;
@@ -808,7 +804,6 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.CreatePostProcessRootSignature();
         this.CreateScreenRootSignature();
         this.CreatePipelineState();
-        this.CreateRadialPipelineStates();
         this.CreateShadowPipelineState();
         this.CreatePostProcessPipelineState();
         this.CreateScreenPipelineState();
@@ -995,12 +990,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PostProcessPixelShaderBytecode=Package.GetBytecode("PostProcessPS");
         this.ApplyScreenShaders(Package);
         this.ShadowVertexShaderBytecode=Package.GetBytecode("VSShadowMain");
-        this.RadialPixelShaderBytecode=Package.GetBytecode("RadialPSMain");
-        this.PreviewRadialPixelShaderBytecode=Package.GetBytecode("PreviewRadialPSMain");
-        this.PreviewCleanRadialPixelShaderBytecode=Package.GetBytecode("PreviewCleanRadialPSMain");
-        this.RadialObserverVertexShaderBytecode=Package.GetBytecode("RadialObserverVSMain");
-        this.RadialVertexShaderBytecode=Package.GetBytecode("RadialVSMain");
-        this.LumenSurfacePixelShaderBytecode=Package.GetBytecode("LumenSurfacePSMain");
+        this.ObserverVertexShaderBytecode=Package.GetBytecode("ObserverVSMain");
+        this.LumenSurfacePixelShaderBytecode=Package.GetBytecode("SurfacePrepassPSMain");
         this.LumenCardPixelShaderBytecode=Package.GetBytecode("LumenCardPSMain");
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
@@ -1026,12 +1017,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldFullscreenVertexShader=this.FullscreenVertexShaderBytecode;
         var OldPostProcessPixelShader=this.PostProcessPixelShaderBytecode;
         var OldShadowVertexShader=this.ShadowVertexShaderBytecode;
-        var OldRadialPixelShader=this.RadialPixelShaderBytecode;
-        var OldPreviewRadialPixelShader=this.PreviewRadialPixelShaderBytecode;
-        var OldPreviewCleanRadialPixelShader=this.PreviewCleanRadialPixelShaderBytecode;
-        var OldRadialObserverVertexShader=this.RadialObserverVertexShaderBytecode;
-        var OldRadialVertexShader=this.RadialVertexShaderBytecode;
-        var OldRadialPipelineStates=this.RadialPipelineStates;
+        var OldObserverVertexShader=this.ObserverVertexShaderBytecode;
+        var OldObserverPipelineState=this.ObserverPipelineState;
+        var OldObserverWireframePipelineState=this.ObserverWireframePipelineState;
         var OldPipelineState=this.PipelineState;
         var OldPresentationPipelineState=this.PresentationPipelineState;
         var OldWireframePipelineState=this.WireframePipelineState;
@@ -1048,17 +1036,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
         var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
         var OldLumenSurfacePipelineState=this.LumenSurfacePipelineState;
-        var OldLumenSurfaceRadialPipelineState=this.LumenSurfaceRadialPipelineState;
         var OldLumenCardPipelineState=this.LumenCardPipelineState;
         try{
             this.ApplyShaderArtifact(Package);
             this.CreatePipelineState();
-            this.CreateRadialPipelineStates();
             this.CreateShadowPipelineState();
             this.CreatePostProcessPipelineState();
             this.CreateScreenPipelineState();
             this.WaitForGpuIdle();
-            ReleaseRadialPipelineStates(OldRadialPipelineStates);
+            if(OldObserverPipelineState!=null){ _=OldObserverPipelineState->Release(); }
+            if(OldObserverWireframePipelineState!=null){ _=OldObserverWireframePipelineState->Release(); }
             if(OldPipelineState!=null){ _=OldPipelineState->Release(); }
             if(OldPresentationPipelineState!=null){ _=OldPresentationPipelineState->Release(); }
             if(OldWireframePipelineState!=null){ _=OldWireframePipelineState->Release(); }
@@ -1070,7 +1057,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
             if(OldScreenPipelineState!=null){ _=OldScreenPipelineState->Release(); }
             if(OldLumenSurfacePipelineState!=null){ _=OldLumenSurfacePipelineState->Release(); }
-            if(OldLumenSurfaceRadialPipelineState!=null){ _=OldLumenSurfaceRadialPipelineState->Release(); }
             if(OldLumenCardPipelineState!=null){ _=OldLumenCardPipelineState->Release(); }
             this.CommitShaderArtifact(Package);
         }catch(Exception Exception){
@@ -1083,26 +1069,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.FullscreenVertexShaderBytecode=OldFullscreenVertexShader;
             this.PostProcessPixelShaderBytecode=OldPostProcessPixelShader;
             this.ShadowVertexShaderBytecode=OldShadowVertexShader;
-            this.RadialPixelShaderBytecode=OldRadialPixelShader;
-            this.PreviewRadialPixelShaderBytecode=OldPreviewRadialPixelShader;
-            this.PreviewCleanRadialPixelShaderBytecode=OldPreviewCleanRadialPixelShader;
-            this.RadialObserverVertexShaderBytecode=OldRadialObserverVertexShader;
-            this.RadialVertexShaderBytecode=OldRadialVertexShader;
+            this.ObserverVertexShaderBytecode=OldObserverVertexShader;
             this.ScreenVertexShaderBytecode=OldScreenVertexShader;
             this.ScreenPixelShaderBytecode=OldScreenPixelShader;
             this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
             this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
             if(this.LumenSurfacePipelineState!=OldLumenSurfacePipelineState){ _=this.LumenSurfacePipelineState->Release();this.LumenSurfacePipelineState=OldLumenSurfacePipelineState; }
-            if(this.LumenSurfaceRadialPipelineState!=OldLumenSurfaceRadialPipelineState){
-                if(this.LumenSurfaceRadialPipelineState!=null){ _=this.LumenSurfaceRadialPipelineState->Release(); }
-                this.LumenSurfaceRadialPipelineState=OldLumenSurfaceRadialPipelineState;
-            }
             if(this.LumenCardPipelineState!=OldLumenCardPipelineState){ _=this.LumenCardPipelineState->Release();this.LumenCardPipelineState=OldLumenCardPipelineState; }
             if(this.ScreenPipelineState!=OldScreenPipelineState){ _=this.ScreenPipelineState->Release();this.ScreenPipelineState=OldScreenPipelineState; }
-            if(this.RadialPipelineStates!=OldRadialPipelineStates){
-                ReleaseRadialPipelineStates(this.RadialPipelineStates);
-                this.RadialPipelineStates=OldRadialPipelineStates;
-            }
+            if(this.ObserverPipelineState!=OldObserverPipelineState){ _=this.ObserverPipelineState->Release();this.ObserverPipelineState=OldObserverPipelineState; }
+            if(this.ObserverWireframePipelineState!=OldObserverWireframePipelineState){ _=this.ObserverWireframePipelineState->Release();this.ObserverWireframePipelineState=OldObserverWireframePipelineState; }
             if(this.PipelineState!=OldPipelineState){ _=this.PipelineState->Release();this.PipelineState=OldPipelineState; }
             if(this.PresentationPipelineState!=OldPresentationPipelineState){ _=this.PresentationPipelineState->Release();this.PresentationPipelineState=OldPresentationPipelineState; }
             if(this.WireframePipelineState!=OldWireframePipelineState){ _=this.WireframePipelineState->Release();this.WireframePipelineState=OldWireframePipelineState; }
@@ -1361,24 +1337,23 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void CreatePipelineState(){
-        ID3D12PipelineState*Standard=null;
+        ID3D12PipelineState*Shipping=null;
         ID3D12PipelineState*Presentation=null;
         ID3D12PipelineState*Wireframe=null;
+        ID3D12PipelineState*Observer=null;
+        ID3D12PipelineState*ObserverWireframe=null;
         ID3D12PipelineState*CameraPreview=null;
         ID3D12PipelineState*CameraPreviewWireframe=null;
         ID3D12PipelineState*OverlayTriangles=null;
         ID3D12PipelineState*OverlayLines=null;
         ID3D12PipelineState*LumenSurface=null;
-        ID3D12PipelineState*LumenSurfaceRadial=null;
         ID3D12PipelineState*LumenCard=null;
         try {
             LumenSurface=this.CreateMeshPipelineState(this.LumenSurfacePixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
                 RenderTargets:[StageLumen.SurfaceNormalFormat,StageLumen.SurfaceDistanceFormat]);
-            LumenSurfaceRadial=this.CreateMeshPipelineState(this.LumenSurfacePixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
-                this.RadialVertexShaderBytecode,DepthClip:false,RenderTargets:[StageLumen.SurfaceNormalFormat,StageLumen.SurfaceDistanceFormat]);
             LumenCard=this.CreateMeshPipelineState(this.LumenCardPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
                 RenderTargets:[StageLumen.CardAlbedoFormat,StageLumen.CardNormalFormat,StageLumen.CardEmissiveFormat]);
-            Standard=this.CreateMeshPipelineState(
+            Shipping=this.CreateMeshPipelineState(
                 this.PixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
             Presentation=this.CreateMeshPipelineState(
                 this.PreviewPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
@@ -1392,7 +1367,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
             OverlayLines=this.CreateOverlayPipelineState(
                 D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE);
-            this.PipelineState=Standard;
+            Observer=this.CreateMeshPipelineState(this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.ObserverVertexShaderBytecode,WriteSceneDistance:false);
+            ObserverWireframe=this.CreateMeshPipelineState(this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.ObserverVertexShaderBytecode,WriteSceneDistance:false);
+            this.ObserverPipelineState=Observer;
+            this.ObserverWireframePipelineState=ObserverWireframe;
+            this.PipelineState=Shipping;
             this.PresentationPipelineState=Presentation;
             this.WireframePipelineState=Wireframe;
             this.CameraPreviewPipelineState=CameraPreview;
@@ -1400,13 +1379,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.OverlayTrianglePipelineState=OverlayTriangles;
             this.OverlayLinePipelineState=OverlayLines;
             this.LumenSurfacePipelineState=LumenSurface;
-            this.LumenSurfaceRadialPipelineState=LumenSurfaceRadial;
             this.LumenCardPipelineState=LumenCard;
         } catch {
+            if(Observer!=null){ _=Observer->Release(); }
+            if(ObserverWireframe!=null){ _=ObserverWireframe->Release(); }
             if(LumenSurface!=null){ _=LumenSurface->Release(); }
-            if(LumenSurfaceRadial!=null){ _=LumenSurfaceRadial->Release(); }
             if(LumenCard!=null){ _=LumenCard->Release(); }
-            if(Standard!=null){ _=Standard->Release(); }
+            if(Shipping!=null){ _=Shipping->Release(); }
             if(Presentation!=null){ _=Presentation->Release(); }
             if(Wireframe!=null){ _=Wireframe->Release(); }
             if(CameraPreview!=null){ _=CameraPreview->Release(); }
@@ -1417,58 +1396,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    private enum RadialPipeline {
-        Shipping,
-        Presentation,
-        Wireframe,
-        CameraPreview,
-        CameraPreviewWireframe,
-        Observer,
-        ObserverWireframe,
-        Count,
-    }
-
-    /// <summary>
-    /// M0099: the radial depth pipeline states. They share the standard root signature and depth test; the radial
-    /// entry names currently alias the native Stage depth entries; the observer vertex entry compresses positions. All are created or none.
-    /// </summary>
-    private void CreateRadialPipelineStates(){
-        var Created=new ID3D12PipelineState*[(int)RadialPipeline.Count];
-        try {
-            // The main pass rasterizes the conservative depth (VSMain; RadialVSMain is an ABI alias), which reaches zero beyond the near plane, so
-            // it runs without depth clipping and clips with the standard projection's distances (SV_ClipDistance).
-            Created[(int)RadialPipeline.Shipping]=this.CreateMeshPipelineState(
-                this.RadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
-            Created[(int)RadialPipeline.Presentation]=this.CreateMeshPipelineState(
-                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
-            Created[(int)RadialPipeline.Wireframe]=this.CreateMeshPipelineState(
-                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialVertexShaderBytecode,DepthClip:false);
-            Created[(int)RadialPipeline.CameraPreview]=this.CreateMeshPipelineState(
-                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,WriteSceneDistance:false);
-            Created[(int)RadialPipeline.CameraPreviewWireframe]=this.CreateMeshPipelineState(
-                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,WriteSceneDistance:false);
-            Created[(int)RadialPipeline.Observer]=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialObserverVertexShaderBytecode,WriteSceneDistance:false);
-            Created[(int)RadialPipeline.ObserverWireframe]=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialObserverVertexShaderBytecode,WriteSceneDistance:false);
-        } catch {
-            ReleaseRadialPipelineStates(Created);
-            throw;
-        }
-        this.RadialPipelineStates=Created;
-    }
-
-    private static void ReleaseRadialPipelineStates(ID3D12PipelineState*[]PipelineStates){
-        for(var Index=0;Index<PipelineStates.Length;Index++){
-            if(PipelineStates[Index]!=null){
-                _=PipelineStates[Index]->Release();
-                PipelineStates[Index]=null;
-            }
-        }
-    }
-
     private ID3D12PipelineState*CreateMeshPipelineState(
-        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true,DXGI_FORMAT[]?RenderTargets=null,bool WriteSceneDistance=true){
+        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=false,DXGI_FORMAT[]?RenderTargets=null,bool WriteSceneDistance=true){
         var VertexShader=VertexShaderBytecode??this.VertexShaderBytecode;
         RenderTargets??=[HdrColorFormat,DXGI_FORMAT_R32_FLOAT];
         fixed(byte*PPosition="POSITION\0"u8)
@@ -2331,13 +2260,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void WriteDepthMapping(uint FrameIndex){
         var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
-        Vector4 DepthMapping0=Radial
-            ?new((float)RenderDepthMapping.Radial,this.CurrentRadialProjection.Curve.TransitionMeters,this.CurrentRadialProjection.InverseMaximumG,this.CurrentRadialProjection.FarDiscardDepth)
-            :Vector4.Zero;
-        Vector4 DepthMapping1=Radial?new Vector4(0f,0f,0f,1f):Vector4.Zero;
+        var Depth=Radial?RenderViewDepth.ForPerspective(this.CurrentRadialProjection):default;
+        var DepthEncoding0=Depth.Packet0;
+        var DepthEncoding1=Depth.Packet1;
         var Slot=this.FrameSlot(FrameIndex);
-        Unsafe.CopyBlock(Slot+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Slot+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameDepthEncoding0Offset,&DepthEncoding0,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameDepthEncoding1Offset,&DepthEncoding1,(uint)sizeof(Vector4));
+        Matrix4x4.Invert(this.InvertibleViewProjection,out var Inverse);
+        Vector4 ViewportSize=new(this.Width,this.Height,1f/this.Width,1f/this.Height);
+        Unsafe.CopyBlock(Slot+FrameInverseViewProjectionOffset,&Inverse,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(Slot+FrameViewportSizeOffset,&ViewportSize,(uint)sizeof(Vector4));
     }
 
     /// <summary>
@@ -2353,7 +2285,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             var Depth=this.CurrentRadialProjection.ConservativeDepthAt(ViewDepth);
             Vector4 Packet=new(Depth.Limit,Depth.Slope,0f,0f);
             var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
-            Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectRadialRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectConservativeRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
         }
     }
 
@@ -2707,7 +2639,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
         this.CommandList->OMSetRenderTargets(2,&NormalTarget,TRUE,&Dsv);
         // The existing HDR allocation is scratch normal storage here; the colour pass clears it.
-        this.BindMainPassState(this.CurrentDepthMapping==RenderDepthMapping.Radial?this.LumenSurfaceRadialPipelineState:this.LumenSurfacePipelineState);
+        this.BindMainPassState(this.LumenSurfacePipelineState);
         // The consumer's active region occupies the top-left of the reusable full-size targets.
         D3D12_VIEWPORT Viewport=new(){ Width=Width,Height=Height,MinDepth=0f,MaxDepth=1f };
         RECT Scissor=new(){ right=Width,bottom=Height };
@@ -2851,8 +2783,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 ((int*)(Destination+FrameLightCountsOffset))[0]=0;
                 ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
                 *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
-                *(Vector4*)(Destination+FrameDepthMapping0Offset)=new Vector4(1f,CaptureProjection.Curve.TransitionMeters,CaptureProjection.InverseMaximumG,CaptureProjection.FarDiscardDepth);
-                *(Vector4*)(Destination+FrameDepthMapping1Offset)=Vector4.Zero;
+                var CaptureDepth=RenderViewDepth.ForPerspective(CaptureProjection,ConservativeRasterDepth:false);
+                *(Vector4*)(Destination+FrameDepthEncoding0Offset)=CaptureDepth.Packet0;
+                *(Vector4*)(Destination+FrameDepthEncoding1Offset)=CaptureDepth.Packet1;
                 var Rtv=GlobalIllumination.CaptureRtv(Capture);
                 var Dsv=GlobalIllumination.CaptureDsv(Capture);
                 this.CommandList->OMSetRenderTargets(2,&Rtv,TRUE,&Dsv);
@@ -3329,10 +3262,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             DepthRanges[Cascade]=Cascades[Cascade].DepthRangeMeters;
         }
         Unsafe.CopyBlock(Slot+FrameCascadeDepthRangesOffset,&DepthRanges,(uint)sizeof(Vector4));
-        var First=Cascades[0].ViewProjection;
-        var FirstUv=Cascades[0].Tile.UvScaleOffset;
-        Unsafe.CopyBlock(Slot+FrameShadowViewProjectionOffset,&First,(uint)sizeof(Matrix4x4));
-        Unsafe.CopyBlock(Slot+FrameDirectionalShadowAtlasUvScaleOffset,&FirstUv,(uint)sizeof(Vector4));
+
     }
 
     private static int CascadeConstantSlot(int Cascade)=>Cascade==0?0:CascadeShadowConstantSlotOffset+Cascade-1;
@@ -4249,12 +4179,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
             *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
             // Each preview carries its own depth mapping (M0099); a standard one never reads the packet.
-            Vector4 DepthMapping0=Preview.DepthMapping==RenderDepthMapping.Standard
-                ?Vector4.Zero
-                :new((float)Preview.DepthMapping,Preview.Radial.Curve.TransitionMeters,Preview.Radial.InverseMaximumG,Preview.Radial.FarDiscardDepth);
-            Vector4 DepthMapping1=new(Preview.DepthMapping==RenderDepthMapping.RadialObserver?Preview.RadialCenter:Vector3.Zero,0f);
-            Unsafe.CopyBlock(Destination+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
-            Unsafe.CopyBlock(Destination+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
+            var Depth=Preview.DepthMapping switch {
+                RenderDepthMapping.Radial=>RenderViewDepth.ForPerspective(Preview.Radial,ConservativeRasterDepth:false),
+                RenderDepthMapping.RadialObserver=>RenderViewDepth.ForObserver(Preview.Radial,Preview.RadialCenter),
+                _=>default,
+            };
+            var DepthEncoding0=Depth.Packet0;
+            var DepthEncoding1=Depth.Packet1;
+            Unsafe.CopyBlock(Destination+FrameDepthEncoding0Offset,&DepthEncoding0,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(Destination+FrameDepthEncoding1Offset,&DepthEncoding1,(uint)sizeof(Vector4));
         }
     }
 
@@ -4287,11 +4220,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector4 ClearColor=ClearColorVector;
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
-            ID3D12PipelineState*Pipeline=Preview.DepthMapping switch {
-                RenderDepthMapping.Radial=>this.RadialPipelineStates[(int)(Wireframe?RadialPipeline.CameraPreviewWireframe:RadialPipeline.CameraPreview)],
-                RenderDepthMapping.RadialObserver=>this.RadialPipelineStates[(int)(Wireframe?RadialPipeline.ObserverWireframe:RadialPipeline.Observer)],
-                _=>Wireframe?this.CameraPreviewWireframePipelineState:this.CameraPreviewPipelineState,
-            };
+            ID3D12PipelineState*Pipeline=Preview.DepthMapping==RenderDepthMapping.RadialObserver
+                ?Wireframe?this.ObserverWireframePipelineState:this.ObserverPipelineState
+                :Wireframe?this.CameraPreviewWireframePipelineState:this.CameraPreviewPipelineState;
             RECT Rect=new(){
                 left=Preview.X,top=Preview.Y,
                 right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height,
@@ -4406,14 +4337,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return;
         }
 
-        // M0119: the legacy radial family now aliases Stage entries that own view depth themselves.
         var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
-        ID3D12PipelineState*ActivePipelineState=
-            this.PresentationMode==RenderPresentationMode.Wireframe
-                ?Radial?this.RadialPipelineStates[(int)RadialPipeline.Wireframe]:this.WireframePipelineState
-                :this.PresentationMode!=RenderPresentationMode.Lit||this.SelectedObjectCount>0
-                    ?Radial?this.RadialPipelineStates[(int)RadialPipeline.Presentation]:this.PresentationPipelineState
-                    :Radial?this.RadialPipelineStates[(int)RadialPipeline.Shipping]:this.PipelineState;
+        ID3D12PipelineState*ActivePipelineState=this.PresentationMode==RenderPresentationMode.Wireframe
+            ?this.WireframePipelineState
+            :this.PresentationMode!=RenderPresentationMode.Lit||this.SelectedObjectCount>0?this.PresentationPipelineState:this.PipelineState;
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,ActivePipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
@@ -4720,10 +4647,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalDistanceField=null;
         this.Lumen?.Dispose();
         this.Lumen=null;
-        if(this.LumenSurfaceRadialPipelineState!=null){
-            _=this.LumenSurfaceRadialPipelineState->Release();
-            this.LumenSurfaceRadialPipelineState=null;
-        }
         if(this.LumenSurfacePipelineState!=null){
             _=this.LumenSurfacePipelineState->Release();
             this.LumenSurfacePipelineState=null;
@@ -4832,6 +4755,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             }
         }
 
+        if(this.ObserverPipelineState!=null){ _=this.ObserverPipelineState->Release();this.ObserverPipelineState=null; }
+        if(this.ObserverWireframePipelineState!=null){ _=this.ObserverWireframePipelineState->Release();this.ObserverWireframePipelineState=null; }
         if(this.PipelineState!=null){
             _= this.PipelineState->Release();
             this.PipelineState=null;
@@ -4860,7 +4785,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             _=this.OverlayLinePipelineState->Release();
             this.OverlayLinePipelineState=null;
         }
-        ReleaseRadialPipelineStates(this.RadialPipelineStates);
         if(this.MainPassTimestampHeap!=null){
             _=this.MainPassTimestampHeap->Release();
             this.MainPassTimestampHeap=null;

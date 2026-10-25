@@ -520,5 +520,5 @@
 ## RE-M0119-NativeStageDepth — 主エントリーが所有する深度
 - Confidence: High(生成 HLSL、DXC 全エントリーコンパイル、WARP)
 - Evidence: `edits/native_depth_2026_10_25.py`、`assets/Shaders/Stage.cgeshadergraph`、`StagePresentationShaderSource.cs`、`StageRenderer.WriteDepthMapping`、`StageRenderer.Lumen`、`ShaderGraphCompilerTests`。
-- Observed: VSMain/PSMain が物理空間で色を計算して深度を直接出す。旧 Radial の VS/PS 名は別名で、入出力の写しと深度付加をしない。補間の構造体は 1 つ。カード撮影は線形、観察ビューは写像後の距離を使う。GPU 回帰 43 件合格、7 つの対数 SHA は変更なし。
+- Observed: VSMain/PSMain が物理空間で色を計算して深度を直接出す。旧 Radial の VS/PS 名は削除し、14 エントリーへ統合。L4 RenderViewDepth が透視・観察ビュー・撮影の深度パケットを作り、L0 はアップロードする。補間の構造体は 1 つ。カード撮影は線形、観察ビューは写像後の距離を使う。ABI 統合の GPU 回帰 43 件、その後の L4 接続回帰 17 件に合格。AO 更新後の 7 つの対数 SHA は変更なし。
 - Result: 主エントリーへの統合は ADR-0084 と一致。移行全体は Partial。

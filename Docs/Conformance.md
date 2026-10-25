@@ -4223,3 +4223,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 半解像度のサンプル位置を保持。AO 専用の双曲深度資源・DSV とシャドウ VS の呼び出しは削除。SceneDistance と主 DSV、HDR の一時法線出力を再利用し、本描画前に全領域を消去する。
 - 環境の対数画像の差は 6/20736 画素、最大 1 階調。他の 6 枚は不変。ADR-0084 §7 に従った旧新 SHA は M0119 と `ao-sampling-golden/repin.json` に記録。全解像度の画素中心を選ぶ最初の案は基準外のため不採用。
 - AO・ゴールデン・距離リサイズ・遠距離深度・Lumen 表面・スキニングの GPU 回帰 26 件合格。ビルドは警告 0・エラー 0。証拠は `.artifacts/M0119/ao-final.log`、`ao-final-build.log` と memory.json。最大メモリ使用率は 67%。旧 API/PSO の削除は残るため全体は Partial。
+
+
+## 2026-10-26 — M0119 ネイティブ Stage ABI と L4 深度契約
+- 旧 Radial ラッパー 4 エントリーを削除し、観察 VS を ObserverVSMain、共有表面 PS を SurfacePrepassPSMain に変更。深度方式別の PSO 群を統合し、ホットリロードの作成・ロールバック・解放も同じ所有構造にした。
+- 未使用の影座標 varying・ComputeDirectionalShadow・フレームへの旧影行列書き込みを削除。FrameCB の 304/368 バイト位置を逆投影行列とビューポートに使用する。再配置なので FrameCB は 960 バイトのまま。DepthEncoding0/1 と ConservativeRasterDepth に改名。Lumen のフレーム写しも同じ配置。
+- 深度パケットの生成・検証は L4 の RenderViewDepth。無効な対数投影、透視行列に対する線形パケット、縮退した正射影を拒否し、観察ビューとプローブは主ビューの接線を継承しない。
+- GPU 回帰 43 件、L4 接続後 17 件、数値・境界 32 件、シェーダー 15 件合格。7 つの対数 SHA は AO 更新後の値を保持。ビルドは警告 0・エラー 0。この区間の最大メモリ使用率は 69%。証拠: `.artifacts/M0119/native-abi-*.log`、`native-contract-gpu.log`、`view-depth-final-tests.log` と memory.json。
+- 標準深度の選択 API、プロトコル 9、Model/Triangle の削除、レンダラーの層分離と 4 描画パスは未完了。全体は Partial。

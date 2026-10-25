@@ -26,12 +26,8 @@ public static class ShaderArtifactAbi {
         new ShaderArtifactEntryContract("OverlayPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
         new ShaderArtifactEntryContract("ScreenVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
         new ShaderArtifactEntryContract("ScreenPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
-        new ShaderArtifactEntryContract("RadialPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
-        new ShaderArtifactEntryContract("PreviewRadialPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
-        new ShaderArtifactEntryContract("PreviewCleanRadialPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
-        new ShaderArtifactEntryContract("RadialObserverVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
-        new ShaderArtifactEntryContract("RadialVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
-        new ShaderArtifactEntryContract("LumenSurfacePSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
+        new ShaderArtifactEntryContract("ObserverVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
+        new ShaderArtifactEntryContract("SurfacePrepassPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
         new ShaderArtifactEntryContract("LumenCardPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
     };
     private static readonly IReadOnlyList<ShaderArtifactEntryContract>ModelEntries=new[] {
@@ -48,8 +44,8 @@ public static class ShaderArtifactAbi {
     public static string GetHash(ShaderArtifactTargetKind Target) {
         var Contract=Target switch {
             ShaderArtifactTargetKind.Stage=>
-                "stage-v14:mrt1-physical-scene-distance,b0-frame-depth-mapping-lumen-surface-depth,b1-object-radial-raster-depth,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,t16-lumen-diffuse,t17-lumen-reflection,s0-anisotropic-wrap,s1-shadow,post-b0-params,screen-t0-texture,screen-b0-params:"
-                +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain,ScreenVSMain,ScreenPSMain,RadialPSMain,PreviewRadialPSMain,PreviewCleanRadialPSMain,RadialObserverVSMain,RadialVSMain,LumenSurfacePSMain,LumenCardPSMain:"
+                "stage-v14:mrt1-physical-scene-distance,b0-frame960-depth-encoding-inverse-viewport,b1-object-conservative-raster-depth,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,t16-lumen-diffuse,t17-lumen-reflection,s0-anisotropic-wrap,s1-shadow,post-b0-params,screen-t0-texture,screen-b0-params:"
+                +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain,ScreenVSMain,ScreenPSMain,ObserverVSMain,SurfacePrepassPSMain,LumenCardPSMain:"
                 +ComputeHash(StagePresentationShaderSource.Source),
             ShaderArtifactTargetKind.Model=>"model-v1:b0-transform,t0-base,s0-base:VSMain,PSMain",
             ShaderArtifactTargetKind.Triangle=>"triangle-v1:no-resources:VSMain,PSMain",

@@ -16,7 +16,6 @@ public sealed unsafe partial class StageRenderer {
     private const int EnvironmentDescriptorCount=6;
     private StageLumen?Lumen;
     private ID3D12PipelineState*LumenSurfacePipelineState;
-    private ID3D12PipelineState*LumenSurfaceRadialPipelineState;
     private ID3D12PipelineState*LumenCardPipelineState;
     private byte[]LumenSurfacePixelShaderBytecode=[];
     private byte[]LumenCardPixelShaderBytecode=[];
@@ -65,8 +64,7 @@ public sealed unsafe partial class StageRenderer {
         SurfaceTargets[1]=Lumen.SurfaceRtv(1);
         var SurfaceDepth=Lumen.SurfaceDsv;
         this.CommandList->OMSetRenderTargets(2,SurfaceTargets,FALSE,&SurfaceDepth);
-        this.BindMainPassState(this.CurrentDepthMapping==CSharpGameEngine.Rendering.RenderDepthMapping.Radial
-            ?this.LumenSurfaceRadialPipelineState:this.LumenSurfacePipelineState);
+        this.BindMainPassState(this.LumenSurfacePipelineState);
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
             this.CommandList->RSSetViewports(1,PViewport);
@@ -93,7 +91,7 @@ public sealed unsafe partial class StageRenderer {
                 var Projection=Capture.Projection;
                 Unsafe.CopyBlock(FrameDestination+FrameViewProjectionOffset,&Projection,(uint)sizeof(Matrix4x4));
                 *(Vector4*)(FrameDestination+FrameLumenParamsOffset)=Vector4.Zero;
-                *(Vector4*)(FrameDestination+FrameDepthMapping0Offset)=Vector4.Zero;
+                *(Vector4*)(FrameDestination+FrameDepthEncoding0Offset)=Vector4.Zero;
                 this.WriteLumenCaptureObjectConstants(Lumen.CaptureObjectSlot(this.FrameIndex,Index),Capture.ObjectIndex);
                 Lumen.ClearCard(this.CommandList,Capture);
                 D3D12_VIEWPORT Viewport=new(){ TopLeftX=Capture.X,TopLeftY=Capture.Y,Width=Capture.Width,Height=Capture.Height,MinDepth=0f,MaxDepth=1f };
@@ -145,7 +143,7 @@ public sealed unsafe partial class StageRenderer {
         Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&Zero,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&Zero,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&Zero,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectRadialRasterDepthOffset,&Zero,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+ObjectConservativeRasterDepthOffset,&Zero,(uint)sizeof(Vector4));
     }
     /// <summary>Test-only: the device's removed reason (S_OK while it lives).</summary>
     internal int DeviceRemovedReasonForTesting=>this.Device!.Device->GetDeviceRemovedReason().Value;

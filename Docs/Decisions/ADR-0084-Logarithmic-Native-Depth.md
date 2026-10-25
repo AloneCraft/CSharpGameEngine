@@ -53,7 +53,7 @@
 - 画素を変えない段階(削除・移動・分離)では付け替えを認めない。変わったら直すか、その段階を戻す。
 
 ### 8. ABI
-- `stage-v14`: エントリー 18 → 14(`RadialVSMain`・`RadialPSMain`・`PreviewRadialPSMain`・`PreviewCleanRadialPSMain` を削除、`RadialObserverVSMain` → `ObserverVSMain`、`LumenSurfacePSMain` → `SurfacePrepassPSMain`)。FrameCB は 960 → 976 バイト。使われていない 304(`ShadowViewProjection`)と 368(`DirectionalShadowAtlasUvScaleOffset`)の欄を `InverseViewProjection` と `ViewportSize` に使い回す(同じ変更で、書き込み・定数・`Lumen.hlsl` の写し・`ComputeDirectionalShadow` を消す)。`DepthMapping0/1` は `DepthEncoding0/1` に改め、`DepthEncoding1.w` に保守的ラスタ深度の重み(主カメラ 1、プレビュー・プローブ・観察 0)を持たせる。`ObjectCB.RadialRasterDepth` は `ConservativeRasterDepth`。複製した独自の Stage グラフは読めなくなる(CHANGELOG に書く)。
+- `stage-v14`: エントリー 18 → 14(`RadialVSMain`・`RadialPSMain`・`PreviewRadialPSMain`・`PreviewCleanRadialPSMain` を削除、`RadialObserverVSMain` → `ObserverVSMain`、`LumenSurfacePSMain` → `SurfacePrepassPSMain`)。FrameCB は 960 バイトを維持する(実装時の配置確認で、既存の 80 バイトを置き換えるため拡張不要と確認)。使われていない 304(`ShadowViewProjection`)と 368(`DirectionalShadowAtlasUvScaleOffset`)の欄を `InverseViewProjection` と `ViewportSize` に使い回す(同じ変更で、書き込み・定数・`Lumen.hlsl` の写し・`ComputeDirectionalShadow` を消す)。`DepthMapping0/1` は `DepthEncoding0/1` に改め、`DepthEncoding1.w` に保守的ラスタ深度の重み(主カメラ 1、プレビュー・プローブ・観察 0)を持たせる。`ObjectCB.RadialRasterDepth` は `ConservativeRasterDepth`。複製した独自の Stage グラフは読めなくなる(CHANGELOG に書く)。
 - 対数の関数(`RadialLog2OnePlus`・`RadialSafeLength`・`RadialG`・`EncodeRadialDistance`・`IsBeyondViewFarPlane`)は新しいサブグラフ `assets/Shaders/Depth.cgesubgraph` に字句どおり移す。超越関数の禁止の検査は、接尾辞全体の禁止を残したうえで、Stage グラフ本体のこの関数群を取り出して検査する(本体のフォグは `exp` を使うので全体には掛けられない)。
 
 ## 採らなかった案
@@ -78,3 +78,7 @@
 
 ## 関連する機能
 - F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039、F-L0-002、F-L4-002、F-L8-018
+
+
+## 実装順序の更新(2026-10-26)
+自動承認レビューが、全リポジトリの API 名の一括置換を参照破壊・ABI 不整合のリスクで却下したため、段階 4 を検証可能な境界ごとに分ける。最初に 14 エントリーと PSO の統合、L4 深度契約を検証し、その後にカメラ選択 API、プレビューの通信契約、旧レンダラーを順に除く。却下された一括置換は実行していない。削除・移動で画像の SHA を変更しない基準と、最終的に標準経路を残さない決定は維持する。

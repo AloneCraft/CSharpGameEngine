@@ -31,7 +31,7 @@ struct ShadowProjectionData
     row_major float4x4 ViewProjection;
     float4 UvScaleOffset;
 };
-// The Stage program's FrameCB (stage-v13), read for the lights, the shadow cascades and the sky light flag.
+// The Stage program's FrameCB (stage-v14), read for the lights, the shadow cascades and the sky light flag.
 cbuffer FrameCB : register(b1)
 {
     row_major float4x4 ViewProjection;
@@ -43,8 +43,8 @@ cbuffer FrameCB : register(b1)
     float4 ExposureParams;
     int4 LightCounts;
     uint4 ForwardPlusGrid;
-    row_major float4x4 ShadowViewProjection;
-    float4 DirectionalShadowAtlasUvScaleOffset;
+    row_major float4x4 StageInverseViewProjection;
+    float4 ViewportSize;
     float4 SkyLightParams;
     float4 PhysicalFogParams;
     float4 PhysicalFogColor;
@@ -57,8 +57,8 @@ cbuffer FrameCB : register(b1)
     uint4 GiGridCounts;
     float4 GiAtlasSize;
     float4 AmbientOcclusionParams;
-    float4 DepthMapping0;
-    float4 DepthMapping1;
+    float4 DepthEncoding0;
+    float4 DepthEncoding1;
     float4 LumenParams;
 };
 cbuffer LumenCB : register(b0)

@@ -97,3 +97,13 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 証拠: `.artifacts/M0119/ao-before.log`(修正前)、`ao-after.log`(不採用の全解像度実験)、`ao-sampling.log`、`ao-sampling-golden/repin.json` と PNG/RGBA。削除・移動の次段階では、この新しい SHA を変えてはならない。
 
 - 最終回帰: AO 5 条件、標準・対数ゴールデン、SceneDistance/奇数寸法リサイズ、遠距離深度、Lumen 表面、スキニング等の GPU 26 件合格(`ao-final.log`)。ビルドは警告 0・エラー 0。最大メモリ使用率 67%。
+
+### 段階 4(a): 14 エントリーと PSO の一本化・L4 深度契約(2026-10-26)
+- ラッパー 4 本を削除し、ObserverVSMain と SurfacePrepassPSMain に改名した。主・表示・ワイヤー・プレビュー・表面前パスの深度方式別 PSO を統合。ホットリロードの全作成・復旧・解放も統合。
+- 未使用の ShadowPosition/ComputeDirectionalShadow と旧影行列の提出を削除。フレームの 304/368 バイト位置を InverseViewProjection/ViewportSize へ再利用し、DepthEncoding0/1 と ConservativeRasterDepth に改名。80 バイトの再利用なので、設計の「976 バイトへ拡張」は不要と確認し、960 バイトを維持した。
+- L4 RenderViewDepth が透視・正射影・観察ビューの検証済みパケットを作る。主ビュー・DDGI・観察ビューに接続済み。旧 Standard の選択 API は次の段階で除く。
+- 全リポジトリの API 一括置換は自動承認レビューで参照破壊・ABI 不整合のリスクにより却下され、実行していない。ADR-0084 の実装順序を検証可能な境界ごとに更新した。
+- GPU 回帰 43 件、接続後の GPU 17 件、Rendering の数値・境界 32 件、シェーダー 15 件合格。7 SHA は AO 更新後と同一。ビルドは警告 0・エラー 0。最大メモリ使用率 69%。生成 HLSL のソースハッシュは 0A8C045A... (グラフ保守ツールの LF 正規化表示は 990CB9EB...)。
+- 証拠: `.artifacts/M0119/native-abi-regression.log`、`native-contract-gpu.log`、`native-abi-shader-final.log`、`view-depth-final-tests.log`、`native-abi-final-build.log`、各 memory.json。初回の Rendering.Tests は未復元で --no-restore が無出力で終了したため実行結果として数えず、復元後に実際の件数 32 を確認した。
+
+- ステージカタログ整合性・共通描画接続の 2 件、表示用接尾辞の超越関数禁止 1 件も合格。
