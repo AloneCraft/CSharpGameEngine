@@ -14,9 +14,9 @@ internal sealed class CookerHost:IDisposable {
         internal IReadOnlyList<string> Messages { get; }=Messages;
     }
 
-    private readonly CookModuleLoadContext Context;
+    private readonly PluginModuleLoadContext Context;
 
-    private CookerHost(CookModuleLoadContext Context,IReadOnlyList<IAssetCooker> Cookers){
+    private CookerHost(PluginModuleLoadContext Context,IReadOnlyList<IAssetCooker> Cookers){
         this.Context=Context;
         this.Cookers=Cookers;
     }
@@ -26,7 +26,7 @@ internal sealed class CookerHost:IDisposable {
     internal static CookerHost Load(string ModulePath){
         var FullPath=Path.GetFullPath(ModulePath);
         if(!File.Exists(FullPath)){ throw new FileNotFoundException($"The Cook module was not found: {FullPath}",FullPath); }
-        var Context=new CookModuleLoadContext(FullPath);
+        var Context=new PluginModuleLoadContext(FullPath);
         var Assembly=Context.LoadFromAssemblyPath(FullPath);
         List<IAssetCooker> Cookers=[];
         foreach(var Type in Assembly.GetExportedTypes().OrderBy(static Type=>Type.FullName,StringComparer.Ordinal)){
@@ -115,16 +115,4 @@ internal sealed class CookerHost:IDisposable {
 
     public void Dispose()=>this.Context.Unload();
 
-    /// <summary>The Cook module's own context. The contract comes from the host; everything else resolves next to the module.</summary>
-    private sealed class CookModuleLoadContext(string ModulePath):AssemblyLoadContext(isCollectible:true) {
-        private readonly AssemblyDependencyResolver Resolver=new(ModulePath);
-
-        protected override Assembly?Load(AssemblyName Name){
-            if(string.Equals(Name.Name,typeof(IAssetCooker).Assembly.GetName().Name,StringComparison.Ordinal)){ return null; }
-            return this.Resolver.ResolveAssemblyToPath(Name) is { }Path?this.LoadFromAssemblyPath(Path):null;
-        }
-
-        protected override IntPtr LoadUnmanagedDll(string Name)=>
-            this.Resolver.ResolveUnmanagedDllToPath(Name) is { }Path?this.LoadUnmanagedDllFromPath(Path):IntPtr.Zero;
-    }
 }

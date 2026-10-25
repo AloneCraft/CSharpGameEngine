@@ -6,4 +6,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
+  </ItemGroup>
 </Project>
