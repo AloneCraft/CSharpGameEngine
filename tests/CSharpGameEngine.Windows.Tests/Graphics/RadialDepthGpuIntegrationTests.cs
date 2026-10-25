@@ -95,10 +95,8 @@ public sealed class RadialDepthGpuIntegrationTests {
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Main.NearZ,Main.FarZ,Main.FovYRadians,1f,out var Projection));
         Matrix4x4[]Transforms=[QuadScene.Facing(1e15f+1e10f,2e15f),QuadScene.Facing(1e15f,2e15f)];
         var Frame=Scene.Render(Main,Transforms,Renderer=>Renderer.SetCameraPreviews([
-            new RenderCameraPreview(0,0,64,64,Thumbnail,Vector3.Zero),
-            new RenderCameraPreview(96,0,64,64,Thumbnail,Vector3.Zero,DepthMapping:RenderDepthMapping.Radial,Radial:Projection),
+            new RenderCameraPreview(96,0,64,64,Thumbnail,Vector3.Zero,Depth:RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false)),
         ]));
-        Assert.NotEqual(1f,Scene.RedFraction(Frame,0,0,64,64));
         Assert.Equal(1f,Scene.RedFraction(Frame,96,0,64,64));
         Scene.AssertNoDebugLayerErrors();
     }
@@ -110,7 +108,19 @@ public sealed class RadialDepthGpuIntegrationTests {
         View.RadialTransitionMeters=0f;
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCamera(View));
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
-            new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,DepthMapping:RenderDepthMapping.Radial),
+            new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,Depth:default),
+        ]));
+        var Perspective=View.GetView()*View.GetProjection(1f);
+        Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,1f,out var Projection));
+        var Linear=RenderViewDepth.ForOrthographic(Matrix4x4.Identity);
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
+            new RenderCameraPreview(0,0,16,16,Perspective,Vector3.Zero,Linear),
+        ]));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
+            new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false)),
+        ]));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
+            new RenderCameraPreview(0,0,16,16,Perspective,Vector3.Zero,RenderViewDepth.ForPerspective(Projection)),
         ]));
     }
     /// <summary>The view-projection matrix and radial parameters an editor would hand over for <paramref name="View"/>.</summary>
@@ -129,9 +139,9 @@ public sealed class RadialDepthGpuIntegrationTests {
         var MatrixPixels=Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye,Parameters));
         Assert.Equal(CameraPixels,MatrixPixels);
         Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
-        // The same matrix drawn standard writes another depth, so the comparison above went through the radial path.
-        Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye));
-        Assert.NotEqual(CameraDepth,Scene.Renderer.ReadDepthForTesting());
+        // A bare perspective matrix has no physical far range and cannot silently choose a different encoding.
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye));
+        Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
         Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
@@ -236,7 +246,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             return Renderer.LastCapturedFrame!.Pixels.ToArray();
         }
         RenderCameraPreview Observer(bool Mark)=>new(Inset.X,Inset.Y,Inset.Size,Inset.Size,ObserverView,Eye,
-            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Mark);
+            Depth:RenderViewDepth.ForObserver(Projection,Vector3.Zero),MarkRadialCenter:Mark);
         var Without=Render([]);
         var Marked=Render([Observer(true)]);
         var Unmarked=Render([Observer(false)]);

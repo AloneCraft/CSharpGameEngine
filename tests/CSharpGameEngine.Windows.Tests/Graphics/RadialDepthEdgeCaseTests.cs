@@ -127,7 +127,7 @@ public sealed class RadialDepthEdgeCaseTests {
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Center.NearZ,Center.FarZ,Center.FovYRadians,160f/90f,out var Projection));
         var Eye=new Vector3(0f,0f,-30f);
         var ObserverViewProjection=Camera.CreateFirstPerson(Vector3.Zero).GetView()*Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3f,1f,0.1f,30f+1.05f*Projection.ObservedWorldRadius);
-        var Inset=new RenderCameraPreview(96,26,64,64,ObserverViewProjection,Eye,DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:true);
+        var Inset=new RenderCameraPreview(96,26,64,64,ObserverViewProjection,Eye,Depth:RenderViewDepth.ForObserver(Projection,Vector3.Zero),MarkRadialCenter:true);
         var WithoutInset=Render(Renderer,Center,Target=>Target.SetPresentationMode(RenderPresentationMode.Wireframe));
         var WithInset=Render(Renderer,Center,Target=>{
             Target.SetPresentationMode(RenderPresentationMode.Wireframe);

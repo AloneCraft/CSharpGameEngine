@@ -2,19 +2,6 @@ using System.Numerics;
 
 namespace CSharpGameEngine.Rendering;
 
-/// <summary>How a view turns distance into depth (M0099, ADR-0076).</summary>
-public enum RenderDepthMapping {
-    /// <summary>The hyperbolic depth of the perspective projection.</summary>
-    Standard=0,
-    /// <summary>Depth is the logarithm of the physical distance from the eye; the image is the standard one.</summary>
-    Radial=1,
-    /// <summary>
-    /// The world is compressed radially around another camera and seen from outside (Omni's RadialObserverRig).
-    /// Only camera previews use it.
-    /// </summary>
-    RadialObserver=2,
-}
-
 /// <summary>
 /// Omni's Smooth radial curve in metres: <c>G(r) = log2(1 + r / T)</c>. It is linear near the eye
 /// (slope <c>1 / (T ln 2)</c>) and logarithmic beyond the transition length <c>T</c>, so a 32-bit depth keeps a

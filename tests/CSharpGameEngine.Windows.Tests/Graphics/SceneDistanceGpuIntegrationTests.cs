@@ -26,7 +26,7 @@ public sealed class SceneDistanceGpuIntegrationTests {
         Assert.All(Before,Distance=>Assert.True(Distance>0f));
         var Preview=Camera.CreateFirstPerson(new Vector3(0f,0f,-1f));
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Preview.NearZ,Preview.FarZ,Preview.FovYRadians,1f,out var Projection));
-        Renderer.SetCameraPreviews([new RenderCameraPreview(0,0,8,8,Preview.GetView()*Preview.GetProjection(1f),Preview.GetEyePosition(),DepthMapping:RenderDepthMapping.Radial,Radial:Projection)]);
+        Renderer.SetCameraPreviews([new RenderCameraPreview(0,0,8,8,Preview.GetView()*Preview.GetProjection(1f),Preview.GetEyePosition(),Depth:RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false))]);
         Renderer.SetCamera(View);
         Renderer.RenderFrame();
         Assert.True(Assert.Single(Renderer.GetCameraPreviewDiagnostics()).DrawCallCount>0);

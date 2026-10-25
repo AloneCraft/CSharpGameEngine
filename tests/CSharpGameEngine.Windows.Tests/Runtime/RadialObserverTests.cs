@@ -23,9 +23,9 @@ public sealed class RadialObserverTests {
         Invalid.RadialTransitionMeters=0f;
         Assert.False(RadialObserverView.TryCreatePreview(Invalid,1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out _));
         Assert.True(RadialObserverView.TryCreatePreview(RadialCenter(),1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out var Preview));
-        Assert.Equal(RenderDepthMapping.RadialObserver,Preview.DepthMapping);
+        Assert.Equal(RenderDepthEncoding.Observer,Preview.Depth.Encoding);
         Assert.True(Preview.MarkRadialCenter);
-        Assert.Equal(Vector3.Zero,Preview.RadialCenter);
+        Assert.Equal(Vector4.Zero,Preview.Depth.Packet1);
         Assert.Equal(new Vector3(0f,0f,-50f),Preview.CameraPosition);
     }
     [Fact]
@@ -38,7 +38,7 @@ public sealed class RadialObserverTests {
         var Centre=Vector4.Transform(new Vector4(-Eye,1f),Preview.ViewProjection);
         Assert.Equal(0f,Centre.X/Centre.W,5);
         Assert.Equal(0f,Centre.Y/Centre.W,5);
-        var FarSide=Vector4.Transform(new Vector4(new Vector3(0f,0f,Preview.Radial.ObservedWorldRadius)-Eye,1f),Preview.ViewProjection);
+        var FarSide=Vector4.Transform(new Vector4(new Vector3(0f,0f,Preview.Depth.Projection.ObservedWorldRadius)-Eye,1f),Preview.ViewProjection);
         Assert.InRange(FarSide.Z/FarSide.W,0f,1f);
     }
     [Fact]

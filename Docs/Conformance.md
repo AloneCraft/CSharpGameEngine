@@ -4260,3 +4260,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 契約12件、Windowsプレビュー/ホスト/実行ビュー28件、VSIXの姿勢・ポリシー・生成・実際のパッケージ済みホスト/実行ビュー20件合格。ビルドは警告0・エラー0、最大メモリ63%。VSIXの配置は無効、VS/Unity起動なし。
 - 証拠は `.artifacts/M0119/preview-native-before.log`、`preview-native-after.log`、`preview-native-contract-test.log`、`preview-native-vsix-test.log`、対応するbuildログとmemory.json。パッケージTestAssetsは現在のビルドで再生成したVSIXを読み、プロトコル9で実際に描画した。
 - 低レベル行列/サムネイル選択とModel/Triangleは後続。F-L5-038の全体適合は引き続きPartial。
+
+## 2026-10-26 — M0119 型付き深度の提出境界
+- RenderDepthMappingを削除し、主ビューは検証済みRenderViewDepthを保持して提出する。裸の行列は正射影の線形深度だけに限定。透視は物理的なFOV・near/far・Tを受け取り、有限の行列と逆行列を持つ補助投影を検証してから状態を更新する。
+- RenderCameraPreviewのDepthを必須化。投影との不整合・default値・主カメラ用の保守的ラスタ重みを拒否する。観察ビューの中心も型付きパケットで運ぶ。ShaderGraphCompilerTestsは廃止名の部分否定から、許可された14エントリーの集合完全一致へ更新。
+- GPU回帰68件、シェーダー契約15件、L4数値/境界32件、VSIX/パッケージ済みホスト20件合格。7SHAは不変。透視・正射影の主画面とサムネイルはデバイス再生成後も画素と深度が一致する。ビルド警告0・エラー0。最大メモリ59%。
+- 証拠は `.artifacts/M0119/typed-depth-final-regression.log`、`typed-depth-shader-tests.log`、`typed-depth-final-build.log`、`typed-depth-vsix-build.log`、`typed-depth-vsix-test.log`、`typed-depth-cpu-tests.log` とmemory.json。
+- 完了条件の旧選択・ラッパー検索はsrc/tools/tests/assetsで0件。古い生成保守スクリプトの説明だけに残ったエントリー名を役割の説明へ直し、履歴の変換処理は変更していない。
+- 全体は引き続きPartial。旧Model/Triangleの実装・ABI・テンプレート・生産者の削除、全体検証とテンプレート4実行が残る。

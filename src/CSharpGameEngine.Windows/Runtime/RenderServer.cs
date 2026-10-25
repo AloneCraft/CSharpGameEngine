@@ -234,8 +234,8 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>
-    /// Submits a presentation-relative camera matrix for an isolated preview. Authoritative world
-    /// coordinates must be made camera-relative before this boundary.
+    /// Submits a presentation-relative orthographic matrix with linear depth. Perspective callers
+    /// must supply physical projection parameters through the overload below.
     /// </summary>
     public void SetViewProjection(in Matrix4x4 ViewProjection){
         this.Backend.SetViewProjection(ViewProjection);

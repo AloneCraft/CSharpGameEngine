@@ -62,9 +62,10 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.DoesNotContain("struct RadialPixelInput",BuiltSource,StringComparison.Ordinal);
                 Assert.DoesNotContain("struct RadialVertexOutput",BuiltSource,StringComparison.Ordinal);
                 Assert.DoesNotContain("ToVertexOutput(",BuiltSource,StringComparison.Ordinal);
-                foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain","PreviewCleanRadialPSMain","RadialVSMain"}) {
-                    Assert.DoesNotContain(Artifact.Entries,Artifact=>Artifact.LogicalName==Entry);
-                }
+                Assert.Equal(new[]{
+                    "VSMain","PSMain","VSShadowMain","FullscreenVS","PostProcessPS","PreviewPSMain","PreviewCleanPSMain",
+                    "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain",
+                }.OrderBy(Name=>Name,StringComparer.Ordinal),Artifact.Entries.Select(Entry=>Entry.LogicalName).OrderBy(Name=>Name,StringComparer.Ordinal));
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ObserverVSMain");
                 // M0111: the Lumen surface prepass writes the normal and roughness and the distance; the card capture writes three targets.
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="SurfacePrepassPSMain");

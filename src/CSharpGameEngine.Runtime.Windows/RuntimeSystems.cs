@@ -516,7 +516,7 @@ internal static class RadialObserverView {
         }
         var ViewProjection=View.GetView()*Matrix4x4.CreatePerspectiveFieldOfView(Observer.FovYRadians,Width/(float)Height,Observer.NearZ,Far);
         Preview=new RenderCameraPreview(X,Y,Width,Height,ViewProjection,EyeFromCenter,
-            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Observer.ShowCenterCamera);
+            Depth:RenderViewDepth.ForObserver(Projection,Vector3.Zero),MarkRadialCenter:Observer.ShowCenterCamera);
         return true;
     }
 }

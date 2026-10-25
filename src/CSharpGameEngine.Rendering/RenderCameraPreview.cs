@@ -6,18 +6,15 @@ namespace CSharpGameEngine.Rendering;
 /// One camera-relative thumbnail pass embedded into the presentation surface. Rectangles use
 /// upper-left surface pixels; the provider clips them to the current surface. The optional
 /// excluded object is the authoring camera proxy and is omitted only from this thumbnail.
-/// <see cref="DepthMapping"/> selects the pass's depth (M0099): Radial needs <see cref="Radial"/>;
-/// RadialObserver also needs <see cref="RadialCenter"/>, the compressed world's centre in render space,
-/// and then <see cref="ViewProjection"/> is the observer's rotation-only view times its projection.
+/// <see cref="Depth"/> carries the validated encoding for this projection. An observer also carries
+/// its compressed world's centre in the depth packet, and <see cref="ViewProjection"/> is its
+/// rotation-only view times its projection.
 /// <see cref="MarkRadialCenter"/> draws the main camera's frustum at the observer's centre.
 /// </summary>
 public readonly record struct RenderCameraPreview(
     int X,int Y,int Width,int Height,
-    Matrix4x4 ViewProjection,Vector3 CameraPosition,
+    Matrix4x4 ViewProjection,Vector3 CameraPosition,RenderViewDepth Depth,
     int ExcludedObjectIndex=-1,
-    RenderDepthMapping DepthMapping=RenderDepthMapping.Standard,
-    RadialDepthProjection Radial=default,
-    Vector3 RadialCenter=default,
     bool MarkRadialCenter=false){
     public const int MaximumCount=3;
 }

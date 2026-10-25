@@ -226,6 +226,15 @@ public sealed class RenderPreviewRenderSessionTests {
         });
         Session.RenderForVerification();
         AssertDepth(Session.ActiveServerForTesting.ReadDepthForTesting()[96*128+96],64);
+        var Before=Session.ActiveServerForTesting.ReadDepthForTesting();
+        var Pixels=Session.LastCapturedFrame!.Pixels.ToArray();
+        Session.Resize(0,0);
+        Assert.Throws<RenderDeviceUnavailableException>(()=>Session.Render(CaptureForVerification:false));
+        Session.Resize(128,128);
+        Session.RenderForVerification();
+        Assert.Equal(2u,Session.DeviceGeneration);
+        Assert.Equal(Before,Session.ActiveServerForTesting.ReadDepthForTesting());
+        Assert.Equal(Pixels,Session.LastCapturedFrame!.Pixels.ToArray());
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
     }
 

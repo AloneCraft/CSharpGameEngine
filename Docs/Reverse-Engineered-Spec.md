@@ -538,3 +538,9 @@
 - Observed: 描画 Camera に深度選択がなく、SetCamera は必ず対数投影を検証・提出する。旧比較試験は最後の 7 ケース合格を保存して削除。色・深度・状態・エディターの 106 件、GI/雲等 27 件に合格し、7 SHA は維持した。
 - Hardware: RTX 4060 Ti、4e-6〜5e18 m の中央最大誤差 2.56 ulp。24 層の主パスの手前順/奥順の中央値は近距離 0.198/3.785 ms、遠距離 0.133/2.516 ms。測定の成果物ハッシュは native-camera-hardware-manifest.json。
 - Result: 描画カメラの native 化は一致。行列・通信の旧選択と旧レンダラー、層分離・4 パスは未完了。
+
+### RE-M0119 — 型付きネイティブ深度の提出境界
+- Confidence: High
+- Evidence: `RenderViewDepth.cs`, `RenderCameraPreview.cs`, `StageRenderer.cs`, `RadialDepthGpuIntegrationTests`, `RenderPreviewRenderSessionTests`.
+- Observed behavior: RenderDepthMappingは存在しない。主ビューは検証済みRenderViewDepthを保持し、そのパケットをアップロードする。引数のない深度方式は存在せず、透視行列には物理的投影情報が必要。サムネイルは必須のDepthが投影と整合し、主カメラの保守的ラスタ重みを使わないことを検証する。正射影は線形、観察ビューは中心を持つ専用パケット。
+- Result: 提出境界はADR-0084に一致。M0119全体は旧Model/Triangleと最終検証が残るためPartial。

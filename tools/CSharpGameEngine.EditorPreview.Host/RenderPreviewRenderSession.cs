@@ -268,14 +268,13 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
         Vector3 Position=ToVector3(Camera.Position);
         if(!RadialDepthProjection.IsPerspective(ViewProjection)){
-            return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex);
+            return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,RenderViewDepth.ForOrthographic(ViewProjection),ExcludedObjectIndex);
         }
         if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
             ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,Source.Width/(float)Source.Height,out var Projection)){
             throw new ArgumentException("A radial camera preview needs a valid field of view, clip range and transition length.",nameof(Source));
         }
-        return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex,
-            DepthMapping:RenderDepthMapping.Radial,Radial:Projection);
+        return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false),ExcludedObjectIndex);
     }
 
     /// <summary>Test-only access to the active Render Server (its depth buffer, for instance).</summary>

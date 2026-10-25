@@ -158,7 +158,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const uint FrameGiGridCountsOffset=FrameGiGridSpacingOffset+16; // uint4: xyz probe counts, w probes per atlas row (0 = GI off)
     private const uint FrameGiAtlasSizeOffset=FrameGiGridCountsOffset+16; // float4: irradiance atlas texels, distance atlas texels
     private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
-    private const uint FrameDepthEncoding0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
+    private const uint FrameDepthEncoding0Offset=FrameAmbientOcclusionOffset+16; // float4: x encoding (RenderDepthEncoding), y radial transition m, z 1/G(rMax), w far discard depth m
     private const uint FrameDepthEncoding1Offset=FrameDepthEncoding0Offset+16; // float4: xyz observer centre (render space)
     private const uint FrameLumenParamsOffset=FrameDepthEncoding1Offset+16; // float4: x Lumen diffuse (t16), y Lumen reflections (t17) (M0111)
     private const uint FrameConstantsSize=FrameLumenParamsOffset+16;
@@ -359,8 +359,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private Matrix4x4 CurrentViewProjection=Matrix4x4.Identity;
     private Vector3 AtmosphereSunDirection=Vector3.UnitY;
     private Vector3 CurrentCameraPosition;
-    private RenderDepthMapping CurrentDepthMapping;
-    private RadialDepthProjection CurrentRadialProjection;
+    private RenderViewDepth CurrentViewDepth=RenderViewDepth.ForOrthographic(Matrix4x4.Identity);
     /// <summary>The camera's rotation with the radial projection's finite auxiliary planes (radial mode only).</summary>
     private Matrix4x4 CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
     /// <summary>The radial main pass's view-projection: the camera's, with the conservative depth row (radial mode only).</summary>
@@ -2202,7 +2201,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteAmbientLight(Frame,DefaultAmbientColor);
             this.WriteFog(Frame,FogParams.None);
             this.WriteExposure(Frame,DefaultCamera.ExposureEv100);
-            this.WriteDepthMapping(Frame);
+            this.WriteViewDepth(Frame);
             this.WriteDirectionalCascades(Frame,DefaultLightDirectionTowardLight);
             this.WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
             this.WriteAreaShadowDefaults(Frame);
@@ -2229,10 +2228,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteViewProjection(this.FrameIndex,View*Camera.GetProjection(AspectRatio));
         this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
         this.WriteExposure(this.FrameIndex,Camera.ExposureEv100);
-        this.CurrentDepthMapping=RenderDepthMapping.Radial;
-        this.CurrentRadialProjection=RadialProjection;
+        this.CurrentViewDepth=RenderViewDepth.ForPerspective(RadialProjection);
         this.CurrentAuxiliaryViewProjection=View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio);
-        this.WriteDepthMapping(this.FrameIndex);
+        this.WriteViewDepth(this.FrameIndex);
         // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
         this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);
         this.CurrentCameraUp=new Vector3(View.M12,View.M22,View.M32);
@@ -2243,16 +2241,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// The view-projection given to the passes that invert it (sky direction, sun cascades, AO prepass). A
-    /// standard camera passes its own; a radial camera, whose far plane may make the matrix singular in float,
-    /// passes the auxiliary one (ADR-0076).
+    /// The invertible projection used for sky direction and sun cascades. A logarithmic perspective uses
+    /// an auxiliary clip range because its physical far plane may make the original matrix singular in float.
     /// </summary>
     private Matrix4x4 InvertibleViewProjection=>
-        this.CurrentDepthMapping==RenderDepthMapping.Radial?this.CurrentAuxiliaryViewProjection:this.CurrentViewProjection;
+        this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic?this.CurrentAuxiliaryViewProjection:this.CurrentViewProjection;
 
-    private void WriteDepthMapping(uint FrameIndex){
-        var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
-        var Depth=Radial?RenderViewDepth.ForPerspective(this.CurrentRadialProjection):default;
+    private void WriteViewDepth(uint FrameIndex){
+        var Depth=this.CurrentViewDepth;
         var DepthEncoding0=Depth.Packet0;
         var DepthEncoding1=Depth.Packet1;
         var Slot=this.FrameSlot(FrameIndex);
@@ -2274,7 +2270,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(!this.ObjectActive[ObjectIndex]){ continue; }
             var Centre=Vector3.Transform(this.MeshBoundsCentres[this.ObjectMeshIndices[ObjectIndex]],this.ObjectTransforms[ObjectIndex]);
             var ViewDepth=Centre.X*ViewProjection.M14+Centre.Y*ViewProjection.M24+Centre.Z*ViewProjection.M34+ViewProjection.M44;
-            var Depth=this.CurrentRadialProjection.ConservativeDepthAt(ViewDepth);
+            var Depth=this.CurrentViewDepth.Projection.ConservativeDepthAt(ViewDepth);
             Vector4 Packet=new(Depth.Limit,Depth.Slope,0f,0f);
             var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
             Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectConservativeRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
@@ -2292,15 +2288,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     internal void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
         this.ThrowIfDisposed();
-        if(!float.IsFinite(ViewProjection.M11)||!float.IsFinite(ViewProjection.M12)
-            ||!float.IsFinite(ViewProjection.M13)||!float.IsFinite(ViewProjection.M14)
-            ||!float.IsFinite(ViewProjection.M21)||!float.IsFinite(ViewProjection.M22)
-            ||!float.IsFinite(ViewProjection.M23)||!float.IsFinite(ViewProjection.M24)
-            ||!float.IsFinite(ViewProjection.M31)||!float.IsFinite(ViewProjection.M32)
-            ||!float.IsFinite(ViewProjection.M33)||!float.IsFinite(ViewProjection.M34)
-            ||!float.IsFinite(ViewProjection.M41)||!float.IsFinite(ViewProjection.M42)
-            ||!float.IsFinite(ViewProjection.M43)||!float.IsFinite(ViewProjection.M44)){
-            throw new ArgumentException("View-projection matrix must be finite.",nameof(ViewProjection));
+        var Depth=RenderViewDepth.ForOrthographic(ViewProjection);
+        this.ApplyViewProjection(ViewProjection,CameraPosition,Depth,ViewProjection);
+    }
+
+    private void ApplyViewProjection(in Matrix4x4 ViewProjection,in Vector3 CameraPosition,
+        in RenderViewDepth Depth,in Matrix4x4 Auxiliary){
+        if(!IsFiniteMatrix(ViewProjection)||!IsFiniteMatrix(Auxiliary)
+            ||!Matrix4x4.Invert(Auxiliary,out var Inverse)||!IsFiniteMatrix(Inverse)){
+            throw new ArgumentException("A view needs a finite matrix and an invertible auxiliary projection.",nameof(ViewProjection));
         }
         if(!IsFinite(CameraPosition)){
             throw new ArgumentException("Camera position must be finite.",nameof(CameraPosition));
@@ -2308,10 +2304,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteViewProjection(this.FrameIndex,ViewProjection);
         this.WriteCameraPosition(this.FrameIndex,CameraPosition);
         this.WriteExposure(this.FrameIndex,0f);
-        this.CurrentDepthMapping=RenderDepthMapping.Standard;
-        this.CurrentRadialProjection=default;
-        this.CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
-        this.WriteDepthMapping(this.FrameIndex);
+        this.CurrentViewDepth=Depth;
+        this.CurrentAuxiliaryViewProjection=Auxiliary;
+        this.WriteViewDepth(this.FrameIndex);
         this.HasCameraBasis=false;
     }
 
@@ -2328,11 +2323,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ||!RadialDepthProjection.TryCreate(Curve,Radial.NearZ,Radial.FarZ,Radial.FovYRadians,(float)this.Width/ this.Height,out var Projection)){
             throw new ArgumentException("A radial view-projection must be a perspective one with a finite positive transition length, 0 < NearZ < FarZ (finite) and a valid field of view.",nameof(Radial));
         }
-        this.SetViewProjection(ViewProjection,CameraPosition);
-        this.CurrentDepthMapping=RenderDepthMapping.Radial;
-        this.CurrentRadialProjection=Projection;
-        this.CurrentAuxiliaryViewProjection=Projection.CreateAuxiliaryViewProjection(ViewProjection);
-        this.WriteDepthMapping(this.FrameIndex);
+        var Depth=RenderViewDepth.ForPerspective(Projection);
+        this.ApplyViewProjection(ViewProjection,CameraPosition,Depth,Projection.CreateAuxiliaryViewProjection(ViewProjection));
     }
 
     /// <summary>
@@ -2591,9 +2583,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(!Matrix4x4.Invert(this.InvertibleViewProjection,out var Inverse)){
                 Inverse=Matrix4x4.Identity;
             }
-            // M0110: the sky sphere test needs the stored depth back as a distance; a radial camera's depth is log2(1 + r / T) / G.
-            var DepthMapping=this.CurrentDepthMapping==RenderDepthMapping.Radial
-                ?new Vector3(1f,this.CurrentRadialProjection.Curve.TransitionMeters,1f/this.CurrentRadialProjection.InverseMaximumG)
+            // Reserved atmosphere packet retained for ABI compatibility; sky composition reads SceneDistance.
+            var DepthMapping=this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic
+                ?new Vector3(1f,this.CurrentViewDepth.Projection.Curve.TransitionMeters,1f/this.CurrentViewDepth.Projection.InverseMaximumG)
                 :Vector3.Zero;
             this.CurrentAtmosphereFrame=new AtmosphereFrame(
                 Atmosphere,Settings.SkyLight??new SkyLightSettings(0f,Vector3.Zero),Settings.Fog,
@@ -3060,11 +3052,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 nameof(Preview),
                 $"Camera preview {PreviewIndex} excluded object is outside the roster.");
         }
-        if(!Enum.IsDefined(Preview.DepthMapping)
-            ||Preview.DepthMapping!=RenderDepthMapping.Standard&&Preview.Radial.Curve.TransitionMeters<=0f
-            ||Preview.DepthMapping==RenderDepthMapping.RadialObserver&&!IsFinite(Preview.RadialCenter)){
+        if(!Preview.Depth.IsValid
+            ||RadialDepthProjection.IsPerspective(Preview.ViewProjection)!=(Preview.Depth.Encoding!=RenderDepthEncoding.Linear)
+            ||Preview.Depth.Encoding==RenderDepthEncoding.Linear&&Preview.Depth!=RenderViewDepth.ForOrthographic(Preview.ViewProjection)
+            ||Preview.Depth.Encoding==RenderDepthEncoding.Logarithmic&&Preview.Depth.Packet1.W!=0f){
             throw new ArgumentException(
-                $"Camera preview {PreviewIndex} needs a radial projection (and a finite centre for an observer).",
+                $"Camera preview {PreviewIndex} needs validated depth matching its projection.",
                 nameof(Preview));
         }
     }
@@ -4110,7 +4103,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private bool IsMarkedObserver(in RenderCameraPreview Preview)=>
-        Preview.DepthMapping==RenderDepthMapping.RadialObserver&&Preview.MarkRadialCenter&&this.HasCameraBasis;
+        Preview.Depth.Encoding==RenderDepthEncoding.Observer&&Preview.MarkRadialCenter&&this.HasCameraBasis;
 
     /// <summary>
     /// Writes the centre-camera marker of every marked observer preview into its overlay slot: the main camera's view
@@ -4126,8 +4119,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
             if(!IsMarkedObserver(Preview)){ continue; }
-            float Length=0.05f*Preview.Radial.ObservedWorldRadius;
-            Vector3 Apex=Preview.RadialCenter-Preview.CameraPosition;
+            float Length=0.05f*Preview.Depth.Projection.ObservedWorldRadius;
+            Vector3 Apex=new Vector3(Preview.Depth.Packet1.X,Preview.Depth.Packet1.Y,Preview.Depth.Packet1.Z)-Preview.CameraPosition;
             Vector3 HalfUp=this.CurrentCameraUp*(Length*this.CurrentCameraTanHalfFovY);
             Vector3 HalfRight=this.CurrentCameraRight*(Length*this.CurrentCameraTanHalfFovY*this.CurrentCameraAspectRatio);
             Vector3 BaseCenter=Apex+this.CurrentCameraForward*Length;
@@ -4170,12 +4163,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // Screen-space occlusion and the Lumen outputs belong to the primary camera's pixels.
             ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
             *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
-            // Each preview carries its own depth mapping (M0099); a standard one never reads the packet.
-            var Depth=Preview.DepthMapping switch {
-                RenderDepthMapping.Radial=>RenderViewDepth.ForPerspective(Preview.Radial,ConservativeRasterDepth:false),
-                RenderDepthMapping.RadialObserver=>RenderViewDepth.ForObserver(Preview.Radial,Preview.RadialCenter),
-                _=>default,
-            };
+            var Depth=Preview.Depth;
             var DepthEncoding0=Depth.Packet0;
             var DepthEncoding1=Depth.Packet1;
             Unsafe.CopyBlock(Destination+FrameDepthEncoding0Offset,&DepthEncoding0,(uint)sizeof(Vector4));
@@ -4212,7 +4200,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector4 ClearColor=ClearColorVector;
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
-            ID3D12PipelineState*Pipeline=Preview.DepthMapping==RenderDepthMapping.RadialObserver
+            ID3D12PipelineState*Pipeline=Preview.Depth.Encoding==RenderDepthEncoding.Observer
                 ?Wireframe?this.ObserverWireframePipelineState:this.ObserverPipelineState
                 :Wireframe?this.CameraPreviewWireframePipelineState:this.CameraPreviewPipelineState;
             RECT Rect=new(){
@@ -4329,7 +4317,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return;
         }
 
-        var Radial=this.CurrentDepthMapping==RenderDepthMapping.Radial;
+        var Radial=this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic;
         ID3D12PipelineState*ActivePipelineState=this.PresentationMode==RenderPresentationMode.Wireframe
             ?this.WireframePipelineState
             :this.PresentationMode!=RenderPresentationMode.Lit||this.SelectedObjectCount>0?this.PresentationPipelineState:this.PipelineState;
@@ -4352,7 +4340,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.RenderShadowAtlasProjections();
         this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
         this.WriteFog(this.FrameIndex,this.CurrentFog);
-        this.WriteDepthMapping(this.FrameIndex);
+        this.WriteViewDepth(this.FrameIndex);
         if(Radial){
             this.WriteRadialRasterDepths(this.FrameIndex);
         }

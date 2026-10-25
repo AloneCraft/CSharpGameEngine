@@ -34,7 +34,7 @@ internal static class GoldenFrameScene {
         const float Aspect=16f/9f;
         var ViewProjection=View.GetView()*View.GetProjection(Aspect);
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,Aspect,out var Projection));
-        return new RenderCameraPreview(X,Y,64,36,ViewProjection,Eye,ExcludedObjectIndex,RenderDepthMapping.Radial,Projection);
+        return new RenderCameraPreview(X,Y,64,36,ViewProjection,Eye,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false),ExcludedObjectIndex);
     }
     /// <summary>Renders one native logarithmic case with its camera thumbnails.</summary>
     public static PixelReadbackResult Render(string Case){

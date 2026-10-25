@@ -180,8 +180,9 @@ public class RenderServerTests {
 
         var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
         Matrix4x4 ViewProjection=Camera.GetView()*Camera.GetProjection(1f);
+        Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,1f,out var Projection));
         RenderCameraPreview Included=new(
-            16,16,64,64,ViewProjection,Camera.GetEyePosition());
+            16,16,64,64,ViewProjection,Camera.GetEyePosition(),RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false));
         RenderCameraPreview Excluded=Included with { ExcludedObjectIndex=0 };
 
         static (string Full,string Region)Capture(

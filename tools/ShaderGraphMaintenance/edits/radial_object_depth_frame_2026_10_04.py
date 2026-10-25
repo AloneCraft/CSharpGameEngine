@@ -1,7 +1,7 @@
 """M0100 (ADR-0076): FrameCB no longer carries the frame-wide conservative raster view-projection.
 
 Each object's conservative radial raster depth is ObjectCB.RadialRasterDepth (radial_object_depth_2026_10_04.py) and
-RadialVSMain replaces only the depth of the standard clip position, so FrameCB ends with the depth-mapping packet again.
+The conservative-depth vertex entry replaces only the depth of the standard clip position, so FrameCB ends with the depth-mapping packet again.
 """
 
 
