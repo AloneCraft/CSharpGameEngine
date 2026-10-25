@@ -51,13 +51,12 @@ public sealed class RadialObserverTests {
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
-    public void Game_ShowsOneInsetForARadialCameraAndNoneOtherwise(){
-        Assert.Single(RunGame(Radial:true,Editor:false));
-        Assert.Empty(RunGame(Radial:false,Editor:false));
-        Assert.Empty(RunGame(Radial:true,Editor:true));
+    public void Game_ShowsOneInsetAndTheEditorKeepsItsOwnPreviews(){
+        Assert.Single(RunGame(Editor:false));
+        Assert.Empty(RunGame(Editor:true));
     }
     /// <summary>Loads a level with a box, a scene camera and a RadialObserver, runs two frames and returns the previews drawn.</summary>
-    private static RenderCameraPreviewDiagnostics[]RunGame(bool Radial,bool Editor){
+    private static RenderCameraPreviewDiagnostics[]RunGame(bool Editor){
         using var Surface=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Observer Test",Width=160,Height=90,Visible=false });
         using var Host=new EngineHost();
         Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true });
@@ -75,7 +74,7 @@ public sealed class RadialObserverTests {
         var Box=new PrimitiveMesh { Type=PrimitiveType.Box };
         var BoxEntity=World.Create(BoxTransform,Box);
         var CameraTransform=CameraPose;
-        var Camera=new Camera { DepthMapping=Radial?CameraDepthMapping.Radial:CameraDepthMapping.Standard,FarZ=1e9f };
+        var Camera=new Camera { FarZ=1e9f };
         var CameraEntity=World.Create(CameraTransform,Camera);
         var ObserverTransform=new Transform { Position=new LogicalVector3(0f,30f,-60f) };
         var Observer=new RadialObserver();

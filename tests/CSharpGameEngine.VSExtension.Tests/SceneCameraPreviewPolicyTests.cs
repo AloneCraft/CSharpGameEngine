@@ -17,18 +17,16 @@ public sealed class SceneCameraPreviewPolicyTests {
                 public float ScaleX; public float ScaleY; public float ScaleZ;
             }
             public enum CameraProjection { Perspective, Orthographic }
-            public enum CameraDepthMapping { Standard, Radial }
             public struct Camera {
                 public CameraProjection Projection; public float FovYRadians;
                 public float NearZ; public float FarZ; public float OrthographicSize;
-                public CameraDepthMapping DepthMapping; public float RadialTransitionMeters;
+                public float RadialTransitionMeters;
             }
         }
         """;
 
     [Fact]
-    public void Build_ReadsTheDepthMappingAndIsRadialByDefault() {
-        // M0100: the thumbnail follows the scene camera's DepthMapping, whose default is Radial.
+    public void Build_DerivesDepthFromProjectionAndReadsTheCurve() {
         SceneModel Model = SceneAnalysisTestHelper.Analyze([Components, """
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Runtime.Windows;
@@ -37,30 +35,27 @@ public sealed class SceneCameraPreviewPolicyTests {
                 public Node Root=>new() { Name="Root", Children=[
                     new Node { Name="Default", Components=[
                         new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { FovYRadians=1f, NearZ=0.2f, FarZ=50f } ]},
-                    new Node { Name="Standard", Components=[
-                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Standard } ]},
+                    new Node { Name="Orthographic", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { Projection=CameraProjection.Orthographic } ]},
                     new Node { Name="Wide", Components=[
-                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=4f } ]},
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { RadialTransitionMeters=4f } ]},
                     new Node { Name="Zero", Components=[
-                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=default } ]}] };
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { Projection=default } ]}] };
             }
             """]);
-
         IReadOnlyList<SceneCameraPreview> Cameras = SceneCameraPreviewBinding.Build(
             Model, [NodePath.Root.Append(0), NodePath.Root.Append(1), NodePath.Root.Append(2), NodePath.Root.Append(3)], 16f / 9f, 4);
-
         Assert.Equal(4, Cameras.Count);
         SceneCameraPreview Default = Cameras.Single(Camera => Camera.DisplayName == "Default");
         Assert.True(Default.RadialDepth);
         Assert.Equal(1f, Default.RadialTransitionMeters);
-        Assert.False(Cameras.Single(Camera => Camera.DisplayName == "Standard").RadialDepth);
+        Assert.False(Cameras.Single(Camera => Camera.DisplayName == "Orthographic").RadialDepth);
         SceneCameraPreview Wide = Cameras.Single(Camera => Camera.DisplayName == "Wide");
         Assert.True(Wide.RadialDepth);
         Assert.Equal(4f, Wide.RadialTransitionMeters);
         Assert.True(Wide.WithAspectRatio(1f).RadialDepth);
         Assert.Equal(4f, Wide.WithAspectRatio(1f).RadialTransitionMeters);
-        // `default` is the enum's zero, Standard (what the palette writes when it cannot read the initializers).
-        Assert.False(Cameras.Single(Camera => Camera.DisplayName == "Zero").RadialDepth);
+        Assert.True(Cameras.Single(Camera => Camera.DisplayName == "Zero").RadialDepth);
     }
 
     [Fact]
@@ -115,17 +110,17 @@ public sealed class SceneCameraPreviewPolicyTests {
                 public Node Root=>new() { Name="Root", Children=[
                     new Node { Name="ZeroTransition", Components=[
                         new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
-                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=100f, DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=0f } ]},
+                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=100f, RadialTransitionMeters=0f } ]},
                     new Node { Name="FloatLimit", Components=[
                         new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
-                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=3e38f, DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=1f } ]},
-                    new Node { Name="Standard", Components=[
+                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=3e38f, RadialTransitionMeters=1f } ]},
+                    new Node { Name="ValidPerspective", Components=[
                         new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
-                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=100f, DepthMapping=CameraDepthMapping.Standard, RadialTransitionMeters=0f } ]},
+                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=100f, RadialTransitionMeters=1f } ]},
                     new Node { Name="Orthographic", Components=[
                         new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
                         new Camera { Projection=CameraProjection.Orthographic, OrthographicSize=5f, NearZ=0.1f, FarZ=100f,
-                            DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=0f } ]}] };
+                            RadialTransitionMeters=0f } ]}] };
             }
             """]);
 
@@ -137,7 +132,7 @@ public sealed class SceneCameraPreviewPolicyTests {
         Assert.Contains("RadialTransitionMeters", Zero.ErrorMessage, StringComparison.Ordinal);
         Assert.False(Cameras.Single(Camera => Camera.DisplayName == "FloatLimit").IsAvailable);
         // Only a radial perspective camera uses the transition length.
-        Assert.True(Cameras.Single(Camera => Camera.DisplayName == "Standard").IsAvailable);
+        Assert.True(Cameras.Single(Camera => Camera.DisplayName == "ValidPerspective").IsAvailable);
         Assert.True(Cameras.Single(Camera => Camera.DisplayName == "Orthographic").IsAvailable);
     }
 

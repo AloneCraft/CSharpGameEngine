@@ -4237,3 +4237,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 修正前: new Camera の直接生成は Standard/T=0。型の期待値と 50 m・far 1e18 m の GPU 対数オラクルの 2 件が失敗した。
 - 修正後: パラメーター無しコンストラクターで対数方式と T=1 m を初期化する。カメラ操作・深度オラクル・7 画像・プレビューの回帰 33 件合格。ビルドは警告 0・エラー 0。最大メモリ使用率 66%。証拠は `.artifacts/M0119/camera-default-before.log`、`camera-default-after.log`、`camera-default-build.log` と memory.json。
 - 明示的な旧選択 API の削除は継続中。全体は Partial。
+
+
+## 2026-10-26 — M0119 シーンカメラの選択型削除
+- シーン CameraDepthMapping/Camera.DepthMapping を削除。LevelLoad は対数を提出し、エディターのサムネイルは投影方式から深度を導く。T の読込、無効値の保持、クリップ範囲、観察ビューを維持する。
+- ランタイム・読込・エディター・観察ビュー・ゴールデン 36 件、VSIX カメラポリシー/姿勢 13 件合格。Windows.Tests ビルドは警告 0・エラー 0。VSIX は DeployExtension=false でビルドし、インストール・Visual Studio 起動を行っていない。
+- スキーマから旧 DepthMapping が消え、RadialTransitionMeters が残る。証拠は `.artifacts/M0119/scene-native-schema.json`、`scene-native-tests.log`、`scene-native-vsix-final.log`、`scene-native-build.log` と memory.json。この区間の最大メモリ使用率は 63%。
+- 最初の VSIX 検証は SDK の明示的梱包対象の未復元によりテスト前に失敗。Cooking、Cook CLI、Navigation Cook を一覧から確認して復元後、実行件数 13 を確認した。コードの不具合修正としては扱わない。
+- 旧低レベル描画カメラ・プレビュー通信と Model/Triangle の削除は継続中。全体は Partial。

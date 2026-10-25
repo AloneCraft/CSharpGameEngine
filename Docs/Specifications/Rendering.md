@@ -216,3 +216,5 @@ Runtime adapter selection is externally controllable through `CGE_GRAPHICS_ADAPT
 `VSMain` は対数ビューで物体ごとの接線によるラスタ深度と `SV_ClipDistance0` を出し、`PSMain` は色・R32F の物理距離・`SV_DepthGreaterEqual` を持つ `StagePixelOutput` を返す。表示用エントリーも同じ入出力を使う。旧 `Radial*` のラッパー ABI は削除。主描画・表示・ワイヤー・プレビュー・表面前パスの PSO は深度方式ごとの二重保持をやめ、観察ビューだけが別の VS を使う。主画面の `SceneDistance` は最近面の物理距離を保持し、空の合成が読む。DDGI は対数深度で撮影し、独立した `CaptureDistance` から距離のモーメントを作る。距離の 0 は背景。プレビューは主画面の距離に書かない。AO は本描画前に同じ対数表面シェーダーで物理距離を作り、その距離を読む。AO の有効領域は既存の半解像度のサンプル位置を保ち、SceneDistance と主 DSV を再利用する。本描画は全領域を消去・再描画する。専用の双曲深度ターゲットとシャドウ用 VS による AO 前パスは削除。Standard の API の除去は残る。深度パケットの生成と検証は L4 の RenderViewDepth が持ち、主ビュー・DDGI・観察ビューで使用する。7 つの基準画像のうち環境だけが 6/20736 画素・最大 1 階調変わり、ADR-0084 §7 の基準内で更新した。
 
 描画カメラは直接の `new Camera { ... }` も対数深度と T=1 m を初期化する。投影・姿勢の指定方法は従来どおり。`default(Camera)` は有効な投影を持つカメラを構築する方法ではない。
+
+M0119 のシーンカメラは深度選択を持たず、LevelLoad が対数方式を提出する。エディターのサムネイルは投影から深度を導出する。低レベルの描画カメラとプレビュー通信の旧選択 API は移行中。

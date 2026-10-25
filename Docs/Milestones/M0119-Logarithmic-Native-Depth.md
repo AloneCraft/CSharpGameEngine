@@ -111,3 +111,9 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 ### 直接生成カメラの既定値(2026-10-26)
 - new Camera の直接生成が Standard/T=0 となる抜けを、型と GPU の 2 つの試験で再現した。GPU は 50 m・far 1e18 m の対数オラクルから約 1.21e8 ulp 外れた。コンストラクターで対数方式と T=1 m を初期化した後は中央 4 ulp 以内。
 - カメラ・深度・ゴールデン・プレビュー 33 件合格。ビルドは警告 0・エラー 0。最大メモリ使用率 66%。証拠は `.artifacts/M0119/camera-default-before.log`、`camera-default-after.log`、`camera-default-build.log` と memory.json。
+
+### 段階 4(b1): シーンカメラの選択型削除(2026-10-26)
+- シーンの CameraDepthMapping と Camera.DepthMapping を削除。LevelLoad は必ず対数を提出する。SceneCameraPreviewBinding の旧メンバー解釈を削除し、投影方式から透視=対数・正射影=線形を導く。T と近遠範囲の合成は保持する。
+- シーン・エディター・観察ビュー・ゴールデン 36 件、VSIX カメラポリシー/姿勢 13 件合格。生成スキーマから旧選択が消えたことを記録(`scene-native-schema.json`)。この区間の最大メモリ使用率 63%。VSIX は配置を無効にしてビルドのみ行った。
+- VSIX の最初の試行は、SDK が通常の ProjectReference と別に梱包する Cooking/Cook CLI/Navigation Cook の未復元で失敗した。一覧から復元してから再実行し、13 件の成功を確認。証拠は `.artifacts/M0119/scene-native-tests.log`、`scene-native-vsix-final.log`、`scene-native-build.log` と memory.json。
+- 低レベル描画カメラ、通信プロトコル 9、旧 Model/Triangle と Standard 比較試験の削除は後続。

@@ -525,5 +525,10 @@
 
 ## RE-M0119-DirectCameraDefault — 直接生成の対数既定値
 - Evidence: Graphics/Camera.cs のパラメーター無しコンストラクター、CameraTests.ObjectInitializer_DefaultsToLogarithmicDepthWithoutAFactory、LogarithmicDepthOracleTests.ObjectInitializer_WritesLogarithmicDepthWithoutAFactory。
-- Observed: ファクトリーだけでなく new Camera の直接生成でも対数方式と T=1 m が入る。修正前は Standard/T=0 となり、50 m・far 1e18 m の GPU 深度が対数オラクルから約 1.21e8 ulp 外れた。修正後は中央 4 ulp 以内。工場の既存画素は変えない。
+- Observed: ファクトリーだけでなく new Camera の直接生成でも対数方式と T=1 m が入る。修正前は Standard/T=0 となり、50 m・far 1e18 m の GPU 深度が対数オラクルから約 1.21e8 ulp 外れた。修正後は中央 4 ulp 以内。ファクトリーの既存画素は変えない。
 - Result: M0119 の既定値の要求と一致。旧選択 API の削除は継続中。
+
+## RE-M0119-NativeSceneCamera — シーンカメラの深度選択削除
+- Evidence: Runtime/Camera.cs、LevelLoad.ApplyProjection、SceneCameraPreviewBinding、SceneCameraPreviewPolicyTests、生成した UserEcsProject/.cge/scene.schema.json。
+- Observed: CameraDepthMapping とシーン Camera.DepthMapping は除去された。ゲーム・エディター実行ビューは対数、サムネイルは透視なら対数・正射影なら線形。曲線の値と編集/シーンのクリップ範囲の合成、無効値で最後の有効投影を保持する動作は維持する。スキーマは曲線を含み、旧深度選択を含まない。
+- Result: ランタイム・読込・観察ビュー・画像 36 件、VSIX ポリシー/姿勢 13 件合格。低レベル描画・通信 API の旧選択は未削除。

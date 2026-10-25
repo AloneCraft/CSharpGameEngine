@@ -168,12 +168,10 @@ internal struct LevelLoad:ISystem {
             return;
         }
         View.ExposureEv100=SceneCamera.ExposureEv100;
-        View.DepthMapping=SceneCamera.DepthMapping==CameraDepthMapping.Radial?RenderDepthMapping.Radial:RenderDepthMapping.Standard;
+        View.DepthMapping=RenderDepthMapping.Radial;
         View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
-        if(View.DepthMapping==RenderDepthMapping.Radial){
-            View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
-            View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
-        }
+        View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
+        View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
     }
 
     /// <summary>

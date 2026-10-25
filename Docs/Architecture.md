@@ -157,7 +157,7 @@ Roslynにロードされない。
 
 ## Radial (logarithmic) depth (ADR-0076, M0099)
 
-A camera chooses its depth mapping (`Camera.DepthMapping`). Radial is the engine's default (the scene Camera component and the render camera factories choose it); Standard stays an explicit choice and the comparison oracle. Radial depth is a property of the view, not an adapter: the Stage program keeps one vertex path, the radial pixel entries wrap the unchanged lighting entries and add `SV_Depth = log2(1 + r/T) / log2(1 + rMax/T)`, and `StageRenderer` chooses a radial pipeline family per view. Positions stay Q64.64 until the single camera-relative float conversion, so no mantissa/exponent packets or vertex warping are needed; only the optional observer inset (`RadialObserver`) compresses positions around the camera. The contract and non-goals are in [Omni](Specifications/Omni.md).
+Scene cameras use logarithmic depth without a depth-mode selector. Stage owns one native vertex/pixel interface and writes colour, physical ray distance and conservative SV_DepthGreaterEqual; its fourteen-entry ABI has no radial wrapper entries and the renderer has no depth-mode-specific PSO family. L4 RenderViewDepth validates the projection and constructs GPU depth packets. Orthographic previews use linear depth, while the optional observer inset (RadialObserver) compresses positions around the camera. Positions stay Q64.64 until the single camera-relative float conversion. M0119 is still migrating the legacy direct-render/preview selection APIs and Model/Triangle renderers; their temporary compatibility modes are not scene authoring choices. The contract and non-goals are in [Omni](Specifications/Omni.md).
 
 ## Spatial partitioning
 

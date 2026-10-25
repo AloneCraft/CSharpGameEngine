@@ -230,7 +230,7 @@ public sealed class EditorRuntimeViewTests {
         Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
     }
 
-    private static Camera RadialCamera=>new() { DepthMapping=CameraDepthMapping.Radial,RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
+    private static Camera RadialCamera=>new() { RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
     private static Camera BrightRadialCamera=>RadialCamera with { ExposureEv100=-1.5f };
 
     private static GraphicsDeviceOptions Warp=>new() { UseWarp=true,EnableDebugLayer=true };
