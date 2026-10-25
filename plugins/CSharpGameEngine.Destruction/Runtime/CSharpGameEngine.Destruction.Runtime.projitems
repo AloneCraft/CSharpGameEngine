@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <HasSharedItems>true</HasSharedItems>
+    <Import_RootNamespace>CSharpGameEngine.Destruction</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Destruction.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DestructionComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DestructionDefaults.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DestructionSystems.cs" />
+    <Using Include="CSharpGameEngine.Destruction" />
+  </ItemGroup>
+</Project>

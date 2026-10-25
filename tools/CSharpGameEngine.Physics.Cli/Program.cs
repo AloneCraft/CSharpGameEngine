@@ -18,6 +18,8 @@ return args.Length==0?Usage():args[0].ToLowerInvariant() switch {
     "prefracture"=>Prefracture(args),
     "inspect-prefracture"=>Print(PhysicsBridgeWorker.InspectPrefracture(args,CancellationToken.None)),
     "bake"=>BakeWithConsoleCancellation(args),
+    "replay"=>Print(PhysicsBridgeWorker.Replay(args,CancellationToken.None)),
+    "preview-prefracture"=>Print(PhysicsBridgeWorker.PreviewPrefracture(args,CancellationToken.None)),
     _=>Usage(),
 };
 
@@ -102,8 +104,8 @@ static int Prefracture(string[] Args){
         +$";density={Density.ToStringInvariant()};bond={BondStrength.ToStringInvariant()}";
     PhysicsCookingInput Input=new(
         Bytes,AssetGuid,"provider-neutral-ruf-v1",CanonicalSettings,"1,1,1",
-        Seed.ToString(CultureInfo.InvariantCulture),"cge-physics-cooker-4",
-        "prefracture-artifact-1","LogicalScalar-Q64.64");
+        Seed.ToString(CultureInfo.InvariantCulture),"cge-physics-cooker-5",
+        "prefracture-artifact-2","LogicalScalar-Q64.64");
     PhysicsCookResult Result=PrefractureArtifactCooker.Cook(RepositoryRoot,Input,Asset!);
     if(!Result.Success){
         Console.Error.WriteLine(Result.Error);
@@ -192,6 +194,8 @@ static int Usage(){
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli prefracture <sourceAsset> <repositoryRoot> <assetGuid> <fragmentCount> [seed] [density] [bondStrengthPerArea]");
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli inspect-prefracture <artifact.cgefracture> <output.json>");
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli bake --assembly <game.dll> <fullyQualifiedSceneType> <output.cgephyscache> <tickCount> <dependencyHash>");
+    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli replay --assembly <game.dll> <fullyQualifiedSceneType> <input.cgephyscache> <output.cgephyscache> <tickCount> <dependencyHash>");
+    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli preview-prefracture <halfR> <halfU> <halfF> <fragmentCount> <seed> <clusterCount> <output.json>");
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli --serve <pipeName>");
     return 1;
 }

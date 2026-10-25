@@ -4224,3 +4224,16 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `VehicleLevelTests`(21)、`TemplateLightingSceneTests`(4)、`TemplateCharacterSceneTests`(+1)、`CharacterMotorTests`(+1)、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(4 テンプレート、SDK 0.1.24)。
 - 既知の差: 陰の明るさ(陰の面 1.1〜1.3 倍、日向の背の壁 0.8 倍。エンジンの AO が効かない、UE の Lumen の溜め方が候補)、Vehicle の路面の暗さ(UE の約 1/3)、縁石の衝突が無い、雲の形、実機の GPU は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension(Vehicle のレベルの構図と材質)。見た目の陰の明るさと路面の暗さは Differs。
+
+## 2026-10-25 探索 — Chaos 相当の破壊(ADR-0078、M0113)
+- 意図: UE の Geometry Collection・Fracture・Field に当たる破壊を、エンジン機能(`Runtime.Physics` のソルバーと Destruction プラグイン)と専用の見本で作る。テンプレートのレベルは変えない。調理と実行時とベイクの再生は決定的。
+- 観測(Fact):
+  - 引き継いだ途中の実装(約 43 ファイル)はビルドでき、関連の試験(Destruction 47、物理と破壊 122、VSIX の Prefracture 13、FeatureRunner 12)と `verify-destruction`(WARP)が合格した。
+  - 眠った物体は支えが消えても起きなかった(支えを `Remove` しても接触が消えるだけ。眠った物体は積分されない)。消えた接触の相手を次の `Step` の最初に起こすように直した(`FragmentContactTests.ASleepingFragmentWakesAndFallsWhenWhatHoldsItIsRemoved`。修正前は失敗)。
+  - 見本(WARP、170 フレーム): 6 個がすべて割れ(歩く前 2・球の前 5・爆発の後 6)、切れた結合 203、動く塊 64、最低の重心 0.059 m、最後の最大速度 0.014 m/s、D3D12 のエラー 0。焼き 2 回と再生の書き出しが同じ 636,670 バイト。爆発の直後の画像で破片が飛び散り、終わりの画像で床に積もって静止している。
+  - 物理の変更の後も、ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m・ナビあり (6.80, 6.83)・長押し 17.414 m、Vehicle 62.613 m・27.8° は変わらない(`verify-thirdperson-character` と `verify-template-package`、SDK 0.1.25)。
+  - SDK パッケージから Destruction を有効にしたゲームを作ると、ビルドが `.cgefracture` を焼き、WARP で 6 個が読み込まれる。
+- 実装: M0113(`Docs/Milestones/M0113-Chaos-Destruction.md`)。決定: ひずみは力積で tick ごとに捨てる、等号で切れる、1 段のクラスター、塊は凸多面体か複合形状、キャッシュのスキーマ 3、破壊の段 `destruction.prefracture`(F-L5-049)。
+- 自動化された証拠: `tests/CSharpGameEngine.Destruction.Tests`、`Physics/DestructionTests`・`FractureSolverTests`・`FragmentContactTests`・`PhysicsCacheBondBreakTests`、`PrefractureDebugServiceTests`、`DestructionSampleVerificationTests`、`verify-destruction`。
+- 既知の差: UE の内部ひずみの蓄積・多段の階層・凹んだメッシュの分割・Field System の組み合わせが無い。破片は 2 色の平らな陰影。VS の実機でのプレビューの操作と実機の GPU は未確認。箱と三角形メッシュの接触の複数の面の向きは別の課題(破片には関係しない)。
+- 結果: MatchesWithDocumentedExtension。

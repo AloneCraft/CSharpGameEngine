@@ -8,6 +8,8 @@ public enum ColliderShape:byte {
     Capsule,
     ConvexAsset,
     StaticTriangleMesh,
+    /// <summary>A <see cref="PhysicsShapeAssetKind.Compound"/> asset: several convex children moving as one body (ADR-0078/M0113, a piece of a broken destructible).</summary>
+    Compound,
 }
 
 public enum PhysicsMotionType:byte {
@@ -81,13 +83,6 @@ public struct PhysicsVelocity {
     public LogicalVector3 Linear;
     public LogicalVector3 Angular;
     public static PhysicsVelocity Zero=>default;
-}
-
-[SceneComponentOrder(SceneComponentCategory.Spatial,22)]
-public struct Destructible {
-    public string FractureAsset;
-    public LogicalScalar FractureThreshold;
-    public int FragmentBudget;
 }
 
 public enum PhysicsCachePlaybackState:byte {

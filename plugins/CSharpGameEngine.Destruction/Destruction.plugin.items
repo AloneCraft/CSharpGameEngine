@@ -1,0 +1,71 @@
+<Project>
+  <!--
+    What the enabled Destruction plugin adds to the game (ADR-0079/M0113). Paths are written with MSBuildThisFileDirectory: items are evaluated
+    after every property, so they must not use the CgePlugin* properties that each plugin overwrites.
+
+    The build cooks the fractures: every scene of the game that holds a CSharpGameEngine.Destruction.Destructible is cooked with the plugin's
+    Cook module (CSharpGameEngine.Destruction.Cook) through CSharpGameEngine.Cook.Cli, in a process of its own, into
+    obj\...\cge-destruction\Assets\Destruction\<FractureAsset>.cgefracture, which is copied next to the game as Assets\Destruction\<FractureAsset>.cgefracture.
+    The cook runs again when a scene, an asset or a tool is newer than the last run, and a failure is a build error (the Cook module prints
+    "scene.json: error DSTnnn: message"). CgeCookDestruction is also the target the Visual Studio extension can run to cook without a full build.
+    A target's Condition is evaluated before its DependsOnTargets run, so the conditions on the scenes found by a target sit on the tasks.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Runtime\CSharpGameEngine.Destruction.Runtime.projitems" Label="Shared" />
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Destruction.cgeplugin" />
+  </ItemGroup>
+  <PropertyGroup>
+    <CgeDestructionCookProject>$(MSBuildThisFileDirectory)Cook\CSharpGameEngine.Destruction.Cook.csproj</CgeDestructionCookProject>
+    <!-- PackageMode: the SDK package carries the built Cook module next to its sources; SourceMode builds it (_CgeBuildDestructionTools). -->
+    <CgeDestructionCookModule Condition="'$(CgeEngineMode)' == 'Package'">$(MSBuildThisFileDirectory)Cook\lib\CSharpGameEngine.Destruction.Cook.dll</CgeDestructionCookModule>
+  </PropertyGroup>
+
+  <Target Name="_CgeFindDestructionScenes" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <CgeDestructionCookDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\$(IntermediateOutputPath)cge-destruction'))</CgeDestructionCookDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CgeDestructionSceneFile Include="Scenes\**\*.json" />
+      <CgeDestructionScene Include="@(_CgeDestructionSceneFile)" Condition="$([System.IO.File]::ReadAllText('%(FullPath)').Contains('CSharpGameEngine.Destruction.Destructible'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_CgeBuildDestructionTools" DependsOnTargets="_CgeFindDestructionScenes" Condition="'$(DesignTimeBuild)' != 'true' and '$(CgeEngineMode)' != 'Package'">
+    <!-- A game built on its own does not restore these tools; restore in a separate evaluation first (as the shader and scene schema tools do). -->
+    <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeEngineRoot)tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" Targets="Restore"
+             Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false" />
+    <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeEngineRoot)tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookCliAssembly" />
+    </MSBuild>
+    <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeDestructionCookProject)" Targets="Restore"
+             Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false" />
+    <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeDestructionCookProject)" Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookModuleAssembly" />
+    </MSBuild>
+    <PropertyGroup Condition="'@(CgeDestructionScene)' != ''">
+      <CgeCookCli>@(_CgeDestructionCookCliAssembly->'%(FullPath)')</CgeCookCli>
+      <CgeDestructionCookModule>@(_CgeDestructionCookModuleAssembly->'%(FullPath)')</CgeDestructionCookModule>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="_CgeRunDestructionCook" DependsOnTargets="_CgeFindDestructionScenes;_CgeBuildDestructionTools" Condition="'$(DesignTimeBuild)' != 'true'"
+          Inputs="@(AdditionalFiles);$(CgeCookCli);$(CgeDestructionCookModule)" Outputs="$(CgeDestructionCookDirectory).stamp">
+    <RemoveDir Condition="'@(CgeDestructionScene)' != ''" Directories="$(CgeDestructionCookDirectory)" />
+    <MakeDir Condition="'@(CgeDestructionScene)' != ''" Directories="$(CgeDestructionCookDirectory)" />
+    <Exec Condition="'@(CgeDestructionScene)' != ''" Command="dotnet &quot;$(CgeCookCli)&quot; cook &quot;$(CgeDestructionCookModule)&quot; &quot;%(CgeDestructionScene.FullPath)&quot; &quot;$(CgeDestructionCookDirectory)&quot; --project &quot;$(MSBuildProjectDirectory)&quot;" />
+    <Touch Files="$(CgeDestructionCookDirectory).stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="CgeCookDestruction" BeforeTargets="AssignTargetPaths" DependsOnTargets="_CgeRunDestructionCook" Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <CgeDestructionOutput Include="$(CgeDestructionCookDirectory)\Assets\Destruction\*.cgefracture" />
+      <None Include="@(CgeDestructionOutput)" Link="Assets\Destruction\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

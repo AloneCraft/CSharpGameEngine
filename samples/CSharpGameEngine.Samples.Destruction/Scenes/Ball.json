@@ -1,0 +1,92 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "Ball",
+  "root": {
+    "id": "fdbe1015-1d42-5d96-a464-742a669ac776",
+    "name": "Ball",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 0,
+            "F": 0
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Sphere",
+          "Radius": 0.25
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {
+          "Mass": 60,
+          "Ccd": "ContinuousStatic"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {
+          "Linear": {
+            "R": 0,
+            "U": 0,
+            "F": 0
+          }
+        }
+      },
+      {
+        "type": "CgeDestructionSample.Projectile",
+        "members": {
+          "Speed": 30
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Lifetime",
+        "members": {
+          "Seconds": 8
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "0add472d-f9aa-527a-8d7e-9c97325cc5bc",
+        "name": "BallMesh",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.5,
+                "U": 0.5,
+                "F": 0.5
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

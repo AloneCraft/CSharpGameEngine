@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    The Destruction engine plugin (ADR-0079/M0113). A game enables it with <CgePlugins>Destruction</CgePlugins>.
+    Every plugin writes these three properties itself: MSBuild imports one file only once per project, so a shared file would decide
+    for the first plugin only. Imports and properties are evaluated in order, so the import below sees this plugin's decision.
+  -->
+  <PropertyGroup>
+    <CgePluginEnabled>false</CgePluginEnabled>
+    <CgePluginEnabled Condition="'$(_CgePluginLocation)' != 'Engine' or $([System.String]::Copy(';$(CgePlugins);').Contains(';Destruction;'))">true</CgePluginEnabled>
+    <CgePluginRoots Condition="'$(CgePluginEnabled)' == 'true'">$(CgePluginRoots)|Destruction=$(MSBuildThisFileDirectory)</CgePluginRoots>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)Destruction.plugin.items" Condition="'$(CgePluginEnabled)' == 'true'" />
+</Project>

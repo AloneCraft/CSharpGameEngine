@@ -166,8 +166,19 @@ public static class PhysicsShapeCooker {
 }
 
 public readonly record struct FractureFragment(int Index,string ShapeId,LogicalVector3 LocalCenter,LogicalScalar Mass);
-public readonly record struct FractureBond(int FirstFragment,int SecondFragment,LogicalScalar Strength);
+/// <summary>
+/// A bond between two touching fragments (ADR-0078/M0113). <see cref="Strength"/> is the strain (an impulse, N·s) that breaks it, the shared face's
+/// <see cref="Area"/> (m²) times the cook's strength per area. Bonds are undirected: one entry per pair, <see cref="FirstFragment"/> &lt; <see cref="SecondFragment"/>.
+/// A version-1 artifact has no area (zero).
+/// </summary>
+public readonly record struct FractureBond(int FirstFragment,int SecondFragment,LogicalScalar Strength,LogicalScalar Area=default);
 
+/// <summary>
+/// A cooked prefracture (L6, ADR-0078/M0113, UE's Geometry Collection): the fragments of one closed convex source, each a closed mesh (with a material slot per
+/// triangle: <see cref="FractureMesh.OuterSlot"/> for the source's surface, <see cref="FractureMesh.InteriorSlot"/> for a Voronoi cut), its convex collision
+/// shape, centre, mass and Voronoi site; the bond graph; and one level of clusters (<see cref="Clusters"/>: the cluster of each fragment), the hierarchy the
+/// runtime breaks from the top down. Coordinates are the source's own (the destructible node's local frame).
+/// </summary>
 public sealed class PrefractureAsset {
     public required string SourceHash { get;init; }
     public required int Seed { get;init; }
@@ -175,6 +186,18 @@ public sealed class PrefractureAsset {
     public required IReadOnlyList<FractureBond> Bonds { get;init; }
     public IReadOnlyList<FractureMesh> Meshes { get;init; }=[];
     public IReadOnlyList<PhysicsShapeAsset> CollisionShapes { get;init; }=[];
+    /// <summary>The Voronoi site of each fragment (the seed point whose cell it is). A point belongs to the fragment of the nearest site. Empty in version 1.</summary>
+    public IReadOnlyList<LogicalVector3> Sites { get;init; }=[];
+    /// <summary>The cluster of each fragment, numbered 0.. in the order of each cluster's lowest fragment. Empty in version 1 (each fragment its own cluster).</summary>
+    public IReadOnlyList<int> Clusters { get;init; }=[];
+    /// <summary>kg/m³ the masses were made with (0 in version 1).</summary>
+    public LogicalScalar Density { get;init; }
+    /// <summary>N·s/m² the bond strengths were made with (0 in version 1).</summary>
+    public LogicalScalar BondStrengthPerArea { get;init; }
+    /// <summary>How many clusters <see cref="Clusters"/> names (the fragment count when there are none).</summary>
+    public int ClusterCount=>this.Clusters.Count==0?this.Fragments.Count:this.Clusters.Max()+1;
+    /// <summary>The cluster of <paramref name="Fragment"/> (itself when the asset has no clusters).</summary>
+    public int ClusterOf(int Fragment)=>this.Clusters.Count==0?Fragment:this.Clusters[Fragment];
 
     public bool IsDeterministicallyOrdered(){
         for(int Index=1;Index<this.Fragments.Count;Index++){
@@ -196,7 +219,17 @@ public sealed class PrefractureAsset {
         }
         foreach(FractureBond Bond in this.Bonds){
             if(Bond.FirstFragment<0||Bond.SecondFragment<=Bond.FirstFragment
-                ||Bond.SecondFragment>=this.Fragments.Count||Bond.Strength<=LogicalScalar.Zero){ return false; }
+                ||Bond.SecondFragment>=this.Fragments.Count||Bond.Strength<=LogicalScalar.Zero||Bond.Area<LogicalScalar.Zero){ return false; }
+        }
+        if(this.Sites.Count!=0&&this.Sites.Count!=this.Fragments.Count){ return false; }
+        if(this.Clusters.Count!=0){
+            if(this.Clusters.Count!=this.Fragments.Count){ return false; }
+            // Canonical numbering: a cluster's number is the count of clusters whose lowest fragment comes before its own.
+            var Next=0;
+            foreach(var Cluster in this.Clusters){
+                if(Cluster<0||Cluster>Next){ return false; }
+                if(Cluster==Next){ Next++; }
+            }
         }
         return true;
     }
@@ -225,6 +258,24 @@ public sealed class PrefractureAsset {
         for(int Index=1;Index<Parents.Length;Index++){
             if(Find(Parents,Index)!=Root){ return false; }
         }
+        if(this.Clusters.Count!=0){
+            // Each cluster is one connected piece of the bond graph (the runtime releases a cluster as one body).
+            var ClusterParents=new int[this.Fragments.Count];
+            for(var Index=0;Index<ClusterParents.Length;Index++){ ClusterParents[Index]=Index; }
+            foreach(var Bond in this.Bonds){
+                if(this.Clusters[Bond.FirstFragment]==this.Clusters[Bond.SecondFragment]){ Union(ClusterParents,Bond.FirstFragment,Bond.SecondFragment); }
+            }
+            var ClusterRoots=new Dictionary<int,int>();
+            for(var Index=0;Index<ClusterParents.Length;Index++){
+                var ClusterRoot=Find(ClusterParents,Index);
+                if(ClusterRoots.TryGetValue(this.Clusters[Index],out var Existing)){
+                    if(Existing!=ClusterRoot){ return false; }
+                }
+                else {
+                    ClusterRoots.Add(this.Clusters[Index],ClusterRoot);
+                }
+            }
+        }
         return true;
     }
 
@@ -243,40 +294,3 @@ public sealed class PrefractureAsset {
     }
 }
 
-public readonly record struct FractureBreak(ulong ParentStableId,int BondIndex,int FirstFragment,int SecondFragment);
-
-public sealed class PrefractureRuntime {
-    private readonly Dictionary<(ulong ParentStableId,int BondIndex),LogicalScalar> Accumulated=[];
-    private readonly HashSet<(ulong ParentStableId,int BondIndex)>Broken=[];
-
-    public void Accumulate(ulong ParentStableId,int BondIndex,LogicalScalar Impulse){
-        (ulong ParentStableId,int BondIndex) Key=(ParentStableId,BondIndex);
-        if(this.Broken.Contains(Key)){ return; }
-        this.Accumulated.TryGetValue(Key,out LogicalScalar Current);
-        this.Accumulated[Key]=Current+Impulse;
-    }
-
-    public int Resolve(ulong ParentStableId,PrefractureAsset Asset,List<FractureBreak> Results){
-        ArgumentNullException.ThrowIfNull(Asset);
-        ArgumentNullException.ThrowIfNull(Results);
-        int Start=Results.Count;
-        for(int Index=0;Index<Asset.Bonds.Count;Index++){
-            FractureBond Bond=Asset.Bonds[Index];
-            (ulong ParentStableId,int BondIndex)Key=(ParentStableId,Index);
-            if(this.Accumulated.TryGetValue(Key,out LogicalScalar Total)&&Total>=Bond.Strength&&this.Broken.Add(Key)){
-                Results.Add(new FractureBreak(ParentStableId,Index,Bond.FirstFragment,Bond.SecondFragment));
-                this.Accumulated.Remove(Key);
-            }
-        }
-        return Results.Count-Start;
-    }
-
-    public void Remove(ulong ParentStableId){
-        List<(ulong ParentStableId,int BondIndex)>Keys=[];
-        foreach((ulong ParentStableId,int BondIndex) Key in this.Accumulated.Keys){
-            if(Key.ParentStableId==ParentStableId){ Keys.Add(Key); }
-        }
-        foreach((ulong ParentStableId,int BondIndex) Key in Keys){ this.Accumulated.Remove(Key); }
-        this.Broken.RemoveWhere(Key=>Key.ParentStableId==ParentStableId);
-    }
-}

@@ -1,0 +1,81 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "WallShot",
+  "startupOrder": 4,
+  "root": {
+    "id": "e6b2bbed-7838-57f8-9629-cf8c6e80120b",
+    "name": "WallShot",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": -3,
+            "U": 1.6,
+            "F": 4.1
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Sphere",
+          "Radius": 0.25
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {
+          "Mass": 60,
+          "Ccd": "ContinuousStatic"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {
+          "Linear": {
+            "R": -25,
+            "U": 0,
+            "F": 0
+          }
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "064eed4d-8de6-521c-8b9a-c3ce8d3e91eb",
+        "name": "WallShotMesh",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.5,
+                "U": 0.5,
+                "F": 0.5
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

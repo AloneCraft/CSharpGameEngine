@@ -1,0 +1,52 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "DestructionBallScene",
+  "root": {
+    "id": "e16421ab-b3b0-4c1c-baf2-b6d050d47eb0",
+    "name": "Ball",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 3,
+            "U": 1.6,
+            "F": 0.1
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Sphere",
+          "Radius": 0.25
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {
+          "Mass": 60,
+          "GravityFactor": 0,
+          "Ccd": "ContinuousStatic"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {
+          "Linear": {
+            "R": -25,
+            "U": 0,
+            "F": 0
+          }
+        }
+      }
+    ],
+    "children": []
+  }
+}

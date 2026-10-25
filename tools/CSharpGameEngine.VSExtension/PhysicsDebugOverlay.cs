@@ -30,10 +30,13 @@ internal static class PhysicsDebugOverlay {
         }
         if(Options.Bonds&&FractureBonds is not null){
             Vector4 BondColor=new(1f,0.35f,0.9f,0.85f);
+            // ADR-0078/M0113: the fragments' outlines of the Fracture preview, in a pale orange under the bonds.
+            Vector4 OutlineColor=new(1f,0.75f,0.35f,0.7f);
             foreach(ScenePhysicsFractureBond Bond in FractureBonds){
                 if(VertexCount+2>MaximumVertices){ break; }
+                Vector4 Color=Bond.Outline?OutlineColor:BondColor;
                 Result.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,[
-                    new GizmoOverlayVertex(Bond.First,BondColor),new GizmoOverlayVertex(Bond.Second,BondColor)]));
+                    new GizmoOverlayVertex(Bond.First,Color),new GizmoOverlayVertex(Bond.Second,Color)]));
                 VertexCount+=2;
             }
         }

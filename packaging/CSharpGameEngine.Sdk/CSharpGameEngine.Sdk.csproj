@@ -83,8 +83,13 @@
     <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Navigation\Cook\CSharpGameEngine.Navigation.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookModule" />
     </MSBuild>
+    <!-- ADR-0078/M0113: the Destruction plugin's Cook module (the fracture cooker), the same way. -->
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Destruction\Cook\CSharpGameEngine.Destruction.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookModule" />
+    </MSBuild>
     <PropertyGroup>
       <_CgeNavigationCookDirectory>@(_CgeNavigationCookModule->'%(RootDir)%(Directory)')</_CgeNavigationCookDirectory>
+      <_CgeDestructionCookDirectory>@(_CgeDestructionCookModule->'%(RootDir)%(Directory)')</_CgeDestructionCookDirectory>
       <_CgeShaderCliDirectory>@(_CgeShaderCli->'%(RootDir)%(Directory)')</_CgeShaderCliDirectory>
       <_CgeSceneSchemaCliDirectory>@(_CgeSceneSchemaCli->'%(RootDir)%(Directory)')</_CgeSceneSchemaCliDirectory>
       <_CgeCookCliDirectory>@(_CgeCookCli->'%(RootDir)%(Directory)')</_CgeCookCliDirectory>
@@ -97,6 +102,7 @@
       <None Include="$(_CgeSceneSchemaCliDirectory)*" Exclude="$(_CgeSceneSchemaCliDirectory)*.pdb" Pack="true" PackagePath="tools\SceneSchema\" />
       <!-- The Cook module with its dependencies (the host shares CSharpGameEngine.Cooking with it, so that one is left out). -->
       <None Include="$(_CgeNavigationCookDirectory)*" Exclude="$(_CgeNavigationCookDirectory)*.pdb;$(_CgeNavigationCookDirectory)CSharpGameEngine.Cooking.dll" Pack="true" PackagePath="plugins\CSharpGameEngine.Navigation\Cook\lib\" />
+      <None Include="$(_CgeDestructionCookDirectory)*" Exclude="$(_CgeDestructionCookDirectory)*.pdb;$(_CgeDestructionCookDirectory)CSharpGameEngine.Cooking.dll" Pack="true" PackagePath="plugins\CSharpGameEngine.Destruction\Cook\lib\" />
       <!-- ADR-0079: runs a plugin's Cook module in its own process (top level only, for the same reason as above). -->
       <None Include="$(_CgeCookCliDirectory)*" Exclude="$(_CgeCookCliDirectory)*.pdb" Pack="true" PackagePath="tools\Cook\" />
     </ItemGroup>

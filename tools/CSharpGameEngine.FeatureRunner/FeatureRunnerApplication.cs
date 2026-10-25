@@ -32,6 +32,7 @@ public sealed class FeatureRunnerApplication {
                 "verify-rendering-release"=>await this.RunVerifyRenderingReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-thirdperson-character"=>await this.RunVerifyThirdPersonCharacterAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-template-package"=>await this.RunVerifyTemplatePackageAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-destruction"=>await this.RunVerifyDestructionAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-plugin-package"=>await this.RunVerifyPluginPackageAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-content-performance"=>await this.RunVerifyContentPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-ecs-performance"=>await this.RunVerifyEcsPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
@@ -252,6 +253,10 @@ public sealed class FeatureRunnerApplication {
         }
         return ThirdPersonCharacterVerification.RunAsync(
             RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken,Template);
+    }
+    private Task<int>RunVerifyDestructionAsync(string[]Args,CancellationToken CancellationToken){
+        var (RepositoryRoot,Configuration,Adapter)=ParseTemplateRunArguments(Args);
+        return DestructionSampleVerification.RunAsync(RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken);
     }
     private Task<int>RunVerifyContentReleaseAsync(string[]Args,CancellationToken CancellationToken){
         string RepositoryRoot=FeatureStageRepositoryLocator.Find();
@@ -759,6 +764,7 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("  verify-thirdperson-character [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware] [--template ThirdPerson|FirstPerson|TopDown|Vehicle]");
         this.Output.WriteLine("  verify-template-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware] [--template ThirdPerson|FirstPerson|TopDown|Vehicle]");
         this.Output.WriteLine("  verify-plugin-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
+        this.Output.WriteLine("  verify-destruction [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-content-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-release [--repository-root <path>] [--configuration Debug|Release]");

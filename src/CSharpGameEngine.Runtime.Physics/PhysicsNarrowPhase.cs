@@ -108,6 +108,9 @@ internal sealed class PhysicsNarrowPhase {
         in PhysicsCollisionShape First,in PhysicsCollisionShape Second,
         out PhysicsContactCandidate Contact){
         Contact=default;
+        if(First.Collider.Shape==ColliderShape.Compound||Second.Collider.Shape==ColliderShape.Compound){
+            return this.TryCompoundContact(First,Second,out Contact);
+        }
         if(First.Collider.Shape==ColliderShape.StaticTriangleMesh){
             return this.TryMeshContact(Second,First,true,out Contact);
         }
@@ -116,11 +119,389 @@ internal sealed class PhysicsNarrowPhase {
         }
         if(!IsConvex(First.Collider.Shape)||!IsConvex(Second.Collider.Shape)){ return false; }
         if(TryPrimitiveContact(First,Second,out Contact)){ return true; }
-        return TryConvexContact(new ShapeProxy(First),new ShapeProxy(Second),0,out Contact);
+        // ADR-0078/M0113: two polytopes, one of them a polyhedron (a fragment): the face planes decide it in most cases (see TryPolytopeContact).
+        if((IsPolyhedron(First)||IsPolyhedron(Second))&&HasPolytope(First)&&HasPolytope(Second)
+            &&TryPolytopeContact(First,Second,out var Touching,out Contact)){ return Touching; }
+        if(!TryConvexContact(new ShapeProxy(First),new ShapeProxy(Second),0,out Contact)){ return false; }
+        // ADR-0078/M0113: a convex polyhedron (a fragment) touching a face gets a patch of every corner inside the other shape, not GJK's one point.
+        if((IsPolyhedron(First)||IsPolyhedron(Second))&&HasPolytope(First)&&HasPolytope(Second)){
+            Contact=ExpandPolytopeManifold(First,Second,Contact);
+        }
+        return true;
+    }
+
+    /// <summary>A convex asset with face planes (<see cref="PhysicsShapeAsset.CreateConvexPolyhedron"/>).</summary>
+    private static bool IsPolyhedron(in PhysicsCollisionShape Shape)=>
+        Shape.Collider.Shape==ColliderShape.ConvexAsset&&Shape.Asset is { Kind:PhysicsShapeAssetKind.Convex,PlaneCount:>0 };
+
+    /// <summary>A shape whose corners and inside are known: a box or a convex polyhedron.</summary>
+    private static bool HasPolytope(in PhysicsCollisionShape Shape)=>Shape.Collider.Shape==ColliderShape.Box||IsPolyhedron(Shape);
+
+    private const int MaximumPolytopeVertices=64;
+
+    /// <summary>Writes the world corners of a box (8) or a polyhedron (its vertices) into <paramref name="Corners"/>; -1 when they do not fit or overflow.</summary>
+    private static int PolytopeCorners(in PhysicsCollisionShape Shape,Span<LogicalVector3>Corners){
+        if(!TryColliderCenter(Shape,out var Center)){ return -1; }
+        if(Shape.Collider.Shape==ColliderShape.Box){
+            var Half=Shape.Collider.HalfExtents;
+            for(var Index=0;Index<8;Index++){
+                var Local=new LogicalVector3((Index&1)==0?-Half.R:Half.R,(Index&2)==0?-Half.U:Half.U,(Index&4)==0?-Half.F:Half.F);
+                if(!Shape.Rotation.TryRotate(Local,out var World)){ return -1; }
+                Corners[Index]=Center+World;
+            }
+            return 8;
+        }
+        var Vertices=Shape.Asset!.Vertices;
+        if(Vertices.Count>Corners.Length){ return -1; }
+        for(var Index=0;Index<Vertices.Count;Index++){
+            if(!Shape.Rotation.TryRotate(Vertices[Index],out var World)){ return -1; }
+            Corners[Index]=Center+World;
+        }
+        return Vertices.Count;
+    }
+
+    /// <summary>Whether a world point lies inside a box or polyhedron, within <paramref name="Tolerance"/> of every face.</summary>
+    private static bool PolytopeContains(in PhysicsCollisionShape Shape,LogicalVector3 Point,LogicalScalar Tolerance){
+        if(!TryColliderCenter(Shape,out var Center)||!Shape.Rotation.Conjugate().TryRotate(Point-Center,out var Local)){ return false; }
+        if(Shape.Collider.Shape==ColliderShape.Box){
+            var Half=Shape.Collider.HalfExtents;
+            return Abs(Local.R)<=Half.R+Tolerance&&Abs(Local.U)<=Half.U+Tolerance&&Abs(Local.F)<=Half.F+Tolerance;
+        }
+        return Shape.Asset!.ContainsLocal(Local,Tolerance);
+    }
+
+    /// <summary>
+    /// ADR-0078/M0113: widens a GJK/EPA contact between two polytopes (at least one a convex polyhedron) into a patch. Every corner of one shape that lies inside
+    /// the other (within 0.1 mm) is a point; its depth is measured along the contact normal from the other shape's extreme along it. Up to four points are kept,
+    /// the deepest first and then the ones farthest from those already kept, so the patch spans the touching face. Fewer than two points keep the single
+    /// EPA point (an edge or a tip touching).
+    /// </summary>
+    private static PhysicsContactCandidate ExpandPolytopeManifold(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,in PhysicsContactCandidate Contact){
+        if(!Contact.Normal.TryNormalize(out var Normal)){ return Contact; }
+        Span<LogicalVector3>FirstCorners=stackalloc LogicalVector3[MaximumPolytopeVertices];
+        Span<LogicalVector3>SecondCorners=stackalloc LogicalVector3[MaximumPolytopeVertices];
+        var FirstCount=PolytopeCorners(First,FirstCorners);
+        var SecondCount=PolytopeCorners(Second,SecondCorners);
+        if(FirstCount<0||SecondCount<0){ return Contact; }
+        var FirstTop=LogicalVector3.Dot(new ShapeProxy(First).Support(Normal),Normal);
+        var SecondBottom=LogicalVector3.Dot(new ShapeProxy(Second).Support(-Normal),Normal);
+        Span<LogicalVector3>Points=stackalloc LogicalVector3[MaximumPolytopeVertices*2];
+        Span<LogicalScalar>Depths=stackalloc LogicalScalar[MaximumPolytopeVertices*2];
+        var Count=0;
+        var Half=LogicalScalar.One/LogicalScalar.FromInt64(2);
+        for(var Index=0;Index<SecondCount;Index++){
+            var Corner=SecondCorners[Index];
+            var Depth=FirstTop-LogicalVector3.Dot(Corner,Normal);
+            if(Depth<-EpaTolerance||!PolytopeContains(First,Corner,EpaTolerance)){ continue; }
+            Points[Count]=Corner+Normal*(Max(Depth,LogicalScalar.Zero)*Half);
+            Depths[Count++]=Max(EpaTolerance,Min(Depth,Contact.Penetration+EpaTolerance));
+        }
+        for(var Index=0;Index<FirstCount;Index++){
+            var Corner=FirstCorners[Index];
+            var Depth=LogicalVector3.Dot(Corner,Normal)-SecondBottom;
+            if(Depth<-EpaTolerance||!PolytopeContains(Second,Corner,EpaTolerance)){ continue; }
+            Points[Count]=Corner-Normal*(Max(Depth,LogicalScalar.Zero)*Half);
+            Depths[Count++]=Max(EpaTolerance,Min(Depth,Contact.Penetration+EpaTolerance));
+        }
+        if(Count<2){ return Contact; }
+        Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
+        Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
+        var Kept=SpreadPoints(Points[..Count],Depths[..Count],Patch,PatchDepths);
+        return PhysicsContactCandidate.CreatePatch(Contact.Normal,Contact.FeatureId,Patch,PatchDepths,Kept) with { SurfaceNormal=Contact.SurfaceNormal };
+    }
+
+    private const int MaximumPolytopePlanes=64;
+
+    /// <summary>Writes a box's (6) or a polyhedron's world face planes (outward normal, distance); -1 when they do not fit or overflow.</summary>
+    private static int PolytopePlanes(in PhysicsCollisionShape Shape,Span<LogicalVector3>Normals,Span<LogicalScalar>Distances){
+        if(!TryColliderCenter(Shape,out var Center)){ return -1; }
+        if(Shape.Collider.Shape==ColliderShape.Box){
+            Span<LogicalVector3>Axes=stackalloc LogicalVector3[3];
+            if(!TryAxes(Shape.Rotation,Axes)){ return -1; }
+            var Half=Shape.Collider.HalfExtents;
+            for(var Axis=0;Axis<3;Axis++){
+                var Extent=GetAxis(Half,Axis);
+                var Along=LogicalVector3.Dot(Axes[Axis],Center);
+                Normals[Axis*2]=Axes[Axis];
+                Distances[Axis*2]=Along+Extent;
+                Normals[Axis*2+1]=-Axes[Axis];
+                Distances[Axis*2+1]=Extent-Along;
+            }
+            return 6;
+        }
+        var Asset=Shape.Asset!;
+        if(Asset.PlaneCount>Normals.Length){ return -1; }
+        for(var Plane=0;Plane<Asset.PlaneCount;Plane++){
+            if(!Shape.Rotation.TryRotate(Asset.PlaneNormal(Plane),out var Normal)){ return -1; }
+            Normals[Plane]=Normal;
+            Distances[Plane]=LogicalVector3.Dot(Normal,Center)+Asset.PlaneDistance(Plane);
+        }
+        return Asset.PlaneCount;
+    }
+
+    private static bool Inside(ReadOnlySpan<LogicalVector3>Normals,ReadOnlySpan<LogicalScalar>Distances,LogicalVector3 Point){
+        for(var Plane=0;Plane<Normals.Length;Plane++){
+            if(LogicalVector3.Dot(Normals[Plane],Point)>Distances[Plane]+EpaTolerance){ return false; }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// A polytope placed in the world for one pose: its corners, its outward face planes, its centre and the radius of a sphere about the centre that holds
+    /// it. A polyhedron's frame is kept per asset and made again only when the pose changes, so every pair a body takes part in during a tick shares one set
+    /// of rotations (a rotation costs about 10 µs and a dot product 1 µs in Q64.64).
+    /// </summary>
+    private sealed class PolytopeFrame {
+        internal readonly LogicalVector3[]Corners=new LogicalVector3[MaximumPolytopeVertices];
+        internal readonly LogicalVector3[]Normals=new LogicalVector3[MaximumPolytopePlanes];
+        internal readonly LogicalScalar[]Distances=new LogicalScalar[MaximumPolytopePlanes];
+        internal int CornerCount;
+        internal int PlaneCount;
+        internal LogicalVector3 Center;
+        internal LogicalScalar Radius;
+        internal LogicalVector3 Position;
+        internal LogicalQuaternion Rotation;
+        internal LogicalVector3 ColliderCenter;
+        internal LogicalVector3 HalfExtents;
+        internal bool Valid;
+        internal ReadOnlySpan<LogicalVector3>CornerSpan=>this.Corners.AsSpan(0,this.CornerCount);
+        internal ReadOnlySpan<LogicalVector3>NormalSpan=>this.Normals.AsSpan(0,this.PlaneCount);
+        internal ReadOnlySpan<LogicalScalar>DistanceSpan=>this.Distances.AsSpan(0,this.PlaneCount);
+    }
+    private readonly Dictionary<PhysicsShapeAsset,PolytopeFrame>PolyhedronFrames=new(ReferenceEqualityComparer.Instance);
+    private readonly PolytopeFrame FirstBoxFrame=new();
+    private readonly PolytopeFrame SecondBoxFrame=new();
+    /// <summary>The second shape's frame when both shapes of a pair are the same polyhedron asset (made again for every such pair).</summary>
+    private readonly PolytopeFrame SharedSecondFrame=new();
+    private const int MaximumPolyhedronFrames=4096;
+
+    /// <summary>
+    /// The world frame of a box or polyhedron (null when it does not fit or overflows). <paramref name="Taken"/> is the frame the pair's first shape already
+    /// holds: two bodies cut from one fracture asset (two crates of one cook) share each fragment's shape, and the second must not overwrite the first's frame,
+    /// or the pair is tested against itself (a full overlap: bodies sank through each other and piles bounced for ever).
+    /// </summary>
+    private PolytopeFrame?Frame(in PhysicsCollisionShape Shape,bool First,PolytopeFrame?Taken=null){
+        PolytopeFrame Frame;
+        if(Shape.Collider.Shape==ColliderShape.Box){
+            Frame=First?this.FirstBoxFrame:this.SecondBoxFrame;
+            if(Frame.Valid&&Frame.Position==Shape.Position&&Frame.Rotation==Shape.Rotation&&Frame.ColliderCenter==Shape.Collider.Center&&Frame.HalfExtents==Shape.Collider.HalfExtents){ return Frame; }
+        }
+        else {
+            var Asset=Shape.Asset!;
+            if(!this.PolyhedronFrames.TryGetValue(Asset,out var Existing)){
+                if(this.PolyhedronFrames.Count>=MaximumPolyhedronFrames){ this.PolyhedronFrames.Clear(); }
+                Existing=new PolytopeFrame();
+                this.PolyhedronFrames.Add(Asset,Existing);
+            }
+            Frame=Existing;
+            if(ReferenceEquals(Frame,Taken)){ Frame=this.SharedSecondFrame; }
+            else if(Frame.Valid&&Frame.Position==Shape.Position&&Frame.Rotation==Shape.Rotation&&Frame.ColliderCenter==Shape.Collider.Center){ return Frame; }
+        }
+        Frame.Valid=false;
+        var Corners=PolytopeCorners(Shape,Frame.Corners);
+        var Planes=PolytopePlanes(Shape,Frame.Normals,Frame.Distances);
+        if(Corners<4||Planes<4||!TryColliderCenter(Shape,out var Center)){ return null; }
+        Frame.CornerCount=Corners;
+        Frame.PlaneCount=Planes;
+        Frame.Center=Center;
+        var Reach=LogicalScalar.Zero;
+        for(var Index=0;Index<Corners;Index++){
+            var Distance=(Frame.Corners[Index]-Center).LengthSquared;
+            if(Distance>Reach){ Reach=Distance; }
+        }
+        Frame.Radius=LogicalScalar.TrySquareRoot(Reach,out var Radius)?Radius:LogicalScalar.MaxValue;
+        Frame.Position=Shape.Position;
+        Frame.Rotation=Shape.Rotation;
+        Frame.ColliderCenter=Shape.Collider.Center;
+        Frame.HalfExtents=Shape.Collider.HalfExtents;
+        Frame.Valid=true;
+        return Frame;
+    }
+
+    /// <summary>
+    /// ADR-0078/M0113: two polytopes (a box or a convex polyhedron each, at least one a polyhedron) by their face planes, in place of GJK/EPA. Two spheres
+    /// about the shapes that do not meet separate them at once. A face whose plane has every corner of the other shape outside (by more than 0.1 mm)
+    /// separates them. Otherwise the face with the least overlap gives the normal and its depth, and the patch is every corner inside the other shape
+    /// (as <see cref="ExpandPolytopeManifold"/>). Returns false (undecided) when no corner is inside: an edge crossing an edge, or two shapes that only an
+    /// edge-to-edge axis separates; GJK/EPA then decides.
+    /// </summary>
+    private bool TryPolytopeContact(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,out bool Touching,out PhysicsContactCandidate Contact){
+        Touching=false;
+        Contact=default;
+        if(this.Frame(First,true) is not { }A||this.Frame(Second,false,A) is not { }B){ return false; }
+        var Reach=A.Radius+B.Radius+EpaTolerance;
+        if((B.Center-A.Center).LengthSquared>Reach*Reach){ return true; }
+        var FirstCorners=A.CornerSpan;
+        var SecondCorners=B.CornerSpan;
+        var FirstNormals=A.NormalSpan;
+        var SecondNormals=B.NormalSpan;
+        var FirstDistances=A.DistanceSpan;
+        var SecondDistances=B.DistanceSpan;
+        var BestDepth=LogicalScalar.MaxValue;
+        var Normal=LogicalVector3.UnitU;
+        uint Feature=0;
+        for(var Plane=0;Plane<FirstNormals.Length;Plane++){
+            var Lowest=LogicalScalar.MaxValue;
+            foreach(var Corner in SecondCorners){
+                var Height=LogicalVector3.Dot(FirstNormals[Plane],Corner);
+                if(Height<Lowest){ Lowest=Height; }
+            }
+            var Gap=Lowest-FirstDistances[Plane];
+            if(Gap>EpaTolerance){ return true; }
+            if(-Gap<BestDepth){ BestDepth=-Gap;Normal=FirstNormals[Plane];Feature=(uint)Plane; }
+        }
+        for(var Plane=0;Plane<SecondNormals.Length;Plane++){
+            var Lowest=LogicalScalar.MaxValue;
+            foreach(var Corner in FirstCorners){
+                var Height=LogicalVector3.Dot(SecondNormals[Plane],Corner);
+                if(Height<Lowest){ Lowest=Height; }
+            }
+            var Gap=Lowest-SecondDistances[Plane];
+            if(Gap>EpaTolerance){ return true; }
+            if(-Gap<BestDepth){ BestDepth=-Gap;Normal=-SecondNormals[Plane];Feature=(uint)(MaximumPolytopePlanes+Plane); }
+        }
+        var FirstTop=LogicalScalar.MinValue;
+        foreach(var Corner in FirstCorners){
+            var Height=LogicalVector3.Dot(Corner,Normal);
+            if(Height>FirstTop){ FirstTop=Height; }
+        }
+        var SecondBottom=LogicalScalar.MaxValue;
+        foreach(var Corner in SecondCorners){
+            var Height=LogicalVector3.Dot(Corner,Normal);
+            if(Height<SecondBottom){ SecondBottom=Height; }
+        }
+        Span<LogicalVector3>Points=stackalloc LogicalVector3[MaximumPolytopeVertices*2];
+        Span<LogicalScalar>Depths=stackalloc LogicalScalar[MaximumPolytopeVertices*2];
+        var Count=0;
+        var Half=LogicalScalar.One/LogicalScalar.FromInt64(2);
+        var Limit=Max(BestDepth,LogicalScalar.Zero)+EpaTolerance;
+        foreach(var Corner in SecondCorners){
+            var Depth=FirstTop-LogicalVector3.Dot(Corner,Normal);
+            if(Depth<-EpaTolerance||!Inside(FirstNormals,FirstDistances,Corner)){ continue; }
+            Points[Count]=Corner+Normal*(Max(Depth,LogicalScalar.Zero)*Half);
+            Depths[Count++]=Max(EpaTolerance,Min(Depth,Limit));
+        }
+        foreach(var Corner in FirstCorners){
+            var Depth=LogicalVector3.Dot(Corner,Normal)-SecondBottom;
+            if(Depth<-EpaTolerance||!Inside(SecondNormals,SecondDistances,Corner)){ continue; }
+            Points[Count]=Corner-Normal*(Max(Depth,LogicalScalar.Zero)*Half);
+            Depths[Count++]=Max(EpaTolerance,Min(Depth,Limit));
+        }
+        if(Count==0){ return false; }
+        Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
+        Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
+        var Kept=SpreadPoints(Points[..Count],Depths[..Count],Patch,PatchDepths);
+        Contact=PhysicsContactCandidate.CreatePatch(Normal,Feature,Patch,PatchDepths,Kept);
+        Touching=true;
+        return true;
+    }
+    /// <summary>
+    /// Chooses up to four of <paramref name="Points"/> and returns them in the order they were given (so a point keeps its slot, and its warm-started
+    /// impulse, from tick to tick): first the deepest, then each time the one farthest from those already chosen, so the patch is as wide as the touching
+    /// area. Depths within 0.5 mm and distances within 1 mm² count as equal and go to the earlier point: a body resting on a face has corners of nearly the
+    /// same depth, and a choice that flipped between them every tick moved the warm-started impulses to other corners and kept the body rocking.
+    /// </summary>
+    private static int SpreadPoints(ReadOnlySpan<LogicalVector3>Points,ReadOnlySpan<LogicalScalar>Depths,Span<LogicalVector3>Patch,Span<LogicalScalar>PatchDepths){
+        var First=0;
+        for(var Index=1;Index<Points.Length;Index++){
+            if(Depths[Index]>Depths[First]+SameDepth){ First=Index; }
+        }
+        Span<bool>Taken=stackalloc bool[Points.Length];
+        Span<int>Chosen=stackalloc int[4];
+        Taken[First]=true;
+        Chosen[0]=First;
+        var Kept=1;
+        while(Kept<4){
+            var Best=-1;
+            var BestDistance=LogicalScalar.Zero;
+            for(var Index=0;Index<Points.Length;Index++){
+                if(Taken[Index]){ continue; }
+                var Nearest=LogicalScalar.MaxValue;
+                for(var Pick=0;Pick<Kept;Pick++){
+                    var Distance=(Points[Index]-Points[Chosen[Pick]]).LengthSquared;
+                    if(Distance<Nearest){ Nearest=Distance; }
+                }
+                if(Best<0?Nearest>LogicalScalar.Zero:Nearest>BestDistance+SameDistanceSquared){ Best=Index;BestDistance=Nearest; }
+            }
+            // Points on top of one already kept (within 0.1 mm) add nothing.
+            if(Best<0||BestDistance<=EpaTolerance*EpaTolerance){ break; }
+            Taken[Best]=true;
+            Chosen[Kept++]=Best;
+        }
+        Chosen[..Kept].Sort();
+        for(var Index=0;Index<Kept;Index++){
+            Patch[Index]=Points[Chosen[Index]];
+            PatchDepths[Index]=Depths[Chosen[Index]];
+        }
+        return Kept;
+    }
+    private static readonly LogicalScalar SameDepth=LogicalScalar.FromSingle(0.0005f);
+    private static readonly LogicalScalar SameDistanceSquared=LogicalScalar.FromSingle(0.000001f);
+
+    private readonly List<PhysicsContactCandidate>CompoundCandidates=[];
+    private readonly List<int>CompoundChildren=[];
+    private readonly List<LogicalVector3>CompoundPoints=[];
+    private readonly List<LogicalScalar>CompoundDepths=[];
+
+    /// <summary>One child of a compound, placed where the compound is.</summary>
+    private static PhysicsCollisionShape CompoundChild(in PhysicsCollisionShape Compound,PhysicsShapeAsset Child)=>
+        new(Compound.Collider with { Shape=ColliderShape.ConvexAsset,Asset=Child.Id },Compound.Position,Compound.Rotation,Child);
+
+    /// <summary>
+    /// ADR-0078/M0113: the contact of a compound (a piece of several fragments) with another shape, or of two compounds. Each child whose bounds meet the other
+    /// shape (or child) is tested as it is; the deepest child contact gives the normal, and the points of every child contact within about 18 degrees of it
+    /// form one patch of up to four points (deepest first, then the widest spread). So a piece resting on several of its fragments is held at all of them.
+    /// </summary>
+    private bool TryCompoundContact(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,out PhysicsContactCandidate Contact){
+        Contact=default;
+        this.CompoundCandidates.Clear();
+        this.CompoundChildren.Clear();
+        var FirstCompound=First.Collider.Shape==ColliderShape.Compound;
+        var SecondCompound=Second.Collider.Shape==ColliderShape.Compound;
+        if(FirstCompound&&First.Asset is not { Kind:PhysicsShapeAssetKind.Compound }||SecondCompound&&Second.Asset is not { Kind:PhysicsShapeAssetKind.Compound }){ return false; }
+        var FirstChildren=FirstCompound?First.Asset!.Children.Count:1;
+        var SecondChildren=SecondCompound?Second.Asset!.Children.Count:1;
+        var SecondWhole=SecondCompound?default:this.CalculateBounds(Second);
+        for(var FirstIndex=0;FirstIndex<FirstChildren;FirstIndex++){
+            var FirstShape=FirstCompound?CompoundChild(First,First.Asset!.Children[FirstIndex]):First;
+            var FirstBounds=this.CalculateBounds(FirstShape);
+            if(!SecondCompound&&!FirstBounds.Intersects(SecondWhole)){ continue; }
+            for(var SecondIndex=0;SecondIndex<SecondChildren;SecondIndex++){
+                var SecondShape=SecondCompound?CompoundChild(Second,Second.Asset!.Children[SecondIndex]):Second;
+                if(SecondCompound&&!FirstBounds.Intersects(this.CalculateBounds(SecondShape))){ continue; }
+                if(!this.TryCreateContact(FirstShape,SecondShape,out var Candidate)){ continue; }
+                this.CompoundCandidates.Add(Candidate);
+                this.CompoundChildren.Add(FirstIndex*SecondChildren+SecondIndex);
+            }
+        }
+        if(this.CompoundCandidates.Count==0){ return false; }
+        var Deepest=0;
+        for(var Index=1;Index<this.CompoundCandidates.Count;Index++){
+            if(this.CompoundCandidates[Index].Penetration>this.CompoundCandidates[Deepest].Penetration+SameDepth){ Deepest=Index; }
+        }
+        var Best=this.CompoundCandidates[Deepest];
+        if(!Best.Normal.TryNormalize(out var Normal)){ return false; }
+        this.CompoundPoints.Clear();
+        this.CompoundDepths.Clear();
+        var SameFace=LogicalScalar.FromSingle(0.95f);
+        foreach(var Candidate in this.CompoundCandidates){
+            if(!Candidate.Normal.TryNormalize(out var CandidateNormal)||LogicalVector3.Dot(CandidateNormal,Normal)<SameFace){ continue; }
+            for(var Point=0;Point<Candidate.Count;Point++){
+                this.CompoundPoints.Add(Candidate.GetPosition(Point));
+                this.CompoundDepths.Add(Candidate.GetPenetration(Point));
+            }
+        }
+        Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
+        Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
+        var Kept=SpreadPoints(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundPoints),System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundDepths),Patch,PatchDepths);
+        // The feature names the deepest child pair, so the solver's warm start follows the same child from tick to tick.
+        var Feature=unchecked(((uint)this.CompoundChildren[Deepest]<<16)^Best.FeatureId);
+        Contact=PhysicsContactCandidate.CreatePatch(Best.Normal,Feature,Patch,PatchDepths,Kept) with { SurfaceNormal=Best.SurfaceNormal };
+        return true;
     }
 
     internal PhysicsAabb CalculateBounds(in PhysicsCollisionShape Shape){
-        if(Shape.Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh)){
+        if(Shape.Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh or ColliderShape.Compound)){
             // Character and spring-arm queries bound the same capsule dozens of times per tick; its
             // support offsets depend only on the primitive's dimensions and rotation.
             ShapeProxy PrimitiveProxy=new(Shape);
@@ -156,7 +537,7 @@ internal sealed class PhysicsNarrowPhase {
         new LogicalVector3((Center+Entry.PositiveR).R,(Center+Entry.PositiveU).U,(Center+Entry.PositiveF).F));
 
     internal static PhysicsAabb CalculateBoundsUncached(in PhysicsCollisionShape Shape){
-        if(Shape.Collider.Shape is ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh){
+        if(Shape.Collider.Shape is ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh or ColliderShape.Compound){
             if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
         }
         ShapeProxy Proxy=new(Shape);
@@ -183,6 +564,8 @@ internal sealed class PhysicsNarrowPhase {
         // ADR-0078/M0109: a box resting on or pushed against a mesh touches it with a face, so it gets one point per corner below the touched face
         // (up to four). A single deepest point let a box on a mesh floor rock, spin and sink (the vehicle's body). Edge-on touches fall back to GJK.
         if(Convex.Collider.Shape==ColliderShape.Box&&this.TryBoxMeshManifold(Convex,Mesh,Asset,MeshIsFirst,out Contact)){ return true; }
+        // ADR-0078/M0113: a convex polyhedron (a fragment) the same way, with its own corners.
+        if(IsPolyhedron(Convex)&&this.TryPolytopeMeshManifold(Convex,Mesh,Asset,MeshIsFirst,out Contact)){ return true; }
         bool Found=false;
         PhysicsContactCandidate Best=default;
         ShapeProxy ConvexProxy=new(Convex);
@@ -283,6 +666,70 @@ internal sealed class PhysicsNarrowPhase {
         }
         // The contact normal points from the first shape into the second: the face normal points from the mesh toward the box.
         Contact=PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,checked((uint)CornerTriangle[Best]),Points,Penetrations,Count) with { SurfaceNormal=Normal };
+        return true;
+    }
+
+    /// <summary>
+    /// ADR-0078/M0113: <see cref="TryBoxMeshManifold"/> for a convex polyhedron (a fragment of a broken destructible): its vertices play the box's corners, and
+    /// its thickness along a face is the spread of its vertices along the face's normal. Up to four points of the chosen face are kept, the deepest first and then
+    /// the widest spread (a fragment's bottom face can have more than four corners). Speculative corners (within <see cref="BoxMeshSpeculativeMargin"/>) join as
+    /// for the box.
+    /// </summary>
+    private bool TryPolytopeMeshManifold(in PhysicsCollisionShape Convex,in PhysicsCollisionShape Mesh,PhysicsShapeAsset Asset,bool MeshIsFirst,out PhysicsContactCandidate Contact){
+        Contact=default;
+        if(!TryColliderCenter(Convex,out var Center)){ return false; }
+        Span<LogicalVector3>Corners=stackalloc LogicalVector3[MaximumPolytopeVertices];
+        var CornerCount=PolytopeCorners(Convex,Corners);
+        if(CornerCount<4){ return false; }
+        Corners=Corners[..CornerCount];
+        Span<LogicalScalar>CornerDepth=stackalloc LogicalScalar[CornerCount];
+        Span<int>CornerTriangle=stackalloc int[CornerCount];
+        Span<LogicalVector3>CornerNormal=stackalloc LogicalVector3[CornerCount];
+        CornerTriangle.Fill(-1);
+        foreach(int Triangle in this.TriangleCandidates){
+            Asset.GetTriangle(Triangle,out var A,out var B,out var C);
+            if(!Mesh.Rotation.TryRotate(A,out A)||!Mesh.Rotation.TryRotate(B,out B)||!Mesh.Rotation.TryRotate(C,out C)){ continue; }
+            A+=Mesh.Position;B+=Mesh.Position;C+=Mesh.Position;
+            var Face=FaceToward(A,B,C,Center);
+            if(Face.LengthSquared.IsZero){ continue; }
+            var Highest=LogicalVector3.Dot(Corners[0]-A,Face);
+            var Lowest=Highest;
+            for(var Index=1;Index<CornerCount;Index++){
+                var Height=LogicalVector3.Dot(Corners[Index]-A,Face);
+                if(Height>Highest){ Highest=Height; }
+                if(Height<Lowest){ Lowest=Height; }
+            }
+            var Deepest=-(Highest-Lowest);
+            for(var Index=0;Index<CornerCount;Index++){
+                var Height=LogicalVector3.Dot(Corners[Index]-A,Face);
+                if(Height>=TriangleHalfThickness+BoxMeshSpeculativeMargin||Height<=Deepest){ continue; }
+                var Depth=TriangleHalfThickness-Height;
+                if(CornerTriangle[Index]>=0&&Depth<=CornerDepth[Index]){ continue; }
+                if(!InsideTriangle(Corners[Index]-Face*Height,A,B,C)){ continue; }
+                CornerDepth[Index]=Depth;
+                CornerTriangle[Index]=Triangle;
+                CornerNormal[Index]=Face;
+            }
+        }
+        var Best=-1;
+        for(var Index=0;Index<CornerCount;Index++){
+            if(CornerTriangle[Index]>=0&&CornerDepth[Index]>LogicalScalar.Zero&&(Best<0||CornerDepth[Index]>CornerDepth[Best])){ Best=Index; }
+        }
+        if(Best<0){ return false; }
+        var Normal=CornerNormal[Best];
+        var SameFace=LogicalScalar.FromSingle(0.95f);
+        Span<LogicalVector3>Points=stackalloc LogicalVector3[CornerCount];
+        Span<LogicalScalar>Depths=stackalloc LogicalScalar[CornerCount];
+        var Count=0;
+        for(var Index=0;Index<CornerCount;Index++){
+            if(CornerTriangle[Index]<0||LogicalVector3.Dot(CornerNormal[Index],Normal)<SameFace){ continue; }
+            Points[Count]=Corners[Index];
+            Depths[Count++]=CornerDepth[Index];
+        }
+        Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
+        Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
+        var Kept=SpreadPoints(Points[..Count],Depths[..Count],Patch,PatchDepths);
+        Contact=PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,checked((uint)CornerTriangle[Best]),Patch,PatchDepths,Kept) with { SurfaceNormal=Normal };
         return true;
     }
 
@@ -1173,6 +1620,7 @@ internal sealed class PhysicsNarrowPhase {
                         LogicalScalar.Zero)+NormalizeOrAxis(LocalDirection)*this.Collider.Radius,
                     ColliderShape.ConvexAsset when this.Asset is { Kind:PhysicsShapeAssetKind.Convex } Asset=>Asset.Support(LocalDirection),
                     ColliderShape.StaticTriangleMesh when this.Asset is { } Mesh=>Mesh.Support(LocalDirection),
+                    ColliderShape.Compound when this.Asset is { Kind:PhysicsShapeAssetKind.Compound } Compound=>Compound.Support(LocalDirection),
                     _=>throw new InvalidOperationException("The collider is not support-mapped."),
                 };
                 Local+=this.Collider.Center;

@@ -23,6 +23,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsCache.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsCooking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PrefractureCooking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FractureSolver.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsDebug.cs" />
   </ItemGroup>
 </Project>

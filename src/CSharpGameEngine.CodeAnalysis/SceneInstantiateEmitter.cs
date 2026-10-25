@@ -67,8 +67,11 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"    private static readonly global::CSharpGameEngine.Contracts.AssetKey EntityPayloadValue = new(new global::CSharpGameEngine.Contracts.AssetId(global::CSharpGameEngine.Core.StableId.FromName(global::CSharpGameEngine.Core.StableId.Parse(\"{ScenePayloadNamespace}\"), \"{Scene.ClassFullyQualifiedName}\")), null);");
         Lines.Add("    public static global::CSharpGameEngine.Contracts.AssetKey EntityPayload => EntityPayloadValue;");
         Lines.Add("    static global::CSharpGameEngine.Contracts.AssetKey global::CSharpGameEngine.Entities.ISceneDefinition.EntityPayload => EntityPayloadValue;");
+        // ADR-0078/M0113: a scene whose nodes have physics bodies takes an ordinal per instance, so a second instance's stable IDs differ from the first's.
+        var Ordinal=HasPhysicsStableId(Root,RuntimeComponents)?$"        int StableIdOrdinal = World.TakeSceneOrdinal({BuildStableId(Scene.ClassFullyQualifiedName)}UL);":null;
         Lines.Add($"    public static {SceneInstanceFullyQualifiedName} Instantiate(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstance();");
+        if(Ordinal is not null){ Lines.Add(Ordinal); }
 
         EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:false);
 
@@ -80,6 +83,7 @@ internal static class SceneInstantiateEmitter {
         Lines.Add("    }");
         Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferred(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
+        if(Ordinal is not null){ Lines.Add(Ordinal); }
         EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:true);
         Lines.Add($"        World.EndSceneInstanceDeferred(Instance, {Root.LocalName});");
         Lines.Add("        return Instance;");
@@ -91,12 +95,14 @@ internal static class SceneInstantiateEmitter {
             // ADR-0078/M0105: the same deferred construction with the root's Transform replaced by the position (and rotation) the game passes.
             Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferredAt(ref {WorldFullyQualifiedName} World, {LogicalVector3FullyQualifiedName} Position) {{");
             Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
+            if(Ordinal is not null){ Lines.Add(Ordinal); }
             EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:true,RootTransformPlacement:SceneSpawnFullyQualifiedName+".At({0}, Position)");
             Lines.Add($"        World.EndSceneInstanceDeferred(Instance, {Root.LocalName});");
             Lines.Add("        return Instance;");
             Lines.Add("    }");
             Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferredAt(ref {WorldFullyQualifiedName} World, {LogicalVector3FullyQualifiedName} Position, {LogicalQuaternionFullyQualifiedName} Rotation) {{");
             Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
+            if(Ordinal is not null){ Lines.Add(Ordinal); }
             EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:true,RootTransformPlacement:SceneSpawnFullyQualifiedName+".At({0}, Position, Rotation)");
             Lines.Add($"        World.EndSceneInstanceDeferred(Instance, {Root.LocalName});");
             Lines.Add("        return Instance;");
@@ -180,7 +186,10 @@ internal static class SceneInstantiateEmitter {
         for(int Index=0;Index<Components.Count;Index++){
             if(Components[Index].TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId"){
                 ulong StableId=BuildStableId(SceneFullyQualifiedName+"/"+Node.PathDisplay);
-                Components[Index]=(Components[Index].TypeFullyQualifiedName,$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = {StableId}UL }}");
+                // A world cell's instance keeps its node's ID (cells are persistent and made once per cell); other instances mix in their ordinal (M0113).
+                Components[Index]=(Components[Index].TypeFullyQualifiedName,Cell
+                    ?$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = {StableId}UL }}"
+                    :$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = global::CSharpGameEngine.Entities.SceneStableIds.ForInstance({StableId}UL, StableIdOrdinal) }}");
             }
         }
         // A node name is any string; written as a C# literal it cannot end the one-line comment early (a line break,
@@ -220,6 +229,11 @@ internal static class SceneInstantiateEmitter {
             EmitNode(Lines,Child,SceneFullyQualifiedName,Node.LocalName,Registry,ComponentIndexByType,RuntimeComponents,Deferred,Cell);
         }
     }
+
+    /// <summary>Whether a node or one of its descendants gets a physics stable ID (its <c>Collider</c>'s runtime companion).</summary>
+    private static bool HasPhysicsStableId(SceneEmitNode Node,SceneRuntimeComponentMap RuntimeComponents)=>
+        BuildEffectiveComponents(Node,null,RuntimeComponents).Any(static Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId")
+        ||Node.Children.Any(Child=>HasPhysicsStableId(Child,RuntimeComponents));
 
     private static ulong BuildStableId(string Value){
         ulong Hash=14695981039346656037UL;

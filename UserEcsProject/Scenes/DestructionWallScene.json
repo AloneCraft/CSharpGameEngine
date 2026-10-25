@@ -1,0 +1,45 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "DestructionWallScene",
+  "root": {
+    "id": "a52ccf55-7020-4515-964f-faf55627cf99",
+    "name": "Wall",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 1.5,
+            "F": 0
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Box",
+          "HalfExtents": {
+            "R": 0.15,
+            "U": 1.5,
+            "F": 2
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Destruction.Destructible",
+        "members": {
+          "FractureAsset": "TestWall",
+          "FragmentCount": 24,
+          "Seed": 11,
+          "Density": 2400,
+          "BondStrength": 1200,
+          "Anchor": "Bottom"
+        }
+      }
+    ],
+    "children": []
+  }
+}

@@ -324,24 +324,6 @@ public sealed class PhysicsBakeTests {
     }
 
     [Fact]
-    public void Prefracture_ResolvesBondsInStableIndexOrder(){
-        PrefractureAsset Asset=new(){
-            SourceHash="hash",Seed=17,
-            Fragments=[new(0,"a",default,1),new(1,"b",default,1),new(2,"c",default,1)],
-            Bonds=[new(0,1,2),new(1,2,3)],
-        };
-        Assert.True(Asset.IsDeterministicallyOrdered());
-        PrefractureRuntime Runtime=new();
-        Runtime.Accumulate(5,1,4);
-        Runtime.Accumulate(5,0,2);
-        List<FractureBreak> Breaks=[];
-        Assert.Equal(2,Runtime.Resolve(5,Asset,Breaks));
-        Assert.Equal([0,1],Breaks.Select(Break=>Break.BondIndex));
-        Breaks.Clear();
-        Assert.Equal(0,Runtime.Resolve(5,Asset,Breaks));
-    }
-
-    [Fact]
     public void PrefractureCooker_PartitionsClosedConvexMeshDeterministicallyAndConservesVolume(){
         PhysicsShapeAsset Source=CreateClosedCubeMesh("fracture-source");
         PrefractureCookSettings Settings=new(

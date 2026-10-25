@@ -1,0 +1,29 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "DestructionGameMode",
+  "startupOrder": 0,
+  "root": {
+    "id": "263d1420-7807-5560-8e35-3b4e81b2879f",
+    "name": "GameMode",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AppHost",
+        "members": {
+          "Title": "Destruction Sample",
+          "Width": 1280,
+          "Height": 720,
+          "CaptureMouse": true
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Level",
+        "members": {
+          "ShaderArtifactPath": "Shaders/Stage.cgeshaderartifact"
+        }
+      }
+    ],
+    "children": []
+  }
+}

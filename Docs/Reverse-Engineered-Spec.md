@@ -531,3 +531,17 @@
   - `MoveIntent.Steer` は、経由点があり `WaypointIsEnd` で `CharacterMotion.FixedPathBrakingDistance > 0` のとき、その距離の手前から減速する(長さ = 距離 ÷ 固定の距離。下限 0.25)。0 のときと、経由点が無いとき・通過点のときは従来の制動から計算した距離。
 - Intended behavior: `Docs/Specifications/UE-Template-Behavior.md`(Vehicle の地面、TopDown の経路の追従)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §6。
 - Result: MatchesWithDocumentedExtension(差は M0112 の文書の「範囲外・残り」)。
+
+## RE-M0113 — Chaos 相当の破壊(Destruction プラグイン)
+
+- Confidence: High(単体試験 `FractureSolverTests`・`DestructionTests`・`FragmentContactTests`・`PhysicsCacheBondBreakTests`・`PrefractureCookerTests`・`FractureCookerTests`・`PrefractureDebugServiceTests` と、WARP の実走 `verify-destruction`)。VS の実機のプレビューの操作は Low(未実行。net472 の単体試験だけ)。
+- Evidence: `src/CSharpGameEngine.Runtime.Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`、`plugins/CSharpGameEngine.Destruction/`、`src/CSharpGameEngine.Runtime.Windows/FragmentMesh.cs`、`tools/CSharpGameEngine.VSExtension/PrefractureDebugService.cs`、`samples/CSharpGameEngine.Samples.Destruction/`、`.artifacts/feature-evidence/destruction.sample/warp/`。
+- Observed behavior:
+  - 調理: 箱か閉じた凸のメッシュを、シードとソースの指紋から決まるボロノイのサイトで切る。同じ設定は同じバイト列(`.cgefracture` 版 2)。破片は閉じて外向きで、三角形ごとに外側(0)か断面(1)。結合は共有面の面積(両側の差 0.1% 以内、1 mm² 以下は捨てる)× 面積あたりの強さ。クラスターは 1 段でつながっている。開いた・凹んだ・退化したメッシュと破片数 2〜256 以外は FRACTURE001〜007、ビルドでは DST001〜011。
+  - 実行時: ひずみ(力積 N·s)は 1 tick で集め、ひずみ ≥ 強さの結合を番号順に切り(等号で切れる)、残りのひずみは捨てる。力積は当たった破片の結合に全部、1 環ごとに `DamagePropagation` 倍(最大 4 環)。同じクラスターの中は `ClusterStrengthScale` 倍強い。つながりが切れた塊は新しい物体(1 破片は凸多面体、複数は複合形状)になり、割れる前の物体のその点の速度を引き継ぐ。最下面のアンカーを含む塊は静的。動く塊は `FragmentBudget` を超えると古い順に、`FragmentLifetime` を過ぎると除かれる。
+  - 切れた結合は `BondBroken` イベント(物体ごと・結合ごとに 1 つ)と `BondBreaks`。キャッシュのスキーマ 3 が tick ごとに記録し、再生はひずみを無視して記録どおりに切る。焼いた結果と再生の書き出しは同じバイト列(見本で 636,670 バイト)。スキーマ 2 のファイルも読める。
+  - 眠り: 眠っている物体と静的・眠っている物体の接触は解かない。位置の補正では起きない。支えの物体が消えると次の tick の最初に起きる。
+  - 同じシーンの 2 つ目以降のインスタンスは、物理の stable ID に作った順番を混ぜる(1 つ目は変わらない)。
+  - 見本(WARP、170 フレーム): 6 個がすべて割れ(歩く前 2、球の前 5、爆発の後 6)、切れた結合 203、動く塊 64、眠り 18、最低の重心 0.059 m(床の上)、最後の最大速度 0.014 m/s、D3D12 のエラー 0。
+- Intended behavior: `Docs/Specifications/Physics.md`(破壊・接触・眠り・Artifact)、`Docs/Specifications/Plugins-And-Assets.md`(実例: 破砕)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §2・§3。
+- Result: MatchesWithDocumentedExtension(UE との差は M0113 の文書の「範囲外」: ひずみを溜めない、1 段のクラスター、凹んだソースの拒否、球の Field だけ、2 色の破片)。

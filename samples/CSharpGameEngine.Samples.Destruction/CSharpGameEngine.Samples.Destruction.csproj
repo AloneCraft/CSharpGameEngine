@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ADR-0078/M0113: the destruction sample. UE's four templates have nothing breakable, so their levels stay as they are; this game shows the Destruction
+    plugin with the ThirdPerson template's controls (move, look, jump) and a capsule for the character: crates to run into, a crate that falls and breaks,
+    a wall a ball breaks open, a ball to shoot (F) and an explosion to set off (E). FeatureRunner's verify-destruction runs it on WARP.
+  -->
+  <Import Project="..\..\build\CSharpGameEngine.Game.props" />
+
+  <PropertyGroup>
+    <RootNamespace>CgeDestructionSample</RootNamespace>
+    <AssemblyName>CgeDestructionSample</AssemblyName>
+    <CgePlugins>Destruction</CgePlugins>
+  </PropertyGroup>
+</Project>

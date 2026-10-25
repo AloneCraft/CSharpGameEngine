@@ -4,10 +4,18 @@ using System.Security.Cryptography;
 
 namespace CSharpGameEngine.Runtime.Physics;
 
+/// <summary>
+/// How to cut a closed convex source (ADR-0078/M0113). <see cref="ClusterCount"/> groups the fragments into that many clusters (one level of hierarchy);
+/// 0 picks the nearest whole number to √<see cref="FragmentCount"/>, 1 makes no hierarchy.
+/// </summary>
 public readonly record struct PrefractureCookSettings(
-    int FragmentCount,int Seed,LogicalScalar Density,LogicalScalar BondStrengthPerArea);
+    int FragmentCount,int Seed,LogicalScalar Density,LogicalScalar BondStrengthPerArea,int ClusterCount=0);
 
 public sealed class FractureMesh {
+    /// <summary>The material slot of a triangle on the source's own surface.</summary>
+    public const byte OuterSlot=0;
+    /// <summary>The material slot of a triangle on a Voronoi cut (the inside of the source; UE's interior material).</summary>
+    public const byte InteriorSlot=1;
     private struct EdgeUse {
         internal int Count;
         internal int OrientationBalance;
@@ -17,8 +25,9 @@ public sealed class FractureMesh {
 
     private readonly LogicalVector3[]VertexStorage;
     private readonly int[]IndexStorage;
+    private readonly byte[]SlotStorage;
 
-    internal FractureMesh(IReadOnlyList<LogicalVector3>Vertices,IReadOnlyList<int>Indices){
+    internal FractureMesh(IReadOnlyList<LogicalVector3>Vertices,IReadOnlyList<int>Indices,IReadOnlyList<byte>?Slots=null){
         ArgumentNullException.ThrowIfNull(Vertices);
         ArgumentNullException.ThrowIfNull(Indices);
         if(Vertices.Count<4||Indices.Count<12||Indices.Count%3!=0){
@@ -26,6 +35,10 @@ public sealed class FractureMesh {
         }
         this.VertexStorage=Vertices.ToArray();
         this.IndexStorage=Indices.ToArray();
+        this.SlotStorage=Slots is null?new byte[this.IndexStorage.Length/3]:Slots.ToArray();
+        if(this.SlotStorage.Length!=this.IndexStorage.Length/3||this.SlotStorage.Any(static Slot=>Slot>InteriorSlot)){
+            throw new ArgumentException("A fracture mesh needs one known material slot per triangle.",nameof(Slots));
+        }
         for(int Index=0;Index<this.IndexStorage.Length;Index++){
             if((uint)this.IndexStorage[Index]>=(uint)this.VertexStorage.Length){
                 throw new ArgumentOutOfRangeException(nameof(Indices));
@@ -35,6 +48,16 @@ public sealed class FractureMesh {
 
     public IReadOnlyList<LogicalVector3>Vertices=>this.VertexStorage;
     public IReadOnlyList<int>Indices=>this.IndexStorage;
+    /// <summary>The material slot of each triangle (<see cref="OuterSlot"/> or <see cref="InteriorSlot"/>).</summary>
+    public IReadOnlyList<byte>Slots=>this.SlotStorage;
+    /// <summary>The signed volume (m³) enclosed by the triangles; positive when they wind outward.</summary>
+    public LogicalScalar SignedVolume(){
+        var SixVolume=LogicalScalar.Zero;
+        for(var Index=0;Index<this.IndexStorage.Length;Index+=3){
+            SixVolume+=LogicalVector3.Dot(this.VertexStorage[this.IndexStorage[Index]],LogicalVector3.Cross(this.VertexStorage[this.IndexStorage[Index+1]],this.VertexStorage[this.IndexStorage[Index+2]]));
+        }
+        return SixVolume/LogicalScalar.FromInt64(6);
+    }
 
     public bool IsClosedManifold(){
         return this.TryGetTopologyError(out _);
@@ -121,10 +144,19 @@ public sealed class FractureMesh {
     }
 }
 
+/// <summary>
+/// The <c>.cgefracture</c> artifact (L6, ADR-0078/M0113). Little-endian, every scalar a 16-byte Q64.64 <see cref="LogicalScalar"/>, strings 7-bit-length UTF-8.
+/// Version 2 (<c>CGEFRAC2</c>, written): source hash, seed, density, strength per area, fragment count; per fragment its index, shape id, centre, mass,
+/// Voronoi site, cluster, vertices, indices and one material slot byte per triangle; then the bonds (first, second, area, strength). Version 1
+/// (<c>CGEFRAC1</c>, M0055) is still read: it has no sites, clusters, slots, areas or settings. A reader rejects a truncated, trailing, out-of-range or
+/// non-canonical file without throwing.
+/// </summary>
 public static class PrefractureArtifact {
-    private static ReadOnlySpan<byte>Magic=>"CGEFRAC1"u8;
+    private static ReadOnlySpan<byte>MagicVersion1=>"CGEFRAC1"u8;
+    private static ReadOnlySpan<byte>Magic=>"CGEFRAC2"u8;
     private static readonly UTF8Encoding StrictUtf8=new(false,true);
-    private const int Version=1;
+    /// <summary>The version <see cref="Write"/> writes.</summary>
+    public const int Version=2;
     private const int MaximumStringBytes=4096;
     private const int MaximumFragments=256;
     private const int MaximumVerticesPerFragment=65_536;
@@ -134,7 +166,8 @@ public static class PrefractureArtifact {
         ArgumentNullException.ThrowIfNull(Output);
         ArgumentNullException.ThrowIfNull(Asset);
         if(string.IsNullOrWhiteSpace(Asset.SourceHash)||!Asset.IsCanonicalArtifact()
-            ||Asset.Fragments.Count is <2 or >MaximumFragments){
+            ||Asset.Fragments.Count is <2 or >MaximumFragments
+            ||Asset.Sites.Count!=Asset.Fragments.Count||Asset.Clusters.Count!=Asset.Fragments.Count){
             throw new ArgumentException("Prefracture asset is not canonical.",nameof(Asset));
         }
         using BinaryWriter Writer=new(Output,Encoding.UTF8,true);
@@ -142,25 +175,38 @@ public static class PrefractureArtifact {
         Writer.Write(Version);
         Writer.Write(Asset.SourceHash);
         Writer.Write(Asset.Seed);
+        WriteScalar(Writer,Asset.Density);
+        WriteScalar(Writer,Asset.BondStrengthPerArea);
         Writer.Write(Asset.Fragments.Count);
-        for(int Index=0;Index<Asset.Fragments.Count;Index++){
-            FractureFragment Fragment=Asset.Fragments[Index];
-            FractureMesh Mesh=Asset.Meshes[Index];
+        for(var Index=0;Index<Asset.Fragments.Count;Index++){
+            var Fragment=Asset.Fragments[Index];
+            var Mesh=Asset.Meshes[Index];
             Writer.Write(Fragment.Index);
             Writer.Write(Fragment.ShapeId);
             WriteVector(Writer,Fragment.LocalCenter);
             WriteScalar(Writer,Fragment.Mass);
+            WriteVector(Writer,Asset.Sites[Index]);
+            Writer.Write(Asset.Clusters[Index]);
             Writer.Write(Mesh.Vertices.Count);
-            foreach(LogicalVector3 Vertex in Mesh.Vertices){ WriteVector(Writer,Vertex); }
+            foreach(var Vertex in Mesh.Vertices){ WriteVector(Writer,Vertex); }
             Writer.Write(Mesh.Indices.Count);
-            foreach(int MeshIndex in Mesh.Indices){ Writer.Write(MeshIndex); }
+            foreach(var MeshIndex in Mesh.Indices){ Writer.Write(MeshIndex); }
+            foreach(var Slot in Mesh.Slots){ Writer.Write(Slot); }
         }
         Writer.Write(Asset.Bonds.Count);
-        foreach(FractureBond Bond in Asset.Bonds){
+        foreach(var Bond in Asset.Bonds){
             Writer.Write(Bond.FirstFragment);
             Writer.Write(Bond.SecondFragment);
+            WriteScalar(Writer,Bond.Area);
             WriteScalar(Writer,Bond.Strength);
         }
+    }
+
+    /// <summary>The bytes <see cref="Write"/> writes; the same asset always gives the same bytes.</summary>
+    public static byte[]ToBytes(PrefractureAsset Asset){
+        using MemoryStream Stream=new();
+        Write(Stream,Asset);
+        return Stream.ToArray();
     }
 
     public static bool TryRead(Stream Input,out PrefractureAsset?Asset,out string Error){
@@ -170,47 +216,63 @@ public static class PrefractureArtifact {
         try {
             Span<byte>MagicBytes=stackalloc byte[Magic.Length];
             Input.ReadExactly(MagicBytes);
-            if(!MagicBytes.SequenceEqual(Magic)){ throw new InvalidDataException(); }
+            var FileVersion=MagicBytes.SequenceEqual(Magic)?2:MagicBytes.SequenceEqual(MagicVersion1)?1:0;
+            if(FileVersion==0){ throw new InvalidDataException(); }
             using BinaryReader Reader=new(Input,Encoding.UTF8,true);
-            if(Reader.ReadInt32()!=Version){ throw new InvalidDataException(); }
-            string SourceHash=ReadString(Reader);
+            if(Reader.ReadInt32()!=FileVersion){ throw new InvalidDataException(); }
+            var SourceHash=ReadString(Reader);
             if(string.IsNullOrWhiteSpace(SourceHash)){ throw new InvalidDataException(); }
-            int Seed=Reader.ReadInt32();
-            int FragmentCount=ReadCount(Reader,2,MaximumFragments);
-            FractureFragment[]Fragments=new FractureFragment[FragmentCount];
-            FractureMesh[]Meshes=new FractureMesh[FragmentCount];
-            PhysicsShapeAsset[]Shapes=new PhysicsShapeAsset[FragmentCount];
-            for(int FragmentIndex=0;FragmentIndex<FragmentCount;FragmentIndex++){
-                int Index=Reader.ReadInt32();
-                if(Index!=FragmentIndex){ throw new InvalidDataException(); }
-                string ShapeId=ReadString(Reader);
-                LogicalVector3 Center=ReadVector(Reader);
-                LogicalScalar Mass=ReadScalar(Reader);
+            var Seed=Reader.ReadInt32();
+            var Density=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
+            var StrengthPerArea=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
+            if(Density<LogicalScalar.Zero||StrengthPerArea<LogicalScalar.Zero){ throw new InvalidDataException(); }
+            var FragmentCount=ReadCount(Reader,2,MaximumFragments);
+            var Fragments=new FractureFragment[FragmentCount];
+            var Meshes=new FractureMesh[FragmentCount];
+            var Shapes=new PhysicsShapeAsset[FragmentCount];
+            var Sites=new LogicalVector3[FileVersion>=2?FragmentCount:0];
+            var Clusters=new int[FileVersion>=2?FragmentCount:0];
+            for(var FragmentIndex=0;FragmentIndex<FragmentCount;FragmentIndex++){
+                if(Reader.ReadInt32()!=FragmentIndex){ throw new InvalidDataException(); }
+                var ShapeId=ReadString(Reader);
+                var Center=ReadVector(Reader);
+                var Mass=ReadScalar(Reader);
                 if(Mass<=LogicalScalar.Zero){ throw new InvalidDataException(); }
-                int VertexCount=ReadCount(Reader,4,MaximumVerticesPerFragment);
-                LogicalVector3[]Vertices=new LogicalVector3[VertexCount];
-                for(int VertexIndex=0;VertexIndex<VertexCount;VertexIndex++){ Vertices[VertexIndex]=ReadVector(Reader); }
-                int IndexCount=ReadCount(Reader,12,MaximumIndicesPerFragment);
+                if(FileVersion>=2){
+                    Sites[FragmentIndex]=ReadVector(Reader);
+                    Clusters[FragmentIndex]=Reader.ReadInt32();
+                }
+                var VertexCount=ReadCount(Reader,4,MaximumVerticesPerFragment);
+                var Vertices=new LogicalVector3[VertexCount];
+                for(var VertexIndex=0;VertexIndex<VertexCount;VertexIndex++){ Vertices[VertexIndex]=ReadVector(Reader); }
+                var IndexCount=ReadCount(Reader,12,MaximumIndicesPerFragment);
                 if(IndexCount%3!=0){ throw new InvalidDataException(); }
-                int[]Indices=new int[IndexCount];
-                for(int MeshIndex=0;MeshIndex<IndexCount;MeshIndex++){ Indices[MeshIndex]=Reader.ReadInt32(); }
-                FractureMesh Mesh=new(Vertices,Indices);
+                var Indices=new int[IndexCount];
+                for(var MeshIndex=0;MeshIndex<IndexCount;MeshIndex++){ Indices[MeshIndex]=Reader.ReadInt32(); }
+                byte[]?Slots=null;
+                if(FileVersion>=2){
+                    Slots=Reader.ReadBytes(IndexCount/3);
+                    if(Slots.Length!=IndexCount/3){ throw new EndOfStreamException(); }
+                }
+                var Mesh=new FractureMesh(Vertices,Indices,Slots);
                 if(!Mesh.IsClosedManifold()){ throw new InvalidDataException(); }
-                PhysicsShapeAsset Shape=PhysicsShapeAsset.CreateConvex(ShapeId,Vertices);
                 Fragments[FragmentIndex]=new FractureFragment(FragmentIndex,ShapeId,Center,Mass);
                 Meshes[FragmentIndex]=Mesh;
-                Shapes[FragmentIndex]=Shape;
+                Shapes[FragmentIndex]=PhysicsShapeAsset.CreateConvexPolyhedron(ShapeId,Vertices,Indices);
             }
-            int MaximumBonds=checked(FragmentCount*(FragmentCount-1)/2);
-            int BondCount=ReadCount(Reader,0,MaximumBonds);
-            FractureBond[]Bonds=new FractureBond[BondCount];
-            for(int BondIndex=0;BondIndex<BondCount;BondIndex++){
-                Bonds[BondIndex]=new FractureBond(
-                    Reader.ReadInt32(),Reader.ReadInt32(),ReadScalar(Reader));
+            var MaximumBonds=checked(FragmentCount*(FragmentCount-1)/2);
+            var BondCount=ReadCount(Reader,0,MaximumBonds);
+            var Bonds=new FractureBond[BondCount];
+            for(var BondIndex=0;BondIndex<BondCount;BondIndex++){
+                var First=Reader.ReadInt32();
+                var Second=Reader.ReadInt32();
+                var Area=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
+                Bonds[BondIndex]=new FractureBond(First,Second,ReadScalar(Reader),Area);
             }
             PrefractureAsset Candidate=new(){
                 SourceHash=SourceHash,Seed=Seed,Fragments=Fragments,Bonds=Bonds,
-                Meshes=Meshes,CollisionShapes=Shapes,
+                Meshes=Meshes,CollisionShapes=Shapes,Sites=Sites,Clusters=Clusters,
+                Density=Density,BondStrengthPerArea=StrengthPerArea,
             };
             if(!Candidate.IsCanonicalArtifact()||Input.ReadByte()!=-1){ throw new InvalidDataException(); }
             Asset=Candidate;
@@ -222,6 +284,13 @@ public static class PrefractureArtifact {
             Error="Prefracture artifact is truncated, malformed, or non-canonical.";
             return false;
         }
+    }
+
+    /// <summary>Reads <paramref name="Bytes"/> (see <see cref="TryRead(Stream,out PrefractureAsset?,out string)"/>).</summary>
+    public static bool TryRead(byte[]Bytes,out PrefractureAsset?Asset,out string Error){
+        ArgumentNullException.ThrowIfNull(Bytes);
+        using MemoryStream Stream=new(Bytes,false);
+        return TryRead(Stream,out Asset,out Error);
     }
 
     private static int ReadCount(BinaryReader Reader,int Minimum,int Maximum){
@@ -349,7 +418,7 @@ public static class PrefractureArtifactCooker {
                 &&ReadInt32(Root,"fragmentCount")==Expected.Fragments.Count
                 &&ReadInt32(Root,"bondCount")==Expected.Bonds.Count
                 &&ReadString(Root,"artifactHash")==ComputeFileHash(ArtifactPath)
-                &&ReadString(Root,"schema")=="prefracture-artifact-1"
+                &&ReadString(Root,"schema")=="prefracture-artifact-2"
                 &&ReadString(Root,"scalar")=="LogicalScalar-Q64.64";
         }
         catch(Exception Exception)when(Exception is IOException or UnauthorizedAccessException or InvalidDataException
@@ -371,7 +440,7 @@ public static class PrefractureArtifactCooker {
             Writer.WriteNumber("fragmentCount",Asset.Fragments.Count);
             Writer.WriteNumber("bondCount",Asset.Bonds.Count);
             Writer.WriteString("artifactHash",ArtifactHash);
-            Writer.WriteString("schema","prefracture-artifact-1");
+            Writer.WriteString("schema","prefracture-artifact-2");
             Writer.WriteString("scalar","LogicalScalar-Q64.64");
             Writer.WriteEndObject();
         }
@@ -405,6 +474,8 @@ public static class PrefractureCooker {
     private static readonly LogicalScalar Three=LogicalScalar.FromInt64(3);
     private static readonly LogicalScalar Four=LogicalScalar.FromInt64(4);
     private static readonly LogicalScalar Six=LogicalScalar.FromInt64(6);
+    /// <summary>A shared face smaller than this (1 mm²) is a corner touch, not a bond.</summary>
+    private static readonly LogicalScalar MinimumBondArea=LogicalScalar.FromSingle(0.000001f);
 
     private readonly record struct ClipPlane(LogicalVector3 Normal,LogicalScalar Distance,int Neighbor);
     private sealed class PolygonFace(List<LogicalVector3>Vertices,int Neighbor) {
@@ -423,12 +494,12 @@ public static class PrefractureCooker {
         Asset=null;
         Error=string.Empty;
         if(Source.Kind!=PhysicsShapeAssetKind.StaticTriangleMesh){
-            Error="Prefracture input must be a closed convex static triangle mesh.";
+            Error="FRACTURE001: Prefracture input must be a closed convex static triangle mesh.";
             return false;
         }
         if(Settings.FragmentCount is <2 or >256||Settings.Density<=LogicalScalar.Zero
-            ||Settings.BondStrengthPerArea<=LogicalScalar.Zero){
-            Error="Prefracture settings require 2-256 fragments and positive density and bond strength.";
+            ||Settings.BondStrengthPerArea<=LogicalScalar.Zero||Settings.ClusterCount<0){
+            Error="FRACTURE002: Prefracture settings require 2-256 fragments, positive density and bond strength, and a cluster count of 0 or more.";
             return false;
         }
         try {
@@ -436,48 +507,60 @@ public static class PrefractureCooker {
                 return false;
             }
             if(!TryGenerateSeeds(Source.Bounds,SourcePlanes,Settings.FragmentCount,Settings.Seed,Source.Fingerprint,out LogicalVector3[]Seeds)){
-                Error="The requested number of distinct Voronoi seeds could not be placed inside the source volume.";
+                Error="FRACTURE005: The requested number of distinct Voronoi seeds could not be placed inside the source volume.";
                 return false;
             }
             List<Cell>Cells=new(Settings.FragmentCount);
             for(int FragmentIndex=0;FragmentIndex<Settings.FragmentCount;FragmentIndex++){
                 List<PolygonFace>Faces=SourceFaces.Select(static Face=>Face.Clone()).ToList();
-                Dictionary<int,LogicalScalar>NeighborAreas=[];
                 for(int OtherIndex=0;OtherIndex<Seeds.Length;OtherIndex++){
                     if(OtherIndex==FragmentIndex){ continue; }
                     LogicalVector3 Delta=Seeds[OtherIndex]-Seeds[FragmentIndex];
                     if(!Delta.TryNormalize(out LogicalVector3 Normal)){
-                        Error="Prefracture seeds are not distinct.";
+                        Error="FRACTURE005: Prefracture seeds are not distinct.";
                         return false;
                     }
                     if(!LogicalScalar.TrySquareRoot(Delta.LengthSquared,out LogicalScalar DeltaLength)
                         ||DeltaLength.IsZero){
-                        Error="Prefracture seeds are not distinct.";
+                        Error="FRACTURE005: Prefracture seeds are not distinct.";
                         return false;
                     }
                     LogicalScalar Distance=(Seeds[OtherIndex].LengthSquared-Seeds[FragmentIndex].LengthSquared)
                         /(Two*DeltaLength);
-                    if(!Clip(Faces,new ClipPlane(Normal,Distance,OtherIndex),out LogicalScalar CapArea)){
-                        Error="A Voronoi fragment collapsed below the representable geometry tolerance.";
+                    if(!Clip(Faces,new ClipPlane(Normal,Distance,OtherIndex),out _)){
+                        Error="FRACTURE006: A Voronoi fragment collapsed below the representable geometry tolerance.";
                         return false;
                     }
-                    if(CapArea>GeometryToleranceSquared){ NeighborAreas[OtherIndex]=CapArea; }
                 }
-                if(!TryBuildCell(Source.Id,FragmentIndex,Faces,Settings.Density,NeighborAreas,out Cell CellValue,out Error)){
+                if(!TryBuildCell(Source.Id,FragmentIndex,Faces,Settings.Density,out Cell CellValue,out Error)){
                     return false;
                 }
                 Cells.Add(CellValue);
             }
+            // The shared face of two cells, measured on each side's final polygon: the two sides are one face, so their areas agree (a bond is symmetric).
             List<FractureBond>Bonds=[];
             for(int First=0;First<Cells.Count;First++){
                 for(int Second=First+1;Second<Cells.Count;Second++){
-                    if(!Cells[First].NeighborAreas.TryGetValue(Second,out LogicalScalar FirstArea)
-                        ||!Cells[Second].NeighborAreas.TryGetValue(First,out LogicalScalar SecondArea)){ continue; }
-                    LogicalScalar Area=FirstArea<SecondArea?FirstArea:SecondArea;
-                    if(Area<=GeometryToleranceSquared){ continue; }
-                    Bonds.Add(new FractureBond(First,Second,Area*Settings.BondStrengthPerArea));
+                    var HasFirst=Cells[First].NeighborAreas.TryGetValue(Second,out LogicalScalar FirstArea);
+                    var HasSecond=Cells[Second].NeighborAreas.TryGetValue(First,out LogicalScalar SecondArea);
+                    var Larger=FirstArea>SecondArea?FirstArea:SecondArea;
+                    if(!HasFirst||!HasSecond){
+                        if(Larger>MinimumBondArea){
+                            Error=$"FRACTURE007: Fragments {First} and {Second} disagree on their shared face (one side has {(HasFirst?FirstArea:SecondArea).ToStringInvariant()} m², the other none).";
+                            return false;
+                        }
+                        continue;
+                    }
+                    if(Abs(FirstArea-SecondArea)>Larger/LogicalScalar.FromInt64(1000)+GeometryToleranceSquared){
+                        Error=$"FRACTURE007: Fragments {First} and {Second} disagree on their shared face ({FirstArea.ToStringInvariant()} m² and {SecondArea.ToStringInvariant()} m²).";
+                        return false;
+                    }
+                    var Area=FirstArea<SecondArea?FirstArea:SecondArea;
+                    if(Area<=MinimumBondArea){ continue; }
+                    Bonds.Add(new FractureBond(First,Second,Area*Settings.BondStrengthPerArea,Area));
                 }
             }
+            var Clusters=BuildClusters(Cells.Count,Bonds,Settings.ClusterCount);
             Asset=new PrefractureAsset {
                 SourceHash=Source.Fingerprint,
                 Seed=Settings.Seed,
@@ -485,10 +568,14 @@ public static class PrefractureCooker {
                 Bonds=Bonds,
                 Meshes=Cells.Select(static CellValue=>CellValue.Mesh).ToArray(),
                 CollisionShapes=Cells.Select(static CellValue=>CellValue.Collision).ToArray(),
+                Sites=Seeds,
+                Clusters=Clusters,
+                Density=Settings.Density,
+                BondStrengthPerArea=Settings.BondStrengthPerArea,
             };
-            if(!Asset.IsDeterministicallyOrdered()){
+            if(!Asset.IsDeterministicallyOrdered()||!Asset.IsCanonicalArtifact()){
                 Asset=null;
-                Error="Generated prefracture data violates its canonical ordering invariant.";
+                Error="FRACTURE007: Generated prefracture data violates its canonical invariants (ordering, closed fragments, one connected bond graph, connected clusters).";
                 return false;
             }
             return true;
@@ -506,7 +593,7 @@ public static class PrefractureCooker {
         Planes=[];
         Error=string.Empty;
         if(!IsClosedSourceMesh(Source)){
-            Error="Prefracture input must be a closed two-manifold mesh.";
+            Error="FRACTURE001: Prefracture input must be a closed two-manifold mesh.";
             return false;
         }
         LogicalVector3 Center=LogicalVector3.Zero;
@@ -517,7 +604,7 @@ public static class PrefractureCooker {
             LogicalVector3 B=Source.Vertices[Source.Indices[Index+1]];
             LogicalVector3 C=Source.Vertices[Source.Indices[Index+2]];
             if(!LogicalVector3.Cross(B-A,C-A).TryNormalize(out LogicalVector3 Normal)){
-                Error="Prefracture source contains a degenerate triangle.";
+                Error="FRACTURE004: Prefracture source contains a degenerate triangle.";
                 return false;
             }
             LogicalScalar Distance=LogicalVector3.Dot(Normal,A);
@@ -533,16 +620,20 @@ public static class PrefractureCooker {
         foreach(ClipPlane Plane in Planes){
             foreach(LogicalVector3 Vertex in Source.Vertices){
                 if(LogicalVector3.Dot(Plane.Normal,Vertex)>Plane.Distance+GeometryTolerance){
-                    Error="Prefracture currently requires a convex source mesh.";
+                    Error="FRACTURE003: Prefracture currently requires a convex source mesh.";
                     return false;
                 }
             }
             if(!Clip(Faces,Plane,out _)){
-                Error="Source mesh planes do not enclose a representable volume.";
+                Error="FRACTURE004: Source mesh planes do not enclose a representable volume.";
                 return false;
             }
         }
-        return Faces.Count>=4;
+        if(Faces.Count<4){
+            Error="FRACTURE004: Source mesh planes do not enclose a representable volume.";
+            return false;
+        }
+        return true;
     }
 
     private static bool IsClosedSourceMesh(PhysicsShapeAsset Source){
@@ -714,15 +805,28 @@ public static class PrefractureCooker {
         return Abs(LogicalVector3.Dot(AreaVector,Normal))/Two;
     }
 
+    /// <summary>
+    /// One Voronoi cell as a fragment: the clipped faces fan-triangulated into a closed mesh that winds outward (positive volume), with the material slot of
+    /// each triangle (a face cut by a neighbour's plane is <see cref="FractureMesh.InteriorSlot"/>), the area of the face shared with each neighbour, and
+    /// the convex polyhedron the physics collides with.
+    /// </summary>
     private static bool TryBuildCell(
         string SourceId,int FragmentIndex,List<PolygonFace>Faces,LogicalScalar Density,
-        Dictionary<int,LogicalScalar>NeighborAreas,out Cell CellValue,out string Error){
+        out Cell CellValue,out string Error){
         CellValue=null!;
         Error=string.Empty;
         List<LogicalVector3>WorldVertices=[];
         List<int>Indices=[];
+        List<byte>Slots=[];
+        Dictionary<int,LogicalScalar>NeighborAreas=[];
         foreach(PolygonFace Face in Faces){
             if(Face.Vertices.Count<3){ continue; }
+            if(Face.Neighbor>=0){
+                var FaceArea=PolygonArea(Face.Vertices);
+                NeighborAreas.TryGetValue(Face.Neighbor,out var Existing);
+                NeighborAreas[Face.Neighbor]=Existing+FaceArea;
+            }
+            var Slot=Face.Neighbor>=0?FractureMesh.InteriorSlot:FractureMesh.OuterSlot;
             int First=GetVertexIndex(WorldVertices,Face.Vertices[0]);
             for(int Index=1;Index<Face.Vertices.Count-1;Index++){
                 int Second=GetVertexIndex(WorldVertices,Face.Vertices[Index]);
@@ -731,10 +835,11 @@ public static class PrefractureCooker {
                 Indices.Add(First);
                 Indices.Add(Second);
                 Indices.Add(Third);
+                Slots.Add(Slot);
             }
         }
         if(WorldVertices.Count<4||Indices.Count<12){
-            Error="A generated Voronoi fragment has no closed volume.";
+            Error="FRACTURE006: A generated Voronoi fragment has no closed volume.";
             return false;
         }
         LogicalScalar SignedSixVolume=LogicalScalar.Zero;
@@ -748,25 +853,118 @@ public static class PrefractureCooker {
             WeightedCenter+=(A+B+C)*SixVolume;
         }
         if(Abs(SignedSixVolume)<=GeometryToleranceSquared){
-            Error="A generated Voronoi fragment has zero representable volume.";
+            Error="FRACTURE006: A generated Voronoi fragment has zero representable volume.";
             return false;
+        }
+        if(SignedSixVolume<LogicalScalar.Zero){
+            // Outward winding is the canonical form: the renderer and the physics read the normals from it.
+            for(int Index=0;Index<Indices.Count;Index+=3){ (Indices[Index+1],Indices[Index+2])=(Indices[Index+2],Indices[Index+1]); }
         }
         LogicalVector3 Center=WeightedCenter/(Four*SignedSixVolume);
         LogicalScalar Mass=Abs(SignedSixVolume)/Six*Density;
         LogicalVector3[]LocalVertices=WorldVertices.Select(Vertex=>Vertex-Center).ToArray();
-        FractureMesh Mesh=new(LocalVertices,Indices);
+        FractureMesh Mesh=new(LocalVertices,Indices,Slots);
         if(!Mesh.TryGetTopologyError(out string TopologyError)){
-            Error=$"Voronoi fragment {FragmentIndex} is not a closed two-manifold mesh "
+            Error=$"FRACTURE006: Voronoi fragment {FragmentIndex} is not a closed two-manifold mesh "
                 +$"({WorldVertices.Count} vertices, {Indices.Count/3} triangles, {Faces.Count} faces): {TopologyError}.";
             return false;
         }
         string ShapeId=$"{SourceId}.fragment.{FragmentIndex:D4}";
-        PhysicsShapeAsset Collision=PhysicsShapeAsset.CreateConvex(ShapeId,LocalVertices);
+        PhysicsShapeAsset Collision=PhysicsShapeAsset.CreateConvexPolyhedron(ShapeId,LocalVertices,Indices);
         FractureFragment Fragment=new(FragmentIndex,ShapeId,Center,Mass);
         CellValue=new Cell(Fragment,Mesh,Collision,NeighborAreas);
         return true;
     }
 
+    /// <summary>The area of a planar polygon (half the length of its Newell vector).</summary>
+    private static LogicalScalar PolygonArea(IReadOnlyList<LogicalVector3>Vertices){
+        var AreaVector=LogicalVector3.Zero;
+        for(var Index=0;Index<Vertices.Count;Index++){
+            AreaVector+=LogicalVector3.Cross(Vertices[Index],Vertices[(Index+1)%Vertices.Count]);
+        }
+        return LogicalScalar.TrySquareRoot(AreaVector.LengthSquared,out var Length)?Length/Two:LogicalScalar.Zero;
+    }
+
+    /// <summary>
+    /// One level of clusters over the bond graph (UE's cluster hierarchy, M0113). The target size is ⌈fragments / clusters⌉ (clusters 0: the nearest whole
+    /// number to √fragments). Each cluster grows breadth-first from the lowest unassigned fragment through its bonds in ascending order, so a cluster is
+    /// always connected and the result depends only on the bond graph. Clusters are numbered in the order of their first fragment.
+    /// </summary>
+    private static int[]BuildClusters(int FragmentCount,IReadOnlyList<FractureBond>Bonds,int RequestedClusters){
+        // The nearest whole number to √fragments, in integers (k² ≤ n < (k+1)²; n is never halfway between the two squares).
+        var Root=1;
+        while((Root+1)*(Root+1)<=FragmentCount){ Root++; }
+        if(FragmentCount-Root*Root>(Root+1)*(Root+1)-FragmentCount){ Root++; }
+        var Wanted=RequestedClusters>0?RequestedClusters:Root;
+        Wanted=Math.Clamp(Wanted,1,FragmentCount);
+        var TargetSize=(FragmentCount+Wanted-1)/Wanted;
+        var Neighbors=new List<int>[FragmentCount];
+        for(var Index=0;Index<FragmentCount;Index++){ Neighbors[Index]=[]; }
+        foreach(var Bond in Bonds){
+            Neighbors[Bond.FirstFragment].Add(Bond.SecondFragment);
+            Neighbors[Bond.SecondFragment].Add(Bond.FirstFragment);
+        }
+        foreach(var List in Neighbors){ List.Sort(); }
+        var Clusters=new int[FragmentCount];
+        Array.Fill(Clusters,-1);
+        var Next=0;
+        Queue<int>Frontier=new();
+        for(var Start=0;Start<FragmentCount;Start++){
+            if(Clusters[Start]>=0){ continue; }
+            var Size=0;
+            Frontier.Clear();
+            Frontier.Enqueue(Start);
+            Clusters[Start]=Next;
+            Size++;
+            while(Frontier.Count>0&&Size<TargetSize){
+                var Current=Frontier.Dequeue();
+                foreach(var Neighbor in Neighbors[Current]){
+                    if(Size>=TargetSize){ break; }
+                    if(Clusters[Neighbor]>=0){ continue; }
+                    Clusters[Neighbor]=Next;
+                    Size++;
+                    Frontier.Enqueue(Neighbor);
+                }
+            }
+            Next++;
+        }
+        // A cluster cut short because its neighbours were taken first joins the neighbour it shares the most bonds with (the lower number on a tie), while
+        // there are more clusters than asked for; each merge keeps both connected. Then the numbers are made canonical again.
+        while(Next>Wanted){
+            var Sizes=new int[Next];
+            foreach(var Cluster in Clusters){ Sizes[Cluster]++; }
+            var Smallest=-1;
+            for(var Cluster=0;Cluster<Next;Cluster++){
+                if(Sizes[Cluster]*2<TargetSize&&(Smallest<0||Sizes[Cluster]<Sizes[Smallest])){ Smallest=Cluster; }
+            }
+            if(Smallest<0){ break; }
+            var Shared=new int[Next];
+            foreach(var Bond in Bonds){
+                var First=Clusters[Bond.FirstFragment];
+                var Second=Clusters[Bond.SecondFragment];
+                if(First==Smallest&&Second!=Smallest){ Shared[Second]++; }
+                if(Second==Smallest&&First!=Smallest){ Shared[First]++; }
+            }
+            var Into=-1;
+            for(var Cluster=0;Cluster<Next;Cluster++){
+                if(Shared[Cluster]>0&&(Into<0||Shared[Cluster]>Shared[Into])){ Into=Cluster; }
+            }
+            if(Into<0){ break; }
+            for(var Index=0;Index<FragmentCount;Index++){
+                if(Clusters[Index]==Smallest){ Clusters[Index]=Into; }
+            }
+            var Renumbered=new Dictionary<int,int>();
+            for(var Index=0;Index<FragmentCount;Index++){
+                if(!Renumbered.TryGetValue(Clusters[Index],out var Number)){
+                    Number=Renumbered.Count;
+                    Renumbered.Add(Clusters[Index],Number);
+                }
+                Clusters[Index]=Number;
+            }
+            Next=Renumbered.Count;
+        }
+        return Clusters;
+    }
     private static int GetVertexIndex(List<LogicalVector3>Vertices,LogicalVector3 Candidate){
         for(int Index=0;Index<Vertices.Count;Index++){
             if((Vertices[Index]-Candidate).LengthSquared<=GeometryToleranceSquared){ return Index; }

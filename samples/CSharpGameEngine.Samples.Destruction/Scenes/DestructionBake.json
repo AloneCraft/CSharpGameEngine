@@ -1,0 +1,122 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "DestructionBake",
+  "root": {
+    "id": "4a08a056-82e7-5311-ba69-172c3a49292f",
+    "name": "BakeFloor",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 0,
+            "F": 0
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Box",
+          "HalfExtents": {
+            "R": 20,
+            "U": 0.25,
+            "F": 20
+          },
+          "Center": {
+            "R": 0,
+            "U": -0.25,
+            "F": 0
+          }
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "a088d8b8-46f3-572d-850d-8fe254e059c9",
+        "name": "BakeCrate",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0.5,
+                "F": 0
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 0.5,
+                "U": 0.5,
+                "F": 0.5
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Destruction.Destructible",
+            "members": {
+              "FractureAsset": "BakeCrate",
+              "FragmentCount": 10,
+              "Seed": 5,
+              "Anchor": "None",
+              "OuterColorR": 0.42,
+              "OuterColorG": 0.26,
+              "OuterColorB": 0.11,
+              "InteriorColorR": 0.8,
+              "InteriorColorG": 0.62,
+              "InteriorColorB": 0.38,
+              "FragmentLifetime": 30
+            }
+          }
+        ],
+        "children": [
+          {
+            "id": "d362d8a6-006e-53b2-a26a-5e23b176c8f1",
+            "name": "BakeExplosion",
+            "components": [
+              {
+                "type": "CSharpGameEngine.Entities.Transform",
+                "members": {
+                  "Position": {
+                    "R": 0,
+                    "U": 0,
+                    "F": 0
+                  }
+                }
+              },
+              {
+                "type": "CSharpGameEngine.Destruction.StrainField",
+                "members": {
+                  "Radius": 2,
+                  "Strain": 20000
+                }
+              },
+              {
+                "type": "CSharpGameEngine.Destruction.ForceField",
+                "members": {
+                  "Radius": 3,
+                  "Speed": 5
+                }
+              },
+              {
+                "type": "CSharpGameEngine.Runtime.Windows.Lifetime",
+                "members": {
+                  "Seconds": 0.1
+                }
+              }
+            ],
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}

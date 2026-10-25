@@ -1,0 +1,43 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "Explosion",
+  "root": {
+    "id": "a8c73acc-06a4-5835-bb85-a882b5976dc5",
+    "name": "Explosion",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 0,
+            "F": 0
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Destruction.StrainField",
+        "members": {
+          "Radius": 2,
+          "Strain": 20000
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Destruction.ForceField",
+        "members": {
+          "Radius": 3,
+          "Speed": 5
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Lifetime",
+        "members": {
+          "Seconds": 0.1
+        }
+      }
+    ],
+    "children": []
+  }
+}

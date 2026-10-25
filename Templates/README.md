@@ -108,6 +108,8 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
 
+壊れる物体(UE の Chaos の Geometry Collection・Fracture・Field に当たる。M0113)は UE の 4 テンプレートに無いので、テンプレートのレベルは変えていない。エンジンのプラグイン Destruction(`plugins/CSharpGameEngine.Destruction`。csproj の `<CgePlugins>Destruction</CgePlugins>`)を有効にしたゲームで、シーンの節点に `Collider`(箱)と `Destructible` を置くと、ビルドがボロノイで切り、ぶつかる・撃つ・`StrainField` で壊れる。使い方の見本は `samples/CSharpGameEngine.Samples.Destruction`(ThirdPerson の操作。F で球を撃ち、E で爆発。WARP の `verify-destruction` で検証)。
+
 ### プラグインを作る(ADR-0079)
 - 機能(Component、System、サービス、データの型)を足すときはプラグインにする。値だけを足すときはアセット。作り方の全体は `Docs/Specifications/Plugins-And-Assets.md`。
 - いちばん簡単な形は、ゲームの `Plugins/<名前>/` に置くプロジェクトのプラグイン。`samples/Plugins/Weather` をコピーして、名前を変えれば始められる。

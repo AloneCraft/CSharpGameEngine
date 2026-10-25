@@ -95,6 +95,7 @@ resume <run-result.json> [options]
 | `spatial.runtime` | Foundation | F-L3-015/016/017 | Octree・snapshot・debug projection契約が成功 |
 | `rigid.physics` | Rigid | F-L5-001/002/003, F-L3-018, F-L6-002, F-L7-020, F-L8-014 | deterministic state/message/physics/artifact、generated headless Scene Bake、debug契約が成功 |
 | `rigid.character-controller` | Rigid | F-L5-006 | 休止・ジャンプ頂点・6 m/s歩行と制動・壁滑り・30°坂/40 cm段の登坂と50°/50 cmの拒否・完全再現、SpringArmの壁/床での短縮、ThirdPersonテンプレートのWARP実走(W→Spaceでカメラが水平に1 m以上移動、0.5 m以上上昇して着地、床抜けとD3D12エラーなし) |
+| `destruction.prefracture` | Destruction | F-L5-049 | ボロノイの調理のバイト一致・閉じた破片・対称な面積の結合・つながったクラスター、強さちょうどで切れる結合、アンカー・上限・寿命・`BondBroken`の試験、破壊の見本のWARP実走(W・F・Eの自動入力で6個すべてが壊れる、破片が床より上で0.2 m/s以下に静まる、D3D12エラーなし)、焼き2回と再生のキャッシュのバイト一致(M0113) |
 | `runner.contract` | Foundation | F-L7-021 | catalog・CLI選択・結果schemaテストが成功 |
 | `stage-packs.contract` | Foundation | F-L9-008 | 10個の独立PackがC# `IScene`を生成・実体化・unloadし、安定state hashを出力 |
 

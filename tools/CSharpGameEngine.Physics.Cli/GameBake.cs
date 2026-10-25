@@ -15,7 +15,16 @@ internal static class GameBake {
 
     internal static bool TryBake(
         string GameAssembly,string SceneName,int TickCount,string DependencyHash,Stream Output,
-        CancellationToken CancellationToken,out string Error){
+        CancellationToken CancellationToken,out string Error)=>
+        TryRun(GameAssembly,"TryBake",[SceneName,TickCount,DependencyHash,Output,CancellationToken,null],out Error);
+
+    /// <summary>ADR-0078/M0113: plays a baked cache back in the game's own build (its generated <c>TryReplay</c>) and writes what the world held, tick by tick.</summary>
+    internal static bool TryReplay(
+        string GameAssembly,string SceneName,int TickCount,string DependencyHash,Stream Cache,Stream Output,
+        CancellationToken CancellationToken,out string Error)=>
+        TryRun(GameAssembly,"TryReplay",[SceneName,TickCount,DependencyHash,Cache,Output,CancellationToken,null],out Error);
+
+    private static bool TryRun(string GameAssembly,string MethodName,object?[]Arguments,out string Error){
         string Directory=Path.GetDirectoryName(GameAssembly)!;
         GameLoadContext Context=new(Directory);
         try {
@@ -25,9 +34,9 @@ internal static class GameBake {
                 Error=$"The game assembly could not be loaded: {Exception.Message}";
                 return false;
             }
-            if(Game.GetType(BakeHostTypeName,throwOnError:false)?.GetMethod("TryBake",BindingFlags.Public|BindingFlags.Static)
+            if(Game.GetType(BakeHostTypeName,throwOnError:false)?.GetMethod(MethodName,BindingFlags.Public|BindingFlags.Static)
                 is not { }TryBakeMethod){
-                Error=$"The game has no generated scene Bake host: {GameAssembly}";
+                Error=$"The game has no generated scene Bake host with {MethodName}: {GameAssembly}";
                 return false;
             }
             // The game resolves its meshes and collision against its content root, which defaults to this process's
@@ -35,9 +44,8 @@ internal static class GameBake {
             if(Game.GetType(ContentRootTypeName,throwOnError:false)?.GetMethod("Use",[typeof(string)]) is { }UseContentRoot){
                 Invoke(UseContentRoot,[Directory]);
             }
-            object?[]Arguments=[SceneName,TickCount,DependencyHash,Output,CancellationToken,null];
             bool Succeeded=(bool)Invoke(TryBakeMethod,Arguments)!;
-            Error=Arguments[5] as string??string.Empty;
+            Error=Arguments[^1] as string??string.Empty;
             return Succeeded;
         }
         finally { Context.Unload(); }

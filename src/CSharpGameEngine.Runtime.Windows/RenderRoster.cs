@@ -1,6 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
 /// ADR-0078/M0105: the drawn objects follow the Entities. <see cref="LevelLoad"/> still builds the renderer from the Entities that
@@ -63,7 +64,52 @@ internal sealed class RenderRoster {
         World.IsAlive(Source)
         &&(World.TryGetComponent(Source,out StaticMesh _)
             ||World.TryGetComponent(Source,out PrimitiveMesh _)
-            ||World.TryGetComponent(Source,out CSharpGameEngine.Runtime.Animation.SkeletalMesh _));
+            ||World.TryGetComponent(Source,out CSharpGameEngine.Runtime.Animation.SkeletalMesh _)
+            ||World.TryGetComponent(Source,out FragmentMesh _));
+    private readonly Dictionary<(string Path,int Fragment),StageSceneDataBuilder.AssetObject[]>FragmentObjects=new();
+    private readonly Dictionary<(Vector3 Outer,Vector3 Interior),(int Outer,int Interior)>FragmentMaterials=new();
+    /// <summary>
+    /// ADR-0078/M0113: gives an Entity with a <see cref="FragmentMesh"/> its objects: the fragment's outer and cut triangles as two meshes (made once per
+    /// fragment of an asset), with a pair of plain materials per colour pair. An asset that cannot be loaded is reported once and not drawn.
+    /// </summary>
+    internal void BindFragmentMesh(Entity Source,in Transform Transform,in FragmentMesh Mesh,EngineHost Host,ref State State){
+        if(this.Bound.Contains(Source)||Host.Renderer is not{ }Renderer){ return; }
+        if(string.IsNullOrEmpty(Mesh.AssetPath)){ return; }
+        var FullPath=ContentRoot.Resolve(Mesh.AssetPath);
+        if(this.FailedAssets.Contains(FullPath)){ return; }
+        if(!this.FragmentObjects.TryGetValue((FullPath,Mesh.Fragment),out var Objects)){
+            if(!PrefractureAssetCache.TryGet(FullPath,out var Asset,out var Error)){
+                this.Fail(FullPath,Error);
+                return;
+            }
+            if((uint)Mesh.Fragment>=(uint)Asset.Fragments.Count){
+                var Key=$"{FullPath}#{Mesh.Fragment}";
+                if(!this.FailedAssets.Contains(Key)){ this.Fail(Key,$"The prefracture asset '{FullPath}' has no fragment {Mesh.Fragment}."); }
+                return;
+            }
+            if(!this.FragmentMaterials.TryGetValue((Mesh.OuterColor,Mesh.InteriorColor),out var Materials)){
+                if(Renderer.FreeMaterialSlots<2){
+                    this.Fail(FullPath,"The renderer has no room for the materials of a fragment.");
+                    return;
+                }
+                StageMaterialCreateInfo Outer=new(){ BaseColorFactor=new Vector4(Mesh.OuterColor,1f),RoughnessFactor=0.8f,MetallicFactor=0f };
+                StageMaterialCreateInfo Interior=new(){ BaseColorFactor=new Vector4(Mesh.InteriorColor,1f),RoughnessFactor=0.95f,MetallicFactor=0f };
+                Materials=(Renderer.AddMaterial(Outer),Renderer.AddMaterial(Interior));
+                this.MaterialEmission.Add(EmissionOf(Outer));
+                this.MaterialEmission.Add(EmissionOf(Interior));
+                this.FragmentMaterials.Add((Mesh.OuterColor,Mesh.InteriorColor),Materials);
+            }
+            List<StageSceneDataBuilder.AssetObject>Made=[];
+            foreach(var Slot in (ReadOnlySpan<byte>)[FractureMesh.OuterSlot,FractureMesh.InteriorSlot]){
+                if(FragmentMeshBuilder.Build(Asset,Mesh.Fragment,Slot) is not { }Part){ continue; }
+                var MeshIndex=Renderer.AddMesh(Part);
+                Made.Add(new StageSceneDataBuilder.AssetObject(MeshIndex,Slot==FractureMesh.OuterSlot?Materials.Outer:Materials.Interior,Matrix4x4.Identity));
+            }
+            Objects=[.. Made];
+            this.FragmentObjects.Add((FullPath,Mesh.Fragment),Objects);
+        }
+        this.BindObjects(Source,in Transform,Objects,Renderer,Host,ref State);
+    }
     private void NoteEmissiveMesh(int MeshIndex,int MaterialIndex,StageMeshCreateInfo Mesh){
         if(IsEmissive(this.MaterialEmission[MaterialIndex].Nits)){
             this.EmissiveMeshes.TryAdd(MeshIndex,Mesh);

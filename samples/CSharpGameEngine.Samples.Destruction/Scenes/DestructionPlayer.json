@@ -1,0 +1,135 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "DestructionPlayer",
+  "startupOrder": 2,
+  "root": {
+    "id": "364549e1-d6a8-5f7e-962e-8ea5745d1fa3",
+    "name": "Player",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 1.0,
+            "F": 0
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMotion",
+        "members": {
+          "CapsuleRadius": 0.35,
+          "CapsuleHalfHeight": 0.9,
+          "WalkSpeed": 6,
+          "MinAnalogWalkSpeed": 0.2,
+          "Acceleration": 15,
+          "Braking": 20,
+          "AirBraking": 15,
+          "GroundFriction": 8,
+          "BrakingFriction": 0,
+          "JumpSpeed": 5,
+          "AirControl": 0.35,
+          "AirControlBoostMultiplier": 2,
+          "AirControlBoostVelocityThreshold": 0.25,
+          "GravityScale": 1,
+          "StepHeight": 0.45,
+          "MaxSlope": 0.12434745,
+          "TurnRate": 1.3888889,
+          "FaceMovement": true
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMotionState",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.MoveIntent",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.ViewAngles",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.KillZ",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Destruction.DestructionImpact",
+        "members": {
+          "Mass": 100,
+          "MinimumSpeed": 1
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "431606ba-5803-50e1-bf9c-1020bbed0e17",
+        "name": "Body",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.7,
+                "U": 0.9,
+                "F": 0.7
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Capsule"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b6531545-d641-53c6-8fdc-17e269ae2d7c",
+        "name": "FollowCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Character.OrbitCamera",
+            "members": {
+              "Pivot": {
+                "R": 0,
+                "U": 0.08492264,
+                "F": 0
+              },
+              "Distance": 4,
+              "Radius": 0.12,
+              "Collide": true
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true,
+              "FovY": 0.16309864,
+              "FarZ": 1000
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.AudioListener",
+            "members": {}
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

@@ -10,14 +10,7 @@
       {
         "type": "CSharpGameEngine.Entities.Transform",
         "members": {
-          "Position": { "R": 5, "U": 2, "F": 0 },
-          "Scale": { "R": 0.5, "U": 4, "F": 6 }
-        }
-      },
-      {
-        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
-        "members": {
-          "Type": "Box"
+          "Position": { "R": 5, "U": 2, "F": 0 }
         }
       },
       {
@@ -28,10 +21,13 @@
         }
       },
       {
-        "type": "CSharpGameEngine.Runtime.Physics.Destructible",
+        "type": "CSharpGameEngine.Destruction.Destructible",
         "members": {
-          "FractureAsset": "Physics/PrefractureWall.cgefracture",
-          "FractureThreshold": 8,
+          "FractureAsset": "PrefractureWall",
+          "FragmentCount": 24,
+          "Seed": 7,
+          "Density": 2400,
+          "BondStrength": 4000,
           "FragmentBudget": 64
         }
       }

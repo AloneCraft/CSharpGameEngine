@@ -6,6 +6,11 @@ namespace CSharpGameEngine.Runtime.Physics;
 public enum PhysicsShapeAssetKind:byte {
     Convex,
     StaticTriangleMesh,
+    /// <summary>
+    /// The union of convex children in one body's frame (ADR-0078/M0113): a piece of a broken <c>Destructible</c> that holds several fragments, which UE's
+    /// Chaos keeps as a cluster union of its children. Built at run time; it is not a cooked artifact.
+    /// </summary>
+    Compound,
 }
 
 /// <summary>Immutable cooked geometry. Runtime bodies keep only the asset identity.</summary>
@@ -14,18 +19,25 @@ public sealed class PhysicsShapeAsset {
     private readonly int[] IndexStorage;
     private readonly MeshNode[] MeshNodes;
     private readonly int[] MeshTriangles;
+    private readonly LogicalVector3[] PlaneNormalStorage;
+    private readonly LogicalScalar[] PlaneDistanceStorage;
+    private readonly PhysicsShapeAsset[] ChildStorage;
 
     private readonly record struct MeshNode(PhysicsAabb Bounds,int Left,int Right,int Start,int Count) {
         internal bool IsLeaf=>this.Count>0;
     }
 
-    private PhysicsShapeAsset(string Id,PhysicsShapeAssetKind Kind,LogicalVector3[] Vertices,int[] Indices){
+    private PhysicsShapeAsset(string Id,PhysicsShapeAssetKind Kind,LogicalVector3[] Vertices,int[] Indices,
+        LogicalVector3[]?PlaneNormals=null,LogicalScalar[]?PlaneDistances=null,PhysicsShapeAsset[]?Children=null){
         this.Id=Id;
         this.Kind=Kind;
         this.VertexStorage=Vertices;
         this.IndexStorage=Indices;
+        this.PlaneNormalStorage=PlaneNormals??[];
+        this.PlaneDistanceStorage=PlaneDistances??[];
+        this.ChildStorage=Children??[];
         this.Bounds=CalculateBounds(Vertices);
-        this.Fingerprint=ComputeFingerprint(Id,Kind,Vertices,Indices);
+        this.Fingerprint=ComputeFingerprint(Id,Kind,Vertices,Indices,this.ChildStorage);
         if(Kind==PhysicsShapeAssetKind.StaticTriangleMesh){
             List<MeshNode> Nodes=[];
             this.MeshTriangles=BuildMeshBvh(Vertices,Indices,Nodes);
@@ -44,6 +56,10 @@ public sealed class PhysicsShapeAsset {
     public PhysicsAabb Bounds { get; }
     public string Fingerprint { get; }
     public int TriangleBvhNodeCount=>this.MeshNodes.Length;
+    /// <summary>The outward face planes of a convex polyhedron (<see cref="CreateConvexPolyhedron"/>); empty for a point-cloud convex asset.</summary>
+    public int PlaneCount=>this.PlaneNormalStorage.Length;
+    /// <summary>The convex children of a <see cref="PhysicsShapeAssetKind.Compound"/>, in the body's frame; empty for other kinds.</summary>
+    public IReadOnlyList<PhysicsShapeAsset> Children=>this.ChildStorage;
 
     public static PhysicsShapeAsset CreateConvex(string Id,IReadOnlyList<LogicalVector3> Vertices){
         ValidateId(Id);
@@ -53,6 +69,90 @@ public sealed class PhysicsShapeAsset {
         EnsureDistinctVertices(Copy,4);
         return new PhysicsShapeAsset(Id,PhysicsShapeAssetKind.Convex,Copy,[]);
     }
+
+    /// <summary>
+    /// A convex polyhedron whose closed triangle mesh (<paramref name="Indices"/>) gives its faces (ADR-0078/M0113, the fragments of a prefractured mesh).
+    /// It collides like <see cref="CreateConvex"/>, and its face planes let the narrow phase find every corner inside it, so a fragment resting on a face
+    /// gets a contact patch of several points instead of one rocking point. The planes face away from the vertices' centre; a vertex outside a plane by more
+    /// than a tenth of a millimetre (not convex) or a zero-area triangle is rejected.
+    /// </summary>
+    public static PhysicsShapeAsset CreateConvexPolyhedron(string Id,IReadOnlyList<LogicalVector3> Vertices,IReadOnlyList<int> Indices){
+        ValidateId(Id);
+        ArgumentNullException.ThrowIfNull(Vertices);
+        ArgumentNullException.ThrowIfNull(Indices);
+        if(Vertices.Count<4){ throw new ArgumentException("A convex polyhedron requires at least four vertices.",nameof(Vertices)); }
+        if(Indices.Count<12||Indices.Count%3!=0){ throw new ArgumentException("A convex polyhedron requires a closed triangle mesh.",nameof(Indices)); }
+        var VertexCopy=Vertices.ToArray();
+        var IndexCopy=Indices.ToArray();
+        EnsureDistinctVertices(VertexCopy,4);
+        var Center=LogicalVector3.Zero;
+        foreach(var Vertex in VertexCopy){ Center+=Vertex; }
+        Center/=LogicalScalar.FromInt64(VertexCopy.Length);
+        var Tolerance=LogicalScalar.FromSingle(0.0001f);
+        List<LogicalVector3>Normals=[];
+        List<LogicalScalar>Distances=[];
+        for(var Index=0;Index<IndexCopy.Length;Index+=3){
+            if((uint)IndexCopy[Index]>=(uint)VertexCopy.Length||(uint)IndexCopy[Index+1]>=(uint)VertexCopy.Length||(uint)IndexCopy[Index+2]>=(uint)VertexCopy.Length){
+                throw new ArgumentOutOfRangeException(nameof(Indices));
+            }
+            var A=VertexCopy[IndexCopy[Index]];
+            var B=VertexCopy[IndexCopy[Index+1]];
+            var C=VertexCopy[IndexCopy[Index+2]];
+            if(!LogicalVector3.Cross(B-A,C-A).TryNormalize(out var Normal)){
+                throw new ArgumentException("Convex polyhedron triangles must not be degenerate.",nameof(Indices));
+            }
+            var Distance=LogicalVector3.Dot(Normal,A);
+            if(LogicalVector3.Dot(Normal,Center)>Distance){
+                Normal=-Normal;
+                Distance=-Distance;
+            }
+            var Duplicate=false;
+            for(var Plane=0;Plane<Normals.Count;Plane++){
+                if(LogicalVector3.Dot(Normals[Plane],Normal)>=LogicalScalar.One-Tolerance&&Abs(Distances[Plane]-Distance)<=Tolerance){ Duplicate=true;break; }
+            }
+            if(Duplicate){ continue; }
+            Normals.Add(Normal);
+            Distances.Add(Distance);
+        }
+        for(var Plane=0;Plane<Normals.Count;Plane++){
+            foreach(var Vertex in VertexCopy){
+                if(LogicalVector3.Dot(Normals[Plane],Vertex)>Distances[Plane]+Tolerance){
+                    throw new ArgumentException("A convex polyhedron must be convex: a vertex lies outside a face plane.",nameof(Vertices));
+                }
+            }
+        }
+        return new PhysicsShapeAsset(Id,PhysicsShapeAssetKind.Convex,VertexCopy,IndexCopy,[.. Normals],[.. Distances]);
+    }
+
+    /// <summary>
+    /// The union of convex <paramref name="Children"/> (in the body's own frame) as one shape (ADR-0078/M0113). Its support (bounds, sweeps) is the hull
+    /// of every child's vertices; its contacts are the children's, merged into one patch per touched body by the narrow phase.
+    /// </summary>
+    public static PhysicsShapeAsset CreateCompound(string Id,IReadOnlyList<PhysicsShapeAsset> Children){
+        ValidateId(Id);
+        ArgumentNullException.ThrowIfNull(Children);
+        if(Children.Count==0){ throw new ArgumentException("A compound shape requires at least one child.",nameof(Children)); }
+        List<LogicalVector3>Vertices=[];
+        foreach(var Child in Children){
+            if(Child is not { Kind:PhysicsShapeAssetKind.Convex }){ throw new ArgumentException("Compound children must be convex assets.",nameof(Children)); }
+            Vertices.AddRange(Child.VertexStorage);
+        }
+        return new PhysicsShapeAsset(Id,PhysicsShapeAssetKind.Compound,[.. Vertices],[],null,null,[.. Children]);
+    }
+
+    internal LogicalVector3 PlaneNormal(int Plane)=>this.PlaneNormalStorage[Plane];
+    internal LogicalScalar PlaneDistance(int Plane)=>this.PlaneDistanceStorage[Plane];
+
+    /// <summary>Whether a point of the shape's local frame lies inside every face plane (within <paramref name="Tolerance"/>); false without planes.</summary>
+    internal bool ContainsLocal(LogicalVector3 Point,LogicalScalar Tolerance){
+        if(this.PlaneNormalStorage.Length==0){ return false; }
+        for(var Plane=0;Plane<this.PlaneNormalStorage.Length;Plane++){
+            if(LogicalVector3.Dot(this.PlaneNormalStorage[Plane],Point)>this.PlaneDistanceStorage[Plane]+Tolerance){ return false; }
+        }
+        return true;
+    }
+
+    private static LogicalScalar Abs(LogicalScalar Value)=>Value<LogicalScalar.Zero?-Value:Value;
 
     public static PhysicsShapeAsset CreateStaticTriangleMesh(string Id,IReadOnlyList<LogicalVector3> Vertices,IReadOnlyList<int> Indices){
         ValidateId(Id);
@@ -192,7 +292,7 @@ public sealed class PhysicsShapeAsset {
         new LogicalVector3(Min(Left.Min.R,Right.Min.R),Min(Left.Min.U,Right.Min.U),Min(Left.Min.F,Right.Min.F)),
         new LogicalVector3(Max(Left.Max.R,Right.Max.R),Max(Left.Max.U,Right.Max.U),Max(Left.Max.F,Right.Max.F)));
 
-    private static string ComputeFingerprint(string Id,PhysicsShapeAssetKind Kind,LogicalVector3[] Vertices,int[] Indices){
+    private static string ComputeFingerprint(string Id,PhysicsShapeAssetKind Kind,LogicalVector3[] Vertices,int[] Indices,PhysicsShapeAsset[] Children){
         using MemoryStream Stream=new();
         using(BinaryWriter Writer=new(Stream,Encoding.UTF8,true)){
             Writer.Write(Id);
@@ -201,6 +301,8 @@ public sealed class PhysicsShapeAsset {
             foreach(LogicalVector3 Vertex in Vertices){ WriteVector(Writer,Vertex); }
             Writer.Write(Indices.Length);
             foreach(int Index in Indices){ Writer.Write(Index); }
+            // A compound's children (M0113); nothing is written for the other kinds, so their fingerprints stay as they were.
+            foreach(var Child in Children){ Writer.Write(Child.Fingerprint); }
         }
         return Convert.ToHexString(SHA256.HashData(Stream.GetBuffer().AsSpan(0,checked((int)Stream.Length)))).ToLowerInvariant();
     }
@@ -293,6 +395,7 @@ public static class PhysicsShapeArtifact {
     public static void Write(Stream Output,PhysicsShapeAsset Asset){
         ArgumentNullException.ThrowIfNull(Output);
         ArgumentNullException.ThrowIfNull(Asset);
+        if(Asset.Kind==PhysicsShapeAssetKind.Compound){ throw new ArgumentException("A compound shape is built at run time and has no artifact.",nameof(Asset)); }
         using BinaryWriter Writer=new(Output,Encoding.UTF8,true);
         Writer.Write(Magic);
         Writer.Write(1);
@@ -324,6 +427,7 @@ public static class PhysicsShapeArtifact {
             string Fingerprint=ReadString(Reader);
             if(Input.CanSeek&&Input.Position!=Input.Length){ throw new InvalidDataException(); }
             Asset=Kind switch {
+                PhysicsShapeAssetKind.Convex when Indices.Length>0=>PhysicsShapeAsset.CreateConvexPolyhedron(Id,Vertices,Indices),
                 PhysicsShapeAssetKind.Convex=>PhysicsShapeAsset.CreateConvex(Id,Vertices),
                 PhysicsShapeAssetKind.StaticTriangleMesh=>PhysicsShapeAsset.CreateStaticTriangleMesh(Id,Vertices,Indices),
                 _=>throw new InvalidDataException(),

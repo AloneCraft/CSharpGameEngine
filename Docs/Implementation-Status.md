@@ -3453,7 +3453,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for LogicalScalar domain-local simulation, rotated analytic primitive contacts, support-mapped GJK/EPA, cooked static-mesh BVH, four-point manifolds, 8/3 sequential impulses, warm start, sleep/wake, trigger/event lifecycle, angular integration, ContinuousStatic CCD, overflow fault isolation, deterministic insertion order, and zero managed allocation in warmed contact ticks.
 - Evidence: `src/CSharpGameEngine.Runtime.Physics/`, `tests/CSharpGameEngine.Windows.Tests/Physics/`.
-- Conformance: Matches the required local rigid-body scope. Dynamic-dynamic CCD, joints, deformables, GPU/parallel solvers, and runtime destruction remain separate Deferred features.
+- Conformance: Matches the required local rigid-body scope. Dynamic-dynamic CCD, joints, deformables, and GPU/parallel solvers remain separate Deferred features. Prefractured runtime destruction (convex-polyhedron and compound contacts, sleeping contacts held without a narrow phase, wake on support removal, `BondBroken` events) was added by M0113 (F-L5-049); runtime Boolean/voxel destruction stays Deferred (F-L5-021/022).
 
 ## F-L6-002 — Physics Cooking and Simulation Cache artifacts
 
@@ -3461,7 +3461,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for canonical convex/static-mesh artifacts, deterministic BVH, immutable cook identity, atomic publish/reuse, concurrent convergence, corruption and path-boundary rejection, strict cache serialization, transactional playback, explicit realtime handoff, engine-owned sequential spool lifecycle, and Q64.64 offline Voronoi prefracture artifacts. Prefracture coverage includes deterministic seeds, 2-16 fragments, 1/16-1024 scale, volume conservation, bond connectivity, closed consistently-wound single-shell meshes, mesh/collision identity, strict serialization, atomic publication, corrupt immutable entry rejection, and real GLB CLI cooking.
 - Evidence: PhysicsCooking.cs, PhysicsCache.cs, PrefractureCooking.cs, PhysicsBakeTests.cs, tools/CSharpGameEngine.Physics.Cli/.
-- Conformance: Matches. The playback artifact contains the closed render mesh, local convex collision shape, center, mass, stable fragment index, and ordered adjacency bonds for every fragment. Runtime topology mutation remains the separately Deferred destruction domain rather than an L6 artifact responsibility.
+- Conformance: Matches. The playback artifact contains the closed render mesh, local convex collision shape, center, mass, stable fragment index, and ordered adjacency bonds for every fragment. M0113: the prefracture artifact is version 2 (`CGEFRAC2`: per-triangle outer/interior material slot, Voronoi site, one level of connected clusters, bond area; version 1 still read), and the simulation cache is schema 3 (the bonds broken in each tick; schema 2 still read). Breaking at run time is F-L5-049, not an artifact responsibility.
 
 ## F-L7-020 — Physics CLI and Bake Host
 
@@ -3477,7 +3477,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for protocol-v2 validation, bounded body/contact/tree/bond overlay generation, canonical `global::` Destructible discovery, exact-host identity, source-closure hashing, target-local cache paths, live Scene commit before disk Bake, variable-argument versioned requests, timeout and client-disconnect cancellation, and Bake button wiring. Experimental Instance visual certification remains manual evidence rather than an implementation dependency.
 - Evidence: `PhysicsDebugClient.cs`, `PhysicsDebugOverlay.cs`, `PrefractureDebugService.cs`, `PhysicsSceneBakeService.cs`, `SceneHwndHost.cs`, `SceneDesignerToolWindowControl.xaml`, `ResidentBridgeClient.cs`, `BridgeServerHost.cs`, `PhysicsDebugOverlayTests.cs`, `PrefractureDebugServiceTests.cs`, `PhysicsSceneBakeServiceTests.cs`, and `BridgeServerHostTests.cs`.
-- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays are available. M0097: the editor world registers the bodies but does not advance time, so the overlay matches the drawn scene; the simulate/pause/step/reset controls were removed. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses an engine-fingerprinted exact host and, per scene project, a source-fingerprinted game build that the host loads (M0096 G), publishes atomically, and propagates cancellation through the resident connection to the host handler.
+- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays are available. M0113: the fracture overlay now previews each `CSharpGameEngine.Destruction.Destructible` before a build (its box `Collider` cut with its FragmentCount/Seed/ClusterCount by `Physics.Cli preview-prefracture`; fragment outlines and bonds), and shows the last build's cooked asset for a `SourceMesh` (F-L5-049). M0097: the editor world registers the bodies but does not advance time, so the overlay matches the drawn scene; the simulate/pause/step/reset controls were removed. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses an engine-fingerprinted exact host and, per scene project, a source-fingerprinted game build that the host loads (M0096 G), publishes atomically, and propagates cancellation through the resident connection to the host handler.
 
 ## F-L8-015 — VSIX English/Japanese localization
 
@@ -4992,4 +4992,24 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `CharacterMotorTests.AnEndWaypoint_BrakesOverTheFixedPathBrakingDistanceWhenTheSettingsHaveOne`、`TemplateCharacterSceneTests.TheTopDownCharacterBrakesOverUesFixedPathBrakingDistanceOfTwoMetres`、`TemplateLightingSceneTests`(4)
 - Current delta: 作らないと決めた行(エンジン音、制約のサスペンション、左の車輪の鏡映、`M_Cursor` の UV の流れ、`CtrlRig_SportsCar`、Recast のタイルなど)は理由つきで文書に書いた。陰の明るさは UE との差が残る(M0112)。
 - Conformance: MatchesWithDocumentedExtension
-- Next action: M0113(破壊)。
+- Next action: なし(M0113 の破壊は F-L5-049)。
+
+## F-L5-049 — Chaos 相当の破壊(Destruction プラグイン: ボロノイの調理、結合のひずみと切断、破片の剛体化、Field、ベイクと再生、Fracture のプレビュー)
+
+- Layer: L5 — `Runtime.Physics`(ソルバー)と `plugins/CSharpGameEngine.Destruction`(Component・System・Field・Cook モジュール)、L5 — `Runtime.Windows`(`FragmentMesh`)、L6 — `.cgefracture` 版 2・`.cgephyscache` スキーマ 3、L7 — `Physics.Cli`(`preview-prefracture`・`replay`)と `Cook.Cli`、L8 — `PrefractureDebugService`、L9 — `samples/CSharpGameEngine.Samples.Destruction`
+- Parent capability: UE テンプレートの完全移植(ADR-0078 §2・§3。UE の Geometry Collection・Fracture・Field)
+- Status: Implemented
+- Verification: TestVerified + RuntimeVerified(WARP。`verify-destruction`)。VS の実機の操作は未検証(net472 の単体試験まで)
+- Stage: `destruction.prefracture`
+- Intended specification: `Docs/Specifications/Physics.md`(破壊、接触、眠り、Artifact)、`Docs/Specifications/Plugins-And-Assets.md`(実例: 破砕)、`Docs/Milestones/M0113-Chaos-Destruction.md`
+- Implementation evidence:
+  - `src/CSharpGameEngine.Runtime.Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsCooking.cs`・`PhysicsShapeAssets.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`・`PhysicsWorldIntegration.cs`
+  - `plugins/CSharpGameEngine.Destruction/`(`Runtime/Destruction.cs`・`DestructionComponents.cs`・`DestructionSystems.cs`・`DestructionDefaults.cs`、`Cook/FractureCooker.cs`、`Destruction.plugin.items`)
+  - `src/CSharpGameEngine.Runtime.Windows/FragmentMesh.cs`・`RenderRoster.cs`、`src/CSharpGameEngine.Entities/Runtime.cs`(`TakeSceneOrdinal`)・`ISpawnableScene.cs`(`SceneStableIds`)、`src/CSharpGameEngine.CodeAnalysis/SceneInstantiateEmitter.cs`・`GeneratedSceneBakeHostEmitter.cs`(`TryReplay`)
+  - `tools/CSharpGameEngine.Physics.Cli/`(`Program.cs`・`PhysicsBridgeWorker.cs`・`GameBake.cs`)、`tools/CSharpGameEngine.VSExtension/PrefractureDebugService.cs`・`PhysicsDebugOverlay.cs`、`tools/CSharpGameEngine.FeatureRunner/DestructionSampleVerification.cs`
+  - `samples/CSharpGameEngine.Samples.Destruction/`、`UserEcsProject/Scenes/Destruction*.json`、`packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj`(Cook モジュールを `plugins/CSharpGameEngine.Destruction/Cook/lib/` へ)
+- Tests: `tests/CSharpGameEngine.Destruction.Tests/`(47)、`tests/CSharpGameEngine.Windows.Tests/Physics/DestructionTests.cs`・`FractureSolverTests.cs`・`FragmentContactTests.cs`・`PhysicsCacheBondBreakTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/PrefractureDebugServiceTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/DestructionSampleVerificationTests.cs`
+- Reverse-engineered behavior: `Docs/Reverse-Engineered-Spec.md` の RE-M0113
+- Current delta: ひずみは tick ごとに捨てる(UE の内部ひずみの蓄積は無い)。クラスターは 1 段。凹んだソースは拒否。Field は球の線形の減衰だけ。破片の描画は平らな陰影の 2 色。箱と三角形メッシュの接触は 1 tick に 1 つの面の向きのまま(破片には関係しない)。
+- Conformance: MatchesWithDocumentedExtension(M0113 の「範囲外」の表)
+- Next action: 箱と三角形メッシュの接触の複数の面の向き(Vehicle の縁石)。実機の GPU での見本。

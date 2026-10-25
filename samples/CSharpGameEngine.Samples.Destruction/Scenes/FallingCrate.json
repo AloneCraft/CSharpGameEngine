@@ -1,0 +1,65 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "FallingCrate",
+  "startupOrder": 3,
+  "root": {
+    "id": "5c04235b-467f-5772-a58f-fc2d9a04bd96",
+    "name": "FallingCrate",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 3,
+            "U": 4,
+            "F": 6
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Box",
+          "HalfExtents": {
+            "R": 0.5,
+            "U": 0.5,
+            "F": 0.5
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {
+          "Mass": 500
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Destruction.Destructible",
+        "members": {
+          "FractureAsset": "FallingCrate",
+          "FragmentCount": 12,
+          "Seed": 3,
+          "Anchor": "None",
+          "OuterColorR": 0.42,
+          "OuterColorG": 0.26,
+          "OuterColorB": 0.11,
+          "InteriorColorR": 0.8,
+          "InteriorColorG": 0.62,
+          "InteriorColorB": 0.38,
+          "FragmentLifetime": 30
+        }
+      }
+    ],
+    "children": []
+  }
+}

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Cook module of the Destruction engine plugin (ADR-0079/M0113): an IAssetCooker that cuts every Destructible of a scene into a prefracture
+    (Assets/Destruction/<FractureAsset>.cgefracture). CSharpGameEngine.Cook.Cli loads this DLL in its own process; the build runs it before the game is
+    copied (Destruction.plugin.items), and the SDK package carries the built output next to this folder's sources.
+    The Voronoi cooker and the artifact format are the engine's ECS-free physics sources (Runtime.Physics), compiled here too, so the writer and the
+    game's reader are the same code.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CSharpGameEngine.Destruction.Cook</AssemblyName>
+    <RootNamespace>CSharpGameEngine.Destruction.Cook</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- The Cook host resolves the module's dependencies from its .deps.json, next to the DLL. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\src\CSharpGameEngine.Runtime.Physics\PhysicsShapeAssets.cs;..\..\..\src\CSharpGameEngine.Runtime.Physics\PhysicsCooking.cs;..\..\..\src\CSharpGameEngine.Runtime.Physics\PrefractureCooking.cs;..\..\..\src\CSharpGameEngine.Runtime.Physics\PhysicsAabb.cs" Link="Physics\%(Filename)%(Extension)" />
+    <Compile Include="..\Runtime\DestructionDefaults.cs" Link="Runtime\DestructionDefaults.cs" />
+    <Using Include="CSharpGameEngine.Numerics" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Destruction.Tests</_Parameter1></AssemblyAttribute>
+  </ItemGroup>
+</Project>

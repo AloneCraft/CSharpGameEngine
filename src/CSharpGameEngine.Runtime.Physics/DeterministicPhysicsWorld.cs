@@ -20,6 +20,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         internal bool IsSleeping;
         internal ushort SleepTicks;
         internal bool Faulted;
+        /// <summary>ADR-0078/M0113: a body it touched was removed or changed, so a sleeping body wakes at the start of the next step (it may have lost its support).</summary>
+        internal bool WakeRequested;
     }
 
     private struct CachedPoint {
@@ -46,6 +48,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         internal bool Active;
         internal bool WasActive;
         internal bool IsTrigger;
+        /// <summary>Solved this tick: one of its bodies is a dynamic body that is awake (a contact between sleeping or static bodies only holds).</summary>
+        internal bool Solve;
         internal LogicalScalar MaximumPenetration {
             get {
                 LogicalScalar Result=LogicalScalar.Zero;
@@ -94,8 +98,45 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private readonly List<CcdContact> CcdContacts=[];
     private readonly HashSet<ulong> CacheValidationIds=[];
 
+    private readonly List<PhysicsBondBreak> MutableBondBreaks=[];
+
     public int BodyCount=>this.Bodies.Count;
     public IReadOnlyList<PhysicsEvent> Events=>this.MutableEvents;
+    /// <summary>
+    /// The bonds of destructibles that broke in the last tick (ADR-0078/M0113): reported by the destruction solver after <see cref="Step"/>, or restored from a
+    /// played-back cache frame. Cleared when the next tick starts.
+    /// </summary>
+    public IReadOnlyList<PhysicsBondBreak> BondBreaks=>this.MutableBondBreaks;
+
+    /// <summary>
+    /// Records that a destructible's bond broke in <paramref name="Tick"/> (ADR-0078/M0113): it joins <see cref="BondBreaks"/> (the cache keeps it) and
+    /// <see cref="Events"/> as a <see cref="PhysicsEventType.BondBroken"/> event whose <see cref="PhysicsEvent.First"/> is the destructible, whose impulse is
+    /// the strain that broke it and whose pair ID is unique to the bond.
+    /// </summary>
+    public void ReportBondBreak(ulong Tick,Entity Destructible,ulong RootStableId,int Bond,LogicalScalar Strain){
+        if(RootStableId==0||Bond<0||Strain<LogicalScalar.Zero){ throw new ArgumentOutOfRangeException(nameof(Bond),"A bond break names a destructible's stable ID, a bond and a strain of zero or more."); }
+        this.MutableBondBreaks.Add(new PhysicsBondBreak(RootStableId,Bond,Strain));
+        // Kept in the order Step leaves the events in (tick, pair ID, type), so readers see one canonical order.
+        var Event=new PhysicsEvent(Tick,BondPairId(RootStableId,Bond),PhysicsEventType.BondBroken,Destructible,default,Strain,default);
+        var Index=this.MutableEvents.Count;
+        while(Index>0&&CompareEvents(this.MutableEvents[Index-1],Event)>0){ Index--; }
+        this.MutableEvents.Insert(Index,Event);
+    }
+
+    private static int CompareEvents(in PhysicsEvent Left,in PhysicsEvent Right){
+        int Result=Left.Tick.CompareTo(Right.Tick);
+        if(Result!=0){ return Result; }
+        Result=Left.PairId.CompareTo(Right.PairId);
+        return Result!=0?Result:Left.Type.CompareTo(Right.Type);
+    }
+
+    /// <summary>The pair ID of a <see cref="PhysicsEventType.BondBroken"/> event: an FNV-1a hash of the destructible's stable ID and the bond, so each bond's event is ordered on its own.</summary>
+    public static ulong BondPairId(ulong RootStableId,int Bond){
+        ulong Hash=14695981039346656037UL;
+        Hash=(Hash^RootStableId)*1099511628211UL;
+        Hash=(Hash^0xb0dUL)*1099511628211UL;
+        return (Hash^(ulong)(uint)Bond)*1099511628211UL;
+    }
     public PhysicsCommands Commands { get; }=new();
     public PhysicsShapeCatalog Shapes { get; }=new();
     public LogicalVector3 DomainOrigin { get;set; }=LogicalVector3.Zero;
@@ -175,10 +216,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         this.ContactCache.Clear();
         this.CcdContacts.Clear();
         this.MutableEvents.Clear();
+        this.MutableBondBreaks.Clear();
     }
 
     internal void Reset(ulong Tick){
         this.MutableEvents.Clear();
+        this.MutableBondBreaks.Clear();
         foreach(KeyValuePair<ulong,Body> Pair in this.Bodies){
             Body Body=Pair.Value;
             Body.Position=Body.InitialPosition;
@@ -187,6 +230,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Body.IsSleeping=false;
             Body.SleepTicks=0;
             Body.Faulted=false;
+            Body.WakeRequested=false;
             this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
         }
         this.ContactCache.Clear();
@@ -194,6 +238,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
     public void Step(ulong Tick){
         this.MutableEvents.Clear();
+        this.MutableBondBreaks.Clear();
         this.CcdContacts.Clear();
         for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
             CachedContact Contact=this.ContactCache.Values[ContactIndex];
@@ -201,6 +246,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Contact.Active=false;
         }
         this.ApplyCommands(Tick);
+        for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
+            Body Body=this.Bodies.Values[BodyIndex];
+            if(!Body.WakeRequested){ continue; }
+            Body.WakeRequested=false;
+            if(IsDynamic(Body)&&Body.IsSleeping){ Wake(Body,Tick,this.MutableEvents); }
+        }
         for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
             Body Body=this.Bodies.Values[BodyIndex];
             if(Body.Faulted||Body.IsSleeping||Body.RigidBody is not { MotionType:PhysicsMotionType.Dynamic } RigidBody){ continue; }
@@ -225,7 +276,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             }
         }
         this.BuildContacts();
-        this.SolveContacts();
+        this.SolveContacts(Tick);
         this.PublishContactEvents(Tick);
         for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
             Body Body=this.Bodies.Values[BodyIndex];
@@ -441,6 +492,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                 return false;
             }
         }
+        foreach(var Break in Frame.Breaks){
+            if(!PhysicsCacheSerializer.IsCanonicalBreak(Break)){
+                Error="Physics cache bond break is not valid.";
+                return false;
+            }
+        }
         foreach(PhysicsBodyState State in Frame.Bodies){
             Body Body=this.Bodies[State.StableId];
             Body.Position=State.Position;
@@ -449,12 +506,15 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Body.IsSleeping=State.IsSleeping;
             Body.SleepTicks=State.SleepTicks;
             Body.Faulted=false;
+            Body.WakeRequested=false;
             this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
         }
         this.ContactCache.Clear();
         this.CcdContacts.Clear();
         this.MutableEvents.Clear();
         this.MutableEvents.AddRange(Frame.Events);
+        this.MutableBondBreaks.Clear();
+        this.MutableBondBreaks.AddRange(Frame.Breaks);
         return true;
     }
 
@@ -610,6 +670,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                     ||!CanCollide(Dynamic,Other)){ continue; }
                 Body First=Dynamic.StableId<Other.StableId?Dynamic:Other;
                 Body Second=ReferenceEquals(First,Dynamic)?Other:Dynamic;
+                // ADR-0078/M0113: a sleeping body against a static or sleeping one has not moved since it fell asleep, so its contact holds as it was
+                // (no narrow phase; the solver leaves it alone). A pile of fragments at rest costs nothing a tick.
+                if(Dynamic.IsSleeping&&(Other.RigidBody is null||Other.RigidBody is { MotionType:PhysicsMotionType.Dynamic }&&Other.IsSleeping)){
+                    if(this.TryGetContact((First.StableId,Second.StableId),out CachedContact Held)){ Held.Active=true; }
+                    continue;
+                }
                 if(this.NarrowPhase.TryCreateContact(this.CreateShape(First),this.CreateShape(Second),out PhysicsContactCandidate Contact)){
                     this.AddContact(First,Second,Contact);
                 }
@@ -641,15 +707,29 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         Contact.Active=true;
     }
 
-    private void SolveContacts(){
+    /// <summary>
+    /// ADR-0078/M0113: a sleeping body touched by an awake dynamic body wakes (it is being pushed); a contact with no awake dynamic body is not solved, so
+    /// a body at rest keeps its pose and its sleep. The pass runs in contact order, so the same contacts wake the same bodies.
+    /// </summary>
+    private void SolveContacts(ulong Tick){
         for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
             CachedContact Contact=this.ContactCache.Values[ContactIndex];
+            Contact.Solve=false;
             if(!Contact.Active||Contact.IsTrigger){ continue; }
+            var FirstAwake=IsAwakeDynamic(Contact.First);
+            var SecondAwake=IsAwakeDynamic(Contact.Second);
+            if(FirstAwake&&Contact.Second.IsSleeping&&IsDynamic(Contact.Second)){ Wake(Contact.Second,Tick,this.MutableEvents);SecondAwake=true; }
+            if(SecondAwake&&Contact.First.IsSleeping&&IsDynamic(Contact.First)){ Wake(Contact.First,Tick,this.MutableEvents);FirstAwake=true; }
+            Contact.Solve=FirstAwake||SecondAwake;
+        }
+        for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+            CachedContact Contact=this.ContactCache.Values[ContactIndex];
+            if(!Contact.Solve){ continue; }
             for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){ PrepareBounce(Contact,PointIndex); }
         }
         for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
             CachedContact Contact=this.ContactCache.Values[ContactIndex];
-            if(!Contact.Active||Contact.IsTrigger){ continue; }
+            if(!Contact.Solve){ continue; }
             for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
                 CachedPoint Point=Contact.Points[PointIndex];
                 LogicalVector3 WarmImpulse=Contact.Normal*Point.NormalImpulse+Point.Tangent*Point.TangentImpulse;
@@ -659,7 +739,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         for(int Iteration=0;Iteration<8;Iteration++){
             for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
                 CachedContact Contact=this.ContactCache.Values[ContactIndex];
-                if(!Contact.Active||Contact.IsTrigger){ continue; }
+                if(!Contact.Solve){ continue; }
                 for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
                     SolveVelocity(Contact,PointIndex);
                 }
@@ -668,7 +748,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         for(int Iteration=0;Iteration<3;Iteration++){
             for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
                 CachedContact Contact=this.ContactCache.Values[ContactIndex];
-                if(!Contact.Active||Contact.IsTrigger){ continue; }
+                if(!Contact.Solve){ continue; }
                 for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){ SolvePosition(Contact,PointIndex); }
             }
         }
@@ -738,8 +818,10 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         LogicalScalar Correction=Penetration*PositionCorrection
             /LogicalScalar.FromInt64(checked(3*Contact.PointCount));
         LogicalVector3 Offset=Contact.Normal*(Correction/Total);
-        if(!FirstInverse.IsZero){ Contact.First.Position-=Offset*FirstInverse;WakeForContact(Contact.First); }
-        if(!SecondInverse.IsZero){ Contact.Second.Position+=Offset*SecondInverse;WakeForContact(Contact.Second); }
+        // ADR-0078/M0113: the correction moves the body but is not motion that keeps it awake: a body at rest is pushed out of its support every tick
+        // (gravity sinks it by g·Δt² and this lifts it back), and counting that as motion kept every resting body awake for ever.
+        if(!FirstInverse.IsZero){ Contact.First.Position-=Offset*FirstInverse; }
+        if(!SecondInverse.IsZero){ Contact.Second.Position+=Offset*SecondInverse; }
         Point.Penetration=Max(ContactSlop,Point.Penetration-Correction);
     }
 
@@ -888,11 +970,9 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         Events.Add(new PhysicsEvent(Tick,BuildPairId(Body.StableId,Body.StableId),PhysicsEventType.Wake,Body.Entity,default,default,default));
     }
 
-    private static void WakeForContact(Body Body){
-        Body.IsSleeping=false;
-        Body.SleepTicks=0;
-    }
-
+    private static bool IsDynamic(Body Body)=>Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }&&!Body.Faulted;
+    /// <summary>A body that moves things it touches: an awake dynamic body, or a kinematic one (driven by its targets).</summary>
+    private static bool IsAwakeDynamic(Body Body)=>IsDynamic(Body)&&!Body.IsSleeping||Body.RigidBody is { MotionType:PhysicsMotionType.Kinematic }&&!Body.Faulted;
     private PhysicsUpdateStatus ValidateAndCalculateBounds(
         in PhysicsBodyDescription Description,out PhysicsAabb Bounds,out PhysicsShapeAsset? Asset){
         Bounds=default;
@@ -924,10 +1004,11 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
 
     private bool TryResolveAsset(in Collider Collider,out PhysicsShapeAsset? Asset){
         Asset=null;
-        if(Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh)){ return true; }
+        if(Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh or ColliderShape.Compound)){ return true; }
         if(string.IsNullOrWhiteSpace(Collider.Asset)||!this.Shapes.TryGet(Collider.Asset,out PhysicsShapeAsset Resolved)){ return false; }
         if(Collider.Shape==ColliderShape.ConvexAsset&&Resolved.Kind!=PhysicsShapeAssetKind.Convex
-            ||Collider.Shape==ColliderShape.StaticTriangleMesh&&Resolved.Kind!=PhysicsShapeAssetKind.StaticTriangleMesh){ return false; }
+            ||Collider.Shape==ColliderShape.StaticTriangleMesh&&Resolved.Kind!=PhysicsShapeAssetKind.StaticTriangleMesh
+            ||Collider.Shape==ColliderShape.Compound&&Resolved.Kind!=PhysicsShapeAssetKind.Compound){ return false; }
         Asset=Resolved;
         return true;
     }
@@ -948,10 +1029,17 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         _=>Collider.HalfExtents,
     };
 
+    /// <summary>
+    /// Drops the contacts of a body that was removed or changed. ADR-0078/M0113: a sleeping body is not integrated, so the other side of each dropped contact
+    /// is asked to wake at the next step; otherwise a piece resting on a piece that expired, or on a destructible that came apart, hung in the air.
+    /// </summary>
     private void RemoveContactsFor(ulong StableId){
         this.ContactRemovalScratch.Clear();
         foreach(KeyValuePair<(ulong First,ulong Second),CachedContact> Pair in this.ContactCache){
-            if(Pair.Key.First==StableId||Pair.Key.Second==StableId){ this.ContactRemovalScratch.Add(Pair.Key); }
+            if(Pair.Key.First!=StableId&&Pair.Key.Second!=StableId){ continue; }
+            this.ContactRemovalScratch.Add(Pair.Key);
+            Body Other=Pair.Key.First==StableId?Pair.Value.Second:Pair.Value.First;
+            if(Other.StableId!=StableId&&Other.IsSleeping){ Other.WakeRequested=true; }
         }
         foreach((ulong First,ulong Second) Key in this.ContactRemovalScratch){ this.ContactCache.Remove(Key); }
         this.ContactRemovalScratch.Clear();

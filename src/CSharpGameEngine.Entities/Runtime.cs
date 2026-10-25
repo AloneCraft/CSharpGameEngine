@@ -201,7 +201,19 @@ public partial struct World {
     private readonly WorldRuntimeState RuntimeState=new();
 
     internal readonly SceneInstanceTable SceneInstances=new();
+    private readonly Dictionary<ulong,int>SceneOrdinals=new();
     private readonly Dictionary<WorldCellId,ChunkBuffer<Entity>>CellEntities=new();
+
+    /// <summary>
+    /// ADR-0078/M0113: the ordinal of the next instance of a scene definition in this World (0 for the first, then 1, 2, …, in the order they are made).
+    /// The generated <c>Instantiate</c> takes one so that the physics stable IDs of a second instance of a scene differ from the first's
+    /// (<see cref="SceneStableIds.ForInstance"/>); the first instance keeps the IDs of its definition.
+    /// </summary>
+    public int TakeSceneOrdinal(ulong SceneKey){
+        this.SceneOrdinals.TryGetValue(SceneKey,out var Ordinal);
+        this.SceneOrdinals[SceneKey]=Ordinal+1;
+        return Ordinal;
+    }
     private readonly Dictionary<PersistentEntityId,Entity>PersistentEntities=new();
     public EntityCommandBuffer Commands{get;}=new();
 

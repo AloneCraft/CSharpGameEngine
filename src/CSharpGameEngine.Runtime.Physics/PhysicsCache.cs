@@ -4,13 +4,33 @@ using CSharpGameEngine.Runtime.Simulation;
 
 namespace CSharpGameEngine.Runtime.Physics;
 
-public readonly record struct PhysicsCacheFrame(ulong Tick,IReadOnlyList<PhysicsBodyState> Bodies,IReadOnlyList<PhysicsEvent> Events);
+/// <summary>
+/// A bond of a destructible that broke in a tick (ADR-0078/M0113): the destructible's physics stable ID, the bond's index in its cooked asset and the strain
+/// (N·s) that broke it. The cache records these so a played-back tick breaks the same bonds and makes the same pieces.
+/// </summary>
+public readonly record struct PhysicsBondBreak(ulong RootStableId,int Bond,LogicalScalar Strain);
 
+/// <summary>
+/// One recorded tick. <paramref name="BondBreaks"/> (schema 3, M0113) may be left out: <see cref="Breaks"/> is then empty.
+/// </summary>
+public readonly record struct PhysicsCacheFrame(ulong Tick,IReadOnlyList<PhysicsBodyState> Bodies,IReadOnlyList<PhysicsEvent> Events,IReadOnlyList<PhysicsBondBreak>? BondBreaks=null) {
+    /// <summary>The bonds that broke in this tick, never null.</summary>
+    public IReadOnlyList<PhysicsBondBreak> Breaks=>this.BondBreaks??[];
+}
+
+/// <summary>
+/// The <c>.cgephyscache</c> format. Schema 3 (M0113, written) adds after each frame's events the bonds that broke in the tick (count, then RootStableId,
+/// Bond, Strain, strictly ordered by RootStableId and Bond). Schema 2 (M0055) files, whose frames end after the events, are still read: the identity
+/// may name schema 2 when everything else matches, and their frames have no bond breaks.
+/// </summary>
 public static class PhysicsCacheSerializer {
-    public const int SchemaVersion=2;
+    public const int SchemaVersion=3;
+    /// <summary>The oldest schema still read (M0055's frames without bond breaks).</summary>
+    public const int OldestReadableSchemaVersion=2;
     public const int MaximumFrameCount=10_000_000;
     internal const int MaximumBodiesPerFrame=1_000_000;
     internal const int MaximumEventsPerFrame=4_000_000;
+    internal const int MaximumBondBreaksPerFrame=1_000_000;
 
     public static void Write(Stream Output,in SimulationCacheIdentity Identity,IReadOnlyList<PhysicsCacheFrame> Frames){
         ArgumentNullException.ThrowIfNull(Output);
@@ -18,6 +38,17 @@ public static class PhysicsCacheSerializer {
         using PhysicsCacheStreamWriter Writer=new(Output,Identity,Frames.Count);
         foreach(PhysicsCacheFrame Frame in Frames){ Writer.WriteFrame(Frame); }
         Writer.Complete();
+    }
+
+    /// <summary>
+    /// Whether a file of identity <paramref name="Actual"/> can be read where <paramref name="Expected"/> (the current schema) is wanted, and the schema its
+    /// frames use: the same identity, or an older readable schema with every other part equal.
+    /// </summary>
+    internal static bool TryAccept(in SimulationCacheIdentity Actual,in SimulationCacheIdentity Expected,out int Schema){
+        Schema=Actual.SchemaVersion;
+        if(Actual==Expected){ return Actual.SchemaVersion is >=OldestReadableSchemaVersion and <=SchemaVersion; }
+        return Expected.SchemaVersion==SchemaVersion&&Actual.SchemaVersion is >=OldestReadableSchemaVersion and <SchemaVersion
+            &&(Actual with { SchemaVersion=Expected.SchemaVersion })==Expected;
     }
 
     public static bool TryRead(Stream Input,in SimulationCacheIdentity Expected,List<PhysicsCacheFrame> Frames,out string Error){
@@ -30,7 +61,7 @@ public static class PhysicsCacheSerializer {
                 Error="Invalid simulation cache header.";
                 return false;
             }
-            if(Actual!=Expected){
+            if(!TryAccept(Actual,Expected,out var Schema)){
                 Error="Simulation cache identity does not match the current logical profile, tick rate, schema, or dependencies.";
                 return false;
             }
@@ -39,32 +70,13 @@ public static class PhysicsCacheSerializer {
             if(FrameCount is <0 or >MaximumFrameCount){ throw new InvalidDataException(); }
             ulong PreviousTick=0;
             for(int FrameIndex=0;FrameIndex<FrameCount;FrameIndex++){
-                ulong Tick=Reader.ReadUInt64();
+                List<PhysicsBodyState> Bodies=[];
+                List<PhysicsEvent> Events=[];
+                List<PhysicsBondBreak> Breaks=[];
+                ulong Tick=ReadCanonicalFrame(Reader,Schema,Bodies,Events,Breaks);
                 if(FrameIndex>0&&Tick<=PreviousTick){ throw new InvalidDataException(); }
                 PreviousTick=Tick;
-                int BodyCount=ReadCount(Reader,MaximumBodiesPerFrame);
-                List<PhysicsBodyState> Bodies=new(BodyCount);
-                ulong PreviousStableId=0;
-                for(int BodyIndex=0;BodyIndex<BodyCount;BodyIndex++){
-                    PhysicsBodyState Body=ReadBody(Reader);
-                    if(!IsCanonicalBody(Body)||BodyIndex>0&&Body.StableId<=PreviousStableId){ throw new InvalidDataException(); }
-                    PreviousStableId=Body.StableId;
-                    Bodies.Add(Body);
-                }
-                int EventCount=ReadCount(Reader,MaximumEventsPerFrame);
-                List<PhysicsEvent> Events=new(EventCount);
-                ulong PreviousPairId=0;
-                PhysicsEventType PreviousType=default;
-                for(int EventIndex=0;EventIndex<EventCount;EventIndex++){
-                    PhysicsEvent Event=ReadEvent(Reader);
-                    if(Event.Tick!=Tick||!Enum.IsDefined(Event.Type)||!Enum.IsDefined(Event.Fault)
-                        ||EventIndex>0&&(Event.PairId<PreviousPairId
-                        ||Event.PairId==PreviousPairId&&Event.Type<PreviousType)){ throw new InvalidDataException(); }
-                    PreviousPairId=Event.PairId;
-                    PreviousType=Event.Type;
-                    Events.Add(Event);
-                }
-                Frames.Add(new PhysicsCacheFrame(Tick,Bodies,Events));
+                Frames.Add(new PhysicsCacheFrame(Tick,Bodies,Events,Breaks));
             }
             if(Input.ReadByte()!=-1){ throw new InvalidDataException(); }
             return true;
@@ -78,19 +90,20 @@ public static class PhysicsCacheSerializer {
 
     internal static bool TryInspect(
         Stream Input,in SimulationCacheIdentity Expected,
-        out long FramesOffset,out int FrameCount,out int MaximumBodyCount,out int MaximumEventCount,out string Error){
+        out long FramesOffset,out int FrameCount,out int MaximumBodyCount,out int MaximumEventCount,out int Schema,out string Error){
         ArgumentNullException.ThrowIfNull(Input);
         FramesOffset=0;
         FrameCount=0;
         MaximumBodyCount=0;
         MaximumEventCount=0;
+        Schema=0;
         Error=string.Empty;
         try {
             if(!SimulationCacheHeader.TryRead(Input,out SimulationCacheIdentity Actual)){
                 Error="Invalid simulation cache header.";
                 return false;
             }
-            if(Actual!=Expected){
+            if(!TryAccept(Actual,Expected,out Schema)){
                 Error="Simulation cache identity does not match the current logical profile, tick rate, schema, or dependencies.";
                 return false;
             }
@@ -99,30 +112,18 @@ public static class PhysicsCacheSerializer {
             if(FrameCount is <0 or >MaximumFrameCount){ throw new InvalidDataException(); }
             FramesOffset=Input.Position;
             ulong PreviousTick=0;
+            List<PhysicsBodyState>Bodies=[];
+            List<PhysicsEvent>Events=[];
+            List<PhysicsBondBreak>Breaks=[];
             for(int FrameIndex=0;FrameIndex<FrameCount;FrameIndex++){
-                ulong Tick=Reader.ReadUInt64();
+                Bodies.Clear();
+                Events.Clear();
+                Breaks.Clear();
+                ulong Tick=ReadCanonicalFrame(Reader,Schema,Bodies,Events,Breaks);
                 if(FrameIndex>0&&Tick<=PreviousTick){ throw new InvalidDataException(); }
                 PreviousTick=Tick;
-                int BodyCount=ReadCount(Reader,MaximumBodiesPerFrame);
-                MaximumBodyCount=Math.Max(MaximumBodyCount,BodyCount);
-                ulong PreviousStableId=0;
-                for(int BodyIndex=0;BodyIndex<BodyCount;BodyIndex++){
-                    PhysicsBodyState Body=ReadBody(Reader);
-                    if(!IsCanonicalBody(Body)||BodyIndex>0&&Body.StableId<=PreviousStableId){ throw new InvalidDataException(); }
-                    PreviousStableId=Body.StableId;
-                }
-                int EventCount=ReadCount(Reader,MaximumEventsPerFrame);
-                MaximumEventCount=Math.Max(MaximumEventCount,EventCount);
-                ulong PreviousPairId=0;
-                PhysicsEventType PreviousType=default;
-                for(int EventIndex=0;EventIndex<EventCount;EventIndex++){
-                    PhysicsEvent Event=ReadEvent(Reader);
-                    if(Event.Tick!=Tick||!Enum.IsDefined(Event.Type)||!Enum.IsDefined(Event.Fault)
-                        ||EventIndex>0&&(Event.PairId<PreviousPairId
-                            ||Event.PairId==PreviousPairId&&Event.Type<PreviousType)){ throw new InvalidDataException(); }
-                    PreviousPairId=Event.PairId;
-                    PreviousType=Event.Type;
-                }
+                MaximumBodyCount=Math.Max(MaximumBodyCount,Bodies.Count);
+                MaximumEventCount=Math.Max(MaximumEventCount,Events.Count);
             }
             if(Input.ReadByte()!=-1){ throw new InvalidDataException(); }
             Input.Position=FramesOffset;
@@ -134,16 +135,55 @@ public static class PhysicsCacheSerializer {
         }
     }
 
+    /// <summary>Reads one frame and checks that it is canonical (ordering, identities, enums, tick of every event and bond break); returns its tick.</summary>
+    private static ulong ReadCanonicalFrame(BinaryReader Reader,int Schema,List<PhysicsBodyState>Bodies,List<PhysicsEvent>Events,List<PhysicsBondBreak>Breaks){
+        ulong Tick=Reader.ReadUInt64();
+        int BodyCount=ReadCount(Reader,MaximumBodiesPerFrame);
+        ulong PreviousStableId=0;
+        for(int BodyIndex=0;BodyIndex<BodyCount;BodyIndex++){
+            PhysicsBodyState Body=ReadBody(Reader);
+            if(!IsCanonicalBody(Body)||BodyIndex>0&&Body.StableId<=PreviousStableId){ throw new InvalidDataException(); }
+            PreviousStableId=Body.StableId;
+            Bodies.Add(Body);
+        }
+        int EventCount=ReadCount(Reader,MaximumEventsPerFrame);
+        ulong PreviousPairId=0;
+        PhysicsEventType PreviousType=default;
+        for(int EventIndex=0;EventIndex<EventCount;EventIndex++){
+            PhysicsEvent Event=ReadEvent(Reader);
+            if(Event.Tick!=Tick||!Enum.IsDefined(Event.Type)||!Enum.IsDefined(Event.Fault)
+                ||EventIndex>0&&(Event.PairId<PreviousPairId
+                ||Event.PairId==PreviousPairId&&Event.Type<PreviousType)){ throw new InvalidDataException(); }
+            PreviousPairId=Event.PairId;
+            PreviousType=Event.Type;
+            Events.Add(Event);
+        }
+        if(Schema>=3){
+            int BreakCount=ReadCount(Reader,MaximumBondBreaksPerFrame);
+            for(int BreakIndex=0;BreakIndex<BreakCount;BreakIndex++){
+                PhysicsBondBreak Break=new(Reader.ReadUInt64(),Reader.ReadInt32(),ReadScalar(Reader));
+                if(!IsCanonicalBreak(Break)||BreakIndex>0&&CompareBreaks(Breaks[^1],Break)>=0){ throw new InvalidDataException(); }
+                Breaks.Add(Break);
+            }
+        }
+        return Tick;
+    }
+
     internal static PhysicsCacheFrame ReadNext(
-        BinaryReader Reader,List<PhysicsBodyState> Bodies,List<PhysicsEvent> Events){
+        BinaryReader Reader,int Schema,List<PhysicsBodyState> Bodies,List<PhysicsEvent> Events,List<PhysicsBondBreak> Breaks){
         Bodies.Clear();
         Events.Clear();
+        Breaks.Clear();
         ulong Tick=Reader.ReadUInt64();
         int BodyCount=ReadCount(Reader,MaximumBodiesPerFrame);
         for(int BodyIndex=0;BodyIndex<BodyCount;BodyIndex++){ Bodies.Add(ReadBody(Reader)); }
         int EventCount=ReadCount(Reader,MaximumEventsPerFrame);
         for(int EventIndex=0;EventIndex<EventCount;EventIndex++){ Events.Add(ReadEvent(Reader)); }
-        return new PhysicsCacheFrame(Tick,Bodies,Events);
+        if(Schema>=3){
+            int BreakCount=ReadCount(Reader,MaximumBondBreaksPerFrame);
+            for(int BreakIndex=0;BreakIndex<BreakCount;BreakIndex++){ Breaks.Add(new PhysicsBondBreak(Reader.ReadUInt64(),Reader.ReadInt32(),ReadScalar(Reader))); }
+        }
+        return new PhysicsCacheFrame(Tick,Bodies,Events,Breaks);
     }
 
     private static int ReadCount(BinaryReader Reader,int Maximum){
@@ -151,10 +191,31 @@ public static class PhysicsCacheSerializer {
         if(Count<0||Count>Maximum){ throw new InvalidDataException(); }
         return Count;
     }
+    internal static bool IsCanonicalBreak(in PhysicsBondBreak Break)=>Break.RootStableId!=0&&Break.Bond>=0&&Break.Strain>=LogicalScalar.Zero;
+    internal static int CompareBreaks(in PhysicsBondBreak Left,in PhysicsBondBreak Right){
+        int Result=Left.RootStableId.CompareTo(Right.RootStableId);
+        return Result!=0?Result:Left.Bond.CompareTo(Right.Bond);
+    }
+    internal static void WriteBreak(BinaryWriter Writer,in PhysicsBondBreak Break){ Writer.Write(Break.RootStableId);Writer.Write(Break.Bond);WriteScalar(Writer,Break.Strain); }
     internal static bool IsCanonicalBody(in PhysicsBodyState Body)=>
         Body.StableId!=0&&Body.Entity.Index>=0&&Body.Entity.Generation!=0
         &&(!Body.MotionType.HasValue||Enum.IsDefined(Body.MotionType.Value))
-        &&Body.Rotation.TryNormalize(out LogicalQuaternion Normalized)&&Normalized==Body.Rotation;
+        &&IsUnitRotation(Body.Rotation);
+    /// <summary>
+    /// How far a stored rotation's squared length may be from one (2^-30). Q64.64 normalization is not idempotent (normalizing a normalized quaternion
+    /// again can move its last bits), so the cache takes what the integrator produced rather than demanding an exact fixed point of normalization (M0113:
+    /// that refused the bake of every spinning body). The rounding error is near 2^-60; anything this far off was never normalized.
+    /// </summary>
+    private static readonly LogicalScalar UnitRotationTolerance=LogicalScalar.FromRaw((Int128)1<<34);
+    internal static bool IsUnitRotation(LogicalQuaternion Rotation){
+        // Bounded first, so a damaged file cannot overflow the squared length.
+        LogicalScalar Two=LogicalScalar.FromInt64(2);
+        foreach(LogicalScalar Component in (ReadOnlySpan<LogicalScalar>)[Rotation.R,Rotation.U,Rotation.F,Rotation.W]){
+            if(Component>Two||Component< -Two){ return false; }
+        }
+        LogicalScalar Error=Rotation.LengthSquared-LogicalScalar.One;
+        return Error<=UnitRotationTolerance&&-Error<=UnitRotationTolerance;
+    }
     internal static void WriteBody(BinaryWriter Writer,in PhysicsBodyState Body){
         WriteEntity(Writer,Body.Entity);Writer.Write(Body.StableId);Writer.Write(Body.MotionType.HasValue);
         if(Body.MotionType.HasValue){ Writer.Write((byte)Body.MotionType.Value); }
@@ -194,7 +255,9 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
     private readonly BinaryWriter Writer;
     private readonly List<PhysicsBodyState>Bodies=[];
     private readonly List<PhysicsEvent>Events=[];
+    private readonly List<PhysicsBondBreak>Breaks=[];
     private readonly int ExpectedFrameCount;
+    private readonly int Schema;
     private int WrittenFrameCount;
     private ulong PreviousTick;
     private bool Completed;
@@ -207,6 +270,11 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
         if(ExpectedFrameCount is <0 or >PhysicsCacheSerializer.MaximumFrameCount){
             throw new ArgumentOutOfRangeException(nameof(ExpectedFrameCount));
         }
+        // Schema 3 is written; schema 2 (no bond breaks) only when the identity asks for it, to make files of the older layout.
+        if(Identity.SchemaVersion is <PhysicsCacheSerializer.OldestReadableSchemaVersion or >PhysicsCacheSerializer.SchemaVersion){
+            throw new ArgumentOutOfRangeException(nameof(Identity),"The physics cache schema is not one this writer knows.");
+        }
+        this.Schema=Identity.SchemaVersion;
         this.ExpectedFrameCount=ExpectedFrameCount;
         SimulationCacheHeader.Write(Output,Identity);
         this.Writer=new BinaryWriter(Output,Encoding.UTF8,true);
@@ -225,7 +293,8 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
             throw new ArgumentException("Physics cache frames must have strictly increasing ticks.",nameof(Frame));
         }
         if(Frame.Bodies.Count>PhysicsCacheSerializer.MaximumBodiesPerFrame
-            ||Frame.Events.Count>PhysicsCacheSerializer.MaximumEventsPerFrame){
+            ||Frame.Events.Count>PhysicsCacheSerializer.MaximumEventsPerFrame
+            ||Frame.Breaks.Count>PhysicsCacheSerializer.MaximumBondBreaksPerFrame){
             throw new ArgumentException("Physics cache frame exceeds its bounded body or event count.",nameof(Frame));
         }
 
@@ -254,12 +323,26 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
             int Pair=Left.PairId.CompareTo(Right.PairId);
             return Pair!=0?Pair:Left.Type.CompareTo(Right.Type);
         });
+        this.Breaks.Clear();
+        foreach(var Break in Frame.Breaks){
+            if(!PhysicsCacheSerializer.IsCanonicalBreak(Break)){ throw new ArgumentException("Physics cache frame contains an invalid bond break.",nameof(Frame)); }
+            this.Breaks.Add(Break);
+        }
+        if(this.Schema<3&&this.Breaks.Count>0){ throw new ArgumentException("A schema 2 physics cache cannot record bond breaks.",nameof(Frame)); }
+        this.Breaks.Sort(static(Left,Right)=>PhysicsCacheSerializer.CompareBreaks(Left,Right));
+        for(var Index=1;Index<this.Breaks.Count;Index++){
+            if(PhysicsCacheSerializer.CompareBreaks(this.Breaks[Index-1],this.Breaks[Index])==0){ throw new ArgumentException("Physics cache frame breaks one bond twice.",nameof(Frame)); }
+        }
 
         this.Writer.Write(Frame.Tick);
         this.Writer.Write(this.Bodies.Count);
         foreach(PhysicsBodyState Body in this.Bodies){ PhysicsCacheSerializer.WriteBody(this.Writer,Body); }
         this.Writer.Write(this.Events.Count);
         foreach(PhysicsEvent Event in this.Events){ PhysicsCacheSerializer.WriteEvent(this.Writer,Event); }
+        if(this.Schema>=3){
+            this.Writer.Write(this.Breaks.Count);
+            foreach(var Break in this.Breaks){ PhysicsCacheSerializer.WriteBreak(this.Writer,Break); }
+        }
         this.PreviousTick=Frame.Tick;
         this.WrittenFrameCount++;
     }
@@ -281,6 +364,7 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
         this.Writer.Dispose();
         this.Bodies.Clear();
         this.Events.Clear();
+        this.Breaks.Clear();
         GC.SuppressFinalize(this);
     }
 }
@@ -291,14 +375,17 @@ public sealed class PhysicsCachePlayer:IDisposable {
     private readonly BinaryReader Reader;
     private readonly List<PhysicsBodyState>Bodies;
     private readonly List<PhysicsEvent>Events;
+    private readonly List<PhysicsBondBreak>Breaks=[];
     private readonly int FrameCount;
+    private readonly int Schema;
     private int NextFrameIndex;
     private ulong?LastAppliedTick;
     private bool Disposed;
 
     private PhysicsCachePlayer(
-        FileStream Spool,long FramesOffset,int FrameCount,int MaximumBodyCount,int MaximumEventCount,
+        FileStream Spool,long FramesOffset,int FrameCount,int MaximumBodyCount,int MaximumEventCount,int Schema,
         bool AllowRealtimeHandoff){
+        this.Schema=Schema;
         this.Spool=Spool;
         this.Spool.Position=FramesOffset;
         this.Reader=new BinaryReader(this.Spool,Encoding.UTF8,true);
@@ -328,13 +415,13 @@ public sealed class PhysicsCachePlayer:IDisposable {
             Spool.Position=0;
             if(!PhysicsCacheSerializer.TryInspect(
                 Spool,Expected,out long FramesOffset,out int FrameCount,
-                out int MaximumBodyCount,out int MaximumEventCount,out Error)){
+                out int MaximumBodyCount,out int MaximumEventCount,out int Schema,out Error)){
                 Spool.Dispose();
                 Player=null;
                 return false;
             }
             Player=new PhysicsCachePlayer(
-                Spool,FramesOffset,FrameCount,MaximumBodyCount,MaximumEventCount,AllowRealtimeHandoff);
+                Spool,FramesOffset,FrameCount,MaximumBodyCount,MaximumEventCount,Schema,AllowRealtimeHandoff);
             return true;
         }
         catch(Exception Exception)when(Exception is IOException or UnauthorizedAccessException or InvalidDataException){
@@ -352,7 +439,7 @@ public sealed class PhysicsCachePlayer:IDisposable {
             return this.Fault($"Physics cache has no frame for tick {Tick}.");
         }
         PhysicsCacheFrame Frame;
-        try { Frame=PhysicsCacheSerializer.ReadNext(this.Reader,this.Bodies,this.Events); }
+        try { Frame=PhysicsCacheSerializer.ReadNext(this.Reader,this.Schema,this.Bodies,this.Events,this.Breaks); }
         catch(Exception Exception)when(Exception is EndOfStreamException or IOException or InvalidDataException){
             return this.Fault("Physics cache became unreadable during playback.");
         }

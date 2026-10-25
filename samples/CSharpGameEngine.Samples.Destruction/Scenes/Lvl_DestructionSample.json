@@ -1,0 +1,521 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "CgeDestructionSample.Scenes",
+  "className": "Lvl_DestructionSample",
+  "startupOrder": 1,
+  "root": {
+    "id": "03de5b52-c31e-5a84-9bf1-ec13584b673f",
+    "name": "Lvl_DestructionSample",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.SkyAtmosphere",
+        "members": {
+          "BottomRadiusKm": 6360,
+          "AtmosphereHeightKm": 60,
+          "GroundAlbedoR": 0.40197778,
+          "GroundAlbedoG": 0.40197778,
+          "GroundAlbedoB": 0.40197778,
+          "RayleighScatteringR": 0.175287,
+          "RayleighScatteringG": 0.40960723,
+          "RayleighScatteringB": 1,
+          "RayleighScatteringScale": 0.0331,
+          "RayleighExponentialDistributionKm": 8,
+          "MieScatteringR": 1,
+          "MieScatteringG": 1,
+          "MieScatteringB": 1,
+          "MieScatteringScale": 0.003996,
+          "MieAbsorptionR": 1,
+          "MieAbsorptionG": 1,
+          "MieAbsorptionB": 1,
+          "MieAbsorptionScale": 0.000444,
+          "MieAnisotropy": 0.8,
+          "MieExponentialDistributionKm": 1.2,
+          "OtherAbsorptionR": 0.34556085,
+          "OtherAbsorptionG": 0.99999994,
+          "OtherAbsorptionB": 0.045188725,
+          "OtherAbsorptionScale": 0.001881,
+          "OtherTentTipAltitudeKm": 25,
+          "OtherTentWidthKm": 30,
+          "MultiScatteringFactor": 1,
+          "SunDiskAngle": 0.0020436111
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.SkyLight",
+        "members": {
+          "Intensity": 1,
+          "LowerHemisphereR": 0,
+          "LowerHemisphereG": 0,
+          "LowerHemisphereB": 0
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.ExponentialHeightFog",
+        "members": {
+          "FogDensity": 0.0436,
+          "FogHeightFalloff": 0.2,
+          "FogHeight": -68.5,
+          "FogMaxOpacity": 1,
+          "InscatteringLuminanceR": 0,
+          "InscatteringLuminanceG": 0,
+          "InscatteringLuminanceB": 0,
+          "SkyAtmosphereAmbientContributionScale": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.PostProcessVolume",
+        "members": {
+          "ExposureMethod": "AutoHistogram",
+          "MinEv100": 0,
+          "MaxEv100": 0,
+          "AutoExposureSpeedUp": 3,
+          "AutoExposureSpeedDown": 1,
+          "ExposureCompensation": 1,
+          "ToneMapper": "UnrealFilmic",
+          "BloomIntensity": 0.675,
+          "AmbientOcclusionIntensity": 0.5,
+          "AmbientOcclusionRadiusMeters": 2
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.VolumetricCloud",
+        "members": {
+          "Coverage": -0.8
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.GlobalDistanceField",
+        "members": {}
+      }
+    ],
+    "children": [
+      {
+        "id": "f2966c39-4ef0-5fe3-a8b8-46e95ed8d70a",
+        "name": "SM_SkySphere",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0,
+                "F": 0
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              },
+              "Scale": {
+                "R": 1,
+                "U": 1,
+                "F": 1
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.SkySphere",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "efdaf357-5d86-53cb-871c-f9ce2799b6fb",
+        "name": "DirectionalLight",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0,
+                "F": 0
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0.168831,
+                  "U": 0.20836625,
+                  "F": 0.13462423
+                }
+              },
+              "Scale": {
+                "R": 1,
+                "U": 1,
+                "F": 1
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.DirectionalLight",
+            "members": {
+              "Color": {
+                "R": 1,
+                "G": 1,
+                "B": 1
+              },
+              "Illuminance": {
+                "Lux": 3
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 100,
+              "Bias": {
+                "Meters": 0.005
+              }
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "2d29866f-ce53-57f4-b5c8-5d9f31d7073b",
+        "name": "GlobalIlluminationVolume",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -5.722046e-06,
+                "U": 2.15,
+                "F": -9.536743e-07
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              },
+              "Scale": {
+                "R": 1,
+                "U": 1,
+                "F": 1
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.GlobalIlluminationVolume",
+            "members": {
+              "HalfExtentX": 20.000006,
+              "HalfExtentY": 1.85,
+              "HalfExtentZ": 20,
+              "ProbeSpacingMeters": 2.5
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "3744678c-a775-5e45-ab6e-ce55fbf3ebdd",
+        "name": "Floor",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": -0.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 40,
+                "U": 0.5,
+                "F": 40
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 20,
+                "U": 0.25,
+                "F": 20
+              }
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "85427004-996c-5661-8eeb-e0b9ee5e3661",
+        "name": "BackWall",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 1.5,
+                "F": -12
+              },
+              "Scale": {
+                "R": 24,
+                "U": 3,
+                "F": 0.4
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 12,
+                "U": 1.5,
+                "F": 0.2
+              }
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "20819fef-3a5c-56e6-b2f6-90b9adb39b17",
+        "name": "ShotWall",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -6,
+                "U": 1.5,
+                "F": 4
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 0.15,
+                "U": 1.5,
+                "F": 2
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Destruction.Destructible",
+            "members": {
+              "FractureAsset": "ShotWall",
+              "FragmentCount": 24,
+              "Seed": 11,
+              "Anchor": "Bottom",
+              "OuterColorR": 0.55,
+              "OuterColorG": 0.55,
+              "OuterColorB": 0.53,
+              "InteriorColorR": 0.36,
+              "InteriorColorG": 0.34,
+              "InteriorColorB": 0.31,
+              "FragmentLifetime": 30,
+              "Density": 2400,
+              "BondStrength": 1200
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8840a48e-613e-56e7-97e7-ad3bac86da7f",
+        "name": "Crate0",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0.4,
+                "F": 4.0
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 0.4,
+                "U": 0.4,
+                "F": 0.4
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Destruction.Destructible",
+            "members": {
+              "FractureAsset": "SampleCrate",
+              "FragmentCount": 10,
+              "Seed": 3,
+              "Anchor": "None",
+              "OuterColorR": 0.42,
+              "OuterColorG": 0.26,
+              "OuterColorB": 0.11,
+              "InteriorColorR": 0.8,
+              "InteriorColorG": 0.62,
+              "InteriorColorB": 0.38,
+              "FragmentLifetime": 30,
+              "BondStrength": 600
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ab74ad4e-ec19-5301-9e46-d4778a2093f3",
+        "name": "Crate1",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0.6,
+                "U": 0.4,
+                "F": 5.2
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 0.4,
+                "U": 0.4,
+                "F": 0.4
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Destruction.Destructible",
+            "members": {
+              "FractureAsset": "SampleCrate",
+              "FragmentCount": 10,
+              "Seed": 3,
+              "Anchor": "None",
+              "OuterColorR": 0.42,
+              "OuterColorG": 0.26,
+              "OuterColorB": 0.11,
+              "InteriorColorR": 0.8,
+              "InteriorColorG": 0.62,
+              "InteriorColorB": 0.38,
+              "FragmentLifetime": 30,
+              "BondStrength": 600
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "cc1fa775-cfd9-5b1e-86fc-478154da9e80",
+        "name": "Crate2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -0.6,
+                "U": 0.4,
+                "F": 5.2
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 0.4,
+                "U": 0.4,
+                "F": 0.4
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Destruction.Destructible",
+            "members": {
+              "FractureAsset": "SampleCrate",
+              "FragmentCount": 10,
+              "Seed": 3,
+              "Anchor": "None",
+              "OuterColorR": 0.42,
+              "OuterColorG": 0.26,
+              "OuterColorB": 0.11,
+              "InteriorColorR": 0.8,
+              "InteriorColorG": 0.62,
+              "InteriorColorB": 0.38,
+              "FragmentLifetime": 30,
+              "BondStrength": 600
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "921156c8-61fa-5e1b-826c-c3f5f4c270e2",
+        "name": "CrateTop",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 1.2,
+                "F": 5.2
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": {
+                "R": 0.4,
+                "U": 0.4,
+                "F": 0.4
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Destruction.Destructible",
+            "members": {
+              "FractureAsset": "SampleCrate",
+              "FragmentCount": 10,
+              "Seed": 3,
+              "Anchor": "None",
+              "OuterColorR": 0.42,
+              "OuterColorG": 0.26,
+              "OuterColorB": 0.11,
+              "InteriorColorR": 0.8,
+              "InteriorColorG": 0.62,
+              "InteriorColorB": 0.38,
+              "FragmentLifetime": 30,
+              "BondStrength": 600
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

@@ -19,6 +19,8 @@
 
 0..N fixed catch-upのshipping loop統合、GJK/EPA、Static Mesh BVH、完全なSequential Impulse、CCD、実Voronoi/破片Playback、Build差分cook、Scene Bake Host、cache playback/handoff、contact/tree/bond overlay。Bake UIは誤った空cacheを完成品として生成しないよう無効で表示する。
 
+後続: 実Voronoiの調理、破片の剛体化とキャッシュの再生を含む実行時の破壊は[M0113](M0113-Chaos-Destruction.md)で実装した(ここの`Destructible`と`PrefractureRuntime`は使われないまま置き換えられた)。
+
 ## Feature IDs
 
 F-L3-018、F-L5-002、F-L5-003、F-L6-002、F-L7-012、F-L8-014。

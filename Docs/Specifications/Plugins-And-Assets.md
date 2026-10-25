@@ -24,7 +24,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 | NuGet パッケージ | Fab のプラグイン | `PackageReference` で有効(パッケージの `build/<Id>.targets` が自分を取り込む) |
 
 - 取り込みは `build/CSharpGameEngine.Game.targets` が行う。プロジェクトファイルの後に読まれるので、`CgePlugins` が見える(リポジトリでは `Directory.Build.targets`、パッケージでは `CSharpGameEngine.Sdk.targets` から読む)。
-- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)と Navigation(`plugins/CSharpGameEngine.Navigation`。TopDown テンプレートが有効にする。M0106)。UserEcsProject は両方を有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
+- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)、Navigation(`plugins/CSharpGameEngine.Navigation`。TopDown テンプレートが有効にする。M0106)、Destruction(`plugins/CSharpGameEngine.Destruction`。UE の Geometry Collection・Fracture・Field に当たる Chaos 相当の破壊。M0113。テンプレートは有効にせず、見本 `samples/CSharpGameEngine.Samples.Destruction` が有効にする)。UserEcsProject は 3 つとも有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
 
 ## 3. プラグインの形
 ```
@@ -38,7 +38,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
   Scenes/                   シーン(ゲームのシーンと同じ扱い。startupOrder があれば起動時に読まれる)
 ```
 - Library モジュール(任意): DLL。`[assembly: PluginLibrary]` を付ける。公開 struct はパレットとスキーマに出る。`World`・`State`・`Entity`・`ISystem` を名指ししない。NuGet のプラグインはパッケージの `lib/` に入れる。
-- Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。Navigation は `Cook/CSharpGameEngine.Navigation.Cook.csproj`(ソースはエンジンのリポジトリでビルドされ、SDK パッケージでは `Cook/lib/` に出力が入る)。
+- Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。Navigation は `Cook/CSharpGameEngine.Navigation.Cook.csproj`、Destruction は `Cook/CSharpGameEngine.Destruction.Cook.csproj`(ソースはエンジンのリポジトリでビルドされ、SDK パッケージでは `Cook/lib/` に出力が入る)。
 - 見本: `samples/Plugins/Weather`(プロジェクトのプラグイン)、`samples/Plugins/CSharpGameEngine.Samples.Lightning`(NuGet のプラグイン。Library の DLL と Runtime のソース)。
 
 ### マニフェスト `<名前>.cgeplugin`
@@ -121,6 +121,12 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
   - 失敗は処理の `error NAVnnn` 行がそのままビルドのエラーになる。
 - VSIX: Scene Designer の「ナビメッシュ」の節のボタンが、選択したシーンのゲームのプロジェクトで同じターゲットを `dotnet msbuild -t:CgeCookNavigation` で動かし、出力と診断を表示する(`NavigationCookService`)。物理のベイクのように、エンジンのソースの場所には頼らない。
 - まだ無いもの: 既存の `Physics.Cli bake` の Cook への載せ直し(ベイクの形が違う: ゲームのアセンブリを読んで世界を回す)。
+
+### 実例: 破砕(Destruction プラグイン、M0113)
+- 入力はシーンの JSON。シーンの `CSharpGameEngine.Destruction.Destructible` ごとに、節点の `Collider` の箱(または `SourceMesh` の閉じた凸の `.glb`)を `FragmentCount`・`Seed`・`ClusterCount`・`Density`・`BondStrength` で切り、`Assets/Destruction/<FractureAsset>.cgefracture` を書く(`FractureCooker`。切り方は `Runtime.Physics` の `PrefractureCooker` で、Cook モジュールは同じソースをコンパイルするので、書き手とゲームの読み手は同じコード)。同じ名前の節点が同じ切り方なら 1 つの資産を共有し、違えば DST010。
+- ビルド中の自動実行は Navigation と同じ形(`Destruction.plugin.items`、ターゲット `CgeCookDestruction`、出力 `obj/…/cge-destruction/Assets/Destruction/`)。失敗は `error DSTnnn` 行(DST001 名前、DST003 破片数・密度・強さ・クラスター数の範囲、DST004 拡大縮小、DST006 箱の衝突形状が無い・体積が無い、DST007 `SourceMesh` が読めない、DST008 切れない、DST009 シーンに無い、DST010 名前の衝突、DST011 シーンが読めない)。
+- 実行時: `[EngineService] Destruction` が資産を読み(`PrefractureAssetCache`)、破片ごとに描画の Entity(`FragmentMesh`)を作り、物理の Step の後に結合を切って塊を動的剛体にする。Component の一覧と既定値: `Destructible`(`FragmentCount` 16、`Seed` 0、`ClusterCount` 0、`Density` 500 kg/m³、`BondStrength` 2000 N·s/m²、`ClusterStrengthScale` 2、`DamagePropagation` 0.5、`Anchor` Bottom、`FragmentBudget` 64、`FragmentLifetime` 10 秒、外側と断面の色)、`DestructionImpact`(キャラクターがぶつかると壊す。100 kg、1 m/s)、`StrainField`(半径 2 m、5000 N·s)、`ForceField`(半径 3 m、6 m/s)。挙動は `Docs/Specifications/Physics.md` の「破壊」と M0113 の文書。
+- VSIX: Scene Designer の物理の重ね描きが、`Destructible` の切り方をビルド前にプレビューする(`PrefractureDebugService`。`Physics.Cli preview-prefracture`)。
 
 ## 7. データアセット `[DataAsset]` と `.cgeasset`
 ```json

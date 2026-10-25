@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ADR-0079/M0113: the Destruction plugin's Cook module (scene reading, the box source, the .cgefracture output) and the engine's Voronoi cooker it
+    compiles. The module is referenced as a library, so the tests see its internals; the Cook CLI is run as a process, as the build runs it.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="CSharpGameEngine.Numerics" />
+    <Using Include="CSharpGameEngine.Runtime.Physics" />
+    <Using Include="CSharpGameEngine.Destruction" />
+    <Using Include="CSharpGameEngine.Destruction.Cook" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\plugins\CSharpGameEngine.Destruction\Cook\CSharpGameEngine.Destruction.Cook.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <!-- The CLI is run as a process (a cook is a separate process in the build); it only has to be built. -->
+    <ProjectReference Include="..\..\tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
