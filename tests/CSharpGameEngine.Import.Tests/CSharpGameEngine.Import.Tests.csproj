@@ -29,6 +29,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../../src/CSharpGameEngine.Runtime.Animation/Skeleton.cs" Link="Parity/Skeleton.cs" />
+    <Compile Include="../../src/CSharpGameEngine.Runtime.Animation/AnimationClip.cs" Link="Parity/AnimationClip.cs" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
   </ItemGroup>
 
