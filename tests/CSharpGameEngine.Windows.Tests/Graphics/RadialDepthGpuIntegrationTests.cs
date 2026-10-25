@@ -172,7 +172,7 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void RadialViewProjection_SurvivesDeviceRecovery(){
         var Task=System.Threading.Tasks.Task.Run(static()=>{
-            var Roster=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
             using var Window=new Win32Window(new Win32WindowOptions { Title="Radial matrix recovery",Width=128,Height=128,Visible=false });
             using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);
@@ -203,7 +203,7 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void RadialCamera_RendersIdenticalPixelsAfterDeviceRecovery(){
         var Task=System.Threading.Tasks.Task.Run(static()=>{
-            var Roster=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
             using var Window=new Win32Window(new Win32WindowOptions { Title="Radial depth recovery",Width=128,Height=128,Visible=false });
             using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);

@@ -18,7 +18,7 @@ public class RenderServerTests {
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_SamePrimitiveTypeRepeated_DedupesToOneMeshEntry(){
         (var Meshes,var Materials,var Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box,PrimitiveType.Box,PrimitiveType.Box],MeshIndexOffset:0,MaterialIndexOffset:0);
+            PrimitiveRoster.Build([PrimitiveType.Box,PrimitiveType.Box,PrimitiveType.Box],MeshIndexOffset:0,MaterialIndexOffset:0);
 
         Assert.Single(Meshes);
         Assert.Single(Materials);
@@ -30,7 +30,7 @@ public class RenderServerTests {
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_DistinctPrimitiveTypes_EachGetsItsOwnMeshIndexOffsetCorrectly(){
         (var Meshes,var Materials,var Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box,PrimitiveType.Sphere,PrimitiveType.Box],MeshIndexOffset:5,MaterialIndexOffset:2);
+            PrimitiveRoster.Build([PrimitiveType.Box,PrimitiveType.Sphere,PrimitiveType.Box],MeshIndexOffset:5,MaterialIndexOffset:2);
 
         Assert.Equal(2,Meshes.Length);
         Assert.Equal(3,Objects.Length);
@@ -44,7 +44,7 @@ public class RenderServerTests {
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_EveryPrimitiveType_ProducesAStageRendererValidMesh(){
         foreach(var Type in Enum.GetValues<PrimitiveType>()){
-            (var Meshes,_,_)=RenderServer.BuildPrimitiveRoster([Type],0,0);
+            (var Meshes,_,_)=PrimitiveRoster.Build([Type],0,0);
             var Mesh=Assert.Single(Meshes);
 
             Assert.NotEmpty(Mesh.Positions);
@@ -93,7 +93,7 @@ public class RenderServerTests {
 
     private static void RunPresentationScenario(){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Render Presentation GPU Test",
             Width=128,
@@ -166,7 +166,7 @@ public class RenderServerTests {
 
     private static void RunCameraPreviewScenario(){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Camera Preview GPU Test",
             Width=128,
@@ -247,7 +247,7 @@ public class RenderServerTests {
 
     private static void RunBoxRenderScenario(string EffectiveShaderArtifactPath){
         (var Meshes,var Materials,var Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine RenderServer GPU Test",

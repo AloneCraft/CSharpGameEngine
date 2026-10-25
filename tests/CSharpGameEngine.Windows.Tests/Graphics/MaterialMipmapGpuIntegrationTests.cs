@@ -132,7 +132,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         var Tangents=new Vector4[Data.Positions.Length];
         var Uvs=new Vector2[Data.Positions.Length];
         for(var Index=0;Index<Tangents.Length;Index++){
-            Tangents[Index]=StageRenderer.ArbitraryTangentFor(Data.Normals[Index]);
+            Tangents[Index]=StageMeshGeometry.ArbitraryTangentFor(Data.Normals[Index]);
             Uvs[Index]=new Vector2(Data.Positions[Index].X,Data.Positions[Index].Z)*UvPerMeter;
         }
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Data.Indices };

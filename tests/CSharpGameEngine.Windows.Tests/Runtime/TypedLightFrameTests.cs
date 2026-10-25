@@ -102,7 +102,7 @@ public sealed class TypedLightFrameTests {
         Assert.True(Task.Wait(TimeSpan.FromSeconds(60)));
     }
     private static void RunRecovery(){
-        var Roster=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+        var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using var Window=new Win32Window(new Win32WindowOptions { Title="Typed light recovery",Width=128,Height=128,Visible=false });
         using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },

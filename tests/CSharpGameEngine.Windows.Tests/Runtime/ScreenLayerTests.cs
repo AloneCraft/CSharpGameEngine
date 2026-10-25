@@ -55,7 +55,7 @@ public class ScreenLayerTests {
 
     private static RenderServer CreateServer(Win32Window Window){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         return RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },

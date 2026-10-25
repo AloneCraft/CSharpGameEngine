@@ -110,7 +110,7 @@ internal sealed class StageSceneDataBuilder {
             }
             PrimitiveMaterialIndex=Materials.Count;
             (var PrimitiveMeshes,var PrimitiveMaterials,var PrimitiveObjects)=
-                RenderServer.BuildPrimitiveRoster([.. Primitives.Select(Item=>Item.Mesh.Type)],Meshes.Count,Materials.Count);
+                PrimitiveRoster.Build([.. Primitives.Select(Item=>Item.Mesh.Type)],Meshes.Count,Materials.Count);
             Meshes.AddRange(PrimitiveMeshes);
             Materials.AddRange(PrimitiveMaterials);
             Objects.AddRange(PrimitiveObjects);

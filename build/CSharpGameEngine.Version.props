@@ -5,6 +5,6 @@
     Bump it with every change to the package contents: NuGet keeps using a version it has already extracted (ADR-0065).
   -->
   <PropertyGroup>
-    <CgeEngineVersion>0.1.31</CgeEngineVersion>
+    <CgeEngineVersion>0.1.32</CgeEngineVersion>
   </PropertyGroup>
 </Project>

@@ -277,7 +277,7 @@ internal sealed class RenderRoster {
             this.Fail(Key,$"The PrimitiveMesh type {(int)Type} is not a known primitive.");
             return false;
         }
-        var (Meshes,Materials,_)=RenderServer.BuildPrimitiveRoster([Type],0,0);
+        var (Meshes,Materials,_)=PrimitiveRoster.Build([Type],0,0);
         if(MaterialIndex<0){
             if(Renderer.FreeMaterialSlots<1){
                 this.Fail(Key,"The renderer has no room for the primitive material.");

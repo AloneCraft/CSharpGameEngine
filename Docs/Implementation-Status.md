@@ -2448,6 +2448,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L4-002 — `CSharpGameEngine.Runtime.Windows`(`PrimitiveMesh`/`PrimitiveType`/`RenderServer`)
 
+- M0120(2026-10-26、SDK0.1.32): プリミティブ語彙/組立とシーンCameraはL5共有ソース、提出値/共通接線はL4。型名/データを維持し、全22プロジェクト3570件成功。RenderServer自体のL4移動は後続であり、この履歴IDを含む複合機能の実装場所を区別する。
+
 - M0088: RenderServer accepts four typed submissions (rectangle includes forward/up), optional shadows and ordered reusable typed frame records with separate emissive payloads. TypedLightFrameTests verifies generated diagnostics, exact WARP recovery pixels and warm-buffer allocation.
 
 - Layer: L4 — Domain Servers
@@ -2458,10 +2460,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   コミット。ADR-0040自体の文書化はPhase 11で行う → 2026-08に完了、
   [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]改稿・[[M0019-CSharp-Scene-DSL]]参照)
 - Implementation evidence:
-  - src/CSharpGameEngine.Windows/Runtime/PrimitiveType.cs
-  - src/CSharpGameEngine.Windows/Runtime/PrimitiveMesh.cs
+  - src/CSharpGameEngine.Runtime.Windows/PrimitiveType.cs
+  - src/CSharpGameEngine.Runtime.Windows/PrimitiveMesh.cs
   - src/CSharpGameEngine.Windows/Runtime/RenderServer.cs
-  - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs(`ArbitraryTangentFor`を`internal`化して共有)
+  - src/CSharpGameEngine.Rendering/StageMeshGeometry.cs(共通の接線生成)、src/CSharpGameEngine.Runtime.Windows/PrimitiveRoster.cs(形状組立)
   - src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
     アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
   - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
@@ -2474,9 +2476,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Reverse-engineered behavior:
   - `PrimitiveMesh{ PrimitiveType Type }`はサイズ指定を持たない単位サイズのプリミティブ
     (Unityの`GameObject.CreatePrimitive`と同じ規約)。配置先Nodeの`Transform.Scale`でサイズを決める。
-  - `RenderServer.BuildPrimitiveRoster`は`StageRenderer.Create`が要求するロースター断片を作る
-    純粋関数(静的ビルド関数 — このリポジトリに`Server`/`Registry`接尾辞のステートフルクラスの
-    先例が無いため)。同じ`PrimitiveType`は1つの`StageMeshCreateInfo`にデデュープする。全プリミティブは
+  - `PrimitiveRoster.Build`は`StageRenderer.Create`が要求するロースター断片を作る
+    静的なL5組立処理。距離場は形状ごとにプロセス内でキャッシュする。同じ`PrimitiveType`は1つの`StageMeshCreateInfo`にデデュープする。全プリミティブは
     1つの共有デフォルトマテリアルを使う(個別マテリアル指定はスコープ外)。
   - `StageRenderer.Create`はメッシュ/マテリアル/オブジェクトのロースターをCreate時に一括で要求する
     (構築後に足す`AddObject`・`AddMesh`・`AddMaterial`と`RemoveObject`はM0105で加わった。F-L5-041)。そのため
@@ -4888,7 +4889,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L4-004、F-L0-009
 - Implementation evidence: なし(計画のみ。M0120 で実装する)
 - Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0120 で足す)
-- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。CPU読み戻し値とFormatもL4へ移し、DXGI型を公開結果から除去した。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。L0はまだCPU計算の呼出し・フレーム順序・状態を持ち、RenderServerの公開APIにD3D12の型が出る。計画実行器そのものは未実装。
+- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。CPU読み戻し値とFormatもL4へ移し、DXGI型を公開結果から除去した。シーンCamera/PrimitiveMesh/PrimitiveTypeと組立はL5共有ソースへ移動済み。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。L0はまだCPU計算の呼出し・フレーム順序・状態を持ち、RenderServerの公開APIにD3D12の型が出る。計画実行器そのものは未実装。
 - Conformance: Unknown
 - Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
 

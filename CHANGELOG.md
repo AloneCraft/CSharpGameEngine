@@ -1,5 +1,6 @@
 # Changelog
 
+- SDK 0.1.32: シーン用Camera/CameraProjectionとPrimitiveMesh/PrimitiveTypeをL5 Runtime.Windowsの共有ソースへ移動。完全修飾名とシーンJSONの語彙を維持。プリミティブ組立はPrimitiveRoster.Build、共通の接線生成はL4 StageMeshGeometryへ移し、RenderServerのプリミティブ語彙依存を除去した。
 - SDK 0.1.31: CPU読み戻し値 `PixelColor` / `PixelReadbackResult` をポータブルなRenderingへ移動。公開FormatをDXGI_FORMATから `RenderPixelFormat` へ変更し、Native側で形式を対応付ける。画素バイト列・行間隔・BGRA復元を維持し、生成エディターブリッジも新しい型を返す。
 - SDK 0.1.30: L4の検証済み `RenderView` とL5 `RenderViewPolicy`、Native/RenderServerのSetViewを追加。投影/深度/補助投影/位置/露出/カメラ基底を値として提出・復旧できる。旧可視性クエリ値RenderViewはRenderVisibilityViewへ改名。旧カメラ/行列APIのリサイズ復旧メタデータは後続のアダプター分離まで維持する。
 - SDK 0.1.29: SetCamera前に描く既定Stageも対数深度で初期化するよう修正。透視行列だけを設定し線形の深度パケットが残る起動時の抜けを、通常のカメラ初期化処理を共有して解消した。

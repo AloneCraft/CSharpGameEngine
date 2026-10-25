@@ -59,6 +59,8 @@ The typed main-view boundary rejects default values, non-finite matrices/positio
 
 CPU readback values `PixelColor` and `PixelReadbackResult` belong to L4 Rendering (SDK 0.1.31). `RenderPixelFormat` carries Unknown, Rgba8Unorm or Bgra8Unorm without a provider enum. RowPitch remains bytes per row, including GPU padding, and Pixels retains the copied byte order. The current native RGBA8 backbuffer maps to Rgba8Unorm at readback return; allocation/copy formats are private backend details. Generated runtime preview capture also returns this portable payload.
 
+Scene Camera/CameraProjection and PrimitiveMesh/PrimitiveType are L5 shared runtime source, compiled into the game (SDK 0.1.32). Their namespace, enum values, defaults and Scene JSON names are unchanged. `PrimitiveRoster.Build` assembles/deduplicates primitive submissions and caches per-shape distance fields; the server receives L4 mesh/material/object values. `StageMeshGeometry.ArbitraryTangentFor` owns the unchanged shared tangent calculation.
+
 ## Target public contracts
 
 The Render Graph, material/texture, instance-visibility, and quality-profile subset of the following target contract is implemented in `CSharpGameEngine.Rendering`. The common Render Server owns the compatibility `RenderQualityPlan` for its configured dimensions and exposes it to protocol-v4 tooling strictly as a `DeclaredPlan`; this is not evidence that the later D3D12 graph executor or per-pass timing exists.

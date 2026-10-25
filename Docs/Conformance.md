@@ -4216,7 +4216,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 ## M0120 — 描画レイヤー分離(2026-10-26、進行中)
 - Intended: ADR-0087 §1。描画値/計画はポータブルなL4/L5、L0は計画実行に限定する。
 - Observed: 環境/メッシュ/材質/物体/発光パッチ入力はRendering、光源/影/発光のCPU計算はPipeline、カメラ数学はL5 View.RenderCameraへ移動済み。Frame/Objectの型付きCBと35オフセットはL4 StageGpuLayoutsが正本。Nativeの通常描画とLumen撮影も共有する。シーンComponentのCamera名は維持する。
-- Verified: 最新コード5f4d647/SDK0.1.29の全ソリューション22プロジェクト、3548件成功・失敗0・実機測定2件スキップ、終了0。Windows775、Rendering157、Core158、FeatureRunner240、CLI15、VSIX1197、Import73件を含む。最大物理RAM66%、閾値停止なし。証拠は `.artifacts/M0120/native-startup-solution.summary.json` と同log/memory.json。
+- Verified: SDK0.1.32のビュー/読み戻し/シーン共有化を含む全ソリューション22プロジェクト、3570件成功・失敗0・実機測定2件スキップ、終了0。Windows779、Rendering169、Core158、FeatureRunner246、CLI15、生成器338、VSIX1197、Import73件。最大物理RAM45%、閾値停止なし。証拠は `.artifacts/M0120/primitive-solution.summary.json` と同log/memory.json。以前の5f4d647/SDK0.1.29の3548件はM0120の履歴として維持する。
 - ABI: DXC実反射6条件で全CBのオフセット/サイズと行列の行配置が一致する。FrameCB960/ObjectCB192、固定7画像、Stage成果物SHA(E485F055...B6A5)は不変。Lumenの逆行列名の別名を明示し、カードPSでは未使用FrameCBの不在も検証する。成果物の既存JSONメタデータと実反射のコンパイル結果APIは別で、RuntimeはDXCを参照しない。
 - Startup: SetCamera未提出の初期化の透視行列/線形パケット不整合を修正前GPUで再現。共通カメラ設定で初期化を揃え、両スロットを含む3フレームが対数深度に一致。M0119追記とdefault-view-before/after.logに記録。全体回帰もこの修正を含む。
 - Result: Partial。移動済み単位はMatches。L0からCPU Plannerを呼ぶ経路、RenderViewPolicy、フレーム順序/状態、RenderServerと実行ポートの分離、URP方式のForward/Forward+およびDeferred系は未完。全スケール物理と物理契約分離も後続M0122/M0123。詳細な失敗/修正/測定履歴はM0120へ集約する。
@@ -4224,3 +4224,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - M0120ビュー提出追記(SDK0.1.30): L4 RenderView/L5 RenderViewPolicyとNative/Server SetView/型付き復旧を接続。Rendering169、GPU31と最終6、層7、FeatureRunner242件成功。3投影経路で旧APIと復旧画像が一致、固定7画像/Stageバイナリ不変、最大RAM41%。旧可視性型はRenderVisibilityViewへ用途を明示した。旧APIのリサイズ用メタデータ、NativeのPolicy互換呼出し、Server/フレーム計画の所有者は残るため全体はPartial。過去の全体3548件は今回の新APIを含む実行ではない。
 
 - M0120読み戻し追記(SDK0.1.31): L4 PixelColor/PixelReadbackResultとRenderPixelFormatを接続。Nativeの確保/コピーは同じで、公開FormatのDXGI依存を除去。Windows43、生成器338、層7、エディター15件が成功、固定7画像/Stageバイナリ不変、最大RAM45%。この移動単位はMatches、Server/フレーム計画/4パス全体はPartial。
+
+- M0120シーン共有化追記(SDK0.1.32): Camera/CameraProjection/PrimitiveMesh/PrimitiveTypeをL5のゲーム側共有ソースへ移し、完全修飾名/既定値/JSON語彙は維持。PrimitiveRoster.Buildと共通StageMeshGeometryを接続し、登録/全形状/動的ロースター/復旧/生成エディターブリッジを含む上記全体回帰に合格。この移動単位はMatches。Server/フレーム計画/4パス全体はPartial。

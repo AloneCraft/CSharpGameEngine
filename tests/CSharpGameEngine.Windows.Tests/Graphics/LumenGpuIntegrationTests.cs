@@ -343,7 +343,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         private static LumenScene Create(StageMaterialCreateInfo[]Materials,RenderScalability?Scalability,bool WithField,bool Walls){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Lumen",Width=Width,Height=Height,Visible=false });
             var Box=ProceduralMeshFactory.CreateBox(Vector3.One);
-            var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageRenderer.ArbitraryTangentFor).ToArray(),
+            var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageMeshGeometry.ArbitraryTangentFor).ToArray(),
                 Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,DistanceField=WithField?MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices):null };
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
                 [Mesh],Materials,[.. Enumerable.Range(0,5).Select(Index=>new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=Index })]);

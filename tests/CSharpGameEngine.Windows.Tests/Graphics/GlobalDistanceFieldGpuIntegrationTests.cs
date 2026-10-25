@@ -161,7 +161,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         // The Render Server copies the meshes it is given (for device recovery); the copy used to drop the distance field, so no object of a game
         // reached the global distance field.
         var Box=ProceduralMeshFactory.CreateBox(new Vector3(2f,2f,2f));
-        var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageRenderer.ArbitraryTangentFor).ToArray(),
+        var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageMeshGeometry.ArbitraryTangentFor).ToArray(),
             Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,DistanceField=MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices) };
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Global Distance Field Server",Width=64,Height=64,Visible=false });
         using var Server=CSharpGameEngine.Runtime.Windows.RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
@@ -257,7 +257,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         internal static FieldScene Create(bool WithField=true){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Global Distance Field",Width=160,Height=90,Visible=false });
             var Box=ProceduralMeshFactory.CreateBox(new Vector3(2f,2f,2f));
-            var Tangents=Box.Normals.Select(StageRenderer.ArbitraryTangentFor).ToArray();
+            var Tangents=Box.Normals.Select(StageMeshGeometry.ArbitraryTangentFor).ToArray();
             var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Tangents,Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,
                 DistanceField=WithField?MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices):null };
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,

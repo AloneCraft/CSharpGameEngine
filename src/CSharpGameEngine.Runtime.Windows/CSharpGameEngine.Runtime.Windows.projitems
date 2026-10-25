@@ -11,6 +11,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)EngineHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Camera.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PrimitiveMesh.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PrimitiveType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PrimitiveRoster.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Audio.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Picking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Hud.cs" />
@@ -29,6 +33,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AmbientLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\Camera.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PrimitiveMesh.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AppHost.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AudioListener.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AudioSource.svg" />

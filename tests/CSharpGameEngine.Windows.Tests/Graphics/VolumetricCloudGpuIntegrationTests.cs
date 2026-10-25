@@ -190,7 +190,7 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
     private static StageMeshCreateInfo ToMesh(ProceduralMeshData Data){
         var Tangents=new Vector4[Data.Positions.Length];
         for(var Index=0;Index<Tangents.Length;Index++){
-            Tangents[Index]=StageRenderer.ArbitraryTangentFor(Data.Normals[Index]);
+            Tangents[Index]=StageMeshGeometry.ArbitraryTangentFor(Data.Normals[Index]);
         }
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=new Vector2[Data.Positions.Length],Indices=Data.Indices };
     }

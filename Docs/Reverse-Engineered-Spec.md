@@ -539,7 +539,7 @@
 - Observed before: the initialization wrote a perspective matrix but retained the default linear depth packet; at 4.145584m the first frame wrote 0.9759626 instead of logarithmic 0.22822031. Camera-factory defaults and explicit SetCamera tests did not exercise this path.
 - Observed after: initialization applies the same validated camera setup before filling every slot. Three frames without SetCamera match the physical-distance oracle and use an active debug layer without errors. Native regression38 passes, including the unchanged seven pinned images. SDK0.1.29, evidence in M0119/M0120.
 
-- Latest cross-project verification: 5f4d647/SDK0.1.29 includes the relocated types/math, typed CB/reflection and default startup fix. All22 projects pass3548 tests, fail0, skip2 opt-in hardware measurements, exit0, maximum physical RAM66%. The seven golden frames and Stage artifact remain unchanged. Evidence: `.artifacts/M0120/native-startup-solution.summary.json`. M0120 remains Partial for the outstanding view/frame/server/path extraction.
+- Earlier cross-project verification: 5f4d647/SDK0.1.29 includes the relocated types/math, typed CB/reflection and default startup fix. All22 projects pass3548 tests, fail0, skip2 opt-in hardware measurements, exit0, maximum physical RAM66%. The seven golden frames and Stage artifact remain unchanged. Evidence: `.artifacts/M0120/native-startup-solution.summary.json`. M0120 remains Partial for the outstanding view/frame/server/path extraction.
 
 ## RE-M0120 — Validated main-view submission (SDK0.1.30)
 - Confidence: High for value creation/submission/recovery; native adapter and server extraction remain incomplete.
@@ -552,3 +552,8 @@
 - Evidence: Rendering/PixelColor.cs, PixelReadbackResult.cs, RenderPixelFormat.cs; native readback initializer, Model/Triangle verifiers, RuntimeAutomation and GeneratedEditorPreviewBridgeEmitter.
 - Observed: the CPU payload has no graphics-provider type. Native RGBA8 allocation/copy remains unchanged and maps to the engine format at return. Padded rows, RGBA/BGRA verifier decoding and the generated runtime capture signature remain connected.
 - Verified: Windows43, generator338, layer7, editor15 pass; seven images and Stage binary are unchanged, peak physical RAM45%. Evidence is recorded in M0120. Overall server/frame/path extraction remains Partial.
+
+## RE-M0120 — L5 scene vocabulary and primitive assembly (SDK0.1.32)
+- Evidence: Runtime.Windows shared Camera/PrimitiveMesh/PrimitiveType/PrimitiveRoster and explicit projitems, portable StageMeshGeometry, SceneCameraTests, migrated roster/GPU tests, primitive-preservation.json.
+- Observed: scene type names/defaults/enum values/attributes stay the same while their assembly is now the game runtime. The primitive builder and shape distance-field cache no longer belong to RenderServer. Mesh/material/object ordering and tangent arithmetic are preserved; two moved icons match byte for byte.
+- Verified: targeted41 and the full solution22 projects pass3570, fail0, skip2 opt-in hardware measurements, exit0. Core registration/layer checks, Rendering169, FeatureRunner246, Windows779, generator338 and VSIX1197 are included. Maximum physical RAM45%. Seven golden images and the Stage artifact remain unchanged. This full run includes the preceding view/readback migrations. Overall pipeline/server/four-path extraction remains Partial. Evidence: `.artifacts/M0120/primitive-solution.summary.json`.

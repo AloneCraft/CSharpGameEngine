@@ -14,7 +14,7 @@ public sealed class RenderViewGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void TypedViewMatchesLegacySubmissionAndSurvivesDeviceRecovery(int Mode){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine typed view",Width=80,Height=48,Visible=false });
-        var (Meshes,Materials,Objects)=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+        var (Meshes,Materials,Objects)=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using var Server=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact"),Meshes,Materials,Objects);
         Assert.True(Server.DebugLayerEnabled);

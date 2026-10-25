@@ -1,7 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
-using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.ShaderArtifacts;
@@ -9,19 +8,10 @@ using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-/// <summary>
-/// Converts declared <see cref="PrimitiveMesh"/> values into the StageMeshCreateInfo/
-/// StageMaterialCreateInfo/StageObjectCreateInfo triples <see cref="StageRenderer"/>'s multi-object
-/// Create overload needs, appended onto an existing (e.g. .glb-derived) roster via the
-/// MeshIndexOffset/MaterialIndexOffset parameters. A pure function, not a stateful service,
-/// matching this repo's universal "the object roster is fixed once at Create time" renderer
-/// pattern (ADR-0040 Phase 6) - it has no ECS dependency, the caller owns all Entity/Transform
-/// concerns.
-/// </summary>
+/// <summary>Owns submitted frame state, roster artifacts and device-generation recovery.</summary>
 public sealed class RenderServer:IDisposable {
     private static readonly StableId RecoveryArtifactNamespace=
         StableId.Parse("ef11e972-e4bd-5127-82a4-7f52175f9d48");
-    private static readonly Vector4 DefaultBaseColorFactor=new(0.6f,0.6f,0.6f,1f);
     private readonly nint Hwnd;
     private readonly GraphicsDeviceOptions DeviceOptions;
     private readonly string ShaderArtifactPath;
@@ -694,45 +684,6 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>
-    /// Same PrimitiveType deduplicates to one shared StageMeshCreateInfo (mirroring how the .glb
-    /// import path already separates Meshes from Objects), so N boxes cost one GPU mesh buffer.
-    /// Every primitive shares one flat default material - per-primitive color/material is out of
-    /// scope for Phase 6.
-    /// </summary>
-    public static (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)BuildPrimitiveRoster(
-        IReadOnlyList<PrimitiveType>Types,int MeshIndexOffset,int MaterialIndexOffset){
-        List<PrimitiveType>DistinctTypes=[];
-        Dictionary<PrimitiveType,int>MeshIndexByType=[];
-        foreach(var Type in Types){
-            if(!MeshIndexByType.ContainsKey(Type)){
-                MeshIndexByType[Type]=DistinctTypes.Count;
-                DistinctTypes.Add(Type);
-            }
-        }
-
-        var Meshes=new StageMeshCreateInfo[DistinctTypes.Count];
-        for(var Index=0;Index<DistinctTypes.Count;Index++){
-            var Mesh=ToStageMesh(CreateProceduralMesh(DistinctTypes[Index]));
-            // M0110: a primitive is made here, not by the build, so its distance field is made here too (once per process).
-            Meshes[Index]=Mesh with { DistanceField=PrimitiveDistanceFields.GetOrAdd(DistinctTypes[Index],_=>MeshDistanceFieldBuilder.Build(Mesh.Positions,Mesh.Indices)) };
-        }
-
-        StageMaterialCreateInfo[]Materials=[
-            new StageMaterialCreateInfo { BaseColorFactor=DefaultBaseColorFactor,RoughnessFactor=1f,MetallicFactor=0f },
-        ];
-
-        var Objects=new StageObjectCreateInfo[Types.Count];
-        for(var Index=0;Index<Types.Count;Index++){
-            Objects[Index]=new StageObjectCreateInfo {
-                MeshIndex=MeshIndexOffset+MeshIndexByType[Types[Index]],
-                MaterialIndex=MaterialIndexOffset,
-            };
-        }
-
-        return(Meshes,Materials,Objects);
-    }
-
-    /// <summary>
     /// Builds the canonical immutable roster for one imported or procedural mesh. Callers do not
     /// create a renderer-specific object: geometry, material, and draw identity enter the same
     /// Render Server boundary used by authored worlds and isolated previews.
@@ -754,7 +705,7 @@ public sealed class RenderServer:IDisposable {
 
         var Tangents=new Vector4[Positions.Count];
         for(int Index=0;Index<Tangents.Length;Index++){
-            Tangents[Index]=StageRenderer.ArbitraryTangentFor(Normals[Index]);
+            Tangents[Index]=StageMeshGeometry.ArbitraryTangentFor(Normals[Index]);
         }
         return(
             [new StageMeshCreateInfo {
@@ -765,29 +716,5 @@ public sealed class RenderServer:IDisposable {
             [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
     }
 
-    /// <summary>Unit-size dimensions per shape (Transform.Scale=(1,1,1) fits roughly one unit), following Unity's GameObject.CreatePrimitive defaults (e.g. Cylinder/Cone/Capsule height=2, radius=0.5f).</summary>
-    private static ProceduralMeshData CreateProceduralMesh(PrimitiveType Type)=>Type switch {
-        PrimitiveType.Plane=>ProceduralMeshFactory.CreatePlane(1f,1f),
-        PrimitiveType.Box=>ProceduralMeshFactory.CreateBox(Vector3.One),
-        PrimitiveType.Sphere=>ProceduralMeshFactory.CreateSphere(0.5f),
-        PrimitiveType.Cylinder=>ProceduralMeshFactory.CreateCylinder(0.5f,2f),
-        PrimitiveType.Cone=>ProceduralMeshFactory.CreateCone(0.5f,2f),
-        PrimitiveType.Torus=>ProceduralMeshFactory.CreateTorus(0.35f,0.15f),
-        PrimitiveType.Disk=>ProceduralMeshFactory.CreateDisk(0.5f),
-        PrimitiveType.Capsule=>ProceduralMeshFactory.CreateCapsule(0.5f,2f),
-        _=>throw new ArgumentOutOfRangeException(nameof(Type),Type,"Unknown PrimitiveType."),
-    };
 
-    /// <summary>Synthesizes Uvs (unused - every primitive uses the flat default material, never a real texture) and Tangents via StageRenderer's own untextured-mesh adapter logic, so this stays byte-for-byte consistent with the legacy MeshCreateInfo path instead of a second, divergent implementation.</summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<PrimitiveType,MeshDistanceField?>PrimitiveDistanceFields=new();
-    private static StageMeshCreateInfo ToStageMesh(ProceduralMeshData Mesh){
-        var VertexCount=Mesh.Positions.Length;
-        var Uvs=new Vector2[VertexCount];
-        var Tangents=new Vector4[VertexCount];
-        for(var Index=0;Index<VertexCount;Index++){
-            Tangents[Index]=StageRenderer.ArbitraryTangentFor(Mesh.Normals[Index]);
-        }
-
-        return new StageMeshCreateInfo { Positions=Mesh.Positions,Normals=Mesh.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Mesh.Indices };
-    }
 }

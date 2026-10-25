@@ -67,7 +67,7 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 ## 既定起動の補足
 - SetCamera未提出のStageの深度不整合を追加再現し、既定カメラの初期化を共通処理へ揃えた(M0119追記)。修正前は深度0.9759626/期待0.22822031、修正後のGPU38件は成功。SDK0.1.29。これはビュー/フレーム計画の抽出完了を意味せず、その後の分離で保持すべき起動契約である。
 
-## 最新の全体回帰(2026-10-26)
+## 既定起動修正時の全体回帰(2026-10-26)
 - 5f4d647/SDK0.1.29の全22プロジェクトが3548件成功・失敗0・実機測定2件スキップ、終了0。値/計算/カメラ移動、型付きCB、実DXC反射6条件、既定Stageの起動修正をすべて含む。Core158、Rendering157、CLI15、FeatureRunner240、Windows775、VSIX1197、Import73件。以前の全体記録の測定元コミットは変更せず、最新結果を別保存した。
 - 証拠は `.artifacts/M0120/native-startup-solution.log`、同summary.json/memory.json。最大RAM66%、閾値停止なし。Stageバイナリの生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5、固定7画像も同じ。版はSDK0.1.29、ABIはstage-v14。
 - 参照元G:/Unity/6.6/OmniのmanifestとPackageCacheでURP17.6.0を再確認。ForwardLights/Clustering/StencilDeferred/ClusterDeferredは現行の承認設計ADR-0085と同じ参照先で、Unity自体は変更/起動していない。
@@ -96,3 +96,15 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - PixelColor/PixelReadbackResultはRenderingへ移り、FormatはRenderPixelFormat。現在のRGBA8バックバッファだけをReadbackの返却時に対応付ける。GPUリソース確保/コピーのDXGI形式は同じ。Model/Triangle検証器のBGRA判定と行ピッチ、RuntimeAutomationのPNG、生成プレビューブリッジも接続した。SDK0.1.31、stage-v14。
 - GPU/読み戻し/型付きビュー復旧/ランタイムブリッジ43件、生成器全338件、層7件、エディター消費側15件が成功。固定7画像の期待値とStage成果物SHA E485F055...B6A5は不変。最大RAM45%、閾値停止なし。証拠はpixel-port-final.log、pixel-generator.log、pixel-layers.log、pixel-editor.logと各memory.json。
 - 最初のpixel-port-regression.logは未移行のNative初期化子のDXGI_FORMAT代入でコンパイル失敗。返却値だけをスコープ限定で修正し、成功ログは別保存した。この対象検証は過去の全体3548件を置き換えるものではない。Server/フレーム計画/4パスのPartialは継続する。
+
+## シーンComponent/プリミティブ組立の移行単位
+- ADR-0087 §1.8に従い、Camera/CameraProjectionとPrimitiveMesh/PrimitiveTypeをRuntime.Windows共有ソースへ移す。名前空間・列挙値・既定値・SceneComponent属性は維持し、ゲーム側で生成器と同じコンパイルに含める。対応アイコンも共有の資産へ移し、projitemsへ明示登録する。
+- RenderServerからプリミティブ語彙依存を除き、同じ組立処理をL5 PrimitiveRoster.Buildへ移す。呼出し側も同時移行する。接線の同じ演算はL4 StageMeshGeometryへ集約し、単一メッシュの組立とNativeの互換作成もそれを消費する。形状、順序、距離場、画素は変更しない。
+- 既存の重複排除/全形状/シーンJSON/動的ロースター/復旧/GPU基準を確認し、共有ファイル一覧とソリューション登録を含む全体検証を行う。Server/フレーム計画のL4移動はこの単位の後続。
+
+### シーン語彙/組立の実行結果と全体回帰(2026-10-26)
+- Camera/CameraProjection/PrimitiveMesh/PrimitiveTypeはゲームのEngineHostと同じアセンブリに入り、Native StageRendererのアセンブリから分離された。既存の完全修飾名、列挙値、既定値とSceneComponent属性を維持した。アイコン2件もバイト一致で共有資産へ移動し、4ソース/2資産を既存projitemsへ明示登録した。
+- PrimitiveRoster.Buildは同じ順序/重複排除/形状/マテリアル/距離場処理を持ち、RenderServerからプリミティブ語彙の依存を除いた。共通接線演算はStageMeshGeometry。比較証拠primitive-preservation.jsonは型データ3件/組立/接線/アイコン2件すべて一致。NativeのSceneCamera初期化/RenderViewPolicy互換入口はまだ残る。
+- 先行の対象41件が成功。続くSDK0.1.32の全ソリューションは22プロジェクト、3570件成功・失敗0・実機専用2件スキップ、終了0。Core158(ソリューション/共有登録と層を含む)、Rendering169、FeatureRunner246、Windows779、生成器338、VSIX1197、Import73件。先行SDK0.1.29の3548件から増えた22件はビュー契約12、Windows4、変更選択6に対応する。
+- 証拠はprimitive-boundary-first.log、primitive-solution.logとsummary.json/memory.json。固定7画像とStage成果物SHA E485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5は不変。全体試験最大RAM45%、閾値停止なし。VSIXビルド/自動試験の成功であり、VS/Unityを起動した実画面検証とは区別する。
+- M0120はPartialのまま。Server/FrameState、公開診断・回復理由、実パス計画/実行ポート、Forward/Forward+が後続。Deferred系と物理分離/全スケール対応もM0121〜M0123で未完。mainへ統合していない。

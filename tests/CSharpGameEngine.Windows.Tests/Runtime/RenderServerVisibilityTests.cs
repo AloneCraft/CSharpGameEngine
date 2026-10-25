@@ -17,7 +17,7 @@ public sealed class RenderServerVisibilityTests {
     private const int Caster=1;
     private static RenderServer CreateServer(Win32Window Window){
         // One mesh per primitive type, in the order the types first appear: the plane is mesh 0 and the box mesh 1.
-        (var Meshes,var Materials,var Objects)=RenderServer.BuildPrimitiveRoster([PrimitiveType.Plane,PrimitiveType.Box],0,0);
+        (var Meshes,var Materials,var Objects)=PrimitiveRoster.Build([PrimitiveType.Plane,PrimitiveType.Box],0,0);
         return RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
     }
     private static (string Hash,int Covered)Frame(RenderServer Renderer,bool CasterVisible=true,bool CasterCastsShadow=true,bool Recovery=false){

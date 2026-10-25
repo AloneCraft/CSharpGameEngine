@@ -4,6 +4,15 @@ namespace CSharpGameEngine.Runtime.Windows.Tests;
 
 public sealed class SceneCameraTests {
     [Fact]
+    public void SceneViewVocabularyBelongsToTheGameRuntime(){
+        var RuntimeAssembly=typeof(EngineHost).Assembly;
+        Assert.Equal(RuntimeAssembly,typeof(Camera).Assembly);
+        Assert.Equal(RuntimeAssembly,typeof(CameraProjection).Assembly);
+        Assert.Equal(RuntimeAssembly,typeof(PrimitiveMesh).Assembly);
+        Assert.Equal(RuntimeAssembly,typeof(PrimitiveType).Assembly);
+        Assert.NotEqual(typeof(CSharpGameEngine.Graphics.D3D12.StageRenderer).Assembly,RuntimeAssembly);
+    }
+    [Fact]
     public void NewCamera_IsActivePerspectiveWithPlayableClipRange(){
         Camera Camera=new();
 
