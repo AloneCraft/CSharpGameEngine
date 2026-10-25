@@ -1,4 +1,20 @@
 using CSharpGameEngine.Cook.Cli;
+if(args.Length>=2&&args[0] is "describe" or "import-worker"){
+    try {
+        if(args[0]=="describe"&&args.Length==2){ Console.WriteLine(ImportWorker.Describe(args[1]));return 0; }
+        if(args[0]=="import-worker"&&args.Length==4){
+            using var Stop=new CancellationTokenSource();
+            ConsoleCancelEventHandler Cancel=(_,Event)=>{ Event.Cancel=true;Stop.Cancel(); };
+            Console.CancelKeyPress+=Cancel;
+            try { return await ImportWorker.RunAsync(args[1],args[2],args[3],Stop.Token); }
+            finally { Console.CancelKeyPress-=Cancel; }
+        }
+        Console.Error.WriteLine("Usage: describe <module.dll> | import-worker <module.dll> <request.json> <result.json>");
+        return 2;
+    } catch(Exception Error) when(Error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or BadImageFormatException){
+        Console.Error.WriteLine(Error.Message);return 1;
+    }
+}
 
 // ADR-0079: runs a plugin's Cook module outside Visual Studio and the game.
 //   list <cook-module.dll>
