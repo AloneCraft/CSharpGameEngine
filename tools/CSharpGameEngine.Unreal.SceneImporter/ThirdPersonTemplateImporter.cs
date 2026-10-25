@@ -1,4 +1,3 @@
-using CSharpGameEngine.Rendering;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;

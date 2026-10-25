@@ -45,3 +45,8 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - GPU/復旧/シーン/観察カメラ43件成功。固定7画像は同じSHA。Stage成果物の生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5で移動前と一致。最大RAM67%、閾値停止なし。
 - 層6件成功。L4からL5 View型を参照しない規則も追加。カタログ/変更選択31件成功。デバッグ層を持たないCPU計算の試験もGPU試験と区別する。SDKは0.1.27。証拠はportable-camera-cpu.log、portable-camera-gpu.log、camera-layer-final.log、camera-catalog-final.logと各memory.json。
 - カメラ数学の所在だけを移した段階で、StageRenderer.SetCameraと初期化はまだその型を使う。RenderView/RenderViewPolicyによる提出・フレーム計画/状態の抽出、RenderServer移動は未完。全体回帰を次に実行する。
+
+### 全体ビルドで見つかったインポーター参照(2026-10-26)
+- 9689b0aの全体実行はテスト失敗0だったが、Unreal.SceneImporterに誤って追加したRenderingのusing2行がCS0234となり、終了コード1。Import.Testsはビルドできず未実行で、実行済みは21プロジェクト3466件成功・2件スキップ。全体成功とは扱わない。
+- 原因は移動時の型名検索がコメント/生成用文字列にも一致し、実際の型依存がないツールへusingを追加したこと。不要な2行だけを削除し、ポータブルなインポーターに新しい描画参照は追加していない。修正後のImport.Tests73件は成功。失敗元ログはportable-solution-final.log、修正確認はportable-importer-fixed.log。各memory.jsonで最大68%/63%、閾値停止なし。
+- 型移動の消費側を判定する際は、文字列/コメント中の名称と実際の型参照を区別する。修正を含むコードで全ソリューションを再実行する。
