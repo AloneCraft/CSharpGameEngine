@@ -4212,3 +4212,8 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Performance: Releaseの100000物体可視性/バッチングは中央値4.10015ms、p95 4.34760ms、割り当てp95 0byteで予算内。WARP全フレーム時間とRTX主パスだけの時間は別の測定であり、実機のゲーム全体のFPSを証明しない。
 - Evidence: `.artifacts/M0119/solution-diagnostics-final-summary.json`、同log/memory.json、`templates/debug-manifest.json`、`templates/baseline-comparison-debug.json`、`final-hardware-artifact-match.json`、`release-performance.log`。全体テスト最大RAM65%、テンプレート再実行最大68%、閾値停止なし。詳細な移行履歴・修正前失敗・測定元コミットはM0119参照。
 - Result: Matches(M0119のみ)。描画レイヤー/4パス/全スケール物理はM0120〜M0123で未実装。VS/UnityのGUI実走は今回未検証。シーンカメラ正射影のランタイム未接続は範囲外、過去の間欠的WARPデバイス削除の原因は未確定。
+
+## M0120 — 描画レイヤー分離(2026-10-26、進行中)
+- Intended: ADR-0087 §1。描画値・CPU計画はポータブルなL4/L5、L0は計画実行に限定する。
+- Observed: 環境・メッシュ/材質/物体・発光パッチ入力と光源/影/発光のCPU計算をRenderingへ移し、ネイティブ提出アダプターを分離した。計算式と既定値の5比較、固定7画像が不変。Windows回帰54件、移動した23件を含むRendering全136件、層5件、カタログ/変更選択/リリース証拠35件成功。最大RAM68%、閾値停止なし。
+- Result: Partial。移動単位はMatchesだが、L0からCPU Plannerを呼ぶ経路、カメラ方針、フレーム順序/状態とRenderServerの移動は未完。Forward/Forward+のURP方式とDeferred系も未実装。詳細とログはM0120参照。

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Buffers.Binary;
 using System.Numerics;
 using CSharpGameEngine.Entities;

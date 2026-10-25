@@ -1,38 +1,5 @@
 using System.Numerics;
-
-namespace CSharpGameEngine.Graphics.D3D12;
-
-/// <summary>
-/// A deterministic rectangular approximation of emissive triangles. <see cref="Forward"/> is the
-/// one emitting side; its back face has zero direct-light contribution.
-/// </summary>
-public readonly record struct EmissivePatch(
-    Vector3 Center,
-    Vector3 Forward,
-    Vector3 Right,
-    Vector3 Up,
-    Vector3 LinearRgb,
-    float LuminanceNits,
-    float WidthMeters,
-    float HeightMeters,
-    int SourceTriangleCount);
-
-/// <summary>Geometry and material state used to rebuild emissive patches after an object moves.</summary>
-public sealed class EmissivePatchBuildInput {
-    public required IReadOnlyList<Vector3> Positions { get; init; }
-    public required IReadOnlyList<uint> Indices { get; init; }
-    public required Matrix4x4 ObjectWorld { get; init; }
-    public required Vector3 EmissiveNits { get; init; }
-
-    /// <summary>
-    /// Mean linear luminance sampled from the emissive texture. A texture decoder may refine this
-    /// value later; one preserves the factor/strength-only glTF material result.
-    /// </summary>
-    public float EmissiveTextureLuminanceScale { get; init; }=1f;
-
-    public int MaxPatches { get; init; }=16;
-}
-
+namespace CSharpGameEngine.Rendering.Pipeline;
 /// <summary>
 /// Converts emissive triangle geometry to no more than 16 deterministic rectangle patches per
 /// object. Triangles are ordered by normal, position, area, and original index before clustering,
@@ -40,7 +7,6 @@ public sealed class EmissivePatchBuildInput {
 /// </summary>
 public static class EmissivePatchBuilder {
     private const float MinimumAreaSquareMeters=1e-8f;
-
     public static IReadOnlyList<EmissivePatch> Build(EmissivePatchBuildInput Input){
         ArgumentNullException.ThrowIfNull(Input);
         Validate(Input);
@@ -48,7 +14,6 @@ public static class EmissivePatchBuilder {
         if(EmissiveNits.X<=0f&&EmissiveNits.Y<=0f&&EmissiveNits.Z<=0f){
             return [];
         }
-
         List<EmissiveTriangle>Triangles=[];
         for(var Index=0;Index<Input.Indices.Count;Index+=3){
             Vector3 A=Vector3.Transform(Input.Positions[(int)Input.Indices[Index]],Input.ObjectWorld);
@@ -59,14 +24,12 @@ public static class EmissivePatchBuilder {
             if(DoubleArea<=MinimumAreaSquareMeters*2f){
                 continue;
             }
-
             Triangles.Add(new EmissiveTriangle(
                 Index/3,A,B,C,Vector3.Normalize(Cross),DoubleArea*0.5f));
         }
         if(Triangles.Count==0){
             return [];
         }
-
         Triangles.Sort(EmissiveTriangleComparer.Instance);
         int PatchCount=Math.Min(Input.MaxPatches,Triangles.Count);
         float PeakNits=MathF.Max(EmissiveNits.X,MathF.Max(EmissiveNits.Y,EmissiveNits.Z));
@@ -79,25 +42,6 @@ public static class EmissivePatchBuilder {
         }
         return Patches;
     }
-
-    /// <summary>Submits generated patches through the true one-sided rectangle Area-light path.</summary>
-    public static void SubmitDirectLighting(
-        this StageRenderer Renderer,
-        IReadOnlyList<EmissivePatch> Patches,
-        float RangeMeters,
-        bool CastsShadows,
-        int ShadowPriority,
-        float ShadowBiasMeters){
-        ArgumentNullException.ThrowIfNull(Renderer);
-        ArgumentNullException.ThrowIfNull(Patches);
-        foreach(EmissivePatch Patch in Patches){
-            Renderer.AddAreaLight(
-                Patch.Center,Patch.Forward,Patch.Right,Patch.Up,Patch.LinearRgb,Patch.LuminanceNits,
-                Patch.WidthMeters,Patch.HeightMeters,RangeMeters,
-                ShadowPriority,CastsShadows,ShadowBiasMeters,PhysicalLightKind.Emissive);
-        }
-    }
-
     private static EmissivePatch BuildPatch(
         IReadOnlyList<EmissiveTriangle> Triangles,
         int Start,
@@ -138,7 +82,6 @@ public static class EmissivePatchBuilder {
             MathF.Max(MaximumRight-MinimumRight,0.001f),
             MathF.Max(MaximumUp-MinimumUp,0.001f),
             End-Start);
-
         void ExpandBounds(Vector3 Position){
             Vector3 Relative=Position-Center;
             float RightCoordinate=Vector3.Dot(Relative,Right);
@@ -149,7 +92,6 @@ public static class EmissivePatchBuilder {
             MaximumUp=MathF.Max(MaximumUp,UpCoordinate);
         }
     }
-
     private static void Validate(EmissivePatchBuildInput Input){
         if(Input.MaxPatches<1||Input.MaxPatches>16){
             throw new ArgumentOutOfRangeException(nameof(Input.MaxPatches),
@@ -171,11 +113,9 @@ public static class EmissivePatchBuilder {
             }
         }
     }
-
     private static bool IsFiniteNonNegative(Vector3 Value)=>
         float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z)
         &&Value.X>=0f&&Value.Y>=0f&&Value.Z>=0f;
-
     private readonly record struct EmissiveTriangle(
         int OriginalIndex,
         Vector3 A,
@@ -185,10 +125,8 @@ public static class EmissivePatchBuilder {
         float Area) {
         public Vector3 Centroid=>(this.A+this.B+this.C)/3f;
     }
-
     private sealed class EmissiveTriangleComparer:IComparer<EmissiveTriangle> {
         public static readonly EmissiveTriangleComparer Instance=new();
-
         public int Compare(EmissiveTriangle Left,EmissiveTriangle Right){
             int Result=CompareVector(Left.Forward,Right.Forward);
             if(Result!=0)return Result;
@@ -197,7 +135,6 @@ public static class EmissivePatchBuilder {
             Result=Left.Area.CompareTo(Right.Area);
             return Result!=0?Result:Left.OriginalIndex.CompareTo(Right.OriginalIndex);
         }
-
         private static int CompareVector(Vector3 Left,Vector3 Right){
             int Result=Left.X.CompareTo(Right.X);
             if(Result!=0)return Result;

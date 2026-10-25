@@ -32,6 +32,28 @@ public sealed class EngineLayerSpec {
             .ToArray();
         Assert.Empty(Games);
     }
+    [Fact]
+    public void PortableRenderingDoesNotNameNativeBinding(){
+        var Forbidden=new Regex(@"TerraFX|CSharpGameEngine\.Graphics\.D3D12|CSharpGameEngine\.Platform\.Windows|\bWin32\b|\bDXGI_|\bD3D12_|\bID3D12|\bIDXGI|\bHWND\b",RegexOptions.CultureInvariant);
+        var Violations=Directory.EnumerateFiles(Path.Combine(RepositoryRoot,"src","CSharpGameEngine.Rendering"),"*.cs",SearchOption.AllDirectories)
+            .Where(File=>!File.Split(Path.DirectorySeparatorChar).Any(Part=>Part is "bin" or "obj"))
+            .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
+            .Where(Entry=>Forbidden.IsMatch(Entry.Line))
+            .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
+        Assert.Empty(Violations);
+    }
+    [Fact]
+    public void PortableRenderingReferencesOnlyPortableProjects(){
+        var Project=XDocument.Load(Path.Combine(RepositoryRoot,"src","CSharpGameEngine.Rendering","CSharpGameEngine.Rendering.csproj"));
+        Assert.Equal("net10.0",Assert.Single(Project.Descendants("TargetFramework")).Value);
+        Assert.Empty(Project.Descendants("PackageReference"));
+        Assert.DoesNotContain(Project.Descendants("AllowUnsafeBlocks"),Element=>string.Equals(Element.Value,"true",StringComparison.OrdinalIgnoreCase));
+        foreach(var Reference in Project.Descendants("ProjectReference")){
+            var Name=Path.GetFileNameWithoutExtension(Reference.Attribute("Include")!.Value);
+            Assert.Contains(Name,new[]{"CSharpGameEngine.Contracts","CSharpGameEngine.Content","CSharpGameEngine.Core"});
+        }
+        Assert.DoesNotContain(Project.Descendants("AssemblyAttribute"),Element=>Element.Elements().Any(Child=>Child.Value=="CSharpGameEngine.Windows"));
+    }
     private static bool IsGameProject(string ProjectPath)=>
         File.ReadAllText(ProjectPath).Contains("CSharpGameEngine.Game.props",StringComparison.OrdinalIgnoreCase);
     private static string FindRepositoryRoot(){

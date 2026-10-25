@@ -3,6 +3,15 @@ using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 
 public sealed class ChangedStageSelectorTests {
+    [Theory]
+    [InlineData("src/CSharpGameEngine.Rendering/EnvironmentLighting.cs","rendering.environment-lighting")]
+    [InlineData("src/CSharpGameEngine.Rendering/Pipeline/PhysicalLighting.cs","rendering.environment-lighting")]
+    [InlineData("src/CSharpGameEngine.Rendering/StageRenderInputs.cs","rendering.materials")]
+    [InlineData("src/CSharpGameEngine.Entities/SpatialPartitioning.cs","spatial.runtime")]
+    public void SelectFollowsRelocatedRenderingAndActualSpatialInputs(string Path,string ExpectedStage){
+        var Stages=ChangedStageSelector.Select(FeatureStageCatalog.CreateDefault(),[Path]);
+        Assert.Contains(Stages,Stage=>Stage.Id==ExpectedStage);
+    }
     [Fact]
     public void SelectUsesPathBoundariesAndReturnsOnlyExecutableChangedProfileStages(){
         FeatureStageCatalog Catalog=FeatureStageCatalog.CreateDefault();

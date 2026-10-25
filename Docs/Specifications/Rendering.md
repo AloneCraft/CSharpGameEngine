@@ -49,6 +49,12 @@ The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, 
 
 Optional provider APIs remain behind L4 adapters. Native or provider types must not appear in ECS components, public runtime APIs, artifacts, commands, or events.
 
+## M0120 layer extraction (in progress)
+
+Environment, mesh, skin, material, object, fog and emissive-patch input values now belong to `CSharpGameEngine.Rendering` (portable net10.0). Physical light units/budgets, shadow-atlas selection, directional cascade construction and emissive-patch geometry construction belong to `.Pipeline`. Their calculations and defaults are unchanged. D3D12 submission extension methods remain in the native backend as separate adapters. Consumers of the moved public types must import the portable namespace; SDK 0.1.26 carries this API change.
+
+The native backend still calls those CPU planners and owns frame order/state. RenderServer, render-view policy, GPU layouts, frame plans and the four-path API have not yet moved. These remaining steps are M0120/M0121; the portable values alone do not establish an executor-only L0. `EngineLayerSpec` currently enforces native-binding-free portable rendering and portable project references. CPU light/cascade tests run in Rendering.Tests without Windows dependencies.
+
 ## Target public contracts
 
 The Render Graph, material/texture, instance-visibility, and quality-profile subset of the following target contract is implemented in `CSharpGameEngine.Rendering`. The common Render Server owns the compatibility `RenderQualityPlan` for its configured dimensions and exposes it to protocol-v4 tooling strictly as a `DeclaredPlan`; this is not evidence that the later D3D12 graph executor or per-pass timing exists.

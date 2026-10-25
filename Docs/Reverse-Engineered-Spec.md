@@ -484,7 +484,7 @@
 ## RE-M0110 — Lumen 相当の土台(ミップ、雲、空の球、メッシュの距離場、グローバル距離場)
 
 - Confidence: High(単体テストと WARP の GPU 試験、テンプレートの実走と画像で確認)。UE の雲との見た目の一致は Medium(参照画像を目で比べた。形はエンジンのノイズ)。実機の GPU は Low(未確認)。
-- Evidence: `src/CSharpGameEngine.Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`EnvironmentLighting.cs`、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
+- Evidence: `src/CSharpGameEngine.Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
 - Observed behavior:
   - 材質テクスチャ: 4 つの欄のテクスチャは、(内容のハッシュ、色空間)ごとに 1 つ常駐する。基本色と発光は sRGB、法線と金属・粗さは線形。段の数は floor(log2(max(幅, 高さ))) + 1、各段は前の段の半分(切り捨て、最小 1)で、目標の画素は覆う元の画素の重なりの長さを重みにした整数の平均(半分は切り上げ)。sRGB の RGB は定数の表で 16 ビットの線形へ戻して平均し、最も近い 8 ビットのコードへ(同点は上)。段から段へは 16 ビット。s0 は異方性 8・wrap、全段を見る。画面レイヤーのテクスチャは 1 段。
   - 雲: `VolumetricCloud` があり大気があるフレームで、最初(または雲・大気・太陽が変わったとき)にパノラマ(WARP 1024 × 256)の全画素を、以降は 4 × 4 の区画の Bayer の順の 1 画素ずつを描く。各画素は、その方向の視線が雲の殻(半径 R + 5 km から R + 15 km)に入る点から最大 50 km を 24 サンプル(画素ごとに固定の乱数のずれ)で積分し、透過率が 0.005 を下回ったら止める。空の合成は、遠平面の画素(と空の球の外の画素)の空と太陽の円盤の輝度に、パノラマの「残る割合」を掛け、雲の輝度を足し、そのあと高さの霧と露出をかける。空の光の SH は、雲があるとき雲を含み、一巡ごとに作り直す。雲の時間はフレームの経過時間の和(自動実行では 8/60 秒ずつ)、風は 10 m/s で +F から 45°。
@@ -497,7 +497,7 @@
 ## RE-M0111 — Lumen 相当の動的 GI と反射
 
 - Confidence: High(WARP の GPU 試験 9 件と単体試験、テンプレートの実走で確認)。UE の Lumen との見た目の一致は Medium(参照画像を目で比べた)。実機の GPU と Epic 段は Low(未確認、WARP では不安定)。
-- Evidence: `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`EnvironmentLighting.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`
+- Evidence: `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`
 - Observed behavior:
   - 有効になる条件: `RenderScalability.GlobalIllumination` が High 以上、`EnvironmentLightingSettings.Lumen` があり(`PostProcessVolume.GlobalIlluminationMethod` が Lumen で値が範囲内)、グローバル距離場がある。どれかが欠けたフレームは DDGI と空の光のフレーム(M0110 と同じ)で、Lumen の履歴は捨てる。反射は、さらに `Reflections` が High 以上で `ReflectionMethod` が Lumen のとき。
   - 段: 実機 High・WARP Medium が既定。`CGE_SCALABILITY_GI`・`CGE_SCALABILITY_REFLECTIONS` が low/medium/high/epic か 0〜3 で置き換え、反射を省くと GI に従う。不正な値は起動時に `InvalidOperationException`。
@@ -515,3 +515,9 @@
 - Observed behavior: all eight template cases report active diagnostics and zero errors, match the nine M0111 baseline metrics, and have identical complete camera trajectories and final images to the initial movement runs. Initial runs without proven active diagnostics are retained as movement evidence only.
 - Observed behavior: the current Stage artifact exactly matches the RTX-measured artifact SHA256 E485F055...B6A5; original measurement provenance is retained. Release visibility/batching at 100000 instances has median 4.10015ms, p95 4.34760ms and zero measured allocation. WARP frame timing is correctness evidence rather than a hardware frame-budget claim.
 - Limit: Stage-based VS GUI automation was compiled but not launched in this run. Package/editor unit tests and packaged preview/runtime-view execution were run. Full-solution closure and counts are recorded in M0119 after the last source change.
+
+## RE-M0120 — Portable values and CPU rendering calculations (partial extraction)
+- Confidence: High for the moved unit; the full layer migration is incomplete.
+- Evidence: `src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`, `StageRenderInputs.cs`, `EmissivePatch.cs`, `Pipeline/{PhysicalLighting,DirectionalShadowCascades,EmissivePatchBuilder}.cs`; native `StagePhysicalLightApi.cs` and `EmissivePatchSubmission.cs`; Rendering.Tests and EngineLayerSpec.
+- Observed: environment/mesh/material inputs no longer require Windows.dll. Photometric units, deterministic light/shadow budgets, cascades and emissive rectangles compile and pass their unchanged CPU expectations in net10.0 tests. Native submission adapters remain separate. Five normalized source comparisons match the pre-move calculations; seven WARP image hashes also match.
+- Result: Matches for the extraction unit. Native frame planning/state and four render paths remain subsequent work. EveryStageInputPathExists additionally found three old Spatial directory inputs; the catalog now names their actual source/test files and change-selection tests cover the paths.

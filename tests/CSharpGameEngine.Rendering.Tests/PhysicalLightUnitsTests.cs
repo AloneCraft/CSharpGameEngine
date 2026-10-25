@@ -1,6 +1,8 @@
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Linq;
 using System.Numerics;
-namespace CSharpGameEngine.Graphics.D3D12.Tests;
+namespace CSharpGameEngine.Rendering.Tests;
 public class PhysicalLightUnitsTests {
     [Fact]
     public void PointLumensToCandela_FourPiLumens_IsOneCandela(){

@@ -2,6 +2,16 @@ using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 public sealed class FeatureStageCatalogTests {
     [Fact]
+    public void EveryStageInputPathExists(){
+        var Root=FeatureStageRepositoryLocator.Find();
+        foreach(var Stage in FeatureStageCatalog.CreateDefault().Stages){
+            foreach(var Input in Stage.InputPaths){
+                var FullPath=Path.Combine(Root,Input.Replace('/',Path.DirectorySeparatorChar));
+                Assert.True(File.Exists(FullPath)||Directory.Exists(FullPath),$"{Stage.Id}: {Input}");
+            }
+        }
+    }
+    [Fact]
     public void DefaultCatalog_IsInternallyConsistent(){
         var Catalog=FeatureStageCatalog.CreateDefault();
         Assert.Empty(Catalog.Validate());

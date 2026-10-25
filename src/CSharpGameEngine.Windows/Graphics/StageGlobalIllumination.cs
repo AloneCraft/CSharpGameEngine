@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;

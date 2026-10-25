@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;

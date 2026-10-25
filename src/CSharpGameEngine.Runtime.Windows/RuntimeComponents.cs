@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Entities;

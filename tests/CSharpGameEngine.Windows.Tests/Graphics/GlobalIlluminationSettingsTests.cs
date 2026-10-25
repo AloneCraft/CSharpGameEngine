@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 public sealed class GlobalIlluminationSettingsTests {

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Lighting;

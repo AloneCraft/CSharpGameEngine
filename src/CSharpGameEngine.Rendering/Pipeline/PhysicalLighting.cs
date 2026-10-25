@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-namespace CSharpGameEngine.Graphics.D3D12;
+namespace CSharpGameEngine.Rendering.Pipeline;
 /// <summary>Conversions between the public photometric light units and shader-friendly values.</summary>
 public static class PhysicalLightUnits {
     public const float Pi=MathF.PI;
@@ -102,104 +102,6 @@ public static class PhysicalLightUnits {
         }
     }
 }
-
-/// <summary>
-/// Public physical-light submission API. It translates authored natural units into the existing
-/// renderer's photometric shader inputs while the renderer's clustered GPU storage is evolved.
-/// Directions are always Transform local +Z: the direction light travels, never a legacy
-/// surface-to-light vector.
-/// </summary>
-public static class StagePhysicalLightApi {
-    private const float MinimumDirectionLengthSquared=1e-12f;
-
-    public static void SetDirectionalLight(
-        this StageRenderer Renderer,Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        ArgumentNullException.ThrowIfNull(Renderer);
-        ValidateShadowSettings(ShadowPriority,ShadowBiasMeters);
-        // The legacy renderer takes the inverse (surface-to-light) convention. Its shadow pass
-        // currently remains directional-only; the explicit settings are validated here and are
-        // consumed by the atlas path as it replaces that pass.
-        Renderer.SetDirectionalLight(
-            -NormalizeForward(LightForward),LinearRgb,IlluminanceLux,CastsShadows,ShadowBiasMeters,ShadowPriority);
-    }
-
-    /// <summary>
-    /// Adds one physical directional light to the current frame. At most four are retained by the
-    /// renderer; its single legacy shadow map follows the highest-priority shadow caster.
-    /// </summary>
-    public static void AddDirectionalLight(
-        this StageRenderer Renderer,Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        ArgumentNullException.ThrowIfNull(Renderer);
-        ValidateShadowSettings(ShadowPriority,ShadowBiasMeters);
-        Renderer.AddDirectionalLightTowardLight(
-            -NormalizeForward(LightForward),LinearRgb,IlluminanceLux,
-            CastsShadows,ShadowPriority,ShadowBiasMeters);
-    }
-
-    public static void AddPointLight(
-        this StageRenderer Renderer,Vector3 Position,Vector3 LinearRgb,float LuminousFluxLumens,
-        float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        ArgumentNullException.ThrowIfNull(Renderer);
-        PhysicalLightUnits.ValidateLightRange(RangeMeters);
-        ValidateShadowSettings(ShadowPriority,ShadowBiasMeters);
-        Renderer.AddPointLight(Position,LinearRgb,PhysicalLightUnits.PointLumensToCandela(LuminousFluxLumens),
-            RangeMeters,ShadowPriority,CastsShadows,ShadowBiasMeters);
-    }
-
-    public static void AddSpotLight(
-        this StageRenderer Renderer,Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        float LuminousFluxLumens,float RangeMeters,float InnerConeFullAngleDegrees,float OuterConeFullAngleDegrees,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        ArgumentNullException.ThrowIfNull(Renderer);
-        PhysicalLightUnits.ValidateLightRange(RangeMeters);
-        PhysicalLightUnits.ValidateSpotAngles(InnerConeFullAngleDegrees,OuterConeFullAngleDegrees);
-        ValidateShadowSettings(ShadowPriority,ShadowBiasMeters);
-        Renderer.AddSpotLight(
-            Position,NormalizeForward(LightForward),LinearRgb,
-            PhysicalLightUnits.SpotLumensToCandela(
-                LuminousFluxLumens,InnerConeFullAngleDegrees,OuterConeFullAngleDegrees),
-            RangeMeters,
-            PhysicalLightUnits.FullConeAngleDegreesToHalfAngleRadians(InnerConeFullAngleDegrees),
-            PhysicalLightUnits.FullConeAngleDegreesToHalfAngleRadians(OuterConeFullAngleDegrees),ShadowPriority,CastsShadows,ShadowBiasMeters);
-    }
-
-    /// <summary>
-    /// Submits a one-sided rectangle as four deterministic, hemisphere-limited samples. The four
-    /// uniform samples preserve total Lambertian flux (π × nits × area) and follow the Entity's
-    /// actual Transform; this is the compatibility path until the rectangle LTC path is selected.
-    /// </summary>
-    public static void AddAreaLight(
-        this StageRenderer Renderer,Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        ArgumentNullException.ThrowIfNull(Renderer);
-        PhysicalLightUnits.ValidateLightRange(RangeMeters);
-        _=PhysicalLightUnits.AreaNitsToNormalCandela(LuminanceNits,WidthMeters,HeightMeters);
-        ValidateShadowSettings(ShadowPriority,ShadowBiasMeters);
-        var Forward=NormalizeForward(LightForward);
-        var Reference=MathF.Abs(Vector3.Dot(Forward,Vector3.UnitY))>0.99f?Vector3.UnitX:Vector3.UnitY;
-        var Right=Vector3.Normalize(Vector3.Cross(Reference,Forward));
-        var Up=Vector3.Normalize(Vector3.Cross(Forward,Right));
-        Renderer.AddAreaLight(
-            Position,Forward,Right,Up,LinearRgb,LuminanceNits,WidthMeters,HeightMeters,RangeMeters,
-            ShadowPriority,CastsShadows,ShadowBiasMeters,PhysicalLightKind.Area);
-    }
-
-    private static Vector3 NormalizeForward(Vector3 LightForward){
-        if(!float.IsFinite(LightForward.X)||!float.IsFinite(LightForward.Y)||!float.IsFinite(LightForward.Z)||LightForward.LengthSquared()<=MinimumDirectionLengthSquared){
-            throw new ArgumentOutOfRangeException(nameof(LightForward),"Light forward must be a finite non-zero vector.");
-        }
-        return Vector3.Normalize(LightForward);
-    }
-
-    private static void ValidateShadowSettings(int ShadowPriority,float ShadowBiasMeters){
-        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
-            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters),"Shadow bias must be finite and non-negative meters.");
-        }
-    }
-}
 /// <summary>Light source category used by deterministic renderer budgeting.</summary>
 public enum PhysicalLightKind {
     Directional,
@@ -208,7 +110,6 @@ public enum PhysicalLightKind {
     Area,
     Emissive,
 }
-
 /// <summary>
 /// Renderer-neutral light submission metadata. <see cref="StableSubmissionOrder"/> is part of the
 /// rendering contract: ties never depend on hash-table or ECS iteration order.
@@ -219,32 +120,26 @@ public readonly record struct PhysicalLightCandidate(
     int ShadowPriority,
     float ScreenContribution,
     bool CastsShadows);
-
 /// <summary>Visible-light selection counters exposed to diagnostics and editor overlays.</summary>
 public readonly record struct PhysicalLightBudgetDiagnostics(
     int SubmittedDirectional,
     int SubmittedLocal,
     int DroppedDirectional,
     int DroppedLocal);
-
 /// <summary>Deterministic selection result for the global and local Forward+ light lists.</summary>
 public sealed class PhysicalLightBudgetSelection(
         PhysicalLightCandidate[]Directional,
         PhysicalLightCandidate[]Local,
         PhysicalLightBudgetDiagnostics Diagnostics) {
-
     public IReadOnlyList<PhysicalLightCandidate>Directional { get; }=Directional;
     public IReadOnlyList<PhysicalLightCandidate>Local { get; }=Local;
     public PhysicalLightBudgetDiagnostics Diagnostics { get; }=Diagnostics;
 }
-
 /// <summary>Deterministic per-tile local-light list with the configured 64-light cap.</summary>
 public sealed class PhysicalLightTileSelection(PhysicalLightCandidate[]Lights,int DroppedCount) {
-
     public IReadOnlyList<PhysicalLightCandidate>Lights { get; }=Lights;
     public int DroppedCount { get; }=DroppedCount;
 }
-
 /// <summary>
 /// CPU-side selection contract for the StructuredBuffer/Forward+ uploader. This class performs no
 /// GPU work; it makes overflow visible and deterministic before the renderer writes its buffers.
@@ -253,7 +148,6 @@ public static class PhysicalLightBudget {
     public const int MaxDirectionalLights=4;
     public const int MaxLocalLights=1024;
     public const int MaxLightsPerTile=64;
-
     public static PhysicalLightBudgetSelection Select(
         IEnumerable<PhysicalLightCandidate> Candidates){
         PhysicalLightCandidate[]All=ValidateAndMaterialize(Candidates);
@@ -268,7 +162,6 @@ public static class PhysicalLightBudget {
             SubmittedDirectional-Directional.Length,
             SubmittedLocal-Local.Length));
     }
-
     /// <summary>
     /// Chooses the only directional light that may use the legacy single shadow map. Priority is
     /// descending; screen contribution and then stable submission order break ties. A value of
@@ -287,7 +180,6 @@ public static class PhysicalLightBudget {
             .DefaultIfEmpty(-1)
             .First();
     }
-
     public static PhysicalLightTileSelection SelectTile(
         IEnumerable<PhysicalLightCandidate> LocalCandidates){
         PhysicalLightCandidate[]All=ValidateAndMaterialize(LocalCandidates);
@@ -297,7 +189,6 @@ public static class PhysicalLightBudget {
         PhysicalLightCandidate[]Selected=RankDirectLighting(All,MaxLightsPerTile);
         return new PhysicalLightTileSelection(Selected,All.Length-Selected.Length);
     }
-
     /// <summary>
     /// Direct-light overflow selection is intentionally independent from shadow priority. Direct
     /// lighting keeps the largest screen contribution, then the stable submission order; shadow
@@ -310,7 +201,6 @@ public static class PhysicalLightBudget {
             .ThenBy(static Candidate=>Candidate.StableSubmissionOrder)
             .Take(Limit)
             .ToArray();
-
     private static PhysicalLightCandidate[]ValidateAndMaterialize(
         IEnumerable<PhysicalLightCandidate> Candidates){
         ArgumentNullException.ThrowIfNull(Candidates);
@@ -330,7 +220,6 @@ public static class PhysicalLightBudget {
         return Result;
     }
 }
-
 /// <summary>
 /// One physical 1024x1024 tile in the fixed 4096x4096 atlas. Tile indices are row-major:
 /// left-to-right, then top-to-bottom. The explicit pixel and UV rectangle lets a future GPU
@@ -347,7 +236,6 @@ public readonly record struct ShadowAtlasTile(
         (float)Height/PhysicalShadowAtlasPlan.AtlasSizePixels,
         (float)X/PhysicalShadowAtlasPlan.AtlasSizePixels,
         (float)Y/PhysicalShadowAtlasPlan.AtlasSizePixels);
-
     public static ShadowAtlasTile FromIndex(int TileIndex){
         if((uint)TileIndex>=(uint)PhysicalShadowAtlasPlan.TileCount){
             throw new ArgumentOutOfRangeException(nameof(TileIndex),
@@ -360,7 +248,6 @@ public readonly record struct ShadowAtlasTile(
             PhysicalShadowAtlasPlan.TileSizePixels,PhysicalShadowAtlasPlan.TileSizePixels);
     }
 }
-
 /// <summary>
 /// One contiguous allocation in the 4096x4096 shadow atlas. A point light owns six consecutive
 /// tiles in cubemap-face order; all other current light kinds own one tile.
@@ -375,7 +262,6 @@ public readonly record struct ShadowAtlasAllocation(
             return FirstTile+TileCount;
         }
     }
-
     public ShadowAtlasTile GetTile(int ProjectionIndex){
         ValidateBounds();
         if((uint)ProjectionIndex>=(uint)TileCount){
@@ -384,7 +270,6 @@ public readonly record struct ShadowAtlasAllocation(
         }
         return ShadowAtlasTile.FromIndex(FirstTile+ProjectionIndex);
     }
-
     public IReadOnlyList<ShadowAtlasTile> Tiles {
         get {
             ValidateBounds();
@@ -395,7 +280,6 @@ public readonly record struct ShadowAtlasAllocation(
             return Result;
         }
     }
-
     private void ValidateBounds(){
         if(FirstTile<0||TileCount<=0||FirstTile>PhysicalShadowAtlasPlan.TileCount-TileCount){
             throw new InvalidOperationException(
@@ -403,7 +287,6 @@ public readonly record struct ShadowAtlasAllocation(
         }
     }
 }
-
 /// <summary>
 /// Shadow-caster overflow counters. A dropped caster remains in the direct-light submission;
 /// only its shadow lookup is disabled for the current frame.
@@ -414,7 +297,6 @@ public readonly record struct ShadowAtlasDiagnostics(
     int DroppedCasters,
     int AllocatedTiles,
     int ReservedTiles);
-
 /// <summary>
 /// Deterministic physical-light shadow budget for the fixed 4K atlas. Selection affects only
 /// shadow-map allocation. <see cref="SubmittedLights"/> always retains every input candidate,
@@ -426,11 +308,11 @@ public sealed class PhysicalShadowAtlasPlan(
         ShadowAtlasAllocation[]Allocations,
         PhysicalLightCandidate[]ShadowCastersWithoutAtlasTiles,
         ShadowAtlasDiagnostics Diagnostics) {
-
     public const int AtlasSizePixels=4096;
     public const int TileSizePixels=1024;
     public const int TilesPerAxis=AtlasSizePixels/TileSizePixels;
     public const int TileCount=TilesPerAxis*TilesPerAxis;
+    public const int DirectionalTileIndex=0;
     public const int DirectionalTileBudget=1;
     public const int PointLightBudget=1;
     public const int PointTilesPerLight=6;
@@ -439,13 +321,11 @@ public sealed class PhysicalShadowAtlasPlan(
     public const int TotalDefaultAllocatedTiles=
         DirectionalTileBudget+(PointLightBudget*PointTilesPerLight)+SpotTileBudget+AreaAndEmissiveTileBudget;
     public const int ReservedTileCount=TileCount-TotalDefaultAllocatedTiles;
-
     /// <summary>All direct-light submissions, including non-casters and atlas-overflow casters.</summary>
     public IReadOnlyList<PhysicalLightCandidate>SubmittedLights { get; }=SubmittedLights;
     public IReadOnlyList<ShadowAtlasAllocation>Allocations { get; }=Allocations;
     public IReadOnlyList<PhysicalLightCandidate>ShadowCastersWithoutAtlasTiles { get; }=ShadowCastersWithoutAtlasTiles;
     public ShadowAtlasDiagnostics Diagnostics { get; }=Diagnostics;
-
     public bool TryGetAllocation(int StableSubmissionOrder,out ShadowAtlasAllocation Allocation){
         foreach(ShadowAtlasAllocation Current in Allocations){
             if(Current.Candidate.StableSubmissionOrder==StableSubmissionOrder){
@@ -456,7 +336,6 @@ public sealed class PhysicalShadowAtlasPlan(
         Allocation=default;
         return false;
     }
-
     public static PhysicalShadowAtlasPlan Select(
         IEnumerable<PhysicalLightCandidate> Candidates){
         PhysicalLightCandidate[]All=Candidates?.ToArray()
@@ -465,7 +344,6 @@ public sealed class PhysicalShadowAtlasPlan(
         PhysicalLightCandidate[]Casters=All.Where(static Candidate=>Candidate.CastsShadows).ToArray();
         List<ShadowAtlasAllocation>Allocations=[];
         int NextTile=0;
-
         NextTile=Allocate(
             Casters.Where(static Candidate=>Candidate.Kind==PhysicalLightKind.Directional),
             DirectionalTileBudget,1,NextTile,Allocations);
@@ -479,11 +357,9 @@ public sealed class PhysicalShadowAtlasPlan(
             Casters.Where(static Candidate=>Candidate.Kind==PhysicalLightKind.Area
                 ||Candidate.Kind==PhysicalLightKind.Emissive),
             AreaAndEmissiveTileBudget,1,NextTile,Allocations);
-
         if(NextTile>TileCount){
             throw new InvalidOperationException("The configured shadow-atlas budgets exceed its tile capacity.");
         }
-
         ShadowAtlasAllocation[]Selected=[.. Allocations];
         HashSet<int>SelectedOrders=Selected
             .Select(static Allocation=>Allocation.Candidate.StableSubmissionOrder)
@@ -495,7 +371,6 @@ public sealed class PhysicalShadowAtlasPlan(
         return new PhysicalShadowAtlasPlan(All,Selected,Unallocated,new ShadowAtlasDiagnostics(
             Casters.Length,Selected.Length,Unallocated.Length,AllocatedTiles,TileCount-AllocatedTiles));
     }
-
     private static int Allocate(
         IEnumerable<PhysicalLightCandidate> Candidates,
         int LightBudget,int TilesPerLight,int NextTile,
@@ -509,13 +384,11 @@ public sealed class PhysicalShadowAtlasPlan(
         }
         return NextTile;
     }
-
     private static IOrderedEnumerable<PhysicalLightCandidate> Rank(
         IEnumerable<PhysicalLightCandidate> Candidates)=>Candidates
             .OrderByDescending(static Candidate=>Candidate.ShadowPriority)
             .ThenByDescending(static Candidate=>Candidate.ScreenContribution)
             .ThenBy(static Candidate=>Candidate.StableSubmissionOrder);
-
     private static void ValidateShadowCandidates(
         IReadOnlyList<PhysicalLightCandidate> Candidates){
         HashSet<int>Orders=[];
@@ -532,4 +405,3 @@ public sealed class PhysicalShadowAtlasPlan(
         }
     }
 }
-

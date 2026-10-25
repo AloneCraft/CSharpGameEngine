@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
@@ -73,7 +74,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const DXGI_FORMAT ShadowAtlasSrvFormat=DXGI_FORMAT_R32_FLOAT;
     public const int ShadowAtlasSizePixels=PhysicalShadowAtlasPlan.AtlasSizePixels;
     public const int ShadowAtlasTileSizePixels=PhysicalShadowAtlasPlan.TileSizePixels;
-    public const int DirectionalShadowAtlasTileIndex=0;
+    public const int DirectionalShadowAtlasTileIndex=PhysicalShadowAtlasPlan.DirectionalTileIndex;
 
     /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
     private const uint ConstantAlignment=512;

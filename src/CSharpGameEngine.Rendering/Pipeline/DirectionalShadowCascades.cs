@@ -1,5 +1,5 @@
 using System.Numerics;
-namespace CSharpGameEngine.Graphics.D3D12;
+namespace CSharpGameEngine.Rendering.Pipeline;
 /// <summary>One cascade of the directional (sun) shadow (ADR-0069).</summary>
 public readonly record struct DirectionalShadowCascade(
     Matrix4x4 ViewProjection,Vector3 Center,float Radius,float DepthRangeMeters,ShadowAtlasTile Tile,float NearDistance,float FarDistance);
@@ -20,7 +20,7 @@ public static class DirectionalShadowCascades {
     public static ShadowAtlasTile TileFor(int Cascade){
         ArgumentOutOfRangeException.ThrowIfNegative(Cascade);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(Cascade,Count);
-        var Parent=ShadowAtlasTile.FromIndex(StageRenderer.DirectionalShadowAtlasTileIndex);
+        var Parent=ShadowAtlasTile.FromIndex(PhysicalShadowAtlasPlan.DirectionalTileIndex);
         return new ShadowAtlasTile(Parent.Index,Parent.X+(Cascade%2)*ResolutionPixels,Parent.Y+(Cascade/2)*ResolutionPixels,ResolutionPixels,ResolutionPixels);
     }
     /// <summary>Distance (along the view direction) where cascade <paramref name="Cascade"/> ends.</summary>

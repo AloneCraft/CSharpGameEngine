@@ -1,5 +1,6 @@
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
-namespace CSharpGameEngine.Graphics.D3D12.Tests;
+namespace CSharpGameEngine.Rendering.Tests;
 public sealed class DirectionalShadowCascadesTests {
     private static Matrix4x4 CameraViewProjection(Vector3 Eye,Vector3 Target,float FarZ)=>
         Matrix4x4.CreateLookAtLeftHanded(Eye,Target,Vector3.UnitY)*Matrix4x4.CreatePerspectiveFieldOfViewLeftHanded(1.0268f,16f/9f,0.1f,FarZ);

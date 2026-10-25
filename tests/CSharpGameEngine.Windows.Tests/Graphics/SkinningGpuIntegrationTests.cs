@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;

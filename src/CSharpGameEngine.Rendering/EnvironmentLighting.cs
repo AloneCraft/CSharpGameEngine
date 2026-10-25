@@ -1,5 +1,6 @@
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
-namespace CSharpGameEngine.Graphics.D3D12;
+namespace CSharpGameEngine.Rendering;
 /// <summary>
 /// Physically based atmosphere coefficients (ADR-0069). Distances are kilometres and scattering
 /// coefficients are per kilometre, matching Unreal Engine's SkyAtmosphere component so imported
