@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// The golden frames' evidence and re-pinning aid (ADR-0080 §7). With <c>CGE_GOLDEN_DUMP=&lt;dir&gt;</c> every rendered case is
+/// The golden frames' evidence and re-pinning aid (ADR-0084 §7). With <c>CGE_GOLDEN_DUMP=&lt;dir&gt;</c> every rendered case is
 /// written as raw RGBA8 and a PNG under <c>&lt;dir&gt;/&lt;label&gt;/</c>; with <c>CGE_GOLDEN_BASELINE=&lt;dir&gt;</c> a case is compared with the
 /// raw frame an earlier run wrote there, so a change to a pinned hash comes with its measured difference.
 /// </summary>

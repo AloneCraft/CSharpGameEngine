@@ -1,7 +1,7 @@
-# M0116 — Deferred / Deferred+ と 4 パスの選択
+# M0121 — Deferred / Deferred+ と 4 パスの選択
 - 日付: 2026-10-25
-- 状態: 計画(2026-10-25 に ADR-0081 を Accepted。M0115 の完了後に始める)
-- 決定: [ADR-0081](../Decisions/ADR-0081-Urp-Render-Paths.md)
+- 状態: 計画(2026-10-25 に ADR-0085 を Accepted。M0120 の完了後に始める)
+- 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)
 - ABI: `stage-v16`
 
 ## 目的
@@ -14,7 +14,7 @@ GBuffer、StencilDeferred 相当(Deferred)、ClusterDeferred 相当(Deferred+)�
 4. **カタログ・文書**: F-L0-011・F-L4-020 を Implemented に。
 
 ## 完了条件
-- 許容(ADR-0081 §7)を満たし、28 SHA を固定する(Forward+ の 7 は M0115 と同じ)。
+- 許容(ADR-0085 §7)を満たし、28 SHA を固定する(Forward+ の 7 は M0120 と同じ)。
 - 4 テンプレート × 4 パスの実走で D3D12 のエラー 0、移動の値が M0111 と同じ。
 
 ## 範囲外

@@ -1,6 +1,6 @@
-# ADR-0080 — 対数深度を「標準を包むラッパー」から「最初から対数で書かれた Stage シェーダー」へ置き換え、標準(双曲)深度の経路を削除する
+# ADR-0084 — 対数深度を「標準を包むラッパー」から「最初から対数で書かれた Stage シェーダー」へ置き換え、標準(双曲)深度の経路を削除する
 - 状態: Accepted(2026-10-25。ユーザーの依頼:「G:\Unity\6.6\Omni を参考にして対数レンダリングの部分だけこのゲームエンジンのデフォルト、既定で読みこむようにして」「公開するアプリではないので… 対数変換器ではなく最初から対数化したシェーダーとして」。計画はユーザーが承認し、「標準(双曲)深度の経路を完全に削除する」を選んだ)
-- 関連: ADR-0076(対数深度の最初の決定。一部 Superseded)、ADR-0063(正準数値と階層 World)、ADR-0064(型付きライト)、ADR-0069(物理的な環境照明)、ADR-0078(UE テンプレートの完全移植)、ADR-0081(URP の 4 描画パス)、ADR-0083(層の配置)、M0114、[Omni 仕様](../Specifications/Omni.md)
+- 関連: ADR-0076(対数深度の最初の決定。一部 Superseded)、ADR-0063(正準数値と階層 World)、ADR-0064(型付きライト)、ADR-0069(物理的な環境照明)、ADR-0078(UE テンプレートの完全移植)、ADR-0085(URP の 4 描画パス)、ADR-0087(層の配置)、M0119、[Omni 仕様](../Specifications/Omni.md)
 
 ## 背景
 - 今の対数深度は「標準の `VSMain`/`PSMain` を `RadialVSMain`/`RadialPSMain` が包む」構造である(`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs:170-220`)。`StageRenderer` は PSO を標準 7 本と対数 7 本の 2 系統で持ち、フレームごとに選ぶ(`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs:1345-1436`、`:4344-4351`)。ユーザーの言う「対数変換器」はこの層に当たる(Omni の Converter に当たるものは、固定 ABI の Stage を自前で持つエンジンには元から無い)。
@@ -25,7 +25,7 @@
 
 ### 3. 選択の型・欄・プロトコルを消す
 - 削除: `RenderDepthMapping.Standard`(列挙そのもの)、`CameraDepthMapping`(シーン Component の `DepthMapping`)、`RenderPreviewDepthMapping`、描画カメラの `DepthMapping`、`StandardModeGoldenFrameTests`。
-- 追加(L4、`src/CSharpGameEngine.Rendering/RadialDepth.cs`): `RenderDepthEncoding : byte { Linear=0, Logarithmic=1, Observer=2 }` と、FrameCB のパケット `RenderViewDepth`(`ForPerspective`/`ForOrthographic`/`ForObserver`)。深度の符号化と検証は L4、どのビューにどれを使うかの方針は L5(`RenderViewPolicy`、ADR-0083)。値を暗黙の 0・1・2 にせず明示する。
+- 追加(L4、`src/CSharpGameEngine.Rendering/RadialDepth.cs`): `RenderDepthEncoding : byte { Linear=0, Logarithmic=1, Observer=2 }` と、FrameCB のパケット `RenderViewDepth`(`ForPerspective`/`ForOrthographic`/`ForObserver`)。深度の符号化と検証は L4、どのビューにどれを使うかの方針は L5(`RenderViewPolicy`、ADR-0087)。値を暗黙の 0・1・2 にせず明示する。
 - プレビューのプロトコルは 9 にする。VSIX・プレビューホスト・パッケージした TestAssets・`Editor-VSIX.md` を同じ変更で直す。
 - シーン JSON の Camera から `DepthMapping` を消す。リポジトリのシーンに書いたものは無い(schema にあるだけ)ので、`Templates/*/.cge/scene.schema.json` と `UserEcsProject` を作り直す。`new Camera{}` の既定値は今 Standard(列挙の 0)なので、ファクトリーを通さない呼び出し元を洗い出し、すべて対数になることを `CameraTests` で固定する。
 - 旧来の `ModelRenderer`/`TriangleRenderer` は標準深度で描く最後のカメラ描画で、どこからも生成されていない(`RenderServer.Create` が Stage を使う)。同じ変更で消す。`model-v1`/`triangle-v1` の ABI の読み手がいなくなるので、生産者・VSIX のテンプレート・`FeatureStageCatalog`・`RenderingReleaseEvidence` も同じ変更で扱う(Rendering.md:116-118「置き換えた公開 API を同じ変更で消す」)。

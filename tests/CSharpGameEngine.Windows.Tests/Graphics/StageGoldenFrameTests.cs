@@ -2,10 +2,10 @@ using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0114 (ADR-0080): the logarithmic frames of <see cref="GoldenFrameScene"/> pinned as SHA-256 hashes of the WARP
+/// M0119 (ADR-0084): the logarithmic frames of <see cref="GoldenFrameScene"/> pinned as SHA-256 hashes of the WARP
 /// back buffer. They replace <see cref="StandardModeGoldenFrameTests"/> once the standard depth is deleted; they were
 /// pinned only after <see cref="StandardModeGoldenFrameTests.LogarithmicFrames_EqualTheStandardFramesWithinOneLevel"/>
-/// accepted every case. Re-pin a hash only with the dump comparison of ADR-0080 §7 (CGE_GOLDEN_DUMP and
+/// accepted every case. Re-pin a hash only with the dump comparison of ADR-0084 §7 (CGE_GOLDEN_DUMP and
 /// CGE_GOLDEN_BASELINE) and a note in the milestone document.
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]

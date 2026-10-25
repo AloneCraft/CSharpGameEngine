@@ -1,7 +1,7 @@
-# M0114 — 対数ネイティブの描画(標準深度の削除)
+# M0119 — 対数ネイティブの描画(標準深度の削除)
 - 日付: 2026-10-25
 - 状態: 実装中(段階 1 完了 2026-10-25)
-- 決定: [ADR-0080](../Decisions/ADR-0080-Logarithmic-Native-Depth.md)(ADR-0076 を一部 Superseded)
+- 決定: [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md)(ADR-0076 を一部 Superseded)
 - ABI: `stage-v14`、プレビューのプロトコル 9
 
 ## 目的
@@ -21,7 +21,7 @@
 - `rendering.performance` の予算(中央値 6 ms、p95 8.33 ms、割り当て p95 0)を満たす。
 
 ## 範囲外
-ランタイムがシーンカメラの正射影を無視する既存の未実装、reversed-Z、MSAA、モーションベクトル、アセンブリ間の移動(M0115)、主 DSV への Lumen の表面前パスの統合。
+ランタイムがシーンカメラの正射影を無視する既存の未実装、reversed-Z、MSAA、モーションベクトル、アセンブリ間の移動(M0120)、主 DSV への Lumen の表面前パスの統合。
 
 ## 機能 ID
 F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039、F-L0-002、F-L4-002、F-L8-018
@@ -45,7 +45,7 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 違う画素は、主パスの床が目の面と近平面をまたぎ、クリップされる三角形があるため(ADR-0076 追記の帰結)。ワイヤーフレームの 29 画素は、共有辺の同じ深度の決着が、標準では描画順、対数では丸めになるため(Omni 仕様の不変条件 3)。
 - 対数の 7 ハッシュを `StageGoldenFrameTests` に固定した。
 - 深度オラクル `LogarithmicDepthOracleTests`(`DepthOracle`、倍精度との比較)は 4e-6 m・0.5 m・50 m・2e4 m・1e15 m・5e18 m で、画面中央 4 ulp 以内、全画素で深度 < 1.0 に合格(WARP)。
-- `GoldenFrameDump`(`CGE_GOLDEN_DUMP`・`CGE_GOLDEN_BASELINE`)を足した。付け替えの規則(ADR-0080 §7)で使う。
+- `GoldenFrameDump`(`CGE_GOLDEN_DUMP`・`CGE_GOLDEN_BASELINE`)を足した。付け替えの規則(ADR-0084 §7)で使う。
 
 ### 段階 2: 予行(2026-10-25、WARP)
 - 標準を明示していただけの試験(`LumenGpuIntegrationTests`、`GlobalDistanceFieldGpuIntegrationTests`、`MaterialMipmapGpuIntegrationTests` の `DepthMapping=Standard`)を `Radial` に替えて、`VolumetricCloudGpuIntegrationTests`(標準と対数の両方を既に持つ)と一緒に流した: 25 件中 23 件が合格。

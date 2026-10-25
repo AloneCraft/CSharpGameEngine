@@ -1,6 +1,6 @@
-# ADR-0083 — 描画と物理を適切な層へ置く: L0 は D3D12 の実行だけ、パス構成・光源・深度の方針は L4/L5、物理は Entity を使わない L4 契約と L5 ソルバー
+# ADR-0087 — 描画と物理を適切な層へ置く: L0 は D3D12 の実行だけ、パス構成・光源・深度の方針は L4/L5、物理は Entity を使わない L4 契約と L5 ソルバー
 - 状態: Accepted(2026-10-25。ユーザーの依頼:「これらは最も低いレイヤーではないと思う。適切なレイヤーに実装して」。計画はユーザーが承認し、「今回触る描画と物理だけ」を選んだ)
-- 関連: ADR-0001(層モデル)、ADR-0034(プロジェクト構成)、ADR-0052(Render Graph と Preview の境界)、ADR-0056(Audio・Input・Platform)、ADR-0063、ADR-0079(プラグイン)、ADR-0080、ADR-0081、ADR-0082、M0115、M0118
+- 関連: ADR-0001(層モデル)、ADR-0034(プロジェクト構成)、ADR-0052(Render Graph と Preview の境界)、ADR-0056(Audio・Input・Platform)、ADR-0063、ADR-0079(プラグイン)、ADR-0084、ADR-0085、ADR-0086、M0120、M0123
 
 ## 背景
 - 目標の層は、Win32/D3D12/XAudio2 の binding が L0、移植可能な値が L1〜L5、エンジンのサーバーが L4、成果物が L6、静的コンパイラが L7、VS が L8(`Docs/Architecture.md:214,224-227`、`Docs/Specifications/Rendering.md:42-48,65`、ADR-0052)。層はアセンブリでは強制されず、Feature ID 単位で追跡する(`Architecture.md:118-120`)。
@@ -59,7 +59,7 @@
 
 ## 帰結
 - L0 の描画機能の大部分が L4/L5 に移り、L0 は D3D12 の実行になる。`RenderServer` の公開 API から L0 の型が消え、層の試験が描画にも効く。
-- 描画の移動は画素を変えない(対数の 7 SHA が不変であることが証拠。M0115 段階 1)。物理の分離は状態を変えない(`PhysicsGoldenStateTests` が不変。M0118)。
+- 描画の移動は画素を変えない(対数の 7 SHA が不変であることが証拠。M0120 段階 1)。物理の分離は状態を変えない(`PhysicsGoldenStateTests` が不変。M0123)。
 - `InternalsVisibleTo`、リリースの証拠のパス、`FeatureStageCatalog` の InputPaths、`GeneratedEditorPreviewBridgeEmitter` の型名が移動に合わせて変わる。
 - 文書の `Layer` 行の不整合(F-L4-014〜019、F-L5-041/043 など)は、触った機能の分だけ直し、残りは Conformance に記録する。
 
@@ -67,7 +67,7 @@
 - §3 の試験。移動の前後で対数の 7 SHA と既存の WARP 画素の期待値を書き換えない。
 - `StagePipelinePlannerTests.EveryPipelineNamesAnAbiEntry`(すべてのキーで作った計画のエントリー名が `ShaderArtifactAbi.GetEntries(Stage)` に含まれる)、`StageConstantLayoutReflectionTests`、`StageGpuLayoutTests`。
 - TestHost の `frame-plan`(GPU なしでパスの一覧を表示)。
-- `PhysicsGoldenStateTests` とテンプレートの実走が M0117 の終わりと同じ値。`tools/CSharpGameEngine.Physics.Cli` が ECS なしでソルバーまでコンパイルする。
+- `PhysicsGoldenStateTests` とテンプレートの実走が M0122 の終わりと同じ値。`tools/CSharpGameEngine.Physics.Cli` が ECS なしでソルバーまでコンパイルする。
 
 ## 関連する機能
 - F-L0-011(D3D12 render plan executor)、F-L4-021(Entity-free physics contracts)、F-L0-002、F-L4-002、F-L4-004、F-L5-003、F-L5-038

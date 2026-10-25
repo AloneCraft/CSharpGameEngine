@@ -1,7 +1,7 @@
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// ADR-0080 §6: the logarithmic depth of a perspective camera against the double-precision oracle of
+/// ADR-0084 §6: the logarithmic depth of a perspective camera against the double-precision oracle of
 /// <see cref="DepthOracle"/>, on WARP and on every run. A quad facing the camera is drawn from 4 µm to 5e18 m; in the
 /// middle of the view every pixel's depth is within 4 ulps of the expected one, and no pixel of a surface reaches the
 /// 1.0 the depth buffer is cleared to (the sky composite and the far discard rely on that). WARP evaluates the shader

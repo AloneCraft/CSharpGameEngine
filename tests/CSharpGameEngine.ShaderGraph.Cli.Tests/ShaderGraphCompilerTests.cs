@@ -112,14 +112,14 @@ public sealed class ShaderGraphCompilerTests {
         // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows), ADR-0075 (world-space
         // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin), M0099 Phase 3 (FrameCB
         // depth-mapping packet), the M0099 conservative raster matrix and M0111 (FrameCB.LumenParams, t16/t17 and PSMain's
-        // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) and M0114 (the logarithmic depth functions
+        // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) and M0119 (the logarithmic depth functions
         // become the Depth subgraph, edits/depth_subgraph_2026_10_25.py) intentionally changed the Stage program; the
         // migrate/extract round trip was verified byte-identical before those edits.
         Assert.True(Hash=="7C3F7E0732D162306F05168845807CD680935F9C8ACD95A597AB3181F789E0F7",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {
-        // M0100/ADR-0080: a GPU's log2 and exp2 are approximations (an RTX 4060 Ti put a 4 um surface's depth 3 % off) and
+        // M0100/ADR-0084: a GPU's log2 and exp2 are approximations (an RTX 4060 Ti put a 4 um surface's depth 3 % off) and
         // WARP evaluates them exactly, so no WARP test can see it. The depth functions every pass shares (the Depth
         // subgraph) must stay on float arithmetic. The rest of the Stage program (fog, BRDF) does use exp and pow.
         var Hlsl=System.Text.RegularExpressions.Regex.Replace(HlslSyntaxGraphConverter.ExportWithSourceMap(ShaderGraphDependencyComposition.Resolve(GraphPath("Stage")).Composed).Hlsl,@"//[^\n]*",string.Empty);

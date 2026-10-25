@@ -4,7 +4,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
 /// M0099 Phase 1: the standard depth mode's frames are pinned as SHA-256 hashes of the WARP back buffer before the
 /// radial depth mode is added, so no later change to the shared Stage program, FrameCB or pipeline states can move
-/// a standard pixel unnoticed. The scene is <see cref="GoldenFrameScene"/>. M0114 (ADR-0080) removes the standard
+/// a standard pixel unnoticed. The scene is <see cref="GoldenFrameScene"/>. M0119 (ADR-0084) removes the standard
 /// depth: <see cref="LogarithmicFrames_EqualTheStandardFramesWithinOneLevel"/> is the last comparison of the
 /// logarithmic frames with these, and <see cref="StageGoldenFrameTests"/> pins the logarithmic frames themselves.
 /// </summary>
@@ -32,7 +32,7 @@ public sealed class StandardModeGoldenFrameTests {
         Assert.True(Mismatches.Count==0,string.Join(System.Environment.NewLine,Mismatches));
     }
     /// <summary>
-    /// ADR-0080 §6: the last comparison before the standard depth is deleted. Every case drawn with logarithmic depth
+    /// ADR-0084 §6: the last comparison before the standard depth is deleted. Every case drawn with logarithmic depth
     /// equals the standard frame within one 8-bit level of any channel, with at most 1 % of the pixels different at all
     /// (the wireframe may differ by more on at most 1 % of the pixels: a wireframe edge drawn from both of its
     /// triangles has an exact depth tie, which draw order settles in the standard mode and rounding in the radial one).

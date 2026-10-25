@@ -4879,59 +4879,59 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 ## F-L0-011 — D3D12 の描画計画の実行器(L4 のフレーム計画を D3D12 で実行する)
 
 - Layer: L0 — D3D12 の実行だけ(`StageRenderer` が `IStageRenderBackend` を実装、`D3D12RenderServer`)。計画・光源・深度の方針は L4/L5(F-L4-020)
-- Parent capability: Rendering Roadmap / 描画パスと層の配置(ADR-0081・ADR-0083)
+- Parent capability: Rendering Roadmap / 描画パスと層の配置(ADR-0085・ADR-0087)
 - Status: Specified
 - Verification: Unverified
-- Intended specification: `Docs/Decisions/ADR-0083-Rendering-And-Physics-Layers.md` §1、`Docs/Specifications/Rendering.md`(M0115 で更新)
-- Stage: `rendering.render-paths`(M0115 で追加)
+- Intended specification: `Docs/Decisions/ADR-0087-Rendering-And-Physics-Layers.md` §1、`Docs/Specifications/Rendering.md`(M0120 で更新)
+- Stage: `rendering.render-paths`(M0120 で追加)
 - Depends on: F-L4-004、F-L0-009
-- Implementation evidence: なし(計画のみ。M0115 で実装する)
-- Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0115 で足す)
+- Implementation evidence: なし(計画のみ。M0120 で実装する)
+- Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0120 で足す)
 - Current delta: L0 のアセンブリに描画機能の大部分(パス構成、光源の振り分け、影、深度の方針)があり、`RenderServer` の公開 API に D3D12 の型が出ている。
 - Conformance: Unknown
-- Next action: M0115 段階 1(画素を変えずに境界を動かす)。[M0115](Milestones/M0115-Render-Layers-And-Forward-Paths.md)
+- Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
 
 ## F-L4-020 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)
 
 - Layer: L4 — `src/CSharpGameEngine.Rendering`(`Pipeline/`、`Server/`)、L5 — カメラと深度の方針(`View/`)、L6 — Stage の ABI(`stage-v15`・`stage-v16`)
-- Parent capability: Rendering Roadmap / 描画パス(ADR-0081)
+- Parent capability: Rendering Roadmap / 描画パス(ADR-0085)
 - Status: Specified
 - Verification: Unverified
-- Intended specification: `Docs/Decisions/ADR-0081-Urp-Render-Paths.md`、`Docs/Specifications/Rendering.md`(M0115・M0116 で更新)
-- Stage: `rendering.render-paths`(M0115 で追加)
+- Intended specification: `Docs/Decisions/ADR-0085-Urp-Render-Paths.md`、`Docs/Specifications/Rendering.md`(M0120・M0121 で更新)
+- Stage: `rendering.render-paths`(M0120 で追加)
 - Depends on: F-L5-038、F-L4-014、F-L0-011
-- Implementation evidence: なし(計画のみ。M0115・M0116 で実装する)
+- Implementation evidence: なし(計画のみ。M0120・M0121 で実装する)
 - Tests: なし(`ClusterLightGridTests`、`ForwardObjectLightAssignmentTests`、`RenderPathEquivalenceTests`、`DeferredLightVolumeTests` を足す)
 - Current delta: 描画パスは Forward+ 相当の 1 つだけ(16 px・64 灯の 2D タイル、深度方向の分割なし)。Deferred・GBuffer・ステンシルは無い。
 - Conformance: Unknown
-- Next action: M0115(Forward+ を URP 方式に、Forward を足す)、M0116(Deferred・Deferred+)。
+- Next action: M0120(Forward+ を URP 方式に、Forward を足す)、M0121(Deferred・Deferred+)。
 
 ## F-L4-021 — Entity を使わない物理の契約
 
 - Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`
-- Parent capability: World Scale / 決定的な物理(ADR-0082・ADR-0083 §2)
+- Parent capability: World Scale / 決定的な物理(ADR-0086・ADR-0087 §2)
 - Status: Specified
 - Verification: Unverified
-- Intended specification: `Docs/Decisions/ADR-0083-Rendering-And-Physics-Layers.md` §2、`Docs/Specifications/Physics.md`(M0118 で更新)
-- Stage: `rigid.full-scale`(M0117 で追加)
+- Intended specification: `Docs/Decisions/ADR-0087-Rendering-And-Physics-Layers.md` §2、`Docs/Specifications/Physics.md`(M0123 で更新)
+- Stage: `rigid.full-scale`(M0122 で追加)
 - Depends on: F-L1-009、F-L2-006
-- Implementation evidence: なし(計画のみ。M0118 で実装する)
+- Implementation evidence: なし(計画のみ。M0123 で実装する)
 - Tests: なし(`EngineLayerSpec` の物理の規則、`PhysicsGoldenStateTests` を足す)
 - Current delta: L4 の契約(`PhysicsContracts`・`PhysicsDomainRegistry`・`IPhysicsHost`)と L5 のソルバーが同じ共有プロジェクトにあり、契約が `Entity`(L3)を使う。ECS なしでコンパイルできるのは 4 ファイル。
 - Conformance: Unknown
-- Next action: M0117 の後に M0118。[M0118](Milestones/M0118-Physics-Contract-And-Solver-Split.md)
+- Next action: M0122 の後に M0123。[M0123](Milestones/M0123-Physics-Contract-And-Solver-Split.md)
 
-## F-L5-046 — 全スケール(±9.2e18 m)の決定的な剛体
+## F-L5-047 — 全スケール(±9.2e18 m)の決定的な剛体
 
 - Layer: L5 — `src/CSharpGameEngine.Runtime.Physics`(のちに `Physics.Deterministic`)、L1 — `src/CSharpGameEngine.Numerics`
-- Parent capability: World Scale / 決定的な物理(ADR-0082)
+- Parent capability: World Scale / 決定的な物理(ADR-0086)
 - Status: Specified
 - Verification: Unverified
-- Intended specification: `Docs/Decisions/ADR-0082-Full-Scale-Physics.md`、`Docs/Specifications/Physics.md`(M0117 で更新)
-- Stage: `rigid.full-scale`(M0117 で追加)
+- Intended specification: `Docs/Decisions/ADR-0086-Full-Scale-Physics.md`、`Docs/Specifications/Physics.md`(M0122 で更新)
+- Stage: `rigid.full-scale`(M0122 で追加)
 - Depends on: F-L1-009、F-L5-036、F-L5-003
-- Implementation evidence: なし(計画のみ。M0117 で実装する)
+- Implementation evidence: なし(計画のみ。M0122 で実装する)
 - Tests: なし(`PhysicsTranslationInvarianceTests`、`PhysicsOverflowFaultTests`、`PhysicsMultiDomainTests`、`PhysicsGoldenStateTests` を足す)
 - Current delta: ソルバーは Q64.64 だが、GJK が約 1.4 km、広域判定が約 1.2e9 m、絶対座標の静的メッシュが約 3e9 m で桁あふれする。`Step` の桁あふれは生成ゲームループを止める。進むドメインは 1 つ。float の入口(シーン JSON、`MathF`、Picking)が残る。
 - Conformance: Unknown
-- Next action: M0112 のコミット後に M0117。[M0117](Milestones/M0117-Full-Scale-Physics.md)
+- Next action: M0112 のコミット後に M0122。[M0122](Milestones/M0122-Full-Scale-Physics.md)

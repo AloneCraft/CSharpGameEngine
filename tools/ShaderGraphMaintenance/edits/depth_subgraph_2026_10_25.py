@@ -1,4 +1,4 @@
-"""M0114 (ADR-0080): the logarithmic depth functions move from StagePresentationShaderSource into the Stage graph.
+"""M0119 (ADR-0084): the logarithmic depth functions move from StagePresentationShaderSource into the Stage graph.
 
 RadialMaximumDepth, RadialLog2OnePlus, RadialSafeLength, RadialG, EncodeRadialDepth and IsBeyondRadialFarPlane are
 the one depth function every pass that writes a perspective view's depth shares (ADR-0076 invariant 4). They belong

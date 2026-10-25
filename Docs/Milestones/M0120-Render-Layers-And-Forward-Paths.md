@@ -1,7 +1,7 @@
-# M0115 — 描画の L4 化と Forward / Forward+(URP 方式)
+# M0120 — 描画の L4 化と Forward / Forward+(URP 方式)
 - 日付: 2026-10-25
-- 状態: 計画(2026-10-25 に ADR-0081・ADR-0083 を Accepted。M0114 の完了後に始める)
-- 決定: [ADR-0081](../Decisions/ADR-0081-Urp-Render-Paths.md)、[ADR-0083](../Decisions/ADR-0083-Rendering-And-Physics-Layers.md) §1
+- 状態: 計画(2026-10-25 に ADR-0085・ADR-0087 を Accepted。M0119 の完了後に始める)
+- 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0087](../Decisions/ADR-0087-Rendering-And-Physics-Layers.md) §1
 - ABI: `stage-v15`
 
 ## 目的
@@ -14,12 +14,12 @@
 4. **カタログ・文書・版**: Stage `rendering.render-paths`、F-L0-011・F-L4-020 を Implementing に。
 
 ## 完了条件
-- Forward+ の 7 SHA が M0114 と同じ。Forward と Forward+ がビット一致(各物体の局所光が 8 以下)。
+- Forward+ の 7 SHA が M0119 と同じ。Forward と Forward+ がビット一致(各物体の局所光が 8 以下)。
 - 層の試験に合格。`ShaderArtifactHotReloadTests`(PSO キャッシュが成果物の差し替えで捨てられる)。
 - 性能の予算を満たす。
 
 ## 範囲外
-Deferred 系(M0116)、触らない L0 の CPU アルゴリズム(`AreaLightLtc`・`LumenSurfaceCacheLayout` など)、入力・音声サーバー、実行時の glTF/WIC。
+Deferred 系(M0121)、触らない L0 の CPU アルゴリズム(`AreaLightLtc`・`LumenSurfaceCacheLayout` など)、入力・音声サーバー、実行時の glTF/WIC。
 
 ## 機能 ID
 F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007

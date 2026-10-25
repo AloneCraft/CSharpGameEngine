@@ -6,7 +6,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>What <see cref="DepthOracle.Measure"/> found: the largest error in ulps of the expected depth, the greatest depth written, and the adapter.</summary>
 internal readonly record struct DepthMeasurement(double Centre,double Edge,float MaximumDepth,string Adapter);
 /// <summary>
-/// The double-precision oracle of the logarithmic depth (ADR-0080 §6, M0099/M0100): a quad facing the camera at a given
+/// The double-precision oracle of the logarithmic depth (ADR-0084 §6, M0099/M0100): a quad facing the camera at a given
 /// distance is rendered and every pixel's depth is compared with <c>log2(1 + r/T) / log2(1 + rMax/T)</c> evaluated in
 /// <see cref="double"/>, where <c>r</c> is the pixel's distance along its ray. In the middle of the view the distance
 /// hardly changes from pixel to pixel, so the error there is the shader arithmetic's; near the edges the rasterizer's

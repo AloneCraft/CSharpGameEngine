@@ -1,6 +1,6 @@
-# ADR-0082 — 物理を Q64.64 のまま全スケール(±9.2e18 m)で動かす: ペアごとの局所原点、物体相対の静的メッシュ、複数ドメインの同時進行、物体ごとの Fault
+# ADR-0086 — 物理を Q64.64 のまま全スケール(±9.2e18 m)で動かす: ペアごとの局所原点、物体相対の静的メッシュ、複数ドメインの同時進行、物体ごとの Fault
 - 状態: Accepted(2026-10-25。ユーザーの依頼:「対数レンダリングすることで物理エンジンもその論理座標にネイティブに書き換えて」。計画はユーザーが承認し、「Q64.64 のまま全スケール対応」を選んだ。対数空間で物理を解く案は採らない)
-- 関連: ADR-0063(正準数値と階層 World)、ADR-0049(決定的な物理ドメイン。一部 Superseded)、ADR-0076・ADR-0080(対数深度)、ADR-0083(層の配置)、ADR-0078(UE テンプレートの完全移植)、ADR-0067(キャラクターの移動)、M0117、[Physics 仕様](../Specifications/Physics.md)
+- 関連: ADR-0063(正準数値と階層 World)、ADR-0049(決定的な物理ドメイン。一部 Superseded)、ADR-0076・ADR-0084(対数深度)、ADR-0087(層の配置)、ADR-0078(UE テンプレートの完全移植)、ADR-0067(キャラクターの移動)、M0122、[Physics 仕様](../Specifications/Physics.md)
 
 ## 背景
 - 物理はすでに Q64.64 の `LogicalScalar`(`Int128`、±9.22e18 m、分解能 2^-64 m)の局所座標でネイティブに動いている。ソルバー内部(積分、拘束、接触、狭域判定、Dynamic AABB Tree、レイキャスト、スイープ、CCD、スリープ)に `float`/`double` は無い(`src/CSharpGameEngine.Runtime.Physics`。`Docs/Specifications/Physics.md:31`)。float が入るのは定数(`FromSingle`)、glTF の取り込み、入出力の境界だけである。
@@ -53,7 +53,7 @@
 
 ### 9. float の入口を Logical にする
 - シーン JSON の `LogicalScalar` は `LogicalScalar.ParseInvariant("<十進>")`(既存の `SceneJsonDecimal.TryPositional` で指数表記を固定小数の表記にし、|x| < 2^63 を厳密に検査)として生成し、作者の値を丸めない。`SceneValueReader`(デザイナー)と `SceneJsonConverter` も同じ形を読み書きする。
-- `PhysicsWorldSettings(TickRate, Gravity)`: `FixedDelta = One / FromInt64(TickRate)` で、キャラクターと車両と同じ値にする。標準重力は `ParseInvariant("9.80665")`。前後で全テンプレートの移動の値が変わりうるので、前後の表を M0117 の文書に残す。
+- `PhysicsWorldSettings(TickRate, Gravity)`: `FixedDelta = One / FromInt64(TickRate)` で、キャラクターと車両と同じ値にする。標準重力は `ParseInvariant("9.80665")`。前後で全テンプレートの移動の値が変わりうるので、前後の表を M0122 の文書に残す。
 - `PlayerControl` は `LogicalMath.TrySinCos` を使う(`DegreesToRadians` は `LogicalMath` へ)。`ViewAngles` と `CameraLag` は表示用なので float のまま。
 - Picking の光線は Logical で作り(tan は `TrySinCos` と `TryDivide`)、2000 m の上限を消して `PhysicsLimits` の光線の上限を使う。`PickHit.Distance` は `LogicalScalar`。カメラのフレームのドメインを使う。
 - `PhysicsDebug` は、要求で受け取った Origin(float を厳密に変換)からの相対値を返し、応答に Origin と Frame を含める(プロトコル 3)。
@@ -72,4 +72,4 @@
 - 実走: ThirdPerson と Vehicle を 2^50 m ずらしても原点と同じ値。Stage `rigid.full-scale`。
 
 ## 関連する機能
-- F-L5-046(Full-scale deterministic rigid bodies)、F-L5-003、F-L1-009、F-L6-002、F-L5-006
+- F-L5-047(Full-scale deterministic rigid bodies)、F-L5-003、F-L1-009、F-L6-002、F-L5-006

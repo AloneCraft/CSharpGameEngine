@@ -1,6 +1,6 @@
-# ADR-0081 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)を、最初から対数深度で書いた Stage シェーダーとして移植する
+# ADR-0085 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)を、最初から対数深度で書いた Stage シェーダーとして移植する
 - 状態: Accepted(2026-10-25。ユーザーの依頼:「unity の URP のシェーダーの Forward, Forward+, Deferred, Deferred+ を参考に… 最初から対数化したシェーダーとして」。計画はユーザーが承認し、「4 つすべてを移植し、既定は Forward+」を選んだ)
-- 関連: ADR-0080(対数ネイティブの深度)、ADR-0083(層の配置)、ADR-0076(対数深度)、ADR-0064(型付きライト)、ADR-0069(物理的な環境照明)、ADR-0078(UE テンプレートの完全移植)、ADR-0052(Render Graph)、M0115、M0116
+- 関連: ADR-0084(対数ネイティブの深度)、ADR-0087(層の配置)、ADR-0076(対数深度)、ADR-0064(型付きライト)、ADR-0069(物理的な環境照明)、ADR-0078(UE テンプレートの完全移植)、ADR-0052(Render Graph)、M0120、M0121
 
 ## 背景
 - 今のエンジンの描画パスは Forward+ 相当の 1 つだけ。CPU が光の範囲の箱の 8 隅をクリップ空間の XY と W へ投影して 2D タイル(16 px、1 タイル最大 64 灯、局所光は全体で 1024 灯)へ振り分け、`PSMain` が自分のタイルのリストだけを回す。深度方向の分割(クラスタ)は無い(`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs:86-106`、`:3330-3371`、`:3512-3566`、`Docs/Specifications/Rendering.md:140`)。Deferred、GBuffer、ステンシル、半透明の物体は無い。
@@ -50,7 +50,7 @@
   | SceneDistance | R32F | 目からの物理距離 |
 
   ステンシルのビットは 0x1 = 面、0x2 = 光源。材質は Lit の 1 種類なので、URP の材質ビットや材質別の 2 ドローは持たない。
-- 位置の復元は `ReconstructCameraRelativePosition(ndc, SceneDistance)`: `InverseViewProjection`(`InvertibleViewProjection` の逆行列。透視は補助の投影で far が大きくても正則、正射影は VP そのもの)で近点と遠点を求め、光線上の距離 `SceneDistance` の点にする。深度のデコード(`exp2`)も、位置を深度から戻す関数も作らない(ADR-0080)。
+- 位置の復元は `ReconstructCameraRelativePosition(ndc, SceneDistance)`: `InverseViewProjection`(`InvertibleViewProjection` の逆行列。透視は補助の投影で far が大きくても正則、正射影は VP そのもの)で近点と遠点を求め、光線上の距離 `SceneDistance` の点にする。深度のデコード(`exp2`)も、位置を深度から戻す関数も作らない(ADR-0084)。
 - Deferred(StencilDeferred の移植): GBuffer、AO と Lumen の compute、Global(方向光と間接光、全画面、ステンシル EQUAL 1)、光源ごとのステンシル 2 パス、Fog(全画面)の順。
   - 印付け: 両面を描き、深度は `LESS_EQUAL` で書き込まず、`DepthFail` でステンシル INVERT。PS が `SV_Depth = EncodeRadialDistance(...)` を書き、光源体積のメッシュも画面の深度と同じ符号化で比べる。
   - 照明: Cull FRONT、ステンシル EQUAL 3 で Pass は ZERO、ブレンド ONE/SRC_ALPHA。
@@ -58,15 +58,15 @@
 - Deferred+(ClusterDeferred の移植): GBuffer の後、全画面の `DeferredLightingPSMain` 1 ドローでクラスタのループを回す。PS で行い、compute にはしない(UAV の読み書きと WARP での違いが増えるため)。
 
 ### 6. ABI の版
-- v15(M0115): FrameCB に `ClusterTiles`、ObjectCB に `ForwardLightIndices0/1`・`ForwardLightCount`、t6 が `ClusterWords`。ルートシグネチャは 11 パラメーターのまま。
-- v16(M0116): b2 のルート定数 `DrawParams`(4 個)、t19〜t22(GBuffer と `SceneDistance`)のテーブルでルートシグネチャは 13 パラメーター。エントリー `GBufferPSMain`、`DeferredLightingPSMain`、`LightVolumeVSMain`、`LightVolumeStencilPSMain`、`LightVolumePSMain` を足す。
+- v15(M0120): FrameCB に `ClusterTiles`、ObjectCB に `ForwardLightIndices0/1`・`ForwardLightCount`、t6 が `ClusterWords`。ルートシグネチャは 11 パラメーターのまま。
+- v16(M0121): b2 のルート定数 `DrawParams`(4 個)、t19〜t22(GBuffer と `SceneDistance`)のテーブルでルートシグネチャは 13 パラメーター。エントリー `GBufferPSMain`、`DeferredLightingPSMain`、`LightVolumeVSMain`、`LightVolumeStencilPSMain`、`LightVolumePSMain` を足す。
 - 各マイルストーンの中で最初に ABI を変えるコミットで版を上げ、そのマイルストーンの間は据え置く。
 
 ### 7. 一致の許容(`RenderPathEquivalenceTests`)
 | 比べる組 | 許容 |
 |---|---|
 | 深度と `SceneDistance` | 4 パスでビット一致 |
-| M0115 の Forward+ と M0114 の Forward+ | ビット一致(7 SHA が不変) |
+| M0120 の Forward+ と M0119 の Forward+ | ビット一致(7 SHA が不変) |
 | Forward と Forward+ | 物体ごとの局所光が 8 以下ならビット一致 |
 | Forward+ と Deferred・Deferred+ | 各チャンネル 2 階調以内、違う画素 1 % 以下。BaseColor・Normal の表示は 1 階調以内 |
 | Deferred と Deferred+ | 同じ(2 階調・1 %) |
@@ -88,7 +88,7 @@ MSAA、Depth Priming、半透明のメッシュ(オーバーレイと画面 UI �
 ## 帰結
 - パスの選択が API(`RenderServer.RenderPath`)・シーン(`Level`)・環境変数にまたがる。Deferred 系は Forward+ と許容つきで一致する。
 - Forward+ の ABI が変わり(v15)、複製した独自の Stage グラフは作り直しになる(CHANGELOG に書く)。
-- `RenderQualityProfile` の宣言だけのグラフは、実際に実行する計画(`RenderServer.CurrentPipeline`、ADR-0083)で置き換えて消す。
+- `RenderQualityProfile` の宣言だけのグラフは、実際に実行する計画(`RenderServer.CurrentPipeline`、ADR-0087)で置き換えて消す。
 
 ## 検証
 - CPU: `ClusterLightGridTests`(倍精度の総当たりと比べて取りこぼし 0、セル内は光源の昇順、far が 1e6〜1e18 m でも有限で単調)、`ForwardObjectLightAssignmentTests`、`RenderPathResolutionTests`。

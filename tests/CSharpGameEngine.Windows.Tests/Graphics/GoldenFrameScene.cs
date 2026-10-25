@@ -6,7 +6,7 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// The scene behind the pinned golden frames (M0099 Phase 1, M0114). The cases cover every pass a perspective camera
+/// The scene behind the pinned golden frames (M0099 Phase 1, M0119). The cases cover every pass a perspective camera
 /// uses: typed lights with shadow atlas tiles, legacy fog, the physical environment (sky, sky light, physical fog, sun
 /// cascades, GI, AO, filmic exposure), the world-space grid, the presentation modes, camera thumbnails and the overlay.
 /// </summary>
