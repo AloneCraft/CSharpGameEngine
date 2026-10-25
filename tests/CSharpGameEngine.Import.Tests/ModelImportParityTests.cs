@@ -11,6 +11,7 @@ public sealed class ModelImportParityTests {
     public void Templates_MatchPreMigrationGeometryMaterialsAndAnimation(){
         var Root=FindRoot();
         var Paths=Directory.EnumerateFiles(Path.Combine(Root,"templates"),"*.glb",SearchOption.AllDirectories)
+            .Where(Path=>!System.IO.Path.GetRelativePath(Root,Path).Split('\\','/').Any(Segment=>Segment is "bin" or "obj" or ".git" or ".vs" or ".artifacts"))
             .OrderBy(Path=>Path.Replace('\\','/'),StringComparer.Ordinal).ToArray();
         Assert.NotEmpty(Paths);
         var QuinnPath=Paths.First(Path=>System.IO.Path.GetFileNameWithoutExtension(Path).Contains("Quinn",StringComparison.OrdinalIgnoreCase)&&!Path.Contains("Animation",StringComparison.OrdinalIgnoreCase));
