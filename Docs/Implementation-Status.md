@@ -4888,7 +4888,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L4-004、F-L0-009
 - Implementation evidence: なし(計画のみ。M0120 で実装する)
 - Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0120 で足す)
-- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。L0はまだCPU計算の呼出し・フレーム順序・状態を持ち、RenderServerの公開APIにD3D12の型が出る。計画実行器そのものは未実装。
+- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。L0はまだCPU計算の呼出し・フレーム順序・状態を持ち、RenderServerの公開APIにD3D12の型が出る。計画実行器そのものは未実装。
 - Conformance: Unknown
 - Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
 

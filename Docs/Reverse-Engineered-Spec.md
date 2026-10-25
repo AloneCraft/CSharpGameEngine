@@ -540,3 +540,10 @@
 - Observed after: initialization applies the same validated camera setup before filling every slot. Three frames without SetCamera match the physical-distance oracle and use an active debug layer without errors. Native regression38 passes, including the unchanged seven pinned images. SDK0.1.29, evidence in M0119/M0120.
 
 - Latest cross-project verification: 5f4d647/SDK0.1.29 includes the relocated types/math, typed CB/reflection and default startup fix. All22 projects pass3548 tests, fail0, skip2 opt-in hardware measurements, exit0, maximum physical RAM66%. The seven golden frames and Stage artifact remain unchanged. Evidence: `.artifacts/M0120/native-startup-solution.summary.json`. M0120 remains Partial for the outstanding view/frame/server/path extraction.
+
+## RE-M0120 — Validated main-view submission (SDK0.1.30)
+- Confidence: High for value creation/submission/recovery; native adapter and server extraction remain incomplete.
+- Evidence: Rendering/RenderView.cs, View/RenderViewPolicy.cs, Native SetView, RenderFrameState.RecordView/Replay, RenderViewTests, RenderViewGpuIntegrationTests.
+- Observed: L4 owns immutable validated projection/depth/reconstruction/pose/exposure/basis data; L5 chooses perspective-logarithmic or orthographic-linear construction. An invertible auxiliary projection preserves physical XY/W rays even for extreme far. Invalid input is rejected before native state writes. Three GPU cases match legacy submission and retain the image through no-command frames and actual device-generation replacement. Legacy metadata is still retained for resize reconstruction.
+- Visibility query rename: the former frustum/hysteresis-only RenderView is RenderVisibilityView; its structure and selection/batching algorithm are unchanged. Only three existing consumer files needed migration.
+- Verified: portable169, GPU31 and final6, layer7, FeatureRunner242; seven hashes and Stage binary remain unchanged. Evidence paths and memory maxima are in M0120. The old full-suite3548 measurement predates this value extraction.

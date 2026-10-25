@@ -1,5 +1,6 @@
 # Changelog
 
+- SDK 0.1.30: L4の検証済み `RenderView` とL5 `RenderViewPolicy`、Native/RenderServerのSetViewを追加。投影/深度/補助投影/位置/露出/カメラ基底を値として提出・復旧できる。旧可視性クエリ値RenderViewはRenderVisibilityViewへ改名。旧カメラ/行列APIのリサイズ復旧メタデータは後続のアダプター分離まで維持する。
 - SDK 0.1.29: SetCamera前に描く既定Stageも対数深度で初期化するよう修正。透視行列だけを設定し線形の深度パケットが残る起動時の抜けを、通常のカメラ初期化処理を共有して解消した。
 - SDK 0.1.28: StageのFrame/Object定数配置をL4の型付き `StageGpuLayouts` に移し、D3D12側の35個の手書きオフセットを削除。L7がDXCの実反射データを取得し、行列の行配置を含めてStage/Lumenと照合する。FrameCB960/ ObjectCB192バイトとstage-v14を維持する。
 - SDK 0.1.27: 描画カメラ数学を `Graphics.D3D12.Camera` からポータブルな `Rendering.View.RenderCamera` へ移動。シーンComponentのCameraとは別の公開型。計算・既定値を維持し、既存のカメラ数学テストもRendering.Testsへ移した。カメラ提出方針とフレーム状態の分離はM0120で継続する。

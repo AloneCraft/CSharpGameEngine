@@ -68,7 +68,7 @@ internal static class RenderingPerformanceRawCapture {
         var Visible=new VisibleRenderInstance[VisibilityCount];
         var Order=new int[VisibilityCount];
         var Batches=new RenderInstanceBatch[VisibilityCount];
-        RenderView View=new(RenderFrustum.CreateAxisAligned(new Vector3(-1f),new Vector3(2000f)),0.1f);
+        RenderVisibilityView View=new(RenderFrustum.CreateAxisAligned(new Vector3(-1f),new Vector3(2000f)),0.1f);
         bool HasState=false;
 
         void RunOnce(){

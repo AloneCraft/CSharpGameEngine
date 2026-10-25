@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.View;
 using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using CSharpGameEngine.Rendering.Pipeline;
@@ -2178,25 +2179,27 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// </summary>
     public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
         this.ThrowIfDisposed();
-        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/ this.Height;
-        if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
-            ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,AspectRatio,out var RadialProjection)){
-            throw new ArgumentException("A logarithmic perspective camera needs a finite positive transition length, 0 < NearZ < FarZ and a valid field of view.",nameof(Camera));
-        }
-        var View=Camera.GetView();
-        this.WriteViewProjection(this.FrameIndex,View*Camera.GetProjection(AspectRatio));
-        this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
-        this.WriteExposure(this.FrameIndex,Camera.ExposureEv100);
-        this.CurrentViewDepth=RenderViewDepth.ForPerspective(RadialProjection);
-        this.CurrentAuxiliaryViewProjection=View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio);
+        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/this.Height;
+        this.SetView(RenderViewPolicy.FromCamera(Camera,AspectRatio));
+    }
+    /// <summary>Uploads a validated main view for the current frame slot.</summary>
+    public void SetView(in RenderView View){
+        this.ThrowIfDisposed();
+        if(!View.IsValid){ throw new ArgumentException("A main view must be validated.",nameof(View)); }
+        this.WriteViewProjection(this.FrameIndex,View.ViewProjection);
+        this.WriteCameraPosition(this.FrameIndex,View.CameraPosition);
+        this.WriteExposure(this.FrameIndex,View.ExposureEv100);
+        this.CurrentViewDepth=View.Depth;
+        this.CurrentAuxiliaryViewProjection=View.AuxiliaryViewProjection;
         this.WriteViewDepth(this.FrameIndex);
-        // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
-        this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);
-        this.CurrentCameraUp=new Vector3(View.M12,View.M22,View.M32);
-        this.CurrentCameraForward=-new Vector3(View.M13,View.M23,View.M33);
-        this.CurrentCameraTanHalfFovY=MathF.Tan(Camera.FovYRadians*0.5f);
-        this.CurrentCameraAspectRatio=AspectRatio;
-        this.HasCameraBasis=true;
+        this.HasCameraBasis=View.Basis.HasValue;
+        if(View.Basis is { }Basis){
+            this.CurrentCameraRight=Basis.Right;
+            this.CurrentCameraUp=Basis.Up;
+            this.CurrentCameraForward=Basis.Forward;
+            this.CurrentCameraTanHalfFovY=Basis.TanHalfFovY;
+            this.CurrentCameraAspectRatio=Basis.AspectRatio;
+        }
     }
 
     /// <summary>
@@ -2247,26 +2250,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     internal void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
         this.ThrowIfDisposed();
-        var Depth=RenderViewDepth.ForOrthographic(ViewProjection);
-        this.ApplyViewProjection(ViewProjection,CameraPosition,Depth,ViewProjection);
-    }
-
-    private void ApplyViewProjection(in Matrix4x4 ViewProjection,in Vector3 CameraPosition,
-        in RenderViewDepth Depth,in Matrix4x4 Auxiliary){
-        if(!IsFiniteMatrix(ViewProjection)||!IsFiniteMatrix(Auxiliary)
-            ||!Matrix4x4.Invert(Auxiliary,out var Inverse)||!IsFiniteMatrix(Inverse)){
-            throw new ArgumentException("A view needs a finite matrix and an invertible auxiliary projection.",nameof(ViewProjection));
-        }
-        if(!IsFinite(CameraPosition)){
-            throw new ArgumentException("Camera position must be finite.",nameof(CameraPosition));
-        }
-        this.WriteViewProjection(this.FrameIndex,ViewProjection);
-        this.WriteCameraPosition(this.FrameIndex,CameraPosition);
-        this.WriteExposure(this.FrameIndex,0f);
-        this.CurrentViewDepth=Depth;
-        this.CurrentAuxiliaryViewProjection=Auxiliary;
-        this.WriteViewDepth(this.FrameIndex);
-        this.HasCameraBasis=false;
+        this.SetView(RenderViewPolicy.FromOrthographic(ViewProjection,CameraPosition));
     }
 
     /// <summary>
@@ -2277,13 +2261,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     internal void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
         this.ThrowIfDisposed();
-        if(!RadialDepthProjection.IsPerspective(ViewProjection)
-            ||!RadialDepthCurve.TryCreate(Radial.TransitionMeters,out var Curve)
-            ||!RadialDepthProjection.TryCreate(Curve,Radial.NearZ,Radial.FarZ,Radial.FovYRadians,(float)this.Width/ this.Height,out var Projection)){
-            throw new ArgumentException("A radial view-projection must be a perspective one with a finite positive transition length, 0 < NearZ < FarZ (finite) and a valid field of view.",nameof(Radial));
-        }
-        var Depth=RenderViewDepth.ForPerspective(Projection);
-        this.ApplyViewProjection(ViewProjection,CameraPosition,Depth,Projection.CreateAuxiliaryViewProjection(ViewProjection));
+        this.SetView(RenderViewPolicy.FromPerspective(ViewProjection,CameraPosition,Radial,(float)this.Width/this.Height));
     }
 
     /// <summary>

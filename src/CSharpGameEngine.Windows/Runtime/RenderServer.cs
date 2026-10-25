@@ -228,6 +228,12 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
+    /// <summary>Submits a validated main view for this frame and retains its value for recovery.</summary>
+    public void SetView(in RenderView View){
+        this.Backend.SetView(View);
+        this.PendingFrame.RecordView(View);
+    }
+
     public void SetCamera(in RenderCamera Camera,float AspectRatioOverride=0f){
         this.Backend.SetCamera(Camera,AspectRatioOverride);
         this.PendingFrame.RecordCamera(Camera,AspectRatioOverride);

@@ -35,6 +35,8 @@ internal sealed class RenderFrameState {
     private readonly List<EmissiveCommand>EmissiveLights=[];
     private readonly List<LightCommandIndex>LightOrder=[];
     private readonly Dictionary<int,Vector3>WorldGridAnchors=[];
+    private RenderView ResolvedView;
+    private bool HasResolvedView;
     private RenderCamera Camera;
     private Matrix4x4 ViewProjection;
     private Vector3 ViewProjectionCameraPosition;
@@ -97,7 +99,7 @@ internal sealed class RenderFrameState {
     }
 
     public bool IsEmpty=>
-        !this.HasCamera&&!this.HasViewProjection&&!this.HasAmbientLight&&!this.HasFog
+        !this.HasResolvedView&&!this.HasCamera&&!this.HasViewProjection&&!this.HasAmbientLight&&!this.HasFog
         &&!this.HasEnvironment&&!this.HasCameraAltitude&&!this.HasRenderOriginAltitude
         &&this.WorldGridAnchors.Count==0
         &&!this.HasPresentationMode
@@ -108,7 +110,16 @@ internal sealed class RenderFrameState {
         &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0&&this.TouchedVisibilityIndices.Count==0&&this.TouchedEmissiveIndices.Count==0
         &&this.TouchedSkinMeshes.Count==0;
 
+    public void RecordView(in RenderView View){
+        if(!View.IsValid){ throw new ArgumentException("A recorded view must be validated.",nameof(View)); }
+        this.ResolvedView=View;
+        this.HasResolvedView=true;
+        this.HasCamera=false;
+        this.HasViewProjection=false;
+    }
+
     public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
+        this.HasResolvedView=false;
         this.Camera=Camera;
         this.CameraAspectRatioOverride=AspectRatioOverride;
         this.HasCamera=true;
@@ -117,6 +128,7 @@ internal sealed class RenderFrameState {
 
     public void RecordViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition,RadialViewParameters?Radial=null){
+        this.HasResolvedView=false;
         this.ViewProjection=ViewProjection;
         this.ViewProjectionCameraPosition=CameraPosition;
         this.ViewProjectionRadial=Radial;
@@ -314,7 +326,9 @@ internal sealed class RenderFrameState {
 
     public void Replay(StageRenderer Renderer){
         ArgumentNullException.ThrowIfNull(Renderer);
-        if(this.HasViewProjection&&this.ViewProjectionRadial is { }Radial){
+        if(this.HasResolvedView){
+            Renderer.SetView(this.ResolvedView);
+        } else if(this.HasViewProjection&&this.ViewProjectionRadial is { }Radial){
             Renderer.SetViewProjection(
                 this.ViewProjection,this.ViewProjectionCameraPosition,Radial);
         } else if(this.HasViewProjection){
@@ -380,6 +394,7 @@ internal sealed class RenderFrameState {
     public void Reset(){
         this.TouchedSkinMeshes.Clear();
         this.SkinPaletteLengths.Clear();
+        this.HasResolvedView=false;
         this.HasCamera=false;
         this.HasViewProjection=false;
         this.HasAmbientLight=false;

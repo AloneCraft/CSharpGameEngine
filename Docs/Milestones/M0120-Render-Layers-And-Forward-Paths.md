@@ -72,3 +72,18 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - 証拠は `.artifacts/M0120/native-startup-solution.log`、同summary.json/memory.json。最大RAM66%、閾値停止なし。Stageバイナリの生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5、固定7画像も同じ。版はSDK0.1.29、ABIはstage-v14。
 - 参照元G:/Unity/6.6/OmniのmanifestとPackageCacheでURP17.6.0を再確認。ForwardLights/Clustering/StencilDeferred/ClusterDeferredは現行の承認設計ADR-0085と同じ参照先で、Unity自体は変更/起動していない。
 - M0120全体はPartialのまま。次はRenderViewPolicy/RenderView、RenderServer/フレーム計画/実行ポート、Forward+クラスタとForward。Deferred系と物理の後続も未実装。mainへは統合していない。
+
+## ビュー提出の移行単位(2026-10-26)
+- ADR-0087に従い、L4 RenderViewを検証済みの行列/補助投影/深度/カメラ位置/露出/任意のカメラ基底の値とする。L5 RenderViewPolicyは既存Cameraと行列提出からその値を作る。主ビューでの観察用符号化はまだ受け付けず、観察サムネイルは既存の専用契約を維持する。
+- Native SetViewは検証済み値をアップロードし、旧SetCamera/SetViewProjectionの数式はL5へ移す。初期化も同じ経路を使い、既定起動の回帰契約を保つ。
+- RenderServerにSetViewを加え、型付き提出はRenderFrameStateが値として保持/復旧する。旧APIの復旧用メタデータは、この移行単位では維持する。Cameraの自動aspectはリサイズ復旧時に再計算される既存契約があるため、未検証のまま解決済み行列だけへ置き換えない。旧APIの除去とL4 Server移動時にL5アダプターへ分離する。
+- 値のdefault/不正行列/非有限値/投影と深度の不一致をCPUで検査し、透視/正射影/極端なfar/既定起動/型付き提出の復旧をGPUで確認する。固定7画像とシェーダーは変更しない。
+
+- 型名の実装確認で、既存RenderViewがFrustum/LodHysteresisだけの可視性クエリ値として使われていることが判明。ADRの主ビュー提出名と衝突するため、この既存型はRenderVisibilityViewへ改名する。参照はRenderWorldSnapshot/同テスト/性能TestHostの3ファイルだけで、選別アルゴリズムとデータ配置は変更しない。SDKのAPI変更として記録する。
+
+### ビュー契約の実行結果(2026-10-26)
+- L4 RenderViewはdefault/非有限値/投影と深度の不一致/光線を変える補助投影/不整合な基底を拒否する。透視の物理行列が巨大farで特異でも、有限の補助投影の逆行列が得られれば保持できる。L5 RenderViewPolicyが既存のカメラ/行列から値を生成し、Nativeの旧APIも同じ検証済み値をSetViewへ渡す。
+- RenderServer.SetViewとRenderFrameState.RecordView/Replayを接続。透視カメラ・透視行列・正射影の3条件で旧APIと画像一致し、型付き値だけの3フレーム継続とデバイス第2世代復旧も同じ画像を保持する。default提出は状態変更前に拒否。旧APIのCamera/行列パラメーター保存はリサイズ互換のため残す。
+- Rendering全169件成功(新しいビュー契約12件と既存の可視性/LODを含む)。GPU回帰31件成功(型付きビュー3条件、固定7画像、主深度、サムネイル、復旧等)。基底整合を加えた最終GPU6件、層7件、FeatureRunner242件も成功。最大RAM41%、閾値停止なし。固定7画像とStage成果物SHA E485F055...B6A5は不変。
+- 証拠は `.artifacts/M0120/view-validated-cpu.log`、`view-contract-gpu.log`、`view-validated-gpu.log`、`view-layer-tests.log`、`view-catalog-tests.log` とmemory.json。最初のビルドは既存の可視性RenderViewとの名前衝突で失敗し、用途をRenderVisibilityViewとして明示して修正した。SDK0.1.30、ABIはstage-v14。
+- 全体のPartialは継続する。NativeにはまだL5 Policyを呼ぶ互換入口と初期化があり、実行器だけになっていない。次の移行でこの入口、旧リサイズ再生成、RenderServer/フレーム計画を分離する。今回の対象検証を過去の全ソリューション3548件と混同しない。

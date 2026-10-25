@@ -4220,3 +4220,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - ABI: DXC実反射6条件で全CBのオフセット/サイズと行列の行配置が一致する。FrameCB960/ObjectCB192、固定7画像、Stage成果物SHA(E485F055...B6A5)は不変。Lumenの逆行列名の別名を明示し、カードPSでは未使用FrameCBの不在も検証する。成果物の既存JSONメタデータと実反射のコンパイル結果APIは別で、RuntimeはDXCを参照しない。
 - Startup: SetCamera未提出の初期化の透視行列/線形パケット不整合を修正前GPUで再現。共通カメラ設定で初期化を揃え、両スロットを含む3フレームが対数深度に一致。M0119追記とdefault-view-before/after.logに記録。全体回帰もこの修正を含む。
 - Result: Partial。移動済み単位はMatches。L0からCPU Plannerを呼ぶ経路、RenderViewPolicy、フレーム順序/状態、RenderServerと実行ポートの分離、URP方式のForward/Forward+およびDeferred系は未完。全スケール物理と物理契約分離も後続M0122/M0123。詳細な失敗/修正/測定履歴はM0120へ集約する。
+
+- M0120ビュー提出追記(SDK0.1.30): L4 RenderView/L5 RenderViewPolicyとNative/Server SetView/型付き復旧を接続。Rendering169、GPU31と最終6、層7、FeatureRunner242件成功。3投影経路で旧APIと復旧画像が一致、固定7画像/Stageバイナリ不変、最大RAM41%。旧可視性型はRenderVisibilityViewへ用途を明示した。旧APIのリサイズ用メタデータ、NativeのPolicy互換呼出し、Server/フレーム計画の所有者は残るため全体はPartial。過去の全体3548件は今回の新APIを含む実行ではない。
