@@ -220,14 +220,16 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>Submits a validated main view for this frame and retains its value for recovery.</summary>
-    public void SetView(in RenderView View){
+    public void SetView(in RenderView View)=>this.SetViewSource(RenderViewSource.Fixed(View));
+    /// <summary>Resolves and submits physical view input while retaining its value for resize/recovery.</summary>
+    public void SetViewSource(in RenderViewSource Source){
+        var View=Source.Resolve(this.Width,this.Height);
         this.Backend.SetView(View);
-        this.PendingFrame.RecordView(View);
+        this.PendingFrame.RecordViewSource(Source);
     }
 
     public void SetCamera(in RenderCamera Camera,float AspectRatioOverride=0f){
-        this.Backend.SetCamera(Camera,AspectRatioOverride);
-        this.PendingFrame.RecordCamera(Camera,AspectRatioOverride);
+        this.SetViewSource(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromCameraSource(Camera,AspectRatioOverride));
     }
 
     /// <summary>
@@ -235,14 +237,12 @@ public sealed class RenderServer:IDisposable {
     /// must supply physical projection parameters through the overload below.
     /// </summary>
     public void SetViewProjection(in Matrix4x4 ViewProjection){
-        this.Backend.SetViewProjection(ViewProjection);
-        this.PendingFrame.RecordViewProjection(ViewProjection,Vector3.Zero);
+        this.SetViewProjection(ViewProjection,Vector3.Zero);
     }
 
     public void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
-        this.Backend.SetViewProjection(ViewProjection,CameraPosition);
-        this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition);
+        this.SetView(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromOrthographic(ViewProjection,CameraPosition));
     }
 
     /// <summary>
@@ -251,8 +251,7 @@ public sealed class RenderServer:IDisposable {
     /// </summary>
     public void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
-        this.Backend.SetViewProjection(ViewProjection,CameraPosition,Radial);
-        this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition,Radial);
+        this.SetViewSource(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromPerspectiveSource(ViewProjection,CameraPosition,Radial));
     }
 
     public void SetDirectionalLight(in DirectionalLightSubmission Value){
@@ -417,7 +416,7 @@ public sealed class RenderServer:IDisposable {
         try {
             StageRenderer Renderer=this.Backend;
             if(this.PendingFrame.IsEmpty&&!this.CompletedFrame.IsEmpty){
-                this.CompletedFrame.Replay(Renderer);
+                this.CompletedFrame.Replay(Renderer,this.Width,this.Height);
             }
             Renderer.RenderFrame(CaptureForVerification);
             _=this.ObserveCompletedFence(Renderer);
@@ -478,7 +477,7 @@ public sealed class RenderServer:IDisposable {
                 !this.PendingFrame.IsEmpty?this.PendingFrame:this.CompletedFrame;
             bool CompletesPendingFrame=!this.PendingFrame.IsEmpty;
             if(!RecoveryFrame.IsEmpty){
-                RecoveryFrame.Replay(Replacement);
+                RecoveryFrame.Replay(Replacement,this.Width,this.Height);
                 Replacement.RenderFrame(CaptureForVerification);
             }
             this.Lifecycle.CompleteRecovery(

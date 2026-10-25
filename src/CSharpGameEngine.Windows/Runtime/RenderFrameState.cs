@@ -2,7 +2,6 @@ using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
-using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
@@ -35,13 +34,7 @@ internal sealed class RenderFrameState {
     private readonly List<EmissiveCommand>EmissiveLights=[];
     private readonly List<LightCommandIndex>LightOrder=[];
     private readonly Dictionary<int,Vector3>WorldGridAnchors=[];
-    private RenderView ResolvedView;
-    private bool HasResolvedView;
-    private RenderCamera Camera;
-    private Matrix4x4 ViewProjection;
-    private Vector3 ViewProjectionCameraPosition;
-    private RadialViewParameters?ViewProjectionRadial;
-    private float CameraAspectRatioOverride;
+    private RenderViewSource ViewSource;
     private Vector3 AmbientLight;
     private FogParams Fog;
     private EnvironmentLightingSettings Environment;
@@ -51,8 +44,6 @@ internal sealed class RenderFrameState {
     private bool HasCameraAltitude;
     private bool HasRenderOriginAltitude;
     private RenderPresentationMode PresentationMode;
-    private bool HasCamera;
-    private bool HasViewProjection;
     private bool HasAmbientLight;
     private bool HasFog;
     private bool HasPresentationMode;
@@ -99,7 +90,7 @@ internal sealed class RenderFrameState {
     }
 
     public bool IsEmpty=>
-        !this.HasResolvedView&&!this.HasCamera&&!this.HasViewProjection&&!this.HasAmbientLight&&!this.HasFog
+        !this.ViewSource.HasValue&&!this.HasAmbientLight&&!this.HasFog
         &&!this.HasEnvironment&&!this.HasCameraAltitude&&!this.HasRenderOriginAltitude
         &&this.WorldGridAnchors.Count==0
         &&!this.HasPresentationMode
@@ -110,30 +101,9 @@ internal sealed class RenderFrameState {
         &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0&&this.TouchedVisibilityIndices.Count==0&&this.TouchedEmissiveIndices.Count==0
         &&this.TouchedSkinMeshes.Count==0;
 
-    public void RecordView(in RenderView View){
-        if(!View.IsValid){ throw new ArgumentException("A recorded view must be validated.",nameof(View)); }
-        this.ResolvedView=View;
-        this.HasResolvedView=true;
-        this.HasCamera=false;
-        this.HasViewProjection=false;
-    }
-
-    public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
-        this.HasResolvedView=false;
-        this.Camera=Camera;
-        this.CameraAspectRatioOverride=AspectRatioOverride;
-        this.HasCamera=true;
-        this.HasViewProjection=false;
-    }
-
-    public void RecordViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,RadialViewParameters?Radial=null){
-        this.HasResolvedView=false;
-        this.ViewProjection=ViewProjection;
-        this.ViewProjectionCameraPosition=CameraPosition;
-        this.ViewProjectionRadial=Radial;
-        this.HasViewProjection=true;
-        this.HasCamera=false;
+    public void RecordViewSource(in RenderViewSource Source){
+        if(!Source.HasValue){ throw new ArgumentException("A recorded view source must be initialized.",nameof(Source)); }
+        this.ViewSource=Source;
     }
 
     public void RecordSetDirectional(in DirectionalLightSubmission Value){
@@ -324,19 +294,9 @@ internal sealed class RenderFrameState {
     internal bool TryGetWorldGridAnchor(int MaterialIndex,out Vector3 Anchor)=>
         this.WorldGridAnchors.TryGetValue(MaterialIndex,out Anchor);
 
-    public void Replay(StageRenderer Renderer){
+    public void Replay(StageRenderer Renderer,int Width,int Height){
         ArgumentNullException.ThrowIfNull(Renderer);
-        if(this.HasResolvedView){
-            Renderer.SetView(this.ResolvedView);
-        } else if(this.HasViewProjection&&this.ViewProjectionRadial is { }Radial){
-            Renderer.SetViewProjection(
-                this.ViewProjection,this.ViewProjectionCameraPosition,Radial);
-        } else if(this.HasViewProjection){
-            Renderer.SetViewProjection(
-                this.ViewProjection,this.ViewProjectionCameraPosition);
-        } else if(this.HasCamera){
-            Renderer.SetCamera(this.Camera,this.CameraAspectRatioOverride);
-        }
+        if(this.ViewSource.HasValue){ Renderer.SetView(this.ViewSource.Resolve(Width,Height)); }
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
         if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
@@ -394,9 +354,7 @@ internal sealed class RenderFrameState {
     public void Reset(){
         this.TouchedSkinMeshes.Clear();
         this.SkinPaletteLengths.Clear();
-        this.HasResolvedView=false;
-        this.HasCamera=false;
-        this.HasViewProjection=false;
+        this.ViewSource=default;
         this.HasAmbientLight=false;
         this.HasFog=false;
         this.HasEnvironment=false;

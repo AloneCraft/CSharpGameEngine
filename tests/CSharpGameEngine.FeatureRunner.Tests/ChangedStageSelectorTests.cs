@@ -8,6 +8,7 @@ public sealed class ChangedStageSelectorTests {
     [InlineData("src/CSharpGameEngine.Rendering/View/RenderCamera.cs","rendering.radial-depth")]
     [InlineData("src/CSharpGameEngine.Rendering/Pipeline/StageGpuLayouts.cs","rendering.radial-depth")]
     [InlineData("src/CSharpGameEngine.Rendering/RenderView.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Rendering/RenderViewSource.cs","rendering.radial-depth")]
     [InlineData("src/CSharpGameEngine.Rendering/View/RenderViewPolicy.cs","rendering.radial-depth")]
     [InlineData("src/CSharpGameEngine.Runtime.Windows/Camera.cs","rendering.radial-depth")]
     [InlineData("src/CSharpGameEngine.Runtime.Windows/PrimitiveRoster.cs","rendering.baseline")]

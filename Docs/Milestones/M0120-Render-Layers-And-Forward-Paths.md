@@ -120,3 +120,16 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - 新設の実InfoQueue試験は5重要度の文字列/識別/件数とPoll再実行の重複なしを確認。最初の試験は投入APIのS_FALSEを0必須と仮定して失敗し、HRESULTのFAILED判定へ修正。次はINFOが保存されない試験条件を観測し、試験専用キューへ空の保存/取得フィルターをpush/popして全重要度を実到達で検証した。製品フィルターは変更していない。[HRESULT](https://learn.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com)、[空の保存フィルター](https://learn.microsoft.com/en-us/windows/win32/api/d3d12sdklayers/nf-d3d12sdklayers-id3d12infoqueue-pushemptystoragefilter)の公式契約に沿う。失敗ログdiagnostic-boundary-first.log/diagnostic-queue-observed.log、成功diagnostic-queue-unfiltered.log。
 - 最終のNative18件(新設6件、実削除/復旧、型付きビュー、固定7画像、ホットリロード)、層7件、FeatureRunner247件成功。変更選択試験がBackend入力の登録漏れを検出し、実際の複数行宣言へ追加して同じ試験が成功した。証拠はdiagnostic-boundary-final.log、diagnostic-layers.log、diagnostic-catalog-final.logと各memory.json。最大RAM41%、閾値停止なし。
 - SDK0.1.33、ABI stage-v14とStage成果物SHA E485F055...B6A5は同じ。全22プロジェクト3570件の直前実行はSDK0.1.32までを対象とし、今回の診断変更を含む全体再実行とは扱わない。Server/フレーム計画/4パスのPartialは継続する。
+
+## ビュー再生成メタデータの移行単位
+- Server/FrameStateをL4へ移す前に、保存されるRenderCameraと旧行列分岐をL4 RenderViewSourceへ置換する。Sourceはコントローラーを含まない値で、固定View、物理ビュー行列+透視パラメーター、明示透視VP+物理パラメーターを保持する。解決時にRenderViewの検証を通し、不正値はNativeへの提出前に拒否する。
+- 自動aspectのカメラは現在の面サイズで同じ透視行列を再生成し、正のoverrideは固定する。明示VPはXY/Wを保ち、従来どおり現在の面aspectで深度/補助行列を再生成する。型付きSetViewは固定値のまま。Sourceは値コピーなので、後のカメラ操作で完了スナップショットを変えず、解決時のヒープ割り当ても追加しない。
+- 投影/補助投影の既存式をL4の解決処理へ移す。L5 RenderViewPolicyがSourceの種類を選び、Native互換APIも同じ処理を使う。FrameStateにはL5 View型を保存しない。リサイズ/両スロット/実デバイス再生成を4提出経路で確認し、固定7画像を維持する。
+
+### ビュー再生成入力の実行結果(2026-10-26)
+- L4 RenderViewSourceは固定View、物理ビュー行列+透視パラメーター、明示VP+透視パラメーターを値として保持する。HasValueは初期化済みの意味で、入力の有限性/投影契約はResolveでRenderViewへ解決した時に検証する。Server.SetViewSourceはNative提出が成功してからSourceを記録する。FrameStateからRenderCameraと旧行列保存分岐を除いた。
+- L5 RenderViewPolicyがSourceを選び、投影/補助投影の同じ式はL4 Resolveへ移した。カメラは現在の面aspectか正のoverrideを使い、明示VPは物理XY/Wを保持して深度メタデータだけを現在の面aspectで解決する。型付きSetViewは固定値。旧互換APIとNative初期化のL5 Policy呼出しは後続の分離まで残る。
+- Rendering178件(新設9件)成功。元のカメラの行列/位置/露出を独立に計算し、far1000/1e18、自動/固定aspect、3サイズで一致。カメラ変数の後の変更は保存値へ波及しない。3種類のSourceのウォーム後384回の解決で管理ヒープ割り当て0を確認した。
+- GPU30件成功。新設4条件は自動aspect/固定aspect/明示透視VP/固定Viewで、80×48から48×80へのリサイズ、両フレームスロット、明示解決した期待画像との一致、Source再提出、デバイス第2世代への復旧とエラー0を確認。既存の7画像、TypedLightFrame、フレーム状態、ホットリロード/プレビューも維持する。層7件/FeatureRunner248件も成功。
+- 最初のCPU実行はaspect不正時の例外型がArgumentExceptionから派生型へ変わったことを既存テストが検出。既存APIの型/文面を維持して解消し、製品を不正入力に通す変更はしていない。失敗view-source-cpu.log、成功view-source-cpu-allocation.log/view-source-gpu.log/view-source-layers.log/view-source-catalog.logと各memory.json。最大RAM43%、閾値停止なし。
+- SDK0.1.34、stage-v14/Stage成果物SHA E485F055...B6A5は不変。最新の全体3570件はSDK0.1.32までの結果で、今回の対象検証と区別する。Server本体/実行ポート/パス計画とForward系のPartialは継続する。
