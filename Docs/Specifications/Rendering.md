@@ -57,6 +57,8 @@ The native backend still calls those CPU planners and owns frame order/state. Ca
 
 The typed main-view boundary rejects default values, non-finite matrices/position/exposure, mismatched projection/depth encodings and auxiliary matrices that change the projection rays. A supplied camera basis must be orthonormal and agree with those rays and scales. Main observer encoding is not accepted here; observer insets retain RenderCameraPreview's dedicated contract. SetView submits the current frame; a no-command frame replays the completed snapshot, preserving existing RenderServer behavior.
 
+CPU readback values `PixelColor` and `PixelReadbackResult` belong to L4 Rendering (SDK 0.1.31). `RenderPixelFormat` carries Unknown, Rgba8Unorm or Bgra8Unorm without a provider enum. RowPitch remains bytes per row, including GPU padding, and Pixels retains the copied byte order. The current native RGBA8 backbuffer maps to Rgba8Unorm at readback return; allocation/copy formats are private backend details. Generated runtime preview capture also returns this portable payload.
+
 ## Target public contracts
 
 The Render Graph, material/texture, instance-visibility, and quality-profile subset of the following target contract is implemented in `CSharpGameEngine.Rendering`. The common Render Server owns the compatibility `RenderQualityPlan` for its configured dimensions and exposes it to protocol-v4 tooling strictly as a `DeclaredPlan`; this is not evidence that the later D3D12 graph executor or per-pass timing exists.

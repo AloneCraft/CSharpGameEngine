@@ -1,5 +1,4 @@
-using TerraFX.Interop.DirectX;
-using static TerraFX.Interop.DirectX.DXGI_FORMAT;
+using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
@@ -80,7 +79,7 @@ public static class TrianglePixelVerifier {
         var B3=Readback.Pixels[Offset+3];
 
         return Readback.Format switch {
-            DXGI_FORMAT_B8G8R8A8_UNORM=>new PixelColor(B2,B1,B0,B3),
+            RenderPixelFormat.Bgra8Unorm=>new PixelColor(B2,B1,B0,B3),
             _ =>new PixelColor(B0,B1,B2,B3),
         };
     }

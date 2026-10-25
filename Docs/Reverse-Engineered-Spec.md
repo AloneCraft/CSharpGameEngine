@@ -547,3 +547,8 @@
 - Observed: L4 owns immutable validated projection/depth/reconstruction/pose/exposure/basis data; L5 chooses perspective-logarithmic or orthographic-linear construction. An invertible auxiliary projection preserves physical XY/W rays even for extreme far. Invalid input is rejected before native state writes. Three GPU cases match legacy submission and retain the image through no-command frames and actual device-generation replacement. Legacy metadata is still retained for resize reconstruction.
 - Visibility query rename: the former frustum/hysteresis-only RenderView is RenderVisibilityView; its structure and selection/batching algorithm are unchanged. Only three existing consumer files needed migration.
 - Verified: portable169, GPU31 and final6, layer7, FeatureRunner242; seven hashes and Stage binary remain unchanged. Evidence paths and memory maxima are in M0120. The old full-suite3548 measurement predates this value extraction.
+
+## RE-M0120 — Portable CPU frame readback (SDK0.1.31)
+- Evidence: Rendering/PixelColor.cs, PixelReadbackResult.cs, RenderPixelFormat.cs; native readback initializer, Model/Triangle verifiers, RuntimeAutomation and GeneratedEditorPreviewBridgeEmitter.
+- Observed: the CPU payload has no graphics-provider type. Native RGBA8 allocation/copy remains unchanged and maps to the engine format at return. Padded rows, RGBA/BGRA verifier decoding and the generated runtime capture signature remain connected.
+- Verified: Windows43, generator338, layer7, editor15 pass; seven images and Stage binary are unchanged, peak physical RAM45%. Evidence is recorded in M0120. Overall server/frame/path extraction remains Partial.

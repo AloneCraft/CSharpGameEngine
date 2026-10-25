@@ -1,5 +1,4 @@
-using TerraFX.Interop.DirectX;
-using static TerraFX.Interop.DirectX.DXGI_FORMAT;
+using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
@@ -7,7 +6,7 @@ public class ModelPixelVerifierTests {
     private static readonly PixelColor Background=new(5,5,20,255);
     private static readonly PixelColor Foreground=new(200,150,100,255);
 
-    private static PixelReadbackResult BuildFrame(int Width,int Height,uint ExtraRowPitchPadding,DXGI_FORMAT Format,Func<int,int,bool>IsForeground){
+    private static PixelReadbackResult BuildFrame(int Width,int Height,uint ExtraRowPitchPadding,RenderPixelFormat Format,Func<int,int,bool>IsForeground){
         var BytesPerPixel=4;
         var RowPitch=(uint)(Width*BytesPerPixel)+ExtraRowPitchPadding;
         var Pixels=new byte[RowPitch*Height];
@@ -17,7 +16,7 @@ public class ModelPixelVerifierTests {
                 var Color=IsForeground(X,Y)?Foreground:Background;
                 var Offset=((long)Y*RowPitch)+(X*BytesPerPixel);
 
-                if(Format==DXGI_FORMAT_B8G8R8A8_UNORM){
+                if(Format==RenderPixelFormat.Bgra8Unorm){
                     Pixels[Offset]=Color.B;
                     Pixels[Offset+1]=Color.G;
                     Pixels[Offset+2]=Color.R;
@@ -43,7 +42,7 @@ public class ModelPixelVerifierTests {
     [Fact]
     public void Verify_PlausibleCoverage_Succeeds(){
         // A centered disc covering roughly 20% of a 100x100 frame.
-        var Frame=BuildFrame(100,100,ExtraRowPitchPadding:0,DXGI_FORMAT_R8G8B8A8_UNORM,
+        var Frame=BuildFrame(100,100,ExtraRowPitchPadding:0,RenderPixelFormat.Rgba8Unorm,
                              (X,Y)=>(X-50)*(X-50)+(Y-50)*(Y-50)<32*32);
 
         var Result=ModelPixelVerifier.Verify(Frame,Background);
@@ -55,7 +54,7 @@ public class ModelPixelVerifierTests {
 
     [Fact]
     public void Verify_EntirelyBackground_Fails(){
-        var Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,DXGI_FORMAT_R8G8B8A8_UNORM,(_,_)=>false);
+        var Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,RenderPixelFormat.Rgba8Unorm,(_,_)=>false);
 
         var Result=ModelPixelVerifier.Verify(Frame,Background);
 
@@ -66,7 +65,7 @@ public class ModelPixelVerifierTests {
 
     [Fact]
     public void Verify_EntirelyForeground_Fails(){
-        var Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,DXGI_FORMAT_R8G8B8A8_UNORM,(_,_)=>true);
+        var Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,RenderPixelFormat.Rgba8Unorm,(_,_)=>true);
 
         var Result=ModelPixelVerifier.Verify(Frame,Background);
 
@@ -77,7 +76,7 @@ public class ModelPixelVerifierTests {
 
     [Fact]
     public void Verify_HandlesRowPitchPaddingLargerThanTightWidth(){
-        var Frame=BuildFrame(17,13,ExtraRowPitchPadding:231,DXGI_FORMAT_R8G8B8A8_UNORM,
+        var Frame=BuildFrame(17,13,ExtraRowPitchPadding:231,RenderPixelFormat.Rgba8Unorm,
                              (X,Y)=>Math.Abs(X-8)<4&&Math.Abs(Y-6)<4);
 
         var Result=ModelPixelVerifier.Verify(Frame,Background);
@@ -87,7 +86,7 @@ public class ModelPixelVerifierTests {
 
     [Fact]
     public void Verify_BgraFormat_ReadsChannelsInCorrectOrder(){
-        var Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,DXGI_FORMAT_B8G8R8A8_UNORM,
+        var Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,RenderPixelFormat.Bgra8Unorm,
                              (X,Y)=>Math.Abs(X-32)<10&&Math.Abs(Y-32)<10);
 
         var Result=ModelPixelVerifier.Verify(Frame,Background);
@@ -102,7 +101,7 @@ public class ModelPixelVerifierTests {
             Width=0,
             Height=0,
             RowPitch=0,
-            Format=DXGI_FORMAT_R8G8B8A8_UNORM,
+            Format=RenderPixelFormat.Rgba8Unorm,
             Pixels=[],
         };
 

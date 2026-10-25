@@ -4502,7 +4502,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             Width= this.Width,
             Height= this.Height,
             RowPitch= this.ReadbackFootprint.Footprint.RowPitch,
-            Format=BackBufferFormat,
+            Format=RenderPixelFormat.Rgba8Unorm,
             Pixels=Data,
         };
     }

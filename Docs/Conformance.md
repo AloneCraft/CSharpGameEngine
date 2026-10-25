@@ -4222,3 +4222,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Result: Partial。移動済み単位はMatches。L0からCPU Plannerを呼ぶ経路、RenderViewPolicy、フレーム順序/状態、RenderServerと実行ポートの分離、URP方式のForward/Forward+およびDeferred系は未完。全スケール物理と物理契約分離も後続M0122/M0123。詳細な失敗/修正/測定履歴はM0120へ集約する。
 
 - M0120ビュー提出追記(SDK0.1.30): L4 RenderView/L5 RenderViewPolicyとNative/Server SetView/型付き復旧を接続。Rendering169、GPU31と最終6、層7、FeatureRunner242件成功。3投影経路で旧APIと復旧画像が一致、固定7画像/Stageバイナリ不変、最大RAM41%。旧可視性型はRenderVisibilityViewへ用途を明示した。旧APIのリサイズ用メタデータ、NativeのPolicy互換呼出し、Server/フレーム計画の所有者は残るため全体はPartial。過去の全体3548件は今回の新APIを含む実行ではない。
+
+- M0120読み戻し追記(SDK0.1.31): L4 PixelColor/PixelReadbackResultとRenderPixelFormatを接続。Nativeの確保/コピーは同じで、公開FormatのDXGI依存を除去。Windows43、生成器338、層7、エディター15件が成功、固定7画像/Stageバイナリ不変、最大RAM45%。この移動単位はMatches、Server/フレーム計画/4パス全体はPartial。

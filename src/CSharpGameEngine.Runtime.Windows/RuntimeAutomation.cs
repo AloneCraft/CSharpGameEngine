@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO.Compression;
@@ -6,7 +7,6 @@ using System.Text.Json;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Simulation;
-using TerraFX.Interop.DirectX;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
 /// 環境変数で有効化する実行時の自動検証フック。描画が始まってから指定フレーム数を表示した後に、
@@ -251,7 +251,7 @@ public sealed class RuntimeAutomation {
     }
     /// <summary>R8G8B8A8のReadback結果を、行ピッチを除いた不透明RGBのPNGとして保存する。</summary>
     public static void WritePng(PixelReadbackResult Frame,string Path){
-        if(Frame.Format!=DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM){
+        if(Frame.Format!=RenderPixelFormat.Rgba8Unorm){
             throw new NotSupportedException($"Automation capture supports R8G8B8A8_UNORM only, but was {Frame.Format}.");
         }
         var Directory=System.IO.Path.GetDirectoryName(Path);

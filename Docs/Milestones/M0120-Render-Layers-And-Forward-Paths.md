@@ -87,3 +87,12 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - Rendering全169件成功(新しいビュー契約12件と既存の可視性/LODを含む)。GPU回帰31件成功(型付きビュー3条件、固定7画像、主深度、サムネイル、復旧等)。基底整合を加えた最終GPU6件、層7件、FeatureRunner242件も成功。最大RAM41%、閾値停止なし。固定7画像とStage成果物SHA E485F055...B6A5は不変。
 - 証拠は `.artifacts/M0120/view-validated-cpu.log`、`view-contract-gpu.log`、`view-validated-gpu.log`、`view-layer-tests.log`、`view-catalog-tests.log` とmemory.json。最初のビルドは既存の可視性RenderViewとの名前衝突で失敗し、用途をRenderVisibilityViewとして明示して修正した。SDK0.1.30、ABIはstage-v14。
 - 全体のPartialは継続する。NativeにはまだL5 Policyを呼ぶ互換入口と初期化があり、実行器だけになっていない。次の移行でこの入口、旧リサイズ再生成、RenderServer/フレーム計画を分離する。今回の対象検証を過去の全ソリューション3548件と混同しない。
+
+## 読み戻し値の移行単位
+- ADR-0087の公開値境界としてPixelColor/PixelReadbackResultをL4 Renderingへ移す。FormatはエンジンのRenderPixelFormat(Unknown/Rgba8Unorm/Bgra8Unorm)とし、現在のNativeバックバッファはRGBA8として提出する。GPU割当/コピーのDXGI定数はL0に維持する。
+- Model/Triangleの画素検証器は計画どおりL0に残すが、形式判定はポータブルな値を使う。生成プレビューブリッジの戻り型も正本を変更する。行ピッチとピクセル配列/チャンネル順は変更しない。既存のBGRA/パディング検証と実描画、生成/エディタブリッジを確認する。
+
+### 読み戻し値の実行結果(2026-10-26)
+- PixelColor/PixelReadbackResultはRenderingへ移り、FormatはRenderPixelFormat。現在のRGBA8バックバッファだけをReadbackの返却時に対応付ける。GPUリソース確保/コピーのDXGI形式は同じ。Model/Triangle検証器のBGRA判定と行ピッチ、RuntimeAutomationのPNG、生成プレビューブリッジも接続した。SDK0.1.31、stage-v14。
+- GPU/読み戻し/型付きビュー復旧/ランタイムブリッジ43件、生成器全338件、層7件、エディター消費側15件が成功。固定7画像の期待値とStage成果物SHA E485F055...B6A5は不変。最大RAM45%、閾値停止なし。証拠はpixel-port-final.log、pixel-generator.log、pixel-layers.log、pixel-editor.logと各memory.json。
+- 最初のpixel-port-regression.logは未移行のNative初期化子のDXGI_FORMAT代入でコンパイル失敗。返却値だけをスコープ限定で修正し、成功ログは別保存した。この対象検証は過去の全体3548件を置き換えるものではない。Server/フレーム計画/4パスのPartialは継続する。
