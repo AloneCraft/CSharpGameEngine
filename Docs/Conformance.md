@@ -4230,3 +4230,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - M0120診断境界追記(SDK0.1.33): 公開メッセージをL4 RenderDeviceMessageへ移し、Native例外がポータブル失敗/回復理由を運ぶ。ServerからHRESULT分岐とNative例外型を除去。Native18、層7、FeatureRunner247件成功、最大RAM41%、固定7画像/Stageバイナリ不変。この移動単位はMatches。上記全体3570件はSDK0.1.32までの測定であり、診断変更後の対象検証と区別する。Server/計画/4パス全体はPartial。
 
 - M0120ビュー再生成入力追記(SDK0.1.34): FrameStateからL5カメラ型を除き、L4 RenderViewSourceを値保持/Resolveして復旧する。Rendering178、GPU30、層7、FeatureRunner248件成功。自動/固定aspect、固定VP/View、80×48→48×80リサイズと実第2世代復旧を確認。通常の解決は管理割り当て0、最大RAM43%、固定7画像/Stageバイナリ不変。この移行単位はMatches、Server/実行ポート/計画/4パス全体はPartial。
+
+- M0120提出ポート追記(SDK0.1.35): IStageRenderBackend/IStageShaderArtifactを通常提出・再生・閉包同期へ接続。FrameStateはNative型/光源kindを参照せず、正規バイトは成果物ファイルと完全一致。共通クリア値/余力/Debug能力も接続した。Debug Native41、層7、FeatureRunner249、Release境界/バイト4件成功、最大RAM42%、7画像/Stageバイナリ不変。中間ポートとしてMatches、Server本体/作成口/実パス計画と4パスはPartial。

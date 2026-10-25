@@ -25,6 +25,15 @@ public sealed unsafe class RenderBackendDiagnosticsTests {
         Assert.Equal(Portable.Operation,Failure.Api);
         Assert.Equal($"NativeCall failed while testing classification. HRESULT=0x{Code:X8} ({Code}) [subject]",Failure.Message);
     }
+    [Fact]
+    public void BackendArtifactPayloadKeepsTheCanonicalArtifactBytes(){
+        var Path=System.IO.Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
+        Assert.True(ShaderArtifactRuntime.TryLoad(Path,CSharpGameEngine.ShaderArtifacts.ShaderArtifactTargetKind.Stage,out var Package,out var Error),Error);
+        var Native=Assert.IsType<ShaderArtifactPackage>(Package);
+        IStageShaderArtifact Portable=Native;
+        Assert.Equal(File.ReadAllBytes(Path),Portable.Serialized.ToArray());
+        Assert.Same(Portable,Native);
+    }
     [WindowsOnlyFact]
     public void InfoQueueMessagesKeepSeverityIdentityAndCountsWithoutDuplicates(){
         using var Device=GraphicsDevice.Create(new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true });

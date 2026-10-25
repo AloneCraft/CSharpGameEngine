@@ -1,12 +1,19 @@
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Backend;
 using CSharpGameEngine.ShaderArtifacts;
 namespace CSharpGameEngine.Graphics.D3D12;
-internal sealed class ShaderArtifactPackage {
+internal sealed class ShaderArtifactPackage:IStageShaderArtifact {
     private readonly IReadOnlyDictionary<string,ShaderArtifactEntry>Entries;
     public ShaderArtifactPackage(ShaderArtifactDocument Document) {
         this.Document=Document;
         this.Entries=Document.Entries.ToDictionary(Entry=>Entry.LogicalName,StringComparer.Ordinal);
+        using var Stream=new MemoryStream();
+        ShaderArtifactSerializer.Write(Stream,Document,out var Error);
+        if(!string.IsNullOrEmpty(Error)){ throw new InvalidDataException(Error); }
+        this.Serialized=Stream.ToArray();
     }
     public ShaderArtifactDocument Document { get; }
+    public ReadOnlyMemory<byte>Serialized { get; }
     public byte[]GetBytecode(string LogicalName) {
         if(!this.Entries.TryGetValue(LogicalName,out var Entry)) {
             throw new InvalidDataException($"Shader artifact entry '{LogicalName}' is missing.");
@@ -48,15 +55,7 @@ internal sealed class ShaderArtifactMonitor:IDisposable {
     private readonly FileSystemWatcher Watcher;
     private int ReloadPending;
 #endif
-    internal static bool IsEnabled {
-        get {
-#if DEBUG
-            return true;
-#else
-            return false;
-#endif
-        }
-    }
+    internal static bool IsEnabled=>StageRuntimeCapabilities.ShaderHotReloadEnabled;
     public ShaderArtifactMonitor(string ShaderArtifactPath) {
 #if DEBUG
         var FullPath=Path.GetFullPath(ShaderArtifactPath);

@@ -13,6 +13,7 @@ public sealed class ChangedStageSelectorTests {
     [InlineData("src/CSharpGameEngine.Runtime.Windows/Camera.cs","rendering.radial-depth")]
     [InlineData("src/CSharpGameEngine.Runtime.Windows/PrimitiveRoster.cs","rendering.baseline")]
     [InlineData("src/CSharpGameEngine.Rendering/StageMeshGeometry.cs","rendering.baseline")]
+    [InlineData("src/CSharpGameEngine.Rendering/StageRenderDefaults.cs","rendering.baseline")]
     [InlineData("src/CSharpGameEngine.Rendering/PixelReadbackResult.cs","rendering.baseline")]
     [InlineData("src/CSharpGameEngine.Rendering/Pipeline/PhysicalLighting.cs","rendering.environment-lighting")]
     [InlineData("src/CSharpGameEngine.Rendering/StageRenderInputs.cs","rendering.materials")]

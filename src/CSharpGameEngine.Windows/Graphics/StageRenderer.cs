@@ -146,8 +146,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
     // from HDR lighting and bloom.
-    private static readonly Vector4 ClearColorVector=new(0.23238164f,0.4095592f,1.2785315f,1.0f);
-    public static readonly PixelColor ClearColor=new(89,140,217,255);
+    private static readonly Vector4 ClearColorVector=StageRenderDefaults.HdrClearColor;
+    public static readonly PixelColor ClearColor=StageRenderDefaults.ClearColor;
 
     private static readonly Vector3 DefaultLightDirectionTowardLight=Vector3.Normalize(new Vector3(0.4f,0.7f,0.5f));
     private static readonly ShadowAtlasTile DirectionalShadowAtlasTile=
@@ -516,9 +516,9 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     public uint FramesRendered { get;private set;}
     public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Count;
     /// <summary>Objects <see cref="AddObject"/> can add beyond the ones the renderer was created with (M0105).</summary>
-    public const int DynamicObjectHeadroom=4096;
+    public const int DynamicObjectHeadroom=StageRenderLimits.DynamicObjectHeadroom;
     /// <summary>Materials <see cref="AddMaterial"/> can add beyond the ones the renderer was created with (M0105).</summary>
-    public const int DynamicMaterialHeadroom=256;
+    public const int DynamicMaterialHeadroom=StageRenderLimits.DynamicMaterialHeadroom;
     /// <summary>How many more materials <see cref="AddMaterial"/> accepts.</summary>
     public int FreeMaterialSlots=>this.MaterialCapacity-this.MaterialCount;
     /// <summary>How many objects are drawn now.</summary>

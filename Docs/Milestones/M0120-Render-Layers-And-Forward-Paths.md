@@ -133,3 +133,17 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - GPU30件成功。新設4条件は自動aspect/固定aspect/明示透視VP/固定Viewで、80×48から48×80へのリサイズ、両フレームスロット、明示解決した期待画像との一致、Source再提出、デバイス第2世代への復旧とエラー0を確認。既存の7画像、TypedLightFrame、フレーム状態、ホットリロード/プレビューも維持する。層7件/FeatureRunner248件も成功。
 - 最初のCPU実行はaspect不正時の例外型がArgumentExceptionから派生型へ変わったことを既存テストが検出。既存APIの型/文面を維持して解消し、製品を不正入力に通す変更はしていない。失敗view-source-cpu.log、成功view-source-cpu-allocation.log/view-source-gpu.log/view-source-layers.log/view-source-catalog.logと各memory.json。最大RAM43%、閾値停止なし。
 - SDK0.1.34、stage-v14/Stage成果物SHA E485F055...B6A5は不変。最新の全体3570件はSDK0.1.32までの結果で、今回の対象検証と区別する。Server本体/実行ポート/パス計画とForward系のPartialは継続する。
+
+## 実バックエンド提出ポートの移行単位
+- ADR-0087のServer移動に先立ち、L4 BackendにIStageRenderBackendとIStageShaderArtifactを置く。既存のServer/FrameStateの実提出と復旧スナップショット再生をこのポートへ接続する。FrameStateはNativeクラス/拡張メソッド/光源kindを参照しない。
+- Native ShaderArtifactPackageはL4の成果物インターフェースを実装し、所有する正規シリアライズバイトを渡す。ServerはNative内部型を使わずに同じバイト列で閉包を作る。生成時のNativeパッケージへの適合確認は、Server本体を移す次段階でNative factoryへ閉じ込める。
+- オブジェクト余力とクリア値/Debugホットリロード能力もL4の既定値へ揃える。Native側は同じ値と型付き提出アダプターを消費する。現在のRenderFrameの順序を実行する中間ポートであり、最終のStagePipelinePlan/StageFrameDataによる実行器が完成したとは扱わない。
+- 成果物バイト一致、実復旧/ロースター/光源/スロット/プレビューと7画像を確認する。Serverの物理配置とNative作成口はこの単位の後続。
+
+### 提出ポートの実行結果(2026-10-26)
+- Native StageRendererがIStageRenderBackendを実装し、Serverの通常提出/フレーム再生/フェンス観測/適用済み成果物の同期が実際にこのポートを通る。FrameStateからNative型と光源kindへの参照を除去した。型付き光源/発光/プレビューのNativeアダプターは同じ既存処理へ渡す。
+- IStageShaderArtifact.SerializedはNative packageが所有する正規バイト列。生成/読込時に一度だけ作り、閉包のBinaryWriterへそのまま書く。新設の外部ファイル比較でStage成果物そのものと完全一致し、同じpackageの識別も保持する。ServerにはNative packageへの復旧時の適合確認がまだ残り、これは次のNative factory移動対象。
+- StageRenderDefaults/StageRenderLimits/StageRuntimeCapabilitiesがクリア色/余力/Debugホットリロード能力の正本。Native定数とServerは同じ値を参照し、画素/容量/条件付きビルドの振る舞いを維持する。
+- DebugのNative41件(実ポート提出、動的物体、型付き光源、ViewSourceリサイズ/復旧、7画像、プレビュー、ホットリロード、情報キューと成果物バイト)成功。層7件、FeatureRunner249件成功。Releaseではコンパイラー/DXCのRuntime非混入、ホットリロード無効、成果物バイトの4件を別に確認し成功した。Release GPU描画の証拠とは扱わない。
+- 初回ビルドはNative内部の同名DirectionalLightSubmissionが公開型を隠すことと、内部getter2件の実装不足を検出。公開型を明示し、getterを明示実装して解消。失敗backend-port-first.log、成功backend-port-final.log/backend-port-layers.log/backend-port-catalog.log/backend-port-release.logとmemory.json。最大RAM42%、閾値停止なし。
+- SDK0.1.35、stage-v14/StageバイナリSHA E485F055...B6A5と固定7画像は不変。全体3570件はSDK0.1.32までの測定。これは動作する中間提出ポートの検証であり、Server本体/Native作成口の分離とStagePipelinePlanによるパス実行は未完、M0120全体はPartial。

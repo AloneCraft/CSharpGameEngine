@@ -4,7 +4,6 @@ using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
-using CSharpGameEngine.ShaderArtifacts;
 using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 namespace CSharpGameEngine.Runtime.Windows;
@@ -26,8 +25,8 @@ public sealed class RenderServer:IDisposable {
     private RenderFrameState PendingFrame;
     private RenderFrameState CompletedFrame;
     private RenderQualityPlan DeclaredQualityPlanValue;
-    private ShaderArtifactPackage AppliedShaderPackage;
-    private StageRenderer?Renderer;
+    private IStageShaderArtifact AppliedShaderPackage;
+    private IStageRenderBackend?Renderer;
     private ulong FenceBase;
     private ulong LastCompletedFence;
     private int Width;
@@ -37,7 +36,7 @@ public sealed class RenderServer:IDisposable {
         nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
         string ShaderArtifactPath,StageMeshCreateInfo[]Meshes,
         StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects,
-        StageRenderer Renderer,AssetArtifactReference[]ArtifactClosure){
+        IStageRenderBackend Renderer,AssetArtifactReference[]ArtifactClosure){
         this.Hwnd=Hwnd;
         this.Width=Width;
         this.Height=Height;
@@ -49,16 +48,16 @@ public sealed class RenderServer:IDisposable {
         this.Renderer=Renderer;
         this.AppliedShaderPackage=Renderer.LastKnownGoodShaderArtifact;
         this.Lifecycle=new RenderDeviceLifecycle(ArtifactClosure);
-        this.PendingFrame=new RenderFrameState(Objects.Length+StageRenderer.DynamicObjectHeadroom);
-        this.CompletedFrame=new RenderFrameState(Objects.Length+StageRenderer.DynamicObjectHeadroom);
+        this.PendingFrame=new RenderFrameState(Objects.Length+StageRenderLimits.DynamicObjectHeadroom);
+        this.CompletedFrame=new RenderFrameState(Objects.Length+StageRenderLimits.DynamicObjectHeadroom);
         this.DeclaredQualityPlanValue=RenderQualityPlan.Build(
             checked((uint)Width),checked((uint)Height),
             RenderQualityProfile.Compatibility);
     }
 
     public RenderDeviceSnapshot DeviceSnapshot=>this.Lifecycle.Snapshot;
-    public static PixelColor ClearColor=>StageRenderer.ClearColor;
-    public static bool ShaderHotReloadEnabled=>StageRenderer.ShaderHotReloadEnabled;
+    public static PixelColor ClearColor=>StageRenderDefaults.ClearColor;
+    public static bool ShaderHotReloadEnabled=>StageRuntimeCapabilities.ShaderHotReloadEnabled;
     public string AdapterDescription=>this.Backend.AdapterDescription;
     public bool IsWarp=>this.Backend.IsWarp;
     public bool DebugLayerEnabled=>this.Backend.DebugLayerEnabled;
@@ -116,10 +115,10 @@ public sealed class RenderServer:IDisposable {
     /// <summary>Whether the last frame lit the scene with the Lumen-like GI (M0111) rather than the probe volume and the sky light.</summary>
     public bool LumenActive=>this.Backend.LumenActiveLastFrame;
 
-    internal void RemoveDeviceForTesting()=>this.Backend.RemoveDeviceForTesting();
-    internal float[]ReadDepthForTesting()=>this.Backend.ReadDepthForTesting();
+    internal void RemoveDeviceForTesting()=>((StageRenderer)this.Backend).RemoveDeviceForTesting();
+    internal float[]ReadDepthForTesting()=>((StageRenderer)this.Backend).ReadDepthForTesting();
 
-    private StageRenderer Backend{
+    private IStageRenderBackend Backend{
         get{
             this.Lifecycle.EnsureCanSubmit();
             return this.Renderer
@@ -197,7 +196,7 @@ public sealed class RenderServer:IDisposable {
 
     /// <summary>
     /// Starts drawing one more object (M0105) and returns its index, or -1 when the renderer's headroom
-    /// (<see cref="StageRenderer.DynamicObjectHeadroom"/>) is used up. A removed object's index is handed out again. The object
+    /// (<see cref="StageRenderLimits.DynamicObjectHeadroom"/>) is used up. A removed object's index is handed out again. The object
     /// stays at the origin until <see cref="SetObjectTransform"/> places it.
     /// </summary>
     public int AddObject(int MeshIndex,int MaterialIndex){
@@ -387,7 +386,7 @@ public sealed class RenderServer:IDisposable {
             this.DeviceSnapshot.State==RenderDeviceState.Disposed,this);
         if(Width<=0||Height<=0){
             if(this.DeviceSnapshot.State==RenderDeviceState.Ready){
-                StageRenderer Renderer=this.Backend;
+                IStageRenderBackend Renderer=this.Backend;
                 Renderer.Resize(Width,Height);
                 this.Lifecycle.Suspend(this.ObserveCompletedFence(Renderer));
             }
@@ -414,7 +413,7 @@ public sealed class RenderServer:IDisposable {
 
     public void RenderFrame(bool CaptureForVerification=false){
         try {
-            StageRenderer Renderer=this.Backend;
+            IStageRenderBackend Renderer=this.Backend;
             if(this.PendingFrame.IsEmpty&&!this.CompletedFrame.IsEmpty){
                 this.CompletedFrame.Replay(Renderer,this.Width,this.Height);
             }
@@ -452,10 +451,10 @@ public sealed class RenderServer:IDisposable {
 
     private void Recover(
         RenderRecoveryReason Reason,bool CaptureForVerification=false){
-        StageRenderer Prior=this.Renderer
+        IStageRenderBackend Prior=this.Renderer
             ??throw new InvalidOperationException("No render-device generation is available.");
         this.SynchronizeArtifactClosure(Prior);
-        ShaderArtifactPackage ShaderPackage=Prior.LastKnownGoodShaderArtifact;
+        IStageShaderArtifact ShaderPackage=Prior.LastKnownGoodShaderArtifact;
         ulong CompletedFence=this.ObserveCompletedFence(Prior);
         this.Lifecycle.BeginRecovery(Reason,CompletedFence);
         this.Renderer=null;
@@ -464,7 +463,7 @@ public sealed class RenderServer:IDisposable {
             Prior.Dispose();
             StageRenderer Replacement=StageRenderer.CreateFromLastKnownGood(
                 this.Hwnd,this.Width,this.Height,this.DeviceOptions,
-                this.ShaderArtifactPath,ShaderPackage,
+                this.ShaderArtifactPath,ShaderPackage as ShaderArtifactPackage??throw new InvalidOperationException("The native factory cannot rebuild another provider's shader artifact."),
                 this.Meshes,this.Materials,this.Objects);
             this.Renderer=Replacement;
             if(this.ScalabilityValue is{ }Scalability){
@@ -495,7 +494,7 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
-    private ulong ObserveCompletedFence(StageRenderer Renderer){
+    private ulong ObserveCompletedFence(IStageRenderBackend Renderer){
         ulong NativeCompletedFence=Renderer.CompletedFence;
         if(NativeCompletedFence==ulong.MaxValue){
             return this.LastCompletedFence;
@@ -525,8 +524,8 @@ public sealed class RenderServer:IDisposable {
         this.Lifecycle.ReplaceRequiredArtifacts(Closure);
     }
 
-    private void SynchronizeArtifactClosure(StageRenderer Renderer){
-        ShaderArtifactPackage Package=Renderer.LastKnownGoodShaderArtifact;
+    private void SynchronizeArtifactClosure(IStageRenderBackend Renderer){
+        IStageShaderArtifact Package=Renderer.LastKnownGoodShaderArtifact;
         if(ReferenceEquals(Package,this.AppliedShaderPackage)){ return; }
         AssetArtifactReference[]Closure=[.. this.Lifecycle.RequiredArtifacts];
         Closure[0]=CreateShaderArtifact(Package);
@@ -555,7 +554,7 @@ public sealed class RenderServer:IDisposable {
     }
 
     private static AssetArtifactReference[]BuildArtifactClosure(
-        ShaderArtifactPackage ShaderPackage,
+        IStageShaderArtifact ShaderPackage,
         IReadOnlyList<StageMeshCreateInfo>Meshes,
         IReadOnlyList<StageMaterialCreateInfo>Materials,
         IReadOnlyList<StageObjectCreateInfo>Objects){
@@ -585,16 +584,8 @@ public sealed class RenderServer:IDisposable {
             }
         });
 
-    private static AssetArtifactReference CreateShaderArtifact(
-        ShaderArtifactPackage ShaderPackage)=>CreateArtifact("shader/stage",Writer=>{
-            using MemoryStream Serialized=new();
-            ShaderArtifactSerializer.Write(
-                Serialized,ShaderPackage.Document,out string Error);
-            if(!string.IsNullOrEmpty(Error)){
-                throw new InvalidDataException(Error);
-            }
-            Writer.Write(Serialized.ToArray());
-        });
+    private static AssetArtifactReference CreateShaderArtifact(IStageShaderArtifact ShaderPackage)=>
+        CreateArtifact("shader/stage",Writer=>Writer.Write(ShaderPackage.Serialized.Span));
 
     private static AssetArtifactReference CreateArtifact(
         string Name,Action<BinaryWriter>Write){

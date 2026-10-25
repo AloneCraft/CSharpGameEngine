@@ -1,6 +1,6 @@
 using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
-using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Rendering.Backend;
 using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Runtime.Windows;
@@ -207,7 +207,7 @@ internal sealed class RenderFrameState {
         this.TouchedVisibilityIndices.Add(ObjectIndex);
     }
 
-    /// <summary>ADR-0078/M0109: the factor on one object's material emission (<see cref="StageRenderer.SetObjectEmissiveScale"/>).</summary>
+    /// <summary>ADR-0078/M0109: the factor on one object's material emission (<see cref="IStageRenderBackend.SetObjectEmissiveScale"/>).</summary>
     public void RecordObjectEmissiveScale(int ObjectIndex,float Scale){
         ArgumentOutOfRangeException.ThrowIfNegative(ObjectIndex);
         this.EnsureObjectCapacity(ObjectIndex+1);
@@ -258,7 +258,7 @@ internal sealed class RenderFrameState {
 
     /// <summary>
     /// Carries the renderer's persistent settings forward from the previous completed frame when this
-    /// frame did not set them. StageRenderer keeps ambient, fog, environment, camera and render origin
+    /// frame did not set them. The backend keeps ambient, fog, environment, camera and render origin
     /// altitudes, world grid anchors and presentation mode until they change, so a recovery replay must
     /// restore a value set once (the Scene view sets its ambient only when the preview is created) and
     /// not only the last frame's.
@@ -294,7 +294,7 @@ internal sealed class RenderFrameState {
     internal bool TryGetWorldGridAnchor(int MaterialIndex,out Vector3 Anchor)=>
         this.WorldGridAnchors.TryGetValue(MaterialIndex,out Anchor);
 
-    public void Replay(StageRenderer Renderer,int Width,int Height){
+    public void Replay(IStageRenderBackend Renderer,int Width,int Height){
         ArgumentNullException.ThrowIfNull(Renderer);
         if(this.ViewSource.HasValue){ Renderer.SetView(this.ViewSource.Resolve(Width,Height)); }
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
@@ -397,10 +397,8 @@ internal sealed class RenderFrameState {
     private enum LightCommandKind:byte {SetDirectional,Directional,Point,Spot,Rect,Emissive}
     private readonly record struct LightCommandIndex(LightCommandKind Kind,int Index);
     private readonly record struct EmissiveCommand(EmissivePatch Patch,float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        public void Replay(StageRenderer Renderer){
-            Renderer.AddAreaLight(this.Patch.Center,this.Patch.Forward,this.Patch.Right,this.Patch.Up,
-                this.Patch.LinearRgb,this.Patch.LuminanceNits,this.Patch.WidthMeters,this.Patch.HeightMeters,
-                this.RangeMeters,this.ShadowPriority,this.CastsShadows,this.ShadowBiasMeters,PhysicalLightKind.Emissive);
+        public void Replay(IStageRenderBackend Renderer){
+            Renderer.SubmitEmissivePatch(this.Patch,this.RangeMeters,this.CastsShadows,this.ShadowPriority,this.ShadowBiasMeters);
         }
     }
 }
