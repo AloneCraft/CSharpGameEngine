@@ -885,9 +885,9 @@ internal sealed class SceneHwndHost:HwndHost {
                 ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
                 Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
             };
-            // M0100: the thumbnail shows the scene camera's depth mapping (radial unless it chose standard).
+            // The thumbnail preserves the scene camera's physical clip range.
             RenderPreviewSceneBuilder.DescribePose(PassCamera,Camera.View,Camera.Projection,Camera.FovYRadians,
-                Camera.RadialDepth,Camera.RadialTransitionMeters);
+                Camera.RadialTransitionMeters,Camera.NearZ,Camera.FarZ);
             Passes.Add(new RenderPreviewCameraPass {
                 X=(int)FloatMath.Round(Rect.X),Y=(int)FloatMath.Round(Rect.Y),
                 Width=Math.Max(1,(int)FloatMath.Round(Rect.Width)),

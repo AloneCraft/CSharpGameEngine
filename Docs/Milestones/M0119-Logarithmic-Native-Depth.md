@@ -128,3 +128,10 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - RTX 4060 Ti で 4e-6〜5e18 m の 6 スケールを確認。中央の最大誤差は順に 2.56,2.51,1.32,1.21,1.66,1.21 ulp(すべて 4 ulp 以内)。端の誤差はラスタ位置の影響を含み、最大 41.51 ulp を別に記録した。
 - 1280×720・24 層の主パス、ウォームアップ 5・30 標本。近距離の中央値は手前順 0.198 ms/奥順 3.785 ms、遠距離は 0.133/2.516 ms。p95 は順に 0.198,4.003,0.135,2.721 ms。全フレームの予算とは区別する。
 - 精度/性能の 2 件に合格。証拠は native-camera-hardware-evidence.log、precision/radial-precision-hardware.json、performance/native-depth-performance-hardware.json、native-camera-hardware-manifest.json。旧 M0099/M0100 の記録は上書きしていない。
+
+### 段階 4(b3): プレビュー通信をプロトコル9へ移行(2026-10-26)
+- DTOの深度選択型・欄を削除。透視はFOV・near/far・正のTを必須とし、ホストは必ず対数パラメーターを提出する。正射影は線形。旧版8はペイロード前に拒否。
+- far=1e18の再現で、修正前は期待0.02203に対し0.93333を書いた。透視1件失敗・正射影1件合格を保存後、修正後は主画面・サムネイルとも独立した参照値の4ulp以内。シーンカメラの元のクリップ範囲を渡し、巨大farを丸めた行列から再計算しない。
+- 契約12件、Windowsプレビュー/ホスト/実行ビュー28件、VSIXの姿勢・ポリシー・生成・実際のパッケージ済みホスト/実行ビュー20件合格。ビルドは警告0・エラー0、最大メモリ63%。VSIXの配置は無効、VS/Unity起動なし。
+- 証拠は `.artifacts/M0119/preview-native-before.log`、`preview-native-after.log`、`preview-native-contract-test.log`、`preview-native-vsix-test.log`、対応するbuildログとmemory.json。パッケージTestAssetsは現在のビルドで再生成したVSIXを読み、プロトコル9で実際に描画した。
+- 低レベル行列/サムネイル選択とModel/Triangleは後続。F-L5-038の全体適合は引き続きPartial。

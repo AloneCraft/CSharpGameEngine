@@ -7,10 +7,11 @@ namespace CSharpGameEngine.Contracts;
 /// </summary>
 public static class RenderPreviewHostProtocol {
     /// <summary>
-    /// 8 (M0100): a camera carries its depth mapping and radial transition length. 7 (M0097): the runtime diagnostics
+    /// 9 (M0119): perspective depth is native logarithmic; the selector is removed and projection metadata is required.
+    /// 8 (M0100): introduced the transition length and depth selector. 7 (M0097): the runtime diagnostics
     /// snapshot command and its payload were removed.
     /// </summary>
-    public const int CurrentVersion=8;
+    public const int CurrentVersion=9;
     public const int MaximumDimension=16_384;
     public const int MaximumMeshCount=4_096;
     public const int MaximumMaterialCount=4_096;
@@ -313,17 +314,16 @@ public static class RenderPreviewHostProtocol {
             ||Camera.FovYRadians<0f||Camera.NearZ<0f||Camera.FarZ<Camera.NearZ){
             return $"{Name} projection must be finite, non-negative and ordered.";
         }
-        if(!Enum.IsDefined(typeof(RenderPreviewDepthMapping),Camera.DepthMapping)){
-            return $"{Name} depth mapping is unknown.";
-        }
-        if(Camera.DepthMapping==RenderPreviewDepthMapping.Radial){
-            float[]Values=Camera.ViewProjection.Values;
-            bool Perspective=Values[3]!=0f||Values[7]!=0f||Values[11]!=0f;
-            if(!Perspective||!(Camera.FovYRadians>0f&&Camera.FovYRadians<Pi)
+        var Values=Camera.ViewProjection.Values;
+        var Perspective=Values[3]!=0f||Values[7]!=0f||Values[11]!=0f;
+        if(Perspective){
+            if(!(Camera.FovYRadians>0f&&Camera.FovYRadians<Pi)
                 ||!(Camera.NearZ>0f)||!(Camera.FarZ>Camera.NearZ)
                 ||!IsFinite(Camera.RadialTransitionMeters)||!(Camera.RadialTransitionMeters>0f)){
-                return $"{Name} radial depth needs a perspective view-projection, a field of view in (0, pi), 0 < NearZ < FarZ and a positive transition length.";
+                return $"{Name} logarithmic depth needs a field of view in (0, pi), 0 < NearZ < FarZ and a positive transition length.";
             }
+        } else if(Values[15]==0f){
+            return $"{Name} orthographic projection needs a nonzero homogeneous scale.";
         }
         return null;
     }
@@ -370,12 +370,6 @@ public enum RenderPreviewHostResultState:byte {
     SessionNotFound,
     StaleSequence,
     HostCrashed,
-}
-
-/// <summary>How a preview camera turns distance into depth (M0099/M0100). Radial needs a perspective camera.</summary>
-public enum RenderPreviewDepthMapping:byte {
-    Standard,
-    Radial,
 }
 
 public enum RenderPreviewPresentationMode:byte {
@@ -508,8 +502,6 @@ public sealed class RenderPreviewCamera {
     public float FovYRadians { get;set; }
     public float NearZ { get;set; }
     public float FarZ { get;set; }
-    /// <summary>Protocol 8: an isolated preview draws a radial camera with radial depth from its matrix and the projection above.</summary>
-    public RenderPreviewDepthMapping DepthMapping { get;set; }
     /// <summary>Transition length T of the radial depth curve in metres.</summary>
     public float RadialTransitionMeters { get;set; }=1f;
 }

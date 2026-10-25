@@ -254,7 +254,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
     private static void SetView(RenderServer Server,RenderPreviewCamera Camera){
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
         Vector3 Position=ToVector3(Camera.Position);
-        if(Camera.DepthMapping==RenderPreviewDepthMapping.Radial){
+        if(RadialDepthProjection.IsPerspective(ViewProjection)){
             Server.SetViewProjection(ViewProjection,Position,
                 new RadialViewParameters(Camera.FovYRadians,Camera.NearZ,Camera.FarZ,Camera.RadialTransitionMeters));
         } else {
@@ -267,7 +267,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         RenderPreviewCamera Camera=Source.Camera!;
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
         Vector3 Position=ToVector3(Camera.Position);
-        if(Camera.DepthMapping!=RenderPreviewDepthMapping.Radial){
+        if(!RadialDepthProjection.IsPerspective(ViewProjection)){
             return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex);
         }
         if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)

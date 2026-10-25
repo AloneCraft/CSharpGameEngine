@@ -4253,3 +4253,10 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - RTX 4060 Ti の精度/性能 2 件合格。中央誤差(4e-6,0.5,50,2e4,1e15,5e18 m)は 2.56/2.51/1.32/1.21/1.66/1.21 ulp。端の最大値は 41.51 ulp(微小距離、ラスタ位置の誤差を含む)で別記録し、中央の予算と混同しない。
 - 主パス1280×720・24層: 近距離の手前順/奥順の中央値 0.198/3.785 ms、遠距離 0.133/2.516 ms。全フレームの性能予算の検証とは別。証拠は `.artifacts/M0119/native-camera-*.log`、`precision/radial-precision-hardware.json`、`performance/native-depth-performance-hardware.json`、`native-camera-hardware-manifest.json`。この区間の最大メモリ使用率 66%。過去の WARP の間欠的デバイス削除の原因を解消したという意味ではない。
 - 旧行列・プレビュー通信、Model/Triangle と層分離・4 パスは残る。全体は Partial。
+
+## 2026-10-26 — M0119 プレビュー通信のネイティブ深度
+- DTOの深度選択型・欄を削除。透視はFOV・near/far・正のTを必須とし、ホストは必ず対数パラメーターを提出する。正射影は線形。旧版8はペイロード前に拒否。
+- far=1e18の再現で、修正前は期待0.02203に対し0.93333を書いた。透視1件失敗・正射影1件合格を保存後、修正後は主画面・サムネイルとも独立した参照値の4ulp以内。シーンカメラの元のクリップ範囲を渡し、巨大farを丸めた行列から再計算しない。
+- 契約12件、Windowsプレビュー/ホスト/実行ビュー28件、VSIXの姿勢・ポリシー・生成・実際のパッケージ済みホスト/実行ビュー20件合格。ビルドは警告0・エラー0、最大メモリ63%。VSIXの配置は無効、VS/Unity起動なし。
+- 証拠は `.artifacts/M0119/preview-native-before.log`、`preview-native-after.log`、`preview-native-contract-test.log`、`preview-native-vsix-test.log`、対応するbuildログとmemory.json。パッケージTestAssetsは現在のビルドで再生成したVSIXを読み、プロトコル9で実際に描画した。
+- 低レベル行列/サムネイル選択とModel/Triangleは後続。F-L5-038の全体適合は引き続きPartial。

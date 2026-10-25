@@ -38,22 +38,21 @@ public sealed class RenderPreviewCameraPoseTests {
     }
 
     [Fact]
-    public void Pose_ChoosesRadialDepthForAPerspectiveViewAndStandardForAnOrthographicOne(){
-        // M0100: radial depth is the default of every perspective view; radial depth needs a perspective.
+    public void Pose_PreservesCurveAndExplicitHugeFarPlane(){
         var View=Matrix4x4.CreateLookAt(Vector3.Zero,Vector3.UnitZ,Vector3.UnitY);
-        var Perspective=new RenderPreviewCamera();
-        RenderPreviewSceneBuilder.DescribePose(Perspective,View,Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,120f),0.8f);
-        Assert.Equal(RenderPreviewDepthMapping.Radial,Perspective.DepthMapping);
-        Assert.Equal(1f,Perspective.RadialTransitionMeters);
-        var Orthographic=new RenderPreviewCamera();
-        RenderPreviewSceneBuilder.DescribePose(Orthographic,View,Matrix4x4.CreateOrthographic(10f,6f,0.5f,80f),0.8f);
-        Assert.Equal(RenderPreviewDepthMapping.Standard,Orthographic.DepthMapping);
-        var Chosen=new RenderPreviewCamera();
-        RenderPreviewSceneBuilder.DescribePose(Chosen,View,Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,120f),0.8f,RadialDepth:false);
-        Assert.Equal(RenderPreviewDepthMapping.Standard,Chosen.DepthMapping);
-        var Transition=new RenderPreviewCamera();
-        RenderPreviewSceneBuilder.DescribePose(Transition,View,Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,120f),0.8f,RadialTransitionMeters:3f);
-        Assert.Equal(3f,Transition.RadialTransitionMeters);
+        var Projection=Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,1e18f);
+        Assert.Equal(-1f,Projection.M33);
+        var Camera=new RenderPreviewCamera { ViewProjection=RenderPreviewSceneBuilder.Matrix(View*Projection) };
+        RenderPreviewSceneBuilder.DescribePose(Camera,View,Projection,0.8f,RadialTransitionMeters:3f,NearZ:0.25f,FarZ:1e18f);
+        Assert.Equal(0.25f,Camera.NearZ);
+        Assert.Equal(1e18f,Camera.FarZ);
+        Assert.Equal(3f,Camera.RadialTransitionMeters);
+        var Request=new RenderPreviewHostRequest {
+            RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,
+            Command=RenderPreviewHostCommand.UpdateFrame,
+            Frame=new RenderPreviewFrame { Camera=Camera },
+        };
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
     }
 
     private static void AssertNear(Vector3 Expected,Vector3 Actual)=>
