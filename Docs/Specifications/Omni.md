@@ -13,7 +13,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 | Mapping | Where | Vertex | Depth |
 |---|---|---|---|
-| `Radial` (default) | every scene Camera unless it chooses Standard (game and editor runtime view); every perspective view of the editor's isolated preview (Scene view of an unbuilt game, Asset Preview) and the thumbnails of radial scene cameras; every render camera made by `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users) | `VSMain`: physical X/Y/W and conservative raster Z | native `PSMain` writes `SV_DepthGreaterEqual = min(G(r) · InverseMaximumG, 0.99999994)` |
+| `Radial` (default) | every scene Camera unless it chooses Standard (game and editor runtime view); every perspective view of the editor's isolated preview (Scene view of an unbuilt game, Asset Preview) and the thumbnails of radial scene cameras; every render camera made by `new Camera { ... }` or `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users) | `VSMain`: physical X/Y/W and conservative raster Z | native `PSMain` writes `SV_DepthGreaterEqual = min(G(r) · InverseMaximumG, 0.99999994)` |
 | `Standard` | an explicit choice: a scene Camera with `DepthMapping = Standard` and its thumbnail, an orthographic view (radial depth needs a perspective), and the pinned standard frames | standard `VSMain` | hyperbolic depth of the perspective projection |
 | `RadialObserver` | an observer inset (camera preview pass) | `ObserverVSMain` maps positions around the centre camera | logarithmic distance in the mapped geometry, through the same pixel entry |
 

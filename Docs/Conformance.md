@@ -4231,3 +4231,9 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 深度パケットの生成・検証は L4 の RenderViewDepth。無効な対数投影、透視行列に対する線形パケット、縮退した正射影を拒否し、観察ビューとプローブは主ビューの接線を継承しない。
 - GPU 回帰 43 件、L4 接続後 17 件、数値・境界 32 件、シェーダー 15 件合格。7 つの対数 SHA は AO 更新後の値を保持。ビルドは警告 0・エラー 0。この区間の最大メモリ使用率は 69%。証拠: `.artifacts/M0119/native-abi-*.log`、`native-contract-gpu.log`、`view-depth-final-tests.log` と memory.json。
 - 標準深度の選択 API、プロトコル 9、Model/Triangle の削除、レンダラーの層分離と 4 描画パスは未完了。全体は Partial。
+
+
+## 2026-10-26 — M0119 直接生成カメラの既定値
+- 修正前: new Camera の直接生成は Standard/T=0。型の期待値と 50 m・far 1e18 m の GPU 対数オラクルの 2 件が失敗した。
+- 修正後: パラメーター無しコンストラクターで対数方式と T=1 m を初期化する。カメラ操作・深度オラクル・7 画像・プレビューの回帰 33 件合格。ビルドは警告 0・エラー 0。最大メモリ使用率 66%。証拠は `.artifacts/M0119/camera-default-before.log`、`camera-default-after.log`、`camera-default-build.log` と memory.json。
+- 明示的な旧選択 API の削除は継続中。全体は Partial。

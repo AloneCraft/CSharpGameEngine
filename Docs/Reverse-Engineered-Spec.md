@@ -522,3 +522,8 @@
 - Evidence: `edits/native_depth_2026_10_25.py`、`assets/Shaders/Stage.cgeshadergraph`、`StagePresentationShaderSource.cs`、`StageRenderer.WriteDepthMapping`、`StageRenderer.Lumen`、`ShaderGraphCompilerTests`。
 - Observed: VSMain/PSMain が物理空間で色を計算して深度を直接出す。旧 Radial の VS/PS 名は削除し、14 エントリーへ統合。L4 RenderViewDepth が透視・観察ビュー・撮影の深度パケットを作り、L0 はアップロードする。補間の構造体は 1 つ。カード撮影は線形、観察ビューは写像後の距離を使う。ABI 統合の GPU 回帰 43 件、その後の L4 接続回帰 17 件に合格。AO 更新後の 7 つの対数 SHA は変更なし。
 - Result: 主エントリーへの統合は ADR-0084 と一致。移行全体は Partial。
+
+## RE-M0119-DirectCameraDefault — 直接生成の対数既定値
+- Evidence: Graphics/Camera.cs のパラメーター無しコンストラクター、CameraTests.ObjectInitializer_DefaultsToLogarithmicDepthWithoutAFactory、LogarithmicDepthOracleTests.ObjectInitializer_WritesLogarithmicDepthWithoutAFactory。
+- Observed: ファクトリーだけでなく new Camera の直接生成でも対数方式と T=1 m が入る。修正前は Standard/T=0 となり、50 m・far 1e18 m の GPU 深度が対数オラクルから約 1.21e8 ulp 外れた。修正後は中央 4 ulp 以内。工場の既存画素は変えない。
+- Result: M0119 の既定値の要求と一致。旧選択 API の削除は継続中。

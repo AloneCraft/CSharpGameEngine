@@ -39,7 +39,7 @@ public struct Camera {
     /// <summary>HDR radiance to display exposure in EV100. Zero preserves the legacy exposure.</summary>
     public float ExposureEv100;
     /// <summary>
-    /// How the view turns distance into depth (M0099, ADR-0076). The <c>Create*</c> factories choose Radial, the engine's
+    /// How the view turns distance into depth (M0099, ADR-0076). The constructor and <c>Create*</c> factories choose Radial, the engine's
     /// default; Standard keeps the projection's depth and is an explicit choice.
     /// </summary>
     public RenderDepthMapping DepthMapping;
@@ -50,6 +50,12 @@ public struct Camera {
     /// <summary>Pitch clamp range applied by <see cref="ApplyMouseDelta"/>. Set by the <c>Create*</c> factories; <see cref="MinPitchRadians"/>/<see cref="MaxPitchRadians"/> remain the orbit-camera default values callers may still compare against directly.</summary>
     public float PitchClampMinRadians;
     public float PitchClampMaxRadians;
+    /// <summary>Direct object initializers use the same logarithmic depth defaults as the camera factories.</summary>
+    public Camera(){
+        this.DepthMapping=RenderDepthMapping.Radial;
+        this.RadialTransitionMeters=RadialDepthCurve.DefaultTransitionMeters;
+    }
+
 
     /// <summary>
     /// <c>[SceneFactory]</c>: Scene DSLから呼べる(ADR-0040)。Scene DSLは任意のメソッド呼び出しを

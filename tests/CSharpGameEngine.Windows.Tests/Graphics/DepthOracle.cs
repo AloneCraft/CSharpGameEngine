@@ -17,7 +17,7 @@ internal static class DepthOracle {
     public const int Height=90;
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     /// <summary>The largest error, in ulps of the expected depth, in the middle 17 × 11 pixels and in a 6–10 pixel border.</summary>
-    public static DepthMeasurement Measure(bool Hardware,float Distance,float Near,float Far){
+    public static DepthMeasurement Measure(bool Hardware,float Distance,float Near,float Far,bool UseFactory=true){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Depth Oracle",Width=Width,Height=Height,Visible=false });
         var Plane=ProceduralMeshFactory.CreatePlane(Width:1f,Depth:1f);
         var Tangents=new Vector4[Plane.Positions.Length];
@@ -27,7 +27,7 @@ internal static class DepthOracle {
             [new StageMeshCreateInfo { Positions=Plane.Positions,Normals=Plane.Normals,Tangents=Tangents,Uvs=new Vector2[Plane.Positions.Length],Indices=Plane.Indices }],
             [new StageMaterialCreateInfo { BaseColorFactor=new Vector4(1f,0f,0f,1f),RoughnessFactor=1f,MetallicFactor=0f }],
             [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
-        var View=Camera.CreateFirstPerson(Vector3.Zero);
+        var View=UseFactory?Camera.CreateFirstPerson(Vector3.Zero):new Camera { Target=Vector3.Zero,Up=Vector3.UnitY,FovYRadians=MathF.PI/4f };
         View.NearZ=Near;
         View.FarZ=Far;
         for(var Frame=0;Frame<2;Frame++){

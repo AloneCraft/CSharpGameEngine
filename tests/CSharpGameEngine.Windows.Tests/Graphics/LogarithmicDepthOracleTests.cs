@@ -10,6 +10,13 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class LogarithmicDepthOracleTests {
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void ObjectInitializer_WritesLogarithmicDepthWithoutAFactory(){
+        var Measurement=DepthOracle.Measure(Hardware:false,Distance:50f,Near:0.1f,Far:1e18f,UseFactory:false);
+        Assert.True(Measurement.Centre<=4d,$"Object initializer depth error: {Measurement.Centre:R} ulps.");
+        Assert.True(Measurement.MaximumDepth<1f);
+    }
     [WindowsOnlyTheory]
     [Trait("Category","GPU")]
     [InlineData(4e-6f,1e-7f,5e-5f)]

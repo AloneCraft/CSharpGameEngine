@@ -107,3 +107,7 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 証拠: `.artifacts/M0119/native-abi-regression.log`、`native-contract-gpu.log`、`native-abi-shader-final.log`、`view-depth-final-tests.log`、`native-abi-final-build.log`、各 memory.json。初回の Rendering.Tests は未復元で --no-restore が無出力で終了したため実行結果として数えず、復元後に実際の件数 32 を確認した。
 
 - ステージカタログ整合性・共通描画接続の 2 件、表示用接尾辞の超越関数禁止 1 件も合格。
+
+### 直接生成カメラの既定値(2026-10-26)
+- new Camera の直接生成が Standard/T=0 となる抜けを、型と GPU の 2 つの試験で再現した。GPU は 50 m・far 1e18 m の対数オラクルから約 1.21e8 ulp 外れた。コンストラクターで対数方式と T=1 m を初期化した後は中央 4 ulp 以内。
+- カメラ・深度・ゴールデン・プレビュー 33 件合格。ビルドは警告 0・エラー 0。最大メモリ使用率 66%。証拠は `.artifacts/M0119/camera-default-before.log`、`camera-default-after.log`、`camera-default-build.log` と memory.json。
