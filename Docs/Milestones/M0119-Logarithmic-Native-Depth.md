@@ -1,6 +1,6 @@
 # M0119 — 対数ネイティブの描画(標準深度の削除)
 - 日付: 2026-10-25
-- 状態: 実装中(段階 1 完了 2026-10-25)
+- 状態: 実装中(段階 1・2 と、段階 3 の Depth サブグラフ分離・Lumen 表面前パスまで。標準経路の削除は未実施)
 - 決定: [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md)(ADR-0076 を一部 Superseded)
 - ABI: `stage-v14`、プレビューのプロトコル 9
 
@@ -49,5 +49,21 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 
 ### 段階 2: 予行(2026-10-25、WARP)
 - 標準を明示していただけの試験(`LumenGpuIntegrationTests`、`GlobalDistanceFieldGpuIntegrationTests`、`MaterialMipmapGpuIntegrationTests` の `DepthMapping=Standard`)を `Radial` に替えて、`VolumetricCloudGpuIntegrationTests`(標準と対数の両方を既に持つ)と一緒に流した: 25 件中 23 件が合格。
-- 失敗した 2 件(`Reflections_MirrorFloorShowsTheBoxWhereGeometryPutsItAndRoughnessBlursIt`、`Lumen_ConvergesWithinTwentyFramesAndIsDeterministic`)は、どちらも読み戻しの `Map` で `0x887A0005`(デバイス削除)。M0111 に記録済みの WARP の一過性の事象で、対数深度とは無関係(測定値は出ていた: 鏡の IoU 0.84・重心の誤差 1.19 px、収束は 20 フレームで 5 % 以内)。この 2 件を単独で再実行して両方合格した。
+- 失敗した 2 件(`Reflections_MirrorFloorShowsTheBoxWhereGeometryPutsItAndRoughnessBlursIt`、`Lumen_ConvergesWithinTwentyFramesAndIsDeterministic`)は、どちらも読み戻しの `Map` で `0x887A0005`(デバイス削除)。M0111 にも WARP のデバイス削除が記録されているが、原因は未確定。対数深度との因果関係は、この再実行だけでは断定しない(測定値は出ていた: 鏡の IoU 0.84・重心の誤差 1.19 px、収束は 20 フレームで 5 % 以内)。この 2 件を単独で再実行して両方合格した。
 - 3 ファイルは対数のまま固定した。標準と比べる試験は段階 4 で扱う。
+
+### 段階 3: Lumen 表面前パスの対数深度(2026-10-25)
+- 再開時、共有ブランチのモデル取り込みが ADR-0080/M0114 を使用していたため、この描画・物理の計画を ADR-0084〜0087、M0119〜M0123 へ変更した。全スケール物理の予約 ID は F-L5-047。既存の描画用ブランチ名はそのまま。
+- `LumenSurfaceDepthTests` で、同じ大きさの箱 2 個を距離 2e7 m・少し奥に置いた。far は 1e18 m。主画面は箱の手前の面(画面中心付近で約 1e7 m)を描くが、表面前パスは約 3.00e7 m の奥の面を返した。描画順を反転しても同じ誤遮蔽になった。画素中心の解析光線で期待距離を計算した試験は、修正前が近距離 1 件合格・遠距離 2 件失敗、修正後は 3 件合格。
+- 表面前パスが、カメラの深度方式に対応するラスタ深度を使い、共有の `EncodeRadialDepth` による `SV_Depth` を書くようにした。対数側は既存の `RadialVSMain` とクリップ距離を使い、通常の深度クリップを無効にする。物理距離は二乗の桁あふれを避ける `RadialSafeLength` で計算する。法線・粗さと物理空間の照明は同じ。専用 DSV は継続使用。
+- `stage-v14` の移行を開始した。現在は 18 エントリーと既存の CB 配置を保ち、Lumen 表面出力に `SV_Depth` が追加された段階。計画にある 14 エントリーと FrameCB の最終配置は、主シェーダーの一本化・標準経路の削除に合わせて切り替える。
+- シェーダーの再コンパイルで、Depth サブグラフのビット式 `bits & mask | bias` に括弧警告が出ることを確認した。仮数のマスクと指数の結合を別の文に分け、式の意味を保って警告を解消した(`edits/depth_mask_2026_10_25.py`)。ソースのハッシュは 7C3F7E07... → 153236B9...。画素のハッシュは付け替えていない。
+- 証拠: `.artifacts/M0119/surface-before-corrected.log`、`surface-after.log`、`surface-clean-build.log`、各 `*.memory.json`。Windows.Tests ビルドは警告 0・エラー 0。
+- メモリ使用率は自分のビルド・テストの起動前と実行中に測定し、88% に達したら自分の子プロセス群だけを停止する監視を使用。ここまでの最大値は 71%。他のアプリや別作業の処理は停止していない。
+- 先に再現できた Lumen の誤遮蔽を独立して修正した。次は段階 3(a) の Stage 本体・物理距離ターゲットと、3(b) の DDGI、3(d) の AO。
+
+- 回帰確認: Windows.Tests の Lumen・新しい表面深度・標準/対数ゴールデン・深度オラクル・ホットリロードは 23 件中 22 件合格。`Lumen_FollowsAMovingBox` のみ GPU 読み戻しの Map でデバイス削除(0x887A0005)。使用率の最大値は 71% なので、90% を超える物理メモリ負荷は観測していない。読み戻しの失敗に `GetDeviceRemovedReason` とデバッグ層のエラーを加え、標準・対数の 2 条件で単独比較すると両方合格。発生条件と原因は未確定のため、全回帰が一括で成功したとは扱わない。元の失敗は `surface-regression.log`、比較は `moving-control.log` に保存。
+- シェーダーの検査: `ShaderGraphCompilerTests` は 15 件合格(全 Stage エントリーの DXC コンパイル、構文グラフのソースハッシュ、外部依存、超越関数の禁止)。
+- 明示的なステージのフィルターに `LumenSurfaceDepthTests` を追加。先行段階で追加した `StageGoldenFrameTests` と `LogarithmicDepthOracleTests` も `rendering.radial-depth` に登録した。
+
+- FeatureRunner のカタログ整合性・描画ステージ接続は 2 件合格。今回の全コマンドで測定した物理メモリ使用率の最大値は 72%。

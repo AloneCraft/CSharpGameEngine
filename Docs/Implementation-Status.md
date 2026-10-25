@@ -4859,18 +4859,19 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L4-019 — Lumen 相当の動的 GI と反射(サーフェスキャッシュ、最終収集、反射)
 
-- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v13`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
+- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v14`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
 - Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
 - Status: Implemented(実機の GPU は未確認。Epic 段は WARP で不安定)
 - Verification: TestVerified + RuntimeVerified(WARP)
-- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v13`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v14`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
 - Stage: `rendering.environment-lighting`(Lumen の試験を足した)
 - Depends on: F-L4-018、F-L4-014
 - Implementation evidence:
   - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`
-  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v13`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
+  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v14`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 18、ハッシュの更新)、`StandardModeGoldenFrameTests`(7 つのハッシュは不変)
+- Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。`stage-v14` の移行開始(18 エントリー・既存 CB 配置、標準経路は現在も残る)。
 - Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
 - Conformance: MatchesWithDocumentedExtension(M0111 の文書の UE との差)
 - Next action: 実機の GPU での見た目・フレーム時間と Epic の確認。WARP の Epic での装置の削除の原因(パスごとのシェーダーへの分割を試す)。

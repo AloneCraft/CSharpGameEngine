@@ -1036,6 +1036,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
         var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
         var OldLumenSurfacePipelineState=this.LumenSurfacePipelineState;
+        var OldLumenSurfaceRadialPipelineState=this.LumenSurfaceRadialPipelineState;
         var OldLumenCardPipelineState=this.LumenCardPipelineState;
         try{
             this.ApplyShaderArtifact(Package);
@@ -1057,6 +1058,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
             if(OldScreenPipelineState!=null){ _=OldScreenPipelineState->Release(); }
             if(OldLumenSurfacePipelineState!=null){ _=OldLumenSurfacePipelineState->Release(); }
+            if(OldLumenSurfaceRadialPipelineState!=null){ _=OldLumenSurfaceRadialPipelineState->Release(); }
             if(OldLumenCardPipelineState!=null){ _=OldLumenCardPipelineState->Release(); }
             this.CommitShaderArtifact(Package);
         }catch(Exception Exception){
@@ -1079,6 +1081,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
             this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
             if(this.LumenSurfacePipelineState!=OldLumenSurfacePipelineState){ _=this.LumenSurfacePipelineState->Release();this.LumenSurfacePipelineState=OldLumenSurfacePipelineState; }
+            if(this.LumenSurfaceRadialPipelineState!=OldLumenSurfaceRadialPipelineState){
+                if(this.LumenSurfaceRadialPipelineState!=null){ _=this.LumenSurfaceRadialPipelineState->Release(); }
+                this.LumenSurfaceRadialPipelineState=OldLumenSurfaceRadialPipelineState;
+            }
             if(this.LumenCardPipelineState!=OldLumenCardPipelineState){ _=this.LumenCardPipelineState->Release();this.LumenCardPipelineState=OldLumenCardPipelineState; }
             if(this.ScreenPipelineState!=OldScreenPipelineState){ _=this.ScreenPipelineState->Release();this.ScreenPipelineState=OldScreenPipelineState; }
             if(this.RadialPipelineStates!=OldRadialPipelineStates){
@@ -1351,10 +1357,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12PipelineState*OverlayTriangles=null;
         ID3D12PipelineState*OverlayLines=null;
         ID3D12PipelineState*LumenSurface=null;
+        ID3D12PipelineState*LumenSurfaceRadial=null;
         ID3D12PipelineState*LumenCard=null;
         try {
             LumenSurface=this.CreateMeshPipelineState(this.LumenSurfacePixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
                 RenderTargets:[StageLumen.SurfaceNormalFormat,StageLumen.SurfaceDistanceFormat]);
+            LumenSurfaceRadial=this.CreateMeshPipelineState(this.LumenSurfacePixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
+                this.RadialVertexShaderBytecode,DepthClip:false,RenderTargets:[StageLumen.SurfaceNormalFormat,StageLumen.SurfaceDistanceFormat]);
             LumenCard=this.CreateMeshPipelineState(this.LumenCardPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
                 RenderTargets:[StageLumen.CardAlbedoFormat,StageLumen.CardNormalFormat,StageLumen.CardEmissiveFormat]);
             Standard=this.CreateMeshPipelineState(
@@ -1379,9 +1388,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.OverlayTrianglePipelineState=OverlayTriangles;
             this.OverlayLinePipelineState=OverlayLines;
             this.LumenSurfacePipelineState=LumenSurface;
+            this.LumenSurfaceRadialPipelineState=LumenSurfaceRadial;
             this.LumenCardPipelineState=LumenCard;
         } catch {
             if(LumenSurface!=null){ _=LumenSurface->Release(); }
+            if(LumenSurfaceRadial!=null){ _=LumenSurfaceRadial->Release(); }
             if(LumenCard!=null){ _=LumenCard->Release(); }
             if(Standard!=null){ _=Standard->Release(); }
             if(Presentation!=null){ _=Presentation->Release(); }
@@ -4652,6 +4663,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalDistanceField=null;
         this.Lumen?.Dispose();
         this.Lumen=null;
+        if(this.LumenSurfaceRadialPipelineState!=null){
+            _=this.LumenSurfaceRadialPipelineState->Release();
+            this.LumenSurfaceRadialPipelineState=null;
+        }
         if(this.LumenSurfacePipelineState!=null){
             _=this.LumenSurfacePipelineState->Release();
             this.LumenSurfacePipelineState=null;

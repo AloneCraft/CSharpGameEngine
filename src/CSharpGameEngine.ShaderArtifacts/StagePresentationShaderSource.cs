@@ -252,16 +252,22 @@ struct LumenSurfaceOutput
 {
     float4 NormalRoughness : SV_Target0;
     float Distance : SV_Target1;
+    float Depth : SV_Depth;
 };
 
 // The surface prepass the final gather and the reflections read: the shading normal and roughness PSMain uses and the distance from the camera
 // (which PSMain compares with its own to know it shades the same surface).
 LumenSurfaceOutput LumenSurfacePSMain(VertexOutput input)
 {
+    if (DepthMapping0.x == 1.0 && IsBeyondRadialFarPlane(input.WorldPosition))
+    {
+        discard;
+    }
     float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * MaterialParams.x), 0.045);
     LumenSurfaceOutput output;
     output.NormalRoughness = float4(LumenShadingNormal(input), roughness);
-    output.Distance = length(input.WorldPosition - CameraPositionWS.xyz);
+    output.Distance = RadialSafeLength(input.WorldPosition - CameraPositionWS.xyz);
+    output.Depth = DepthMapping0.x == 1.0 ? EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz) : input.Position.z;
     return output;
 }
 

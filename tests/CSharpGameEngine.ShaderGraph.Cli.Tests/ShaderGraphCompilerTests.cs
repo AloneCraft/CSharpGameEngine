@@ -115,7 +115,7 @@ public sealed class ShaderGraphCompilerTests {
         // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) and M0119 (the logarithmic depth functions
         // become the Depth subgraph, edits/depth_subgraph_2026_10_25.py) intentionally changed the Stage program; the
         // migrate/extract round trip was verified byte-identical before those edits.
-        Assert.True(Hash=="7C3F7E0732D162306F05168845807CD680935F9C8ACD95A597AB3181F789E0F7",Hash);
+        Assert.True(Hash=="153236B9E545677099237CCF2F2C8E6D55A869C04296AF546C3AE1C027D354B6",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {

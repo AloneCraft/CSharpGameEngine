@@ -216,24 +216,28 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         // The rougher the floor, the less sharply red the box's reflection (0.8 is past Unreal's 0.4 limit: the probes' lobe).
         Assert.True(Peaks[0]>Peaks[1]&&Peaks[1]>Peaks[2],string.Join(",",Peaks));
     }
-    [WindowsOnlyFact]
+    [WindowsOnlyTheory]
+    [InlineData(RenderDepthMapping.Standard)]
+    [InlineData(RenderDepthMapping.Radial)]
     [Trait("Category","GPU")]
-    public void Lumen_FollowsAMovingBox(){
+    public void Lumen_FollowsAMovingBox(RenderDepthMapping Mapping){
+        var View=LumenScene.RoomView;
+        View.DepthMapping=Mapping;
         // A red glowing box under the sky moves 2.5 m: its red bounce leaves the floor in front of its old place and appears in front of the new one,
         // and after a while the moved scene matches one that started there (the cards are in the box's own space and follow it).
         using var Moving=LumenScene.Room(BoxEmissiveNits:new Vector3(3000f,0f,0f));
         for(var Frame=0;Frame<12;Frame++){
-            Moving.Render(LumenSettings.Unreal,Sun:false);
+            Moving.Render(LumenSettings.Unreal,Sun:false,View:View);
         }
         var Before=Moving.Renderer.ReadLumenDiffuseForTesting();
         var Moved=Matrix4x4.CreateTranslation(-2.5f,0.5f,1f);
         for(var Frame=0;Frame<16;Frame++){
-            Moving.Render(LumenSettings.Unreal,Sun:false,Box:Moved);
+            Moving.Render(LumenSettings.Unreal,Sun:false,View:View,Box:Moved);
         }
         var After=Moving.Renderer.ReadLumenDiffuseForTesting();
         using var Fresh=LumenScene.Room(BoxEmissiveNits:new Vector3(3000f,0f,0f));
         for(var Frame=0;Frame<28;Frame++){
-            Fresh.Render(LumenSettings.Unreal,Sun:false,Box:Moved);
+            Fresh.Render(LumenSettings.Unreal,Sun:false,View:View,Box:Moved);
         }
         var Reference=Fresh.Renderer.ReadLumenDiffuseForTesting();
         var OldPlace=LumenScene.FloorPixel(new Vector3(0f,0f,0.2f),Before.Width,Before.Height);

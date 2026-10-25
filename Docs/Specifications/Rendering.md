@@ -136,6 +136,7 @@ ADR-0076 / M0099 ([Omni](Omni.md)): a camera may select `RenderDepthMapping.Radi
 | Main (Lit, Presentation, Selection, Wireframe) | Radial pipeline family: `RadialVSMain` (the standard `VSMain` with the conservative raster depth `a − b/w` and the standard near/far as `SV_ClipDistance`, depth clipping off) plus `RadialPSMain`/`PreviewRadialPSMain`, which call the unchanged pixel entries and add `SV_DepthGreaterEqual`; fragments beyond `FarZ·(1 + 1/1024)` of physical view depth are discarded |
 | Camera previews | Per preview: standard, radial (`PreviewCleanRadialPSMain`) or radial observer (`RadialObserverVSMain` + `PreviewCleanPSMain`) |
 | Shadow atlas, GI capture, overlay | Unchanged (standard) |
+| Lumen surface prepass | The active camera encoding; radial views use `RadialVSMain` with clip distances and write `EncodeRadialDepth` to `SV_Depth`, so their nearest physical surface agrees with the main view at extreme distances (M0119) |
 | Sky direction, sun cascades, AO prepass | The camera rotation with the auxiliary planes near `max(NearZ, min(0.01 m, FarZ/2))`, far `min(FarZ, near·65536)`; for an ordinary range this is exactly the camera projection |
 | Sky composite, Forward+ | Unchanged (radial depth stays below the 1.0 clear; Forward+ uses clip W and XY only) |
 

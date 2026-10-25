@@ -16,6 +16,7 @@ public sealed unsafe partial class StageRenderer {
     private const int EnvironmentDescriptorCount=6;
     private StageLumen?Lumen;
     private ID3D12PipelineState*LumenSurfacePipelineState;
+    private ID3D12PipelineState*LumenSurfaceRadialPipelineState;
     private ID3D12PipelineState*LumenCardPipelineState;
     private byte[]LumenSurfacePixelShaderBytecode=[];
     private byte[]LumenCardPixelShaderBytecode=[];
@@ -64,7 +65,8 @@ public sealed unsafe partial class StageRenderer {
         SurfaceTargets[1]=Lumen.SurfaceRtv(1);
         var SurfaceDepth=Lumen.SurfaceDsv;
         this.CommandList->OMSetRenderTargets(2,SurfaceTargets,FALSE,&SurfaceDepth);
-        this.BindMainPassState(this.LumenSurfacePipelineState);
+        this.BindMainPassState(this.CurrentDepthMapping==CSharpGameEngine.Rendering.RenderDepthMapping.Radial
+            ?this.LumenSurfaceRadialPipelineState:this.LumenSurfacePipelineState);
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
             this.CommandList->RSSetViewports(1,PViewport);
@@ -151,6 +153,12 @@ public sealed unsafe partial class StageRenderer {
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Lumen!.ReadDiffuseForTesting();
+    }
+    /// <summary>Test-only: the physical distances of the surfaces used by Lumen's gather and reflection passes.</summary>
+    internal (float[]Distances,int Width,int Height)ReadLumenSurfaceDistancesForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.Lumen!.ReadSurfaceDistancesForTesting();
     }
     /// <summary>Test-only: the Lumen reflected radiance per pixel, after the GPU is idle.</summary>
     internal (Vector4[]Texels,int Width,int Height)ReadLumenReflectionForTesting(){

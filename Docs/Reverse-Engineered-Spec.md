@@ -510,3 +510,9 @@
   - 画素: 拡散の照度(Lumen の t16)があればプローブボリュームと空の光の拡散を置き換え、Skylight Leaking × 空の光の照度を下限にする。反射(t17)があれば反射の照度を置き換える。履歴は前のフレームのカメラと距離・法線が合う画素だけ。
 - Intended behavior: `Docs/Specifications/Rendering.md` の環境ライティング(Lumen の行)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5。
 - Result: MatchesWithDocumentedExtension(差は M0111 の文書の「UE との差」と「範囲外・残り」)。
+
+## RE-M0119-LumenSurfaceDepth — Lumen が読む最近面の対数深度
+- Confidence: High(ソースと修正前後の WARP 試験)
+- Evidence: `src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`(`LumenSurfacePSMain`)、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(前パスの PSO とその解放・ホットリロード)、`StageRenderer.Lumen.cs`、`tests/CSharpGameEngine.Windows.Tests/Graphics/LumenSurfaceDepthTests.cs`。
+- Observed behavior: 対数カメラの Lumen 表面前パスは、主画面と同じ深度の符号化とクリップ距離を使う。far が 1e18 m の場合も、近距離の精度を失う双曲深度の比較で奥の面を選ぶことがなく、画素中心の解析光線に沿った物理距離で最近面を検証できる。
+- Result: この前パスについては ADR-0084 と一致。主シェーダーの一本化、DDGI・AO の移行、標準経路の削除は未実施。

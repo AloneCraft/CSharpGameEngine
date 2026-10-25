@@ -1327,6 +1327,19 @@ internal sealed unsafe class StageLumen:IDisposable {
         }
         return (Result,Width,Height);
     }
+    internal (float[]Distances,int Width,int Height)ReadSurfaceDistancesForTesting(){
+        if(this.SurfaceDistance==null){
+            throw new InvalidOperationException("The Lumen-like surface prepass has not run yet.");
+        }
+        var (Data,RowPitch,Width,Height)=GpuTextureReadback.Read(this.Device,this.SurfaceDistance,ShaderResourceState);
+        var Distances=new float[Width*Height];
+        fixed(byte*Bytes=Data){
+            for(var Y=0;Y<Height;Y++){
+                new ReadOnlySpan<float>(Bytes+Y*RowPitch,Width).CopyTo(Distances.AsSpan(Y*Width,Width));
+            }
+        }
+        return (Distances,Width,Height);
+    }
     internal (Vector4[]Texels,int Width,int Height)ReadReflectionForTesting()=>this.ReadHalfTexture(this.Reflection);
     /// <summary>The screen probes' traced radiance: probe (x, y) holds an 8 x 8 octahedral tile at (8x, 8y).</summary>
     internal (Vector4[]Texels,int Width,int Height)ReadProbeRadianceForTesting()=>this.ReadHalfTexture(this.ProbeRadiance);

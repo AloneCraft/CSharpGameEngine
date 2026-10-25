@@ -4203,3 +4203,8 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 自動化された証拠: `LumenGpuIntegrationTests`(9)、`LumenSurfaceCacheLayoutTests`(7)、`EnvironmentComponentTests`(+2)、`ShaderGraphCompilerTests`、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(SDK 0.1.23)。
 - 既知の差: 陰が UE より明るい、塗装の艶、カードは箱の 6 面だけ、ハードウェアのレイトレーシング・半透明・多重の反射は無い、既定の段は UE の Epic でなく High、Epic の WARP での装置の削除は未解決、実機の GPU は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension(仕組み)。見た目は Differs(陰の明るさ、Vehicle の床)。
+
+## M0119 — 対数ネイティブ深度への移行(進行中)
+- Intended: ADR-0084。透視の描画を最初から対数深度を書く 1 系統にする。
+- Observed: Lumen 表面前パスは主カメラと同じ対数深度・近遠クリップ距離を使う。専用 DSV のまま、法線・粗さ・物理距離の出力を維持する。WARP の回帰試験は、通常の距離と far 1e18 m の最近面を独立した解析距離で確認する。
+- Conformance: Partial(この前パスの誤遮蔽は修正。主シェーダー、DDGI、AO、API と標準経路の削除が残る)。
