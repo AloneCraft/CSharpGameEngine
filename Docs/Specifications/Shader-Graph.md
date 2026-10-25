@@ -58,6 +58,10 @@ Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. A n
 
 External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Debug/Release 1041 CgeAutomation evidence now proves the Editor Factory, stable AutomationIds, layout/Undo/Redo/save/reload/diagnostic lifecycle, package identity, and normal shutdown; That UI evidence predates the M0119 switch to a Stage-only root template; the updated Stage-based UI automation has been built but not rerun.
 
+## GPU layout verification (M0120)
+L4 `Pipeline.StageFrameConstants` and `StageObjectConstants` own the managed CB layout; `StageGpuLayouts` derives offsets with Marshal.OffsetOf. DXC_OUT_REFLECTION is available as `HlslCompileResult.DxcReflection` from an actual compile. The L7-only `HlslShaderReflection` reads it and the compiler tests compare all CB field offsets/sizes and row-major matrices for Stage and Lumen. Lumen's StageInverseViewProjection explicitly aliases the Stage field InverseViewProjection. A card pixel entry uses ObjectCB and has no FrameCB after optimization, which is tested as such.
+This raw compiler data is separate from the artifact entry's existing JSON reflection metadata (entry/profile/stage/ABI); that serialized field and the runtime ABI have not changed. Runtime assemblies do not load DXC. FrameCB remains 960 bytes, ObjectCB 192 bytes, stage-v14 remains current, and the shader source/bytecode are unchanged by the C# layout relocation.
+
 ## 対数ネイティブの契約(M0119)
 現在の契約は`stage-v14`。Lumen の表面前パスは `SurfacePrepassPSMain` で既存の法線・粗さ・物理距離に加え `SV_Depth` を書く。対数カメラは共有の `EncodeRadialDepth` を使い、頂点は保守的な深度と明示的な近遠クリップ距離を使う。これにより、far 1e18 m・手前の面 1e7 m の場合でも、主画面と同じ面を Lumen が読む。正射影は線形のラスタ深度を返す。表面シェーダーは AO の物理距離生成にも使う。AO 用の旧シャドウ VS と専用 DSV は不要。主画面の `StagePixelOutput` は色 (`SV_Target0`)・物理距離 (`SV_Target1`)・深度を返す。距離は R32F の `SceneDistance` または DDGI の `CaptureDistance` に保存し、0 は背景。空と DDGI は双曲深度から位置を復元しない。現在のエントリー数は 14。標準経路の選択 API と旧 Model/Triangle は削除した。古いハッシュの成果物は再生成する。
 

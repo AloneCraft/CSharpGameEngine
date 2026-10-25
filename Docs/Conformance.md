@@ -4219,3 +4219,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Result: Partial。移動単位はMatchesだが、L0からCPU Plannerを呼ぶ経路、カメラ方針、フレーム順序/状態とRenderServerの移動は未完。Forward/Forward+のURP方式とDeferred系も未実装。詳細とログはM0120参照。
 
 - M0120カメラ追記: L5 View.RenderCameraへ数学と既存CPU21件を移動。Rendering157件、描画/復旧43件、層6件、カタログ/選択31件成功。7画像とStageバイナリは不変。シーンComponent名は維持。L0のカメラ呼出し/提出方針とフレーム状態は残るため、全体のPartialを継続する。
+
+- M0120移動単位の全体確認: ff43243で全22プロジェクト3539件成功・失敗0・実機測定2件スキップ、終了0、最大RAM69%。インポーターの不要なusing修正も含めて再確認済み。証拠は `.artifacts/M0120/portable-solution-verified.summary.json` と生ログ。全体レイヤー分離/4パスの未実装範囲は変わらない。
+
+- M0120 CB追記: L4の型付きFrame/Object配置へ通常/Lumen撮影の35オフセットを接続。実DXC反射6条件を含むCLI15、GPU31、Rendering157、層7、FeatureRunner240件成功。CBサイズ960/192と固定7画像/Stageバイナリは不変、最大RAM62%。成果物のJSONメタデータと実反射APIは区別し、RuntimeにDXCは追加しない。全ソリューション3539件は直前ff43243の結果であり、CB抽出後の全体実行と混同しない。全体のPartialは継続する。

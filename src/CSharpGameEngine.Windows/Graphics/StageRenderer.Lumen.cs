@@ -1,3 +1,4 @@
+using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using CSharpGameEngine.Rendering;
 using System.Numerics;
 using System.Runtime.CompilerServices;

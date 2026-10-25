@@ -50,3 +50,16 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - 9689b0aの全体実行はテスト失敗0だったが、Unreal.SceneImporterに誤って追加したRenderingのusing2行がCS0234となり、終了コード1。Import.Testsはビルドできず未実行で、実行済みは21プロジェクト3466件成功・2件スキップ。全体成功とは扱わない。
 - 原因は移動時の型名検索がコメント/生成用文字列にも一致し、実際の型依存がないツールへusingを追加したこと。不要な2行だけを削除し、ポータブルなインポーターに新しい描画参照は追加していない。修正後のImport.Tests73件は成功。失敗元ログはportable-solution-final.log、修正確認はportable-importer-fixed.log。各memory.jsonで最大68%/63%、閾値停止なし。
 - 型移動の消費側を判定する際は、文字列/コメント中の名称と実際の型参照を区別する。修正を含むコードで全ソリューションを再実行する。
+
+### 値/計算/カメラ移動後の全体確認(2026-10-26)
+- ff432438896f49734122774a63b1dc25039a3c33で全ソリューション22プロジェクト、3539件成功・失敗0・実機測定2件スキップ、終了コード0。Windows774件、Rendering157件、Core157件、FeatureRunner239件、VSIX1197件、Import73件を含む。移動した既存44件と新規の層/パス検査9件が合計と一致する。
+- 証拠は `.artifacts/M0120/portable-solution-verified.log`、同summary.json/memory.json。最大物理RAM使用率69%、閾値停止なし。Stageバイナリと固定7画像は移動前と同じ。M0120全体のPartialは継続し、次はGPU配置/実反射情報とビュー/フレーム計画の抽出。
+
+## 実行記録: 型付きCBと実反射(2026-10-26)
+- L4 PipelineのStageFrameConstants/StageObjectConstantsを正本にし、StageGpuLayoutsがMarshal.OffsetOf/SizeOfで35オフセットとサイズを得る。NativeのFrame*/Object*の手書き定義を削除し、通常描画とLumenカード撮影の両方を接続。バッファの256バイト境界への切り上げはL0に残す。FrameCB960/ObjectCB192、フレームスロット1024、物体スロット512は同じ。
+- L7 HlslCompilerがDXC_OUT_REFLECTIONを取得し、HlslShaderReflectionが実際のバッファ/変数配置を読む。Stageの通常/観察/表面/カードとLumen計6条件で全フィールドのオフセット/サイズと行列の行配置を照合。LumenだけのStageInverseViewProjectionは明示した別名。カードPSはFrameCBを参照せず最適化で消えるため、不在とObjectCBを検証する。初回の一律FrameCB必須というテスト仮定は実コンパイラ出力と矛盾し、製品コードを変えず修正した。
+- 成果物エントリーのReflection欄は従来のentry/profile/stage/ABIのJSONメタデータのまま。実反射の生データは別のコンパイル結果APIであり、RuntimeにDXCは持ち込んでいない。シェーダーとstage-v14のABIは変更していない。SDKは0.1.28。
+- 接続後のGPU回帰31件成功(固定7画像、2フレームスロット、主深度、遠距離Lumen、環境/GI/面光源、ホットリロード/復旧)。CLI全15件(新しい実反射6件を含む)、Rendering157件、層7件、FeatureRunner240件も成功。新規CB変更後に全ソリューションを再実行したとは扱わず、直前の全体3539件と今回の対象検証を区別する。
+- Stage成果物の生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5で移動前と完全一致。固定画像の基準は変更していない。最大RAM62%、閾値停止なし。証拠は `.artifacts/M0120/gpu-layout-native-final.log`、`gpu-layout-shader-tests.log`、`gpu-layout-portable-tests.log`、`gpu-layout-layer-tests.log`、`gpu-layout-catalog-tests.log` と各memory.json。
+- 初回のNative接続ビルドはLumenのpartialファイルへのstatic using不足で失敗し、共有のオフセットを明示して修正した。DXCバインディングのGUIDポインター形式も既存APIに合わせて修正。失敗ログはgpu-layout-native-regression.log/gpu-layout-reflection-first.log、合格ログは上記へ別保存した。
+- M0120全体はPartial。構造化光源のGPUレコード/計画データ、RenderViewPolicyと提出、RenderServer、パス実行計画、Forward/Forward+の実装は後続。

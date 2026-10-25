@@ -1,3 +1,4 @@
+using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using CSharpGameEngine.Rendering.Pipeline;
 using System.Diagnostics;
@@ -131,36 +132,6 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
     private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
 
-    // FrameCB (b0) byte layout - see Stage shader ABI. Local lights and Forward+ tile lists live in
-    // root-SRV StructuredBuffers (t5/t6); only their per-frame counts/grid remain here.
-    private const uint FrameViewProjectionOffset=0;   // float4x4, 64 bytes
-    private const uint FrameCameraPositionOffset=64;  // float4 (xyz used)
-    private const uint FrameDirectionalLightsOffset=80; // MaxDirectionalLights * DirectionalLightStride bytes
-    private const uint FrameAmbientColorOffset=FrameDirectionalLightsOffset+(MaxDirectionalLights*DirectionalLightStride);
-    private const uint FrameFogParamsOffset=FrameAmbientColorOffset+16; // float4: x=density, y=heightFalloff, z=render origin altitude
-    private const uint FrameFogColorOffset=FrameFogParamsOffset+16;     // float4 (xyz used)
-    private const uint FrameExposureOffset=FrameFogColorOffset+16;      // float4: x=2^-EV100
-    private const uint FrameLightCountsOffset=FrameExposureOffset+16;   // int4: x=local, y=shadow directional index, z=directional count, w=spot projections
-    private const uint FrameForwardPlusGridOffset=FrameLightCountsOffset+16; // uint4: tile count X/Y, tile edge, tile cap
-    private const uint FrameInverseViewProjectionOffset=FrameForwardPlusGridOffset+16;
-    private const uint FrameViewportSizeOffset=FrameInverseViewProjectionOffset+64;
-    private const uint FrameSkyLightParamsOffset=FrameViewportSizeOffset+16; // float4: x=sky light, y=physical fog, z=camera altitude m
-    private const uint FramePhysicalFogParamsOffset=FrameSkyLightParamsOffset+16; // float4: x=ray origin terms, y=falloff per metre, z=minimum transmittance, w=sky contribution
-    private const uint FramePhysicalFogColorOffset=FramePhysicalFogParamsOffset+16; // float4: rgb inscattering luminance
-    private const uint FrameCascadeViewProjectionOffset=FramePhysicalFogColorOffset+16; // 4 x float4x4 directional cascades
-    private const uint FrameCascadeSpheresOffset=FrameCascadeViewProjectionOffset+(64*DirectionalShadowCascades.Count); // float4: xyz centre, w radius
-    private const uint FrameCascadeUvScaleOffsetsOffset=FrameCascadeSpheresOffset+(16*DirectionalShadowCascades.Count); // float4 atlas quadrant per cascade
-    private const uint FrameCascadeDepthRangesOffset=FrameCascadeUvScaleOffsetsOffset+(16*DirectionalShadowCascades.Count); // float4: projection depth range metres
-    private const uint FrameGiGridOriginOffset=FrameCascadeDepthRangesOffset+16; // float4: xyz render-space position of probe (0,0,0)
-    private const uint FrameGiGridSpacingOffset=FrameGiGridOriginOffset+16; // float4: xyz metres between probes, w intensity
-    private const uint FrameGiGridCountsOffset=FrameGiGridSpacingOffset+16; // uint4: xyz probe counts, w probes per atlas row (0 = GI off)
-    private const uint FrameGiAtlasSizeOffset=FrameGiGridCountsOffset+16; // float4: irradiance atlas texels, distance atlas texels
-    private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
-    private const uint FrameDepthEncoding0Offset=FrameAmbientOcclusionOffset+16; // float4: x encoding (RenderDepthEncoding), y radial transition m, z 1/G(rMax), w far discard depth m
-    private const uint FrameDepthEncoding1Offset=FrameDepthEncoding0Offset+16; // float4: xyz observer centre (render space)
-    private const uint FrameLumenParamsOffset=FrameDepthEncoding1Offset+16; // float4: x Lumen diffuse (t16), y Lumen reflections (t17) (M0111)
-    private const uint FrameConstantsSize=FrameLumenParamsOffset+16;
-
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
     /// アライメント要件(256バイト)の倍数でなければならない。汎用のConstantAlignmentを流用せず
@@ -168,18 +139,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     /// スロット幅の更新を忘れ、フレームスロット間でデータが衝突・範囲外書き込みを起こしていた実際の
     /// 回帰の再発を防ぐため)にスロット幅が自動的に追従するようにするため。
     /// </summary>
-    private const uint FrameConstantsStride=((FrameConstantsSize+255u)/256u)*256u;
-
-    // ObjectCB (b1) byte layout - see Stage shader ABI.
-    private const uint ObjectWorldOffset=0;            // float4x4, 64 bytes
-    private const uint ObjectBaseColorFactorOffset=64; // float4
-    private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic, z=presentation mode
-    private const uint ObjectEmissiveFactorOffset=96;  // float4: xyz=emissive HDR, w=selection weight
-    private const uint ObjectWorldGridParamsOffset=112; // float4: x=grid size (m, 0 = no grid), y=sub grid divisions, z=wire half width
-    private const uint ObjectWorldGridColorOffset=128;  // float4: xyz=main grid line colour
-    private const uint ObjectWorldSubGridColorOffset=144; // float4: xyz=sub grid line colour
-    private const uint ObjectWorldGridAnchorOffset=160; // float4: xyz=render origin modulo the grid size (zero in world coordinates)
-    private const uint ObjectConservativeRasterDepthOffset=176; // float4: xy=(a, b) of the object's conservative radial raster depth a - b/w (M0100)
+    private static readonly uint FrameConstantsStride=((FrameConstantsSize+255u)/256u)*256u;
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits

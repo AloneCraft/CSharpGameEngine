@@ -65,6 +65,16 @@ public sealed class EngineLayerSpec {
             .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
         Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
     }
+    [Fact]
+    public void NativeStageDoesNotDeclareFrameOrObjectOffsets(){
+        var Root=Path.Combine(RepositoryRoot,"src","CSharpGameEngine.Windows","Graphics");
+        var Forbidden=new Regex(@"private\s+const\s+uint\s+(?:Frame\w+Offset|Object\w+Offset|FrameConstantsSize)\s*=",RegexOptions.CultureInvariant);
+        var Violations=Directory.EnumerateFiles(Root,"StageRenderer*.cs",SearchOption.TopDirectoryOnly)
+            .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
+            .Where(Entry=>Forbidden.IsMatch(Entry.Line))
+            .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
+        Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
+    }
     private static bool IsGameProject(string ProjectPath)=>
         File.ReadAllText(ProjectPath).Contains("CSharpGameEngine.Game.props",StringComparison.OrdinalIgnoreCase);
     private static string FindRepositoryRoot(){
