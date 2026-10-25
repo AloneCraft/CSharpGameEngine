@@ -1,5 +1,9 @@
 # Asset and Content Pipeline specification
 
+## Universal model import migration (M0114)
+
+The intended migration is [ADR-0080](../Decisions/ADR-0080-Universal-Model-Import.md); observed progress is [M0114](../Milestones/M0114-Universal-Model-Import.md). `SubAssetIdentity.Derive` defines SHA-256 identity over UTF-8 `cge.subasset/1\n<kind>\n<NFC name>`, independent of payload changes. Kind tokens are `mesh`, `material`, `texture`, `skeleton`, `clip`, `sdf`, `license`. `AssetSelector` carries a source path and optional context-typed escaped name. Catalog injection/metadata migration have not replaced current authoring. Cooking's interchange format is not an L6 runtime payload. Existing source-reader features remain active until the verified S4 cutover.
+
 ## Typed imported lighting
 ImportedLight is a color-only abstract base with directional illuminance and point/spot luminous-intensity variants. Missing range remains null. ImportedSpotCone preserves source half radians, including glTF's legal zero inner angle; conversion to the stricter authored cone requires explicit resolution for that case. See [Typed Lighting](Typed-Lighting.md). The Unreal directional emitter preserves lux/color and emits a separate LightShadow.
 

@@ -1,5 +1,7 @@
 # プラグインとアセット
 
+M0114 adds `IAssetImporter` and `IModelProcessor` as sibling contracts of `IAssetCooker` in Cooking (ADR-0080, still in progress). `PluginModuleLoadContext` shares Cooking/Contracts/Core and resolves module-local dependencies in a collectible context. `Cook.Cli describe <module.dll>` discovers descriptors; `import-worker <module.dll> <request.json> <result.json>` executes a direct importer, ordered processors and final validation. Existing cooker behavior remains available. Built-in adapters, ContentCompiler orchestration, complete process policy and SDK packaging are not yet connected; see [M0114](../Milestones/M0114-Universal-Model-Import.md) before treating this as a game import workflow.
+
 ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラグインとアセットに対応する。
 
 ## 1. どちらを作るか

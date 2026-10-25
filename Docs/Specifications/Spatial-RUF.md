@@ -1,5 +1,7 @@
 # Spatial RUF — セマンティック座標系仕様
 
+M0114 adds `ConventionConversion<TSource,TTarget>` in Core as the shared import basis conversion. It requires signed axis-permutation conventions, converts vectors with `p*B`, row-vector matrices with `Transpose(B)*M*B`, quaternion vector components with mirror parity, and scale by unsigned-basis permutation while preserving each component's sign. Unit conversion is separate. Tests cover glTF reflection, tangent handedness, negative scales and Unreal round-trip; existing import adapters are still active pending the M0114 S4 cutover (ADR-0080).
+
 このドキュメントは`Docs/RUF-Semantic-Coordinate-Specification-Prompt.md`が要求するRUF
 (Right/Up/Forward)意味座標系の正本である。実装は[[ADR-0025-RUF-Semantic-Coordinates]]
 (コア契約・Preset)、[[ADR-0026-Camera-Geometry-Ruf-Integration]]/

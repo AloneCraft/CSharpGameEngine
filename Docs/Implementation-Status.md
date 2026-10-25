@@ -1,5 +1,70 @@
 # Implementation Status (Feature Ledger)
 
+## F-L1-010 — Signed coordinate convention conversion
+
+- Layer: L1 — Core Kernel
+- Parent capability: Universal model import (M0114)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 6
+- Implementation evidence: `src/CSharpGameEngine.Core/Spatial/ConventionConversion.cs`
+- Tests: `tests/CSharpGameEngine.Core.Tests/ConventionConversionTests.cs` (Core suite: 156 passed)
+- Reverse-engineered behavior: Signed axis permutations preserve scale signs; row-vector matrices use transpose-basis conjugation. Tangents/rotations follow mirror parity and Unreal transforms round-trip.
+- Conformance: Matches for the additive conversion API. Existing import adapters have not been replaced.
+- Next action: Use this conversion from the S4 built-in worker adapters.
+
+## F-L2-007 — Model subasset and importer identity contracts
+
+- Layer: L2 — Type Schema / Identity
+- Parent capability: Universal model import (M0114)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` sections 3–4
+- Implementation evidence: `src/CSharpGameEngine.Contracts/{ModelIdentity,HumanoidBone,ImporterCatalog}.cs`
+- Tests: `tests/CSharpGameEngine.Contracts.Tests/ModelIdentityTests.cs` (Contracts suite: 26 passed)
+- Reverse-engineered behavior: Subasset hashes use version/kind/NFC name independently of payload; selectors preserve source paths and escape names. There are 55 humanoid roles and 15 read-only required roles. Catalog DTOs expose no provider SDK types.
+- Conformance: Matches for the identity contracts; registry/catalog implementation and generator diagnostics are separate S3/S4 work.
+- Next action: Connect catalog injection, metadata and content-index.
+
+## F-L7-054 — Interchange document and codec
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Universal model import (M0114)
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 3
+- Implementation evidence: `src/CSharpGameEngine.Cooking/Interchange/{InterchangeDocument,InterchangeCodec,InterchangeValidator}.cs`
+- Tests: `tests/CSharpGameEngine.Cook.Tests/InterchangeTests.cs`
+- Reverse-engineered behavior: CGEX has a bounded little-endian header, SHA-256 and canonical sorted UTF-8 payload; corruption/truncation are rejected. IR records contain engine/BCL/Contracts values only.
+- Conformance: Partial. A provider-free type-graph test exists; full rig extensions, exhaustive resource/adversarial validation and CGEX JSON-versus-binary scalar LE encoding remain unresolved. No runtime payload writer is connected.
+- Next action: Complete S2 coverage before S3 worker/orchestrator integration.
+
+## F-L7-055 — Importer contracts and module isolation
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Universal model import (M0114)
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 4
+- Implementation evidence: `src/CSharpGameEngine.Cooking/{AssetImporter,PluginModuleLoadContext}.cs`, `tools/CSharpGameEngine.Cook.Cli/CookerHost.cs`
+- Tests: `tests/CSharpGameEngine.Cook.Tests/{InterchangeTests,CookerHostTests,ImportWorkerTests}.cs` (Cook suite: 26 passed)
+- Reverse-engineered behavior: Cooking, Contracts and Core resolve from the default host context; module code loads into a distinct collectible context. Existing cookers retain their selection/verification behavior.
+- Conformance: Partial. `describe` and direct `import-worker` now run in Cook.Cli; real separate-worker equivalence and failure/cancellation/read-set tests pass. Registry selection, tools/nested import, lifetime/resource policy and forced process cancellation remain.
+- Next action: Complete S3 orchestration and process policy after resolving the unowned full-solution build gate.
+
+## F-L7-057 — Model normalization and parity oracle
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Universal model import (M0114)
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` sections 6 and 10
+- Implementation evidence: `src/CSharpGameEngine.Cooking/Interchange/ModelImportPipeline.cs`, `assets/TestFixtures/Import/M0114-Source-Parity.json`
+- Tests: `tests/CSharpGameEngine.Cook.Tests/InterchangeTests.cs`, `tests/CSharpGameEngine.Import.Tests/ModelImportParityTests.cs`
+- Reverse-engineered behavior: Source-space normalization is idempotent, preserves signed scale, converts UV origin/units, validates closure/bind poses and merges compatible skins. The old-reader oracle covers 97 source files/60 clips; bin/obj are excluded.
+- Conformance: Partial. Full custom/morph-in-between processing and adapter parity/standard-frame equivalence remain. Original source readers stay active until S4.
+- Next action: Complete normalization cases, then compare the new adapters with the frozen oracle.
+
 このファイルは`.github/skills/CSharpGameEngine-Documentation/SKILL.md`が定義するFeature ledgerです。
 `F-L<layer>-<number>`形式の安定IDで機能を追跡します。既存(ADR-0001〜ADR-0013)の機能への遡及的な
 Backfillは行っておらず、ADR-0014(CSharpGameEngine.CodeAnalysis基盤)で導入した2エントリを起点として

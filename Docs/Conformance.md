@@ -1,5 +1,13 @@
 # Conformance
 
+## M0114 — Universal model import migration (in progress)
+
+- Intended: ADR-0080 S0–S5; source decoding only in Cook workers, artifact-only runtime, frozen numerical/render parity and immediate old-reader removal at cutover.
+- Observed: The complete design and pre-cutover oracle are committed; identity/basis APIs, additive Cooking records/codec/validation/contracts and direct Cook worker commands exist. Contracts (26), Core (156), Cook (26) and focused parity tests pass. Full solution verification exits 1 because the unowned PrefractureDebugServiceTests has five xUnit2000 compile errors; executed test assemblies report 2,443 passed/two skipped (Windows 870 passed).
+- Result: **Partial**. F-L1-010/F-L2-007 match their additive API scope. F-L7-054/055/057 remain PartiallyImplemented. S3–S5 are outstanding, and F-L0-005 remains active.
+- Known gaps: full rig/resource coverage; CGEX JSON payload versus binary scalar LE encoding; registry/scheduling/worker process policy; runtime payloads; metadata/index orchestration; runtime/CLI cutover; SDK/VSIX distribution; FeatureRunner/four-template/package gates. No accepted scope reduction is recorded.
+- Verification environment: Restricted execution caused atomic file-replacement/owner-process failures; four WorldGrid tests and two affected bridge tests pass outside the sandbox. The normal-permission full solution run and five unowned compile blockers are recorded in M0114. New worker tests ran after that snapshot; the full final-code gate remains outstanding.
+
 ## 2026-10-04 探索 — .NET Framework の VSIX では、float を超える数が SCENE203 にならなかった
 - 意図: ADR-0070 決定 4。値の型に収まらない数は、実行環境によらず JSON の位置の SCENE203 にする。
 - 観測（Fact）: ThirdPerson テンプレートの 16 シーンのうち実在する 3 シーンへの変異ファジング 150 件（net472）で、Position や EulerRuf の LogicalScalar を `1e39` にした文書が解析を通り、Designer の編集（名前変更・Inspector の確定）が「Infinity has no JSON form」で 10 件失敗した。解析器だけを net472 で呼ぶと、`1e39` は問題 0、`1e19`・`3.4e38` は SCENE203 だった。.NET Framework の `float.TryParse` は範囲外の数で false を返し（.NET は無限大を返す）、`float.Parse` は OverflowException になる。範囲検査は「解析できて無限大」だけを見ていたため、net472 では通っていた。plain の `float` メンバーは後続の字句解析（Roslyn）が弾くので漏れず、LogicalScalar のように float から変換できる型だけが漏れた。VS の MSBuild（.NET Framework）でのビルドでも同じで、診断ではなく生成ファイルのコンパイルエラーになる（コードからの推測。ビルドは未確認）。
