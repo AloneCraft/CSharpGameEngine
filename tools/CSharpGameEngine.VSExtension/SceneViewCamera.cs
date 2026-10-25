@@ -79,7 +79,7 @@ internal static class SceneViewCamera {
     /// (<c>SceneViewCameraTests.GetFlatRight_ProjectsToScreenLeft_BecauseTheEngineUsesRightHandedMatrices</c>
     /// がこれを固定している)。一見バグに見えるが、<b>ゲーム本体も同じ右手系を使っている</b>
     /// (<c>src/CSharpGameEngine.Windows/Graphics/Camera.cs</c>の<c>BuildViewMatrix</c>/<c>BuildProjection</c>、
-    /// <c>StageRenderer</c>、<c>ModelRenderer</c>)。シーンデザイナーはゲームの見た目を再現するものなので、
+    /// <c>StageRenderer</c>)。シーンデザイナーはゲームの見た目を再現するものなので、
     /// ここだけ左手系にするとデザイナーだけがゲームと左右反転する(実際にそうなった)。
     /// </para>
     ///

@@ -34,12 +34,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- ADR-0034: Triangle and Model shader graphs were declared with these exact Link paths by BOTH
-         former test projects (Graphics.D3D12.Tests and Compiler.Hlsl.Tests). Each must appear
-         exactly once here - a duplicate <None> with the same Link is an MSBuild warning, and
-         TreatWarningsAsErrors=true turns that into a build failure. -->
-    <CgeShaderGraph Include="..\..\assets\Shaders\Triangle.cgeshadergraph" />
-    <CgeShaderGraph Include="..\..\assets\Shaders\Model.cgeshadergraph" />
     <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />
     <CgeComputeShader Include="../../assets/Shaders/ComputeVector.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/Atmosphere.hlsl" />

@@ -1,6 +1,6 @@
 # M0119 — 対数ネイティブの描画(標準深度の削除)
 - 日付: 2026-10-25
-- 状態: 実装中(段階 1・2 と、段階 3 の Depth サブグラフ分離・Lumen 表面前パスまで。標準経路の削除は未実施)
+- 状態: 実装中(段階1〜4のコード移行と実機の精度/主パス計測まで。全体回帰・4テンプレート・性能予算による最終閉鎖は継続中)
 - 決定: [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md)(ADR-0076 を一部 Superseded)
 - ABI: `stage-v14`、プレビューのプロトコル 9
 
@@ -11,7 +11,7 @@
 1. **最後の比較と対数のゴールデン**: `StageGoldenFrameTests`(対数の 7 ケース)を作り、同じ 7 ケースを標準と対数で描いて基準内(各チャンネル 1 階調以内、違う画素 1 % 以下。ワイヤーフレームは違う画素 1 % 以下)であることを確かめてから SHA を固定する。外れたら何も消さずに原因を調べる。`LogarithmicDepthOracleTests`(板を 4e-6 〜 5e18 m に置き、中央 4 ulp 以内、全画素で深度 < 1.0、正射影は 2 ulp 以内)、`GoldenFrameDump`(`CGE_GOLDEN_DUMP`/`CGE_GOLDEN_BASELINE`)を足す。
 2. **予行**: 標準を明示しているだけの試験(Lumen、ミップ、距離場、雲)を対数で流し、落ちたものと原因を記録する。
 3. **Stage を最初から対数にする**(1 項目 1 コミット、それぞれ付け替えの規則で確かめる): (a) `VertexOutput` の一本化・`VSMain` の保守的ラスタ深度・`PSMain` の `SV_DepthGreaterEqual` と `SceneDistance`・`Depth.cgesubgraph`・空の合成が `SceneDistance` を読む、(b) DDGI のプローブ撮影を対数にし `CaptureDistance` を足す、(c) Lumen の表面前パスを対数にする(先に far 1e18 m で落ちることを記録)、(d) AO が `SceneDistance` を読み、AO の深度前パスを消す。
-4. **標準の削除**(1 変更。付け替えは認めない。7 SHA は段階 3 の後と同じ): ラッパーのエントリーと標準の PSO 系統、`RenderDepthMapping.Standard`・`CameraDepthMapping`・`RenderPreviewDepthMapping`・`Camera.DepthMapping`、`StandardModeGoldenFrameTests`、`ModelRenderer`/`TriangleRenderer` と `model-v1`/`triangle-v1` を消す。`RenderDepthEncoding`・`RenderViewDepth`(L4)を足す。プロトコル 9。ADR-0076 を一部 Superseded にする。
+4. **標準の削除**(ADR-0084の追記に従い検証可能な境界ごとに分ける。付け替えは認めない。7 SHA は段階 3 の後と同じ): ラッパーのエントリーと標準の PSO 系統、`RenderDepthMapping.Standard`・`CameraDepthMapping`・`RenderPreviewDepthMapping`・`Camera.DepthMapping`、`StandardModeGoldenFrameTests`、`ModelRenderer`/`TriangleRenderer` と `model-v1`/`triangle-v1` を消す。`RenderDepthEncoding`・`RenderViewDepth`(L4)を足す。プロトコル 9。ADR-0076 を一部 Superseded にする。
 5. **実機の証拠と文書・版**: RTX 4060 Ti で `RadialDepthPrecisionEvidence`(中央 4 ulp 以内)と `RadialDepthPerformanceEvidence` を記録する。
 
 ## 完了条件
@@ -143,3 +143,11 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 証拠は `.artifacts/M0119/typed-depth-final-regression.log`、`typed-depth-shader-tests.log`、`typed-depth-final-build.log`、`typed-depth-vsix-build.log`、`typed-depth-vsix-test.log`、`typed-depth-cpu-tests.log` とmemory.json。
 - 完了条件の旧選択・ラッパー検索はsrc/tools/tests/assetsで0件。古い生成保守スクリプトの説明だけに残ったエントリー名を役割の説明へ直し、履歴の変換処理は変更していない。
 - 全体は引き続きPartial。旧Model/Triangleの実装・ABI・テンプレート・生産者の削除、全体検証とテンプレート4実行が残る。
+
+### 段階 4(c): 旧単体レンダラー・ABI・生産者の削除(2026-10-26)
+- 生成元がない旧ModelRenderer/TriangleRendererと二つのルートグラフを削除。三角形・glTFのGPU試験は既にStage経由であり、削除せず維持した。Windows.Tests全体は818件合格・失敗0、通常は有効にしない実機測定2件スキップ、5分3秒。最大メモリ63%。7画像ハッシュも不変。
+- 旧ABIの生産者、ターゲット列挙値、VSIXの旧テンプレートと選択UIを削除。成果物の値2/3、グラフの値1/2は再利用せず拒否する。チェックサムが正しい旧ターゲットでも拒否する試験を含む成果物10件、グラフ29件、現行Stage14エントリー/HLSLのCLI9件合格。過去の15件から減った6件は廃止した二つのルートターゲットに対する三種類の重複実行。
+- FeatureStageCatalogとソリューションの旧ファイル項目を更新。リリース証拠はStage+5外部サブグラフ+表示接尾辞を記録し、Depth変更で証拠が無効になることを含むカタログ/リリース21件合格。梱包内容変更の版規則に従いSDKを0.1.24へ更新。
+- 初回VSIX試験はサブグラフItem Templateに旧ターゲット値が残っていたため1件失敗・44件合格。検証を緩めず、ルート/サブグラフの両Item TemplateをStageへ更新した。全追跡グラフのターゲットはStageであることを読み取り確認。修正後はVSIXの編集/梱包/ホスト/自動化契約45件すべて合格。
+- GUI自動化の移行でCLI専用型の誤参照が1件のビルドエラーになった。現在のStageの5依存が直接入力かつ再帰依存なしであることを確認し、既存のReadGraphで宣言された依存をコピーする形へ修正。最終ビルド警告0・エラー0。VS/Unityを起動していないためStageでのGUI実走は未検証と明記。
+- 証拠は `.artifacts/M0119/retired-renderer-*.log` と各memory.json。全体の状態はPartial。全ソリューション、4テンプレート実走、性能予算の最終閉鎖は後続。

@@ -311,7 +311,7 @@ internal static class ShaderGraphCli {
         return 0;
     }
     private static int MigrateInternal(string[]Arguments) {
-        if(Arguments.Length!=4||!Enum.TryParse<ShaderGraphTargetKind>(Arguments[2],true,out var Target)) {
+        if(Arguments.Length!=4||!Enum.TryParse<ShaderGraphTargetKind>(Arguments[2],true,out var Target)||!Enum.IsDefined(Target)) {
             WriteUsage();
             return 2;
         }
@@ -346,8 +346,6 @@ internal static class ShaderGraphCli {
     private static ShaderArtifactTargetKind MapTarget(ShaderGraphTargetKind Target) {
         return Target switch {
             ShaderGraphTargetKind.Stage=>ShaderArtifactTargetKind.Stage,
-            ShaderGraphTargetKind.Model=>ShaderArtifactTargetKind.Model,
-            ShaderGraphTargetKind.Triangle=>ShaderArtifactTargetKind.Triangle,
             _=>throw new ArgumentOutOfRangeException(nameof(Target)),
         };
     }
@@ -393,6 +391,6 @@ internal static class ShaderGraphCli {
         Console.Error.WriteLine("dump-hlsl <graph> [output]");
         Console.Error.WriteLine("publish <artifact> <output>");
         Console.Error.WriteLine("extract-subgraph-internal <root-graph> <subgraph> <name> <indices>");
-        Console.Error.WriteLine("migrate-internal <hlsl> <Stage|Model|Triangle> <graph>");
+        Console.Error.WriteLine("migrate-internal <hlsl> <Stage> <graph>");
     }
 }

@@ -26,6 +26,8 @@ public sealed class RenderingReleaseEvidenceTests:IDisposable {
             static Evidence=>Assert.Equal(new string('c',64),Evidence.ShaderArtifactSha256));
         Assert.Equal(
             RenderingReleaseEvidence.RequiredRepositoryInputPaths.Count(),Report.Inputs.Count);
+        Assert.Contains(Report.Inputs,Input=>Input.Role=="shader.source"&&Input.Path=="assets/Shaders/Stage.cgeshadergraph");
+        Assert.Contains(Report.Inputs,Input=>Input.Role=="shader.depth"&&Input.Path=="assets/Shaders/Depth.cgesubgraph");
     }
 
     [Fact]
@@ -50,6 +52,15 @@ public sealed class RenderingReleaseEvidenceTests:IDisposable {
         Assert.Contains(Errors,Error=>Error.Contains("preview result file",StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task ChangingTheNativeDepthSubgraphInvalidatesTheReleaseEvidence(){
+        var ReportPath=await this.CreateEvidenceAsync();
+        var Report=ReadReport(ReportPath);
+        var Depth=Assert.Single(Report.Inputs,Input=>Input.Role=="shader.depth");
+        await File.AppendAllTextAsync(Resolve(this.Root,Depth.Path),"changed",Encoding.UTF8);
+        var Errors=await RenderingReleaseEvidence.ValidateAsync(this.Root,ReportPath);
+        Assert.Contains(Errors,Error=>Error.Contains("input changed",StringComparison.OrdinalIgnoreCase)&&Error.Contains(Depth.Path,StringComparison.Ordinal));
+    }
     [Fact]
     public async Task NonCanonicalOrExtraEvidenceFailsValidation(){
         string ReportPath=await this.CreateEvidenceAsync();

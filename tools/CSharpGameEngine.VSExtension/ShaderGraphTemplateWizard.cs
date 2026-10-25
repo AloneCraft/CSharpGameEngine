@@ -2,32 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Windows;
-using System.Windows.Controls;
 using CSharpGameEngine.ShaderGraph;
 using EnvDTE;
 using Microsoft.VisualStudio.TemplateWizard;
 using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 public sealed class ShaderGraphTemplateWizard:IWizard {
-    private ShaderGraphTargetKind Target=ShaderGraphTargetKind.Stage;
-    public void RunStarted(object AutomationObject,Dictionary<string,string>ReplacementsDictionary,WizardRunKind RunKind,object[]CustomParams) {
-        System.Windows.Window Dialog=new() { Title=VsixText.Get("ShaderGraphWizardTitle"),Width=360,Height=190,WindowStartupLocation=WindowStartupLocation.CenterScreen,ResizeMode=ResizeMode.NoResize };
-        StackPanel Panel=new() { Margin=new Thickness(16) };
-        Panel.Children.Add(new TextBlock { Text=VsixText.Get("ShaderGraphWizardPrompt"),Margin=new Thickness(0,0,0,8) });
-        ComboBox TargetPicker=new() { ItemsSource=new[]{ShaderGraphTargetKind.Stage,ShaderGraphTargetKind.Model,ShaderGraphTargetKind.Triangle},SelectedItem=ShaderGraphTargetKind.Stage,Margin=new Thickness(0,0,0,16) };
-        Panel.Children.Add(TargetPicker);
-        Button Create=new() { Content=VsixText.Get("ShaderGraphWizardCreate"),Width=90,HorizontalAlignment=HorizontalAlignment.Right,IsDefault=true };
-        Create.Click+=(Sender,Arguments)=>{ this.Target=(ShaderGraphTargetKind)TargetPicker.SelectedItem;Dialog.DialogResult=true; };
-        Panel.Children.Add(Create);
-        Dialog.Content=Panel;
-        if(Dialog.ShowDialog()!=true) { throw new WizardCancelledException(); }
-    }
+    public void RunStarted(object AutomationObject,Dictionary<string,string>ReplacementsDictionary,WizardRunKind RunKind,object[]CustomParams) { }
     public void ProjectItemFinishedGenerating(ProjectItem ProjectItem) {
         ThreadHelper.ThrowIfNotOnUIThread();
         var Destination=ProjectItem.FileNames[1];
         var TemplateRoot=Path.Combine(Path.GetDirectoryName(typeof(ShaderGraphTemplateWizard).Assembly.Location)!,"ShaderGraphTemplates");
-        var Source=Path.Combine(TemplateRoot,this.Target+".cgeshadergraph");
+        var Source=Path.Combine(TemplateRoot,"Stage.cgeshadergraph");
         var Graph=ShaderGraphCanonicalization.FromJson(File.ReadAllText(Source))??throw new InvalidDataException("Shader Graph template is invalid.");
         var CreatedDependencies=new List<string>();
         var Remapped=RemapBundle(Graph,TemplateRoot,Destination,CreatedDependencies.Add);

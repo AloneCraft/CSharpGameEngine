@@ -97,8 +97,7 @@ public class ModelGpuIntegrationTests {
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
 
-        // Exercises the depth-buffer-recreate-on-resize path, which has no TriangleRenderer
-        // precedent (see ADR-0004).
+        // Imported textured geometry remains visible after the Stage depth buffer is recreated.
         Renderer.Resize(128,128);
         Renderer.RenderFrame(CaptureForVerification:true);
 

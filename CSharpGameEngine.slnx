@@ -142,8 +142,6 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/assets/">
-    <File Path="assets/Shaders/Triangle.cgeshadergraph" />
-    <File Path="assets/Shaders/Model.cgeshadergraph" />
     <File Path="assets/Shaders/Stage.cgeshadergraph" />
     <File Path="assets/Shaders/Pbr.cgesubgraph" />
     <File Path="assets/Shaders/Shadow.cgesubgraph" />

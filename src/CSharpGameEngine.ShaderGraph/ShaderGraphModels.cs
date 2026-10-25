@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 namespace CSharpGameEngine.ShaderGraph;
-public enum ShaderGraphTargetKind { Stage, Model, Triangle }
+public enum ShaderGraphTargetKind { Stage=0 }
 public enum ShaderGraphValueType { Unknown, Float, Float2, Float3, Float4, Int, Bool, Texture2D, SamplerState }
 public enum ShaderGraphPortDirection { Input, Output }
 public enum ShaderGraphDiagnosticSeverity { Error, Warning }
-public enum ShaderGraphDiagnosticCode { UnknownNode, UnknownPort, MissingRequiredPort, TypeMismatch, CycleDetected, SubgraphRecursion, SubgraphMissing, ForRangeForbidden, ForRangeInvalidBounds, RegionInvalidNode, RegionInvalidControl, RegionOverlap, RegionValueEscape, ReturnInvalidScope, LoopIndexInvalidScope, MissingEntryPoint, EntryPointMismatch, DuplicateIdentity }
+public enum ShaderGraphDiagnosticCode { UnknownNode, UnknownPort, MissingRequiredPort, TypeMismatch, CycleDetected, SubgraphRecursion, SubgraphMissing, ForRangeForbidden, ForRangeInvalidBounds, RegionInvalidNode, RegionInvalidControl, RegionOverlap, RegionValueEscape, ReturnInvalidScope, LoopIndexInvalidScope, MissingEntryPoint, EntryPointMismatch, DuplicateIdentity, UnknownTarget }
 public enum ShaderGraphBuiltInCategory { Constant, Arithmetic, Vector, Output, Utility, Control, Subgraph }
 public enum ShaderGraphOpcode { Constant, Add, Subtract, Multiply, Divide, Lerp, Dot, Length, Normalize, Swizzle, Construct, Output, IfRegion, ForRangeRegion, Return, LoopIndex, SubgraphCall }
 public enum ShaderGraphRegionKind { Comment, If, ForRange }

@@ -257,7 +257,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `Spatial<UnityCoordinateConvention>.RightFromUpForward`へ置換し、旧`Cross(UnitY,flatForward)`
     式とビット単位で一致することを確認済み。`GetView`/`GetProjection`自体(`Matrix4x4.CreateLookAt`/
     `CreatePerspectiveFieldOfView`)はRUF化していない(Rendering境界は依然未確定、
-    Spatial-RUF.md参照)。`BuildViewMatrix`静的ヘルパーを新設し`ModelRenderer`と共有する。
+    Spatial-RUF.md参照)。`BuildViewMatrix`静的ヘルパーがビュー構築を共有する。
 - Conformance: Matches
 - Known deviations: `GetFlatRight()`はRUFの+R(`RightFromUpForward`)を返す。`GetView`は右手系の
   `CreateLookAt`なので、+Fを向いたカメラでは+Rが画面の左に見える(画面の右はForward×Up=−R)。
@@ -269,7 +269,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
 - M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
-- M0119 native depth migration (F-L5-038, ADR-0084): one native Stage PSO set and fourteen shader entries; SetCamera always validates a logarithmic projection. L4 RenderViewDepth creates the frame packets. Physical SceneDistance feeds sky/AO and CaptureDistance feeds DDGI. Native images are pinned; final standard comparison evidence is retained in M0119. Preview protocol 9 and matrix/thumbnail submissions now require native depth; legacy Model/Triangle removal remains.
+- M0119 native depth migration (F-L5-038, ADR-0084): one native Stage PSO set and fourteen shader entries; SetCamera always validates a logarithmic projection. L4 RenderViewDepth creates the frame packets. Physical SceneDistance feeds sky/AO and CaptureDistance feeds DDGI. Native images are pinned; final standard comparison evidence is retained in M0119. Preview protocol 9 and matrix/thumbnail submissions now require native depth; legacy Model/Triangle implementations, ABI producers and templates have also been removed; final M0119 integration closure remains.
 - M0099 Phase 0: the grid and the simplified height fog add the render origin back, because the runtime renders camera-relative. `ObjectCB.WorldGridAnchor` (176 bytes; the render origin modulo the grid size, set per material by `SetWorldGridAnchor`) and `FogParams0.z` (render origin altitude, `SetRenderOriginAltitude`) are zero for world-coordinate callers. `EngineHost` computes the anchor exactly in Q64.64 every frame; `RenderFrameState` carries both forward for device recovery. RenderOriginTests (EngineHost end to end), WorldGridGpuIntegrationTests camera-relative cases, RenderFrameStatePersistenceTests.
 
 - Layer: L0 — Platform / Native Backends
@@ -285,22 +285,22 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs
 - Reverse-engineered behavior:
-  - `ModelRenderer`とは別クラス(ADR-0004の複製方針)のままだが、ADR-0018でメッシュ/マテリアル/
+  - Stageが三角形・インポートモデル・シーンを共通で描画する。メッシュ/マテリアル/
     オブジェクトを分離するAPI(`StageMeshCreateInfo`/`StageMaterialCreateInfo`/
     `StageObjectCreateInfo`)に拡張した。旧`Create(IReadOnlyList<MeshCreateInfo>)`は
     1メッシュ=1マテリアル=1オブジェクトのアダプタとして残存し、`StageGpuIntegrationTests`の
     既存テストは無改修のまま成功する。
-  - 頂点layoutはPosition/Normal/Tangent(float4)/UV(48バイトstride)。マテリアル毎に3テクスチャ
-    (BaseColor/Normal/MetallicRoughness)を1つの共有SRVディスクリプタヒープに並べ、描画時に
-    `materialIndex*3`オフセットでディスクリプタテーブルを切り替える。未指定テクスチャは
-    1×1フォールバック(`ModelRenderer`と同じ「常に本物のSRVをバインドする」方針)。
+  - 頂点layoutはPosition/Normal/Tangent(float4)/UV(48バイトstride)。マテリアル毎に4テクスチャ
+    (BaseColor/Normal/MetallicRoughness/Emissive)を1つの共有SRVディスクリプタヒープに並べ、描画時に
+    `materialIndex*4`オフセットでディスクリプタテーブルを切り替える。未指定テクスチャは
+    1×1フォールバックにより、常に有効なSRVをバインドする。
   - `FrameCB`(b0)にカメラ位置・ディレクショナルライト方向/色・アンビエント色・フォグ
     パラメータを追加、`ObjectCB`(b1)にラフネス/メタリックファクターを追加。各`Set*`
     メソッドは自分の担当バイト範囲のみを書くため呼び出し順序に依存しない。
   - シェーディングはGGX Cook-Torrance(NDF+Smith height-correlated可視性+Schlick
     Fresnel)+Lambert拡散、タンジェント空間ノーマルマッピング、簡易Exponential Height Fog
-    (基準高度Y=0固定)。sRGB/ガンマ補正は導入していない(既存のバックバッファ/
-    `ModelRenderer`と同じ非対応のまま)。
+    を扱う。現在はRUFの物理高度と描画原点を使用し、HDRをACESでトーンマップして
+    sRGB出力へ変換する(現行仕様はRendering.md)。
   - WARPアダプタでの実描画テストにより、地面+ボックスが両方描画されること・Resize後も
     壊れないこと(既存)に加え、2マテリアルを持つ2オブジェクトがそれぞれ正しい
     ディスクリプタテーブルオフセットで描画されること、`SetDirectionalLight`/
@@ -1463,13 +1463,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md
 - Implementation evidence:
   - src/CSharpGameEngine.Windows/Graphics/Camera.cs(`BuildViewMatrix`静的メソッド)
-  - src/CSharpGameEngine.Windows/Graphics/ModelRenderer.cs(`UpdateTransformConstantBuffer`)
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(`GetView`経由の間接カバレッジ)
 - Reverse-engineered behavior:
-  - `Matrix4x4.CreateLookAt`への薄い委譲のみ。`Camera.GetView()`と`ModelRenderer`独自の
-    バウンディングスフィア自動フィットeye計算(`Camera`インスタンスを経由しない別機能)の
-    両方から呼ばれ、以前は2箇所に独立して存在した同一のLookAt構築コードを1箇所に統一した。
+  - `Matrix4x4.CreateLookAt`への薄い委譲で、Camera.GetViewが共有のRUFビューを構築する。
+    旧単体モデルレンダラーの独立したカメラ実装はM0119で削除した。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
@@ -3567,7 +3565,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `ContentAddressedStoreTests`, `WorldCellRuntimeTests`, `WorldCellStreamingTests`, `WorldCellSpatialIndexTests`, `WorldCellEntityPayloadTests`, `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles`, Scene generator E2E, and `GeneratedWorldCellActivationTests`.
 - Next action: consume the published active-cell snapshot from F-L4-006 visibility and package the reachable CAS closure in F-L6-006.
 
-## F-L5-038 — Radial (logarithmic) depth camera
+## F-L5-038 — Logarithmic depth of every perspective view
 
 - Layer: L5 — Integrated Runtime
 - Parent capability: Rendering
@@ -3582,7 +3580,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `RadialDepthTests`; `ShaderGraphCompilerTests` (14 Stage entries; the radial main pixel entries declare `SV_DepthGreaterEqual`, thumbnails use a zero conservative raster bound); `RadialDepthGpuIntegrationTests` (native depth and coplanar pairs at 2e4/1e15/5e18 m, depth equals the CPU encoding, extreme far planes, frame slots, radial thumbnails, invalid input, device recovery); `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`. Native frames stay pinned by StageGoldenFrameTests; the final standard comparison is saved in M0119.
 - Next action: none required. Performance evidence: `RadialDepthPerformanceEvidence` (on demand; 24 front-to-back layers on an RTX 4060 Ti: 0.171 ms radial against 0.133 ms standard at 2–48 m, 0.123 against 0.091 ms at 100–1020 m with the per-object tangent). Precision evidence: `RadialDepthPrecisionEvidence` (on demand; within 4 ulps of a double oracle in the middle of the view on WARP and the RTX 4060 Ti, after replacing the hardware `log2`, which was up to 520,000 ulps off at 4 µm); `StagePresentationShaderSourceTests` keeps transcendental intrinsics out of the presentation entries.
 
-- M0119 migration: Stage グラフ本体の VSMain/PSMain に深度を統合し、単一の VertexOutput/StagePixelOutput に移行した。旧ラッパーのエントリー名は削除し、現在は 14 エントリー。GPU 回帰 43 件、ShaderGraphCompilerTests 15 件、StagePresentationShaderSourceTests 1 件合格。7 つの対数画素ハッシュは不変。続く物理距離ターゲット・空・DDGI の移行は GPU 50 件、シェーダー 15 件に合格し、7 SHA は不変。距離の解析オラクル、プレビューによる非破壊、リサイズも検証。AO も専用の双曲深度バッファを削除し、共有の表面シェーダーから半解像度の物理距離を得るように移行。遠方クリップによる陰りの消失を再現して修正。環境画像のみ 6/20736 画素・最大 1 階調の差を記録して更新した。深度方式別の重複 PSO は統合済み。L4 RenderViewDepth の境界と数値は 32 件、接続後の GPU 回帰は 17 件合格。直接生成の new Camera も既定の対数曲線で初期化する(型と GPU で修正前 2 件失敗を確認し、修正後のカメラ・深度・画素・プレビュー 33 件合格)。シーン Camera の選択型とメンバーは削除し、サムネイルは投影から深度を導出する。ランタイム等 36 件、VSIX ポリシー 13 件合格。描画カメラの選択も削除。106 件と GI/雲等 27 件、RTX 4060 Ti の精度/性能 2 件に合格。6 スケールの中央誤差は最大 2.56 ulp。通信はプロトコル9へ移行済み。低レベル行列/サムネイルの旧選択も削除し、RenderViewDepthを必須化した。旧Model/Triangleの削除は残る。
+- M0119 migration: Stage グラフ本体の VSMain/PSMain に深度を統合し、単一の VertexOutput/StagePixelOutput に移行した。旧ラッパーのエントリー名は削除し、現在は 14 エントリー。GPU 回帰 43 件、ShaderGraphCompilerTests 15 件、StagePresentationShaderSourceTests 1 件合格。7 つの対数画素ハッシュは不変。続く物理距離ターゲット・空・DDGI の移行は GPU 50 件、シェーダー 15 件に合格し、7 SHA は不変。距離の解析オラクル、プレビューによる非破壊、リサイズも検証。AO も専用の双曲深度バッファを削除し、共有の表面シェーダーから半解像度の物理距離を得るように移行。遠方クリップによる陰りの消失を再現して修正。環境画像のみ 6/20736 画素・最大 1 階調の差を記録して更新した。深度方式別の重複 PSO は統合済み。L4 RenderViewDepth の境界と数値は 32 件、接続後の GPU 回帰は 17 件合格。直接生成の new Camera も既定の対数曲線で初期化する(型と GPU で修正前 2 件失敗を確認し、修正後のカメラ・深度・画素・プレビュー 33 件合格)。シーン Camera の選択型とメンバーは削除し、サムネイルは投影から深度を導出する。ランタイム等 36 件、VSIX ポリシー 13 件合格。描画カメラの選択も削除。106 件と GI/雲等 27 件、RTX 4060 Ti の精度/性能 2 件に合格。6 スケールの中央誤差は最大 2.56 ulp。通信はプロトコル9へ移行済み。低レベル行列/サムネイルの旧選択も削除し、RenderViewDepthを必須化した。旧Model/Triangleと生産者・テンプレートも削除し、最終統合検証は継続中。
 
 ## F-L5-039 — Radial observer view
 
@@ -4873,7 +4871,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v14`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
-- Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。stage-v14(14 エントリー・960 バイト。通信と行列/サムネイルはネイティブ深度。旧Model/Triangleの削除は後続)。
+- Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。stage-v14(14 エントリー・960 バイト。通信と行列/サムネイルはネイティブ深度。旧Model/Triangleも削除済み。最終統合検証は継続中)。
 - Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
 - Conformance: MatchesWithDocumentedExtension(M0111 の文書の UE との差)
 - Next action: 実機の GPU での見た目・フレーム時間と Epic の確認。WARP の Epic での装置の削除の原因(パスごとのシェーダーへの分割を試す)。

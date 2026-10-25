@@ -283,10 +283,7 @@ public struct Camera {
     }
 
     /// <summary>
-    /// Thin shared wrapper around <see cref="Matrix4x4.CreateLookAt"/> - lets <see cref="ModelRenderer"/>'s
-    /// independent bounds-fit view (which does not go through a <see cref="Camera"/> instance) build
-    /// its view matrix the same way <see cref="GetView"/> does, instead of duplicating the call
-    /// (ADR-0026).
+    /// Shared right-handed look-at construction for runtime and preview cameras (ADR-0026).
     /// </summary>
     public static Matrix4x4 BuildViewMatrix(Vector3 Eye,Vector3 Target,Vector3 Up)=>Matrix4x4.CreateLookAt(Eye,Target,Up);
 

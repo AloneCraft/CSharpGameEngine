@@ -242,7 +242,7 @@ public class CameraTests {
 
     [Fact]
     public void CreateBoundsFit_EyeOffsetFromTarget_MatchesTheSharedDiagonalDirection(){
-        // Same (1,0.75,1) eye direction ModelRenderer's thumbnail camera and the VSIX
+        // Same (1,0.75,1) eye direction the asset thumbnail and the VSIX
         // SceneRenderer/VorticeRenderer preview cameras already use.
         Camera Camera=Camera.CreateBoundsFit(new Vector3(-1,-1,-1),new Vector3(1,1,1));
 

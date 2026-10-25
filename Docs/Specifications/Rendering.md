@@ -203,11 +203,11 @@ All Rendering Roadmap rows through F-L7-024 are Implemented with executable stag
 
 ## M0060 artifact-only update
 
-Stage, Model, and Triangle consume fixed-ABI CGESHDR1 artifacts only. Debug artifact changes exchange validated PSOs at a frame boundary and preserve last-known-good on failure; Release loads once and contains no watcher. Canonical Graph and editor contracts are defined in [Shader Graph](Shader-Graph.md).
+The native Stage renderer consumes fixed-ABI CGESHDR1 artifacts only; obsolete standalone Model/Triangle renderers and their ABI producers have been removed (M0119). Debug artifact changes exchange validated PSOs at a frame boundary and preserve last-known-good on failure; Release loads once and contains no watcher. Canonical Graph and editor contracts are defined in [Shader Graph](Shader-Graph.md).
 
 ## M0061 external Subgraph update
 
-Stage resolves PBR, Shadow, PCSS, and ACES from explicit external `.cgesubgraph` inputs. Recursive dependency hashes participate in Artifact identity while the root semantic hash remains independently observable. Exact HLSL parity preserves the M0060 WARP baseline; Runtime continues to consume the same CGESHDR1 contract.
+Stage resolves Depth, PBR, Shadow, PCSS, and ACES from explicit external `.cgesubgraph` inputs. Recursive dependency hashes participate in Artifact identity while the root semantic hash remains independently observable. Exact HLSL parity preserves the M0060 WARP baseline; Runtime continues to consume the same CGESHDR1 contract.
 
 ## M0064 visible Showcase update
 

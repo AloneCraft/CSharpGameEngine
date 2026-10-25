@@ -2,6 +2,9 @@
 - 状態: Accepted（2026-10-03、ユーザーの依頼:「Omni を参考にネイティブに実現する設計をして。回帰しないようにして」。計画はユーザーが承認）
 - 関連: ADR-0063（正準数値と階層 World）、ADR-0064（型付きライト）、ADR-0069（物理的な環境照明）、ADR-0075（ワールド空間のグリッド）、M0099、[Omni 仕様](../Specifications/Omni.md)
 
+## 現在の有効範囲(M0119)
+ADR-0084により、深度方式の選択・追加ラッパー・深度別PSO・旧ABIの記述はSuperseded。透視はStage本体のネイティブ対数深度、正射影は線形、観察ビューだけが頂点を写像する。物理位置の補間、独立した深度式、物体ごとの保守的下界、影の光源空間という決定は引き続き有効。現在の実装契約はADR-0084、Rendering/Omni仕様を参照する。
+
 ## 背景
 - Omni（`G:\Unity\6.6\Omni\Assets\Omni`、Unity 6000.6 / URP 17.6）は、高精度の Logical 座標から写像中心（通常はカメラ）への相対ベクトルを、方向を保ったまま距離だけ圧縮して描く。曲線は Smooth `F(q) = S·log2(1 + q/S)`（`q = d·M`）と Threshold の 2 つ。方向が保たれるので画面上の位置は標準描画と同じで、変わるのは深度だけ。
 - Omni の実装の大半は URP への「アダプター」である: Shader／Shader Graph／VFX の変換と注入、Material の差し替えと復元台帳、MaterialPropertyBlock の配布、BRG の sidecar、Unity のカリングと float の world 座標の回避策。テスト約 2,800 件の多くがこの変換と台帳を検証している。

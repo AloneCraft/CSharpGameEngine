@@ -89,7 +89,7 @@ public sealed class ShaderArtifactSerializerTests {
         byte[] Bytes = OutputStream.ToArray();
         bool TargetMismatch = ShaderArtifactSerializer.TryRead(
             new MemoryStream(Bytes),
-            ShaderArtifactTargetKind.Model,
+            ShaderArtifactTargetKind.Compute,
             Document.AbiHash,
             out _,
             out string TargetError);
@@ -103,6 +103,21 @@ public sealed class ShaderArtifactSerializerTests {
             out string AbiError);
         Assert.False(AbiMismatch);
         Assert.Equal("ABI hash does not match request.", AbiError);
+    }
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Read_RejectsRetiredTargetsWithAValidChecksum(byte Target){
+        var Document=CreateSample();
+        using var Output=new MemoryStream();
+        ShaderArtifactSerializer.Write(Output,Document,out var WriteError);
+        Assert.Empty(WriteError);
+        var Bytes=Output.ToArray();
+        Bytes[Encoding.ASCII.GetByteCount("CGESHDR1")+sizeof(int)]=Target;
+        var Hash=SHA256.HashData(Bytes.AsSpan(0,Bytes.Length-32));
+        Hash.CopyTo(Bytes.AsSpan(Bytes.Length-32));
+        Assert.False(ShaderArtifactSerializer.TryRead(new MemoryStream(Bytes),Document.Target,Document.AbiHash,out _,out var Error));
+        Assert.Equal("Target contains unsupported value.",Error);
     }
     [Fact]
     public void Write_RejectsDuplicateEntries() {

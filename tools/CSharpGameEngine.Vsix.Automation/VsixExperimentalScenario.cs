@@ -801,8 +801,13 @@ internal sealed class VsixExperimentalScenario {
         return null;
     }
     private static VsixExperimentalEvidence RunLocaleScenario(string RepoRoot,VisualStudioCandidate VisualStudio,AutomationOptions Options,string RunId,string Locale,string LocaleRoot,string VsixPath,string PackageDllHash,string BuildDllHash,string InstalledDllHash) {
-        var ScratchGraph=Path.Combine(LocaleRoot,"Triangle.cgeshadergraph");
-        File.Copy(Path.Combine(RepoRoot,"assets","Shaders","Triangle.cgeshadergraph"),ScratchGraph,true);
+        var ScratchGraph=Path.Combine(LocaleRoot,"Stage.cgeshadergraph");
+        var SourceGraph=Path.Combine(RepoRoot,"assets","Shaders","Stage.cgeshadergraph");
+        File.Copy(SourceGraph,ScratchGraph,true);
+        foreach(var Dependency in ReadGraph(SourceGraph).Dependencies){
+            var DependencyPath=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourceGraph)!,Dependency.Path));
+            File.Copy(DependencyPath,Path.Combine(LocaleRoot,Dependency.Path),true);
+        }
         var ActivityLog=Path.Combine(LocaleRoot,"ActivityLog.xml");
         var ScreenshotPath=Path.Combine(LocaleRoot,"shader-graph.png");
         var Evidence=new VsixExperimentalEvidence {

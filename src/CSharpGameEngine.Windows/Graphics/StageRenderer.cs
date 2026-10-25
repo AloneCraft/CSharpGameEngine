@@ -48,13 +48,9 @@ public readonly struct MeshCreateInfo {
 }
 
 /// <summary>
-/// Renders a fixed set of independently-transformed, textured PBR-lite meshes (ADR-0018 extends
-/// the untextured ADR-0016 vertical slice) with a movable camera, up to four data-driven
-/// directional lights + ambient term, and a simplified exponential height fog. Deliberately evolved in place
-/// rather than duplicated into a third renderer class (see ADR-0018): unlike the
-/// ModelRenderer/StageRenderer split in ADR-0004, the old untextured contract here is strictly
-/// subsumed by the new one (a 1x1 fallback texture per slot reproduces the old solid-color look
-/// exactly), so a third copy of the swap chain/RTV/DSV/fence/Resize plumbing would add no value.
+/// Renders textured, transformed meshes through the native logarithmic Stage pipeline, with
+/// physical lighting, shadows, environment effects and presentation. One owner manages the
+/// swap chain, frame resources, hot reload and resize for imported and procedural geometry.
 /// </summary>
 public sealed unsafe partial class StageRenderer:IDisposable {
     public const int FrameCount=2;
@@ -1452,7 +1448,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 PsoDesc.BlendState.IndependentBlendEnable=TRUE;
                 PsoDesc.BlendState.RenderTarget[1].RenderTargetWriteMask=0;
             }
-            // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
+            // Real backface culling is deferred, the imported-mesh winding policy (ADR-0004).
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             PsoDesc.RasterizerState.FillMode=FillMode;
             PsoDesc.RasterizerState.DepthClipEnable=DepthClip?TRUE:FALSE;
@@ -1956,7 +1952,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 "ID3D12Device::CreateCommittedResource","creating a material texture upload staging buffer");
             // GetCopyableFootprints' RowPitch is 256-byte aligned; the decoded image is tightly
             // packed (stride = Width*4). These differ whenever Width*4 isn't already a multiple of
-            // 256, so this must be a per-row copy, not one bulk CopyBlock (same as ModelRenderer).
+            // 256, so this must be a per-row copy, not one bulk CopyBlock to respect the texture row pitch.
             D3D12_RANGE NoRead=new();
             byte*Mapped;
             D3D12Diagnostics.EnsureSuccess(Staging->Map(0,&NoRead,(void**)&Mapped),"ID3D12Resource::Map","mapping a material texture upload staging buffer");
@@ -3921,7 +3917,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.WaitForGpuIdle();
 
-        // See ModelRenderer.Resize / ADR-0003 §8: ResizeBuffers restarts the swap chain's
+        // See ADR-0003 §8: ResizeBuffers restarts the swap chain's
         // back-buffer index cycle, which would otherwise desynchronize the per-slot fence values.
         var SyncedFenceValue= this.FenceValues[this.FrameIndex];
         for(var I=0;I<FrameCount;I++){

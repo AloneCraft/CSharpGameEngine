@@ -5,6 +5,10 @@ namespace CSharpGameEngine.ShaderGraph;
 public static class ShaderGraphValidator {
     public static ShaderGraphValidationResult Validate(ShaderGraphDocument Document) {
         var Result = new ShaderGraphValidationResult();
+        if(!Enum.IsDefined(typeof(ShaderGraphTargetKind),Document.Target.Kind)){
+            Result.Diagnostics.Add(new ShaderGraphDiagnostic(ShaderGraphDiagnosticCode.UnknownTarget,ShaderGraphDiagnosticSeverity.Error,"Shader Graph target is unsupported."));
+            return Result;
+        }
         var SubgraphById = new Dictionary<StableId, ShaderGraphSubgraph>();
         foreach (var Subgraph in Document.Subgraphs) {
             if (SubgraphById.ContainsKey(Subgraph.Id)) {

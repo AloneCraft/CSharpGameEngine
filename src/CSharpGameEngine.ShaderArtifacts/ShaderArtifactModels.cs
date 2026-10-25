@@ -2,8 +2,7 @@ namespace CSharpGameEngine.ShaderArtifacts;
 public enum ShaderArtifactTargetKind:byte {
     Unknown=0,
     Stage=1,
-    Model=2,
-    Triangle=3,
+    // Values 2 and 3 are retired and must not be reused.
     Compute=4,
 }
 public enum ShaderArtifactEntryStage:byte {

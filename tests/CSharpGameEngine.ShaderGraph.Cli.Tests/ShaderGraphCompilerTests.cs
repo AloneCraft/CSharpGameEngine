@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,14 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,14 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -77,8 +77,6 @@ public sealed class ShaderGraphCompilerTests {
         } finally { Directory.Delete(DirectoryPath,true); }
     }
     [Theory]
-    [InlineData("Triangle")]
-    [InlineData("Model")]
     [InlineData("Stage")]
     public void ProductionGraph_ContainsNoRawHlslPayload(string Name) {
         var Paths=new[]{GraphPath(Name)}.Concat(Name=="Stage"?Directory.GetFiles(Path.GetDirectoryName(GraphPath(Name))!,"*.cgesubgraph"):Array.Empty<string>());
@@ -233,7 +231,7 @@ public sealed class ShaderGraphCompilerTests {
         var ValueId=StableId.New();
         var OutputId=StableId.New();
         return new ShaderGraphDocument {
-            Target=new ShaderGraphTarget { Kind=ShaderGraphTargetKind.Model,Name="Subgraph" },
+            Target=new ShaderGraphTarget { Kind=ShaderGraphTargetKind.Stage,Name="Subgraph" },
             RootSubgraphId=RootId,
             Subgraphs={new ShaderGraphSubgraph {
                 Id=RootId,

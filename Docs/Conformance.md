@@ -4268,3 +4268,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 証拠は `.artifacts/M0119/typed-depth-final-regression.log`、`typed-depth-shader-tests.log`、`typed-depth-final-build.log`、`typed-depth-vsix-build.log`、`typed-depth-vsix-test.log`、`typed-depth-cpu-tests.log` とmemory.json。
 - 完了条件の旧選択・ラッパー検索はsrc/tools/tests/assetsで0件。古い生成保守スクリプトの説明だけに残ったエントリー名を役割の説明へ直し、履歴の変換処理は変更していない。
 - 全体は引き続きPartial。旧Model/Triangleの実装・ABI・テンプレート・生産者の削除、全体検証とテンプレート4実行が残る。
+
+## 2026-10-26 — M0119 旧単体レンダラーと生産者の削除
+- 生成元がない旧ModelRenderer/TriangleRendererと二つのルートグラフを削除。三角形・glTFのGPU試験は既にStage経由であり、削除せず維持した。Windows.Tests全体は818件合格・失敗0、通常は有効にしない実機測定2件スキップ、5分3秒。最大メモリ63%。7画像ハッシュも不変。
+- 旧ABIの生産者、ターゲット列挙値、VSIXの旧テンプレートと選択UIを削除。成果物の値2/3、グラフの値1/2は再利用せず拒否する。チェックサムが正しい旧ターゲットでも拒否する試験を含む成果物10件、グラフ29件、現行Stage14エントリー/HLSLのCLI9件合格。過去の15件から減った6件は廃止した二つのルートターゲットに対する三種類の重複実行。
+- FeatureStageCatalogとソリューションの旧ファイル項目を更新。リリース証拠はStage+5外部サブグラフ+表示接尾辞を記録し、Depth変更で証拠が無効になることを含むカタログ/リリース21件合格。梱包内容変更の版規則に従いSDKを0.1.24へ更新。
+- 初回VSIX試験はサブグラフItem Templateに旧ターゲット値が残っていたため1件失敗・44件合格。検証を緩めず、ルート/サブグラフの両Item TemplateをStageへ更新した。全追跡グラフのターゲットはStageであることを読み取り確認。修正後はVSIXの編集/梱包/ホスト/自動化契約45件すべて合格。
+- GUI自動化の移行でCLI専用型の誤参照が1件のビルドエラーになった。現在のStageの5依存が直接入力かつ再帰依存なしであることを確認し、既存のReadGraphで宣言された依存をコピーする形へ修正。最終ビルド警告0・エラー0。VS/Unityを起動していないためStageでのGUI実走は未検証と明記。
+- 証拠は `.artifacts/M0119/retired-renderer-*.log` と各memory.json。全体の状態はPartial。全ソリューション、4テンプレート実走、性能予算の最終閉鎖は後続。

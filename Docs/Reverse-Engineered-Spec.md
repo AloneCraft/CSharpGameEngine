@@ -544,3 +544,9 @@
 - Evidence: `RenderViewDepth.cs`, `RenderCameraPreview.cs`, `StageRenderer.cs`, `RadialDepthGpuIntegrationTests`, `RenderPreviewRenderSessionTests`.
 - Observed behavior: RenderDepthMappingは存在しない。主ビューは検証済みRenderViewDepthを保持し、そのパケットをアップロードする。引数のない深度方式は存在せず、透視行列には物理的投影情報が必要。サムネイルは必須のDepthが投影と整合し、主カメラの保守的ラスタ重みを使わないことを検証する。正射影は線形、観察ビューは中心を持つ専用パケット。
 - Result: 提出境界はADR-0084に一致。M0119全体は旧Model/Triangleと最終検証が残るためPartial。
+
+### RE-M0119 — 旧単体レンダラーと成果物の廃止
+- Confidence: High for source/API boundaries; final integration verification in progress.
+- Evidence: ShaderArtifactModels/Abi/Serializer, ShaderGraphModels/Validator, ShaderGraphTemplateWizard, FeatureStageCatalog, RenderingReleaseEvidence.
+- Observed behavior: 描画はStageへ集約。旧単体レンダラー・グラフ・ABIの生産者は存在しない。保存済み成果物の旧ターゲット値2/3は読み取りで拒否、グラフの旧値1/2はUnknownTargetとして拒否する。Stageの14エントリーとHLSLハッシュは不変。リリース証拠はStageと5外部サブグラフ・表示接尾辞の全入力を結び付ける。
+- Limit: Stageベースへ更新したVS GUI自動化はこの段階では起動していない。実際に再実行したテスト件数はM0119に記録する。

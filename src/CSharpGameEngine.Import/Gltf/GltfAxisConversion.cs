@@ -11,7 +11,7 @@ namespace CSharpGameEngine.Import.Gltf;
 /// boundary, per Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md. Everything
 /// <see cref="GltfImporter.ImportScene"/> returns (mesh-local vertex data and per-node world
 /// transforms) is already in engine space by the time it leaves this project - most consumers
-/// (<c>StageRenderer</c>, <c>ModelRenderer</c>) never need to know glTF's own convention exists.
+/// (<c>StageRenderer</c>) never need to know glTF's own convention exists.
 /// Public (not internal) because <c>UserGameProject.SceneLoader</c> is a second legitimate caller:
 /// <c>scene_meta.json</c>'s PlayerStart is written in glTF space by
 /// <c>tools/UnrealExport/export_lvl_firstperson.py</c>'s own UE-&gt;glTF conversion, so it needs the
