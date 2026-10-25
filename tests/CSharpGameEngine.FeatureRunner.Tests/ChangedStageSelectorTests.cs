@@ -70,7 +70,8 @@ public sealed class ChangedStageSelectorTests {
     [Theory]
     [InlineData("src/CSharpGameEngine.Rendering/RenderDeviceLifecycle.cs")]
     [InlineData("src/CSharpGameEngine.Rendering/Backend/RenderBackendFailureException.cs")]
-    [InlineData("src/CSharpGameEngine.Windows/Runtime/RenderServer.cs")]
+    [InlineData("src/CSharpGameEngine.Rendering/Server/RenderServer.cs")]
+    [InlineData("src/CSharpGameEngine.Windows/Graphics/D3D12RenderServer.cs")]
     [InlineData("tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs")]
     public void RenderRecoveryChangesSelectDeviceRecovery(string ChangedPath){
         IReadOnlyList<FeatureStageDefinition>Selected=ChangedStageSelector.Select(

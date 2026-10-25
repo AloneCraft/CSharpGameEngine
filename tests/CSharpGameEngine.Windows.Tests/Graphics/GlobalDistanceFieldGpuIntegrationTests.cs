@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using System.Security.Cryptography;
@@ -164,7 +166,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageMeshGeometry.ArbitraryTangentFor).ToArray(),
             Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,DistanceField=MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices) };
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Global Distance Field Server",Width=64,Height=64,Visible=false });
-        using var Server=CSharpGameEngine.Runtime.Windows.RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
+        using var Server=CSharpGameEngine.Graphics.D3D12.D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,[Mesh],[new StageMaterialCreateInfo { BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         Server.AddObject(Server.AddMesh(Mesh),0);
         Server.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DistanceField=new GlobalDistanceFieldSettings(Voxel,1,16,default,Vector3.Zero) });

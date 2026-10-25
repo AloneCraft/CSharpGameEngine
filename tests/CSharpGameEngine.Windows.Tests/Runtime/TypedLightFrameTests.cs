@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Collections;
 using System.Numerics;
 using System.Reflection;
@@ -104,7 +106,7 @@ public sealed class TypedLightFrameTests {
     private static void RunRecovery(){
         var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using var Window=new Win32Window(new Win32WindowOptions { Title="Typed light recovery",Width=128,Height=128,Visible=false });
-        using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+        using var Renderer=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact"),Roster.Meshes,Roster.Materials,Roster.Objects);
         Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));

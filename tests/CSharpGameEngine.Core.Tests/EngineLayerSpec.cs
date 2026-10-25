@@ -66,6 +66,17 @@ public sealed class EngineLayerSpec {
         Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
     }
     [Fact]
+    public void NoPortableEngineLibraryReferencesTheNativeBackend(){
+        var Root=Path.Combine(RepositoryRoot,"src");
+        var Violations=Directory.EnumerateFiles(Root,"*.csproj",SearchOption.AllDirectories)
+            .Where(File=>!Path.GetRelativePath(Root,File).Split(Path.DirectorySeparatorChar).Any(Part=>Part is "bin" or "obj"))
+            .Where(File=>Path.GetFileName(File)!="CSharpGameEngine.Windows.csproj")
+            .SelectMany(File=>XDocument.Load(File).Descendants("ProjectReference").Select(Reference=>(File,Path:Reference.Attribute("Include")?.Value)))
+            .Where(Entry=>Entry.Path is not null&&Path.GetFileName(Entry.Path.Replace('\\','/'))=="CSharpGameEngine.Windows.csproj")
+            .Select(Entry=>$"{Entry.File}: {Entry.Path}").ToArray();
+        Assert.Empty(Violations);
+    }
+    [Fact]
     public void NativeStageDoesNotDeclareFrameOrObjectOffsets(){
         var Root=Path.Combine(RepositoryRoot,"src","CSharpGameEngine.Windows","Graphics");
         var Forbidden=new Regex(@"private\s+const\s+uint\s+(?:Frame\w+Offset|Object\w+Offset|FrameConstantsSize)\s*=",RegexOptions.CultureInvariant);

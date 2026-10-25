@@ -4215,11 +4215,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 
 ## M0120 — 描画レイヤー分離(2026-10-26、進行中)
 - Intended: ADR-0087 §1。描画値/計画はポータブルなL4/L5、L0は計画実行に限定する。
-- Observed: 環境/メッシュ/材質/物体/発光パッチ入力はRendering、光源/影/発光のCPU計算はPipeline、カメラ数学はL5 View.RenderCameraへ移動済み。Frame/Objectの型付きCBと35オフセットはL4 StageGpuLayoutsが正本。Nativeの通常描画とLumen撮影も共有する。シーンComponentのCamera名は維持する。
-- Verified: SDK0.1.32のビュー/読み戻し/シーン共有化を含む全ソリューション22プロジェクト、3570件成功・失敗0・実機測定2件スキップ、終了0。Windows779、Rendering169、Core158、FeatureRunner246、CLI15、生成器338、VSIX1197、Import73件。最大物理RAM45%、閾値停止なし。証拠は `.artifacts/M0120/primitive-solution.summary.json` と同log/memory.json。以前の5f4d647/SDK0.1.29の3548件はM0120の履歴として維持する。
+- Observed: 環境/メッシュ/材質/物体/発光パッチ入力はRendering、光源/影/発光のCPU計算はPipeline、カメラ数学はL5 View.RenderCameraへ移動済み。Frame/Objectの型付きCBと35オフセットはL4 StageGpuLayoutsが正本。Nativeの通常描画とLumen撮影も共有する。シーンComponentのCamera名は維持する。Server/FrameStateはRendering.Serverへ移り、作成/再生成はNative factory、カメラ互換APIはL5 View拡張へ分離した。
+- Verified: SDK0.1.36の診断/Source/実提出ポート/Server本体移動まで含む全ソリューション22プロジェクト、3596件成功・失敗0・実機専用2件スキップ、終了0。Windows791、Rendering178、Core159、FeatureRunner250、CLI15、生成器338、VSIX1197、Import73件。最大物理RAM66%、閾値停止なし。証拠は `.artifacts/M0120/server-move-solution.summary.json` と同log/memory.json。Releaseのアセンブリ/公開API/成果物境界5件も成功、最大RAM62%。過去のSDK0.1.32の3570件とSDK0.1.29の3548件はM0120の履歴として維持する。
 - ABI: DXC実反射6条件で全CBのオフセット/サイズと行列の行配置が一致する。FrameCB960/ObjectCB192、固定7画像、Stage成果物SHA(E485F055...B6A5)は不変。Lumenの逆行列名の別名を明示し、カードPSでは未使用FrameCBの不在も検証する。成果物の既存JSONメタデータと実反射のコンパイル結果APIは別で、RuntimeはDXCを参照しない。
 - Startup: SetCamera未提出の初期化の透視行列/線形パケット不整合を修正前GPUで再現。共通カメラ設定で初期化を揃え、両スロットを含む3フレームが対数深度に一致。M0119追記とdefault-view-before/after.logに記録。全体回帰もこの修正を含む。
-- Result: Partial。移動済み単位はMatches。L0からCPU Plannerを呼ぶ経路、RenderViewPolicy、フレーム順序/状態、RenderServerと実行ポートの分離、URP方式のForward/Forward+およびDeferred系は未完。全スケール物理と物理契約分離も後続M0122/M0123。詳細な失敗/修正/測定履歴はM0120へ集約する。
+- Result: Partial。Server/FrameState本体と値/提出ポートの移動単位はMatches。L0からCPU Plannerを呼ぶ経路、Nativeカメラ互換入口/初期化、フレーム順序/描画状態と実計画、URP方式のForward/Forward+およびDeferred系は未完。全スケール物理と物理契約分離も後続M0122/M0123。詳細な測定履歴はM0120へ集約する。
 
 - M0120ビュー提出追記(SDK0.1.30): L4 RenderView/L5 RenderViewPolicyとNative/Server SetView/型付き復旧を接続。Rendering169、GPU31と最終6、層7、FeatureRunner242件成功。3投影経路で旧APIと復旧画像が一致、固定7画像/Stageバイナリ不変、最大RAM41%。旧可視性型はRenderVisibilityViewへ用途を明示した。旧APIのリサイズ用メタデータ、NativeのPolicy互換呼出し、Server/フレーム計画の所有者は残るため全体はPartial。過去の全体3548件は今回の新APIを含む実行ではない。
 
@@ -4232,3 +4232,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - M0120ビュー再生成入力追記(SDK0.1.34): FrameStateからL5カメラ型を除き、L4 RenderViewSourceを値保持/Resolveして復旧する。Rendering178、GPU30、層7、FeatureRunner248件成功。自動/固定aspect、固定VP/View、80×48→48×80リサイズと実第2世代復旧を確認。通常の解決は管理割り当て0、最大RAM43%、固定7画像/Stageバイナリ不変。この移行単位はMatches、Server/実行ポート/計画/4パス全体はPartial。
 
 - M0120提出ポート追記(SDK0.1.35): IStageRenderBackend/IStageShaderArtifactを通常提出・再生・閉包同期へ接続。FrameStateはNative型/光源kindを参照せず、正規バイトは成果物ファイルと完全一致。共通クリア値/余力/Debug能力も接続した。Debug Native41、層7、FeatureRunner249、Release境界/バイト4件成功、最大RAM42%、7画像/Stageバイナリ不変。中間ポートとしてMatches、Server本体/作成口/実パス計画と4パスはPartial。
+
+- M0120 Server本体追記(SDK0.1.36): 実アセンブリでServerがポータブルRenderingに属し、Native参照/Native引数がないことを確認。Native factoryが作成/再生成と固有パッケージ適合を持ち、L5拡張と同じシーンJSONを維持。上記全3596件とRelease境界5件に合格。この移動単位はMatches、実パス計画/Nativeの描画状態と4パス/物理の後続はPartial。

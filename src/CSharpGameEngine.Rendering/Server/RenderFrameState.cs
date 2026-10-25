@@ -3,7 +3,7 @@ using System.Numerics;
 using CSharpGameEngine.Rendering.Backend;
 using CSharpGameEngine.Rendering;
 
-namespace CSharpGameEngine.Runtime.Windows;
+namespace CSharpGameEngine.Rendering.Server;
 
 /// <summary>
 /// Reusable provider-boundary snapshot for the commands that form one complete frame. Two

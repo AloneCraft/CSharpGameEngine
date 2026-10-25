@@ -1,6 +1,6 @@
 # M0120 — 描画の L4 化と Forward / Forward+(URP 方式)
 - 日付: 2026-10-25
-- 状態: Implementing(2026-10-26。M0119完了後、段階1のポータブル値型から移動中。RenderServer/計画とForward系は未移行)
+- 状態: Implementing(2026-10-26。値/CB/ビュー/診断/提出ポートとServer/FrameStateはL4へ移動済み。段階1の実フレーム計画、Forward系は未移行)
 - 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0087](../Decisions/ADR-0087-Rendering-And-Physics-Layers.md) §1
 - ABI: `stage-v15`
 
@@ -147,3 +147,18 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - DebugのNative41件(実ポート提出、動的物体、型付き光源、ViewSourceリサイズ/復旧、7画像、プレビュー、ホットリロード、情報キューと成果物バイト)成功。層7件、FeatureRunner249件成功。Releaseではコンパイラー/DXCのRuntime非混入、ホットリロード無効、成果物バイトの4件を別に確認し成功した。Release GPU描画の証拠とは扱わない。
 - 初回ビルドはNative内部の同名DirectionalLightSubmissionが公開型を隠すことと、内部getter2件の実装不足を検出。公開型を明示し、getterを明示実装して解消。失敗backend-port-first.log、成功backend-port-final.log/backend-port-layers.log/backend-port-catalog.log/backend-port-release.logとmemory.json。最大RAM42%、閾値停止なし。
 - SDK0.1.35、stage-v14/StageバイナリSHA E485F055...B6A5と固定7画像は不変。全体3570件はSDK0.1.32までの測定。これは動作する中間提出ポートの検証であり、Server本体/Native作成口の分離とStagePipelinePlanによるパス実行は未完、M0120全体はPartial。
+
+## Server/FrameState本体の配置移動単位
+- ADR-0087 §1.6に従い、RenderServer/RenderFrameStateをRendering.Serverへ移す。L4はIStageRenderBackendFactoryによる初期生成/再生成を使い、ウィンドウ/GraphicsDeviceOptions/Native packageへの適合確認はD3D12RenderServer.CreateとNative factoryだけが持つ。L4にNative参照やfriendは追加しない。
+- SetCamera/SetViewProjectionはL5 ViewのRenderServerViewExtensionsへ移し、既存呼出しを維持する。型名の変更はSDKで明示し、実利用側/作成口/カタログ/証拠入力を同時更新する。SceneのComponent名/JSONは変更しない。
+- テスト用の実デバイス削除/深度読み出しはNative側の拡張へ置き、作成したServerとfactoryの弱い対応表から現在世代を取得する。L4の本番ポートへテスト用APIを追加しない。FrameStateの内部試験向けfriendはWindows.Testsだけに許可する。
+- Native/portableの実アセンブリ境界、画素/復旧/ホットリロード/プレビューと共有登録を含む全ソリューションを検証する。実行順を決めるパス計画の移動はこの後続であり、Nativeが最終の実行器だけになったとは扱わない。
+
+### Server本体の配置移動と全体確認(2026-10-26)
+- RenderServerと内部RenderFrameStateはRendering.Server/Rendering.dllへ移動した。L4の作成口はIStageRenderBackendFactoryとサイズ/ロースターだけを取り、Windows/TerraFXへの参照・Native friendはない。実アセンブリと公開引数の検査も追加。NoPortableEngineLibraryReferencesTheNativeBackendと既存の再帰的なNative/L5禁止に合格する。
+- D3D12RenderServer.Createは従来のウィンドウ/Options/成果物パスの引数を保ち、所有コピーのNative factoryが初期生成と最後に適用した成果物からの再生成を行う。L4にあったNative packageへのcastもこのfactoryへ閉じた。Rootのカメラ/行列メソッドはL5 View拡張で同じ呼出し構文を維持する。実利用28ファイル、カタログ/証拠入力を更新した。
+- 実デバイス削除/深度読み出しはNativeの内部拡張に置き、Serverとfactoryの弱い対応表から現在の世代を取得する。L4の本番ポートには試験APIを足していない。FrameStateの試験向けfriendはWindows.Testsだけ。Scene Component/JSONの完全修飾名は同じ。
+- 先行の対象52件が成功。SDK0.1.36の全ソリューション22プロジェクトは3596件成功・失敗0・実機専用2件スキップ、終了0。Core159(層8件/登録を含む)、Rendering178、FeatureRunner250、Windows791、生成器338、CLI15、VSIX1197、Import73件。SDK0.1.32の3570件以後の診断/Source/実提出ポート/Server移動をすべて含む。
+- Releaseも移動後のRuntimeコンパイラー非混入/ポータブルServer参照/ホットリロード無効/正規成果物バイトの5件が成功。Release GPUやVS/Unityを起動した実画面の証拠とは区別する。Debugの固定7画像とStage成果物SHA E485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5は不変、ABIはstage-v14。
+- 証拠はserver-move-fixed.log、server-move-solution.logとsummary.json/memory.json、server-move-release.log/memory.json。全体最大RAM66%、Release62%、閾値停止なし。最初のserver-move-first.logは、旧NativeのRuntime.Windows名前空間だけを参照していたStandalone Hostのusingを検出。依存が不要になった4ツールからそのusingを除き、上記全体実行で実利用先も確認した。
+- この移動単位はMatches、M0120全体はPartial。NativeのCPU Planner呼出し・カメラ互換入口/初期化・フレーム順序/描画状態は残る。次は実StagePipelinePlan/StageFrameDataとForward/Forward+。Deferred系/全スケール物理/物理契約分離はM0121〜M0123で未完。mainへは統合していない。

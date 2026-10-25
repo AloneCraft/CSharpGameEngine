@@ -1,9 +1,10 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
-using CSharpGameEngine.Runtime.Windows;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 const string ProductDisplayName="C# Game Engine";
@@ -84,7 +85,7 @@ static int RunTriangle(string[]TriangleArgs){
     try {
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
             StageObjectCreateInfo[]Objects)=BuildTriangleRoster();
-        Renderer=RenderServer.Create(
+        Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
         Renderer.SetCamera(Camera.CreateDefault(Vector3.Zero));

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.EditorPreview.Host;
@@ -32,7 +33,7 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.Equal(1u,Session.DeviceGeneration);
         Assert.NotNull(Session.LastCapturedFrame);
         var Verification=ModelPixelVerifier.Verify(
-            Session.LastCapturedFrame!,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor);
+            Session.LastCapturedFrame!,CSharpGameEngine.Rendering.Server.RenderServer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
 
@@ -95,7 +96,7 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.Equal(OverlayHash,Session.LastFrameHash);
         Assert.NotNull(Session.LastCapturedFrame);
         Assert.True(ModelPixelVerifier.Verify(
-            Session.LastCapturedFrame!,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor).Success);
+            Session.LastCapturedFrame!,CSharpGameEngine.Rendering.Server.RenderServer.ClearColor).Success);
 
         Session.ReplaceScene(Request.Scene,string.Empty);
         Assert.Empty(Session.CameraPreviewDiagnostics);
@@ -128,7 +129,7 @@ public sealed class RenderPreviewRenderSessionTests {
         PixelReadbackResult Frame=Assert.IsType<PixelReadbackResult>(
             Session.LastCapturedFrame);
         AssertClearFrame(
-            Frame,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor);
+            Frame,CSharpGameEngine.Rendering.Server.RenderServer.ClearColor);
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
     }
 

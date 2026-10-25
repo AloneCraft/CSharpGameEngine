@@ -2446,9 +2446,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Entityごとの音源、Listener位置、距離減衰は現行へ移植していない。
 - Next action: なし。
 
-## F-L4-002 — `CSharpGameEngine.Runtime.Windows`(`PrimitiveMesh`/`PrimitiveType`/`RenderServer`)
+## F-L4-002 — RenderServerとL5シーンのプリミティブ語彙
 
-- M0120(2026-10-26、SDK0.1.32): プリミティブ語彙/組立とシーンCameraはL5共有ソース、提出値/共通接線はL4。型名/データを維持し、全22プロジェクト3570件成功。RenderServer自体のL4移動は後続であり、この履歴IDを含む複合機能の実装場所を区別する。
+- M0120(2026-10-26、SDK0.1.32): プリミティブ語彙/組立とシーンCameraはL5共有ソース、提出値/共通接線はL4。型名/データを維持し、全22プロジェクト3570件成功。RenderServer本体はSDK0.1.36でRendering.Serverへ移動した。Native factoryとL5 View拡張を分け、この履歴IDを含む複合機能の実装場所を区別する。
 
 - M0088: RenderServer accepts four typed submissions (rectangle includes forward/up), optional shadows and ordered reusable typed frame records with separate emissive payloads. TypedLightFrameTests verifies generated diagnostics, exact WARP recovery pixels and warm-buffer allocation.
 
@@ -2462,7 +2462,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/CSharpGameEngine.Runtime.Windows/PrimitiveType.cs
   - src/CSharpGameEngine.Runtime.Windows/PrimitiveMesh.cs
-  - src/CSharpGameEngine.Windows/Runtime/RenderServer.cs
+  - src/CSharpGameEngine.Rendering/Server/RenderServer.cs
   - src/CSharpGameEngine.Rendering/StageMeshGeometry.cs(共通の接線生成)、src/CSharpGameEngine.Runtime.Windows/PrimitiveRoster.cs(形状組立)
   - src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
     アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
@@ -3810,7 +3810,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `vsix.rendering-preview` (`Executable`, Visual / VSIX, 1800s)
 - Depends on: F-L0-009, F-L8-022
 - Current delta: None in the automated shared-preview contract. Asset Preview and Scene View are clients of one out-of-process Windows x64 Preview Host that owns common recovered `RenderServer` sessions. The provider-neutral protocol carries bounded scene/frame state, selection weights, Lit/BaseColor/Normal/Wireframe mode, transparent overlay geometry, up to three camera previews, stable correlation, monotonic sequences, current device generation/fence diagnostics, and opt-in capture. A WPF container retains its HWND while a failed process generation is replaced together with its DXGI child surface, after which source-derived state is replayed once.
-- Implementation evidence: `src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs`; `src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`; `tools/CSharpGameEngine.EditorPreview.Host/`; `tools/CSharpGameEngine.VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `CSharpGameEngine.VSExtension.csproj`.
+- Implementation evidence: `src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs`; `src/CSharpGameEngine.Rendering/Server/RenderServer.cs`; `tools/CSharpGameEngine.EditorPreview.Host/`; `tools/CSharpGameEngine.VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `CSharpGameEngine.VSExtension.csproj`.
 - Tests: `RenderPreviewHostProtocolTests`; `RenderPreviewRenderSessionTests`; `RenderPreviewHostProcessTests`; `RenderPreviewHostPipeTests`; `RenderPreviewHostSessionTableTests`; `RenderPreviewHostClientTests`; `RenderPreviewSceneBuilderTests`; `RenderSurfaceHostWindowTests`; `PackagedRenderPreviewHostTests`; `VsixManifestTests`; `RenderServerTests`.
 - Conformance: Matches for the automated F-L8-018 contract. The built VSIX contains the same-configuration framework-dependent apphost closure and offline Stage shader artifact, its apphost renders a real WARP frame with the D3D12 debug layer, and package/source tests reject `SceneRenderer`, `VorticeRenderer`, `NativeEvent`, Vortice, and SharpGen. Debug and Release VSIX suites pass 1,017 tests; focused common Render Server/Preview Host suites pass 13 in each configuration. Experimental Instance Scene Designer observation remains Pending, so this Feature is not `Verified` or `RuntimeVerified`.
 - Next action: F-L7-024 consumes the completed rendering performance reports in the scoped release closure. F-L8-023 owns executable transform/WARP/rebase/Undo conformance without reintroducing a renderer; the separate Experimental Instance `scene-designer` row remains Pending manual evidence.
@@ -4836,7 +4836,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(試験を足した)
 - Depends on: F-L7-053
 - Implementation evidence:
-  - `src/CSharpGameEngine.Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
+  - `src/CSharpGameEngine.Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
   - `src/CSharpGameEngine.Runtime.Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
 - Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
@@ -4852,7 +4852,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md`(メッシュの距離場)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
 - Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
 - Depends on: F-L7-049
-- Implementation evidence: `src/CSharpGameEngine.Rendering/MeshDistanceField.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`(基本形状は実行時)
+- Implementation evidence: `src/CSharpGameEngine.Rendering/MeshDistanceField.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`(基本形状は実行時)
 - Tests: `tests/CSharpGameEngine.Rendering.Tests/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)
@@ -4868,7 +4868,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(Lumen の試験を足した)
 - Depends on: F-L4-018、F-L4-014
 - Implementation evidence:
-  - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`
+  - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`
   - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v14`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
@@ -4889,7 +4889,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L4-004、F-L0-009
 - Implementation evidence: なし(計画のみ。M0120 で実装する)
 - Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0120 で足す)
-- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。L4 RenderViewSourceが再生成入力を値保持し、FrameStateのL5カメラ型/旧行列分岐を除去した。CPU読み戻し値とFormatもL4へ移し、DXGI型を公開結果から除去した。シーンCamera/PrimitiveMesh/PrimitiveTypeと組立はL5共有ソースへ移動済み。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。公開メッセージ/回復理由もL4の値に揃え、ServerのHRESULT定数分岐をNativeへ移した。実提出/FrameState再生と正規成果物バイトをL4ポートへ接続し、FrameStateのNative参照を除去した。L0はまだCPU計算の呼出し・フレーム順序・状態を持ち、Server作成口にGraphicsDeviceOptions/ウィンドウ値が残る。計画実行器そのものは未実装。
+- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。L4 RenderViewSourceが再生成入力を値保持し、FrameStateのL5カメラ型/旧行列分岐を除去した。CPU読み戻し値とFormatもL4へ移し、DXGI型を公開結果から除去した。シーンCamera/PrimitiveMesh/PrimitiveTypeと組立はL5共有ソースへ移動済み。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。公開メッセージ/回復理由もL4の値に揃え、ServerのHRESULT定数分岐をNativeへ移した。実提出/FrameState再生と正規成果物バイトをL4ポートへ接続し、FrameStateのNative参照を除去した。Server/FrameState本体をRendering.Serverへ移し、生成/再生成はIStageRenderBackendFactory、Native作成口はD3D12RenderServerへ分離した。L5互換入口はView拡張。L0はまだCPU計算の呼出し・フレーム順序/描画状態を持つ。計画実行器そのものは未実装。
 - Conformance: Unknown
 - Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
 

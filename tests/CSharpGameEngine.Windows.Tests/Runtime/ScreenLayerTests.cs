@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
@@ -56,7 +58,7 @@ public class ScreenLayerTests {
     private static RenderServer CreateServer(Win32Window Window){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
             PrimitiveRoster.Build([PrimitiveType.Box],0,0);
-        return RenderServer.Create(
+        return D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);

@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Graphics.D3D12;
@@ -15,7 +17,7 @@ public sealed class RenderServerDynamicObjectTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private static RenderServer CreateServer(Win32Window Window){
         (var Meshes,var Materials,var Objects)=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
-        return RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
+        return D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
     }
     private static (string Hash,int Covered)Capture(RenderServer Renderer,params (int Index,Matrix4x4 World)[]Placed){
         Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));

@@ -1,5 +1,6 @@
 # Changelog
 
+- SDK 0.1.36: RenderServer/RenderFrameStateをポータブルなRendering.Serverへ移動。Nativeの作成口はD3D12RenderServer.Create、再生成はIStageRenderBackendFactoryへ分離。SetCamera/SetViewProjectionはL5 Viewの拡張メソッドで維持し、シーンComponent名は同じ。Server本体はNative/ウィンドウ/Native成果物型を参照しない。パス実行計画の抽出は継続する。
 - SDK 0.1.35: L4 IStageRenderBackend/IStageShaderArtifactへ実提出・フレーム再生・成果物閉包を接続。FrameStateがNativeクラス/光源kindを直接参照する依存を除いた。クリア値/オブジェクト余力/Debugホットリロード能力も共通値を正本にする。ServerのNative作成口とパス計画は引き続き移行中。
 - SDK 0.1.34: L4 RenderViewSourceが値として透視/明示VP/固定Viewの再生成入力を保持。FrameStateからL5 RenderCameraと旧行列保存分岐を除去し、リサイズ/復旧時の自動aspect・明示aspect・固定行列の契約を維持。L5 Policyが提出形式を選び、解決時の投影検証と計算はL4で共有する。
 - SDK 0.1.33: Stage/RenderServerの公開診断をRendering.Backend.RenderDeviceMessageへ変更。Native例外はRenderBackendFailureExceptionを継承し、HRESULTから回復理由への分類をNative側へ移動。サーバーは分類済み理由を扱い、未知の失敗は復旧要求にしない。

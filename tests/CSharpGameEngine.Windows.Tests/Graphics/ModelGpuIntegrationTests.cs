@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using CSharpGameEngine.Lighting;
 using System.Numerics;
@@ -70,7 +72,7 @@ public class ModelGpuIntegrationTests {
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
             StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
             Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Material);
-        using var Renderer=RenderServer.Create(
+        using var Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
         Vector3 Extent=new(Mesh.Bounds.BoundingSphereRadius);

@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
@@ -7,7 +9,6 @@ using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
-using CSharpGameEngine.Runtime.Windows;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 internal static class RenderingPerformanceRawCapture {
@@ -120,7 +121,7 @@ internal static class RenderingPerformanceRawCapture {
             [Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],
             [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
             [0u,1u,2u],Material);
-        using RenderServer Renderer=RenderServer.Create(
+        using RenderServer Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions {
                 UseWarp=Options.Adapter=="warp",

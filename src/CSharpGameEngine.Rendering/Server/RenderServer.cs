@@ -2,19 +2,15 @@ using CSharpGameEngine.Rendering.Backend;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
-using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
-using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 
-namespace CSharpGameEngine.Runtime.Windows;
+namespace CSharpGameEngine.Rendering.Server;
 
 /// <summary>Owns submitted frame state, roster artifacts and device-generation recovery.</summary>
 public sealed class RenderServer:IDisposable {
     private static readonly StableId RecoveryArtifactNamespace=
         StableId.Parse("ef11e972-e4bd-5127-82a4-7f52175f9d48");
-    private readonly nint Hwnd;
-    private readonly GraphicsDeviceOptions DeviceOptions;
-    private readonly string ShaderArtifactPath;
+    private readonly IStageRenderBackendFactory Factory;
     // The roster the renderer is rebuilt from after a device loss. It starts as the one given to Create and grows with AddMesh,
     // AddMaterial and AddObject; a removed object keeps its slot, marked Removed, so every index stays what the caller holds (M0105).
     private readonly List<StageMeshCreateInfo>Meshes;
@@ -33,15 +29,12 @@ public sealed class RenderServer:IDisposable {
     private int Height;
 
     private RenderServer(
-        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
-        string ShaderArtifactPath,StageMeshCreateInfo[]Meshes,
+        IStageRenderBackendFactory Factory,int Width,int Height,StageMeshCreateInfo[]Meshes,
         StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects,
         IStageRenderBackend Renderer,AssetArtifactReference[]ArtifactClosure){
-        this.Hwnd=Hwnd;
+        this.Factory=Factory;
         this.Width=Width;
         this.Height=Height;
-        this.DeviceOptions=DeviceOptions;
-        this.ShaderArtifactPath=ShaderArtifactPath;
         this.Meshes=[.. Meshes];
         this.Materials=[.. Materials];
         this.Objects=[.. Objects];
@@ -73,8 +66,7 @@ public sealed class RenderServer:IDisposable {
     public int ResidentScreenTextureCount=>this.Backend.ResidentScreenTextureCount;
     public PixelReadbackResult?LastCapturedFrame=>this.Backend.LastCapturedFrame;
     /// <summary>
-    /// Canonical L4 declaration for the configured compatibility pipeline. The current D3D12
-    /// StageRenderer remains the execution oracle, so tooling must present this as a declared plan
+    /// Canonical L4 declaration for the configured compatibility pipeline. The backend remains the execution oracle, so tooling must present this as a declared plan
     /// rather than per-pass execution evidence.
     /// </summary>
     public RenderQualityPlan DeclaredQualityPlan=>this.DeclaredQualityPlanValue;
@@ -115,8 +107,6 @@ public sealed class RenderServer:IDisposable {
     /// <summary>Whether the last frame lit the scene with the Lumen-like GI (M0111) rather than the probe volume and the sky light.</summary>
     public bool LumenActive=>this.Backend.LumenActiveLastFrame;
 
-    internal void RemoveDeviceForTesting()=>((StageRenderer)this.Backend).RemoveDeviceForTesting();
-    internal float[]ReadDepthForTesting()=>((StageRenderer)this.Backend).ReadDepthForTesting();
 
     private IStageRenderBackend Backend{
         get{
@@ -126,34 +116,20 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
-    public static RenderServer Create(
-        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
-        string ShaderArtifactPath,IReadOnlyList<StageMeshCreateInfo>Meshes,
-        IReadOnlyList<StageMaterialCreateInfo>Materials,
-        IReadOnlyList<StageObjectCreateInfo>Objects){
-        ArgumentNullException.ThrowIfNull(DeviceOptions);
-        ArgumentNullException.ThrowIfNull(ShaderArtifactPath);
+    public static RenderServer Create(IStageRenderBackendFactory Factory,int Width,int Height,
+        IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,IReadOnlyList<StageObjectCreateInfo>Objects){
+        ArgumentNullException.ThrowIfNull(Factory);
         ArgumentNullException.ThrowIfNull(Materials);
         ArgumentNullException.ThrowIfNull(Objects);
-        StageMeshCreateInfo[]OwnedMeshes=CloneMeshes(Meshes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Height);
+        var OwnedMeshes=CloneMeshes(Meshes);
         StageMaterialCreateInfo[]OwnedMaterials=[.. Materials];
         StageObjectCreateInfo[]OwnedObjects=[.. Objects];
-        GraphicsDeviceOptions OwnedOptions=new(){
-            UseWarp=DeviceOptions.UseWarp,
-            EnableDebugLayer=DeviceOptions.EnableDebugLayer,
-            EnableGpuBasedValidation=DeviceOptions.EnableGpuBasedValidation,
-        };
-        string FullShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
-        StageRenderer Renderer=StageRenderer.Create(
-            Hwnd,Width,Height,OwnedOptions,FullShaderArtifactPath,
-            OwnedMeshes,OwnedMaterials,OwnedObjects);
+        var Renderer=Factory.Create(Width,Height,OwnedMeshes,OwnedMaterials,OwnedObjects);
         try {
-            AssetArtifactReference[]Closure=BuildArtifactClosure(
-                Renderer.LastKnownGoodShaderArtifact,
-                OwnedMeshes,OwnedMaterials,OwnedObjects);
-            return new RenderServer(
-                Hwnd,Width,Height,OwnedOptions,FullShaderArtifactPath,
-                OwnedMeshes,OwnedMaterials,OwnedObjects,Renderer,Closure);
+            var Closure=BuildArtifactClosure(Renderer.LastKnownGoodShaderArtifact,OwnedMeshes,OwnedMaterials,OwnedObjects);
+            return new RenderServer(Factory,Width,Height,OwnedMeshes,OwnedMaterials,OwnedObjects,Renderer,Closure);
         } catch {
             Renderer.Dispose();
             throw;
@@ -225,32 +201,6 @@ public sealed class RenderServer:IDisposable {
         var View=Source.Resolve(this.Width,this.Height);
         this.Backend.SetView(View);
         this.PendingFrame.RecordViewSource(Source);
-    }
-
-    public void SetCamera(in RenderCamera Camera,float AspectRatioOverride=0f){
-        this.SetViewSource(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromCameraSource(Camera,AspectRatioOverride));
-    }
-
-    /// <summary>
-    /// Submits a presentation-relative orthographic matrix with linear depth. Perspective callers
-    /// must supply physical projection parameters through the overload below.
-    /// </summary>
-    public void SetViewProjection(in Matrix4x4 ViewProjection){
-        this.SetViewProjection(ViewProjection,Vector3.Zero);
-    }
-
-    public void SetViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
-        this.SetView(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromOrthographic(ViewProjection,CameraPosition));
-    }
-
-    /// <summary>
-    /// M0100: an isolated preview's perspective matrix drawn with radial depth; <paramref name="Radial"/> carries the
-    /// camera's field of view, clip range and transition length. Device recovery replays it.
-    /// </summary>
-    public void SetViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
-        this.SetViewSource(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromPerspectiveSource(ViewProjection,CameraPosition,Radial));
     }
 
     public void SetDirectionalLight(in DirectionalLightSubmission Value){
@@ -461,10 +411,7 @@ public sealed class RenderServer:IDisposable {
 
         try {
             Prior.Dispose();
-            StageRenderer Replacement=StageRenderer.CreateFromLastKnownGood(
-                this.Hwnd,this.Width,this.Height,this.DeviceOptions,
-                this.ShaderArtifactPath,ShaderPackage as ShaderArtifactPackage??throw new InvalidOperationException("The native factory cannot rebuild another provider's shader artifact."),
-                this.Meshes,this.Materials,this.Objects);
+            var Replacement=this.Factory.Create(this.Width,this.Height,this.Meshes,this.Materials,this.Objects,ShaderPackage);
             this.Renderer=Replacement;
             if(this.ScalabilityValue is{ }Scalability){
                 Replacement.Scalability=Scalability;

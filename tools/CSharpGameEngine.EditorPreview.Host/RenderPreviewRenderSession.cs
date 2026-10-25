@@ -1,9 +1,10 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
-using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.EditorPreview.Host;
 
@@ -233,7 +234,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             }
         }
 
-        RenderServer Server=RenderServer.Create(
+        RenderServer Server=D3D12RenderServer.Create(
             SurfaceHandle,Width,Height,DeviceOptions,ShaderArtifactPath,
             Meshes,Materials,Objects);
         try {

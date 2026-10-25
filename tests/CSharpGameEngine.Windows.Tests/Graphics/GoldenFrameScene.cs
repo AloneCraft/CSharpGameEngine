@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using CSharpGameEngine.Geometry;
@@ -59,7 +61,7 @@ internal static class GoldenFrameScene {
             new StageObjectCreateInfo { MeshIndex=2,MaterialIndex=2 },
             new StageObjectCreateInfo { MeshIndex=3,MaterialIndex=3 },
         ];
-        using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+        using var Renderer=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
         var View=Camera.CreateFirstPerson(new Vector3(0.3f,1.6f,-4f));
         View.Pitch=-12f*MathF.PI/180f;

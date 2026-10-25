@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using CSharpGameEngine.Geometry;
@@ -174,7 +176,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         var Task=System.Threading.Tasks.Task.Run(static()=>{
             var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
             using var Window=new Win32Window(new Win32WindowOptions { Title="Radial matrix recovery",Width=128,Height=128,Visible=false });
-            using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+            using var Renderer=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);
             var View=Camera.CreateDefault(Vector3.Zero);
             View.FarZ=1e12f;
@@ -205,7 +207,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         var Task=System.Threading.Tasks.Task.Run(static()=>{
             var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
             using var Window=new Win32Window(new Win32WindowOptions { Title="Radial depth recovery",Width=128,Height=128,Visible=false });
-            using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+            using var Renderer=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);
             var View=Camera.CreateDefault(Vector3.Zero);
             View.FarZ=1e12f;

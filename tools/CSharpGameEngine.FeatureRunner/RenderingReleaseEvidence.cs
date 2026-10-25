@@ -62,7 +62,7 @@ public static class RenderingReleaseEvidence {
         new("render.graph","src/CSharpGameEngine.Rendering/RenderGraph.cs"),
         new("render.snapshot","src/CSharpGameEngine.Rendering/RenderWorldSnapshot.cs"),
         new("render.device-state","src/CSharpGameEngine.Rendering/RenderDeviceLifecycle.cs"),
-        new("render.server","src/CSharpGameEngine.Windows/Runtime/RenderServer.cs"),
+        new("render.server","src/CSharpGameEngine.Rendering/Server/RenderServer.cs"),
         new("preview.contract","src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs"),
         new("preview.host","tools/CSharpGameEngine.EditorPreview.Host/RenderPreviewRenderSession.cs"),
         new("preview.client","tools/CSharpGameEngine.VSExtension/RenderPreviewHostClient.cs"),

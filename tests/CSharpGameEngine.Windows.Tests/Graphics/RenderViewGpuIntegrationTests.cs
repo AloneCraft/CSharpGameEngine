@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Platform.Windows;
@@ -15,7 +16,7 @@ public sealed class RenderViewGpuIntegrationTests {
     public void TypedViewMatchesLegacySubmissionAndSurvivesDeviceRecovery(int Mode){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine typed view",Width=80,Height=48,Visible=false });
         var (Meshes,Materials,Objects)=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
-        using var Server=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+        using var Server=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact"),Meshes,Materials,Objects);
         Assert.True(Server.DebugLayerEnabled);
         var Camera=RenderCamera.CreateDefault(new Vector3(0.1f,0.2f,0f));
@@ -56,7 +57,7 @@ public sealed class RenderViewGpuIntegrationTests {
     public void ViewSourceRetainsResizeSemanticsAndRecoversWithoutResubmission(int Mode){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine view source",Width=80,Height=48,Visible=false });
         var (Meshes,Materials,Objects)=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
-        using var Server=RenderServer.Create(Window.Handle,80,48,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
+        using var Server=D3D12RenderServer.Create(Window.Handle,80,48,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact"),Meshes,Materials,Objects);
         Assert.True(Server.DebugLayerEnabled);
         var Camera=RenderCamera.CreateDefault(new Vector3(0.1f,0.2f,0f));

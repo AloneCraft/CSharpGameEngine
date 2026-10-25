@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using CSharpGameEngine.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
@@ -100,7 +102,7 @@ public class RenderServerTests {
             Height=128,
             Visible=false,
         });
-        using RenderServer Renderer=RenderServer.Create(
+        using RenderServer Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);
@@ -173,7 +175,7 @@ public class RenderServerTests {
             Height=128,
             Visible=false,
         });
-        using RenderServer Renderer=RenderServer.Create(
+        using RenderServer Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);
@@ -258,7 +260,7 @@ public class RenderServerTests {
 
         GraphicsDeviceOptions DeviceOptions=new(){ UseWarp=true,EnableDebugLayer=true };
 
-        using var Renderer=RenderServer.Create(
+        using var Renderer=D3D12RenderServer.Create(
                                                 Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,EffectiveShaderArtifactPath,
                                                 Meshes,Materials,Objects);
 
