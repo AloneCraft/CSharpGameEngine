@@ -213,4 +213,4 @@ The default `UserEcsProject` window contains the existing D3D12 gallery and a 36
 Runtime adapter selection is externally controllable through `CGE_GRAPHICS_ADAPTER=warp|hardware|default`; `CGE_D3D12_DEBUG_LAYER=0|1` controls validation. Normal startup preserves hardware/default selection. The executable `showcase.visible-progress` Visual Stage requires WARP and records the combined 3D/dashboard image plus a machine-readable child-window title.
 
 ### M0119: Stage 本体の深度出力(移行中)
-`VSMain` は対数ビューで物体ごとの接線によるラスタ深度と `SV_ClipDistance0` を出し、`PSMain` は色と `SV_DepthGreaterEqual` を持つ `StagePixelOutput` を返す。表示用エントリーも同じ入出力を使う。旧 `Radial*` の ABI 名は別名として残るが、深度を追加するラッパーはなくなった。Standard の API と重複した PSO の除去、物理距離ターゲット、DDGI・AO の移行は残る。`StageGoldenFrameTests` の 7 画素ハッシュは移行前と同一。
+`VSMain` は対数ビューで物体ごとの接線によるラスタ深度と `SV_ClipDistance0` を出し、`PSMain` は色・R32F の物理距離・`SV_DepthGreaterEqual` を持つ `StagePixelOutput` を返す。表示用エントリーも同じ入出力を使う。旧 `Radial*` の ABI 名は別名として残るが、深度を追加するラッパーはなくなった。主画面の `SceneDistance` は最近面の物理距離を保持し、空の合成が読む。DDGI は対数深度で撮影し、独立した `CaptureDistance` から距離のモーメントを作る。距離の 0 は背景。プレビューは主画面の距離に書かない。Standard の API と重複した PSO の除去、AO の移行は残る。`StageGoldenFrameTests` の 7 画素ハッシュは移行前と同一。

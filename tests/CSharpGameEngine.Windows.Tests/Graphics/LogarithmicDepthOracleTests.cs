@@ -21,6 +21,7 @@ public sealed class LogarithmicDepthOracleTests {
     public void Depth_IsWithinFourUlpsOfTheDoubleOracleInTheMiddleOfTheView(float Distance,float Near,float Far){
         var Measurement=DepthOracle.Measure(Hardware:false,Distance,Near,Far);
         Assert.True(Measurement.Centre<=4d,$"The depth at {Distance} m is {Measurement.Centre:F1} ulps off in the middle of the view.");
+        Assert.True(Measurement.DistanceRelativeError<=3e-6d,$"Physical scene distance at {Distance} m: relative error {Measurement.DistanceRelativeError:R}.");
         Assert.True(Measurement.MaximumDepth<1f,$"The depth at {Distance} m reaches {Measurement.MaximumDepth}, the clear value.");
     }
 }

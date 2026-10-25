@@ -75,3 +75,11 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - Stage グラフのソースハッシュは意図した構造変更により 153236B9... → A72EB7E8...。画素ハッシュは不変。
 - 証拠: `.artifacts/M0119/native-build.log`、`native-regression.log`、`native-shader-tests.log`、`native-presentation-tests.log`、各 `*.memory.json`。この段階の最大メモリ使用率は 71%。
 - 次: 物理距離ターゲット `SceneDistance` と空の合成、DDGI の撮影距離、AO、旧 API と PSO の除去。全マイルストーンは未完了。
+
+### 段階 3(a/b): 物理距離ターゲットと DDGI(2026-10-25)
+- Stage の同じ最近面から色・深度とともに R32F の物理距離を出力する。`SceneDistance` は 0 で消去し、背景と区別する。空の合成はこの距離と画素の光線から物理位置を復元し、双曲深度・対数深度の逆変換を使わない。正射影では光線の横方向の位置を含める。
+- DDGI の 6 面撮影も対数深度を使い、`CaptureDistance` から距離の一次・二次モーメントを作る。正射影の Lumen カードと光源のシャドウは従来の各投影のまま。古い物理距離出力のない成果物を拒否するため stage-v14 の契約に MRT1 を明記。
+- プレビュー PSO は距離への書き込みを禁止。描画済みの主画面の距離はプレビュー前後でビット単位に同じ。リサイズ時に距離ターゲットも再作成する。
+- 解析オラクルは距離 4e-6〜5e18 m の全画素で物理距離の相対誤差 3e-6 以下。GPU テスト 10 件(オラクル・距離・ゴールデン)と 40 件(空・雲・GI・対数深度・Lumen 表面)に合格。固定の対数 7 SHA は不変。ShaderGraphCompilerTests 15 件合格。ビルドは警告 0・エラー 0。
+- 証拠: `.artifacts/M0119/distance-rebuild.log`、`distance-oracles.log`、`distance-regression.log`、`distance-shader-tests.log`、`distance-golden/`、各メモリ測定。最大使用率は 74%。既知の間欠的な WARP デバイス削除の原因を解消したとは扱わない。
+- 次: AO の双曲深度依存と旧 API/PSO の除去。M0119 は未完了。

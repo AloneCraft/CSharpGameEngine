@@ -320,6 +320,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private uint DsvDescriptorSize;
     private ID3D12Resource*DepthBuffer;
     private ID3D12Resource*HdrColorBuffer;
+    private ID3D12Resource*SceneDistanceBuffer;
     private ID3D12DescriptorHeap*HdrSrvHeap;
     private ID3D12Resource*ShadowAtlas;
     private readonly ID3D12CommandAllocator*[]CommandAllocators=new ID3D12CommandAllocator*[FrameCount];
@@ -760,6 +761,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.CreateDsvHeap();
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
+        this.CreateSceneDistanceBuffer(Width,Height);
         this.CreateShadowAtlas();
 
         for(var I=0;I<FrameCount;I++){
@@ -855,7 +857,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
 
     private void CreateRtvHeap(){
         D3D12_DESCRIPTOR_HEAP_DESC Desc=new(){
-            NumDescriptors=FrameCount+1,
+            NumDescriptors=FrameCount+2,
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
         };
 
@@ -897,7 +899,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     }
 
     private void CreateDepthBuffer(int Width,int Height){
-        // Typeless so the sky composite can read depth as R32_FLOAT while the DSV stays D32_FLOAT.
+        // Typeless for depth readback; scene effects consume the separate physical-distance target.
         D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(DXGI_FORMAT_R32_TYPELESS,(uint)Width,(uint)Height,mipLevels:1);
         ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
@@ -915,6 +917,19 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.Device.Device->CreateDepthStencilView(DepthBuffer,&DsvDesc, this.DsvHeap->GetCPUDescriptorHandleForHeapStart());
 
         this.DepthBuffer=DepthBuffer;
+    }
+
+    private void CreateSceneDistanceBuffer(int Width,int Height){
+        var Desc=D3D12_RESOURCE_DESC.Tex2D(DXGI_FORMAT_R32_FLOAT,(uint)Width,(uint)Height,mipLevels:1);
+        Desc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        D3D12_HEAP_PROPERTIES Heap=new(D3D12_HEAP_TYPE_DEFAULT);
+        D3D12_CLEAR_VALUE Clear=new(){ Format=DXGI_FORMAT_R32_FLOAT };
+        ID3D12Resource*Resource;
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&Heap,D3D12_HEAP_FLAG_NONE,&Desc,D3D12_RESOURCE_STATE_RENDER_TARGET,&Clear,__uuidof<ID3D12Resource>(),(void**)&Resource),
+            "CreateCommittedResource","creating the physical scene distance target");
+        this.SceneDistanceBuffer=Resource;
+        D3D12_CPU_DESCRIPTOR_HANDLE Rtv=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount+1,this.RtvDescriptorSize);
+        this.Device.Device->CreateRenderTargetView(Resource,null,Rtv);
     }
 
     private void CreateHdrColorBuffer(int Width,int Height){
@@ -1373,9 +1388,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             Wireframe=this.CreateMeshPipelineState(
                 this.PreviewPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
             CameraPreview=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,WriteSceneDistance:false);
             CameraPreviewWireframe=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,WriteSceneDistance:false);
             OverlayTriangles=this.CreateOverlayPipelineState(
                 D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
             OverlayLines=this.CreateOverlayPipelineState(
@@ -1432,13 +1447,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             Created[(int)RadialPipeline.Wireframe]=this.CreateMeshPipelineState(
                 this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialVertexShaderBytecode,DepthClip:false);
             Created[(int)RadialPipeline.CameraPreview]=this.CreateMeshPipelineState(
-                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,WriteSceneDistance:false);
             Created[(int)RadialPipeline.CameraPreviewWireframe]=this.CreateMeshPipelineState(
-                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
+                this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,WriteSceneDistance:false);
             Created[(int)RadialPipeline.Observer]=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialObserverVertexShaderBytecode);
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialObserverVertexShaderBytecode,WriteSceneDistance:false);
             Created[(int)RadialPipeline.ObserverWireframe]=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialObserverVertexShaderBytecode);
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialObserverVertexShaderBytecode,WriteSceneDistance:false);
         } catch {
             ReleaseRadialPipelineStates(Created);
             throw;
@@ -1456,8 +1471,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private ID3D12PipelineState*CreateMeshPipelineState(
-        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true,DXGI_FORMAT[]?RenderTargets=null){
+        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true,DXGI_FORMAT[]?RenderTargets=null,bool WriteSceneDistance=true){
         var VertexShader=VertexShaderBytecode??this.VertexShaderBytecode;
+        RenderTargets??=[HdrColorFormat,DXGI_FORMAT_R32_FLOAT];
         fixed(byte*PPosition="POSITION\0"u8)
         fixed(byte*PNormal="NORMAL\0"u8)
         fixed(byte*PTangent="TANGENT\0"u8)
@@ -1507,6 +1523,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 DSVFormat=DepthBufferFormat,
                 SampleDesc=new DXGI_SAMPLE_DESC(1,0),
             };
+            if(!WriteSceneDistance){
+                PsoDesc.BlendState.IndependentBlendEnable=TRUE;
+                PsoDesc.BlendState.RenderTarget[1].RenderTargetWriteMask=0;
+            }
             // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             PsoDesc.RasterizerState.FillMode=FillMode;
@@ -2794,6 +2814,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteEnvironmentDescriptors();
         }
         var Source=this.FrameSlot(this.FrameIndex);
+        if(!RadialDepthProjection.TryCreate(RadialDepthCurve.Default,StageGlobalIllumination.CaptureNearMeters,StageGlobalIllumination.CaptureFarMeters,MathF.PI/2f,1f,out var CaptureProjection)){
+            throw new InvalidOperationException("Invalid probe capture projection.");
+        }
         GlobalIllumination.BeginCapture(this.CommandList);
         this.BindMainPassState(this.PipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2819,10 +2842,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 ((int*)(Destination+FrameLightCountsOffset))[0]=0;
                 ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
                 *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
-                ((float*)(Destination+FrameDepthMapping0Offset))[0]=(float)RenderDepthMapping.Standard;
+                *(Vector4*)(Destination+FrameDepthMapping0Offset)=new Vector4(1f,CaptureProjection.Curve.TransitionMeters,CaptureProjection.InverseMaximumG,CaptureProjection.FarDiscardDepth);
+                *(Vector4*)(Destination+FrameDepthMapping1Offset)=Vector4.Zero;
                 var Rtv=GlobalIllumination.CaptureRtv(Capture);
                 var Dsv=GlobalIllumination.CaptureDsv(Capture);
-                this.CommandList->OMSetRenderTargets(1,&Rtv,FALSE,&Dsv);
+                this.CommandList->OMSetRenderTargets(2,&Rtv,TRUE,&Dsv);
+                var DistanceRtv=GlobalIllumination.CaptureDistanceRtv(Capture);
+                this.CommandList->ClearRenderTargetView(DistanceRtv,(float*)&ClearColor,0,null);
                 this.CommandList->ClearRenderTargetView(Rtv,(float*)&ClearColor,0,null);
                 this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
                 this.CommandList->SetGraphicsRootConstantBufferView(0,GlobalIllumination.CaptureFrameAddress(this.FrameIndex,Capture));
@@ -3993,6 +4019,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.DepthBuffer=null;
         }
 
+        if(this.SceneDistanceBuffer!=null){
+            _=this.SceneDistanceBuffer->Release();
+            this.SceneDistanceBuffer=null;
+        }
         if(this.HdrColorBuffer!=null){
             _= this.HdrColorBuffer->Release();
             this.HdrColorBuffer=null;
@@ -4004,6 +4034,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateRenderTargetViews();
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
+        this.CreateSceneDistanceBuffer(Width,Height);
         this.CreateForwardPlusTileBuffer(Width,Height);
         this.Atmosphere?.InvalidateSceneDescriptors();
         if(this.Lumen is not null){
@@ -4339,6 +4370,20 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return Result;
     }
 
+    /// <summary>Test-only physical ray distances, preserved across previews (row-major).</summary>
+    internal float[]ReadSceneDistancesForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        var (Data,RowPitch,Width,Height)=GpuTextureReadback.Read(this.Device!,this.SceneDistanceBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        var Result=new float[Width*Height];
+        fixed(byte*Bytes=Data){
+            for(var Y=0;Y<Height;Y++){
+                new ReadOnlySpan<float>(Bytes+Y*RowPitch,Width).CopyTo(Result.AsSpan(Y*Width,Width));
+            }
+        }
+        return Result;
+    }
+
     /// <summary>Test-only copy of a skinned mesh's current vertices (position, normal, tangent, uv; 48 bytes each).</summary>
     internal byte[]ReadSkinnedVerticesForTesting(int MeshIndex){
         this.WaitForGpuIdle();
@@ -4405,7 +4450,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount, this.RtvDescriptorSize);
         D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle= this.DsvHeap->GetCPUDescriptorHandleForHeapStart();
-        this.CommandList->OMSetRenderTargets(1,&HdrRtvHandle,FALSE,&DsvHandle);
+        this.CommandList->OMSetRenderTargets(2,&HdrRtvHandle,TRUE,&DsvHandle);
+        D3D12_CPU_DESCRIPTOR_HANDLE DistanceRtv=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount+1,this.RtvDescriptorSize);
+        var ClearDistance=Vector4.Zero;
+        this.CommandList->ClearRenderTargetView(DistanceRtv,(float*)&ClearDistance,0,null);
 
         Vector4 ClearColor=ClearColorVector;
         this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
@@ -4433,7 +4481,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         var RanComputeAfterMainPass=false;
         if(this.EnvironmentSettings.Atmosphere is not null){
-            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.DepthBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
+            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.SceneDistanceBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
             RanComputeAfterMainPass=true;
         }
         if(this.AutoExposureActive){
@@ -4739,6 +4787,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ShadowConstantsBuffer=null;
         }
 
+        if(this.SceneDistanceBuffer!=null){
+            _=this.SceneDistanceBuffer->Release();
+            this.SceneDistanceBuffer=null;
+        }
         if(this.HdrColorBuffer!=null){
             _= this.HdrColorBuffer->Release();
             this.HdrColorBuffer=null;

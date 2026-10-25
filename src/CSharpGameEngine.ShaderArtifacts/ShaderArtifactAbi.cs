@@ -48,7 +48,7 @@ public static class ShaderArtifactAbi {
     public static string GetHash(ShaderArtifactTargetKind Target) {
         var Contract=Target switch {
             ShaderArtifactTargetKind.Stage=>
-                "stage-v14:b0-frame-depth-mapping-lumen-surface-depth,b1-object-radial-raster-depth,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,t16-lumen-diffuse,t17-lumen-reflection,s0-anisotropic-wrap,s1-shadow,post-b0-params,screen-t0-texture,screen-b0-params:"
+                "stage-v14:mrt1-physical-scene-distance,b0-frame-depth-mapping-lumen-surface-depth,b1-object-radial-raster-depth,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,t16-lumen-diffuse,t17-lumen-reflection,s0-anisotropic-wrap,s1-shadow,post-b0-params,screen-t0-texture,screen-b0-params:"
                 +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain,ScreenVSMain,ScreenPSMain,RadialPSMain,PreviewRadialPSMain,PreviewCleanRadialPSMain,RadialObserverVSMain,RadialVSMain,LumenSurfacePSMain,LumenCardPSMain:"
                 +ComputeHash(StagePresentationShaderSource.Source),
             ShaderArtifactTargetKind.Model=>"model-v1:b0-transform,t0-base,s0-base:VSMain,PSMain",
