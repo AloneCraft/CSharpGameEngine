@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Backend;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
@@ -62,7 +63,7 @@ public sealed class RenderServer:IDisposable {
     public bool IsWarp=>this.Backend.IsWarp;
     public bool DebugLayerEnabled=>this.Backend.DebugLayerEnabled;
     public bool GpuBasedValidationEnabled=>this.Backend.GpuBasedValidationEnabled;
-    public IReadOnlyList<D3D12DebugMessage>DebugMessages=>this.Backend.DebugMessages;
+    public IReadOnlyList<RenderDeviceMessage>DebugMessages=>this.Backend.DebugMessages;
     public int ErrorOrWorseMessageCount=>this.Backend.ErrorOrWorseMessageCount;
     public bool ShaderArtifactLoaded=>this.Backend.ShaderArtifactLoaded;
     public string ShaderSemanticHash=>this.Backend.ShaderSemanticHash;
@@ -407,8 +408,8 @@ public sealed class RenderServer:IDisposable {
 
         try {
             this.Backend.Resize(Width,Height);
-        } catch(D3D12Exception Exception){
-            this.HandleNativeFailure(Exception,CaptureForVerification:false);
+        } catch(RenderBackendFailureException Exception){
+            this.HandleBackendFailure(Exception,CaptureForVerification:false);
         }
     }
 
@@ -423,8 +424,8 @@ public sealed class RenderServer:IDisposable {
             this.RefreshObjectRosterArtifact();
             this.SynchronizeArtifactClosure(Renderer);
             this.CommitPendingFrame();
-        } catch(D3D12Exception Exception){
-            this.HandleNativeFailure(Exception,CaptureForVerification);
+        } catch(RenderBackendFailureException Exception){
+            this.HandleBackendFailure(Exception,CaptureForVerification);
         }
     }
 
@@ -438,15 +439,9 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
-    private void HandleNativeFailure(
-        D3D12Exception Exception,bool CaptureForVerification){
-        RenderRecoveryReason?Reason=Exception.HResult switch {
-            unchecked((int)0x887A0005)=>RenderRecoveryReason.DeviceRemoved,
-            unchecked((int)0x887A0006)=>RenderRecoveryReason.DeviceRemoved,
-            unchecked((int)0x887A0007)=>RenderRecoveryReason.DeviceReset,
-            _=>null,
-        };
-        if(Reason is { }RecoveryReason){
+    private void HandleBackendFailure(
+        RenderBackendFailureException Exception,bool CaptureForVerification){
+        if(Exception.RecoveryReason is { }RecoveryReason){
             this.Recover(RecoveryReason,CaptureForVerification);
             return;
         }

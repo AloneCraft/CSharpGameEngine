@@ -108,3 +108,15 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - 先行の対象41件が成功。続くSDK0.1.32の全ソリューションは22プロジェクト、3570件成功・失敗0・実機専用2件スキップ、終了0。Core158(ソリューション/共有登録と層を含む)、Rendering169、FeatureRunner246、Windows779、生成器338、VSIX1197、Import73件。先行SDK0.1.29の3548件から増えた22件はビュー契約12、Windows4、変更選択6に対応する。
 - 証拠はprimitive-boundary-first.log、primitive-solution.logとsummary.json/memory.json。固定7画像とStage成果物SHA E485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5は不変。全体試験最大RAM45%、閾値停止なし。VSIXビルド/自動試験の成功であり、VS/Unityを起動した実画面検証とは区別する。
 - M0120はPartialのまま。Server/FrameState、公開診断・回復理由、実パス計画/実行ポート、Forward/Forward+が後続。Deferred系と物理分離/全スケール対応もM0121〜M0123で未完。mainへ統合していない。
+
+## 公開診断/回復理由の移行単位
+- ADR-0087のBackend境界としてRenderDeviceMessageとRenderBackendFailureExceptionをRendering.Backendへ置く。Severityだけをエンジンenumとし、分類名/識別名/不透明な数値コード/説明は診断情報として保持する。Nativeの情報キューを収集する時だけ対応付け、フレームごとの再変換を避ける。
+- D3D12Exceptionは互換のNative例外名/Api/HResult/文面を維持しつつポータブル例外を継承する。削除/ハング/リセットのHRESULT分類はNativeへ移し、RenderServerは回復理由だけを消費する。未知の失敗を再試行しない既存動作を維持する。
+- 実InfoQueueへ5段階のメッセージを投入して欠落/重複/重要度/エラー件数を確認し、既存の実デバイス削除/復旧/固定7画像を回帰する。Server自体の所有者移動/パス計画は後続。
+
+### 診断境界の実行結果(2026-10-26)
+- Rendering.BackendのRenderDeviceMessageは正規化した重要度と元の分類名/識別名/コード/説明を保持する。Stage/RenderServerのDebugMessagesはこの型を返す。Nativeの情報キュー収集時に対応付け、GraphicsDeviceの従来のNative収集値も維持した。通常フレームで変換済み一覧を作り直さない。
+- D3D12ExceptionはRenderBackendFailureExceptionを継承し、Api/HResult/文面を維持する。削除/ハングはDeviceRemoved、リセットはDeviceReset、その他は回復要求なし。サーバーのHRESULT定数とNative例外型による分岐を除去し、分類済みRecoveryReasonを扱う。
+- 新設の実InfoQueue試験は5重要度の文字列/識別/件数とPoll再実行の重複なしを確認。最初の試験は投入APIのS_FALSEを0必須と仮定して失敗し、HRESULTのFAILED判定へ修正。次はINFOが保存されない試験条件を観測し、試験専用キューへ空の保存/取得フィルターをpush/popして全重要度を実到達で検証した。製品フィルターは変更していない。[HRESULT](https://learn.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com)、[空の保存フィルター](https://learn.microsoft.com/en-us/windows/win32/api/d3d12sdklayers/nf-d3d12sdklayers-id3d12infoqueue-pushemptystoragefilter)の公式契約に沿う。失敗ログdiagnostic-boundary-first.log/diagnostic-queue-observed.log、成功diagnostic-queue-unfiltered.log。
+- 最終のNative18件(新設6件、実削除/復旧、型付きビュー、固定7画像、ホットリロード)、層7件、FeatureRunner247件成功。変更選択試験がBackend入力の登録漏れを検出し、実際の複数行宣言へ追加して同じ試験が成功した。証拠はdiagnostic-boundary-final.log、diagnostic-layers.log、diagnostic-catalog-final.logと各memory.json。最大RAM41%、閾値停止なし。
+- SDK0.1.33、ABI stage-v14とStage成果物SHA E485F055...B6A5は同じ。全22プロジェクト3570件の直前実行はSDK0.1.32までを対象とし、今回の診断変更を含む全体再実行とは扱わない。Server/フレーム計画/4パスのPartialは継続する。

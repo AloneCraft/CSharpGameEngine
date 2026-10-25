@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Backend;
 using System.Runtime.InteropServices;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
@@ -26,6 +27,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
     private bool Disposed;
 
     private readonly List<D3D12DebugMessage>CollectedMessagesValue=[];
+    private readonly List<RenderDeviceMessage>RenderMessagesValue=[];
 
     private GraphicsDevice(){
     }
@@ -39,6 +41,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
     public string AdapterDescription { get;private set;}=string.Empty;
 
     public IReadOnlyList<D3D12DebugMessage>CollectedMessages=> this.CollectedMessagesValue;
+    public IReadOnlyList<RenderDeviceMessage>RenderMessages=>this.RenderMessagesValue;
 
     public int ErrorOrWorseMessageCount { get;private set;}
 
@@ -147,6 +150,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
                 D3D12DebugMessage Record=new(Message->Severity,Message->Category,Message->ID,Description);
                 this.CollectedMessagesValue.Add(Record);
+                this.RenderMessagesValue.Add(Record.ToRenderDeviceMessage());
                 if(Record.IsErrorOrWorse){
                     this.ErrorOrWorseMessageCount++;
                 }

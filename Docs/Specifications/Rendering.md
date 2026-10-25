@@ -61,6 +61,8 @@ CPU readback values `PixelColor` and `PixelReadbackResult` belong to L4 Renderin
 
 Scene Camera/CameraProjection and PrimitiveMesh/PrimitiveType are L5 shared runtime source, compiled into the game (SDK 0.1.32). Their namespace, enum values, defaults and Scene JSON names are unchanged. `PrimitiveRoster.Build` assembles/deduplicates primitive submissions and caches per-shape distance fields; the server receives L4 mesh/material/object values. `StageMeshGeometry.ArbitraryTangentFor` owns the unchanged shared tangent calculation.
 
+Stage and RenderServer expose `Backend.RenderDeviceMessage` (SDK 0.1.33): engine severity plus opaque category/code/identifier/description. Native collection performs the mapping once for each newly collected message. Provider failures cross the server boundary as `RenderBackendFailureException`, which carries an optional `RenderRecoveryReason`; HRESULT interpretation belongs to the native provider. Unknown failures do not request device recovery. Existing native D3D12Exception retains its name, API/HResult and diagnostic message as a subclass. Server creation/composition and execution ownership remain transitional.
+
 ## Target public contracts
 
 The Render Graph, material/texture, instance-visibility, and quality-profile subset of the following target contract is implemented in `CSharpGameEngine.Rendering`. The common Render Server owns the compatibility `RenderQualityPlan` for its configured dimensions and exposes it to protocol-v4 tooling strictly as a `DeclaredPlan`; this is not evidence that the later D3D12 graph executor or per-pass timing exists.

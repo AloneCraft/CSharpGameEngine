@@ -362,13 +362,15 @@ public sealed class FeatureStageCatalog {
                     "FullyQualifiedName~RenderDeviceLifecycleTests"),
                 Test(
                     "tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj",
-                    "FullyQualifiedName~TypedLightFrameTests|FullyQualifiedName~RenderServerTests|FullyQualifiedName~RuntimeOwnershipTests"),
+                    "FullyQualifiedName~TypedLightFrameTests|FullyQualifiedName~RenderServerTests|FullyQualifiedName~RuntimeOwnershipTests|FullyQualifiedName~RenderBackendDiagnosticsTests"),
                 Scene(
                     "stages/CSharpGameEngine.FeatureStages.Rendering/CSharpGameEngine.FeatureStages.Rendering.csproj",
                     "rendering.device-recovery"),
             ],[
                 "Docs/Specifications/Rendering.md",
                 "src/CSharpGameEngine.Rendering/RenderDeviceLifecycle.cs",
+                "src/CSharpGameEngine.Rendering/Backend/",
+                "tests/CSharpGameEngine.Windows.Tests/Graphics/RenderBackendDiagnosticsTests.cs",
                 "src/CSharpGameEngine.Windows/Graphics/GraphicsDevice.cs",
                 "src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs",
                 "src/CSharpGameEngine.Windows/Runtime/RenderServer.cs",

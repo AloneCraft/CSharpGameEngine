@@ -4226,3 +4226,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - M0120読み戻し追記(SDK0.1.31): L4 PixelColor/PixelReadbackResultとRenderPixelFormatを接続。Nativeの確保/コピーは同じで、公開FormatのDXGI依存を除去。Windows43、生成器338、層7、エディター15件が成功、固定7画像/Stageバイナリ不変、最大RAM45%。この移動単位はMatches、Server/フレーム計画/4パス全体はPartial。
 
 - M0120シーン共有化追記(SDK0.1.32): Camera/CameraProjection/PrimitiveMesh/PrimitiveTypeをL5のゲーム側共有ソースへ移し、完全修飾名/既定値/JSON語彙は維持。PrimitiveRoster.Buildと共通StageMeshGeometryを接続し、登録/全形状/動的ロースター/復旧/生成エディターブリッジを含む上記全体回帰に合格。この移動単位はMatches。Server/フレーム計画/4パス全体はPartial。
+
+- M0120診断境界追記(SDK0.1.33): 公開メッセージをL4 RenderDeviceMessageへ移し、Native例外がポータブル失敗/回復理由を運ぶ。ServerからHRESULT分岐とNative例外型を除去。Native18、層7、FeatureRunner247件成功、最大RAM41%、固定7画像/Stageバイナリ不変。この移動単位はMatches。上記全体3570件はSDK0.1.32までの測定であり、診断変更後の対象検証と区別する。Server/計画/4パス全体はPartial。

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Backend;
 using CSharpGameEngine.Rendering.View;
 using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
@@ -500,7 +501,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
 
     public bool GpuBasedValidationEnabled=> this.Device?.GpuBasedValidationEnabled??false;
 
-    public IReadOnlyList<D3D12DebugMessage>DebugMessages=> this.Device?.CollectedMessages??[];
+    public IReadOnlyList<RenderDeviceMessage>DebugMessages=> this.Device?.RenderMessages??[];
 
     public int ErrorOrWorseMessageCount=> this.Device?.ErrorOrWorseMessageCount??0;
 
