@@ -1,3 +1,4 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using CSharpGameEngine.Rendering;
 using static CSharpGameEngine.Graphics.D3D12.Tests.LumenGpuIntegrationTests;

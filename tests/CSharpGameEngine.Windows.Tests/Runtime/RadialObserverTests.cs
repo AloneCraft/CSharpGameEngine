@@ -4,7 +4,7 @@ using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
 /// M0099 Phase 6 (ADR-0076, Omni specification "Observer view"): a RadialObserver shows the world compressed around

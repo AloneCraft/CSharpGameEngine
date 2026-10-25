@@ -108,7 +108,7 @@ public class RenderServerTests {
         static string Capture(
             RenderServer Renderer,RenderPresentationMode Mode,float SelectionWeight,
             bool WithOverlay=false,float OverlayAlpha=0.75f){
-            var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+            var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
             Renderer.SetCamera(Camera);
             Renderer.SetAmbientLight(new Vector3(0.4f));
             Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
@@ -178,7 +178,7 @@ public class RenderServerTests {
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);
 
-        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         Matrix4x4 ViewProjection=Camera.GetView()*Camera.GetProjection(1f);
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,1f,out var Projection));
         RenderCameraPreview Included=new(
@@ -187,7 +187,7 @@ public class RenderServerTests {
 
         static (string Full,string Region)Capture(
             RenderServer Renderer,
-            CSharpGameEngine.Graphics.D3D12.Camera Camera,
+            CSharpGameEngine.Rendering.View.RenderCamera Camera,
             RenderCameraPreview Preview,float SelectionWeight){
             Renderer.SetCamera(Camera,1f);
             Renderer.SetAmbientLight(new Vector3(0.4f));
@@ -267,7 +267,7 @@ public class RenderServerTests {
         Assert.Equal(1u,Renderer.DeviceSnapshot.Generation);
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
-        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
         Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));

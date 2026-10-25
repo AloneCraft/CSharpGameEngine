@@ -229,9 +229,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Known deviations: None
 - Next action: 削除済み(ADR-0029、M0009)。後継はF-L7-011(SYSGEN001〜020)。
 
-## F-L0-001 — `Camera`(オービットカメラ+一人称カメラ)
+## F-L0-001 — `RenderCamera`(オービットカメラ+一人称カメラ)
 
-- Layer: L0 — Platform / Native Backends
+- Layer: L5 — Runtime view math (`CSharpGameEngine.Rendering.View`; stable historical feature ID retained)
 - Parent capability: ECS駆動ステージ
 - Status: Implemented
 - Verification: TestVerified
@@ -239,12 +239,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(一人称モード追加)、
   Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md(RUF内部実装統合)
 - Implementation evidence:
-  - src/CSharpGameEngine.Windows/Graphics/Camera.cs
+  - src/CSharpGameEngine.Rendering/View/RenderCamera.cs
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs
+  - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs
 - Reverse-engineered behavior:
   - Yaw/Pitch/Distance/Targetからview/projection行列を計算するUE5風スプリングアームカメラ。
-    `System.Numerics`のみに依存しTerraFXを含まないため、GPU無しで単体テストできる。
+    `System.Numerics`とCoreのSceneFactory/RUFに依存するポータブルな計算で、GPU無しで単体テストできる。
   - `ApplyMouseDelta`はPitchをインスタンスフィールド`PitchClampMinRadians`/
     `PitchClampMaxRadians`にクランプする(`CreateDefault`は静的定数`MinPitchRadians`/
     `MaxPitchRadians`(-80°/+40°)を、`CreateFirstPerson`は`MinPitchRadiansFirstPerson`/
@@ -269,7 +269,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
 - M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
-- M0119 native depth migration (F-L5-038, ADR-0084): one native Stage PSO set and fourteen shader entries; SetCamera always validates a logarithmic projection. L4 RenderViewDepth creates the frame packets. Physical SceneDistance feeds sky/AO and CaptureDistance feeds DDGI. Native images are pinned; final standard comparison evidence is retained in M0119. Preview protocol 9 and matrix/thumbnail submissions now require native depth; legacy Model/Triangle implementations, ABI producers and templates have also been removed; final M0119 integration closure remains.
+- M0119 native depth migration (F-L5-038, ADR-0084): one native Stage PSO set and fourteen shader entries; SetCamera always validates a logarithmic projection. L4 RenderViewDepth creates the frame packets. Physical SceneDistance feeds sky/AO and CaptureDistance feeds DDGI. Native images are pinned; final standard comparison evidence is retained in M0119. Preview protocol 9 and matrix/thumbnail submissions now require native depth; legacy Model/Triangle implementations, ABI producers and templates have also been removed; M0119 integration, template and performance gates are verified.
 - M0099 Phase 0: the grid and the simplified height fog add the render origin back, because the runtime renders camera-relative. `ObjectCB.WorldGridAnchor` (176 bytes; the render origin modulo the grid size, set per material by `SetWorldGridAnchor`) and `FogParams0.z` (render origin altitude, `SetRenderOriginAltitude`) are zero for world-coordinate callers. `EngineHost` computes the anchor exactly in Q64.64 every frame; `RenderFrameState` carries both forward for device recovery. RenderOriginTests (EngineHost end to end), WorldGridGpuIntegrationTests camera-relative cases, RenderFrameStatePersistenceTests.
 
 - Layer: L0 — Platform / Native Backends
@@ -1444,7 +1444,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - `DirectionalLightBasis`/`SpotLightBasis`はどちらも`Forward`を「光が進む方向
     (photonの進行方向)」として正規化して保持し、`DirectionToLight`は常に`-Forward`
     (表面から光源へ向かう方向)を返す計算プロパティ。
-  - 既存の具体的な`CSharpGameEngine.Graphics.D3D12.Camera`型とは独立(このBasisはRUF空間の
+  - 既存の具体的な`CSharpGameEngine.Rendering.View.RenderCamera`型とは独立(このBasisはRUF空間の
     スキーマであり、Runtime Cameraコントローラーの代替ではない)。両者は本マイルストーンでは
     未接続(Spatial-RUF.md「未確定事項」参照)。
   - Point Lightに対応する型はこのマイルストーンでは追加していない(仕様書「Point Light」の
@@ -1462,9 +1462,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Windows/Graphics/Camera.cs(`BuildViewMatrix`静的メソッド)
+  - src/CSharpGameEngine.Rendering/View/RenderCamera.cs(`BuildViewMatrix`静的メソッド)
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(`GetView`経由の間接カバレッジ)
+  - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs(`GetView`経由の間接カバレッジ)
 - Reverse-engineered behavior:
   - `Matrix4x4.CreateLookAt`への薄い委譲で、Camera.GetViewが共有のRUFビューを構築する。
     旧単体モデルレンダラーの独立したカメラ実装はM0119で削除した。

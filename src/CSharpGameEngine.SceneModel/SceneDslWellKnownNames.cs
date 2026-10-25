@@ -23,7 +23,7 @@ internal static class SceneDslWellKnownNames {
     internal const string SceneNodeTagFullyQualifiedName="global::CSharpGameEngine.Entities.SceneNodeTag";
 
     /// <summary>
-    /// 宣言的subsetの明示的な脱出口(ADR-0040)。CSharpGameEngine.WindowsのCamera.CreateFirstPersonのような
+    /// 宣言的subsetの明示的な脱出口(ADR-0040)。Rendering.View.RenderCamera.CreateFirstPersonのような
     /// 既存staticファクトリを許可するために使う。EntitiesではなくCoreに置くのは、Windowsが
     /// Entitiesを参照していないため。
     /// </summary>

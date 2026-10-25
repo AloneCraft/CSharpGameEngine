@@ -21,7 +21,7 @@ namespace CSharpGameEngine.Authoring;
 ///
 /// <para>
 /// <c>CSharpGameEngine.Entities</c>ではなく<c>CSharpGameEngine.Core</c>に置いているのは、
-/// <c>CSharpGameEngine.Windows</c>(<c>Camera</c>の定義元)がEntitiesを参照しておらずCoreだけを
+/// <c>CSharpGameEngine.Rendering</c>(<c>RenderCamera</c>の定義元)がEntitiesを参照しておらずCoreだけを
 /// 参照しているため。
 /// </para>
 /// </summary>

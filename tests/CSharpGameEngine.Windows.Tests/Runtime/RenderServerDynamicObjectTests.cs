@@ -18,7 +18,7 @@ public sealed class RenderServerDynamicObjectTests {
         return RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
     }
     private static (string Hash,int Covered)Capture(RenderServer Renderer,params (int Index,Matrix4x4 World)[]Placed){
-        Renderer.SetCamera(CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));
         Renderer.SetAmbientLight(new Vector3(0.4f));
         Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
         foreach(var (Index,World) in Placed){ Renderer.SetObjectTransform(Index,World); }

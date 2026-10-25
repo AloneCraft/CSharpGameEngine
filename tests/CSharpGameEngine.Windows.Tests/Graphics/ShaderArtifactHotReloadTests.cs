@@ -1,3 +1,4 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 #if DEBUG
 using System.Diagnostics;
 using System.Numerics;

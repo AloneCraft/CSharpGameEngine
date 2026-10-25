@@ -38,3 +38,10 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - EveryStageInputPathExistsが既存のSpatialディレクトリ3件の不在を検出。実在する対応ソース/試験へ置換し、新しい描画入力とSpatial入力が変更ステージ選択へ届くことを4ケースで確認。カタログ/変更選択/リリース証拠は35件成功。
 - 証拠は `.artifacts/M0120/portable-regression.log`、`portable-rendering-tests.log`、`portable-core-tests.log`、`portable-catalog-final.log` と各memory.json。最大物理RAM使用率68%、閾値停止なし。公開API/梱包変更に合わせSDKを0.1.26へ更新。シェーダーと画素基準は無変更。
 - 適合はこの移動単位でMatches、M0120全体はPartial。RenderCamera/ViewPolicy、GPU配置、RenderServer、フレーム計画、Forward/Forward+は後続。
+
+## 実行記録: カメラ数学のL5移動(2026-10-26)
+- Graphics.D3D12.CameraをRendering.View.RenderCameraへ移した。L5のビュー数学であり、SceneFactory/RUF用に既存Core参照を追加。シーンComponentのRuntime.Windows.Cameraの型名・データは変更していない。F-L0-001は安定した履歴IDを維持し、台帳/カタログのLayerをL5へ修正した。
+- 既存CameraTests21件をRendering.Testsへ移し、Rendering全157件成功。型名/名前空間/空白を除いたstruct本体が移動前と完全一致することをcamera-preservation.jsonへ記録。古いネイティブ説明を含むヘッダーコメントは整理した。SceneViewのnet472側には新しい依存を持ち込まず、既存の式による実装を維持した。
+- GPU/復旧/シーン/観察カメラ43件成功。固定7画像は同じSHA。Stage成果物の生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5で移動前と一致。最大RAM67%、閾値停止なし。
+- 層6件成功。L4からL5 View型を参照しない規則も追加。カタログ/変更選択31件成功。デバッグ層を持たないCPU計算の試験もGPU試験と区別する。SDKは0.1.27。証拠はportable-camera-cpu.log、portable-camera-gpu.log、camera-layer-final.log、camera-catalog-final.logと各memory.json。
+- カメラ数学の所在だけを移した段階で、StageRenderer.SetCameraと初期化はまだその型を使う。RenderView/RenderViewPolicyによる提出・フレーム計画/状態の抽出、RenderServer移動は未完。全体回帰を次に実行する。

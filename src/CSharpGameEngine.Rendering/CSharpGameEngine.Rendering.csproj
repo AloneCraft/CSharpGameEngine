@@ -5,5 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
   </ItemGroup>
 </Project>

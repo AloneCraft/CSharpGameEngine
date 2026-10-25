@@ -107,7 +107,7 @@ public sealed class TypedLightFrameTests {
         using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact"),Roster.Meshes,Roster.Materials,Roster.Objects);
-        Renderer.SetCamera(CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));
         Renderer.SetAmbientLight(new Vector3(0.1f));
         Renderer.AddDirectionalLight(new DirectionalLightSubmission(Vector3.Normalize(new Vector3(1f,-1f,1f)),White,new(100f),Shadow));
         Renderer.AddPointLight(new PointLightSubmission(new Vector3(0f,2f,-2f),new(1f,0f,0f),new(400f),new(10f),Shadow));

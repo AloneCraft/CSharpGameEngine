@@ -1,3 +1,4 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Geometry;

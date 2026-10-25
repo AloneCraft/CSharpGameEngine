@@ -82,14 +82,14 @@ M0020                           … 実装フェーズ計画と完了条件
 
 ## 3. カメラ数学(§仕様4)
 
-数学はnet10.0の`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(型は
-`CSharpGameEngine.Graphics.D3D12.Camera`。Scene DSLのComponent `Runtime.Windows.Camera`とは別物)の
+数学はnet10.0の`src/CSharpGameEngine.Rendering/View/RenderCamera.cs`(型は
+`CSharpGameEngine.Rendering.View.RenderCamera`。Scene DSLのComponent `Runtime.Windows.Camera`とは別物)の
 **式**をnet472側へ書き写した`SceneViewCamera`(仮称)に置く。行列規約は**現行`SceneRenderer`と同一**
 (System.Numericsの行ベクトル規約、`Matrix4x4.CreateLookAt`/`CreatePerspectiveFieldOfView`、
 MVP = `World * View * Projection`)。エンジン座標系との対応は
 [[ADR-0026-Camera-Geometry-Ruf-Integration]]の既存整理に従い、本設計で新しい変換は導入しない。
 
-**移植時の制約(2026-08 訂正、ADR-0041 決定事項1の訂正と対応)**: `Graphics/Camera.cs`は依存ゼロ
+**移植時の制約(2026-08 訂正、ADR-0041 決定事項1の訂正と対応)**: `Rendering/View/RenderCamera.cs`は依存ゼロ
 ではない — `[SceneFactory]`(`CSharpGameEngine.Authoring`)属性を持ち、`GetForward`/`GetFlatForward`/
 `GetFlatRight`は`RufQuaternion`/`RufVector`/`Spatial<UnityCoordinateConvention>`(いずれもnet10.0)を
 経由する。net472側では属性を落とし、`CameraTests`が固定している閉形式

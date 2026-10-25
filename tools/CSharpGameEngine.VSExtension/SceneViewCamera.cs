@@ -4,8 +4,8 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Scene View の編集カメラ数学。<c>src/CSharpGameEngine.Windows/Graphics/Camera.cs</c>の
-/// <c>CSharpGameEngine.Graphics.D3D12.Camera</c>(net10.0、`[SceneFactory]`属性と
+/// Scene View の編集カメラ数学。<c>src/CSharpGameEngine.Rendering/View/RenderCamera.cs</c>の
+/// <c>CSharpGameEngine.Rendering.View.RenderCamera</c>(net10.0、`[SceneFactory]`属性と
 /// `CSharpGameEngine.Spatial.Abstractions`/`.Unity`のRUF経路に依存。Scene DSLのComponent
 /// `CSharpGameEngine.Runtime.Windows.Camera`とは別物)の閉形式を net472 側へ書き写したもの
 /// (ADR-0041 決定事項1、GizmoMeshFactory と同じ複製方針)。RUF型・`[SceneFactory]`属性は
@@ -78,7 +78,7 @@ internal static class SceneViewCamera {
     /// <b><see cref="GetFlatRight"/>は名前に反して画面の「左」へ写る</b>
     /// (<c>SceneViewCameraTests.GetFlatRight_ProjectsToScreenLeft_BecauseTheEngineUsesRightHandedMatrices</c>
     /// がこれを固定している)。一見バグに見えるが、<b>ゲーム本体も同じ右手系を使っている</b>
-    /// (<c>src/CSharpGameEngine.Windows/Graphics/Camera.cs</c>の<c>BuildViewMatrix</c>/<c>BuildProjection</c>、
+    /// (<c>src/CSharpGameEngine.Rendering/View/RenderCamera.cs</c>の<c>BuildViewMatrix</c>/<c>BuildProjection</c>、
     /// <c>StageRenderer</c>)。シーンデザイナーはゲームの見た目を再現するものなので、
     /// ここだけ左手系にするとデザイナーだけがゲームと左右反転する(実際にそうなった)。
     /// </para>

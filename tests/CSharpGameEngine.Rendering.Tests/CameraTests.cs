@@ -1,6 +1,7 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 
-namespace CSharpGameEngine.Graphics.D3D12.Tests;
+namespace CSharpGameEngine.Rendering.Tests;
 
 public class CameraTests {
     [Fact]
@@ -150,7 +151,7 @@ public class CameraTests {
         AssertApprox(0f,Camera.GetUp().Y);
         AssertApprox(0f,Camera.GetUp().Z);
         Assert.Equal(
-            global::CSharpGameEngine.Graphics.D3D12.Camera.BuildViewMatrix(Vector3.Zero,Vector3.UnitZ,Vector3.UnitX),
+            global::CSharpGameEngine.Rendering.View.RenderCamera.BuildViewMatrix(Vector3.Zero,Vector3.UnitZ,Vector3.UnitX),
             Camera.GetView());
     }
 

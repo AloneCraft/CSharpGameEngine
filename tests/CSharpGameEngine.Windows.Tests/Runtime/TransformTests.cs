@@ -4,7 +4,7 @@ using CSharpGameEngine.Core;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Windows;
 using CSharpGameEngine.World;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 

@@ -190,7 +190,7 @@ public sealed class RenderPreviewRenderSessionTests {
         if(!OperatingSystem.IsWindows()){ return; }
         using var Window=new Win32Window(new Win32WindowOptions { Title="Native preview projection",Width=128,Height=128,Visible=false });
         var Request=CreateOpen(Window);
-        var View=CSharpGameEngine.Graphics.D3D12.Camera.CreateFirstPerson(Vector3.Zero);
+        var View=CSharpGameEngine.Rendering.View.RenderCamera.CreateFirstPerson(Vector3.Zero);
         View.FarZ=Perspective?1e18f:100f;
         var Projection=Perspective?View.GetProjection(1f):Matrix4x4.CreateOrthographic(2f,2f,View.NearZ,View.FarZ);
         var ViewProjection=View.GetView()*Projection;
@@ -240,7 +240,7 @@ public sealed class RenderPreviewRenderSessionTests {
 
     private static RenderPreviewHostRequest CreateOpen(Win32Window Window){
         ProceduralMeshData Box=ProceduralMeshFactory.CreateBox(Vector3.One);
-        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         Matrix4x4 ViewProjection=Camera.GetView()*Camera.GetProjection(
             (float)Window.ClientWidth/Window.ClientHeight);
         return new RenderPreviewHostRequest {

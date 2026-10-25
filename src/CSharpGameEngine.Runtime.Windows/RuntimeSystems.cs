@@ -6,7 +6,7 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 using Camera=CSharpGameEngine.Runtime.Windows.Camera;
 using EcsWorld=CSharpGameEngine.Entities.World;
 

@@ -21,7 +21,7 @@ public sealed class RenderServerVisibilityTests {
         return RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
     }
     private static (string Hash,int Covered)Frame(RenderServer Renderer,bool CasterVisible=true,bool CasterCastsShadow=true,bool Recovery=false){
-        Renderer.SetCamera(CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));
         Renderer.SetAmbientLight(new Vector3(0.2f));
         Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.Normalize(new Vector3(0.3f,-1f,0.5f)),new LinearLightColor(1f,1f,1f),new Illuminance(3f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
         Renderer.SetObjectTransform(Floor,Matrix4x4.CreateScale(8f)*Matrix4x4.CreateTranslation(0f,0f,0f));

@@ -4217,3 +4217,5 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Intended: ADR-0087 §1。描画値・CPU計画はポータブルなL4/L5、L0は計画実行に限定する。
 - Observed: 環境・メッシュ/材質/物体・発光パッチ入力と光源/影/発光のCPU計算をRenderingへ移し、ネイティブ提出アダプターを分離した。計算式と既定値の5比較、固定7画像が不変。Windows回帰54件、移動した23件を含むRendering全136件、層5件、カタログ/変更選択/リリース証拠35件成功。最大RAM68%、閾値停止なし。
 - Result: Partial。移動単位はMatchesだが、L0からCPU Plannerを呼ぶ経路、カメラ方針、フレーム順序/状態とRenderServerの移動は未完。Forward/Forward+のURP方式とDeferred系も未実装。詳細とログはM0120参照。
+
+- M0120カメラ追記: L5 View.RenderCameraへ数学と既存CPU21件を移動。Rendering157件、描画/復旧43件、層6件、カタログ/選択31件成功。7画像とStageバイナリは不変。シーンComponent名は維持。L0のカメラ呼出し/提出方針とフレーム状態は残るため、全体のPartialを継続する。

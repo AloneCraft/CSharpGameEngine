@@ -4,7 +4,7 @@ using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Windows;
-using Camera=CSharpGameEngine.Graphics.D3D12.Camera;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 const string ProductDisplayName="C# Game Engine";
 const string InternalName="CSharpGameEngine";

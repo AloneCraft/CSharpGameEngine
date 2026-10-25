@@ -20,7 +20,7 @@ public sealed class EngineLayerSpec {
             .Where(Entry=>!Entry.Line.TrimStart().StartsWith("//",StringComparison.Ordinal)&&WindowsHostReference.IsMatch(Entry.Line))
             .Select(Entry=>$"{Path.GetFileName(Entry.File)}:{Entry.Number}: {Entry.Line.Trim()}")
             .ToArray();
-        Assert.Empty(Violations);
+        Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
     }
     [Fact]
     public void PhysicsToolHostReferencesNoGame(){
@@ -40,7 +40,7 @@ public sealed class EngineLayerSpec {
             .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
             .Where(Entry=>Forbidden.IsMatch(Entry.Line))
             .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
-        Assert.Empty(Violations);
+        Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
     }
     [Fact]
     public void PortableRenderingReferencesOnlyPortableProjects(){
@@ -53,6 +53,17 @@ public sealed class EngineLayerSpec {
             Assert.Contains(Name,new[]{"CSharpGameEngine.Contracts","CSharpGameEngine.Content","CSharpGameEngine.Core"});
         }
         Assert.DoesNotContain(Project.Descendants("AssemblyAttribute"),Element=>Element.Elements().Any(Child=>Child.Value=="CSharpGameEngine.Windows"));
+    }
+    [Fact]
+    public void RenderingL4DoesNotNameL5View(){
+        var Root=Path.Combine(RepositoryRoot,"src","CSharpGameEngine.Rendering");
+        var Forbidden=new Regex(@"CSharpGameEngine\.Rendering\.View|\bRenderCamera\b",RegexOptions.CultureInvariant);
+        var Violations=Directory.EnumerateFiles(Root,"*.cs",SearchOption.AllDirectories)
+            .Where(File=>!Path.GetRelativePath(Root,File).Split(Path.DirectorySeparatorChar).Any(Part=>Part is "View" or "bin" or "obj"))
+            .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
+            .Where(Entry=>Forbidden.IsMatch(Entry.Line))
+            .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
+        Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
     }
     private static bool IsGameProject(string ProjectPath)=>
         File.ReadAllText(ProjectPath).Contains("CSharpGameEngine.Game.props",StringComparison.OrdinalIgnoreCase);

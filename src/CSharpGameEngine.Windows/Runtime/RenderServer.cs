@@ -5,7 +5,7 @@ using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.ShaderArtifacts;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
