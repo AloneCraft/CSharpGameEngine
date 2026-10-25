@@ -4211,17 +4211,12 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Verified: デバッグ層の実有効状態を報告・評価で必須化した4テンプレート/8ケースはすべて有効・エラー0。M0111の9基準値に一致。初回実行との全フレームのカメラ軌跡と最終PNGも完全一致。無効/未報告を拒否する10ケースは旧DLLで失敗、修正後のFeatureRunner233件は成功。単に要求した設定や無効状態のエラー0をデバッグ層の証明として扱わない。
 - Performance: Releaseの100000物体可視性/バッチングは中央値4.10015ms、p95 4.34760ms、割り当てp95 0byteで予算内。WARP全フレーム時間とRTX主パスだけの時間は別の測定であり、実機のゲーム全体のFPSを証明しない。
 - Evidence: `.artifacts/M0119/solution-diagnostics-final-summary.json`、同log/memory.json、`templates/debug-manifest.json`、`templates/baseline-comparison-debug.json`、`final-hardware-artifact-match.json`、`release-performance.log`。全体テスト最大RAM65%、テンプレート再実行最大68%、閾値停止なし。詳細な移行履歴・修正前失敗・測定元コミットはM0119参照。
-- Result: Matches(M0119のみ)。描画レイヤー/4パス/全スケール物理はM0120〜M0123で未実装。VS/UnityのGUI実走は今回未検証。シーンカメラ正射影のランタイム未接続は範囲外、過去の間欠的WARPデバイス削除の原因は未確定。
+- Result: Matches(M0119のみ)。描画レイヤー分離はM0120で進行中、4パス/全スケール物理の後続部分はM0120〜M0123で未実装。VS/UnityのGUI実走は今回未検証。シーンカメラ正射影のランタイム未接続は範囲外、過去の間欠的WARPデバイス削除の原因は未確定。
 
 ## M0120 — 描画レイヤー分離(2026-10-26、進行中)
-- Intended: ADR-0087 §1。描画値・CPU計画はポータブルなL4/L5、L0は計画実行に限定する。
-- Observed: 環境・メッシュ/材質/物体・発光パッチ入力と光源/影/発光のCPU計算をRenderingへ移し、ネイティブ提出アダプターを分離した。計算式と既定値の5比較、固定7画像が不変。Windows回帰54件、移動した23件を含むRendering全136件、層5件、カタログ/変更選択/リリース証拠35件成功。最大RAM68%、閾値停止なし。
-- Result: Partial。移動単位はMatchesだが、L0からCPU Plannerを呼ぶ経路、カメラ方針、フレーム順序/状態とRenderServerの移動は未完。Forward/Forward+のURP方式とDeferred系も未実装。詳細とログはM0120参照。
-
-- M0120カメラ追記: L5 View.RenderCameraへ数学と既存CPU21件を移動。Rendering157件、描画/復旧43件、層6件、カタログ/選択31件成功。7画像とStageバイナリは不変。シーンComponent名は維持。L0のカメラ呼出し/提出方針とフレーム状態は残るため、全体のPartialを継続する。
-
-- M0120移動単位の全体確認: ff43243で全22プロジェクト3539件成功・失敗0・実機測定2件スキップ、終了0、最大RAM69%。インポーターの不要なusing修正も含めて再確認済み。証拠は `.artifacts/M0120/portable-solution-verified.summary.json` と生ログ。全体レイヤー分離/4パスの未実装範囲は変わらない。
-
-- M0120 CB追記: L4の型付きFrame/Object配置へ通常/Lumen撮影の35オフセットを接続。実DXC反射6条件を含むCLI15、GPU31、Rendering157、層7、FeatureRunner240件成功。CBサイズ960/192と固定7画像/Stageバイナリは不変、最大RAM62%。成果物のJSONメタデータと実反射APIは区別し、RuntimeにDXCは追加しない。全ソリューション3539件は直前ff43243の結果であり、CB抽出後の全体実行と混同しない。全体のPartialは継続する。
-
-- 起動契約の追加確認: SetCamera前の既定Stageで透視行列/線形パケットの不整合を再現し、共通カメラ設定の適用で修正。GPUの修正前1失敗/修正後38成功、両スロットを含む3フレームで対数深度に一致。M0119追記とdefault-view-before/after.log参照。SDK0.1.29、固定画像は不変。全体のレイヤー移行は引き続きPartial。
+- Intended: ADR-0087 §1。描画値/計画はポータブルなL4/L5、L0は計画実行に限定する。
+- Observed: 環境/メッシュ/材質/物体/発光パッチ入力はRendering、光源/影/発光のCPU計算はPipeline、カメラ数学はL5 View.RenderCameraへ移動済み。Frame/Objectの型付きCBと35オフセットはL4 StageGpuLayoutsが正本。Nativeの通常描画とLumen撮影も共有する。シーンComponentのCamera名は維持する。
+- Verified: 最新コード5f4d647/SDK0.1.29の全ソリューション22プロジェクト、3548件成功・失敗0・実機測定2件スキップ、終了0。Windows775、Rendering157、Core158、FeatureRunner240、CLI15、VSIX1197、Import73件を含む。最大物理RAM66%、閾値停止なし。証拠は `.artifacts/M0120/native-startup-solution.summary.json` と同log/memory.json。
+- ABI: DXC実反射6条件で全CBのオフセット/サイズと行列の行配置が一致する。FrameCB960/ObjectCB192、固定7画像、Stage成果物SHA(E485F055...B6A5)は不変。Lumenの逆行列名の別名を明示し、カードPSでは未使用FrameCBの不在も検証する。成果物の既存JSONメタデータと実反射のコンパイル結果APIは別で、RuntimeはDXCを参照しない。
+- Startup: SetCamera未提出の初期化の透視行列/線形パケット不整合を修正前GPUで再現。共通カメラ設定で初期化を揃え、両スロットを含む3フレームが対数深度に一致。M0119追記とdefault-view-before/after.logに記録。全体回帰もこの修正を含む。
+- Result: Partial。移動済み単位はMatches。L0からCPU Plannerを呼ぶ経路、RenderViewPolicy、フレーム順序/状態、RenderServerと実行ポートの分離、URP方式のForward/Forward+およびDeferred系は未完。全スケール物理と物理契約分離も後続M0122/M0123。詳細な失敗/修正/測定履歴はM0120へ集約する。

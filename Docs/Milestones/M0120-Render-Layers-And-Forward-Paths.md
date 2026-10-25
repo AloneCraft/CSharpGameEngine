@@ -66,3 +66,9 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 
 ## 既定起動の補足
 - SetCamera未提出のStageの深度不整合を追加再現し、既定カメラの初期化を共通処理へ揃えた(M0119追記)。修正前は深度0.9759626/期待0.22822031、修正後のGPU38件は成功。SDK0.1.29。これはビュー/フレーム計画の抽出完了を意味せず、その後の分離で保持すべき起動契約である。
+
+## 最新の全体回帰(2026-10-26)
+- 5f4d647/SDK0.1.29の全22プロジェクトが3548件成功・失敗0・実機測定2件スキップ、終了0。値/計算/カメラ移動、型付きCB、実DXC反射6条件、既定Stageの起動修正をすべて含む。Core158、Rendering157、CLI15、FeatureRunner240、Windows775、VSIX1197、Import73件。以前の全体記録の測定元コミットは変更せず、最新結果を別保存した。
+- 証拠は `.artifacts/M0120/native-startup-solution.log`、同summary.json/memory.json。最大RAM66%、閾値停止なし。Stageバイナリの生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5、固定7画像も同じ。版はSDK0.1.29、ABIはstage-v14。
+- 参照元G:/Unity/6.6/OmniのmanifestとPackageCacheでURP17.6.0を再確認。ForwardLights/Clustering/StencilDeferred/ClusterDeferredは現行の承認設計ADR-0085と同じ参照先で、Unity自体は変更/起動していない。
+- M0120全体はPartialのまま。次はRenderViewPolicy/RenderView、RenderServer/フレーム計画/実行ポート、Forward+クラスタとForward。Deferred系と物理の後続も未実装。mainへは統合していない。
