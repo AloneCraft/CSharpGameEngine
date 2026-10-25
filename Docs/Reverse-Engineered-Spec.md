@@ -515,7 +515,7 @@
 - Confidence: High(ソースと修正前後の WARP 試験)
 - Evidence: `src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`(`LumenSurfacePSMain`)、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(前パスの PSO とその解放・ホットリロード)、`StageRenderer.Lumen.cs`、`tests/CSharpGameEngine.Windows.Tests/Graphics/LumenSurfaceDepthTests.cs`。
 - Observed behavior: 対数カメラの Lumen 表面前パスは、主画面と同じ深度の符号化とクリップ距離を使う。far が 1e18 m の場合も、近距離の精度を失う双曲深度の比較で奥の面を選ぶことがなく、画素中心の解析光線に沿った物理距離で最近面を検証できる。
-- Result: この前パスについては ADR-0084 と一致。主シェーダーの一本化と、物理距離ターゲットを使う空・DDGI の移行も実施済み。AO の移行と標準経路の削除は未実施。
+- Result: この前パスについては ADR-0084 と一致。主シェーダーの一本化と、物理距離ターゲットを使う空・DDGI の移行も実施済み。AO も共有表面シェーダーと物理距離に移行し、補助投影の遠方クリップによる陰りの消失を修正。旧標準経路の削除は未実施。
 
 ## RE-M0119-NativeStageDepth — 主エントリーが所有する深度
 - Confidence: High(生成 HLSL、DXC 全エントリーコンパイル、WARP)

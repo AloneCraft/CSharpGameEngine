@@ -7,7 +7,7 @@
 - 深度方式の選択が API・プロトコル・シーン JSON にまたがる: `RenderDepthMapping`、シーン Component の `CameraDepthMapping`、プレビューのプロトコル 8 の `RenderPreviewDepthMapping`、描画カメラの `Camera.DepthMapping`、VSIX の `DescribePose` と `SceneCameraPreviewBinding`。
 - 双曲深度のまま残っている透視のパスがある: Lumen の表面前パス、DDGI のプローブ撮影、AO の深度前パス。far が約 2^24 倍を超えると標準の投影は逆投影できず(`RadialDepthTests.StandardProjection_WithAHugeFar_CannotBeUnprojected`)、これらのパスは極端な far で精度を失う。`LumenGpuIntegrationTests` は `DepthMapping=Standard` に固定されていて、Lumen と対数深度の組み合わせ(ゲームの既定)は GPU 試験で検証されていない。
 - 空の合成は主深度を読み、空の球の判定でハードウェアの `exp2` による逆写像を使う(`assets/Shaders/Atmosphere.hlsl:855-877`)。ADR-0076 の追記で GPU の `log2` を禁じたのに、逆写像側は対象の外にある。
-- Omni(`G:\Unity\6.6\Omni`。文書は `D:` を指していたが `G:` が新しい正本で、対数の核のファイルは同じ内容)は、頂点を写像し、写像した空間の双曲深度を `SV_Depth` に書き、Depth Priming で Early-Z の喪失を補う。ADR-0076 は、このエンジンでは補間もクリップも標準 VS が物理的に正しいので頂点の写像は何も足さず、弦から深度を取ると大きな床と近い小物体の前後が崩れるとして採らなかった。この判断は有効なまま残る。
+- 参照元に指定された Omni(`G:\Unity\6.6\Omni`)は、頂点を写像し、写像した空間の双曲深度を `SV_Depth` に書き、Depth Priming で Early-Z の喪失を補う。ADR-0076 は、このエンジンでは補間もクリップも標準 VS が物理的に正しいので頂点の写像は何も足さず、弦から深度を取ると大きな床と近い小物体の前後が崩れるとして採らなかった。この判断は有効なまま残る。
 - 公開するアプリではないので、標準深度を残して互換を保つ理由が無い(ユーザーの決定)。
 
 ## 決定

@@ -38,6 +38,19 @@ public sealed class SceneDistanceGpuIntegrationTests {
         var Resized=Renderer.ReadSceneDistancesForTesting();
         Assert.Equal(24*16,Resized.Length);
         Assert.All(Resized,Distance=>Assert.True(Distance>0f));
+        Renderer.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { AmbientOcclusion=new AmbientOcclusionSettings(1f,0.5f) });
+        Renderer.SetCamera(View);
+        Renderer.RenderFrame();
+        var (BeforeResize,AoWidth,AoHeight)=Renderer.ReadAmbientOcclusionForTesting();
+        Renderer.Resize(25,17);
+        Renderer.SetCamera(View);
+        Renderer.RenderFrame();
+        var (AfterResize,NewWidth,NewHeight)=Renderer.ReadAmbientOcclusionForTesting();
+        Assert.Equal(AoWidth,NewWidth);
+        Assert.Equal(AoHeight,NewHeight);
+        Assert.Equal(BeforeResize.Length,AfterResize.Length);
+        Assert.All(AfterResize,Value=>Assert.InRange(Value,0f,1f));
+        Assert.All(Renderer.ReadSceneDistancesForTesting(),Distance=>Assert.True(Distance>0f));
         Assert.DoesNotContain(Renderer.DebugMessages,Message=>Message.IsErrorOrWorse);
     }
 }

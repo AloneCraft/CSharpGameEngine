@@ -1,7 +1,7 @@
 // Screen-space ambient occlusion (ADR-0069): Scalable Ambient Obscurance (McGuire et al. 2012)
-// on a half-resolution camera depth prepass, followed by a separable depth-aware blur. The Stage
+// on physical scene distances at half resolution, followed by a separable depth-aware blur. The Stage
 // program multiplies only indirect light (sky light, GI, flat ambient) by the result.
-// Root signature (host-owned, StageAmbientOcclusion): b0 AoCB, t0-t1 table (prepass depth
+// Root signature (host-owned, StageAmbientOcclusion): b0 AoCB, t0-t1 table (physical scene distance
 // Texture2D<float>, blur source Texture2D<float>), u0 table (RWTexture2D<float> output).
 // Positions are reconstructed in the renderer's camera-relative space from the inverse
 // view-projection, so the pass works for any perspective camera matrix.
@@ -13,7 +13,7 @@ cbuffer AoCB : register(b0)
     float4 AoParams;           // x = radius (m), y = bias (m), z = intensity, w = pixels per metre at unit depth
     uint4 Pass;                // x = 0 AO, 1 horizontal blur, 2 vertical blur; yz = texture size
 };
-Texture2D<float> Depth : register(t0);
+Texture2D<float> SceneDistance : register(t0);
 Texture2D<float> BlurSource : register(t1);
 RWTexture2D<float> Output : register(u0);
 
@@ -21,13 +21,24 @@ static const uint SampleCount = 12;
 static const float SpiralTurns = 7.0;
 static const int BlurRadius = 4;
 
+float PhysicalDistance(int2 pixel)
+{
+    return SceneDistance.Load(int3(pixel, 0));
+}
+
 float3 ViewPosition(int2 pixel)
 {
-    float depth = Depth.Load(int3(pixel, 0));
+    float distance = PhysicalDistance(pixel);
     float2 ndc = ((float2)pixel + 0.5) / (float2)Pass.yz * 2.0 - 1.0;
     ndc.y = -ndc.y;
-    float4 position = mul(float4(ndc, depth, 1.0), InverseViewProjection);
-    return position.xyz / position.w;
+    float4 farPoint = mul(float4(ndc, 1.0, 1.0), InverseViewProjection);
+    float3 farPosition = farPoint.xyz / farPoint.w;
+    if (distance <= 0.0)
+    {
+        return farPosition;
+    }
+    float3 direction = normalize(farPosition - CameraPosition.xyz);
+    return CameraPosition.xyz + direction * distance;
 }
 
 float LinearDepth(float3 position)
@@ -55,13 +66,12 @@ float InterleavedGradientNoise(float2 pixel)
 
 float ComputeObscurance(int2 pixel)
 {
-    float rawDepth = Depth.Load(int3(pixel, 0));
-    if (rawDepth >= 1.0)
+    float distance = PhysicalDistance(pixel);
+    if (distance <= 0.0)
     {
         return 1.0;
     }
     float3 center = ViewPosition(pixel);
-    float3 normal = ReconstructNormal(pixel, center);
     float radius = AoParams.x;
     float radius2 = radius * radius;
     float screenRadius = AoParams.w * radius / max(LinearDepth(center), 1e-3);
@@ -69,6 +79,7 @@ float ComputeObscurance(int2 pixel)
     {
         return 1.0;
     }
+    float3 normal = ReconstructNormal(pixel, center);
     float angle = InterleavedGradientNoise((float2)pixel) * 6.2831853;
     float sum = 0.0;
     for (uint i = 0; i < SampleCount; i++)
@@ -89,6 +100,10 @@ float ComputeObscurance(int2 pixel)
 
 float Blur(int2 pixel, int2 direction)
 {
+    if (PhysicalDistance(pixel) <= 0.0)
+    {
+        return 1.0;
+    }
     float centerDepth = LinearDepth(ViewPosition(pixel));
     float total = 0.0;
     float weightSum = 0.0;

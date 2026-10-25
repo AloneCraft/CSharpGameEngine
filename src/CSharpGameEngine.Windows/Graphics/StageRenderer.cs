@@ -128,11 +128,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     /// <summary>Cascade 0 keeps slot 0; cascades 1-3 follow every local-light projection slot.</summary>
     private const int CascadeShadowConstantSlotOffset=
         AreaShadowProjectionConstantSlotOffset+MaxAreaAndEmissiveShadowProjections;
-    /// <summary>The camera view-projection of the ambient occlusion depth prepass (same depth-only pipeline).</summary>
-    private const int AmbientOcclusionPrepassConstantSlot=
-        CascadeShadowConstantSlotOffset+DirectionalShadowCascades.Count-1;
     private const int ShadowAtlasProjectionConstantSlotCount=
-        AmbientOcclusionPrepassConstantSlot+1;
+        CascadeShadowConstantSlotOffset+DirectionalShadowCascades.Count-1;
     private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
     private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
 
@@ -2698,32 +2695,44 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FrameAmbientOcclusionOffset,&AmbientOcclusion,(uint)sizeof(Vector4));
     }
 
-    /// <summary>
-    /// Ambient occlusion of indirect light (ADR-0069): a half-resolution camera depth prepass with
-    /// the depth-only shadow pipeline, then StageAmbientOcclusion's obscurance and blur passes.
-    /// </summary>
+    /// <summary>Produces the physical scene distance before indirect-light shading needs AO.</summary>
+    private void RenderSceneDistances(int Width,int Height){
+        D3D12_RESOURCE_BARRIER ToTarget=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        this.CommandList->ResourceBarrier(1,&ToTarget);
+        D3D12_CPU_DESCRIPTOR_HANDLE NormalTarget=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,this.RtvDescriptorSize);
+        D3D12_CPU_DESCRIPTOR_HANDLE DistanceTarget=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount+1,this.RtvDescriptorSize);
+        var Dsv=this.DsvHeap->GetCPUDescriptorHandleForHeapStart();
+        var Clear=Vector4.Zero;
+        this.CommandList->ClearRenderTargetView(DistanceTarget,(float*)&Clear,0,null);
+        this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
+        this.CommandList->OMSetRenderTargets(2,&NormalTarget,TRUE,&Dsv);
+        // The existing HDR allocation is scratch normal storage here; the colour pass clears it.
+        this.BindMainPassState(this.CurrentDepthMapping==RenderDepthMapping.Radial?this.LumenSurfaceRadialPipelineState:this.LumenSurfacePipelineState);
+        // The consumer's active region occupies the top-left of the reusable full-size targets.
+        D3D12_VIEWPORT Viewport=new(){ Width=Width,Height=Height,MinDepth=0f,MaxDepth=1f };
+        RECT Scissor=new(){ right=Width,bottom=Height };
+        this.CommandList->RSSetViewports(1,&Viewport);
+        this.CommandList->RSSetScissorRects(1,&Scissor);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        this.DrawObjects(ExcludedObjectIndex:-1);
+        var ToReadable=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        this.CommandList->ResourceBarrier(1,&ToReadable);
+    }
+    /// <summary>AO reads the shared physical distance and keeps its half-resolution obscurance/blur.</summary>
     private void RenderAmbientOcclusion(){
         if(this.EnvironmentSettings.AmbientOcclusion is not AmbientOcclusionSettings Settings){
             return;
         }
         var AmbientOcclusion=this.AmbientOcclusion!;
         if(AmbientOcclusion.Generation==0){
-            // First use only: later size changes happen in Resize after the GPU is idle.
-            AmbientOcclusion.EnsureSize(this.Width,this.Height);
+            this.WaitForGpuIdle();
         }
+        AmbientOcclusion.EnsureSize(this.Width,this.Height,this.SceneDistanceBuffer);
         if(this.AmbientOcclusionDescriptorGeneration!=AmbientOcclusion.Generation){
             this.WriteEnvironmentDescriptors();
         }
-        var ViewProjection=this.InvertibleViewProjection;
-        Unsafe.CopyBlock(this.ShadowConstantsSlot(this.FrameIndex,AmbientOcclusionPrepassConstantSlot),&ViewProjection,(uint)sizeof(Matrix4x4));
-        AmbientOcclusion.BeginPrepass(this.CommandList);
-        var Dsv=AmbientOcclusion.PrepassDsv;
-        this.CommandList->OMSetRenderTargets(0,null,FALSE,&Dsv);
-        this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
-        this.CommandList->SetPipelineState(this.ShadowPipelineState);
-        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        this.RenderShadowAtlasProjection(new ShadowAtlasProjection(new ShadowAtlasTile(-1,0,0,AmbientOcclusion.Width,AmbientOcclusion.Height),AmbientOcclusionPrepassConstantSlot),Dsv);
-        AmbientOcclusion.RecordCompute(this.CommandList,this.FrameIndex,ViewProjection,this.CurrentCameraPosition,Settings);
+        this.RenderSceneDistances(AmbientOcclusion.Width,AmbientOcclusion.Height);
+        AmbientOcclusion.RecordCompute(this.CommandList,this.FrameIndex,this.InvertibleViewProjection,this.CurrentCameraPosition,Settings);
     }
 
     private bool AutoExposureActive=>this.EnvironmentSettings.Exposure.Mode==ExposureMode.AutoHistogram;
@@ -4043,7 +4052,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteEnvironmentDescriptors();
         }
         if(this.AmbientOcclusion is { Generation:>0 }){
-            this.AmbientOcclusion.EnsureSize(Width,Height);
+            this.AmbientOcclusion.EnsureSize(Width,Height,this.SceneDistanceBuffer);
         }
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.UpdateViewportAndScissor(Width,Height);

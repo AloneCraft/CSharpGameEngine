@@ -93,7 +93,7 @@ public readonly record struct RadialDepthProjection {
     public const float MaximumDepth=0.99999994f;
     /// <summary>Ratio of the auxiliary far plane to its near plane; it keeps the matrix invertible in float.</summary>
     public const float AuxiliaryDepthRatio=65536f;
-    /// <summary>Lower bound of the auxiliary near plane: surfaces nearer than this get no ambient occlusion.</summary>
+    /// <summary>Lower bound of the auxiliary near plane used to build stable inverse-projection rays.</summary>
     public const float AuxiliaryNearFloorMeters=0.01f;
     private RadialDepthProjection(RadialDepthCurve Curve,float NearZ,float FarZ,float FrustumCornerDistance){
         this.Curve=Curve;

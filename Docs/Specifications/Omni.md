@@ -35,7 +35,8 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 5. Lighting, shadows, fog, GI and normals use physical values; no Jacobian is applied to normals.
 6. Fragments beyond `FarZ · (1 + 1/1024)` of physical view depth are discarded (the margin keeps every fragment the projection's own far plane kept); NearZ is clipped by the standard projection.
 6a. A view handed over as one perspective matrix (`SetViewProjection` with `RadialViewParameters`) is drawn radial from that matrix unchanged; only depth columns are rebuilt from its W, so its pixels and depth equal the radial camera's that built the matrix.
-7. Passes that invert the camera view-projection (sky direction, sun cascades, AO prepass) receive in radial mode a finite projection with near `max(NearZ, min(0.01 m, FarZ/2))` and far `min(FarZ, near · 65536)`; for an ordinary range it is exactly the camera projection.
+7. Passes that invert the camera view-projection (sky direction, sun cascades, AO reconstruction rays) receive in radial mode a finite projection with near `max(NearZ, min(0.01 m, FarZ/2))` and far `min(FarZ, near · 65536)`; for an ordinary range it is exactly the camera projection.
+7a. AO receives physical distance from the native surface pass at its half-resolution sample positions. Its ray reconstruction uses the finite auxiliary projection without clipping geometry to that projection's far plane. The main distance/depth allocations are reused before the full-resolution colour pass; AO owns no depth target.
 8. Shadow atlas and overlay passes keep their light/screen-space depth. DDGI perspective captures use logarithmic depth and write physical distance to a separate R32F target; convolution reads that distance directly.
 9. Device recovery replays the depth mapping with the camera.
 10. Picking stays the CPU physical ray: the visible surface of a radial view is the nearest physical hit.
