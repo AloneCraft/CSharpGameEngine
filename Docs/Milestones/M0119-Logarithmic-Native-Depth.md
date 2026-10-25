@@ -168,3 +168,8 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 旧選択型・ラッパーエントリー・StandardModeGoldenFrameTests・ModelRenderer/TriangleRenderer・model-v1/triangle-v1の検索はsrc/tools/tests/assetsで0件。14エントリー、960バイトのFrameCB、AO更新後の7画像ハッシュ、物理距離の解析オラクルを全体テストで維持した。
 - RTX 4060 Tiでの別実行は6距離すべて中央4ulp以内(最大約2.56ulp)。主パスだけのGPU時間を記録したもので、ゲーム全体のフレーム時間の証明ではない。測定時のStage成果物との完全一致を確認し、元の測定履歴は書き換えていない。Releaseの100000物体のCPU性能予算も前項のとおり合格。
 - 適合結果: M0119の範囲はMatches。VS/Unityを起動するGUI実走は今回の検証に含めない。既存のシーンカメラ正射影のランタイム未接続、および過去の間欠的なWARPデバイス削除の原因は範囲外/未確定として保持する。後者が解決したとは主張しない。mainへの統合は行っていない。
+
+### 既定Stageの初回描画への追加検証(2026-10-26、SDK0.1.29)
+- M0120の起動状態調査で、SetCameraを一度も呼ばず描く低レベルStageは、初期化した透視行列に対し線形の深度パケットを残していることを再現。約4.145584mの床で期待深度0.22822031に対し0.9759626を書き、追加GPU試験は修正前1件失敗。従来の明示的SetCamera/直接生成Cameraの既定値試験では、この起動経路を通っていなかった。
+- InitializeConstantsToDefaultsで既定カメラにも通常のSetCamera処理を適用し、パケット/補助投影/基底を揃えてから全フレームスロットを初期化する。重複した別の曲線は追加していない。追加試験はSetCamera未提出の3フレームで実デバッグ層有効を確認し、物理SceneDistanceに対する対数深度を両スロットで検証する。
+- 修正後の起動/距離/固定7画像/スロット/三角形/glTF/主深度/ホットリロード/復旧の38件成功。画素基準とシェーダーは不変。証拠は `.artifacts/M0120/default-view-before.log` と `default-view-after.log`、各memory.json。修正前後の最大RAM57%/57%、閾値停止なし。全体回帰を後続で確認する。

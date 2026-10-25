@@ -8,6 +8,32 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 public sealed class SceneDistanceGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
+    public void DefaultRendererUsesLogarithmicDepthBeforeAnyCameraSubmission(){
+        const int Width=32;
+        const int Height=18;
+        using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine default native view",Width=Width,Height=Height,Visible=false });
+        var Plane=ProceduralMeshFactory.CreatePlane(Width:20f,Depth:20f);
+        using var Renderer=StageRenderer.Create(Window.Handle,Width,Height,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
+            Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact"),
+            [new StageMeshCreateInfo { Positions=Plane.Positions,Normals=Plane.Normals,Tangents=Enumerable.Repeat(new Vector4(1f,0f,0f,1f),Plane.Positions.Length).ToArray(),Uvs=new Vector2[Plane.Positions.Length],Indices=Plane.Indices }],
+            [new StageMaterialCreateInfo { BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f }],
+            [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
+        Assert.True(Renderer.DebugLayerEnabled);
+        var Default=Camera.CreateDefault(Vector3.Zero);
+        Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Default.NearZ,Default.FarZ,Default.FovYRadians,(float)Width/Height,out var Projection));
+        var Pixel=(Height/2)*Width+Width/2;
+        for(var Frame=0;Frame<StageRenderer.FrameCount+1;Frame++){
+            Renderer.RenderFrame();
+            var Distance=Renderer.ReadSceneDistancesForTesting()[Pixel];
+            Assert.True(Distance>0f,$"frame {Frame} has no default geometry");
+            var Actual=Renderer.ReadDepthForTesting()[Pixel];
+            var Expected=Projection.EncodeDepth(Distance);
+            Assert.True(MathF.Abs(Actual-Expected)<=Expected*2e-6f,$"frame {Frame} depth {Actual:R} expected native {Expected:R} at {Distance:R}m");
+        }
+        Assert.DoesNotContain(Renderer.DebugMessages,Message=>Message.IsErrorOrWorse);
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
     public void PreviewDoesNotOverwriteMainDistancesAndResizeRecreatesTheTarget(){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Scene Distance",Width=32,Height=18,Visible=false });
         var Plane=ProceduralMeshFactory.CreatePlane(Width:1f,Depth:1f);

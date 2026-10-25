@@ -2151,6 +2151,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// </summary>
     private void InitializeConstantsToDefaults(){
         Camera DefaultCamera=Camera.CreateDefault(Vector3.Zero);
+        this.SetCamera(DefaultCamera);
 
         for(uint Frame=0;Frame<FrameCount;Frame++){
             this.WriteViewProjection(Frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)this.Width/ this.Height));

@@ -63,3 +63,6 @@ F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - Stage成果物の生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5で移動前と完全一致。固定画像の基準は変更していない。最大RAM62%、閾値停止なし。証拠は `.artifacts/M0120/gpu-layout-native-final.log`、`gpu-layout-shader-tests.log`、`gpu-layout-portable-tests.log`、`gpu-layout-layer-tests.log`、`gpu-layout-catalog-tests.log` と各memory.json。
 - 初回のNative接続ビルドはLumenのpartialファイルへのstatic using不足で失敗し、共有のオフセットを明示して修正した。DXCバインディングのGUIDポインター形式も既存APIに合わせて修正。失敗ログはgpu-layout-native-regression.log/gpu-layout-reflection-first.log、合格ログは上記へ別保存した。
 - M0120全体はPartial。構造化光源のGPUレコード/計画データ、RenderViewPolicyと提出、RenderServer、パス実行計画、Forward/Forward+の実装は後続。
+
+## 既定起動の補足
+- SetCamera未提出のStageの深度不整合を追加再現し、既定カメラの初期化を共通処理へ揃えた(M0119追記)。修正前は深度0.9759626/期待0.22822031、修正後のGPU38件は成功。SDK0.1.29。これはビュー/フレーム計画の抽出完了を意味せず、その後の分離で保持すべき起動契約である。
