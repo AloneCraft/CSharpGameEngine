@@ -295,17 +295,13 @@
 - Result: Matches F-L8-028 without fabricating Visual Studio, DPI, focus, accessibility, or long-run observations from headless package tests.
 
 ## RE-M0099 — Radial (logarithmic) depth
-
-- Confidence: High for the curve, the encoding, pipeline selection and the WARP pixel/depth oracles; Medium for performance: the radial main pass was measured on one GPU (RTX 4060 Ti, `RadialDepthPerformanceEvidence`); radial camera thumbnails still write plain `SV_Depth` and lose Early-Z.
-- Evidence: `RadialDepth.cs`, `StagePresentationShaderSource` radial entries, `radial_depth_2026_10_04.py`, `StageRenderer.SetCamera`/`WriteDepthMapping`/`InvertibleViewProjection`/`CreateRadialPipelineStates`/`PrepareCameraPreviewConstants`/`RenderCameraPreviews`, `RadialDepthTests`, `RadialDepthGpuIntegrationTests`, `ShaderArtifactHotReloadTests`.
-- Observed behavior: `Camera.DepthMapping = Radial` selects radial pipeline states. The main ones run `RadialVSMain` (the unchanged `VSMain`, whose clip depth is replaced by the conservative `a − b/w` with the object's `ObjectCB.RadialRasterDepth`, tangent at the view depth of its mesh's bounds centre and written every radial frame by `StageRenderer.WriteRadialRasterDepths`, and the standard near/far as `SV_ClipDistance`; depth clipping off) and wrap `PSMain`/`PreviewPSMain` (colour unchanged) with `SV_DepthGreaterEqual = min(G(r)·InverseMaximumG, 0.99999994)`, where `G(r) = log2(1 + r/T)` is evaluated without the hardware `log2` (an odd `atanh` series after a bit split) and `r` a largest-component length. Camera thumbnails use the standard `VSMain` with plain `SV_Depth`. Fragments whose physical view depth exceeds `FarZ·(1 + 1/1024)` are discarded. Invalid radial parameters throw at `SetCamera`; a `RadialObserver` camera throws; `SetViewProjection` returns to standard.
-- Observed behavior: in radial mode the sky direction, sun cascades and AO prepass use the camera rotation with near `max(NearZ, min(0.01, FarZ/2))` and far `min(FarZ, near·65536)`; with near 0.1 m and far up to 6553.6 m that matrix equals the camera's, and the environment frame is bit-identical to the standard one. GI capture, shadow atlas and overlay are standard.
-- Observed behavior: `StageRenderer`/`RenderServer.SetViewProjection(matrix, position, RadialViewParameters)` draws a perspective matrix radial (M0100): the matrix stays as given, and the raster and auxiliary matrices replace only its depth column, rebuilt from its own W (`RadialDepthProjection.CreateConservativeRasterViewProjection`/`CreateAuxiliaryViewProjection`), so the frame and depth equal a radial camera's; orthographic matrices and invalid parameters throw; device recovery replays it.
-- Observed behavior: the isolated Preview Host (protocol 9) derives depth from the view-projection: perspective uses mandatory FOV/near/far/transition metadata and `RadialViewParameters`, orthographic uses linear depth. There is no camera depth selector in the protocol. VSIX thumbnails preserve the scene camera's original near/far instead of recovering a huge far plane from a rounded matrix. Version 8 requests are rejected before reading their payload.
-- Observed behavior: a preview's `DepthMapping` selects standard, radial (`PreviewCleanRadialPSMain`) or observer (`RadialObserverVSMain` maps `T·G(|P − C|)` around `RadialCenter`) pipelines and writes its own packet; incomplete radial previews throw.
-- Observed behavior: the scene `Camera` component's `DepthMapping` (`Radial` default) and `RadialTransitionMeters` (1 m default) are copied into the render camera by `LevelLoad` on every frame, with the exposure (and, without an editor camera, the field of view and clip range), so a component edit shows on the next frame; an unusable value keeps the last usable projection (at load, the default render camera's) and is named in `LevelRuntime.InvalidCameraProperty`. Scene JSON without them renders radial. With an editor camera, the runtime view keeps the editor pose and field of view, and for a radial scene camera its near is the nearer and its far the farther of the editor's and the scene camera's.
-- Observed behavior: an enabled `RadialObserver` on a node with a Transform becomes, while the active camera is radial and no editor camera exists, an observer camera preview: inset rectangle rounded from the surface fractions, rotation-only view from the node's camera-relative +Z/+Y, perspective with the component's FovY/NearZ and far `|E − C| + 1.05·T·G(rMax)`. `EngineHost` submits up to three per frame and an empty list once they disappear. With `ShowCenterCamera` the overlay pass draws the centre camera's frustum, 5 % of the compressed world's radius long, inside the inset.
-- Result: Matches ADR-0076 for the renderer, the scene camera, the editor runtime view and the observer view.
+- Confidence: High. Current native contract: M0119 / ADR-0084; selection/wrapper parts of ADR-0076 are superseded.
+- Evidence: RadialDepth.cs, RenderViewDepth.cs, RenderCameraPreview.cs, Stage.cgeshadergraph and Depth.cgesubgraph, StagePresentationShaderSource, StageRenderer.SetCamera/SetViewProjection/WriteViewDepth, RenderPreviewHostContracts and RenderPreviewRenderSession.
+- Observed behavior: every perspective camera writes native logarithmic physical distance through VSMain/PSMain and one pipeline family. A shared VertexOutput carries physical perspective interpolation, clip distances and the conservative bound; ObjectCB.ConservativeRasterDepth preserves early rejection. There is no camera Standard/Radial selector. Orthographic views are linear. Bare perspective matrices are rejected; physical FOV/near/far/curve metadata creates a validated logarithmic packet and finite auxiliary projection before state changes.
+- Observed behavior: main colour/depth also writes R32F SceneDistance. Sky and half-resolution AO read physical distance; DDGI captures logarithmic depth and CaptureDistance; Lumen surface depth agrees with the nearest physical surface. Shadows retain light-space depth. No logarithmic inverse is used for these distance consumers.
+- Observed behavior: scene cameras expose the curve without depth selection. Protocol 9 requires perspective metadata, rejects version 8 and preserves original huge clip ranges for thumbnails. RenderCameraPreview requires depth matching its projection with zero conservative raster weight. Observers use ObserverVSMain and store their centre in RenderViewDepth; up to three game insets retain the marker and compressed-space interpolation.
+- Verification: independent double oracle, pinned seven native images, CPU packet validation, full GPU/recovery/hot-reload tests and hardware precision/performance evidence. Current values and limitations are in M0119.
+- Result: Matches the native depth contract. Runtime scene orthographic projection remains a separate known limitation; four render paths and broader layer/physics work remain M0120–M0123.
 
 ## RE-M0098 — World-space procedural grid material
 
@@ -511,47 +507,11 @@
 - Intended behavior: `Docs/Specifications/Rendering.md` の環境ライティング(Lumen の行)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5。
 - Result: MatchesWithDocumentedExtension(差は M0111 の文書の「UE との差」と「範囲外・残り」)。
 
-## RE-M0119-LumenSurfaceDepth — Lumen が読む最近面の対数深度
-- Confidence: High(ソースと修正前後の WARP 試験)
-- Evidence: `src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`(`LumenSurfacePSMain`)、`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(前パスの PSO とその解放・ホットリロード)、`StageRenderer.Lumen.cs`、`tests/CSharpGameEngine.Windows.Tests/Graphics/LumenSurfaceDepthTests.cs`。
-- Observed behavior: 対数カメラの Lumen 表面前パスは、主画面と同じ深度の符号化とクリップ距離を使う。far が 1e18 m の場合も、近距離の精度を失う双曲深度の比較で奥の面を選ぶことがなく、画素中心の解析光線に沿った物理距離で最近面を検証できる。
-- Result: この前パスについては ADR-0084 と一致。主シェーダーの一本化と、物理距離ターゲットを使う空・DDGI の移行も実施済み。AO も共有表面シェーダーと物理距離に移行し、補助投影の遠方クリップによる陰りの消失を修正。旧標準経路の削除は未実施。
-
-## RE-M0119-NativeStageDepth — 主エントリーが所有する深度
-- Confidence: High(生成 HLSL、DXC 全エントリーコンパイル、WARP)
-- Evidence: `edits/native_depth_2026_10_25.py`、`assets/Shaders/Stage.cgeshadergraph`、`StagePresentationShaderSource.cs`、`StageRenderer.WriteDepthMapping`、`StageRenderer.Lumen`、`ShaderGraphCompilerTests`。
-- Observed: VSMain/PSMain が物理空間で色を計算して深度を直接出す。旧 Radial の VS/PS 名は削除し、14 エントリーへ統合。L4 RenderViewDepth が透視・観察ビュー・撮影の深度パケットを作り、L0 はアップロードする。補間の構造体は 1 つ。カード撮影は線形、観察ビューは写像後の距離を使う。ABI 統合の GPU 回帰 43 件、その後の L4 接続回帰 17 件に合格。AO 更新後の 7 つの対数 SHA は変更なし。
-- Result: 主エントリーへの統合は ADR-0084 と一致。移行全体は Partial。
-
-## RE-M0119-DirectCameraDefault — 直接生成の対数既定値
-- Evidence: Graphics/Camera.cs のパラメーター無しコンストラクター、CameraTests.ObjectInitializer_DefaultsToTheLogarithmicCurveWithoutAFactory、LogarithmicDepthOracleTests.ObjectInitializer_WritesLogarithmicDepthWithoutAFactory。
-- Observed: ファクトリーだけでなく new Camera の直接生成でも対数方式と T=1 m が入る。修正前は Standard/T=0 となり、50 m・far 1e18 m の GPU 深度が対数オラクルから約 1.21e8 ulp 外れた。修正後は中央 4 ulp 以内。ファクトリーの既存画素は変えない。
-- Result: M0119 の既定値の要求と一致。旧選択 API の削除は継続中。
-
-## RE-M0119-NativeSceneCamera — シーンカメラの深度選択削除
-- Evidence: Runtime/Camera.cs、LevelLoad.ApplyProjection、SceneCameraPreviewBinding、SceneCameraPreviewPolicyTests、生成した UserEcsProject/.cge/scene.schema.json。
-- Observed: CameraDepthMapping とシーン Camera.DepthMapping は除去された。ゲーム・エディター実行ビューは対数、サムネイルは透視なら対数・正射影なら線形。曲線の値と編集/シーンのクリップ範囲の合成、無効値で最後の有効投影を保持する動作は維持する。スキーマは曲線を含み、旧深度選択を含まない。
-- Result: ランタイム・読込・観察ビュー・画像 36 件、VSIX ポリシー/姿勢 13 件合格。低レベル描画・通信 API の旧選択は未削除。
-
-## RE-M0119-NativeRenderCamera — 描画カメラの選択削除
-- Evidence: Graphics/Camera.cs、StageRenderer.SetCamera、最後の比較の pre-camera-removal-golden/parity.json、Native のゴールデン・描画順・曲線変更・リサイズ試験。
-- Observed: 描画 Camera に深度選択がなく、SetCamera は必ず対数投影を検証・提出する。旧比較試験は最後の 7 ケース合格を保存して削除。色・深度・状態・エディターの 106 件、GI/雲等 27 件に合格し、7 SHA は維持した。
-- Hardware: RTX 4060 Ti、4e-6〜5e18 m の中央最大誤差 2.56 ulp。24 層の主パスの手前順/奥順の中央値は近距離 0.198/3.785 ms、遠距離 0.133/2.516 ms。測定の成果物ハッシュは native-camera-hardware-manifest.json。
-- Result: 描画カメラの native 化は一致。行列・通信の旧選択と旧レンダラー、層分離・4 パスは未完了。
-
-### RE-M0119 — 型付きネイティブ深度の提出境界
-- Confidence: High
-- Evidence: `RenderViewDepth.cs`, `RenderCameraPreview.cs`, `StageRenderer.cs`, `RadialDepthGpuIntegrationTests`, `RenderPreviewRenderSessionTests`.
-- Observed behavior: RenderDepthMappingは存在しない。主ビューは検証済みRenderViewDepthを保持し、そのパケットをアップロードする。引数のない深度方式は存在せず、透視行列には物理的投影情報が必要。サムネイルは必須のDepthが投影と整合し、主カメラの保守的ラスタ重みを使わないことを検証する。正射影は線形、観察ビューは中心を持つ専用パケット。
-- Result: 提出境界はADR-0084に一致。M0119全体は旧Model/Triangleと最終検証が残るためPartial。
-
-### RE-M0119 — 旧単体レンダラーと成果物の廃止
-- Confidence: High for source/API boundaries; final integration verification in progress.
-- Evidence: ShaderArtifactModels/Abi/Serializer, ShaderGraphModels/Validator, ShaderGraphTemplateWizard, FeatureStageCatalog, RenderingReleaseEvidence.
-- Observed behavior: 描画はStageへ集約。旧単体レンダラー・グラフ・ABIの生産者は存在しない。保存済み成果物の旧ターゲット値2/3は読み取りで拒否、グラフの旧値1/2はUnknownTargetとして拒否する。Stageの14エントリーとHLSLハッシュは不変。リリース証拠はStageと5外部サブグラフ・表示接尾辞の全入力を結び付ける。
-- Limit: Stageベースへ更新したVS GUI自動化はこの段階では起動していない。実際に再実行したテスト件数はM0119に記録する。
-
-### RE-M0119 — 実際に有効な診断を伴うテンプレート検証
-- Confidence: High for the report/evaluator contract; active-template rerun pending.
-- Evidence: RuntimeAutomation.WriteReport, ThirdPersonCharacterVerification/ClickToMoveVerification/VehicleDriveVerification, their diagnostic regression tests.
-- Observed behavior: 検証子プロセスはデバッグ層を要求し、実行レポートが実際のd3d12DebugLayerEnabledを報告する。全評価はtrueを必須とし、Graphics Tools不足時のネイティブ続行を診断成功として扱わない。旧DLLで10ケース失敗、修正後FeatureRunner233件合格。通常起動の診断既定は変えていない。
+## RE-M0119 — Native depth verification and diagnostic contract
+- Confidence: High for code/API, GPU pixels and active template execution. Wider layer/render-path/physics migrations remain separate.
+- Evidence: M0119 milestone and its solution, template, precision/performance and artifact-identity manifests; RuntimeAutomation.WriteReport; ThirdPersonCharacterVerification/ClickToMoveVerification/VehicleDriveVerification and their tests.
+- Observed behavior: obsolete standalone renderers, artifact targets and root templates are absent. Retired artifact values 2/3 and graph values 1/2 are rejected and not reused. The Stage ABI has fourteen entries and unchanged pinned native images. A new root template uses Stage and five external subgraphs.
+- Observed behavior: template verification requests the debug layer and requires the runtime's actual d3d12DebugLayerEnabled=true. False/missing is rejected, including native continuation without Graphics Tools. Ten diagnostic tests fail with the isolated previous evaluator; all 233 FeatureRunner tests pass after correction. Normal game diagnostics defaults remain unchanged.
+- Observed behavior: all eight template cases report active diagnostics and zero errors, match the nine M0111 baseline metrics, and have identical complete camera trajectories and final images to the initial movement runs. Initial runs without proven active diagnostics are retained as movement evidence only.
+- Observed behavior: the current Stage artifact exactly matches the RTX-measured artifact SHA256 E485F055...B6A5; original measurement provenance is retained. Release visibility/batching at 100000 instances has median 4.10015ms, p95 4.34760ms and zero measured allocation. WARP frame timing is correctness evidence rather than a hardware frame-budget claim.
+- Limit: Stage-based VS GUI automation was compiled but not launched in this run. Package/editor unit tests and packaged preview/runtime-view execution were run. Full-solution closure and counts are recorded in M0119 after the last source change.

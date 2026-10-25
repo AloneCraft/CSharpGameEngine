@@ -4204,82 +4204,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 既知の差: 陰が UE より明るい、塗装の艶、カードは箱の 6 面だけ、ハードウェアのレイトレーシング・半透明・多重の反射は無い、既定の段は UE の Epic でなく High、Epic の WARP での装置の削除は未解決、実機の GPU は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension(仕組み)。見た目は Differs(陰の明るさ、Vehicle の床)。
 
-## M0119 — 対数ネイティブ深度への移行(進行中)
-- Intended: ADR-0084。透視の描画を最初から対数深度を書く 1 系統にする。
-- Observed: Lumen 表面前パスは主カメラと同じ対数深度・近遠クリップ距離を使う。専用 DSV のまま、法線・粗さ・物理距離の出力を維持する。WARP の回帰試験は、通常の距離と far 1e18 m の最近面を独立した解析距離で確認する。
-- Conformance: Partial(この前パスの誤遮蔽は修正。主シェーダー・距離入力への移行は後続の記録を参照。API と標準経路の削除が残る)。
-
-- M0119 追記: 主エントリー自身の深度出力、単一の補間構造、直接委譲する旧 ABI 名への移行は検証済み。固定した対数 7 SHA は不変。標準 API・PSO の削除は残るため、全体の Partial は継続。
-
-
-## 2026-10-25 — M0119 物理距離ターゲット・DDGI
-- 観測: Stage は色と同じ最近面の物理距離を出力する。解析光線に対して 4e-6〜5e18 m で相対誤差 3e-6 以下。距離 0 は背景。プレビュー描画による主距離の変化はなく、リサイズ後も正しい寸法と有限の距離を保持する。
-- 空は SceneDistance を、DDGI は対数撮影の CaptureDistance を直接読む。GPU 50 件、ShaderGraphCompilerTests 15 件に合格。固定した 7 枚の対数画像は同じ SHA。最大物理メモリ使用率 74%。証拠は `.artifacts/M0119/distance-*.log` と対応する memory.json。
-- 残件: 標準 API/PSO の削除。AO の後続移行は次項。過去の WARP の間欠的デバイス削除の原因は未確定。
-
-
-## 2026-10-25 — M0119 AO の物理距離入力
-- 観測: 修正前は補助投影の far を超える接触部の陰りが消えた。共有表面シェーダーで距離を描いて AO に渡すと遠距離でも陰りが残り、通常の接触部の暗さ、開けた床・空、直接光の非変更を満たす。
-- 半解像度のサンプル位置を保持。AO 専用の双曲深度資源・DSV とシャドウ VS の呼び出しは削除。SceneDistance と主 DSV、HDR の一時法線出力を再利用し、本描画前に全領域を消去する。
-- 環境の対数画像の差は 6/20736 画素、最大 1 階調。他の 6 枚は不変。ADR-0084 §7 に従った旧新 SHA は M0119 と `ao-sampling-golden/repin.json` に記録。全解像度の画素中心を選ぶ最初の案は基準外のため不採用。
-- AO・ゴールデン・距離リサイズ・遠距離深度・Lumen 表面・スキニングの GPU 回帰 26 件合格。ビルドは警告 0・エラー 0。証拠は `.artifacts/M0119/ao-final.log`、`ao-final-build.log` と memory.json。最大メモリ使用率は 67%。旧 API/PSO の削除は残るため全体は Partial。
-
-
-## 2026-10-26 — M0119 ネイティブ Stage ABI と L4 深度契約
-- 旧 Radial ラッパー 4 エントリーを削除し、観察 VS を ObserverVSMain、共有表面 PS を SurfacePrepassPSMain に変更。深度方式別の PSO 群を統合し、ホットリロードの作成・ロールバック・解放も同じ所有構造にした。
-- 未使用の影座標 varying・ComputeDirectionalShadow・フレームへの旧影行列書き込みを削除。FrameCB の 304/368 バイト位置を逆投影行列とビューポートに使用する。再配置なので FrameCB は 960 バイトのまま。DepthEncoding0/1 と ConservativeRasterDepth に改名。Lumen のフレーム写しも同じ配置。
-- 深度パケットの生成・検証は L4 の RenderViewDepth。無効な対数投影、透視行列に対する線形パケット、縮退した正射影を拒否し、観察ビューとプローブは主ビューの接線を継承しない。
-- GPU 回帰 43 件、L4 接続後 17 件、数値・境界 32 件、シェーダー 15 件合格。7 つの対数 SHA は AO 更新後の値を保持。ビルドは警告 0・エラー 0。この区間の最大メモリ使用率は 69%。証拠: `.artifacts/M0119/native-abi-*.log`、`native-contract-gpu.log`、`view-depth-final-tests.log` と memory.json。
-- 標準深度の選択 API、プロトコル 9、Model/Triangle の削除、レンダラーの層分離と 4 描画パスは未完了。全体は Partial。
-
-
-## 2026-10-26 — M0119 直接生成カメラの既定値
-- 修正前: new Camera の直接生成は Standard/T=0。型の期待値と 50 m・far 1e18 m の GPU 対数オラクルの 2 件が失敗した。
-- 修正後: パラメーター無しコンストラクターで対数方式と T=1 m を初期化する。カメラ操作・深度オラクル・7 画像・プレビューの回帰 33 件合格。ビルドは警告 0・エラー 0。最大メモリ使用率 66%。証拠は `.artifacts/M0119/camera-default-before.log`、`camera-default-after.log`、`camera-default-build.log` と memory.json。
-- 明示的な旧選択 API の削除は継続中。全体は Partial。
-
-
-## 2026-10-26 — M0119 シーンカメラの選択型削除
-- シーン CameraDepthMapping/Camera.DepthMapping を削除。LevelLoad は対数を提出し、エディターのサムネイルは投影方式から深度を導く。T の読込、無効値の保持、クリップ範囲、観察ビューを維持する。
-- ランタイム・読込・エディター・観察ビュー・ゴールデン 36 件、VSIX カメラポリシー/姿勢 13 件合格。Windows.Tests ビルドは警告 0・エラー 0。VSIX は DeployExtension=false でビルドし、インストール・Visual Studio 起動を行っていない。
-- スキーマから旧 DepthMapping が消え、RadialTransitionMeters が残る。証拠は `.artifacts/M0119/scene-native-schema.json`、`scene-native-tests.log`、`scene-native-vsix-final.log`、`scene-native-build.log` と memory.json。この区間の最大メモリ使用率は 63%。
-- 最初の VSIX 検証は SDK の明示的梱包対象の未復元によりテスト前に失敗。Cooking、Cook CLI、Navigation Cook を一覧から確認して復元後、実行件数 13 を確認した。コードの不具合修正としては扱わない。
-- 旧低レベル描画カメラ・プレビュー通信と Model/Triangle の削除は継続中。全体は Partial。
-
-
-## 2026-10-26 — M0119 描画カメラの選択削除と実機証拠
-- 描画 Camera.DepthMapping を削除し、SetCamera を対数に固定。最後の標準比較は 7 ケースすべてで基準内、対数 SHA も同一。その後に StandardModeGoldenFrameTests を削除した。
-- 継続試験はネイティブの画像、独立したオラクル、遠距離の両描画順、曲線変更での色の保持、リサイズ後と新規レンダラーの画素/深度一致。106 件と GI・雲等 27 件に合格。カタログ 2 件も合格。ビルドは警告 0・エラー 0。
-- RTX 4060 Ti の精度/性能 2 件合格。中央誤差(4e-6,0.5,50,2e4,1e15,5e18 m)は 2.56/2.51/1.32/1.21/1.66/1.21 ulp。端の最大値は 41.51 ulp(微小距離、ラスタ位置の誤差を含む)で別記録し、中央の予算と混同しない。
-- 主パス1280×720・24層: 近距離の手前順/奥順の中央値 0.198/3.785 ms、遠距離 0.133/2.516 ms。全フレームの性能予算の検証とは別。証拠は `.artifacts/M0119/native-camera-*.log`、`precision/radial-precision-hardware.json`、`performance/native-depth-performance-hardware.json`、`native-camera-hardware-manifest.json`。この区間の最大メモリ使用率 66%。過去の WARP の間欠的デバイス削除の原因を解消したという意味ではない。
-- 旧行列・プレビュー通信、Model/Triangle と層分離・4 パスは残る。全体は Partial。
-
-## 2026-10-26 — M0119 プレビュー通信のネイティブ深度
-- DTOの深度選択型・欄を削除。透視はFOV・near/far・正のTを必須とし、ホストは必ず対数パラメーターを提出する。正射影は線形。旧版8はペイロード前に拒否。
-- far=1e18の再現で、修正前は期待0.02203に対し0.93333を書いた。透視1件失敗・正射影1件合格を保存後、修正後は主画面・サムネイルとも独立した参照値の4ulp以内。シーンカメラの元のクリップ範囲を渡し、巨大farを丸めた行列から再計算しない。
-- 契約12件、Windowsプレビュー/ホスト/実行ビュー28件、VSIXの姿勢・ポリシー・生成・実際のパッケージ済みホスト/実行ビュー20件合格。ビルドは警告0・エラー0、最大メモリ63%。VSIXの配置は無効、VS/Unity起動なし。
-- 証拠は `.artifacts/M0119/preview-native-before.log`、`preview-native-after.log`、`preview-native-contract-test.log`、`preview-native-vsix-test.log`、対応するbuildログとmemory.json。パッケージTestAssetsは現在のビルドで再生成したVSIXを読み、プロトコル9で実際に描画した。
-- 低レベル行列/サムネイル選択とModel/Triangleは後続。F-L5-038の全体適合は引き続きPartial。
-
-## 2026-10-26 — M0119 型付き深度の提出境界
-- RenderDepthMappingを削除し、主ビューは検証済みRenderViewDepthを保持して提出する。裸の行列は正射影の線形深度だけに限定。透視は物理的なFOV・near/far・Tを受け取り、有限の行列と逆行列を持つ補助投影を検証してから状態を更新する。
-- RenderCameraPreviewのDepthを必須化。投影との不整合・default値・主カメラ用の保守的ラスタ重みを拒否する。観察ビューの中心も型付きパケットで運ぶ。ShaderGraphCompilerTestsは廃止名の部分否定から、許可された14エントリーの集合完全一致へ更新。
-- GPU回帰68件、シェーダー契約15件、L4数値/境界32件、VSIX/パッケージ済みホスト20件合格。7SHAは不変。透視・正射影の主画面とサムネイルはデバイス再生成後も画素と深度が一致する。ビルド警告0・エラー0。最大メモリ59%。
-- 証拠は `.artifacts/M0119/typed-depth-final-regression.log`、`typed-depth-shader-tests.log`、`typed-depth-final-build.log`、`typed-depth-vsix-build.log`、`typed-depth-vsix-test.log`、`typed-depth-cpu-tests.log` とmemory.json。
-- 完了条件の旧選択・ラッパー検索はsrc/tools/tests/assetsで0件。古い生成保守スクリプトの説明だけに残ったエントリー名を役割の説明へ直し、履歴の変換処理は変更していない。
-- 全体は引き続きPartial。旧Model/Triangleの実装・ABI・テンプレート・生産者の削除、全体検証とテンプレート4実行が残る。
-
-## 2026-10-26 — M0119 旧単体レンダラーと生産者の削除
-- 生成元がない旧ModelRenderer/TriangleRendererと二つのルートグラフを削除。三角形・glTFのGPU試験は既にStage経由であり、削除せず維持した。Windows.Tests全体は818件合格・失敗0、通常は有効にしない実機測定2件スキップ、5分3秒。最大メモリ63%。7画像ハッシュも不変。
-- 旧ABIの生産者、ターゲット列挙値、VSIXの旧テンプレートと選択UIを削除。成果物の値2/3、グラフの値1/2は再利用せず拒否する。チェックサムが正しい旧ターゲットでも拒否する試験を含む成果物10件、グラフ29件、現行Stage14エントリー/HLSLのCLI9件合格。過去の15件から減った6件は廃止した二つのルートターゲットに対する三種類の重複実行。
-- FeatureStageCatalogとソリューションの旧ファイル項目を更新。リリース証拠はStage+5外部サブグラフ+表示接尾辞を記録し、Depth変更で証拠が無効になることを含むカタログ/リリース21件合格。梱包内容変更の版規則に従いSDKを0.1.24へ更新。
-- 初回VSIX試験はサブグラフItem Templateに旧ターゲット値が残っていたため1件失敗・44件合格。検証を緩めず、ルート/サブグラフの両Item TemplateをStageへ更新した。全追跡グラフのターゲットはStageであることを読み取り確認。修正後はVSIXの編集/梱包/ホスト/自動化契約45件すべて合格。
-- GUI自動化の移行でCLI専用型の誤参照が1件のビルドエラーになった。現在のStageの5依存が直接入力かつ再帰依存なしであることを確認し、既存のReadGraphで宣言された依存をコピーする形へ修正。最終ビルド警告0・エラー0。VS/Unityを起動していないためStageでのGUI実走は未検証と明記。
-- 証拠は `.artifacts/M0119/retired-renderer-*.log` と各memory.json。全体の状態はPartial。全ソリューション、4テンプレート実走、性能予算の最終閉鎖は後続。
-
-## 2026-10-26 — M0119 最終ゲートと診断証拠の条件
-- 5321c35で全ソリューション22登録/22実行、3520件合格・失敗0・実機測定2件スキップ、最大メモリ65%。初回4テンプレート/8ケースの物理値はM0111に一致。
-- 初回テンプレートは既定でデバッグ層が無効だったため、そのエラー0をデバッグ層の証明として扱わない。要求してもGraphics Tools不足時は描画続行するネイティブ仕様があるので、報告へ実有効状態を追加し、評価時はtrueを必須化した。無効/未報告拒否10ケースを含むFeatureRunner233件合格。デバッグ層ありの実走は再検証する。
-- Releaseの100000物体は中央値4.10015ms・p95 4.34760ms・割り当て0byteで予算内。WARP画像オラクル合格、時間17.2304ms p95はソフトウェアの記録。実機測定済みStage成果物と現在のSHA256が同一であることを別に照合した。全体の適合は診断付き再実走の完了までPartial。
-
-- 診断の修正前再現: 本番の出力を変更せず、全体試験時の旧FeatureRunner DLLを隔離フォルダで読み、同じ10個の無効/未報告テストがすべて失敗することを確認。修正後は233件合格。旧DLLと新テストのSHAをdiagnostic-before-proof/provenance.jsonへ保存。証拠はtemplate-diagnostics-before-proof.log、template-diagnostics-required-tests.log。
+## M0119 — 対数ネイティブ深度(2026-10-26)
+- Intended: ADR-0084。透視の描画は最初から対数深度を書く単一Stage経路。正射影は線形、観察ビューのみ位置を圧縮し、物理座標は線形のLogical座標を保つ。
+- Observed: 14エントリーのstage-v14、単一PSO系統、型付きRenderViewDepth、プロトコル9。標準深度の選択型・ラッパー・単体Model/Triangle実装と生産者は削除済み。主画面/AO/空はSceneDistance、DDGIはCaptureDistanceを読む。Lumen表面前パスも対数深度で遠距離の最近面を保持する。FrameCBは未使用領域の再利用により960バイトを維持した。
+- Verified: 最終コードa8c6df8の全ソリューション22プロジェクト、3530件成功・失敗0・実機測定2件スキップ。後者は別途RTX 4060 Tiで測定済み。6距離の中央誤差は最大約2.56ulpで4ulp以内。固定7画像のうちAO移行による環境画像だけ6/20736画素・最大1階調で更新し、その後の削除/移動では全SHA不変。変更理由と旧新ハッシュはM0119に保持する。
+- Verified: デバッグ層の実有効状態を報告・評価で必須化した4テンプレート/8ケースはすべて有効・エラー0。M0111の9基準値に一致。初回実行との全フレームのカメラ軌跡と最終PNGも完全一致。無効/未報告を拒否する10ケースは旧DLLで失敗、修正後のFeatureRunner233件は成功。単に要求した設定や無効状態のエラー0をデバッグ層の証明として扱わない。
+- Performance: Releaseの100000物体可視性/バッチングは中央値4.10015ms、p95 4.34760ms、割り当てp95 0byteで予算内。WARP全フレーム時間とRTX主パスだけの時間は別の測定であり、実機のゲーム全体のFPSを証明しない。
+- Evidence: `.artifacts/M0119/solution-diagnostics-final-summary.json`、同log/memory.json、`templates/debug-manifest.json`、`templates/baseline-comparison-debug.json`、`final-hardware-artifact-match.json`、`release-performance.log`。全体テスト最大RAM65%、テンプレート再実行最大68%、閾値停止なし。詳細な移行履歴・修正前失敗・測定元コミットはM0119参照。
+- Result: Matches(M0119のみ)。描画レイヤー/4パス/全スケール物理はM0120〜M0123で未実装。VS/UnityのGUI実走は今回未検証。シーンカメラ正射影のランタイム未接続は範囲外、過去の間欠的WARPデバイス削除の原因は未確定。

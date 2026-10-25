@@ -1,6 +1,6 @@
 # M0119 — 対数ネイティブの描画(標準深度の削除)
 - 日付: 2026-10-25
-- 状態: 実装中(段階1〜4のコード移行と実機の精度/主パス計測まで。全体回帰・4テンプレート・性能予算による最終閉鎖は継続中)
+- 状態: Verified(2026-10-26。対数ネイティブ深度の完了条件を満たした。描画レイヤー分離・4描画パス・全スケール物理はM0120〜M0123)
 - 決定: [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md)(ADR-0076 を一部 Superseded)
 - ABI: `stage-v14`、プレビューのプロトコル 9
 
@@ -161,3 +161,10 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - FirstPersonの最終移動画像が緑の面で埋まるため、移動前8フレームを追加確認。毎フレーム58物体、床・壁・空・配置物を画像で確認、明示的に有効化したデバッグ層のエラー0。FirstPerson-spawnの画像・report/summary.jsonを別保存。
 
 - 診断の修正前再現: 本番の出力を変更せず、全体試験時の旧FeatureRunner DLLを隔離フォルダで読み、同じ10個の無効/未報告テストがすべて失敗することを確認。修正後は233件合格。旧DLLと新テストのSHAをdiagnostic-before-proof/provenance.jsonへ保存。証拠はtemplate-diagnostics-before-proof.log、template-diagnostics-required-tests.log。
+
+### 最終閉鎖(2026-10-26)
+- 最終コードa8c6df88ca86529f0734c8010a369ea25627aa3eで、全ソリューション22プロジェクトが3530件合格・失敗0・実機測定2件スキップ。コマンドは `dotnet test CSharpGameEngine.slnx -c Debug -p:Platform=x64 -p:DeployExtension=false -m:1 -nr:false -p:UseSharedCompilation=false`。最大物理RAM使用率65%、閾値停止なし。ログのSHAとプロジェクト別件数は `.artifacts/M0119/solution-diagnostics-final-summary.json`、生ログと監視値は同名のlog/memory.json。
+- デバッグ層を実際に有効化した4テンプレートの8ケースはすべて正常終了。各reportの `d3d12DebugLayerEnabled=true` とD3D12エラー0を確認。M0111の9基準値に一致し、初回実行との全フレームのカメラ軌跡・最終PNGも8ケースすべて完全一致した。証拠は `.artifacts/M0119/templates/debug-manifest.json` と `baseline-comparison-debug.json`、実行IDは20261025T174831Z。再実行の最大物理RAM使用率68%、閾値停止なし。
+- 旧選択型・ラッパーエントリー・StandardModeGoldenFrameTests・ModelRenderer/TriangleRenderer・model-v1/triangle-v1の検索はsrc/tools/tests/assetsで0件。14エントリー、960バイトのFrameCB、AO更新後の7画像ハッシュ、物理距離の解析オラクルを全体テストで維持した。
+- RTX 4060 Tiでの別実行は6距離すべて中央4ulp以内(最大約2.56ulp)。主パスだけのGPU時間を記録したもので、ゲーム全体のフレーム時間の証明ではない。測定時のStage成果物との完全一致を確認し、元の測定履歴は書き換えていない。Releaseの100000物体のCPU性能予算も前項のとおり合格。
+- 適合結果: M0119の範囲はMatches。VS/Unityを起動するGUI実走は今回の検証に含めない。既存のシーンカメラ正射影のランタイム未接続、および過去の間欠的なWARPデバイス削除の原因は範囲外/未確定として保持する。後者が解決したとは主張しない。mainへの統合は行っていない。
