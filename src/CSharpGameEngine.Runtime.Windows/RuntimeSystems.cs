@@ -168,7 +168,6 @@ internal struct LevelLoad:ISystem {
             return;
         }
         View.ExposureEv100=SceneCamera.ExposureEv100;
-        View.DepthMapping=RenderDepthMapping.Radial;
         View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
         View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
         View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
@@ -194,10 +193,8 @@ internal struct LevelLoad:ISystem {
         if(!(float.IsFinite(View.NearZ)&&View.NearZ>0f)){ return nameof(Camera.NearZ); }
         if(!(float.IsFinite(View.FarZ)&&View.FarZ>View.NearZ)){ return nameof(Camera.FarZ); }
         if(!float.IsFinite(View.ExposureEv100)){ return nameof(Camera.ExposureEv100); }
-        if(View.DepthMapping==RenderDepthMapping.Radial){
-            if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
-            if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
-        }
+        if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
+        if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
         return null;
     }
 
@@ -496,7 +493,7 @@ internal static class RadialObserverView {
     internal static bool TryCreatePreview(in RenderCamera Center,int SurfaceWidth,int SurfaceHeight,in RadialObserver Observer,
         Vector3 EyeFromCenter,Vector3 Forward,Vector3 Up,out RenderCameraPreview Preview){
         Preview=default;
-        if(Center.DepthMapping!=RenderDepthMapping.Radial||SurfaceWidth<=0||SurfaceHeight<=0
+        if(SurfaceWidth<=0||SurfaceHeight<=0
             ||!RadialDepthCurve.TryCreate(Center.RadialTransitionMeters,out var Curve)
             ||!RadialDepthProjection.TryCreate(Curve,Center.NearZ,Center.FarZ,Center.FovYRadians,SurfaceWidth/(float)SurfaceHeight,out var Projection)){
             return false;

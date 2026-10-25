@@ -14,15 +14,14 @@ namespace CSharpGameEngine.Runtime.Windows.Tests;
 public sealed class RadialObserverTests {
     private static RenderCamera RadialCenter(float FarZ=1e7f){
         var Center=RenderCamera.CreateFirstPerson(Vector3.Zero);
-        Center.DepthMapping=RenderDepthMapping.Radial;
         Center.FarZ=FarZ;
         return Center;
     }
     [Fact]
-    public void Preview_IsOnlyMadeForARadialCamera(){
-        var Standard=RenderCamera.CreateFirstPerson(Vector3.Zero);
-        Standard.DepthMapping=RenderDepthMapping.Standard;
-        Assert.False(RadialObserverView.TryCreatePreview(Standard,1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out _));
+    public void Preview_RequiresAValidNativeCamera(){
+        var Invalid=RenderCamera.CreateFirstPerson(Vector3.Zero);
+        Invalid.RadialTransitionMeters=0f;
+        Assert.False(RadialObserverView.TryCreatePreview(Invalid,1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out _));
         Assert.True(RadialObserverView.TryCreatePreview(RadialCenter(),1280,720,new RadialObserver(),new Vector3(0f,0f,-50f),Vector3.UnitZ,Vector3.UnitY,out var Preview));
         Assert.Equal(RenderDepthMapping.RadialObserver,Preview.DepthMapping);
         Assert.True(Preview.MarkRadialCenter);

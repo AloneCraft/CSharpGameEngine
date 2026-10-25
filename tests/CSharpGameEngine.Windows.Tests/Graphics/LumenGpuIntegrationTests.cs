@@ -216,13 +216,10 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         // The rougher the floor, the less sharply red the box's reflection (0.8 is past Unreal's 0.4 limit: the probes' lobe).
         Assert.True(Peaks[0]>Peaks[1]&&Peaks[1]>Peaks[2],string.Join(",",Peaks));
     }
-    [WindowsOnlyTheory]
-    [InlineData(RenderDepthMapping.Standard)]
-    [InlineData(RenderDepthMapping.Radial)]
+    [WindowsOnlyFact]
     [Trait("Category","GPU")]
-    public void Lumen_FollowsAMovingBox(RenderDepthMapping Mapping){
+    public void Lumen_FollowsAMovingBox(){
         var View=LumenScene.RoomView;
-        View.DepthMapping=Mapping;
         // A red glowing box under the sky moves 2.5 m: its red bounce leaves the floor in front of its old place and appears in front of the new one,
         // and after a while the moved scene matches one that started there (the cards are in the box's own space and follow it).
         using var Moving=LumenScene.Room(BoxEmissiveNits:new Vector3(3000f,0f,0f));
@@ -332,7 +329,6 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         private static Camera CreateView(Vector3 Position,float Pitch){
             var View=Camera.CreateFirstPerson(Position);
             View.Pitch=Pitch;
-            View.DepthMapping=RenderDepthMapping.Radial;
             return View;
         }
         private static StageMaterialCreateInfo Material(Vector3 Color,float Roughness=0.9f,float Metallic=0f,Vector3 Emissive=default)=>

@@ -157,7 +157,7 @@ Roslynにロードされない。
 
 ## Radial (logarithmic) depth (ADR-0076, M0099)
 
-Scene cameras use logarithmic depth without a depth-mode selector. Stage owns one native vertex/pixel interface and writes colour, physical ray distance and conservative SV_DepthGreaterEqual; its fourteen-entry ABI has no radial wrapper entries and the renderer has no depth-mode-specific PSO family. L4 RenderViewDepth validates the projection and constructs GPU depth packets. Orthographic previews use linear depth, while the optional observer inset (RadialObserver) compresses positions around the camera. Positions stay Q64.64 until the single camera-relative float conversion. M0119 is still migrating the legacy direct-render/preview selection APIs and Model/Triangle renderers; their temporary compatibility modes are not scene authoring choices. The contract and non-goals are in [Omni](Specifications/Omni.md).
+Scene cameras use logarithmic depth without a depth-mode selector. Stage owns one native vertex/pixel interface and writes colour, physical ray distance and conservative SV_DepthGreaterEqual; its fourteen-entry ABI has no radial wrapper entries and the renderer has no depth-mode-specific PSO family. L4 RenderViewDepth validates the projection and constructs GPU depth packets. Orthographic previews use linear depth, while the optional observer inset (RadialObserver) compresses positions around the camera. Positions stay Q64.64 until the single camera-relative float conversion. M0119 is still migrating the legacy matrix/preview selection APIs and Model/Triangle renderers; their temporary compatibility modes are not scene authoring choices. The contract and non-goals are in [Omni](Specifications/Omni.md).
 
 ## Spatial partitioning
 

@@ -30,17 +30,14 @@ internal static class GoldenFrameScene {
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Data.Indices };
     }
     /// <summary>A thumbnail pass of <paramref name="View"/> in the rectangle; a radial one gets the projection its rectangle's aspect ratio gives.</summary>
-    private static RenderCameraPreview Preview(int X,int Y,Camera View,Vector3 Eye,RenderDepthMapping Mapping,int ExcludedObjectIndex=-1){
+    private static RenderCameraPreview Preview(int X,int Y,Camera View,Vector3 Eye,int ExcludedObjectIndex=-1){
         const float Aspect=16f/9f;
         var ViewProjection=View.GetView()*View.GetProjection(Aspect);
-        if(Mapping==RenderDepthMapping.Standard){
-            return new RenderCameraPreview(X,Y,64,36,ViewProjection,Eye,ExcludedObjectIndex);
-        }
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,Aspect,out var Projection));
         return new RenderCameraPreview(X,Y,64,36,ViewProjection,Eye,ExcludedObjectIndex,RenderDepthMapping.Radial,Projection);
     }
-    /// <summary>Renders one case with the main camera and every thumbnail drawn with <paramref name="Mapping"/>.</summary>
-    public static PixelReadbackResult Render(string Case,RenderDepthMapping Mapping){
+    /// <summary>Renders one native logarithmic case with its camera thumbnails.</summary>
+    public static PixelReadbackResult Render(string Case){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Golden Frame",Width=192,Height=108,Visible=false });
         StageMeshCreateInfo[]Meshes=[
             ToMesh(ProceduralMeshFactory.CreatePlane(Width:16f,Depth:16f)),
@@ -65,7 +62,6 @@ internal static class GoldenFrameScene {
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
         var View=Camera.CreateFirstPerson(new Vector3(0.3f,1.6f,-4f));
         View.Pitch=-12f*MathF.PI/180f;
-        View.DepthMapping=Mapping;
         var Environment=Case=="environment";
         var Frames=Environment?4:2;
         for(var Frame=0;Frame<Frames;Frame++){
@@ -109,8 +105,8 @@ internal static class GoldenFrameScene {
                     Thumbnail.Yaw=0.9f;
                     Thumbnail.Pitch=-0.4f;
                     Renderer.SetCameraPreviews([
-                        Preview(4,4,Thumbnail,new Vector3(-3f,2.5f,-2f),Mapping),
-                        Preview(124,68,View,new Vector3(0.3f,1.6f,-4f),Mapping,ExcludedObjectIndex:1),
+                        Preview(4,4,Thumbnail,new Vector3(-3f,2.5f,-2f)),
+                        Preview(124,68,View,new Vector3(0.3f,1.6f,-4f),ExcludedObjectIndex:1),
                     ]);
                     RenderOverlayVertex[]Triangles=[
                         new(new Vector3(-0.8f,1.2f,0f),new Vector4(1f,0.8f,0f,0.6f)),

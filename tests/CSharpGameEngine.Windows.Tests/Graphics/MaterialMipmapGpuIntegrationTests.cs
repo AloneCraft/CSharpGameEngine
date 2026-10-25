@@ -52,7 +52,6 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
             [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=1 },new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=2 }]);
         var View=Camera.CreateFirstPerson(new Vector3(0f,3f,-6f));
         View.Pitch=-0.4f;
-        View.DepthMapping=RenderDepthMapping.Radial;
         for(var Frame=0;Frame<2;Frame++){
             Renderer.SetCamera(View);
             Renderer.SetAmbientLight(new Vector3(0.5f));
@@ -93,7 +92,6 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
             [Floor],[new StageMaterialCreateInfo { BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f,BaseColorTexture=Checker }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         var View=Camera.CreateFirstPerson(new Vector3(0.013f,1.6f,ForwardOffset));
         View.Pitch=-0.12f;
-        View.DepthMapping=RenderDepthMapping.Radial;
         for(var Frame=0;Frame<2;Frame++){
             Renderer.SetCamera(View);
             Renderer.SetAmbientLight(new Vector3(0.6f));

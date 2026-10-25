@@ -4245,3 +4245,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - スキーマから旧 DepthMapping が消え、RadialTransitionMeters が残る。証拠は `.artifacts/M0119/scene-native-schema.json`、`scene-native-tests.log`、`scene-native-vsix-final.log`、`scene-native-build.log` と memory.json。この区間の最大メモリ使用率は 63%。
 - 最初の VSIX 検証は SDK の明示的梱包対象の未復元によりテスト前に失敗。Cooking、Cook CLI、Navigation Cook を一覧から確認して復元後、実行件数 13 を確認した。コードの不具合修正としては扱わない。
 - 旧低レベル描画カメラ・プレビュー通信と Model/Triangle の削除は継続中。全体は Partial。
+
+
+## 2026-10-26 — M0119 描画カメラの選択削除と実機証拠
+- 描画 Camera.DepthMapping を削除し、SetCamera を対数に固定。最後の標準比較は 7 ケースすべてで基準内、対数 SHA も同一。その後に StandardModeGoldenFrameTests を削除した。
+- 継続試験はネイティブの画像、独立したオラクル、遠距離の両描画順、曲線変更での色の保持、リサイズ後と新規レンダラーの画素/深度一致。106 件と GI・雲等 27 件に合格。カタログ 2 件も合格。ビルドは警告 0・エラー 0。
+- RTX 4060 Ti の精度/性能 2 件合格。中央誤差(4e-6,0.5,50,2e4,1e15,5e18 m)は 2.56/2.51/1.32/1.21/1.66/1.21 ulp。端の最大値は 41.51 ulp(微小距離、ラスタ位置の誤差を含む)で別記録し、中央の予算と混同しない。
+- 主パス1280×720・24層: 近距離の手前順/奥順の中央値 0.198/3.785 ms、遠距離 0.133/2.516 ms。全フレームの性能予算の検証とは別。証拠は `.artifacts/M0119/native-camera-*.log`、`precision/radial-precision-hardware.json`、`performance/native-depth-performance-hardware.json`、`native-camera-hardware-manifest.json`。この区間の最大メモリ使用率 66%。過去の WARP の間欠的デバイス削除の原因を解消したという意味ではない。
+- 旧行列・プレビュー通信、Model/Triangle と層分離・4 パスは残る。全体は Partial。

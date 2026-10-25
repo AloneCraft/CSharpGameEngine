@@ -524,7 +524,7 @@
 - Result: 主エントリーへの統合は ADR-0084 と一致。移行全体は Partial。
 
 ## RE-M0119-DirectCameraDefault — 直接生成の対数既定値
-- Evidence: Graphics/Camera.cs のパラメーター無しコンストラクター、CameraTests.ObjectInitializer_DefaultsToLogarithmicDepthWithoutAFactory、LogarithmicDepthOracleTests.ObjectInitializer_WritesLogarithmicDepthWithoutAFactory。
+- Evidence: Graphics/Camera.cs のパラメーター無しコンストラクター、CameraTests.ObjectInitializer_DefaultsToTheLogarithmicCurveWithoutAFactory、LogarithmicDepthOracleTests.ObjectInitializer_WritesLogarithmicDepthWithoutAFactory。
 - Observed: ファクトリーだけでなく new Camera の直接生成でも対数方式と T=1 m が入る。修正前は Standard/T=0 となり、50 m・far 1e18 m の GPU 深度が対数オラクルから約 1.21e8 ulp 外れた。修正後は中央 4 ulp 以内。ファクトリーの既存画素は変えない。
 - Result: M0119 の既定値の要求と一致。旧選択 API の削除は継続中。
 
@@ -532,3 +532,9 @@
 - Evidence: Runtime/Camera.cs、LevelLoad.ApplyProjection、SceneCameraPreviewBinding、SceneCameraPreviewPolicyTests、生成した UserEcsProject/.cge/scene.schema.json。
 - Observed: CameraDepthMapping とシーン Camera.DepthMapping は除去された。ゲーム・エディター実行ビューは対数、サムネイルは透視なら対数・正射影なら線形。曲線の値と編集/シーンのクリップ範囲の合成、無効値で最後の有効投影を保持する動作は維持する。スキーマは曲線を含み、旧深度選択を含まない。
 - Result: ランタイム・読込・観察ビュー・画像 36 件、VSIX ポリシー/姿勢 13 件合格。低レベル描画・通信 API の旧選択は未削除。
+
+## RE-M0119-NativeRenderCamera — 描画カメラの選択削除
+- Evidence: Graphics/Camera.cs、StageRenderer.SetCamera、最後の比較の pre-camera-removal-golden/parity.json、Native のゴールデン・描画順・曲線変更・リサイズ試験。
+- Observed: 描画 Camera に深度選択がなく、SetCamera は必ず対数投影を検証・提出する。旧比較試験は最後の 7 ケース合格を保存して削除。色・深度・状態・エディターの 106 件、GI/雲等 27 件に合格し、7 SHA は維持した。
+- Hardware: RTX 4060 Ti、4e-6〜5e18 m の中央最大誤差 2.56 ulp。24 層の主パスの手前順/奥順の中央値は近距離 0.198/3.785 ms、遠距離 0.133/2.516 ms。測定の成果物ハッシュは native-camera-hardware-manifest.json。
+- Result: 描画カメラの native 化は一致。行列・通信の旧選択と旧レンダラー、層分離・4 パスは未完了。

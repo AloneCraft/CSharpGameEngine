@@ -8,12 +8,12 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0099 performance evidence (ADR-0076): the radial pixel entries compute their depth, so only the conservative
+/// M0119 performance evidence (ADR-0084): the native pixel entries compute their depth, so only the conservative
 /// raster depth (SV_DepthGreaterEqual) lets Early-Z reject hidden fragments before the Stage pixel shader runs. This
 /// measures the main pass's GPU time with timestamps for a scene of full-screen layers drawn front to back (the case
 /// Early-Z helps most) and back to front, near (2 to 48 m) and far (100 to 1020 m; each object's raster depth touches at
-/// its own distance, M0100), in the standard and the radial depth mode, and writes the samples to
-/// <c>.artifacts/M0099/performance</c>. It records, never gates: timing depends on the adapter. Run with <c>CGE_PERFORMANCE_EVIDENCE=1</c> (and
+/// its own distance, M0100), and writes the native samples to
+/// <c>.artifacts/M0119/performance</c>. It records, never gates: timing depends on the adapter. Run with <c>CGE_PERFORMANCE_EVIDENCE=1</c> (and
 /// <c>CGE_PERFORMANCE_ADAPTER=hardware</c> for the GPU instead of WARP).
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
@@ -28,21 +28,20 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
     private static readonly LightShadowSettings Shadow=new(0,new ShadowBias(0.005f));
     [PerformanceEvidenceFact]
     [Trait("Category","GPU")]
-    public void MainPass_GpuTime_StandardVersusRadial(){
+    public void MainPass_GpuTime_NativeLogarithmicDepth(){
         var Hardware=Environment.GetEnvironmentVariable("CGE_PERFORMANCE_ADAPTER")=="hardware";
         var Report=new StringBuilder();
-        Report.Append("{\n  \"schema\": \"cge-radial-performance-evidence/1\",\n");
+        Report.Append("{\n  \"schema\": \"cge-native-depth-performance-evidence/2\",\n");
         string?Adapter=null;
         var Results=new List<string>();
-        foreach(var (Range,FirstMeters,StepMeters,FarZ) in new[]{("near",2f,2f,1000f),("far",100f,40f,2000f)})
-        foreach(var Mapping in new[]{RenderDepthMapping.Standard,RenderDepthMapping.Radial}){
+        foreach(var (Range,FirstMeters,StepMeters,FarZ) in new[]{("near",2f,2f,1000f),("far",100f,40f,2000f)}){
             foreach(var FrontToBack in new[]{true,false}){
-                var (Times,Description)=Measure(Hardware,Mapping,FrontToBack,FirstMeters,StepMeters,FarZ);
+                var (Times,Description)=Measure(Hardware,FrontToBack,FirstMeters,StepMeters,FarZ);
                 Adapter??=Description;
                 Array.Sort(Times);
                 var Median=Times[Times.Length/2];
                 var P95=Times[(int)MathF.Ceiling(Times.Length*0.95f)-1];
-                var Name=$"{Mapping}-{Range}-{(FrontToBack?"front-to-back":"back-to-front")}";
+                var Name=$"Logarithmic-{Range}-{(FrontToBack?"front-to-back":"back-to-front")}";
                 Output.WriteLine($"{Name}: median {Median:F3} ms, p95 {P95:F3} ms");
                 Results.Add(string.Create(CultureInfo.InvariantCulture,
                     $"    {{ \"case\": \"{Name}\", \"medianMilliseconds\": {Median:R}, \"p95Milliseconds\": {P95:R}, \"samples\": [{string.Join(", ",Times.Select(static Time=>Time.ToString("R",CultureInfo.InvariantCulture)))}] }}"));
@@ -50,14 +49,14 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
         }
         Report.Append(CultureInfo.InvariantCulture,$"  \"adapter\": \"{Adapter}\",\n  \"width\": {Width},\n  \"height\": {Height},\n  \"layers\": {Layers},\n  \"warmup\": {Warmup},\n  \"cases\": [\n");
         Report.Append(string.Join(",\n",Results)).Append("\n  ]\n}\n");
-        var Directory=Path.Combine(RepositoryRoot(),".artifacts","M0099","performance");
+        var Directory=Path.Combine(RepositoryRoot(),".artifacts","M0119","performance");
         System.IO.Directory.CreateDirectory(Directory);
-        var Path_=Path.Combine(Directory,$"radial-performance-{(Hardware?"hardware":"warp")}.json");
+        var Path_=Path.Combine(Directory,$"native-depth-performance-{(Hardware?"hardware":"warp")}.json");
         File.WriteAllText(Path_,Report.ToString());
         Output.WriteLine($"Adapter: {Adapter}");
         Output.WriteLine($"Report: {Path_}");
     }
-    private static (float[]Times,string Adapter)Measure(bool Hardware,RenderDepthMapping Mapping,bool FrontToBack,float FirstMeters,float StepMeters,float FarZ){
+    private static (float[]Times,string Adapter)Measure(bool Hardware,bool FrontToBack,float FirstMeters,float StepMeters,float FarZ){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Performance",Width=Width,Height=Height,Visible=false });
         var Plane=ProceduralMeshFactory.CreatePlane(Width:1f,Depth:1f);
         var Tangents=new Vector4[Plane.Positions.Length];
@@ -71,7 +70,6 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
         Renderer.EnableMainPassTimingForTesting();
         var View=Camera.CreateFirstPerson(Vector3.Zero);
         View.FarZ=FarZ;
-        View.DepthMapping=Mapping;
         var Times=new float[Samples];
         for(var Frame=0;Frame<Warmup+Samples;Frame++){
             Renderer.SetCamera(View);

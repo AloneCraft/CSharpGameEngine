@@ -2221,25 +2221,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
         this.ThrowIfDisposed();
         var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/ this.Height;
-        var DepthMapping=Camera.DepthMapping;
-        RadialDepthProjection RadialProjection=default;
-        if(DepthMapping==RenderDepthMapping.Radial){
-            if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
-                ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,AspectRatio,out RadialProjection)){
-                throw new ArgumentException("A radial camera needs a finite positive transition length, 0 < NearZ < FarZ (finite) and a valid field of view.",nameof(Camera));
-            }
-        } else if(DepthMapping!=RenderDepthMapping.Standard){
-            throw new ArgumentOutOfRangeException(nameof(Camera),"A camera's depth mapping is Standard or Radial; observer views are camera previews.");
+        if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
+            ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,AspectRatio,out var RadialProjection)){
+            throw new ArgumentException("A logarithmic perspective camera needs a finite positive transition length, 0 < NearZ < FarZ and a valid field of view.",nameof(Camera));
         }
         var View=Camera.GetView();
         this.WriteViewProjection(this.FrameIndex,View*Camera.GetProjection(AspectRatio));
         this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
         this.WriteExposure(this.FrameIndex,Camera.ExposureEv100);
-        this.CurrentDepthMapping=DepthMapping;
+        this.CurrentDepthMapping=RenderDepthMapping.Radial;
         this.CurrentRadialProjection=RadialProjection;
-        this.CurrentAuxiliaryViewProjection=DepthMapping==RenderDepthMapping.Radial
-            ?View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio)
-            :Matrix4x4.Identity;
+        this.CurrentAuxiliaryViewProjection=View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio);
         this.WriteDepthMapping(this.FrameIndex);
         // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
         this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);

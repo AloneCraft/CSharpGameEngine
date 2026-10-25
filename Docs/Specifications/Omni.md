@@ -1,6 +1,6 @@
 # Omni — radial (logarithmic) depth specification
 
-- Status: Implemented (M0099, 2026-10-04); radial depth is the default since M0100 (2026-10-04). M0119 removes the scene depth selector; legacy direct-render and preview compatibility APIs are still being migrated. This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track the evidence.
+- Status: Implemented (M0099, 2026-10-04); radial depth is the default since M0100 (2026-10-04). M0119 removes the scene depth selector; legacy matrix and preview compatibility APIs are still being migrated. This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track the evidence.
 - Decision: [ADR-0076](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md); implementation migration [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md) / M0119 (in progress).
 - Reference: the Unity asset Omni (`G:\Unity\6.6\Omni\Assets\Omni`), ported natively without its URP adapter.
 - Target layers: L0 (StageRenderer), L4 (RenderServer), L5 (Runtime camera and observer), L6 (Stage shader ABI), L8 (editor runtime view, isolated preview, preview host protocol)
@@ -14,7 +14,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 | Mapping | Where | Vertex | Depth |
 |---|---|---|---|
 | `Radial` (default) | every scene Camera (game and editor runtime view); every perspective view of the editor's isolated preview (Scene view of an unbuilt game, Asset Preview) and the perspective thumbnails of scene cameras; every render camera made by `new Camera { ... }` or `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users) | `VSMain`: physical X/Y/W and conservative raster Z | native `PSMain` writes `SV_DepthGreaterEqual = min(G(r) · InverseMaximumG, 0.99999994)` |
-| `Standard` | legacy direct-render/preview comparison APIs pending removal, and orthographic previews (linear depth) | standard `VSMain` | hyperbolic for legacy perspective comparisons; linear for orthographic previews |
+| `Standard` | legacy matrix/preview comparison APIs pending removal, and orthographic previews (linear depth) | standard `VSMain` | hyperbolic for legacy perspective comparisons; linear for orthographic previews |
 | `RadialObserver` | an observer inset (camera preview pass) | `ObserverVSMain` maps positions around the centre camera | logarithmic distance in the mapped geometry, through the same pixel entry |
 
 ## Curve
@@ -27,10 +27,10 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 ## Invariants
 
-1. Standard views are bit-identical to the pre-M0099 renderer (`StandardModeGoldenFrameTests`).
-2. A radial view's colour comes from the same Stage shading expression in `PSMain`; wherever the same surface wins, the pixel equals the standard pixel bit for bit on triangles that need no clipping, and within one 8-bit level on clipped triangles (the radial main pass clips with clip distances).
+1. Seven native frames are pinned by StageGoldenFrameTests. Before deleting camera selection, all seven passed the final standard comparison within one channel level and 1% changed pixels (wireframe: 1% changed pixels); evidence is in M0119.
+2. Native colour uses physical shading in PSMain; changing the depth transition preserves the physical image. Clip distances preserve the camera's physical near/far coverage. Native frames and frame-slot/curve-update tests are the ongoing colour oracle.
 2a. The radial main pass rasterizes the conservative depth `a − b/w`, below the encoded depth everywhere, and declares `SV_DepthGreaterEqual`, so the hardware keeps rejecting hidden fragments early. Each object's `(a, b)` (`ObjectCB.RadialRasterDepth`, `RadialDepthProjection.ConservativeDepthAt`) is tangent at the view depth of its mesh's bounds centre, taken from the view-projection's W, so rejection works at every distance (a single tangent rejected only near itself). It runs without depth clipping and clips with the standard projection's near/far distances (`SV_ClipDistance`).
-3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear. Exact depth ties (a wireframe edge drawn from both of its triangles, exactly coincident duplicates) are settled by draw order in the standard mode and by rounding in the radial mode, so a shared wireframe edge may show its other face's colour.
+3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear. Exact depth ties (a wireframe edge drawn from both triangles or coincident duplicates) may be settled by rounding and draw order; a shared wireframe edge can show either face's colour.
 4. Every pass that writes a radial view's depth uses the same depth function.
 5. Lighting, shadows, fog, GI and normals use physical values; no Jacobian is applied to normals.
 6. Fragments beyond `FarZ · (1 + 1/1024)` of physical view depth are discarded (the margin keeps every fragment the projection's own far plane kept); NearZ is clipped by the standard projection.
@@ -46,7 +46,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 - The scene `Camera` component has `RadialTransitionMeters` (default 1); its depth-mode selector and `CameraDepthMapping` are removed. Scene cameras render logarithmic depth. Existing scene JSON without the removed member keeps its native defaults. The generated scene schema contains the curve setting and no depth selector.
 - `LevelLoad` copies the curve into the render camera on every frame, with the exposure, so a value edit (the Scene Designer's or the game's) shows on the next frame; an unusable value keeps the last usable projection (at load, the default one) and is named in `LevelRuntime.InvalidCameraProperty`. The editor runtime view follows the scene camera: a scene camera makes the editor runtime view radial, and its clip range covers both the editor's focus-based near/far and the scene camera's NearZ/FarZ (nearer near, farther far), so it sees what the game sees and what the designer frames.
-- The isolated preview (Scene view of an unbuilt game, Asset Preview) draws every perspective view radial from the editor's own matrix (protocol 8: `RenderPreviewCamera.DepthMapping` and `RadialTransitionMeters`; the VSIX sets Radial for a perspective projection and Standard for an orthographic one). A camera thumbnail derives its depth from the scene projection (logarithmic for perspective, linear for orthographic) and writes plain `SV_Depth` (the native `PreviewCleanPSMain`). A radial thumbnail the host could not draw (a non-positive `RadialTransitionMeters`, a far plane whose frustum corner overflows float) shows an error on its card instead of being sent, because the protocol rejects the whole frame for one invalid camera. The renderer's per-preview depth mapping also serves the observer view.
+- The isolated preview (Scene view of an unbuilt game, Asset Preview) draws every perspective view radial from the editor's own matrix (protocol 8: `RenderPreviewCamera.DepthMapping` and `RadialTransitionMeters`; the VSIX sets Radial for a perspective projection and Standard for an orthographic one). A camera thumbnail derives its depth from the scene projection (logarithmic for perspective, linear for orthographic) and writes native conservative depth through `PreviewCleanPSMain` with a zero raster bound. A radial thumbnail the host could not draw (a non-positive `RadialTransitionMeters`, a far plane whose frustum corner overflows float) shows an error on its card instead of being sent, because the protocol rejects the whole frame for one invalid camera. The renderer's per-preview depth mapping also serves the observer view.
 
 ## Precision budget
 
@@ -62,7 +62,7 @@ With 32-bit float depth, two surfaces are distinguished once their relative dist
 
 ## Non-goals
 
-Omni's Threshold curve; vertex warping for ordinary cameras; mantissa/exponent constant packets; shader/material conversion and restore ledgers; BRG sidecars; culling (Stage draws every object; a future visibility path must test near/far on radial distance and keep undecidable objects visible); motion vectors (a future TAA needs current and previous depth-mapping packets); the orthographic log grid; an editor toggle; editor navigation at astronomical scale; full-screen observer views and picking or gizmos inside them; interplanetary shadows; Early-Z for radial camera thumbnails (they still write plain `SV_Depth`).
+Omni's Threshold curve; vertex warping for ordinary cameras; mantissa/exponent constant packets; shader/material conversion and restore ledgers; BRG sidecars; culling (Stage draws every object; a future visibility path must test near/far on radial distance and keep undecidable objects visible); motion vectors (a future TAA needs current and previous depth-mapping packets); the orthographic log grid; an editor toggle; editor navigation at astronomical scale; full-screen observer views and picking or gizmos inside them; interplanetary shadows; effective Early-Z rejection for thumbnails (their conservative raster bound is zero).
 
 ## Verification
 

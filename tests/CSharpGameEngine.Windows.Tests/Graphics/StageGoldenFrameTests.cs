@@ -2,11 +2,8 @@ using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0119 (ADR-0084): the logarithmic frames of <see cref="GoldenFrameScene"/> pinned as SHA-256 hashes of the WARP
-/// back buffer. They replace <see cref="StandardModeGoldenFrameTests"/> once the standard depth is deleted; they were
-/// pinned only after <see cref="StandardModeGoldenFrameTests.LogarithmicFrames_EqualTheStandardFramesWithinOneLevel"/>
-/// accepted every case. Re-pin a hash only with the dump comparison of ADR-0084 §7 (CGE_GOLDEN_DUMP and
-/// CGE_GOLDEN_BASELINE) and a note in the milestone document.
+/// M0119 (ADR-0084): the native logarithmic frames pinned after the final seven-case comparison with standard depth.
+/// The pre-removal evidence is recorded in the milestone. Re-pin only with the dump comparison of ADR-0084 §7.
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class StageGoldenFrameTests {
@@ -24,7 +21,7 @@ public sealed class StageGoldenFrameTests {
     public void LogarithmicFrames_MatchTheirPinnedHashes(){
         List<string>Mismatches=[];
         foreach(var (Case,Expected) in ExpectedHashes){
-            var Frame=GoldenFrameScene.Render(Case,RenderDepthMapping.Radial);
+            var Frame=GoldenFrameScene.Render(Case);
             var Note=GoldenFrameDump.Record("logarithmic",Case,Frame);
             var Hash=GoldenFrameDump.Hash(Frame);
             if(Hash!=Expected){

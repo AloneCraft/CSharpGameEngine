@@ -73,7 +73,6 @@ public sealed class ShaderArtifactHotReloadTests {
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
                 ArtifactPath,Meshes,Materials,Objects);
             var View=Camera.CreateFirstPerson(new Vector3(0f,0f,-2f));
-            View.DepthMapping=RenderDepthMapping.Radial;
             View.FarZ=1e9f;
             byte[]RenderRadial(){
                 for(var Frame=0;Frame<2;Frame++){

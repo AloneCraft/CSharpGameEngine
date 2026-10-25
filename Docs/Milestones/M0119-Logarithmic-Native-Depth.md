@@ -117,3 +117,14 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - シーン・エディター・観察ビュー・ゴールデン 36 件、VSIX カメラポリシー/姿勢 13 件合格。生成スキーマから旧選択が消えたことを記録(`scene-native-schema.json`)。この区間の最大メモリ使用率 63%。VSIX は配置を無効にしてビルドのみ行った。
 - VSIX の最初の試行は、SDK が通常の ProjectReference と別に梱包する Cooking/Cook CLI/Navigation Cook の未復元で失敗した。一覧から復元してから再実行し、13 件の成功を確認。証拠は `.artifacts/M0119/scene-native-tests.log`、`scene-native-vsix-final.log`、`scene-native-build.log` と memory.json。
 - 低レベル描画カメラ、通信プロトコル 9、旧 Model/Triangle と Standard 比較試験の削除は後続。
+
+### 段階 4(b2): 描画カメラの選択削除(2026-10-26)
+- 最後の標準比較を 7 ケースすべて合格で保存してから、Graphics.Camera.DepthMapping と StandardModeGoldenFrameTests を削除。SetCamera は必ず検証済み対数投影を提出する。証拠は pre-camera-removal-last-comparison.log と pre-camera-removal-golden/parity.json。
+- 比較専用試験は、継続するネイティブの検証へ整理した。遠距離面は両描画順で最近面を確認。プレゼンテーションのフレーム保持、微小シーン、曲線変更での物理画像の保持、リサイズ後と新規レンダラーの可視画素・深度一致を検証。
+- カメラ・画像・深度・再生・エディター等 106 件、GI/雲/距離場/ミップ 27 件、カタログ 2 件合格。ビルドは警告 0・エラー 0。7 SHA は削除直前と同じ。最大メモリ使用率は 66%。
+- 旧行列/プレビュー通信の選択、Model/Triangle の削除は後続。
+
+### 実機の精度・主パス性能(2026-10-26)
+- RTX 4060 Ti で 4e-6〜5e18 m の 6 スケールを確認。中央の最大誤差は順に 2.56,2.51,1.32,1.21,1.66,1.21 ulp(すべて 4 ulp 以内)。端の誤差はラスタ位置の影響を含み、最大 41.51 ulp を別に記録した。
+- 1280×720・24 層の主パス、ウォームアップ 5・30 標本。近距離の中央値は手前順 0.198 ms/奥順 3.785 ms、遠距離は 0.133/2.516 ms。p95 は順に 0.198,4.003,0.135,2.721 ms。全フレームの予算とは区別する。
+- 精度/性能の 2 件に合格。証拠は native-camera-hardware-evidence.log、precision/radial-precision-hardware.json、performance/native-depth-performance-hardware.json、native-camera-hardware-manifest.json。旧 M0099/M0100 の記録は上書きしていない。

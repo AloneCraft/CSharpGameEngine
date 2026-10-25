@@ -269,7 +269,6 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
             var (Cell,Remainder)=Locate(CameraWorld,OriginVoxel);
             var View=Camera.CreateFirstPerson(Vector3.Zero);
             View.Pitch=-0.2f;
-            View.DepthMapping=RenderDepthMapping.Radial;
             this.Renderer.SetCamera(View);
             this.Renderer.SetAmbientLight(new Vector3(0.5f));
             this.Renderer.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with {

@@ -16,18 +16,15 @@ public class CameraTests {
     }
 
     [Fact]
-    public void ObjectInitializer_DefaultsToLogarithmicDepthWithoutAFactory(){
+    public void ObjectInitializer_DefaultsToTheLogarithmicCurveWithoutAFactory(){
         var View=new Camera { FovYRadians=MathF.PI/4f,NearZ=0.1f,FarZ=1e18f };
-        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,View.DepthMapping);
         Assert.Equal(CSharpGameEngine.Rendering.RadialDepthCurve.DefaultTransitionMeters,View.RadialTransitionMeters);
     }
     [Fact]
-    public void Factories_ChooseRadialDepth(){
-        // Radial depth is the engine's default (ADR-0076 addendum); standard depth is an explicit choice.
-        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,Camera.CreateDefault(Vector3.Zero).DepthMapping);
-        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,Camera.CreateFirstPerson(Vector3.Zero).DepthMapping);
-        Assert.Equal(CSharpGameEngine.Rendering.RenderDepthMapping.Radial,Camera.CreateBoundsFit(Vector3.Zero,Vector3.One).DepthMapping);
-        Assert.Equal(CSharpGameEngine.Rendering.RadialDepthCurve.DefaultTransitionMeters,Camera.CreateDefault(Vector3.Zero).RadialTransitionMeters);
+    public void Factories_ShareTheNativeCurveDefaults(){
+        foreach(var View in new[]{Camera.CreateDefault(Vector3.Zero),Camera.CreateFirstPerson(Vector3.Zero),Camera.CreateBoundsFit(Vector3.Zero,Vector3.One)}){
+            Assert.Equal(CSharpGameEngine.Rendering.RadialDepthCurve.DefaultTransitionMeters,View.RadialTransitionMeters);
+        }
     }
 
     [Fact]

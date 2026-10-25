@@ -106,16 +106,14 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
         using var Scene=CloudScene.Create();
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetEnvironmentLighting(Environment(VolumetricCloudSettings.Unreal with { Coverage=float.NaN },null)));
     }
-    [WindowsOnlyTheory]
+    [WindowsOnlyFact]
     [Trait("Category","GPU")]
-    [InlineData(RenderDepthMapping.Standard)]
-    [InlineData(RenderDepthMapping.Radial)]
-    public void SkySphere_Warp_CoversGeometryBeyondItsRadius(RenderDepthMapping Mapping){
+    public void SkySphere_Warp_CoversGeometryBeyondItsRadius(){
         // A wall 30 km ahead, 20 km wide: with UE's 16.384 km sphere it is behind the sky; with a 50 km sphere it is in front of it.
-        var EmptySky=Render(null,null,Frames:2,Mapping:Mapping,Wall:false);
-        var Visible=Render(null,null,Frames:2,Mapping:Mapping,Wall:true);
-        var Covered=Render(null,new SkySphereSettings(Vector3.Zero,16384f),Frames:2,Mapping:Mapping,Wall:true);
-        var Inside=Render(null,new SkySphereSettings(Vector3.Zero,50000f),Frames:2,Mapping:Mapping,Wall:true);
+        var EmptySky=Render(null,null,Frames:2,Wall:false);
+        var Visible=Render(null,null,Frames:2,Wall:true);
+        var Covered=Render(null,new SkySphereSettings(Vector3.Zero,16384f),Frames:2,Wall:true);
+        var Inside=Render(null,new SkySphereSettings(Vector3.Zero,50000f),Frames:2,Wall:true);
         var Probe=(X:Width/2,Y:Height/2);
         Assert.NotEqual(ReadPixel(EmptySky.Frame,Probe.X,Probe.Y),ReadPixel(Visible.Frame,Probe.X,Probe.Y));
         Assert.Equal(ReadPixel(EmptySky.Frame,Probe.X,Probe.Y),ReadPixel(Covered.Frame,Probe.X,Probe.Y));
@@ -127,14 +125,14 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
         SkyAtmosphereSettings.Earth,new SkyLightSettings(1f,Vector3.Zero),null,
         new ExposureSettings(ExposureMode.PhysicalCamera,14f,0f),ToneMapper.UnrealFilmicSrgb,0.675f,0.0047f,null,null,Clouds,Sphere);
     private static (PixelReadbackResult Frame,Vector4[]Panorama,double Milliseconds,double FirstMilliseconds) Render(VolumetricCloudSettings?Clouds,SkySphereSettings?Sphere,int Frames,
-        RenderDepthMapping Mapping=RenderDepthMapping.Standard,bool Wall=false){
+        bool Wall=false){
         using var Scene=CloudScene.Create(Wall);
         var Clock=Stopwatch.StartNew();
         double Last=0;
         double First=0;
         for(var Frame=0;Frame<Frames;Frame++){
             var Start=Clock.Elapsed.TotalMilliseconds;
-            Scene.RenderFrame(Clouds,Sphere,Mapping,Capture:Frame==Frames-1);
+            Scene.RenderFrame(Clouds,Sphere,Capture:Frame==Frames-1);
             Last=Clock.Elapsed.TotalMilliseconds-Start;
             if(Frame==0){ First=Last; }
         }
@@ -168,11 +166,10 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
                 ShaderArtifactPath,Meshes,Materials,Objects);
             return new CloudScene(Window,Renderer,Wall);
         }
-        internal void RenderFrame(VolumetricCloudSettings?Clouds,SkySphereSettings?Sphere,RenderDepthMapping Mapping=RenderDepthMapping.Standard,bool Capture=false){
+        internal void RenderFrame(VolumetricCloudSettings?Clouds,SkySphereSettings?Sphere,bool Capture=false){
             var View=Camera.CreateFirstPerson(new Vector3(0f,1.7f,0f));
             View.Pitch=0.18f;
             View.FarZ=200000f;
-            View.DepthMapping=Mapping;
             this.Renderer.SetCamera(View);
             this.Renderer.SetEnvironmentLighting(Environment(Clouds,Sphere));
             this.Renderer.SetCameraAltitude(1.7f);
