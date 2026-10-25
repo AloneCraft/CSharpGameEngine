@@ -27,9 +27,18 @@ public sealed class VehicleDriveVerificationTests {
         // 走り出す前は一定の画面、走り出したあとは HudStates 通りの文字の画面(0 は何も描かない)。
         var Fingerprints=Enumerable.Range(0,Frames).Select(Frame=>Frame<VehicleDriveVerification.ThrottleStartFrame?"00000000000000aa":HudStates==0?"0000000000000000":((Frame%HudStates)+1).ToString("x16")).ToArray();
         var Json=WithHud
-            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions,screenLayerFingerprints=Fingerprints })
-            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions });
+            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,cameraPositions=Positions,screenLayerFingerprints=Fingerprints })
+            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,cameraPositions=Positions });
         return JsonDocument.Parse(Json).RootElement.Clone();
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Evaluate_RejectsDisabledOrMissingDebugLayer(bool Missing){
+        var Json=Report().GetRawText().Replace("\"d3d12DebugLayerEnabled\":true,",Missing?string.Empty:"\"d3d12DebugLayerEnabled\":false,");
+        var ReportWithoutDebug=JsonDocument.Parse(Json).RootElement;
+        var Failures=VehicleDriveVerification.Evaluate(ReportWithoutDebug,out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains("not enabled",StringComparison.Ordinal));
     }
     [Fact]
     public void Evaluate_AcceptsADriveThatMovesAndBends(){

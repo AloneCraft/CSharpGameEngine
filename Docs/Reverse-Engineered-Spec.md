@@ -550,3 +550,8 @@
 - Evidence: ShaderArtifactModels/Abi/Serializer, ShaderGraphModels/Validator, ShaderGraphTemplateWizard, FeatureStageCatalog, RenderingReleaseEvidence.
 - Observed behavior: 描画はStageへ集約。旧単体レンダラー・グラフ・ABIの生産者は存在しない。保存済み成果物の旧ターゲット値2/3は読み取りで拒否、グラフの旧値1/2はUnknownTargetとして拒否する。Stageの14エントリーとHLSLハッシュは不変。リリース証拠はStageと5外部サブグラフ・表示接尾辞の全入力を結び付ける。
 - Limit: Stageベースへ更新したVS GUI自動化はこの段階では起動していない。実際に再実行したテスト件数はM0119に記録する。
+
+### RE-M0119 — 実際に有効な診断を伴うテンプレート検証
+- Confidence: High for the report/evaluator contract; active-template rerun pending.
+- Evidence: RuntimeAutomation.WriteReport, ThirdPersonCharacterVerification/ClickToMoveVerification/VehicleDriveVerification, their diagnostic regression tests.
+- Observed behavior: 検証子プロセスはデバッグ層を要求し、実行レポートが実際のd3d12DebugLayerEnabledを報告する。全評価はtrueを必須とし、Graphics Tools不足時のネイティブ続行を診断成功として扱わない。旧DLLで10ケース失敗、修正後FeatureRunner233件合格。通常起動の診断既定は変えていない。

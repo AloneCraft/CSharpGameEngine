@@ -16,9 +16,18 @@ public sealed class ThirdPersonCharacterVerificationTests {
             Positions.Add([0f,FloorHeight+Height,-4f+Walked]);
         }
         var Json=AudioRequests is { } Requests
-            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,audioRequests=Requests,cameraPositions=Positions })
-            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions });
+            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,audioRequests=Requests,cameraPositions=Positions })
+            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,cameraPositions=Positions });
         return JsonDocument.Parse(Json).RootElement.Clone();
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Evaluate_RejectsDisabledOrMissingDebugLayer(bool Missing){
+        var Json=Report().GetRawText().Replace("\"d3d12DebugLayerEnabled\":true,",Missing?string.Empty:"\"d3d12DebugLayerEnabled\":false,");
+        var ReportWithoutDebug=JsonDocument.Parse(Json).RootElement;
+        var Failures=ThirdPersonCharacterVerification.Evaluate(ReportWithoutDebug,out _);
+        Assert.Contains(Failures,Failure=>Failure.Contains("not enabled",StringComparison.Ordinal));
     }
     [Fact]
     public void Evaluate_AcceptsAWalkAndALandedJump(){

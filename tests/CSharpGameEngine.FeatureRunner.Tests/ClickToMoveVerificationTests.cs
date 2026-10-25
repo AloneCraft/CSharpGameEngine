@@ -15,14 +15,32 @@ public sealed class ClickToMoveVerificationTests {
             Positions.Add([0f,10f,-4f+Walked]);
         }
         var Json=AudioRequests is { } Requests
-            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,audioRequests=Requests,cameraPositions=Positions,renderObjectCounts=RenderObjects })
-            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,cameraPositions=Positions,renderObjectCounts=RenderObjects });
+            ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,audioRequests=Requests,cameraPositions=Positions,renderObjectCounts=RenderObjects })
+            :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,cameraPositions=Positions,renderObjectCounts=RenderObjects });
         var Element=JsonDocument.Parse(Json).RootElement.Clone();
         // A run without the counts has no such property at all, not a null one.
         return RenderObjects is null?JsonDocument.Parse(Json.Replace(",\"renderObjectCounts\":null","")).RootElement.Clone():Element;
     }
     /// <summary>The renderer's object count per frame: <paramref name="Level"/> objects, the marker from <paramref name="From"/> up to (not including) <paramref name="To"/>.</summary>
     private static int[]Objects(int From,int To,int Level=40,int Marker=1)=>[.. Enumerable.Range(0,ClickToMoveVerification.Frames).Select(Frame=>Frame>=From&&Frame<To?Level+Marker:Level)];
+    [Theory]
+    [InlineData("straight",false)]
+    [InlineData("straight",true)]
+    [InlineData("navigation",false)]
+    [InlineData("navigation",true)]
+    [InlineData("hold",false)]
+    [InlineData("hold",true)]
+    public void Evaluate_RejectsDisabledOrMissingDebugLayer(string Mode,bool Missing){
+        var Input=Mode switch { "navigation"=>NavigatedReport(),"hold"=>LongPressReport(),_=>Report() };
+        var Json=Input.GetRawText().Replace("\"d3d12DebugLayerEnabled\":true,",Missing?string.Empty:"\"d3d12DebugLayerEnabled\":false,");
+        var ReportWithoutDebug=JsonDocument.Parse(Json).RootElement;
+        var Failures=Mode switch {
+            "navigation"=>ClickToMoveVerification.EvaluateNavigated(ReportWithoutDebug,out _),
+            "hold"=>ClickToMoveVerification.EvaluateLongPress(ReportWithoutDebug,out _),
+            _=>ClickToMoveVerification.Evaluate(ReportWithoutDebug,out _),
+        };
+        Assert.Contains(Failures,Failure=>Failure.Contains("not enabled",StringComparison.Ordinal));
+    }
     [Fact]
     public void Evaluate_AcceptsAWalkThatArrivesAndStops(){
         var Failures=ClickToMoveVerification.Evaluate(Report(),out var Summary);
@@ -61,7 +79,7 @@ public sealed class ClickToMoveVerificationTests {
             if(DropFrame>0f){ Fell=Frame>=DropFrame?Descent:0f; }
             Positions.Add([-6.36f+R,13.78f-Fell,-6.36f+F]);
         }
-        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.Frames,d3d12Errors=D3D12Errors,audioRequests=12,cameraPositions=Positions });
+        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,audioRequests=12,cameraPositions=Positions });
         return JsonDocument.Parse(Json).RootElement.Clone();
     }
     [Fact]
@@ -145,7 +163,7 @@ public sealed class ClickToMoveVerificationTests {
             var Moving=Frame>=ClickToMoveVerification.LongPressFrames-ClickToMoveVerification.SettledFrames?Drift*(Frame-(ClickToMoveVerification.LongPressFrames-ClickToMoveVerification.SettledFrames))/ClickToMoveVerification.SettledFrames:0f;
             Positions.Add([0f,1f,Walked+Moving]);
         }
-        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.LongPressFrames,d3d12Errors=D3D12Errors,cameraPositions=Positions,focusPositions=Positions,renderObjectCounts=RenderObjects??Enumerable.Repeat(40,ClickToMoveVerification.LongPressFrames).ToArray() });
+        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.LongPressFrames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,cameraPositions=Positions,focusPositions=Positions,renderObjectCounts=RenderObjects??Enumerable.Repeat(40,ClickToMoveVerification.LongPressFrames).ToArray() });
         return JsonDocument.Parse(Json).RootElement.Clone();
     }
     [Fact]
@@ -208,7 +226,7 @@ public sealed class ClickToMoveVerificationTests {
             Focus.Add([Route[Leg].R+((Route[Leg+1].R-Route[Leg].R)*Along),1f,Route[Leg].F+((Route[Leg+1].F-Route[Leg].F)*Along)]);
             Camera.Add([0f,13f,0f]);
         }
-        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.Frames,d3d12Errors=0,audioRequests=12,cameraPositions=Camera,focusPositions=Focus });
+        var Json=JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=ClickToMoveVerification.Frames,d3d12Errors=0,d3d12DebugLayerEnabled=true,audioRequests=12,cameraPositions=Camera,focusPositions=Focus });
         var Failures=ClickToMoveVerification.EvaluateNavigated(JsonDocument.Parse(Json).RootElement,out var Summary);
         Assert.Empty(Failures);
         Assert.Contains("final=(6.79,6.84)",Summary,StringComparison.Ordinal);

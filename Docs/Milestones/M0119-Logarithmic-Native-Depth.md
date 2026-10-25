@@ -151,3 +151,13 @@ F-L5-038(「Logarithmic depth of every perspective view」に改名)、F-L5-039�
 - 初回VSIX試験はサブグラフItem Templateに旧ターゲット値が残っていたため1件失敗・44件合格。検証を緩めず、ルート/サブグラフの両Item TemplateをStageへ更新した。全追跡グラフのターゲットはStageであることを読み取り確認。修正後はVSIXの編集/梱包/ホスト/自動化契約45件すべて合格。
 - GUI自動化の移行でCLI専用型の誤参照が1件のビルドエラーになった。現在のStageの5依存が直接入力かつ再帰依存なしであることを確認し、既存のReadGraphで宣言された依存をコピーする形へ修正。最終ビルド警告0・エラー0。VS/Unityを起動していないためStageでのGUI実走は未検証と明記。
 - 証拠は `.artifacts/M0119/retired-renderer-*.log` と各memory.json。全体の状態はPartial。全ソリューション、4テンプレート実走、性能予算の最終閉鎖は後続。
+
+### 最終ゲートと診断設定の補強(2026-10-26)
+- 全ソリューションは22テストプロジェクト、3520件合格・失敗0・実機測定2件スキップ。全ソリューションの22登録と集計が一致。最大メモリ65%、閾値停止なし。証拠はsolution-final.log/summary.json/memory.json。
+- 初回の4テンプレート実走は8ケースとも正常終了し、M0111の9つの基準値に一致した。ただし診断設定の追加監査で、既定のCGE_D3D12_DEBUG_LAYERが0であることを確認。この初回のエラー0はデバッグ層の検証として数えない。
+- ThirdPerson/クリック/車両の検証コマンドがデバッグ層を明示的に必須化するよう修正。ゲームの通常起動設定は変えない。FeatureRunner全体233件合格(無効/未報告を拒否する10ケースを含む)。ネイティブ層がGraphics Tools不足時に要求を無視して続行する場合も区別するため、ランタイム報告に実際のd3d12DebugLayerEnabledを追加し、全評価側がtrueを必須とする。報告フィールドは既存schemaへの追加。梱包ソース変更に合わせSDKを0.1.25へ更新。デバッグ層ありの4テンプレート再実行を別のdebug-manifestとログへ記録する。
+- Release性能は100000物体の可視性/バッチングが中央値4.10015ms、p95 4.34760ms、割り当てp95 0byteで予算内。1280x720 WARPは中央値16.7173ms、p95 17.2304ms、割り当てp95 928byte、画像オラクル合格・D3D12エラー0。WARPのフレーム時間は正しさの記録であり、実機の時間予算とは区別する。5ウォームアップ/30標本、Tiered JIT無効を生データで確認。証拠はrelease-performance.log/memory.json、.artifacts/RenderingPerformanceのrawとPerformanceの2報告。
+- RTXの既存測定に使ったStage成果物と現在のSHA256は完全一致(E485F055...B6A5)。元の測定コミットの記録を保持し、照合のみfinal-hardware-artifact-match.jsonへ記録した。
+- FirstPersonの最終移動画像が緑の面で埋まるため、移動前8フレームを追加確認。毎フレーム58物体、床・壁・空・配置物を画像で確認、明示的に有効化したデバッグ層のエラー0。FirstPerson-spawnの画像・report/summary.jsonを別保存。
+
+- 診断の修正前再現: 本番の出力を変更せず、全体試験時の旧FeatureRunner DLLを隔離フォルダで読み、同じ10個の無効/未報告テストがすべて失敗することを確認。修正後は233件合格。旧DLLと新テストのSHAをdiagnostic-before-proof/provenance.jsonへ保存。証拠はtemplate-diagnostics-before-proof.log、template-diagnostics-required-tests.log。

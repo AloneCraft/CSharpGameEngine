@@ -180,7 +180,7 @@ public sealed class RuntimeAutomation {
         this.FrameMilliseconds.Add(this.FrameClock.IsRunning?this.FrameClock.ElapsedTicks*(1000f/System.Diagnostics.Stopwatch.Frequency):0f);
         this.FrameClock.Restart();
         if(this.Completed&&this.ReportPath is not null){
-            this.WriteReport(Renderer.ErrorOrWorseMessageCount);
+            this.WriteReport(Renderer.ErrorOrWorseMessageCount,Renderer.DebugLayerEnabled);
         }
         if(!Captured){
             return;
@@ -192,9 +192,9 @@ public sealed class RuntimeAutomation {
         foreach(var Message in Renderer.DebugMessages.Where(static Message=>Message.IsErrorOrWorse).Take(20)){
             Console.Error.WriteLine("CGE-AUTOMATION-D3D12 "+Message);
         }
-        Console.Error.WriteLine($"CGE-AUTOMATION-CAPTURE path={this.CapturePath} d3d12Errors={Renderer.ErrorOrWorseMessageCount}");
+        Console.Error.WriteLine($"CGE-AUTOMATION-CAPTURE path={this.CapturePath} d3d12Errors={Renderer.ErrorOrWorseMessageCount} debugLayerEnabled={Renderer.DebugLayerEnabled}");
     }
-    private void WriteReport(int D3D12Errors){
+    private void WriteReport(int D3D12Errors,bool DebugLayerEnabled){
         var Directory=System.IO.Path.GetDirectoryName(this.ReportPath);
         if(!string.IsNullOrEmpty(Directory)){
             System.IO.Directory.CreateDirectory(Directory);
@@ -205,6 +205,7 @@ public sealed class RuntimeAutomation {
         Writer.WriteString("schema",ReportSchema);
         Writer.WriteNumber("frames",this.PresentedFrames);
         Writer.WriteNumber("d3d12Errors",D3D12Errors);
+        Writer.WriteBoolean("d3d12DebugLayerEnabled",DebugLayerEnabled);
         Writer.WriteNumber("audioRequests",this.AudioRequests);
         Writer.WriteNumber("audioStarted",this.AudioStarted);
         // Frame-local camera positions (in the camera's reference frame), one entry per presented frame.
