@@ -11,5 +11,6 @@
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../tools/CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj" />
+    <ProjectReference Include="../../tools/CSharpGameEngine.Cook.Cli/CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

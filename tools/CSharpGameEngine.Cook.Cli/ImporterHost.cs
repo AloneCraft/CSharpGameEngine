@@ -24,11 +24,16 @@ internal sealed class ImporterHost:IDisposable {
                 if(Type.GetConstructor(Type.EmptyTypes) is null){ throw new InvalidDataException($"IMP002: {Type.FullName} requires a public parameterless constructor."); }
                 var Instance=Activator.CreateInstance(Type)!;
                 if(Instance is IAssetImporter Importer){ Validate(Importer.Descriptor);Importers.Add(Importer); }
-                if(Instance is IModelProcessor Processor){ Processors.Add(Processor); }
+                if(Instance is IModelProcessor Processor){
+                    var Descriptor=Processor.Descriptor;
+                    if(string.IsNullOrWhiteSpace(Descriptor.Identity)||Descriptor.Version<1||!Enum.IsDefined(Descriptor.Stage)||!Enum.IsDefined(Descriptor.Isolation)||Descriptor.Options.IsDefault){ throw new InvalidDataException("IMP002: invalid processor descriptor."); }
+                    Processors.Add(Processor);
+                }
             }
             if(Importers.Select(Importer=>Importer.Descriptor.Identity).Distinct(StringComparer.Ordinal).Count()!=Importers.Count||Processors.Select(Processor=>Processor.Descriptor.Identity).Distinct(StringComparer.Ordinal).Count()!=Processors.Count){
                 throw new InvalidDataException("IMP002: duplicate importer/processor identity in module.");
             }
+            foreach(var Importer in Importers){ _=ImportOptions.Resolve(Importer.Descriptor,Processors.Select(Processor=>Processor.Descriptor),new Dictionary<string,string>()); }
             return new(Context,Importers.ToImmutable(),Processors.ToImmutable());
         } catch { Context.Unload();throw; }
     }
@@ -36,11 +41,11 @@ internal sealed class ImporterHost:IDisposable {
         ??throw new InvalidDataException($"IMP002: module does not register '{Identity}' for '{Extension}'.");
     internal async ValueTask<InterchangeDocument?>ImportAsync(string Identity,ImportRequest Request,IImportContext Context,CancellationToken CancellationToken){
         var Importer=this.Select(Identity,Path.GetExtension(Request.SourcePath));
-        var Allowed=Importer.Descriptor.Options.Select(Option=>Option.Name).Concat(this.Processors.SelectMany(Processor=>Processor.Descriptor.Options.Select(Option=>Option.Name))).ToHashSet(StringComparer.Ordinal);
-        foreach(var Key in Request.Options.Keys){ if(!Allowed.Contains(Key)){ throw new InvalidDataException($"IMP004: unknown option '{Key}'."); } }
+        _=ImportOptions.Resolve(Importer.Descriptor,this.Processors.Select(Processor=>Processor.Descriptor),Request.Options);
         CancellationToken.ThrowIfCancellationRequested();
         var Result=await Importer.ImportAsync(Request,Context,CancellationToken);
         if(Result.Document is not{ }Document){ return null; }
+        Document=Document with { Provenance=Document.Provenance with { SourceUri=Request.SourceUri,ImporterIdentity=Identity,Provider=Importer.Descriptor.Provider } };
         Document=await this.ProcessAsync(Document,ModelProcessorStage.SourceSpace,Context,CancellationToken);
         var Normalized=ModelImportPipeline.Normalize(Document);
         foreach(var Diagnostic in Normalized.Diagnostics){ Context.Report(Diagnostic); }
@@ -59,7 +64,7 @@ internal sealed class ImporterHost:IDisposable {
         return Document;
     }
     private static void Validate(ImporterDescriptor Descriptor){
-        if(string.IsNullOrWhiteSpace(Descriptor.Identity)||Descriptor.Version<1||Descriptor.Extensions.Length==0||Descriptor.Extensions.Any(Extension=>Extension.Length<2||Extension[0]!='.'||Extension!=Extension.ToLowerInvariant())||Descriptor.Extensions.Distinct(StringComparer.Ordinal).Count()!=Descriptor.Extensions.Length||Descriptor.Options.Select(Option=>Option.Name).Distinct(StringComparer.Ordinal).Count()!=Descriptor.Options.Length){
+        if(string.IsNullOrWhiteSpace(Descriptor.Identity)||Descriptor.Version<1||Descriptor.Extensions.IsDefaultOrEmpty||Descriptor.Extensions.Any(Extension=>string.IsNullOrEmpty(Extension)||Extension.Length<2||Extension[0]!='.'||Extension!=Extension.ToLowerInvariant())||Descriptor.Extensions.Distinct(StringComparer.Ordinal).Count()!=Descriptor.Extensions.Length||Descriptor.Options.IsDefault||!Enum.IsDefined(Descriptor.Isolation)||!Enum.IsDefined(Descriptor.Determinism)||Descriptor.Options.Select(Option=>Option.Name).Distinct(StringComparer.Ordinal).Count()!=Descriptor.Options.Length){
             throw new InvalidDataException("IMP002: invalid importer descriptor.");
         }
     }

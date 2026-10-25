@@ -26,6 +26,32 @@
 - Conformance: Matches for the identity contracts; registry/catalog implementation and generator diagnostics are separate S3/S4 work.
 - Next action: Connect catalog injection, metadata and content-index.
 
+## F-L6-010 — Runtime model payload contracts
+
+- Layer: L6 — Content
+- Parent capability: Universal model import (M0114)
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: ADR-0080 section 5
+- Implementation evidence: `src/CSharpGameEngine.Content/Models`, `ContentArtifact.cs`
+- Tests: `tests/CSharpGameEngine.Content.Tests/ModelArtifactTests.cs` (Content suite: 43 passed)
+- Reverse-engineered behavior: Typed binary model/mesh/skeleton/clip/license codecs validate hierarchy, references and streams; new artifact kinds 8–12 are recognized. The assembly has no Cooking/Import dependency.
+- Conformance: Partial. No artifact producer/store/runtime consumer is connected. Float influence weights are a prototype; packed representation remains outstanding.
+- Next action: Connect prepared artifact production and exact-reference runtime loading during S3/S4.
+
+## F-L7-056 — Model import orchestration
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Universal model import (M0114)
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: ADR-0080 S3
+- Implementation evidence: `tools/CSharpGameEngine.ContentCompiler/{ImporterRegistry,ImportProcessRunner,ModelImportClient,ModelImportCommands}.cs`
+- Tests: `tests/CSharpGameEngine.ContentCompiler.Tests/ModelImportClientTests.cs` (suite: 16 passed)
+- Reverse-engineered behavior: Discovery runs outside the parent process. Frozen default-expanded options, module/engine hashes and actual read-set hashes identify canonical IR caches. Separate-worker verification detects nondeterminism. CLI exposes import-ir/inspect/explain; cancellation sends a request then terminates the owned process tree when necessary.
+- Conformance: Partial. Compile/meta/serve, metadata migration, artifact/DAG/index production and full resource enforcement remain. IncrementalContentCompiler is unchanged.
+- Next action: Implement remaining S3 integration before runtime cutover.
+
 ## F-L7-054 — Interchange document and codec
 
 - Layer: L7 — Static Compiler / Bake
@@ -35,8 +61,8 @@
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 3
 - Implementation evidence: `src/CSharpGameEngine.Cooking/Interchange/{InterchangeDocument,InterchangeCodec,InterchangeValidator}.cs`
 - Tests: `tests/CSharpGameEngine.Cook.Tests/InterchangeTests.cs`
-- Reverse-engineered behavior: CGEX has a bounded little-endian header, SHA-256 and canonical sorted UTF-8 payload; corruption/truncation are rejected. IR records contain engine/BCL/Contracts values only.
-- Conformance: Partial. A provider-free type-graph test exists; full rig extensions, exhaustive resource/adversarial validation and CGEX JSON-versus-binary scalar LE encoding remain unresolved. No runtime payload writer is connected.
+- Reverse-engineered behavior: CGEX wire v2 has a bounded little-endian header, SHA-256 and binary scalar payload with ordered UTF-8 dictionary keys; corruption/truncation and forged lengths are rejected. IR records contain engine/BCL/Contracts values only.
+- Conformance: Partial. A provider-free type-graph test exists; full rig extensions and exhaustive resource/adversarial validation remain unresolved. Standalone runtime payload codecs exist, but no producer/consumer is connected.
 - Next action: Complete S2 coverage before S3 worker/orchestrator integration.
 
 ## F-L7-055 — Importer contracts and module isolation
@@ -47,10 +73,10 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 4
 - Implementation evidence: `src/CSharpGameEngine.Cooking/{AssetImporter,PluginModuleLoadContext}.cs`, `tools/CSharpGameEngine.Cook.Cli/CookerHost.cs`
-- Tests: `tests/CSharpGameEngine.Cook.Tests/{InterchangeTests,CookerHostTests,ImportWorkerTests}.cs` (Cook suite: 26 passed)
+- Tests: `tests/CSharpGameEngine.Cook.Tests/{InterchangeTests,CookerHostTests,ImportWorkerTests}.cs` (Cook suite: 29 passed)
 - Reverse-engineered behavior: Cooking, Contracts and Core resolve from the default host context; module code loads into a distinct collectible context. Existing cookers retain their selection/verification behavior.
-- Conformance: Partial. `describe` and direct `import-worker` now run in Cook.Cli; real separate-worker equivalence and failure/cancellation/read-set tests pass. Registry selection, tools/nested import, lifetime/resource policy and forced process cancellation remain.
-- Next action: Complete S3 orchestration and process policy after resolving the unowned full-solution build gate.
+- Conformance: Partial. `describe` and `import-worker` run in Cook.Cli; separate-worker equivalence and failure/read-set tests pass. Parent registry selection and cooperative/forced cancellation exist. Tools/nested import and full lifetime/resource policy remain.
+- Next action: Complete S3 orchestration and resource policy. The user-authorized five-line assertion gate is resolved.
 
 ## F-L7-057 — Model normalization and parity oracle
 

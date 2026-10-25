@@ -15,7 +15,7 @@ public static class InterchangeValidator {
             Error("IMP101","Artifact input must be in engine space, metres and top-left UVs.");
         }
         if(!float.IsFinite(Document.Space.MetersPerUnit)||Document.Space.MetersPerUnit<=0f){ Error("IMP102","MetersPerUnit must be finite and positive."); }
-        if(Document.Nodes.Length>1000000||Document.Meshes.Length>65535||Document.Materials.Length>65535||Document.Textures.Length>65535||Document.Clips.Length>65535){ Error("IMP803","Interchange object limit exceeded."); }
+        if(Document.Nodes.Length>1000000||Document.Meshes.Length>65535||Document.Materials.Length>65535||Document.Textures.Length>65535||Document.Clips.Length>65535||Document.Skeletons.Length>65535||Document.Skins.Length>65535||Document.Images.Length>65535||Document.Lights.Length>65535||Document.Cameras.Length>65535){ Error("IMP803","Interchange object limit exceeded."); }
         for(var Index=0;Index<Document.Nodes.Length;Index++){
             var Node=Document.Nodes[Index];
             if(Node.ParentIndex< -1||Node.ParentIndex>=Index){ Error("IMP103",$"Node {Index} parent must precede its child."); }

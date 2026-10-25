@@ -20,12 +20,19 @@ public static class ModelImportPipeline {
     }
     public static ModelImportPipelineResult Normalize(InterchangeDocument Document){
         var Diagnostics=InterchangeValidator.Validate(Document).ToBuilder();
-        void Report(ImportSeverity Severity,string Code,string Message)=>Diagnostics.Add(new(Severity,Code,"cge.pipeline@1",ImportPhase.Normalize,Message,new(Document.Provenance.SourceUri)));
+        void Report(ImportSeverity Severity,string Code,string Message){
+            var Diagnostic=new ImportDiagnostic(Severity,Code,"cge.pipeline@1",ImportPhase.Normalize,Message,new(Document.Provenance.SourceUri));
+            if(Diagnostics.Count<256){ Diagnostics.Add(Diagnostic); }
+            else if(Severity==ImportSeverity.Error){
+                for(var Index=Diagnostics.Count-1;Index>=0;Index--){ if(Diagnostics[Index].Severity!=ImportSeverity.Error){ Diagnostics[Index]=Diagnostic;break; } }
+            }
+        }
+        if(!Document.Provenance.License.Confirmed||Document.Provenance.License.Kind=="Unknown"){ Report(ImportSeverity.Warning,"IMP703","Asset licence is unconfirmed; shipping policy must resolve it before release."); }
         foreach(var Restriction in Document.Provenance.License.Restrictions){
             if(Restriction=="UE-Only"){ Report(ImportSeverity.Error,"IMP701","This asset is restricted to Unreal Engine."); }
             if(Restriction=="UnityCompanion"){ Report(ImportSeverity.Error,"IMP702","This asset is restricted to Unity."); }
         }
-        if(Diagnostics.Any(D=>D.Severity==ImportSeverity.Error)){ return new(null,Diagnostics.ToImmutable()); }
+        if(Diagnostics.Any(D=>D.Severity==ImportSeverity.Error)){ return new(null,[..Diagnostics.Take(256)]); }
         if(Document.Space.State==InterchangeSpaceState.Source){
             if(Document.Meshes.Any(M=>M.Vertices.Influences is{PerVertex:>8})){ Report(ImportSeverity.Warning,"IMP106","v1 keeps the first eight influence slots and renormalizes without reordering."); }
             if(Document.Clips.Any(Clip=>Clip.Transforms.Any(Track=>Track.Translation?.Interpolation==InterchangeInterpolation.CubicSpline||Track.Rotation?.Interpolation==InterchangeInterpolation.CubicSpline||Track.Scale?.Interpolation==InterchangeInterpolation.CubicSpline))){ Report(ImportSeverity.Warning,"IMP130","v1 samples cubic transform values as linear keys, preserving the existing reader behaviour."); }
@@ -47,10 +54,10 @@ public static class ModelImportPipeline {
                 Clips=Rename(Document.Clips,M=>M.Name,(M,N)=>M with { Name=N },"clip",Report)
             };
         }
-        Diagnostics.AddRange(InterchangeValidator.Validate(Document,true));
+        foreach(var Diagnostic in InterchangeValidator.Validate(Document,true)){ Report(Diagnostic.Severity,Diagnostic.Code,Diagnostic.Message); }
         ValidateBind(Document,Report);
         if(Document.Skins.Length>1&&!Diagnostics.Any(D=>D.Severity==ImportSeverity.Error)){ Document=MergeSkins(Document,Report); }
-        Diagnostics.AddRange(ValidateEngine(Document));
+        foreach(var Diagnostic in ValidateEngine(Document)){ Report(Diagnostic.Severity,Diagnostic.Code,Diagnostic.Message); }
         return new(Diagnostics.Any(D=>D.Severity==ImportSeverity.Error)?null:Document,[..Diagnostics.Take(256)]);
     }
     private static InterchangeDocument Convert<TSource>(InterchangeDocument Document) where TSource:struct,ICoordinateConvention{

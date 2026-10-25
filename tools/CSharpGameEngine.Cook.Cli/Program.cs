@@ -6,6 +6,12 @@ if(args.Length>=2&&args[0] is "describe" or "import-worker"){
             using var Stop=new CancellationTokenSource();
             ConsoleCancelEventHandler Cancel=(_,Event)=>{ Event.Cancel=true;Stop.Cancel(); };
             Console.CancelKeyPress+=Cancel;
+            if(Console.IsInputRedirected){
+                _=Task.Run(async()=>{
+                    try { if(await Console.In.ReadLineAsync(Stop.Token)=="cancel"){ Stop.Cancel(); } }
+                    catch(Exception Error) when(Error is OperationCanceledException or ObjectDisposedException or IOException){ }
+                });
+            }
             try { return await ImportWorker.RunAsync(args[1],args[2],args[3],Stop.Token); }
             finally { Console.CancelKeyPress-=Cancel; }
         }

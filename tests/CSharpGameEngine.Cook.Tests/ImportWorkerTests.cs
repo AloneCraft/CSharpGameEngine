@@ -111,12 +111,21 @@ public sealed class ImportWorkerTests:IDisposable {
     public async Task WorkerOutputAndResult_CannotOverwriteTheSource(bool ResultCollides){
         var Source=Path.Combine(this.Root,"input.model");
         await File.WriteAllTextAsync(Source,"triangle");
-        var Request=new ImportWorkerRequest("test.fixture","00000000-0000-5000-8000-000000000001","input.model",this.Root,this.Root,ResultCollides?Path.Combine(this.Root,"output.cgex"):Source,new());
+        var Request=new ImportWorkerRequest("test.fixture","00000000-0000-5000-8000-000000000001","input.model",this.Root,this.Root,ResultCollides?Path.Combine(this.Root,"output.cgex"):Source,new Dictionary<string,string>());
         var RequestPath=Path.Combine(this.Root,"request.json");
         await File.WriteAllBytesAsync(RequestPath,JsonSerializer.SerializeToUtf8Bytes(Request));
         var Exit=await ImportWorker.RunAsync(typeof(FixtureImporter).Assembly.Location,RequestPath,ResultCollides?Source:Path.Combine(this.Root,"result.json"),CancellationToken.None);
         Assert.Equal(1,Exit);
         Assert.Equal("triangle",await File.ReadAllTextAsync(Source));
+    }
+    [Fact]
+    public void Options_DefaultsAreFrozenAndValuesAreValidated(){
+        var Importer=new FixtureImporter().Descriptor;
+        var Processor=new FixtureProcessor().Descriptor;
+        var Options=ImportOptions.Resolve(Importer,[Processor],new Dictionary<string,string>());
+        Assert.Equal("false",Options["test.corrupt"]);
+        Assert.Throws<NotSupportedException>(()=>((IDictionary<string,string>)Options).Add("mutated","true"));
+        Assert.Throws<InvalidDataException>(()=>ImportOptions.Resolve(Importer,[Processor],new Dictionary<string,string> { ["test.corrupt"]="invalid" }));
     }
     private async Task<(int ExitCode,string Output,string Result)>RunAsync(string Name,SortedDictionary<string,string>?Options=null){
         var Scratch=Path.Combine(this.Root,Name);

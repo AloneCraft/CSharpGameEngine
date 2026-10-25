@@ -139,6 +139,28 @@ public sealed class InterchangeTests {
             }
         }
     }
+    [Fact]
+    public void BinaryCodec_PreservesInt128OriginsAndUsesLittleEndianFloatScalars(){
+        var Input=Triangle();
+        Input=Input with { Space=Input.Space with { MetersPerUnit=123.25f,Origin=new(Int128.MaxValue,Int128.MinValue,1) } };
+        var Bytes=InterchangeCodec.Write(Input);
+        Assert.Equal(2,System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan(4)));
+        Assert.True(Bytes.AsSpan(44).IndexOf(new byte[]{0x00,0x80,0xf6,0x42})>=0);
+        var Result=InterchangeCodec.Read(Bytes);
+        Assert.Equal(Input.Space.Origin,Result.Space.Origin);
+        Assert.Equal(Input.Space.MetersPerUnit,Result.Space.MetersPerUnit);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(Bytes.AsSpan(4),1);
+        Assert.Throws<InvalidDataException>(()=>InterchangeCodec.Read(Bytes));
+    }
+    [Fact]
+    public void BinaryCodec_RejectsForgedCollectionLengthsBeforeAllocation(){
+        var Bytes=InterchangeCodec.Write(Triangle());
+        Assert.Equal(1,Bytes[44]);
+        Assert.Equal(0,System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan(45)));
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(Bytes.AsSpan(45),int.MaxValue);
+        System.Security.Cryptography.SHA256.HashData(Bytes.AsSpan(44),Bytes.AsSpan(12,32));
+        Assert.Throws<InvalidDataException>(()=>InterchangeCodec.Read(Bytes));
+    }
 }
 public static class ContractProbe {
     public static System.Reflection.Assembly[]Assemblies()=>[typeof(IAssetImporter).Assembly,typeof(CSharpGameEngine.Contracts.AssetId).Assembly,typeof(CSharpGameEngine.Spatial.Abstractions.ICoordinateConvention).Assembly];

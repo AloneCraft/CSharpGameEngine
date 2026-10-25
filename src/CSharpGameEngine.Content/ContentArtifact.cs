@@ -13,6 +13,11 @@ public enum ContentArtifactKind:ushort {
     WorldCell=5,
     Audio=6,
     Shader=7,
+    Model=8,
+    Skeleton=9,
+    AnimationClip=10,
+    DistanceField=11,
+    License=12,
 }
 
 public readonly record struct ArtifactProvenance(
@@ -183,7 +188,8 @@ public static class ContentArtifactCodec {
     internal static bool IsKnownKind(ContentArtifactKind Kind)=>Kind is
         ContentArtifactKind.Mesh or ContentArtifactKind.Texture or ContentArtifactKind.Material
         or ContentArtifactKind.Scene or ContentArtifactKind.WorldCell or ContentArtifactKind.Audio
-        or ContentArtifactKind.Shader;
+        or ContentArtifactKind.Shader or ContentArtifactKind.Model or ContentArtifactKind.Skeleton
+        or ContentArtifactKind.AnimationClip or ContentArtifactKind.DistanceField or ContentArtifactKind.License;
 
     internal static void ValidateProvenance(ArtifactProvenance Provenance){
         ValidateText(Provenance.ToolVersion,nameof(Provenance.ToolVersion));

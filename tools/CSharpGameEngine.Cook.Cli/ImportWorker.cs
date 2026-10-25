@@ -4,7 +4,7 @@ using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Cooking;
 using CSharpGameEngine.Interchange;
 namespace CSharpGameEngine.Cook.Cli;
-internal sealed record ImportWorkerRequest(string ImporterIdentity,string AssetId,string SourcePath,string ProjectDirectory,string ScratchDirectory,string OutputPath,SortedDictionary<string,string>Options);
+internal sealed record ImportWorkerRequest(string ImporterIdentity,string AssetId,string SourcePath,string ProjectDirectory,string ScratchDirectory,string OutputPath,IReadOnlyDictionary<string,string>Options);
 internal sealed record ImportWorkerResult(bool Success,string?OutputPath,ImmutableArray<string>ReadSet,ImmutableArray<ImportDiagnostic>Diagnostics);
 internal static class ImportWorker {
     private const int MaximumRequestBytes=1024*1024;
@@ -42,9 +42,11 @@ internal static class ImportWorker {
             Context.RecordDependency(Request.SourcePath);
             using var Host=ImporterHost.Load(ModulePath);
             var Importer=Host.Select(Request.ImporterIdentity,Path.GetExtension(Source));
+            var ResolvedOptions=ImportOptions.Resolve(Importer.Descriptor,Host.Processors.Select(Processor=>Processor.Descriptor),Request.Options);
+            Context.SetOptions(ResolvedOptions);
             if(Importer.Descriptor.Tools.Length>0||Importer.Descriptor.NestedImporters.Length>0){ throw new InvalidDataException("IMP501: this direct-import worker does not provide DCC or nested-import services yet."); }
             var SourceUri=Path.GetRelativePath(Path.GetFullPath(Request.ProjectDirectory),Source).Replace('\\','/');
-            var Document=await Host.ImportAsync(Request.ImporterIdentity,new(Asset,SourceUri,Source,Path.GetFullPath(Request.ProjectDirectory),Request.Options,Scratch),Context,CancellationToken);
+            var Document=await Host.ImportAsync(Request.ImporterIdentity,new(Asset,SourceUri,Source,Path.GetFullPath(Request.ProjectDirectory),ResolvedOptions,Scratch),Context,CancellationToken);
             CancellationToken.ThrowIfCancellationRequested();
             if(Document is not null&&!Diagnostics.Any(D=>D.Severity==ImportSeverity.Error)){
                 var Data=InterchangeCodec.Write(Document with { Provenance=Document.Provenance with { SourceUri=SourceUri,ImporterIdentity=Request.ImporterIdentity,ReadSet=[..Context.ReadSet.Order(StringComparer.Ordinal)] } });
@@ -94,7 +96,8 @@ internal sealed class ImportFileContext:IImportContext {
         this.Options=Options;
         this.Diagnostics=Diagnostics;
     }
-    public IReadOnlyDictionary<string,string>Options{get;}
+    public IReadOnlyDictionary<string,string>Options{get;private set;}
+    internal void SetOptions(IReadOnlyDictionary<string,string>Options)=>this.Options=Options;
     public IProgress<ImportProgress>Progress{get;}=new NullProgress();
     public IReadOnlyList<HumanoidProfile>HumanoidProfiles=>[];
     public IReadOnlyList<ExporterProfile>ExporterProfiles=>[];

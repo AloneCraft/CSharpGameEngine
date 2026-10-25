@@ -7,5 +7,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
     <ProjectReference Include="../../src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
+    <ProjectReference Include="../../src/CSharpGameEngine.Cooking/CSharpGameEngine.Cooking.csproj" />
   </ItemGroup>
 </Project>

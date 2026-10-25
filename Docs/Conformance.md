@@ -3,10 +3,10 @@
 ## M0114 — Universal model import migration (in progress)
 
 - Intended: ADR-0080 S0–S5; source decoding only in Cook workers, artifact-only runtime, frozen numerical/render parity and immediate old-reader removal at cutover.
-- Observed: The complete design and pre-cutover oracle are committed; identity/basis APIs, additive Cooking records/codec/validation/contracts and direct Cook worker commands exist. Contracts (26), Core (156), Cook (26) and focused parity tests pass. Full solution verification exits 1 because the unowned PrefractureDebugServiceTests has five xUnit2000 compile errors; executed test assemblies report 2,443 passed/two skipped (Windows 870 passed).
+- Observed: Identity/basis APIs, Cooking records/normalization, binary CGEX v2, worker commands, compiler discovery/cache and import-ir/inspect/explain exist. Contracts (26), Core (156), Cook (29), ContentCompiler (16), Content (43) and focused parity tests pass. The foundations solution snapshot passed 3,684 tests with two skipped after the user-authorized five assertion fixes; latest focused suites cover subsequent changes.
 - Result: **Partial**. F-L1-010/F-L2-007 match their additive API scope. F-L7-054/055/057 remain PartiallyImplemented. S3–S5 are outstanding, and F-L0-005 remains active.
-- Known gaps: full rig/resource coverage; CGEX JSON payload versus binary scalar LE encoding; registry/scheduling/worker process policy; runtime payloads; metadata/index orchestration; runtime/CLI cutover; SDK/VSIX distribution; FeatureRunner/four-template/package gates. No accepted scope reduction is recorded.
-- Verification environment: Restricted execution caused atomic file-replacement/owner-process failures; four WorldGrid tests and two affected bridge tests pass outside the sandbox. The normal-permission full solution run and five unowned compile blockers are recorded in M0114. New worker tests ran after that snapshot; the full final-code gate remains outstanding.
+- Known gaps: full rig/resource coverage; scheduling/resource enforcement; payload producers/consumers and packed influences; compile/meta/serve and metadata/index orchestration; runtime/CLI cutover; SDK/VSIX distribution; FeatureRunner/four-template/package gates. No accepted scope reduction is recorded.
+- Verification environment: Process/file-replacement tests run outside the restricted sandbox. The resolved assertion gate and actual solution snapshot are recorded in M0114. The final gate after the complete migration remains outstanding.
 
 ## 2026-10-04 探索 — .NET Framework の VSIX では、float を超える数が SCENE203 にならなかった
 - 意図: ADR-0070 決定 4。値の型に収まらない数は、実行環境によらず JSON の位置の SCENE203 にする。
