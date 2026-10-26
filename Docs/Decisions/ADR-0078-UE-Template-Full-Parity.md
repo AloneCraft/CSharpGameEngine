@@ -74,7 +74,7 @@ M0114以降の番号は、[ADR-0080](ADR-0080-Universal-Model-Import.md)のユ�
 
 ### 6. M0112 の決定(Vehicle のレベルとテンプレートの仕上げ)
 - Landscape は **静的な三角形メッシュ** で表す(地形のコンポーネントは作らない)。起伏は 1 m 格子(127 × 127 点)の高さで、UE の衝突のライン トレースから読む(Python から高さのデータは読めない)。各格子の対角線は UE と同じ(0.002 cm で一致)。7 m 四方がすべて平らなら 2 枚の三角形にして、5,959 頂点・11,496 三角形にした。基本色は、真上から `SCS_BASE_COLOR` で撮ったもの(層の重みと斜面の色と RVT を、式を読み解かずに写す)をテクスチャにした。
-- Landscape Spline の `SplineMeshComponent` 16 個は、UE の `SplineMeshCommon.ush` の式で曲げて 1 つの路面メッシュにまとめる。**縁石は描くだけで衝突を持たない**: エンジンの箱と三角形メッシュの接触は 1 tick に 1 つの面の向きしか使わないので、縁石の斜面と平らな地面にまたがった車体が地面の支えを失い、沈んだ(再現済み。路面と縁石を 1 つのメッシュにしても同じ)。接触が複数の面の向きを扱えるようになるまで(M0113 以降の課題)、縁石は視覚だけにする。
+- Landscape Spline の `SplineMeshComponent` 16 個は、UE の `SplineMeshCommon.ush` の式で曲げて 1 つの路面メッシュにまとめる。縁石は M0112 では描くだけにした(エンジンの箱と三角形メッシュの接触が 1 tick に 1 つの面の向きしか使わず、縁石の斜面と平らな地面にまたがった車体が沈んだ)。M0124 で接触が複数の面の向き(最大 3 つ × 4 点)とメッシュの稜線を扱うようになり、**縁石は路面と同じ材質で衝突する**([M0124](../Milestones/M0124-Mesh-Contact-Orientations-And-Destruction-Strain.md))。
 - 物理マテリアルは UE のとおり: 地形 摩擦 1・反発 0.4(Slippery)、路面 摩擦 1・反発 0(NonSlippery)。
 - 生成は UE を使う 3 つの読み出し(`probe_vehicle_landscape_heights.py`、`run_export_skeletal_mesh.cmd`、`capture_vehicle_ground_color.cmd`)と、UE を使わない `build_vehicle_ground.py`。生成物はテンプレートに置き、シーン JSON がその後の正本(UE との同期はしない。ADR-0067 と同じ)。
 - 経路の最後の点の制動に UE の `FixedPathBrakingDistance`(TopDown は 2 m)を使う(`CharacterMotion.FixedPathBrakingDistance`)。

@@ -262,6 +262,10 @@
               "AssetPath": "Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Curbs.glb",
               "Mobility": "Static"
             }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.StaticMeshCollider",
+            "members": { "Material": { "Friction": 1, "Restitution": 0 } }
           }
         ],
         "children": []

@@ -320,6 +320,7 @@
             "members": {
               "FractureAsset": "ShotWall",
               "FragmentCount": 24,
+              "ClusterLevels": 2,
               "Seed": 11,
               "Anchor": "Bottom",
               "OuterColorR": 0.55,
@@ -364,7 +365,7 @@
           {
             "type": "CSharpGameEngine.Destruction.Destructible",
             "members": {
-              "FractureAsset": "SampleCrate",
+              "FractureAsset": "SampleCrate", "StrainDecay": 60,
               "FragmentCount": 10,
               "Seed": 3,
               "Anchor": "None",
@@ -409,7 +410,7 @@
           {
             "type": "CSharpGameEngine.Destruction.Destructible",
             "members": {
-              "FractureAsset": "SampleCrate",
+              "FractureAsset": "SampleCrate", "StrainDecay": 60,
               "FragmentCount": 10,
               "Seed": 3,
               "Anchor": "None",
@@ -454,7 +455,7 @@
           {
             "type": "CSharpGameEngine.Destruction.Destructible",
             "members": {
-              "FractureAsset": "SampleCrate",
+              "FractureAsset": "SampleCrate", "StrainDecay": 60,
               "FragmentCount": 10,
               "Seed": 3,
               "Anchor": "None",
@@ -499,7 +500,7 @@
           {
             "type": "CSharpGameEngine.Destruction.Destructible",
             "members": {
-              "FractureAsset": "SampleCrate",
+              "FractureAsset": "SampleCrate", "StrainDecay": 60,
               "FragmentCount": 10,
               "Seed": 3,
               "Anchor": "None",

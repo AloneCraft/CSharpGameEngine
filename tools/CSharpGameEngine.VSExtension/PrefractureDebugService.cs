@@ -12,21 +12,22 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>A line of the fracture overlay: a bond between two fragment centres, or (<see cref="Outline"/>) an edge of a fragment.</summary>
 internal readonly record struct ScenePhysicsFractureBond(
-    Vector3 First,Vector3 Second,float Strength,bool Outline=false);
+    Vector3 First,Vector3 Second,float Strength,bool Outline=false,int Level=0);
 internal readonly record struct PrefractureDebugLoadResult(
     IReadOnlyList<ScenePhysicsFractureBond>Bonds,string?Diagnostic);
 /// <summary>
-/// What the Fracture preview cuts for one Destructible (ADR-0078/M0113, UE's Fracture mode): its collider box, and the count, seed, clusters and material
-/// numbers the build's Cook module would use. A member the scene leaves out has the component's default.
+/// What the Fracture preview cuts for one Destructible (ADR-0078/M0113, UE's Fracture mode): its collider box, and the count, seed, clusters, cluster levels
+/// (M0124) and material numbers the build's Cook module would use. A member the scene leaves out has the component's default.
 /// </summary>
 internal readonly record struct FracturePreviewRequest(
-    string Name,Vector3 HalfExtents,Vector3 Center,int FragmentCount,int Seed,int ClusterCount,float Density,float BondStrength);
+    string Name,Vector3 HalfExtents,Vector3 Center,int FragmentCount,int Seed,int ClusterCount,float Density,float BondStrength,int ClusterLevels=1);
 
 /// <summary>
 /// The Scene view's fracture overlay and preview (ADR-0078/M0113). For each <c>CSharpGameEngine.Destruction.Destructible</c> of the scene, the box of its
 /// <c>Collider</c> is cut out of process (<c>Physics.Cli preview-prefracture</c>, the same box and cooker as the build's Cook module) with the node's
-/// FragmentCount, Seed and ClusterCount, so a changed count or seed in the Inspector shows its fragments' outlines and bonds at once, before a build. A
-/// destructible cut from a <c>SourceMesh</c> shows the cooked asset of the last build (<c>bin\**\Assets\Destruction\&lt;name&gt;.cgefracture</c>) instead.
+/// FragmentCount, Seed, ClusterCount and ClusterLevels, so a changed count or seed in the Inspector shows its fragments' outlines and bonds at once, before a
+/// build; each bond carries how many cluster levels hold both its fragments (M0124: the overlay draws the outer bonds, which break first, apart from the
+/// inner ones). A destructible cut from a <c>SourceMesh</c> shows the cooked asset of the last build (<c>bin\**\Assets\Destruction\&lt;name&gt;.cgefracture</c>) instead.
 /// </summary>
 internal static class PrefractureDebugService {
     private const string DestructibleTypeName="global::CSharpGameEngine.Destruction.Destructible";
@@ -37,6 +38,8 @@ internal static class PrefractureDebugService {
     internal const int DefaultFragmentCount=16;
     internal const int DefaultSeed=0;
     internal const int DefaultClusterCount=0;
+    internal const int DefaultClusterLevels=1;
+    internal const int MaximumClusterLevels=4;
     internal const float DefaultDensity=500f;
     internal const float DefaultBondStrength=2000f;
 
@@ -113,7 +116,7 @@ internal static class PrefractureDebugService {
             if(Lines.Count>=MaximumLines){ return false; }
             Lines.Add(new ScenePhysicsFractureBond(
                 Vector3.Transform(Document.Fragments[Bond.First].Position,World),
-                Vector3.Transform(Document.Fragments[Bond.Second].Position,World),Bond.Strength));
+                Vector3.Transform(Document.Fragments[Bond.Second].Position,World),Bond.Strength,Level:Bond.Level));
         }
         foreach(PrefractureInspectionFragment Fragment in Document.Fragments){
             for(int Index=0;Index+5<Fragment.Edges.Length;Index+=6){
@@ -150,6 +153,7 @@ internal static class PrefractureDebugService {
         int Count=ReadInt(Destructible,"FragmentCount",DefaultFragmentCount);
         int Seed=ReadInt(Destructible,"Seed",DefaultSeed);
         int Clusters=ReadInt(Destructible,"ClusterCount",DefaultClusterCount);
+        int Levels=ReadInt(Destructible,"ClusterLevels",DefaultClusterLevels);
         float Density=ReadFloat(Destructible,"Density",DefaultDensity);
         float Strength=ReadFloat(Destructible,"BondStrength",DefaultBondStrength);
         SceneComponent?Collider=Node.FindComponent(ColliderTypeName);
@@ -163,7 +167,8 @@ internal static class PrefractureDebugService {
         if(Count is <2 or >256){ Problem=$"The Destructible of {Node.DisplayName} asks for {Count} fragments; a fracture has 2 to 256.";return false; }
         if(!(Half.X>0f&&Half.Y>0f&&Half.Z>0f)||!IsFinite(Half)||!IsFinite(Center)){ Problem=$"The Collider of {Node.DisplayName} has no volume.";return false; }
         if(!(Density>0f)||!(Strength>0f)||Clusters<0){ Problem=$"The Destructible of {Node.DisplayName} needs a positive Density and BondStrength.";return false; }
-        Request=new FracturePreviewRequest(Name,Half,Center,Count,Seed,Clusters,Density,Strength);
+        if(Levels is <1 or >MaximumClusterLevels){ Problem=$"The Destructible of {Node.DisplayName} asks for {Levels} cluster levels; a fracture has 1 to {MaximumClusterLevels}.";return false; }
+        Request=new FracturePreviewRequest(Name,Half,Center,Count,Seed,Clusters,Density,Strength,Levels);
         return true;
     }
 
@@ -175,6 +180,7 @@ internal static class PrefractureDebugService {
         Request.ClusterCount.ToString(CultureInfo.InvariantCulture),OutputPath,
         Number(Request.Center.X),Number(Request.Center.Y),Number(Request.Center.Z),
         Number(Request.Density),Number(Request.BondStrength),
+        Request.ClusterLevels.ToString(CultureInfo.InvariantCulture),
     ];
 
     private static string Number(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture);
@@ -270,14 +276,15 @@ internal static class PrefractureDebugService {
         }
         foreach(PrefractureInspectionBond Bond in Document.Bonds){
             if(Bond.First<0||Bond.Second<=Bond.First||Bond.Second>=Document.Fragments.Length
-                ||!IsFinite(Bond.Strength)||Bond.Strength<=0f){ Error="bond is invalid";return false; }
+                ||!IsFinite(Bond.Strength)||Bond.Strength<=0f||Bond.Level<0||Bond.Level>MaximumClusterLevels){ Error="bond is invalid";return false; }
         }
         return true;
     }
 
     private static bool IsFinite(Vector3 Value)=>IsFinite(Value.X)&&IsFinite(Value.Y)&&IsFinite(Value.Z);
     private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
-    internal sealed class PrefractureInspectionDocument { public string SourceHash { get;set; }=string.Empty;public int ClusterCount { get;set; }public PrefractureInspectionFragment[]Fragments { get;set; }=[];public PrefractureInspectionBond[]Bonds { get;set; }=[]; }
-    internal sealed class PrefractureInspectionFragment { public int Index { get;set; }public float R { get;set; }public float U { get;set; }public float F { get;set; }public int Cluster { get;set; }public float[]Edges { get;set; }=[];public Vector3 Position=>new(R,U,F); }
-    internal sealed class PrefractureInspectionBond { public int First { get;set; }public int Second { get;set; }public float Strength { get;set; }public float Area { get;set; } }
+    internal sealed class PrefractureInspectionDocument { public string SourceHash { get;set; }=string.Empty;public int ClusterCount { get;set; }public int ClusterLevels { get;set; }public PrefractureInspectionFragment[]Fragments { get;set; }=[];public PrefractureInspectionBond[]Bonds { get;set; }=[]; }
+    internal sealed class PrefractureInspectionFragment { public int Index { get;set; }public float R { get;set; }public float U { get;set; }public float F { get;set; }public int Cluster { get;set; }public int[]Clusters { get;set; }=[];public float[]Edges { get;set; }=[];public Vector3 Position=>new(R,U,F); }
+    /// <summary>A bond; <see cref="Level"/> is how many cluster levels hold both its fragments (M0124; 0 breaks first).</summary>
+    internal sealed class PrefractureInspectionBond { public int First { get;set; }public int Second { get;set; }public float Strength { get;set; }public float Area { get;set; }public int Level { get;set; } }
 }

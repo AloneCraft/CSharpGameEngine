@@ -18,12 +18,16 @@ public sealed class VehicleLevelTests(ITestOutputHelper Output) {
     }
     private static string Template(params string[]Parts)=>Path.Combine([RepositoryRoot(),"Templates","CSharpGameEngine.Templates.Vehicle",.. Parts]);
     private static string Mesh(string Name)=>Template("Assets","Stage","Lvl_VehicleBasic","Meshes",Name);
-    /// <summary>レベルの 2 つの面(シーンの <c>Landscape</c> と <c>Track</c> と同じ材質)だけを置いた物理世界の上の、UE の PlayerStart(R 44.5, U 1.02, F 0、半回転)の車。</summary>
-    private static ChaosVehicleTrack TheLevel(LogicalVector3?Start=null,LogicalQuaternion?Rotation=null){
+    /// <summary>
+    /// レベルの 3 つの面(シーンの <c>Landscape</c>・<c>Track</c>・<c>TrackCurbs</c> と同じ材質。M0124 から縁石も衝突する)だけを置いた物理世界の上の、
+    /// UE の PlayerStart(R 44.5, U 1.02, F 0、半回転)の車。
+    /// </summary>
+    private static ChaosVehicleTrack TheLevel(LogicalVector3?Start=null,LogicalQuaternion?Rotation=null,bool Curbs=true){
         var Car=new ChaosVehicleTrack(Floor:false,Start:Start??new LogicalVector3(LogicalScalar.FromSingle(44.5f),LogicalScalar.FromSingle(1.02f),0),
             Rotation:Rotation??LogicalQuaternion.FromEulerRuf(new LogicalVector3(0,LogicalMath.Pi,0)));
         Car.AddGltf(Mesh("Landscape_Terrain.glb"),LogicalScalar.One,LogicalScalar.FromSingle(0.4f));
         Car.AddGltf(Mesh("Track_Road.glb"),LogicalScalar.One,LogicalScalar.Zero);
+        if(Curbs){ Car.AddGltf(Mesh("Track_Curbs.glb"),LogicalScalar.One,LogicalScalar.Zero); }
         return Car;
     }
     /// <summary>UE 座標(cm)の (X, Y) の真上から真下へ撃った光線が、レベルのどこに当たるか(m)。当たらなければ NaN。エンジンの座標は R = X、F = −Y。</summary>
@@ -73,10 +77,10 @@ public sealed class VehicleLevelTests(ITestOutputHelper Output) {
         }
     }
     [Fact]
-    public void TheCurbsAreDrawnButNotCollidedWithAndRiseAboveThePavementAtTheRingsEdges(){
-        // 縁石は路面から立ち上がる(SM_Track_10M の縁石の頂 0.123 m × 縮尺 1.6076 = 0.198 m)。縁石は描くだけで衝突は持たない: エンジンの箱と三角形メッシュの接触は
-        // 1 tick に 1 つの面の向きしか使わないので、縁石の斜面と平らな地面にまたがった車体が地面の支えを失って沈んだ(縁石と路面を 1 つにしても、別にしても同じ)。
-        // 縁石の頂の高さ・輪の半径(45 m)からの距離を glb の頂点で確かめ、シーンで衝突が付いていないことも確かめる。
+    public void TheCurbsRiseAboveThePavementAtTheRingsEdgesAndCollideAsTheTrackDoes(){
+        // 縁石は路面から立ち上がる(SM_Track_10M の縁石の頂 0.123 m × 縮尺 1.6076 = 0.198 m)。M0124 から縁石は路面と同じ材質で衝突する(UE の SM_Track_10M は
+        // 1 つのメッシュで NonSlippery)。M0112 では、箱と三角形メッシュの接触が 1 tick に 1 つの面の向きしか使わず、縁石の斜面と平らな地面にまたがった車体が
+        // 沈んだので、描くだけにしていた。縁石の頂の高さ・輪の半径(45 m)からの距離を glb の頂点で、衝突の材質をシーンで、縁石の頂に光線が当たることを物理で確かめる。
         var Result=CSharpGameEngine.Import.Gltf.GltfImporter.ImportScene(Mesh("Track_Curbs.glb"));
         Assert.True(Result.Success,string.Join("; ",Result.Diagnostics.Select(static Item=>Item.Message)));
         var Points=Result.Scene!.Meshes.SelectMany(static Item=>Item.Positions).ToArray();
@@ -86,7 +90,12 @@ public sealed class VehicleLevelTests(ITestOutputHelper Output) {
         Assert.InRange(Distances.Max(),51.5f,54.5f);
         using var Scene=JsonDocument.Parse(File.ReadAllText(Template("Scenes","Lvl_VehicleBasic.json")));
         var Curbs=Scene.RootElement.GetProperty("root").GetProperty("children").EnumerateArray().First(static Child=>Child.GetProperty("name").GetString()=="TrackCurbs");
-        Assert.DoesNotContain(Curbs.GetProperty("components").EnumerateArray(),static Item=>Item.GetProperty("type").GetString()!.EndsWith(".StaticMeshCollider",StringComparison.Ordinal));
+        var Material=Curbs.GetProperty("components").EnumerateArray().First(static Item=>Item.GetProperty("type").GetString()!.EndsWith(".StaticMeshCollider",StringComparison.Ordinal)).GetProperty("members").GetProperty("Material");
+        Assert.Equal(1f,Material.GetProperty("Friction").GetSingle());
+        Assert.Equal(0f,Material.GetProperty("Restitution").GetSingle());
+        var Highest=Points.OrderByDescending(static Point=>Point.Y).First();
+        var Level=TheLevel(Start:new LogicalVector3(0,50,0));
+        Assert.InRange(HeightAt(Level,Highest.X*100f,-Highest.Z*100f),0.19f,0.21f);
     }
     [Fact]
     public void TheCarDroppedAtUesPlayerStartSettlesOnItsFourWheelsOnTheTrack(){
@@ -124,6 +133,30 @@ public sealed class VehicleLevelTests(ITestOutputHelper Output) {
         }
         Assert.True(Car.Z<-35f,Car.Describe());
         Assert.InRange(Car.Y,0.45f,0.75f);
+        Assert.True(Car.KilometersPerHour>60f,Car.Describe());
+    }
+    public static TheoryData<float>CurbRuns=>new(){ 44.5f,52.5f,37.5f };
+    /// <summary>
+    /// M0124: 縁石は衝突する。PlayerStart から(輪の接線へ 28 m で外側の縁石を越える)、外側の縁石の上(半径 52.5 m)から、内側の縁石の上(37.5 m)から、
+    /// アクセルを踏んで 4 秒走る。M0112 の事実: 縁石を衝突に含めると、縁石の斜面と平らな地面にまたがった車体が沈み、−47 m まで落ちた(M0124 の修正前の
+    /// コードでこの試験は、内側の縁石から −98.8 m まで落ち、PlayerStart からは 0.22 m まで沈んで向きが 60° 変わって止まった)。
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CurbRuns))]
+    public void ACarDrivenOverOrAlongTheCurbsStaysOnItsWheelsAboveTheGround(float Radius){
+        var Car=TheLevel(new LogicalVector3(LogicalScalar.FromSingle(Radius),LogicalScalar.FromSingle(1.1f),0));
+        Car.Run(60);
+        var Lowest=float.MaxValue;
+        var LeastUp=float.MaxValue;
+        for(var Tick=0;Tick<240;Tick++){
+            Car.Run(1,Throttle:1f);
+            Lowest=MathF.Min(Lowest,Car.Y);
+            LeastUp=MathF.Min(LeastUp,Car.UpDot);
+        }
+        Output.WriteLine(FormattableString.Invariant($"r {Radius}: lowest {Lowest:F3} m, least up {LeastUp:F3}, {Car.Describe()}"));
+        // 範囲の根拠: 平らな路面と地形の上の重心は 0.5〜0.75 m(上の試験)。縁石(0.2 m)を越える揺れでも 0.45 m を割らない(修正後の最低 0.514 m)。車体が地面に沈めば割る。
+        Assert.True(Lowest>0.45f,$"the car sank to {Lowest:F3} m");
+        Assert.True(LeastUp>0.95f,$"the car tipped to an up of {LeastUp:F3}");
         Assert.True(Car.KilometersPerHour>60f,Car.Describe());
     }
     [Fact]

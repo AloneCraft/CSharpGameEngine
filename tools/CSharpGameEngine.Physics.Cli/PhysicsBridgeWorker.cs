@@ -129,13 +129,13 @@ internal static class PhysicsBridgeWorker {
 
     /// <summary>
     /// ADR-0078/M0113, the Visual Studio extension's Fracture preview: <c>preview-prefracture &lt;halfR&gt; &lt;halfU&gt; &lt;halfF&gt; &lt;fragmentCount&gt; &lt;seed&gt;
-    /// &lt;clusterCount&gt; &lt;output.json&gt; [centerR centerU centerF] [density] [bondStrength]</c> cuts a box collider as the build's Cook module would (the same
-    /// twelve-triangle box and cooker) and writes the inspection document with each fragment's edges, so a changed count or seed shows at once, before a build.
-    /// A refused cut (FRACTUREnnn) exits with 5 and its message.
+    /// &lt;clusterCount&gt; &lt;output.json&gt; [centerR centerU centerF] [density] [bondStrength] [clusterLevels]</c> cuts a box collider as the build's Cook
+    /// module would (the same twelve-triangle box and cooker) and writes the inspection document with each fragment's edges and clusters, and each bond's shared
+    /// cluster levels (M0124), so a changed count, seed or level count shows at once, before a build. A refused cut (FRACTUREnnn) exits with 5 and its message.
     /// </summary>
     internal static(int ExitCode,string Output)PreviewPrefracture(string[]Arguments,CancellationToken CancellationToken){
-        if(Arguments.Length is not (8 or 11 or 12 or 13)){
-            return(1,"Prefracture preview requires halfR halfU halfF fragmentCount seed clusterCount output.json [centerR centerU centerF] [density] [bondStrength].");
+        if(Arguments.Length is not (8 or 11 or 12 or 13 or 14)){
+            return(1,"Prefracture preview requires halfR halfU halfF fragmentCount seed clusterCount output.json [centerR centerU centerF] [density] [bondStrength] [clusterLevels].");
         }
         if(CancellationToken.IsCancellationRequested){ return(130,"Prefracture preview was cancelled."); }
         static bool Scalar(string Text,out LogicalScalar Value)=>LogicalScalar.TryParseInvariant(Text,out Value);
@@ -156,6 +156,8 @@ internal static class PhysicsBridgeWorker {
         var Strength=LogicalScalar.FromInt64(2000);
         if(Arguments.Length>=12&&(!Scalar(Arguments[11],out Density)||Density<=LogicalScalar.Zero)){ return(2,"The density must be a positive number."); }
         if(Arguments.Length>=13&&(!Scalar(Arguments[12],out Strength)||Strength<=LogicalScalar.Zero)){ return(2,"The bond strength must be a positive number."); }
+        var Levels=1;
+        if(Arguments.Length>=14&&!Whole(Arguments[13],out Levels)){ return(2,"The cluster level count must be a whole number."); }
         try {
             var Half=new LogicalVector3(HalfR,HalfU,HalfF);
             var Vertices=new LogicalVector3[8];
@@ -164,7 +166,7 @@ internal static class PhysicsBridgeWorker {
             }
             int[]Indices=[0,4,6,0,6,2,1,3,7,1,7,5,0,1,5,0,5,4,2,6,7,2,7,3,0,2,3,0,3,1,4,5,7,4,7,6];
             var Source=PhysicsShapeAsset.CreateStaticTriangleMesh("preview",Vertices,Indices);
-            if(!PrefractureCooker.TryGenerate(Source,new PrefractureCookSettings(Count,Seed,Density,Strength,Clusters),out var Asset,out var Error)||Asset is null){
+            if(!PrefractureCooker.TryGenerate(Source,new PrefractureCookSettings(Count,Seed,Density,Strength,Clusters,Levels),out var Asset,out var Error)||Asset is null){
                 return(5,Error);
             }
             var OutputPath=Path.GetFullPath(Arguments[7]);
@@ -180,14 +182,17 @@ internal static class PhysicsBridgeWorker {
         PrefractureInspectionDocument Document=new(){
             SourceHash=Asset.SourceHash,
             ClusterCount=Asset.ClusterCount,
+            ClusterLevels=Asset.ClusterLevelCount,
             Fragments=[..Asset.Fragments.Select(Fragment=>new PrefractureInspectionFragment {
                 Index=Fragment.Index,
                 R=ToSingle(Fragment.LocalCenter.R),U=ToSingle(Fragment.LocalCenter.U),F=ToSingle(Fragment.LocalCenter.F),
                 Cluster=Asset.ClusterOf(Fragment.Index),
+                Clusters=[..Enumerable.Range(0,Asset.ClusterLevelCount).Select(Level=>Asset.ClusterOf(Fragment.Index,Level))],
                 Edges=FragmentEdges(Asset,Fragment.Index),
             })],
-            Bonds=[..Asset.Bonds.Select(static Bond=>new PrefractureInspectionBond {
+            Bonds=[..Asset.Bonds.Select(Bond=>new PrefractureInspectionBond {
                 First=Bond.FirstFragment,Second=Bond.SecondFragment,Strength=ToSingle(Bond.Strength),Area=ToSingle(Bond.Area),
+                Level=Asset.SharedClusterLevels(Bond.FirstFragment,Bond.SecondFragment),
             })],
         };
         string?DirectoryPath=Path.GetDirectoryName(OutputPath);
@@ -230,9 +235,12 @@ internal static class PhysicsBridgeWorker {
     private sealed class PrefractureInspectionDocument {
         public string SourceHash { get;set; }=string.Empty;
         public int ClusterCount { get;set; }
+        /// <summary>The levels of clusters (M0124; 0 for an asset without clusters).</summary>
+        public int ClusterLevels { get;set; }
         public PrefractureInspectionFragment[]Fragments { get;set; }=[];
         public PrefractureInspectionBond[]Bonds { get;set; }=[];
     }
-    private sealed class PrefractureInspectionFragment { public int Index { get;set; }public float R { get;set; }public float U { get;set; }public float F { get;set; }public int Cluster { get;set; }public float[]Edges { get;set; }=[]; }
-    private sealed class PrefractureInspectionBond { public int First { get;set; }public int Second { get;set; }public float Strength { get;set; }public float Area { get;set; } }
+    private sealed class PrefractureInspectionFragment { public int Index { get;set; }public float R { get;set; }public float U { get;set; }public float F { get;set; }public int Cluster { get;set; }public int[]Clusters { get;set; }=[];public float[]Edges { get;set; }=[]; }
+    /// <summary>A bond; <see cref="Level"/> is how many cluster levels hold both its fragments (0 breaks first).</summary>
+    private sealed class PrefractureInspectionBond { public int First { get;set; }public int Second { get;set; }public float Strength { get;set; }public float Area { get;set; }public int Level { get;set; } }
 }

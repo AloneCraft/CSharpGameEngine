@@ -29,12 +29,11 @@ internal static class PhysicsDebugOverlay {
             }
         }
         if(Options.Bonds&&FractureBonds is not null){
-            Vector4 BondColor=new(1f,0.35f,0.9f,0.85f);
             // ADR-0078/M0113: the fragments' outlines of the Fracture preview, in a pale orange under the bonds.
             Vector4 OutlineColor=new(1f,0.75f,0.35f,0.7f);
             foreach(ScenePhysicsFractureBond Bond in FractureBonds){
                 if(VertexCount+2>MaximumVertices){ break; }
-                Vector4 Color=Bond.Outline?OutlineColor:BondColor;
+                Vector4 Color=Bond.Outline?OutlineColor:BondColor(Bond.Level);
                 Result.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,[
                     new GizmoOverlayVertex(Bond.First,Color),new GizmoOverlayVertex(Bond.Second,Color)]));
                 VertexCount+=2;
@@ -69,6 +68,17 @@ internal static class PhysicsDebugOverlay {
         List<GizmoOverlayVertex> Vertices=[];foreach(int Index in E){ Vertices.Add(new GizmoOverlayVertex(C[Index],Color)); }
         Result.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Vertices));
     }
+
+    /// <summary>
+    /// The colour of a Fracture preview bond by how many cluster levels hold both its fragments (M0124): the pink of M0113 for a bond between top-level
+    /// clusters (the weakest, which breaks first), then violet and blue for the bonds inside one cluster, one sub-cluster and deeper.
+    /// </summary>
+    internal static Vector4 BondColor(int Level)=>Level switch {
+        <=0=>new Vector4(1f,0.35f,0.9f,0.85f),
+        1=>new Vector4(0.7f,0.35f,1f,0.85f),
+        2=>new Vector4(0.4f,0.45f,1f,0.85f),
+        _=>new Vector4(0.25f,0.65f,1f,0.85f),
+    };
 
     private static void AddCross(List<GizmoOverlayPrimitive> Result,Vector3 P,Vector4 Color){
         const float Radius=0.08f;

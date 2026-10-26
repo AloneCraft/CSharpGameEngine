@@ -58,7 +58,7 @@ internal sealed class PhysicsDomainRuntime:IDisposable {
         this.StateScratch.Clear();
         try {
             this.WorldStorage.CollectBodyStates(this.StateScratch);
-            Writer.WriteFrame(new PhysicsCacheFrame(Tick,this.StateScratch,this.WorldStorage.Events,this.WorldStorage.BondBreaks));
+            Writer.WriteFrame(new PhysicsCacheFrame(Tick,this.StateScratch,this.WorldStorage.Events,this.WorldStorage.BondBreaks,this.WorldStorage.BondStrains));
         }
         finally { this.StateScratch.Clear(); }
     }

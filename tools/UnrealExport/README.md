@@ -172,7 +172,7 @@ python tools\UnrealExport\build_vehicle_ground.py .artifacts\m0112\landscape_hei
 - `probe_vehicle_ground_materials.py`・`probe_vehicle_ground_t3d.py`: `M_Landscape`・`M_Track` の式の全体(`M_Track` は Material Attributes で、入力ノードからは読めないので T3D で書く)。`M_Landscape` は Ground 層を灰色 (0.26) と `RoadCol`(橙 (1, 0.095, 0))の斜面の混ぜ合わせ、Road 層を橙にし、粗さ 0.8。Road 層は Spline が輪の幅 ±8 m に塗り、外へ 5 m で落ちる。
 - `capture_vehicle_ground_color.py`(`run_capture_vehicle_ground_color.cmd`、GUI エディター): 真上から、Landscape だけを `SCS_BASE_COLOR`(照明なしの色)で 2048 画素に撮る(画像の右が UE の +Y、上が +X)。層の重みと斜面の色、RVT を、式を読み解かずにそのまま写せる。同じ起動で、照明つきの真上の画像(`ue_reference_topdown`)も撮る。
 - `capture_vehicle_reference.py`(`run_capture_vehicle_reference.cmd`): 比較の参照画像。Vehicle のチェイスカメラは水平 110° なので、FOV 110 で撮る(2026-10-22 の最初の組は 90 だった)。丘を見る `ue_reference_hill` と、車の脇から路面を見る `ue_reference_track_side` を足した。
-- `build_vehicle_ground.py`: 上の結果から `Assets/Stage/Lvl_VehicleBasic/Meshes/` の `Landscape_Terrain.glb`(高さから作った三角形メッシュ。平らな 7 m 四方は 2 枚の三角形)、`Track_Road.glb`(路面。衝突あり)、`Track_Curbs.glb`(縁石。描くだけ)を書き、シーン JSON の `Ground` の板を `Landscape`・`Track`・`TrackCurbs` に替える。Spline のメッシュの曲げ方は UE の `SplineMeshCommon.ush`(`SplineMeshCalcSlice`)の式。同じ入力で何度流しても同じ結果になる。
+- `build_vehicle_ground.py`: 上の結果から `Assets/Stage/Lvl_VehicleBasic/Meshes/` の `Landscape_Terrain.glb`(高さから作った三角形メッシュ。平らな 7 m 四方は 2 枚の三角形)、`Track_Road.glb`(路面)、`Track_Curbs.glb`(縁石。M0124 から路面と同じ材質で衝突あり)を書き、シーン JSON の `Ground` の板を `Landscape`・`Track`・`TrackCurbs` に替える。Spline のメッシュの曲げ方は UE の `SplineMeshCommon.ush`(`SplineMeshCalcSlice`)の式。同じ入力で何度流しても同じ結果になる。
 - `capture_lumen_reference_check.py`(`run_capture_lumen_reference_check.cmd`): UE の参照画像の撮り方の違い(SceneCapture2D、状態を持ち越す SceneCapture2D、エディターのビューポートのスクリーンショット)で、陰の明るさが変わるかを調べる(M0112)。
 
 ## UE の参照画像の撮り方と Lumen(M0112)

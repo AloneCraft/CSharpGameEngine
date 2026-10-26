@@ -31,6 +31,7 @@ public sealed class PrefractureDebugServiceTests {
                 public int FragmentCount;
                 public int Seed;
                 public int ClusterCount;
+                public int ClusterLevels;
                 public float Density;
                 public float BondStrength;
                 public string SourceMesh;
@@ -69,7 +70,20 @@ public sealed class PrefractureDebugServiceTests {
         Assert.True(PrefractureDebugService.TryReadPreviewRequest(Node,out var Request,out var Problem),Problem);
         Assert.Equal(new FracturePreviewRequest("Crate",new Vector3(0.5f,1f,2f),new Vector3(0f,1f,0f),12,-7,3,2400f,500f),Request);
         string[]Arguments=PrefractureDebugService.PreviewArguments(Request,"out.json");
-        Assert.Equal(["preview-prefracture","0.5","1","2","12","-7","3","out.json","0","1","0","2400","500"],Arguments);
+        Assert.Equal(["preview-prefracture","0.5","1","2","12","-7","3","out.json","0","1","0","2400","500","1"],Arguments);
+    }
+
+    [Fact]
+    public void ThePreviewCutsTheLevelsOfClustersTheNodeAsksFor(){
+        // M0124: the levels go to the cut as its last argument, so the preview's clusters are the build's.
+        var Node=Root("""FractureAsset="Crate",FragmentCount=24,ClusterLevels=3""");
+        Assert.True(PrefractureDebugService.TryReadPreviewRequest(Node,out var Request,out var Problem),Problem);
+        Assert.Equal(3,Request.ClusterLevels);
+        Assert.Equal("3",PrefractureDebugService.PreviewArguments(Request,"out.json")[^1]);
+        foreach(var Levels in new[]{ 0,5 }){
+            Assert.False(PrefractureDebugService.TryReadPreviewRequest(Root($"""FractureAsset="Crate",ClusterLevels={Levels}"""),out _,out var Refused));
+            Assert.Contains("1 to 4",Refused);
+        }
     }
 
     [Fact]
@@ -79,6 +93,7 @@ public sealed class PrefractureDebugServiceTests {
         Assert.Equal(PrefractureDebugService.DefaultFragmentCount,Request.FragmentCount);
         Assert.Equal(PrefractureDebugService.DefaultSeed,Request.Seed);
         Assert.Equal(PrefractureDebugService.DefaultClusterCount,Request.ClusterCount);
+        Assert.Equal(PrefractureDebugService.DefaultClusterLevels,Request.ClusterLevels);
         Assert.Equal(PrefractureDebugService.DefaultDensity,Request.Density);
         Assert.Equal(PrefractureDebugService.DefaultBondStrength,Request.BondStrength);
     }
@@ -90,6 +105,7 @@ public sealed class PrefractureDebugServiceTests {
         Assert.Equal(PrefractureDebugService.DefaultFragmentCount,Constant("FragmentCount"));
         Assert.Equal(PrefractureDebugService.DefaultSeed,Constant("Seed"));
         Assert.Equal(PrefractureDebugService.DefaultClusterCount,Constant("ClusterCount"));
+        Assert.Equal(PrefractureDebugService.DefaultClusterLevels,Constant("ClusterLevels"));
         Assert.Equal((int)PrefractureDebugService.DefaultDensity,Constant("Density"));
         Assert.Equal((int)PrefractureDebugService.DefaultBondStrength,Constant("BondStrength"));
     }
@@ -128,6 +144,28 @@ public sealed class PrefractureDebugServiceTests {
         Assert.Equal(2,Lines.Count);
         Assert.Equal(new ScenePhysicsFractureBond(new Vector3(9.75f,0f,0f),new Vector3(10.25f,0f,0f),8f),Lines[0]);
         Assert.Equal(new ScenePhysicsFractureBond(new Vector3(10f,0f,0f),new Vector3(11f,0f,0f),0f,Outline:true),Lines[1]);
+    }
+
+    [Fact]
+    public void EachBondCarriesItsSharedLevelsAndTheOverlayDrawsTheOuterBondsApart(){
+        // M0124: a bond between top-level clusters (level 0, the first to break) keeps M0113's pink; the bonds inside one cluster and deeper are other colours.
+        PrefractureDebugService.PrefractureInspectionDocument Document=new(){
+            SourceHash="hash",
+            ClusterLevels=2,
+            Fragments=[new(){ Index=0,Clusters=[0,0] },new(){ Index=1,R=1f,Clusters=[0,1] },new(){ Index=2,U=1f,Clusters=[1,2] }],
+            Bonds=[new(){ First=0,Second=1,Strength=8f,Level=1 },new(){ First=1,Second=2,Strength=4f,Level=0 }],
+        };
+        Assert.True(PrefractureDebugService.TryValidate(Document,out var Error),Error);
+        List<ScenePhysicsFractureBond>Lines=[];
+        Assert.True(PrefractureDebugService.AppendLines(Lines,Document,Matrix4x4.Identity));
+        Assert.Equal([1,0],Lines.Select(static Line=>Line.Level));
+        Assert.Equal(new System.Numerics.Vector4(1f,0.35f,0.9f,0.85f),PhysicsDebugOverlay.BondColor(0));
+        Assert.Equal(4,new[]{ 0,1,2,3 }.Select(PhysicsDebugOverlay.BondColor).Distinct().Count());
+        var Overlay=PhysicsDebugOverlay.Build(null,new PhysicsDebugOverlayOptions { Bonds=true },Lines);
+        Assert.Equal(PhysicsDebugOverlay.BondColor(1),Overlay[0].Vertices[0].Color);
+        Assert.Equal(PhysicsDebugOverlay.BondColor(0),Overlay[1].Vertices[0].Color);
+        Document.Bonds[0].Level=5;
+        Assert.False(PrefractureDebugService.TryValidate(Document,out _));
     }
 
     [Theory]

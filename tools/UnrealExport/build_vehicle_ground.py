@@ -5,12 +5,13 @@ Usage: python build_vehicle_ground.py <heights.json> <SM_Track_10M.glb> <ground_
   SM_Track_10M.glb the glb run_export_skeletal_mesh.cmd writes for /Game/VehicleTemplate/Meshes/SM_Track_10M (CGE_SK_STATIC=1)
   ground_color.png capture_vehicle_ground_color.py's top-down base-colour capture of the Landscape (sRGB)
   template-dir     Templates/CSharpGameEngine.Templates.Vehicle
-Writes Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb, Track_Road.glb (the road: collides) and Track_Curbs.glb (the curbs: drawn only)
+Writes Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb, Track_Road.glb (the road) and Track_Curbs.glb (the curbs), all three colliding,
 under template-dir, and swaps the scene's flat "Ground" slab for the "Landscape", "Track" and "TrackCurbs" nodes that use them
 (Scenes/Lvl_VehicleBasic.json, edited as text so the rest of the file stays as it was; running it again replaces the same nodes).
 
-The curbs have no collider on purpose: the engine's box-versus-triangle-mesh contact (PhysicsNarrowPhase.TryBoxMeshManifold) keeps one face orientation per
-step, and a car straddling a curb's slope and the flat ground lost the ground's support and sank (VehicleLevelTests documents the road-only level).
+The curbs collide with the track's material (UE's SM_Track_10M is one mesh, NonSlippery) since M0124: until then the engine's box-versus-triangle-mesh
+contact kept one face orientation per step, a car straddling a curb's slope and the flat ground lost the ground's support and sank, and the curbs were
+drawn only (M0112). VehicleLevelTests drives over and along them.
 
 Why not a glTF export: UE's glTF exporter cannot write a Landscape or a Landscape spline's SplineMeshComponents (the engine has no terrain
 component either), so the Landscape becomes a static triangle mesh built from the height field, with its albedo captured from above, and
@@ -357,7 +358,7 @@ def update_scene(template_dir):
     prefix = "Assets/Stage/Lvl_VehicleBasic/Meshes/"
     replacement = (ground_node_text("Landscape", prefix + "Landscape_Terrain.glb", GROUND_MATERIAL)
                    + ground_node_text("Track", prefix + "Track_Road.glb", TRACK_MATERIAL)
-                   + ground_node_text("TrackCurbs", prefix + "Track_Curbs.glb", None))
+                   + ground_node_text("TrackCurbs", prefix + "Track_Curbs.glb", TRACK_MATERIAL))
     text = text[:first.start()] + replacement + text[first.end():]
     text = pattern.sub("", text.replace(replacement, "@@GROUND@@", 1)).replace("@@GROUND@@", replacement, 1)
     with open(path, "w", encoding="utf-8", newline="") as handle:

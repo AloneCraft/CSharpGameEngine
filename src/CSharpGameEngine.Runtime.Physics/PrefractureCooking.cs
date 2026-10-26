@@ -5,11 +5,16 @@ using System.Security.Cryptography;
 namespace CSharpGameEngine.Runtime.Physics;
 
 /// <summary>
-/// How to cut a closed convex source (ADR-0078/M0113). <see cref="ClusterCount"/> groups the fragments into that many clusters (one level of hierarchy);
-/// 0 picks the nearest whole number to √<see cref="FragmentCount"/>, 1 makes no hierarchy.
+/// How to cut a closed convex source (ADR-0078/M0113). <see cref="ClusterCount"/> groups the fragments into that many top-level clusters; 0 picks the
+/// nearest whole number to √<see cref="FragmentCount"/>, 1 makes no hierarchy. <see cref="ClusterLevels"/> (M0124, 1 to 4; UE's Geometry Collection
+/// levels) splits each cluster of a level again into the nearest whole number to √(its fragments) connected clusters, level by level: 2 gives big chunks
+/// that each break into smaller chunks that break into fragments.
 /// </summary>
 public readonly record struct PrefractureCookSettings(
-    int FragmentCount,int Seed,LogicalScalar Density,LogicalScalar BondStrengthPerArea,int ClusterCount=0);
+    int FragmentCount,int Seed,LogicalScalar Density,LogicalScalar BondStrengthPerArea,int ClusterCount=0,int ClusterLevels=1){
+    /// <summary>The most levels of clusters a cook makes.</summary>
+    public const int MaximumClusterLevels=4;
+}
 
 public sealed class FractureMesh {
     /// <summary>The material slot of a triangle on the source's own surface.</summary>
@@ -146,17 +151,25 @@ public sealed class FractureMesh {
 
 /// <summary>
 /// The <c>.cgefracture</c> artifact (L6, ADR-0078/M0113). Little-endian, every scalar a 16-byte Q64.64 <see cref="LogicalScalar"/>, strings 7-bit-length UTF-8.
-/// Version 2 (<c>CGEFRAC2</c>, written): source hash, seed, density, strength per area, fragment count; per fragment its index, shape id, centre, mass,
-/// Voronoi site, cluster, vertices, indices and one material slot byte per triangle; then the bonds (first, second, area, strength). Version 1
-/// (<c>CGEFRAC1</c>, M0055) is still read: it has no sites, clusters, slots, areas or settings. A reader rejects a truncated, trailing, out-of-range or
-/// non-canonical file without throwing.
+/// Version 2 (<c>CGEFRAC2</c>, written for one level of clusters): source hash, seed, density, strength per area, fragment count; per fragment its index,
+/// shape id, centre, mass, Voronoi site, cluster, vertices, indices and one material slot byte per triangle; then the bonds (first, second, area, strength).
+/// Version 3 (<c>CGEFRAC3</c>, M0124, written for two to four levels): the same with the level count (an int32) after the fragment count and, per fragment,
+/// its cluster at every level (top first) in place of the one cluster. A one-level asset is written as version 2, so its bytes are the ones M0113 wrote.
+/// Version 1 (<c>CGEFRAC1</c>, M0055) is still read: it has no sites, clusters, slots, areas or settings. A reader rejects a truncated, trailing,
+/// out-of-range or non-canonical file without throwing.
 /// </summary>
 public static class PrefractureArtifact {
     private static ReadOnlySpan<byte>MagicVersion1=>"CGEFRAC1"u8;
-    private static ReadOnlySpan<byte>Magic=>"CGEFRAC2"u8;
+    private static ReadOnlySpan<byte>MagicVersion2=>"CGEFRAC2"u8;
+    private static ReadOnlySpan<byte>Magic=>"CGEFRAC3"u8;
     private static readonly UTF8Encoding StrictUtf8=new(false,true);
-    /// <summary>The version <see cref="Write"/> writes.</summary>
-    public const int Version=2;
+    /// <summary>The newest version <see cref="Write"/> writes (for an asset of more than one level of clusters; see <see cref="VersionOf"/>).</summary>
+    public const int Version=3;
+    /// <summary>The version <see cref="Write"/> writes for <paramref name="Asset"/>: 3 with more than one level of clusters, otherwise 2.</summary>
+    public static int VersionOf(PrefractureAsset Asset){
+        ArgumentNullException.ThrowIfNull(Asset);
+        return Asset.ClusterLevelCount>1?3:2;
+    }
     private const int MaximumStringBytes=4096;
     private const int MaximumFragments=256;
     private const int MaximumVerticesPerFragment=65_536;
@@ -170,14 +183,17 @@ public static class PrefractureArtifact {
             ||Asset.Sites.Count!=Asset.Fragments.Count||Asset.Clusters.Count!=Asset.Fragments.Count){
             throw new ArgumentException("Prefracture asset is not canonical.",nameof(Asset));
         }
+        var FileVersion=VersionOf(Asset);
+        if(Asset.ClusterLevelCount>PrefractureCookSettings.MaximumClusterLevels){ throw new ArgumentException("Prefracture asset has too many cluster levels.",nameof(Asset)); }
         using BinaryWriter Writer=new(Output,Encoding.UTF8,true);
-        Writer.Write(Magic);
-        Writer.Write(Version);
+        Writer.Write(FileVersion==3?Magic:MagicVersion2);
+        Writer.Write(FileVersion);
         Writer.Write(Asset.SourceHash);
         Writer.Write(Asset.Seed);
         WriteScalar(Writer,Asset.Density);
         WriteScalar(Writer,Asset.BondStrengthPerArea);
         Writer.Write(Asset.Fragments.Count);
+        if(FileVersion==3){ Writer.Write(Asset.ClusterLevelCount); }
         for(var Index=0;Index<Asset.Fragments.Count;Index++){
             var Fragment=Asset.Fragments[Index];
             var Mesh=Asset.Meshes[Index];
@@ -186,7 +202,7 @@ public static class PrefractureArtifact {
             WriteVector(Writer,Fragment.LocalCenter);
             WriteScalar(Writer,Fragment.Mass);
             WriteVector(Writer,Asset.Sites[Index]);
-            Writer.Write(Asset.Clusters[Index]);
+            for(var Level=0;Level<Asset.ClusterLevelCount;Level++){ Writer.Write(Asset.ClusterOf(Index,Level)); }
             Writer.Write(Mesh.Vertices.Count);
             foreach(var Vertex in Mesh.Vertices){ WriteVector(Writer,Vertex); }
             Writer.Write(Mesh.Indices.Count);
@@ -216,7 +232,7 @@ public static class PrefractureArtifact {
         try {
             Span<byte>MagicBytes=stackalloc byte[Magic.Length];
             Input.ReadExactly(MagicBytes);
-            var FileVersion=MagicBytes.SequenceEqual(Magic)?2:MagicBytes.SequenceEqual(MagicVersion1)?1:0;
+            var FileVersion=MagicBytes.SequenceEqual(Magic)?3:MagicBytes.SequenceEqual(MagicVersion2)?2:MagicBytes.SequenceEqual(MagicVersion1)?1:0;
             if(FileVersion==0){ throw new InvalidDataException(); }
             using BinaryReader Reader=new(Input,Encoding.UTF8,true);
             if(Reader.ReadInt32()!=FileVersion){ throw new InvalidDataException(); }
@@ -227,6 +243,9 @@ public static class PrefractureArtifact {
             var StrengthPerArea=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
             if(Density<LogicalScalar.Zero||StrengthPerArea<LogicalScalar.Zero){ throw new InvalidDataException(); }
             var FragmentCount=ReadCount(Reader,2,MaximumFragments);
+            var Levels=FileVersion>=3?ReadCount(Reader,2,PrefractureCookSettings.MaximumClusterLevels):FileVersion==2?1:0;
+            var SubClusters=new int[Math.Max(0,Levels-1)][];
+            for(var Level=0;Level<SubClusters.Length;Level++){ SubClusters[Level]=new int[FragmentCount]; }
             var Fragments=new FractureFragment[FragmentCount];
             var Meshes=new FractureMesh[FragmentCount];
             var Shapes=new PhysicsShapeAsset[FragmentCount];
@@ -241,6 +260,7 @@ public static class PrefractureArtifact {
                 if(FileVersion>=2){
                     Sites[FragmentIndex]=ReadVector(Reader);
                     Clusters[FragmentIndex]=Reader.ReadInt32();
+                    foreach(var Level in SubClusters){ Level[FragmentIndex]=Reader.ReadInt32(); }
                 }
                 var VertexCount=ReadCount(Reader,4,MaximumVerticesPerFragment);
                 var Vertices=new LogicalVector3[VertexCount];
@@ -271,7 +291,7 @@ public static class PrefractureArtifact {
             }
             PrefractureAsset Candidate=new(){
                 SourceHash=SourceHash,Seed=Seed,Fragments=Fragments,Bonds=Bonds,
-                Meshes=Meshes,CollisionShapes=Shapes,Sites=Sites,Clusters=Clusters,
+                Meshes=Meshes,CollisionShapes=Shapes,Sites=Sites,Clusters=Clusters,SubClusters=SubClusters,
                 Density=Density,BondStrengthPerArea=StrengthPerArea,
             };
             if(!Candidate.IsCanonicalArtifact()||Input.ReadByte()!=-1){ throw new InvalidDataException(); }
@@ -398,7 +418,8 @@ public static class PrefractureArtifactCooker {
             using FileStream ArtifactStream=File.OpenRead(ArtifactPath);
             if(!PrefractureArtifact.TryRead(ArtifactStream,out PrefractureAsset? Actual,out _)
                 ||Actual is null||Actual.SourceHash!=Expected.SourceHash||Actual.Seed!=Expected.Seed
-                ||Actual.Fragments.Count!=Expected.Fragments.Count||Actual.Bonds.Count!=Expected.Bonds.Count){
+                ||Actual.Fragments.Count!=Expected.Fragments.Count||Actual.Bonds.Count!=Expected.Bonds.Count
+                ||Actual.ClusterLevelCount!=Expected.ClusterLevelCount){
                 return false;
             }
             for(int Index=0;Index<Actual.CollisionShapes.Count;Index++){
@@ -418,7 +439,7 @@ public static class PrefractureArtifactCooker {
                 &&ReadInt32(Root,"fragmentCount")==Expected.Fragments.Count
                 &&ReadInt32(Root,"bondCount")==Expected.Bonds.Count
                 &&ReadString(Root,"artifactHash")==ComputeFileHash(ArtifactPath)
-                &&ReadString(Root,"schema")=="prefracture-artifact-2"
+                &&ReadString(Root,"schema")==$"prefracture-artifact-{PrefractureArtifact.VersionOf(Expected)}"
                 &&ReadString(Root,"scalar")=="LogicalScalar-Q64.64";
         }
         catch(Exception Exception)when(Exception is IOException or UnauthorizedAccessException or InvalidDataException
@@ -440,7 +461,7 @@ public static class PrefractureArtifactCooker {
             Writer.WriteNumber("fragmentCount",Asset.Fragments.Count);
             Writer.WriteNumber("bondCount",Asset.Bonds.Count);
             Writer.WriteString("artifactHash",ArtifactHash);
-            Writer.WriteString("schema","prefracture-artifact-2");
+            Writer.WriteString("schema",$"prefracture-artifact-{PrefractureArtifact.VersionOf(Asset)}");
             Writer.WriteString("scalar","LogicalScalar-Q64.64");
             Writer.WriteEndObject();
         }
@@ -498,8 +519,9 @@ public static class PrefractureCooker {
             return false;
         }
         if(Settings.FragmentCount is <2 or >256||Settings.Density<=LogicalScalar.Zero
-            ||Settings.BondStrengthPerArea<=LogicalScalar.Zero||Settings.ClusterCount<0){
-            Error="FRACTURE002: Prefracture settings require 2-256 fragments, positive density and bond strength, and a cluster count of 0 or more.";
+            ||Settings.BondStrengthPerArea<=LogicalScalar.Zero||Settings.ClusterCount<0
+            ||Settings.ClusterLevels is <1 or >PrefractureCookSettings.MaximumClusterLevels){
+            Error="FRACTURE002: Prefracture settings require 2-256 fragments, positive density and bond strength, a cluster count of 0 or more and 1 to 4 cluster levels.";
             return false;
         }
         try {
@@ -560,7 +582,7 @@ public static class PrefractureCooker {
                     Bonds.Add(new FractureBond(First,Second,Area*Settings.BondStrengthPerArea,Area));
                 }
             }
-            var Clusters=BuildClusters(Cells.Count,Bonds,Settings.ClusterCount);
+            var Levels=BuildClusterLevels(Cells.Count,Bonds,Settings.ClusterCount,Settings.ClusterLevels);
             Asset=new PrefractureAsset {
                 SourceHash=Source.Fingerprint,
                 Seed=Settings.Seed,
@@ -569,7 +591,8 @@ public static class PrefractureCooker {
                 Meshes=Cells.Select(static CellValue=>CellValue.Mesh).ToArray(),
                 CollisionShapes=Cells.Select(static CellValue=>CellValue.Collision).ToArray(),
                 Sites=Seeds,
-                Clusters=Clusters,
+                Clusters=Levels[0],
+                SubClusters=Levels[1..],
                 Density=Settings.Density,
                 BondStrengthPerArea=Settings.BondStrengthPerArea,
             };
@@ -886,12 +909,58 @@ public static class PrefractureCooker {
     }
 
     /// <summary>
-    /// One level of clusters over the bond graph (UE's cluster hierarchy, M0113). The target size is ⌈fragments / clusters⌉ (clusters 0: the nearest whole
-    /// number to √fragments). Each cluster grows breadth-first from the lowest unassigned fragment through its bonds in ascending order, so a cluster is
-    /// always connected and the result depends only on the bond graph. Clusters are numbered in the order of their first fragment.
+    /// The levels of clusters (M0124): level 0 is <see cref="BuildClusters"/> over every fragment with the requested count; each further level splits every
+    /// cluster of the level above, over its own fragments and the bonds between them, into the nearest whole number to √(its fragments) clusters (one when
+    /// it has two or fewer, so it stays whole down to its fragments). Each level is numbered canonically, in the order of each cluster's lowest fragment, so a level's clusters nest in the level above.
     /// </summary>
-    private static int[]BuildClusters(int FragmentCount,IReadOnlyList<FractureBond>Bonds,int RequestedClusters){
-        // The nearest whole number to √fragments, in integers (k² ≤ n < (k+1)²; n is never halfway between the two squares).
+    private static int[][]BuildClusterLevels(int FragmentCount,IReadOnlyList<FractureBond>Bonds,int RequestedClusters,int LevelCount){
+        var Levels=new int[LevelCount][];
+        Levels[0]=BuildClusters([.. Enumerable.Range(0,FragmentCount)],Bonds,RequestedClusters);
+        for(var Level=1;Level<LevelCount;Level++){
+            var Above=Levels[Level-1];
+            var Numbers=new int[FragmentCount];
+            var Offset=0;
+            var AboveCount=Above.Max()+1;
+            for(var Cluster=0;Cluster<AboveCount;Cluster++){
+                var Members=Enumerable.Range(0,FragmentCount).Where(Fragment=>Above[Fragment]==Cluster).ToArray();
+                var Local=BuildClusters(Members,Bonds,0);
+                for(var Index=0;Index<Members.Length;Index++){ Numbers[Members[Index]]=Offset+Local[Index]; }
+                Offset+=Local.Max()+1;
+            }
+            Levels[Level]=Canonical(Numbers);
+        }
+        return Levels;
+    }
+
+    /// <summary>Renumbers clusters 0.. in the order of each cluster's lowest fragment.</summary>
+    private static int[]Canonical(int[]Numbers){
+        var Renumbered=new Dictionary<int,int>();
+        var Result=new int[Numbers.Length];
+        for(var Index=0;Index<Numbers.Length;Index++){
+            if(!Renumbered.TryGetValue(Numbers[Index],out var Number)){
+                Number=Renumbered.Count;
+                Renumbered.Add(Numbers[Index],Number);
+            }
+            Result[Index]=Number;
+        }
+        return Result;
+    }
+
+    /// <summary>
+    /// One level of clusters over the bond graph of <paramref name="Members"/> (ascending fragment indices; UE's cluster hierarchy, M0113), returned per member.
+    /// The target size is ⌈members / clusters⌉ (clusters 0: the nearest whole number to √members). Each cluster grows breadth-first from the lowest unassigned
+    /// member through its bonds to other members in ascending order, so a cluster is always connected and the result depends only on the bond graph. Clusters
+    /// are numbered in the order of their first member. Over every fragment this is the one level M0113 cooked, number for number.
+    /// </summary>
+    private static int[]BuildClusters(int[]Members,IReadOnlyList<FractureBond>Bonds,int RequestedClusters){
+        var FragmentCount=Members.Length;
+        var LocalOf=new Dictionary<int,int>();
+        for(var Index=0;Index<Members.Length;Index++){ LocalOf.Add(Members[Index],Index); }
+        List<(int First,int Second)>Links=[];
+        foreach(var Bond in Bonds){
+            if(LocalOf.TryGetValue(Bond.FirstFragment,out var First)&&LocalOf.TryGetValue(Bond.SecondFragment,out var Second)){ Links.Add((First,Second)); }
+        }
+        // The nearest whole number to √members, in integers (k² ≤ n < (k+1)²; n is never halfway between the two squares).
         var Root=1;
         while((Root+1)*(Root+1)<=FragmentCount){ Root++; }
         if(FragmentCount-Root*Root>(Root+1)*(Root+1)-FragmentCount){ Root++; }
@@ -900,9 +969,9 @@ public static class PrefractureCooker {
         var TargetSize=(FragmentCount+Wanted-1)/Wanted;
         var Neighbors=new List<int>[FragmentCount];
         for(var Index=0;Index<FragmentCount;Index++){ Neighbors[Index]=[]; }
-        foreach(var Bond in Bonds){
-            Neighbors[Bond.FirstFragment].Add(Bond.SecondFragment);
-            Neighbors[Bond.SecondFragment].Add(Bond.FirstFragment);
+        foreach(var (First,Second) in Links){
+            Neighbors[First].Add(Second);
+            Neighbors[Second].Add(First);
         }
         foreach(var List in Neighbors){ List.Sort(); }
         var Clusters=new int[FragmentCount];
@@ -939,9 +1008,9 @@ public static class PrefractureCooker {
             }
             if(Smallest<0){ break; }
             var Shared=new int[Next];
-            foreach(var Bond in Bonds){
-                var First=Clusters[Bond.FirstFragment];
-                var Second=Clusters[Bond.SecondFragment];
+            foreach(var (FirstLocal,SecondLocal) in Links){
+                var First=Clusters[FirstLocal];
+                var Second=Clusters[SecondLocal];
                 if(First==Smallest&&Second!=Smallest){ Shared[Second]++; }
                 if(Second==Smallest&&First!=Smallest){ Shared[First]++; }
             }
@@ -953,15 +1022,8 @@ public static class PrefractureCooker {
             for(var Index=0;Index<FragmentCount;Index++){
                 if(Clusters[Index]==Smallest){ Clusters[Index]=Into; }
             }
-            var Renumbered=new Dictionary<int,int>();
-            for(var Index=0;Index<FragmentCount;Index++){
-                if(!Renumbered.TryGetValue(Clusters[Index],out var Number)){
-                    Number=Renumbered.Count;
-                    Renumbered.Add(Clusters[Index],Number);
-                }
-                Clusters[Index]=Number;
-            }
-            Next=Renumbered.Count;
+            Clusters=Canonical(Clusters);
+            Next=Clusters.Max()+1;
         }
         return Clusters;
     }

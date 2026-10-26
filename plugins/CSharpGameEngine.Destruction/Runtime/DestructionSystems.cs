@@ -24,7 +24,8 @@ internal struct DestructibleLoad:ISystem {
 /// <summary>
 /// A character with a <see cref="DestructionImpact"/> that is about to move into a destructible (or a piece of one) this tick hits it: the point of contact
 /// takes the character's mass times the approach speed as strain, and a loose piece is pushed by the same impulse. Runs after the physics step and before
-/// the character moves, so the approach speed is the one the character arrives with.
+/// the character moves, so the approach speed is the one the character arrives with. M0124: the strain is an impact (it adds to the internal strain) only in
+/// the tick the character's touch of that body began.
 /// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(PhysicsTransformWriteback))]
@@ -46,7 +47,7 @@ internal struct DestructionImpacts:ISystem {
             var Approach=LogicalVector3.Dot(Velocity,Contact.Normal);
             if(Approach<Impact.MinimumSpeed){ continue; }
             var Impulse=Impact.Mass*Approach;
-            Destruction.ApplyImpulse(Contact.Entity,Contact.Point,Impulse);
+            Destruction.ApplyCharacterImpulse(Entity,Contact.Entity,Contact.Point,Impulse,State.FixedTick);
             if(Host.Physics.Active.World.TryGetBodyState(Contact.Entity,out var Body)&&Body.MotionType==PhysicsMotionType.Dynamic){
                 Host.Physics.Active.Commands.Impulse(State.FixedTick+1,(1UL<<61)|(ulong)(uint)Entity.Index,Sequence++,Contact.Entity,Contact.Normal*Impulse);
             }

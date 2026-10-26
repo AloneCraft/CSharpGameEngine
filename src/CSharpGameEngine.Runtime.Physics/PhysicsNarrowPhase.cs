@@ -104,24 +104,55 @@ internal sealed class PhysicsNarrowPhase {
     private readonly record struct EpaFace(int A,int B,int C,LogicalVector3 Normal,LogicalScalar Distance,bool Active);
     private readonly record struct EpaEdge(int A,int B);
 
+    /// <summary>
+    /// The most face orientations one contact holds at once (M0124): a box, polyhedron or compound against a triangle mesh (a car straddling a curb's slope and
+    /// the ground) or a compound against anything gets one patch of up to four points per orientation, so one pair has at most <see cref="MaximumContactPoints"/>.
+    /// </summary>
+    internal const int MaximumContactPatches=3;
+    internal const int MaximumContactPoints=MaximumContactPatches*4;
+    /// <summary>Two contact normals within about 18 degrees (a dot product of 0.95 or more) are one orientation.</summary>
+    private static readonly LogicalScalar SameOrientation=LogicalScalar.FromSingle(0.95f);
+    private readonly List<PhysicsContactCandidate>SinglePatches=[];
+
+    /// <summary>The deepest patch of <see cref="TryCreateContacts"/> (the whole contact for every pair that has one orientation).</summary>
     internal bool TryCreateContact(
         in PhysicsCollisionShape First,in PhysicsCollisionShape Second,
         out PhysicsContactCandidate Contact){
-        Contact=default;
+        this.SinglePatches.Clear();
+        if(!this.TryCreateContacts(First,Second,this.SinglePatches)){
+            Contact=default;
+            return false;
+        }
+        Contact=this.SinglePatches[0];
+        return true;
+    }
+
+    /// <summary>
+    /// Appends the contact of two shapes to <paramref name="Patches"/>: one patch per face orientation (at most <see cref="MaximumContactPatches"/>), the deepest
+    /// first. Every patch's normal points from the first shape into the second. False (nothing appended) when they do not touch.
+    /// </summary>
+    internal bool TryCreateContacts(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,List<PhysicsContactCandidate>Patches){
         if(First.Collider.Shape==ColliderShape.Compound||Second.Collider.Shape==ColliderShape.Compound){
-            return this.TryCompoundContact(First,Second,out Contact);
+            return this.TryCompoundContacts(First,Second,Patches);
         }
         if(First.Collider.Shape==ColliderShape.StaticTriangleMesh){
-            return this.TryMeshContact(Second,First,true,out Contact);
+            return this.TryMeshContacts(Second,First,true,Patches);
         }
         if(Second.Collider.Shape==ColliderShape.StaticTriangleMesh){
-            return this.TryMeshContact(First,Second,false,out Contact);
+            return this.TryMeshContacts(First,Second,false,Patches);
         }
+        if(!this.TryConvexPairContact(First,Second,out var Contact)){ return false; }
+        Patches.Add(Contact);
+        return true;
+    }
+
+    private bool TryConvexPairContact(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,out PhysicsContactCandidate Contact){
+        Contact=default;
         if(!IsConvex(First.Collider.Shape)||!IsConvex(Second.Collider.Shape)){ return false; }
         if(TryPrimitiveContact(First,Second,out Contact)){ return true; }
         // ADR-0078/M0113: two polytopes, one of them a polyhedron (a fragment): the face planes decide it in most cases (see TryPolytopeContact).
         if((IsPolyhedron(First)||IsPolyhedron(Second))&&HasPolytope(First)&&HasPolytope(Second)
-            &&TryPolytopeContact(First,Second,out var Touching,out Contact)){ return Touching; }
+            &&this.TryPolytopeContact(First,Second,out var Touching,out Contact)){ return Touching; }
         if(!TryConvexContact(new ShapeProxy(First),new ShapeProxy(Second),0,out Contact)){ return false; }
         // ADR-0078/M0113: a convex polyhedron (a fragment) touching a face gets a patch of every corner inside the other shape, not GJK's one point.
         if((IsPolyhedron(First)||IsPolyhedron(Second))&&HasPolytope(First)&&HasPolytope(Second)){
@@ -411,11 +442,14 @@ internal sealed class PhysicsNarrowPhase {
         Taken[First]=true;
         Chosen[0]=First;
         var Kept=1;
+        // M0124: the points that entered the surface (a positive depth) are spread first, and only the slots left go to speculative points (a negative
+        // depth: a corner a little above it). A speculative corner far away beat the second end of a ridge holding the body, which then turned about one point.
+        var EnteredOnly=Depths[First]>LogicalScalar.Zero;
         while(Kept<4){
             var Best=-1;
             var BestDistance=LogicalScalar.Zero;
             for(var Index=0;Index<Points.Length;Index++){
-                if(Taken[Index]){ continue; }
+                if(Taken[Index]||EnteredOnly&&Depths[Index]<=LogicalScalar.Zero){ continue; }
                 var Nearest=LogicalScalar.MaxValue;
                 for(var Pick=0;Pick<Kept;Pick++){
                     var Distance=(Points[Index]-Points[Chosen[Pick]]).LengthSquared;
@@ -424,7 +458,10 @@ internal sealed class PhysicsNarrowPhase {
                 if(Best<0?Nearest>LogicalScalar.Zero:Nearest>BestDistance+SameDistanceSquared){ Best=Index;BestDistance=Nearest; }
             }
             // Points on top of one already kept (within 0.1 mm) add nothing.
-            if(Best<0||BestDistance<=EpaTolerance*EpaTolerance){ break; }
+            if(Best<0||BestDistance<=EpaTolerance*EpaTolerance){
+                if(EnteredOnly){ EnteredOnly=false;continue; }
+                break;
+            }
             Taken[Best]=true;
             Chosen[Kept++]=Best;
         }
@@ -447,13 +484,18 @@ internal sealed class PhysicsNarrowPhase {
     private static PhysicsCollisionShape CompoundChild(in PhysicsCollisionShape Compound,PhysicsShapeAsset Child)=>
         new(Compound.Collider with { Shape=ColliderShape.ConvexAsset,Asset=Child.Id },Compound.Position,Compound.Rotation,Child);
 
+    private readonly List<PhysicsContactCandidate>ChildPatches=[];
+    private readonly List<bool>CompoundUsed=[];
+
     /// <summary>
     /// ADR-0078/M0113: the contact of a compound (a piece of several fragments) with another shape, or of two compounds. Each child whose bounds meet the other
-    /// shape (or child) is tested as it is; the deepest child contact gives the normal, and the points of every child contact within about 18 degrees of it
-    /// form one patch of up to four points (deepest first, then the widest spread). So a piece resting on several of its fragments is held at all of them.
+    /// shape (or child) is tested as it is (a child against a mesh gives a patch per orientation). The deepest child patch gives the first normal, and the
+    /// points of every child patch within about 18 degrees of it form one patch of up to four points (deepest first, then the widest spread). M0124: against a
+    /// triangle mesh the child patches left over form the next orientations the same way (the deepest left first, at most <see cref="MaximumContactPatches"/>),
+    /// and a point within 1 mm of a point of an earlier patch is dropped; against a convex shape the pair keeps one orientation. So a piece resting on several
+    /// of its fragments is held at all of them, on every face of a mesh it touches.
     /// </summary>
-    private bool TryCompoundContact(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,out PhysicsContactCandidate Contact){
-        Contact=default;
+    private bool TryCompoundContacts(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,List<PhysicsContactCandidate>Patches){
         this.CompoundCandidates.Clear();
         this.CompoundChildren.Clear();
         var FirstCompound=First.Collider.Shape==ColliderShape.Compound;
@@ -469,35 +511,64 @@ internal sealed class PhysicsNarrowPhase {
             for(var SecondIndex=0;SecondIndex<SecondChildren;SecondIndex++){
                 var SecondShape=SecondCompound?CompoundChild(Second,Second.Asset!.Children[SecondIndex]):Second;
                 if(SecondCompound&&!FirstBounds.Intersects(this.CalculateBounds(SecondShape))){ continue; }
-                if(!this.TryCreateContact(FirstShape,SecondShape,out var Candidate)){ continue; }
-                this.CompoundCandidates.Add(Candidate);
-                this.CompoundChildren.Add(FirstIndex*SecondChildren+SecondIndex);
+                this.ChildPatches.Clear();
+                if(!this.TryCreateContacts(FirstShape,SecondShape,this.ChildPatches)){ continue; }
+                foreach(var Candidate in this.ChildPatches){
+                    this.CompoundCandidates.Add(Candidate);
+                    this.CompoundChildren.Add(FirstIndex*SecondChildren+SecondIndex);
+                }
             }
         }
         if(this.CompoundCandidates.Count==0){ return false; }
-        var Deepest=0;
-        for(var Index=1;Index<this.CompoundCandidates.Count;Index++){
-            if(this.CompoundCandidates[Index].Penetration>this.CompoundCandidates[Deepest].Penetration+SameDepth){ Deepest=Index; }
-        }
-        var Best=this.CompoundCandidates[Deepest];
-        if(!Best.Normal.TryNormalize(out var Normal)){ return false; }
-        this.CompoundPoints.Clear();
-        this.CompoundDepths.Clear();
-        var SameFace=LogicalScalar.FromSingle(0.95f);
-        foreach(var Candidate in this.CompoundCandidates){
-            if(!Candidate.Normal.TryNormalize(out var CandidateNormal)||LogicalVector3.Dot(CandidateNormal,Normal)<SameFace){ continue; }
-            for(var Point=0;Point<Candidate.Count;Point++){
-                this.CompoundPoints.Add(Candidate.GetPosition(Point));
-                this.CompoundDepths.Add(Candidate.GetPenetration(Point));
-            }
-        }
+        this.CompoundUsed.Clear();
+        for(var Index=0;Index<this.CompoundCandidates.Count;Index++){ this.CompoundUsed.Add(false); }
+        var Before=Patches.Count;
         Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
         Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
-        var Kept=SpreadPoints(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundPoints),System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundDepths),Patch,PatchDepths);
-        // The feature names the deepest child pair, so the solver's warm start follows the same child from tick to tick.
-        var Feature=unchecked(((uint)this.CompoundChildren[Deepest]<<16)^Best.FeatureId);
-        Contact=PhysicsContactCandidate.CreatePatch(Best.Normal,Feature,Patch,PatchDepths,Kept) with { SurfaceNormal=Best.SurfaceNormal };
-        return true;
+        // Against a convex shape (a box floor, another piece) one orientation, as before M0124: giving those pairs more orientations changed how the
+        // destruction sample's pieces settled, and its explosion missed the last crate. Only a mesh has faces of several orientations under one body.
+        var MostPatches=First.Collider.Shape==ColliderShape.StaticTriangleMesh||Second.Collider.Shape==ColliderShape.StaticTriangleMesh?MaximumContactPatches:1;
+        while(Patches.Count-Before<MostPatches){
+            var Deepest=-1;
+            for(var Index=0;Index<this.CompoundCandidates.Count;Index++){
+                if(this.CompoundUsed[Index]){ continue; }
+                if(Deepest<0||this.CompoundCandidates[Index].Penetration>this.CompoundCandidates[Deepest].Penetration+SameDepth){ Deepest=Index; }
+            }
+            if(Deepest<0){ break; }
+            var Best=this.CompoundCandidates[Deepest];
+            this.CompoundUsed[Deepest]=true;
+            if(!Best.Normal.TryNormalize(out var Normal)){ continue; }
+            this.CompoundPoints.Clear();
+            this.CompoundDepths.Clear();
+            for(var Index=0;Index<this.CompoundCandidates.Count;Index++){
+                var Candidate=this.CompoundCandidates[Index];
+                if(Index!=Deepest&&(this.CompoundUsed[Index]||!Candidate.Normal.TryNormalize(out var CandidateNormal)||LogicalVector3.Dot(CandidateNormal,Normal)<SameOrientation)){ continue; }
+                this.CompoundUsed[Index]=true;
+                for(var Point=0;Point<Candidate.Count;Point++){
+                    var Position=Candidate.GetPosition(Point);
+                    if(NearAnEarlierPatch(Patches,Before,Position)){ continue; }
+                    this.CompoundPoints.Add(Position);
+                    this.CompoundDepths.Add(Candidate.GetPenetration(Point));
+                }
+            }
+            if(this.CompoundPoints.Count==0){ continue; }
+            var Kept=SpreadPoints(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundPoints),System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundDepths),Patch,PatchDepths);
+            // The feature names the deepest child pair, so the solver's warm start follows the same child from tick to tick.
+            var Feature=unchecked(((uint)this.CompoundChildren[Deepest]<<16)^Best.FeatureId);
+            Patches.Add(PhysicsContactCandidate.CreatePatch(Best.Normal,Feature,Patch,PatchDepths,Kept) with { SurfaceNormal=Best.SurfaceNormal });
+        }
+        return Patches.Count>Before;
+    }
+
+    /// <summary>Whether <paramref name="Position"/> lies within 1 mm of a point of the patches appended since <paramref name="Before"/> (the same point, already held).</summary>
+    private static bool NearAnEarlierPatch(List<PhysicsContactCandidate>Patches,int Before,LogicalVector3 Position){
+        for(var Index=Before;Index<Patches.Count;Index++){
+            var Earlier=Patches[Index];
+            for(var Point=0;Point<Earlier.Count;Point++){
+                if((Earlier.GetPosition(Point)-Position).LengthSquared<=SameDistanceSquared){ return true; }
+            }
+        }
+        return false;
     }
 
     internal PhysicsAabb CalculateBounds(in PhysicsCollisionShape Shape){
@@ -552,20 +623,19 @@ internal sealed class PhysicsNarrowPhase {
         return new PhysicsAabb(Minimum,Maximum);
     }
 
-    private bool TryMeshContact(
+    private bool TryMeshContacts(
         in PhysicsCollisionShape Convex,in PhysicsCollisionShape Mesh,bool MeshIsFirst,
-        out PhysicsContactCandidate Contact){
-        Contact=default;
+        List<PhysicsContactCandidate>Patches){
         if(!IsConvex(Convex.Collider.Shape)||Mesh.Asset is not { Kind:PhysicsShapeAssetKind.StaticTriangleMesh } Asset){ return false; }
         PhysicsAabb WorldBounds=this.CalculateBounds(Convex);
         if(!TryTransformBoundsToLocal(WorldBounds,Mesh.Position,Mesh.Rotation,out PhysicsAabb LocalBounds)){ return false; }
         this.TriangleCandidates.Clear();
         Asset.QueryTriangles(LocalBounds,this.TriangleCandidates);
         // ADR-0078/M0109: a box resting on or pushed against a mesh touches it with a face, so it gets one point per corner below the touched face
-        // (up to four). A single deepest point let a box on a mesh floor rock, spin and sink (the vehicle's body). Edge-on touches fall back to GJK.
-        if(Convex.Collider.Shape==ColliderShape.Box&&this.TryBoxMeshManifold(Convex,Mesh,Asset,MeshIsFirst,out Contact)){ return true; }
-        // ADR-0078/M0113: a convex polyhedron (a fragment) the same way, with its own corners.
-        if(IsPolyhedron(Convex)&&this.TryPolytopeMeshManifold(Convex,Mesh,Asset,MeshIsFirst,out Contact)){ return true; }
+        // (up to four). A single deepest point let a box on a mesh floor rock, spin and sink (the vehicle's body). ADR-0078/M0113: a convex polyhedron
+        // (a fragment) the same way, with its own corners. M0124: a patch per face orientation, and the mesh's ridges that enter a face of the shape.
+        // Edge-on touches fall back to GJK.
+        if(HasPolytope(Convex)&&this.TryPolytopeMeshContacts(Convex,Mesh,Asset,MeshIsFirst,Patches)){ return true; }
         bool Found=false;
         PhysicsContactCandidate Best=default;
         ShapeProxy ConvexProxy=new(Convex);
@@ -590,147 +660,254 @@ internal sealed class PhysicsNarrowPhase {
                 Found=true;
             }
         }
-        Contact=Best;
-        return Found;
-    }
-
-    /// <summary>
-    /// The corners of a box that lie below a candidate triangle's face (between the face and the box's own depth along it) and project inside the
-    /// triangle. The face of the deepest such corner sets the normal (corners within <see cref="BoxMeshSpeculativeMargin"/> above a face join as speculative points); corners under faces turned more than about 18 degrees away from it are left
-    /// for the next tick. Each corner counts once (its deepest face), and the four deepest corners, in corner order, form the patch. The face is
-    /// taken on the side of the box's centre, so a box pressed into a thin wall is pushed back out of the side it came from.
-    /// </summary>
-    private bool TryBoxMeshManifold(in PhysicsCollisionShape Box,in PhysicsCollisionShape Mesh,PhysicsShapeAsset Asset,bool MeshIsFirst,out PhysicsContactCandidate Contact){
-        Contact=default;
-        if(!TryColliderCenter(Box,out LogicalVector3 Center)){ return false; }
-        LogicalVector3 Half=Box.Collider.HalfExtents;
-        Span<LogicalVector3>Corners=stackalloc LogicalVector3[8];
-        for(int Index=0;Index<8;Index++){
-            LogicalVector3 Local=new((Index&1)==0?-Half.R:Half.R,(Index&2)==0?-Half.U:Half.U,(Index&4)==0?-Half.F:Half.F);
-            if(!Box.Rotation.TryRotate(Local,out LogicalVector3 World)){ return false; }
-            Corners[Index]=Center+World;
-        }
-        if(!Box.Rotation.TryRotate(LogicalVector3.UnitR,out LogicalVector3 AxisR)||!Box.Rotation.TryRotate(LogicalVector3.UnitU,out LogicalVector3 AxisU)
-            ||!Box.Rotation.TryRotate(LogicalVector3.UnitF,out LogicalVector3 AxisF)){ return false; }
-        Span<LogicalScalar>CornerDepth=stackalloc LogicalScalar[8];
-        Span<int>CornerTriangle=stackalloc int[8];
-        Span<LogicalVector3>CornerNormal=stackalloc LogicalVector3[8];
-        CornerTriangle.Fill(-1);
-        foreach(int Triangle in this.TriangleCandidates){
-            Asset.GetTriangle(Triangle,out LogicalVector3 A,out LogicalVector3 B,out LogicalVector3 C);
-            if(!Mesh.Rotation.TryRotate(A,out A)||!Mesh.Rotation.TryRotate(B,out B)||!Mesh.Rotation.TryRotate(C,out C)){ continue; }
-            A+=Mesh.Position;B+=Mesh.Position;C+=Mesh.Position;
-            LogicalVector3 Face=FaceToward(A,B,C,Center);
-            if(Face.LengthSquared.IsZero){ continue; }
-            // The box's half thickness along the face: corners deeper than the whole box lie on the face's far side.
-            LogicalScalar Thickness=Abs(LogicalVector3.Dot(AxisR,Face))*Half.R+Abs(LogicalVector3.Dot(AxisU,Face))*Half.U+Abs(LogicalVector3.Dot(AxisF,Face))*Half.F;
-            LogicalScalar Deepest=-(Thickness+Thickness);
-            for(int Index=0;Index<8;Index++){
-                LogicalScalar Height=LogicalVector3.Dot(Corners[Index]-A,Face);
-                if(Height>=TriangleHalfThickness+BoxMeshSpeculativeMargin||Height<=Deepest){ continue; }
-                LogicalScalar Depth=TriangleHalfThickness-Height;
-                if(CornerTriangle[Index]>=0&&Depth<=CornerDepth[Index]){ continue; }
-                if(!InsideTriangle(Corners[Index]-Face*Height,A,B,C)){ continue; }
-                CornerDepth[Index]=Depth;
-                CornerTriangle[Index]=Triangle;
-                CornerNormal[Index]=Face;
-            }
-        }
-        int Best=-1;
-        for(int Index=0;Index<8;Index++){
-            if(CornerTriangle[Index]>=0&&CornerDepth[Index]>LogicalScalar.Zero&&(Best<0||CornerDepth[Index]>CornerDepth[Best])){ Best=Index; }
-        }
-        // A face none of whose corners has entered it is no contact: corners within the margin are speculative and only join a face that was entered.
-        if(Best<0){ return false; }
-        LogicalVector3 Normal=CornerNormal[Best];
-        LogicalScalar SameFace=LogicalScalar.FromSingle(0.95f);
-        Span<LogicalVector3>Points=stackalloc LogicalVector3[4];
-        Span<LogicalScalar>Penetrations=stackalloc LogicalScalar[4];
-        int Count=0;
-        // The four deepest corners on the chosen face, kept in corner order so the patch is the same for the same pose.
-        Span<bool>Taken=stackalloc bool[8];
-        for(int Pick=0;Pick<4;Pick++){
-            int Next=-1;
-            for(int Index=0;Index<8;Index++){
-                if(Taken[Index]||CornerTriangle[Index]<0||LogicalVector3.Dot(CornerNormal[Index],Normal)<SameFace){ continue; }
-                if(Next<0||CornerDepth[Index]>CornerDepth[Next]){ Next=Index; }
-            }
-            if(Next<0){ break; }
-            Taken[Next]=true;
-        }
-        for(int Index=0;Index<8;Index++){
-            if(!Taken[Index]){ continue; }
-            Points[Count]=Corners[Index];
-            Penetrations[Count]=CornerDepth[Index];
-            Count++;
-        }
-        // The contact normal points from the first shape into the second: the face normal points from the mesh toward the box.
-        Contact=PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,checked((uint)CornerTriangle[Best]),Points,Penetrations,Count) with { SurfaceNormal=Normal };
+        if(!Found){ return false; }
+        Patches.Add(Best);
         return true;
     }
 
+    private const int MaximumRidgePoints=64;
+    /// <summary>The feature bit of a patch whose deepest point is a ridge of the mesh entering a face of the shape (not a corner of the shape under a triangle).</summary>
+    private const uint RidgeFeature=0x8000_0000u;
+
     /// <summary>
-    /// ADR-0078/M0113: <see cref="TryBoxMeshManifold"/> for a convex polyhedron (a fragment of a broken destructible): its vertices play the box's corners, and
-    /// its thickness along a face is the spread of its vertices along the face's normal. Up to four points of the chosen face are kept, the deepest first and then
-    /// the widest spread (a fragment's bottom face can have more than four corners). Speculative corners (within <see cref="BoxMeshSpeculativeMargin"/>) join as
-    /// for the box.
+    /// The contact of a box or convex polyhedron with the candidate triangles of a mesh, as patches per face orientation (ADR-0078/M0109, M0113, M0124).
+    /// For every triangle two overlaps are compared (as a separating-axis test does): how deep the shape's corners lie under the triangle's face (the face
+    /// taken on the side of the shape's centre, so a box pressed into a thin wall is pushed back out of the side it came from; corners that project inside
+    /// the triangle, between the face and the shape's own depth along it, and corners within <see cref="BoxMeshSpeculativeMargin"/> above it as speculative
+    /// points), and how deep the triangle reaches into the shape through one of the shape's faces (a ridge of the mesh, such as the edge of a curb's top,
+    /// under a car's floor: the part of the triangle inside the shape's other faces, measured from that face). The smaller overlap wins, as the axis that
+    /// separates them least; a triangle almost parallel to a face of the shape (within about 18 degrees) only has corners (a floor under a box). Before
+    /// M0124 only the corners counted, and only those of the deepest corner's face: a car straddling a curb's slope and the ground lost the ground's
+    /// support, the curb's top edge entered its floor unseen, and a small slope triangle whose plane passed above the box's centre pulled the box down.
+    /// Each corner counts once (its deepest face). The patches: the deepest entered point gives the first orientation, and every point whose normal is
+    /// within about 18 degrees of it joins it; the deepest point left gives the next, at most <see cref="MaximumContactPatches"/>. A box keeps the four
+    /// deepest of a patch in candidate order (corners first), a polyhedron the deepest and then the widest spread; a point within 1 mm of an earlier
+    /// patch's point is dropped. False when no point entered (edge-on touches go to GJK).
     /// </summary>
-    private bool TryPolytopeMeshManifold(in PhysicsCollisionShape Convex,in PhysicsCollisionShape Mesh,PhysicsShapeAsset Asset,bool MeshIsFirst,out PhysicsContactCandidate Contact){
-        Contact=default;
+    private bool TryPolytopeMeshContacts(in PhysicsCollisionShape Convex,in PhysicsCollisionShape Mesh,PhysicsShapeAsset Asset,bool MeshIsFirst,List<PhysicsContactCandidate>Patches){
         if(!TryColliderCenter(Convex,out var Center)){ return false; }
+        var IsBox=Convex.Collider.Shape==ColliderShape.Box;
         Span<LogicalVector3>Corners=stackalloc LogicalVector3[MaximumPolytopeVertices];
         var CornerCount=PolytopeCorners(Convex,Corners);
         if(CornerCount<4){ return false; }
         Corners=Corners[..CornerCount];
+        Span<LogicalVector3>PlaneNormals=stackalloc LogicalVector3[MaximumPolytopePlanes];
+        Span<LogicalScalar>PlaneDistances=stackalloc LogicalScalar[MaximumPolytopePlanes];
+        var PlaneCount=PolytopePlanes(Convex,PlaneNormals,PlaneDistances);
+        if(PlaneCount<4){ return false; }
+        PlaneNormals=PlaneNormals[..PlaneCount];
+        PlaneDistances=PlaneDistances[..PlaneCount];
+        var Half=Convex.Collider.HalfExtents;
+        LogicalVector3 AxisR=default,AxisU=default,AxisF=default;
+        if(IsBox&&(!Convex.Rotation.TryRotate(LogicalVector3.UnitR,out AxisR)||!Convex.Rotation.TryRotate(LogicalVector3.UnitU,out AxisU)||!Convex.Rotation.TryRotate(LogicalVector3.UnitF,out AxisF))){ return false; }
         Span<LogicalScalar>CornerDepth=stackalloc LogicalScalar[CornerCount];
         Span<int>CornerTriangle=stackalloc int[CornerCount];
         Span<LogicalVector3>CornerNormal=stackalloc LogicalVector3[CornerCount];
+        Span<LogicalScalar>Heights=stackalloc LogicalScalar[CornerCount];
+        Span<LogicalScalar>TriangleDepths=stackalloc LogicalScalar[CornerCount];
         CornerTriangle.Fill(-1);
+        Span<LogicalVector3>RidgePoints=stackalloc LogicalVector3[MaximumRidgePoints];
+        Span<LogicalScalar>RidgeDepths=stackalloc LogicalScalar[MaximumRidgePoints];
+        Span<LogicalVector3>RidgeNormals=stackalloc LogicalVector3[MaximumRidgePoints];
+        Span<int>RidgeTriangles=stackalloc int[MaximumRidgePoints];
+        var RidgeCount=0;
+        Span<LogicalVector3>Polygon=stackalloc LogicalVector3[3+MaximumPolytopePlanes];
+        Span<LogicalVector3>Clipped=stackalloc LogicalVector3[3+MaximumPolytopePlanes];
         foreach(int Triangle in this.TriangleCandidates){
             Asset.GetTriangle(Triangle,out var A,out var B,out var C);
             if(!Mesh.Rotation.TryRotate(A,out A)||!Mesh.Rotation.TryRotate(B,out B)||!Mesh.Rotation.TryRotate(C,out C)){ continue; }
             A+=Mesh.Position;B+=Mesh.Position;C+=Mesh.Position;
             var Face=FaceToward(A,B,C,Center);
             if(Face.LengthSquared.IsZero){ continue; }
-            var Highest=LogicalVector3.Dot(Corners[0]-A,Face);
-            var Lowest=Highest;
-            for(var Index=1;Index<CornerCount;Index++){
+            var Highest=LogicalScalar.MinValue;
+            var Lowest=LogicalScalar.MaxValue;
+            for(var Index=0;Index<CornerCount;Index++){
                 var Height=LogicalVector3.Dot(Corners[Index]-A,Face);
+                Heights[Index]=Height;
                 if(Height>Highest){ Highest=Height; }
                 if(Height<Lowest){ Lowest=Height; }
             }
-            var Deepest=-(Highest-Lowest);
+            // The shape's depth along the face: corners deeper than the whole shape lie on the face's far side.
+            LogicalScalar Spread;
+            if(IsBox){
+                var Thickness=Abs(LogicalVector3.Dot(AxisR,Face))*Half.R+Abs(LogicalVector3.Dot(AxisU,Face))*Half.U+Abs(LogicalVector3.Dot(AxisF,Face))*Half.F;
+                Spread=Thickness+Thickness;
+            }
+            else {
+                Spread=Highest-Lowest;
+            }
+            var Deepest=-Spread;
+            var Parallel=false;
+            for(var Plane=0;Plane<PlaneCount&&!Parallel;Plane++){
+                if(Abs(LogicalVector3.Dot(PlaneNormals[Plane],Face))>=SameOrientation){ Parallel=true; }
+            }
+            var CornerOverlap=LogicalScalar.MinValue;
             for(var Index=0;Index<CornerCount;Index++){
-                var Height=LogicalVector3.Dot(Corners[Index]-A,Face);
+                TriangleDepths[Index]=LogicalScalar.MinValue;
+                var Height=Heights[Index];
                 if(Height>=TriangleHalfThickness+BoxMeshSpeculativeMargin||Height<=Deepest){ continue; }
+                var Projected=Corners[Index]-Face*Height;
+                if(!InsideTriangle(Projected,A,B,C)){ continue; }
                 var Depth=TriangleHalfThickness-Height;
-                if(CornerTriangle[Index]>=0&&Depth<=CornerDepth[Index]){ continue; }
-                if(!InsideTriangle(Corners[Index]-Face*Height,A,B,C)){ continue; }
+                // M0124: a corner truly under a slanted face has the shape around it on the face's side, so the point of the triangle over it lies inside
+                // the shape (moving from the corner along the face's normal stays within the faces that meet at the corner). Under a face taken on the
+                // wrong side (its plane passes above the shape's centre) that point leaves the shape at once, about as far as the corner's "depth".
+                if(!Parallel&&Depth>LogicalScalar.Zero&&Outside(PlaneNormals,PlaneDistances,Projected)>TriangleHalfThickness+Depth/LogicalScalar.FromInt64(2)){ continue; }
+                TriangleDepths[Index]=Depth;
+                if(Depth>CornerOverlap){ CornerOverlap=Depth; }
+            }
+            // The triangle's reach into the shape through each of the shape's faces (none for a triangle almost parallel to a face).
+            var RidgePlane=-1;
+            var RidgeOverlap=LogicalScalar.MaxValue;
+            // A triangle that a face of the shape separates from it (by more than the contact slack) has no entered corner: the corners "under" it lie
+            // under its plane extended past its edges, on the side of the centre only because the plane passes above the centre (a small slope triangle
+            // beside a large box, or under a box tilted as it climbs). Speculative corners stay (they hold only what reaches the face). The test runs for
+            // every triangle a ridge may come from and every triangle with an entered corner (a few per tick), not for each parallel triangle the shape
+            // only hangs over.
+            var NoEnteredCorners=false;
+            if(!Parallel||CornerOverlap>LogicalScalar.Zero){
+                var Separated=false;
+                for(var Plane=0;Plane<PlaneCount;Plane++){
+                    var Normal=PlaneNormals[Plane];
+                    var Reach=PlaneDistances[Plane]-Min3(LogicalVector3.Dot(Normal,A),LogicalVector3.Dot(Normal,B),LogicalVector3.Dot(Normal,C));
+                    if(Reach<-TriangleHalfThickness){ NoEnteredCorners=true;break; }
+                    if(Reach<=LogicalScalar.Zero){ Separated=true; }
+                    if(Reach<RidgeOverlap){ RidgeOverlap=Reach;RidgePlane=Plane; }
+                }
+                // A slanted triangle a face only touches (within the slack) has no entered corner either: a corner truly under a slanted face has the
+                // triangle reaching past every face of the shape near it. A parallel one keeps them (a corner on the seam of a floor's triangles).
+                if(Separated&&!Parallel){ NoEnteredCorners=true; }
+                if(Parallel||Separated||NoEnteredCorners){ RidgePlane=-1; }
+            }
+            // Both overlaps count the triangle's half thickness, as the points' depths do; the smaller one is the axis that separates them least.
+            if(RidgePlane>=0&&RidgeOverlap+TriangleHalfThickness<CornerOverlap||RidgePlane>=0&&CornerOverlap<=LogicalScalar.Zero){
+                // The triangle inside every other face of the shape; its vertices inside the ridge face are the points, pushed out along that face.
+                Polygon[0]=A;Polygon[1]=B;Polygon[2]=C;
+                var Count=3;
+                for(var Plane=0;Plane<PlaneCount&&Count>0;Plane++){
+                    if(Plane==RidgePlane){ continue; }
+                    Count=ClipPolygonToPlane(Polygon[..Count],Clipped,PlaneNormals[Plane],PlaneDistances[Plane]);
+                    Clipped[..Count].CopyTo(Polygon);
+                }
+                // The depth counts the triangle's half thickness as a corner's does, so a ridge just touching the face is held, not dropped and found again.
+                var RidgeNormal=PlaneNormals[RidgePlane];
+                var RidgeStart=RidgeCount;
+                for(var Index=0;Index<Count&&RidgeCount<MaximumRidgePoints;Index++){
+                    var Depth=TriangleHalfThickness+PlaneDistances[RidgePlane]-LogicalVector3.Dot(RidgeNormal,Polygon[Index]);
+                    if(Depth<=LogicalScalar.Zero){ continue; }
+                    RidgePoints[RidgeCount]=Polygon[Index];
+                    RidgeDepths[RidgeCount]=Depth;
+                    RidgeNormals[RidgeCount]=-RidgeNormal;
+                    RidgeTriangles[RidgeCount++]=Triangle;
+                }
+                if(RidgeCount>RidgeStart){ continue; }
+                // The ridge is the smaller overlap but reaches no deeper than the contact slack: the corners' overlap is not real either.
+                NoEnteredCorners=true;
+            }
+            for(var Index=0;Index<CornerCount;Index++){
+                var Depth=TriangleDepths[Index];
+                if(Depth==LogicalScalar.MinValue||NoEnteredCorners&&Depth>LogicalScalar.Zero||CornerTriangle[Index]>=0&&Depth<=CornerDepth[Index]){ continue; }
                 CornerDepth[Index]=Depth;
                 CornerTriangle[Index]=Triangle;
                 CornerNormal[Index]=Face;
             }
         }
-        var Best=-1;
+        // Every candidate point: the corners (in corner order), then the ridge points (in triangle order).
+        var Total=0;
+        Span<LogicalVector3>Points=stackalloc LogicalVector3[MaximumPolytopeVertices+MaximumRidgePoints];
+        Span<LogicalScalar>Depths=stackalloc LogicalScalar[MaximumPolytopeVertices+MaximumRidgePoints];
+        Span<LogicalVector3>Normals=stackalloc LogicalVector3[MaximumPolytopeVertices+MaximumRidgePoints];
+        Span<uint>Features=stackalloc uint[MaximumPolytopeVertices+MaximumRidgePoints];
         for(var Index=0;Index<CornerCount;Index++){
-            if(CornerTriangle[Index]>=0&&CornerDepth[Index]>LogicalScalar.Zero&&(Best<0||CornerDepth[Index]>CornerDepth[Best])){ Best=Index; }
+            if(CornerTriangle[Index]<0){ continue; }
+            Points[Total]=Corners[Index];
+            Depths[Total]=CornerDepth[Index];
+            Normals[Total]=CornerNormal[Index];
+            Features[Total++]=checked((uint)CornerTriangle[Index]);
         }
-        if(Best<0){ return false; }
-        var Normal=CornerNormal[Best];
-        var SameFace=LogicalScalar.FromSingle(0.95f);
-        Span<LogicalVector3>Points=stackalloc LogicalVector3[CornerCount];
-        Span<LogicalScalar>Depths=stackalloc LogicalScalar[CornerCount];
-        var Count=0;
-        for(var Index=0;Index<CornerCount;Index++){
-            if(CornerTriangle[Index]<0||LogicalVector3.Dot(CornerNormal[Index],Normal)<SameFace){ continue; }
-            Points[Count]=Corners[Index];
-            Depths[Count++]=CornerDepth[Index];
+        for(var Index=0;Index<RidgeCount;Index++){
+            Points[Total]=RidgePoints[Index];
+            Depths[Total]=RidgeDepths[Index];
+            Normals[Total]=RidgeNormals[Index];
+            Features[Total++]=checked((uint)RidgeTriangles[Index])|RidgeFeature;
         }
+        Span<bool>Used=stackalloc bool[Total];
+        Span<LogicalVector3>Members=stackalloc LogicalVector3[Total];
+        Span<LogicalScalar>MemberDepths=stackalloc LogicalScalar[Total];
         Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
         Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
-        var Kept=SpreadPoints(Points[..Count],Depths[..Count],Patch,PatchDepths);
-        Contact=PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,checked((uint)CornerTriangle[Best]),Patch,PatchDepths,Kept) with { SurfaceNormal=Normal };
-        return true;
+        var Before=Patches.Count;
+        while(Patches.Count-Before<MaximumContactPatches){
+            // A face none of whose points has entered it is no contact: points within the margin are speculative and only join an orientation that was entered.
+            var Seed=-1;
+            for(var Index=0;Index<Total;Index++){
+                if(!Used[Index]&&Depths[Index]>LogicalScalar.Zero&&(Seed<0||Depths[Index]>Depths[Seed])){ Seed=Index; }
+            }
+            if(Seed<0){ break; }
+            var Normal=Normals[Seed];
+            var MemberCount=0;
+            for(var Index=0;Index<Total;Index++){
+                if(Used[Index]||LogicalVector3.Dot(Normals[Index],Normal)<SameOrientation){ continue; }
+                Used[Index]=true;
+                if(NearAnEarlierPatch(Patches,Before,Points[Index])){ continue; }
+                Members[MemberCount]=Points[Index];
+                MemberDepths[MemberCount++]=Depths[Index];
+            }
+            if(MemberCount==0){ continue; }
+            var Kept=IsBox
+                ?DeepestFour(Members[..MemberCount],MemberDepths[..MemberCount],Patch,PatchDepths)
+                :SpreadPoints(Members[..MemberCount],MemberDepths[..MemberCount],Patch,PatchDepths);
+            // The contact normal points from the first shape into the second: the face normal points from the mesh toward the shape.
+            Patches.Add(PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,Features[Seed],Patch,PatchDepths,Kept) with { SurfaceNormal=Normal });
+        }
+        return Patches.Count>Before;
+    }
+
+    /// <summary>How far a point lies outside a polytope's face planes (the largest excess; zero or less inside).</summary>
+    private static LogicalScalar Outside(ReadOnlySpan<LogicalVector3>Normals,ReadOnlySpan<LogicalScalar>Distances,LogicalVector3 Point){
+        var Result=LogicalScalar.MinValue;
+        for(var Plane=0;Plane<Normals.Length;Plane++){
+            var Excess=LogicalVector3.Dot(Normals[Plane],Point)-Distances[Plane];
+            if(Excess>Result){ Result=Excess; }
+        }
+        return Result;
+    }
+
+    /// <summary>The four deepest of <paramref name="Points"/> (the earlier of equal depths), in the order they were given, so the patch is the same for the same pose.</summary>
+    private static int DeepestFour(ReadOnlySpan<LogicalVector3>Points,ReadOnlySpan<LogicalScalar>Depths,Span<LogicalVector3>Patch,Span<LogicalScalar>PatchDepths){
+        Span<bool>Taken=stackalloc bool[Points.Length];
+        for(var Pick=0;Pick<4;Pick++){
+            var Next=-1;
+            for(var Index=0;Index<Points.Length;Index++){
+                if(!Taken[Index]&&(Next<0||Depths[Index]>Depths[Next])){ Next=Index; }
+            }
+            if(Next<0){ break; }
+            Taken[Next]=true;
+        }
+        var Count=0;
+        for(var Index=0;Index<Points.Length;Index++){
+            if(!Taken[Index]){ continue; }
+            Patch[Count]=Points[Index];
+            PatchDepths[Count++]=Depths[Index];
+        }
+        return Count;
+    }
+
+    /// <summary>The part of a convex polygon on the inner side of a plane (normal · point ≤ distance), written to <paramref name="Output"/>; returns its vertex count.</summary>
+    private static int ClipPolygonToPlane(ReadOnlySpan<LogicalVector3>Polygon,Span<LogicalVector3>Output,LogicalVector3 Normal,LogicalScalar Distance){
+        var Count=0;
+        for(var Index=0;Index<Polygon.Length;Index++){
+            var Current=Polygon[Index];
+            var Next=Polygon[(Index+1)%Polygon.Length];
+            var CurrentSide=LogicalVector3.Dot(Normal,Current)-Distance;
+            var NextSide=LogicalVector3.Dot(Normal,Next)-Distance;
+            if(CurrentSide<=LogicalScalar.Zero){ Output[Count++]=Current; }
+            if(CurrentSide<LogicalScalar.Zero&&NextSide>LogicalScalar.Zero||CurrentSide>LogicalScalar.Zero&&NextSide<LogicalScalar.Zero){
+                var Fraction=CurrentSide/(CurrentSide-NextSide);
+                Output[Count++]=Current+(Next-Current)*Fraction;
+            }
+        }
+        return Count;
     }
 
     /// <summary>Whether <paramref name="Point"/> (in the triangle's plane) lies inside triangle ABC, its edges included.</summary>

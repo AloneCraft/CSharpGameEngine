@@ -10,6 +10,8 @@ public static class DestructionDefaults {
     public const int FragmentCount=16;
     public const int Seed=0;
     public const int ClusterCount=0;
+    /// <summary>Levels of clusters (M0124): 1 is one level of clusters over the fragments, as M0113.</summary>
+    public const int ClusterLevels=1;
     /// <summary>kg/m³.</summary>
     public const int Density=500;
     /// <summary>N·s per m² of bond.</summary>

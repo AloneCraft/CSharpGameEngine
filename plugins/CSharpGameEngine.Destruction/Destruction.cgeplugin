@@ -1,7 +1,7 @@
 {
   "Name": "Destruction",
   "Version": "0.1.0",
-  "EngineVersion": ">=0.1.25",
+  "EngineVersion": ">=0.1.26",
   "Description": "Breakable objects (UE's Geometry Collection, Fracture mode and Fields; M0113). A Cook module cuts each scene Destructible into seeded Voronoi fragments with clusters and area-weighted bonds (Assets/Destruction/<Name>.cgefracture); at run time impacts and strain fields break the bonds, the parts that come apart become bodies (anchored ones stay), and the physics cache records the breaks for playback.",
   "Dependencies": []
 }

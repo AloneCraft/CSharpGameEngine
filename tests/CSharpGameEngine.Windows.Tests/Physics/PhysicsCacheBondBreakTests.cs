@@ -95,7 +95,7 @@ public sealed class PhysicsCacheBondBreakTests {
         Assert.Throws<ArgumentOutOfRangeException>(()=>new PhysicsCacheStreamWriter(new MemoryStream(),Identity(1),1));
         using MemoryStream Old=new();
         PhysicsCacheSerializer.Write(Old,Identity(2),[]);
-        foreach(var Expected in new[]{ Identity() with { DependencyHash="other" },Identity() with { TickRate=30 },Identity(4) }){
+        foreach(var Expected in new[]{ Identity() with { DependencyHash="other" },Identity() with { TickRate=30 },Identity(PhysicsCacheSerializer.SchemaVersion+1) }){
             Old.Position=0;
             Assert.False(PhysicsCacheSerializer.TryRead(Old,Expected,[],out var Error));
             Assert.Contains("does not match",Error);

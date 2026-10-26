@@ -50,7 +50,8 @@ internal struct ProjectileLaunch:ISystem {
 }
 /// <summary>
 /// One line per presented frame for the automated run (FeatureRunner's verify-destruction): the destructibles, how many have broken, their bonds broken,
-/// their loose pieces, how many of those sleep, the lowest and the fastest loose piece. Printed only when CGE_AUTOMATION_FRAMES is set.
+/// their loose pieces, how many of those sleep, the lowest and the fastest loose piece, the intact bonds that carry internal strain from earlier hits and
+/// the most cluster levels a destructible has (M0124). Printed only when CGE_AUTOMATION_FRAMES is set.
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
 internal struct DestructionReport:IWorldSystem {
@@ -65,6 +66,8 @@ internal struct DestructionReport:IWorldSystem {
         var Sleeping=0;
         var Lowest=float.PositiveInfinity;
         var Fastest=0f;
+        var Strained=0;
+        var Levels=0;
         var World=Host.Physics.Active.World;
         for(var Slot=0;Slot<State.World.GetStatistics().EntitySlotCount;Slot++){
             var Entity=State.World.EntityArchetypeIndices.GetRefUnchecked(Slot).Entity;
@@ -72,6 +75,12 @@ internal struct DestructionReport:IWorldSystem {
             if(State.World.TryGetComponent(Entity,out DestructibleState Runtime)){
                 Broken+=Runtime.Broken?1:0;
                 Bonds+=Runtime.BrokenBonds;
+                if(Destruction.TryGetState(Entity,out var Fracture)){
+                    Levels=Math.Max(Levels,Fracture.Asset.ClusterLevelCount);
+                    for(var Bond=0;Bond<Fracture.Asset.Bonds.Count;Bond++){
+                        if(!Fracture.IsBondBroken(Bond)&&Fracture.InternalStrainOf(Bond)>LogicalScalar.Zero){ Strained++; }
+                    }
+                }
             }
             if(State.World.TryGetComponent(Entity,out DestructiblePiece _)&&World.TryGetBodyState(Entity,out var Body)&&Body.MotionType==PhysicsMotionType.Dynamic){
                 Loose++;
@@ -81,6 +90,6 @@ internal struct DestructionReport:IWorldSystem {
             }
         }
         Console.WriteLine(string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"CGE-DESTRUCTION-SAMPLE frame={this.Frame} tick={State.FixedTick} destructibles={Destruction.Count} broken={Broken} bonds={Bonds} loose={Loose} sleeping={Sleeping} lowest={(float.IsInfinity(Lowest)?0f:Lowest):F3} fastest={Fastest:F3}"));
+            $"CGE-DESTRUCTION-SAMPLE frame={this.Frame} tick={State.FixedTick} destructibles={Destruction.Count} broken={Broken} bonds={Bonds} loose={Loose} sleeping={Sleeping} lowest={(float.IsInfinity(Lowest)?0f:Lowest):F3} fastest={Fastest:F3} strained={Strained} levels={Levels}"));
     }
 }

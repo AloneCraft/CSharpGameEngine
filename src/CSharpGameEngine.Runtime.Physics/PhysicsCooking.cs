@@ -194,10 +194,31 @@ public sealed class PrefractureAsset {
     public LogicalScalar Density { get;init; }
     /// <summary>N·s/m² the bond strengths were made with (0 in version 1).</summary>
     public LogicalScalar BondStrengthPerArea { get;init; }
+    /// <summary>
+    /// The deeper levels of the cluster hierarchy (M0124, UE's Geometry Collection levels below the first): <c>SubClusters[0]</c> is level 1, each fragment's
+    /// cluster inside its <see cref="Clusters"/> cluster, and so on. Each level's clusters lie inside one cluster of the level above, are connected, and are
+    /// numbered 0.. in the order of their lowest fragment. Empty for one level (version 1 and 2 assets).
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<int>> SubClusters { get;init; }=[];
     /// <summary>How many clusters <see cref="Clusters"/> names (the fragment count when there are none).</summary>
     public int ClusterCount=>this.Clusters.Count==0?this.Fragments.Count:this.Clusters.Max()+1;
+    /// <summary>How many levels of clusters the asset has: 0 without clusters, 1 with <see cref="Clusters"/> only, more with <see cref="SubClusters"/>.</summary>
+    public int ClusterLevelCount=>this.Clusters.Count==0?0:1+this.SubClusters.Count;
     /// <summary>The cluster of <paramref name="Fragment"/> (itself when the asset has no clusters).</summary>
     public int ClusterOf(int Fragment)=>this.Clusters.Count==0?Fragment:this.Clusters[Fragment];
+    /// <summary>The cluster of <paramref name="Fragment"/> at <paramref name="Level"/> (0 is <see cref="Clusters"/>).</summary>
+    public int ClusterOf(int Fragment,int Level)=>Level==0?this.ClusterOf(Fragment):this.SubClusters[Level-1][Fragment];
+    /// <summary>
+    /// How many levels, from the top, put two fragments in one cluster (M0124): 0 for fragments of two top-level clusters (or an asset without clusters), up to
+    /// <see cref="ClusterLevelCount"/> for two fragments of one deepest cluster. A bond's run-time strength is its strength times the cluster strength scale
+    /// to this power, so the outer clusters part first.
+    /// </summary>
+    public int SharedClusterLevels(int First,int Second){
+        if(this.Clusters.Count==0){ return 0; }
+        var Shared=0;
+        while(Shared<this.ClusterLevelCount&&this.ClusterOf(First,Shared)==this.ClusterOf(Second,Shared)){ Shared++; }
+        return Shared;
+    }
 
     public bool IsDeterministicallyOrdered(){
         for(int Index=1;Index<this.Fragments.Count;Index++){
@@ -222,13 +243,24 @@ public sealed class PrefractureAsset {
                 ||Bond.SecondFragment>=this.Fragments.Count||Bond.Strength<=LogicalScalar.Zero||Bond.Area<LogicalScalar.Zero){ return false; }
         }
         if(this.Sites.Count!=0&&this.Sites.Count!=this.Fragments.Count){ return false; }
-        if(this.Clusters.Count!=0){
-            if(this.Clusters.Count!=this.Fragments.Count){ return false; }
+        if(this.Clusters.Count==0&&this.SubClusters.Count!=0){ return false; }
+        for(var Level=0;Level<this.ClusterLevelCount;Level++){
+            var Numbers=Level==0?this.Clusters:this.SubClusters[Level-1];
+            if(Numbers.Count!=this.Fragments.Count){ return false; }
             // Canonical numbering: a cluster's number is the count of clusters whose lowest fragment comes before its own.
             var Next=0;
-            foreach(var Cluster in this.Clusters){
+            foreach(var Cluster in Numbers){
                 if(Cluster<0||Cluster>Next){ return false; }
                 if(Cluster==Next){ Next++; }
+            }
+            if(Level==0){ continue; }
+            // A cluster of a deeper level lies inside one cluster of the level above.
+            var Parent=new int[Next];
+            Array.Fill(Parent,-1);
+            for(var Fragment=0;Fragment<Numbers.Count;Fragment++){
+                var Above=this.ClusterOf(Fragment,Level-1);
+                if(Parent[Numbers[Fragment]]<0){ Parent[Numbers[Fragment]]=Above; }
+                else if(Parent[Numbers[Fragment]]!=Above){ return false; }
             }
         }
         return true;
@@ -258,21 +290,21 @@ public sealed class PrefractureAsset {
         for(int Index=1;Index<Parents.Length;Index++){
             if(Find(Parents,Index)!=Root){ return false; }
         }
-        if(this.Clusters.Count!=0){
-            // Each cluster is one connected piece of the bond graph (the runtime releases a cluster as one body).
+        for(var Level=0;Level<this.ClusterLevelCount;Level++){
+            // Each cluster of every level is one connected piece of the bond graph (the runtime releases a cluster as one body).
             var ClusterParents=new int[this.Fragments.Count];
             for(var Index=0;Index<ClusterParents.Length;Index++){ ClusterParents[Index]=Index; }
             foreach(var Bond in this.Bonds){
-                if(this.Clusters[Bond.FirstFragment]==this.Clusters[Bond.SecondFragment]){ Union(ClusterParents,Bond.FirstFragment,Bond.SecondFragment); }
+                if(this.ClusterOf(Bond.FirstFragment,Level)==this.ClusterOf(Bond.SecondFragment,Level)){ Union(ClusterParents,Bond.FirstFragment,Bond.SecondFragment); }
             }
             var ClusterRoots=new Dictionary<int,int>();
             for(var Index=0;Index<ClusterParents.Length;Index++){
                 var ClusterRoot=Find(ClusterParents,Index);
-                if(ClusterRoots.TryGetValue(this.Clusters[Index],out var Existing)){
+                if(ClusterRoots.TryGetValue(this.ClusterOf(Index,Level),out var Existing)){
                     if(Existing!=ClusterRoot){ return false; }
                 }
                 else {
-                    ClusterRoots.Add(this.Clusters[Index],ClusterRoot);
+                    ClusterRoots.Add(this.ClusterOf(Index,Level),ClusterRoot);
                 }
             }
         }

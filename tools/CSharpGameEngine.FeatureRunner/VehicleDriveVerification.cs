@@ -28,7 +28,8 @@ public static class VehicleDriveVerification {
     public const float MinimumTurnDegrees=5f;
     /// <summary>
     /// カメラの高さの範囲(m)。地面の抜けや空への飛び出しを弾く。M0112: レベルが UE の Landscape になったので、根拠を測り直した。路面(高さ 0.08 m)の上の追従カメラは約 1.5〜1.65 m
-    /// (WARP の実走で最低 1.534、最高 1.645)。中央の丘(最大 2.84 m)の上まで登っても 4.5 m 以下で、地面を抜ければ 1 m を割る(縁石を衝突に含めたときは -47 m まで落ちた)。
+    /// (WARP の実走で最低 1.534、最高 1.645)。中央の丘(最大 2.84 m)の上まで登っても 4.5 m 以下で、地面を抜ければ 1 m を割る(M0112 で縁石を衝突に含めたときは -47 m まで落ちた)。
+    /// M0124: 縁石が衝突するようになり、縁石を越える揺れで 1.498〜1.717 m(WARP)。範囲は変えない。
     /// </summary>
     public const float MinimumCameraHeight=1f;
     public const float MaximumCameraHeight=6f;

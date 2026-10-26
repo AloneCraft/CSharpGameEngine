@@ -25,6 +25,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     private struct CachedPoint {
+        /// <summary>The normal of the point's patch (M0124: one contact holds a patch per face orientation), from the first body into the second.</summary>
+        internal LogicalVector3 Normal;
         internal LogicalVector3 Position;
         internal LogicalScalar Penetration;
         internal LogicalScalar NormalImpulse;
@@ -41,10 +43,16 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private sealed class CachedContact(Body First,Body Second) {
         internal readonly Body First=First;
         internal readonly Body Second=Second;
-        internal LogicalVector3 Normal;
-        internal readonly CachedPoint[] Points=new CachedPoint[4];
+        /// <summary>The points of every patch, packed in patch order (patch k is <see cref="PatchStart"/>[k] .. + <see cref="PatchCount"/>[k]).</summary>
+        internal readonly CachedPoint[] Points=new CachedPoint[PhysicsNarrowPhase.MaximumContactPoints];
+        /// <summary>The points of the last tick while the new patches take over their warm-started impulses.</summary>
+        internal readonly CachedPoint[] Previous=new CachedPoint[PhysicsNarrowPhase.MaximumContactPoints];
         internal int PointCount;
-        internal uint FeatureId;
+        internal int Patches;
+        internal readonly int[] PatchStart=new int[PhysicsNarrowPhase.MaximumContactPatches];
+        internal readonly int[] PatchCount=new int[PhysicsNarrowPhase.MaximumContactPatches];
+        internal readonly uint[] PatchFeature=new uint[PhysicsNarrowPhase.MaximumContactPatches];
+        internal readonly LogicalVector3[] PatchNormal=new LogicalVector3[PhysicsNarrowPhase.MaximumContactPatches];
         internal bool Active;
         internal bool WasActive;
         internal bool IsTrigger;
@@ -89,6 +97,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private readonly DeterministicAabbTree Broadphase=new();
     private readonly PhysicsNarrowPhase NarrowPhase=new();
     private readonly List<PhysicsContactCandidate> ContactScratch=[];
+    private readonly List<PhysicsContactCandidate> PatchScratch=[];
     private readonly SortedList<(ulong First,ulong Second),CachedContact> ContactCache=new(PairKeyComparer.Instance);
     private readonly List<ulong> QueryCandidates=[];
     private readonly List<SimulationCommand> CommittedCommands=[];
@@ -99,6 +108,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private readonly HashSet<ulong> CacheValidationIds=[];
 
     private readonly List<PhysicsBondBreak> MutableBondBreaks=[];
+    private readonly List<PhysicsBondStrain> MutableBondStrains=[];
 
     public int BodyCount=>this.Bodies.Count;
     public IReadOnlyList<PhysicsEvent> Events=>this.MutableEvents;
@@ -107,6 +117,16 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     /// played-back cache frame. Cleared when the next tick starts.
     /// </summary>
     public IReadOnlyList<PhysicsBondBreak> BondBreaks=>this.MutableBondBreaks;
+    /// <summary>
+    /// The bonds of destructibles whose internal strain an impact raised in the last tick, with the internal strain each carries on (M0124): reported by the
+    /// destruction solver after <see cref="Step"/>, or restored from a played-back cache frame. Cleared when the next tick starts.
+    /// </summary>
+    public IReadOnlyList<PhysicsBondStrain> BondStrains=>this.MutableBondStrains;
+    /// <summary>Records that an impact raised a destructible bond's internal strain in this tick (M0124); the cache keeps it. No event is raised.</summary>
+    public void ReportBondStrain(ulong RootStableId,int Bond,LogicalScalar Strain){
+        if(RootStableId==0||Bond<0||Strain<=LogicalScalar.Zero){ throw new ArgumentOutOfRangeException(nameof(Bond),"An internal strain names a destructible's stable ID, a bond and a strain above zero."); }
+        this.MutableBondStrains.Add(new PhysicsBondStrain(RootStableId,Bond,Strain));
+    }
 
     /// <summary>
     /// Records that a destructible's bond broke in <paramref name="Tick"/> (ADR-0078/M0113): it joins <see cref="BondBreaks"/> (the cache keeps it) and
@@ -217,11 +237,13 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         this.CcdContacts.Clear();
         this.MutableEvents.Clear();
         this.MutableBondBreaks.Clear();
+        this.MutableBondStrains.Clear();
     }
 
     internal void Reset(ulong Tick){
         this.MutableEvents.Clear();
         this.MutableBondBreaks.Clear();
+        this.MutableBondStrains.Clear();
         foreach(KeyValuePair<ulong,Body> Pair in this.Bodies){
             Body Body=Pair.Value;
             Body.Position=Body.InitialPosition;
@@ -239,6 +261,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     public void Step(ulong Tick){
         this.MutableEvents.Clear();
         this.MutableBondBreaks.Clear();
+        this.MutableBondStrains.Clear();
         this.CcdContacts.Clear();
         for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
             CachedContact Contact=this.ContactCache.Values[ContactIndex];
@@ -446,7 +469,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             List<PhysicsContactPoint> Points=new(Contact.PointCount);
             for(int Index=0;Index<Contact.PointCount;Index++){
                 CachedPoint Point=Contact.Points[Index];
-                Points.Add(new PhysicsContactPoint(Point.Position,Contact.Normal,Point.Penetration,Point.NormalImpulse));
+                Points.Add(new PhysicsContactPoint(Point.Position,Point.Normal,Point.Penetration,Point.NormalImpulse));
             }
             Results.Add(new PhysicsContactManifold(
                 BuildPairId(Pair.Key.First,Pair.Key.Second),Contact.First.Entity,Contact.Second.Entity,Points));
@@ -498,6 +521,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                 return false;
             }
         }
+        foreach(var Strain in Frame.Strains){
+            if(!PhysicsCacheSerializer.IsCanonicalStrain(Strain)){
+                Error="Physics cache internal strain is not valid.";
+                return false;
+            }
+        }
         foreach(PhysicsBodyState State in Frame.Bodies){
             Body Body=this.Bodies[State.StableId];
             Body.Position=State.Position;
@@ -514,7 +543,9 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         this.MutableEvents.Clear();
         this.MutableEvents.AddRange(Frame.Events);
         this.MutableBondBreaks.Clear();
+        this.MutableBondStrains.Clear();
         this.MutableBondBreaks.AddRange(Frame.Breaks);
+        this.MutableBondStrains.AddRange(Frame.Strains);
         return true;
     }
 
@@ -654,7 +685,9 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private void BuildContacts(){
         foreach(CcdContact Contact in this.CcdContacts){
             if(this.Bodies.TryGetValue(Contact.First,out Body? First)&&this.Bodies.TryGetValue(Contact.Second,out Body? Second)){
-                this.AddContact(First,Second,Contact.Contact);
+                this.PatchScratch.Clear();
+                this.PatchScratch.Add(Contact.Contact);
+                this.AddContact(First,Second,this.PatchScratch);
             }
         }
         for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
@@ -676,33 +709,68 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                     if(this.TryGetContact((First.StableId,Second.StableId),out CachedContact Held)){ Held.Active=true; }
                     continue;
                 }
-                if(this.NarrowPhase.TryCreateContact(this.CreateShape(First),this.CreateShape(Second),out PhysicsContactCandidate Contact)){
-                    this.AddContact(First,Second,Contact);
+                this.PatchScratch.Clear();
+                if(this.NarrowPhase.TryCreateContacts(this.CreateShape(First),this.CreateShape(Second),this.PatchScratch)){
+                    this.AddContact(First,Second,this.PatchScratch);
                 }
             }
         }
     }
 
-    private void AddContact(Body First,Body Second,in PhysicsContactCandidate Candidate){
+    /// <summary>
+    /// Stores the patches of a pair's contact for this tick (M0124: one per face orientation, the deepest first). A patch whose feature and normal (within
+    /// about 18 degrees) match a patch of the last tick takes over that patch's warm-started impulses slot by slot; any other starts from zero. A second
+    /// contact of the same pair in one tick (a CCD contact, then the narrow phase's) replaces the first only when it is deeper.
+    /// </summary>
+    private void AddContact(Body First,Body Second,List<PhysicsContactCandidate>Candidates){
         (ulong First,ulong Second) Key=(First.StableId,Second.StableId);
         if(!this.TryGetContact(Key,out CachedContact Contact)){
             Contact=new CachedContact(First,Second);
             this.ContactCache.Add(Key,Contact);
         }
-        if(Contact.Active&&Contact.MaximumPenetration>=Candidate.Penetration){ return; }
-        LogicalVector3 Normal=Candidate.Normal.TryNormalize(out LogicalVector3 Unit)?Unit:LogicalVector3.UnitU;
-        if(Contact.FeatureId!=Candidate.FeatureId||LogicalVector3.Dot(Contact.Normal,Normal)<LogicalScalar.FromSingle(0.95f)){
-            Array.Clear(Contact.Points);
+        var Deepest=LogicalScalar.Zero;
+        foreach(var Candidate in Candidates){ if(Candidate.Penetration>Deepest){ Deepest=Candidate.Penetration; } }
+        if(Contact.Active&&Contact.MaximumPenetration>=Deepest){ return; }
+        Array.Copy(Contact.Points,Contact.Previous,Contact.Points.Length);
+        var PreviousPatches=Contact.Patches;
+        Span<bool>Taken=stackalloc bool[PhysicsNarrowPhase.MaximumContactPatches];
+        Span<int>PreviousStart=stackalloc int[PhysicsNarrowPhase.MaximumContactPatches];
+        Span<int>PreviousCount=stackalloc int[PhysicsNarrowPhase.MaximumContactPatches];
+        Span<uint>PreviousFeature=stackalloc uint[PhysicsNarrowPhase.MaximumContactPatches];
+        Span<LogicalVector3>PreviousNormal=stackalloc LogicalVector3[PhysicsNarrowPhase.MaximumContactPatches];
+        for(var Patch=0;Patch<PreviousPatches;Patch++){
+            PreviousStart[Patch]=Contact.PatchStart[Patch];
+            PreviousCount[Patch]=Contact.PatchCount[Patch];
+            PreviousFeature[Patch]=Contact.PatchFeature[Patch];
+            PreviousNormal[Patch]=Contact.PatchNormal[Patch];
         }
-        Contact.Normal=Normal;
-        Contact.PointCount=Candidate.Count;
-        for(int Index=0;Index<Candidate.Count;Index++){
-            ref CachedPoint Point=ref Contact.Points[Index];
-            Point.Position=Candidate.GetPosition(Index);
-            Point.Penetration=Candidate.GetPenetration(Index);
+        Array.Clear(Contact.Points);
+        var Count=0;
+        var Patches=0;
+        foreach(var Candidate in Candidates){
+            if(Patches==PhysicsNarrowPhase.MaximumContactPatches||Count+Candidate.Count>Contact.Points.Length){ break; }
+            LogicalVector3 Normal=Candidate.Normal.TryNormalize(out LogicalVector3 Unit)?Unit:LogicalVector3.UnitU;
+            var Match=-1;
+            for(var Patch=0;Patch<PreviousPatches&&Match<0;Patch++){
+                if(!Taken[Patch]&&PreviousFeature[Patch]==Candidate.FeatureId&&LogicalVector3.Dot(PreviousNormal[Patch],Normal)>=LogicalScalar.FromSingle(0.95f)){ Match=Patch; }
+            }
+            if(Match>=0){ Taken[Match]=true; }
+            Contact.PatchStart[Patches]=Count;
+            Contact.PatchCount[Patches]=Candidate.Count;
+            Contact.PatchFeature[Patches]=Candidate.FeatureId;
+            Contact.PatchNormal[Patches]=Normal;
+            for(int Index=0;Index<Candidate.Count;Index++){
+                ref CachedPoint Point=ref Contact.Points[Count+Index];
+                if(Match>=0&&Index<PreviousCount[Match]){ Point=Contact.Previous[PreviousStart[Match]+Index]; }
+                Point.Normal=Normal;
+                Point.Position=Candidate.GetPosition(Index);
+                Point.Penetration=Candidate.GetPenetration(Index);
+            }
+            Count+=Candidate.Count;
+            Patches++;
         }
-        for(int Index=Candidate.Count;Index<Contact.Points.Length;Index++){ Contact.Points[Index]=default; }
-        Contact.FeatureId=Candidate.FeatureId;
+        Contact.PointCount=Count;
+        Contact.Patches=Patches;
         Contact.IsTrigger=First.Collider.IsTrigger||Second.Collider.IsTrigger;
         Contact.Active=true;
     }
@@ -732,7 +800,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             if(!Contact.Solve){ continue; }
             for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
                 CachedPoint Point=Contact.Points[PointIndex];
-                LogicalVector3 WarmImpulse=Contact.Normal*Point.NormalImpulse+Point.Tangent*Point.TangentImpulse;
+                LogicalVector3 WarmImpulse=Point.Normal*Point.NormalImpulse+Point.Tangent*Point.TangentImpulse;
                 ApplyImpulse(Contact,Point,WarmImpulse);
             }
         }
@@ -762,7 +830,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private static void PrepareBounce(CachedContact Contact,int PointIndex){
         ref CachedPoint Point=ref Contact.Points[PointIndex];
         LogicalVector3 Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
-        LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Contact.Normal);
+        LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Point.Normal);
         LogicalScalar Restitution=Min(Contact.First.Collider.Material.Restitution,Contact.Second.Collider.Material.Restitution);
         LogicalScalar Gap=Point.Penetration<LogicalScalar.Zero?-Point.Penetration:LogicalScalar.Zero;
         // The impulse that stopped an impact is not what holds the body afterwards: warm-starting it would throw the body back off the surface at the impact speed, and the
@@ -779,19 +847,19 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private static void SolveVelocity(CachedContact Contact,int PointIndex){
         ref CachedPoint Point=ref Contact.Points[PointIndex];
         LogicalVector3 Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
-        LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Contact.Normal);
+        LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Point.Normal);
         // A speculative point that does not reach the surface in this step is free; one that does is held like a touching point (a corner a few millimetres off the wall
         // that kept approaching would turn the body).
         LogicalScalar Target=Point.Reaching?Point.Bounce:Point.Penetration/FixedDelta;
-        LogicalScalar Effective=EffectiveMass(Contact,Point,Contact.Normal);
+        LogicalScalar Effective=EffectiveMass(Contact,Point,Point.Normal);
         if(Effective<=LogicalScalar.Zero){ return; }
         LogicalScalar Delta=(Target-NormalVelocity)/Effective;
         LogicalScalar Previous=Point.NormalImpulse;
         Point.NormalImpulse=Max(LogicalScalar.Zero,Previous+Delta);
-        ApplyImpulse(Contact,Point,Contact.Normal*(Point.NormalImpulse-Previous));
+        ApplyImpulse(Contact,Point,Point.Normal*(Point.NormalImpulse-Previous));
 
         Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
-        LogicalVector3 TangentVelocity=Relative-Contact.Normal*LogicalVector3.Dot(Relative,Contact.Normal);
+        LogicalVector3 TangentVelocity=Relative-Point.Normal*LogicalVector3.Dot(Relative,Point.Normal);
         if(!TangentVelocity.TryNormalize(out LogicalVector3 Tangent)){ return; }
         if(Point.Tangent.LengthSquared.IsZero||LogicalVector3.Dot(Point.Tangent,Tangent)<LogicalScalar.Zero){
             Point.Tangent=Tangent;
@@ -817,7 +885,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         if(Total.IsZero){ return; }
         LogicalScalar Correction=Penetration*PositionCorrection
             /LogicalScalar.FromInt64(checked(3*Contact.PointCount));
-        LogicalVector3 Offset=Contact.Normal*(Correction/Total);
+        LogicalVector3 Offset=Point.Normal*(Correction/Total);
         // ADR-0078/M0113: the correction moves the body but is not motion that keeps it awake: a body at rest is pushed out of its support every tick
         // (gravity sinks it by g·Δt² and this lifts it back), and counting that as motion kept every resting body awake for ever.
         if(!FirstInverse.IsZero){ Contact.First.Position-=Offset*FirstInverse; }

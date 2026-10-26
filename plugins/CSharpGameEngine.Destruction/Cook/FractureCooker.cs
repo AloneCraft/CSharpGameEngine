@@ -39,7 +39,7 @@ public sealed class FractureCooker:IAssetCooker {
             Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);
             File.WriteAllBytes(Destination,PrefractureArtifact.ToBytes(Asset));
             Outputs.Add(Relative);
-            Messages.Add($"{SceneName}: Fracture '{Group.Key}': {Asset.Fragments.Count} fragments, {Asset.ClusterCount} clusters, {Asset.Bonds.Count} bonds ({First.SourceDescription}).");
+            Messages.Add($"{SceneName}: Fracture '{Group.Key}': {Asset.Fragments.Count} fragments, {Asset.ClusterCount} clusters, {Asset.ClusterLevelCount} cluster level(s), {Asset.Bonds.Count} bonds ({First.SourceDescription}).");
         }
         return new CookResult(true,Outputs,Messages);
     }
@@ -95,6 +95,7 @@ internal static class DestructibleScene {
         var FragmentCount=DestructionDefaults.FragmentCount;
         var Seed=DestructionDefaults.Seed;
         var ClusterCount=DestructionDefaults.ClusterCount;
+        var ClusterLevels=DestructionDefaults.ClusterLevels;
         var SourceMesh=string.Empty;
         var Density=LogicalScalar.FromInt64(DestructionDefaults.Density);
         var Strength=LogicalScalar.FromInt64(DestructionDefaults.BondStrength);
@@ -107,8 +108,9 @@ internal static class DestructibleScene {
                 if(MeshElement.ValueKind!=JsonValueKind.String){ Error=Problem("DST011","has an unreadable SourceMesh."); return false; }
                 SourceMesh=MeshElement.GetString()!;
             }
-            if(!TryReadInt(Members,"FragmentCount",ref FragmentCount)||!TryReadInt(Members,"Seed",ref Seed)||!TryReadInt(Members,"ClusterCount",ref ClusterCount)){
-                Error=Problem("DST011","has a FragmentCount, Seed or ClusterCount that is not a whole number.");
+            if(!TryReadInt(Members,"FragmentCount",ref FragmentCount)||!TryReadInt(Members,"Seed",ref Seed)||!TryReadInt(Members,"ClusterCount",ref ClusterCount)
+                ||!TryReadInt(Members,"ClusterLevels",ref ClusterLevels)){
+                Error=Problem("DST011","has a FragmentCount, Seed, ClusterCount or ClusterLevels that is not a whole number.");
                 return false;
             }
             if(!TryReadScalar(Members,"Density",ref Density)||!TryReadScalar(Members,"BondStrength",ref Strength)){
@@ -126,6 +128,10 @@ internal static class DestructibleScene {
         }
         if(Density<=LogicalScalar.Zero||Strength<=LogicalScalar.Zero||ClusterCount<0){
             Error=Problem("DST003","needs a positive Density and BondStrength and a ClusterCount of 0 or more.");
+            return false;
+        }
+        if(ClusterLevels is <1 or >PrefractureCookSettings.MaximumClusterLevels){
+            Error=Problem("DST003",$"asks for {ClusterLevels} cluster levels; a fracture has 1 to {PrefractureCookSettings.MaximumClusterLevels}.");
             return false;
         }
         if(Components.TryGetValue(TransformType,out var Transform)&&Transform.ValueKind==JsonValueKind.Object&&Transform.TryGetProperty("Scale",out var ScaleElement)){
@@ -168,7 +174,7 @@ internal static class DestructibleScene {
             Source=Box(FractureAsset,Center,Half);
             Description=$"box {Half.R.ToStringInvariant()} x {Half.U.ToStringInvariant()} x {Half.F.ToStringInvariant()} m half extents";
         }
-        Sources.Add(new DestructibleSource(FractureAsset,Node,Source,new PrefractureCookSettings(FragmentCount,Seed,Density,Strength,ClusterCount),Description));
+        Sources.Add(new DestructibleSource(FractureAsset,Node,Source,new PrefractureCookSettings(FragmentCount,Seed,Density,Strength,ClusterCount,ClusterLevels),Description));
         return true;
     }
     /// <summary>A closed box of twelve outward-wound triangles in the node's frame.</summary>

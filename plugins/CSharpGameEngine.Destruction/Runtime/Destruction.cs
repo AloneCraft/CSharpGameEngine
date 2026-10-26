@@ -34,7 +34,14 @@ public sealed class Destruction {
     private readonly Dictionary<Entity,HashSet<ulong>>Pushed=[];
     private readonly List<PhysicsContactManifold>Manifolds=[];
     private readonly List<FractureBondBreak>Breaks=[];
+    private readonly List<FractureBondStrain>Raised=[];
     private readonly List<int>RecordedBonds=[];
+    private readonly List<FractureBondStrain>RecordedStrains=[];
+    private readonly HashSet<ulong>BeganPairs=[];
+    /// <summary>The last tick each character touched each body (M0124): a character's hit lasts only in the tick its touch began, as a contact's does.</summary>
+    private readonly Dictionary<(Entity Character,Entity Body),ulong>CharacterTouches=[];
+    private readonly List<(Entity Character,Entity Body)>StaleTouches=[];
+    private readonly List<(Entity Body,LogicalVector3 Point,LogicalScalar Impulse,bool Lasting)>PendingHits=[];
     private readonly List<ulong>Ended=[];
     private uint Sequence;
     /// <summary>How many destructibles are loaded.</summary>
@@ -75,9 +82,23 @@ public sealed class Destruction {
     public void ApplyStrain(LogicalVector3 Center,LogicalScalar Radius,LogicalScalar Strain){
         if(Radius>LogicalScalar.Zero&&Strain>LogicalScalar.Zero){ this.PendingStrain.Add((Center,Radius,Strain)); }
     }
-    /// <summary>Hits a destructible (or a piece's body) at a world point with an impulse (N·s): the fragment there and its neighbours take the strain.</summary>
+    /// <summary>
+    /// Hits a destructible (or a piece's body) at a world point with an impulse (N·s): the fragment there and its neighbours take the strain. A hit is an
+    /// impact, so it also adds to the bonds' internal strain (M0124).
+    /// </summary>
     public void ApplyImpulse(Entity Body,LogicalVector3 Point,LogicalScalar Impulse){
         if(Impulse>LogicalScalar.Zero&&this.Owners.ContainsKey(Body)){ this.PendingImpulses.Add((Body,Point,Impulse)); }
+    }
+    /// <summary>
+    /// A character's hit (<see cref=DestructionImpact/>, M0124): an impact only in the tick the character's touch of that body began; while the character
+    /// keeps pressing into it, tick after tick, the hit strains that tick only, as a contact that goes on does (a character leaning into a crate does not
+    /// wear it down tick by tick).
+    /// </summary>
+    internal void ApplyCharacterImpulse(Entity Character,Entity Body,LogicalVector3 Point,LogicalScalar Impulse,ulong Tick){
+        if(Impulse<=LogicalScalar.Zero||!this.Owners.ContainsKey(Body)){ return; }
+        var Began=!(this.CharacterTouches.TryGetValue((Character,Body),out var Last)&&Last+1>=Tick);
+        this.CharacterTouches[(Character,Body)]=Tick;
+        this.PendingHits.Add((Body,Point,Impulse,Began));
     }
     /// <summary>Puts an asset made in memory where the destructibles look for <paramref name="Name"/> (tests and previews; the build cooks the real ones).</summary>
     public static void Register(string Name,PrefractureAsset Asset)=>PrefractureAssetCache.Register(ContentRoot.Resolve(DestructionDefaults.AssetPath(Name)),Asset);
@@ -111,8 +132,9 @@ public sealed class Destruction {
         var Dynamic=State.World.TryGetComponent(Root,out RigidBody Body)&&Body.MotionType==PhysicsMotionType.Dynamic;
         FractureState Fracture;
         try {
+            var Retention=FractureSettings.RetentionFor(Settings.StrainDecay,State.FixedTickRate>0?State.FixedTickRate:60);
             Fracture=new FractureState(Asset,new FractureSettings(
-                Settings.ClusterStrengthScale,Settings.DamagePropagation,Settings.Anchor==DestructibleAnchor.Bottom&&!Dynamic));
+                Settings.ClusterStrengthScale,Settings.DamagePropagation,Settings.Anchor==DestructibleAnchor.Bottom&&!Dynamic,Retention));
         }
         catch(ArgumentOutOfRangeException Exception){
             this.Fail(ref Runtime,$"DST003: The Destructible of {Root} has unusable settings: {Exception.Message}");
@@ -140,9 +162,12 @@ public sealed class Destruction {
     }
     /// <summary>
     /// The destruction step of one fixed tick, after the physics step. Live: gathers the tick's strain (contact impulses on destructibles and their pieces,
-    /// the game's impulses and strain fields), breaks the bonds whose strain reached their strength, reports each as a <c>BondBroken</c> event and a cache
-    /// record, and turns the parts that came apart into bodies. Playing back a cache: breaks exactly the bonds the cache recorded for this tick (and ignores
-    /// strain), so the same pieces appear. Then removes the loose pieces whose time ran out or that exceed the fragment budget.
+    /// the game's impulses and strain fields), breaks the bonds whose strain (with their internal strain, M0124) reached their strength, reports each as a
+    /// <c>BondBroken</c> event and a cache record, records the bonds whose internal strain an impact raised (the cache keeps them), and turns the parts that
+    /// came apart into bodies. Impacts are what last: a contact in the tick it began, the game's impulses (a character's hits come this way) and fields; a
+    /// contact that goes on (a body resting on the object) strains the tick only. Playing back a cache: breaks exactly the bonds the cache recorded for this
+    /// tick and restores the recorded internal strains (and ignores strain), so the same pieces appear and a live run that follows goes on as the recorded
+    /// one did. Then removes the loose pieces whose time ran out or that exceed the fragment budget.
     /// </summary>
     internal void Step(IPhysicsHost Host,ref State State){
         var Domain=Host.Physics.Active;
@@ -157,21 +182,36 @@ public sealed class Destruction {
         if(!Playback){
             this.Manifolds.Clear();
             World.CollectContactManifolds(this.Manifolds);
+            this.BeganPairs.Clear();
+            foreach(var Event in World.Events){
+                if(Event.Type==PhysicsEventType.ContactBegin){ this.BeganPairs.Add(Event.PairId); }
+            }
             foreach(var Manifold in this.Manifolds){
+                var Impact=this.BeganPairs.Contains(Manifold.PairId);
                 foreach(var Side in (ReadOnlySpan<Entity>)[Manifold.First,Manifold.Second]){
                     if(!this.Owners.TryGetValue(Side,out var Owner)){ continue; }
-                    foreach(var Point in Manifold.Points){ this.AddImpulse(Owner.Instance,Owner.Piece,Side,Point.Position,Point.AccumulatedNormalImpulse,World,ref State); }
+                    foreach(var Point in Manifold.Points){ this.AddImpulse(Owner.Instance,Owner.Piece,Side,Point.Position,Point.AccumulatedNormalImpulse,Impact,World,ref State); }
                 }
             }
             foreach(var (Body,Point,Impulse) in this.PendingImpulses){
-                if(this.Owners.TryGetValue(Body,out var Owner)){ this.AddImpulse(Owner.Instance,Owner.Piece,Body,Point,Impulse,World,ref State); }
+                if(this.Owners.TryGetValue(Body,out var Owner)){ this.AddImpulse(Owner.Instance,Owner.Piece,Body,Point,Impulse,true,World,ref State); }
+            }
+            foreach(var (Body,Point,Impulse,Lasting) in this.PendingHits){
+                if(this.Owners.TryGetValue(Body,out var Owner)){ this.AddImpulse(Owner.Instance,Owner.Piece,Body,Point,Impulse,Lasting,World,ref State); }
             }
             foreach(var (Center,Radius,Strain) in this.PendingStrain){
                 foreach(var Instance in this.Instances.Values){ this.AddStrainSphere(Instance,Center,Radius,Strain,World,ref State); }
             }
         }
         this.PendingImpulses.Clear();
+        this.PendingHits.Clear();
         this.PendingStrain.Clear();
+        // Touches not renewed in this tick have ended.
+        this.StaleTouches.Clear();
+        foreach(var (Key,Last) in this.CharacterTouches){
+            if(Last<Tick){ this.StaleTouches.Add(Key); }
+        }
+        foreach(var Key in this.StaleTouches){ this.CharacterTouches.Remove(Key); }
         foreach(var Instance in this.Instances.Values){
             FractureStep Result;
             if(Playback){
@@ -179,12 +219,18 @@ public sealed class Destruction {
                 foreach(var Break in World.BondBreaks){
                     if(Break.RootStableId==Instance.RootStableId){ this.RecordedBonds.Add(Break.Bond); }
                 }
-                Result=this.RecordedBonds.Count==0?FractureStep.None:Instance.State.Apply(this.RecordedBonds);
+                this.RecordedStrains.Clear();
+                foreach(var Strain in World.BondStrains){
+                    if(Strain.RootStableId==Instance.RootStableId){ this.RecordedStrains.Add(new FractureBondStrain(Strain.Bond,Strain.Strain)); }
+                }
+                Result=Instance.State.Replay(this.RecordedBonds,this.RecordedStrains);
             }
             else {
                 this.Breaks.Clear();
-                Result=Instance.State.Resolve(this.Breaks);
+                this.Raised.Clear();
+                Result=Instance.State.Resolve(this.Breaks,this.Raised);
                 foreach(var Break in this.Breaks){ World.ReportBondBreak(Tick,Instance.Root,Instance.RootStableId,Break.Bond,Break.Strain); }
+                foreach(var Strain in this.Raised){ World.ReportBondStrain(Instance.RootStableId,Strain.Bond,Strain.Strain); }
             }
             if(Result.Changed){ this.Split(Instance,Result,World,Tick,ref State); }
             this.Expire(Instance,Tick,ref State);
@@ -228,12 +274,15 @@ public sealed class Destruction {
     /// <summary>Forgets the bodies a removed field pushed.</summary>
     internal void ForgetField(Entity Field)=>this.Pushed.Remove(Field);
     private static ulong FieldSource(Entity Field)=>(1UL<<62)|(ulong)(uint)Field.Index;
-    /// <summary>The impulse at a world point of a body (the destructible itself, or a piece) goes to the fragment of that body that holds the point.</summary>
-    private void AddImpulse(Instance Instance,int Piece,Entity Body,LogicalVector3 Point,LogicalScalar Impulse,DeterministicPhysicsWorld World,ref State State){
+    /// <summary>
+    /// The impulse at a world point of a body (the destructible itself, or a piece) goes to the fragment of that body that holds the point. <paramref name="Lasting"/>:
+    /// an impact, which also adds to the internal strain.
+    /// </summary>
+    private void AddImpulse(Instance Instance,int Piece,Entity Body,LogicalVector3 Point,LogicalScalar Impulse,bool Lasting,DeterministicPhysicsWorld World,ref State State){
         if(Impulse<=LogicalScalar.Zero||!Instance.State.TryGetPiece(Piece,out var Owner)){ return; }
         if(!TryPose(Instance,Owner,Body,World,ref State,out var Position,out var Rotation)){ return; }
         var Local=Rotate(Rotation.Conjugate(),Point-Position)+(Owner.IsWhole?LogicalVector3.Zero:Owner.Center);
-        Instance.State.AddImpulse(Instance.State.FragmentAt(Local,Owner),Impulse);
+        Instance.State.AddImpulse(Instance.State.FragmentAt(Local,Owner),Impulse,Lasting);
     }
     /// <summary>A world-space strain sphere on one destructible: each intact bond is measured where its middle is now (on its piece's body).</summary>
     private void AddStrainSphere(Instance Instance,LogicalVector3 Center,LogicalScalar Radius,LogicalScalar Strain,DeterministicPhysicsWorld World,ref State State){

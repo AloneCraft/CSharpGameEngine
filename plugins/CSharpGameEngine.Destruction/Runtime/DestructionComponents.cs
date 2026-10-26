@@ -12,12 +12,13 @@ public enum DestructibleAnchor:byte {
 /// <summary>
 /// An object that breaks (ADR-0078/M0113, UE's Geometry Collection). Put it on a scene node next to its <c>Collider</c> (a box, the source volume) and,
 /// for an object that falls and tumbles, a <c>RigidBody</c>. The build cooks the node: it cuts the box (or <see cref="SourceMesh"/>, a closed convex mesh) into
-/// <see cref="FragmentCount"/> Voronoi fragments with <see cref="Seed"/>, groups them into <see cref="ClusterCount"/> clusters and bonds every two touching
-/// fragments with a strength of the shared area times <see cref="BondStrength"/>, into <c>Assets/Destruction/&lt;FractureAsset&gt;.cgefracture</c>.
-/// At run time the object is drawn as its fragments (<see cref="OuterColor"/> outside, <see cref="InteriorColor"/> on the cuts), and the impulses of what
-/// hits it strain its bonds: a bond whose strain reaches its strength breaks, the parts that come apart become bodies of their own (anchored ones stay
-/// still), each piece is removed <see cref="FragmentLifetime"/> seconds after it came loose, and at most <see cref="FragmentBudget"/> loose pieces live at
-/// once (the oldest go first). The node's scale must be one: the size is the collider's.
+/// <see cref="FragmentCount"/> Voronoi fragments with <see cref="Seed"/>, groups them into <see cref="ClusterCount"/> clusters (and those, level by level,
+/// into <see cref="ClusterLevels"/> levels) and bonds every two touching fragments with a strength of the shared area times <see cref="BondStrength"/>,
+/// into <c>Assets/Destruction/&lt;FractureAsset&gt;.cgefracture</c>. At run time the object is drawn as its fragments (<see cref="OuterColor"/> outside,
+/// <see cref="InteriorColor"/> on the cuts), and the impulses of what hits it strain its bonds: a bond whose strain (with the internal strain earlier hits
+/// left, fading at <see cref="StrainDecay"/>) reaches its strength breaks, the parts that come apart become bodies of their own (anchored ones stay still),
+/// each piece is removed <see cref="FragmentLifetime"/> seconds after it came loose, and at most <see cref="FragmentBudget"/> loose pieces live at once (the
+/// oldest go first). The node's scale must be one: the size is the collider's.
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Spatial,22)]
 public struct Destructible() {
@@ -27,16 +28,30 @@ public struct Destructible() {
     public int FragmentCount=DestructionDefaults.FragmentCount;
     /// <summary>Seeds the fragment sites: the same seed gives the same cut, byte for byte.</summary>
     public int Seed=0;
-    /// <summary>How many clusters (one level of hierarchy) the fragments are grouped into; 0 picks the nearest whole number to √<see cref="FragmentCount"/>.</summary>
+    /// <summary>How many top-level clusters the fragments are grouped into; 0 picks the nearest whole number to √<see cref="FragmentCount"/>.</summary>
     public int ClusterCount=0;
+    /// <summary>
+    /// Levels of clusters, 1 to 4 (M0124; UE's Geometry Collection levels). Each level splits every cluster of the level above into the nearest whole number to
+    /// √(its fragments) clusters. With 2, the object first breaks into big chunks that each break into smaller ones before they break into fragments.
+    /// </summary>
+    public int ClusterLevels=DestructionDefaults.ClusterLevels;
     /// <summary>A closed convex <c>.glb</c> to cut instead of the collider's box, under the game's folder; empty uses the box.</summary>
     public string SourceMesh=string.Empty;
     /// <summary>kg/m³ of the fragments (wood about 500, concrete about 2400).</summary>
     public LogicalScalar Density=LogicalScalar.FromInt64(DestructionDefaults.Density);
     /// <summary>The strain a square metre of bond takes before it breaks, in N·s/m² (a strain is an impulse: a 100 kg character at 6 m/s brings 600 N·s).</summary>
     public LogicalScalar BondStrength=LogicalScalar.FromInt64(DestructionDefaults.BondStrength);
-    /// <summary>How much stronger a bond inside one cluster is than a bond between clusters, so a hit frees whole clusters first.</summary>
+    /// <summary>
+    /// How much stronger a bond inside one cluster is than a bond between clusters, once per level whose cluster holds both its fragments, so a hit frees
+    /// whole top-level clusters first, then their sub-clusters, then fragments.
+    /// </summary>
     public LogicalScalar ClusterStrengthScale=LogicalScalar.FromInt64(2);
+    /// <summary>
+    /// How fast the internal strain of earlier hits fades, per second (M0124; UE's Chaos internal strain). Each tick a bond keeps max(0, 1 − decay × Δt) of it,
+    /// so repeated hits close together break what one does not. 0 never forgets; 60 or more (at 60 ticks/s) forgets at once, as M0113 did. The steady load of
+    /// a body resting on the object does not add to it.
+    /// </summary>
+    public LogicalScalar StrainDecay=LogicalScalar.One/LogicalScalar.FromInt64(2);
     /// <summary>The share (0 to 1) of an impulse that reaches the bonds one fragment further from the hit, ring by ring.</summary>
     public LogicalScalar DamagePropagation=LogicalScalar.One/LogicalScalar.FromInt64(2);
     public DestructibleAnchor Anchor=DestructibleAnchor.Bottom;
