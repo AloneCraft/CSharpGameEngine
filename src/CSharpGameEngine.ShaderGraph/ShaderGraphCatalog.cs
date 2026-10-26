@@ -29,8 +29,6 @@ public static class BuiltInNodeCatalog {
     private static readonly Dictionary<string, BuiltInNodeDefinition> Definitions = new(StringComparer.Ordinal);
     private static readonly Dictionary<ShaderGraphTargetKind, ShaderGraphEntryPointContract> EntryPointContracts = new Dictionary<ShaderGraphTargetKind, ShaderGraphEntryPointContract>() {
         [ShaderGraphTargetKind.Stage] = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Stage, Name = "StageMain", ReturnType = ShaderGraphValueType.Float4 },
-        [ShaderGraphTargetKind.Model] = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Model, Name = "ModelMain", ReturnType = ShaderGraphValueType.Float4 },
-        [ShaderGraphTargetKind.Triangle] = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Triangle, Name = "TriangleMain", ReturnType = ShaderGraphValueType.Float4 }
     };
     static BuiltInNodeCatalog() {
         Register(new("ConstantFloat", ShaderGraphBuiltInCategory.Constant, ShaderGraphOpcode.Constant, [

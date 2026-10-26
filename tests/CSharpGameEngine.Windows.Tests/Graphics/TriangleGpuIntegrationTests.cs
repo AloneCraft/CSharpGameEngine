@@ -1,3 +1,6 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
@@ -51,7 +54,7 @@ public class TriangleGpuIntegrationTests {
             [Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],
             [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
             [0u,1u,2u],Material);
-        using var Renderer=RenderServer.Create(
+        using var Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
         Renderer.SetCamera(Camera.CreateDefault(Vector3.Zero));

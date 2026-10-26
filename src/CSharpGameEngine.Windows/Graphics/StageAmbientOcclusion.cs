@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
@@ -15,11 +16,11 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// Screen-space ambient occlusion (ADR-0069). StageRenderer draws a half-resolution camera depth
-/// prepass into <see cref="PrepassDsv"/>; <see cref="RecordCompute"/> then runs AmbientOcclusion.hlsl
+/// Screen-space ambient occlusion (ADR-0069). The shared camera surface pass supplies physical
+/// distance; <see cref="RecordCompute"/> runs AmbientOcclusion.hlsl at half resolution
 /// three times (obscurance, horizontal and vertical depth-aware blur) and leaves the result
 /// readable by the Stage program at t14. Compute root signature (host-owned): 0 = root CBV b0 AoCB,
-/// 1 = SRV table t0-t1 (prepass depth, blur source), 2 = UAV table u0 (pass output).
+/// 1 = SRV table t0-t1 (physical scene distance, blur source), 2 = UAV table u0 (pass output).
 /// </summary>
 internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     internal const string ArtifactFileName="AmbientOcclusion.cgeshaderartifact";
@@ -27,9 +28,9 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     private const uint PassCount=3;
     private const uint ConstantsStride=256;
     private const DXGI_FORMAT OcclusionFormat=DXGI_FORMAT_R16_FLOAT;
-    // Descriptor layout: two (depth, source) SRV pairs so no pass binds its own output as an SRV.
-    private const uint SrvDepthWithA=0;
-    private const uint SrvDepthWithB=2;
+    // Descriptor layout: two (distance, source) SRV pairs so no pass binds its own output as an SRV.
+    private const uint SrvDistanceWithA=0;
+    private const uint SrvDistanceWithB=2;
     private const uint UavA=4;
     private const uint UavB=5;
     private const uint DescriptorCount=6;
@@ -37,13 +38,14 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     private readonly GraphicsDevice Device;
     private readonly string ArtifactPath;
     private readonly uint FrameCount;
-    private ID3D12Resource*PrepassDepth;
+    private ID3D12Resource*DescribedSceneDistance;
+    private int DescribedWidth;
+    private int DescribedHeight;
     private ID3D12Resource*OcclusionA;
     private ID3D12Resource*OcclusionB;
     private ID3D12Resource*ConstantsBuffer;
     private byte*MappedConstants;
     private ID3D12DescriptorHeap*DescriptorHeap;
-    private ID3D12DescriptorHeap*DsvHeap;
     private uint DescriptorSize;
     private ID3D12RootSignature*RootSignature;
     private ID3D12PipelineState*PipelineState;
@@ -58,40 +60,31 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     /// <summary>Incremented whenever the occlusion texture is (re)created, so the Stage t14 view can be refreshed.</summary>
     internal int Generation { get;private set; }
     internal ID3D12Resource*Result=>this.OcclusionA;
-    internal D3D12_CPU_DESCRIPTOR_HANDLE PrepassDsv=>this.DsvHeap->GetCPUDescriptorHandleForHeapStart();
     /// <summary>Half of the screen size, at least one pixel.</summary>
-    internal static (int Width,int Height) PrepassSize(int ScreenWidth,int ScreenHeight)=>(Math.Max(ScreenWidth/2,1),Math.Max(ScreenHeight/2,1));
+    internal static (int Width,int Height) ResultSize(int ScreenWidth,int ScreenHeight)=>(Math.Max(ScreenWidth/2,1),Math.Max(ScreenHeight/2,1));
     /// <summary>Creates or resizes the targets. The caller guarantees the GPU no longer uses the old ones.</summary>
-    internal void EnsureSize(int ScreenWidth,int ScreenHeight){
-        var (Width,Height)=PrepassSize(ScreenWidth,ScreenHeight);
-        if(this.OcclusionA!=null&&this.Width==Width&&this.Height==Height){
+    internal void EnsureSize(int ScreenWidth,int ScreenHeight,ID3D12Resource*SceneDistance){
+        var (Width,Height)=ResultSize(ScreenWidth,ScreenHeight);
+        if(this.OcclusionA!=null&&this.Width==Width&&this.Height==Height&&this.DescribedSceneDistance==SceneDistance&&this.DescribedWidth==ScreenWidth&&this.DescribedHeight==ScreenHeight){
             return;
         }
         this.ReleaseTargets();
         this.EnsureHeaps();
         this.Width=Width;
         this.Height=Height;
-        D3D12_CLEAR_VALUE DepthClear=new(){ Format=DXGI_FORMAT_D32_FLOAT };
-        DepthClear.DepthStencil.Depth=1f;
-        this.PrepassDepth=this.CreateTexture(DXGI_FORMAT_R32_TYPELESS,D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,&DepthClear);
+        this.DescribedSceneDistance=SceneDistance;
+        this.DescribedWidth=ScreenWidth;
+        this.DescribedHeight=ScreenHeight;
         this.OcclusionA=this.CreateTexture(OcclusionFormat,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,ShaderResourceState,null);
         this.OcclusionB=this.CreateTexture(OcclusionFormat,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,ShaderResourceState,null);
-        D3D12_DEPTH_STENCIL_VIEW_DESC Dsv=new(){ Format=DXGI_FORMAT_D32_FLOAT,ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D };
-        this.Device.Device->CreateDepthStencilView(this.PrepassDepth,&Dsv,this.PrepassDsv);
-        this.WriteSrv(this.PrepassDepth,DXGI_FORMAT_R32_FLOAT,SrvDepthWithA);
-        this.WriteSrv(this.OcclusionA,OcclusionFormat,SrvDepthWithA+1);
-        this.WriteSrv(this.PrepassDepth,DXGI_FORMAT_R32_FLOAT,SrvDepthWithB);
-        this.WriteSrv(this.OcclusionB,OcclusionFormat,SrvDepthWithB+1);
+        this.WriteSrv(SceneDistance,DXGI_FORMAT_R32_FLOAT,SrvDistanceWithA);
+        this.WriteSrv(this.OcclusionA,OcclusionFormat,SrvDistanceWithA+1);
+        this.WriteSrv(SceneDistance,DXGI_FORMAT_R32_FLOAT,SrvDistanceWithB);
+        this.WriteSrv(this.OcclusionB,OcclusionFormat,SrvDistanceWithB+1);
         D3D12_UNORDERED_ACCESS_VIEW_DESC Uav=new(){ Format=OcclusionFormat,ViewDimension=D3D12_UAV_DIMENSION.D3D12_UAV_DIMENSION_TEXTURE2D };
         this.Device.Device->CreateUnorderedAccessView(this.OcclusionA,null,&Uav,this.CpuHandle(UavA));
         this.Device.Device->CreateUnorderedAccessView(this.OcclusionB,null,&Uav,this.CpuHandle(UavB));
         this.Generation++;
-    }
-    /// <summary>Makes the prepass depth writable and clears it. The caller then draws the depth-only pipeline.</summary>
-    internal void BeginPrepass(ID3D12GraphicsCommandList*CommandList){
-        D3D12_RESOURCE_BARRIER ToDepth=D3D12_RESOURCE_BARRIER.InitTransition(this.PrepassDepth,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
-        CommandList->ResourceBarrier(1,&ToDepth);
-        CommandList->ClearDepthStencilView(this.PrepassDsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
     }
     /// <summary>
     /// Runs obscurance and the two blur passes. Replaces the compute root signature, pipeline and
@@ -104,28 +97,29 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
         }
         var PixelsPerMeter=new Vector3(ViewProjection.M12,ViewProjection.M22,ViewProjection.M32).Length()*this.Height*0.5f;
         D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[2];
-        Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.PrepassDepth,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.DescribedSceneDistance,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         Before[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionA,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         CommandList->ResourceBarrier(2,Before);
         CommandList->SetComputeRootSignature(this.RootSignature);
         CommandList->SetPipelineState(this.PipelineState);
         ID3D12DescriptorHeap*Heap=this.DescriptorHeap;
         CommandList->SetDescriptorHeaps(1,&Heap);
-        this.Dispatch(CommandList,FrameIndex,0,SrvDepthWithB,UavA,Inverse,ViewProjection,CameraPosition,Settings,PixelsPerMeter);
+        this.Dispatch(CommandList,FrameIndex,0,SrvDistanceWithB,UavA,Inverse,ViewProjection,CameraPosition,Settings,PixelsPerMeter);
         D3D12_RESOURCE_BARRIER*AfterObscurance=stackalloc D3D12_RESOURCE_BARRIER[2];
         AfterObscurance[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionA,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         AfterObscurance[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionB,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         CommandList->ResourceBarrier(2,AfterObscurance);
-        this.Dispatch(CommandList,FrameIndex,1,SrvDepthWithA,UavB,Inverse,ViewProjection,CameraPosition,Settings,PixelsPerMeter);
+        this.Dispatch(CommandList,FrameIndex,1,SrvDistanceWithA,UavB,Inverse,ViewProjection,CameraPosition,Settings,PixelsPerMeter);
         D3D12_RESOURCE_BARRIER*AfterHorizontal=stackalloc D3D12_RESOURCE_BARRIER[2];
         AfterHorizontal[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionB,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         AfterHorizontal[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionA,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         CommandList->ResourceBarrier(2,AfterHorizontal);
-        this.Dispatch(CommandList,FrameIndex,2,SrvDepthWithB,UavA,Inverse,ViewProjection,CameraPosition,Settings,PixelsPerMeter);
-        D3D12_RESOURCE_BARRIER*After=stackalloc D3D12_RESOURCE_BARRIER[2];
+        this.Dispatch(CommandList,FrameIndex,2,SrvDistanceWithB,UavA,Inverse,ViewProjection,CameraPosition,Settings,PixelsPerMeter);
+        D3D12_RESOURCE_BARRIER*After=stackalloc D3D12_RESOURCE_BARRIER[3];
         After[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionA,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState);
         After[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.OcclusionB,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,ShaderResourceState);
-        CommandList->ResourceBarrier(2,After);
+        After[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.DescribedSceneDistance,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        CommandList->ResourceBarrier(3,After);
     }
     /// <summary>Writes the Stage t14 view; a null view (reading zero) until the occlusion texture exists.</summary>
     internal void WriteShadingDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE Handle){
@@ -247,11 +241,6 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
         D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateDescriptorHeap(&ShaderDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&ShaderHeap),
             "ID3D12Device::CreateDescriptorHeap","creating the ambient occlusion descriptor heap");
         this.DescriptorHeap=ShaderHeap;
-        D3D12_DESCRIPTOR_HEAP_DESC DepthDesc=new(){ Type=D3D12_DESCRIPTOR_HEAP_TYPE_DSV,NumDescriptors=1,Flags=D3D12_DESCRIPTOR_HEAP_FLAG_NONE };
-        ID3D12DescriptorHeap*DepthHeap;
-        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateDescriptorHeap(&DepthDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&DepthHeap),
-            "ID3D12Device::CreateDescriptorHeap","creating the ambient occlusion depth heap");
-        this.DsvHeap=DepthHeap;
         this.DescriptorSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     }
     private ID3D12Resource*CreateTexture(DXGI_FORMAT Format,D3D12_RESOURCE_FLAGS Flags,D3D12_RESOURCE_STATES State,D3D12_CLEAR_VALUE*Clear){
@@ -274,7 +263,7 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     }
     private D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(uint Slot)=>new(this.DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),(int)Slot,this.DescriptorSize);
     private void ReleaseTargets(){
-        if(this.PrepassDepth!=null){ _=this.PrepassDepth->Release();this.PrepassDepth=null; }
+        this.DescribedSceneDistance=null;
         if(this.OcclusionA!=null){ _=this.OcclusionA->Release();this.OcclusionA=null; }
         if(this.OcclusionB!=null){ _=this.OcclusionB->Release();this.OcclusionB=null; }
     }
@@ -291,6 +280,5 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
         if(this.PipelineState!=null){ _=this.PipelineState->Release(); }
         if(this.RootSignature!=null){ _=this.RootSignature->Release(); }
         if(this.DescriptorHeap!=null){ _=this.DescriptorHeap->Release(); }
-        if(this.DsvHeap!=null){ _=this.DsvHeap->Release(); }
     }
 }

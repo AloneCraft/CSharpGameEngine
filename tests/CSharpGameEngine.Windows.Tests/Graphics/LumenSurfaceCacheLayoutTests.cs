@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>ADR-0078/M0111: the surface cache's card atlas and card geometry, the tier budgets and the scalability resolution (no GPU).</summary>

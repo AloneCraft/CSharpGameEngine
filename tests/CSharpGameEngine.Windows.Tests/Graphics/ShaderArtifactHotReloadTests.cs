@@ -1,3 +1,6 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 #if DEBUG
 using System.Diagnostics;
 using System.Numerics;
@@ -24,7 +27,7 @@ public sealed class ShaderArtifactHotReloadTests {
                 [Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],
                 [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
                 [0u,1u,2u],Material);
-            using var Renderer=RenderServer.Create(
+            using var Renderer=D3D12RenderServer.Create(
                 Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
                 ArtifactPath,Meshes,Materials,Objects);
@@ -68,12 +71,11 @@ public sealed class ShaderArtifactHotReloadTests {
                 [-Vector3.UnitZ,-Vector3.UnitZ,-Vector3.UnitZ],
                 [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
                 [0u,1u,2u],Material);
-            using var Renderer=RenderServer.Create(
+            using var Renderer=D3D12RenderServer.Create(
                 Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
                 ArtifactPath,Meshes,Materials,Objects);
             var View=Camera.CreateFirstPerson(new Vector3(0f,0f,-2f));
-            View.DepthMapping=RenderDepthMapping.Radial;
             View.FarZ=1e9f;
             byte[]RenderRadial(){
                 for(var Frame=0;Frame<2;Frame++){

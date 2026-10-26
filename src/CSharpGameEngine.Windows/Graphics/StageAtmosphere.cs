@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
@@ -48,7 +49,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private const uint SrvTransmittance=0;
     private const uint SrvMultiScattering=1;
     private const uint SrvSkyView=2;
-    private const uint SrvDepth=3;
+    private const uint SrvSceneDistance=3;
     private const uint SrvCloudPanorama=4;
     private const uint SrvCloudNoise=5;
     private const uint UavTransmittance=6;
@@ -91,7 +92,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private ID3D12PipelineState*PipelineState;
     private SkyAtmosphereSettings?LutSettings;
     private SkyLightKey?SkyViewState;
-    private nint DescribedDepth;
+    private nint DescribedSceneDistance;
     private nint DescribedSceneColor;
     private bool Disposed;
     internal StageAtmosphere(GraphicsDevice Device,string StageArtifactPath,uint FrameCount){
@@ -204,20 +205,20 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
             }
         }
     }
-    /// <summary>Writes the sky into every far-plane pixel. Expects depth in DEPTH_WRITE and colour in RENDER_TARGET and restores both.</summary>
-    internal void CompositeSky(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame,ID3D12Resource*Depth,ID3D12Resource*SceneColor,int Width,int Height,bool UseExposureState){
+    /// <summary>Writes sky where the physical scene distance is zero or behind the sky sphere. Restores both targets to RENDER_TARGET.</summary>
+    internal void CompositeSky(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame,ID3D12Resource*SceneDistance,ID3D12Resource*SceneColor,int Width,int Height,bool UseExposureState){
         this.EnsurePipeline();
         this.EnsureLuts();
-        this.WriteSceneDescriptors(Depth,SceneColor);
+        this.WriteSceneDescriptors(SceneDistance,SceneColor);
         D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[3];
-        Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(Depth,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(SceneDistance,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         Before[1]=D3D12_RESOURCE_BARRIER.InitTransition(SceneColor,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         Before[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.ShBuffer,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         CommandList->ResourceBarrier(3,Before);
         this.BindAndDispatch(CommandList,FrameIndex,PassSkyBackground,Frame,UavSceneColor,(uint)Width,(uint)Height,
             GroupsX:((uint)Width+7u)/8u,GroupsY:((uint)Height+7u)/8u,GroupsZ:1,UseExposureState:UseExposureState);
         D3D12_RESOURCE_BARRIER*After=stackalloc D3D12_RESOURCE_BARRIER[3];
-        After[0]=D3D12_RESOURCE_BARRIER.InitTransition(Depth,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        After[0]=D3D12_RESOURCE_BARRIER.InitTransition(SceneDistance,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
         After[1]=D3D12_RESOURCE_BARRIER.InitTransition(SceneColor,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_RENDER_TARGET);
         After[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.ShBuffer,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState);
         CommandList->ResourceBarrier(3,After);
@@ -405,8 +406,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.CloudNoise=this.CreateCloudTexture(true,CloudNoiseFormat,CloudNoiseSize,CloudNoiseSize,CloudNoiseSize,SrvCloudNoise,UavCloudNoise);
         this.SkyRadianceMap=this.CreateLut(SkyRadianceMapSize,SkyRadianceMapSize,SrvSkyRadianceMap,UavSkyRadianceMap);
     }
-    private ID3D12Resource*CreateCloudTexture(bool Volume,DXGI_FORMAT Format,ulong Width,uint Height,ushort Depth,uint SrvSlot,uint UavSlot){
-        var Desc=Volume?D3D12_RESOURCE_DESC.Tex3D(Format,Width,Height,Depth,1):D3D12_RESOURCE_DESC.Tex2D(Format,Width,Height,1,1);
+    private ID3D12Resource*CreateCloudTexture(bool Volume,DXGI_FORMAT Format,ulong Width,uint Height,ushort SceneDistance,uint SrvSlot,uint UavSlot){
+        var Desc=Volume?D3D12_RESOURCE_DESC.Tex3D(Format,Width,Height,SceneDistance,1):D3D12_RESOURCE_DESC.Tex2D(Format,Width,Height,1,1);
         Desc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         D3D12_HEAP_PROPERTIES Heap=new(D3D12_HEAP_TYPE_DEFAULT);
         ID3D12Resource*Resource;
@@ -418,7 +419,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
             Srv.ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE3D;
             Srv.Texture3D.MipLevels=1;
             Uav.ViewDimension=D3D12_UAV_DIMENSION.D3D12_UAV_DIMENSION_TEXTURE3D;
-            Uav.Texture3D.WSize=Depth;
+            Uav.Texture3D.WSize=SceneDistance;
         } else {
             Srv.ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D;
             Srv.Texture2D.MipLevels=1;
@@ -448,25 +449,25 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     }
     /// <summary>Forces the next composite to rewrite its target views; call after the depth or HDR target is recreated.</summary>
     internal void InvalidateSceneDescriptors(){
-        this.DescribedDepth=0;
+        this.DescribedSceneDistance=0;
         this.DescribedSceneColor=0;
     }
-    private void WriteSceneDescriptors(ID3D12Resource*Depth,ID3D12Resource*SceneColor){
+    private void WriteSceneDescriptors(ID3D12Resource*SceneDistance,ID3D12Resource*SceneColor){
         // The previous frame's composite may still be reading these shader-visible descriptors, so
         // they are written only when the targets change; Resize recreates them with the GPU idle and
         // calls InvalidateSceneDescriptors, because a new target can reuse the old one's address.
-        if(this.DescribedDepth==(nint)Depth&&this.DescribedSceneColor==(nint)SceneColor){
+        if(this.DescribedSceneDistance==(nint)SceneDistance&&this.DescribedSceneColor==(nint)SceneColor){
             return;
         }
-        this.DescribedDepth=(nint)Depth;
+        this.DescribedSceneDistance=(nint)SceneDistance;
         this.DescribedSceneColor=(nint)SceneColor;
-        D3D12_SHADER_RESOURCE_VIEW_DESC DepthSrv=new(){
+        D3D12_SHADER_RESOURCE_VIEW_DESC DistanceSrv=new(){
             Format=DXGI_FORMAT_R32_FLOAT,
             ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
-        DepthSrv.Texture2D.MipLevels=1;
-        this.Device.Device->CreateShaderResourceView(Depth,&DepthSrv,this.CpuHandle(SrvDepth));
+        DistanceSrv.Texture2D.MipLevels=1;
+        this.Device.Device->CreateShaderResourceView(SceneDistance,&DistanceSrv,this.CpuHandle(SrvSceneDistance));
         D3D12_UNORDERED_ACCESS_VIEW_DESC ColorUav=new(){ Format=DXGI_FORMAT_R16G16B16A16_FLOAT,ViewDimension=D3D12_UAV_DIMENSION.D3D12_UAV_DIMENSION_TEXTURE2D };
         this.Device.Device->CreateUnorderedAccessView(SceneColor,null,&ColorUav,this.CpuHandle(UavSceneColor));
     }

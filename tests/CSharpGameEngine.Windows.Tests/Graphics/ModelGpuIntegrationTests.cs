@@ -1,3 +1,6 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using CSharpGameEngine.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Import.Gltf;
@@ -69,7 +72,7 @@ public class ModelGpuIntegrationTests {
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
             StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
             Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Material);
-        using var Renderer=RenderServer.Create(
+        using var Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
         Vector3 Extent=new(Mesh.Bounds.BoundingSphereRadius);
@@ -97,8 +100,7 @@ public class ModelGpuIntegrationTests {
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
 
-        // Exercises the depth-buffer-recreate-on-resize path, which has no TriangleRenderer
-        // precedent (see ADR-0004).
+        // Imported textured geometry remains visible after the Stage depth buffer is recreated.
         Renderer.Resize(128,128);
         Renderer.RenderFrame(CaptureForVerification:true);
 

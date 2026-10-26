@@ -1,0 +1,164 @@
+# M0120 — 描画の L4 化と Forward / Forward+(URP 方式)
+- 日付: 2026-10-25
+- 状態: Implementing(2026-10-26。値/CB/ビュー/診断/提出ポートとServer/FrameStateはL4へ移動済み。段階1の実フレーム計画、Forward系は未移行)
+- 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0087](../Decisions/ADR-0087-Rendering-And-Physics-Layers.md) §1
+- ABI: `stage-v15`
+
+## 目的
+パス構成・光源の振り分け・深度の方針を L4/L5 の移植可能なコードへ移し、L0 は D3D12 の実行だけにする。Forward+ を URP 方式(タイル × 対数殻の Z-bin)にし、Forward(物体ごとに最大 8 灯)を足す。
+
+## 段階
+1. **境界を動かす(画素は変えない。対数の 7 SHA と既存の WARP 画素の期待値を 1 つも書き換えない)**: `src/CSharpGameEngine.Rendering` に `View/`・`Pipeline/`・`Backend/`・`Server/` を置く。値型、`StageGpuLayouts`(DXC の反射で検査)、CPU の光源・影・フレーム計画、`StagePipelinePlanner`(今の `RenderFrame` の順)と `StagePipelineDesc`、ポート `IStageRenderBackend`、`RenderServer`/`RenderFrameState` の L4 への移動と `D3D12RenderServer.Create`、`Camera` → `RenderCamera`、シーンの Component `Camera`/`PrimitiveMesh` を Runtime.Windows の共有ソースへ(名前空間は不変)、`EngineLayerSpec` の新しい規則、`EveryStageInputPathExists`、`GeneratedEditorPreviewBridgeEmitter` と InputPaths の付け替え。TestHost の `frame-plan`。
+2. **Forward+ を URP 方式にする**: `ClusterLightGrid`(タイルは 8 px から倍々、Z-bin は深度の値 `d` で切る、t6 の `ClusterWords` 1 本)。`ClusterLightGridTests`(総当たりのオラクルで取りこぼし 0)。ヒートマップ。
+3. **Forward と選ぶ入口**: `ForwardObjectLightAssignment`、`RenderPath`、`Level.RenderPath`、`CGE_RENDER_PATH`。Deferred 系の指定は型付きのエラー。
+4. **カタログ・文書・版**: Stage `rendering.render-paths`、F-L0-011・F-L4-020 を Implementing に。
+
+## 完了条件
+- Forward+ の 7 SHA が M0119 と同じ。Forward と Forward+ がビット一致(各物体の局所光が 8 以下)。
+- 層の試験に合格。`ShaderArtifactHotReloadTests`(PSO キャッシュが成果物の差し替えで捨てられる)。
+- 性能の予算を満たす。
+
+## 範囲外
+Deferred 系(M0121)、触らない L0 の CPU アルゴリズム(`AreaLightLtc`・`LumenSurfaceCacheLayout` など)、入力・音声サーバー、実行時の glTF/WIC。
+
+## 機能 ID
+F-L0-011、F-L4-020、F-L0-002、F-L4-002、F-L4-004、F-L4-007
+
+## 段階1の移行単位
+1. 先にEnvironmentLighting/StageRenderInputsをRenderingへ移し、公開値型からネイティブ名前空間を除く。演算・シェーダー・既定値・画像基準は変更しない。実際の参照先だけusingを更新し、カタログ入力パスも同時更新する。
+2. 光源/影/発光パッチのCPU計算と値を移す。StageRendererを呼ぶ提出アダプターは、ポート接続の段階までL0に残す。
+3. カメラ/シーンComponent、GPU配置、RenderServerとフレーム計画を順に移し、最後にL0からPlanner/Policyの呼出しを禁止する。途中の値型移動だけでL0分離完了とは扱わない。
+- 検証は移動した単位のCPU契約・ビルド・固定7画像から行い、段階1完了時に層/ホットリロード/実行計画をまとめて確認する。
+
+## 実行記録: 値とCPU計算の移動(2026-10-26)
+- EnvironmentLighting、StageRenderInputsとEmissivePatchの値はRendering、PhysicalLighting、DirectionalShadowCascades、EmissivePatchBuilderの計算はPipelineへ移した。ネイティブ提出はStagePhysicalLightApi/EmissivePatchSubmissionとして分離。Environmentの露出計算がPhysicalLightUnitsを使う依存を最初のビルドで確認し、同じ移行単位に含めた。発光値型のusing不足もビルドで修正した。
+- 計算・既定値・光源順位・影タイル・発光形状の5箇所を、空白と名前空間/参照定数の所有者以外は旧ソースと完全一致することを検査。方向光のタイル0はL4定数を正本とし、既存の公開L0定数も同じ値を参照する。証拠は `.artifacts/M0120/algorithm-preservation.json`。
+- 移動後のWindows回帰54件成功。固定7画像のSHAはM0119と同じ。環境/影、物理光量、ホットリロード/復旧、シーン入力を含む。その後、既存の純粋CPUテスト23件をWindows.TestsからRendering.Testsへ移し、Rendering全体136件成功。式の期待値は変更していない。
+- EngineLayerSpecは5件成功。Rendering全ソースのネイティブ型/名前空間禁止と、net10.0/ポータブル参照/unsafe・ネイティブfriend禁止を追加。L0からPlannerを呼ぶ箇所はまだ残っているため、その最終禁止は計画抽出後に追加する。
+- EveryStageInputPathExistsが既存のSpatialディレクトリ3件の不在を検出。実在する対応ソース/試験へ置換し、新しい描画入力とSpatial入力が変更ステージ選択へ届くことを4ケースで確認。カタログ/変更選択/リリース証拠は35件成功。
+- 証拠は `.artifacts/M0120/portable-regression.log`、`portable-rendering-tests.log`、`portable-core-tests.log`、`portable-catalog-final.log` と各memory.json。最大物理RAM使用率68%、閾値停止なし。公開API/梱包変更に合わせSDKを0.1.26へ更新。シェーダーと画素基準は無変更。
+- 適合はこの移動単位でMatches、M0120全体はPartial。RenderCamera/ViewPolicy、GPU配置、RenderServer、フレーム計画、Forward/Forward+は後続。
+
+## 実行記録: カメラ数学のL5移動(2026-10-26)
+- Graphics.D3D12.CameraをRendering.View.RenderCameraへ移した。L5のビュー数学であり、SceneFactory/RUF用に既存Core参照を追加。シーンComponentのRuntime.Windows.Cameraの型名・データは変更していない。F-L0-001は安定した履歴IDを維持し、台帳/カタログのLayerをL5へ修正した。
+- 既存CameraTests21件をRendering.Testsへ移し、Rendering全157件成功。型名/名前空間/空白を除いたstruct本体が移動前と完全一致することをcamera-preservation.jsonへ記録。古いネイティブ説明を含むヘッダーコメントは整理した。SceneViewのnet472側には新しい依存を持ち込まず、既存の式による実装を維持した。
+- GPU/復旧/シーン/観察カメラ43件成功。固定7画像は同じSHA。Stage成果物の生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5で移動前と一致。最大RAM67%、閾値停止なし。
+- 層6件成功。L4からL5 View型を参照しない規則も追加。カタログ/変更選択31件成功。デバッグ層を持たないCPU計算の試験もGPU試験と区別する。SDKは0.1.27。証拠はportable-camera-cpu.log、portable-camera-gpu.log、camera-layer-final.log、camera-catalog-final.logと各memory.json。
+- カメラ数学の所在だけを移した段階で、StageRenderer.SetCameraと初期化はまだその型を使う。RenderView/RenderViewPolicyによる提出・フレーム計画/状態の抽出、RenderServer移動は未完。全体回帰を次に実行する。
+
+### 全体ビルドで見つかったインポーター参照(2026-10-26)
+- 9689b0aの全体実行はテスト失敗0だったが、Unreal.SceneImporterに誤って追加したRenderingのusing2行がCS0234となり、終了コード1。Import.Testsはビルドできず未実行で、実行済みは21プロジェクト3466件成功・2件スキップ。全体成功とは扱わない。
+- 原因は移動時の型名検索がコメント/生成用文字列にも一致し、実際の型依存がないツールへusingを追加したこと。不要な2行だけを削除し、ポータブルなインポーターに新しい描画参照は追加していない。修正後のImport.Tests73件は成功。失敗元ログはportable-solution-final.log、修正確認はportable-importer-fixed.log。各memory.jsonで最大68%/63%、閾値停止なし。
+- 型移動の消費側を判定する際は、文字列/コメント中の名称と実際の型参照を区別する。修正を含むコードで全ソリューションを再実行する。
+
+### 値/計算/カメラ移動後の全体確認(2026-10-26)
+- ff432438896f49734122774a63b1dc25039a3c33で全ソリューション22プロジェクト、3539件成功・失敗0・実機測定2件スキップ、終了コード0。Windows774件、Rendering157件、Core157件、FeatureRunner239件、VSIX1197件、Import73件を含む。移動した既存44件と新規の層/パス検査9件が合計と一致する。
+- 証拠は `.artifacts/M0120/portable-solution-verified.log`、同summary.json/memory.json。最大物理RAM使用率69%、閾値停止なし。Stageバイナリと固定7画像は移動前と同じ。M0120全体のPartialは継続し、次はGPU配置/実反射情報とビュー/フレーム計画の抽出。
+
+## 実行記録: 型付きCBと実反射(2026-10-26)
+- L4 PipelineのStageFrameConstants/StageObjectConstantsを正本にし、StageGpuLayoutsがMarshal.OffsetOf/SizeOfで35オフセットとサイズを得る。NativeのFrame*/Object*の手書き定義を削除し、通常描画とLumenカード撮影の両方を接続。バッファの256バイト境界への切り上げはL0に残す。FrameCB960/ObjectCB192、フレームスロット1024、物体スロット512は同じ。
+- L7 HlslCompilerがDXC_OUT_REFLECTIONを取得し、HlslShaderReflectionが実際のバッファ/変数配置を読む。Stageの通常/観察/表面/カードとLumen計6条件で全フィールドのオフセット/サイズと行列の行配置を照合。LumenだけのStageInverseViewProjectionは明示した別名。カードPSはFrameCBを参照せず最適化で消えるため、不在とObjectCBを検証する。初回の一律FrameCB必須というテスト仮定は実コンパイラ出力と矛盾し、製品コードを変えず修正した。
+- 成果物エントリーのReflection欄は従来のentry/profile/stage/ABIのJSONメタデータのまま。実反射の生データは別のコンパイル結果APIであり、RuntimeにDXCは持ち込んでいない。シェーダーとstage-v14のABIは変更していない。SDKは0.1.28。
+- 接続後のGPU回帰31件成功(固定7画像、2フレームスロット、主深度、遠距離Lumen、環境/GI/面光源、ホットリロード/復旧)。CLI全15件(新しい実反射6件を含む)、Rendering157件、層7件、FeatureRunner240件も成功。新規CB変更後に全ソリューションを再実行したとは扱わず、直前の全体3539件と今回の対象検証を区別する。
+- Stage成果物の生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5で移動前と完全一致。固定画像の基準は変更していない。最大RAM62%、閾値停止なし。証拠は `.artifacts/M0120/gpu-layout-native-final.log`、`gpu-layout-shader-tests.log`、`gpu-layout-portable-tests.log`、`gpu-layout-layer-tests.log`、`gpu-layout-catalog-tests.log` と各memory.json。
+- 初回のNative接続ビルドはLumenのpartialファイルへのstatic using不足で失敗し、共有のオフセットを明示して修正した。DXCバインディングのGUIDポインター形式も既存APIに合わせて修正。失敗ログはgpu-layout-native-regression.log/gpu-layout-reflection-first.log、合格ログは上記へ別保存した。
+- M0120全体はPartial。構造化光源のGPUレコード/計画データ、RenderViewPolicyと提出、RenderServer、パス実行計画、Forward/Forward+の実装は後続。
+
+## 既定起動の補足
+- SetCamera未提出のStageの深度不整合を追加再現し、既定カメラの初期化を共通処理へ揃えた(M0119追記)。修正前は深度0.9759626/期待0.22822031、修正後のGPU38件は成功。SDK0.1.29。これはビュー/フレーム計画の抽出完了を意味せず、その後の分離で保持すべき起動契約である。
+
+## 既定起動修正時の全体回帰(2026-10-26)
+- 5f4d647/SDK0.1.29の全22プロジェクトが3548件成功・失敗0・実機測定2件スキップ、終了0。値/計算/カメラ移動、型付きCB、実DXC反射6条件、既定Stageの起動修正をすべて含む。Core158、Rendering157、CLI15、FeatureRunner240、Windows775、VSIX1197、Import73件。以前の全体記録の測定元コミットは変更せず、最新結果を別保存した。
+- 証拠は `.artifacts/M0120/native-startup-solution.log`、同summary.json/memory.json。最大RAM66%、閾値停止なし。Stageバイナリの生SHA256はE485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5、固定7画像も同じ。版はSDK0.1.29、ABIはstage-v14。
+- 参照元G:/Unity/6.6/OmniのmanifestとPackageCacheでURP17.6.0を再確認。ForwardLights/Clustering/StencilDeferred/ClusterDeferredは現行の承認設計ADR-0085と同じ参照先で、Unity自体は変更/起動していない。
+- M0120全体はPartialのまま。次はRenderViewPolicy/RenderView、RenderServer/フレーム計画/実行ポート、Forward+クラスタとForward。Deferred系と物理の後続も未実装。mainへは統合していない。
+
+## ビュー提出の移行単位(2026-10-26)
+- ADR-0087に従い、L4 RenderViewを検証済みの行列/補助投影/深度/カメラ位置/露出/任意のカメラ基底の値とする。L5 RenderViewPolicyは既存Cameraと行列提出からその値を作る。主ビューでの観察用符号化はまだ受け付けず、観察サムネイルは既存の専用契約を維持する。
+- Native SetViewは検証済み値をアップロードし、旧SetCamera/SetViewProjectionの数式はL5へ移す。初期化も同じ経路を使い、既定起動の回帰契約を保つ。
+- RenderServerにSetViewを加え、型付き提出はRenderFrameStateが値として保持/復旧する。旧APIの復旧用メタデータは、この移行単位では維持する。Cameraの自動aspectはリサイズ復旧時に再計算される既存契約があるため、未検証のまま解決済み行列だけへ置き換えない。旧APIの除去とL4 Server移動時にL5アダプターへ分離する。
+- 値のdefault/不正行列/非有限値/投影と深度の不一致をCPUで検査し、透視/正射影/極端なfar/既定起動/型付き提出の復旧をGPUで確認する。固定7画像とシェーダーは変更しない。
+
+- 型名の実装確認で、既存RenderViewがFrustum/LodHysteresisだけの可視性クエリ値として使われていることが判明。ADRの主ビュー提出名と衝突するため、この既存型はRenderVisibilityViewへ改名する。参照はRenderWorldSnapshot/同テスト/性能TestHostの3ファイルだけで、選別アルゴリズムとデータ配置は変更しない。SDKのAPI変更として記録する。
+
+### ビュー契約の実行結果(2026-10-26)
+- L4 RenderViewはdefault/非有限値/投影と深度の不一致/光線を変える補助投影/不整合な基底を拒否する。透視の物理行列が巨大farで特異でも、有限の補助投影の逆行列が得られれば保持できる。L5 RenderViewPolicyが既存のカメラ/行列から値を生成し、Nativeの旧APIも同じ検証済み値をSetViewへ渡す。
+- RenderServer.SetViewとRenderFrameState.RecordView/Replayを接続。透視カメラ・透視行列・正射影の3条件で旧APIと画像一致し、型付き値だけの3フレーム継続とデバイス第2世代復旧も同じ画像を保持する。default提出は状態変更前に拒否。旧APIのCamera/行列パラメーター保存はリサイズ互換のため残す。
+- Rendering全169件成功(新しいビュー契約12件と既存の可視性/LODを含む)。GPU回帰31件成功(型付きビュー3条件、固定7画像、主深度、サムネイル、復旧等)。基底整合を加えた最終GPU6件、層7件、FeatureRunner242件も成功。最大RAM41%、閾値停止なし。固定7画像とStage成果物SHA E485F055...B6A5は不変。
+- 証拠は `.artifacts/M0120/view-validated-cpu.log`、`view-contract-gpu.log`、`view-validated-gpu.log`、`view-layer-tests.log`、`view-catalog-tests.log` とmemory.json。最初のビルドは既存の可視性RenderViewとの名前衝突で失敗し、用途をRenderVisibilityViewとして明示して修正した。SDK0.1.30、ABIはstage-v14。
+- 全体のPartialは継続する。NativeにはまだL5 Policyを呼ぶ互換入口と初期化があり、実行器だけになっていない。次の移行でこの入口、旧リサイズ再生成、RenderServer/フレーム計画を分離する。今回の対象検証を過去の全ソリューション3548件と混同しない。
+
+## 読み戻し値の移行単位
+- ADR-0087の公開値境界としてPixelColor/PixelReadbackResultをL4 Renderingへ移す。FormatはエンジンのRenderPixelFormat(Unknown/Rgba8Unorm/Bgra8Unorm)とし、現在のNativeバックバッファはRGBA8として提出する。GPU割当/コピーのDXGI定数はL0に維持する。
+- Model/Triangleの画素検証器は計画どおりL0に残すが、形式判定はポータブルな値を使う。生成プレビューブリッジの戻り型も正本を変更する。行ピッチとピクセル配列/チャンネル順は変更しない。既存のBGRA/パディング検証と実描画、生成/エディタブリッジを確認する。
+
+### 読み戻し値の実行結果(2026-10-26)
+- PixelColor/PixelReadbackResultはRenderingへ移り、FormatはRenderPixelFormat。現在のRGBA8バックバッファだけをReadbackの返却時に対応付ける。GPUリソース確保/コピーのDXGI形式は同じ。Model/Triangle検証器のBGRA判定と行ピッチ、RuntimeAutomationのPNG、生成プレビューブリッジも接続した。SDK0.1.31、stage-v14。
+- GPU/読み戻し/型付きビュー復旧/ランタイムブリッジ43件、生成器全338件、層7件、エディター消費側15件が成功。固定7画像の期待値とStage成果物SHA E485F055...B6A5は不変。最大RAM45%、閾値停止なし。証拠はpixel-port-final.log、pixel-generator.log、pixel-layers.log、pixel-editor.logと各memory.json。
+- 最初のpixel-port-regression.logは未移行のNative初期化子のDXGI_FORMAT代入でコンパイル失敗。返却値だけをスコープ限定で修正し、成功ログは別保存した。この対象検証は過去の全体3548件を置き換えるものではない。Server/フレーム計画/4パスのPartialは継続する。
+
+## シーンComponent/プリミティブ組立の移行単位
+- ADR-0087 §1.8に従い、Camera/CameraProjectionとPrimitiveMesh/PrimitiveTypeをRuntime.Windows共有ソースへ移す。名前空間・列挙値・既定値・SceneComponent属性は維持し、ゲーム側で生成器と同じコンパイルに含める。対応アイコンも共有の資産へ移し、projitemsへ明示登録する。
+- RenderServerからプリミティブ語彙依存を除き、同じ組立処理をL5 PrimitiveRoster.Buildへ移す。呼出し側も同時移行する。接線の同じ演算はL4 StageMeshGeometryへ集約し、単一メッシュの組立とNativeの互換作成もそれを消費する。形状、順序、距離場、画素は変更しない。
+- 既存の重複排除/全形状/シーンJSON/動的ロースター/復旧/GPU基準を確認し、共有ファイル一覧とソリューション登録を含む全体検証を行う。Server/フレーム計画のL4移動はこの単位の後続。
+
+### シーン語彙/組立の実行結果と全体回帰(2026-10-26)
+- Camera/CameraProjection/PrimitiveMesh/PrimitiveTypeはゲームのEngineHostと同じアセンブリに入り、Native StageRendererのアセンブリから分離された。既存の完全修飾名、列挙値、既定値とSceneComponent属性を維持した。アイコン2件もバイト一致で共有資産へ移動し、4ソース/2資産を既存projitemsへ明示登録した。
+- PrimitiveRoster.Buildは同じ順序/重複排除/形状/マテリアル/距離場処理を持ち、RenderServerからプリミティブ語彙の依存を除いた。共通接線演算はStageMeshGeometry。比較証拠primitive-preservation.jsonは型データ3件/組立/接線/アイコン2件すべて一致。NativeのSceneCamera初期化/RenderViewPolicy互換入口はまだ残る。
+- 先行の対象41件が成功。続くSDK0.1.32の全ソリューションは22プロジェクト、3570件成功・失敗0・実機専用2件スキップ、終了0。Core158(ソリューション/共有登録と層を含む)、Rendering169、FeatureRunner246、Windows779、生成器338、VSIX1197、Import73件。先行SDK0.1.29の3548件から増えた22件はビュー契約12、Windows4、変更選択6に対応する。
+- 証拠はprimitive-boundary-first.log、primitive-solution.logとsummary.json/memory.json。固定7画像とStage成果物SHA E485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5は不変。全体試験最大RAM45%、閾値停止なし。VSIXビルド/自動試験の成功であり、VS/Unityを起動した実画面検証とは区別する。
+- M0120はPartialのまま。Server/FrameState、公開診断・回復理由、実パス計画/実行ポート、Forward/Forward+が後続。Deferred系と物理分離/全スケール対応もM0121〜M0123で未完。mainへ統合していない。
+
+## 公開診断/回復理由の移行単位
+- ADR-0087のBackend境界としてRenderDeviceMessageとRenderBackendFailureExceptionをRendering.Backendへ置く。Severityだけをエンジンenumとし、分類名/識別名/不透明な数値コード/説明は診断情報として保持する。Nativeの情報キューを収集する時だけ対応付け、フレームごとの再変換を避ける。
+- D3D12Exceptionは互換のNative例外名/Api/HResult/文面を維持しつつポータブル例外を継承する。削除/ハング/リセットのHRESULT分類はNativeへ移し、RenderServerは回復理由だけを消費する。未知の失敗を再試行しない既存動作を維持する。
+- 実InfoQueueへ5段階のメッセージを投入して欠落/重複/重要度/エラー件数を確認し、既存の実デバイス削除/復旧/固定7画像を回帰する。Server自体の所有者移動/パス計画は後続。
+
+### 診断境界の実行結果(2026-10-26)
+- Rendering.BackendのRenderDeviceMessageは正規化した重要度と元の分類名/識別名/コード/説明を保持する。Stage/RenderServerのDebugMessagesはこの型を返す。Nativeの情報キュー収集時に対応付け、GraphicsDeviceの従来のNative収集値も維持した。通常フレームで変換済み一覧を作り直さない。
+- D3D12ExceptionはRenderBackendFailureExceptionを継承し、Api/HResult/文面を維持する。削除/ハングはDeviceRemoved、リセットはDeviceReset、その他は回復要求なし。サーバーのHRESULT定数とNative例外型による分岐を除去し、分類済みRecoveryReasonを扱う。
+- 新設の実InfoQueue試験は5重要度の文字列/識別/件数とPoll再実行の重複なしを確認。最初の試験は投入APIのS_FALSEを0必須と仮定して失敗し、HRESULTのFAILED判定へ修正。次はINFOが保存されない試験条件を観測し、試験専用キューへ空の保存/取得フィルターをpush/popして全重要度を実到達で検証した。製品フィルターは変更していない。[HRESULT](https://learn.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com)、[空の保存フィルター](https://learn.microsoft.com/en-us/windows/win32/api/d3d12sdklayers/nf-d3d12sdklayers-id3d12infoqueue-pushemptystoragefilter)の公式契約に沿う。失敗ログdiagnostic-boundary-first.log/diagnostic-queue-observed.log、成功diagnostic-queue-unfiltered.log。
+- 最終のNative18件(新設6件、実削除/復旧、型付きビュー、固定7画像、ホットリロード)、層7件、FeatureRunner247件成功。変更選択試験がBackend入力の登録漏れを検出し、実際の複数行宣言へ追加して同じ試験が成功した。証拠はdiagnostic-boundary-final.log、diagnostic-layers.log、diagnostic-catalog-final.logと各memory.json。最大RAM41%、閾値停止なし。
+- SDK0.1.33、ABI stage-v14とStage成果物SHA E485F055...B6A5は同じ。全22プロジェクト3570件の直前実行はSDK0.1.32までを対象とし、今回の診断変更を含む全体再実行とは扱わない。Server/フレーム計画/4パスのPartialは継続する。
+
+## ビュー再生成メタデータの移行単位
+- Server/FrameStateをL4へ移す前に、保存されるRenderCameraと旧行列分岐をL4 RenderViewSourceへ置換する。Sourceはコントローラーを含まない値で、固定View、物理ビュー行列+透視パラメーター、明示透視VP+物理パラメーターを保持する。解決時にRenderViewの検証を通し、不正値はNativeへの提出前に拒否する。
+- 自動aspectのカメラは現在の面サイズで同じ透視行列を再生成し、正のoverrideは固定する。明示VPはXY/Wを保ち、従来どおり現在の面aspectで深度/補助行列を再生成する。型付きSetViewは固定値のまま。Sourceは値コピーなので、後のカメラ操作で完了スナップショットを変えず、解決時のヒープ割り当ても追加しない。
+- 投影/補助投影の既存式をL4の解決処理へ移す。L5 RenderViewPolicyがSourceの種類を選び、Native互換APIも同じ処理を使う。FrameStateにはL5 View型を保存しない。リサイズ/両スロット/実デバイス再生成を4提出経路で確認し、固定7画像を維持する。
+
+### ビュー再生成入力の実行結果(2026-10-26)
+- L4 RenderViewSourceは固定View、物理ビュー行列+透視パラメーター、明示VP+透視パラメーターを値として保持する。HasValueは初期化済みの意味で、入力の有限性/投影契約はResolveでRenderViewへ解決した時に検証する。Server.SetViewSourceはNative提出が成功してからSourceを記録する。FrameStateからRenderCameraと旧行列保存分岐を除いた。
+- L5 RenderViewPolicyがSourceを選び、投影/補助投影の同じ式はL4 Resolveへ移した。カメラは現在の面aspectか正のoverrideを使い、明示VPは物理XY/Wを保持して深度メタデータだけを現在の面aspectで解決する。型付きSetViewは固定値。旧互換APIとNative初期化のL5 Policy呼出しは後続の分離まで残る。
+- Rendering178件(新設9件)成功。元のカメラの行列/位置/露出を独立に計算し、far1000/1e18、自動/固定aspect、3サイズで一致。カメラ変数の後の変更は保存値へ波及しない。3種類のSourceのウォーム後384回の解決で管理ヒープ割り当て0を確認した。
+- GPU30件成功。新設4条件は自動aspect/固定aspect/明示透視VP/固定Viewで、80×48から48×80へのリサイズ、両フレームスロット、明示解決した期待画像との一致、Source再提出、デバイス第2世代への復旧とエラー0を確認。既存の7画像、TypedLightFrame、フレーム状態、ホットリロード/プレビューも維持する。層7件/FeatureRunner248件も成功。
+- 最初のCPU実行はaspect不正時の例外型がArgumentExceptionから派生型へ変わったことを既存テストが検出。既存APIの型/文面を維持して解消し、製品を不正入力に通す変更はしていない。失敗view-source-cpu.log、成功view-source-cpu-allocation.log/view-source-gpu.log/view-source-layers.log/view-source-catalog.logと各memory.json。最大RAM43%、閾値停止なし。
+- SDK0.1.34、stage-v14/Stage成果物SHA E485F055...B6A5は不変。最新の全体3570件はSDK0.1.32までの結果で、今回の対象検証と区別する。Server本体/実行ポート/パス計画とForward系のPartialは継続する。
+
+## 実バックエンド提出ポートの移行単位
+- ADR-0087のServer移動に先立ち、L4 BackendにIStageRenderBackendとIStageShaderArtifactを置く。既存のServer/FrameStateの実提出と復旧スナップショット再生をこのポートへ接続する。FrameStateはNativeクラス/拡張メソッド/光源kindを参照しない。
+- Native ShaderArtifactPackageはL4の成果物インターフェースを実装し、所有する正規シリアライズバイトを渡す。ServerはNative内部型を使わずに同じバイト列で閉包を作る。生成時のNativeパッケージへの適合確認は、Server本体を移す次段階でNative factoryへ閉じ込める。
+- オブジェクト余力とクリア値/Debugホットリロード能力もL4の既定値へ揃える。Native側は同じ値と型付き提出アダプターを消費する。現在のRenderFrameの順序を実行する中間ポートであり、最終のStagePipelinePlan/StageFrameDataによる実行器が完成したとは扱わない。
+- 成果物バイト一致、実復旧/ロースター/光源/スロット/プレビューと7画像を確認する。Serverの物理配置とNative作成口はこの単位の後続。
+
+### 提出ポートの実行結果(2026-10-26)
+- Native StageRendererがIStageRenderBackendを実装し、Serverの通常提出/フレーム再生/フェンス観測/適用済み成果物の同期が実際にこのポートを通る。FrameStateからNative型と光源kindへの参照を除去した。型付き光源/発光/プレビューのNativeアダプターは同じ既存処理へ渡す。
+- IStageShaderArtifact.SerializedはNative packageが所有する正規バイト列。生成/読込時に一度だけ作り、閉包のBinaryWriterへそのまま書く。新設の外部ファイル比較でStage成果物そのものと完全一致し、同じpackageの識別も保持する。ServerにはNative packageへの復旧時の適合確認がまだ残り、これは次のNative factory移動対象。
+- StageRenderDefaults/StageRenderLimits/StageRuntimeCapabilitiesがクリア色/余力/Debugホットリロード能力の正本。Native定数とServerは同じ値を参照し、画素/容量/条件付きビルドの振る舞いを維持する。
+- DebugのNative41件(実ポート提出、動的物体、型付き光源、ViewSourceリサイズ/復旧、7画像、プレビュー、ホットリロード、情報キューと成果物バイト)成功。層7件、FeatureRunner249件成功。Releaseではコンパイラー/DXCのRuntime非混入、ホットリロード無効、成果物バイトの4件を別に確認し成功した。Release GPU描画の証拠とは扱わない。
+- 初回ビルドはNative内部の同名DirectionalLightSubmissionが公開型を隠すことと、内部getter2件の実装不足を検出。公開型を明示し、getterを明示実装して解消。失敗backend-port-first.log、成功backend-port-final.log/backend-port-layers.log/backend-port-catalog.log/backend-port-release.logとmemory.json。最大RAM42%、閾値停止なし。
+- SDK0.1.35、stage-v14/StageバイナリSHA E485F055...B6A5と固定7画像は不変。全体3570件はSDK0.1.32までの測定。これは動作する中間提出ポートの検証であり、Server本体/Native作成口の分離とStagePipelinePlanによるパス実行は未完、M0120全体はPartial。
+
+## Server/FrameState本体の配置移動単位
+- ADR-0087 §1.6に従い、RenderServer/RenderFrameStateをRendering.Serverへ移す。L4はIStageRenderBackendFactoryによる初期生成/再生成を使い、ウィンドウ/GraphicsDeviceOptions/Native packageへの適合確認はD3D12RenderServer.CreateとNative factoryだけが持つ。L4にNative参照やfriendは追加しない。
+- SetCamera/SetViewProjectionはL5 ViewのRenderServerViewExtensionsへ移し、既存呼出しを維持する。型名の変更はSDKで明示し、実利用側/作成口/カタログ/証拠入力を同時更新する。SceneのComponent名/JSONは変更しない。
+- テスト用の実デバイス削除/深度読み出しはNative側の拡張へ置き、作成したServerとfactoryの弱い対応表から現在世代を取得する。L4の本番ポートへテスト用APIを追加しない。FrameStateの内部試験向けfriendはWindows.Testsだけに許可する。
+- Native/portableの実アセンブリ境界、画素/復旧/ホットリロード/プレビューと共有登録を含む全ソリューションを検証する。実行順を決めるパス計画の移動はこの後続であり、Nativeが最終の実行器だけになったとは扱わない。
+
+### Server本体の配置移動と全体確認(2026-10-26)
+- RenderServerと内部RenderFrameStateはRendering.Server/Rendering.dllへ移動した。L4の作成口はIStageRenderBackendFactoryとサイズ/ロースターだけを取り、Windows/TerraFXへの参照・Native friendはない。実アセンブリと公開引数の検査も追加。NoPortableEngineLibraryReferencesTheNativeBackendと既存の再帰的なNative/L5禁止に合格する。
+- D3D12RenderServer.Createは従来のウィンドウ/Options/成果物パスの引数を保ち、所有コピーのNative factoryが初期生成と最後に適用した成果物からの再生成を行う。L4にあったNative packageへのcastもこのfactoryへ閉じた。Rootのカメラ/行列メソッドはL5 View拡張で同じ呼出し構文を維持する。実利用28ファイル、カタログ/証拠入力を更新した。
+- 実デバイス削除/深度読み出しはNativeの内部拡張に置き、Serverとfactoryの弱い対応表から現在の世代を取得する。L4の本番ポートには試験APIを足していない。FrameStateの試験向けfriendはWindows.Testsだけ。Scene Component/JSONの完全修飾名は同じ。
+- 先行の対象52件が成功。SDK0.1.36の全ソリューション22プロジェクトは3596件成功・失敗0・実機専用2件スキップ、終了0。Core159(層8件/登録を含む)、Rendering178、FeatureRunner250、Windows791、生成器338、CLI15、VSIX1197、Import73件。SDK0.1.32の3570件以後の診断/Source/実提出ポート/Server移動をすべて含む。
+- Releaseも移動後のRuntimeコンパイラー非混入/ポータブルServer参照/ホットリロード無効/正規成果物バイトの5件が成功。Release GPUやVS/Unityを起動した実画面の証拠とは区別する。Debugの固定7画像とStage成果物SHA E485F055EE871A6214EAD7558EC27E05AA8C5E5E1134DB6FAE9C4F74DF56B6A5は不変、ABIはstage-v14。
+- 証拠はserver-move-fixed.log、server-move-solution.logとsummary.json/memory.json、server-move-release.log/memory.json。全体最大RAM66%、Release62%、閾値停止なし。最初のserver-move-first.logは、旧NativeのRuntime.Windows名前空間だけを参照していたStandalone Hostのusingを検出。依存が不要になった4ツールからそのusingを除き、上記全体実行で実利用先も確認した。
+- この移動単位はMatches、M0120全体はPartial。NativeのCPU Planner呼出し・カメラ互換入口/初期化・フレーム順序/描画状態は残る。次は実StagePipelinePlan/StageFrameDataとForward/Forward+。Deferred系/全スケール物理/物理契約分離はM0121〜M0123で未完。mainへは統合していない。

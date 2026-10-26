@@ -11,13 +11,13 @@ cbuffer GiCB : register(b0)
     float4 FaceRight[6];
     float4 FaceUp[6];
     float4 FaceForward[6];
-    float4 CaptureParams;   // x face resolution, y near, z far, w hysteresis (0 = replace)
+    float4 CaptureParams;   // x face resolution, yz reserved, w hysteresis (0 = replace)
     uint4 ProbeTile;        // xy irradiance tile origin (texels, including border), zw distance tile origin
     float4 SkyParams;       // x sky light enabled, y distance written for sky texels
     uint4 Control;          // x first capture array slice, y 1 = clear both atlases instead of convolving
 };
 Texture2DArray<float4> CaptureRadiance : register(t0);
-Texture2DArray<float> CaptureDepth : register(t1);
+Texture2DArray<float> CaptureDistance : register(t1);
 StructuredBuffer<float4> SkyIrradianceSh : register(t2);
 RWTexture2D<float4> IrradianceAtlas : register(u0);
 RWTexture2D<float2> DistanceAtlas : register(u1);
@@ -100,8 +100,8 @@ CaptureSample ReadCapture(uint face, uint2 texel)
     float texelArea = 4.0 / (resolution * resolution);
     s.SolidAngle = texelArea / (rayLengthSquared * rayLength);
     uint slice = Control.x + face;
-    float depth = CaptureDepth.Load(int4(texel, slice, 0));
-    if (depth >= 1.0)
+    float distance = CaptureDistance.Load(int4(texel, slice, 0));
+    if (distance <= 0.0)
     {
         // Not clamped per sample: the band-limited radiance rings negative toward a dark ground,
         // and only the unclamped sum reproduces the Stage SH irradiance in open sky.
@@ -109,11 +109,8 @@ CaptureSample ReadCapture(uint face, uint2 texel)
         s.Distance = SkyParams.y;
         return s;
     }
-    float nearZ = CaptureParams.y;
-    float farZ = CaptureParams.z;
-    float viewZ = nearZ * farZ / (farZ - depth * (farZ - nearZ));
     s.Radiance = CaptureRadiance.Load(int4(texel, slice, 0)).rgb;
-    s.Distance = min(viewZ * rayLength, SkyParams.y);
+    s.Distance = min(distance, SkyParams.y);
     return s;
 }
 

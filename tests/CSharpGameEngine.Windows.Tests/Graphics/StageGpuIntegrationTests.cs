@@ -1,3 +1,5 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
 using System.Text;
 using CSharpGameEngine.Content;

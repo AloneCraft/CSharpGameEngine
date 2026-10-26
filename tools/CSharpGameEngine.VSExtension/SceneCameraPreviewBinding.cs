@@ -22,7 +22,6 @@ internal readonly struct SceneCameraPreview {
         Matrix4x4 View,
         Matrix4x4 Projection,
         string? ErrorMessage = null,
-        bool RadialDepth = SceneCameraPreviewBinding.DefaultRadialDepth,
         float RadialTransitionMeters = SceneCameraPreviewBinding.DefaultRadialTransitionMeters) {
         this.NodePath = NodePath;
         this.DisplayName = DisplayName;
@@ -36,7 +35,6 @@ internal readonly struct SceneCameraPreview {
         this.View = View;
         this.Projection = Projection;
         this.ErrorMessage = ErrorMessage;
-        this.RadialDepth = RadialDepth;
         this.RadialTransitionMeters = RadialTransitionMeters;
     }
 
@@ -52,8 +50,8 @@ internal readonly struct SceneCameraPreview {
     internal Matrix4x4 View { get; }
     internal Matrix4x4 Projection { get; }
     internal string? ErrorMessage { get; }
-    /// <summary>The scene camera's <c>DepthMapping</c> is Radial (the default); an orthographic camera still draws standard.</summary>
-    internal bool RadialDepth { get; }
+    /// <summary>Perspective previews use logarithmic depth; orthographic previews use linear depth.</summary>
+    internal bool RadialDepth => this.ProjectionMode == SceneProjectionMode.Perspective;
     internal float RadialTransitionMeters { get; }
     internal bool IsAvailable => this.ErrorMessage is null;
 
@@ -66,7 +64,7 @@ internal readonly struct SceneCameraPreview {
                 this.NodePath, this.DisplayName, this.ProjectionMode, SafeAspect,
                 this.FovYRadians, this.NearZ, this.FarZ, this.OrthographicSize,
                 this.World, Matrix4x4.Identity, Matrix4x4.Identity, this.ErrorMessage,
-                this.RadialDepth, this.RadialTransitionMeters);
+                this.RadialTransitionMeters);
         }
 
         Matrix4x4 Projection = this.ProjectionMode == SceneProjectionMode.Orthographic
@@ -80,7 +78,7 @@ internal readonly struct SceneCameraPreview {
             this.NodePath, this.DisplayName, this.ProjectionMode, SafeAspect,
             this.FovYRadians, this.NearZ, this.FarZ, this.OrthographicSize,
             this.World, this.View, Projection, this.ErrorMessage,
-            this.RadialDepth, this.RadialTransitionMeters);
+            this.RadialTransitionMeters);
     }
 
     private static bool IsFinite(float Value) =>
@@ -98,8 +96,7 @@ internal static class SceneCameraPreviewBinding {
     internal const float DefaultNearZ = 0.1f;
     internal const float DefaultFarZ = 300f;
     internal const float DefaultOrthographicSize = 10f;
-    /// <summary>The scene Camera component's defaults (<c>DepthMapping = Radial</c>, M0100; <c>RadialTransitionMeters = 1</c>).</summary>
-    internal const bool DefaultRadialDepth = true;
+    /// <summary>The scene camera's logarithmic transition length.</summary>
     internal const float DefaultRadialTransitionMeters = 1f;
 
     /// <summary>選択順を保ったまま、選択されたCameraだけを最大数まで取り出します。</summary>
@@ -185,16 +182,15 @@ internal static class SceneCameraPreviewBinding {
         float NearZ = ReadFloat(Camera, "NearZ", DefaultNearZ);
         float FarZ = ReadFloat(Camera, "FarZ", DefaultFarZ);
         float OrthographicSize = ReadFloat(Camera, "OrthographicSize", DefaultOrthographicSize);
-        bool RadialDepth = ReadRadialDepth(Camera);
         float RadialTransitionMeters = ReadFloat(Camera, "RadialTransitionMeters", DefaultRadialTransitionMeters);
         string? Error=Validate(Culture,World,ProjectionMode,AspectRatio,FovY,NearZ,FarZ,OrthographicSize,
-            RadialDepth,RadialTransitionMeters);
+            RadialTransitionMeters);
 
         if (Error is not null) {
             return new SceneCameraPreview(Node.Path, Node.DisplayName, ProjectionMode,
                 AspectRatio, FovY, NearZ, FarZ, OrthographicSize,
                 World, Matrix4x4.Identity, Matrix4x4.Identity, Error,
-                RadialDepth, RadialTransitionMeters);
+                RadialTransitionMeters);
         }
 
         TryGetCameraAxes(World,out Vector3 Eye,out _,out Vector3 Up,out Vector3 Forward);
@@ -207,27 +203,7 @@ internal static class SceneCameraPreviewBinding {
         return new SceneCameraPreview(Node.Path, Node.DisplayName, ProjectionMode,
             AspectRatio, FovY, NearZ, FarZ, OrthographicSize,
             World, View, Projection, null,
-            RadialDepth, RadialTransitionMeters);
-    }
-
-    /// <summary>
-    /// The scene camera's <c>DepthMapping</c>: an absent member is the component's default (Radial); <c>default</c>
-    /// and numeric constants are the enum's value (Standard = 0).
-    /// </summary>
-    private static bool ReadRadialDepth(SceneComponent Camera) {
-        SceneValue? Value = Camera.FindMember("DepthMapping")?.Value;
-        if (Value is null) {
-            return DefaultRadialDepth;
-        }
-        if (Value.ReferencedSymbol?.Name is { } Name) {
-            return !string.Equals(Name, "Standard", StringComparison.Ordinal);
-        }
-        if (Value.Kind == SceneValueKind.Default) {
-            return false;
-        }
-        return Value.ConstantValue is { } Constant
-            ? Convert.ToInt64(Constant, CultureInfo.InvariantCulture) != 0
-            : DefaultRadialDepth;
+            RadialTransitionMeters);
     }
 
     private static SceneProjectionMode ReadProjection(SceneComponent Camera) {
@@ -261,7 +237,6 @@ internal static class SceneCameraPreviewBinding {
         float NearZ,
         float FarZ,
         float OrthographicSize,
-        bool RadialDepth,
         float RadialTransitionMeters) {
         if (!IsFinite(World) || !IsFinite(AspectRatio) || AspectRatio <= 0f) {
             return VsixText.Get("SceneCameraNonFiniteTransformOrAspect",Culture);
@@ -289,7 +264,7 @@ internal static class SceneCameraPreviewBinding {
 
         // M0100: the preview host draws a radial thumbnail only when its depth curve exists
         // (RadialDepthProjection.TryCreate); a camera it cannot draw fails the whole frame, so the card reports it.
-        if (ProjectionMode == SceneProjectionMode.Perspective && RadialDepth) {
+        if (ProjectionMode == SceneProjectionMode.Perspective) {
             float TanHalfFov = FloatMath.Tan(FovY * 0.5f);
             float Corner = FarZ * FloatMath.Sqrt(1f + TanHalfFov * TanHalfFov * (1f + AspectRatio * AspectRatio));
             if (!IsFinite(RadialTransitionMeters) || RadialTransitionMeters <= 0f || !IsFinite(Corner)) {

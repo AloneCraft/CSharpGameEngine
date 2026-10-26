@@ -10,6 +10,5 @@ public sealed class StagePresentationShaderSourceTests {
         // radial depth on float arithmetic (RadialLog2OnePlus) that every adapter evaluates alike.
         var Code=Regex.Replace(StagePresentationShaderSource.Source,@"//[^\n]*",string.Empty);
         Assert.DoesNotMatch(@"\b(log|log2|log10|exp|exp2|pow)\s*\(",Code);
-        Assert.Contains("float RadialLog2OnePlus(float x)",Code,StringComparison.Ordinal);
     }
 }

@@ -1,3 +1,4 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Lighting;
@@ -52,7 +53,6 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
             [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=1 },new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=2 }]);
         var View=Camera.CreateFirstPerson(new Vector3(0f,3f,-6f));
         View.Pitch=-0.4f;
-        View.DepthMapping=RenderDepthMapping.Standard;
         for(var Frame=0;Frame<2;Frame++){
             Renderer.SetCamera(View);
             Renderer.SetAmbientLight(new Vector3(0.5f));
@@ -93,7 +93,6 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
             [Floor],[new StageMaterialCreateInfo { BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f,BaseColorTexture=Checker }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         var View=Camera.CreateFirstPerson(new Vector3(0.013f,1.6f,ForwardOffset));
         View.Pitch=-0.12f;
-        View.DepthMapping=RenderDepthMapping.Standard;
         for(var Frame=0;Frame<2;Frame++){
             Renderer.SetCamera(View);
             Renderer.SetAmbientLight(new Vector3(0.6f));
@@ -133,7 +132,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         var Tangents=new Vector4[Data.Positions.Length];
         var Uvs=new Vector2[Data.Positions.Length];
         for(var Index=0;Index<Tangents.Length;Index++){
-            Tangents[Index]=StageRenderer.ArbitraryTangentFor(Data.Normals[Index]);
+            Tangents[Index]=StageMeshGeometry.ArbitraryTangentFor(Data.Normals[Index]);
             Uvs[Index]=new Vector2(Data.Positions[Index].X,Data.Positions[Index].Z)*UvPerMeter;
         }
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Data.Indices };

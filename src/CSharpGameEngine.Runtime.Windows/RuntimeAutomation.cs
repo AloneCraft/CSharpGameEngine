@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.Server;
+using CSharpGameEngine.Rendering;
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO.Compression;
@@ -6,7 +8,6 @@ using System.Text.Json;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Simulation;
-using TerraFX.Interop.DirectX;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
 /// 環境変数で有効化する実行時の自動検証フック。描画が始まってから指定フレーム数を表示した後に、
@@ -180,7 +181,7 @@ public sealed class RuntimeAutomation {
         this.FrameMilliseconds.Add(this.FrameClock.IsRunning?this.FrameClock.ElapsedTicks*(1000f/System.Diagnostics.Stopwatch.Frequency):0f);
         this.FrameClock.Restart();
         if(this.Completed&&this.ReportPath is not null){
-            this.WriteReport(Renderer.ErrorOrWorseMessageCount);
+            this.WriteReport(Renderer.ErrorOrWorseMessageCount,Renderer.DebugLayerEnabled);
         }
         if(!Captured){
             return;
@@ -192,9 +193,9 @@ public sealed class RuntimeAutomation {
         foreach(var Message in Renderer.DebugMessages.Where(static Message=>Message.IsErrorOrWorse).Take(20)){
             Console.Error.WriteLine("CGE-AUTOMATION-D3D12 "+Message);
         }
-        Console.Error.WriteLine($"CGE-AUTOMATION-CAPTURE path={this.CapturePath} d3d12Errors={Renderer.ErrorOrWorseMessageCount}");
+        Console.Error.WriteLine($"CGE-AUTOMATION-CAPTURE path={this.CapturePath} d3d12Errors={Renderer.ErrorOrWorseMessageCount} debugLayerEnabled={Renderer.DebugLayerEnabled}");
     }
-    private void WriteReport(int D3D12Errors){
+    private void WriteReport(int D3D12Errors,bool DebugLayerEnabled){
         var Directory=System.IO.Path.GetDirectoryName(this.ReportPath);
         if(!string.IsNullOrEmpty(Directory)){
             System.IO.Directory.CreateDirectory(Directory);
@@ -205,6 +206,7 @@ public sealed class RuntimeAutomation {
         Writer.WriteString("schema",ReportSchema);
         Writer.WriteNumber("frames",this.PresentedFrames);
         Writer.WriteNumber("d3d12Errors",D3D12Errors);
+        Writer.WriteBoolean("d3d12DebugLayerEnabled",DebugLayerEnabled);
         Writer.WriteNumber("audioRequests",this.AudioRequests);
         Writer.WriteNumber("audioStarted",this.AudioStarted);
         // Frame-local camera positions (in the camera's reference frame), one entry per presented frame.
@@ -250,7 +252,7 @@ public sealed class RuntimeAutomation {
     }
     /// <summary>R8G8B8A8のReadback結果を、行ピッチを除いた不透明RGBのPNGとして保存する。</summary>
     public static void WritePng(PixelReadbackResult Frame,string Path){
-        if(Frame.Format!=DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM){
+        if(Frame.Format!=RenderPixelFormat.Rgba8Unorm){
             throw new NotSupportedException($"Automation capture supports R8G8B8A8_UNORM only, but was {Frame.Format}.");
         }
         var Directory=System.IO.Path.GetDirectoryName(Path);

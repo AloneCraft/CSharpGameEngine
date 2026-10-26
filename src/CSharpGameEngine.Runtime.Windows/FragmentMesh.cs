@@ -1,6 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>

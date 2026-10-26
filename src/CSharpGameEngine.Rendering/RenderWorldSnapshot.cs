@@ -169,7 +169,7 @@ public readonly struct RenderFrustum(
         &&this.Far.ContainsSphere(Center,Radius);
 }
 
-public readonly record struct RenderView(RenderFrustum Frustum,float LodHysteresis);
+public readonly record struct RenderVisibilityView(RenderFrustum Frustum,float LodHysteresis);
 public readonly record struct RenderLodState(StableId InstanceId,int LodIndex);
 public readonly record struct VisibleRenderInstance(
     int SourceIndex,StableId InstanceId,int LodIndex,RenderMeshId Mesh,RenderMaterialId Material);
@@ -180,7 +180,7 @@ public readonly record struct RenderInstanceBatch(
 /// <summary>Stateless visibility/LOD selection and caller-buffer instance batching.</summary>
 public static class RenderVisibility {
     public static RenderVisibilityQueryResult Select(
-        RenderWorldSnapshot Snapshot,in RenderView View,
+        RenderWorldSnapshot Snapshot,in RenderVisibilityView View,
         ReadOnlySpan<RenderLodState>PreviousStates,
         Span<RenderLodState>NextStates,
         Span<VisibleRenderInstance>VisibleInstances){
@@ -261,7 +261,7 @@ public static class RenderVisibility {
         return BatchCount;
     }
 
-    private static void ValidateView(in RenderView View){
+    private static void ValidateView(in RenderVisibilityView View){
         if(!float.IsFinite(View.LodHysteresis)
             ||View.LodHysteresis<0f||View.LodHysteresis>0.5f){
             throw new ArgumentOutOfRangeException(nameof(View),"LOD hysteresis must be between zero and one half.");

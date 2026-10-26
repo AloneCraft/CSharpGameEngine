@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using CSharpGameEngine.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
@@ -18,7 +20,7 @@ public class RenderServerTests {
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_SamePrimitiveTypeRepeated_DedupesToOneMeshEntry(){
         (var Meshes,var Materials,var Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box,PrimitiveType.Box,PrimitiveType.Box],MeshIndexOffset:0,MaterialIndexOffset:0);
+            PrimitiveRoster.Build([PrimitiveType.Box,PrimitiveType.Box,PrimitiveType.Box],MeshIndexOffset:0,MaterialIndexOffset:0);
 
         Assert.Single(Meshes);
         Assert.Single(Materials);
@@ -30,7 +32,7 @@ public class RenderServerTests {
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_DistinctPrimitiveTypes_EachGetsItsOwnMeshIndexOffsetCorrectly(){
         (var Meshes,var Materials,var Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box,PrimitiveType.Sphere,PrimitiveType.Box],MeshIndexOffset:5,MaterialIndexOffset:2);
+            PrimitiveRoster.Build([PrimitiveType.Box,PrimitiveType.Sphere,PrimitiveType.Box],MeshIndexOffset:5,MaterialIndexOffset:2);
 
         Assert.Equal(2,Meshes.Length);
         Assert.Equal(3,Objects.Length);
@@ -44,7 +46,7 @@ public class RenderServerTests {
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_EveryPrimitiveType_ProducesAStageRendererValidMesh(){
         foreach(var Type in Enum.GetValues<PrimitiveType>()){
-            (var Meshes,_,_)=RenderServer.BuildPrimitiveRoster([Type],0,0);
+            (var Meshes,_,_)=PrimitiveRoster.Build([Type],0,0);
             var Mesh=Assert.Single(Meshes);
 
             Assert.NotEmpty(Mesh.Positions);
@@ -93,14 +95,14 @@ public class RenderServerTests {
 
     private static void RunPresentationScenario(){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Render Presentation GPU Test",
             Width=128,
             Height=128,
             Visible=false,
         });
-        using RenderServer Renderer=RenderServer.Create(
+        using RenderServer Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);
@@ -108,7 +110,7 @@ public class RenderServerTests {
         static string Capture(
             RenderServer Renderer,RenderPresentationMode Mode,float SelectionWeight,
             bool WithOverlay=false,float OverlayAlpha=0.75f){
-            var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+            var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
             Renderer.SetCamera(Camera);
             Renderer.SetAmbientLight(new Vector3(0.4f));
             Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
@@ -166,27 +168,28 @@ public class RenderServerTests {
 
     private static void RunCameraPreviewScenario(){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Camera Preview GPU Test",
             Width=128,
             Height=128,
             Visible=false,
         });
-        using RenderServer Renderer=RenderServer.Create(
+        using RenderServer Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);
 
-        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         Matrix4x4 ViewProjection=Camera.GetView()*Camera.GetProjection(1f);
+        Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,1f,out var Projection));
         RenderCameraPreview Included=new(
-            16,16,64,64,ViewProjection,Camera.GetEyePosition());
+            16,16,64,64,ViewProjection,Camera.GetEyePosition(),RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false));
         RenderCameraPreview Excluded=Included with { ExcludedObjectIndex=0 };
 
         static (string Full,string Region)Capture(
             RenderServer Renderer,
-            CSharpGameEngine.Graphics.D3D12.Camera Camera,
+            CSharpGameEngine.Rendering.View.RenderCamera Camera,
             RenderCameraPreview Preview,float SelectionWeight){
             Renderer.SetCamera(Camera,1f);
             Renderer.SetAmbientLight(new Vector3(0.4f));
@@ -246,7 +249,7 @@ public class RenderServerTests {
 
     private static void RunBoxRenderScenario(string EffectiveShaderArtifactPath){
         (var Meshes,var Materials,var Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine RenderServer GPU Test",
@@ -257,7 +260,7 @@ public class RenderServerTests {
 
         GraphicsDeviceOptions DeviceOptions=new(){ UseWarp=true,EnableDebugLayer=true };
 
-        using var Renderer=RenderServer.Create(
+        using var Renderer=D3D12RenderServer.Create(
                                                 Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,EffectiveShaderArtifactPath,
                                                 Meshes,Materials,Objects);
 
@@ -266,7 +269,7 @@ public class RenderServerTests {
         Assert.Equal(1u,Renderer.DeviceSnapshot.Generation);
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
-        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
         Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));

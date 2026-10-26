@@ -17,7 +17,7 @@ internal static class RenderPreviewSceneBuilder {
         Matrix4x4 Projection=Matrix4x4.CreatePerspectiveFieldOfView(
             FloatMath.Pi/4f,Math.Max(1,Width)/(float)Math.Max(1,Height),0.05f,Radius*20f);
         return new RenderPreviewScene {
-            Camera=Camera(View,Projection,Eye),
+            Camera=Camera(View,Projection,Eye,NearZ:0.05f,FarZ:Radius*20f),
             Meshes=[new RenderPreviewMesh {
                 Positions=Flatten(Mesh.Positions),
                 Normals=Flatten(Mesh.Normals),
@@ -219,12 +219,13 @@ internal static class RenderPreviewSceneBuilder {
     };
 
     private static RenderPreviewCamera Camera(
-        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 Position,float FovYRadians=SceneCameraFraming.DefaultFovYRadians){
+        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 Position,float FovYRadians=SceneCameraFraming.DefaultFovYRadians,
+        float?NearZ=null,float?FarZ=null){
         RenderPreviewCamera Camera=new(){
             ViewProjection=Matrix(View*Projection),
             Position=[Position.X,Position.Y,Position.Z],
         };
-        DescribePose(Camera,View,Projection,FovYRadians);
+        DescribePose(Camera,View,Projection,FovYRadians,NearZ:NearZ,FarZ:FarZ);
         return Camera;
     }
 
@@ -235,7 +236,7 @@ internal static class RenderPreviewSceneBuilder {
     /// from an RUF rotation whose rows are right, up and forward.
     /// </summary>
     internal static void DescribePose(RenderPreviewCamera Camera,in Matrix4x4 View,in Matrix4x4 Projection,float FovYRadians,
-        bool RadialDepth=true,float RadialTransitionMeters=1f){
+        float RadialTransitionMeters=1f,float?NearZ=null,float?FarZ=null){
         Vector3 Up=Vector3.Normalize(new Vector3(View.M12,View.M22,View.M32));
         Vector3 Forward=-Vector3.Normalize(new Vector3(View.M13,View.M23,View.M33));
         Vector3 Right=Vector3.Cross(Up,Forward);
@@ -247,10 +248,9 @@ internal static class RenderPreviewSceneBuilder {
         Camera.Rotation=[Rotation.X,Rotation.Y,Rotation.Z,Rotation.W];
         Camera.FovYRadians=FovYRadians;
         // Perspective (M34=-1): M33=f/(n-f), M43=nf/(n-f). Orthographic (M34=0): M33=1/(n-f), M43=n/(n-f).
-        Camera.NearZ=Projection.M43/Projection.M33;
-        Camera.FarZ=Projection.M34==0f?(Projection.M43-1f)/Projection.M33:Projection.M43/(Projection.M33+1f);
-        // M0100: radial depth is the default of every perspective view; an orthographic one keeps the standard depth.
-        Camera.DepthMapping=RadialDepth&&Projection.M34!=0f?RenderPreviewDepthMapping.Radial:RenderPreviewDepthMapping.Standard;
+        // Preserve supplied clip planes: a huge perspective far plane cannot be recovered from a rounded matrix.
+        Camera.NearZ=NearZ??Projection.M43/Projection.M33;
+        Camera.FarZ=FarZ??(Projection.M34==0f?(Projection.M43-1f)/Projection.M33:Projection.M43/(Projection.M33+1f));
         Camera.RadialTransitionMeters=RadialTransitionMeters;
     }
 

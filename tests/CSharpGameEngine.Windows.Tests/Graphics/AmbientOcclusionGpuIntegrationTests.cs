@@ -1,3 +1,5 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
@@ -65,16 +67,41 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
         Assert.Equal(Without,With);
         Scene.AssertNoDebugLayerErrors();
     }
+    [WindowsOnlyTheory]
+    [Trait("Category","GPU")]
+    [InlineData(1f,300f,0.8f)]
+    [InlineData(10000f,1e18f,1f)]
+    public void AmbientOcclusion_PreservesPhysicalCreasesBeyondTheAuxiliaryProjection(float Scale,float Far,float Maximum){
+        using var Scene=AoScene.Create(Scale,Far);
+        Scene.Render(SkyLight:true,Occlusion:new AmbientOcclusionSettings(1f,Scale));
+        var (Values,Width,Height)=Scene.Renderer.ReadAmbientOcclusionForTesting();
+        var Clip=Vector4.Transform(new Vector4(new Vector3(0f,0.2f,1f)*Scale,1f),Scene.ViewProjection);
+        var X=Math.Clamp((int)((Clip.X/Clip.W*0.5f+0.5f)*Width),0,Width-1);
+        var Y=Math.Clamp((int)((0.5f-Clip.Y/Clip.W*0.5f)*Height),0,Height-1);
+        Assert.All(Values,Value=>Assert.InRange(Value,0f,1f));
+        Assert.True(Values[Y*Width+X]<Maximum,$"Physical crease at scale {Scale}: {Values[Y*Width+X]}");
+        Scene.AssertNoDebugLayerErrors();
+    }
     private sealed class AoScene:IDisposable {
-        private AoScene(Win32Window Window,StageRenderer Renderer){
+        private AoScene(Win32Window Window,StageRenderer Renderer,float Scale,float Far){
+            this.Scale=Scale;
+            this.Far=Far;
             this.Window=Window;
             this.Renderer=Renderer;
         }
         public Win32Window Window { get; }
         public StageRenderer Renderer { get; }
-        private static Camera View=>Camera.CreateFirstPerson(new Vector3(0f,1.5f,-4f));
+        private readonly float Scale;
+        private readonly float Far;
+        private Camera View {
+            get {
+                var Result=Camera.CreateFirstPerson(new Vector3(0f,1.5f,-4f)*this.Scale);
+                Result.FarZ=this.Far;
+                return Result;
+            }
+        }
         public Matrix4x4 ViewProjection=>View.GetView()*View.GetProjection((float)this.Window.ClientWidth/this.Window.ClientHeight);
-        public static AoScene Create(){
+        public static AoScene Create(float Scale=1f,float Far=300f){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine AO GPU Test",Width=160,Height=90,Visible=false });
             StageMeshCreateInfo ToMesh(ProceduralMeshData Data){
                 var Tangents=new Vector4[Data.Positions.Length];
@@ -86,7 +113,7 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
                 [new StageMaterialCreateInfo { BaseColorFactor=new Vector4(0.8f,0.8f,0.8f,1f),RoughnessFactor=1f,MetallicFactor=0f }],
                 [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }]);
             Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
-            return new AoScene(Window,Renderer);
+            return new AoScene(Window,Renderer,Scale,Far);
         }
         public void Render(bool SkyLight,AmbientOcclusionSettings?Occlusion){
             for(var Frame=0;Frame<2;Frame++){
@@ -94,17 +121,17 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
                     SkyAtmosphereSettings.Earth,SkyLight?new SkyLightSettings(1f,Vector3.Zero):null,null,
                     new ExposureSettings(ExposureMode.PhysicalCamera,2f,0f),ToneMapper.UnrealFilmicSrgb,0f,0.0064f,null,Occlusion));
                 this.Renderer.SetAmbientLight(Vector3.Zero);
-                this.Renderer.SetCamera(View);
+                this.Renderer.SetCamera(this.View);
                 this.Renderer.SetCameraAltitude(1.5f);
                 this.Renderer.SetDirectionalLight(Vector3.Normalize(new Vector3(0.3f,0.7f,-0.6f)),Vector3.One,3f);
-                this.Renderer.SetObjectTransform(0,Matrix4x4.Identity);
-                this.Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,1f,2f));
+                this.Renderer.SetObjectTransform(0,Matrix4x4.CreateScale(this.Scale));
+                this.Renderer.SetObjectTransform(1,Matrix4x4.CreateScale(this.Scale)*Matrix4x4.CreateTranslation(new Vector3(0f,1f,2f)*this.Scale));
                 this.Renderer.RenderFrame(CaptureForVerification:Frame==1);
             }
         }
         public PixelColor SamplePixel(Vector3 World){
             var Frame=this.Renderer.LastCapturedFrame!;
-            var Clip=Vector4.Transform(new Vector4(World,1f),View.GetView()*View.GetProjection((float)Frame.Width/Frame.Height));
+            var Clip=Vector4.Transform(new Vector4(World,1f),this.View.GetView()*this.View.GetProjection((float)Frame.Width/Frame.Height));
             var X=(int)((Clip.X/Clip.W*0.5f+0.5f)*Frame.Width);
             var Y=(int)((0.5f-Clip.Y/Clip.W*0.5f)*Frame.Height);
             Assert.InRange(X,0,Frame.Width-1);

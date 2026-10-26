@@ -45,7 +45,13 @@ internal static unsafe class GpuTextureReadback {
             }
             byte*Mapped;
             D3D12_RANGE Range=new(){ Begin=0,End=(nuint)TotalBytes };
-            D3D12Diagnostics.EnsureSuccess(Readback->Map(0,&Range,(void**)&Mapped),"Map","texture readback");
+            var MapResult=Readback->Map(0,&Range,(void**)&Mapped);
+            if(MapResult.FAILED){
+                Device.PollDebugMessages();
+                var RemovedReason=Device.Device->GetDeviceRemovedReason().Value;
+                var Messages=string.Join(" | ",Device.CollectedMessages.Where(Message=>Message.IsErrorOrWorse).TakeLast(6));
+                D3D12Diagnostics.EnsureSuccess(MapResult,"Map",$"texture readback (removed reason 0x{RemovedReason:X8}; {Messages})");
+            }
             try {
                 return (new ReadOnlySpan<byte>(Mapped+Footprint.Offset,checked((int)(TotalBytes-Footprint.Offset))).ToArray(),(int)Footprint.Footprint.RowPitch,(int)Desc.Width,(int)Desc.Height);
             } finally {

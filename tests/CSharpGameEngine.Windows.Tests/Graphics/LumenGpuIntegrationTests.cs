@@ -1,3 +1,4 @@
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Geometry;
@@ -219,21 +220,22 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Lumen_FollowsAMovingBox(){
+        var View=LumenScene.RoomView;
         // A red glowing box under the sky moves 2.5 m: its red bounce leaves the floor in front of its old place and appears in front of the new one,
         // and after a while the moved scene matches one that started there (the cards are in the box's own space and follow it).
         using var Moving=LumenScene.Room(BoxEmissiveNits:new Vector3(3000f,0f,0f));
         for(var Frame=0;Frame<12;Frame++){
-            Moving.Render(LumenSettings.Unreal,Sun:false);
+            Moving.Render(LumenSettings.Unreal,Sun:false,View:View);
         }
         var Before=Moving.Renderer.ReadLumenDiffuseForTesting();
         var Moved=Matrix4x4.CreateTranslation(-2.5f,0.5f,1f);
         for(var Frame=0;Frame<16;Frame++){
-            Moving.Render(LumenSettings.Unreal,Sun:false,Box:Moved);
+            Moving.Render(LumenSettings.Unreal,Sun:false,View:View,Box:Moved);
         }
         var After=Moving.Renderer.ReadLumenDiffuseForTesting();
         using var Fresh=LumenScene.Room(BoxEmissiveNits:new Vector3(3000f,0f,0f));
         for(var Frame=0;Frame<28;Frame++){
-            Fresh.Render(LumenSettings.Unreal,Sun:false,Box:Moved);
+            Fresh.Render(LumenSettings.Unreal,Sun:false,View:View,Box:Moved);
         }
         var Reference=Fresh.Renderer.ReadLumenDiffuseForTesting();
         var OldPlace=LumenScene.FloorPixel(new Vector3(0f,0f,0.2f),Before.Width,Before.Height);
@@ -328,7 +330,6 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         private static Camera CreateView(Vector3 Position,float Pitch){
             var View=Camera.CreateFirstPerson(Position);
             View.Pitch=Pitch;
-            View.DepthMapping=RenderDepthMapping.Standard;
             return View;
         }
         private static StageMaterialCreateInfo Material(Vector3 Color,float Roughness=0.9f,float Metallic=0f,Vector3 Emissive=default)=>
@@ -342,7 +343,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         private static LumenScene Create(StageMaterialCreateInfo[]Materials,RenderScalability?Scalability,bool WithField,bool Walls){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Lumen",Width=Width,Height=Height,Visible=false });
             var Box=ProceduralMeshFactory.CreateBox(Vector3.One);
-            var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageRenderer.ArbitraryTangentFor).ToArray(),
+            var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageMeshGeometry.ArbitraryTangentFor).ToArray(),
                 Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,DistanceField=WithField?MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices):null };
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
                 [Mesh],Materials,[.. Enumerable.Range(0,5).Select(Index=>new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=Index })]);

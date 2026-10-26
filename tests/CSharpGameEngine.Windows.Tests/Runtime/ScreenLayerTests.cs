@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
@@ -55,8 +57,8 @@ public class ScreenLayerTests {
 
     private static RenderServer CreateServer(Win32Window Window){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
-            RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
-        return RenderServer.Create(
+            PrimitiveRoster.Build([PrimitiveType.Box],0,0);
+        return D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,
             new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
             ShaderArtifactPath,Meshes,Materials,Objects);
@@ -65,7 +67,7 @@ public class ScreenLayerTests {
     private static Win32Window CreateWindow(string Title)=>new(new Win32WindowOptions { Title=Title,Width=Size,Height=Size,Visible=false });
 
     private static PixelReadbackResult Render(RenderServer Renderer,ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches,bool SetLayer){
-        Renderer.SetCamera(CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));
         Renderer.SetAmbientLight(new Vector3(0.4f));
         Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);

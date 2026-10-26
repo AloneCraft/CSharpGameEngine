@@ -1,9 +1,10 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
-using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.EditorPreview.Host;
 
@@ -233,7 +234,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             }
         }
 
-        RenderServer Server=RenderServer.Create(
+        RenderServer Server=D3D12RenderServer.Create(
             SurfaceHandle,Width,Height,DeviceOptions,ShaderArtifactPath,
             Meshes,Materials,Objects);
         try {
@@ -254,7 +255,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
     private static void SetView(RenderServer Server,RenderPreviewCamera Camera){
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
         Vector3 Position=ToVector3(Camera.Position);
-        if(Camera.DepthMapping==RenderPreviewDepthMapping.Radial){
+        if(RadialDepthProjection.IsPerspective(ViewProjection)){
             Server.SetViewProjection(ViewProjection,Position,
                 new RadialViewParameters(Camera.FovYRadians,Camera.NearZ,Camera.FarZ,Camera.RadialTransitionMeters));
         } else {
@@ -267,15 +268,14 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         RenderPreviewCamera Camera=Source.Camera!;
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
         Vector3 Position=ToVector3(Camera.Position);
-        if(Camera.DepthMapping!=RenderPreviewDepthMapping.Radial){
-            return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex);
+        if(!RadialDepthProjection.IsPerspective(ViewProjection)){
+            return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,RenderViewDepth.ForOrthographic(ViewProjection),ExcludedObjectIndex);
         }
         if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
             ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,Source.Width/(float)Source.Height,out var Projection)){
             throw new ArgumentException("A radial camera preview needs a valid field of view, clip range and transition length.",nameof(Source));
         }
-        return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex,
-            DepthMapping:RenderDepthMapping.Radial,Radial:Projection);
+        return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false),ExcludedObjectIndex);
     }
 
     /// <summary>Test-only access to the active Render Server (its depth buffer, for instance).</summary>

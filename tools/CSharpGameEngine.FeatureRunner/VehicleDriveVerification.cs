@@ -104,6 +104,7 @@ public static class VehicleDriveVerification {
             RedirectStandardOutput=true,
         };
         Start.Environment["CGE_GRAPHICS_ADAPTER"]=Adapter;
+        Start.Environment["CGE_D3D12_DEBUG_LAYER"]="1";
         Start.Environment["CGE_AUTOMATION_FRAMES"]=Frames.ToString(CultureInfo.InvariantCulture);
         Start.Environment["CGE_AUTOMATION_INPUT"]=Schedule;
         Start.Environment["CGE_AUTOMATION_REPORT"]=ReportPath;
@@ -133,6 +134,9 @@ public static class VehicleDriveVerification {
         if(!Report.TryGetProperty("schema",out var Schema)||Schema.GetString()!="cge-automation-report/1"){
             Failures.Add("The automation report schema is not cge-automation-report/1.");
             return Failures;
+        }
+        if(!Report.TryGetProperty("d3d12DebugLayerEnabled",out var DebugLayer)||DebugLayer.ValueKind!=JsonValueKind.True){
+            Failures.Add("The D3D12 debug layer was not enabled during template verification.");
         }
         var Errors=Report.GetProperty("d3d12Errors").GetInt32();
         if(Errors!=0){

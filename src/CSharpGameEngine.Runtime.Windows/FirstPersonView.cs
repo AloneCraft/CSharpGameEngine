@@ -1,6 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
 /// Where one mesh is drawn (ADR-0078/M0107): UE's OwnerNoSee / OnlyOwnerSee and CastShadow of a primitive component. A mesh with

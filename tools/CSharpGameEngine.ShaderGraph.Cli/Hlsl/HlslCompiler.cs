@@ -81,14 +81,19 @@ public static class HlslCompiler {
                 return HlslCompileResult.Failed(Diagnostics);
             }
 
-            var Bytecode=ReadObjectBytecode(Result);
+            var Bytecode=ReadOutputBytes(Result,DXC_OUT_OBJECT);
             if(Bytecode is null||Bytecode.Length==0){
                 Diagnostics.Add(new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error,
                     "DXC reported success but produced no DXIL bytecode."));
                 return HlslCompileResult.Failed(Diagnostics);
             }
 
-            return HlslCompileResult.Succeeded(Bytecode,Diagnostics);
+            var Reflection=ReadOutputBytes(Result,DXC_OUT_REFLECTION);
+            if(Reflection is null||Reflection.Length==0){
+                Diagnostics.Add(new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error,"DXC produced no reflection data."));
+                return HlslCompileResult.Failed(Diagnostics);
+            }
+            return HlslCompileResult.Succeeded(Bytecode,Diagnostics,Reflection);
         } finally {
             foreach(var P in NativeArgs){
                 if(P!=0){
@@ -196,14 +201,14 @@ public static class HlslCompiler {
         }
     }
 
-    private static unsafe byte[]?ReadObjectBytecode(IDxcResult*Result){
-        if(!Result->HasOutput(DXC_OUT_OBJECT)){
+    private static unsafe byte[]?ReadOutputBytes(IDxcResult*Result,DXC_OUT_KIND Kind){
+        if(!Result->HasOutput(Kind)){
             return null;
         }
 
         IDxcBlob*ObjectBlob=null;
         try {
-            HRESULT Hr=Result->GetOutput(DXC_OUT_OBJECT,__uuidof<IDxcBlob>(),(void**)&ObjectBlob,ppOutputName:null);
+            HRESULT Hr=Result->GetOutput(Kind,__uuidof<IDxcBlob>(),(void**)&ObjectBlob,ppOutputName:null);
             if(Hr.FAILED||ObjectBlob==null){
                 return null;
             }

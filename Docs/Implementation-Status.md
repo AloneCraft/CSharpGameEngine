@@ -320,9 +320,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Known deviations: None
 - Next action: 削除済み(ADR-0029、M0009)。後継はF-L7-011(SYSGEN001〜020)。
 
-## F-L0-001 — `Camera`(オービットカメラ+一人称カメラ)
+## F-L0-001 — `RenderCamera`(オービットカメラ+一人称カメラ)
 
-- Layer: L0 — Platform / Native Backends
+- Layer: L5 — Runtime view math (`CSharpGameEngine.Rendering.View`; stable historical feature ID retained)
 - Parent capability: ECS駆動ステージ
 - Status: Implemented
 - Verification: TestVerified
@@ -330,12 +330,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(一人称モード追加)、
   Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md(RUF内部実装統合)
 - Implementation evidence:
-  - src/CSharpGameEngine.Windows/Graphics/Camera.cs
+  - src/CSharpGameEngine.Rendering/View/RenderCamera.cs
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs
+  - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs
 - Reverse-engineered behavior:
   - Yaw/Pitch/Distance/Targetからview/projection行列を計算するUE5風スプリングアームカメラ。
-    `System.Numerics`のみに依存しTerraFXを含まないため、GPU無しで単体テストできる。
+    `System.Numerics`とCoreのSceneFactory/RUFに依存するポータブルな計算で、GPU無しで単体テストできる。
   - `ApplyMouseDelta`はPitchをインスタンスフィールド`PitchClampMinRadians`/
     `PitchClampMaxRadians`にクランプする(`CreateDefault`は静的定数`MinPitchRadians`/
     `MaxPitchRadians`(-80°/+40°)を、`CreateFirstPerson`は`MinPitchRadiansFirstPerson`/
@@ -348,7 +348,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `Spatial<UnityCoordinateConvention>.RightFromUpForward`へ置換し、旧`Cross(UnitY,flatForward)`
     式とビット単位で一致することを確認済み。`GetView`/`GetProjection`自体(`Matrix4x4.CreateLookAt`/
     `CreatePerspectiveFieldOfView`)はRUF化していない(Rendering境界は依然未確定、
-    Spatial-RUF.md参照)。`BuildViewMatrix`静的ヘルパーを新設し`ModelRenderer`と共有する。
+    Spatial-RUF.md参照)。`BuildViewMatrix`静的ヘルパーがビュー構築を共有する。
 - Conformance: Matches
 - Known deviations: `GetFlatRight()`はRUFの+R(`RightFromUpForward`)を返す。`GetView`は右手系の
   `CreateLookAt`なので、+Fを向いたカメラでは+Rが画面の左に見える(画面の右はForward×Up=−R)。
@@ -360,7 +360,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
 - M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
-- M0099 Phase 4: radial depth mode (F-L5-038, ADR-0076). Seven radial pipeline states share the standard root signature; `SetCamera` validates the radial parameters, `WriteDepthMapping` appends the 32-byte packet every frame, and the sky, cascade and AO passes take `InvertibleViewProjection` (the camera matrix for a standard camera). Standard pipeline states and their frames are unchanged (`StandardModeGoldenFrameTests`).
+- M0119 native depth migration (F-L5-038, ADR-0084): one native Stage PSO set and fourteen shader entries; SetCamera always validates a logarithmic projection. L4 RenderViewDepth creates the frame packets. Physical SceneDistance feeds sky/AO and CaptureDistance feeds DDGI. Native images are pinned; final standard comparison evidence is retained in M0119. Preview protocol 9 and matrix/thumbnail submissions now require native depth; legacy Model/Triangle implementations, ABI producers and templates have also been removed; M0119 integration, template and performance gates are verified.
 - M0099 Phase 0: the grid and the simplified height fog add the render origin back, because the runtime renders camera-relative. `ObjectCB.WorldGridAnchor` (176 bytes; the render origin modulo the grid size, set per material by `SetWorldGridAnchor`) and `FogParams0.z` (render origin altitude, `SetRenderOriginAltitude`) are zero for world-coordinate callers. `EngineHost` computes the anchor exactly in Q64.64 every frame; `RenderFrameState` carries both forward for device recovery. RenderOriginTests (EngineHost end to end), WorldGridGpuIntegrationTests camera-relative cases, RenderFrameStatePersistenceTests.
 
 - Layer: L0 — Platform / Native Backends
@@ -371,27 +371,27 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(テクスチャ・PBR・ライティング拡張)
 - Implementation evidence:
   - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs
-  - src/CSharpGameEngine.Windows/Graphics/StageRenderInputs.cs
+  - src/CSharpGameEngine.Rendering/StageRenderInputs.cs
   - assets/Shaders/Stage.hlsl
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs
 - Reverse-engineered behavior:
-  - `ModelRenderer`とは別クラス(ADR-0004の複製方針)のままだが、ADR-0018でメッシュ/マテリアル/
+  - Stageが三角形・インポートモデル・シーンを共通で描画する。メッシュ/マテリアル/
     オブジェクトを分離するAPI(`StageMeshCreateInfo`/`StageMaterialCreateInfo`/
     `StageObjectCreateInfo`)に拡張した。旧`Create(IReadOnlyList<MeshCreateInfo>)`は
     1メッシュ=1マテリアル=1オブジェクトのアダプタとして残存し、`StageGpuIntegrationTests`の
     既存テストは無改修のまま成功する。
-  - 頂点layoutはPosition/Normal/Tangent(float4)/UV(48バイトstride)。マテリアル毎に3テクスチャ
-    (BaseColor/Normal/MetallicRoughness)を1つの共有SRVディスクリプタヒープに並べ、描画時に
-    `materialIndex*3`オフセットでディスクリプタテーブルを切り替える。未指定テクスチャは
-    1×1フォールバック(`ModelRenderer`と同じ「常に本物のSRVをバインドする」方針)。
+  - 頂点layoutはPosition/Normal/Tangent(float4)/UV(48バイトstride)。マテリアル毎に4テクスチャ
+    (BaseColor/Normal/MetallicRoughness/Emissive)を1つの共有SRVディスクリプタヒープに並べ、描画時に
+    `materialIndex*4`オフセットでディスクリプタテーブルを切り替える。未指定テクスチャは
+    1×1フォールバックにより、常に有効なSRVをバインドする。
   - `FrameCB`(b0)にカメラ位置・ディレクショナルライト方向/色・アンビエント色・フォグ
     パラメータを追加、`ObjectCB`(b1)にラフネス/メタリックファクターを追加。各`Set*`
     メソッドは自分の担当バイト範囲のみを書くため呼び出し順序に依存しない。
   - シェーディングはGGX Cook-Torrance(NDF+Smith height-correlated可視性+Schlick
     Fresnel)+Lambert拡散、タンジェント空間ノーマルマッピング、簡易Exponential Height Fog
-    (基準高度Y=0固定)。sRGB/ガンマ補正は導入していない(既存のバックバッファ/
-    `ModelRenderer`と同じ非対応のまま)。
+    を扱う。現在はRUFの物理高度と描画原点を使用し、HDRをACESでトーンマップして
+    sRGB出力へ変換する(現行仕様はRendering.md)。
   - WARPアダプタでの実描画テストにより、地面+ボックスが両方描画されること・Resize後も
     壊れないこと(既存)に加え、2マテリアルを持つ2オブジェクトがそれぞれ正しい
     ディスクリプタテーブルオフセットで描画されること、`SetDirectionalLight`/
@@ -1535,7 +1535,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - `DirectionalLightBasis`/`SpotLightBasis`はどちらも`Forward`を「光が進む方向
     (photonの進行方向)」として正規化して保持し、`DirectionToLight`は常に`-Forward`
     (表面から光源へ向かう方向)を返す計算プロパティ。
-  - 既存の具体的な`CSharpGameEngine.Graphics.D3D12.Camera`型とは独立(このBasisはRUF空間の
+  - 既存の具体的な`CSharpGameEngine.Rendering.View.RenderCamera`型とは独立(このBasisはRUF空間の
     スキーマであり、Runtime Cameraコントローラーの代替ではない)。両者は本マイルストーンでは
     未接続(Spatial-RUF.md「未確定事項」参照)。
   - Point Lightに対応する型はこのマイルストーンでは追加していない(仕様書「Point Light」の
@@ -1553,14 +1553,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Windows/Graphics/Camera.cs(`BuildViewMatrix`静的メソッド)
-  - src/CSharpGameEngine.Windows/Graphics/ModelRenderer.cs(`UpdateTransformConstantBuffer`)
+  - src/CSharpGameEngine.Rendering/View/RenderCamera.cs(`BuildViewMatrix`静的メソッド)
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(`GetView`経由の間接カバレッジ)
+  - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs(`GetView`経由の間接カバレッジ)
 - Reverse-engineered behavior:
-  - `Matrix4x4.CreateLookAt`への薄い委譲のみ。`Camera.GetView()`と`ModelRenderer`独自の
-    バウンディングスフィア自動フィットeye計算(`Camera`インスタンスを経由しない別機能)の
-    両方から呼ばれ、以前は2箇所に独立して存在した同一のLookAt構築コードを1箇所に統一した。
+  - `Matrix4x4.CreateLookAt`への薄い委譲で、Camera.GetViewが共有のRUFビューを構築する。
+    旧単体モデルレンダラーの独立したカメラ実装はM0119で削除した。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
@@ -2539,7 +2537,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Entityごとの音源、Listener位置、距離減衰は現行へ移植していない。
 - Next action: なし。
 
-## F-L4-002 — `CSharpGameEngine.Runtime.Windows`(`PrimitiveMesh`/`PrimitiveType`/`RenderServer`)
+## F-L4-002 — RenderServerとL5シーンのプリミティブ語彙
+
+- M0120(2026-10-26、SDK0.1.32): プリミティブ語彙/組立とシーンCameraはL5共有ソース、提出値/共通接線はL4。型名/データを維持し、全22プロジェクト3570件成功。RenderServer本体はSDK0.1.36でRendering.Serverへ移動した。Native factoryとL5 View拡張を分け、この履歴IDを含む複合機能の実装場所を区別する。
 
 - M0088: RenderServer accepts four typed submissions (rectangle includes forward/up), optional shadows and ordered reusable typed frame records with separate emissive payloads. TypedLightFrameTests verifies generated diagnostics, exact WARP recovery pixels and warm-buffer allocation.
 
@@ -2551,10 +2551,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   コミット。ADR-0040自体の文書化はPhase 11で行う → 2026-08に完了、
   [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]改稿・[[M0019-CSharp-Scene-DSL]]参照)
 - Implementation evidence:
-  - src/CSharpGameEngine.Windows/Runtime/PrimitiveType.cs
-  - src/CSharpGameEngine.Windows/Runtime/PrimitiveMesh.cs
-  - src/CSharpGameEngine.Windows/Runtime/RenderServer.cs
-  - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs(`ArbitraryTangentFor`を`internal`化して共有)
+  - src/CSharpGameEngine.Runtime.Windows/PrimitiveType.cs
+  - src/CSharpGameEngine.Runtime.Windows/PrimitiveMesh.cs
+  - src/CSharpGameEngine.Rendering/Server/RenderServer.cs
+  - src/CSharpGameEngine.Rendering/StageMeshGeometry.cs(共通の接線生成)、src/CSharpGameEngine.Runtime.Windows/PrimitiveRoster.cs(形状組立)
   - src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
     アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
   - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
@@ -2567,9 +2567,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Reverse-engineered behavior:
   - `PrimitiveMesh{ PrimitiveType Type }`はサイズ指定を持たない単位サイズのプリミティブ
     (Unityの`GameObject.CreatePrimitive`と同じ規約)。配置先Nodeの`Transform.Scale`でサイズを決める。
-  - `RenderServer.BuildPrimitiveRoster`は`StageRenderer.Create`が要求するロースター断片を作る
-    純粋関数(静的ビルド関数 — このリポジトリに`Server`/`Registry`接尾辞のステートフルクラスの
-    先例が無いため)。同じ`PrimitiveType`は1つの`StageMeshCreateInfo`にデデュープする。全プリミティブは
+  - `PrimitiveRoster.Build`は`StageRenderer.Create`が要求するロースター断片を作る
+    静的なL5組立処理。距離場は形状ごとにプロセス内でキャッシュする。同じ`PrimitiveType`は1つの`StageMeshCreateInfo`にデデュープする。全プリミティブは
     1つの共有デフォルトマテリアルを使う(個別マテリアル指定はスコープ外)。
   - `StageRenderer.Create`はメッシュ/マテリアル/オブジェクトのロースターをCreate時に一括で要求する
     (構築後に足す`AddObject`・`AddMesh`・`AddMaterial`と`RemoveObject`はM0105で加わった。F-L5-041)。そのため
@@ -3658,20 +3657,22 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `ContentAddressedStoreTests`, `WorldCellRuntimeTests`, `WorldCellStreamingTests`, `WorldCellSpatialIndexTests`, `WorldCellEntityPayloadTests`, `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles`, Scene generator E2E, and `GeneratedWorldCellActivationTests`.
 - Next action: consume the published active-cell snapshot from F-L4-006 visibility and package the reachable CAS closure in F-L6-006.
 
-## F-L5-038 — Radial (logarithmic) depth camera
+## F-L5-038 — Logarithmic depth of every perspective view
 
 - Layer: L5 — Integrated Runtime
 - Parent capability: Rendering
 - Status: Implemented
-- Verification: TestVerified, RuntimeVerified (WARP)
-- Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0076-Native-Radial-Depth-Mapping.md`
+- Verification: TestVerified, RuntimeVerified (WARP and RTX 4060 Ti), ConformanceVerified
+- Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0084-Logarithmic-Native-Depth.md` (partly supersedes ADR-0076)
 - Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-014, F-L0-009
-- Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
-- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`); Stage ABI `stage-v10` with `RadialVSMain`/`RadialPSMain`/`PreviewRadialPSMain`/`PreviewCleanRadialPSMain`/`RadialObserverVSMain` in `StagePresentationShaderSource`, `FrameCB.DepthMapping0/1` and `ObjectCB.RadialRasterDepth` (`radial_depth_2026_10_04.py`, `radial_object_depth_2026_10_04.py`, `radial_object_depth_frame_2026_10_04.py`); `Graphics/Camera.DepthMapping`/`RadialTransitionMeters`; `StageRenderer` (radial pipeline family, `WriteDepthMapping`, `InvertibleViewProjection`, per-preview mapping, `ReadDepthForTesting`); `RenderCameraPreview.DepthMapping`/`Radial`/`RadialCenter`.
-- Current delta: the runtime (game and runtime view) ignores the scene `Camera`'s `Projection` and `OrthographicSize` and always draws a perspective; only the editor's camera thumbnails draw an orthographic scene camera (Conformance 2026-10-04, an open feature). Radial depth is the default of the scene `Camera` component (`SceneCameraTests`, `SceneJsonRuntimeValuesTests.Camera_ReadsTheDepthMappingAndIsRadialWhenAbsent`) and of the render camera factories (`Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit`; `CameraTests.Factories_ChooseRadialDepth`); standard is an explicit choice (M0100). Scene `Camera.DepthMapping`/`RadialTransitionMeters` reach the render camera through `LevelLoad.ApplyProjection`, in the game and in the editor runtime view (whose clip range then covers both the editor's and the scene camera's). They are read on every frame with the exposure, so value edits show on the next frame; an unusable value keeps the last usable projection (`LevelRuntime.InvalidCameraProperty`). The isolated preview (protocol 8) draws perspective views radial from the editor's matrix (`SetViewProjection` with `RadialViewParameters`) and camera thumbnails with their scene camera's mapping (`RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`, `RenderPreviewCameraPoseTests`, `SceneCameraPreviewPolicyTests.Build_ReadsTheDepthMappingAndIsRadialByDefault`). The radial main pass keeps early depth rejection through a conservative raster depth (`RadialVSMain`, `SV_DepthGreaterEqual`); clipped triangles may differ from standard by one 8-bit level.
-- Conformance: `RadialDepthTests`; `ShaderGraphCompilerTests` (14 Stage entries; the radial main pixel entries declare `SV_DepthGreaterEqual`, the thumbnail entry `SV_Depth`); `RadialDepthGpuIntegrationTests` (standard pixels in legacy and environment scenes, coplanar pairs at 2e4/1e15/5e18 m, depth equals the CPU encoding, extreme far planes, frame slots, radial thumbnails, invalid input, device recovery); `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`. Standard frames stay pinned by `StandardModeGoldenFrameTests`.
-- Next action: none required. Performance evidence: `RadialDepthPerformanceEvidence` (on demand; 24 front-to-back layers on an RTX 4060 Ti: 0.171 ms radial against 0.133 ms standard at 2–48 m, 0.123 against 0.091 ms at 100–1020 m with the per-object tangent). Precision evidence: `RadialDepthPrecisionEvidence` (on demand; within 4 ulps of a double oracle in the middle of the view on WARP and the RTX 4060 Ti, after replacing the hardware `log2`, which was up to 520,000 ulps off at 4 µm); `StagePresentationShaderSourceTests` keeps transcendental intrinsics out of the presentation entries.
+- Milestone: `Docs/Milestones/M0119-Logarithmic-Native-Depth.md` (Verified; original foundation M0099)
+- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, `ObjectCB.ConservativeRasterDepth`, `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
+- Reverse-engineered behavior: main views, Lumen surface views and DDGI captures write native logarithmic depth. Main view geometry remains physical and camera relative; only observer insets warp positions. SceneDistance supplies physical distance to AO and sky; DDGI uses CaptureDistance. Preview PSOs preserve the main distance target. Shadow maps retain light-space projection. Retired standard PSO families, wrapper entries, standalone Model/Triangle renderers and their artifact/graph producers are removed; retired serialized target values are rejected.
+- Tests: `RenderViewDepthTests`, `LogarithmicDepthOracleTests`, `StageGoldenFrameTests`, `RadialDepthGpuIntegrationTests`, `SceneDistanceGpuIntegrationTests`, `LumenSurfaceDepthTests`, shader ABI/compiler/artifact tests and hot reload/recovery coverage. Latest solution at 5f4d647 (SDK 0.1.29): 22 projects, 3548 pass, 0 fail, 2 opt-in measurements skipped and measured separately on RTX with the unchanged Stage shader. Eight template cases from M0119 (a8c6df8) report an actually active debug layer and zero errors; nine M0111 metrics, complete camera trajectories and final images match. Evidence paths and per-step provenance are in M0119.
+- Conformance: Matches for native depth (ADR-0084). RTX centre error is at most about 2.56 ulp over 4e-6 to 5e18 m. The seven golden images remain fixed after the documented AO rounding update. Release visibility/batching of 100000 objects meets the 6ms median / 8.33ms p95 / zero allocation-p95 budget (4.10015ms / 4.34760ms / 0byte). GPU main-pass measurements are not a whole-game frame budget.
+- Known deviations: game/runtime view still ignores the scene camera Projection/OrthographicSize; editor thumbnails honor it. This existing limitation is outside M0119. Previous intermittent WARP device removal has no confirmed root cause; current passing results do not establish a fix. VS/Unity GUI execution was not part of this verification.
+- Next action: move portable rendering policy/planning to L4/L5 and add the four render paths in M0120/M0121; scale-safe physics follows in M0122/M0123. Native-depth implementation history and the final standard comparison are preserved in M0119.
 
 ## F-L5-039 — Radial observer view
 
@@ -3683,9 +3684,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L5-038
 - Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
-- Implementation evidence: `RadialObserver` (`RuntimeComponents.cs`), `RadialObserverSync` and `RadialObserverView` (`RuntimeSystems.cs`), `EngineHost.AddRadialObserverPreview` and its submission in `SubmitEnvironment`, `RadialObserverVSMain`, the observer pipeline states and `PrepareObserverMarkers` in `StageRenderer`, `RenderCameraPreview.MarkRadialCenter`.
+- Implementation evidence: `RadialObserver` (`RuntimeComponents.cs`), `RadialObserverSync` and `RadialObserverView` (`RuntimeSystems.cs`), `EngineHost.AddRadialObserverPreview` and its submission in `SubmitEnvironment`, `ObserverVSMain`, the observer pipeline states and `PrepareObserverMarkers` in `StageRenderer`, `RenderViewDepth.ForObserver`, `RenderCameraPreview.Depth` and `MarkRadialCenter`.
 - Current delta: game runtime only (not in the editor runtime view, whose previews belong to the editor); at most three insets; picking and gizmos inside the inset and a full-screen observer view are non-goals. Interpolation inside the inset is perspective in the compressed space (an approximation for visualization).
-- Conformance: `RadialObserverTests` (radial-only, inset placement, centre at the inset middle, far plane beyond the compressed world, unusable values, one inset in the game and none with a standard camera or an editor camera), `RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre` (the sphere appears where `T·G(r)` puts it, the main view outside the inset is unchanged, the marker is drawn).
+- Conformance: `RadialObserverTests` (radial-only, inset placement, centre at the inset middle, far plane beyond the compressed world, unusable values, one inset in the game and none with an unusable native camera or an editor-owned camera), `RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre` (the sphere appears where `T·G(r)` puts it, the main view outside the inset is unchanged, the marker is drawn).
 - Next action: none planned; picking inside the inset and a full-screen observer view stay non-goals until a game needs them.
 
 ## F-L5-006 — Character Controller
@@ -3850,7 +3851,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
 - Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-007, F-L0-008
-- Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
+- Implementation evidence: `src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`, `src/CSharpGameEngine.Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
 - Current delta: reflection probes are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated. Volumetric clouds, the sky sphere and texture mipmaps were added by M0110 (F-L4-016, F-L4-017); the DDGI probes become M0111's fallback tier (ADR-0069 追記).
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 - Next action: done by M0111 (F-L4-019, Lumen-like GI and reflections); the DDGI probe volume of this item is now the Medium-and-below fallback tier.
@@ -3900,11 +3901,11 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `vsix.rendering-preview` (`Executable`, Visual / VSIX, 1800s)
 - Depends on: F-L0-009, F-L8-022
 - Current delta: None in the automated shared-preview contract. Asset Preview and Scene View are clients of one out-of-process Windows x64 Preview Host that owns common recovered `RenderServer` sessions. The provider-neutral protocol carries bounded scene/frame state, selection weights, Lit/BaseColor/Normal/Wireframe mode, transparent overlay geometry, up to three camera previews, stable correlation, monotonic sequences, current device generation/fence diagnostics, and opt-in capture. A WPF container retains its HWND while a failed process generation is replaced together with its DXGI child surface, after which source-derived state is replayed once.
-- Implementation evidence: `src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs`; `src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`; `tools/CSharpGameEngine.EditorPreview.Host/`; `tools/CSharpGameEngine.VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `CSharpGameEngine.VSExtension.csproj`.
+- Implementation evidence: `src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs`; `src/CSharpGameEngine.Rendering/Server/RenderServer.cs`; `tools/CSharpGameEngine.EditorPreview.Host/`; `tools/CSharpGameEngine.VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `CSharpGameEngine.VSExtension.csproj`.
 - Tests: `RenderPreviewHostProtocolTests`; `RenderPreviewRenderSessionTests`; `RenderPreviewHostProcessTests`; `RenderPreviewHostPipeTests`; `RenderPreviewHostSessionTableTests`; `RenderPreviewHostClientTests`; `RenderPreviewSceneBuilderTests`; `RenderSurfaceHostWindowTests`; `PackagedRenderPreviewHostTests`; `VsixManifestTests`; `RenderServerTests`.
 - Conformance: Matches for the automated F-L8-018 contract. The built VSIX contains the same-configuration framework-dependent apphost closure and offline Stage shader artifact, its apphost renders a real WARP frame with the D3D12 debug layer, and package/source tests reject `SceneRenderer`, `VorticeRenderer`, `NativeEvent`, Vortice, and SharpGen. Debug and Release VSIX suites pass 1,017 tests; focused common Render Server/Preview Host suites pass 13 in each configuration. Experimental Instance Scene Designer observation remains Pending, so this Feature is not `Verified` or `RuntimeVerified`.
 - Next action: F-L7-024 consumes the completed rendering performance reports in the scoped release closure. F-L8-023 owns executable transform/WARP/rebase/Undo conformance without reintroducing a renderer; the separate Experimental Instance `scene-designer` row remains Pending manual evidence.
-- **M0100 (2026-10-04):** protocol 8 carries a camera's depth mapping and transition length. The isolated preview draws every perspective view radial from the editor's matrix (orthographic views stay standard) and each camera thumbnail with its scene camera's mapping (radial by default). `RenderPreviewHostProtocolTests.ProtocolV8_ValidatesRadialCameras`, `RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`.
+- **M0100 (2026-10-04, superseded by M0119 protocol 9):** protocol 8 carried a camera's depth mapping and transition length. The isolated preview draws every perspective view radial from the editor's matrix (orthographic views stay standard) and each camera thumbnail with its scene camera's mapping (radial by default). `RenderPreviewHostProtocolTests.ProtocolV8_ValidatesRadialCameras`, `RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`.
 - **M0099 (2026-10-04):** the runtime view follows a radial scene camera (F-L5-038, the default since M0100): the editor camera keeps its pose and field of view but takes the scene camera's depth mapping and, for radial depth, a clip range covering both its own and the scene camera's NearZ/FarZ (`EditorCamera_OnARadialSceneCamera_SeesBothItsOwnRangeAndTheScenes`). Picking stays the CPU physical ray. `EditorRuntimeViewTests.EditorCamera_FollowsARadialSceneCameraAndRendersWhatItRendersFromTheSamePose`. A value edit of the scene camera (exposure, depth mapping, transition length, a radial clip range) shows on the next frame instead of waiting for a reload; an unusable value keeps the last usable projection (`EditorCamera_TakesAValueEditOfTheSceneCameraOnTheNextFrame`, `SceneCamera_KeepsTheLastUsableProjectionWhileAnEditIsInvalid`).
 - **M0093/ADR-0070 (2026-10-01):** protocol 6 adds the runtime view. For a JSON scene whose game is built, the Scene View opens a `RenderPreviewRuntimeSession` that runs the game's own world and renderer, and streams the live scene JSON so value edits show without a build; a structural edit returns `BuildRequired`. A new build reopens the view, and an unbuilt game still gets the scene preview. Tests: `RenderPreviewRuntimeSessionTests`, `EditorRuntimeViewTests`, `EditorRuntimeViewBridgeTests`, `EditorCameraConventionTests`, `RenderPreviewCameraPoseTests` and `PackagedRuntimeViewTests`.
 
@@ -4893,7 +4894,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `src/CSharpGameEngine.Rendering/RenderTextureMipChain.cs`(面積加重の箱フィルター、整数の重み、sRGB は 16 ビットの線形の表で平均、表は定数)
   - `src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs`(全ミップのアップロード、色空間ごとの常駐、異方性 8 の s0、`MaterialMipLevelLimitForTesting`)、`src/CSharpGameEngine.ShaderArtifacts/ShaderArtifactAbi.cs`(`stage-v12`: `s0-anisotropic-wrap`)
-- Tests: `tests/CSharpGameEngine.Rendering.Tests/RenderTextureMipChainTests.cs`(18)、`tests/CSharpGameEngine.Windows.Tests/Graphics/MaterialMipmapGpuIntegrationTests.cs`(2、WARP)、`StageGpuIntegrationTests`(常駐数 4 → 5)、`StandardModeGoldenFrameTests`(7 つのハッシュは不変)
+- Tests: `tests/CSharpGameEngine.Rendering.Tests/RenderTextureMipChainTests.cs`(18)、`tests/CSharpGameEngine.Windows.Tests/Graphics/MaterialMipmapGpuIntegrationTests.cs`(2、WARP)、`StageGpuIntegrationTests`(常駐数 4 → 5)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
 - Current delta: ミップは読み込み時に作る(成果物の形式は変えない)。画面レイヤーは 1 段のまま。WARP の 256 × 144 の市松の床で、遠景(地平線の下 10 行)の分散 1267.5 → 0.0、カメラを 0.37 m 動かした 2 フレームの差 9.50 → 0.00、近景の分散 4256.6 → 3953.4(保たれる)。
 - Conformance: Matches(UE は取り込み時にミップを作り、既定の異方性は 8。こちらは読み込み時)
 - Next action: なし(Kaiser のフィルターや BC 圧縮は必要になったとき)
@@ -4908,7 +4909,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(試験を足した)
 - Depends on: F-L4-014
 - Implementation evidence:
-  - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/CSharpGameEngine.Windows/Graphics/StageAtmosphere.cs`、`EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
+  - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/CSharpGameEngine.Windows/Graphics/StageAtmosphere.cs`、`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
   - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
   - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/CSharpGameEngine.Unreal.SceneImporter/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
@@ -4926,7 +4927,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(試験を足した)
 - Depends on: F-L7-053
 - Implementation evidence:
-  - `src/CSharpGameEngine.Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
+  - `src/CSharpGameEngine.Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
   - `src/CSharpGameEngine.Runtime.Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
 - Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
@@ -4942,7 +4943,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md`(メッシュの距離場)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
 - Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
 - Depends on: F-L7-049
-- Implementation evidence: `src/CSharpGameEngine.Rendering/MeshDistanceField.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`(基本形状は実行時)
+- Implementation evidence: `src/CSharpGameEngine.Rendering/MeshDistanceField.cs`、`tools/CSharpGameEngine.ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`(基本形状は実行時)
 - Tests: `tests/CSharpGameEngine.Rendering.Tests/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)
@@ -4950,18 +4951,19 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L4-019 — Lumen 相当の動的 GI と反射(サーフェスキャッシュ、最終収集、反射)
 
-- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v13`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
+- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v14`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
 - Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
 - Status: Implemented(実機の GPU は未確認。Epic 段は WARP で不安定)
 - Verification: TestVerified + RuntimeVerified(WARP)
-- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v13`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v14`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
 - Stage: `rendering.environment-lighting`(Lumen の試験を足した)
 - Depends on: F-L4-018、F-L4-014
 - Implementation evidence:
-  - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`
-  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v13`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
+  - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`
+  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v14`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
-- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 18、ハッシュの更新)、`StandardModeGoldenFrameTests`(7 つのハッシュは不変)
+- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
+- Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。stage-v14(14 エントリー・960 バイト。通信と行列/サムネイルはネイティブ深度。旧Model/Triangleも削除済み。最終統合検証は継続中)。
 - Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
 - Conformance: MatchesWithDocumentedExtension(M0111 の文書の UE との差)
 - Next action: 実機の GPU での見た目・フレーム時間と Epic の確認。WARP の Epic での装置の削除の原因(パスごとのシェーダーへの分割を試す)。
@@ -5013,3 +5015,64 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: ひずみは tick ごとに捨てる(UE の内部ひずみの蓄積は無い)。クラスターは 1 段。凹んだソースは拒否。Field は球の線形の減衰だけ。破片の描画は平らな陰影の 2 色。箱と三角形メッシュの接触は 1 tick に 1 つの面の向きのまま(破片には関係しない)。
 - Conformance: MatchesWithDocumentedExtension(M0113 の「範囲外」の表)
 - Next action: 箱と三角形メッシュの接触の複数の面の向き(Vehicle の縁石)。実機の GPU での見本。
+
+
+## F-L0-011 — D3D12 の描画計画の実行器(L4 のフレーム計画を D3D12 で実行する)
+
+- Layer: L0 — D3D12 の実行だけ(`StageRenderer` が `IStageRenderBackend` を実装、`D3D12RenderServer`)。計画・光源・深度の方針は L4/L5(F-L4-020)
+- Parent capability: Rendering Roadmap / 描画パスと層の配置(ADR-0085・ADR-0087)
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Decisions/ADR-0087-Rendering-And-Physics-Layers.md` §1、`Docs/Specifications/Rendering.md`(M0120 で更新)
+- Stage: `rendering.render-paths`(M0120 で追加)
+- Depends on: F-L4-004、F-L0-009
+- Implementation evidence: なし(計画のみ。M0120 で実装する)
+- Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0120 で足す)
+- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。L4 RenderViewSourceが再生成入力を値保持し、FrameStateのL5カメラ型/旧行列分岐を除去した。CPU読み戻し値とFormatもL4へ移し、DXGI型を公開結果から除去した。シーンCamera/PrimitiveMesh/PrimitiveTypeと組立はL5共有ソースへ移動済み。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。公開メッセージ/回復理由もL4の値に揃え、ServerのHRESULT定数分岐をNativeへ移した。実提出/FrameState再生と正規成果物バイトをL4ポートへ接続し、FrameStateのNative参照を除去した。Server/FrameState本体をRendering.Serverへ移し、生成/再生成はIStageRenderBackendFactory、Native作成口はD3D12RenderServerへ分離した。L5互換入口はView拡張。L0はまだCPU計算の呼出し・フレーム順序/描画状態を持つ。計画実行器そのものは未実装。
+- Conformance: Unknown
+- Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
+
+## F-L4-020 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)
+
+- Layer: L4 — `src/CSharpGameEngine.Rendering`(`Pipeline/`、`Server/`)、L5 — カメラと深度の方針(`View/`)、L6 — Stage の ABI(`stage-v15`・`stage-v16`)
+- Parent capability: Rendering Roadmap / 描画パス(ADR-0085)
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Decisions/ADR-0085-Urp-Render-Paths.md`、`Docs/Specifications/Rendering.md`(M0120・M0121 で更新)
+- Stage: `rendering.render-paths`(M0120 で追加)
+- Depends on: F-L5-038、F-L4-014、F-L0-011
+- Implementation evidence: なし(計画のみ。M0120・M0121 で実装する)
+- Tests: なし(`ClusterLightGridTests`、`ForwardObjectLightAssignmentTests`、`RenderPathEquivalenceTests`、`DeferredLightVolumeTests` を足す)
+- Current delta: 描画パスは Forward+ 相当の 1 つだけ(16 px・64 灯の 2D タイル、深度方向の分割なし)。Deferred・GBuffer・ステンシルは無い。
+- Conformance: Unknown
+- Next action: M0120(Forward+ を URP 方式に、Forward を足す)、M0121(Deferred・Deferred+)。
+
+## F-L4-021 — Entity を使わない物理の契約
+
+- Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`
+- Parent capability: World Scale / 決定的な物理(ADR-0086・ADR-0087 §2)
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Decisions/ADR-0087-Rendering-And-Physics-Layers.md` §2、`Docs/Specifications/Physics.md`(M0123 で更新)
+- Stage: `rigid.full-scale`(M0122 で追加)
+- Depends on: F-L1-009、F-L2-006
+- Implementation evidence: なし(計画のみ。M0123 で実装する)
+- Tests: なし(`EngineLayerSpec` の物理の規則、`PhysicsGoldenStateTests` を足す)
+- Current delta: L4 の契約(`PhysicsContracts`・`PhysicsDomainRegistry`・`IPhysicsHost`)と L5 のソルバーが同じ共有プロジェクトにあり、契約が `Entity`(L3)を使う。ECS なしでコンパイルできるのは 4 ファイル。
+- Conformance: Unknown
+- Next action: M0122 の後に M0123。[M0123](Milestones/M0123-Physics-Contract-And-Solver-Split.md)
+
+## F-L5-047 — 全スケール(±9.2e18 m)の決定的な剛体
+
+- Layer: L5 — `src/CSharpGameEngine.Runtime.Physics`(のちに `Physics.Deterministic`)、L1 — `src/CSharpGameEngine.Numerics`
+- Parent capability: World Scale / 決定的な物理(ADR-0086)
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Decisions/ADR-0086-Full-Scale-Physics.md`、`Docs/Specifications/Physics.md`(M0122 で更新)
+- Stage: `rigid.full-scale`(M0122 で追加)
+- Depends on: F-L1-009、F-L5-036、F-L5-003
+- Implementation evidence: なし(計画のみ。M0122 で実装する)
+- Tests: なし(`PhysicsTranslationInvarianceTests`、`PhysicsOverflowFaultTests`、`PhysicsMultiDomainTests`、`PhysicsGoldenStateTests` を足す)
+- Current delta: ソルバーは Q64.64 だが、GJK が約 1.4 km、広域判定が約 1.2e9 m、絶対座標の静的メッシュが約 3e9 m で桁あふれする。`Step` の桁あふれは生成ゲームループを止める。進むドメインは 1 つ。float の入口(シーン JSON、`MathF`、Picking)が残る。
+- Conformance: Unknown
+- Next action: M0112 のコミット後に M0122。[M0122](Milestones/M0122-Full-Scale-Physics.md)

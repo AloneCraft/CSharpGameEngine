@@ -227,7 +227,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("        }");
         Lines.Add("    }");
         Lines.Add("    /// <summary>Renders and reads back one frame for verification; null before the level has loaded.</summary>");
-        Lines.Add("    internal static global::CSharpGameEngine.Graphics.D3D12.PixelReadbackResult? CaptureRuntimeView() {");
+        Lines.Add("    internal static global::CSharpGameEngine.Rendering.PixelReadbackResult? CaptureRuntimeView() {");
         Lines.Add("        if (ViewHost?.Renderer is not { } Renderer) return null;");
         Lines.Add("        Renderer.RenderFrame(CaptureForVerification: true);");
         Lines.Add("        return Renderer.LastCapturedFrame;");

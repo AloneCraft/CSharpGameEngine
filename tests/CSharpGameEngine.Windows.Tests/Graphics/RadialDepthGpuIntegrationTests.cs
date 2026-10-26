@@ -1,3 +1,6 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Lighting;
@@ -6,8 +9,7 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0099 Phase 4 (ADR-0076): WARP oracles for the radial depth mode. Its colour must be the standard colour wherever
-/// the same surface wins, its depth must order surfaces correctly at every scale, and the passes around it (sky,
+/// Native logarithmic depth oracles: depth orders surfaces correctly at every scale, and the passes around it (sky,
 /// sun cascades, AO, previews, frame slots, device recovery) must keep working with extreme far planes.
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
@@ -17,66 +19,12 @@ public sealed class RadialDepthGpuIntegrationTests {
     private static readonly LightShadowSettings Shadow=new(0,new ShadowBias(0.005f));
     private static readonly Vector4 Red=new(0.9f,0.05f,0.05f,1f);
     private static readonly Vector4 Green=new(0.05f,0.9f,0.05f,1f);
-    private static Camera Standard(Vector3 Eye,float PitchDegrees=0f,float NearZ=0.1f,float FarZ=300f){
+    private static Camera ViewAt(Vector3 Eye,float PitchDegrees=0f,float NearZ=0.1f,float FarZ=300f){
         var View=Camera.CreateFirstPerson(Eye);
         View.Pitch=PitchDegrees*MathF.PI/180f;
         View.NearZ=NearZ;
         View.FarZ=FarZ;
-        View.DepthMapping=RenderDepthMapping.Standard;
         return View;
-    }
-    private static Camera Radial(Camera View){
-        View.DepthMapping=RenderDepthMapping.Radial;
-        return View;
-    }
-    [WindowsOnlyFact]
-    [Trait("Category","GPU")]
-    public void Radial_RendersTheStandardPixelsBitForBitOnTrianglesItDoesNotClip(){
-        // Objects float apart in depth (no contact lines) and lie wholly inside the clip range or wholly outside it:
-        // no triangle is clipped, so the radial image must equal the standard image bit for bit.
-        using var Scene=FloatingScene.Create(Environment:false,Clipped:false);
-        var View=Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
-        var StandardPixels=Scene.Render(View);
-        var RadialPixels=Scene.Render(Radial(View));
-        Assert.Equal(StandardPixels,RadialPixels);
-        Scene.AssertNoDebugLayerErrors();
-    }
-    [WindowsOnlyFact]
-    [Trait("Category","GPU")]
-    public void Radial_RendersTheStandardPixelsWithinRoundingOnClippedTriangles(){
-        // A floor crossing the eye plane and the far plane and a box straddling the near plane: the radial main pass
-        // clips with the standard projection's distances (SV_ClipDistance, because its conservative depth row runs
-        // without depth clipping), which may round the clipped vertices differently, so interpolated values may differ
-        // by one 8-bit level on those triangles.
-        using var Scene=FloatingScene.Create(Environment:false);
-        var View=Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
-        AssertWithinOneLevel(Scene.Render(View),Scene.Render(Radial(View)));
-        Scene.AssertNoDebugLayerErrors();
-    }
-    /// <summary>Every channel within one 8-bit level, and at most 1 % of the pixels different at all.</summary>
-    private static void AssertWithinOneLevel(byte[]Expected,byte[]Actual){
-        Assert.Equal(Expected.Length,Actual.Length);
-        var Largest=0;
-        var Different=0;
-        for(var Index=0;Index<Expected.Length;Index+=4){
-            var PixelLargest=0;
-            for(var Channel=0;Channel<3;Channel++){
-                PixelLargest=Math.Max(PixelLargest,Math.Abs(Expected[Index+Channel]-Actual[Index+Channel]));
-            }
-            Largest=Math.Max(Largest,PixelLargest);
-            if(PixelLargest>0){ Different++; }
-        }
-        Assert.True(Largest<=1&&Different<=Expected.Length/4/100,$"largest difference {Largest}, {Different} of {Expected.Length/4} pixels differ");
-    }
-    [WindowsOnlyFact]
-    [Trait("Category","GPU")]
-    public void Radial_RendersTheStandardEnvironmentPixels(){
-        // Sky composite, sun cascades, GI and AO: a radial camera with a game-sized range hands the inverting passes
-        // the camera projection itself, so the frame equals the standard one (within rounding on the clipped floor).
-        // GI keeps history between frames, so each mode renders from a fresh renderer.
-        var View=Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
-        AssertWithinOneLevel(FloatingScene.RenderFresh(View,Environment:true),FloatingScene.RenderFresh(Radial(View),Environment:true));
-        Assert.Equal(FloatingScene.RenderFresh(View,Environment:true,Clipped:false),FloatingScene.RenderFresh(Radial(View),Environment:true,Clipped:false));
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -85,9 +33,9 @@ public sealed class RadialDepthGpuIntegrationTests {
         // prepass; the auxiliary projection keeps them finite. Both far planes clamp the auxiliary far plane to
         // near * 65536, so they render identical colour; a 300 m far plane (beyond all geometry) differs only by
         // rounding.
-        var Ordinary=FloatingScene.RenderFresh(Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:300f)),Environment:true);
-        var Planetary=FloatingScene.RenderFresh(Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e7f)),Environment:true);
-        var Interstellar=FloatingScene.RenderFresh(Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e18f)),Environment:true);
+        var Ordinary=FloatingScene.RenderFresh(ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:300f),Environment:true);
+        var Planetary=FloatingScene.RenderFresh(ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e7f),Environment:true);
+        var Interstellar=FloatingScene.RenderFresh(ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e18f),Environment:true);
         Assert.Equal(Planetary,Interstellar);
         var Close=0;
         for(var Index=0;Index<Ordinary.Length;Index++){
@@ -98,29 +46,25 @@ public sealed class RadialDepthGpuIntegrationTests {
     [WindowsOnlyTheory]
     [Trait("Category","GPU")]
     [InlineData(2e4f,0.05f,false)]
+    [InlineData(2e4f,0.05f,true)]
+    [InlineData(1e15f,1e10f,false)]
     [InlineData(1e15f,1e10f,true)]
+    [InlineData(5e18f,1e14f,false)]
     [InlineData(5e18f,1e14f,true)]
-    public void Radial_SeparatesNearlyCoplanarSurfacesFarAway(float Distance,float Gap,bool StandardFails){
-        // A red quad in front of a green one, Gap metres apart at Distance metres (relative gaps of 2.5e-6 to 2e-5,
-        // above the ~3e-6 budget of ADR-0076 at those ranges). The green one is drawn first, so equal depths keep
-        // it. The radial depth shows only the red quad. From 1e15 m the standard depth rounds both to the cleared
-        // 1.0 and shows neither (WARP happens to resolve the 20 km pair, so that case only checks radial).
-        using var Scene=QuadScene.Create([Green,Red]);
-        var View=Standard(Vector3.Zero,FarZ:Distance*1.5f);
-        Matrix4x4[]Transforms=[QuadScene.Facing(Distance+Gap,Distance*2f),QuadScene.Facing(Distance,Distance*2f)];
-        var StandardFrame=Scene.Render(View,Transforms);
-        var RadialFrame=Scene.Render(Radial(View),Transforms);
-        if(StandardFails){
-            Assert.NotEqual(1f,Scene.RedFraction(StandardFrame));
-        }
-        Assert.Equal(1f,Scene.RedFraction(RadialFrame));
+    public void Radial_SeparatesNearlyCoplanarSurfacesFarAway(float Distance,float Gap,bool Reverse){
+        using var Scene=QuadScene.Create([Reverse?Red:Green,Reverse?Green:Red]);
+        var View=ViewAt(Vector3.Zero,FarZ:Distance*1.5f);
+        var Near=QuadScene.Facing(Distance,Distance*2f);
+        var Far=QuadScene.Facing(Distance+Gap,Distance*2f);
+        var Frame=Scene.Render(View,[Reverse?Near:Far,Reverse?Far:Near]);
+        Assert.Equal(1f,Scene.RedFraction(Frame));
         Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Radial_DepthMatchesTheCpuEncoding(){
         using var Scene=QuadScene.Create([Red]);
-        var View=Radial(Standard(Vector3.Zero,FarZ:1000f));
+        var View=ViewAt(Vector3.Zero,FarZ:1000f);
         Scene.Render(View,[QuadScene.Facing(50f,400f)]);
         var Depth=Scene.Renderer.ReadDepthForTesting();
         var Width=Scene.Renderer.LastCapturedFrame!.Width;
@@ -142,22 +86,20 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void Radial_RendersTheSameImageFromBothFrameSlots(){
         using var Scene=FloatingScene.Create(Environment:false);
-        var View=Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e9f));
+        var View=ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e9f);
         Assert.Equal(Scene.Render(View,Frames:2),Scene.Render(View,Frames:3));
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void RadialThumbnail_SeparatesNearlyCoplanarSurfaces(){
         using var Scene=QuadScene.Create([Green,Red]);
-        var Main=Standard(Vector3.Zero,FarZ:1.5e15f);
+        var Main=ViewAt(Vector3.Zero,FarZ:1.5e15f);
         var Thumbnail=Main.GetView()*Main.GetProjection(1f);
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Main.NearZ,Main.FarZ,Main.FovYRadians,1f,out var Projection));
         Matrix4x4[]Transforms=[QuadScene.Facing(1e15f+1e10f,2e15f),QuadScene.Facing(1e15f,2e15f)];
         var Frame=Scene.Render(Main,Transforms,Renderer=>Renderer.SetCameraPreviews([
-            new RenderCameraPreview(0,0,64,64,Thumbnail,Vector3.Zero),
-            new RenderCameraPreview(96,0,64,64,Thumbnail,Vector3.Zero,DepthMapping:RenderDepthMapping.Radial,Radial:Projection),
+            new RenderCameraPreview(96,0,64,64,Thumbnail,Vector3.Zero,Depth:RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false)),
         ]));
-        Assert.NotEqual(1f,Scene.RedFraction(Frame,0,0,64,64));
         Assert.Equal(1f,Scene.RedFraction(Frame,96,0,64,64));
         Scene.AssertNoDebugLayerErrors();
     }
@@ -165,14 +107,23 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void Radial_RejectsAnIncompleteCamera(){
         using var Scene=QuadScene.Create([Red]);
-        var View=Radial(Standard(Vector3.Zero));
+        var View=ViewAt(Vector3.Zero);
         View.RadialTransitionMeters=0f;
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCamera(View));
-        var Observer=Standard(Vector3.Zero);
-        Observer.DepthMapping=RenderDepthMapping.RadialObserver;
-        Assert.Throws<ArgumentOutOfRangeException>(()=>Scene.Renderer.SetCamera(Observer));
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
-            new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,DepthMapping:RenderDepthMapping.Radial),
+            new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,Depth:default),
+        ]));
+        var Perspective=View.GetView()*View.GetProjection(1f);
+        Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,1f,out var Projection));
+        var Linear=RenderViewDepth.ForOrthographic(Matrix4x4.Identity);
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
+            new RenderCameraPreview(0,0,16,16,Perspective,Vector3.Zero,Linear),
+        ]));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
+            new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false)),
+        ]));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetCameraPreviews([
+            new RenderCameraPreview(0,0,16,16,Perspective,Vector3.Zero,RenderViewDepth.ForPerspective(Projection)),
         ]));
     }
     /// <summary>The view-projection matrix and radial parameters an editor would hand over for <paramref name="View"/>.</summary>
@@ -184,16 +135,16 @@ public sealed class RadialDepthGpuIntegrationTests {
         // M0100: an editor hands the renderer its camera as one perspective matrix. Drawn radial from that matrix, the
         // frame and its depth equal the radial camera's.
         using var Scene=FloatingScene.Create(Environment:false);
-        var View=Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f));
+        var View=ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
         var CameraPixels=Scene.Render(View);
         var CameraDepth=Scene.Renderer.ReadDepthForTesting();
         var (ViewProjection,Eye,Parameters)=AsMatrix(View,(float)Scene.Window.ClientWidth/Scene.Window.ClientHeight);
         var MatrixPixels=Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye,Parameters));
         Assert.Equal(CameraPixels,MatrixPixels);
         Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
-        // The same matrix drawn standard writes another depth, so the comparison above went through the radial path.
-        Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye));
-        Assert.NotEqual(CameraDepth,Scene.Renderer.ReadDepthForTesting());
+        // A bare perspective matrix has no physical far range and cannot silently choose a different encoding.
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye));
+        Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
         Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
@@ -201,7 +152,7 @@ public sealed class RadialDepthGpuIntegrationTests {
     public void RadialViewProjection_WithAnExtremeRange_RendersWhatTheRadialCameraRenders(){
         // Near 1 mm and far 1e7 m: the sky, the sun cascades and the AO prepass take the auxiliary matrix, which the
         // matrix path rebuilds from the matrix's own view depth.
-        var View=Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,NearZ:0.001f,FarZ:1e7f));
+        var View=ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,NearZ:0.001f,FarZ:1e7f);
         var (ViewProjection,Eye,Parameters)=AsMatrix(View,160f/90f);
         Assert.Equal(FloatingScene.RenderFresh(View,Environment:true),
             FloatingScene.RenderFresh(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye,Parameters),Environment:true));
@@ -210,7 +161,7 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void RadialViewProjection_RejectsOrthographicMatricesAndInvalidParameters(){
         using var Scene=FloatingScene.Create(Environment:false);
-        var (ViewProjection,Eye,Parameters)=AsMatrix(Radial(Standard(new Vector3(0f,1.6f,-4f))),160f/90f);
+        var (ViewProjection,Eye,Parameters)=AsMatrix(ViewAt(new Vector3(0f,1.6f,-4f)),160f/90f);
         var Orthographic=Matrix4x4.CreateLookAt(Eye,Vector3.Zero,Vector3.UnitY)*Matrix4x4.CreateOrthographic(10f,10f,0.1f,100f);
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(Orthographic,Eye,Parameters));
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye,Parameters with { NearZ=0f }));
@@ -223,9 +174,9 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void RadialViewProjection_SurvivesDeviceRecovery(){
         var Task=System.Threading.Tasks.Task.Run(static()=>{
-            var Roster=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
             using var Window=new Win32Window(new Win32WindowOptions { Title="Radial matrix recovery",Width=128,Height=128,Visible=false });
-            using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+            using var Renderer=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);
             var View=Camera.CreateDefault(Vector3.Zero);
             View.FarZ=1e12f;
@@ -254,12 +205,11 @@ public sealed class RadialDepthGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void RadialCamera_RendersIdenticalPixelsAfterDeviceRecovery(){
         var Task=System.Threading.Tasks.Task.Run(static()=>{
-            var Roster=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            var Roster=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
             using var Window=new Win32Window(new Win32WindowOptions { Title="Radial depth recovery",Width=128,Height=128,Visible=false });
-            using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+            using var Renderer=D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
                 new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);
             var View=Camera.CreateDefault(Vector3.Zero);
-            View.DepthMapping=RenderDepthMapping.Radial;
             View.FarZ=1e12f;
             Renderer.SetCamera(View);
             Renderer.SetAmbientLight(new Vector3(0.1f));
@@ -283,7 +233,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Observer",Width=256,Height=144,Visible=false });
         using var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
             [ToMesh(ProceduralMeshFactory.CreateSphere(0.5f))],[new StageMaterialCreateInfo { BaseColorFactor=Red,RoughnessFactor=1f,MetallicFactor=0f }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
-        var Center=Radial(Standard(Vector3.Zero,FarZ:1e7f));
+        var Center=ViewAt(Vector3.Zero,FarZ:1e7f);
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Center.NearZ,Center.FarZ,Center.FovYRadians,256f/144f,out var Projection));
         var Eye=new Vector3(0f,0f,-60f);
         var ObserverView=Camera.CreateFirstPerson(Vector3.Zero).GetView()*Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3f,1f,0.1f,60f+1.05f*Projection.ObservedWorldRadius);
@@ -299,7 +249,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             return Renderer.LastCapturedFrame!.Pixels.ToArray();
         }
         RenderCameraPreview Observer(bool Mark)=>new(Inset.X,Inset.Y,Inset.Size,Inset.Size,ObserverView,Eye,
-            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Mark);
+            Depth:RenderViewDepth.ForObserver(Projection,Vector3.Zero),MarkRadialCenter:Mark);
         var Without=Render([]);
         var Marked=Render([Observer(true)]);
         var Unmarked=Render([Observer(false)]);

@@ -1,3 +1,6 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using CSharpGameEngine.Rendering.Pipeline;
 using CSharpGameEngine.Runtime.Lighting;
 using CSharpGameEngine.Lighting;
 using CSharpGameEngine.Rendering;
@@ -5,7 +8,7 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 using Camera=CSharpGameEngine.Runtime.Windows.Camera;
 using EcsWorld=CSharpGameEngine.Entities.World;
 
@@ -168,12 +171,9 @@ internal struct LevelLoad:ISystem {
             return;
         }
         View.ExposureEv100=SceneCamera.ExposureEv100;
-        View.DepthMapping=SceneCamera.DepthMapping==CameraDepthMapping.Radial?RenderDepthMapping.Radial:RenderDepthMapping.Standard;
         View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
-        if(View.DepthMapping==RenderDepthMapping.Radial){
-            View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
-            View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
-        }
+        View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
+        View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
     }
 
     /// <summary>
@@ -196,10 +196,8 @@ internal struct LevelLoad:ISystem {
         if(!(float.IsFinite(View.NearZ)&&View.NearZ>0f)){ return nameof(Camera.NearZ); }
         if(!(float.IsFinite(View.FarZ)&&View.FarZ>View.NearZ)){ return nameof(Camera.FarZ); }
         if(!float.IsFinite(View.ExposureEv100)){ return nameof(Camera.ExposureEv100); }
-        if(View.DepthMapping==RenderDepthMapping.Radial){
-            if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
-            if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
-        }
+        if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
+        if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
         return null;
     }
 
@@ -292,10 +290,10 @@ internal struct LevelLoad:ISystem {
             this.PendingPrimitives??=[],
             this.PendingSkeletalMeshes??=[]);
         var Renderer=Host.ExternalSurface is { }Surface
-            ?RenderServer.Create(
+            ?D3D12RenderServer.Create(
                                   Surface.Handle,Surface.Width,Surface.Height,Surface.DeviceOptions,
                                   ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects)
-            :RenderServer.Create(
+            :D3D12RenderServer.Create(
                                   Window!.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
                                   ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Host.OwnRenderer(Renderer);
@@ -498,7 +496,7 @@ internal static class RadialObserverView {
     internal static bool TryCreatePreview(in RenderCamera Center,int SurfaceWidth,int SurfaceHeight,in RadialObserver Observer,
         Vector3 EyeFromCenter,Vector3 Forward,Vector3 Up,out RenderCameraPreview Preview){
         Preview=default;
-        if(Center.DepthMapping!=RenderDepthMapping.Radial||SurfaceWidth<=0||SurfaceHeight<=0
+        if(SurfaceWidth<=0||SurfaceHeight<=0
             ||!RadialDepthCurve.TryCreate(Center.RadialTransitionMeters,out var Curve)
             ||!RadialDepthProjection.TryCreate(Curve,Center.NearZ,Center.FarZ,Center.FovYRadians,SurfaceWidth/(float)SurfaceHeight,out var Projection)){
             return false;
@@ -521,7 +519,7 @@ internal static class RadialObserverView {
         }
         var ViewProjection=View.GetView()*Matrix4x4.CreatePerspectiveFieldOfView(Observer.FovYRadians,Width/(float)Height,Observer.NearZ,Far);
         Preview=new RenderCameraPreview(X,Y,Width,Height,ViewProjection,EyeFromCenter,
-            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Observer.ShowCenterCamera);
+            Depth:RenderViewDepth.ForObserver(Projection,Vector3.Zero),MarkRadialCenter:Observer.ShowCenterCamera);
         return true;
     }
 }

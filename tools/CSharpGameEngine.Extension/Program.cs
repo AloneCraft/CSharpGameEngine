@@ -1,9 +1,10 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
-using CSharpGameEngine.Runtime.Windows;
-using Camera=CSharpGameEngine.Graphics.D3D12.Camera;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using FbxImporter=CSharpGameEngine.Import.Fbx.FbxImporter;
 using GltfImporter=CSharpGameEngine.Import.Gltf.GltfImporter;
 
@@ -127,7 +128,7 @@ static int RunViewer(string[]Args){
         (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
             StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
             Positions,Normals,Uvs,Indices,Material);
-        Renderer=RenderServer.Create(
+        Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
         // The mesh's own bounds: wrapping its bounding sphere in a cube would frame a sphere sqrt(3) times larger.

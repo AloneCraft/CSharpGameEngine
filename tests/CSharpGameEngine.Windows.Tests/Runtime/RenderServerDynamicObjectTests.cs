@@ -1,3 +1,5 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Graphics.D3D12;
@@ -14,11 +16,11 @@ namespace CSharpGameEngine.Runtime.Windows.Tests;
 public sealed class RenderServerDynamicObjectTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private static RenderServer CreateServer(Win32Window Window){
-        (var Meshes,var Materials,var Objects)=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
-        return RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
+        (var Meshes,var Materials,var Objects)=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
+        return D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
     }
     private static (string Hash,int Covered)Capture(RenderServer Renderer,params (int Index,Matrix4x4 World)[]Placed){
-        Renderer.SetCamera(CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetCamera(CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero));
         Renderer.SetAmbientLight(new Vector3(0.4f));
         Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
         foreach(var (Index,World) in Placed){ Renderer.SetObjectTransform(Index,World); }
@@ -67,7 +69,7 @@ public sealed class RenderServerDynamicObjectTests {
         using var Renderer=CreateServer(Window);
         var Center=(Index:0,World:Matrix4x4.Identity);
         var Alone=Capture(Renderer,Center);
-        (var Meshes,_,_)=RenderServer.BuildPrimitiveRoster([PrimitiveType.Sphere],0,0);
+        (var Meshes,_,_)=PrimitiveRoster.Build([PrimitiveType.Sphere],0,0);
         var Mesh=Renderer.AddMesh(Meshes[0]);
         var Material=Renderer.AddMaterial(new StageMaterialCreateInfo { BaseColorFactor=new Vector4(1f,0f,0f,1f),RoughnessFactor=1f,MetallicFactor=0f });
         Assert.Equal(1,Mesh);
@@ -121,7 +123,7 @@ public sealed class RenderServerDynamicObjectTests {
     public void ASkinnedMeshCannotBeAddedAfterCreation()=>RunWithTimeout(()=>{
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Skinned Add Test",Width=64,Height=64,Visible=false });
         using var Renderer=CreateServer(Window);
-        (var Meshes,_,_)=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+        (var Meshes,_,_)=PrimitiveRoster.Build([PrimitiveType.Box],0,0);
         var Skinned=new StageMeshCreateInfo {
             Positions=Meshes[0].Positions,Normals=Meshes[0].Normals,Tangents=Meshes[0].Tangents,Uvs=Meshes[0].Uvs,Indices=Meshes[0].Indices,
             Skin=new StageSkinCreateInfo { JointCount=1,JointIndices=new ushort[Meshes[0].Positions.Count*4],Weights=new float[Meshes[0].Positions.Count*4] },

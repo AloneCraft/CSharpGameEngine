@@ -33,7 +33,7 @@ cbuffer AtmosphereCB : register(b0)
 Texture2D<float4> TransmittanceLut : register(t0);
 Texture2D<float4> MultiScatteringLut : register(t1);
 Texture2D<float4> SkyViewLut : register(t2);
-Texture2D<float> SceneDepth : register(t3);
+Texture2D<float> SceneDistance : register(t3);
 Texture2D<float4> CloudPanorama : register(t5);
 Texture3D<float> CloudNoise : register(t6);
 RWTexture2D<float4> OutputTexture : register(u0);
@@ -852,28 +852,26 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
     }
     if (pass == PassSkyBackground)
     {
-        float depth = SceneDepth.Load(int3(pixel, 0));
+        float distance = SceneDistance.Load(int3(pixel, 0));
         float2 ndc = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
-        if (depth < 1.0)
+        if (distance > 0.0)
         {
             // M0110: with a sky sphere (Unreal's SM_SkySphere and its Is Sky material), geometry farther than the sphere is covered by the sky.
             if (SkySphere.w <= 0.0)
             {
                 return;
             }
-            float3 surface;
-            if (SkySphereDepth.x == 0.0)
+            float4 farRay = mul(float4(ndc, 1.0, 1.0), InverseViewProjection);
+            float4 nearRay = mul(float4(ndc, 0.0, 1.0), InverseViewProjection);
+            float3 rayDir = normalize(farRay.xyz / farRay.w - nearRay.xyz / nearRay.w);
+            float3 surface = CameraPosition.xyz + rayDir * distance;
+            if (all(float3(InverseViewProjection[0].w, InverseViewProjection[1].w, InverseViewProjection[2].w) == 0.0))
             {
-                float4 surfacePoint = mul(float4(ndc, depth, 1.0), InverseViewProjection);
-                surface = surfacePoint.xyz / surfacePoint.w;
-            }
-            else
-            {
-                // Radial depth (ADR-0076): depth = log2(1 + r / T) / G, so r = T (2^(depth G) - 1) along the pixel's ray.
-                float4 farRay = mul(float4(ndc, 1.0, 1.0), InverseViewProjection);
-                float4 nearRay = mul(float4(ndc, 0.0, 1.0), InverseViewProjection);
-                float3 rayDir = normalize(farRay.xyz / farRay.w - nearRay.xyz / nearRay.w);
-                surface = CameraPosition.xyz + rayDir * (SkySphereDepth.y * (exp2(depth * SkySphereDepth.z) - 1.0));
+                float3 offset = nearRay.xyz / nearRay.w - CameraPosition.xyz;
+                float3 lateral = offset - rayDir * dot(offset, rayDir);
+                float3 relative = lateral / distance;
+                float forwardDistance = distance * sqrt(max(1.0 - dot(relative, relative), 0.0));
+                surface = CameraPosition.xyz + lateral + rayDir * forwardDistance;
             }
             if (length(surface - SkySphere.xyz) <= SkySphere.w)
             {

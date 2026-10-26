@@ -36,7 +36,7 @@ public sealed class RenderWorldSnapshotTests {
             Instance(Id("outside"),MaterialA,new Vector3(50f,0f,5f)));
         var States=new RenderLodState[Snapshot.Instances.Length];
         var Visible=new VisibleRenderInstance[Snapshot.Instances.Length];
-        RenderView View=new(
+        RenderVisibilityView View=new(
             RenderFrustum.CreateAxisAligned(new Vector3(-10f),new Vector3(10f)),0.1f);
 
         RenderVisibilityQueryResult Result=RenderVisibility.Select(
@@ -58,7 +58,7 @@ public sealed class RenderWorldSnapshotTests {
         RenderWorldSnapshot Second=CreateSnapshot(
             Instance(FirstId,MaterialA,new Vector3(50f,0f,5f)),
             Instance(SecondId,MaterialA,new Vector3(0f,0f,5f)));
-        RenderView View=new(
+        RenderVisibilityView View=new(
             RenderFrustum.CreateAxisAligned(new Vector3(-10f),new Vector3(10f)),0.1f);
         var FirstStates=new RenderLodState[2];
         var SecondStates=new RenderLodState[2];
@@ -86,7 +86,7 @@ public sealed class RenderWorldSnapshotTests {
         RenderLodState[]Previous=[new(InstanceId,PriorLod)];
         var Next=new RenderLodState[1];
         var Visible=new VisibleRenderInstance[1];
-        RenderView View=new(
+        RenderVisibilityView View=new(
             RenderFrustum.CreateAxisAligned(new Vector3(-100f),new Vector3(100f)),0.2f);
 
         RenderVisibility.Select(Snapshot,View,Previous,Next,Visible);
@@ -160,7 +160,7 @@ public sealed class RenderWorldSnapshotTests {
         var Visible=new VisibleRenderInstance[Count];
         var Order=new int[Count];
         var Batches=new RenderInstanceBatch[Count];
-        RenderView View=new(
+        RenderVisibilityView View=new(
             RenderFrustum.CreateAxisAligned(new Vector3(-1f),new Vector3(2000f)),0.1f);
         RenderVisibilityQueryResult Warm=RenderVisibility.Select(Snapshot,View,[],States,Visible);
         _=RenderVisibility.BuildBatches(Visible.AsSpan(0,Warm.VisibleCount),Order,Batches);
@@ -183,9 +183,9 @@ public sealed class RenderWorldSnapshotTests {
         var States=new RenderLodState[1];
         var Visible=new VisibleRenderInstance[1];
         Assert.Throws<ArgumentException>(()=>RenderVisibility.Select(
-            Snapshot,new RenderView(default,0.1f),[],States,Visible));
+            Snapshot,new RenderVisibilityView(default,0.1f),[],States,Visible));
         States[0]=new(Snapshot.Instances[0].InstanceId,0);
-        RenderView Valid=new(
+        RenderVisibilityView Valid=new(
             RenderFrustum.CreateAxisAligned(new Vector3(-1f),new Vector3(1f)),0.1f);
         Assert.Throws<ArgumentException>(()=>RenderVisibility.Select(
             Snapshot,Valid,States,States,Visible));

@@ -1,5 +1,34 @@
 # Changelog
 
+- SDK 0.1.37: main のモデルインポート・破壊機能と、対数ネイティブ深度およびポータブル描画層を統合。FragmentMesh のメッシュ提出型を新しい Rendering 名前空間へ接続した。統合したコミットの全体テストは 3783 件合格、失敗0件、明示実行用のGPU計測2件をスキップ。
+- SDK 0.1.36: RenderServer/RenderFrameStateをポータブルなRendering.Serverへ移動。Nativeの作成口はD3D12RenderServer.Create、再生成はIStageRenderBackendFactoryへ分離。SetCamera/SetViewProjectionはL5 Viewの拡張メソッドで維持し、シーンComponent名は同じ。Server本体はNative/ウィンドウ/Native成果物型を参照しない。パス実行計画の抽出は継続する。
+- SDK 0.1.35: L4 IStageRenderBackend/IStageShaderArtifactへ実提出・フレーム再生・成果物閉包を接続。FrameStateがNativeクラス/光源kindを直接参照する依存を除いた。クリア値/オブジェクト余力/Debugホットリロード能力も共通値を正本にする。ServerのNative作成口とパス計画は引き続き移行中。
+- SDK 0.1.34: L4 RenderViewSourceが値として透視/明示VP/固定Viewの再生成入力を保持。FrameStateからL5 RenderCameraと旧行列保存分岐を除去し、リサイズ/復旧時の自動aspect・明示aspect・固定行列の契約を維持。L5 Policyが提出形式を選び、解決時の投影検証と計算はL4で共有する。
+- SDK 0.1.33: Stage/RenderServerの公開診断をRendering.Backend.RenderDeviceMessageへ変更。Native例外はRenderBackendFailureExceptionを継承し、HRESULTから回復理由への分類をNative側へ移動。サーバーは分類済み理由を扱い、未知の失敗は復旧要求にしない。
+- SDK 0.1.32: シーン用Camera/CameraProjectionとPrimitiveMesh/PrimitiveTypeをL5 Runtime.Windowsの共有ソースへ移動。完全修飾名とシーンJSONの語彙を維持。プリミティブ組立はPrimitiveRoster.Build、共通の接線生成はL4 StageMeshGeometryへ移し、RenderServerのプリミティブ語彙依存を除去した。
+- SDK 0.1.31: CPU読み戻し値 `PixelColor` / `PixelReadbackResult` をポータブルなRenderingへ移動。公開FormatをDXGI_FORMATから `RenderPixelFormat` へ変更し、Native側で形式を対応付ける。画素バイト列・行間隔・BGRA復元を維持し、生成エディターブリッジも新しい型を返す。
+- SDK 0.1.30: L4の検証済み `RenderView` とL5 `RenderViewPolicy`、Native/RenderServerのSetViewを追加。投影/深度/補助投影/位置/露出/カメラ基底を値として提出・復旧できる。旧可視性クエリ値RenderViewはRenderVisibilityViewへ改名。旧カメラ/行列APIのリサイズ復旧メタデータは後続のアダプター分離まで維持する。
+- SDK 0.1.29: SetCamera前に描く既定Stageも対数深度で初期化するよう修正。透視行列だけを設定し線形の深度パケットが残る起動時の抜けを、通常のカメラ初期化処理を共有して解消した。
+- SDK 0.1.28: StageのFrame/Object定数配置をL4の型付き `StageGpuLayouts` に移し、D3D12側の35個の手書きオフセットを削除。L7がDXCの実反射データを取得し、行列の行配置を含めてStage/Lumenと照合する。FrameCB960/ ObjectCB192バイトとstage-v14を維持する。
+- SDK 0.1.27: 描画カメラ数学を `Graphics.D3D12.Camera` からポータブルな `Rendering.View.RenderCamera` へ移動。シーンComponentのCameraとは別の公開型。計算・既定値を維持し、既存のカメラ数学テストもRendering.Testsへ移した。カメラ提出方針とフレーム状態の分離はM0120で継続する。
+- SDK 0.1.26: 環境・メッシュ・材質・発光パッチの提出値を `CSharpGameEngine.Rendering`、物理光量・影予算・カスケード・発光パッチ生成のCPU計算を同 `.Pipeline` へ移動。D3D12提出アダプターを分離した。計算式・シェーダーと画素基準は維持する。M0120の層分離は継続中。
+- SDK 0.1.25: テンプレートの自動検証コマンドがD3D12デバッグ層を必須化するよう修正。ランタイム報告の実有効フラグがfalse/未報告なら検証を拒否する。既定の無効設定に依存したままエラー0を診断成功として扱う抜けを解消した。通常のゲーム起動設定は変更しない。
+
+- SDK 0.1.24: 未使用のModelRenderer/TriangleRenderer、旧model-v1/triangle-v1成果物の生産者、Model/TriangleルートグラフとVSIXテンプレートを削除。三角形とglTFモデルは既存のStage描画を共通利用する。旧保存値は拒否し再利用しない。新しいShader GraphはStageと5つの外部サブグラフを作り、リリース証拠はその全入力を記録する。
+
+- 低レベルのRenderDepthMappingを削除し、サムネイルは検証済みRenderViewDepthを必須化。透視行列には物理的なFOV・クリップ範囲・曲線を渡す。裸の行列は正射影の線形深度に限定し、無効な提出が暗黙に別方式へ切り替わることを防ぐ。7画像ハッシュとデバイス再生成後の透視/正射影プレビューを維持。
+
+- プレビュー通信をプロトコル9へ更新し、深度の選択欄を削除。透視では必須のFOV・near/far・曲線から対数深度を使い、正射影は線形。VSIXと同梱ホストを一緒に更新し、旧プロトコル8は拒否する。巨大farを持つシーンカメラのサムネイルは元のクリップ範囲を保持する。低レベル行列/サムネイルAPIの移行は継続中。
+
+- 描画 Camera の DepthMapping も削除し、SetCamera は対数を検証・提出する。最後の標準比較 7 ケースを保存して比較専用テストを整理。回帰 106 件と GI/雲等 27 件に合格。RTX 4060 Ti の 6 スケール中央誤差は最大 2.56 ulp。行列・通信の旧選択は移行中。
+- シーン Camera の DepthMapping/CameraDepthMapping を削除。ゲームとエディター実行ビューは対数、カメラサムネイルは投影から対数/線形を導く。ランタイム等 36 件・VSIX ポリシー 13 件合格。低レベル描画・通信の旧 API は移行中。
+- ファクトリーを使わず new Camera で直接生成しても、対数深度と既定の T=1 m を初期化するように修正した。修正前に型・GPU の両方で再現し、カメラ・深度・画素・プレビュー 33 件に合格。
+- Stage ABI を 14 エントリーへ統合し、対数ラッパーと深度方式別の重複 PSO を削除した(M0119、移行中)。L4 RenderViewDepth が深度パケットを検証・生成する。FrameCB は 960 バイトのまま未使用領域を再利用。独自グラフは新しい定数・構造に更新して成果物を再生成する。旧カメラ API・プロトコル・Model/Triangle の削除は継続中。
+- Stage が R32F の物理距離を同時出力し、空と DDGI がその距離を直接読むようになった(M0119、移行中)。DDGI の透視撮影は対数深度。プレビューは主画面の距離を書き換えず、リサイズで再作成する。GPU 50 件・シェーダー 15 件に合格し、対数 7 SHA は不変。AO は物理距離の共有入力へ移行し、補助投影の far より遠い接触部にも陰りを付ける。環境画像の 6/20736 画素・1 階調以内の差を記録して更新。旧 API/PSO の整理は継続中。
+- Stage の VSMain/PSMain が直接対数深度を出力するようになった(ADR-0084/M0119、移行中)。旧 Radial の深度付加処理と二重の入出力構造を整理し、現在の旧 ABI 名は直接委譲する別名。固定した 7 つの対数画像は不変。古い独自 Stage グラフは、新しい StagePixelOutput/VertexOutput と CompleteStageSurface を含むグラフへ更新する。旧 API・PSO の削除と全画面効果の物理距離への移行は後続段階。
+
+- Lumen の表面前パスを対数カメラの深度に合わせた(ADR-0084/M0119、移行中)。far が 1e18 m などのカメラで、主画面が選んだ手前の面を Lumen 前パスが読み損ね、奥の面で照明を計算する問題を修正。Stage の成果物は `stage-v14` の移行契約になり再生成が必要。現在は既存の 18 エントリーと CB 配置を維持し、標準経路の削除は後続段階。
+
 - Added Chaos-like destruction (ADR-0078/M0113): the Destruction engine plugin (`<CgePlugins>Destruction</CgePlugins>`). The build's Cook cuts every scene `Destructible` (its box `Collider` or a closed convex `SourceMesh`) into seeded, deterministic Voronoi fragments with an interior material slot on the cuts, one level of connected clusters and bonds as strong as their shared area (`Assets/Destruction/<FractureAsset>.cgefracture`, version 2; version 1 still read); open, concave or degenerate sources and fragment counts outside 2-256 are build errors (DST001-011). At run time contact impulses, a character with `DestructionImpact`, `Destruction.ApplyImpulse` and `StrainField` strain the bonds; a bond whose strain reaches its strength breaks (a `BondBroken` event), the parts that come apart become dynamic bodies (convex polyhedra or compounds), bottom fragments can be anchored, and `FragmentBudget`/`FragmentLifetime` remove old pieces. `ForceField` pushes bodies outward. Each fragment is drawn by its own Entity (`FragmentMesh`, outer and cut colours). The physics cache is schema 3 and records the broken bonds, so a played-back bake breaks the same way (schema 2 caches still play); `Physics.Cli replay` writes a played-back cache. The Scene Designer's physics overlay previews a destructible's cut (fragment outlines and bonds) before a build. See `samples/CSharpGameEngine.Samples.Destruction` and `FeatureRunner verify-destruction`. SDK 0.1.25.
 - Physics (M0113): convex polyhedra and compounds collide through face planes with patches of up to four points; sleeping bodies resting on static or sleeping bodies are no longer re-solved; the position correction no longer keeps a resting body awake; a sleeping body wakes when what it touched is removed or changed (it used to hang in the air); the cache accepts rotations within 2^-30 of unit length (Q64.64 normalization is not idempotent, which refused bakes of spinning bodies). A second instance of a scene with physics bodies (for example from `Spawner`) now gets its own physics stable IDs instead of sharing the first's.
 

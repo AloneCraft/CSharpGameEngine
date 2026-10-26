@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Audio;
 using CSharpGameEngine.Contracts;
@@ -11,7 +12,7 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 using CSharpGameEngine.World;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;

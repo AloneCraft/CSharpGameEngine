@@ -5,5 +5,11 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Windows.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

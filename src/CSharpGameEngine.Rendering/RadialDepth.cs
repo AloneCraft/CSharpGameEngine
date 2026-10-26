@@ -2,19 +2,6 @@ using System.Numerics;
 
 namespace CSharpGameEngine.Rendering;
 
-/// <summary>How a view turns distance into depth (M0099, ADR-0076).</summary>
-public enum RenderDepthMapping {
-    /// <summary>The hyperbolic depth of the perspective projection.</summary>
-    Standard=0,
-    /// <summary>Depth is the logarithm of the physical distance from the eye; the image is the standard one.</summary>
-    Radial=1,
-    /// <summary>
-    /// The world is compressed radially around another camera and seen from outside (Omni's RadialObserverRig).
-    /// Only camera previews use it.
-    /// </summary>
-    RadialObserver=2,
-}
-
 /// <summary>
 /// Omni's Smooth radial curve in metres: <c>G(r) = log2(1 + r / T)</c>. It is linear near the eye
 /// (slope <c>1 / (T ln 2)</c>) and logarithmic beyond the transition length <c>T</c>, so a 32-bit depth keeps a
@@ -93,7 +80,7 @@ public readonly record struct RadialDepthProjection {
     public const float MaximumDepth=0.99999994f;
     /// <summary>Ratio of the auxiliary far plane to its near plane; it keeps the matrix invertible in float.</summary>
     public const float AuxiliaryDepthRatio=65536f;
-    /// <summary>Lower bound of the auxiliary near plane: surfaces nearer than this get no ambient occlusion.</summary>
+    /// <summary>Lower bound of the auxiliary near plane used to build stable inverse-projection rays.</summary>
     public const float AuxiliaryNearFloorMeters=0.01f;
     private RadialDepthProjection(RadialDepthCurve Curve,float NearZ,float FarZ,float FrustumCornerDistance){
         this.Curve=Curve;

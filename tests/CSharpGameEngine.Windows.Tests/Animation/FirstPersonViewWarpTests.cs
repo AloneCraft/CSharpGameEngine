@@ -1,5 +1,5 @@
 using System.Numerics;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
 /// ADR-0078/M0107: UE's first person rendering of a primitive (FirstPersonFieldOfView 70, FirstPersonScale 0.6) as a change of the mesh's place in the camera's frame:

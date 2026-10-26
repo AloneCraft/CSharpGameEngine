@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
@@ -45,7 +46,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
     private const DXGI_FORMAT IrradianceFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT DistanceFormat=DXGI_FORMAT_R16G16_FLOAT;
     private const uint SrvCaptureColor=0;
-    private const uint SrvCaptureDepth=1;
+    private const uint SrvCaptureDistance=1;
     private const uint UavIrradiance=2;
     private const uint UavDistance=3;
     private const uint DescriptorCount=4;
@@ -64,6 +65,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
     private readonly float[]ScheduledHysteresis=new float[GlobalIlluminationSettings.MaxProbesPerFrame];
     private ID3D12Resource*CaptureColor;
     private ID3D12Resource*CaptureDepth;
+    private ID3D12Resource*CaptureDistance;
     private ID3D12Resource*IrradianceAtlas;
     private ID3D12Resource*DistanceAtlas;
     private ID3D12Resource*ConstantsBuffer;
@@ -141,14 +143,16 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         this.MappedCaptureFrameConstants+(FrameIndex*(uint)CaptureSliceCount+(uint)Capture)*this.FrameConstantsStride;
     internal ulong CaptureFrameAddress(uint FrameIndex,int Capture)=>
         this.CaptureFrameConstants->GetGPUVirtualAddress()+(FrameIndex*(uint)CaptureSliceCount+(uint)Capture)*this.FrameConstantsStride;
-    internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureRtv(int Capture)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),Capture,this.RtvDescriptorSize);
+    internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureRtv(int Capture)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),Capture*2,this.RtvDescriptorSize);
+    internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureDistanceRtv(int Capture)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),Capture*2+1,this.RtvDescriptorSize);
     internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureDsv(int Capture)=>new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),Capture,this.DsvDescriptorSize);
     /// <summary>Makes the capture arrays writable. Pair with <see cref="RecordConvolution"/>.</summary>
     internal void BeginCapture(ID3D12GraphicsCommandList*CommandList){
-        D3D12_RESOURCE_BARRIER*Barriers=stackalloc D3D12_RESOURCE_BARRIER[2];
+        D3D12_RESOURCE_BARRIER*Barriers=stackalloc D3D12_RESOURCE_BARRIER[3];
         Barriers[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureColor,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
         Barriers[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureDepth,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
-        CommandList->ResourceBarrier(2,Barriers);
+        Barriers[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureDistance,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        CommandList->ResourceBarrier(3,Barriers);
     }
     /// <summary>
     /// Convolves every scheduled capture into its probe tiles (after a pending layout clear) and
@@ -157,12 +161,13 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
     /// </summary>
     internal void RecordConvolution(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in GlobalIlluminationSettings Settings,ulong SkyShAddress,bool SkyLightEnabled){
         this.EnsurePipeline();
-        D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[4];
+        D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[5];
         Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureColor,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         Before[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureDepth,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         Before[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.IrradianceAtlas,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         Before[3]=D3D12_RESOURCE_BARRIER.InitTransition(this.DistanceAtlas,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        CommandList->ResourceBarrier(4,Before);
+        Before[4]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureDistance,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        CommandList->ResourceBarrier(5,Before);
         CommandList->SetComputeRootSignature(this.RootSignature);
         CommandList->SetPipelineState(this.PipelineState);
         ID3D12DescriptorHeap*Heap=this.DescriptorHeap;
@@ -313,13 +318,15 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
             return;
         }
         this.DescriptorHeap=this.CreateHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,DescriptorCount,D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
-        this.RtvHeap=this.CreateHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV,CaptureSliceCount,D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+        this.RtvHeap=this.CreateHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV,CaptureSliceCount*2,D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
         this.DsvHeap=this.CreateHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV,CaptureSliceCount,D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
         this.DescriptorSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         this.RtvDescriptorSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         this.DsvDescriptorSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
         D3D12_CLEAR_VALUE ColorClear=new(){ Format=CaptureColorFormat };
         this.CaptureColor=this.CreateTexture(CaptureColorFormat,CaptureResolution,CaptureResolution,CaptureSliceCount,D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,&ColorClear);
+        D3D12_CLEAR_VALUE DistanceClear=new(){ Format=DXGI_FORMAT_R32_FLOAT };
+        this.CaptureDistance=this.CreateTexture(DXGI_FORMAT_R32_FLOAT,CaptureResolution,CaptureResolution,CaptureSliceCount,D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,&DistanceClear);
         D3D12_CLEAR_VALUE DepthClear=new(){ Format=DXGI_FORMAT_D32_FLOAT };
         DepthClear.DepthStencil.Depth=1f;
         this.CaptureDepth=this.CreateTexture(DXGI_FORMAT_R32_TYPELESS,CaptureResolution,CaptureResolution,CaptureSliceCount,D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,&DepthClear);
@@ -329,6 +336,8 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
             D3D12_RENDER_TARGET_VIEW_DESC Rtv=new(){ Format=CaptureColorFormat,ViewDimension=D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE2DARRAY };
             Rtv.Texture2DArray=new D3D12_TEX2D_ARRAY_RTV { FirstArraySlice=(uint)Slice,ArraySize=1 };
             this.Device.Device->CreateRenderTargetView(this.CaptureColor,&Rtv,this.CaptureRtv(Slice));
+            Rtv.Format=DXGI_FORMAT_R32_FLOAT;
+            this.Device.Device->CreateRenderTargetView(this.CaptureDistance,&Rtv,this.CaptureDistanceRtv(Slice));
             D3D12_DEPTH_STENCIL_VIEW_DESC Dsv=new(){ Format=DXGI_FORMAT_D32_FLOAT,ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2DARRAY };
             Dsv.Texture2DArray=new D3D12_TEX2D_ARRAY_DSV { FirstArraySlice=(uint)Slice,ArraySize=1 };
             this.Device.Device->CreateDepthStencilView(this.CaptureDepth,&Dsv,this.CaptureDsv(Slice));
@@ -341,7 +350,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         ArraySrv.Texture2DArray=new D3D12_TEX2D_ARRAY_SRV { MipLevels=1,ArraySize=CaptureSliceCount };
         this.Device.Device->CreateShaderResourceView(this.CaptureColor,&ArraySrv,this.CpuHandle(SrvCaptureColor));
         ArraySrv.Format=DXGI_FORMAT_R32_FLOAT;
-        this.Device.Device->CreateShaderResourceView(this.CaptureDepth,&ArraySrv,this.CpuHandle(SrvCaptureDepth));
+        this.Device.Device->CreateShaderResourceView(this.CaptureDistance,&ArraySrv,this.CpuHandle(SrvCaptureDistance));
         D3D12_UNORDERED_ACCESS_VIEW_DESC Uav=new(){ Format=IrradianceFormat,ViewDimension=D3D12_UAV_DIMENSION.D3D12_UAV_DIMENSION_TEXTURE2D };
         this.Device.Device->CreateUnorderedAccessView(this.IrradianceAtlas,null,&Uav,this.CpuHandle(UavIrradiance));
         Uav.Format=DistanceFormat;
@@ -483,6 +492,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         if(this.DsvHeap!=null){ _=this.DsvHeap->Release(); }
         if(this.CaptureColor!=null){ _=this.CaptureColor->Release(); }
         if(this.CaptureDepth!=null){ _=this.CaptureDepth->Release(); }
+        if(this.CaptureDistance!=null){ _=this.CaptureDistance->Release(); }
         if(this.IrradianceAtlas!=null){ _=this.IrradianceAtlas->Release(); }
         if(this.DistanceAtlas!=null){ _=this.DistanceAtlas->Release(); }
     }

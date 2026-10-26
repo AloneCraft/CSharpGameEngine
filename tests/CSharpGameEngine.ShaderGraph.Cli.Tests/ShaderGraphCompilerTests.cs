@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,18 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,14 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -54,38 +54,29 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains("ScreenPSMain",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenPSMain");
-                // M0099 / ADR-0076: the radial entries exist and every radial pixel entry writes the radial depth; the
-                // main-pass ones declare it at least the conservative raster depth so early rejection still works.
-                foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain"}) {
-                    Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName==Entry);
-                    Assert.Contains($"RadialConservativePixelOutput {Entry}(RadialPixelInput input)",BuiltSource,StringComparison.Ordinal);
-                }
-                // RadialPixelInput mirrors VertexOutput member for member (only SV_Position gains its modifiers), so a
-                // member added to the Stage graph's VertexOutput cannot silently reach PSMain uninitialized.
-                static string[]Members(string Source,string Struct)=>System.Text.RegularExpressions.Regex.Match(Source,$@"struct {Struct}\s*\{{(?<Body>[^}}]*)\}}").Groups["Body"].Value
-                    .Split(';',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries)
-                    .Select(static Member=>Member.Replace("noperspective centroid ",string.Empty,StringComparison.Ordinal)).ToArray();
-                Assert.True(Members(BuiltSource,"VertexOutput").Length>=6,"VertexOutput must be found in the built source.");
-                Assert.Equal(Members(BuiltSource,"VertexOutput"),Members(BuiltSource,"RadialPixelInput"));
-                Assert.Equal([.. Members(BuiltSource,"VertexOutput"),"float2 ClipDistance : SV_ClipDistance0"],Members(BuiltSource,"RadialVertexOutput"));
-                Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName=="PreviewCleanRadialPSMain");
-                Assert.Contains("RadialPixelOutput PreviewCleanRadialPSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
-                Assert.Contains("float Depth : SV_Depth;",BuiltSource,StringComparison.Ordinal);
+                // The Stage graph owns depth and a single vertex/pixel interface. Legacy ABI names have been removed.
+                Assert.Contains("StagePixelOutput PSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("StagePixelOutput CompleteStageSurface(VertexOutput input, float4 color)",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("float Depth : SV_DepthGreaterEqual;",BuiltSource,StringComparison.Ordinal);
-                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialObserverVSMain");
-                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialVSMain");
+                Assert.Contains("float2 ClipDistance : SV_ClipDistance0;",BuiltSource,StringComparison.Ordinal);
+                Assert.DoesNotContain("struct RadialPixelInput",BuiltSource,StringComparison.Ordinal);
+                Assert.DoesNotContain("struct RadialVertexOutput",BuiltSource,StringComparison.Ordinal);
+                Assert.DoesNotContain("ToVertexOutput(",BuiltSource,StringComparison.Ordinal);
+                Assert.Equal(new[]{
+                    "VSMain","PSMain","VSShadowMain","FullscreenVS","PostProcessPS","PreviewPSMain","PreviewCleanPSMain",
+                    "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain",
+                }.OrderBy(Name=>Name,StringComparer.Ordinal),Artifact.Entries.Select(Entry=>Entry.LogicalName).OrderBy(Name=>Name,StringComparer.Ordinal));
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ObserverVSMain");
                 // M0111: the Lumen surface prepass writes the normal and roughness and the distance; the card capture writes three targets.
-                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="LumenSurfacePSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="SurfacePrepassPSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="LumenCardPSMain");
-                Assert.Contains("LumenSurfaceOutput LumenSurfacePSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("SurfacePrepassOutput SurfacePrepassPSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("float4 Emissive : SV_Target2;",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("Texture2D LumenDiffuseTexture : register(t16);",BuiltSource,StringComparison.Ordinal);
             }
         } finally { Directory.Delete(DirectoryPath,true); }
     }
     [Theory]
-    [InlineData("Triangle")]
-    [InlineData("Model")]
     [InlineData("Stage")]
     public void ProductionGraph_ContainsNoRawHlslPayload(string Name) {
         var Paths=new[]{GraphPath(Name)}.Concat(Name=="Stage"?Directory.GetFiles(Path.GetDirectoryName(GraphPath(Name))!,"*.cgesubgraph"):Array.Empty<string>());
@@ -99,8 +90,8 @@ public sealed class ShaderGraphCompilerTests {
     [Fact]
     public void ProductionStage_ExternalSubgraphsPreserveGoldenHlsl() {
         var Resolved=ShaderGraphDependencyComposition.Resolve(GraphPath("Stage"));
-        Assert.Equal(4,Resolved.Source.Dependencies.Count);
-        Assert.Equal(4,Resolved.DependencyPaths.Count);
+        Assert.Equal(5,Resolved.Source.Dependencies.Count);
+        Assert.Equal(5,Resolved.DependencyPaths.Count);
         Assert.NotEqual(Resolved.SemanticHash,Resolved.DependencyHash);
         var Export=HlslSyntaxGraphConverter.ExportWithSourceMap(Resolved.Composed);
         var Pbr=ShaderGraphCanonicalization.FromJson(File.ReadAllText(Resolved.DependencyPaths.Single(PathValue=>Path.GetFileName(PathValue).Equals("Pbr.cgesubgraph",StringComparison.OrdinalIgnoreCase))))!;
@@ -112,9 +103,30 @@ public sealed class ShaderGraphCompilerTests {
         // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows), ADR-0075 (world-space
         // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin), M0099 Phase 3 (FrameCB
         // depth-mapping packet), the M0099 conservative raster matrix and M0111 (FrameCB.LumenParams, t16/t17 and PSMain's
-        // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) intentionally changed the Stage program; the
+        // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) and M0119 (the logarithmic depth functions
+        // become the Depth subgraph, edits/depth_subgraph_2026_10_25.py) intentionally changed the Stage program; the
         // migrate/extract round trip was verified byte-identical before those edits.
-        Assert.Equal("31CEC5284B43354C78C4CE2C2F20B9B5976E5781728618B7CE20864C209184D7",Hash);
+        Assert.True(Hash=="0A8C045A56F0B3A18838C85ACAD86987550F4395DB687879E1CDF901A0D9A7AE",Hash);
+    }
+    [Fact]
+    public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {
+        // M0100/ADR-0084: a GPU's log2 and exp2 are approximations (an RTX 4060 Ti put a 4 um surface's depth 3 % off) and
+        // WARP evaluates them exactly, so no WARP test can see it. The depth functions every pass shares (the Depth
+        // subgraph) must stay on float arithmetic. The rest of the Stage program (fog, BRDF) does use exp and pow.
+        var Hlsl=System.Text.RegularExpressions.Regex.Replace(HlslSyntaxGraphConverter.ExportWithSourceMap(ShaderGraphDependencyComposition.Resolve(GraphPath("Stage")).Composed).Hlsl,@"//[^\n]*",string.Empty);
+        foreach(var Name in new[]{"RadialLog2OnePlus","RadialSafeLength","RadialG","EncodeRadialDepth","IsBeyondRadialFarPlane"}) {
+            var Start=Hlsl.IndexOf(" "+Name+"(",StringComparison.Ordinal);
+            Assert.True(Start>=0,Name+" is not defined by the Stage program.");
+            var Open=Hlsl.IndexOf('{',Start);
+            var Depth=0;
+            var End=Open;
+            for(;End<Hlsl.Length;End++) {
+                if(Hlsl[End]=='{') { Depth++; }
+                else if(Hlsl[End]=='}' && --Depth==0) { break; }
+            }
+            var Body=Hlsl[Start..(End+1)];
+            Assert.DoesNotMatch(@"\b(log|log2|log10|exp|exp2|pow)\s*\(",Body);
+        }
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {
@@ -219,7 +231,7 @@ public sealed class ShaderGraphCompilerTests {
         var ValueId=StableId.New();
         var OutputId=StableId.New();
         return new ShaderGraphDocument {
-            Target=new ShaderGraphTarget { Kind=ShaderGraphTargetKind.Model,Name="Subgraph" },
+            Target=new ShaderGraphTarget { Kind=ShaderGraphTargetKind.Stage,Name="Subgraph" },
             RootSubgraphId=RootId,
             Subgraphs={new ShaderGraphSubgraph {
                 Id=RootId,

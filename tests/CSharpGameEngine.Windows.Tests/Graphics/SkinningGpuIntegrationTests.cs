@@ -1,3 +1,7 @@
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
@@ -65,7 +69,7 @@ public sealed class SkinningGpuIntegrationTests {
             Positions=[Vector3.Zero,Vector3.UnitY,Vector3.UnitX],Normals=[-Vector3.UnitZ,-Vector3.UnitZ,-Vector3.UnitZ],Tangents=[Vector4.UnitX,Vector4.UnitX,Vector4.UnitX],Uvs=[Vector2.Zero,Vector2.Zero,Vector2.Zero],Indices=[0,1,2],
             Skin=new StageSkinCreateInfo { JointCount=1,JointIndices=Joints,Weights=Weights },
         };
-        using var Server=CSharpGameEngine.Runtime.Windows.RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true },ShaderArtifactPath,
+        using var Server=CSharpGameEngine.Graphics.D3D12.D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true },ShaderArtifactPath,
             [Mesh],[new StageMaterialCreateInfo { BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         Server.SetSkinPalette(0,[Matrix4x4.CreateTranslation(0f,5f,0f)]);
     }

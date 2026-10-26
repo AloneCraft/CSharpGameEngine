@@ -11,9 +11,9 @@
 
 Canonical serialization orders identities and argument names; it leaves out nulls, so a canonical file never holds one. A JSON null where the graph needs a value (the target, a list, a list item, a node type, an argument name or value, an edge port, a dependency path) is malformed JSON: loading throws a `JsonException` naming its path, as for any other malformed JSON. Semantic hashing removes node positions and region layout. Connection types must match exactly; conversions are explicit nodes. Unknown JSON node data survives load/save and validator diagnostics identify unsupported node types. A subgraph or node identity that appears twice (a node copied by hand in the JSON, a merged file) is a validation error (`DuplicateIdentity`), so generation reports it instead of failing.
 
-The fixed root target is Stage, Model, or Triangle. The Stage graph defines VSMain, PSMain, VSShadowMain, FullscreenVS, and PostProcessPS; the engine-owned `StagePresentationShaderSource` suffix adds PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain and the radial depth entries RadialPSMain, PreviewRadialPSMain, PreviewCleanRadialPSMain, RadialObserverVSMain and RadialVSMain (M0099, ADR-0076) and the screen layer entries ScreenVSMain and ScreenPSMain (M0104, ADR-0078) and the Lumen entries LumenSurfacePSMain and LumenCardPSMain (M0111), 18 entries in the `stage-v13` contract (FrameCB ends with the depth-mapping packet and `LumenParams`; ObjectCB ends with `RadialRasterDepth`). `stage-v12`(M0110)は `stage-v11` と項目・定数の配置が同じで、材質のサンプラー s0 が異方性 8・wrap になり、材質テクスチャが全ミップを持つことだけが違う(`s0-anisotropic-wrap`)。Stage グラフと `StagePresentationShaderSource` は変えていないが、ABI のハッシュが変わるので成果物は作り直しになる。`stage-v13`(M0111)は FrameCB の末尾に `LumenParams`(x = Lumen の拡散、y = Lumen の反射)、t16 `LumenDiffuseTexture`・t17 `LumenReflectionTexture` と、接尾辞の `LumenSurfacePSMain`(表面の前処理: 法線と粗さ、カメラからの距離)・`LumenCardPSMain`(カードの撮影: 基本色 ×(1 − 金属)、法線、発光)を足した。Stage グラフの PSMain は、Lumen の拡散があればプローブボリュームと空の光の拡散を、反射があれば反射の照度を置き換える。`LumenParams` が 0 なら式は v12 と同じで、標準フレームのハッシュは変わらない。 Model and Triangle each have VSMain and PSMain.
+The fixed root target is Stage (serialized value 0); removed values 1 and 2 are rejected as UnknownTarget. Stage has 14 entries: VSMain, PSMain, VSShadowMain, FullscreenVS, PostProcessPS, PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain, ScreenVSMain, ScreenPSMain, ObserverVSMain, SurfacePrepassPSMain and LumenCardPSMain. The graph owns native colour, physical distance and conservative logarithmic depth. The engine-owned suffix supplies presentation, observer, surface and card entries; the old radial wrapper entries are removed. The stage-v14 contract keeps FrameCB at 960 bytes, repurposing the unused shadow matrix and atlas fields for InverseViewProjection and ViewportSize. DepthEncoding0/1 carry validated L4 RenderViewDepth packets; ObjectCB ends with ConservativeRasterDepth. Material sampler s0 is anisotropic 8/wrap, t16/t17 carry Lumen diffuse/reflections, and LumenParams selects them. The unused Model/Triangle renderers, ABI producers and root templates have been removed in M0119.
 
-Dependencies resolve relative to their owning document and may be recursive. Resolution validates document identity and rejects missing files, recursion, node collisions, and top-level declaration-slot collisions. Production Stage owns PBR, Shadow, PCSS, and ACES as external typed-syntax Subgraphs whose original declaration slots are preserved during composition.
+Dependencies resolve relative to their owning document and may be recursive. Resolution validates document identity and rejects missing files, recursion, node collisions, and top-level declaration-slot collisions. Production Stage owns Depth, PBR, Shadow, PCSS, and ACES as external typed-syntax Subgraphs whose original declaration slots are preserved during composition.
 
 ## Validation and lowering
 
@@ -33,7 +33,7 @@ MSBuild compiles explicit CgeShaderGraph items and their CgeShaderSubgraph input
 
 ## Artifact format
 
-.cgeshaderartifact is a versioned little-endian CGESHDR1 container. It records target, ABI hash, semantic/dependency hash, compiler and DXC provenance, entry-specific DXIL, reflection, PSO key, and SHA-256 checksum. Readers reject unsupported versions, checksum failure, target mismatch, ABI mismatch, missing or duplicate entries, invalid profiles, and empty bytecode/reflection.
+.cgeshaderartifact is a versioned little-endian CGESHDR1 container. Stage retains artifact target value 1 and Compute value 4; retired values 2 and 3 are rejected and never reassigned. It records target, ABI hash, semantic/dependency hash, compiler and DXC provenance, entry-specific DXIL, reflection, PSO key, and SHA-256 checksum. Readers reject unsupported versions, checksum failure, target mismatch, ABI mismatch, missing or duplicate entries, invalid profiles, and empty bytecode/reflection.
 
 ## Runtime
 
@@ -43,17 +43,26 @@ D3D12 renderers consume artifacts only and validate them before creating a comma
 
 The VSIX registers editor factories for both extensions. The WPF editor supplies canvas pan/zoom, a searchable built-in/prototype palette, typed connection rejection, multiple selection, copy/paste, duplicate/delete, comments/frames, structured If/ForRange/Return creation, entry tabs, properties, Error List mapping, save/build, external-change handling, external Subgraph listing/navigation, and Visual Studio Save/Undo/Redo commands. Region kind/name labels and editable control arguments make structured behavior visible without raw HLSL.
 
-Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. The root wizard selects Stage, Model, or Triangle. A Stage template copies and coherently remaps the complete external dependency bundle using graph-prefixed filenames. Open Generated HLSL opens the semantic/dependency-hash-matched generated source.
+Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. A new root uses the native Stage template directly. The Stage template copies and coherently remaps the complete external dependency bundle using graph-prefixed filenames. Open Generated HLSL opens the semantic/dependency-hash-matched generated source.
 
 ## Stage oracles
 
 | Feature | Stage | Evidence |
 |---|---|---|
 | F-L2-005 | shadergraph.schema | canonical/hash/type/cycle/region/subgraph tests |
-| F-L7-049 | shadergraph.compiler | deterministic HLSL and nine-entry DXC tests |
+| F-L7-049 | shadergraph.compiler | deterministic HLSL and fourteen-entry DXC tests |
 | F-L6-004 | rendering.shader-artifacts | container/runtime/hot-reload tests |
 | F-L8-031 | vsix.shader-graph | editor/factory/template/package tests |
 
 ## Known delta
 
-External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Debug/Release 1041 CgeAutomation evidence now proves the Editor Factory, stable AutomationIds, layout/Undo/Redo/save/reload/diagnostic lifecycle, package identity, and normal shutdown; F-L8-031 Matches this specification.
+External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Debug/Release 1041 CgeAutomation evidence now proves the Editor Factory, stable AutomationIds, layout/Undo/Redo/save/reload/diagnostic lifecycle, package identity, and normal shutdown; That UI evidence predates the M0119 switch to a Stage-only root template; the updated Stage-based UI automation has been built but not rerun.
+
+## GPU layout verification (M0120)
+L4 `Pipeline.StageFrameConstants` and `StageObjectConstants` own the managed CB layout; `StageGpuLayouts` derives offsets with Marshal.OffsetOf. DXC_OUT_REFLECTION is available as `HlslCompileResult.DxcReflection` from an actual compile. The L7-only `HlslShaderReflection` reads it and the compiler tests compare all CB field offsets/sizes and row-major matrices for Stage and Lumen. Lumen's StageInverseViewProjection explicitly aliases the Stage field InverseViewProjection. A card pixel entry uses ObjectCB and has no FrameCB after optimization, which is tested as such.
+This raw compiler data is separate from the artifact entry's existing JSON reflection metadata (entry/profile/stage/ABI); that serialized field and the runtime ABI have not changed. Runtime assemblies do not load DXC. FrameCB remains 960 bytes, ObjectCB 192 bytes, stage-v14 remains current, and the shader source/bytecode are unchanged by the C# layout relocation.
+
+## 対数ネイティブの契約(M0119)
+現在の契約は`stage-v14`。Lumen の表面前パスは `SurfacePrepassPSMain` で既存の法線・粗さ・物理距離に加え `SV_Depth` を書く。対数カメラは共有の `EncodeRadialDepth` を使い、頂点は保守的な深度と明示的な近遠クリップ距離を使う。これにより、far 1e18 m・手前の面 1e7 m の場合でも、主画面と同じ面を Lumen が読む。正射影は線形のラスタ深度を返す。表面シェーダーは AO の物理距離生成にも使う。AO 用の旧シャドウ VS と専用 DSV は不要。主画面の `StagePixelOutput` は色 (`SV_Target0`)・物理距離 (`SV_Target1`)・深度を返す。距離は R32F の `SceneDistance` または DDGI の `CaptureDistance` に保存し、0 は背景。空と DDGI は双曲深度から位置を復元しない。現在のエントリー数は 14。標準経路の選択 API と旧 Model/Triangle は削除した。古いハッシュの成果物は再生成する。
+
+M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つようになった。ピクセル出力は `StagePixelOutput`(色と `SV_DepthGreaterEqual`)、単一の `VertexOutput` が VS と PS の契約。`CompleteStageSurface` が表示用を含む最終深度を共有する。旧 `Radial*` のラッパーエントリーは削除した。観察ビューだけが `ObserverVSMain` を使い、色・深度の PS は共有する。複製した古い Stage グラフは、新しい構造体・ヘルパーを含むグラフへ更新してから成果物を再生成する必要がある。

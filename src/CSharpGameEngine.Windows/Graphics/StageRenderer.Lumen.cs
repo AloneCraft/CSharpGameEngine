@@ -1,3 +1,5 @@
+using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
+using CSharpGameEngine.Rendering;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop.DirectX;
@@ -91,6 +93,7 @@ public sealed unsafe partial class StageRenderer {
                 var Projection=Capture.Projection;
                 Unsafe.CopyBlock(FrameDestination+FrameViewProjectionOffset,&Projection,(uint)sizeof(Matrix4x4));
                 *(Vector4*)(FrameDestination+FrameLumenParamsOffset)=Vector4.Zero;
+                *(Vector4*)(FrameDestination+FrameDepthEncoding0Offset)=Vector4.Zero;
                 this.WriteLumenCaptureObjectConstants(Lumen.CaptureObjectSlot(this.FrameIndex,Index),Capture.ObjectIndex);
                 Lumen.ClearCard(this.CommandList,Capture);
                 D3D12_VIEWPORT Viewport=new(){ TopLeftX=Capture.X,TopLeftY=Capture.Y,Width=Capture.Width,Height=Capture.Height,MinDepth=0f,MaxDepth=1f };
@@ -142,7 +145,7 @@ public sealed unsafe partial class StageRenderer {
         Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&Zero,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&Zero,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&Zero,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectRadialRasterDepthOffset,&Zero,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+ObjectConservativeRasterDepthOffset,&Zero,(uint)sizeof(Vector4));
     }
     /// <summary>Test-only: the device's removed reason (S_OK while it lives).</summary>
     internal int DeviceRemovedReasonForTesting=>this.Device!.Device->GetDeviceRemovedReason().Value;
@@ -151,6 +154,12 @@ public sealed unsafe partial class StageRenderer {
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Lumen!.ReadDiffuseForTesting();
+    }
+    /// <summary>Test-only: the physical distances of the surfaces used by Lumen's gather and reflection passes.</summary>
+    internal (float[]Distances,int Width,int Height)ReadLumenSurfaceDistancesForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.Lumen!.ReadSurfaceDistancesForTesting();
     }
     /// <summary>Test-only: the Lumen reflected radiance per pixel, after the GPU is idle.</summary>
     internal (Vector4[]Texels,int Width,int Height)ReadLumenReflectionForTesting(){

@@ -3,6 +3,25 @@ using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 
 public sealed class ChangedStageSelectorTests {
+    [Theory]
+    [InlineData("src/CSharpGameEngine.Rendering/EnvironmentLighting.cs","rendering.environment-lighting")]
+    [InlineData("src/CSharpGameEngine.Rendering/View/RenderCamera.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Rendering/Pipeline/StageGpuLayouts.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Rendering/RenderView.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Rendering/RenderViewSource.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Rendering/View/RenderViewPolicy.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Runtime.Windows/Camera.cs","rendering.radial-depth")]
+    [InlineData("src/CSharpGameEngine.Runtime.Windows/PrimitiveRoster.cs","rendering.baseline")]
+    [InlineData("src/CSharpGameEngine.Rendering/StageMeshGeometry.cs","rendering.baseline")]
+    [InlineData("src/CSharpGameEngine.Rendering/StageRenderDefaults.cs","rendering.baseline")]
+    [InlineData("src/CSharpGameEngine.Rendering/PixelReadbackResult.cs","rendering.baseline")]
+    [InlineData("src/CSharpGameEngine.Rendering/Pipeline/PhysicalLighting.cs","rendering.environment-lighting")]
+    [InlineData("src/CSharpGameEngine.Rendering/StageRenderInputs.cs","rendering.materials")]
+    [InlineData("src/CSharpGameEngine.Entities/SpatialPartitioning.cs","spatial.runtime")]
+    public void SelectFollowsRelocatedRenderingAndActualSpatialInputs(string Path,string ExpectedStage){
+        var Stages=ChangedStageSelector.Select(FeatureStageCatalog.CreateDefault(),[Path]);
+        Assert.Contains(Stages,Stage=>Stage.Id==ExpectedStage);
+    }
     [Fact]
     public void SelectUsesPathBoundariesAndReturnsOnlyExecutableChangedProfileStages(){
         FeatureStageCatalog Catalog=FeatureStageCatalog.CreateDefault();
@@ -50,7 +69,9 @@ public sealed class ChangedStageSelectorTests {
 
     [Theory]
     [InlineData("src/CSharpGameEngine.Rendering/RenderDeviceLifecycle.cs")]
-    [InlineData("src/CSharpGameEngine.Windows/Runtime/RenderServer.cs")]
+    [InlineData("src/CSharpGameEngine.Rendering/Backend/RenderBackendFailureException.cs")]
+    [InlineData("src/CSharpGameEngine.Rendering/Server/RenderServer.cs")]
+    [InlineData("src/CSharpGameEngine.Windows/Graphics/D3D12RenderServer.cs")]
     [InlineData("tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs")]
     public void RenderRecoveryChangesSelectDeviceRecovery(string ChangedPath){
         IReadOnlyList<FeatureStageDefinition>Selected=ChangedStageSelector.Select(

@@ -79,6 +79,7 @@ public static class ClickToMoveVerification {
             RedirectStandardOutput=true,
         };
         Start.Environment["CGE_GRAPHICS_ADAPTER"]=Adapter;
+        Start.Environment["CGE_D3D12_DEBUG_LAYER"]="1";
         Start.Environment["CGE_AUTOMATION_FRAMES"]=(LongPress?LongPressFrames:Frames).ToString(CultureInfo.InvariantCulture);
         Start.Environment["CGE_AUTOMATION_INPUT"]=LongPress?LongPressSchedule:InputSchedule;
         Start.Environment["CGE_AUTOMATION_CURSOR"]=Cursor;
@@ -123,6 +124,9 @@ public static class ClickToMoveVerification {
         if(!Report.TryGetProperty("schema",out var Schema)||Schema.GetString()!="cge-automation-report/1"){
             Failures.Add("The automation report schema is not cge-automation-report/1.");
             return Failures;
+        }
+        if(!Report.TryGetProperty("d3d12DebugLayerEnabled",out var DebugLayer)||DebugLayer.ValueKind!=JsonValueKind.True){
+            Failures.Add("The D3D12 debug layer was not enabled during template verification.");
         }
         var Errors=Report.GetProperty("d3d12Errors").GetInt32();
         if(Errors!=0){
@@ -170,6 +174,9 @@ public static class ClickToMoveVerification {
         if(!Report.TryGetProperty("schema",out var Schema)||Schema.GetString()!="cge-automation-report/1"){
             Failures.Add("The automation report schema is not cge-automation-report/1.");
             return Failures;
+        }
+        if(!Report.TryGetProperty("d3d12DebugLayerEnabled",out var DebugLayer)||DebugLayer.ValueKind!=JsonValueKind.True){
+            Failures.Add("The D3D12 debug layer was not enabled during template verification.");
         }
         var Errors=Report.GetProperty("d3d12Errors").GetInt32();
         if(Errors!=0){

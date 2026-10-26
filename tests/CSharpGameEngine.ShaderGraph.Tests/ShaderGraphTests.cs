@@ -214,13 +214,24 @@ public class ShaderGraphTests {
             Version = Graph.Version,
             Id = Graph.Id,
             Target = Graph.Target,
-            EntryPoint = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Model, Name = "WrongName", ReturnType = ShaderGraphValueType.Float },
+            EntryPoint = new ShaderGraphEntryPointContract { TargetKind = (ShaderGraphTargetKind)1, Name = "WrongName", ReturnType = ShaderGraphValueType.Float },
             RootSubgraphId = Graph.RootSubgraphId,
             Subgraphs = Graph.Subgraphs,
             Layout = Graph.Layout
         };
         var Result = ShaderGraphValidator.Validate(Modified);
         Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.EntryPointMismatch);
+    }
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Validator_RejectsRetiredTargetsEvenWithoutAnEntryPoint(int Target){
+        var Graph=BuildRoundTripGraph();
+        Graph.Target.Kind=(ShaderGraphTargetKind)Target;
+        Graph.EntryPoint=null;
+        var Result=ShaderGraphValidator.Validate(Graph);
+        Assert.False(Result.IsValid);
+        Assert.Contains(Result.Diagnostics,Item=>Item.Code==ShaderGraphDiagnosticCode.UnknownTarget);
     }
     private static ShaderGraphDocument BuildRoundTripGraph() {
         var Root = StableId.New();

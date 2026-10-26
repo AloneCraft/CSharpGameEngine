@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Server;
 using System.Security.Cryptography;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
@@ -73,7 +74,6 @@ public sealed class EditorRuntimeViewTests {
         using var Host=new EngineHost();
         Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
         Render(Host,SceneCamera:Near,Component:RadialCamera);
-        Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
         Assert.Equal(RadialCamera.NearZ,Host.RenderCamera.NearZ);
         Assert.Equal(RadialCamera.FarZ,Host.RenderCamera.FarZ);
         Assert.Equal(2f,Host.RenderCamera.RadialTransitionMeters);
@@ -94,7 +94,6 @@ public sealed class EditorRuntimeViewTests {
             Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
             Host.SetEditorCamera(new EditorCameraPose(Near,RadialCamera.FovYRadians,0.5f,20f));
             Editor=Render(Host,SceneCamera:Far,Component:RadialCamera,Frames:2);
-            Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
             Assert.Equal(RadialCamera.NearZ,Host.RenderCamera.NearZ);
             Assert.Equal(RadialCamera.FarZ,Host.RenderCamera.FarZ);
             Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
@@ -112,7 +111,6 @@ public sealed class EditorRuntimeViewTests {
             Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
             Host.SetEditorCamera(new EditorCameraPose(Near,RadialCamera.FovYRadians,0.5f,20f));
             Edited=Render(Host,SceneCamera:Far,Component:new Camera(),Frames:2,EditedComponent:BrightRadialCamera);
-            Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
             Assert.Equal(BrightRadialCamera.NearZ,Host.RenderCamera.NearZ);
             Assert.Equal(BrightRadialCamera.FarZ,Host.RenderCamera.FarZ);
             Assert.Equal(BrightRadialCamera.ExposureEv100,Host.RenderCamera.ExposureEv100);
@@ -134,7 +132,6 @@ public sealed class EditorRuntimeViewTests {
         using(var Host=new EngineHost()){
             Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
             Edited=Render(Host,SceneCamera:Near,Component:new Camera(),Frames:2,EditedComponent:Zoomed);
-            Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
             Assert.Equal(0.5f,Host.RenderCamera.FovYRadians);
             Assert.Equal(Zoomed.ExposureEv100,Host.RenderCamera.ExposureEv100);
         }
@@ -224,13 +221,12 @@ public sealed class EditorRuntimeViewTests {
         var Scene=new Camera();
         Host.SetEditorCamera(new EditorCameraPose(Near,Scene.FovYRadians,0.5f,5000f));
         Render(Host,SceneCamera:Far,Component:Scene,Frames:2);
-        Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
         Assert.Equal(Scene.NearZ,Host.RenderCamera.NearZ);
         Assert.Equal(5000f,Host.RenderCamera.FarZ);
         Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
     }
 
-    private static Camera RadialCamera=>new() { DepthMapping=CameraDepthMapping.Radial,RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
+    private static Camera RadialCamera=>new() { RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
     private static Camera BrightRadialCamera=>RadialCamera with { ExposureEv100=-1.5f };
 
     private static GraphicsDeviceOptions Warp=>new() { UseWarp=true,EnableDebugLayer=true };

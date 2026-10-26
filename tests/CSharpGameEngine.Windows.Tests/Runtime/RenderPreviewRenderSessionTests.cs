@@ -1,9 +1,11 @@
+using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 
@@ -31,7 +33,7 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.Equal(1u,Session.DeviceGeneration);
         Assert.NotNull(Session.LastCapturedFrame);
         var Verification=ModelPixelVerifier.Verify(
-            Session.LastCapturedFrame!,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor);
+            Session.LastCapturedFrame!,CSharpGameEngine.Rendering.Server.RenderServer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
 
@@ -94,7 +96,7 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.Equal(OverlayHash,Session.LastFrameHash);
         Assert.NotNull(Session.LastCapturedFrame);
         Assert.True(ModelPixelVerifier.Verify(
-            Session.LastCapturedFrame!,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor).Success);
+            Session.LastCapturedFrame!,CSharpGameEngine.Rendering.Server.RenderServer.ClearColor).Success);
 
         Session.ReplaceScene(Request.Scene,string.Empty);
         Assert.Empty(Session.CameraPreviewDiagnostics);
@@ -127,7 +129,7 @@ public sealed class RenderPreviewRenderSessionTests {
         PixelReadbackResult Frame=Assert.IsType<PixelReadbackResult>(
             Session.LastCapturedFrame);
         AssertClearFrame(
-            Frame,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor);
+            Frame,CSharpGameEngine.Rendering.Server.RenderServer.ClearColor);
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
     }
 
@@ -182,54 +184,64 @@ public sealed class RenderPreviewRenderSessionTests {
 
     internal static RenderPreviewHostRequest CreateOpenForHost(Win32Window Window)=>CreateOpen(Window);
 
-    [Fact]
-    public void WARP_RadialCameraDrawsTheStandardImageWithRadialDepth(){
-        // M0100: the isolated preview draws a radial camera (the VSIX's default for a perspective view) from its matrix.
-        // A box wholly in view renders the standard pixels; the depth is the radial one, also in a radial thumbnail.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WARP_CameraDepthIsDerivedFromProjectionWithoutASelector(bool Perspective){
         if(!OperatingSystem.IsWindows()){ return; }
-        using Win32Window Window=new(new Win32WindowOptions {
-            Title="CSharpGameEngine Radial Isolated Preview Test",Width=128,Height=128,Visible=false,
+        using var Window=new Win32Window(new Win32WindowOptions { Title="Native preview projection",Width=128,Height=128,Visible=false });
+        var Request=CreateOpen(Window);
+        var View=CSharpGameEngine.Rendering.View.RenderCamera.CreateFirstPerson(Vector3.Zero);
+        View.FarZ=Perspective?1e18f:100f;
+        var Projection=Perspective?View.GetProjection(1f):Matrix4x4.CreateOrthographic(2f,2f,View.NearZ,View.FarZ);
+        var ViewProjection=View.GetView()*Projection;
+        var Camera=new RenderPreviewCamera {
+            ViewProjection=Matrix(ViewProjection),Position=[0f,0f,0f],
+            FovYRadians=View.FovYRadians,NearZ=View.NearZ,FarZ=View.FarZ,
+        };
+        var World=Matrix(Matrix4x4.CreateTranslation(0f,0f,2f));
+        Request.Scene!.Camera=Camera;
+        Request.Scene.Objects[0].World=World;
+        using var Session=RenderPreviewRenderSession.Open(Request,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true });
+        double Expected(int Size){
+            if(!Perspective){
+                var Clip=Vector4.Transform(new Vector4(0f,0f,1.5f,1f),ViewProjection);
+                return Clip.Z/Clip.W;
+            }
+            Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,1f,out var Depth));
+            var Offset=Math.Tan(View.FovYRadians*0.5d)/Size;
+            var Distance=1.5d*Math.Sqrt(1d+2d*Offset*Offset);
+            return Math.Log2(1d+Distance)/Math.Log2(1d+Depth.FrustumCornerDistance);
+        }
+        void AssertDepth(float Actual,int Size){
+            var Reference=Expected(Size);
+            var Single=(float)Reference;
+            var Ulp=MathF.BitIncrement(Single)-Single;
+            Assert.InRange((double)Actual,Reference-4d*Ulp,Reference+4d*Ulp);
+        }
+        Session.RenderForVerification();
+        AssertDepth(Session.ActiveServerForTesting.ReadDepthForTesting()[64*128+64],128);
+        Session.UpdateFrame(new RenderPreviewFrame {
+            Camera=Camera,Objects=[new RenderPreviewObjectTransform { ObjectId="Root/Box",World=World }],
+            CameraPreviews=[new RenderPreviewCameraPass { X=64,Y=64,Width=64,Height=64,Camera=Camera }],
         });
-        RenderPreviewHostRequest Request=CreateOpen(Window);
-        GraphicsDeviceOptions Options=new(){ UseWarp=true,EnableDebugLayer=true };
-        using RenderPreviewRenderSession Session=RenderPreviewRenderSession.Open(Request,Options);
-        var View=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
-        View.FarZ=1e12f;
-        Matrix4x4 ViewProjection=View.GetView()*View.GetProjection(1f);
-        Vector3 Eye=View.GetEyePosition();
-        RenderPreviewCamera PreviewCamera(RenderPreviewDepthMapping Mapping)=>new(){
-            ViewProjection=Matrix(ViewProjection),Position=[Eye.X,Eye.Y,Eye.Z],
-            FovYRadians=View.FovYRadians,NearZ=View.NearZ,FarZ=View.FarZ,DepthMapping=Mapping,
-        };
-        RenderPreviewFrame Frame(RenderPreviewDepthMapping Mapping,bool Thumbnail)=>new(){
-            Camera=PreviewCamera(Mapping),
-            Objects=[new RenderPreviewObjectTransform { ObjectId="Root/Box",World=RenderPreviewMatrix4x4.Identity }],
-            CameraPreviews=Thumbnail?[new RenderPreviewCameraPass { X=64,Y=64,Width=64,Height=64,Camera=PreviewCamera(Mapping) }]:[],
-        };
-        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Standard,Thumbnail:false));
         Session.RenderForVerification();
-        byte[]StandardPixels=Session.LastCapturedFrame!.Pixels.ToArray();
-        float StandardCentre=Session.ActiveServerForTesting.ReadDepthForTesting()[64*128+64];
-        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Radial,Thumbnail:false));
+        AssertDepth(Session.ActiveServerForTesting.ReadDepthForTesting()[96*128+96],64);
+        var Before=Session.ActiveServerForTesting.ReadDepthForTesting();
+        var Pixels=Session.LastCapturedFrame!.Pixels.ToArray();
+        Session.Resize(0,0);
+        Assert.Throws<RenderDeviceUnavailableException>(()=>Session.Render(CaptureForVerification:false));
+        Session.Resize(128,128);
         Session.RenderForVerification();
-        Assert.Equal(StandardPixels,Session.LastCapturedFrame!.Pixels.ToArray());
-        float RadialCentre=Session.ActiveServerForTesting.ReadDepthForTesting()[64*128+64];
-        // The box about 4 m away: standard depth with a 1e12 m far plane is about 0.98, radial depth about 0.06.
-        Assert.True(StandardCentre>0.9f,$"standard depth {StandardCentre}");
-        Assert.True(RadialCentre>0f&&RadialCentre<0.2f,$"radial depth {RadialCentre}");
-
-        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Standard,Thumbnail:true));
-        Session.RenderForVerification();
-        byte[]StandardThumbnail=Session.LastCapturedFrame!.Pixels.ToArray();
-        Session.UpdateFrame(Frame(RenderPreviewDepthMapping.Radial,Thumbnail:true));
-        Session.RenderForVerification();
-        Assert.Equal(StandardThumbnail,Session.LastCapturedFrame!.Pixels.ToArray());
+        Assert.Equal(2u,Session.DeviceGeneration);
+        Assert.Equal(Before,Session.ActiveServerForTesting.ReadDepthForTesting());
+        Assert.Equal(Pixels,Session.LastCapturedFrame!.Pixels.ToArray());
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
     }
 
     private static RenderPreviewHostRequest CreateOpen(Win32Window Window){
         ProceduralMeshData Box=ProceduralMeshFactory.CreateBox(Vector3.One);
-        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         Matrix4x4 ViewProjection=Camera.GetView()*Camera.GetProjection(
             (float)Window.ClientWidth/Window.ClientHeight);
         return new RenderPreviewHostRequest {
@@ -242,7 +254,11 @@ public sealed class RenderPreviewRenderSessionTests {
             Height=Window.ClientHeight,
             ShaderArtifactPath=ShaderArtifactPath,
             Scene=new RenderPreviewScene {
-                Camera=new RenderPreviewCamera { ViewProjection=Matrix(ViewProjection) },
+                Camera=new RenderPreviewCamera {
+                    ViewProjection=Matrix(ViewProjection),
+                    Position=[Camera.GetEyePosition().X,Camera.GetEyePosition().Y,Camera.GetEyePosition().Z],
+                    FovYRadians=Camera.FovYRadians,NearZ=Camera.NearZ,FarZ=Camera.FarZ,
+                },
                 Meshes=[new RenderPreviewMesh {
                     Positions=Flatten(Box.Positions),
                     Normals=Flatten(Box.Normals),
