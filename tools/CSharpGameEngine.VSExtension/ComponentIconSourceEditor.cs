@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Pure Roslyn result for a component-icon metadata edit.</summary>
+/// <summary>コンポーネントアイコンのメタデータ編集に対する、Roslyn の純粋な結果。</summary>
 internal sealed class ComponentIconSourceEditResult {
     private ComponentIconSourceEditResult(bool Succeeded,SyntaxNode?Root,string?ErrorMessage){
         this.Succeeded=Succeeded;
@@ -26,9 +26,7 @@ internal sealed class ComponentIconSourceEditResult {
 }
 
 /// <summary>
-/// Rewrites only the attribute that belongs to the clicked <c>struct</c> declaration.  It does not
-/// resolve a type by name, which is important for partial components: the glyph's declaration span
-/// remains the authoritative owner when an icon has not been assigned yet.
+/// クリックした <c>struct</c> 宣言に属する属性だけを書き換えます。名前から型を解決しません。partial component では、アイコン未設定時にグリフの宣言範囲が正しい所有者を示すため重要です。
 /// </summary>
 internal static class ComponentIconSourceEditor {
     internal static ComponentIconSourceEditResult Apply(

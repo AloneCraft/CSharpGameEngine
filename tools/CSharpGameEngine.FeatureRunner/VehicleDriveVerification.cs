@@ -54,11 +54,11 @@ public static class VehicleDriveVerification {
         var Evidence=Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller","Vehicle",Adapter);
         return await RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
     }
-    /// <summary>Drives a built Vehicle game (the template here, or a project generated from the package) and judges its report.</summary>
+    /// <summary>ビルド済み Vehicle ゲーム（ここのテンプレート、またはパッケージから生成したプロジェクト）を運転し、レポートを判定する。</summary>
     public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Digital=await RunOnceAsync(Executable,Evidence,Adapter,InputSchedule,"CGE-VEHICLE-DRIVE ",Output,Error,CancellationToken).ConfigureAwait(false);
         if(Digital.ExitCode!=0){ return Digital.ExitCode; }
-        // M0108: the same drive on a gamepad, once with half a trigger (the keys steer) and once with half a stick (the key accelerates). The analog values must reach the car as they are, not as on/off.
+        // M0108：ゲームパッドで同じ運転を 2 回行う。1 回目はトリガーを半分押し（キーで操舵）、2 回目はスティックを半分傾ける（キーで加速）。アナログ値はオン/オフにせず、そのまま車へ届かなければならない。
         var Throttle=await RunOnceAsync(Executable,Path.Combine(Evidence,"analog-throttle"),Adapter,AnalogThrottleSchedule,"CGE-VEHICLE-DRIVE-ANALOG-THROTTLE ",Output,Error,CancellationToken).ConfigureAwait(false);
         if(Throttle.ExitCode!=0){ return Throttle.ExitCode; }
         var Steering=await RunOnceAsync(Executable,Path.Combine(Evidence,"analog-steering"),Adapter,AnalogSteeringSchedule,"CGE-VEHICLE-DRIVE-ANALOG-STEERING ",Output,Error,CancellationToken).ConfigureAwait(false);
@@ -70,7 +70,7 @@ public static class VehicleDriveVerification {
         }
         return Failures.Count==0?0:1;
     }
-    /// <summary>How far and how much a drive moved the camera, for comparing two drives.</summary>
+    /// <summary>運転によるカメラの移動距離と移動量。2 回の運転を比較するための値。</summary>
     public readonly record struct Measurement(float Travel,float Turn);
     /// <summary>
     /// 半分のトリガー(ハンドルはキー)で走ったときが、キーで踏み切ったときより短くしか進まず(<see cref="MaximumAnalogTravelRatio"/>倍まで)、
@@ -159,7 +159,7 @@ public static class VehicleDriveVerification {
         if(!AnalogDrive&&Travel<MinimumTravelMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Holding W moved the camera {Travel:F3} m horizontally; expected at least {MinimumTravelMeters} m."));
         }
-        // The analog drive is judged against the key drive (EvaluateAnalog), not against the key drive's minimums.
+        // アナログ運転はキー操作時の最低条件ではなく、キー操作の運転結果 (EvaluateAnalog) と比較して判定する。
         if(!AnalogDrive&&float.IsNaN(Turn)){
             Failures.Add("The car did not move in both windows that are compared for the turn, so its heading is unknown.");
         }
@@ -177,7 +177,7 @@ public static class VehicleDriveVerification {
         }
         return Failures;
     }
-    /// <summary>How far the camera travelled and by how many degrees its direction of travel turned (0 when the car did not move in a compared window).</summary>
+    /// <summary>カメラが移動した距離と、進行方向が何度変わったか（比較対象の時間内に車が動かなければ 0）。</summary>
     public static Measurement Measure(JsonElement Report){
         var Positions=Report.GetProperty("cameraPositions").EnumerateArray().Select(static Item=>Item.ValueKind==JsonValueKind.Array?(float[]?)[.. Item.EnumerateArray().Select(static Value=>Value.GetSingle())]:null).ToArray();
         if(Positions.Length<Frames||Positions.Skip(ThrottleStartFrame-1).Any(static Position=>Position is null)){ return default; }

@@ -1,18 +1,17 @@
 namespace CSharpGameEngine.Import.Gltf;
 
 /// <summary>
-/// Controls the physically meaningful conversions performed while importing a glTF scene.
-/// glTF leaves the real-world luminance represented by an emissive unit unspecified; the engine
-/// deliberately makes that scale explicit instead of silently baking an arbitrary HDR multiplier
-/// into a material.
+/// glTFシーンのインポート時に行う、物理的な意味を持つ変換を制御する。
+/// glTFでは発光単位が表す実世界の輝度を規定していないため、エンジンでは任意のHDR倍率をマテリアルに黙って埋め込まず、
+/// このスケールを明示的に指定する。
 /// </summary>
 public sealed record GltfImportOptions {
-    /// <summary>Default mapping for one glTF emissive unit, in cd/m² (nits).</summary>
+    /// <summary>glTFの発光単位1つをcd/m²（ニト）へ換算する既定値。</summary>
     public const float DefaultEmissiveNitsPerUnit=100f;
 
     /// <summary>
-    /// Luminance represented by glTF <c>emissiveFactor == (1,1,1)</c> and an emissive strength of
-    /// one. The value must be finite and positive.
+    /// glTFの<c>emissiveFactor == (1,1,1)</c>と発光強度1が表す輝度。
+    /// 有限の正の値でなければならない。
     /// </summary>
     public float EmissiveNitsPerUnit { get;init;}=DefaultEmissiveNitsPerUnit;
 

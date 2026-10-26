@@ -39,7 +39,8 @@ internal sealed class SceneInspectorMember {
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
         IReadOnlyList<InspectorChoiceCandidate>Candidates,
         IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null,SceneAngleUnit?AngleUnit=null,
-        string?DisplayName=null){
+        string?DisplayName=null,string?AssetTypeName=null,CSharpGameEngine.Contracts.TextureUsage?TextureUsage=null){
+        this.AssetTypeName=AssetTypeName;this.TextureUsage=TextureUsage;
         this.PhysicalContract=PhysicalContract;
         this.AngleUnit=AngleUnit;
         this.DisplayName=DisplayName??MemberName;
@@ -57,10 +58,11 @@ internal sealed class SceneInspectorMember {
             :DefinitionMemberPath;
     }
 
+    internal string?AssetTypeName{get;}
+    internal CSharpGameEngine.Contracts.TextureUsage?TextureUsage{get;}
     internal LightValueContract?PhysicalContract{get;}
     /// <summary>
-    /// ADR-0074: set for a number inside an <c>[Angle]</c> member. The row shows and takes degrees; the source keeps
-    /// this unit (<see cref="SceneInspectorValueFormat.FormatAngle"/>, <see cref="SceneInspectorValueFormat.TryFormatAngle"/>).
+    /// <c>[Angle]</c> メンバー内の数値に設定します。行には degree で表示し、degree で入力します。ソースではこの単位を維持します（<see cref="SceneInspectorValueFormat.FormatAngle"/>、<see cref="SceneInspectorValueFormat.TryFormatAngle"/>）。
     /// </summary>
     internal SceneAngleUnit?AngleUnit { get; }
     internal EditorNodeId NodeId { get; }
@@ -70,8 +72,7 @@ internal sealed class SceneInspectorMember {
     internal string MemberName { get; }
 
     /// <summary>
-    /// The label: the member's scene JSON key, which for an angle leaves out the C# unit word (ADR-0074), so the row
-    /// that shows degrees is not named "...Radians". <see cref="MemberName"/> stays the C# name that edits target.
+    /// 表示ラベルはメンバーのシーン JSON key です。角度では C# の単位語を除いた key になります（ADR-0074）。そのため degree 表示の行を「...Radians」と命名しません。<see cref="MemberName"/> は編集対象となる C# 名のままです。
     /// </summary>
     internal string DisplayName { get; }
 
@@ -265,9 +266,7 @@ internal static class SceneInspectorModelBuilder {
     }
 
     /// <summary>
-    /// A component written with constructor arguments (scene JSON names a constructor's parameters, as for a positional
-    /// record) shows each argument read-only, named by its parameter, as a nested value's arguments are: the edit
-    /// path sets initializer members only, so these are edited in the JSON view.
+    /// コンストラクター引数で記述されたコンポーネント（シーン JSON では positional record と同様にコンストラクターのパラメーター名を使う）は、各引数を parameter 名付きの読み取り専用値として表示します。入れ子の値の引数と同じ扱いです。編集パスで設定するのは initializer member だけなので、これらの値は JSON view で編集します。
     /// </summary>
     private static IEnumerable<SceneInspectorRow>ConstructorArgumentRows(EditorNodeId NodeId,SceneComponent Component){
         var Labels=ResolveArgumentLabels(Component.TypeSymbol,Component.ConstructorArguments.Length,out var Parameters);
@@ -286,7 +285,7 @@ internal static class SceneInspectorModelBuilder {
     /// </summary>
     private static SceneInspectorRow BuildRow(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
-        SceneComponentMember Member,bool AllowEdit,SceneAngleUnit?InheritedAngle=null,string?DisplayName=null){
+        SceneComponentMember Member,bool AllowEdit,SceneAngleUnit?InheritedAngle=null,string?DisplayName=null,string?AssetTypeName=null,CSharpGameEngine.Contracts.TextureUsage?TextureUsage=null){
         var Angle=InheritedAngle??SceneJsonSceneAnalyzer.AngleUnitOf(Member.MemberSymbol);
         var Display=DisplayName??(Member.MemberSymbol is { }Symbol?SceneJsonSceneAnalyzer.KeyOf(Symbol):Member.MemberName);
         var Physical=LightValueContract.Find(Member.Value.Type);
@@ -310,12 +309,12 @@ internal static class SceneInspectorModelBuilder {
         var Kind=AllowEdit?DetermineEditorKind(Member.Value,DeclaredType):InspectorEditorKind.ReadOnly;
         IReadOnlyList<InspectorChoiceCandidate>Candidates=Kind switch {
             InspectorEditorKind.Enum=>EnumerateEnumCandidates(DeclaredType),
-            InspectorEditorKind.AssetReference=>EnumerateAssetCandidates(Member.Value,DeclaredType),
+            InspectorEditorKind.AssetReference=>EnumerateAssetCandidates(Member.Value,DeclaredType,Member.MemberSymbol?.ContainingAssembly),
             _=>[],
         };
         bool IsEditable=AllowEdit&&Kind!=InspectorEditorKind.ReadOnly
             &&(Kind is InspectorEditorKind.Enum or InspectorEditorKind.AssetReference
-            ?Candidates.Count>0
+            ?Candidates.Count>0||DeclaredType?.ToDisplayString() is "CSharpGameEngine.Authoring.TextureAsset" or "CSharpGameEngine.Authoring.ImageAsset"
             :Member.Value.IsEditable);
         return new SceneInspectorMemberRow(new SceneInspectorMember(
             NodeId,
@@ -329,7 +328,8 @@ internal static class SceneInspectorModelBuilder {
             Candidates,
             [..ParentPath,Member.MemberName],
             AngleUnit:Angle,
-            DisplayName:Display));
+            DisplayName:Display,AssetTypeName:DeclaredType?.ToDisplayString(),
+            TextureUsage:Member.MemberSymbol?.GetAttributes().FirstOrDefault(A=>A.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Contracts.TextureUsageAttribute")?.ConstructorArguments.FirstOrDefault().Value is int Usage?(CSharpGameEngine.Contracts.TextureUsage)Usage:null));
     }
 
     /// <summary>
@@ -340,7 +340,7 @@ internal static class SceneInspectorModelBuilder {
     private static SceneInspectorNestedRow?TryBuildNested(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
         string MemberName,string DisplayName,SceneValue Value,bool AllowEdit,SceneAngleUnit?Angle){
-        if(Value.Kind!=SceneValueKind.ObjectCreation||(Value.Members.IsEmpty&&Value.Arguments.IsEmpty)){
+        if(Value.Type?.ToDisplayString() is "CSharpGameEngine.Authoring.TextureAsset" or "CSharpGameEngine.Authoring.ImageAsset"||Value.Kind!=SceneValueKind.ObjectCreation||(Value.Members.IsEmpty&&Value.Arguments.IsEmpty)){
             return null;
         }
 
@@ -410,7 +410,7 @@ internal static class SceneInspectorModelBuilder {
         Type is not null&&SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar";
 
     private static InspectorEditorKind DetermineEditorKind(SceneValue Value,ITypeSymbol?DeclaredType){
-        if(Value.Kind==SceneValueKind.StaticMemberRef&&Value.ReferencedSymbol?.ContainingType is not null){
+        if(DeclaredType?.ToDisplayString() is "CSharpGameEngine.Authoring.TextureAsset" or "CSharpGameEngine.Authoring.ImageAsset"||Value.Kind==SceneValueKind.StaticMemberRef&&Value.ReferencedSymbol?.ContainingType is not null){
             return InspectorEditorKind.AssetReference;
         }
         if(!Value.IsEditable){
@@ -451,17 +451,23 @@ internal static class SceneInspectorModelBuilder {
     }
 
     private static IReadOnlyList<InspectorChoiceCandidate>EnumerateAssetCandidates(
-        SceneValue Value,ITypeSymbol?DeclaredType){
-        if(Value.ReferencedSymbol?.ContainingType is not { }Container||DeclaredType is null){ return []; }
+        SceneValue Value,ITypeSymbol?DeclaredType,IAssemblySymbol?Assembly){
+        if(DeclaredType is null){ return []; }
+        var Container=Value.ReferencedSymbol?.ContainingType;
+        var All=Container is null&&Assembly is not null;
+        var Symbols=new List<ISymbol>();
+        void Collect(INamedTypeSymbol Type){ Symbols.AddRange(Type.GetMembers());foreach(var Child in Type.GetTypeMembers()){ Collect(Child); } }
+        if(Container is not null){ Symbols.AddRange(Container.GetMembers()); }
+        else if(Assembly is not null){ foreach(var Root in Assembly.GlobalNamespace.GetTypeMembers("Assets")){ Collect(Root); } }
         List<InspectorChoiceCandidate>Candidates=[];
-        foreach(var Symbol in Container.GetMembers()){
+        foreach(var Symbol in Symbols){
             ITypeSymbol?CandidateType=Symbol switch {
                 IFieldSymbol { IsStatic:true }Field when Field.IsConst||Field.IsReadOnly=>Field.Type,
                 IPropertySymbol { IsStatic:true,GetMethod:not null,SetMethod:null }Property=>Property.Type,
                 _=>null,
             };
             if(CandidateType is null||!SymbolEqualityComparer.Default.Equals(CandidateType,DeclaredType)){ continue; }
-            Candidates.Add(new InspectorChoiceCandidate(Symbol.Name,SceneEmitExpressionWriter.WriteSymbolReference(Symbol)));
+            Candidates.Add(new InspectorChoiceCandidate(All?Symbol.ToDisplayString():Symbol.Name,SceneEmitExpressionWriter.WriteSymbolReference(Symbol)));
         }
         return Candidates.OrderBy(static Candidate=>Candidate.Name,StringComparer.Ordinal).ToArray();
     }
@@ -477,7 +483,7 @@ internal static class SceneInspectorValueFormat {
         Text=Text.Trim();
         switch(Type){
             case SpecialType.System_Single:
-                // "NaN" and "Infinity" parse, but their text is no C# literal ("Infinityf") and no JSON number.
+                // "NaN" と "Infinity" は解析できますが、その文字列は C# リテラル（"Infinityf"）でも JSON 数値でもありません。
                 if(!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var SingleValue)
                     ||float.IsNaN(SingleValue)||float.IsInfinity(SingleValue)){
                     Expression=string.Empty;
@@ -557,7 +563,7 @@ internal static class SceneInspectorValueFormat {
 
     internal static string FormatText(string Value)=>SymbolDisplay.FormatLiteral(Value,quote:true);
 
-    /// <summary>ADR-0074: an angle number shown in degrees, whatever unit the source holds.</summary>
+    /// <summary>ADR-0074：ソースがどの単位で保持されていても、degree で表示する角度の数値。</summary>
     internal static string FormatAngle(string Expression,SceneAngleUnit Unit){
         var Number=RemoveFloatSuffix(Expression);
         return float.TryParse(Number,NumberStyles.Float,CultureInfo.InvariantCulture,out var Value)
@@ -565,7 +571,7 @@ internal static class SceneInspectorValueFormat {
             :Number;
     }
 
-    /// <summary>ADR-0074: degrees typed into an angle row, as the source expression in the member's unit.</summary>
+    /// <summary>ADR-0074：角度行に入力された degree を、メンバーの単位に合わせたソース式に変換します。</summary>
     internal static bool TryFormatAngle(SpecialType Type,string Degrees,SceneAngleUnit Unit,out string Expression){
         Degrees=Degrees.Trim();
         if(Type!=SpecialType.System_Single||!SceneJsonAngles.IsNumber(Degrees)){

@@ -43,7 +43,7 @@ def main() -> None:
     non_landscape = [actor for actor in actors if not isinstance(actor, unreal.LandscapeProxy)]
     landscape_only_ignore = [actor for actor in actors if not isinstance(actor, unreal.LandscapeProxy)]
     nothing_ignored = [actor for actor in actors if isinstance(actor, (unreal.StaticMeshActor,))]
-    # The ring (radius 45 m) with the splines' meshes present, then the Landscape under it.
+    # spline mesh を配置した ring（半径45 m）、続いてその下の Landscape。
     ring = []
     for degrees in (0, 20, 45, 90, 135, 180, 225, 270, 315):
         import math
@@ -52,7 +52,7 @@ def main() -> None:
         y = 4500.0 * math.sin(math.radians(degrees))
         ring.append({"deg": degrees, "withTrack": trace(world, x, y, nothing_ignored), "landscapeOnly": trace(world, x, y, landscape_only_ignore)})
     result["ring"] = ring
-    # Beside the road and on its curb.
+    # 道路の横と縁石の上。
     across = []
     for radius in (3500.0, 3700.0, 3800.0, 3900.0, 4000.0, 4200.0, 4500.0, 4800.0, 5000.0, 5100.0, 5200.0, 5300.0, 5500.0, 5800.0, 6200.0):
         across.append({"r": radius, "withTrack": trace(world, radius, 0.0, nothing_ignored), "landscapeOnly": trace(world, radius, 0.0, landscape_only_ignore)})

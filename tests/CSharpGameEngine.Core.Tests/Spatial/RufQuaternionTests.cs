@@ -3,9 +3,7 @@ using CSharpGameEngine.Spatial.Abstractions;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Quaternion仕様". Preset-independent:
-/// <see cref="RufQuaternion"/> rotates the R/U/F triple directly, treated as a self-consistent
-/// right-handed basis regardless of which <see cref="ICoordinateConvention"/> is active.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Quaternion仕様」。プリセットに依存せず、<see cref="RufQuaternion"/> は R/U/F の三つ組を直接回転する。この三つ組を、アクティブな <see cref="ICoordinateConvention"/> の左右系に関係なく、自己整合する右手系基底として扱う。
 /// </summary>
 public class RufQuaternionTests {
     [Fact]
@@ -23,8 +21,8 @@ public class RufQuaternionTests {
 
         var Rotated=RufQuaternion.RotateVector(Rotation,RufVector.Right);
 
-        // Right-hand rule around F: R rotates toward U (matches Quaternion.CreateFromAxisAngle applied
-        // directly to the (R, U, F) triple, treated as an internal right-handed basis).
+        // F 軸周りの右手系の法則：R は U の方向へ回転する（Quaternion.CreateFromAxisAngle を内部の右手系基底として扱う (R, U, F) の組に適用した場合と一致する）
+        // 場合）。
         Assert.Equal(0f,Rotated.R,precision:4);
         Assert.Equal(1f,Rotated.U,precision:4);
         Assert.Equal(0f,Rotated.F,precision:4);

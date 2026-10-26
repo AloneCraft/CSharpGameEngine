@@ -1,7 +1,7 @@
 using System.Diagnostics;
 namespace CSharpGameEngine.ContentCompiler;
 public sealed record ImportProcessOutput(int ExitCode,string Output,string Error);
-/// <summary>Owns only the process it starts. Provider assemblies are never loaded into this host.</summary>
+/// <summary>このホストが起動したプロセスのみを所有する。プロバイダーのアセンブリをこのホストへ読み込むことはない。</summary>
 public sealed class ImportProcessRunner(string CookToolPath) {
     private readonly string CookToolPath=Path.GetFullPath(CookToolPath);
     public async Task<ImportProcessOutput>RunAsync(IEnumerable<string>Arguments,CancellationToken CancellationToken=default){

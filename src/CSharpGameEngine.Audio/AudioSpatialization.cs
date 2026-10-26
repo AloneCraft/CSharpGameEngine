@@ -21,9 +21,8 @@ public readonly record struct AudioSpatialParameters {
 public readonly record struct AudioSpatialMix(float Attenuation,float Pan,float Distance);
 
 /// <summary>
-/// Converts an already listener-local float position into portable stereo mix parameters.
-/// Planetary/frame composition remains fixed-point upstream; this boundary never accepts or
-/// creates an absolute float world coordinate.
+/// リスナー基準のローカル座標に変換済みのfloat位置を、移植可能なステレオミックスパラメーターへ変換する。
+/// 惑星／フレームの合成は上流で固定小数点のまま行う。この境界では絶対座標系のfloatワールド座標を受け取らず、生成もしない。
 /// </summary>
 public static class AudioSpatializer {
     public static bool TryCalculate(Vector3 ListenerLocalPosition,

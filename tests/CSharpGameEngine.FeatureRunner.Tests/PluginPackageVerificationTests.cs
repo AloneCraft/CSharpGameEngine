@@ -2,7 +2,7 @@ using CSharpGameEngine.FeatureStages;
 
 namespace CSharpGameEngine.FeatureRunner.Tests;
 
-/// <summary>ADR-0079: the plugin package check's judgement of the game's output and generated code.</summary>
+/// <summary>ADR-0079：ゲームの出力と生成コードに対するプラグインパッケージ検査の判定。</summary>
 public sealed class PluginPackageVerificationTests {
     private const string Generated="internal Weather_Intensity Weather_Intensity; internal Lightning_Intensity Lightning_Intensity;";
     private const string BothPlugins="""

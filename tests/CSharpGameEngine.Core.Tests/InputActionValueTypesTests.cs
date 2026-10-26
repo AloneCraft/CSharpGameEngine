@@ -1,6 +1,6 @@
 using CSharpGameEngine.Input;
 namespace CSharpGameEngine.Core.Tests;
-/// <summary>M0108: the value types an <c>[InputActions]</c> struct carries (<see cref="Axis"/>, <see cref="Button.HeldSeconds"/>).</summary>
+/// <summary>M0108：<c>[InputActions]</c> 構造体が保持する値型（<see cref="Axis"/>、<see cref="Button.HeldSeconds"/>）。</summary>
 public sealed class InputActionValueTypesTests {
     [Theory]
     [InlineData(0f,0f)]

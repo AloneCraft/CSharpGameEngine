@@ -14,6 +14,7 @@ using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.TextManager.Interop;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -60,9 +61,9 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         this.InitializeComponent();
         this.CommandBindings.Add(new CommandBinding(ConvertLightCommand,this.ConvertLight_Executed,this.ConvertLight_CanExecute));
         this.EscapeRouter=new(this,this.HandleEscape);
-        // TextBox / ComboBox / Expander may mark their mouse and key events handled before
-        // an instance handler declared in the template observes them. Select the logical
-        // inspector row at the control boundary, while leaving the editor focus to WPF.
+        // TextBox / ComboBox / Expander は、テンプレート内の instance handler が確認する前に
+        // マウスイベントやキーイベントを処理済みにすることがあります。
+        // Inspector の行でイベントを処理し、エディターのフォーカスは WPF に任せます。
         this.AddHandler(
             Mouse.PreviewMouseDownEvent,
             new MouseButtonEventHandler(this.Panel_PreviewMouseLeftButtonDown),
@@ -177,6 +178,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     private void OnSelectionChanged(SceneSelection Selection){
         this.DispatchToUi(()=>{
+            if(Selection.NodeIds.Count>0){ AssetWorkspaceSelection.Clear(); }
             this.CurrentSelection=Selection;
             this.TryRefresh(Force:Selection.NodeIds.Count==0&&Selection.ComponentType is null&&Selection.MemberName is null);
         });
@@ -401,7 +403,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
         Key Key=Args.Key==Key.System?Args.SystemKey:Args.Key;
         if(Key==Key.F4){
-            // F4 belongs to Visual Studio. Do not handle it here.
+            // F4 は Visual Studio が使用します。ここでは処理しないでください。
             return;
         }
 
@@ -494,7 +496,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         }
 
         if(FindComboBox(Root) is not ComboBox Box){
-            // The row template may not have materialized its editor yet.
+            // 行テンプレートの editor がまだ生成されていない場合があります。
             this.DeferredComboBoxOpenTask=ThreadHelper.JoinableTaskFactory.RunAsync(async delegate {
                 await Task.Yield();
                 this.TryOpenSelectedComboBox(null);
@@ -727,8 +729,8 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     private void CommitTextField(InspectorMemberViewModel ViewModel,string Text){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // Clicking another row makes the old TextBox lose focus. Do not turn an unchanged
-        // value into an edit: a forced refresh there discards the newly selected row.
+        // 別の行をクリックすると、以前の TextBox はフォーカスを失います。変更されていない
+        // 値を編集扱いにしないでください。ここで強制更新すると、新たに選択した行が破棄されます。
         if(!InspectorTextCommitPolicy.HasChanged(ViewModel.DisplayText,Text)){
             return;
         }
@@ -846,8 +848,88 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         }
         this.SubmitCommit(Request);
     }
+    private void RevealAsset_Click(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}){ return; }
+        var Items=AssetsToolWindowPane.Controller?.Items??[];
+        var Context=CgeProjectContext.Resolve(SceneEditorHub.ActiveSceneModel?.FilePath);
+        var ProjectItems=Items.Where(Item=>Item.Source.ProjectPath==Context?.ProjectFilePath).ToArray();
+        var Names=AssetCatalogLayout.Map(ProjectItems.Where(static Item=>AssetReferencePlanner.InCatalog(Item.Source.RelativePath)).Select(static Item=>Item.Source.RelativePath));
+        var Item=ProjectItems.FirstOrDefault(Item=>Item.Source.RelativePath==ViewModel.Member.ConstantValue as string
+            ||Names.TryGetValue(Item.Source.RelativePath,out var Name)&&Name==ViewModel.Member.SourceExpression.Replace("global::",string.Empty));
+        if(Item is not null){ AssetWorkspaceSelection.Reveal(Item.Source.SourcePath); }
+    }
+    private static InspectorChoiceCandidate?AssetCandidate(object Sender,DragEventArgs Args){
+        if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}
+            ||Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) is not CSharpGameEngine.Contracts.AssetWorkspaceItem Asset){ return null; }
+        var Items=AssetsToolWindowPane.Controller?.Items??[];
+        var Names=AssetCatalogLayout.Map(Items.Where(Item=>Item.Source.ProjectPath==Asset.Source.ProjectPath&&AssetReferencePlanner.InCatalog(Item.Source.RelativePath)).Select(static Item=>Item.Source.RelativePath));
+        if(!Names.TryGetValue(Asset.Source.RelativePath,out var Name)){ return null; }
+        foreach(var Candidate in ViewModel.Member.Candidates){ if(Candidate.EmitExpression.Replace("global::",string.Empty)==Name){ return Candidate; } }
+        return null;
+    }
+    private void AssetReference_DragOver(object Sender,DragEventArgs Args){
+        var Image=Sender is FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}&&Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) is CSharpGameEngine.Contracts.AssetWorkspaceItem Asset
+            &&ImageOutputDrop.Accepts(ViewModel.Member,Asset,Args.Data.GetData(typeof(ImageOutputDrag)) as ImageOutputDrag);
+        var External=Sender is FrameworkElement{DataContext:InspectorMemberViewModel Target}&&Target.Member.AssetTypeName=="CSharpGameEngine.Authoring.TextureAsset"
+            &&Args.Data.GetData(DataFormats.FileDrop) is string[]{Length:1}Files&&CSharpGameEngine.Contracts.ImageImportSettings.Supports(Files[0]);
+        Args.Effects=Image||External||AssetCandidate(Sender,Args) is not null?DragDropEffects.Copy:DragDropEffects.None;Args.Handled=true;
+    }
+    #pragma warning disable VSTHRD100
+    private async void AssetReference_Drop(object Sender,DragEventArgs Args){
+    #pragma warning restore VSTHRD100
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+        var Dropped=Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) as CSharpGameEngine.Contracts.AssetWorkspaceItem;
+        IVsLinkedUndoTransactionManager?ExternalLinked=null;
+        if(Dropped is null&&Sender is FrameworkElement{DataContext:InspectorMemberViewModel ExternalTarget}&&ExternalTarget.Member.AssetTypeName=="CSharpGameEngine.Authoring.TextureAsset"
+            &&Args.Data.GetData(DataFormats.FileDrop) is string[]{Length:1}Files&&CSharpGameEngine.Contracts.ImageImportSettings.Supports(Files[0])){
+            Args.Handled=true;
+            try {
+                var Controller=AssetsToolWindowPane.Controller??throw new InvalidOperationException("Assets workspace unavailable.");
+                var Context=CgeProjectContext.Resolve(SceneEditorHub.ActiveSceneModel?.FilePath)??throw new InvalidOperationException("Game project unavailable.");
+                var Destination=System.IO.Path.Combine(Context.ProjectDirectory,"Assets",System.IO.Path.GetFileName(Files[0]));
+                if(!System.IO.File.Exists(Destination)){
+                    ExternalLinked=Package.GetGlobalService(typeof(SVsLinkedUndoTransactionManager)) as IVsLinkedUndoTransactionManager??throw new InvalidOperationException("Linked native Undo unavailable.");
+                    ExternalLinked.OpenLinkedUndo(0,VsixText.Get("Assets_ImageImportAssign"));
+                    var Role=ExternalTarget.Member.TextureUsage??(ExternalTarget.Member.MemberName.IndexOf("normal",StringComparison.OrdinalIgnoreCase)>=0?CSharpGameEngine.Contracts.TextureUsage.Normal:CSharpGameEngine.Contracts.TextureUsage.Color);
+                    AssetFileTransaction.Copy(Controller.Owner,Files[0],Destination,Role);
+                }else if(!string.Equals(System.IO.Path.GetFullPath(Files[0]),Destination,StringComparison.OrdinalIgnoreCase)){ throw new InvalidOperationException(VsixText.Get("Assets_ImageNameConflict")); }
+                await Controller.RefreshAsync();await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                Dropped=Controller.Items.FirstOrDefault(I=>string.Equals(I.Source.SourcePath,Destination,StringComparison.OrdinalIgnoreCase))??throw new InvalidOperationException("Imported asset is not in the project catalog.");
+            }catch(Exception Error){ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();ExternalLinked?.AbortLinkedUndo();SetStatus(Error.Message);return; }
+        }
+        if(Sender is FrameworkElement{DataContext:InspectorMemberViewModel ImageView}&&Dropped is { }ImageAsset
+            &&CSharpGameEngine.Contracts.ImageImportSettings.Supports(ImageAsset.Source.SourcePath)){
+            Args.Handled=true;
+            if(!ImageOutputDrop.Accepts(ImageView.Member,ImageAsset,Args.Data.GetData(typeof(ImageOutputDrag)) as ImageOutputDrag)){ ExternalLinked?.AbortLinkedUndo();SetStatus(VsixText.Get("Assets_ImageTypeMismatch"));return; }
+            if(this.Session is not { }Session||this.CurrentSnapshot is not { }ImageSnapshot){ ExternalLinked?.AbortLinkedUndo();return; }
+            Microsoft.VisualStudio.TextManager.Interop.IVsLinkedUndoTransactionManager?Linked=ExternalLinked;
+            try {
+                var Prepared=await ImageOutputDrop.PrepareAsync(ImageView.Member,ImageAsset,Args.Data.GetData(typeof(ImageOutputDrag)) as ImageOutputDrag,Linked);Linked=Prepared.Linked;
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                var Commit=SceneInspectorCommitPlanner.CreateCommit(ImageSnapshot.Key,ImageSnapshot.DocumentVersion,ImageView.Member,Prepared.Expression);
+                var Result=await Session.CommitAsync(Commit,CancellationToken.None);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();if(!Result.Succeeded){ throw new InvalidOperationException(Result.ErrorMessage); }
+                if(Linked is not null){
+                    var Imported=await Task.Run(()=>AssetAuthoringHostClient.Image(new(){ImageCommand=3,SourcePath=ImageAsset.Source.SourcePath}));
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();if(!Imported.Success){ throw new InvalidOperationException(Imported.Diagnostic); }
+                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(Linked.CloseLinkedUndo());Linked=null;
+                }
+                if(AssetsToolWindowPane.Controller is { }Controller){ await Controller.RefreshAsync(); }this.TryRefresh(Force:true);
+            }catch(Exception Error){
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();Linked?.AbortLinkedUndo();
+                if(Linked is not null){ AssetDocumentWorkspace.Save(ImageAsset.Source.SourcePath+".meta"); }SetStatus(Error.Message);
+            }
+            return;
+        }
+        if(AssetCandidate(Sender,Args) is { }Candidate&&Sender is FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}
+            &&this.CurrentSnapshot is { }Snapshot&&SceneInspectorCommitPlanner.TryCreateChoiceCommit(Snapshot.Key,Snapshot.DocumentVersion,ViewModel.Member,Candidate.Name,out var Request)){
+            this.SubmitCommit(Request);
+        }
+        Args.Handled=true;
+    }
 
-    /// <summary>One completed Inspector gesture is written immediately as one native source Undo unit.</summary>
+    /// <summary>完了した Inspector 操作を、ネイティブソースの1回分の Undo 単位として直ちに書き込みます。</summary>
     private void SubmitCommit(SceneInspectorMember Member,string NewExpression){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Session is not { }Session||this.CurrentSnapshot is not { }Snapshot){

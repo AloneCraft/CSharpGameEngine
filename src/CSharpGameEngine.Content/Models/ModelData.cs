@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Content.Models;
-/// <summary>Reference-exact runtime dependency; no source path or provider object is required to resolve it.</summary>
+/// <summary>参照先が厳密に指定されたランタイム依存関係。解決にソースパスやプロバイダーオブジェクトは不要。</summary>
 public sealed record ModelReference(string Uri,string Hash) {
     public AssetArtifactReference ToReference(){
         if(!AssetUri.TryParse(this.Uri,out var Asset,out var Error)||!Hash256.TryParse(this.Hash,out var Hash)||!Hash.IsValid){ throw new InvalidDataException("Invalid model dependency: "+Error); }

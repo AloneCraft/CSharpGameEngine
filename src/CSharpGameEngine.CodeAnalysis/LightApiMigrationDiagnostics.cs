@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis;
 
-/// <summary>Diagnostics that make an authored pre-physical-light Scene actionable to migrate.</summary>
+/// <summary>物理ライティング導入前のSceneを移行可能にする診断。</summary>
 internal static class LightApiMigrationDiagnostics {
     private const string Category="CSharpGameEngine.Lighting";
 

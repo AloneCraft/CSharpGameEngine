@@ -46,7 +46,7 @@ internal sealed class SceneValueReader(
         var ResolvedType=Info.Type??Info.ConvertedType;
 
         switch(Expression){
-            // 2) default / default(T)
+            // 2) default / default(T) による既定値
             case LiteralExpressionSyntax DefaultLiteral when DefaultLiteral.IsKind(SyntaxKind.DefaultLiteralExpression):
                 return this.Create(SceneValueKind.Default,Expression,ResolvedType,ConstantValue:null,ReferencedSymbol:null,"default");
             case DefaultExpressionSyntax:
@@ -197,9 +197,9 @@ internal sealed class SceneValueReader(
                 return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
             }
 
-            // ADR-0070: a scene JSON array fills a collection member (List<T> and other IEnumerable<T> types, as the
-            // schema and the JSON analyzer allow) with a collection expression, read like an array's elements. A
-            // collection initializer or a collection built at run time is still not statically determined.
+            // ADR-0070：Scene JSON の配列は、スキーマと JSON アナライザーが許可する List<T> などの IEnumerable<T> 型の
+            // コレクションメンバーに、配列要素と同様に読み取るコレクション式で値を設定する。コレクション
+            // 初期化子や実行時に構築されるコレクションは、依然としてコンパイル時には決定できない。
             if(Expression is not CollectionExpressionSyntax||ResolvedType is not INamedTypeSymbol){
                 this.ReportUnsupported(Expression,"non-array collection");
                 return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));

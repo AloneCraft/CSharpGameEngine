@@ -7,7 +7,7 @@ using CSharpGameEngine.Runtime.Simulation;
 using UserEcsProject.Scenes;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>The closed box the Destruction Cook module cuts for a box collider (the same twelve outward triangles; the Cook tests compare the bytes).</summary>
+/// <summary>Destruction Cookモジュールがボックスコライダー用に切り出す、閉じたボックス（外向きの12三角形は同じ。Cookテストでバイト列を比較する）。</summary>
 internal static class DestructionTestGeometry {
     internal static PhysicsShapeAsset Box(string Id,LogicalVector3 Center,LogicalVector3 Half){
         var Vertices=new LogicalVector3[8];
@@ -19,12 +19,12 @@ internal static class DestructionTestGeometry {
     }
 }
 /// <summary>
-/// ADR-0078/M0113: destructibles break in the running game. Runs the showcase project's generated fixed ticks (physics, destruction, follow) without a
-/// window over the destruction scenes, and checks what a player would see: the pieces, where they go and where they stop, and that the same input breaks
-/// the same way and plays back the same from the physics cache.
+/// ADR-0078/M0113：実行中のゲームで破壊可能オブジェクトを壊す。ショーケースプロジェクトが生成した固定ティック（物理、破壊、追従）を、
+/// 破壊シーン上でウィンドウなしに実行する。プレイヤーに見える破片、その移動先と停止位置を確認するほか、同じ入力なら物理キャッシュからの再生も含めて
+/// 同じように破壊されることを検証する。
 /// </summary>
 public sealed class DestructionTests {
-    /// <summary>The cooks of the scenes' destructibles, made the way the build's Cook module makes them (a box collider cut by the engine's cooker).</summary>
+    /// <summary>ビルドのCookモジュールと同じ方法で作成した、シーン内の破壊可能オブジェクトのCook済みデータ（エンジンのクッカーが切り出したボックスコライダー）。</summary>
     internal static PrefractureAsset Cook(string Name,LogicalVector3 Half,int Count,int Seed,int Density=500,int Strength=2000,int Clusters=0,int Levels=1){
         var Source=DestructionTestGeometry.Box(Name,LogicalVector3.Zero,Half);
         Assert.True(PrefractureCooker.TryGenerate(Source,new PrefractureCookSettings(Count,Seed,LogicalScalar.FromInt64(Density),LogicalScalar.FromInt64(Strength),Clusters,Levels),out var Asset,out var Error),Error);
@@ -34,8 +34,8 @@ public sealed class DestructionTests {
         CSharpGameEngine.Destruction.Destruction.Register("DropCrate",Cook("DropCrate",Half(0.5f,0.5f,0.5f),12,3));
         CSharpGameEngine.Destruction.Destruction.Register("TestWall",Cook("TestWall",Half(0.15f,1.5f,2f),24,11,2400,1200));
         CSharpGameEngine.Destruction.Destruction.Register("FieldCrate",Cook("FieldCrate",Half(0.5f,0.5f,0.5f),10,5));
-        // M0124: the drop crate's cut with ten times the bond strength, so it stands on the floor under its own weight (the 2000 N·s/m² crate loses its
-        // weakest bonds, of 41 to 74 N·s, to the first contact of its weight, as in M0113) and only the game's hits strain it.
+        // M0124：ドロップするクレートは結合強度を10倍にし、自己重力で床に立てる。2000 N·s/m²のクレートは、最初に自重で接触したときに
+        // 最弱結合（41～74 N·s）が切れる（M0113と同様）。以降はゲーム内の衝撃だけがひずみを与える。
         CSharpGameEngine.Destruction.Destruction.Register("StrongCrate",Cook("DropCrate",Half(0.5f,0.5f,0.5f),12,3,Strength:20000));        return true;
     });
     internal static LogicalVector3 Half(float R,float U,float F)=>new(LogicalScalar.FromSingle(R),LogicalScalar.FromSingle(U),LogicalScalar.FromSingle(F));
@@ -71,7 +71,7 @@ public sealed class DestructionTests {
             :throw new NotSupportedException(typeof(T).Name);
         internal DestructibleState StateOf(Entity Root)=>this.World.TryGetComponent(Root,out DestructibleState Value)?Value:throw new InvalidOperationException("not a destructible");
         internal IReadOnlyPhysicsWorld Physics=>this.Host.PhysicsWorld;
-        /// <summary>The physics bodies of the loose (dynamic) pieces.</summary>
+        /// <summary>分離した（動的な）破片の物理ボディ。</summary>
         internal List<PhysicsBodyState>LooseBodies(){
             List<PhysicsBodyState>Bodies=[];
             foreach(var Entity in this.With<DestructiblePiece>()){
@@ -104,12 +104,12 @@ public sealed class DestructionTests {
         var Bodies=Sim.LooseBodies();
         Assert.NotEmpty(Bodies);
         foreach(var Body in Bodies){
-            // On the floor (its top is at height 0), not through it, and at rest.
+            // 床の上（床の上面は高さ0）にあり、貫通せず静止している。
             Assert.True(Single(Body.Position.U)>-0.02f,$"a piece sank to {Single(Body.Position.U)}");
             Assert.True(Single(Body.Position.U)<1.2f,$"a piece is still up at {Single(Body.Position.U)}");
             Assert.True(Body.IsSleeping||Single(Body.Velocity.Linear.LengthSquared)<0.01f,$"a piece still moves at {Single(Body.Velocity.Linear.LengthSquared)} m²/s²");
         }
-        // Every drawn fragment rides on a live piece and sits at its body.
+        // 描画されるすべての破片は、実在する破片ボディに追従してその位置にある。
         foreach(var Visual in Sim.With<DestructibleFragment>()){
             Assert.True(Sim.World.TryGetComponent(Visual,out DestructibleFragment Fragment));
             Assert.True(Sim.World.IsAlive(Fragment.Body));
@@ -121,8 +121,8 @@ public sealed class DestructionTests {
         }
     }
     /// <summary>
-    /// ADR-0078/M0113 (left open by M0105): two instances of one scene with a body each get their own physics stable IDs (the first keeps the definition's,
-    /// the next a hash of it and the instance's ordinal), so both are simulated, both break and their pieces are told apart.
+    /// ADR-0078/M0113（M0105で未対応のまま）：ボディを1つずつ持つ同一シーンのインスタンス2つには、個別の物理安定IDを割り当てる。
+    /// 1つ目は定義のIDを維持し、次は定義とインスタンス序数のハッシュを使う。そのため双方が物理シミュレーションされ、破壊されても破片を区別できる。
     /// </summary>
     [Fact]
     public void TwoInstancesOfOneSceneAreTwoBodiesThatEachBreak(){
@@ -141,11 +141,11 @@ public sealed class DestructionTests {
             Assert.True(State.Broken,"one of the two crates did not break");
             Assert.True(State.LoosePieces>=2,$"only {State.LoosePieces} loose piece(s)");
         }
-        // Each piece belongs to one of the two, and every piece body has its own stable ID.
+        // 各破片はどちらか一方のシーンに属し、すべての破片ボディは固有の安定IDを持つ。
         var PieceIds=Sim.With<DestructiblePiece>().Select(Piece=>Sim.World.TryGetComponent(Piece,out PhysicsStableId Id)?Id.Value:0UL).ToArray();
         Assert.Equal(PieceIds.Length,PieceIds.Distinct().Count());
     }
-    /// <summary>The ball, the wall and the floor of the shot-wall test.</summary>
+    /// <summary>壁へボールを撃つテストに使うボール、壁、床。</summary>
     private static Entity Wall(Sim Sim){
         Sim.World.InstantiateScene<PhysicsGroundScene>();
         Sim.World.InstantiateScene<DestructionWallScene>();
@@ -162,7 +162,7 @@ public sealed class DestructionTests {
         Assert.True(State.Broken,"the ball did not break the wall");
         Assert.True(State.LoosePieces>=1,"nothing came loose");
         Assert.True(Sim.Service().TryGetState(Root,out var Fracture));
-        // The pieces that hold an anchored (bottom) fragment are static bodies; the loose ones move.
+        // 底部の固定破片を支えるものは静的ボディ。分離した破片は移動する。
         foreach(var Piece in Fracture.Pieces){
             var Body=Sim.Service().PieceBody(Root,Piece.Id);
             Assert.True(Sim.World.IsAlive(Body));
@@ -172,7 +172,7 @@ public sealed class DestructionTests {
         for(var Fragment=0;Fragment<Fracture.Asset.Fragments.Count;Fragment++){
             if(Fracture.IsAnchored(Fragment)){ Assert.True(Fracture.PieceOf(Fragment)!.Anchored); }
         }
-        // The hit is near the middle, where the ball struck (U 1.6 m, F 0.1 m): a broken bond is within a metre of it.
+        // ボールが当たった中央付近（U 1.6 m、F 0.1 m）を衝撃点とする。破断する結合が衝撃点から1メートル以内にある。
         var Near=Enumerable.Range(0,Fracture.Asset.Bonds.Count).Where(Fracture.IsBondBroken).Select(Bond=>{
             var Pair=Fracture.Asset.Bonds[Bond];
             var Middle=(Fracture.Asset.Fragments[Pair.FirstFragment].LocalCenter+Fracture.Asset.Fragments[Pair.SecondFragment].LocalCenter)/LogicalScalar.FromInt64(2);
@@ -271,13 +271,13 @@ public sealed class DestructionTests {
         Scaled.Tick(2);
         Assert.StartsWith("DST004",Scaled.StateOf(Other).Problem);
     }
-    /// <summary>The physics world's state hash and the broken bonds after each tick of a run.</summary>
+    /// <summary>実行中、各ティック後に得られる物理ワールドの状態ハッシュと破断した結合。</summary>
     private static List<(ulong Hash,int Broken)>Record(int Ticks,bool Together){
         using var Sim=new Sim();
         Sim.World.InstantiateScene<PhysicsGroundScene>();
         Sim.World.InstantiateScene<DestructionFieldScene>();
         if(Together){
-            // A dropped crate beside the exploding one: both break, each by its own cause.
+            // 爆発するクレートの隣にクレートを落とす。両方がそれぞれ別の原因で破断する。
             Sim.World.InstantiateScene<DestructionDropScene>();
             foreach(var Root in Sim.With<Destructible>()){
                 if(Sim.World.TryGetComponent(Root,out Transform Placement)&&Placement.Position.U>LogicalScalar.One){
@@ -334,8 +334,8 @@ public sealed class DestructionTests {
         Assert.Contains(Frames,static Frame=>Frame.Breaks.Count>0);
         Assert.True(Frames[^1].Bodies.Count>Frames[0].Bodies.Count,"the pieces are not in the cache");
         Assert.Equal(Frames.Sum(static Frame=>Frame.Breaks.Count),Frames.Sum(static Frame=>Frame.Events.Count(static Event=>Event.Type==PhysicsEventType.BondBroken)));
-        // Played back from the cache (no strain is computed: the recorded breaks make the pieces), the world holds exactly what was baked, tick by tick;
-        // played back again, the same.
+        // キャッシュから再生する（ひずみは計算しない。記録済みの破断情報で破片を作る）。ワールドはティックごとにベイク済みの内容と完全に一致し、
+        // もう一度再生しても同じ結果になる。
         for(var Run=0;Run<2;Run++){
             using MemoryStream Cache=new(Baked);
             using MemoryStream Replayed=new();
@@ -361,10 +361,9 @@ public sealed class DestructionTests {
         Assert.Equal(Baked,Stream.ToArray());
     }
     /// <summary>
-    /// M0124: the dropped crate of <c>DestructionDropScene</c>, cut with ten times the bond strength (<c>StrongCrate</c>), set down on the floor (not dropped;
-    /// or <paramref name="Floating"/> in the air without gravity, touching nothing) and settled for two seconds; then its top fragment, the point
-    /// the game hits, and the impulse of <paramref name="Share"/> % of the weakest bond of that fragment. <paramref name="Decay"/> overrides the crate's
-    /// <c>StrainDecay</c>.
+    /// M0124：<c>DestructionDropScene</c>のクレートを結合強度10倍で切り出したもの（<c>StrongCrate</c>）。床に置いて落ち着くまで2秒待つ
+    ///（落下ではない。または空中で重力なし、何にも接触しない<paramref name="Floating"/>状態にする）。その後、上面の破片（ゲームが衝撃を与える点）に、
+    /// その破片の最弱結合強度の<paramref name="Share"/> %の力積を加える。<paramref name="Decay"/>を指定するとクレートの<c>StrainDecay</c>を上書きする。
     /// </summary>
     private static (Entity Root,LogicalVector3 Point,LogicalScalar Impulse,int Settled)SetDownACrate(Sim Sim,LogicalScalar?Decay=null,int Share=40,bool Floating=false){
         Sim.World.InstantiateScene<PhysicsGroundScene>();
@@ -382,7 +381,7 @@ public sealed class DestructionTests {
         Settings.FractureAsset="StrongCrate";
         if(Decay is { }Value){ Settings.StrainDecay=Value; }
         Assert.True(Sim.World.TrySetComponent(Root,in Settings));
-        // Settle on the floor first: the crate must stand whole under its own weight (its tiniest bonds, of a few mm², may go at the first contact).
+        // まず床に置いて落ち着かせる。クレートは自重で全体を維持しなければならない（最初の接触で数mm²の最小結合が切れる場合はある）。
         Sim.Tick(120);
         Assert.True(Sim.StateOf(Root).Loaded,Sim.StateOf(Root).Problem);
         Assert.False(Sim.StateOf(Root).Broken,"the crate came apart under its own weight");
@@ -391,8 +390,8 @@ public sealed class DestructionTests {
         Assert.Equal(Settled,Sim.StateOf(Root).BrokenBonds);
         Assert.True(Sim.Service().TryGetState(Root,out var Fracture));
         var Top=Enumerable.Range(0,Fracture.Asset.Fragments.Count).MaxBy(Fragment=>Fracture.Asset.Fragments[Fragment].LocalCenter.U);
-        // A hit loads the hit fragment's bonds fully and each further ring of bonds by half (the default DamagePropagation), up to four rings: the hit is
-        // the share of the least of strength × 2^ring over the intact bonds it reaches, so no bond takes more than that share of its strength.
+        // 衝撃が加わった破片の結合には力積を全量与え、次の結合リングごとに半分ずつ伝播する（既定のDamagePropagation）。最大4リング。
+        // 衝撃は、到達した未破断結合の強度×2^ringの最小値に対する割合である。したがって、結合にかかる力積がその強度の割合を超えない。
         var Asset=Fracture.Asset;
         var Rings=new int[Asset.Fragments.Count];
         Array.Fill(Rings,-1);
@@ -416,7 +415,7 @@ public sealed class DestructionTests {
         Assert.True(Sim.Physics.TryGetBodyState(Root,out var Body));
         return (Root,Body.Position+Fracture.Asset.Fragments[Top].LocalCenter,Weakest*LogicalScalar.FromInt64(Share)/LogicalScalar.FromInt64(100),Settled);
     }
-    /// <summary>The tick (from the first) at which a bond of the set-down crate first broke under the game's hits at the given ticks, or -1.</summary>
+    /// <summary>最初のティックから数え、指定時点のゲーム衝撃によって、設置したクレートの結合が初めて破断したティック。破断しない場合は-1。</summary>
     private static int HitAResting(int[]Hits,int Ticks,LogicalScalar?Decay=null,bool Floating=false){
         using var Sim=new Sim();
         var (Root,Point,Impulse,Settled)=SetDownACrate(Sim,Decay,Floating:Floating);
@@ -429,9 +428,9 @@ public sealed class DestructionTests {
     }
     [Fact]
     public void SmallHitsBreakACrateWhenThreeComeCloseTogetherButNotOneOrHitsFarApart(){
-        // A crate in the air (no load but the hits), each hit 0.4 of what the bond it loads most can take: one hit is not enough, the third a tenth of a
-        // second after the first is (0.4 × 0.95² + 0.4 × 0.95 + 0.4 ≥ 1), hits two seconds apart never add up (at most 0.4 × 0.37 / 0.63 + 0.4 ≈ 0.64),
-        // and with the decay of 60/s (every tick on its own, as M0113) close hits do not add up either.
+        // 空中のクレートには荷重がなく、衝撃だけが加わる。各衝撃は最も荷重を受ける結合の耐力の0.4。1回では足りないが、1回目から0.1秒後の3回目では
+        // (0.4 × 0.95² + 0.4 × 0.95 + 0.4 ≥ 1)となる。2秒間隔では合計しきい値に達しない（最大でも0.4 × 0.37 / 0.63 + 0.4 ≈ 0.64）。
+        // M0113同様、減衰60/sなら、結合するヒットが近くても蓄積しない。
         Assert.Equal(-1,HitAResting([0],600,Floating:true));
         Assert.Equal(12,HitAResting([0,6,12],600,Floating:true));
         Assert.Equal(-1,HitAResting([0,120,240,360,480],600,Floating:true));
@@ -439,16 +438,17 @@ public sealed class DestructionTests {
     }
     [Fact]
     public void ACrateSetDownOnTheFloorStandsUnderItsWeightAndOneSmallHit(){
-        // The steady load of a body at rest strains each tick only: twenty seconds on the floor wear nothing down, and one hit on top does not break it.
+        // 静止ボディの一定荷重によるひずみはティックごとに発生するだけ。床上で20秒経過しても弱まらず、その上に衝撃を1回加えても破断しない。
         Assert.Equal(-1,HitAResting([],1200));
         Assert.Equal(-1,HitAResting([0],600));
     }
     /// <summary>
-    /// M0124: a live run hits a crate twice while it records the physics cache; another run plays that recording back (no strain is computed in
-    /// playback) and goes on live from where it ends. The third hit, a tenth of a second after the first, breaks the crate's bonds in both runs at the
-    /// same tick, which it does only when the played-back frames restored the internal strain the first hits left; the worlds stay the same tick by tick.
-    /// The crate floats without gravity: the cache keeps no contacts (warm-started impulses, begun or going on), so a body resting on another at the
-    /// hand-off takes its first live tick's load as a contact that began (a known limit of the hand-off, not of the internal strain).
+    /// M0124：実行中の1回目では、物理キャッシュの記録中にクレートへ2度衝撃を与える。別の実行では、再生中にひずみを計算せず記録を再生し、
+    /// 再生終了後にライブ実行を続ける。最初の衝撃から0.1秒後の3回目の衝撃で、両実行とも同じティックに結合が破断する。
+    /// これは再生フレームが最初のヒットによる内部ひずみを復元した場合だけ成立する。ワールド状態もティックごとに一致する。
+    /// クレートは重力なしで浮かせる。キャッシュは接触（ウォームスタート用の力積、開始済み／継続中）を記録しないため、
+    /// 引き渡し時に別の物体の上で静止していたボディは、最初のライブティックで新規接触として荷重を受ける。
+    /// これは引き渡しの既知の制限であり、内部ひずみの制限ではない。
     /// </summary>
     [Fact]
     public void ARecordedHitsInternalStrainIsRestoredByPlaybackSoTheLiveRunThatFollowsBreaksAlike(){

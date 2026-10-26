@@ -9,13 +9,11 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0119 performance evidence (ADR-0084): the native pixel entries compute their depth, so only the conservative
-/// raster depth (SV_DepthGreaterEqual) lets Early-Z reject hidden fragments before the Stage pixel shader runs. This
-/// measures the main pass's GPU time with timestamps for a scene of full-screen layers drawn front to back (the case
-/// Early-Z helps most) and back to front, near (2 to 48 m) and far (100 to 1020 m; each object's raster depth touches at
-/// its own distance, M0100), and writes the native samples to
-/// <c>.artifacts/M0119/performance</c>. It records, never gates: timing depends on the adapter. Run with <c>CGE_PERFORMANCE_EVIDENCE=1</c> (and
-/// <c>CGE_PERFORMANCE_ADAPTER=hardware</c> for the GPU instead of WARP).
+/// M0119の性能証拠（ADR-0084）。ネイティブのピクセルエントリーポイントが深度を計算するため、Early-ZでStageピクセルシェーダー実行前に
+/// 隠れた破片を棄却できるのは、保守的なラスター深度（SV_DepthGreaterEqual）だけである。前から後ろ、後ろから前の順に描く全画面レイヤーのシーンで、
+/// タイムスタンプを使ってメインパスのGPU時間を測る（Early-Zが最も効果を発揮するケース）。near（2～48 m）とfar（100～1020 m。各オブジェクトのラスター深度は
+/// それぞれの距離に接する、M0100）を測定し、ネイティブサンプルを<c>.artifacts/M0119/performance</c>へ記録する。結果は記録のみで合否判定には使わない。
+/// 時間はアダプターに依存する。<c>CGE_PERFORMANCE_EVIDENCE=1</c>で実行する（WARPではなくGPUを使う場合は<c>CGE_PERFORMANCE_ADAPTER=hardware</c>も指定）。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
@@ -80,7 +78,7 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
                 Renderer.Submit(new PointLightSubmission(new Vector3(-3f+2f*Light,1f,1.5f),new(1f,0.8f,0.6f),new(300f),new(40f)));
             }
             for(var Index=0;Index<Layers;Index++){
-                // Layer k sits at First + k * Step metres; drawing order follows the object index.
+                // レイヤーkはFirst + k * Stepメートルに配置する。描画順はオブジェクトインデックスに従う。
                 var Depth=FirstMeters+StepMeters*(FrontToBack?Index:Layers-1-Index);
                 var Size=Depth*2f;
                 Renderer.SetObjectTransform(Index,Matrix4x4.CreateScale(Size,1f,Size)*Matrix4x4.CreateRotationX(-MathF.PI/2f)*Matrix4x4.CreateTranslation(0f,0f,Depth));

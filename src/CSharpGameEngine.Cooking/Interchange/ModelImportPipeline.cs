@@ -47,7 +47,7 @@ public static class ModelImportPipeline {
             var Names=NodeNames(Document.Nodes,Report);
             Document=Document with {
                 Nodes=[..Document.Nodes.Select((Node,Index)=>Node with { Name=Names[Index] })],
-                Meshes=Rename(Document.Meshes,M=>M.Name,(M,N)=>M with { Name=N },"mesh",Report),
+                Meshes=Rename([..Document.Meshes.Select(M=>ModelGeometryPass.Complete(M,Report))],M=>M.Name,(M,N)=>M with { Name=N },"mesh",Report),
                 Materials=Rename(Document.Materials,M=>M.Name,(M,N)=>M with { Name=N },"material",Report),
                 Textures=Rename(Document.Textures,M=>M.Name,(M,N)=>M with { Name=N },"texture",Report),
                 Skeletons=Rename(Document.Skeletons,M=>M.Name,(M,N)=>M with { Name=N },"skeleton",Report),

@@ -23,8 +23,7 @@ using Microsoft.VisualStudio.Threading;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// One verified C# source edit and its single native Visual Studio Undo transaction.
-/// <paramref name="Before"/> is the Roslyn text used to detect a concurrent live-buffer edit.
+/// 検証済みの C# ソース編集と、それに対応する 1 回のネイティブ Visual Studio Undo トランザクション。<paramref name="Before"/> は、ライブバッファーの同時編集を検出するために使う Roslyn テキスト。
 /// </summary>
 internal sealed record SceneTextWriteStep(
     SourceText Before,IReadOnlyList<TextChange>Changes,string UndoDescription);
@@ -71,22 +70,14 @@ internal readonly struct SceneLiveBufferWriteResult {
 }
 
 /// <summary>
-/// Supplies the editor with a <see cref="SceneModel"/> built from <b>live Roslyn</b> (ADR-0040).
+/// <b>ライブ Roslyn</b> (ADR-0040) から構築した <see cref="SceneModel"/> をエディターに提供する。
 ///
 /// <para>
-/// This replaces the previous execution-based path, which had to build the target project, run the
-/// generated CreateRuntime in a separate process and read a WorldSnapshot reflectively. Reading the
-/// declaration directly means the scene is visible while the user is still typing it, and there is
-/// nothing to keep in sync with the Source Generator: both run the same shared
-/// <see cref="SceneDeclarationAnalyzer"/> source.
+/// 以前の実行ベースの方法を置き換える。この方法では、対象プロジェクトをビルドして、別プロセスで生成済みの CreateRuntime を実行し、WorldSnapshot をリフレクションで読み取る必要があった。宣言を直接読み取ることで、ユーザーが入力している途中でもシーンを表示できる。また、Source Generator との同期を保つ必要もない。両方が同じ共有の <see cref="SceneDeclarationAnalyzer"/> ソースを実行するためである。
 /// </para>
 ///
 /// <para>
-/// Threading, in order of what has already gone wrong in this repo: Roslyn work never runs on the
-/// UI thread; the result is marshaled back with SwitchToMainThreadAsync before anything touches WPF;
-/// and nothing here is awaited from inside AsyncPackage.InitializeAsync's own chain. Analysis is
-/// debounced because a keystroke-rate rebuild of every scene would make typing feel heavy, and the
-/// previous CancellationTokenSource is cancelled so a slow analysis cannot overwrite a newer one.
+/// このリポジトリで問題になった順に、スレッド処理を記す。Roslyn の処理は UI スレッドで実行しない。WPF に触れる前に SwitchToMainThreadAsync で結果を戻す。AsyncPackage.InitializeAsync 自体の呼び出しチェーン内では何も await しない。シーンすべてをキー入力のたびに再構築すると入力が重くなるため解析をデバウンスする。以前の CancellationTokenSource をキャンセルし、遅い解析が新しい結果を上書きできないようにする。
 /// </para>
 /// </summary>
 internal sealed class SceneWorkspaceService : IDisposable {
@@ -115,10 +106,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     private readonly Dictionary<ProjectId,ProjectComponentCatalogCache>ProjectComponentCatalogs=[];
 
     /// <summary>
-    /// The in-flight analysis. Held rather than discarded so the fire-and-forget stays observable
-    /// (VSTHRD110) and joinable by Visual Studio's shutdown. <see cref="Dispose"/> does not join it,
-    /// which would block the UI thread until a compilation finished: it cancels the analysis, and the
-    /// analysis checks <see cref="Disposed"/> under the gate before it publishes anything.
+    /// 実行中の解析。破棄せず保持することで fire-and-forget の処理を追跡可能にし (VSTHRD110)、Visual Studio のシャットダウン時に待機できる。<see cref="Dispose"/> は解析完了を待たない。コンパイル終了まで待つと UI スレッドをブロックしてしまうため、解析をキャンセルし、公開前に gate の下で <see cref="Disposed"/> を確認させる。
     /// </summary>
     private JoinableTask?RunningAnalysis;
 
@@ -139,26 +127,19 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     internal static SceneWorkspaceService?Instance { get;private set;}
 
-    /// <summary>The most recent successful analysis. Kept so a transient failure never blanks the UI.</summary>
+    /// <summary>最新の正常な解析。単時的な失敗によって UI が空になるのを防ぐため保持する。</summary>
     internal SceneModel?CurrentModel { get;private set;}
 
     internal event Action<SceneModel?>?ModelChanged;
 
     /// <summary>
-    /// Every <c>IScene</c> implementation found in the active document (ADR-0040 Phase 9), not just
-    /// the first - Scene Designer needs to target one specific class by name when a file declares
-    /// several. <see cref="CurrentModel"/>/<see cref="ModelChanged"/>
-    /// stay unchanged (still "the first one found") so Hierarchy's existing behavior is untouched;
-    /// this is computed in the same analysis pass, not a second one.
+    /// アクティブドキュメントで見つかった <c>IScene</c> 実装をすべて返す (ADR-0040 フェーズ 9)。複数のクラスを宣言するファイルでは、Scene Designer が名前で特定のクラスを対象にする必要があるため、最初の 1 つだけにはしない。Hierarchy の既存動作を変えないよう <see cref="CurrentModel"/>/<see cref="ModelChanged"/> はこれまでどおり「最初に見つかったもの」を維持する。2 回目の解析は行わず、同じ解析パスで計算する。
     /// </summary>
     internal IReadOnlyList<SceneModel>AllModels { get;private set;}=[];
 
     internal event Action<IReadOnlyList<SceneModel>>?AllModelsChanged;
     /// <summary>
-    /// Acquires the workspace through <c>SComponentModel</c> rather than exporting a MEF part - this
-    /// VSIX has no MEF components and adding one just to pull a service would be a larger change
-    /// than the service is worth. Returns null (rather than throwing) when the workspace is not
-    /// available, so a VS instance without the managed language service simply has no Scene editor.
+    /// MEF パーツとしてエクスポートせず、<c>SComponentModel</c> 経由でワークスペースを取得する。この VSIX には MEF コンポーネントがなく、サービスを 1 つ取得するためだけに追加するのは割に合わない。ワークスペースが使用できない場合は例外ではなく null を返す。そのため、マネージ言語サービスのない VS インスタンスでは Scene Editor を利用できない。
     /// </summary>
     internal static SceneWorkspaceService?Initialize(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -185,7 +166,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         return Instance;
     }
 
-    /// <summary>Points the service at a document; passing null clears the model.</summary>
+    /// <summary>ドキュメントをサービスに設定する。null を渡すとモデルをクリアする。</summary>
     internal void SetActiveDocument(string?FilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -202,9 +183,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
             this.CancelPendingAnalysisNoLock();
         }
 
-        // A document switch invalidates the old tree immediately. The command no longer consumes
-        // this transient cache; it analyses its captured file directly, so this cannot recreate the
-        // old BeforeQueryStatus/Execute race.
+        // ドキュメントを切り替えたら、古いツリーをただちに無効化する。コマンドはもう
+        // この一時的なキャッシュを使わず、キャプチャーしたファイルを直接解析する。そのため、古い
+        // BeforeQueryStatus/Execute 間の競合は再発しない。
         this.CurrentModel=null;
         this.AllModels=[];
 
@@ -213,15 +194,13 @@ internal sealed class SceneWorkspaceService : IDisposable {
         this.ScheduleAnalysis();
     }
 
-    /// <summary>Resolves a file path to a document in the current solution. Null when the file is not part of it.</summary>
+    /// <summary>ファイルパスを現在のソリューション内のドキュメントに解決する。ファイルがソリューションに含まれない場合は null。</summary>
     internal DocumentId?FindDocument(string FilePath){
         return this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(FilePath).FirstOrDefault();
     }
 
     /// <summary>
-    /// M0095 3-7: completes when <paramref name="FilePath"/> is in the Roslyn workspace. While Visual Studio
-    /// loads a solution (a NuGet restore included) a scene tab can show before its project is there; the
-    /// Scene Editor waits for it instead of failing, and is never left on the error.
+    /// M0095 3-7：<paramref name="FilePath"/> が Roslyn ワークスペースに存在した時点で完了する。Visual Studio がソリューション（NuGet の復元を含む）を読み込む間、プロジェクトがまだ追加される前にシーンタブが表示されることがある。その場合 Scene Editor は失敗表示のままにならず、プロジェクトを待つ。
     /// </summary>
     internal Task WaitForDocumentAsync(string FilePath,CancellationToken CancellationToken){
         if(this.FindDocument(FilePath) is not null){ return Task.CompletedTask; }
@@ -238,7 +217,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         };
         this.Workspace.WorkspaceChanged+=Handler;
         Registration=CancellationToken.Register(()=>Finish(Cancelled:true));
-        // The document may have arrived between the first look and the subscription.
+        // 最初に確認した後、購読を開始するまでの間にドキュメントが到着している可能性がある。
         if(this.FindDocument(FilePath) is not null){ Finish(Cancelled:false); }
         return Completion.Task;
     }
@@ -263,9 +242,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         SceneRuntimeProcessNameResolver.Resolve(this.Workspace.CurrentSolution.Projects.Select(Project=>
             new SceneRuntimeProjectAssembly(Project.Id.Id.ToString("N"),Project.AssemblyName)),Key);
     /// <summary>
-    /// Analyses the exact file captured by a command invocation instead of reading the debounced,
-    /// mutable active-document cache. This makes the command's 0/1/N decision independent of focus
-    /// changes while its asynchronous work is in flight.
+    /// デバウンスされ、変更可能なアクティブドキュメントのキャッシュを読み取らず、コマンド呼び出しがキャプチャーしたファイルそのものを解析する。これにより、非同期処理の実行中にフォーカスが移動しても、コマンドの 0/1/N 判定は変化しない。
     /// </summary>
     internal async Task<IReadOnlyList<SceneModel>>AnalyzeFileNowAsync(string FilePath,CancellationToken CancellationToken){
         DocumentId?DocumentId=this.FindDocument(FilePath);
@@ -309,7 +286,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
             }
         }
 
-        // ADR-0070: scenes are the project's Scenes\**\*.json documents; their headers name the classes.
+        // ADR-0070：シーンはプロジェクトの Scenes\**\*.json ドキュメントであり、ヘッダーにクラス名が記される。
         string ProjectKey=Project.Id.Id.ToString("N");
         List<ProjectSceneCatalogEntry>Entries=[];
         foreach(TextDocument JsonScene in SceneJsonWorkspaceSource.JsonScenes(Project)){
@@ -484,8 +461,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>
-    /// ADR-0070: analyzes a JSON scene through its designer tree. <c>null</c> when the live JSON is not a
-    /// valid scene or does not declare <paramref name="ClassFullyQualifiedName"/>.
+    /// Designer のツリーを通して JSON シーンを解析する (ADR-0070)。ライブ JSON が有効なシーンではない場合、または <paramref name="ClassFullyQualifiedName"/> を宣言していない場合は <c>null</c>。
     /// </summary>
     private static async Task<(SceneModel Model,SyntaxTree Tree,Compilation Compilation)?>ResolveJsonSceneAsync(
         Project Project,Compilation Compilation,TextDocument JsonScene,string ClassFullyQualifiedName,
@@ -502,8 +478,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>
-    /// Applies one verified gesture to the live scene document buffer as one native VS Undo unit.
-    /// <see cref="SceneWorkspaceEditContext.Text"/> is the optimistic-concurrency precondition.
+    /// 検証済みのユーザー操作 1 回を、ライブのシーンドキュメントバッファーに 1 回のネイティブ VS Undo 項目として適用する。<see cref="SceneWorkspaceEditContext.Text"/> は楽観的同時実行制御の前提条件。
     /// </summary>
     internal async Task<SceneLiveBufferWriteResult>ApplyTextAsync(
         SceneWorkspaceEditContext Context,IReadOnlyList<TextChange>Changes,string UndoDescription,
@@ -585,8 +560,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>
-    /// The live text of a solution document (a scene JSON's unsaved edits included); null when it is not loaded.
-    /// The text's container is the open editor buffer, which a gizmo commit writes before Roslyn's solution follows.
+    /// ソリューションのドキュメントに含まれるライブテキスト（シーン JSON の未保存編集を含む）。読み込まれていない場合は null。
+    /// テキストの格納先は開いているエディターバッファーであり、Roslyn のソリューションが追随する前にギズモのコミットがそこへ書き込む。
     /// </summary>
     internal string?TryGetLiveText(string FilePath){
         DocumentId?Id=this.FindDocument(FilePath);
@@ -595,11 +570,11 @@ internal sealed class SceneWorkspaceService : IDisposable {
             :null;
     }
 
-    /// <summary>A C# document or, for a JSON scene (ADR-0070), an additional document.</summary>
+    /// <summary>C# ドキュメント、または JSON シーン (ADR-0070) の場合は追加ドキュメント。</summary>
     private static TextDocument?GetTextDocument(Solution Solution,DocumentId Id)=>
         (TextDocument?)Solution.GetDocument(Id)??Solution.GetAdditionalDocument(Id);
 
-    /// <summary>A JSON scene is an additional document, which Roslyn opens through its own entry point.</summary>
+    /// <summary>JSON シーンは追加ドキュメントであり、Roslyn は専用のエントリポイントから開く。</summary>
     private void OpenWithoutActivating(DocumentId DocumentId){
         if(this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId)is not null){
             this.Workspace.OpenAdditionalDocument(DocumentId,activate:false);
@@ -766,8 +741,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     private void OnWorkspaceChanged(object Sender,WorkspaceChangeEventArgs Args){
-        // Only the kinds that can change a scene declaration. Reacting to everything would rebuild
-        // on unrelated solution churn.
+        // シーン宣言を変更できる種類だけを扱う。すべての変更に反応すると再構築される。
+        // 無関係なソリューションの変更にまで反応すると、不要な再構築が起きる。
         switch(Args.Kind){
             case WorkspaceChangeKind.DocumentChanged:
             case WorkspaceChangeKind.DocumentAdded:
@@ -846,15 +821,15 @@ internal sealed class SceneWorkspaceService : IDisposable {
             this.DebounceState=SceneAnalysisDebouncePolicy.OnStarted(this.DebounceState);
         }
 
-        // Started from a timer callback, so there is nothing to await it here. RunAsync keeps the
-        // work joinable, and the handle is stored so VS can still block on it during shutdown.
+        // タイマーのコールバックから開始するため、ここでは await する処理はない。RunAsync によって
+        // 処理を待機可能にし、ハンドルを保存して、VS のシャットダウン中も待てるようにする。
         this.RunningAnalysis=this.TaskFactory.RunAsync(async ()=>{
             try {
                 IReadOnlyList<SceneModel>Models=await this.AnalyzeAllAsync(
                     Scheduled.Request.Document,
                     Scheduled.Token).ConfigureAwait(false);
 
-                // A cancelled analysis must not overwrite the newer one that cancelled it.
+                // キャンセルされた解析が、それをキャンセルした新しい解析を上書きしてはならない。
                 if(Scheduled.Token.IsCancellationRequested){
                     return;
                 }
@@ -875,17 +850,16 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 this.ModelChanged?.Invoke(First);
                 this.AllModelsChanged?.Invoke(Models);
             } catch(OperationCanceledException){
-                // Superseded by a newer analysis.
+                // 新しい解析に置き換えられた。
             } catch(Exception Ex){
-                // The last successful model stays; a transient failure never blanks the UI.
+                // 最後に成功したモデルを保持する。単時的な失敗で UI を空にしない。
                 ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
             }
         });
     }
 
     /// <summary>
-    /// The scene an active document declares. Only scene JSON documents (<c>Scenes\**\*.json</c>) declare scenes (ADR-0070);
-    /// every other document has none.
+    /// アクティブドキュメントが宣言するシーン。シーンを宣言するのはシーン JSON ドキュメント (<c>Scenes\**\*.json</c>) だけ (ADR-0070)。ほかのドキュメントはシーンを持たない。
     /// </summary>
     private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
         if(DocumentId is not null&&this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId)is { }JsonScene
@@ -895,7 +869,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         return [];
     }
 
-    /// <summary>ADR-0070: a scene JSON document declares at most one scene.</summary>
+    /// <summary>ADR-0070：シーン JSON ドキュメントが宣言できるシーンは最大 1 つ。</summary>
     private static async Task<IReadOnlyList<SceneModel>>AnalyzeJsonSceneAsync(
         TextDocument JsonScene,CancellationToken CancellationToken){
         SourceText Text=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);

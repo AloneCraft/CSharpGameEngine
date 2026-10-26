@@ -2,13 +2,12 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
-/// The mannequin's foot IK (UE's CR_Mannequin_FootIK, ADR-0078/M0107) on a <see cref="SkeletalMesh"/> node with a <see cref="Locomotion"/>. Each
-/// frame a ray goes down from above each foot (<see cref="TraceTop"/> above the mesh origin to <see cref="TraceBottom"/> below it, starting
-/// <see cref="TraceForward"/> ahead of the ankle); the ground height under it, relative to the mesh origin, is the foot's target offset (zero
-/// where the ray finds nothing, and zero for both feet while the character is falling). The offsets approach their targets at
-/// <see cref="InterpolationSpeed"/> per second; the pelvis follows the lower of the two. The feet are then put back onto the ground: the
-/// pelvis moves by its offset and each leg is solved with <see cref="TwoBoneIk"/> so the foot lands on its own offset (the Control Rig solves
-/// them with a full-body IK node; the legs of a standing character need nothing more). The joint names are the mannequin's.
+/// <see cref="SkeletalMesh"/>ノード上で<see cref="Locomotion"/>と組み合わせて使う、マネキンの足IK（UEのCR_Mannequin_FootIK、ADR-0078/M0107）。
+/// 毎フレーム、各足の上方からレイを下ろす（メッシュ原点より上の<see cref="TraceTop"/>から下の<see cref="TraceBottom"/>まで、
+/// 足首の前方<see cref="TraceForward"/>から開始）。レイが何も検出しなければ0、キャラクターが落下中なら両足とも0とし、地面の高さをメッシュ原点基準の足の目標オフセットにする。
+/// オフセットは毎秒<see cref="InterpolationSpeed"/>の速度で目標へ近づけ、骨盤は低い方の足に追従する。その後、骨盤をオフセット分動かし、
+/// <see cref="TwoBoneIk"/>で各脚を解いて足をそれぞれのオフセット位置へ戻す。Control Rigでは全身IKノードで解くが、立っているキャラクターの脚にはそれ以上必要ない。
+/// ジョイント名はマネキンのものを使う。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,4)]
 public struct FootIk() {
@@ -21,13 +20,13 @@ public struct FootIk() {
     public string RightCalf="calf_r";
     public string RightFoot="foot_r";
     public string RightBall="ball_r";
-    /// <summary>How far above the mesh origin the ray starts (m): UE's root bone Z + 30 cm.</summary>
+    /// <summary>メッシュ原点から上方へレイを開始する距離（m）。UEのルートボーンZ + 30 cm。</summary>
     public float TraceTop=0.3f;
-    /// <summary>How far below the mesh origin the ray ends (m): UE's root bone Z - 50 cm.</summary>
+    /// <summary>メッシュ原点から下方へレイを終了する距離（m）。UEのルートボーンZ - 50 cm。</summary>
     public float TraceBottom=0.5f;
-    /// <summary>How far ahead of the ankle, toward the toes, the ray runs (m): UE's +5 cm along the mesh's forward.</summary>
+    /// <summary>足首からつま先方向へレイを進める距離（m）。UEのメッシュ前方へ+5 cm。</summary>
     public float TraceForward=0.05f;
-    /// <summary>UE's AlphaInterp speed (both directions), per second.</summary>
+    /// <summary>UEのAlphaInterp速度（両方向）、毎秒。</summary>
     public float InterpolationSpeed=10f;
 }
 public struct FootIkRuntime:IRuntimeComponent<FootIk> {
@@ -35,7 +34,7 @@ public struct FootIkRuntime:IRuntimeComponent<FootIk> {
     public Matrix4x4[]?Scratch;
     public string?Error;
 }
-/// <summary>The foot IK state and solve of one skeleton; the system that traces the ground feeds it (see <see cref="FootIk"/>).</summary>
+/// <summary>1つのスケルトンに対する足IKの状態と計算。地面をトレースするシステムがこれに値を渡す（<see cref="FootIk"/>を参照）。</summary>
 public sealed class FootIkPose {
     private readonly Skeleton Skeleton;
     private readonly int PelvisJoint;
@@ -70,14 +69,14 @@ public sealed class FootIkPose {
         this.TraceForward=Settings.TraceForward;
         this.InterpolationSpeed=float.IsFinite(Settings.InterpolationSpeed)?Math.Max(Settings.InterpolationSpeed,0f):0f;
     }
-    /// <summary>The foot's smoothed vertical offset from the ground (m); positive lifts it.</summary>
+    /// <summary>地面からの足の平滑化済み垂直オフセット（m）。正の値で足を持ち上げる。</summary>
     public float FootOffset(int Side)=>this.Current[Side];
     public float TargetOffset(int Side)=>this.Target[Side];
-    /// <summary>The pelvis offset: the lower of the two smoothed foot offsets.</summary>
+    /// <summary>骨盤のオフセット。平滑化済みの両足オフセットのうち低い方。</summary>
     public float PelvisOffset=>this.PelvisCurrent;
     /// <summary>
-    /// Where the ray of <paramref name="Side"/> starts, in model space: above the ankle (at <see cref="FootIk.TraceTop"/>, model up is +Y) and a little ahead of it,
-    /// toward the toes when the skeleton has a ball joint. <paramref name="Model"/> holds the animated pose's model matrices.
+    /// <paramref name="Side"/>側のレイを開始するモデル空間位置。足首の上方（<see cref="FootIk.TraceTop"/>。モデルの上方向は+Y）かつ少し前方。
+    /// スケルトンにボールジョイントがあれば、つま先側へ寄せる。<paramref name="Model"/>はアニメーション姿勢のモデル行列を保持する。
     /// </summary>
     public Vector3 TraceOrigin(ReadOnlySpan<Matrix4x4>Model,int Side){
         var Ankle=Model[this.Joints[(Side*4)+Foot]].Translation;
@@ -93,8 +92,8 @@ public sealed class FootIkPose {
         return new Vector3(Ankle.X+Ahead.X,this.TraceTop,Ankle.Z+Ahead.Z);
     }
     /// <summary>
-    /// Advances the smoothing. <paramref name="Trace"/> is false while the character is falling (both targets go to zero). A ground height (relative to the
-    /// mesh origin, up positive) is null where the ray hit nothing, which also means a target of zero.
+    /// 平滑化処理を進める。キャラクターの落下中は<paramref name="Trace"/>がfalseとなり、両方の目標値は0になる。
+    /// 地面の高さ（メッシュ原点基準、上向きが正）は、レイが何も検出しなかった場合nullとなり、目標値も0になる。
     /// </summary>
     public void Update(float DeltaSeconds,bool Trace,float?LeftGround,float?RightGround){
         this.Target[Left]=Trace&&LeftGround is{ } L&&float.IsFinite(L)?L:0f;
@@ -106,11 +105,11 @@ public sealed class FootIkPose {
         this.Initialized=true;
         this.PelvisCurrent=MathF.Min(this.Current[Left],this.Current[Right]);
     }
-    /// <summary>True when the smoothed offsets are all zero, so applying them would change nothing.</summary>
+    /// <summary>平滑化済みオフセットがすべて0であり、適用しても変化しない場合はtrue。</summary>
     public bool IsNeutral=>MathF.Abs(this.Current[Left])<1e-5f&&MathF.Abs(this.Current[Right])<1e-5f&&MathF.Abs(this.PelvisCurrent)<1e-5f;
     /// <summary>
-    /// Moves the pelvis by <see cref="PelvisOffset"/> and solves each leg so its foot sits at the animated foot plus its own offset (model-space up is +Y).
-    /// <paramref name="Local"/> is the animated local pose and is edited; <paramref name="Model"/> is scratch.
+    /// 骨盤を<see cref="PelvisOffset"/>分移動し、各脚を解いて、足がアニメーション足の位置に固有のオフセットを加えた場所に来るようにする
+    ///（モデル空間の上方向は+Y）。<paramref name="Local"/>はアニメーション済みのローカル姿勢で、直接編集する。<paramref name="Model"/>は作業領域。
     /// </summary>
     public void Apply(Span<JointPose>Local,Span<Matrix4x4>Model){
         if(this.IsNeutral){
@@ -127,7 +126,7 @@ public sealed class FootIkPose {
             Toes.Y=0f;
             Bends[Side]=Toes.LengthSquared()>1e-8f?Vector3.Normalize(Toes):Vector3.UnitZ;
         }
-        // Pelvis: a model-space shift expressed in the pelvis's parent frame.
+        // 骨盤：骨盤の親座標系で表したモデル空間の移動量。
         var Parent=this.Skeleton.ParentOf(this.PelvisJoint);
         var ParentModel=Parent<0?this.Skeleton.RootTransform:Model[Parent];
         if(Matrix4x4.Invert(ParentModel,out var Inverse)){

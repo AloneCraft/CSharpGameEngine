@@ -8,16 +8,15 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.CodeAnalysis;
 /// <summary>
-/// Reports SCENE201-205 on scene files (<c>Scenes\**\*.json</c>, <see cref="SceneFiles"/>) at the JSON line and column
-/// (ADR-0070). The generator runs the same <see cref="SceneJsonSceneAnalyzer"/> only to decide
-/// whether it can emit, so each problem is reported once. Two scenes with the same
-/// <c>startupOrder</c> are SCENE118, reported at each later scene's value, and two scene files that declare the same
-/// class are SCENE207, reported at each later file's className; both need every file, so they are reported when the
-/// compilation ends. The first file by path owns the order or the class (the generator builds only that scene).
+/// シーンファイル（<c>Scenes\**\*.json</c>、<see cref="SceneFiles"/>)について、JSON上の行と列でSCENE201-205を報告する（ADR-0070）。
+/// ジェネレーターも出力可能か判断するため同じ<see cref="SceneJsonSceneAnalyzer"/>を実行するが、各問題は一度だけ報告する。
+/// <c>startupOrder</c>が重複するシーンはSCENE118（後から現れる各シーンの値の位置で報告）、同じクラスを宣言するシーンファイルはSCENE207
+///（後から現れる各ファイルのclassNameの位置で報告）となる。どちらも全ファイルを調べる必要があるため、コンパイル終了時に報告する。
+/// パス順で最初のファイルが順序またはクラスを所有し、ジェネレーターはそのシーンだけを構築する。
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
-    /// <summary>The build passes the project folder (CompilerVisibleProperty) so scenes are found by <see cref="SceneFiles"/>.</summary>
+    /// <summary>ビルドはプロジェクトフォルダー（CompilerVisibleProperty）を渡すため、<see cref="SceneFiles"/>でシーンを見つけられる。</summary>
     internal const string ProjectDirectoryProperty="build_property.ProjectDir";
     public override ImmutableArray<DiagnosticDescriptor>SupportedDiagnostics=>
         ImmutableArray.Create(SceneJsonDiagnostics.UnknownComponentType,SceneJsonDiagnostics.UnknownMember,SceneJsonDiagnostics.ValueMismatch,
@@ -27,7 +26,7 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
         Context.EnableConcurrentExecution();
         Context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         Context.RegisterCompilationStartAction(static CompilationStart=>{
-            // Same gate as SceneDslAnalyzer: only projects that use the engine's scene model.
+            // SceneDslAnalyzerと同じ条件で判定する。エンジンのシーンモデルを使用するプロジェクトだけが対象。
             if(CompilationStart.Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName) is null){
                 return;
             }
@@ -51,7 +50,7 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
                 }
             });
             CompilationStart.RegisterCompilationEndAction(EndContext=>{
-                // Files arrive in any order; the first scene by path owns each order, so the report is stable.
+                // ファイルの到着順は不定。パス順で最初のシーンが各順序を所有し、報告結果は安定する。
                 foreach(var Group in StartupScenes.GroupBy(static Scene=>Scene.Order)){
                     var Ordered=Group.OrderBy(static Scene=>Scene.Path,System.StringComparer.Ordinal).ToArray();
                     foreach(var Later in Ordered.Skip(1)){
@@ -75,11 +74,11 @@ public sealed class SceneJsonDslAnalyzer:DiagnosticAnalyzer {
         }
     }
     /// <summary>
-    /// The project folder with <c>#</c> and <c>;</c> written as <c>?h</c> and <c>?s</c> (<see cref="GeneratorPath"/>); the build's ProjectDir
-    /// is cut at those characters by the .editorconfig reader, so it is only the fallback.
+    /// <c>#</c>と<c>;</c>を<c>?h</c>と<c>?s</c>に置き換えて記述したプロジェクトフォルダー（<see cref="GeneratorPath"/>）。ビルドのProjectDirは
+    /// .editorconfigリーダーによってこれらの文字で切り詰められるため、代替値としてのみ使用する。
     /// </summary>
     internal const string EncodedProjectDirectoryProperty="build_property.CgeProjectDirectory";
-    /// <summary>The enabled plugins' folders (ADR-0079), <c>|Name=Folder</c> pairs encoded the same way; their <c>Scenes</c> folders hold scenes too.</summary>
+    /// <summary>有効なプラグインのフォルダー（ADR-0079）。同様にエンコードした<c>|Name=Folder</c>の組で表し、各フォルダーの<c>Scenes</c>にもシーンがある。</summary>
     internal const string PluginRootsProperty="build_property.CgePluginRootsEncoded";
     internal static bool IsSceneFile(string Path,AnalyzerConfigOptions GlobalOptions)=>
         ProjectDirectoryOf(GlobalOptions) is { }ProjectDirectory

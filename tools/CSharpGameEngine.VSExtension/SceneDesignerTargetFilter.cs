@@ -1,15 +1,13 @@
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Whether a Scene Designer shows a scene: every scene when it follows the session, only its own
-/// when it is a Scene Editor tab (ADR-0071).
+/// Scene Designer がシーンを表示する条件。session に追従する場合はすべてのシーン、Scene Editor tab の場合は自身のシーンだけです（ADR-0071）。
 /// </summary>
 internal static class SceneDesignerTargetFilter {
     internal static bool Accepts(SceneKey?FixedSceneKey,SceneKey?Incoming)=>
         FixedSceneKey is not { }Fixed||Incoming is { }Key&&Key.Equals(Fixed);
     /// <summary>
-    /// Whether closing a Scene Editor tab unpins the session's scene: only when the tab shows the pinned
-    /// scene, so Hierarchy and Inspector never keep editing a closed document (M0095 1-4).
+    /// Scene Editor tab を閉じたときに session の Scene の pin を解除する条件。tab が固定中の Scene を表示している場合だけです。これにより Hierarchy と Inspector が閉じたドキュメントを編集し続けるのを防ぎます（M0095 1-4）。
     /// </summary>
     internal static bool ReleasesPinOnClose(SceneKey?TabSceneKey,SceneKey?PinnedSceneKey)=>
         TabSceneKey is { }Tab&&PinnedSceneKey is { }Pinned&&Tab.Equals(Pinned);

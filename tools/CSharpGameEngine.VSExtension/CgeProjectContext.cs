@@ -7,16 +7,13 @@ using System.Text.RegularExpressions;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// The game project the editor works on (ADR-0065), replacing the repository-bound RepoLocator. A
-/// game project is a csproj that imports <c>CSharpGameEngine.Game.props</c> (SourceMode, inside the
-/// engine repository) or references the <c>CSharpGameEngine.Sdk</c> package (PackageMode, anywhere).
+/// エディターが操作するゲームプロジェクト (ADR-0065)。リポジトリに依存する RepoLocator を置き換える。ゲームプロジェクトは、<c>CSharpGameEngine.Game.props</c> をインポートする csproj（エンジンリポジトリ内の SourceMode）または <c>CSharpGameEngine.Sdk</c> パッケージを参照する csproj（場所を問わない PackageMode）である。
 /// <list type="bullet">
-/// <item><see cref="ProjectDirectory"/> anchors Scene asset paths (<c>Assets/...</c>) and the build output.</item>
-/// <item><see cref="EngineRoot"/> is the engine repository in SourceMode and null in PackageMode.</item>
-/// <item><see cref="WorkspaceRoot"/> is where authoring bridges run: the engine repository when there is
-/// one (its tools can be built from source), otherwise the project directory.</item>
+/// <item><see cref="ProjectDirectory"/> は Scene アセットパス (<c>Assets/...</c>) とビルド出力の基準。</item>
+/// <item><see cref="EngineRoot"/> は SourceMode ではエンジンリポジトリ、PackageMode では null。</item>
+/// <item><see cref="WorkspaceRoot"/> は作成ブリッジを実行する場所。エンジンリポジトリがある場合はそこ（ツールをソースからビルド可能）、なければプロジェクトディレクトリ。</item>
 /// </list>
-/// Bridges and hosts ship inside the VSIX; repository build outputs are only a development fallback.
+/// ブリッジとホストは VSIX に同梱する。リポジトリのビルド出力は開発時の代替手段に限る。
 /// </summary>
 internal sealed class CgeProjectContext {
     internal const string SdkPackageId="CSharpGameEngine.Sdk";
@@ -35,7 +32,7 @@ internal sealed class CgeProjectContext {
         this.AssemblyName=AssemblyName;
     }
 
-    /// <summary>The open solution, set by the package's solution events; null when none is open.</summary>
+    /// <summary>パッケージのソリューションイベントで設定される、開いているソリューション。開いていない場合は null。</summary>
     internal static string?SolutionPath { get; set; }
 
     internal string ProjectFilePath { get; }
@@ -45,16 +42,15 @@ internal sealed class CgeProjectContext {
     internal string WorkspaceRoot=>this.EngineRoot??this.ProjectDirectory;
     internal string AssetsDirectory=>Path.Combine(this.ProjectDirectory,"Assets");
 
-    /// <summary>The game assembly the project builds for <paramref name="Configuration"/> (Game.props fixes the framework and runtime).</summary>
+    /// <summary><paramref name="Configuration"/> に対してプロジェクトがビルドするゲームアセンブリ (Game.props がフレームワークとランタイムを固定)。</summary>
     internal string OutputAssemblyPath(string Configuration)=>
         Path.Combine(this.ProjectDirectory,"bin",Configuration,TargetFramework,RuntimeIdentifier,this.AssemblyName+".dll");
 
-    /// <summary>A project-relative path such as a Scene's <c>Assets/...</c> as a full path.</summary>
+    /// <summary>Scene の <c>Assets/...</c> など、プロジェクト相対パスをフルパスにしたもの。</summary>
     internal string ResolveProjectPath(string RelativePath)=>Path.GetFullPath(Path.Combine(this.ProjectDirectory,RelativePath));
 
     /// <summary>
-    /// Resolves the game project for <paramref name="Hint"/> (a file or directory inside it), then for
-    /// the open solution, then for the repository this extension was built from.
+    /// まず <paramref name="Hint"/>（プロジェクト内のファイルまたはディレクトリ）に対応するゲームプロジェクト、次に開いているソリューションのプロジェクト、最後にこの拡張機能をビルドしたリポジトリ内のプロジェクトを解決する。
     /// </summary>
     internal static CgeProjectContext?Resolve(string?Hint=null){
         if(!string.IsNullOrWhiteSpace(Hint)&&FromContainingDirectory(Hint!) is{ }Containing){
@@ -68,7 +64,7 @@ internal sealed class CgeProjectContext {
         return Repository is null?null:FromSearchRoot(Repository);
     }
 
-    /// <summary>The nearest game project at or above <paramref name="Path"/>.</summary>
+    /// <summary><paramref name="Path"/> と同じか、その上位にある最も近いゲームプロジェクト。</summary>
     internal static CgeProjectContext?FromContainingDirectory(string Path){
         var Directory=System.IO.Directory.Exists(Path)?Path:System.IO.Path.GetDirectoryName(Path);
         while(!string.IsNullOrEmpty(Directory)){
@@ -83,8 +79,7 @@ internal sealed class CgeProjectContext {
     }
 
     /// <summary>
-    /// The game project under <paramref name="Root"/> (up to four levels deep). With several, the one
-    /// named UserEcsProject wins (the repository's development game), then the shallowest path.
+    /// <paramref name="Root"/> 以下（最大 4 階層）のゲームプロジェクト。複数ある場合、まず UserEcsProject（リポジトリの開発用ゲーム）を優先し、次にパスが最も浅いものを選ぶ。
     /// </summary>
     internal static CgeProjectContext?FromSearchRoot(string Root){
         List<CgeProjectContext>Found=[];
@@ -97,8 +92,7 @@ internal sealed class CgeProjectContext {
     }
 
     /// <summary>
-    /// Every game project of the open solution (or, without one, of the repository this extension was built from),
-    /// found as <see cref="FromSearchRoot"/> finds one; with the folder the search ran in.
+    /// 開いているソリューション内（またはソリューションがなければこの拡張機能をビルドしたリポジトリ内）のすべてのゲームプロジェクト。<see cref="FromSearchRoot"/> と同じ方法で探し、検索を実行したフォルダーとともに返す。
     /// </summary>
     internal static IReadOnlyList<CgeProjectContext>FindAll(out string?Root){
         var Solution=SolutionPath;
@@ -124,7 +118,7 @@ internal sealed class CgeProjectContext {
         }
     }
 
-    /// <summary>A context for <paramref name="ProjectFilePath"/> when it is a game project; otherwise null.</summary>
+    /// <summary><paramref name="ProjectFilePath"/> がゲームプロジェクトの場合はそのコンテキスト。それ以外は null。</summary>
     internal static CgeProjectContext?TryCreate(string ProjectFilePath){
         string Text;
         try {

@@ -3,17 +3,16 @@ using System.Numerics;
 namespace CSharpGameEngine.Rendering;
 
 /// <summary>
-/// Omni's Smooth radial curve in metres: <c>G(r) = log2(1 + r / T)</c>. It is linear near the eye
-/// (slope <c>1 / (T ln 2)</c>) and logarithmic beyond the transition length <c>T</c>, so a 32-bit depth keeps a
-/// near-constant relative resolution from millimetres to the Q64.64 range. The Stage shader's
-/// <c>RadialG</c> evaluates the same expression; this type is its CPU definition and test oracle.
+/// Omni のメートル単位の Smooth 放射曲線。<c>G(r) = log2(1 + r / T)</c>。視点付近では線形（傾き <c>1 / (T ln 2)</c>）、遷移距離
+/// <c>T</c> を超えると対数になる。そのため32ビット深度でも、ミリメートルから Q64.64 の範囲まで相対解像度をほぼ一定に保てる。Stage シェーダーの <c>RadialG</c> も同
+/// じ式を評価する。この型はその CPU 定義であり、テスト時の正解基準でもある。
 /// </summary>
 public readonly record struct RadialDepthCurve {
     public const float DefaultTransitionMeters=1f;
     private RadialDepthCurve(float TransitionMeters){
         this.TransitionMeters=TransitionMeters;
     }
-    /// <summary>Distance where the curve turns from linear to logarithmic.</summary>
+    /// <summary>曲線が線形から対数へ切り替わる距離。</summary>
     public float TransitionMeters { get; }
     public static RadialDepthCurve Default=>new(DefaultTransitionMeters);
     public static bool IsValidTransition(float TransitionMeters)=>float.IsFinite(TransitionMeters)&&TransitionMeters>0f;
@@ -21,15 +20,15 @@ public readonly record struct RadialDepthCurve {
         Curve=IsValidTransition(TransitionMeters)?new RadialDepthCurve(TransitionMeters):default;
         return Curve.TransitionMeters>0f;
     }
-    /// <summary><c>log2(1 + r / T)</c> for a non-negative distance in metres.</summary>
+    /// <summary>メートル単位の非負距離についての <c>log2(1 + r / T)</c>。</summary>
     public float G(float DistanceMeters)=>Log2OnePlus(DistanceMeters/this.TransitionMeters);
-    /// <summary>The compressed distance in metres, <c>T · G(r)</c>, used by the observer view.</summary>
+    /// <summary>観測者ビューで使う、圧縮後の距離（メートル）。<c>T · G(r)</c>。</summary>
     public float Map(float DistanceMeters)=>this.TransitionMeters*this.G(DistanceMeters);
     /// <summary>
-    /// <c>log2(1 + x)</c> for <c>x ≥ 0</c> with float arithmetic only, so the shader (whose hardware <c>log2</c> is an
-    /// approximation, M0100) evaluates the same expression: <c>ln(1 + x) = 2 atanh(s)</c>, with <c>s = x / (2 + x)</c>
-    /// below <c>√2 − 1</c> and, above it, <c>1 + x = m · 2^e</c> (<c>m</c> in <c>(√½, √2]</c>) and
-    /// <c>s = (m − 1) / (m + 1)</c>. <c>|s| ≤ 0.1716</c>, so the odd series to <c>s⁹</c> is exact to float precision.
+    /// float 演算のみを使って、<c>x ≥ 0</c> の <c>log2(1 + x)</c> を求める。ハードウェアの <c>log2</c> が近似値を返すシェーダー（M0100）でも同じ式を
+    /// 計算できるようにする。<c>ln(1 + x) = 2 atanh(s)</c> を使う。<c>√2 − 1</c> 未満では <c>s = x / (2 + x)</c>、それ以上では
+    /// <c>1 + x = m · 2^e</c>（<c>m</c> は <c>(√½, √2]</c>）として <c>s = (m − 1) / (m + 1)</c> とする。
+    /// <c>|s| ≤ 0.1716</c> なので、奇数次の級数を <c>s⁹</c> まで計算すれば float 精度では正確。
     /// </summary>
     public static float Log2OnePlus(float X){
         if(!float.IsFinite(X)){
@@ -55,32 +54,25 @@ public readonly record struct RadialDepthCurve {
     }
 }
 
-/// <summary>
-/// What a radial view handed over as a view-projection matrix (an editor's camera, M0100) needs besides the matrix: its
-/// vertical field of view, clip range and transition length. The matrix stays authoritative for coverage.
-/// </summary>
+/// <summary>放射ビューがビュープロジェクション行列として渡された場合（エディターのカメラ、M0100）、行列以外に必要な情報。垂直視野角、クリップ範囲、遷移距離を保持する。描画範囲の決定には引き続き行列を使う。</summary>
 public readonly record struct RadialViewParameters(float FovYRadians,float NearZ,float FarZ,float TransitionMeters=RadialDepthCurve.DefaultTransitionMeters);
 
 /// <summary>
-/// A conservative radial raster depth <c>max(Limit − Slope / w, 0)</c> (w: view depth): a hyperbola tangent to a radial
-/// view's encoded depth and below it at every distance (ADR-0076), so a radial pixel shader can declare
-/// SV_DepthGreaterEqual and the hardware can still reject hidden fragments early.
+/// 保守的な放射ラスタ深度 <c>max(Limit − Slope / w, 0)</c>（w はビュー深度）。放射ビューの符号化深度に接する双曲線として距離全体でその下側に位置する（ADR-0076）
+/// 。放射ピクセルシェーダーが SV_DepthGreaterEqual を宣言できるため、ハードウェアは隠れたフラグメントを早期に除外できる。
 /// </summary>
 public readonly record struct RadialConservativeDepth(float Limit,float Slope){
-    /// <summary>The raster depth at view depth <paramref name="ViewDepth"/>, clamped at zero like the rasterizer.</summary>
+    /// <summary><paramref name="ViewDepth"/> におけるラスタ深度。ラスタライザーと同様、ゼロで下限処理する。</summary>
     public float At(float ViewDepth)=>MathF.Max(this.Limit-this.Slope/ViewDepth,0f);
 }
 
-/// <summary>
-/// Everything a radial view derives from its camera (M0099): the depth normaliser, the far plane kept per fragment,
-/// the finite view-projection for the passes that invert it, and the observer view's compressed-world radius.
-/// </summary>
+/// <summary>カメラから放射ビューが導出するすべての情報（M0099）。深度正規化係数、フラグメントごとに保持する遠平面、逆行列を使う描画パス用の有限ビュープロジェクション行列、観測者ビュー用の圧縮後ワールド半径を含む。</summary>
 public readonly record struct RadialDepthProjection {
-    /// <summary>The largest float below 1: geometry never reaches the cleared depth, so the sky composite keeps working.</summary>
+    /// <summary>1未満で最大の float。ジオメトリがクリア済み深度に達しないため、空の合成描画を維持できる。</summary>
     public const float MaximumDepth=0.99999994f;
-    /// <summary>Ratio of the auxiliary far plane to its near plane; it keeps the matrix invertible in float.</summary>
+    /// <summary>補助遠平面と近平面の比。float で行列の可逆性を保つ。</summary>
     public const float AuxiliaryDepthRatio=65536f;
-    /// <summary>Lower bound of the auxiliary near plane used to build stable inverse-projection rays.</summary>
+    /// <summary>安定した逆投影レイの生成に使う補助近平面の下限。</summary>
     public const float AuxiliaryNearFloorMeters=0.01f;
     private RadialDepthProjection(RadialDepthCurve Curve,float NearZ,float FarZ,float FrustumCornerDistance){
         this.Curve=Curve;
@@ -93,27 +85,23 @@ public readonly record struct RadialDepthProjection {
     }
     public RadialDepthCurve Curve { get; }
     public float NearZ { get; }
-    /// <summary>The camera's far plane, enforced per fragment because the raster far plane becomes infinite in float.</summary>
+    /// <summary>カメラの遠平面。float ではラスタ遠平面が無限大になるため、フラグメントごとに適用する。</summary>
     public float FarZ { get; }
-    /// <summary>
-    /// The physical view depth beyond which a radial fragment is discarded: <see cref="FarZ"/> plus 1/1024, so rounding
-    /// never removes a fragment that the projection's own far plane kept.
-    /// </summary>
+    /// <summary>放射ビューのフラグメントを破棄する物理ビュー深度。<see cref="FarZ"/> に1/1024を加えた値とし、丸め誤差によって投影行列自身の遠平面が保持したフラグメントまで除去されないようにする。</summary>
     public float FarDiscardDepth=>this.FarZ*(1f+1f/1024f);
-    /// <summary>Distance from the eye to a corner of the far plane: the farthest visible point.</summary>
+    /// <summary>視点から遠平面の角までの距離。表示可能範囲内で最も遠い点を表す。</summary>
     public float FrustumCornerDistance { get; }
-    /// <summary><c>1 / G(FrustumCornerDistance)</c>: depth is <c>G(r)</c> times this.</summary>
+    /// <summary><c>1 / G(FrustumCornerDistance)</c>。深度は <c>G(r)</c> にこの値を掛ける。</summary>
     public float InverseMaximumG { get; }
-    /// <summary>Near plane of the view-projection given to the sky direction, the sun cascades and the AO prepass.</summary>
+    /// <summary>空の方向、太陽カスケード、AO の前処理に渡すビュープロジェクションの近平面。</summary>
     public float AuxiliaryNearZ { get; }
-    /// <summary>Far plane of that view-projection: <c>min(FarZ, AuxiliaryNearZ · 65536)</c>.</summary>
+    /// <summary>そのビュープロジェクションの遠平面。<c>min(FarZ, AuxiliaryNearZ · 65536)</c>。</summary>
     public float AuxiliaryFarZ { get; }
     /// <summary>
-    /// The conservative raster depth tangent to the encoded depth at <paramref name="TangentViewDepth"/> (clamped to the
-    /// view's range; NaN takes the near plane). The hyperbola <c>a − b/w</c> tangent to <c>G(w)/G(rMax)</c> at w0 stays below it for every w > 0:
-    /// their difference has its only minimum, zero, at w0 because <c>w²/(T + w)</c> increases; a 1/4096 margin covers
-    /// rounding. Hidden fragments are rejected early only near the tangent, so the renderer gives each object the tangent
-    /// at its own view depth (M0100).
+    /// <paramref name="TangentViewDepth"/> において符号化深度に接する、保守的なラスタ深度（ビュー範囲に収め、NaN の場合は近平面を使う）。<c>a − b/w</c>
+    /// の双曲線を <c>G(w)/G(rMax)</c> に w0 で接するようにすると、w > 0 のすべての範囲でその下側に留まる。これは <c>w²/(T + w)</c> が単調増加し、2つの式の差
+    /// が w0 で唯一の最小値0を持つためである。丸め誤差をカバーするため1/4096の余裕を加える。隠れたフラグメントは接点の近くでのみ早期に除外するため、レンダラーは各オブジェクトのビュー深度に応じた
+    /// 接点を設定する（M0100）。
     /// </summary>
     public RadialConservativeDepth ConservativeDepthAt(float TangentViewDepth){
         var Tangent=float.IsNaN(TangentViewDepth)?this.NearZ:Math.Clamp(TangentViewDepth,this.NearZ,this.FrustumCornerDistance);
@@ -122,20 +110,19 @@ public readonly record struct RadialDepthProjection {
             (this.Curve.G(Tangent)+Tangent*Slope)*this.InverseMaximumG*(1f-1f/4096f),
             Tangent*Tangent*Slope*this.InverseMaximumG);
     }
-    /// <summary><see cref="CreateAuxiliaryProjection"/> for a view handed over as one perspective view-projection.</summary>
+    /// <summary>透視投影のビュープロジェクション行列1つとして渡されたビューに対する、<see cref="CreateAuxiliaryProjection"/>。</summary>
     public Matrix4x4 CreateAuxiliaryViewProjection(in Matrix4x4 PerspectiveViewProjection){
-        // The same expressions as Matrix4x4.CreatePerspectiveFieldOfView, so an unchanged range rebuilds the given matrix.
+        // Matrix4x4.CreatePerspectiveFieldOfView と同じ式を使い、範囲に変更がなければ渡された行列を再構築する。
         var Range=this.AuxiliaryFarZ/(this.AuxiliaryNearZ-this.AuxiliaryFarZ);
         return WithDepthColumn(PerspectiveViewProjection,Range,Range*this.AuxiliaryNearZ);
     }
-    /// <summary>Whether a view-projection is a perspective one: its W (the view depth) depends on the position.</summary>
+    /// <summary>ビュープロジェクションが透視投影かどうか。W（ビュー深度）が位置に依存するかで判定する。</summary>
     public static bool IsPerspective(in Matrix4x4 ViewProjection)=>
         ViewProjection.M14!=0f||ViewProjection.M24!=0f||ViewProjection.M34!=0f;
     /// <summary>
-    /// Replaces the depth column of a perspective view-projection by <c>M33 · z + M43</c> (z: view-space z). A perspective's
-    /// W is <c>−z</c>, so the view's z column is the negated fourth column and nothing has to be inverted; the products are
-    /// the ones <c>View · Projection</c> forms, so the result equals building the projection with these entries (an
-    /// editor's matrix, M0100).
+    /// 透視投影のビュープロジェクションの深度列を <c>M33 · z + M43</c>（z はビュー空間の z）で置き換える。透視投影の W は <c>−z</c> なので、ビューの z 列は第4列の
+    /// 符号を反転したものになり、逆行列を求める必要はない。この積は <c>View · Projection</c> が構成するものなので、これらの値を持つ投影行列を作った場合と同じ結果になる（エディターの
+    /// 行列、M0100）。
     /// </summary>
     private static Matrix4x4 WithDepthColumn(in Matrix4x4 ViewProjection,float M33,float M43){
         var Result=ViewProjection;
@@ -145,7 +132,7 @@ public readonly record struct RadialDepthProjection {
         Result.M43=-M33*ViewProjection.M44+M43;
         return Result;
     }
-    /// <summary>Radius of the compressed world seen by an observer: <c>T · G(FrustumCornerDistance)</c>.</summary>
+    /// <summary>観測者が見る圧縮後のワールドの半径。<c>T · G(FrustumCornerDistance)</c>。</summary>
     public float ObservedWorldRadius=>this.Curve.Map(this.FrustumCornerDistance);
     public static bool TryCreate(RadialDepthCurve Curve,float NearZ,float FarZ,float FovYRadians,float AspectRatio,out RadialDepthProjection Projection){
         Projection=default;
@@ -161,9 +148,9 @@ public readonly record struct RadialDepthProjection {
         Projection=new RadialDepthProjection(Curve,NearZ,FarZ,Corner);
         return true;
     }
-    /// <summary>The depth written for a fragment at a physical distance from the eye.</summary>
+    /// <summary>視点から物理距離にあるフラグメントに書き込む深度。</summary>
     public float EncodeDepth(float DistanceMeters)=>MathF.Min(this.Curve.G(DistanceMeters)*this.InverseMaximumG,MaximumDepth);
-    /// <summary>A finite perspective with the camera's field of view and the auxiliary near/far planes.</summary>
+    /// <summary>カメラの視野角と補助近平面・遠平面を使う有限の透視投影。</summary>
     public Matrix4x4 CreateAuxiliaryProjection(float FovYRadians,float AspectRatio)=>
         Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians,AspectRatio,this.AuxiliaryNearZ,this.AuxiliaryFarZ);
 }

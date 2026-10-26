@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
-/// <summary>Project-bound icon selection and its isolated Roslyn rewrite contract.</summary>
+/// <summary>プロジェクトに結び付いたアイコン選択と、それを分離した Roslyn 書き換えの契約。</summary>
 public sealed class ComponentIconAuthoringTests {
     [Theory]
     [InlineData("Assets/Icons/cube.svg","Assets/Icons/cube.svg")]

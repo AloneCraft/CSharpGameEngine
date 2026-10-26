@@ -1,9 +1,8 @@
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Diagnostics for scene JSON documents (ADR-0070). They are errors: a scene that cannot be
-/// generated must not build with values silently dropped (user choice, 2026-10-01). Only the
-/// analyzer reports them; the generator runs the same analysis to decide whether it can emit.
+/// Scene JSON ドキュメントの診断情報（ADR-0070）。いずれもエラーとする。生成できない Scene で値を黙って破棄したままビルドしてはならない（2026-10-01のユーザー判断）。
+/// 診断を出すのはアナライザーだけだが、ジェネレーターも同じ解析を行い、出力可能か判断する。
 /// </summary>
 internal static class SceneJsonDiagnostics {
     private const string Category="CSharpGameEngine.Entities.CodeGen";
@@ -42,7 +41,7 @@ internal static class SceneJsonDiagnostics {
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
-    /// <summary>ADR-0070 cutover: a C# scene class is no longer built, so it must not pass silently.</summary>
+    /// <summary>ADR-0070 の切り替え後は C# Scene クラスをビルドしないため、これを黙って通してはならない。</summary>
     internal static readonly DiagnosticDescriptor CSharpSceneNotBuilt=new(
         id:"SCENE206",
         title:"C# scene classes are not built; scenes are JSON documents under Scenes",
@@ -50,10 +49,7 @@ internal static class SceneJsonDiagnostics {
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
-    /// <summary>
-    /// Two scene files declare the same scene class (typically a copied file whose className was kept). Only the first by
-    /// path is built; reported at each later file's className.
-    /// </summary>
+    /// <summary>複数の Scene ファイルが同じ Scene クラス名を宣言している（通常は className を変えずにファイルをコピーした場合）。パス順で最初のファイルだけをビルドし、後続ファイルの className それぞれに診断を出す。</summary>
     internal static readonly DiagnosticDescriptor DuplicateScene=new(
         id:"SCENE207",
         title:"Two scene files declare the same scene class",

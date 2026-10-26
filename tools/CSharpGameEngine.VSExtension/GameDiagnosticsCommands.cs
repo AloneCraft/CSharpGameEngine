@@ -19,12 +19,7 @@ using Process=System.Diagnostics.Process;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// M0097: Extensions &gt; C# Game Engine &gt; Diagnostic Tools (and the same dropdown on the toolbar) call Visual
-/// Studio's own debugger and profiler for a game started as an exe. They replace the removed runtime diagnostics
-/// snapshot. A game started from a build already has the debugger, so attaching offers only the other games.
-/// CPU and .NET allocation measurements run the standard collector (<see cref="VsDiagnosticsCollector"/>); the same
-/// command stops the measurement and opens the report. GPU usage has no collector configuration, so its command
-/// opens the Performance Profiler for the user to pick it.
+/// M0097：Extensions &gt; C# Game Engine &gt; Diagnostic Tools（およびツールバーの同じドロップダウン）から、exe として起動したゲームに対して Visual Studio 自身の debugger と profiler を呼び出します。削除された runtime diagnostics snapshot の代わりです。ビルドから起動したゲームには debugger が接続済みのため、アタッチ先にはほかのゲームだけを表示します。CPU と .NET allocation の計測には標準 collector（<see cref="VsDiagnosticsCollector"/>）を使い、同じコマンドで計測を停止してレポートを開きます。GPU usage には collector の設定がないため、コマンドは Performance Profiler を開き、使用する項目はユーザーが選びます。
 /// </summary>
 internal sealed class GameDiagnosticsCommands {
     public const int AttachDebuggerCommandId=0x0133;
@@ -34,9 +29,7 @@ internal sealed class GameDiagnosticsCommands {
     public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
     private const int CollectorTimeoutMilliseconds=60_000;
     /// <summary>
-    /// The debug engine for a game: managed .NET (CoreCLR). Adding the native engine made Visual Studio stop responding
-    /// for more than ten minutes when attaching to an engine process (measured in Visual Studio 18), so native debugging
-    /// of D3D12 or XAudio2 stays with Visual Studio's own Attach to Process dialog.
+    /// ゲーム用の debug engine は managed .NET（CoreCLR）です。Visual Studio 18 で engine に native engine を追加すると、engine プロセスへのアタッチ時に10分以上応答しなくなったため、D3D12 または XAudio2 の native debugging は Visual Studio 自身の Attach to Process ダイアログで行います。
     /// </summary>
     private static readonly string[]AttachEngineIds=["{2E36F1D4-B23C-435D-AB41-18E608940038}"];
 
@@ -66,7 +59,7 @@ internal sealed class GameDiagnosticsCommands {
                     ThreadHelper.ThrowIfNotOnUIThread();
                     bool Measuring=this.Active?.Kind==Kind;
                     Command.Text=VsixText.Get(Measuring?"Diagnostics_StopMeasuring":IdleTextKey);
-                    // One measurement at a time; the other measuring command waits for it.
+                    // 計測は一度に1つだけ実行し、もう一方の計測コマンドは完了を待ちます。
                     Command.Enabled=this.Active is null||Measuring;
                 };
             }
@@ -101,7 +94,7 @@ internal sealed class GameDiagnosticsCommands {
         _=this.Package.JoinableTaskFactory.RunAsync(()=>this.StartAsync(Dte,Kind,Game));
     }
 
-    /// <summary>The running game the user picks; null when there is none or the user cancels.</summary>
+    /// <summary>ユーザーが選択する実行中のゲーム。該当がない場合、またはユーザーがキャンセルした場合は null です。</summary>
     private GameProcessInfo?ChooseGame(DTE2 Dte,GameDiagnosticsKind Kind){
         ThreadHelper.ThrowIfNotOnUIThread();
         IReadOnlyList<CgeProjectContext>Projects=CgeProjectContext.FindAll(out _);
@@ -142,7 +135,7 @@ internal sealed class GameDiagnosticsCommands {
         }
     }
 
-    /// <summary>A small modal list of the candidates; one candidate is still shown, so the user confirms the target.</summary>
+    /// <summary>候補を表示する小さなモーダルリスト。候補が1つだけの場合も表示し、ユーザーが対象を確定します。</summary>
     private static GameProcessInfo?Pick(IReadOnlyList<GameProcessInfo>Candidates,string Action){
         ThreadHelper.ThrowIfNotOnUIThread();
         ListBox List=new(){ MinHeight=80,MaxHeight=240,Margin=new Thickness(0,6,0,10) };
@@ -185,8 +178,8 @@ internal sealed class GameDiagnosticsCommands {
                 this.ShowMessage(VsixText.Format("Diagnostics_AttachFailed",Game.Name,VsixText.Get("Diagnostics_ProcessGone")),OLEMSGICON.OLEMSGICON_WARNING);
                 return;
             }
-            // Engines are matched by id, because their names are localized, and found through the process's own
-            // transport, because Transports.Item("Default") is not a valid index (both measured in Visual Studio 18).
+            // engine は名前がローカライズされるため ID で照合し、プロセス自身の
+            // transport 経由で検出します。Transports.Item("Default") は有効な index ではありません（いずれも Visual Studio 18 で計測）。
             List<string>Engines=[];
             foreach(Engine Engine in Target.Transport.Engines){
                 if(AttachEngineIds.Contains(Engine.ID,StringComparer.OrdinalIgnoreCase)){ Engines.Add(Engine.ID); }
@@ -253,7 +246,7 @@ internal sealed class GameDiagnosticsCommands {
         this.SetStatus(VsixText.Format(GameExited?"Diagnostics_MeasuringStoppedOnExit":"Diagnostics_MeasuringStopped",Measuring.Output));
     }
 
-    /// <summary>Runs the collector off the UI thread and returns its exit code and output.</summary>
+    /// <summary>UI スレッド外で collector を実行し、終了コードと出力を返します。</summary>
     private static async Task<(int ExitCode,string Text)>RunCollectorAsync(string Collector,string Arguments){
         await TaskScheduler.Default;
         ProcessStartInfo Start=new(Collector,Arguments){
@@ -279,7 +272,7 @@ internal sealed class GameDiagnosticsCommands {
     private void OpenPerformanceProfiler(DTE2 Dte){
         ThreadHelper.ThrowIfNotOnUIThread();
         try {
-            // The Performance Profiler (Alt+F2). "Debug.PerformanceProfiler" does not exist in Visual Studio 18 (measured).
+            // Performance Profiler（Alt+F2）。Visual Studio 18 には "Debug.PerformanceProfiler" がありません（実測）。
             Dte.ExecuteCommand("Debug.DiagnosticsHub.Launch");
             this.ShowMessage(VsixText.Get("Diagnostics_GpuGuide"),OLEMSGICON.OLEMSGICON_INFO);
         } catch(Exception Error) when(Error is System.Runtime.InteropServices.COMException or ArgumentException){

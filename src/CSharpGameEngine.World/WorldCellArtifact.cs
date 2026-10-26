@@ -23,7 +23,7 @@ public readonly record struct WorldCellArtifactError(
     public static WorldCellArtifactError None=>new(WorldCellArtifactErrorCode.None,string.Empty,string.Empty);
 }
 
-/// <summary>Bakes and reads the canonical payload inside a WorldCell content artifact.</summary>
+/// <summary>WorldCellコンテンツアーティファクト内の正規ペイロードをベイクして読み込む。</summary>
 public static class WorldCellArtifactCodec {
     private const uint Magic=0x43574743;
     private const ushort SchemaVersion=1;

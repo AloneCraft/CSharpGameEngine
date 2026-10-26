@@ -2,9 +2,9 @@ using System.Numerics;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: the real Mannequin assets the templates ship. Every clip of BS_Idle_Walk_Run binds to the skeleton; the skeleton has the joints the foot IK
-/// and the first-person arms name; and its rest pose in model space is the one the UE control rigs were authored against (head at 162.6 cm, upper arms at
-/// ±19 cm), so their numbers carry over.
+/// ADR-0078/M0107：テンプレートに同梱される、実際のマネキンアセット。BS_Idle_Walk_Runのすべてのクリップがこのスケルトンにバインドされる。
+/// スケルトンは足IKと一人称腕が参照するジョイントを持つ。モデル空間でのレスト姿勢はUEのControl Rigの作成時と同じ
+///（頭の高さ162.6 cm、上腕の間隔±19 cm）なので、数値をそのまま引き継げる。
 /// </summary>
 public sealed class MannequinAssetTests {
     private static string RepositoryRoot(){
@@ -33,7 +33,7 @@ public sealed class MannequinAssetTests {
     }
     [Fact]
     public void TheMannequinsRestPoseIsInUnrealsControlRigFrame(){
-        // The importer reflects glTF's Z (the engine axes are left-handed): UE cm (x, y, z) of the mesh component become model-space metres (x, z, -y) / 100.
+        // インポーターはglTFのZを反射する（エンジンの座標軸は左手系）。UEのセンチメートル単位のメッシュコンポーネント座標(x, y, z)は、モデル空間のメートル(x, z, -y) / 100になる。
         var Skeleton=SkeletonOf("TopDown","SKM_Manny_Simple.glb");
         var Model=new Matrix4x4[Skeleton.JointCount];
         Skeleton.ComputeModel(Skeleton.Rest,Model);
@@ -47,9 +47,9 @@ public sealed class MannequinAssetTests {
         }
     }
     /// <summary>
-    /// The clips are in place, so the way each one travels is read from its feet: a foot on the ground moves backward relative to the pelvis. In the scene (the mesh node is
-    /// turned half a turn about up) a clip named for an angle (0 forward, positive toward the Right clips) must travel that way; this is the fact the sign of
-    /// <see cref="CSharpGameEngine.Runtime.Character.LocomotionObserver.CalculateDirection"/> stands on.
+    /// クリップをそのまま使うため、各クリップの移動方向は足の動きから読み取る。接地した足は骨盤に対して後ろへ動く。
+    /// シーン内ではメッシュノードを上軸まわりに半回転させるため、角度で名前を付けたクリップ（前方が0、Rightクリップ側が正）はその方向へ移動する。
+    /// <see cref="CSharpGameEngine.Runtime.Character.LocomotionObserver.CalculateDirection"/>の符号は、この事実に基づく。
     /// </summary>
     [Theory]
     [InlineData("MF_Unarmed_Walk_Fwd",0f)]
@@ -83,11 +83,11 @@ public sealed class MannequinAssetTests {
         for(var Step=1;Step<=Steps;Step++){
             var Next=Feet(Step%Steps);
             var Stance=Previous[0].Y<Previous[1].Y?0:1;
-            // The body travels opposite to the stance foot's motion relative to the pelvis.
+            // ボディは、骨盤に対する立脚側の足の動きと反対方向へ進む。
             Sum-=Next[Stance]-Previous[Stance];
             Previous=Next;
         }
-        // Model space to the scene: the mesh node is turned half a turn about up.
+        // モデル空間からシーン空間への変換：メッシュノードを上軸まわりに半回転させる。
         var R=-Sum.X;
         var F=-Sum.Z;
         Assert.True(MathF.Sqrt((R*R)+(F*F))>1e-3f,Name);
@@ -95,7 +95,7 @@ public sealed class MannequinAssetTests {
         var Difference=MathF.Abs(((Degrees-ExpectedDegrees+540f)%360f)-180f);
         Assert.True(Difference<15f,$"{Name} travels {Degrees:0}° but is named for {ExpectedDegrees:0}°.");
     }
-    /// <summary>The body's pose at <paramref name="Seconds"/> of <paramref name="Name"/> (a clip of the TopDown template's Mannequin).</summary>
+    /// <summary><paramref name="Name"/>クリップ（TopDownテンプレートのマネキン）の<paramref name="Seconds"/>時点におけるボディ姿勢。</summary>
     private static (Skeleton Skeleton,JointPose[]Pose)Posed(string Name,float Seconds){
         var Skeleton=SkeletonOf("TopDown","SKM_Manny_Simple.glb");
         var Clip=SkeletalAssetCache.Clip(Asset("TopDown",Path.Combine("Anims",Name+".glb")),Skeleton);
@@ -110,7 +110,7 @@ public sealed class MannequinAssetTests {
     }
     [Fact]
     public void TheFirstPersonWarpPutsTheHeadAndUpperArmsOnTheirControlsAndTheHandsFollow(){
-        // Walking: the animated head sways and the shoulders swing, which is what the warp takes out.
+        // 歩行中は頭が揺れ、肩が振れる。これらはWarpで除去する対象。
         var (Skeleton,Pose)=Posed("MF_Unarmed_Walk_Fwd",0.4f);
         var Before=ModelOf(Skeleton,Pose);
         var Rest=ModelOf(Skeleton,Skeleton.Rest);
@@ -124,7 +124,7 @@ public sealed class MannequinAssetTests {
         Assert.True(Vector3.Distance(Vector3.TransformNormal(Vector3.UnitY,After[Joint("head")]),Vector3.TransformNormal(Vector3.UnitY,Rest[Joint("head")]))<1e-3f);
         foreach(var Name in new[] { "upperarm_l","upperarm_r" }){
             Assert.True(Vector3.Distance(After[Joint(Name)].Translation,Rest[Joint(Name)].Translation)<1e-4f,Name);
-            // The upper arm keeps its animated orientation and the forearm and hand are carried rigidly with it.
+            // 上腕はアニメーションの向きを維持し、前腕と手は上腕に固定して追従する。
             Assert.True(Vector3.Distance(Vector3.TransformNormal(Vector3.UnitX,After[Joint(Name)]),Vector3.TransformNormal(Vector3.UnitX,Before[Joint(Name)]))<1e-3f,Name);
         }
         foreach(var Side in new[] { "l","r" }){
@@ -132,7 +132,7 @@ public sealed class MannequinAssetTests {
             var HandAfter=After[Joint("hand_"+Side)].Translation-After[Joint("upperarm_"+Side)].Translation;
             Assert.True(Vector3.Distance(HandBefore,HandAfter)<1e-3f,Side);
         }
-        // Everything the warp does not name is exactly as it was: the legs, and the spine at weight 0.
+        // Warpの指定対象以外は完全に元のまま。脚と、重み0の脊椎を維持する。
         foreach(var Name in new[] { "pelvis","thigh_l","calf_r","foot_l","spine_02","spine_04" }){
             Assert.Equal(Pose[Joint(Name)].Rotation,Warped[Joint(Name)].Rotation);
             Assert.Equal(Pose[Joint(Name)].Translation,Warped[Joint(Name)].Translation);
@@ -150,17 +150,17 @@ public sealed class MannequinAssetTests {
         Rig.Apply(Warped,new Matrix4x4[Skeleton.JointCount]);
         var After=ModelOf(Skeleton,Warped);
         var Chain=new[] { "spine_01","spine_02","spine_03","spine_04" };
-        // The first spine joint is the root of the chain and stays; the end of it comes nearer the offset; no bone changes length.
+        // 最初の脊椎ジョイントはチェーンのルートとして維持する。先端はオフセット位置へ近づくが、ボーンの長さは変わらない。
         Assert.True(Vector3.Distance(Before[Joint("spine_01")].Translation,After[Joint("spine_01")].Translation)<1e-5f);
         Assert.True(Vector3.Distance(After[Joint("spine_04")].Translation,Offset)<Vector3.Distance(Before[Joint("spine_04")].Translation,Offset)-0.01f);
         for(var Index=0;Index<Chain.Length-1;Index++){
             Assert.Equal(Vector3.Distance(Before[Joint(Chain[Index])].Translation,Before[Joint(Chain[Index+1])].Translation),Vector3.Distance(After[Joint(Chain[Index])].Translation,After[Joint(Chain[Index+1])].Translation),3);
         }
-        // Half of the way for the end of the chain (the solved chain has the same lengths, so the blend is not exactly half; it is close).
+        // チェーン先端までの半分。解決後のチェーンは同じ長さを保つため、ブレンドは厳密には半分でないが近い値となる。
         var Moved=Vector3.Distance(Before[Joint("spine_04")].Translation,After[Joint("spine_04")].Translation);
         var Full=Vector3.Distance(Before[Joint("spine_04")].Translation,Offset);
         Assert.InRange(Moved,Full*0.3f,Full*0.7f);
-        // The warp changes joints that are below the chest, not the legs.
+        // Warpは脚ではなく、胸より下にあるジョイントを変更する。
         Assert.Equal(Pose[Joint("thigh_l")].Rotation,Warped[Joint("thigh_l")].Rotation);
     }
     [Fact]
@@ -197,7 +197,7 @@ public sealed class MannequinAssetTests {
         var Before=ModelOf(Skeleton,Pose);
         int Joint(string Name)=>Skeleton.IndexOf(Name);
         var Ik=new FootIkPose(Skeleton,new FootIk());
-        // The left foot's ground is 8 cm lower than the mesh origin, the right foot's is 2 cm higher.
+        // 左足の地面はメッシュ原点より8 cm低く、右足は2 cm高い。
         Ik.Update(0.05f,true,-0.08f,0.02f);
         var Solved=Pose.ToArray();
         Ik.Apply(Solved,new Matrix4x4[Skeleton.JointCount]);
@@ -206,11 +206,11 @@ public sealed class MannequinAssetTests {
         Assert.Equal(Before[Joint("pelvis")].Translation.Y-0.08f,After[Joint("pelvis")].Translation.Y,3);
         Assert.Equal(Before[Joint("foot_l")].Translation.Y-0.08f,After[Joint("foot_l")].Translation.Y,3);
         Assert.Equal(Before[Joint("foot_r")].Translation.Y+0.02f,After[Joint("foot_r")].Translation.Y,3);
-        // The feet stay where they were on the ground plane, and keep the animated orientation.
+        // 足は地面上の位置を保ち、アニメーションの向きも維持する。
         Assert.Equal(Before[Joint("foot_l")].Translation.X,After[Joint("foot_l")].Translation.X,3);
         Assert.Equal(Before[Joint("foot_r")].Translation.Z,After[Joint("foot_r")].Translation.Z,3);
         Assert.True(Vector3.Distance(Vector3.TransformNormal(Vector3.UnitX,Before[Joint("foot_l")]),Vector3.TransformNormal(Vector3.UnitX,After[Joint("foot_l")]))<2e-3f);
-        // The limbs keep their lengths, and the knees still bend toward the toes' side.
+        // 四肢の長さを保ち、膝は引き続きつま先側へ曲がる。
         foreach(var Side in new[] { "l","r" }){
             Assert.Equal(Vector3.Distance(Before[Joint("thigh_"+Side)].Translation,Before[Joint("calf_"+Side)].Translation),Vector3.Distance(After[Joint("thigh_"+Side)].Translation,After[Joint("calf_"+Side)].Translation),3);
             var Forward=Before[Joint("ball_"+Side)].Translation-Before[Joint("foot_"+Side)].Translation;

@@ -3,8 +3,8 @@ using CSharpGameEngine.Graphics.D3D12.Tests;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Platform.Windows.Tests;
 /// <summary>
-/// The game window takes no text, so it has no input method: with an IME open (a Japanese one in hiragana mode), keys
-/// the IME processes reach the window as VK_PROCESSKEY instead of their own key, and W/A/S/D did not move the character.
+/// ゲームウィンドウはテキストを扱わず、入力メソッドも持たない。IME（ひらがな入力モードの日本語IMEなど）が有効だと、IMEが処理するキーは
+/// 元のキーではなくVK_PROCESSKEYとしてウィンドウへ届き、W／A／S／Dでもキャラクターが動かなかった。
 /// </summary>
 public sealed partial class Win32WindowImeTests {
     [LibraryImport("imm32.dll")]

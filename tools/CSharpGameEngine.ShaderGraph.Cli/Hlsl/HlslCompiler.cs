@@ -10,7 +10,7 @@ using static TerraFX.Interop.Windows.Windows;
 
 namespace CSharpGameEngine.Compiler.Hlsl;
 
-/// <summary>Compiles a single HLSL entry point to DXIL bytecode using DXC (DirectXShaderCompiler).</summary>
+/// <summary>DXC (DirectXShaderCompiler) で、単一の HLSL エントリポイントを DXIL バイトコードにコンパイルする。</summary>
 public static class HlslCompiler {
     private static readonly Regex DiagnosticLinePattern=new(
         @"^(?<file>[^:\r\n]+):(?<line>\d+):(?<column>\d+):\s*(?<severity>error|warning|note)\s*:\s*(?<message>.*)$",

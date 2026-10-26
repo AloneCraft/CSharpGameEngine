@@ -3,34 +3,30 @@ using System.Numerics;
 namespace CSharpGameEngine.Rendering;
 
 /// <summary>
-/// One vertex of the screen layer (ADR-0078/M0104): the game's UI drawn over the finished frame, after tone mapping, in the pixels of the
-/// render surface. <see cref="Position"/> has its origin at the top-left corner and +Y pointing down. <see cref="Color"/> is straight
-/// (not premultiplied) sRGB RGBA, written as it is because the surface holds sRGB-encoded values.
+/// スクリーンレイヤーの頂点1つ（ADR-0078/M0104）。トーンマッピング後に描画するゲーム UI を、描画面のピクセル座標で表す。<see cref="Position"/> の原点は左上で、+
+/// Y は下向き。<see cref="Color"/> はアルファ乗算前の sRGB RGBA であり、面の値が sRGB 符号化済みなのでそのまま書き込む。
 /// </summary>
 public readonly record struct RenderScreenVertex(Vector2 Position,Vector2 Uv,Vector4 Color);
 
-/// <summary>How a batch's texture becomes coverage.</summary>
+/// <summary>バッチのテクスチャを被覆率に変換する方法。</summary>
 public enum RenderScreenShading:byte {
-    /// <summary>The texel is the color: <c>texture × vertex color</c> (images, solid quads with the white texture).</summary>
+    /// <summary>テクセルがそのまま色になる。<c>texture × vertex color</c>（画像や、白テクスチャを使う単色四角形）。</summary>
     Image=0,
-    /// <summary>The texture's alpha is a signed distance (0.5 on the outline, larger inside): glyphs of any size from one atlas.</summary>
+    /// <summary>テクスチャのアルファ値は符号付き距離を表す（輪郭で0.5、内側ほど大きい）。1つのアトラスから任意サイズのグリフを描画する。</summary>
     DistanceField=1,
 }
 
-/// <summary>
-/// A run of triangles drawn with one texture. Vertices form complete triangles; batches are drawn in array order, so a later batch
-/// covers an earlier one.
-/// </summary>
+/// <summary>単一のテクスチャを使って描画する三角形の連続範囲。頂点は完全な三角形を構成する。バッチは配列順に描画するため、後のバッチが前のバッチを覆う。</summary>
 public readonly record struct RenderScreenBatch(RenderTextureResource Texture,RenderScreenShading Shading,int FirstVertex,int VertexCount);
 
-/// <summary>The limits and the checks of the screen layer, shared by the renderer and the code that builds a layer.</summary>
+/// <summary>スクリーンレイヤーの上限と検査条件。レンダラーとレイヤー構築コードで共有する。</summary>
 public static class RenderScreenLayer {
-    /// <summary>Vertices per frame (4096 quads of two triangles).</summary>
+    /// <summary>1フレームあたりの頂点数（4096個の四角形、各2三角形）。</summary>
     public const int MaximumVertices=24_576;
-    /// <summary>Batches per frame, and so the textures a frame can use.</summary>
+    /// <summary>1フレームあたりのバッチ数。フレームで使用できるテクスチャ数も決まる。</summary>
     public const int MaximumBatches=32;
 
-    /// <summary>Throws <see cref="ArgumentException"/> unless the layer is a valid one (finite values, complete triangles, in-range batches).</summary>
+    /// <summary>レイヤーが有効な形式（有限値、完全な三角形、範囲内のバッチ）でなければ <see cref="ArgumentException"/> をスローする。</summary>
     public static void Validate(ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches){
         if(Vertices.Length>MaximumVertices){
             throw new ArgumentException($"The screen layer exceeds {MaximumVertices} vertices.",nameof(Vertices));

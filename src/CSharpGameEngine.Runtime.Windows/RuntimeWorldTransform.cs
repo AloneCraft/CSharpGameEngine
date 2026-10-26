@@ -6,10 +6,7 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-/// <summary>
-/// The camera-relative half of the fixed-point world transform, which needs the host's camera and frames. The world
-/// resolution itself is portable and lives with the resolver (Entities' FixedTransform.cs, M0096 G).
-/// </summary>
+/// <summary>固定小数点ワールド変換のうち、カメラと座標枠を必要とするカメラ相対部分。ワールド変換自体の解決処理は移植可能であり、リゾルバーとともに置く（Entities の FixedTransform.cs、M0096 G）。</summary>
 internal static partial class RuntimeWorldTransform {
     public static FixedTransformStatus TryToCameraRelativeMatrix(
         in FixedAffineTransform ObjectWorld,ReferenceFrameId ObjectFrame,
@@ -22,10 +19,7 @@ internal static partial class RuntimeWorldTransform {
         }
         return FixedAffineTransform.FromLogical(ObjectInCameraFrame).TryToCameraRelativeMatrix(CameraWorld,out Matrix);
     }
-    /// <summary>
-    /// Resolves an entity's complete fixed world transform, subtracts the complete fixed camera
-    /// world origin, then converts the relative affine matrix to float exactly once.
-    /// </summary>
+    /// <summary>Entity の固定小数点による完全なワールド変換を解決し、完全な固定小数点カメラワールド原点を差し引いた後、相対アフィン行列を一度だけ float に変換する。</summary>
     public static FixedTransformStatus TryGetCameraRelativeMatrix(
         Entity Entity,EcsWorld EcsWorld,EngineHost Host,
         out Matrix4x4 Matrix,

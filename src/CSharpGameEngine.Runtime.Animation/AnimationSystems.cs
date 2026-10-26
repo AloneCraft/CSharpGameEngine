@@ -1,7 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Animation;
-/// <summary>Loads each SkeletalMesh's skeleton and starts it in the bind pose (identity palette).</summary>
+/// <summary>各 SkeletalMesh のスケルトンを読み込み、単位パレットのバインド姿勢で開始する。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 internal struct SkeletalMeshSetup:ISystem {
     public void Update(ref SkeletalMesh Mesh,ref SkeletalMeshRuntime Runtime,ref State State){
@@ -15,19 +15,16 @@ internal struct SkeletalMeshSetup:ISystem {
             Runtime.Skeleton=Skeleton;
         }
         catch(Exception Ex) when(Ex is InvalidDataException or IOException or ArgumentException or UnauthorizedAccessException){
-            // A broken asset is reported on the component; the mesh keeps drawing its bind pose.
+            // アセットが破損していればコンポーネントに報告し、メッシュはバインド姿勢で描画し続ける。
             Runtime.Error=Ex.Message;
         }
     }
 }
-/// <summary>
-/// Evaluates <see cref="Locomotion"/> once per presented frame on wall-clock time and writes
-/// the skinning palette. Presentation data: the pose never feeds back into the simulation.
-/// </summary>
+/// <summary>表示フレームごとに壁時計の時間で <see cref="Locomotion"/> を1回評価し、スキニングパレットを書き込む。プレゼンテーション用データであり、姿勢がシミュレーションへ反映されることはない。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(SkeletalMeshSetup))]
 internal struct LocomotionAnimation:ISystem {
-    /// <summary>Longest step one frame may advance the animation, so a hitch does not skip whole states.</summary>
+    /// <summary>1フレームでアニメーションを進める最大ステップ幅。処理落ちしても状態全体を飛ばさないようにする。</summary>
     private const float MaximumDeltaSeconds=0.1f;
     public void Update(ref SkeletalMeshRuntime Mesh,ref Locomotion Animator,ref LocomotionRuntime Runtime,ref State State){
         if(Mesh.Skeleton is not{ }Skeleton||Mesh.Palette is null||Mesh.Model is null||Runtime.Error is not null){

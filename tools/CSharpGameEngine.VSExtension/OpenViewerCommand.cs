@@ -8,10 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Extensions > C# Game Engine menu command that launches the existing, already-verified
-/// <c>CSharpGameEngine.Extension</c> viewer as a separate top-level window (ADR-0006). Contains no
-/// rendering/engine logic itself. See <see cref="ShowViewerToolWindowCommand"/>/
-/// <see cref="ViewerHwndHost"/> (ADR-0007) for the embedded-in-VS alternative.
+/// 既存の、検証済みの <c>CSharpGameEngine.Extension</c> viewer を独立したトップレベルウィンドウとして起動する Extensions &gt; C# Game Engine メニューコマンド（ADR-0006）。このクラス自体はレンダリングやエンジンのロジックを含みません。Visual Studio 内に埋め込む代替方式については <see cref="ShowViewerToolWindowCommand"/>/<see cref="ViewerHwndHost"/>（ADR-0007）を参照してください。
 /// </summary>
 internal sealed class OpenViewerCommand {
     public const int CommandId=0x0100;

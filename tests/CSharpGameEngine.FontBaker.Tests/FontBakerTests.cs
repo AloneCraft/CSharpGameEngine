@@ -3,7 +3,7 @@ using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.FontBaker.Tests;
 
-/// <summary>ADR-0078/M0104: the font baker's distance transform, packing and encoding, and one bake of a Windows font.</summary>
+/// <summary>ADR-0078/M0104：フォントベイカーの距離変換、パッキング、エンコード、および Windows フォントを使った 1 回のベイク。</summary>
 public sealed class FontBakerTests {
     private static float[]BruteForce(bool[]Set,int Width,int Height){
         float[]Result=new float[Set.Length];
@@ -53,7 +53,7 @@ public sealed class FontBakerTests {
 
     [Fact]
     public void Signed_IsPositiveInsideNegativeOutsideAndAHalfPixelAtTheOutline(){
-        // An 8 x 4 image whose left half (4 columns) is inside.
+        // 左半分（4 列）が内側にある 8 x 4 画像。
         bool[]Inside=new bool[8*4];
         for(int Y=0;Y<4;Y++){ for(int X=0;X<4;X++){ Inside[(Y*8)+X]=true; } }
 
@@ -80,7 +80,7 @@ public sealed class FontBakerTests {
 
     [Fact]
     public void ToCell_ADiscIsHighInsideLowOutsideAndHalfAtItsEdge(){
-        // A disc of radius 24 in a 64 x 64 mask, brought down by 4 to a 16 x 16 cell with a spread of 4 cell pixels (6 pixels radius).
+        // 64 x 64 マスク内で半径 24 の円盤を 4 分の 1 に縮小し、スプレッドをセル内 4 ピクセル（半径 6 ピクセル）として 16 x 16 セルに収める。
         bool[]Inside=new bool[64*64];
         for(int Y=0;Y<64;Y++){
             for(int X=0;X<64;X++){
@@ -96,11 +96,11 @@ public sealed class FontBakerTests {
         Assert.Equal(16,Height);
         Assert.True(Cell[(8*16)+8]>=250,"the centre is deep inside");
         Assert.True(Cell[0]<=5,"the corner is far outside");
-        // The disc's edge is 6 cell pixels from the centre (cell coordinate 8), between pixels 13 and 14. Pixel 13's centre (13.5) is half a pixel
-        // inside: 0.5 + 0.5/8 of the range, about 143. Pixel 14's centre is half a pixel outside: about 112.
+        // 円盤の縁は中心（セル座標 8）からセル内 6 ピクセルの位置にあり、ピクセル 13 と 14 の間にある。ピクセル 13 の中心 (13.5) は半ピクセル
+        // 内側：範囲の 0.5 + 0.5/8、約 143。ピクセル 14 の中心は半ピクセル外側で、約 112。
         Assert.InRange(Cell[(8*16)+13],138,148);
         Assert.InRange(Cell[(8*16)+14],107,117);
-        // Symmetric about the centre: pixel k mirrors pixel 15 - k.
+        // 中心に対して対称：ピクセル k はピクセル 15 - k と鏡像になる。
         Assert.InRange(Math.Abs(Cell[(8*16)+2]-Cell[(8*16)+13]),0,6);
         Assert.InRange(Math.Abs(Cell[(8*16)+1]-Cell[(8*16)+14]),0,6);
     }
@@ -148,14 +148,14 @@ public sealed class FontBakerTests {
         Assert.InRange(Space.Advance,0.2f,0.35f);
         Assert.True(Read.TryGetGlyph('I',out FontGlyph I));
         Assert.True(I.HasQuad);
-        // The vertical bar's stem is inside the glyph: the centre of its cell is above the outline value; the cell's corner is outside it.
+        // 縦棒のステムはグリフの内側にある。セルの中心はアウトライン値より上にあり、セルの角はその外側にある。
         int Left=(int)MathF.Round(I.U0*Read.AtlasWidth);
         int Top=(int)MathF.Round(I.V0*Read.AtlasHeight);
         int Right=(int)MathF.Round(I.U1*Read.AtlasWidth);
         int Bottom=(int)MathF.Round(I.V1*Read.AtlasHeight);
         Assert.True(Read.Distance[(((Top+Bottom)/2)*Read.AtlasWidth)+((Left+Right)/2)]>140,"the stem's centre is inside");
         Assert.True(Read.Distance[(Top*Read.AtlasWidth)+Left]<100,"the cell's corner is outside");
-        // The glyph's quad starts below the cap height above the baseline and ends on or below it.
+        // グリフの四角形は、ベースラインより上にあるキャップハイトより下から始まり、ベースライン上またはそれより下で終わる。
         Assert.InRange(I.PlaneTop,0.6f,1.0f);
         Assert.True(I.PlaneBottom<=0f);
         Assert.True(Read.TryGetGlyph('A',out FontGlyph A));

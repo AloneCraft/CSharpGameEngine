@@ -5,7 +5,7 @@ using Xunit;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
-/// <summary>ADR-0065: the editor finds its game project without assuming the engine repository.</summary>
+/// <summary>ADR-0065：エディターは、エンジンリポジトリを前提とせずにゲームプロジェクトを見つける。</summary>
 public sealed class CgeProjectContextTests:IDisposable {
     private readonly string Root=Path.Combine(Path.GetTempPath(),"cge-context-"+Guid.NewGuid().ToString("N"));
 

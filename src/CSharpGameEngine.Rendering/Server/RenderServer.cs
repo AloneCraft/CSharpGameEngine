@@ -6,13 +6,13 @@ using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Rendering.Server;
 
-/// <summary>Owns submitted frame state, roster artifacts and device-generation recovery.</summary>
+/// <summary>送信済みフレーム状態、名簿アーティファクト、デバイス世代の回復処理を所有する。</summary>
 public sealed class RenderServer:IDisposable {
     private static readonly StableId RecoveryArtifactNamespace=
         StableId.Parse("ef11e972-e4bd-5127-82a4-7f52175f9d48");
     private readonly IStageRenderBackendFactory Factory;
-    // The roster the renderer is rebuilt from after a device loss. It starts as the one given to Create and grows with AddMesh,
-    // AddMaterial and AddObject; a removed object keeps its slot, marked Removed, so every index stays what the caller holds (M0105).
+    // デバイス消失後にレンダラーを再構築するための名簿。Create に渡された初期値から始まり、AddMesh、
+    // AddMaterial、AddObject で増える。削除済みオブジェクトもスロットを保持し、Removed として印を付けるため、呼び出し側が保持するすべてのインデックスは変わらない（M0105）。
     private readonly List<StageMeshCreateInfo>Meshes;
     private readonly List<StageMaterialCreateInfo>Materials;
     private readonly List<StageObjectCreateInfo>Objects;
@@ -65,27 +65,24 @@ public sealed class RenderServer:IDisposable {
     public int ResidentMaterialTextureCount=>this.Backend.ResidentMaterialTextureCount;
     public int ResidentScreenTextureCount=>this.Backend.ResidentScreenTextureCount;
     public PixelReadbackResult?LastCapturedFrame=>this.Backend.LastCapturedFrame;
-    /// <summary>
-    /// Canonical L4 declaration for the configured compatibility pipeline. The backend remains the execution oracle, so tooling must present this as a declared plan
-    /// rather than per-pass execution evidence.
-    /// </summary>
+    /// <summary>設定済み互換パイプラインに対する、正準形式の L4 宣言。実行結果の正解基準は引き続きバックエンドが持つため、ツールはパスごとの実行証拠ではなく、宣言された計画として表示する。</summary>
     public RenderQualityPlan DeclaredQualityPlan=>this.DeclaredQualityPlanValue;
     public int SurfaceWidth=>this.Width;
     public int SurfaceHeight=>this.Height;
-    /// <summary>The meshes the renderer holds, created and added ones alike. A mesh index is valid for the life of the server.</summary>
+    /// <summary>作成時または追加時にレンダラーが保持するすべてのメッシュ。メッシュのインデックスはサーバーの存続中有効。</summary>
     public int MeshCount=>this.Meshes.Count;
-    /// <summary>The materials the renderer holds, created and added ones alike.</summary>
+    /// <summary>作成時または追加時にレンダラーが保持するすべてのマテリアル。</summary>
     public int MaterialCount=>this.Materials.Count;
-    /// <summary>How many more materials <see cref="AddMaterial"/> accepts.</summary>
+    /// <summary><see cref="AddMaterial"/> がさらに受け付けられるマテリアル数。</summary>
     public int FreeMaterialSlots=>this.Backend.FreeMaterialSlots;
-    /// <summary>The objects drawn now (not counting removed ones).</summary>
+    /// <summary>現在描画中のオブジェクト数（削除済みのものは含めない）。</summary>
     public int ActiveObjectCount=>this.Backend.ActiveObjectCount;
-    /// <summary>Meshes with a distance field, and objects in the global distance field at the last frame (ADR-0078/M0110).</summary>
+    /// <summary>距離場を持つメッシュと、前フレームのグローバル距離場に含まれていたオブジェクト（ADR-0078/M0110）。</summary>
     public int DistanceFieldMeshCount=>this.Backend.DistanceFieldMeshCount;
     public int DistanceFieldObjectCount=>this.Backend.DistanceFieldObjectCount;
     /// <summary>
-    /// The adapter-level quality of the dynamic lighting (ADR-0078/M0111): Lumen's GI and reflections run at High and Epic. The default is the
-    /// adapter's (<see cref="RenderScalability.DefaultFor"/>); a value set here survives device recovery.
+    /// 動的ライティングのアダプター側品質（ADR-0078/M0111）。Lumen GI と反射は High または Epic で動作する。既定値はアダプターの値（
+    /// <see cref="RenderScalability.DefaultFor"/>）。ここで設定した値はデバイス回復後も保持する。
     /// </summary>
     public RenderScalability Scalability{
         get=>this.ScalabilityValue??this.Backend.Scalability;
@@ -95,7 +92,7 @@ public sealed class RenderServer:IDisposable {
         }
     }
     private RenderScalability?ScalabilityValue;
-    /// <summary>Debugging (Unreal's r.Lumen.Visualize, M0111): while Lumen runs, the frame shows this instead of the lit scene. Survives device recovery.</summary>
+    /// <summary>デバッグ表示（Unreal の r.Lumen.Visualize、M0111）。Lumen 実行中に、ライティング済みシーンの代わりに表示する。デバイス回復後も保持する。</summary>
     public LumenVisualization LumenVisualization{
         get=>this.LumenVisualizationValue;
         set{
@@ -104,7 +101,7 @@ public sealed class RenderServer:IDisposable {
         }
     }
     private LumenVisualization LumenVisualizationValue;
-    /// <summary>Whether the last frame lit the scene with the Lumen-like GI (M0111) rather than the probe volume and the sky light.</summary>
+    /// <summary>前フレームが、プローブボリュームとスカイライトの代わりに Lumen 相当の GI でシーンを照らしたか（M0111）。</summary>
     public bool LumenActive=>this.Backend.LumenActiveLastFrame;
 
 
@@ -136,10 +133,7 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
-    /// <summary>
-    /// Adds one mesh to the renderer (M0105) and returns its index. The mesh joins the roster a device loss rebuilds from.
-    /// A skinned mesh joins the skinning pass (M0107); the renderer waits for the GPU once to grow it.
-    /// </summary>
+    /// <summary>レンダラーにメッシュを1つ追加し（M0105）、そのインデックスを返す。デバイス消失後に再構築する名簿にも追加する。スキニングメッシュはスキニングパスに追加する（M0107）。容量を増やすため、GPU を一度待機させる。</summary>
     public int AddMesh(StageMeshCreateInfo Mesh){
         var Owned=CloneMeshes([Mesh])[0];
         var Index=this.Backend.AddMesh(Owned);
@@ -153,10 +147,7 @@ public sealed class RenderServer:IDisposable {
         return Index;
     }
 
-    /// <summary>
-    /// Adds one material (M0105) and returns its index, or -1 when <see cref="FreeMaterialSlots"/> is 0. Uploading its textures waits
-    /// for the GPU once.
-    /// </summary>
+    /// <summary>マテリアルを1つ追加し（M0105）、そのインデックスを返す。<see cref="FreeMaterialSlots"/> が0の場合は -1 を返す。テクスチャのアップロード時に GPU を一度待機させる。</summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         var Index=this.Backend.AddMaterial(Material);
         if(Index<0){ return -1; }
@@ -171,9 +162,8 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>
-    /// Starts drawing one more object (M0105) and returns its index, or -1 when the renderer's headroom
-    /// (<see cref="StageRenderLimits.DynamicObjectHeadroom"/>) is used up. A removed object's index is handed out again. The object
-    /// stays at the origin until <see cref="SetObjectTransform"/> places it.
+    /// 描画するオブジェクトを1つ追加し（M0105）、そのインデックスを返す。レンダラーの余剰容量（<see cref="StageRenderLimits.DynamicObjectHeadroom"/>
+    /// ）を使い切った場合は -1 を返す。削除済みオブジェクトのインデックスは再利用する。<see cref="SetObjectTransform"/> で配置されるまでは原点に置く。
     /// </summary>
     public int AddObject(int MeshIndex,int MaterialIndex){
         var Index=this.Backend.AddObject(MeshIndex,MaterialIndex);
@@ -184,7 +174,7 @@ public sealed class RenderServer:IDisposable {
         return Index;
     }
 
-    /// <summary>Stops drawing one object (M0105). Its index is handed out again by <see cref="AddObject"/>.</summary>
+    /// <summary>オブジェクト1つの描画を停止する（M0105）。そのインデックスは <see cref="AddObject"/> で再利用する。</summary>
     public void RemoveObject(int ObjectIndex){
         this.Backend.RemoveObject(ObjectIndex);
         var Info=this.Objects[ObjectIndex];
@@ -194,11 +184,11 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
-    /// <summary>Submits a validated main view for this frame and retains its value for recovery.</summary>
+    /// <summary>このフレームの検証済みメインビューを送信し、デバイス回復用に値を保持する。</summary>
     public void SetView(in RenderView View)=>this.SetViewSource(RenderViewSource.Fixed(View));
-    /// <summary>Resolves and submits physical view input while retaining its value for resize/recovery.</summary>
+    /// <summary>物理カメラ入力を解決して送信し、サイズ変更や回復に備えて値を保持する。</summary>
     public void SetViewSource(in RenderViewSource Source){
-        var View=Source.Resolve(this.Width,this.Height);
+        var View=Source.Resolve(this.Backend.DirectionalShadows.Compare?Math.Max(1,this.Width/2):this.Width,this.Height);
         this.Backend.SetView(View);
         this.PendingFrame.RecordViewSource(Source);
     }
@@ -221,22 +211,27 @@ public sealed class RenderServer:IDisposable {
         this.Backend.SetFog(Fog);
         this.PendingFrame.RecordFog(Fog);
     }
-    /// <summary>Scene environment (ADR-0069): physical sky, sky light, physical fog, exposure and tone mapper.</summary>
+    /// <summary>シーンの環境設定（ADR-0069）。物理ベースの空とスカイライト、物理フォグ、露出、トーンマッパーを含む。</summary>
     public void SetEnvironmentLighting(in EnvironmentLightingSettings Settings){
         this.Backend.SetEnvironmentLighting(Settings);
         this.PendingFrame.RecordEnvironment(Settings);
+        if(!this.PendingFrame.TryReplayView(this.Backend,this.Width,this.Height)){ this.CompletedFrame.TryReplayView(this.Backend,this.Width,this.Height); }
     }
-    /// <summary>Absolute camera height above the world origin in metres for the atmosphere and height fog.</summary>
+    public VirtualShadowStatistics VirtualShadowStatistics=>this.Backend.VirtualShadowStatistics;
+    public DirectionalShadowSettings DirectionalShadows=>this.Backend.DirectionalShadows;
+    public float CascadedShadowGpuMilliseconds=>this.Backend.CascadedShadowGpuMilliseconds;
+    public float VirtualShadowGpuMilliseconds=>this.Backend.VirtualShadowGpuMilliseconds;
+    /// <summary>大気と高さフォグで使う、ワールド原点からのカメラの絶対高度（メートル）。</summary>
     public void SetCameraAltitude(float Meters){
         this.Backend.SetCameraAltitude(Meters);
         this.PendingFrame.RecordCameraAltitude(Meters);
     }
-    /// <summary>Height above the world origin of the render-space origin, for the simplified height fog (zero in world coordinates).</summary>
+    /// <summary>簡易高さフォグで使う、ワールド原点からのレンダリング座標原点の高度。ワールド座標では0。</summary>
     public void SetRenderOriginAltitude(float Meters){
         this.Backend.SetRenderOriginAltitude(Meters);
         this.PendingFrame.RecordRenderOriginAltitude(Meters);
     }
-    /// <summary>The render-space origin reduced modulo a grid material's cell size, so the world-space grid stays on the world lattice.</summary>
+    /// <summary>レンダリング座標原点をグリッドマテリアルの区画サイズで剰余に変換した値。ワールド空間のグリッドをワールド格子に一致させる。</summary>
     public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
         this.Backend.SetWorldGridAnchor(MaterialIndex,Anchor);
         this.PendingFrame.RecordWorldGridAnchor(MaterialIndex,Anchor);
@@ -271,7 +266,7 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordObjectTransform(ObjectIndex,World);
     }
 
-    /// <summary>Sets a skinned mesh's palette (ADR-0066); recorded so device recovery replays the current pose.</summary>
+    /// <summary>スキニングメッシュのパレットを設定する（ADR-0066）。デバイス回復時に現在の姿勢を再適用できるよう、値を記録する。</summary>
     public void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
         this.Backend.SetSkinPalette(MeshIndex,Palette);
         this.PendingFrame.RecordSkinPalette(MeshIndex,Palette);
@@ -284,8 +279,8 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>
-    /// Chooses where one object is drawn (M0107): out of the camera's view (UE's OwnerNoSee) and/or out of the shadow maps (CastShadow off). Recorded with
-    /// the frame, so a game that sets it every frame keeps it through a device recovery.
+    /// オブジェクトをどこに描画するかを選択する（M0107）。カメラ視点では描画しない（UE の OwnerNoSee）、シャドウマップには描画しない（CastShadow オフ）、またはその両方を設定でき
+    /// る。設定するゲームがデバイス回復後も保持できるよう、フレームとともに記録する。
     /// </summary>
     public void SetObjectVisibility(int ObjectIndex,bool VisibleInView,bool CastsShadow){
         this.Backend.SetObjectVisibility(ObjectIndex,VisibleInView,CastsShadow);
@@ -293,8 +288,8 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>
-    /// Multiplies one object's material emission by <paramref name="Scale"/> (ADR-0078/M0109: a material scalar the game changes while it runs, as the
-    /// Vehicle's brake lights). 1 is the material's own emission. Recorded with the frame, so it survives a device recovery.
+    /// オブジェクトのマテリアル発光に <paramref name="Scale"/> を乗算する（ADR-0078/M0109。車両のブレーキランプなど、ゲーム実行中に変更するマテリアルスカラー）。1なら
+    /// マテリアル本来の発光量。デバイス回復後も維持できるよう、フレームとともに記録する。
     /// </summary>
     public void SetObjectEmissiveScale(int ObjectIndex,float Scale){
         this.Backend.SetObjectEmissiveScale(ObjectIndex,Scale);
@@ -317,7 +312,7 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordOverlay(Triangles,Lines);
     }
 
-    /// <summary>The game's UI over the finished frame (ADR-0078/M0104). Set it every frame; a frame without it draws none.</summary>
+    /// <summary>完成フレームの上に重ねるゲーム UI（ADR-0078/M0104）。毎フレーム設定する。設定のないフレームには何も描画しない。</summary>
     public void SetScreenLayer(ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches){
         this.Backend.SetScreenLayer(Vertices,Batches);
         this.PendingFrame.RecordScreenLayer(Vertices,Batches);
@@ -462,7 +457,7 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.Reset();
     }
 
-    /// <summary>Publishes the object roster's new identity once per frame, not once per added or removed object.</summary>
+    /// <summary>オブジェクト名簿の新しい識別情報を、追加・削除のたびではなく各フレームにつき1回公開する。</summary>
     private void RefreshObjectRosterArtifact(){
         if(!this.ObjectRosterArtifactStale){ return; }
         this.ObjectRosterArtifactStale=false;
@@ -493,7 +488,7 @@ public sealed class RenderServer:IDisposable {
                 Uvs=[.. Mesh.Uvs],
                 Indices=[.. Mesh.Indices],
                 Skin=Mesh.Skin is{ }Skin?new StageSkinCreateInfo { JointCount=Skin.JointCount,JointIndices=[.. Skin.JointIndices],Weights=[.. Skin.Weights] }:null,
-                // ADR-0078/M0110: a distance field is immutable, so the copy shares it (a device recovery rebuilds the global distance field from it).
+                // ADR-0078/M0110：距離場は不変なのでコピー後も共有する（デバイス回復時は、この距離場からグローバル距離場を再構築する）。
                 DistanceField=Mesh.DistanceField,
             };
         }
@@ -567,7 +562,7 @@ public sealed class RenderServer:IDisposable {
             foreach(ushort Value in Skin.JointIndices){ Writer.Write(Value); }
             foreach(float Value in Skin.Weights){ Writer.Write(Value); }
         }
-        // M0110: the distance field is part of what the renderer was given; a mesh without one keeps the identity it had before.
+        // M0110：距離場もレンダラーに渡されたデータの一部。距離場のないメッシュは以前の識別情報を維持する。
         if(Mesh.DistanceField is{ }Field){
             Writer.Write(Field.MeshHash.ToByteArray());
             Writer.Write(Field.ResolutionX); Writer.Write(Field.ResolutionY); Writer.Write(Field.ResolutionZ);
@@ -616,9 +611,8 @@ public sealed class RenderServer:IDisposable {
     }
 
     /// <summary>
-    /// Builds the canonical immutable roster for one imported or procedural mesh. Callers do not
-    /// create a renderer-specific object: geometry, material, and draw identity enter the same
-    /// Render Server boundary used by authored worlds and isolated previews.
+    /// インポートまたはプロシージャル生成されたメッシュの正準かつ不変な名簿項目を作る。呼び出し側でレンダラー固有のオブジェクトを作らない。ジオメトリ、マテリアル、描画 ID は、作成済みワールドと独立
+    /// プレビューが使うものと同じ Render Server 境界に登録する。
     /// </summary>
     public static (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)BuildSingleMeshRoster(
         IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,

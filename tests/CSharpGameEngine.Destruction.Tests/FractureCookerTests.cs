@@ -3,9 +3,7 @@ using CSharpGameEngine.Cooking;
 using static CSharpGameEngine.Destruction.Tests.TestProject;
 namespace CSharpGameEngine.Destruction.Tests;
 /// <summary>
-/// ADR-0078/M0113: the Destruction plugin's Cook module cuts a scene's destructibles into <c>Assets/Destruction/&lt;name&gt;.cgefracture</c>: the box of the
-/// node's collider (or a closed convex SourceMesh) with its count, seed and clusters, the same bytes every time, and a build-readable error for each
-/// destructible it cannot cut.
+/// ADR-0078/M0113：Destruction プラグインの Cook モジュールは、シーンの破壊可能物を <c>Assets/Destruction/&lt;name&gt;.cgefracture</c> に切り分ける。ノードのコライダー（または閉じた凸形状の SourceMesh）の境界ボックスと、その個数、シード、クラスターを保存し、毎回同じバイト列を生成する。切り分けられない破壊可能物ごとに、ビルドで読み取れるエラーを出す。
 /// </summary>
 public sealed class FractureCookerTests {
     private static CookResult Cook(TestProject Project,string Scene){
@@ -32,7 +30,7 @@ public sealed class FractureCookerTests {
         Assert.Equal(12,Asset.Fragments.Count);
         Assert.InRange(Asset.ClusterCount,4,6);
         Assert.Equal(3,Asset.Seed);
-        // The source is the collider in the node's own frame: a 1 m box about the origin, 500 kg/m³.
+        // ソースはノード自身の座標系にあるコライダー：原点を中心とする 1 m のボックス、500 kg/m³。
         var Mass=Asset.Fragments.Aggregate(LogicalScalar.Zero,static(Total,Fragment)=>Total+Fragment.Mass);
         Assert.InRange(Mass.TryToSingle(out var Kilograms)?Kilograms:0f,499.9f,500.1f);
         Assert.Equal(LogicalScalar.FromInt64(DestructionDefaults.BondStrength),Asset.BondStrengthPerArea);

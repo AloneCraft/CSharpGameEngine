@@ -207,9 +207,7 @@ public sealed class ShaderGraphEditorTests {
         Assert.Equal($"Cge.ShaderGraph.Argument.{NodeId}.Value",ShaderGraphAutomationIds.Argument(NodeId,"Value"));
     }
     /// <summary>
-    /// The CLI's output is read without either pipe filling. Standard output was read to its end before standard error,
-    /// so a CLI that wrote more than a pipe buffer to standard error (many diagnostics, a long exception) waited for a
-    /// reader forever, and Visual Studio, which saves and builds a graph on the UI thread, hung with it.
+    /// CLI の出力は、どちらのパイプも満杯にならないように読み取る。以前は標準出力を最後まで読んでから標準エラーを読んでいたため、CLI が標準エラーへパイプバッファーを超える量（大量の診断や長い例外など）を書き込むと、読み手を永久に待つ状態になった。UI スレッドでグラフを保存・ビルドする Visual Studio もそのままハングしていた。
     /// </summary>
     [Fact]
     public async Task BuildService_ReadsALargeErrorStreamWithoutBlocking() {

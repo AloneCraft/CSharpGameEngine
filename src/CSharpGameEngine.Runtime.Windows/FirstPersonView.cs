@@ -3,9 +3,9 @@ using CSharpGameEngine.Entities;
 using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// Where one mesh is drawn (ADR-0078/M0107): UE's OwnerNoSee / OnlyOwnerSee and CastShadow of a primitive component. A mesh with
-/// <see cref="VisibleToCamera"/> off is not in the camera's picture but still casts its shadow (the first-person character's body); one with
-/// <see cref="CastsShadow"/> off is seen but casts none (the first-person arms). Entities without the component are drawn and cast shadows as usual.
+/// 1つのメッシュをどう描画するかを指定する（ADR-0078/M0107）。UEのプリミティブコンポーネントにおけるOwnerNoSee／OnlyOwnerSeeとCastShadowに相当する。
+/// <see cref="VisibleToCamera"/>が無効なメッシュはカメラに映らないが、影は落とす（例：一人称キャラクターのボディ）。
+/// <see cref="CastsShadow"/>が無効なら映るが、影は落とさない（例：一人称視点の腕）。このコンポーネントがないEntityは通常どおり描画され、影も落とす。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,10)]
 public struct MeshVisibility() {
@@ -13,36 +13,37 @@ public struct MeshVisibility() {
     public bool CastsShadow=true;
 }
 /// <summary>
-/// A factor on a mesh's material emission that the game changes while it runs (ADR-0078/M0109): UE's dynamic material instance with a scalar parameter
-/// on the emissive input, as the Vehicle's brake lights (<c>BrakeLightPower</c>). The mesh's materials keep their own emissive colour and texture; each is
-/// multiplied by <see cref="Scale"/>. Entities without the component draw their materials as authored.
+/// ゲーム実行中に変更する、メッシュのマテリアル発光係数（ADR-0078/M0109）。UEの動的マテリアルインスタンスにスカラー値を与え、
+/// 発光入力を変更する方式に相当する。Vehicleのブレーキライト（<c>BrakeLightPower</c>）が使用例。
+/// メッシュのマテリアルはそれぞれ固有の発光色とテクスチャを保持し、これらに<see cref="Scale"/>を掛ける。
+/// このコンポーネントのないEntityは、アセット作成時のマテリアルで描画する。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,12)]
 public struct MeshEmissive() {
-    /// <summary>The factor on the materials' emission (0 or more; 1 is as authored).</summary>
+    /// <summary>マテリアルの発光に掛ける係数（0以上。1ならアセット作成時の値のまま）。</summary>
     public float Scale=1f;
 }
 /// <summary>
-/// UE's first person rendering of a primitive (FirstPersonPrimitiveType.FIRST_PERSON, ADR-0078/M0107): the mesh is drawn as if the camera's horizontal
-/// field of view were <see cref="FieldOfViewDegrees"/> instead of the view's own <see cref="DefaultFieldOfViewDegrees"/>, and scaled by <see cref="Scale"/>
-/// toward the camera so it does not poke into walls. Both are a change of the mesh's camera-space position (<see cref="FirstPersonViewWarp"/>), so the
-/// renderer needs no second projection.
+/// UEのプリミティブに対する一人称描画（FirstPersonPrimitiveType.FIRST_PERSON、ADR-0078/M0107）。
+/// メッシュはカメラの水平視野角をビュー本来の<see cref="DefaultFieldOfViewDegrees"/>ではなく<see cref="FieldOfViewDegrees"/>とし、
+/// 壁に突き出ないよう<see cref="Scale"/>でカメラ側へ寄せて描画する。どちらもメッシュのカメラ空間位置を変更する
+///（<see cref="FirstPersonViewWarp"/>）ため、レンダラーに別の投影処理は不要。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,11)]
 public struct FirstPersonView() {
-    /// <summary>UE's FirstPersonFieldOfView (the horizontal angle): 70 in the FirstPerson template.</summary>
+    /// <summary>UEのFirstPersonFieldOfView（水平角）。FirstPersonテンプレートでは70。</summary>
     public float FieldOfViewDegrees=70f;
-    /// <summary>The horizontal field of view the camera is drawn with (the camera manager's DefaultFOV): 90 in the FirstPerson template.</summary>
+    /// <summary>カメラの描画に使う水平視野角（カメラマネージャーのDefaultFOV）。FirstPersonテンプレートでは90。</summary>
     public float DefaultFieldOfViewDegrees=90f;
-    /// <summary>UE's FirstPersonScale: 0.6 in the FirstPerson template.</summary>
+    /// <summary>UEのFirstPersonScale。FirstPersonテンプレートでは0.6。</summary>
     public float Scale=0.6f;
 }
-/// <summary>The camera-space change that gives a mesh the first-person field of view and scale.</summary>
+/// <summary>メッシュに一人称視野角とスケールを適用するカメラ空間内の変換。</summary>
 public static class FirstPersonViewWarp {
     /// <summary>
-    /// The factor by which the mesh's screen position is spread: <c>tan(default / 2) / tan(first person / 2)</c>. Viewed through the camera's own projection, a
-    /// point at camera-space (x, y, z) must appear where the narrower first-person projection would put it, which is x and y times this, at the same depth.
-    /// Returns 1 for a field of view that is not between 0 and 180 degrees.
+    /// メッシュの画面位置を広げる倍率：<c>tan(default / 2) / tan(first person / 2)</c>。
+    /// カメラ本来の投影で見たとき、カメラ空間の点(x, y, z)が、狭い一人称投影と同じ深度で置かれる位置に見えるよう、xとyにこの値を掛ける。
+    /// 視野角が0～180度の範囲外なら1を返す。
     /// </summary>
     public static float Spread(in FirstPersonView View){
         if(!(View.FieldOfViewDegrees>0f&&View.FieldOfViewDegrees<180f)||!(View.DefaultFieldOfViewDegrees>0f&&View.DefaultFieldOfViewDegrees<180f)){
@@ -51,8 +52,9 @@ public static class FirstPersonViewWarp {
         return MathF.Tan(View.DefaultFieldOfViewDegrees*MathF.PI/360f)/MathF.Tan(View.FieldOfViewDegrees*MathF.PI/360f);
     }
     /// <summary>
-    /// The matrix (row vectors) that, multiplied after an object's camera-relative world matrix, makes it a first-person primitive: in the camera's frame
-    /// x and y are multiplied by <see cref="Spread"/> and everything by <see cref="FirstPersonView.Scale"/> about the eye. Identity for a scale that is not positive.
+    /// オブジェクトのカメラ相対ワールド行列の後に掛け、一人称プリミティブにする行ベクトル行列。
+    /// カメラ座標系のxとyに<see cref="Spread"/>を掛け、すべての要素に<see cref="FirstPersonView.Scale"/>を掛けて視点周りにスケールする。
+    /// スケールが正でない場合は単位行列。
     /// </summary>
     public static Matrix4x4 Matrix(in RenderCamera Camera,in FirstPersonView View){
         if(!(View.Scale>0f)||!float.IsFinite(View.Scale)){

@@ -14,8 +14,8 @@ import unreal
 REPO_ROOT = os.environ.get("CSGE_REPO_ROOT", "G:/GitHub/CSharpGameEngine").replace("\\", "/")
 OUTPUT_DIR = f"{REPO_ROOT}/.artifacts/UnrealExport/Lvl_VehicleBasic"
 WARMUP_TICKS = 240
-# The Vehicle template's chase camera is 110 degrees wide (BP_VehicleAdvSportsCar's back camera; 77.55 degrees vertical at 16:9), and the engine's
-# automation camera keeps the scene camera's field of view, so the references use it too (M0112; the first set, 2026-10-22, used 90).
+# Vehicle template の chase camera は110度の視野角です（BP_VehicleAdvSportsCar の後方カメラ、16:9で垂直視野角77.55度）。エンジンの
+# automation camera はシーンカメラの視野角を維持するため、reference でも同じ値を使います（M0112。最初の一式は2026-10-22に作成し、90度を使用）。
 FOV_DEGREES = 110.0
 CAR_BLUEPRINT = "/Game/VehicleTemplate/Blueprints/SportsCar/BP_VehicleAdvSportsCar"
 state = {"ticks": 0, "handle": None, "captures": []}
@@ -46,11 +46,11 @@ def begin() -> None:
     car_class = unreal.EditorAssetLibrary.load_blueprint_class(CAR_BLUEPRINT)
     car = actors.spawn_actor_from_class(car_class, start_location, start.get_actor_rotation())
     unreal.log(f"[UnrealExport] Car {car.get_actor_location()} {car.get_actor_rotation()}")
-    # The engine's chase camera at the start: 6.5 m behind the car on the camera's own back axis, looking along the car (-F = +y in UE), pitched down 8 degrees.
+    # 開始時のエンジン chase camera：車の後方軸に沿って6.5 m後方に置き、車の進行方向を向きます（-F = UE の +y）。下向きに8度傾けます。
     add_capture(actors, "ue_reference_chase", engine_to_ue(44.5, 2.6846242, 5.6282177), unreal.Rotator(roll=0.0, pitch=-8.0, yaw=90.0))
-    # A front three-quarter view for the headlights, glass and paint.
+    # headlight、glass、paint のための、前方斜めからの視点。
     add_capture(actors, "ue_reference_front_three_quarter", unreal.Vector(start_location.x + 450.0, start_location.y + 450.0, start_location.z + 150.0), unreal.Rotator(roll=0.0, pitch=-10.0, yaw=-135.0))
-    # Over the hill looking toward the tunnel and the ring track (M0112), and along the track from beside the car.
+    # 丘の上からトンネルと環状 track を見る位置（M0112）、および車の横から track に沿って見る位置。
     add_capture(actors, "ue_reference_hill", unreal.Vector(-1800.0, -3200.0, 900.0), unreal.Rotator(roll=0.0, pitch=-18.0, yaw=50.0))
     add_capture(actors, "ue_reference_track_side", unreal.Vector(start_location.x - 600.0, start_location.y - 1500.0, start_location.z + 120.0), unreal.Rotator(roll=0.0, pitch=-6.0, yaw=60.0))
     state["handle"] = unreal.register_slate_post_tick_callback(tick)

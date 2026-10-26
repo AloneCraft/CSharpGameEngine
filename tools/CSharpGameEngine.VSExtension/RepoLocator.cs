@@ -5,13 +5,7 @@ using System.Reflection;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Resolves the repo root baked in at build time (<c>CSharpGameEngineRepoRoot</c> assembly
-/// metadata, set from <c>$(MSBuildThisFileDirectory)</c>) and validates it still points at a real
-/// checkout by requiring the solution marker file to actually exist there - VSIX deployment copies
-/// this assembly out of the repo, so a runtime "walk up from my own location" search (the pattern
-/// used by Extension/Program.cs's ResolveModelPath) cannot work here. Shared by
-/// <see cref="OpenViewerCommand"/> and <see cref="ViewerHwndHost"/> so both launch the viewer the
-/// same way.
+/// ビルド時に埋め込まれたリポジトリルート（<c>CSharpGameEngineRepoRoot</c> assembly metadata。<c>$(MSBuildThisFileDirectory)</c> から設定）を解決し、ソリューション marker file が実在することを確認して checkout が有効か検証します。VSIX の配置時には assembly がリポジトリ外へコピーされるため、自身の場所から上位ディレクトリをたどる実行時検索（Extension/Program.cs の ResolveModelPath が使う方式）は使えません。<see cref="OpenViewerCommand"/> と <see cref="ViewerHwndHost"/> で共有し、viewer を同じ方法で起動します。
 /// </summary>
 internal static class RepoLocator {
     internal const string RepoMarkerFileName="CSharpGameEngine.slnx";

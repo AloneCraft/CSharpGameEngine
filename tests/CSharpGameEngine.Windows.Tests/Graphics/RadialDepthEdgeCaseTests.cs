@@ -4,9 +4,7 @@ using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>
-/// Native logarithmic depth edges: presentation frame slots, microscopic scales, curve updates, resizing and an observer inset.
-/// </summary>
+/// <summary>ネイティブ対数深度の境界テスト。プレゼンテーションのフレームスロット、微小スケール、カーブ更新、リサイズ、観測者インセットを検証する。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RadialDepthEdgeCaseTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -23,7 +21,7 @@ public sealed class RadialDepthEdgeCaseTests {
         }
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Data.Indices };
     }
-    /// <summary>A box and a sphere wholly inside the view, in front of a wall: nothing is clipped.</summary>
+    /// <summary>視界内に完全に収まるボックスと球を、壁の前に配置する。クリッピングされない。</summary>
     private static StageRenderer CreateScene(Win32Window Window)=>StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
         new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
         [ToMesh(ProceduralMeshFactory.CreateBox(new Vector3(1f,1f,1f))),ToMesh(ProceduralMeshFactory.CreateSphere(0.5f)),ToMesh(ProceduralMeshFactory.CreateBox(new Vector3(6f,3f,0.2f)))],

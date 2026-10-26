@@ -7,10 +7,7 @@ using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.SceneAnalysis.Tests;
 
 /// <summary>
-/// Numbers whose scene JSON text must be the same on .NET (the tools, SceneModel.Tests) and .NET Framework (the VSIX,
-/// VSExtension.Tests): floats and doubles from random bit patterns and from short binary fractions (whose decimal
-/// digits tie, such as 312985.125), and angles. Both test projects compare the digest of the texts with
-/// <see cref="Digest"/>; the .NET tests also compare every text with .NET's own formatting.
+/// Scene JSON のテキストが .NET（ツール、SceneModel.Tests）と .NET Framework（VSIX、VSExtension.Tests）で一致しなければならない数値。ランダムなビットパターンおよび短い二進小数（312985.125 のように十進桁がちょうど中間になる値）から作った float と double、さらに角度を含む。両方のテストプロジェクトでテキストのダイジェストを <see cref="Digest"/> と比較し、.NET テストではすべてのテキストを .NET 自身の書式とも比較する。
 /// </summary>
 internal static class SceneJsonNumberSamples {
     internal const string Digest="cca90291ffdcc13c2a009142f346edb6369d605c5f811a349300eb920e6a9c30";

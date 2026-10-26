@@ -7,26 +7,31 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Converts a C# <c>IScene</c> class (its analyzed <see cref="SceneModel"/>) into a scene JSON
-/// document (ADR-0070 cutover). The document compiles to the same scene: a constructor call becomes an
-/// object keyed by the constructor's parameter names, member assignments add their member names, and
-/// constants, enum members and collections become JSON values. Values JSON cannot hold (non-constant
-/// static members, factory calls, NaN and infinities, unsupported syntax) are reported instead of guessed. The document is schema
-/// version 3: every number inside an <c>[Angle]</c> member is written in turns, under the member's key without its
-/// C# unit word (ADR-0074).
+/// C# の <c>IScene</c> クラス（解析済みの <see cref="SceneModel"/>）を Scene JSON ドキュメントに変換する（ADR-0070 の切り替え）。
+/// ドキュメントから元と同じ Scene をコンパイルできる。コンストラクター呼び出しは引数名をキーにしたオブジェクトになり、メンバーへの代入はメンバー名の項目になり、定数、列挙メンバー、コレクションは
+/// JSON 値になる。JSON で表現できない値（非定数の static メンバー、ファクトリー呼び出し、NaN と無限大、未対応構文）は推測せず、エラーとして報告する。ドキュメントのスキーマバージョン
+/// は3。<c>[Angle]</c> メンバー内の各数値は回転数で書き込み、キーから C# の単位名を省く（ADR-0074）。
 /// </summary>
 internal static class SceneJsonConverter {
+    internal static Result ConvertDataAsset(ITypeSymbol Type,IReadOnlyList<SceneComponentMember>Members){
+        var Problems=new List<string>();
+        var Name=Type.ToDisplayString();
+        var Values=ObjectValue(Type,Array.Empty<SceneValue>(),Members,null,Name,Problems,null);
+        var Document=SceneJsonOut.Object(Multiline:true).Add("schemaVersion",SceneJsonOut.Number("3"))
+            .Add("type",SceneJsonOut.String(Name)).Add("members",Values);
+        return new Result(Problems.Count==0?SceneJsonWriter.Write(Document):null,Problems);
+    }
     internal sealed class Result {
         internal Result(string?Text,IReadOnlyList<string>Problems){
             this.Text=Text;
             this.Problems=Problems;
         }
-        /// <summary>The document text, or <c>null</c> when a value could not be converted.</summary>
+        /// <summary>ドキュメントのテキスト。値を変換できなかった場合は <c>null</c>。</summary>
         internal string?Text { get; }
         internal IReadOnlyList<string>Problems { get; }
     }
-    /// <param name="SchemaReference">The <c>"$schema"</c> path relative to the scene file.</param>
-    /// <param name="IdFor">The existing id of the node at a path (the editor keeps ids across edits); <c>null</c> derives one.</param>
+    /// <param name="SchemaReference">Scene ファイルからの相対パスで表す <c>"$schema"</c> の値。</param>
+    /// <param name="IdFor">指定パスにあるノードの既存 ID（編集後もエディターが ID を維持する）。指定が <c>null</c> なら ID を生成する。</param>
     internal static Result Convert(SceneModel Model,string?SchemaReference,Func<NodePath,string?>?IdFor=null){
         List<string>Problems=[];
         if(Model.Root is null){
@@ -41,7 +46,7 @@ internal static class SceneJsonConverter {
         Document.Add("root",ConvertNode(Model.Root,Model.ClassFullyQualifiedName,IdFor,Problems));
         return new Result(Problems.Count==0?SceneJsonWriter.Write(Document):null,Problems);
     }
-    /// <summary>A stable node id derived from the scene and the node path, so conversion is reproducible.</summary>
+    /// <summary>Scene とノードパスから導出する安定したノード ID。変換結果を再現可能にする。</summary>
     internal static string NodeId(string SceneFullName,NodePath Path){
         using var Hash=SHA256.Create();
         var Bytes=Hash.ComputeHash(Encoding.UTF8.GetBytes("cge-scene-node\n"+SceneFullName+"\n"+Path.ToDisplayString()));
@@ -133,16 +138,13 @@ internal static class SceneJsonConverter {
         Problems.Add($"{Where}: '{Value.SourceExpressionText}' ({Value.Kind}) has no JSON form; write the value itself.");
         return SceneJsonOut.Null();
     }
-    /// <summary>Member values are written inline so an edit touches one line.</summary>
+    /// <summary>編集時に1行だけを変更するため、メンバー値をインラインで書き込む。</summary>
     private static SceneJsonOut RebuildInline(SceneJsonOut Multiline){
         var Inline=SceneJsonOut.Object();
         foreach(var Property in Multiline.Properties!){ Inline.Add(Property.Key,Property.Value); }
         return Inline;
     }
-    /// <summary>
-    /// <c>default</c> in the member type's JSON form. A struct is an empty object (every member default);
-    /// <c>bool</c>, numbers and enums have their own zero value, which an empty object would not fit.
-    /// </summary>
+    /// <summary>メンバー型の JSON 形式で表した <c>default</c>。構造体は空オブジェクト（すべてのメンバーが既定値）になる。<c>bool</c>、数値、列挙型はそれぞれ独自のゼロ値を持つため、空オブジェクトでは表現できない。</summary>
     private static SceneJsonOut DefaultValue(ITypeSymbol?Type,string Where,List<string>Problems){
         if(Type is null){ return SceneJsonOut.Null(); }
         if(Type.TypeKind==TypeKind.Enum){
@@ -170,7 +172,7 @@ internal static class SceneJsonConverter {
         }
         return Type.IsValueType?SceneJsonOut.Object():SceneJsonOut.Null();
     }
-    /// <summary>Whether <see cref="Constant"/> writes a C# constant as JSON (a char or a non-finite number has no form).</summary>
+    /// <summary><see cref="Constant"/> が C# 定数を JSON として出力できるか（char と有限でない数値は表現形式がない）。</summary>
     internal static bool HasJsonForm(object?Value)=>Value switch {
         null or bool or string or sbyte or byte or short or ushort or int or uint or long or ulong=>true,
         float Single=>!float.IsNaN(Single)&&!float.IsInfinity(Single),
@@ -178,15 +180,14 @@ internal static class SceneJsonConverter {
         _=>false,
     };
     /// <summary>
-    /// A number literal's own spelling without its C# suffix (3.14159265358979f as 3.14159265358979), when that is a JSON
-    /// number. The compiler gave the literal its value from exactly this text, so the document builds the same value. The
-    /// merge keeps a number whose text is unchanged (M0095); written from the value instead, a number the author spelled
-    /// past its type's precision (100.0000001 for a float) was rewritten (as 100) by every edit of the scene.
+    /// 数値リテラルを C# の接尾辞なしで記述したテキスト（JSON 数値として有効な場合）。例：3.14159265358979f は 3.14159265358979 となる。コンパイラーはこのテキスト
+    /// から正確に値を得るため、ドキュメントをコンパイルしても同じ値になる。マージ時にはテキストが変わっていない数値をそのまま保つ（M0095）。値から再出力すると、型の精度を超える桁まで記述した数値（
+    /// float に対する100.0000001など）は、Scene を編集するたびに100へ書き換えられていた。
     /// </summary>
     private static string?LiteralSpelling(SceneValue Value){
-        // A string, character, boolean or null literal is no JSON number with or without these letters. A literal whose
-        // value was not read from its text by C#'s rules (an edit's value parsed on .NET Framework, whose parse does not
-        // round correctly) may not read back exactly: then the value's text.
+        // 文字列、文字、真偽値、null のリテラルは、どのような接尾辞を付けても JSON 数値にはならない。値を C# の規則で
+        // 元のテキストから読み込んでいないリテラル（正しく丸めない .NET Framework で編集値を解析した場合など）は、
+        // 再読込時に一致しない場合がある。その場合は値のテキストを
         var Text=Value.SourceExpressionText.TrimEnd('f','F','d','D','m','M','u','U','l','L');
         return SceneJsonReader.IsNumber(Text)&&SceneJsonDecimal.ReadsBack(Text,Value.ConstantValue)?Text:null;
     }
@@ -199,8 +200,8 @@ internal static class SceneJsonConverter {
             case sbyte or byte or short or ushort or int or uint or long or ulong:
                 return SceneJsonOut.Number(((IFormattable)Value).ToString(null,CultureInfo.InvariantCulture));
             case IFormattable Other:{
-                // Double constants get the same shortest text on .NET Framework and .NET (SceneJsonNumbers); decimal keeps
-                // its own text. NaN and the infinities (float or double) have none: a JSON number is finite.
+                // .NET Framework と .NET の両方で、double 定数を同じ最短テキストで出力する（SceneJsonNumbers）。decimal は
+                // 独自のテキストを保つ。NaN と正負の無限大（float または double）には形式がない。JSON 数値は有限値。
                 var Text=SceneJsonNumbers.FormatOther(Other);
                 if(SceneJsonReader.IsNumber(Text)){ return SceneJsonOut.Number(Text); }
                 Problems.Add($"{Where}: {Text} has no JSON form; a JSON number is finite.");

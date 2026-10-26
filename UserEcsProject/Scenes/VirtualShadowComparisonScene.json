@@ -1,0 +1,1192 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "VirtualShadowComparisonScene",
+  "startupOrder": 0,
+  "root": {
+    "id": "334626f3-7269-5b05-80ab-4bbe996d11e0",
+    "name": "VirtualShadowComparison",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 0,
+            "F": 0
+          },
+          "Scale": {
+            "R": 1,
+            "U": 1,
+            "F": 1
+          },
+          "Rotation": {
+            "EulerRuf": {
+              "R": 0,
+              "U": 0,
+              "F": 0
+            }
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AppHost",
+        "members": {
+          "Title": "Directional shadows: CSM (left) | Virtual (right)",
+          "Width": 1440,
+          "Height": 810
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Level",
+        "members": {
+          "ShaderArtifactPath": "Shaders/Stage.cgeshaderartifact"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Lighting.DirectionalShadowRendering",
+        "members": {
+          "Mode": "Virtual",
+          "PageBudget": 1024,
+          "Compare": true,
+          "SoftShadows": true,
+          "SourceAngularDiameterDegrees": 2,
+          "MaximumSoftShadowRadiusMeters": 2
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AmbientLight",
+        "members": {
+          "ColorR": 0.6,
+          "ColorG": 0.65,
+          "ColorB": 0.8,
+          "Intensity": 0.15
+        }
+      },
+      {
+        "type": "UserEcsProject.Showcase.ShadowComparisonControls",
+        "members": {}
+      }
+    ],
+    "children": [
+      {
+        "id": "3f008c9f-2255-5dbf-8a69-3242bfa12bb7",
+        "name": "SynchronizedCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 9,
+                "F": -18
+              },
+              "Scale": {
+                "R": 1,
+                "U": 1,
+                "F": 1
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0.045,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "FarZ": 220,
+              "ExposureEv100": 1
+            }
+          },
+          {
+            "type": "UserEcsProject.Showcase.ShadowComparisonCamera",
+            "members": {}
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "440670e6-2aae-5dc4-84f4-d6f7be598a51",
+        "name": "Sun",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 0,
+                "F": 0
+              },
+              "Scale": {
+                "R": 1,
+                "U": 1,
+                "F": 1
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0.12,
+                  "U": 0.12,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.DirectionalLight",
+            "members": {
+              "Color": {
+                "R": 1,
+                "G": 1,
+                "B": 1
+              },
+              "Illuminance": {
+                "Lux": 5
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Bias": {
+                "Meters": 0.002
+              },
+              "Priority": 100
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "9aba8053-6d5a-5106-bc37-15da4df1ddb8",
+        "name": "Ground",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": -0.2,
+                "F": 7
+              },
+              "Scale": {
+                "R": 28,
+                "U": 0.4,
+                "F": 38
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8e3e24af-c479-53a8-be3c-a35c2eb7d4c2",
+        "name": "StepsNear",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -4,
+                "U": 0.4,
+                "F": 2
+              },
+              "Scale": {
+                "R": 3,
+                "U": 0.8,
+                "F": 2
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "83def5f2-3d9d-5eef-a5c1-e2f932bbb0c7",
+        "name": "StepsHigh",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -4,
+                "U": 1,
+                "F": 4
+              },
+              "Scale": {
+                "R": 3,
+                "U": 2,
+                "F": 2
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "5400d85a-f2cd-535f-a22d-d817cc9fa38b",
+        "name": "SlopeLeft",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -3,
+                "U": 0.6,
+                "F": 8
+              },
+              "Scale": {
+                "R": 4,
+                "U": 0.2,
+                "F": 4
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0.065,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "94691e70-7c2e-5836-84f2-69f4ed894873",
+        "name": "SlopeRight",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 3,
+                "U": 0.6,
+                "F": 8
+              },
+              "Scale": {
+                "R": 4,
+                "U": 0.2,
+                "F": 4
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": -0.065,
+                  "U": 0.25,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a4635abd-8374-5fee-8140-88d9ad372558",
+        "name": "DistantBlocker",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 2.5,
+                "F": 60
+              },
+              "Scale": {
+                "R": 3,
+                "U": 5,
+                "F": 2
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "03e63d6f-dee2-585f-ab39-e504ff2aea8d",
+        "name": "DistantReceiver",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": -0.2,
+                "F": 60
+              },
+              "Scale": {
+                "R": 18,
+                "U": 0.4,
+                "F": 20
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "bae72833-e5e5-5426-88c6-ce66a7beffc3",
+        "name": "MovingBlocker",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 3,
+                "U": 2,
+                "F": 3
+              },
+              "Scale": {
+                "R": 0.6,
+                "U": 4,
+                "F": 0.6
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          },
+          {
+            "type": "UserEcsProject.Showcase.ShowcaseMotion",
+            "members": {
+              "BaseX": 3,
+              "BaseY": 2,
+              "BaseZ": 3,
+              "AmplitudeMillimeters": 3000,
+              "PeriodTicks": 480,
+              "PhaseTicks": 0
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "409327e1-2f08-5cff-b786-1c9c610f57c4",
+        "name": "Fence0",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -5.0,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f9040f9f-3d7c-5057-a5b5-9fd5ecf67604",
+        "name": "Fence1",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -4.4,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "c302ca40-d0d2-5890-9471-3ad0d7bc08c8",
+        "name": "Fence2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -3.8,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "4e852ca9-5076-5841-92e0-9971d980eadf",
+        "name": "Fence3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -3.2,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ba938e06-778f-548c-9c73-4d28be915167",
+        "name": "Fence4",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -2.6,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f6969338-5b78-588f-a013-6473d22504ec",
+        "name": "Fence5",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -2.0,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "fbe8bb9a-8a6d-5581-b2aa-6bdeb23e085e",
+        "name": "Fence6",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -1.4000000000000004,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "bb512c97-5e2d-5430-9971-29119326088c",
+        "name": "Fence7",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -0.7999999999999998,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "5181836f-7046-5e70-9893-969701629a8e",
+        "name": "Fence8",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -0.20000000000000018,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "cdd8a7ae-e319-5853-8b9a-3dd38cd50e7b",
+        "name": "Fence9",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0.39999999999999947,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e574f44a-c3d3-5c60-8f04-7075364902d0",
+        "name": "Fence10",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 1.0,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d81df741-c271-523a-a199-66ab43d54b9b",
+        "name": "Fence11",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 1.5999999999999996,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f57cafcf-1211-52ff-bca4-766006f8065a",
+        "name": "Fence12",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 2.1999999999999993,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "27981852-5c06-5740-8ef5-ad1ffff58d3b",
+        "name": "Fence13",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 2.8,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "1dbd1a11-e851-582c-b4d6-24d700b391f2",
+        "name": "Fence14",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 3.4000000000000004,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "99c80953-df1f-5410-8083-ee04473ad370",
+        "name": "Fence15",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 4.0,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d484e703-1055-5864-8446-bba07bebacf2",
+        "name": "Fence16",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 4.6,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6b90a26d-d181-5713-8849-4e24770845a7",
+        "name": "Fence17",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 5.199999999999999,
+                "U": 1.25,
+                "F": 0
+              },
+              "Scale": {
+                "R": 0.06,
+                "U": 2.5,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "5cc8d500-1a72-55e4-9c56-a9677865b998",
+        "name": "FenceRail",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 2,
+                "F": 0
+              },
+              "Scale": {
+                "R": 11,
+                "U": 0.05,
+                "F": 0.06
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "84a05fcb-7be7-51bb-a75f-cc7bf42f182a",
+        "name": "LowGapBoard",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": -7,
+                "U": 0.4,
+                "F": 11
+              },
+              "Scale": {
+                "R": 2,
+                "U": 0.2,
+                "F": 3
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "137e3789-81c9-5670-a274-68fca9f5fa30",
+        "name": "HighGapBoard",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 7,
+                "U": 5,
+                "F": 11
+              },
+              "Scale": {
+                "R": 2,
+                "U": 0.2,
+                "F": 3
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

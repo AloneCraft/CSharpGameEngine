@@ -62,8 +62,8 @@ public sealed class RenderPreviewHostProcessTests {
                 Assert.True(First.WaitForExit(5_000));
             }
 
-            // DXGI can retain an abruptly-terminated process's HWND association. Recovery owns a
-            // fresh preview-surface generation as well as a fresh host/device generation.
+            // DXGIは、突然終了したプロセスとHWNDの関連付けを保持することがある。復旧時は、
+            // プレビュー用サーフェスとホスト／デバイスの両方について、新しい世代を使用する。
             using Win32Window SecondWindow=CreateWindow("Recovered");
             string SecondPipe=$"CSharpGameEngine.Preview.Process.{Guid.NewGuid():N}";
             Second=StartHost(SecondPipe);
@@ -97,10 +97,7 @@ public sealed class RenderPreviewHostProcessTests {
     }
 
     /// <summary>
-    /// M0096 (ADR-0047): the Scene view's render server runs the editor world as well, so the Spatial debug overlay
-    /// asks that process, and a request without a world id gets the editor world. (Rendering here would also make the
-    /// view world publish, but a runtime view render in a new host after HostCrash's abrupt kill fails to create its
-    /// swap chain in this test process, a separate open issue recorded in M0096.)
+    /// M0096（ADR-0047）：Scene view の render server はエディターの world も実行するため、Spatial デバッグオーバーレイはそのプロセスに問い合わせます。world id のないリクエストにはエディターの world が返されます。（ここで描画すれば view world も publish されますが、HostCrash による強制終了後、新しい host で runtime view を描画すると、このテストプロセスでは swap chain の作成に失敗します。これは M0096 に記録された別の未解決課題です。）
     /// </summary>
     [Fact]
     public async Task RuntimeViewHost_AnswersSpatialDebugWithTheEditorWorld(){

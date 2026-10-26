@@ -3,7 +3,7 @@ using System.Runtime.Loader;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Spatial.Abstractions;
 namespace CSharpGameEngine.Cooking;
-/// <summary>Only the worker loads modules. Contract identities are always taken from its default context.</summary>
+/// <summary>モジュールを読み込むのはワーカーだけ。コントラクトの識別情報は常にワーカーの既定コンテキストから取得する。</summary>
 public sealed class PluginModuleLoadContext:AssemblyLoadContext {
     private readonly AssemblyDependencyResolver Resolver;
     private static readonly IReadOnlyDictionary<string,Assembly>Shared=new[]{typeof(IAssetCooker).Assembly,typeof(AssetId).Assembly,typeof(ICoordinateConvention).Assembly}

@@ -209,3 +209,14 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 ## M0087 immutable formal release evidence
 
 `release.manifest` / F-L7-048 is executable Release-only Headless/Foundation evidence. It binds a passing RC Stage/report, validated Rendering/Content/ECS/Platform/VSIX reports, and the exact package archive, signing inputs, inner package manifest, and SPDX hashes. Publication is an atomic SHA-256 content-addressed FormalRelease directory with non-expiring retention and rollback identity. Same-identity publication preserves the original bytes and timestamp; invalid existing or partial output is never overwritten into success.
+
+### Virtual directional shadows (M0115)
+`rendering.virtual-shadows` (F-L4-020, Rendering / Visual, WARP required) runs `VirtualDirectionalShadowTests` and `VirtualShadowGpuTests` plus the Rendering Stage Pack scene lifecycle. It checks page reuse/invalidation/exhaustion, scaled geometric normals, Standard/Radial shadows and comparison/recovery. Interactive sample instructions: `UserEcsProject/VirtualShadows.md`.
+
+## Asset workspace contract stage
+
+`vsix.asset-workspace` runs Content inventory/migration/file-operation tests and net472 query/catalog/reference/data-edit tests for F-L8-035. It is an executable contract oracle for a PartiallyImplemented feature. It does not turn missing M0114 services or unverified Experimental Instance operations into a pass. See M0123 for those remaining acceptance gates.
+
+## Asset editor windows stage
+
+`vsix.asset-editors` runs the net472 registry/placement-policy/camera/model/preview-level tests, the preview protocol validation tests (lighting and skeletal inputs) and the WARP preview-host renders (template lighting, a skinned glTF with a clip pose and bone lines) for F-L8-036. It is an executable contract oracle for a PartiallyImplemented feature. It does not turn real floating/docking gestures, the DPI and high-contrast matrix or live orbit input into a pass. See M0127 for the remaining acceptance gates.

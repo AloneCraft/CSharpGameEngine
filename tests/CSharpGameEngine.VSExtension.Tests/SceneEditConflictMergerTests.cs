@@ -103,9 +103,7 @@ public sealed class SceneEditConflictMergerTests {
     }
 
     /// <summary>
-    /// An Inspector commit leaves its original value out (a typed value is not a delta). When the document moved on
-    /// before the commit, the merger cannot tell whether the member changed, so it rejects the edit instead of letting the
-    /// last writer win; at the same version the typed value is applied.
+    /// Inspector のコミットでは、元の値は変更内容として含めない（入力値は差分ではない）。コミット前にドキュメントが更新された場合、マージ処理はメンバーが変更されたか判断できないため、後勝ちにせず編集を拒否する。同じバージョンなら入力値を適用する。
     /// </summary>
     [Fact]
     public void Merge_StaleMemberEditWithoutItsOriginal_IsRejected(){

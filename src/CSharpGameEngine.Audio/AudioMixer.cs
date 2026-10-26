@@ -33,8 +33,8 @@ public readonly record struct AudioLoopRegion {
 }
 
 /// <summary>
-/// Immutable decoded PCM stream artifact. Runtime codec/provider objects are deliberately absent;
-/// the canonical content reference and owned samples are sufficient to reopen a recovering voice.
+/// 不変のデコード済みPCMストリーム成果物。実行時のコーデック／プロバイダーオブジェクトは含めない。
+/// 正規のコンテンツ参照と所有するサンプルがあれば、復旧中のボイスを再オープンできる。
 /// </summary>
 public sealed class PcmAudioStreamArtifact {
     private readonly float[]SamplesStorage;

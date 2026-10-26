@@ -10,8 +10,8 @@ using CSharpGameEngine.Runtime.Windows;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// ADR-0078/M0110 WARP oracles for the volumetric clouds (the panorama traced through the cloud layer and drawn over the sky) and the sky
-/// sphere (geometry beyond it is covered by the sky). Images of the cloudy sky are written next to the test assembly (m0110\*.png).
+/// ボリュームクラウドに対するADR-0078/M0110のWARPオラクル（雲層を通してトレースし、空に重ねて描画するパノラマ）と、
+/// スカイスフィア（その奥のジオメトリは空に覆われる）。雲のある空の画像は、テストアセンブリの隣（m0110\*.png）に書き出す。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output) {
@@ -20,15 +20,18 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
     private const int Height=180;
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
-    public void Clouds_Warp_WithZeroDensityRenderTheCloudlessFrameWithinOneLevel(){
+    public void Clouds_Warp_WithZeroDensityRenderTheCloudlessFrameBitIdentically(){
         var Cloudless=Render(null,null,Frames:3);
         var Empty=Render(VolumetricCloudSettings.Unreal with { DensityPerMeter=0f },null,Frames:3);
-        // The empty panorama keeps the whole sky (alpha 1, no light); the smooth read of it may differ from the bare sky only by rounding.
+        Assert.All(Empty.Panorama,Texel=>Assert.Equal(new Vector4(0f,0f,0f,1f),Texel));
         var Worst=0;
+        var DifferentChannels=0;
         for(var Index=0;Index<Cloudless.Frame.Pixels.Length;Index++){
             Worst=Math.Max(Worst,Math.Abs(Cloudless.Frame.Pixels[Index]-Empty.Frame.Pixels[Index]));
+            if(Cloudless.Frame.Pixels[Index]!=Empty.Frame.Pixels[Index]){ DifferentChannels++; }
         }
-        Assert.True(Worst<=1,$"largest channel difference {Worst}");
+        Output.WriteLine($"zero-density cloud largest channel difference {Worst}; different channels {DifferentChannels}; panorama is transparent");
+        Assert.Equal(0,Worst);
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -40,7 +43,7 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
         Save(First.Frame,"sky-with-clouds.png");
         Assert.Equal(Hash(First.Frame),Hash(Second.Frame));
         Assert.Equal(First.Panorama,Second.Panorama);
-        // Sky pixels are the upper part of the image; the floor fills the lower part.
+        // 画像の上側が空、下側を床が占める。
         var Changed=0;
         var Whiter=0;
         var Sky=0;
@@ -51,7 +54,7 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
                 Sky++;
                 if(Math.Abs(Before.R-After.R)+Math.Abs(Before.G-After.G)+Math.Abs(Before.B-After.B)>12){
                     Changed++;
-                    // A cloud is greyer than the blue sky behind it: its red comes closer to its blue.
+                    // 雲は背景の青空より灰色である。赤の値は青の値に近づく。
                     if(After.B-After.R<Before.B-Before.R){ Whiter++; }
                 }
             }
@@ -76,8 +79,8 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
         var B=Render(Blown,null,Frames:1);
         Assert.NotEqual(A.Panorama,B.Panorama);
         Assert.Equal(B.Panorama,Render(Blown,null,Frames:1).Panorama);
-        // Only the wind changes between the frames: the first frame traces every texel, the second only the first Bayer phase (offset 0, 0 of
-        // each 4 x 4 block), so every texel that changed is one of those.
+        // 2フレーム間で風だけが変化する。1フレーム目はすべてのテクセルをトレースし、2フレーム目は各
+        // 4 x 4ブロックのBayer位相のうち最初（オフセット0, 0）だけをトレースする。そのため変化したテクセルはその位相に一致する。
         using var Scene=CloudScene.Create();
         Scene.RenderFrame(Calm,null);
         var Before=Scene.Renderer.ReadCloudPanoramaForTesting();
@@ -93,6 +96,24 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
         }
         Assert.Equal(0,ChangedOutside);
         Assert.True(ChangedInside>0);
+        for(var Frame=1;Frame<StageAtmosphere.CloudRefreshFrames;Frame++){
+            Scene.RenderFrame(Blown,null);
+        }
+        Assert.Equal(B.Panorama,Scene.Renderer.ReadCloudPanoramaForTesting().Texels);
+        Scene.AssertNoDebugLayerErrors();
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void Clouds_Warp_RebuildTheWholePanoramaAfterSettingsChangeOrReenable(){
+        using var Scene=CloudScene.Create();
+        Scene.RenderFrame(VolumetricCloudSettings.Unreal,null);
+        var Changed=VolumetricCloudSettings.Unreal with { Coverage=-0.8f };
+        Scene.RenderFrame(Changed,null);
+        var Expected=Render(Changed,null,Frames:1);
+        Assert.Equal(Expected.Panorama,Scene.Renderer.ReadCloudPanoramaForTesting().Texels);
+        Scene.RenderFrame(null,null);
+        Scene.RenderFrame(Changed,null);
+        Assert.Equal(Expected.Panorama,Scene.Renderer.ReadCloudPanoramaForTesting().Texels);
         Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
@@ -110,7 +131,7 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void SkySphere_Warp_CoversGeometryBeyondItsRadius(){
-        // A wall 30 km ahead, 20 km wide: with UE's 16.384 km sphere it is behind the sky; with a 50 km sphere it is in front of it.
+        // 30 km先に幅20 kmの壁を置く。UEの16.384 kmスフィアでは空の奥に隠れ、半径50 kmのスフィアでは手前に現れる。
         var EmptySky=Render(null,null,Frames:2,Wall:false);
         var Visible=Render(null,null,Frames:2,Wall:true);
         var Covered=Render(null,new SkySphereSettings(Vector3.Zero,16384f),Frames:2,Wall:true);
@@ -119,7 +140,7 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
         Assert.NotEqual(ReadPixel(EmptySky.Frame,Probe.X,Probe.Y),ReadPixel(Visible.Frame,Probe.X,Probe.Y));
         Assert.Equal(ReadPixel(EmptySky.Frame,Probe.X,Probe.Y),ReadPixel(Covered.Frame,Probe.X,Probe.Y));
         Assert.Equal(ReadPixel(Visible.Frame,Probe.X,Probe.Y),ReadPixel(Inside.Frame,Probe.X,Probe.Y));
-        // The floor near the camera is far inside the sphere and stays.
+        // カメラ近くの床はスフィアのかなり内側にあるため、引き続き見える。
         Assert.Equal(ReadPixel(Visible.Frame,Width/2,Height-4),ReadPixel(Covered.Frame,Width/2,Height-4));
     }
     private static EnvironmentLightingSettings Environment(VolumetricCloudSettings?Clouds,SkySphereSettings?Sphere)=>new(
@@ -181,7 +202,10 @@ public sealed class VolumetricCloudGpuIntegrationTests(ITestOutputHelper Output)
             }
             this.Renderer.RenderFrame(CaptureForVerification:Capture);
         }
-        internal void AssertNoDebugLayerErrors()=>Assert.Equal(0,this.Renderer.ErrorOrWorseMessageCount);
+        internal void AssertNoDebugLayerErrors(){
+            Assert.True(this.Renderer.DebugLayerEnabled);
+            Assert.Equal(0,this.Renderer.ErrorOrWorseMessageCount);
+        }
         public void Dispose(){
             this.Renderer.Dispose();
             this.Window.Dispose();

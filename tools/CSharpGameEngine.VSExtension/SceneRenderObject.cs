@@ -4,8 +4,7 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Authoring-derived drawable identity and transform. Native render resources belong exclusively
-/// to the isolated Render Server and are never retained by the VSIX.
+/// 作成内容から得られる描画可能な識別情報と Transform。ネイティブなレンダーリソースは分離された Render Server だけが所有し、VSIX が保持することはない。
 /// </summary>
 internal sealed class SceneRenderObject {
     public required SimpleMesh Mesh { get;init;}

@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.VSExtension.Tests;
-/// <summary>The Scene view requests a preview frame only when the rebuilt overlay differs from the drawn one.</summary>
+/// <summary>再構築したオーバーレイが描画済みのものと異なる場合に限り、Scene ビューはプレビューフレームを要求する。</summary>
 public sealed class GizmoOverlayContentTests {
     private static GizmoOverlayPrimitive Line(float X,Vector4 Color)=>new(GizmoPrimitiveKind.Line,
         [new GizmoOverlayVertex(new Vector3(X,0f,0f),Color),new GizmoOverlayVertex(new Vector3(X,1f,0f),Color)]);

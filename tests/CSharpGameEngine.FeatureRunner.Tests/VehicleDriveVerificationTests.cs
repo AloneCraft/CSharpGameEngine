@@ -2,7 +2,7 @@ using System.Text.Json;
 using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 public sealed class VehicleDriveVerificationTests {
-    /// <summary>A report shaped like the template run: the camera follows a car that drives forward and bends right while it is steered.</summary>
+    /// <summary>テンプレート実行のようなレポート：カメラは、操作に応じて前進し右へ曲がる車を追従する。</summary>
     private static JsonElement Report(float TravelMeters=60f,float TurnDegrees=12f,float Height=2.7f,int D3D12Errors=0,int Frames=VehicleDriveVerification.Frames,bool Stationary=false,int HudStates=20,bool WithHud=true){
         var Positions=new List<float[]?>();
         var R=44.5f;
@@ -89,7 +89,7 @@ public sealed class VehicleDriveVerificationTests {
     }
     [Fact]
     public void Evaluate_DoesNotHoldAnAnalogDriveToTheKeyDrivesMinimums(){
-        // Half a trigger goes less far and half a stick turns less than the 20 m and 5 degrees that the key drive must reach.
+        // トリガーを半分だけ押すと移動距離が短くなり、スティックを半分だけ傾けると、キー操作で必要な 20 m および 5 度より旋回が小さくなる。
         Assert.Empty(VehicleDriveVerification.Evaluate(Report(TravelMeters:8f,TurnDegrees:1f),out _,AnalogDrive:true));
         Assert.NotEmpty(VehicleDriveVerification.Evaluate(Report(TravelMeters:8f,TurnDegrees:1f),out _));
     }

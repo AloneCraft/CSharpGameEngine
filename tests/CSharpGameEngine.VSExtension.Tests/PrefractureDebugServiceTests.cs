@@ -11,8 +11,7 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// ADR-0078/M0113: the Scene view's Fracture preview reads what to cut from the scene's Destructible and its box Collider (the same values the build's Cook
-/// module reads), runs the physics host with those numbers, and draws the bonds and the fragments' outlines where the node is.
+/// ADR-0078/M0113：Scene ビューの Fracture プレビューは、シーンの Destructible とボックス Collider から切断対象を読み取る（ビルドの Cook モジュールが読む値と同じ）。その数値で物理ホストを実行し、ノード位置に結合とフラグメントの輪郭を描画する。
 /// </summary>
 public sealed class PrefractureDebugServiceTests {
     private const string Components="""
@@ -75,7 +74,7 @@ public sealed class PrefractureDebugServiceTests {
 
     [Fact]
     public void ThePreviewCutsTheLevelsOfClustersTheNodeAsksFor(){
-        // M0124: the levels go to the cut as its last argument, so the preview's clusters are the build's.
+        // M0124：レベルは切断処理の最後の引数として渡すため、プレビューのクラスターはビルド時と一致する。
         var Node=Root("""FractureAsset="Crate",FragmentCount=24,ClusterLevels=3""");
         Assert.True(PrefractureDebugService.TryReadPreviewRequest(Node,out var Request,out var Problem),Problem);
         Assert.Equal(3,Request.ClusterLevels);
@@ -148,7 +147,7 @@ public sealed class PrefractureDebugServiceTests {
 
     [Fact]
     public void EachBondCarriesItsSharedLevelsAndTheOverlayDrawsTheOuterBondsApart(){
-        // M0124: a bond between top-level clusters (level 0, the first to break) keeps M0113's pink; the bonds inside one cluster and deeper are other colours.
+        // M0124：最上位クラスター間の結合（レベル 0、最初に破断する）は M0113 のピンク色を維持する。同じクラスター内部およびより深いレベルの結合は別の色になる。
         PrefractureDebugService.PrefractureInspectionDocument Document=new(){
             SourceHash="hash",
             ClusterLevels=2,

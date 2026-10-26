@@ -78,7 +78,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
 
     [Fact]
     public void UpdateReturningNeitherVoidNorBool_ReportsSysgen006(){
-        // ADR-0072: void is the standard Update and bool is still accepted; any other type is an error.
+        // ADR-0072：Updateは標準のvoidに加えboolも受け付ける。それ以外の型はエラー。
         AssertHasDiagnostic(
             """
             internal struct IntUpdateSystem : ISystem
@@ -168,7 +168,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
 
     [Fact]
     public void UpdateWithoutTrailingState_IsAccepted(){
-        // ADR-0077: the trailing `ref State` is optional; SYSGEN013 no longer exists.
+        // ADR-0077：末尾の`ref State`は省略可能。SYSGEN013は廃止済み。
         var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+
             """
             internal struct NoStateSystem : ISystem
@@ -183,7 +183,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
 
     [Fact]
     public void InStruct_IsAReadOnlyComponentAndDoesNotReportAContext(){
-        // ADR-0077: `in T` on a struct reads the component (what `[ReadOnlyComponent] in T` used to say).
+        // ADR-0077：構造体の`in T`はコンポーネントを読み取る（以前の`[ReadOnlyComponent] in T`に相当）。
         var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+
             """
             internal struct ReadSystem : ISystem
@@ -290,7 +290,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
 
     [Fact]
     public void ComponentTypesSharingASimpleName_AreNamedWithTheirNamespaces(){
-        // ADR-0079: two plugins may each have a Position; only those two get namespace-qualified generated names.
+        // ADR-0079：2つのプラグインがそれぞれPositionを持つ場合、名前空間付き生成名になるのはこの2つだけ。
         var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+"""
             internal struct SharingSystem : ISystem
             {

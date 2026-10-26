@@ -1,11 +1,11 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 namespace CSharpGameEngine.Platform.Windows;
-/// <summary>One XInput controller's state, normalized: sticks and triggers in [-1, 1] / [0, 1], Y up.</summary>
+/// <summary>正規化されたXInputコントローラー1台分の状態。スティックとトリガーは[-1, 1]／[0, 1]、Yは上向き。</summary>
 public readonly record struct GamepadSnapshot(bool Connected,ushort Buttons,float LeftTrigger,float RightTrigger,Vector2 LeftStick,Vector2 RightStick);
 /// <summary>
-/// Polls the first XInput controller (ADR-0067). Dead zones are left to the input bindings, as in
-/// Unreal's Enhanced Input; xinput1_4.dll being absent reads as disconnected.
+/// 最初のXInputコントローラーをポーリングする（ADR-0067）。Unreal Enhanced Inputと同様、デッドゾーン処理は入力バインディング側に任せる。
+/// xinput1_4.dllがない場合は未接続として読み取る。
 /// </summary>
 public static partial class XInputGamepad {
     [StructLayout(LayoutKind.Sequential)]

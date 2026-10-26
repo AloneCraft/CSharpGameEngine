@@ -41,7 +41,7 @@ try:
         "staticMeshesInLevel": sorted(meshes),
         "assetKinds": dict(sorted(kinds.items())),
     })
-except Exception as exception:  # the probe reports instead of failing the editor run
+except Exception as exception:  # probe は editor の実行を失敗させず、結果を報告します。
     result["error"] = str(exception)
 
 with open(out_path, "w", encoding="utf-8") as stream:

@@ -1,5 +1,5 @@
 namespace CSharpGameEngine.Contracts;
-/// <summary>Provider-free importer discovery shared with L6 authoring and the net472 frontend.</summary>
+/// <summary>L6アセット作成とnet472フロントエンドで共有する、プロバイダー非依存のインポーター探索。</summary>
 public interface IImporterCatalog {
     IReadOnlyList<ImporterCandidateDto> Candidates(string Extension);
     bool IsValid(string Identity,string Extension);

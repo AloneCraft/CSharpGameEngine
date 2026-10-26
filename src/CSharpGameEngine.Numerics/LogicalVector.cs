@@ -6,7 +6,7 @@ public readonly record struct LogicalVector3(LogicalScalar R,LogicalScalar U,Log
     public static LogicalVector3 UnitU=>new(LogicalScalar.Zero,LogicalScalar.One,LogicalScalar.Zero);
     public static LogicalVector3 UnitF=>new(LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.One);
     public LogicalScalar LengthSquared=>Dot(this,this);
-    /// <summary>Unit vector; <c>V.TryNormalize(out V)</c> is allowed because the receiver is read before <paramref name="Result"/> is written.</summary>
+    /// <summary>単位ベクトル。受け取り側を <paramref name="Result"/> に書き込む前に読み取るため、<c>V.TryNormalize(out V)</c> を呼び出せる。</summary>
     public bool TryNormalize(out LogicalVector3 Result){
         if(LogicalScalar.TrySquareRoot(this.LengthSquared,out var Length)&&!Length.IsZero
             &&LogicalScalar.TryDivide(this.R,Length,out var R)
@@ -39,7 +39,7 @@ public readonly record struct LogicalQuaternion(LogicalScalar R,LogicalScalar U,
     private LogicalQuaternion(LogicalQuaternion Value,byte _):this(Value.R,Value.U,Value.F,Value.W){ }
     public static LogicalQuaternion Identity=>new(LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.One);
     public LogicalScalar LengthSquared=>this.R*this.R+this.U*this.U+this.F*this.F+this.W*this.W;
-    /// <summary>Unit quaternion; <c>Q.TryNormalize(out Q)</c> is allowed because the receiver is read before <paramref name="Result"/> is written.</summary>
+    /// <summary>単位クォータニオン。受け取り側を <paramref name="Result"/> に書き込む前に読み取るため、<c>Q.TryNormalize(out Q)</c> を呼び出せる。</summary>
     public bool TryNormalize(out LogicalQuaternion Result){
         if(LogicalScalar.TrySquareRoot(this.LengthSquared,out var Length)&&!Length.IsZero
             &&LogicalScalar.TryDivide(this.R,Length,out var R)
@@ -99,8 +99,8 @@ public readonly record struct LogicalQuaternion(LogicalScalar R,LogicalScalar U,
         return new LogicalQuaternion(R,U,F,Cos).TryNormalize(out Result);
     }
     public bool TryRotate(LogicalVector3 Value,out LogicalVector3 Result){
-        // The identity product only multiplies by one and adds zeros, which is exact in Q64.64;
-        // static meshes and axis-aligned queries rotate by it on every contact test.
+        // 単位元との乗算は1を掛けて0を加えるだけなので、Q64.64 では正確。
+        // 静的メッシュと軸平行問い合わせでは、接触判定のたびにこの回転を使う。
         if(this==Identity){
             Result=Value;
             return true;

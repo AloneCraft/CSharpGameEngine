@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0079: a class marked [EngineService] is a service the generated loop makes once, shares and disposes.</summary>
+/// <summary>ADR-0079：[EngineService]を付けたクラスはサービスとなる。生成ループが一度だけ生成して共有し、破棄する。</summary>
 public sealed class GameSystemEngineServiceTests {
     private static readonly string Attribute=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Core","EngineServiceAttribute.cs"));
 

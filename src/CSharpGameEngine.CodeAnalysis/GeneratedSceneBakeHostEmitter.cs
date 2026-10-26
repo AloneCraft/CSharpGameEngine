@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.CodeAnalysis;
 
-/// <summary>Emits a compile-time scene dispatcher for deterministic headless simulation Bake.</summary>
+/// <summary>決定論的な headless simulation Bake 用の、コンパイル時シーン dispatcher を生成します。</summary>
 internal static class GeneratedSceneBakeHostEmitter {
     private const string EngineHostType="global::CSharpGameEngine.Runtime.Windows.EngineHost";
     private const string HintName="GameSystem.SceneBakeHost.g.cs";
@@ -99,9 +99,9 @@ internal static class GeneratedSceneBakeHostEmitter {
         Lines.Add("        }");
         Lines.Add("        return Succeeded;");
         Lines.Add("    }");
-        // ADR-0078/M0113: plays a baked cache back through the same generated systems and writes what the world then holds, tick by tick, as a cache again.
-        // The bytes equal the baked ones exactly when playback reproduces the bake: the same bodies (the pieces of what broke, made from the recorded bond
-        // breaks) in the same poses, with the same events.
+        // ADR-0078/M0113：ベイク済み cache を同じ生成済み system で再生し、world が各 tick で保持する状態を再び cache に書き込みます。
+        // 再生結果が bake と一致する場合、byte 列も完全に一致します。破断で生じた断片からなる同じ body が、同じ pose、
+        // 同じ event とともに記録されます。
         Lines.Add("    public static bool TryReplay(");
         Lines.Add("        string? SceneName, int TickCount, string? DependencyHash, global::System.IO.Stream? Cache, global::System.IO.Stream? Output,");
         Lines.Add("        global::System.Threading.CancellationToken CancellationToken, out string Error) {");

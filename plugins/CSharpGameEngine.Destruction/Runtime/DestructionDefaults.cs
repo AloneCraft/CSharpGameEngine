@@ -1,7 +1,7 @@
 namespace CSharpGameEngine.Destruction;
 /// <summary>
-/// Where cooked fracture assets live, what their names may be and the defaults of the cut (ADR-0078/M0113). The plugin's Runtime and its Cook module both
-/// compile this file, so the scene's <c>Destructible</c> and the cook agree on a member a scene leaves out.
+/// 調理済みの破砕アセットの保存場所、使用できる名前、分割時の既定値（ADR-0078/M0113）。プラグインの Runtime と Cook モジュールの両方でこのファイルをコンパイルするため、シーン
+/// 側で省略された <c>Destructible</c> のメンバー値が調理側と一致する。
 /// </summary>
 public static class DestructionDefaults {
     public const string Folder="Assets/Destruction";
@@ -10,14 +10,14 @@ public static class DestructionDefaults {
     public const int FragmentCount=16;
     public const int Seed=0;
     public const int ClusterCount=0;
-    /// <summary>Levels of clusters (M0124): 1 is one level of clusters over the fragments, as M0113.</summary>
+    /// <summary>クラスター階層の段数（M0124）。1 は破片を一段のクラスターにまとめる設定で、M0113 と同じ。</summary>
     public const int ClusterLevels=1;
-    /// <summary>kg/m³.</summary>
+    /// <summary>破片の密度（kg/m³）。</summary>
     public const int Density=500;
-    /// <summary>N·s per m² of bond.</summary>
+    /// <summary>結合面積あたりの N·s。</summary>
     public const int BondStrength=2000;
-    /// <summary>The content path of a cooked asset.</summary>
+    /// <summary>事前生成したアセットのコンテンツパス。</summary>
     public static string AssetPath(string Name)=>Folder+"/"+Name+Extension;
-    /// <summary>A name is a file name: 1 to 64 of letters, digits and <c>-_.</c>, not starting with a dot.</summary>
+    /// <summary>名前はファイル名として、英字と数字、および <c>-_.</c> からなる1～64文字とする。先頭をドットにはできない。</summary>
     public static bool IsValidName(string?Name)=>Name is { Length:>0 and <=64 }&&Name.All(static Character=>char.IsAsciiLetterOrDigit(Character)||Character is '-' or '_' or '.')&&Name[0]!='.';
 }

@@ -2,64 +2,65 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// A burst of short-lived meshes (ADR-0078/M0105), after the Niagara systems the Unreal templates use for a one-shot effect
-/// (<c>FX_Cursor_Success</c>: one burst, count 1, lifetime 0.7 s, white). Put it on a node of a Scene next to a <see cref="Lifetime"/>
-/// and spawn the Scene with <see cref="Spawner"/>: at the first fixed tick the node's world position emits <see cref="Count"/> particles, each
-/// an Entity with its own <see cref="Lifetime"/>, that fly out, fall, change size and disappear. There is no sprite pass in the renderer, so a particle
-/// is a mesh the same way every other object is (a <see cref="StaticMesh"/> asset or a <see cref="PrimitiveMesh"/>), lit like it and drawn opaque.
-/// The random numbers come from <see cref="Seed"/>, so the same burst looks the same every time.
+/// 短時間だけ存在するメッシュのバースト（ADR-0078/M0105）。一度だけ使うUnrealテンプレートのNiagaraシステム
+///（例：<c>FX_Cursor_Success</c>。1回、1個、寿命0.7秒、白色）に相当する。
+/// <see cref="Lifetime"/>とともにSceneのノードへ置き、<see cref="Spawner"/>でSceneを生成する。
+/// 最初の固定ティックでノードのワールド位置から<see cref="Count"/>個のパーティクルを放出する。各パーティクルは独自の<see cref="Lifetime"/>を持つEntityであり、
+/// 飛行し、落下し、サイズが変化して消える。レンダラーにスプライト描画パスはないため、パーティクルも他のオブジェクトと同様にメッシュで表す
+///（<see cref="StaticMesh"/>アセットまたは<see cref="PrimitiveMesh"/>）。同じように照明され、不透明で描画する。
+/// 乱数には<see cref="Seed"/>を使うため、同じバーストは毎回同じ見た目になる。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,30)]
 public struct ParticleBurst() {
-    /// <summary>The upper limit of <see cref="Count"/>; a larger value emits this many.</summary>
+    /// <summary><see cref="Count"/>の上限。これを超える値を指定すると、この数だけ放出する。</summary>
     public const int MaxCount=256;
-    /// <summary>The mesh of one particle: a path under the game's Assets (a <c>.glb</c>), or empty to use a <see cref="PrimitiveMesh"/> of <see cref="Shape"/>.</summary>
+    /// <summary>1つのパーティクルのメッシュ。ゲームのAssets配下のパス（<c>.glb</c>）、または空なら<see cref="Shape"/>の<see cref="PrimitiveMesh"/>。</summary>
     public string AssetPath=string.Empty;
-    /// <summary>The primitive of one particle when <see cref="AssetPath"/> is empty. A unit-sized shape, scaled by <see cref="StartScale"/> and <see cref="EndScale"/>.</summary>
+    /// <summary><see cref="AssetPath"/>が空の場合に使う、1つのパーティクルのプリミティブ。単位サイズの形状を<see cref="StartScale"/>と<see cref="EndScale"/>でスケーリングする。</summary>
     public PrimitiveType Shape=PrimitiveType.Sphere;
-    /// <summary>How many particles, 0 to <see cref="MaxCount"/>.</summary>
+    /// <summary>パーティクル数。0～<see cref="MaxCount"/>。</summary>
     public int Count=8;
-    /// <summary>How long one particle lives, in seconds.</summary>
+    /// <summary>1つのパーティクルの寿命（秒）。</summary>
     public LogicalScalar Lifetime=LogicalScalar.FromSingle(0.7f);
-    /// <summary>Metres per second along the particle's direction at birth. 0 keeps the particles where they were born.</summary>
+    /// <summary>誕生時のパーティクルの進行方向に沿った速度（m/s）。0なら誕生位置にとどまる。</summary>
     public LogicalScalar Speed=LogicalScalar.Zero;
-    /// <summary>How much faster or slower one particle is than <see cref="Speed"/>, as a fraction of it (0.25 is ±25 %).</summary>
+    /// <summary><see cref="Speed"/>と比較したパーティクル速度の増減率（その速度に対する割合。0.25なら±25 %）。</summary>
     public LogicalScalar SpeedJitter=LogicalScalar.Zero;
-    /// <summary>How far to the side the directions lean, as sideways distance per unit of upward distance: 0 is straight up, 1 a 45° cone, large values nearly flat.</summary>
+    /// <summary>方向が横へ傾く度合い。上方向1単位あたりの横方向距離で表し、0なら真上、1なら45°の円錐、大きな値ならほぼ水平。</summary>
     public LogicalScalar Spread=LogicalScalar.One;
-    /// <summary>Metres per second squared pulling the particles down.</summary>
+    /// <summary>パーティクルを下へ引く加速度（m/s²）。</summary>
     public LogicalScalar Gravity=LogicalScalar.Zero;
-    /// <summary>The particle's scale at birth.</summary>
+    /// <summary>誕生時のパーティクルのスケール。</summary>
     public LogicalScalar StartScale=LogicalScalar.One;
-    /// <summary>The particle's scale when its life is over; it moves from <see cref="StartScale"/> to this in a straight line.</summary>
+    /// <summary>寿命終了時のパーティクルのスケール。<see cref="StartScale"/>からこの値まで直線的に変化する。</summary>
     public LogicalScalar EndScale=LogicalScalar.Zero;
-    /// <summary>Seeds the random directions and speeds.</summary>
+    /// <summary>ランダムな方向と速度のシード。</summary>
     public uint Seed=1u;
 }
-/// <summary>Whether a <see cref="ParticleBurst"/> has gone off; it does so once.</summary>
+/// <summary><see cref="ParticleBurst"/>が一度発生済みかどうか。一度だけ発生する。</summary>
 public struct ParticleBurstRuntime:IRuntimeComponent<ParticleBurst> {
     public bool Emitted;
 }
-/// <summary>One particle of a <see cref="ParticleBurst"/>. Its position and size are its Entity's <see cref="Transform"/>, its age its <see cref="Lifetime"/>.</summary>
+/// <summary><see cref="ParticleBurst"/>に属するパーティクル1つ。位置とサイズはEntityの<see cref="Transform"/>、経過時間は<see cref="Lifetime"/>で表す。</summary>
 public struct Particle {
     public LogicalVector3 Velocity;
     public LogicalScalar Gravity;
     public LogicalScalar StartScale;
     public LogicalScalar EndScale;
-    /// <summary>The life it started with, so the age is known from the <see cref="Lifetime"/> left.</summary>
+    /// <summary>開始時の寿命。これと<see cref="Lifetime"/>の残り時間から経過時間を求める。</summary>
     public LogicalScalar Duration;
 }
-/// <summary>Registers the shapes a burst creates: a particle of a mesh asset and of a primitive.</summary>
+/// <summary>バーストが作成する形状を登録する。メッシュアセット由来とプリミティブ由来の各パーティクル。</summary>
 internal struct ParticleShapes:ISystem {
     public void Spawn(ref Transform Transform,ref StaticMesh Mesh,ref Particle Particle,ref Lifetime Lifetime){}
     public void Spawn(ref Transform Transform,ref PrimitiveMesh Mesh,ref Particle Particle,ref Lifetime Lifetime){}
 }
-/// <summary>ADR-0078/M0105: sets off every <see cref="ParticleBurst"/> that has not gone off yet, at the node's world position.</summary>
+/// <summary>ADR-0078/M0105：まだ発生していないすべての<see cref="ParticleBurst"/>を、ノードのワールド位置から発生させる。</summary>
 [SystemPhase(SystemPhase.FixedSimulation)]
 internal struct ParticleBurstEmit:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref ParticleBurst Burst,ref ParticleBurstRuntime Runtime,ref State State){
         if(Runtime.Emitted){ return; }
-        // A node whose parents cannot be resolved yet is tried again at the next tick.
+        // 親の姿勢をまだ解決できないノードは、次のティックでもう一度試す。
         if(RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out var World)!=FixedTransformResolveStatus.Success){ return; }
         Runtime.Emitted=true;
         var Origin=new LogicalVector3(World.M41,World.M42,World.M43);
@@ -89,7 +90,7 @@ internal struct ParticleBurstEmit:ISystem {
             }
         }
     }
-    /// <summary>A small deterministic generator (xorshift32); the burst must look the same on every machine, so it does not use the system's.</summary>
+    /// <summary>小さな決定的ジェネレーター（xorshift32）。すべてのマシンで同じバーストを再現するため、システムの乱数生成器は使わない。</summary>
     private struct Random(uint Seed) {
         private uint State=Seed==0u?0x9E3779B9u:Seed;
         private uint Next(){
@@ -99,9 +100,9 @@ internal struct ParticleBurstEmit:ISystem {
             Value^=Value<<5;
             return this.State=Value;
         }
-        /// <summary>A number in [-1, 1) with 16 bits of fraction, exact in fixed point.</summary>
+        /// <summary>[-1, 1)の範囲の数値。小数部16ビットで、固定小数点上では正確。</summary>
         internal LogicalScalar Signed()=>LogicalScalar.FromInt64((long)(this.Next()>>16)-32768L)/LogicalScalar.FromInt64(32768L);
-        /// <summary>A unit direction leaning at most <paramref name="Spread"/> sideways per unit up, spread evenly over the disc of the sideways lean.</summary>
+        /// <summary>上方向1単位あたり最大<paramref name="Spread"/>だけ横に傾き、横方向の傾きが作る円盤内に均等分布する単位方向。</summary>
         internal LogicalVector3 Direction(LogicalScalar Spread){
             LogicalScalar R;
             LogicalScalar F;
@@ -114,7 +115,7 @@ internal struct ParticleBurstEmit:ISystem {
         }
     }
 }
-/// <summary>ADR-0078/M0105: moves, pulls down and rescales every <see cref="Particle"/>, before its <see cref="Lifetime"/> is counted down.</summary>
+/// <summary>ADR-0078/M0105：<see cref="Lifetime"/>を減算する前に、すべての<see cref="Particle"/>を移動し、落下させ、スケールを変更する。</summary>
 [SystemPhase(SystemPhase.FixedSimulation)]
 [RunsBefore(typeof(LifetimeExpire))]
 internal struct ParticleMotion:ISystem {

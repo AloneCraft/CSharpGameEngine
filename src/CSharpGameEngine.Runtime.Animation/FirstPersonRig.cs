@@ -3,12 +3,12 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
-/// The first-person arms' animation (ABP_FP_Copy with the control rig CtrlRig_FPWarp, ADR-0078/M0107) on a <see cref="SkeletalMesh"/> node that is a child of the body's
-/// mesh: each frame it copies the body's final pose (UE's CopyPoseFromMesh with the attached parent), then warps it so the arms sit right in front of the camera.
-/// The warp is the rig's: the spine (<see cref="SpineStart"/> to <see cref="SpineEnd"/>) is pulled by FABRIK toward <see cref="BodyOffset"/> at half weight so the chest
-/// stays out of the camera's way, the head is put where the control <c>Ctrl_Head</c> is, and each upper arm is moved onto its shoulder control (<c>Ctrl_Shoulder_L</c> / <c>_R</c>)
-/// keeping its animated orientation, the forearm and hand following rigidly. Those three controls sit exactly on the reference pose's head and upper arms
-/// (measured from the rig, M0107), so the reference pose of the skeleton stands in for them.
+/// 一人称視点の腕のアニメーション（ABP_FP_Copy とコントロールリグ CtrlRig_FPWarp、ADR-0078/M0107）。ボディのメッシュの子となる
+/// <see cref="SkeletalMesh"/> ノードに配置する。毎フレーム、ボディの最終姿勢をコピーしてから（UE の CopyPoseFromMesh における親へのアタッチと同じ処理）、腕
+/// がカメラのすぐ前に来るよう変形する。リグに従い、背骨（<see cref="SpineStart"/> から <see cref="SpineEnd"/>）は FABRIK で
+/// <see cref="BodyOffset"/> の方向へ半分の重みで引き、胸部がカメラを遮らないようにする。頭はコントロール <c>Ctrl_Head</c> の位置に置く。各上腕はアニメーション時
+/// の向きを維持したまま肩コントロール（<c>Ctrl_Shoulder_L</c> / <c>_R</c>）の位置へ移動し、前腕と手は剛体的に追従させる。3つのコントロールはリグから測定した基準姿勢（
+/// M0107）の頭と上腕に正確に一致するため、スケルトンの基準姿勢をコントロール位置の代わりに使う。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,5)]
 public struct FirstPersonPose() {
@@ -17,13 +17,13 @@ public struct FirstPersonPose() {
     public string Head="head";
     public string UpperArmLeft="upperarm_l";
     public string UpperArmRight="upperarm_r";
-    /// <summary>The <c>BodyOffset</c> control: where the end of the spine is pulled to, in the mesh's model space (m). UE (0, -3.586, 109.51) cm.</summary>
+    /// <summary><c>BodyOffset</c> コントロール。メッシュのモデル空間で背骨の末端を引く位置（m）。UE の値は (0, -3.586, 109.51) cm。</summary>
     public LogicalVector3 BodyOffset=new(0f,1.0951f,0.03586f);
-    /// <summary>The FABRIK node's Weight: how much of the solved spine replaces the animated one.</summary>
+    /// <summary>FABRIK ノードの Weight。計算した背骨の姿勢でアニメーション姿勢を置き換える割合。</summary>
     public float SpineWeight=0.5f;
-    /// <summary>The FABRIK node's MaxIterations.</summary>
+    /// <summary>FABRIKノードのMaxIterations（最大反復回数）。</summary>
     public int Iterations=10;
-    /// <summary>The FABRIK node's Precision (m): UE's 1 cm.</summary>
+    /// <summary>FABRIK ノードの Precision（m）。UE の値は1 cm。</summary>
     public float Precision=0.01f;
 }
 public struct FirstPersonPoseRuntime:IRuntimeComponent<FirstPersonPose> {
@@ -32,7 +32,7 @@ public struct FirstPersonPoseRuntime:IRuntimeComponent<FirstPersonPose> {
     public Matrix4x4[]?Scratch;
     public string?Error;
 }
-/// <summary>The solve of <see cref="FirstPersonPose"/> for one skeleton.</summary>
+/// <summary>1つのスケルトンに対する <see cref="FirstPersonPose"/> の計算結果。</summary>
 public sealed class FirstPersonRig {
     private readonly Skeleton Skeleton;
     private readonly int[]Chain;
@@ -49,7 +49,7 @@ public sealed class FirstPersonRig {
         this.Skeleton=Skeleton;
         var Start=Find(Skeleton,Settings.SpineStart);
         var End=Find(Skeleton,Settings.SpineEnd);
-        // The spine is the chain of parents from the end joint up to the start joint.
+        // 背骨は、末端の関節から開始関節まで親をたどった連鎖。
         List<int>Joints=[End];
         for(var Joint=End;Joint!=Start;){
             Joint=Skeleton.ParentOf(Joint);
@@ -71,8 +71,8 @@ public sealed class FirstPersonRig {
         this.Moved=new bool[Skeleton.JointCount];
     }
     /// <summary>
-    /// Warps <paramref name="Local"/> (the body's final local pose, copied): the spine toward the body offset, then the head and the upper arms onto the controls.
-    /// <paramref name="Scratch"/> holds at least <see cref="Skeleton.JointCount"/> matrices.
+    /// コピーしたボディの最終ローカル姿勢である <paramref name="Local"/> を変形する。まず背骨をボディオフセットへ向け、その後、頭と上腕をコントロール位置へ合わせる。
+    /// <paramref name="Scratch"/> には <see cref="Skeleton.JointCount"/> 個以上の行列を格納できる領域が必要。
     /// </summary>
     public void Apply(Span<JointPose>Local,Span<Matrix4x4>Scratch){
         var Count=this.Skeleton.JointCount;
@@ -83,9 +83,9 @@ public sealed class FirstPersonRig {
         this.Skeleton.ComputeModel(Local,Model);
         Array.Clear(this.Moved);
         this.PullSpine(Model);
-        // Ctrl_Head: the head's whole transform, with the joints below it carried along.
+        // Ctrl_Head：頭部全体の変換。頭より下の関節も一緒に移動する。
         this.Place(Model,this.Head,this.RestModel[this.Head]);
-        // Ctrl_Shoulder_L / _R: the translation only; the upper arm keeps its orientation, and the forearm and hand move with it.
+        // Ctrl_Shoulder_L / _R：平行移動のみ。上腕の向きは維持し、前腕と手は一緒に移動する。
         foreach(var Arm in this.Arms){
             var Placed=Model[Arm];
             Placed.Translation=this.RestModel[Arm].Translation;
@@ -93,7 +93,7 @@ public sealed class FirstPersonRig {
         }
         this.WriteBack(Local,Model);
     }
-    /// <summary>FABRIK along the spine with the first joint fixed, then each bone is turned to point at the next one's new place and carries everything below it.</summary>
+    /// <summary>最初の関節を固定して背骨に沿って FABRIK を実行し、その後、各骨を次の関節の新しい位置へ向ける。骨より下の関節も追従する。</summary>
     private void PullSpine(Span<Matrix4x4>Model){
         if(this.SpineWeight<=0f||this.Chain.Length<2){
             return;
@@ -114,7 +114,7 @@ public sealed class FirstPersonRig {
         var Root=Original[0];
         var Target=this.BodyOffset;
         if(Vector3.Distance(Root,Target)>=Reach){
-            // Out of reach: the chain stretches straight toward the target.
+            // 目標に届かない場合は、関節の連鎖を目標へ向けてまっすぐ伸ばす。
             var Direction=Vector3.Normalize(Target-Root);
             for(var Index=1;Index<Count;Index++){
                 Solved[Index]=Solved[Index-1]+(Direction*Lengths[Index-1]);
@@ -135,7 +135,7 @@ public sealed class FirstPersonRig {
         for(var Index=1;Index<Count;Index++){
             Solved[Index]=Vector3.Lerp(Original[Index],Solved[Index],this.SpineWeight);
         }
-        // Turn each bone about its own position so it points at the next joint's new place; the subtree below follows, so the next bone is already in position.
+        // 各骨を自身の位置を中心に回転させ、次の関節の新しい位置へ向ける。下位の階層も追従するため、次の骨はすでに正しい位置にある。
         for(var Index=0;Index<Count-1;Index++){
             var Pivot=Model[this.Chain[Index]].Translation;
             var Current=Model[this.Chain[Index+1]].Translation-Pivot;
@@ -147,14 +147,14 @@ public sealed class FirstPersonRig {
             this.Transform(Model,this.Chain[Index],Turn,IncludeRoot:true);
         }
     }
-    /// <summary>Replaces <paramref name="Joint"/>'s model matrix with <paramref name="Placed"/> and moves everything below it the same way (UE's bPropagateToChildren).</summary>
+    /// <summary><paramref name="Joint"/> のモデル行列を <paramref name="Placed"/> に置き換え、UE の bPropagateToChildren と同じく、その下の階層すべてを同じように移動する。</summary>
     private void Place(Span<Matrix4x4>Model,int Joint,Matrix4x4 Placed){
         if(!Matrix4x4.Invert(Model[Joint],out var Inverse)){
             return;
         }
         this.Transform(Model,Joint,Inverse*Placed,IncludeRoot:true);
     }
-    /// <summary>Applies a model-space transform (row vectors, applied after the joint's matrix) to <paramref name="Joint"/> and every joint below it.</summary>
+    /// <summary><paramref name="Joint"/> とその下の全関節に、モデル空間変換（行ベクトル規約。関節の行列の後に適用）を行う。</summary>
     private void Transform(Span<Matrix4x4>Model,int Joint,Matrix4x4 Change,bool IncludeRoot){
         foreach(var Candidate in this.Skeleton.ParentsFirstOrder){
             if((Candidate==Joint&&IncludeRoot)||(Candidate!=Joint&&this.IsDescendant(Candidate,Joint))){
@@ -171,7 +171,7 @@ public sealed class FirstPersonRig {
         }
         return false;
     }
-    /// <summary>Turns the changed model matrices back into local translations and rotations (scales stay as animated).</summary>
+    /// <summary>変更後のモデル行列をローカルの平行移動と回転に戻す（スケールはアニメーション値のまま）。</summary>
     private void WriteBack(Span<JointPose>Local,ReadOnlySpan<Matrix4x4>Model){
         foreach(var Joint in this.Skeleton.ParentsFirstOrder){
             if(!this.Moved[Joint]){

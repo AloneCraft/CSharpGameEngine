@@ -4,10 +4,10 @@ using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// ADR-0077 stage 6: connects event senders to receivers across the whole compilation. A receiver that wrote no
-/// <c>[SystemPhase]</c> runs in the phase of the latest sender, and every receiver is ordered after its senders in the same
-/// phase, so a game never states either. A receiver that sits in an earlier phase than a sender would lose the event (events
-/// live for one frame), which is an error (SYSGEN041). A receiver with no sender never runs, which is a warning (SYSGEN042).
+/// ADR-0077 stage 6：コンパイル全体にわたってイベント送信側と受信側を接続する。<c>[SystemPhase]</c>を
+/// 記述していない受信側は、最後に送信したシステムのフェーズで実行される。同じフェーズでは各受信側を送信側の後に配置するため、
+/// ゲーム側でどちらも指定する必要はない。受信側が送信側より前のフェーズにあるとイベントを取り逃す（イベントは1フレームのみ有効）ため、
+/// エラーとなる（SYSGEN041）。送信側がない受信側は実行されず、警告となる（SYSGEN042）。
 /// </summary>
 internal static class GameSystemEventWiring {
     private static readonly string[]PhaseNames=["FrameInput","FixedSimulation","PhysicsSimulation","PostPhysics","Presentation"];

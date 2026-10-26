@@ -29,18 +29,17 @@ internal readonly struct GameSystemScheduleModel(
 }
 
 /// <summary>
-/// Builds the compile-time access DAG for systems which explicitly opt into scheduling. Their order comes from
-/// the same per-phase graph as execution order (ADR-0073): an unscheduled system in between still orders them.
+/// スケジューリングを明示的に選択したシステムの、コンパイル時アクセス DAG を構築する。順序は実行順序と同じフェーズ別グラフから得る (ADR-0073)。間にスケジュールされていないシステムがあっても、両者の順序を決める。
 /// </summary>
 internal static class GameSystemScheduleAnalyzer {
-    /// <summary>The schedule entries always carry at least the Low and High words (their shape before ADR-0079 widened the mask).</summary>
+    /// <summary>スケジュール項目には常に Low と High の各 word が含まれます（ADR-0079 で mask の幅を広げる前の形状）。</summary>
     internal const int MinimumWordCount=2;
 
     internal static GameSystemScheduleModel Build(GameSystemRegistry Registry){
         var WordCount=Math.Max(MinimumWordCount,Registry.MaskWordCount);
         GameSystemResult[]All=[.. Registry.ValidSystems];
         List<int>[]AllDependents=GameSystemExecutionOrder.SamePhaseDependents(All);
-        // A cycle is SYSGEN034 (GameSystemExecutionOrder.Validate); there is no schedule to build.
+        // 1サイクルは SYSGEN034（GameSystemExecutionOrder.Validate）です。構築するスケジュールはありません。
         if(HasCycle(AllDependents)){ return new([],[]); }
         int[]Scheduled=[.. Enumerable.Range(0,All.Length).Where(Index=>All[Index].IsScheduled)];
         Dictionary<int,int>ScheduledIndexByAllIndex=new();
@@ -76,8 +75,7 @@ internal static class GameSystemScheduleAnalyzer {
     }
 
     /// <summary>
-    /// The scheduled systems that must finish before <paramref name="AllIndex"/>: each path back through
-    /// unscheduled systems ends at the first scheduled one. Returned as schedule indices in ascending order.
+    /// <paramref name="AllIndex"/> より前に完了する必要がある、スケジュール済みシステム。未スケジュールのシステムをたどる各経路は、最初に到達したスケジュール済みシステムで終わります。スケジュール index の昇順で返します。
     /// </summary>
     private static int[]NearestScheduledPredecessors(
         int AllIndex,List<int>[]AllPredecessors,IReadOnlyDictionary<int,int>ScheduledIndexByAllIndex){
@@ -110,8 +108,7 @@ internal static class GameSystemScheduleAnalyzer {
     }
 
     /// <summary>
-    /// Two scheduled systems of one phase that touch the same component, one of them writing, must be ordered
-    /// by a declared path. The name order of unrelated systems is deterministic but is not a declared order.
+    /// 同じ phase のスケジュール済みシステム2つが同じ component にアクセスし、その一方が書き込む場合、宣言された経路で順序付ける必要があります。無関係なシステムの名前順は決定論的ですが、順序として宣言されたものではありません。
     /// </summary>
     private static void AddConflictDiagnostics(
         GameSystemResult[]All,int[]Scheduled,List<int>[]AllDependents,AccessMask[]Accesses,

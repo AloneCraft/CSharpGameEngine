@@ -4,9 +4,7 @@ using CSharpGameEngine.Spatial.Abstractions;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Transform Tests", against
-/// <see cref="StandardTransformConvention"/>. Preset-independent: <see cref="ITransformConvention"/> is
-/// orthogonal to <see cref="ICoordinateConvention"/>, so these tests never reference Unity/Unreal/Blender.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Transform Tests」で、<see cref="StandardTransformConvention"/> に対して検証する。プリセットに依存しない。<see cref="ITransformConvention"/> は <see cref="ICoordinateConvention"/> と直交するため、これらのテストは Unity/Unreal/Blender を参照しない。
 /// </summary>
 public class TransformConventionTests {
     [Fact]

@@ -59,10 +59,7 @@ internal struct PhysicsBodySync:ISystem {
 
 }
 
-/// <summary>
-/// Steps the physics world in the running game. M0097: the editor world only registers the scene's bodies, so the
-/// physics debug overlay matches the objects the Scene view draws; it never advances time.
-/// </summary>
+/// <summary>実行中のゲームで物理ワールドをステップする。M0097：エディター側のワールドはシーンのボディを登録するだけで、時間を進めない。そのため物理デバッグ表示は Scene ビューが描画するオブジェクトに一致する。</summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [ExecuteInEditor(Realtime=true)]
 [RunsAfter(typeof(StaticMeshColliderSync))]

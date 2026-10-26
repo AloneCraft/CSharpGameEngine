@@ -24,8 +24,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
         """;
 
     /// <summary>
-    /// ADR-0070 B1: <c>TrySetComponent</c> replaces a value in place like a system write (the change
-    /// version advances, the archetype stays) and refuses an entity without the component.
+    /// ADR-0070 B1：<c>TrySetComponent</c>はシステムの書き込みと同様に、値をその場で置き換える
+    ///（変更バージョンは進むがアーキタイプは維持する）。対象コンポーネントを持たないEntityは拒否する。
     /// </summary>
     [Fact]
     public void TrySetComponent_ReplacesTheValueInPlaceAndMarksItChanged(){
@@ -67,8 +67,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
     }
 
     /// <summary>
-    /// ADR-0072: the frame's elapsed time reaches every system through State, the counter the loop's
-    /// fixed-tick scheduler also uses, so no system needs a Stopwatch of its own.
+    /// ADR-0072：フレームの経過時間はStateを通じてすべてのシステムに渡る。
+    /// ループの固定ティックスケジューラーも使うカウンターなので、各システムが独自にStopwatchを持つ必要はない。
     /// </summary>
     [Fact]
     public void FrameDeltaSeconds_IsTheElapsedTimeTheLoopWasGiven(){
@@ -114,8 +114,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
     }
 
     /// <summary>
-    /// ADR-0072: an Update returns void. An entity system and a world system written that way both run
-    /// every frame, and a bool Update still compiles beside them.
+    /// ADR-0072：Updateの戻り値はvoid。Entityシステムとワールドシステムのどちらも毎フレーム実行され、
+    /// bool Updateも同時にコンパイルできる。
     /// </summary>
     [Fact]
     public void VoidUpdate_RunsForEntityAndWorldSystems(){

@@ -8,14 +8,15 @@ using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// The Lumen-like dynamic global illumination and reflections (ADR-0078/M0111) in the frame: <see cref="StageLumen"/> plans and computes, the
-/// renderer draws its two raster parts with the Stage root signature (the surface prepass and the surface cache's card captures) and binds its
-/// outputs at t16/t17. Lumen runs when the environment asks for it (<see cref="EnvironmentLightingSettings.Lumen"/>), has a global distance field
-/// to trace and the adapter's <see cref="Scalability"/> allows it; otherwise the frame is exactly the probe volume and sky light frame of M0110.
+/// フレーム内のLumen風動的グローバルイルミネーションと反射（ADR-0078/M0111）。<see cref="StageLumen"/>が計画と計算を行う。
+/// レンダラーはStageルートシグネチャを使って2つのラスタライズ部分（サーフェスプリパスとサーフェスキャッシュのカード撮影）を描画し、
+/// 出力をt16／t17へバインドする。環境設定で要求され（<see cref="EnvironmentLightingSettings.Lumen"/>）、
+/// トレース可能なグローバル距離場があり、アダプターの<see cref="Scalability"/>が許す場合に実行する。
+/// それ以外のフレームはM0110のプローブボリュームとスカイライトだけのフレームと同じ。
 /// </summary>
 public sealed unsafe partial class StageRenderer {
-    /// <summary>The Stage t12-t17 table after the material descriptors: GI irradiance, GI distance, ambient occlusion, exposure, Lumen diffuse and reflections.</summary>
-    private const int EnvironmentDescriptorCount=6;
+    /// <summary>マテリアルディスクリプターの後に続く、Stageのt12～t17テーブル。GI照度、GI距離、アンビエントオクルージョン、露出、Lumen拡散、反射。</summary>
+    private const int EnvironmentDescriptorCount=8;
     private StageLumen?Lumen;
     private ID3D12PipelineState*LumenSurfacePipelineState;
     private ID3D12PipelineState*LumenCardPipelineState;
@@ -24,24 +25,24 @@ public sealed unsafe partial class StageRenderer {
     private int LumenDescriptorGeneration;
     private bool LumenActiveThisFrame;
     /// <summary>
-    /// The adapter-level quality of the dynamic lighting (Unreal's sg.GlobalIlluminationQuality and sg.ReflectionQuality). Lumen's GI runs at High and
-    /// Epic, its reflections at High (half resolution) and Epic. The default is <see cref="RenderScalability.DefaultFor"/> the adapter (High on hardware,
-    /// Medium on WARP).
+    /// 動的照明のアダプターレベルの品質（Unrealのsg.GlobalIlluminationQualityおよびsg.ReflectionQuality）。
+    /// LumenのGIはHigh／Epicで実行し、反射はHigh（半解像度）／Epicで実行する。既定値はアダプターの<see cref="RenderScalability.DefaultFor"/>を使う
+    ///（ハードウェアではHigh、WARPではMedium）。
     /// </summary>
     public RenderScalability Scalability { get;set; }
-    /// <summary>Debugging (Unreal's r.Lumen.Visualize): while Lumen runs, the frame shows this instead of the lit scene.</summary>
+    /// <summary>デバッグ用（Unrealのr.Lumen.Visualize）。Lumen実行中は、照明済みシーンの代わりにこの映像を表示する。</summary>
     public LumenVisualization LumenVisualization { get;set; }
-    /// <summary>Whether the last rendered frame was lit by the Lumen-like GI.</summary>
+    /// <summary>直近の描画フレームがLumen風GIで照明されたかどうか。</summary>
     internal bool LumenActiveLastFrame { get;private set; }
-    /// <summary>What the last Lumen frame did (diagnostics and tests).</summary>
+    /// <summary>直近のLumenフレームが行った処理（診断とテスト用）。</summary>
     internal LumenStatistics LumenStatistics=>this.Lumen?.Statistics??default;
     private bool LumenWanted=>this.EnvironmentSettings.Lumen is { GlobalIllumination:true }
         &&this.EnvironmentSettings.DistanceField is not null
         &&this.Scalability.AllowsLumenGlobalIllumination
         &&this.Lumen!.IsSupported;
     /// <summary>
-    /// Plans this frame's Lumen work, draws the surface prepass and the card captures, and records the compute passes. Runs after the shadow maps and
-    /// the global distance field, before the main pass.
+    /// 今フレームのLumen処理を計画し、サーフェスプリパスとカード撮影を描画して、Computeパスを記録する。
+    /// シャドウマップとグローバル距離場の後、メインパスの前に実行する。
     /// </summary>
     private void RenderLumen(){
         if(!this.LumenActiveThisFrame){
@@ -59,7 +60,7 @@ public sealed unsafe partial class StageRenderer {
         if(this.LumenDescriptorGeneration!=Lumen.Generation){
             this.WriteEnvironmentDescriptors();
         }
-        // The surface prepass: the camera's shading normal, roughness and distance per pixel.
+        // サーフェスプリパス：ピクセルごとのカメラ空間法線、粗さ、距離。
         Lumen.BeginSurface(this.CommandList);
         D3D12_CPU_DESCRIPTOR_HANDLE*SurfaceTargets=stackalloc D3D12_CPU_DESCRIPTOR_HANDLE[2];
         SurfaceTargets[0]=Lumen.SurfaceRtv(0);
@@ -75,7 +76,7 @@ public sealed unsafe partial class StageRenderer {
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         this.DrawObjects(ExcludedObjectIndex:-1);
         Lumen.EndSurface(this.CommandList);
-        // The card captures: each new card draws its mesh alone, in the mesh's own space, through the card's orthographic projection.
+        // カード撮影：新しい各カードについて、メッシュだけをメッシュ自身の空間に描画し、カードの正射影を使う。
         if(Lumen.CaptureCount>0){
             Lumen.BeginCaptures(this.CommandList);
             D3D12_CPU_DESCRIPTOR_HANDLE*CardTargets=stackalloc D3D12_CPU_DESCRIPTOR_HANDLE[3];
@@ -127,8 +128,8 @@ public sealed unsafe partial class StageRenderer {
         });
     }
     /// <summary>
-    /// A capture's object constants: the material of the object with an identity World (the mesh is drawn in its own space), no world grid (its lines
-    /// follow the world, not the mesh), the material's own emission (the card lighting applies the object's run-time scale) and no presentation tint.
+    /// 撮影時のオブジェクト定数。Worldを恒等変換にし、メッシュを自身の空間で描画する。ワールド格子は使用しない（線をメッシュではなく
+    /// ワールドに沿わせるため）。マテリアル本来の発光を使う（カード照明で実行時のオブジェクト倍率を適用）。プレゼンテーション色は加えない。
     /// </summary>
     private void WriteLumenCaptureObjectConstants(byte*Destination,int ObjectIndex){
         var MaterialIndex=this.ObjectMaterialIndices[ObjectIndex];
@@ -147,33 +148,33 @@ public sealed unsafe partial class StageRenderer {
         Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&Zero,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectConservativeRasterDepthOffset,&Zero,(uint)sizeof(Vector4));
     }
-    /// <summary>Test-only: the device's removed reason (S_OK while it lives).</summary>
+    /// <summary>テスト専用：デバイスが削除された理由（動作中はS_OK）。</summary>
     internal int DeviceRemovedReasonForTesting=>this.Device!.Device->GetDeviceRemovedReason().Value;
-    /// <summary>Test-only: the Lumen diffuse irradiance (rgb) and the distance it belongs to (a) per pixel, after the GPU is idle.</summary>
+    /// <summary>テスト専用：GPUアイドル後に読み取る、Lumenの拡散照度（rgb）と、各ピクセルが対応する距離（a）。</summary>
     internal (Vector4[]Texels,int Width,int Height)ReadLumenDiffuseForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Lumen!.ReadDiffuseForTesting();
     }
-    /// <summary>Test-only: the physical distances of the surfaces used by Lumen's gather and reflection passes.</summary>
+    /// <summary>テスト専用：LumenのGather／反射パスが使う面までの物理距離。</summary>
     internal (float[]Distances,int Width,int Height)ReadLumenSurfaceDistancesForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Lumen!.ReadSurfaceDistancesForTesting();
     }
-    /// <summary>Test-only: the Lumen reflected radiance per pixel, after the GPU is idle.</summary>
+    /// <summary>テスト専用：GPUアイドル後に読み取る、ピクセルごとのLumen反射放射輝度。</summary>
     internal (Vector4[]Texels,int Width,int Height)ReadLumenReflectionForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Lumen!.ReadReflectionForTesting();
     }
-    /// <summary>Test-only: the screen probes' traced radiance and their layout (probes per axis, pixels per probe), after the GPU is idle.</summary>
+    /// <summary>テスト専用：GPUアイドル後に読み取る、スクリーンプローブのトレース放射輝度と配置（軸あたりのプローブ数、プローブあたりのピクセル数）。</summary>
     internal ((Vector4[]Texels,int Width,int Height)Radiance,(int X,int Y,int Texels)Layout)ReadLumenProbesForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return (this.Lumen!.ReadProbeRadianceForTesting(),this.Lumen.ProbeLayoutForTesting);
     }
-    /// <summary>Test-only: the surface cache's average radiance and covered texels on one object's card, after the GPU is idle.</summary>
+    /// <summary>テスト専用：GPUアイドル後に読み取る、オブジェクト1つのカードにおけるサーフェスキャッシュの平均放射輝度と対象テクセル数。</summary>
     internal (Vector3 Average,int Covered)ReadLumenCardForTesting(int ObjectIndex,int Face){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();

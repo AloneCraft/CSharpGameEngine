@@ -12,7 +12,7 @@ public static class ShaderGraphValidator {
         var SubgraphById = new Dictionary<StableId, ShaderGraphSubgraph>();
         foreach (var Subgraph in Document.Subgraphs) {
             if (SubgraphById.ContainsKey(Subgraph.Id)) {
-                // A copied or merged file can hold one identity twice; the emitter keys subgraphs and nodes by identity.
+                // コピーまたはマージされたファイルでは、同じ識別情報を2回保持することがある。出力側はこの識別情報を使ってサブグラフとノードを索引化する。
                 Result.Diagnostics.Add(new ShaderGraphDiagnostic(ShaderGraphDiagnosticCode.DuplicateIdentity, ShaderGraphDiagnosticSeverity.Error, $"Subgraph identity '{Subgraph.Id}' is duplicated.", SubgraphId: Subgraph.Id));
                 continue;
             }
@@ -291,7 +291,7 @@ public static class ShaderGraphValidator {
         return true;
     }
     private static void ValidateCycle(ShaderGraphSubgraph Subgraph, List<ShaderGraphEdge> Edges, ShaderGraphValidationResult Result) {
-        // A duplicated node identity is reported by ValidateSubgraph; the cycle check sees each identity once.
+        // 重複したノード識別情報は ValidateSubgraph が報告する。循環検査では各識別情報を一度だけ処理する。
         var NodeIds = Subgraph.Nodes.Select(Node => Node.Id).Distinct().ToList();
         var InCount = NodeIds.ToDictionary(NodeId => NodeId, _ => 0);
         var Adj = NodeIds.ToDictionary(NodeId => NodeId, _ => new List<StableId>());

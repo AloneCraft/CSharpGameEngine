@@ -135,7 +135,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 - 書き方はシーンの Component 1 つと同じで、値の規則も同じ(列挙は名前、数は型の接尾辞つきの文字どおり、`[Angle]` は回転数)。キーは `$schema`、`schemaVersion`(3)、`type`、`members` だけ。
 - 生成器が C# の値にして、カタログの静的メンバーにする: `Assets/Cars/Sport.cgeasset` → `Assets.Cars.Sport`、プラグインの `Assets/Storm.cgeasset` → `Assets.Plugins.Weather.Storm`。型はデータの型そのもので、`Assets.Cars.Sport.Mass` のように読む。実行時の読み込みもリフレクションも無い。
 - 不正な文書はシーンと同じ診断(SCENE201〜205)を `.cgeasset` の行と列に出し、カタログから外す。
-- まだ無いもの: Designer での編集と、シーンの値からの参照(コードから参照する)。
+- DataAsset の Inspector 編集は ADR-0081 / F-L8-035 で追加した。既存の型解析を共有し、ライブバッファの値を検証して編集する。実際の VS 操作は M0123 の検証待ち。シーンの値からの参照は既存の型付き候補と照合する。
 
 ### 実例: 車の設定 `VehicleSetup`(Vehicles プラグイン、M0109)
 - 型はエンジンのプラグインの `[DataAsset] public sealed class VehicleSetup`(`plugins/CSharpGameEngine.Vehicles/Runtime/VehicleSetup.cs`)。UE の `ChaosWheeledVehicleMovementComponent` と `ChaosVehicleWheel` の値: 質量、空気抵抗、`Engine`(トルク曲線の点の配列、最大トルク、回転数)、`Transmission`(ギア比の配列、変速の回転数)、`Steering`(アッカーマン、速さの曲線)、差動、`FrontWheel`・`RearWheel`(車輪とサスペンション)、入力の速さ、眠り。入れ子の struct と配列もシーンと同じ書き方で書ける。

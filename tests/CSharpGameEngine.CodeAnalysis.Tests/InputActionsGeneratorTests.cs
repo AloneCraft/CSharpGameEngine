@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0077 stage 4: <c>[InputActions]</c> structs become an input map and a per-frame <c>Read</c>; a system reads one with <c>in</c>.</summary>
+/// <summary>ADR-0077 stage 4：<c>[InputActions]</c>構造体から入力マップとフレームごとの<c>Read</c>を生成し、システムは<c>in</c>で読み取る。</summary>
 public sealed class InputActionsGeneratorTests {
     private static readonly string Declarations=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Core","InputActionDeclarations.cs"));
 
@@ -48,16 +48,16 @@ public sealed class InputActionsGeneratorTests {
         Assert.Empty(Result.Diagnostics);
         var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_PlayerActions.g.cs");
 
-        // The keys of a stick: Up swizzles, Down swizzles and negates, Left negates, Right is plain.
+        // スティックの各方向：Upは軸を入れ替え、Downは入れ替えて反転、Leftは反転、Rightはそのまま。
         Assert.Contains("KeyCode(0x57)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier() })",Source);
         Assert.Contains("KeyCode(0x53)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier(), new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
         Assert.Contains("KeyCode(0x41)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
         Assert.Contains("Id_Move, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftStick, DeadZone: 0.2f)",Source);
-        // The mouse delta is negated in Y so that moving up looks up; the stick is a separate action scaled by the frame time.
+        // マウス移動量はY方向を反転して上へ動かすと上を見るようにする。スティックは別のアクションで、フレーム時間に応じてスケーリングする。
         Assert.Contains("\"Delta\", global::CSharpGameEngine.Core.InputControlKind.RelativeAxis2D), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier(X: false, Y: true) })",Source);
         Assert.Contains("S.X * global::CSharpGameEngine.Input.Look.StickTurnsPerSecond * DeltaSeconds",Source);
         Assert.Contains("\"Gamepad_FaceButton_Bottom\"",Source);
-        // The IDs come from the type and member names; no GUID is written by hand.
+        // IDは型名とメンバー名から生成する。GUIDを手書きしない。
         Assert.Contains("StableId.FromName(IdNamespace, \"Game.PlayerActions.Jump\")",Source);
         Assert.Contains("Action.Phase == global::CSharpGameEngine.Core.InputActionPhase.Started",Source);
     }
@@ -109,7 +109,7 @@ public sealed class InputActionsGeneratorTests {
         Assert.Contains("Systems.Input0 = global::Game.PlayerActions.Read(EngineHost.Input, global::System.Math.Min(State.FrameDeltaSeconds, 0.1f), EngineHost.Cursor);",Loop);
         Assert.Contains("Controls.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), in Systems.Input0)",Loop);
         Assert.Contains("SetInput(global::CSharpGameEngine.Generated.GeneratedInputActions.CreateServer())",Loop);
-        // No [SystemPhase] was written: reading input puts the system in FrameInput (phase 0).
+        // [SystemPhase]の記述はない。入力を読むことで、システムはFrameInput（フェーズ0）へ入る。
         Assert.Contains("if (Phase == (global::CSharpGameEngine.Entities.SystemPhase)0 &&",Loop.Substring(Loop.IndexOf("private static void RunPhase",StringComparison.Ordinal)));
     }
 
@@ -269,7 +269,7 @@ public sealed class InputActionsGeneratorTests {
         Assert.Empty(Result.Diagnostics);
         var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_DriveActions.g.cs");
 
-        // Keys are +1 and NegativeKeys are -1; the trigger and the stick axis are controls of their own with the default dead zones (trigger 0.1, stick 0.2).
+        // キーは+1、NegativeKeysは-1。トリガーとスティック軸は独立したコントロールで、既定のデッドゾーンはそれぞれ0.1、0.2。
         Assert.Contains("Id_Throttle, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x57)))",Source);
         Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x41)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
         Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x25)), Modifiers:",Source);
@@ -277,7 +277,7 @@ public sealed class InputActionsGeneratorTests {
         Assert.Contains("Id_Brake, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftTrigger, DeadZone: 0.05f, Scale: 1.5f)",Source);
         Assert.Contains("Id_Steering, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftX, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
         Assert.Contains("\"Gamepad_FaceButton_Left\"",Source);
-        // Several bindings add up, then Axis.FromSum clamps to -1..1 and turns NaN into 0.
+        // 複数のバインディング値を加算し、Axis.FromSumが-1～1に制限してNaNを0に変換する。
         Assert.Contains("Result.Throttle = global::CSharpGameEngine.Input.Axis.FromSum(V.X);",Source);
         Assert.Contains("StableId.FromName(IdNamespace, \"Game.DriveActions.Brake\")",Source);
     }
@@ -287,10 +287,10 @@ public sealed class InputActionsGeneratorTests {
         var Result=Run(Driving);
         var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_DriveActions.g.cs");
 
-        // MouseX alone masks Y; MouseY alone masks X and keeps the sign flip so that moving up looks up.
+        // MouseXだけならYをマスクする。MouseYだけならXをマスクし、上へ動かすと上を見る符号反転を維持する。
         Assert.Contains("\"Delta\", global::CSharpGameEngine.Core.InputControlKind.RelativeAxis2D), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputMaskModifier(X: false, Y: true) })",Source);
         Assert.Contains("{ new global::CSharpGameEngine.Input.InputMaskModifier(X: true, Y: false), new global::CSharpGameEngine.Input.InputNegateModifier(X: false, Y: true) })",Source);
-        // A stick's Y axis becomes the look's Y by a swizzle; X needs none.
+        // スティックのY軸はswizzleによって視点入力のY軸へ対応する。X軸に変換は不要。
         Assert.Contains("Id_Around_Stick, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightX, DeadZone: 0.2f)",Source);
         Assert.Contains("Id_Tilt_Stick, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightY, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier() })",Source);
     }
@@ -302,7 +302,7 @@ public sealed class InputActionsGeneratorTests {
 
         Assert.Contains("var Held = !Server.ReadValue(Id_Jump).IsZero;",Source);
         Assert.Contains("Result.Jump = new global::CSharpGameEngine.Input.Button(Held, Pressed, Released, Server.TrackHold(Id_Jump, Held, Pressed, Released, DeltaSeconds));",Source);
-        // The read still takes the same three arguments, so the generated loop is unchanged.
+        // 読み取り処理の引数は引き続き3つなので、生成ループは変更されない。
         Assert.Contains("Read(global::CSharpGameEngine.Input.InputServer Server, float DeltaSeconds, global::CSharpGameEngine.Input.Pointer CursorPointer)",Source);
     }
 

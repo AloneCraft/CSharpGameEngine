@@ -39,8 +39,7 @@ public sealed record EcsReleaseReport(
     IReadOnlyList<EcsReleaseInput>Inputs);
 
 /// <summary>
-/// Binds ECS schema, schedule, deterministic replay, and performance truths into one
-/// track-scoped release input. It is not a package or product release manifest.
+/// ECS スキーマ、スケジュール、決定論的再生、性能の各事実を結び付け、トラック単位のリリース入力とする。パッケージや製品全体のリリースマニフェストではない。
 /// </summary>
 public static class EcsReleaseEvidence {
     public const string ReportSchema="csharp-game-engine-ecs-release-v1";

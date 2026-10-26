@@ -4,8 +4,8 @@ using CSharpGameEngine.Input;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Windows.Tests.Input;
 /// <summary>
-/// M0108: the hold time behind <c>Button.HeldSeconds</c>, and the one-axis bindings (<c>Axis</c>, one axis of a stick or of the mouse delta) that <c>[InputActions]</c> generates.
-/// The bindings here are built the way the generator writes them, so the server behavior the generated code relies on is pinned without compiling a game.
+/// M0108：<c>Button.HeldSeconds</c>が参照する押下時間と、<c>[InputActions]</c>が生成する1軸バインディング（<c>Axis</c>、スティックまたはマウス移動量の1軸）。
+/// ここではジェネレーターが出力する形でバインディングを構築するため、ゲームをコンパイルせず、生成コードが依存するサーバー動作を固定できる。
 /// </summary>
 public sealed class InputActionBindingTests {
     private static readonly WindowId Window=new(StableId.Parse("35177e2f-4d15-4e5e-8a79-cc7cc65ad2a0"));
@@ -44,7 +44,7 @@ public sealed class InputActionBindingTests {
     }
     [Fact]
     public void AHoldOfExactlyTheThreshold_ReadsExactlyTheThresholdOnRelease(){
-        // 0.5 s is UE's PressedThreshold: four frames of 0.125 s after the press frame, so the release frame reads 0.5 and "< 0.5" is false.
+        // 0.5秒はUEのPressedThreshold。押下フレームの後に0.125秒のフレームが4回続くため、解放フレームは0.5を返し、「< 0.5」はfalseとなる。
         var Server=ServerOf();
         Frame(Server);
         Server.TrackHold(Hold,true,true,false,0.125f);
@@ -59,7 +59,7 @@ public sealed class InputActionBindingTests {
     }
     [Fact]
     public void ReadingTwiceInOneFrame_DoesNotAdvanceTheClock(){
-        // Two systems may take the same [InputActions] struct, and each dispatch reads it again.
+        // 複数のシステムが同じ[InputActions]構造体を受け取り、それぞれのディスパッチで再び読み込む。
         var Server=ServerOf();
         Frame(Server);
         Server.TrackHold(Hold,true,true,false,0.1f);
@@ -107,7 +107,7 @@ public sealed class InputActionBindingTests {
     }
     [Fact]
     public void AHeldButtonWhoseStartWasNeverSeen_StartsCountingFromTheFirstFrameItIsSeen(){
-        // A context re-enabled while the key is down: Held without Pressed.
+        // キーを押したままコンテキストを再度有効にする。HeldにはなるがPressedにはならない。
         var Server=ServerOf();
         Frame(Server);
         Assert.Equal(0f,Server.TrackHold(Hold,true,false,false,0.1f));
@@ -151,7 +151,7 @@ public sealed class InputActionBindingTests {
     }
     [Fact]
     public void ARealKeyDrivesTheHoldThroughTheActionPhases(){
-        // The same flags the generated Read computes: Pressed on Started, Released on Canceled, Held while the action value is not zero.
+        // 生成されたReadが計算するのと同じフラグ。StartedでPressed、CanceledでReleased、アクション値が0以外の間はHeld。
         var Server=ServerOf(new InputBinding(Hold,Space));
         var Seen=new List<float>();
         InputEvent[][]Frames=[
@@ -206,7 +206,7 @@ public sealed class InputActionBindingTests {
     }
     [Fact]
     public void OneAxisOfAStickIsItsOwnControlWithItsOwnDeadZone(){
-        // Gamepad_LeftX is not dragged along by the other axis: a stick pushed up with a little X noise steers nothing.
+        // Gamepad_LeftXはもう一方の軸に引きずられない。少しXノイズを含みながら上へ押したスティックでは方向を変えない。
         var Adapter=new Win32InputEventAdapter(WindowId.Primary,()=>new MonotonicTimestamp(1));
         var Server=ServerOf(new InputBinding(Steering,Win32InputEventAdapter.GamepadLeftX,DeadZone:0.2f));
         Adapter.RecordGamepad(new GamepadSnapshot(true,0,0f,0f,new System.Numerics.Vector2(0.1f,0.95f),default));
@@ -237,7 +237,7 @@ public sealed class InputActionBindingTests {
         var YOnly=ServerOf(new InputBinding(LookY,MouseDelta,Modifiers:[new InputMaskModifier(X:true),new InputNegateModifier(X:false,Y:true)]));
         YOnly.ProcessEvents([Event(2,1,MouseDelta,InputEventKind.ValueChanged,new InputValue(7,-3))]);
         Assert.Equal(new InputValue(0,3),YOnly.ReadValue(LookY));
-        // A frame with no mouse movement leaves nothing behind.
+        // マウス移動がないフレームでは、状態を残さない。
         YOnly.ProcessEvents([]);
         Assert.Equal(InputValue.Zero,YOnly.ReadValue(LookY));
     }

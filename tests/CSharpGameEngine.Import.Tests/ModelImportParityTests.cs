@@ -4,7 +4,7 @@ using System.Text.Json;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Import.Tests;
-/// <summary>Migration oracle captured from the pre-M0114 source reader, not from the replacement pipeline.</summary>
+/// <summary>置き換えパイプラインではなく、M0114 より前のソースリーダーから取得した移行用オラクル。</summary>
 public sealed class ModelImportParityTests {
     private static readonly JsonSerializerOptions JsonOptions=new() { WriteIndented=true,IncludeFields=true };
     [Fact]

@@ -53,9 +53,9 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                   .Where(static Result=>Result.HasValue)
                   .Select(static(Result,_)=>Result!.Value);
 
-        // ADR-0070: scenes are the Scenes\**\*.json AdditionalFiles (SceneFiles); C# scene classes are not built (SCENE206).
-        // Their diagnostics belong to SceneJsonDslAnalyzer; here they only decide whether to emit.
-        // Only symbol-free SceneEmitModels flow on (see SceneModelBridge).
+        // ADR-0070：シーンは Scenes\**\*.json の AdditionalFiles (SceneFiles)。C# のシーンクラスはビルドしない (SCENE206)。
+        // それらの診断は SceneJsonDslAnalyzer が担当する。ここでは出力するかどうかだけを判断する。
+        // シンボルに依存しない SceneEmitModels だけを後段へ渡す (SceneModelBridge を参照)。
         var JsonSceneDeclarations=Context.AdditionalTextsProvider
                                          .Combine(Context.AnalyzerConfigOptionsProvider)
                                          .Where(static Pair=>SceneJsonDslAnalyzer.IsSceneFile(Pair.Left.Path,Pair.Right.GlobalOptions))
@@ -64,8 +64,8 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                                          .Select(static(Pair,Ct)=>SceneModelBridge.TryAnalyzeJson(Pair.Left,Pair.Right,Ct))
                                          .Where(static Result=>Result.HasValue)
                                          .Select(static(Result,_)=>Result!.Value);
-        // ADR-0070: the per-project scene JSON Schema, embedded as a constant that the build writes to
-        // .cge/scene.schema.json so the VS JSON editor warns about undefined types and members.
+        // ADR-0070：プロジェクト単位のシーン JSON Schema を定数として埋め込み、ビルドが
+        // .cge/scene.schema.json に書き出す。VS の JSON エディターが未定義の型やメンバーに警告するために使う。
         var SceneSchema=Context.CompilationProvider.Select(static(Compilation,_)=>
             Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName) is null
                 ?null
@@ -91,7 +91,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                                        .Where(static Result=>Result.HasValue)
                                        .Select(static(Result,_)=>Result!.Value);
 
-        // ADR-0077 stage 7: the typed asset catalog (Assets.Sounds.Jump) and the check that scenes name existing asset files.
+        // ADR-0077 ステージ 7：型付きアセットカタログ (Assets.Sounds.Jump) と、シーンが実在するアセットファイルを指定しているかの検査。
         var AssetPaths=Context.AdditionalTextsProvider
                               .Combine(Context.AnalyzerConfigOptionsProvider)
                               .Select(static(Pair,_)=>{
@@ -107,7 +107,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                               .Where(static Pair=>Pair.Text is not null)
                               .Select(static(Pair,_)=>(Pair.Path,Text:Pair.Text!))
                               .Collect();
-        // ADR-0079: a data asset (*.cgeasset) is also a catalog member, whose value is compiled from its JSON like a scene component.
+        // ADR-0079：データアセット (*.cgeasset) もカタログのメンバーであり、その JSON 値はシーンコンポーネントと同様にコンパイルされる。
         var DataAssets=Context.AdditionalTextsProvider
                               .Combine(Context.AnalyzerConfigOptionsProvider)
                               .Select(static(Pair,_)=>{
@@ -119,15 +119,20 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                               .Where(static Model=>Model.HasValue)
                               .Select(static(Model,_)=>Model!.Value)
                               .Collect();
+        var ImageMetadata=Context.AdditionalTextsProvider.Combine(Context.AnalyzerConfigOptionsProvider)
+            .Where(static Pair=>Pair.Left.Path.EndsWith(".meta",StringComparison.OrdinalIgnoreCase))
+            .Select(static(Pair,Ct)=>(Path:AssetCatalogEmitter.RelativeAssetPath(Pair.Left.Path.Substring(0,Pair.Left.Path.Length-5),SceneJsonDslAnalyzer.ProjectDirectoryOf(Pair.Right.GlobalOptions),SceneJsonDslAnalyzer.PluginRootsOf(Pair.Right.GlobalOptions)),Json:Pair.Left.GetText(Ct)?.ToString()))
+            .Where(static Pair=>Pair.Path is not null&&Pair.Json is not null)
+            .Select(static(Pair,_)=>(Pair.Path!,Pair.Json!)).Collect();
         var RuntimeGate=Context.CompilationProvider.Select(static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
-        Context.RegisterSourceOutput(AssetPaths.Combine(DataAssets).Combine(RuntimeGate),static(Spc,Data)=>{
-            if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.Emit(Spc,Data.Left.Left,Data.Left.Right); }
+        Context.RegisterSourceOutput(AssetPaths.Combine(DataAssets).Combine(ImageMetadata).Combine(RuntimeGate),static(Spc,Data)=>{
+            if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.Emit(Spc,Data.Left.Left.Left,Data.Left.Left.Right,Data.Left.Right); }
         });
         Context.RegisterSourceOutput(AssetPaths.Combine(SceneTexts).Combine(RuntimeGate),static(Spc,Data)=>{
             if(Data.Right.HasRuntimeMarker){ AssetCatalogEmitter.ReportMissing(Spc,Data.Left.Left,Data.Left.Right); }
         });
 
-        // ADR-0077 stage 4: [InputActions] structs become an input map plus a per-frame Read.
+        // ADR-0077 ステージ 4：[InputActions] 構造体を入力マップとフレームごとの Read に変換する。
         var InputActionOutputs=Context.SyntaxProvider.ForAttributeWithMetadataName(
                                                                               InputActionsEmitter.AttributeMetadataName,
                                                                               static(Node,_)=>Node is TypeDeclarationSyntax,
@@ -163,9 +168,9 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 var ByFile=string.CompareOrdinal(A.FilePath,B.FilePath);
                 return ByFile!=0?ByFile:A.DeclarationPosition.CompareTo(B.DeclarationPosition);
             });
-            // Two scene files can declare the same class (a copied file). Only the first by path is built, as
-            // SceneJsonDslAnalyzer reports SCENE207 at the later ones; adding the same scene twice threw for its hint name
-            // and the whole generator output was lost.
+            // シーンファイル 2 つで同じクラスを宣言する（ファイルをコピーした場合など）ときは、パス順で最初のものだけをビルドする。
+            // 後から出現するファイルには SceneJsonDslAnalyzer が SCENE207 を報告する。同じシーンを 2 回追加するとヒント名が重複して例外になり、
+            // ジェネレーターの出力全体が失われていた。
             HashSet<string>BuiltScenes=new(StringComparer.Ordinal);
             ValidSceneDeclarations.RemoveAll(Scene=>!BuiltScenes.Add(Scene.ClassFullyQualifiedName));
 
@@ -180,7 +185,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
 
             ImmutableArray<GameSystemResult>AllSystemResults=[.. SystemResults,.. ValidStartupSystems];
 
-            // ADR-0077 stage 6: event receivers take their phase and order from the systems that send the event.
+            // ADR-0077 ステージ 6：イベント受信側は、イベントを送信するシステムからフェーズと順序を引き継ぐ。
             List<Diagnostic>WiringDiagnostics=[];
             AllSystemResults=GameSystemEventWiring.Apply(AllSystemResults,WiringDiagnostics);
             foreach(var WiringDiagnostic in WiringDiagnostics){

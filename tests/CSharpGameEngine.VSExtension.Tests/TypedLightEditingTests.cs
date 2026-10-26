@@ -111,7 +111,7 @@ public sealed class TypedLightEditingTests {
     [Fact]
     public void ConversionCommit_IsOneNativeWriteAndRejectsChangedContract(){
         var Data=TypedLightTestScene.Analyze("new SpotLight { Flux=new(1234f),Cone=new(20f,70f) },new LightShadow()");
-        // ADR-0070: the scene is committed as its scene JSON document.
+        // ADR-0070：シーンをシーン JSON ドキュメントとしてコミットする。
         var (Json,Context,Base)=SceneJsonRoundTrip.ToJsonScene(Data.Model,Data.Compilation);
         var Reconciler=new SceneProjectionReconciler();
         var Snapshot=SceneDocumentSnapshot.Create(TypedLightTestScene.Key,"scene",1,1,Context.Model,false,null,Reconciler);
@@ -126,7 +126,7 @@ public sealed class TypedLightEditingTests {
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         Assert.NotNull(Plan.WriteStep);
         var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
-        // The native writer owns this single before/after transaction; no light-owned history exists.
+        // この単一の前後トランザクションはネイティブライターが所有する。ライト固有の履歴はない。
         Assert.Equal(Json,Plan.WriteStep.Before.ToString());
         var Undo=SceneJsonRoundTrip.Analyze(Plan.WriteStep.Before.ToString(),"MainScene","Game.MainScene",Base).Model;
         Assert.NotNull(Undo.Root!.FindComponent(Source.TypeFullyQualifiedName));

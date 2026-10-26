@@ -16,13 +16,17 @@ public readonly record struct RenderMaterialArtifactDefinition(
 public sealed class RenderTextureResource {
     private readonly byte[]PixelsStorage;
 
-    internal RenderTextureResource(Hash256 ContentHash,int Width,int Height,byte[]Pixels){
+    internal RenderTextureResource(Hash256 ContentHash,int Width,int Height,byte[]Pixels,TextureOutputData?Prepared=null){
+        this.PreparedMipChain=Prepared is null?null:RenderTextureMipChain.FromImported(Prepared);
+        this.PreparedColorSpace=Prepared is null?null:Prepared.Srgb?RenderTextureColorSpace.Srgb:RenderTextureColorSpace.Linear;
         this.ContentHash=ContentHash;
         this.Width=Width;
         this.Height=Height;
         this.PixelsStorage=Pixels;
     }
 
+    public RenderTextureMipChain?PreparedMipChain { get; }
+    public RenderTextureColorSpace?PreparedColorSpace { get; }
     public Hash256 ContentHash { get; }
     public int Width { get; }
     public int Height { get; }
@@ -158,6 +162,10 @@ public static class RenderArtifactCodec {
             return false;
         }
         ReadOnlySpan<byte>Payload=Artifact.Payload.AsSpan();
+        if(Payload.Length>=4&&BinaryPrimitives.ReadUInt32LittleEndian(Payload)==0x31544743){
+            try { var Texture=ImageArtifactCodec.ReadTexture(Payload);Width=Texture.Levels[0].Width;Height=Texture.Levels[0].Height;Pixels=Texture.Levels[0].Pixels;return true; }
+            catch(Exception Failure)when(Failure is IOException or ArgumentException or OverflowException){ Error=Failure.Message;return false; }
+        }
         if(Payload.Length<TextureHeaderSize
             ||BinaryPrimitives.ReadUInt32LittleEndian(Payload.Slice(0,4))!=TextureMagic
             ||BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(4,2))!=SchemaVersion
@@ -368,7 +376,7 @@ public sealed class RenderMaterialCatalog {
             return Existing.Resource;
         }
         if(!this.TextureResidency.TryGetValue(Artifact.ContentHash,out RenderTextureResource?Resource)){
-            Resource=new RenderTextureResource(Artifact.ContentHash,Width,Height,Pixels);
+            Resource=new RenderTextureResource(Artifact.ContentHash,Width,Height,Pixels,Artifact.Payload.Length>=4&&BinaryPrimitives.ReadUInt32LittleEndian(Artifact.Payload.AsSpan())==0x31544743?ImageArtifactCodec.ReadTexture(Artifact.Payload.AsSpan()):null);
             this.TextureResidency.Add(Artifact.ContentHash,Resource);
         }
         this.Textures.Add(Key,new TextureRegistration(Address,Resource));

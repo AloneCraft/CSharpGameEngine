@@ -7,14 +7,10 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Hierarchy ViewModel construction (ADR-0040). Runs entirely without Visual Studio: the model comes
-/// from the same shared analyser the Source Generator uses, and the ViewModel is a plain object.
+/// Hierarchy ViewModel の構築 (ADR-0040)。Visual Studio に依存せず実行する。モデルは Source Generator と同じ共有アナライザーから得られ、ViewModel は通常のオブジェクトである。
 ///
 /// <para>
-/// The behaviour that matters here is expansion/selection survival. A live scene is re-analysed on
-/// every keystroke, so the tree is rebuilt constantly; if state did not carry across rebuilds the
-/// Hierarchy would collapse itself while the user typed. This is exactly the kind of logic that live
-/// UI verification is bad at catching, so it is pinned here instead.
+/// ここで重要なのは展開状態と選択状態の維持である。ライブシーンはキー入力のたびに再解析されるため、ツリーは頻繁に再構築される。状態が再構築をまたいで維持されなければ、ユーザーの入力中に Hierarchy が折りたたまれてしまう。この種のロジックはライブ UI 検証では検出しにくいため、ここで固定して検証する。
 /// </para>
 /// </summary>
 public sealed class SceneNodeViewModelTests {
@@ -75,8 +71,8 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void NodesAreExpandedByDefault(){
-        // Defaulting to collapsed would hide the whole scene behind one disclosure triangle on
-        // every rebuild, and rebuilds happen while the user types.
+        // 既定で折りたたむと、
+        // ユーザーの入力中に再構築されるたび、シーン全体が 1 つの開閉三角形の背後に隠れてしまう。
         var Roots=Build(NestedScene);
 
         Assert.All(Roots[0].SelfAndDescendants(),static Node=>Assert.True(Node.IsExpanded));
@@ -107,7 +103,7 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void SelectionOfARemovedNodeSimplySelectsNothing(){
-        // The user may delete the selected node from the source; that must not throw.
+        // ユーザーはソースから選択中のノードを削除できる。その場合も例外を投げてはならない。
         var Vanished=NodePath.Root.Append(9).Append(9);
 
         var Roots=Build(NestedScene,Collapsed:null,Vanished);
@@ -122,8 +118,8 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void SceneWithDiagnosticsStillRendersWhatCouldBeParsed(){
-        // A half-typed scene must still show something; blanking the tree on every transient error
-        // would make the Hierarchy flicker constantly while editing.
+        // 入力途中のシーンでも何かを表示する。入力中の一時的なエラーのたびにツリーを空にすると、
+        // 編集中に Hierarchy が絶えずちらつく。
         var Roots=Build("""
                        using CSharpGameEngine.Entities;
                        using Sample;
@@ -141,8 +137,8 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void SelfAndDescendantsWalksDepthFirstInDeclarationOrder(){
-        // Same order the generated Instantiate creates entities in, so a future index-based mapping
-        // between tree rows and entities lines up.
+        // 生成された Instantiate がエンティティを作成する順序と同じにし、インデックスによるマッピングで
+        // ツリー行とエンティティが対応するようにする。
         var Roots=Build(NestedScene);
 
         Assert.Equal(
@@ -164,15 +160,10 @@ public sealed class SceneNodeViewModelTests {
     }
 
     /// <summary>
-    /// Every property HierarchyToolWindowControl.xaml binds to must be public: WPF's binding engine
-    /// resolves public properties only, and a binding to an internal one fails <b>silently</b> - no
-    /// exception, no build warning, just an empty row. That is exactly what made the Hierarchy render
-    /// as a blank panel while DisplayName/ComponentSummary/Children were internal.
+    /// HierarchyToolWindowControl.xaml がバインドするプロパティはすべて public でなければならない。WPF のバインディングエンジンが解決するのは public プロパティだけであり、internal へのバインドは<b>黙って</b>失敗する。例外もビルド警告もなく、行が空になるだけである。以前 DisplayName/ComponentSummary/Children が internal だったため、Hierarchy が空のパネルとして表示された。
     ///
     /// <para>
-    /// Nothing else in this file can catch that regression. This test project has InternalsVisibleTo,
-    /// so every other test here reads those same properties happily and passes whether they are public
-    /// or internal - the accessibility itself has to be asserted explicitly.
+    /// このファイルの他の処理では、その回帰を検出できない。このテストプロジェクトには InternalsVisibleTo があり、他のすべてのテストは同じプロパティを問題なく読み取るため、public でも internal でも成功する。アクセス修飾子そのものを明示的に検証する必要がある。
     /// </para>
     /// </summary>
     [Theory]

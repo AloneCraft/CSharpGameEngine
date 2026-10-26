@@ -4,18 +4,7 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Procedurally builds a small placeholder cube <see cref="SimpleMesh"/> in memory (no disk I/O, no
-/// bridge call) for <c>[SceneDefinition]</c>-authored nodes, which have no mesh-asset concept at all
-/// (ADR-0031). Deliberately NOT routed through <c>CSharpGameEngine.Geometry.ProceduralMeshFactory
-/// .CreateBox</c>: that method's vertex/normal math goes through the RUF spatial abstraction
-/// (<c>CSharpGameEngine.Spatial.Abstractions</c>/<c>.Unity</c>, both net10.0), which this net472 VSIX
-/// cannot reference in-process - the same TFM wall ADR-0031 already documents for
-/// <c>CSharpGameEngine.Entities</c>. A fixed-size axis-aligned cube is constant geometry, not an
-/// algorithm that can drift, so duplicating just this one shape locally (as plain
-/// <see cref="System.Numerics.Vector3"/> math, not RUF) is the same "duplicate the trivial thing,
-/// don't bridge it" call ADR-0023 already made for the wire-protocol DTOs. Face/vertex/index layout
-/// mirrors <c>ProceduralMeshFactory.CreateBox</c> exactly (6 faces x 4 vertices, one normal per face),
-/// just expressed directly in XYZ instead of RUF.
+/// <c>[SceneDefinition]</c> で定義されたノードにはメッシュアセットの概念がないため、メモリ上で小さな仮ボックス <see cref="SimpleMesh"/> を手続き生成します（ディスク I/O も bridge 呼び出しもありません、ADR-0031）。<c>CSharpGameEngine.Geometry.ProceduralMeshFactory .CreateBox</c> には意図的に経由させません。このメソッドの頂点・法線計算は RUF 空間抽象（<c>CSharpGameEngine.Spatial.Abstractions</c>/<c>.Unity</c>、いずれも net10.0）を使い、この net472 の VSIX からプロセス内参照できないためです。これは ADR-0031 がすでに記録している <c>CSharpGameEngine.Entities</c> と同じ TFM の壁です。固定サイズの軸揃え立方体は変化しない定数形状であり、変化しうるアルゴリズムではありません。そのため、RUF ではなく単純な <see cref="System.Numerics.Vector3"/> 計算を使ってこの形状だけをローカルに重複実装します。これは wire-protocol DTO で ADR-0023 が選んだ「bridge を作るより単純な処理を重複する」という判断と同じです。面、頂点、index の配置は <c>ProceduralMeshFactory.CreateBox</c> と完全に同じ（6面 x 4頂点、面ごとに法線1つ）ですが、RUF ではなく XYZ を直接使います。
 /// </summary>
 internal static class GizmoMeshFactory {
     private static readonly Vector4 DefaultTint=new(0.4f,0.65f,0.95f,1f);

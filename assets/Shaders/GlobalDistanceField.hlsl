@@ -1,35 +1,35 @@
-// Global distance field (ADR-0078/M0110): clipmaps of the scene's signed distance around the camera, the tracing structure of the Lumen-like
-// lighting (M0111). Each clipmap level is a Texture3D of Resolution^3 voxels addressed toroidally: the voxel at global integer coordinate g lives
-// in texel g mod Resolution, so a clipmap that follows the camera rewrites only the bricks it newly covers. The field is made from the mesh
-// distance fields the build wrote for every glTF (geometry only; no lighting is baked) and is truncated at four voxels of its level.
-// Host-owned root signature (StageGlobalDistanceField): 0 = root CBV b0, 1-4 = root SRVs t0-t3 (bricks, brick objects, objects, meshes),
-// 5 = root SRV t4 (mesh distances, half floats), 6 = SRV table t5-t8 (the clipmap levels), 7 = UAV table u0 (the level a brick update writes),
-// 8 = root UAV u1 (trace results), 9 = root SRV t9 (trace rays), s0 = linear wrap.
+// Global distance field（ADR-0078/M0110）：カメラ周囲にあるシーンの signed distance を clipmap 化したもの。Lumen 風ライティング（M0111）で使う
+// tracing 構造です。各 clipmap level は Resolution^3 voxel の Texture3D で、toroidal にアドレス指定します。global integer coordinate g の voxel は、
+// texel g mod Resolution に格納されます。そのため、カメラに追従する clipmap は新たに覆う brick だけを書き換えます。field は、ビルド時に各 glTF 用に生成された mesh
+// distance field（geometry のみで、ライティングはベイクしない）から作成し、その level の4 voxel の距離で打ち切ります。
+// host が所有する root signature（StageGlobalDistanceField）：0 = root CBV b0、1-4 = root SRV t0-t3（bricks、brick objects、objects、meshes）、
+// 5 = root SRV t4（mesh distances、half float）、6 = SRV table t5-t8（clipmap level）、7 = UAV table u0（brick update が書き込む level）、
+// 8 = root UAV u1（trace 結果）、9 = root SRV t9（trace ray）、s0 = linear wrap。
 cbuffer GlobalDistanceFieldCB : register(b0)
 {
-    float4 Level;                 // update: x voxel size m, y truncation m, z resolution, w level index
-    float4 LevelRemainder;        // update: xyz render-space offset of the level's origin voxel (the field's voxel g sits at (g - O + 0.5) s - remainder)
-    uint4 Pass;                   // x pass (0 = update bricks, 1 = trace rays), y first brick, z ray count, w level count
-    float4 ClipmapScale[4];       // x voxel size, y truncation, z resolution, w 1 / resolution
-    float4 ClipmapOrigin[4];      // xyz render-space corner of the level's clip (its lowest voxel's corner)
-    float4 ClipmapTexel[4];       // xyz texel of the clip's lowest voxel (its global coordinate mod resolution)
+    float4 Level;                 // update：x = voxel size m、y = truncation m、z = resolution、w = level index
+    float4 LevelRemainder;        // update：xyz = level の原点 voxel の render-space offset（field の voxel g は (g - O + 0.5) s - remainder に位置します）
+    uint4 Pass;                   // x = pass（0 = brick 更新、1 = ray tracing）、y = 最初の brick、z = ray 数、w = level 数
+    float4 ClipmapScale[4];       // x = voxel size、y = truncation、z = resolution、w = 1 / resolution
+    float4 ClipmapOrigin[4];      // xyz = level clip の render-space corner（最下位 voxel の corner）
+    float4 ClipmapTexel[4];       // xyz = clip の最下位 voxel の texel（global coordinate mod resolution）
 };
 
 struct BrickRecord
 {
-    int3 VoxelOffset;   // the brick's first voxel, relative to the level's origin voxel
+    int3 VoxelOffset;   // level の原点 voxel を基準とした、brick の最初の voxel
     uint ObjectStart;
-    uint3 TexelStart;   // the brick's first voxel mod resolution
+    uint3 TexelStart;   // brick の最初の voxel の mod resolution
     uint ObjectCount;
 };
 
 struct ObjectRecord
 {
-    float4 WorldToLocal0;  // local = (dot(row0.xyz, p) + row0.w, ...): the inverse of the object's render-space matrix
+    float4 WorldToLocal0;  // local = (dot(row0.xyz, p) + row0.w, ...)：object の render-space matrix の逆変換
     float4 WorldToLocal1;
     float4 WorldToLocal2;
     uint Mesh;
-    float DistanceScale;   // the object's smallest scale: local distances times this never overstate the world distance
+    float DistanceScale;   // object の最小スケール。この値を local distance に乗算すれば、world distance を過大評価しません。
     float2 Padding;
 };
 
@@ -38,7 +38,7 @@ struct MeshRecord
     float3 BoundsMin;
     float VoxelSize;
     uint3 Resolution;
-    uint DataOffset;       // in half floats
+    uint DataOffset;       // half float 表現
 };
 
 StructuredBuffer<BrickRecord> Bricks : register(t0);
@@ -64,8 +64,8 @@ float LoadMeshDistance(MeshRecord mesh, uint3 voxel)
     return f16tof32((index & 1u) != 0u ? (word >> 16) : (word & 0xffffu));
 }
 
-// The mesh's distance at a point of its space: trilinear between voxel centres (clamped to the volume) plus, outside the volume, the distance to
-// its box. MeshDistanceField.Sample on the CPU is the same function.
+// mesh 空間の点における距離。voxel 中心間を trilinear 補間し（volume 内に clamp）、volume 外では mesh の box までの距離を加えます。
+// CPU 上の MeshDistanceField.Sample も同じ関数です。
 float MeshDistance(MeshRecord mesh, float3 local)
 {
     float3 boundsMax = mesh.BoundsMin + float3(mesh.Resolution) * mesh.VoxelSize;
@@ -83,8 +83,8 @@ float MeshDistance(MeshRecord mesh, float3 local)
     return lerp(lerp(d00, d10, f.y), lerp(d01, d11, f.y), f.z) * mesh.VoxelSize + outside;
 }
 
-// The field at a render-space point from the finest level whose clip holds it (one voxel of margin for the trilinear read); the coarsest level's
-// truncation when no level does. Writes the voxel size of the level used. This is what the M0111 tracing reads.
+// render-space の点における field。trilinear read 用に1 voxel の余裕を持って点を含む最も細かい level を使い、どの level にも含まれない場合は最も粗い level の
+// truncation を使います。使用した level の voxel size も書き込みます。M0111 の tracing が参照する値です。
 float SampleGlobalDistance(float3 position, uint levelCount, out float voxelSize)
 {
     [loop] for (uint level = 0; level < levelCount; level++)
@@ -102,7 +102,7 @@ float SampleGlobalDistance(float3 position, uint levelCount, out float voxelSize
     return ClipmapScale[levelCount - 1].y;
 }
 
-// Sphere tracing through the field: x = distance to the hit (or maxT), y = steps, z = 1 on a hit.
+// field 内の sphere tracing：x = hit までの距離（または maxT）、y = step 数、z = hit 時に1。
 float4 TraceGlobalDistanceField(float3 origin, float3 direction, float maxT, uint levelCount)
 {
     float t = 0.0;

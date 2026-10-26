@@ -3,14 +3,8 @@ using System.Numerics;
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Rotation of <see cref="RufVector"/> values. Axis-angle/composition/LookRotation are defined
-/// directly on the (R, U, F) component triple, treated as an internal right-handed basis for the
-/// purposes of quaternion math - deliberately independent of any <see cref="ICoordinateConvention"/>'s
-/// declared Handedness (see Docs/Specifications/Spatial-RUF.md "Quaternion仕様" for why rotation
-/// math and coordinate Handedness are kept separate: Handedness only affects how a vector's R/U/F
-/// numbers map to physical X/Y/Z, not how one RUF-space rotation composes with another).
-/// Positive <see cref="FromAxisAngle"/> rotation follows the right-hand rule around the given
-/// axis, evaluated on the R/U/F triple.
+/// <see cref="RufVector"/> 値の回転。Axis-angle、合成、LookRotation は (R, U, F) の成分 3 つに直接定義し、クォータニオン計算の目的上、内部の右手系基底として扱う。どの <see cref="ICoordinateConvention"/> が宣言する左右系からも意図的に独立させる (回転の計算と座標系の左右系を分離する理由は Docs/Specifications/Spatial-RUF.md の「Quaternion仕様」を参照。左右系が影響するのは、ベクトルの R/U/F の値を物理 X/Y/Z へ対応付ける方法だけであり、RUF 空間内で回転を合成する方法には影響しない)。
+/// <see cref="FromAxisAngle"/> の正の回転は、R/U/F の成分 3 つ上で評価したとき、指定軸周りの右手系の法則に従う。
 /// </summary>
 public readonly struct RufQuaternion(float R,float U,float F,float W):IEquatable<RufQuaternion>{
     public float R { get;}=R;
@@ -27,11 +21,9 @@ public readonly struct RufQuaternion(float R,float U,float F,float W):IEquatable
     }
 
     /// <summary>
-    /// Composes rotations for parent/child hierarchies: <c>parent * child</c> applies
-    /// <paramref name="Child"/>'s rotation first (in the parent's local frame), then
-    /// <paramref name="Parent"/>'s - i.e. <c>RotateVector(parent * child, v) ==
-    /// RotateVector(parent, RotateVector(child, v))</c> (verified by
-    /// <c>RufQuaternionTests.Multiply_AppliesChildThenParent</c>).
+    /// 親子階層の回転を合成する。<c>parent * child</c>では、最初に親のローカル座標系で<paramref name="Child"/>の回転を適用し、
+    /// 次に<paramref name="Parent"/>の回転を適用する。つまり<c>RotateVector(parent * child, v) ==
+    /// RotateVector(parent, RotateVector(child, v))</c>（<c>RufQuaternionTests.Multiply_AppliesChildThenParent</c>で検証済み）。
     /// </summary>
     public static RufQuaternion operator*(RufQuaternion Parent,RufQuaternion Child)
         =>FromSystemQuaternion(Parent.ToSystemQuaternion()*Child.ToSystemQuaternion());
@@ -42,15 +34,12 @@ public readonly struct RufQuaternion(float R,float U,float F,float W):IEquatable
     }
 
     /// <summary>
-    /// Builds a rotation whose local Forward maps to <paramref name="Forward"/> and whose local Up
-    /// is as close as possible to <paramref name="Up"/> (Gram-Schmidt orthogonalized). If
-    /// <paramref name="Forward"/> and <paramref name="Up"/> are parallel or near-parallel (or
-    /// <paramref name="Up"/> is zero/non-finite), falls back to a deterministic reference Up
-    /// (<see cref="RufVector.Up"/>, or <see cref="RufVector.Right"/> if <paramref name="Forward"/>
-    /// itself is parallel to <see cref="RufVector.Up"/>) - always the same result for the same
-    /// input, never NaN, but not guaranteed continuous across the fallback boundary. Throws
-    /// <see cref="SpatialConfigurationException"/> if <paramref name="Forward"/> is zero-length or
-    /// non-finite.
+    /// ローカルForwardが<paramref name="Forward"/>を向き、ローカルUpが可能な限り<paramref name="Up"/>に近づく回転を構築する
+    ///（グラム・シュミット直交化）。<paramref name="Forward"/>と<paramref name="Up"/>が平行またはほぼ平行、または
+    /// <paramref name="Up"/>がゼロ／有限値でない場合は、決定的な基準Upを使う（<see cref="RufVector.Up"/>、または
+    /// <paramref name="Forward"/>自体が<see cref="RufVector.Up"/>と平行なら<see cref="RufVector.Right"/>）。
+    /// 同じ入力には常に同じ結果を返し、NaNにはならない。ただしフォールバック境界をまたいで連続する保証はない。
+    /// <paramref name="Forward"/>の長さがゼロまたは有限値でない場合は、<see cref="SpatialConfigurationException"/>をスローする。
     /// </summary>
     public static RufQuaternion LookRotation(RufVector Forward,RufVector Up){
         if(Forward.LengthSquared<=0f||!float.IsFinite(Forward.LengthSquared)){

@@ -5,28 +5,28 @@ public enum LocomotionState:byte {
     Fall,
     Land,
 }
-/// <summary>The state of the Locomotion state machine nested in the Locomotion state: Idle, or the walk/run blend space.</summary>
+/// <summary>Locomotion状態内にネストされたLocomotion状態機械の状態。Idleまたは歩行／走行のブレンド空間。</summary>
 public enum LocomotionMoveState:byte {
     Idle,
     Move,
 }
-/// <summary>What ABP_Unarmed's event graph (BlueprintUpdateAnimation) hands the animation graph each frame; speeds in m/s, the direction in degrees.</summary>
-/// <param name="GroundSpeed">The length of the horizontal velocity.</param>
-/// <param name="Direction">The signed angle (−180 to 180) from the body's forward to the horizontal velocity, positive toward the side the Right clips travel to.</param>
-/// <param name="ShouldMove">Moving and being pushed (ground speed above 0.01 cm/s and a non-zero acceleration).</param>
-/// <param name="IsFalling">The movement mode is falling.</param>
-/// <param name="VerticalSpeed">Upward speed; the Jump state needs more than <see cref="LocomotionStateMachine.JumpVerticalSpeed"/>.</param>
+/// <summary>ABP_Unarmedのイベントグラフ（BlueprintUpdateAnimation）が各フレームにアニメーショングラフへ渡す値。速度はm/s、方向は度数。</summary>
+/// <param name="GroundSpeed">水平速度の大きさ。</param>
+/// <param name="Direction">ボディの前方から水平速度までの符号付き角度（−180～180度）。Rightクリップが移動する側を正とする。</param>
+/// <param name="ShouldMove">移動中かつ押されている状態（接地速度が0.01 cm/sを超え、加速度が0ではない）。</param>
+/// <param name="IsFalling">移動モードが落下中。</param>
+/// <param name="VerticalSpeed">上向き速度。Jump状態へ入るには<see cref="LocomotionStateMachine.JumpVerticalSpeed"/>を超える必要がある。</param>
 public readonly record struct LocomotionInput(float GroundSpeed,float Direction,bool ShouldMove,bool IsFalling,float VerticalSpeed);
 /// <summary>
-/// The clips of the locomotion graph, bound to one skeleton: Idle, Jump, Fall loop, Land and the eight directions of walking and jogging
-/// (indexed by <see cref="LocomotionDirection"/>).
+/// 1つのスケルトンにバインドされた移動グラフのクリップ。Idle、Jump、Fallループ、Land、および8方向の歩行／ジョギング
+///（<see cref="LocomotionDirection"/>でインデックス化）。
 /// </summary>
 public sealed record LocomotionClips(AnimationClip Idle,AnimationClip[]Walk,AnimationClip[]Jog,AnimationClip Jump,AnimationClip Fall,AnimationClip Land){
-    /// <summary>Every direction takes the same clip: the forward-only locomotion graph the template had before the eight directions.</summary>
+    /// <summary>すべての方向に同じクリップを使う。テンプレートが8方向対応する前に持っていた、前方移動専用のグラフ。</summary>
     public static LocomotionClips ForwardOnly(AnimationClip Idle,AnimationClip Walk,AnimationClip Jog,AnimationClip Jump,AnimationClip Fall,AnimationClip Land)=>
         new(Idle,[.. Enumerable.Repeat(Walk,LocomotionDirection.Count)],[.. Enumerable.Repeat(Jog,LocomotionDirection.Count)],Jump,Fall,Land);
 }
-/// <summary>The eight directions of BS_Idle_Walk_Run, clockwise from the front as seen from above: the index into the walk and jog clip arrays.</summary>
+/// <summary>上から見て正面を起点に時計回りに並べた、BS_Idle_Walk_Runの8方向。歩行／ジョギング用クリップ配列のインデックス。</summary>
 public static class LocomotionDirection {
     public const int Count=8;
     public const int Forward=0;
@@ -37,25 +37,24 @@ public static class LocomotionDirection {
     public const int BackwardLeft=5;
     public const int Left=6;
     public const int ForwardLeft=7;
-    /// <summary>The direction whose angle (degrees, 0 forward and positive toward the Right clips' side) is the grid value <paramref name="Degrees"/>; ±180 are both Backward.</summary>
+    /// <summary><paramref name="Degrees"/>に等しいグリッド値を持つ角度の方向（度数。0が前方、正はRightクリップ側）。±180度はどちらも後方。</summary>
     public static int OfAngle(float Degrees)=>(((int)MathF.Round(Degrees/45f))%Count+Count)%Count;
 }
 /// <summary>
-/// Unreal ThirdPerson's unarmed animation graph (ABP_Unarmed, ADR-0066, ADR-0078/M0107) as a state machine. The Main States machine has the
-/// states Locomotion, Jump, Fall Loop and Land. Leaving the ground from Locomotion or Land goes to Jump when the upward speed is above
-/// <see cref="JumpVerticalSpeed"/> (0.15 s cross-fade) and to Fall Loop otherwise (0.4 s); Jump runs into the Fall Loop when its clip has
-/// <see cref="JumpToFallSeconds"/> left (0.3 s); touching down from Jump or Fall Loop goes to Land (0.1 s); Land returns to Locomotion
-/// when its clip has <see cref="LandToLocomotionSeconds"/> left (0.4 s) or when the character should move (0.5 s). The Locomotion state is
-/// itself a state machine: Idle, and the walk/run blend space (<see cref="BlendSpace2D"/> with the eight directions at the walk and jog
-/// speeds and Idle at speed 0). Idle goes to Move when <see cref="LocomotionInput.ShouldMove"/> (0.2 s) and back when not (0.3 s). Every
-/// cross-fade uses the Cubic curve and starts from a snapshot of the last output pose, so a transition interrupted by another one continues
-/// from what was on screen. The clips of the blend space share one normalized phase, advanced at the rate of their weighted length, so
-/// the feet stay in step through the blend.
+/// Unreal ThirdPersonの素手用アニメーショングラフ（ABP_Unarmed、ADR-0066、ADR-0078/M0107）を状態機械として表す。
+/// Main States機械にはLocomotion、Jump、Fall Loop、Landがある。LocomotionまたはLandから地面を離れる際、上向き速度が
+/// <see cref="JumpVerticalSpeed"/>を超えていればJumpへ遷移（クロスフェード0.15秒）、そうでなければFall Loopへ遷移（0.4秒）。
+/// Jumpのクリップ残り時間が<see cref="JumpToFallSeconds"/>（0.3秒）になるとFall Loopへ移る。JumpまたはFall Loopから着地するとLandへ遷移（0.1秒）。
+/// Landのクリップ残り時間が<see cref="LandToLocomotionSeconds"/>（0.4秒）になるか、キャラクターが移動すべき状態になると（0.5秒）Locomotionへ戻る。
+/// Locomotion自体も状態機械であり、Idleと歩行／走行ブレンド空間（<see cref="BlendSpace2D"/>。歩行／ジョギング速度での8方向と、速度0のIdle）を持つ。
+/// <see cref="LocomotionInput.ShouldMove"/>がtrueならIdleからMoveへ遷移（0.2秒）、falseならIdleへ戻る（0.3秒）。
+/// すべてのクロスフェードにはCubicカーブを使い、直前の出力姿勢のスナップショットから開始するため、別の遷移で中断されても画面上の姿勢から続く。
+/// ブレンド空間のクリップは正規化された位相を共有し、重み付きクリップ長に応じて進むため、ブレンド中も足並みが保たれる。
 /// </summary>
 public sealed class LocomotionStateMachine {
-    /// <summary>Upward speed (m/s) above which leaving the ground starts Jump instead of Fall Loop (Velocity.Z &gt; 100 cm/s).</summary>
+    /// <summary>地面を離れる際にJumpではなくFall Loopへ入る上向き速度のしきい値（m/s）。Velocity.Z &gt; 100 cm/s。</summary>
     public const float JumpVerticalSpeed=1f;
-    /// <summary>Where the Jump clip starts (the Jump state's StartPosition), in seconds.</summary>
+    /// <summary>Jumpクリップの開始位置（Jump状態のStartPosition）、秒単位。</summary>
     public const float JumpStartSeconds=0.08f;
     public const float ToJumpBlendSeconds=0.15f;
     public const float ToFallBlendSeconds=0.4f;
@@ -65,7 +64,7 @@ public sealed class LocomotionStateMachine {
     public const float LandToMoveBlendSeconds=0.5f;
     public const float IdleToMoveBlendSeconds=0.2f;
     public const float MoveToIdleBlendSeconds=0.3f;
-    /// <summary>The blend space's target weight interpolation speed per second.</summary>
+    /// <summary>ブレンド空間の目標ウェイトを補間する速度（毎秒）。</summary>
     public const float WeightInterpolationSpeed=5f;
     private readonly Skeleton Skeleton;
     private readonly LocomotionClips Clips;
@@ -120,16 +119,16 @@ public sealed class LocomotionStateMachine {
     public float WalkSpeed { get; }
     public float JogSpeed { get; }
     public LocomotionState State { get; private set; }
-    /// <summary>The Locomotion state's inner state (kept while another state is current).</summary>
+    /// <summary>Locomotion状態が現在でなくても保持される、その内側の状態。</summary>
     public LocomotionMoveState MoveState { get; private set; }
-    /// <summary>Seconds since the current main state was entered.</summary>
+    /// <summary>現在のメイン状態へ入ってからの経過秒数。</summary>
     public float StateTime { get; private set; }
-    /// <summary>The blend space's current (smoothed) sample weights.</summary>
+    /// <summary>ブレンド空間の現在の（平滑化済み）サンプルウェイト。</summary>
     public ReadOnlySpan<float>BlendWeights=>this.BlendSpace.Weights;
     public int BlendSampleCount=>this.BlendSpace.SampleCount;
-    /// <summary>The shared normalized phase (0 to 1) of the blend space's clips.</summary>
+    /// <summary>ブレンド空間のクリップが共有する正規化済み位相（0～1）。</summary>
     public float BlendPhase=>this.Phase;
-    /// <summary>Advances by <paramref name="DeltaSeconds"/> and writes the local pose.</summary>
+    /// <summary><paramref name="DeltaSeconds"/>分だけ進め、ローカル姿勢を書き込む。</summary>
     public void Update(float DeltaSeconds,in LocomotionInput Input,Span<JointPose>Pose){
         if(Pose.Length<this.Skeleton.JointCount){
             throw new ArgumentException($"The pose needs {this.Skeleton.JointCount} joints.",nameof(Pose));
@@ -185,7 +184,7 @@ public sealed class LocomotionStateMachine {
         if(Wanted!=this.MoveState){
             this.MoveState=Wanted;
             if(Wanted==LocomotionMoveState.Move){
-                // The blend space player starts afresh on entry: its weights begin at the first query's, not at the last run's.
+                // ブレンド空間プレイヤーは入るたびに初期化する。ウェイトは前回実行時の値ではなく、最初のクエリの値から始める。
                 this.BlendSpace.Reset();
             }
             this.MoveFade.Start(Wanted==LocomotionMoveState.Move?IdleToMoveBlendSeconds:MoveToIdleBlendSeconds);
@@ -212,7 +211,7 @@ public sealed class LocomotionStateMachine {
                 break;
         }
     }
-    /// <summary>Advances the shared phase and the smoothed weights, then mixes the clips by weight.</summary>
+    /// <summary>共有位相と平滑化済みウェイトを進め、ウェイトに応じてクリップをミックスする。</summary>
     private void EvaluateBlendSpace(float DeltaSeconds,float Direction,float Speed,Span<JointPose>Pose){
         this.BlendSpace.Update(DeltaSeconds,Direction,Speed);
         var Length=this.GatherClipWeights();
@@ -221,7 +220,7 @@ public sealed class LocomotionStateMachine {
         }
         this.MixClips(Pose);
     }
-    /// <summary>The blend-space pose for the given input at the current phase, with the weights snapped (not smoothed); nothing advances.</summary>
+    /// <summary>現在の位相における指定入力のブレンド空間姿勢を、スナップ済み（平滑化なし）のウェイトで返す。状態は進めない。</summary>
     public void EvaluateLocomotion(float Direction,float GroundSpeed,Span<JointPose>Pose){
         if(Pose.Length<this.Skeleton.JointCount){
             throw new ArgumentException($"The pose needs {this.Skeleton.JointCount} joints.",nameof(Pose));
@@ -236,7 +235,7 @@ public sealed class LocomotionStateMachine {
         }
         this.MixClips(Pose);
     }
-    /// <summary>Sums the smoothed sample weights per clip (the same clip fills several samples) and returns their weighted length.</summary>
+    /// <summary>平滑化済みのサンプルウェイトをクリップごとに合計する（同じクリップが複数サンプルを占めることもある）。その加重長を返す。</summary>
     private float GatherClipWeights(){
         this.ClipWeights.Clear();
         var Weights=this.BlendSpace.Weights;

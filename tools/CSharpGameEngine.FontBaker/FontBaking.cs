@@ -8,9 +8,7 @@ using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.FontBaker;
 
 /// <summary>
-/// Bakes a TrueType font to a <see cref="FontAtlas"/>: GDI+ draws each glyph's outline large and without anti-aliasing, the exact distance
-/// transform measures how far every pixel is from that outline, and the result is brought down to the atlas resolution. The same font, size and
-/// settings on the same Windows version give the same bytes.
+/// TrueType フォントを <see cref="FontAtlas"/> にベイクする。GDI+ で各グリフの輪郭を大きくアンチエイリアスなしで描き、正確な距離変換で各ピクセルから輪郭までの距離を測り、アトラス解像度へ縮小する。同じ Windows バージョンで同じフォント、サイズ、設定を使えば、同じバイト列になる。
 /// </summary>
 internal static class FontBaking {
     internal const int DefaultSize=64;
@@ -19,7 +17,7 @@ internal static class FontBaking {
     internal const int AtlasWidth=1024;
     private const int PackingGap=1;
 
-    /// <summary>The characters baked when none are asked for: printable ASCII, Latin-1 and the common typographic punctuation.</summary>
+    /// <summary>指定がない場合にベイクする文字：印字可能な ASCII、Latin-1、および一般的な組版用句読点。</summary>
     internal static IReadOnlyList<int>DefaultCodePoints(){
         List<int>CodePoints=[];
         for(int CodePoint=0x20;CodePoint<=0x7E;CodePoint++){ CodePoints.Add(CodePoint); }
@@ -64,7 +62,7 @@ internal static class FontBaking {
 
         (int X,int Y)[]Positions=ShelfPacker.Pack([.. Baked.Select(static Glyph=>(Glyph.CellWidth,Glyph.CellHeight))],AtlasWidth,PackingGap,out int AtlasHeight);
         byte[]Distance=new byte[AtlasWidth*AtlasHeight];
-        // Outside every glyph the field is "far outside": 0.
+        // すべてのグリフの外側では、距離場は「遠く離れた外側」を表す 0 となる。
         List<FontGlyph>Glyphs=[];
         for(int Index=0;Index<Baked.Count;Index++){
             var Glyph=Baked[Index];
@@ -94,7 +92,10 @@ internal static class FontBaking {
         return Graphics.MeasureString(Text,Font,PointF.Empty,Format).Width;
     }
 
-    /// <summary>Fills <paramref name="Path"/> without anti-aliasing into a mask whose top-left pixel is (<paramref name="OriginX"/>, <paramref name="OriginY"/>) of the path's space.</summary>
+    /// <summary>
+    /// <paramref name="Path"/> を、パス空間で (<paramref name="OriginX"/>, <paramref name="OriginY"/>) にある左上ピクセルを持
+    /// つマスクへアンチエイリアスなしで塗りつぶす。
+    /// </summary>
     private static bool[]Rasterize(GraphicsPath Path,int OriginX,int OriginY,int Width,int Height){
         using Bitmap Mask=new(Width,Height,PixelFormat.Format32bppArgb);
         using(Graphics Graphics=Graphics.FromImage(Mask)){

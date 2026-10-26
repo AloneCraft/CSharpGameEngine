@@ -27,9 +27,10 @@ public static class SceneSpawn {
     }
 }
 /// <summary>
-/// ADR-0078/M0113: the physics stable IDs of a scene's nodes. The generator gives each node an ID made from its scene and path; the first instance of a
-/// scene in a World uses it as it is, and each later instance (the <see cref="World.TakeSceneOrdinal"/> it was made with) a hash of it and that ordinal, so
-/// two spawned instances of one scene with bodies are two sets of bodies to the physics. The order instances are made in is deterministic, so the IDs are.
+/// ADR-0078／M0113：シーン内ノードの物理安定ID。ジェネレーターはシーンとパスから各ノードのIDを作る。
+/// 1つのWorldにシーンを初めてインスタンス化する際はそのIDを使い、2回目以降（作成時の<see cref="World.TakeSceneOrdinal"/>を使用）は、
+/// IDと序数のハッシュを使う。これにより、同じシーンを複数生成して剛体を含めても、物理系では別個の剛体集合となる。
+/// インスタンス生成順は決定的なので、IDも決定的である。
 /// </summary>
 public static class SceneStableIds {
     public static ulong ForInstance(ulong Definition,int Ordinal){

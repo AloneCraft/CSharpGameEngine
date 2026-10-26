@@ -7,12 +7,7 @@ using System.Text;
 namespace CSharpGameEngine.ProjectTemplates;
 
 /// <summary>
-/// Turns the template source project (Templates/CSharpGameEngine.Templates.ThirdPerson) into a new
-/// game project that builds from the CSharpGameEngine.Sdk package (ADR-0065, ADR-0068). Shared by the
-/// Visual Studio project-template wizard and the package end-to-end Stage, so both create the same
-/// project; only the Visual Studio template adds a ReadMe.md, the item that makes the VSSDK archive the
-/// template's project file (ADR-0068). The template source stays an ordinary compilable project; its namespace
-/// (<see cref="NamespaceOf"/>, <c>CgeThirdPerson</c> for ThirdPerson) is replaced here rather than through template tokens.
+/// テンプレートのソースプロジェクト (Templates/CSharpGameEngine.Templates.ThirdPerson) を、CSharpGameEngine.Sdk パッケージからビルドするゲームプロジェクトに変換する (ADR-0065、ADR-0068)。Visual Studio のプロジェクトテンプレートウィザードとパッケージのエンドツーエンド Stage が共有するため、どちらも同じプロジェクトを作成する。Visual Studio テンプレートだけは ReadMe.md を追加する。このファイルがあることで VSSDK がテンプレートのプロジェクトファイルをアーカイブする (ADR-0068)。テンプレートソースは通常のコンパイル可能なプロジェクトとして維持し、その名前空間 (<see cref="NamespaceOf"/>、ThirdPerson では <c>CgeThirdPerson</c>) はテンプレートトークンではなく、ここで置換する。
 /// </summary>
 internal static class GameProjectGenerator {
     internal const string DefaultTemplate="ThirdPerson";
@@ -20,21 +15,20 @@ internal static class GameProjectGenerator {
     internal const string SdkPackageId="CSharpGameEngine.Sdk";
     internal const string EngineVersionToken="$cgeengineversion$";
     internal const string StartupScenePath="Scenes/Lvl_"+DefaultTemplate+".json";
-    /// <summary>The templates the extension offers, which are the folders Templates/CSharpGameEngine.Templates.&lt;name&gt;.</summary>
+    /// <summary>拡張機能が提供するテンプレート。フォルダーは Templates/CSharpGameEngine.Templates.&lt;name&gt;。</summary>
     internal static readonly string[]TemplateNames=["ThirdPerson","FirstPerson","TopDown","Vehicle"];
-    /// <summary>The namespace a template's source declares (and that <see cref="CopySources"/> renames): <c>Cge&lt;name&gt;</c>.</summary>
+    /// <summary>テンプレートソースで宣言され、<see cref="CopySources"/> が置換する名前空間：<c>Cge&lt;name&gt;</c>。</summary>
     internal static string NamespaceOf(string TemplateName)=>"Cge"+TemplateName;
-    /// <summary>The level the wizard opens after creating a project from <paramref name="TemplateName"/>.</summary>
+    /// <summary><paramref name="TemplateName"/> からプロジェクトを作成した後、ウィザードが開くレベル。</summary>
     internal static string StartupSceneOf(string TemplateName)=>TemplateName switch {
         "Vehicle"=>"Scenes/Lvl_VehicleBasic.json",
         _=>"Scenes/Lvl_"+TemplateName+".json",
     };
-    // .cge holds the scene schema that each build writes for its own project (ADR-0070).
+    // .cge には、各ビルドがそのプロジェクト用に書き出すシーンスキーマが格納される (ADR-0070)。
     private static readonly string[]SkippedDirectories=["bin","obj",".vs",".cge"];
 
     /// <summary>
-    /// C# reserved keywords: a namespace cannot be one (<c>namespace event.Gameplay;</c> does not parse). The list is
-    /// written out because the Feature Runner, which shares this file, does not reference Roslyn.
+    /// C# の予約語：名前空間には使用できない（<c>namespace event.Gameplay;</c> は解析できない）。このファイルを共有する Feature Runner は Roslyn を参照しないため、一覧をここに記述する。
     /// </summary>
     private static readonly HashSet<string>ReservedKeywords=new(StringComparer.Ordinal){
         "abstract","as","base","bool","break","byte","case","catch","char","checked","class","const","continue","decimal",
@@ -46,8 +40,7 @@ internal static class GameProjectGenerator {
     };
 
     /// <summary>
-    /// A C# identifier for <paramref name="ProjectName"/>, as Visual Studio forms $safeprojectname$; a reserved keyword
-    /// also gets a leading underscore so the template's namespaces parse.
+    /// <paramref name="ProjectName"/> に対する C# 識別子。Visual Studio が $safeprojectname$ を生成する方法に従う。予約語の場合は先頭にアンダースコアを付け、テンプレートの名前空間を正しく解析できるようにする。
     /// </summary>
     internal static string SafeIdentifier(string ProjectName){
         StringBuilder Builder=new();
@@ -64,10 +57,8 @@ internal static class GameProjectGenerator {
     }
 
     /// <summary>
-    /// Copies the template source into <paramref name="ProjectDirectory"/>, skipping build outputs and
-    /// the template's own project file, and renames the template namespace in C# sources and scene
-    /// JSON documents (their <c>namespace</c> and game type names).
-    /// Returns the created files.
+    /// テンプレートソースを <paramref name="ProjectDirectory"/> にコピーする。ビルド出力とテンプレート自身のプロジェクトファイルは除外し、C# ソースとシーン JSON ドキュメント内のテンプレート名前空間（<c>namespace</c> とゲーム型名）を置換する。
+    /// 作成したファイルを返す。
     /// </summary>
     internal static IReadOnlyList<string>CopySources(string TemplateDirectory,string ProjectDirectory,string RootNamespace,string TemplateName=DefaultTemplate){
         var SourceNamespace=NamespaceOf(TemplateName);
@@ -75,7 +66,7 @@ internal static class GameProjectGenerator {
         if(!Directory.Exists(Source)){
             throw new DirectoryNotFoundException($"The template source was not found: {Source}");
         }
-        // A scene file is a *.json under Scenes (ADR-0070); it declares the template's namespace too.
+        // シーンファイルは Scenes 以下の *.json であり (ADR-0070)、テンプレートの名前空間も宣言する。
         static bool IsSceneFile(string[]Segments)=>
             Segments.Length>1&&string.Equals(Segments[0],"Scenes",StringComparison.OrdinalIgnoreCase)
             &&Segments[Segments.Length-1].EndsWith(".json",StringComparison.OrdinalIgnoreCase);
@@ -102,8 +93,7 @@ internal static class GameProjectGenerator {
     }
 
     /// <summary>
-    /// The game project file: Game.props conventions arrive through the SDK package; only what restore needs is local, plus the
-    /// engine plugins the template uses (<paramref name="Plugins"/>, the template's <c>CgePlugins</c>; ADR-0079).
+    /// ゲームプロジェクトファイル：Game.props の規約は SDK パッケージから提供される。ローカルに置くのは復元に必要なものと、テンプレートが使うエンジンプラグイン（<paramref name="Plugins"/>、テンプレートの <c>CgePlugins</c>、ADR-0079）だけ。
     /// </summary>
     internal static string ProjectFile(string RootNamespace,string EngineVersion,string Plugins="")=>
         "<Project Sdk=\"Microsoft.NET.Sdk\">\r\n"
@@ -121,8 +111,7 @@ internal static class GameProjectGenerator {
         +"</Project>\r\n";
 
     /// <summary>
-    /// The engine plugins a template source project enables: the value of its <c>&lt;CgePlugins&gt;</c>, or empty (ADR-0079). The template's
-    /// own project file is the one place this is written, so the generated project and the template build the same game.
+    /// テンプレートのソースプロジェクトで有効にするエンジンプラグイン：そのプロジェクト自身の <c>&lt;CgePlugins&gt;</c> の値、または空 (ADR-0079)。生成プロジェクトとテンプレートが同じゲームをビルドするため、これを記述する場所はテンプレート自身のプロジェクトファイルだけである。
     /// </summary>
     internal static string PluginsOf(string TemplateDirectory){
         foreach(var ProjectPath in Directory.EnumerateFiles(TemplateDirectory,"*.csproj",SearchOption.TopDirectoryOnly)){
@@ -136,7 +125,7 @@ internal static class GameProjectGenerator {
         return string.Empty;
     }
 
-    /// <summary>Adds the local engine package feed to the user's configured sources (the engine's dependencies still come from them).</summary>
+    /// <summary>ローカルのエンジンパッケージフィードをユーザーの設定済みフィードに追加する（エンジンの依存関係は引き続きそちらから取得する）。</summary>
     internal static string NuGetConfig(string FeedDirectory)=>
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
         +"<configuration>\r\n"
@@ -145,11 +134,11 @@ internal static class GameProjectGenerator {
         +"  </packageSources>\r\n"
         +"</configuration>\r\n";
 
-    /// <summary>Where the extension unpacks the engine package of <paramref name="EngineVersion"/> for restore.</summary>
+    /// <summary>復元時に拡張機能が <paramref name="EngineVersion"/> のエンジンパッケージを展開する場所。</summary>
     internal static string DefaultFeedDirectory(string EngineVersion)=>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CSharpGameEngine","packages",EngineVersion);
 
-    /// <summary>The engine version of a <c>CSharpGameEngine.Sdk.&lt;version&gt;.nupkg</c> file name.</summary>
+    /// <summary><c>CSharpGameEngine.Sdk.&lt;version&gt;.nupkg</c> というファイル名に含まれるエンジンバージョン。</summary>
     internal static string VersionOfPackage(string PackagePath){
         var Name=Path.GetFileNameWithoutExtension(PackagePath);
         var Prefix=SdkPackageId+".";
@@ -159,7 +148,7 @@ internal static class GameProjectGenerator {
         return Name.Substring(Prefix.Length);
     }
 
-    /// <summary>Copies <paramref name="PackagePath"/> into <paramref name="FeedDirectory"/> unless an identical file is there.</summary>
+    /// <summary>同一のファイルが存在しない場合、<paramref name="PackagePath"/> を <paramref name="FeedDirectory"/> にコピーする。</summary>
     internal static void PublishToFeed(string PackagePath,string FeedDirectory){
         Directory.CreateDirectory(FeedDirectory);
         var Destination=Path.Combine(FeedDirectory,Path.GetFileName(PackagePath));
@@ -170,8 +159,7 @@ internal static class GameProjectGenerator {
     }
 
     /// <summary>
-    /// Byte equality: the package keeps its version while it is rebuilt (ADR-0065), and a rebuilt package can have the
-    /// old one's length.
+    /// バイト単位で一致することを確認する。パッケージの再ビルド後もバージョンは維持され (ADR-0065)、新しくビルドしたパッケージが以前のものと同じ長さになる場合もある。
     /// </summary>
     private static bool SameContent(string Left,string Right){
         if(new FileInfo(Left).Length!=new FileInfo(Right).Length){
@@ -202,7 +190,7 @@ internal static class GameProjectGenerator {
         }
     }
 
-    /// <summary>Creates a complete game project: sources, <c>&lt;ProjectName&gt;.csproj</c> and <c>nuget.config</c>.</summary>
+    /// <summary>ソース、<c>&lt;ProjectName&gt;.csproj</c>、<c>nuget.config</c> を含む完全なゲームプロジェクトを作成する。</summary>
     internal static string Generate(string TemplateDirectory,string ProjectDirectory,string ProjectName,string EngineVersion,string FeedDirectory,string TemplateName=DefaultTemplate){
         var RootNamespace=SafeIdentifier(ProjectName);
         Directory.CreateDirectory(ProjectDirectory);

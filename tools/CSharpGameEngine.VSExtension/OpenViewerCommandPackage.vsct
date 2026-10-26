@@ -178,7 +178,9 @@
           <ButtonText>Measure GPU Usage...</ButtonText>
         </Strings>
       </Button>
-    </Buttons>
+    <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowAssetsCommandId" priority="0x0140" type="Button"><Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup"/><Icon guid="ImageCatalogGuid" id="ImageGroup"/><CommandFlag>IconIsMoniker</CommandFlag><Strings><ButtonText>Show Assets</ButtonText></Strings></Button>
+    <Button guid="guidOpenViewerCommandPackageCmdSet" id="AssetsFilterCommandId" priority="0x0410" type="Button"><Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLBAR_PROJWIN_FILTERS"/><Icon guid="ImageCatalogGuid" id="ImageGroup"/><CommandFlag>IconIsMoniker</CommandFlag><Strings><ButtonText>Assets only</ButtonText></Strings></Button>
+</Buttons>
   </Commands>
 
   <CommandPlacements>
@@ -213,6 +215,7 @@
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneEditorOptionsCommandId" priority="0x0100">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarOptionsGroup" />
     </CommandPlacement>
+  <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowAssetsCommandId" priority="0x0140"><Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup"/></CommandPlacement>
   </CommandPlacements>
 
   <Symbols>
@@ -220,6 +223,8 @@
 
     <GuidSymbol name="guidOpenViewerCommandPackageCmdSet" value="{521655e5-0d1b-4255-8086-1039c5c2e3da}">
       <IDSymbol name="OpenViewerMenuGroup" value="0x1020" />
+      <IDSymbol name="ShowAssetsCommandId" value="0x0140"/>
+      <IDSymbol name="AssetsFilterCommandId" value="0x0141"/>
       <IDSymbol name="OpenViewerCommandId" value="0x0100" />
       <!-- 0x0101 (ShowViewerToolWindowCommandId) retired in ADR-0021 - do not reuse; the docked
            single-mesh Viewer tool window it showed was removed (scene rendering now happens in the

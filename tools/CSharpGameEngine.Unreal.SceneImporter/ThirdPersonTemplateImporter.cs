@@ -54,8 +54,8 @@ internal static class ThirdPersonTemplateImporter {
         var ScenesDirectory=Path.Combine(TemplateDirectory,"Scenes");
         Directory.CreateDirectory(ScenesDirectory);
         var Utf8=new UTF8Encoding(encoderShouldEmitUTF8Identifier:false);
-        // Unreal draws the sky dome with an IsSky material that samples SkyAtmosphere; the glTF bake cannot represent it, so the
-        // SkySphere component (M0110) stands for those actors and the renderer draws the atmosphere on it (ADR-0069).
+        // Unreal は IsSky マテリアルでスカイドームを描画し、SkyAtmosphere をサンプリングする。glTF ベイクでは表現できないため、
+        // SkySphere コンポーネント (M0110) でそれらのアクターを表し、レンダラーがその上に大気を描画する (ADR-0069)。
         var SkyDomeAssets=Manifest.Actors.Where(Actor=>SkyDomeActors.Contains(Actor.Label)).Select(Actor=>Actor.AssetPath).ToHashSet(StringComparer.Ordinal);
         foreach(var Asset in SkyDomeAssets.Where(Asset=>Manifest.Actors.All(Actor=>SkyDomeActors.Contains(Actor.Label)||Actor.AssetPath!=Asset))){
             File.Delete(Path.Combine(TemplateDirectory,Asset));
@@ -84,7 +84,7 @@ internal static class ThirdPersonTemplateImporter {
         Builder.AppendLine("}");
         return Builder.ToString();
     }
-    /// <summary>Emits Unreal's environment actors as ADR-0069 Components in their authored units.</summary>
+    /// <summary>Unreal の環境アクターを、作成時の単位のまま ADR-0069 のコンポーネントとして出力する。</summary>
     private static void AppendEnvironment(StringBuilder Builder,ThirdPersonLightingManifest Lighting){
         var Atmosphere=Lighting.SkyAtmosphere;
         Builder.AppendLine("            new SkyAtmosphere {");
@@ -110,8 +110,8 @@ internal static class ThirdPersonTemplateImporter {
             .Append(",InscatteringLuminanceR=").Append(F(Fog.InscatteringLuminance[0])).Append(",InscatteringLuminanceG=").Append(F(Fog.InscatteringLuminance[1])).Append(",InscatteringLuminanceB=").Append(F(Fog.InscatteringLuminance[2]))
             .Append(",SkyAtmosphereAmbientContributionScale=").Append(F(Fog.SkyAtmosphereAmbientContributionScale)).AppendLine(" },");
         var Post=Lighting.PostProcess;
-        // Unreal's histogram auto exposure with equal min/max brightness is a fixed exposure; a
-        // min/max range needs the AutoHistogram method, which this importer rejects until it exists.
+        // Unreal のヒストグラム自動露出で最小と最大の明るさを等しくすると、露出は固定される。最小/最大に幅がある場合は、
+        // AutoHistogram 方式が必要だが、インポーターは未対応のため拒否する。
         var Method=Post.AutoExposureMethod switch {
             "AEM_HISTOGRAM"=>"AutoHistogram",
             "AEM_MANUAL"=>"Manual",
@@ -122,13 +122,12 @@ internal static class ThirdPersonTemplateImporter {
             .Append(",ExposureCompensation=").Append(F(Post.ExposureCompensation)).Append(",ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=").Append(F(Post.BloomIntensity))
             .Append(",AmbientOcclusionIntensity=").Append(F(Post.AmbientOcclusionIntensity)).Append(",AmbientOcclusionRadiusMeters=").Append(F(Post.AmbientOcclusionRadiusCm*0.01f)).AppendLine(" },");
         if(Lighting.VolumetricCloud){
-            // M0110: the templates' VolumetricCloud keeps the component's defaults with the default cloud material, which are the component's defaults here.
+            // M0110：テンプレートの VolumetricCloud は、既定の雲マテリアルを使ってコンポーネントの既定値を維持する。この箇所で設定する値も同じ既定値。
             Builder.AppendLine("            new VolumetricCloud(),");
         }
     }
     /// <summary>
-    /// M0110: each sky dome actor becomes a node with a <c>SkySphere</c> at the actor's position; the radius is the farthest vertex of its mesh
-    /// as placed (Unreal's SM_SkySphere, 40.96 m, scaled 400 times: 16.384 km).
+    /// M0110：各スカイドームアクターは、その位置に <c>SkySphere</c> を持つノードになる。半径は配置済みメッシュの最遠頂点で決める（Unreal の SM_SkySphere は 40.96 m で、400 倍に拡大されるため 16.384 km）。
     /// </summary>
     internal static void AppendSkySpheres(StringBuilder Builder,ThirdPersonManifest Manifest,ImportedScene Scene,IReadOnlyDictionary<string,ImportedSceneNode>MeshNodeByName,IReadOnlySet<string>SkyDomeActors){
         foreach(var Actor in Manifest.Actors.Where(Item=>SkyDomeActors.Contains(Item.Label)).OrderBy(Item=>Item.Label,StringComparer.Ordinal)){
@@ -340,7 +339,7 @@ internal sealed class ThirdPersonHeightFogManifest {
 internal sealed class ThirdPersonPostProcessManifest {
     public string AutoExposureMethod { get; set; }="AEM_HISTOGRAM";
     public float MinEv100 { get; set; }
-    /// <summary>Unreal's defaults when the manifest predates exporting the adaptation speeds.</summary>
+    /// <summary>マニフェストに適応速度のエクスポートがない場合に使う Unreal の既定値。</summary>
     public float AutoExposureSpeedUp { get; set; }=3f;
     public float AutoExposureSpeedDown { get; set; }=1f;
     public float MaxEv100 { get; set; }

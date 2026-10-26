@@ -1,6 +1,6 @@
-# ADR-0077: synthesizes the three placeholder sound effects of the ThirdPerson template (Jump, Land, Footstep).
-# The UE ThirdPerson template ships no audio, so these are deterministic tones, not Unreal content. Replace the .wav files
-# with real sounds of the same names; the game plays whatever PCM .wav (8/16/24-bit or float, mono or stereo) it finds.
+# ADR-0077：ThirdPerson template の仮サウンド効果音3種類（Jump、Land、Footstep）を生成します。
+# UE ThirdPerson template には音声が含まれないため、これは Unreal のコンテンツではなく決定論的な音です。.wav ファイルを
+# 同じ名前の実際の効果音に置き換えてください。ゲームは見つかった PCM .wav（8/16/24-bit または float、mono または stereo）を再生します。
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\..\Templates\CSharpGameEngine.Templates.ThirdPerson\Assets\Sounds')
 )
@@ -40,7 +40,7 @@ function New-Samples([double]$Seconds, [scriptblock]$Shape) {
     return $Samples
 }
 
-# Jump: a short rising chirp.
+# Jump：短く上昇する chirp。
 $Phase = 0.0
 Write-Wav (Join-Path $OutputDirectory 'Jump.wav') (New-Samples 0.2 {
     param($Time, $Progress)
@@ -49,7 +49,7 @@ Write-Wav (Join-Path $OutputDirectory 'Jump.wav') (New-Samples 0.2 {
     0.5 * [Math]::Exp(-5 * $Progress) * [Math]::Sin($script:Phase)
 })
 
-# Land: a low thump with a burst of noise.
+# Land：低い thump と noise の burst。
 $Random = New-Object System.Random 1
 $Phase = 0.0
 Write-Wav (Join-Path $OutputDirectory 'Land.wav') (New-Samples 0.18 {
@@ -59,7 +59,7 @@ Write-Wav (Join-Path $OutputDirectory 'Land.wav') (New-Samples 0.18 {
     (0.7 * [Math]::Sin($script:Phase) + 0.25 * $Noise) * [Math]::Exp(-7 * $Progress)
 })
 
-# Footstep: a short, soft noise burst.
+# Footstep：短く柔らかな noise burst。
 $Random = New-Object System.Random 2
 $Low = 0.0
 Write-Wav (Join-Path $OutputDirectory 'Footstep.wav') (New-Samples 0.07 {

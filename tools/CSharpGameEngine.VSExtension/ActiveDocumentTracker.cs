@@ -8,15 +8,10 @@ using Microsoft.VisualStudio.TextManager.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Points <see cref="SceneWorkspaceService"/> at whichever document the user is looking at
-/// (ADR-0040). Hierarchy follows the scene of the active scene JSON (<c>Scenes\**\*.json</c>, ADR-0070), so it has to
-/// follow the document frame rather than the solution.
+/// ユーザーが表示しているドキュメントを <see cref="SceneWorkspaceService"/> に設定する (ADR-0040)。Hierarchy はアクティブなシーン JSON (<c>Scenes\**\*.json</c>、ADR-0070) のシーンを追うため、ソリューションではなくドキュメントフレームを追跡しなければならない。
 ///
 /// <para>
-/// Uses <c>IVsMonitorSelection</c>'s document-frame element instead of DTE window events, with
-/// <c>IVsTextManager.GetActiveView(false)</c> as the fallback for transient tool-window focus.
-/// Both are synchronously readable at startup, so Hierarchy can populate for an already-open file
-/// without clearing it when focus moves to Scene Designer or Solution Explorer.
+/// DTE のウィンドウイベントではなく、<c>IVsMonitorSelection</c> のドキュメントフレーム要素を使う。ツールウィンドウへ一時的にフォーカスが移った場合は <c>IVsTextManager.GetActiveView(false)</c> を代替として使う。どちらも起動時に同期的に読み取れるため、Hierarchy はすでに開いているファイルを表示でき、Scene Designer や Solution Explorer へフォーカスを移しても表示を消さない。
 /// </para>
 /// </summary>
 internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
@@ -47,17 +42,15 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         ActiveDocumentTracker Tracker=new(Selection,TextManager,UIShell,Service);
         Selection.AdviseSelectionEvents(Tracker,out Tracker.Cookie);
 
-        // Pick up the document that is already open, so opening the tool window on an existing
-        // editor does not require touching the file first.
+        // すでに開いているドキュメントを取得する。既存のエディター上でツールウィンドウを開くときに、
+        // 先にファイルを操作する必要をなくす。
         Tracker.RefreshCurrentDocument();
 
         return Tracker;
     }
 
     /// <summary>
-    /// Re-reads the current frame/view after package startup. Visual Studio can expose the live
-    /// workspace before its first text view is readable, so the one synchronous read in
-    /// <see cref="Start"/> is not sufficient on a cold hive.
+    /// パッケージの起動後に、現在のフレーム/ビューを再読み込みする。コールドハイブでは、最初のテキストビューが読み取り可能になる前に Visual Studio がライブワークスペースを公開することがあるため、<see cref="Start"/> で行う同期読み取り 1 回だけでは不十分。
     /// </summary>
     internal bool RefreshCurrentDocument(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -82,7 +75,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         return VSConstants.S_OK;
     }
 
-    /// <summary>Solution Explorer selection does not target a scene (ADR-0071: scenes open by double-click).</summary>
+    /// <summary>Solution Explorer の選択はシーンを対象としない (ADR-0071：シーンはダブルクリックで開く)。</summary>
     public int OnSelectionChanged(
         IVsHierarchy OldHierarchy,
         uint OldItemId,
@@ -98,18 +91,18 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     private void UpdateFromFrame(IVsWindowFrame?Frame){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        // Tool-window activation can transiently publish a null/non-document frame. GetActiveView
-        // with fMustHaveFocus=false returns the current or most recently active text view, so moving
-        // focus to Scene Designer/Solution Explorer keeps the last code document instead of
-        // clearing Hierarchy and racing OpenSceneDesignerCommand.
+        // ツールウィンドウのアクティブ化時に、一時的に null またはドキュメントでないフレームが公開されることがある。GetActiveView は
+        // fMustHaveFocus=false で呼ぶと、現在または直近にアクティブだったテキストビューを返す。そのため、
+        // Scene Designer または Solution Explorer にフォーカスを移しても、最後に開いたコードドキュメントを維持できる。
+        // Hierarchy をクリアして OpenSceneDesignerCommand と競合する問題を防ぐ。
         var FramePath=TryGetFrameDocumentPath(Frame,out var DocumentPath)?DocumentPath:null;
         var TextViewPath=this.TryGetActiveTextViewPath(out DocumentPath)?DocumentPath:null;
         var SelectedPath=ActiveDocumentPathSelector.Select(FramePath,TextViewPath, this.CurrentFilePath);
         if(SelectedPath is not null){
             this.SetDocumentPath(SelectedPath);
         }
-        // If neither source has a document, this is an unknown tool-window transition. Preserve the
-        // current code document; clearing here was the Phase 8 bug that blanked Scene Designer.
+        // どちらの情報源にもドキュメントがない場合は、未知のツールウィンドウへの切り替えである。現在のコードドキュメントを維持する。
+        // ここでクリアしていたことが、Scene Designer を空にしていたフェーズ 8 の不具合だった。
     }
 
     private void SetDocumentPath(string DocumentPath){

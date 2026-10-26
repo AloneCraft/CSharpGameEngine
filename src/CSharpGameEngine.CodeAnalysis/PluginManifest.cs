@@ -4,8 +4,8 @@ using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// A plugin's manifest <c>&lt;Name&gt;.cgeplugin</c> (ADR-0079): name, version, the engine versions it is written for and the plugins it
-/// needs. Parsed with the scene JSON reader (strict RFC 8259, no comments, no duplicate keys).
+/// プラグインのマニフェスト<c>&lt;Name&gt;.cgeplugin</c>（ADR-0079）。名前、バージョン、対応するエンジンのバージョン、および依存するプラグインを記述する。
+/// シーンJSONリーダーで解析する（厳格なRFC 8259準拠。コメントと重複キーは不可）。
 /// </summary>
 internal sealed class PluginManifest {
     internal const string Extension=".cgeplugin";
@@ -25,7 +25,7 @@ internal sealed class PluginManifest {
 
     internal string Name { get; }
     internal PluginVersion Version { get; }
-    /// <summary>The engine version range, such as <c>&gt;=0.1.16 &lt;0.2.0</c>; null when the plugin does not say.</summary>
+    /// <summary>エンジンのバージョン範囲（例：<c>&gt;=0.1.16 &lt;0.2.0</c>）。プラグインに記載がない場合はnull。</summary>
     internal string?EngineVersion { get; }
     internal ImmutableArray<string>Dependencies { get; }
     internal int NameStart { get; }
@@ -34,7 +34,7 @@ internal sealed class PluginManifest {
     internal int EngineVersionEnd { get; }
     internal ImmutableArray<(string Name,int Start,int End)>DependencySpans { get; }
 
-    /// <summary>Reads a manifest. On failure returns null with the problem and its character span.</summary>
+    /// <summary>マニフェストを読み込む。失敗時は問題の内容と文字位置の範囲を添えてnullを返す。</summary>
     internal static PluginManifest?Parse(string Text,out string?Problem,out int ProblemStart,out int ProblemEnd){
         Problem=null;
         ProblemStart=0;
@@ -104,7 +104,7 @@ internal sealed class PluginManifest {
         Microsoft.CodeAnalysis.CSharp.SyntaxFacts.IsValidIdentifier(Value);
 }
 
-/// <summary>A version of up to four numbers (<c>1</c>, <c>1.2</c>, <c>1.2.3</c>, <c>1.2.3.4</c>); missing parts are 0.</summary>
+/// <summary>最大4つの数値で表すバージョン（<c>1</c>、<c>1.2</c>、<c>1.2.3</c>、<c>1.2.3.4</c>）。省略部分は0。</summary>
 internal readonly struct PluginVersion:IComparable<PluginVersion> {
     private readonly int Major;
     private readonly int Minor;
@@ -142,7 +142,7 @@ internal readonly struct PluginVersion:IComparable<PluginVersion> {
 }
 
 /// <summary>
-/// Space-separated constraints that all must hold: <c>&gt;=</c>, <c>&gt;</c>, <c>&lt;=</c>, <c>&lt;</c>, <c>=</c>, or a bare version (exactly it).
+/// すべて満たす必要がある、スペース区切りの制約。<c>&gt;=</c>、<c>&gt;</c>、<c>&lt;=</c>、<c>&lt;</c>、<c>=</c>、または演算子なしのバージョン（完全一致）。
 /// </summary>
 internal sealed class PluginVersionRange {
     private readonly ImmutableArray<(string Operator,PluginVersion Version)>Constraints;

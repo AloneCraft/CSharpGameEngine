@@ -1,14 +1,12 @@
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
 /// <summary>
-/// One fixed tick of kinematic character movement (ADR-0067) against the deterministic physics
-/// world, in <see cref="LogicalScalar"/>. Collide-and-slide by depenetration: each sub-step moves at
-/// most half the capsule radius, then pushes out of the deepest contact and removes the velocity
-/// into it, up to <see cref="ResolveIterations"/> times. While walking, a walkable contact lifts the
-/// capsule straight up without touching the velocity (horizontal speed is kept on ramps, as in
-/// Unreal) and any other contact is a wall (horizontal push only). Floors are faces whose own normal
-/// is walkable, so the capsule can perch on a step's edge; walking snaps to floors within
-/// StepHeight and retries blocked moves raised by StepHeight. The world is only read.
+/// 決定的な物理ワールドに対して<see cref="LogicalScalar"/>で実行する、キネマティックなキャラクター移動の固定ティック1回分（ADR-0067）。
+/// 貫通解消による押し戻しで衝突後に滑らせる。サブステップごとの移動をカプセル半径の半分以下に制限し、最も深い接触から押し出して、
+/// そこへ向かう速度成分を除去する。最大<see cref="ResolveIterations"/>回繰り返す。歩行中は、歩行可能面との接触ならカプセルを真上に持ち上げて速度を変えず
+///（坂道でも水平速度を維持。Unrealと同じ）、それ以外の接触は壁として水平成分だけを押し出す。床は自身の法線が歩行可能な面なので、段差の端にも立てる。
+/// 歩行時はStepHeight以内の床へ吸着し、ブロックされた移動はStepHeightだけ高い位置から再試行する。
+/// ワールドへの変更は行わない。
 /// </summary>
 public sealed class CharacterMotor {
     public const int ResolveIterations=4;
@@ -28,7 +26,7 @@ public sealed class CharacterMotor {
     public CharacterMotor(DeterministicPhysicsWorld World){
         this.World=World??throw new ArgumentNullException(nameof(World));
     }
-    /// <summary>Advances <paramref name="Position"/> (the capsule centre) and <paramref name="State"/> by <paramref name="DeltaSeconds"/>; consumes the jump request.</summary>
+    /// <summary><paramref name="DeltaSeconds"/>分、<paramref name="Position"/>（カプセル中心）と<paramref name="State"/>を進め、ジャンプ要求を消費する。</summary>
     public void Step(in CharacterMotion Settings,ref LogicalVector3 Position,ref CharacterMotionState State,ref MoveIntent Input,LogicalScalar DeltaSeconds){
         this.Configure(Settings);
         if(Settings.ConstrainToPlane&&Settings.SnapToPlaneAtStart&&!State.PlaneSnapped){
@@ -54,12 +52,12 @@ public sealed class CharacterMotor {
             State.Facing=this.RotateToward(State.Facing,Direction,Settings.TurnRateDegrees*DegreesToRadians*DeltaSeconds);
         }
     }
-    /// <summary>Yaw rotation turning +F into <paramref name="Facing"/> (horizontal unit vector); identity for a zero facing.</summary>
+    /// <summary>+Fを<paramref name="Facing"/>（水平な単位ベクトル）へ向けるYaw回転。向きがゼロなら恒等回転。</summary>
     public static LogicalQuaternion FacingRotation(LogicalVector3 Facing){
         if(Facing.LengthSquared.IsZero){
             return LogicalQuaternion.Identity;
         }
-        // cos(theta) = F, sin(theta) = R; half-angle identities avoid an inverse trigonometric function.
+        // cos(theta) = F、sin(theta) = R。逆三角関数を使わず、半角の公式で求める。
         var Cos=Facing.F;
         LogicalScalar.TrySquareRoot(Clamp((LogicalScalar.One+Cos)*Half,LogicalScalar.Zero,LogicalScalar.One),out var HalfCos);
         LogicalScalar.TrySquareRoot(Clamp((LogicalScalar.One-Cos)*Half,LogicalScalar.Zero,LogicalScalar.One),out var HalfSin);
@@ -68,7 +66,7 @@ public sealed class CharacterMotor {
         }
         return new LogicalQuaternion(LogicalScalar.Zero,HalfSin,LogicalScalar.Zero,HalfCos);
     }
-    /// <summary>Horizontal facing of a rotation (its +F axis flattened); +F when the rotation looks straight up or down.</summary>
+    /// <summary>回転の水平向き（+F軸を水平面に投影したもの）。真上または真下を向く回転では+Fを返す。</summary>
     public static LogicalVector3 FacingOf(LogicalQuaternion Rotation){
         if(!Rotation.TryRotate(LogicalVector3.UnitF,out var Forward)){
             return LogicalVector3.UnitF;
@@ -101,7 +99,7 @@ public sealed class CharacterMotor {
         }
         State.Velocity=new LogicalVector3(Horizontal.R,Vertical,Horizontal.F);
     }
-    /// <summary>Unreal's CalcVelocity for the horizontal plane.</summary>
+    /// <summary>水平面に対するUnrealのCalcVelocity。</summary>
     private static LogicalVector3 CalculateVelocity(LogicalVector3 Velocity,LogicalVector3 Direction,LogicalScalar Acceleration,LogicalScalar Friction,LogicalScalar BrakingFriction,LogicalScalar BrakingDeceleration,LogicalScalar MaxSpeed,LogicalScalar DeltaSeconds){
         if(Acceleration.IsZero){
             var Speed=Length(Velocity);
@@ -139,17 +137,17 @@ public sealed class CharacterMotor {
                 State.Mode=CharacterMotionMode.Falling;
             }
         }
-        // Depenetration and the floor snap may push along the normal too; like UE's SafeMoveUpdatedComponent, the whole move is flattened onto the plane.
+        // 貫通解消と床への吸着では法線方向にも押し出されることがある。UEのSafeMoveUpdatedComponentと同様、移動全体を平面へ投影する。
         Position=Origin+this.ConstrainDirection(Position-Origin);
     }
-    /// <summary>UE's ConstrainDirectionToPlane: the part of <paramref name="Direction"/> along the plane's normal is removed. Unchanged without a constraint or with a zero normal.</summary>
+    /// <summary>UEのConstrainDirectionToPlane。<paramref name="Direction"/>から平面法線方向の成分を取り除く。制約がない場合、または法線がゼロの場合は変更しない。</summary>
     private LogicalVector3 ConstrainDirection(LogicalVector3 Direction){
         if(!this.Settings.ConstrainToPlane||!this.Settings.PlaneNormal.TryNormalize(out var Normal)){
             return Direction;
         }
         return Direction-(Normal*LogicalVector3.Dot(Direction,Normal));
     }
-    /// <summary>UE's ConstrainLocationToPlane: the point projected onto the plane through the origin (used once, for SnapToPlaneAtStart). Unchanged without a constraint or with a zero normal.</summary>
+    /// <summary>UEのConstrainLocationToPlane。原点を通る平面へ点を投影する（SnapToPlaneAtStartで一度だけ使用）。制約がない場合、または法線がゼロの場合は変更しない。</summary>
     private LogicalVector3 ConstrainLocation(LogicalVector3 Point){
         if(!this.Settings.ConstrainToPlane||!this.Settings.PlaneNormal.TryNormalize(out var Normal)){
             return Point;
@@ -164,9 +162,9 @@ public sealed class CharacterMotor {
         if(!Blocked||State.Mode!=CharacterMotionMode.Walking||this.Settings.StepHeight<=LogicalScalar.Zero){
             return;
         }
-        // A wall stopped a walking move: retry it raised by StepHeight and keep it if it lands on a
-        // walkable floor whose contact point is at most StepHeight above the feet (Unreal's rule)
-        // and gets further than the blocked move.
+        // 壁によって歩行移動が止められた場合、StepHeightだけ上げて再試行する。次の条件を満たせばその移動を採用する。
+        // 歩行可能な床に着地し、その接触点が足元からStepHeight以内にある（Unrealの規則）。
+        // かつ、ブロックされた元の移動より遠くまで進める。
         var Raised=Start+LogicalVector3.UnitU*this.Settings.StepHeight;
         if(this.Collect(Raised)>0){
             return;
@@ -185,7 +183,7 @@ public sealed class CharacterMotor {
         Position=new LogicalVector3(Stepped.R,FloorHeight,Stepped.F);
         State.Velocity=SteppedState.Velocity;
     }
-    /// <summary>Pushes out of the deepest contact up to four times; true when a wall (non-walkable contact while walking) blocked the move.</summary>
+    /// <summary>最も深い接触から最大4回押し出す。歩行中に壁（歩行不可の接触）が移動を妨げた場合はtrue。</summary>
     private bool Resolve(ref LogicalVector3 Position,ref CharacterMotionState State){
         var Blocked=false;
         for(var Iteration=0;Iteration<ResolveIterations;Iteration++){
@@ -226,14 +224,12 @@ public sealed class CharacterMotor {
         }
         return Blocked;
     }
-    /// <summary>A contact on a walkable face that pushes the capsule upward: a floor, or the edge of one.</summary>
+    /// <summary>カプセルを上向きに押し出す、歩行可能面との接触。床面またはその端。</summary>
     private bool Supports(in PhysicsShapeContact Contact)=>Contact.SurfaceNormal.U>=this.WalkableCos&&-Contact.Normal.U>SpeedEpsilon;
     /// <summary>
-    /// Height the capsule centre must have to rest on the highest walkable floor within
-    /// <paramref name="Distance"/> below <paramref name="Position"/>, like Unreal's downward floor
-    /// sweep: the capsule descends in steps of half its radius until a supporting contact appears,
-    /// then bisects to the first touching height. Walls are ignored, so a step's edge is found from
-    /// above (a perch). A capsule already in a floor is lifted straight out of it instead.
+    /// <paramref name="Position"/>より<paramref name="Distance"/>以内の下方にある、最も高い歩行可能な床面でカプセル中心が静止する高さ。
+    /// Unrealの下向き床スイープと同様に、床を支える接触が見つかるまでカプセルを半径の半分ずつ下降させ、その後、最初に接触する高さを二分探索する。
+    /// 壁は無視するため、段差の端も上から検出できる（端に立つ）。カプセルが既に床へめり込んでいる場合は、真上へ持ち上げて抜け出す。
     /// </summary>
     private bool TryFindFloor(LogicalVector3 Position,LogicalScalar Distance,out LogicalScalar Height,out LogicalScalar FloorPoint){
         Height=Position.U;
@@ -290,7 +286,7 @@ public sealed class CharacterMotor {
         Height=Free;
         return true;
     }
-    /// <summary>True when a supporting contact exists; <paramref name="PointHeight"/> is the highest supporting contact point.</summary>
+    /// <summary>支持接触がある場合true。<paramref name="PointHeight"/>は最も高い支持接触点の高さ。</summary>
     private bool HasSupport(LogicalVector3 Position,out LogicalScalar PointHeight){
         this.Collect(Position);
         var Found=false;
@@ -319,7 +315,7 @@ public sealed class CharacterMotor {
         }
         var Toward=Target-Facing*Cos;
         if(!Toward.TryNormalize(out var Perpendicular)){
-            // Exactly opposite: turn about +U (right-handed) to leave the singular case.
+            // 特異な場合を避けるため、+Uまわりの反対方向へ回転する（右手系）。
             Perpendicular=new LogicalVector3(Facing.F,LogicalScalar.Zero,-Facing.R);
         }
         var Rotated=Facing*StepCos+Perpendicular*StepSin;

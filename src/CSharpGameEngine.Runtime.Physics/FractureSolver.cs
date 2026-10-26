@@ -1,8 +1,8 @@
 namespace CSharpGameEngine.Runtime.Physics;
 /// <summary>
-/// The cooked prefracture assets a process has loaded (ADR-0078/M0113), by full path, shared by the destruction plugin and the renderer (an asset is
-/// immutable). A file is read again when its length or write time changes. <see cref="Register"/> puts an asset made in memory under a path (tests and
-/// previews); it wins over the file until <see cref="Forget"/>.
+/// プロセスが読み込んだ調理済み事前破砕アセット（ADR-0078/M0113）。完全なパスで管理し、アセットは不変なので破壊プラグインとレンダラーで共有する。ファイルの長さまたは更新時刻が変わると再読み
+/// 込みする。<see cref="Register"/> はメモリ上で作成したアセットをパスに登録する（テストとプレビュー用）。<see cref="Forget"/> が呼ばれるまではファイルより優先
+/// される。
 /// </summary>
 public static class PrefractureAssetCache {
     private static readonly Dictionary<string,(PrefractureAsset Asset,long Length,DateTime Written,bool Registered)>Entries=new(StringComparer.OrdinalIgnoreCase);
@@ -50,42 +50,41 @@ public static class PrefractureAssetCache {
     }
 }
 /// <summary>
-/// How a destructible breaks at run time (ADR-0078/M0113). <see cref="ClusterStrengthScale"/> multiplies the strength of a bond once for every level of the
-/// cooked hierarchy whose cluster holds both its fragments (UE's per-level damage threshold, M0124: the bonds between top-level clusters are the weakest, so a
-/// hit first frees whole clusters, a harder one breaks them into their sub-clusters, and the hardest into fragments). <see cref="DamagePropagation"/> is the
-/// share of an impulse that reaches the bonds one fragment further away (UE's damage propagation factor), applied ring by ring. <see cref="StrainRetention"/>
-/// (M0124, 0 to 1) is the share of a bond's internal strain kept from one tick to the next (1 − decay × Δt): 0, the default, keeps none (M0113's behaviour,
-/// every tick on its own), 1 keeps all of it.
+/// 実行時に破壊可能オブジェクトがどのように壊れるかを設定する（ADR-0078/M0113）。<see cref="ClusterStrengthScale"/> は、調理済み階層のうち両方の破片を含む
+/// 各段のクラスターについて、ボンドの強度を一度ずつ乗算する（UE の階層別ダメージしきい値。M0124：最上位クラスター間のボンドが最も弱く、衝撃でまずクラスター全体が外れ、より強い衝撃で下位クラスター
+/// 、さらに強い衝撃で個々の破片が分離する）。<see cref="DamagePropagation"/> は、力積のうち衝撃点から一つ先の破片のボンドに伝わる割合（UE のダメージ伝播係数）で、隣接輪
+/// ごとに適用する。<see cref="StrainRetention"/>（M0124、0～1）は、ボンドの内部ひずみを次のティックにどれだけ保持するかを示す（1 − decay × Δt）。既定値の
+/// 0では保持しない（毎ティックで独立する M0113 の動作）。1ではすべて保持する。
 /// </summary>
 public readonly record struct FractureSettings(LogicalScalar ClusterStrengthScale,LogicalScalar DamagePropagation,bool AnchorBottom,LogicalScalar StrainRetention=default){
-    /// <summary>The retention for a decay rate (1/s) at a tick rate (ticks/s): max(0, 1 − decay / rate), as the physics damps a velocity.</summary>
+    /// <summary>減衰率（1/s）とティックレート（ティック/s）から求める保持率。速度の物理減衰と同様、max(0, 1 − decay / rate)。</summary>
     public static LogicalScalar RetentionFor(LogicalScalar DecayPerSecond,int TicksPerSecond){
         if(DecayPerSecond<LogicalScalar.Zero||TicksPerSecond<=0){ throw new ArgumentOutOfRangeException(nameof(DecayPerSecond),"The strain decay must be zero or more and the tick rate positive."); }
         var Kept=LogicalScalar.One-DecayPerSecond/LogicalScalar.FromInt64(TicksPerSecond);
         return Kept<LogicalScalar.Zero?LogicalScalar.Zero:Kept;
     }
 }
-/// <summary>A bond that broke in a step, and the strain that broke it (its internal strain and the tick's strain together).</summary>
+/// <summary>ステップ中に切れたボンドと、それを切ったひずみ（内部ひずみとこのティックのひずみの合計）。</summary>
 public readonly record struct FractureBondBreak(int Bond,LogicalScalar Strain);
-/// <summary>A bond whose internal strain an impact raised in a step, and the internal strain it carries into the next step (M0124).</summary>
+/// <summary>ステップ中に衝撃で内部ひずみが増加したボンドと、次のステップへ持ち越す内部ひずみ（M0124）。</summary>
 public readonly record struct FractureBondStrain(int Bond,LogicalScalar Strain);
 /// <summary>
-/// One piece of a destructible: a connected set of fragments that moves as one body (UE's cluster union). <see cref="Center"/> is its centre of mass in the
-/// source's frame, the origin of its body. Piece 0 is the whole object, which is the destructible's own authored body until it first splits.
+/// 破壊可能オブジェクトの破片1つ。連結した破片の集合が一体のボディとして動く（UE の cluster union）。<see cref="Center"/> は元形状の座標枠における重心で、ボディの
+/// 原点になる。破片0はオブジェクト全体を表し、最初に分割されるまでは設定された破壊可能オブジェクト自体のボディを使う。
 /// </summary>
 public sealed class FracturePiece(int Id,int[]Fragments,bool Anchored,LogicalVector3 Center,LogicalScalar Mass,int Parent) {
     public int Id { get; }=Id;
-    /// <summary>The fragments, ascending.</summary>
+    /// <summary>昇順に並んだ破片。</summary>
     public IReadOnlyList<int>Fragments { get; }=Fragments;
-    /// <summary>Whether a fragment of the piece is anchored: the piece is held still (a static body).</summary>
+    /// <summary>破片が固定されているか。固定されている場合、その破片を静的ボディとして動かさない。</summary>
     public bool Anchored { get; }=Anchored;
     public LogicalVector3 Center { get; }=Center;
     public LogicalScalar Mass { get; }=Mass;
-    /// <summary>The piece it split from (its body's motion carries over); -1 for the whole object.</summary>
+    /// <summary>分離元の破片（そのボディの動きを引き継ぐ）。オブジェクト全体の場合は -1。</summary>
     public int Parent { get; }=Parent;
     public bool IsWhole=>this.Id==0;
 }
-/// <summary>What a step changed: the pieces that ended (split or removed) and the pieces that began, in the order their bodies are made.</summary>
+/// <summary>ステップで変化した内容。終了した破片（分割または削除）と、新しく始まった破片を、ボディが作成される順に並べる。</summary>
 public sealed class FractureStep {
     public static readonly FractureStep None=new([],[]);
     internal FractureStep(IReadOnlyList<FracturePiece>Ended,IReadOnlyList<FracturePiece>Began){
@@ -97,24 +96,23 @@ public sealed class FractureStep {
     public bool Changed=>this.Ended.Count>0||this.Began.Count>0;
 }
 /// <summary>
-/// The breaking state of one destructible (ADR-0078/M0113): the solver of UE's Chaos clustering, kept free of the ECS so the cook, the runtime and the tests
-/// share it. Strain (an impulse, N·s) is gathered on the bonds during a tick from contact impulses (<see cref="AddImpulse"/>: the hit fragment's bonds take
-/// all of it, the next ring <see cref="FractureSettings.DamagePropagation"/> of it, and so on) and from strain fields (<see cref="AddStrainSphere"/>).
-/// M0124: a bond also carries an internal strain from tick to tick (UE's Chaos internal strain, its accumulated damage). <see cref="Resolve"/> breaks every
-/// bond whose internal strain and tick strain together reached its strength (equal breaks); then each intact bond's internal strain takes the tick's lasting
-/// strain (the impacts: a contact's first tick, a game's impulse, a character's hit, a field; not the steady load of a body resting on it, which would wear a
-/// bond down by its own weight) and keeps <see cref="FractureSettings.StrainRetention"/> of it, so repeated small hits break a bond that one does not, and an
-/// old hit fades. The tick's strain is forgotten, and each piece that no longer holds together splits into its connected parts. Anchored fragments
-/// (<see cref="FractureSettings.AnchorBottom"/>: those on the source's lowest face) keep their pieces still. Everything is integer or Q64.64 and in index
-/// order, so the same input gives the same pieces and the same internal strains.
+/// 破壊可能オブジェクト1つ分の破壊状態（ADR-0078/M0113）。UE の Chaos クラスタリングソルバーを ECS から独立させ、調理処理、実行時処理、テストで共有する。ティック中、接触力積
+/// （<see cref="AddImpulse"/>：衝撃を受けた破片のボンドには全量を加え、次の隣接輪には
+/// <see cref="FractureSettings.DamagePropagation"/> の割合、その先も同様）と、ひずみフィールド（<see cref="AddStrainSphere"/>
+/// ）からボンドにひずみ（力積、N·s）を集める。M0124：ボンドはティック間で内部ひずみ（UE Chaos の蓄積ダメージ）も保持する。<see cref="Resolve"/> は内部ひずみとこの
+/// ティックのひずみの合計が強度以上（同値を含む）になったボンドをすべて切る。次に、各未破壊ボンドがこのティックの持続するひずみ（衝撃：接触開始時のティック、ゲームからの力積、キャラクターの衝突、
+/// フィールド）を受け取り、そのうち <see cref="FractureSettings.StrainRetention"/> の割合を保持する。物体に載り続けるボディの静的荷重は含めない。その重さ
+/// 自体でボンドが徐々に切れることを防ぐためである。この仕組みにより、一度では切れないボンドも小さな衝撃の繰り返しで切れ、古い衝撃の影響は薄れていく。このティックのひずみを破棄し、まとまりを失った各破片を
+/// 連結部分に分割する。固定破片（<see cref="FractureSettings.AnchorBottom"/>：元形状の最下部の面にある破片）は、その破片を静止させる。すべて整数または
+/// Q64.64 で計算し、インデックス順に処理するため、同じ入力からは常に同じ破片と内部ひずみが得られる。
 /// </summary>
 public sealed class FractureState {
     private const int MaximumRings=4;
     private readonly LogicalScalar[]Strength;
     private readonly LogicalScalar[]Strain;
-    /// <summary>The part of the tick's strain that lasts (impacts), added to <see cref="Internal"/> at the end of the tick.</summary>
+    /// <summary>ティックのひずみのうち持続する部分（衝撃）。ティック終了時に <see cref="Internal"/> へ加える。</summary>
     private readonly LogicalScalar[]Lasting;
-    /// <summary>The internal strain each bond carries from tick to tick (M0124).</summary>
+    /// <summary>各ボンドがティック間で保持する内部ひずみ（M0124）。</summary>
     private readonly LogicalScalar[]Internal;
     private readonly bool[]Broken;
     private readonly bool[]Anchored;
@@ -142,7 +140,7 @@ public sealed class FractureState {
         for(var Index=0;Index<Count;Index++){ Lists[Index]=[]; }
         for(var Bond=0;Bond<Asset.Bonds.Count;Bond++){
             var Value=Asset.Bonds[Bond];
-            // Once per level whose cluster holds both fragments (M0124; one level: inside one cluster, as M0113).
+            // 両方の破片を同じ階層のクラスターが含む場合、各階層で一度適用する（M0124。一階層なら同じクラスター内で一度、M0113 と同様）。
             var Strength=Value.Strength;
             for(var Level=Asset.SharedClusterLevels(Value.FirstFragment,Value.SecondFragment);Level>0;Level--){ Strength*=Settings.ClusterStrengthScale; }
             this.Strength[Bond]=Strength;
@@ -152,7 +150,7 @@ public sealed class FractureState {
         this.FragmentBonds=[.. Lists.Select(static List=>List.ToArray())];
         this.Anchored=new bool[Count];
         if(Settings.AnchorBottom){
-            // The fragments that reach the source's lowest point (within 1 cm) stand on what the source stood on.
+            // 元形状の最下点から1 cm以内に届く破片は、元形状が載っていた面に接地する。
             var Lowest=LogicalScalar.MaxValue;
             var Bottoms=new LogicalScalar[Count];
             for(var Index=0;Index<Count;Index++){
@@ -174,26 +172,26 @@ public sealed class FractureState {
     }
     public PrefractureAsset Asset { get; }
     public FractureSettings Settings { get; }
-    /// <summary>No bond has broken and no piece was removed: the destructible is still its own authored body.</summary>
+    /// <summary>ボンドは切れておらず、破片も削除されていない。破壊可能オブジェクトは設定されたボディのまま。</summary>
     public bool IsWhole=>this.LivePieces.Count==1&&this.LivePieces.ContainsKey(0);
     public int BrokenBondCount { get;private set; }
     public bool IsBondBroken(int Bond)=>this.Broken[Bond];
-    /// <summary>The strength (N·s) of a bond, with the cluster scale applied for every level it lies inside.</summary>
+    /// <summary>各階層でクラスター内部にあるボンドの強度（N·s）。クラスター倍率を適用した値。</summary>
     public LogicalScalar StrengthOf(int Bond)=>this.Strength[Bond];
-    /// <summary>The strain a bond has gathered in the current tick.</summary>
+    /// <summary>このティック中にボンドが受けたひずみ。</summary>
     public LogicalScalar StrainOf(int Bond)=>this.Strain[Bond];
-    /// <summary>The internal strain a bond carries from earlier ticks (M0124; zero once it broke).</summary>
+    /// <summary>過去のティックからボンドが持ち越した内部ひずみ（M0124。切断後はゼロ）。</summary>
     public LogicalScalar InternalStrainOf(int Bond)=>this.Internal[Bond];
     public bool IsAnchored(int Fragment)=>this.Anchored[Fragment];
-    /// <summary>The live pieces, by id.</summary>
+    /// <summary>ID 順に並んだ生存中の破片。</summary>
     public IEnumerable<FracturePiece>Pieces=>this.LivePieces.Values;
     public int PieceCount=>this.LivePieces.Count;
-    /// <summary>The live piece of a fragment, or null when its piece was removed.</summary>
+    /// <summary>この破片を含む生存中の破片。破片が削除済みなら null。</summary>
     public FracturePiece?PieceOf(int Fragment)=>this.LivePieces.TryGetValue(this.PieceOfFragment[Fragment],out var Piece)?Piece:null;
     public bool TryGetPiece(int Id,out FracturePiece Piece)=>this.LivePieces.TryGetValue(Id,out Piece!);
     /// <summary>
-    /// The fragment of <paramref name="Piece"/> that holds a point of the source's frame: the one whose Voronoi site is nearest (a cooked fragment is exactly
-    /// its site's cell). A version-1 asset has no sites, so the nearest centre stands in. Ties go to the lower index.
+    /// 元形状の座標枠にある点を含む、<paramref name="Piece"/> の破片。ボロノイサイトが最も近い破片を選ぶ（調理済みの破片はサイトのセルと完全に一致する）。バージョン1のアセットには
+    /// サイトがないため、代わりに中心が最も近い破片を選ぶ。同距離ならインデックスが小さい方を選ぶ。
     /// </summary>
     public int FragmentAt(LogicalVector3 SourcePoint,FracturePiece Piece){
         ArgumentNullException.ThrowIfNull(Piece);
@@ -207,10 +205,10 @@ public sealed class FractureState {
         return Best;
     }
     /// <summary>
-    /// Adds an impulse (N·s) that hit <paramref name="Fragment"/>: its intact bonds take all of it, and each further ring of fragments through intact bonds
-    /// takes <see cref="FractureSettings.DamagePropagation"/> times the ring before (at most four rings). Zero, negative or a removed fragment adds nothing.
-    /// <paramref name="Lasting"/> (M0124): the impulse is an impact, so it also adds to the bonds' internal strain at the end of the tick; a steady load
-    /// (a body resting on the destructible) passes false and strains the tick only.
+    /// <paramref name="Fragment"/> に力積（N·s）が当たったことを記録する。未切断ボンドは全量を受け取り、未切断ボンドでつながる破片の隣接輪ごとに、その直前の輪の力積へ
+    /// <see cref="FractureSettings.DamagePropagation"/> を掛けた量を受け取る（最大4輪）。値が0以下の場合、または破片が削除済みの場合は何も加えない。
+    /// <paramref name="Lasting"/> が有効な場合（M0124）は衝撃として、ティック終了時にボンドの内部ひずみにも加算する。持続的な荷重（破壊可能オブジェクト上に載っているボディ）は
+    ///  false を指定し、そのティック分のひずみだけを加える。
     /// </summary>
     public void AddImpulse(int Fragment,LogicalScalar Impulse,bool Lasting=true){
         if(Impulse<=LogicalScalar.Zero||(uint)Fragment>=(uint)this.PieceOfFragment.Length||this.PieceOf(Fragment) is null){ return; }
@@ -245,16 +243,16 @@ public sealed class FractureState {
             if(Lasting){ this.Lasting[Bond]+=Weights[Ring]; }
         }
     }
-    /// <summary>Adds strain (N·s) to one bond directly; <paramref name="Lasting"/> as for <see cref="AddImpulse"/>.</summary>
+    /// <summary>1つのボンドにひずみ（N·s）を直接加える。<paramref name="Lasting"/> の扱いは <see cref="AddImpulse"/> と同じ。</summary>
     public void AddStrain(int Bond,LogicalScalar Value,bool Lasting=true){
         if((uint)Bond>=(uint)this.Strain.Length||this.Broken[Bond]||Value<=LogicalScalar.Zero){ return; }
         this.Strain[Bond]+=Value;
         if(Lasting){ this.Lasting[Bond]+=Value; }
     }
     /// <summary>
-    /// A strain field (UE's External Strain field, M0113): every intact bond whose middle (between its two fragments' centres) lies within
-    /// <paramref name="Radius"/> of <paramref name="SourceCenter"/> takes <paramref name="Value"/> scaled down linearly to zero at the radius. The strain lasts
-    /// (a field is an impact).
+    /// ひずみフィールド（UE の External Strain field、M0113）。2つの破片の中心間にある各未切断ボンドの中点が、<paramref name="SourceCenter"/> か
+    /// ら <paramref name="Radius"/> 以内にあれば、<paramref name="Value"/> のひずみを加える。ひずみは半径に向かって線形に弱まり、半径上でゼロになる。
+    /// フィールドは衝撃として持続する。
     /// </summary>
     public void AddStrainSphere(LogicalVector3 SourceCenter,LogicalScalar Radius,LogicalScalar Value){
         if(Radius<=LogicalScalar.Zero||Value<=LogicalScalar.Zero){ return; }
@@ -273,10 +271,9 @@ public sealed class FractureState {
         }
     }
     /// <summary>
-    /// Ends the tick: breaks (in bond order) every intact bond whose internal strain and tick strain together reached its strength, adding each to
-    /// <paramref name="Breaks"/>; carries the tick's lasting strain into each intact bond's internal strain (see <see cref="Carry"/>), adding every bond an
-    /// impact raised to <paramref name="Raised"/> with the internal strain it carries on (the physics cache keeps them, so a played-back tick restores them);
-    /// clears the tick's strain; and splits the pieces that came apart.
+    /// ティックを終了する。内部ひずみとこのティックのひずみの合計が強度以上になった未切断ボンドを、ボンド順にすべて切り、それぞれを <paramref name="Breaks"/> に追加する。この
+    /// ティックの持続ひずみを未切断ボンドの内部ひずみに反映する（<see cref="Carry"/> を参照）。衝撃で内部ひずみを増やした各ボンドと持ち越し値を
+    /// <paramref name="Raised"/> に追加する（物理キャッシュが保持するため、再生時に同じ値を復元できる）。ティックのひずみをクリアし、分離した破片を分割する。
     /// </summary>
     public FractureStep Resolve(List<FractureBondBreak>Breaks,List<FractureBondStrain>?Raised=null){
         ArgumentNullException.ThrowIfNull(Breaks);
@@ -296,8 +293,9 @@ public sealed class FractureState {
         return Result;
     }
     /// <summary>
-    /// The internal strain of every intact bond for the next tick: (internal strain + the tick's lasting strain) × <see cref="FractureSettings.StrainRetention"/>,
-    /// and zero once below a millionth of the bond's strength (2⁻²⁰: an old hit ends, rather than shrinking for ever). A broken bond carries none.
+    /// 次のティックへ持ち越す、すべての未切断ボンドの内部ひずみ。各値は（内部ひずみ + このティックの持続ひずみ）×
+    /// <see cref="FractureSettings.StrainRetention"/> とする。ボンド強度の100万分の1（2⁻²⁰）を下回るとゼロにする（古い衝撃の影響を無限に縮小させ続けず、
+    /// 終了させる）。切断済みボンドはひずみを持たない。
     /// </summary>
     private void Carry(List<FractureBondStrain>?Raised){
         var Fraction=LogicalScalar.One/LogicalScalar.FromInt64(1<<20);
@@ -313,9 +311,8 @@ public sealed class FractureState {
         }
     }
     /// <summary>
-    /// Plays back a recorded tick (M0124): breaks the recorded bonds as <see cref="Apply"/> does, then carries every intact bond's internal strain on without
-    /// any new strain and sets the bonds the recording raised to their recorded values. The internal strains are then the ones the live tick left, so a run
-    /// that goes on live after a played-back stretch breaks as the live run did.
+    /// 記録したティックを再生する（M0124）。まず <see cref="Apply"/> と同じ手順で記録済みボンドを切る。新たなひずみを加えずに未切断ボンドの内部ひずみを持ち越し、記録で増加したボンド
+    /// には記録済みの値を設定する。これにより内部ひずみは通常実行時と同じ状態になり、再生後に通常実行へ戻っても同じように破壊される。
     /// </summary>
     public FractureStep Replay(IReadOnlyList<int>Bonds,IReadOnlyList<FractureBondStrain>Raised){
         ArgumentNullException.ThrowIfNull(Bonds);
@@ -329,10 +326,7 @@ public sealed class FractureState {
         }
         return Result;
     }
-    /// <summary>
-    /// Breaks the listed bonds (a recorded tick being played back, or a game's own choice) and splits the pieces that came apart; the same bonds give the same
-    /// pieces as <see cref="Resolve"/>. Broken and unknown bonds are ignored.
-    /// </summary>
+    /// <summary>指定されたボンドを切り（記録済みティックの再生、またはゲーム側の選択）、分離した破片を分割する。同じボンドを切れば、<see cref="Resolve"/> と同じ破片になる。切断済みまたは不明なボンドは無視する。</summary>
     public FractureStep Apply(IReadOnlyList<int>Bonds){
         ArgumentNullException.ThrowIfNull(Bonds);
         SortedSet<int>Touched=[];
@@ -360,11 +354,11 @@ public sealed class FractureState {
         }
         return Ended.Count==0?FractureStep.None:new FractureStep(Ended,Began);
     }
-    /// <summary>Removes a piece (its time ran out or the fragment budget was spent): its fragments take no more strain and belong to no piece.</summary>
+    /// <summary>破片を削除する（寿命切れ、または破片数の上限到達）。その破片には以後ひずみを加えず、どの破片にも属さない状態にする。</summary>
     public bool Remove(int PieceId)=>this.LivePieces.Remove(PieceId);
     /// <summary>
-    /// The collision shape of a piece in its body's frame (origin at <see cref="FracturePiece.Center"/>): the fragment's own convex polyhedron for a piece of
-    /// one fragment, otherwise a compound of its fragments' polyhedra (UE's cluster union of the children's shapes). Made once per fragment set.
+    /// 破片のボディ座標枠（原点は <see cref="FracturePiece.Center"/>）における衝突形状。破片1つだけのボディには、その破片固有の凸多面体を使う。複数の破片からなる場合は、そ
+    /// れぞれの多面体を結合した形状を使う（UE の cluster union における子形状の結合）。破片の組み合わせごとに一度だけ作成する。
     /// </summary>
     public PhysicsShapeAsset ShapeOf(FracturePiece Piece){
         ArgumentNullException.ThrowIfNull(Piece);
@@ -381,7 +375,7 @@ public sealed class FractureState {
         this.Shapes.Add(Key,Compound);
         return Compound;
     }
-    /// <summary>A stable name for a fragment set of this asset: the asset's source hash and an FNV-1a hash of the fragment indices.</summary>
+    /// <summary>このアセットの破片集合を識別する安定した名前。アセットのソースハッシュと、破片インデックス列の FNV-1a ハッシュから生成する。</summary>
     public string PieceKey(FracturePiece Piece){
         ArgumentNullException.ThrowIfNull(Piece);
         var Hash=14695981039346656037UL;
@@ -403,7 +397,7 @@ public sealed class FractureState {
         foreach(var Fragment in Fragments){ this.PieceOfFragment[Fragment]=Piece.Id; }
         return Piece;
     }
-    /// <summary>The connected parts of a piece through its intact bonds, each ascending, ordered by their lowest fragment.</summary>
+    /// <summary>未切断ボンドを通じて連結する破片の各部分。各部分は昇順に並び、最小の破片番号で順序付ける。</summary>
     private List<int[]>Components(FracturePiece Piece){
         HashSet<int>Members=[.. Piece.Fragments];
         HashSet<int>Seen=[];

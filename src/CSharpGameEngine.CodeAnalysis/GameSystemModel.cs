@@ -15,7 +15,7 @@ internal enum GameSystemMethodRole {
     /// <summary><c>Spawn</c>: Archetype形状の登録のみ。ディスパッチ対象外(ADR-0033決定事項2)。</summary>
     SpawnOnly,
 
-    /// <summary>Shutdown lifecycle phase.</summary>
+    /// <summary>シャットダウン時のライフサイクルフェーズ。</summary>
     Shutdown,
 }
 
@@ -117,8 +117,8 @@ internal readonly struct GameSystemMethodModel(
     internal readonly ImmutableArray<GameSystemParameterSlot>CallOrder=CallOrder;
     internal readonly int DeclarationPosition=DeclarationPosition;
     /// <summary>
-    /// ADR-0072: an Update returns void (the standard) or bool. Only a world system's false has an
-    /// effect (it ends the frame's remaining systems); an entity system's false never did anything.
+    /// ADR-0072：Updateの戻り値は標準のvoid、またはbool。falseが作用するのはワールドシステムだけで、
+    /// そのフレームに残っているシステムの実行を終了する。エンティティシステムが返すfalseは何の効果もなかった。
     /// </summary>
     internal readonly bool ReturnsBool=ReturnsBool;
     /// <summary>親から読むComponent(<c>in Parent&lt;T&gt;</c>)。子のArchetypeには<c>Parent</c>が暗黙に含まれる。</summary>

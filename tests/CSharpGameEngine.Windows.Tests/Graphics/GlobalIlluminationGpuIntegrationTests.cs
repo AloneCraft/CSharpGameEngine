@@ -4,7 +4,7 @@ using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>WARP oracles for the ADR-0069 dynamic GI probe volume.</summary>
+/// <summary>ADR-0069の動的GIプローブボリュームに対するWARP検証オラクル。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class GlobalIlluminationGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -12,8 +12,8 @@ public sealed class GlobalIlluminationGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void GlobalIllumination_Warp_ProbesInOpenSkyReproduceTheSkyLightIrradiance(){
-        // Only a far-away plane beyond the capture far plane: every probe sees nothing but sky, so
-        // the convolved irradiance must equal the sky light's SH irradiance in every texel direction.
+        // 撮影遠クリップ面を越えた位置に、遠方の平面だけを置く。すべてのプローブには空しか見えないため、
+        // 畳み込み後の照度は、どのテクセル方向でもスカイライトのSH照度と一致する必要がある。
         using var Scene=GiScene.Create(WithWall:false,FloorHeight:-2000f);
         var Settings=new GlobalIlluminationSettings(new Vector3(0f,10f,0f),new Vector3(2f,2f,2f),4f,8,0f,1f);
         Scene.Render(Settings,Frames:2);
@@ -44,7 +44,7 @@ public sealed class GlobalIlluminationGpuIntegrationTests {
         Scene.Render(Settings,Frames:3);
         var Readback=Scene.Renderer.ReadGlobalIlluminationForTesting();
         var Counts=Settings.ProbeCounts;
-        // Probe (x=2, y=1, z=2) sits at (0, 3.0, 0.667); the wall's near face is at z=1.9.
+        // プローブ(x=2, y=1, z=2)は(0, 3.0, 0.667)にある。壁の手前側はz=1.9。
         var Probe=2+Counts.X*(1+Counts.Y*2);
         var Position=Settings.ProbePosition(Probe);
         Assert.Equal(0f,Position.X,3);

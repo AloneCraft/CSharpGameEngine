@@ -9,7 +9,7 @@ Nothing is saved.
 
 import unreal
 
-# (name, console commands applied before the shot; they stay applied for the next variants unless undone by the next entry)
+# （name、shot の前に適用する console command。次の variant が取り消すまで適用状態を維持）
 STEPS = [
     ("converge_1", []),
     ("converge_2", []),
@@ -29,7 +29,7 @@ def begin() -> None:
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     start = [actor for actor in actors.get_all_level_actors() if isinstance(actor, unreal.PlayerStart)][0]
     location = start.get_actor_location()
-    # The spawn camera of capture_thirdperson_reference.py: 400 cm behind the PlayerStart, 8.49 cm up, looking along +X.
+    # capture_thirdperson_reference.py の spawn camera：PlayerStart の400 cm後方、8.49 cm上方に置き、+X方向を向きます。
     unreal.EditorLevelLibrary.set_level_viewport_camera_info(unreal.Vector(location.x - 400.0, location.y, location.z + 8.492264), unreal.Rotator(0.0, 0.0, 0.0))
     state["handle"] = unreal.register_slate_post_tick_callback(tick)
 

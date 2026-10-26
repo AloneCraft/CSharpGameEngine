@@ -167,17 +167,17 @@ public static class PhysicsShapeCooker {
 
 public readonly record struct FractureFragment(int Index,string ShapeId,LogicalVector3 LocalCenter,LogicalScalar Mass);
 /// <summary>
-/// A bond between two touching fragments (ADR-0078/M0113). <see cref="Strength"/> is the strain (an impulse, N·s) that breaks it, the shared face's
-/// <see cref="Area"/> (m²) times the cook's strength per area. Bonds are undirected: one entry per pair, <see cref="FirstFragment"/> &lt; <see cref="SecondFragment"/>.
-/// A version-1 artifact has no area (zero).
+/// 接触する2つの破片を結ぶボンド（ADR-0078/M0113）。<see cref="Strength"/> は切断に必要なひずみ（力積、N·s）で、接触面の <see cref="Area"/>（
+/// m²）と調理時の面積あたり強度の積。ボンドは向きを持たず、各組み合わせにつき1件だけ格納し、<see cref="FirstFragment"/> は
+/// <see cref="SecondFragment"/> より小さい。バージョン1のアーティファクトには面積がなく、値はゼロ。
 /// </summary>
 public readonly record struct FractureBond(int FirstFragment,int SecondFragment,LogicalScalar Strength,LogicalScalar Area=default);
 
 /// <summary>
-/// A cooked prefracture (L6, ADR-0078/M0113, UE's Geometry Collection): the fragments of one closed convex source, each a closed mesh (with a material slot per
-/// triangle: <see cref="FractureMesh.OuterSlot"/> for the source's surface, <see cref="FractureMesh.InteriorSlot"/> for a Voronoi cut), its convex collision
-/// shape, centre, mass and Voronoi site; the bond graph; and one level of clusters (<see cref="Clusters"/>: the cluster of each fragment), the hierarchy the
-/// runtime breaks from the top down. Coordinates are the source's own (the destructible node's local frame).
+/// 調理済みの事前破砕データ（L6、ADR-0078/M0113、UE の Geometry Collection）。閉じた凸形状の元形状を破片に分割したものを保持する。各破片は閉じたメッシュで、三角形ご
+/// とに材質スロットを持つ（元形状の面には <see cref="FractureMesh.OuterSlot"/>、ボロノイ分割面には
+/// <see cref="FractureMesh.InteriorSlot"/>）。さらに、凸形状の衝突形状、中心、質量、ボロノイサイト、ボンドグラフ、およびクラスター1階層（
+/// <see cref="Clusters"/>：破片ごとのクラスター）を保持する。実行時にはこの階層を上から順に破壊する。座標は元形状自身の座標枠（破壊可能オブジェクトノードのローカル座標）を使う。
 /// </summary>
 public sealed class PrefractureAsset {
     public required string SourceHash { get;init; }
@@ -186,32 +186,31 @@ public sealed class PrefractureAsset {
     public required IReadOnlyList<FractureBond> Bonds { get;init; }
     public IReadOnlyList<FractureMesh> Meshes { get;init; }=[];
     public IReadOnlyList<PhysicsShapeAsset> CollisionShapes { get;init; }=[];
-    /// <summary>The Voronoi site of each fragment (the seed point whose cell it is). A point belongs to the fragment of the nearest site. Empty in version 1.</summary>
+    /// <summary>各破片のボロノイサイト（そのセルを決めるシード点）。点は最も近いサイトの破片に属する。バージョン1では空。</summary>
     public IReadOnlyList<LogicalVector3> Sites { get;init; }=[];
-    /// <summary>The cluster of each fragment, numbered 0.. in the order of each cluster's lowest fragment. Empty in version 1 (each fragment its own cluster).</summary>
+    /// <summary>各破片が属するクラスター。各クラスターの最小破片番号の順に0から番号を付ける。バージョン1では空（各破片がそれぞれ独立したクラスター）。</summary>
     public IReadOnlyList<int> Clusters { get;init; }=[];
-    /// <summary>kg/m³ the masses were made with (0 in version 1).</summary>
+    /// <summary>質量の計算に使用した密度（kg/m³。バージョン1では0）。</summary>
     public LogicalScalar Density { get;init; }
-    /// <summary>N·s/m² the bond strengths were made with (0 in version 1).</summary>
+    /// <summary>ボンド強度の計算に使用した面積あたりの値（N·s/m²。バージョン1では0）。</summary>
     public LogicalScalar BondStrengthPerArea { get;init; }
     /// <summary>
-    /// The deeper levels of the cluster hierarchy (M0124, UE's Geometry Collection levels below the first): <c>SubClusters[0]</c> is level 1, each fragment's
-    /// cluster inside its <see cref="Clusters"/> cluster, and so on. Each level's clusters lie inside one cluster of the level above, are connected, and are
-    /// numbered 0.. in the order of their lowest fragment. Empty for one level (version 1 and 2 assets).
+    /// クラスター階層の下位レベル（M0124、UE Geometry Collection の第1階層より下）。<c>SubClusters[0]</c> は第1レベルで、各破片が
+    /// <see cref="Clusters"/> のクラスター内で属するクラスターを表す。それ以降も同様。各レベルのクラスターは直上の1クラスター内に収まり、連結しており、最小破片番号の順に0から番号を付
+    /// ける。1階層の場合（バージョン1および2のアセット）は空。
     /// </summary>
     public IReadOnlyList<IReadOnlyList<int>> SubClusters { get;init; }=[];
-    /// <summary>How many clusters <see cref="Clusters"/> names (the fragment count when there are none).</summary>
+    /// <summary><see cref="Clusters"/> に記載されたクラスター数（クラスターがない場合は破片数）。</summary>
     public int ClusterCount=>this.Clusters.Count==0?this.Fragments.Count:this.Clusters.Max()+1;
-    /// <summary>How many levels of clusters the asset has: 0 without clusters, 1 with <see cref="Clusters"/> only, more with <see cref="SubClusters"/>.</summary>
+    /// <summary>アセット内のクラスター階層の段数。クラスターなしなら0、<see cref="Clusters"/> のみなら1、<see cref="SubClusters"/> があればそれより大きい。</summary>
     public int ClusterLevelCount=>this.Clusters.Count==0?0:1+this.SubClusters.Count;
-    /// <summary>The cluster of <paramref name="Fragment"/> (itself when the asset has no clusters).</summary>
+    /// <summary>アセットにクラスターがない場合は <paramref name="Fragment"/> 自身、それ以外はその破片が属するクラスター。</summary>
     public int ClusterOf(int Fragment)=>this.Clusters.Count==0?Fragment:this.Clusters[Fragment];
-    /// <summary>The cluster of <paramref name="Fragment"/> at <paramref name="Level"/> (0 is <see cref="Clusters"/>).</summary>
+    /// <summary><paramref name="Level"/> における <paramref name="Fragment"/> のクラスター。0 は <see cref="Clusters"/> を表す。</summary>
     public int ClusterOf(int Fragment,int Level)=>Level==0?this.ClusterOf(Fragment):this.SubClusters[Level-1][Fragment];
     /// <summary>
-    /// How many levels, from the top, put two fragments in one cluster (M0124): 0 for fragments of two top-level clusters (or an asset without clusters), up to
-    /// <see cref="ClusterLevelCount"/> for two fragments of one deepest cluster. A bond's run-time strength is its strength times the cluster strength scale
-    /// to this power, so the outer clusters part first.
+    /// クラスター階層を上から何段たどると、2つの破片が同じクラスターになるか（M0124）。最上位の別々のクラスターに属する破片、またはクラスターのないアセットでは0。最下位クラスターを共有する破片では
+    /// <see cref="ClusterLevelCount"/> となる。実行時のボンド強度は、ボンド自体の強度にクラスター強度倍率をこの値の累乗で掛けたもの。外側のクラスターから先に分離する。
     /// </summary>
     public int SharedClusterLevels(int First,int Second){
         if(this.Clusters.Count==0){ return 0; }
@@ -247,14 +246,14 @@ public sealed class PrefractureAsset {
         for(var Level=0;Level<this.ClusterLevelCount;Level++){
             var Numbers=Level==0?this.Clusters:this.SubClusters[Level-1];
             if(Numbers.Count!=this.Fragments.Count){ return false; }
-            // Canonical numbering: a cluster's number is the count of clusters whose lowest fragment comes before its own.
+            // 正規の番号付け：クラスター番号は、自身より最小破片番号が小さいクラスターの数とする。
             var Next=0;
             foreach(var Cluster in Numbers){
                 if(Cluster<0||Cluster>Next){ return false; }
                 if(Cluster==Next){ Next++; }
             }
             if(Level==0){ continue; }
-            // A cluster of a deeper level lies inside one cluster of the level above.
+            // 下位階層のクラスターは、その直上の階層にある1つのクラスター内に属する。
             var Parent=new int[Next];
             Array.Fill(Parent,-1);
             for(var Fragment=0;Fragment<Numbers.Count;Fragment++){
@@ -291,7 +290,7 @@ public sealed class PrefractureAsset {
             if(Find(Parents,Index)!=Root){ return false; }
         }
         for(var Level=0;Level<this.ClusterLevelCount;Level++){
-            // Each cluster of every level is one connected piece of the bond graph (the runtime releases a cluster as one body).
+            // 各階層の各クラスターは、ボンドグラフ上で連結した1つの部分を構成する（実行時にはクラスターを1つのボディとして分離する）。
             var ClusterParents=new int[this.Fragments.Count];
             for(var Index=0;Index<ClusterParents.Length;Index++){ ClusterParents[Index]=Index; }
             foreach(var Bond in this.Bonds){

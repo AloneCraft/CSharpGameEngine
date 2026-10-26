@@ -4,20 +4,19 @@ using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>What <see cref="DepthOracle.Measure"/> found: the largest error in ulps of the expected depth, the greatest depth written, and the adapter.</summary>
+/// <summary><see cref="DepthOracle.Measure"/>が求めた結果。期待深度からの最大ULP誤差、書き込まれた最大深度、使用アダプター。</summary>
 internal readonly record struct DepthMeasurement(double Centre,double Edge,float MaximumDepth,string Adapter,double DistanceRelativeError);
 /// <summary>
-/// The double-precision oracle of the logarithmic depth (ADR-0084 §6, M0099/M0100): a quad facing the camera at a given
-/// distance is rendered and every pixel's depth is compared with <c>log2(1 + r/T) / log2(1 + rMax/T)</c> evaluated in
-/// <see cref="double"/>, where <c>r</c> is the pixel's distance along its ray. In the middle of the view the distance
-/// hardly changes from pixel to pixel, so the error there is the shader arithmetic's; near the edges the rasterizer's
-/// snapping of vertices to its sub-pixel grid adds error in proportion to the distance gradient.
+/// 対数深度の倍精度オラクル（ADR-0084 §6、M0099／M0100）。カメラへ向いたクアッドを指定距離に描画し、
+/// 各ピクセルの深度を、<see cref="double"/>で評価した<c>log2(1 + r/T) / log2(1 + rMax/T)</c>と比較する。
+/// ここで<c>r</c>はレイに沿ったピクセルの距離である。ビュー中央ではピクセル間の距離差が小さいため、誤差は主にシェーダー演算に由来する。
+/// 端付近では、ラスターライザーが頂点をサブピクセル格子へスナップすることで、距離勾配に比例した誤差が加わる。
 /// </summary>
 internal static class DepthOracle {
     public const int Width=160;
     public const int Height=90;
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
-    /// <summary>The largest error, in ulps of the expected depth, in the middle 17 × 11 pixels and in a 6–10 pixel border.</summary>
+    /// <summary>中央17 × 11ピクセルと、幅6～10ピクセルの境界内で、期待深度からの最大ULP誤差。</summary>
     public static DepthMeasurement Measure(bool Hardware,float Distance,float Near,float Far,bool UseFactory=true){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Depth Oracle",Width=Width,Height=Height,Visible=false });
         var Plane=ProceduralMeshFactory.CreatePlane(Width:1f,Depth:1f);

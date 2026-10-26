@@ -8,9 +8,7 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Exercises the Fab drop-zone copy logic directly against temp folders instead of the real OS
-/// Downloads folder (ADR-0011) - live VS UI automation proved unreliable for verifying this in a
-/// running Exp instance, but the watcher itself has no VS dependency, so it's fully testable here.
+/// 実際の OS の Downloads フォルダーではなく、一時フォルダーを使って Fab のドロップゾーンへのコピー処理を直接検証する (ADR-0011)。稼働中の Exp インスタンスでは VS の実 UI 自動操作による検証が不安定だったが、ウォッチャー自体は VS に依存せず、ここで完全にテストできる。
 /// </summary>
 [Collection(FileSystemWatcherTestCollection.Name)]
 public sealed class FabDownloadWatcherTests:IDisposable {
@@ -57,7 +55,7 @@ public sealed class FabDownloadWatcherTests:IDisposable {
 
         File.WriteAllText(Path.Combine(this.WatchedFolder,"installer.exe"),"not a fab asset");
 
-        // Give the watcher a fair chance to (incorrectly) react before asserting nothing happened.
+        // 何も起きていないと判定する前に、ウォッチャーが（誤って）反応する機会を十分に与える。
         Thread.Sleep(1000);
 
         Assert.Empty(Copied);

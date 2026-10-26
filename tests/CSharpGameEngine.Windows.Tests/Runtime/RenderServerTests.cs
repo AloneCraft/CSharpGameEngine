@@ -10,8 +10,7 @@ using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 
 /// <summary>
-/// Exercises primitive roster conversion and the owning Render Server end to end through WARP,
-/// including suspension and artifact-only device-generation recovery.
+/// WARP 経由で、プリミティブ一覧の変換と、それを所有する Render Server を、停止処理および成果物のみを使ったデバイス世代復旧まで含めてエンドツーエンドで検証する。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public class RenderServerTests {
@@ -36,9 +35,9 @@ public class RenderServerTests {
 
         Assert.Equal(2,Meshes.Length);
         Assert.Equal(3,Objects.Length);
-        Assert.Equal(5,Objects[0].MeshIndex); // Box, first seen -> offset+0
-        Assert.Equal(6,Objects[1].MeshIndex); // Sphere, second seen -> offset+1
-        Assert.Equal(5,Objects[2].MeshIndex); // Box again -> dedups to the same index as Objects[0]
+        Assert.Equal(5,Objects[0].MeshIndex); // Box、最初に出現 -> offset+0
+        Assert.Equal(6,Objects[1].MeshIndex); // Sphere、2 番目に出現 -> offset+1
+        Assert.Equal(5,Objects[2].MeshIndex); // Box が再出現 -> Objects[0] と同じインデックスに重複排除される
         Assert.All(Objects,Obj=>Assert.Equal(2,Obj.MaterialIndex));
         Assert.Single(Materials);
     }
@@ -313,8 +312,8 @@ public class RenderServerTests {
         Assert.Equal(3u,Renderer.DeviceSnapshot.Generation);
         Assert.Equal(4,Renderer.DeviceSnapshot.RebuiltArtifacts.Count);
 
-        // No command is resubmitted here. The server must reconstruct the exact prior frame from
-        // its completed snapshot rather than asking ECS or the caller to rebuild native state.
+        // ここでコマンドを再送信しない。サーバーは ECS や呼び出し側にネイティブ状態の再構築を求めず、
+        // 完了済みスナップショットから以前とまったく同じフレームを再構築しなければならない。
         Renderer.RenderFrame(CaptureForVerification:true);
 
         Assert.NotNull(Renderer.LastCapturedFrame);

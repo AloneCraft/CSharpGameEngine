@@ -18,6 +18,11 @@ Console.CancelKeyPress+=(sender,eventArgs)=>{
     hostCancellation.Cancel();
 };
 
+if(args.Length==3&&args[0]=="--thumbnail"){
+    try { AssetThumbnailWorker.Run(args[1],args[2]); }
+    catch(Exception Error){ Console.Error.WriteLine(Error.Message);Environment.ExitCode=1; }
+    return;
+}
 string? renderServerPipe=ReadOption(args,"--render-server");
 if(renderServerPipe is not null){
     try{
@@ -27,7 +32,7 @@ if(renderServerPipe is not null){
     return;
 }
 
-// M0096 (ADR-0047): the render server is the only mode; it also runs the editor world.
+// M0096 (ADR-0047)：唯一のモードはレンダーサーバーであり、エディターワールドもそこで実行する。
 Console.Error.WriteLine("usage: CSharpGameEngine.EditorPreview.Host --render-server <pipe> [--parent-process-id <pid>]");
 
 static string? ReadOption(string[] Arguments,string Name){

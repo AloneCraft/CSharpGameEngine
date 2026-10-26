@@ -4,18 +4,25 @@ using Assimp;
 namespace CSharpGameEngine.Import.Fbx;
 
 /// <summary>
-/// Imports the first mesh of an .fbx file via AssimpNet (ADR-0009). No scene graph, multi-mesh,
-/// or full PBR material support - minimal vertical slice, matching
-/// <c>CSharpGameEngine.Import.Gltf.GltfImporter</c>'s scope for glTF.
+/// AssimpNet経由で.fbxファイルの最初のメッシュをインポートする（ADR-0009）。シーングラフ、複数メッシュ、完全なPBRマテリアルには対応しない。
+/// glTFに対する<c>CSharpGameEngine.Import.Gltf.GltfImporter</c>と同範囲の最小限の垂直スライスである。
 /// </summary>
 public static class FbxImporter {
     /// <summary>
-    /// Assimp's log is process-wide: attaching or detaching a log stream while another import runs crashed the process
-    /// (access violation; parallel imports without a log stream did not), and every attached stream would receive the
-    /// other import's messages. One import holds the log at a time.
+    /// Assimpのログはプロセス全体で共有される。別のインポート中にログストリームを接続／切断するとプロセスがクラッシュし
+    ///（アクセス違反。ログなしの並行インポートでは発生しなかった）、接続中の各ストリームに別インポートのメッセージも届く。
+    /// 同時にログを使うインポートは1件だけとする。
     /// </summary>
     private static readonly Lock NativeImportGate=new();
 
+    internal static Assimp.Scene ReadCompositeScene(string Source){
+        var Info=new FileInfo(Source);if(Info.Length is <1 or >128*1024*1024){ throw new InvalidDataException("MODEL_SIZE: FBX source exceeds 128 MiB."); }
+        lock(NativeImportGate){
+            using var Context=new AssimpContext();using var Stream=File.OpenRead(Source);
+            return Context.ImportFileFromStream(Stream,PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.CalculateTangentSpace,"fbx")
+                ??throw new InvalidDataException("MODEL_PARSE: FBX reader returned no scene.");
+        }
+    }
     public static FbxImportResult Import(string FilePath){
         ArgumentException.ThrowIfNullOrWhiteSpace(FilePath);
 
@@ -24,12 +31,12 @@ public static class FbxImporter {
             return Failed($"FBX file not found: {FullPath}");
         }
 
-        // Assimp's own native logging (warnings/errors from the FBX parser itself, e.g. unknown
-        // elements in a particular exporter's output) is collected as diagnostics rather than
-        // written straight to the console, matching GltfImporter's contract - callers decide how
-        // to surface diagnostics. An "Error"-level Assimp log line does not necessarily mean the
-        // import failed overall (confirmed empirically); only Import()'s own explicit checks
-        // below (empty scene, no vertices, no triangles) are treated as fatal.
+        // Assimp自身のネイティブログ（FBXパーサーが出す警告／エラー。特定エクスポーターの出力に未知の
+        // 要素がある場合など）は、コンソールへ直接出さず診断情報として収集する。
+        // 呼び出し側が表示方法を決める、GltfImporterと同じ契約である。
+        // Assimpの「Error」レベルのログがあっても、必ずしもインポート全体が失敗したとは限らない
+        //（実測で確認済み）。下記のImport()内にある明示的な検査だけを
+        // 致命的エラーとして扱う（シーンが空、頂点がない、三角形がない）。
         List<FbxImportDiagnostic>Diagnostics=[];
         Scene Scene;
         lock(NativeImportGate){
@@ -44,17 +51,17 @@ public static class FbxImporter {
 
             using AssimpContext Context=new();
             try {
-                // AssimpNet hands a file name to the native importer as an ANSI string, so a path outside the system code
-                // page (a Japanese folder on an English Windows) arrived as "?" and did not open. The importer reads the
-                // FBX file alone (no external textures), so it is given the file's bytes instead of its name.
+                // AssimpNetはファイル名をANSI文字列としてネイティブインポーターへ渡すため、システムのコード
+                // ページにないパス（英語版Windows上の日本語フォルダーなど）は「?」になり、開けなかった。
+                // インポーターはFBXファイルだけを読み、外部テクスチャは扱わないため、ファイル名ではなくバイト列を渡す。
                 using var Stream=File.OpenRead(FullPath);
                 Scene=Context.ImportFileFromStream(
                     Stream,
                     PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.JoinIdenticalVertices,
                     Path.GetExtension(FullPath).TrimStart('.'));
             } catch(Exception Ex){
-                // Assimp has no single documented exhaustive exception list for malformed input; a
-                // bad file must never escape as an unhandled exception from this importer.
+                // Assimpには不正入力に対する網羅的な例外一覧が文書化されていない。
+                // 不正ファイルによる未処理例外が、このインポーターから漏れてはならない。
                 return Failed($"Failed to parse FBX file '{FullPath}': {Ex.Message}");
             } finally {
                 LogStream.Detach();
@@ -70,11 +77,11 @@ public static class FbxImporter {
             return Failed("FBX mesh has no vertices.",Diagnostics);
         }
 
-        // AssimpNet's own default output space is right-handed/Y-up/Forward=-Z (see
-        // FbxAxisConversion's doc comment); converted here into this engine's fixed
-        // UnityCoordinateConvention (left-handed) per ADR-0027 - positions/normals convert
-        // per-vertex (FbxAxisConversion.ConvertVector), and triangle winding is flipped below to
-        // keep front-facing orientation consistent with the mirrored positions.
+        // AssimpNetの既定出力空間は右手系／Y-up／Forward=-Zである（下記を参照）。
+        //（FbxAxisConversionの型説明を参照）。ここでADR-0027に従い、エンジン固定の
+        // ADR-0027に従ってUnityCoordinateConvention（左手系）へ変換する。位置／法線は頂点ごとに変換し
+        //（FbxAxisConversion.ConvertVector）、下記で三角形の巻き順を反転して
+        // ミラーされた位置と表面の向きを一致させる。
         var Positions=new Vector3[Mesh.VertexCount];
         for(var I=0;I<Mesh.VertexCount;I++){
             var V=Mesh.Vertices[I];
@@ -112,7 +119,7 @@ public static class FbxImporter {
         List<uint>Indices=[];
         foreach(var Face in Mesh.Faces){
             if(Face.IndexCount!=3){
-                // Triangulate should guarantee this; skip any degenerate leftovers defensively.
+                // Triangulateが保証するはずだが、万一残った退化要素は防御的に除外する。
                 continue;
             }
 

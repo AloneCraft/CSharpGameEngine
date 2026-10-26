@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace CSharpGameEngine.SceneAnalysis;
-/// <summary>One whitelist for physical-value authoring, validation, labels and constructor argument order.</summary>
+/// <summary>物理値の作成時設定、検証、表示ラベル、コンストラクター引数の順序で共有する唯一の許可リスト。</summary>
 internal sealed class LightValueContract {
     private LightValueContract(string Name,string Unit,string[]Parameters,bool Positive){
         this.Name=Name;this.Unit=Unit;this.Parameters=Parameters;this.Positive=Positive;
@@ -16,7 +16,7 @@ internal sealed class LightValueContract {
     internal string[]Parameters{get;}
     private bool Positive{get;}
     internal string TypeName=>"global::CSharpGameEngine.Lighting."+this.Name;
-    /// <summary>What <see cref="Validate"/> requires, for a diagnostic.</summary>
+    /// <summary>診断のために <see cref="Validate"/> が要求する条件。</summary>
     internal string Requirement=>this.Name=="SpotConeAngles"
         ?"positive angles with the inner one at most the outer one and the outer one at most 180 degrees"
         :this.Positive?"finite positive values":"finite non-negative values";
@@ -62,7 +62,7 @@ internal sealed class LightValueContract {
         if(Value.Kind==SceneValueKind.ObjectCreation&&Value.ReferencedSymbol is IMethodSymbol { IsImplicitlyDeclared:true,Parameters.Length:0 } DefaultConstructor&&DefaultConstructor.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)==this.TypeName){return true;}
         if(Value.Kind!=SceneValueKind.ObjectCreation||Value.Arguments.Length!=this.Parameters.Length){return false;}
         if(SyntaxFactory.ParseExpression(Value.SourceExpressionText) is not BaseObjectCreationExpressionSyntax Creation||Creation.ArgumentList is null){return false;}
-        // The semantic constructor is authoritative; same-arity overloads never select a schema.
+        // スキーマ選択の基準は意味上のコンストラクター。引数数が同じオーバーロードからスキーマを選ばない。
         if(Value.ReferencedSymbol is not IMethodSymbol Constructor||!this.MatchesConstructor(Constructor)){return false;}
         var Seen=new bool[Values.Length];
         for(var Index=0;Index<Value.Arguments.Length;Index++){

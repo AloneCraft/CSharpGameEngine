@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Compares the stable EditorNodeId assignment of two derived Scene projections.</summary>
+/// <summary>2 つの派生 Scene 投影に割り当てられた、安定した EditorNodeId を比較する。</summary>
 internal static class SceneProjectionIdentityComparer {
     internal static bool Matches(SceneProjection Left,SceneProjection Right){
         if(Left.Nodes.Count!=Right.Nodes.Count){ return false; }

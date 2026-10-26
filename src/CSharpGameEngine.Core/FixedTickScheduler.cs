@@ -13,7 +13,7 @@ public readonly record struct FixedTickAdvanceResult(
     float InterpolationAlpha,
     FixedTickOverrunPolicy OverrunPolicy);
 
-/// <summary>Integer-only fixed-step accumulator. Wall-clock values never enter a simulation domain.</summary>
+/// <summary>整数のみを使う固定ステップのアキュムレーター。壁時計の値はシミュレーション領域へ持ち込まない。</summary>
 public sealed class FixedTickScheduler {
     private readonly int ConfiguredTickRate;
     private readonly int ConfiguredMaximumStepsPerFrame;

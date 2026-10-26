@@ -5,16 +5,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 namespace CSharpGameEngine.SceneJson.Cli;
 /// <summary>
-/// <c>CSharpGameEngine.SceneJson.Cli convert &lt;game .csproj&gt; [--write] [--delete-source]</c> (ADR-0070).
-/// Prints each C# scene's conversion; <c>--write</c> writes <c>&lt;ClassName&gt;.json</c> into the
-/// project's <c>Scenes</c> folder, where a scene file must be (ADR-0070): next to the source when that is
-/// already under <c>Scenes</c>, otherwise directly in <c>Scenes</c>. <c>--delete-source</c> also removes the scene classes from their source files,
-/// deleting a file that declares nothing else. Nothing is written for a project with any unconvertible
-/// scene.
+/// <c>CSharpGameEngine.SceneJson.Cli convert &lt;game .csproj&gt; [--write] [--delete-source]</c> (ADR-0070)。各 C# シーンの変換結果を出力する。<c>--write</c> を指定すると <c>&lt;ClassName&gt;.json</c> をプロジェクトの <c>Scenes</c> フォルダーに書き込む。シーンファイルはそこに置く必要があり (ADR-0070)、ソースがすでに <c>Scenes</c> 以下ならその隣、そうでなければ <c>Scenes</c> 直下に配置する。<c>--delete-source</c> も指定すると、ソースファイルからシーンクラスを削除し、ほかに宣言がないファイルは削除する。変換できないシーンがプロジェクトに含まれる場合は、何も書き込まない。
 /// <para>
-/// <c>upgrade &lt;game .csproj&gt; [--write]</c> (ADR-0074) rewrites every scene file of schema version 1 or 2 as the
-/// current version 3: angles become turns, angle keys leave out the C# unit word, and the rest of the text stays.
-/// Nothing is written when any file has a problem.
+/// <c>upgrade &lt;game .csproj&gt; [--write]</c> (ADR-0074) は、スキーマバージョン 1 または 2 のすべてのシーンファイルを現行のバージョン 3 に書き換える。角度は回転数に変換し、角度のキーでは C# の単位語を省略する。それ以外のテキストは維持する。いずれかのファイルに問題がある場合は何も書き込まない。
 /// </para>
 /// </summary>
 internal static class Program {
@@ -58,7 +51,7 @@ internal static class Program {
         }
         return 0;
     }
-    /// <summary>Where a converted scene goes: a scene file is a <c>*.json</c> under the project's Scenes folder.</summary>
+    /// <summary>変換したシーンの出力先。シーンファイルはプロジェクトの Scenes フォルダー以下にある <c>*.json</c>。</summary>
     internal static string SceneJsonPath(string ProjectDirectory,string SourcePath,string SceneName){
         var Beside=Path.Combine(Path.GetDirectoryName(SourcePath)!,SceneName+SceneFiles.Extension);
         return SceneFiles.IsScene(Beside,ProjectDirectory)
@@ -92,7 +85,7 @@ internal static class Program {
                 Failed=true;
                 continue;
             }
-            // The build must accept the document: read it back with the generator's rules.
+            // ビルドでドキュメントが受け入れられなければならない。ジェネレーターの規則で読み戻して確認する。
             foreach(var Problem in SceneJsonSceneAnalyzer.Analyze(Result.Text,Compilation).Problems){
                 Console.Error.WriteLine($"{JsonPath}: {Problem.Descriptor.Id} {string.Format(Problem.Descriptor.MessageFormat.ToString(),Problem.Arguments)}");
                 Failed=true;

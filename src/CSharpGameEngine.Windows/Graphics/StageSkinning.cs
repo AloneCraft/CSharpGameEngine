@@ -13,12 +13,10 @@ using static TerraFX.Interop.DirectX.DirectX;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// GPU linear blend skinning (ADR-0066). Each skinned mesh keeps its rest vertices (the Stage
-/// upload-heap vertex buffer) and gets an influence buffer and a skinned vertex buffer in the default
-/// heap; Skinning.hlsl rewrites the skinned buffer at the start of every frame from the latest
-/// palette, before any pass draws. Palettes go through one upload region per frame slot, so a slot
-/// is rewritten only after the GPU finished the frame that last read it. Root signature
-/// (host-owned): 0 = 4 root constants b0, 1..3 = root SRVs t0..t2, 4 = root UAV u0.
+/// GPUで実行する線形ブレンドスキニング（ADR-0066）。スキニングメッシュごとにレスト頂点（Stageのアップロードヒープ頂点バッファ）を保持し、
+/// 影響度バッファとスキニング済み頂点バッファをデフォルトヒープに作る。Skinning.hlslが各フレームの先頭で最新パレットを使って頂点を書き換え、
+/// その後に各パスで描画する。パレットはフレームスロットごとに1つのアップロード領域を通るため、GPUが前回読み取ったフレームを完了するまで上書きしない。
+/// ルートシグネチャはホスト所有：0 = ルート定数4つb0、1～3 = ルートSRV t0～t2、4 = ルートUAV u0。
 /// </summary>
 internal sealed unsafe class StageSkinning:IDisposable {
     internal const string ArtifactFileName="Skinning.cgeshaderartifact";
@@ -55,8 +53,8 @@ internal sealed unsafe class StageSkinning:IDisposable {
     }
     internal bool HasMeshes=>this.Meshes.Count>0;
     /// <summary>
-    /// Registers a skinned mesh whose rest vertices live in <paramref name="RestVertices"/>. The palette
-    /// starts at identity (the bind pose). Returns the view of the skinned vertex buffer to draw.
+    /// レスト頂点が<paramref name="RestVertices"/>にあるスキニングメッシュを登録する。パレットは恒等変換（バインド姿勢）から開始する。
+    /// 描画用スキニング頂点バッファのビューを返す。
     /// </summary>
     internal D3D12_VERTEX_BUFFER_VIEW AddMesh(int MeshIndex,ID3D12Resource*RestVertices,uint VertexCount,uint VertexStride,int JointCount,IReadOnlyList<ushort>JointIndices,IReadOnlyList<float>Weights){
         if(JointCount<=0||JointIndices.Count!=VertexCount*InfluencesPerVertex||Weights.Count!=VertexCount*InfluencesPerVertex){
@@ -85,15 +83,26 @@ internal sealed unsafe class StageSkinning:IDisposable {
         return new D3D12_VERTEX_BUFFER_VIEW { BufferLocation=Output->GetGPUVirtualAddress(),StrideInBytes=VertexStride,SizeInBytes=VertexCount*VertexStride };
     }
     internal bool IsSkinned(int MeshIndex)=>this.MeshesByIndex.ContainsKey(MeshIndex);
+    internal (Vector3 Minimum,Vector3 Maximum)ConservativeBounds(int MeshIndex,Vector3 Minimum,Vector3 Maximum){
+        if(!this.MeshesByIndex.TryGetValue(MeshIndex,out var Mesh)){ return(Minimum,Maximum); }
+        var Min=new Vector3(float.PositiveInfinity);var Max=new Vector3(float.NegativeInfinity);
+        foreach(var Joint in Mesh.Palette){
+            for(var I=0;I<8;I++){
+                var P=Vector3.Transform(new Vector3((I&1)==0?Minimum.X:Maximum.X,(I&2)==0?Minimum.Y:Maximum.Y,(I&4)==0?Minimum.Z:Maximum.Z),Joint);
+                Min=Vector3.Min(Min,P);Max=Vector3.Max(Max,P);
+            }
+        }
+        return(Min,Max);
+    }
     internal int JointCount(int MeshIndex)=>this.MeshesByIndex.TryGetValue(MeshIndex,out var Mesh)?Mesh.JointCount:0;
-    /// <summary>Replaces the palette used from the next recorded frame on. Extra matrices are ignored; missing ones keep their last value.</summary>
+    /// <summary>次に記録するフレーム以降で使用するパレットを置き換える。余分な行列は無視し、不足する行列には前回の値を維持する。</summary>
     internal void SetPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
         if(!this.MeshesByIndex.TryGetValue(MeshIndex,out var Mesh)){
             throw new ArgumentOutOfRangeException(nameof(MeshIndex),$"Mesh {MeshIndex} is not skinned.");
         }
         Palette[..Math.Min(Palette.Length,Mesh.JointCount)].CopyTo(Mesh.Palette);
     }
-    /// <summary>Skins every mesh for this frame. Leaves a compute pipeline bound; the caller restores its graphics state.</summary>
+    /// <summary>このフレーム用にすべてのメッシュをスキニングする。Computeパイプラインがバインドされたまま戻るため、呼び出し側でグラフィックス状態を復元する。</summary>
     internal void Record(ID3D12GraphicsCommandList*CommandList,uint FrameIndex){
         if(this.Meshes.Count==0){
             return;
@@ -131,14 +140,14 @@ internal sealed unsafe class StageSkinning:IDisposable {
         }
         CommandList->ResourceBarrier((uint)this.Meshes.Count,Barriers);
     }
-    /// <summary>Test-only copy of a skinned vertex buffer (48-byte Stage vertices). The caller guarantees the queue is idle.</summary>
+    /// <summary>スキニング済み頂点バッファ（Stageの48バイト頂点）のテスト専用コピー。呼び出し側がキューをアイドル状態にすること。</summary>
     internal byte[]ReadSkinnedVerticesForTesting(int MeshIndex){
         var Mesh=this.MeshesByIndex[MeshIndex];
         return GpuBufferReadback.Read(this.Device,Mesh.Output,(ulong)Mesh.VertexCount*Mesh.VertexStride,VertexState);
     }
     /// <summary>
-    /// Packs eight 16-bit joint indices and eight 16-bit unorm weights per vertex. The rounding
-    /// remainder goes to the heaviest weight so the quantized weights still sum to exactly one.
+    /// 頂点ごとに16ビットのジョイントインデックス8個と、16ビットUNORMウェイト8個をパックする。
+    /// 丸め誤差は最も重いウェイトへ加えるため、量子化後も合計が正確に1になる。
     /// </summary>
     internal static uint[]PackInfluences(IReadOnlyList<ushort>JointIndices,IReadOnlyList<float>Weights,uint VertexCount,int JointCount){
         var Packed=new uint[VertexCount*8];
@@ -175,7 +184,7 @@ internal sealed unsafe class StageSkinning:IDisposable {
     }
     private void EnsurePipeline(){
         if(this.PaletteUpload==null){
-            // Root SRV addresses of structured buffers need 16-byte-multiple matrices only; each frame region is 256-byte aligned.
+            // 構造化バッファのルートSRVアドレスは16バイト単位の行列のみを必要とする。各フレーム領域は256バイト境界に配置する。
             this.PaletteBytesPerFrame=((uint)this.Meshes.Sum(static Mesh=>Mesh.JointCount)*MatrixBytes+255u)&~255u;
             D3D12_HEAP_PROPERTIES Heap=new(D3D12_HEAP_TYPE_UPLOAD);
             var Desc=D3D12_RESOURCE_DESC.Buffer((ulong)this.PaletteBytesPerFrame*this.FrameCount);

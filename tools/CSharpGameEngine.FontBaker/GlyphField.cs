@@ -1,11 +1,9 @@
 namespace CSharpGameEngine.FontBaker;
 
-/// <summary>Turns a glyph's high-resolution coverage into the cell of 8-bit distances that goes into the atlas.</summary>
+/// <summary>グリフの高解像度カバレッジを、アトラスに格納する 8 ビット距離のセルへ変換する。</summary>
 internal static class GlyphField {
     /// <summary>
-    /// <paramref name="Inside"/> is the glyph at <paramref name="Supersample"/> times the atlas resolution (width and height are multiples of it).
-    /// Each returned byte is the signed distance to the outline, averaged over its block of the mask, in atlas pixels mapped so that the outline is
-    /// 128, <paramref name="SpreadPixels"/> inside is 255 and the same distance outside is 0.
+    /// <paramref name="Inside"/> はアトラス解像度の <paramref name="Supersample"/> 倍で描画したグリフ（幅と高さはその倍数）。返される各 byte は、マスク内のブロックで平均した輪郭までの符号付き距離をアトラス上のピクセル単位で表す。輪郭は 128、<paramref name="SpreadPixels"/> 分だけ内側は 255、同じ距離だけ外側は 0 となる。
     /// </summary>
     internal static byte[]ToCell(bool[]Inside,int Width,int Height,int Supersample,int SpreadPixels,out int CellWidth,out int CellHeight){
         if(Supersample<1||Width%Supersample!=0||Height%Supersample!=0){ throw new ArgumentException("The mask must be a multiple of the supersampling factor."); }
@@ -30,16 +28,16 @@ internal static class GlyphField {
         return Cell;
     }
 
-    /// <summary>0.5 on the outline, 1 at <paramref name="SpreadPixels"/> inside and 0 at the same distance outside, as a byte.</summary>
+    /// <summary>輪郭上で 0.5、内側の <paramref name="SpreadPixels"/> の位置で 1、同じ距離の外側で 0 を表す byte 値。</summary>
     internal static byte Encode(float SignedDistancePixels,int SpreadPixels){
         float Value=0.5f+(SignedDistancePixels/(2f*SpreadPixels));
         return(byte)MathF.Round(Math.Clamp(Value,0f,1f)*255f);
     }
 }
 
-/// <summary>Packs rectangles into rows of an atlas of a given width; the rows are as high as their tallest rectangle.</summary>
+/// <summary>指定した幅のアトラスに矩形を行単位で詰める。行の高さは、その行で最も高い矩形の高さとなる。</summary>
 internal static class ShelfPacker {
-    /// <summary>The top-left position of every rectangle (in the order given) and the height the atlas needs. Throws if a rectangle is wider than the atlas.</summary>
+    /// <summary>各矩形の左上位置（指定順）とアトラスに必要な高さ。矩形の幅がアトラスを超えると例外をスローする。</summary>
     internal static(int X,int Y)[]Pack(IReadOnlyList<(int Width,int Height)>Sizes,int AtlasWidth,int Gap,out int AtlasHeight){
         (int X,int Y)[]Positions=new(int X,int Y)[Sizes.Count];
         int[]Order=[.. Enumerable.Range(0,Sizes.Count).OrderByDescending(Index=>Sizes[Index].Height).ThenBy(Index=>Index)];

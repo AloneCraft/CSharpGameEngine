@@ -22,6 +22,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FirstPersonView.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StageGltfAssets.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RenderRoster.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FragmentMesh.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Spawner.cs" />

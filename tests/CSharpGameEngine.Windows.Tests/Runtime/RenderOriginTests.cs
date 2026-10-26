@@ -6,17 +6,15 @@ using CSharpGameEngine.Graphics.D3D12.Tests;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// M0099 Phase 0: the runtime renders camera-relative (the camera is the render-space origin), so the world-space
-/// grid (ADR-0075) and the simplified height fog must add the render origin back. EngineHost passes it as an exact
-/// Q64.64 remainder per grid material and as the camera altitude.
+/// M0099 Phase 0：ランタイムはカメラ相対（カメラがレンダリング空間の原点）で描画するため、ワールド空間グリッド（ADR-0075）と簡易 height fog には render origin を加え戻す必要があります。EngineHost はこれを、各グリッドマテリアルには正確な Q64.64 の剰余として、カメラの高度として渡します。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RenderOriginTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void WorldGrid_StaysOnTheWorldLatticeWhenTheCameraMoves(){
-        // Both cameras stand 0.75 m right of the wall's origin, 10 000 m (a whole number of cells) apart: the lines
-        // must land on the same pixels. Half a cell to the side they must move.
+        // 2台のカメラは壁の原点から右へ0.75 m、セル数が整数となる10 000 m離れています。線は同じピクセルに描画されなければなりません。
+        // 横方向へ半セル移動すると、線も移動しなければなりません。
         var Here=Render(new LogicalVector3(0.75f,0.4f,0f),new LogicalVector3(0f,0f,5f),Fog:null);
         var FarAway=Render(new LogicalVector3(10000.75f,0.4f,0f),new LogicalVector3(10000f,0f,5f),Fog:null);
         var HalfACellAside=Render(new LogicalVector3(0.25f,0.4f,0f),new LogicalVector3(0f,0f,5f),Fog:null);
@@ -26,7 +24,7 @@ public sealed class RenderOriginTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void HeightFog_ThinsWithTheWorldAltitudeOfTheView(){
-        // The same view, 3 m higher in the world: the fog thins with world height, so the frame must change.
+        // 同じビューでワールド内を3 m上昇します。フォグは高度とともに薄くなるため、フレームが変化するはずです。
         var Fog=new HeightFog { Density=0.2f,HeightFalloff=0.5f,ColorR=0.8f,ColorG=0.8f,ColorB=0.8f };
         var Low=Render(new LogicalVector3(0.75f,0.4f,0f),new LogicalVector3(0f,0f,5f),Fog);
         var High=Render(new LogicalVector3(0.75f,3.4f,0f),new LogicalVector3(0f,3f,5f),Fog);
@@ -44,7 +42,7 @@ public sealed class RenderOriginTests {
         Assert.Equal(float.Parse(Expected,System.Globalization.CultureInfo.InvariantCulture),Reduced);
     }
     private static GraphicsDeviceOptions Warp=>new() { UseWarp=true,EnableDebugLayer=true };
-    /// <summary>Loads a grid wall facing the camera (and height fog when given) and captures one frame.</summary>
+    /// <summary>カメラ向きのグリッド壁（指定された場合は height fog も含む）をロードし、1フレームをキャプチャします。</summary>
     private static string Render(LogicalVector3 CameraPosition,LogicalVector3 WallPosition,HeightFog?Fog){
         var Directory=Path.Combine(Path.GetTempPath(),$"render-origin-{Guid.NewGuid():N}");
         System.IO.Directory.CreateDirectory(Directory);
@@ -83,7 +81,7 @@ public sealed class RenderOriginTests {
             System.IO.Directory.Delete(Directory,true);
         }
     }
-    /// <summary>A 40 m square in the XY plane facing -Z, with ADR-0075's 1 m prototype grid.</summary>
+    /// <summary>XY 平面上で -Z を向く40 m四方の面に、ADR-0075 の1 m プロトタイプグリッドを配置します。</summary>
     private static string CreateGridWallGltf(){
         float[]Positions=[-20f,-20f,0f,20f,-20f,0f,20f,20f,0f,-20f,20f,0f];
         float[]Normals=[0f,0f,-1f,0f,0f,-1f,0f,0f,-1f,0f,0f,-1f];

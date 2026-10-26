@@ -1,12 +1,12 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering;
-/// <summary>The depth encoding prescribed by a view's projection (ADR-0084).</summary>
+/// <summary>ビューの投影が指定する深度符号化方式（ADR-0084）。</summary>
 public enum RenderDepthEncoding:byte {
     Linear=0,
     Logarithmic=1,
     Observer=2,
 }
-/// <summary>Validated L4 depth packets. Perspective views carry physical logarithmic distance; linear packets require an orthographic projection.</summary>
+/// <summary>検証済みの L4 深度パケット。透視ビューは物理的な対数距離を格納する。線形パケットには正射影が必要。</summary>
 public readonly record struct RenderViewDepth {
     private RenderViewDepth(RenderDepthEncoding Encoding,RadialDepthProjection Projection,Vector4 Packet0,Vector4 Packet1){
         this.Encoding=Encoding;

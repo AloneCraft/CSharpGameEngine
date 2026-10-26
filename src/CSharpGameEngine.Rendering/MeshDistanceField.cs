@@ -3,10 +3,10 @@ using System.Numerics;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Rendering;
 /// <summary>
-/// The signed distance field of one mesh (ADR-0078/M0110), in the mesh's own space: a box of <see cref="ResolutionX"/> x <see cref="ResolutionY"/> x
-/// <see cref="ResolutionZ"/> cubic voxels of <see cref="VoxelSize"/> metres starting at <see cref="BoundsMin"/>, each holding the distance from its centre to
-/// the nearest triangle, negative inside the mesh. Distances are stored in voxels as half floats, so the precision is the same for every size of mesh.
-/// It is geometry made ahead of the game from the mesh's triangles (the build writes it next to the glTF), not lighting.
+/// メッシュ1つ分の符号付き距離場（ADR-0078/M0110、メッシュのローカル空間）。<see cref="BoundsMin"/> から始まる <see cref="ResolutionX"/>
+/// × <see cref="ResolutionY"/> × <see cref="ResolutionZ"/> 個の立方ボクセルで構成し、各ボクセルの寸法は
+/// <see cref="VoxelSize"/> メートル。各ボクセルには中心から最寄りの三角形までの距離を格納し、メッシュ内部では負の値にする。距離はボクセル単位の半精度浮動小数点数で保存するため、
+/// メッシュの大きさによらず精度は一定。メッシュの三角形から事前に生成する形状データであり（ビルド時に glTF の隣へ出力）、ライティングデータではない。
 /// </summary>
 public sealed class MeshDistanceField {
     private readonly Half[]DistancesStorage;
@@ -19,23 +19,20 @@ public sealed class MeshDistanceField {
         this.VoxelSize=VoxelSize;
         this.DistancesStorage=Distances;
     }
-    /// <summary>The content hash of the positions and indices the field was made from (<see cref="ComputeMeshHash"/>).</summary>
+    /// <summary>距離場の生成元となった頂点位置とインデックスのコンテンツハッシュ（<see cref="ComputeMeshHash"/>）。</summary>
     public Hash256 MeshHash { get; }
     public int ResolutionX { get; }
     public int ResolutionY { get; }
     public int ResolutionZ { get; }
-    /// <summary>The corner of the volume; the centre of voxel (0, 0, 0) is half a voxel inside it.</summary>
+    /// <summary>ボリュームの角。ボクセル (0, 0, 0) の中心は、その内側へボクセル半個分進んだ位置。</summary>
     public Vector3 BoundsMin { get; }
     public float VoxelSize { get; }
     public Vector3 BoundsMax=>this.BoundsMin+new Vector3(this.ResolutionX,this.ResolutionY,this.ResolutionZ)*this.VoxelSize;
-    /// <summary>Distances in voxels, X fastest, then Y, then Z.</summary>
+    /// <summary>X、次に Y、最後に Z の順に並ぶ、ボクセル単位の距離。</summary>
     public ReadOnlySpan<Half>Distances=>this.DistancesStorage;
-    /// <summary>The stored distance of one voxel, in metres.</summary>
+    /// <summary>1つのボクセルに保存された距離（メートル）。</summary>
     public float VoxelDistance(int X,int Y,int Z)=>(float)this.DistancesStorage[(Z*this.ResolutionY+Y)*this.ResolutionX+X]*this.VoxelSize;
-    /// <summary>
-    /// The distance at a point of the mesh's space, as the renderer reads it: trilinear between voxel centres (clamped to the volume) plus, outside the
-    /// volume, the distance to the volume's box.
-    /// </summary>
+    /// <summary>メッシュ空間上の点での距離を、レンダラーと同じ方法で求める。ボリューム内ではボクセル中心間を三線形補間する。外側ではボリュームのボックスまでの距離を加える。</summary>
     public float Sample(Vector3 Position){
         var Inside=Vector3.Clamp(Position,this.BoundsMin,this.BoundsMax);
         var Outside=Vector3.Distance(Position,Inside);
@@ -55,7 +52,7 @@ public sealed class MeshDistanceField {
         var D11=Lerp(this.VoxelDistance(X0,Y1,Z1),this.VoxelDistance(X1,Y1,Z1),F.X);
         return Lerp(Lerp(D00,D10,F.Y),Lerp(D01,D11,F.Y),F.Z)+Outside;
     }
-    /// <summary>SHA-256 of the positions (little-endian floats) followed by the indices (little-endian 32-bit): what a field belongs to.</summary>
+    /// <summary>頂点位置（リトルエンディアンの float）に続けてインデックス（リトルエンディアンの32ビット整数）を並べた SHA-256。距離場の対応元を識別する。</summary>
     public static Hash256 ComputeMeshHash(IReadOnlyList<Vector3>Positions,IReadOnlyList<uint>Indices){
         ArgumentNullException.ThrowIfNull(Positions);
         ArgumentNullException.ThrowIfNull(Indices);
@@ -73,20 +70,16 @@ public sealed class MeshDistanceField {
     }
 }
 /// <summary>
-/// Makes <see cref="MeshDistanceField"/>s from triangles (M0110). Deterministic: float arithmetic in a fixed order, a median-split BVH whose ties break
-/// by triangle index, so the same mesh gives the same bytes. The volume is cubic voxels that fit the mesh's longest side into
-/// <c>MaximumResolution - 4</c> voxels with two voxels of margin on every side. The magnitude is the exact distance from a voxel centre to the nearest
-/// triangle; the sign is the majority of three ray-parity tests along X, Y and Z (inside when at least two count an odd number of crossings), which
-/// is exact for closed meshes and keeps an open sheet (a plane) unsigned on both sides.
+/// 三角形から <see cref="MeshDistanceField"/> を作る（M0110）。決定論的になるよう、浮動小数点演算の順序を固定し、同値なら三角形インデックスで決まる中央値分割 BVH
+///  を使うため、同じメッシュからは同じバイト列が得られる。体積は立方ボクセルで構成し、メッシュの最長辺を <c>MaximumResolution - 4</c> 個のボクセルに収め、各辺に2ボクセルの
+/// 余白を設ける。距離の絶対値は、ボクセル中心から最も近い三角形までの正確な距離。符号は X、Y、Z 方向の3回のレイ交差判定による多数決で決め、交差回数が奇数の軸が2つ以上なら内部とする。閉じたメッシュ
+/// では正確に判定でき、開いた平面は両側とも符号なしになる。
 /// </summary>
 public static class MeshDistanceFieldBuilder {
-    /// <summary>Voxels along a mesh's longest side, margin included (Unreal scales its resolution by size up to 128; 48 keeps WARP and memory small).</summary>
+    /// <summary>メッシュの最長辺に沿うボクセル数。余白を含む（Unreal はサイズに応じて解像度を最大128まで変更する。48なら WARP とメモリの使用量を抑えられる）。</summary>
     public const int DefaultMaximumResolution=48;
     private const int Margin=2;
-    /// <summary>
-    /// The field of a mesh, or null when it has no triangles with area (an empty mesh, or only points and lines). Throws on non-finite positions or
-    /// indices outside the positions.
-    /// </summary>
+    /// <summary>メッシュの距離場。面積のある三角形がない（空のメッシュ、または点と線のみのメッシュ）場合は null。有限でない頂点位置や、頂点数を超えるインデックスがある場合は例外をスローする。</summary>
     public static MeshDistanceField?Build(IReadOnlyList<Vector3>Positions,IReadOnlyList<uint>Indices,int MaximumResolution=DefaultMaximumResolution){
         ArgumentNullException.ThrowIfNull(Positions);
         ArgumentNullException.ThrowIfNull(Indices);
@@ -130,7 +123,7 @@ public static class MeshDistanceFieldBuilder {
         var ResolutionX=Axis(Extent.X);
         var ResolutionY=Axis(Extent.Y);
         var ResolutionZ=Axis(Extent.Z);
-        // Centre the mesh in the volume.
+        // メッシュをボリュームの中央に置く。
         var Size=new Vector3(ResolutionX,ResolutionY,ResolutionZ)*VoxelSize;
         var BoundsMin=(Minimum+Maximum)*0.5f-Size*0.5f;
         var Bvh=new TriangleBvh(Triangles);
@@ -153,9 +146,8 @@ public static class MeshDistanceFieldBuilder {
         return new MeshDistanceField(Hash,ResolutionX,ResolutionY,ResolutionZ,BoundsMin,VoxelSize,Distances);
     }
     /// <summary>
-    /// For every row of voxels along <paramref name="RayAxis"/>, finds where the row's line crosses the triangles and adds one to the vote of each
-    /// voxel with an odd number of crossings before its centre. The line is moved off the voxel centres by a tiny fixed amount so it never runs
-    /// exactly along an edge.
+    /// <paramref name="RayAxis"/> に沿ったボクセル列ごとに、列上の直線が三角形を横切る位置を求める。中心までの交差回数が奇数である各ボクセルの票を1つ増やす。直線が辺にぴったり重な
+    /// らないよう、ボクセル中心から一定の微小量だけずらす。
     /// </summary>
     private static void CountCrossings(List<Triangle>Triangles,int RayAxis,int ResolutionX,int ResolutionY,int ResolutionZ,Vector3 BoundsMin,float VoxelSize,byte[]Parity){
         Span<int>Resolution=[ResolutionX,ResolutionY,ResolutionZ];
@@ -188,7 +180,7 @@ public static class MeshDistanceFieldBuilder {
                 var Pv=OriginV+(RowV+0.5f)*VoxelSize+NudgeV;
                 for(var RowU=FirstU;RowU<=LastU;RowU++){
                     var Pu=OriginU+(RowU+0.5f)*VoxelSize+NudgeU;
-                    // Barycentric weights of the line's point in the triangle's projection; all of one sign means inside.
+                    // 三角形への投影上での直線の点の重心座標。3つの値が同符号なら内部。
                     var W0=(Bu-Pu)*(Cv-Pv)-(Bv-Pv)*(Cu-Pu);
                     var W1=(Cu-Pu)*(Av-Pv)-(Cv-Pv)*(Au-Pu);
                     var W2=(Au-Pu)*(Bv-Pv)-(Av-Pv)*(Bu-Pu);
@@ -230,7 +222,7 @@ public static class MeshDistanceFieldBuilder {
     private readonly record struct Triangle(Vector3 A,Vector3 B,Vector3 C) {
         public Vector3 Centroid=>(this.A+this.B+this.C)/3f;
     }
-    /// <summary>A bounding volume hierarchy over the triangles for nearest-point queries; nodes are split at the median along their longest side.</summary>
+    /// <summary>最近接点の問い合わせ用に三角形を格納する境界ボリューム階層。最長辺に沿って中央値で分割する。</summary>
     private sealed class TriangleBvh {
         private const int LeafSize=4;
         private readonly Triangle[]Triangles;
@@ -294,7 +286,7 @@ public static class MeshDistanceFieldBuilder {
                 var Right=this.Nodes[Current.Right];
                 var LeftDistance=BoxDistanceSquared(Point,Left.Minimum,Left.Maximum);
                 var RightDistance=BoxDistanceSquared(Point,Right.Minimum,Right.Maximum);
-                // Visit the nearer child first: push it last.
+                // 近い方の子を先に調べるため、先にスタックへ積む。
                 if(LeftDistance<=RightDistance){
                     Stack[Depth++]=Current.Right;
                     Stack[Depth++]=Current.Left;
@@ -309,7 +301,7 @@ public static class MeshDistanceFieldBuilder {
             Vector3.DistanceSquared(Point,Vector3.Clamp(Point,Minimum,Maximum));
         private readonly record struct Node(Vector3 Minimum,Vector3 Maximum,int Start,int End,int Left,int Right);
     }
-    /// <summary>The closest point of triangle ABC to P (Ericson, Real-Time Collision Detection 5.1.5).</summary>
+    /// <summary>点 P に最も近い三角形 ABC 上の点（Ericson, Real-Time Collision Detection 5.1.5）。</summary>
     internal static Vector3 ClosestPoint(Vector3 P,Vector3 A,Vector3 B,Vector3 C){
         var Ab=B-A;
         var Ac=C-A;
@@ -336,10 +328,9 @@ public static class MeshDistanceFieldBuilder {
     }
 }
 /// <summary>
-/// The file of a glTF's mesh distance fields (M0110), <c>&lt;asset&gt;.glb.cgesdf</c>: one entry per mesh of the glTF in the importer's order, each with
-/// the content hash of the mesh it was made from (an entry whose hash does not match the loaded mesh is ignored) and no field for a mesh that has
-/// none (a skinned or empty one). Little-endian: "CGEMSDF1", version, entry count, then per entry the hash, the three resolutions (0 = no field),
-/// the volume corner, the voxel size and the half-float distances in voxels.
+/// glTF メッシュの距離場ファイル（M0110）、<c>&lt;asset&gt;.glb.cgesdf</c>。glTF の各メッシュについてインポーター順に1エントリーを持ち、元メッシュの
+/// コンテンツハッシュを記録する。読み込んだメッシュとハッシュが一致しないエントリーは無視する。距離場のないメッシュ（スキニング対象または空のメッシュ）は記録しない。リトルエンディアン形式で、"
+/// CGEMSDF1"、バージョン、エントリー数に続けて、各エントリーのハッシュ、3方向の解像度（0なら距離場なし）、ボリューム角、ボクセルサイズ、ボクセル単位の半精度距離を格納する。
 /// </summary>
 public static class MeshDistanceFieldCodec {
     public const int MaximumResolution=128;
@@ -348,7 +339,7 @@ public static class MeshDistanceFieldCodec {
     public static byte[]Write(IReadOnlyList<(Hash256 MeshHash,MeshDistanceField?Field)>Entries){
         ArgumentNullException.ThrowIfNull(Entries);
         using var Stream=new MemoryStream();
-        // BinaryWriter writes little-endian on every platform.
+        // BinaryWriter は、どのプラットフォームでもリトルエンディアンで書き込む。
         using(var Writer=new BinaryWriter(Stream,System.Text.Encoding.UTF8,leaveOpen:true)){
             Writer.Write(MagicBytes);
             Writer.Write(Version);

@@ -48,10 +48,7 @@ internal static class SceneDesignerUndoCommandPolicy {
         ShouldHandle(AnyDesignerSurfaceHasFocus,HasPinnedSnapshot)&&!HasPendingSourceWrite;
 
     /// <summary>
-    /// M0095 1-2: whether this designer owns a keyboard Undo, Redo or Save. Every open scene tab polls
-    /// the keyboard, and Hierarchy or Inspector focus counts for all of them, so without this each tab
-    /// acted on the same key press and the pinned scene stepped once per open tab. Only the designer
-    /// showing the pinned scene owns it; a designer without a fixed scene (the tool window) follows the pin.
+    /// M0095 1-2：この designer がキーボードの Undo、Redo、Save を所有するかどうか。開いているシーン tab はすべてキーを監視し、Hierarchy または Inspector にフォーカスがある場合も全 tab が対象になります。そのため各 tab が同じキー入力に応答すると、固定中のシーンが tab の数だけ進んでしまいます。固定中のシーンを表示する designer だけがキー操作を所有します。固定されたシーンのない designer（tool window）は pin に追従します。
     /// </summary>
     internal static bool IsKeyboardOwner(SceneKey?FixedSceneKey,SceneKey?PinnedSceneKey)=>
         PinnedSceneKey is { }Pinned&&(FixedSceneKey is not { }Fixed||Fixed.Equals(Pinned));

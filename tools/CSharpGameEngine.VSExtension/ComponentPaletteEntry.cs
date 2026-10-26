@@ -26,7 +26,7 @@ internal sealed class ComponentPaletteEntry {
 
     internal string FullyQualifiedName { get; }
 
-    // ComponentPaletteToolWindowControl.xamlから{Binding DisplayName}/{Binding Namespace}/
+    // ComponentPaletteToolWindowControl.xaml から {Binding DisplayName}/{Binding Namespace}/
     // {Binding Icon}でバインドされるため、この3つは必ずpublicにする。WPFのバインディングは
     // publicプロパティしか解決できず、internalだと例外も警告もなく黙って失敗する
     // (Inspectorが空になった過去の不具合と同じ罠。InternalsVisibleToが効くテストでは

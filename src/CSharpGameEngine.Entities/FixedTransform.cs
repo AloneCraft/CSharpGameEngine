@@ -7,7 +7,7 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-/// <summary>Result of a fixed Transform operation that cannot silently wrap or lose a GPU pose.</summary>
+/// <summary>ラップアラウンドやGPU姿勢の欠落を黙って許容できないTransform演算の結果。</summary>
 public enum FixedTransformStatus {
     Success,
     NumericOverflow,
@@ -16,13 +16,13 @@ public enum FixedTransformStatus {
 }
 
 /// <summary>
-/// Row-vector TRS helpers. A child world matrix is always <c>local * parentWorld</c>, matching
-/// System.Numerics and the editor contract.
+/// 行ベクトル規約のTRSヘルパー。子のワールド行列は常に<c>local * parentWorld</c>であり、
+/// System.Numericsとエディターの契約に一致する。
 /// </summary>
 public static class TransformMath {
     /// <summary>
-    /// Subtracts the fixed camera world origin before converting the TRS to float. This is the
-    /// only conversion used for object, light, picking and gizmo render coordinates.
+    /// TRSをfloatに変換する前に、固定小数点のカメラワールド原点を差し引く。
+    /// オブジェクト、ライト、ピッキング、ギズモの描画座標にはこの変換だけを使う。
     /// </summary>
     public static FixedTransformStatus TryToCameraRelativeMatrix(
         in Transform Transform,in Transform Camera,out Matrix4x4 Matrix){
@@ -37,8 +37,8 @@ public static class TransformMath {
 }
 
 /// <summary>
-/// Fixed-point affine matrix for hierarchy evaluation. It deliberately retains all affine terms
-/// until camera-origin subtraction, so a large absolute translation never crosses a float boundary.
+/// 階層評価に使う固定小数点のアフィン行列。カメラ原点を差し引くまでアフィン変換の全項を保持し、
+/// 大きな絶対位置がfloat境界を越えるのを防ぐ。
 /// </summary>
 public readonly struct FixedAffineTransform {
     private readonly LogicalAffineTransform Value;
@@ -94,9 +94,8 @@ public readonly struct FixedAffineTransform {
     }
 
     /// <summary>
-    /// Subtracts the already-composed fixed camera world origin before the first float conversion.
-    /// This overload is the hierarchy-aware renderer boundary: both the object and camera may have
-    /// arbitrary parents, but their absolute translations never enter a floating-point value.
+    /// floatへの最初の変換より前に、合成済みの固定小数点カメラワールド原点を差し引く。
+    /// これは階層対応レンダラーの境界である。オブジェクトとカメラに任意の親があっても、絶対位置が浮動小数点値に入ることはない。
     /// </summary>
     public FixedTransformStatus TryToCameraRelativeMatrix(
         in FixedAffineTransform CameraWorld,out Matrix4x4 Matrix){
@@ -122,9 +121,8 @@ public readonly struct FixedAffineTransform {
     }
 
     /// <summary>
-    /// Extracts the resolved world directions of a Transform's local +Z (forward) and local +Y
-    /// (up) axes. These row-vector basis rows stay fixed-point until the final camera view
-    /// boundary; callers normalize them after conversion to remove any inherited scale.
+    /// Transformのローカル+Z（前方）軸とローカル+Y（上方）軸について、解決済みのワールド方向を取り出す。
+    /// 行ベクトル基底の各行はカメラビュー境界まで固定小数点で保持する。継承したスケールを除くため、呼び出し側で変換後に正規化する。
     /// </summary>
     public FixedTransformStatus TryGetCameraBasis(out Vector3 Forward,out Vector3 Up){
         if(!this.Value.FAxis.TryToSingle(out Forward)||!this.Value.UAxis.TryToSingle(out Up)){
@@ -147,7 +145,7 @@ public readonly struct FixedAffineTransform {
     }
 }
 
-/// <summary>Fixed hierarchy resolution status, including arithmetic failure states.</summary>
+/// <summary>演算失敗状態も含む、固定小数点階層の解決状態。</summary>
 public enum FixedTransformResolveStatus {
     Success,
     MissingTransform,
@@ -159,8 +157,8 @@ public enum FixedTransformResolveStatus {
 }
 
 /// <summary>
-/// Evaluates parent-child affine composition entirely in the configured fixed precision. Call
-/// <see cref="FixedAffineTransform.TryToCameraRelativeMatrix"/> only after resolution.
+/// 親子のアフィン合成を、設定された固定精度だけで評価する。解決後にのみ
+/// <see cref="FixedAffineTransform.TryToCameraRelativeMatrix"/>を呼び出すこと。
 /// </summary>
 public sealed class FixedTransformWorldResolver {
     private readonly Dictionary<Entity,FixedAffineTransform>WorldByEntity=[];
@@ -231,11 +229,10 @@ public sealed class FixedTransformWorldResolver {
 }
 
 /// <summary>
-/// Bridges the generated ECS hierarchy to the scene-selected fixed-point Transform implementation.
-/// Each top-level resolution starts with a fresh resolver so structural edits and reparenting made
-/// in the previous ECS frame cannot reuse a stale parent chain. The resolver still caches every
-/// ancestor during the one resolution, which keeps the affine composition entirely fixed-point.
-/// It depends on the ECS only, so the physics systems use it without the Windows host (M0096 G).
+/// 生成されたECS階層と、シーンで選択した固定小数点Transform実装を橋渡しする。
+/// トップレベルの解決ごとに新しいリゾルバーを用意し、前のECSフレームで行われた構造変更や親変更によって古い親チェーンが再利用されないようにする。
+/// 1回の解決中はすべての祖先をキャッシュし、アフィン合成を完全に固定小数点で行う。
+/// ECSのみに依存するため、物理システムはWindowsホストなしで使用できる（M0096 G）。
 /// </summary>
 internal static partial class RuntimeWorldTransform {
     public static FixedTransformResolveStatus TryResolveWorld(
@@ -251,9 +248,9 @@ internal static partial class RuntimeWorldTransform {
                 if(EcsWorld.TryGetComponent(Candidate,out Transform)){
                     return true;
                 }
-                // A scene root may be a logical node that owns environment/components but no
-                // spatial Transform. Only the actual live scene root gets this identity fallback;
-                // an arbitrary live entity without Transform remains a malformed parent.
+                // シーンルートは、環境／コンポーネントを所有する論理ノードで、
+                // 空間Transformを持たない場合がある。この恒等変換へのフォールバックを認めるのは、
+                // 実際のシーンルートだけ。Transformのない任意の実行中エンティティは、不正な親として扱う。
                 SceneInstance OwningScene=EcsWorld.GetOwningScene(Candidate);
                 if(EcsWorld.IsAlive(Candidate)&&!OwningScene.IsNone
                     &&EcsWorld.GetSceneRoot(OwningScene).Equals(Candidate)){

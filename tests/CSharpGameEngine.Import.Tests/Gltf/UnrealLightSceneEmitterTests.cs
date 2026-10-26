@@ -34,8 +34,8 @@ public sealed class UnrealLightSceneEmitterTests {
 
     [Fact]
     public void AppendDirectionalLightComponentsFromTravelDirection_PointsTransformForwardAlongTravel(){
-        // UE5.8 Lvl_ThirdPerson's sun travels down into the level (engine axes); the importer passes
-        // ImportedLightDirection.WorldForward, which is this travel direction.
+        // UE5.8 の Lvl_ThirdPerson にある太陽は、エンジン軸でレベル内へ向かって進む。インポーターは
+        // この進行方向である ImportedLightDirection.WorldForward を渡す。
         Vector3 Travel=Vector3.Normalize(new Vector3(0.4716f,-0.8727f,0.1262f));
         var Builder=new StringBuilder();
         UnrealLightSceneEmitter.AppendDirectionalLightComponentsFromTravelDirection(Builder,Travel,Vector3.One,3f,"");

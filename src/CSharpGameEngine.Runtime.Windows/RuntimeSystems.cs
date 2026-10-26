@@ -40,9 +40,7 @@ internal static class LightTransform {
             Entity,EcsWorld,Host,out Position,out Forward,out ResolveStatus);
 }
 
-/// <summary>
-/// Applies the fixed hierarchy's local +Z/+Y camera basis at the final renderer boundary.
-/// </summary>
+/// <summary>固定小数点階層のローカル+Z／+Yカメラ基底を、最終レンダラー境界で適用する。</summary>
 internal static class CameraTransform {
     public static FixedTransformStatus TryApplyWorldOrientation(
         in FixedAffineTransform CameraWorld,
@@ -76,7 +74,7 @@ internal struct Window:ISystem {
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
         if(Host.ExternalSurface is not null){
-            // ADR-0070 B1: the editor owns the surface and its input.
+            // ADR-0070 B1：サーフェスとその入力はエディターが所有する。
             return;
         }
         if(Host.Window is null){
@@ -109,14 +107,14 @@ internal static class LightValidation {
         if(World.TryGetComponent(Entity,out LightShadow Shadow)&&!Shadow.Bias.IsValid){return "LightShadow.Bias";}
         return null;
     }
-    /// <summary>The node's <see cref="LightVisibility"/> hides its light: the light is checked as usual but not submitted.</summary>
+    /// <summary>ノードの<see cref="LightVisibility"/>によってライトが非表示になっている。通常どおり検査するが、描画には送信しない。</summary>
     internal static bool Hidden(Entity Entity,EcsWorld World)=>World.TryGetComponent(Entity,out LightVisibility Visibility)&&!Visibility.Visible;
     internal static LightShadowSettings? Shadow(Entity Entity,EcsWorld World)=>
         World.TryGetComponent(Entity,out LightShadow Value)?new LightShadowSettings(Value.Priority,Value.Bias):null;
 }
-// ADR-0073: the Presentation systems keep the order they had under [SystemOrder] as one chain:
-// OrbitCameraUpdate, this file's systems in declaration order, the animation systems, SkinnedMeshSync,
-// audio, Present. Edges between systems with no data dependency could be relaxed after analysis.
+// ADR-0073：[SystemOrder]の下でPresentationシステムが持っていた順序を、1つのチェーンとして維持する。
+// OrbitCameraUpdate、ここで宣言されたシステムの順、アニメーションシステム、SkinnedMeshSync、
+// audio、Presentの順にする。データ依存のないシステム間の辺は、解析後に緩和できる可能性がある。
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CSharpGameEngine.Runtime.Character.OrbitCameraUpdate))]
 internal struct LightShadowValidation:ISystem {
@@ -142,7 +140,7 @@ internal struct LevelLoad:ISystem {
     private Camera PendingCamera;
     private int ActiveCameraCount;
     private bool RosterCaptured;
-    // ADR-0078/M0107: when the pawn the camera belonged to is destroyed and a new one spawns, the new pawn's camera takes over.
+    // ADR-0078/M0107：カメラの所有Pawnが破棄されて新しいPawnが生成されたとき、新しいPawnのカメラへ切り替える。
     private Entity ReplacementCameraEntity;
     private bool HasReplacementCamera;
 
@@ -151,11 +149,10 @@ internal struct LevelLoad:ISystem {
     }
 
     /// <summary>
-    /// The projection the view is seen with: the field of view and clip range of the editor camera when the Scene
-    /// Designer supplies one (ADR-0070 B1), otherwise the scene camera's. The exposure and the depth mapping are the
-    /// scene camera's in the editor too, so the view looks like the game. A radial view covers any range at no cost, so
-    /// it sees at least what the scene camera sees (M0099: the editor's focus-based range alone would undo what radial
-    /// depth is for) and, in the editor, also what the designer frames (M0100).
+    /// ビューで使う投影設定。Scene Designerがエディターカメラを指定した場合（ADR-0070 B1）は、その視野角とクリップ範囲を使い、
+    /// それ以外はシーンカメラの値を使う。露出と深度マッピングはエディター内でもシーンカメラの設定を使い、ゲームと同じ見た目にする。
+    /// 放射状ビューは追加コストなしで任意の範囲を表示できるため、シーンカメラが見る範囲を少なくとも含める
+    ///（M0099：エディターのフォーカス基準範囲だけでは、放射状深度を使う目的に反する）。エディターでは、デザイナーが構図に収めた範囲も含める（M0100）。
     /// </summary>
     private static void ApplyProjection(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera){
         if(Editor is { }EditorCamera){
@@ -177,8 +174,9 @@ internal struct LevelLoad:ISystem {
     }
 
     /// <summary>
-    /// Applies the projection (<see cref="ApplyProjection"/>) to <paramref name="View"/> unless <paramref name="Renderer"/> cannot use
-    /// the result, which keeps <paramref name="View"/>'s current one. Returns the first unusable member, or null.
+    /// <paramref name="Renderer"/> が結果を使用できない場合を除き、<paramref name="View"/> に投影（
+    /// <see cref="ApplyProjection"/>）を適用する。使用できない場合は <paramref name="View"/> の現在の投影を維持する。使用不能なメンバーのうち最初のものを
+    /// 返す。すべて使用可能なら null。
     /// </summary>
     private static string?ProjectIfUsable(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera,RenderServer?Renderer){
         var Projected=View;
@@ -190,7 +188,7 @@ internal struct LevelLoad:ISystem {
         return Invalid;
     }
 
-    /// <summary>The first member of <paramref name="View"/>'s projection the renderer cannot use, or null.</summary>
+    /// <summary>レンダラーが使用できない <paramref name="View"/> の投影メンバーのうち最初のもの。すべて使用可能なら null。</summary>
     private static string?InvalidProjectionProperty(in RenderCamera View,float AspectRatio){
         if(!(View.FovYRadians>0f&&View.FovYRadians<MathF.PI)){ return nameof(Camera.FovYRadians); }
         if(!(float.IsFinite(View.NearZ)&&View.NearZ>0f)){ return nameof(Camera.NearZ); }
@@ -228,8 +226,8 @@ internal struct LevelLoad:ISystem {
             throw new InvalidOperationException("Runtime requires exactly one Level.");
         }
         if(LevelRuntime.Loaded){
-            // The camera that is drawn changes when it is destroyed (M0107: a respawned pawn's camera takes over) or when the game turns it off and
-            // another on (ADR-0078/M0109: the Vehicle's front and back cameras, UE's Activate/Deactivate of a camera component).
+            // 描画に使うカメラは、破棄時（M0107：再生成されたポーンのカメラに切り替わる）や、ゲームがカメラを無効にして
+            // 別のカメラを有効にしたときに切り替わる（ADR-0078/M0109：車両の前後カメラ、UE のカメラコンポーネントの Activate / Deactivate）。
             if(this.HasReplacementCamera&&(!State.World.IsAlive(this.PendingCameraEntity)
                 ||!State.World.TryGetComponent(this.PendingCameraEntity,out Camera Current)||!Current.Active)){
                 this.PendingCameraEntity=this.ReplacementCameraEntity;
@@ -245,14 +243,14 @@ internal struct LevelLoad:ISystem {
                 FixedTransformStatus CameraStatus=CameraTransform.TryApplyWorldOrientation(
                     CameraWorld,ref ActiveRenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
-                // A value edit (the Scene Designer's or the game's) replaces the scene camera's component, so the
-                // projection is taken again every frame. Like the lights, an unusable value keeps the last good one.
+                // 値を変更すると（Scene Designer またはゲームによる変更）、シーンカメラのコンポーネントが置き換わるため、
+                // 投影を毎フレーム再取得する。ライトと同様に、使用不能な値なら最後に有効だった値を維持する。
                 Camera SceneCamera=default;
                 var HasSceneCamera=this.ActiveCameraCount>0&&State.World.TryGetComponent(this.PendingCameraEntity,out SceneCamera);
                 LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref ActiveRenderCamera,Host.EditorCamera,HasSceneCamera,SceneCamera,Host.Renderer);
                 if(CameraStatus==FixedTransformStatus.Success){
-                    // Presentation runs system-major. Refresh before later Renderable/light
-                    // archetype executes so every GPU submission in this frame uses one camera origin.
+                    // プレゼンテーション処理はシステム単位で実行される。後続の Renderable / ライトの
+                    // アーキタイプを実行する前に更新し、このフレーム内のすべての GPU 送信で同じカメラ原点を使う。
                     Host.RenderCamera=ActiveRenderCamera;
                     Host.SetCameraPose(CameraWorld,CameraFrame);
                     LevelRuntime.HasLastCameraWorldPose=true;
@@ -279,8 +277,8 @@ internal struct LevelLoad:ISystem {
         if(this.ActiveCameraCount==0&&Host.EditorCamera is null){
             throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
         }
-        // ADR-0070 B1: the editor camera replaces every scene camera, and the editor's world (startup
-        // scenes plus the edited scene) may hold several, so only a game must have exactly one.
+        // ADR-0070 B1：エディターカメラがすべてのシーンカメラに優先する。エディターのワールド（起動
+        // シーンと編集中のシーン）にはカメラが複数ある場合があるが、ゲーム内ではちょうど1つ必要。
         if(this.ActiveCameraCount>1&&Host.EditorCamera is null){
             throw new InvalidOperationException($"Runtime requires exactly one active Camera, but {this.ActiveCameraCount} were found.");
         }
@@ -318,12 +316,12 @@ internal struct LevelLoad:ISystem {
                 $"The active camera Transform basis cannot produce a renderer view: {InitialCameraStatus}.");
         }
 
-        // As on later frames, a scene value the renderer cannot use is named and keeps the default projection
-        // instead of failing the load (a saved zero near plane used to end the game and the Scene Designer's view).
+        // 後続フレームと同様に、レンダラーが使用できないシーン値は内容を示し、既定の投影を維持する。
+        // 読み込みを失敗させない（保存された近平面0が原因で、ゲームと Scene Designer のビューが以前終了していた）。
         LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref Camera,Host.EditorCamera,this.ActiveCameraCount>0,this.PendingCamera,Renderer);
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         Host.RegisterWorldGridMaterials(Scene.Materials);
-        // From here on the renderer's objects follow the Entities (M0105): the ones just turned into objects count as bound.
+        // ここからはレンダラー内のオブジェクトが Entity に追従する（M0105）。オブジェクトに変換されたばかりの Entity も登録済みとして扱う。
         Host.Roster=RenderRoster.FromScene(Scene);
         LevelRuntime.HasLastCameraWorldPose=true;
         LevelRuntime.Loaded=true;
@@ -381,13 +379,10 @@ internal struct LevelLoad:ISystem {
         this.PendingSkeletalMeshes=null;
     }
 
+    /// <summary>フレームを描画するカメラ。Scene Designer がエディターカメラを渡した場合はそのカメラ（ADR-0070 B1）、そうでなければシーンのアクティブカメラ。</summary>
     /// <summary>
-    /// The camera the frame is seen from: the editor camera when the Scene Designer supplies one
-    /// (ADR-0070 B1), otherwise the scene's active camera.
-    /// </summary>
-    /// <summary>
-    /// <see cref="RuntimeAutomation.CameraVariable"/>: replaces the camera's world pose by one at an offset from the Entity the camera hangs from (a debug view for filming a
-    /// vehicle from the side). The same replacement is applied in <see cref="CameraOriginSync"/>, so the renderer's origin and the camera agree.
+    /// <see cref="RuntimeAutomation.CameraVariable"/>：カメラが属する Entity のワールド姿勢を、そこからのオフセット位置に置き換える（車両を横から撮影する
+    /// デバッグビューなど）。同じ置き換えを <see cref="CameraOriginSync"/> にも適用し、レンダラーの原点とカメラの位置を一致させる。
     /// </summary>
     internal static void ApplyAutomationCamera(EngineHost Host,Entity Camera,EcsWorld World,ref FixedAffineTransform CameraWorld){
         if(Host.Automation?.CameraOverride is not{ }Values||!World.TryGetComponent(Camera,out Parent Hanger)
@@ -420,7 +415,7 @@ internal struct LevelLoad:ISystem {
     }
 }
 
-/// <summary>Hands each SkeletalMesh's palette to the renderer after the animators ran (ADR-0066). Submitted every frame so device recovery replays the current pose.</summary>
+/// <summary>アニメーター実行後、各 SkeletalMesh のパレットをレンダラーに渡す（ADR-0066）。デバイス回復後に現在の姿勢を再生できるよう、毎フレーム送信する。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CSharpGameEngine.Runtime.Animation.LocomotionAnimation))]
 [RunsAfter(typeof(CSharpGameEngine.Runtime.Character.FootIkUpdate))]
@@ -440,9 +435,9 @@ internal struct SkinnedMeshSync:ISystem {
 [RunsAfter(typeof(LevelLoad))]
 internal struct CameraOriginSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
-        // ADR-0070 B1: the Scene Designer's camera replaces the scene camera. LevelLoad already set
-        // its pose this frame; taking the scene camera's here would draw every object relative to a
-        // camera the view is not seen from (the view then ignored the designer's wheel and orbit).
+        // ADR-0070 B1：Scene Designer のカメラがシーンカメラに優先する。LevelLoad が今フレームの姿勢をすでに設定した。
+        // ここでシーンカメラの姿勢を取得すると、すべてのオブジェクトを
+        // 実際の表示に使わないカメラ基準で描画してしまう（Designer のホイール操作や軌道操作がビューに反映されなくなる）。
         if(Host.EditorCamera is not null){
             return;
         }
@@ -455,7 +450,7 @@ internal struct CameraOriginSync:ISystem {
                 out _,out _)){
             LevelLoad.ApplyAutomationCamera(Host,Entity,State.World,ref CameraWorld);
             Host.SetCameraPose(CameraWorld,CameraFrame);
-            // M0107: the character the camera hangs from, for an automation report (a lagging camera does not show where it is).
+            // M0107：カメラが属するキャラクターを自動化レポートに含める（追従が遅れるカメラでは現在位置が分からない）。
             Host.AutomationFocusPosition=null;
             if(State.World.TryGetComponent(Entity,out Parent Hanger)
                 &&RuntimeWorldTransform.TryResolveWorld(Hanger.Value,State.World,out FixedAffineTransform HangerWorld,out _)==FixedTransformResolveStatus.Success
@@ -467,8 +462,8 @@ internal struct CameraOriginSync:ISystem {
 }
 
 /// <summary>
-/// M0099 (ADR-0076): turns each enabled <see cref="RadialObserver"/> into an observer camera preview while the active
-/// camera is radial. Game runtime only: with an editor camera the previews are the editor's.
+/// M0099（ADR-0076）：有効な <see cref="RadialObserver"/> をそれぞれ、アクティブカメラが放射カメラの場合の観測者カメラプレビューにする。ゲーム実行時専用。
+/// エディターカメラ使用中は、エディター側のプレビューが優先する。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
@@ -486,12 +481,12 @@ internal struct RadialObserverSync:ISystem {
     }
 }
 
-/// <summary>The observer preview of a radial camera (M0099, Omni specification "Observer view").</summary>
+/// <summary>放射カメラの観測者プレビュー（M0099、Omni 仕様の「Observer view」）。</summary>
 internal static class RadialObserverView {
     /// <summary>
-    /// Builds the inset: the world compressed around the radial camera <paramref name="Center"/> (the render origin),
-    /// seen from <paramref name="EyeFromCenter"/> along <paramref name="Forward"/>/<paramref name="Up"/>. The far plane
-    /// encloses the compressed world. Returns false when the camera is not radial or a value is unusable.
+    /// 放射カメラの周囲を圧縮したワールドをインセットに描画する。<paramref name="Center"/> はレンダリング原点であり、<paramref name="EyeFromCenter"/>
+    ///  から <paramref name="Forward"/> / <paramref name="Up"/> 方向を見る。遠平面は圧縮後のワールド全体を囲む。カメラが放射カメラでない場合、または値を
+    /// 使用できない場合は false。
     /// </summary>
     internal static bool TryCreatePreview(in RenderCamera Center,int SurfaceWidth,int SurfaceHeight,in RadialObserver Observer,
         Vector3 EyeFromCenter,Vector3 Forward,Vector3 Up,out RenderCameraPreview Preview){
@@ -558,8 +553,8 @@ internal struct DirectionalLightSync:ISystem {
 internal struct AmbientLightSync:ISystem {
     public void Update(ref AmbientLight Light,EngineHost Host,ref State State){
         var Ambient=new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity;
-        // Like the typed lights, a value the renderer cannot use keeps the last usable one: negative radiance (the tone
-        // mapper turns it white) or an overflowing one.
+        // 型付きライトの場合と同様に、レンダラーが使用できない値なら最後に使用可能だった値を維持する。負の放射輝度はトーン
+        // マッパーによって白くなり、範囲を超える値も使用できない。
         if(Light.ColorR>=0f&&Light.ColorG>=0f&&Light.ColorB>=0f&&Light.Intensity>=0f
             &&float.IsFinite(Ambient.X)&&float.IsFinite(Ambient.Y)&&float.IsFinite(Ambient.Z)){
             Host.Renderer?.SetAmbientLight(Ambient);
@@ -570,10 +565,13 @@ internal struct AmbientLightSync:ISystem {
     }
 }
 
-/// <summary>Collects the environment Components (ADR-0069); EngineHost submits them once before rendering.</summary>
+/// <summary>環境コンポーネントを収集する（ADR-0069）。EngineHost は描画前に一度だけ送信する。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(AmbientLightSync))]
 internal struct EnvironmentCollect:ISystem {
+    public void Update(ref DirectionalShadowRendering Value,EngineHost Host,ref State State){
+        Host.Environment.DirectionalShadows=Value;
+    }
     public void Update(ref SkyAtmosphere Value,EngineHost Host,ref State State){
         Host.Environment.Atmosphere=Value;
     }
@@ -587,8 +585,8 @@ internal struct EnvironmentCollect:ISystem {
         Host.Environment.Fog=Value;
     }
     public void Update(Entity Entity,ref GlobalIlluminationVolume Value,EngineHost Host,ref State State){
-        // The probe grid is placed in the renderer's camera-relative space like every object, so the
-        // absolute volume position never crosses a float boundary.
+        // プローブ格子は各オブジェクトと同様、レンダラーのカメラ相対座標に配置する。そのため、
+        // ボリュームの絶対位置が float の境界を越えて渡されることはない。
         if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Entity,State.World,Host,out var Matrix,out _)!=FixedTransformStatus.Success){
             Host.Environment.InvalidReason="GlobalIlluminationVolume.Transform";
             return;
@@ -603,7 +601,7 @@ internal struct EnvironmentCollect:ISystem {
         Host.Environment.DistanceField=Value;
     }
     public void Update(Entity Entity,ref SkySphere Value,EngineHost Host,ref State State){
-        // ADR-0078/M0110: like the probe volume, the sphere's centre is placed in the camera-relative render space.
+        // ADR-0078/M0110：プローブボリュームと同様に、球の中心をカメラ相対のレンダリング空間に置く。
         if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Entity,State.World,Host,out var Matrix,out _)!=FixedTransformStatus.Success){
             Host.Environment.InvalidReason="SkySphere.Transform";
             return;
@@ -727,7 +725,7 @@ internal struct TransformSync:ISystem {
             return;
         }
         if(Renderable.HasSourceEntity&&!RenderRoster.IsDrawnSource(Renderable.SourceEntity,State.World)){
-            // M0105: the Entity was destroyed or lost its mesh; its object stops being drawn and this wrapper goes with it.
+            // M0105：Entity が破棄されたかメッシュを失った。対応するオブジェクトの描画を止め、ラッパーも削除する。
             Host.ReleaseRenderObject(Renderable.SourceEntity,Renderable.ObjectIndex);
             Renderable.ObjectIndex=-1;
             State.World.DestroyDeferred(Entity,ref State);
@@ -751,8 +749,8 @@ internal struct TransformSync:ISystem {
                 ?Renderable.MeshLocalTransform
                 :Matrix4x4.Identity;
             var World=Local*Renderable.LastCameraRelativeWorld;
-            // ADR-0078/M0107: a first-person mesh is drawn with its own field of view and scale, and a mesh can be kept out of the camera's picture
-            // or out of the shadows. Only meshes that carry the components pay for them.
+            // ADR-0078/M0107：一人称メッシュは専用の視野角とスケールで描画する。メッシュをカメラの映像から除外することもできる。
+            // または影の外にする。これらのコンポーネントを持つメッシュだけが処理コストを負担する。
             if(State.World.TryGetComponent(SourceEntity,out FirstPersonView FirstPerson)){
                 World*=FirstPersonViewWarp.Matrix(Host.RenderCamera,FirstPerson);
             }
@@ -764,7 +762,7 @@ internal struct TransformSync:ISystem {
                 Renderer.SetObjectVisibility(Renderable.ObjectIndex,true,true);
                 Renderable.VisibilityApplied=false;
             }
-            // ADR-0078/M0109: a material emission the game changes at run time (the Vehicle's brake lights).
+            // ADR-0078/M0109：ゲーム実行中に変更されるマテリアル発光（車両のブレーキランプなど）。
             if(State.World.TryGetComponent(SourceEntity,out MeshEmissive Emissive)){
                 var Scale=float.IsFinite(Emissive.Scale)?MathF.Max(0f,Emissive.Scale):1f;
                 Renderer.SetObjectEmissiveScale(Renderable.ObjectIndex,Scale);
@@ -823,7 +821,7 @@ internal struct EmissiveMeshLightSync:ISystem {
     }
 }
 
-/// <summary>ADR-0078/M0105: gives an Entity that has a <see cref="StaticMesh"/> and is not drawn yet its renderer objects.</summary>
+/// <summary><see cref="StaticMesh"/> があり、まだ描画されていない Entity に、レンダラーのオブジェクトを割り当てる（ADR-0078/M0105）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
 [RunsBefore(typeof(TransformSync))]
@@ -833,7 +831,7 @@ internal struct StaticMeshBind:ISystem {
     }
 }
 
-/// <summary>ADR-0078/M0105: the same for a <see cref="PrimitiveMesh"/>.</summary>
+/// <summary><see cref="PrimitiveMesh"/> に対して同じ処理を行う（ADR-0078/M0105）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
 [RunsBefore(typeof(TransformSync))]
@@ -843,7 +841,7 @@ internal struct PrimitiveMeshBind:ISystem {
     }
 }
 
-/// <summary>ADR-0078/M0107: gives a <see cref="SkeletalMesh"/> that appeared after the level loaded (a respawned character) its renderer objects.</summary>
+/// <summary>レベル読み込み後に追加された <see cref="SkeletalMesh"/>（再生成されたキャラクターなど）に、レンダラーのオブジェクトを割り当てる（ADR-0078/M0107）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
 [RunsBefore(typeof(TransformSync))]
@@ -853,16 +851,13 @@ internal struct SkeletalMeshBind:ISystem {
     }
 }
 
-/// <summary>
-/// Registers Parent with the generated World lookup surface even for a Scene that contains only
-/// roots today. RuntimeWorldTransform resolves arbitrary future reparenting through this API.
-/// </summary>
+/// <summary>シーンに現在ルートだけが含まれる場合でも、生成された World の検索対象として Parent を登録する。RuntimeWorldTransform は、この API を通じて将来の任意の親変更も解決する。</summary>
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
 
 /// <summary>
-/// ADR-0078/M0107, M0109: <see cref="TransformSync"/> reads <see cref="MeshVisibility"/>, <see cref="FirstPersonView"/> and <see cref="MeshEmissive"/> from the
-/// mesh Entity, and the light syncs read <see cref="LightVisibility"/> from the light's Entity, which needs the generated World to know them as Components
-/// even in a game whose scenes do not use them.
+/// ADR-0078/M0107、M0109：<see cref="TransformSync"/> はメッシュ Entity から <see cref="MeshVisibility"/>、
+/// <see cref="FirstPersonView"/>、<see cref="MeshEmissive"/> を読み取る。ライト同期処理もライト Entity から
+/// <see cref="LightVisibility"/> を読み取る。そのためシーンで使用されていない場合でも、生成 World にこれらがコンポーネントとして登録されている必要がある。
 /// </summary>
 internal struct MeshPresentationRegistration:ISystem {
     public void Spawn(ref MeshVisibility Visibility){}
@@ -903,7 +898,7 @@ internal struct AudioSourceSync:ISystem {
 }
 
 
-/// <summary>ADR-0078/M0104: hands every visible <see cref="ScreenText"/> to the screen UI service.</summary>
+/// <summary>表示されているすべての <see cref="ScreenText"/> をスクリーン UI サービスに渡す（ADR-0078/M0104）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(AudioSourceSync))]
 internal struct ScreenTextCollect:ISystem {
@@ -912,7 +907,7 @@ internal struct ScreenTextCollect:ISystem {
     }
 }
 
-/// <summary>ADR-0078/M0104: hands every visible <see cref="ScreenImage"/> to the screen UI service.</summary>
+/// <summary>表示されているすべての <see cref="ScreenImage"/> をスクリーン UI サービスに渡す（ADR-0078/M0104）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(ScreenTextCollect))]
 internal struct ScreenImageCollect:ISystem {
@@ -921,7 +916,7 @@ internal struct ScreenImageCollect:ISystem {
     }
 }
 
-/// <summary>ADR-0078/M0104: sets the frame's screen layer, just before the frame is presented.</summary>
+/// <summary>フレームの表示直前に、そのフレームのスクリーンレイヤーを設定する（ADR-0078/M0104）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(ScreenImageCollect))]
 internal struct ScreenUiSubmit:ISystem {

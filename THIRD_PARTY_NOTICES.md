@@ -15,6 +15,7 @@ The C# Game Engine project bundles this content unchanged, at its owner's decisi
 ## Engine package dependencies
 
 A game restores these libraries through the CSharpGameEngine.Sdk package:
+- StbImageSharp 2.30.16 (Unlicense OR MIT), managed PNG/JPEG decoding in the L7 import tools. Package project: https://github.com/StbSharp/StbImageSharp
 - SharpGLTF.Core (MIT)
 - TerraFX.Interop.Windows (MIT)
 - AssimpNet (MIT), including the Open Asset Import Library (BSD-3-Clause)

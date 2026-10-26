@@ -1,7 +1,7 @@
 # ADR-0013: ソリューションエクスプローラーでの3Dアセットプレビュー(`IVsEditorFactory`)
 
 ## ステータス
-承認済み
+承認済み(2026-10-27、`GlbFbxPreviewEditorFactory` / `AssetPreviewWindowPane` / `AssetPreviewControl` による読み取り専用・固定カメラのエディターは [ADR-0089](ADR-0089-Asset-Editor-Windows.md) の `AssetEditorFactory` へ置き換えて削除済み。`.meta`生成との関係や分離ホストの方針は有効)
 
 ## 背景
 

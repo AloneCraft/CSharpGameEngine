@@ -3,7 +3,7 @@ using CSharpGameEngine.Cooking;
 
 namespace CSharpGameEngine.Cook.Tests;
 
-/// <summary>Cookers this test assembly offers when the host loads it as a Cook module.</summary>
+/// <summary>ホストが Cook モジュールとして読み込まれた場合、このテストアセンブリが提供するクッカー。</summary>
 public sealed class UpperCooker:IAssetCooker {
     public string Name=>"Upper";
     public IReadOnlyList<string> InputExtensions=>[".txt"];
@@ -49,7 +49,7 @@ public sealed class FailingCooker:IAssetCooker {
     public CookResult Cook(CookRequest Request)=>CookResult.Failure("the input is broken");
 }
 
-/// <summary>ADR-0079: the Cook host loads a module in its own context, chooses a cooker and checks what it writes.</summary>
+/// <summary>ADR-0079：Cook ホストはモジュールを独自のコンテキストに読み込み、クッカーを選択して出力内容を検証する。</summary>
 public sealed class CookerHostTests:IDisposable {
     private readonly string Root=Path.Combine(Path.GetTempPath(),"cge-cook-tests-"+Guid.NewGuid().ToString("N"));
     private static readonly string Module=typeof(UpperCooker).Assembly.Location;
@@ -73,7 +73,7 @@ public sealed class CookerHostTests:IDisposable {
         using var Host=CookerHost.Load(Module);
 
         Assert.Equal(["Chatty","Clock","Escaping","Failing","Upper"],Host.Cookers.Select(static Cooker=>Cooker.Name));
-        // The module was loaded into its own context, but IAssetCooker is the host's: the cast in Load would have failed otherwise.
+        // モジュールは独自のコンテキストに読み込まれたが、IAssetCooker はホストの型。そうでなければ Load のキャストが失敗する。
         Assert.NotSame(typeof(UpperCooker).Assembly,Host.Cookers[0].GetType().Assembly);
     }
 
@@ -99,7 +99,7 @@ public sealed class CookerHostTests:IDisposable {
 
         Assert.Contains("not deterministic",Error.Message);
         Assert.False(Directory.Exists(Output));
-        // Without verification the same cooker runs (the check is the caller's choice).
+        // 検証を指定しなくても同じクッカーを実行する（検証するかどうかは呼び出し側が選ぶ）。
         Assert.Equal(["now.out"],CookerHost.Cook(Host.Select(Input,null),Input,Output,this.Root,Verify:false));
     }
 
@@ -121,7 +121,7 @@ public sealed class CookerHostTests:IDisposable {
         var Error=Assert.ThrowsAny<InvalidOperationException>(()=>CookerHost.Cook(Host.Select(Input,"Failing"),Input,Path.Combine(this.Root,"out"),this.Root,Verify:false));
 
         Assert.Contains("the input is broken",Error.Message);
-        // The cooker's own lines are kept, so that a build can read them as diagnostics (M0106).
+        // ビルドが診断情報として読み取れるよう、クッカー自身が出力した行も保持する（M0106）。
         Assert.Equal(["the input is broken"],Assert.IsType<CookerHost.CookFailedException>(Error).Messages);
     }
 
@@ -134,7 +134,7 @@ public sealed class CookerHostTests:IDisposable {
         var Outputs=CookerHost.Cook(Host.Select(Input,"Chatty"),Input,Path.Combine(this.Root,"out"),this.Root,Verify:true,Messages);
 
         Assert.Equal(["m.out"],Outputs);
-        // A verifying run cooks twice; only the first run's notes are passed on.
+        // 検証付き実行ではクッカーを2回実行する。後続へ渡すメッセージは最初の実行分だけ。
         Assert.Equal(["a note"],Messages);
     }
 

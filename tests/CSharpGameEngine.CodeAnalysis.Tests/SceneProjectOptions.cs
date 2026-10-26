@@ -3,13 +3,13 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// The build's <c>ProjectDir</c> for generator and analyzer tests: scenes are the <c>*.json</c> files
-/// under <see cref="ProjectDirectory"/>'s <c>Scenes</c> folder (ADR-0070, <c>SceneFiles</c>).
+/// アナライザーとジェネレーターのテストで使う、ビルドの <c>ProjectDir</c>。Scene は <see cref="ProjectDirectory"/> の <c>Scenes</c>
+/// フォルダー以下にある <c>*.json</c>（ADR-0070、<c>SceneFiles</c>）。
 /// </summary>
 internal sealed class SceneProjectOptions:AnalyzerConfigOptionsProvider {
     internal const string ProjectDirectory=@"C:\Game\";
     internal const string ScenesDirectory=ProjectDirectory+@"Scenes\";
-    /// <summary>An enabled engine plugin named Vehicles (ADR-0079), outside the project folder as in a real build.</summary>
+    /// <summary>有効化されたエンジンプラグイン Vehicles（ADR-0079）。実際のビルドと同様、プロジェクトフォルダーの外にある。</summary>
     internal const string EnginePluginDirectory=@"C:\Engine\plugins\CSharpGameEngine.Vehicles\";
     internal const string EngineVersion="0.1.16";
     internal static readonly SceneProjectOptions Instance=new();

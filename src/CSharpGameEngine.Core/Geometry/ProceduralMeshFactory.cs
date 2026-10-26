@@ -7,29 +7,25 @@ using CSharpGameEngine.Spatial.Unity;
 namespace CSharpGameEngine.Geometry;
 
 /// <summary>
-/// Builds simple placeholder meshes directly in code - no importer needed. Moved here from
-/// <c>CSharpGameEngine.Graphics.D3D12</c> (ADR-0021) so the shape-palette feature's primitives
-/// (<see cref="CreateSphere"/>/<see cref="CreateCylinder"/>/<see cref="CreateCapsule"/>/
-/// <see cref="CreateCone"/>/<see cref="CreateTorus"/>/<see cref="CreateDisk"/>) live in one
-/// graphics-independent project (pure <see cref="System.Numerics"/>, no D3D12/TerraFX types) that
-/// both <c>CSharpGameEngine.Graphics.D3D12</c> and the out-of-process
-/// <c>tools/CSharpGameEngine.Primitive.Cli</c> bridge can reference, instead of duplicating the
-/// generation math on the net472 VSIX side (ADR-0019's "always go through an out-of-process bridge,
-/// never in-process" principle). Winding order is picked for consistency but does not currently
-/// affect visibility: every consumer disables backface culling.
+/// 単純なプレースホルダーメッシュをコードから直接生成する。インポーターは不要。<c>CSharpGameEngine.Graphics.D3D12</c>から移動し（ADR-0021）、
+/// シェイプパレット機能の基本形状（<see cref="CreateSphere"/>／<see cref="CreateCylinder"/>／<see cref="CreateCapsule"/>／
+/// <see cref="CreateCone"/>／<see cref="CreateTorus"/>／<see cref="CreateDisk"/>）を、グラフィックス非依存の単一プロジェクトにまとめた。
+/// 純粋な<see cref="System.Numerics"/>だけを使用し、D3D12／TerraFX型には依存しない。このため、
+/// <c>CSharpGameEngine.Graphics.D3D12</c>とプロセス外の<c>tools/CSharpGameEngine.Primitive.Cli</c>ブリッジの両方から参照できる。
+/// net472のVSIX側で生成計算を重複させる必要もない（「常にプロセス外ブリッジ経由とし、プロセス内で実行しない」というADR-0019の原則）。
+/// 頂点の巻き順は一貫性のために選ぶが、現在は可視性に影響しない。すべての利用側で裏面カリングを無効にしている。
 ///
-/// Vertex/normal math is derived in RUF (<see cref="RufVector"/>) space and converted to
-/// <see cref="Vector3"/> only at the point each <c>Create*</c> method builds its
-/// <see cref="ProceduralMeshData"/> (ADR-0026). <see cref="UnityCoordinateConvention"/> is a fixed
-/// identity mapping (R=X, U=Y, F=Z), so this conversion is bit-identical to the previous
-/// direct-<see cref="Vector3"/> implementation - it does not change any output value.
+/// 頂点／法線の計算はRUF空間（<see cref="RufVector"/>）で行い、各<c>Create*</c>メソッドが
+/// <see cref="ProceduralMeshData"/>を構築する時点でのみ<see cref="Vector3"/>へ変換する（ADR-0026）。
+/// <see cref="UnityCoordinateConvention"/>は固定の恒等写像（R=X、U=Y、F=Z）なので、この変換は従来の直接的な
+/// <see cref="Vector3"/>実装とビット単位で一致し、出力値を変更しない。
 /// </summary>
 public static class ProceduralMeshFactory {
     private const int DefaultSegments=24;
     private const int DefaultHemisphereRings=8;
     private const int DefaultMinorSegments=12;
 
-    /// <summary>An XZ-plane rectangle centered at the origin, Y=0, facing +Y. Used as the ground, and as the shape palette's "矩形" primitive.</summary>
+    /// <summary>原点を中心に置き、Y=0 の XZ 平面上で +Y を向く矩形。地面と、形状パレットの「矩形」プリミティブに使用する。</summary>
     public static ProceduralMeshData CreatePlane(float Width,float Depth){
         if(Width<=0f||Depth<=0f){
             throw new ArgumentOutOfRangeException(nameof(Width),"width and depth must both be positive.");
@@ -52,7 +48,7 @@ public static class ProceduralMeshFactory {
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=Indices };
     }
 
-    /// <summary>An axis-aligned box centered at the origin (24 vertices, one normal per face) sized <paramref name="Size"/> on each axis.</summary>
+    /// <summary>原点を中心とする軸平行ボックス（24頂点、各面に1つの法線）。各軸の寸法は<paramref name="Size"/>。</summary>
     public static ProceduralMeshData CreateBox(Vector3 Size){
         if(Size.X<=0f||Size.Y<=0f||Size.Z<=0f){
             throw new ArgumentOutOfRangeException(nameof(Size),"size components must all be positive.");
@@ -102,9 +98,8 @@ public static class ProceduralMeshFactory {
     }
 
     /// <summary>
-    /// A UV sphere centered at the origin. Poles are single vertices fanned to the first/last
-    /// interior ring (rather than the naive "duplicate pole per column, quad the top/bottom band"
-    /// approach) specifically so no triangle is ever degenerate.
+    /// 原点を中心とするUV球。三角形が退化しないよう、極点は1頂点とし、最初／最後の内側リングに扇状につなぐ。
+    /// 極点を列ごとに複製して上下の帯を四角形でつなぐ単純な方法は使わない。
     /// </summary>
     public static ProceduralMeshData CreateSphere(float Radius){
         if(Radius<=0f){
@@ -162,7 +157,7 @@ public static class ProceduralMeshFactory {
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
     }
 
-    /// <summary>An axis-aligned (Y) capped cylinder centered at the origin.</summary>
+    /// <summary>原点を中心とする、Y軸に沿った軸平行の上下端付きシリンダー。</summary>
     public static ProceduralMeshData CreateCylinder(float Radius,float Height){
         if(Radius<=0f){
             throw new ArgumentOutOfRangeException(nameof(Radius),"radius must be positive.");
@@ -206,7 +201,7 @@ public static class ProceduralMeshFactory {
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
     }
 
-    /// <summary>An axis-aligned (Y) cone centered at the origin: apex at +height/2, capped circular base at -height/2.</summary>
+    /// <summary>原点を中心とする、Y軸に沿った軸平行の円錐。頂点は+height/2、蓋付きの円形底面は-height/2。</summary>
     public static ProceduralMeshData CreateCone(float Radius,float Height){
         if(Radius<=0f){
             throw new ArgumentOutOfRangeException(nameof(Radius),"radius must be positive.");
@@ -224,8 +219,8 @@ public static class ProceduralMeshFactory {
         List<RufVector>Normals=[];
         List<uint>Indices=[];
 
-        // Flat-shaded side: each triangle gets its own three vertices (some duplication) so the
-        // per-face normal (derived from the cross product, not interpolated) is exact.
+        // フラットシェーディングの側面では、各三角形に専用の3頂点を割り当てる（一部重複）。
+        // 各面の法線は補間ではなく外積から求めるため、正確な値になる。
         for(var I=0;I<Segments;I++){
             var Angle0=I*2f*MathF.PI/Segments;
             var Angle1=(I+1)*2f*MathF.PI/Segments;
@@ -255,7 +250,7 @@ public static class ProceduralMeshFactory {
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
     }
 
-    /// <summary>A torus centered at the origin in the XZ plane. <paramref name="MinorRadius"/> (tube radius) must be smaller than <paramref name="MajorRadius"/> (ring radius) to avoid self-intersection.</summary>
+    /// <summary>XZ平面上で原点を中心とするトーラス。自己交差を防ぐため、<paramref name="MinorRadius"/>（管の半径）は<paramref name="MajorRadius"/>（リングの半径）より小さくする。</summary>
     public static ProceduralMeshData CreateTorus(float MajorRadius,float MinorRadius){
         if(MajorRadius<=0f){
             throw new ArgumentOutOfRangeException(nameof(MajorRadius),"majorRadius must be positive.");
@@ -300,7 +295,7 @@ public static class ProceduralMeshFactory {
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
     }
 
-    /// <summary>A flat circular disk centered at the origin, Y=0, facing +Y.</summary>
+    /// <summary>原点を中心とする平らな円盤。Y=0にあり、+Y方向を向く。</summary>
     public static ProceduralMeshData CreateDisk(float Radius){
         if(Radius<=0f){
             throw new ArgumentOutOfRangeException(nameof(Radius),"radius must be positive.");
@@ -323,9 +318,8 @@ public static class ProceduralMeshFactory {
     }
 
     /// <summary>
-    /// A capped capsule (cylinder with hemispherical caps) centered at the origin, axis Y.
-    /// <paramref name="Height"/> is the total end-to-end height including both hemispheres, so it
-    /// must exceed <c>2 * radius</c> for the cylindrical mid-section to have positive length.
+    /// Y軸に沿って原点を中心とする、上下端付きカプセル（半球状の端を持つシリンダー）。
+    /// <paramref name="Height"/>は両端の半球を含む全高なので、円筒部分に正の長さを持たせるには<c>2 * radius</c>を超える必要がある。
     /// </summary>
     public static ProceduralMeshData CreateCapsule(float Radius,float Height){
         if(Radius<=0f){
@@ -391,16 +385,16 @@ public static class ProceduralMeshFactory {
     }
 
     /// <summary>
-    /// Appends <paramref name="HemisphereRings"/> interior latitude rings (excluding the pole and
-    /// the equator, both added separately by the caller) for one hemisphere of <see cref="CreateCapsule"/>.
+    /// <see cref="CreateCapsule"/>が作る半球の内側に、<paramref name="HemisphereRings"/>個の緯度リングを追加する。
+    /// 極点と赤道は呼び出し元が別に追加するため、ここでは含めない。
     /// </summary>
     private static int AddHemisphereRings(List<RufVector>Positions,List<RufVector>Normals,int Segments,int HemisphereRings,float Radius,float YOffset,bool UpperHalf){
         var FirstRingIndex=Positions.Count;
         for(var Lat=1;Lat<=HemisphereRings;Lat++){
             var Fraction=Lat/(float)(HemisphereRings+1); // (0, 1)
             var Theta=UpperHalf
-                ?Fraction*(MathF.PI/2f)                  // (0, pi/2): pole -> equator
-                :(MathF.PI/2f)+(Fraction*(MathF.PI/2f)); // (pi/2, pi): equator -> pole
+                ?Fraction*(MathF.PI/2f)                  // (0, pi/2)：極点から赤道へ。
+                :(MathF.PI/2f)+(Fraction*(MathF.PI/2f)); // (pi/2, pi)：赤道から極点へ。
             var SinTheta=MathF.Sin(Theta);
             var CosTheta=MathF.Cos(Theta);
 
@@ -415,7 +409,11 @@ public static class ProceduralMeshFactory {
         return FirstRingIndex;
     }
 
-    /// <summary>Appends one ring of <paramref name="Segments"/>+1 vertices (a duplicate seam vertex closes the loop, keeping index math uniform with <see cref="AddQuadBand"/>). <paramref name="Radial"/> selects a purely radial normal (cylinder side) vs. a caller-supplied flat <paramref name="CapNormal"/> (cap/disk faces).</summary>
+    /// <summary>
+    /// リングを追加する。頂点数は<paramref name="Segments"/>+1（継ぎ目を閉じる重複頂点を含めるため、<see cref="AddQuadBand"/>とインデックス計算を統一でき
+    /// る）。<paramref name="Radial"/>では、半径方向の法線（シリンダー側面）と、呼び出し元が指定する平面法線<paramref name="CapNormal"/>（端面／円盤面）の
+    /// どちらを使うか選ぶ。
+    /// </summary>
     private static int AddRing(List<RufVector>Positions,List<RufVector>Normals,int Segments,float Radius,float Y,bool Radial,RufVector CapNormal=default){
         var RingStart=Positions.Count;
         for(var I=0;I<=Segments;I++){
@@ -429,7 +427,7 @@ public static class ProceduralMeshFactory {
         return RingStart;
     }
 
-    /// <summary>Quads a band between two same-length (<paramref name="Segments"/>+1 vertex) rings.</summary>
+    /// <summary>同じ長さ（<paramref name="Segments"/>+1頂点）の2つのリング間を四角形でつなぐ。</summary>
     private static void AddQuadBand(List<uint>Indices,int RingAStart,int RingBStart,int Segments){
         for(var I=0;I<Segments;I++){
             var A=RingAStart+I;
@@ -445,10 +443,10 @@ public static class ProceduralMeshFactory {
         }
     }
 
-    /// <summary>Component-wise scale (R*R, U*U, F*F) - not exposed on <see cref="RufVector"/> itself (only scalar multiply is), needed here only for scaling an axis-aligned face direction by a per-axis extent.</summary>
+    /// <summary>成分ごとのスケール（R*R、U*U、F*F）。<see cref="RufVector"/>自体はスカラー倍のみを公開するため、この軸平行な面の方向に各軸の寸法を適用する用途に限って使う。</summary>
     private static RufVector ScaleComponents(RufVector Value,RufVector Scale)=>new(Value.R*Scale.R,Value.U*Scale.U,Value.F*Scale.F);
 
-    /// <summary>Converts RUF-space vertex/normal data to physical XYZ storage at the output boundary (ADR-0026 "境界の原則"): identity under <see cref="UnityCoordinateConvention"/>, so this does not change any value.</summary>
+    /// <summary>出力境界で RUF 空間の頂点/法線データを物理 XYZ の格納形式へ変換する (ADR-0026「境界の原則」)。<see cref="UnityCoordinateConvention"/> では恒等変換となり、値は変化しない。</summary>
     private static Vector3[]ToXyzArray(IReadOnlyList<RufVector>Values){
         Vector3[]Result=new Vector3[Values.Count];
         for(var I=0;I<Values.Count;I++){

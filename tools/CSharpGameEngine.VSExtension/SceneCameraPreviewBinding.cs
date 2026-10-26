@@ -50,7 +50,7 @@ internal readonly struct SceneCameraPreview {
     internal Matrix4x4 View { get; }
     internal Matrix4x4 Projection { get; }
     internal string? ErrorMessage { get; }
-    /// <summary>Perspective previews use logarithmic depth; orthographic previews use linear depth.</summary>
+    /// <summary>Perspective プレビューは logarithmic depth、orthographic プレビューは linear depth を使用します。</summary>
     internal bool RadialDepth => this.ProjectionMode == SceneProjectionMode.Perspective;
     internal float RadialTransitionMeters { get; }
     internal bool IsAvailable => this.ErrorMessage is null;
@@ -96,7 +96,7 @@ internal static class SceneCameraPreviewBinding {
     internal const float DefaultNearZ = 0.1f;
     internal const float DefaultFarZ = 300f;
     internal const float DefaultOrthographicSize = 10f;
-    /// <summary>The scene camera's logarithmic transition length.</summary>
+    /// <summary>シーンカメラの logarithmic transition length。</summary>
     internal const float DefaultRadialTransitionMeters = 1f;
 
     /// <summary>選択順を保ったまま、選択されたCameraだけを最大数まで取り出します。</summary>
@@ -262,8 +262,8 @@ internal static class SceneCameraPreviewBinding {
             return VsixText.Get("SceneCameraOrthographicSizeInvalid",Culture);
         }
 
-        // M0100: the preview host draws a radial thumbnail only when its depth curve exists
-        // (RadialDepthProjection.TryCreate); a camera it cannot draw fails the whole frame, so the card reports it.
+        // M0100：preview host は depth curve が存在する場合にのみ radial thumbnail を描画します
+        // （RadialDepthProjection.TryCreate）。描画できないカメラはフレーム全体を失敗させるため、カードに問題を表示します。
         if (ProjectionMode == SceneProjectionMode.Perspective) {
             float TanHalfFov = FloatMath.Tan(FovY * 0.5f);
             float Corner = FarZ * FloatMath.Sqrt(1f + TanHalfFov * TanHalfFov * (1f + AspectRatio * AspectRatio));
@@ -276,8 +276,7 @@ internal static class SceneCameraPreviewBinding {
     }
 
     /// <summary>
-    /// Shared camera pose contract for the thumbnail renderer and the Camera frustum gizmo:
-    /// position is the Transform translation, local +Z is forward, and local +Y is up.
+    /// thumbnail renderer と Camera frustum gizmo で共有するカメラ pose の契約：position は Transform の平行移動、ローカル +Z は前方、ローカル +Y は上方です。
     /// </summary>
     internal static bool TryGetCameraAxes(
         in Matrix4x4 World,out Vector3 Position,out Vector3 Right,out Vector3 Up,out Vector3 Forward) {

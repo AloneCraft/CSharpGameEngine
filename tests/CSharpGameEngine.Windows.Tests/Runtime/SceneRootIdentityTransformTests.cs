@@ -15,7 +15,7 @@ public sealed class SceneRootIdentityTransformTests {
                     return true;
                 }
                 if(Id==new Entity(1)){
-                    // Logical Scene roots may own environment data without an authored Transform.
+                    // 論理シーンのルートは、作成された Transform がなくても環境データを所有できる。
                     Value=new Transform();
                     return true;
                 }

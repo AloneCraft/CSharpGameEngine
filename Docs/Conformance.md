@@ -4042,7 +4042,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - パスの書き換えのあと、作業フォルダを `%TEMP%\cge#hash\…` にした同じ検証も、同じ値で合格した。
 - 実装: ADR-0079 §7、M0103 の段階 1〜11。
 - 自動化された証拠: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`（.editorconfig の往復を含む）、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`、`CookerHostTests`、`PluginPackageVerificationTests`、`verify-plugin-package`、`verify-template-package --template Vehicle`。
-- 既知の差: Cook のビルド中の実行と VSIX のボタン、データアセットの Designer での編集、プラグインの一覧の表示、NuGet のプラグインの Library の DLL を実行時のプレビューが確実に読むことは未実装。
+- 既知の差(M0103 時点): Cook のビルド中の実行と VSIX のボタンは M0106、データアセットの Inspector 編集・提供元付き一覧は M0123 で追加した(M0123 は部分実装)。残るもの: NuGet のプラグインの Library の DLL を実行時のプレビューが確実に読むことは未実装。
 - 結果: MatchesWithDocumentedExtension。
 
 ## 2026-10-22 探索 — 画面 UI(ADR-0078、M0104)
@@ -4207,7 +4207,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - Epic 段は WARP の試験一式で装置の削除(`DEVICE_REMOVAL_PROCESS_NOT_AT_FAULT`)が断続的に起き、2 回の描画が 2 通りの値になることもあった。High では起きない。原因は未解決。
   - 実走(WARP、既定 Medium): ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m・(6.79, 6.84)、Vehicle 57.150 m・30.5°(すべて変わらない)。D3D12 のエラー 0。High で 8 フレームすべて Lumen、エラー 0。
 - UE の参照画像との再比較(M0110 の項の続き): ThirdPerson は床の中央の明るさが UE と同じ(185.3 対 186.5)。陰の面は UE より明るく(右奥の壁 7.8 対 68.4、斜面の陰 95.0 対 146.4)、Lumen で DDGI より明るくなった。マネキンに床の緑の照り返しが乗り、DDGI の床の三角形の漏れは消えた。Vehicle は車の影と車体の下に床の照り返しの赤み、金属に空の青が映る。塗装のクリアコートの反射は無い。床とトラックは M0112 のまま。2026-10-22 の項の「車の塗装の暗さと金属の反射が無い」は一部解消(金属の反射は出る、塗装の艶は無い)。
-- 実装: M0111(`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`)。決定: UE の Scalability の段(High 以上で Lumen、Medium 以下で DDGI)、既定は実機 High・WARP Medium、箱の 6 面のカード、世界に固定したクリップマップの放射輝度キャッシュ、距離場の当たりをメッシュの距離場で確かめる、描画契約 `stage-v13`。
+- 実装: M0111(`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`)。決定: UE の Scalability の段(High 以上で Lumen、Medium 以下で DDGI)、既定は実機 High・WARP Medium、箱の 6 面のカード、世界に固定したクリップマップの放射輝度キャッシュ、距離場の当たりをメッシュの距離場で確かめる、描画契約 `stage-v14`。
 - 自動化された証拠: `LumenGpuIntegrationTests`(9)、`LumenSurfaceCacheLayoutTests`(7)、`EnvironmentComponentTests`(+2)、`ShaderGraphCompilerTests`、`StandardModeGoldenFrameTests`、`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(SDK 0.1.23)。
 - 既知の差: 陰が UE より明るい、塗装の艶、カードは箱の 6 面だけ、ハードウェアのレイトレーシング・半透明・多重の反射は無い、既定の段は UE の Epic でなく High、Epic の WARP での装置の削除は未解決、実機の GPU は未確認(WARP のみ)。
 - 結果: MatchesWithDocumentedExtension(仕組み)。見た目は Differs(陰の明るさ、Vehicle の床)。
@@ -4268,3 +4268,58 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - M0120提出ポート追記(SDK0.1.35): IStageRenderBackend/IStageShaderArtifactを通常提出・再生・閉包同期へ接続。FrameStateはNative型/光源kindを参照せず、正規バイトは成果物ファイルと完全一致。共通クリア値/余力/Debug能力も接続した。Debug Native41、層7、FeatureRunner249、Release境界/バイト4件成功、最大RAM42%、7画像/Stageバイナリ不変。中間ポートとしてMatches、Server本体/作成口/実パス計画と4パスはPartial。
 
 - M0120 Server本体追記(SDK0.1.36): 実アセンブリでServerがポータブルRenderingに属し、Native参照/Native引数がないことを確認。Native factoryが作成/再生成と固有パッケージ適合を持ち、L5拡張と同じシーンJSONを維持。上記全3596件とRelease境界5件に合格。この移動単位はMatches、実パス計画/Nativeの描画状態と4パス/物理の後続はPartial。
+
+## 2026-10-26 探索 — メッシュ接触の複数の面の向きと縁石、破壊の内部ひずみと多段クラスター(ADR-0078、M0124)
+- 意図: M0113 の範囲外の 2 行。箱・凸多面体・複合形状と三角形メッシュの接触が複数の面の向きを同時に持ち、Vehicle の縁石に衝突を付ける。UE の Chaos の内部ひずみ(衝撃が溜まり、減衰する)と Geometry Collection の段(外側のクラスターが先に分かれる)。
+- 観測(Fact):
+  - 修正前に失敗する試験で根本原因を 4 つ確かめた(一番深い角の面の向きだけ、稜線を見ない、中心の側で決めた面の反転、凸多面体の点の選び方)。修正後は 13 件の接触の試験と縁石の走行 3 件が合格。
+  - Vehicle の実走(WARP)は縁石を越えるので 62.614 m・25.4°(縁石の衝突なしでは M0112 と同じ 62.613 m・27.8°)。他のテンプレートの物理は 1 つの向きの接触で M0109 と同じ値。
+  - 複合形状と凸の相手にも複数の向きを与えると破壊の見本の結果が変わった(爆発が最後の木箱を外した)ので、メッシュの相手だけにした。
+  - 内部ひずみと多段クラスターは試験で確かめた(上の RE-M0124)。見本(WARP)は歩く間に木箱が 4 つとも壊れ(2/6/6/6、結合 204、破片 65、終わりの最低 0.079 m、最速 0.049 m/s)、床の木箱の蓄積を止めると M0113 の流れ(2/5/5/6)に戻る。キャッシュは 637,630 バイト(スキーマ 4)で、焼き 2 回と再生が同じバイト列。キャラクターが押し続ける毎 tick を衝撃として溜めると、歩くだけで見本の 4 つの木箱がすべて壊れた。接触の始まりだけを衝撃にした(続いている接触と同じ扱い)。
+- 実装: M0124(`Docs/Milestones/M0124-Mesh-Contact-Orientations-And-Destruction-Strain.md`)。
+- 既知の差: 複合形状と凸の相手は 1 つの向き。再生から実時間への引き継ぎで接触の記憶が無い。UE の損傷の作り方と「接触の始まり = 衝撃」は同じではない。
+- 結果: MatchesWithDocumentedExtension。
+
+## F-L4-020 — Virtual directional shadows (M0115)
+
+- Intended: CPU-requested cached directional pages, stable clipmaps, bounded residency, visible fallback, synchronized CSM/virtual comparison and correct scaled normals.
+- Implemented: Rendering policy, environment extraction/replay, D3D12 atlas and per-frame page tables, dirty-page culling/rasterization, cross-page PCF with receiver-plane correction, diagnostic counters/timestamps, comparison scene and controls.
+- Evidence: CPU cache tests; WARP Standard/Radial shadow and geometric-normal tests; TopDown before/after and hardware comparison in `.artifacts/virtual-shadows/`.
+- Result: MatchesWithDocumentedExtension. M0115 records passing Debug/Release checks, native device-removal fail-before/pass-after evidence, matched hardware/WARP captures and zero redraw in the paused sample.
+- Explicit limits: Sun only; conservative CPU requests; no GPU feedback or hardware sparse resource mapping. Cascades remain a fallback cost. Comparison uses fixed directional/ambient lighting and excludes sky/GI/AO/auto exposure. Missing is a request counter, not a fallback-pixel counter.
+
+
+## M0125 — Matched directional soft shadows
+
+Intended: ADR-0083 angular diameter and blocker distance control penumbra for both CSM and Virtual, with common sampling and bias. Implemented: shared bounded-radius PCSS and expanded page halo, fixed-lighting synchronized comparison controls, Stage ABI stage-v15. Result: MatchesWithDocumentedExtension. Debug/Release CPU/GPU/Graph tests, device recovery and actual hardware captures confirm widening with angle/separation, matching controls, no missing requests and static reuse (M0125). PCSS is an approximation and the radius cap is an explicit extension; raster-pass timestamps exclude filter shading cost. The same-output scene-selection incremental-build issue was reproduced, fixed and exercised back to the default scene.
+
+## M0123 — Asset workspace (in progress)
+
+- Icon plan: ImageGroup tab/commands/filter entry, kind-specific monikers, thumbnail fallback/marker, independent read-only and diagnostic badges, and shared Inspector/details presentation are implemented in L8. No icon data is persisted in Contracts or asset sources. Theme/DPI and real-shell verification must follow the recorded M0123 evidence; this does not complete the outstanding asset-workspace gates.
+
+- Intended: ADR-0081 and Asset-Workspace require finding, comparing, editing and reference-safe organization from Solution Explorer through Assets/Inspector, plus canonical import and SDK/VSIX distribution.
+- Observed: Bottom-window/filter/controller/Inspector integration and standalone inventory/migration/file transactions exist. Tests cover 10,000-item cancellation, canonical metadata/no-write browsing, ID preservation/new IDs, conflicts, case-only rename, recovery, catalog collisions, semantic C# references and typed JSON editing. Full text review and snapshot validation precede apply.
+- Result: **Partial**. There is no accepted scope reduction. Image/FBX reimport, settings and image-output/FBX-subasset summaries are added in M0126. Complete M0114 runtime/catalog integration, model thumbnails, directory/project-item/bundle refactor and extended image previews remain. The dedicated Japanese/dark VS instance displayed the bottom workspace, details, menus and Output tab grouping. The full UI acceptance matrix remains incomplete.
+- Verification: Exact Debug/Release commands, counts and the solution-wide result are recorded in M0123. Actual first Inspector edit/native Undo/Redo/Save restored the smoke source's exact bytes; explicit layout preserved IDE dimensions. Full linked multi-document/file Undo and the remaining shell matrix are unverified. Existing group height remains shell-owned; the 280 DIP target is unmet. Four simulated interrupted-state regressions failed before the guarded recovery fix and pass afterward.
+
+## main integration and restored workspace (2026-10-26)
+
+- Committed merge: `e8a81ad` retains previous main `d8faa78` and rendering `f9e0fbe` as parents. The clean merged solution passed 3783 tests across 23 projects, failed 0, skipped 2 explicit GPU measurements; exit 0, peak physical RAM 64%. See `.artifacts/Integration/integrated-commit-tests.summary.json`.
+- Existing workspace changes were restored without committing them. Their shader contract is a separate, uncommitted `stage-v16`: fourteen native entries, physical SceneDistance, virtual/soft shadow resources t18/t19 and a 1248-byte FrameCB. StageGpuLayouts and Lumen share that layout. The comparison view resolves half-width aspect through the portable server and retains it across replay/recovery. Planned URP render paths use F-L4-022 to avoid the existing virtual-shadow feature F-L4-020.
+- Restored-workspace verification: Windows.Tests build succeeded with zero warnings/errors; portable rendering/virtual-shadow CPU tests 193 passed; shader generation/ABI/DXC reflection 15 passed; logarithmic depth, virtual shadows, comparison, resize and recovery GPU regressions 27 passed. These are focused checks of the restored workspace, separate from the full clean-merge test result. Logs are `.artifacts/Integration/restored-wip-{build,shader-tests,gpu-tests}.log`. The original 153 paths, hashes and ZIP plus stash are retained; `.artifacts/Integration/restored-wip-preservation.json` records path relocation/adaptation and no missing files.
+
+
+## M0126 — Explicit image outputs and composite FBX
+
+- Intended: Image-And-Model-Interpretation.md / ADR-0088, F-L7-058 and related F-L8-035.
+- Observed: L2 settings and identities, L6 Image/Texture payloads/runtime codecs, L7 PNG/JPEG processing and composite FBX/CAS publication, L8 settings/output drop/reference review and standalone CLI are implemented. Metadata is authoritative; browsing/build never writes source sidecars. Last-attempt failure diagnostics are separate from the retained last-good manifest.
+- Verification: final Import 87, Content 67, CodeAnalysis 339, Bridge 36, Rendering 193, Core/registration 52 and full VSIX 1234 passed. Earlier full solution snapshot's 22 executable projects passed 2691 tests with 2 explicit measurements skipped; that command exited 1 on an incomplete win-x86 restore, subsequently resolved. Six actual CLI smoke operations pass. M0126 preserves separate snapshots and logs; no single clean full-solution pass is claimed.
+- Result: **Partial** for the complete end-to-end plan; the tested standalone interpretation, metadata/identity, payload and frontend-contract subset matches. Complete M0114 orchestration/catalog/runtime cutover, advanced optional processors and actual shell/real rigged FBX acceptance remain. CLI bulk registration does not apply code-reference migration; use the Inspector's semantic review for existing referenced image fields.
+
+## M0127 — Asset editor windows and preview level templates
+
+- Intended: Asset-Editors.md / ADR-0089, F-L8-036 and related F-L8-035.
+- Observed: floating, dockable asset editor documents (Static Mesh, Texture, Sound Wave, Font, Data Asset, and the shader graph through the same placement) with an extension registry, deferred placement and restore handling; Preview Level templates (four protected built-ins, user `.cgepreview` files, per-project last-used selection, safe fallback to Default); preview host protocol 10 with per-frame lighting, background, ambient/sky and floor. The VSIX now packages the seven compute shader artifacts the host needs.
+- Verification: VSIX 1427 (Debug and Release), Contracts 70, Import 87, CodeAnalysis 339, FeatureRunner 268, Bridge.Hosting 42, Cook 35 passed. Windows.Tests Debug 918 passed (one earlier run hit an intermittent WARP device-removed failure that passes alone); Release 914 passed with 2 golden/cloud failures that also fail with this work's clear-colour change disabled (cause not isolated). Live: floating open, default size, restore geometry and the four templates in the CgeAssets hive; see M0127.
+- Skeletal: the host loads skinned glTF with the same `StageGltfAssets` conversion and `Skeleton`/`AnimationClip` evaluation as the game (ADR-0090); the editor shows a skeleton tree, bones and a clip timeline, and plays an animation-only glTF on a chosen skinned mesh. WARP renders show different pixels for different clip times and for bones; live, the mannequin tree, bones and the idle clip playback were observed.
+- Result: **Partial**. Static-mesh glTF textures are not drawn; live orbit, scrubbing and joint-selection by mouse, the Texture/Sound/Font/Data editors, docking behaviour, the Tabs setting, English UI, high contrast and DPI are unverified, and no full-window screenshot of the final build was obtained. No accepted scope reduction.

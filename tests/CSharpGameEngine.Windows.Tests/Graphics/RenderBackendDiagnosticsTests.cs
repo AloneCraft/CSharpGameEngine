@@ -43,7 +43,7 @@ public sealed unsafe class RenderBackendDiagnosticsTests {
         var StorageFilterPushed=false;
         var RetrievalFilterPushed=false;
         try {
-            // The test must admit all five injected severities instead of inheriting device filters.
+            // デバイスフィルターを引き継がず、注入した5種類すべての重大度を許可する必要がある。
             var Storage=Queue->PushEmptyStorageFilter();
             Assert.False(Storage.FAILED);
             StorageFilterPushed=true;

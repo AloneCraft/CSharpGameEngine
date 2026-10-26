@@ -264,10 +264,7 @@ internal sealed class SceneViewState {
         (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,-DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity, this.InvertOrbitX, this.InvertOrbitY);
 
     /// <summary>
-    /// M0095: orbits around <paramref name="Pivot"/> (the selection's center) and keeps it where it is on
-    /// screen. The camera turns as <see cref="ApplyOrbit(float,float)"/> does, and the eye then moves so the
-    /// pivot has the same camera-space coordinates as before, which is a rigid turn about the pivot: its
-    /// screen point and distance stay, so a sphere there draws exactly the same while orbiting.
+    /// M0095：<paramref name="Pivot"/>（選択対象の中心）を軸に回転し、画面上の位置を維持する。カメラは <see cref="ApplyOrbit(float,float)"/> と同様に回転し、その後、pivot が以前と同じカメラ空間座標になるよう視点位置を移動する。pivot を中心に剛体回転するため、画面上の位置と距離が変わらず、そこにある球は軌道回転中もまったく同じように描画される。
     /// </summary>
     internal void ApplyOrbit(float DeltaX,float DeltaY,Vector3 Pivot){
         var Offset=Pivot-this.GetEyePosition();

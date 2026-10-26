@@ -1,9 +1,8 @@
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// The span of a node's object in a scene JSON text (ADR-0070). The designer model's
-/// locations point into its generated C# view, so the Scene Designer asks here where a node is in the
-/// JSON the user sees. Only the document structure is read; no compilation is needed.
+/// Scene JSON テキスト内にあるノードオブジェクトの範囲（ADR-0070）。Designer モデルの位置は生成された C# ビューを指すため、Scene Designer はユーザーが見てい
+/// る JSON 上のノード位置をここから取得する。ドキュメント構造だけを読み取り、コンパイルは不要。
 /// </summary>
 internal static class SceneJsonNodeLocator {
     internal static bool TryFind(string JsonText,NodePath Path,out TextSpan Span){

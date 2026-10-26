@@ -2,10 +2,8 @@ using System.Numerics;
 using CSharpGameEngine.Rendering.Pipeline;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// Public physical-light submission API. It translates authored natural units into the existing
-/// renderer's photometric shader inputs while the renderer's clustered GPU storage is evolved.
-/// Directions are always Transform local +Z: the direction light travels, never a legacy
-/// surface-to-light vector.
+/// 物理ライティング用の公開送信API。レンダラーのクラスタ化GPUストレージを進化させる間、アセット作成時の自然単位を既存のレンダラー用測光シェーダー入力へ変換する。
+/// 方向は常にTransformのローカル+Z、つまり光が進む方向を示す。従来の面から光源へ向かうベクトルではない。
 /// </summary>
 public static class StagePhysicalLightApi {
     private const float MinimumDirectionLengthSquared=1e-12f;
@@ -15,16 +13,16 @@ public static class StagePhysicalLightApi {
         bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
         ArgumentNullException.ThrowIfNull(Renderer);
         ValidateShadowSettings(ShadowPriority,ShadowBiasMeters);
-        // The legacy renderer takes the inverse (surface-to-light) convention. Its shadow pass
-        // currently remains directional-only; the explicit settings are validated here and are
-        // consumed by the atlas path as it replaces that pass.
+        // 従来のレンダラーでは、逆向きの（面から光源へ向かう）規約を使う。シャドウパスは
+        // 現状ディレクショナルライトのみを扱う。明示的な設定値はここで検証し、
+        // 既存パスを置き換えるアトラス経路で使用する。
         Renderer.SetDirectionalLight(
             -NormalizeForward(LightForward),LinearRgb,IlluminanceLux,CastsShadows,ShadowBiasMeters,ShadowPriority);
     }
 
     /// <summary>
-    /// Adds one physical directional light to the current frame. At most four are retained by the
-    /// renderer; its single legacy shadow map follows the highest-priority shadow caster.
+    /// 今フレームに物理ディレクショナルライトを1つ追加する。レンダラーが保持するのは最大4つ。
+    /// 唯一の従来式シャドウマップには、優先度が最も高いシャドウキャスターを使う。
     /// </summary>
     public static void AddDirectionalLight(
         this StageRenderer Renderer,Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
@@ -64,9 +62,8 @@ public static class StagePhysicalLightApi {
     }
 
     /// <summary>
-    /// Submits a one-sided rectangle as four deterministic, hemisphere-limited samples. The four
-    /// uniform samples preserve total Lambertian flux (π × nits × area) and follow the Entity's
-    /// actual Transform; this is the compatibility path until the rectangle LTC path is selected.
+    /// 片面の矩形ライトを、半球に制限した決定的な4サンプルとして送信する。4つの一様サンプルは総Lambert光束
+    ///（π × nits × 面積）を維持し、Entityの実際のTransformに従う。矩形用LTC経路を選ぶまでの互換経路。
     /// </summary>
     public static void AddAreaLight(
         this StageRenderer Renderer,Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,

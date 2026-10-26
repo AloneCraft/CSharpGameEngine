@@ -7,7 +7,7 @@ using CSharpGameEngine.Lighting;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.VSExtension;
-/// <summary>Source-backed conversion; owns no runtime identity or mutable authoring model.</summary>
+/// <summary>ソースを基にした変換。runtime identity も変更可能な authoring model も所有しません。</summary>
 internal static class LightConversionPlanner {
     internal static string ContractFingerprint(SceneComponent Source,INamedTypeSymbol Target)=>
         SceneComponentInitializerPolicy.CreatePlan(Source.TypeSymbol!,Source.TypeFullyQualifiedName,null).Expression+"|"+
@@ -38,7 +38,7 @@ internal static class LightConversionPlanner {
         }
         var Strength=Target.Name=="DirectionalLight"?"Illuminance":Target.Name=="RectAreaLight"?"Luminance":"Flux";
         if(Source.TypeSymbol?.Name=="DirectionalLight"||Target.Name=="DirectionalLight"){
-            Result[Strength]=string.Empty; // dimension-changing conversion requires explicit input
+            Result[Strength]=string.Empty; // 寸法を変更する変換には、明示的な入力が必要です。
         }else{
             try{
                 LuminousFlux Flux;

@@ -6,11 +6,11 @@ using CSharpGameEngine.Graphics.D3D12;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-// Components retain portable authoring values, identities, and derived diagnostics only.
-// EngineHost is the generated-loop context and exclusively owns process and native resources.
+// コンポーネントには移植可能なアセット作成値、識別情報、導出された診断情報のみを保持する。
+// EngineHostは生成ループのコンテキストであり、プロセスおよびネイティブリソースを排他的に所有する。
 
 /// <summary>
-/// Authoring configuration for the process window. EngineHost owns the runtime window.
+/// プロセスのウィンドウに関するアセット作成設定。ランタイムウィンドウはEngineHostが所有する。
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/AppHost.svg")]
 public struct AppHost {
@@ -64,27 +64,26 @@ public struct AmbientLight {
 }
 
 /// <summary>
-/// M0099 (ADR-0076): an inset that shows the world compressed around the active radial camera, seen from outside
-/// through this node's Transform (Omni's RadialObserverRig). Drawn in the game only, while the active camera is
-/// radial; in the editor the camera previews belong to the editor.
+/// M0099（ADR-0076）：アクティブな放射状カメラの周囲のワールドを圧縮し、このノードのTransformを通して外側から見るインセット
+///（OmniのRadialObserverRig）。ゲーム内で、アクティブカメラが放射状の場合だけ描画する。エディターのカメラプレビューはエディター側が所有する。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Camera,1)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Camera.svg")]
 public struct RadialObserver {
     public bool Enabled;
-    /// <summary>Left edge of the inset as a fraction of the surface width.</summary>
+    /// <summary>サーフェス幅に対する割合で表すインセットの左端。</summary>
     public float ViewportX;
-    /// <summary>Top edge of the inset as a fraction of the surface height.</summary>
+    /// <summary>サーフェス高さに対する割合で表すインセットの上端。</summary>
     public float ViewportY;
     public float ViewportWidth;
     public float ViewportHeight;
     [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]
     public float FovYRadians;
     public float NearZ;
-    /// <summary>Draws the active camera's frustum at the centre of the compressed world.</summary>
+    /// <summary>圧縮されたワールドの中央に、アクティブカメラの視錐台を描画する。</summary>
     public bool ShowCenterCamera;
 
-    /// <summary>A bottom-right inset with the active camera marked.</summary>
+    /// <summary>アクティブカメラを表示する、右下のインセット。</summary>
     public RadialObserver(){
         this.Enabled=true;
         this.ViewportX=0.68f;
@@ -171,9 +170,9 @@ public struct Renderable:IRuntimeComponent {
     public bool HasLastCameraRelativeWorld;
     public FixedTransformStatus LastTransformStatus;
     public FixedTransformResolveStatus LastWorldResolveStatus;
-    /// <summary>The object has been given a <see cref="MeshVisibility"/> (M0107), so it is put back to the default if the component goes away.</summary>
+    /// <summary>オブジェクトに<see cref="MeshVisibility"/>が設定されたことを記録する（M0107）。このコンポーネントがなくなった場合は既定値へ戻す。</summary>
     public bool VisibilityApplied;
-    /// <summary>The object has been given a <see cref="MeshEmissive"/> (M0109), so its emission is put back to 1 if the component goes away.</summary>
+    /// <summary>オブジェクトに<see cref="MeshEmissive"/>が設定されたことを記録する（M0109）。このコンポーネントがなくなった場合は発光を1へ戻す。</summary>
     public bool EmissiveApplied;
 }
 
@@ -182,13 +181,13 @@ public struct LightShadowRuntime:IRuntimeComponent<LightShadow> {
 }
 
 /// <summary>
-/// Runtime-only emissive mesh binding. The source material remains the visual emission authority;
-/// this state rebuilds camera-relative direct-light patches whenever its Transform changes.
+/// ランタイム専用の発光メッシュバインディング。見た目を決める発光は引き続きソースマテリアルが担う。
+/// この状態はTransformが変わるたびに、カメラ相対の直接光パッチを再構築する。
 /// </summary>
 public struct EmissiveMeshLighting:IRuntimeComponent {
     public StageMeshCreateInfo Mesh;
     public Vector3 EmissiveNits;
-    /// <summary>Mean linear emissive-texture luminance; zero is a fully black supported texture.</summary>
+    /// <summary>発光テクスチャの線形輝度の平均。対応テクスチャが完全な黒なら0。</summary>
     public float EmissiveTextureLuminanceScale;
     public Matrix4x4 MeshLocalTransform;
     /// <summary>Hierarchy を持つ作者 Entity。発光パッチもこの fixed world を追従する。</summary>
@@ -204,19 +203,19 @@ public struct EmissiveMeshLighting:IRuntimeComponent {
     public FixedTransformResolveStatus LastWorldResolveStatus;
 }
 
-/// <summary>Runtime marker paired with AppHost; it never owns the window or input server.</summary>
+/// <summary>AppHostに対応するランタイムマーカー。ウィンドウや入力サーバーは所有しない。</summary>
 public struct AppHostRuntime:IRuntimeComponent<AppHost> {
 }
 
-/// <summary>Observable level diagnostics. EngineHost owns the renderer and camera state.</summary>
+/// <summary>観測可能なレベル診断情報。レンダラーとカメラの状態はEngineHostが所有する。</summary>
 public struct LevelRuntime:IRuntimeComponent<Level> {
-    /// <summary>Last resolved active Camera hierarchy status.</summary>
+    /// <summary>最後に解決したアクティブカメラ階層の状態。</summary>
     public FixedTransformResolveStatus LastCameraWorldResolveStatus;
-    /// <summary>Last active Camera fixed-to-float basis status.</summary>
+    /// <summary>最後に解決したアクティブカメラの固定小数点からfloatへの基底変換状態。</summary>
     public FixedTransformStatus LastCameraTransformStatus;
-    /// <summary>Whether a valid Camera origin and view have been established.</summary>
+    /// <summary>有効なカメラ原点とビューを確立できているかどうか。</summary>
     public bool HasLastCameraWorldPose;
-    /// <summary>The active Camera's member the renderer cannot use (the view keeps the last usable projection), or null.</summary>
+    /// <summary>レンダラーが使用できないアクティブカメラのメンバー。ビューは最後に使用できた投影を維持する。該当なしならnull。</summary>
     public string?InvalidCameraProperty;
     public string?ShaderSemanticHash;
     public bool ShaderArtifactLoaded;

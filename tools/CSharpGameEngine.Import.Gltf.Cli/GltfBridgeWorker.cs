@@ -4,10 +4,7 @@ using CSharpGameEngine.Import.Gltf;
 namespace CSharpGameEngine.Import.Gltf.Cli;
 
 /// <summary>
-/// The actual import work, extracted from <c>Program.cs</c> (ADR-0023) so both one-shot mode and
-/// the resident server (<c>CSharpGameEngine.Bridge.Hosting.BridgeServerHost</c>) share identical
-/// logic. Returns diagnostics as a value instead of calling <see cref="Console"/> directly - those
-/// are process-wide statics that would race across the resident server's concurrent requests.
+/// <c>Program.cs</c> から切り出した実際のインポート処理 (ADR-0023)。1 回限りのモードと常駐サーバー（<c>CSharpGameEngine.Bridge.Hosting.BridgeServerHost</c>）の両方が同じロジックを共有する。<see cref="Console"/> を直接呼び出す代わりに、診断を値として返す。Console はプロセス全体の静的データであり、常駐サーバーの並行要求間で競合するためである。
 /// </summary>
 internal static class GltfBridgeWorker {
     public static(int ExitCode,string Output)Run(string InputPath,string OutputPath){

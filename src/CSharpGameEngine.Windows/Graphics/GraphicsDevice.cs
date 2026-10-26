@@ -12,10 +12,7 @@ using static TerraFX.Interop.Windows.Windows;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
-/// <summary>
-/// Owns the DXGI factory/adapter, the D3D12 device, the direct command queue, and (when available)
-/// the debug-layer info queue used to collect validation messages.
-/// </summary>
+/// <summary>DXGI ファクトリーとアダプター、D3D12 デバイス、直接コマンドキュー、および利用可能な場合は検証メッセージの収集に使うデバッグレイヤー情報キューを所有する。</summary>
 public sealed unsafe class GraphicsDevice:IDisposable {
     public const D3D_FEATURE_LEVEL RequiredFeatureLevel=D3D_FEATURE_LEVEL_11_0;
 
@@ -51,7 +48,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     public ID3D12CommandQueue*CommandQueue=> this.CommandQueueHandle;
 
-    /// <summary>For executable fault-injection tests only; invokes the real D3D12 removal path.</summary>
+    /// <summary>実行形式の障害注入テスト専用。実際の D3D12 デバイス削除経路を呼び出す。</summary>
     internal void RemoveDeviceForTesting(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         if(!OperatingSystem.IsWindowsVersionAtLeast(10,0,19043)){
@@ -122,7 +119,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
         }
     }
 
-    /// <summary>Pulls any newly-recorded debug-layer messages into <see cref="CollectedMessages"/>. Cheap no-op when the info queue is unavailable or empty.</summary>
+    /// <summary>新たに記録されたデバッグレイヤーメッセージを <see cref="CollectedMessages"/> に取り込む。情報キューがない、または空の場合は低コストの何もしない処理。</summary>
     public void PollDebugMessages(){
         if(this.InfoQueue==null){
             return;
@@ -226,7 +223,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
             _=Adapter->Release();
         }
 
-        // A game reads the adapter from the environment only; --warp is the viewer's and the triangle sample's option.
+        // ゲームは環境変数からのみアダプターを読み取る。--warp はビューアーと三角形サンプルのオプション。
         throw new InvalidOperationException(
             $"No hardware adapter supporting Direct3D 12 (feature level {RequiredFeatureLevel}) was found. " +
             $"Set {GraphicsDeviceOptionsResolver.AdapterEnvironmentVariable}=warp (or pass --warp to the viewer) to use the WARP software adapter instead.");

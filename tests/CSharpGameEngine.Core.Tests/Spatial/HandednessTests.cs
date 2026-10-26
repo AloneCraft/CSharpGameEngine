@@ -8,10 +8,7 @@ using CSharpGameEngine.Spatial.Unreal;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Handedness Tests" and
-/// Docs/Specifications/Spatial-RUF.md "Handedness の定義": for a LeftHanded convention,
-/// <c>Cross(Right, Up) == Forward</c>; for a RightHanded convention, <c>Cross(Right, Up) ==
-/// Backward</c>. <c>RightFromUpForward</c> must return <c>Right</c> for both Handedness values.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Handedness Tests」と Docs/Specifications/Spatial-RUF.md の「Handedness の定義」：左手系の規約では <c>Cross(Right, Up) == Forward</c>、右手系の規約では <c>Cross(Right, Up) == Backward</c>。<c>RightFromUpForward</c> は、どちらの左右系でも <c>Right</c> を返さなければならない。
 /// </summary>
 public class HandednessTests {
     [Fact]

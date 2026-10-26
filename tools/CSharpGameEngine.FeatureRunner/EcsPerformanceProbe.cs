@@ -237,8 +237,8 @@ public static class EcsPerformanceProbe {
         string Root=Path.GetFullPath(RepositoryRoot);
         string RawDirectory=Path.Combine(Root,".artifacts","EcsPerformance");
         Directory.CreateDirectory(RawDirectory);
-        // The captures build without restoring, and nothing else restores the benchmark project in a fresh
-        // checkout (it belongs to no test project's graph), so restore it once before the first capture.
+        // キャプチャーは復元を行わずにビルドする。新規チェックアウトでベンチマークプロジェクトを復元するものはほかに
+        // ない（どのテストプロジェクトの依存グラフにも属さない）ため、最初のキャプチャー前に一度復元する。
         ProcessResult Restore=await RunDotnetAsync(
             Root,["restore",BenchmarkProject],false,CancellationToken).ConfigureAwait(false);
         if(Restore.ExitCode!=0){
@@ -340,9 +340,9 @@ public static class EcsPerformanceProbe {
             static Capture=>Capture.Report.ComponentTypeCount)){
             string RawHash=Convert.ToHexString(
                 SHA256.HashData(Capture.Bytes)).ToLowerInvariant();
-            // The one-type comparison is a median alarm. The nearest-rank p95 of thirty samples is a single
-            // sample, and two processes' p95 differed by more than 20 percent in quiet runs whose medians agreed
-            // within 7 percent; the absolute budget still gates every p95.
+            // 1 型だけの比較は中央値の警報に使う。30 サンプルの最近順位法 p95 は 1 つの
+            // サンプルであり、中央値が一致した静かな実行同士でも、2 プロセス間の p95 には 20 % を超える差があった。
+            // 中央値の差は 7 % 以内だった。p95 ごとに絶対予算の判定も引き続き行う。
             PerformanceBaseline?Baseline=
                 Configuration=="Release"
                 &&Capture.Report.ComponentTypeCount==64

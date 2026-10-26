@@ -11,7 +11,7 @@ using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>One scene to bake. <see cref="ProjectFile"/> is the scene's game, whose build the Bake runs (M0096 G).</summary>
+/// <summary>ベイク対象のシーン1つ。<see cref="ProjectFile"/> は Bake がビルドする、そのシーンのゲームです（M0096 G）。</summary>
 internal readonly record struct PhysicsSceneBakeRequest(
     string SceneName,string OutputPath,string DependencyHash,int TickCount,string ProjectFile);
 internal readonly record struct PhysicsSceneBakeBatchResult(
@@ -19,8 +19,7 @@ internal readonly record struct PhysicsSceneBakeBatchResult(
     AuthoringOperationSnapshot Operation);
 
 /// <summary>
-/// Bakes scenes through the exact Physics host. M0096 G: the host is built from the engine alone and the scene's own
-/// game is built separately; the host loads that build (<c>bake --assembly</c>) and runs the game's generated Bake host.
+/// 正確な Physics host 経由でシーンをベイクします。M0096 G：host はエンジンだけからビルドし、シーン自身のゲームは別にビルドします。host はそのビルド（<c>bake --assembly</c>）をロードし、ゲームが生成した Bake host を実行します。
 /// </summary>
 internal static class PhysicsSceneBakeService {
     internal const int DefaultTickCount=600;
@@ -165,8 +164,7 @@ internal static class PhysicsSceneBakeService {
     };
 
     /// <summary>
-    /// The identity of the exact Physics host: the engine sources and the host's own tools. No game is part of it,
-    /// because the host loads the game build it is given (M0096 G).
+    /// Physics host を特定する識別情報。エンジンソースと host 自身のツールで構成されます。ゲームは含みません。host は指定されたゲームビルドをロードするためです（M0096 G）。
     /// </summary>
     internal static string ComputeHostHash(string RepoRoot)=>HashTree(RepoRoot,static Relative=>
         (IsUnder(Relative,"src")||IsUnder(Relative,Path.Combine("tools","CSharpGameEngine.Physics.Cli"))
@@ -174,8 +172,7 @@ internal static class PhysicsSceneBakeService {
         &&IsSourceFile(Relative));
 
     /// <summary>
-    /// The identity of a scene's game build, which the Bake writes into the cache: the engine sources, the game build
-    /// rules, and the scene's own project with all of its assets except the Bake outputs.
+    /// Bake がキャッシュに書き込む、シーンのゲームビルドを特定する識別情報。エンジンソース、ゲームのビルドルール、Bake 出力を除くシーン固有のプロジェクトと全アセットで構成されます。
     /// </summary>
     internal static string ComputeDependencyHash(string RepoRoot,string ProjectRoot){
         string CanonicalRoot=Path.GetFullPath(RepoRoot).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
@@ -261,8 +258,7 @@ internal static class PhysicsSceneBakeService {
     }
 
     /// <summary>
-    /// Builds the scene's game project once per dependency hash into the repository's artifacts and returns the game
-    /// assembly. The marker holds the hash and the built assembly, so a finished build is reused.
+    /// 依存関係のハッシュごとに1回だけシーンのゲームプロジェクトをリポジトリの artifacts にビルドし、ゲームアセンブリを返します。marker はハッシュとビルド済みアセンブリを保持するため、完了済みのビルドは再利用されます。
     /// </summary>
     internal static string PrepareGameBuild(
         string RepoRoot,string ProjectFile,string DependencyHash,CancellationToken CancellationToken){
@@ -282,8 +278,8 @@ internal static class PhysicsSceneBakeService {
             Directory.CreateDirectory(BuildArtifacts);
             StringBuilder Output=new();
             string Properties=$"-p:Configuration=Debug -p:ArtifactsPath=\"{BuildArtifacts}\"";
-            // The engine's game build also builds tools (the shader compiler) through MSBuild tasks, which a project
-            // restore does not reach; in the engine repository the solution restore covers them, as for the host.
+            // エンジンのゲームビルドでは、MSBuild task 経由で shader compiler などのツールもビルドされます。プロジェクトの
+            // restore だけではそれらに到達しません。エンジンリポジトリでは host と同じく、ソリューションの restore が対象に含めます。
             string Solution=Path.Combine(RepoRoot,"CSharpGameEngine.slnx");
             string RestoreTarget=File.Exists(Solution)?Solution:ProjectFile;
             int ExitCode=RunDotnet(
@@ -377,7 +373,7 @@ internal static class PhysicsSceneBakeService {
         return Include(Normalized);
     }
 
-    /// <summary>Whether a repository-relative path lies in a directory; the empty directory is the whole repository.</summary>
+    /// <summary>リポジトリ相対パスがディレクトリ内にあるかどうか。空のディレクトリはリポジトリ全体を表します。</summary>
     private static bool IsUnder(string Relative,string Directory)=>
         Directory.Length==0||Relative.StartsWith(Directory+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase);
 
@@ -397,7 +393,7 @@ internal static class PhysicsSceneBakeService {
     internal static string FindProjectRoot(string RepoRoot,string SceneFilePath)=>
         Path.GetDirectoryName(FindProjectFile(RepoRoot,SceneFilePath))!;
 
-    /// <summary>The project file of the nearest directory above the scene that has one; it must be the only one there.</summary>
+    /// <summary>シーンより上位で最も近い、プロジェクトファイルを持つディレクトリのプロジェクトファイル。その場所には1つだけ存在する必要があります。</summary>
     internal static string FindProjectFile(string RepoRoot,string SceneFilePath){
         string FullPath=Path.GetFullPath(SceneFilePath);
         DirectoryInfo?Directory=new(Path.GetDirectoryName(FullPath)??RepoRoot);

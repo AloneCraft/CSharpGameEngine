@@ -8,11 +8,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.TemplateWizard;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// Creates a C# Game Engine game from a project template (ADR-0068: ThirdPerson, FirstPerson, TopDown, Vehicle). The VSIX carries the
-/// template sources (ProjectTemplateSources/&lt;name&gt;) and the engine SDK package (Packages/);
-/// the wizard places the package in the local feed, writes the sources with the new project's
-/// namespace and a nuget.config, and lets the template write the PackageMode project file. After
-/// creation it opens the startup level.
+/// プロジェクトテンプレートから C# Game Engine のゲームを作成します（ADR-0068：ThirdPerson、FirstPerson、TopDown、Vehicle）。VSIX にはテンプレートソース（ProjectTemplateSources/&lt;name&gt;）とエンジン SDK パッケージ（Packages/）が含まれます。wizard はパッケージをローカル feed に配置し、新しいプロジェクトの namespace と nuget.config を反映したソースを書き込み、テンプレートに PackageMode のプロジェクトファイルを作成させます。作成後、起動レベルを開きます。
 /// </summary>
 public sealed class GameProjectTemplateWizard:IWizard {
     internal const string TemplateSourceFolder="ProjectTemplateSources";
@@ -29,9 +25,7 @@ public sealed class GameProjectTemplateWizard:IWizard {
         this.StartupScene=Path.Combine(ProjectDirectory,GameProjectGenerator.StartupSceneOf(TemplateName));
     }
     /// <summary>
-    /// Publishes the bundled package to the local feed (under <paramref name="FeedRoot"/>, by default
-    /// %LOCALAPPDATA%\CSharpGameEngine\packages), writes the template sources and nuget.config into
-    /// <paramref name="ProjectDirectory"/>, and returns the engine version for the project file.
+    /// 同梱パッケージをローカル feed（<paramref name="FeedRoot"/>、既定では %LOCALAPPDATA%\CSharpGameEngine\packages）の下に publish し、テンプレートソースと nuget.config を <paramref name="ProjectDirectory"/> に書き込み、プロジェクトファイル用のエンジンバージョンを返します。
     /// </summary>
     internal static string CreateProject(string ExtensionDirectory,string TemplateName,string ProjectDirectory,string RootNamespace,string?FeedRoot){
         var (EngineVersion,FeedDirectory)=PrepareFeed(ExtensionDirectory,FeedRoot);
@@ -39,7 +33,7 @@ public sealed class GameProjectTemplateWizard:IWizard {
         File.WriteAllText(Path.Combine(ProjectDirectory,"nuget.config"),GameProjectGenerator.NuGetConfig(FeedDirectory));
         return EngineVersion;
     }
-    /// <summary>Copies the bundled engine package into the per-version local feed and returns its version and feed.</summary>
+    /// <summary>同梱されたエンジンパッケージをバージョン別のローカル feed にコピーし、そのバージョンと feed を返します。</summary>
     internal static (string Version,string Feed)PrepareFeed(string ExtensionDirectory,string?FeedRoot){
         var Packages=Directory.GetFiles(Path.Combine(ExtensionDirectory,PackagesFolder),GameProjectGenerator.SdkPackageId+".*.nupkg");
         if(Packages.Length!=1){

@@ -52,7 +52,7 @@ internal static class GameSystemTypesEmitter {
         List<(string TypeFullyQualifiedName,string FieldName)>Components=BuildComponentFields(Archetype,Registry);
         var Parameters=string.Join(", ",Components.Select(C=> $"{C.TypeFullyQualifiedName} {C.FieldName}"));
         var Arguments=string.Join(", ",Components.Select(C=>C.FieldName));
-        // One ChunkList per mask word (ComponentEnabledLow, ComponentEnabledHigh, ComponentEnabledWord2, ...).
+        // mask word ごとに ChunkList を1つ使用します（ComponentEnabledLow、ComponentEnabledHigh、ComponentEnabledWord2、...）。
         string[]Words=[.. Enumerable.Range(0,Registry.MaskWordCount).Select(ComponentMask.WordName)];
 
         List<string>Lines=[

@@ -92,7 +92,7 @@ public sealed class GameSystemScheduleTests {
         Assert.DoesNotContain(Result.Results[0].GeneratedSources,static Source=>Source.HintName=="GameSystem.Schedule.g.cs");
     }
 
-    /// <summary>ADR-0073: [RunsAfter] orders execution for every system and does not opt into the schedule.</summary>
+    /// <summary>ADR-0073：[RunsAfter]はすべてのシステムの実行順を指定する。スケジュールへの参加指定はしない。</summary>
     [Fact]
     public void RunsAfterAloneDoesNotOptIntoTheSchedule(){
         var Result=Run(
@@ -114,7 +114,7 @@ public sealed class GameSystemScheduleTests {
         Assert.DoesNotContain("new(",Schedule);
     }
 
-    /// <summary>A scheduled system may run after an unscheduled one; only a target that is no system is an error.</summary>
+    /// <summary>スケジュール対象のシステムを、対象外のシステムより後に実行することはできる。システム以外を対象にした場合だけエラー。</summary>
     [Fact]
     public void ScheduledSystemMayRunAfterAnUnscheduledSystem(){
         var Result=Run(
@@ -135,8 +135,8 @@ public sealed class GameSystemScheduleTests {
     }
 
     /// <summary>
-    /// ADR-0073: the conflict check follows the execution order graph, so an unscheduled system between two
-    /// scheduled ones orders them, and the later one waits for the earlier one.
+    /// ADR-0073：競合検査では実行順グラフをたどる。そのため、スケジュール対象2つの間に対象外のシステムがあれば、
+    /// そのシステムが両者の順序を決め、後のシステムは前のシステムの完了を待つ。
     /// </summary>
     [Fact]
     public void UnscheduledSystemInBetweenOrdersAScheduledConflict(){

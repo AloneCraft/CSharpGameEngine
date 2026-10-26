@@ -24,14 +24,10 @@ internal enum SceneJsonEditorView {
 }
 
 /// <summary>
-/// The Scene Editor's document pane (ADR-0071): the Scene Designer and the JSON text of one
-/// scene JSON, switched by tabs at the bottom like the XAML editor. Both views show the one
-/// JSON text buffer: the designer writes its gestures into it (SceneTextBufferWriter), and the JSON
-/// view is a Visual Studio code window over it, so Save, the dirty mark and Undo are Visual Studio's.
+/// Scene Editor の document pane（ADR-0071）。1つのシーン JSON について、XAML editor のように下部の tab で Scene Designer と JSON テキストを切り替えます。両方の view が同じ JSON テキストバッファーを表示します。designer は操作をそこに書き込み（SceneTextBufferWriter）、JSON view はその上に Visual Studio の code window を表示します。そのため Save、dirty 状態、Undo は Visual Studio が管理します。
 ///
 /// <para>
-/// The pane registers no standard commands of its own (M0045). While the JSON view is shown, command
-/// routing reaches the code window's text view; the designer handles its keys itself.
+/// pane 自身は標準コマンドを登録しません（M0045）。JSON view の表示中はコマンドルーティングが code window の text view に届き、designer は自身のキー操作を処理します。
 /// </para>
 /// </summary>
 internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindowFrameNotify3,IVsMultiViewDocumentView {
@@ -52,7 +48,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     private IOleCommandTarget?TextViewCommands;
     private IWpfTextViewHost?TextViewHost;
     private JoinableTask?LoadingTask;
-    /// <summary>Cancels a Design view still waiting for its project to load when the tab closes.</summary>
+    /// <summary>tab を閉じた際、プロジェクトのロード待ち状態にある Design view をキャンセルします。</summary>
     private readonly System.Threading.CancellationTokenSource Closing=new();
     private bool Closed;
     private bool Switching;
@@ -64,8 +60,8 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
         this.Current=InitialView;
         this.DesignTab=CreateTab(VsixText.Get("SceneEditorDesignTab"));
         this.JsonTab=CreateTab(VsixText.Get("SceneEditorJsonTab"));
-        // Checked, not Click: a click and UI Automation's Toggle both select a tab. The selected tab
-        // cannot be unchecked; the other tab is the way to switch.
+        // Click ではなく Checked を使います。クリックも UI Automation の Toggle も tab を選択するためです。
+        // 選択中の tab は選択解除できません。切り替えるにはもう一方の tab を使います。
         this.DesignTab.Checked+=(_,_)=>this.Show(SceneJsonEditorView.Design);
         this.JsonTab.Checked+=(_,_)=>this.Show(SceneJsonEditorView.Json);
         this.DesignTab.Unchecked+=(_,_)=>this.KeepSelectedTabChecked();
@@ -92,8 +88,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     internal SceneJsonEditorView CurrentView=>this.Current;
 
     /// <summary>
-    /// The tab a logical view selects: Primary and Designer show the Design view, TextView and Code
-    /// the JSON view (View Code / F7). Null for a view this editor does not have.
+    /// logical view が選択する tab。Primary と Designer は Design view、TextView と Code（View Code / F7）は JSON view を表示します。この editor が持たない view の場合は null です。
     /// </summary>
     internal static SceneJsonEditorView?ViewFor(Guid LogicalView)=>
         LogicalView==VSConstants.LOGVIEWID_Primary||LogicalView==VSConstants.LOGVIEWID_Designer?SceneJsonEditorView.Design
@@ -119,7 +114,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
         return VSConstants.S_OK;
     }
 
-    /// <summary>Lets panes opened before the scene subsystem started attach once it has.</summary>
+    /// <summary>シーン機能の開始前に開かれた pane を、機能の開始後に一度だけ接続できるようにします。</summary>
     internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>Provider){
         ThreadHelper.ThrowIfNotOnUIThread();
         SessionProvider=Provider??throw new ArgumentNullException(nameof(Provider));
@@ -129,8 +124,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     internal static void ClearSessionProvider()=>SessionProvider=null;
 
     /// <summary>
-    /// Solution close: the shell is already closing the frames, and re-entering CloseFrame from that
-    /// callback deadlocks. Release only the engine-owned designers and preview hosts.
+    /// ソリューション終了時はシェルがすでに frame を閉じています。この callback から CloseFrame を再入すると deadlock します。エンジンが所有する designer と preview host だけを解放します。
     /// </summary>
     internal static void ReleaseRuntimeResourcesForSolutionClose(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -162,7 +156,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
         return Tab;
     }
 
-    /// <summary>Switches the view. Only a click on a tab calls this with the other view, so it never steals focus (ADR-0041).</summary>
+    /// <summary>view を切り替えます。別の view を指定するのは tab のクリックだけなので、フォーカスを奪いません（ADR-0041）。</summary>
     internal void Show(SceneJsonEditorView View){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Closed||this.Switching){ return; }
@@ -195,8 +189,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     }
 
     /// <summary>
-    /// Analyzes the file and pins its scene, so the Designer, Hierarchy and Inspector show this tab's
-    /// scene. Runs when the Design view is shown and whenever the tab comes to the front.
+    /// ファイルを解析してシーンを pin し、Designer、Hierarchy、Inspector にこの tab のシーンを表示します。Design view の表示時と、tab が前面に来たときに実行します。
     /// </summary>
     private void LoadDesign(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -209,7 +202,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
         if(this.Designer?.FixedSceneKey is { }Key&&Key.Equals(Session.PinnedSceneKey)){ return; }
         this.LoadingTask=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
             try {
-                // M0095 3-7: while the solution loads, the project may not be in the workspace yet.
+                // M0095 3-7：ソリューションのロード中は、プロジェクトがまだ workspace に存在しない場合があります。
                 this.DesignMessage.Text=VsixText.Get("SceneEditorStarting");
                 this.DesignHost.Content??=this.DesignMessage;
                 await Session.WaitForDocumentAsync(this.FilePath,this.Closing.Token).ConfigureAwait(false);
@@ -227,7 +220,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
                 this.DesignHost.Content=this.Designer;
                 this.Designer.SetTarget(Session,Snapshot);
             } catch(OperationCanceledException)when(this.Closing.IsCancellationRequested){
-                // The tab closed while it waited for its project.
+                // プロジェクトを待っている間に tab が閉じられました。
             } catch(Exception Error){
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ActivityLog.LogError(nameof(SceneJsonEditorPane),$"Scene Editor design view failed for '{this.FilePath}': {Error}");
@@ -238,10 +231,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     }
 
     /// <summary>
-    /// The JSON view: a Visual Studio text view over the document's text buffer, created for WPF
-    /// hosting (no HWND of its own) so its host control can sit in this pane. A code window was tried
-    /// first: CreatePaneWindow parents the host control in a window of its own, and placing it here as
-    /// well crashed Visual Studio in WPF layout (AddVisualChild).
+    /// JSON view は、WPF hosting 用に作成したドキュメントのテキストバッファー上の Visual Studio text view です（独自 HWND は持たず、この pane の host control に配置します）。最初は code window を試しましたが、CreatePaneWindow は host control を独自ウィンドウの子にするため、同時にここへ配置すると WPF layout（AddVisualChild）で Visual Studio がクラッシュしました。
     /// </summary>
     private void EnsureTextView(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -284,7 +274,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
 
     public int OnShow(int Show){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // The tab came to the front: its scene becomes the one Hierarchy and Inspector edit.
+        // tab が前面に来ました。このシーンを Hierarchy と Inspector の編集対象にします。
         if(Show is (int)__FRAMESHOW.FRAMESHOW_WinShown or (int)__FRAMESHOW.FRAMESHOW_TabActivated){
             this.LoadDesign();
         }
@@ -314,7 +304,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
         this.ReleaseDesigner();
         if(this.TextView is { }View){
             this.JsonHost.Content=null;
-            // Closing the adapter closes its WPF text view and host as well.
+            // adapter を閉じると、その WPF text view と host も閉じます。
             View.CloseView();
             this.TextView=null;
             this.TextViewCommands=null;

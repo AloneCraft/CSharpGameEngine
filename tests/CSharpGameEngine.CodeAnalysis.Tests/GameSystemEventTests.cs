@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0077 stage 6: events. A system takes <c>in EventWriter&lt;T&gt;</c> to send and <c>in T</c> to receive one at a time.</summary>
+/// <summary>ADR-0077 stage 6：イベント。システムは<c>in EventWriter&lt;T&gt;</c>で送信し、<c>in T</c>で1件ずつ受信する。</summary>
 public sealed class GameSystemEventTests {
     private static readonly string Events=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Entities","Events.cs"));
 
@@ -65,7 +65,7 @@ public sealed class GameSystemEventTests {
         Assert.Empty(Result.Diagnostics);
         var Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 
-        // No [SystemPhase] on the receiver: it follows the sender into PhysicsSimulation (2), after it.
+        // 受信側に[SystemPhase]の指定はない。送信側に続いてPhysicsSimulation（2）で実行する。
         Assert.Equal(2,PhaseOf(Loop,"Systems.Receiver.Update("));
         Assert.True(Loop.IndexOf("Systems.Sender.Update(",StringComparison.Ordinal)<Loop.IndexOf("Systems.Receiver.Update(",StringComparison.Ordinal));
         Assert.Contains("Systems.Events0 ??= new global::System.Collections.Generic.List<global::Sample.Hit>();",Loop);

@@ -2,7 +2,7 @@ using System;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Shows a ToolWindow frame without making it the keyboard focus owner.</summary>
+/// <summary>キーボードフォーカスを取得せずに ToolWindow のフレームを表示する。</summary>
 internal static class ToolWindowFramePresenter {
     internal static void ShowWithoutActivation(
         Action ShowNoActivate,

@@ -28,10 +28,7 @@ public enum RenderDeviceFailureKind:byte {
 public readonly record struct RenderDeviceFailure(
     RenderDeviceFailureKind Kind,int NativeCode,string Message);
 
-/// <summary>
-/// Immutable public diagnostics for one render-device state transition.
-/// Native handles and provider-specific error objects never cross this boundary.
-/// </summary>
+/// <summary>レンダーデバイスの状態遷移1回分の、不変な公開診断情報。ネイティブハンドルやプロバイダー固有のエラーオブジェクトは、この境界を越えない。</summary>
 public sealed class RenderDeviceSnapshot {
     private readonly ReadOnlyCollection<AssetArtifactReference>RebuiltArtifactsStorage;
 
@@ -75,10 +72,7 @@ public sealed class RenderDeviceUnavailableException:InvalidOperationException {
             :$"The render device is {State} and cannot accept frame submission.";
 }
 
-/// <summary>
-/// The single provider-neutral source of truth for render-device availability.
-/// One owner drives transitions on its render thread; native backends only implement a generation.
-/// </summary>
+/// <summary>レンダーデバイスの利用可能状態を示す、プロバイダーに依存しない単一の正本。1つの所有者が自身のレンダースレッド上で状態遷移を進め、ネイティブバックエンドは世代を実装するだけ。</summary>
 public sealed class RenderDeviceLifecycle:IDisposable {
     private AssetArtifactReference[]RequiredArtifactArray;
     private ReadOnlyCollection<AssetArtifactReference>RequiredArtifactView;
@@ -104,11 +98,7 @@ public sealed class RenderDeviceLifecycle:IDisposable {
         }
     }
 
-    /// <summary>
-    /// Atomically publishes a newly validated artifact closure, for example after a successful
-    /// Debug shader hot reload. Invalid or partially rebuilt input never replaces the prior
-    /// last-known-good closure.
-    /// </summary>
+    /// <summary>検証済みの新しいアーティファクト一式を原子的に公開する。例として、Debug でのシェーダーのホットリロード成功後に使用する。無効な入力や再構築が不完全な入力で、直近の正常なアーティファクト一式を置き換えることはない。</summary>
     public void ReplaceRequiredArtifacts(
         IEnumerable<AssetArtifactReference>RequiredArtifacts){
         this.ThrowIfDisposed();

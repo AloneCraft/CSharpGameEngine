@@ -2,7 +2,7 @@ using CSharpGameEngine.Spatial.Abstractions;
 
 namespace CSharpGameEngine.Spatial.Tests;
 
-/// <summary>Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Camera Tests".</summary>
+/// <summary>Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Camera Tests」。</summary>
 public class CameraBasisTests {
     [Fact]
     public void Forward_IsNormalized(){

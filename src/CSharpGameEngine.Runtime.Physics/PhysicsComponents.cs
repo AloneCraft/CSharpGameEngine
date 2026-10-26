@@ -8,7 +8,7 @@ public enum ColliderShape:byte {
     Capsule,
     ConvexAsset,
     StaticTriangleMesh,
-    /// <summary>A <see cref="PhysicsShapeAssetKind.Compound"/> asset: several convex children moving as one body (ADR-0078/M0113, a piece of a broken destructible).</summary>
+    /// <summary><see cref="PhysicsShapeAssetKind.Compound"/> のアセット。複数の凸形状の子要素が、1つのボディとして動く（ADR-0078/M0113、破壊された破壊可能オブジェクトの破片など）。</summary>
     Compound,
 }
 
@@ -61,11 +61,11 @@ public struct RigidBody() {
     public bool AllowSleep = true;
     public PhysicsCcdMode Ccd;
     /// <summary>
-    /// UE's LinearDamping (1/s, ADR-0078/M0109): every tick the linear velocity is multiplied by max(0, 1 - LinearDamping × Δt). 0 keeps it.
-    /// A system may change it while the game runs; the body takes the value at the next synchronisation.
+    /// UE の LinearDamping（1/s、ADR-0078/M0109）。各ティックで線速度に max(0, 1 - LinearDamping × Δt) を掛ける。0 なら速度を保つ。ゲーム
+    /// 実行中にシステムが値を変更でき、ボディは次回の同期時にその値を反映する。
     /// </summary>
     public LogicalScalar LinearDamping;
-    /// <summary>UE's AngularDamping (1/s, ADR-0078/M0109), the same for the angular velocity (the vehicle sets 3 in the air and 0 on the ground).</summary>
+    /// <summary>UE の AngularDamping（1/s、ADR-0078/M0109）。角速度に同様の減衰を適用する（車両は空中で3、地上で0に設定する）。</summary>
     public LogicalScalar AngularDamping;
 }
 

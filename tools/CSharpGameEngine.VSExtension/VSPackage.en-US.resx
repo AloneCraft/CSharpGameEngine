@@ -94,4 +94,7 @@
   <data name="141" xml:space="preserve">
     <value>A character you send somewhere by clicking the ground, seen from a fixed camera above, ported from Unreal Engine's Top Down template.</value>
   </data>
+  <data name="123" xml:space="preserve">
+    <value>Asset Editors</value>
+  </data>
 </root>

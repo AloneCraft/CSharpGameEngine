@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <!-- Gltf/: fully managed, no native DLL (ADR-0004 §1). -->
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
     <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
     <!-- Fbx/: No pure-C# FBX library with mesh-level access exists (verified when ADR-0009 was
          written): FbxParser (NuGet, zero deps) only exposes FBX's raw json/xml-like node tree,
@@ -39,6 +40,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CSharpGameEngine.Content\CSharpGameEngine.Content.csproj" />
+    <ProjectReference Include="..\CSharpGameEngine.Rendering\CSharpGameEngine.Rendering.csproj" />
     <ProjectReference Include="..\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
   </ItemGroup>
 

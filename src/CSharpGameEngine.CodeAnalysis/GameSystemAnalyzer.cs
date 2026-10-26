@@ -109,8 +109,8 @@ internal static class GameSystemAnalyzer {
         }
 
         var ReadsInput=MethodModels.Any(static Method=>Method.Resources.Length>0);
-        // ADR-0077: a system that reads [InputActions] runs in FrameInput, after the engine's Window system has pumped the events,
-        // so a game never writes [SystemPhase] or [RunsAfter(typeof(Window))] for input. An explicit [SystemPhase] still wins.
+        // ADR-0077：[InputActions]を読み取るシステムはFrameInputで実行される。エンジンのWindowシステムがイベントを処理した後の段階である。
+        // そのため入力処理のためにゲーム側が[SystemPhase]や[RunsAfter(typeof(Window))]を書く必要はない。明示的な[SystemPhase]があればそちらを優先する。
         if(ReadsInput&&SystemSymbol.ContainingAssembly.GetTypeByMetadataName(WindowSystemMetadataName) is { }WindowSystem){
             var WindowFqn=WindowSystem.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             if(!RunsAfter.Contains(WindowFqn)){ RunsAfter.Add(WindowFqn); }
@@ -165,8 +165,8 @@ internal static class GameSystemAnalyzer {
         Type.TypeKind==TypeKind.Class&&Type.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==EngineServiceAttributeMetadataName);
 
     /// <summary>
-    /// How the loop makes an [EngineService] class: a parameterless constructor, or one that takes the EngineHost. Null when it can do
-    /// neither (abstract, generic, no such constructor, or the constructor is not visible to the game).
+    /// ループが[EngineService]クラスを生成する方法。引数なしのコンストラクター、またはEngineHostを受け取るコンストラクターを使う。
+    /// どちらも使えない場合（抽象型、ジェネリック型、該当コンストラクターがない、またはゲームから見えない）はnull。
     /// </summary>
     private static GameSystemServiceSource?ServiceSourceOf(INamedTypeSymbol Type,IAssemblySymbol GameAssembly){
         if(Type.IsAbstract||Type.IsGenericType){ return null; }
@@ -258,8 +258,8 @@ internal static class GameSystemAnalyzer {
                 ScanEndExclusive=Parameters.Length-1;
             }
         } else if(HasTrailingState){
-            // ADR-0077: the trailing `ref State` is optional. A system that does not need the world or the frame
-            // time simply leaves it out, and the loop passes nothing.
+            // ADR-0077：末尾の`ref State`は省略できる。ワールドやフレーム時間が不要なシステムは引数から省き、
+            // ループからも何も渡さない。
             ScanEndExclusive=Parameters.Length-1;
         }
 
@@ -290,7 +290,7 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // ADR-0077 stage 6: events. `in EventWriter<T>` sends them, `in T` (T : IEvent) receives one at a time.
+            // ADR-0077 stage 6：イベント。`in EventWriter<T>`で送信し、`in T`（T : IEvent）で1件ずつ受信する。
             if(Parameter.Type is INamedTypeSymbol { IsGenericType:true } WriterType
                 &&WriterType.ConstructedFrom.ToDisplayString()==EventWriterMetadataName){
                 if(IsSpawn||Parameter.RefKind!=RefKind.In||WriterType.TypeArguments.Length!=1||!IsEventStruct(WriterType.TypeArguments[0])){
@@ -323,8 +323,8 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // ADR-0077 stage 4: an [InputActions] struct is a per-frame resource, not a component. Checked before the generic
-            // `in` struct rule, which would make it a component and never match any entity.
+            // ADR-0077 stage 4：[InputActions]構造体はコンポーネントではなく、フレームごとのリソースである。ジェネリックな
+            // `in`構造体の規則より先に判定する。後者に当てはめるとコンポーネント扱いになり、どのエンティティにも一致しなくなる。
             if(Parameter.Type.TypeKind==TypeKind.Struct
                 &&Parameter.Type.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==InputActionsEmitter.AttributeMetadataName)){
                 if(IsSpawn||Parameter.RefKind!=RefKind.In){
@@ -344,8 +344,8 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // ADR-0077: `in Parent<T>` reads component T from the parent entity. It is checked before the generic
-            // `in` struct rule because Parent<T> is itself a non-nullable struct.
+            // ADR-0077：`in Parent<T>`は親エンティティのコンポーネントTを読み取る。ジェネリックな
+            // `in Parent<T>`がnull非許容構造体であるため、`in`構造体の規則より先に判定する。
             if(Parameter.Type is INamedTypeSymbol { IsGenericType:true } RelationType
                 &&RelationType.ConstructedFrom.ToDisplayString()==ParentRelationMetadataName){
                 if(IsSpawn||Parameter.RefKind!=RefKind.In||RelationType.TypeArguments.Length!=1||!IsNonNullableStruct(RelationType.TypeArguments[0])){
@@ -385,8 +385,8 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // ADR-0077: `in T` on a struct reads the component. It replaces `[ReadOnlyComponent] in T`, which is still
-            // accepted above. Primitives and enums stay what they were, a by-`in` value context.
+            // ADR-0077：構造体型の`in T`はコンポーネントを読み取る。従来の`[ReadOnlyComponent] in T`も引き続き受け付ける。
+            // プリミティブ型と列挙型は従来どおり、`in`による値コンテキストとして扱う。
             if(Parameter.RefKind==RefKind.In&&Parameter.Type.SpecialType==SpecialType.None&&Parameter.Type.TypeKind==TypeKind.Struct&&IsNonNullableStruct(Parameter.Type)){
                 if(!SeenComponentTypes.Add(ParameterTypeFqn)){
                     Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
@@ -427,8 +427,8 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // ADR-0077 stage 5: a reference-type parameter whose type is a property of EngineHost (Audio, ...) is a service:
-            // the loop passes Host.<Property>. This generalizes the IPhysicsHost rule below; a system needs no [Context] ceremony.
+            // ADR-0077 stage 5：型がEngineHostのプロパティ（Audioなど）である参照型パラメーターはサービスとして扱う。
+            // ループはHost.<Property>を渡す。これは下記のIPhysicsHost規則を一般化したもので、システム側に[Context]の記述は不要。
             if(Parameter.Type.TypeKind==TypeKind.Class
                 &&Method.ContainingAssembly.GetTypeByMetadataName(EngineHostMetadataName) is { }ServiceHost
                 &&ServiceHost.GetMembers().OfType<IPropertySymbol>().FirstOrDefault(Property=>!Property.IsStatic&&Property.GetMethod is not null&&SymbolEqualityComparer.Default.Equals(Property.Type,Parameter.Type)) is { }ServiceProperty){
@@ -443,8 +443,8 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // ADR-0079: a class marked [EngineService] (a game's or a plugin's) is a service the generated loop owns: it is made
-            // on first use and passed to every system that names it.
+            // ADR-0079：[EngineService]を付けたクラス（ゲームまたはプラグインのもの）は、生成されたループが所有するサービスとなる。初回使用時に生成し、
+            // そのサービスを指定したすべてのシステムへ渡す。
             if(Parameter.Type is INamedTypeSymbol ServiceType&&IsEngineService(ServiceType)){
                 if(Services.Any(Existing=>Existing.TypeFullyQualifiedName==ParameterTypeFqn)){
                     Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
@@ -461,8 +461,8 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            // M0096 G: an interface the engine host implements (IPhysicsHost) is the host itself, so a portable
-            // system can take it and the loop passes the one host it already has.
+            // M0096 G：エンジンホストが実装するインターフェース（IPhysicsHost）はホストそのものを表すため、移植可能な
+            // システムで受け取り、ループから既存のホストインスタンスを渡せる。
             var ContextTypeFqn=Parameter.Type.TypeKind==TypeKind.Interface
                 &&Method.ContainingAssembly.GetTypeByMetadataName(EngineHostMetadataName) is { }EngineHost
                 &&EngineHost.AllInterfaces.Contains(Parameter.Type,SymbolEqualityComparer.Default)
@@ -498,7 +498,7 @@ internal static class GameSystemAnalyzer {
                 }
             }
 
-            // The child's archetype carries Parent (the scene gives every child one); the loop reads it to find the parent.
+            // 子のアーキタイプにはParentが含まれる（シーンではすべての子に付与される）。ループはそれを読み取り、親を特定する。
             if(IsValid&&!SeenComponentTypes.Contains(ParentComponentFullyQualifiedName)){
                 Components.Add(new GameSystemComponentParameterModel(string.Empty,ParentComponentFullyQualifiedName,IsReadOnly:true));
             }

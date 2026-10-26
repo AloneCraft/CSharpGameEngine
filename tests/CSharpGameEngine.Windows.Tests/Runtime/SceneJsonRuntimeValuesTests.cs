@@ -1,14 +1,13 @@
+extern alias PreviewHost;
 using System.Collections.Immutable;
 using System.Reflection;
-using CSharpGameEngine.EditorPreview.Host;
+using PreviewHost::CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.SceneAnalysis.Json;
+using PreviewHost::CSharpGameEngine.SceneAnalysis.Json;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 /// <summary>
-/// ADR-0070 decision 6: the runtime view reads the editor's scene JSON by reflection with the
-/// generator's rules. For real scenes, every component it makes equals the one the generated code
-/// put into the world from the same JSON.
+/// ADR-0070 決定 6：ランタイムビューはジェネレーターの規則で、リフレクションを使ってエディターのシーン JSON を読み込む。実際のシーンでは、生成コードが同じ JSON からワールドに配置したものと、生成されるすべてのコンポーネントが一致する。
 /// </summary>
 public sealed class SceneJsonRuntimeValuesTests {
     public enum Shade { Dark,Bright }
@@ -96,9 +95,9 @@ public sealed class SceneJsonRuntimeValuesTests {
     [InlineData(typeof(Transform),"""{ "Position": { "R": 1e30, "U": 0, "F": 0 } }""")]
     [InlineData(typeof(CSharpGameEngine.Runtime.Lighting.PointLight),"""{ "Color": { "R": -1, "G": 0, "B": 0 } }""")]
     public void ValuesTheTypeItselfRejects_DoNotFit(Type Type,string Json){
-        // A position beyond the Q64.64 range or a negative light colour is rejected by the type's own conversion or
-        // constructor. Like any other mismatch it must surface as InvalidOperationException, which the runtime view
-        // skips (keeping the last good value), and not as the reflection wrapper.
+        // Q64.64 の範囲を超える位置や負のライト色は、型独自の変換または
+        // コンストラクターによって拒否される。他の不一致と同じく InvalidOperationException として表面化し、ランタイムビューは
+        // リフレクションのラッパーとしてではなく、その例外をスキップする（最後に正常だった値を維持する）。
         var Error=Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(Type,SceneJsonReader.Parse(Json),Type.Name));
         Assert.Contains("does not fit",Error.Message,StringComparison.Ordinal);
     }
@@ -141,15 +140,14 @@ public sealed class SceneJsonRuntimeValuesTests {
     }
 
     /// <summary>
-    /// A number reads as the generator's literal of it does: a decimal takes an exponent (<c>1.5e3m</c> compiles), and a
-    /// number beyond its member's type is a build error (SCENE203), so it does not fit here rather than becoming infinity.
+    /// 数値はジェネレーターが出力するリテラルと同様に読み込む。decimal は指数表記を使える（<c>1.5e3m</c> はコンパイル可能）。メンバーの型の範囲を超える数値はビルドエラー (SCENE203) となるため、ここでは無限大になるのではなく不適合として扱う。
     /// </summary>
     [Fact]
     public void Numbers_ReadAsTheGeneratedLiteralsDo(){
         var Value=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),
             SceneJsonReader.Parse("""{ "Price": 1.5e3, "Ratio": 2E-3, "Speed": 1e-2 }"""),"Measures");
         Assert.Equal((1.5e3m,2E-3d,1e-2f),(Value.Price,Value.Ratio,Value.Speed));
-        // An object or interface member takes the generated float literal boxed.
+        // オブジェクトまたはインターフェイス型のメンバーには、生成された float リテラルをボックス化して設定する。
         var Boxed=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),SceneJsonReader.Parse("""{ "Boxed": 2.5, "Comparable": 3 }"""),"Measures");
         Assert.Equal((object)2.5f,Boxed.Boxed);
         Assert.Equal((IComparable)3f,Boxed.Comparable);
@@ -159,9 +157,7 @@ public sealed class SceneJsonRuntimeValuesTests {
     }
 
     /// <summary>
-    /// A JSON array fills each collection the generated collection expression creates. Only IList types were filled, so a
-    /// HashSet member did not fit, and a ReadOnlyCollection or ImmutableList member threw MissingMethodException past the
-    /// runtime view, which then ended. A Queue, which the generated code cannot create (SCENE203), does not fit.
+    /// JSON 配列は、生成されたコレクション式が作る各コレクションを埋める。以前は IList 型だけが対象で、HashSet メンバーは使えず、ReadOnlyCollection や ImmutableList のメンバーは MissingMethodException をスローしてランタイムビューを終了させていた。生成コードで作成できない Queue (SCENE203) は対象外となる。
     /// </summary>
     [Fact]
     public void Collections_FillAsTheGeneratedCollectionExpressionDoes(){
@@ -177,9 +173,7 @@ public sealed class SceneJsonRuntimeValuesTests {
     }
 
     /// <summary>
-    /// The generator never calls a constructor with a ref or out parameter or one obsolete as an error (it sets the member
-    /// instead), so neither does the runtime view: it called them, and a constructor that changes the value made the view
-    /// differ from the built game.
+    /// ジェネレーターは ref/out パラメーターを持つコンストラクターや、エラーとして obsolete 指定されたコンストラクターを呼び出さず、代わりにメンバーを設定する。ランタイムビューも同様にする。以前はそれらを呼び出しており、値を変更するコンストラクターでは、ビューとビルド済みゲームが異なっていた。
     /// </summary>
     [Fact]
     public void Constructors_TheGeneratorSkips_AreSkipped(){
@@ -188,8 +182,7 @@ public sealed class SceneJsonRuntimeValuesTests {
     }
 
     /// <summary>
-    /// The runtime view finds a nested component type by the name the document gives it, as C# names it (Outer.Inner) or
-    /// by its metadata name (Outer+Inner); only the metadata name was found, so such a scene asked for a rebuild.
+    /// ランタイムビューはドキュメントに記された名前、つまり C# 名 (Outer.Inner) またはメタデータ名 (Outer+Inner) で入れ子のコンポーネント型を見つける。以前はメタデータ名でしか見つからず、そのようなシーンでは再ビルドが必要とされた。
     /// </summary>
     [Theory]
     [InlineData("CSharpGameEngine.Windows.Tests.Runtime.SceneJsonRuntimeValuesTests.Pair")]
@@ -199,7 +192,7 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Null(SceneJsonRuntimeValues.FindType([typeof(Pair).Assembly],Name+"Missing"));
     }
 
-    /// <summary>ADR-0074 version 3: an angle's key may leave out the C# unit word, as the generator reads it.</summary>
+    /// <summary>ADR-0074 バージョン 3：ジェネレーターと同様に、角度のキーでは C# の単位語を省略できる。</summary>
     [Fact]
     public void AngleKeys_ReadWithoutTheUnitWordAndByTheCSharpName(){
         var Unitless=(Aim)SceneJsonRuntimeValues.Component(typeof(Aim),

@@ -1,10 +1,10 @@
 namespace CSharpGameEngine.Spatial.Abstractions;
 
-/// <summary>A spot light's semantic basis. <see cref="Forward"/> is the direction the cone extends toward.</summary>
+/// <summary>スポットライトの意味上の基底。<see cref="Forward"/>は光円錐が伸びる方向。</summary>
 public readonly struct SpotLightBasis(RufVector Forward) {
-    /// <summary>The direction the spot cone extends toward.</summary>
+    /// <summary>スポットライトの円錐が伸びる方向。</summary>
     public RufVector Forward { get;}=Forward.Normalize();
 
-    /// <summary>The direction from a surface toward the light - always the opposite of <see cref="Forward"/>.</summary>
+    /// <summary>面からライトに向かう方向。常に<see cref="Forward"/>と反対。</summary>
     public RufVector DirectionToLight=>-this.Forward;
 }

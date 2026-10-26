@@ -1,6 +1,6 @@
 using CSharpGameEngine.FontBaker;
 
-// ADR-0078/M0104: CSharpGameEngine.FontBaker <font.ttf> <output.cgefont> [--size 64] [--spread 8] [--supersample 4] [--chars <text>]
+// ADR-0078/M0104：CSharpGameEngine.FontBaker <font.ttf> <output.cgefont> [--size 64] [--spread 8] [--supersample 4] [--chars <text>]
 if(args.Length<2||args[0].StartsWith("--",StringComparison.Ordinal)){
     Console.Error.WriteLine("Usage: CSharpGameEngine.FontBaker <font.ttf> <output.cgefont> [--size 64] [--spread 8] [--supersample 4] [--chars <text>]");
     Console.Error.WriteLine("  --chars: the characters to bake instead of ASCII, Latin-1 and common punctuation.");

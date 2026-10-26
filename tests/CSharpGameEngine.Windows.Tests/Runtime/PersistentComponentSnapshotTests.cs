@@ -2,9 +2,7 @@ using System.Reflection;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// Audit AUD-001 left the snapshot round trip of every persistent Component unverified; the typed lights were the ones
-/// it found failing. This test takes every persistent Component of this compilation's generated World from its snapshot
-/// archetype descriptors and round-trips its default value through the codec.
+/// Audit AUD-001 では、永続化されるすべての Component のスナップショット往復が未検証でした。失敗が見つかったのは型付きライトでした。このテストでは、生成されたこのコンパイルの World に含まれる永続 Component をすべて、スナップショットの archetype 記述子から取得し、既定値を codec 経由で往復させます。
 /// </summary>
 public sealed class PersistentComponentSnapshotTests {
     [Fact]

@@ -2,8 +2,8 @@ using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0119 (ADR-0084): the native logarithmic frames pinned after the final seven-case comparison with standard depth.
-/// The pre-removal evidence is recorded in the milestone. Re-pin only with the dump comparison of ADR-0084 §7.
+/// M0119（ADR-0084）：標準深度との7ケース最終比較後に固定された、ネイティブ対数描画フレーム。
+/// 削除前の証拠はマイルストーン文書に記録済み。再固定はADR-0084 §7に従ったダンプ比較のみで行う。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class StageGoldenFrameTests {

@@ -24,7 +24,8 @@
     <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj" />
     <ProjectReference Include="..\..\tools\CSharpGameEngine.Showcase.Automation\CSharpGameEngine.Showcase.Automation.csproj" />
-    <ProjectReference Include="../../tools/CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj" />
+    <!-- ADR-0090: the host compiles the same public Skeleton/AnimationClip/JointPose sources as UserEcsProject, so its types are reached through an alias. -->
+    <ProjectReference Include="../../tools/CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj" Aliases="PreviewHost" />
     <!-- The authored physical-light API is compiled from the shared Runtime.Windows source inside
          UserEcsProject. Keep a compile-time contract test here so editor-only changes cannot
          reintroduce positional or unitless light fields. -->

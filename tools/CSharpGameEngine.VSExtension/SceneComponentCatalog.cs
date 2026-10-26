@@ -60,7 +60,7 @@ internal static class SceneComponentCatalog {
 
     internal static IReadOnlyList<SceneComponentCatalogEntry>Build(Compilation Compilation){
         List<SceneComponentCatalogEntry>Entries=[];
-        // ADR-0079: a plugin's Runtime module is part of the game's compilation; its Library module (a DLL) says what it is.
+        // ADR-0079：plugin の Runtime module はゲームのコンパイル対象です。Library module（DLL）は plugin の内容を示します。
         var PluginLibraries=Compilation.SourceModule.ReferencedAssemblySymbols.Where(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.IsPluginLibrary);
         foreach(var Type in EnumerateTypes(Compilation.Assembly.GlobalNamespace).Concat(PluginLibraries.SelectMany(static Library=>EnumerateTypes(Library.GlobalNamespace).Where(static Type=>Type.DeclaredAccessibility==Accessibility.Public)))){
             if(!IsAddable(Type,Compilation)){

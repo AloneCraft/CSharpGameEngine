@@ -6,20 +6,81 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Thin net472 client for the Content-owned asset authoring host. The VSIX transports typed DTOs
-/// only; it never parses or writes canonical metadata itself.
+/// Content が所有するアセット作成ホスト用の薄い net472 クライアント。VSIX は型付き DTO だけを転送し、正規メタデータを解析したり書き込んだりしない。
 /// </summary>
 internal static class AssetAuthoringHostClient {
     private const string BridgeProjectRelativePath=@"tools\CSharpGameEngine.Import.AssetAuthoring.Cli";
     private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
     private static readonly JsonSerializerOptions JsonOptions=new(){ PropertyNameCaseInsensitive=false };
 
+    internal static AssetImageResult Image(AssetImageRequest Request){
+        var Root=Path.Combine(Path.GetTempPath(),"CgeImageAuthoring",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Root);
+        try {
+            Request.RequestId=Guid.NewGuid();
+            var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");
+            Request.Root=Context.WorkspaceRoot;
+            var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");
+            File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Result=JsonSerializer.Deserialize<AssetImageResult>(Json,JsonOptions)??throw new InvalidDataException("Image result missing.");
+            if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Image response identity mismatch."); }return Result;
+        }finally { if(File.Exists(Path.Combine(Root,"request.json"))){ File.Delete(Path.Combine(Root,"request.json")); }if(File.Exists(Path.Combine(Root,"result.json"))){ File.Delete(Path.Combine(Root,"result.json")); }Directory.Delete(Root); }
+    }
+    internal static AssetModelResult Model(AssetModelRequest Request){
+        var Root=Path.Combine(Path.GetTempPath(),"CgeModelAuthoring",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Root);
+        try {
+            Request.RequestId=Guid.NewGuid();var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");Request.Root=Context.WorkspaceRoot;
+            var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Result=JsonSerializer.Deserialize<AssetModelResult>(Json,JsonOptions)??throw new InvalidDataException("Model result missing.");
+            if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Model response mismatch."); }return Result;
+        }finally { foreach(var FileName in new[]{"request.json","result.json"}){ var PathValue=Path.Combine(Root,FileName);if(File.Exists(PathValue)){ File.Delete(PathValue); } }Directory.Delete(Root); }
+    }
     public static AssetAuthoringResult Inspect(string SourcePath){
         string RepoRoot=ResolveWorkspaceRoot(SourcePath);
         return Execute(new AssetAuthoringRequest {
             RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.Inspect,
             RepositoryRoot=RepoRoot,SourcePath=SourcePath,
         });
+    }
+    public static AssetAuthoringResult MigrateLegacy(string SourcePath,string ExpectedHash)=>Execute(new AssetAuthoringRequest{
+        RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.MigrateLegacyMetadata,
+        RepositoryRoot=ResolveWorkspaceRoot(SourcePath),SourcePath=SourcePath,ExpectedMetadataSha256=ExpectedHash,
+    });
+    internal static AssetWorkspaceResult InspectWorkspace(AssetWorkspaceRequest Request,string WorkspaceRoot){
+        var Root=Path.Combine(Path.GetTempPath(),"CgeAssetWorkspace",Request.RequestId.ToString("N"));
+        Directory.CreateDirectory(Root);
+        try {
+            var RequestPath=Path.Combine(Root,"request.json");
+            var ResultPath=Path.Combine(Root,"result.json");
+            File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Result=JsonSerializer.Deserialize<AssetWorkspaceResult>(Json,JsonOptions);
+            if(Result is null||Result.ProtocolVersion!=1||Result.RequestId!=Request.RequestId||Result.Items is null||Result.Items.Length>100_000){ throw new InvalidDataException("Invalid asset inventory response."); }
+            if(!Result.Success){ throw new InvalidDataException(Result.Diagnostic); }
+            if(Request.WorkspaceCommand==2&&(Result.FontPreview is not {Width:>0 and <=512,Height:>0 and <=512,SourceWidth:>0 and <=8192,SourceHeight:>0 and <=8192,GlyphCount:>0 and <=65536,Distance:{ }Pixels}Preview||Pixels.Length!=Preview.Width*Preview.Height)){
+                throw new InvalidDataException("Invalid asset font preview response.");
+            }
+            if(Request.WorkspaceCommand==3&&Result.AudioPreview is not {SampleRate:>0,Channels:1 or 2,FrameCount:>0,Peaks:{Length:>0 and <=AssetAudioPreview.MaximumPeaks}}){
+                throw new InvalidDataException("Invalid asset audio preview response.");
+            }
+            return Result;
+        } finally {
+            try { Directory.Delete(Root,true); }catch(IOException){ }catch(UnauthorizedAccessException){ }
+        }
+    }
+    internal static AssetFileMutationResult MutateFiles(AssetFileMutationRequest Request,string WorkspaceRoot){
+        var Root=Path.Combine(Path.GetTempPath(),"CgeAssetFiles",Request.RequestId.ToString("N"));
+        Directory.CreateDirectory(Root);
+        try {
+            var Input=Path.Combine(Root,"request.json");var Output=Path.Combine(Root,"result.json");
+            File.WriteAllText(Input,JsonSerializer.Serialize(Request,JsonOptions));
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,Input,Output,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Result=JsonSerializer.Deserialize<AssetFileMutationResult>(Json,JsonOptions);
+            if(Result is null||Result.ProtocolVersion!=1||Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Invalid asset mutation response."); }
+            if(!Result.Success){ throw new InvalidOperationException(Result.Diagnostic); }
+            return Result;
+        } finally { try { Directory.Delete(Root,true); }catch(IOException){ }catch(UnauthorizedAccessException){ } }
     }
 
     public static AssetAuthoringResult SaveMetadata(
@@ -64,7 +125,7 @@ internal static class AssetAuthoringHostClient {
         }
     }
 
-    /// <summary>The workspace of the game project that owns <paramref name="SourcePath"/> (ADR-0065).</summary>
+    /// <summary><paramref name="SourcePath"/> を所有するゲームプロジェクトのワークスペース (ADR-0065)。</summary>
     private static string ResolveWorkspaceRoot(string SourcePath)=>CgeProjectContext.Resolve(SourcePath)?.WorkspaceRoot
         ??throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
 

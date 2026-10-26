@@ -12,8 +12,8 @@ internal sealed class InspectorSelectionController {
     internal InspectorSelectableViewModel?Current=>this.Selected;
 
     internal void SetItems(IEnumerable<InspectorComponentGroupViewModel>Groups){
-        // A forced refresh creates new ViewModels. Retain the logical selection so a commit
-        // caused by leaving one editor cannot erase the row selected by the same click.
+        // 強制更新では新しい ViewModels が作成されます。commit 時に選択行が消えないよう、論理的な選択を保持します。
+        // これは同じクリックで別の editor に移動した結果として発生することがあります。
         InspectorSelectableViewModel?Previous=this.Selected;
         this.ClearSelection();
         this.Items.Clear();

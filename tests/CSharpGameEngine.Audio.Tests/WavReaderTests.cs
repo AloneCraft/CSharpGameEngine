@@ -1,6 +1,6 @@
 namespace CSharpGameEngine.Audio.Tests;
 
-/// <summary>ADR-0077 stage 5: the RIFF/WAVE container reader behind <c>Audio.Play</c>.</summary>
+/// <summary>ADR-0077 stage 5：<c>Audio.Play</c>の背後にあるRIFF/WAVEコンテナーリーダー。</summary>
 public sealed class WavReaderTests {
     private static byte[] Wav(int Format,int Channels,int SampleRate,int Bits,byte[] Data,bool ExtraChunk=false){
         using var Stream=new MemoryStream();
@@ -46,7 +46,7 @@ public sealed class WavReaderTests {
         Assert.True(WavReader.TryRead(Wav(1,1,22050,8,[128,255,0]),out var Eight,out _));
         Assert.Equal(new short[]{0,127<<8,-128<<8},Eight!.Samples.ToArray());
 
-        // 24-bit little endian: 0x400000 is a quarter of full scale.
+        // 24ビット、リトルエンディアン：0x400000はフルスケールの4分の1。
         Assert.True(WavReader.TryRead(Wav(1,1,22050,24,[0,0,0x40,0,0,0xC0]),out var TwentyFour,out _));
         Assert.Equal(new short[]{0x4000,unchecked((short)0xC000)},TwentyFour!.Samples.ToArray());
 

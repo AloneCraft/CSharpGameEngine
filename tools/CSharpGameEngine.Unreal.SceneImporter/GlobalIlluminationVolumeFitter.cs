@@ -1,12 +1,7 @@
 using System.Numerics;
 namespace CSharpGameEngine.Unreal.SceneImporter;
 /// <summary>
-/// Fits the ADR-0069 GlobalIlluminationVolume to an imported level. Unreal lights the template with
-/// Lumen, which has no authored volume, so the importer derives one: the horizontal extent of every
-/// level mesh, and vertically from just above the dominant walkable surface (the up-facing height
-/// with the most triangle area) to the level top, capped at <see cref="MaxHeightMeters"/>. The probe
-/// spacing starts at <see cref="PreferredSpacingMeters"/> and grows until the grid has at most
-/// <see cref="ProbeBudget"/> probes (half the atlas), which keeps a full round-robin refresh short.
+/// インポートしたレベルに ADR-0069 の GlobalIlluminationVolume を合わせる。Unreal は作成されたボリュームを持たない Lumen でテンプレートを照らすため、インポーターがボリュームを導出する。水平方向の範囲はレベル内のすべてのメッシュ、垂直方向は主要な歩行可能面（上向きで三角形面積の合計が最も大きい高さ）のすぐ上からレベル上端までとし、<see cref="MaxHeightMeters"/> で上限を設ける。プローブ間隔は <see cref="PreferredSpacingMeters"/> から始め、グリッド数が <see cref="ProbeBudget"/>（アトラスの半分）以下になるまで広げることで、ラウンドロビン全体の更新時間を短く保つ。
 /// </summary>
 internal static class GlobalIlluminationVolumeFitter {
     internal const float PreferredSpacingMeters=2.5f;
@@ -55,7 +50,7 @@ internal static class GlobalIlluminationVolumeFitter {
         }
         return new Volume((Low+High)*0.5f,HalfExtent,Spacing);
     }
-    /// <summary>Same grid rule as the renderer's GlobalIlluminationSettings: floor(2h/s)+1 per axis, at least two.</summary>
+    /// <summary>レンダラーの GlobalIlluminationSettings と同じグリッド規則：軸ごとに floor(2h/s)+1、最小 2。</summary>
     internal static long ProbeCount(Vector3 HalfExtent,float Spacing){
         static long Axis(float Half,float Spacing)=>Math.Max(2L,(long)MathF.Floor(2f*Half/Spacing)+1L);
         return Axis(HalfExtent.X,Spacing)*Axis(HalfExtent.Y,Spacing)*Axis(HalfExtent.Z,Spacing);

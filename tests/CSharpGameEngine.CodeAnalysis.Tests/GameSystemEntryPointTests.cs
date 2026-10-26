@@ -161,7 +161,7 @@ public sealed class GameSystemEntryPointTests {
         Assert.Contains("ref var World = ref EngineHost.World;",Text);
         Assert.Contains("var State = EngineHost.CreateState();",Text);
         Assert.Contains("GeneratedGameLoop.Run(ref State, EngineHost);",Text);
-        // The loop takes each frame's time from the host, so an automation run can fix it (RuntimeAutomation).
+        // ループは各フレームの時間をホストから受け取るため、自動実行（RuntimeAutomation）では固定できる。
         string Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
         Assert.Contains("var (FrameCounter, FrameFrequency) = EngineHost.FrameTime(ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency);",Loop);
         Assert.Contains("RunFrame(ref State, ref Systems, ref Scheduler, FrameCounter, FrameFrequency, EngineHost);",Loop);

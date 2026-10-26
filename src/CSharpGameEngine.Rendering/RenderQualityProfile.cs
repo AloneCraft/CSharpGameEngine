@@ -60,7 +60,7 @@ public readonly struct RenderShadowQuality {
         &&(this.Resolution&(this.Resolution-1))==0;
 }
 
-/// <summary>Immutable render policy; absence of shadow data represents disabled shadows.</summary>
+/// <summary>不変の描画ポリシー。シャドウ情報がない場合はシャドウ無効を表す。</summary>
 public sealed class RenderQualityProfile {
     private RenderQualityProfile(
         string Name,RenderShadowQuality?Shadows,bool ImageBasedLighting,

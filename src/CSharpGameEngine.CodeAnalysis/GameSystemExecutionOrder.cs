@@ -48,8 +48,8 @@ internal static class GameSystemExecutionOrder {
                     if(--Pending[Next]==0){ Ready.Add(Next); }
                 }
             }
-            // A cycle (SYSGEN034) leaves nodes unplaced; they still get a deterministic place so the
-            // other diagnostics and outputs stay stable while the build reports the error.
+            // 循環依存（SYSGEN034）があるとノードの配置が決まらない。ビルドでエラーを報告しつつ、
+            // ほかの診断と出力を安定させるため、それらのノードも決定的な位置に配置する。
             Result.AddRange(Enumerable.Range(0,Nodes.Length).Where(Index=>!Placed[Index])
                 .Select(Index=>Nodes[Index])
                 .OrderBy(static System=>System.ClassFullyQualifiedName,StringComparer.Ordinal));

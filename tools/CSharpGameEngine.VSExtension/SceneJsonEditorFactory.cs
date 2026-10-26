@@ -11,29 +11,24 @@ using IOleServiceProvider=Microsoft.VisualStudio.OLE.Interop.IServiceProvider;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// ADR-0071: the Scene Editor, opened by double-clicking a scene JSON (a <c>*.json</c> under the
-/// project's <c>Scenes</c> folder). One tab with a Design
-/// view (the Scene Designer) and a JSON view (the Visual Studio JSON editor), like the XAML editor.
+/// シーン JSON（プロジェクトの <c>Scenes</c> フォルダー内の <c>*.json</c>）をダブルクリックして開く Scene Editor（ADR-0071）。XAML editor のように、Design view（Scene Designer）と JSON view（Visual Studio JSON editor）を1つの tab に表示します。
 ///
 /// <para>
-/// Registered for <c>.json</c> above the JSON editor, since a scene is an ordinary <c>.json</c> file
-/// told apart by its folder. Any other JSON file is declined with
-/// <c>VS_E_UNSUPPORTEDFORMAT</c>, and Visual Studio opens it with the next editor.
+/// シーンはフォルダーによって識別される通常の <c>.json</c> ファイルなので、JSON editor より優先して <c>.json</c> を登録します。ほかの JSON ファイルには <c>VS_E_UNSUPPORTEDFORMAT</c> を返して処理を辞退し、Visual Studio が次の editor で開きます。
 /// </para>
 ///
 /// <para>
-/// The document data is always the JSON text buffer, shared with the JSON editor when that already
-/// has the file open. The editor has no model, save or Undo of its own (ADR-0070 decision 5).
+/// ドキュメントデータは常に JSON テキストバッファーです。ファイルをすでに開いている JSON editor と共有します。editor 自身は model、save、Undo を持ちません（ADR-0070 decision 5）。
 /// </para>
 /// </summary>
 [Guid(FactoryGuidString)]
 internal sealed class SceneJsonEditorFactory:IVsEditorFactory {
     public const string FactoryGuidString="5d8f0c52-7a3e-4b0f-9c11-2f6e3a9b4d71";
 
-    /// <summary>The JSON editor registers <c>.json</c> at 0x32; the Scene Editor must be asked first.</summary>
+    /// <summary>JSON editor は 0x32 に <c>.json</c> を登録するため、Scene Editor を先に選択させる必要があります。</summary>
     public const int ExtensionPriority=0x40;
 
-    /// <summary>The Visual Studio JSON language service (Microsoft.WebTools.Languages.Json).</summary>
+    /// <summary>Visual Studio JSON language service（Microsoft.WebTools.Languages.Json）。</summary>
     internal static readonly Guid JsonLanguageService=new("18588c2a-9945-44ad-9894-b271babc0582");
 
 
@@ -70,8 +65,8 @@ internal sealed class SceneJsonEditorFactory:IVsEditorFactory {
         }
         try {
             IVsTextLines Buffer=Existing??this.CreateBuffer();
-            // One physical view: Visual Studio asks the pane to switch tabs (IVsMultiViewDocumentView)
-            // when the JSON (code) view is requested, instead of opening a second window.
+            // 物理的な view は1つです。JSON（code）view が要求された場合、Visual Studio は別ウィンドウを開かず、
+            // ペインに tab の切り替えを要求します（IVsMultiViewDocumentView）。
             SceneJsonEditorPane Pane=new(this.Package,DocumentPath,Buffer,SceneJsonEditorView.Design);
             ActivityLog.LogInformation(nameof(SceneJsonEditorFactory),$"Scene Editor opened '{DocumentPath}'; shared buffer={Existing is not null}.");
             DocView=Marshal.GetIUnknownForObject(Pane);
@@ -84,12 +79,11 @@ internal sealed class SceneJsonEditorFactory:IVsEditorFactory {
         }
     }
 
-    /// <summary>Only a scene JSON; every other JSON file goes to the next editor.</summary>
+    /// <summary>シーン JSON だけを扱い、それ以外の JSON ファイルは次の editor に渡します。</summary>
     internal static bool Accepts(string?DocumentPath)=>SceneJsonCommitPlanner.IsJsonScene(DocumentPath);
 
     /// <summary>
-    /// The text buffer of document data another editor already opened (the JSON editor's buffer, or
-    /// a provider of one); null when the document data is not text, which this editor cannot share.
+    /// 別の editor がすでに開いた document data のテキストバッファー（JSON editor のバッファー、またはそれを提供するもの）。document data がテキストでなく、この editor と共有できない場合は null です。
     /// </summary>
     private static IVsTextLines?SharedBuffer(object DocData){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -114,7 +108,7 @@ internal sealed class SceneJsonEditorFactory:IVsEditorFactory {
             throw new InvalidOperationException("The editor services are unavailable.");
         }
         var Adapters=ComponentModel.GetService<IVsEditorAdaptersFactoryService>();
-        // Visual Studio loads the file into this buffer (IVsPersistDocData) after the editor is created.
+        // editor の作成後、Visual Studio はこのバッファーにファイルをロードします（IVsPersistDocData）。
         var Buffer=(IVsTextLines)Adapters.CreateVsTextBufferAdapter(this.Site);
         Guid Language=JsonLanguageService;
         ErrorHandler.ThrowOnFailure(Buffer.SetLanguageServiceID(ref Language));

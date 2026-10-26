@@ -1,10 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Pipeline;
-/// <summary>
-/// Converts emissive triangle geometry to no more than 16 deterministic rectangle patches per
-/// object. Triangles are ordered by normal, position, area, and original index before clustering,
-/// so the same imported mesh always produces the same result.
-/// </summary>
+/// <summary>発光三角形をオブジェクトあたり最大16個の決定論的な長方形パッチに変換する。クラスタリング前に三角形を法線、位置、面積、元のインデックスの順に並べるため、同じインポート済みメッシュからは常に同じ結果になる。</summary>
 public static class EmissivePatchBuilder {
     private const float MinimumAreaSquareMeters=1e-8f;
     public static IReadOnlyList<EmissivePatch> Build(EmissivePatchBuildInput Input){

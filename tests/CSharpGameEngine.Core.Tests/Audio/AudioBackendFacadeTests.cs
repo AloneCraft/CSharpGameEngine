@@ -3,12 +3,10 @@ using CSharpGameEngine.Audio.Abstractions;
 namespace CSharpGameEngine.Audio.Tests;
 
 /// <summary>
-/// Verifies the generic <see cref="AudioBackend{TBackend, TEngine, TVoice}"/> Facade actually
-/// forwards every call to whatever <see cref="IAudioBackend{TEngine, TVoice}"/> it is closed over -
-/// using a hardware-free fake backend, not XAudio2, so this stays runnable everywhere (CI included).
-/// This is also the proof that a second backend really can be plugged in without touching
-/// UserEcsProject: the same generic mechanism <c>XAudio2Backend</c> uses is exercised here with an
-/// unrelated concrete type.
+/// 汎用の <see cref="AudioBackend{TBackend, TEngine, TVoice}"/> Facade が、実際に委譲先の
+/// <see cref="IAudioBackend{TEngine, TVoice}"/> へすべての呼び出しを転送することを検証する。XAudio2 ではなくハードウェア不要の偽バックエンドを使うため
+/// 、CI を含むどの環境でも実行できる。また、UserEcsProject を変更せずに第2のバックエンドを追加できる証拠にもなる。ここでは <c>XAudio2Backend</c> が使うのと同じ
+/// 汎用の仕組みを、無関係な具象型で実行する。
 /// </summary>
 public class AudioBackendFacadeTests {
     [Fact]
@@ -45,9 +43,8 @@ public class AudioBackendFacadeTests {
     }
 
     /// <summary>
-    /// Trivial in-memory backend using <c>int</c> as both handle types - no native resources, purely
-    /// to prove the generic dispatch mechanism itself. Static fields record calls because
-    /// <c>static abstract</c> interface members have no instance to hold state on.
+    /// 両方のハンドル型に <c>int</c> を使う、単純なメモリ内バックエンド。ネイティブリソースを持たず、汎用ディスパッチ自体を検証するためだけに使う。状態を保持するインスタンスが存在しないため、呼び
+    /// 出しは static フィールドへ記録する。<c>static abstract</c> インターフェースメンバーにはインスタンス上の状態を保持できないためである。
     /// </summary>
     private readonly struct FakeBackend:IAudioBackend<int,int>{
         public static int EnginesCreated;

@@ -2,7 +2,7 @@ namespace CSharpGameEngine.Contracts;
 
 public static class AssetAuthoringProtocol {
     public const int CurrentVersion=1;
-    public const int MaximumOptions=64;
+    public const int MaximumOptions=1024;
     public const int MaximumDiagnostics=256;
     public const int MaximumPathLength=32_768;
     public const int MaximumTextLength=4_096;
@@ -17,6 +17,10 @@ public static class AssetAuthoringProtocol {
         AssetAuthoringOption[]Options=Request.Options??[];
         string?OptionsError=ValidateOptions(Options);
         if(OptionsError is not null){ return OptionsError; }
+        if(Request.Command==AssetAuthoringCommand.MigrateLegacyMetadata){
+            if(!IsSha256(Request.ExpectedMetadataSha256)||Request.AssetId.Length!=0||Request.Importer.Length!=0||Options.Length!=0){ return "Legacy migration requires only the inspected metadata SHA-256."; }
+            return null;
+        }
         if(Request.Command==AssetAuthoringCommand.Inspect){
             if(Request.AssetId.Length!=0||Request.Importer.Length!=0||Request.ExpectedMetadataSha256.Length!=0||Options.Length!=0){ return "Inspect cannot carry mutable metadata fields."; }
             return null;
@@ -84,7 +88,7 @@ public static class AssetAuthoringProtocol {
     private static bool IsSha256(string?Value)=>Value?.Length==64&&Value.All(static Character=>(Character>='0'&&Character<='9')||(Character>='a'&&Character<='f'));
 }
 
-public enum AssetAuthoringCommand:byte { Inspect,SaveMetadata }
+public enum AssetAuthoringCommand:byte { Inspect,SaveMetadata,MigrateLegacyMetadata }
 public enum AssetAuthoringState:byte { MissingMetadata,Ready,Rejected }
 
 public sealed class AssetAuthoringOption {

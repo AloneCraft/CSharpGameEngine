@@ -6,7 +6,7 @@ using System.Linq;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>M0097: the Visual Studio diagnostic tools the Diagnostic Tools commands call for a running game.</summary>
+/// <summary>M0097：Diagnostic Tools コマンドが実行中のゲームに対して呼び出す Visual Studio 診断ツール。</summary>
 internal enum GameDiagnosticsKind:byte {
     Debugger,
     CpuUsage,
@@ -14,12 +14,11 @@ internal enum GameDiagnosticsKind:byte {
     GpuUsage,
 }
 
-/// <summary>One running process, as the commands list it.</summary>
+/// <summary>コマンド一覧に表示する、実行中のプロセス1つ。</summary>
 internal readonly record struct GameProcessInfo(int ProcessId,string Name,DateTime?StartTime,string?Path);
 
 /// <summary>
-/// The running processes a Diagnostic Tools command offers: those named like a game assembly of the solution. A
-/// game started from a build already has this Visual Studio's debugger, so attaching skips the processes it debugs.
+/// Diagnostic Tools コマンドが候補として表示する実行中プロセス。対象はソリューション内のゲームアセンブリ名に似た名前のプロセスです。ビルドから起動したゲームにはこの Visual Studio のデバッガーがすでに接続されているため、アタッチ候補からデバッグ中のプロセスを除外します。
 /// </summary>
 internal static class GameProcessCandidates {
     internal static IReadOnlyList<GameProcessInfo>Select(
@@ -39,13 +38,12 @@ internal static class GameProcessCandidates {
 }
 
 /// <summary>
-/// Visual Studio's standard collector (<c>VSDiagnostics.exe</c>), which attaches the profiler's CPU or .NET allocation
-/// agent to a running process and writes a <c>.diagsession</c> that Visual Studio opens as a report.
+/// Visual Studio 標準の collector（<c>VSDiagnostics.exe</c>）。実行中のプロセスに profiler の CPU または .NET allocation agent を接続し、Visual Studio でレポートとして開く <c>.diagsession</c> を書き出します。
 /// </summary>
 internal static class VsDiagnosticsCollector {
     internal const string RelativePath=@"Team Tools\DiagnosticsHub\Collector\VSDiagnostics.exe";
 
-    /// <summary>The collector of the Visual Studio whose <c>Common7\IDE\devenv.exe</c> is <paramref name="DevenvPath"/>.</summary>
+    /// <summary><paramref name="DevenvPath"/> が指す <c>Common7\IDE\devenv.exe</c> を持つ Visual Studio の collector。</summary>
     internal static string?Find(string DevenvPath,Func<string,bool>Exists){
         string?Root=Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(DevenvPath)));
         if(Root is null){ return null; }

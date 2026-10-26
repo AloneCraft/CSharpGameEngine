@@ -17,6 +17,7 @@ internal sealed class ShaderGraphEditorFactory:IVsEditorFactory {
         if(ExistingDocData!=IntPtr.Zero) { return VSConstants.VS_E_INCOMPATIBLEDOCDATA; }
         try {
             ShaderGraphEditorWindowPane Pane=new(DocumentPath);
+            if(AssetEditorFramePlacement.IsShellRestoreOrSpecificEditor(CreateFlags)) { Pane.RespectSavedPlacement(); }
             DocView=Marshal.GetIUnknownForObject(Pane);
             DocData=Marshal.GetIUnknownForObject(Pane);
             return VSConstants.S_OK;

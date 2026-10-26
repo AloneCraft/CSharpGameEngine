@@ -2,23 +2,18 @@ using System.Numerics;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
-/// <summary>
-/// Identity-LTC evaluation for one-sided Lambertian rectangular emitters. The returned value is
-/// the cosine-weighted solid angle at the receiver, so RGB luminance in nits multiplies it directly
-/// to produce irradiance in lux before the material BRDF is applied.
-/// </summary>
+/// <summary>片面のランバート反射長方形発光体に対する、恒等 LTC 評価。戻り値は受光点から見た余弦重み付き立体角なので、nit 単位の RGB 輝度をそのまま乗算して、マテリアル BRDF の適用前に lux 単位の放射照度を得る。</summary>
 public static class AreaLightLtc {
     private const float MinimumDirectionLengthSquared=1e-12f;
     private const float BasisOrthogonalityTolerance=1e-3f;
     private const float MinimumRightHandedness=0.999f;
 
     /// <summary>
-    /// Evaluates the non-negative cosine-weighted solid angle of a one-sided rectangle. The source
-    /// emits in <paramref name="Forward"/> (Transform local +Z); <paramref name="Right"/> and
-    /// <paramref name="Up"/> define its local +X/+Y rectangle axes and must form a right-handed
-    /// orthonormal frame with it.
+    /// 片面の長方形が作る、非負の余弦重み付き立体角を評価する。光源は <paramref name="Forward"/>（Transform のローカル +Z）方向へ放射する。
+    /// <paramref name="Right"/> と <paramref name="Up"/> は長方形のローカル +X / +Y 軸を定義し、光源とともに右手系の正規直交基底を構成しなければならな
+    /// い。
     /// </summary>
-    /// <exception cref="ArgumentException">Thrown when a vector, extent, or basis is invalid.</exception>
+    /// <exception cref="ArgumentException">ベクトル、範囲、基底が無効な場合。</exception>
     public static float EvaluateOneSidedProjectedSolidAngle(
         Vector3 Center,Vector3 Forward,Vector3 Right,Vector3 Up,
         float HalfWidth,float HalfHeight,
@@ -33,9 +28,8 @@ public static class AreaLightLtc {
     }
 
     /// <summary>
-    /// Attempts to evaluate <see cref="EvaluateOneSidedProjectedSolidAngle"/> without allocating
-    /// or throwing for malformed source data. A valid back-facing or horizon-clipped rectangle
-    /// succeeds with a zero factor.
+    /// 不正な光源データに対して、割り当てや例外を発生させずに <see cref="EvaluateOneSidedProjectedSolidAngle"/> の評価を試みる。光源の背面を向く場合や、
+    /// 地平線でクリップされる場合も、係数0で成功する。
     /// </summary>
     public static bool TryEvaluateOneSidedProjectedSolidAngle(
         Vector3 Center,Vector3 Forward,Vector3 Right,Vector3 Up,
@@ -59,8 +53,8 @@ public static class AreaLightLtc {
             return false;
         }
 
-        // A Lambertian emitter has no direct contribution through its back face. The whole
-        // rectangle lies in one plane, so its center-side test is sufficient and stable.
+        // ランバート発光体は背面から直接光を寄与しない。全体の
+        // 長方形全体は同じ平面上にあるため、中心側かどうかの判定で十分かつ安定する。
         if(Vector3.Dot(UnitForward,ReceiverPosition-Center)<=0f){
             return true;
         }
@@ -68,9 +62,9 @@ public static class AreaLightLtc {
         Span<Vector3> Directions=stackalloc Vector3[4];
         Vector3 Width=UnitRight*HalfWidth;
         Vector3 Height=UnitUp*HalfHeight;
-        // The rectangle's Right/Up winding points toward Forward at the emitter. From a receiver
-        // on that emitting side, the directions point back toward the emitter, so use the reverse
-        // winding to make the spherical area vector face the incoming hemisphere.
+        // 光源の位置で、長方形の Right / Up の巻き順は Forward を向く。受光点が
+        // 発光側にある場合、各方向は受光点から光源へ向かうため、逆の
+        // 巻き順を使って、球面面積ベクトルを入射側の半球に向ける。
         if(!TryDirection(Center-Width-Height,ReceiverPosition,out Directions[0])
             ||!TryDirection(Center-Width+Height,ReceiverPosition,out Directions[1])
             ||!TryDirection(Center+Width+Height,ReceiverPosition,out Directions[2])
@@ -96,9 +90,9 @@ public static class AreaLightLtc {
             return false;
         }
 
-        // The integral of cos(theta) over one receiver hemisphere is pi. Clamp only round-off
-        // outside the physical interval; no distance attenuation is applied here because the
-        // rectangular solid angle already contains the inverse-square behavior.
+        // 受光側の半球について cos(theta) を積分すると π になる。物理的な範囲外の丸め誤差だけを制限する。
+        // ここでは距離減衰を適用しない。
+        // 長方形の立体角に逆二乗の減衰がすでに含まれるため。
         Factor=Math.Clamp(ProjectedSolidAngle,0f,MathF.PI);
         return true;
     }
@@ -141,10 +135,7 @@ public static class AreaLightLtc {
         return Count;
     }
 
-    /// <summary>
-    /// Returns the vector integral over one great-circle edge. The factor one-half is the
-    /// spherical area-vector identity: integral(omega dOmega)=1/2 integral(r cross dr).
-    /// </summary>
+    /// <summary>大円で囲まれた辺1つに沿うベクトル積分を返す。係数1/2は球面面積ベクトルの恒等式による。integral(omega dOmega)=1/2 integral(r cross dr)。</summary>
     private static Vector3 IntegrateSphericalEdge(Vector3 From,Vector3 To){
         Vector3 Cross=Vector3.Cross(From,To);
         float SinAngle=Cross.Length();

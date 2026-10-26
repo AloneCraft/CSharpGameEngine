@@ -10,9 +10,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Builds a new <c>Node</c> declaration and all of its initial components before any parent
-/// collection is changed. This keeps a blank-Hierarchy component drop atomic in source as well
-/// as in the predicted scene model.
+/// 親の collection を変更する前に、新しい <c>Node</c> 宣言とその初期コンポーネントをすべて作成します。これにより Hierarchy が空の状態でコンポーネントを drop した場合も、ソースと予測シーンモデルの両方で一括して反映されます。
 /// </summary>
 internal static class SceneInitialComponentFactory {
     internal static bool TryCreateNodeCreation(

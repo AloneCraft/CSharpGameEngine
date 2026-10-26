@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// Checks the enabled plugins' manifests (ADR-0079). The build passes each enabled plugin's <c>&lt;Name&gt;.cgeplugin</c> as an
-/// additional file, so a dependency that is not among them is not enabled. The engine version is the build's <c>CgeEngineVersion</c>.
+/// 有効なプラグインのマニフェストを検査する（ADR-0079）。ビルドは有効な各プラグインの<c>&lt;Name&gt;.cgeplugin</c>を
+/// 追加ファイルとして渡すため、その中に含まれない依存プラグインは有効ではない。エンジンのバージョンにはビルドの<c>CgeEngineVersion</c>を使う。
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class PluginManifestAnalyzer:DiagnosticAnalyzer {
@@ -85,7 +85,7 @@ public sealed class PluginManifestAnalyzer:DiagnosticAnalyzer {
                 Manifests.Add((Manifest,File.Path,Text));
             });
             CompilationStart.RegisterCompilationEndAction(EndContext=>{
-                // Files arrive in any order; sort by path so the first one owns a name and the reports are stable.
+                // ファイルの到着順は不定なので、パス順に並べ替える。最初のファイルが名前を所有し、診断結果も安定する。
                 var Ordered=Manifests.OrderBy(static Entry=>Entry.Path,StringComparer.Ordinal).ToArray();
                 Dictionary<string,(PluginManifest Manifest,string Path,SourceText Text)>ByName=new(StringComparer.Ordinal);
                 foreach(var Entry in Ordered){
@@ -113,7 +113,7 @@ public sealed class PluginManifestAnalyzer:DiagnosticAnalyzer {
     private static Location NameLocation((PluginManifest Manifest,string Path,SourceText Text)Entry)=>
         SceneJsonDslAnalyzer.Locate(Entry.Path,Entry.Text,Entry.Manifest.NameStart,Entry.Manifest.NameEnd);
 
-    /// <summary>The first dependency cycle in name order, as names ending where they began (A -> B -> A), or null.</summary>
+    /// <summary>名前順で最初に見つかった依存サイクル。開始地点に戻る名前列（A -> B -> A）、またはnull。</summary>
     private static List<string>?FindCycle(Dictionary<string,(PluginManifest Manifest,string Path,SourceText Text)>ByName){
         Dictionary<string,int>States=new(StringComparer.Ordinal);
         List<string>Path=[];

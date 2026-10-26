@@ -5,12 +5,11 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Bridge.Hosting.Tests;
 
 /// <summary>
-/// Exercises <see cref="BridgeServerHost"/> against real <see cref="System.IO.Pipes"/> objects, both
-/// ends running in-process in the same test (no child process spawned) - the same "real OS
-/// primitive, fake process topology" approach <c>BridgeExecutableLocatorTests</c> already uses for
-/// the filesystem (ADR-0023). Tests that don't specifically exercise the idle timeout use a long
-/// (5s) one and never await the server's <see cref="Task"/> to completion - it self-terminates in
-/// the background harmlessly once the test process moves on, keeping these tests fast.
+/// 同一テスト内で両端をプロセス内実行し、実際の<see cref="BridgeServerHost"/>と<see cref="System.IO.Pipes"/>を検証する
+///（子プロセスは生成しない）。<c>BridgeExecutableLocatorTests</c>がファイルシステムで行うのと同じく、
+///「実OSプリミティブを使い、プロセス構成だけを模擬する」方法（ADR-0023）。アイドルタイムアウトを個別に検証しないテストでは、
+/// 長めの5秒を設定し、サーバーの<see cref="Task"/>の完了を待たない。テストが次へ進んだ後もバックグラウンドで安全に自己終了するため、
+/// テストを速く保てる。
 /// </summary>
 public class BridgeServerHostTests {
     private static string UniquePipeName()=> $"csge-bridgehost-tests-{Guid.NewGuid():N}";
@@ -132,8 +131,8 @@ public class BridgeServerHostTests {
 
     [Fact]
     public async Task Stop_EndsAConnectionThatStoppedMidRequest(){
-        // Audit AUD-003: the server drains accepted connections before it exits, so a client that sent part of a
-        // request and kept the pipe open used to keep the bridge (and the extension's locked files) alive.
+        // 監査AUD-003：サーバーは終了前に受け付け済み接続の処理を完了する。そのため、リクエストを途中まで送ったクライアントが
+        // パイプを開いたままにすると、以前はブリッジ（および拡張機能のロックファイル）が終了できなかった。
         var PipeName=UniquePipeName();
         using var Stop=new CancellationTokenSource();
         Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,""),TimeSpan.FromSeconds(30),Stop.Token);
@@ -224,9 +223,9 @@ public class BridgeServerHostTests {
     }
 
     /// <summary>
-    /// The idle window ends the accept loop, not a connection already accepted: a request that arrives after the window
-    /// (a slow or busy client) is still answered, within the receive deadline. Ending the read with the idle window
-    /// dropped such a request without a response.
+    /// アイドル時間の終了で止めるのはacceptループだけであり、既に受け付けた接続ではない。
+    /// その時間を過ぎて到着した要求（遅い、またはビジー状態のクライアント）にも、受信期限内なら応答する。
+    /// アイドル時間で読み取り自体を終了すると、そのような要求への応答が失われていた。
     /// </summary>
     [Fact]
     public async Task IdleTimeout_DoesNotDropARequestStillArriving(){

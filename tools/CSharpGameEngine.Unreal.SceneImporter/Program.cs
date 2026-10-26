@@ -18,7 +18,7 @@ if(args.Length>0&&args[0]=="worldgrid"){
 }
 
 if(args.Length==2&&args[0]=="compact-animations"){
-    // tools/UnrealExport/export_mannequin_animations.py writes the preview mesh into every clip; this keeps the joints and the clip only.
+    // tools/UnrealExport/export_mannequin_animations.py はプレビュー用メッシュを各クリップに書き込む。この処理ではジョイントとクリップだけを残す。
     foreach(var ClipPath in Directory.EnumerateFiles(Path.GetFullPath(args[1]),"*.glb").OrderBy(Item=>Item,StringComparer.Ordinal)){
         var Joints=AnimationGlbCompactor.CompactInPlace(ClipPath);
         Console.WriteLine($"{Path.GetFileName(ClipPath)}: {Joints} animated joints, {new FileInfo(ClipPath).Length} bytes.");

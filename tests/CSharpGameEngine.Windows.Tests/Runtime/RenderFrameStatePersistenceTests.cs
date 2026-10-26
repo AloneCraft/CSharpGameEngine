@@ -4,8 +4,7 @@ using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// StageRenderer keeps ambient and fog until they change, so the recovery replay state must keep a
-/// value that was set once and then left alone, not only what the last frame recorded.
+/// StageRenderer はアンビエントとフォグを変更があるまで保持します。そのため復旧時のリプレイ状態にも、直前のフレームで記録された値だけでなく、一度設定されてから変更されていない値を保持する必要があります。
 /// </summary>
 public sealed class RenderFrameStatePersistenceTests {
     [Fact]

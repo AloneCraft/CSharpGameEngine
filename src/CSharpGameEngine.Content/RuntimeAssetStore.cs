@@ -24,7 +24,7 @@ public interface IRuntimeAssetCodec {
     void Release(object Value);
 }
 
-/// <summary>The explicit L4 adapter from one canonical artifact kind set to one engine-owned immutable runtime value type.</summary>
+/// <summary>正規アーティファクト種別の集合を、エンジン所有の不変なランタイム値型へ変換する、明示的なL4アダプター。</summary>
 public sealed class RuntimeAssetCodec<T>:IRuntimeAssetCodec where T:notnull {
     private readonly Func<ContentArtifactKind,bool>SupportsValue;
     private readonly Func<ContentArtifact,CancellationToken,ValueTask<T>>Decode;
@@ -80,7 +80,7 @@ public sealed class AssetHandle<T>:IDisposable,IAsyncDisposable where T:notnull 
     public ValueTask DisposeAsync(){ this.Dispose();return ValueTask.CompletedTask; }
 }
 
-/// <summary>Owns shared typed runtime leases and their validated immutable artifact closure.</summary>
+/// <summary>共有の型付きランタイムリースと、検証済みの不変なアーティファクト依存関係一式を所有する。</summary>
 public sealed class RuntimeAssetStore:IAsyncDisposable {
     private readonly object Gate=new();
     private readonly IContentArtifactReader Reader;
@@ -218,8 +218,8 @@ public sealed class RuntimeAssetStore:IAsyncDisposable {
             }
             lock(this.Gate){
                 this.ThrowIfDisposed();
-                // The commit boundary is the last point that observes the caller's cancellation (audit AUD-002): a cancel
-                // that arrived while the last artifact was read keeps the old manifest, as an earlier one does.
+                // コミット境界は、呼び出し元のキャンセル状態を確認する最後の地点である（監査AUD-002）。最後のアーティファクトの読み込み中に
+                // キャンセルが届いた場合、それ以前のキャンセルと同様に既存のマニフェストを維持する。
                 if(CancellationToken.IsCancellationRequested){
                     this.LastManifestUpdateUsedLastKnownGoodValue=true;
                     return new(false,true,true,this.ActiveManifest.Fingerprint,"Manifest update was cancelled; the last-known-good manifest remains active.");

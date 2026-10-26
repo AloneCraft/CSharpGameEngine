@@ -5,10 +5,7 @@ using static TerraFX.Interop.DirectX.D3D12_HEAP_TYPE;
 using static TerraFX.Interop.DirectX.D3D12_RESOURCE_STATES;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
-/// <summary>
-/// Test-only synchronous copy of one 2D texture subresource to the CPU. The caller guarantees the
-/// queue is idle and passes the state the texture rests in; the copy restores it.
-/// </summary>
+/// <summary>テスト専用の同期コピー。キューがアイドルであることと、テクスチャの現在状態を呼び出し側が保証して、2D テクスチャのサブリソースを1つ CPU へコピーする。コピー後、指定状態へ復元する。</summary>
 internal static unsafe class GpuTextureReadback {
     internal static (byte[]Data,int RowPitch,int Width,int Height) Read(GraphicsDevice Device,ID3D12Resource*Texture,D3D12_RESOURCE_STATES RestingState){
         ID3D12CommandAllocator*Allocator=null;

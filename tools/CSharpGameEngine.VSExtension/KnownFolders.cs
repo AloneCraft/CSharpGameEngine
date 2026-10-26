@@ -4,10 +4,7 @@ using System.Runtime.InteropServices;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Resolves well-known shell folders not exposed by <see cref="Environment.SpecialFolder"/> on
-/// .NET Framework (notably Downloads). Used by <see cref="FabDownloadWatcher"/> to find the OS's
-/// actual default downloads folder rather than guessing <c>%USERPROFILE%\Downloads</c> (which is
-/// wrong when the user has relocated it).
+/// .NET Framework の <see cref="Environment.SpecialFolder"/> では公開されない既知のシェルフォルダー（特に Downloads）を解決します。ユーザーが別の場所に移動した場合は誤ったパスとなる <c>%USERPROFILE%\Downloads</c> を推測せず、OS の実際の既定ダウンロードフォルダーを特定するために <see cref="FabDownloadWatcher"/> が使用します。
 /// </summary>
 internal static class KnownFolders {
     private static readonly Guid DownloadsFolderId=new("374DE290-123F-4565-9164-39C4925E467B");

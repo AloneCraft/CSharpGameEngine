@@ -2,10 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 namespace CSharpGameEngine.Import.Gltf.Tests;
 /// <summary>
-/// The engine has one UV set per vertex. A texture bound to another UV set must be reported and
-/// left out instead of being sampled through TEXCOORD_0 (Unreal's baked prototype grid floor used
-/// TEXCOORD_1 and rendered as scrambled triangles). The procedural world grid (M0098) travels as
-/// <c>extras.CGE_world_grid</c> on the material.
+/// エンジンでは頂点ごとに UV セットが 1 つだけである。別の UV セットに割り当てられたテクスチャは、TEXCOORD_0 経由でサンプリングせず、報告して除外する。Unreal のベイク済みプロトタイプのグリッド床は TEXCOORD_1 を使い、三角形が乱れて表示されていた。プロシージャルなワールドグリッド (M0098) は、マテリアル上の <c>extras.CGE_world_grid</c> として渡される。
 /// </summary>
 public class GltfWorldGridImportTests {
     [Fact]

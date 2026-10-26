@@ -6,13 +6,10 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// The VSIX (.NET Framework) writes numbers in scene JSON with the same text as the tools (.NET). .NET Framework rounds
-/// to more digits before it rounds to fewer (5.0000052 became "5.0000053"), rounds ties away from zero (312985.125
-/// became "312985.13", .NET writes "312985.12") and does not parse doubles correctly (some of its double texts read back
-/// as another double): the same value, a different text, and every Scene Designer edit rewrote such numbers elsewhere.
+/// VSIX（.NET Framework）は Scene JSON の数値をツール（.NET）と異なる形式で書き出していた。.NET Framework は小数桁を増やしてから減らすように丸め（5.0000052 が "5.0000053" になった）、中間値をゼロから遠ざける方向に丸め（312985.125 が "312985.13"。 .NET は "312985.12" と書き出す）、double を正しく解析できない場合もあった（一部の double 表記が別の double に読み戻される）。値は同じでもテキストが異なるため、Scene Designer で編集するたびに別の箇所にある数値まで書き直されていた。
 /// </summary>
 public sealed class SceneJsonNumbersRuntimeTests {
-    /// <summary>The texts of the shared samples, which SceneModel.Tests compares one by one with .NET's formatting.</summary>
+    /// <summary>共有サンプルの各テキスト。.NET の書式と一つずつ比較するのは SceneModel.Tests。</summary>
     [Fact]
     public void SampleDigest_IsTheSameAsOnDotNet()=>Assert.Equal(SceneJsonNumberSamples.Digest,SceneJsonNumberSamples.ComputeDigest());
 

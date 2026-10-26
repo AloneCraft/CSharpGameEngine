@@ -12,8 +12,7 @@ public sealed record VsixReleaseInputDocument(
     string SourcePath,string SourceSha256);
 
 /// <summary>
-/// Freezes the one Release VSIX that is allowed to receive runtime observations. Normal
-/// build/test output may be regenerated afterward without changing this content-addressed input.
+/// ランタイム観測を受け取れる Release VSIX を 1 つに固定する。その後、通常のビルド/テスト出力を再生成しても、このコンテンツアドレス方式の入力は変化しない。
 /// </summary>
 public static class VsixReleaseInputStore {
     public const string SchemaVersion="csharp-game-engine-vsix-release-input-v1";
@@ -50,7 +49,7 @@ public static class VsixReleaseInputStore {
             Package=VsixReleaseEvidence.InspectPackage(
                 Root,Document.PackagePath,Document.BuildDllPath);
         } catch(FileNotFoundException Missing){
-            // The document is tracked; the frozen bytes are in the local .artifacts store, which a fresh checkout lacks.
+            // ドキュメントは追跡対象だが、固定されたバイト列はローカルの .artifacts ストアにあり、新規チェックアウトにはない。
             throw new FileNotFoundException(
                 $"The frozen Release VSIX that {ActiveRelativePath} names is not in this checkout ({Missing.Message}). "
                 +"Validate a Release VSIX in Visual Studio and freeze it with 'freeze-vsix-release-input'.",

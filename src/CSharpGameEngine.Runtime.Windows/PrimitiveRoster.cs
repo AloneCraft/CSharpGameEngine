@@ -2,14 +2,13 @@ using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows;
-/// <summary>Builds L4 mesh/material/object submissions from authored L5 primitive vocabulary.</summary>
+/// <summary>アセット作成時のL5プリミティブの種類から、L4のメッシュ／マテリアル／オブジェクト送信データを構築する。</summary>
 public static class PrimitiveRoster {
     private static readonly Vector4 DefaultBaseColorFactor=new(0.6f,0.6f,0.6f,1f);
     /// <summary>
-    /// Same PrimitiveType deduplicates to one shared StageMeshCreateInfo (mirroring how the .glb
-    /// import path already separates Meshes from Objects), so N boxes cost one GPU mesh buffer.
-    /// Every primitive shares one flat default material - per-primitive color/material is out of
-    /// scope for Phase 6.
+    /// 同じPrimitiveTypeは1つの共有StageMeshCreateInfoにまとめる（.glbのインポート経路がMeshとObjectを分離するのと同様）。
+    /// そのため、BoxをN個作ってもGPUメッシュバッファは1つで済む。すべてのプリミティブで1つのフラットな既定マテリアルを共有する。
+    /// Phase 6の範囲にプリミティブごとの色／マテリアルは含めない。
     /// </summary>
     public static (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)Build(
         IReadOnlyList<PrimitiveType>Types,int MeshIndexOffset,int MaterialIndexOffset){
@@ -24,7 +23,7 @@ public static class PrimitiveRoster {
         var Meshes=new StageMeshCreateInfo[DistinctTypes.Count];
         for(var Index=0;Index<DistinctTypes.Count;Index++){
             var Mesh=ToStageMesh(CreateProceduralMesh(DistinctTypes[Index]));
-            // M0110: a primitive is made here, not by the build, so its distance field is made here too (once per process).
+            // M0110：プリミティブはビルドではなくここで生成するため、距離場もここで（プロセスごとに一度）作る。
             Meshes[Index]=Mesh with { DistanceField=PrimitiveDistanceFields.GetOrAdd(DistinctTypes[Index],_=>MeshDistanceFieldBuilder.Build(Mesh.Positions,Mesh.Indices)) };
         }
         StageMaterialCreateInfo[]Materials=[
@@ -39,7 +38,10 @@ public static class PrimitiveRoster {
         }
         return(Meshes,Materials,Objects);
     }
-    /// <summary>Unit-size dimensions per shape (Transform.Scale=(1,1,1) fits roughly one unit), following Unity's GameObject.CreatePrimitive defaults (e.g. Cylinder/Cone/Capsule height=2, radius=0.5f).</summary>
+    /// <summary>
+    /// 形状ごとの単位寸法（Transform.Scale=(1,1,1)でおよそ1単位に収まる）。UnityのGameObject.CreatePrimitive既定値に従う（例：Cylinder／Cone
+    /// ／Capsuleの高さは2、半径は0.5f）。
+    /// </summary>
     private static ProceduralMeshData CreateProceduralMesh(PrimitiveType Type)=>Type switch {
         PrimitiveType.Plane=>ProceduralMeshFactory.CreatePlane(1f,1f),
         PrimitiveType.Box=>ProceduralMeshFactory.CreateBox(Vector3.One),
@@ -51,7 +53,7 @@ public static class PrimitiveRoster {
         PrimitiveType.Capsule=>ProceduralMeshFactory.CreateCapsule(0.5f,2f),
         _=>throw new ArgumentOutOfRangeException(nameof(Type),Type,"Unknown PrimitiveType."),
     };
-    /// <summary>UVs stay zero for the shared untextured material; tangent synthesis is shared with single-mesh assembly.</summary>
+    /// <summary>共有の非テクスチャマテリアルではUVを0のままにする。接線の生成は単一メッシュ構築処理と共有する。</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<PrimitiveType,MeshDistanceField?>PrimitiveDistanceFields=new();
     private static StageMeshCreateInfo ToStageMesh(ProceduralMeshData Mesh){
         var VertexCount=Mesh.Positions.Length;

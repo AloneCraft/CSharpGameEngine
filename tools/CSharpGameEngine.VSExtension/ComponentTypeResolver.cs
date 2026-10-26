@@ -4,9 +4,8 @@ using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Resolves a component type from a scene's compilation.
-/// The palette catalog only lists source components belonging to the active project; Inspector also
-/// contains components declared by referenced projects such as CSharpGameEngine.Windows.Transform.
+/// シーンのコンパイルからコンポーネント型を解決します。
+/// パレットカタログにはアクティブなプロジェクトのソースコンポーネントだけが表示されますが、Inspector には CSharpGameEngine.Windows.Transform など、参照プロジェクトで宣言されたコンポーネントも含まれます。
 /// </summary>
 internal static class ComponentTypeResolver {
     internal static INamedTypeSymbol?Resolve(Compilation Compilation,string FullyQualifiedName){

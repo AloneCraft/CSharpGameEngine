@@ -110,8 +110,8 @@ internal sealed class SceneProjectionReconciler {
             ?[]
             :Previous.Nodes.ToDictionary(static Node=>Node.Id);
         List<SceneProjectionNode>Result=[];
-        // Each node's old children, looked up once: scanning every old node for each node was quadratic (a 4000-node
-        // scene spent about 0.3 s per reconcile, twice per commit). The groups keep the old nodes' order.
+        // 各ノードの以前の子を一度だけ検索します。ノードごとに古い全ノードを走査すると O(n²) になり、4000ノードの
+        // シーンでは reconcile ごとに約0.3 s、commit ごとに2回かかっていました。グループは古いノードの順序を保ちます。
         ILookup<EditorNodeId,SceneProjectionNode>OldChildren=OldNodes.Values
             .Where(static Candidate=>Candidate.ParentId is not null)
             .ToLookup(static Candidate=>Candidate.ParentId!.Value);

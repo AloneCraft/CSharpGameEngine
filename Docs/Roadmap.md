@@ -1,7 +1,10 @@
 # Roadmap
 
+## Current asset editor windows update
+M0127/ADR-0089 adds F-L8-036: asset editors open as floating, dockable Visual Studio documents (Static Mesh, Texture, Sound Wave, Font, Data Asset, plus the shader graph) and the asset preview gets Preview Level templates. Skinned glTF models get a skeleton tree and animation timeline, with the host loading them through the same sources as the game (ADR-0090). See [Asset Editors](Specifications/Asset-Editors.md) and [M0127](Milestones/M0127-Asset-Editor-Windows.md).
+
 ## Current logarithmic-native rendering, render-path and full-scale physics plan
-ADR-0084〜ADR-0087(2026-10-25)が、対数深度を最初から対数で書く Stage シェーダー 1 系統にする(標準深度の削除)、URP の 4 描画パスを移植する、物理を Q64.64 のまま全スケールにする、描画と物理を適切な層へ置く、を決めた。計画は M0119〜M0123 で、新しい機能は F-L0-011(D3D12 の描画計画の実行器)、F-L4-020(URP の 4 描画パス)、F-L4-021(Entity を使わない物理の契約)、F-L5-047(全スケールの決定的な剛体)。F-L5-038 は「Logarithmic depth of every perspective view」へ改名する。順序は M0119(対数ネイティブ、`stage-v14`)→ M0120(描画の L4 化と Forward/Forward+、`stage-v15`)→ M0121(Deferred/Deferred+、`stage-v16`)、物理は進行中の M0112 の後に M0122(全スケール)→ M0123(契約とソルバーの分離)。M0113(破壊)は M0123 の後。詳細は [ADR-0084](Decisions/ADR-0084-Logarithmic-Native-Depth.md)、[ADR-0085](Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0086](Decisions/ADR-0086-Full-Scale-Physics.md)、[ADR-0087](Decisions/ADR-0087-Rendering-And-Physics-Layers.md)。
+ADR-0084〜ADR-0087(2026-10-25)が、対数深度を最初から対数で書く Stage シェーダー 1 系統にする(標準深度の削除)、URP の 4 描画パスを移植する、物理を Q64.64 のまま全スケールにする、描画と物理を適切な層へ置く、を決めた。計画は M0119〜M0123 で、新しい機能は F-L0-011(D3D12 の描画計画の実行器)、F-L4-022(URP の 4 描画パス)、F-L4-021(Entity を使わない物理の契約)、F-L5-047(全スケールの決定的な剛体)。F-L5-038 は「Logarithmic depth of every perspective view」へ改名する。順序は M0119(対数ネイティブ、`stage-v14`)→ M0120(描画の L4 化と Forward/Forward+、`stage-v15`)→ M0121(Deferred/Deferred+、`stage-v16`)、物理は進行中の M0112 の後に M0122(全スケール)→ M0123(契約とソルバーの分離)。M0113(破壊)は M0123 の後。詳細は [ADR-0084](Decisions/ADR-0084-Logarithmic-Native-Depth.md)、[ADR-0085](Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0086](Decisions/ADR-0086-Full-Scale-Physics.md)、[ADR-0087](Decisions/ADR-0087-Rendering-And-Physics-Layers.md)。
 
 ## Current typed-light contract update
 M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005 and F-L0-009 without adding a new feature identity. See [Typed Lighting](Specifications/Typed-Lighting.md) and [verification milestone](Milestones/M0088-Typed-Lighting.md).
@@ -83,7 +86,9 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 5 | F-L8-026 | Implemented | Bake, asset, diagnostic UI | F-L8-025 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.bake-integration` |
 | 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
 | 7 | F-L8-029 | Implementing | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
+| 6 | F-L8-035 | PartiallyImplemented | Solution Explorer linked asset workspace | F-L8-019, F-L8-024, F-L8-025 | [Asset Workspace](Specifications/Asset-Workspace.md) | `vsix.asset-workspace` |
 | 7 | F-L8-032 | Implemented | ThirdPerson Visual Studio project template | F-L6-009, F-L8-031 | [ADR-0068](Decisions/ADR-0068-ThirdPerson-Project-Template.md) | `vsix.project-template` |
+| 7 | F-L8-036 | PartiallyImplemented | Asset editor windows and preview levels | F-L8-035 | [Asset Editors](Specifications/Asset-Editors.md) | `vsix.asset-editors` |
 
 ### ECS / Runtime
 

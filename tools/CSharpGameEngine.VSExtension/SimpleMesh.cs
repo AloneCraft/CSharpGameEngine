@@ -4,10 +4,7 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Provider-neutral CPU vertex/index payload for preview scene construction - no UVs/texture. Shared by
-/// <see cref="ExternalGltfLoader"/> (glTF, ADR-0019) and <see cref="ExternalFbxLoader"/> (FBX,
-/// ADR-0010) - both parsed out-of-process via <see cref="ExternalBridgeProcess"/> - so
-/// <see cref="RenderPreviewSceneBuilder"/> stays format-agnostic.
+/// プレビューシーンを構築するための、プロバイダーに依存しない CPU 頂点/インデックスデータ（UV/テクスチャなし）。<see cref="ExternalBridgeProcess"/> を経由して別プロセスで解析された glTF (ADR-0019) の <see cref="ExternalGltfLoader"/> と FBX (ADR-0010) の <see cref="ExternalFbxLoader"/> が共有するため、<see cref="RenderPreviewSceneBuilder"/> は形式に依存しない。
 /// </summary>
 internal sealed class SimpleMesh {
     public required Vector3[]Positions { get; init;}

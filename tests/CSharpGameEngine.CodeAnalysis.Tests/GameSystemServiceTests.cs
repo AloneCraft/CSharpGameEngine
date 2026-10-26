@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0077 stage 5: a reference-type parameter whose type is a property of EngineHost is a service the loop passes.</summary>
+/// <summary>ADR-0077 stage 5：EngineHostのプロパティを型とする参照型パラメーターはサービスとなり、ループが渡す。</summary>
 public sealed class GameSystemServiceTests {
     private const string Host="""
         namespace CSharpGameEngine.Runtime.Windows;
@@ -38,7 +38,7 @@ public sealed class GameSystemServiceTests {
         var Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 
         Assert.Contains("Beep.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), EngineHost.Sound)",Loop);
-        // The service needs the host even though no system names EngineHost.
+        // どのシステムもEngineHostを指定していなくても、このサービスの生成にはホストが必要。
         Assert.Contains("global::CSharpGameEngine.Runtime.Windows.EngineHost EngineHost",Loop);
     }
 

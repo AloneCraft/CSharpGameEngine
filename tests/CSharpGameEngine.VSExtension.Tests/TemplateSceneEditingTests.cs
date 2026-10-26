@@ -13,10 +13,7 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// The Scene Designer's write-back over the ThirdPerson template's real scenes, compiled exactly as the build compiles
-/// the template (its compile items, defines and references from MSBuild), so the engine's own component types are used.
-/// Tests with stub types had missed that a startup scene lost <c>startupOrder</c>, that the VSIX rewrote unrelated
-/// floats, that enum and text edits failed, and that half of the palette could not be added.
+/// ThirdPerson テンプレートの実シーンで Scene Designer の書き戻しを検証する。ビルドとまったく同じようにテンプレートのコンパイル項目、定義、MSBuild 参照を使い、エンジン自身のコンポーネント型を対象とする。スタブ型を使ったテストでは、起動シーンの <c>startupOrder</c> が失われる問題、VSIX が無関係な float を書き直す問題、enum とテキストの編集が失敗する問題、パレットの半数を追加できない問題を見逃していた。
 /// </summary>
 public sealed class TemplateSceneEditingTests {
     private sealed record TemplateProject(string Directory,CSharpCompilation Compilation);
@@ -83,7 +80,7 @@ public sealed class TemplateSceneEditingTests {
         return New.Where((Line,Index)=>Line!=Old[Index]).ToArray();
     }
 
-    /// <summary>Committing a member's current value changes nothing; choosing another enum member writes that one line.</summary>
+    /// <summary>メンバーの現在値を確定しても変更はない。別の enum メンバーを選ぶと、その行だけを書き出す。</summary>
     [Fact]
     public void InspectorCommits_WriteOnlyWhatChanged(){
         var Seen=new HashSet<string>(StringComparer.Ordinal);
@@ -108,7 +105,7 @@ public sealed class TemplateSceneEditingTests {
         Assert.True(Checked>50,$"only {Checked} members were checked");
     }
 
-    /// <summary>Every palette component can be added to a template scene (a LightShadow needs its light, so it is added with one).</summary>
+    /// <summary>パレットのすべてのコンポーネントをテンプレートシーンに追加できる（LightShadow にはライトが必要なため、ライトと一緒に追加する）。</summary>
     [Fact]
     public void EveryPaletteComponent_CanBeAddedWithItsDefaults(){
         var Compilation=Template.Value.Compilation;
@@ -132,7 +129,7 @@ public sealed class TemplateSceneEditingTests {
         }
     }
 
-    /// <summary>A startup scene keeps <c>startupOrder</c> through an edit, and an unedited write-back is byte-identical.</summary>
+    /// <summary>編集後も起動シーンは <c>startupOrder</c> を維持し、編集なしの書き戻しはバイト単位で一致する。</summary>
     [Fact]
     public void MovesKeepStartupOrderAndWriteOneLine(){
         foreach(var Scene in Scenes()){

@@ -6,7 +6,7 @@ using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Builds the Scene View card border and index labels as ordinary wire overlay input.</summary>
+/// <summary>通常の wire overlay input として Scene View のカード枠と index ラベルを構築します。</summary>
 internal static class SceneCameraPreviewOverlay {
     internal static IReadOnlyList<GizmoOverlayPrimitive>Build(
         IReadOnlyList<RenderPreviewCameraPass>Previews,

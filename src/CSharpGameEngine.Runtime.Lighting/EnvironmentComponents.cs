@@ -2,11 +2,20 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Lighting;
+/// <summary>ディレクショナルシャドウのバックエンド方針。各ライトが要求する影は引き続きLightShadowが所有する。</summary>
+[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,70)]
+public struct DirectionalShadowRendering() {
+    public CSharpGameEngine.Rendering.DirectionalShadowMode Mode=CSharpGameEngine.Rendering.DirectionalShadowMode.Cascaded;
+    public int PageBudget=1024;
+    public bool Compare=false;
+    public bool SoftShadows=false;
+    public float SourceAngularDiameterDegrees=0.5357f;
+    public float MaximumSoftShadowRadiusMeters=2f;
+}
 /// <summary>
-/// Physically based sky atmosphere (ADR-0069). Units and defaults follow Unreal Engine's
-/// SkyAtmosphere component (kilometres, per-kilometre coefficients, Earth preset) so imported
-/// values need no conversion. The brightest directional light is the sun: its illuminance is the
-/// top-of-atmosphere value and the renderer attenuates it by the atmosphere's transmittance.
+/// 物理ベースの空大気（ADR-0069）。単位と既定値はUnreal EngineのSkyAtmosphereコンポーネントに合わせる
+///（キロメートル、1キロメートルあたりの係数、地球プリセット）ため、インポート値の変換は不要。
+/// 最も明るいディレクショナルライトを太陽として扱う。その照度が大気圏上端の値となり、レンダラーは大気の透過率を掛けて減衰させる。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,60)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/SkyAtmosphere.svg")]
@@ -38,11 +47,11 @@ public struct SkyAtmosphere() {
     public float OtherTentTipAltitudeKm=25f;
     public float OtherTentWidthKm=30f;
     public float MultiScatteringFactor=1f;
-    /// <summary>Full angular diameter of the sun disk in degrees (Unreal's DirectionalLight Source Angle).</summary>
+    /// <summary>太陽円盤の全角直径（度数。UnrealのDirectionalLight Source Angle）。</summary>
     [Angle(AngleUnit.Degrees)]
     public float SunDiskAngleDegrees=0.5357f;
 }
-/// <summary>Sky light captured from <see cref="SkyAtmosphere"/>. <see cref="Intensity"/> multiplies the captured sky radiance.</summary>
+/// <summary><see cref="SkyAtmosphere"/>から取り込んだスカイライト。<see cref="Intensity"/>を取り込んだ空の放射輝度に掛ける。</summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,61)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/SkyLight.svg")]
 public struct SkyLight() {
@@ -51,38 +60,39 @@ public struct SkyLight() {
     public float LowerHemisphereG=0f;
     public float LowerHemisphereB=0f;
 }
-/// <summary>Exposure model. Legacy keeps the renderer's original 2^-EV100 scale.</summary>
+/// <summary>露出モデル。Legacyではレンダラー本来の2^-EV100スケールを維持する。</summary>
 public enum ExposureMethod {
     Legacy,
-    /// <summary>Fixed physical camera exposure at <see cref="PostProcessVolume.MinEv100"/>.</summary>
+    /// <summary><see cref="PostProcessVolume.MinEv100"/>で固定する、物理カメラの露出。</summary>
     Manual,
-    /// <summary>Unreal's histogram auto exposure, metered between <see cref="PostProcessVolume.MinEv100"/> and <see cref="PostProcessVolume.MaxEv100"/>.</summary>
+    /// <summary><see cref="PostProcessVolume.MinEv100"/>から<see cref="PostProcessVolume.MaxEv100"/>の間を測光する、Unrealのヒストグラム自動露出。</summary>
     AutoHistogram,
 }
-/// <summary>Output transform. Legacy keeps the original linear ACES fit.</summary>
+/// <summary>出力変換。Legacyでは従来の線形ACES近似を維持する。</summary>
 public enum ToneMapperKind {
     Legacy,
-    /// <summary>Unreal Engine's filmic curve followed by the sRGB transfer function.</summary>
+    /// <summary>Unreal Engineのフィルム調カーブと、それに続くsRGB伝達関数。</summary>
     UnrealFilmic,
 }
-/// <summary>Unreal's Global Illumination Method (ADR-0078/M0111).</summary>
+/// <summary>Unrealのグローバルイルミネーション方式（ADR-0078/M0111）。</summary>
 public enum GlobalIlluminationMethod {
-    /// <summary>No Lumen: the probe volume (<see cref="GlobalIlluminationVolume"/>) and the sky light light the scene, as before M0111.</summary>
+    /// <summary>Lumenを使わない方式。M0111以前と同様、プローブボリューム（<see cref="GlobalIlluminationVolume"/>）とスカイライトでシーンを照らす。</summary>
     None,
-    /// <summary>The Lumen-like dynamic GI (surface cache, radiance cache, screen probes), where the adapter's scalability allows it.</summary>
+    /// <summary>Lumen風の動的GI（サーフェスキャッシュ、放射輝度キャッシュ、スクリーンプローブ）。アダプターのスケーラビリティが許す環境で使用する。</summary>
     Lumen,
 }
-/// <summary>Unreal's Reflection Method (ADR-0078/M0111).</summary>
+/// <summary>Unrealの反射方式（ADR-0078/M0111）。</summary>
 public enum ReflectionMethod {
-    /// <summary>No Lumen reflections: the sky light's specular, as before M0111.</summary>
+    /// <summary>Lumen反射を使わない。M0111以前と同様、スカイライトの鏡面反射を使う。</summary>
     None,
-    /// <summary>The Lumen-like reflections (screen traces, then the distance field and the surface cache), where the scalability allows them.</summary>
+    /// <summary>Lumen風の反射（スクリーントレース後、距離場とサーフェスキャッシュを使用）。スケーラビリティが許す環境で有効にする。</summary>
     Lumen,
 }
 /// <summary>
-/// Scene-wide (unbound) post-process settings: exposure, tone mapping, bloom, and (ADR-0078/M0111) Unreal's Lumen settings with Unreal's defaults,
-/// which the four UE 5.8 templates use unchanged (tools/UnrealExport/probe_lumen.py). Distances are metres (Unreal's centimetres / 100). Lumen needs a
-/// <see cref="GlobalDistanceField"/> in the scene and an adapter whose scalability is High or Epic (the default on a GPU; WARP keeps the probe volume).
+/// シーン全体に適用する、ボリューム範囲を持たないポストプロセス設定。露出、トーンマッピング、ブルーム、およびUnrealの既定値を使うLumen設定
+///（ADR-0078/M0111）を含む。Unreal 5.8の4つのテンプレートでも変更せずに使われている（tools/UnrealExport/probe_lumen.py）。
+/// 距離の単位はメートル（Unrealのセンチメートルを100で割った値）。Lumenの使用には、シーン内の<see cref="GlobalDistanceField"/>と、
+/// スケーラビリティがHighまたはEpicのアダプターが必要（GPUでは既定値。WARPではプローブボリュームを維持する）。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,62)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/PostProcessVolume.svg")]
@@ -90,59 +100,59 @@ public struct PostProcessVolume() {
     public ExposureMethod ExposureMethod=ExposureMethod.Manual;
     public float MinEv100=0f;
     public float MaxEv100=0f;
-    /// <summary>Histogram adaptation rate per second toward a brighter scene (Unreal's default 3).</summary>
+    /// <summary>明るいシーンへ向かうヒストグラム適応速度（毎秒、Unrealの既定値は3）。</summary>
     public float AutoExposureSpeedUp=3f;
-    /// <summary>Histogram adaptation rate per second toward a darker scene (Unreal's default 1).</summary>
+    /// <summary>暗いシーンへ向かうヒストグラム適応速度（毎秒、Unrealの既定値は1）。</summary>
     public float AutoExposureSpeedDown=1f;
-    /// <summary>Exposure compensation in stops (Unreal's Exposure Compensation / AutoExposureBias).</summary>
+    /// <summary>段数で指定する露出補正（UnrealのExposure Compensation／AutoExposureBias）。</summary>
     public float ExposureCompensation=1f;
     public ToneMapperKind ToneMapper=ToneMapperKind.UnrealFilmic;
     public float BloomIntensity=0.675f;
-    /// <summary>Strength of screen-space ambient occlusion on indirect light, 0 (off) to 1 (Unreal's default 0.5).</summary>
+    /// <summary>間接光に対するスクリーン空間アンビエントオクルージョンの強度。0でオフ、1はUnrealの既定値0.5。</summary>
     public float AmbientOcclusionIntensity=0.5f;
-    /// <summary>World-space ambient occlusion radius in metres (Unreal's 200 cm).</summary>
+    /// <summary>ワールド空間でのアンビエントオクルージョン半径（m、Unrealでは200 cm）。</summary>
     public float AmbientOcclusionRadiusMeters=2f;
     public GlobalIlluminationMethod GlobalIlluminationMethod=GlobalIlluminationMethod.Lumen;
     public ReflectionMethod ReflectionMethod=ReflectionMethod.Lumen;
-    /// <summary>Scales how many surface cache texels are lit each frame (Unreal's Lumen Scene Lighting Quality, 0.25-4).</summary>
+    /// <summary>フレームごとに照明を計算するサーフェスキャッシュのテクセル数を倍率指定（UnrealのLumen Scene Lighting Quality、0.25～4）。</summary>
     public float LumenSceneLightingQuality=1f;
-    /// <summary>Scales the surface cache's texels per metre (Unreal's Lumen Scene Detail, 0.25-4).</summary>
+    /// <summary>サーフェスキャッシュの1メートルあたりのテクセル数を倍率指定（UnrealのLumen Scene Detail、0.25～4）。</summary>
     public float LumenSceneDetail=1f;
-    /// <summary>Objects farther than this get no surface cache cards (Unreal's Lumen Scene View Distance, 20000 cm).</summary>
+    /// <summary>この距離より遠いオブジェクトにはサーフェスキャッシュのカードを作らない（UnrealのLumen Scene View Distance、20000 cm）。</summary>
     public float LumenSceneViewDistanceMeters=200f;
-    /// <summary>Scales the surface cache's lighting budget per frame (Unreal's Lumen Scene Lighting Update Speed, 0.5-4).</summary>
+    /// <summary>サーフェスキャッシュのフレームごとの照明計算予算を倍率指定（UnrealのLumen Scene Lighting Update Speed、0.5～4）。</summary>
     public float LumenSceneLightingUpdateSpeed=1f;
-    /// <summary>Screen probes every 16 pixels at Epic divided by this (Unreal's Final Gather Quality, 0.25-4).</summary>
+    /// <summary>Epicでは16ピクセル間隔で配置するスクリーンプローブを、この値で割った間隔にする（UnrealのFinal Gather Quality、0.25～4）。</summary>
     public float LumenFinalGatherQuality=1f;
-    /// <summary>Scales the radiance cache's probes per frame and the final gather's new-sample weight (Unreal's Final Gather Lighting Update Speed).</summary>
+    /// <summary>フレームごとの放射輝度キャッシュのプローブ数と、Final Gatherの新しいサンプルの重みを倍率指定（UnrealのFinal Gather Lighting Update Speed）。</summary>
     public float LumenFinalGatherLightingUpdateSpeed=1f;
-    /// <summary>Whether the final gather traces the screen before the distance field (Unreal's Final Gather Screen Traces).</summary>
+    /// <summary>Final Gatherが距離場より先にスクリーンをトレースするかどうか（UnrealのFinal Gather Screen Traces）。</summary>
     public bool LumenFinalGatherScreenTraces=true;
-    /// <summary>The longest ray (Unreal's Max Trace Distance, 20000 cm).</summary>
+    /// <summary>レイの最長距離（UnrealのMax Trace Distance、20000 cm）。</summary>
     public float LumenMaxTraceDistanceMeters=200f;
-    /// <summary>Multiplies the surface cache's albedo, at most to 1 (Unreal's Diffuse Color Boost, 1-4).</summary>
+    /// <summary>サーフェスキャッシュのアルベドに倍率を掛ける。上限は1（UnrealのDiffuse Color Boost、1～4）。</summary>
     public float LumenDiffuseColorBoost=1f;
-    /// <summary>The final gather's irradiance is at least this fraction of the open sky's (Unreal's Skylight Leaking, 0-1; an art knob against black interiors).</summary>
+    /// <summary>Final Gatherの照度が、開放空の照度に対して保つ最小割合（UnrealのSkylight Leaking、0～1。暗い室内を抑えるためのアート調整値）。</summary>
     public float LumenSkylightLeaking=0f;
-    /// <summary>Reflections at full resolution at Epic when at least 0.75, else every 2 x 2 pixels (Unreal's Lumen Reflection Quality).</summary>
+    /// <summary>Epicでは0.75以上ならフル解像度で反射を描画し、それ未満なら2 x 2ピクセルごとに描画する（UnrealのLumen Reflection Quality）。</summary>
     public float LumenReflectionQuality=1f;
-    /// <summary>Rougher surfaces reflect the final gather's probes instead of tracing (Unreal's Max Roughness To Trace Reflections, 0.4).</summary>
+    /// <summary>これより粗い面はレイトレースせず、Final Gatherのプローブを反射する（UnrealのMax Roughness To Trace Reflections、0.4）。</summary>
     public float LumenMaxRoughnessToTraceReflections=0.4f;
-    /// <summary>Whether the reflections trace the screen before the distance field (Unreal's Lumen Reflections Screen Traces).</summary>
+    /// <summary>反射で距離場より先にスクリーンをトレースするかどうか（UnrealのLumen Reflections Screen Traces）。</summary>
     public bool LumenReflectionsScreenTraces=true;
-    /// <summary>Scales the surface cache's resolution (Unreal's Surface Cache Resolution, 0.5-1).</summary>
+    /// <summary>サーフェスキャッシュの解像度を倍率指定（UnrealのSurface Cache Resolution、0.5～1）。</summary>
     public float LumenSurfaceCacheResolution=1f;
 }
 /// <summary>
-/// Unreal Engine's exponential height fog. <see cref="FogDensity"/> and <see cref="FogHeightFalloff"/>
-/// keep Unreal's authored values; the renderer converts them to per-metre values (x0.1).
+/// Unreal Engineの指数型高さフォグ。<see cref="FogDensity"/>と<see cref="FogHeightFalloff"/>はUnrealで設定した値を保ち、
+/// レンダラー側で1メートルあたりの値（×0.1）へ変換する。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,63)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/ExponentialHeightFog.svg")]
 public struct ExponentialHeightFog() {
     public float FogDensity=0.02f;
     public float FogHeightFalloff=0.2f;
-    /// <summary>World height of the fog reference plane in metres.</summary>
+    /// <summary>フォグの基準面のワールド高さ（m）。</summary>
     public float FogHeight=0f;
     public float FogMaxOpacity=1f;
     public float InscatteringLuminanceR=0f;
@@ -151,10 +161,9 @@ public struct ExponentialHeightFog() {
     public float SkyAtmosphereAmbientContributionScale=1f;
 }
 /// <summary>
-/// Dynamic diffuse global illumination probe volume (ADR-0069): an axis-aligned box centred on the
-/// entity's Transform position (rotation and scale are ignored). Probes sit on a regular grid inside
-/// the box and are re-captured round robin with the lit Stage pipeline, so indirect light follows
-/// the sun, the sky and moving objects over a few frames. Surfaces outside the box keep the sky light.
+/// 動的な拡散グローバルイルミネーションのプローブボリューム（ADR-0069）。EntityのTransform位置を中心とする軸平行ボックスで、回転とスケールは無視する。
+/// ボックス内に規則的な格子状でプローブを配置し、照明を反映したStageパイプラインでラウンドロビン方式に再撮影する。
+/// そのため数フレームかけて、間接光が太陽、空、移動オブジェクトに追従する。ボックス外の面にはスカイライトを使う。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,64)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/GlobalIlluminationVolume.svg")]
@@ -162,85 +171,87 @@ public struct GlobalIlluminationVolume() {
     public float HalfExtentX=16f;
     public float HalfExtentY=4f;
     public float HalfExtentZ=16f;
-    /// <summary>Target distance between probes in metres; the grid spans the box exactly.</summary>
+    /// <summary>プローブ間の目標距離（m）。格子はボックス全体にちょうど収まる。</summary>
     public float ProbeSpacingMeters=2.5f;
-    /// <summary>Probes re-captured each frame (1-64).</summary>
+    /// <summary>毎フレーム再撮影するプローブ数（1～64）。</summary>
     public int ProbesPerFrame=32;
-    /// <summary>Weight of the previous result when a probe is refreshed (0 = replace).</summary>
+    /// <summary>プローブ更新時に前回の結果を残す重み（0なら置き換え）。</summary>
     public float Hysteresis=0.5f;
     public float Intensity=1f;
 }
 /// <summary>
-/// Volumetric clouds (ADR-0078/M0110): Unreal's VolumetricCloud component together with the values of its default cloud material
-/// (<c>m_SimpleVolumetricCloud_Inst</c>), read from the UE 5.8 templates (all four levels use the same ones). A shell of the planet between
-/// <see cref="LayerBottomAltitudeKm"/> and its top is ray marched toward the sun after Hillaire, lit by the sun through the atmosphere and by the
-/// sky light, and drawn over the sky. The cloud shapes are the engine's own noise (Unreal's come from its cloud textures); the wind moves them.
+/// ボリュームクラウド（ADR-0078/M0110）。UnrealのVolumetricCloudコンポーネントと既定クラウドマテリアル
+///（<c>m_SimpleVolumetricCloud_Inst</c>）の値を使う（UE 5.8の4つのテンプレートすべてで共通）。
+/// 惑星の<see cref="LayerBottomAltitudeKm"/>から雲層上端までの殻を、Hillaire方式で太陽方向へレイマーチし、大気を通した太陽光とスカイライトで照らして空に重ねる。
+/// 雲の形状にはエンジン独自のノイズを使う（Unrealでは雲テクスチャを使う）。風で雲を移動させる。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,65)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/VolumetricCloud.svg")]
 public struct VolumetricCloud() {
-    /// <summary>Altitude of the bottom of the cloud layer above the ground (Unreal's Layer Bottom Altitude).</summary>
+    /// <summary>地面から雲層下端までの高度（UnrealのLayer Bottom Altitude）。</summary>
     public float LayerBottomAltitudeKm=5f;
-    /// <summary>Thickness of the cloud layer (Unreal's Layer Height).</summary>
+    /// <summary>雲層の厚み（UnrealのLayer Height）。</summary>
     public float LayerHeightKm=10f;
-    /// <summary>Clouds whose layer starts farther than this along a view ray are not traced (Unreal's Tracing Start Max Distance).</summary>
+    /// <summary>視線レイに沿ってこの距離より遠くから始まる雲層はトレースしない（UnrealのTracing Start Max Distance）。</summary>
     public float TracingStartMaxDistanceKm=350f;
-    /// <summary>The longest stretch of a view ray traced inside the layer (Unreal's Tracing Max Distance).</summary>
+    /// <summary>視線レイが雲層内でトレースされる最長距離（UnrealのTracing Max Distance）。</summary>
     public float TracingMaxDistanceKm=50f;
-    /// <summary>Extinction of the densest cloud per metre (the material's Cloud_GlobalDensity).</summary>
+    /// <summary>最も密度の高い雲の1メートルあたりの消散係数（マテリアルのCloud_GlobalDensity）。</summary>
     public float Density=0.008f;
-    /// <summary>Shifts how much of the sky is covered: 0 is about half, negative is less (the material's Cloud_GlobalCoverage).</summary>
+    /// <summary>空のどれだけを覆うかを調整する。0で約半分、負の値でそれより少なくなる（マテリアルのCloud_GlobalCoverage）。</summary>
     public float Coverage=-0.2f;
-    /// <summary>Size of the cloud layout pattern (the material's Layout_CloudGlobalScale).</summary>
+    /// <summary>雲の配置パターンの大きさ（マテリアルのLayout_CloudGlobalScale）。</summary>
     public float LayoutScaleKm=256f;
-    /// <summary>Single-scattering albedo (the material's Cloud_AlbedoColor).</summary>
+    /// <summary>単一散乱アルベド（マテリアルのCloud_AlbedoColor）。</summary>
     public float AlbedoR=0.98f;
     public float AlbedoG=0.98f;
     public float AlbedoB=0.98f;
-    /// <summary>The dual-lobe Henyey-Greenstein phase: the two eccentricities and the blend toward the second (the material's Phase_Controls).</summary>
+    /// <summary>二重ローブのHenyey-Greenstein位相関数。2つの異方性と、2つ目へ混ぜる割合を表す（マテリアルのPhase_Controls）。</summary>
     public float PhaseG=0.8f;
     public float PhaseG2=0.166667f;
     public float PhaseBlend=0.575f;
-    /// <summary>Hillaire's multiple-scattering approximation per octave: contribution, occlusion and eccentricity factors (the material's Multiscatter_Controls).</summary>
+    /// <summary>Hillaireの多重散乱近似のオクターブごとの寄与、遮蔽、異方性係数（マテリアルのMultiscatter_Controls）。</summary>
     public float MultiScatteringContribution=0.666667f;
     public float MultiScatteringOcclusion=0.25f;
     public float MultiScatteringEccentricity=0.18f;
-    /// <summary>How much the sky light is dimmed at the bottom of the layer (Unreal's Sky Light Cloud Bottom Occlusion).</summary>
+    /// <summary>雲層の下端でスカイライトをどれだけ減光するか（UnrealのSky Light Cloud Bottom Occlusion）。</summary>
     public float SkyLightCloudBottomOcclusion=0.5f;
-    /// <summary>Tracing stops once the view ray's transmittance falls below this (Unreal's Stop Tracing Transmittance Threshold).</summary>
+    /// <summary>視線レイの透過率がこの値を下回るとトレースを終了する（UnrealのStop Tracing Transmittance Threshold）。</summary>
     public float StopTracingTransmittanceThreshold=0.005f;
-    /// <summary>Wind speed moving the clouds. Unreal animates its default clouds through Layout_WindControls; this speed is the engine's choice.</summary>
+    /// <summary>雲を動かす風速。UnrealはLayout_WindControlsで既定の雲をアニメーションさせるが、この速度はエンジン独自の設定。</summary>
     public float WindSpeedMetersPerSecond=10f;
-    /// <summary>The direction the wind blows toward, clockwise from +F seen from above (+R at 90).</summary>
+    /// <summary>上から見て+Fを基準に時計回りで表した風向（90度は+R）。</summary>
     [Angle(AngleUnit.Degrees)]
     public float WindDirectionDegrees=45f;
 }
 /// <summary>
-/// The sky sphere (ADR-0078/M0110): Unreal's <c>SM_SkySphere</c> drawn with <c>M_SimpleSkyDome</c>, an unlit "Is Sky" material whose colour is
-/// the SkyAtmosphere's view luminance plus its sun disk. The engine draws exactly that sky (with the clouds) on every pixel that is not covered
-/// by geometry closer than the sphere: geometry beyond <see cref="RadiusMeters"/> from the Entity's position is hidden by the sky, as Unreal's
-/// dome hides it. Without a <see cref="SkyAtmosphere"/> it has no effect. Rotation and scale of the Transform are ignored.
+/// スカイスフィア（ADR-0078/M0110）。Unrealの<c>SM_SkySphere</c>を<c>M_SimpleSkyDome</c>で描画する。
+/// 「Is Sky」が有効なUnlitマテリアルで、SkyAtmosphereの視線輝度と太陽円盤を色として使う。
+/// エンジンも雲とともに同じ空を描き、スフィアより手前のジオメトリに覆われていない全ピクセルを埋める。
+/// つまり、Entity位置から<see cref="RadiusMeters"/>より遠いジオメトリは空に隠れる（Unrealのドームと同じ）。
+/// <see cref="SkyAtmosphere"/>がない場合は何も起こらない。Transformの回転とスケールは無視する。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,66)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/SkySphere.svg")]
 public struct SkySphere() {
-    /// <summary>Radius of the sphere. Unreal's SM_SkySphere is 40.96 m and the templates scale it 400 times: 16.384 km.</summary>
+    /// <summary>スフィアの半径。UnrealのSM_SkySphereは40.96 mで、テンプレートでは400倍に拡大し、16.384 km。</summary>
     public float RadiusMeters=16384f;
 }
 /// <summary>
-/// The global distance field (ADR-0078/M0110): clipmaps of the scene's signed distance around the camera, made every frame from the mesh distance
-/// fields the build writes for each glTF, for the Lumen-like lighting (M0111) to trace. Unreal makes it when the project's "Generate Mesh Distance
-/// Fields" is on, as its templates have it for Lumen; here a level with this component gets it. The values are the engine's choice for WARP (Unreal's
-/// first clipmap reaches 25 m): <see cref="ClipmapCount"/> levels of <see cref="Resolution"/>^3 voxels, the finest of <see cref="VoxelSizeMeters"/>.
-/// It changes nothing on screen by itself.
+/// グローバル距離場（ADR-0078/M0110）。カメラ周囲のシーンの符号付き距離をクリップマップに記録し、毎フレーム更新する。
+/// Lumen風の照明（M0111）がレイトレースに使うため、各glTF用にビルドが作成したメッシュ距離場から生成する。
+/// Unrealではプロジェクトの「Generate Mesh Distance Fields」が有効な場合に作られる（Lumen用としてテンプレートで有効）。
+/// ここではこのコンポーネントを持つレベルに生成する。値はWARP用のエンジン独自設定（Unrealの最初のクリップマップは25 mまで）：
+/// <see cref="ClipmapCount"/>レベルにわたり、それぞれ<see cref="Resolution"/>^3ボクセルを配置し、最小レベルのサイズは<see cref="VoxelSizeMeters"/>。
+/// これ単体では画面表示に変化を与えない。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,67)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/GlobalDistanceField.svg")]
 public struct GlobalDistanceField() {
-    /// <summary>Voxel size of the finest clipmap; each next one doubles it.</summary>
+    /// <summary>最小クリップマップのボクセルサイズ。次のレベルでは2倍ずつ大きくなる。</summary>
     public float VoxelSizeMeters=0.5f;
-    /// <summary>Clipmaps (1-4).</summary>
+    /// <summary>クリップマップの数（1～4）。</summary>
     public int ClipmapCount=4;
-    /// <summary>Voxels per side of each clipmap (16-128, a multiple of 8).</summary>
+    /// <summary>各クリップマップの1辺あたりのボクセル数（16～128、8の倍数）。</summary>
     public int Resolution=64;
 }

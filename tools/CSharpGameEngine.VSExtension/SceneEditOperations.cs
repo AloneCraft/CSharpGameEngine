@@ -132,19 +132,17 @@ internal enum SceneEditOperationKind {
 }
 
 /// <summary>
-/// Value helpers for scene edit operations. ADR-0070 removed the C# scene writer that used to live
-/// here: a gesture edits the <see cref="SceneModel"/> (<see cref="SceneModelEditApplier"/>) and the
-/// scene JSON is written from the model (<see cref="SceneJsonCommitPlanner"/>).
+/// シーン編集操作用の値ヘルパー。ADR-0070 で、以前ここにあった C# シーン writer を削除しました。操作は <see cref="SceneModel"/>（<see cref="SceneModelEditApplier"/>）を編集し、シーン JSON はモデルから <see cref="SceneJsonCommitPlanner"/> が書き出します。
 /// </summary>
 internal static class SceneEditValues {
-    /// <summary>The public RUF Transform vectors a transform gesture sets.</summary>
+    /// <summary>transform 操作で設定する public RUF Transform ベクトル。</summary>
     internal static IEnumerable<(string Name,Vector3 Value,Vector3 Default)>EnumerateTransformVectors(
         SceneTransformValue Transform,SceneTransformMemberMask Members){
         if((Members&SceneTransformMemberMask.Position)!=0){ yield return("Position",Transform.Position,Vector3.Zero); }
         if((Members&SceneTransformMemberMask.Rotation)!=0){ yield return("Rotation",Transform.EulerRotation,Vector3.Zero); }
         if((Members&SceneTransformMemberMask.Scale)!=0){ yield return("Scale",Transform.Scale,Vector3.One); }
     }
-    /// <summary>Shared by <see cref="SceneModelEditApplier"/> and <see cref="SceneEditConflictMerger"/>.</summary>
+    /// <summary><see cref="SceneModelEditApplier"/> と <see cref="SceneEditConflictMerger"/> で共有します。</summary>
     internal static float ReadFloat(object?Value,float Default)=>Value switch {
         float Float=>Float,
         int Integer=>Integer,
@@ -152,7 +150,7 @@ internal static class SceneEditValues {
         _=>Default,
     };
 
-    /// <summary>Shared by <see cref="SceneModelEditApplier"/> and <see cref="SceneEditConflictMerger"/>.</summary>
+    /// <summary><see cref="SceneModelEditApplier"/> と <see cref="SceneEditConflictMerger"/> で共有します。</summary>
     internal static string FormatFloat(float Value){
         if(float.IsNaN(Value)||float.IsInfinity(Value)){
             throw new ArgumentOutOfRangeException(nameof(Value),VsixText.Get("SourceEditNonFiniteTransform"));
@@ -161,16 +159,14 @@ internal static class SceneEditValues {
     }
 
     /// <summary>
-    /// A float as the C# literal of an edit, spelled as the scene JSON spells the value on .NET too: the document keeps a
-    /// literal's spelling, and .NET Framework's "R" writes some floats with other digits (312985.125 where .NET writes
-    /// 312985.12). A NaN or an infinity, which no JSON number spells, is written as "R" writes it.
+    /// 編集値の float を C# リテラルとして表します。.NET 上でもシーン JSON と同じ表記を使います。ドキュメントではリテラルの表記を維持し、.NET Framework の "R" は .NET と異なる桁で一部の float を出力するためです（.NET Framework は 312985.125、.NET は 312985.12）。JSON 数値として表せない NaN や infinity は、"R" の出力で書き込みます。
     /// </summary>
     internal static string SingleLiteral(float Value)=>
         (float.IsNaN(Value)||float.IsInfinity(Value)
             ?Value.ToString("R",CultureInfo.InvariantCulture)
             :CSharpGameEngine.SceneAnalysis.Json.SceneJsonNumbers.FormatSingle(Value))+"f";
 
-    /// <summary>Shared by <see cref="SceneModelEditApplier"/> and <see cref="SceneEditConflictMerger"/>.</summary>
+    /// <summary><see cref="SceneModelEditApplier"/> と <see cref="SceneEditConflictMerger"/> で共有します。</summary>
     internal static bool IsGenerated(string?FilePath)=>
         FilePath is { Length:>0 }&&FilePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase);
 }

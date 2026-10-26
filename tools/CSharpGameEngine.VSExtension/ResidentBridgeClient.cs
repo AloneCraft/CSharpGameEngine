@@ -13,11 +13,7 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Client half of the resident bridge server (ADR-0023): tries to reuse an already-running bridge
-/// process over a named pipe instead of paying OS-process-creation + .NET runtime startup cost on
-/// every call. Request and result DTOs come from the netstandard2.0 Contracts assembly shared with
-/// the net10 host. A failure before submission may use a fresh one-shot request; after any request
-/// byte can have been submitted, timeout/crash/protocol failure is terminal and is never retried.
+/// 常駐 bridge server の client 側（ADR-0023）。呼び出しごとに OS process の作成と .NET runtime の起動コストを負担する代わりに、named pipe 経由で実行中の bridge process を再利用します。リクエストと結果の DTO は net10 host と共有する netstandard2.0 Contracts assembly にあります。送信前の失敗なら新しい単発リクエストを使えますが、リクエストの byte を1つでも送信した後の timeout/crash/protocol failure は終端エラーとし、再試行しません。
 /// </summary>
 internal static class ResidentBridgeClient {
     private const int MaximumPayloadBytes=16*1024*1024;
@@ -26,11 +22,7 @@ internal static class ResidentBridgeClient {
     private static readonly TimeSpan SpawnRetryTimeout=TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Deterministic per-repo, per-bridge, per-owner pipe name. The owner is the Visual Studio
-    /// process: its bridges run from its own extension install and end with it, so another Visual
-    /// Studio (another install, maybe another version) never connects to them. Must not use
-    /// <see cref="object.GetHashCode"/>/<see cref="string.GetHashCode()"/> - both are randomized
-    /// per-process since modern .NET.
+    /// リポジトリ、bridge、所有者ごとに決まる pipe 名。所有者は Visual Studio プロセスです。bridge はその Visual Studio 自身の extension install から起動され、その終了時に終了するため、別の Visual Studio（別 install、場合によっては別バージョン）は接続しません。<see cref="object.GetHashCode"/>/<see cref="string.GetHashCode()"/> は modern .NET でプロセスごとに値がランダム化されるため、使用してはいけません。
     /// </summary>
     internal static string ComputePipeName(string RepoRoot,string BridgeProjectRelativePath,int OwnerProcessId){
         var Seed= $"{Path.GetFullPath(RepoRoot)}|{BridgeProjectRelativePath}|{OwnerProcessId}";
@@ -172,7 +164,7 @@ internal static class ResidentBridgeClient {
         return Current.Id;
     }
 
-    /// <summary>The bridge's command line: it serves <paramref name="PipeName"/> until this process exits (or it idles out).</summary>
+    /// <summary>このプロセスが終了するまで（または idle timeout になるまで）<paramref name="PipeName"/> を提供する bridge のコマンドライン。</summary>
     internal static string ServeArguments(string PipeName,int OwnerProcessId)=>
         $"--serve \"{PipeName}\" --parent-process-id {OwnerProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
@@ -187,11 +179,7 @@ internal static class ResidentBridgeClient {
     }
 
     /// <summary>
-    /// Launches <paramref name="ExecutablePath"/> (the same prebuilt exe <see cref="BridgeExecutableLocator"/>
-    /// already found) in <c>--serve</c> mode. Gated by a <see cref="Mutex"/> so N callers racing to
-    /// discover "no server running" (e.g. SceneHwndHost warming several distinct meshes in parallel)
-    /// spawn at most one process instead of N - losing racers just wait for the winner instead of
-    /// each spawning their own, then cleaning up redundant instances afterward.
+    /// <see cref="BridgeExecutableLocator"/> がすでに特定した同じビルド済み exe である <paramref name="ExecutablePath"/> を、<c>--serve</c> mode で起動します。「server が起動していない」と同時に判定する N 個の呼び出し元（例：SceneHwndHost が複数の異なる mesh を並列に準備する場合）が N 個のプロセスを起動しないよう、<see cref="Mutex"/> で制御します。競合に負けた呼び出し元は勝者を待ち、個別に起動してから余分なインスタンスを片付けることはありません。
     /// </summary>
     private static bool TrySpawnServer(string ExecutablePath,string RepoRoot,string PipeName){
         using Mutex Mutex=new(initiallyOwned:false, $@"Global\{PipeName}.SpawnMutex");
@@ -200,20 +188,20 @@ internal static class ResidentBridgeClient {
         try {
             Acquired=Mutex.WaitOne(SpawnMutexTimeout);
         } catch(AbandonedMutexException){
-            // A previous holder (e.g. a devenv.exe that crashed mid-spawn) never released this -
-            // treat it as acquired rather than failing forever on every future call.
+            // 以前の holder（spawn 中にクラッシュした devenv.exe など）が mutex を解放しなかった場合は、
+            // 後続の呼び出しが毎回失敗し続けないよう、取得済みとして扱います。
             Acquired=true;
         }
 
         if(!Acquired){
-            // Someone else is presumably spawning right now - TryRun's own retry loop will pick up
-            // the connection once it's ready, without us doing anything further here.
+            // ほかのプロセスが server を起動中と思われます。TryRun 自身の再試行ループが、
+            // ここで追加処理をしなくても、準備完了後に接続します。
             return true;
         }
 
         try {
             if(TryConnectOnly(PipeName,ConnectTimeout)){
-                // The mutex's previous holder already finished starting a server - nothing to do.
+                // mutex の前の holder がすでに server の起動を終えているため、何もする必要はありません。
                 return true;
             }
 
@@ -221,9 +209,9 @@ internal static class ResidentBridgeClient {
                 WorkingDirectory=RepoRoot,
                 UseShellExecute=false,
                 CreateNoWindow=true,
-                // Deliberately NOT redirecting stdout/stderr: nobody drains those pipes for this
-                // process's 15-minute idle-timeout lifetime, and an unread OS pipe buffer filling up
-                // would block the server's own writes and hang it.
+                // stdout/stderr は意図的にリダイレクトしません。このプロセスの15分間の idle timeout 中、
+                // それらの pipe を読み取る処理はありません。未読の OS pipe buffer が満杯になると、
+                // server 自身の書き込みがブロックされ、停止してしまうためです。
             };
             Process.Start(StartInfo);
             return true;
@@ -246,21 +234,7 @@ internal static class ResidentBridgeClient {
     }
 
     /// <summary>
-    /// A plain, non-overlapped <see cref="NamedPipeClientStream"/> (see <see cref="TryConnectAndRun"/>)
-    /// has no working <see cref="PipeStream.ReadTimeout"/>, so the read runs on a background
-    /// <see cref="Thread"/> and this waits on it with a timeout instead. Deliberately a raw
-    /// <see cref="Thread"/>/<see cref="ManualResetEventSlim"/> rather than <c>Task.Run(...).Wait()</c>
-    /// (VSTHRD002 territory): this class is called both from the UI thread (e.g.
-    /// AssetPreviewHwndHost's one-shot preview) and from background threads (SceneHwndHost's
-    /// parallel warm-up), and the VS-blessed fix for a Task-based synchronous wait -
-    /// <c>ThreadHelper.JoinableTaskFactory.Run</c> - turned out NOT to work here: measured directly,
-    /// every call took ~10s (this method's own timeout) when exercised outside a running VS host
-    /// (e.g. from xunit), meaning it was silently failing and masking the resident path entirely
-    /// behind the one-shot fallback rather than actually reusing the server. A raw
-    /// <see cref="Thread"/> has no dependency on any VS/JoinableTaskContext ambient state and no
-    /// UI-thread affinity to protect in the first place (the awaited work is pure background I/O),
-    /// so it sidesteps both the deadlock class VSTHRD002 guards against and the JoinableTaskFactory
-    /// dependency, without needing an analyzer suppression.
+    /// 単純な非 overlapped <see cref="NamedPipeClientStream"/>（<see cref="TryConnectAndRun"/> を参照）では <see cref="PipeStream.ReadTimeout"/> が機能しないため、読み取りをバックグラウンド <see cref="Thread"/> で実行し、ここでは timeout を設定して待機します。<c>Task.Run(...).Wait()</c>（VSTHRD002 の対象）ではなく、通常の <see cref="Thread"/>/<see cref="ManualResetEventSlim"/> を意図的に使います。このクラスは UI thread（例：AssetPreviewHwndHost の単発プレビュー）とバックグラウンド thread（SceneHwndHost の並列 warm-up）の両方から呼び出されます。Task を同期的に待つ場合に VS が推奨する <c>ThreadHelper.JoinableTaskFactory.Run</c> は、ここでは機能しないことが分かりました。実行中の VS host 外（例：xunit）で直接測定すると、このメソッド自身の timeout と同じ約10秒を毎回要しました。つまり失敗が見えないまま常駐経路が単発 fallback に隠れ、server を実際には再利用できていませんでした。通常の <see cref="Thread"/> は VS/JoinableTaskContext の ambient state に依存せず、そもそも UI thread affinity を保つ必要もありません（待機する処理は純粋なバックグラウンド I/O）。そのため、analyzer suppression を追加せずに VSTHRD002 が対象とするデッドロックの種類と JoinableTaskFactory 依存の両方を回避できます。
     /// </summary>
     internal static T ReadMessage<T>(
         Stream Stream,TimeSpan Timeout,CancellationToken CancellationToken){
@@ -292,8 +266,8 @@ internal static class ResidentBridgeClient {
         }
 
         if(Error is not null){
-            // Preserves the original stack trace/type (unlike a bare `throw error;`) - matters here
-            // since TryConnectAndRun's catch filter matches on the exception's original type.
+            // 素の `throw error;` と異なり、元の stack trace と型を維持します。この箇所では、
+            // TryConnectAndRun の catch filter が例外の元の型に一致するため重要です。
             ExceptionDispatchInfo.Capture(Error).Throw();
         }
 

@@ -8,9 +8,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// VS-independent inputs captured from one Roslyn solution generation. The Visual Studio
-/// <c>DocumentId</c> and live buffer remain in <see cref="SceneWorkspaceEditContext"/> and are not
-/// part of the pure planning boundary.
+/// 1 回の Roslyn ソリューション生成から取得した、VS に依存しない入力。Visual Studio の <c>DocumentId</c> とライブバッファーは <see cref="SceneWorkspaceEditContext"/> に残し、純粋な計画境界には含めない。
 /// </summary>
 internal sealed class SceneSourceCommitContext {
     internal SceneSourceCommitContext(
@@ -31,8 +29,7 @@ internal sealed class SceneSourceCommitContext {
 }
 
 /// <summary>
-/// A one-shot source commit. It is derived from the latest Roslyn context and is never retained as
-/// editor-owned authoring state. The live scene document buffer remains the only authoring source of truth.
+/// 1 回限りのソースコミット。最新の Roslyn コンテキストから導出し、エディター所有の作成状態として保持しない。ライブのシーンドキュメントバッファーだけが作成元の正となる。
 /// </summary>
 internal sealed class SceneSourceCommitPlan {
     private SceneSourceCommitPlan(
@@ -59,7 +56,7 @@ internal sealed class SceneSourceCommitPlan {
 
     internal SyntaxNode?FinalRoot { get; }
 
-    /// <summary>Exactly one user gesture maps to at most one native Visual Studio Undo unit.</summary>
+    /// <summary>ユーザー操作 1 回につき、ネイティブ Visual Studio の Undo 項目は最大 1 つ。</summary>
     internal SceneTextWriteStep?WriteStep { get; }
 
     internal static SceneSourceCommitPlan Success(
@@ -73,9 +70,7 @@ internal sealed class SceneSourceCommitPlan {
 }
 
 /// <summary>
-/// Re-derives one edit from the latest scene model. A stale request is either explicitly rebased by
-/// <see cref="SceneEditConflictMerger"/> or rejected; it is never replayed over a second in-memory
-/// authoring document. The write itself is <see cref="SceneJsonCommitPlanner"/>'s.
+/// 最新のシーンモデルから編集内容を再導出する。古い要求は <see cref="SceneEditConflictMerger"/> で明示的に再適用するか、拒否する。2 つ目のメモリ内作成ドキュメントに再適用することはない。書き込み処理は <see cref="SceneJsonCommitPlanner"/> が担う。
 /// </summary>
 internal static class SceneSourceCommitPlanner {
     internal static SceneSourceCommitPlan Plan(
@@ -87,7 +82,7 @@ internal static class SceneSourceCommitPlanner {
         if(Request is null){ throw new ArgumentNullException(nameof(Request)); }
         if(Reconciler is null){ throw new ArgumentNullException(nameof(Reconciler)); }
         CancellationToken.ThrowIfCancellationRequested();
-        // ADR-0070: scenes are authored only as JSON; a gesture is written back from the edited model.
+        // ADR-0070：シーンは JSON だけで作成し、ユーザー操作は編集後のモデルから書き戻す。
         return SceneJsonCommitPlanner.IsJsonDocument(Context.Model.FilePath)
             ?SceneJsonCommitPlanner.Plan(Context,Latest,Request,Reconciler,CancellationToken)
             :SceneSourceCommitPlan.Failure(VsixText.Get("SessionSaveSourceUnavailable"));

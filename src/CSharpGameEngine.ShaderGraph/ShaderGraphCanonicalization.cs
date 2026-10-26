@@ -26,9 +26,8 @@ public static class ShaderGraphCanonicalization {
         return Document;
     }
     /// <summary>
-    /// System.Text.Json 8 puts a JSON null into a member or list item the model declares non-null, and the validator,
-    /// the emitter and the canonical form then failed with a NullReferenceException that named nothing (in the editor and
-    /// the build). Such a null is malformed JSON for the graph, so it throws as malformed JSON does, naming its path.
+    /// System.Text.Json 8 は、モデルが非 null と宣言するメンバーやリスト項目に JSON null を設定することがある。その結果、検証、出力、正準形式の各処理は、エディターとビルド
+    /// の両方で、対象を示さない NullReferenceException を起こしていた。この null はグラフとして不正な JSON なので、不正 JSON と同じ例外をパス付きでスローする。
     /// </summary>
     private static void RejectNulls(ShaderGraphDocument Document) {
         Require(Document.Target, "$.target");

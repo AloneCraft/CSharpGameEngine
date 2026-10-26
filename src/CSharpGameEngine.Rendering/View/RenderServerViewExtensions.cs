@@ -1,7 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Rendering.Server;
 namespace CSharpGameEngine.Rendering.View;
-/// <summary>L5 compatibility entrypoints choose view policy and submit value-owned L4 inputs.</summary>
+/// <summary>L5 互換エントリーポイントでビュー方針を選び、値を所有する L4 入力を送信する。</summary>
 public static class RenderServerViewExtensions {
     public static void SetCamera(this RenderServer Server,in RenderCamera Camera,float AspectRatioOverride=0f){
         ArgumentNullException.ThrowIfNull(Server);

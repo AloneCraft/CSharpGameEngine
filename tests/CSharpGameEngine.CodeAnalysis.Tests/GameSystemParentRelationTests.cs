@@ -1,6 +1,6 @@
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0077 stage 3: <c>in Parent&lt;T&gt;</c> reads a component from the parent entity.</summary>
+/// <summary>ADR-0077 stage 3：<c>in Parent&lt;T&gt;</c>は親Entityからコンポーネントを読み取る。</summary>
 public sealed class GameSystemParentRelationTests {
     private const string Components="""
         namespace Sample;

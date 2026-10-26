@@ -14,7 +14,7 @@ public class GltfImporterTests {
         Assert.Equal(Result.Mesh.Positions.Count,Result.Mesh.Normals.Count);
         Assert.True(Result.Mesh.Indices.Count>0);
         Assert.Equal(0,Result.Mesh.Indices.Count%3);
-        // Box.glb has no TEXCOORD_0, so a UV-synthesis Warning is expected; no Errors either way.
+        // Box.glb に TEXCOORD_0 はないため UV 合成の Warning は想定どおり。どちらの場合も Errors はない。
         Assert.DoesNotContain(Result.Diagnostics,D=>D.Severity==GltfImportDiagnosticSeverity.Error);
         Assert.Contains(Result.Diagnostics,D=>D.Severity==GltfImportDiagnosticSeverity.Warning&&D.Message.Contains("TEXCOORD_0"));
 
@@ -34,7 +34,7 @@ public class GltfImporterTests {
         Assert.All(Mesh.Uvs,Uv=>Assert.Equal(Vector2.Zero,Uv));
         Assert.Null(Mesh.BaseColorTextureBytes);
 
-        // Confirmed by parsing the real Box.glb JSON: pbrMetallicRoughness.baseColorFactor == [0.8, 0, 0, 1].
+        // 実際の Box.glb の JSON を解析して確認済み：pbrMetallicRoughness.baseColorFactor == [0.8, 0, 0, 1]。
         Assert.Equal(0.8f,Mesh.BaseColorFactor.X,precision:2);
         Assert.Equal(0f,Mesh.BaseColorFactor.Y,precision:2);
         Assert.Equal(0f,Mesh.BaseColorFactor.Z,precision:2);
@@ -52,8 +52,8 @@ public class GltfImporterTests {
         Assert.True(Bounds.Min.Y<Bounds.Max.Y);
         Assert.True(Bounds.Min.Z<Bounds.Max.Z);
         Assert.True(Bounds.BoundingSphereRadius>0f);
-        // The Khronos "Box" sample is a small unit-ish cube; assert it's a plausible small object
-        // rather than a brittle exact literal.
+        // Khronos の「Box」サンプルは小さな単位相当の立方体である。壊れやすい厳密なリテラル値ではなく、
+        // 妥当な大きさの小物体であることを検証する。
         Assert.InRange(Bounds.BoundingSphereRadius,0.01f,100f);
     }
 
@@ -66,7 +66,7 @@ public class GltfImporterTests {
         Assert.Contains(Result.Diagnostics,D=>D.Severity==GltfImportDiagnosticSeverity.Warning&&D.Message.Contains("NORMAL"));
         Assert.Contains(Result.Diagnostics,D=>D.Severity==GltfImportDiagnosticSeverity.Warning&&D.Message.Contains("TEXCOORD_0"));
 
-        // Missing normals trigger full triangle expansion: 1 triangle -> 3 unshared vertices.
+        // 法線がない場合は三角形全体を展開する：三角形 1 つが、共有されない頂点 3 つになる。
         Assert.Equal(3,Result.Mesh.Positions.Count);
         Assert.Equal(3,Result.Mesh.Normals.Count);
         Assert.Equal(3,Result.Mesh.Uvs.Count);
@@ -79,7 +79,7 @@ public class GltfImporterTests {
             Assert.Equal(1.0f,Normal.Length(),precision:3);
         }
 
-        // A single triangle has one flat face normal shared by all 3 synthesized vertices.
+        // 三角形 1 つの平坦な面法線は、合成された 3 頂点すべてで共有される。
         Assert.Equal(Result.Mesh.Normals[0],Result.Mesh.Normals[1]);
         Assert.Equal(Result.Mesh.Normals[0],Result.Mesh.Normals[2]);
     }
@@ -91,19 +91,19 @@ public class GltfImporterTests {
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         var Mesh=Result.Mesh!;
 
-        // NORMAL and TEXCOORD_0 are both present in this fixture, so no expansion happens.
+        // このフィクスチャには NORMAL と TEXCOORD_0 の両方があるため、展開は行われない。
         Assert.Equal(Mesh.Positions.Count,Mesh.Uvs.Count);
         Assert.DoesNotContain(Result.Diagnostics,D=>D.Severity is GltfImportDiagnosticSeverity.Error or GltfImportDiagnosticSeverity.Warning);
 
         Assert.NotNull(Mesh.BaseColorTextureBytes);
         Assert.True(Mesh.BaseColorTextureBytes!.Length>0);
-        // PNG magic number: 0x89 'P' 'N' 'G'.
+        // PNGのマジックナンバー：0x89 'P' 'N' 'G'。
         Assert.Equal(0x89,Mesh.BaseColorTextureBytes[0]);
         Assert.Equal((byte)'P',Mesh.BaseColorTextureBytes[1]);
         Assert.Equal((byte)'N',Mesh.BaseColorTextureBytes[2]);
         Assert.Equal((byte)'G',Mesh.BaseColorTextureBytes[3]);
 
-        // Confirmed by parsing the real BoxTextured.glb JSON: no explicit baseColorFactor -> glTF default (1,1,1,1).
+        // 実際の BoxTextured.glb の JSON を解析して確認済み：baseColorFactor の明示指定なし -> glTF の既定値 (1,1,1,1)。
         Assert.Equal(new Vector4(1,1,1,1),Mesh.BaseColorFactor);
     }
 
@@ -123,8 +123,8 @@ public class GltfImporterTests {
     [InlineData("")]
     [InlineData("   ")]
     public void Import_NullOrWhitespacePath_Throws(string?Path){
-        // ArgumentException.ThrowIfNullOrWhiteSpace throws ArgumentNullException specifically for
-        // null, and plain ArgumentException for empty/whitespace - both are acceptable here.
+        // ArgumentException.ThrowIfNullOrWhiteSpace は、null に対しては特に ArgumentNullException をスローする。
+        // null の場合と、空文字列または空白のみの場合の通常の ArgumentException は、どちらもここでは許容される。
         Assert.ThrowsAny<ArgumentException>(()=>GltfImporter.Import(Path!));
     }
 

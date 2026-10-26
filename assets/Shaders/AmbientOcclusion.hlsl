@@ -1,17 +1,17 @@
-// Screen-space ambient occlusion (ADR-0069): Scalable Ambient Obscurance (McGuire et al. 2012)
-// on physical scene distances at half resolution, followed by a separable depth-aware blur. The Stage
-// program multiplies only indirect light (sky light, GI, flat ambient) by the result.
-// Root signature (host-owned, StageAmbientOcclusion): b0 AoCB, t0-t1 table (physical scene distance
-// Texture2D<float>, blur source Texture2D<float>), u0 table (RWTexture2D<float> output).
-// Positions are reconstructed in the renderer's camera-relative space from the inverse
-// view-projection, so the pass works for any perspective camera matrix.
+// スクリーン空間アンビエントオクルージョン（ADR-0069）：物理的なシーン距離に対する Scalable Ambient Obscurance（McGuire ほか、2012年）
+// を半解像度で計算し、その後、深度を考慮した分離可能なぼかしを適用します。Stage
+// program は結果を間接光（sky light、GI、均一な ambient）だけに乗算します。
+// Root signature（host が所有する StageAmbientOcclusion）：b0 AoCB、t0-t1 table（物理シーン距離の
+// Texture2D<float>、blur source Texture2D<float>）、u0 table（出力の RWTexture2D<float>）。
+// 位置は inverse
+// view-projection から renderer のカメラ相対空間で再構築するため、任意の perspective camera matrix で動作します。
 cbuffer AoCB : register(b0)
 {
     row_major float4x4 InverseViewProjection;
-    float4 ViewDepthRow;       // fourth column of the view-projection: clip w (linear depth) = dot(float4(p, 1), row)
-    float4 CameraPosition;     // xyz camera-relative eye
-    float4 AoParams;           // x = radius (m), y = bias (m), z = intensity, w = pixels per metre at unit depth
-    uint4 Pass;                // x = 0 AO, 1 horizontal blur, 2 vertical blur; yz = texture size
+    float4 ViewDepthRow;       // view-projection の第4列：clip w（linear depth）= dot(float4(p, 1), row)
+    float4 CameraPosition;     // カメラ相対の眼の xyz
+    float4 AoParams;           // x = radius（m）、y = bias（m）、z = intensity、w = 深度が単位値のときの1メートルあたりピクセル数
+    uint4 Pass;                // x = 0 AO、1 horizontal blur、2 vertical blur。yz = texture size
 };
 Texture2D<float> SceneDistance : register(t0);
 Texture2D<float> BlurSource : register(t1);

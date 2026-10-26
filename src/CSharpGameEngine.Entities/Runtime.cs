@@ -8,7 +8,7 @@ namespace CSharpGameEngine.Entities;
 public interface ISystem {
 }
 
-/// <summary>Controls which execution host owns a <see cref="State"/> instance.</summary>
+/// <summary><see cref="State"/>インスタンスを所有する実行ホストを制御する。</summary>
 public enum EngineExecutionMode {
     Runtime,
     EditorPreview,
@@ -22,7 +22,7 @@ public readonly record struct Entity(int Index,uint Generation) {
     public int Id=>this.Index;
 }
 
-/// <summary>A caller-visible token for generated component-change queries.</summary>
+/// <summary>生成されたコンポーネント変更クエリを呼び出し側から参照するトークン。</summary>
 public readonly record struct ChangeVersion(uint Value) {
     public bool IsNewerThan(ChangeVersion Baseline){
         var Difference=unchecked(this.Value-Baseline.Value);
@@ -45,7 +45,7 @@ internal enum EntityCommandKind:byte {
 
 internal readonly record struct EntityCommand(EntityCommandKind Kind,int MoveIndex,Entity Entity,SceneInstance Scene,WorldCellId Cell);
 
-/// <summary>The single ordered structural-command stream for a world.</summary>
+/// <summary>World内の構造変更コマンドを一元的に順序付けるストリーム。</summary>
 public sealed class EntityCommandBuffer {
     private readonly ChunkBuffer<EntityCommand>Items=new();
     private int PendingDestroyCount;
@@ -104,7 +104,7 @@ internal sealed class WorldRuntimeState {
     internal uint ChangeVersion;
 }
 
-/// <summary>Owns one ECS World storage location so copied State values never fork mutable World state.</summary>
+/// <summary>1つのECS Worldのストレージ位置を所有し、State値をコピーしても可変Worldの状態が分岐しないようにする。</summary>
 public sealed class WorldOwner:IDisposable {
     private World Value;
     private bool Disposed;
@@ -134,16 +134,16 @@ public partial struct State(World World){
     private long LastFrameTimestamp;
     public ulong FixedTick=>this.Timing.Tick;
     public int FixedTickRate=>this.Timing.TickRate;
-    /// <summary>ADR-0072: real seconds since the previous frame, set by the generated loop before the frame's systems run.</summary>
+    /// <summary>ADR-0072：前フレームからの実時間（秒）。フレーム内のシステム実行前に、生成されたループが設定する。</summary>
     public float FrameDeltaSeconds { get;internal set; }
-    /// <summary>ADR-0072: seconds of one fixed simulation tick.</summary>
+    /// <summary>ADR-0072：固定シミュレーションティック1回分の時間（秒）。</summary>
     public float FixedDeltaSeconds=>1f/this.FixedTickRate;
-    /// <summary>A frame the caller timed (the game loop, with the same counter its fixed-tick scheduler uses).</summary>
+    /// <summary>呼び出し側（ゲームループ。固定ティックスケジューラーと同じカウンターを使う）が計測したフレーム。</summary>
     internal void SetFrameDelta(long ElapsedCounter,long CounterFrequency){
         this.FrameDeltaSeconds=CounterFrequency>0&&ElapsedCounter>0?(float)ElapsedCounter/CounterFrequency:0f;
         this.LastFrameTimestamp=System.Diagnostics.Stopwatch.GetTimestamp();
     }
-    /// <summary>A frame timed from the previous one (editor frames, which the editor drives on its own clock); the first is 0.</summary>
+    /// <summary>前フレームからの経過時間で計測するフレーム（エディターが独自のクロックで駆動するエディターフレーム）。最初の値は0。</summary>
     internal void MeasureFrameDelta(){
         var Now=System.Diagnostics.Stopwatch.GetTimestamp();
         this.FrameDeltaSeconds=this.LastFrameTimestamp==0?0f:(float)(Now-this.LastFrameTimestamp)/System.Diagnostics.Stopwatch.Frequency;
@@ -174,7 +174,7 @@ public partial struct State(World World){
         this.PendingSimulationSteps--;
         return true;
     }
-    /// <summary>Gets or sets the host mode. Runtime is the safe default for user-created states.</summary>
+    /// <summary>ホストモードを取得または設定する。ユーザー作成のStateではRuntimeが安全な既定値。</summary>
     public EngineExecutionMode ExecutionMode { get; set; }
 
     public bool IsEditorPreview => this.ExecutionMode==EngineExecutionMode.EditorPreview;
@@ -205,9 +205,9 @@ public partial struct World {
     private readonly Dictionary<WorldCellId,ChunkBuffer<Entity>>CellEntities=new();
 
     /// <summary>
-    /// ADR-0078/M0113: the ordinal of the next instance of a scene definition in this World (0 for the first, then 1, 2, …, in the order they are made).
-    /// The generated <c>Instantiate</c> takes one so that the physics stable IDs of a second instance of a scene differ from the first's
-    /// (<see cref="SceneStableIds.ForInstance"/>); the first instance keeps the IDs of its definition.
+    /// ADR-0078／M0113：このWorldにおける、次のシーン定義インスタンスの序数（最初は0、その後は生成順に1、2、…）。
+    /// 生成された<c>Instantiate</c>で序数を使うと、2つ目以降のシーンインスタンスの物理安定IDが最初のものと異なる
+    ///（<see cref="SceneStableIds.ForInstance"/>）。最初のインスタンスは定義そのもののIDを維持する。
     /// </summary>
     public int TakeSceneOrdinal(ulong SceneKey){
         this.SceneOrdinals.TryGetValue(SceneKey,out var Ordinal);
@@ -240,10 +240,10 @@ public partial struct World {
         return Row.Reserved&&Row.Entity==Entity;
     }
 
-    /// <summary>Returns an O(1) read-only diagnostics snapshot.</summary>
+    /// <summary>O(1)で読み取り専用の診断スナップショットを返す。</summary>
     public WorldStatistics GetStatistics()=>new(this.RuntimeState.AliveEntityCount,this.EntityArchetypeIndices.Count,this.Commands.Destroys,this.Commands.SceneUnloads,this.Commands.CellUnloads);
 
-    /// <summary>Captures the completed component-write boundary for a later generated changed query.</summary>
+    /// <summary>後続の生成済み変更クエリで使うため、完了したコンポーネント書き込み境界を記録する。</summary>
     public ChangeVersion CaptureChangeVersion()=>new(this.RuntimeState.ChangeVersion);
 
     internal ChangeVersion AdvanceChangeVersion(){
@@ -379,8 +379,8 @@ public partial struct World {
     }
 
     /// <summary>
-    /// The entities this scene instance attached, in attach order. For a generated scene that is its
-    /// node order (pre-order: a node, then its children), so index N is the scene's N-th node.
+    /// このシーンインスタンスが追加したエンティティを、追加順で並べた一覧。
+    /// 生成されたシーンではノード順（先行順：ノード、続いてその子ノード）となるため、インデックスNはシーンのN番目のノードを指す。
     /// </summary>
     public Entity[]GetSceneEntities(SceneInstance Instance){
         if(this.SceneInstances.Resolve(Instance) is not { } Slot){
@@ -432,7 +432,7 @@ public partial struct World {
         return true;
     }
 
-    /// <summary>Assigns exclusive cell ownership and a stable identity to a live entity.</summary>
+    /// <summary>実行中のエンティティに、セルの排他的な所有権と安定IDを割り当てる。</summary>
     public Entity AttachToCell(WorldCellId Cell,PersistentEntityId Persistent,Entity Entity){
         this.AssertDirectStructuralMutationAllowed();
         if(!Cell.IsValid){ throw new ArgumentException("A valid world-cell ID is required.",nameof(Cell)); }

@@ -5,12 +5,7 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Exercises <see cref="ResidentBridgeClient.ComputePipeName"/> only (ADR-0023) - the rest of
-/// <see cref="ResidentBridgeClient"/> spawns real processes/pipes and is verified manually instead,
-/// matching how <c>BridgeExecutableLocatorTests</c> stays real-process-free. Determinism matters
-/// specifically because <see cref="object.GetHashCode"/>/<see cref="string.GetHashCode()"/> are
-/// randomized per process - a naive hash-based name would never let a second devenv.exe (or the
-/// same one restarted) find an already-running server.
+/// <see cref="ResidentBridgeClient.ComputePipeName"/> のみを検証する (ADR-0023)。<see cref="ResidentBridgeClient"/> の他の部分は実プロセスとパイプを起動するため、<c>BridgeExecutableLocatorTests</c> が実プロセスを使わないのと同様に、手作業で検証する。特に <see cref="object.GetHashCode"/>/<see cref="string.GetHashCode()"/> はプロセスごとにランダム化されるため、決定性が重要である。単純なハッシュ名では 2 つ目の devenv.exe（または再起動した同じ devenv.exe）が稼働中サーバーを見つけられない。
 /// </summary>
 public class ResidentBridgeClientTests {
     [Fact]
@@ -39,7 +34,7 @@ public class ResidentBridgeClientTests {
 
     [Fact]
     public void ComputePipeName_DifferentOwner_ReturnsDifferentName(){
-        // Each Visual Studio has its own bridges; another one (another install) never shares them.
+        // 各 Visual Studio は専用のブリッジを持ち、別のインストール環境とは共有しない。
         var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
         var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:200);
 

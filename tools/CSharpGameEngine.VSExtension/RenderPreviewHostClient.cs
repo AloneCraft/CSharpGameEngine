@@ -28,9 +28,7 @@ internal sealed class RenderPreviewHostException:Exception {
 }
 
 /// <summary>
-/// VSIX-side state source for one isolated Render Server session. Transport failures are terminal
-/// because an abruptly terminated DXGI owner can leave the old HWND unusable for a new swap chain;
-/// recovery creates both a fresh client and a fresh surface generation.
+/// 分離された Render Server session 1つ分の VSIX 側 state source。transport の失敗は終端エラーです。異常終了した DXGI 所有プロセスが古い HWND を使用不能にし、新しい swap chain を作れなくなる可能性があるためです。復旧時には新しい client と surface generation の両方を作成します。
 /// </summary>
 internal sealed class RenderPreviewHostClient:IDisposable {
     private readonly Guid SessionId;
@@ -53,12 +51,11 @@ internal sealed class RenderPreviewHostClient:IDisposable {
 
     internal RenderPreviewHostClientState State{get;private set;}=RenderPreviewHostClientState.Created;
 
-    /// <summary>The host process: a runtime view's render server also runs the editor world and serves its debug pipes (M0096).</summary>
+    /// <summary>host プロセス。runtime view の render server も editor world を実行し、その debug pipe を提供します（M0096）。</summary>
     internal int?ProcessId { get; }
 
     /// <param name="ResponseTimeout">
-    /// How long one request may take; a runtime view (ADR-0070 B1) loads the game's level, which takes
-    /// as long as the game's own startup. 15 seconds when omitted.
+    /// 1回のリクエストに許される処理時間。runtime view（ADR-0070 B1）はゲームのレベルをロードするため、ゲーム自身の起動と同程度の時間がかかります。省略時は15秒です。
     /// </param>
     internal static RenderPreviewHostClient Start(string HostPath,TimeSpan?ResponseTimeout=null){
         RenderPreviewHostProcessTransport Transport=new(HostPath,ResponseTimeout??TimeSpan.FromSeconds(15));
@@ -71,8 +68,8 @@ internal sealed class RenderPreviewHostClient:IDisposable {
         }
     }
 
-    /// <param name="RuntimeView">ADR-0070 B1: render the built game's world instead of <paramref name="Scene"/>.</param>
-    /// <param name="SceneJson">The edited scene's document, whose values a runtime view applies.</param>
+    /// <param name="RuntimeView">ADR-0070 B1：<paramref name="Scene"/> の代わりにビルド済みゲームの world を描画します。</param>
+    /// <param name="SceneJson">編集対象シーンのドキュメント。runtime view はその値を適用します。</param>
     internal RenderPreviewHostResponse Open(
         long SurfaceHandle,int Width,int Height,string ShaderArtifactPath,RenderPreviewScene Scene,
         RenderPreviewRuntimeView?RuntimeView=null,string SceneJson=""){
@@ -153,7 +150,7 @@ internal sealed class RenderPreviewHostClient:IDisposable {
                     Command=RenderPreviewHostCommand.Close,
                 });
             } catch(RenderPreviewHostException){
-                // Terminal state is already recorded. Disposal must still reclaim the child.
+                // 終端状態はすでに記録されています。破棄時には子プロセスを解放する必要があります。
             }
         }
         this.State=RenderPreviewHostClientState.Disposed;

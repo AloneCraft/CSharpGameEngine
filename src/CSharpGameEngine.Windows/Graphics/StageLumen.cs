@@ -17,20 +17,19 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// The Lumen-like dynamic global illumination and reflections (ADR-0078/M0111), recomputed every frame (nothing is baked):
+/// Lumen風の動的グローバルイルミネーションと反射（ADR-0078/M0111）。毎フレーム再計算し、ベイクしない。
 /// <list type="bullet">
-/// <item>the surface cache: six cards per mesh that has a distance field (its box's sides in its own space), captured once with the Stage program's
-/// LumenCardPSMain (albedo, normal, emission) and lit every few frames by the sun (shadow map, or the global distance field off the cascades), the
-/// local lights and the radiance cache, so light bounces through it;</item>
-/// <item>the radiance cache: probes in clipmaps around the camera, fixed to the world's voxel grid, that trace the global distance field (a hit reads
-/// the hit object's cards after a few steps on its mesh distance field, a miss the sky radiance map);</item>
-/// <item>the final gather: a probe every 16 or 32 pixels on the surface prepass (LumenSurfacePSMain) traces the screen, then the distance field near it,
-/// then reads the radiance cache; the probes are filtered with their neighbours and each pixel interpolates them and blends with last frame's;</item>
-/// <item>the reflections: a GGX-sampled ray per pixel (or per 2x2 at High) traces the screen, then the distance field, then the sky; rough lobes read the
-/// probes. The traces are filtered and blended with last frame's.</item>
+/// <item>サーフェスキャッシュ：距離場を持つ各メッシュに6枚のカードを作成する（メッシュ自身の空間にあるボックスの各面）。Stageプログラムの
+/// LumenCardPSMainで一度撮影し、数フレームおきに太陽光（シャドウマップ、またはカスケード外ではグローバル距離場）、局所ライト、放射輝度キャッシュで照らすことで、
+/// 光を間接反射させる。</item>
+/// <item>放射輝度キャッシュ：カメラ周囲に、ワールドのボクセル格子に固定したクリップマップを配置する。プローブがグローバル距離場をトレースする。
+/// ヒット時はメッシュ距離場上の数ステップ後にヒットオブジェクトのカードを読み、ミス時は空の放射輝度マップを読む。</item>
+/// <item>Final Gather：サーフェスプリパス（LumenSurfacePSMain）で表面上の16または32ピクセルごとにプローブを置き、まずスクリーン、次に近傍の距離場をトレースし、
+/// 放射輝度キャッシュを読む。隣接プローブを使ってフィルタリングし、各ピクセルで補間して前フレームの値とブレンドする。</item>
+/// <item>反射：各ピクセル（Highでは2x2ピクセルごと）にGGXサンプリングしたレイを1本ずつ使い、スクリーン、距離場、空の順にトレースする。
+/// 粗いローブではプローブを読み取る。トレース結果はフィルタリングし、前フレームの値とブレンドする。</item>
 /// </list>
-/// The Stage program reads the diffuse irradiance at t16 and the reflected radiance at t17. The compute passes are Lumen.hlsl; its header lists the
-/// root signature.
+/// Stageプログラムはt16から拡散照度を、t17から反射放射輝度を読む。ComputeパスはLumen.hlslにあり、ルートシグネチャはそのヘッダーを参照。
 /// </summary>
 internal sealed unsafe class StageLumen:IDisposable {
     internal const string ArtifactFileName="Lumen.cgeshaderartifact";
@@ -43,7 +42,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     internal const DXGI_FORMAT SurfaceNormalFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     internal const DXGI_FORMAT SurfaceDistanceFormat=DXGI_FORMAT_R32_FLOAT;
     private const DXGI_FORMAT RadianceFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
-    /// <summary>The diffuse irradiance and its history: a sunlit white floor gives its neighbours more than half precision holds (65504).</summary>
+    /// <summary>拡散照度とその履歴。太陽に照らされた白い床は、隣接画素へ半精度の上限値（65504）を超える光を与える。</summary>
     private const DXGI_FORMAT IrradianceFormat=DXGI_FORMAT_R32G32B32A32_FLOAT;
     private const uint PassCardLighting=0;
     private const uint PassRadianceCache=1;
@@ -120,7 +119,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     private ID3D12Resource*CaptureConstants;
     private byte*CaptureConstantsMapped;
     private ID3D12Resource*DummyBuffer;
-    /// <summary>The auto exposure state the scene colour history was drawn with (copied before the frame's metering).</summary>
+    /// <summary>シーン色の履歴を描画したときの自動露出状態（フレームの測光前にコピーする）。</summary>
     private ID3D12Resource*HistoryExposure;
     private UploadRing ObjectRing;
     private UploadRing CardRing;
@@ -128,7 +127,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     private UploadRing CellObjectRing;
     private UploadRing WorkRing;
     private UploadRing ValidRing;
-    // The surface cache.
+    // サーフェスキャッシュ。
     private LumenCardAtlas?Atlas;
     private ID3D12Resource*CardAlbedo;
     private ID3D12Resource*CardNormal;
@@ -136,7 +135,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     private ID3D12Resource*CardDepth;
     private ID3D12Resource*CardRadiance;
     private ObjectState[]Objects=[];
-    // The radiance cache.
+    // 放射輝度キャッシュ。
     private ID3D12Resource*CacheRadiance;
     private ID3D12Resource*CacheIrradiance;
     private int CacheProbeCount;
@@ -148,7 +147,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     private int CacheStampValue;
     private readonly int[]CacheCursor=new int[GlobalDistanceFieldSettings.MaximumClipmapCount];
     private TierKey?Tier;
-    // The screen.
+    // 画面。
     private ID3D12Resource*SurfaceNormal;
     private ID3D12Resource*SurfaceDistance;
     private ID3D12Resource*PreviousSurfaceNormal;
@@ -168,13 +167,13 @@ internal sealed unsafe class StageLumen:IDisposable {
     private int ProbeCountY;
     private int TraceWidth;
     private int TraceHeight;
-    // Descriptors written for resources the renderer owns.
+    // レンダラーが所有するリソース用に書き込むディスクリプター。
     private nint DescribedShadowAtlas;
     private nint DescribedSkyMap;
     private nint DescribedSceneColor;
     private LumenComputeBindings LastBindings;
     private readonly nint[]DescribedLevels=new nint[GlobalDistanceFieldSettings.MaximumClipmapCount];
-    // The frame.
+    // フレーム。
     private readonly List<int>Records=[];
     private readonly List<Capture>Captures=[];
     private readonly List<(int Card,int Object,int Face,int Width,int Height)>LightCards=[];
@@ -185,7 +184,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     private readonly List<(uint Level,uint Probe,uint HadData,uint Local)>CacheWork=[];
     private FramePlan Plan;
     private bool HistoryValid;
-    /// <summary>Frames the history has accumulated since it was last reset: a young history takes new samples at 1 / (frames + 1).</summary>
+    /// <summary>最後にリセットされてから履歴を蓄積したフレーム数。履歴が新しい間は新規サンプルの重みを1 / (frames + 1)とする。</summary>
     private int HistoryFrames;
     private bool SceneColorValid;
     private bool SurfaceValid;
@@ -205,14 +204,14 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.IsSupported=Device.Device->CheckFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS,&Options,(uint)sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS)).SUCCEEDED
             &&Options.TypedUAVLoadAdditionalFormats!=0;
     }
-    /// <summary>The radiance cache blends each refresh with the probe's previous radiance through typed UAV loads of RGBA16F.</summary>
+    /// <summary>放射輝度キャッシュは、型付きRGBA16F UAV読み込みで各更新結果をプローブの前回放射輝度とブレンドする。</summary>
     internal bool IsSupported { get; }
-    /// <summary>Incremented whenever the diffuse or reflection output is (re)created, so the Stage t16/t17 views can be refreshed.</summary>
+    /// <summary>拡散または反射の出力を作成／再作成するたびに加算する。Stageのt16／t17ビューを更新するために使う。</summary>
     internal int Generation { get;private set; }
     internal bool HasOutputs=>this.Diffuse!=null;
     internal int CaptureCount=>this.Captures.Count;
     internal LumenStatistics Statistics { get;private set; }
-    /// <summary>The tier's budgets and sizes (ADR-0078/M0111): Unreal's High and Epic scalability with the PostProcessVolume's qualities applied.</summary>
+    /// <summary>ティアごとの予算とサイズ（ADR-0078/M0111）。UnrealのHigh／Epicスケーラビリティに、PostProcessVolumeの品質設定を適用する。</summary>
     internal static LumenTier ResolveTier(in LumenSettings Settings,RenderScalability Scalability){
         var Epic=Scalability.GlobalIllumination>=ScalabilityLevel.Epic;
         var ProbeTexels=(int)Math.Clamp(BitOperations.RoundUpToPowerOf2((uint)MathF.Round((Epic?16f:32f)/Settings.FinalGatherQuality)),8u,64u);
@@ -233,10 +232,10 @@ internal sealed unsafe class StageLumen:IDisposable {
             ReflectionDownsample:ReflectionDownsample);
     }
     // ---------------------------------------------------------------------------------------------------------------------------------------
-    // The frame's plan (CPU): objects and their cards, captures, the cards to light, the object grid and the radiance cache's probes.
+    // フレームのCPU側計画：オブジェクトとそのカード、撮影、照明対象のカード、オブジェクト格子、放射輝度キャッシュのプローブ。
     /// <summary>
-    /// Plans this frame and uploads its records. <paramref name="MeshRecord"/> gives a renderer mesh's record in the global distance field (or -1) and
-    /// <paramref name="MeshBounds"/> its vertex bounds. Returns false when Lumen cannot run this frame (no field yet).
+    /// このフレームの計画を立て、レコードをアップロードする。<paramref name="MeshRecord"/>はグローバル距離場におけるレンダラーメッシュのレコード
+    ///（なければ-1）、<paramref name="MeshBounds"/>はその頂点境界を表す。距離場がまだなくLumenを実行できない場合はfalse。
     /// </summary>
     internal bool Prepare(uint FrameIndex,in LumenFrameInput Input,ReadOnlySpan<bool>Active,ReadOnlySpan<int>MeshIndices,ReadOnlySpan<int>MaterialIndices,
         ReadOnlySpan<Matrix4x4>Transforms,ReadOnlySpan<float>EmissiveScales,int ObjectCount,Func<int,int>MeshRecord,Func<int,(Vector3 Minimum,Vector3 Maximum)>MeshBounds,
@@ -246,15 +245,15 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.EnsureTier(Tier,WaitForGpuIdle);
         this.EnsureScreen(Input.Width,Input.Height,Tier,WaitForGpuIdle);
         var Field=Input.Field;
-        // How far the render origin (the camera) moved over the world since the last frame: last frame's matrices apply to this frame's render
-        // space after adding it.
+        // 前フレームからワールド上で動いた描画原点（カメラ）の距離。この値を足すと、前フレームの行列を今フレームの描画
+        // 空間へ適用できる。
         var OriginDelta=new Vector3(Field.OriginVoxel.X-this.PreviousOriginVoxel.X,Field.OriginVoxel.Y-this.PreviousOriginVoxel.Y,Field.OriginVoxel.Z-this.PreviousOriginVoxel.Z)*Field.VoxelSizeMeters
             +(Field.OriginRemainder-this.PreviousOriginRemainder);
         var PreviousViewProjection=Matrix4x4.CreateTranslation(OriginDelta)*this.PreviousViewProjection;
         var PreviousCamera=this.PreviousCameraPosition-OriginDelta;
         var HistoryUsable=this.HistoryValid&&float.IsFinite(OriginDelta.X)&&float.IsFinite(OriginDelta.Y)&&float.IsFinite(OriginDelta.Z);
         this.HistoryFrames=HistoryUsable?this.HistoryFrames+1:0;
-        // Objects.
+        // オブジェクト。
         if(this.Objects.Length<ObjectCount){
             Array.Resize(ref this.Objects,Math.Max(ObjectCount,this.Objects.Length*2));
         }
@@ -291,7 +290,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             for(var Face=0;Face<LumenCards.FaceCount;Face++){
                 var (Width,Height)=LumenCards.Resolution(Face,BoxMinimum,BoxMaximum,Scale,Tier.TexelsPerMeter,Tier.MaximumCardTexels);
                 ref var Card=ref State.Faces[Face];
-                // A card is reallocated only when its size is off by more than one power of two, so a slowly scaled object keeps its cards.
+                // カードは、サイズが2のべき乗を超えてずれたときだけ再割り当てする。ゆっくりスケールするオブジェクトのカードは維持する。
                 if(Card.Allocated&&(Card.Width*4<=Width||Card.Width>=Width*4||Card.Height*4<=Height||Card.Height>=Height*4)){
                     this.Atlas!.Free(Card.X,Card.Y,Card.Width,Card.Height);
                     Card=default;
@@ -316,7 +315,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             State.MeshRecord=Record;
             this.Records.Add(Index);
         }
-        // Captures: the nearest new cards first, within the frame's budget.
+        // 撮影対象：フレーム予算内で、未撮影カードのうち近いものから処理する。
         Pending.Sort(static (A,B)=>A.Distance.CompareTo(B.Distance));
         for(var Index=0;Index<Pending.Count&&this.Captures.Count<Tier.CapturesPerFrame;Index++){
             var (_,ObjectIndex,Face)=Pending[Index];
@@ -328,7 +327,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         }
         Statistics.Captures=this.Captures.Count;
         Statistics.PendingCaptures=Pending.Count-this.Captures.Count;
-        // Cards to light: this frame's captures, objects whose emission changed, then round robin over every captured card within the budget.
+        // 照明対象カード：今フレームに撮影したカード、発光が変化したオブジェクト、予算内で撮影済みの全カードをラウンドロビン処理する。
         var Texels=0;
         foreach(var Light in this.LightCards){
             Texels+=Light.Width*Light.Height;
@@ -384,7 +383,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         }
         Statistics.LitCards=this.LightCards.Count;
         Statistics.LitTexels=Texels;
-        // Records and cards.
+        // レコードとカード。
         this.ObjectRing.Ensure(this,Math.Max(this.Records.Count,1)*ObjectRecordSize,WaitForGpuIdle);
         this.CardRing.Ensure(this,Math.Max(this.Records.Count,1)*LumenCards.FaceCount*16,WaitForGpuIdle);
         var ObjectSlot=this.ObjectRing.Slot(FrameIndex);
@@ -427,7 +426,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         }
         Statistics.Objects=this.Records.Count;
         Statistics.FreeAtlasPages=this.Atlas!.FreePageCount;
-        // The object grid: a column of cells around the camera, each listing the objects whose box reaches it.
+        // オブジェクト格子：カメラ周囲のセル列。各セルにはボックスが届くオブジェクトを記録する。
         var GridOrigin=new Vector2(MathF.Floor(Input.CameraPosition.X/GridCellMeters)*GridCellMeters-GridSide*GridCellMeters*0.5f,
             MathF.Floor(Input.CameraPosition.Z/GridCellMeters)*GridCellMeters-GridSide*GridCellMeters*0.5f);
         Array.Clear(this.CellCounts);
@@ -470,7 +469,7 @@ internal sealed unsafe class StageLumen:IDisposable {
                 }
             }
         }
-        // The radiance cache: clipmaps of probes on the world's voxel grid; probes a clip newly covers are traced first.
+        // 放射輝度キャッシュ：ワールドのボクセル格子に並ぶプローブのクリップマップ。新たにクリップで覆われたプローブを先にトレースする。
         this.CacheWork.Clear();
         var Levels=Tier.CacheLevels;
         var Resolution=Tier.CacheResolution;
@@ -511,7 +510,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             }
         }
         var CacheBudget=Tier.CacheProbesPerFrame;
-        // The finest level first and, within a level, the probes nearest the camera.
+        // 最も細かいレベルを先にし、各レベル内ではカメラに近いプローブから処理する。
         Fresh.Sort(static (A,B)=>A.Order.CompareTo(B.Order));
         this.CacheStampValue++;
         foreach(var Item in Fresh){
@@ -522,8 +521,8 @@ internal sealed unsafe class StageLumen:IDisposable {
             this.CacheStamp[Item.Probe]=this.CacheStampValue;
         }
         Statistics.FreshProbes=Fresh.Count;
-        // The rest of the budget refreshes the probes round robin (a fresh one the budget did not reach is traced when its turn comes), the finer
-        // levels more often: two thirds of what remains to level 0, two thirds of the rest to level 1, and so on.
+        // 残りの予算ではプローブをラウンドロビンで更新する（新しいプローブが予算内に収まらない場合は、順番が来た時にトレースする）。さらに細かい
+        // より細かいレベルほど頻繁に更新する。残り予算の3分の2をレベル0、さらにその残りの3分の2をレベル1へ割り当て、以降も同様。
         var Remaining=CacheBudget-this.CacheWork.Count;
         for(var Level=0;Level<Levels&&Remaining>0;Level++){
             var Share=Level==Levels-1?Remaining:Math.Max(1,Remaining*2/3);
@@ -545,7 +544,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             }
         }
         Statistics.TracedProbes=this.CacheWork.Count;
-        // The validity the passes read is the one before this frame's traces (card lighting runs before them); a fresh probe is used from the next frame.
+        // パスが参照する有効性は、今フレームのトレースを始める前の値（カードの照明が先）。新しいプローブは次のフレームから使う。
         this.ValidRing.Ensure(this,this.CacheProbeCount*4,WaitForGpuIdle);
         fixed(uint*Source=this.CacheValid){
             Buffer.MemoryCopy(Source,this.ValidRing.Slot(FrameIndex),this.CacheProbeCount*4,this.CacheProbeCount*4);
@@ -553,7 +552,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         foreach(var Item in this.CacheWork){
             this.CacheValid[Item.Probe]=1;
         }
-        // Work items: the card tiles (8 x 8 texels), then the probes.
+        // 作業項目：カードタイル（8 x 8テクセル）、続いてプローブ。
         var TileCount=0;
         foreach(var Light in this.LightCards){
             TileCount+=((Light.Width+7)/8)*((Light.Height+7)/8);
@@ -583,7 +582,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.Plan=new FramePlan(Tier,Input,TileCount,this.CacheWork.Count,GridOrigin,PreviousViewProjection,PreviousCamera,HistoryUsable,
             HistoryUsable&&this.SceneColorValid,CacheOrigins,CacheSlots,CacheScales,Levels);
         this.Statistics=Statistics;
-        // What the next frame reprojects with.
+        // 次のフレームで再投影する対象。
         this.PreviousViewProjection=Input.ViewProjection;
         this.PreviousCameraPosition=Input.CameraPosition;
         this.PreviousOriginVoxel=Field.OriginVoxel;
@@ -603,7 +602,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     }
     private static Vector3 AxisScales(in Matrix4x4 Matrix)=>new(
         new Vector3(Matrix.M11,Matrix.M12,Matrix.M13).Length(),new Vector3(Matrix.M21,Matrix.M22,Matrix.M23).Length(),new Vector3(Matrix.M31,Matrix.M32,Matrix.M33).Length());
-    /// <summary>Writes the 3x4 rows that map a point by a row-vector matrix: (dot(row.xyz, p) + row.w) per output axis.</summary>
+    /// <summary>点を行ベクトル行列で変換する3x4行を出力する。出力軸ごとに(dot(row.xyz, p) + row.w)を計算する。</summary>
     private static void WriteRows(float*Target,in Matrix4x4 Matrix){
         Target[0]=Matrix.M11;
         Target[1]=Matrix.M21;
@@ -634,7 +633,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         &&float.IsFinite(Matrix.M31)&&float.IsFinite(Matrix.M32)&&float.IsFinite(Matrix.M33)&&float.IsFinite(Matrix.M34)
         &&float.IsFinite(Matrix.M41)&&float.IsFinite(Matrix.M42)&&float.IsFinite(Matrix.M43)&&float.IsFinite(Matrix.M44);
     // ---------------------------------------------------------------------------------------------------------------------------------------
-    // Raster: the surface prepass and the card captures, drawn by the renderer with the Stage root signature into these targets.
+    // ラスタライズ：レンダラーがStageルートシグネチャを使って、これらのターゲットへサーフェスプリパスとカード撮影を描画する。
     internal Capture CaptureAt(int Index)=>this.Captures[Index];
     internal byte*CaptureFrameSlot(uint FrameIndex,int Index)=>this.CaptureConstantsMapped+this.CaptureOffset(FrameIndex,Index);
     internal ulong CaptureFrameAddress(uint FrameIndex,int Index)=>this.CaptureConstants->GetGPUVirtualAddress()+this.CaptureOffset(FrameIndex,Index);
@@ -646,7 +645,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     internal D3D12_CPU_DESCRIPTOR_HANDLE CardDsv=>new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),DsvCard,this.DsvSize);
     internal D3D12_CPU_DESCRIPTOR_HANDLE SurfaceRtv(int Target)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),RtvSurfaceNormal+Target,this.RtvSize);
     internal D3D12_CPU_DESCRIPTOR_HANDLE SurfaceDsv=>new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),DsvSurface,this.DsvSize);
-    /// <summary>Keeps last frame's surface for the reprojection, then makes the surface targets writable and clears them (distance 0 = nothing).</summary>
+    /// <summary>再投影用に前フレームのサーフェスを保持した後、サーフェスターゲットを書き込み可能にしてクリアする（距離0は何もないことを示す）。</summary>
     internal void BeginSurface(ID3D12GraphicsCommandList*CommandList){
         if(this.SurfaceValid){
             D3D12_RESOURCE_BARRIER*ToCopy=stackalloc D3D12_RESOURCE_BARRIER[4];
@@ -689,7 +688,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         ToTarget[3]=D3D12_RESOURCE_BARRIER.InitTransition(this.CardDepth,ShaderResourceState,D3D12_RESOURCE_STATE_DEPTH_WRITE);
         CommandList->ResourceBarrier(4,ToTarget);
     }
-    /// <summary>Clears one card's tile in every target before its mesh is drawn into it.</summary>
+    /// <summary>カードをメッシュへ描画する前に、すべてのターゲットにあるカードタイル1つ分をクリアする。</summary>
     internal void ClearCard(ID3D12GraphicsCommandList*CommandList,in Capture Card){
         RECT Rect=new(){ left=Card.X,top=Card.Y,right=Card.X+Card.Width,bottom=Card.Y+Card.Height };
         var Zero=Vector4.Zero;
@@ -707,10 +706,10 @@ internal sealed unsafe class StageLumen:IDisposable {
         CommandList->ResourceBarrier(4,Back);
     }
     // ---------------------------------------------------------------------------------------------------------------------------------------
-    // Compute.
+    // コンピュート処理。
     /// <summary>
-    /// Records the passes of this frame (after <see cref="Prepare"/> and the raster parts). Replaces the compute root signature, pipeline and
-    /// descriptor heap. Leaves the diffuse and reflection outputs readable by the Stage program.
+    /// <see cref="Prepare"/>とラスタライズ処理の後で、このフレームの各パスを記録する。Computeルートシグネチャ、パイプライン、
+    /// ディスクリプタヒープを置き換える。Stageプログラムから拡散と反射の出力を読み取り可能な状態にする。
     /// </summary>
     internal void RecordCompute(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in LumenComputeBindings Bindings){
         this.DescribeExternal(Bindings);
@@ -719,8 +718,8 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.RecordPasses(CommandList,FrameIndex,Bindings,Flags,this.WorkRing.Address(FrameIndex,this.DummyBuffer));
     }
     /// <summary>
-    /// Debugging (Unreal's r.Lumen.Visualize): overwrites the lit frame with the diffuse irradiance on a white surface, the reflections or the surface
-    /// cache, through this frame's exposure. The HDR target is a render target before and after.
+    /// デバッグ用（Unrealのr.Lumen.Visualize）：このフレームの照明済み映像を、白い面上の拡散照度、反射、またはサーフェスキャッシュで上書きする。
+    /// このフレームの露出を適用する。HDRターゲットは引き続きレンダーターゲットである。
     /// </summary>
     internal void RecordVisualize(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,LumenVisualization Mode,ID3D12Resource*HdrColor){
         if(this.DescribedSceneColor!=(nint)HdrColor){
@@ -773,7 +772,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         var Plan=this.Plan;
         var Tier=Plan.Tier;
         var Input=Plan.Input;
-        // 0: card lighting (the shadow atlas is read by compute too).
+        // 0：カードの照明（Computeからもシャドウアトラスを読む）。
         if(Plan.CardTiles>0){
             D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[2];
             Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.CardRadiance,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -786,7 +785,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             After[1]=D3D12_RESOURCE_BARRIER.InitTransition(Bindings.ShadowAtlas,ShaderResourceState,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             CommandList->ResourceBarrier(2,After);
         }
-        // 1: the radiance cache.
+        // 1：放射輝度キャッシュ。
         if(Plan.CacheProbes>0){
             D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[2];
             Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.CacheRadiance,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -800,18 +799,18 @@ internal sealed unsafe class StageLumen:IDisposable {
             CommandList->ResourceBarrier(2,After);
         }
         CommandList->SetComputeRootShaderResourceView(12,WorkAddress);
-        // 2-3: the screen probes.
+        // 2～3：スクリーンプローブ。
         this.Transition(CommandList,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,this.ProbeRadiance,this.ProbeInfo);
         this.Dispatch(CommandList,FrameIndex,PassScreenProbeTrace,Flags,(uint)this.ProbeCountX,(uint)this.ProbeCountY,1);
         this.Transition(CommandList,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState,this.ProbeRadiance,this.ProbeInfo);
         this.Transition(CommandList,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,this.ProbeSh,null);
         this.Dispatch(CommandList,FrameIndex,PassScreenProbeFilter,Flags,(uint)this.ProbeCountX,(uint)this.ProbeCountY,1);
         this.Transition(CommandList,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState,this.ProbeSh,null);
-        // 4: integrate, then keep the result as next frame's history.
+        // 4：統合し、結果を次のフレームの履歴として保持する。
         this.Transition(CommandList,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,this.Diffuse,null);
         this.Dispatch(CommandList,FrameIndex,PassIntegrate,Flags,((uint)Input.Width+7u)/8u,((uint)Input.Height+7u)/8u,1);
         this.CopyToHistory(CommandList,this.Diffuse,this.DiffuseHistory,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        // 5-6: the reflections.
+        // 5-6：反射。
         if(Tier.Reflections&&Input.Settings.Reflections){
             this.Transition(CommandList,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,this.ReflectionTrace,null);
             this.Dispatch(CommandList,FrameIndex,PassReflectionTrace,Flags,((uint)this.TraceWidth+7u)/8u,((uint)this.TraceHeight+7u)/8u,1);
@@ -820,7 +819,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             this.Dispatch(CommandList,FrameIndex,PassReflectionResolve,Flags,((uint)Input.Width+7u)/8u,((uint)Input.Height+7u)/8u,1);
             this.CopyToHistory(CommandList,this.Reflection,this.ReflectionHistory,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
-        // The exposure this frame is drawn with (the metering comes after the main pass) is the scene colour history's in the next frame.
+        // 今フレームの露出（測光はメインパスの後）は、次フレームのシーンカラー履歴に使う。
         D3D12_RESOURCE_BARRIER*ToCopy=stackalloc D3D12_RESOURCE_BARRIER[2];
         ToCopy[0]=D3D12_RESOURCE_BARRIER.InitTransition(Bindings.ExposureStateResource,ShaderResourceState,D3D12_RESOURCE_STATE_COPY_SOURCE);
         ToCopy[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.HistoryExposure,ShaderResourceState,D3D12_RESOURCE_STATE_COPY_DEST);
@@ -832,7 +831,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         CommandList->ResourceBarrier(2,Back);
         this.HistoryValid=true;
     }
-    /// <summary>Copies the lit frame (sky included, before the camera previews) as next frame's scene colour history. The HDR target is a render target.</summary>
+    /// <summary>照明済みフレーム（カメラプレビュー前、空を含む）をコピーし、次フレームのシーンカラー履歴にする。HDRターゲットはレンダーターゲットである。</summary>
     internal void CopySceneColor(ID3D12GraphicsCommandList*CommandList,ID3D12Resource*HdrColor){
         D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[2];
         Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(HdrColor,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -845,7 +844,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         CommandList->ResourceBarrier(2,After);
         this.SceneColorValid=true;
     }
-    /// <summary>Forgets the history (a frame without Lumen, a camera cut or a resize): the next frame starts from its own samples.</summary>
+    /// <summary>履歴を破棄する（Lumenを使わないフレーム、カメラカット、リサイズ時）。次のフレームは自身のサンプルから開始する。</summary>
     internal void InvalidateHistory(){
         this.HistoryValid=false;
         this.SceneColorValid=false;
@@ -895,7 +894,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         Integers[9]=(uint)this.ProbeCountY;
         Integers[10]=(uint)Tier.ProbeTexels;
         Integers[11]=(uint)Tier.ReflectionDownsample;
-        // The probes move through their tile and the rays through their octahedral texel over frames (Halton 2, 3), so time fills the gaps.
+        // プローブはフレームごとにタイル内を移動し、レイも八面体テクセル内を移動する（Halton 2、3）。そのため時間経過で隙間が埋まる。
         var Frame=Input.FrameNumber;
         Target[12]=MathF.Floor(Halton(Frame%16+1,2)*Tier.ProbeTexels);
         Target[13]=MathF.Floor(Halton(Frame%16+1,3)*Tier.ProbeTexels);
@@ -947,7 +946,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         Integers[189]=0;
         Integers[190]=0;
         Integers[191]=0;
-        // Unreal's screen probe temporal filter keeps about ten frames; a history younger than that averages what it has.
+        // Unrealのスクリーンプローブ時間フィルターは約10フレームを保持する。履歴がそれより短ければ、現在までのサンプルを平均する。
         Target[192]=MathF.Min(1f,MathF.Max(1f/(this.HistoryFrames+1),0.12f*Input.Settings.FinalGatherLightingUpdateSpeed));
         Target[193]=0.2f;
         Target[194]=0.75f;
@@ -959,7 +958,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             Target[Index+3]=W;
         }
     }
-    /// <summary>The manual exposure the scene colour history was drawn with (the previous frame's).</summary>
+    /// <summary>前フレームの手動露出。シーンカラー履歴はこの値で描画されている。</summary>
     private float PreviousExposureForHistory=>this.Plan.SceneColorValid?this.PlanPreviousExposure:0f;
     private float PlanPreviousExposure;
     private static float Halton(uint Index,uint Base){
@@ -972,7 +971,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         }
         return Result;
     }
-    /// <summary>Writes the descriptors of resources the renderer owns when they change (the GPU is idle then, or they were never read).</summary>
+    /// <summary>変化したレンダラー所有リソースのディスクリプターを書き込む（GPUがアイドル、またはまだ読み込まれていないとき）。</summary>
     private void DescribeExternal(in LumenComputeBindings Bindings){
         for(var Level=0;Level<GlobalDistanceFieldSettings.MaximumClipmapCount;Level++){
             var Resource=Bindings.Field.Level(Level<Bindings.Field.LevelCount?Level:0);
@@ -993,7 +992,7 @@ internal sealed unsafe class StageLumen:IDisposable {
             this.WriteTextureSrv(Bindings.SkyMap,RadianceFormat,SrvSkyRadiance);
         }
     }
-    /// <summary>Writes the Stage t16 (diffuse irradiance) and t17 (reflected radiance) views; null views until the outputs exist.</summary>
+    /// <summary>Stageのt16（拡散照度）とt17（反射放射輝度）ビューを書き込む。出力が作成されるまではnullビュー。</summary>
     internal void WriteShadingDescriptors(D3D12_CPU_DESCRIPTOR_HANDLE DiffuseHandle,D3D12_CPU_DESCRIPTOR_HANDLE ReflectionHandle){
         D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){ Format=IrradianceFormat,ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D,Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
         Srv.Texture2D.MipLevels=1;
@@ -1002,7 +1001,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.Device.Device->CreateShaderResourceView(this.Reflection,&Srv,ReflectionHandle);
     }
     // ---------------------------------------------------------------------------------------------------------------------------------------
-    // Resources.
+    // リソース。
     private void EnsurePipeline(){
         if(this.PipelineState!=null){
             return;
@@ -1033,7 +1032,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&DefaultHeap,D3D12_HEAP_FLAG_NONE,&DummyDesc,D3D12_RESOURCE_STATE_COMMON,null,__uuidof<ID3D12Resource>(),(void**)&Dummy),
             "ID3D12Device::CreateCommittedResource","creating the Lumen placeholder buffer");
         this.DummyBuffer=Dummy;
-        // Until the renderer's resources are described, the external slots hold null views.
+        // レンダラーのリソースが記述されるまでは、外部スロットにnullビューを保持する。
         for(var Slot=0;Slot<SrvCount;Slot++){
             this.WriteTextureSrv(null,RadianceFormat,Slot);
         }
@@ -1082,7 +1081,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.WriteTextureSrv(this.CardDepth,DXGI_FORMAT_R32_FLOAT,SrvCardDepth);
         this.WriteTextureSrv(this.CardRadiance,RadianceFormat,SrvCardRadiance);
         this.WriteTextureUav(this.CardRadiance,RadianceFormat,UavCardRadiance);
-        // The radiance cache: one atlas tile and nine SH coefficients per probe.
+        // 放射輝度キャッシュ：プローブごとにアトラスタイル1つとSH係数9つ。
         this.CacheProbeCount=Tier.CacheLevels*Tier.CacheResolution*Tier.CacheResolution*Tier.CacheResolution;
         this.CacheProbesPerRow=(int)MathF.Ceiling(MathF.Sqrt(this.CacheProbeCount));
         var Rows=(this.CacheProbeCount+this.CacheProbesPerRow-1)/this.CacheProbesPerRow;
@@ -1103,7 +1102,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         if(this.ScreenKey==Key){
             return;
         }
-        // A size change comes from Resize, which waits for the GPU and calls ReleaseScreen first; another change replaces targets a frame may read.
+        // サイズ変更はResizeから行う。GPU完了を待ち、先にReleaseScreenを呼び出す。別の変更では、フレームが読み取り中の可能性があるターゲットを置き換える。
         if(this.ScreenKey is not null){
             WaitForGpuIdle();
         }
@@ -1154,7 +1153,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.InvalidateHistory();
         this.Generation++;
     }
-    /// <summary>Releases the screen-sized targets; the caller guarantees the GPU no longer uses them (Resize waits first).</summary>
+    /// <summary>画面サイズのターゲットを解放する。呼び出し側がGPUで未使用であることを保証する（Resizeは事前に完了を待つ）。</summary>
     internal void ReleaseScreen(){
         ReleaseResource(ref this.SurfaceNormal);
         ReleaseResource(ref this.SurfaceDistance);
@@ -1314,7 +1313,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     }
     private D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(int Slot)=>new(this.DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),Slot,this.DescriptorSize);
     // ---------------------------------------------------------------------------------------------------------------------------------------
-    // Test-only reads (the caller guarantees the queue is idle).
+    // テスト専用の読み戻し（呼び出し側がキューをアイドル状態にすること）。
     internal (Vector4[]Texels,int Width,int Height)ReadDiffuseForTesting(){
         if(this.Diffuse==null){
             throw new InvalidOperationException("The Lumen-like lighting has not run yet.");
@@ -1342,10 +1341,10 @@ internal sealed unsafe class StageLumen:IDisposable {
         return (Distances,Width,Height);
     }
     internal (Vector4[]Texels,int Width,int Height)ReadReflectionForTesting()=>this.ReadHalfTexture(this.Reflection);
-    /// <summary>The screen probes' traced radiance: probe (x, y) holds an 8 x 8 octahedral tile at (8x, 8y).</summary>
+    /// <summary>スクリーンプローブがトレースした放射輝度。プローブ(x, y)ごとに、(8x, 8y)から8 x 8の八面体タイルを保持する。</summary>
     internal (Vector4[]Texels,int Width,int Height)ReadProbeRadianceForTesting()=>this.ReadHalfTexture(this.ProbeRadiance);
     internal (int X,int Y,int Texels)ProbeLayoutForTesting=>(this.ProbeCountX,this.ProbeCountY,this.Plan.Tier.ProbeTexels);
-    /// <summary>The surface cache's radiance of one renderer object's card: the average over its covered texels and how many texels are covered.</summary>
+    /// <summary>レンダラーのオブジェクト1つにあるカードのサーフェスキャッシュ放射輝度。対象テクセルの平均値と、対象テクセル数。</summary>
     internal (Vector3 Average,int Covered)ReadCardForTesting(int ObjectIndex,int Face){
         if((uint)ObjectIndex>=(uint)this.Objects.Length||!this.Objects[ObjectIndex].Tracked||!this.Objects[ObjectIndex].Faces[Face].Allocated){
             return (Vector3.Zero,0);
@@ -1435,7 +1434,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     private readonly record struct TierKey(int AtlasTexels,int CacheLevels,int CacheResolution);
     private readonly record struct FramePlan(LumenTier Tier,LumenFrameInput Input,int CardTiles,int CacheProbes,Vector2 GridOrigin,Matrix4x4 PreviousViewProjection,
         Vector3 PreviousCamera,bool HistoryValid,bool SceneColorValid,Vector4[]CacheOrigins,uint[]CacheSlots,Vector4[]CacheScales,int CacheLevels);
-    /// <summary>A mapped upload buffer with one region per frame in flight; it grows (after the GPU is idle) when a frame needs more.</summary>
+    /// <summary>処理中のフレームごとに領域を持つマップ済みアップロードバッファ。フレームで容量が足りなくなれば、GPUアイドル後に拡張する。</summary>
     private struct UploadRing {
         private ID3D12Resource*Buffer;
         private byte*Mapped;
@@ -1463,7 +1462,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         }
     }
 }
-/// <summary>What one frame of the Lumen-like lighting is given (ADR-0078/M0111).</summary>
+/// <summary>Lumen風照明における、フレーム1つ分の入力（ADR-0078/M0111）。</summary>
 internal readonly record struct LumenFrameInput(
     LumenSettings Settings,
     RenderScalability Scalability,
@@ -1478,7 +1477,7 @@ internal readonly record struct LumenFrameInput(
     uint FrameNumber,
     bool AutoExposure,
     float ManualExposure);
-/// <summary>The buffers and textures of the renderer the compute passes read.</summary>
+/// <summary>Computeパスが読み込むレンダラーのバッファとテクスチャ。</summary>
 internal readonly unsafe struct LumenComputeBindings {
     internal ulong FrameConstants { get;init; }
     internal ulong LocalLights { get;init; }
@@ -1491,7 +1490,7 @@ internal readonly unsafe struct LumenComputeBindings {
     internal ID3D12Resource*SkyMap { get;init; }
     internal StageGlobalDistanceField Field { get;init; }
 }
-/// <summary>The sizes and per-frame budgets of a Lumen tier (see <see cref="StageLumen.ResolveTier"/>).</summary>
+/// <summary>Lumenティアのサイズとフレームごとの予算（<see cref="StageLumen.ResolveTier"/>を参照）。</summary>
 internal readonly record struct LumenTier(
     int AtlasTexels,
     int MaximumCardTexels,
@@ -1505,7 +1504,7 @@ internal readonly record struct LumenTier(
     int ProbeTexels,
     bool Reflections,
     int ReflectionDownsample);
-/// <summary>What the last frame of the Lumen-like lighting did (diagnostics and tests).</summary>
+/// <summary>Lumen風照明が直近フレームに行った処理（診断とテスト用）。</summary>
 internal record struct LumenStatistics {
     public int Objects;
     public int Cards;

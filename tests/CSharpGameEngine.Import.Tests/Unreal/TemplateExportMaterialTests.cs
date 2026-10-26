@@ -4,11 +4,10 @@ using System.Text.Json;
 namespace CSharpGameEngine.Import.Tests.Unreal;
 
 /// <summary>
-/// The glb files exported from UE for the templates must keep their materials. UE's glTF exporter writes empty materials when the editor
-/// runs without a render device (<c>-nullrhi</c>), which made the Vehicle and TopDown templates grey; the export scripts no longer pass it.
+/// テンプレート用に UE からエクスポートした glb ファイルでは、マテリアルを保持しなければならない。レンダリングデバイスなし（<c>-nullrhi</c>）でエディターを実行すると、UE の glTF エクスポーターは空のマテリアルを書き出し、Vehicle と TopDown のテンプレートが灰色になっていたため、エクスポートスクリプトからこのオプションを外した。
 /// </summary>
 public sealed class TemplateExportMaterialTests {
-    /// <summary>True when the glb has a mesh but none of its materials says anything (no color, texture, extras or extension).</summary>
+    /// <summary>glb にメッシュはあるが、マテリアルに色、テクスチャ、extras、拡張のいずれの情報もない場合に true。</summary>
     internal static bool HasOnlyEmptyMaterials(string GltfJson){
         using var Document=JsonDocument.Parse(GltfJson);
         var Root=Document.RootElement;

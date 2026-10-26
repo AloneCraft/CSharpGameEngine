@@ -1,6 +1,8 @@
 using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.Import.AssetAuthoring.Cli;
 
+if(ImageModelCommands.Run(args) is { }AuthoringExit){ return AuthoringExit; }
+
 if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
     await BridgeServerHost.RunAsync(
         PipeName,AssetAuthoringBridgeWorker.Run,TimeSpan.FromMinutes(15),OwnerProcessId:OwnerProcessId);

@@ -45,8 +45,8 @@ public sealed class SceneFrameSequenceAnalyzerTests {
     }
     [Fact]
     public void UniformBrightnessAlternationAfterReady_Fails(){
-        // Two frame slots with different ambient light: every cell brightens and darkens together, so
-        // the relative 8x8 signature never changes; only the absolute luminance reveals the flicker.
+        // 環境光が異なる 2 つのフレームスロット：すべてのセルが同時に明暗するため、
+        // 相対 8x8 シグネチャは変化しない。ちらつきは絶対輝度だけで分かる。
         SceneFrameSample[]Samples=Enumerable.Range(0,700)
             .Select(Index=>new SceneFrameSample(Index*16,true,0xA55AA55AA55AA55AUL,Index%2==0?120f:60f))
             .ToArray();

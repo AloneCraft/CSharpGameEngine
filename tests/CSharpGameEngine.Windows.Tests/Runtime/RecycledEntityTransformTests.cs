@@ -3,8 +3,7 @@ using CSharpGameEngine.Runtime.Windows;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 /// <summary>
-/// ADR-0078/M0105: an Entity created in a recycled slot has Generation 2 or more. The fixed-point hierarchy resolution must
-/// still find its Transform and its parent: it is what places every renderable, light, listener and collider.
+/// ADR-0078/M0105：再利用されたスロットに作られた Entity の Generation は2以上です。固定小数点の階層解決でも、その Transform と親を見つけられなければなりません。これが、すべての描画可能オブジェクト、ライト、リスナー、コライダーの配置に使われます。
 /// </summary>
 public sealed class RecycledEntityTransformTests {
     private static Entity Recycle(ref EcsWorld World){

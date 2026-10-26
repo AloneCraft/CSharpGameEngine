@@ -37,9 +37,9 @@ public struct LightShadow() {
     public ShadowBias Bias=new(0.005f);
 }
 /// <summary>
-/// UE's SetVisibility of a light component (ADR-0078/M0109: the Vehicle's headlights start hidden and the L key toggles one). It sits beside the
-/// node's light, as <see cref="LightShadow"/> does, so the light types keep only their physical values. A hidden light is not submitted at all,
-/// so it lights nothing and casts no shadow; without this component the light is visible.
+/// ライトコンポーネントのUE SetVisibility（ADR-0078/M0109：Vehicleのヘッドライトは最初非表示で、Lキーで切り替える）。
+/// <see cref="LightShadow"/>と同様にノード上のライトの隣に置き、ライト型には物理値だけを持たせる。
+/// 非表示のライトは描画処理へ送られないため、照明も影も生成しない。このコンポーネントがなければライトは表示される。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,60)]
 public struct LightVisibility() {

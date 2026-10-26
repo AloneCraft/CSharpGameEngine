@@ -110,7 +110,7 @@ public sealed class VsixManifestTests {
         Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.deps.json",Entries);
         Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.runtimeconfig.json",Entries);
         Assert.Contains("PreviewHost/Shaders/Stage.cgeshaderartifact",Entries);
-        // ADR-0065/0068: bridges, the engine SDK package and the ThirdPerson template make the VSIX work outside the repository.
+        // ADR-0065/0068：ブリッジ、エンジン SDK パッケージ、ThirdPerson テンプレートがあるため、VSIX はリポジトリ外でも動作する。
         foreach(var Bridge in new[]{"CSharpGameEngine.Import.Gltf.Cli","CSharpGameEngine.Import.Fbx.Cli","CSharpGameEngine.Import.AssetAuthoring.Cli","CSharpGameEngine.Primitive.Cli","CSharpGameEngine.ShaderGraph.Cli"}){
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.exe",Entries);
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.runtimeconfig.json",Entries);
@@ -138,9 +138,9 @@ public sealed class VsixManifestTests {
 
     [Fact]
     public void BuiltVsix_PutsTheExtensionFolderOnTheTemplateWizardProbingPath(){
-        // The vstemplates name their IWizard by the simple assembly name, which Visual Studio
-        // resolves only through the package's BindingPaths; without it creating a project from
-        // the Third Person template fails with "tried to load component assembly".
+        // vstemplates は IWizard を単純なアセンブリ名で指定する。Visual Studio がそれを解決できるのは、パッケージの
+        // BindingPaths 経由だけである。これがないと、プロジェクト作成時に
+        // Third Person テンプレートで「tried to load component assembly」が発生する。
         var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
         using var Archive=ZipFile.OpenRead(VsixPath);
         var Entry=Archive.GetEntry("CSharpGameEngine.VSExtension.pkgdef");

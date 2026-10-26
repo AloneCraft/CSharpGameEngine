@@ -79,7 +79,7 @@ public sealed class DeterministicJobResult<TState,TEvent>
     public int MaximumConcurrency{get;}
 }
 
-/// <summary>Runs fixed partitions concurrently and exposes results only after a stable-key merge succeeds.</summary>
+/// <summary>固定の分割単位を並行実行し、安定キーによるマージが成功した後にのみ結果を公開する。</summary>
 public static class DeterministicJobRuntime {
     public static async ValueTask<DeterministicJobResult<TState,TEvent>>ExecuteAsync<TJob,TState,TEvent>(
         StableId System,TJob Job,ReadOnlyMemory<TState>Source,

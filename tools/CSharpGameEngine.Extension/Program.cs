@@ -131,7 +131,7 @@ static int RunViewer(string[]Args){
         Renderer=D3D12RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
-        // The mesh's own bounds: wrapping its bounding sphere in a cube would frame a sphere sqrt(3) times larger.
+        // メッシュ自体の境界：境界球を囲む立方体を使うと、球は √3 倍大きくなる。
         Renderer.SetCamera(Camera.CreateBoundsFit(BoundsMin,BoundsMax));
         Renderer.SetAmbientLight(new Vector3(0.35f));
         Renderer.SetDirectionalLight(
@@ -213,10 +213,10 @@ static int RunViewer(string[]Args){
 }
 
 static string ResolveModelPath(string ModelPath){
-    // Resolve relative to the current directory first (matches `--model` pointing at any real
-    // file, e.g. under UserEcsProject/Assets/Fab/); fall back to the executable's own directory
-    // so the bundled Samples/Box.glb works whether invoked via `dotnet run` from the repo root or
-    // by running the built .exe directly from its output directory.
+    // まずカレントディレクトリを基準に解決する（実在する任意の
+    // ファイル（例：UserEcsProject/Assets/Fab/ 以下）を指す --model と同様）。見つからなければ実行ファイル自身のディレクトリを使う。
+    // これにより、リポジトリルートから dotnet run で起動しても、
+    // 出力ディレクトリからビルド済み .exe を直接実行しても、同梱の Samples/Box.glb が使える。
     if(File.Exists(ModelPath)||Path.IsPathRooted(ModelPath)){
         return ModelPath;
     }

@@ -21,7 +21,7 @@ INSTANCE_PATHS = [
 ]
 TEXTURE_PATHS = ["/Game/LevelPrototyping/Textures/T_GridChecker_A"]
 PARENT_PATH = "/Game/LevelPrototyping/Materials/M_PrototypeGrid"
-# Engine functions MF_ProcGrid calls whose expressions the engine shader reproduces.
+# エンジンの shader が再現する MF_ProcGrid の関数呼び出し。
 ENGINE_FUNCTION_PATHS = ["/Engine/Functions/Engine_MaterialFunctions01/ImageAdjustment/CheapContrast"]
 FUNCTION_PATH = "/Game/LevelPrototyping/Materials/MF_ProcGrid"
 SKIPPED_PROPERTIES = {"material_expression_editor_x", "material_expression_editor_y", "material_expression_guid", "function", "material", "graph_node", "desc"}

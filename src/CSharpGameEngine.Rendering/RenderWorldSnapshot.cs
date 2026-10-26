@@ -32,7 +32,7 @@ public readonly record struct RenderInstanceRecord(
     Matrix4x4 CameraRelativeTransform,Vector3 CameraRelativeBoundsCenter,float BoundsRadius,
     int LodStart,int LodCount);
 
-/// <summary>Immutable, stable-ID ordered rendering input extracted from one completed tick.</summary>
+/// <summary>完了した1ティックから抽出した、変更不可で安定 ID 順に並ぶ描画入力。</summary>
 public sealed class RenderWorldSnapshot {
     private static readonly IComparer<RenderInstanceRecord>InstanceComparer=
         Comparer<RenderInstanceRecord>.Create(static(Left,Right)=>Left.InstanceId.CompareTo(Right.InstanceId));
@@ -177,7 +177,7 @@ public readonly record struct RenderVisibilityQueryResult(int VisibleCount,int S
 public readonly record struct RenderInstanceBatch(
     RenderMeshId Mesh,RenderMaterialId Material,int LodIndex,int OrderStart,int InstanceCount);
 
-/// <summary>Stateless visibility/LOD selection and caller-buffer instance batching.</summary>
+/// <summary>状態を持たない可視性／LOD 選択と、呼び出し側バッファを使うインスタンスのバッチ化。</summary>
 public static class RenderVisibility {
     public static RenderVisibilityQueryResult Select(
         RenderWorldSnapshot Snapshot,in RenderVisibilityView View,

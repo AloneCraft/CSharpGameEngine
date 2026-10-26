@@ -1,9 +1,10 @@
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// M0124: the breaking solver's internal strain (UE's Chaos internal strain) and levels of clusters. A bond keeps the lasting strain of earlier hits, less
-/// <see cref="FractureSettings.StrainRetention"/> each tick: repeated small hits break what one does not, a fading hit ends, a steady load never adds up,
-/// the strength is still met exactly, a played-back recording leaves the same internal strains, and the bonds between the outer clusters break first.
+/// M0124：破壊ソルバーの内部ひずみ（UEのChaos内部ひずみ）とクラスターレベル。結合には過去の衝撃によるひずみを保持し、毎ティック
+/// <see cref="FractureSettings.StrainRetention"/>分だけ減衰させる。そのため、小さなヒットを繰り返せば単発では破断しない結合も破断し、
+/// 減衰後はヒットが消える。一定荷重ではひずみが蓄積しない。強度とちょうど等しい場合も破断し、再生した記録では内部ひずみが一致する。
+/// 外側クラスタ間の結合が先に破断する。
 /// </summary>
 public sealed class PhysicsFractureInternalStrainTests {
     private static readonly LogicalScalar Retention=FractureSettings.RetentionFor(LogicalScalar.One/LogicalScalar.FromInt64(2),60);
@@ -31,7 +32,7 @@ public sealed class PhysicsFractureInternalStrainTests {
         for(var Tick=0;Tick<600;Tick++){ One.Resolve(Breaks); }
         Assert.Empty(Breaks);
         Assert.False(One.IsBondBroken(0));
-        // Three hits a tenth of a second apart: 0.4 + 0.4 × 0.95 + … reaches the strength at the third.
+        // 0.1秒間隔で3回衝撃を与える。0.4 + 0.4 × 0.95 + …が3回目に強度へ達する。
         var Three=new FractureState(Crate(),Lasting);
         var BrokeAt=-1;
         for(var Tick=0;Tick<=12&&BrokeAt<0;Tick++){
@@ -58,11 +59,11 @@ public sealed class PhysicsFractureInternalStrainTests {
             Expected*=Retention;
             Assert.Equal(Expected,State.InternalStrainOf(0));
         }
-        // After 2 s about 37 % is left; below a millionth of the strength (2⁻²⁰, about 26 s here) it is gone.
+        // 2秒後には約37 %が残る。強度の100万分の1（2⁻²⁰、この例では約26秒）未満になると消える。
         Assert.InRange(Expected.TryToSingle(out var Left)?Left/(Hit.TryToSingle(out var First)?First:1f):0f,0.36f,0.37f);
         for(var Tick=0;Tick<3000;Tick++){ State.Resolve([]); }
         Assert.Equal(LogicalScalar.Zero,State.InternalStrainOf(0));
-        // Hits two seconds apart never add up to the strength (at most about 0.63 of it): the decay wins.
+        // 2秒間隔のヒットでは強度に達しない（最大でも約0.63）。ひずみ減衰の方が勝る。
         List<FractureBondBreak>Breaks=[];
         for(var Tick=0;Tick<120*20;Tick++){
             if(Tick%120==0){ State.AddStrain(0,Hit); }
@@ -81,7 +82,7 @@ public sealed class PhysicsFractureInternalStrainTests {
         }
         Assert.Empty(Breaks);
         Assert.Equal(LogicalScalar.Zero,State.InternalStrainOf(0));
-        // The same load as impacts breaks it in the second tick (0.9 + 0.9 × 0.99).
+        // 同じ荷重を衝撃として与えると、2ティック目に破断する（0.9 + 0.9 × 0.99）。
         State.AddStrain(0,Load);
         State.Resolve(Breaks);
         Assert.Empty(Breaks);
@@ -140,7 +141,7 @@ public sealed class PhysicsFractureInternalStrainTests {
         }
         Assert.True(Live.BrokenBondCount>0,"nothing broke in the recording");
         Assert.True(Live.BrokenBondCount<Asset.Bonds.Count,"everything broke in the recording");
-        // After the played-back stretch both go on live with the same hits and break alike.
+        // 記録を再生した区間の後は、どちらも同じヒットでライブ実行を続け、同様に破断する。
         for(var Tick=0;Tick<200;Tick++){
             var Fragment=Next(Asset.Fragments.Count);
             var Impulse=Fraction(Unit,1+Next(6),10);
@@ -155,7 +156,7 @@ public sealed class PhysicsFractureInternalStrainTests {
     }
     [Fact]
     public void TheBondsBetweenTheOuterClustersBreakFirstThenEachLevelInTurn(){
-        // Every intact bond takes its own cooked strength × t / 8 each tick, so a bond inside k levels (strength × 2^k) breaks at tick 8 × 2^k: level by level.
+        // 破断していない各結合には、Cook時の強度×t / 8をティックごとに加える。そのため、強度が2^k倍のk階層内結合は、レベルごとに8 × 2^kティックで破断する。
         var Asset=Crate(48,5,3);
         var State=new FractureState(Asset,new FractureSettings(LogicalScalar.FromInt64(2),LogicalScalar.Zero,false));
         List<FractureBondBreak>Breaks=[];
@@ -172,7 +173,7 @@ public sealed class PhysicsFractureInternalStrainTests {
                 LevelAt[Level]=Tick;
             }
             if(Tick==8){
-                // The top-level clusters came apart, each whole.
+                // 最上位クラスタは、まとまりを保ったまま分離した。
                 Assert.Equal(Asset.ClusterCount,State.PieceCount);
                 Assert.All(State.Pieces,Piece=>Assert.Single(Piece.Fragments.Select(Fragment=>Asset.ClusterOf(Fragment,0)).Distinct()));
             }

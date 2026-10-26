@@ -17,8 +17,8 @@ public partial class HierarchyToolWindowControl {
             return;
         }
 
-        // Help is deliberately used instead of the standard prohibited cursor: paired with this
-        // visible message it communicates that the target is valid but already owns the component.
+        // 禁止カーソルではなく Help を使います。表示されるこのメッセージと組み合わせることで、
+        // 対象は有効だが、すでにコンポーネントを所有していることを伝えます。
         this.ComponentDropFeedbackText.Text=Message;
         this.ComponentDropFeedback.Visibility=Visibility.Visible;
         SetStatusBarText(Message);

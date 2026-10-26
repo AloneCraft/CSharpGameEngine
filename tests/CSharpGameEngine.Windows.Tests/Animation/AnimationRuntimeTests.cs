@@ -2,9 +2,9 @@ using System.Numerics;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>ADR-0066: skeleton palettes, clip sampling and Unreal's unarmed locomotion graph.</summary>
+/// <summary>ADR-0066：スケルトンパレット、クリップサンプリング、Unrealの素手移動アニメーショングラフ。</summary>
 public sealed class AnimationRuntimeTests {
-    /// <summary>Root at the origin, child 1 m up, both with a quarter turn baked into the bind pose's inverse.</summary>
+    /// <summary>原点にあるルートと、その1 m上にある子。どちらもバインド姿勢の逆変換に4分の1回転を含む。</summary>
     private static Skeleton TwoJoints(){
         var ChildRest=Matrix4x4.CreateTranslation(0f,1f,0f);
         Assert.True(Matrix4x4.Invert(ChildRest,out var ChildInverse));
@@ -19,7 +19,7 @@ public sealed class AnimationRuntimeTests {
         });
     }
     private static ImportedKeys<Vector3>Line(float Duration,Vector3 From,Vector3 To,bool Step=false)=>new() { Times=[0f,Duration],Values=[From,To],Step=Step };
-    /// <summary>A clip that holds the child joint at x = <paramref name="Marker"/>, so a pose reveals which clips it mixes.</summary>
+    /// <summary>子ジョイントをx = <paramref name="Marker"/>に保持するクリップ。姿勢を見ると、どのクリップがブレンドされたか分かる。</summary>
     private static AnimationClip Marker(Skeleton Skeleton,float Marker,float Duration)=>AnimationClip.Bind(new ImportedAnimationClip {
         Name=$"marker{Marker}",
         DurationSeconds=Duration,

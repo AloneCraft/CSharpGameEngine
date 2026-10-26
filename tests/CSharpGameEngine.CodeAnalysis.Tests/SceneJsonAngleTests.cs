@@ -1,9 +1,9 @@
 using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0074: scene JSON stores every number inside an <c>[Angle]</c> member in turns from schema version 2 on; the C#
-/// member keeps its own unit, so a version 1 document and its version 2 form build the same values. From version 3 an
-/// angle's key drops the C# unit word (<c>YawDegrees</c> is <c>Yaw</c>), because the number is in turns.
+/// ADR-0074：スキーマバージョン2以降、シーンJSONでは<c>[Angle]</c>メンバーに含まれる数値をすべて回転数で保存する。
+/// C#メンバーはそれぞれの単位を保持するため、バージョン1とバージョン2の文書は同じ値をビルドする。
+/// バージョン3以降では回転数を使うため、角度キーからC#の単位を示す語を省く（<c>YawDegrees</c>は<c>Yaw</c>）。
 /// </summary>
 public sealed class SceneJsonAngleTests {
     private const string Components="""
@@ -70,7 +70,7 @@ public sealed class SceneJsonAngleTests {
     public void UnitFreeKeys_BuildTheSameValuesAsTheMemberNames(){
         var MemberNames=Describe(Document("2","0.25","0.25","0.19098594","0.047746485"));
         Assert.Equal(MemberNames,Describe(VersionThree("0.25","0.25","0.19098594","0.047746485")));
-        // A document may still name the C# member; the number is turns either way.
+        // 文書にC#メンバー名を記述してもよい。どちらの場合も数値は回転数として扱う。
         Assert.Equal(MemberNames,Describe(Document("3","0.25","0.25","0.19098594","0.047746485")));
     }
     [Fact]
@@ -92,9 +92,9 @@ public sealed class SceneJsonAngleTests {
             Problem.Descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture),Problem.Arguments),StringComparison.Ordinal);
     }
     /// <summary>
-    /// A number in turns can fit a float and its member's unit not (1e37 turns in degrees). Formatting that infinity as
-    /// the literal threw: the analyzer failed (AD0001) and the generator dropped the whole project's output (CS8785).
-    /// It is a SCENE203 at the value, and the generator still emits the scene.
+    /// 回転数ならfloatに収まっても、メンバーの単位へ変換すると収まらない場合がある（1e37回転を度数で表す場合など）。
+    /// その無限大をリテラルとして書式化すると例外となり、アナライザーは失敗（AD0001）、ジェネレーターはプロジェクト全体の出力を破棄する（CS8785）。
+    /// 値の位置でSCENE203を報告しつつ、ジェネレーターは引き続きシーンを出力する。
     /// </summary>
     [Theory]
     [InlineData("1e37","0.25","0","degrees")]
@@ -128,14 +128,14 @@ public sealed class SceneJsonAngleTests {
         Assert.Contains("\"Fov\": 0.25,",Json,StringComparison.Ordinal);
         Assert.Contains("\"Plain\": 2",Json,StringComparison.Ordinal);
         Assert.Contains("\"Value\": { \"R\": 0.19098594, \"U\": 0.047746485, \"F\": 0 }",Json,StringComparison.Ordinal);
-        // "Pitch" is another member of Tilt, so its angle keeps the C# name.
+        // 「Pitch」もTiltのメンバーなので、その角度キーにはC#の名前を維持する。
         Assert.Contains("\"PitchDegrees\": 0.125,",Json,StringComparison.Ordinal);
         Assert.Contains("\"Outer\": 0.25",Json,StringComparison.Ordinal);
         Assert.Equal("90|1.5707964|2|1.2|0.3|0|45|7|90",Describe(Json));
     }
     /// <summary>
-    /// An edit merges the editor's canonical text into the author's (M0095). Over a version 2 document the result is
-    /// the current version with unit-free keys, and it builds the same values.
+    /// エディターで編集する際、作成者の文書へエディターの正規テキストを統合する（M0095）。
+    /// バージョン2の文書に適用すると、現在のバージョンと単位のないキーになり、同じ値をビルドする。
     /// </summary>
     [Fact]
     public void EditMerge_OverAVersionTwoDocumentWritesTheCurrentForm(){
@@ -155,7 +155,7 @@ public sealed class SceneJsonAngleTests {
         Assert.DoesNotContain("YawDegrees",Merged,StringComparison.Ordinal);
         Assert.Equal(Describe(Old),Describe(Merged));
     }
-    /// <summary>An upgrade rewrites the angle numbers, the angle keys and the version and leaves every other character of the text.</summary>
+    /// <summary>アップグレード時は角度の数値、角度キー、バージョンを書き換え、それ以外のテキストの文字はすべて維持する。</summary>
     [Fact]
     public void Upgrade_RewritesOnlyTheAngleNumbersKeysAndTheVersion(){
         var Before=Document("1","90","1.5707964","1.2","0.3").Replace("\"Plain\": 2","\"Plain\":2",StringComparison.Ordinal);
@@ -168,10 +168,10 @@ public sealed class SceneJsonAngleTests {
         Assert.Equal(Result.Text,Again.Text);
     }
     /// <summary>
-    /// A float in turns is too coarse to reach every float in degrees or radians (500 degrees, 1.5707965 radians); the
-    /// conversion goes through double, so an upgrade keeps every value exactly. The first float-only version failed here.
+    /// 回転数を float で表すと粗すぎて、度数やラジアンのすべての float 値へ変換できない（500度、1.5707965ラジアンなど）。変換には double を使うため、更新後も値を正確に維持す
+    /// る。最初の float のみを使うバージョンでは、ここで失敗していた。
     /// </summary>
-    /// <summary>A version 2 document already holds turns: the upgrade renames the angle keys and changes no number.</summary>
+    /// <summary>バージョン2のドキュメントはすでに回転数を保持している。更新では角度キーの名前だけを変え、数値は変更しない。</summary>
     [Fact]
     public void Upgrade_FromVersionTwoRenamesTheKeysOnly(){
         var Result=SceneJsonAngleUpgrade.Upgrade(Document("2","0.25","0.25","0.19098594","0.047746485"),Base());

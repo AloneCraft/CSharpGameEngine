@@ -34,7 +34,7 @@ def export_t3d(asset, path):
     task.prompt = False
     task.replace_identical = True
     if not unreal.Exporter.run_asset_export_task(task) or not os.path.exists(path):
-        # Some assets choose no exporter from the extension; force the generic text exporter.
+        # 拡張子から exporter を選択できないアセットでは、汎用の text exporter を強制します。
         exporter_class = unreal.load_class(None, "/Script/UnrealEd.ObjectExporterT3D")
         task.exporter = unreal.new_object(exporter_class)
         if not unreal.Exporter.run_asset_export_task(task) or not os.path.exists(path):
@@ -194,7 +194,7 @@ def component_records(blueprint):
 
 
 def decompile(blueprint):
-    from editor_toolset.toolsets.blueprint import BlueprintTools  # only with the EditorToolset plugin
+    from editor_toolset.toolsets.blueprint import BlueprintTools  # EditorToolset plugin がある場合のみ。
     parts = []
     for graph in unreal.BlueprintEditorLibrary.list_graphs(blueprint):
         try:
@@ -222,8 +222,8 @@ def main():
         except Exception as ex:  # noqa: BLE001
             entry["errors"].append("t3d: " + str(ex))
         if isinstance(asset, unreal.Blueprint):
-            # The values that matter at runtime (component templates such as the vehicle movement component, the wheel classes'
-            # settings) live on the generated class and its default object, not in the Blueprint's own text.
+            # runtime で重要な値（vehicle movement component などの component template や wheel class の
+            # 設定）は Blueprint 自体のテキストではなく、生成された class と default object にあります。
             generated = asset.generated_class()
             for suffix, obj in ((".class.t3d", generated), (".defaults.t3d", unreal.get_default_object(generated) if generated else None)):
                 if obj is None:

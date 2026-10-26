@@ -5,9 +5,7 @@ using System.Runtime.Loader;
 namespace CSharpGameEngine.Physics.Cli;
 
 /// <summary>
-/// M0096 G: runs a game's generated <c>GeneratedSceneBakeHost.TryBake</c> from the game's own build. The host does
-/// not reference a game: the build is loaded into a collectible context of its own, as the preview host's runtime
-/// view does, so each Bake sees that build's code and statics and the resident host can bake another game next.
+/// M0096 G：ゲーム自身のビルドにある、生成済み <c>GeneratedSceneBakeHost.TryBake</c> を実行する。ホストはゲームを参照しない。プレビューホストのランタイムビューと同様に、ビルドを独自のアンロード可能なコンテキストに読み込むため、各 Bake でそのビルドのコードと静的データが使われ、常駐ホストは次のゲームも Bake できる。
 /// </summary>
 internal static class GameBake {
     private const string BakeHostTypeName="CSharpGameEngine.Generated.GeneratedSceneBakeHost";
@@ -18,7 +16,7 @@ internal static class GameBake {
         CancellationToken CancellationToken,out string Error)=>
         TryRun(GameAssembly,"TryBake",[SceneName,TickCount,DependencyHash,Output,CancellationToken,null],out Error);
 
-    /// <summary>ADR-0078/M0113: plays a baked cache back in the game's own build (its generated <c>TryReplay</c>) and writes what the world held, tick by tick.</summary>
+    /// <summary>ADR-0078/M0113：ゲーム自身のビルドでベイク済みキャッシュを再生し（生成された <c>TryReplay</c>）、tick ごとにワールドが保持した内容を書き出す。</summary>
     internal static bool TryReplay(
         string GameAssembly,string SceneName,int TickCount,string DependencyHash,Stream Cache,Stream Output,
         CancellationToken CancellationToken,out string Error)=>
@@ -39,8 +37,8 @@ internal static class GameBake {
                 Error=$"The game has no generated scene Bake host with {MethodName}: {GameAssembly}";
                 return false;
             }
-            // The game resolves its meshes and collision against its content root, which defaults to this process's
-            // directory; the bake reads them from the game's build, as the runtime view does.
+            // ゲームはメッシュとコリジョンを自身のコンテンツルートから解決する。既定では、このプロセスの
+            // ディレクトリが既定値である。ベイクでは、ランタイムビューと同じように、ゲームのビルドからメッシュを読み込む。
             if(Game.GetType(ContentRootTypeName,throwOnError:false)?.GetMethod("Use",[typeof(string)]) is { }UseContentRoot){
                 Invoke(UseContentRoot,[Directory]);
             }
@@ -59,7 +57,7 @@ internal static class GameBake {
         }
     }
 
-    /// <summary>Resolves the game's dependencies from its own directory; the framework comes from the default context.</summary>
+    /// <summary>ゲームの依存関係はゲーム自身のディレクトリから解決し、フレームワークは既定のコンテキストから取得する。</summary>
     private sealed class GameLoadContext(string Directory):AssemblyLoadContext("CSharpGameEngine.PhysicsBake",isCollectible:true) {
         protected override Assembly?Load(AssemblyName Name){
             string Candidate=Path.Combine(Directory,Name.Name+".dll");

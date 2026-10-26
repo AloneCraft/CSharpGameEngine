@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Tool-window kinds that can participate in the first-run layout.</summary>
+/// <summary>初回レイアウトに参加できる tool window の種類。</summary>
 internal enum InitialLayoutToolWindowKind {
     Hierarchy,
     SceneDesigner,
@@ -11,12 +11,12 @@ internal enum InitialLayoutToolWindowKind {
     ComponentPalette,
 }
 
-/// <summary>Presentation policy that must not take the Visual Studio keyboard focus.</summary>
+/// <summary>Visual Studio のキーボードフォーカスを奪わない表示ポリシー。</summary>
 internal enum ToolWindowPresentation {
     NonActivating,
 }
 
-/// <summary>One immutable tool-window entry in the first-run layout.</summary>
+/// <summary>初回レイアウトに含まれる、変更不可の tool window 項目。</summary>
 internal sealed class InitialLayoutToolWindowSpec {
     internal InitialLayoutToolWindowSpec(
         InitialLayoutToolWindowKind Kind,
@@ -35,10 +35,7 @@ internal sealed class InitialLayoutToolWindowSpec {
 }
 
 /// <summary>
-/// First-run layout plan. Scene Designer is intentionally absent because it requires an explicit
-/// IScene target selected from the code editor. Inspector (M0031) is included alongside Hierarchy -
-/// unlike Scene Designer it is a plain WPF panel with no D3D12/HWND cost to create speculatively, and
-/// its empty ("select a node") state is exactly as legitimate as Hierarchy's own empty state.
+/// 初回レイアウトの計画。Scene Designer はコードエディターで明示的に選択した IScene が必要なため含めません。Inspector（M0031）は Hierarchy と並べて含めます。Scene Designer と異なり通常の WPF panel で、先行して作成しても D3D12/HWND のコストがなく、「ノードを選択してください」という空の状態も Hierarchy と同様に正当だからです。
 /// </summary>
 internal static class InitialLayoutToolWindowPlan {
     private static readonly IReadOnlyList<InitialLayoutToolWindowSpec> ToolWindowsValue=

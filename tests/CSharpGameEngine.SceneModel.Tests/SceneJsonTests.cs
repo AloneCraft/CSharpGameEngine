@@ -1,6 +1,6 @@
 using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.SceneModel.Tests;
-/// <summary>ADR-0070: the dependency-free scene JSON reader, writer and number spelling.</summary>
+/// <summary>ADR-0070：依存関係を持たないシーン JSON リーダー、ライター、および数値表記。</summary>
 public sealed class SceneJsonTests {
     [Fact]
     public void Reader_KeepsOrderSpansAndNumberText(){

@@ -7,9 +7,9 @@ using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0070 B1 step 1: the runtime renders into the Scene Designer's surface and from its camera.
-/// The editor camera goes through the scene camera's own path, so from the same pose it renders the
-/// same pixels; that is what makes the design-time image the runtime image.
+/// ADR-0070 B1 step 1：ランタイムはScene Designerのサーフェスとカメラを使って描画する。
+/// エディターカメラもシーンカメラと同じ経路を通るため、同じ姿勢なら同じピクセルを描画する。
+/// これによりデザイン時の画像がランタイムの画像と一致する。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class EditorRuntimeViewTests {
@@ -82,8 +82,8 @@ public sealed class EditorRuntimeViewTests {
 
     [WindowsOnlyFact]
     public void EditorCamera_FollowsARadialSceneCameraAndRendersWhatItRendersFromTheSamePose(){
-        // M0099: the editor view takes the scene camera's depth mapping and, for radial depth, its clip range (the
-        // editor's own focus-based near/far would undo radial depth), so from the same pose it renders the game's pixels.
+        // M0099：エディタービューではシーンカメラの深度マッピングを使い、放射状深度の場合はクリップ範囲も引き継ぐ
+        //（エディター独自のフォーカス基準near／farでは放射状深度の意味がなくなる）。同じ姿勢ならゲームと同じピクセルを描画する。
         using var Surface=CreateSurface();
         string Game,Editor;
         using(var Host=new EngineHost()){
@@ -103,8 +103,8 @@ public sealed class EditorRuntimeViewTests {
 
     [WindowsOnlyFact]
     public void EditorCamera_TakesAValueEditOfTheSceneCameraOnTheNextFrame(){
-        // The Scene Designer applies a value edit by replacing the component in the running world
-        // (RenderPreviewRuntimeSession.ReplaceScene); the view must show it like any other value edit.
+        // Scene Designerは実行中のワールドのコンポーネントを置き換えて、値の編集を反映する。
+        //（RenderPreviewRuntimeSession.ReplaceScene）。ビューは他の値編集と同様に反映後の状態を表示する必要がある。
         using var Surface=CreateSurface();
         string Edited,Loaded;
         using(var Host=new EngineHost()){
@@ -125,7 +125,7 @@ public sealed class EditorRuntimeViewTests {
 
     [WindowsOnlyFact]
     public void SceneCamera_TakesAValueEditOnTheNextFrameInTheGame(){
-        // A game changes its camera through the component too (a zoom, an exposure change, switching to radial).
+        // ゲームではコンポーネント経由でカメラを変更することもある（ズーム、露出変更、放射状モードへの切り替えなど）。
         using var Surface=CreateSurface();
         string Edited,Loaded;
         var Zoomed=BrightRadialCamera with { FovYRadians=0.5f };
@@ -149,8 +149,8 @@ public sealed class EditorRuntimeViewTests {
     [InlineData(nameof(Camera.ExposureEv100))]
     [InlineData(nameof(Camera.RadialTransitionMeters))]
     public void SceneCamera_KeepsTheLastUsableProjectionWhileAnEditIsInvalid(string Member){
-        // Typing into the Inspector passes through values such as a zero near plane. Like the lights, the view keeps
-        // the last usable projection and names the member instead of failing the frame.
+        // Inspector への入力では near plane の 0 なども渡されます。ライトの場合と同じく、ビューは最後に使用可能だった投影を保持し、
+        // フレームを失敗させず、該当メンバー名を示します。
         var Invalid=Member switch {
             nameof(Camera.FovYRadians)=>RadialCamera with { FovYRadians=0f },
             nameof(Camera.NearZ)=>RadialCamera with { NearZ=0f },
@@ -181,9 +181,9 @@ public sealed class EditorRuntimeViewTests {
     [InlineData(nameof(Camera.NearZ),true)]
     [InlineData(nameof(Camera.RadialTransitionMeters),true)]
     public void SceneCamera_LoadedWithAnUnusableValue_NamesItAndRendersOnceItIsFixed(string Member,bool WithEditorCamera){
-        // A saved scene can hold a value the renderer cannot use (a zero near plane typed into the Inspector). The load
-        // names the member and keeps the default projection, as an edit on a later frame does, instead of failing the
-        // load of the game or of the Scene Designer's view (whose radial range includes the scene camera's near plane).
+        // 保存済みシーンにはレンダラーが使用できない値（Inspector に入力された near plane の 0 など）が含まれることがあります。ロード時には該当メンバーを示し、既定の投影を維持します。後続フレームでの編集と同様に、ゲームや
+        // Scene Designer のビュー（シーンカメラの near plane を含む radial range を持つ）のロードを失敗させません。
+        // ロード処理も失敗させず、既定の投影を使用します。
         var Invalid=Member==nameof(Camera.NearZ)?RadialCamera with { NearZ=0f }:RadialCamera with { RadialTransitionMeters=-1f };
         using var Surface=CreateSurface();
         EngineHost NewHost(){
@@ -213,8 +213,8 @@ public sealed class EditorRuntimeViewTests {
 
     [WindowsOnlyFact]
     public void EditorCamera_OnARadialSceneCamera_SeesBothItsOwnRangeAndTheScenes(){
-        // M0100: radial depth covers any range, so the editor view keeps what the designer frames beyond the scene
-        // camera's far plane (a zoomed-out view of a large level) and what the game sees.
+        // M0100：radial depth は任意の範囲を扱えるため、エディターのビューはシーンカメラの far plane を超えてデザイナーがフレーミングした内容（大きなレベルをズームアウトしたビュー）も、
+        // ゲームが見る内容も維持します。
         using var Surface=CreateSurface();
         using var Host=new EngineHost();
         Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
@@ -236,8 +236,7 @@ public sealed class EditorRuntimeViewTests {
     });
 
     /// <summary>
-    /// Loads a level with one box (and a scene camera when given) and captures one frame. <paramref name="EditedComponent"/>
-    /// replaces the scene camera's component after the load, as a value edit does.
+    /// ボックスを1つ含むレベル（指定された場合はシーンカメラも含む）をロードし、1フレームをキャプチャします。<paramref name="EditedComponent"/> は、ロード後にシーンカメラのコンポーネントを編集値として置き換えます。
     /// </summary>
     private static string Render(EngineHost Host,Transform?SceneCamera,Camera?Component=null,int Frames=1,Camera?EditedComponent=null,
         Action<LevelRuntime>?AfterFrames=null){
@@ -267,7 +266,7 @@ public sealed class EditorRuntimeViewTests {
             Assert.True(Host.World.TrySetComponent(CameraEntity,Edit));
         }
         for(var Frame=1;Frame<Frames;Frame++){
-            // Later frames take LevelLoad's per-frame path, where the editor camera is applied again.
+            // 後続フレームでは LevelLoad のフレームごとの処理経路に入り、エディターカメラが再度適用されます。
             Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State);
             Host.Present();
         }

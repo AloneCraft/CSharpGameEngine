@@ -7,10 +7,9 @@ public enum CharacterMotionMode:byte {
     Falling,
 }
 /// <summary>
-/// Kinematic character movement (ADR-0067), after Unreal's CharacterMovementComponent. Values are
-/// metres, seconds and degrees with Y up; the defaults are Unreal's ThirdPerson Blueprint values.
-/// The Entity's Transform position is the capsule centre. <see cref="CapsuleHalfHeight"/> includes
-/// the hemispheres, as in Unreal.
+/// UnrealのCharacterMovementComponentに相当するキネマティックなキャラクター移動（ADR-0067）。単位はメートル、秒、度で、Yが上。
+/// 既定値はUnrealのThirdPerson Blueprintと同じ。EntityのTransform位置はカプセルの中心を表す。
+/// <see cref="CapsuleHalfHeight"/>はUnrealと同じく半球部分を含む。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,10)]
 public struct CharacterMotion() {
@@ -24,7 +23,7 @@ public struct CharacterMotion() {
     /// <summary>UE の <c>FixedPathBrakingDistance</c>(<c>bUseFixedBrakingDistanceForPaths</c>。m)。経路の最後の点へ近づくとき、この距離の手前から減速する。0 ならキャラクターの制動(速さの 2 乗 ÷ 2 × 制動)から計算する(ADR-0078/M0112。TopDown は 2 m)。</summary>
     public LogicalScalar FixedPathBrakingDistance=LogicalScalar.Zero;
     public LogicalScalar GroundFriction=LogicalScalar.FromSingle(8f);
-    /// <summary>Friction while braking without input (Unreal's separate braking friction × factor).</summary>
+    /// <summary>入力がないブレーキ中の摩擦（Unreal独自のブレーキ摩擦に係数を掛けた値）。</summary>
     public LogicalScalar BrakingFriction=LogicalScalar.Zero;
     public LogicalScalar JumpSpeed=LogicalScalar.FromSingle(5f);
     public LogicalScalar AirControl=LogicalScalar.FromSingle(0.35f);
@@ -41,34 +40,34 @@ public struct CharacterMotion() {
     public LogicalScalar StepLength=LogicalScalar.FromSingle(1.2f);
     public PhysicsLayerMask CollidesWith=PhysicsLayerMask.All;
     /// <summary>
-    /// UE's bConstrainToPlane (ADR-0078/M0107): input, velocity and every move are flattened onto the plane through <see cref="PlaneOrigin"/> with
-    /// the normal <see cref="PlaneNormal"/>, so the character cannot leave it. The normal is normalized when used; a zero normal (what UE's TopDown
-    /// character has: bConstrainToPlane on, PlaneConstraintNormal unset) constrains nothing.
+    /// UEのbConstrainToPlane（ADR-0078/M0107）。入力、速度、すべての移動を、<see cref="PlaneNormal"/>を法線とする
+    /// <see cref="PlaneOrigin"/>を通る平面へ投影するため、キャラクターは平面から出られない。法線は使用時に正規化する。
+    /// 法線がゼロの場合（UE TopDownキャラクターの設定。bConstrainToPlaneは有効でPlaneConstraintNormalは未設定）は制約しない。
     /// </summary>
     public bool ConstrainToPlane=false;
     public LogicalVector3 PlaneNormal=LogicalVector3.Zero;
     public LogicalVector3 PlaneOrigin=LogicalVector3.Zero;
-    /// <summary>UE's bSnapToPlaneAtStart: the first tick moves the character onto the plane (when <see cref="ConstrainToPlane"/>).</summary>
+    /// <summary>UEのbSnapToPlaneAtStart。<see cref="ConstrainToPlane"/>が有効なら、最初のティックでキャラクターを平面上へ移動する。</summary>
     public bool SnapToPlaneAtStart=false;
 }
-/// <summary>Authoritative movement state; part of the snapshot so replays continue deterministically.</summary>
+/// <summary>権威ある移動状態。スナップショットの一部なので、リプレイも決定的に継続する。</summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,11)]
 public struct CharacterMotionState {
     public LogicalVector3 Velocity;
     public CharacterMotionMode Mode;
-    /// <summary>Horizontal unit facing; zero until the first tick initializes it from the Transform.</summary>
+    /// <summary>水平面内の単位向き。最初のティックでTransformから初期化するまではゼロ。</summary>
     public LogicalVector3 Facing;
     /// <summary>前回の <see cref="Footstep"/> からの歩行距離(m)。</summary>
     public LogicalScalar StrideDistance;
-    /// <summary>The first tick has run, so <see cref="CharacterMotion.SnapToPlaneAtStart"/> has had its turn.</summary>
+    /// <summary>最初のティックが実行済みで、<see cref="CharacterMotion.SnapToPlaneAtStart"/>の処理も完了している。</summary>
     public bool PlaneSnapped;
-    /// <summary>True while standing on a walkable floor (ADR-0077). Derived from <see cref="Mode"/>, so it is not stored.</summary>
+    /// <summary>歩行可能な床に立っている間true（ADR-0077）。<see cref="Mode"/>から導出するため保存しない。</summary>
     public readonly bool OnGround=>this.Mode==CharacterMotionMode.Walking;
     public readonly bool Falling=>this.Mode==CharacterMotionMode.Falling;
 }
 /// <summary>
-/// What the player wants this fixed tick (ADR-0077): a world-space horizontal direction whose length
-/// (at most 1) scales acceleration and speed, and a jump request consumed by the next tick.
+/// プレイヤーがこの固定ティックで望む動作（ADR-0077）。ワールド空間の水平方向ベクトルは長さを最大1とし、加速度と速度の倍率となる。
+/// 次のティックで消費するジャンプ要求も含む。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,12)]
 public struct MoveIntent {
@@ -85,7 +84,7 @@ public struct MoveIntent {
     public LogicalVector3 Waypoint;
     public bool HasWaypoint;
     public bool WaypointIsEnd;
-    /// <summary>Asks for a jump; the next tick consumes it if the character is on the ground.</summary>
+    /// <summary>ジャンプを要求する。次のティックで、キャラクターが接地中なら要求を消費する。</summary>
     public void Jump()=>this.JumpRequested=true;
     /// <summary>
     /// 地点を指して、そこまで歩かせる。高さを無視して向かう。経路探索のプラグイン(Navigation)があれば、その経路(経由点)に沿って歩き、無ければ直線で歩く(障害物はコリジョンで止まる)。

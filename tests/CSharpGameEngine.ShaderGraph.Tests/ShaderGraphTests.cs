@@ -11,9 +11,7 @@ public class ShaderGraphTests {
         Assert.Equal(Json, ParsedJson);
     }
     /// <summary>
-    /// A JSON null where the graph needs a value is malformed JSON that names its path. System.Text.Json put it into the
-    /// model, and validation, emission and the canonical form then threw a NullReferenceException that named nothing (a
-    /// mutation fuzz of the Triangle graph hit it in 161 of 3000 documents).
+    /// グラフが値を必要とする箇所に JSON null がある場合は、不正な JSON としてそのパスを示す。System.Text.Json はそれをモデルに格納してしまい、その後の検証、出力、標準形式化で NullReferenceException が発生しても場所が示されなかった（Triangle グラフの変更ファズテストでは 3000 文書中 161 件で発生）。
     /// </summary>
     [Theory]
     [InlineData("target", "$.target")]
@@ -37,9 +35,7 @@ public class ShaderGraphTests {
         Assert.Contains(" at " + Path + ".", Error.Message);
     }
     /// <summary>
-    /// One identity twice (a node copied by hand in the JSON, a merged file) is a validation error, and emission reports it
-    /// instead of throwing. The validator and the emitter keyed nodes and subgraphs by identity and threw "An item with the
-    /// same key has already been added" (a structural fuzz of the Triangle graph hit it in 371 of 3000 documents).
+    /// 同一の ID が 2 回現れる場合（JSON 内でノードを手作業で複製した場合や、ファイルをマージした場合）は検証エラーとし、出力時に例外を投げず報告する。以前、検証器と出力器が ID をキーにノードとサブグラフを登録し、「An item with the same key has already been added」をスローしていた（Triangle グラフの構造ファズテストでは 3000 文書中 371 件で発生）。
     /// </summary>
     [Theory]
     [InlineData(false)]

@@ -3,10 +3,9 @@ using System.Numerics;
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Physical X/Y/Z storage vector - "where a value sits in the engine's chosen physical axis
-/// layout", not a game-semantic direction. See <see cref="RufVector"/> for the semantic
-/// counterpart and <see cref="ICoordinateConvention"/> for the boundary between the two.
-/// Blittable, unmanaged, no heap allocation.
+/// 物理的なX／Y／Zストレージベクトル。「値がエンジンの選択した物理軸配置のどこに格納されるか」を表し、
+/// ゲーム上の意味を持つ方向ではない。意味上の対応型は<see cref="RufVector"/>、両者の境界は<see cref="ICoordinateConvention"/>を参照。
+/// Blittableなアンマネージ型で、ヒープ割り当ては発生しない。
 /// </summary>
 public readonly struct XyzVector(float X,float Y,float Z):IEquatable<XyzVector>{
     public float X { get;}=X;
@@ -34,9 +33,8 @@ public readonly struct XyzVector(float X,float Y,float Z):IEquatable<XyzVector>{
     public static float Dot(XyzVector Left,XyzVector Right)=>(Left.X*Right.X)+(Left.Y*Right.Y)+(Left.Z*Right.Z);
 
     /// <summary>
-    /// Standard right-hand-rule cross product formula applied directly to the X/Y/Z components.
-    /// This is the one unambiguous physical cross product in this codebase - see
-    /// <see cref="Spatial{TConvention}.Cross"/> for the RUF-space, convention-aware counterpart.
+    /// 標準的な右手系の外積公式をX／Y／Z成分へ直接適用する。このコードベースで曖昧さのない物理外積はこれだけである。
+    /// RUF空間で規約を考慮する対応処理については<see cref="Spatial{TConvention}.Cross"/>を参照。
     /// </summary>
     public static XyzVector Cross(XyzVector Left,XyzVector Right)=>new(
         (Left.Y*Right.Z)-(Left.Z*Right.Y),
@@ -53,8 +51,7 @@ public readonly struct XyzVector(float X,float Y,float Z):IEquatable<XyzVector>{
     }
 
     /// <summary>
-    /// Explicit (never implicit) conversion to the raw <see cref="Vector3"/> storage type used by
-    /// ECS chunks/SIMD/renderer internals - see Docs/Specifications/Spatial-RUF.md "境界の原則".
+    /// ECS チャンク、SIMD、レンダラーの内部で使う生の <see cref="Vector3"/> 格納型への明示的な（暗黙ではない）変換 (Docs/Specifications/Spatial-RUF.md の「境界の原則」を参照)。
     /// </summary>
     public static explicit operator Vector3(XyzVector Value)=>new(Value.X,Value.Y,Value.Z);
 

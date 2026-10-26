@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Tests;
-/// <summary>M0099 Phase 2: the CPU definition of the radial depth curve, its encoding and derived planes (ADR-0076).</summary>
+/// <summary>M0099 フェーズ 2：放射深度カーブ、そのエンコード、およびそこから導出される平面の CPU 上の定義 (ADR-0076)。</summary>
 public sealed class RadialDepthTests {
     private const float FovY=MathF.PI/4f;
     private const float Aspect=16f/9f;
@@ -9,7 +9,7 @@ public sealed class RadialDepthTests {
             yield return From*Math.Pow(To/From,Index/(double)(Count-1));
         }
     }
-    /// <summary>Double-precision oracle: log2(1 + x), with the series where 1 + x would round.</summary>
+    /// <summary>倍精度の基準値：log2(1 + x)。1 + x が丸められる場合は級数を使う。</summary>
     private static double Log2OnePlusOracle(double X)=>X<1e-8?(X-X*X/2d)/Math.Log(2d):Math.Log(1d+X)/Math.Log(2d);
     [Fact]
     public void Log2OnePlus_MatchesTheDoubleOracleFromTinyToHugeArguments(){
@@ -76,8 +76,8 @@ public sealed class RadialDepthTests {
     }
     [Fact]
     public void Encoding_SeparatesSurfacesAtTheBudgetedRelativeDistanceOnEveryScale(){
-        // ADR-0076: with a 2^-24 depth step, two surfaces are told apart once they are about
-        // 2^-24 · ln2 · log2(rMax / T) · (1 + T / r) apart in relative distance (about 3e-6 for 0.1 m to 1e18 m).
+        // ADR-0076：深度ステップが 2^-24 の場合、相対距離が約
+        // 2^-24 · ln2 · log2(rMax / T) · (1 + T / r) 以上離れると、2 つの面を区別できる（0.1 m から 1e18 m では約 3e-6）。
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,0.1f,1e18f,FovY,Aspect,out var Projection));
         var Steps=Math.Log2(Projection.FrustumCornerDistance/Projection.Curve.TransitionMeters);
         foreach(var Distance in LogSpaced(0.2,1e17,60)){
@@ -94,9 +94,9 @@ public sealed class RadialDepthTests {
     [InlineData(1f,1e-6f,1e18f)]
     [InlineData(50f,0.01f,1e12f)]
     public void ConservativeRasterDepth_NeverExceedsTheEncodedDepthWhereverItTouches(float Transition,float Near,float Far){
-        // Early depth rejection with SV_DepthGreaterEqual is safe only if the raster depth a - b/w is a lower bound of
-        // the encoded depth of every fragment: view depth w and distance r >= w (off-axis pixels). M0100 gives each
-        // object the tangent at its own view depth, so the bound must hold for a tangent anywhere in the view.
+        // SV_DepthGreaterEqual による早期深度棄却が安全なのは、ラスタライズ深度 a - b/w が、
+        // すべてのフラグメントのエンコード済み深度の下限である場合に限る：ビュー深度 w と距離 r >= w（軸外ピクセル）。M0100 では各
+        // オブジェクトに自身のビュー深度で接する接線を与えるため、その下限はビュー内のどこにある接線でも成り立たなければならない。
         Assert.True(RadialDepthCurve.TryCreate(Transition,out var Curve));
         Assert.True(RadialDepthProjection.TryCreate(Curve,Near,Far,FovY,Aspect,out var Projection));
         foreach(var TangentDepth in LogSpaced(Near,Projection.FrustumCornerDistance,9)){
@@ -108,12 +108,12 @@ public sealed class RadialDepthTests {
                     Assert.True(Bound<=Encoded,$"tangent={TangentDepth:R} w={ViewDepth:R} r={ViewDepth*Spread:R} bound={Bound:R} encoded={Encoded:R}");
                 }
             }
-            // The bound is tight at its tangent point, not a uselessly low constant.
+            // 下限は接点でぴったり一致する。役に立たないほど低い定数ではない。
             var AtTangent=Depth.At((float)TangentDepth);
             var EncodedAtTangent=Projection.EncodeDepth((float)TangentDepth);
             Assert.True(AtTangent>EncodedAtTangent*0.999f,$"tangent={TangentDepth:R}: bound {AtTangent:R} against {EncodedAtTangent:R}");
         }
-        // Tangents outside the view are clamped to it; an unusable one falls back to the near plane.
+        // ビュー外の接線はビュー内にクランプする。使用できない接線の場合は near 平面を使う。
         Assert.Equal(Projection.ConservativeDepthAt(Near),Projection.ConservativeDepthAt(-5f));
         Assert.Equal(Projection.ConservativeDepthAt(Near),Projection.ConservativeDepthAt(float.NaN));
         Assert.Equal(Projection.ConservativeDepthAt(Projection.FrustumCornerDistance),Projection.ConservativeDepthAt(float.PositiveInfinity));
@@ -128,8 +128,8 @@ public sealed class RadialDepthTests {
     }
     [Fact]
     public void StandardProjection_WithAHugeFar_CannotBeUnprojected(){
-        // Why the radial mode needs an auxiliary view-projection (ADR-0076): once far/near passes about 2^24 the
-        // float matrix's depth terms round so that NDC z = 1 unprojects to w = 0.
+        // 放射モードに補助ビュー射影が必要な理由 (ADR-0076)：far/near が約 2^24 を超えると、
+        // float 行列の深度項が丸められ、NDC z = 1 を逆投影した際に w = 0 となる。
         var Projection=Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,0.1f,1e18f);
         Assert.True(Matrix4x4.Invert(Projection,out var Inverse));
         var Far=Vector4.Transform(new Vector4(0f,0f,1f,1f),Inverse);
@@ -157,8 +157,8 @@ public sealed class RadialDepthTests {
     }
     [Fact]
     public void AuxiliaryProjection_IsTheCameraProjectionForAnOrdinaryRange(){
-        // A radial camera with a game-sized range gives the inverting passes exactly the standard matrix, so its
-        // sky, sun cascades and ambient occlusion are the standard ones.
+        // ゲーム規模の範囲を持つ放射カメラでは、反転処理に標準行列とまったく同じものを渡す。そのため
+        // sky、sun cascades、ambient occlusion も標準のものになる。
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,0.1f,300f,FovY,Aspect,out var Projection));
         Assert.Equal(Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,0.1f,300f),Projection.CreateAuxiliaryProjection(FovY,Aspect));
     }
@@ -168,8 +168,8 @@ public sealed class RadialDepthTests {
     [InlineData(2f,0.5f,40f)]
     [InlineData(1e-3f,1e-7f,5e-5f)]
     public void ViewProjectionOnly_RebuildsTheAuxiliaryMatrixACameraWouldBuild(float Transition,float Near,float Far){
-        // M0100: an editor hands the renderer one perspective view-projection. Rebuilding the auxiliary depth column
-        // from it must give what View · Projection gives, with X, Y and W untouched.
+        // M0100：エディターはレンダラーに 1 つの透視ビュー射影を渡す。そこから補助深度列を再構築しても、
+        // X、Y、W を変更せず、View · Projection の結果と一致させなければならない。
         Assert.True(RadialDepthCurve.TryCreate(Transition,out var Curve));
         Assert.True(RadialDepthProjection.TryCreate(Curve,Near,Far,FovY,Aspect,out var Projection));
         foreach(var (Eye,Target,Up) in new[]{

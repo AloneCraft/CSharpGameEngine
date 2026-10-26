@@ -4,7 +4,7 @@ using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>WARP oracles for the ADR-0069 screen-space ambient occlusion of indirect light.</summary>
+/// <summary>間接光のスクリーンスペースアンビエントオクルージョンに対するWARP検証オラクル（ADR-0069）。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class AmbientOcclusionGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -13,7 +13,7 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void AmbientOcclusion_Warp_DarkensTheCreaseButNotOpenFloor(){
         using var Scene=AoScene.Create();
-        // The box's front face 0.2 m above the floor: within the occlusion radius of the floor.
+        // ボックスの前面は床より0.2 m上にあり、床のオクルージョン半径内に入る。
         var Crease=new Vector3(0f,0.2f,1f);
         var Open=new Vector3(-2.8f,0f,0.9f);
         Scene.Render(SkyLight:true,Occlusion:null);
@@ -39,8 +39,8 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
             var Y=Math.Clamp((int)((0.5f-Clip.Y/Clip.W*0.5f)*Height),0,Height-1);
             return Values[Y*Width+X];
         }
-        // Radius 1 m: the lower face and the floor in front of it occlude each other; surfaces
-        // farther than the radius from any other surface stay unoccluded.
+        // 半径1 mでは、下面と手前の床が互いを遮蔽する。それ以外の面は、
+        // ほかの面から半径以上離れていれば遮蔽されない。
         var FaceNearFloor=At(new Vector3(0f,0.2f,1f));
         var FloorNearFace=At(new Vector3(0f,0f,0.7f));
         var FaceHigh=At(new Vector3(0f,1.7f,1f));
@@ -58,7 +58,7 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void AmbientOcclusion_Warp_LeavesDirectLightUntouched(){
-        // Without sky light or flat ambient there is no indirect light, so occlusion must not change a single pixel.
+        // スカイライトも平坦なアンビエントもなければ間接光はないため、オクルージョンは1ピクセルも変えてはならない。
         using var Scene=AoScene.Create();
         Scene.Render(SkyLight:false,Occlusion:null);
         var Without=Scene.Renderer.LastCapturedFrame!.Pixels.ToArray();

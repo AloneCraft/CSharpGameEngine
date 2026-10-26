@@ -9,9 +9,9 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// The scene behind the pinned golden frames (M0099 Phase 1, M0119). The cases cover every pass a perspective camera
-/// uses: typed lights with shadow atlas tiles, legacy fog, the physical environment (sky, sky light, physical fog, sun
-/// cascades, GI, AO, filmic exposure), the world-space grid, the presentation modes, camera thumbnails and the overlay.
+/// 固定ゴールデンフレームに使用するシーン（M0099 Phase 1、M0119）。透視カメラで使う全パスを網羅する。
+/// シャドウアトラスタイル付き型付きライト、旧フォグ、物理環境（空、スカイライト、物理フォグ、太陽カスケード、GI、AO、フィルム露出）、
+/// ワールド空間グリッド、プレゼンテーションモード、カメラサムネイル、オーバーレイ。
 /// </summary>
 internal static class GoldenFrameScene {
     public static readonly string[]Cases=["legacy-lit","environment","selection","base-color","normal","wireframe","previews-and-overlay"];
@@ -19,7 +19,7 @@ internal static class GoldenFrameScene {
     private static readonly LinearLightColor White=new(1f,1f,1f);
     private static readonly LightShadowSettings Shadow=new(0,new ShadowBias(0.005f));
     private static StageMeshCreateInfo ToMesh(ProceduralMeshData Data){
-        // A tangent perpendicular to each normal keeps the TBN valid on every face.
+        // 各法線と垂直な接線により、すべての面でTBNを有効にする。
         var Tangents=new Vector4[Data.Positions.Length];
         for(var Index=0;Index<Tangents.Length;Index++){
             var Normal=Data.Normals[Index];
@@ -32,14 +32,14 @@ internal static class GoldenFrameScene {
         }
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Data.Indices };
     }
-    /// <summary>A thumbnail pass of <paramref name="View"/> in the rectangle; a radial one gets the projection its rectangle's aspect ratio gives.</summary>
+    /// <summary><paramref name="View"/>のサムネイルを矩形領域に描画する。放射状の場合は、その矩形の縦横比から決まる投影を使う。</summary>
     private static RenderCameraPreview Preview(int X,int Y,Camera View,Vector3 Eye,int ExcludedObjectIndex=-1){
         const float Aspect=16f/9f;
         var ViewProjection=View.GetView()*View.GetProjection(Aspect);
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,Aspect,out var Projection));
         return new RenderCameraPreview(X,Y,64,36,ViewProjection,Eye,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false),ExcludedObjectIndex);
     }
-    /// <summary>Renders one native logarithmic case with its camera thumbnails.</summary>
+    /// <summary>ネイティブ対数投影の1ケースをカメラサムネイルとともに描画する。</summary>
     public static PixelReadbackResult Render(string Case){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Golden Frame",Width=192,Height=108,Visible=false });
         StageMeshCreateInfo[]Meshes=[

@@ -7,15 +7,14 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// ADR-0078/M0111 WARP oracles for the Lumen-like dynamic GI and reflections. The scenes are rendered in world coordinates (the render origin is the
-/// world's) at the High scalability (the hardware default); the readbacks are physical irradiance and radiance, so the exposure does not enter the
-/// numbers.
+/// Lumen風の動的GIと反射に対するADR-0078/M0111のWARP検証オラクル。シーンはワールド座標で描画する（描画原点はワールド原点）。
+/// 品質はHigh（ハードウェアの既定値）。読み戻す値は物理照度と放射輝度なので、露出は数値に影響しない。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private static readonly Vector3 SunTowardLight=Vector3.Normalize(new Vector3(0.3f,1f,-0.4f));
-    /// <summary>Objects of <see cref="Room"/>: 0 floor (white), 1 wall at x = -5 (red, sunlit), 2 wall at x = 5 (green, shaded), 3 back wall (grey), 4 a box (white).</summary>
+    /// <summary><see cref="Room"/>のオブジェクト：0は床（白）、1はx = -5の壁（赤、日照あり）、2はx = 5の壁（緑、日陰）、3は奥の壁（灰色）、4はボックス（白）。</summary>
     private static readonly Matrix4x4[]RoomTransforms=[
         Matrix4x4.CreateScale(10f,0.2f,12f)*Matrix4x4.CreateTranslation(0f,-0.1f,0f),
         Matrix4x4.CreateScale(0.2f,4f,12f)*Matrix4x4.CreateTranslation(-5f,2f,0f),
@@ -26,7 +25,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void ProbeVolumeTier_KeepsEveryPixelWhateverTheLumenSettings(){
-        // Below High, Lumen's settings are read but the frame is exactly the probe volume and sky light frame of M0110.
+        // High未満ではLumen設定を読み込んでも使わず、フレームはM0110のプローブボリュームとスカイライトだけになる。
         string Hash(LumenSettings?Lumen){
             using var Scene=LumenScene.Room(Scalability:RenderScalability.Medium);
             for(var Frame=0;Frame<3;Frame++){
@@ -65,7 +64,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         Assert.Equal(30,First.LitCards);
         Scene.Render(LumenSettings.Unreal);
         Assert.Equal(0,Scene.Renderer.LumenStatistics.Captures);
-        // The sunlit top of the floor is (albedo 0.8) x (the sun through the atmosphere on the floor, plus the sky) / pi; its underside sees neither.
+        // 日光が当たる床上面は、アルベド0.8 ×（大気を通って床に届く日光＋空）／pi。下面にはどちらも届かない。
         var Top=Scene.Renderer.ReadLumenCardForTesting(0,2);
         var Bottom=Scene.Renderer.ReadLumenCardForTesting(0,3);
         var Sun=0.8f*100000f*Vector3.Dot(SunTowardLight,Vector3.UnitY)/MathF.PI;
@@ -73,7 +72,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         Assert.True(Top.Covered>1000);
         Assert.InRange(Top.Average.Y,Sun*0.7f,Sun*1.4f);
         Assert.True(Bottom.Average.Y<Top.Average.Y*0.4f);
-        // The red wall's sunlit face is red, the green wall's shaded face green.
+        // 赤い壁の日照面は赤く、緑の壁の日陰面は緑になる。
         var Red=Scene.Renderer.ReadLumenCardForTesting(1,0).Average;
         var Green=Scene.Renderer.ReadLumenCardForTesting(2,1).Average;
         Assert.True(Red.X>5f*Red.Y);
@@ -88,7 +87,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             Scene.Render(LumenSettings.Unreal);
         }
         var (Diffuse,Width,Height)=Scene.Renderer.ReadLumenDiffuseForTesting();
-        // +X is on the screen's left: the green wall's side is the left of the floor, the red wall's the right.
+        // +Xは画面左側。緑の壁は床の左、赤い壁は右に見える。
         var Row=Height*3/4;
         var NearGreen=Diffuse[Row*Width+Width/16];
         var NearRed=Diffuse[Row*Width+Width*15/16];
@@ -128,7 +127,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             return Means;
         }
         var Means=Run(out var First);
-        // Within 5 % of the 40th frame (the bounces between the surface cache and the radiance cache keep adding a little after that).
+        // 40フレーム目の値から5 %以内（その後もサーフェスキャッシュと放射輝度キャッシュ間の反射が少しずつ増える）。
         var Settled=Array.FindLastIndex(Means,Mean=>MathF.Abs(Mean-Means[^1])>0.05f*Means[^1])+1;
         var Tight=Array.FindLastIndex(Means,Mean=>MathF.Abs(Mean-Means[^1])>0.02f*Means[^1])+1;
         Output.WriteLine($"mean irradiance per frame: {string.Join(" ",Means.Select(Mean=>Mean.ToString("F0")))}; within 5 % of the last from frame {Settled}, within 2 % from frame {Tight}");
@@ -139,7 +138,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Lumen_LocalLightAndEmissionReachTheIndirectLight(){
-        // No sun and no sky. A point light by the red wall: the floor's far side (by the green wall) gets the red wall's bounce.
+        // 太陽も空もない状態。赤い壁のそばにポイントライトを置くと、床の奥側（緑の壁側）へ赤い壁からの反射光が届く。
         using(var Lamp=LumenScene.Room()){
             for(var Frame=0;Frame<12;Frame++){
                 Lamp.Render(LumenSettings.Unreal,Sun:false,Sky:false,Prepare:Renderer=>Renderer.AddPointLight(new Vector3(-4f,2f,0f),Vector3.One,20000f,8f));
@@ -153,7 +152,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             AssertFinite(Lit);
             Lamp.AssertNoDebugLayerErrors();
         }
-        // A blue glowing box is the only light; the object's emissive scale (M0109's brake light switch) turns its bounce off and on.
+        // 青く発光するボックスが唯一の光源。オブジェクトの発光倍率（M0109のブレーキライトスイッチ）で、反射光のオン／オフを切り替える。
         using var Glow=LumenScene.Room(BoxEmissiveNits:new Vector3(0f,0f,2000f));
         (Vector4[]Texels,int Width,int Height)Frames(float Scale,int Count){
             for(var Frame=0;Frame<Count;Frame++){
@@ -165,7 +164,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         var On=Frames(1f,12);
         var Front=LumenScene.FloorPixel(new Vector3(0f,0f,0.2f),On.Width,On.Height);
         var Off=Frames(0f,12);
-        // High refreshes 256 radiance cache probes a frame, so the bounce comes back over about twenty frames.
+        // Highでは毎フレーム256個の放射輝度キャッシュプローブを更新するため、反射光は約20フレームかけて戻る。
         var Again=Frames(1f,24);
         Output.WriteLine($"emissive box: floor in front of it {On.Texels[Front]}, emission off {Off.Texels[Front]}, on again {Again.Texels[Front]}");
         Assert.True(On.Texels[Front].Z>On.Texels[Front].X*3f&&On.Texels[Front].Z>10f);
@@ -203,7 +202,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
                 var Error=CentroidDistance(Expected,Actual,Width);
                 Output.WriteLine($"roughness {Roughness} screen traces {ScreenTraces}: expected {Expected.Count(Value=>Value)} px, red {Actual.Count(Value=>Value)} px, IoU {Iou:F2}, centroid error {Error:F2} px, peak redness {Peak:F2}");
                 if(Roughness==0.045f){
-                    // The mirror shows the box where the reflection of its geometry is, through the screen or (off) through the surface cache.
+                    // 鏡面には、スクリーン経由またはサーフェスキャッシュ経由（オフの場合）で、反射位置にボックスのジオメトリが映る。
                     Assert.True(Iou>(ScreenTraces?0.6f:0.3f),$"IoU {Iou}");
                     Assert.True(Error<(ScreenTraces?2f:4f),$"centroid error {Error}");
                 }
@@ -214,15 +213,15 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
                 Scene.AssertNoDebugLayerErrors();
             }
         }
-        // The rougher the floor, the less sharply red the box's reflection (0.8 is past Unreal's 0.4 limit: the probes' lobe).
+        // 床が粗いほど、ボックスの赤い反射はぼやける（粗さ0.8はUnrealの0.4上限を超えているためプローブのローブを使う）。
         Assert.True(Peaks[0]>Peaks[1]&&Peaks[1]>Peaks[2],string.Join(",",Peaks));
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Lumen_FollowsAMovingBox(){
         var View=LumenScene.RoomView;
-        // A red glowing box under the sky moves 2.5 m: its red bounce leaves the floor in front of its old place and appears in front of the new one,
-        // and after a while the moved scene matches one that started there (the cards are in the box's own space and follow it).
+        // 空の下に置いた赤く光るボックスを2.5 m移動する。赤い反射光は、床上の以前の位置から消えて新しい位置の手前に現れる。
+        // 時間が経つと、移動後に開始したシーンと同じ照明になる（カードはボックスのローカル空間にあり、移動にも追従する）。
         using var Moving=LumenScene.Room(BoxEmissiveNits:new Vector3(3000f,0f,0f));
         for(var Frame=0;Frame<12;Frame++){
             Moving.Render(LumenSettings.Unreal,Sun:false,View:View);
@@ -252,7 +251,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Lumen_BoundaryScenesStayFiniteAndClean(){
-        // No light at all: nothing to gather.
+        // ライトがなければ、収集する間接光もない。
         using(var Dark=LumenScene.Room()){
             for(var Frame=0;Frame<4;Frame++){
                 Dark.Render(LumenSettings.Unreal,Sun:false,Sky:false);
@@ -261,7 +260,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             Assert.All(Diffuse,Texel=>Assert.True(Texel.X+Texel.Y+Texel.Z<1e-3f));
             Dark.AssertNoDebugLayerErrors();
         }
-        // No walls: the open floor's indirect light is the sky (the physical sky needs the sun) and the box; away from the box it is the sky light's.
+        // 壁がなければ、開放された床の間接光は空（物理空には太陽が必要）とボックスから届く。ボックスから離れた箇所ではスカイライトによる照明となる。
         using(var Open=LumenScene.Room(Walls:false)){
             for(var Frame=0;Frame<12;Frame++){
                 Open.Render(LumenSettings.Unreal);
@@ -269,7 +268,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             var (Diffuse,Width,Height)=Open.Renderer.ReadLumenDiffuseForTesting();
             var Floor=Diffuse[LumenScene.FloorPixel(new Vector3(-3f,0f,-3f),Width,Height)];
             var Sh=Open.Renderer.ReadAtmosphereForTesting().IrradianceSh;
-            // Up (+Y) in the sky light's SH: the constant and the y band (0.282095 and 0.488603), the zonal y^2 band of x^2 - y^2 and 3z^2 - 1 terms.
+            // スカイライトSHのUp（+Y）方向：定数項とyの帯（0.282095、0.488603）、およびx² - y²、3z² - 1の項における帯状のy²成分。
             var SkyUp=Sh[0]*0.282095f+Sh[1]*0.488603f+Sh[6]*(-0.315392f)+Sh[8]*(-0.546274f);
             Output.WriteLine($"open floor irradiance {Floor}, the sky light's irradiance up {SkyUp}");
             Assert.InRange(Floor.Z,SkyUp.Z*0.75f,SkyUp.Z*1.15f);
@@ -277,7 +276,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             AssertFinite(Diffuse);
             Open.AssertNoDebugLayerErrors();
         }
-        // A not-finite object, a far object and meshes without a distance field: left out of the cards, the frame stays finite.
+        // 有限値でないオブジェクト、遠方オブジェクト、距離場のないメッシュはカードから除外する。フレーム全体は有限値を保つ。
         using(var Odd=LumenScene.Room(WithField:false)){
             for(var Frame=0;Frame<3;Frame++){
                 Odd.Render(LumenSettings.Unreal,Box:new Matrix4x4(float.NaN,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1));
@@ -337,7 +336,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
         internal static LumenScene Room(RenderScalability?Scalability=null,bool WithField=true,bool Walls=true,Vector3 BoxEmissiveNits=default)=>
             Create([Material(new Vector3(0.8f)),Material(new Vector3(0.8f,0.05f,0.05f)),Material(new Vector3(0.05f,0.8f,0.05f)),Material(new Vector3(0.6f)),Material(new Vector3(0.8f),Emissive:BoxEmissiveNits)],
                 Scalability,WithField,Walls);
-        /// <summary>A metal floor of the given roughness, a red box on it and the room's walls (grey).</summary>
+        /// <summary>指定した粗さの金属床、その上の赤いボックス、部屋の壁（灰色）。</summary>
         internal static LumenScene Mirror(float Roughness)=>
             Create([Material(new Vector3(0.95f),Roughness,1f),Material(new Vector3(0.6f)),Material(new Vector3(0.6f)),Material(new Vector3(0.6f)),Material(new Vector3(0.8f,0.05f,0.05f))],null,true,true);
         private static LumenScene Create(StageMaterialCreateInfo[]Materials,RenderScalability?Scalability,bool WithField,bool Walls){
@@ -347,7 +346,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
                 Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,DistanceField=WithField?MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices):null };
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
                 [Mesh],Materials,[.. Enumerable.Range(0,5).Select(Index=>new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=Index })]);
-            // High, the hardware default. Epic on WARP intermittently lost the device in a long test run (M0111, unresolved).
+            // Highはハードウェアの既定値。WARPでは長時間のテスト中にEpic設定でデバイスが断続的に失われた（M0111、未解決）。
             Renderer.Scalability=Scalability??RenderScalability.High;
             return new LumenScene(Window,Renderer,Walls);
         }
@@ -377,7 +376,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
                 throw new InvalidOperationException($"{Exception.Message} (removed reason 0x{this.Renderer.DeviceRemovedReasonForTesting:X8}): "+string.Join(" | ",this.Renderer.DebugMessages.Take(8)),Exception);
             }
         }
-        /// <summary>The pixel (row-major index) where a floor point appears from <see cref="RoomView"/>.</summary>
+        /// <summary><see cref="RoomView"/>から見たときに床上の点が現れるピクセル（行優先のインデックス）。</summary>
         internal static int FloorPixel(Vector3 World,int TargetWidth,int TargetHeight){
             var ViewProjection=RoomView.GetView()*RoomView.GetProjection((float)TargetWidth/TargetHeight);
             var Clip=Vector4.Transform(new Vector4(World,1f),ViewProjection);
@@ -385,7 +384,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             var Y=(int)((0.5f-Clip.Y/Clip.W*0.5f)*TargetHeight);
             return Math.Clamp(Y,0,TargetHeight-1)*TargetWidth+Math.Clamp(X,0,TargetWidth-1);
         }
-        /// <summary>The pixels of <see cref="MirrorView"/> whose floor point reflects a ray into the red box (and that do not see the box itself).</summary>
+        /// <summary><see cref="MirrorView"/>上で、床上の点からのレイが赤いボックスへ反射するピクセル（ボックス自体は見えない領域）。</summary>
         internal static bool[]ExpectedMirrorBoxPixels(int TargetWidth,int TargetHeight){
             var ViewProjection=MirrorView.GetView()*MirrorView.GetProjection((float)TargetWidth/TargetHeight);
             Matrix4x4.Invert(ViewProjection,out var Inverse);
@@ -410,7 +409,7 @@ public sealed class LumenGpuIntegrationTests(ITestOutputHelper Output) {
             }
             return Result;
         }
-        /// <summary>The red box of the scenes: [-0.5, 0.5] x [0, 1] x [0.5, 1.5].</summary>
+        /// <summary>シーンの赤いボックスの範囲：[-0.5, 0.5] x [0, 1] x [0.5, 1.5]。</summary>
         private static bool RayBox(Vector3 Origin,Vector3 Direction,out float Distance){
             var Minimum=new Vector3(-0.5f,0f,0.5f);
             var Maximum=new Vector3(0.5f,1f,1.5f);

@@ -18,6 +18,7 @@ public enum ContentArtifactKind:ushort {
     AnimationClip=10,
     DistanceField=11,
     License=12,
+    Image=13,
 }
 
 public readonly record struct ArtifactProvenance(
@@ -27,7 +28,7 @@ public readonly record struct ArtifactProvenance(
     string ImporterIdentity,
     Hash256 OptionsHash);
 
-/// <summary>An immutable engine-owned content object before or after canonical envelope encoding.</summary>
+/// <summary>正規エンベロープへのエンコード前またはエンコード後の、エンジン所有の不変コンテンツオブジェクト。</summary>
 public sealed class ContentArtifact {
     public ContentArtifact(
         ContentArtifactKind Kind,
@@ -82,7 +83,7 @@ public readonly record struct ContentArtifactError(
     public static ContentArtifactError None=>new(ContentArtifactErrorCode.None,string.Empty,string.Empty);
 }
 
-/// <summary>Canonical little-endian L6 artifact envelope. It never exposes importer/provider types.</summary>
+/// <summary>正規形式のリトルエンディアンL6アーティファクトエンベロープ。インポーター／プロバイダー型は公開しない。</summary>
 public static class ContentArtifactCodec {
     private const uint Magic=0x41454743;
     private const ushort SchemaVersion=1;
@@ -189,7 +190,7 @@ public static class ContentArtifactCodec {
         ContentArtifactKind.Mesh or ContentArtifactKind.Texture or ContentArtifactKind.Material
         or ContentArtifactKind.Scene or ContentArtifactKind.WorldCell or ContentArtifactKind.Audio
         or ContentArtifactKind.Shader or ContentArtifactKind.Model or ContentArtifactKind.Skeleton
-        or ContentArtifactKind.AnimationClip or ContentArtifactKind.DistanceField or ContentArtifactKind.License;
+        or ContentArtifactKind.AnimationClip or ContentArtifactKind.DistanceField or ContentArtifactKind.License or ContentArtifactKind.Image;
 
     internal static void ValidateProvenance(ArtifactProvenance Provenance){
         ValidateText(Provenance.ToolVersion,nameof(Provenance.ToolVersion));

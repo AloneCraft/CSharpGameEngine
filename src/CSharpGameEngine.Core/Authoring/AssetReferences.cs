@@ -22,6 +22,11 @@ public readonly struct TextureAsset(string Path) {
     public override string ToString()=>this.Path;
 }
 
+/// <summary>GPUテクスチャとは別個の、エンコード済みソース画像出力。</summary>
+public readonly struct ImageAsset(string Path) {
+    public readonly string Path=Path;
+    public override string ToString()=>this.Path;
+}
 /// <summary>焼いたフォント(<c>.cgefont</c>。<c>tools/CSharpGameEngine.FontBaker</c> が TrueType から作る)。<c>ScreenText.Font</c> に渡すパスになる(ADR-0078/M0104)。</summary>
 public readonly struct FontAsset(string Path) {
     public readonly string Path=Path;

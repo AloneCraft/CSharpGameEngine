@@ -67,7 +67,7 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"    private static readonly global::CSharpGameEngine.Contracts.AssetKey EntityPayloadValue = new(new global::CSharpGameEngine.Contracts.AssetId(global::CSharpGameEngine.Core.StableId.FromName(global::CSharpGameEngine.Core.StableId.Parse(\"{ScenePayloadNamespace}\"), \"{Scene.ClassFullyQualifiedName}\")), null);");
         Lines.Add("    public static global::CSharpGameEngine.Contracts.AssetKey EntityPayload => EntityPayloadValue;");
         Lines.Add("    static global::CSharpGameEngine.Contracts.AssetKey global::CSharpGameEngine.Entities.ISceneDefinition.EntityPayload => EntityPayloadValue;");
-        // ADR-0078/M0113: a scene whose nodes have physics bodies takes an ordinal per instance, so a second instance's stable IDs differ from the first's.
+        // ADR-0078/M0113：physics body を持つノードがあるシーンでは、instance ごとに ordinal を割り当て、2つ目以降の instance の stable ID が異なるようにします。
         var Ordinal=HasPhysicsStableId(Root,RuntimeComponents)?$"        int StableIdOrdinal = World.TakeSceneOrdinal({BuildStableId(Scene.ClassFullyQualifiedName)}UL);":null;
         Lines.Add($"    public static {SceneInstanceFullyQualifiedName} Instantiate(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstance();");
@@ -92,7 +92,7 @@ internal static class SceneInstantiateEmitter {
         Lines.Add("        return InstantiateDeferred(ref World);");
         Lines.Add("    }");
         if(Spawnable){
-            // ADR-0078/M0105: the same deferred construction with the root's Transform replaced by the position (and rotation) the game passes.
+            // ADR-0078/M0105：同じ deferred construction を行い、root の Transform をゲームが渡す position（と rotation）に置き換えます。
             Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferredAt(ref {WorldFullyQualifiedName} World, {LogicalVector3FullyQualifiedName} Position) {{");
             Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
             if(Ordinal is not null){ Lines.Add(Ordinal); }
@@ -176,7 +176,7 @@ internal static class SceneInstantiateEmitter {
         string?RootTransformPlacement=null){
         var Components=BuildEffectiveComponents(Node,ParentLocalName,RuntimeComponents);
         if(RootTransformPlacement is not null&&ParentLocalName is null){
-            // The root's authored Transform, wrapped so the game's position (and rotation) replaces the authored ones.
+            // ゲームの position（と rotation）で置き換えられるように包んだ、root の記述済み Transform。
             for(int Index=0;Index<Components.Count;Index++){
                 if(Components[Index].TypeFullyQualifiedName==TransformFullyQualifiedName&&Components[Index].EmitExpressionText is { }Authored){
                     Components[Index]=(TransformFullyQualifiedName,string.Format(RootTransformPlacement,Authored));
@@ -186,14 +186,14 @@ internal static class SceneInstantiateEmitter {
         for(int Index=0;Index<Components.Count;Index++){
             if(Components[Index].TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId"){
                 ulong StableId=BuildStableId(SceneFullyQualifiedName+"/"+Node.PathDisplay);
-                // A world cell's instance keeps its node's ID (cells are persistent and made once per cell); other instances mix in their ordinal (M0113).
+                // world cell の instance は node の ID を維持します（cell は永続化され、cell ごとに一度だけ作られます）。それ以外の instance では ordinal を混ぜます（M0113）。
                 Components[Index]=(Components[Index].TypeFullyQualifiedName,Cell
                     ?$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = {StableId}UL }}"
                     :$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = global::CSharpGameEngine.Entities.SceneStableIds.ForInstance({StableId}UL, StableIdOrdinal) }}");
             }
         }
-        // A node name is any string; written as a C# literal it cannot end the one-line comment early (a line break,
-        // or U+2028 and U+0085, at which C# also ends a line, would put the rest of the name into the code).
+        // node 名には任意の文字列を使えます。C# リテラルとして記述すれば、この1行コメントを途中で終わらせることはありません（改行、
+        // または C# でも行末と見なされる U+2028 と U+0085 があると、名前の残りがコードに入ってしまいます）。
         var NameComment=Node.Name is null?"(unnamed)":Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Node.Name,quote:true);
         Lines.Add($"        // [{Node.PathDisplay}] {NameComment}");
 
@@ -230,7 +230,7 @@ internal static class SceneInstantiateEmitter {
         }
     }
 
-    /// <summary>Whether a node or one of its descendants gets a physics stable ID (its <c>Collider</c>'s runtime companion).</summary>
+    /// <summary>node またはその子孫が physics stable ID（<c>Collider</c> の runtime companion）を得るかどうか。</summary>
     private static bool HasPhysicsStableId(SceneEmitNode Node,SceneRuntimeComponentMap RuntimeComponents)=>
         BuildEffectiveComponents(Node,null,RuntimeComponents).Any(static Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId")
         ||Node.Children.Any(Child=>HasPhysicsStableId(Child,RuntimeComponents));

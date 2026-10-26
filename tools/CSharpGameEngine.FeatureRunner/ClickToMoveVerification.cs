@@ -61,7 +61,7 @@ public static class ClickToMoveVerification {
         var Evidence=Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller","TopDown",Adapter);
         return await RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
     }
-    /// <summary>Runs a built TopDown game twice (straight with the navigation mesh switched off, then along the navigation mesh) and judges both reports.</summary>
+    /// <summary>ビルド済み TopDown ゲームを 2 回実行し（ナビゲーションメッシュ無効で直進し、次にナビゲーションメッシュに沿って移動）、両方のレポートを判定する。</summary>
     public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Straight=await RunOnceAsync(Executable,Evidence,Adapter,false,Output,Error,CancellationToken).ConfigureAwait(false);
         var Navigated=await RunOnceAsync(Executable,Path.Combine(Evidence,"navigation"),Adapter,true,Output,Error,CancellationToken).ConfigureAwait(false);
@@ -85,7 +85,7 @@ public static class ClickToMoveVerification {
         Start.Environment["CGE_AUTOMATION_CURSOR"]=Cursor;
         Start.Environment["CGE_AUTOMATION_REPORT"]=ReportPath;
         Start.Environment["CGE_AUTOMATION_CAPTURE"]=Path.Combine(Evidence,"final.png");
-        // The same input twice: a world without the navigation mesh is the straight walk of before M0106.
+        // 同じ入力を 2 回実行する：ナビゲーションメッシュのないワールドでは M0106 以前と同じ直線歩行になる。
         if(Navigated){ Start.Environment.Remove("CGE_NAVIGATION_DISABLED"); }
         else { Start.Environment["CGE_NAVIGATION_DISABLED"]="1"; }
         var Label=LongPress?"long press":Navigated?"navigated":"straight";
@@ -140,7 +140,7 @@ public static class ClickToMoveVerification {
         var Held=Planar(Positions[ClickStartFrame-1]!,Positions[LongPressEndFrame-1]!);
         var After=Planar(Positions[LongPressEndFrame-1]!,Positions[LongPressFrames-1]!);
         var Drift=Planar(Positions[LongPressFrames-SettledFrames-1]!,Positions[LongPressFrames-1]!);
-        // Still walking at the end of the hold: the last 5 frames moved, so it followed the cursor rather than arrived somewhere.
+        // 長押し終了時も歩行中：最後の 5 フレームで移動していたため、どこかに到着したのではなくカーソルに追従していた。
         var StillWalking=Planar(Positions[LongPressEndFrame-6]!,Positions[LongPressEndFrame-1]!);
         Summary=string.Create(CultureInfo.InvariantCulture,$"walkWhileHeld={Held:F3} walkAfterRelease={After:F3} walkingAtRelease={StillWalking:F3} finalDrift={Drift:F3} d3d12Errors={Errors}");
         if(Held<MinimumLongPressWalkMeters){
@@ -210,8 +210,7 @@ public static class ClickToMoveVerification {
         return Failures;
     }
     /// <summary>
-    /// The route along the navigation mesh (ADR-0079/M0106), from the camera: it ends at the expected floor position, wraps the wall end of the ramp corridor, is
-    /// longer than the straight line between its ends, and never drops like a fall from the platform.
+    /// カメラ位置から見たナビゲーションメッシュ上の経路 (ADR-0079/M0106)。想定される床の位置で終わり、ランプの通路の壁端を回り、両端間の直線より長く、足場から落下したように降下しない。
     /// </summary>
     private static void EvaluateRoute(float[]?[]Positions,List<string>Failures,ref string Summary){
         var Origin=Positions[ClickStartFrame-1]!;
@@ -239,9 +238,7 @@ public static class ClickToMoveVerification {
         }
     }
     /// <summary>
-    /// ADR-0078/M0105: the click puts a marker in the world (the cursor burst) and its lifetime takes it out again. The renderer's object count per frame
-    /// shows it: above what it was before the click at some frame after it, and back to that count at the end. A report without the counts (an older
-    /// run) is not judged on the marker.
+    /// ADR-0078/M0105：クリックでワールドにマーカー（カーソルのバースト）が出現し、寿命が尽きると消える。レンダラーのフレームあたりのオブジェクト数で確認する。クリック前よりクリック後のいずれかのフレームで数が増え、最後には元の数に戻る。カウントを含まない古い実行レポートでは、マーカーを判定しない。
     /// </summary>
     private static void EvaluateMarker(JsonElement Report,List<string>Failures,ref string Summary){
         if(!Report.TryGetProperty("renderObjectCounts",out var CountsElement)||CountsElement.ValueKind!=JsonValueKind.Array){
@@ -261,15 +258,14 @@ public static class ClickToMoveVerification {
         if(Peak<=Before){
             Failures.Add($"Clicking the ground showed no marker: the renderer drew {Before} objects before the click and never more after it.");
         } else if(FirstUp>=0&&FirstUp<ClickEndFrame){
-            // M0108: UE spawns the cursor effect in MoveTo, which only a short press's release calls; it does not appear when the button goes down.
+            // M0108：UE は MoveTo でカーソルエフェクトを生成する。この呼び出しは短い押下を離した時だけ行い、ボタンを押した時点では出現しない。
             Failures.Add($"The marker appeared at frame {FirstUp}, while the button was still down (released at frame {ClickEndFrame}); it must appear when a short press is released.");
         } else if(After!=Before){
             Failures.Add($"The marker did not go away: the renderer drew {Before} objects before the click and {After} at the end.");
         }
     }
     /// <summary>
-    /// Where the character was each frame: the position of the Entity the camera hangs from (<c>focusPositions</c>, M0107), because the camera lags behind the
-    /// character (UE's CameraLagSpeed 3) and no longer shows its path; a report without them (an older run) falls back to the camera.
+    /// 各フレームでのキャラクター位置：カメラが付随する Entity の位置 (<c>focusPositions</c>、M0107)。カメラはキャラクターに遅れて追従する（UE の CameraLagSpeed は 3）ため、経路を表示しなくなった。これを含まない古いレポートではカメラ位置を使う。
     /// </summary>
     private static float[]?[]CharacterPositions(JsonElement Report){
         var Name=Report.TryGetProperty("focusPositions",out var Focus)&&Focus.ValueKind==JsonValueKind.Array&&Focus.EnumerateArray().Skip(ClickStartFrame-1).Any(static Item=>Item.ValueKind==JsonValueKind.Array)?"focusPositions":"cameraPositions";

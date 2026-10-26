@@ -5,9 +5,9 @@ using CSharpGameEngine.Runtime.Character;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: a pawn that falls below its KillZ is destroyed (UE's AActor::FellOutOfWorld), and the controller that respawns it picks one of the level's
-/// PlayerStarts (the first one, or one at random). The respawn itself is the template's code (<c>Spawner.Spawn</c> of the pawn's Scene at the start), checked by the
-/// WARP run of the TopDown template.
+/// ADR-0078/M0107：Pawnが自身のKillZより下へ落ちると破棄される（UEのAActor::FellOutOfWorld）。再出現させるコントローラーは、レベルのPlayerStartsから1つを選ぶ
+///（最初の地点、またはランダムな地点）。再出現処理自体はテンプレートのコードで行う（開始地点にPawnのSceneを<c>Spawner.Spawn</c>で生成）。
+/// WARPによるTopDownテンプレート実行で検証する。
 /// </summary>
 public sealed class RespawnTests {
     private sealed class Sim:IDisposable {
@@ -34,7 +34,7 @@ public sealed class RespawnTests {
         Sim.Tick();
         Assert.False(Sim.World.IsAlive(Below));
         Assert.True(Sim.World.IsAlive(Above));
-        // UE compares with "<": exactly at the KillZ is still inside the world.
+        // UEでは「<」で比較する。KillZとちょうど同じ高さなら、まだワールド内にいる。
         Assert.True(Sim.World.IsAlive(Level));
     }
     [Fact]

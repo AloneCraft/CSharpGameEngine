@@ -2,9 +2,8 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 namespace CSharpGameEngine.Core.Tests;
 /// <summary>
-/// M0096 G: the layer boundaries. The physics and character runtimes are portable: they reach the host through
-/// <c>IPhysicsHost</c> and never name the Windows host or its platform layers. The physics tool host references no
-/// game; it loads the game build it is given.
+/// M0096 G：レイヤー境界。物理とキャラクターのランタイムは移植可能で、<c>IPhysicsHost</c> を通してホストへ接続し、Windows ホストやプラットフォームレイヤーの名前に依存し
+/// ない。物理ツールのホストはゲームを参照せず、渡されたゲームビルドを読み込む。
 /// </summary>
 public sealed class EngineLayerSpec {
     private static readonly string RepositoryRoot=FindRepositoryRoot();

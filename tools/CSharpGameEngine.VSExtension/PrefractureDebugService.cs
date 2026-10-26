@@ -10,31 +10,26 @@ using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>A line of the fracture overlay: a bond between two fragment centres, or (<see cref="Outline"/>) an edge of a fragment.</summary>
+/// <summary>Fracture overlay の線。2つの fragment 中心を結ぶ bond、または fragment の辺（<see cref="Outline"/>）。</summary>
 internal readonly record struct ScenePhysicsFractureBond(
     Vector3 First,Vector3 Second,float Strength,bool Outline=false,int Level=0);
 internal readonly record struct PrefractureDebugLoadResult(
     IReadOnlyList<ScenePhysicsFractureBond>Bonds,string?Diagnostic);
 /// <summary>
-/// What the Fracture preview cuts for one Destructible (ADR-0078/M0113, UE's Fracture mode): its collider box, and the count, seed, clusters, cluster levels
-/// (M0124) and material numbers the build's Cook module would use. A member the scene leaves out has the component's default.
+/// 1つの Destructible に対し Fracture プレビューで切り出す内容（ADR-0078/M0113、UE の Fracture mode）。collider box と、ビルドの Cook module が使う fragment 数、seed、cluster、cluster level（M0124）、material 番号を表します。シーンで省略されたメンバーにはコンポーネントの既定値を使います。
 /// </summary>
 internal readonly record struct FracturePreviewRequest(
     string Name,Vector3 HalfExtents,Vector3 Center,int FragmentCount,int Seed,int ClusterCount,float Density,float BondStrength,int ClusterLevels=1);
 
 /// <summary>
-/// The Scene view's fracture overlay and preview (ADR-0078/M0113). For each <c>CSharpGameEngine.Destruction.Destructible</c> of the scene, the box of its
-/// <c>Collider</c> is cut out of process (<c>Physics.Cli preview-prefracture</c>, the same box and cooker as the build's Cook module) with the node's
-/// FragmentCount, Seed, ClusterCount and ClusterLevels, so a changed count or seed in the Inspector shows its fragments' outlines and bonds at once, before a
-/// build; each bond carries how many cluster levels hold both its fragments (M0124: the overlay draws the outer bonds, which break first, apart from the
-/// inner ones). A destructible cut from a <c>SourceMesh</c> shows the cooked asset of the last build (<c>bin\**\Assets\Destruction\&lt;name&gt;.cgefracture</c>) instead.
+/// Scene view の fracture overlay とプレビュー（ADR-0078/M0113）。シーン内の各 <c>CSharpGameEngine.Destruction.Destructible</c> について、ノードの box <c>Collider</c> をプロセス外で切り出します（<c>Physics.Cli preview-prefracture</c>。ビルドの Cook module と同じ box と cooker）。FragmentCount、Seed、ClusterCount、ClusterLevels を使い、Inspector で個数や seed を変更するとビルド前に fragment の輪郭と bond が表示されます。各 bond は、両方の fragment を含む cluster level の数を持ちます（M0124：overlay は最初に破断する外側の bond を内側の bond と区別して描画）。<c>SourceMesh</c> から切り出す destructible には、最後のビルドで Cook されたアセット（<c>bin\**\Assets\Destruction\&lt;name&gt;.cgefracture</c>）を表示します。
 /// </summary>
 internal static class PrefractureDebugService {
     private const string DestructibleTypeName="global::CSharpGameEngine.Destruction.Destructible";
     private const string ColliderTypeName="global::CSharpGameEngine.Runtime.Physics.Collider";
     private const int MaximumLines=4096;
     private static readonly TimeSpan InspectTimeout=new(0,2,0);
-    // The component's defaults (plugins/CSharpGameEngine.Destruction/Runtime/DestructionDefaults.cs); the tests compare the two.
+    // コンポーネントの既定値（plugins/CSharpGameEngine.Destruction/Runtime/DestructionDefaults.cs）。テストで両者を比較します。
     internal const int DefaultFragmentCount=16;
     internal const int DefaultSeed=0;
     internal const int DefaultClusterCount=0;
@@ -70,7 +65,7 @@ internal static class PrefractureDebugService {
             return new PrefractureDebugLoadResult([],Diagnostics.Count==0?null:string.Join(Environment.NewLine,Diagnostics));
         }
         CancellationToken.ThrowIfCancellationRequested();
-        // The cut runs in the physics host, which needs no game (M0096 G).
+        // 切り出しは Physics host 内で実行されます。ゲームは必要ありません（M0096 G）。
         string HostHash=PhysicsSceneBakeService.ComputeHostHash(RepoRoot);
         string Host=PhysicsSceneBakeService.PrepareExactHost(RepoRoot,HostHash,CancellationToken);
         Dictionary<NodePath,Matrix4x4>Worlds=BuildWorldTransforms(Model.Root);
@@ -110,7 +105,7 @@ internal static class PrefractureDebugService {
         return new PrefractureDebugLoadResult(Lines,Diagnostics.Count==0?null:string.Join(Environment.NewLine,Diagnostics));
     }
 
-    /// <summary>The bonds (centre to centre) and fragment outlines of one inspection document, placed by the node's world matrix; false when the cap is reached.</summary>
+    /// <summary>1つの inspection document に含まれる bond（中心間）と fragment の輪郭。ノードの world matrix で配置し、上限に達した場合は false を返します。</summary>
     internal static bool AppendLines(List<ScenePhysicsFractureBond>Lines,PrefractureInspectionDocument Document,Matrix4x4 World){
         foreach(PrefractureInspectionBond Bond in Document.Bonds){
             if(Lines.Count>=MaximumLines){ return false; }
@@ -141,8 +136,7 @@ internal static class PrefractureDebugService {
         Node.FindComponent(DestructibleTypeName)?.FindMember("SourceMesh")?.Value.ConstantValue as string;
 
     /// <summary>
-    /// Reads what the preview cuts: the Destructible's name, count, seed, clusters, density and strength, and the node's box <c>Collider</c>. False with the
-    /// problem when the node has no box collider or a value is out of the cook's range (2-256 fragments, positive sizes and numbers).
+    /// プレビューが切り出す内容を読み取ります。Destructible の名前、個数、seed、cluster、density、strength と、ノードの box <c>Collider</c> を確認します。ノードに box collider がない場合や、値が Cook の範囲外（fragment 数は2-256、サイズと数値は正の値）の場合は、問題とともに false を返します。
     /// </summary>
     internal static bool TryReadPreviewRequest(SceneNode Node,out FracturePreviewRequest Request,out string Problem){
         Request=default;
@@ -172,7 +166,7 @@ internal static class PrefractureDebugService {
         return true;
     }
 
-    /// <summary>The <c>preview-prefracture</c> command line of a request (numbers in the invariant culture, round-trip float text).</summary>
+    /// <summary>リクエスト用の <c>preview-prefracture</c> コマンドライン。数値は invariant culture と round-trip float 形式で表します。</summary>
     internal static string[]PreviewArguments(in FracturePreviewRequest Request,string OutputPath)=>[
         "preview-prefracture",
         Number(Request.HalfExtents.X),Number(Request.HalfExtents.Y),Number(Request.HalfExtents.Z),
@@ -185,7 +179,7 @@ internal static class PrefractureDebugService {
 
     private static string Number(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture);
 
-    /// <summary>The newest cooked asset of that name under the project's build output.</summary>
+    /// <summary>プロジェクトのビルド出力にある、その名前の最新 Cook 済みアセット。</summary>
     internal static string?FindCookedAsset(string ProjectRoot,string Name){
         string Bin=Path.Combine(ProjectRoot,"bin");
         if(!Directory.Exists(Bin)){ return null; }
@@ -201,7 +195,7 @@ internal static class PrefractureDebugService {
     private static float ReadFloat(SceneComponent Component,string Name,float Default)=>
         ReadNumber(Component.FindMember(Name)?.Value,out float Value)?Value:Default;
 
-    /// <summary>A number member: a literal, or a value whose source text is a number (a scene's <c>LogicalScalar</c>).</summary>
+    /// <summary>数値メンバー。リテラル、またはソーステキストが数値である値（シーンの <c>LogicalScalar</c>）。</summary>
     private static bool ReadNumber(SceneValue?Value,out float Result){
         Result=0f;
         if(Value is null){ return false; }
@@ -211,7 +205,7 @@ internal static class PrefractureDebugService {
         return float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out Result)&&IsFinite(Result);
     }
 
-    /// <summary>An integral constant exactly (a seed can be past float's 24 bits), or a whole-numbered floating constant.</summary>
+    /// <summary>seed が float の24ビットを超える場合に備えた正確な整数定数、または整数値を持つ浮動小数点定数。</summary>
     private static bool TryInteger(object Value,out long Number){
         Number=0;
         if(Value is sbyte or byte or short or ushort or int or uint or long or ulong){
@@ -223,7 +217,7 @@ internal static class PrefractureDebugService {
         return true;
     }
 
-    /// <summary>A numeric constant as a finite float (the preview's boundary type).</summary>
+    /// <summary>プレビューの境界型である、有限の float としての数値定数。</summary>
     private static bool TryNumber(object Value,out float Number){
         Number=0f;
         if(Value is string or bool or char){ return false; }
@@ -232,7 +226,7 @@ internal static class PrefractureDebugService {
         return IsFinite(Number);
     }
 
-    /// <summary>A vector member: <c>{ R, U, F }</c> members or three positional arguments; missing parts keep the default's.</summary>
+    /// <summary>ベクトルメンバー。<c>{ R, U, F }</c> の各メンバー、または3つの位置引数で指定し、不足部分には既定値を使います。</summary>
     private static Vector3 ReadVector(SceneValue?Value,Vector3 Default){
         if(Value is null){ return Default; }
         Vector3 Result=Default;
@@ -285,6 +279,6 @@ internal static class PrefractureDebugService {
     private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
     internal sealed class PrefractureInspectionDocument { public string SourceHash { get;set; }=string.Empty;public int ClusterCount { get;set; }public int ClusterLevels { get;set; }public PrefractureInspectionFragment[]Fragments { get;set; }=[];public PrefractureInspectionBond[]Bonds { get;set; }=[]; }
     internal sealed class PrefractureInspectionFragment { public int Index { get;set; }public float R { get;set; }public float U { get;set; }public float F { get;set; }public int Cluster { get;set; }public int[]Clusters { get;set; }=[];public float[]Edges { get;set; }=[];public Vector3 Position=>new(R,U,F); }
-    /// <summary>A bond; <see cref="Level"/> is how many cluster levels hold both its fragments (M0124; 0 breaks first).</summary>
+    /// <summary>bond。<see cref="Level"/> は、両方の fragment を含む cluster level の数です（M0124。0 が最初に破断します）。</summary>
     internal sealed class PrefractureInspectionBond { public int First { get;set; }public int Second { get;set; }public float Strength { get;set; }public float Area { get;set; }public int Level { get;set; } }
 }

@@ -5,11 +5,9 @@ namespace CSharpGameEngine.Graphics.D3D12;
 public sealed record ModelVerificationResult(bool Success,PixelColor CenterColor,float ForegroundRatio,string Details);
 
 /// <summary>
-/// Pure, GPU-free pixel checks for the model viewer vertical slice. Unlike
-/// <see cref="TrianglePixelVerifier"/> (which knows a small triangle sits dead-center with
-/// background at every edge), an arbitrary auto-framed mesh's silhouette isn't a fixed shape, so
-/// this scans the whole frame and checks the fraction of non-background pixels falls in a
-/// plausible band - proving real geometry was rasterized without covering the entire frame.
+/// モデルビューアーの垂直スライス用に、GPU を使わずピクセルを検査する。小さな三角形が画面中央にあり、各辺には背景があると分かっている
+/// <see cref="TrianglePixelVerifier"/> と異なり、自動で構図を決める任意メッシュでは輪郭形状が固定ではない。そのためフレーム全体を走査し、背景以外のピクセルが画面を覆い
+/// 尽くさない妥当な割合にあることを検査する。実際のジオメトリがラスタライズされたことを確認できる。
 /// </summary>
 public static class ModelPixelVerifier {
     public const byte DefaultTolerance=24;

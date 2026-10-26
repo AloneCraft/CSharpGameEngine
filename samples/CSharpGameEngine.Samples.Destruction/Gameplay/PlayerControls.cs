@@ -1,7 +1,10 @@
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Character;
 namespace CgeDestructionSample;
-/// <summary>The ThirdPerson template's BP_ThirdPersonCharacter DoMove/DoLook/DoJump: the controls turn into the view, the walk and the jump; the engine's CharacterMotion moves.</summary>
+/// <summary>
+/// ThirdPersonテンプレートのBP_ThirdPersonCharacterにあるDoMove/DoLook/DoJumpに相当する。操作入力を視点方向・歩行・ジャンプに変換し、移動はエンジンの
+/// CharacterMotionが行う。
+/// </summary>
 internal struct PlayerControls:ISystem {
     public void Update(in PlayerActions Input,ref ViewAngles View,ref MoveIntent Intent){
         View.Turn(Input.Look);

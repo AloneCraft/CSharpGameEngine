@@ -153,6 +153,11 @@ Tools-menu/ツールバーコマンド`ApplyGameEngineLayoutCommand`(CommandId `
 効くこと(以後はVSが`.winprf`に保存した実レイアウトを優先する)への対処でもある - 実機の
 Expハイブに既に両ツールウィンドウのエントリが書き込まれていることを`.winprf`の内容から確認済み。
 
+M0123実機検証で、新しいAssetsフレームの幾何操作は対象VSで`E_NOTIMPL`を返した。
+上記は既存パネルの実装記録であり、新規Assetsの配置保証には使わない。
+Assetsは[ADR-0081](ADR-0081-Asset-Workspace.md)に従ってOutputとタブ登録し、保存済み高さを優先する。
+EnvDTEのリンクフレームはIDE全体を表す場合があるため、そのHeightで下部グループを調整しない。
+
 `ShowShapePaletteToolWindowCommand`(CommandId `0x0107`)も新設(`ShowHierarchyToolWindowCommand`
 と同型の手動表示コマンド)。`.vsct`から`ShowViewerToolWindowCommandId`(`0x0101`)を削除し、
 `ApplyGameEngineLayoutCommandId`/`ShowShapePaletteToolWindowCommandId`を追加した。

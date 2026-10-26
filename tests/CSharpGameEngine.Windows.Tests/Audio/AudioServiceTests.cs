@@ -2,7 +2,7 @@ using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Audio.Tests;
 
-/// <summary>ADR-0077 stage 5: <c>Audio.Play</c> collects requests and hands them to the device once per frame.</summary>
+/// <summary>ADR-0077 stage 5：<c>Audio.Play</c>が要求を収集し、フレームごとに1回デバイスへ渡す。</summary>
 public sealed class AudioServiceTests:IDisposable {
     private readonly string Directory=Path.Combine(Path.GetTempPath(),"cge-audio-"+Guid.NewGuid().ToString("N"));
 
@@ -41,7 +41,7 @@ public sealed class AudioServiceTests:IDisposable {
         using var Host=new EngineHost();
         var Tone=this.WriteTone("tone.wav");
 
-        // An inaudible volume: a machine with a sound device must not play a test tone.
+        // 聞こえない音量にする。サウンドデバイスがあるマシンでも、テスト音を再生させない。
         Host.Sound.PlayLocal(new CSharpGameEngine.Authoring.SoundAsset(Tone),0.0001f);
         Host.Sound.PlayLocal(new CSharpGameEngine.Authoring.SoundAsset(Tone),0.0001f);
         Assert.Equal(0,Host.EnsureAudioDevice().OneShotsRequested);
@@ -80,7 +80,7 @@ public sealed class AudioServiceTests:IDisposable {
     }
 }
 
-/// <summary>The placeholder sounds of the ThirdPerson template (ADR-0077) are valid PCM the game can play.</summary>
+/// <summary>ThirdPersonテンプレートの仮音声（ADR-0077）は、ゲームで再生可能な有効PCM。</summary>
 public sealed class TemplateSoundTests {
     private static string RepositoryRoot(){
         var Directory=new DirectoryInfo(AppContext.BaseDirectory);

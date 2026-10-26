@@ -2,8 +2,8 @@ using System.Numerics;
 using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: UE's first person rendering of a primitive (FirstPersonFieldOfView 70, FirstPersonScale 0.6) as a change of the mesh's place in the camera's frame:
-/// seen through the camera's own projection, it lands where the narrower first-person projection would put it, and closer to the eye.
+/// ADR-0078/M0107：UEのプリミティブに対する一人称描画（FirstPersonFieldOfView 70、FirstPersonScale 0.6）。メッシュのカメラ座標系内の位置を変更する。
+/// カメラ本来の投影で見ると、より狭い一人称投影での位置に現れ、さらに視点に近づく。
 /// </summary>
 public sealed class FirstPersonViewWarpTests {
     private static Vector3 InView(RenderCamera Camera,Vector3 Point)=>Vector3.Transform(Point,Camera.GetView());
@@ -27,7 +27,7 @@ public sealed class FirstPersonViewWarpTests {
         var View=new FirstPersonView();
         var Warp=FirstPersonViewWarp.Matrix(Camera,View);
         var Spread=FirstPersonViewWarp.Spread(View);
-        // Points a little way in front of the eye, in whatever direction the camera looks.
+        // 視点が向く方向へ、視点の少し前に置く。
         var Forward=Camera.GetForward();
         var Up=Camera.GetUp();
         var Right=Vector3.Normalize(Vector3.Cross(Forward,Up));
@@ -35,7 +35,7 @@ public sealed class FirstPersonViewWarpTests {
             var World=(Right*X)+(Up*Y)+(Forward*Z);
             var Before=InView(Camera,World);
             var After=InView(Camera,Vector3.Transform(World,Warp));
-            // x/z and y/z are the screen position: multiplied by the spread. The depth is scaled by 0.6.
+            // x/zとy/zが画面上の位置を表し、spreadを掛ける。深度には0.6を掛ける。
             Assert.Equal(Spread*Before.X/Before.Z,After.X/After.Z,3);
             Assert.Equal(Spread*Before.Y/Before.Z,After.Y/After.Z,3);
             Assert.Equal(0.6f*Before.Z,After.Z,3);
@@ -48,7 +48,7 @@ public sealed class FirstPersonViewWarpTests {
         var Warp=FirstPersonViewWarp.Matrix(Camera,new FirstPersonView());
         var Eye=Camera.GetEyePosition();
         Assert.True(Vector3.Distance(Eye,Vector3.Transform(Eye,Warp))<1e-4f);
-        // A point one metre ahead of the eye comes to 0.6 m (its sideways spread aside): the scale is about the eye, not about the origin.
+        // 視点より1メートル前方の点は、横方向の拡大を除いて0.6 mの位置に来る。スケールは原点ではなく視点を中心とする。
         var Ahead=Eye+Camera.GetForward();
         Assert.Equal(0.6f,Vector3.Distance(Eye,Vector3.Transform(Ahead,Warp)),1);
     }

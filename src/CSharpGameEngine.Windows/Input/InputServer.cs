@@ -4,21 +4,20 @@ using System.Security.Cryptography;
 using System.Text;
 namespace CSharpGameEngine.Input;
 /// <summary>
-/// An Unreal Enhanced Input style value modifier, applied in order after the binding's dead zone
-/// and scale.
+/// Unreal Enhanced Input形式の値モディファイアー。バインディングのデッドゾーンとスケールを適用した後、順番に処理する。
 /// </summary>
 public abstract record InputModifier {
     public abstract InputValue Apply(InputValue Value);
 }
-/// <summary>Negates the selected axes.</summary>
+/// <summary>選択した軸を反転する。</summary>
 public sealed record InputNegateModifier(bool X=true,bool Y=true):InputModifier {
     public override InputValue Apply(InputValue Value)=>new(this.X?-Value.X:Value.X,this.Y?-Value.Y:Value.Y);
 }
-/// <summary>Swaps X and Y (Unreal's Swizzle Input Axis Values, order YXZ), e.g. a key driving the forward axis.</summary>
+/// <summary>XとYを入れ替える（UnrealのSwizzle Input Axis Values。順序はYXZ）。たとえばキーを前方軸へ割り当てる場合に使う。</summary>
 public sealed record InputSwizzleModifier:InputModifier {
     public override InputValue Apply(InputValue Value)=>new(Value.Y,Value.X);
 }
-/// <summary>Zeroes the selected axes (M0108): a mouse delta used for its X or Y alone, as Unreal's MouseX / MouseY.</summary>
+/// <summary>選択した軸を0にする（M0108）。XまたはYだけに使うマウス移動量を、UnrealのMouseX／MouseYのように扱う。</summary>
 public sealed record InputMaskModifier(bool X=false,bool Y=false):InputModifier {
     public override InputValue Apply(InputValue Value)=>new(this.X?0:Value.X,this.Y?0:Value.Y);
 }
@@ -47,13 +46,13 @@ public sealed class InputServer {
     }
     public IReadOnlyList<InputActionValue>CurrentFrame=>this.Frame;
     private readonly Dictionary<InputActionId,HoldClock>HoldClocks=[];
-    /// <summary>Counts the <see cref="ProcessEvents"/> calls (one per presented frame); a hold time is advanced once per count however often it is read.</summary>
+    /// <summary><see cref="ProcessEvents"/>の呼び出し回数（表示フレームごとに1回）を数える。保持時間は読み出し頻度によらず、各カウントにつき1回だけ進む。</summary>
     public ulong FrameNumber { get;private set;}
     /// <summary>
-    /// How long a button action has been held, for <c>Button.HeldSeconds</c> (M0108). The press frame reads 0; each later held frame adds its own
-    /// <paramref name="DeltaSeconds"/>; the release frame reads the whole time held (including that frame's delta), as Unreal's ElapsedSeconds on
-    /// Completed/Canceled; every other frame reads 0. A press and release inside one frame read 0. A negative or non-finite delta counts as 0.
-    /// Asking again within the same <see cref="FrameNumber"/> returns the first answer without advancing, so several systems may read one struct.
+    /// ボタンアクションの押下継続時間。<c>Button.HeldSeconds</c>用（M0108）。押下フレームでは0を返し、次の各押下フレームで
+    /// <paramref name="DeltaSeconds"/>を加える。解放フレームでは押下時間全体（そのフレーム分を含む）を返す（UnrealのCompleted／Canceled時のElapsedSeconds）。
+    /// それ以外のフレームは0。1フレーム内で押下して離した場合は0。負または有限値でないdeltaは0として扱う。
+    /// 同じ<see cref="FrameNumber"/>内で再度要求された場合は、進めず初回と同じ値を返すため、複数システムから同じ構造体を読み取れる。
     /// </summary>
     public float TrackHold(InputActionId ActionId,bool Held,bool Pressed,bool Released,float DeltaSeconds){
         if(!this.HoldClocks.TryGetValue(ActionId,out var Clock)){
@@ -115,10 +114,9 @@ public sealed class InputServer {
         return Convert.ToHexString(SHA256.HashData(Stream.GetBuffer().AsSpan(0,checked((int)Stream.Length))));
     }
     /// <summary>
-    /// The action's current value (Unreal's action value): the sum of every binding of the action in
-    /// the highest-priority active context that binds it, each transformed by its dead zone, scale and
-    /// modifiers. Held controls contribute their held value; relative controls contribute what they
-    /// accumulated in the last <see cref="ProcessEvents"/> call.
+    /// アクションの現在値（UnrealのAction Value）。最優先の有効なコンテキストでバインドされた、すべてのバインディングの値を合計する。
+    /// 各値にはデッドゾーン、スケール、モディファイアーを適用する。保持型コントロールは保持値、相対型コントロールは
+    /// 直近の<see cref="ProcessEvents"/>呼び出し以降に累積した値を寄与させる。
     /// </summary>
     public InputValue ReadValue(InputActionId ActionId){
         var Context=this.Contexts.Values
@@ -153,7 +151,7 @@ public sealed class InputServer {
             }
             if(EventValue.Kind==InputEventKind.Connected){ continue; }
             if(IsRelative(EventValue.Control)){
-                // Increments are read through ReadValue only; they never become held state.
+                // 増分値はReadValue経由でのみ読み取り、保持状態にはならない。
                 var Sum=this.RelativeFrame.GetValueOrDefault(EventValue.Control);
                 this.RelativeFrame[EventValue.Control]=new InputValue(Sum.X+EventValue.Value.X,Sum.Y+EventValue.Value.Y);
                 continue;

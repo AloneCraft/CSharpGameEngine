@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0077 stage 7: <c>Assets/</c> becomes typed references, and a scene that names a missing asset is an error.</summary>
+/// <summary>ADR-0077 stage 7：<c>Assets/</c>は型付き参照になり、存在しないアセットを参照するシーンはエラーとなる。</summary>
 public sealed class AssetCatalogTests {
     private const string Root=SceneProjectOptions.ProjectDirectory;
 
@@ -24,6 +24,19 @@ public sealed class AssetCatalogTests {
     }
 
     [Fact]
+    public void RegisteredImagesGenerateSeparateTypedOutputsAndDefault(){
+        var Options=new Dictionary<string,string>{["image.defaultOutput"]="image",
+            ["image.outputs.0.key"]="color",["image.outputs.0.kind"]="texture",["image.outputs.0.usage"]="color",
+            ["image.outputs.1.key"]="normal",["image.outputs.1.kind"]="texture",["image.outputs.1.usage"]="normal",
+            ["image.outputs.2.key"]="image",["image.outputs.2.kind"]="image",["image.outputs.2.usage"]="color"};
+        var Metadata=System.Text.Json.JsonSerializer.Serialize(new { schemaVersion=1,assetId="b52d509c-08b1-4cf0-9f3c-264f1a4ee9ce",sourceUri="Assets/Textures/Wall.png",importer="cge.image",options=Options });
+        var Result=Run(File("Assets/Textures/Wall.png"),File("Assets/Textures/Wall.png.meta",Metadata));
+        Assert.Empty(Result.Diagnostics);var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Assets.g.cs");
+        Assert.Contains("internal static class Wall {",Text);Assert.Contains("TextureAsset Color = new(\"Assets/Textures/Wall.png:color\")",Text);
+        Assert.Contains("TextureAsset Normal = new(\"Assets/Textures/Wall.png:normal\")",Text);Assert.Contains("ImageAsset Image = new(\"Assets/Textures/Wall.png:image\")",Text);
+        Assert.Contains("ImageAsset Default=>Image",Text);
+    }
+    [Fact]
     public void AssetFiles_BecomeTypedMembersNestedByFolder(){
         var Result=Run(
             File("Assets/Sounds/Jump.wav"),
@@ -42,7 +55,7 @@ public sealed class AssetCatalogTests {
         Assert.Contains("internal static class Mannequins {",Catalog);
         Assert.Contains("global::CSharpGameEngine.Authoring.ModelAsset SKM_Quinn_Simple = new(\"Assets/Characters/Mannequins/SKM_Quinn_Simple.glb\");",Catalog);
         Assert.Contains("global::CSharpGameEngine.Authoring.TextureAsset Floor = new(\"Assets/Stage/Floor.png\");",Catalog);
-        // Only files of the known kinds under Assets: no text file, no editor icon, nothing outside Assets.
+        // Assets配下にある既知の種別のファイルだけを対象にする。テキストファイル、エディターアイコン、Assets外のファイルは含めない。
         Assert.DoesNotContain("readme",Catalog);
         Assert.DoesNotContain("Light",Catalog);
         Assert.DoesNotContain("Elsewhere",Catalog);
@@ -56,7 +69,7 @@ public sealed class AssetCatalogTests {
         var Catalog=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Assets.g.cs");
 
         Assert.Contains("global::CSharpGameEngine.Authoring.FontAsset Display = new(\"Assets/Fonts/Display.cgefont\");",Catalog);
-        // The source font is not an asset kind: only the baked file is read by the game.
+        // ソースフォントはアセット種別ではない。ゲームが読み込むのはベイク済みファイルだけ。
         Assert.DoesNotContain("Display_ttf",Catalog);
     }
 
@@ -94,13 +107,13 @@ public sealed class AssetCatalogTests {
         var Diagnostic=Assert.Single(Result.Diagnostics,static D=>D.Id=="SCENE208");
 
         Assert.Contains("Assets/Missing/Cube.glb",Diagnostic.GetMessage());
-        // Zero-based: the Mesh component is the seventh line of the document.
+        // 0始まり。Meshコンポーネントは文書の7行目。
         Assert.Equal(6,Diagnostic.Location.GetLineSpan().StartLinePosition.Line);
     }
 
     [Fact]
     public void PluginAssets_AreUnderAssetsPlugins_WithTheirOutputPaths(){
-        // ADR-0079: a project plugin's asset (Plugins/<Name>/Assets) keeps its project path; an engine plugin's is copied to the same form.
+        // ADR-0079：プロジェクトプラグインのアセット（Plugins/<Name>/Assets）はプロジェクト内のパスを維持する。エンジンプラグインのアセットは同じ形式のパスへコピーする。
         var Result=Run(
             File("Plugins/Weather/Assets/Sounds/Rain.wav"),
             new InMemoryAdditionalText(SceneProjectOptions.EnginePluginDirectory+@"Assets\Cars\Sedan.glb",""),
@@ -112,7 +125,7 @@ public sealed class AssetCatalogTests {
         Assert.Contains("ModelAsset Sedan = new(\"Plugins/Vehicles/Assets/Cars/Sedan.glb\");",Catalog);
         Assert.Contains("internal static class Weather {",Catalog);
         Assert.Contains("internal static class Vehicles {",Catalog);
-        // A plugin file outside its Assets folder is not an asset.
+        // Assetsフォルダー外にあるプラグインファイルはアセットではない。
         Assert.DoesNotContain("Notes",Catalog);
     }
 

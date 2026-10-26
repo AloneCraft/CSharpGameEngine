@@ -8,16 +8,12 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// The Scene Designer's view of the scene JSON additional documents (<c>Scenes\**\*.json</c>) of a Roslyn project
-/// (ADR-0070). A JSON scene enters the analysis compilation as its equivalent C# class
-/// (<see cref="SceneJsonDesignerSource"/>) whose syntax tree carries the JSON path, so every consumer
-/// of <see cref="CSharpGameEngine.SceneAnalysis.SceneModel"/> reads it exactly like a C# scene. The
-/// text is the live one: an unsaved edit in the JSON buffer is what the designer shows.
+/// Roslyn project のシーン JSON 追加ドキュメント（<c>Scenes\**\*.json</c>）に対する Scene Designer の view（ADR-0070）。JSON シーンは等価な C# class（<see cref="SceneJsonDesignerSource"/>）として解析 compilation に入り、その syntax tree が JSON パスを持つため、<see cref="CSharpGameEngine.SceneAnalysis.SceneModel"/> の consumer は C# シーンと同様に読み取ります。ライブテキストが使われるため、JSON バッファーの未保存編集も designer に表示されます。
 /// </summary>
 internal static class SceneJsonWorkspaceSource {
     internal static IEnumerable<TextDocument>JsonScenes(Project Project)=>
         Project.AdditionalDocuments.Where(Document=>SceneJsonCommitPlanner.IsJsonScene(Document.FilePath,Project.FilePath));
-    /// <summary>The <c>namespace.className</c> a document declares; <c>null</c> when it cannot be read.</summary>
+    /// <summary>ドキュメントが宣言する <c>namespace.className</c>。読み取れない場合は <c>null</c>。</summary>
     internal static string?TryReadClassFullyQualifiedName(string JsonText){
         try {
             var Document=SceneJsonReader.Parse(JsonText);
@@ -29,7 +25,7 @@ internal static class SceneJsonWorkspaceSource {
             return null;
         }
     }
-    /// <summary>The JSON scene of <paramref name="Project"/> that declares <paramref name="ClassFullyQualifiedName"/>.</summary>
+    /// <summary><paramref name="Project"/> 内で <paramref name="ClassFullyQualifiedName"/> を宣言する JSON シーン。</summary>
     internal static async Task<TextDocument?>FindAsync(Project Project,string ClassFullyQualifiedName,CancellationToken CancellationToken){
         foreach(var Document in JsonScenes(Project)){
             var Text=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
@@ -40,9 +36,8 @@ internal static class SceneJsonWorkspaceSource {
         return null;
     }
     /// <summary>
-    /// Adds the designer tree of <paramref name="Document"/> to <paramref name="Compilation"/>.
-    /// <c>null</c> when the document is not a valid scene (its problems are reported by the build and
-    /// the JSON schema, not here).
+    /// <paramref name="Document"/> の designer tree を <paramref name="Compilation"/> に追加します。
+    /// 有効なシーンではない場合は <c>null</c> です。問題はここではなく、build と JSON schema が報告します。
     /// </summary>
     internal static async Task<(Compilation Compilation,SyntaxTree Tree)?>AddDesignerTreeAsync(
         Project Project,Compilation Compilation,TextDocument Document,CancellationToken CancellationToken){

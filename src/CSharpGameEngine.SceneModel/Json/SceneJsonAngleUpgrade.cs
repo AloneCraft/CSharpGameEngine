@@ -6,10 +6,9 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// ADR-0074: rewrites a schema version 1 or 2 scene document as the current version (3). A version 1 document's
-/// angle numbers become turns, every angle key that uses the C# name becomes its unit-free key, and
-/// <c>schemaVersion</c> becomes 3; every other character of the author's text stays. The result is read back and must
-/// give the same component values as the original, so an upgrade never changes the scene.
+/// ADR-0074：スキーマバージョン1または2の Scene ドキュメントを、現在のバージョン3へ書き換える。バージョン1の角度の数値は回転数に変換し、C# の単位名を含む角度キーは単位名を含まない
+/// キーに変え、<c>schemaVersion</c> を3にする。それ以外の文字列はすべてそのまま残す。変換後に再読込し、元と同じコンポーネント値になることを確認するため、更新によって Scene が
+/// 変わることはない。
 /// </summary>
 internal static class SceneJsonAngleUpgrade {
     internal sealed class Result {
@@ -18,7 +17,7 @@ internal static class SceneJsonAngleUpgrade {
             this.Changed=Changed;
             this.Problems=Problems;
         }
-        /// <summary>The upgraded text (the original when it is already the current version), or <c>null</c> on a problem.</summary>
+        /// <summary>更新後のテキスト。すでに現行バージョンなら元のテキストを返し、問題があれば <c>null</c> を返す。</summary>
         internal string?Text { get; }
         internal bool Changed { get; }
         internal IReadOnlyList<string>Problems { get; }

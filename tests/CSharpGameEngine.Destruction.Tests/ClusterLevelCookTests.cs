@@ -3,9 +3,7 @@ using CSharpGameEngine.Cooking;
 using static CSharpGameEngine.Destruction.Tests.TestProject;
 namespace CSharpGameEngine.Destruction.Tests;
 /// <summary>
-/// M0124: the cook's levels of clusters (UE's Geometry Collection levels) and the <c>.cgefracture</c> version 3 that stores them. Each level splits every
-/// cluster of the level above into connected clusters, numbered by their lowest fragment; one level is M0113's cut, byte for byte (version 2); a level count
-/// outside 1 to 4 is refused; version 3 round-trips byte for byte and a damaged one is refused without throwing; the Cook module reads <c>ClusterLevels</c>.
+/// M0124：クラスターの Cook レベル（UE の Geometry Collection レベル）と、そのレベルを保存する <c>.cgefracture</c> バージョン 3。各レベルは一つ上のレベルにある各クラスターを連結クラスターへ分割し、最小フラグメント番号で番号を付ける。1 レベルは M0113 の分割とバイト単位で同一（バージョン 2）。レベル数が 1～4 の範囲外なら拒否する。バージョン 3 はバイト単位で往復し、破損したデータは例外を投げずに拒否する。Cook モジュールは <c>ClusterLevels</c> を読み取る。
 /// </summary>
 public sealed class ClusterLevelCookTests {
     private static LogicalScalar S(float Value)=>LogicalScalar.FromSingle(Value);
@@ -26,19 +24,19 @@ public sealed class ClusterLevelCookTests {
         var Previous=0;
         for(var Level=0;Level<LevelCount;Level++){
             var Numbers=Enumerable.Range(0,Count).Select(Fragment=>Asset.ClusterOf(Fragment,Level)).ToArray();
-            // Canonical: numbered in the order of each cluster's lowest fragment.
+            // 正規形式：各クラスターの最小フラグメント順に番号を付ける。
             var Next=0;
             foreach(var Number in Numbers){
                 Assert.InRange(Number,0,Next);
                 if(Number==Next){ Next++; }
             }
-            // A deeper level has at least as many clusters, each inside one cluster of the level above.
+            // 深いレベルではクラスター数が同数以上になり、それぞれが一つ上のレベルの単一クラスター内に収まる。
             Assert.True(Next>=Previous,$"level {Level} has {Next} clusters, fewer than {Previous} above");
             Previous=Next;
             if(Level==0){ continue; }
             foreach(var Group in Enumerable.Range(0,Count).GroupBy(Fragment=>Numbers[Fragment])){
                 Assert.Single(Group.Select(Fragment=>Asset.ClusterOf(Fragment,Level-1)).Distinct());
-                // Connected through bonds inside the cluster.
+                // クラスター内の結合を介して連結されている。
                 HashSet<int>Members=[.. Group];
                 HashSet<int>Reached=[Group.First()];
                 for(var Grew=true;Grew;){
@@ -54,9 +52,9 @@ public sealed class ClusterLevelCookTests {
                 Assert.Equal(Members.Count,Reached.Count);
             }
         }
-        // The bottom level still groups fragments (√ of a cluster's size), so the deepest clusters are smaller than the top ones but not single fragments only.
+        // 最下位レベルでもフラグメントをまとめる（クラスターサイズの √）。したがって最深部のクラスターは最上位より小さいが、単一フラグメントだけにはならない。
         Assert.True(Previous<Count||Count<=3,$"the deepest level has a cluster per fragment ({Previous})");
-        // A bond's shared levels: 0 between top-level clusters, up to the level count inside one deepest cluster.
+        // 結合が共有するレベル：最上位クラスター間では 0、最深クラスター内ではレベル数まで。
         foreach(var Bond in Asset.Bonds){
             var Shared=Asset.SharedClusterLevels(Bond.FirstFragment,Bond.SecondFragment);
             Assert.InRange(Shared,0,LevelCount);
@@ -67,7 +65,7 @@ public sealed class ClusterLevelCookTests {
     }
     [Fact]
     public void OneLevelIsM0113sCutByteForByteInVersionTwo(){
-        // The default (1) and an explicit 1 give the bytes M0113 wrote: version 2, the top-level clusters only.
+        // 既定値 (1) と明示的な 1 は、M0113 が書き出したバイト列と同じになる：バージョン 2、最上位クラスターのみ。
         Assert.True(PrefractureCooker.TryGenerate(Box(Half(1f,0.5f,1f)),new PrefractureCookSettings(24,5,LogicalScalar.FromInt64(500),LogicalScalar.FromInt64(2000)),out var Default,out var Error),Error);
         var One=Cut(24,5,1);
         var Bytes=PrefractureArtifact.ToBytes(One);
@@ -76,7 +74,7 @@ public sealed class ClusterLevelCookTests {
         Assert.Equal(2,PrefractureArtifact.VersionOf(One));
         Assert.Equal(1,One.ClusterLevelCount);
         Assert.Empty(One.SubClusters);
-        // The top level of a deeper cut is that same one-level cut.
+        // より深い分割の最上位レベルは、同じ 1 レベル分割である。
         var Two=Cut(24,5,2);
         Assert.Equal(One.Clusters,Two.Clusters);
         Assert.Equal(One.Bonds,Two.Bonds);
@@ -103,7 +101,7 @@ public sealed class ClusterLevelCookTests {
             Assert.False(PrefractureArtifact.TryRead(Bytes[..Length],out _,out _),$"{Length} bytes were read");
         }
         Assert.False(PrefractureArtifact.TryRead([..Bytes,0x01],out _,out _));
-        // An asset whose second level puts two fragments of different top-level clusters together is not canonical.
+        // 第 2 レベルで、異なる最上位クラスターに属する 2 つのフラグメントを同じクラスターにまとめるアセットは正規形式ではない。
         var Broken=new PrefractureAsset {
             SourceHash=Asset.SourceHash,Seed=Asset.Seed,Fragments=Asset.Fragments,Bonds=Asset.Bonds,Meshes=Asset.Meshes,CollisionShapes=Asset.CollisionShapes,
             Sites=Asset.Sites,Clusters=Asset.Clusters,SubClusters=[new int[Asset.Fragments.Count]],Density=Asset.Density,BondStrengthPerArea=Asset.BondStrengthPerArea,

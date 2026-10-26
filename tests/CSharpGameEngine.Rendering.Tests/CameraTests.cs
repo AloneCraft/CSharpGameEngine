@@ -179,10 +179,7 @@ public class CameraTests {
     }
 
     /// <summary>
-    /// Permanent regression guard for ADR-0026's RUF rewrite: independently re-derives the original
-    /// hand-written trig formula (the pre-RUF implementation) and checks GetForward against it across
-    /// a Yaw/Pitch sweep, so a future change to the RufQuaternion-based implementation cannot silently
-    /// change what "forward" means without failing a test.
+    /// ADR-0026 の RUF 書き換えに対する恒久的な回帰ガード：元の手書き三角関数式（RUF 導入前の実装）を独立に再導出し、Yaw/Pitch を走査して GetForward と照合する。これにより、RufQuaternion ベースの実装に将来変更が加わっても、テストに失敗せず「前方」の意味が変わることを防ぐ。
     /// </summary>
     [Fact]
     public void GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep(){
@@ -211,9 +208,8 @@ public class CameraTests {
     }
 
     /// <summary>
-    /// Permanent regression guard for ADR-0026: proves Spatial&lt;UnityCoordinateConvention&gt;.
-    /// RightFromUpForward produces the same Right direction as the original ad-hoc
-    /// Cross(Vector3.UnitY, flatForward) formula, across a Yaw sweep.
+    /// ADR-0026 に対する恒久的な回帰ガード：Spatial&lt;UnityCoordinateConvention&gt;.
+    /// RightFromUpForward が、元の専用式 Cross(Vector3.UnitY, flatForward) と同じ Right 方向を返すことを、Yaw の走査全体で証明する。
     /// </summary>
     [Fact]
     public void GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep(){
@@ -243,8 +239,8 @@ public class CameraTests {
 
     [Fact]
     public void CreateBoundsFit_EyeOffsetFromTarget_MatchesTheSharedDiagonalDirection(){
-        // Same (1,0.75,1) eye direction the asset thumbnail and the VSIX
-        // SceneRenderer/VorticeRenderer preview cameras already use.
+        // アセットのサムネイルと VSIX で使われているものと同じ (1,0.75,1) の視線方向。
+        // SceneRenderer/VorticeRenderer のプレビューカメラもすでにこの方向を使っている。
         Camera Camera=Camera.CreateBoundsFit(new Vector3(-1,-1,-1),new Vector3(1,1,1));
 
         var EyeOffset=Vector3.Normalize(Camera.GetEyePosition()-Camera.Target);

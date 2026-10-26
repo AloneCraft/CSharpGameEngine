@@ -11,17 +11,15 @@ public sealed record HermeticBuildPlan(
     string RepositoryRoot,string WorkRoot,string ArtifactRoot,string PackageRoot,
     IReadOnlyList<HermeticBuildCommand>Commands){
     /// <summary>
-    /// Set on every command: the build restores the tools it runs (ShaderGraph CLI, bridges, Preview Host) in nested
-    /// evaluations that a <c>--packages</c> argument does not reach, so they would otherwise restore from the
-    /// machine-wide folder and rewrite the isolated assets files during the build.
+    /// すべてのコマンドに設定する。ビルドは、<c>--packages</c> 引数の対象外となる入れ子の評価で実行ツール（ShaderGraph CLI、ブリッジ、Preview Host）を復元するため、これがないとマシン全体のフォルダーから復元し、ビルド中に隔離された assets ファイルを書き換えてしまう。
     /// </summary>
     public IReadOnlyDictionary<string,string>Environment=>new Dictionary<string,string>{["NUGET_PACKAGES"]=this.PackageRoot};
     public static HermeticBuildPlan Create(string RepositoryRoot,string?RunId=null){
         string Root=Path.GetFullPath(RepositoryRoot);
         string Solution=Path.Combine(Root,"CSharpGameEngine.slnx");
         if(!File.Exists(Solution)){ throw new FileNotFoundException("Canonical solution was not found.",Solution); }
-        // Short: the VSIX build zips staged bridge files about 110 characters below the artifacts root, and the
-        // VSSDK packaging fails past MAX_PATH (260) on machines without long paths enabled.
+        // 参考：VSIX ビルドでは、ステージ済みブリッジファイルを成果物ルートから約 110 文字下に置いて圧縮する。そのため、
+        // 長いパスを有効にしていないマシンでは、VSSDK のパッケージ化が MAX_PATH (260) を超えると失敗する。
         string Id=RunId??Guid.NewGuid().ToString("N")[..12];
         if(Id.Length==0||Id.IndexOfAny(Path.GetInvalidFileNameChars())>=0){
             throw new ArgumentException("Clean-build run ID is invalid.",nameof(RunId));
@@ -40,9 +38,9 @@ public sealed record HermeticBuildPlan(
             ]),
         };
         foreach(string Configuration in new[]{"Debug","Release"}){
-            // A plain build: the owned artifacts root starts empty, so there is nothing to be incremental against, and a
-            // Rebuild (--no-incremental) cleans the tools that projects build for their own use (shader compiler, scene
-            // schema writer, Feature Runner) after those projects built them (audit AUD-004).
+            // 通常のビルドでは、所有する成果物ルートが空で始まるため、増分ビルドの比較対象がない。また、
+            // Rebuild (--no-incremental) は各プロジェクトが自分用にビルドしたツール（シェーダーコンパイラー、シーン
+            // スキーマライター、Feature Runner）まで、各プロジェクトがビルドした後に消去する (audit AUD-004)。
             Commands.Add(new($"build-{Configuration}",[
                 "build",Solution,"--configuration",Configuration,
                 "--artifacts-path",Artifacts,"--no-restore",

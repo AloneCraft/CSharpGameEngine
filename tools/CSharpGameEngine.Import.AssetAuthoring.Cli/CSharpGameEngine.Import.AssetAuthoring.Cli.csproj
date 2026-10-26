@@ -8,7 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Content\CSharpGameEngine.Content.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Audio\CSharpGameEngine.Audio.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Rendering\CSharpGameEngine.Rendering.csproj" />
     <ProjectReference Include="..\CSharpGameEngine.Bridge.Hosting\CSharpGameEngine.Bridge.Hosting.csproj" />
   </ItemGroup>
 
@@ -18,4 +21,7 @@
     </AssemblyAttribute>
   </ItemGroup>
 
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <Content Include="$(NuGetPackageRoot)assimpnet\4.1.0\runtimes\win-x64\native\assimp.dll" Link="assimp.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

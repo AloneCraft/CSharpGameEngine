@@ -17,20 +17,19 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// The global distance field (ADR-0078/M0110): clipmaps of the scene's signed distance around the camera, made on the GPU from the drawn objects'
-/// mesh distance fields by GlobalDistanceField.hlsl, for the Lumen-like tracing of M0111. Each level is a Texture3D of Resolution^3 half floats with
-/// voxels twice the size of the level below, fixed to the world's voxel grid and addressed toroidally (the voxel with global coordinate g is texel
-/// g mod Resolution). Every frame only the 8^3-voxel bricks that changed are recomputed: bricks a level newly covers when the camera moves (a level's
-/// clip snaps to whole bricks), and bricks within four voxels of where an object was or is when the object moved, appeared or went away. A brick is
-/// computed from scratch from the objects that reach it, so the field after any sequence of updates equals the field made at once.
-/// What M0111 reads (see <see cref="ClipmapConstants"/> and SampleGlobalDistance / TraceGlobalDistanceField in the HLSL): the level textures in
-/// <see cref="ShaderResourceState"/> and, per level, the voxel size, truncation and resolution, the render-space corner of its clip and the texel of
-/// that corner. Root signature: see GlobalDistanceField.hlsl.
+/// グローバル距離場（ADR-0078/M0110）。M0111 の Lumen 相当追跡処理用に、シーンの符号付き距離場クリップマップをカメラ周囲に GPU 上で生成する。
+/// GlobalDistanceField.hlsl が描画オブジェクトのメッシュ距離場から作成する。各レベルは解像度^3個の半精度浮動小数点数を持つ Texture3D で、下位レベルの2倍の
+/// ボクセルサイズを持つ。ワールドのボクセル格子に固定し、トロイダル方式でアドレス指定する（ワールド座標 g のボクセルはテクセル g mod Resolution）。毎フレーム再計算するのは変化した
+/// 8^3ボクセルのブリックだけ。カメラ移動で新たに覆うブリック（各レベルのクリップ範囲はブリック単位でスナップする）と、オブジェクト移動、出現、消失の位置から4ボクセル以内にあるブリックが対象。ブリック
+/// は影響するオブジェクトから毎回再計算するため、どのような更新順でも最終的な距離場は一度に全体を作った場合と一致する。M0111 の読み取り内容（
+/// <see cref="ClipmapConstants"/> と HLSL の SampleGlobalDistance / TraceGlobalDistanceField を参照）：
+/// シェーダーリソース状態の各レベルのテクスチャ（<see cref="ShaderResourceState"/>）と、レベルごとのボクセルサイズ、切り捨て距離、解像度、レンダリング空間でのクリップ角、
+/// 角に対応するテクセル。ルートシグネチャは GlobalDistanceField.hlsl を参照。
 /// </summary>
 internal sealed unsafe class StageGlobalDistanceField:IDisposable {
     internal const string ArtifactFileName="GlobalDistanceField.cgeshaderartifact";
     internal const int BrickSize=8;
-    /// <summary>The field holds distances up to this many voxels of its level; farther is this.</summary>
+    /// <summary>フィールドがそのレベルのボクセル何個分まで距離を保持するか。それより遠い値はこの上限にする。</summary>
     internal const float TruncationVoxels=4f;
     internal const D3D12_RESOURCE_STATES ShaderResourceState=D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE|D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     private const DXGI_FORMAT FieldFormat=DXGI_FORMAT_R16_FLOAT;
@@ -74,20 +73,20 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         this.FrameCount=FrameCount;
         this.ArtifactPath=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(StageArtifactPath))??string.Empty,ArtifactFileName);
     }
-    /// <summary>Bricks recomputed by the last <see cref="Update"/>, per level (diagnostics and tests).</summary>
+    /// <summary>直近の <see cref="Update"/> でレベルごとに再計算したブリック（診断とテスト用）。</summary>
     internal int[]LastUpdatedBricks { get; }=new int[MaximumLevels];
-    /// <summary>Objects that were in the field during the last <see cref="Update"/>.</summary>
+    /// <summary>直近の <see cref="Update"/> で距離場に含まれていたオブジェクト。</summary>
     internal int LastFieldObjects { get;private set; }
-    /// <summary>Meshes the renderer has with a distance field.</summary>
+    /// <summary>距離場を持つレンダラーのメッシュ。</summary>
     internal int MeshesWithFields=>this.MeshFields.Count;
     internal int LevelCount=>this.Configuration?.Count??0;
     internal int Resolution=>this.Configuration?.Resolution??0;
-    /// <summary>Per level: (x voxel size, y truncation, z resolution, w 1 / resolution), the render-space corner of the clip and the texel of that corner.</summary>
+    /// <summary>レベルごとの値（x はボクセルサイズ、y は切り捨て距離、z は解像度、w は 1 / 解像度）、レンダリング空間でのクリップ角、および角に対応するテクセル。</summary>
     internal (Vector4 Scale,Vector4 Origin,Vector4 Texel)[]ClipmapConstants { get; }=new (Vector4,Vector4,Vector4)[MaximumLevels];
     internal ID3D12Resource*Level(int Index)=>this.Levels[Index];
     /// <summary>
-    /// M0111: the record of a renderer mesh in <see cref="MeshRecordAddress"/> (its distance field's bounds, voxel size, resolution and offset in
-    /// <see cref="MeshDistanceAddress"/>), false for a mesh without a field. Valid from the next <see cref="Update"/> on.
+    /// M0111：<see cref="MeshRecordAddress"/> にあるレンダラーメッシュの記録（距離場の境界、ボクセルサイズ、解像度、
+    /// <see cref="MeshDistanceAddress"/> 内のオフセット）。距離場を持たないメッシュでは false。次の <see cref="Update"/> 以降に有効。
     /// </summary>
     internal bool TryGetMeshRecord(int MeshIndex,out int Record){
         Record=-1;
@@ -97,11 +96,11 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         Record=Entry.Record;
         return true;
     }
-    /// <summary>The mesh records (32 bytes each, see GlobalDistanceField.hlsl's MeshRecord) after an <see cref="Update"/>, or 0 before.</summary>
+    /// <summary><see cref="Update"/> 後のメッシュ記録（各32バイト。GlobalDistanceField.hlsl の MeshRecord を参照）。更新前は0。</summary>
     internal ulong MeshRecordAddress=>this.MeshRecordBuffer!=null?this.MeshRecordBuffer->GetGPUVirtualAddress():0;
-    /// <summary>The meshes' distances (half floats, read as words) after an <see cref="Update"/>, or 0 before.</summary>
+    /// <summary><see cref="Update"/> 後のメッシュ距離（半精度浮動小数点数。ワード単位で読み取る）。更新前は0。</summary>
     internal ulong MeshDistanceAddress=>this.MeshDistanceBuffer!=null?this.MeshDistanceBuffer->GetGPUVirtualAddress():0;
-    /// <summary>Records the distance field of one renderer mesh (null when it has none); used from the next <see cref="Update"/>.</summary>
+    /// <summary>レンダラーメッシュ1つの距離場を登録する（持たない場合は null）。次の <see cref="Update"/> 以降に使用する。</summary>
     internal void SetMesh(int MeshIndex,MeshDistanceField?Field){
         while(this.MeshEntries.Count<=MeshIndex){
             this.MeshEntries.Add(null);
@@ -120,9 +119,9 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         this.MeshDataDirty=true;
     }
     /// <summary>
-    /// Brings the field up to date for this frame: (re)creates the levels when the settings change, uploads new mesh fields, follows the camera and
-    /// the objects, and recomputes the changed bricks. <paramref name="WaitForGpuIdle"/> is called before a resource a frame in flight may read is
-    /// replaced. Leaves every level in <see cref="ShaderResourceState"/>.
+    /// このフレーム向けに距離場を更新する。設定が変わった場合は各レベルを再作成し、新しいメッシュ距離場をアップロードし、カメラとオブジェクトの移動を反映し、変化したブリックを再計算する。フレーム処理中の
+    /// GPU が読み取る可能性のあるリソースを置き換える前に、<paramref name="WaitForGpuIdle"/> を呼び出す。すべてのレベルを
+    /// <see cref="ShaderResourceState"/> の状態にして完了する。
     /// </summary>
     internal void Update(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in GlobalDistanceFieldSettings Settings,
         ReadOnlySpan<bool>Active,ReadOnlySpan<int>MeshIndices,ReadOnlySpan<Matrix4x4>Transforms,int ObjectCount,Action WaitForGpuIdle){
@@ -143,7 +142,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         var Count=Settings.ClipmapCount;
         var Resolution=Settings.Resolution;
         var BaseVoxel=Settings.VoxelSizeMeters;
-        // The origin of each level on its own grid: O_L = floor(O_0 / 2^L), and how far the render-space origin is past O_L's corner.
+        // 各レベルの専用格子での原点 O_L = floor(O_0 / 2^L) と、レンダリング空間の原点から O_L の角までの距離。
         Span<LongVector3>Origin=stackalloc LongVector3[MaximumLevels];
         Span<Vector3>Remainder=stackalloc Vector3[MaximumLevels];
         for(var Level=0;Level<Count;Level++){
@@ -173,7 +172,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
             this.ClipMinimum[Level]=Minimum;
             this.ClipValid[Level]=true;
         }
-        // How far the camera moved over the world since the last frame: a still object's render-space translation moves by minus this.
+        // 前フレームからカメラがワールド上を移動した距離。この分だけ、静止物体のレンダリング空間上の平行移動が逆方向へ移動する。
         var CameraDelta=this.HasPreviousOrigin
             ?new Vector3(Settings.OriginVoxel.X-this.PreviousOrigin.X,Settings.OriginVoxel.Y-this.PreviousOrigin.Y,Settings.OriginVoxel.Z-this.PreviousOrigin.Z)*BaseVoxel
                 +(Settings.OriginRemainder-this.PreviousRemainder)
@@ -212,7 +211,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         this.PreviousRemainder=Settings.OriginRemainder;
         this.HasPreviousOrigin=true;
         this.LastFieldObjects=FieldObjects.Count;
-        // The records of this frame: one per object in the field, then the bricks with the objects that reach them.
+        // このフレームで距離場に含まれるオブジェクトごとに1件ずつ記録し、その後、対象オブジェクトが到達するブリックを記録する。
         this.ObjectRing.Ensure(this,FieldObjects.Count*ObjectRecordSize,WaitForGpuIdle);
         var ObjectSlot=this.ObjectRing.Slot(FrameIndex);
         var RecordOf=new Dictionary<int,int>(FieldObjects.Count);
@@ -280,7 +279,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         for(var Index=0;Index<BrickObjects.Count;Index++){
             ((uint*)BrickObjectSlot)[Index]=BrickObjects[Index];
         }
-        // The constants M0111 and the trace read: each level's voxel, truncation, clip corner in render space and the texel of that corner.
+        // 定数M0111とトレースで読み取る値：各レベルのボクセル、トランケーション距離、描画空間でのクリップ角、およびその角に対応するテクセル。
         for(var Level=0;Level<MaximumLevels;Level++){
             if(Level>=Count){
                 this.ClipmapConstants[Level]=(Vector4.Zero,Vector4.Zero,Vector4.Zero);
@@ -356,7 +355,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         }
         return this.ConstantsBuffer->GetGPUVirtualAddress()+Index*ConstantsStride;
     }
-    /// <summary>Marks the bricks within the truncation of a level-0 voxel box, on every level.</summary>
+    /// <summary>すべてのレベルで、レベル0のボクセルボックスのトランケーション範囲内にあるブリックをマークする。</summary>
     private void MarkDirty(HashSet<LongVector3>[]Dirty,LongVector3 Minimum,LongVector3 Maximum,int Count){
         var Reach=(long)TruncationVoxels;
         for(var Level=0;Level<Count;Level++){
@@ -365,7 +364,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
             var LevelMaximum=new LongVector3(FloorDivide(Maximum.X,Scale)+Reach,FloorDivide(Maximum.Y,Scale)+Reach,FloorDivide(Maximum.Z,Scale)+Reach);
             var BricksPerSide=this.Resolution/BrickSize;
             var Clip=this.ClipMinimum[Level];
-            // Only bricks inside the current clip can be updated; clamp the loop to it so a huge object costs no more than the clip.
+            // 更新できるのは現在のクリップ内のブリックだけ。巨大なオブジェクトでも処理コストがクリップを超えないよう、ループ範囲を内側に制限する。
             var FromX=Math.Max(FloorDivide(LevelMinimum.X,BrickSize),Clip.X/BrickSize);
             var ToX=Math.Min(FloorDivide(LevelMaximum.X,BrickSize),Clip.X/BrickSize+BricksPerSide-1);
             var FromY=Math.Max(FloorDivide(LevelMinimum.Y,BrickSize),Clip.Y/BrickSize);
@@ -387,7 +386,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         var Z=Brick.Z-ClipMinimum.Z/BrickSize;
         return X>=0&&X<BricksPerSide&&Y>=0&&Y<BricksPerSide&&Z>=0&&Z<BricksPerSide;
     }
-    /// <summary>The level-0 world voxel holding a render-space point.</summary>
+    /// <summary>描画空間の点を含む、レベル0のワールドボクセル。</summary>
     private static LongVector3 ToGlobal(Vector3 Render,in GlobalDistanceFieldSettings Settings){
         var Local=(Render+Settings.OriginRemainder)/Settings.VoxelSizeMeters;
         long Axis(float Value)=>(long)MathF.Floor(Math.Clamp(Value,-1e15f,1e15f));
@@ -404,7 +403,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         }
         return (Low,High);
     }
-    /// <summary>Whether an object is where it was: the same rotation and scale, and its translation moved only by the camera's movement.</summary>
+    /// <summary>オブジェクトが同じ場所にあるかどうか。回転とスケールが同じで、平行移動がカメラの移動量だけ変化した場合を指す。</summary>
     private static bool SamePlacement(in Matrix4x4 Previous,in Matrix4x4 Current,Vector3 CameraDelta){
         const float Rotation=1e-5f;
         const float Translation=1e-3f;
@@ -418,7 +417,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         &&float.IsFinite(Matrix.M21)&&float.IsFinite(Matrix.M22)&&float.IsFinite(Matrix.M23)&&float.IsFinite(Matrix.M24)
         &&float.IsFinite(Matrix.M31)&&float.IsFinite(Matrix.M32)&&float.IsFinite(Matrix.M33)&&float.IsFinite(Matrix.M34)
         &&float.IsFinite(Matrix.M41)&&float.IsFinite(Matrix.M42)&&float.IsFinite(Matrix.M43)&&float.IsFinite(Matrix.M44);
-    /// <summary>The object's smallest axis scale: a mesh distance times it never overstates the distance in the render space.</summary>
+    /// <summary>オブジェクトの最小軸スケール。メッシュ距離にこの値を掛けても、描画空間の距離を過大評価しない。</summary>
     private static float MinimumScale(in Matrix4x4 Matrix)=>MathF.Min(
         new Vector3(Matrix.M11,Matrix.M12,Matrix.M13).Length(),
         MathF.Min(new Vector3(Matrix.M21,Matrix.M22,Matrix.M23).Length(),new Vector3(Matrix.M31,Matrix.M32,Matrix.M33).Length()));
@@ -445,7 +444,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
                 "ID3D12Device::CreateCommittedResource","creating a global distance field level");
             this.Levels[Level]=Resource;
         }
-        // Every level slot gets a view (a level not in use repeats level 0), so the SRV table is always complete.
+        // 使用しないレベルもレベル0を繰り返す形で、すべてのレベルスロットにビューを設定し、SRVテーブルを常に完全な状態にする。
         for(var Level=0;Level<MaximumLevels;Level++){
             var Resource=this.Levels[Level<Wanted.Count?Level:0];
             D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){ Format=FieldFormat,ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE3D,Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING };
@@ -482,7 +481,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
             Buffer.MemoryCopy(Source,RecordMapped,Records.Length,Records.Length);
         }
         this.MeshRecordBuffer->Unmap(0,null);
-        // Half floats, padded to whole 32-bit words for the byte-address reads.
+        // ハーフ精度浮動小数点。バイトアドレス読み取り用に32ビットワード単位へパディングする。
         var Words=Math.Max((this.MeshHalves.Count+1)/2,1);
         this.MeshDistanceBuffer=this.CreateUploadBuffer((ulong)Words*4,out var DistanceMapped);
         var Halves=(ushort*)DistanceMapped;
@@ -494,7 +493,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         }
         this.MeshDistanceBuffer->Unmap(0,null);
         this.MeshDataDirty=false;
-        // An object whose mesh just got its field must join the field: forget every object and recompute every brick.
+        // メッシュの距離場を取得したばかりのオブジェクトは場へ追加する必要がある。すべてのオブジェクトを忘れて、全ブリックを再計算する。
         Array.Clear(this.Objects);
         Array.Clear(this.ClipValid);
     }
@@ -542,7 +541,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         this.DescriptorHeap=DescriptorHeap;
         this.DescriptorSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         this.ConstantsBuffer=this.CreateUploadBuffer((ulong)this.FrameCount*ConstantsPerFrame*ConstantsStride+ConstantsStride,out this.ConstantsMapped);
-        // A small buffer for the root descriptors a pass does not read (an empty frame's records, the trace buffers during updates).
+        // パスが読み取らないルートディスクリプター用の小さなバッファ（空フレームのレコードや更新中のトレースバッファなど）。
         D3D12_HEAP_PROPERTIES DefaultHeap=new(D3D12_HEAP_TYPE_DEFAULT);
         var DummyDesc=D3D12_RESOURCE_DESC.Buffer(256,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
         ID3D12Resource*Dummy;
@@ -594,7 +593,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         }
     }
     private D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(int Slot)=>new(this.DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),Slot,this.DescriptorSize);
-    /// <summary>Test-only copy of one level: Resolution^3 values in texel order (x fastest), and the clip's lowest voxel on the level's global grid.</summary>
+    /// <summary>テスト専用のレベルコピー。テクセル順（xが最速）で格納したResolution^3個の値と、レベルのグローバル格子上にあるクリップ最下端のボクセル。</summary>
     internal (float[]Values,int Resolution,LongVector3 ClipMinimum)ReadLevelForTesting(int Level){
         var Resolution=this.Resolution;
         var (Data,RowPitch,_,_)=GpuTextureReadback.Read(this.Device,this.Levels[Level],ShaderResourceState);
@@ -613,8 +612,9 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
         return (Result,Resolution,this.ClipMinimum[Level]);
     }
     /// <summary>
-    /// Test-only sphere tracing of up to 512 rays through the field as M0111 will (TraceGlobalDistanceField): per ray the distance to the hit (or the
-    /// ray's length), the steps taken and whether it hit. The caller guarantees the renderer's queue is idle; the field is the one of the last update.
+    /// M0111が使う方法（TraceGlobalDistanceField）で、距離場を通る最大512本のレイをテスト用にトレースする。
+    /// 各レイについて、ヒットまでの距離（ヒットしなければレイの長さ）、歩数、ヒットの有無を返す。
+    /// 呼び出し側がレンダラーのキューをアイドル状態にしておくこと。距離場は最後に更新されたものを使う。
     /// </summary>
     internal Vector4[]TraceForTesting(ReadOnlySpan<(Vector3 Origin,Vector3 Direction,float Length)>Rays){
         if(Rays.Length is 0 or>MaximumTraceRays){
@@ -639,7 +639,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
                 "ID3D12Device::CreateCommittedResource","global distance field trace results");
             D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT,__uuidof<ID3D12CommandAllocator>(),(void**)&Allocator),"CreateCommandAllocator","global distance field trace");
             D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT,Allocator,null,__uuidof<ID3D12GraphicsCommandList>(),(void**)&List),"CreateCommandList","global distance field trace");
-            // The trace constants sit after every frame's slots (frame index FrameCount, slot 0), so no frame in flight reads them.
+            // トレース定数は各フレームのスロット群の後（フレームインデックスFrameCount、スロット0）に置くため、実行中のフレームから読み取られない。
             var Constants=this.WriteConstants(this.FrameCount,0,Pass:1,BrickStart:0,RayCount:(uint)Rays.Length,this.ClipmapConstants[0].Scale.X,Vector3.Zero,this.LevelCount);
             this.Bind(List,Constants,0,UavSlot:(uint)MaximumLevels,TraceResults:ResultBuffer->GetGPUVirtualAddress(),TraceRays:RayBuffer->GetGPUVirtualAddress());
             List->Dispatch(1,1,1);
@@ -700,7 +700,7 @@ internal sealed unsafe class StageGlobalDistanceField:IDisposable {
     }
     private readonly record struct MeshEntry(int Record,int Offset,Vector3 BoundsMin,Vector3 BoundsMax);
     private record struct ObjectState(bool Tracked,int MeshIndex,Matrix4x4 Matrix,LongVector3 GlobalMinimum,LongVector3 GlobalMaximum);
-    /// <summary>A mapped upload buffer with one region per frame in flight; it grows (after the GPU is idle) when a frame needs more.</summary>
+    /// <summary>処理中のフレームごとに領域を持つマップ済みアップロードバッファ。フレームで容量が足りなくなれば、GPUアイドル後に拡張する。</summary>
     private struct UploadRing {
         private ID3D12Resource*Buffer;
         private byte*Mapped;

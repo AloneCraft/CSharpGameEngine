@@ -27,7 +27,7 @@ public readonly record struct WorldCellSelectionResult(
     public bool Succeeded=>this.ErrorCode==WorldCellSelectionErrorCode.None;
 }
 
-/// <summary>Immutable frame-local sparse-cell index. Selection never constructs global coordinates.</summary>
+/// <summary>不変のフレーム単位スパースセルインデックス。選択時にグローバル座標は構築しない。</summary>
 public sealed class WorldCellSpatialIndex {
     private readonly Dictionary<ReferenceFrameId,FrameIndex>Frames;
 

@@ -220,3 +220,14 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
 ## Spatial partitioning
 
 Add `SpatialBounds` beside a fixed-point `Transform` to participate in `World.GlobalSpatialIndex`; query it with `SpatialAabb`, `SpatialSphere`, or `SpatialRay`. Systems needing separate filtering or timing can own an `EntityLooseOctree` and update it explicitly. See `Docs/Specifications/Spatial-Partitioning.md`.
+
+
+## Assets in Visual Studio (VSIX 0.1.8, integration in progress)
+
+Open a game project and use **Game Engine > Assets** to open the bottom asset window. The first game-project display registers it with Output at 280 DIP; later layout and visibility belong to Visual Studio. **Apply Game Engine Layout** explicitly reapplies defaults. Solution Explorer's **Assets only** filter narrows project items; folder/asset selection follows into Assets unless **Lock location** is enabled. Search scope, kind/provider/state, thumbnail/details view and saved searches are available. **Show in Solution Explorer** explicitly reveals the selection.
+
+Type icons identify assets even before a thumbnail is available. Read-only locks and error/warning badges are shown independently, alongside text labels.
+
+Click an asset for Inspector information; double-click opens the asset's own editor (floating and front-most by default, dockable; Tools > Options > C# Game Engine > Asset Editors switches to document tabs). Model, texture, sound, font and data-asset editors and the shader graph work this way; the asset preview offers Preview Level templates (Default, Studio, Outdoor, Neutral and your own `.cgepreview` files under `Assets/PreviewLevels`). DataAssets edit validated values in the live document, with native Save/Undo. Create offers only implemented scene, graph, DataAsset and folder formats. Organize reviews file changes and references before applying; conflicts and unsupported references stop before writing. Model drops target the active scene hierarchy; typed reference drops must match a compatible catalog candidate. Read-only provider assets can be copied into the project.
+
+Browsing never generates metadata. Old `guid: ...` sidecars require the explicit **Convert legacy metadata** action, which preserves their GUID; inspect any reported invalid metadata before organizing. **Recover interrupted operations** restores pending operations when their outputs have not changed. **Add source** copies source files; it does not report successful artifact import. Reimport, model subassets/thumbnails and importer settings remain unavailable until M0114 is connected. Some organizer/media cases and actual VS interaction remain unverified; see [M0123](Docs/Milestones/M0123-Asset-Workspace.md) for the current limitations and test evidence.

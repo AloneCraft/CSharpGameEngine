@@ -67,10 +67,10 @@ internal sealed record ComponentRevealRequest(EditorNodeId NodeId,string Compone
 /// </summary>
 internal sealed record ComponentRemoveRequest(EditorNodeId NodeId,string ComponentTypeFullyQualifiedName);
 internal static class SceneEditorHub {
-    /// <summary>Raised whenever the analysed scene changes - including to null, when the active document declares none.</summary>
+    /// <summary>解析対象シーンが変わるたびに発生します。アクティブドキュメントにシーン宣言がなく null になる場合も含みます。</summary>
     public static event Action<SceneModel?>?SceneModelChanged;
 
-    /// <summary>Selection is keyed by <see cref="NodePath"/>: names are optional and not unique, and text spans move on every edit.</summary>
+    /// <summary>選択は <see cref="NodePath"/> をキーにします。名前は省略可能で一意ではなく、テキスト範囲は編集ごとに移動するためです。</summary>
     public static event Action<NodePath?>?SelectedNodePathChanged;
     public static event Action<HierarchyNodeSelection>?HierarchySelectionChanged;
     public static event Action<NodePath>?HierarchyNavigationRequested;

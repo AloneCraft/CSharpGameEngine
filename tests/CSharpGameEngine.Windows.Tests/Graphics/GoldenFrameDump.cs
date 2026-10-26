@@ -4,15 +4,15 @@ using System.Security.Cryptography;
 using System.Text.Json;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// The golden frames' evidence and re-pinning aid (ADR-0084 §7). With <c>CGE_GOLDEN_DUMP=&lt;dir&gt;</c> every rendered case is
-/// written as raw RGBA8 and a PNG under <c>&lt;dir&gt;/&lt;label&gt;/</c>; with <c>CGE_GOLDEN_BASELINE=&lt;dir&gt;</c> a case is compared with the
-/// raw frame an earlier run wrote there, so a change to a pinned hash comes with its measured difference.
+/// ゴールデンフレームの証拠と再固定用の補助手段（ADR-0084 §7）。<c>CGE_GOLDEN_DUMP=&lt;dir&gt;</c>を指定すると、描画した各ケースを
+/// 生のRGBA8画像とPNGで<c>&lt;dir&gt;/&lt;label&gt;/</c>へ保存する。<c>CGE_GOLDEN_BASELINE=&lt;dir&gt;</c>を指定すると、過去の実行で保存した
+/// 生フレームと比較する。固定済みハッシュに変更があった場合、測定差分も確認できる。
 /// </summary>
 internal static class GoldenFrameDump {
     public static string?DumpDirectory=>System.Environment.GetEnvironmentVariable("CGE_GOLDEN_DUMP");
     public static string?BaselineDirectory=>System.Environment.GetEnvironmentVariable("CGE_GOLDEN_BASELINE");
     public static string Hash(PixelReadbackResult Frame)=>Convert.ToHexString(SHA256.HashData(Frame.Pixels));
-    /// <summary>How many pixels differ in any colour channel and the largest 8-bit difference of a channel (the alpha channel is not compared).</summary>
+    /// <summary>色チャンネルのいずれかが異なるピクセル数と、1チャンネルあたりの最大8ビット差分（アルファチャンネルは比較しない）。</summary>
     public static (int Different,int Largest)Difference(byte[]Expected,byte[]Actual){
         Assert.Equal(Expected.Length,Actual.Length);
         var Largest=0;
@@ -27,7 +27,7 @@ internal static class GoldenFrameDump {
         }
         return (Different,Largest);
     }
-    /// <summary>Writes the frame when <c>CGE_GOLDEN_DUMP</c> is set and returns the comparison with the baseline when <c>CGE_GOLDEN_BASELINE</c> is set (otherwise an empty string).</summary>
+    /// <summary><c>CGE_GOLDEN_DUMP</c>が設定されていればフレームを保存し、<c>CGE_GOLDEN_BASELINE</c>があればベースラインと比較した結果を返す（どちらもなければ空文字列）。</summary>
     public static string Record(string Label,string Case,PixelReadbackResult Frame){
         var Rows=Tight(Frame);
         var Directory=DumpDirectory;
@@ -52,7 +52,7 @@ internal static class GoldenFrameDump {
         var (Different,Largest)=Difference(Old,Rows);
         return $"{Label}/{Case}: {Different} of {Rows.Length/4} pixels differ from the baseline, largest channel difference {Largest}";
     }
-    /// <summary>Writes the parity table (CGE_GOLDEN_DUMP) the milestone document quotes.</summary>
+    /// <summary>マイルストーン文書が引用するパリティ表を書き出す（CGE_GOLDEN_DUMP）。</summary>
     public static void WriteReport(string Name,object Report){
         var Directory=DumpDirectory;
         if(Directory==null){
@@ -61,7 +61,7 @@ internal static class GoldenFrameDump {
         System.IO.Directory.CreateDirectory(Directory);
         File.WriteAllText(Path.Combine(Directory,Name),JsonSerializer.Serialize(Report,new JsonSerializerOptions { WriteIndented=true }));
     }
-    /// <summary>The frame's rows without the GPU row padding.</summary>
+    /// <summary>GPUの行パディングを除いた、フレームの各行データ。</summary>
     private static byte[]Tight(PixelReadbackResult Frame){
         var RowBytes=Frame.Width*4;
         var Result=new byte[RowBytes*Frame.Height];

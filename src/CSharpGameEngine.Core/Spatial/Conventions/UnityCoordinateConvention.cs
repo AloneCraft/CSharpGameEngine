@@ -3,9 +3,7 @@ using CSharpGameEngine.Spatial.Abstractions;
 namespace CSharpGameEngine.Spatial.Unity;
 
 /// <summary>
-/// Unity-compatible physical mapping: R=+X, U=+Y, F=+Z, LeftHanded (see
-/// Docs/Specifications/Spatial-RUF.md "Unity互換"). The mapping is an identity permutation of
-/// components, so <see cref="ToXyz"/>/<see cref="FromXyz"/> are trivially inlinable and branch-free.
+/// Unity 互換の物理マッピング：R=+X、U=+Y、F=+Z、左手系 (Docs/Specifications/Spatial-RUF.md の「Unity互換」を参照)。成分の並べ替えを行わない恒等マッピングなので、<see cref="ToXyz"/>/<see cref="FromXyz"/> はそのままインライン化でき、分岐もない。
 /// </summary>
 public readonly struct UnityCoordinateConvention:ICoordinateConvention {
     public static CoordinateHandedness Handedness=>CoordinateHandedness.LeftHanded;

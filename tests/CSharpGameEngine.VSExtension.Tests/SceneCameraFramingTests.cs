@@ -42,7 +42,7 @@ public sealed class SceneCameraFramingTests {
     }
 
     /// <summary>
-    /// <c>Matrix4x4.CreatePerspectiveFieldOfView</c>(right-handed)の M33/M43 から near/far を復元する。
+    /// <c>Matrix4x4.CreatePerspectiveFieldOfView</c>（右手系）の M33/M43 から near/far を復元する。
     /// M33=far/(near-far)、M43=near*far/(near-far)。
     /// </summary>
     internal static(float Near,float Far)ReadPerspectiveDepthRange(in Matrix4x4 Projection)=>(

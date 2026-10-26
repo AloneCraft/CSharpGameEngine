@@ -136,9 +136,9 @@ function Get-CgeFixedHives{
 function Get-CgeFixedInstallations([object[]]$Hives){
     $Matches=foreach($Hive in $Hives){
         $ExtensionsDirectory=Join-Path $Hive.FullName 'Extensions'
-        # Do not use return inside ForEach-Object: it can exit this function as soon as an
-        # unrelated extension manifest is encountered and make a valid C# Game Engine VSIX appear
-        # missing. A normal foreach keeps every manifest scan local to this hive.
+        # ForEach-Object 内で return を使わないでください。無関係な extension manifest に遭遇した時点で関数を終了し、
+        # 有効な C# Game Engine VSIX が存在しないように見せてしまう可能性があります。
+        # 通常の foreach を使い、各 manifest の検索をこの hive 内に留めます。
         foreach($Manifest in @(Get-ChildItem -LiteralPath $ExtensionsDirectory -Filter '*.vsixmanifest' -File -Recurse -ErrorAction SilentlyContinue)){
             try { $Identity=Get-VsixManifestIdentity $Manifest.FullName }
             catch { Write-Log "Ignoring unreadable extension manifest: $($Manifest.FullName)"; continue }
@@ -269,7 +269,7 @@ $PackageHash=Get-VsixAssemblyHash $VsixPath
 if($PackageHash -ne $BuildHash){
     throw "VSIX package DLL SHA-256 does not match build output. Package=$PackageHash Build=$BuildHash. Rebuild the VSIX before deployment."
 }
-# PowerShell unwraps one-item function output into a scalar. Preserve discovery as arrays so the singleton happy path has Count=1.
+# PowerShell は関数出力が1項目だけだと scalar に展開します。検出結果を常に array にし、単一項目の場合も Count=1 を保ちます。
 $Hives=@(Get-CgeFixedHives)
 $Installed=@(Get-CgeFixedInstallations $Hives)
 $Legacy=@(Get-CgeFixedLegacyDirectories $Hives)

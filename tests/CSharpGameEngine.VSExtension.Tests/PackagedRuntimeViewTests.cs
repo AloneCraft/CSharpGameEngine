@@ -6,8 +6,7 @@ using static CSharpGameEngine.VSExtension.NativeMethods;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// ADR-0070 B1: the Scene view's client opens the packaged preview host on a built game's runtime view
-/// and streams the edited scene's JSON to it; value edits show live and structural edits ask for a build.
+/// ADR-0070 B1：Scene ビューのクライアントは、ビルド済みゲームのランタイムビューでパッケージ化されたプレビューホストを開き、編集したシーンの JSON を送る。値の編集はすぐ反映し、構造の編集ではビルドを求める。
 /// </summary>
 public sealed class PackagedRuntimeViewTests {
     private const string EditedScene="UserEcsProject.Scenes.PrimitiveShowcaseBoxScene";

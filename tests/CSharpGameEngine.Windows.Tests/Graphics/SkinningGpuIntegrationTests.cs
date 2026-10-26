@@ -5,7 +5,7 @@ using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>ADR-0066: Skinning.hlsl rewrites a skinned mesh's vertices from the palette before the frame draws.</summary>
+/// <summary>ADR-0066：フレーム描画前にSkinning.hlslがパレットからスキニングメッシュの頂点を再計算する。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class SkinningGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -22,7 +22,7 @@ public sealed class SkinningGpuIntegrationTests {
     [Trait("Category","GPU")]
     public void Warp_PaletteBendsTheSecondJointAndBlendsTheSharedVertex(){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Skinning GPU Test",Width=64,Height=64,Visible=false });
-        // Vertex 0 follows joint 0, vertex 1 joint 1, vertex 2 both equally.
+        // 頂点0はジョイント0、頂点1はジョイント1、頂点2は両方に均等に追従する。
         ushort[]Joints=new ushort[3*8];
         float[]Weights=new float[3*8];
         Weights[0]=1f;
@@ -45,7 +45,7 @@ public sealed class SkinningGpuIntegrationTests {
         Renderer.SetCamera(Camera.CreateFirstPerson(new Vector3(0f,1f,-4f)));
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
         Renderer.RenderFrame();
-        // Before any palette the mesh is in its bind pose.
+        // パレットを設定するまでは、メッシュはバインド姿勢。
         var Bind=Vertices(Renderer.ReadSkinnedVerticesForTesting(0));
         AssertNear(new Vector3(0f,2f,0f),Bind[1].Position);
         var Bend=Matrix4x4.CreateTranslation(-Pivot)*Matrix4x4.CreateRotationZ(MathF.PI/2f)*Matrix4x4.CreateTranslation(Pivot);
@@ -74,7 +74,7 @@ public sealed class SkinningGpuIntegrationTests {
         Server.SetSkinPalette(0,[Matrix4x4.CreateTranslation(0f,5f,0f)]);
     }
     private static StageMeshCreateInfo BendableMesh(){
-        // Vertex 0 follows joint 0, vertex 1 joint 1, vertex 2 both equally.
+        // 頂点0はジョイント0、頂点1はジョイント1、頂点2は両方に均等に追従する。
         ushort[]Joints=new ushort[3*8];
         float[]Weights=new float[3*8];
         Weights[0]=1f;
@@ -92,7 +92,7 @@ public sealed class SkinningGpuIntegrationTests {
             Skin=new StageSkinCreateInfo { JointCount=2,JointIndices=Joints,Weights=Weights },
         };
     }
-    /// <summary>ADR-0078/M0107: a character spawned after the level loaded adds skinned meshes to a renderer that may have had none, or some.</summary>
+    /// <summary>ADR-0078/M0107：レベル読み込み後にキャラクターを生成すると、スキニングメッシュが0個または一部しかないレンダラーにも追加される。</summary>
     [WindowsOnlyTheory]
     [Trait("Category","GPU")]
     [InlineData(false)]
@@ -116,7 +116,7 @@ public sealed class SkinningGpuIntegrationTests {
         }
         Renderer.SetSkinPalette(Added,[Matrix4x4.Identity,Bend]);
         Renderer.RenderFrame();
-        // Before the first frame after the add the new mesh is in its bind pose; after it, bent by its own palette. The mesh from the start is untouched.
+        // 追加後、最初のフレームが始まるまでは新しいメッシュはバインド姿勢。その後は専用パレットで曲がる。最初からあるメッシュには影響しない。
         var Bent=Vertices(Renderer.ReadSkinnedVerticesForTesting(Added));
         AssertNear(Vector3.Zero,Bent[0].Position);
         AssertNear(Vector3.Transform(new Vector3(0f,2f,0f),Bend),Bent[1].Position);
@@ -125,7 +125,7 @@ public sealed class SkinningGpuIntegrationTests {
             var First=Vertices(Renderer.ReadSkinnedVerticesForTesting(0));
             AssertNear(new Vector3(0f,2f,0f),First[1].Position);
         }
-        // A third one and another frame: the palette ring keeps growing safely, and every frame is free of debug-layer errors.
+        // 3つ目を追加してもう1フレーム実行する。パレットリングは安全に拡張し、すべてのフレームでデバッグレイヤーエラーがない。
         var Third=Renderer.AddMesh(BendableMesh());
         Renderer.SetSkinPalette(Third,[Matrix4x4.Identity,Matrix4x4.Identity]);
         Renderer.RenderFrame();

@@ -2,7 +2,7 @@ using System.Text.Json;
 using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 public sealed class ThirdPersonCharacterVerificationTests {
-    /// <summary>A report shaped like the template run: stand, walk forward, jump, land.</summary>
+    /// <summary>テンプレート実行のようなレポート：立ち止まり、前進し、ジャンプして着地する。</summary>
     private static JsonElement Report(float WalkMeters=5f,float JumpMeters=1.2f,float FloorHeight=0.985f,int D3D12Errors=0,int Frames=ThirdPersonCharacterVerification.Frames,int?AudioRequests=null){
         var Positions=new List<float[]?>();
         for(var Frame=0;Frame<Frames;Frame++){

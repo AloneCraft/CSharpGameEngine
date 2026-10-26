@@ -49,12 +49,12 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="PreviewCleanPSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayPSMain");
-                // M0104: the screen layer's entries (ADR-0078).
+                // M0104：画面レイヤーのエントリー (ADR-0078)。
                 Assert.Contains("ScreenVSMain",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("ScreenPSMain",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ScreenPSMain");
-                // The Stage graph owns depth and a single vertex/pixel interface. Legacy ABI names have been removed.
+                // Stage グラフが深度と単一の頂点/ピクセルインターフェイスを所有する。レガシー ABI 名は削除済み。
                 Assert.Contains("StagePixelOutput PSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("StagePixelOutput CompleteStageSurface(VertexOutput input, float4 color)",BuiltSource,StringComparison.Ordinal);
                 Assert.Contains("float Depth : SV_DepthGreaterEqual;",BuiltSource,StringComparison.Ordinal);
@@ -67,7 +67,7 @@ public sealed class ShaderGraphCompilerTests {
                     "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain",
                 }.OrderBy(Name=>Name,StringComparer.Ordinal),Artifact.Entries.Select(Entry=>Entry.LogicalName).OrderBy(Name=>Name,StringComparer.Ordinal));
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ObserverVSMain");
-                // M0111: the Lumen surface prepass writes the normal and roughness and the distance; the card capture writes three targets.
+                // M0111：Lumen のサーフェス事前パスは法線、粗さ、距離を書き込み、カードキャプチャーは 3 つのターゲットを書き込む。
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="SurfacePrepassPSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="LumenCardPSMain");
                 Assert.Contains("SurfacePrepassOutput SurfacePrepassPSMain(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
@@ -100,19 +100,19 @@ public sealed class ShaderGraphCompilerTests {
         var PbrDeclarationId=PbrRoot.Edges.First(Edge=>Edge.ToNodeId==PbrTranslation.Id).FromNodeId;
         Assert.Contains(Export.SourceMap.Entries,Entry=>Entry.NodeId==PbrDeclarationId.ToString());
         var Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Export.Hlsl)));
-        // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows), ADR-0075 (world-space
-        // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin), M0099 Phase 3 (FrameCB
-        // depth-mapping packet), the M0099 conservative raster matrix and M0111 (FrameCB.LumenParams, t16/t17 and PSMain's
-        // Lumen branch, tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py) and M0119 (the logarithmic depth functions
-        // become the Depth subgraph, edits/depth_subgraph_2026_10_25.py) intentionally changed the Stage program; the
-        // migrate/extract round trip was verified byte-identical before those edits.
-        Assert.True(Hash=="0A8C045A56F0B3A18838C85ACAD86987550F4395DB687879E1CDF901A0D9A7AE",Hash);
+        // ADR-0069（sky light SH、物理フォグ、Unreal のフィルミック出力、sun cascades）、ADR-0075（ワールド空間
+        // プロシージャルグリッド）、M0099 フェーズ 0（レンダー原点のグリッドアンカーとフォグ高度）、M0099 フェーズ 3（FrameCB
+        // 深度マッピングのパケット）、M0099 の保守的ラスタ行列、M0111（FrameCB.LumenParams、t16/t17、および PSMain の
+        // Lumen 分岐、tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py）、M0119（対数深度関数が
+        // Depth サブグラフになること、edits/depth_subgraph_2026_10_25.py）は、Stage プログラムを意図的に変更した。
+        // これらの編集前に、migrate/extract の往復でバイト単位の一致を確認済み。
+        Assert.True(Hash=="621BCDE384820868E377B9299085E7B7EC84BB9693E8392911263712FA36349E",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {
-        // M0100/ADR-0084: a GPU's log2 and exp2 are approximations (an RTX 4060 Ti put a 4 um surface's depth 3 % off) and
-        // WARP evaluates them exactly, so no WARP test can see it. The depth functions every pass shares (the Depth
-        // subgraph) must stay on float arithmetic. The rest of the Stage program (fog, BRDF) does use exp and pow.
+        // M0100/ADR-0084：GPU の log2 と exp2 は近似値である（RTX 4060 Ti では 4 um の面の深度に 3 % の誤差が生じた）。また
+        // WARP はこれらを正確に評価するため、WARP テストでは検出できない。各パスが共有する深度関数（Depth
+        // サブグラフ）は float 演算を維持しなければならない。Stage プログラムの残り（フォグ、BRDF）では exp と pow を使う。
         var Hlsl=System.Text.RegularExpressions.Regex.Replace(HlslSyntaxGraphConverter.ExportWithSourceMap(ShaderGraphDependencyComposition.Resolve(GraphPath("Stage")).Composed).Hlsl,@"//[^\n]*",string.Empty);
         foreach(var Name in new[]{"RadialLog2OnePlus","RadialSafeLength","RadialG","EncodeRadialDepth","IsBeyondRadialFarPlane"}) {
             var Start=Hlsl.IndexOf(" "+Name+"(",StringComparison.Ordinal);
@@ -189,9 +189,7 @@ public sealed class ShaderGraphCompilerTests {
         } finally { Directory.Delete(DirectoryPath,true); }
     }
     /// <summary>
-    /// A failure is one line in MSBuild's canonical form at the graph, so a build lists its cause. Diagnostics were written
-    /// as "SubgraphMissing: ..." and an unreadable file as a stack trace, which MSBuild's Exec logs only as messages: the
-    /// error list showed nothing but MSB3073 (the command exited with code 1).
+    /// 失敗はグラフに対する MSBuild の標準形式で 1 行にまとめるため、ビルド結果に原因が表示される。以前は診断が "SubgraphMissing: ..." として書き出され、読み取り不能なファイルはスタックトレースになっていた。MSBuild の Exec ログではどちらもメッセージとしてしか記録されず、エラー一覧には MSB3073（コマンドがコード 1 で終了）のみが表示されていた。
     /// </summary>
     [Fact]
     public void Failures_AreCanonicalBuildErrorsAtTheGraph() {

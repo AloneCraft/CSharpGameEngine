@@ -6,11 +6,10 @@ using CSharpGameEngine.Spatial.Unreal;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Import Tests": each source tool's raw XYZ
-/// converts to RUF via <c>FromXyz</c>, and axis conversion is independent of (commutes with) unit
-/// conversion (Docs/Specifications/Spatial-RUF.md "Import/Export": "External axis conversion -&gt;
-/// Unit conversion -&gt; Semantic RUF normalization"). A full file importer is out of scope for this
-/// milestone; only the conversion functions themselves are exercised here.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Import Tests」。各ソースツールの生 XYZ 値を <c>FromXyz</c>
+///  で RUF に変換する。軸変換と単位変換は順序を入れ替えても結果が同じ。Docs/Specifications/Spatial-RUF.md の「Import/Export」にある「External
+///  axis conversion -&gt; Unit conversion -&gt; Semantic RUF normalization」の順序を確認する。このマイルストーンの範囲外である
+/// ファイル全体のインポーターではなく、変換関数自体だけをテストする。
 /// </summary>
 public class ImportAxisConversionTests {
     [Fact]

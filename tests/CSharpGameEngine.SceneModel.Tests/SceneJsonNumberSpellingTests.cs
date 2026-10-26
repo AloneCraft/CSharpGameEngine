@@ -4,9 +4,7 @@ using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.SceneAnalysis.Tests;
 
 /// <summary>
-/// Scene JSON numbers are spelled as .NET spells them, through exact arithmetic that gives the same text on .NET
-/// Framework (the VSIX checks <see cref="SceneJsonNumberSamples.Digest"/>). .NET rounds digits and parses correctly, so
-/// its own "G" formatting and parse are the oracle here: a document the tools wrote does not change.
+/// Scene JSON の数値表記は、.NET が出力する形式に合わせる。.NET Framework 上でも同じテキストになるよう、厳密な算術で生成する（VSIX は <see cref="SceneJsonNumberSamples.Digest"/> を確認する）。.NET は桁を丸め、正しく解析するため、ここでは .NET 自身の "G" 書式と解析結果を基準とする。ツールが書き出したドキュメントは変化しない。
 /// </summary>
 public sealed class SceneJsonNumberSpellingTests {
     private static string Normalize(string Text)=>Text=="-0"?"0":Text;
@@ -63,9 +61,7 @@ public sealed class SceneJsonNumberSpellingTests {
     }
 
     /// <summary>
-    /// A kept author spelling must read back as the value everywhere: the check agrees with .NET's parse, which rounds
-    /// straight to a float as C# does a float literal, for texts of every length (over-precise ones included). The last
-    /// text lies just above the tie between 1 and the next float, so parsing a double first and rounding that again gives 1.
+    /// 保持された作成者の表記は、どこでも同じ値に読み戻されなければならない。チェックでは .NET の解析結果と照合する。C# の float リテラルと同様に直接 float へ丸めるため、桁数を問わず（過剰な精度の数値も含めて）適用できる。最後のテキストは 1 と次の float の中間値をわずかに上回るため、先に double として解析してから再度丸めると 1 になる。
     /// </summary>
     [Fact]
     public void ReadsBack_AgreesWithTheParse(){
@@ -88,7 +84,7 @@ public sealed class SceneJsonNumberSpellingTests {
         Assert.Equal((true,false),(SceneJsonDecimal.ReadsBack("3.4028235677973366E+38",float.MaxValue),SceneJsonDecimal.ReadsBack("3.4028235677973367E+38",float.MaxValue)));
     }
 
-    /// <summary>An exponent at or past the ends of int is no reason to throw: the text is then written from the value.</summary>
+    /// <summary>指数部が int の範囲の端または範囲外でも、例外を投げる理由にはならない。その場合は値からテキストを書き出す。</summary>
     [Theory]
     [InlineData("1e-2147483648")]
     [InlineData("1e2147483647")]

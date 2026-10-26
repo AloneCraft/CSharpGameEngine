@@ -7,8 +7,7 @@ using CSharpGameEngine.Rendering;
 using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// M0099 Phase 6 (ADR-0076, Omni specification "Observer view"): a RadialObserver shows the world compressed around
-/// the active radial camera from outside, as a camera preview inset in the game.
+/// M0099 Phase 6（ADR-0076、Omni 仕様「Observer view」）：RadialObserver は、アクティブな radial camera の周囲で圧縮された世界を外側から表示します。ゲーム内カメラのプレビュー inset として表示されます。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RadialObserverTests {
@@ -34,7 +33,7 @@ public sealed class RadialObserverTests {
         var Eye=new Vector3(0f,0f,-80f);
         Assert.True(RadialObserverView.TryCreatePreview(RadialCenter(),1000,500,Observer,Eye,Vector3.UnitZ,Vector3.UnitY,out var Preview));
         Assert.Equal((680,320,300,165),(Preview.X,Preview.Y,Preview.Width,Preview.Height));
-        // The centre camera sits at the middle of the inset, and the far plane reaches past the compressed world.
+        // 中心カメラは inset の中央に位置し、far plane は圧縮された世界の先まで届きます。
         var Centre=Vector4.Transform(new Vector4(-Eye,1f),Preview.ViewProjection);
         Assert.Equal(0f,Centre.X/Centre.W,5);
         Assert.Equal(0f,Centre.Y/Centre.W,5);
@@ -54,7 +53,7 @@ public sealed class RadialObserverTests {
         Assert.Single(RunGame(Editor:false));
         Assert.Empty(RunGame(Editor:true));
     }
-    /// <summary>Loads a level with a box, a scene camera and a RadialObserver, runs two frames and returns the previews drawn.</summary>
+    /// <summary>ボックス、シーンカメラ、RadialObserver を含むレベルをロードして2フレーム実行し、描画されたプレビューを返します。</summary>
     private static RenderCameraPreviewDiagnostics[]RunGame(bool Editor){
         using var Surface=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Observer Test",Width=160,Height=90,Visible=false });
         using var Host=new EngineHost();

@@ -1,12 +1,10 @@
 namespace CSharpGameEngine.ShaderArtifacts;
 
 /// <summary>
-/// Engine-owned presentation entries appended to every Stage translation unit before DXC.
-/// They share the Stage resource layout and are part of its hashed ABI; runtime never compiles
-/// this source. MaterialParams.z carries the presentation mode and EmissiveNits.w carries the
-/// selection weight. The shipping Stage entries intentionally ignore both components.
-/// The Stage graph owns view depth and its single vertex/pixel interface (ADR-0084).
-/// The Lumen entries (M0111) write the surface prepass and the surface cache cards from the same material inputs as PSMain.
+/// DXC の前にすべての Stage 翻訳単位へ追加する、エンジン所有のプレゼンテーション用エントリー。Stage のリソースレイアウトを共有し、ハッシュ化された ABI の一部となる。実行時にこの
+/// ソースをコンパイルすることはない。MaterialParams.z は表示モード、EmissiveNits.w は選択ウェイトを保持する。出荷用 Stage エントリーでは、この2つの成分を意図的に
+/// 無視する。Stage グラフがビュー深度と、頂点／ピクセル間の単一インターフェースを所有する（ADR-0084）。Lumen エントリー（M0111）は PSMain と同じマテリアル入力を使い、
+/// サーフェス前処理とサーフェスキャッシュのカードを書き込む。
 /// </summary>
 public static class StagePresentationShaderSource {
     public const string Source="""

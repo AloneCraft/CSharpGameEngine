@@ -5,10 +5,10 @@ using SharpGLTF.Geometry.VertexTypes;
 using SharpGLTF.Materials;
 using SharpGLTF.Scenes;
 namespace CSharpGameEngine.Import.Tests.Gltf;
-/// <summary>ADR-0066: skins and animations leave the importer in engine space, consistent with the mesh geometry.</summary>
+/// <summary>ADR-0066：スキンとアニメーションはメッシュ形状と整合するよう、インポーターからエンジン空間のまま出力される。</summary>
 public sealed class GltfSkinAnimationImportTests {
     private static readonly Quaternion QuarterTurnAboutX=Quaternion.CreateFromAxisAngle(Vector3.UnitX,MathF.PI/2f);
-    /// <summary>Two joints, the child offset along glTF +Z so the axis conversion is visible, and a clip that turns the child about +X.</summary>
+    /// <summary>2 つのジョイント。軸変換が分かるように子を glTF の +Z 方向へオフセットし、子を +X 周りに回転させるクリップ。</summary>
     private static string SaveSkinnedFixture(){
         var Root=new NodeBuilder("root");
         var Child=Root.CreateNode("child").WithLocalTranslation(new Vector3(0f,1f,0.5f));
@@ -51,7 +51,7 @@ public sealed class GltfSkinAnimationImportTests {
             Assert.Equal(["root","child"],Skin.JointNames);
             Assert.Equal([-1,0],Skin.ParentIndices);
             Assert.Equal(new Vector3(0f,1f,-0.5f),Skin.RestTranslations[1]);
-            // At rest, every palette entry is identity: the inverse bind matrix undoes the rest model transform.
+            // 静止時、すべてのパレット要素は単位行列になる。逆バインド行列が静止モデル変換を取り消すため。
             var Model=new Matrix4x4[2];
             for(var Joint=0;Joint<2;Joint++){
                 var Local=Matrix4x4.CreateScale(Skin.RestScales[Joint])*Matrix4x4.CreateFromQuaternion(Skin.RestRotations[Joint])*Matrix4x4.CreateTranslation(Skin.RestTranslations[Joint]);
@@ -69,7 +69,7 @@ public sealed class GltfSkinAnimationImportTests {
                 for(var Slot=0;Slot<Slots;Slot++){ Sum+=Influences.Weights[(Vertex*Slots)+Slot]; }
                 Assert.InRange(Sum,0.999f,1.001f);
             }
-            // The mixed vertex (engine z = -0.5 at x = 1) weighs joint 1 three times joint 0.
+            // 混合頂点（x = 1 でエンジン z = -0.5）は、ジョイント 0 の 3 倍の重みをジョイント 1 に与える。
             var Mixed=Enumerable.Range(0,Mesh.Positions.Count).Single(Vertex=>Mesh.Positions[Vertex].X>0.5f);
             Assert.Equal(new Vector3(1f,2f,-0.5f),Mesh.Positions[Mixed]);
             var WeightOfChild=Enumerable.Range(0,Slots).Where(Slot=>Influences.JointIndices[(Mixed*Slots)+Slot]==1).Sum(Slot=>Influences.Weights[(Mixed*Slots)+Slot]);

@@ -4,9 +4,8 @@ using System.Globalization;
 using System.Text;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Strict RFC 8259 reader for scene documents (ADR-0070): no comments, no trailing commas, and
-/// duplicate object keys are rejected because a scene value must have exactly one meaning. Errors
-/// carry the character offset so diagnostics can point at the JSON line and column.
+/// Scene ドキュメント用の厳密な RFC 8259 リーダー（ADR-0070）。コメントと末尾カンマは認めず、オブジェクトキーの重複も拒否する。1つの Scene 値に複数の解釈があってはならない
+/// ためである。エラーには文字オフセットが含まれ、診断を JSON の行と列に結び付けられる。
 /// </summary>
 internal static class SceneJsonReader {
     internal static SceneJsonValue Parse(string Text){
@@ -18,7 +17,7 @@ internal static class SceneJsonReader {
         if(Position!=Text.Length){ throw new SceneJsonException("Unexpected text after the JSON value.",Position); }
         return Value;
     }
-    /// <summary>Whether <paramref name="Text"/> is exactly one JSON number (a double's NaN or infinity text is not).</summary>
+    /// <summary><paramref name="Text"/> が正確に1つの JSON 数値か（double の NaN または無限大を表すテキストではないか）。</summary>
     internal static bool IsNumber(string Text){
         if(string.IsNullOrEmpty(Text)){ return false; }
         var Position=0;
@@ -29,7 +28,7 @@ internal static class SceneJsonReader {
         }
         return Position==Text.Length;
     }
-    /// <summary>1-based line and column of <paramref name="Position"/>, counting \n as the line break.</summary>
+    /// <summary><paramref name="Position"/> の1始まりの行と列。改行には \n を数える。</summary>
     internal static (int Line,int Column)LineAndColumn(string Text,int Position){
         var Line=1;
         var LineStart=0;

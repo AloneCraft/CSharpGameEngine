@@ -5,11 +5,11 @@ public sealed class HlslCompileRequest {
 
     public required string EntryPoint { get; init;}
 
-    /// <summary>DXC shader profile, e.g. <c>vs_6_0</c> or <c>ps_6_0</c>.</summary>
+    /// <summary>DXC のシェーダープロファイル。例：<c>vs_6_0</c> または <c>ps_6_0</c>。</summary>
     public required string TargetProfile { get; init;}
 
     public IReadOnlyList<HlslDefine>Defines { get; init;}=[];
 
-    /// <summary>When true, requests embedded debug info and disables optimization (DXC <c>-Zi -Od</c>).</summary>
+    /// <summary>true の場合、埋め込みデバッグ情報を要求して最適化を無効にする (DXC <c>-Zi -Od</c>)。</summary>
     public bool EnableDebugInfo { get; init;}
 }

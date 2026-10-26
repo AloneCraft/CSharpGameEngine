@@ -5,16 +5,13 @@ using System.Linq;
 using System.Text;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Writes an edited scene back into the author's text (M0095, ADR-0070). The editor produces the whole
-/// scene in the canonical layout; this keeps every part of the old text whose value did not change and
-/// replaces only the values that did: a changed scalar by its new text, a key the new document adds by one
-/// inserted property, and an object that loses a key or an array whose length changed by its new canonical
-/// text. The author's key order is layout, as is a node's empty <c>components</c> or <c>children</c> and a
-/// component's empty <c>members</c> left out. The result reads as exactly the new document; if it did not,
-/// the canonical text is returned instead.
+/// M0095、ADR-0070：編集済み Scene を作成者のテキストへ書き戻す。エディターは Scene 全体を正準レイアウトで生成するが、値が変わっていない古いテキスト部分はすべて保持し、変わった
+/// 値だけを置き換える。変更されたスカラーは新しいテキストにし、新しいドキュメントが追加したキーはプロパティを1つ挿入し、キーを削除したオブジェクトや長さの変わった配列は正準テキストに置き換える。作成者の
+/// キー順もレイアウトとして保つ。ノードの空の <c>components</c> や <c>children</c>、コンポーネントの空の <c>members</c> は省略する。結果が新しい
+/// ドキュメントと完全に一致しない場合は、正準テキスト全体を返す。
 /// </summary>
 internal static class SceneJsonTextMerge {
-    /// <summary>Where a value sits in a scene document, which decides the keys that may be left out when empty.</summary>
+    /// <summary>Scene ドキュメント内の値の位置。空の場合に省略できるキーが決まる。</summary>
     private enum Role { Other,Document,Node,Component }
 
     private readonly struct Edit {
@@ -45,7 +42,7 @@ internal static class SceneJsonTextMerge {
         Collect(Old,New,Role.Document,OldText,NewText,Edits);
         if(Edits.Count==0){ return OldText; }
         var Builder=new StringBuilder(OldText);
-        // From the end, so earlier positions stay valid; insertions at one position keep their collected order.
+        // 末尾から適用するため、前にある位置が保たれる。同じ位置への挿入は収集した順を保つ。
         foreach(var Change in Edits.OrderByDescending(static Change=>Change.Start).ThenByDescending(static Change=>Change.Sequence)){
             Builder.Remove(Change.Start,Change.End-Change.Start);
             Builder.Insert(Change.Start,Change.Text);
@@ -58,7 +55,7 @@ internal static class SceneJsonTextMerge {
         }
     }
 
-    /// <summary>The edits that turn the old value's text into the new value.</summary>
+    /// <summary>古い値のテキストから新しい値に変換する編集操作。</summary>
     private static void Collect(SceneJsonValue Old,SceneJsonValue New,Role Role,string OldText,string NewText,List<Edit>Edits){
         if(SameValue(Old,New,Role)){ return; }
         if(Old.Kind==SceneJsonKind.Object&&New.Kind==SceneJsonKind.Object&&CollectObject(Old,New,Role,OldText,NewText,Edits)){
@@ -74,9 +71,8 @@ internal static class SceneJsonTextMerge {
     }
 
     /// <summary>
-    /// Merges two objects key by key: kept keys recurse, and a key only the new object has is inserted after the
-    /// nearest key before it that the old text has. False (replace the object) when the new object drops a key or
-    /// either names one twice.
+    /// 2つのオブジェクトをキーごとにマージする。両方にあるキーは再帰的に処理し、新オブジェクトだけにあるキーは、旧テキスト内でその前にある最も近いキーの後へ挿入する。新オブジェクトが旧キーを削除した場合、ま
+    /// たはいずれかでキー名が重複している場合は false を返し、オブジェクト全体を置き換える。
     /// </summary>
     private static bool CollectObject(SceneJsonValue Old,SceneJsonValue New,Role Role,string OldText,string NewText,List<Edit>Edits){
         if(HasDuplicateNames(Old)||HasDuplicateNames(New)){ return false; }
@@ -121,17 +117,14 @@ internal static class SceneJsonTextMerge {
         _=>Role.Other,
     };
 
-    /// <summary>A key that reads the same left out: a node's empty components or children, a component's empty members.</summary>
+    /// <summary>同じ値として読み取るキー省略状態。ノードの空の components または children、コンポーネントの空の members。</summary>
     private static bool MayLeaveOut(Role Role,string Name,SceneJsonValue Value)=>(Role,Name) switch {
         (Role.Node,"components" or "children")=>Value.Kind==SceneJsonKind.Array&&Value.Items.Count==0,
         (Role.Component,"members")=>Value.Kind==SceneJsonKind.Object&&Value.Properties.Count==0,
         _=>false,
     };
 
-    /// <summary>
-    /// The same scene document: numbers compare by value ("1.0" equals "1"), objects by their keys in any order, and
-    /// a key that may be left out when empty equals its absence.
-    /// </summary>
+    /// <summary>同じ Scene ドキュメントかを判定する。数値は値で比較し（"1.0" と "1" は等しい）、オブジェクトはキー順を問わず比較する。空の場合に省略できるキーは、存在しない状態と等しい。</summary>
     internal static bool SameValue(SceneJsonValue Old,SceneJsonValue New)=>SameValue(Old,New,Role.Document);
 
     private static bool SameValue(SceneJsonValue Old,SceneJsonValue New,Role Role){
@@ -159,7 +152,7 @@ internal static class SceneJsonTextMerge {
         }
     }
 
-    /// <summary>Objects that name a key twice compare by their keys in order, as the reader's first-wins lookup cannot tell them apart.</summary>
+    /// <summary>同じキーを2回記述したオブジェクトは、キーの順序で比較する。リーダーは最初の値を使うため、それ以外の値は区別できない。</summary>
     private static bool SameInOrder(SceneJsonValue Old,SceneJsonValue New,Role Role){
         if(Old.Properties.Count!=New.Properties.Count){ return false; }
         for(var Index=0;Index<Old.Properties.Count;Index++){
@@ -171,11 +164,7 @@ internal static class SceneJsonTextMerge {
         return true;
     }
 
-    /// <summary>
-    /// Exact comparison of two JSON number texts without rounding them into a number type: both become
-    /// sign, significant digits and exponent ("1.0" and "1" are both 0.1e1), so large integers never
-    /// compare equal by rounding.
-    /// </summary>
+    /// <summary>JSON 数値テキストを数値型へ丸めずに厳密比較する。符号、有効桁、指数に分解して比較するため（"1.0" と "1" はどちらも 0.1e1）、大きな整数が丸めによって同じ値になることはない。</summary>
     private static bool SameNumber(string Old,string New)=>
         NormalizeNumber(Old) is { }OldForm&&string.Equals(OldForm,NormalizeNumber(New),StringComparison.Ordinal);
     internal static string?NormalizeNumber(string Text){

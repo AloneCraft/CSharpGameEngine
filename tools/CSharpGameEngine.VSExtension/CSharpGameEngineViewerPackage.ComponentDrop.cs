@@ -10,9 +10,7 @@ namespace CSharpGameEngine.VSExtension;
 
 public sealed partial class CSharpGameEngineViewerPackage {
     /// <summary>
-    /// Creates a root child in one scene operation for a component dropped on hierarchy whitespace.
-    /// Lights receive their required Transform in the same operation, so no transient invalid entity
-    /// is observable by the editor, source writer, or undo stack.
+    /// Hierarchy の空白部分にコンポーネントをドロップした場合、シーン操作 1 回でルートの子を作成する。ライトに必要な Transform も同じ操作で追加するため、エディター、ソースライター、Undo スタックのいずれからも、一時的に不正な Entity を観測できない。
     /// </summary>
     private async Task TryCreateRootChildForComponentAsync(
         ComponentAddRequest Request,SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
@@ -97,7 +95,7 @@ public sealed partial class CSharpGameEngineViewerPackage {
             return Expression;
         }
 
-        // R/U/F Euler angles: a positive quarter turn around R maps local +F down to -U.
+        // R/U/F オイラー角：R 周りの正の 4 分の 1 回転で、ローカル +F は -U の方向へ向く。
         string QuaternionEuler=Regex.Replace(Expression,
             @"(Rotation\s*=\s*new\s+[^\(]+\(\s*new\s+[^\(]+\(\s*)0(\s*,\s*0\s*,\s*0\s*\)\s*\))",
             "${1}1.5707964f${2}",RegexOptions.CultureInvariant);
@@ -112,7 +110,7 @@ public sealed partial class CSharpGameEngineViewerPackage {
             return Euler;
         }
 
-        // Keep generated scenes authored against the prior flat-quaternion Transform readable.
+        // 以前の平坦なクォータニオン型 Transform に基づいて作成されたシーンも読み込めるようにする。
         return Expression.Replace("RotationX=default","RotationX=0.70710678f")
             .Replace("RotationW=1f","RotationW=0.70710678f")
             .Replace("RotationW=FixedRotationScalar.One","RotationW=0.70710678f");

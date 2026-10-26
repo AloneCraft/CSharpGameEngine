@@ -87,7 +87,7 @@ float4 SampleGlobalIllumination(float3 worldPosition, float3 normal, float3 view
 
 
 def edit(source):
-    # Earlier migrations left mixed CRLF/LF line endings in the composed source.
+    # 以前の migration により、合成した source 内で CRLF と LF の改行が混在していました。
     source = source.replace("\r\n", "\n")
     source = replace_once(source, """    float4 CascadeDepthRanges;
 }""", """    float4 CascadeDepthRanges;

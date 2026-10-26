@@ -669,9 +669,7 @@ internal static class SceneModelEditApplier {
         return true;
     }
     /// <summary>
-    /// A string literal for a string member, or a member of the member's own enum type: the Inspector's text and enum
-    /// editors write these. Both resolve from the declared type without the semantic model, and a JSON scene (every scene
-    /// since M0093) has no C# text edit to fall back to, so without this every such edit failed.
+    /// 文字列メンバーの string literal、またはメンバー自身の enum 型の値です。Inspector のテキスト editor と enum editor はこれらを書き込みます。どちらも semantic model を使わずに宣言型から解決できます。また M0093 以降はすべてのシーンが JSON であり、代替となる C# テキスト編集がありません。これがないと、これらの編集はすべて失敗していました。
     /// </summary>
     private static bool TryCreateEnumOrTextValue(
         string Expression,Microsoft.CodeAnalysis.ITypeSymbol?Type,SceneComponentMember?Existing,SceneSourceLocation Fallback,out SceneValue Value){
@@ -714,8 +712,8 @@ internal static class SceneModelEditApplier {
             ConstantValue=Boolean;
             return true;
         }
-        // An integer member's value is parsed as an integer of its type, and fails out of its range: through float,
-        // 123456789 became 123456792 and the Inspector's U/L suffixes (4000000001U) did not parse at all.
+        // 整数メンバーの値はその型の整数として解析され、範囲外では失敗します。float 経由では
+        // 123456789 が 123456792 になり、Inspector の U/L suffix（4000000001U）も解析できませんでした。
         if((DeclaredType??Existing?.Value.Type)?.SpecialType is { }Special&&IsIntegerType(Special)){
             return TryParseInteger(Text,Special,out ConstantValue);
         }
@@ -742,8 +740,7 @@ internal static class SceneModelEditApplier {
             or SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64;
 
     /// <summary>
-    /// An integer of the given integer type from its text (an optional U, L or UL suffix, as the Inspector writes them);
-    /// false for a fraction, an exponent or a value out of the type's range.
+    /// 指定された整数型の値をテキストから読み取ります（Inspector が書き込む任意の U、L、UL suffix に対応）。小数、指数表記、型の範囲外の値では false を返します。
     /// </summary>
     private static bool TryParseInteger(string Text,SpecialType Type,out object?Value){
         Value=null;

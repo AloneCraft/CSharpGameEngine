@@ -1,10 +1,7 @@
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Thrown for Authoring/Import/Build-time coordinate configuration errors (invalid basis,
-/// non-orthogonal axes, zero-length axes, duplicate axes, degenerate LookRotation input, invalid
-/// import unit scale, non-finite values). Deliberately not thrown from hot-path per-frame
-/// conversions - see Docs/Specifications/Spatial-RUF.md "エラー処理".
+/// 作成/インポート/ビルド時の座標設定エラー（無効な基底、直交しない軸、長さ 0 の軸、重複した軸、退化した LookRotation 入力、無効なインポート単位スケール、有限でない値）に対してスローする。ホットパスのフレームごとの変換では意図的にスローしない (Docs/Specifications/Spatial-RUF.md の「エラー処理」を参照)。
 /// </summary>
 public sealed class SpatialConfigurationException:Exception {
     public SpatialConfigurationException(string Message)

@@ -14,7 +14,7 @@ namespace CSharpGameEngine.Graphics.D3D12;
 internal readonly record struct D3D12ComputeReadbackResult(
     float[]Values,string AdapterDescription,int ErrorOrWorseMessageCount);
 
-/// <summary>Private L0 WARP/hardware compute primitive. No native type crosses this boundary.</summary>
+/// <summary>非公開 L0 の WARP / ハードウェア共通コンピュートプリミティブ。ネイティブ型はこの境界を越えない。</summary>
 internal static unsafe class D3D12ComputeReadback {
     private const uint ThreadGroupSize=64;
     private const int MaximumElementCount=1_048_576;

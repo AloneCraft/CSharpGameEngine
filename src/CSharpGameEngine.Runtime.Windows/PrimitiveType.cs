@@ -1,5 +1,8 @@
 namespace CSharpGameEngine.Runtime.Windows;
-/// <summary>Which <see cref="CSharpGameEngine.Geometry.ProceduralMeshFactory"/> shape a <see cref="PrimitiveMesh"/> generates. One entry per <c>Create*</c> method on that factory.</summary>
+/// <summary>
+/// <see cref="PrimitiveMesh"/>が生成する、<see cref="CSharpGameEngine.Geometry.ProceduralMeshFactory"/>の形状。
+/// ファクトリーの各<c>Create*</c>メソッドに1つずつ対応する。
+/// </summary>
 public enum PrimitiveType {
     Plane,
     Box,

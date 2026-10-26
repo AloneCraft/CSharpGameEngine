@@ -1,7 +1,7 @@
 using CSharpGameEngine.Rendering;
 using System.Numerics;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>ADR-0078/M0111: the surface cache's card atlas and card geometry, the tier budgets and the scalability resolution (no GPU).</summary>
+/// <summary>ADR-0078/M0111：サーフェスキャッシュのカードアトラスとカードジオメトリ、ティア予算、スケーラビリティの解像度（GPU不要）。</summary>
 public sealed class LumenSurfaceCacheLayoutTests {
     [Fact]
     public void Atlas_PacksCardsOfOneSizeIntoAPageAndGivesThePageBackWhenEmpty(){
@@ -12,7 +12,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
             Assert.True(Atlas.TryAllocate(32,32,out var X,out var Y));
             Cards.Add((X,Y));
         }
-        // Sixteen 32 x 32 cards fill one 128 x 128 page exactly, without overlap.
+        // 32 x 32カードを16枚並べると、重なりなく128 x 128ページをちょうど満たす。
         Assert.Equal(3,Atlas.FreePageCount);
         Assert.Equal(16,Cards.Distinct().Count());
         Assert.All(Cards,Card=>Assert.True(Card.X%32==0&&Card.Y%32==0&&Card.X<128&&Card.Y<128));
@@ -33,7 +33,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
         }
         Assert.Equal(16,Cards.Count);
         Assert.Equal(16,Cards.Select(Card=>Card.Y).Distinct().Count());
-        // Full: another size finds no page; freeing one card of the full page still leaves no free page.
+        // Fullでは別サイズのカードに割り当てられるページがない。Fullページのカードを1つ解放しても、空きページは生まれない。
         Assert.False(Atlas.TryAllocate(8,8,out _,out _));
         Atlas.Free(Cards[3].X,Cards[3].Y,128,8);
         Assert.False(Atlas.TryAllocate(8,8,out _,out _));
@@ -53,7 +53,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
             Assert.Equal(Axis,Vector3.Cross(LumenCards.U(Face),LumenCards.V(Face)));
             var Centre=(Minimum+Maximum)*0.5f;
             var Half=(Maximum-Minimum)*0.5f;
-            // The face's centre is at depth 0, the opposite face's at depth 1, and every corner of the box inside the clip square.
+            // 面の中央の深度は0、反対側の面は1。ボックスの各角はクリップ四角形内に入る。
             var Near=Vector4.Transform(new Vector4(Centre+Axis*Vector3.Dot(Vector3.Abs(Axis),Half),1f),Projection);
             var Far=Vector4.Transform(new Vector4(Centre-Axis*Vector3.Dot(Vector3.Abs(Axis),Half),1f),Projection);
             Assert.Equal(0f,Near.Z,5);
@@ -68,7 +68,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
                 Assert.InRange(Clip.Z,-1e-5f,1f+1e-5f);
                 Assert.Equal(1f,Clip.W);
             }
-            // +U is the card's +x (right), +V its +y (up).
+            // +Uはカードの+x（右）、+Vは+y（上）。
             Assert.True(Vector4.Transform(new Vector4(Centre+LumenCards.U(Face),1f),Projection).X>0f);
             Assert.True(Vector4.Transform(new Vector4(Centre+LumenCards.V(Face),1f),Projection).Y>0f);
         }
@@ -78,7 +78,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
         var (Minimum,Maximum)=LumenCards.CardBox(new Vector3(-0.5f,0f,-0.5f),new Vector3(0.5f,0f,0.5f));
         Assert.True(Maximum.Y>Minimum.Y);
         Assert.True(Minimum.X< -0.5f&&Maximum.X>0.5f);
-        // A 127 m floor reaches the tier's largest card, a 1 m side the smallest, at 4 texels per metre.
+        // 一辺127 mの床はティア最大サイズのカードを使い、1 mの側面は最小サイズを使う。いずれも1 mあたり4テクセル。
         Assert.Equal((128,128),LumenCards.Resolution(2,Minimum,Maximum,new Vector3(127f,1f,127f),4f,128));
         Assert.Equal((64,64),LumenCards.Resolution(2,Minimum,Maximum,new Vector3(127f,1f,127f),4f,64));
         Assert.Equal((8,8),LumenCards.Resolution(0,Minimum,Maximum,Vector3.One,4f,128));
@@ -89,7 +89,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
     public void Tier_FollowsUnrealsScalabilityAndThePostProcessVolume(){
         var Epic=StageLumen.ResolveTier(LumenSettings.Unreal,RenderScalability.Epic);
         var High=StageLumen.ResolveTier(LumenSettings.Unreal,new RenderScalability(ScalabilityLevel.High,ScalabilityLevel.High));
-        // BaseScalability.ini: screen probes every 16 pixels at Epic and 32 at High; reflections full resolution at Epic and half at High.
+        // BaseScalability.iniではEpicのスクリーンプローブ間隔が16ピクセル、Highが32ピクセル。反射はEpicで全解像度、Highで半解像度。
         Assert.Equal(16,Epic.ProbeTexels);
         Assert.Equal(32,High.ProbeTexels);
         Assert.Equal(1,Epic.ReflectionDownsample);
@@ -103,7 +103,7 @@ public sealed class LumenSurfaceCacheLayoutTests {
     }
     [Fact]
     public void Scalability_DefaultsPerAdapterAndReadsTheVariables(){
-        // A hardware adapter defaults to High (Epic is opt-in, M0111), WARP to Medium (the probe volume).
+        // ハードウェアアダプターの既定値はHigh（EpicはM0111でオプトイン）、WARPではMedium（プローブボリューム）。
         Assert.Equal(RenderScalability.High,RenderScalabilityResolver.Resolve(false,null,null));
         Assert.Equal(RenderScalability.Medium,RenderScalabilityResolver.Resolve(true,null,null));
         Assert.Equal(RenderScalability.Epic,RenderScalabilityResolver.Resolve(true,"epic",null));

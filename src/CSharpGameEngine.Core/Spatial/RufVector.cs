@@ -1,11 +1,11 @@
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Semantic Right/Up/Forward coordinate - game-meaningful direction/position, independent of any
-/// physical X/Y/Z axis mapping. <see cref="Right"/>/<see cref="Up"/>/<see cref="Forward"/> (and
-/// their opposites) always mean the same thing regardless of which <see cref="ICoordinateConvention"/>
-/// is active; only <see cref="ICoordinateConvention.ToXyz"/>/<see cref="ICoordinateConvention.FromXyz"/>
-/// know how a given preset maps this to physical storage. Blittable, unmanaged, no heap allocation.
+/// 意味上のRight／Up／Forward座標。ゲーム内で意味を持つ方向／位置を表し、物理的なX／Y／Z軸の対応付けには依存しない。
+/// 有効な<see cref="ICoordinateConvention"/>にかかわらず、<see cref="Right"/>／<see cref="Up"/>／<see cref="Forward"/>とその反対方向は
+/// 常に同じ意味を持つ。各プリセットでこれを物理ストレージへどう対応付けるかを知るのは、
+/// <see cref="ICoordinateConvention.ToXyz"/>／<see cref="ICoordinateConvention.FromXyz"/>だけである。
+/// Blittableなアンマネージ型で、ヒープ割り当ては発生しない。
 /// </summary>
 public readonly struct RufVector(float R,float U,float F):IEquatable<RufVector>{
     public float R { get;}=R;
@@ -48,13 +48,7 @@ public readonly struct RufVector(float R,float U,float F):IEquatable<RufVector>{
     }
 
     /// <summary>
-    /// Standard cross-product formula applied directly to the R/U/F components, treating them as
-    /// an internal right-handed triple. This is intentionally internal: applied to arbitrary
-    /// vectors it does NOT know about any <see cref="ICoordinateConvention"/>'s physical
-    /// Handedness, so it must never be exposed as a general-purpose public API (see
-    /// Docs/Specifications/Spatial-RUF.md "Cross Product仕様"). It exists only to build
-    /// self-consistent local bases (e.g. <see cref="RufQuaternion.LookRotation"/>) where no
-    /// external physical convention is involved.
+    /// R/U/F 成分に直接標準の外積公式を適用し、それらを内部の右手系 3 成分として扱う。これは意図的に internal とする。任意のベクトルに適用しても <see cref="ICoordinateConvention"/> が宣言する物理的な左右系を考慮しないため、汎用の public API として公開してはならない (Docs/Specifications/Spatial-RUF.md の「Cross Product仕様」を参照)。外部の物理規約が関与しない、自己整合したローカル基底（例：<see cref="RufQuaternion.LookRotation"/>）を作る場合にのみ使用する。
     /// </summary>
     internal static RufVector RawCross(RufVector Left,RufVector Right)=>new(
         (Left.U*Right.F)-(Left.F*Right.U),

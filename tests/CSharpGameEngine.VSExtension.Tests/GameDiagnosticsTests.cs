@@ -5,8 +5,7 @@ using System.Linq;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// M0097: the Diagnostic Tools commands offer the running games of the solution. A game started from a build
-/// already has this Visual Studio's debugger, so attaching skips it; the profilers measure it all the same.
+/// M0097：Diagnostic Tools コマンドはソリューションで実行中のゲームを提示する。ビルドから開始したゲームにはこの Visual Studio のデバッガーがすでに付いているため、アタッチを省略する。プロファイラーは同じように測定できる。
 /// </summary>
 public sealed class GameDiagnosticsTests {
     private static readonly GameProcessInfo[]Running=[

@@ -35,8 +35,7 @@ public sealed record VsixReleaseReport(
     IReadOnlyList<VsixReleaseInput>Inputs);
 
 /// <summary>
-/// Binds the exact VSIX package to strict compatibility, current-package UI observations,
-/// and an isolated install/uninstall lifecycle. It owns no Visual Studio process or hive.
+/// 正確な VSIX パッケージを、厳格な互換性、現行パッケージの UI 観測、分離されたインストール/アンインストールのライフサイクルに結び付ける。Visual Studio のプロセスやハイブは所有しない。
 /// </summary>
 public static class VsixReleaseEvidence {
     public const string ReportSchema="csharp-game-engine-vsix-release-v1";

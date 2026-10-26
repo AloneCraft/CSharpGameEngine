@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 namespace CSharpGameEngine.Content.Models;
-/// <summary>L6 runtime payloads. The envelope remains ContentArtifactCodec; no Cooking/Import assembly is referenced.</summary>
+/// <summary>L6ランタイムペイロード。エンベロープは引き続きContentArtifactCodecが扱い、Cooking/Importアセンブリは参照しない。</summary>
 public static class ModelArtifactCodec {
     private const uint Magic=0x4d454743;
     private const ushort Schema=1;

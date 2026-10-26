@@ -4,7 +4,7 @@ using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Character;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>ADR-0067: control rotation and the spring arm that shortens at obstacles.</summary>
+/// <summary>ADR-0067：制御回転と、障害物に応じて短くなるスプリングアーム。</summary>
 public sealed class OrbitCameraTests {
     private static readonly OrbitCamera Arm=new() { Pivot=new LogicalVector3(0f,0.0849f,0f),Distance=LogicalScalar.FromSingle(4f) };
     private static readonly LogicalVector3 Owner=new(0f,1f,0f);
@@ -34,7 +34,7 @@ public sealed class OrbitCameraTests {
         Assert.True(PlayerControl.ControlRotation(new ViewAngles { PitchDegrees=30f }).TryRotate(LogicalVector3.UnitF,out var Up));
         Assert.InRange(ToSingle(Up.U),0.4999f,0.5001f);
         Assert.InRange(ToSingle(Up.F),0.8659f,0.8662f);
-        // The camera's up stays on the world-up side: no roll from the yaw-then-pitch order.
+        // Yawの後にPitchする順序でも、カメラのUpはワールドのUp側を保ち、ロールしない。
         Assert.True(PlayerControl.ControlRotation(new ViewAngles { YawDegrees=90f,PitchDegrees=30f }).TryRotate(LogicalVector3.UnitU,out var CameraUp));
         Assert.InRange(ToSingle(CameraUp.U),0.8659f,0.8662f);
     }
@@ -51,7 +51,7 @@ public sealed class OrbitCameraTests {
     }
     [Fact]
     public void AddLook_KeepsPitchBetweenBoundsWrittenInEitherOrder(){
-        // Math.Clamp threw for a minimum above the maximum, so a scene with the bounds swapped crashed every frame.
+        // 最小値が最大値より大きいとMath.Clampが例外を出すため、上下限を逆に指定したシーンでは毎フレームクラッシュしていた。
         ViewAngles Controller=new() { MinPitchDegrees=60f,MaxPitchDegrees=-30f };
         PlayerControl.AddLook(ref Controller,0f,100f);
         Assert.Equal(60f,Controller.PitchDegrees);
@@ -68,9 +68,9 @@ public sealed class OrbitCameraTests {
         Assert.InRange(ToSingle(Diagonal.F),0.7071f,0.7072f);
     }
     /// <summary>
-    /// The renderer's view is Matrix4x4.CreateLookAt (right-handed), so a camera looking along F with
-    /// up U sees Forward x Up on its right. Right input must move toward it and positive yaw input
-    /// (Unreal's AddControllerYawInput) must turn toward it; the ThirdPerson template had both mirrored.
+    /// レンダラーは右手系のMatrix4x4.CreateLookAtをビューに使う。カメラがF方向を向く場合、Forward x Upが画面右を向く。
+    /// 右入力はその方向へ移動し、正のYaw入力（UnrealのAddControllerYawInput）もそちらへ旋回する必要がある。
+    /// ThirdPersonテンプレートでは両方が逆向きだった。
     /// </summary>
     [Theory]
     [InlineData(0f)]
@@ -87,7 +87,7 @@ public sealed class OrbitCameraTests {
     private static (Vector3 Forward,Vector3 ScreenRight)ViewBasis(in ViewAngles Controller){
         Assert.True(PlayerControl.ControlRotation(Controller).TryRotate(LogicalVector3.UnitF,out var Forward));
         var View=Matrix4x4.CreateLookAt(Vector3.Zero,ToVector(Forward),Vector3.UnitY);
-        // Row-vector view matrix: the first column is the camera's screen-right axis in world space.
+        // 行ベクトル規約のビュー行列では、最初の列がワールド空間でのカメラの画面右軸を表す。
         return (ToVector(Forward),new Vector3(View.M11,View.M21,View.M31));
     }
     private static Vector3 ToVector(LogicalVector3 Value)=>new(ToSingle(Value.R),ToSingle(Value.U),ToSingle(Value.F));
@@ -100,14 +100,14 @@ public sealed class OrbitCameraTests {
     }
     [Fact]
     public void ArmStopsAProbeRadiusBeforeAWallBehind(){
-        // A zero-thickness wall at z = -2; the full arm's end lies beyond it and must not tunnel.
+        // z = -2に厚み0の壁を置く。アーム全長の終端は壁を越えるが、壁をすり抜けてはならない。
         var Length=Solve(WorldWith(Floor,Wall),new ViewAngles(),out var Camera);
         Assert.InRange(ToSingle(Length),1.879f,1.881f);
         Assert.InRange(ToSingle(Camera.F),-1.881f,-1.879f);
     }
     [Fact]
     public void ArmShortensAgainstTheFloorWhenLookingUp(){
-        // Looking up 60 degrees drops the arm at 60 degrees: (1.0849 - 0.12) / sin 60 = 1.1142 m.
+        // 60度上を向くと、アームは60度の位置で下がる：(1.0849 - 0.12) / sin 60 = 1.1142 m。
         var Length=Solve(WorldWith(Floor),new ViewAngles { PitchDegrees=60f },out var Camera);
         Assert.InRange(ToSingle(Length),1.113f,1.1155f);
         Assert.InRange(ToSingle(Camera.U),0.1195f,0.1215f);

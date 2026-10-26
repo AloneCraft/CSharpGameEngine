@@ -3,7 +3,7 @@ using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Character;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>ADR-0067: deterministic kinematic movement against triangle-mesh geometry, with Unreal's ThirdPerson values.</summary>
+/// <summary>ADR-0067：三角形メッシュ形状に対する決定的なキネマティック移動。UnrealのThirdPersonの値を使う。</summary>
 public sealed class CharacterMotorTests {
     private const int TickRate=60;
     private static readonly LogicalScalar DeltaSeconds=LogicalScalar.One/LogicalScalar.FromInt64(TickRate);
@@ -30,7 +30,7 @@ public sealed class CharacterMotorTests {
             this.NextId++;
             return this;
         }
-        /// <summary>An axis-aligned box as six quads.</summary>
+        /// <summary>6枚の四角形で表す軸平行ボックス。</summary>
         public Scene AddBox(float MinX,float MinY,float MinZ,float MaxX,float MaxY,float MaxZ){
             LogicalVector3 P(float X,float Y,float Z)=>new(X,Y,Z);
             this.AddQuad(P(MinX,MaxY,MinZ),P(MaxX,MaxY,MinZ),P(MaxX,MaxY,MaxZ),P(MinX,MaxY,MaxZ));
@@ -180,7 +180,7 @@ public sealed class CharacterMotorTests {
         Assert.InRange(ToSingle(Scene.State.Velocity.F),5.99f,6.01f);
         var Released=Scene.Z;
         Scene.Run(60,LogicalVector3.Zero);
-        // Braking deceleration 20 m/s^2 without braking friction: 6^2 / (2 * 20) = 0.9 m.
+        // ブレーキ減速度は、ブレーキ摩擦なしで20 m/s^2。停止距離は6^2 / (2 * 20) = 0.9 m。
         Assert.InRange(Scene.Z-Released,0.8f,1.0f);
         Assert.Equal(LogicalVector3.Zero,Scene.State.Velocity);
     }
@@ -195,7 +195,7 @@ public sealed class CharacterMotorTests {
     }
     [Fact]
     public void WalksUpAThirtyDegreeRampButNotAFiftyDegreeSlope(){
-        // Ramps start at z=2 and rise along +Z.
+        // 坂はz=2から始まり、+Z方向へ上る。
         float Rise(float Degrees,float Run)=>MathF.Tan(Degrees*MathF.PI/180f)*Run;
         var Ramp=new Scene(StartY:0.9f).AddQuad(new(-3,0,2),new(3,0,2),new(3,Rise(30f,6f),8),new(-3,Rise(30f,6f),8));
         Ramp.Run(90,Forward);
@@ -220,7 +220,7 @@ public sealed class CharacterMotorTests {
     public void TurnsTowardTheInputAtTheRotationRate(){
         var Scene=new Scene(StartY:0.9f);
         Scene.Run(1,LogicalVector3.UnitR);
-        // 500 degrees/s at 60 Hz: 8.333 degrees in one tick from +F toward +R.
+        // 60 Hzで500度／秒なら、1ティックで8.333度。+Fから+Rへ回る。
         var Degrees=MathF.Atan2(ToSingle(Scene.State.Facing.R),ToSingle(Scene.State.Facing.F))*180f/MathF.PI;
         Assert.InRange(Degrees,8.3f,8.37f);
         Scene.Run(10,LogicalVector3.UnitR);

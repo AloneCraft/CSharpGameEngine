@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace CSharpGameEngine.Geometry;
 
-/// <summary>Plain positions/normals/indices, ready to feed directly into a renderer - no importer needed for these primitive shapes.</summary>
+/// <summary>レンダラーへ直接渡せる、位置／法線／インデックスのデータ。これらの基本形状にはインポーターが不要。</summary>
 public readonly struct ProceduralMeshData {
     public required Vector3[]Positions { get; init;}
 

@@ -5,21 +5,21 @@ using System.Security.Cryptography;
 namespace CSharpGameEngine.Runtime.Physics;
 
 /// <summary>
-/// How to cut a closed convex source (ADR-0078/M0113). <see cref="ClusterCount"/> groups the fragments into that many top-level clusters; 0 picks the
-/// nearest whole number to √<see cref="FragmentCount"/>, 1 makes no hierarchy. <see cref="ClusterLevels"/> (M0124, 1 to 4; UE's Geometry Collection
-/// levels) splits each cluster of a level again into the nearest whole number to √(its fragments) connected clusters, level by level: 2 gives big chunks
-/// that each break into smaller chunks that break into fragments.
+/// 閉じた凸形状の元形状を分割する方法（ADR-0078/M0113）。<see cref="ClusterCount"/> は破片をまとめる最上位クラスターの数。0 なら √
+/// <see cref="FragmentCount"/> に最も近い整数を選び、1 なら階層を作らない。<see cref="ClusterLevels"/>（M0124、1～4、UE Geometry
+///  Collection の階層）は、各階層のクラスターをそれぞれ、含まれる破片数の平方根に最も近い数の連結クラスターに順次分割する。2 なら、大きな塊に分かれた後、それぞれが小さな塊に分かれ、最後に
+/// 破片になる。
 /// </summary>
 public readonly record struct PrefractureCookSettings(
     int FragmentCount,int Seed,LogicalScalar Density,LogicalScalar BondStrengthPerArea,int ClusterCount=0,int ClusterLevels=1){
-    /// <summary>The most levels of clusters a cook makes.</summary>
+    /// <summary>調理処理が作成するクラスター階層の最大段数。</summary>
     public const int MaximumClusterLevels=4;
 }
 
 public sealed class FractureMesh {
-    /// <summary>The material slot of a triangle on the source's own surface.</summary>
+    /// <summary>元形状の表面にある三角形の材質スロット。</summary>
     public const byte OuterSlot=0;
-    /// <summary>The material slot of a triangle on a Voronoi cut (the inside of the source; UE's interior material).</summary>
+    /// <summary>ボロノイ分割面（元形状の内側、UE の interior material）にある三角形の材質スロット。</summary>
     public const byte InteriorSlot=1;
     private struct EdgeUse {
         internal int Count;
@@ -53,9 +53,9 @@ public sealed class FractureMesh {
 
     public IReadOnlyList<LogicalVector3>Vertices=>this.VertexStorage;
     public IReadOnlyList<int>Indices=>this.IndexStorage;
-    /// <summary>The material slot of each triangle (<see cref="OuterSlot"/> or <see cref="InteriorSlot"/>).</summary>
+    /// <summary>各三角形の材質スロット（<see cref="OuterSlot"/> または <see cref="InteriorSlot"/>）。</summary>
     public IReadOnlyList<byte>Slots=>this.SlotStorage;
-    /// <summary>The signed volume (m³) enclosed by the triangles; positive when they wind outward.</summary>
+    /// <summary>三角形が囲む符号付き体積（m³）。頂点の巻き順が外向きなら正。</summary>
     public LogicalScalar SignedVolume(){
         var SixVolume=LogicalScalar.Zero;
         for(var Index=0;Index<this.IndexStorage.Length;Index+=3){
@@ -150,22 +150,21 @@ public sealed class FractureMesh {
 }
 
 /// <summary>
-/// The <c>.cgefracture</c> artifact (L6, ADR-0078/M0113). Little-endian, every scalar a 16-byte Q64.64 <see cref="LogicalScalar"/>, strings 7-bit-length UTF-8.
-/// Version 2 (<c>CGEFRAC2</c>, written for one level of clusters): source hash, seed, density, strength per area, fragment count; per fragment its index,
-/// shape id, centre, mass, Voronoi site, cluster, vertices, indices and one material slot byte per triangle; then the bonds (first, second, area, strength).
-/// Version 3 (<c>CGEFRAC3</c>, M0124, written for two to four levels): the same with the level count (an int32) after the fragment count and, per fragment,
-/// its cluster at every level (top first) in place of the one cluster. A one-level asset is written as version 2, so its bytes are the ones M0113 wrote.
-/// Version 1 (<c>CGEFRAC1</c>, M0055) is still read: it has no sites, clusters, slots, areas or settings. A reader rejects a truncated, trailing,
-/// out-of-range or non-canonical file without throwing.
+/// <c>.cgefracture</c> アーティファクト形式（L6、ADR-0078/M0113）。リトルエンディアンで、すべてのスカラーは16バイトの Q64.64
+/// <see cref="LogicalScalar"/>、文字列は7ビット長付き UTF-8。クラスター1階層向けに書き込むバージョン2（<c>CGEFRAC2</c>）は、ソースハッシュ、シード、密度
+/// 、面積あたりの強度、破片数に続き、各破片のインデックス、形状 ID、中心、質量、ボロノイサイト、クラスター、頂点、インデックス、三角形ごとの材質スロット1バイトを格納し、その後にボンド（最初、2番目、
+/// 面積、強度）を格納する。2～4階層向けに書き込むバージョン3（<c>CGEFRAC3</c>、M0124）は、同じ内容に加え、破片数の後に段数（int32）を格納し、各破片について単一のクラスターの代
+/// わりに、各階層のクラスター番号（最上位から）を格納する。1階層のアセットはバージョン2で書き込むため、M0113 が生成したものとバイト列が一致する。サイト、クラスター、材質スロット、面積、設定値を持
+/// たないバージョン1（<c>CGEFRAC1</c>、M0055）も引き続き読み込む。読み込み時に切り詰め、末尾の余分なデータ、範囲外の値、非正規形式を検出した場合は例外を投げずに拒否する。
 /// </summary>
 public static class PrefractureArtifact {
     private static ReadOnlySpan<byte>MagicVersion1=>"CGEFRAC1"u8;
     private static ReadOnlySpan<byte>MagicVersion2=>"CGEFRAC2"u8;
     private static ReadOnlySpan<byte>Magic=>"CGEFRAC3"u8;
     private static readonly UTF8Encoding StrictUtf8=new(false,true);
-    /// <summary>The newest version <see cref="Write"/> writes (for an asset of more than one level of clusters; see <see cref="VersionOf"/>).</summary>
+    /// <summary><see cref="Write"/> が書き込む最新バージョン（クラスター階層が複数あるアセットの場合。<see cref="VersionOf"/> を参照）。</summary>
     public const int Version=3;
-    /// <summary>The version <see cref="Write"/> writes for <paramref name="Asset"/>: 3 with more than one level of clusters, otherwise 2.</summary>
+    /// <summary><paramref name="Asset"/> に対して <see cref="Write"/> が書き込むバージョン。クラスターが複数階層なら3、それ以外なら2。</summary>
     public static int VersionOf(PrefractureAsset Asset){
         ArgumentNullException.ThrowIfNull(Asset);
         return Asset.ClusterLevelCount>1?3:2;
@@ -218,7 +217,7 @@ public static class PrefractureArtifact {
         }
     }
 
-    /// <summary>The bytes <see cref="Write"/> writes; the same asset always gives the same bytes.</summary>
+    /// <summary><see cref="Write"/> が書き込むバイト列。同じアセットからは常に同じバイト列が得られる。</summary>
     public static byte[]ToBytes(PrefractureAsset Asset){
         using MemoryStream Stream=new();
         Write(Stream,Asset);
@@ -306,7 +305,7 @@ public static class PrefractureArtifact {
         }
     }
 
-    /// <summary>Reads <paramref name="Bytes"/> (see <see cref="TryRead(Stream,out PrefractureAsset?,out string)"/>).</summary>
+    /// <summary><paramref name="Bytes"/> を読み込む（<see cref="TryRead(Stream,out PrefractureAsset?,out string)"/> を参照）。</summary>
     public static bool TryRead(byte[]Bytes,out PrefractureAsset?Asset,out string Error){
         ArgumentNullException.ThrowIfNull(Bytes);
         using MemoryStream Stream=new(Bytes,false);
@@ -495,7 +494,7 @@ public static class PrefractureCooker {
     private static readonly LogicalScalar Three=LogicalScalar.FromInt64(3);
     private static readonly LogicalScalar Four=LogicalScalar.FromInt64(4);
     private static readonly LogicalScalar Six=LogicalScalar.FromInt64(6);
-    /// <summary>A shared face smaller than this (1 mm²) is a corner touch, not a bond.</summary>
+    /// <summary>共有面積がこれより小さい（1 mm²）場合、ボンドではなく角での接触とみなす。</summary>
     private static readonly LogicalScalar MinimumBondArea=LogicalScalar.FromSingle(0.000001f);
 
     private readonly record struct ClipPlane(LogicalVector3 Normal,LogicalScalar Distance,int Neighbor);
@@ -559,7 +558,7 @@ public static class PrefractureCooker {
                 }
                 Cells.Add(CellValue);
             }
-            // The shared face of two cells, measured on each side's final polygon: the two sides are one face, so their areas agree (a bond is symmetric).
+            // 2つのセルで共有する面を、それぞれの最終ポリゴン上で測る。両側で同じ1つの面を測るため、面積は一致する（ボンドは対称）。
             List<FractureBond>Bonds=[];
             for(int First=0;First<Cells.Count;First++){
                 for(int Second=First+1;Second<Cells.Count;Second++){
@@ -829,9 +828,8 @@ public static class PrefractureCooker {
     }
 
     /// <summary>
-    /// One Voronoi cell as a fragment: the clipped faces fan-triangulated into a closed mesh that winds outward (positive volume), with the material slot of
-    /// each triangle (a face cut by a neighbour's plane is <see cref="FractureMesh.InteriorSlot"/>), the area of the face shared with each neighbour, and
-    /// the convex polyhedron the physics collides with.
+    /// 1つのボロノイセルを破片として表す。切り取った面を扇状に三角形分割し、外向きの巻き順と正の体積を持つ閉じたメッシュにする。各三角形の材質スロット（隣のセルの面で切った面には
+    /// <see cref="FractureMesh.InteriorSlot"/> を指定）、各隣接セルとの共有面積、物理衝突に使う凸多面体を保持する。
     /// </summary>
     private static bool TryBuildCell(
         string SourceId,int FragmentIndex,List<PolygonFace>Faces,LogicalScalar Density,
@@ -880,7 +878,7 @@ public static class PrefractureCooker {
             return false;
         }
         if(SignedSixVolume<LogicalScalar.Zero){
-            // Outward winding is the canonical form: the renderer and the physics read the normals from it.
+            // 外向きの巻き順を正規形式とする。レンダラーと物理処理の両方が、この順序から法線を読み取る。
             for(int Index=0;Index<Indices.Count;Index+=3){ (Indices[Index+1],Indices[Index+2])=(Indices[Index+2],Indices[Index+1]); }
         }
         LogicalVector3 Center=WeightedCenter/(Four*SignedSixVolume);
@@ -899,7 +897,7 @@ public static class PrefractureCooker {
         return true;
     }
 
-    /// <summary>The area of a planar polygon (half the length of its Newell vector).</summary>
+    /// <summary>平面ポリゴンの面積（Newell ベクトルの長さの半分）。</summary>
     private static LogicalScalar PolygonArea(IReadOnlyList<LogicalVector3>Vertices){
         var AreaVector=LogicalVector3.Zero;
         for(var Index=0;Index<Vertices.Count;Index++){
@@ -909,9 +907,9 @@ public static class PrefractureCooker {
     }
 
     /// <summary>
-    /// The levels of clusters (M0124): level 0 is <see cref="BuildClusters"/> over every fragment with the requested count; each further level splits every
-    /// cluster of the level above, over its own fragments and the bonds between them, into the nearest whole number to √(its fragments) clusters (one when
-    /// it has two or fewer, so it stays whole down to its fragments). Each level is numbered canonically, in the order of each cluster's lowest fragment, so a level's clusters nest in the level above.
+    /// クラスター階層（M0124）。レベル0では、要求された数に応じてすべての破片を <see cref="BuildClusters"/> でまとめる。各下位レベルでは、上位レベルの各クラスターを、その
+    /// クラスター内の破片とボンドだけを使って、破片数の平方根に最も近い整数個のクラスターに分割する。ただし破片が2つ以下なら1クラスターとし、個々の破片の段までまとまりを保つ。各レベルのクラスター番号は、
+    /// 最小破片番号の順に正規化する。そのため、下位階層のクラスターは上位階層のクラスター内に入れ子になる。
     /// </summary>
     private static int[][]BuildClusterLevels(int FragmentCount,IReadOnlyList<FractureBond>Bonds,int RequestedClusters,int LevelCount){
         var Levels=new int[LevelCount][];
@@ -932,7 +930,7 @@ public static class PrefractureCooker {
         return Levels;
     }
 
-    /// <summary>Renumbers clusters 0.. in the order of each cluster's lowest fragment.</summary>
+    /// <summary>最小破片番号の順に、クラスター番号を0から振り直す。</summary>
     private static int[]Canonical(int[]Numbers){
         var Renumbered=new Dictionary<int,int>();
         var Result=new int[Numbers.Length];
@@ -947,10 +945,9 @@ public static class PrefractureCooker {
     }
 
     /// <summary>
-    /// One level of clusters over the bond graph of <paramref name="Members"/> (ascending fragment indices; UE's cluster hierarchy, M0113), returned per member.
-    /// The target size is ⌈members / clusters⌉ (clusters 0: the nearest whole number to √members). Each cluster grows breadth-first from the lowest unassigned
-    /// member through its bonds to other members in ascending order, so a cluster is always connected and the result depends only on the bond graph. Clusters
-    /// are numbered in the order of their first member. Over every fragment this is the one level M0113 cooked, number for number.
+    /// <paramref name="Members"/> のボンドグラフ上に作る1階層分のクラスター（破片インデックス昇順。UE の cluster hierarchy、M0113）。結果は各メンバーにつ
+    /// いて返す。目標サイズは ⌈メンバー数 / クラスター数⌉（クラスター数が0ならメンバー数の平方根に最も近い整数）。未割り当ての最小メンバーから幅優先で、他のメンバーへのボンドを昇順にたどってクラスター
+    /// を拡張する。そのため各クラスターは常に連結し、結果はボンドグラフだけで決まる。クラスター番号は先頭メンバーの順に付ける。全破片を対象にした場合、M0113 が調理した1階層と番号も含めて一致する。
     /// </summary>
     private static int[]BuildClusters(int[]Members,IReadOnlyList<FractureBond>Bonds,int RequestedClusters){
         var FragmentCount=Members.Length;
@@ -960,7 +957,7 @@ public static class PrefractureCooker {
         foreach(var Bond in Bonds){
             if(LocalOf.TryGetValue(Bond.FirstFragment,out var First)&&LocalOf.TryGetValue(Bond.SecondFragment,out var Second)){ Links.Add((First,Second)); }
         }
-        // The nearest whole number to √members, in integers (k² ≤ n < (k+1)²; n is never halfway between the two squares).
+        // √members に最も近い整数を整数演算で求める（k² ≤ n < (k+1)²。n が2つの平方数の中間になることはない）。
         var Root=1;
         while((Root+1)*(Root+1)<=FragmentCount){ Root++; }
         if(FragmentCount-Root*Root>(Root+1)*(Root+1)-FragmentCount){ Root++; }
@@ -997,8 +994,8 @@ public static class PrefractureCooker {
             }
             Next++;
         }
-        // A cluster cut short because its neighbours were taken first joins the neighbour it shares the most bonds with (the lower number on a tie), while
-        // there are more clusters than asked for; each merge keeps both connected. Then the numbers are made canonical again.
+        // 隣接クラスターが先に割り当てられて目標サイズに届かなかったクラスターは、共有するボンドが最も多い隣接クラスターに加える。同数なら番号が小さい方を選ぶ。
+        // 要求数よりクラスター数が多い場合も、各統合後に両方の連結性を保つ。その後、番号を再び正規化する。
         while(Next>Wanted){
             var Sizes=new int[Next];
             foreach(var Cluster in Clusters){ Sizes[Cluster]++; }

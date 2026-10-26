@@ -4,9 +4,7 @@ using Xunit;
 namespace CSharpGameEngine.SceneAnalysis.Tests;
 
 /// <summary>
-/// ADR-0070 (revised 2026-10-01): a scene is a <c>*.json</c> under the project's <c>Scenes</c> folder.
-/// The generator (with the build's ProjectDir) and the Visual Studio extension (with the nearest
-/// project folder) decide with this one rule, which is also the build's <c>Scenes\**\*.json</c>.
+/// ADR-0070（2026-10-01 改訂）：シーンはプロジェクトの <c>Scenes</c> フォルダー内にある <c>*.json</c> ファイル。ジェネレーター（ビルドの ProjectDir を使用）と Visual Studio 拡張機能（最も近いプロジェクトフォルダーを使用）はこの共通ルールで判定する。ビルド対象も <c>Scenes\**\*.json</c> である。
 /// </summary>
 public sealed class SceneFilesTests {
     [Theory]
@@ -37,7 +35,7 @@ public sealed class SceneFilesTests {
     [InlineData(@"C:\Engine\plugins\CSharpGameEngine.Vehicles\Runtime\Car.json",false)]
     [InlineData(@"C:\Engine\plugins\CSharpGameEngine.Navigation\Scenes\Map.json",false)]
     public void APluginsScenesFolder_HoldsScenes(string Path,bool Expected){
-        // ADR-0079: a project plugin by its folder (Plugins\<Name>\Scenes); an engine or package plugin through the build's roots.
+        // ADR-0079：プロジェクトプラグインは自身のフォルダー（Plugins\<Name>\Scenes）で判定し、エンジンまたはパッケージのプラグインはビルドのルートで判定する。
         var Roots=PluginRoot.Parse(@"|Vehicles=C:\Engine\plugins\CSharpGameEngine.Vehicles\|=ignored|Broken");
 
         Assert.Equal(Expected,SceneFiles.IsScene(Path,@"C:\Game",Roots));

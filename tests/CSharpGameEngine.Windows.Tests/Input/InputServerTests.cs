@@ -94,7 +94,7 @@ public sealed class InputServerTests {
     }
     [Fact]
     public void ReadValue_ComposesEveryBindingWithUnrealStyleModifiers(){
-        // Unreal's IMC_Default: W swizzled to +Y, S swizzled and negated, A negated, D as is.
+        // UnrealのIMC_Default：Wは軸を入れ替えて+Y、Sは入れ替えて反転、Aは反転、Dはそのまま。
         var Move=new InputActionId(StableId.Parse("5d9b2b0f-6a3d-4d1e-9d8f-2f3b9b2a4c11"));
         InputControl Key(string Code)=>new(InputDeviceKind.Keyboard,Code);
         var Map=new InputActionMap([new InputContext(Context,"Default",0,[

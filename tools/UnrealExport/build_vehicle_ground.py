@@ -183,7 +183,7 @@ def build_terrain(heights_cm: np.ndarray, ground: Image.Image, output_path: str)
                 for ix in range(tile_x, tile_x + TILE_QUADS):
                     a, b = vertex(ix, iy), vertex(ix + 1, iy)
                     c, d = vertex(ix, iy + 1), vertex(ix + 1, iy + 1)
-                    # UE's Landscape splits every quad along the diagonal (x, y) - (x + 1, y + 1).
+                    # UE の Landscape は各 quad を対角線 (x, y) - (x + 1, y + 1) で分割します。
                     triangles.append((a, d, b))
                     triangles.append((a, c, d))
     keys = np.array(vertices, dtype=np.int64)
@@ -191,7 +191,7 @@ def build_terrain(heights_cm: np.ndarray, ground: Image.Image, output_path: str)
     x_ue_m = -LANDSCAPE_HALF_CM / 100.0 + ix * spacing_m
     y_ue_m = -LANDSCAPE_HALF_CM / 100.0 + iy * spacing_m
     z_ue_m = heights_m[iy, ix]
-    # Normals from central differences of the height field (what the Landscape's normal map holds).
+    # height field の中央差分から求めた normal（Landscape の normal map に格納される値）。
     padded = np.pad(heights_m, 1, mode="edge")
     dzdx = (padded[1:-1, 2:] - padded[1:-1, :-2]) / (2.0 * spacing_m)
     dzdy = (padded[2:, 1:-1] - padded[:-2, 1:-1]) / (2.0 * spacing_m)
@@ -199,11 +199,11 @@ def build_terrain(heights_cm: np.ndarray, ground: Image.Image, output_path: str)
     normal_ue /= np.linalg.norm(normal_ue, axis=1, keepdims=True)
     positions = np.stack([x_ue_m, z_ue_m, y_ue_m], axis=1)
     normals = np.stack([normal_ue[:, 0], normal_ue[:, 2], normal_ue[:, 1]], axis=1)
-    # The capture's image right is UE +Y and image up is UE +X (capture_vehicle_ground_color.py: a camera at yaw 0 looking down).
+    # capture 画像の右方向は UE +Y、上方向は UE +X（capture_vehicle_ground_color.py：yaw 0 のカメラを下向きに配置）。
     uvs = np.stack([(y_ue_m * 100.0 + LANDSCAPE_HALF_CM) / (2.0 * LANDSCAPE_HALF_CM), 1.0 - (x_ue_m * 100.0 + LANDSCAPE_HALF_CM) / (2.0 * LANDSCAPE_HALF_CM)], axis=1)
     indices = np.array(triangles, dtype=np.uint32)
-    # glTF is right-handed with the Y and Z of UE swapped, so the winding that is counter-clockwise from above in UE (x, y) is clockwise here:
-    # check one triangle against its normal and flip the whole mesh if needed.
+    # glTF は右手系で UE の Y と Z が入れ替わるため、UE の (x, y) で上から見て反時計回りの winding は、ここでは時計回りです。
+    # 1つの三角形で normal と winding を照合し、必要なら mesh 全体を反転します。
     p0, p1, p2 = positions[indices[0]]
     if np.dot(np.cross(p1 - p0, p2 - p0), normals[indices[0, 0]]) < 0:
         indices = indices[:, ::-1].copy()
@@ -272,7 +272,7 @@ def build_track_ring(components, track_glb_path: str, output_path: str, mesh_nam
     image = document["images"][document["textures"][texture]["source"]]
     view = document["bufferViews"][image["bufferView"]]
     data = blob[view.get("byteOffset", 0):view.get("byteOffset", 0) + view["byteLength"]]
-    # M_Track: Metallic 0, Roughness 1 (T3D defaults); the exporter writes neither as a factor.
+    # M_Track：Metallic 0、Roughness 1（T3D の既定値）。exporter はどちらも factor を出力しません。
     material_id = builder.material(material["name"], builder.image(bytes(data), image["name"]), 1.0)
     totals = []
     for primitive in wanted:
@@ -305,8 +305,8 @@ def build_track_ring(components, track_glb_path: str, output_path: str, mesh_nam
 
 
 SCENE_NAMESPACE = uuid.UUID("5f2d1c9a-6d0e-5a53-9c3e-0d0f5f6f1a11")
-# UE's physical materials of the level: the Landscape's Ground layer is /Game/Vehicles/PhysicsMaterials/Slippery (friction 1, restitution 0.4)
-# and the track's spline meshes are NonSlippery (friction 1, restitution 0); both multiply friction (probe_vehicle_surfaces.py).
+# level の UE 物理マテリアル：Landscape の Ground layer は /Game/Vehicles/PhysicsMaterials/Slippery（friction 1、restitution 0.4）、
+# track の spline mesh は NonSlippery（friction 1、restitution 0）。どちらも摩擦に乗算されます（probe_vehicle_surfaces.py）。
 GROUND_MATERIAL = {"Friction": 1, "Restitution": 0.4}
 TRACK_MATERIAL = {"Friction": 1, "Restitution": 0}
 

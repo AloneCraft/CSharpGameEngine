@@ -6,10 +6,7 @@ using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-/// <summary>
-/// Where on the screen (or inside a box) a point sits: the corners, the edge middles and the centre. An element is placed by putting its
-/// <c>Pivot</c> on the screen's <c>Anchor</c> plus an offset, the way UMG's anchors and alignment do.
-/// </summary>
+/// <summary>スクリーン上（またはボックス内）で点を配置する場所。四隅、辺の中点、中央を指定できる。UMG のアンカーと配置と同様に、要素の <c>Pivot</c> を画面の <c>Anchor</c> にオフセットを加えた位置へ置く。</summary>
 public enum ScreenAnchor:byte {
     TopLeft=0,
     TopCenter=1,
@@ -23,33 +20,36 @@ public enum ScreenAnchor:byte {
 }
 
 /// <summary>
-/// Text drawn over the finished frame (ADR-0078/M0104). Sizes and offsets are in pixels of a screen whose shorter side is
-/// <see cref="ScreenUi.ReferenceShortestSide"/> (1080), scaled to the real surface; the color is straight sRGB. UMG's TextBlock is the model.
+/// 完成フレーム上に描画するテキスト（ADR-0078/M0104）。サイズとオフセットは、短辺が <see cref="ScreenUi.ReferenceShortestSide"/>（1080）
+/// ピクセルの画面を実際の描画面に合わせて拡大縮小した座標で指定する。色はアルファ乗算前の sRGB。UMG の TextBlock をモデルとする。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,20)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/ScreenText.svg")]
 public struct ScreenText {
-    /// <summary>The text; a <c>\n</c> starts a new line.</summary>
+    /// <summary>テキスト。<c>\n</c> で改行する。</summary>
     public string Text;
-    /// <summary>A baked font: the engine's <c>Fonts/Roboto-Regular.cgefont</c> and <c>Fonts/Roboto-Light.cgefont</c>, or a <c>.cgefont</c> under the game's Assets.</summary>
+    /// <summary>
+    /// 焼き付け済みフォント。エンジン付属の <c>Fonts/Roboto-Regular.cgefont</c> と <c>Fonts/Roboto-Light.cgefont</c>、またはゲームの
+    /// Assets 内の <c>.cgefont</c> を指定する。
+    /// </summary>
     public string Font;
-    /// <summary>Pixels per em.</summary>
+    /// <summary>em あたりのピクセル数。</summary>
     public float Size;
-    /// <summary>Where the lines sit inside the text's box.</summary>
+    /// <summary>テキストボックス内での行の配置。</summary>
     public TextAlignment Alignment;
-    /// <summary>The point of the screen the text is placed from.</summary>
+    /// <summary>画面上でテキストを配置する基準点。</summary>
     public ScreenAnchor Anchor;
-    /// <summary>The point of the text's box that sits on the anchor.</summary>
+    /// <summary>アンカーに重ねるテキストボックス側の基準点。</summary>
     public ScreenAnchor Pivot;
-    /// <summary>Right of the anchor, in pixels.</summary>
+    /// <summary>アンカーから右への距離（ピクセル）。</summary>
     public float OffsetX;
-    /// <summary>Below the anchor, in pixels.</summary>
+    /// <summary>アンカーから下への距離（ピクセル）。</summary>
     public float OffsetY;
     public float ColorR;
     public float ColorG;
     public float ColorB;
     public float ColorA;
-    /// <summary>Elements with a higher layer cover those with a lower one; within a layer the order is not defined.</summary>
+    /// <summary>高いレイヤーの要素が低いレイヤーの要素を覆う。同一レイヤー内の描画順は未定義。</summary>
     public int Layer;
     public bool Visible;
 
@@ -65,23 +65,21 @@ public struct ScreenText {
     }
 }
 
-/// <summary>
-/// An image, or a solid rectangle when <see cref="Image"/> is empty, drawn over the finished frame (ADR-0078/M0104). UMG's Image is the model.
-/// </summary>
+/// <summary>完成フレーム上に描画する画像。<see cref="Image"/> が空の場合は単色の長方形を描画する（ADR-0078/M0104）。UMG の Image をモデルとする。</summary>
 [SceneComponentOrder(SceneComponentCategory.Rendering,21)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/ScreenImage.svg")]
 public struct ScreenImage {
-    /// <summary>A <c>.png</c> or <c>.jpg</c> under the game's Assets; empty for a rectangle of the color alone.</summary>
+    /// <summary>ゲームの Assets 内にある <c>.png</c> または <c>.jpg</c>。空なら色だけの長方形。</summary>
     public string Image;
-    /// <summary>Pixels; 0 uses the image's own width.</summary>
+    /// <summary>幅（ピクセル）。0なら画像本来の幅を使う。</summary>
     public float Width;
-    /// <summary>Pixels; 0 uses the image's own height.</summary>
+    /// <summary>高さ（ピクセル）。0なら画像本来の高さを使う。</summary>
     public float Height;
     public ScreenAnchor Anchor;
     public ScreenAnchor Pivot;
     public float OffsetX;
     public float OffsetY;
-    /// <summary>The image's color is multiplied by this (straight sRGB).</summary>
+    /// <summary>画像の色に乗算する値（アルファ乗算前の sRGB）。</summary>
     public float ColorR;
     public float ColorG;
     public float ColorB;
@@ -100,15 +98,15 @@ public struct ScreenImage {
 }
 
 /// <summary>
-/// The game's UI over the finished frame (ADR-0078/M0104). The collect systems hand each <see cref="ScreenText"/> and <see cref="ScreenImage"/> to
-/// this service during Presentation; <see cref="ScreenUiSubmit"/> turns them into one layer for the renderer. A system takes it as a parameter
-/// (<c>ScreenUi Ui</c>) like any <see cref="EngineHost"/> service. Fonts and images load from files next to the game on first use; one that cannot
-/// load is reported once in <see cref="Diagnostics"/> and its element is not drawn.
+/// 完成フレーム上に描画するゲーム UI（ADR-0078/M0104）。Presentation 中に収集システムが各 <see cref="ScreenText"/> と
+/// <see cref="ScreenImage"/> をこのサービスへ渡し、<see cref="ScreenUiSubmit"/> がレンダラー用の1つのレイヤーにまとめる。システムは
+/// <c>ScreenUi Ui</c> のように <see cref="EngineHost"/> サービスをパラメーターとして受け取る。フォントと画像は初回使用時にゲームの隣にあるファイルから読み込む
+/// 。読み込みに失敗した場合は一度だけ <see cref="Diagnostics"/> に報告し、その要素は描画しない。
 /// </summary>
 public sealed class ScreenUi {
     public const string RobotoRegular="Fonts/Roboto-Regular.cgefont";
     public const string RobotoLight="Fonts/Roboto-Light.cgefont";
-    /// <summary>The most elements one frame collects; the rest are dropped (and reported once).</summary>
+    /// <summary>1フレームに収集できる要素数の上限。超過分は破棄し、一度だけ報告する。</summary>
     public const int MaximumElements=4096;
     private const float MinimumScale=0.1f;
     private const float MaximumScale=8f;
@@ -131,16 +129,16 @@ public sealed class ScreenUi {
         ArgumentNullException.ThrowIfNull(Host);
     }
 
-    /// <summary>For tests and tools: a UI whose files come from <paramref name="ReadFile"/> (null when the file does not exist).</summary>
+    /// <summary>テストとツール用。ファイルの読み込み元に <paramref name="ReadFile"/> を使う UI（ファイルがない場合は null）。</summary>
     public ScreenUi(Func<string,byte[]?>ReadFile){
         ArgumentNullException.ThrowIfNull(ReadFile);
         this.ReadFile=ReadFile;
     }
 
-    /// <summary>The length of the screen's shorter side that sizes and offsets are written for; the real surface is scaled to it.</summary>
+    /// <summary>サイズとオフセットの基準となる画面の短辺の長さ。実際の描画面はこの値に合わせて拡大縮小する。</summary>
     public float ReferenceShortestSide { get;set; }=1080f;
 
-    /// <summary>What went wrong loading fonts and images, once each.</summary>
+    /// <summary>フォントまたは画像の読み込みで発生した問題。一種類につき一度だけ記録する。</summary>
     public IReadOnlyList<string>Diagnostics=>this.DiagnosticList;
 
     public void Add(in ScreenText Text){
@@ -157,10 +155,7 @@ public sealed class ScreenUi {
         this.Images.Add(Image);
     }
 
-    /// <summary>
-    /// Builds the layer of what was collected since the last call, for a surface of the given size, and forgets the elements. Returns false when
-    /// there is nothing to draw. The returned spans are valid until the next call.
-    /// </summary>
+    /// <summary>指定サイズの描画面に対し、前回の呼び出し以降に収集した要素をレイヤーにまとめ、要素を消去する。描画対象がなければ false を返す。戻り値の範囲は次の呼び出しまで有効。</summary>
     public bool Build(int SurfaceWidth,int SurfaceHeight,out ReadOnlySpan<RenderScreenVertex>Vertices,out ReadOnlySpan<RenderScreenBatch>Batches){
         this.VertexBuffer.Clear();
         this.BatchBuffer.Clear();
@@ -304,7 +299,7 @@ public sealed class ScreenUi {
         Console.Error.WriteLine("CGE-SCREEN-UI "+Message);
     }
 
-    /// <summary>A 64-bit FNV-1a hash of the vertices' bytes: two layers that draw differently almost surely differ, and equal layers are equal.</summary>
+    /// <summary>頂点バイト列の64ビット FNV-1a ハッシュ。描画結果が異なる2つのレイヤーは、ほぼ確実に異なるハッシュを持つ。同じレイヤーならハッシュも同じ。</summary>
     public static ulong Fingerprint(ReadOnlySpan<RenderScreenVertex>Vertices){
         ulong Hash=14695981039346656037UL;
         foreach(byte Value in MemoryMarshal.AsBytes(Vertices)){
@@ -329,11 +324,11 @@ public sealed class ScreenUi {
     private static Vector4 ColorOf(float R,float G,float B,float A)=>new(Math.Clamp(R,0f,1f),Math.Clamp(G,0f,1f),Math.Clamp(B,0f,1f),Math.Clamp(A,0f,1f));
 }
 
-/// <summary>Placing an element by its anchor on the screen, its pivot in its own box and an offset.</summary>
+/// <summary>画面上のアンカー、要素自身のボックス内のピボット、オフセットを使って配置する。</summary>
 public static class ScreenUiPlacement {
     /// <summary>
-    /// The top-left corner, in whole pixels, of a box of <paramref name="Size"/> whose <paramref name="Pivot"/> point sits on the surface's
-    /// <paramref name="Anchor"/> point moved by <paramref name="Offset"/> (right and down).
+    /// 画面の <paramref name="Anchor"/> を <paramref name="Offset"/>（右方向と下方向）へ移動した位置に <paramref name="Pivot"/>
+    /// を置く、サイズ <paramref name="Size"/> のボックスの左上角（整数ピクセル）。
     /// </summary>
     public static Vector2 TopLeft(ScreenAnchor Anchor,ScreenAnchor Pivot,Vector2 Offset,Vector2 Size,float SurfaceWidth,float SurfaceHeight){
         float X=(FractionX(Anchor)*SurfaceWidth)+Offset.X-(FractionX(Pivot)*Size.X);

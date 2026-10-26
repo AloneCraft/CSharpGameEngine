@@ -5,12 +5,8 @@ using System.Text.Json;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Loads a .glb/.gltf file for the VSIX tool window via a short-lived out-of-process helper
-/// (<c>CSharpGameEngine.Import.Gltf.Cli</c>, net10.0, wraps <c>CSharpGameEngine.Import.Gltf</c>/
-/// SharpGLTF.Core), launched via the shared <see cref="ExternalBridgeProcess"/> runner (ADR-0019).
-/// Unifies glTF loading with <see cref="ExternalFbxLoader"/>'s process-isolation approach (ADR-0010)
-/// instead of the previous state where FBX alone was process-isolated and glTF was parsed in-process
-/// via SharpGLTF.Core directly inside <c>devenv.exe</c> - that asymmetry was deliberately removed.
+/// VSIX ツールウィンドウ向けに、短時間で終了する別プロセスの helper（<c>CSharpGameEngine.Import.Gltf.Cli</c>、net10.0、<c>CSharpGameEngine.Import.Gltf</c>/SharpGLTF.Core をラップ）を使って .glb/.gltf ファイルを読み込みます。共通の <see cref="ExternalBridgeProcess"/> runner（ADR-0019）で起動します。
+/// glTF の読み込みを <see cref="ExternalFbxLoader"/> のプロセス分離方式（ADR-0010）に統一します。以前は FBX だけをプロセス分離し、glTF は <c>devenv.exe</c> 内で SharpGLTF.Core により直接解析する非対称な状態でしたが、これを意図的に解消しました。
 /// </summary>
 internal static class ExternalGltfLoader {
     private const string BridgeProjectRelativePath=@"tools\CSharpGameEngine.Import.Gltf.Cli";

@@ -2,7 +2,7 @@ using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
-/// <summary>Windows import adapter. Encoded source bytes are decoded and discarded at this call.</summary>
+/// <summary>Windows 用インポートアダプター。この呼び出しで符号化済みソースバイト列をデコードし、破棄する。</summary>
 public static class RenderTextureArtifactAdapter {
     public static RenderTextureResource?DecodeOptional(ReadOnlySpan<byte>EncodedBytes){
         if(EncodedBytes.IsEmpty){ return null; }

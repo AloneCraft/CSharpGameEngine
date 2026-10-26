@@ -7,20 +7,21 @@ public interface IRenderPreviewSession:IDisposable {
     ulong CompletedFence{get;}
     string LastFrameHash{get;}
     RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics{get;}
-    /// <summary><paramref name="SceneJson"/> is the edited scene's document for a runtime view; other sessions ignore it.</summary>
+    /// <summary>ランタイムビューでは <paramref name="SceneJson"/> が編集済みシーンのドキュメントとなる。他のセッションは無視する。</summary>
     void ReplaceScene(RenderPreviewScene Scene,string SceneJson);
-    /// <summary>A runtime view that shows the build's structure because the document changed it (ADR-0070 B1).</summary>
+    /// <summary>ドキュメントによって構造が変更されたため、ビルド時の構造を表示するランタイムビュー (ADR-0070 B1)。</summary>
     bool BuildRequired=>false;
-    /// <summary>The editor world's id on the Spatial debug pipe (M0096); empty for a session without one.</summary>
+    /// <summary>Spatial デバッグパイプ上のエディターワールドの ID (M0096)。該当するワールドのないセッションでは空。</summary>
     Guid EditorSpatialWorldId=>Guid.Empty;
+    /// <summary>ホストが読み込んだスケルタルアセットの要約（ADR-0090）。ない場合は null。</summary>
+    RenderPreviewAssetSummary?AssetSummary=>null;
     void UpdateFrame(RenderPreviewFrame Frame);
     void Resize(int Width,int Height);
     void Render(bool CaptureForVerification);
 }
 
 /// <summary>
-/// Single source of truth for isolated preview-session ownership and command ordering. A command
-/// failure disposes the affected native session rather than retaining partially-applied state.
+/// 分離されたプレビューセッションの所有権とコマンド順序を管理する唯一の情報源。コマンドが失敗した場合、部分適用された状態を保持せず、該当するネイティブセッションを破棄する。
 /// </summary>
 public sealed class RenderPreviewHostSessionTable:IDisposable {
     private readonly Func<RenderPreviewHostRequest,IRenderPreviewSession>Factory;
@@ -139,6 +140,7 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
             CameraPreviews=Session.CameraPreviewDiagnostics,
             BuildRequired=Session.BuildRequired,
             EditorSpatialWorldId=Session.EditorSpatialWorldId,
+            AssetSummary=Session.AssetSummary,
         };
 
     private static RenderPreviewHostResponse Success(

@@ -63,7 +63,7 @@ public sealed class SceneSourceTruthArchitectureTests {
 
     [Fact]
     public void PredictedSnapshotIsReanalyzedFromVerifiedSource(){
-        // ADR-0070: the written scene JSON is read back, and that canonical model is what lands.
+        // ADR-0070：書き出したシーン JSON を読み戻し、その正規モデルを反映する。
         string Source=ReadSource("SceneJsonCommitPlanner.cs");
 
         Assert.Contains("TryAnalyze(NewText",Source,StringComparison.Ordinal);

@@ -57,9 +57,8 @@ internal static class SceneTypePredicates {
     }
 
     /// <summary>
-    /// A type the user can add to a scene node: the Component palette, the scene JSON Schema and the
-    /// scene JSON check all use this one rule (ADR-0070). Non-generic check only; the palette closes
-    /// generic definitions separately.
+    /// ユーザーが Scene ノードに追加できる型。Component パレット、Scene JSON Schema、Scene JSON 検査はすべて ADR-0070 のこの単一規則を使う。ジェネリック
+    /// 型でないことだけを検査する。ジェネリック型定義を閉じる処理はパレット側で別途行う。
     /// </summary>
     internal static bool IsAddableComponent(INamedTypeSymbol Type,Compilation Compilation){
         if(!IsNonNullableStruct(Type)
@@ -82,18 +81,15 @@ internal static class SceneTypePredicates {
             }
         }
 
-        // The engine compiles many helper value types (queries, reports, events) into every game. Its
-        // scene components carry the palette attributes; a game's own structs are always candidates.
+        // エンジンは、クエリ、レポート、イベントなどの補助値型もゲームごとにコンパイルする。その
+        // Scene コンポーネントはパレット用属性を持つ。ゲーム独自の構造体は常に候補になる。
         var Namespace=Type.ContainingNamespace?.ToDisplayString()??string.Empty;
         return !(Namespace=="CSharpGameEngine"||Namespace.StartsWith("CSharpGameEngine.",StringComparison.Ordinal))
             ||HasAttribute(Type,"CSharpGameEngine.Entities.SceneComponentOrderAttribute")
             ||HasAttribute(Type,"CSharpGameEngine.Entities.SceneComponentIconAttribute");
     }
 
-    /// <summary>
-    /// Engine value types compiled into every game that are the ECS itself, not per-entity data:
-    /// they satisfy the struct shape but adding them to a node is meaningless.
-    /// </summary>
+    /// <summary>すべてのゲームにコンパイルされるエンジンの値型のうち、ECS 自体を表すもので、Entity ごとのデータではないもの。構造体の条件には合うが、ノードへ追加しても意味がない。</summary>
     internal static bool IsEngineInfrastructure(string TypeFullyQualifiedName)=>
         TypeFullyQualifiedName is "global::CSharpGameEngine.Entities.World"
             or "global::CSharpGameEngine.Entities.State"

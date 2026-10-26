@@ -1,7 +1,8 @@
+extern alias PreviewHost;
 using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
-using CSharpGameEngine.EditorPreview.Host;
+using PreviewHost::CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;

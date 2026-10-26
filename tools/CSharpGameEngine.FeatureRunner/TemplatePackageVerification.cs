@@ -2,11 +2,7 @@ using System.Diagnostics;
 using CSharpGameEngine.ProjectTemplates;
 namespace CSharpGameEngine.FeatureStages;
 /// <summary>
-/// The product end-to-end check of ADR-0065/0068. A template (ThirdPerson by default) is generated into a
-/// temporary folder outside the repository, exactly as the Visual Studio wizard does. It is restored
-/// from a feed that holds only the packed CSharpGameEngine.Sdk package, built, and played with the
-/// scripted input of rigid.character-controller (the Vehicle template is driven instead; it also proves that the
-/// package's engine plugins build, ADR-0079; the TopDown template is clicked instead, and its build bakes the navigation mesh with the package's Cook module, M0106). No generated build input may point back into the repository.
+/// ADR-0065/0068 を製品レベルでエンドツーエンド検証する。Visual Studio ウィザードとまったく同じように、ThirdPerson（既定）などのテンプレートをリポジトリ外の一時フォルダーに生成する。パック済みの CSharpGameEngine.Sdk パッケージだけを含むフィードから復元し、rigid.character-controller のスクリプト入力でビルドして実行する（Vehicle テンプレートでは車を操作し、パッケージ内のエンジンプラグインもビルドできることを確認する (ADR-0079)。TopDown テンプレートではクリックで操作し、ビルド時にパッケージの Cook モジュールでナビゲーションメッシュをベイクする (M0106)）。生成されたビルド入力からリポジトリを参照してはならない。
 /// </summary>
 public static class TemplatePackageVerification {
     public const string ProjectName="My ThirdPerson";
@@ -24,7 +20,7 @@ public static class TemplatePackageVerification {
         var ProjectDirectory=Path.Combine(Work,ProjectName);
         var ProjectFile=GameProjectGenerator.Generate(Path.Combine(RepositoryRoot,"Templates","CSharpGameEngine.Templates."+Template),ProjectDirectory,ProjectName,Version,Feed,Template);
         await Output.WriteLineAsync($"CGE-TEMPLATE-PACKAGE generated {ProjectFile} from {Path.GetFileName(Package)}").ConfigureAwait(false);
-        // The package keeps its version while it is rebuilt, so drop a cached copy to restore this exact build.
+        // パッケージの再ビルド後もバージョンは維持されるため、キャッシュされたコピーを削除し、このビルドを確実に復元する。
         DropCachedPackage(GameProjectGenerator.SdkPackageId,Version);
         var Build=await RunDotnetAsync(["build",ProjectFile,"--configuration",Configuration,"--nologo"],ProjectDirectory,CancellationToken).ConfigureAwait(false);
         await Output.WriteAsync(Build.Output).ConfigureAwait(false);
@@ -44,10 +40,10 @@ public static class TemplatePackageVerification {
             ?Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Adapter)
             :Path.Combine(RepositoryRoot,".artifacts","feature-evidence","vsix.project-template",Template,Adapter);
         var Result=Template switch{
-            // FirstPerson walks and jumps like ThirdPerson (the same scripted input and judgement; M0112 added it to the package check).
+            // FirstPerson は ThirdPerson と同じように歩き、ジャンプする（同じスクリプト入力と判定。M0112 でパッケージ検査に追加された）。
             "ThirdPerson" or "FirstPerson"=>await ThirdPersonCharacterVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
             "Vehicle"=>await VehicleDriveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
-            // The TopDown game bakes its navigation mesh from the package's Navigation plugin while it builds (ADR-0079/M0106) and walks along it.
+            // TopDown ゲームはビルド中にパッケージの Navigation プラグインでナビゲーションメッシュをベイクし (ADR-0079/M0106)、その上を歩く。
             "TopDown"=>await ClickToMoveVerification.RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false),
             _=>throw new ArgumentException($"The package check drives ThirdPerson, FirstPerson, TopDown or Vehicle, not {Template}.",nameof(Template)),
         };
@@ -56,12 +52,12 @@ public static class TemplatePackageVerification {
                 Directory.Delete(Work,true);
             }
             catch(IOException){
-                // A still-running compiler server can hold a file briefly; the folder is under %TEMP%.
+                // コンパイラーサーバーがまだ動いていると、ファイルを一時的に保持することがある。フォルダーは %TEMP% にある。
             }
         }
         return Result;
     }
-    /// <summary>Restore and build outputs that mention the repository root (the generated project must not depend on it).</summary>
+    /// <summary>リポジトリルートを参照する復元・ビルド出力（生成されたプロジェクトがそのルートに依存してはならない）。</summary>
     public static IReadOnlyList<string>FindRepositoryReferences(string ProjectDirectory,string RepositoryRoot){
         var Root=Path.GetFullPath(RepositoryRoot).TrimEnd(Path.DirectorySeparatorChar);
         string[]Candidates=[.. Directory.EnumerateFiles(Path.Combine(ProjectDirectory,"obj"),"*.nuget.g.*"),Path.Combine(ProjectDirectory,"obj","project.assets.json"),.. Directory.EnumerateFiles(Path.Combine(ProjectDirectory,"bin"),"*.deps.json",SearchOption.AllDirectories)];
@@ -74,12 +70,12 @@ public static class TemplatePackageVerification {
         }
         return Leaks;
     }
-    /// <summary>The newest CSharpGameEngine.Sdk package in .artifacts/packages, or null.</summary>
+    /// <summary>.artifacts/packages にある最新の CSharpGameEngine.Sdk パッケージ。存在しない場合は null。</summary>
     public static string?FindSdkPackage(string RepositoryRoot)=>
         Directory.Exists(Path.Combine(RepositoryRoot,".artifacts","packages"))
             ?Directory.GetFiles(Path.Combine(RepositoryRoot,".artifacts","packages"),GameProjectGenerator.SdkPackageId+".*.nupkg").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault()
             :null;
-    /// <summary>Removes a package version from the NuGet cache, because a rebuilt package keeps its version (ADR-0065).</summary>
+    /// <summary>NuGet キャッシュからパッケージのバージョンを削除する。再ビルド後もパッケージのバージョンが維持されるため (ADR-0065)。</summary>
     public static void DropCachedPackage(string PackageId,string Version){
         var Cached=Path.Combine(Environment.GetEnvironmentVariable("NUGET_PACKAGES")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),".nuget","packages"),PackageId.ToLowerInvariant(),Version);
         if(Directory.Exists(Cached)){
@@ -91,7 +87,7 @@ public static class TemplatePackageVerification {
         foreach(var Argument in Arguments){
             Start.ArgumentList.Add(Argument);
         }
-        // The generated project must not see the repository's MSBuild environment.
+        // 生成されたプロジェクトから、リポジトリの MSBuild 環境を見えないようにする。
         Start.Environment.Remove("MSBuildExtensionsPath");
         Start.Environment.Remove("MSBUILD_EXE_PATH");
         using var Process=System.Diagnostics.Process.Start(Start)??throw new InvalidOperationException("Could not start dotnet.");

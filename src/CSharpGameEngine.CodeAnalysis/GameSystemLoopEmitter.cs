@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.CodeAnalysis;
 
-/// <summary>Emits the persistent, system-major fixed-phase ECS loop.</summary>
+/// <summary>永続的な、システム優先の固定フェーズ ECS ループを出力する。</summary>
 internal static class GameSystemLoopEmitter {
     private const string HintName="GameSystem.Loop.g.cs";
     private const string EngineHostTypeName="global::CSharpGameEngine.Runtime.Windows.EngineHost";
@@ -39,7 +39,7 @@ internal static class GameSystemLoopEmitter {
         foreach(SystemBinding System in Systems){
             Lines.Add($"    internal {System.TypeReference} {System.VariableName};");
         }
-        // ADR-0077 stage 4: each [InputActions] struct is a per-frame resource held here and refreshed before a system reads it.
+        // ADR-0077 ステージ 4：[InputActions] 構造体ごとにフレーム単位のリソースを保持する。システムが読み取る前に更新する。
         LoopPlan Plan=BuildPlan(AllSystems);
         foreach(KeyValuePair<string,string> Resource in Plan.Resources){
             Lines.Add($"    internal {Resource.Key} {Resource.Value};");
@@ -56,16 +56,16 @@ internal static class GameSystemLoopEmitter {
         }
         Lines.Add("}");
         Lines.Add("internal static class GeneratedGameLoop {");
-        // ADR-0077 stage 6: events live for one frame. Every entry that begins a frame or a tick run drops them.
+        // ADR-0077 ステージ 6：イベントは 1 フレームだけ有効。フレームまたは tick の開始時に、それぞれの入口がイベントを破棄する。
         Lines.Add("    internal static void ClearEvents(ref GeneratedSystemSet Systems) {");
         foreach(string EventField in Plan.Events.Values){ Lines.Add($"        Systems.{EventField}?.Clear();"); }
         foreach(string ReadField in Plan.EventReads.Values){ Lines.Add($"        Systems.{ReadField} = 0;"); }
         Lines.Add("    }");
-        // ADR-0079: the [EngineService] objects are disposed at shutdown, in reverse field order (the fields are sorted by type name).
+        // ADR-0079：[EngineService] オブジェクトはシャットダウン時に破棄する。フィールドを型名順に並べているため、逆順で破棄される。
         if(Plan.Services.Count>0){
             Lines.Add("    internal static void DisposeServices(ref GeneratedSystemSet Systems) {");
             foreach(string ServiceField in Plan.Services.Values.Reverse()){
-                // Through object: a sealed service that is not IDisposable cannot be tested against the interface directly (CS8121).
+                // object を介して扱う。sealed で IDisposable を実装しないサービスは、インターフェイスに直接照合できない (CS8121)。
                 Lines.Add($"        if ((object?)Systems.{ServiceField} is global::System.IDisposable {ServiceField}Disposable) {ServiceField}Disposable.Dispose();");
                 Lines.Add($"        Systems.{ServiceField} = null;");
             }
@@ -118,7 +118,7 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("    }");
 
-        // Compatibility overload for callers generated before GeneratedSystemSet. Runtime and editor paths do not use it.
+        // 互換性用オーバーロード。GeneratedSystemSet より前に生成された呼び出し元向け。ランタイム経路とエディター経路では使わない。
         Lines.Add($"    internal static void RunFrame({BuildLegacyFrameParameterList(Systems,Contexts)}) {{");
         Lines.Add("        GeneratedSystemSet Systems = default;");
         foreach(SystemBinding System in Systems){ Lines.Add($"        Systems.{System.VariableName} = {System.VariableName};"); }
@@ -142,8 +142,8 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("        }");
         Lines.Add("    }");
 
-        // ADR-0070 B1: the Scene Designer's runtime view. It shows the world as the game presents it
-        // (every Presentation system) without input, simulation or physics advancing it.
+        // ADR-0070 B1：Scene Designer のランタイムビュー。ゲームが表示するのと同じワールドを表示する。
+        // （すべての Presentation システム）。入力、シミュレーション、物理は進行させない。
         Lines.Add($"    internal static void RunPresentationFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
         Lines.Add("        State.MeasureFrameDelta();");
@@ -205,7 +205,7 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("                var ElapsedCounter = CurrentCounter - PreviousCounter;");
         Lines.Add("                PreviousCounter = CurrentCounter;");
         if(HasEngineHost){
-            // An automation run advances a fixed time per frame, so it does not depend on the adapter's speed.
+            // 自動操作ではフレームごとに固定時間だけ進めるため、アダプターの速度に依存しない。
             Lines.Add($"                var (FrameCounter, FrameFrequency) = {ContextNameByFqn[EngineHostTypeName]}.FrameTime(ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency);");
             Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, FrameCounter, FrameFrequency{BuildContextArgumentSuffix(Contexts)});");
         } else {
@@ -234,7 +234,7 @@ internal static class GameSystemLoopEmitter {
                 Lines.Add($"            Systems.{Plan.Events[Written.EventTypeFullyQualifiedName]} ??= new global::System.Collections.Generic.List<{Written.EventTypeFullyQualifiedName}>();");
             }
             if(Method.EventReads.Length>0){
-                // One call per event sent so far this frame; later sends in the same frame are read too (the index keeps its place).
+                // そのフレームで送信されたイベントごとに 1 回呼び出す。同じフレーム内の後続の送信も読み取る（インデックス位置を維持する）。
                 var Read=Method.EventReads[0];
                 var QueueField=Plan.Events[Read.EventTypeFullyQualifiedName];
                 var IndexField=Plan.EventReads[ReadKey(Binding.System,Method)];
@@ -267,7 +267,7 @@ internal static class GameSystemLoopEmitter {
                 foreach(GameSystemComponentParameterModel Component in Method.Components.Where(static Component=>!Component.IsReadOnly)){
                     Lines.Add($"                State.World.{Archetype.Name}.Mark{FieldNameByComponentFqn[Component.TypeFullyQualifiedName]}ChangedUnchecked(Index, Version);");
                 }
-                // ADR-0072: an entity system's result has no effect (this is the loop's last statement), so a bool is discarded.
+                // ADR-0072：Entity System の結果は何も変えない（ループの最後のステートメント）。そのため bool は破棄する。
                 Lines.Add(Method.ReturnsBool
                     ?$"                _ = Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn,Plan)});"
                     :$"                Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn,Plan)});");
@@ -355,8 +355,7 @@ internal static class GameSystemLoopEmitter {
     }
 
     /// <summary>
-    /// ADR-0077: resolves each <c>in Parent&lt;T&gt;</c> before the call. A child whose parent is dead or has no T is skipped
-    /// (the entity is not stamped as changed and nothing is passed in its place).
+    /// 呼び出し前に各 <c>in Parent&lt;T&gt;</c> を解決する。親が破棄済みか T を持たない子はスキップする（変更済みとして Entity に印を付けず、代わりの値も渡さない）。
     /// </summary>
     private static IEnumerable<string> BuildRelationResolution(GameSystemMethodModel Method,GameSystemArchetypeInfo Archetype,string Indent,Dictionary<string,string> FieldNameByComponentFqn){
         List<string> Lines=[];
@@ -389,8 +388,7 @@ internal static class GameSystemLoopEmitter {
     }
 
     /// <summary>
-    /// The extra fields of <c>GeneratedSystemSet</c> the loop needs: input resources, event queues and read positions (ADR-0077), and the
-    /// [EngineService] objects (ADR-0079).
+    /// ループに必要な <c>GeneratedSystemSet</c> の追加フィールド：入力リソース、イベントキューと読み取り位置 (ADR-0077)、および [EngineService] オブジェクト (ADR-0079)。
     /// </summary>
     private sealed class LoopPlan {
         internal readonly Dictionary<string,string> Resources=new(StringComparer.Ordinal);
@@ -429,7 +427,7 @@ internal static class GameSystemLoopEmitter {
 
     private static List<ContextBinding> BuildContextBindings(List<GameSystemResult> SourceSystems){
         Dictionary<string,bool> ReferenceKinds=new(StringComparer.Ordinal);
-        // ADR-0077: reading an [InputActions] struct needs the host (its input server), even when no system names it.
+        // ADR-0077：[InputActions] 構造体の読み取りには、システムがその名前を指定していない場合でもホスト（入力サーバー）が必要。
         if(SourceSystems.Any(static System=>System.Methods.Any(static Method=>Method.NeedsHost))){ ReferenceKinds[EngineHostTypeName]=true; }
         foreach(GameSystemResult System in SourceSystems){
             foreach(GameSystemMethodModel Method in System.Methods){

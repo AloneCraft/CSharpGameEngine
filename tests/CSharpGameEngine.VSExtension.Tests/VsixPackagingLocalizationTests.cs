@@ -6,12 +6,12 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class VsixPackagingLocalizationTests {
     private static readonly string ProjectDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
     [Fact]
-    public void Manifest_UsesEnglishNeutralIdentityAndVersion017(){
+    public void Manifest_UsesEnglishNeutralIdentityAndCurrentBuildVersion(){
         XNamespace Namespace="http://schemas.microsoft.com/developer/vsx-schema/2011";
         var Manifest=XDocument.Load(Path.Combine(ProjectDirectory,"source.extension.vsixmanifest"));
         var Metadata=Assert.IsType<XElement>(Manifest.Root?.Element(Namespace+"Metadata"));
         var Identity=Assert.IsType<XElement>(Metadata.Element(Namespace+"Identity"));
-        Assert.Equal("0.1.7",(string?)Identity.Attribute("Version"));
+        Assert.Equal(VsixBuildIdentity.Version,(string?)Identity.Attribute("Version"));
         Assert.Equal("en-US",(string?)Identity.Attribute("Language"));
         Assert.Equal("C# Game Engine",Metadata.Element(Namespace+"DisplayName")?.Value);
         Assert.DoesNotContain("placeholder",Metadata.Element(Namespace+"Description")?.Value,StringComparison.OrdinalIgnoreCase);

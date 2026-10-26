@@ -8,10 +8,7 @@ using SharpGLTF.Transforms;
 namespace CSharpGameEngine.Import.Gltf.Tests;
 
 /// <summary>
-/// ImportScene builds a whole node graph (unlike Import(), which only ever reads one primitive),
-/// so these fixtures are built in-memory with SharpGLTF.Toolkit rather than committed .glb files -
-/// each test needs a specific, otherwise-hard-to-obtain shape (nested transforms, a light node, a
-/// primitive with no TANGENT accessor).
+/// ImportScene はノードグラフ全体を構築する（Import() はプリミティブを 1 つだけ読み取る）。そのため、これらのフィクスチャは .glb ファイルとしてコミットせず、SharpGLTF.Toolkit でメモリ上に構築する。各テストに、入れ子の変換、ライトノード、TANGENT アクセサーのないプリミティブなど、個別で通常は入手しにくい形状が必要となるため。
 /// </summary>
 public class GltfImporterSceneTests {
     private static MeshBuilder<VertexPosition,VertexTexture1,VertexEmpty>BuildTriangleMesh(string Name,MaterialBuilder Material){
@@ -50,8 +47,8 @@ public class GltfImporterSceneTests {
             var Node=Assert.Single(Result.Scene!.Nodes);
             Assert.Equal("Child",Node.Name);
 
-            // World translation must be the composed parent(10,0,0) * child(0,5,0) = (10,5,0), not
-            // just the child's own local offset - this is the whole point of using WorldMatrix.
+            // ワールド位置は親 (10,0,0) * 子 (0,5,0) を合成した (10,5,0) でなければならず、子の
+            // ローカルオフセットそのものではない。これが WorldMatrix を使う理由である。
             Assert.Equal(new Vector3(10,5,0),Node.WorldTransform.Translation);
         } finally {
             File.Delete(Path);
@@ -59,10 +56,7 @@ public class GltfImporterSceneTests {
     }
 
     /// <summary>
-    /// ADR-0027 regression guard: the nested-transform test above uses Z=0 fixtures throughout, so a
-    /// broken (or missing) axis conversion would go completely undetected there - the numbers happen
-    /// not to change either way. This uses a non-zero Z so the conversion's actual effect (Z negation)
-    /// is provable.
+    /// ADR-0027 の回帰ガード：上の入れ子変換テストでは Z=0 のフィクスチャだけを使うため、軸変換が壊れているか欠落していても検出できない。どちらの場合も数値が変わらないためである。ここでは Z を 0 以外にし、変換の実際の効果（Z の符号反転）を証明する。
     /// </summary>
     [Fact]
     public void ImportScene_NodeWithZTranslation_NegatesZWhenConvertingToEngineSpace(){
@@ -87,7 +81,7 @@ public class GltfImporterSceneTests {
         }
     }
 
-    /// <summary>ADR-0027 regression guard for mesh-local vertex data (as opposed to the node transform above).</summary>
+    /// <summary>ADR-0027 の回帰ガード：ノード変換ではなく、メッシュローカルの頂点データを対象とする。</summary>
     [Fact]
     public void ImportScene_MeshLocalPositions_AreConvertedToEngineSpace(){
         var Mesh=new MeshBuilder<VertexPosition,VertexTexture1,VertexEmpty>("zProbe");
@@ -107,7 +101,7 @@ public class GltfImporterSceneTests {
             Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
             var MeshData=Assert.Single(Result.Scene!.Meshes);
 
-            // Source vertex was glTF-space (0,1,2); engine space must have Z negated to (0,1,-2).
+            // ソース頂点は glTF 空間の (0,1,2)。エンジン空間では Z の符号を反転して (0,1,-2) になる。
             Assert.Contains(MeshData.Positions,P=>Vector3.Distance(P,new Vector3(0,1,-2))<0.001f);
         } finally {
             File.Delete(Path);
@@ -169,8 +163,8 @@ public class GltfImporterSceneTests {
     public void ImportScene_DirectionalLightNode_ImportsColorIntensityAndWorldDirection(){
         var SceneBuilder=new SceneBuilder();
         var Light=new LightBuilder.Directional { Color=new Vector3(1,0,0),Intensity=6 };
-        // A light pointing straight down: rotate -90 degrees around +X so local -Z (the fixed
-        // KHR_lights_punctual direction) maps to world -Y.
+        // 真下を向くライト：+X 周りに -90 度回転し、ローカル -Z（固定された
+        // KHR_lights_punctual の方向）をワールド -Y に対応させる。
         var LightNode=new NodeBuilder("Sun"){ LocalTransform=new AffineTransform(Quaternion.CreateFromAxisAngle(Vector3.UnitX,-MathF.PI/2f))};
         SceneBuilder.AddLight(Light,LightNode);
 
@@ -188,9 +182,9 @@ public class GltfImporterSceneTests {
             Assert.Equal(6f,Directional.Illuminance.Lux,precision:3);
             Assert.Equal(new CSharpGameEngine.Lighting.LinearLightColor(1,0,0),ImportedLight.Color);
 
-            // node.WorldTransform is already engine-space (ADR-0027): local Forward there is +Z, not
-            // glTF's own local -Z, so the direction must come from ImportedLightDirection.WorldForward
-            // rather than a hand-rolled -Vector3.UnitZ transform.
+            // node.WorldTransform はすでにエンジン空間である (ADR-0027)。そこでのローカル Forward は +Z であり、
+            // glTF 自身のローカル -Z ではない。そのため方向は ImportedLightDirection.WorldForward から取得する。
+            // 手書きの -Vector3.UnitZ 変換ではなく、ImportedLightDirection.WorldForward を使う。
             var WorldDirection=ImportedLightDirection.WorldForward(Node.WorldTransform);
             Assert.Equal(new Vector3(0,-1,0),WorldDirection,EqualityComparerFor(0.001f));
         } finally {

@@ -1,10 +1,10 @@
 using System.Text;
 namespace CSharpGameEngine.Contracts;
-public enum SubAssetKind:byte { Mesh,Material,Texture,Skeleton,Clip,DistanceField,License }
+public enum SubAssetKind:byte { Mesh,Material,Texture,Skeleton,Clip,DistanceField,License,Image }
 public static class SubAssetIdentity {
     public static string KindName(SubAssetKind Kind)=>Kind switch {
         SubAssetKind.Mesh=>"mesh",SubAssetKind.Material=>"material",SubAssetKind.Texture=>"texture",
-        SubAssetKind.Skeleton=>"skeleton",SubAssetKind.Clip=>"clip",SubAssetKind.DistanceField=>"sdf",SubAssetKind.License=>"license",
+        SubAssetKind.Skeleton=>"skeleton",SubAssetKind.Clip=>"clip",SubAssetKind.DistanceField=>"sdf",SubAssetKind.License=>"license",SubAssetKind.Image=>"image",
         _=>throw new ArgumentOutOfRangeException(nameof(Kind))
     };
     public static SubAssetId Derive(SubAssetKind Kind,string CanonicalName){
@@ -15,7 +15,7 @@ public static class SubAssetIdentity {
         return SubAssetId.FromCanonicalBytes(Encoding.UTF8.GetBytes("cge.subasset/1\n"+Token+"\n"+CanonicalName.Normalize(NormalizationForm.FormC)));
     }
 }
-/// <summary>A source reference and an optional percent-escaped, context-typed subasset selector.</summary>
+/// <summary>ソース参照と、省略可能なパーセントエスケープ済みの型付きサブアセットセレクター。</summary>
 public sealed class AssetSelector {
     public AssetSelector(string Path,SubAssetKind Kind,string?Name=null){
         if(string.IsNullOrWhiteSpace(Path)){ throw new ArgumentException("A selector requires a source path.",nameof(Path)); }

@@ -26,8 +26,7 @@ public sealed class SceneTextChangePlannerTests {
     }
 
     /// <summary>
-    /// A scene JSON write-back changes only what differs between the texts, never splitting a CRLF or a surrogate pair,
-    /// and applying the change reproduces the new text. The unrelated-text overload replaced the whole document.
+    /// Scene JSON の書き戻しでは、CRLF やサロゲートペアを分割せず、テキスト間の差分だけを変更する。変更を適用すると新しいテキストを再現する。無関係なテキストを使うオーバーロードはドキュメント全体を置換していた。
     /// </summary>
     [Theory]
     [InlineData("{ \"R\": 1, \"U\": 0 }","{ \"R\": 3, \"U\": 0 }",7,1)]

@@ -6,8 +6,7 @@ using static CSharpGameEngine.VSExtension.NativeMethods;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Stable child HWND returned to WPF while the actual DXGI target is a replaceable child
-/// generation. A crashed out-of-process host must never attach a new swap chain to its prior HWND.
+/// WPF に返す安定した子 HWND。実際の DXGI target は交換可能な child generation です。クラッシュしたプロセス外 host の以前の HWND に、新しい swap chain を決して接続しません。
 /// </summary>
 internal sealed class RenderSurfaceHostWindow:IDisposable {
     private const string ClassName="CSharpGameEngine.VSExtension.RenderSurfaceHost";

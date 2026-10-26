@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0079: the enabled plugins' manifests are checked (PLUGIN001-005). The test engine is 0.1.16 (SceneProjectOptions).</summary>
+/// <summary>ADR-0079：有効なプラグインのマニフェストを検査する（PLUGIN001-005）。テスト用エンジンのバージョンは0.1.16（SceneProjectOptions）。</summary>
 public sealed class PluginManifestAnalyzerTests {
     private static AdditionalText Manifest(string Folder,string Text)=>new InMemoryAdditionalText($@"C:\Game\Plugins\{Folder}\{Folder}.cgeplugin",Text);
 

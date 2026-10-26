@@ -23,9 +23,7 @@ using VsTextBuffer=Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Applies source markers through Visual Studio's built-in text-marker tagger. Hierarchy updates
-/// decorate already-open scene documents without activating them; explicit definition navigation
-/// opens its target document and decorates the requested declaration without selecting its text.
+/// Visual Studio 組み込みのテキストマーカー tagger を使ってソースマーカーを適用する。Hierarchy の更新では開いているシーンドキュメントに印を付けるが、それをアクティブにはしない。定義への明示的な移動では対象ドキュメントを開き、テキストを選択せずに指定された宣言へ印を付ける。
 /// </summary>
 internal sealed class SceneSourceMarkerService : IDisposable {
     private readonly IVsRunningDocumentTable RunningDocumentTable;
@@ -138,9 +136,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     }
 
     /// <summary>
-    /// Opens a Component definition and decorates its complete declaration without changing the
-    /// editor selection. Member definitions receive their member declaration; types receive the
-    /// whole type declaration.
+    /// Component の定義を開き、エディターの選択範囲を変えずに宣言全体へ印を付ける。メンバーの定義ではメンバー宣言を、型の定義では型宣言全体を対象にする。
     /// </summary>
     internal bool NavigateAndMark(DefinitionNavigationTarget Target){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -178,7 +174,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         }
         return this.OwnedTagSpans.Count>0;
     }
-    /// <summary>ADR-0070: a JSON scene's nodes are located in its live JSON text.</summary>
+    /// <summary>ADR-0070：JSON シーンのノードはライブ JSON テキスト内の位置から探す。</summary>
     private static string? JsonTextOf(SceneModel Model,ITextBuffer Buffer)=>
         SceneJsonCommitPlanner.IsJsonDocument(Model.FilePath)?Buffer.CurrentSnapshot.GetText():null;
     internal void Navigate(SceneModel? Model,NodePath Path){
@@ -277,8 +273,8 @@ internal sealed class SceneSourceMarkerService : IDisposable {
 
             LogInformation($"Removed {OldTagSpans.Count} hierarchy source marker tag(s).");
         } catch(Exception Ex){
-            // A document can be disposed by VS between RDT lookup and this call. Markers are
-            // best-effort decoration and must never destabilize the package during shutdown.
+            // RDT で検索してからこの呼び出しを行うまでに、VS がドキュメントを破棄する場合がある。マーカーは
+            // ベストエフォートの装飾であり、シャットダウン中にパッケージを不安定にしてはならない。
             LogWarning($"Could not clear hierarchy source marker tags: {Ex.Message}");
         }
     }
@@ -321,8 +317,8 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             this.OwnedTagSpans=NewTagSpans;
             LogInformation($"Applied {NewTagSpans.Count} hierarchy source marker tag(s) to the already-open buffer.");
         } catch(Exception Ex){
-            // Do not leave tags from a partial update behind. This can occur if VS disposes the
-            // text buffer while a scene re-analysis notification is being processed.
+            // 部分的な更新で古いタグを残さない。シーンの再解析通知を処理している間に VS が
+            // テキストバッファーを破棄すると、この状況が起こりうる。
             if(Tagger is not null&&NewTagSpans.Count>0){
                 try {
                     using(Tagger.Update()){
@@ -345,7 +341,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         try {
             ActivityLog.LogInformation(nameof(SceneSourceMarkerService),Message);
         } catch {
-            // ActivityLog itself is unavailable during some shell teardown paths.
+            // シェルの一部の終了処理では ActivityLog 自体を使用できない。
         }
     }
 
@@ -353,7 +349,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         try {
             ActivityLog.LogWarning(nameof(SceneSourceMarkerService),Message);
         } catch {
-            // ActivityLog itself is unavailable during some shell teardown paths.
+            // シェルの一部の終了処理では ActivityLog 自体を使用できない。
         }
     }
 
@@ -374,8 +370,8 @@ internal sealed class SceneSourceMarkerFormatDefinition : MarkerFormatDefinition
     internal const string MarkerTypeName="MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource";
     internal static readonly TextMarkerTag MarkerTag=new(MarkerTypeName);
 
-    // Visual Studio instantiates exported format definitions through MEF. Unlike the provider,
-    // this constructor must be public; otherwise TextMarkerTag has no display format.
+    // Visual Studio は MEF 経由でエクスポートされた形式定義をインスタンス化する。プロバイダーとは異なり、
+    // TextMarkerTag に表示形式を設定するには、このコンストラクターを public にしなければならない。
     public SceneSourceMarkerFormatDefinition(){
         this.DisplayName="C# Game Engine Scene Hierarchy Source";
         this.BackgroundColor=System.Windows.Media.Color.FromArgb(0x50,0x6A,0x3D,0xC9);

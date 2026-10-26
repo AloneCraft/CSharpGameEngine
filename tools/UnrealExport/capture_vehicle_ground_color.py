@@ -36,7 +36,7 @@ def add_capture(actors, name, location, rotation, width, height, source, fov=90.
         component.set_editor_property("fov_angle", fov)
     if show_only is not None:
         component.set_editor_property("primitive_render_mode", unreal.SceneCapturePrimitiveRenderMode.PRM_USE_SHOW_ONLY_LIST)
-        # ShowOnlyActors is instance-only and cannot be set through set_editor_property; the function adds the actor's components.
+        # ShowOnlyActors は instance のみの設定で、set_editor_property からは設定できません。関数が actor の component を追加します。
         for shown in show_only:
             component.show_only_actor_components(shown, True)
     state["captures"].append((name, component, target))
@@ -53,7 +53,7 @@ def begin() -> None:
                 unreal.SceneCaptureSource.SCS_BASE_COLOR, ortho_width=LANDSCAPE_SIDE_CM, show_only=landscapes)
     add_capture(actors, "ue_reference_topdown", center, unreal.Rotator(roll=0.0, pitch=-90.0, yaw=0.0), 1600, 1600,
                 unreal.SceneCaptureSource.SCS_FINAL_TONE_CURVE_HDR, ortho_width=LANDSCAPE_SIDE_CM)
-    # Over the hill looking toward the tunnel and the ring track, from the south-west corner of the hill.
+    # 丘の南西端から、丘越しにトンネルと環状 track を見た位置。
     add_capture(actors, "ue_reference_hill", unreal.Vector(-1800.0, -3200.0, 900.0), unreal.Rotator(roll=0.0, pitch=-18.0, yaw=50.0), 1280, 720,
                 unreal.SceneCaptureSource.SCS_FINAL_TONE_CURVE_HDR, fov=90.0)
     state["handle"] = unreal.register_slate_post_tick_callback(tick)

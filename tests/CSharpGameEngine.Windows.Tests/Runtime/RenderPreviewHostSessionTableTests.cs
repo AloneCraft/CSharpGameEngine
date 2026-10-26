@@ -1,5 +1,6 @@
+extern alias PreviewHost;
 using CSharpGameEngine.Contracts;
-using CSharpGameEngine.EditorPreview.Host;
+using PreviewHost::CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Windows.Tests.Runtime;

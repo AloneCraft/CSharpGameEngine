@@ -1,6 +1,6 @@
 using System;
 namespace CSharpGameEngine.Lighting;
-/// <summary>Explicit photometric conversions for the engine's squared smooth spot falloff.</summary>
+/// <summary>エンジンの二乗型スムーススポット減衰に使う、明示的な測光変換。</summary>
 public static class LightPhotometry {
     public const float Pi=3.14159265358979323846f;
     public static LuminousIntensity PointIntensity(LuminousFlux Flux)=>new LuminousIntensity(Flux.Lumens/(4f*Pi));
@@ -23,7 +23,7 @@ public static class LightPhotometry {
         LightValueValidation.Require(Size.IsValid,nameof(Size));
         return new Luminance(Flux.Lumens/(Pi*Size.WidthMeters*Size.HeightMeters));
     }
-    // netstandard2.0 has no MathF; constrain the BCL double boundary to this adapter.
+    // netstandard2.0にはMathFがないため、BCLのdouble境界をこのアダプターに限定する。
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
     private static float Cos(float Radians)=>(float)Math.Cos(Radians);
 }

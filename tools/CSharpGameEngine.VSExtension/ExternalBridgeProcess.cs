@@ -19,28 +19,13 @@ internal sealed class AuthoringHostOperationException:InvalidOperationException 
 }
 
 /// <summary>
-/// Shared out-of-process bridge launcher (ADR-0010, generalized in ADR-0019/ADR-0021/ADR-0023).
-/// Three-tier fallback, each tier strictly a robustness net under the previous, so correctness never
-/// depends on the fast paths working:
+/// プロセス外ブリッジを共通起動する処理 (ADR-0010。ADR-0019/ADR-0021/ADR-0023 で一般化)。3 段階のフォールバックを使い、各段階はひとつ前の堅牢性を補う。高速経路が使えるかどうかに正しさが依存することはない。
 /// <list type="number">
-/// <item>Resident named-pipe server (<see cref="ResidentBridgeClient"/>, ADR-0023) - reuses an
-/// already-running bridge process instead of paying OS-process-creation + .NET runtime startup cost
-/// per call. Only attempted when <c>useResidentServer</c> is <see langword="true"/> and a prebuilt
-/// exe was found.</item>
-/// <item>Launching the bridge project's already-built apphost <c>.exe</c> directly
-/// (<see cref="BridgeExecutableLocator"/>).</item>
-/// <item><c>dotnet run --project &lt;bridgeProjectRelativePath&gt; -- &lt;firstArg&gt; &lt;secondArg&gt;</c>
-/// - only when no built executable exists yet (e.g. a fresh clone). This matters because `dotnet
-/// run` pays MSBuild evaluation cost on effectively every invocation, not just the first - ADR-0010
-/// flagged this as a known, deliberately-deferred cost ("体感速度の最適化...は今回のスコープ外とした"),
-/// and it became the dominant cost once the シーン tab started loading several meshes (one bridge
-/// process per distinct mesh) per open.</item>
+/// <item>常駐名前付きパイプサーバー (<see cref="ResidentBridgeClient"/>、ADR-0023)：呼び出しごとに OS プロセスを作成して .NET ランタイムを起動するコストをかけず、すでに実行中のブリッジプロセスを再利用する。<c>useResidentServer</c> が <see langword="true"/> で、ビルド済み exe が見つかった場合のみ試す。</item>
+/// <item>ブリッジプロジェクトのビルド済み apphost <c>.exe</c> を直接起動する (<see cref="BridgeExecutableLocator"/>)。</item>
+/// <item><c>dotnet run --project &lt;bridgeProjectRelativePath&gt; -- &lt;firstArg&gt; &lt;secondArg&gt;</c>：ビルド済み実行ファイルがまだない場合（新規 clone など）に限る。`dotnet run` は最初の 1 回だけでなく、実質的に呼び出しごとに MSBuild 評価コストがかかるため重要である。ADR-0010 では、既知の先送りコスト（「体感速度の最適化...は今回のスコープ外とした」）として挙げられ、シーンタブがメッシュを複数（メッシュごとにブリッジプロセス 1 つ）読み込むようになると、読み込みごとの支配的なコストになった。</item>
 /// </list>
-/// Used by <see cref="ExternalFbxLoader"/>/<see cref="ExternalGltfLoader"/> (second arg is a JSON
-/// path the caller reads back via <see cref="RunAndReadJson"/>) and by
-/// <see cref="SceneModelRenderObjectBuilder.ResolveViaBridge"/> (second arg is a <c>.glb</c> path the
-/// caller only needs to know exists afterward, via <see cref="RunProducingFile"/>) - so no model/mesh
-/// data ever needs to be generated in-process inside <c>devenv.exe</c>.
+/// <see cref="ExternalFbxLoader"/>/<see cref="ExternalGltfLoader"/> からは第 2 引数を JSON パスとして使い、呼び出し元が <see cref="RunAndReadJson"/> で読み戻す。また <see cref="SceneModelRenderObjectBuilder.ResolveViaBridge"/> からは、第 2 引数を <c>.glb</c> パスとして渡し、呼び出し元は後からファイルが存在することだけを <see cref="RunProducingFile"/> で確認する。モデル/メッシュデータを <c>devenv.exe</c> 内のプロセスで生成する必要はない。
 /// </summary>
 internal static class ExternalBridgeProcess {
     public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
@@ -53,7 +38,7 @@ internal static class ExternalBridgeProcess {
         return File.ReadAllText(OutputJsonPath);
     }
 
-    /// <summary>Like <see cref="RunAndReadJson"/> but for a bridge that writes a binary file (e.g. a <c>.glb</c>) the caller will load separately rather than read back as text here.</summary>
+    /// <summary><see cref="RunAndReadJson"/> と同様ですが、バイナリファイル（例：<c>.glb</c>）を書き込む bridge 用です。呼び出し側が別途読み込むため、ここではテキストとして読み戻しません。</summary>
     public static void RunProducingFile(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
         RunProcess(BridgeProjectRelativePath,[FirstArg,OutputPath],RepoRoot,Timeout,UseResidentServer);
 
@@ -178,10 +163,10 @@ internal static class ExternalBridgeProcess {
 
         using Process Process=new(){ StartInfo=StartInfo };
 
-        // Read both streams via the event-based API (BeginOutputReadLine/BeginErrorReadLine)
-        // before WaitForExit: reading them synchronously and sequentially here would deadlock if
-        // the child fills the OS pipe buffer for the stream being read second while blocked
-        // writing to the (unread) first stream.
+        // イベントベース API（BeginOutputReadLine/BeginErrorReadLine）で両方のストリームを読み取ります。
+        // WaitForExit より前に実施します。ここで同期的かつ順番に読み取ると、
+        // 先に読む側のストリームが未読のまま書き込みを待っている間に、子プロセスが
+        // 後から読む側のストリームに書き込み、OS パイプバッファーを満たすとデッドロックするためです。
         StringBuilder Stdout=new();
         StringBuilder Stderr=new();
         Process.OutputDataReceived+=(_,E)=>{ if(E.Data is not null)Stdout.AppendLine(E.Data);};
@@ -213,9 +198,7 @@ internal static class ExternalBridgeProcess {
     }
 
     /// <summary>
-    /// One argument quoted for the Windows command line, read back as itself (CommandLineToArgvW and .NET's parser):
-    /// backslashes are doubled where they precede a quote, inside or at the closing one, so <c>C:\Out\</c> does not
-    /// escape its closing quote and swallow the next argument.
+    /// Windows コマンドライン用に引用符で囲んだ1つの引数を、CommandLineToArgvW と .NET のパーサーで同じ値として読み戻します。引用符の内側または閉じ引用符の直前にあるバックスラッシュを二重化するため、<c>C:\Out\</c> が閉じ引用符をエスケープして次の引数を取り込むことはありません。
     /// </summary>
     internal static string QuoteArgument(string Argument){
         if(Argument is null){ throw new ArgumentNullException(nameof(Argument)); }
@@ -231,28 +214,19 @@ internal static class ExternalBridgeProcess {
 }
 
 /// <summary>
-/// Finds the newest already-built apphost <c>.exe</c> for a bridge project, if one exists, so
-/// <see cref="ExternalBridgeProcess"/> can skip `dotnet run`'s MSBuild evaluation entirely. None of
-/// the bridge projects (<c>Import.Fbx.Cli</c>/<c>Import.Gltf.Cli</c>/<c>Primitive.Cli</c>) set an
-/// explicit <c>&lt;AssemblyName&gt;</c>, so the output <c>.exe</c> name always matches the project
-/// folder name - the last segment of <c>bridgeProjectRelativePath</c>. Only <c>Import.Fbx.Cli</c>
-/// sets a <c>RuntimeIdentifier</c> (AssimpNet's native dependency), so both the RID and non-RID
-/// output layouts are probed rather than special-casing per project. A top-level (not nested)
-/// <c>internal</c> class so <c>CSharpGameEngine.VSExtension.Tests</c> can unit-test the path-
-/// selection logic directly via <c>InternalsVisibleTo</c>, without spawning real processes.
+/// bridge プロジェクト用に、すでにビルド済みの最新 apphost <c>.exe</c> があれば検索します。これにより <see cref="ExternalBridgeProcess"/> は `dotnet run` による MSBuild 評価を丸ごと省略できます。bridge プロジェクト（<c>Import.Fbx.Cli</c>/<c>Import.Gltf.Cli</c>/<c>Primitive.Cli</c>）はいずれも <c>&lt;AssemblyName&gt;</c> を明示していないため、出力 <c>.exe</c> 名は <c>bridgeProjectRelativePath</c> の最後のセグメントであるプロジェクトフォルダー名と一致します。<c>RuntimeIdentifier</c> を設定するのは AssimpNet のネイティブ依存関係を持つ <c>Import.Fbx.Cli</c> だけなので、プロジェクト別の特別扱いはせず、RID ありとなしの両方の出力配置を調べます。<c>CSharpGameEngine.VSExtension.Tests</c> が実プロセスを起動せず、<c>InternalsVisibleTo</c> 経由でパス選択ロジックを単体テストできるようにした、トップレベル（入れ子でない）の <c>internal</c> クラスです。
 /// </summary>
 internal static class BridgeExecutableLocator {
     private static readonly string[]Configurations=["Release","Debug"];
 
-    /// <summary>Folder of this extension, where the VSIX ships each bridge under <c>Bridges/&lt;name&gt;/</c> (ADR-0065).</summary>
+    /// <summary>この拡張機能のフォルダー。VSIX は各 bridge を <c>Bridges/&lt;name&gt;/</c> に同梱します（ADR-0065）。</summary>
     internal static string ExtensionDirectory=>Path.GetDirectoryName(typeof(BridgeExecutableLocator).Assembly.Location)??AppDomain.CurrentDomain.BaseDirectory;
 
     public static string?FindExecutable(string RepoRoot,string BridgeProjectRelativePath)=>
         FindExecutable(ExtensionDirectory,RepoRoot,BridgeProjectRelativePath);
 
     /// <summary>
-    /// The bridge shipped with the extension when present; otherwise the newest runnable build in the
-    /// engine repository (development only). Null when neither exists.
+    /// 拡張機能に同梱された bridge があればそれを使用し、なければエンジンリポジトリ内の最新の実行可能なビルドを使用します（開発時のみ）。どちらもない場合は null です。
     /// </summary>
     public static string?FindExecutable(string ExtensionDirectory,string RepoRoot,string BridgeProjectRelativePath){
         var ExeFileName=Path.GetFileName(BridgeProjectRelativePath)+".exe";
@@ -272,9 +246,9 @@ internal static class BridgeExecutableLocator {
             ];
 
             foreach(var Candidate in Candidates){
-                // An apphost without its runtimeconfig is not runnable. It can be left behind
-                // by an incomplete build; launching it produces a misleading hostpolicy.dll error.
-                // Fall back to dotnet run until the portable output is complete.
+                // runtimeconfig のない apphost は実行できません。不完全なビルドで残ることがあり、
+                // 起動すると誤解を招く hostpolicy.dll エラーが発生します。
+                // portable 出力が完成するまでは dotnet run にフォールバックします。
                 var RuntimeConfigPath=Path.ChangeExtension(Candidate,".runtimeconfig.json");
                 if(!File.Exists(Candidate)||!File.Exists(RuntimeConfigPath)){
                     continue;

@@ -211,8 +211,8 @@ public sealed class LogicalScalarTests {
     }
     [Fact]
     public void ScaledDivision_MatchesTheShiftSubtractReferenceExactly(){
-        // Divisions sit on the deterministic simulation path, so the limb division must reproduce the
-        // bitwise reference's quotient, remainder and overflow verdict for every input class.
+        // 除算は決定論的シミュレーション経路上にあるため、limb 除算は各入力クラスについてビット単位の
+        // 参照実装と同じ商、余り、オーバーフロー判定を再現しなければならない。
         var Random=new Random(20260930);
         UInt128 Next(){
             var Bits=Random.Next(0,129);
@@ -237,7 +237,7 @@ public sealed class LogicalScalarTests {
             Check(Next(),Next());
         }
         for(var Index=0;Index<50000;Index++){
-            // Divisors near a limb boundary and numerators just above them exercise the estimate correction and add-back.
+            // limb の境界近くの除数と、それをわずかに上回る分子で、推定値の補正と加え戻しを検証する。
             var Denominator=((UInt128)(ulong)Random.NextInt64()<<64)|(ulong)(Random.Next(0,4)==0?0:Random.NextInt64());
             Check(Denominator*(UInt128)(ulong)Random.Next(1,1<<20)+(UInt128)(ulong)Random.Next(),Denominator|(UInt128)1<<64);
         }

@@ -84,8 +84,8 @@ internal static class SceneComponentInitializerPolicy {
             var ValueText=HasDefault?Initializer!.ToString():"default";
             SceneValue Value;
             if(HasDefault&&TryResolveDefault(Member,Initializer!,Compilation,out var Resolved)){
-                // A default the scene document cannot hold (a static member, a factory call) is left out, which
-                // keeps the same declared default when the scene is built.
+                // シーンのドキュメントで保持できない既定値（static member や factory call など）は除外し、
+                // シーンをビルドしたときに同じ宣言済み既定値が使われるようにします。
                 if(Resolved is null){ continue; }
                 Value=Resolved;
             } else {
@@ -102,11 +102,7 @@ internal static class SceneComponentInitializerPolicy {
     }
 
     /// <summary>
-    /// The value of a declared default, read with the semantic model of its declaration: the member of the member's enum
-    /// that it names (by value, so a cast names one too), a constant (<c>6360f</c>, <c>MathF.PI/4f</c>), or <c>LogicalScalar.FromSingle(constant)</c> (scene JSON reads a
-    /// LogicalScalar through float). <paramref name="Value"/> is null when the default has none of these forms, so the
-    /// scene cannot hold it. False when the declaration is not in <paramref name="Compilation"/> (a referenced assembly,
-    /// or no compilation): the text-only plan is used then.
+    /// 宣言の semantic model を使って、宣言された既定値を読み取ります。名前で指定された enum メンバー（値で照合するため cast でも指定可能）、定数（<c>6360f</c>、<c>MathF.PI/4f</c>）、または <c>LogicalScalar.FromSingle(constant)</c>（シーン JSON は LogicalScalar を float 経由で読み取る）です。既定値がこれらの形式でない場合、<paramref name="Value"/> は null となり、シーンでは保持できません。宣言が <paramref name="Compilation"/> 内にない場合（参照アセンブリ、またはコンパイルなし）は false を返し、その場合はテキストのみの plan を使います。
     /// </summary>
     private static bool TryResolveDefault(ISymbol Member,ExpressionSyntax Initializer,Compilation?Compilation,out SceneValue?Value){
         Value=null;
@@ -133,8 +129,8 @@ internal static class SceneComponentInitializerPolicy {
         }
         var Constant=Model.GetConstantValue(Initializer);
         if(MemberType is INamedTypeSymbol { TypeKind:TypeKind.Enum }Enum){
-            // Scene JSON names one member ((ShapeKind)1 is "Sphere"); a value no single member names, such as a flags
-            // combination, has no JSON form and is left out.
+            // シーン JSON は1つのメンバーを名前で指定します（(ShapeKind)1 は "Sphere"）。flags の組み合わせなど、
+            // 1つのメンバーで表せない値は JSON 形式がないため除外します。
             var Named=Constant.HasValue
                 ?Enum.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(Field=>Field.HasConstantValue&&Equals(Field.ConstantValue,Constant.Value))
                 :null;
@@ -147,7 +143,7 @@ internal static class SceneComponentInitializerPolicy {
             return true;
         }
         if(Constant.HasValue&&(Constant.Value is not null||MemberType is not { IsValueType:true })){
-            // A constant scene JSON cannot hold (a char, a NaN) is left out, as any default it cannot hold.
+            // char や NaN など、定数のシーン JSON で保持できない値は、保持できない既定値と同様に除外します。
             if(CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.HasJsonForm(Constant.Value)){ Value=Literal(MemberType,Constant.Value,Text); }
             return true;
         }
@@ -209,8 +205,7 @@ internal static class SceneComponentInitializerPolicy {
     }
 
     /// <summary>
-    /// Creates explicit Position, Rotation, and Scale R/U/F vectors when a Transform exposes a
-    /// common three-argument R/U/F vector type. The initial component is then immediately editable.
+    /// Transform が共通の3引数 R/U/F ベクトル型を公開する場合、Position、Rotation、Scale の各 R/U/F ベクトルを明示的に作成します。これにより、生成直後からコンポーネントを編集できます。
     /// </summary>
     private static bool TryCreateRufTransformPlan(
         IReadOnlyList<ISymbol> Members,string FullyQualifiedName,out SceneComponentInitializerPlan Plan){

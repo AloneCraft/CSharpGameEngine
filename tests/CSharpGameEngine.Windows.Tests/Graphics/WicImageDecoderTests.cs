@@ -2,7 +2,7 @@ using CSharpGameEngine.Import.Gltf;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
-/// <summary>WIC decode needs no D3D12 device, so these are Windows-only, not GPU-category tests.</summary>
+/// <summary>WICデコードにはD3D12デバイスが不要。そのためWindows専用テストだが、GPUカテゴリには含めない。</summary>
 public class WicImageDecoderTests {
     private static string FixturePath(string FileName)=>Path.Combine(AppContext.BaseDirectory,"Fixtures",FileName);
 
@@ -23,9 +23,9 @@ public class WicImageDecoderTests {
     }
 
     /// <summary>
-    /// An image whose header claims more pixels than one array holds (a broken or hostile file) fails like any other bad
-    /// image. The pixel buffer size was computed in unchecked 32-bit arithmetic, so 65535x65535 wrapped around and the
-    /// allocation threw out of the decoder.
+    /// 1つの配列に収まらないピクセル数をヘッダーに申告する画像（破損または悪意のあるファイル）は、他の不正画像と同様に失敗する。
+    /// ピクセルバッファーサイズを検査なしの32ビット演算で計算していたため、65535x65535では値がラップし、
+    /// デコーダー内での割り当てが例外になっていた。
     /// </summary>
     [WindowsOnlyTheory]
     [InlineData(65535u,65535u)]
@@ -40,8 +40,8 @@ public class WicImageDecoderTests {
     }
 
     /// <summary>
-    /// A decoded image becomes a Direct3D 12 texture, whose sides are at most 16384, so a larger one fails as too large for
-    /// a texture before its pixels are read. A header that claimed 20000 x 20000 allocated 1.6 GB for the pixels first.
+    /// デコード画像はDirect3D 12テクスチャとなり、各辺の上限は16384。これを超えるとピクセル読み込み前にテクスチャサイズ超過として失敗する。
+    /// ヘッダーが20000 x 20000と申告する画像では、先にピクセル用として1.6 GBを確保していた。
     /// </summary>
     [WindowsOnlyTheory]
     [InlineData(16385u,1u)]
@@ -57,7 +57,7 @@ public class WicImageDecoderTests {
         Assert.True(Allocated<1<<20,$"allocated {Allocated} bytes");
     }
 
-    /// <summary>An RGBA PNG whose IHDR claims <paramref name="Width"/> x <paramref name="Height"/> and whose IDAT is empty.</summary>
+    /// <summary><paramref name="Width"/> x <paramref name="Height"/>をIHDRに記載し、IDATが空のRGBA PNG。</summary>
     private static byte[]Png(uint Width,uint Height){
         static void BigEndian(List<byte>Bytes,uint Value){ Bytes.Add((byte)(Value>>24));Bytes.Add((byte)(Value>>16));Bytes.Add((byte)(Value>>8));Bytes.Add((byte)Value); }
         static uint Crc(IEnumerable<byte>Bytes){

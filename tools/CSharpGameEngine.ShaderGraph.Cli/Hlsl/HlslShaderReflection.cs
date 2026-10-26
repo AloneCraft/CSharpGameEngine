@@ -6,7 +6,7 @@ using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Compiler.Hlsl;
 public sealed record HlslVariableLayout(string Name,uint Offset,uint Size,string Class,string Type,uint Rows,uint Columns,uint Elements);
 public sealed record HlslConstantBufferLayout(string Name,uint Size,IReadOnlyList<HlslVariableLayout>Variables);
-/// <summary>Reads compiler reflection in L7. Runtime assemblies never load this code.</summary>
+/// <summary>L7 のコンパイラーリフレクションを読み取る。ランタイムアセンブリからこのコードを読み込むことはない。</summary>
 public static class HlslShaderReflection {
     public static unsafe IReadOnlyList<HlslConstantBufferLayout>ReadConstantBuffers(byte[]Data){
         ArgumentNullException.ThrowIfNull(Data);

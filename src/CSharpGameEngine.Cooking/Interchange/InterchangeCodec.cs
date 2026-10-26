@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 namespace CSharpGameEngine.Interchange;
-/// <summary>CGEX v2: little-endian scalar payload, bounded length and SHA-256. Document schema remains 1.</summary>
+/// <summary>CGEX v2：リトルエンディアンのスカラーペイロード、長さ上限、SHA-256を使用する。文書スキーマは1のまま。</summary>
 public static class InterchangeCodec {
     private const uint Magic=0x58454743;
     private const int HeaderSize=44;

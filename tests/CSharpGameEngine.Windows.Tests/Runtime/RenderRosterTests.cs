@@ -9,9 +9,7 @@ using UserEcsProject.Scenes;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0105: the renderer's objects follow the Entities after the level loaded. A game that spawns, destroys or gives an Entity a
-/// mesh while it runs must see exactly those objects drawn. Runs the generated Presentation phase on WARP, so it covers the binder,
-/// the renderable wrappers and the Render Server together, and compares what the frame shows.
+/// ADR-0078/M0105：レベルのロード後、レンダラーのオブジェクトは Entities に追従します。実行中に Entity を生成、破棄したり、メッシュを追加したりするゲームでは、それらのオブジェクトが正確に描画される必要があります。WARP 上で生成済み Presentation フェーズを実行するため、binder、renderable wrappers、Render Server をまとめて対象とし、フレームの描画結果を比較します。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RenderRosterTests {
@@ -30,7 +28,7 @@ public sealed class RenderRosterTests {
             this.State.Enabled=true;
         }
         internal ref EcsWorld World=>ref this.State.World;
-        /// <summary>The Spawner the generated loop gives every system (it makes one on first use); made here so a test can ask it for a Scene.</summary>
+        /// <summary>生成されたループが各システムに渡す Spawner（初回使用時に生成されるもの）。テストから Scene を要求できるよう、ここで作成します。</summary>
         internal Spawner Spawner(){
             var Field=typeof(GeneratedSystemSet).GetFields(BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic).Single(Candidate=>Candidate.FieldType==typeof(Spawner));
             object Boxed=this.Systems;
@@ -42,7 +40,7 @@ public sealed class RenderRosterTests {
             return Existing;
         }
         internal void Frame()=>GeneratedGameLoop.RunPresentationFrame(ref this.State,ref this.Systems,this.Host);
-        /// <summary>Runs one frame and returns what it showed: the pixel hash and how many pixels differ from the corner (the clear color).</summary>
+        /// <summary>1フレームを実行し、その表示結果としてピクセルハッシュと、隅のピクセル（clear color）と異なるピクセル数を返します。</summary>
         internal (string Hash,int Covered)Capture(){
             this.Frame();
             var Renderer=this.Host.Renderer!;
@@ -74,7 +72,7 @@ public sealed class RenderRosterTests {
         var Alone=Game.Capture();
         Assert.True(Alone.Covered>0,"the box in the level is not drawn");
         Assert.Equal(1,Game.Host.Renderer!.ActiveObjectCount);
-        // A type the level never used: its mesh is added to the renderer on the spot.
+        // レベルでは使われていない型で、そのメッシュはその場でレンダラーに追加されます。
         var Sphere=SpawnPrimitive(Game,PrimitiveType.Sphere,1.2f);
         var Both=Game.Capture();
         Assert.NotEqual(Alone.Hash,Both.Hash);
@@ -85,7 +83,7 @@ public sealed class RenderRosterTests {
         Assert.Equal(Alone.Hash,AfterDestroy.Hash);
         Assert.Equal(1,Game.Host.Renderer.ActiveObjectCount);
         Assert.False(Game.Host.Roster!.IsBound(Sphere));
-        // The destroyed Entities' slots are reused, so the new Entity has Generation 2: it must still be placed where it was put.
+        // 破棄された Entities のスロットが再利用されるため、新しい Entity の Generation は2です。指定した位置に配置されなければなりません。
         var Again=SpawnPrimitive(Game,PrimitiveType.Sphere,1.2f);
         Assert.True(Again.Generation>1,"the Entity did not get a recycled slot");
         var Respawned=Game.Capture();
@@ -139,7 +137,7 @@ public sealed class RenderRosterTests {
         using var Game=new Game();
         SpawnPrimitive(Game,PrimitiveType.Box,0f);
         var Before=Game.Capture();
-        // Box.glb has one untextured material, BoxTextured.glb a textured one: the second uploads a texture while the game runs.
+        // Box.glb にはテクスチャなしのマテリアルが1つ、BoxTextured.glb にはテクスチャ付きのマテリアルがあります。後者はゲーム実行中にテクスチャをアップロードします。
         foreach(var Asset in new[]{ "Fixtures/Box.glb","Fixtures/BoxTextured.glb" }){
             var Spawned=Game.World.Create(new Transform { Position=new LogicalVector3(1.5f,0f,0f) },new StaticMesh { AssetPath=Asset });
             var After=Game.Capture();
@@ -158,7 +156,7 @@ public sealed class RenderRosterTests {
         SpawnPrimitive(Game,PrimitiveType.Box,0f);
         var Alone=Game.Capture();
         var Spawner=Game.Spawner();
-        // Box scene: a unit box. Put it to the side of the one in the level.
+        // Box シーンは単位ボックスです。レベル内のボックスの横に配置します。
         Spawner.Spawn<PrimitiveShowcaseBoxScene>(new LogicalVector3(1.3f,0f,0f));
         var Created=new List<SceneInstance>();
         Game.Frame();
@@ -166,7 +164,7 @@ public sealed class RenderRosterTests {
         var Drawn=Game.Capture();
         Assert.Equal(2,Game.Host.Renderer!.ActiveObjectCount);
         Assert.True(Drawn.Covered>Alone.Covered);
-        // The same Scene a second time, elsewhere: a third object.
+        // 同じ Scene を別の位置にもう一度配置し、3つ目のオブジェクトにします。
         Spawner.Spawn<PrimitiveShowcaseBoxScene>(new LogicalVector3(-1.3f,0f,0f));
         Game.Frame();
         var Third=Game.Capture();
@@ -190,8 +188,7 @@ public sealed class RenderRosterTests {
         return System.IO.Path.Combine(Directory?.FullName??throw new InvalidOperationException("The repository root was not found."),"Templates","CSharpGameEngine.Templates.ThirdPerson","Assets","Characters","Mannequins","SKM_Quinn_Simple.glb");
     }
     /// <summary>
-    /// ADR-0078/M0107: a character spawned after the level loaded (a respawned pawn) gets its own copy of the skinned meshes and materials; when it is gone the copy
-    /// goes back to a pool, so a pawn that respawns again and again does not grow the renderer; a second one at the same time takes a second copy.
+    /// ADR-0078/M0107：レベルのロード後に生成されたキャラクター（再スポーンした pawn）には、スキンメッシュとマテリアルの専用コピーが割り当てられます。キャラクターが消えるとコピーは pool に戻り、pawn が何度再スポーンしてもレンダラーの使用量は増えません。同時に2体いる場合は2つ目のコピーが使われます。
     /// </summary>
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -210,19 +207,19 @@ public sealed class RenderRosterTests {
         var Meshes=Renderer.MeshCount;
         var Materials=Renderer.MaterialCount;
         var Objects=Renderer.ActiveObjectCount;
-        // Gone: the picture is the empty level again, and the Entity no longer owns meshes.
+        // 消えるとレベルだけの画像に戻り、Entity はメッシュを所有しなくなります。
         Game.World.Destroy(First);
         Assert.Equal(Empty.Hash,Game.Capture().Hash);
         Assert.False(Game.Host.TryGetSkinnedMeshes(First,out _));
         Assert.Equal(Objects-FirstMeshes.Length,Renderer.ActiveObjectCount);
-        // The next one takes the pool's copy: the same picture, no new meshes or materials.
+        // 次のキャラクターは pool 内のコピーを使います。同じ画像になり、メッシュもマテリアルも増えません。
         var Again=Game.World.Create(Placement,new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=Mannequin() });
         Assert.Equal(Drawn.Hash,Game.Capture().Hash);
         Assert.Equal(Meshes,Renderer.MeshCount);
         Assert.Equal(Materials,Renderer.MaterialCount);
         Assert.True(Game.Host.TryGetSkinnedMeshes(Again,out var AgainMeshes));
         Assert.Equal(FirstMeshes,AgainMeshes);
-        // Many respawns in a row stay at the same size.
+        // 何度連続で再スポーンしても、使用量は一定です。
         for(var Round=0;Round<12;Round++){
             Game.World.Destroy(Again);
             Game.Frame();
@@ -232,7 +229,7 @@ public sealed class RenderRosterTests {
         Assert.Equal(Meshes,Renderer.MeshCount);
         Assert.Equal(Materials,Renderer.MaterialCount);
         Assert.Equal(Drawn.Hash,Game.Capture().Hash);
-        // A second one at the same time needs a second copy.
+        // 同時に2体いる場合は、2つ目のコピーが必要です。
         var Beside=Game.World.Create(new Transform { Position=new LogicalVector3(1.2f,0f,0f) },new CSharpGameEngine.Runtime.Animation.SkeletalMesh { AssetPath=Mannequin() });
         var Two=Game.Capture();
         Assert.True(Game.Host.Roster.IsBound(Beside));

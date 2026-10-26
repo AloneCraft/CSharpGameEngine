@@ -1,6 +1,6 @@
 namespace CSharpGameEngine.Runtime.Physics;
 
-/// <summary>Single-writer dynamic AABB tree. Stable IDs resolve every equal-cost insertion tie.</summary>
+/// <summary>単一書き込みの動的 AABB ツリー。同じコストになる挿入先は安定 ID で決定する。</summary>
 internal sealed class DeterministicAabbTree {
     private sealed class Node {
         internal Node? Parent;

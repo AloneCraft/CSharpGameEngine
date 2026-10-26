@@ -44,7 +44,7 @@
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
     <!-- Bump each deployable VSIX revision.  The installer/version cache must never be asked to
          distinguish a newly fixed extension from a prior binary with the same identity. -->
-    <CSharpGameEngineVsixVersion>0.1.7</CSharpGameEngineVsixVersion>
+    <CSharpGameEngineVsixVersion>0.1.10</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
     <CgeEditorPreviewHostProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj'))</CgeEditorPreviewHostProject>
@@ -208,6 +208,13 @@
     <CgeShaderSubgraph Include="../../assets/Shaders/Pcss.cgesubgraph" />
     <CgeShaderSubgraph Include="../../assets/Shaders/Aces.cgesubgraph" />
     <CgeShaderSubgraph Include="../../assets/Shaders/Depth.cgesubgraph" />
+    <CgeComputeShader Include="../../assets/Shaders/Atmosphere.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/GlobalIllumination.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/AmbientOcclusion.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/LuminanceHistogram.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/Skinning.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/GlobalDistanceField.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/Lumen.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyMetadata Include="CSharpGameEngineRepoRoot" Value="$(CSharpGameEngineRepoRoot)" />
@@ -297,7 +304,7 @@
        the compiled Stage artifact. No native renderer assembly is loaded into devenv.exe. -->
   <Target Name="StageEditorPreviewHostForVsix"
           BeforeTargets="GetVsixSourceItems"
-          DependsOnTargets="CompileCgeShaderGraphs">
+          DependsOnTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders">
     <PropertyGroup>
       <CgeEditorPreviewHostStageDirectory Condition="$([System.IO.Path]::IsPathRooted('$(IntermediateOutputPath)'))">$(IntermediateOutputPath)PreviewHost\</CgeEditorPreviewHostStageDirectory>
       <CgeEditorPreviewHostStageDirectory Condition="'$(CgeEditorPreviewHostStageDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)PreviewHost/'))</CgeEditorPreviewHostStageDirectory>
@@ -315,7 +322,7 @@
              Properties="Configuration=$(Configuration);Platform=x64;SelfContained=false;PublishDir=$(CgeEditorPreviewHostStageDirectory)"
              BuildInParallel="false" />
     <MakeDir Directories="$(CgeEditorPreviewHostStageDirectory)Shaders" />
-    <Copy SourceFiles="$(CgeShaderGraphIntermediateDirectory)Stage.cgeshaderartifact"
+    <Copy SourceFiles="$(CgeShaderGraphIntermediateDirectory)Stage.cgeshaderartifact;@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')"
           DestinationFolder="$(CgeEditorPreviewHostStageDirectory)Shaders" />
     <ItemGroup>
       <_CgeEditorPreviewHostPayload Include="$(CgeEditorPreviewHostStageDirectory)**/*"
@@ -334,6 +341,7 @@
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" Platform="AnyCPU" />
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Import.AssetAuthoring.Cli/CSharpGameEngine.Import.AssetAuthoring.Cli.csproj" Platform="AnyCPU" />
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" Platform="AnyCPU" />
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Cook.Cli/CSharpGameEngine.Cook.Cli.csproj" Platform="AnyCPU" />
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj" Platform="x64" />
   </ItemGroup>
   <!-- ADR-0068: each project template (ThirdPerson, FirstPerson, TopDown, Vehicle) needs its source project and the engine SDK package it restores from. -->

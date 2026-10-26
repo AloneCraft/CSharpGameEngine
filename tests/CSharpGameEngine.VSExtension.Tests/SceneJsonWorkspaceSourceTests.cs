@@ -5,8 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// ADR-0070: a scene JSON additional document (<c>Scenes\**\*.json</c>) of a Roslyn project is found by its class name
-/// and read into the designer's model from its live text, with the JSON path as the model's file.
+/// ADR-0070：Roslyn プロジェクトの追加ドキュメントであるシーン JSON (<c>Scenes\**\*.json</c>) をクラス名で見つけ、ライブテキストからデザイナーのモデルへ読み込む。モデルのファイルパスには JSON のパスを使う。
 /// </summary>
 public sealed class SceneJsonWorkspaceSourceTests {
     private const string ProjectPath=@"C:\Game\Game.csproj";
@@ -48,7 +47,7 @@ public sealed class SceneJsonWorkspaceSourceTests {
         Assert.Null(await SceneJsonWorkspaceSource.FindAsync(Project,"Game.Other",CancellationToken.None));
         var Document=await SceneJsonWorkspaceSource.FindAsync(Project,"Game.MainScene",CancellationToken.None);
         Assert.NotNull(Document);
-        // SceneWorkspaceService.FindDocument resolves an open JSON editor to this document by path.
+        // SceneWorkspaceService.FindDocument は、パスから開いている JSON エディターをこのドキュメントに解決する。
         Assert.Contains(Document!.Id,Project.Solution.GetDocumentIdsWithFilePath(JsonPath));
         var Model=await AnalyzeAsync(Project,Document!);
         Assert.Equal(JsonPath,Model.FilePath);

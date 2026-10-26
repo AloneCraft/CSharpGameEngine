@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering;
-/// <summary>Optional physical camera basis for light binning and observer markers.</summary>
+/// <summary>ライトの区分けと観測者マーカーで使う、任意の物理カメラ基底。</summary>
 public readonly record struct RenderViewBasis {
     private RenderViewBasis(Vector3 Right,Vector3 Up,Vector3 Forward,float TanHalfFovY,float AspectRatio){
         this.Right=Right;
@@ -30,7 +30,7 @@ public readonly record struct RenderViewBasis {
     private static bool Usable(Vector3 Value)=>float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z)
         &&float.IsFinite(Value.LengthSquared())&&Value.LengthSquared()>0f;
 }
-/// <summary>Validated portable main-view submission. It contains no camera controller or native binding.</summary>
+/// <summary>検証済みでポータブルなメインビュー送信データ。カメラ制御器やネイティブバインディングは含まない。</summary>
 public readonly record struct RenderView {
     private RenderView(Matrix4x4 ViewProjection,Matrix4x4 AuxiliaryViewProjection,Matrix4x4 InverseViewProjection,
         Vector3 CameraPosition,float ExposureEv100,RenderViewDepth Depth,RenderViewBasis?Basis){

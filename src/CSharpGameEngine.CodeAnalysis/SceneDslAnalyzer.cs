@@ -8,10 +8,9 @@ using Microsoft.CodeAnalysis.Operations;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// The C# side of the scene boundary (ADR-0070). Scenes are JSON documents under <c>Scenes</c>, reported by
-/// <see cref="SceneJsonDslAnalyzer"/>; in C# this analyzer reports only what must not remain there:
-/// a C# scene class or <c>[StartupScene]</c> (SCENE206, with the converter to run), and code that
-/// builds or reads scene <c>Node</c> trees (SCENE114, see below).
+/// シーン境界のC#側（ADR-0070）。シーンは<c>Scenes</c>配下のJSON文書であり、<see cref="SceneJsonDslAnalyzer"/>が報告する。
+/// このアナライザーはC#側に残してはならないものだけを報告する。C#のシーンクラスまたは<c>[StartupScene]</c>（SCENE206。変換ツールを実行すること）、
+/// およびシーンの<c>Node</c>ツリーを構築または読み取るコード（SCENE114、下記参照）。
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
@@ -48,10 +47,9 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
     }
 
     /// <summary>
-    /// ADR-0070: scenes are built only from scene JSON. A C# scene class, or a class that still
-    /// carries <c>[StartupScene]</c>, is SCENE206 so an unconverted scene cannot silently disappear from
-    /// the game. The Scene Designer still reads JSON scenes through the same C# DSL internally; that
-    /// designer view never enters the build.
+    /// ADR-0070：シーンはシーンJSONだけから構築する。C#のシーンクラス、または<c>[StartupScene]</c>が残っているクラスはSCENE206となる。
+    /// 未変換のシーンがゲームから黙って消えるのを防ぐためである。Scene Designerは内部で同じC# DSLを使い、JSONシーンを読み込む。
+    /// Designerのビューはビルドには含まれない。
     /// </summary>
     private static void AnalyzeNamedType(SymbolAnalysisContext Context){
         var Type=(INamedTypeSymbol)Context.Symbol;

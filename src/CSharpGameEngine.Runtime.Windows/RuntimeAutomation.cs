@@ -25,25 +25,34 @@ public sealed class RuntimeAutomation {
     /// </summary>
     public const string InputVariable="CGE_AUTOMATION_INPUT";
     public const string ReportVariable="CGE_AUTOMATION_REPORT";
-    /// <summary>The scripted cursor, <c>x,y</c> as fractions of the client area (0..1 from the top left). A run with it never reads the real cursor.</summary>
+    /// <summary>スクリプトで指定するカーソル位置。クライアント領域に対する<c>x,y</c>の割合（0～1、左上を原点）。これを使う実行では実カーソルを読み取らない。</summary>
     public const string CursorVariable="CGE_AUTOMATION_CURSOR";
-    /// <summary>Debug view: <c>r,u,f,yawDegrees,pitchDegrees</c>. The scene camera is replaced by a camera at that world offset from the Entity it hangs from, turned by that yaw (about U) and pitch (about R), so a run can be filmed from the side of a vehicle (M0109).</summary>
+    /// <summary>
+    /// デバッグビュー：<c>r,u,f,yawDegrees,pitchDegrees</c>。シーンカメラを置き換え、カメラがぶら下がるEntityからのワールド空間オフセット位置に配置する。Yaw（U軸
+    /// まわり）とPitch（R軸まわり）で回転させるため、車両の横から実行を撮影できる（M0109）。
+    /// </summary>
     public const string CameraVariable="CGE_AUTOMATION_CAMERA";
     public const string ReportSchema="cge-automation-report/1";
     private readonly List<Vector3?>CameraPositions=[];
-    /// <summary>One entry per presented frame: where the Entity the camera hangs from is (the character a spring arm follows), or null (M0107).</summary>
+    /// <summary>表示フレームごとに1件。カメラがぶら下がるEntity（スプリングアームが追従するキャラクター）の位置、またはnull（M0107）。</summary>
     private readonly List<Vector3?>FocusPositions=[];
-    /// <summary>One entry per presented frame: a fingerprint of the screen layer's vertices (ADR-0078/M0104), 0 when the frame had none.</summary>
+    /// <summary>表示フレームごとに1件。スクリーンレイヤーの頂点のフィンガープリント（ADR-0078/M0104）。頂点がないフレームでは0。</summary>
     private readonly List<ulong>ScreenLayerFingerprints=[];
-    /// <summary>One entry per presented frame: how many objects the renderer drew (ADR-0078/M0105), so a spawned effect shows as a rise and its end as a fall.</summary>
+    /// <summary>表示フレームごとに1件。レンダラーが描画したオブジェクト数（ADR-0078/M0105）。効果の生成時に増え、終了時に減ることを確認できる。</summary>
     private readonly List<int>RenderObjectCounts=[];
-    /// <summary>ADR-0078/M0110: meshes with a distance field and objects in the global distance field, at the last frame.</summary>
+    /// <summary>ADR-0078/M0110：直近フレームで距離場を持つメッシュ数と、グローバル距離場内のオブジェクト数。</summary>
     private int DistanceFieldMeshes;
     private int DistanceFieldObjects;
-    /// <summary>ADR-0078/M0111: whether the last frame was lit by the Lumen-like GI, and the frames that were.</summary>
+    /// <summary>ADR-0078/M0111：直近フレームがLumen風GIで照明されたかどうかと、該当フレーム数。</summary>
     private bool LumenActive;
+    private CSharpGameEngine.Rendering.VirtualShadowStatistics VirtualShadows;
+    private float CascadedShadowMilliseconds,VirtualShadowMilliseconds;
+    private CSharpGameEngine.Rendering.DirectionalShadowSettings ShadowSettings;
+    private string GraphicsAdapter=string.Empty;
+    private bool IsWarp;
+    private int SurfaceWidth,SurfaceHeight;
     private int LumenFrames;
-    /// <summary>One entry per presented frame: wall-clock milliseconds since the previous frame was presented (M0110: WARP frame time evidence).</summary>
+    /// <summary>表示フレームごとに1件。前フレーム表示からの壁時計時間（ミリ秒。M0110ではWARPのフレーム時間の証拠）。</summary>
     private readonly List<float>FrameMilliseconds=[];
     private readonly System.Diagnostics.Stopwatch FrameClock=new();
     private RuntimeAutomation(int ExitAfterFrames,string?CapturePath,IReadOnlyList<RuntimeAutomationKeyHold>Input,string?ReportPath){
@@ -75,13 +84,13 @@ public sealed class RuntimeAutomation {
         return new RuntimeAutomation(Frames,string.IsNullOrWhiteSpace(Capture)?null:Path.GetFullPath(Capture),Input,string.IsNullOrWhiteSpace(Report)?null:Path.GetFullPath(Report));
     }
     /// <summary>
-    /// The elapsed time of one automation frame: exactly the scheduler's per-frame cap, expressed in ticks so the
-    /// integer accumulator advances by whole steps with no remainder (<see cref="EngineHost.FrameTime"/>).
+    /// 自動実行の1フレーム分の経過時間。スケジューラーのフレームあたり上限をティック数で表し、
+    /// 整数アキュムレーターを端数なしの整数ステップで進める（<see cref="EngineHost.FrameTime"/>）。
     /// </summary>
     internal static (long ElapsedCounter,long CounterFrequency)FixedFrameTime(FixedTickScheduler Scheduler)=>
         (Scheduler.MaximumStepsPerFrame,Scheduler.TickRate);
 
-    /// <summary>Parses <see cref="InputVariable"/>; an empty value schedules nothing.</summary>
+    /// <summary><see cref="InputVariable"/>を解析する。値が空なら何もスケジュールしない。</summary>
     public static bool TryParseInput(string?Text,out IReadOnlyList<RuntimeAutomationKeyHold>Holds,out string Error){
         List<RuntimeAutomationKeyHold>Result=[];
         Holds=Result;
@@ -100,7 +109,7 @@ public sealed class RuntimeAutomation {
             var Value=1f;
             var ValueAt=Code.IndexOf('=');
             if(ValueAt>=0){
-                // M0108: an analog control takes its value (a gamepad axis or trigger, or the mouse counts per frame).
+                // M0108：アナログ入力では、ゲームパッドの軸／トリガー値、またはフレームごとのマウス移動量を指定する。
                 if(!float.TryParse(Code.AsSpan(ValueAt+1),NumberStyles.Float,CultureInfo.InvariantCulture,out Value)||!float.IsFinite(Value)){
                     Error=$"'{Entry}' has a value that is not a finite number.";
                     return false;
@@ -124,9 +133,9 @@ public sealed class RuntimeAutomation {
     private static bool IsMouseDeltaCode(string Code)=>Code is "MouseDeltaX" or "MouseDeltaY";
     private static bool IsAnalogCode(string Code)=>IsMouseDeltaCode(Code)||Win32InputEventAdapter.IsGamepadInjectionCode(Code);
     /// <summary>
-    /// Holds each scheduled key while the frame about to be presented is inside one of its ranges. <c>MouseLeft</c> holds the left mouse button, <c>MouseDeltaX</c> and
-    /// <c>MouseDeltaY</c> move the mouse by their value in counts every frame of the range, <c>Gamepad…</c> sets a controller axis, trigger or button to its value
-    /// (0 outside the range), and anything else is a keyboard key (M0108).
+    /// これから表示するフレームが範囲内にある間、スケジュールされた各入力を保持する。<c>MouseLeft</c>は左マウスボタンを押し続け、
+    /// <c>MouseDeltaX</c>と<c>MouseDeltaY</c>は範囲内の各フレームで指定値（カウント単位）だけマウスを移動させる。
+    /// <c>Gamepad…</c>はコントローラーの軸、トリガー、ボタンを指定値にする（範囲外では0）。それ以外はキーボードキーとして扱う（M0108）。
     /// </summary>
     internal void ApplyInput(Win32Window Window){
         var Frame=this.PresentedFrames;
@@ -143,10 +152,10 @@ public sealed class RuntimeAutomation {
         }
         if(DeltaX!=0f||DeltaY!=0f){ Window.InjectMouseDelta(DeltaX,DeltaY); }
     }
-    /// <summary>Sound requests the game made so far (ADR-0077), and how many a device actually started. A verification reads them from the report.</summary>
+    /// <summary>ゲームがこれまでに要求したサウンド（ADR-0077）と、デバイスが実際に開始した数。検証時にレポートから読み取る。</summary>
     private int AudioRequests;
     private int AudioStarted;
-    /// <summary>The scripted cursor as fractions of the client area, or null to use the real one.</summary>
+    /// <summary>クライアント領域に対する割合で表したスクリプトカーソル。nullなら実カーソルを使う。</summary>
     internal float[]?CameraOverride { get;}=ParseCameraOverride(Environment.GetEnvironmentVariable(CameraVariable));
     private static float[]?ParseCameraOverride(string?Text){
         var Parts=(Text??string.Empty).Split(',',StringSplitOptions.TrimEntries);
@@ -175,6 +184,12 @@ public sealed class RuntimeAutomation {
         this.DistanceFieldMeshes=Renderer.DistanceFieldMeshCount;
         this.DistanceFieldObjects=Renderer.DistanceFieldObjectCount;
         this.LumenActive=Renderer.LumenActive;
+        this.VirtualShadows=Renderer.VirtualShadowStatistics;
+        this.CascadedShadowMilliseconds=Renderer.CascadedShadowGpuMilliseconds;
+        this.VirtualShadowMilliseconds=Renderer.VirtualShadowGpuMilliseconds;
+        this.ShadowSettings=Renderer.DirectionalShadows;
+        this.GraphicsAdapter=Renderer.AdapterDescription;this.IsWarp=Renderer.IsWarp;
+        this.SurfaceWidth=Renderer.SurfaceWidth;this.SurfaceHeight=Renderer.SurfaceHeight;
         if(this.LumenActive){
             this.LumenFrames++;
         }
@@ -188,8 +203,8 @@ public sealed class RuntimeAutomation {
         }
         var Frame=Renderer.LastCapturedFrame??throw new InvalidOperationException("The automation capture frame was not read back.");
         WritePng(Frame,this.CapturePath!);
-        // The capture is the verification evidence, so the device diagnostics that qualify it are
-        // reported next to it (D3D12 debug-layer errors turn a plausible image into a failed run).
+        // キャプチャ画像は検証の証拠となるため、
+        // その証拠の適格性に関わるデバイス診断も隣に報告する（D3D12デバッグレイヤーのエラーがあれば、妥当に見える画像でも実行失敗とする）。
         foreach(var Message in Renderer.DebugMessages.Where(static Message=>Message.IsErrorOrWorse).Take(20)){
             Console.Error.WriteLine("CGE-AUTOMATION-D3D12 "+Message);
         }
@@ -204,16 +219,19 @@ public sealed class RuntimeAutomation {
         using var Writer=new Utf8JsonWriter(Output,new JsonWriterOptions { Indented=true });
         Writer.WriteStartObject();
         Writer.WriteString("schema",ReportSchema);
+        Writer.WriteString("graphicsAdapter",this.GraphicsAdapter);
+        Writer.WriteBoolean("isWarp",this.IsWarp);
+        Writer.WriteNumber("surfaceWidth",this.SurfaceWidth);Writer.WriteNumber("surfaceHeight",this.SurfaceHeight);
         Writer.WriteNumber("frames",this.PresentedFrames);
         Writer.WriteNumber("d3d12Errors",D3D12Errors);
         Writer.WriteBoolean("d3d12DebugLayerEnabled",DebugLayerEnabled);
         Writer.WriteNumber("audioRequests",this.AudioRequests);
         Writer.WriteNumber("audioStarted",this.AudioStarted);
-        // Frame-local camera positions (in the camera's reference frame), one entry per presented frame.
+        // カメラの基準座標系で表す、フレームごとのカメラ位置。表示フレームごとに1件。
         WritePositions(Writer,"cameraPositions",this.CameraPositions);
-        // Where the camera's parent (the character) was, one entry per presented frame; null when the camera has no parent (M0107).
+        // カメラの親（キャラクター）の位置。表示フレームごとに1件。カメラに親がなければnull（M0107）。
         WritePositions(Writer,"focusPositions",this.FocusPositions);
-        // Hexadecimal text: a 64-bit value does not survive a JSON number.
+        // 16進テキストで保持する。64ビット値はJSON数値では正確に保持できない。
         Writer.WriteStartArray("screenLayerFingerprints");
         foreach(var Fingerprint in this.ScreenLayerFingerprints){
             Writer.WriteStringValue(Fingerprint.ToString("x16",CultureInfo.InvariantCulture));
@@ -228,6 +246,21 @@ public sealed class RuntimeAutomation {
         Writer.WriteNumber("distanceFieldObjects",this.DistanceFieldObjects);
         Writer.WriteBoolean("lumenActive",this.LumenActive);
         Writer.WriteNumber("lumenFrames",this.LumenFrames);
+        Writer.WriteStartObject("virtualShadows");
+        Writer.WriteString("mode",this.ShadowSettings.Mode.ToString());
+        Writer.WriteBoolean("comparison",this.ShadowSettings.Compare);
+        Writer.WriteNumber("cascadedGpuMilliseconds",this.CascadedShadowMilliseconds);
+        Writer.WriteNumber("virtualPagesGpuMilliseconds",this.VirtualShadowMilliseconds);
+        Writer.WriteBoolean("softShadows",this.ShadowSettings.SoftShadows);
+        Writer.WriteNumber("sourceAngularDiameterDegrees",this.ShadowSettings.SourceAngularDiameterDegrees);
+        Writer.WriteNumber("maximumSoftShadowRadiusMeters",this.ShadowSettings.MaximumSoftShadowRadiusMeters);
+        Writer.WriteNumber("requested",this.VirtualShadows.Requested);
+        Writer.WriteNumber("resident",this.VirtualShadows.Resident);
+        Writer.WriteNumber("rendered",this.VirtualShadows.Rendered);
+        Writer.WriteNumber("reused",this.VirtualShadows.Reused);
+        Writer.WriteNumber("missingRequests",this.VirtualShadows.Missing);
+        Writer.WriteNumber("invalidated",this.VirtualShadows.Invalidated);
+        Writer.WriteEndObject();
         Writer.WriteStartArray("frameMilliseconds");
         foreach(var Milliseconds in this.FrameMilliseconds){
             Writer.WriteNumberValue(MathF.Round(Milliseconds,2));
@@ -305,8 +338,8 @@ public sealed class RuntimeAutomation {
     }
 }
 /// <summary>
-/// One scheduled hold: pressed from <see cref="StartFrame"/> up to, not including, <see cref="EndFrame"/>. <see cref="Value"/> is 1 for a key or button, and the
-/// amount for an analog control (a gamepad axis or trigger; the mouse counts moved per frame).
+/// スケジュールされた入力1件。<see cref="StartFrame"/>から<see cref="EndFrame"/>の直前まで押下状態にする。
+/// <see cref="Value"/>はキー／ボタンでは1、アナログ入力（ゲームパッドの軸／トリガー、またはフレームごとのマウス移動カウント）ではその値を表す。
 /// </summary>
 public readonly record struct RuntimeAutomationKeyHold(string Code,int StartFrame,int EndFrame,float Value=1f) {
     public bool Contains(int Frame)=>Frame>=this.StartFrame&&Frame<this.EndFrame;

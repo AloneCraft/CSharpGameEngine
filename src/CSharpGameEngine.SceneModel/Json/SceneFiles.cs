@@ -4,13 +4,11 @@ using System.Collections.Generic;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 
 /// <summary>
-/// Which files are scenes (ADR-0070, revised 2026-10-01 at the user's request): every <c>*.json</c>
-/// under the project's <c>Scenes</c> folder, at any depth. The build includes exactly these
-/// (<c>Scenes\**\*.json</c>); the generator decides with the build's ProjectDir and the Visual Studio
-/// extension with the nearest project folder, both through this one rule. A scene file needs no
-/// special extension, and JSON outside <c>Scenes</c> (appsettings.json, assets) is never a scene.
-/// A plugin's <c>Scenes</c> folder holds scenes too (ADR-0079): a project plugin's
-/// (<c>Plugins\&lt;Name&gt;\Scenes</c>) by this rule alone, and an engine or package plugin's through the plugin roots the build passes.
+/// どのファイルを Scene として扱うか（ADR-0070、ユーザー要望により2026-10-01改訂）。プロジェクトの <c>Scenes</c> フォルダー以下、深さを問わず、すべての
+/// <c>*.json</c> を対象とする。ビルドはこのファイルだけを含める（<c>Scenes\**\*.json</c>）。ソースジェネレーターはビルドの ProjectDir、Visual
+/// Studio 拡張機能は最も近いプロジェクトフォルダーを使うが、どちらもこの単一の規則で判断する。Scene ファイルに専用の拡張子は不要。<c>Scenes</c> の外にある JSON（
+/// appsettings.json、アセットなど）は Scene として扱わない。プラグイン内の <c>Scenes</c> フォルダーも対象（ADR-0079）。プロジェクトプラグインでは、この規則だ
+/// けで <c>Plugins\&lt;Name&gt;\Scenes</c> を対象にする。エンジンまたはパッケージのプラグインでは、ビルドから渡されるプラグインルートを通じて対象にする。
 /// </summary>
 internal static class SceneFiles {
     internal const string FolderName="Scenes";
@@ -25,7 +23,7 @@ internal static class SceneFiles {
         if(!string.IsNullOrEmpty(ProjectDirectory)){
             string Project=Normalize(ProjectDirectory!).TrimEnd('/')+"/";
             if(IsUnder(File,Project+FolderName+"/")){ return true; }
-            // Plugins/<Name>/Scenes/...: exactly one folder between Plugins and Scenes.
+            // Plugins/<Name>/Scenes/...：Plugins と Scenes の間にはフォルダーが1つだけある。
             string Plugins=Project+PluginsFolderName+"/";
             if(File.StartsWith(Plugins,StringComparison.OrdinalIgnoreCase)){
                 var NameEnd=File.IndexOf('/',Plugins.Length);
@@ -47,9 +45,9 @@ internal static class SceneFiles {
 }
 
 /// <summary>
-/// Paths the build passes to the generator (ADR-0079). MSBuild properties reach the generator through a generated .editorconfig whose
-/// reader cuts a value at <c>#</c> or <c>;</c> (a comment), so a game under <c>C:\C#\</c> lost its ProjectDir and built without its scenes
-/// and Assets catalog. The build writes <c>#</c> as <c>?h</c> and <c>;</c> as <c>?s</c> (<c>?</c> cannot occur in a Windows path).
+/// ビルドがジェネレーターに渡すパス（ADR-0079）。MSBuild のプロパティは、生成される .editorconfig を経由してジェネレーターに渡す。.editorconfig の読み込み側は
+/// コメントとして <c>#</c> または <c>;</c> 以降を切り捨てるため、<c>C:\C#\</c> の下にあるゲームでは ProjectDir が欠落し、Scene と Assets
+/// カタログなしでビルドされていた。ビルドでは <c>#</c> を <c>?h</c>、<c>;</c> を <c>?s</c> として書き出す（Windows パスに <c>?</c> は使えない）。
 /// </summary>
 internal static class GeneratorPath {
     internal static string Encode(string Path)=>Path.Replace("#","?h").Replace(";","?s");
@@ -57,9 +55,9 @@ internal static class GeneratorPath {
 }
 
 /// <summary>
-/// An enabled plugin's name and folder (ADR-0079). The build passes them to the generator as the <c>CgePluginRoots</c> property,
-/// <c>Name=Folder</c> pairs separated by <c>|</c>. Not <c>;</c>: the property reaches the generator through an .editorconfig, whose
-/// reader drops everything from a <c>;</c> or <c>#</c> on as a comment (the first plugin package check saw an empty value).
+/// 有効なプラグインの名前とフォルダー（ADR-0079）。ビルドはこれらを <c>CgePluginRoots</c> プロパティとしてジェネレーターへ渡す。形式は <c>Name=Folder</c>
+///  の組を <c>|</c> で区切る。<c>;</c> は使わない。.editorconfig 経由でジェネレーターに届くプロパティは、読み込み側が <c>;</c> または <c>#</c> 以降を
+/// コメントとして削除するため（最初のプラグインパッケージ検査では空の値になった）。
 /// </summary>
 internal readonly struct PluginRoot(string Name,string Directory) {
     internal const char Separator='|';

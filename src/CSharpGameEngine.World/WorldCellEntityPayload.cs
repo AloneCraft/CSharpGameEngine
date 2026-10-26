@@ -4,7 +4,7 @@ using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.World;
 
-/// <summary>Canonical link from a baked cell artifact to source-generated C# entity construction.</summary>
+/// <summary>ベイク済みセルアーティファクトから、ソース生成されたC# Entity構築処理への正規リンク。</summary>
 public static class WorldCellEntityPayloadCodec {
     private const uint Magic=0x50454743;
     private const ushort Version=1;

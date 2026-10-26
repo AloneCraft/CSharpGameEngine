@@ -3,9 +3,7 @@ using System.Numerics;
 namespace CSharpGameEngine.Import.Fbx.Tests;
 
 /// <summary>
-/// ADR-0027 regression guard: proves the conversion function itself is correct without depending on
-/// a hand-authored asymmetric .fbx binary fixture (Box.fbx is symmetric, so
-/// Import_BoxFbx_BoundingBox_IsPlausible cannot detect an axis regression on its own).
+/// ADR-0027 の回帰ガード：手作業で作成した非対称 .fbx バイナリフィクスチャに依存せず、変換関数自体が正しいことを証明する（Box.fbx は対称なので、Import_BoxFbx_BoundingBox_IsPlausible だけでは軸の回帰を検出できない）。
 /// </summary>
 public class FbxAxisConversionTests {
     [Fact]

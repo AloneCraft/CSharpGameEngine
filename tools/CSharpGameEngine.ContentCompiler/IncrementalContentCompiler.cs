@@ -65,7 +65,7 @@ public sealed class ContentCompileResult {
     public bool Succeeded=>this.Status==ContentCompileStatus.Succeeded;
 }
 
-/// <summary>Dependency-addressed incremental compiler with atomic last-known-good state publication.</summary>
+/// <summary>依存関係に基づく増分コンパイラー。最後に正常だった状態をアトミックに公開する。</summary>
 public sealed class IncrementalContentCompiler {
     private const int StateSchemaVersion=1;
     private readonly SemaphoreSlim OperationGate=new(1,1);

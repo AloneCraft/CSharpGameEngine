@@ -3,7 +3,7 @@ using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.Bridge.Hosting.Tests;
 
-/// <summary>Exercises the length-prefixed JSON framing against a <see cref="MemoryStream"/> - no real pipe or process involved (ADR-0023).</summary>
+/// <summary><see cref="MemoryStream"/>を使って長さ付きJSONフレーミングを検証する（実際のパイプやプロセスは使わない。ADR-0023）。</summary>
 public class BridgeWireMessageTests {
     [Fact]
     public async Task WriteThenRead_RoundTripsRequest(){

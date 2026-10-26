@@ -20,8 +20,7 @@ public sealed class FeatureRunnerApplicationTests {
         Assert.Empty(Executor.ExecutedStageIds);
     }
     /// <summary>
-    /// Results belong to the repository the stages ran against: release evidence looks for them there. They used to be
-    /// saved in the repository around the current directory.
+    /// 結果は各ステージを実行したリポジトリに属する。リリース時の証跡確認はそこで結果を探す。以前はカレントディレクトリ周辺のリポジトリに保存していた。
     /// </summary>
     [Fact]
     public void ResultsRepository_IsTheRepositoryRootTheCommandNames(){

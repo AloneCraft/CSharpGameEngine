@@ -56,6 +56,7 @@
          the paths that scenes name. -->
     <AdditionalFiles Include="Assets\**\*.wav;Assets\**\*.glb;Assets\**\*.gltf;Assets\**\*.fbx;Assets\**\*.png;Assets\**\*.jpg;Assets\**\*.jpeg;Assets\**\*.cgefont" Exclude="Assets\Editor\**" />
     <!-- ADR-0079: a data asset's contents are read too; the generator compiles each into its [DataAsset] type's value. -->
+    <AdditionalFiles Include="Assets\**\*.meta" Exclude="Assets\Editor\**" />
     <AdditionalFiles Include="Assets\**\*.cgeasset" />
     <CompilerVisibleProperty Include="ProjectDir" />
     <!-- ADR-0079: the engine version a plugin manifest is checked against, and the project and enabled plugins' folders, encoded so

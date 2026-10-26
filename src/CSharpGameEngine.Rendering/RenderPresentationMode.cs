@@ -1,9 +1,6 @@
 namespace CSharpGameEngine.Rendering;
 
-/// <summary>
-/// Provider-neutral presentation view of the same render-world snapshot. This is derived display
-/// state, never authoritative simulation data.
-/// </summary>
+/// <summary>同一のレンダーワールドスナップショットを、プロバイダーに依存せず表示するビュー。表示用の派生状態であり、シミュレーションの正本データではない。</summary>
 public enum RenderPresentationMode:byte {
     Lit,
     BaseColor,

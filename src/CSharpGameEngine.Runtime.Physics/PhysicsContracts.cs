@@ -9,9 +9,8 @@ public readonly record struct PhysicsRay(LogicalVector3 Origin,LogicalVector3 Di
 public readonly record struct PhysicsRayHit(Entity Entity,ulong StableId,LogicalScalar Distance,LogicalVector3 Point,LogicalVector3 Normal);
 public readonly record struct PhysicsOverlapHit(Entity Entity,ulong StableId);
 /// <summary>
-/// A penetration of a query shape into a body. <see cref="Normal"/> points from the query shape into
-/// the body; <see cref="SurfaceNormal"/> is the touched surface's own outward normal (a triangle's
-/// face normal toward the query shape, which differs from the contact normal at edges and corners).
+/// 問い合わせ形状がボディに貫入している箇所。<see cref="Normal"/> は問い合わせ形状からボディへ向く。<see cref="SurfaceNormal"/> は接触面自体の外向き法線（
+/// 問い合わせ形状側を向く三角形の面法線で、辺や角では接触法線と異なる）。
 /// </summary>
 public readonly record struct PhysicsShapeContact(Entity Entity,ulong StableId,LogicalVector3 Point,LogicalVector3 Normal,LogicalScalar Penetration,LogicalVector3 SurfaceNormal);
 public readonly record struct PhysicsSweepHit(Entity Entity,ulong StableId,LogicalScalar Distance,LogicalVector3 Point,LogicalVector3 Normal);
@@ -92,19 +91,20 @@ public enum PhysicsCommandType:byte {
     Impulse,
     Teleport,
     KinematicTarget,
-    /// <summary>A force at a world point (ADR-0078/M0109): it changes the linear velocity like <see cref="Force"/> and the angular velocity by the torque about the centre of mass.</summary>
+    /// <summary>ワールド座標上の点に加える力（ADR-0078/M0109）。<see cref="Force"/> と同様に線速度を変化させ、重心まわりのトルクによって角速度も変化させる。</summary>
     ForceAtPoint,
-    /// <summary>A world torque for one tick (ADR-0078/M0109).</summary>
+    /// <summary>1ティック分のワールド座標系トルク（ADR-0078/M0109）。</summary>
     Torque,
-    /// <summary>Sets the linear and angular velocity (UE's SetPhysicsLinearVelocity / SetPhysicsAngularVelocity, ADR-0078/M0109).</summary>
+    /// <summary>線速度と角速度を設定する（UE の SetPhysicsLinearVelocity / SetPhysicsAngularVelocity、ADR-0078/M0109）。</summary>
     SetVelocity,
-    /// <summary>Puts a dynamic body to sleep at once and stops it (UE's SetSleeping(true) of a vehicle, ADR-0078/M0109). Any later command wakes it.</summary>
+    /// <summary>動的ボディをただちにスリープさせて停止する（車両に対する UE の SetSleeping(true)、ADR-0078/M0109）。以後のコマンドで起きる。</summary>
     Sleep,
 }
 
 /// <summary>
-/// One command for one tick. <see cref="Point"/> is the world point of a <see cref="PhysicsCommandType.ForceAtPoint"/> and the angular velocity of a
-/// <see cref="PhysicsCommandType.SetVelocity"/> (whose <see cref="Vector"/> is the linear velocity); the other commands leave it zero.
+/// 1ティック分のコマンド。<see cref="PhysicsCommandType.ForceAtPoint"/> の場合、<see cref="Point"/> はワールド座標上の力点を表す。
+/// <see cref="PhysicsCommandType.SetVelocity"/> の場合は角速度を表し、線速度は <see cref="Vector"/> に格納する。他のコマンドではゼロのま
+/// まにする。
 /// </summary>
 public readonly record struct PhysicsCommand(
     ulong TargetTick,ulong SourceStableId,uint Sequence,PhysicsCommandType Type,
@@ -117,13 +117,13 @@ public sealed class PhysicsCommands {
     public void Impulse(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity,LogicalVector3 Impulse)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.Impulse,Entity,Impulse,LogicalQuaternion.Identity);
     public void Teleport(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity,LogicalVector3 Position,LogicalQuaternion Rotation)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.Teleport,Entity,Position,Rotation);
     public void SetKinematicTarget(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity,LogicalVector3 Position,LogicalQuaternion Rotation)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.KinematicTarget,Entity,Position,Rotation);
-    /// <summary>Applies <paramref name="Force"/> (N) at the world point <paramref name="Point"/> of a dynamic body for one tick (ADR-0078/M0109).</summary>
+    /// <summary>動的ボディのワールド座標上の <paramref name="Point"/> に、1ティック分の <paramref name="Force"/>（N）を加える（ADR-0078/M0109）。</summary>
     public void ForceAtPoint(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity,LogicalVector3 Force,LogicalVector3 Point)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.ForceAtPoint,Entity,Force,LogicalQuaternion.Identity,Point);
-    /// <summary>Applies the world torque <paramref name="Torque"/> (N·m) to a dynamic body for one tick (ADR-0078/M0109).</summary>
+    /// <summary>動的ボディにワールド座標系の <paramref name="Torque"/>（N·m）を1ティック分加える（ADR-0078/M0109）。</summary>
     public void Torque(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity,LogicalVector3 Torque)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.Torque,Entity,Torque,LogicalQuaternion.Identity);
-    /// <summary>Sets a dynamic body's linear (m/s) and angular (rad/s, world axes) velocity and wakes it (ADR-0078/M0109).</summary>
+    /// <summary>動的ボディの線速度（m/s）と角速度（rad/s、ワールド軸）を設定し、スリープを解除する（ADR-0078/M0109）。</summary>
     public void SetVelocity(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity,LogicalVector3 Linear,LogicalVector3 Angular)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.SetVelocity,Entity,Linear,LogicalQuaternion.Identity,Angular);
-    /// <summary>Puts a dynamic body to sleep with zero velocity (ADR-0078/M0109). A later force, impulse, teleport or velocity wakes it.</summary>
+    /// <summary>動的ボディを速度ゼロでスリープさせる（ADR-0078/M0109）。その後、力、力積、テレポート、速度設定のいずれかで起きる。</summary>
     public void Sleep(ulong Tick,ulong SourceStableId,uint Sequence,Entity Entity)=>this.Enqueue(Tick,SourceStableId,Sequence,PhysicsCommandType.Sleep,Entity,LogicalVector3.Zero,LogicalQuaternion.Identity);
     internal int Commit(ulong Tick,List<CSharpGameEngine.Runtime.Simulation.SimulationCommand<PhysicsCommand>> Results)=>this.Buffer.Commit(Tick,Results);
     private void Enqueue(ulong Tick,ulong SourceStableId,uint Sequence,PhysicsCommandType Type,Entity Entity,LogicalVector3 Vector,LogicalQuaternion Rotation,LogicalVector3 Point=default){

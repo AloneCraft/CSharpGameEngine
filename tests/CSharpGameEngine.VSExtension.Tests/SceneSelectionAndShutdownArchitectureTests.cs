@@ -105,7 +105,7 @@ public sealed class SceneSelectionAndShutdownArchitectureTests {
             "internal void SetTarget",Teardown,StringComparison.Ordinal);
         string Body=Host.Substring(Teardown,TeardownEnd-Teardown);
 
-        // M0096 (ADR-0047): the editor world runs in the preview client's process, which is disposed in the background.
+        // M0096 (ADR-0047)：エディターのワールドはプレビュークライアントのプロセス内で実行され、バックグラウンドで破棄される。
         Assert.Contains(
             "DisposePreviewClient(ClearScene:true,DisposeInBackground:true)",
             Body,StringComparison.Ordinal);

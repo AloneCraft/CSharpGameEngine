@@ -2,30 +2,26 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Pipeline;
-/// <summary>Conversions between the public photometric light units and shader-friendly values.</summary>
+/// <summary>公開される測光単位と、シェーダーで扱いやすい値との変換。</summary>
 public static class PhysicalLightUnits {
     public const float Pi=MathF.PI;
-    /// <summary>Converts directional illuminance in lux to RGB irradiance.</summary>
+    /// <summary>指向性光の照度（lux）を RGB 放射照度に変換する。</summary>
     public static Vector3 DirectionalIrradiance(Vector3 LinearRgb,float IlluminanceLux){
         ValidateFiniteNonNegative(IlluminanceLux,nameof(IlluminanceLux));
         return LinearRgb*IlluminanceLux;
     }
-    /// <summary>Converts an omnidirectional luminous flux in lumens to candela.</summary>
+    /// <summary>全方向の光束（ルーメン）を光度（カンデラ）に変換する。</summary>
     public static float PointLumensToCandela(float LuminousFluxLumens){
         ValidateFiniteNonNegative(LuminousFluxLumens,nameof(LuminousFluxLumens));
         return LuminousFluxLumens/(4f*Pi);
     }
-    /// <summary>
-    /// Converts a hard-edged cone's total luminous flux in lumens to its uniform in-cone intensity
-    /// in candela. This overload is retained for callers without a separate inner angle.
-    /// </summary>
+    /// <summary>境界が明確な円錐の全光束（ルーメン）を、円錐内部で一様な光度（カンデラ）に変換する。内側の角度を別に指定しない呼び出し側のため、このオーバーロードを残す。</summary>
     public static float SpotLumensToCandela(float LuminousFluxLumens,float OuterFullAngleDegrees){
         return SpotLumensToCandela(LuminousFluxLumens,OuterFullAngleDegrees,OuterFullAngleDegrees);
     }
     /// <summary>
-    /// Converts luminous flux to candela for the renderer's squared smooth cone falloff. Its
-    /// effective solid angle integrates the exact HLSL kernel: one inside the inner cone and
-    /// <c>((μ-μouter)/(μinner-μouter))²</c> in the transition ring, where μ=cos(half angle).
+    /// レンダラーの二乗スムーズ円錐減衰に対する光束から光度への変換。有効立体角は、HLSL のカーネルを正確に積分して求める。内側の円錐では1、遷移帯では
+    /// <c>((μ-μouter)/(μinner-μouter))²</c> とする。ここで μ = cos(半角)。
     /// </summary>
     public static float SpotLumensToCandela(
         float LuminousFluxLumens,float InnerFullAngleDegrees,float OuterFullAngleDegrees){
@@ -33,7 +29,7 @@ public static class PhysicalLightUnits {
         return LuminousFluxLumens/ComputeSpotEffectiveSolidAngle(
             InnerFullAngleDegrees,OuterFullAngleDegrees);
     }
-    /// <summary>Converts a public full cone angle in degrees to the renderer's half angle in radians.</summary>
+    /// <summary>公開 API の円錐全角度（度）を、レンダラーが使う半角（ラジアン）に変換する。</summary>
     public static float FullConeAngleDegreesToHalfAngleRadians(float FullAngleDegrees){
         if(!float.IsFinite(FullAngleDegrees)||FullAngleDegrees<=0f||FullAngleDegrees>180f){
             throw new ArgumentOutOfRangeException(nameof(FullAngleDegrees),"A spot full angle must be finite and in (0, 180] degrees.");
@@ -45,9 +41,8 @@ public static class PhysicalLightUnits {
         return 2f*Pi*(1f-MathF.Cos(HalfAngleRadians));
     }
     /// <summary>
-    /// Integrates the squared smooth falloff used by <c>Stage shader ABI</c>. This is smaller than the
-    /// outer hard-cone solid angle when inner and outer angles differ, so using it preserves the
-    /// public luminous flux after the shader's transition attenuation.
+    /// <c>Stage shader ABI</c> が使う二乗スムーズ減衰を積分する。内側と外側の角度が異なる場合、有効立体角は外側の境界が明確な円錐の立体角より小さい。その積分値を使うと、シェーダーで
+    /// 遷移減衰を適用した後も公開された光束が保たれる。
     /// </summary>
     public static float ComputeSpotEffectiveSolidAngle(
         float InnerFullAngleDegrees,float OuterFullAngleDegrees){
@@ -56,7 +51,7 @@ public static class PhysicalLightUnits {
         float OuterCos=MathF.Cos(FullConeAngleDegreesToHalfAngleRadians(OuterFullAngleDegrees));
         return 2f*Pi*((1f-InnerCos)+((InnerCos-OuterCos)/3f));
     }
-    /// <summary>Luminous intensity along the normal of a uniform Lambertian rectangle.</summary>
+    /// <summary>一様なランバート反射長方形の法線方向の光度。</summary>
     public static float AreaNitsToNormalCandela(float LuminanceNits,float WidthMeters,float HeightMeters){
         ValidateFiniteNonNegative(LuminanceNits,nameof(LuminanceNits));
         ValidateFinitePositive(WidthMeters,nameof(WidthMeters));
@@ -64,9 +59,8 @@ public static class PhysicalLightUnits {
         return LuminanceNits*WidthMeters*HeightMeters;
     }
     /// <summary>
-    /// Splits a Lambertian rectangle's one-sided flux across uniform hemisphere samples.
-    /// A rectangle emits π × L × area lumens; one uniform hemispherical sample emits
-    /// 2π × candela, so each sample receives L × area / (2 × sample count) candela.
+    /// ランバート反射長方形の片面光束を、一様な半球サンプルへ分配する。長方形が放射する光束は π × L × 面積ルーメン、半球からの一様な1サンプルが放射する光束は 2π × カンデラである。そのため、各
+    /// サンプルには L × 面積 / (2 × サンプル数) カンデラを割り当てる。
     /// </summary>
     public static float AreaNitsToUniformHemisphereSampleCandela(
         float LuminanceNits,float WidthMeters,float HeightMeters,int SampleCount){
@@ -75,7 +69,7 @@ public static class PhysicalLightUnits {
         }
         return AreaNitsToNormalCandela(LuminanceNits,WidthMeters,HeightMeters)/(2f*SampleCount);
     }
-    /// <summary>Converts scene EV100 to a linear pre-ACES exposure multiplier.</summary>
+    /// <summary>シーンの EV100 を、ACES 適用前の線形露出乗数に変換する。</summary>
     public static float Ev100ToExposureScale(float Ev100){
         if(!float.IsFinite(Ev100)){
             throw new ArgumentOutOfRangeException(nameof(Ev100),"EV100 must be finite.");
@@ -102,7 +96,7 @@ public static class PhysicalLightUnits {
         }
     }
 }
-/// <summary>Light source category used by deterministic renderer budgeting.</summary>
+/// <summary>決定論的なレンダラー予算管理で使用する光源の分類。</summary>
 public enum PhysicalLightKind {
     Directional,
     Point,
@@ -110,23 +104,20 @@ public enum PhysicalLightKind {
     Area,
     Emissive,
 }
-/// <summary>
-/// Renderer-neutral light submission metadata. <see cref="StableSubmissionOrder"/> is part of the
-/// rendering contract: ties never depend on hash-table or ECS iteration order.
-/// </summary>
+/// <summary>レンダラーに依存しないライト送信メタデータ。<see cref="StableSubmissionOrder"/> は描画契約の一部であり、同順位の順序がハッシュテーブルや ECS の反復順に左右されないようにする。</summary>
 public readonly record struct PhysicalLightCandidate(
     int StableSubmissionOrder,
     PhysicalLightKind Kind,
     int ShadowPriority,
     float ScreenContribution,
     bool CastsShadows);
-/// <summary>Visible-light selection counters exposed to diagnostics and editor overlays.</summary>
+/// <summary>診断とエディター表示に公開する可視ライト選択カウンター。</summary>
 public readonly record struct PhysicalLightBudgetDiagnostics(
     int SubmittedDirectional,
     int SubmittedLocal,
     int DroppedDirectional,
     int DroppedLocal);
-/// <summary>Deterministic selection result for the global and local Forward+ light lists.</summary>
+/// <summary>グローバルおよびローカル Forward+ ライト一覧の決定論的な選択結果。</summary>
 public sealed class PhysicalLightBudgetSelection(
         PhysicalLightCandidate[]Directional,
         PhysicalLightCandidate[]Local,
@@ -135,15 +126,12 @@ public sealed class PhysicalLightBudgetSelection(
     public IReadOnlyList<PhysicalLightCandidate>Local { get; }=Local;
     public PhysicalLightBudgetDiagnostics Diagnostics { get; }=Diagnostics;
 }
-/// <summary>Deterministic per-tile local-light list with the configured 64-light cap.</summary>
+/// <summary>設定された64ライト上限を持つ、タイルごとの決定論的なローカルライト一覧。</summary>
 public sealed class PhysicalLightTileSelection(PhysicalLightCandidate[]Lights,int DroppedCount) {
     public IReadOnlyList<PhysicalLightCandidate>Lights { get; }=Lights;
     public int DroppedCount { get; }=DroppedCount;
 }
-/// <summary>
-/// CPU-side selection contract for the StructuredBuffer/Forward+ uploader. This class performs no
-/// GPU work; it makes overflow visible and deterministic before the renderer writes its buffers.
-/// </summary>
+/// <summary>StructuredBuffer / Forward+ へのアップロードで使う CPU 側の選択契約。このクラスは GPU 処理を行わず、レンダラーがバッファへ書き込む前に超過を検出可能かつ決定論的にする。</summary>
 public static class PhysicalLightBudget {
     public const int MaxDirectionalLights=4;
     public const int MaxLocalLights=1024;
@@ -162,11 +150,7 @@ public static class PhysicalLightBudget {
             SubmittedDirectional-Directional.Length,
             SubmittedLocal-Local.Length));
     }
-    /// <summary>
-    /// Chooses the only directional light that may use the legacy single shadow map. Priority is
-    /// descending; screen contribution and then stable submission order break ties. A value of
-    /// <c>-1</c> means no submitted directional light casts shadows.
-    /// </summary>
+    /// <summary>従来の単一シャドウマップを使える指向性ライトを1つ選ぶ。優先度の降順とし、同順位なら画面上の寄与、次に安定した送信順で決める。<c>-1</c> は影を落とす指向性ライトが送信されていないことを表す。</summary>
     public static int SelectDirectionalShadowIndex(
         IEnumerable<PhysicalLightCandidate> Candidates){
         PhysicalLightCandidate[]All=ValidateAndMaterialize(Candidates);
@@ -190,9 +174,8 @@ public static class PhysicalLightBudget {
         return new PhysicalLightTileSelection(Selected,All.Length-Selected.Length);
     }
     /// <summary>
-    /// Direct-light overflow selection is intentionally independent from shadow priority. Direct
-    /// lighting keeps the largest screen contribution, then the stable submission order; shadow
-    /// priority is reserved for <see cref="PhysicalShadowAtlasPlan"/> allocation.
+    /// 直接光の超過分の選択は、シャドウ優先度とは意図的に独立させる。直接光では画面上の寄与が最も大きいものを残し、同順位なら安定した送信順にする。シャドウ優先度は
+    /// <see cref="PhysicalShadowAtlasPlan"/> の割り当てにのみ使う。
     /// </summary>
     private static PhysicalLightCandidate[]RankDirectLighting(
         IEnumerable<PhysicalLightCandidate> Candidates,int Limit)=>
@@ -221,9 +204,8 @@ public static class PhysicalLightBudget {
     }
 }
 /// <summary>
-/// One physical 1024x1024 tile in the fixed 4096x4096 atlas. Tile indices are row-major:
-/// left-to-right, then top-to-bottom. The explicit pixel and UV rectangle lets a future GPU
-/// uploader use this CPU plan without reinterpreting its allocation order.
+/// 固定サイズ4096×4096アトラス内にある、実サイズ1024×1024のタイル1つ。タイル番号は行優先で、左から右、上から下の順にする。ピクセル矩形と UV 矩形を明示するため、将来の GPU
+/// アップローダーは割り当て順を再解釈せず、この CPU 計画を利用できる。
 /// </summary>
 public readonly record struct ShadowAtlasTile(
     int Index,
@@ -248,10 +230,7 @@ public readonly record struct ShadowAtlasTile(
             PhysicalShadowAtlasPlan.TileSizePixels,PhysicalShadowAtlasPlan.TileSizePixels);
     }
 }
-/// <summary>
-/// One contiguous allocation in the 4096x4096 shadow atlas. A point light owns six consecutive
-/// tiles in cubemap-face order; all other current light kinds own one tile.
-/// </summary>
+/// <summary>4096×4096シャドウアトラス内の連続領域1つ。ポイントライトはキューブマップの面の順で連続する6タイルを使い、他の現行ライト種別は1タイルを使う。</summary>
 public readonly record struct ShadowAtlasAllocation(
     PhysicalLightCandidate Candidate,
     int FirstTile,
@@ -287,10 +266,7 @@ public readonly record struct ShadowAtlasAllocation(
         }
     }
 }
-/// <summary>
-/// Shadow-caster overflow counters. A dropped caster remains in the direct-light submission;
-/// only its shadow lookup is disabled for the current frame.
-/// </summary>
+/// <summary>シャドウ遮光物の上限超過カウンター。除外された遮光物も直接光の送信対象には残すが、当該フレームではシャドウ参照だけを無効にする。</summary>
 public readonly record struct ShadowAtlasDiagnostics(
     int SubmittedCasters,
     int SelectedCasters,
@@ -298,10 +274,8 @@ public readonly record struct ShadowAtlasDiagnostics(
     int AllocatedTiles,
     int ReservedTiles);
 /// <summary>
-/// Deterministic physical-light shadow budget for the fixed 4K atlas. Selection affects only
-/// shadow-map allocation. <see cref="SubmittedLights"/> always retains every input candidate,
-/// and <see cref="ShadowCastersWithoutAtlasTiles"/> identifies casters that continue direct
-/// illumination but cannot sample a shadow this frame.
+/// 固定サイズ4Kアトラスに対する、決定論的な物理ライトのシャドウ予算。選択結果が影響するのはシャドウマップの割り当てだけ。<see cref="SubmittedLights"/> は入力候補をすべて
+/// 保持する。<see cref="ShadowCastersWithoutAtlasTiles"/> には、直接照明は続けるが当該フレームの影をサンプリングできない遮光物を列挙する。
 /// </summary>
 public sealed class PhysicalShadowAtlasPlan(
         PhysicalLightCandidate[]SubmittedLights,
@@ -321,7 +295,7 @@ public sealed class PhysicalShadowAtlasPlan(
     public const int TotalDefaultAllocatedTiles=
         DirectionalTileBudget+(PointLightBudget*PointTilesPerLight)+SpotTileBudget+AreaAndEmissiveTileBudget;
     public const int ReservedTileCount=TileCount-TotalDefaultAllocatedTiles;
-    /// <summary>All direct-light submissions, including non-casters and atlas-overflow casters.</summary>
+    /// <summary>遮光しないライトやアトラス上限超過の遮光物も含む、すべての直接光の送信。</summary>
     public IReadOnlyList<PhysicalLightCandidate>SubmittedLights { get; }=SubmittedLights;
     public IReadOnlyList<ShadowAtlasAllocation>Allocations { get; }=Allocations;
     public IReadOnlyList<PhysicalLightCandidate>ShadowCastersWithoutAtlasTiles { get; }=ShadowCastersWithoutAtlasTiles;

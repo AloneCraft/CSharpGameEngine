@@ -1,17 +1,18 @@
 using System.Numerics;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
-/// Analytic two-bone inverse kinematics (a thigh, a calf and a foot; an upper arm, a forearm and a hand). <see cref="Solve"/> turns the
-/// upper and middle joints so the end joint reaches a target, keeps the bend on the side it already had (or a hint when the limb is
-/// straight), keeps the end joint's own orientation in model space, and never stretches the limbs: a target out of reach is approached
-/// along the line to it. Joint positions come from the pose's model matrices, so the skeleton's own axes do not matter.
+/// 解析的な2ボーン逆運動学（太もも／ふくらはぎ／足、または上腕／前腕／手）。<see cref="Solve"/>で上側と中央のジョイントを回転させ、
+/// 末端ジョイントを目標位置へ移す。既存の曲がり方向を保ち、まっすぐな場合はヒントを使う。末端ジョイント自身のモデル空間での向きは維持し、
+/// 四肢を伸ばさない。目標が届かない場合は、目標への直線上で最も近い位置へ寄せる。ジョイント位置は姿勢のモデル行列から得るため、
+/// スケルトン固有の軸には依存しない。
 /// </summary>
 public static class TwoBoneIk {
     private const float Epsilon=1e-5f;
     /// <summary>
-    /// Edits <paramref name="Pose"/> (local joint poses) so that joint <paramref name="End"/> is at <paramref name="Target"/> (a model-space point).
-    /// <paramref name="Model"/> is scratch of at least <see cref="Skeleton.JointCount"/> matrices. <paramref name="BendHint"/> is the direction the
-    /// middle joint bends toward when the limb starts out straight. Returns false and leaves the pose alone when a limb has no length.
+    /// ジョイント<paramref name="End"/>がモデル空間の点<paramref name="Target"/>に来るよう、<paramref name="Pose"/>（ローカルジョイント姿勢）を編集する。
+    /// <paramref name="Model"/>は<see cref="Skeleton.JointCount"/>以上の行列を持つ作業領域。
+    /// 四肢が伸び切った状態から始まる場合に中央のジョイントを曲げる方向は<paramref name="BendHint"/>で示す。
+    /// 四肢の長さが0の場合はfalseを返し、姿勢を変更しない。
     /// </summary>
     public static bool Solve(Skeleton Skeleton,Span<JointPose>Pose,Span<Matrix4x4>Model,int Upper,int Middle,int End,Vector3 Target,Vector3 BendHint){
         ArgumentNullException.ThrowIfNull(Skeleton);
@@ -37,7 +38,7 @@ public static class TwoBoneIk {
         }
         var Direction=ToTarget/Distance;
         var Reach=Math.Clamp(Distance,MathF.Abs(Length1-Length2)+Epsilon,Length1+Length2-Epsilon);
-        // The bend: the part of the middle joint's offset from the A-C line that is across the new line, or the hint for a straight limb.
+        // 曲がり方向：A-C線から見た中央ジョイントのオフセットのうち、新しい線に対して横方向の成分。四肢がまっすぐならヒントを使う。
         var Bend=PerpendicularTo(B-A,Vector3.Normalize(C-A));
         if(Bend.LengthSquared()<Epsilon){
             Bend=BendHint;
@@ -72,7 +73,7 @@ public static class TwoBoneIk {
     }
     private static bool IsFinite(Vector3 Value)=>float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z);
     private static Vector3 PerpendicularTo(Vector3 Vector,Vector3 Axis)=>Vector-(Axis*Vector3.Dot(Vector,Axis));
-    /// <summary>The rotation (row-vector convention: <c>v * result</c>) taking the unit vector <paramref name="From"/> to the unit vector <paramref name="To"/> by the shortest arc.</summary>
+    /// <summary>単位ベクトル<paramref name="From"/>から<paramref name="To"/>へ最短弧で回す回転（行ベクトル規約では<c>v * result</c>）。</summary>
     internal static Matrix4x4 FromTo(Vector3 From,Vector3 To){
         var Axis=Vector3.Cross(From,To);
         var Sine=Axis.Length();
@@ -86,7 +87,7 @@ public static class TwoBoneIk {
         }
         return Matrix4x4.CreateFromAxisAngle(Axis/Sine,MathF.Atan2(Sine,Cosine));
     }
-    /// <summary>The rotation part of <paramref name="Matrix"/> with the scale taken out of each row.</summary>
+    /// <summary><paramref name="Matrix"/>の各行からスケールを除いた回転部分。</summary>
     internal static Matrix4x4 RotationOf(Matrix4x4 Matrix){
         var X=Vector3.Normalize(new Vector3(Matrix.M11,Matrix.M12,Matrix.M13));
         var Y=Vector3.Normalize(new Vector3(Matrix.M21,Matrix.M22,Matrix.M23));

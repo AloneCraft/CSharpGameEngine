@@ -163,7 +163,7 @@ public sealed class SceneArchetypeIntegrationTests {
         Assert.Equal(2,Occurrences(Loop,"Systems.Low.Update("));
         Assert.Equal(2,Occurrences(Loop,"Systems.High.Update("));
         Assert.Contains("ComponentEnabledHigh",Types,StringComparison.Ordinal);
-        // ADR-0079: one more word per 64 component types after the first 128.
+        // ADR-0079：最初の128個を超えるコンポーネント型が64個増えるごとに、ワードを1つ追加する。
         Assert.Equal(ComponentCount>128,Types.Contains("ComponentEnabledWord2",StringComparison.Ordinal));
         Assert.Equal(ComponentCount>448,Types.Contains("ComponentEnabledWord7",StringComparison.Ordinal));
     }

@@ -10,12 +10,12 @@ using static TerraFX.Interop.Windows.WAVE;
 namespace CSharpGameEngine.Audio.XAudio2;
 
 /// <summary>
-/// The one concrete <see cref="IAudioBackend{TEngine, TVoice}"/> implementation this engine ships:
-/// XAudio2 via TerraFX.Interop.Windows (already referenced for D3D12, no new package). Stateless
-/// <c>readonly struct</c> per the interface's contract - every native pointer lives inside
-/// <see cref="XAudio2EngineHandle"/>/<see cref="XAudio2VoiceHandle"/>, cast back from <c>nint</c> only
-/// inside this type's methods. Same COM idiom as <c>CSharpGameEngine.Graphics.D3D12.GraphicsDevice</c>
-/// (<c>-&gt;</c> calls, <see cref="AudioDiagnostics.EnsureSuccess"/> for HRESULT checks).
+/// このエンジンが提供する唯一の具象 <see cref="IAudioBackend{TEngine, TVoice}"/> 実装。D3D12 ですでに参照している
+/// TerraFX.Interop.Windows 経由の XAudio2 を使い、新しいパッケージは追加しない。インターフェース契約に従う状態なしの <c>readonly struct</c> とし、
+/// ネイティブポインターはすべて <see cref="XAudio2EngineHandle"/> / <see cref="XAudio2VoiceHandle"/> 内に保持する。
+/// <c>nint</c> から実際の COM ポインター型へ戻すのは、この型のメソッド内だけ。<c>-&gt;</c> 呼び出しや HRESULT 検査用の
+/// <see cref="AudioDiagnostics.EnsureSuccess"/> など、
+/// <c>CSharpGameEngine.Graphics.D3D12.GraphicsDevice</c> と同じ COM の用法を使う。
 /// </summary>
 public readonly unsafe struct XAudio2Backend:IAudioBackend<XAudio2EngineHandle,XAudio2VoiceHandle>{
     public static XAudio2EngineHandle CreateEngine(){
@@ -110,14 +110,14 @@ public readonly unsafe struct XAudio2Backend:IAudioBackend<XAudio2EngineHandle,X
             "IXAudio2Voice::SetVolume","setting voice volume");
 
 
-    /// <summary>True once the voice has played every submitted buffer (a one-shot can then be destroyed).</summary>
+    /// <summary>送信したすべてのバッファをボイスが再生し終えたか。再生済みならワンショットを破棄できる。</summary>
     public static bool IsFinished(in XAudio2VoiceHandle Voice){
         XAUDIO2_VOICE_STATE State;
         ((IXAudio2SourceVoice*)Voice.VoicePointer)->GetState(&State,(uint)XAUDIO2_VOICE_NOSAMPLESPLAYED);
         return State.BuffersQueued==0;
     }
 
-    /// <summary>Equal-power pan of a mono voice onto the stereo mastering voice (-1 left, 0 centre, 1 right).</summary>
+    /// <summary>モノラルボイスをステレオマスターボイスへ等電力で定位する（-1 は左、0 は中央、1 は右）。</summary>
     public static void SetMonoPan(in XAudio2VoiceHandle Voice,float Pan){
         var Angle=(Math.Clamp(Pan,-1f,1f)+1f)*(MathF.PI/4f);
         var Levels=stackalloc float[2];

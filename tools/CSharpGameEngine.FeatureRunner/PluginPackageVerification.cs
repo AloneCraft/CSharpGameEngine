@@ -3,11 +3,7 @@ using System.Text.RegularExpressions;
 using CSharpGameEngine.ProjectTemplates;
 namespace CSharpGameEngine.FeatureStages;
 /// <summary>
-/// The end-to-end check of ADR-0079's plugin locations outside the repository. A ThirdPerson game is generated from the packed SDK, as
-/// the Visual Studio wizard does, and gets two sample plugins: the project plugin samples/Plugins/Weather copied to its Plugins folder,
-/// and the package plugin CSharpGameEngine.Samples.Lightning packed to the same local feed and added as a PackageReference. The game is
-/// built and played with the ThirdPerson input; each plugin's [EngineService] prints its totals when the game disposes it at shutdown.
-/// Both plugins have a component named Intensity, so the build also proves that the generator names them apart.
+/// リポジトリ外における ADR-0079 のプラグイン配置をエンドツーエンドで検証する。Visual Studio ウィザードと同様に、パッケージ化済み SDK から ThirdPerson ゲームを生成し、2 つのサンプルプラグインを追加する。プロジェクトプラグイン samples/Plugins/Weather は Plugins フォルダーへコピーし、パッケージプラグイン CSharpGameEngine.Samples.Lightning は同じローカルフィードへパックして PackageReference で追加する。ThirdPerson の入力でゲームをビルド・実行し、各プラグインの [EngineService] がシャットダウン時に集計値を出力する。両プラグインに Intensity という名前のコンポーネントがあるため、ジェネレーターが名前を区別することもビルドで証明する。
 /// </summary>
 public static class PluginPackageVerification {
     public const string ProjectName="My Plugin Game";
@@ -73,7 +69,7 @@ public static class PluginPackageVerification {
                 Directory.Delete(Work,true);
             }
             catch(IOException){
-                // A still-running compiler server can hold a file briefly; the folder is under %TEMP%.
+                // コンパイラーサーバーがまだ動いていると、ファイルを一時的に保持することがある。フォルダーは %TEMP% にある。
             }
             return 0;
         }
@@ -81,11 +77,7 @@ public static class PluginPackageVerification {
     }
 
     /// <summary>
-    /// Judges the game's output (empty when both plugins ran as expected). Each plugin's system runs once per entity per tick, so the
-    /// totals must agree with the counts: rainfall = updates × 1.5 (Rate) × 1 (Intensity) × 2 (the Storm asset's RateMultiplier), and
-    /// energy = bolts × 2² × 5. The Storm asset's Gusts value (7) shows the data asset was compiled in. The generated code
-    /// (<paramref name="Generated"/>) must name both Intensity components apart and must not contain the Vehicles engine plugin, which the
-    /// game does not name in CgePlugins.
+    /// ゲームの出力を判定する（両方のプラグインが想定どおり動けば空）。各プラグインのシステムは tick ごとに Entity あたり 1 回実行されるため、集計値はカウントと一致しなければならない。降雨量 = updates × 1.5 (Rate) × 1 (Intensity) × 2 (Storm アセットの RateMultiplier)、エネルギー = bolts × 2² × 5。Storm アセットの Gusts 値 (7) でデータアセットがコンパイルされたことも確認する。生成コード (<paramref name="Generated"/>) では 2 つの Intensity コンポーネントが別名で示され、CgePlugins に指定されていない Vehicles エンジンプラグインを含めてはならない。
     /// </summary>
     public static IReadOnlyList<string>Evaluate(string GameOutput,string Generated,bool PluginAssetCopied,out string Summary){
         List<string>Failures=[];

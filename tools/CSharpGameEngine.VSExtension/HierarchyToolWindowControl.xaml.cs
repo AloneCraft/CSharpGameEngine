@@ -13,23 +13,14 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// WPF content for <see cref="HierarchyToolWindowPane"/>: a themed TreeView of the scene declared
-/// by the active C# document, refreshed from live Roslyn via
-/// <see cref="SceneEditorHub.SceneModelChanged"/> (ADR-0040).
+/// <see cref="HierarchyToolWindowPane"/> 用の WPF コンテンツ。アクティブな C# ドキュメントで宣言されたシーンを themed TreeView で表示し、ライブ Roslyn から <see cref="SceneEditorHub.SceneModelChanged"/>（ADR-0040）を通じて更新します。
 ///
 /// <para>
-/// The tree is rebuilt on every analysis, which happens while the user is typing, so expansion state
-/// is carried across rebuilds keyed by <see cref="NodePath"/>. Without that the tree would collapse
-/// itself on each keystroke. Only the exceptions are tracked - a node is expanded unless the user
-/// collapsed it.
+/// ユーザーの入力中に解析のたびにツリーを再構築するため、<see cref="NodePath"/> をキーに展開状態を引き継ぎます。これがないとキー入力ごとにツリーが折りたたまれてしまいます。記録するのは例外だけで、ユーザーが折りたたまない限りノードは展開状態になります。
 /// </para>
 ///
 /// <para>
-/// Selecting a node publishes <see cref="SceneEditorHub.PublishSelectedNodePath"/>, which the Scene
-/// Designer turns into a viewport highlight. Both sides now read the same live-Roslyn
-/// <see cref="SceneModel"/> (ADR-0040 Phase 9). ContextMenu/F2/Delete and drag-and-drop request
-/// structural C# source edits through <c>SceneEditOperation</c>; source focus is never changed by
-/// those requests.
+/// ノードを選択すると <see cref="SceneEditorHub.PublishSelectedNodePath"/> を発行し、Scene Designer がビューポートで強調表示します。現在は両側が同じライブ Roslyn の <see cref="SceneModel"/> を読み取ります（ADR-0040 Phase 9）。ContextMenu/F2/Delete とドラッグ＆ドロップは <c>SceneEditOperation</c> を通じて C# ソースの構造編集を要求します。これらの要求によってソースのフォーカスが変わることはありません。
 /// </para>
 /// </summary>
 public partial class HierarchyToolWindowControl:UserControl {
@@ -80,8 +71,8 @@ public partial class HierarchyToolWindowControl:UserControl {
     private void OnUnloadedForFocus(object Sender,RoutedEventArgs Args)=>
         SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,false);
 
-    // SceneWorkspaceService marshals to the UI thread before raising this, so no further marshaling
-    // is needed here.
+    // SceneWorkspaceService はこれを発生させる前に UI スレッドへマーシャリングするため、追加のマーシャリングは
+    // ここでは必要ありません。
     private void OnSceneModelChanged(SceneModel?Model)=>this.Populate(Model);
 
     /// <summary>
@@ -130,8 +121,8 @@ public partial class HierarchyToolWindowControl:UserControl {
 
         var Roots=SceneNodeViewModel.BuildWithSelection(Model,this.CollapsedPaths,this.CurrentSelection.Paths);
 
-        // Rebinding raises SelectedItemChanged for the restored selection; republishing it would
-        // bounce a redundant selection change back through the hub on every keystroke.
+        // 再バインドすると復元された選択に対して SelectedItemChanged が発生します。これを再発行すると、
+        // キー入力ごとに hub を経由して不要な選択変更が往復してしまいます。
         this.SuppressSelectionPublish=true;
 
         try {
@@ -145,9 +136,8 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     /// <summary>
-    /// Reads the user's current expand/collapse state out of the live tree before it is replaced.
-    /// Paths that vanished from the scene are dropped so the set cannot grow without bound while a
-    /// scene is being edited.
+    /// ツリーを置き換える前に、現在の展開・折りたたみ状態を読み取ります。
+    /// シーンから消えたパスは削除し、シーン編集中に集合が無制限に増えないようにします。
     /// </summary>
     private void CaptureCollapsedPaths(){
         if(this.Tree.ItemsSource is not IReadOnlyList<SceneNodeViewModel>Existing){
@@ -183,9 +173,9 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private void Tree_PreviewMouseLeftButtonDown(object Sender,MouseButtonEventArgs Args){
-        // The explicit expand/collapse ToggleButton is not a row selection gesture. In
-        // particular, leave this preview event unhandled so WPF can toggle IsExpanded without
-        // replacing a Ctrl/Shift multi-selection or publishing a source-sync selection.
+        // 明示的な展開・折りたたみ ToggleButton は行の選択操作ではありません。
+        // 特に、この preview event を未処理のままにすることで、WPF が IsExpanded を切り替えられるようにし、
+        // Ctrl/Shift の複数選択やソース同期の選択を置き換えないようにします。
         if(IsExpanderClick(Args.OriginalSource as DependencyObject)){
             return;
         }
@@ -215,10 +205,10 @@ public partial class HierarchyToolWindowControl:UserControl {
             return;
         }
 
-        // CurrentSelection mirrors the Tree presentation and can legitimately lag behind the
-        // session selection (for example while the pane is restored or repopulated). Escape is
-        // an explicit request to clear the canonical selection, so never gate publication on
-        // that derived cache.
+        // CurrentSelection は Tree の表示を反映しますが、session の選択状態より遅れてもかまいません。
+        // たとえばペインの復元中や再設定中に起こります。Escape は
+        // 正規の選択を解除する明示的な要求なので、
+        // 派生キャッシュの値を条件に発行を抑止してはいけません。
         this.CurrentSelection=HierarchyNodeSelection.Empty;
         ActivityLog.LogInformation(
             nameof(HierarchyToolWindowControl),
@@ -454,6 +444,10 @@ public partial class HierarchyToolWindowControl:UserControl {
 
     private void Tree_DragOver(object Sender,DragEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) is CSharpGameEngine.Contracts.AssetWorkspaceItem Asset){
+            Args.Effects=AssetPlacement.CanPlace(Asset,SceneEditorHub.ActiveSceneModel?.FilePath)?DragDropEffects.Copy:DragDropEffects.None;
+            Args.Handled=true;return;
+        }
         if(Args.Data.GetData(typeof(ComponentDragPayload)) is ComponentDragPayload ComponentPayload){
             ComponentDropVerdict Verdict=this.EvaluateComponentDrop(Args,ComponentPayload);
             Args.Effects=ComponentDropPolicy.Accepts(Verdict)
@@ -517,6 +511,10 @@ public partial class HierarchyToolWindowControl:UserControl {
 
     private void Tree_Drop(object Sender,DragEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) is CSharpGameEngine.Contracts.AssetWorkspaceItem Asset){
+            if(AssetPlacement.CanPlace(Asset,SceneEditorHub.ActiveSceneModel?.FilePath)){ AssetPlacement.Place(Asset,this.FindNode(Args.OriginalSource as DependencyObject)?.Path); }
+            Args.Handled=true;return;
+        }
         if(Args.Data.GetData(typeof(ComponentDragPayload)) is ComponentDragPayload ComponentPayload){
             this.DropComponent(Args,ComponentPayload);
             Args.Handled=true;

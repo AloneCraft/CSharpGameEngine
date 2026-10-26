@@ -4,7 +4,7 @@ using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>WARP oracles for the ADR-0069 histogram auto exposure, metered and adapted on the GPU.</summary>
+/// <summary>GPUで測光し適応する、ADR-0069のヒストグラム自動露出に対するWARP検証オラクル。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class AutoExposureGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -14,9 +14,9 @@ public sealed class AutoExposureGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void AutoExposure_Warp_MetersAKnownLuminanceWithTheReflectedLightMeter(){
-        // A 100 cd/m2 emitter fills the view: EV100 = log2(100 * 100 / 12.5) = 9.64. The first frames
-        // are exposed at EV100 -10 and clip; metering must recover instead of settling on them, for
-        // every compensation (the clipping depends on it).
+        // 100 cd/m2の発光体で視界を満たす。EV100 = log2(100 * 100 / 12.5) = 9.64。最初のフレームは
+        // EV100 -10で露出オーバーになるが、測光ではその結果に収束せず回復しなければならない。
+        // これはどの補正値でも必要（クリッピングは補正値に依存する）。
         foreach(var Compensation in new[]{0f,1f,2f}){
             using var Scene=ExposureScene.Create(EmitterNits:100f);
             Scene.Render(Auto(-10f,20f,Compensation),Atmosphere:false,SunLux:0f,Frames:16);
@@ -50,7 +50,7 @@ public sealed class AutoExposureGpuIntegrationTests {
         var Bright=Scene.Renderer.ReadAutoExposureStateForTesting().X;
         Scene.Render(Auto(-10f,20f),Atmosphere:true,SunLux:3f,Frames:10);
         var Falling=Scene.Renderer.ReadAutoExposureStateForTesting().X;
-        // Ten frames of 1/30 s: SpeedUp 3 leaves exp(-1) of the step, SpeedDown 1 leaves exp(-1/3).
+        // 1/30秒を10フレーム実行すると、SpeedUp 3ではステップのexp(-1)、SpeedDown 1ではexp(-1/3)が残る。
         var Diagnostic=$"dim={Dim} rising={Rising} bright={Bright} falling={Falling}";
         Assert.True(MathF.Abs((Bright-Rising)/(Bright-Dim)-MathF.Exp(-1f))<=0.05f,Diagnostic);
         Assert.True(MathF.Abs((Falling-Dim)/(Bright-Dim)-MathF.Exp(-1f/3f))<=0.05f,Diagnostic);
@@ -59,7 +59,7 @@ public sealed class AutoExposureGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void AutoExposure_Warp_DegenerateRangeIsIdenticalToTheFixedPhysicalCamera(){
-        // Unreal's histogram mode with MinEv100 == MaxEv100 is a fixed exposure; the import relies on it.
+        // UnrealのヒストグラムモードでMinEv100 == MaxEv100にすると固定露出となる。インポートではこの仕様を使う。
         using var Scene=ExposureScene.Create(EmitterNits:0f);
         Scene.Render(new ExposureSettings(ExposureMode.PhysicalCamera,5f,1f),Atmosphere:true,SunLux:3f,Frames:4,Capture:true);
         var Fixed=Scene.Renderer.LastCapturedFrame!.Pixels.ToArray();
@@ -90,7 +90,7 @@ public sealed class AutoExposureGpuIntegrationTests {
             Renderer.AutoExposureDeltaSecondsForTesting=FrameSeconds;
             return new ExposureScene(Window,Renderer);
         }
-        /// <summary>The emitter scene turns the plane toward the camera so it fills the view; the lit scene is a floor under the sky.</summary>
+        /// <summary>発光体シーンでは平面をカメラへ向けて視界を満たす。照明シーンでは空の下に床を置く。</summary>
         public void Render(ExposureSettings Exposure,bool Atmosphere,float SunLux,int Frames,bool Capture=false){
             for(var Frame=0;Frame<Frames;Frame++){
                 this.Renderer.SetEnvironmentLighting(new EnvironmentLightingSettings(

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 namespace CSharpGameEngine.Rendering.Tests;
-/// <summary>M0110: the CPU mip chain of material textures (box filter with exact area weights, sRGB averaged in linear light, deterministic).</summary>
+/// <summary>M0110：マテリアルテクスチャの CPU ミップチェーン。正確な面積重みのボックスフィルターを使い、sRGB は線形光で平均し、決定論的に処理する。</summary>
 public sealed class RenderTextureMipChainTests {
     [Theory]
     [InlineData(1,1,1)]
@@ -31,7 +31,7 @@ public sealed class RenderTextureMipChainTests {
         byte[]Pixels=[0,0,0,0, 255,1,10,255, 255,2,20,0, 0,3,31,255];
         var Chain=RenderTextureMipChain.Build(2,2,Pixels,RenderTextureColorSpace.Linear);
         Assert.Equal(2,Chain.Levels.Count);
-        // (0+255+255+0)/4=127.5 rounds half up through the 16-bit carry; (0+1+2+3)/4=1.5; (0+10+20+31)/4=15.25; alpha 127.5.
+        // (0+255+255+0)/4=127.5 は 16 ビットの桁上がりを通じて 0.5 を切り上げて丸める。(0+1+2+3)/4=1.5、(0+10+20+31)/4=15.25、alpha 127.5。
         Assert.Equal(new byte[]{ 128,2,15,128 },Chain.Levels[1].Pixels.ToArray());
     }
     [Fact]
@@ -39,16 +39,16 @@ public sealed class RenderTextureMipChainTests {
         byte[]Pixels=[0,0,0,0, 255,255,255,255, 255,255,255,0, 0,0,0,255];
         var Srgb=RenderTextureMipChain.Build(2,2,Pixels,RenderTextureColorSpace.Srgb).Levels[1].Pixels.ToArray();
         var Linear=RenderTextureMipChain.Build(2,2,Pixels,RenderTextureColorSpace.Linear).Levels[1].Pixels.ToArray();
-        // Half the light of white is sRGB code 188 (0.7354 encoded), not the 128 of an average of the codes; alpha stays linear.
+        // 白の半分の光量は sRGB コード 188（エンコード値 0.7354）であり、コード値の平均で得る 128 ではない。alpha は線形のまま。
         Assert.Equal(new byte[]{ 188,188,188,128 },Srgb);
         Assert.Equal(new byte[]{ 128,128,128,128 },Linear);
     }
     [Fact]
     public void NonPowerOfTwo_WeightsEachSourceTexelByTheAreaItCovers(){
-        // 3 x 1 -> 1 x 1: every source texel covers a third of the target, so the target is the plain mean of three.
+        // 3 x 1 -> 1 x 1：各ソーステクセルはターゲットの 3 分の 1 を覆うため、ターゲットは 3 つの単純平均になる。
         byte[]Three=[0,0,0,0, 30,60,90,120, 60,120,180,240];
         Assert.Equal(new byte[]{ 30,60,90,120 },RenderTextureMipChain.Build(3,1,Three,RenderTextureColorSpace.Linear).Levels[1].Pixels.ToArray());
-        // 5 x 1 -> 2 x 1: target 0 covers texels 0, 1 and half of 2; target 1 covers half of 2, 3 and 4.
+        // 5 x 1 -> 2 x 1：ターゲット 0 はテクセル 0、1、および 2 の半分を覆う。ターゲット 1 は 2 の半分、3、4 を覆う。
         byte[]Five=[0,0,0,0, 100,0,0,0, 200,0,0,0, 50,0,0,0, 250,0,0,0];
         var Level=RenderTextureMipChain.Build(5,1,Five,RenderTextureColorSpace.Linear).Levels[1].Pixels.ToArray();
         Assert.Equal((byte)Math.Round((0+100+0.5*200)/2.5),Level[0]);
@@ -63,7 +63,7 @@ public sealed class RenderTextureMipChainTests {
             var Chain=RenderTextureMipChain.Build(Width,Height,Pixels,RenderTextureColorSpace.Linear);
             var Expected=Mean(Pixels);
             foreach(var Level in Chain.Levels){
-                // Each level rounds to 8 bits once from a 16-bit carry, so the mean moves by less than one code.
+                // 各レベルでは 16 ビットの桁上がりから 8 ビットへ一度だけ丸めるため、平均値の移動はコード値 1 未満となる。
                 Assert.InRange(Mean(Level.Pixels.ToArray())-Expected,-1.0,1.0);
             }
         }
@@ -84,7 +84,7 @@ public sealed class RenderTextureMipChainTests {
         }
         Assert.Equal(Hash(RenderTextureColorSpace.Srgb),Hash(RenderTextureColorSpace.Srgb));
         Assert.NotEqual(Hash(RenderTextureColorSpace.Srgb),Hash(RenderTextureColorSpace.Linear));
-        // The decoding table is part of the result: any change to it is a visible change of every sRGB mip.
+        // デコードテーブルも結果の一部であり、変更するとすべての sRGB ミップに変化が見える。
         var Table=new byte[512];
         for(var Code=0;Code<256;Code++){
             BitConverter.TryWriteBytes(Table.AsSpan(Code*2,2),RenderTextureMipChain.DecodeSrgb((byte)Code));

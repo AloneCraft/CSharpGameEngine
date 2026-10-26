@@ -11,8 +11,8 @@ using static TerraFX.Interop.Windows.WS;
 namespace CSharpGameEngine.Platform.Windows;
 
 /// <summary>
-/// Owns exactly one raw Win32 <c>HWND</c>: creates it, pumps its message queue, and destroys it.
-/// Not thread-safe; must be created, pumped, and disposed from the same thread.
+/// Win32の<c>HWND</c>を1つだけ所有し、作成、メッセージキュー処理、破棄を行う。
+/// スレッドセーフではないため、作成、メッセージ処理、破棄はすべて同じスレッドで実行すること。
 /// </summary>
 public sealed unsafe class Win32Window:IDisposable {
     private const string ClassName="CSharpGameEngine.Win32Window";
@@ -78,8 +78,8 @@ public sealed unsafe class Win32Window:IDisposable {
 
         this.Hwnd=Hwnd;
         this.RegisterRawInput();
-        // The window takes no text, so it has no input method: an open IME (a Japanese one in hiragana mode) turns the
-        // keys it processes into VK_PROCESSKEY, and W/A/S/D would not reach the game.
+        // ウィンドウはテキスト入力を持たないため、入力メソッドもない。IME（ひらがな入力モードの日本語IMEなど）が開いていると、処理したキーは
+        // VK_PROCESSKEYに変わり、W／A／S／Dがゲームへ届かなくなる。
         _=NativeImmAssociateContextEx((nint)Hwnd.Value,0,0);
         this.RefreshClientSize();
 
@@ -103,7 +103,7 @@ public sealed unsafe class Win32Window:IDisposable {
 
     public long InputTimestampFrequency=>Win32InputEventAdapter.TimestampFrequency;
 
-    /// <summary>Polls the gamepad, then returns and clears every input event recorded since the last call.</summary>
+    /// <summary>ゲームパッドをポーリングし、前回の呼び出し以降に記録した入力イベントをすべて返して消去する。</summary>
     public IReadOnlyList<InputEvent>DrainInputEvents(){
         if(!this.IgnoreDeviceInput){
             this.InputAdapter.RecordGamepad(XInputGamepad.Poll());
@@ -119,7 +119,7 @@ public sealed unsafe class Win32Window:IDisposable {
         }
     }
 
-    /// <summary>Processes all messages currently queued for this thread without blocking.</summary>
+    /// <summary>現在このスレッドにキューイングされているすべてのメッセージを、ブロックせずに処理する。</summary>
     public void PumpEvents(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
 
@@ -132,31 +132,31 @@ public sealed unsafe class Win32Window:IDisposable {
 
     public bool IsMouseCaptured=> this.MouseCaptured;
 
-    /// <summary>Records a keyboard key as if this window had received it (scripted automation input).</summary>
+    /// <summary>このウィンドウがキー入力を受け取った場合と同様に、キーボードキーを記録する（スクリプトによる自動実行入力）。</summary>
     public void InjectKey(string Code,bool Pressed){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.InputAdapter.RecordKeyCode(Code,Pressed);
     }
 
-    /// <summary>Records a mouse button (<c>Left</c>, <c>Right</c>, <c>Middle</c>) as if this window had received it (scripted automation input).</summary>
+    /// <summary>このウィンドウが受け取った場合と同様に、マウスボタン（<c>Left</c>、<c>Right</c>、<c>Middle</c>）を記録する（スクリプトによる自動実行入力）。</summary>
     public void InjectMouseButton(string Code,bool Pressed){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.InputAdapter.RecordMouseButton(Code,Pressed);
     }
 
-    /// <summary>Sets a scripted gamepad control (<see cref="Win32InputEventAdapter.InjectGamepad"/>; automation input).</summary>
+    /// <summary>スクリプト指定のゲームパッドコントロールを設定する（<see cref="Win32InputEventAdapter.InjectGamepad"/>。自動実行入力）。</summary>
     public void InjectGamepad(string Code,float Value){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.InputAdapter.InjectGamepad(Code,Value);
     }
 
-    /// <summary>Records a mouse movement of this many counts as if this window had received it (scripted automation input).</summary>
+    /// <summary>指定したカウント数だけ、このウィンドウ上でマウスを移動させた場合と同様に記録する（スクリプトによる自動実行入力）。</summary>
     public void InjectMouseDelta(float DeltaX,float DeltaY){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.InputAdapter.RecordMouseDelta(DeltaX,DeltaY);
     }
 
-    /// <summary>The cursor in client pixels. False when the cursor position cannot be read.</summary>
+    /// <summary>クライアント領域のピクセル座標で表すカーソル位置。位置を読み取れない場合はfalse。</summary>
     public bool TryGetCursorClient(out int X,out int Y){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         POINT Point;
@@ -172,8 +172,8 @@ public sealed unsafe class Win32Window:IDisposable {
     }
 
     /// <summary>
-    /// Hides the cursor and clips it to this window (mouse-look style capture), or releases it.
-    /// Relative motion is delivered through timestamped input events while capture owns the cursor.
+    /// カーソルを非表示にしてこのウィンドウ内へクリップする（マウスルック型の捕捉）、または捕捉を解除する。
+    /// 捕捉中は、タイムスタンプ付き入力イベントで相対移動を通知する。
     /// </summary>
     public void SetMouseCaptured(bool Captured){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
@@ -185,7 +185,7 @@ public sealed unsafe class Win32Window:IDisposable {
         this.MouseCaptured=Captured;
 
         if(Captured){
-            // The cursor clip is system-wide: an unfocused window applies it on WM_SETFOCUS instead.
+            // カーソルのクリップはシステム全体に適用されるため、フォーカスを失ったウィンドウではWM_SETFOCUS時に適用する。
             this.ApplyCapture(GetFocus()==this.Hwnd);
         } else {
             this.ApplyCapture(false);
@@ -193,7 +193,7 @@ public sealed unsafe class Win32Window:IDisposable {
         }
     }
 
-    /// <summary>Hides and clips the cursor, or restores it, keeping ShowCursor calls balanced.</summary>
+    /// <summary>ShowCursorの呼び出し回数が釣り合うように保ちながら、カーソルを非表示にしてクリップするか、元に戻す。</summary>
     private void ApplyCapture(bool Apply){
         if(Apply==this.CaptureApplied){
             return;
@@ -310,9 +310,9 @@ public sealed unsafe class Win32Window:IDisposable {
                     if(!this.IgnoreDeviceInput){
                         this.InputAdapter.RecordKey(VirtualKeyCode,true);
                     }
-                    // SYSKEY must still reach DefWindowProcW (Alt+F4, the system menu, etc.); plain
-                    // WM_KEYDOWN is fully consumed since this is a game window with no default text
-                    // input/accelerator behavior to preserve.
+                    // SYSKEYはDefWindowProcWへ渡す必要がある（Alt+F4、システムメニューなど）。通常の
+                    // WM_KEYDOWNは、既定のテキスト入力やアクセラレーター動作を維持する必要がないゲームウィンドウのため、
+                    // すべて処理済みとして消費する。
                     return Msg==WM_SYSKEYDOWN?DefWindowProcW(Hwnd,Msg,WParam,LParam):0;
                 }
 
@@ -326,9 +326,9 @@ public sealed unsafe class Win32Window:IDisposable {
                 }
 
             case WM_KILLFOCUS:
-                // Keys can't be reliably tracked once another window owns input focus - clear all
-                // state so a key held down during an Alt-Tab doesn't appear "stuck" on return.
-                // Injected keys do not belong to a physical device, so focus changes leave them held.
+                // 別ウィンドウが入力フォーカスを持っている間、キー状態は確実に追跡できない。Alt+Tab中に押したキーが復帰後も「押しっぱなし」にならないよう、
+                // すべての状態をクリアする。
+                // 注入されたキーは物理デバイスに属さないため、フォーカスが変わっても押下状態を維持する。
                 if(!this.IgnoreDeviceInput){
                     this.InputAdapter.RecordFocusLost();
                 }

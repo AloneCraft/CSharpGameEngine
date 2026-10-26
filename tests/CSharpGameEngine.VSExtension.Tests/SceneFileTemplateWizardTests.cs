@@ -3,8 +3,7 @@ using System.Linq;
 using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// ADR-0070: "Add New Item > Scene" creates a scene JSON document whose schema reference fits
-/// the folder it was added to and whose tokens make a complete scene.
+/// ADR-0070：「Add New Item > Scene」は、追加先のフォルダーに合ったスキーマ参照を持ち、シーン全体を構成するトークンを含む Scene JSON ドキュメントを作成する。
 /// </summary>
 public sealed class SceneFileTemplateWizardTests {
     private const string Project=@"C:\Games\My Game\My Game.csproj";
@@ -16,8 +15,7 @@ public sealed class SceneFileTemplateWizardTests {
         Assert.Equal(Expected,SceneFileTemplateWizard.SchemaReference(ItemPath,Project));
     }
     /// <summary>
-    /// M0095: only JSON under the project's Scenes folder is a scene (ADR-0070), so an item added elsewhere
-    /// is neither built nor opened in the Scene Editor; the wizard says so instead of failing silently.
+    /// M0095：プロジェクトの Scenes フォルダー内にある JSON だけがシーンである (ADR-0070)。そのため別の場所に追加した項目はビルドされず、Scene Editor でも開かれない。ウィザードは黙って失敗せず、そのことを通知する。
     /// </summary>
     [Theory]
     [InlineData(@"C:\Games\My Game\Scenes\Level.json",false)]
@@ -41,7 +39,7 @@ public sealed class SceneFileTemplateWizardTests {
         var Root=Document.Get("root")!;
         var Ids=new[]{Root}.Concat(Root.Get("children")!.Items).Select(static Node=>Node.Get("id")!.Text).ToArray();
         Assert.All(Ids,static Id=>Assert.True(System.Guid.TryParse(Id,out _)));
-        // Only engine types: a game type (such as a game's PlayerStart) would fail the build of games without it.
+        // エンジンの型だけを使う。ゲーム側の型（ゲームの PlayerStart など）が含まれると、それのないゲームのビルドが失敗する。
         var Types=new[]{Root}.Concat(Root.Get("children")!.Items).SelectMany(static Node=>Node.Get("components")!.Items).Select(static Component=>Component.Get("type")!.Text!);
         Assert.All(Types,static Type=>Assert.StartsWith("CSharpGameEngine.",Type));
     }

@@ -60,7 +60,7 @@ public readonly record struct AssetMetadataError(AssetMetadataErrorCode Code,str
     public static AssetMetadataError None=>new(AssetMetadataErrorCode.None,string.Empty,string.Empty);
 }
 
-/// <summary>The canonical UTF-8 metadata persisted beside an authoritative source asset.</summary>
+/// <summary>正本アセットの隣に保存する、正規形式のUTF-8メタデータ。</summary>
 public sealed class AssetMetadata {
     public const int CurrentSchemaVersion=1;
     private readonly ImmutableSortedDictionary<string,string>OptionsValue;

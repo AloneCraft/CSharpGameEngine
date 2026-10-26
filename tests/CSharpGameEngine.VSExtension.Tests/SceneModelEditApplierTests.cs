@@ -652,9 +652,7 @@ public sealed class SceneModelEditApplierTests {
     }
 
     /// <summary>
-    /// A node moves under the parent it was dropped on, also when another node has the same name and component types
-    /// (two "Group" nodes). The new parent was found again after the removal by name and component types, so the first
-    /// look-alike in the tree took the node instead.
+    /// ノードは、名前とコンポーネント型が同じ別のノード（「Group」ノードが 2 つある場合など）が存在しても、ドロップ先の親の下へ移動する。以前は削除後に名前とコンポーネント型で新しい親を再検索していたため、ツリー内で最初に見つかった同名ノードが代わりにそのノードを受け取っていた。
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -684,7 +682,7 @@ public sealed class SceneModelEditApplierTests {
         var RootChildren=Predicted.Root!.Children;
         Assert.Equal(3,RootChildren.Length);
         Assert.Equal(TargetGroup,RootChildren.Select((Child,Index)=>(Child,Index)).Single(static Pair=>Pair.Child.Children.Length==1).Index);
-        // Indistinguishable siblings keep no guessed id (SceneProjectionReconciler), so the parent is checked by its place.
+        // 見分けのつかない兄弟には推測 ID を割り当てない (SceneProjectionReconciler)。そのため親は位置で確認する。
         var ParentId=PredictedProjection.Nodes.Single(Node=>Node.Id.Equals(Mover)).ParentId!.Value;
         Assert.Equal(TargetGroup,Assert.Single(PredictedProjection.Nodes.Single(Node=>Node.Id.Equals(ParentId)).Node.Path.Indices));
     }

@@ -1,12 +1,10 @@
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// ADR-0084 §6: the logarithmic depth of a perspective camera against the double-precision oracle of
-/// <see cref="DepthOracle"/>, on WARP and on every run. A quad facing the camera is drawn from 4 µm to 5e18 m; in the
-/// middle of the view every pixel's depth is within 4 ulps of the expected one, and no pixel of a surface reaches the
-/// 1.0 the depth buffer is cleared to (the sky composite and the far discard rely on that). WARP evaluates the shader
-/// arithmetic exactly, so <see cref="RadialDepthPrecisionEvidence"/> repeats the measurement on the GPU for the
-/// hardware's own error.
+/// ADR-0084 §6：WARP上および各実行で、透視カメラの対数深度を倍精度の<see cref="DepthOracle"/>と比較する。
+/// カメラ向きのクアッドを4 µmから5e18 mまで描画する。ビュー中央では全ピクセルが期待値から4 ULP以内であり、
+/// クリア値1.0に達するサーフェスはない（空の合成と遠方破棄がこの性質に依存する）。
+/// WARPはシェーダー演算を正確に評価するため、<see cref="RadialDepthPrecisionEvidence"/>でGPU上でも測定し、ハードウェア固有の誤差を調べる。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class LogarithmicDepthOracleTests {

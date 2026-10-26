@@ -19,17 +19,10 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Scene Designer tool window host (ADR-0040 Phase 9). Targets a specific <c>IScene</c>-implementing class
-/// via <see cref="SetTarget"/>, which receives the <see cref="SceneDocumentSnapshot"/> that
-/// <see cref="SceneEditorSessionService"/> publishes from live Roslyn (no build step), converts it via
-/// <see cref="SceneModelRenderObjectBuilder"/> and sends the resulting immutable scene/frame DTOs to
-/// the out-of-process Preview Host. Replaces the earlier <c>.scene</c>-JSON-based version of this class
-/// (ADR-0020/ADR-0021), whose remaining write path was deleted in M0020 Phase 0.
+/// Scene Designer tool window の host（ADR-0040 Phase 9）。<see cref="SetTarget"/> を通じて特定の <c>IScene</c> 実装クラスを対象にし、ライブ Roslyn から <see cref="SceneEditorSessionService"/> が公開する <see cref="SceneDocumentSnapshot"/>（ビルド工程なし）を受け取ります。これを <see cref="SceneModelRenderObjectBuilder"/> で変換し、変更不可の scene/frame DTO をプロセス外の Preview Host に送信します。M0020 Phase 0 で残っていた書き込み経路を削除した、以前の <c>.scene</c> JSON ベースの実装（ADR-0020/ADR-0021）を置き換えます。
 ///
 /// <para>
-/// This host owns the editing view state that must survive Preview Host session replacement. Camera and
-/// authoring state live here and are replayed to a fresh host/surface generation (ADR-0041 decision 1). It is also
-/// the only place that learns the real surface size, via <c>Surface.Resized</c>.
+/// Preview Host の session 交換後も維持する必要がある editing view state を所有します。camera と authoring state はここに保持し、新しい host/surface generation へ再適用します（ADR-0041 decision 1）。また、<c>Surface.Resized</c> 経由で実際の surface サイズを取得する唯一の場所です。
 /// </para>
 /// </summary>
 internal sealed class SceneHwndHost:HwndHost {
@@ -88,21 +81,21 @@ internal sealed class SceneHwndHost:HwndHost {
     private IReadOnlyList<int>SpatialDebugProcessIds=[];
     private int?SelectedSpatialDebugProcessId;
     private bool PreviewIsRuntime;
-    /// <summary>M0095 3-4: the runtime view open in flight off the UI thread; a newer request or a disposal bumps the generation.</summary>
+    /// <summary>M0095 3-4：UI thread 外で進行中の runtime view の open。新しい要求または破棄で generation を進めます。</summary>
     private long RuntimeOpenGeneration;
     private bool RuntimeOpenPending;
-    /// <summary>Held so the open stays observable and joinable by Visual Studio's shutdown.</summary>
+    /// <summary>open 処理を監視可能に保ち、Visual Studio のシャットダウン時に join できるよう保持します。</summary>
     private Microsoft.VisualStudio.Threading.JoinableTask?RuntimeOpenTask;
-    // The game build a JSON scene's runtime view is made from, and the write time of the one shown
-    // (MinValue when the scene preview stands in for it): a newer build replaces the view.
+    // JSON scene の runtime view の元となるゲームビルドと、表示中のシーンの書き込み時刻を保持します。
+    // （シーンプレビューを代わりに表示する場合は MinValue）。新しいビルドで view を置き換えます。
     private string?WatchedBuild;
     private DateTime ShownBuildTime;
     private DateTime PendingBuildTime;
     private DateTime NextBuildCheck;
     private string?RuntimeViewTempDirectory;
-    // Why the Scene view is not showing the current edit in the game's runtime, kept over "displayed".
+    // 「表示中」の値を超えて、Scene view がゲームの runtime に現在の編集を表示していない理由を保持します。
     private string?RuntimeViewNote;
-    /// <summary>The scene JSON the runtime view last received; the document text it must keep matching.</summary>
+    /// <summary>runtime view が最後に受け取ったシーン JSON。内容が一致する必要のあるドキュメントテキストです。</summary>
     private string?RuntimeViewSentSceneJson;
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
@@ -118,7 +111,7 @@ internal sealed class SceneHwndHost:HwndHost {
     // 知らない純粋な状態機械のままにするため、この管理はSceneHwndHostに閉じる。
     private bool LookUsesPixelLock;
     private Vector3 LookAnchorWorldDirection;
-    /// <summary>M0095: the selection's center captured when an Alt+LMB orbit begins; null orbits around the focus.</summary>
+    /// <summary>M0095：Alt+LMB の orbit 開始時に取得した選択中心。null の場合は focus の周囲を orbit します。</summary>
     private Vector3?OrbitPivot;
 
     // M0020 Phase 3: Moveギズモと1操作=1編集トランザクション。
@@ -189,10 +182,10 @@ internal sealed class SceneHwndHost:HwndHost {
     internal event Action<SceneEditCommitRequest>?EditCommitRequested;
 
 
-    /// <summary>True while the current target owns an asynchronous scene-build request.</summary>
+    /// <summary>現在の target が非同期のシーンビルド要求を持つ間は true。</summary>
     internal bool IsBuildPending=>this.BuildLifecycle.IsBuildPending;
 
-    /// <summary>True only when the current target has an unrecoverable build/present failure.</summary>
+    /// <summary>現在の target で回復不能な build/present 失敗が起きた場合だけ true。</summary>
     internal bool HasFatalRenderFailure { get; private set; }
 
     public SceneHwndHost(){
@@ -305,9 +298,9 @@ internal sealed class SceneHwndHost:HwndHost {
             this.CancelEditTransaction();
         }
 
-        // A queued worker result from the previous snapshot must never clear the pending state or
-        // recreate a renderer after this target is accepted. The new Rebuild below receives a
-        // distinct lease; an incremental update deliberately leaves no build pending at all.
+        // 以前の snapshot に対して queue された worker の結果が、pending state を解除したり、
+        // この target を受け入れた後に renderer を再作成したりしてはいけません。下の新しい Rebuild は
+        // 別の lease を受け取り、incremental update では build pending を残しません。
         this.BuildLifecycle.Invalidate();
 
         // コンボボックスでのシーン切替はSceneHwndHostを再生成せず(EnsureHostが既存インスタンスを
@@ -347,7 +340,7 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneRenderUpdateKind UpdateKind=SceneIncrementalUpdatePolicy.Classify(Snapshot.Diff);
         if(UpdateKind==SceneRenderUpdateKind.Rebuild){ return false; }
         if(UpdateKind==SceneRenderUpdateKind.None){
-            // The model diff only sees what the designer models; the runtime view draws the whole document.
+            // model diff には designer がモデル化した内容だけが見えますが、runtime view はドキュメント全体を描画します。
             if(this.PreviewIsRuntime&&this.RuntimeViewSentSceneJson is { }Sent
                 &&!string.Equals(Sent,this.LiveSceneJson(),StringComparison.Ordinal)
                 &&!this.TryReplacePreviewScene()){
@@ -366,8 +359,8 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.CurrentRenderObjects=Updated;
         this.PreviewFrameDirty=true;
-        // A runtime view draws the game's own world, not these render objects: a value edit reaches it
-        // only as the edited document (ADR-0070 B1 step 4), so send it as the full path does.
+        // runtime view が描画するのはゲーム自身の world であり、これらの render object ではありません。値編集は
+        // 編集後のドキュメントとしてのみ届くため（ADR-0070 B1 step 4）、full path と同じ方法で送信します。
         if(this.PreviewIsRuntime&&!this.TryReplacePreviewScene()){
             return false;
         }
@@ -520,7 +513,7 @@ internal sealed class SceneHwndHost:HwndHost {
         this.RefreshOverlay();
     }
 
-    /// <summary>The built game assembly of the target scene's project (Debug), or the override in CGE_EDITOR_PREVIEW_ASSEMBLY.</summary>
+    /// <summary>target シーンのプロジェクトのビルド済みゲームアセンブリ（Debug）、または CGE_EDITOR_PREVIEW_ASSEMBLY による上書き。</summary>
     private string?ResolveBuiltGameAssembly(CgeProjectContext context){
         string? assemblyPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_ASSEMBLY");
         if(assemblyPath is null){
@@ -541,8 +534,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// Copies a game build's assemblies to a temporary folder and returns the copied assembly, so the
-    /// preview host never locks the build output a rebuild writes.
+    /// ゲームビルドのアセンブリを一時フォルダーへコピーし、そのコピーを返します。Preview Host が、再ビルドによって書き換えられるビルド出力をロックしないようにします。
     /// </summary>
     private static string CopyGameBuild(string AssemblyPath,out string TempDirectory){
         string SourceDirectory=Path.GetDirectoryName(AssemblyPath)??throw new DirectoryNotFoundException();
@@ -561,8 +553,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// ADR-0070 B1: a runtime view of the built game for a JSON scene, so the Scene view shows what
-    /// the game renders. Null (the scene preview) when the scene is not JSON or the game is not built.
+    /// ADR-0070 B1：JSON シーン用のビルド済みゲームの runtime view。Scene view にゲームの描画内容を表示します。シーンが JSON でない場合、またはゲームがビルドされていない場合は null（シーンプレビュー）です。
     /// </summary>
     private RuntimeViewPlan?TryPrepareRuntimeView(){
         this.WatchedBuild=null;
@@ -587,14 +578,11 @@ internal sealed class SceneHwndHost:HwndHost {
 
     private sealed record RuntimeViewPlan(string Build,string SceneName,bool UseWarp);
 
-    /// <summary>The outcome of an off-thread runtime view open; exactly one of Client and Error is set.</summary>
+    /// <summary>UI thread 外での runtime view open の結果。Client または Error のちょうど一方だけが設定されます。</summary>
     private sealed record RuntimeViewOpening(RenderPreviewHostClient?Client,string?TempDirectory,RenderPreviewHostResponse?Response,Exception?Error,bool BuildStillWriting);
 
     /// <summary>
-    /// M0095 3-4: copies the game build, starts the preview host and opens the runtime view off the UI
-    /// thread; together they took 0.6 to 1.9 s and froze Visual Studio on every scene open and game build.
-    /// The view shows the pending state meanwhile, and <see cref="CompleteRuntimeViewOpen"/> takes the
-    /// result unless a newer request or a disposal superseded it.
+    /// M0095 3-4：ゲームビルドをコピーし、preview host を起動して runtime view を UI thread 外で開きます。各シーンの open とゲームの build ごとに0.6から1.9 sかかり、Visual Studio が毎回停止していました。その間は view に pending state を表示し、新しい要求または破棄で置き換えられていなければ、<see cref="CompleteRuntimeViewOpen"/> が結果を受け取ります。
     /// </summary>
     private void BeginRuntimeViewOpen(RuntimeViewPlan Plan,long SurfaceHandle,string HostPath,string ShaderArtifactPath,RenderPreviewScene Scene){
         long Generation=++this.RuntimeOpenGeneration;
@@ -618,7 +606,7 @@ internal sealed class SceneHwndHost:HwndHost {
             Copy=CopyGameBuild(Plan.Build,out string CopyDirectory);
             TempDirectory=CopyDirectory;
         }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException){
-            // A build still writing its output: the scene preview until the build settles.
+            // ビルド出力への書き込み中は、ビルドが落ち着くまでシーンプレビューを表示します。
             DeleteEditorPreviewTempDirectory(TempDirectory);
             return new RuntimeViewOpening(null,null,null,Error,BuildStillWriting:true);
         }
@@ -639,10 +627,10 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
-    /// <summary>Runs on the UI thread (<see cref="BeginRuntimeViewOpen"/> switches to it first).</summary>
+    /// <summary>UI thread で実行します（<see cref="BeginRuntimeViewOpen"/> が最初に UI thread に切り替えます）。</summary>
     private void CompleteRuntimeViewOpen(long Generation,RuntimeViewOpening Opening){
         if(Generation!=this.RuntimeOpenGeneration||this.Surface is null||this.PreviewClient is not null){
-            // Superseded by a newer open or a disposal: the result is nobody's.
+            // 新しい open または破棄によって置き換えられたため、この結果の受け取り先はありません。
             if(Opening.Client is { }Stale){
                 string?StaleTemp=Opening.TempDirectory;
                 _=ThreadPool.QueueUserWorkItem(_=>{
@@ -672,7 +660,7 @@ internal sealed class SceneHwndHost:HwndHost {
             this.RuntimeViewTempDirectory=Opening.TempDirectory;
             this.ShowRuntimeViewState(Opening.Response!);
         }
-        // Catch up with what changed while the view opened: the scene, the camera and the document.
+        // view を開いている間に変わったシーン、カメラ、ドキュメントを最新状態に追いつかせます。
         if(!this.TryReplacePreviewScene()){
             return;
         }
@@ -682,8 +670,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// Once a second: when the game build differs from the one shown (a first build included) and has
-    /// kept its write time for a check, the view reopens on it, so a build shows without another edit.
+    /// 1秒ごとに確認します。ゲームビルドが現在表示中のものと異なり（初回ビルドも含む）、確認時点で書き込み時刻が安定していれば、そのビルドを表示するため view を再度開きます。これにより編集を追加しなくても build の結果が表示されます。
     /// </summary>
     private void ReopenOnNewBuild(){
         if(this.WatchedBuild is not { }Build||this.PreviewClient is null||DateTime.UtcNow<this.NextBuildCheck){
@@ -747,8 +734,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// M0096 (ADR-0047): the editor world runs in the runtime view's render server, so its debug pipes are that
-    /// process's. Null without a runtime view.
+    /// M0096（ADR-0047）：editor world は runtime view の render server 内で動くため、その debug pipe は同じプロセスに属します。runtime view がなければ null です。
     /// </summary>
     private int?EditorWorldProcessId=>this.PreviewIsRuntime?this.PreviewClient?.ProcessId:null;
 
@@ -885,7 +871,7 @@ internal sealed class SceneHwndHost:HwndHost {
                 ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
                 Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
             };
-            // The thumbnail preserves the scene camera's physical clip range.
+            // thumbnail はシーンカメラの物理的な clip range を維持します。
             RenderPreviewSceneBuilder.DescribePose(PassCamera,Camera.View,Camera.Projection,Camera.FovYRadians,
                 Camera.RadialTransitionMeters,Camera.NearZ,Camera.FarZ);
             Passes.Add(new RenderPreviewCameraPass {
@@ -925,9 +911,9 @@ internal sealed class SceneHwndHost:HwndHost {
                                    };
             CompositionTarget.Rendering+= this.RenderingHandler;
 
-            // Subscribed once here (not inside Rebuild, which runs on every re-analysis) - it always
-            // resizes whatever Renderer currently holds via the field, so re-subscribing per rebuild
-            // would just accumulate redundant duplicate calls per resize.
+            // ここで一度だけ subscribe します（再解析ごとに実行する Rebuild 内ではありません）。常に field が保持する
+            // 現在の Renderer のサイズを変更するため、Rebuild ごとに再 subscribe すると、resize のたびに
+            // 重複した呼び出しが蓄積するだけです。
             // これはサーフェスの実サイズを知る唯一の場所でもあるので、アスペクト比の元もここで更新する。
             this.ResizeHandler=(W,H)=>{
                                    try {
@@ -970,9 +956,9 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void HandleRenderFailure(Exception Error){
-        // RenderFrame/Resize failure invalidates any concurrent build before reporting status.
-        // Otherwise IsBuildPending suppresses the visible WPF diagnostic and leaves a hidden
-        // native child as a white HwndHost airspace region.
+        // status を報告する前に、RenderFrame/Resize の失敗で並行中の build を無効にします。
+        // そうしないと IsBuildPending が WPF の診断表示を抑止し、非表示の
+        // ネイティブ子ウィンドウが白い HwndHost 領域として残ります。
         this.BuildLifecycle.Invalidate();
         this.HasFatalRenderFailure=true;
         ActivityLog.LogError(nameof(SceneHwndHost),Error.ToString());
@@ -1463,8 +1449,8 @@ internal sealed class SceneHwndHost:HwndHost {
                     "ScenePreviewOverlayVertexLimitExceeded",TotalVertices,
                     RenderPreviewHostProtocol.MaximumOverlayVertexCount));
         }
-        // ApplyCamera refreshes the overlay on every UI tick; an unchanged overlay must not request a
-        // frame, or the idle view re-renders at the display rate.
+        // ApplyCamera は UI tick ごとに overlay を更新します。overlay が変わらない場合に frame を要求すると、
+        // idle view がディスプレイの refresh rate で再描画されてしまいます。
         if(GizmoOverlayPrimitive.SameContent(this.CurrentOverlayPrimitives,Primitives)){
             return;
         }
@@ -1913,7 +1899,7 @@ internal sealed class SceneHwndHost:HwndHost {
             foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
                 this.UpdateCurrentObjectTransform(Descendant.NodePath,Descendant.World);
             }
-            // A runtime view kept the drag's last transforms; the unchanged document puts them back.
+            // runtime view はドラッグ中の最後の transform を保持していました。変更されていないドキュメントで元に戻します。
             if(this.PreviewIsRuntime){
                 _=this.TryReplacePreviewScene();
             }
@@ -2186,8 +2172,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// The center of the selection, as Focus Selection frames it: the bounds of the selected objects' meshes,
-    /// or the gizmo's pivot for a selection without one (an empty node, a light). Null without a selection.
+    /// 「Focus Selection」がフレーミングする選択範囲の中心。選択オブジェクトの mesh の bounds、または gizmo の pivot（空のノードやライトなど、mesh のない選択）です。選択がない場合は null です。
     /// </summary>
     private Vector3?SelectionCenter(){
         if(this.SelectedNodePaths.Count==0){
@@ -2200,10 +2185,10 @@ internal sealed class SceneHwndHost:HwndHost {
         return this.CurrentMoveGizmo is { }Gizmo?Gizmo.Pivot:null;
     }
 
-    /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
+    /// <summary><see cref="Renderer"/> をピン留め済みの <see cref="SceneDocumentSnapshot"/> から再構築する。</summary>
     private void Rebuild(){
-        // Every rebuild supersedes the prior request, including paths that end before a worker is
-        // started (analysis pending, invalid model, or a destroyed target).
+        // worker の開始前に終わる経路（解析待ち、無効なモデル、破棄済み target）も含め、
+        // すべての rebuild が直前の要求を置き換えます。
         this.BuildLifecycle.Invalidate();
         if(this.Surface is null|| this.TargetKey is null|| this.TargetSnapshot is null|| this.TargetFilePath is null|| this.TargetClassName is null){
             return;
@@ -2211,8 +2196,8 @@ internal sealed class SceneHwndHost:HwndHost {
         this.HasFatalRenderFailure=false;
 
         if(this.TargetModel is not { } Model){
-            // Not (yet) found - e.g. analysis hasn't caught up with a just-opened tool window, or
-            // the class was renamed/deleted out from under us. Leave the last good frame on screen.
+            // まだ見つからない場合（開いた直後の tool window の解析が追いついていない、または
+            // class が改名・削除された場合など）も、最後に正常だった frame を表示したままにします。
             this.SetStatus(VsixText.Format("SceneAnalysisWaiting",this.TargetClassName));
             return;
         }
@@ -2262,8 +2247,8 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void OnBuildCompleted(SceneRenderBuildRequest Request,SceneRenderBuildResult?Result,Exception?Error){
-        // A result for a superseded target must be completely inert. In particular, it must not
-        // clear a newer target's pending lease before the newer worker has returned.
+        // 置き換えられた target に対する結果は、完全に何もしてはいけません。特に、新しい target の worker が
+        // 戻る前に、その target の pending lease を解除してはいけません。
         if(!this.BuildLifecycle.TryComplete(Request.BuildEpoch)){
             return;
         }
@@ -2348,7 +2333,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private void DisposePreviewClient(bool ClearScene,bool DisposeInBackground=false){
         RenderPreviewHostClient?Client=this.PreviewClient;
         this.PreviewClient=null;
-        // An open still in flight belongs to the view being disposed.
+        // 進行中の open は、破棄される view に属しています。
         this.RuntimeOpenGeneration++;
         this.RuntimeOpenPending=false;
         string?RuntimeTemp=this.RuntimeViewTempDirectory;
@@ -2392,11 +2377,11 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
         if(this.RuntimeOpenPending){
-            // The runtime view is opening off the UI thread; it catches up with this scene when it lands.
+            // runtime view は UI thread 外で開かれています。準備ができた時点で、このシーンに追いつきます。
             return;
         }
         (string HostPath,string ShaderArtifactPath)=this.ResolvePreviewHost();
-        // ADR-0070 B1: the game's own runtime when the game is built; the scene preview otherwise.
+        // ADR-0070 B1：ゲームのビルド済み runtime view があればそれを使い、なければシーンプレビューを使います。
         this.RuntimeViewNote=null;
         if(this.TryPrepareRuntimeView() is { }Plan){
             this.BeginRuntimeViewOpen(Plan,Surface.Handle.ToInt64(),HostPath,ShaderArtifactPath,Scene);
@@ -2413,7 +2398,7 @@ internal sealed class SceneHwndHost:HwndHost {
         return (RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot),RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot));
     }
 
-    /// <summary>The scene preview (the designer's render objects), when there is no runtime view of a built game.</summary>
+    /// <summary>ビルド済みゲームの runtime view がない場合に表示する、デザイナーの render object によるシーンプレビュー。</summary>
     private void OpenScenePreview(){
         RenderSurfaceWindow Surface=this.Surface
             ??throw new InvalidOperationException("Scene preview surface is unavailable.");
@@ -2457,9 +2442,7 @@ internal sealed class SceneHwndHost:HwndHost {
             this.RuntimeViewDragOverrides());
 
     /// <summary>
-    /// M0096: during a transform gizmo drag a runtime view gets the dragged roots' transforms with every
-    /// frame; it ignores the designer's render objects, so the object would otherwise stand still until
-    /// the commit. Property drags and duplicate previews are not transforms of existing nodes.
+    /// M0096：transform gizmo のドラッグ中、runtime view には各フレームでドラッグ対象 root の transform が送られます。runtime view はデザイナーの render object を無視するため、そうしなければ commit までオブジェクトが動きません。property drag と複製プレビューは既存ノードの transform ではありません。
     /// </summary>
     private RenderPreviewTransformOverride[]?RuntimeViewDragOverrides()=>
         this.PreviewIsRuntime&&this.EditTransaction.State==EditTransactionState.Dragging

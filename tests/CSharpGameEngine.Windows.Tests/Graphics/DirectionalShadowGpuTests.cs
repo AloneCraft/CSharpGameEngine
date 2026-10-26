@@ -4,7 +4,7 @@ using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>WARP oracle: a directional light's shadow falls on the side away from the light.</summary>
+/// <summary>ディレクショナルライトの影が光源と反対側へ落ちることを検証するWARPオラクル。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class DirectionalShadowGpuTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -31,8 +31,8 @@ public sealed class DirectionalShadowGpuTests {
         for(var Frame=0;Frame<3;Frame++){
             Renderer.SetCamera(View);
             Renderer.SetAmbientLight(new Vector3(0.05f));
-            // Light arrives from above and one side (toward-light points up and along +X), so the
-            // occluder's shadow is displaced sideways onto ground the overhead camera can see.
+            // 光は上方かつ片側から来る（光源方向は上向きで+X方向も指す）。そのため、
+            // 遮蔽物の影は横へずれ、上方のカメラに見える地面に落ちる。
             Renderer.SetDirectionalLight(Vector3.Normalize(new Vector3(0.6f,1f,0f)),Vector3.One,3f,CastsShadows:true,ShadowBiasMeters:0.01f);
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);
             Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,2f,0f));
@@ -43,10 +43,10 @@ public sealed class DirectionalShadowGpuTests {
             var Offset=(int)(Y*Capture.RowPitch)+X*4;
             return Capture.Pixels[Offset]+Capture.Pixels[Offset+1]+Capture.Pixels[Offset+2];
         }
-        // Unoccluded upward-facing surfaces: the occluder's top and far ground are both sunlit.
+        // 遮蔽物の上面と奥の地面は、いずれも上を向くため日光が当たる。
         var Far=Luma(10,64);
         var OccluderTop=Luma(64,64);
-        // The shadow lands beside the occluder on the side away from the light (either screen side).
+        // 影は遮蔽物の横、光源と反対側（画面上のどちらか一方）に落ちる。
         var Beside=Math.Min(Luma(40,64),Luma(88,64));
         var Diagnostic=$"far={Far} top={OccluderTop} beside={Beside} left={Luma(40,64)} right={Luma(88,64)}";
         Assert.True(Far>60,"Ground far from the occluder must be sunlit. "+Diagnostic);

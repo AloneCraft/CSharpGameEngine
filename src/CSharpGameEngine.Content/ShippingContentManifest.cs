@@ -40,7 +40,7 @@ public sealed class ShippingContentManifestEntry {
     public int EnvelopeByteLength{get;}
 }
 
-/// <summary>An immutable exact artifact closure for one selected shipping product scope.</summary>
+/// <summary>選択した1つの出荷対象スコープに対する、厳密なアーティファクト依存関係一式を表す不変オブジェクト。</summary>
 public sealed class ShippingContentManifest:IContentArtifactLocator {
     private readonly ImmutableDictionary<AssetArtifactReference,ShippingContentManifestEntry>ByReference;
     private readonly ImmutableDictionary<AssetKey,ShippingContentManifestEntry>ByKey;

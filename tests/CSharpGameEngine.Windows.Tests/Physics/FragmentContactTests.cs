@@ -2,8 +2,8 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0113: the contacts of fragments. A convex polyhedron and a compound of them rest on a box floor and on a triangle-mesh floor with a patch of
-/// several points, stop turning, do not sink, and fall asleep; a sleeping body stays asleep on what holds it and wakes when an awake body lands on it.
+/// ADR-0078/M0113：破片の接触処理。凸多面体とその複合形状を、ボックス床および接触パッチが複数点を持つ三角形メッシュ床に置く。
+/// 回転が止まり、沈み込まず、静止する。眠っているボディは支持物の上で眠り続け、活動中のボディが着地すると目を覚ます。
 /// </summary>
 public sealed class FragmentContactTests {
     private static float F(LogicalScalar Value)=>Value.TryToSingle(out var Result)?Result:float.NaN;
@@ -78,7 +78,7 @@ public sealed class FragmentContactTests {
         List<PhysicsContactManifold>Manifolds=[];
         World.CollectContactManifolds(Manifolds);
         Assert.Empty(Manifolds);
-        // Placed as cut (touching faces, no gap) the two fall together without pushing each other apart.
+        // 2つを切り出したまま（面を接触させ、隙間なし）配置すると、互いに押し離されず一緒に落ちる。
         var Pair=BoxFloor();
         var C=Drop(Pair,Asset.CollisionShapes[Bond.FirstFragment],First.Mass,2,First.LocalCenter+new LogicalVector3(0,1,0));
         var D=Drop(Pair,Asset.CollisionShapes[Bond.SecondFragment],Second.Mass,3,Second.LocalCenter+new LogicalVector3(0,1,0));
@@ -90,15 +90,15 @@ public sealed class FragmentContactTests {
         Assert.InRange(MathF.Sqrt(Apart)-MathF.Sqrt(Cut),-0.01f,0.01f);
     }
     /// <summary>
-    /// Two crates of one fracture asset break into bodies that share each fragment's shape. The narrow phase kept one world frame per shape, so the second body of a pair
-    /// overwrote the first's and the pair was tested against itself: a full overlap whose normal was arbitrary, so the upper body sank through the lower
-    /// one, and in a pile the depth (the fragment's thickness) lifted bodies every tick and kept them bouncing for ever.
+    /// 1つの破砕アセットから作ったクレート2つは、各破片で同じ形状を共有する。狭域処理が形状ごとにワールドフレームを1つしか保持しなかったため、
+    /// 同一ペア内の2つ目のボディが1つ目を上書きし、ペアを自分自身と照合していた。任意の法線を持つ完全な重なりとして検出された結果、
+    /// 上側のボディが下側をすり抜け、積み重ねでは毎ティックの貫通深度（破片の厚み）によってボディが持ち上がり、永久に跳ね続けていた。
     /// </summary>
     [Fact]
     public void TwoBodiesOfOneFragmentShapeDroppedOneOnTheOtherComeToRestApart(){
         var Shape=Asset.CollisionShapes[5];
         var Mass=Asset.Fragments[5].Mass;
-        // A centimetre apart along the most slanted face normal: their boxes overlap, the shapes do not.
+        // 最も傾斜した面の法線方向に1 cm離す。ボックス同士は重なるが、形状自体は接触しない。
         var Slanted=Enumerable.Range(0,Shape.PlaneCount).Select(Shape.PlaneNormal).MinBy(static Normal=>MathF.Max(MathF.Abs(F(Normal.R)),MathF.Max(MathF.Abs(F(Normal.U)),MathF.Abs(F(Normal.F)))));
         var Width=Shape.Vertices.Max(Vertex=>F(LogicalVector3.Dot(Vertex,Slanted)))-Shape.Vertices.Min(Vertex=>F(LogicalVector3.Dot(Vertex,Slanted)));
         var Floating=new DeterministicPhysicsWorld();
@@ -117,7 +117,7 @@ public sealed class FragmentContactTests {
         Assert.True(Stack.TryGetBodyState(new Entity(3),out var UpperState));
         Assert.True(LowerState.IsSleeping,"the lower body did not come to rest");
         Assert.True(UpperState.IsSleeping,"the upper body did not come to rest");
-        // Whether the upper one stays on top or slides off, the two are not inside each other (before the fix they lay in the same place).
+        // 上側が上にとどまるか滑り落ちても、2つは互いに重ならない（修正前は同じ場所に重なっていた）。
         Assert.True(MathF.Sqrt(F((UpperState.Position-LowerState.Position).LengthSquared))>0.05f,"the two bodies lie in the same place");
         List<PhysicsContactManifold>Manifolds=[];
         Stack.CollectContactManifolds(Manifolds);
@@ -145,8 +145,8 @@ public sealed class FragmentContactTests {
         Assert.True(Woken,"the resting fragment was not woken by the one that landed on it");
     }
     /// <summary>
-    /// A sleeping body is not integrated, so when what held it goes (a piece's lifetime ran out, a whole destructible came apart under it) it must wake, or
-    /// it hangs in the air. Before the fix nothing woke it: removing the support only dropped the contact.
+    /// 眠っているボディは積分されない。そのボディを支えていた物体（破片の寿命終了、または下で破壊可能物が崩壊）がなくなった場合、
+    /// 空中に浮かび続けないよう起こす必要がある。修正前は支持の接触が消えるだけで、ボディを起こしていなかった。
     /// </summary>
     [Fact]
     public void ASleepingFragmentWakesAndFallsWhenWhatHoldsItIsRemoved(){

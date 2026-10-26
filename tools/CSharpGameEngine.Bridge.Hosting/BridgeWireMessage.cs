@@ -4,13 +4,7 @@ using System.Text.Json;
 namespace CSharpGameEngine.Bridge.Hosting;
 
 /// <summary>
-/// Length-prefixed UTF-8 JSON framing shared by <see cref="BridgeServerHost"/> (the resident bridge
-/// server side) and independently hand-mirrored by the VSIX's <c>ResidentBridgeClient</c> (net472
-/// can't <c>ProjectReference</c> this net10.0 library, so the wire shape - not the types - is what's
-/// shared; same "duplicate now, consolidate later" approach ADR-0019/ADR-0021 already use across the
-/// net472/net10.0 boundary). Operates on a plain <see cref="Stream"/> rather than
-/// <see cref="System.IO.Pipes.PipeStream"/> specifically so tests can exercise it against a
-/// <see cref="MemoryStream"/> without spawning a real pipe or process.
+/// <see cref="BridgeServerHost"/>（常駐ブリッジのサーバー側）と、VSIX の <c>ResidentBridgeClient</c> が独立して同じ形式を実装する、長さプレフィックス付き UTF-8 JSON フレーミング。net472 はこの net10.0 ライブラリを <c>ProjectReference</c> できないため、共有するのは型ではなく通信形式である。ADR-0019/ADR-0021 でも net472/net10.0 の境界で「今は複製し、後で統合」の方式を使っている。特定の <see cref="System.IO.Pipes.PipeStream"/> ではなく通常の <see cref="Stream"/> を扱うため、実際のパイプやプロセスを起動せずに <see cref="MemoryStream"/> でテストできる。
 /// </summary>
 public static class BridgeWireMessage {
     public const int MaximumPayloadBytes=16*1024*1024;
@@ -27,13 +21,11 @@ public static class BridgeWireMessage {
         await Stream.FlushAsync(CancellationToken);
     }
 
-    /// <summary>The longest a server waits for a connected client to send its whole request (audit AUD-003).</summary>
+    /// <summary>サーバーが、接続済みクライアントから要求全体を受信するまで待つ最長時間 (audit AUD-003)。</summary>
     public static readonly TimeSpan RequestReceiveTimeout=TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Reads one request on a server. It ends with <see cref="OperationCanceledException"/> when the server stops
-    /// (<paramref name="Lifetime"/>) or the client has not sent the whole request within <paramref name="Timeout"/>, so a
-    /// client that stops mid-request cannot keep the server running or hold its pipe.
+    /// サーバーで 1 つの要求を読み取る。サーバーの停止時（<paramref name="Lifetime"/>）またはクライアントが <paramref name="Timeout"/> 以内に要求全体を送信しない場合に <see cref="OperationCanceledException"/> で終了する。要求の途中で停止したクライアントがサーバーを稼働させ続けたり、パイプを占有したりすることを防ぐ。
     /// </summary>
     public static async Task<T>ReadRequestAsync<T>(Stream Stream,TimeSpan Timeout,CancellationToken Lifetime){
         using var Receive=CancellationTokenSource.CreateLinkedTokenSource(Lifetime);

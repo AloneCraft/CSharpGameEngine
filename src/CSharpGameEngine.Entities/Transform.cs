@@ -4,8 +4,8 @@ using CSharpGameEngine.Numerics;
 namespace CSharpGameEngine.Entities;
 
 /// <summary>
-/// Authoritative frame-local pose. Simulation retains Logical values; GPU, audio, and UI receive
-/// only domain-relative float projections derived from a completed tick snapshot.
+/// フレーム内の正本となる姿勢。シミュレーションはLogical値を保持する。GPU、音声、UIに渡すのは、
+/// 完了したティックスナップショットから導出した、ドメイン相対のfloat投影値だけ。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Spatial,0)]
 public struct Transform() {

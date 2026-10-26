@@ -5,9 +5,8 @@ using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// WARP oracles for the world-space procedural grid (M0098, ADR-0075): Unreal's M_PrototypeGrid draws a
-/// 1 m grid with 20 cm sub lines by projecting a wire texture along the world axes, so the lines must
-/// follow world coordinates (floor and walls alike) and never the mesh UVs.
+/// ワールド空間プロシージャルグリッドに対するWARPオラクル（M0098、ADR-0075）。UnrealのM_PrototypeGridは、ワールド軸に沿ってワイヤーテクスチャを投影し、
+/// 1 m間隔の格子に20 cmの補助線を描く。そのため床と壁の線はどちらもワールド座標に沿い、メッシュUVには追従しないこと。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class WorldGridGpuIntegrationTests {
@@ -53,7 +52,7 @@ public sealed class WorldGridGpuIntegrationTests {
     public void WorldGrid_Warp_WallsGetHorizontalAndVerticalLinesFromTheSameWorldGrid(){
         using var Scene=GridScene.Create(PrototypeGrid,FloorUvs.Zero,Wall:true);
         Scene.Render();
-        // The wall's -Z face is the plane z=2.5: a vertical line at x=1 and a horizontal line at y=1.
+        // 壁の-Z面はz=2.5の平面。x=1に垂直線、y=1に水平線を引く。
         var VerticalLine=Scene.Luminance(new Vector3(1f,0.3f,2.5f));
         var HorizontalLine=Scene.Luminance(new Vector3(0.3f,1f,2.5f));
         var Reference=Scene.Luminance(new Vector3(0.3f,0.5f,2.5f));
@@ -65,9 +64,9 @@ public sealed class WorldGridGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void WorldGrid_Warp_CameraRelativeRenderingKeepsTheLinesOnTheWorldGrid(){
-        // The runtime renders camera-relative: the camera sits at the render origin and every object is moved
-        // by minus the camera position, so the lines must still fall on the world grid (not on a grid that
-        // follows the camera).
+        // ランタイムはカメラ相対描画を行う。カメラを描画原点とし、各オブジェクトをカメラ位置の
+        // 符号反転分だけ動かす。その状態でも線はカメラ追従格子ではなく、
+        // ワールド格子上に残ること。
         using var Scene=GridScene.Create(PrototypeGrid,FloorUvs.Zero,RenderOrigin:new Vector3(0.7f,1.5f,0.5f));
         Scene.Render();
         var Surface=Scene.Luminance(new Vector3(0.1f,0f,0.3f));
@@ -84,9 +83,9 @@ public sealed class WorldGridGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void LegacyFog_Warp_CameraRelativeRenderingThinsWithTheWorldHeight(){
-        // The simplified height fog thins with the receiver's world height. A floor 3 m above the world origin,
-        // seen from 1.5 m above it, must look the same whether the frame is rendered in world coordinates or
-        // camera-relative (as the runtime does).
+        // 簡易高さフォグは受光側のワールド高度が高いほど薄くなる。ワールド原点から3 m上の床を
+        // 高度1.5 mから見たとき、ワールド座標描画と
+        // ランタイムと同じカメラ相対描画で同じ見た目になること。
         var Fog=new FogParams(0.1f,0.5f,new Vector3(0.8f,0.8f,0.8f));
         var Eye=new Vector3(0.7f,4.5f,0.5f);
         using var World=GridScene.Create(null,FloorUvs.Zero,FloorHeight:3f,Fog:Fog,Eye:Eye,PitchDegrees:-20f);
@@ -118,10 +117,10 @@ public sealed class WorldGridGpuIntegrationTests {
         }
         public Win32Window Window { get; }
         public StageRenderer Renderer { get; }
-        /// <summary>The camera in world coordinates; it is also used to find the pixel of a world point.</summary>
+        /// <summary>ワールド座標でのカメラ位置。ワールド点のピクセル位置を見つけるためにも使う。</summary>
         public Camera Camera { get; }
         public bool HasWall { get; }
-        /// <summary>World position of the render-space origin: zero renders in world coordinates, the eye renders camera-relative.</summary>
+        /// <summary>描画空間原点のワールド位置。0ならワールド座標描画、視点位置ならカメラ相対描画。</summary>
         public Vector3 RenderOrigin { get; }
         public float FloorHeight { get; }
         public FogParams?Fog { get; }
@@ -146,14 +145,14 @@ public sealed class WorldGridGpuIntegrationTests {
                 Objects.Add(new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 });
             }
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,[.. Meshes],[Material],[.. Objects]);
-            // What the runtime does (EngineHost): the render origin's altitude, and the render origin modulo the grid size.
+            // ランタイム（EngineHost）での動作：描画原点の高度と、グリッドサイズで割った描画原点の剰余。
             Renderer.SetRenderOriginAltitude(RenderOrigin.Y);
             if(Grid is{ }WorldGrid){
                 static float Reduce(float Value,float Cell)=>((Value%Cell)+Cell)%Cell;
                 Renderer.SetWorldGridAnchor(0,new Vector3(Reduce(RenderOrigin.X,WorldGrid.GridSizeMeters),Reduce(RenderOrigin.Y,WorldGrid.GridSizeMeters),Reduce(RenderOrigin.Z,WorldGrid.GridSizeMeters)));
             }
             Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
-            // Floor scene: straight down at 1.5 m (about 0.7 cm per pixel); wall scene: facing the wall's -Z face.
+            // 床のシーンでは高度1.5 mから真下を見る（1ピクセルあたり約0.7 cm）。壁のシーンでは壁の-Z面に向き合う。
             var View=Wall
                 ?Camera.CreateFirstPerson(new Vector3(1f,1f,0f))
                 :Camera.CreateFirstPerson(Eye??new Vector3(0.7f,1.5f,0.5f));
@@ -180,7 +179,7 @@ public sealed class WorldGridGpuIntegrationTests {
             }
         }
         public byte[]Pixels()=>this.Renderer.LastCapturedFrame!.Pixels.ToArray();
-        /// <summary>The summed 8-bit RGB of the pixel that shows the world point.</summary>
+        /// <summary>ワールド点を表示するピクセルのRGB合計（8ビット）。</summary>
         public int Luminance(Vector3 World){
             var Frame=this.Renderer.LastCapturedFrame!;
             var Clip=Vector4.Transform(new Vector4(World,1f),this.Camera.GetView()*this.Camera.GetProjection((float)Frame.Width/Frame.Height));

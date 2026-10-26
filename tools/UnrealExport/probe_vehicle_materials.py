@@ -115,7 +115,7 @@ except Exception as ex:  # noqa: BLE001 - top level must make commandlet failure
     log_error(f"FAILED: {ex}")
     sys.exit(1)
 finally:
-    # The Python log does not reach stdout in this editor configuration, so the result goes to a file.
+    # この editor 構成では Python log が stdout に届かないため、結果をファイルに出力します。
     output = os.environ.get("CGE_PROBE_OUT")
     if output:
         with open(output, "w", encoding="utf-8") as handle:

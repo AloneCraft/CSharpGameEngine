@@ -553,4 +553,218 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="Diagnostics_MeasuringStopped" xml:space="preserve"><value>計測の結果を開きました: {0}</value></data>
   <data name="Diagnostics_GpuGuide" xml:space="preserve"><value>パフォーマンス プロファイラーを開きました。「GPU 使用率」に印を付け、「分析ターゲット」で実行中のゲームのプロセスを選んでください。</value></data>
   <data name="Diagnostics_ProfilerUnavailable" xml:space="preserve"><value>パフォーマンス プロファイラーを開けませんでした: {0}</value></data>
+<data name="Assets_Title" xml:space="preserve"><value>アセット</value></data>
+<data name="Assets_Lock" xml:space="preserve"><value>場所を固定</value></data>
+<data name="Assets_WholeProject" xml:space="preserve"><value>プロジェクト全体</value></data>
+<data name="Assets_Search" xml:space="preserve"><value>アセットを検索</value></data>
+<data name="Assets_Kind" xml:space="preserve"><value>種類</value></data>
+<data name="Assets_Provider" xml:space="preserve"><value>提供元</value></data>
+<data name="Assets_State" xml:space="preserve"><value>状態</value></data>
+<data name="Assets_Details" xml:space="preserve"><value>詳細一覧</value></data>
+<data name="Assets_Refresh" xml:space="preserve"><value>更新</value></data>
+<data name="Assets_Cancel" xml:space="preserve"><value>キャンセル</value></data>
+<data name="Assets_Create" xml:space="preserve"><value>作成</value></data>
+<data name="Assets_Organize" xml:space="preserve"><value>整理</value></data>
+<data name="Assets_Favorite" xml:space="preserve"><value>検索を保存</value></data>
+<data name="Assets_ShowInSolution" xml:space="preserve"><value>Solution Explorer で表示</value></data>
+<data name="Assets_Name" xml:space="preserve"><value>名前</value></data>
+<data name="Assets_Path" xml:space="preserve"><value>パス</value></data>
+<data name="Assets_Count" xml:space="preserve"><value>{0} 個のアセット</value></data>
+<data name="Assets_AllKinds" xml:space="preserve"><value>すべての種類</value></data>
+<data name="Assets_AllProviders" xml:space="preserve"><value>すべての提供元</value></data>
+<data name="Assets_AllStates" xml:space="preserve"><value>すべての状態</value></data>
+<data name="Assets_Cancelled" xml:space="preserve"><value>キャンセルしました</value></data>
+<data name="Assets_Open" xml:space="preserve"><value>開く</value></data>
+<data name="Assets_Rename" xml:space="preserve"><value>名前の変更</value></data>
+<data name="Assets_Move" xml:space="preserve"><value>移動</value></data>
+<data name="Assets_Duplicate" xml:space="preserve"><value>複製</value></data>
+<data name="Assets_Delete" xml:space="preserve"><value>削除</value></data>
+<data name="Assets_References" xml:space="preserve"><value>参照関係</value></data>
+<data name="Assets_NewFolder" xml:space="preserve"><value>フォルダー</value></data>
+<data name="Assets_NewScene" xml:space="preserve"><value>シーン</value></data>
+<data name="Assets_NewGraph" xml:space="preserve"><value>シェーダーグラフ</value></data>
+<data name="Assets_NewData" xml:space="preserve"><value>データアセット</value></data>
+<data name="Assets_Import" xml:space="preserve"><value>ソースファイルを追加</value></data>
+<data name="Assets_Reimport" xml:space="preserve"><value>再取り込み</value></data>
+<data name="Assets_Migrate" xml:space="preserve"><value>旧メタデータを変換</value></data>
+<data name="Assets_Register" xml:space="preserve"><value>メタデータを登録</value></data>
+<data name="Assets_Unsupported" xml:space="preserve"><value>この値はソースエディターで編集してください。</value></data>
+<data name="Assets_Apply" xml:space="preserve"><value>適用</value></data>
+<data name="Assets_Value" xml:space="preserve"><value>値 (JSON)</value></data>
+<data name="Assets_Conflict" xml:space="preserve"><value>ソースが変更されました。更新してから編集してください。</value></data>
+<data name="Assets_ReadOnly" xml:space="preserve"><value>読み取り専用アセット</value></data>
+<data name="Assets_Replace" xml:space="preserve"><value>置換先アセットのパス（参照がある場合に必要）</value></data>
+<data name="Assets_Destination" xml:space="preserve"><value>変更先のパス</value></data>
+<data name="Assets_PreviewChanges" xml:space="preserve"><value>アセットの変更を確認</value></data>
+<data name="Assets_Unavailable" xml:space="preserve"><value>このバージョンではアセットの取り込み・再取り込みは利用できません。プロジェクトへのソースファイル追加は利用できます。</value></data>
+<data name="Assets_NoSelection" xml:space="preserve"><value>アセットを選択してください。</value></data>
+<data name="Assets_Properties" xml:space="preserve"><value>アセットのプロパティ</value></data>
+<data name="Assets_None" xml:space="preserve"><value>参照は見つかりませんでした。</value></data>
+<data name="Assets_Kind_Scene" xml:space="preserve"><value>シーン</value></data>
+<data name="Assets_Kind_Model" xml:space="preserve"><value>モデル</value></data>
+<data name="Assets_Kind_Texture" xml:space="preserve"><value>テクスチャ</value></data>
+<data name="Assets_Kind_Audio" xml:space="preserve"><value>音声</value></data>
+<data name="Assets_Kind_ShaderGraph" xml:space="preserve"><value>グラフ</value></data>
+<data name="Assets_Kind_Data" xml:space="preserve"><value>データ</value></data>
+<data name="Assets_Kind_Font" xml:space="preserve"><value>フォント</value></data>
+<data name="Assets_Kind_Other" xml:space="preserve"><value>その他</value></data>
+<data name="Assets_State_Source" xml:space="preserve"><value>ソース</value></data>
+<data name="Assets_State_Ready" xml:space="preserve"><value>登録済み</value></data>
+<data name="Assets_State_MissingMetadata" xml:space="preserve"><value>未登録</value></data>
+<data name="Assets_State_InvalidMetadata" xml:space="preserve"><value>メタデータエラー</value></data>
+<data name="Assets_State_MissingSource" xml:space="preserve"><value>ソースが見つかりません</value></data>
+<data name="Assets_State_ReadOnly" xml:space="preserve"><value>読み取り専用</value></data>
+<data name="Assets_Provider_Project" xml:space="preserve"><value>プロジェクト</value></data>
+<data name="Assets_Provider_ProjectPlugin" xml:space="preserve"><value>プロジェクトのプラグイン</value></data>
+<data name="Assets_Provider_Package" xml:space="preserve"><value>SDK / パッケージ</value></data>
+<data name="Assets_DirectoryGuard" xml:space="preserve"><value>アセットを含むフォルダー単位の操作には未対応です。アセットウィンドウで個々のアセットを整理してください。</value></data>
+<data name="Assets_Place" xml:space="preserve"><value>アセットを配置</value></data>
+<data name="Assets_Reveal" xml:space="preserve"><value>アセットを表示</value></data>
+<data name="Assets_Play" xml:space="preserve"><value>再生</value></data>
+<data name="Assets_Stop" xml:space="preserve"><value>停止</value></data>
+<data name="Assets_Recovery" xml:space="preserve"><value>中断した操作を復元</value></data>
+<data name="Assets_Provider_Engine" xml:space="preserve"><value>エンジン</value></data>
+<data name="Assets_MigrationResult" xml:space="preserve"><value>メタデータを {1} 件中 {0} 件変換しました。</value></data>
+<data name="Assets_Before" xml:space="preserve"><value>変更前</value></data>
+<data name="Assets_After" xml:space="preserve"><value>変更後</value></data>
+  <data name="Assets_FontAtlas" xml:space="preserve"><value>フォントアトラス {0} × {1} / {2} グリフ</value></data>
+  <data name="Assets_FontSample" xml:space="preserve"><value>Aa Bb Cc 0123456789 あいうえお</value></data>
+  <data name="Assets_Kind_Image" xml:space="preserve"><value>画像ファイル</value></data>
+<data name="Assets_State_ImportFailed" xml:space="preserve"><value>最新設定の取り込み失敗</value></data>
+<data name="Assets_ImageNormalCandidate" xml:space="preserve"><value>Normal候補: </value></data>
+<data name="Assets_ImageDefault" xml:space="preserve"><value>既定の出力</value></data>
+<data name="Assets_ImageReplaceDelete" xml:space="preserve"><value>この出力を置換して削除</value></data>
+<data name="Assets_ImageRemoveUnused" xml:space="preserve"><value>未参照なら削除</value></data>
+<data name="Assets_ImageUsage" xml:space="preserve"><value>用途</value></data>
+<data name="Assets_ImageMips" xml:space="preserve"><value>ミップマップ</value></data>
+<data name="Assets_ImageFlipGreen" xml:space="preserve"><value>Normal: 緑チャンネル反転 (-Y)</value></data>
+<data name="Assets_ImageChannel" xml:space="preserve"><value>単一チャンネル</value></data>
+<data name="Assets_ImageInvertRoughness" xml:space="preserve"><value>SmoothnessをRoughnessへ反転</value></data>
+<data name="Assets_ImageAddTexture" xml:space="preserve"><value>テクスチャ出力を追加</value></data>
+<data name="Assets_ImageAsImage" xml:space="preserve"><value>画像ファイルとして扱う</value></data>
+<data name="Assets_ImageApply" xml:space="preserve"><value>適用して再取り込み</value></data>
+<data name="Assets_ImageKeepTexture" xml:space="preserve"><value>従来の参照を維持するため、最初の登録ではColor出力を残してください。</value></data>
+<data name="Assets_ImageRevert" xml:space="preserve"><value>元に戻す</value></data>
+<data name="Assets_ImageRemovalHelp" xml:space="preserve"><value>保存済み出力の用途変更は新しい出力を追加してください。削除時は同じ種類・用途の出力へ置換し、適用前に参照変更を確認します。</value></data>
+<data name="Assets_ModelMeshes" xml:space="preserve"><value>メッシュ</value></data>
+<data name="Assets_ModelMaterials" xml:space="preserve"><value>マテリアル・使用画像</value></data>
+<data name="Assets_ModelSkeleton" xml:space="preserve"><value>骨格・スキン</value></data>
+<data name="Assets_ModelTakes" xml:space="preserve"><value>アニメーションTake</value></data>
+<data name="Assets_ModelClipRange" xml:space="preserve"><value>クリップ分割: 名前 / 開始フレーム / 終了フレーム</value></data>
+<data name="Assets_ModelAddClip" xml:space="preserve"><value>分割クリップを追加</value></data>
+<data name="Assets_ModelInvalidRange" xml:space="preserve"><value>有効なフレーム範囲を入力してください。</value></data>
+<data name="Assets_ModelExplicitOperations" xml:space="preserve"><value>Humanoid化、ルートモーション、カメラ・ライト・コライダー生成は自動で行いません。</value></data>
+<data name="Assets_ModelSettings" xml:space="preserve"><value>FBX取り込み設定</value></data>
+<data name="Assets_ImageRegisterFirst" xml:space="preserve"><value>画像をAssets Inspectorで明示的に登録してから割り当ててください。</value></data>
+<data name="Assets_ImageAddFirst" xml:space="preserve"><value>対応する出力を先に追加してください。</value></data>
+<data name="Assets_ImageAddAssign" xml:space="preserve"><value>画像出力の追加と割り当て</value></data>
+<data name="Assets_ImageAddUndo" xml:space="preserve"><value>画像出力を追加</value></data>
+<data name="Assets_ImageSaveFirst" xml:space="preserve"><value>先にメタデータの未保存変更を保存してください。</value></data>
+<data name="Assets_ImageReplacementRequired" xml:space="preserve"><value> — 置換先を指定してください。</value></data>
+<data name="Assets_ImageImportAssign" xml:space="preserve"><value>画像の取り込みと割り当て</value></data>
+<data name="Assets_ImageNameConflict" xml:space="preserve"><value>同名のアセットが存在します。Assetsで取り込み先を選択してください。</value></data>
+<data name="Assets_ImageTypeMismatch" xml:space="preserve"><value>参照の型が一致しません。Texture出力を明示的に追加・選択してください。</value></data>
+<data name="Assets_ImagePackedChannels" xml:space="preserve"><value>パック形式: AO / 粗さ / メタリック</value></data>
+<data name="Assets_ModelGroupCount" xml:space="preserve"><value>{0}（{1}件）</value></data>
+<data name="Assets_ModelNewClip" xml:space="preserve"><value>新しいクリップ</value></data>
+<data name="Assets_ImageOutputs" xml:space="preserve"><value>出力</value></data>
+  <data name="AssetEditor_ShowInSolution" xml:space="preserve"><value>ソリューション エクスプローラーで表示</value></data>
+  <data name="AssetEditor_ShowInAssets" xml:space="preserve"><value>Assets で表示</value></data>
+  <data name="AssetEditor_DetailsUnavailable" xml:space="preserve"><value>C# Game Engine パッケージの読み込み後に Details を表示できます。</value></data>
+  <data name="AssetEditor_NotInInventory" xml:space="preserve"><value>このファイルは開いているゲーム プロジェクトのアセットではないため、取り込み設定と参照は表示されません。</value></data>
+  <data name="AssetEditor_Frame" xml:space="preserve"><value>フレーム (F)</value></data>
+  <data name="AssetEditor_ViewMode" xml:space="preserve"><value>表示モード</value></data>
+  <data name="AssetEditor_MeshLoading" xml:space="preserve"><value>メッシュを読み込んでいます...</value></data>
+  <data name="AssetEditor_MeshVertices" xml:space="preserve"><value>頂点数: {0}</value></data>
+  <data name="AssetEditor_MeshTriangles" xml:space="preserve"><value>三角形数: {0}</value></data>
+  <data name="AssetEditor_MeshSize" xml:space="preserve"><value>サイズ (X, Y, Z): {0} x {1} x {2}</value></data>
+  <data name="AssetEditor_MeshNoteFbx" xml:space="preserve"><value>FBX は形状と基本色で表示します。テクスチャは表示しません。</value></data>
+  <data name="AssetEditor_MeshNoteBaseColor" xml:space="preserve"><value>形状と基本色で表示します。</value></data>
+  <data name="AssetEditor_OpenLocationFloating" xml:space="preserve"><value>前面のフローティング ウィンドウ (既定)</value></data>
+  <data name="AssetEditor_OpenLocationTab" xml:space="preserve"><value>ドキュメント タブ</value></data>
+  <data name="AssetEditor_FitView" xml:space="preserve"><value>全体表示</value></data>
+  <data name="AssetEditor_ActualSize" xml:space="preserve"><value>100%</value></data>
+  <data name="AssetEditor_Zoom" xml:space="preserve"><value>{0}%</value></data>
+  <data name="AssetEditor_Channel" xml:space="preserve"><value>チャンネル</value></data>
+  <data name="AssetEditor_ChannelColor" xml:space="preserve"><value>RGBA</value></data>
+  <data name="AssetEditor_ChannelColorOpaque" xml:space="preserve"><value>RGB (アルファ無視)</value></data>
+  <data name="AssetEditor_ChannelRed" xml:space="preserve"><value>R</value></data>
+  <data name="AssetEditor_ChannelGreen" xml:space="preserve"><value>G</value></data>
+  <data name="AssetEditor_ChannelBlue" xml:space="preserve"><value>B</value></data>
+  <data name="AssetEditor_ChannelAlpha" xml:space="preserve"><value>A</value></data>
+  <data name="AssetEditor_TextureLoading" xml:space="preserve"><value>画像プレビューを読み込んでいます...</value></data>
+  <data name="AssetEditor_TextureReady" xml:space="preserve"><value>画像プレビューの準備ができました。</value></data>
+  <data name="AssetEditor_TextureFailed" xml:space="preserve"><value>画像プレビューを表示できません: {0}</value></data>
+  <data name="AssetEditor_TextureSize" xml:space="preserve"><value>サイズ: {0} x {1} px</value></data>
+  <data name="AssetEditor_TextureFileSize" xml:space="preserve"><value>ファイル サイズ: {0}</value></data>
+  <data name="AssetEditor_TexturePreviewScaled" xml:space="preserve"><value>プレビューは {0} x {1} px に縮小しています。表示倍率は元画像に対する比です。</value></data>
+  <data name="AssetEditor_Play" xml:space="preserve"><value>再生</value></data>
+  <data name="AssetEditor_Pause" xml:space="preserve"><value>一時停止</value></data>
+  <data name="AssetEditor_Stop" xml:space="preserve"><value>停止</value></data>
+  <data name="AssetEditor_Loop" xml:space="preserve"><value>ループ</value></data>
+  <data name="AssetEditor_SoundLoading" xml:space="preserve"><value>音声の波形を読み込んでいます...</value></data>
+  <data name="AssetEditor_SoundReady" xml:space="preserve"><value>音声の準備ができました。</value></data>
+  <data name="AssetEditor_SoundFailed" xml:space="preserve"><value>音声を読み込めません: {0}</value></data>
+  <data name="AssetEditor_SoundNotRead" xml:space="preserve"><value>ゲームはこの形式を読み込みません(再生のみ)。PCM または浮動小数点の .wav を使ってください。</value></data>
+  <data name="AssetEditor_SoundPlaybackFailed" xml:space="preserve"><value>再生に失敗しました: {0}</value></data>
+  <data name="AssetEditor_SoundSampleRate" xml:space="preserve"><value>サンプルレート: {0} Hz</value></data>
+  <data name="AssetEditor_SoundChannels" xml:space="preserve"><value>チャンネル: {0}</value></data>
+  <data name="AssetEditor_SoundMono" xml:space="preserve"><value>モノラル</value></data>
+  <data name="AssetEditor_SoundStereo" xml:space="preserve"><value>ステレオ</value></data>
+  <data name="AssetEditor_SoundBits" xml:space="preserve"><value>ビット深度: {0} ビット</value></data>
+  <data name="AssetEditor_SoundDuration" xml:space="preserve"><value>長さ: {0}</value></data>
+  <data name="AssetEditor_FontLoading" xml:space="preserve"><value>フォントを読み込んでいます...</value></data>
+  <data name="AssetEditor_FontReady" xml:space="preserve"><value>フォントの準備ができました。</value></data>
+  <data name="AssetEditor_FontFailed" xml:space="preserve"><value>フォントを表示できません: {0}</value></data>
+  <data name="AssetEditor_FontAtlas" xml:space="preserve"><value>SDF アトラス: {0} x {1} px</value></data>
+  <data name="AssetEditor_FontGlyphs" xml:space="preserve"><value>グリフ数: {0}</value></data>
+  <data name="AssetEditor_FontPreviewScaled" xml:space="preserve"><value>アトラスは {0} x {1} px に縮小して表示しています。</value></data>
+  <data name="AssetEditor_FontFamily" xml:space="preserve"><value>ファミリ: {0}</value></data>
+  <data name="AssetEditor_OpenAsJson" xml:space="preserve"><value>JSON で開く</value></data>
+  <data name="AssetEditor_Save" xml:space="preserve"><value>保存</value></data>
+  <data name="AssetEditor_Saved" xml:space="preserve"><value>保存しました。</value></data>
+  <data name="PreviewLevel_Label" xml:space="preserve"><value>プレビューレベル</value></data>
+  <data name="PreviewLevel_Tooltip" xml:space="preserve"><value>プレビューの照明・背景・環境・床</value></data>
+  <data name="PreviewLevel_Manage" xml:space="preserve"><value>管理...</value></data>
+  <data name="PreviewLevel_Applied" xml:space="preserve"><value>プレビューレベル: {0}</value></data>
+  <data name="PreviewLevel_Unavailable" xml:space="preserve"><value>プレビューレベル '{0}' を使えません({1})。標準の環境を使います。</value></data>
+  <data name="PreviewLevel_Missing" xml:space="preserve"><value>見つかりません</value></data>
+  <data name="PreviewLevel_Default" xml:space="preserve"><value>Default</value></data>
+  <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>従来のアセットプレビューの見た目。レンダラー既定の背景と平坦なアンビエント光で、床はありません。</value></data>
+  <data name="PreviewLevel_Studio" xml:space="preserve"><value>Studio</value></data>
+  <data name="PreviewLevel_StudioDescription" xml:space="preserve"><value>モデル・マテリアルの確認向け。ニュートラルな背景、キー・フィル・リムのライト、影が確認できる床。</value></data>
+  <data name="PreviewLevel_Outdoor" xml:space="preserve"><value>Outdoor</value></data>
+  <data name="PreviewLevel_OutdoorDescription" xml:space="preserve"><value>屋外の照明確認向け。物理ベースの空、太陽光、地面と影。</value></data>
+  <data name="PreviewLevel_Neutral" xml:space="preserve"><value>Neutral</value></data>
+  <data name="PreviewLevel_NeutralDescription" xml:space="preserve"><value>照明の影響を最小にして形状を確認する環境。均一なアンビエント光と弱い 1 灯だけです。描画モードの Unlit とは別物です。</value></data>
+  <data name="PreviewLevel_BuiltInTag" xml:space="preserve"><value>(組み込み)</value></data>
+  <data name="PreviewLevel_DefaultTag" xml:space="preserve"><value>(既定)</value></data>
+  <data name="PreviewLevel_BrokenTag" xml:space="preserve"><value>(エラー)</value></data>
+  <data name="PreviewLevel_ManagerTitle" xml:space="preserve"><value>プレビューレベルの管理</value></data>
+  <data name="PreviewLevel_Duplicate" xml:space="preserve"><value>複製...</value></data>
+  <data name="PreviewLevel_Rename" xml:space="preserve"><value>名前の変更...</value></data>
+  <data name="PreviewLevel_Delete" xml:space="preserve"><value>削除</value></data>
+  <data name="PreviewLevel_SetDefault" xml:space="preserve"><value>既定にする</value></data>
+  <data name="PreviewLevel_EditJson" xml:space="preserve"><value>JSON で編集</value></data>
+  <data name="PreviewLevel_Close" xml:space="preserve"><value>閉じる</value></data>
+  <data name="PreviewLevel_NamePrompt" xml:space="preserve"><value>プレビューレベルの名前</value></data>
+  <data name="PreviewLevel_Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="PreviewLevel_Cancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="PreviewLevel_CopyName" xml:space="preserve"><value>{0} のコピー</value></data>
+  <data name="PreviewLevel_ConfirmDelete" xml:space="preserve"><value>プレビューレベル '{0}' を削除しますか?</value></data>
+  <data name="PreviewLevel_ProtectedHint" xml:space="preserve"><value>組み込みのプレビューレベルは変更できません。複製してからカスタマイズしてください。</value></data>
+  <data name="AssetEditor_FrameHint" xml:space="preserve"><value>アセット全体を表示し、カメラをプレビューレベルの初期視点へ戻します</value></data>
+  <data name="Skeletal_Clip" xml:space="preserve"><value>アニメーション</value></data>
+  <data name="Skeletal_BindPose" xml:space="preserve"><value>バインド姿勢</value></data>
+  <data name="Skeletal_Play" xml:space="preserve"><value>再生 (Space)</value></data>
+  <data name="Skeletal_Pause" xml:space="preserve"><value>一時停止 (Space)</value></data>
+  <data name="Skeletal_Loop" xml:space="preserve"><value>ループ</value></data>
+  <data name="Skeletal_Speed" xml:space="preserve"><value>速度</value></data>
+  <data name="Skeletal_ShowBones" xml:space="preserve"><value>ボーンを表示</value></data>
+  <data name="Skeletal_Joints" xml:space="preserve"><value>スケルトン（関節 {0} 個）</value></data>
+  <data name="Skeletal_PreviewMesh" xml:space="preserve"><value>プレビューするメッシュ</value></data>
+  <data name="Skeletal_NoSkinnedMesh" xml:space="preserve"><value>このアニメーションはスケルトンを持たず、プレビューに使えるスキン付きメッシュがプロジェクトにありません。</value></data>
+  <data name="Skeletal_ClipUnbound" xml:space="preserve"><value>このアニメーションは、選んだメッシュのどの関節も動かしません。別のプレビューメッシュを選んでください。</value></data>
+  <data name="Skeletal_NoClips" xml:space="preserve"><value>このファイルにはアニメーションがありません。</value></data>
+  <data name="Skeletal_SkinCountUnsupported" xml:space="preserve"><value>このファイルには {0} 個のスキンがあり、プレビューできるのは 1 つだけです。形状のみ表示します。</value></data>
 </root>

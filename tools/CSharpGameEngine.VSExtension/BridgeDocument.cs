@@ -4,12 +4,7 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// VSIX-side deserialization target for both <c>CSharpGameEngine.Import.Fbx.Cli</c>'s
-/// <c>FbxBridgeDocument</c> (ADR-0010) and <c>CSharpGameEngine.Import.Gltf.Cli</c>'s
-/// <c>GltfBridgeDocument</c> (ADR-0019) - both bridges produce the identical flat JSON shape, so
-/// <see cref="ExternalFbxLoader"/> and <see cref="ExternalGltfLoader"/> share this one type and its
-/// <see cref="ToSimpleMesh"/> conversion instead of duplicating it per format. <c>Uvs</c> is
-/// intentionally not modeled here: this VSIX's renderers have no texture support.
+/// VSIX 側でデシリアライズする対象。<c>CSharpGameEngine.Import.Fbx.Cli</c> の <c>FbxBridgeDocument</c> (ADR-0010) と、<c>CSharpGameEngine.Import.Gltf.Cli</c> の <c>GltfBridgeDocument</c> (ADR-0019) の両方に対応する。どちらのブリッジも同じ平坦な JSON 形式を生成するため、<see cref="ExternalFbxLoader"/> と <see cref="ExternalGltfLoader"/> はこの型と <see cref="ToSimpleMesh"/> の変換を共有し、形式ごとに重複させない。VSIX のレンダラーはテクスチャをサポートしないため、<c>Uvs</c> は意図的にモデル化しない。
 /// </summary>
 internal sealed class BridgeDocument {
     public bool Success { get; set;}

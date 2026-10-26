@@ -1,12 +1,12 @@
 namespace CSharpGameEngine.Graphics.D3D12;
 
 public sealed class GraphicsDeviceOptions {
-    /// <summary>Force the WARP software adapter instead of enumerating hardware adapters.</summary>
+    /// <summary>ハードウェアアダプターを列挙する代わりに、WARP ソフトウェアアダプターを強制する。</summary>
     public bool UseWarp { get; init;}
 
-    /// <summary>Enable the D3D12 debug layer before device creation.</summary>
+    /// <summary>デバイス作成前に D3D12 デバッグレイヤーを有効にする。</summary>
     public bool EnableDebugLayer { get; init;}
 
-    /// <summary>Enable GPU-based validation. Only meaningful when <see cref="EnableDebugLayer"/> is true; expensive.</summary>
+    /// <summary>GPU ベースの検証を有効にする。<see cref="EnableDebugLayer"/> が true の場合だけ意味を持ち、処理コストが高い。</summary>
     public bool EnableGpuBasedValidation { get; init;}
 }

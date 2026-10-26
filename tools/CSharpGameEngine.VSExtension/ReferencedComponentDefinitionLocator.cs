@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Source span found for a referenced component that Visual Studio loaded as metadata.</summary>
+/// <summary>Visual Studio が metadata としてロードした参照先コンポーネントのソース範囲。</summary>
 internal sealed class ReferencedComponentDefinitionLocation {
     internal ReferencedComponentDefinitionLocation(string FilePath,SourceText Text,TextSpan Span){
         this.FilePath=FilePath;
@@ -26,8 +26,7 @@ internal sealed class ReferencedComponentDefinitionLocation {
 }
 
 /// <summary>
-/// Locates source for a project-reference component when the compact user-game solution has loaded
-/// that project as a metadata reference rather than a Roslyn source project.
+/// コンパクトなユーザーゲームのソリューションで、プロジェクト参照先が Roslyn の source project ではなく metadata reference としてロードされた場合に、そのコンポーネントのソースを検索します。
 /// </summary>
 internal static class ReferencedComponentDefinitionLocator {
     internal static bool TryFind(

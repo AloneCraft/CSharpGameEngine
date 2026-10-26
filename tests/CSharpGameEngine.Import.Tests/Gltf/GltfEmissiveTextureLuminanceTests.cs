@@ -24,7 +24,7 @@ public class GltfEmissiveTextureLuminanceTests {
 
         float Result=EmissiveTextureLuminance.CalculateOrIdentity(Png);
 
-        // sRGB 128 is approximately 0.21586 in linear space, not 0.50196.
+        // sRGB の 128 は線形空間では約 0.21586 であり、0.50196 ではない。
         Assert.Equal(0.21586f,Result,precision:5);
     }
     [Fact]

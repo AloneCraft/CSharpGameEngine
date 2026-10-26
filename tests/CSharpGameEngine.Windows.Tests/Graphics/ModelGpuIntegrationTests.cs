@@ -11,11 +11,10 @@ using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>
-/// Exercises the real glTF import + Windows + D3D12 model-viewer vertical slice end to end. Runs
-/// against the WARP software adapter so it is deterministic in CI without requiring a physical
-/// GPU. Guarded by an explicit timeout so a driver/GPU hang fails the test instead of hanging the
-/// run (same rationale as <see cref="TriangleGpuIntegrationTests"/>: xunit's own Timeout cannot
-/// abort a hung CoreCLR thread).
+/// 実際のglTFインポート、Windows、D3D12モデルビューアーの垂直スライスを端から端まで実行する。
+/// WARPソフトウェアアダプターを使うため、物理GPUなしでもCIで決定的に実行できる。
+/// ドライバー／GPUの停止でテスト実行全体が固まらないよう、明示的なタイムアウトを設ける
+///（<see cref="TriangleGpuIntegrationTests"/>と同じ理由。xunit独自のTimeoutでは停止したCoreCLRスレッドを中断できない）。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public class ModelGpuIntegrationTests {
@@ -26,8 +25,8 @@ public class ModelGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Model_Warp_DebugLayer_Verify_RendersAndPasses(){
-        // Box.glb has no texture, only a red baseColorFactor (0.8,0,0,1) - a regression check that
-        // the white-fallback-texture x factor path still renders sensibly after the texture-support changes.
+        // Box.glbにはテクスチャがなく、赤いbaseColorFactor (0.8,0,0,1)だけがある。テクスチャ対応の変更後も、
+        // 白色フォールバックテクスチャのx係数経路で適切に描画できることを回帰確認する。
         RunWithTimeout(()=>RunModelGpuScenario(BoxPath,UseWarp:true),TimeSpan.FromSeconds(60));
     }
 
@@ -100,7 +99,7 @@ public class ModelGpuIntegrationTests {
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
 
-        // Imported textured geometry remains visible after the Stage depth buffer is recreated.
+        // Stage深度バッファ再作成後も、インポートしたテクスチャ付きジオメトリが見える。
         Renderer.Resize(128,128);
         Renderer.RenderFrame(CaptureForVerification:true);
 

@@ -49,8 +49,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         // ビューポート内をクリックしたときだけ(OnViewportActivated)フォーカスを与える。
         this.RenderHostGrid.Focusable=true;
         KeyboardNavigation.SetIsTabStop(this.RenderHostGrid,false);
-        // The viewport takes no text. With an IME open (a Japanese one left on for code comments), WPF delivers the keys
-        // it processes as Key.ImeProcessed, so WASDQE, F and N would not reach the viewport; it has no input method.
+        // viewport はテキスト入力を受け取りません。日本語のコードコメント入力時など、IME を開いたままにすると、WPF が処理するキーは
+        // Key.ImeProcessed として届きます。そのため入力メソッドのない viewport では WASDQE、F、N が届きません。
         InputMethod.SetIsInputMethodEnabled(this.RenderHostGrid,false);
         this.Loaded+=this.OnLoaded;
         this.RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
@@ -146,7 +146,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         if(this.OwnsKeyboard){ this.TryRedoFromCommand(); }
     }
 
-    /// <summary>M0095 1-2: of all open scene tabs, only the one showing the pinned scene acts on a key press.</summary>
+    /// <summary>M0095 1-2：開いているすべてのシーン tab のうち、固定中のシーンを表示している tab だけがキー入力に応答します。</summary>
     private bool OwnsKeyboard=>SceneDesignerUndoCommandPolicy.IsKeyboardOwner(this.FixedSceneKey,this.Session?.PinnedSceneKey);
 
     /// <summary>
@@ -194,12 +194,11 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     /// <summary>
-    /// ADR-0071: a Scene Editor tab shows only its own file's scene. The session pins one scene at a
-    /// time, so a tab ignores the pins and selections of other scenes (another tab brought to front).
+    /// ADR-0071：Scene Editor tab は自身のファイルのシーンだけを表示します。session が固定するシーンは一度に1つなので、別のシーンの tab が前面に来ても、そのシーンの pin や選択状態は無視します。
     /// </summary>
     internal SceneKey?FixedSceneKey { get;set;}
 
-    /// <summary>A Scene Editor tab has one scene per file and hides the scene switcher.</summary>
+    /// <summary>Scene Editor tab は1ファイルにつきシーン1つを持ち、シーン切り替え UI を表示しません。</summary>
     internal bool ShowsSceneSelector {
         get=>this.SceneSelector.Visibility==Visibility.Visible;
         set=>this.SceneSelector.Visibility=value?Visibility.Visible:Visibility.Collapsed;
@@ -360,9 +359,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.UndoRequested-=this.OnUndoKeyRequested;
         Host.RedoRequested-=this.OnRedoKeyRequested;
         Host.SaveRequested-=this.OnSaveKeyRequested;
-        // Dispose triggers DestroyWindowCore, which cancels the latest-wins worker and disposes the
-        // native child HWND. Its stale callback is additionally rejected by SceneHwndHost's surface
-        // and generation checks, so it cannot repaint this WPF-only empty state.
+        // Dispose は DestroyWindowCore を呼び出し、latest-wins worker をキャンセルして
+        // ネイティブ子 HWND を破棄します。その古い callback も SceneHwndHost の surface と
+        // generation のチェックで拒否されるため、WPF のみの空状態を再描画できません。
         Host.Dispose();
     }
 
@@ -417,7 +416,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 }
             });
         } catch(OperationCanceledException){
-            // A newer active document/project request superseded this catalog.
+            // より新しいアクティブドキュメントまたはプロジェクトの要求により、この catalog は置き換えられました。
         } catch(Exception Ex){
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
             this.DispatchToUi(()=>{
@@ -584,8 +583,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
         if(this.Host is { }Host
             &&SceneRenderFailurePolicy.ShouldShowFailure(Host.HasFatalRenderFailure,Host.IsBuildPending)){
-            // A failed build/Present leaves an invisible child HWND behind. Remove it so the WPF
-            // empty-state message is painted instead of exposing a white HwndHost airspace.
+            // 失敗した build/Present が不可視の子 HWND を残すことがあります。WPF の空状態メッセージを表示し、
+            // 白い HwndHost の空間を露出させないよう、その HWND を削除します。
             this.ShowEmpty(Status);
         }
     }
@@ -654,7 +653,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ?Source.ToArray()
             :this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry Selected?[Selected]:[];
         if(Entries.Length==0){ this.StatusText.Text=VsixText.Get("PhysicsBakeNoScene");return; }
-        // The exact Bake Host is built from the engine sources (ADR-0065): SourceMode projects only.
+        // 正確な Bake Host はエンジンソースからビルドします（ADR-0065）。SourceMode のプロジェクトのみが対象です。
         string?RepoRoot=CgeProjectContext.Resolve(Entries[0].FilePath)?.EngineRoot;
         if(RepoRoot is null){ this.StatusText.Text=VsixText.Get("PhysicsBake_RequiresEngineSource");return; }
         this.PhysicsBakeCancellation?.Dispose();
@@ -1023,7 +1022,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
-    /// <summary>Commits the final preview to the live C# buffer before closing the transaction.</summary>
+    /// <summary>トランザクションを閉じる前に、最終プレビューをライブ C# バッファーへ確定します。</summary>
     #pragma warning disable VSTHRD100 // SceneHwndHost event handler; exceptions are observed below.
     private async void OnEditCommitRequested(SceneEditCommitRequest Request){
     #pragma warning restore VSTHRD100

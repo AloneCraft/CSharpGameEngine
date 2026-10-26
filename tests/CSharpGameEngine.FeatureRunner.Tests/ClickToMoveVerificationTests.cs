@@ -2,7 +2,7 @@ using System.Text.Json;
 using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 public sealed class ClickToMoveVerificationTests {
-    /// <summary>A report shaped like the template run: stand, click, walk to the point, stop there.</summary>
+    /// <summary>テンプレート実行のような形式のレポート：停止し、クリックし、その地点まで歩き、そこで止まる。</summary>
     private static JsonElement Report(float WalkMeters=6f,float StillDrift=0f,int D3D12Errors=0,int?AudioRequests=7,int Frames=ClickToMoveVerification.Frames,int[]?RenderObjects=null){
         var Positions=new List<float[]?>();
         for(var Frame=0;Frame<Frames;Frame++){
@@ -18,10 +18,10 @@ public sealed class ClickToMoveVerificationTests {
             ?JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,audioRequests=Requests,cameraPositions=Positions,renderObjectCounts=RenderObjects })
             :JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=true,cameraPositions=Positions,renderObjectCounts=RenderObjects });
         var Element=JsonDocument.Parse(Json).RootElement.Clone();
-        // A run without the counts has no such property at all, not a null one.
+        // カウントを含まない実行には、そのプロパティ自体が存在しない。null ではない。
         return RenderObjects is null?JsonDocument.Parse(Json.Replace(",\"renderObjectCounts\":null","")).RootElement.Clone():Element;
     }
-    /// <summary>The renderer's object count per frame: <paramref name="Level"/> objects, the marker from <paramref name="From"/> up to (not including) <paramref name="To"/>.</summary>
+    /// <summary>レンダラーのフレームあたりオブジェクト数：<paramref name="Level"/> 個のオブジェクトと、<paramref name="From"/> から <paramref name="To"/> の直前までのマーカー。</summary>
     private static int[]Objects(int From,int To,int Level=40,int Marker=1)=>[.. Enumerable.Range(0,ClickToMoveVerification.Frames).Select(Frame=>Frame>=From&&Frame<To?Level+Marker:Level)];
     [Theory]
     [InlineData("straight",false)]
@@ -58,8 +58,7 @@ public sealed class ClickToMoveVerificationTests {
         Assert.Contains(Failures,Failure=>Failure.Contains(Expected,StringComparison.OrdinalIgnoreCase));
     }
     /// <summary>
-    /// A report of the navigated run (M0106): the camera starts at (-6.36, 13.78, -6.36), the character walks along <paramref name="Route"/> (R, F offsets from the start, one leg per
-    /// 8 frames) and the camera height falls by <paramref name="Descent"/> over the first 12 frames of the walk (the ramp), then stays.
+    /// 移動を行った実行のレポート (M0106)：カメラは (-6.36, 13.78, -6.36) から開始する。キャラクターは <paramref name="Route"/> に沿って歩く（開始地点からの R、F オフセットで、8 フレームごとに 1 区間）。歩行開始から 12 フレームの間（ランプ）にカメラの高さが <paramref name="Descent"/> だけ下がり、その後は一定になる。
     /// </summary>
     private static JsonElement NavigatedReport((float R,float F)[]?Route=null,float Descent=2.1f,float DropFrame=0f,int D3D12Errors=0){
         Route??=[(0f,0f),(0.9f,4.5f),(1.3f,7.7f),(2.2f,9.0f),(6.0f,8.3f),(6.79f,6.84f)];
@@ -75,7 +74,7 @@ public sealed class ClickToMoveVerificationTests {
             var R=Route[Leg].R+(Route[Leg+1].R-Route[Leg].R)*Along;
             var F=Route[Leg].F+(Route[Leg+1].F-Route[Leg].F)*Along;
             var Fell=Frame<ClickToMoveVerification.ClickStartFrame?0f:Math.Clamp((Frame-ClickToMoveVerification.ClickStartFrame)/12f,0f,1f)*Descent;
-            // A fall: the whole descent in one frame.
+            // 落下：下降全体が 1 フレームで起きる。
             if(DropFrame>0f){ Fell=Frame>=DropFrame?Descent:0f; }
             Positions.Add([-6.36f+R,13.78f-Fell,-6.36f+F]);
         }
@@ -111,7 +110,7 @@ public sealed class ClickToMoveVerificationTests {
     }
     [Fact]
     public void TheStraightEvaluation_DoesNotJudgeTheRoute(){
-        // The straight run (navigation off) is the pre-M0106 walk: the same report is fine for it whatever its route.
+        // 直線移動（ナビゲーション無効）は M0106 以前の歩行であり、経路が何であっても同じレポートを使える。
         Assert.Empty(ClickToMoveVerification.Evaluate(NavigatedReport(Route:[(0f,0f),(6.79f,6.84f)],Descent:0f),out _));
     }
     [Fact]
@@ -134,7 +133,7 @@ public sealed class ClickToMoveVerificationTests {
     }
     [Fact]
     public void Evaluate_RejectsAMarkerThatAppearsWhileTheButtonIsStillDown(){
-        // M0105 spawned it on the press; UE (and M0108) spawn it when a short press is released.
+        // M0105 は押下時に生成した。UE（および M0108）は短い押下を離した時に生成する。
         var Failures=ClickToMoveVerification.Evaluate(Report(RenderObjects:Objects(ClickToMoveVerification.ClickStartFrame,ClickToMoveVerification.ClickStartFrame+7)),out _);
         Assert.Contains(Failures,Failure=>Failure.Contains("still down",StringComparison.Ordinal));
     }
@@ -144,13 +143,13 @@ public sealed class ClickToMoveVerificationTests {
     }
     [Fact]
     public void TheShortPressIsClearlyUnderUnrealsHalfSecondThreshold(){
-        // An automation frame counts 0.1 s at most; the hold is ClickEndFrame-ClickStartFrame frames and reads that many tenths of a second on release.
+        // 自動操作の 1 フレームは最大 0.1 秒を数える。長押し時間は ClickEndFrame-ClickStartFrame フレームであり、離した時にその数だけ 0.1 秒として読み取る。
         var HeldSeconds=(ClickToMoveVerification.ClickEndFrame-ClickToMoveVerification.ClickStartFrame)*0.1f;
         Assert.True(HeldSeconds<0.5f-0.05f);
         Assert.True((ClickToMoveVerification.LongPressEndFrame-ClickToMoveVerification.ClickStartFrame)*0.1f>0.5f+1f);
         Assert.Equal("MouseLeft@20-45",ClickToMoveVerification.LongPressSchedule);
     }
-    /// <summary>A long press: the character walks <paramref name="HeldMeters"/> in the hold (evenly), then <paramref name="AfterMeters"/> more while braking, then stands.</summary>
+    /// <summary>長押し：キャラクターは保持中に <paramref name="HeldMeters"/> 進み（均等に）、その後ブレーキ中にさらに <paramref name="AfterMeters"/> 進んでから停止する。</summary>
     private static JsonElement LongPressReport(float HeldMeters=15f,float AfterMeters=0.4f,float Drift=0f,int D3D12Errors=0,int[]?RenderObjects=null){
         var Positions=new List<float[]?>();
         for(var Frame=0;Frame<ClickToMoveVerification.LongPressFrames;Frame++){
@@ -202,12 +201,11 @@ public sealed class ClickToMoveVerificationTests {
     }
     [Fact]
     public void Evaluate_DoesNotCountAMarkerThatWasAlreadyThereBeforeTheClick(){
-        // The scene had one more object from the start; only a rise after the click is the marker.
+        // シーンには開始時点からオブジェクトがもう 1 つあった。マーカーとなるのはクリック後の増加だけ。
         Assert.Contains(ClickToMoveVerification.Evaluate(Report(RenderObjects:Objects(0,ClickToMoveVerification.Frames)),out _),Failure=>Failure.Contains("no marker",StringComparison.Ordinal));
     }
     /// <summary>
-    /// ADR-0078/M0107: the camera lags behind the character, so a report that carries <c>focusPositions</c> (where the character was) is judged on those. Here the camera
-    /// never leaves its start and would fail every check, while the character walks a good route.
+    /// ADR-0078/M0107：カメラはキャラクターに遅れて追従するため、<c>focusPositions</c>（キャラクターの位置）を含むレポートはその位置で判定する。ここではカメラは開始位置から動かず、すべての検査に失敗する一方、キャラクターは適切な経路を歩く。
     /// </summary>
     [Fact]
     public void EvaluateNavigated_JudgesTheCharactersPositionsWhenTheReportHasThemNotTheLaggingCamera(){

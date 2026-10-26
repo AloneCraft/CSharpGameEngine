@@ -3,7 +3,7 @@ using CSharpGameEngine.Platform.Windows;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Platform.Windows.Tests;
-/// <summary>Mouse-look capture changes the system-wide cursor clip only while its window owns focus.</summary>
+/// <summary>マウスルックの捕捉では、ウィンドウにフォーカスがある間だけシステム全体のカーソルクリップを変更する。</summary>
 public sealed class Win32WindowMouseCaptureTests {
     private static unsafe RECT CurrentClip(){
         RECT Clip;
@@ -23,7 +23,7 @@ public sealed class Win32WindowMouseCaptureTests {
             Assert.False(Window.IsMouseCaptured);
         }
         finally {
-            // A failure must not leave the developer's cursor trapped.
+            // 失敗しても、開発者のカーソルを捕捉したままにしてはならない。
             _=ClipCursor(null);
         }
     }
@@ -31,7 +31,7 @@ public sealed class Win32WindowMouseCaptureTests {
     public void KeyMessages_AreRecordedByDefault()=>AssertKeyMessageEvents(false,1);
     [WindowsOnlyFact]
     public void KeyMessages_AreIgnoredWhenDeviceInputIsOff()=>AssertKeyMessageEvents(true,0);
-    /// <summary>A posted W key reaches the input stream unless device input is off; injected keys always do.</summary>
+    /// <summary>デバイス入力が無効でなければ、投稿されたWキーは入力ストリームへ届く。注入したキーは常に届く。</summary>
     private static void AssertKeyMessageEvents(bool IgnoreDeviceInput,int ExpectedEvents){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Device Input Test",Width=64,Height=64,Visible=false,IgnoreDeviceInput=IgnoreDeviceInput });
         _=Window.DrainInputEvents();

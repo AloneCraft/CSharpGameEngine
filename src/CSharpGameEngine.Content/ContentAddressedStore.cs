@@ -16,7 +16,7 @@ public interface IContentArtifactLocator {
     bool TryResolve(AssetArtifactReference Reference,out Hash256 Address);
 }
 
-/// <summary>Immutable reference-to-CAS-address snapshot published by a compiler or package manifest.</summary>
+/// <summary>コンパイラーまたはパッケージマニフェストが公開する、参照からCASアドレスへの不変スナップショット。</summary>
 public sealed class ContentArtifactIndex:IContentArtifactLocator {
     private readonly ImmutableDictionary<AssetArtifactReference,Hash256>Entries;
 
@@ -42,7 +42,7 @@ public sealed class ContentArtifactIndex:IContentArtifactLocator {
     public bool TryResolve(AssetArtifactReference Reference,out Hash256 Address)=>this.Entries.TryGetValue(Reference,out Address);
 }
 
-/// <summary>Filesystem CAS for validated canonical envelopes. Publication uses a same-volume atomic rename.</summary>
+/// <summary>検証済みの正規エンベロープを保存するファイルシステムCAS。公開には同一ボリューム内のアトミックな名前変更を使う。</summary>
 public interface IContentArtifactReader {
     ValueTask<ReadOnlyMemory<byte>>ReadAsync(Hash256 Address,CancellationToken CancellationToken=default);
 }

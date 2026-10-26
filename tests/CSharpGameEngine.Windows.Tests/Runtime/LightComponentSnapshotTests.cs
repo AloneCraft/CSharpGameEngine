@@ -8,8 +8,7 @@ using CSharpGameEngine.Lighting;
 using CSharpGameEngine.Runtime.Lighting;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// Audit AUD-001: the typed light Components are persistent, so a snapshot of a loaded cell must restore them. Their
-/// physical values are read-only structs that validate their range.
+/// Audit AUD-001：型付きライト Components は永続化されるため、ロード済みセルのスナップショットから復元できなければなりません。物理値は範囲を検証する読み取り専用構造体です。
 /// </summary>
 public sealed class LightComponentSnapshotTests {
     [Fact]
@@ -23,7 +22,7 @@ public sealed class LightComponentSnapshotTests {
 
     [Fact]
     public void LightComponents_RejectAPayloadOutsideTheirRange(){
-        // The constructor's range check runs on restore: a tampered negative flux is a codec error, not a light.
+        // 復元時にもコンストラクターの範囲チェックが実行されます。改ざんされた負の flux はライトではなく codec エラーになります。
         var Payload=System.Text.Encoding.UTF8.GetBytes("""{"Color":{"B":1,"G":1,"R":1},"Flux":{"Lumens":-5},"Range":{"Meters":10}}""");
         Assert.False(EcsSnapshotComponentCodec<PointLight>.TryDeserialize(Payload,out _,out var Error));
         Assert.Contains("LuminousFlux",Error);
@@ -31,7 +30,7 @@ public sealed class LightComponentSnapshotTests {
 
     [Fact]
     public async Task ACellHoldingLights_RestoresRightAfterItsCapture(){
-        // The audit's world case: a streamed cell whose entities hold lights and shadows is captured and restored at once.
+        // Audit の world ケース：ライトとシャドウを持つエンティティを含むストリーミングセルを一括してキャプチャし、復元します。
         Assert.True(GeneratedWorldCellActivationSink.TryGetPayloadKey("UserEcsProject.Scenes.EngineShowcaseScene",out var PayloadKey));
         var Artifact=WorldCellEntityPayloadCodec.Bake(PayloadKey,new ArtifactProvenance(
             "test","scene://lights",Hash256.Compute([5]),"generated-scene",Hash256.Compute([6])));

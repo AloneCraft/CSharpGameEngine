@@ -2,7 +2,7 @@ namespace CSharpGameEngine.ShaderArtifacts;
 public enum ShaderArtifactTargetKind:byte {
     Unknown=0,
     Stage=1,
-    // Values 2 and 3 are retired and must not be reused.
+    // 値2と3は廃止済み。再利用してはならない。
     Compute=4,
 }
 public enum ShaderArtifactEntryStage:byte {

@@ -7,9 +7,7 @@ using System.Reflection;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Identifies the exact VSIX assembly currently loaded by Visual Studio.
-/// The values are assembly metadata so they remain truthful after VSIX deployment copies the
-/// assembly outside the repository checkout.
+/// Visual Studio が現在読み込んでいる正確な VSIX アセンブリを識別する。値はアセンブリメタデータであるため、VSIX の配置でリポジトリのチェックアウト外にコピーされた後も正確さを保つ。
 /// </summary>
 internal static class VsixBuildIdentity {
     private const string VersionKey="CSharpGameEngineVsixVersion";
@@ -37,14 +35,14 @@ internal static class VsixBuildIdentity {
     internal static VsixDeploymentVerification Deployment=>VsixDeploymentVerifier.Verify(
         LoadedAssemblyPath,BuildOutputPath);
 
-    /// <summary>Formats the embedded UTC build metadata for the compact Scene View header.</summary>
+    /// <summary>埋め込み UTC ビルドメタデータを、コンパクトな Scene View ヘッダー用に書式化する。</summary>
     internal static string FormatBuildUtc(string Value){
         return DateTimeOffset.TryParse(Value,CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind,out DateTimeOffset Parsed)
             ?Parsed.ToUniversalTime().ToString("yyyy-MM-dd HH:mm'Z'",CultureInfo.InvariantCulture)
             :"unknown";
     }
 
-    /// <summary>Compact text intended for the Scene Designer header or diagnostic UI.</summary>
+    /// <summary>Scene Designer のヘッダーまたは診断 UI 用のコンパクトなテキスト。</summary>
     internal static string DisplayText{
         get {
             VsixDeploymentVerification Verification=Deployment;

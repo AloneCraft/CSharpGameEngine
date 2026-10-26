@@ -202,7 +202,7 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
 
     [Fact]
     public void FrozenInputWhosePackageIsNotInTheCheckoutSaysHowToFreezeOne(){
-        // The input document is tracked, but its package lives in the local .artifacts store (a fresh clone has none).
+        // 入力ドキュメントは追跡対象だが、パッケージはローカルの .artifacts ストアにある（新規クローンには含まれない）。
         this.CreateInputsAndEvidence();
         Directory.Delete(Path.Combine(this.Root,".artifacts","VsixReleaseInputs"),true);
 

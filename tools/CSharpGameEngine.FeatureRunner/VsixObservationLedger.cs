@@ -7,9 +7,7 @@ namespace CSharpGameEngine.FeatureStages;
 public sealed record VsixObservationAssertion(string Id,string Detail);
 
 /// <summary>
-/// Registers an already completed automated observation or records a human Visual Studio
-/// observation. The checked-in ledgers are updated only after the evidence is bound to the
-/// current Release package and the resulting repository contract validates.
+/// すでに完了した自動観測を登録するか、人間による Visual Studio 上の観測を記録する。チェックイン済みの台帳を更新するのは、証拠を現在の Release パッケージに結び付け、生成されるリポジトリ契約が検証された後だけである。
 /// </summary>
 public static class VsixObservationLedger {
     private const string AutomatedEvidenceSchema="cge-vsix-experimental-evidence-v1";

@@ -3,11 +3,10 @@ using System.IO.Compression;
 namespace CSharpGameEngine.Import.Gltf;
 
 /// <summary>
-/// Computes a deterministic scalar for direct lighting from a glTF emissive texture. Color
-/// textures in glTF are sRGB, so supported PNG samples are linearized before their Rec.709
-/// luminance is averaged. Missing or unsupported encodings deliberately preserve the material
-/// factor/strength result with the identity scale instead of adding an image-decoder dependency to
-/// the cross-platform import assembly.
+/// glTFの発光テクスチャから、直接照明に使う決定的なスカラー値を計算する。
+/// glTFのカラー画像はsRGBなので、対応するPNGサンプルを線形化してからRec.709輝度を平均する。
+/// クロスプラットフォームのImportアセンブリに画像デコーダー依存を追加しないため、画像がない、または非対応形式の場合は、
+/// スケールを恒等値のままにしてマテリアルの係数／強度による結果を維持する。
 /// </summary>
 internal static class EmissiveTextureLuminance {
     private const int PngSignatureLength=8;
@@ -19,8 +18,7 @@ internal static class EmissiveTextureLuminance {
     private const uint Plte=0x504c5445;
 
     /// <summary>
-    /// Returns mean linear Rec.709 luminance for a supported PNG, or one when the texture is
-    /// absent or its encoding is not safely decodable in this assembly.
+    /// 対応PNGの線形Rec.709輝度の平均を返す。テクスチャがない場合、またはこのアセンブリで安全にデコードできない形式の場合は1。
     /// </summary>
     public static float CalculateOrIdentity(byte[]?EncodedBytes)=>
         TryCalculatePng(EncodedBytes,out float Luminance)?Luminance:1f;
@@ -69,7 +67,7 @@ internal static class EmissiveTextureLuminance {
             if(Length>EncodedBytes.Length-DataOffset-4){
                 return false;
             }
-            Offset=DataOffset+Length+4; // data plus CRC; the decoded bytes are authoritative.
+            Offset=DataOffset+Length+4; // データとCRC。デコード済みのバイト列を正本として扱う。
 
             if(!HasHeader&&Type!=Ihdr){
                 return false;
@@ -82,10 +80,10 @@ internal static class EmissiveTextureLuminance {
                 uint RawWidth=ReadUInt32BigEndian(EncodedBytes,DataOffset);
                 uint RawHeight=ReadUInt32BigEndian(EncodedBytes,DataOffset+4);
                 if(RawWidth==0||RawHeight==0||RawWidth>int.MaxValue||RawHeight>int.MaxValue
-                    ||EncodedBytes[DataOffset+8]!=8 // bit depth
-                    ||EncodedBytes[DataOffset+10]!=0 // compression method
-                    ||EncodedBytes[DataOffset+11]!=0 // filter method
-                    ||EncodedBytes[DataOffset+12]!=0){ // Adam7 interlace has nontrivial pass layout
+                    ||EncodedBytes[DataOffset+8]!=8 // ビット深度
+                    ||EncodedBytes[DataOffset+10]!=0 // 圧縮方式
+                    ||EncodedBytes[DataOffset+11]!=0 // フィルター方式
+                    ||EncodedBytes[DataOffset+12]!=0){ // Adam7インターレースには複雑なパス配置がある。
                     return false;
                 }
                 ColorType=EncodedBytes[DataOffset+9];
@@ -122,11 +120,11 @@ internal static class EmissiveTextureLuminance {
         }
 
         int BytesPerPixel=ColorType switch {
-            0=>1, // gray
+            0=>1, // グレースケール
             2=>3, // RGB
-            3=>1, // indexed RGB
-            4=>2, // gray + alpha (alpha is unused by glTF emissive)
-            6=>4, // RGBA (alpha is unused by glTF emissive)
+            3=>1, // インデックス付きRGB
+            4=>2, // グレースケール＋アルファ形式（glTFの発光ではアルファを使わない）。
+            6=>4, // RGBA形式（glTFの発光ではアルファを使わない）。
             _=>throw new InvalidOperationException(),
         };
         int RowBytes=checked(Width*BytesPerPixel);

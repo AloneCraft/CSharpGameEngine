@@ -4,34 +4,35 @@ using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Lighting;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// Per-frame collection of the scene's environment components (ADR-0069). Presentation Systems
-/// record what exists; EngineHost converts it to renderer settings once, just before the frame is
-/// rendered. Absent components keep the renderer's original path.
+/// シーンの環境コンポーネントをフレームごとに収集する（ADR-0069）。プレゼンテーションシステムは存在する値を記録し、
+/// EngineHostが描画直前に一度だけレンダラー設定へ変換する。コンポーネントがない場合、レンダラーは従来の経路を維持する。
 /// </summary>
 internal sealed class EnvironmentCollection {
     internal SkyAtmosphere?Atmosphere;
+    internal DirectionalShadowRendering?DirectionalShadows;
     internal SkyLight?SkyLight;
     internal PostProcessVolume?PostProcess;
     internal ExponentialHeightFog?Fog;
     internal GlobalIlluminationVolume?GlobalIllumination;
-    /// <summary>Camera-relative centre of <see cref="GlobalIllumination"/> for this frame.</summary>
+    /// <summary>このフレームの<see cref="GlobalIllumination"/>のカメラ相対中心。</summary>
     internal Vector3 GlobalIlluminationCenter;
     internal VolumetricCloud?Clouds;
     internal SkySphere?SkySphere;
-    /// <summary>Camera-relative centre of <see cref="SkySphere"/> for this frame.</summary>
+    /// <summary>このフレームの<see cref="SkySphere"/>のカメラ相対中心。</summary>
     internal Vector3 SkySphereCenter;
     internal GlobalDistanceField?DistanceField;
-    /// <summary>The world voxel of the finest clipmap the camera is in and how far past its corner, set by EngineHost before <see cref="Build"/>.</summary>
+    /// <summary>カメラが位置する最小クリップマップのワールドボクセルと、その角からの距離。EngineHostが<see cref="Build"/>前に設定する。</summary>
     internal LongVector3 DistanceFieldOriginVoxel;
     internal Vector3 DistanceFieldOriginRemainder;
-    /// <summary>Where the camera is over the world (R and F, metres), set by EngineHost before <see cref="Build"/>: the clouds the camera sees depend on it.</summary>
+    /// <summary>ワールド上でのカメラ位置（RとF、メートル単位）。EngineHostが<see cref="Build"/>前に設定する。カメラから見える雲はこの位置に依存する。</summary>
     internal Vector2 CameraHorizontalMeters;
-    /// <summary>Seconds of game time the clouds have been blowing, set by EngineHost before <see cref="Build"/>.</summary>
+    /// <summary>雲が動いたゲーム時間（秒）。EngineHostが<see cref="Build"/>前に設定する。</summary>
     internal float CloudSeconds;
     internal bool AmbientSubmitted;
     internal string?InvalidReason;
     internal void Reset(){
         this.Atmosphere=null;
+        this.DirectionalShadows=null;
         this.SkyLight=null;
         this.PostProcess=null;
         this.Fog=null;
@@ -80,13 +81,13 @@ internal sealed class EnvironmentCollection {
             ?new AmbientOcclusionSettings(Occlusion.AmbientOcclusionIntensity,Occlusion.AmbientOcclusionRadiusMeters)
             :null;
         if(GlobalIllumination is { IsValid:false }){
-            // An oversized or malformed probe volume only disables GI; the sky and exposure stay.
+            // プローブボリュームが大きすぎる、または不正な場合はGIだけを無効にする。空と露出は維持する。
             this.InvalidReason="GlobalIlluminationVolume";
             GlobalIllumination=null;
         }
         var Clouds=this.Clouds is VolumetricCloud C?ToCloudSettings(C,this.CameraHorizontalMeters,this.CloudSeconds):(VolumetricCloudSettings?)null;
         if(Clouds is { IsValid:false }){
-            // Like the probe volume, an unusable cloud value only turns the clouds off.
+            // プローブボリュームと同様、雲の値が使用不能でも雲だけを無効にする。
             this.InvalidReason=nameof(VolumetricCloud);
             Clouds=null;
         }
@@ -104,15 +105,16 @@ internal sealed class EnvironmentCollection {
         }
         var Lumen=Post is PostProcessVolume Volume?ToLumenSettings(Volume):(LumenSettings?)null;
         if(Lumen is { IsValid:false }){
-            // An unusable Lumen value only turns Lumen off; the probe volume and the sky light stay.
+            // Lumenの値が使用不能な場合はLumenだけを無効にする。プローブボリュームとスカイライトは維持する。
             this.InvalidReason=nameof(LumenSettings);
             Lumen=null;
         }
-        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination,AmbientOcclusion,Clouds,Sphere,DistanceField,Lumen);
+        var Shadows=this.DirectionalShadows is DirectionalShadowRendering Policy?new CSharpGameEngine.Rendering.DirectionalShadowSettings(Policy.Mode,Policy.PageBudget,Policy.Compare,Policy.SoftShadows,Policy.SourceAngularDiameterDegrees,Policy.MaximumSoftShadowRadiusMeters):(CSharpGameEngine.Rendering.DirectionalShadowSettings?)null;
+        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination,AmbientOcclusion,Clouds,Sphere,DistanceField,Lumen,Shadows);
     }
     /// <summary>
-    /// The renderer's Lumen settings from the PostProcessVolume (ADR-0078/M0111), or null when neither its GI nor its reflections use Lumen. The
-    /// reflections need Lumen's GI, so a volume with only Lumen reflections gets neither.
+    /// PostProcessVolumeから取得するレンダラーのLumen設定（ADR-0078/M0111）。GIも反射もLumenを使わなければnull。
+    /// 反射にはLumenのGIが必要なので、Lumen反射だけを使うボリュームの場合、どちらも有効にしない。
     /// </summary>
     internal static LumenSettings?ToLumenSettings(in PostProcessVolume Volume){
         if(Volume.GlobalIlluminationMethod!=GlobalIlluminationMethod.Lumen){
@@ -124,8 +126,8 @@ internal sealed class EnvironmentCollection {
             Volume.LumenMaxRoughnessToTraceReflections,Volume.LumenReflectionsScreenTraces,Volume.LumenSurfaceCacheResolution);
     }
     /// <summary>
-    /// The renderer's clouds from the component: the camera's place over the world and the wind's travel since the game started, both in
-    /// kilometres. The wind blows toward <see cref="VolumetricCloud.WindDirectionDegrees"/>, clockwise from +F.
+    /// コンポーネントから取得するレンダラー用の雲。カメラのワールド上の位置と、ゲーム開始後の風の移動距離を、いずれもキロメートルで表す。
+    /// 風は<see cref="VolumetricCloud.WindDirectionDegrees"/>の方向、+Fを基準に時計回りに吹く。
     /// </summary>
     internal static VolumetricCloudSettings ToCloudSettings(in VolumetricCloud Cloud,Vector2 CameraHorizontalMeters,float Seconds){
         var Radians=Cloud.WindDirectionDegrees*MathF.PI/180f;
@@ -137,9 +139,9 @@ internal sealed class EnvironmentCollection {
     }
 }
 /// <summary>
-/// ADR-0078/M0110: where a fixed-point world position falls on a voxel grid: the voxel (floor of position / voxel) and how far past that voxel's corner,
-/// computed on the fixed-point value so the global distance field's voxels stay on the world grid however far the camera goes. False when the voxel
-/// size is not positive or the voxel index does not fit 64 bits.
+/// 固定小数点のワールド位置がボクセル格子のどこにあるか（ADR-0078/M0110）。ボクセル位置（位置／ボクセルサイズのfloor）と、
+/// その角からどれだけ進んでいるかを固定小数点値上で計算する。カメラが遠くへ移動しても、グローバル距離場のボクセルはワールド格子に沿う。
+/// ボクセルサイズが正でない場合、またはボクセルインデックスが64ビットに収まらない場合はfalse。
 /// </summary>
 internal static class WorldVoxelGrid {
     internal static bool TryLocate(CSharpGameEngine.Numerics.LogicalScalar Position,float VoxelSizeMeters,out long Voxel,out float Remainder){
@@ -164,8 +166,8 @@ internal static class WorldVoxelGrid {
     }
 }
 /// <summary>
-/// Game time for the environment's motion (ADR-0078/M0110: the clouds' wind), summed from the frames' elapsed counters. Whole seconds and the
-/// remainder are kept as integers, so the time does not lose precision as it grows.
+/// 環境の動き（ADR-0078/M0110では雲の風）に使うゲーム時間。各フレームの経過カウンターを合計する。
+/// 整数で秒と余りを保持するため、時間が長くなっても精度を失わない。
 /// </summary>
 internal struct EnvironmentClock {
     private long WholeSeconds;

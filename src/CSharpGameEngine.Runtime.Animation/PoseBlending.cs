@@ -1,8 +1,8 @@
 using System.Numerics;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
-/// Weighted mix of several local poses: translation and scale average, rotations average along the shorter arcs (each rotation is
-/// flipped into the hemisphere of the first one added, then the sum is normalized). Weights need not sum to one.
+/// 複数のローカル姿勢を加重ミックスする。平行移動とスケールは平均し、回転は短い方の弧に沿って平均する
+///（各回転を最初に追加した回転と同じ半球へ反転してから、合計を正規化する）。ウェイトの合計は1でなくてもよい。
 /// </summary>
 public sealed class PoseMixer {
     private readonly Vector3[]Translation;
@@ -19,7 +19,7 @@ public sealed class PoseMixer {
         this.Reference=new Quaternion[JointCount];
     }
     public int JointCount=>this.Translation.Length;
-    /// <summary>The sum of the weights added since <see cref="Begin"/>.</summary>
+    /// <summary><see cref="Begin"/>以降に追加されたウェイトの合計。</summary>
     public float TotalWeight=>this.Total;
     public void Begin(){
         Array.Clear(this.Translation);
@@ -50,7 +50,7 @@ public sealed class PoseMixer {
         this.HasReference=true;
         this.Total+=Weight;
     }
-    /// <summary>Writes the mix. With no weight added the pose is the identity (zero translation, unit scale).</summary>
+    /// <summary>ミックス結果を書き込む。ウェイトがない場合は恒等姿勢（平行移動0、スケール1）になる。</summary>
     public void Resolve(Span<JointPose>Pose){
         if(Pose.Length<this.JointCount){
             throw new ArgumentException($"The pose needs {this.JointCount} joints.",nameof(Pose));
@@ -67,9 +67,9 @@ public sealed class PoseMixer {
     }
 }
 /// <summary>
-/// A cross-fade from a snapshot of the last output pose to a changing target pose, with UE's Cubic blend curve (3t² − 2t³).
-/// <see cref="Start"/> keeps the last pose as the source; <see cref="Apply"/> advances the fade and writes the blended pose. The first
-/// <see cref="Apply"/> after <see cref="Start"/> already advances by its own step, as the state machine of the animation graph does.
+/// 最後の出力姿勢のスナップショットから、変化する目標姿勢へUEのCubicブレンドカーブ（3t² − 2t³）でクロスフェードする。
+/// <see cref="Start"/>では最後の姿勢を入力側に保持し、<see cref="Apply"/>でフェードを進めてブレンド姿勢を書き込む。
+/// アニメーショングラフの状態機械と同様、<see cref="Start"/>直後の最初の<see cref="Apply"/>でも、そのステップ分だけ既に進む。
 /// </summary>
 public sealed class PoseFade {
     private readonly JointPose[]Source;
@@ -81,9 +81,9 @@ public sealed class PoseFade {
         this.Last=Rest.ToArray();
     }
     public bool Active { get; private set; }
-    /// <summary>The fraction of the target in the output, after the curve (0 right after <see cref="Start"/>).</summary>
+    /// <summary>カーブ適用後、出力に含まれる目標姿勢の割合（<see cref="Start"/>直後は0）。</summary>
     public float Weight { get; private set; }
-    /// <summary>UE's Cubic blend option: smoothstep of the clamped time fraction.</summary>
+    /// <summary>UEのCubicブレンドオプション。時間の割合を0～1に制限してsmoothstepを適用する。</summary>
     public static float Cubic(float Fraction){
         var Clamped=Math.Clamp(float.IsFinite(Fraction)?Fraction:0f,0f,1f);
         return Clamped*Clamped*(3f-(2f*Clamped));

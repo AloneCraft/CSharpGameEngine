@@ -34,7 +34,7 @@ internal static class InputActionsEmitter {
 
     private enum FieldKind { Stick,Look,Button,Pointer,Axis }
 
-    /// <summary>One <c>[Gamepad]</c> on a member: the control, the stick axis if only one is used, and the dead zone, scale and inversion after defaults (M0108).</summary>
+    /// <summary>メンバーに付ける <c>[Gamepad]</c> 1つ。control、1つだけ使う場合の stick axis、および既定値適用後の dead zone、scale、inversion（M0108）。</summary>
     private sealed class PadBinding(string Pad,string?Component,float DeadZone,float Scale,bool Invert) {
         internal readonly string Pad=Pad;
         internal readonly string?Component=Component;
@@ -144,8 +144,7 @@ internal static class InputActionsEmitter {
     }
 
     /// <summary>
-    /// Reads the dead zone, scale and inversion written on a <c>[Gamepad]</c> (M0108). A dead zone outside 0..1, a scale that is not a finite number above 0 (NaN included:
-    /// a written value is never mistaken for "not written"), or any of the three on a button is INPUT005 and gives null. A dead zone that is not written is 0.2 for a stick and 0.1 for a trigger.
+    /// <c>[Gamepad]</c> に記述された dead zone、scale、inversion を読み取ります（M0108）。dead zone が 0..1 の範囲外、scale が0より大きい有限値でない（NaN を含む。記述済み値を「未記述」と誤認しません）、または button にいずれかの値が指定されている場合は INPUT005 とし、null を返します。dead zone が省略された場合、stick は0.2、trigger は0.1です。
     /// </summary>
     private static PadBinding?ReadPad(AttributeData Attribute,string Pad,string?Component,bool IsButton,Location Location,string FieldName,ImmutableArray<Diagnostic>.Builder Diagnostics){
         float? DeadZone=null;
@@ -267,10 +266,10 @@ internal static class InputActionsEmitter {
             }
         }
 
-        /// <summary>The literal of a float for the generated source: round-trip text, with the suffix.</summary>
+        /// <summary>生成コード用の float リテラル。suffix を付けた round-trip 形式です。</summary>
         private static string Float(float Value)=>Value.ToString("R",CultureInfo.InvariantCulture)+"f";
 
-        /// <summary>The <c>DeadZone</c> and <c>Scale</c> arguments of a pad binding (the scale is left out when it is 1).</summary>
+        /// <summary>pad binding の <c>DeadZone</c> と <c>Scale</c> の引数（scale が1の場合は省略）。</summary>
         private static string Shaping(PadBinding Pad)=>", DeadZone: "+Float(Pad.DeadZone)+(Pad.Scale==1f?string.Empty:", Scale: "+Float(Pad.Scale));
 
         internal IEnumerable<string>Bindings(){
@@ -296,7 +295,7 @@ internal static class InputActionsEmitter {
                 }
             } else if(this.Kind==FieldKind.Look){
                 foreach(var Mouse in this.MouseAxes){
-                    // The mouse delta is negated in Y so that moving up looks up; DeltaX and DeltaY keep one axis of it.
+                    // マウスの delta は、上へ動かすと上を見るよう Y を反転します。DeltaX と DeltaY はそれぞれ1軸分を保持します。
                     string[] Items=Mouse switch {
                         "DeltaX"=>new[] { $"new {Input}.InputMaskModifier(X: false, Y: true)" },
                         "DeltaY"=>new[] { $"new {Input}.InputMaskModifier(X: true, Y: false)",$"new {Input}.InputNegateModifier(X: false, Y: true)" },
@@ -308,7 +307,7 @@ internal static class InputActionsEmitter {
                     if(Pad.Component is null){
                         yield return $"new {Input}.InputBinding(Id_{this.Name}_Stick, {Adapter}.Gamepad{Pad.Pad}{Shaping(Pad)}{Modifiers(InvertItems(Pad))})";
                     } else {
-                        // One axis of the stick: its own control, and for Y the value moves to the Y of the look.
+                        // stick の1軸。対応する control を使い、Y の場合は値が look の Y 軸へ移動します。
                         var AxisItems=new List<string>();
                         if(Pad.Component=="Y"){ AxisItems.Add(Swizzle); }
                         if(Pad.Invert){ AxisItems.Add(Negate); }

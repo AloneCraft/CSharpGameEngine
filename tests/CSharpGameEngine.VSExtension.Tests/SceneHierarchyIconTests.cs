@@ -5,7 +5,7 @@ using Microsoft.VisualStudio.Imaging;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
-/// <summary>Presentation-only icon contracts for Hierarchy rows.</summary>
+/// <summary>Hierarchy の行に表示するアイコンの契約。表示だけに関わる。</summary>
 public sealed class SceneHierarchyIconTests {
     private const string Source="""
         using CSharpGameEngine.Entities;

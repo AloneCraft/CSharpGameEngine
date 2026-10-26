@@ -1,21 +1,19 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Pipeline;
-/// <summary>One cascade of the directional (sun) shadow (ADR-0069).</summary>
+/// <summary>指向性（太陽）シャドウのカスケード1つ（ADR-0069）。</summary>
 public readonly record struct DirectionalShadowCascade(
     Matrix4x4 ViewProjection,Vector3 Center,float Radius,float DepthRangeMeters,ShadowAtlasTile Tile,float NearDistance,float FarDistance);
 /// <summary>
-/// Splits the camera frustum into <see cref="Count"/> slices and fits one stable orthographic shadow
-/// projection per slice. Split distances follow Unreal Engine's cascade distribution exponent, each
-/// slice is enclosed by a bounding sphere (so the projection size does not change as the camera
-/// rotates) and the sphere centre is snapped to shadow-map texels (so it does not shimmer as the
-/// camera moves). The four cascades share the directional atlas tile as 2x2 quadrants.
+/// カメラの視錐台を <see cref="Count"/> 個の範囲に分け、各範囲に安定した正射影シャドウを合わせる。分割距離には Unreal Engine のカスケード分布指数を使う。カメラの回転で
+/// 投影サイズが変化しないよう、各範囲を境界球で囲む。カメラ移動で影がちらつかないよう、球の中心をシャドウマップのテクセルに合わせる。4つのカスケードで、指向性シャドウアトラスのタイルを2×2の区画として
+/// 共有する。
 /// </summary>
 public static class DirectionalShadowCascades {
     public const int Count=4;
     public const float DefaultMaxDistanceMeters=200f;
     public const float DistributionExponent=3f;
     public const int ResolutionPixels=PhysicalShadowAtlasPlan.TileSizePixels/2;
-    /// <summary>Extra depth in front of each slice so off-screen casters between the sun and the slice still cast.</summary>
+    /// <summary>各範囲の手前に加える深度。範囲の手前にある画面外の物体も遮光物として影を落とせるようにする。</summary>
     public const float CasterMarginMeters=200f;
     public static ShadowAtlasTile TileFor(int Cascade){
         ArgumentOutOfRangeException.ThrowIfNegative(Cascade);
@@ -23,7 +21,7 @@ public static class DirectionalShadowCascades {
         var Parent=ShadowAtlasTile.FromIndex(PhysicalShadowAtlasPlan.DirectionalTileIndex);
         return new ShadowAtlasTile(Parent.Index,Parent.X+(Cascade%2)*ResolutionPixels,Parent.Y+(Cascade/2)*ResolutionPixels,ResolutionPixels,ResolutionPixels);
     }
-    /// <summary>Distance (along the view direction) where cascade <paramref name="Cascade"/> ends.</summary>
+    /// <summary>ビュー方向に測った、<paramref name="Cascade"/> カスケードの終端距離。</summary>
     public static float SplitDistance(int Cascade,float Near,float Far){
         var Fraction=(MathF.Pow(DistributionExponent,Cascade+1)-1f)/(MathF.Pow(DistributionExponent,Count)-1f);
         return Near+(Far-Near)*Fraction;

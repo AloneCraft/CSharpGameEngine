@@ -216,8 +216,8 @@ public static class VsixCompatibilityMatrixValidator {
         }
         string EvidencePath=Path.IsPathRooted(Check.EvidencePath)?Path.GetFullPath(Check.EvidencePath):Path.GetFullPath(Path.Combine(LedgerDirectory,Check.EvidencePath));
         if(!File.Exists(EvidencePath)){
-            // Run evidence lives under the untracked .artifacts root (ADR-0061), so a fresh checkout has none. Like
-            // freshness, only release validation demands it; an ordinary build keeps the recorded result.
+            // 実行の証拠は未追跡の .artifacts ルートにあるため、新規チェックアウトには存在しない (ADR-0061)。鮮度と同様に、
+            // 必須とするのはリリース検証だけであり、通常のビルドでは記録済みの結果を保持する。
             if(RequirePassingEvidence){ Errors.Add($"VSIX Experimental check {Check.Id} evidence does not exist: {Check.EvidencePath}"); }
             return;
         }

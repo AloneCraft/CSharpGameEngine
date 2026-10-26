@@ -1,5 +1,5 @@
 namespace CSharpGameEngine.VSExtension;
-/// <summary>UI-thread-confined lease that lets only the latest Scene selector request publish.</summary>
+/// <summary>UI スレッド専用の lease。最新の Scene 選択要求だけが結果を公開できる。</summary>
 internal sealed class SceneSelectionRequestLifecycle {
     private long NextEpoch;
     private long ActiveEpoch;

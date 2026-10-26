@@ -3,9 +3,8 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 /// <summary>
-/// ADR-0070 B1: the Scene Designer sends its camera as an RUF quaternion built from the rows right,
-/// up and forward (System.Numerics). The engine must read that quaternion with the same axes: its
-/// camera basis is the transform's +F and +U.
+/// ADR-0070 B1：Scene Designerは、右／上／前方行で作ったRUFクォータニオン（System.Numerics）としてカメラを渡す。
+/// エンジンも同じ軸でクォータニオンを解釈し、Transformの+Fと+Uをカメラ基底にする。
 /// </summary>
 public sealed class EditorCameraConventionTests {
     [Theory]

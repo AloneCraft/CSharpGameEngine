@@ -7,12 +7,11 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0119 native precision evidence (ADR-0084): the radial depth an adapter writes, per pixel, against a double-precision oracle,
-/// for a quad facing the camera from 4 µm through 5e18 m. In the middle of the view the distance hardly changes
-/// from pixel to pixel, so the error there is the shader arithmetic's and stays within 4 ulps on every adapter. Near the
-/// edges the rasterizer's snapping of vertices to its sub-pixel grid adds error in proportion to the distance gradient;
-/// it is recorded, not gated. WARP evaluates log2 exactly, so run this on the GPU to see hardware arithmetic:
-/// <c>CGE_PERFORMANCE_EVIDENCE=1</c> and <c>CGE_PERFORMANCE_ADAPTER=hardware</c>. Writes <c>.artifacts/M0119/precision</c>.
+/// M0119のネイティブ精度の証拠（ADR-0084）。カメラに正対したクアッドを4 µm～5e18 mの範囲に描画し、アダプターがピクセルごとに書き込む放射状深度を
+/// 倍精度オラクルと比較する。ビュー中央ではピクセル間の距離差が小さいため、誤差はシェーダー演算に由来し、すべてのアダプターで4 ULP以内に収まる。
+/// 端では頂点をサブピクセル格子へスナップする際に、距離勾配に比例する誤差が加わる。これは記録のみで合否判定には使わない。
+/// WARPはlog2を正確に評価するため、ハードウェア演算を調べるにはGPUで実行すること：
+/// <c>CGE_PERFORMANCE_EVIDENCE=1</c>と<c>CGE_PERFORMANCE_ADAPTER=hardware</c>を指定。<c>.artifacts/M0119/precision</c>へ出力する。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RadialDepthPrecisionEvidence(ITestOutputHelper Output) {
@@ -39,7 +38,7 @@ public sealed class RadialDepthPrecisionEvidence(ITestOutputHelper Output) {
             Encoding.UTF8);
         Assert.True(Errors.Count==0,string.Join(Environment.NewLine,Errors));
     }
-    /// <summary>The largest error, in ulps of the expected depth, in the middle 17 × 11 pixels and in a 6–10 pixel border (the shared <see cref="DepthOracle"/>).</summary>
+    /// <summary><see cref="DepthOracle"/>を共有して求める、中央17 × 11ピクセルと幅6～10ピクセルの境界における期待深度からの最大ULP誤差。</summary>
     private static (double Centre,double Edge,string Adapter)Measure(bool Hardware,float Distance,float Near,float Far){
         var Result=DepthOracle.Measure(Hardware,Distance,Near,Far);
         return (Result.Centre,Result.Edge,Result.Adapter);

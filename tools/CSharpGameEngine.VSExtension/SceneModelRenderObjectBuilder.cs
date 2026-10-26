@@ -14,7 +14,7 @@ internal static class SceneModelRenderObjectBuilder {
     internal static IReadOnlyList<SceneRenderObject>Build(
         SceneModel Model,
         Func<string,SimpleMesh?>ResolvePrimitiveMesh,
-        Func<string,SimpleMesh?>?ResolveStaticMesh=null){
+        Func<string,SimpleMesh?>?ResolveStaticMesh=null,bool IncludePlaceholders=true){
         List<SceneRenderObject>Result=[];
         if(Model.Root is not{ }Root)return Result;
 
@@ -49,6 +49,10 @@ internal static class SceneModelRenderObjectBuilder {
                     ??throw new InvalidOperationException(
                         $"Declared primitive mesh could not be resolved: {PrimitiveMeshEnumMemberName}");
             } else {
+                if(!IncludePlaceholders){
+                    foreach(var Child in Node.Children){ Append(Child,World); }
+                    return;
+                }
                 Mesh=GizmoMeshFactory.Create();
             }
 
@@ -87,7 +91,7 @@ internal static class SceneModelRenderObjectBuilder {
         return MeshLoader.Load(GlbPath,Context.WorkspaceRoot);
     }
 
-    /// <summary>A StaticMesh <c>AssetPath</c> is relative to its game project (ADR-0065).</summary>
+    /// <summary>StaticMesh の <c>AssetPath</c> はゲームプロジェクトからの相対パスです（ADR-0065）。</summary>
     internal static SimpleMesh?ResolveStaticMeshViaBridge(string AssetPath,CgeProjectContext Context){
         if(string.IsNullOrWhiteSpace(AssetPath))return null;
         var FullPath=Context.ResolveProjectPath(AssetPath);

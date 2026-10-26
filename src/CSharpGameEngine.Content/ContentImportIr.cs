@@ -8,7 +8,7 @@ public readonly record struct ContentBounds(Vector3 Minimum,Vector3 Maximum) {
     public Vector3 Extents=>(this.Maximum-this.Minimum)*0.5f;
 }
 
-/// <summary>Provider-neutral, renderer-ready geometry emitted by every L7 importer adapter.</summary>
+/// <summary>すべてのL7インポーターアダプターが出力する、プロバイダー非依存でレンダラー対応のジオメトリ。</summary>
 public sealed class ContentMeshIr {
     private ContentMeshIr(
         ImmutableArray<Vector3>Positions,

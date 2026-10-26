@@ -9,9 +9,8 @@ using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>
-/// Exercises the real Windows + D3D12 vertical slice end to end. Runs against the WARP software
-/// adapter so it is deterministic in CI without requiring a physical GPU. Guarded by an explicit
-/// timeout so a driver/GPU hang fails the test instead of hanging the run.
+/// WindowsとD3D12の垂直スライスを端から端まで実行する。物理GPUなしでもCIで決定的に実行できるよう、
+/// WARPソフトウェアアダプターを使う。ドライバー／GPUが停止した場合に実行全体が固まらないよう、明示的なタイムアウトを設定する。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public class TriangleGpuIntegrationTests {
@@ -78,7 +77,7 @@ public class TriangleGpuIntegrationTests {
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
 
-        // Resize must not require recreating the renderer, and rendering must continue correctly afterward.
+        // レンダラーを再作成せずにリサイズでき、その後も正しく描画を続けること。
         Renderer.Resize(128,128);
         Renderer.RenderFrame(CaptureForVerification:true);
 

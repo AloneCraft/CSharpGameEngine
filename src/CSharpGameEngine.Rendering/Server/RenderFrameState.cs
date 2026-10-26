@@ -5,11 +5,7 @@ using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Rendering.Server;
 
-/// <summary>
-/// Reusable provider-boundary snapshot for the commands that form one complete frame. Two
-/// instances are swapped by RenderServer, so completed state survives device replacement without
-/// allocating a new command graph every frame.
-/// </summary>
+/// <summary>完全な1フレームを構成するコマンドの、再利用可能なプロバイダー境界スナップショット。RenderServer が2インスタンスを入れ替えるため、デバイス交換後も完了済み状態を維持し、毎フレームのコマンドグラフ再割り当てを避ける。</summary>
 internal sealed class RenderFrameState {
     private Matrix4x4[]ObjectTransforms;
     private bool[]ObjectTransformSet;
@@ -74,7 +70,7 @@ internal sealed class RenderFrameState {
         this.ObjectEmissiveScaleSet=new bool[ObjectCount];
     }
 
-    /// <summary>Objects added after creation (M0105) get indices past the first capacity, and a rebuilt renderer may hold more slots than the server first did.</summary>
+    /// <summary>作成後に追加されたオブジェクト（M0105）には最初の容量より後のインデックスを割り当てる。再構築後のレンダラーがサーバー作成当初より多くのスロットを持つ場合もある。</summary>
     private void EnsureObjectCapacity(int Required){
         if(this.ObjectTransforms.Length>=Required){ return; }
         var Length=Math.Max(Required,this.ObjectTransforms.Length*2);
@@ -207,7 +203,7 @@ internal sealed class RenderFrameState {
         this.TouchedVisibilityIndices.Add(ObjectIndex);
     }
 
-    /// <summary>ADR-0078/M0109: the factor on one object's material emission (<see cref="IStageRenderBackend.SetObjectEmissiveScale"/>).</summary>
+    /// <summary>1つのオブジェクトのマテリアル発光に掛ける係数（ADR-0078/M0109、<see cref="IStageRenderBackend.SetObjectEmissiveScale"/>）。</summary>
     public void RecordObjectEmissiveScale(int ObjectIndex,float Scale){
         ArgumentOutOfRangeException.ThrowIfNegative(ObjectIndex);
         this.EnsureObjectCapacity(ObjectIndex+1);
@@ -257,11 +253,8 @@ internal sealed class RenderFrameState {
     }
 
     /// <summary>
-    /// Carries the renderer's persistent settings forward from the previous completed frame when this
-    /// frame did not set them. The backend keeps ambient, fog, environment, camera and render origin
-    /// altitudes, world grid anchors and presentation mode until they change, so a recovery replay must
-    /// restore a value set once (the Scene view sets its ambient only when the preview is created) and
-    /// not only the last frame's.
+    /// このフレームで設定されなかったレンダラーの永続設定を、直前の完了フレームから引き継ぐ。バックエンドは、環境光、フォグ、環境、カメラと描画原点の高度、ワールドグリッドの基準点、プレゼンテーションモードを
+    /// 変更時まで保持する。そのため回復後の再生では、1度設定された値（Scene ビューではプレビュー作成時にだけ環境光を設定する）を最新フレームの値だけでなく復元する必要がある。
     /// </summary>
     public void InheritPersistentSettings(RenderFrameState Previous){
         ArgumentNullException.ThrowIfNull(Previous);
@@ -294,12 +287,17 @@ internal sealed class RenderFrameState {
     internal bool TryGetWorldGridAnchor(int MaterialIndex,out Vector3 Anchor)=>
         this.WorldGridAnchors.TryGetValue(MaterialIndex,out Anchor);
 
+    public bool TryReplayView(IStageRenderBackend Renderer,int Width,int Height){
+        if(!this.ViewSource.HasValue){ return false; }
+        Renderer.SetView(this.ViewSource.Resolve(Renderer.DirectionalShadows.Compare?Math.Max(1,Width/2):Width,Height));
+        return true;
+    }
     public void Replay(IStageRenderBackend Renderer,int Width,int Height){
         ArgumentNullException.ThrowIfNull(Renderer);
-        if(this.ViewSource.HasValue){ Renderer.SetView(this.ViewSource.Resolve(Width,Height)); }
+        if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
+        this.TryReplayView(Renderer,Width,Height);
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
-        if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
         if(this.HasCameraAltitude){ Renderer.SetCameraAltitude(this.CameraAltitude); }
         if(this.HasRenderOriginAltitude){ Renderer.SetRenderOriginAltitude(this.RenderOriginAltitude); }
         foreach(var (MaterialIndex,Anchor) in this.WorldGridAnchors){

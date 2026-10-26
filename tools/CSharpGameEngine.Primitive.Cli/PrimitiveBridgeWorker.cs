@@ -8,19 +8,14 @@ using SharpGLTF.Scenes;
 namespace CSharpGameEngine.Primitive.Cli;
 
 /// <summary>
-/// The actual generation work, extracted from <c>Program.cs</c> (ADR-0023) so both one-shot mode
-/// and the resident server (<c>CSharpGameEngine.Bridge.Hosting.BridgeServerHost</c>) share
-/// identical logic. Each call builds its own local <see cref="MeshBuilder{TvG,TvM,TvS}"/>/
-/// <see cref="SceneBuilder"/> with no shared/static state, so unlike
-/// <c>Import.Fbx.Cli</c>'s <c>FbxBridgeWorker</c>, concurrent resident-mode requests need no
-/// serialization here.
+/// <c>Program.cs</c> から切り出した実際の生成処理 (ADR-0023)。1 回限りのモードと常駐サーバー（<c>CSharpGameEngine.Bridge.Hosting.BridgeServerHost</c>）の両方で同じロジックを共有する。呼び出しごとに共有状態や静的状態を持たない独自の <see cref="MeshBuilder{TvG,TvM,TvS}"/>/<see cref="SceneBuilder"/> を構築する。そのため、<c>Import.Fbx.Cli</c> の <c>FbxBridgeWorker</c> と異なり、常駐モードの並行要求をここで直列化する必要はない。
 /// </summary>
 internal static class PrimitiveBridgeWorker {
     public static(int ExitCode,string Output)Run(string PrimitiveName,string OutputPath){
-        // Fixed default dimensions - no size/segment-count configuration UI exists yet (ADR-0021); a
-        // future Inspector-driven "add with parameters" flow can extend this switch. "Rectangle"
-        // reuses the existing CreatePlane (already used for the ground plane elsewhere) rather than
-        // a new method.
+        // サイズやセグメント数を設定する UI はまだないため、寸法は固定の既定値 (ADR-0021)。
+        // 将来、Inspector から「パラメーター付きで追加」する操作を行う場合は、この switch を拡張できる。「Rectangle」は
+        // ほかの場所の地面にもすでに使われている既存の CreatePlane を再利用する。
+        // 新しいメソッド。
         ProceduralMeshData?Mesh=PrimitiveName switch {
             "Box"=>ProceduralMeshFactory.CreateBox(new Vector3(1f,1f,1f)),
             "Sphere"=>ProceduralMeshFactory.CreateSphere(0.5f),

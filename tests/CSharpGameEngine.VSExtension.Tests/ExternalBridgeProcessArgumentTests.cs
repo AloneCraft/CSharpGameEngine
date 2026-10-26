@@ -6,9 +6,7 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// A one-shot bridge gets its arguments on a command line, which Windows splits with CommandLineToArgvW's rules: the
-/// quoting must give each argument back exactly. A folder argument ending in a backslash used to escape its closing
-/// quote and join the next argument.
+/// 1 回限りのブリッジはコマンドライン引数を受け取り、Windows は CommandLineToArgvW の規則で分割する。引用符付けにより各引数を正確に復元できなければならない。以前は、末尾がバックスラッシュのフォルダー引数が閉じ引用符をエスケープし、次の引数と連結されていた。
 /// </summary>
 public sealed class ExternalBridgeProcessArgumentTests {
     [DllImport("shell32.dll",CharSet=CharSet.Unicode,SetLastError=true)]

@@ -4,9 +4,7 @@ using System.Threading;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Runs potentially blocking work on one raw background <see cref="Thread"/> and reports only the
-/// newest requested result. Requests arriving while work is in flight replace the pending request,
-/// which prevents live editor analysis from starting an unbounded number of bridge processes.
+/// 時間のかかる可能性がある処理を1本の通常のバックグラウンド <see cref="Thread"/> で実行し、最後に要求された結果だけを報告します。処理中に届いた要求は保留中の要求を置き換えます。これにより、ライブエディター解析が bridge プロセスを無制限に起動することを防ぎます。
 /// </summary>
 internal sealed class LatestOnlyThreadWorker<TRequest,TResult>:IDisposable where TResult:class {
     private readonly object Gate=new();
@@ -71,8 +69,8 @@ internal sealed class LatestOnlyThreadWorker<TRequest,TResult>:IDisposable where
             try {
                 this.Dispatch(()=> this.Complete(Item,Result,Error));
             } catch(InvalidOperationException){
-                // The WPF Dispatcher can reject a callback while Visual Studio is shutting down.
-                // There is no UI left to receive this result, so dropping it is the correct action.
+                // Visual Studio のシャットダウン中、WPF Dispatcher がコールバックを拒否することがあります。
+                // 結果を受け取る UI はもう存在しないため、破棄するのが正しい対応です。
             }
         }
     }
@@ -98,9 +96,9 @@ internal sealed class LatestOnlyThreadWorker<TRequest,TResult>:IDisposable where
             this.LatestVersion++;
         }
 
-        // Deliberately do not Join: an in-flight bridge may take up to its timeout, and Dispose is
-        // called from WPF/VS window teardown. The background thread will finish naturally and its
-        // completion is rejected by the Disposed/version checks above.
+        // 意図的に Join しません。処理中の bridge はタイムアウトまで最大限時間がかかる可能性があり、Dispose は
+        // WPF/VS のウィンドウ終了処理から呼ばれます。バックグラウンドスレッドは自然に終了し、完了通知は
+        // 上記の Disposed/version チェックで拒否されます。
     }
 
     private readonly record struct WorkItem(long Version,TRequest Request);

@@ -10,8 +10,7 @@ using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 
 /// <summary>
-/// ADR-0078/M0104: the screen layer through WARP. Quads in pixels land where they are asked (top-left origin), blend over the finished frame,
-/// a distance-field batch thresholds the texture alpha at one half, the layer lasts one frame, and it survives a device loss.
+/// ADR-0078/M0104：WARP 上の画面レイヤー。ピクセル単位の四角形は指定位置（左上原点）に描画され、完成したフレームに合成される。距離場のバッチはテクスチャのアルファを 1/2 でしきい値処理する。レイヤーは 1 フレームだけ持続し、デバイス消失後も維持される。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public class ScreenLayerTests {
@@ -82,7 +81,7 @@ public class ScreenLayerTests {
         return(Frame.Pixels[Offset],Frame.Pixels[Offset+1],Frame.Pixels[Offset+2]);
     }
 
-    /// <summary>Two triangles covering the pixel rectangle.</summary>
+    /// <summary>ピクセルの矩形を覆う 2 つの三角形。</summary>
     private static RenderScreenVertex[]Quad(float Left,float Top,float Right,float Bottom,Vector4 Color,float U0=0f,float U1=1f)=>[
         new(new Vector2(Left,Top),new Vector2(U0,0f),Color),
         new(new Vector2(Right,Top),new Vector2(U1,0f),Color),
@@ -104,7 +103,7 @@ public class ScreenLayerTests {
         var Baseline=Render(Renderer,[],[],SetLayer:false);
         string BaselineHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Baseline.Pixels));
 
-        // A red opaque quad at the top left and a half-transparent green one at the lower right.
+        // 左上に赤い不透明な四角形、右下に半透明の緑の四角形。
         RenderScreenVertex[]Vertices=[
             .. Quad(16,16,48,48,new Vector4(1f,0f,0f,1f)),
             .. Quad(80,80,112,112,new Vector4(0f,1f,0f,0.5f)),
@@ -115,26 +114,26 @@ public class ScreenLayerTests {
         Assert.NotEqual(BaselineHash,LayeredHash);
 
         AssertNear(Pixel(Layered,32,32),(255,0,0),1,"opaque red quad, top left");
-        // Same column, lower row: a vertically flipped layer would put the red quad here.
+        // 同じ列の下の行：レイヤーが上下反転していれば、赤い四角形はここに表示される。
         Assert.Equal(Pixel(Baseline,32,96),Pixel(Layered,32,96));
-        // Outside both quads the frame is untouched.
+        // 2 つの四角形の外側では、フレームは変化しない。
         Assert.Equal(Pixel(Baseline,2,2),Pixel(Layered,2,2));
         Assert.Equal(Pixel(Baseline,120,60),Pixel(Layered,120,60));
-        // Edges: pixel 16 is inside the quad (its centre 16.5 is covered), pixel 15 is not; 47 is inside, 48 is not.
+        // 辺の確認：ピクセル 16 は四角形の内側（中心 16.5 が覆われる）、15 は外側。47 は内側、48 は外側。
         AssertNear(Pixel(Layered,16,16),(255,0,0),1,"first covered pixel");
         Assert.Equal(Pixel(Baseline,15,16),Pixel(Layered,15,16));
         AssertNear(Pixel(Layered,47,47),(255,0,0),1,"last covered pixel");
         Assert.Equal(Pixel(Baseline,48,48),Pixel(Layered,48,48));
-        // Half-transparent green over whatever the frame has there: result = 0.5 green + 0.5 frame (sRGB values blended as written).
+        // 半透明の緑をフレーム上に重ねる：結果 = 0.5 緑 + 0.5 フレーム（書かれた sRGB 値をブレンド）。
         var Under=Pixel(Baseline,96,96);
         AssertNear(Pixel(Layered,96,96),((int)(Under.R*0.5),(int)(255*0.5+Under.G*0.5),(int)(Under.B*0.5)),2,"half-transparent green quad");
 
-        // The layer lasts one frame: the next frame, without SetScreenLayer, is the baseline again.
+        // レイヤーは 1 フレームだけ持続する。SetScreenLayer を呼ばない次のフレームでは、再びベースラインに戻る。
         var Next=Render(Renderer,[],[],SetLayer:false);
         Assert.Equal(BaselineHash,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Next.Pixels)));
         Assert.Equal(1,Renderer.ResidentScreenTextureCount);
 
-        // A lost device is replaced from the recorded frame, layer included.
+        // 記録されたフレーム（レイヤーを含む）から、失われたデバイスを置き換える。
         Render(Renderer,Vertices,Batches,SetLayer:true);
         Renderer.RemoveDeviceForTesting();
         Renderer.RenderFrame(CaptureForVerification:true);
@@ -149,8 +148,8 @@ public class ScreenLayerTests {
         using RenderServer Renderer=CreateServer(Window);
         var Baseline=Render(Renderer,[],[],SetLayer:false);
 
-        // A 256 x 1 texture whose alpha rises from 0 to 255 and is white elsewhere, drawn over the whole width in blue: the distance field
-        // is 0.5 about the middle, so the left part shows the frame and the right part is solid blue.
+        // アルファが 0 から 255 まで増加し、他は白である 256 x 1 のテクスチャを、幅全体に青で描く。距離場は
+        // 中央付近で 0.5 となるため、左側にはフレームが、右側には青一色が表示される。
         byte[]Pixels=new byte[256*4];
         for(int X=0;X<256;X++){
             Pixels[X*4]=255;
@@ -167,10 +166,10 @@ public class ScreenLayerTests {
         Assert.Equal(Pixel(Baseline,50,64),Pixel(Frame,50,64));
         AssertNear(Pixel(Frame,80,64),(0,0,255),1,"inside the field");
         AssertNear(Pixel(Frame,120,64),(0,0,255),1,"inside the field, near the right edge");
-        // Rows outside the quad are the frame.
+        // 四角形の外側の行はフレームのまま。
         Assert.Equal(Pixel(Baseline,100,10),Pixel(Frame,100,10));
         Assert.Equal(Pixel(Baseline,100,120),Pixel(Frame,100,120));
-        // The edge is soft: some pixel between 50 and 80 is neither the frame nor solid blue.
+        // 境界は柔らかく、50～80 の間のいずれかのピクセルはフレームでも青一色でもない。
         bool Soft=false;
         for(int X=50;X<80;X++){
             var P=Pixel(Frame,X,64);

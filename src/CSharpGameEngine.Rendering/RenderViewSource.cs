@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering;
-/// <summary>Value-owned main-view input. Resolution validates it before submission and can use a replacement surface's aspect.</summary>
+/// <summary>呼び出し側が値を所有するメインビュー入力。解決時に検証し、置き換えた描画面のアスペクト比を適用できる。</summary>
 public readonly record struct RenderViewSource {
     private enum SourceKind:byte { Empty,Fixed,Perspective,PerspectiveMatrix }
     private readonly SourceKind Kind;
@@ -25,11 +25,11 @@ public readonly record struct RenderViewSource {
         if(!View.IsValid){ throw new ArgumentException("A fixed view must be validated.",nameof(View)); }
         return new(SourceKind.Fixed,View,default,default,default,0f,0f);
     }
-    /// <summary>Retains a physical world-to-view matrix. Positive override fixes aspect; otherwise resolution uses the surface aspect.</summary>
+    /// <summary>物理的なワールド・ビュー行列を保持する。正の上書き値があればアスペクト比を固定し、なければ描画面のアスペクト比を使う。</summary>
     public static RenderViewSource Perspective(in Matrix4x4 WorldToView,Vector3 CameraPosition,in RadialViewParameters Parameters,
         float ExposureEv100=0f,float AspectRatioOverride=0f)=>
         new(SourceKind.Perspective,default,WorldToView,CameraPosition,Parameters,ExposureEv100,AspectRatioOverride);
-    /// <summary>Keeps a caller's VP matrix exact while resolving its physical depth metadata for the current surface.</summary>
+    /// <summary>呼び出し側の VP 行列を変更せずに保ち、現在の描画面に合わせて物理深度メタデータを解決する。</summary>
     public static RenderViewSource PerspectiveMatrix(in Matrix4x4 ViewProjection,Vector3 CameraPosition,in RadialViewParameters Parameters)=>
         new(SourceKind.PerspectiveMatrix,default,ViewProjection,CameraPosition,Parameters,0f,0f);
     public RenderView Resolve(int Width,int Height){

@@ -5,15 +5,10 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Proves the shared Scene analysis behaves identically on <b>net472</b> - the framework this VSIX
-/// runs on - as it does on net10.0 where the Source Generator runs (ADR-0040).
+/// 共有 Scene analysis が <b>net472</b>（VSIX が実行される framework）でも、Source Generator が実行される net10.0 と同じ動作をすることを検証します（ADR-0040）。
 ///
 /// <para>
-/// This is the payoff of sharing the analyser as source rather than reimplementing it per host. The
-/// assertions below are deliberately the same facts <c>CSharpGameEngine.SceneModel.Tests</c> pins on
-/// net10.0; if the two hosts ever diverge - a language feature that behaves differently, a BCL API
-/// missing on net472, a Roslyn version skew - one of these fails instead of the editor quietly
-/// disagreeing with the generated code.
+/// analyser を host ごとに再実装せず、ソースとして共有する効果を検証します。以下の assertion は、net10.0 で <c>CSharpGameEngine.SceneModel.Tests</c> が固定している事実と意図的に同じです。言語機能の挙動差、net472 にない BCL API、Roslyn version の不一致などで2つの host が食い違うと、そのうちのどれかが失敗し、editor が生成コードと静かに異なる動作をすることを防ぎます。
 /// </para>
 /// </summary>
 public sealed class SceneAnalysisParityTests {
@@ -75,8 +70,8 @@ public sealed class SceneAnalysisParityTests {
 
     [Fact]
     public void EmittedExpressionsAreIdenticalToTheGeneratorHost(){
-        // If this text differed between hosts, the Inspector would be editing something other than
-        // what the Source Generator compiles.
+        // host 間でこのテキストが異なると、Inspector は Source Generator がコンパイルする内容とは
+        // 異なるものを編集することになります。
         var Model=Analyze();
 
         Assert.Equal(
@@ -89,8 +84,8 @@ public sealed class SceneAnalysisParityTests {
 
     [Fact]
     public void ConstantFoldingBehavesTheSameOnNet472(){
-        // Constant folding is the compiler's, not ours - but the float formatting on the way out is
-        // ours, and "R" round-trips differently on .NET Framework. This pins the G9 choice.
+        // 定数畳み込みは compiler が行いますが、出力時の float formatting は
+        // このコードが担い、.NET Framework では "R" の round-trip 結果が異なります。G9 の選択を固定します。
         var Model=Analyze();
         var Angle=Model.Root!.Children[0].Components[0].Members
                        .Single(static M=>M.MemberName=="InnerConeAngleRadians").Value;
@@ -116,8 +111,8 @@ public sealed class SceneAnalysisParityTests {
 
     [Fact]
     public void IncompleteSyntaxDoesNotThrowOnNet472(){
-        // The VSIX calls the analyser while the user is mid-keystroke; throwing here would surface
-        // as an exception dialog inside Visual Studio.
+        // VSIX はユーザーがキー入力の途中でも analyser を呼び出します。ここで例外をスローすると、
+        // Visual Studio 内に例外ダイアログが表示されます。
         for(var Length=CanonicalScene.Length;Length>=0;Length-=7){
             var Truncated=CanonicalScene.Substring(0,Length);
             var Compilation=

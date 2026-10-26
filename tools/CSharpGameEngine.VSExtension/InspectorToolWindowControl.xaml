@@ -64,6 +64,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0" Text="{Binding MemberName}" VerticalAlignment="Center"
@@ -95,9 +96,13 @@
                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Boolean}"
                                   Click="BooleanField_Click" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
                         <ComboBox ItemsSource="{Binding ChoiceCandidateNames}"
+                                  AllowDrop="True" DragOver="AssetReference_DragOver" Drop="AssetReference_Drop"
                                   SelectedItem="{Binding SelectedChoiceName, Mode=OneWay}"
                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Enum,AssetReference'}"
                                   DropDownClosed="ChoiceField_DropDownClosed" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
+                        <Button Grid.Column="2" AutomationProperties.Name="{local:Loc Assets_Reveal}" Margin="3,0,0,0" Padding="3,0" ToolTip="{local:Loc Assets_Reveal}"
+                                Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='AssetReference,Text'}"
+                                Click="RevealAsset_Click"><Path Width="12" Height="12" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}" StrokeThickness="1.5" Data="M 2,10 L 10,2 M 3,2 L 10,2 L 10,9"/></Button>
                         <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"

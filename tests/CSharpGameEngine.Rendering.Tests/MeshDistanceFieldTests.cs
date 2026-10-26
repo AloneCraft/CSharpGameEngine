@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Tests;
-/// <summary>M0110: mesh signed distance fields made ahead of the game from the triangles, and their file.</summary>
+/// <summary>M0110：三角形からゲーム実行前に作成するメッシュ符号付き距離場と、そのファイル。</summary>
 public sealed class MeshDistanceFieldTests {
     [Fact]
     public void Cube_HasTheBoxDistanceWithTheRightSignEverywhere(){
@@ -19,12 +19,12 @@ public sealed class MeshDistanceFieldTests {
                 }
             }
         }
-        // Exact distances to the triangles, stored as half floats in voxels (11 bits).
+        // 三角形までの正確な距離を、ボクセル内の half float（11 ビット）として格納する。
         Assert.True(Worst<Field.VoxelSize*0.01f,$"worst {Worst}");
-        // Between voxel centres the field is trilinear: within a voxel of the true distance.
+        // ボクセル中心間の距離場は三線形補間され、真の距離から 1 ボクセル以内となる。
         AssertNear(-0.5f,Field.Sample(Vector3.Zero),Field.VoxelSize);
         AssertNear(0f,Field.Sample(new Vector3(0.5f,0f,0f)),Field.VoxelSize);
-        // Outside the volume the distance to the volume's box is added: 3 m from the face is about 3 m.
+        // 体積の外では、体積を囲むボックスまでの距離を加える。面から 3 m 離れた点は約 3 m となる。
         AssertNear(3f,Field.Sample(new Vector3(3.5f,0f,0f)),Field.VoxelSize*3f);
     }
     [Fact]
@@ -36,7 +36,7 @@ public sealed class MeshDistanceFieldTests {
                 for(var X=0;X<Field.ResolutionX;X++){
                     var Centre=Field.BoundsMin+(new Vector3(X,Y,Z)+new Vector3(0.5f))*Field.VoxelSize;
                     var Expected=Centre.Length()-2f;
-                    // The faceted sphere is a little inside the true one; away from the surface the sign is exact.
+                    // 多面体球は真の球よりわずかに内側にある。表面から離れた場所では符号が正確になる。
                     if(MathF.Abs(Expected)<0.05f){ continue; }
                     Assert.Equal(MathF.Sign(Expected),MathF.Sign(Field.VoxelDistance(X,Y,Z)));
                     Assert.InRange(Field.VoxelDistance(X,Y,Z)-Expected,-0.05f,0.05f);
@@ -89,7 +89,7 @@ public sealed class MeshDistanceFieldTests {
         Assert.All(Field.Distances.ToArray(),Value=>Assert.True(Half.IsFinite(Value)));
         AssertNear(-25000f,Field.Sample(Vector3.Zero),Field.VoxelSize);
         Assert.Equal(DefaultLongestSide,Field.ResolutionX);
-        // A 20 x 0.2 x 20 m floor: the short axis keeps its two voxels of margin on each side.
+        // 20 x 0.2 x 20 m の床：短い軸の両側に 2 ボクセル分の余白を保つ。
         var (Floor,FloorIndices)=Box(new Vector3(20f,0.2f,20f));
         var Plate=MeshDistanceFieldBuilder.Build(Floor,FloorIndices)!;
         Assert.InRange(Plate.ResolutionY,5,7);
@@ -106,7 +106,7 @@ public sealed class MeshDistanceFieldTests {
         WrongMagic[0]=(byte)'X';
         Assert.False(MeshDistanceFieldCodec.TryRead(WrongMagic,out _,out _));
         var NotFinite=Bytes.ToArray();
-        // The first distance: half-float NaN.
+        // 最初の距離：half-float の NaN。
         NotFinite[16+60]=0x00;
         NotFinite[16+61]=0x7E;
         Assert.False(MeshDistanceFieldCodec.TryRead(NotFinite,out _,out var Error));
@@ -119,7 +119,7 @@ public sealed class MeshDistanceFieldTests {
         var Q=Vector3.Abs(Point)-HalfSize;
         return Vector3.Max(Q,Vector3.Zero).Length()+MathF.Min(MathF.Max(Q.X,MathF.Max(Q.Y,Q.Z)),0f);
     }
-    /// <summary>A closed axis-aligned box centred on the origin, outward-facing triangles.</summary>
+    /// <summary>原点を中心に置いた、閉じた軸平行ボックス。三角形は外向き。</summary>
     private static (Vector3[]Positions,uint[]Indices) Box(Vector3 Size){
         var H=Size*0.5f;
         Vector3[]Positions=[
@@ -129,7 +129,7 @@ public sealed class MeshDistanceFieldTests {
         uint[]Indices=[0,2,1,0,3,2, 4,5,6,4,6,7, 0,1,5,0,5,4, 3,6,2,3,7,6, 0,4,7,0,7,3, 1,2,6,1,6,5];
         return (Positions,Indices);
     }
-    /// <summary>A closed UV sphere.</summary>
+    /// <summary>閉じたUV球。</summary>
     private static (Vector3[]Positions,uint[]Indices) Sphere(float Radius,int Rings,int Segments){
         List<Vector3>Positions=[];
         for(var Ring=0;Ring<=Rings;Ring++){

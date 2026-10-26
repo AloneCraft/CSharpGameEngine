@@ -7,8 +7,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.TemplateWizard;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// Completes a new scene JSON item (ADR-0070): its <c>"$schema"</c> must point at the project's
-/// generated <c>.cge/scene.schema.json</c> from wherever the item was added, which the template cannot know.
+/// 新しいシーン JSON 項目を完成させます（ADR-0070）。<c>"$schema"</c> は、その項目がどこに追加されたかをテンプレートでは判断できないため、プロジェクトの生成済み <c>.cge/scene.schema.json</c> を指す必要があります。
 /// </summary>
 public sealed class SceneFileTemplateWizard:IWizard {
     internal const string SchemaToken="$cgesceneschema$";
@@ -24,10 +23,10 @@ public sealed class SceneFileTemplateWizard:IWizard {
             StatusBar.SetText(VsixText.Format("SceneFileOutsideScenes",Path.GetFileName(Destination)));
         }
     }
-    /// <summary>Whether the new item lies outside the project's Scenes folder, where it is not a scene (ADR-0070).</summary>
+    /// <summary>新しい項目がプロジェクトの Scenes フォルダー外にあり、シーンではないかどうかを判定します（ADR-0070）。</summary>
     internal static bool IsOutsideScenes(string ItemPath,string ProjectPath)=>
         !CSharpGameEngine.SceneAnalysis.Json.SceneFiles.IsScene(ItemPath,Path.GetDirectoryName(Path.GetFullPath(ProjectPath)));
-    /// <summary>Replaces <see cref="SchemaToken"/> with the schema path relative to <paramref name="ItemPath"/>.</summary>
+    /// <summary><paramref name="ItemPath"/> からの相対スキーマパスで <see cref="SchemaToken"/> を置き換えます。</summary>
     internal static string Complete(string Text,string ItemPath,string ProjectPath)=>
         Text.Replace(SchemaToken,SchemaReference(ItemPath,ProjectPath));
     internal static string SchemaReference(string ItemPath,string ProjectPath){

@@ -5,9 +5,8 @@ namespace CSharpGameEngine.Graphics.D3D12;
 public sealed record TriangleVerificationResult(bool Success,PixelColor CenterColor,IReadOnlyList<PixelColor>CornerColors,string Details);
 
 /// <summary>
-/// Pure, GPU-free pixel checks for the triangle vertical slice: the frame center must differ
-/// from the background clear color (something was drawn) and the corners must not (nothing
-/// bleeds outside the triangle). No GPU access required, so this is fully unit-testable.
+/// 三角形の垂直スライスを検査する、GPUを使わない純粋なピクセルチェック。フレーム中央は背景のクリアカラーと異なる（何かが描画された）一方、
+/// 四隅は同じ（何も三角形外へはみ出していない）ことを確認する。GPUアクセス不要で、完全にユニットテスト可能。
 /// </summary>
 public static class TrianglePixelVerifier {
     public const byte DefaultTolerance=24;

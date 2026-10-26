@@ -5,14 +5,14 @@ using CSharpGameEngine.Runtime.Character;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Windows;
 namespace CgeDestructionSample;
-/// <summary>A ball shot from the character: its Transform's forward times <see cref="Speed"/> becomes its velocity before its first physics step.</summary>
+/// <summary>キャラクターが撃つボール：最初の物理ステップの前に、Transformの前方方向に<see cref="Speed"/>を掛けた値を速度とする。</summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,50)]
 public struct Projectile() {
-    /// <summary>m/s along the ball's forward axis.</summary>
+    /// <summary>ボールの前方軸に沿ったm/s。</summary>
     public LogicalScalar Speed=LogicalScalar.FromInt64(30);
     public bool Launched=false;
 }
-/// <summary>F shoots a ball from the character's chest the way the view faces; E sets off an explosion three metres in front of the character.</summary>
+/// <summary>Fキーで視点の向きへキャラクターの胸元からボールを撃つ。Eキーでキャラクターの3メートル前に爆発を起こす。</summary>
 internal struct SampleWeapons:ISystem {
     public void Update(in PlayerActions Input,in Transform Transform,in ViewAngles View,Spawner Spawner){
         if(!Input.Fire.Pressed&&!Input.Explode.Pressed){ return; }
@@ -24,7 +24,7 @@ internal struct SampleWeapons:ISystem {
             Spawner.Spawn<CgeDestructionSample.Scenes.Explosion>(Transform.Position+Forward*LogicalScalar.FromInt64(3));
         }
     }
-    /// <summary>The turn about up that brings the ball's forward axis onto <paramref name="Forward"/> (whichever sign the axis-angle convention has).</summary>
+    /// <summary>ボールの前方軸を<paramref name="Forward"/>に向ける、上方向を軸とした回転角（軸角表現の符号規約に従う）。</summary>
     private static bool TryFace(LogicalVector3 Forward,out LogicalQuaternion Facing){
         Facing=LogicalQuaternion.Identity;
         if(!Forward.R.TryToSingle(out var R)||!Forward.F.TryToSingle(out var F)){ return false; }
@@ -39,7 +39,7 @@ internal struct SampleWeapons:ISystem {
         return false;
     }
 }
-/// <summary>Gives a new ball its velocity along its forward axis (FixedSimulation, before the physics takes the body in).</summary>
+/// <summary>新しいボールに前方軸方向の速度を与える（物理が剛体を取り込む前のFixedSimulation中に行う）。</summary>
 [SystemPhase(SystemPhase.FixedSimulation)]
 internal struct ProjectileLaunch:ISystem {
     public void Update(ref Transform Transform,ref Projectile Projectile,ref PhysicsVelocity Velocity){
@@ -49,9 +49,7 @@ internal struct ProjectileLaunch:ISystem {
     }
 }
 /// <summary>
-/// One line per presented frame for the automated run (FeatureRunner's verify-destruction): the destructibles, how many have broken, their bonds broken,
-/// their loose pieces, how many of those sleep, the lowest and the fastest loose piece, the intact bonds that carry internal strain from earlier hits and
-/// the most cluster levels a destructible has (M0124). Printed only when CGE_AUTOMATION_FRAMES is set.
+/// 自動実行（FeatureRunnerのverify-destruction）で表示フレームごとに1行出力する。破壊可能オブジェクト数、破壊数、切れた結合、分離した破片数、そのうち静止中の数、最も低い破片と最速の破片、過去の衝撃による内部ひずみを受けている未破断結合、および破壊可能オブジェクトの最大クラスターレベルを記録する（M0124）。CGE_AUTOMATION_FRAMESが設定されている場合のみ出力する。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
 internal struct DestructionReport:IWorldSystem {

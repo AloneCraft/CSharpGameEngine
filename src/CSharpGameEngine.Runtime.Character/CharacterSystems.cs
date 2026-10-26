@@ -3,9 +3,8 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
 /// <summary>
-/// Moves every character once per fixed tick, after the physics step so static geometry is
-/// synchronized. Characters must be root nodes: their Transform position is the capsule centre in
-/// the physics frame.
+/// 物理ステップ後、静的ジオメトリと同期した状態で、固定ティックごとに各キャラクターを1回移動させる。
+/// キャラクターはルートノードでなければならない。そのTransform位置が物理フレーム内のカプセル中心となる。
 /// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(PhysicsTransformWriteback))]
@@ -30,14 +29,14 @@ internal struct CharacterMotionUpdate:ISystem {
             Motor.Step(Movement,ref Position,ref MovementState,ref Input,DeltaSeconds);
         }
         catch(OverflowException){
-            // A numerically invalid configuration leaves the character where it was this tick.
+            // 数値的に無効な設定の場合、このティックではキャラクターを元の位置に留める。
             return;
         }
         Transform.Position=Position;
         if(Movement.FaceMovement){
             Transform.Rotation=CharacterMotor.FacingRotation(MovementState.Facing);
         }
-        // ADR-0077: what happened this tick, for the sound and animation code that listens.
+        // ADR-0077：このティックに起きたことを、サウンドやアニメーションの処理へ通知する。
         if(WasWalking&&JumpWanted&&MovementState.Mode==CharacterMotionMode.Falling){
             Jumps.Send(new Jumped { Source=Entity });
         }
@@ -65,10 +64,9 @@ internal struct CharacterMotionUpdate:ISystem {
     }
 }
 /// <summary>
-/// Places spring-arm cameras after the fixed ticks and before the renderer takes the camera pose
-/// (CameraOriginSync, order 1). The arm's entity must be a direct child of a character root with a
-/// <see cref="ViewAngles"/>; its local Transform is rewritten so the world pose is the control
-/// rotation at the arm's end.
+/// 固定ティック後、レンダラーがカメラ姿勢を取得する前（CameraOriginSync、order 1）にスプリングアームカメラを配置する。
+/// アームのEntityは、<see cref="ViewAngles"/>を持つキャラクタールートの直接の子である必要がある。
+/// ワールド姿勢がアーム先端での制御回転となるよう、アームのローカルTransformを書き換える。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
 internal struct OrbitCameraUpdate:ISystem {
@@ -87,7 +85,7 @@ internal struct OrbitCameraUpdate:ISystem {
             }
             var Pivot=Owner.Position+PivotOffset;
             var DeltaSeconds=State.FrameDeltaSeconds;
-            // ADR-0078/M0107: UE's camera lag. The first frame has nothing to lag from, so the camera starts where it should be.
+            // ADR-0078/M0107：UEのカメララグ。最初のフレームでは遅延元がないため、カメラを本来の位置から開始する。
             if(Arm.Lag.TryToSingle(out var LagSpeed)&&LagSpeed>0f&&Memory.HasPrevious){
                 Arm.LagMaxTimeStep.TryToSingle(out var MaxTimeStep);
                 Arm.LagMaxDistance.TryToSingle(out var MaxDistance);
@@ -116,7 +114,7 @@ internal struct OrbitCameraUpdate:ISystem {
             Transform.Rotation=LocalRotation;
         }
         catch(OverflowException){
-            // An unrepresentable placement keeps last frame's camera.
+            // 配置を表現できない場合、カメラは前フレームの位置を保つ。
         }
     }
 }

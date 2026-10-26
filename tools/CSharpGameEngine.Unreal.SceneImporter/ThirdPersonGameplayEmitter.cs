@@ -28,7 +28,7 @@ internal static class ThirdPersonGameplayEmitter {
         if(Character.Camera.UsePawnControlRotation||Character.Camera.FieldOfViewDegrees<=0f||Character.Camera.FieldOfViewDegrees>=180f){
             throw new NotSupportedException("The follow camera must use the arm's rotation and a field of view in (0, 180) degrees.");
         }
-        // Unreal applies BrakingFriction only with bUseSeparateBrakingFriction; otherwise braking uses GroundFriction, both scaled by BrakingFrictionFactor.
+        // Unreal は bUseSeparateBrakingFriction が true の場合にのみ BrakingFriction を適用する。それ以外では GroundFriction を使い、どちらも BrakingFrictionFactor を掛ける。
         var BrakingFriction=(Movement.UseSeparateBrakingFriction?Movement.BrakingFriction:Movement.GroundFriction)*Movement.BrakingFrictionFactor;
         var FovY=2f*MathF.Atan(MathF.Tan(Character.Camera.FieldOfViewDegrees*MathF.PI/360f)/TemplateAspect);
         var Pivot=Character.OrbitCamera.RelativeLocationCm;
@@ -71,8 +71,8 @@ internal static class ThirdPersonGameplayEmitter {
         Builder.AppendLine("            new Node {");
         Builder.AppendLine("                Name=\"Mesh\",");
         Builder.AppendLine("                Components=[");
-        // Unreal's actor frame (X forward, Y right, Z up) is the character's (+F, +R, +U) frame, and the
-        // character faces +F where the Unreal actor faces +X: a relative Unreal yaw ψ is an engine yaw ψ - 90°.
+        // Unreal のアクター座標系 (X 前方、Y 右、Z 上) は、キャラクターの (+F, +R, +U) 座標系であり、
+        // キャラクターは Unreal アクターの +X と同じ向きである +F を向く。Unreal の相対 yaw ψ は、エンジンの yaw ψ - 90° となる。
         Builder.Append("                    new Transform { Position=new LogicalVector3(").Append(F(Mesh.RelativeLocationCm[1]/100f)).Append(',').Append(F(Mesh.RelativeLocationCm[2]/100f)).Append(',').Append(F(Mesh.RelativeLocationCm[0]/100f))
             .Append("),Rotation=new LogicalQuaternion(new LogicalVector3(0f,").Append(F(MeshYawRadians(Mesh.RelativeRotation.Yaw))).AppendLine(",0f)) },");
         Builder.Append("                    new SkeletalMesh { AssetPath=ThirdPersonAssets.").Append(AssetMemberName(Mesh.AssetPath)).AppendLine(" },");
@@ -98,9 +98,9 @@ internal static class ThirdPersonGameplayEmitter {
         Builder.AppendLine("}");
         return Builder.ToString();
     }
-    /// <summary>LogicalScalar fields take float literals through the implicit conversion the Scene DSL allows.</summary>
+    /// <summary>LogicalScalar フィールドには、Scene DSL が許可する暗黙変換を利用して float リテラルを設定する。</summary>
     private static string L(float Value)=>F(Value);
-    /// <summary>Engine yaw of the mesh relative to the character for an Unreal relative yaw in degrees.</summary>
+    /// <summary>度数で表した Unreal 相対 yaw に対する、キャラクター基準のメッシュのエンジン yaw。</summary>
     internal static float MeshYawRadians(float UnrealYawDegrees){
         var Degrees=(UnrealYawDegrees-90f)%360f;
         Degrees=Degrees>180f?Degrees-360f:Degrees<=-180f?Degrees+360f:Degrees;
@@ -109,8 +109,7 @@ internal static class ThirdPersonGameplayEmitter {
     private static string ClipMember(ThirdPersonCharacterManifest Character,string Name)=>
         AssetMemberName(Character.Animations.SingleOrDefault(Clip=>Clip.Name==Name)?.AssetPath??throw new InvalidOperationException($"The manifest has no '{Name}' animation."));
     /// <summary>
-    /// Walk and jog speeds (m/s) of BS_Idle_Walk_Run's forward column (direction 0), the only column a
-    /// character that turns toward its movement uses.
+    /// BS_Idle_Walk_Run の前進列（方向 0）における歩行・ジョギング速度 (m/s)。移動方向を向くキャラクターが使う列はこれだけ。
     /// </summary>
     internal static (float Walk,float Jog)ForwardSampleSpeeds(ThirdPersonCharacterManifest Character){
         float Speed(string Clip){
@@ -122,10 +121,7 @@ internal static class ThirdPersonGameplayEmitter {
         return (Speed("WalkForward"),Speed("JogForward"));
     }
     /// <summary>
-    /// Engine yaw (turning +F toward +R) that faces an Unreal actor's forward. The level convention
-    /// maps Unreal (X, Y, Z) to engine (R, U, -F): Unreal's forward +X is engine +R, and an Unreal
-    /// yaw ψ turns the same way as an engine yaw ψ. The manifest's yawRadians is -ψ, so the facing
-    /// yaw is ψ + 90° = 90° - yawRadians.
+    /// Unreal アクターの前方を向くためのエンジン yaw（+F を +R の方向へ回転）。レベル規約では Unreal (X, Y, Z) をエンジン (R, U, -F) に対応付ける。Unreal の前方 +X はエンジン +R となり、Unreal の yaw ψ はエンジンの yaw ψ と同じ向きに回転する。マニフェストの yawRadians は -ψ であるため、向きの yaw は ψ + 90° = 90° - yawRadians となる。
     /// </summary>
     internal static float FacingYawRadians(ImportPlayerStart Player)=>MathF.PI/2f-Player.YawRadians;
 }

@@ -4,8 +4,8 @@ using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0113: the <c>.cgephyscache</c> schema 3 records the bonds that broke in each tick after the events, and a schema 2 file (M0055) is still read
-/// as frames without bond breaks.
+/// ADR-0078/M0113：<c>.cgephyscache</c>スキーマ3では、イベント後にティックごとに破断した結合を記録する。
+/// スキーマ2（M0055）のファイルも、結合破断のないフレームとして引き続き読み込む。
 /// </summary>
 public sealed class PhysicsCacheBondBreakTests {
     private static SimulationCacheIdentity Identity(int Schema=PhysicsCacheSerializer.SchemaVersion)=>new("physics","LogicalScalar-Q64.64",60,"bond-test",Schema);
@@ -24,8 +24,8 @@ public sealed class PhysicsCacheBondBreakTests {
         Assert.Equal(Event,Assert.Single(Frames[0].Events));
     }
     /// <summary>
-    /// M0113: a tumbling fragment's rotation comes out of the integrator's normalization, which is not idempotent in Q64.64 (normalizing it again moves the
-    /// last bits). The cache took only exact fixed points of normalization and refused the bake of every spinning body; it takes unit quaternions now.
+    /// M0113：回転中の破片の回転値は積分器の正規化から得るが、Q64.64では再正規化しても同一値に戻るとは限らず、最下位ビットが動く。
+    /// キャッシュベイクが正規化後も完全一致する値だけを受け付けていたため、回転中のボディはすべてベイクに失敗した。現在は単位クォータニオンを受け付ける。
     /// </summary>
     [Fact]
     public void ASpinningBodyIsBakedEveryTickAndANonUnitRotationIsStillRefused(){
@@ -71,7 +71,7 @@ public sealed class PhysicsCacheBondBreakTests {
         using MemoryStream Old=new();
         PhysicsCacheSerializer.Write(Old,Identity(2),[new PhysicsCacheFrame(1,[Body(1)],[]),new PhysicsCacheFrame(2,[Body(1)],[])]);
         var Bytes=Old.ToArray();
-        // Schema 2 frames end after their events: no bond-break count.
+        // スキーマ2のフレームはイベントの直後で終わる。結合破断数は含まれない。
         Assert.Equal(2,BitConverter.ToInt32(Bytes,8));
         List<PhysicsCacheFrame>Frames=[];
         using(MemoryStream Input=new(Bytes)){ Assert.True(PhysicsCacheSerializer.TryRead(Input,Identity(),Frames,out var Error),Error); }

@@ -3,9 +3,9 @@ using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: ABP_Unarmed's graph. The blend space BS_Idle_Walk_Run (eight directions at 3 and 6 m/s, Idle at 0, triangulated like UE),
-/// the Idle / Move state machine nested in Locomotion, and the Jump, Fall Loop and Land states with their thresholds and cross-fade times.
-/// Every clip holds the child joint at a distinct x, so the pose says exactly which clips are mixed and in what proportion.
+/// ADR-0078/M0107：ABP_Unarmedのグラフ。ブレンド空間BS_Idle_Walk_Run（3 m/sと6 m/sの8方向、速度0のIdle。UEと同様に三角形分割）、
+/// Locomotion内にネストしたIdle／Move状態機械、および閾値とクロスフェード時間を持つJump、Fall Loop、Land状態からなる。
+/// 各クリップは子ジョイントを異なるx位置に保つため、姿勢からどのクリップがどの割合でブレンドされたか正確に分かる。
 /// </summary>
 public sealed class LocomotionGraphTests {
     private const float IdleMarker=0f;
@@ -42,7 +42,7 @@ public sealed class LocomotionGraphTests {
     private static readonly LocomotionInput Standing=new(0f,0f,false,false,0f);
     private static readonly LocomotionInput Rising=new(0f,0f,false,true,5f);
     private static readonly LocomotionInput Dropping=new(0f,0f,false,true,-3f);
-    /// <summary>Runs the graph for about <paramref name="Seconds"/> in steps of <paramref name="Step"/>.</summary>
+    /// <summary><paramref name="Step"/>ごとに進め、<paramref name="Seconds"/>ほどグラフを実行する。</summary>
     private static void Run(LocomotionStateMachine Machine,Span<JointPose>Pose,float Seconds,in LocomotionInput Input,float Step=0.02f){
         for(var Elapsed=0f;Elapsed<Seconds-1e-4f;Elapsed+=Step){
             Machine.Update(Step,Input,Pose);
@@ -72,15 +72,15 @@ public sealed class LocomotionGraphTests {
         Assert.Equal(Expected,ChildX(Pose),2);
     }
     [Theory]
-    // Left half cells are cut lower-left to upper-right: this point is on that diagonal, between the walk-forward-left and jog-forward clips.
+    // 左半分のセルは左下から右上へ切る。この点は対角線上にあり、前方左歩行と前方ジョギングの間にある。
     [InlineData(-22.5f,4.5f,0.5f*(WalkMarker+LocomotionDirection.ForwardLeft)+0.5f*(JogMarker+LocomotionDirection.Forward))]
-    // The right half is the mirror: the diagonal runs lower-right to upper-left, so the same point mixes walk-forward-right and jog-forward.
+    // 右半分は鏡像。対角線は右下から左上へ走るため、同じ点は前方右歩行と前方ジョギングをブレンドする。
     [InlineData(22.5f,4.5f,0.5f*(WalkMarker+LocomotionDirection.ForwardRight)+0.5f*(JogMarker+LocomotionDirection.Forward))]
-    // On the top row halfway between two directions it is simply the two jog clips.
+    // 上段の2方向の中間点では、ジョギング用の2クリップだけを使う。
     [InlineData(22.5f,6f,0.5f*(JogMarker+LocomotionDirection.Forward)+0.5f*(JogMarker+LocomotionDirection.ForwardRight))]
-    // Halfway from Idle to walking forward: Idle and the walk clip.
+    // Idleと前方歩行の中間点：Idleと歩行クリップ。
     [InlineData(0f,1.5f,0.5f*IdleMarker+0.5f*(WalkMarker+LocomotionDirection.Forward))]
-    // A quarter of the way along the diagonal's lower triangle: three corners share the weight.
+    // 下側三角形の対角線上で4分の1進んだ位置。3つの頂点で重みを分け合う。
     [InlineData(-33.75f,3.75f,0.75f*(WalkMarker+LocomotionDirection.ForwardLeft)+0.25f*(JogMarker+LocomotionDirection.Forward))]
     public void BlendSpace_MixesTheTriangleThatHoldsTheInput(float Direction,float Speed,float Expected){
         var Machine=LocomotionGraphTests.Machine(TwoJoints());
@@ -114,7 +114,7 @@ public sealed class LocomotionGraphTests {
         var Far=Space.SampleIndex(2,2);
         var Near=Space.SampleIndex(1,2);
         Space.Update(0.1f,0f,6f);
-        // The first query snaps; from then on half the distance is covered per 0.1 s at speed 5.
+        // 最初のクエリでは目標へスナップする。その後は速度5で0.1秒ごとに残り距離の半分を進む。
         Assert.Equal(1f,Space.Weights[Near],4);
         Space.Update(0.1f,180f,6f);
         Assert.Equal(0.5f,Space.Weights[Near],3);
@@ -138,7 +138,7 @@ public sealed class LocomotionGraphTests {
         var Pose=new JointPose[2];
         Run(Machine,Pose,1.5f,Moving(6f,0f));
         Assert.Equal(JogMarker+LocomotionDirection.Forward,ChildX(Pose),2);
-        // One 0.1 s step at speed 5 covers half of the way to the new direction.
+        // 速度5で0.1秒進めると、新しい方向までの距離の半分を移動する。
         Machine.Update(0.1f,Moving(6f,90f),Pose);
         Assert.Equal(0.5f*(JogMarker+LocomotionDirection.Forward)+0.5f*(JogMarker+LocomotionDirection.Right),ChildX(Pose),2);
         Assert.Equal(1f,Machine.BlendWeights.ToArray().Sum(),4);
@@ -171,13 +171,13 @@ public sealed class LocomotionGraphTests {
         var Pose=new JointPose[2];
         Run(Machine,Pose,1.5f,Moving(6f));
         Assert.Equal(JogMarker,ChildX(Pose),2);
-        // Still running fast but no longer pushed (coasting or pressing a wall): Idle takes over with the 0.3 s cubic fade, which is half done at 0.15 s.
+        // 高速で移動中でも、押されていなければ（惰性移動または壁を押している状態）0.3秒のCubicフェードでIdleへ移る。0.15秒時点で半分まで進む。
         Machine.Update(0.15f,new LocomotionInput(6f,0f,false,false,0f),Pose);
         Assert.Equal(LocomotionMoveState.Idle,Machine.MoveState);
         Assert.Equal(0.5f*JogMarker,ChildX(Pose),2);
         Run(Machine,Pose,0.5f,new LocomotionInput(6f,0f,false,false,0f));
         Assert.Equal(IdleMarker,ChildX(Pose),2);
-        // Pushed but not moving yet: the Move state at speed 0 is Idle's pose, so nothing visible changes.
+        // 押されているがまだ移動していない状態。速度0のMove姿勢はIdleと同じなので、見た目は変わらない。
         Machine.Update(0.02f,new LocomotionInput(0f,0f,true,false,0f),Pose);
         Assert.Equal(LocomotionMoveState.Move,Machine.MoveState);
         Run(Machine,Pose,0.5f,new LocomotionInput(0f,0f,true,false,0f));
@@ -213,9 +213,9 @@ public sealed class LocomotionGraphTests {
         Run(Machine,Pose,0.5f,Standing);
         Machine.Update(0.05f,Rising,Pose);
         Assert.Equal(LocomotionState.Jump,Machine.State);
-        // Entering the state, the cubic fade from Idle (0.15 s) is a third done.
+        // 状態へ入った時点で、Idleからの0.15秒のCubicフェードが3分の1まで進んでいる。
         Assert.Equal(PoseFade.Cubic(0.05f/LocomotionStateMachine.ToJumpBlendSeconds)*JumpMarker,ChildX(Pose),2);
-        // The jump clip is 0.5 s long and starts at 0.08 s: 0.3 s remain after 0.12 s in the state.
+        // Jumpクリップは0.5秒で、0.08秒から再生する。状態に0.12秒いると残り0.3秒となる。
         Machine.Update(0.05f,Rising,Pose);
         Assert.Equal(LocomotionState.Jump,Machine.State);
         Machine.Update(0.05f,Rising,Pose);
@@ -245,14 +245,14 @@ public sealed class LocomotionGraphTests {
         Assert.Equal(LocomotionState.Land,Machine.State);
         Run(Machine,Pose,0.08f,Standing,Step:0.04f);
         Assert.Equal(LocomotionState.Land,Machine.State);
-        // The 0.5 s land clip has 0.4 s left after 0.1 s in the state: the third 0.04 s step crosses the line.
+        // 0.5秒のLandクリップは、状態に0.1秒いると残り0.4秒。3回目の0.04秒ステップでしきい値を越える。
         Machine.Update(0.04f,Standing,Pose);
         Assert.Equal(LocomotionState.Locomotion,Machine.State);
         var Again=LocomotionGraphTests.Machine(TwoJoints());
         Run(Again,Pose,0.3f,Dropping);
         Run(Again,Pose,0.04f,Standing);
         Assert.Equal(LocomotionState.Land,Again.State);
-        // Pushing while landing leaves Land at once, with the 0.5 s fade.
+        // 着地中に押されると、0.5秒のフェードで直ちにLand状態を離れる。
         Again.Update(0.02f,Moving(3f),Pose);
         Assert.Equal(LocomotionState.Locomotion,Again.State);
         Assert.InRange(ChildX(Pose),1f,LandMarker-1f);
@@ -275,7 +275,7 @@ public sealed class LocomotionGraphTests {
         Machine.Update(0.05f,Rising,Pose);
         var Before=ChildX(Pose);
         Assert.InRange(Before,200f,300f);
-        // Touching down at once: the Land fade starts from the half-faded jump pose, not from Idle or from Jump.
+        // すぐに着地した場合、LandへのフェードはIdleやJumpからではなく、半分まで進んだJump姿勢から開始する。
         Machine.Update(0.02f,Standing,Pose);
         Assert.Equal(LocomotionState.Land,Machine.State);
         var Weight=PoseFade.Cubic(0.02f/LocomotionStateMachine.ToLandBlendSeconds);
@@ -310,7 +310,7 @@ public sealed class LocomotionGraphTests {
     }
     [Fact]
     public void TheBlendSpacePhaseRunsAtTheWeightedLengthOfItsClips(){
-        // The real Mannequin's backward walk is 2.13 s long and its forward walk 1.5 s: one normalized phase must still advance at the rate of what is mixed.
+        // 実際のマネキンでは後退歩行が2.13秒、前進歩行が1.5秒。ブレンド中の動きに合わせ、共有正規化位相の進み方も変える必要がある。
         var Skeleton=TwoJoints();
         var Walk=Enumerable.Range(0,LocomotionDirection.Count).Select(Direction=>Marker(Skeleton,WalkMarker+Direction,Direction==LocomotionDirection.Backward?2f:1f)).ToArray();
         var Jog=Enumerable.Range(0,LocomotionDirection.Count).Select(Direction=>Marker(Skeleton,JogMarker+Direction,1f)).ToArray();
@@ -325,7 +325,7 @@ public sealed class LocomotionGraphTests {
         Start=Backward.BlendPhase;
         Run(Backward,Pose,0.5f,Moving(3f,180f),Step:0.01f);
         Assert.Equal(0.5f,(Backward.BlendPhase-Start+1f)%1f,2);
-        // With the 2 s backward clip the same half second is a quarter of its phase.
+        // 後退クリップを2秒にすると、同じ0.5秒が位相の4分の1に当たる。
         var Slow=new LocomotionStateMachine(Skeleton,new LocomotionClips(Marker(Skeleton,IdleMarker,2f),Walk,Jog,Marker(Skeleton,JumpMarker,0.5f),Marker(Skeleton,FallMarker,1f),Marker(Skeleton,LandMarker,0.5f)),3f,6f);
         Slow.Update(0.01f,Moving(3f,180f),Pose);
         Start=Slow.BlendPhase;
@@ -337,7 +337,7 @@ public sealed class LocomotionGraphTests {
         var Mixer=new PoseMixer(1);
         var Turn=Quaternion.CreateFromAxisAngle(Vector3.UnitY,0.4f);
         var A=new[] { new JointPose { Translation=new Vector3(2f,0f,0f),Rotation=Turn,Scale=Vector3.One } };
-        // The same rotation written as its negation is the same orientation; averaging must not cancel it.
+        // 同じ回転を符号反転して表しても向きは同じ。平均時に打ち消し合ってはならない。
         var B=new[] { new JointPose { Translation=new Vector3(4f,0f,0f),Rotation=Quaternion.Negate(Turn),Scale=new Vector3(3f) } };
         Mixer.Begin();
         Mixer.Add(A,1f);
@@ -367,7 +367,7 @@ public sealed class LocomotionGraphTests {
         Fade.Apply(0.15f,Rest,Output);
         Assert.Equal(5f,Output[0].Translation.X,3);
         Assert.Equal(0.5f,Fade.Weight,4);
-        // Restarted mid-fade: the new fade begins at 5, the pose that was on screen.
+        // フェードの途中で再開する場合も、新しいフェードは画面に表示されていた姿勢（5）から開始する。
         Fade.Start(0.3f);
         Fade.Apply(0.0f,Target,Output);
         Assert.Equal(5f,Output[0].Translation.X,3);

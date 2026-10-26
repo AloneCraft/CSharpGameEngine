@@ -36,8 +36,8 @@ public sealed class SolutionProjectRegistrationSpec {
     }
     [Fact]
     public void SharedProjectsCarryNoSolutionConfigurationMapping(){
-        // A shproj has no build configurations; mapping one makes Visual Studio report
-        // "specifies a project configuration ... that does not exist" when the solution opens.
+        // shproj にはビルド構成がない。構成を割り当てると、Visual Studio が
+        // ソリューションを開くときに「存在しないプロジェクト構成を指定している」と報告する。
         var Document=XDocument.Load(SolutionPath);
         var Mapped=Document.Descendants("Project").Where(Element=>Element.Attribute("Path")?.Value.EndsWith(".shproj",StringComparison.OrdinalIgnoreCase)==true).Where(Element=>Element.Elements().Any(Child=>Child.Name.LocalName is "Platform" or "BuildType" or "Build" or "Deploy")).Select(Element=>Element.Attribute("Path")!.Value).ToArray();
         Assert.Empty(Mapped);

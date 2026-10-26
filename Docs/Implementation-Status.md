@@ -3851,7 +3851,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
 - Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-007, F-L0-008
-- Implementation evidence: `src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`, `src/CSharpGameEngine.Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
+- Implementation evidence: `src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`, `src/CSharpGameEngine.Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v16`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
 - Current delta: reflection probes are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated. Volumetric clouds, the sky sphere and texture mipmaps were added by M0110 (F-L4-016, F-L4-017); the DDGI probes become M0111's fallback tier (ADR-0069 追記).
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 - Next action: done by M0111 (F-L4-019, Lumen-like GI and reflections); the DDGI probe volume of this item is now the Medium-and-below fallback tier.
@@ -4754,7 +4754,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L7 — Static Compiler / Bake（生成器と取り込み）、L5（プラグインの Runtime）、L8（パレットとスキーマ）
 - Parent capability: ECS Source Generator / SDK package
-- Status: Implemented（データアセットの Designer での編集は未実装。Cook のビルド中の実行と VSIX のボタンは M0106 で実装、F-L5-042）
+- Status: Implemented（データアセットの Inspector 編集と一覧は F-L8-035 の部分実装。Cook のビルド中の実行と VSIX のボタンは M0106 で実装、F-L5-042）
 - Verification: TestVerified + 実走（`verify-plugin-package`、`verify-template-package --template Vehicle`、WARP）
 - Intended specification: `Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Milestones/M0103-Plugins-And-Assets.md`
 - Implementation evidence:
@@ -4767,7 +4767,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`（129/200/512）、`GameSystemGeneratorDiagnosticsTests`（名前の重なり）、`SceneFilesTests`、`SceneComponentCatalogTests`、`GameProjectGeneratorTests`、`CookerHostTests`、`PluginPackageVerificationTests`
 - Current delta: 3 つの置き場所のプラグイン、`[EngineService]`、`[DataAsset]`、Library の DLL、Cook の CLI、Component の上限 512、エンジンのプラグイン Vehicles、`#`・`;` を含むフォルダのゲーム。
 - Conformance: Matches（Cook と Designer の残りは文書化した未実装）
-- Next action: データアセットの Designer での編集、プラグインの一覧の表示。Cook の実際の利用(ビルド中の自動実行と VSIX のボタン)は M0106 で実装した(F-L5-042)。
+- Next action: データアセット編集・一覧の実機確認と残る統合は F-L8-035 / M0123。Cook の実際の利用(ビルド中の自動実行と VSIX のボタン)は M0106 で実装した(F-L5-042)。
 
 ## F-L5-040 — 画面 UI(文字と画像の重ね描き)
 
@@ -4951,16 +4951,16 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L4-019 — Lumen 相当の動的 GI と反射(サーフェスキャッシュ、最終収集、反射)
 
-- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v14`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
+- Layer: L0 — 描画(`StageLumen`、`LumenSurfaceCacheLayout`、`StageRenderer.Lumen`、`Lumen.hlsl`、Stage の `stage-v16`)、L5 — `Runtime.Lighting`(`PostProcessVolume` の Lumen の欄)・`Runtime.Windows`(`EnvironmentCollection.ToLumenSettings`、`EngineHost`)、L7 — 取り込み(`probe_lumen.py`)
 - Parent capability: Rendering Roadmap / Lumen 相当(ADR-0078 §5)
 - Status: Implemented(実機の GPU は未確認。Epic 段は WARP で不安定)
 - Verification: TestVerified + RuntimeVerified(WARP)
-- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v14`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`(Lumen の行)、`Docs/Specifications/Shader-Graph.md`(`stage-v16`)、`Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md` §5、`Docs/Milestones/M0111-Lumen-Dynamic-GI-And-Reflections.md`
 - Stage: `rendering.environment-lighting`(Lumen の試験を足した)
 - Depends on: F-L4-018、F-L4-014
 - Implementation evidence:
   - `assets/Shaders/Lumen.hlsl`、`src/CSharpGameEngine.Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/CSharpGameEngine.Rendering/Server/RenderServer.cs`
-  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v14`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
+  - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/CSharpGameEngine.ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v16`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`、`src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
 - Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。stage-v14(14 エントリー・960 バイト。通信と行列/サムネイルはネイティブ深度。旧Model/Triangleも削除済み。最終統合検証は継続中)。
@@ -5016,10 +5016,65 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: MatchesWithDocumentedExtension(M0113 と M0124 の「範囲外」の表)
 - Next action: 実機の GPU での見本。
 
+## F-L4-020 — Virtual directional shadows
+
+- Layer: L4 — Domain Servers (Rendering policy), L0 — D3D12 execution, L5 — environment component, L9 — comparison scene
+- Parent capability: Directional shadow rendering
+- Depends on: F-L4-014
+- Status: Implemented
+- Verification: TestVerified (CPU planning and WARP Standard/Radial shadows and geometric normals); RuntimeVerified (hardware comparison and TopDown before/after)
+- Intended specification: `Docs/Specifications/Rendering.md#virtual-directional-shadows`, `Docs/Decisions/ADR-0082-Virtual-Directional-Shadows.md`
+- Stage: `rendering.virtual-shadows` (Visual / Rendering)
+- Implementation evidence: `src/CSharpGameEngine.Rendering/VirtualDirectionalShadows.cs`, `src/CSharpGameEngine.Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
+- Tests: `VirtualDirectionalShadowTests`, `VirtualShadowGpuTests`
+- Reverse-engineered behavior: Four 4096-texel clipmaps map world-grid 128-texel pages to a 4096-square D32 atlas. Conservative bounds drive requests and invalidation. Missing pages sample cascades. The hardware comparison rendered 524 resident pages, reused 521, redrew 3 for the moving caster, with zero missing requests and D3D12 errors.
+- Conformance: MatchesWithDocumentedExtension. CPU and WARP oracles, recovery, Debug/Release regression and matched hardware/WARP captures are recorded in M0115.
+- Known deviations: CPU requests rather than GPU feedback; virtual mode includes the cost of fallback cascades. The comparison demonstration uses directional/ambient light and fixed exposure; screen-space lighting and camera thumbnails are not supported in comparison mode.
+- Next action: GPU feedback and removal of unconditional fallback-cascade cost are future optimizations, outside M0115.
+
+### F-L4-020 extension — directional PCSS (M0125)
+- Status: Implemented; Verification: TestVerified / RuntimeVerified. Conformance: MatchesWithDocumentedExtension (bounded PCSS). Debug 39 related regressions + final 23, Release 40; CPU 21 and ShaderGraph 14 in both configurations; RTX 4060 Ti captures and live comparison. Exact evidence: M0125.
+- Intended specification: Rendering.md, ADR-0083. CSM and Virtual share angular-diameter/distance-based penumbra, disk samples, bilinear comparison and world-space bias. Opt-in policy preserves legacy scenes. Page requests cover the maximum soft filter radius. Stage ABI is stage-v15.
+- Evidence: `tools/ShaderGraphMaintenance/edits/directional_soft_shadows_2026_10_26.py`, `VirtualDirectionalShadowTests`, `VirtualShadowGpuTests.SolarDiameterAndBlockerSeparationWidenPenumbra`, `EnvironmentComponentTests.DirectionalSoftShadows_RoundTripAndReachTheEnvironmentFrame`.
+- Known deviation: bounded-radius PCSS is approximate; shadow raster timestamps do not include PCSS pixel cost. Comparison starts at a shared 2-degree sun and exposes S/4/5 controls.
+
+
+## F-L8-035 — Solution Explorer linked asset workspace
+
+- Layer: L8 — Visual Studio Authoring Environment; Content/L7 — inventory, metadata and physical mutations; L2 — Contracts DTOs
+- Parent capability: Asset authoring (ADR-0081 / M0123)
+- Depends on: F-L8-019, F-L8-024, F-L8-025
+- Stage: `vsix.asset-workspace` (contract tests only; actual shell acceptance remains outstanding)
+- Status: PartiallyImplemented
+- Verification: TestVerified for inventory, metadata migration, physical mutation/undo/recovery, shared catalog names, semantic reference planning and typed data edits. Actual Japanese/dark create, Inspector edit, native text Undo/Redo/Save, reviewed delete and Output tab grouping were exercised in the dedicated Experimental Instance; the full native gesture matrix remains Unverified.
+- Intended specification: `Docs/Specifications/Asset-Workspace.md`
+- Implementation evidence: `AssetWorkspaceContracts.cs`, `AssetFileMutationContracts.cs`, `AssetWorkspaceService.cs`, `AssetFileMutationService.cs`, `AssetCatalogLayout.cs`; VSIX `AssetsToolWindowControl`, `AssetWorkspaceController`, `AssetSolutionExplorerFilter`, `AssetInspectorControl`, `AssetReferencePlanner`, `AssetFileTransaction`, `AssetProjectMutationGuard`, `AssetPlacement`.
+- Icon presentation: Shared L8 AssetWorkspaceIcons and CrispImage use ImageGroup for the window/commands/filter entry, type icons, thumbnail fallback/markers and independent lock/diagnostic badges. AssetWorkspaceIconTests covers mapping, normal-state suppression and read-only/error coexistence; M0123 records real-shell verification.
+- Tests: `Content.Tests/AssetWorkspaceTests.cs`, `AssetFileMutationTests.cs`; `VSExtension.Tests/AssetWorkspaceTests.cs`; generator regression suite. Exact configuration results are in M0123.
+- Reverse-engineered behavior: `RE-L8-035` in `Docs/Reverse-Engineered-Spec.md`.
+- Conformance: Partial. The accepted target has not been reduced.
+- Known deviations: M0126 adds image/FBX interpretation, reimport and output/subasset summaries. Complete M0114 orchestration/artifact-only runtime integration and extended image format previews remain incomplete; explicit project-item refactoring, directory organize and dependency bundle relocation fail safely. Existing Output group height is preserved; the 280 DIP target is unmet. CPS can retain deleted evaluated items as MissingSource. Native linked multi-document/file Undo, shell filtering/standard rename, floating/restore/focus, themes, DPI and drag require the remaining actual VS matrix.
+- Next action: Finish those cases, connect M0114 canonical services and SDK/VSIX distribution, then complete the full acceptance matrix in M0123.
+
+## F-L8-036 — Asset editor windows and preview level templates
+
+- Layer: L8 — Visual Studio Authoring Environment; Contracts/L2 — preview host protocol 10, lighting and skeletal wire; EditorPreview.Host — lighting application, skinned glTF loading and pose evaluation (ADR-0090)
+- Parent capability: Asset authoring (ADR-0081 / ADR-0089 / M0127)
+- Depends on: F-L8-035
+- Stage: `vsix.asset-editors`（単体テスト・WARP 描画テストと専用ハイブの実機確認。高コントラスト・DPI の組み合わせは未確認）
+- Status: PartiallyImplemented
+- Verification: TestVerified for the registry/open-location policy/floating placement policy, camera, image/waveform models, preview level template/store/resolver/composer, protocol 10 validation and WARP lighting renders. Live in the dedicated Experimental Instance (CgeAssets hive, Japanese, dark): floating front-most open, default placement painting fully, restore keeping the saved geometry, and Default/Studio/Outdoor/Neutral rendering and switching. Skeletal viewer live in the same hive: the 89-joint mannequin tree, the bind pose, bones drawn in the viewport, the animation-only `MM_Idle.glb` choosing the mannequin as its preview mesh and playing its clip (time advancing and looping). Real orbit/pan gestures, scrubbing and joint selection by mouse, the Texture/Sound/Font/Data editors, high contrast and DPI are Unverified live.
+- Intended specification: `Docs/Specifications/Asset-Editors.md`, `Docs/Decisions/ADR-0089-Asset-Editor-Windows.md`
+- Implementation evidence: VSIX `AssetEditors/` (`AssetEditorRegistry`, `AssetEditorFactory`, `AssetEditorPanes`, `AssetEditorShell`, `AssetEditorFramePlacement`, `AssetEditorFrameFloater`, `AssetEditorOpenLocationPolicy`, `AssetViewportHost`, `AssetViewportCamera`, the five content classes, `PreviewLevels/*`); `RenderPreviewLightingContracts.cs`, `RenderPreviewHostContracts.cs` (v10); `RenderPreviewLightingApplier.cs`; `EnvironmentLightingSettings.Background`; skeletal: `RenderPreviewSkeletalContracts.cs`, host `RenderPreviewSkeletalAsset.cs`, `StageGltfAssets.cs` (extracted from `StageSceneDataBuilder`), VSIX `SkeletalEditorPanel`, `GltfSkeletalProbe`, `AssetAnimationTimeline`.
+- Tests: `VSExtension.Tests/AssetEditorFoundationTests.cs`, `AssetEditorModelTests.cs`, `PreviewLevelTests.cs`, `PreviewLevelStoreTests.cs`, `AssetSkeletalModelTests.cs`, `PackagedRenderPreviewHostTests.cs`; `Windows.Tests/Runtime/RenderPreviewLightingSessionTests.cs`, `RenderPreviewSkeletalSessionTests.cs`; `Contracts.Tests/RenderPreviewLightingProtocolTests.cs`, `RenderPreviewSkeletalProtocolTests.cs`; Bridge/Cook additions. Exact results are in M0127.
+- Reverse-engineered behavior: `RE-L8-036` in `Docs/Reverse-Engineered-Spec.md`.
+- Conformance: Partial. The accepted target has not been reduced.
+- Known deviations: skinned glTF is previewed with one clip at a time (no blend spaces, IK or state machines) and only a single skin is supported; static-mesh glTF textures and PBR maps are not drawn in the preview (protocol carries base colour, roughness and metallic only); FBX is untextured and not skeletal. The Default template keeps the previous fixed +Y directional light, which lights undersides. Scene JSON levels cannot be templates (ADR-0089 section 4).
+- Next action: Run the remaining live gestures (orbit, scrubbing, joint selection) and the DPI/high-contrast matrix; optionally draw static-mesh glTF textures through the same host loading.
 
 ## F-L0-011 — D3D12 の描画計画の実行器(L4 のフレーム計画を D3D12 で実行する)
 
-- Layer: L0 — D3D12 の実行だけ(`StageRenderer` が `IStageRenderBackend` を実装、`D3D12RenderServer`)。計画・光源・深度の方針は L4/L5(F-L4-020)
+- Layer: L0 — D3D12 の実行だけ(`StageRenderer` が `IStageRenderBackend` を実装、`D3D12RenderServer`)。計画・光源・深度の方針は L4/L5(F-L4-022)
 - Parent capability: Rendering Roadmap / 描画パスと層の配置(ADR-0085・ADR-0087)
 - Status: Specified
 - Verification: Unverified
@@ -5032,7 +5087,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Unknown
 - Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
 
-## F-L4-020 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)
+## F-L4-022 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)
 
 - Layer: L4 — `src/CSharpGameEngine.Rendering`(`Pipeline/`、`Server/`)、L5 — カメラと深度の方針(`View/`)、L6 — Stage の ABI(`stage-v15`・`stage-v16`)
 - Parent capability: Rendering Roadmap / 描画パス(ADR-0085)
@@ -5076,3 +5131,18 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: ソルバーは Q64.64 だが、GJK が約 1.4 km、広域判定が約 1.2e9 m、絶対座標の静的メッシュが約 3e9 m で桁あふれする。`Step` の桁あふれは生成ゲームループを止める。進むドメインは 1 つ。float の入口(シーン JSON、`MathF`、Picking)が残る。
 - Conformance: Unknown
 - Next action: M0112 のコミット後に M0122。[M0122](Milestones/M0122-Full-Scale-Physics.md)
+
+
+## F-L7-058 — Explicit image outputs and composite FBX interpretation
+
+- Layer: L2 settings/identity, L6 artifacts/metadata, L7 import, L8 frontend.
+- Parent capability: Asset Content Pipeline; related F-L8-035 and M0114.
+- Status: PartiallyImplemented
+- Verification: TestVerified for standalone import/contracts; native shell interactions remain Unverified.
+- Intended specification: `Docs/Specifications/Image-And-Model-Interpretation.md`, ADR-0088.
+- Implementation evidence: `Contracts/ImageImportSettings.cs`, `Contracts/ModelImportSettings.cs`, `Content/ImageArtifactCodec.cs`, `Import/Images/ImageOutputCompiler.cs`, `Import/Fbx/FbxCompositeImporter.cs`, `Import/Fbx/FbxModelCompiler.cs`, VSIX `AssetImageInspector.cs` / `AssetModelInspector.cs` / `ImageReferenceMigration.cs`.
+- Tests: Import `ImageOutputTests` / `FbxCompositeTests`; Content `AssetFileMutationTests`; CodeAnalysis `AssetCatalogTests`; VSIX `AssetWorkspaceTests` and icon/type tests. Exact commands/results are recorded in M0126.
+- Reverse-engineered behavior: full-filename canonical sidecars select stable per-kind/per-key outputs; source/metadata snapshots guard publishing; raw Image bytes and processed Texture mips are separate; FBX emits shared rigs and Take clips with optional frame ranges. No discovery/build sidecar writer is introduced.
+- Conformance: Partial. Standalone and frontend contract tests pass; real shell acceptance and complete M0114 integration remain.
+- Known deviations: real skinned/multi-Take FBX fixtures and linked native multi-document/file Undo remain runtime gates; advanced Humanoid/retarget/root-motion/collision/extraction processors are explicitly unsupported. Global M0114 artifact-only runtime migration remains separate.
+- Next action: Real shell acceptance, real rigged/multi-Take FBX fixtures and complete M0114 artifact/catalog integration.

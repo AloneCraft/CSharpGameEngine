@@ -3,23 +3,22 @@ using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// The C# scene class equivalent to a scene JSON document (ADR-0070). The Scene Designer adds
-/// it to its analysis compilation, with the JSON file as its path, so the existing Scene DSL analyzer
-/// yields the same <see cref="SceneModel"/> (types, member symbols, constant values) for the
-/// Hierarchy, Inspector and Scene view as a C# scene class would. It is never written to disk.
+/// Scene JSON ドキュメントと等価な C# Scene クラス（ADR-0070）。Scene Designer は JSON ファイルのパスを与えて解析用コンパイルに加えるため、既存の
+/// Scene DSL アナライザーから、C# Scene クラスと同じ <see cref="SceneModel"/>（型、メンバーシンボル、定数値）を Hierarchy、Inspector、
+/// Scene ビューに提供できる。ディスクには書き込まない。
 /// </summary>
 internal static class SceneJsonDesignerSource {
     private const string NodeType="global::CSharpGameEngine.Entities.Node";
     private const string SceneInterface="global::CSharpGameEngine.Entities.IScene";
     private const string StartupSceneAttribute="global::CSharpGameEngine.Entities.StartupScene";
-    /// <summary><c>null</c> when the document has problems or no root.</summary>
+    /// <summary>ドキュメントに問題があるかルートがない場合は <c>null</c>。</summary>
     internal static string?Build(SceneJsonScene Scene){
         if(Scene.HasErrors||Scene.Root is null){ return null; }
         var Builder=new StringBuilder();
         Builder.Append("// Scene Designer view of a scene JSON document (ADR-0070).\n");
         if(Scene.Namespace is not null){ Builder.Append("namespace ").Append(Scene.Namespace).Append(";\n"); }
-        // A startup scene reads as one, as its C# class did; otherwise a designer edit writes the document without
-        // its startupOrder and the game stops loading the scene.
+        // 起動 Scene は C# クラスと同様に1として読み込む。それ以外の場合、Designer での編集は起動順を
+        // 含めずにドキュメントを書き込むと、ゲームが Scene の読み込みを停止する。
         if(Scene.StartupOrder is { }Order){
             Builder.Append('[').Append(StartupSceneAttribute).Append("(Order = ").Append(Order.ToString(CultureInfo.InvariantCulture)).Append(")]\n");
         }

@@ -12,10 +12,9 @@ using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>
-/// Exercises the real Windows + D3D12 multi-object stage renderer end to end (ground plane +
-/// box "character" placeholder, movable camera, double-buffered per-frame/per-object constant
-/// buffers). Runs against the WARP software adapter so it is deterministic in CI without
-/// requiring a physical GPU (same rationale as <see cref="ModelGpuIntegrationTests"/>).
+/// WindowsとD3D12による実際の複数オブジェクトStageレンダラーを端から端まで実行する（地面＋「キャラクター」代用のボックス、
+/// 移動可能なカメラ、フレーム／オブジェクトごとの定数バッファを二重化）。物理GPUなしでCIでも決定的に実行できるよう、
+/// WARPソフトウェアアダプターを使う（<see cref="ModelGpuIntegrationTests"/>と同じ理由）。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public class StageGpuIntegrationTests {
@@ -78,21 +77,17 @@ public class StageGpuIntegrationTests {
     }
 
     /// <summary>
-    /// Regression test for a real bug: FrameCB's per-frame-slot stride (ConstantAlignment=512) was
-    /// smaller than its declared HLSL size (FrameConstantsSize=560, after ShadowViewProjection was
-    /// added), so WriteShadowViewProjection corrupted the *other* frame-in-flight slot's
-    /// ViewProjection matrix every time SetDirectionalLight ran. Combined with SetCamera being
-    /// called only once instead of every frame (a second bug - one of the two double-buffered slots
-    /// never got the real camera at all), every other frame rendered from a corrupted/stale
-    /// view-projection matrix - a scrambled ("garbled") image alternating with a correct one.
+    /// 実際の不具合に対する回帰テスト：FrameCBのフレームスロットごとのstride（ConstantAlignment=512）が、
+    /// 宣言されたHLSLサイズ（FrameConstantsSize=560、ShadowViewProjection追加後）より小さかった。
+    /// そのためSetDirectionalLightのたびにWriteShadowViewProjectionが別の処理中スロットのViewProjection行列を破壊していた。
+    /// さらにSetCameraを毎フレームではなく一度しか呼んでいなかった（別の不具合）。二重化された2スロットのうち一方には、実際のカメラが一度も設定されなかった。
+    /// その結果、1フレームおきに破損／古いビュー投影行列で描画し、正しい画像と乱れた画像が交互に表示された。
     ///
-    /// The 4 tests above never call Set*/Add* between consecutive RenderFrame calls the way real
-    /// per-frame ECS systems do, and always capture on a call count that happens to land back on
-    /// the directly-written slot - so they cannot see either bug. This test reproduces the actual
-    /// usage pattern (Set every frame, capture both FrameIndex 0 and 1) and pins the general
-    /// invariant that must hold for it: with an unchanging scene, both frame-in-flight slots must
-    /// render pixel-identical images. This is layout-agnostic - it does not hardcode any specific
-    /// pixel position - so it stays valid if FrameCB grows again in the future.
+    /// 上の4つのテストは、実際のフレームごとのECSシステムのように、RenderFrame連続呼び出しの間でSet*/Add*を呼ばない。
+    /// また、書き込み先のスロットに戻る呼び出し回数で常にキャプチャするため、どちらの不具合も検出できない。
+    /// このテストでは実際の使用パターン（毎フレームSetを呼び、FrameIndex 0と1の両方をキャプチャ）を再現し、
+    /// シーンが変わらなければ両スロットから同一ピクセルの画像を描画するという一般的な不変条件を固定する。
+    /// 特定のピクセル位置を固定しない、レイアウト非依存のテストなので、今後FrameCBが拡張されても有効である。
     /// </summary>
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -101,10 +96,8 @@ public class StageGpuIntegrationTests {
     }
 
     /// <summary>
-    /// Behavioral check that the shadow map reflects the light's viewpoint (not the camera's): a
-    /// small blocker sits directly between the directional light and the ground plane, and the
-    /// pixel underneath it must be darker than a pixel elsewhere on the plane that the blocker does
-    /// not occlude.
+    /// シャドウマップがカメラではなくライトの視点を反映することを確認する振る舞いテスト。
+    /// ディレクショナルライトと地面の間に小さな遮蔽物を置き、その真下のピクセルが、遮蔽されていない別の地点より暗くなることを検証する。
     /// </summary>
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -251,7 +244,7 @@ public class StageGpuIntegrationTests {
                                                 ]);
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
-        // Red, blue and the normal map once each, and the shared white once per colour space (M0110: base colour averages its mips in sRGB, metallic-roughness linearly).
+        // 赤、青、法線マップをそれぞれ一度と、色空間ごとの共有白テクスチャ（M0110：ベースカラーのミップ平均はsRGB、metallic-roughnessはリニア）。
         Assert.Equal(5,Renderer.ResidentMaterialTextureCount);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
@@ -458,8 +451,8 @@ public class StageGpuIntegrationTests {
                 Renderer.SetAmbientLight(Vector3.Zero);
                 Renderer.SetObjectTransform(0,Matrix4x4.Identity);
                 for(var LightIndex=0;LightIndex<Count;LightIndex++){
-                    // Physical API takes light travel direction, so -Y maps to the renderer's
-                    // legacy surface-to-light +Y input and illuminates this horizontal plane.
+                    // 物理APIが受け取るのは光の伝播方向。そのため-Yはレンダラーの
+                    // 従来の面から光源方向である+Yとなり、この水平面を照らす。
                     Renderer.AddDirectionalLight(
                         -Vector3.UnitY,Vector3.One,IlluminanceLux:0.4f,
                         CastsShadows:false,ShadowPriority:LightIndex,ShadowBiasMeters:0f);
@@ -478,7 +471,7 @@ public class StageGpuIntegrationTests {
                     Renderer.AddDirectionalLight(
                         -Vector3.UnitY,Vector3.One,IlluminanceLux:Luxes[LightIndex],
                         CastsShadows:false,
-                        // Direct selection must ignore this deliberately adverse shadow priority.
+                        // 直接照明の選択では、意図的に不利なこのシャドウ優先度を無視する。
                         ShadowPriority:LightIndex==Luxes.Count-1?-100:100,
                         ShadowBiasMeters:0f);
                 }
@@ -493,8 +486,8 @@ public class StageGpuIntegrationTests {
                 Renderer.SetCamera(Camera);
                 Renderer.SetAmbientLight(Vector3.Zero);
                 Renderer.SetObjectTransform(0,Matrix4x4.Identity);
-                // Legacy setter is persistent on its own, but when Add follows in the same
-                // frame it contributes as stable submission zero to that frame's additive list.
+                // 従来のsetter単独では値を保持する。一方、同じ
+                // フレーム内でAddを呼ぶと、安定した送信順0番目として、そのフレームの加算リストへ入る。
                 Renderer.SetDirectionalLight(
                     Vector3.UnitY,Vector3.One,0.4f,CastsShadows:false,
                     ShadowBiasMeters:0f,ShadowPriority:100);
@@ -562,9 +555,9 @@ public class StageGpuIntegrationTests {
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         var LightDirection=Vector3.Normalize(new Vector3(0.3f,0.8f,0.4f));
 
-        // RuntimeSystem.cs's LevelLoad/DirectionalLight systems push this exact set every real
-        // frame - the pattern the 4 tests above never reproduce, which is why none of them could
-        // see the FrameCB slot-corruption/stale-camera bugs this test guards against.
+        // RuntimeSystem.csのLevelLoad／DirectionalLightシステムは、実運用でも各
+        // フレームにこの一式を送る。上の4つのテストでは再現されず、そのためFrameCBスロットの破損や
+        // 古いカメラの不具合を検出できなかった使用パターン。
         void PushPerFrameState(){
             Renderer.SetCamera(Camera);
             Renderer.SetAmbientLight(new Vector3(0.25f,0.25f,0.25f));
@@ -572,8 +565,8 @@ public class StageGpuIntegrationTests {
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);
         }
 
-        // FrameCount=2: consecutive RenderFrame calls alternate FrameIndex, so two captures in a
-        // row exercise both double-buffered slots.
+        // FrameCount=2。RenderFrameの連続呼び出しごとにFrameIndexが交互に変わるため、2回連続でキャプチャすると
+        // 二重化された両スロットを検証できる。
         PushPerFrameState();
         Renderer.RenderFrame(CaptureForVerification:true);
         var FirstSlotFrame=Renderer.LastCapturedFrame!;
@@ -639,17 +632,17 @@ public class StageGpuIntegrationTests {
                                                 Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [GroundMesh,BlockerMesh],[Material],
                                                 [
-                                                    new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }, // ground, object 0
-                                                    new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }, // blocker, object 1
+                                                    new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }, // 地面、オブジェクト0
+                                                    new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }, // 遮蔽物、オブジェクト1
                                                 ]);
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
-        // Nearly-top-down orbit camera targeting the world origin; the center pixel is the ground at
-        // the origin. The light arrives at an angle and the blocker hangs beside the origin, so its
-        // shadow lands on that visible ground point instead of the blocker hiding it from the camera
-        // (an earlier revision sampled the blocker's own top face, which only looked "shadowed"
-        // while the shadow camera sat below the scene).
+        // ワールド原点を狙う、ほぼ真上からのオービットカメラ。中央ピクセルには原点の地面が映る。
+        // 光は斜めから届き、遮蔽物は原点の脇に吊るす。影はカメラから遮蔽されず、見えている地面に
+        // 落ちる（以前の版では遮蔽物の上面をサンプリングしていた。シーンの下にあったシャドウカメラから見た場合にだけ
+        // 「影がある」ように見えていた）。
+        //（直前の行コメントと結合して読む）。
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Camera.Pitch=-89f*MathF.PI/180f;
         Camera.Distance=20f;
@@ -657,7 +650,7 @@ public class StageGpuIntegrationTests {
 
         var LightDirection=Vector3.Normalize(new Vector3(0.6f,1f,0f));
         Vector3 FarAway=new(500f,500f,500f);
-        // Toward-light (0.6,1,0): a point at height 4 shadows the ground 2.4 m back along -X.
+        // 光源方向は(0.6,1,0)。高さ4の点から、地面上で-X方向へ2.4 m離れた位置に影ができる。
         Vector3 AboveOrigin=new(2.4f,4f,0f);
 
         PixelColor RenderCenterWithBlockerAt(Vector3 BlockerPosition){
@@ -730,8 +723,8 @@ public class StageGpuIntegrationTests {
             ]);
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
-        // Aim at the off-axis projected shadow, not the blocker itself, so the capture sees the
-        // ground receiver rather than the blocker's lit top face.
+        // 遮蔽物自体ではなく、軸外に投影される影を狙う。そうすればキャプチャに映るのは
+        // 明るい遮蔽物上面ではなく、地面の受光面。
         Vector3 ShadowReceiver=new(-4f,0f,-4f);
         Camera Camera=Camera.CreateDefault(ShadowReceiver);
         Camera.Pitch=-89f*MathF.PI/180f;
@@ -744,8 +737,8 @@ public class StageGpuIntegrationTests {
             for(var I=0;I<3;I++){
                 Renderer.SetCamera(Camera);
                 Renderer.SetAmbientLight(new Vector3(0.03f,0.03f,0.03f));
-                // This zero-intensity caster intentionally reserves the plan's directional tile 0,
-                // so the physical Spot must use the plan-selected tile 1 rather than a hard-coded UV.
+                // この強度0のキャスターは、計画上のDirectionalタイル0を意図的に予約する。
+                // そのため物理Spotライトは固定UVではなく、計画が選んだタイル1を使う必要がある。
                 Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.Zero,0f,CastsShadows:true,ShadowBiasMeters:0.001f);
                 Renderer.AddSpotLight(
                     Position:new Vector3(4f,8f,4f),LightForward:Vector3.Normalize(new Vector3(-4f,-8f,-4f)),LinearRgb:Vector3.One,
@@ -814,10 +807,10 @@ public class StageGpuIntegrationTests {
             ]);
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
-        // The light-to-receiver segment passes through BlockerPosition. This receiver lies on the
-        // Point's -X major axis (cube face 1). Reserving directional tile 0 means the Point's
-        // six-face allocation starts at tile 1, and the face-1 sample must therefore use the
-        // plan's tile 2 rather than a fixed tile or face-0 projection.
+        // ライトから受光点までの線分はBlockerPositionを通る。この受光点は
+        // Pointライトの-X主軸（キューブ面1）上にある。Directionalタイル0を予約すると、Pointライトの
+        // 6面割り当てはタイル1から始まるため、面1のサンプルには
+        // 固定タイルや面0の投影ではなく、計画のタイル2を使う必要がある。
         Vector3 ShadowReceiver=new(-6f,0f,-3f);
         Camera Camera=Camera.CreateDefault(ShadowReceiver);
         Camera.Pitch=-89f*MathF.PI/180f;
@@ -830,8 +823,8 @@ public class StageGpuIntegrationTests {
             for(var I=0;I<3;I++){
                 Renderer.SetCamera(Camera);
                 Renderer.SetAmbientLight(new Vector3(0.03f,0.03f,0.03f));
-                // Reserve the directional tile so the test proves PhysicalShadowAtlasPlan's
-                // Point allocation and UV metadata are honored rather than hard-coded.
+                // PhysicalShadowAtlasPlanによる
+                // Point割り当てとUVメタデータが固定値ではなく尊重されることを検証するため、Directionalタイルを予約する。
                 Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.Zero,0f,CastsShadows:true,ShadowBiasMeters:0.001f);
                 Renderer.AddPointLight(
                     Position:new Vector3(6f,6f,3f),LinearRgb:Vector3.One,
@@ -894,9 +887,9 @@ public class StageGpuIntegrationTests {
                 Renderer.SetCamera(Camera);
                 Renderer.SetAmbientLight(Vector3.Zero);
                 Renderer.SetObjectTransform(0,Matrix4x4.Identity);
-                // The first caster owns the Point budget through ShadowPriority but has zero
-                // radiance. The second caster must retain direct illumination even though it has
-                // no six-face allocation and therefore receives metadata index -1 in the shader.
+                // 1つ目のキャスターはShadowPriorityでPoint予算を使うが、放射輝度は0。
+                // 2つ目のキャスターには6面の割り当てがなく、シェーダーのメタデータインデックスは-1になるが、
+                // 直接照明は引き続き受けなければならない。
                 Renderer.AddPointLight(
                     Position:new Vector3(6f,6f,3f),LinearRgb:Vector3.Zero,
                     LuminousFluxLumens:0f,RangeMeters:30f,

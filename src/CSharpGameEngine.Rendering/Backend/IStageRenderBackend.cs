@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Backend;
-/// <summary>Current Stage submission boundary. Explicit frame-plan execution replaces ordered native frame recording in the next extraction.</summary>
+/// <summary>現在の Stage 送信境界。次の抽出段階では、順序付きネイティブフレーム記録を、明示的なフレーム計画の実行に置き換える。</summary>
 public interface IStageRenderBackend:IDisposable {
     string AdapterDescription { get; }
     bool IsWarp { get; }
@@ -20,6 +20,10 @@ public interface IStageRenderBackend:IDisposable {
     int ActiveObjectCount { get; }
     int DistanceFieldMeshCount { get; }
     int DistanceFieldObjectCount { get; }
+    VirtualShadowStatistics VirtualShadowStatistics { get; }
+    DirectionalShadowSettings DirectionalShadows { get; }
+    float CascadedShadowGpuMilliseconds { get; }
+    float VirtualShadowGpuMilliseconds { get; }
     RenderScalability Scalability { get; set; }
     LumenVisualization LumenVisualization { get; set; }
     bool LumenActiveLastFrame { get; }

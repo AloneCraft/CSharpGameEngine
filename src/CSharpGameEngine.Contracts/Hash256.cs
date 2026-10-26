@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace CSharpGameEngine.Contracts;
 
-/// <summary>A canonical 256-bit content identity rendered as 64 lower-case hexadecimal digits.</summary>
+/// <summary>64桁の小文字16進数で表す、正規形式の256ビットコンテンツ識別子。</summary>
 public readonly struct Hash256:IEquatable<Hash256>,IComparable<Hash256> {
     private readonly ulong A;
     private readonly ulong B;

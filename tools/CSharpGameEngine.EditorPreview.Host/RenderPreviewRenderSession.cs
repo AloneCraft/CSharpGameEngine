@@ -9,8 +9,7 @@ using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.EditorPreview.Host;
 
 /// <summary>
-/// The isolated host's concrete preview session. It owns exactly one common Render Server and
-/// converts only validated wire DTOs into provider-boundary inputs.
+/// 分離されたホストで使う具体的なプレビューセッション。共有 Render Server を 1 つだけ所有し、検証済みの wire DTO のみをプロバイダー境界への入力に変換する。
 /// </summary>
 public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
     private readonly nint SurfaceHandle;
@@ -18,6 +17,9 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
     private readonly string ShaderArtifactPath;
     private RenderServer?Server;
     private Dictionary<string,int>ObjectIndices;
+    /// <summary>ホストが読み込んだスケルタルアセット（ADR-0090）。なければ null。</summary>
+    private RenderPreviewSkeletalAsset?Skeletal;
+    private readonly List<RenderOverlayVertex>BoneLines=[];
     private RenderOverlayVertex[]OverlayTriangleBuffer=[];
     private RenderOverlayVertex[]OverlayLineBuffer=[];
     private readonly RenderCameraPreview[]CameraPreviewBuffer=
@@ -25,10 +27,13 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
     private RenderPreviewCameraDiagnostics[]CameraPreviewDiagnosticsValue=[];
     private int Width;
     private int Height;
+    /// <summary>直近のフレームで受け取った照明。ReplaceScene で RenderServer を作り直したあとも、最初に Present するフレームから同じ照明にするため保持する。</summary>
+    private RenderPreviewLighting?LastLighting;
+    private int AppliedEnvironmentRevision=int.MinValue;
 
     private RenderPreviewRenderSession(
         nint SurfaceHandle,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
-        string ShaderArtifactPath,RenderServer Server,Dictionary<string,int>ObjectIndices){
+        string ShaderArtifactPath,RenderServer Server,Dictionary<string,int>ObjectIndices,RenderPreviewSkeletalAsset?Skeletal){
         this.SurfaceHandle=SurfaceHandle;
         this.Width=Width;
         this.Height=Height;
@@ -36,7 +41,10 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         this.ShaderArtifactPath=ShaderArtifactPath;
         this.Server=Server;
         this.ObjectIndices=ObjectIndices;
+        this.Skeletal=Skeletal;
     }
+
+    public RenderPreviewAssetSummary?AssetSummary=>this.Skeletal?.Summary;
 
     public uint DeviceGeneration=>this.Active.DeviceSnapshot.Generation;
     public ulong CompletedFence=>this.Active.CompletedFence;
@@ -61,11 +69,11 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             DeviceOptions??GraphicsDeviceOptionsResolver.FromEnvironment());
         RenderServer Server=CreateServer(
             (nint)Request.SurfaceHandle,Request.Width,Request.Height,OwnedOptions,
-            Request.ShaderArtifactPath,Request.Scene!);
+            Request.ShaderArtifactPath,Request.Scene!,out RenderPreviewSkeletalAsset?Skeletal);
         return new RenderPreviewRenderSession(
             (nint)Request.SurfaceHandle,Request.Width,Request.Height,OwnedOptions,
             Path.GetFullPath(Request.ShaderArtifactPath),Server,
-            BuildObjectIndices(Request.Scene!));
+            BuildObjectIndices(Request.Scene!),Skeletal);
     }
 
     public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
@@ -92,11 +100,12 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         this.CameraPreviewDiagnosticsValue=[];
         RenderServer Replacement=CreateServer(
             this.SurfaceHandle,this.Width,this.Height,this.DeviceOptions,
-            this.ShaderArtifactPath,Scene);
+            this.ShaderArtifactPath,Scene,out RenderPreviewSkeletalAsset?ReplacementSkeletal);
         try {
-            // StageRenderer construction may clear its swap chain. Present the complete replacement
-            // before publishing it to the session so the HWND never waits a later WPF render tick
-            // while showing that initialization clear.
+            // StageRenderer の構築でスワップチェーンがクリアされる場合がある。置き換え後のフレーム全体を Present し、
+            // セッションに公開してから、HWND が後の WPF 描画 tick を待つ状態にならないようにする。
+            // 初期化時のクリア画面を表示している間に待ち状態が発生するのを防ぐ。
+            if(this.LastLighting is{ }Lighting){ RenderPreviewLightingApplier.Apply(Replacement,Lighting,ApplyEnvironment:true); }
             Replacement.RenderFrame(CaptureForVerification:false);
             this.Server=Replacement;
         } catch {
@@ -104,6 +113,8 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             throw;
         }
         this.ObjectIndices=ReplacementIndices;
+        this.Skeletal=ReplacementSkeletal;
+        this.AppliedEnvironmentRevision=this.LastLighting?.EnvironmentRevision??int.MinValue;
     }
 
     public void UpdateFrame(RenderPreviewFrame Frame){
@@ -123,6 +134,11 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         }
         RenderServer Active=this.Active;
         SetView(Active,Frame.Camera!);
+        if(Frame.Lighting is{ }Lighting){
+            RenderPreviewLightingApplier.Apply(Active,Lighting,Lighting.EnvironmentRevision!=this.AppliedEnvironmentRevision);
+            this.AppliedEnvironmentRevision=Lighting.EnvironmentRevision;
+            this.LastLighting=Lighting;
+        }
         Active.SetPresentationMode(Frame.PresentationMode switch {
             RenderPreviewPresentationMode.Lit=>RenderPresentationMode.Lit,
             RenderPreviewPresentationMode.BaseColor=>RenderPresentationMode.BaseColor,
@@ -139,9 +155,23 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         }
         ConvertOverlay(Frame.OverlayTriangles,ref this.OverlayTriangleBuffer);
         ConvertOverlay(Frame.OverlayLines,ref this.OverlayLineBuffer);
+        int LineCount=Frame.OverlayLines.Length;
+        if(this.Skeletal is{ }Asset){
+            this.BoneLines.Clear();
+            Asset.Apply(Active,Frame,this.BoneLines);
+            int Room=Math.Max(0,StageRenderer.MaxOverlayVertices-LineCount)&~1;
+            int Extra=Math.Min(this.BoneLines.Count,Room);
+            if(this.OverlayLineBuffer.Length<LineCount+Extra){
+                Array.Resize(ref this.OverlayLineBuffer,LineCount+Extra);
+            }
+            for(int Index=0;Index<Extra;Index++){
+                this.OverlayLineBuffer[LineCount+Index]=this.BoneLines[Index];
+            }
+            LineCount+=Extra;
+        }
         Active.SetOverlay(
             this.OverlayTriangleBuffer.AsSpan(0,Frame.OverlayTriangles.Length),
-            this.OverlayLineBuffer.AsSpan(0,Frame.OverlayLines.Length));
+            this.OverlayLineBuffer.AsSpan(0,LineCount));
         for(int Index=0;Index<Frame.CameraPreviews.Length;Index++){
             RenderPreviewCameraPass Source=Frame.CameraPreviews[Index];
             int ExcludedObjectIndex=-1;
@@ -197,8 +227,9 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
 
     private static RenderServer CreateServer(
         nint SurfaceHandle,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
-        string ShaderArtifactPath,RenderPreviewScene Scene){
-        bool EmptyScene=Scene.Objects.Length==0;
+        string ShaderArtifactPath,RenderPreviewScene Scene,out RenderPreviewSkeletalAsset?Skeletal){
+        Skeletal=null;
+        bool EmptyScene=Scene.Objects.Length==0&&Scene.Asset is null;
         StageMeshCreateInfo[]Meshes=EmptyScene
             ?[CreateEmptySentinelMesh()]
             :new StageMeshCreateInfo[Scene.Meshes.Length];
@@ -217,12 +248,18 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
                 Meshes[Index]=ConvertMesh(Scene.Meshes[Index]);
             }
             for(int Index=0;Index<Materials.Length;Index++){
-                float[]Color=Scene.Materials[Index].BaseColor;
+                RenderPreviewMaterial Source=Scene.Materials[Index];
+                float[]Color=Source.BaseColor;
                 Materials[Index]=new StageMaterialCreateInfo {
                     BaseColorFactor=new Vector4(
                         Color[0],Color[1],Color[2],Color[3]),
-                    RoughnessFactor=1f,
-                    MetallicFactor=0f,
+                    RoughnessFactor=Source.Roughness,
+                    MetallicFactor=Source.Metallic,
+                    WorldGrid=Source.WorldGrid is{ }Grid
+                        ?new StageWorldGrid(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,
+                            new Vector3(Grid.GridColor[0],Grid.GridColor[1],Grid.GridColor[2]),
+                            new Vector3(Grid.SubGridColor[0],Grid.SubGridColor[1],Grid.SubGridColor[2]))
+                        :null,
                 };
             }
             for(int Index=0;Index<Objects.Length;Index++){
@@ -232,6 +269,20 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
                     MaterialIndex=Source.MaterialIndex,
                 };
             }
+        }
+
+        if(Scene.Asset is{ }Asset){
+            // 明示分の後ろへ、ホストが読み込んだスケルタルアセットのメッシュ・マテリアル・オブジェクトを足す（ADR-0090）。
+            List<StageMeshCreateInfo>MeshList=[.. Meshes];
+            List<StageMaterialCreateInfo>MaterialList=[.. Materials];
+            Skeletal=RenderPreviewSkeletalAsset.Load(Asset,MeshList,MaterialList);
+            List<StageObjectCreateInfo>ObjectList=[.. Objects];
+            foreach(var Placement in Skeletal.ObjectPlacements){
+                ObjectList.Add(new StageObjectCreateInfo { MeshIndex=Placement.MeshIndex,MaterialIndex=Placement.MaterialIndex });
+            }
+            Meshes=[.. MeshList];
+            Materials=[.. MaterialList];
+            Objects=[.. ObjectList];
         }
 
         RenderServer Server=D3D12RenderServer.Create(
@@ -244,6 +295,13 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             for(int Index=0;Index<Scene.Objects.Length;Index++){
                 Server.SetObjectTransform(Index,ToMatrix(Scene.Objects[Index].World));
             }
+            if(Skeletal is not null){
+                int Base=Scene.Objects.Length;
+                int PlacementIndex=0;
+                foreach(var Placement in Skeletal.ObjectPlacements){
+                    Server.SetObjectTransform(Base+PlacementIndex++,Placement.LocalTransform);
+                }
+            }
             return Server;
         } catch {
             Server.Dispose();
@@ -251,7 +309,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         }
     }
 
-    /// <summary>M0100: a radial camera draws with radial depth from its own matrix; a standard one as before.</summary>
+    /// <summary>M0100：放射カメラは独自の行列による放射深度で描画し、標準カメラは従来どおり描画する。</summary>
     private static void SetView(RenderServer Server,RenderPreviewCamera Camera){
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
         Vector3 Position=ToVector3(Camera.Position);
@@ -263,7 +321,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         }
     }
 
-    /// <summary>A camera thumbnail; a radial scene camera's thumbnail writes radial depth (its rectangle sets the aspect).</summary>
+    /// <summary>カメラのサムネイル。放射シーンカメラでは放射深度を書き込む（矩形でアスペクト比を設定）。</summary>
     private static RenderCameraPreview CameraPreview(RenderPreviewCameraPass Source,int ExcludedObjectIndex){
         RenderPreviewCamera Camera=Source.Camera!;
         Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
@@ -278,7 +336,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,RenderViewDepth.ForPerspective(Projection,ConservativeRasterDepth:false),ExcludedObjectIndex);
     }
 
-    /// <summary>Test-only access to the active Render Server (its depth buffer, for instance).</summary>
+    /// <summary>アクティブな Render Server（例：深度バッファー）へのテスト専用アクセス。</summary>
     internal RenderServer ActiveServerForTesting=>this.Active;
 
     private static StageMeshCreateInfo CreateEmptySentinelMesh()=>new(){

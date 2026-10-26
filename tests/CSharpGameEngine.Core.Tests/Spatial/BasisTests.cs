@@ -8,9 +8,8 @@ using CSharpGameEngine.Spatial.Unreal;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Basis Tests": per preset, Right/Up/Forward
-/// must match the documented Golden Values, be unit length, be mutually orthogonal, and the
-/// Left/Down/Backward opposites must hold in physical XYZ space too.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Basis Tests」。プリセットごとに Right、Up、Forward が仕様の
+/// Golden Values と一致して単位長になり、互いに直交することを確認する。Left、Down、Backward が反対方向になる条件も、物理 XYZ 空間で検証する。
 /// </summary>
 public class BasisTests {
     [Fact]

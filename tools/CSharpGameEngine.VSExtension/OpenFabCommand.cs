@@ -8,10 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Extensions > C# Game Engine menu/toolbar command that opens https://www.fab.com/ in the user's default browser
-/// (ADR-0011). Login, browsing, purchasing, and downloading all happen entirely in that browser
-/// session under the user's own control - this command does nothing beyond launching the URL, and
-/// the VSIX never automates or intercepts any part of that flow.
+/// Extensions &gt; C# Game Engine メニュー/ツールバーのコマンド。既定のブラウザーで https://www.fab.com/ を開きます（ADR-0011）。ログイン、閲覧、購入、ダウンロードはすべてユーザー自身が管理するブラウザーセッションで行います。このコマンドは URL を起動するだけで、VSIX が一連の操作を自動化または傍受することはありません。
 /// </summary>
 internal sealed class OpenFabCommand {
     public const int CommandId=0x0103;

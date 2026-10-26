@@ -41,8 +41,8 @@ public readonly record struct WorldPartitionError(WorldPartitionErrorCode Code,W
     public static WorldPartitionError None=>new(WorldPartitionErrorCode.None,default,default,string.Empty);
 }
 public sealed class WorldPartitionManifest {
-    // Artifact/topology order is an established external contract. Keep the original
-    // canonical textual ordering even though hot-path selection uses allocation-free IDs.
+    // アーティファクト／トポロジーの順序は、確立済みの外部コントラクトである。元の
+    // 正規テキスト順を維持する。ホットパスの選択では割り当てなしIDを使う。
     private static readonly IComparer<WorldCellId>IdComparer=Comparer<WorldCellId>.Create(static (Left,Right)=>StringComparer.Ordinal.Compare(Left.ToString(),Right.ToString()));
     private readonly ImmutableDictionary<WorldCellId,WorldCellDefinition>Definitions;
     private readonly ImmutableDictionary<WorldCellId,int>TopologicalRanks;

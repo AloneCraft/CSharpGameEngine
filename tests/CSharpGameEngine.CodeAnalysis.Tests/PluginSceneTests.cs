@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0079: a scene under an enabled plugin's Scenes folder is built like a game scene, wherever the plugin is.</summary>
+/// <summary>ADR-0079：有効なプラグインのScenesフォルダーにあるシーンは、プラグインの場所によらずゲームのシーンと同様にビルドする。</summary>
 public sealed class PluginSceneTests {
     private const string Scene="""
         { "schemaVersion": 3, "namespace": "Cars.Scenes", "className": "Garage", "startupOrder": 5,
@@ -38,7 +38,7 @@ public sealed class PluginSceneTests {
 
     [Fact]
     public void ASceneOfAPluginLibrarysComponents_IsBuiltAndItsSystemRuns(){
-        // The Lightning sample: the components live in a referenced DLL, the system and the scene in the game's compilation.
+        // Lightningサンプル：コンポーネントは参照DLLにあり、システムとシーンはゲームのコンパイル対象に含まれる。
         var Library=Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("Lightning.Library",
             [Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("namespace Lightning { public struct Bolt { public int Count; } public struct Intensity { public float Value; } }")],
             GameSystemGeneratorTestHelper.References,new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
@@ -67,8 +67,8 @@ public sealed class PluginSceneTests {
 
     [Fact]
     public void ThePluginRoots_SurviveTheEditorConfigThatCarriesThemToTheGenerator(){
-        // The build writes CompilerVisibleProperty values into a generated .editorconfig. Its reader cuts a value at ';' or '#', so
-        // the roots are separated by '|' (a ';' list arrived empty and a package plugin's scenes were never built).
+        // ビルドはCompilerVisiblePropertyの値を生成済み.editorconfigへ書き込む。そのリーダーは値を「;」または「#」で切り詰めるため、
+        // ルートの区切りには「|」を使う（「;」区切りのリストは空として読み取られ、プラグインのシーンがビルドされなかった）。
         var Config=Microsoft.CodeAnalysis.AnalyzerConfig.Parse(
             "is_global = true\nbuild_property.CgePluginRoots = |Weather=C:\\Game\\Plugins\\Weather\\|Lightning=C:\\Users\\me\\.nuget\\packages\\lightning\\1.0.0\\plugin\\\n"
             +"build_property.Semicolons = ;Weather=C:\\Game\\\n",
@@ -81,8 +81,8 @@ public sealed class PluginSceneTests {
 
     [Fact]
     public void AProjectAndPluginsUnderFoldersWithHashOrSemicolon_KeepTheirPaths(){
-        // A game under C:\C#\ lost its ProjectDir (cut to "C:\C"), so it built without its scenes and Assets catalog. The build now also
-        // writes the folders with '#' as '?h' and ';' as '?s' (Game.targets), and the generator reads those first.
+        // C:\C#\配下にあるゲームではProjectDirが欠落して「C:\C」まで切り詰められ、シーンとAssetsカタログなしでビルドされた。現在のビルドではさらに
+        // Game.targetsが「#」を「?h」、「;」を「?s」に置き換えたフォルダーも書き込み、ジェネレーターはそちらを先に読む。
         var Config=Microsoft.CodeAnalysis.AnalyzerConfig.Parse(
             "is_global = true\n"
             +"build_property.ProjectDir = C:\\C#\\My;Game\\\n"

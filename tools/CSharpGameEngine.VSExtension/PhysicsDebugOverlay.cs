@@ -29,7 +29,7 @@ internal static class PhysicsDebugOverlay {
             }
         }
         if(Options.Bonds&&FractureBonds is not null){
-            // ADR-0078/M0113: the fragments' outlines of the Fracture preview, in a pale orange under the bonds.
+            // ADR-0078/M0113：Fracture プレビューの各 fragment の輪郭。bond の下に淡いオレンジ色で表示します。
             Vector4 OutlineColor=new(1f,0.75f,0.35f,0.7f);
             foreach(ScenePhysicsFractureBond Bond in FractureBonds){
                 if(VertexCount+2>MaximumVertices){ break; }
@@ -70,8 +70,7 @@ internal static class PhysicsDebugOverlay {
     }
 
     /// <summary>
-    /// The colour of a Fracture preview bond by how many cluster levels hold both its fragments (M0124): the pink of M0113 for a bond between top-level
-    /// clusters (the weakest, which breaks first), then violet and blue for the bonds inside one cluster, one sub-cluster and deeper.
+    /// bond が両方の fragment を含む cluster level の数に応じた Fracture プレビューの bond 色（M0124）。最上位 cluster 間の bond は M0113 のピンク色で最も弱く、最初に破断します。1つの cluster 内、sub-cluster 内、さらに深い階層の bond は順に紫色、青色になります。
     /// </summary>
     internal static Vector4 BondColor(int Level)=>Level switch {
         <=0=>new Vector4(1f,0.35f,0.9f,0.85f),

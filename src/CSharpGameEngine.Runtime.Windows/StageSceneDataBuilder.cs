@@ -13,10 +13,6 @@ namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>宣言された個別StaticMeshを、固定ロースター型StageRendererの生成入力へ変換する。</summary>
 internal sealed class StageSceneDataBuilder {
-    private static readonly StableId RenderAssetNamespace=
-        StableId.Parse("98a2fc1e-d67f-5d92-8813-00ce97d444fd");
-    private static readonly Hash256 RenderImportOptionsHash=
-        Hash256.Compute(Encoding.UTF8.GetBytes("render-material-v1"));
     private StageSceneDataBuilder(
         StageMeshCreateInfo[]Meshes,
         StageMaterialCreateInfo[]Materials,
@@ -47,15 +43,15 @@ internal sealed class StageSceneDataBuilder {
     public StageObjectCreateInfo[]Objects { get;}
     public Transform[]ObjectTransforms { get;}
     public Matrix4x4[]ObjectLocalTransforms { get;}
-    /// <summary>Authoring Entity whose fixed hierarchy owns each renderer object.</summary>
+    /// <summary>各レンダラーオブジェクトを所有する、作成元の固定階層 Entity。</summary>
     public Entity[]SourceEntities { get;}
-    /// <summary>The renderer meshes each SkeletalMesh entity skins with its palette.</summary>
+    /// <summary>各 SkeletalMesh Entity がパレットでスキニングするレンダラーメッシュ。</summary>
     public (Entity Entity,int[]MeshIndices)[]SkinnedMeshes { get;}
-    /// <summary>The meshes, materials and objects each SkeletalMesh entity at load became: what a later Entity of the same asset reuses once this one is gone (M0107).</summary>
+    /// <summary>各 SkeletalMesh Entity が読み込み時に取得したメッシュ、マテリアル、オブジェクト。後から同じアセットの別 Entity を作成した場合、この Entity がなくなった後に再利用する（M0107）。</summary>
     internal SkeletalInstance[]SkeletalInstances { get;}
-    /// <summary>The meshes and materials each StaticMesh asset became, by resolved path: what an Entity spawned later reuses (M0105).</summary>
+    /// <summary>解決済みパスごとに記録した StaticMesh アセットのメッシュとマテリアル。後から生成した Entity が再利用する（M0105）。</summary>
     internal Dictionary<string,AssetTemplate>StaticAssets { get;}
-    /// <summary>The renderer mesh of each primitive type a PrimitiveMesh used, and the one material they share (M0105).</summary>
+    /// <summary>各 PrimitiveMesh で使ったプリミティブ種別ごとのレンダラーメッシュと、全種別で共有する1つのマテリアル（M0105）。</summary>
     internal Dictionary<PrimitiveType,int>PrimitiveMeshIndices { get;}
     internal int PrimitiveMaterialIndex { get;}
 
@@ -91,7 +87,7 @@ internal sealed class StageSceneDataBuilder {
         }
 
         foreach(var Placement in SkeletalMeshes??[]){
-            // Each placement skins its own copy of the meshes, so two characters can hold different poses.
+            // 各配置にメッシュの独立コピーを割り当ててスキニングするため、キャラクターごとに異なる姿勢を保持できる。
             var (Template,Skinned)=LoadSkeletalAsset(Placement.Mesh.AssetPath??string.Empty,Meshes,Materials);
             foreach(AssetObject Object in Template.Objects){
                 Objects.Add(new StageObjectCreateInfo { MeshIndex=Object.MeshIndex,MaterialIndex=Object.MaterialIndex });
@@ -104,7 +100,7 @@ internal sealed class StageSceneDataBuilder {
         }
 
         if(Primitives.Count>0){
-            // BuildPrimitiveRoster gives each distinct type one mesh, in the order the types first appear, and all of them one material.
+            // BuildPrimitiveRoster は、異なる種類ごとに、最初に現れた順でメッシュを1つ割り当てる。すべての種類でマテリアルを共有する。
             foreach(var Primitive in Primitives){
                 PrimitiveMeshIndices.TryAdd(Primitive.Mesh.Type,Meshes.Count+PrimitiveMeshIndices.Count);
             }
@@ -151,7 +147,7 @@ internal sealed class StageSceneDataBuilder {
         Hash256 SourceHash=Hash256.Compute(SourceBytes);
         RenderMaterialCatalog MaterialCatalog=new();
         for(int Index=0;Index<Scene.Materials.Count;Index++){
-            Materials.Add(BakeMaterial(
+            Materials.Add(StageGltfAssets.BakeMaterial(
                 MaterialCatalog,Scene.Materials[Index],SourceHash,Index));
         }
 
@@ -168,9 +164,9 @@ internal sealed class StageSceneDataBuilder {
     }
 
     /// <summary>
-    /// ADR-0078/M0110: the mesh distance fields the build wrote next to the glTF (<c>&lt;asset&gt;.glb.cgesdf</c>), one per mesh in the importer's order.
-    /// A missing or unreadable file, or an entry made from other triangles than the loaded mesh (its content hash differs), leaves that mesh without
-    /// a field: it is then not in the global distance field, and the game still runs.
+    /// ADR-0078/M0110：ビルドが glTF の隣へ書き出したメッシュ距離場（<c>&lt;asset&gt;.glb.cgesdf</c>）。インポーター順にメッシュごとに1つ格納する。ファイル
+    /// がない、読み込めない、または読み込んだメッシュとは異なる三角形から作られている（コンテンツハッシュが違う）場合、そのメッシュには距離場を設定しない。そのメッシュはグローバル距離場に含まれないが、ゲーム
+    /// は引き続き実行される。
     /// </summary>
     internal static MeshDistanceField?[]LoadDistanceFields(string FullPath,ImportedScene Scene){
         var Fields=new MeshDistanceField?[Scene.Meshes.Count];
@@ -189,128 +185,18 @@ internal sealed class StageSceneDataBuilder {
         return Fields;
     }
     /// <summary>
-    /// Appends one copy of a skeletal glTF's meshes and materials to <paramref name="Meshes"/> and <paramref name="Materials"/> (the renderer skins each copy with
-    /// its own palette) and returns its objects, with the renderer mesh indices of the skinned ones. The indices count from the lists' lengths on entry.
+    /// スキニングされた glTF のメッシュとマテリアルのコピー1組を <paramref name="Meshes"/> と <paramref name="Materials"/> に追加する（
+    /// レンダラーは各コピーを専用パレットでスキニングする）。そのオブジェクトを返し、スキニング対象のレンダラーメッシュインデックスも設定する。インデックスは追加前の各リストの長さから数える。
     /// </summary>
     internal static (AssetTemplate Template,int[]SkinnedMeshIndices)LoadSkeletalAsset(string AssetPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
         var Imported=SkeletalAssetCache.Scene(AssetPath);
-        var Skin=Imported.Skins[0];
-        var MeshOffset=Meshes.Count;
-        var MaterialOffset=Materials.Count;
-        List<int>Skinned=[];
-        for(var Index=0;Index<Imported.Meshes.Count;Index++){
-            var Mesh=Imported.Meshes[Index];
-            var IsSkinned=Imported.Nodes.Any(Node=>Node.MeshIndex==Index&&Node.SkinIndex is not null);
-            if(IsSkinned&&Mesh.Influences is null){
-                throw new InvalidDataException($"SkeletalMesh '{AssetPath}' has a skinned primitive without JOINTS/WEIGHTS.");
-            }
-            if(IsSkinned){
-                Skinned.Add(Meshes.Count);
-            }
-            Meshes.Add(new StageMeshCreateInfo {
-                Positions=Mesh.Positions,
-                Normals=Mesh.Normals,
-                Tangents=Mesh.Tangents,
-                Uvs=Mesh.Uvs,
-                Indices=Mesh.Indices,
-                Skin=IsSkinned?new StageSkinCreateInfo { JointCount=Skin.JointNames.Count,JointIndices=Mesh.Influences!.JointIndices,Weights=Mesh.Influences.Weights }:null,
-            });
-        }
         var FullPath=SkeletalAssetCache.ResolvePath(AssetPath);
-        var SourceHash=Hash256.Compute(File.ReadAllBytes(FullPath));
-        RenderMaterialCatalog MaterialCatalog=new();
-        for(var Index=0;Index<Imported.Materials.Count;Index++){
-            Materials.Add(BakeMaterial(MaterialCatalog,Imported.Materials[Index],SourceHash,Index));
-        }
-        List<AssetObject>Objects=[];
-        foreach(var Node in Imported.Nodes){
-            if(Node.MeshIndex is int MeshIndex&&Node.MaterialIndex is int MaterialIndex){
-                // The skin places skinned geometry (glTF ignores a skinned node's own transform).
-                Objects.Add(new AssetObject(MeshOffset+MeshIndex,MaterialOffset+MaterialIndex,Node.SkinIndex is null?Node.WorldTransform:Matrix4x4.Identity));
-            }
-        }
-        return (new AssetTemplate([.. Objects]),[.. Skinned]);
+        var (Placements,Skinned)=StageGltfAssets.AppendSkeletal(Imported,FullPath,AssetPath,Meshes,Materials);
+        return (new AssetTemplate([.. Placements.Select(Item=>new AssetObject(Item.MeshIndex,Item.MaterialIndex,Item.LocalTransform))]),Skinned);
     }
-
-    private static StageMaterialCreateInfo BakeMaterial(
-        RenderMaterialCatalog Catalog,ImportedPbrMaterial Material,
-        Hash256 SourceHash,int MaterialIndex){
-        ArtifactProvenance Provenance=new(
-            "render-material-v1",$"asset-source://{SourceHash}",SourceHash,
-            "CSharpGameEngine.Import.Gltf",RenderImportOptionsHash);
-        AssetArtifactReference BaseColor=
-            BakeTexture(Catalog,Provenance,SourceHash,MaterialIndex,"base-color",
-                Material.BaseColorTextureBytes,RenderMaterialDefaults.White).Reference;
-        AssetArtifactReference Normal=
-            BakeTexture(Catalog,Provenance,SourceHash,MaterialIndex,"normal",
-                Material.NormalTextureBytes,RenderMaterialDefaults.FlatNormal).Reference;
-        AssetArtifactReference MetallicRoughness=
-            BakeTexture(Catalog,Provenance,SourceHash,MaterialIndex,"metallic-roughness",
-                Material.MetallicRoughnessTextureBytes,RenderMaterialDefaults.White).Reference;
-        AssetArtifactReference Emissive=
-            BakeTexture(Catalog,Provenance,SourceHash,MaterialIndex,"emissive",
-                Material.EmissiveTextureBytes,RenderMaterialDefaults.White).Reference;
-        Vector3 EmissiveNits=Material.EmissiveNits!=Vector3.Zero
-            ?Material.EmissiveNits
-            :Material.EmissiveFactor*100f;
-        RenderMaterialArtifactDefinition Definition=new(
-            Material.BaseColorFactor,Material.RoughnessFactor,Material.MetallicFactor,
-            EmissiveNits,Material.EmissiveTextureLuminanceScale,
-            BaseColor,Normal,MetallicRoughness,Emissive);
-        AssetKey MaterialKey=CreateKey(SourceHash,MaterialIndex,"material");
-        RenderMaterialResource Resource=Catalog.RegisterMaterial(
-            MaterialKey,RenderArtifactCodec.CreateMaterialEnvelope(Provenance,Definition));
-        return new StageMaterialCreateInfo {
-            BaseColorFactor=Resource.BaseColorFactor,
-            RoughnessFactor=Resource.RoughnessFactor,
-            MetallicFactor=Resource.MetallicFactor,
-            EmissiveNits=Resource.EmissiveNits,
-            EmissiveTextureLuminanceScale=Resource.EmissiveTextureLuminanceScale,
-            BaseColorTexture=Resource.BaseColorTexture,
-            NormalTexture=Resource.NormalTexture,
-            MetallicRoughnessTexture=Resource.MetallicRoughnessTexture,
-            EmissiveTexture=Resource.EmissiveTexture,
-            // The procedural grid is not part of the render-material artifact (a texture-based PBR record);
-            // it rides beside it so the artifact schema stays unchanged (ADR-0075).
-            WorldGrid=Material.WorldGrid is{ }Grid
-                ?new StageWorldGrid(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,Grid.GridColor,Grid.SubGridColor)
-                :null,
-        };
-    }
-
-    private static (AssetArtifactReference Reference,RenderTextureResource Resource)BakeTexture(
-        RenderMaterialCatalog Catalog,ArtifactProvenance Provenance,Hash256 SourceHash,
-        int MaterialIndex,string Slot,byte[]?EncodedBytes,RenderTextureResource Fallback){
-        int Width;
-        int Height;
-        byte[]Pixels;
-        if(EncodedBytes is null||EncodedBytes.Length==0){
-            Width=Fallback.Width;
-            Height=Fallback.Height;
-            Pixels=Fallback.Pixels.ToArray();
-        } else {
-            WicDecodeResult Result=WicImageDecoder.Decode(EncodedBytes);
-            if(!Result.Success||Result.Image is not{ }Image){
-                throw new InvalidDataException(
-                    $"Material {MaterialIndex} texture '{Slot}' decode failed: {Result.Error}");
-            }
-            Width=Image.Width;
-            Height=Image.Height;
-            Pixels=Image.Pixels;
-        }
-        AssetKey Key=CreateKey(SourceHash,MaterialIndex,Slot);
-        RenderTextureResource Resource=Catalog.RegisterTexture(
-            Key,RenderArtifactCodec.CreateTextureEnvelope(Provenance,Width,Height,Pixels));
-        return(new AssetArtifactReference(Key,Resource.ContentHash),Resource);
-    }
-
-    private static AssetKey CreateKey(Hash256 SourceHash,int MaterialIndex,string Slot)=>new(
-        new AssetId(StableId.FromName(
-            RenderAssetNamespace,$"{SourceHash}/material/{MaterialIndex}/{Slot}")),null);
-
 
     internal sealed record AssetTemplate(AssetObject[]Objects);
-    /// <summary>A SkeletalMesh Entity's share of the renderer: the asset it came from, its objects and the renderer meshes it skins.</summary>
+    /// <summary>SkeletalMesh Entity がレンダラーで使う情報。元アセット、そのオブジェクト、スキニングするレンダラーメッシュ。</summary>
     internal sealed record SkeletalInstance(Entity Entity,string FullPath,AssetTemplate Template,int[]SkinnedMeshIndices);
     internal readonly record struct AssetObject(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);
 }

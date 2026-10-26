@@ -35,8 +35,8 @@ REPO_ROOT = os.environ.get("CSGE_REPO_ROOT", "G:/GitHub/CSharpGameEngine").repla
 TEMPLATES = {
     "FirstPerson": {"level": "/Game/FirstPerson/Lvl_FirstPerson", "levelName": "Lvl_FirstPerson"},
     "TopDown": {"level": "/Game/TopDown/Lvl_TopDown", "levelName": "Lvl_TopDown"},
-    # The Vehicle level's ground is a Landscape, which glTF cannot export (and the engine has no terrain). The Landscape of
-    # this template is flat at height 0 and as wide as the walls around it, so a one-metre slab of that size stands in for it.
+    # Vehicle level の地面は glTF では export できない Landscape であり、エンジンにも terrain がありません。この template の Landscape は
+    # 高さ0で周囲の壁と同じ幅の平面なので、同じ大きさの厚さ1 mの板で代用します。
     "Vehicle": {"level": "/Game/VehicleTemplate/Maps/Lvl_VehicleBasic", "levelName": "Lvl_VehicleBasic", "landscapeGroundHalfExtentMeters": 63.5},
 }
 TEMPLATE = os.environ["CSGE_LEVEL_TEMPLATE"]

@@ -8,8 +8,7 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Regression coverage for component drops that mutate the hierarchy. The predicted scene model follows
-/// the first-wins ordering contract, and the scene JSON written from it reads back the same (ADR-0070).
+/// 階層を変更するコンポーネントのドロップに対する回帰テスト。予測されたシーンモデルは先勝ちの順序契約に従い、そこから書き出したシーン JSON は同じ内容に読み戻される (ADR-0070)。
 /// </summary>
 [Collection(VsixLocalizationTestCollection.Name)]
 public sealed class HierarchyComponentMutationTests {

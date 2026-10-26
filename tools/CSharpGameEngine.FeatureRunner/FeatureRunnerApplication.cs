@@ -194,7 +194,7 @@ public sealed class FeatureRunnerApplication {
             RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
     }
     private Task<int>RunVerifyTemplatePackageAsync(string[]Args,CancellationToken CancellationToken){
-        // --template is read here and removed, so the shared parser keeps rejecting unknown options.
+        // --template はここで読み取って除去する。そのため共有パーサーは未知のオプションを引き続き拒否できる。
         var Template="ThirdPerson";
         List<string>Rest=[];
         for(int Index=0;Index<Args.Length;Index++){
@@ -644,9 +644,7 @@ public sealed class FeatureRunnerApplication {
         return 1;
     }
     /// <summary>
-    /// The repository whose <c>.artifacts/FeatureStages</c> keeps a command's results: the one <c>--repository-root</c>
-    /// names, where the stages run and where release evidence looks for their results; otherwise the one around the
-    /// current directory.
+    /// コマンド結果を保存するリポジトリの <c>.artifacts/FeatureStages</c>：<c>--repository-root</c> で指定したリポジトリ（そのリポジトリでステージを実行し、リリース証跡もそこで結果を探す）。未指定の場合はカレントディレクトリ周辺のリポジトリ。
     /// </summary>
     public static string ResultsRepositoryRoot(IReadOnlyList<string>Args){
         for(var Index=1;Index+1<Args.Count;Index++){

@@ -5,14 +5,13 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.EditorPreview.Host;
 
 /// <summary>
-/// One length-prefixed request per pipe connection. The process owns all sessions and releases
-/// them when cancellation, parent shutdown, or an unhandled transport exit ends the accept loop.
+/// パイプ接続ごとに長さプレフィックス付きの要求を 1 つ受け付ける。プロセスがすべてのセッションを所有し、キャンセル、親プロセスの終了、または処理されない通信終了で受付ループが終わる際にセッションを解放する。
 /// </summary>
 public static class RenderPreviewHostServer {
     public static Task RunAsync(string PipeName,CancellationToken CancellationToken=default)=>
         RunAsync(PipeName,Open,CancellationToken);
 
-    /// <summary>A runtime view (ADR-0070 B1) when the Open request asks for one, otherwise the scene preview.</summary>
+    /// <summary>Open 要求が求めた場合はランタイムビュー (ADR-0070 B1)、そうでなければシーンプレビュー。</summary>
     public static IRenderPreviewSession Open(RenderPreviewHostRequest Request)=>
         Request.RuntimeView is null
             ?RenderPreviewRenderSession.Open(Request)
@@ -39,8 +38,8 @@ public static class RenderPreviewHostServer {
             }
 
             try {
-                // Audit AUD-003: the host has one pipe instance, so a client that stops mid-request must give it up when
-                // the host stops or the receive deadline passes.
+                // audit AUD-003：ホストが持つパイプインスタンスは 1 つだけなので、要求の途中で停止したクライアントは、
+                // ホストが停止するか受信期限に達した時に、そのパイプを解放しなければならない。
                 RenderPreviewHostRequest Request=await BridgeWireMessage.ReadRequestAsync<RenderPreviewHostRequest>(
                     Pipe,RequestReceiveTimeout,CancellationToken);
                 RenderPreviewHostResponse Response=Sessions.Handle(Request);
@@ -52,7 +51,7 @@ public static class RenderPreviewHostServer {
             } catch(OperationCanceledException)when(CancellationToken.IsCancellationRequested){
                 break;
             } catch(OperationCanceledException){
-                // The client did not send its whole request in time: drop it and serve the next one.
+                // クライアントが要求全体を期限内に送らなかった場合、その接続を破棄して次の要求を処理する。
                 continue;
             } catch(Exception Error)when(
                 Error is IOException or InvalidDataException or InvalidOperationException

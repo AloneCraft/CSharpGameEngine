@@ -1,8 +1,7 @@
 using System.Xml.Linq;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// The engine's commands live in Extensions &gt; C# Game Engine (not the Tools menu), and that menu
-/// opens the Scene Editor options directly, so the navigation switches are one click away.
+/// エンジンのコマンドは Tools メニューではなく Extensions &gt; C# Game Engine にあり、そのメニューから Scene Editor のオプションを直接開けるため、ナビゲーション設定は 1 クリックで操作できる。
 /// </summary>
 public sealed class VsixMenuPlacementTests {
     private static readonly XNamespace Vsct="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable";
@@ -35,10 +34,7 @@ public sealed class VsixMenuPlacementTests {
         }
     }
     /// <summary>
-    /// ADR-0071: scenes open by double-click, so the extension adds nothing to the code editor's or
-    /// Solution Explorer's context menus. (Before the package loads, Visual Studio shows context-menu
-    /// commands with their .vsct defaults, which put "Open in Scene Designer" and 32 "Scene" rows on
-    /// every C# file.)
+    /// ADR-0071：シーンはダブルクリックで開くため、拡張機能はコードエディターや Solution Explorer のコンテキストメニューに項目を追加しない。（パッケージ読み込み前は、Visual Studio は .vsct の既定値でコンテキストメニューを表示し、すべての C# ファイルに「Open in Scene Designer」と 32 個の「Scene」行が追加されていた。）
     /// </summary>
     [Theory]
     [InlineData("OpenViewerCommandPackage.vsct")]
@@ -54,8 +50,7 @@ public sealed class VsixMenuPlacementTests {
     }
 
     /// <summary>
-    /// M0097 (user request): the toolbar carries every command of Extensions &gt; C# Game Engine, including
-    /// Options and the Diagnostic Tools submenu, so nothing is reachable from the menu alone.
+    /// M0097（ユーザー要求）：ツールバーに Extensions &gt; C# Game Engine のすべてのコマンドを配置する。Options と Diagnostic Tools サブメニューも含め、メニューだけからしか操作できない機能をなくす。
     /// </summary>
     [Theory]
     [InlineData("OpenViewerCommandPackage.vsct")]
@@ -69,7 +64,7 @@ public sealed class VsixMenuPlacementTests {
         Assert.Empty(FromMenu.Except(FromToolbar));
     }
 
-    /// <summary>M0097: Visual Studio's debugger and profiler, offered for a game started as an exe.</summary>
+    /// <summary>M0097：exe として起動したゲームに対し、Visual Studio のデバッガーとプロファイラーを提供する。</summary>
     [Fact]
     public void DiagnosticToolsSubmenu_HoldsTheFourCommandsWithTheirIds(){
         var Document=Load("OpenViewerCommandPackage.vsct");
@@ -86,7 +81,7 @@ public sealed class VsixMenuPlacementTests {
         Assert.Equal("診断ツール",Japanese.Descendants(Vsct+"ButtonText").Single().Value);
     }
 
-    /// <summary>The ids of the buttons under a menu or toolbar, through groups, submenus and command placements.</summary>
+    /// <summary>メニューまたはツールバー配下にあるボタンのID。グループ、サブメニュー、コマンド配置をたどる。</summary>
     private static HashSet<string>Reachable(XDocument Document,string Root){
         var ParentsOf=new Dictionary<string,List<string>>(StringComparer.Ordinal);
         void Link(string?Id,string?Parent){

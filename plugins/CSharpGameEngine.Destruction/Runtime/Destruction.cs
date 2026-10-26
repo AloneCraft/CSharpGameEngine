@@ -5,11 +5,8 @@ using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Destruction;
 /// <summary>
-/// The destructibles of a game (ADR-0078/M0113). System の引数に <c>Destruction</c> と書くと、同じゲームの全 System が同じ 1 つを受ける。It owns every
-/// destructible's breaking state (<see cref="FractureState"/>, the solver of <c>Runtime.Physics</c>) and the Entities it made for it: one drawn fragment per
-/// cooked fragment, and one body per piece once the object has come apart. A game can strain a destructible itself (<see cref="ApplyStrain"/>: a shot,
-/// an explosion) or hit it (<see cref="ApplyImpulse"/>); the strain is resolved in the same fixed tick, after the physics step.
-/// Everything is processed in the order of the destructibles' physics stable IDs, so a run is the same every time.
+/// ゲーム内の破壊可能オブジェクト (ADR-0078/M0113)。System の引数に <c>Destruction</c> と書くと、同じゲームのすべての System が同じインスタンスを受け取る。各破壊可能オブジェクトの破断状態（<see cref="FractureState"/>。<c>Runtime.Physics</c> のソルバー）と、それに対して生成した Entity をすべて所有する。調理済みの各フラグメントに描画用フラグメントを 1 つ作り、オブジェクトが分離した後は破片ごとに剛体を 1 つ作る。ゲームから破壊可能オブジェクトにひずみを加えたり（<see cref="ApplyStrain"/>：射撃、爆発）、力積を与えたり（<see cref="ApplyImpulse"/>）できる。ひずみは物理ステップの後、同じ固定 tick 内で解決する。
+/// すべての処理を破壊可能オブジェクトの物理安定 ID 順に行うため、毎回同じ実行結果になる。
 /// </summary>
 [EngineService]
 public sealed class Destruction {
@@ -24,7 +21,7 @@ public sealed class Destruction {
         internal readonly RigidBody Body=Body;
         internal readonly Entity[]Visuals=new Entity[State.Asset.Fragments.Count];
         internal readonly Dictionary<int,Entity>Bodies=[];
-        /// <summary>The loose pieces in the order they came free, with the tick they did.</summary>
+        /// <summary>自由になった順に並べた破片と、それぞれが分離したティック。</summary>
         internal readonly List<(int Piece,ulong Tick)>Loose=[];
     }
     private readonly SortedDictionary<ulong,Instance>Instances=[];
@@ -38,15 +35,15 @@ public sealed class Destruction {
     private readonly List<int>RecordedBonds=[];
     private readonly List<FractureBondStrain>RecordedStrains=[];
     private readonly HashSet<ulong>BeganPairs=[];
-    /// <summary>The last tick each character touched each body (M0124): a character's hit lasts only in the tick its touch began, as a contact's does.</summary>
+    /// <summary>各キャラクターが各ボディに触れた最後のティック（M0124）：キャラクターの衝撃が有効なのは、接触を始めたティックだけ。接触の場合と同じ。</summary>
     private readonly Dictionary<(Entity Character,Entity Body),ulong>CharacterTouches=[];
     private readonly List<(Entity Character,Entity Body)>StaleTouches=[];
     private readonly List<(Entity Body,LogicalVector3 Point,LogicalScalar Impulse,bool Lasting)>PendingHits=[];
     private readonly List<ulong>Ended=[];
     private uint Sequence;
-    /// <summary>How many destructibles are loaded.</summary>
+    /// <summary>読み込まれている破壊可能オブジェクトの数。</summary>
     public int Count=>this.Instances.Count;
-    /// <summary>The breaking state of a loaded destructible (for the game and the tests).</summary>
+    /// <summary>読み込み済み破壊可能オブジェクトの破壊状態（ゲームとテスト用）。</summary>
     public bool TryGetState(Entity Root,out FractureState State){
         foreach(var Instance in this.Instances.Values){
             if(Instance.Root==Root){
@@ -57,14 +54,14 @@ public sealed class Destruction {
         State=null!;
         return false;
     }
-    /// <summary>The Entity drawing a fragment of a destructible, or <see cref="Entity"/>'s default when it was removed.</summary>
+    /// <summary>破壊可能オブジェクトの破片を描画する Entity。削除後は <see cref="Entity"/> の既定値。</summary>
     public Entity FragmentEntity(Entity Root,int Fragment){
         foreach(var Instance in this.Instances.Values){
             if(Instance.Root==Root&&(uint)Fragment<(uint)Instance.Visuals.Length){ return Instance.Visuals[Fragment]; }
         }
         return default;
     }
-    /// <summary>The body of a live piece (the destructible itself while it is whole).</summary>
+    /// <summary>生存中の破片のボディ（オブジェクトが全体の間は、破壊可能オブジェクト自体）。</summary>
     public Entity PieceBody(Entity Root,int Piece){
         foreach(var Instance in this.Instances.Values){
             if(Instance.Root!=Root){ continue; }
@@ -73,26 +70,22 @@ public sealed class Destruction {
         }
         return default;
     }
-    /// <summary>Whether an Entity is a destructible (whole) or the body of one of its pieces.</summary>
+    /// <summary>Entity が、全体状態の破壊可能オブジェクトか、その破片のボディか。</summary>
     public bool Owns(Entity Body)=>this.Owners.ContainsKey(Body);
     /// <summary>
-    /// Strains every bond whose middle lies within <paramref name="Radius"/> of the world point <paramref name="Center"/> with <paramref name="Strain"/> (N·s),
-    /// less with distance down to nothing at the radius (UE's External Strain field). Resolved at this fixed tick's destruction step.
+    /// ワールド座標 <paramref name="Center"/> から <paramref name="Radius"/> 以内に中心があるすべての結合に、距離に応じて弱まり、半径上でゼロになる
+    /// <paramref name="Strain"/>（N·s）を加える（UE の External Strain field）。この固定ティックの破壊処理で解決する。
     /// </summary>
     public void ApplyStrain(LogicalVector3 Center,LogicalScalar Radius,LogicalScalar Strain){
         if(Radius>LogicalScalar.Zero&&Strain>LogicalScalar.Zero){ this.PendingStrain.Add((Center,Radius,Strain)); }
     }
-    /// <summary>
-    /// Hits a destructible (or a piece's body) at a world point with an impulse (N·s): the fragment there and its neighbours take the strain. A hit is an
-    /// impact, so it also adds to the bonds' internal strain (M0124).
-    /// </summary>
+    /// <summary>破壊可能オブジェクト（または破片のボディ）をワールド座標上の点で力積（N·s）により叩く。その位置の破片と隣接破片にひずみを加える。衝撃なので、結合の内部ひずみにも加算する（M0124）。</summary>
     public void ApplyImpulse(Entity Body,LogicalVector3 Point,LogicalScalar Impulse){
         if(Impulse>LogicalScalar.Zero&&this.Owners.ContainsKey(Body)){ this.PendingImpulses.Add((Body,Point,Impulse)); }
     }
     /// <summary>
-    /// A character's hit (<see cref=DestructionImpact/>, M0124): an impact only in the tick the character's touch of that body began; while the character
-    /// keeps pressing into it, tick after tick, the hit strains that tick only, as a contact that goes on does (a character leaning into a crate does not
-    /// wear it down tick by tick).
+    /// キャラクターによる衝撃（<see cref="DestructionImpact"/>、M0124）：衝撃が発生するのは、キャラクターがそのボディに触れ始めたティックだけ。押し続けても、そのティック分
+    /// のひずみだけを加える。継続する接触と同じ扱いで、箱にもたれ続けても毎ティック摩耗させない。
     /// </summary>
     internal void ApplyCharacterImpulse(Entity Character,Entity Body,LogicalVector3 Point,LogicalScalar Impulse,ulong Tick){
         if(Impulse<=LogicalScalar.Zero||!this.Owners.ContainsKey(Body)){ return; }
@@ -100,9 +93,9 @@ public sealed class Destruction {
         this.CharacterTouches[(Character,Body)]=Tick;
         this.PendingHits.Add((Body,Point,Impulse,Began));
     }
-    /// <summary>Puts an asset made in memory where the destructibles look for <paramref name="Name"/> (tests and previews; the build cooks the real ones).</summary>
+    /// <summary>メモリ上で作成したアセットを、破壊可能オブジェクトが <paramref name="Name"/> で検索できる場所に登録する（テストとプレビュー用。ビルドでは実アセットを調理する）。</summary>
     public static void Register(string Name,PrefractureAsset Asset)=>PrefractureAssetCache.Register(ContentRoot.Resolve(DestructionDefaults.AssetPath(Name)),Asset);
-    /// <summary>The stable ID of a piece's body: an FNV-1a hash of the destructible's ID and the piece number, with the top bit set so it never meets an Entity-number ID.</summary>
+    /// <summary>破片のボディの安定 ID。破壊可能オブジェクトの ID と破片番号から計算する FNV-1a ハッシュで、最上位ビットを立て、Entity 番号の ID と重ならないようにする。</summary>
     public static ulong PieceStableId(ulong RootStableId,int Piece){
         var Hash=14695981039346656037UL;
         Hash=(Hash^RootStableId)*1099511628211UL;
@@ -110,10 +103,7 @@ public sealed class Destruction {
         Hash=(Hash^(ulong)(uint)Piece)*1099511628211UL;
         return Hash|(1UL<<63);
     }
-    /// <summary>
-    /// Loads a destructible the first time it is seen: the cooked asset, its breaking state and one drawn fragment Entity per fragment, which follow the
-    /// destructible until it breaks.
-    /// </summary>
+    /// <summary>初めて見つかった破壊可能オブジェクトを読み込む。事前生成したアセット、その破壊状態、および破片ごとに描画用 Entity を1つ作成し、破壊されるまではオブジェクトに追従させる。</summary>
     internal void Load(Entity Root,in Transform Transform,in Destructible Settings,ref DestructibleState Runtime,ref State State){
         Runtime.Attempted=true;
         if(!DestructionDefaults.IsValidName(Settings.FractureAsset)){
@@ -161,13 +151,11 @@ public sealed class Destruction {
         Runtime.Pieces=1;
     }
     /// <summary>
-    /// The destruction step of one fixed tick, after the physics step. Live: gathers the tick's strain (contact impulses on destructibles and their pieces,
-    /// the game's impulses and strain fields), breaks the bonds whose strain (with their internal strain, M0124) reached their strength, reports each as a
-    /// <c>BondBroken</c> event and a cache record, records the bonds whose internal strain an impact raised (the cache keeps them), and turns the parts that
-    /// came apart into bodies. Impacts are what last: a contact in the tick it began, the game's impulses (a character's hits come this way) and fields; a
-    /// contact that goes on (a body resting on the object) strains the tick only. Playing back a cache: breaks exactly the bonds the cache recorded for this
-    /// tick and restores the recorded internal strains (and ignores strain), so the same pieces appear and a live run that follows goes on as the recorded
-    /// one did. Then removes the loose pieces whose time ran out or that exceed the fragment budget.
+    /// 物理ステップ後に実行する、固定ティック1回分の破壊処理。通常実行では、そのティックのひずみ（破壊可能オブジェクトとその破片への接触力積、ゲームからの力積、ひずみフィールド）を集め、内部ひずみ（
+    /// M0124）を含むひずみが強度に達した結合を破壊する。それぞれを <c>BondBroken</c> イベントとキャッシュ記録として報告し、衝撃で内部ひずみが増えた結合も記録する（キャッシュはその値を
+    /// 保持する）。分離した部分はボディにする。衝撃として残るのは、接触開始ティックの接触、ゲームからの力積（キャラクターの衝撃もこれに含む）、フィールドである。物体の上に載り続けるボディによる継続接触は、そ
+    /// のティック分だけひずみを加える。キャッシュ再生時は、記録された結合をそのティックに破壊し、記録済みの内部ひずみを復元する（ひずみ入力は無視する）。これにより同じ破片が現れ、その後の通常実行も記録どおり
+    /// に続く。最後に、寿命が尽きた破片、または破片数の上限を超えた破片を削除する。
     /// </summary>
     internal void Step(IPhysicsHost Host,ref State State){
         var Domain=Host.Physics.Active;
@@ -206,7 +194,7 @@ public sealed class Destruction {
         this.PendingImpulses.Clear();
         this.PendingHits.Clear();
         this.PendingStrain.Clear();
-        // Touches not renewed in this tick have ended.
+        // このティックに更新されなかった接触は終了している。
         this.StaleTouches.Clear();
         foreach(var (Key,Last) in this.CharacterTouches){
             if(Last<Tick){ this.StaleTouches.Add(Key); }
@@ -243,10 +231,7 @@ public sealed class Destruction {
             }
         }
     }
-    /// <summary>
-    /// Pushes every moving body within the field's radius away from it once (<see cref="ForceField"/>): an impulse of the body's mass times the field's speed,
-    /// less with distance, for the next tick.
-    /// </summary>
+    /// <summary>フィールドの範囲内で動く各ボディを一度だけ外向きに押す（<see cref="ForceField"/>）。力積はボディの質量とフィールド速度の積で、距離に応じて弱まり、次のティックに適用される。</summary>
     internal void Push(Entity Field,LogicalVector3 Center,in ForceField Settings,ref ForceFieldState Runtime,IPhysicsHost Host,ref State State){
         if(Settings.Radius<=LogicalScalar.Zero||Settings.Speed<=LogicalScalar.Zero){ return; }
         var Domain=Host.Physics.Active;
@@ -271,20 +256,17 @@ public sealed class Destruction {
         }
         Runtime.Pushed=Done.Count;
     }
-    /// <summary>Forgets the bodies a removed field pushed.</summary>
+    /// <summary>削除されたフィールドが押したボディの記録を破棄する。</summary>
     internal void ForgetField(Entity Field)=>this.Pushed.Remove(Field);
     private static ulong FieldSource(Entity Field)=>(1UL<<62)|(ulong)(uint)Field.Index;
-    /// <summary>
-    /// The impulse at a world point of a body (the destructible itself, or a piece) goes to the fragment of that body that holds the point. <paramref name="Lasting"/>:
-    /// an impact, which also adds to the internal strain.
-    /// </summary>
+    /// <summary>ワールド座標上のボディ（破壊可能オブジェクト自体、または破片）への点力積を、その点を含む破片に適用する。<paramref name="Lasting"/> の場合は衝撃として内部ひずみにも加える。</summary>
     private void AddImpulse(Instance Instance,int Piece,Entity Body,LogicalVector3 Point,LogicalScalar Impulse,bool Lasting,DeterministicPhysicsWorld World,ref State State){
         if(Impulse<=LogicalScalar.Zero||!Instance.State.TryGetPiece(Piece,out var Owner)){ return; }
         if(!TryPose(Instance,Owner,Body,World,ref State,out var Position,out var Rotation)){ return; }
         var Local=Rotate(Rotation.Conjugate(),Point-Position)+(Owner.IsWhole?LogicalVector3.Zero:Owner.Center);
         Instance.State.AddImpulse(Instance.State.FragmentAt(Local,Owner),Impulse,Lasting);
     }
-    /// <summary>A world-space strain sphere on one destructible: each intact bond is measured where its middle is now (on its piece's body).</summary>
+    /// <summary>単一の破壊可能オブジェクトに作用するワールド空間のひずみ球。各未破壊結合の現在位置（所属する破片のボディ上）で距離を測る。</summary>
     private void AddStrainSphere(Instance Instance,LogicalVector3 Center,LogicalScalar Radius,LogicalScalar Strain,DeterministicPhysicsWorld World,ref State State){
         var Asset=Instance.State.Asset;
         var Half=LogicalScalar.One/LogicalScalar.FromInt64(2);
@@ -302,9 +284,8 @@ public sealed class Destruction {
         }
     }
     /// <summary>
-    /// Turns the pieces that came apart into bodies: the whole destructible's own collider is switched off, or the split piece's body is destroyed, and each
-    /// new piece gets a body where its fragments are now, moving as the old body moved at that point (anchored pieces are static). The drawn fragments move
-    /// over to their new bodies.
+    /// 分離した破片をボディにする。オブジェクト全体なら自身のコライダーを無効にし、分割済み破片ならそのボディを破棄する。新しい各破片には現在位置にボディを作り、元のボディのその位置での動きを引き継がせる（
+    /// 固定破片は静止）。描画用破片も新しいボディへ移す。
     /// </summary>
     private void Split(Instance Instance,FractureStep Result,DeterministicPhysicsWorld World,ulong Tick,ref State State){
         Dictionary<int,(LogicalVector3 Position,LogicalQuaternion Rotation,PhysicsVelocity Velocity,LogicalVector3 Origin)>Old=[];
@@ -328,8 +309,8 @@ public sealed class Destruction {
             }
         }
         State.World.TryGetComponent(Instance.Root,out Transform RootTransform);
-        // The fragment budget is kept before any body is made: the oldest loose pieces go first, and when the new ones alone exceed it, the first of them
-        // are removed instead of being made (a body made in this tick could not be destroyed in it).
+        // 破片数の上限はボディを作る前に適用する。まず古い分離破片を削除し、新たに生じた破片だけで上限を超える場合は、その先頭の破片を
+        // 削除する（このティックに作成したボディは同じティック内には破棄できない）。
         var Excess=Instance.Settings.FragmentBudget>0?Instance.Loose.Count+Result.Began.Count(static Piece=>!Piece.Anchored)-Instance.Settings.FragmentBudget:0;
         while(Excess>0&&Instance.Loose.Count>0){
             this.RemovePiece(Instance,Instance.Loose[0].Piece,ref State);
@@ -383,10 +364,13 @@ public sealed class Destruction {
             }
         }
     }
-    /// <summary>Removes the loose pieces whose <see cref="Destructible.FragmentLifetime"/> ran out, then the oldest while more than <see cref="Destructible.FragmentBudget"/> live.</summary>
+    /// <summary>
+    /// <see cref="Destructible.FragmentLifetime"/> が尽きた分離破片を削除し、生存中の破片が
+    /// <see cref="Destructible.FragmentBudget"/> を超えていれば古いものから削除する。
+    /// </summary>
     private void Expire(Instance Instance,ulong Tick,ref State State){
         if(Instance.Settings.FragmentLifetime>LogicalScalar.Zero&&State.FixedTickRate>0){
-            // The lifetime in whole ticks (rounded to the nearest, at least one).
+            // 寿命を整数ティック数に換算する（最も近い値に丸め、最低1）。
             var LifetimeTicks=(Instance.Settings.FragmentLifetime*LogicalScalar.FromInt64(State.FixedTickRate)).TryToScaledInt64(0,out var Whole)?(ulong)Math.Max(1L,Whole):ulong.MaxValue/2;
             while(Instance.Loose.Count>0&&Tick>=Instance.Loose[0].Tick+LifetimeTicks){ this.RemovePiece(Instance,Instance.Loose[0].Piece,ref State); }
         }
@@ -408,16 +392,13 @@ public sealed class Destruction {
         }
         Instance.State.Remove(PieceId);
     }
-    /// <summary>A destructible whose Entity is gone (its scene was unloaded): its state goes, and <c>DestructionOrphans</c> removes its Entities.</summary>
+    /// <summary>Entity が消えた破壊可能オブジェクト（シーンがアンロードされた状態）。状態を破棄し、<c>DestructionOrphans</c> が関連 Entity を削除する。</summary>
     private void Unload(Instance Instance,ref State State){
         foreach(var Body in Instance.Bodies.Values){ this.Owners.Remove(Body); }
         this.Owners.Remove(Instance.Root);
         this.Instances.Remove(Instance.RootStableId);
     }
-    /// <summary>
-    /// Where a body is now and the frame of its piece: the physics world's pose when the body is in it (it was there for this tick's step), otherwise the
-    /// Entity's own Transform (a body made this tick).
-    /// </summary>
+    /// <summary>ボディの現在位置と、その破片の座標枠。物理ワールド内のボディなら物理ワールドの姿勢（このティックのステップで使われたもの）、それ以外なら Entity 自身の Transform（このティックに作成されたボディ）。</summary>
     private static bool TryPose(Instance Instance,FracturePiece Piece,Entity Body,DeterministicPhysicsWorld World,ref State State,out LogicalVector3 Position,out LogicalQuaternion Rotation){
         if(World.TryGetBodyState(Body,out var Physical)){
             Position=Physical.Position;
@@ -433,7 +414,7 @@ public sealed class Destruction {
         Rotation=LogicalQuaternion.Identity;
         return false;
     }
-    /// <summary>The rotation a body is drawn and simulated with: its <c>PhysicsRotation</c> when it has one, otherwise its Transform's.</summary>
+    /// <summary>ボディの描画とシミュレーションに使う回転。<c>PhysicsRotation</c> があればその値、なければ Transform の回転。</summary>
     internal static LogicalQuaternion CurrentRotation(Entity Entity,CSharpGameEngine.Entities.World World,LogicalQuaternion Fallback)=>
         World.TryGetComponent(Entity,out PhysicsRotation Rotation)?Rotation.Value:Fallback;
     internal static LogicalVector3 Rotate(LogicalQuaternion Rotation,LogicalVector3 Value)=>

@@ -25,8 +25,7 @@ public sealed class ScenePhysicsPanelLayoutTests {
     }
 
     /// <summary>
-    /// M0097: the panel has two explained sections. The overlay options sit under the overlay switch and are disabled
-    /// while it is off, so a checked option no longer looks active when nothing is drawn.
+    /// M0097：パネルには説明付きのセクションが 2 つある。オーバーレイのオプションはオーバーレイ切り替えの下に配置し、オフの間は無効にする。何も描画していないときに、チェック済みオプションが有効に見えることを防ぐ。
     /// </summary>
     [Fact]
     public void PhysicsPanelGroupsTheOverlayOptionsUnderTheirSwitchAndExplainsBothSections(){

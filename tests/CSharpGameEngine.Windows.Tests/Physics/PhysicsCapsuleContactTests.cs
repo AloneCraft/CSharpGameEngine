@@ -2,7 +2,7 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>ADR-0067: closed-form capsule-triangle contacts and the all-contacts query used by character movement.</summary>
+/// <summary>ADR-0067：カプセルと三角形の閉形式接触計算、およびキャラクター移動が使う全接触クエリ。</summary>
 public sealed class PhysicsCapsuleContactTests {
     private static readonly LogicalScalar Tolerance=LogicalScalar.FromSingle(0.002f);
     private static readonly Collider Capsule=new() { Shape=ColliderShape.Capsule,Radius=LogicalScalar.FromSingle(0.35f),HalfHeight=LogicalScalar.FromSingle(0.55f) };
@@ -27,7 +27,7 @@ public sealed class PhysicsCapsuleContactTests {
     public void CollectContacts_CapsuleSunkIntoAFloorReportsItsDepthAndADownwardNormal(){
         var World=CreateWorld(Floor());
         List<PhysicsShapeContact> Contacts=[];
-        // Bottom of the capsule is 0.1 m below the floor: centre height 0.55 + 0.35 - 0.1.
+        // カプセル底部は床より0.1 m下：中心高さ0.55 + 0.35 - 0.1。
         Assert.Equal(PhysicsQueryStatus.Success,World.CollectContacts(Capsule,new LogicalVector3(0.3f,0.8f,-0.2f),LogicalQuaternion.Identity,PhysicsLayerMask.All,Contacts).Status);
         Assert.NotEmpty(Contacts);
         foreach(var Contact in Contacts){
@@ -41,7 +41,7 @@ public sealed class PhysicsCapsuleContactTests {
         List<PhysicsShapeContact> Contacts=[];
         World.CollectContacts(Capsule,new LogicalVector3(0.7f,0.85f,0f),LogicalQuaternion.Identity,PhysicsLayerMask.All,Contacts);
         Assert.Contains(Contacts,Contact=>Contact.StableId==1&&Contact.Normal.U<LogicalScalar.FromSingle(-0.99f));
-        // Both wall triangles touch the capsule; the one whose face region contains the segment is the deepest.
+        // 両方の壁三角形がカプセルに接触する。面の領域に線分が含まれる方が、より深く接触する。
         var WallContacts=Contacts.Where(Contact=>Contact.StableId==2).ToArray();
         Assert.All(WallContacts,Contact=>Assert.True(Contact.Normal.R>LogicalScalar.FromSingle(0.9f),$"wall normal {Contact.Normal}"));
         var Wall=WallContacts.MaxBy(Contact=>Contact.Penetration);
@@ -52,11 +52,11 @@ public sealed class PhysicsCapsuleContactTests {
     public void CollectContacts_ASegmentThroughTheFloorIsPushedTowardItsCentre(){
         var World=CreateWorld(Floor());
         List<PhysicsShapeContact> Contacts=[];
-        // Centre 0.3 m above the floor: the lower segment end is 0.25 m below it.
+        // 中心は床より0.3 m上。下側の線分端は床より0.25 m下にある。
         World.CollectContacts(Capsule,new LogicalVector3(0,0.3f,0),LogicalQuaternion.Identity,PhysicsLayerMask.All,Contacts);
         Assert.NotEmpty(Contacts);
         Assert.All(Contacts,Contact=>Assert.True(Contact.Normal.U<LogicalScalar.Zero,$"normal {Contact.Normal}"));
-        // Clearing the floor needs radius 0.35 plus the 0.25 m the segment end is below it.
+        // 床を離れるには、半径0.35に線分端が床下にある0.25 mを加える必要がある。
         AssertNear(LogicalScalar.FromSingle(0.6005f),Contacts.Max(Contact=>Contact.Penetration),"penetration");
     }
     [Fact]
@@ -68,7 +68,7 @@ public sealed class PhysicsCapsuleContactTests {
     }
     [Fact]
     public void ClosestSegmentSegment_MatchesTheAnalyticDistanceOfSkewSegments(){
-        // Segment along X at y=0 and segment along Z at y=2 cross in projection: distance 2.
+        // y=0にあるX軸方向の線分と、y=2にあるZ軸方向の線分は投影上で交差するが、距離は2。
         PhysicsNarrowPhase.ClosestSegmentSegment(new LogicalVector3(-1,0,0),new LogicalVector3(1,0,0),new LogicalVector3(0.5f,2,-1),new LogicalVector3(0.5f,2,1),out var First,out var Second);
         AssertNear(LogicalScalar.FromSingle(0.5f),First.R,"first.R");
         AssertNear(LogicalScalar.Zero,Second.F,"second.F");

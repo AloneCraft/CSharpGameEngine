@@ -17,7 +17,7 @@ public sealed class SceneRenderFailurePolicyTests {
         var Lifecycle=new SceneRenderBuildLifecycle();
         long Previous=Lifecycle.Begin();
 
-        Lifecycle.Invalidate(); // target switch
+        Lifecycle.Invalidate(); // 対象の切り替え
         long Current=Lifecycle.Begin();
 
         Assert.False(Lifecycle.TryComplete(Previous));
@@ -31,7 +31,7 @@ public sealed class SceneRenderFailurePolicyTests {
         var Lifecycle=new SceneRenderBuildLifecycle();
         _=Lifecycle.Begin();
 
-        Lifecycle.Invalidate(); // RenderFrame/Resize fatal path
+        Lifecycle.Invalidate(); // RenderFrame/Resize の致命的エラー経路。
 
         Assert.False(Lifecycle.IsBuildPending);
         Assert.True(SceneRenderFailurePolicy.ShouldShowFailure(

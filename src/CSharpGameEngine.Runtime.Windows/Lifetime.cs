@@ -2,16 +2,16 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// An Entity that ends itself (ADR-0078/M0105): the time left runs down by one fixed tick per tick and at zero the Entity is destroyed.
-/// On the root of a Scene it ends the whole Scene, children included, which is how a spawned marker or burst cleans up after itself;
-/// on any other Entity it ends that Entity alone. Counted in fixed ticks, so it is as deterministic as the rest of the simulation.
+/// 短時間で自身を終了するEntity（ADR-0078/M0105）。残り時間を固定ティックごとに1ティック分減らし、0になるとEntityを破棄する。
+/// Sceneのルートに置いた場合は子も含めてScene全体を終了させるため、生成したマーカーやバーストの後片付けに使える。
+/// それ以外のEntityに置いた場合は、そのEntityだけを終了する。固定ティック数で管理するため、シミュレーションのほかの処理と同様に決定的。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,20)]
 public struct Lifetime {
-    /// <summary>Seconds left. At zero or less the Entity is destroyed at the next fixed tick.</summary>
+    /// <summary>残り時間（秒）。0以下なら次の固定ティックでEntityを破棄する。</summary>
     public LogicalScalar Seconds;
 }
-/// <summary>ADR-0078/M0105: counts every <see cref="Lifetime"/> down and destroys the Entities that ran out.</summary>
+/// <summary>ADR-0078/M0105：すべての<see cref="Lifetime"/>を減算し、時間切れになったEntityを破棄する。</summary>
 [SystemPhase(SystemPhase.FixedSimulation)]
 internal struct LifetimeExpire:ISystem {
     public void Update(Entity Entity,ref Lifetime Lifetime,ref State State){

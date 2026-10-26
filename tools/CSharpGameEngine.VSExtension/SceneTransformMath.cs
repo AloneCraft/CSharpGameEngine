@@ -4,7 +4,7 @@ using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Designer-side TRS. Rotation is stored for editing as RUF Euler radians and exposed to gizmos as a quaternion.</summary>
+/// <summary>Designer 側の TRS。編集時には RUF オイラー角のラジアンで回転を保持し、ギズモにはクォータニオンとして公開する。</summary>
 internal readonly struct SceneTransformValue {
     internal SceneTransformValue(Vector3 Position,Quaternion Rotation,Vector3 Scale){
         this.Position=Position;
@@ -27,7 +27,7 @@ internal readonly struct SceneTransformValue {
     internal static SceneTransformValue Identity=>new(Vector3.Zero,Vector3.Zero,Vector3.One);
 }
 
-/// <summary>Row-vector TRS helpers shared by the scene designer and its gizmos.</summary>
+/// <summary>シーンデザイナーとそのギズモで共有する、行ベクトル型 TRS ヘルパー。</summary>
 internal static class SceneTransformMath {
     private const float QuaternionEpsilon=1e-12f;
 
@@ -58,11 +58,11 @@ internal static class SceneTransformMath {
         return true;
     }
 
-    /// <summary>Creates Yaw(U)-Pitch(R)-Roll(F) orientation from public RUF radians.</summary>
+    /// <summary>public な RUF ラジアンから、Yaw(U)-Pitch(R)-Roll(F) の向きを作成する。</summary>
     internal static Quaternion CreateRotation(Vector3 EulerRuf)=>
         Quaternion.CreateFromYawPitchRoll(EulerRuf.Y,EulerRuf.X,EulerRuf.Z);
 
-    /// <summary>Converts a gizmo quaternion to public RUF radians in the Yaw(U)-Pitch(R)-Roll(F) convention.</summary>
+    /// <summary>ギズモのクォータニオンを、Yaw(U)-Pitch(R)-Roll(F) 規約の public な RUF ラジアンへ変換する。</summary>
     internal static Vector3 ToEulerRuf(Quaternion Rotation){
         Rotation=NormalizeRotation(Rotation);
         float SinR=2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z);
@@ -91,7 +91,7 @@ internal static class SceneTransformMath {
     private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
 }
 
-/// <summary>Reads and validates the nested public Transform.Position/Rotation/Scale vectors.</summary>
+/// <summary>入れ子になった public な Transform.Position/Rotation/Scale ベクトルを読み取り、検証する。</summary>
 internal static class SceneTransformBinding {
     internal static bool TryRead(SceneNode Node,out SceneTransformValue Transform){
         var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
@@ -245,7 +245,7 @@ internal static class SceneTransformBinding {
         Value.Arguments.Length>1?ReadFloat(Value.Arguments[1].ConstantValue,Default.Y):Default.Y,
         Value.Arguments.Length>2?ReadFloat(Value.Arguments[2].ConstantValue,Default.Z):Default.Z);
 
-    // Existing hand-written scenes can be displayed once and are rewritten to the public RUF vectors on edit.
+    // 既存の手書きシーンは一度表示でき、編集時に public な RUF ベクトルへ書き換えられる。
     private static bool IsLegacyFlat(SceneComponent Component)=>
         Component.FindMember("Position") is null
         &&(Component.FindMember("PositionX") is not null||Component.FindMember("PositionY") is not null

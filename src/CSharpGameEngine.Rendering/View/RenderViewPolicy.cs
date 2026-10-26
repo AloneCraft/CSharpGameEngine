@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.View;
-/// <summary>L5 projection policy: physical perspective views are logarithmic, orthographic views are linear.</summary>
+/// <summary>L5 投影方針。物理透視ビューでは対数深度、正射ビューでは線形深度を使う。</summary>
 public static class RenderViewPolicy {
     public static RenderViewSource FromCameraSource(in RenderCamera Camera,float AspectRatioOverride=0f)=>
         RenderViewSource.Perspective(Camera.GetView(),Camera.GetEyePosition(),

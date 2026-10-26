@@ -1,10 +1,8 @@
 namespace CSharpGameEngine.Audio.XAudio2;
 
 /// <summary>
-/// Opaque handle to one running XAudio2 engine + its mastering voice. Stored as <c>nint</c> (not a
-/// raw pointer type) so this struct - and every Component field that holds it - stays in safe
-/// context; <see cref="XAudio2Backend"/> is the only place that casts these back to the real COM
-/// pointer types.
+/// 実行中の XAudio2 エンジン1つと、そのマスターボイスを指す、不透明なハンドル。<c>nint</c> として保存し、生ポインター型は使わない。この構造体と、これを保持するすべての
+/// Component フィールドを安全なコンテキストに保つためである。実際の COM ポインター型へキャストするのは <see cref="XAudio2Backend"/> のみ。
 /// </summary>
 public readonly struct XAudio2EngineHandle(nint EnginePointer,nint MasteringVoicePointer) {
     internal readonly nint EnginePointer=EnginePointer;

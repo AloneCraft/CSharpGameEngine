@@ -2,9 +2,7 @@ using System.Numerics;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// ADR-0070 B1: the runtime view's camera is read back from the Scene view's look-at view and
-/// projection: its rotation turns +F into the view direction and +U into the view's up, and its
-/// near and far planes are the projection's.
+/// ADR-0070 B1：ランタイムビューのカメラは Scene ビューの視点と射影から読み戻す。回転により +F を視線方向へ、+U をビューの上方向へ向け、near と far の各平面は射影から取得する。
 /// </summary>
 public sealed class RenderPreviewCameraPoseTests {
     [Theory]

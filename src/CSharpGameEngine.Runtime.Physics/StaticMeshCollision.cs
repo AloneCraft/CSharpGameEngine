@@ -6,31 +6,28 @@ using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Physics;
 /// <summary>
-/// Collides a <see cref="StaticMesh"/> node through its rendered triangles (ADR-0067), like
-/// Unreal's complex-as-simple collision on level geometry. The triangles are cooked once per asset
-/// and world placement, with the node's full world transform (scale included) baked in, and
-/// submitted as a static triangle-mesh body. Do not combine it with a <see cref="Collider"/> on the
-/// same Entity.
+/// <see cref="StaticMesh"/> ノードの描画三角形を使って衝突させる（ADR-0067）。レベル形状で Unreal の complex-as-simple 衝突を使うのと同様。
+/// 三角形はアセットとワールド配置ごとに一度調理し、ノードのワールド変換全体（スケールを含む）を反映して、静的三角形メッシュのボディとして登録する。同じ Entity に
+/// <see cref="Collider"/> を併用しないこと。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Spatial,22)]
 public struct StaticMeshCollider() {
     public PhysicsLayer Layer;
-    /// <summary>The surface's friction and restitution (UE's physical material of the mesh, ADR-0078/M0109): a vehicle's tyres read the friction under them.</summary>
+    /// <summary>表面の摩擦と反発（UE のメッシュ物理マテリアル、ADR-0078/M0109）。車両のタイヤは走行中の面の摩擦を読む。</summary>
     public PhysicsMaterial Material=new();
 }
-/// <summary>Imports StaticMesh triangles and bakes them into world-placed triangle-mesh shape assets.</summary>
+/// <summary>StaticMesh の三角形を取り込み、ワールド配置済み三角形メッシュの形状アセットに調理する。</summary>
 internal sealed class StaticMeshCollisionCooker {
     private readonly Dictionary<string,(Vector3[]Positions,int[]Indices)>Imported=new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string,string>ShapeIdByPlacement=[];
     private readonly Dictionary<(string AssetPath,LogicalAffineTransform World),string>ShapeIdByTransform=[];
     /// <summary>
-    /// Returns the id of a triangle-mesh asset in <paramref name="Shapes"/> holding the mesh placed by
-    /// <paramref name="World"/>, cooking it on first use. False when the asset cannot be read or has
-    /// no usable triangle.
+    /// <paramref name="World"/> に配置されたメッシュを保持する三角形メッシュアセットの ID を <paramref name="Shapes"/> から返す。初回使用時に調理する。
+    /// アセットを読み込めない、または使用可能な三角形がない場合は false。
     /// </summary>
     internal bool TryEnsure(PhysicsShapeCatalog Shapes,string AssetPath,in LogicalAffineTransform World,out string Id,out string Error){
-        // Every tick re-ensures every static mesh; formatting the placement string expands twelve
-        // Q64.64 values to decimal, so repeat placements are found by value first.
+        // 毎ティック、すべての静的メッシュを再確認する。配置文字列の書式化では12個の
+        // Q64.64 値を decimal に変換するため、まず値で配置を照合する。
         if(this.ShapeIdByTransform.TryGetValue((AssetPath,World),out Id!)){
             Error=string.Empty;
             return true;

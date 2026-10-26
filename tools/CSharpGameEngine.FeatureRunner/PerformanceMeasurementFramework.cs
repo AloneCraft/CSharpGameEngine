@@ -12,7 +12,7 @@ public enum PerformanceGateStatus { Passed,Failed,NotEvaluated,Unavailable }
 public sealed record PerformanceSample(int Index,long ElapsedNanoseconds,long AllocatedBytes);
 public sealed record PerformanceStatistics(long Minimum,long Median,long P95,long Mad,long Maximum);
 public sealed record PerformanceAbsoluteBudget(long MaximumMedianNanoseconds,long MaximumP95Nanoseconds,long MaximumP95AllocatedBytes);
-/// <summary>A comparison baseline. A null <see cref="P95Nanoseconds"/> compares the median only.</summary>
+/// <summary>比較のベースライン。<see cref="P95Nanoseconds"/> が null の場合、中央値だけを比較する。</summary>
 public sealed record PerformanceBaseline(long MedianNanoseconds,long? P95Nanoseconds,long P95AllocatedBytes,int MaximumRegressionBasisPoints);
 public sealed record PerformanceGateResult(PerformanceGateStatus Status,string Detail);
 public sealed record PerformanceAnalysis(PerformanceStatistics ElapsedNanoseconds,PerformanceStatistics AllocatedBytes,PerformanceGateResult Measurement,PerformanceGateResult AbsoluteBudget,PerformanceGateResult BaselineDelta,bool Passed);
@@ -31,9 +31,9 @@ public static class PerformanceMeasurementFramework {
         for(int Index=0;Index<Plan.WarmupCount;Index++){ Workload(Index); }
         var Samples=new PerformanceSample[Plan.SampleCount];
         for(int Index=0;Index<Samples.Length;Index++){
-            // Workloads are synchronous and execute on this thread. A process-wide counter would
-            // attribute unrelated test/host allocations to the sample whenever the runner is
-            // active in parallel, making the same workload pass or fail based on ambient work.
+            // ワークロードは同期処理としてこのスレッド上で実行する。プロセス全体のカウンターでは、
+            // ほかのテストやホストの無関係な割り当てを、サンプルの割り当てとして誤って数えてしまう。
+            // ランナーが並行して動作していると、同じワークロードでも周囲の処理次第で成功したり失敗したりする。
             long AllocationStart=GC.GetAllocatedBytesForCurrentThread();
             long TimestampStart=Stopwatch.GetTimestamp();
             Workload(Index);

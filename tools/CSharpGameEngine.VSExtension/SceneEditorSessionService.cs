@@ -10,10 +10,8 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Owns one Scene Designer session. The live text buffer of the scene document (C#, or a
-/// scene JSON per ADR-0070) is the only authoring copy.
-/// Completed gestures are planned against one latest Roslyn generation, written to the live
-/// buffer as one native Undo unit, and replaced by the authoritative reparse.
+/// 1つの Scene Designer session を所有します。シーンドキュメント（C# または ADR-0070 のシーン JSON）のライブテキストバッファーだけを編集元とします。
+/// 完了した操作は最新の Roslyn generation に対して計画し、ネイティブ Undo の1単位としてライブバッファーに書き込み、正本となる再解析結果で置き換えます。
 /// </summary>
 internal sealed class SceneEditorSessionService : IDisposable {
     private readonly SceneWorkspaceService Workspace;
@@ -108,8 +106,8 @@ internal sealed class SceneEditorSessionService : IDisposable {
         this.Workspace.ResolveSceneAsync(Key,CancellationToken);
 
     /// <summary>
-    /// Saves only the requested Scene source documents before an out-of-process Bake reads disk.
-    /// Source commits already changed the live buffers; Bake does not replay any editor history.
+    /// プロセス外 Bake がディスクを読み取る前に、要求された Scene のソースドキュメントだけを保存します。
+    /// source commit はすでにライブバッファーを変更しており、Bake は editor の履歴を再実行しません。
     /// </summary>
     internal async Task<SceneEditCommitResult>PrepareForBakeAsync(
         IReadOnlyList<ProjectSceneCatalogEntry>Entries,CancellationToken CancellationToken){
@@ -138,8 +136,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
     internal bool IsSaving(SceneKey Key)=>this.SourceWritesInFlight.Contains(Key);
 
     /// <summary>
-    /// Commits one completed gesture directly to the latest live scene buffer. A stale request is
-    /// explicitly rebased or rejected before the native Undo transaction is opened.
+    /// 完了した操作1つを、最新のライブシーンバッファーに直接 commit します。古い要求はネイティブ Undo transaction を開始する前に、明示的に rebase または拒否します。
     /// </summary>
     internal async Task<SceneEditCommitResult>CommitAsync(
         SceneEditCommitRequest Request,CancellationToken CancellationToken){
@@ -200,8 +197,8 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 throw;
             }
 
-            // Once the live buffer call returns, transaction closure is non-cancellable. Reporting
-            // cancellation after a successful source mutation would invite a duplicate retry.
+            // ライブバッファー呼び出しが戻った後の transaction 終了処理はキャンセルできません。
+            // ソース変更に成功した後でキャンセルを報告すると、重複 retry を誘発するためです。
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken.None);
             if(!Written.Succeeded){
                 this.ClearPendingLanding(Request.SceneKey);
@@ -251,7 +248,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
         return true;
     }
 
-    /// <summary>Persists the authoritative live scene buffer; it never performs edit writeback.</summary>
+    /// <summary>正本であるライブシーンバッファーを永続化します。編集内容の writeback は行いません。</summary>
     internal async Task<SceneEditCommitResult>SaveAsync(
         SceneKey Key,CancellationToken CancellationToken){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
@@ -278,7 +275,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
         return true;
     }
 
-    /// <summary>Converts the UI request without reading mutable session state.</summary>
+    /// <summary>変更可能な session state を読み取らずに UI request を変換します。</summary>
     internal static SceneEditOperation[]CreateOperations(SceneEditCommitRequest Request){
         if(Request.DirectOperations.Count>0){ return Request.DirectOperations.ToArray(); }
         return Request.IsDuplicate
@@ -343,9 +340,9 @@ internal sealed class SceneEditorSessionService : IDisposable {
                     IdentityBasis=Pending.Projection;
                     this.ClearPendingLanding(Key);
                 } else if(Pending.WriteCompleted){
-                    // A completed write whose expected canonical model never landed was
-                    // superseded by another source edit. Never carry its identity into a later
-                    // unrelated generation.
+                    // 期待した正規モデルが適用されなかった書き込み完了は、
+                    // 別のソース編集によって置き換えられています。その識別子を後続へ引き継いではいけません。
+                    // 無関係な生成処理。
                     this.ClearPendingLanding(Key);
                 }
             }
@@ -388,8 +385,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
 }
 
 /// <summary>
-/// One expected Roslyn landing for one Scene source write. The semantic signature prevents an
-/// older analysis or a later external edit from consuming the identity basis.
+/// 1回の Scene ソース書き込みに対して期待される Roslyn の適用結果。semantic signature により、古い解析や後から行われた外部編集がこの識別情報の基準として使われることを防ぎます。
 /// </summary>
 internal sealed class PendingSourceLanding {
     private PendingSourceLanding(

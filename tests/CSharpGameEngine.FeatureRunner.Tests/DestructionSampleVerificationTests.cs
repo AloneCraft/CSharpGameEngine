@@ -4,11 +4,10 @@ using System.Text.Json;
 using CSharpGameEngine.FeatureStages;
 namespace CSharpGameEngine.FeatureRunner.Tests;
 public sealed class DestructionSampleVerificationTests {
-    private static JsonElement Report(int D3D12Errors=0)=>
-        JsonDocument.Parse(JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=DestructionSampleVerification.Frames,d3d12Errors=D3D12Errors })).RootElement.Clone();
+    private static JsonElement Report(int D3D12Errors=0,bool DebugLayer=true)=>
+        JsonDocument.Parse(JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=DestructionSampleVerification.Frames,d3d12Errors=D3D12Errors,d3d12DebugLayerEnabled=DebugLayer })).RootElement.Clone();
     /// <summary>
-    /// The sample's output as the run prints it: the wall and the falling crate break before the walk, the walk breaks crates, the explosion breaks the last
-    /// one, and the pieces settle. Each parameter spoils one part.
+    /// サンプルの出力として実行時に表示される内容：歩行前に壁と落下する木箱が壊れ、歩行中に木箱が壊れ、爆発で最後の木箱が壊れ、破片が落ち着く。各パラメーターはその一部を損なう。
     /// </summary>
     private static string Output(int BrokenBeforeWalk=2,int BrokenByWalk=3,bool ExplosionBreaks=true,int Loose=64,float Lowest=0.076f,float FinalSpeed=0.014f,int Frames=DestructionSampleVerification.Frames,int Destructibles=6,int Strained=12,int Levels=2,float Dip=0.076f,bool Pushed=true){
         StringBuilder Text=new();
@@ -36,7 +35,7 @@ public sealed class DestructionSampleVerificationTests {
         var Lines=DestructionSampleVerification.Parse("noise\r\nCGE-DESTRUCTION-SAMPLE frame=3 tick=24 destructibles=6 broken=1 bonds=49 loose=10 sleeping=2 lowest=0.385 fastest=0.225\r\nCGE-DESTRUCTION-SAMPLE frame=x\n");
         var Line=Assert.Single(Lines);
         Assert.Equal(new DestructionSampleVerification.SampleFrame(3,24,6,1,49,10,2,0.385f,0.225f),Line);
-        // M0124: the internal strain and the levels, when the line has them.
+        // M0124：行に記録がある場合の内部ひずみとレベル。
         var Newer=Assert.Single(DestructionSampleVerification.Parse("CGE-DESTRUCTION-SAMPLE frame=4 tick=32 destructibles=6 broken=1 bonds=49 loose=10 sleeping=2 lowest=0.385 fastest=0.225 strained=7 levels=2"));
         Assert.Equal(7,Newer.Strained);
         Assert.Equal(2,Newer.Levels);
@@ -74,10 +73,18 @@ public sealed class DestructionSampleVerificationTests {
     }
     [Fact]
     public void Evaluate_AcceptsAWalkThatBreaksEveryCrateAndAShallowMomentaryDip(){
-        // M0124: the walk breaks the last crate too (the internal strain), the explosion pushes the pieces, and a fast piece dips 1 mm into the floor for a frame.
+        // M0124：歩行で最後の木箱も壊れる（内部ひずみ）。爆発で破片が押し出され、高速の破片は 1 フレームだけ床に 1 mm めり込む。
         var Failures=DestructionSampleVerification.Evaluate(Report(),DestructionSampleVerification.Parse(Output(BrokenByWalk:4,ExplosionBreaks:false,Dip:-0.001f)),out var Summary);
         Assert.Empty(Failures);
         Assert.Contains("broken=2/6/6/6",Summary,StringComparison.Ordinal);
+    }
+    [Fact]
+    public void Evaluate_RejectsARunWhoseDebugLayerWasNotEnabled(){
+        var Disabled=DestructionSampleVerification.Evaluate(Report(DebugLayer:false),DestructionSampleVerification.Parse(Output()),out _);
+        Assert.Contains(Disabled,Failure=>Failure.Contains("debug layer was not enabled",StringComparison.Ordinal));
+        var Missing=JsonDocument.Parse(JsonSerializer.Serialize(new { schema="cge-automation-report/1",frames=DestructionSampleVerification.Frames,d3d12Errors=0 })).RootElement.Clone();
+        var MissingFailures=DestructionSampleVerification.Evaluate(Missing,DestructionSampleVerification.Parse(Output()),out _);
+        Assert.Contains(MissingFailures,Failure=>Failure.Contains("debug layer was not enabled",StringComparison.Ordinal));
     }
     [Fact]
     public void Evaluate_ReportsMissingFrames(){

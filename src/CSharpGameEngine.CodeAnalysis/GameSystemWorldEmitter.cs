@@ -117,9 +117,7 @@ internal static class GameSystemWorldEmitter {
     }
 
     /// <summary>
-    /// Replaces a component's value in place and marks it changed, as a system write would; false when
-    /// the entity does not have the component. The Scene Designer's runtime view applies a value edit
-    /// this way (ADR-0070 B1); the entity keeps its archetype.
+    /// system の書き込みと同じく、component の値をその場で置き換えて changed として記録します。entity がその component を持たない場合は false です。Scene Designer の runtime view は値編集をこの方法で反映します（ADR-0070 B1）。entity の archetype は変わりません。
     /// </summary>
     private static List<string>BuildTrySetComponentOverload(int ComponentIndex,GameSystemRegistry Registry){
         GameSystemComponentInfo Component=Registry.ComponentsByIndex[ComponentIndex];

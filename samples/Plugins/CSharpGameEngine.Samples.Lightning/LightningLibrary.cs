@@ -1,15 +1,15 @@
 [assembly: CSharpGameEngine.Authoring.PluginLibrary]
 namespace Lightning;
-/// <summary>How bright a bolt is. The Weather sample plugin has a component of the same name; the generator names both apart.</summary>
+/// <summary>雷撃の明るさ。同名のコンポーネントがWeatherサンプルプラグインにもあるため、ジェネレーターが両者を区別して命名する。</summary>
 public struct Intensity {
     public float Value;
 }
-/// <summary>A storm cell that throws bolts.</summary>
+/// <summary>雷撃を放つ嵐のセル。</summary>
 public struct Bolt {
     public int Count;
 }
-/// <summary>The Library module's work: plain code with no ECS types, so it can ship compiled.</summary>
+/// <summary>Libraryモジュールの処理を担う。ECS型を含まない通常のコードなので、コンパイル済みの形で配布できる。</summary>
 public static class Discharge {
-    /// <summary>Energy of one bolt (gigajoules) at an intensity.</summary>
+    /// <summary>指定した強度における1回の雷撃のエネルギー（ギガジュール）。</summary>
     public static float Energy(float Intensity)=>Intensity*Intensity*5f;
 }

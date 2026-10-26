@@ -2,7 +2,7 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>ADR-0067: StaticMeshCollider cooks the rendered triangles with the full world transform baked in.</summary>
+/// <summary>ADR-0067：StaticMeshColliderは描画三角形を、完全なワールド変換をベイクしてCookする。</summary>
 public sealed class StaticMeshCollisionTests {
     private const string BoxAsset="Assets/Primitives/Box.glb";
     private static LogicalAffineTransform Placement(float Y,float ScaleXz){

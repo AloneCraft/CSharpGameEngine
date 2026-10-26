@@ -4,8 +4,17 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Lighting;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>ADR-0069 environment Components: snapshot round trip (the AUD-001 contract) and renderer conversion.</summary>
+/// <summary>ADR-0069 環境 Components：スナップショットの往復（AUD-001 の契約）とレンダラーへの変換。</summary>
 public sealed class EnvironmentComponentTests {
+    [Fact]
+    public void DirectionalSoftShadows_RoundTripAndReachTheEnvironmentFrame(){
+        var Component=new DirectionalShadowRendering { Mode=CSharpGameEngine.Rendering.DirectionalShadowMode.Virtual,SoftShadows=true,SourceAngularDiameterDegrees=1.5f,MaximumSoftShadowRadiusMeters=3f,Compare=true };
+        AssertRoundTrip(Component);
+        var Settings=new EnvironmentCollection { DirectionalShadows=Component }.Build();
+        Assert.True(Settings.IsValid);
+        Assert.Equal(new CSharpGameEngine.Rendering.DirectionalShadowSettings(Component.Mode,1024,true,true,1.5f,3f),Settings.DirectionalShadows);
+        Assert.False(new EnvironmentCollection { DirectionalShadows=Component with { SourceAngularDiameterDegrees=float.NaN } }.Build().IsValid);
+    }
     [Fact]
     public void EnvironmentComponents_RoundTripThroughTheSnapshotCodec(){
         AssertRoundTrip(new SkyAtmosphere { BottomRadiusKm=6000f,MieAnisotropy=0.7f,SunDiskAngleDegrees=0.7357f });
@@ -53,7 +62,7 @@ public sealed class EnvironmentComponentTests {
     }
     [Fact]
     public void VolumetricCloud_DefaultsAreUnrealsTemplateValues(){
-        // M0110: the four UE 5.8 template levels use the VolumetricCloud component's defaults with m_SimpleVolumetricCloud_Inst.
+        // M0110：4つの UE 5.8 テンプレートレベルでは、VolumetricCloud コンポーネントの既定値と m_SimpleVolumetricCloud_Inst を使用します。
         var Settings=EnvironmentCollection.ToCloudSettings(new VolumetricCloud(),Vector2.Zero,0f);
         Assert.Equal(VolumetricCloudSettings.Unreal,Settings);
         Assert.True(Settings.IsValid);
@@ -63,7 +72,7 @@ public sealed class EnvironmentComponentTests {
         var Settings=EnvironmentCollection.ToCloudSettings(new VolumetricCloud { WindSpeedMetersPerSecond=20f,WindDirectionDegrees=90f },new Vector2(1500f,-250f),100f);
         Assert.Equal(1.5f,Settings.CameraPositionKm.X,5);
         Assert.Equal(-0.25f,Settings.CameraPositionKm.Y,5);
-        // 20 m/s for 100 s toward +R (90 degrees clockwise from +F) is 2 km.
+        // 20 m/s で100 s、+R 方向（+F から時計回りに90度）へ進むと、2 km になります。
         Assert.Equal(2f,Settings.WindOffsetKm.X,4);
         Assert.Equal(0f,Settings.WindOffsetKm.Y,4);
     }
@@ -105,7 +114,7 @@ public sealed class EnvironmentComponentTests {
     }
     [Fact]
     public void PostProcessVolume_LumenDefaultsAreUnrealsAndMapToTheRenderer(){
-        // ADR-0078/M0111: the four UE 5.8 templates use Lumen GI and reflections with the PostProcessVolume defaults (probe_lumen.py).
+        // ADR-0078/M0111：4つの UE 5.8 テンプレートでは、PostProcessVolume の既定値を使って Lumen GI と反射を使用します（probe_lumen.py）。
         var Volume=new PostProcessVolume();
         Assert.Equal(GlobalIlluminationMethod.Lumen,Volume.GlobalIlluminationMethod);
         Assert.Equal(ReflectionMethod.Lumen,Volume.ReflectionMethod);
@@ -118,7 +127,7 @@ public sealed class EnvironmentComponentTests {
     [Fact]
     public void PostProcessVolume_WithoutLumenOrWithUnusableValuesKeepsTheProbeVolume(){
         Assert.Null(EnvironmentCollection.ToLumenSettings(new PostProcessVolume { GlobalIlluminationMethod=GlobalIlluminationMethod.None }));
-        // Lumen reflections need Lumen's GI (their rough lobes read its probes): reflections alone give neither.
+        // Lumen の反射には Lumen GI が必要です（粗い反射ローブは GI のプローブを読み取ります）。反射だけではどちらも得られません。
         Assert.Null(EnvironmentCollection.ToLumenSettings(new PostProcessVolume { GlobalIlluminationMethod=GlobalIlluminationMethod.None,ReflectionMethod=ReflectionMethod.Lumen }));
         Assert.Null(new EnvironmentCollection().Build().Lumen);
         foreach(var Broken in new[]{

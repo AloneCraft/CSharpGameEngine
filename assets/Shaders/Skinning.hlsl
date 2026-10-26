@@ -1,9 +1,9 @@
-// Linear blend skinning (ADR-0066). Each thread skins one vertex of one mesh: the rest-pose vertex
-// is transformed by the weighted sum of up to eight palette matrices (inverse bind * joint model,
-// row-vector convention) and written to the mesh's skinned vertex buffer, which the Stage, shadow,
-// GI-capture and AO passes then draw like any other vertex buffer.
-// Root signature (host-owned, StageSkinning): b0 4 root constants, t0 root SRV (rest vertices),
-// t1 root SRV (influences), t2 root SRV (palette rows), u0 root UAV (skinned vertices).
+// Linear blend skinning（ADR-0066）。各 thread は1つの mesh の1 vertex を skinning します。rest-pose vertex は
+// 最大8個の palette matrix の重み付き和（inverse bind * joint model、row-vector 規約）で変換し、mesh の skin 済み vertex buffer に書き込みます。
+// その buffer は Stage、shadow、
+// GI-capture と AO pass で、ほかの vertex buffer と同様に描画されます。
+// Root signature（host が所有する StageSkinning）：b0 4 root constants、t0 root SRV（rest vertices）、
+// t1 root SRV（influences）、t2 root SRV（palette rows）、u0 root UAV（skinned vertices）。
 cbuffer SkinningCB : register(b0)
 {
     uint4 Control; // x = vertex count
@@ -15,7 +15,7 @@ struct Vertex
     float4 Tangent;
     float2 Uv;
 };
-// Joints: eight 16-bit joint indices; Weights: eight 16-bit unorm weights (two per uint, low half first).
+// Joints：16-bit joint index を8個。Weights：16-bit unorm weight を8個（uint ごとに2つ、下位 half が先）。
 struct Influence
 {
     uint4 Joints;

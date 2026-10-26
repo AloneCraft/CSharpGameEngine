@@ -1,14 +1,12 @@
 namespace CSharpGameEngine.Audio.Abstractions;
 
 /// <summary>
-/// Type-based entry point for one selected <typeparamref name="TBackend"/> - every member resolves
-/// to <typeparamref name="TBackend"/>'s static members at compile time (no runtime backend
-/// dispatch), exactly like <see cref="CSharpGameEngine.Spatial.Abstractions.Spatial{TConvention}"/>
-/// does for coordinate conventions. A game project that has already picked exactly one backend
-/// should expose its own non-generic facade (e.g. <c>GameAudio</c>) that forwards to
-/// <c>AudioBackend&lt;ThatBackend, ...&gt;</c>, so application code never has to spell out
-/// <typeparamref name="TBackend"/>/<typeparamref name="TEngine"/>/<typeparamref name="TVoice"/>
-/// themselves - see <c>UserEcsProject/GameAudio.cs</c>.
+/// 選択した1つの<typeparamref name="TBackend"/>を型で指定するエントリーポイント。すべてのメンバー呼び出しはコンパイル時に
+/// <typeparamref name="TBackend"/>の静的メンバーへ解決される（実行時のバックエンド振り分けなし）。座標規約を
+/// <see cref="CSharpGameEngine.Spatial.Abstractions.Spatial{TConvention}"/>で扱う方法と同じである。既にバックエンドを1つだけ選択したゲームプロジェクトでは、
+/// <c>GameAudio</c>などの非ジェネリックなファサードを用意し、<c>AudioBackend&lt;ThatBackend, ...&gt;</c>へ委譲すること。
+/// そうすればアプリケーションコードで<typeparamref name="TBackend"/>／<typeparamref name="TEngine"/>／<typeparamref name="TVoice"/>を
+/// 明記せずに済む。<c>UserEcsProject/GameAudio.cs</c>を参照。
 /// </summary>
 public static class AudioBackend<TBackend,TEngine,TVoice>
     where TBackend:struct,IAudioBackend<TEngine,TVoice>

@@ -12,15 +12,10 @@ using Microsoft.VisualStudio.Imaging.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Hierarchy TreeView 用の ViewModel (ADR-0040). The first MVVM type in this VSIX; everything else
-/// binds directly to model types, which was fine when the model only changed on file open. A live
-/// Roslyn scene changes on every keystroke, so the tree is rebuilt constantly and needs to carry
-/// expansion/selection across rebuilds - that is what this type exists for.
+/// Hierarchy TreeView 用の ViewModel (ADR-0040)。この VSIX で最初に導入した MVVM 型である。それ以外はすべてモデル型に直接バインドしていた。モデルがファイルを開いた時にしか変更されなかった間は問題なかったが、ライブ Roslyn シーンはキー入力ごとに変化するためツリーが頻繁に再構築され、再構築をまたいで展開状態と選択状態を引き継ぐ必要がある。このためにこの型がある。
 ///
 /// <para>
-/// Identity is <see cref="NodePath"/>, never the name and never a text span: names are optional and
-/// not unique, and spans move on every edit. Keeping expansion state keyed by path is what stops the
-/// tree from collapsing itself while the user types.
+/// 識別には名前でもテキスト範囲でもなく <see cref="NodePath"/> を使う。名前は任意で一意ではなく、テキスト範囲は編集のたびに移動する。展開状態をパスで管理することで、ユーザーの入力中にツリーが勝手に折りたたまれるのを防ぐ。
 /// </para>
 /// </summary>
 internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
@@ -53,16 +48,16 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     // PropertiesBoundFromXamlArePublicSoWpfCanResolveThemでアクセシビリティを固定している。
     // Pathはコードからのみ使いXAMLからはバインドしないのでinternalで足りる。
 
-    /// <summary>Name if the scene declared one, otherwise the node path - a node is always addressable.</summary>
+    /// <summary>シーンに名前が宣言されていればその名前、なければ node path。ノードは常に特定できます。</summary>
     public string DisplayName { get;}
 
-    /// <summary>Simple component type names, e.g. "Transform, PrimitiveMesh". Empty for a bare node.</summary>
+    /// <summary>コンポーネント型の簡易名（例："Transform, PrimitiveMesh"）。コンポーネントのないノードでは空です。</summary>
     public string ComponentSummary { get;}
 
-    /// <summary>Semantic node glyph: Scene root or ordinary node. Rendered by CrispImage.</summary>
+    /// <summary>意味を示す node glyph：Scene root または通常のノード。CrispImage で描画します。</summary>
     public ImageMoniker NodeMoniker { get;}
 
-    /// <summary>Every declared component's icon, in declaration order. No icon is omitted.</summary>
+    /// <summary>宣言順に並べた、宣言済みコンポーネントすべてのアイコン。アイコンを省略しません。</summary>
     public IReadOnlyList<SceneVisualIcon> ComponentIcons { get;}
 
     public IReadOnlyList<SceneNodeViewModel>Children { get;}
@@ -108,14 +103,10 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     internal void CancelRename()=>this.IsRenaming=false;
 
     /// <summary>
-    /// Builds the tree for a model, carrying expansion and selection over from the previous tree by
-    /// <see cref="NodePath"/>.
+    /// モデルのツリーを構築し、前のツリーの展開状態と選択状態を <see cref="NodePath"/> で引き継ぐ。
     ///
     /// <para>
-    /// The caller keeps a set of <b>collapsed</b> paths rather than expanded ones, so a node nobody
-    /// has touched renders expanded: a live scene rebuilds on every keystroke, and defaulting to
-    /// collapsed would hide the whole tree behind one disclosure triangle each time. Tracking the
-    /// exceptions also keeps the set small - most nodes are never collapsed.
+    /// 呼び出し元が保持するのは展開中のパスではなく<b>折りたたまれた</b>パスの集合である。操作されていないノードは展開して表示する。ライブシーンはキー入力ごとに再構築されるため、既定で折りたたむと、そのたびに開閉三角形 1 つの背後にツリー全体が隠れてしまう。例外を記録する方式なら、ほとんどのノードは折りたたまれないため、集合も小さく保てる。
     /// </para>
     /// </summary>
     internal static IReadOnlyList<SceneNodeViewModel>Build(SceneModel?Model,ISet<NodePath>CollapsedPaths,NodePath?SelectedPath){
@@ -203,17 +194,17 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
                 DirectoryPath=Parent.FullName;
             }
         } catch(ArgumentException){
-            // A transient or generated source path simply uses the VS default component icon.
+            // 一時的なパスまたは生成されたソースパスには、VS の既定のコンポーネントアイコンを使う。
         } catch(IOException){
-            // Project reloads may race a live hierarchy rebuild.
+            // プロジェクトの再読み込みと、実行中の Hierarchy の再構築が競合する場合がある。
         } catch(UnauthorizedAccessException){
-            // The UI must remain usable when an ancestor is inaccessible.
+            // アクセスできない祖先があっても UI を操作可能な状態に保つ。
         }
 
         return null;
     }
 
-    /// <summary>Depth-first, declaration order - the same order the generated Instantiate creates entities in.</summary>
+    /// <summary>深さ優先、宣言順。生成された Instantiate が Entity を作成する順序と同じ。</summary>
     internal IEnumerable<SceneNodeViewModel>SelfAndDescendants(){
         yield return this;
 

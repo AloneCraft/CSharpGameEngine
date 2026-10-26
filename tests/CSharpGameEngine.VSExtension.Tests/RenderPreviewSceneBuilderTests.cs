@@ -6,9 +6,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class RenderPreviewSceneBuilderTests {
     /// <summary>
-    /// M0096: a runtime view gets a drag as each root's parent-relative transform, the value the commit
-    /// writes, keyed like the runtime view's node paths. Here the parent sits at R=1 and is turned a quarter
-    /// turn about U, so a world position of (1, 0.5, -2) is (2, 0.5, 0) relative to it.
+    /// M0096：ランタイムビューは、コミット時に書き込まれる値として、各ルートの親相対変換をドラッグで取得する。ランタイムビューのノードパスをキーにする。ここでは親が R=1 にあり、U 周りに 4 分の 1 回転しているため、ワールド位置 (1, 0.5, -2) は親に対して (2, 0.5, 0) となる。
     /// </summary>
     [Fact]
     public void DragOverrides_AreParentRelativeAndKeyedByNodePath(){

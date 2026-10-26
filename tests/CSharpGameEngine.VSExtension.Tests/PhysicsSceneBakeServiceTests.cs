@@ -47,8 +47,8 @@ public sealed class PhysicsSceneBakeServiceTests {
 
     [Fact]
     public void CreateRequests_HashesTheScenesOwnProjectNotUserEcsProject(){
-        // M0096 G: the Bake runs the scene's own game build, so its identity is that project's sources, whichever
-        // project it is.
+        // M0096 G：Bake はシーン自身のゲームビルドを実行するため、その ID はどのプロジェクトであってもそのソースに基づく。
+        // かどうかを問わない。
         string Root=CreateRepository();
         try {
             string OtherProject=Path.Combine(Root,"Games","Other");
@@ -70,7 +70,7 @@ public sealed class PhysicsSceneBakeServiceTests {
 
     [Fact]
     public void HostHash_CoversTheEngineButNoGame(){
-        // M0096 G: the host loads the game it is given, so a game's change must not rebuild the host.
+        // M0096 G：ホストは渡されたゲームを読み込むため、ゲームの変更によってホストを再ビルドしてはならない。
         string Root=CreateRepository();
         try {
             string Initial=PhysicsSceneBakeService.ComputeHostHash(Root);

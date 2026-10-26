@@ -137,7 +137,7 @@ public sealed class SceneInspectorModelTests {
     [Theory]
     [InlineData("5",Microsoft.CodeAnalysis.SpecialType.System_Single,"5f")]
     [InlineData("-1.5",Microsoft.CodeAnalysis.SpecialType.System_Single,"-1.5f")]
-    // .NET's spelling, which the document keeps; .NET Framework's "R" wrote 312985.125f.
+    // ドキュメントが保持するのは .NET の表記。 .NET Framework の "R" では 312985.125f と書き出された。
     [InlineData("312985.125",Microsoft.CodeAnalysis.SpecialType.System_Single,"312985.12f")]
     [InlineData("3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"3")]
     [InlineData("-3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"-3")]
@@ -168,7 +168,7 @@ public sealed class SceneInspectorModelTests {
     [InlineData("Infinity")]
     [InlineData("-Infinity")]
     public void TryFormatNumber_TextWithoutAFiniteNumber_Fails(string Text){
-        // float.TryParse accepts NaN and Infinity; their text would reach the source as the identifier "Infinityf".
+        // float.TryParse は NaN と Infinity を受け入れる。そのテキストは識別子 "Infinityf" としてソースに渡されてしまう。
         Assert.False(SceneInspectorValueFormat.TryFormatNumber(
             Microsoft.CodeAnalysis.SpecialType.System_Single,Text,out _));
     }
@@ -442,8 +442,7 @@ public sealed class SceneInspectorModelTests {
     }
 
     /// <summary>
-    /// ADR-0074: an angle member, and every number inside one (an Euler rotation's R, U, F), shows and takes degrees
-    /// while the source keeps the member's unit.
+    /// ADR-0074：角度メンバーと、その内部にあるすべての数値（Euler 回転の R、U、F）は、ソースではメンバーの単位を維持しつつ、度数で表示・入力する。
     /// </summary>
     [Fact]
     public void Build_AngleMembers_ShowAndTakeDegrees(){
@@ -461,7 +460,7 @@ public sealed class SceneInspectorModelTests {
         Assert.Equal(SceneAngleUnit.Radians,Fov.AngleUnit);
         var FovRow=new InspectorMemberViewModel(Fov);
         Assert.Equal("90",FovRow.DisplayText);
-        // The label is the scene JSON key, which leaves out the C# unit word (ADR-0074); edits still name the C# member.
+        // ラベルはシーン JSON のキーであり、C# の単位語は含まない (ADR-0074)。編集では引き続き C# メンバーを指定する。
         Assert.Equal("Fov (°)",FovRow.MemberName);
         Assert.Equal("FovRadians",Fov.MemberName);
         Assert.True(SceneInspectorValueFormat.TryFormatAngle(Fov.NumericType!.Value,"45",Fov.AngleUnit!.Value,out var Expression));

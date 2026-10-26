@@ -17,12 +17,10 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// Histogram auto exposure (ADR-0069), kept on the GPU: LuminanceHistogram.hlsl bins the HDR
-/// target, meters EV100 and adapts the state buffer (float4: EV100, exposure scale, settled,
-/// valid), which the Stage program (t15) and the sky composite read. The CPU never maps the result
-/// per frame; mapping a readback buffer while WARP executed the previous frame removed the device
-/// under the debug layer. Root signature (host-owned): 0 = 16 root constants b0, 1 = SRV table t0
-/// (HDR colour), 2 = root UAV u0 (bins), 3 = root UAV u1 (state).
+/// ヒストグラム自動露出（ADR-0069）を GPU 上で保持する。LuminanceHistogram.hlsl が HDR 描画先を区分けし、EV100 を測定して状態バッファを適応させる（
+/// float4：EV100、露出スケール、収束済み、有効）。Stage プログラム（t15）と空の合成処理が読み取る。CPU は毎フレーム結果をマップしない。WARP が前フレームを実行中に読み戻し
+/// バッファをマップすると、デバッグレイヤーの下でデバイスが失われたためである。ルートシグネチャはホストが所有する：0 = ルート定数16個 b0、1 = SRV テーブル t0（HDR 色）、2 =
+/// ルート UAV u0（ビン）、3 = ルート UAV u1（状態）。
 /// </summary>
 internal sealed unsafe class StageAutoExposure:IDisposable {
     internal const string ArtifactFileName="LuminanceHistogram.cgeshaderartifact";
@@ -53,12 +51,12 @@ internal sealed unsafe class StageAutoExposure:IDisposable {
         this.ArtifactPath=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(StageArtifactPath))??string.Empty,ArtifactFileName);
         this.State=this.CreateBuffer(StateBytes,ShaderResourceState,"creating the auto exposure state");
     }
-    /// <summary>GPU address of the float4 exposure state; valid, and shader-readable between frames, from construction.</summary>
+    /// <summary>float4 露出状態の GPU アドレス。構築後から有効で、フレーム間にシェーダーから読み取り可能。</summary>
     internal ulong StateAddress=>this.State->GetGPUVirtualAddress();
-    /// <summary>The state buffer (in <see cref="ShaderResourceState"/> between passes); M0111 copies its exposure as the scene colour history's.</summary>
+    /// <summary>状態バッファ。パス間は <see cref="ShaderResourceState"/> にする。M0111 では露出値をシーンカラー履歴と同様にコピーする。</summary>
     internal ID3D12Resource*StateResource=>this.State;
     internal static float BinWidth=>(MaxLog2Luminance-MinLog2Luminance)/BinCount;
-    /// <summary>Writes a structured-buffer view of the state (one float4) for the Stage program's t15.</summary>
+    /// <summary>Stage プログラムの t15 用に、状態を1つの float4 として構造化バッファビューへ書き込む。</summary>
     internal void WriteShadingDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE Handle){
         D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){
             Format=DXGI_FORMAT_UNKNOWN,
@@ -69,7 +67,7 @@ internal sealed unsafe class StageAutoExposure:IDisposable {
         Srv.Buffer.StructureByteStride=StateBytes;
         this.Device.Device->CreateShaderResourceView(this.State,&Srv,Handle);
     }
-    /// <summary>Starts metering again at the minimum EV100, before the frame's first read of the state.</summary>
+    /// <summary>フレーム中に初めて状態を読み取る前に、最小 EV100 から測定を再開する。</summary>
     internal void RecordInitialize(ID3D12GraphicsCommandList*CommandList,in ExposureSettings Settings){
         this.EnsurePipeline();
         D3D12_RESOURCE_BARRIER ToUav=D3D12_RESOURCE_BARRIER.InitTransition(this.State,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -80,11 +78,7 @@ internal sealed unsafe class StageAutoExposure:IDisposable {
         D3D12_RESOURCE_BARRIER ToRead=D3D12_RESOURCE_BARRIER.InitTransition(this.State,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState);
         CommandList->ResourceBarrier(1,&ToRead);
     }
-    /// <summary>
-    /// Bins the HDR target (in RENDER_TARGET, restored afterwards) with the scale this frame used and
-    /// adapts the state for the next frame. Replaces the compute root signature, pipeline and
-    /// descriptor heap.
-    /// </summary>
+    /// <summary>このフレームで使ったスケールを使って HDR 描画先（RENDER_TARGET）を区分けし、後で状態を復元して次のフレーム向けに適応させる。コンピュートルートシグネチャ、パイプライン、ディスクリプターヒープを置き換える。</summary>
     internal void RecordMetering(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,ID3D12Resource*SceneColor,int Width,int Height,in ExposureSettings Settings,float DeltaSeconds){
         this.EnsurePipeline();
         D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){
@@ -93,7 +87,7 @@ internal sealed unsafe class StageAutoExposure:IDisposable {
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         Srv.Texture2D.MipLevels=1;
-        // One descriptor per frame slot: the slot's previous use has completed on the GPU.
+        // フレームスロットごとにディスクリプターを1つ使う。このスロットの前回の GPU 使用は完了している。
         this.Device.Device->CreateShaderResourceView(SceneColor,&Srv,new D3D12_CPU_DESCRIPTOR_HANDLE(this.DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),(int)FrameIndex,this.DescriptorSize));
         D3D12_RESOURCE_BARRIER*Before=stackalloc D3D12_RESOURCE_BARRIER[2];
         Before[0]=D3D12_RESOURCE_BARRIER.InitTransition(SceneColor,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -144,7 +138,7 @@ internal sealed unsafe class StageAutoExposure:IDisposable {
         Floats[15]=0f;
         CommandList->SetComputeRoot32BitConstants(0,16,Values,0);
     }
-    /// <summary>Test-only copy of the state (EV100, scale, settled, valid). The caller guarantees the queue is idle.</summary>
+    /// <summary>状態（EV100、スケール、収束済み、有効）をテスト専用にコピーする。キューがアイドルであることは呼び出し側が保証する。</summary>
     internal Vector4 ReadStateForTesting(){
         ID3D12CommandAllocator*Allocator=null;
         ID3D12GraphicsCommandList*List=null;

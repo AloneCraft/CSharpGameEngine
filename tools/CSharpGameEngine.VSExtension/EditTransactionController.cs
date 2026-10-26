@@ -136,7 +136,7 @@ internal sealed class EditTransactionController {
     /// </summary>
     internal IReadOnlyList<SceneTransformPreview>CurrentPreviews=>this.Previews;
 
-    /// <summary>The drag's roots with their parents' world, paired by index with <see cref="CurrentPreviews"/>.</summary>
+    /// <summary>ドラッグ対象のルートと親の world を、<see cref="CurrentPreviews"/> とインデックスで対応させたもの。</summary>
     internal IReadOnlyList<SceneTransformTarget>CurrentTargets=>this.Targets;
 
     internal void Begin(SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneTransformTarget>Targets){

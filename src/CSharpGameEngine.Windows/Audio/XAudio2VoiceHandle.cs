@@ -1,10 +1,10 @@
 namespace CSharpGameEngine.Audio.XAudio2;
 
 /// <summary>
-/// Opaque handle to one XAudio2 source voice. <see cref="BufferDataPointer"/> is the unmanaged PCM
-/// buffer <see cref="XAudio2Backend.SubmitBuffer"/> allocated via <c>NativeMemory.Alloc</c> (zero
-/// until a buffer has been submitted) - XAudio2 streams from this pointer for as long as the voice
-/// plays, so it must stay valid until <see cref="XAudio2Backend.DestroyVoice"/> frees it.
+/// XAudio2 のソースボイス1つを指す、不透明なハンドル。<see cref="BufferDataPointer"/> は、
+/// <see cref="XAudio2Backend.SubmitBuffer"/> が <c>NativeMemory.Alloc</c> で確保したアンマネージ PCM バッファを指す（バッファ
+/// 送信前はゼロ）。XAudio2 はボイスの再生中このポインターから音声を読み取るため、<see cref="XAudio2Backend.DestroyVoice"/> が解放するまで有効でなければな
+/// らない。
 /// </summary>
 public readonly struct XAudio2VoiceHandle(nint VoicePointer,nint BufferDataPointer) {
     internal readonly nint VoicePointer=VoicePointer;

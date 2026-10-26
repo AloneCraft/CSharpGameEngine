@@ -9,9 +9,9 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// ADR-0078/M0110 WARP oracles for the global distance field: the clipmaps hold the signed distance of the nearest surface (made from the mesh
-/// distance fields), follow the camera and moving objects by recomputing only changed bricks (and then equal a field made at once), and can be
-/// traced the way M0111 will. The scene is rendered camera-relative like the runtime: render = world - camera.
+/// グローバル距離場に対するADR-0078/M0110のWARPオラクル。クリップマップにはメッシュ距離場から作った最寄り面までの符号付き距離が保持される。
+/// カメラと移動オブジェクトに追従し、変化したブリックだけを再計算する（結果は一度に作成した距離場と一致する）。M0111と同様にトレースも可能。
+/// ランタイムと同様にカメラ相対でシーンを描画する：render = world - camera。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Output) {
@@ -30,16 +30,16 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         for(var Level=0;Level<Levels;Level++){
             var Field=Scene.Read(Level,Camera);
             foreach(var (Render,Value) in Field.Voxels()){
-                // The voxels are in render space; the boxes are placed in the world (render = world - camera).
+                // ボクセルは描画空間にあり、ボックスはワールドに配置する（render = world - camera）。
                 var Position=Render+Camera;
-                // The first box is axis-aligned: its exact distance. The scaled, rotated one is only bounded: never more than the true distance.
+                // 最初のボックスは軸平行なので正確な距離を得る。スケール／回転したものは上限評価のみで、真の距離を超えない。
                 var Exact=BoxDistance(Position,BoxHalf);
                 var Truncation=Field.VoxelSize*StageGlobalDistanceField.TruncationVoxels;
                 var Expected=Math.Clamp(Exact,-Truncation,Truncation);
                 var Second=Vector3.Transform(Position,Invert(Matrix4x4.CreateScale(2f,1f,1f)*Matrix4x4.CreateRotationY(0.5f)*Matrix4x4.CreateTranslation(-6f,0f,3f)));
                 var SecondBound=BoxDistance(Second,BoxHalf);
                 if(SecondBound<Truncation+0.1f){
-                    // Near the scaled box the field is bounded by its conservative distance (local distance times the smallest scale).
+                    // スケール付きボックス近傍の距離場は、保守的な距離（ローカル距離×最小スケール）で上限評価される。
                     Assert.True(Value<=MathF.Min(Expected,SecondBound)+0.06f,$"level {Level} at {Position}: {Value}");
                     if(SecondBound<-0.06f){ Assert.True(Value<0f); }
                     continue;
@@ -60,7 +60,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         using var Moving=FieldScene.Create();
         Moving.Render(new Vector3(0f,1.6f,-4f),Objects);
         var Full=Moving.Renderer.GlobalDistanceFieldForTesting.LastUpdatedBricks.Take(Levels).ToArray();
-        // 5.3 m sideways and 0.7 m up: whole bricks of level 0 newly covered, part of a brick on the coarser levels.
+        // 横へ5.3 m、上へ0.7 m移動させる。レベル0ではブリック全体が新しく覆われ、粗いレベルではブリックの一部が新たに覆われる。
         var Final=new Vector3(5.3f,2.3f,-4f);
         Moving.Render(Final,Objects);
         var Incremental=Moving.Renderer.GlobalDistanceFieldForTesting.LastUpdatedBricks.Take(Levels).ToArray();
@@ -95,7 +95,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         for(var Level=0;Level<Levels;Level++){
             Assert.Equal(Fresh.Read(Level,Camera).Values,Moving.Read(Level,Camera).Values);
         }
-        // Removing the object clears its old place too.
+        // オブジェクトを削除すると、以前あった位置もクリアする。
         Moving.Renderer.RemoveObject(0);
         Moving.Render(Camera,Moved);
         Assert.True(Moving.Read(0,Camera).At(new Vector3(3f,0f,0f)-Camera)>1f);
@@ -107,7 +107,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         using var Scene=FieldScene.Create();
         var Camera=new Vector3(0f,1.6f,-6f);
         Scene.Render(Camera,[Matrix4x4.Identity]);
-        // In render space the box is at -camera.
+        // 描画空間ではボックスは-camera位置にある。
         var Box=-Camera;
         (Vector3 Origin,Vector3 Direction,float Length)[]Rays=[
             (Vector3.Zero,Vector3.Normalize(Box-Vector3.Zero),20f),
@@ -143,7 +143,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
     public void Field_IgnoresMeshesWithoutAFieldAndWorksFarFromTheWorldOrigin(){
         using var Near=FieldScene.Create();
         Near.Render(new Vector3(0f,1.6f,-4f),[Matrix4x4.Identity]);
-        // The same scene 10^12 voxels away (500 000 000 km): the voxel grid is integer, so the field around the camera is the same.
+        // 同じシーンを10^12ボクセル離れた位置（500 000 000 km）へ移しても、ボクセル格子は整数なのでカメラ周辺の距離場は同じ。
         using var Far=FieldScene.Create();
         Far.Render(new Vector3(0f,1.6f,-4f),[Matrix4x4.Identity],OriginVoxel:new LongVector3(1_000_000_000_000,0,-1_000_000_000_000));
         var A=Near.Read(0,new Vector3(0f,1.6f,-4f));
@@ -151,7 +151,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         foreach(var Point in new[]{ Vector3.Zero,new Vector3(1.5f,0f,0f),new Vector3(-0.25f,0.75f,0.25f),new Vector3(2.5f,1f,-1.5f) }){
             Assert.Equal(A.At(Point),B.At(Point));
         }
-        // A mesh without a field is left out: the field is the truncation everywhere.
+        // 距離場のないメッシュは除外する。どの位置もトランケーション距離となる。
         using var Empty=FieldScene.Create(WithField:false);
         Empty.Render(new Vector3(0f,1.6f,-4f),[Matrix4x4.Identity]);
         Assert.All(Empty.Read(0,new Vector3(0f,1.6f,-4f)).Values,Value=>Assert.Equal(Voxel*StageGlobalDistanceField.TruncationVoxels,Value));
@@ -160,8 +160,8 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes(){
-        // The Render Server copies the meshes it is given (for device recovery); the copy used to drop the distance field, so no object of a game
-        // reached the global distance field.
+        // Render Serverはデバイス復旧用に渡されたメッシュをコピーする。コピー時に距離場を落としていたため、ゲームのオブジェクトが
+        // グローバル距離場へ1つも追加されなかった。
         var Box=ProceduralMeshFactory.CreateBox(new Vector3(2f,2f,2f));
         var Mesh=new StageMeshCreateInfo { Positions=Box.Positions,Normals=Box.Normals,Tangents=Box.Normals.Select(StageMeshGeometry.ArbitraryTangentFor).ToArray(),
             Uvs=new Vector2[Box.Positions.Length],Indices=Box.Indices,DistanceField=MeshDistanceFieldBuilder.Build(Box.Positions,Box.Indices) };
@@ -189,14 +189,14 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         Assert.Equal(-1,StageGlobalDistanceField.FloorDivide(-8,8));
         Assert.Equal(7,StageGlobalDistanceField.PositiveModulo(-1,8));
         using var Scene=FieldScene.Create();
-        // An object whose matrix is not finite is left out instead of marking the whole clip; only the second (a kilometre away) is in the field.
+        // 行列が有限値でないオブジェクトはクリップ全体を汚染しないよう除外する。距離場に入るのは1キロメートル先の2つ目だけ。
         Scene.Render(new Vector3(0f,1.6f,-4f),[new Matrix4x4(float.NaN,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1)]);
         Assert.Equal(1,Scene.Renderer.GlobalDistanceFieldForTesting.LastFieldObjects);
         Scene.AssertNoDebugLayerErrors();
     }
     /// <summary>
-    /// A field updated over several frames equals one made at once up to float rounding: the voxel centres and the objects' render-space matrices of
-    /// the earlier frames were computed from another camera origin, so a voxel can differ in its last bits.
+    /// 複数フレームに分けて更新した距離場は、一度に作成したものとfloat丸め誤差の範囲で一致する。
+    /// 以前のフレームでは別のカメラ原点からボクセル中心とオブジェクトの描画空間行列を求めているため、ボクセルの最下位ビットに差が生じる場合がある。
     /// </summary>
     private static void AssertSameField(float[]Expected,float[]Actual){
         Assert.Equal(Expected.Length,Actual.Length);
@@ -229,11 +229,11 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
         Matrix4x4.Invert(Matrix,out var Inverse);
         return Inverse;
     }
-    /// <summary>One level read back, with what maps its texels to render-space voxel centres.</summary>
+    /// <summary>1レベル分の読み戻しデータと、そのテクセルを描画空間のボクセル中心へ対応付ける情報。</summary>
     private sealed record LevelField(float[]Values,int Size,LongVector3 ClipMinimum,LongVector3 Origin,Vector3 Remainder,float VoxelSize){
         internal float AtVoxel(LongVector3 Global)=>this.Values[(int)((StageGlobalDistanceField.PositiveModulo(Global.Z,this.Size)*this.Size+StageGlobalDistanceField.PositiveModulo(Global.Y,this.Size))*this.Size+StageGlobalDistanceField.PositiveModulo(Global.X,this.Size))];
         internal Vector3 Centre(LongVector3 Global)=>new Vector3(Global.X-this.Origin.X+0.5f,Global.Y-this.Origin.Y+0.5f,Global.Z-this.Origin.Z+0.5f)*this.VoxelSize-this.Remainder;
-        /// <summary>The value of the voxel holding a render-space point.</summary>
+        /// <summary>描画空間の点を含むボクセルの値。</summary>
         internal float At(Vector3 Render){
             var Local=(Render+this.Remainder)/this.VoxelSize;
             return this.AtVoxel(new LongVector3(this.Origin.X+(long)MathF.Floor(Local.X),this.Origin.Y+(long)MathF.Floor(Local.Y),this.Origin.Z+(long)MathF.Floor(Local.Z)));
@@ -267,7 +267,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
                 [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
             return new FieldScene(Window,Renderer);
         }
-        /// <summary>Renders with the camera at a world position: objects are placed at world - camera, and the field's origin is the camera's voxel.</summary>
+        /// <summary>ワールド位置へカメラを置いて描画する。オブジェクトはworld - cameraに配置し、距離場の原点はカメラのボクセルとする。</summary>
         internal void Render(Vector3 CameraWorld,Matrix4x4[]Objects,bool Field=true,bool Capture=false,LongVector3 OriginVoxel=default){
             var (Cell,Remainder)=Locate(CameraWorld,OriginVoxel);
             var View=Camera.CreateFirstPerson(Vector3.Zero);
@@ -277,7 +277,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
             this.Renderer.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with {
                 DistanceField=Field?new GlobalDistanceFieldSettings(Voxel,Levels,Resolution,Cell,Remainder):null });
             for(var Index=0;Index<2;Index++){
-                // The second object, when a test places one only, stays a kilometre away: outside every clipmap.
+                // テストで2つ目のオブジェクトだけを置く場合も、1キロメートル先に残す。すべてのクリップマップの範囲外となる。
                 var World=Index<Objects.Length?Objects[Index]:Matrix4x4.CreateTranslation(1000f,0f,0f);
                 this.Renderer.SetObjectTransform(Index,World*Matrix4x4.CreateTranslation(-CameraWorld));
             }
@@ -291,7 +291,7 @@ public sealed class GlobalDistanceFieldGpuIntegrationTests(ITestOutputHelper Out
             var LevelRemainder=Remainder+new Vector3(Cell.X-Origin.X*Scale,Cell.Y-Origin.Y*Scale,Cell.Z-Origin.Z*Scale)*Voxel;
             return new LevelField(Values,Size,ClipMinimum,Origin,LevelRemainder,Voxel*Scale);
         }
-        /// <summary>The camera's voxel on the world grid (offset by <paramref name="OriginVoxel"/>) and how far past its corner.</summary>
+        /// <summary>ワールド格子上でのカメラのボクセル（<paramref name="OriginVoxel"/>からのオフセット）と、そこから角を越えた距離。</summary>
         private static (LongVector3 Voxel,Vector3 Remainder) Locate(Vector3 CameraWorld,LongVector3 OriginVoxel){
             var Cell=new Vector3(MathF.Floor(CameraWorld.X/Voxel),MathF.Floor(CameraWorld.Y/Voxel),MathF.Floor(CameraWorld.Z/Voxel));
             return (new LongVector3(OriginVoxel.X+(long)Cell.X,OriginVoxel.Y+(long)Cell.Y,OriginVoxel.Z+(long)Cell.Z),CameraWorld-Cell*Voxel);

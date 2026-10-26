@@ -2,9 +2,8 @@ using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
 namespace CSharpGameEngine.Rendering;
 /// <summary>
-/// Physically based atmosphere coefficients (ADR-0069). Distances are kilometres and scattering
-/// coefficients are per kilometre, matching Unreal Engine's SkyAtmosphere component so imported
-/// values need no unit conversion. The defaults are Unreal's Earth preset.
+/// 物理ベースの大気係数（ADR-0069）。距離はキロメートル、散乱係数はキロメートルあたりで表し、Unreal Engine の SkyAtmosphere コンポーネントに合わせる。インポートした値
+/// の単位変換は不要。既定値は Unreal の地球プリセット。
 /// </summary>
 public readonly record struct SkyAtmosphereSettings(
     Vector3 RayleighScatteringPerKm,
@@ -36,32 +35,31 @@ public readonly record struct SkyAtmosphereSettings(
     internal static bool IsFiniteNonNegative(Vector3 Value)=>
         float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z)&&Value.X>=0f&&Value.Y>=0f&&Value.Z>=0f;
 }
-/// <summary>A sky light captured from the atmosphere. <see cref="Intensity"/> multiplies the captured radiance.</summary>
+/// <summary>大気から取り込んだスカイライト。<see cref="Intensity"/> を取り込んだ放射輝度に乗算する。</summary>
 public readonly record struct SkyLightSettings(float Intensity,Vector3 LowerHemisphereRadiance){
     public bool IsValid=>float.IsFinite(this.Intensity)&&this.Intensity>=0f&&SkyAtmosphereSettings.IsFiniteNonNegative(this.LowerHemisphereRadiance);
 }
 public enum ExposureMode {
-    /// <summary>Scale = 2^-EV100 (the renderer's original behaviour).</summary>
+    /// <summary>Scale = 2^-EV100（レンダラーの従来の動作）。</summary>
     Legacy,
-    /// <summary>Scale = 2^Compensation / (1.2 * 2^EV100), the physical camera model used by Unreal Engine.</summary>
+    /// <summary>Scale = 2^Compensation / (1.2 * 2^EV100)。Unreal Engine が使う物理カメラモデル。</summary>
     PhysicalCamera,
     /// <summary>
-    /// Unreal's histogram auto exposure: the physical camera at an EV100 metered from the scene
-    /// (<c>LuminanceHistogram.hlsl</c>, metered on the GPU), clamped to [<see cref="ExposureSettings.Ev100"/>, <see cref="ExposureSettings.MaxEv100"/>].
+    /// Unreal のヒストグラム自動露出。シーンから測定した EV100 における物理カメラの露出を使う（GPU 上で測定する <c>LuminanceHistogram.hlsl</c>）。値は [
+    /// <see cref="ExposureSettings.Ev100"/>、<see cref="ExposureSettings.MaxEv100"/>] に制限する。
     /// </summary>
     AutoHistogram,
 }
 public enum ToneMapper {
-    /// <summary>Narkowicz ACES fit written to a linear UNORM target (the renderer's original behaviour).</summary>
+    /// <summary>リニア UNORM ターゲット向けの Narkowicz ACES 近似（レンダラーの従来の動作）。</summary>
     LegacyAces,
-    /// <summary>Unreal Engine's filmic curve in AP1 followed by the sRGB transfer function.</summary>
+    /// <summary>AP1 で適用する Unreal Engine のフィルム調カーブと、その後の sRGB 変換関数。</summary>
     UnrealFilmicSrgb,
 }
 /// <summary>
-/// Exposure model. <see cref="Ev100"/> is the fixed EV100 of <see cref="ExposureMode.PhysicalCamera"/>
-/// and the minimum of <see cref="ExposureMode.AutoHistogram"/>; <see cref="MaxEv100"/>,
-/// <see cref="SpeedUp"/> and <see cref="SpeedDown"/> (adaptation rates per second toward a
-/// brighter / darker scene) apply only to the histogram mode. Unreal's defaults are 3 and 1.
+/// 露出モデル。<see cref="Ev100"/> は <see cref="ExposureMode.PhysicalCamera"/> の固定 EV100 であり、
+/// <see cref="ExposureMode.AutoHistogram"/> の最小値でもある。<see cref="MaxEv100"/>、<see cref="SpeedUp"/>、
+/// <see cref="SpeedDown"/>（明るい／暗いシーンへ適応する毎秒の速度）は、ヒストグラム方式でのみ使う。Unreal の既定値はそれぞれ3と1。
 /// </summary>
 public readonly record struct ExposureSettings(ExposureMode Mode,float Ev100,float Compensation,float MaxEv100=0f,float SpeedUp=3f,float SpeedDown=1f){
     public static ExposureSettings Legacy=>new(ExposureMode.Legacy,0f,0f);
@@ -69,17 +67,14 @@ public readonly record struct ExposureSettings(ExposureMode Mode,float Ev100,flo
         &&(this.Mode!=ExposureMode.AutoHistogram
             ||(float.IsFinite(this.MaxEv100)&&this.MaxEv100>=this.Ev100
                 &&float.IsFinite(this.SpeedUp)&&this.SpeedUp>0f&&float.IsFinite(this.SpeedDown)&&this.SpeedDown>0f));
-    /// <summary>Linear multiplier applied to scene luminance before tone mapping; the histogram mode starts at its minimum EV100.</summary>
+    /// <summary>トーンマッピング前にシーン輝度へ適用する線形乗数。ヒストグラム方式は最小 EV100 から開始する。</summary>
     public float Scale(float CameraEv100)=>this.Mode==ExposureMode.Legacy
         ?PhysicalLightUnits.Ev100ToExposureScale(CameraEv100)
         :this.PhysicalScale(this.Ev100);
-    /// <summary>2^Compensation / (1.2 * 2^EV100).</summary>
+    /// <summary>露出補正の係数：2^Compensation / (1.2 * 2^EV100)。</summary>
     public float PhysicalScale(float MeteredEv100)=>MathF.Pow(2f,this.Compensation)/(1.2f*MathF.Pow(2f,MeteredEv100));
 }
-/// <summary>
-/// Exponential height fog in the Unreal Engine formulation: fog amount along a ray is
-/// Density * 2^(-Falloff * (height - FogHeight)) integrated in closed form. Values are per metre.
-/// </summary>
+/// <summary>Unreal Engine 方式の指数高さフォグ。レイに沿ったフォグ量 Density * 2^(-Falloff * (height - FogHeight)) を解析式で積分する。各値はメートル単位で表す。</summary>
 public readonly record struct PhysicalHeightFogSettings(
     float DensityPerMeter,float HeightFalloffPerMeter,float FogHeightMeters,
     Vector3 InscatteringLuminance,float SkyAtmosphereContributionScale,float MaxOpacity){
@@ -88,14 +83,13 @@ public readonly record struct PhysicalHeightFogSettings(
         &&float.IsFinite(this.FogHeightMeters)&&SkyAtmosphereSettings.IsFiniteNonNegative(this.InscatteringLuminance)
         &&float.IsFinite(this.SkyAtmosphereContributionScale)&&this.SkyAtmosphereContributionScale>=0f
         &&float.IsFinite(this.MaxOpacity)&&this.MaxOpacity>=0f&&this.MaxOpacity<=1f;
-    /// <summary>Density at the camera, the constant factor of the closed-form line integral.</summary>
+    /// <summary>カメラ位置での密度。解析式による線積分の定数項。</summary>
     public float RayOriginTerms(float CameraAltitudeMeters)=>
         this.DensityPerMeter*MathF.Pow(2f,-this.HeightFalloffPerMeter*(CameraAltitudeMeters-this.FogHeightMeters));
 }
 /// <summary>
-/// Scene-wide environment lighting (ADR-0069). Null members keep the renderer's original path:
-/// no atmosphere means the clear colour background and unattenuated directional lights; no sky
-/// light means only the flat ambient term; no physical fog means the legacy fog.
+/// シーン全体の環境ライティング（ADR-0069）。メンバーが null の場合は、レンダラーの従来経路を使う。大気がなければクリア色を背景にし、指向性ライトを減衰させない。スカイライトがなければ一様な
+/// 環境光だけを使う。物理フォグがなければ従来のフォグを使う。
 /// </summary>
 public readonly record struct EnvironmentLightingSettings(
     SkyAtmosphereSettings?Atmosphere,
@@ -110,7 +104,9 @@ public readonly record struct EnvironmentLightingSettings(
     VolumetricCloudSettings?Clouds=null,
     SkySphereSettings?SkySphere=null,
     GlobalDistanceFieldSettings?DistanceField=null,
-    LumenSettings?Lumen=null){
+    LumenSettings?Lumen=null,
+    CSharpGameEngine.Rendering.DirectionalShadowSettings?DirectionalShadows=null,
+    PixelColor?Background=null){
     public static EnvironmentLightingSettings Legacy=>new(null,null,null,ExposureSettings.Legacy,ToneMapper.LegacyAces,1.8f,0.00465f);
     public bool IsValid=>(this.Atmosphere is null||this.Atmosphere.Value.IsValid)
         &&(this.SkyLight is null||this.SkyLight.Value.IsValid)
@@ -121,14 +117,15 @@ public readonly record struct EnvironmentLightingSettings(
         &&(this.SkySphere is null||this.SkySphere.Value.IsValid)
         &&(this.DistanceField is null||this.DistanceField.Value.IsValid)
         &&(this.Lumen is null||this.Lumen.Value.IsValid)
+        &&(this.DirectionalShadows is null||this.DirectionalShadows.Value.IsValid)
         &&this.Exposure.IsValid&&float.IsFinite(this.BloomIntensity)&&this.BloomIntensity>=0f
         &&float.IsFinite(this.SunAngularRadiusRadians)&&this.SunAngularRadiusRadians>0f&&this.SunAngularRadiusRadians<0.5f;
 }
 /// <summary>
-/// Volumetric clouds (ADR-0078/M0110) in Unreal's units: kilometres for the layer and the tracing distances, extinction per metre, the
-/// material's coverage, albedo, phase and multiple-scattering controls. <see cref="CameraPositionKm"/> is where the camera is over the planet
-/// (world R and F, kilometres) and <see cref="WindOffsetKm"/> how far the wind has carried the clouds; both move the clouds the camera sees and
-/// are written every frame. The clouds need the atmosphere: without <see cref="EnvironmentLightingSettings.Atmosphere"/> they are not drawn.
+/// Unreal の単位系によるボリューム雲（ADR-0078/M0110）。雲層とレイ追跡距離はキロメートル、消散係数はメートルあたり。マテリアルの被覆率、アルベド、位相関数、複数回散乱の設定を保持する
+/// 。<see cref="CameraPositionKm"/> は惑星上のカメラ位置（ワールド R と F 軸、キロメートル）、<see cref="WindOffsetKm"/> は風が雲を移動させ
+/// た距離を表す。どちらもカメラから見える雲を動かし、毎フレーム更新する。大気が必要であり、<see cref="EnvironmentLightingSettings.Atmosphere"/> がなけ
+/// れば描画しない。
 /// </summary>
 public readonly record struct VolumetricCloudSettings(
     float LayerBottomAltitudeKm,
@@ -149,7 +146,7 @@ public readonly record struct VolumetricCloudSettings(
     float StopTracingTransmittanceThreshold,
     Vector2 CameraPositionKm,
     Vector2 WindOffsetKm){
-    /// <summary>The values of Unreal's VolumetricCloud with its default material, as the UE 5.8 templates use them.</summary>
+    /// <summary>Unreal 5.8 の既定マテリアルを使った VolumetricCloud の値。UE 5.8 テンプレートの設定に合わせる。</summary>
     public static VolumetricCloudSettings Unreal=>new(5f,10f,350f,50f,0.008f,-0.2f,256f,new Vector3(0.98f),0.8f,0.166667f,0.575f,0.666667f,0.25f,0.18f,0.5f,0.005f,Vector2.Zero,Vector2.Zero);
     public bool IsValid=>
         float.IsFinite(this.LayerBottomAltitudeKm)&&this.LayerBottomAltitudeKm>=0f&&this.LayerBottomAltitudeKm<=1000f
@@ -171,20 +168,18 @@ public readonly record struct VolumetricCloudSettings(
         &&float.IsFinite(this.WindOffsetKm.X)&&float.IsFinite(this.WindOffsetKm.Y);
 }
 /// <summary>
-/// The sky sphere (ADR-0078/M0110, Unreal's SM_SkySphere with M_SimpleSkyDome): the sky is drawn on every pixel whose surface is farther than
-/// <see cref="RadiusMeters"/> from <see cref="Center"/> (render space, so it moves with the camera origin like every object) as well as on the
-/// pixels no geometry covers.
+/// スカイスフィア（ADR-0078/M0110、Unreal の SM_SkySphere と M_SimpleSkyDome）。<see cref="RadiusMeters"/> よりも
+/// <see cref="Center"/> から遠い面を持つ各ピクセル（カメラ原点とともに移動するレンダリング座標系）と、形状で覆われないピクセルに空を描画する。
 /// </summary>
 public readonly record struct SkySphereSettings(Vector3 Center,float RadiusMeters){
     public bool IsValid=>float.IsFinite(this.Center.X)&&float.IsFinite(this.Center.Y)&&float.IsFinite(this.Center.Z)
         &&float.IsFinite(this.RadiusMeters)&&this.RadiusMeters>0f;
 }
 /// <summary>
-/// The global distance field (ADR-0078/M0110): <see cref="ClipmapCount"/> clipmaps of <see cref="Resolution"/>^3 voxels around the camera, the finest
-/// with voxels of <see cref="VoxelSizeMeters"/> and each next one twice as coarse, made from the objects' mesh distance fields and kept up to date a
-/// brick at a time. The voxels are fixed to the world: <see cref="OriginVoxel"/> is the world voxel (of the finest level) the render-space origin is in,
-/// and <see cref="OriginRemainder"/> how far the origin is past that voxel's corner, so the field does not swim when the camera moves. A caller that
-/// renders in world coordinates leaves both at zero.
+/// グローバル距離場（ADR-0078/M0110）。カメラの周囲に <see cref="Resolution"/>^3 ボクセルのクリップマップを <see cref="ClipmapCount"/>
+///  個配置する。最も細かい段のボクセルサイズは <see cref="VoxelSizeMeters"/> で、次の段以降は順に2倍粗くなる。オブジェクトのメッシュ距離場から作成し、ブリック単位で更新す
+/// る。ボクセルはワールドに固定する。<see cref="OriginVoxel"/> はレンダリング座標原点が属する最細段のワールドボクセル、<see cref="OriginRemainder"/>
+///  はボクセルの角から原点までの距離を表し、カメラ移動時に距離場がずれて見えるのを防ぐ。ワールド座標で描画する呼び出し側は、どちらもゼロにする。
 /// </summary>
 public readonly record struct GlobalDistanceFieldSettings(float VoxelSizeMeters,int ClipmapCount,int Resolution,LongVector3 OriginVoxel,Vector3 OriginRemainder){
     public const int MaximumClipmapCount=4;
@@ -198,15 +193,14 @@ public readonly record struct GlobalDistanceFieldSettings(float VoxelSizeMeters,
         &&this.OriginRemainder.X<=this.VoxelSizeMeters&&this.OriginRemainder.Y<=this.VoxelSizeMeters&&this.OriginRemainder.Z<=this.VoxelSizeMeters
         &&Math.Abs(this.OriginVoxel.X)<(1L<<52)&&Math.Abs(this.OriginVoxel.Y)<(1L<<52)&&Math.Abs(this.OriginVoxel.Z)<(1L<<52);
 }
-/// <summary>Three 64-bit integers: a voxel's coordinates on the world's voxel grid.</summary>
+/// <summary>64ビット整数3つで表す、ワールドボクセル格子上のボクセル座標。</summary>
 public readonly record struct LongVector3(long X,long Y,long Z);
 /// <summary>
-/// The scene's Lumen-like dynamic global illumination and reflections (ADR-0078/M0111) in Unreal's PostProcessVolume terms. Distances are metres
-/// (Unreal's centimetres / 100); the qualities and speeds keep Unreal's scales (1 is the default). <see cref="GlobalIllumination"/> and
-/// <see cref="Reflections"/> are Unreal's Global Illumination Method and Reflection Method set to Lumen. The renderer uses these only when its
-/// scalability (<see cref="RenderScalability"/>) allows Lumen and the environment has a global distance field to trace; otherwise the probe volume
-/// (DDGI) and the sky light keep lighting the scene as before. Nothing is baked: the surface cache, the radiance cache and the screen probes are
-/// recomputed every frame.
+/// Unreal の PostProcessVolume 用語で表した、Lumen 相当のシーン動的グローバルイルミネーションと反射（ADR-0078/M0111）。距離はメートル（Unreal の
+/// センチメートルを100で割った値）、品質と速度のスケールは Unreal に合わせる（1が既定値）。<see cref="GlobalIllumination"/> と
+/// <see cref="Reflections"/> は Unreal の Global Illumination Method と Reflection Method を Lumen に設定した状態に
+/// 相当する。レンダラーのスケーラビリティ（<see cref="RenderScalability"/>）が Lumen を許可し、環境にレイ追跡用グローバル距離場がある場合のみ使用する。それ以外では、
+/// 従来どおりプローブボリューム（DDGI）とスカイライトでシーンを照らす。事前焼き付けは行わず、サーフェスキャッシュ、放射輝度キャッシュ、画面プローブを毎フレーム再計算する。
 /// </summary>
 public readonly record struct LumenSettings(
     bool GlobalIllumination,
@@ -225,7 +219,7 @@ public readonly record struct LumenSettings(
     float MaxRoughnessToTraceReflections,
     bool ReflectionScreenTraces,
     float SurfaceCacheResolution){
-    /// <summary>Unreal 5.8's PostProcessVolume defaults, which all four templates use (tools/UnrealExport/probe_lumen.py).</summary>
+    /// <summary>Unreal 5.8 の PostProcessVolume 既定値。4つすべてのテンプレートで使う（tools/UnrealExport/probe_lumen.py）。</summary>
     public static LumenSettings Unreal=>new(true,true,1f,1f,200f,1f,1f,1f,true,200f,1f,0f,1f,0.4f,true,1f);
     public bool IsValid=>
         InRange(this.SceneLightingQuality,0.25f,4f)&&InRange(this.SceneDetail,0.25f,4f)
@@ -235,7 +229,7 @@ public readonly record struct LumenSettings(
         &&InRange(this.ReflectionQuality,0.25f,4f)&&InRange(this.MaxRoughnessToTraceReflections,0f,1f)&&InRange(this.SurfaceCacheResolution,0.5f,1f);
     private static bool InRange(float Value,float Minimum,float Maximum)=>float.IsFinite(Value)&&Value>=Minimum&&Value<=Maximum;
 }
-/// <summary>Unreal's scalability levels (sg.GlobalIlluminationQuality / sg.ReflectionQuality 0-3).</summary>
+/// <summary>Unreal のスケーラビリティレベル（sg.GlobalIlluminationQuality / sg.ReflectionQuality、0～3）。</summary>
 public enum ScalabilityLevel {
     Low,
     Medium,
@@ -243,12 +237,12 @@ public enum ScalabilityLevel {
     Epic,
 }
 /// <summary>
-/// The adapter-level quality of the dynamic lighting (ADR-0078/M0111), Unreal's sg.GlobalIlluminationQuality and sg.ReflectionQuality. As in
-/// Unreal's BaseScalability.ini, Lumen's GI needs High or Epic (High traces a screen probe every 32 pixels, Epic every 16) and Lumen's reflections
-/// need High (half resolution) or Epic (full resolution). Below that the renderer keeps the probe volume (DDGI) and the sky light's specular, the
-/// frames of M0110 and earlier (Unreal's Medium uses an irradiance-field final gather, the counterpart of the probe volume). The default is High on
-/// a hardware adapter and Medium on WARP, which draws on the CPU. Epic (Unreal's templates) is opt-in: on WARP it intermittently lost the device
-/// and was not bit-reproducible (M0111), and it has not been run on a hardware GPU yet.
+/// 動的ライティングのアダプター側品質設定（ADR-0078/M0111）。Unreal の sg.GlobalIlluminationQuality と sg.ReflectionQuality に対応
+/// する。Unreal の BaseScalability.ini と同様、Lumen GI には High または Epic が必要（High は32ピクセルごと、Epic は16ピクセルごとに画面
+/// プローブを追跡）。Lumen 反射には High（半解像度）または Epic（全解像度）が必要。それ未満では、M0110 以前のフレームと同じくプローブボリューム（DDGI）とスカイライトの鏡面反射を
+/// 使う（Unreal の Medium は、プローブボリュームに相当する Irradiance Field の Final Gather を使う）。ハードウェアアダプターの既定値は High、CPU で
+/// 描画する WARP の既定値は Medium。Epic（Unreal のテンプレート設定）は明示的に選択する。WARP では断続的にデバイスを失い、ビット単位の再現性もなかったため（M0111）、
+/// ハードウェア GPU ではまだ実行していない。
 /// </summary>
 public readonly record struct RenderScalability(ScalabilityLevel GlobalIllumination,ScalabilityLevel Reflections){
     public static RenderScalability Epic=>new(ScalabilityLevel.Epic,ScalabilityLevel.Epic);
@@ -256,22 +250,23 @@ public readonly record struct RenderScalability(ScalabilityLevel GlobalIlluminat
     public static RenderScalability Medium=>new(ScalabilityLevel.Medium,ScalabilityLevel.Medium);
     public static RenderScalability DefaultFor(bool IsWarp)=>IsWarp?Medium:High;
     public bool AllowsLumenGlobalIllumination=>this.GlobalIllumination>=ScalabilityLevel.High;
-    /// <summary>Lumen's reflections also need Lumen's GI (their rough lobes and misses read its probes).</summary>
+    /// <summary>Lumen の反射には Lumen GI も必要（粗い反射ローブとレイの失敗時に GI のプローブを参照する）。</summary>
     public bool AllowsLumenReflections=>this.AllowsLumenGlobalIllumination&&this.Reflections>=ScalabilityLevel.High;
 }
-/// <summary>Unreal's r.Lumen.Visualize for debugging (ADR-0078/M0111): what the frame shows instead of the lit scene while Lumen runs.</summary>
+/// <summary>デバッグ用の Unreal の r.Lumen.Visualize（ADR-0078/M0111）。Lumen 実行中に、ライティング済みシーンの代わりに表示する内容。</summary>
 public enum LumenVisualization {
     None,
-    /// <summary>The final gather's diffuse irradiance on a white surface.</summary>
+    /// <summary>白い面に対する Final Gather の拡散照度。</summary>
     Diffuse,
-    /// <summary>The reflected radiance.</summary>
+    /// <summary>反射された放射輝度。</summary>
     Reflections,
-    /// <summary>The surface cache's radiance where each pixel's surface is (black where no card saw it).</summary>
+    /// <summary>サーフェスキャッシュに記録された各ピクセル位置の面の放射輝度。カードに捉えられていない場所は黒。</summary>
     SurfaceCache,
 }
 /// <summary>
-/// Reads <see cref="RenderScalability"/> overrides from CGE_SCALABILITY_GI and CGE_SCALABILITY_REFLECTIONS (low, medium, high, epic), and the debugging
-/// view from CGE_LUMEN_VISUALIZE (none, diffuse, reflections, surfacecache).
+/// CGE_SCALABILITY_GI と CGE_SCALABILITY_REFLECTIONS（low、medium、high、epic）から
+/// <see cref="RenderScalability"/> の上書きを読み込む。また、CGE_LUMEN_VISUALIZE（none、diffuse、reflections、
+/// surfacecache）からデバッグ表示を読み込む。
 /// </summary>
 public static class RenderScalabilityResolver {
     public const string GlobalIlluminationVariable="CGE_SCALABILITY_GI";
@@ -284,7 +279,7 @@ public static class RenderScalabilityResolver {
         "surfacecache"=>LumenVisualization.SurfaceCache,
         _=>throw new InvalidOperationException($"{VisualizeVariable} must be none, diffuse, reflections or surfacecache."),
     };
-    /// <summary>The adapter's default, with each level a variable names replacing it; the reflections follow the GI level when only that is named.</summary>
+    /// <summary>アダプターの既定値。それぞれのレベルには対応する変数名で上書きでき、反射の値だけが指定された場合は GI のレベルに合わせる。</summary>
     public static RenderScalability FromEnvironment(bool IsWarp)=>Resolve(IsWarp,Environment.GetEnvironmentVariable(GlobalIlluminationVariable),Environment.GetEnvironmentVariable(ReflectionsVariable));
     public static RenderScalability Resolve(bool IsWarp,string?GlobalIllumination,string?Reflections){
         var Default=RenderScalability.DefaultFor(IsWarp);
@@ -306,20 +301,17 @@ public static class RenderScalabilityResolver {
     }
 }
 /// <summary>
-/// Screen-space ambient occlusion of indirect light (ADR-0069), in Unreal Engine's terms:
-/// <see cref="Intensity"/> blends between no occlusion (0) and the full obscurance (1) and
-/// <see cref="RadiusMeters"/> is the world-space sampling radius.
+/// スクリーンスペースで評価する間接光のアンビエントオクルージョン（ADR-0069、Unreal Engine の用語）。<see cref="Intensity"/> は遮蔽なし（0）から完全な遮蔽（
+/// 1）までを補間する。<see cref="RadiusMeters"/> はワールド空間でのサンプリング半径。
 /// </summary>
 public readonly record struct AmbientOcclusionSettings(float Intensity,float RadiusMeters){
     public bool IsValid=>float.IsFinite(this.Intensity)&&this.Intensity>=0f&&this.Intensity<=1f
         &&float.IsFinite(this.RadiusMeters)&&this.RadiusMeters>0f;
 }
 /// <summary>
-/// Dynamic diffuse global illumination probe volume (ADR-0069). <see cref="Center"/> is in the
-/// renderer's camera-relative space of the current frame, so it moves with the camera origin
-/// exactly like every object transform; the other members describe the grid layout. Probes sit on
-/// a regular grid spanning the box, at least two per axis, and the renderer re-captures
-/// <see cref="ProbesPerFrame"/> of them each frame (round robin).
+/// 動的拡散グローバルイルミネーションのプローブボリューム（ADR-0069）。<see cref="Center"/> は当該フレームのレンダラーのカメラ相対座標で表すため、オブジェクトの変換と同じよう
+/// にカメラ原点とともに移動する。他のメンバーはグリッド配置を表す。ボックス内に規則的なグリッドを設け、各軸に最低2個のプローブを配置する。毎フレーム、
+/// <see cref="ProbesPerFrame"/> 個をラウンドロビン方式で再取得する。
 /// </summary>
 public readonly record struct GlobalIlluminationSettings(
     Vector3 Center,
@@ -328,7 +320,7 @@ public readonly record struct GlobalIlluminationSettings(
     int ProbesPerFrame,
     float Hysteresis,
     float Intensity){
-    /// <summary>Probe capacity of the fixed-size irradiance and distance atlases.</summary>
+    /// <summary>固定サイズの照度アトラスと距離アトラスのプローブ容量。</summary>
     public const int MaxProbeCount=4096;
     public const int MaxProbesPerFrame=64;
     public bool IsValid=>
@@ -339,10 +331,10 @@ public readonly record struct GlobalIlluminationSettings(
         &&float.IsFinite(this.Hysteresis)&&this.Hysteresis>=0f&&this.Hysteresis<1f
         &&float.IsFinite(this.Intensity)&&this.Intensity>=0f
         &&ProbeCountFor(this.HalfExtent,this.ProbeSpacingMeters)<=MaxProbeCount;
-    /// <summary>Probes along each axis: the box edge divided by the spacing, plus one, and at least two.</summary>
+    /// <summary>各軸上のプローブ数。ボックスの辺を間隔で割って1を加えた値とし、最低2個。</summary>
     public (int X,int Y,int Z) ProbeCounts=>(AxisCount(this.HalfExtent.X,this.ProbeSpacingMeters),AxisCount(this.HalfExtent.Y,this.ProbeSpacingMeters),AxisCount(this.HalfExtent.Z,this.ProbeSpacingMeters));
     public int ProbeCount=>(int)Math.Min(ProbeCountFor(this.HalfExtent,this.ProbeSpacingMeters),int.MaxValue);
-    /// <summary>Actual distance between neighbouring probes per axis; the grid spans the box exactly.</summary>
+    /// <summary>各軸で隣接するプローブ間の実際の距離。グリッドがボックス全体に正確に広がるようにする。</summary>
     public Vector3 GridSpacing{
         get {
             var Counts=this.ProbeCounts;
@@ -364,13 +356,10 @@ public readonly record struct GlobalIlluminationSettings(
     private static long ProbeCountFor(Vector3 HalfExtent,float Spacing)=>
         (long)AxisCount(HalfExtent.X,Spacing)*AxisCount(HalfExtent.Y,Spacing)*AxisCount(HalfExtent.Z,Spacing);
 }
-/// <summary>
-/// CPU reference for the atmosphere's transmittance. The renderer attenuates directional lights
-/// with it and tests use it as the oracle for the GPU transmittance LUT.
-/// </summary>
+/// <summary>大気の透過率を計算する CPU 参照実装。レンダラーはこれを使って指向性ライトを減衰させ、テストでは GPU の透過率 LUT の正解値として使う。</summary>
 public static class AtmosphereTransmittance {
     private const int SampleCount=64;
-    /// <summary>Transmittance from a point at <paramref name="AltitudeMeters"/> above the ground toward <paramref name="DirectionTowardLight"/> (+Y up).</summary>
+    /// <summary>地表から <paramref name="AltitudeMeters"/> の高度にある点から、<paramref name="DirectionTowardLight"/> 方向への透過率（+Y が上向き）。</summary>
     public static Vector3 Evaluate(in SkyAtmosphereSettings Atmosphere,float AltitudeMeters,Vector3 DirectionTowardLight){
         if(!Atmosphere.IsValid){
             throw new ArgumentException("Atmosphere settings must be finite and physically valid.",nameof(Atmosphere));
@@ -380,8 +369,8 @@ public static class AtmosphereTransmittance {
             throw new ArgumentException("The direction and altitude must be finite.");
         }
         var Origin=new Vector3(0f,Atmosphere.BottomRadiusKm+MathF.Max(AltitudeMeters,0f)*0.001f,0f);
-        // Only a ray heading below the local horizon can be blocked by the planet; an origin exactly
-        // on the ground would otherwise report a zero-distance hit for every upward direction.
+        // 惑星に遮られるのは、ローカル地平線より下へ向かうレイだけ。原点が地面上にあると、ちょうど
+        // 上向きのすべての方向でも距離ゼロの交差が報告されてしまう。
         if(Vector3.Dot(Origin,Direction)<0f&&IntersectNearest(Origin,Direction,Atmosphere.BottomRadiusKm)>0f){
             return Vector3.Zero;
         }

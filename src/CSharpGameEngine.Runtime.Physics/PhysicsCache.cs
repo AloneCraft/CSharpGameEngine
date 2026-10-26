@@ -5,38 +5,37 @@ using CSharpGameEngine.Runtime.Simulation;
 namespace CSharpGameEngine.Runtime.Physics;
 
 /// <summary>
-/// A bond of a destructible that broke in a tick (ADR-0078/M0113): the destructible's physics stable ID, the bond's index in its cooked asset and the strain
-/// (N·s) that broke it. The cache records these so a played-back tick breaks the same bonds and makes the same pieces.
+/// ティック中に切れた破壊可能オブジェクトのボンド（ADR-0078/M0113）。破壊可能オブジェクトの物理安定 ID、調理済みアセット内のボンド番号、および切断したひずみ（N·s）を保持する。
+/// キャッシュに記録することで、再生時に同じボンドが切れ、同じ破片が生成される。
 /// </summary>
 public readonly record struct PhysicsBondBreak(ulong RootStableId,int Bond,LogicalScalar Strain);
 
 /// <summary>
-/// A bond of a destructible whose internal strain an impact raised in a tick (M0124): the destructible's physics stable ID, the bond and the internal strain
-/// (N·s) it carries into the next tick. The cache records these so a played-back stretch leaves the same internal strains as the live run (every other
-/// bond's internal strain only decays, which playback repeats exactly).
+/// ティック中に衝撃で内部ひずみが増加した破壊可能オブジェクトのボンド（M0124）。破壊可能オブジェクトの物理安定 ID、ボンド番号、および次のティックに持ち越す内部ひずみ（N·s）を保持する。
+/// キャッシュに記録することで、再生した区間でも通常実行時と同じ内部ひずみになる。他のボンドの内部ひずみは減衰するだけなので、再生時も同じように減衰する。
 /// </summary>
 public readonly record struct PhysicsBondStrain(ulong RootStableId,int Bond,LogicalScalar Strain);
 
 /// <summary>
-/// One recorded tick. <paramref name="BondBreaks"/> (schema 3, M0113) and <paramref name="BondStrains"/> (schema 4, M0124) may be left out: <see cref="Breaks"/>
-/// and <see cref="Strains"/> are then empty.
+/// 記録済みの1ティック。<paramref name="BondBreaks"/>（スキーマ3、M0113）と <paramref name="BondStrains"/>（スキーマ4、M0124）は
+/// 省略できる。省略した場合、<see cref="Breaks"/> と <see cref="Strains"/> は空になる。
 /// </summary>
 public readonly record struct PhysicsCacheFrame(ulong Tick,IReadOnlyList<PhysicsBodyState> Bodies,IReadOnlyList<PhysicsEvent> Events,IReadOnlyList<PhysicsBondBreak>? BondBreaks=null,IReadOnlyList<PhysicsBondStrain>? BondStrains=null) {
-    /// <summary>The bonds that broke in this tick, never null.</summary>
+    /// <summary>このティックに切れたボンド。null にはならない。</summary>
     public IReadOnlyList<PhysicsBondBreak> Breaks=>this.BondBreaks??[];
-    /// <summary>The bonds whose internal strain an impact raised in this tick, never null.</summary>
+    /// <summary>このティックに衝撃で内部ひずみが増加したボンド。null にはならない。</summary>
     public IReadOnlyList<PhysicsBondStrain> Strains=>this.BondStrains??[];
 }
 
 /// <summary>
-/// The <c>.cgephyscache</c> format. Schema 3 (M0113) adds after each frame's events the bonds that broke in the tick (count, then RootStableId, Bond, Strain,
-/// strictly ordered by RootStableId and Bond). Schema 4 (M0124, written) adds after them the bonds whose internal strain an impact raised (count, then
-/// RootStableId, Bond, Strain, in the same order). Schema 2 (M0055) and 3 files are still read: the identity may name the older schema when everything else
-/// matches, and their frames have no bond breaks (2) or internal strains (2 and 3).
+/// <c>.cgephyscache</c> 形式。スキーマ3（M0113）では、各フレームのイベントの後に、そのティックに切れたボンド（件数、RootStableId、Bond、Strain の順で記録
+/// し、RootStableId と Bond の昇順に厳密に並べる）を追加する。スキーマ4（M0124、書き込み用）では、その後に衝撃で内部ひずみが増えたボンド（件数、RootStableId、Bond
+/// 、Strain の順で、同じ順序規則）を追加する。スキーマ2（M0055）と3のファイルも引き続き読み込む。同一性の他の項目がすべて一致する場合は、古いスキーマを示す識別情報も受け入れる。各フレームに
+/// は、ボンド破断記録（スキーマ2）または内部ひずみ記録（スキーマ2と3）がない。
 /// </summary>
 public static class PhysicsCacheSerializer {
     public const int SchemaVersion=4;
-    /// <summary>The oldest schema still read (M0055's frames without bond breaks).</summary>
+    /// <summary>引き続き読み込み可能な最古のスキーマ（ボンド破断記録のない M0055 のフレーム）。</summary>
     public const int OldestReadableSchemaVersion=2;
     public const int MaximumFrameCount=10_000_000;
     internal const int MaximumBodiesPerFrame=1_000_000;
@@ -53,8 +52,8 @@ public static class PhysicsCacheSerializer {
     }
 
     /// <summary>
-    /// Whether a file of identity <paramref name="Actual"/> can be read where <paramref name="Expected"/> (the current schema) is wanted, and the schema its
-    /// frames use: the same identity, or an older readable schema with every other part equal.
+    /// 現在のスキーマである <paramref name="Expected"/> の代わりに、識別情報が <paramref name="Actual"/> のファイルを読み込めるかどうかと、そのフレーム
+    /// で使うスキーマ。同じ識別情報か、他の項目がすべて一致する読み込み可能な旧スキーマのいずれか。
     /// </summary>
     internal static bool TryAccept(in SimulationCacheIdentity Actual,in SimulationCacheIdentity Expected,out int Schema){
         Schema=Actual.SchemaVersion;
@@ -150,7 +149,7 @@ public static class PhysicsCacheSerializer {
         }
     }
 
-    /// <summary>Reads one frame and checks that it is canonical (ordering, identities, enums, tick of every event, bond break and internal strain); returns its tick.</summary>
+    /// <summary>1つのフレームを読み込み、正規形式かどうか（順序、識別情報、列挙値、各イベントのティック、ボンドの破断と内部ひずみ）を検証して、そのティックを返す。</summary>
     private static ulong ReadCanonicalFrame(BinaryReader Reader,int Schema,List<PhysicsBodyState>Bodies,List<PhysicsEvent>Events,List<PhysicsBondBreak>Breaks,List<PhysicsBondStrain>Strains){
         ulong Tick=Reader.ReadUInt64();
         int BodyCount=ReadCount(Reader,MaximumBodiesPerFrame);
@@ -236,13 +235,13 @@ public static class PhysicsCacheSerializer {
         &&(!Body.MotionType.HasValue||Enum.IsDefined(Body.MotionType.Value))
         &&IsUnitRotation(Body.Rotation);
     /// <summary>
-    /// How far a stored rotation's squared length may be from one (2^-30). Q64.64 normalization is not idempotent (normalizing a normalized quaternion
-    /// again can move its last bits), so the cache takes what the integrator produced rather than demanding an exact fixed point of normalization (M0113:
-    /// that refused the bake of every spinning body). The rounding error is near 2^-60; anything this far off was never normalized.
+    /// 保存された回転の長さの二乗が1からずれてよい許容値（2^-30）。Q64.64 の正規化は冪等ではなく、正規化済みクォータニオンを再度正規化すると最下位ビットが変わる場合がある。そのためキャッシュは、
+    /// 積分処理で生成された値を受け入れ、正規化の厳密な固定点であることは要求しない（M0113：その検証では回転するボディをすべて調理できなかった）。丸め誤差はおよそ 2^-60 であり、これほど大きくずれ
+    /// た値は正規化されたことがない。
     /// </summary>
     private static readonly LogicalScalar UnitRotationTolerance=LogicalScalar.FromRaw((Int128)1<<34);
     internal static bool IsUnitRotation(LogicalQuaternion Rotation){
-        // Bounded first, so a damaged file cannot overflow the squared length.
+        // 二乗長を検証する前に範囲を制限し、破損ファイルによるオーバーフローを防ぐ。
         LogicalScalar Two=LogicalScalar.FromInt64(2);
         foreach(LogicalScalar Component in (ReadOnlySpan<LogicalScalar>)[Rotation.R,Rotation.U,Rotation.F,Rotation.W]){
             if(Component>Two||Component< -Two){ return false; }
@@ -281,10 +280,7 @@ public static class PhysicsCacheSerializer {
     private static LogicalQuaternion ReadQuaternion(BinaryReader Reader)=>new(ReadScalar(Reader),ReadScalar(Reader),ReadScalar(Reader),ReadScalar(Reader));
 }
 
-/// <summary>
-/// Writes one canonical physics frame at a time. The declared frame count is part of the header,
-/// so an incomplete bake cannot be mistaken for a complete cache.
-/// </summary>
+/// <summary>物理フレームを正規形式で1つずつ書き込む。宣言されたフレーム数はヘッダーに含まれるため、不完全な調理結果を完成済みキャッシュと誤認しない。</summary>
 public sealed class PhysicsCacheStreamWriter:IDisposable {
     private readonly BinaryWriter Writer;
     private readonly List<PhysicsBodyState>Bodies=[];
@@ -305,7 +301,7 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
         if(ExpectedFrameCount is <0 or >PhysicsCacheSerializer.MaximumFrameCount){
             throw new ArgumentOutOfRangeException(nameof(ExpectedFrameCount));
         }
-        // Schema 4 is written; schema 2 (no bond breaks) or 3 (no internal strains) only when the identity asks for it, to make files of an older layout.
+        // 書き込みはスキーマ4。古い形式のファイルを作る場合に限り、識別情報が要求するときだけスキーマ2（ボンド破断情報なし）または3（内部ひずみ情報なし）を書き込む。
         if(Identity.SchemaVersion is <PhysicsCacheSerializer.OldestReadableSchemaVersion or >PhysicsCacheSerializer.SchemaVersion){
             throw new ArgumentOutOfRangeException(nameof(Identity),"The physics cache schema is not one this writer knows.");
         }
@@ -420,7 +416,7 @@ public sealed class PhysicsCacheStreamWriter:IDisposable {
     }
 }
 
-/// <summary>Owns validated cache playback state; the ECS component stores only its authored intent.</summary>
+/// <summary>検証済みキャッシュの再生状態を所有する。ECS コンポーネントには設定時の意図だけを保存する。</summary>
 public sealed class PhysicsCachePlayer:IDisposable {
     private readonly FileStream Spool;
     private readonly BinaryReader Reader;

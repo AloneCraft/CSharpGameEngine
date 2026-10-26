@@ -9,8 +9,7 @@ using CSharpGameEngine.Lighting;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0105: the Render Server's roster grows and shrinks while it runs. An object added later is drawn, a removed one is not,
-/// its slot is handed out again, a mesh and a material can be added, and a device loss rebuilds exactly what was there.
+/// ADR-0078/M0105：Render Server の一覧は実行中に増減します。後から追加されたオブジェクトは描画され、削除されたオブジェクトは描画されません。スロットは再割り当てされ、メッシュとマテリアルも追加できます。device loss 後には、その時点の一覧が正確に再構築されます。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RenderServerDynamicObjectTests {
@@ -81,14 +80,14 @@ public sealed class RenderServerDynamicObjectTests {
         var With=Capture(Renderer,Center,(Sphere,SideMatrix));
         Assert.NotEqual(Alone.Hash,With.Hash);
         Assert.True(With.Covered>Alone.Covered);
-        // A device loss rebuilds the renderer from the Render Server's roster, which now holds the added mesh, material and object.
+        // device loss 後、Render Server の一覧に保持されている追加済みのメッシュ、マテリアル、オブジェクトからレンダラーが再構築されます。
         Renderer.RemoveDeviceForTesting();
         Renderer.RenderFrame(CaptureForVerification:true);
         Assert.Equal(2u,Renderer.DeviceSnapshot.Generation);
         Assert.Equal(With.Hash,Convert.ToHexString(SHA256.HashData(Renderer.LastCapturedFrame!.Pixels)));
         Assert.Equal(2,Renderer.ActiveObjectCount);
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
-        // A removed object stays removed after a device loss, and its slot is still the next one handed out.
+        // 削除済みオブジェクトは device loss 後も復活せず、そのスロットが次に割り当てられます。
         Renderer.RemoveObject(Sphere);
         Assert.Equal(Alone.Hash,Capture(Renderer,Center).Hash);
         Renderer.RemoveDeviceForTesting();

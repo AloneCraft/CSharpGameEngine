@@ -1,9 +1,7 @@
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Gives every active-document analysis a monotonically increasing identity. An analysis result may
-/// be published only while its request is still current; this prevents a slow result for document A
-/// from overwriting document B after the user has already switched editors.
+/// アクティブドキュメントの解析ごとに単調増加する識別子を割り当てます。解析結果を発行できるのは、その要求がまだ最新の場合だけです。ユーザーがすでに別の editor に切り替えた後で、遅れて届いたドキュメント A の結果がドキュメント B を上書きするのを防ぎます。
 /// </summary>
 internal sealed class SceneAnalysisGenerationGate<TDocument> where TDocument:class {
     private long Generation;

@@ -4,8 +4,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0070: scene JSON documents (<c>Scenes\**\*.json</c>) are compiled to the same scenes as C# scene classes, and
-/// undefined types, members and values fail the build with errors at the JSON line and column.
+/// ADR-0070：Scene JSON ドキュメント（<c>Scenes\**\*.json</c>）を C# Scene クラスと同じ Scene にコンパイルする。未定義の型、メンバー、値がある
+/// 場合は、JSON の行と列を示すエラーを出してビルドを失敗させる。
 /// </summary>
 public sealed class SceneJsonGeneratorTests {
     private const string Components="""
@@ -105,8 +105,8 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(Describe(FromCSharp),Describe(FromJson));
     }
     /// <summary>
-    /// A node name is any JSON string, line breaks included. The generator wrote it into a one-line comment, so a name
-    /// with a line break (\n, or U+2028 and U+0085, at which C# also ends a line) put the rest of the name into the code.
+    /// ノード名には、改行を含む任意の JSON 文字列を指定できる。ジェネレーターはコメントを1行で出力していたため、改行を含む名前（\n、または C# でも行末となる U+2028 と U+0085）を使
+    /// うと、名前の残りがコードとして扱われていた。
     /// </summary>
     [Theory]
     [InlineData("La\\nthrow null;mp")]
@@ -121,8 +121,8 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal("1.5|-2|0.2|3|Bright|a \"b\"|True|7|-5|-3.25",Describe(FromJson));
     }
     /// <summary>
-    /// A scene is a JSON file under the project's Scenes folder (ADR-0070, revised 2026-10-01): the
-    /// same document elsewhere, or with the old <c>.scene.json</c> name outside Scenes, is not built.
+    /// Scene はプロジェクトの Scenes フォルダー内にある JSON ファイル（ADR-0070、2026-10-01改訂）。同じドキュメントでも別の場所にある場合や、Scenes の外に古い
+    /// <c>.scene.json</c> 名で置かれている場合はビルドしない。
     /// </summary>
     [Theory]
     [InlineData(@"C:\Game\Scenes\MainScene.json",true)]
@@ -137,9 +137,8 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(Built,Generated.Contains("MainScene",StringComparison.Ordinal));
     }
     /// <summary>
-    /// Two scene files that declare the same class (a copied file whose className was kept) build the first by path and
-    /// report SCENE207 at the later file's className. The generator added the same scene twice, which threw for the
-    /// duplicate hint name and dropped its whole output (CS8785).
+    /// 同じクラス名を宣言する2つの Scene ファイル（className を変えずにコピーした場合など）は、パス順で最初のファイルだけビルドする。後のファイルの className には
+    /// SCENE207 を報告する。ジェネレーターが同じ Scene を2回追加し、重複するヒント名で例外が発生して出力全体が欠落していた（CS8785）。
     /// </summary>
     [Fact]
     public async Task TwoFilesDeclaringTheSameScene_BuildOneAndReportTheOther(){
@@ -210,15 +209,14 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(["X","Y"],Vec.Properties.Select(static Property=>Property.Name));
         var Offset=Definitions.Get("type:Sample.Tag")!.Get("properties")!.Get("Offset")!.Get("anyOf")!;
         Assert.Equal("number",Offset.Items[0].Get("type")!.Text);
-        // Each component's members are tied to its type with if/then so unknown members warn.
+        // 各コンポーネントのメンバーを if/then で型に結び付け、不明なメンバーに警告を出す。
         Assert.Contains(Definitions.Get("component")!.Get("allOf")!.Items,Condition=>
             Condition.Get("if")!.Get("properties")!.Get("type")!.Get("const")!.Text=="Sample.Light"
             &&Condition.Get("then")!.Get("properties")!.Get("members")!.Get("$ref")!.Text=="#/definitions/type:Sample.Light");
     }
     /// <summary>
-    /// A <c>ulong</c> member takes the whole range: the converter writes it, the document builds the same value, the
-    /// Scene Designer reads it back unchanged, a negative number is an error and the schema calls it an integer. The
-    /// JSON reader used to reject every ulong value that the converter and the Inspector write.
+    /// <c>ulong</c> メンバーでは全範囲を扱える。コンバーターが書き込み、ドキュメントは同じ値にコンパイルされ、Scene Designer も変更せず読み戻す。負の数はエラーとなり、スキーマでは
+    /// 整数と認識する。以前は JSON リーダーが、コンバーターと Inspector が出力するすべての ulong 値を拒否していた。
     /// </summary>
     [Fact]
     public void UInt64Member_ConvertsAndBuildsItsWholeRange(){
@@ -273,10 +271,7 @@ public sealed class SceneJsonGeneratorTests {
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Counter])));
         Assert.Equal("integer",Schema.Get("definitions")!.Get("type:Sample.Counter")!.Get("properties")!.Get("Big")!.Get("type")!.Text);
     }
-    /// <summary>
-    /// A C# constant without a JSON number (NaN, an infinity) is reported like any other value JSON cannot hold. The
-    /// converter used to throw for a float and to write an unreadable document for a double.
-    /// </summary>
+    /// <summary>JSON 数値として表現できない C# 定数（NaN、無限大）は、JSON で保持できない他の値と同様に報告する。以前はコンバーターが float で例外をスローし、double では読み取れないドキュメントを書き込んでいた。</summary>
     [Theory]
     [InlineData("Scale=2f","Scale=float.PositiveInfinity","Infinity")]
     [InlineData("Scale=2f","Scale=float.NaN","NaN")]
@@ -341,8 +336,8 @@ public sealed class SceneJsonGeneratorTests {
         }
     }
     /// <summary>
-    /// A schema the post-build step cannot write fails the build with its cause: the line is in MSBuild's canonical form at
-    /// the schema. It was "CGE-SCENE-SCHEMA failed: ...", which Exec logs as a message, so the error list showed only MSB3073.
+    /// ビルド後の処理で書き込めないスキーマがある場合は、その原因を付けてビルドを失敗させる。行はスキーマファイルを示す MSBuild の正準形式で出力する。以前は "CGE-SCENE-SCHEMA
+    /// failed: ..." が Exec にメッセージとして記録され、エラー一覧には MSB3073 しか表示されなかった。
     /// </summary>
     [Fact]
     public void SchemaTool_ReportsAFailedWriteAsABuildError(){
@@ -356,7 +351,7 @@ public sealed class SceneJsonGeneratorTests {
             Assert.True(Output.Emit(AssemblyPath).Success);
             using var Error=new StringWriter();
             Console.SetError(Error);
-            // The schema path is a directory, so writing it fails.
+            // スキーマの出力先がディレクトリなので、書き込みは失敗する。
             Assert.Equal(1,CSharpGameEngine.SceneSchema.Cli.Program.Run([AssemblyPath,Directory]));
             Assert.StartsWith(Directory+": error CGE-SCENE-SCHEMA: ",Error.ToString(),StringComparison.Ordinal);
         } finally {
@@ -381,10 +376,7 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(Describe(GameSystemGeneratorTestHelper.CompileAndLoad(CSharpCompilation)),Describe(FromJson));
         Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json").Text);
     }
-    /// <summary>
-    /// <c>default</c> is written as the member type's own JSON form: <c>false</c>, <c>0</c>, the enum member
-    /// whose value is zero, an empty object for a struct and <c>null</c> for a reference.
-    /// </summary>
+    /// <summary><c>default</c> はメンバー型固有の JSON 形式で書き込む。<c>false</c>、<c>0</c>、値がゼロの列挙メンバー、構造体の空オブジェクト、参照型の <c>null</c> など。</summary>
     [Fact]
     public void Converter_WritesDefaultValuesInTheirMemberTypesJsonForm(){
         const string DefaultsComponent="""
@@ -418,10 +410,7 @@ public sealed class SceneJsonGeneratorTests {
         var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,DefaultsComponent]);
         Assert.Empty(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base).Problems);
     }
-    /// <summary>
-    /// The Scene Designer reads a JSON scene through the C# class it is equivalent to, and writes it back
-    /// with the converter: the model matches the C# scene's and the round trip is byte-identical.
-    /// </summary>
+    /// <summary>Scene Designer は対応する C# クラスを通して JSON Scene を読み込み、コンバーターで書き戻す。モデルは C# Scene と一致し、往復後のバイト列も同一になる。</summary>
     [Fact]
     public void DesignerSource_YieldsTheCSharpScenesModelAndConvertsBackByteIdentically(){
         var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
@@ -439,10 +428,10 @@ public sealed class SceneJsonGeneratorTests {
         var Ids=Scene.NodeIdsByPath();
         Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json",Path=>Ids.TryGetValue(Path,out var Id)?Id:null).Text);
     }
-    /// <summary>The designer reads a startup scene as one (its <c>startupOrder</c> survives the round trip back to JSON).</summary>
+    /// <summary>Designer は起動 Scene を1として読み込み、JSON に戻した後も <c>startupOrder</c> が保たれる。</summary>
     [Fact]
     public void DesignerSource_KeepsTheStartupOrder(){
-        // The raw string has the checkout's line endings (CRLF in a fresh clone on Windows).
+        // 文字列リテラルでは、チェックアウトの改行コードを使う（Windows の新規 clone では CRLF）。
         var Json=JsonScene.Replace("\r\n","\n").Replace("  \"className\": \"MainScene\",\n","  \"className\": \"MainScene\",\n  \"startupOrder\": -3,\n");
         Assert.Contains("\"startupOrder\": -3",Json);
         var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
@@ -456,7 +445,7 @@ public sealed class SceneJsonGeneratorTests {
         var Ids=Scene.NodeIdsByPath();
         Assert.Contains("  \"className\": \"MainScene\",\n  \"startupOrder\": -3,\n",CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json",Path=>Ids.TryGetValue(Path,out var Id)?Id:null).Text);
     }
-    /// <summary>Node names, component types and member values, independent of how the source was written.</summary>
+    /// <summary>ソースの記述方法にかかわらない、ノード名、コンポーネント型、メンバー値。</summary>
     private static string Semantic(CSharpGameEngine.SceneAnalysis.SceneModel Model){
         var Builder=new System.Text.StringBuilder();
         string Dump(CSharpGameEngine.SceneAnalysis.SceneValue Item)=>Item.Kind switch {
@@ -505,10 +494,9 @@ public sealed class SceneJsonGeneratorTests {
         }
         """;
     /// <summary>
-    /// A JSON array is emitted as a collection expression (an array creation for an array) and an object as
-    /// <c>new T(...) { ... }</c>. For a type C# cannot create that way the generated file did not compile (CS1061 for
-    /// <c>Queue&lt;T&gt;</c>, CS9215 for a dictionary, CS8181 for a tuple, CS0029 for a multidimensional array) and the
-    /// scene had no diagnostic; it is a SCENE203 at the value.
+    /// JSON 配列はコレクション式（配列型なら配列生成式）、オブジェクトは <c>new T(...) { ... }</c> として出力する。C# で生成できない型では生成ファイルがコンパイルに失敗して
+    /// いた（<c>Queue&lt;T&gt;</c> は CS1061、辞書は CS9215、タプルは CS8181、多次元配列は CS0029）。Scene 側に診断はなく、値の位置に SCENE203
+    ///  を出すべきだった。
     /// </summary>
     [Theory]
     [InlineData("\"Waiting\": [1]","this collection type cannot be created")]
@@ -555,10 +543,9 @@ public sealed class SceneJsonGeneratorTests {
         }
         """;
     /// <summary>
-    /// An object is emitted as <c>new T(...) { ... }</c>, which did not compile, with no scene diagnostic, for a required
-    /// member left out (CS9035), a class without a public parameterless constructor (CS7036, CS0122), an abstract class
-    /// (CS0144) or an obsolete-as-error member (CS0619); they are SCENE203 at the value. A constructor with a ref
-    /// parameter was chosen for its key (CS1620); it is skipped, so the member is set instead.
+    /// オブジェクトを <c>new T(...) { ... }</c> として出力しても、必須メンバーの未設定（CS9035）、public 引数なしコンストラクターのないクラス（CS7036、
+    /// CS0122）、abstract クラス（CS0144）、エラー扱いの obsolete メンバー（CS0619）があるとコンパイルに失敗し、Scene の診断は出ていなかった。これらは値の位置に
+    /// SCENE203 を出す。キーに ref パラメーターを持つコンストラクターが選ばれる場合（CS1620）は、その候補を除外して、代わりにメンバーを設定する。
     /// </summary>
     [Theory]
     [InlineData("\"Must\": { \"A\": 1 }","\"Must\": { \"B\": 1 }","the required member 'A' needs a value")]
@@ -576,9 +563,8 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
     }
     /// <summary>
-    /// A JSON null for a reference member the game declares non-nullable (the palette writes one for an unset string or
-    /// array) builds without a warning. The generated file is #nullable enable, so the plain null was CS8625, an error
-    /// in a project that treats warnings as errors.
+    /// ゲームが非 null と宣言した参照型メンバーに JSON null（未設定の string や配列にパレットが書き込む場合など）を指定しても、警告なしでビルドできる。生成ファイルは #
+    /// nullable enable のため、通常の null は CS8625 となり、警告をエラー扱いするプロジェクトではビルドエラーになる。
     /// </summary>
     [Fact]
     public void NullForANonNullableReferenceMember_BuildsWithoutWarnings(){
@@ -615,9 +601,8 @@ public sealed class SceneJsonGeneratorTests {
     private static string NamedScene(string Namespace,string ClassName)=>
         "{ \"schemaVersion\": 3, \"namespace\": \""+Namespace+"\", \"className\": \""+ClassName+"\", \"root\": { \"components\": [ { \"type\": \"Sample.Kit\", \"members\": { \"Speed\": 1 } } ] } }";
     /// <summary>
-    /// A scene whose full name is already a type (not a partial class) or a namespace is an error at its className, and
-    /// the scene is not generated. The generated partial class collided with it (CS0101, CS0260, CS0436) with no scene
-    /// diagnostic, as when a copied scene is renamed after a component.
+    /// 完全修飾名がすでに型（partial クラスではない）または名前空間として存在する Scene は、className の位置にエラーを出し、生成しない。以前は生成 partial クラスが既存のもの
+    /// と衝突し（CS0101、CS0260、CS0436）、Scene の診断が出なかった。コンポーネント追加後に Scene の名前を変更した場合などに発生していた。
     /// </summary>
     [Theory]
     [InlineData("Sample","Kit","is already a type")]
@@ -633,10 +618,7 @@ public sealed class SceneJsonGeneratorTests {
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,NamingComponents]),
             [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
     }
-    /// <summary>
-    /// The analyzer in a build, and the editor, see the scene's own generated class; it is no conflict, nor is a user's
-    /// partial class of the name, which the generated one joins.
-    /// </summary>
+    /// <summary>ビルド時のアナライザーとエディターの両方から、Scene 自身の生成クラスが見えるが、競合ではない。同名のユーザー定義 partial クラスも、生成クラスと結合するため競合しない。</summary>
     [Theory]
     [InlineData("Game","MainScene")]
     [InlineData("Sample","Shared")]
@@ -649,8 +631,8 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Empty(await Output.WithAnalyzers([new SceneJsonDslAnalyzer()],SceneProjectOptions.Analyzer([.. Files])).GetAnalyzerDiagnosticsAsync());
     }
     /// <summary>
-    /// A nested component type builds by the name the converter, the schema and the palette write (Outer.Inner) as well as
-    /// by its metadata name (Outer+Inner); only the metadata name resolved (SCENE201), and the schema left nested types out.
+    /// 入れ子コンポーネント型は、コンバーター、スキーマ、パレットが出力する名前（Outer.Inner）でも、メタデータ名（Outer+Inner）でもビルドできるようにする。以前はメタデータ名だけを解決し
+    /// ていたため SCENE201 となり、スキーマにも入れ子型が含まれていなかった。
     /// </summary>
     [Theory]
     [InlineData("Sample.Outer.Inner")]
@@ -671,9 +653,8 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Contains("\"Sample.Outer.Inner\"",CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation),StringComparison.Ordinal);
     }
     /// <summary>
-    /// A scene class named like a C# contextual keyword is an error at its className and is not generated: 'var' turned
-    /// the generated code's implicitly typed locals into the scene type, 'file' and 'required' parsed as modifiers,
-    /// 'scoped' is an error and 'record' a warning, all in the generated file with no scene diagnostic.
+    /// C# の文脈依存キーワードと同じ名前の Scene クラスは、className の位置にエラーを出して生成しない。以前は var が生成コード内の暗黙的型ローカル変数を Scene 型へ変え、
+    /// file と required は修飾子として解析され、scoped はエラー、record は警告になっていた。すべて生成ファイル内で発生し、Scene の診断はなかった。
     /// </summary>
     [Theory]
     [InlineData("var")]
@@ -691,9 +672,8 @@ public sealed class SceneJsonGeneratorTests {
             [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
     }
     /// <summary>
-    /// The schema the editor warns with while typing agrees with the build: a value the build rejects (SCENE203) for a
-    /// Queue, a dictionary, a tuple, a multidimensional array or an abstract type matches nothing, and an IEnumerable
-    /// member takes an array. The schema offered an array or an object for the rejected ones and none for IEnumerable.
+    /// 入力中にエディターが警告するスキーマはビルドと一致する。Queue、辞書、タプル、多次元配列、abstract 型に対してビルドが拒否する値（SCENE203）はスキーマに一致せず、
+    /// IEnumerable メンバーには配列が一致する。以前のスキーマは拒否される型にも配列またはオブジェクトを提示し、IEnumerable には何も提示していなかった。
     /// </summary>
     [Fact]
     public void GeneratedSchema_AgreesWithTheBuildOnCollectionsAndObjects(){
@@ -722,9 +702,8 @@ public sealed class SceneJsonGeneratorTests {
         }
     }
     /// <summary>
-    /// A game whose systems do not run in the editor builds its generated files without a warning. The editor preview
-    /// bridge declared and reset its system set without reading it then (CS0414), which stops a build that treats
-    /// warnings as errors.
+    /// システムがエディターで実行されないゲームでも、生成ファイルを警告なしでビルドできる。以前はエディタープレビューのブリッジがシステムの集合を宣言してリセットするだけで、その値を読み取らなかった（
+    /// CS0414）。警告をエラー扱いするビルドが停止していた。
     /// </summary>
     [Fact]
     public void GameWithoutEditorSystems_BuildsItsGeneratedFilesWithoutWarnings(){
@@ -737,7 +716,7 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Empty(Output.GetDiagnostics().Where(Diagnostic=>Diagnostic.Severity>=DiagnosticSeverity.Warning
             &&Diagnostic.Location.SourceTree is { }Tree&&Generated.Contains(Tree)).Select(static Diagnostic=>Diagnostic.ToString()));
     }
-    /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
+    /// <summary>エンジンの名前を使った代替型。検証する物理ライト値と Q64.64 のスカラー。</summary>
     private const string RangedComponents="""
         namespace CSharpGameEngine.Lighting {
             public readonly struct LinearLightColor {
@@ -781,8 +760,8 @@ public sealed class SceneJsonGeneratorTests {
     [InlineData("\"Far\": -1e308","\"Far\": -1e309","beyond the range of double")]
     [InlineData("\"Price\": 7.9e28","\"Price\": 7.93e28","beyond the range of decimal")]
     public void ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition(string Original,string Replacement,string Reason){
-        // These build, then throw when the scene is instantiated (a light value's constructor, LogicalScalar's
-        // conversion) or fail to compile in the generated file (a real literal beyond its type), so the build reports them.
+        // これらはビルドできるが、Scene のインスタンス化時にライト値のコンストラクターまたは LogicalScalar の
+        // 変換で例外になるか、生成ファイルで型を超える実数リテラルがコンパイルできず、ビルド時に報告される。
         Assert.Empty(Analyze(RangedScene,RangedComponents));
         Assert.Contains(Original,RangedScene);
         var Diagnostic=Assert.Single(Analyze(RangedScene.Replace(Original,Replacement),RangedComponents));

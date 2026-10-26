@@ -9,7 +9,7 @@ public sealed class FbxImportResult {
 
     public bool Success { get;}
 
-    /// <summary>The imported mesh. Always <see langword="null"/> when <see cref="Success"/> is false.</summary>
+    /// <summary>インポートしたメッシュ。<see cref="Success"/>がfalseの場合は常に<see langword="null"/>。</summary>
     public ImportedMesh?Mesh { get;}
 
     public IReadOnlyList<FbxImportDiagnostic>Diagnostics { get;}

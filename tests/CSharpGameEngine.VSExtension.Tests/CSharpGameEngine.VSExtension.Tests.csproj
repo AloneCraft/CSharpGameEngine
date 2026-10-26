@@ -85,9 +85,11 @@
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\PhysicsSceneBakeService.cs" Link="TestAssets\Source\PhysicsSceneBakeService.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\ExternalBridgeProcess.cs" Link="TestAssets\Source\ExternalBridgeProcess.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneDesignerToolWindowControl.xaml" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetPreviewControl.xaml" Link="TestAssets\Source\AssetPreviewControl.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetPreviewControl.xaml.cs" Link="TestAssets\Source\AssetPreviewControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetPreviewHwndHost.cs" Link="TestAssets\Source\AssetPreviewHwndHost.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\AssetEditorFrameFloater.cs" Link="TestAssets\Source\AssetEditorFrameFloater.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\AssetViewportHost.cs" Link="TestAssets\Source\AssetViewportHost.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\AssetEditorShell.cs" Link="TestAssets\Source\AssetEditorShell.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\StaticMeshEditorContent.cs" Link="TestAssets\Source\StaticMeshEditorContent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetInspectorControl.cs" Link="TestAssets\Source\AssetInspectorControl.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetAuthoringHostClient.cs" Link="TestAssets\Source\AssetAuthoringHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetAuthoringPresentation.cs" Link="TestAssets\Source\AssetAuthoringPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\RenderPreviewHostClient.cs" Link="TestAssets\Source\RenderPreviewHostClient.cs" CopyToOutputDirectory="PreserveNewest" />

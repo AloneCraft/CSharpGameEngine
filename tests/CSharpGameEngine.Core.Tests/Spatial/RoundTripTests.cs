@@ -8,9 +8,7 @@ using CSharpGameEngine.Spatial.Unreal;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Round Trip Tests": RUF -> XYZ -> RUF and
-/// XYZ -> RUF -> XYZ must be lossless for every preset. Fixed seed per the spec's determinism
-/// requirement.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Round Trip Tests」。RUF -&gt; XYZ -&gt; RUF と XYZ -&gt; RUF -&gt; XYZ は、すべてのプリセットで損失なく往復できなければならない。仕様の決定性要件に従い、シードを固定する。
 /// </summary>
 public class RoundTripTests {
     private const int SampleCount=50;

@@ -33,9 +33,9 @@ function Get-CgeFixedProcesses{
         Where-Object { $_.CommandLine -match $RootSuffixArgumentPattern })
 }
 
-# Never terminate devenv. With -CloseCgeFixed the launcher only asks each visible instance to
-# close, leaving Visual Studio's normal save/cancel dialog in control; without it we fail before
-# touching the extension hive.
+# devenv を終了させてはいけません。-CloseCgeFixed を指定すると、launcher は表示中の各 instance に閉じるよう要求するだけです。
+# 保存するかキャンセルするかは Visual Studio 通常のダイアログに任せます。指定しない場合は、
+# extension hive に触れる前に失敗させます。
 function Assert-CgeFixedCanBeUpdated{
     $Running=Get-CgeFixedProcesses
     if($Running.Count -eq 0){ return }

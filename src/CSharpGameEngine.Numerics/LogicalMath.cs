@@ -63,10 +63,9 @@ public static class LogicalMath {
         return true;
     }
     /// <summary>
-    /// The angle (radians, -π to π) of the point (<paramref name="X"/>, <paramref name="Y"/>), as Math.Atan2 (ADR-0078/M0109: tyre slip angles and the
-    /// Ackermann linkage). Exact Q64.64 arithmetic only, so every machine gets the same bits: the smaller of the two magnitudes over the larger is
-    /// halved twice (atan t = 2 atan(t / (1 + √(1 + t²)))) to at most tan(π/16), where the alternating series to the 33rd power is below the last bit.
-    /// (0, 0) gives 0.
+    /// 点 (<paramref name="X"/>、<paramref name="Y"/>) の角度（ラジアン、-π～π）。Math.Atan2 と同じ（ADR-0078/M0109：タイヤのスリップ角
+    /// とアッカーマン・リンケージ）。正確な Q64.64 演算のみを使い、すべてのマシンで同じビット列を得る。小さい方の絶対値を大きい方で割った値を2回半減する（atan t = 2 atan(t / (1
+    ///  + √(1 + t²)))）ことで、tan(π/16) 以下にする。その後、交代級数を33次まで計算すると誤差は最下位ビット未満になる。(0, 0) の場合は0。
     /// </summary>
     public static bool TryAtan2(LogicalScalar Y,LogicalScalar X,out LogicalScalar Angle){
         Angle=default;
@@ -81,7 +80,7 @@ public static class LogicalMath {
         Angle=Y<LogicalScalar.Zero?-Base:Base;
         return true;
     }
-    /// <summary>atan(<paramref name="Value"/>) for 0 ≤ value ≤ 1.</summary>
+    /// <summary>0 ≤ value ≤ 1 における atan(<paramref name="Value"/>)。</summary>
     private static bool TryAtanUnit(LogicalScalar Value,out LogicalScalar Result){
         Result=default;
         var Reduced=Value;
@@ -96,11 +95,11 @@ public static class LogicalMath {
             if(!TryMultiplyAdd(Series,ReducedSquare,AtanSeries[Index],out Series)){ return false; }
         }
         if(!LogicalScalar.TryMultiply(Series,Reduced,out var Quarter)){ return false; }
-        // Two halvings: the angle of the reduced value is a quarter of the wanted one.
+        // 2回半減すると、縮小後の値の角度は求める角度の4分の1になる。
         Result=LogicalScalar.FromRaw(Quarter.Raw*4);
         return true;
     }
-    /// <summary>(-1)^k / (2k + 1) for k = 0 … 16.</summary>
+    /// <summary>k = 0 … 16 に対する (-1)^k / (2k + 1)。</summary>
     private static readonly LogicalScalar[]AtanSeries=BuildAtanSeries();
     private static LogicalScalar[]BuildAtanSeries(){
         var Terms=new LogicalScalar[17];

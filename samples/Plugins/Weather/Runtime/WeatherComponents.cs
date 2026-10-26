@@ -1,23 +1,23 @@
 using CSharpGameEngine.Authoring;
 namespace Weather;
-/// <summary>A cloud that rains. The sample plugin's component (ADR-0079).</summary>
+/// <summary>雨を降らせる雲。サンプルプラグインのコンポーネント（ADR-0079）。</summary>
 public struct Rain {
-    /// <summary>Millimeters per hour.</summary>
+    /// <summary>1時間あたりのミリメートル。</summary>
     public float Rate;
 }
-/// <summary>How hard it rains. The Lightning sample plugin has a component of the same name; the generator names both apart.</summary>
+/// <summary>降雨の強さ。同名のコンポーネントがLightningサンプルプラグインにもあるため、ジェネレーターが両者を区別して命名する。</summary>
 public struct Intensity {
     public float Value;
 }
-/// <summary>The sample plugin's data type: its values are assets (Assets/Storm.cgeasset).</summary>
+/// <summary>サンプルプラグインのデータ型。値はアセット（Assets/Storm.cgeasset）。</summary>
 [DataAsset]
 public struct StormSetup {
     public float RateMultiplier;
     public int Gusts;
 }
 /// <summary>
-/// The sample plugin's service: every Weather system gets the same one, and the game disposes it at shutdown, when it prints
-/// what it saw (the package check reads the line).
+/// サンプルプラグインのサービス。すべてのWeatherシステムが同じインスタンスを受け取り、終了時にゲームが破棄する。その際、観測内容を出力する
+///（パッケージ検査ではその行を読み取る）。
 /// </summary>
 [EngineService]
 public sealed class WeatherLog:IDisposable {

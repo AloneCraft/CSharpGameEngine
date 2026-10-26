@@ -4,13 +4,12 @@ using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 
 /// <summary>
-/// ADR-0078/M0104: the screen UI service turns collected <see cref="ScreenText"/> and <see cref="ScreenImage"/> into one layer. It needs no GPU: the files
-/// come from a function, so the fonts here are hand-made ones.
+/// ADR-0078/M0104：画面 UI サービスは、収集された <see cref="ScreenText"/> と <see cref="ScreenImage"/> を 1 つのレイヤーにまとめる。GPU は不要で、ファイルは関数から得るため、ここでは手作りフォントを使う。
 /// </summary>
 public class ScreenUiTests {
     private const string FontPath="Fonts/Test.cgefont";
 
-    /// <summary>Ascent 0.8, descent 0.2, so a line is one em. 'A' advances 0.6 and draws; ' ' advances 0.3 and draws nothing; '?' is the fallback.</summary>
+    /// <summary>Ascent 0.8、descent 0.2 で 1 行が 1 em になる。'A' は 0.6 進んで描画され、' ' は 0.3 進んで何も描画せず、'?' は代替グリフ。</summary>
     private static byte[] FontBytes(){
         List<FontGlyph>Glyphs=[
             new(' ',0.3f,0f,0f,0f,0f,0f,0f,0f,0f),
@@ -57,7 +56,7 @@ public class ScreenUiTests {
 
         Ui.Add(TextOf("A"));
         Assert.False(Ui.Build(0,1080,out _,out _));
-        // A failed build forgets what was collected.
+        // ビルド失敗時は収集した内容を破棄する。
         Assert.False(Ui.Build(1920,1080,out _,out _));
     }
 
@@ -90,7 +89,7 @@ public class ScreenUiTests {
 
         var (Vertices,Batches)=Build(Ui);
 
-        // The space has no quad; each 'A' is six vertices.
+        // 空白には四角形がなく、'A' 1 文字につき頂点は 6 つ。
         Assert.Equal(12,Vertices.Length);
         var Batch=Assert.Single(Batches);
         Assert.Equal(RenderScreenShading.DistanceField,Batch.Shading);
@@ -125,7 +124,7 @@ public class ScreenUiTests {
 
         var (Vertices,Batches)=Build(Ui);
 
-        // Layer 0 text, then the layer 1 rectangle, then the layer 2 text: the two texts are not adjacent, so three batches.
+        // レイヤー 0 のテキスト、次にレイヤー 1 の矩形、最後にレイヤー 2 のテキスト。2 つのテキストは隣接しないため、バッチは 3 つ。
         Assert.Equal(3,Batches.Length);
         Assert.Equal(new[]{ RenderScreenShading.DistanceField,RenderScreenShading.Image,RenderScreenShading.DistanceField },Batches.Select(static Batch=>Batch.Shading).ToArray());
         Assert.Equal(6,Batches[1].VertexCount);

@@ -18,14 +18,13 @@ using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 
 /// <summary>
-/// The screen layer (ADR-0078/M0104): the game's UI over the finished frame. It is drawn after tone mapping and after the overlay, straight into
-/// the back buffer, so its colors are sRGB values written as they are. The runtime sets the layer every frame
-/// (<see cref="SetScreenLayer"/>); a frame in which it is not set draws none. Textures stay resident by content hash and are re-created from the
-/// recorded layer after a device loss; a texture is created while no frame is recording, and waits for the GPU to be idle first because it
-/// shares the frame command list.
+/// スクリーンレイヤー（ADR-0078/M0104）：完成フレーム上に描画するゲームUI。トーンマッピングとオーバーレイの後、バックバッファへ直接描画するため、
+/// 色はsRGB値としてそのまま書き込まれる。ランタイムは毎フレームレイヤーを設定する（<see cref="SetScreenLayer"/>）。設定されなかったフレームには何も描画しない。
+/// テクスチャはコンテンツハッシュで常駐管理し、デバイス喪失後は記録済みレイヤーから再作成する。テクスチャはフレームを記録中でないときに作成し、
+/// GPUのアイドルを待つ。フレーム用コマンドリストを共有しているためである。
 /// </summary>
 public sealed unsafe partial class StageRenderer {
-    /// <summary>Distinct screen textures that may be resident at once (an atlas per font, an image per picture).</summary>
+    /// <summary>同時に常駐可能な画面テクスチャの最大種類数（フォントごとにアトラス1つ、画像ごとに1つ）。</summary>
     public const int MaxResidentScreenTextures=64;
     private const int ScreenVertexStride=32;
     private const int ScreenRootConstantCount=4;
@@ -55,7 +54,7 @@ public sealed unsafe partial class StageRenderer {
     private int ScreenBatchCount;
     private int ScreenVertexCount;
 
-    /// <summary>The number of screen textures that are resident now (for diagnostics and tests).</summary>
+    /// <summary>現在常駐している画面テクスチャ数（診断とテスト用）。</summary>
     public int ResidentScreenTextureCount=>this.ScreenTextures.Count;
 
     private void ApplyScreenShaders(ShaderArtifactPackage Package){
@@ -64,8 +63,8 @@ public sealed unsafe partial class StageRenderer {
     }
 
     /// <summary>
-    /// Sets the screen layer of the frame about to be rendered. <paramref name="Vertices"/> are in pixels of the render surface (top-left origin);
-    /// <paramref name="Batches"/> are drawn in order. The layer is consumed by the next <see cref="RenderFrame"/>.
+    /// これから描画するフレームのスクリーンレイヤーを設定する。<paramref name="Vertices"/>は描画サーフェス上のピクセル座標（原点は左上）。
+    /// <paramref name="Batches"/>を順番に描画する。レイヤーは次の<see cref="RenderFrame"/>で消費される。
     /// </summary>
     public void SetScreenLayer(ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches){
         this.ThrowIfDisposed();
@@ -131,7 +130,7 @@ public sealed unsafe partial class StageRenderer {
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             PsoDesc.DepthStencilState.DepthEnable=FALSE;
             PsoDesc.DepthStencilState.StencilEnable=FALSE;
-            // Straight alpha over the frame; the alpha channel of the back buffer keeps what the frame wrote.
+            // フレームの上にストレートアルファで描画する。バックバッファのアルファチャンネルにはフレームが書いた値を保持する。
             PsoDesc.BlendState.RenderTarget[0]=new D3D12_RENDER_TARGET_BLEND_DESC {
                 BlendEnable=TRUE,
                 LogicOpEnable=FALSE,
@@ -154,7 +153,7 @@ public sealed unsafe partial class StageRenderer {
         }
     }
 
-    /// <summary>Creates the vertex buffer and the descriptor heap on first use: a game without a screen layer pays nothing.</summary>
+    /// <summary>初回使用時に頂点バッファとディスクリプタヒープを作成する。スクリーンレイヤーを使わないゲームにはコストを発生させない。</summary>
     private void EnsureScreenResources(){
         if(this.ScreenVertexBuffer!=null){ return; }
         uint BufferSize=checked((uint)(RenderScreenLayer.MaximumVertices*ScreenVertexStride*FrameCount));
@@ -177,14 +176,14 @@ public sealed unsafe partial class StageRenderer {
         if(this.ScreenTextures.Count>=MaxResidentScreenTextures){
             throw new InvalidOperationException($"More than {MaxResidentScreenTextures} distinct screen textures are in use.");
         }
-        // The upload shares the frame command list and its first allocator, so it needs the GPU idle; it happens when a texture first appears.
+        // アップロードはフレームのコマンドリストと初回のアロケーターを共有するためGPUアイドルが必要。テクスチャが初めて現れた時に実行する。
         this.WaitForGpuIdle();
         ID3D12Resource*Created=this.CreateTextureResource(Texture);
         this.ScreenTextures.Add(Texture.ContentHash,(nint)Created);
         return Created;
     }
 
-    /// <summary>Draws the layer set for this frame, over the finished frame and the overlay, then forgets it.</summary>
+    /// <summary>今フレームに設定されたレイヤーを、完成フレームとオーバーレイの上へ描画してから破棄する。</summary>
     private void DrawScreenLayer(){
         if(this.ScreenBatchCount==0){ return; }
         int BatchCount=this.ScreenBatchCount;
@@ -213,7 +212,7 @@ public sealed unsafe partial class StageRenderer {
         SrvDesc.Texture2D.MipLevels=1;
         D3D12_CPU_DESCRIPTOR_HANDLE CpuStart=this.ScreenSrvHeap->GetCPUDescriptorHandleForHeapStart();
         D3D12_GPU_DESCRIPTOR_HANDLE GpuStart=this.ScreenSrvHeap->GetGPUDescriptorHandleForHeapStart();
-        // One block of descriptors per frame slot: the other slot's descriptors may still be read by the frame in flight.
+        // フレームスロットごとにディスクリプターのブロックを用意する。処理中フレームがもう一方のスロットを読み取っている可能性があるため。
         int FirstDescriptor=(int)this.FrameIndex*RenderScreenLayer.MaximumBatches;
         float*Constants=stackalloc float[ScreenRootConstantCount];
         for(int Index=0;Index<BatchCount;Index++){

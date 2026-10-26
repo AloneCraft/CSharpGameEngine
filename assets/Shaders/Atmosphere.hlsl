@@ -1,34 +1,34 @@
-// Physically based sky atmosphere (ADR-0069), after Hillaire 2020 "A Scalable and Production Ready
-// Sky and Atmosphere Rendering Technique". One compute artifact owns every atmosphere pass; the
-// host selects the pass through AtmosphereCB.Pass.x so the shared medium/LUT code exists once.
-// Distances inside the atmosphere are kilometres; luminance values in the LUTs are per unit
-// top-of-atmosphere sun illuminance and are scaled by SunIlluminance when they leave this file.
+// 物理ベースの空の大気（ADR-0069）。Hillaire 2020「A Scalable and Production Ready
+// Sky and Atmosphere Rendering Technique」に基づきます。大気の各 pass を1つの compute artifact にまとめ、
+// host は AtmosphereCB.Pass.x で pass を選択します。共通の medium/LUT コードは一度だけ定義します。
+// 大気内の距離は km 単位です。LUT の輝度値は単位上端大気太陽照度あたりであり、
+// このファイルを離れるときに SunIlluminance でスケーリングします。
 cbuffer AtmosphereCB : register(b0)
 {
-    float4 RayleighScattering;   // rgb 1/km, w exponential scale height km
-    float4 MieScattering;        // rgb 1/km, w exponential scale height km
-    float4 MieAbsorption;        // rgb 1/km, w phase anisotropy g
-    float4 OzoneAbsorption;      // rgb 1/km, w tent tip altitude km
-    float4 Planet;               // x bottom radius km, y top radius km, z ozone tent width km, w multi-scattering factor
-    float4 GroundAlbedo;         // rgb linear albedo, w camera distance from planet centre km
-    float4 SunDirection;         // xyz unit vector toward the sun (engine world), w sun disk angular radius rad
-    float4 SunIlluminance;       // rgb top-of-atmosphere illuminance lux, w sky light intensity multiplier
-    float4 LowerHemisphere;      // rgb lower hemisphere radiance for the sky light, w exposure scale
-    float4 FogParams;            // x ray origin terms, y falloff per metre, z minimum transmittance, w fog enabled
-    float4 FogColor;             // rgb inscattering luminance, w sky-atmosphere ambient contribution scale
-    row_major float4x4 InverseViewProjection; // camera-relative clip -> world
-    uint4 Pass;                  // x pass, y output width, z output height, w 1 = exposure from ExposureState (histogram auto exposure)
-    // ADR-0078/M0110 volumetric clouds (Hillaire 2016 "Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite").
-    float4 CloudLayer;           // x layer bottom radius km, y layer top radius km, z tracing start max km, w tracing max km
-    float4 CloudShape;           // x extinction per km, y coverage, z layout scale km, w stop-tracing transmittance
-    float4 CloudAlbedo;          // rgb albedo, w sky light bottom occlusion
-    float4 CloudPhase;           // x g, y g2, z blend, w 1 = clouds over the sky (and in the sky light), 0 = no clouds
-    float4 CloudMultiScattering; // x contribution, y occlusion, z eccentricity, w view samples per texel
-    float4 CloudPosition;        // xy camera over the planet km (R, F), zw wind offset km (R, F)
-    uint4 CloudUpdate;           // x phase 0-15, y 1 = every texel, z panorama width, w panorama height
-    float4 SkySphere;            // xyz centre (render space m), w radius m (0 = no sky sphere)
-    float4 SkySphereDepth;       // x depth mapping (0 standard, 1 radial), y radial transition T m, z G = log2(1 + rMax / T)
-    float4 CameraPosition;       // xyz camera (render space m)
+    float4 RayleighScattering;   // rgb = 1/km、w = 指数スケールの高さ km
+    float4 MieScattering;        // rgb = 1/km、w = 指数スケールの高さ km
+    float4 MieAbsorption;        // rgb = 1/km、w = 位相異方性 g
+    float4 OzoneAbsorption;      // rgb = 1/km、w = tent の頂点高度 km
+    float4 Planet;               // x = 底面半径 km、y = 上面半径 km、z = オゾン tent の幅 km、w = 多重散乱係数
+    float4 GroundAlbedo;         // rgb = 線形 albedo、w = 惑星中心からカメラまでの距離 km
+    float4 SunDirection;         // xyz = 太陽方向の単位ベクトル（エンジンの world）、w = 太陽円盤の角半径 rad
+    float4 SunIlluminance;       // rgb = 上端大気の照度 lux、w = sky light の強度倍率
+    float4 LowerHemisphere;      // rgb = sky light の下半球放射輝度、w = 露出スケール
+    float4 FogParams;            // x = ray origin 項、y = メートルあたりの減衰率、z = 最小透過率、w = fog の有効状態
+    float4 FogColor;             // rgb = inscattering 輝度、w = sky-atmosphere の ambient 寄与スケール
+    row_major float4x4 InverseViewProjection; // カメラ相対 clip から world へ変換
+    uint4 Pass;                  // x = pass、y = 出力幅、z = 出力高、w = 1 の場合は ExposureState（histogram auto exposure）の露出を使用
+    // ADR-0078/M0110 の volumetric clouds（Hillaire 2016「Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite」）。
+    float4 CloudLayer;           // x = layer 下端半径 km、y = layer 上端半径 km、z = tracing 開始上限 km、w = tracing 上限 km
+    float4 CloudShape;           // x = km あたりの消散、y = coverage、z = layout scale km、w = tracing 停止時の透過率
+    float4 CloudAlbedo;          // rgb = albedo、w = sky light の下側 occlusion
+    float4 CloudPhase;           // x = g、y = g2、z = blend、w = 1 なら空の上に雲を描画（sky light 内にも反映）、0 なら雲なし
+    float4 CloudMultiScattering; // x = 寄与、y = occlusion、z = 偏心率、w = texel あたりの view sample 数
+    float4 CloudPosition;        // xy = 惑星上空のカメラ位置 km（R, F）、zw = 風の offset km（R, F）
+    uint4 CloudUpdate;           // x = phase 0-15、y = 1 なら全 texel、z = panorama の幅、w = panorama の高さ
+    float4 SkySphere;            // xyz = 中心（render space m）、w = 半径 m（0 = sky sphere なし）
+    float4 SkySphereDepth;       // x = depth mapping（0 standard、1 radial）、y = radial transition T m、z = G = log2(1 + rMax / T)
+    float4 CameraPosition;       // xyz = カメラ（render space m）
 };
 Texture2D<float4> TransmittanceLut : register(t0);
 Texture2D<float4> MultiScatteringLut : register(t1);
@@ -82,7 +82,7 @@ MediumSample SampleMedium(float3 worldPos)
     return s;
 }
 
-// Returns the nearest positive intersection distance with a sphere centred at the origin, or -1.
+// 原点中心の球との、最も近い正の交差距離を返します。交差がない場合は -1 です。
 float RaySphereIntersectNearest(float3 origin, float3 direction, float radius)
 {
     float b = dot(origin, direction);
@@ -162,7 +162,7 @@ struct IntegrationResult
     float3 Transmittance;
 };
 
-// Integrates single scattering (plus the multi-scattering approximation when enabled) along one ray.
+// 1本の ray に沿って単一散乱を積分します。有効時は多重散乱の近似も加えます。
 IntegrationResult IntegrateScatteredLuminance(float3 worldPos, float3 worldDir, float3 sunDir, bool ground, uint sampleCount, bool miePhaseRayleighPhase, bool multiScattering, float tMaxLimit)
 {
     IntegrationResult result;
@@ -340,7 +340,7 @@ float3 ComputeSkyView(float2 uv)
     return r.Luminance;
 }
 
-// Sky luminance per unit sun illuminance seen from the camera along an engine world direction.
+// カメラから見た、エンジン world の方向ごとの太陽照度単位あたりの空の輝度。
 float3 SampleSkyLuminance(float3 worldDir)
 {
     float viewHeight = GroundAlbedo.w;
@@ -372,9 +372,9 @@ float3 EvaluateShIrradiance(float3 n)
 }
 
 // ---- Volumetric clouds (ADR-0078/M0110) ----
-// The clouds are traced into a panorama of the upper hemisphere around the camera (u = azimuth from +F, v = sqrt(elevation / 90 deg) so the
-// horizon gets more rows). Each texel holds rgb = cloud luminance (already through the air in front of it) and a = the factor the sky behind
-// it keeps. The sky composite and the sky light read it by direction.
+// 雲はカメラ周囲の上半球 panorama に向けて ray tracing します（u = +F からの方位角、v = sqrt(elevation / 90 deg)。地平線付近の
+// 行数を増やします）。各 texel は rgb = 雲の輝度（手前の空気による減衰を適用済み）、a = 背後の空に残る係数です。
+// sky composite と sky light は方向を使ってこれを読み取ります。
 uint CloudHash(uint3 v)
 {
     v = v * 1664525u + 1013904223u;
@@ -400,7 +400,7 @@ float3 CloudGradient(int3 cell, int period)
     return float3((float)(h & 1023u), (float)((h >> 10) & 1023u), (float)((h >> 20) & 1023u)) / 511.5 - 1.0;
 }
 
-// Gradient noise that tiles every `period` cells, about -1 to 1.
+// `period` セルごとにタイルし、約 -1 から 1 を返す gradient noise。
 float CloudPerlin(float3 x, int period)
 {
     float3 cell = floor(x);
@@ -422,7 +422,7 @@ float CloudPerlin(float3 x, int period)
     return lerp(lerp(nx00, nx10, u.y), lerp(nx01, nx11, u.y), u.z);
 }
 
-// One minus the distance to the nearest feature point (one per cell), tiling every `cells` cells: 1 at a point, about 0 between points.
+// 各セルに1つある feature point までの距離を1から引いた値。`cells` セルごとにタイルし、点では1、点の間では約0です。
 float CloudWorley(float3 x, int cells)
 {
     float3 cell = floor(x);
@@ -446,15 +446,15 @@ float CloudWorley(float3 x, int cells)
     return 1.0 - saturate(sqrt(nearest));
 }
 
-// The tiling Perlin-Worley noise of the cloud shapes (Schneider's Nubis): billowing Perlin eroded toward Worley cells.
+// 雲形状用のタイル可能な Perlin-Worley noise（Schneider の Nubis）：膨らむ Perlin noise を Worley cell に向けて侵食します。
 float CloudPerlinWorley(float3 uvw)
 {
     float perlin = 0.5 * CloudPerlin(uvw * 4.0, 4) + 0.25 * CloudPerlin(uvw * 8.0, 8) + 0.125 * CloudPerlin(uvw * 16.0, 16);
     perlin = saturate(0.5 + 0.5 * perlin / 0.875);
     float worley = 0.625 * CloudWorley(uvw * 4.0, 4) + 0.25 * CloudWorley(uvw * 8.0, 8) + 0.125 * CloudWorley(uvw * 16.0, 16);
     float perlinWorley = (perlin - (worley - 1.0)) / (2.0 - worley);
-    // The raw values gather between about 0.58 and 0.75 (the 5 % and 95 % points measured over the volume); spread them over 0..1 so the
-    // coverage thresholds below mean what they say.
+    // 生の値は約0.58から0.75に集まります（volume 内で測定した5 %点と95 %点）。coverage の閾値が指定どおり機能するよう、
+    // 値を0..1の範囲に広げます。
     return saturate((perlinWorley - 0.585) / (0.746 - 0.585));
 }
 
@@ -463,17 +463,17 @@ float CloudRemap(float value, float low, float high)
     return saturate((value - low) / max(high - low, 1e-4));
 }
 
-// Cloud extinction per km at a planet-centred position (km). The field is fixed to the world (the camera's position over the planet) and
-// carried by the wind.
+// 惑星中心基準の位置（km）における雲の km あたりの消散量。field は world（惑星上のカメラ位置）に固定され、
+// 風とともに移動します。
 float CloudExtinction(float3 p, out float heightFraction)
 {
     float radius = length(p);
     heightFraction = saturate((radius - CloudLayer.x) / (CloudLayer.y - CloudLayer.x));
     float2 world = CloudPosition.xy + float2(p.x, p.z) - CloudPosition.zw;
     float layout = CloudNoise.SampleLevel(LinearWrap, float3(world / (CloudShape.z * 0.125), 0.5), 0);
-    // Unreal's Cloud_GlobalCoverage shifts the coverage around one half: -0.2 leaves a blue sky with scattered cumulus.
+    // Unreal の Cloud_GlobalCoverage は coverage を0.5付近でシフトします。-0.2 では、まばらな積雲のある青空になります。
     float coverage = saturate(0.5 * layout + 0.18 + 0.5 * CloudShape.y);
-    // Cumulus: flat bases, tops a kilometre or two up in the 10 km layer, sparser higher.
+    // 積雲：平らな底面、10 km 層の中で1〜2 kmほど上に伸びる頂部、さらに高い場所では疎になります。
     float profile = saturate(heightFraction * 50.0) * saturate((0.22 - heightFraction) / 0.14);
     float altitude = radius - CloudLayer.x;
     float3 q = float3(world.x, altitude, world.y);
@@ -500,7 +500,7 @@ float CloudPhaseFunction(float cosTheta, float eccentricityScale)
     return lerp(HenyeyGreenstein(CloudPhase.x * eccentricityScale, cosTheta), HenyeyGreenstein(CloudPhase.y * eccentricityScale, cosTheta), CloudPhase.z);
 }
 
-// Optical depth from a cloud sample toward the sun: six segments growing quadratically to 4.32 km.
+// 雲の sample から太陽までの光学的厚さ。6つの segment を使い、最大4.32 kmまで二次関数的に長くします。
 float CloudOpticalDepthToSun(float3 p, float3 sunDir)
 {
     float tau = 0.0;
@@ -536,7 +536,7 @@ float4 SampleCloudPanoramaTexel(float2 uv)
     return CloudPanorama.SampleLevel(LinearWrap, uv, 0);
 }
 
-// Bilinear read, for the sky light's coarse sampling.
+// sky light の粗いサンプリング用の bilinear read。
 float4 SampleCloudPanorama(float3 worldDir)
 {
     if (worldDir.y <= 0.0)
@@ -546,8 +546,8 @@ float4 SampleCloudPanorama(float3 worldDir)
     return SampleCloudPanoramaTexel(CloudPanoramaUv(worldDir));
 }
 
-// Cubic B-spline read from four bilinear taps (Sigg and Hadwiger), for the sky the camera sees: the panorama is magnified several times,
-// and a bilinear read shows its texel grid along the cloud edges.
+// カメラが見る空向けの、4つの bilinear tap による cubic B-spline read（Sigg と Hadwiger）。panorama は数倍に拡大されるため、
+// bilinear read では雲の縁に texel の格子が見えてしまいます。
 float4 SampleCloudPanoramaSmooth(float3 worldDir)
 {
     if (worldDir.y <= 0.0)
@@ -572,7 +572,7 @@ float4 SampleCloudPanoramaSmooth(float3 worldDir)
         + g1.x * (g0.y * SampleCloudPanoramaTexel(float2(h1.x, h0.y)) + g1.y * SampleCloudPanoramaTexel(float2(h1.x, h1.y)));
 }
 
-// Marches one view ray through the cloud layer (Hillaire's energy-conserving integration).
+// 1本の view ray を雲層内で march します（Hillaire のエネルギー保存型積分）。
 float4 TraceCloud(float3 dir, float jitter)
 {
     float viewRadius = GroundAlbedo.w;
@@ -610,8 +610,8 @@ float4 TraceCloud(float3 dir, float jitter)
     }
     tExit = min(tExit, tEnter + CloudLayer.w);
     uint sampleCount = max((uint)CloudMultiScattering.w, 1u);
-    // The sky light on the clouds is the clear sky's mean radiance over the upper hemisphere (the zenith and four directions 30 degrees up),
-    // read from the sky view LUT: it does not see the clouds, so the panorama never feeds back into itself.
+    // 雲に当たる sky light は、上半球における晴天の平均放射輝度（天頂と、仰角30度の4方向）です。
+    // sky view LUT から読み取ります。雲自体は見ないため、panorama が自身へフィードバックすることはありません。
     float3 skyAmbient = SampleSkyLuminance(float3(0.0, 1.0, 0.0)) * 0.5;
     skyAmbient += SampleSkyLuminance(float3(0.866025, 0.5, 0.0)) * 0.125;
     skyAmbient += SampleSkyLuminance(float3(-0.866025, 0.5, 0.0)) * 0.125;
@@ -668,8 +668,8 @@ float4 TraceCloud(float3 dir, float jitter)
     {
         return float4(0.0, 0.0, 0.0, 1.0);
     }
-    // The air between the camera and the clouds: the transmittance to the luminance-weighted cloud depth dims the clouds and leaves that
-    // much of the sky's in-scattering in front of them.
+    // カメラと雲の間にある空気。輝度で重み付けした雲の深さまでの透過率で雲を暗くし、
+    // 手前には空の in-scattering の同じ割合を残します。
     float3 cloudPoint = origin + dir * (distanceSum / weightSum);
     float cloudRadius = length(cloudPoint);
     float3 toTop = SampleTransmittance(viewRadius, dir.y);
@@ -679,7 +679,7 @@ float4 TraceCloud(float3 dir, float jitter)
     return float4(luminance * aerial, skyKept);
 }
 
-// Radiance the sky light sees: atmosphere (and clouds) above the horizon, the authored colour below it.
+// sky light が見る放射輝度：地平線より上は大気（と雲）、下は設定された色です。
 float3 SkyLightRadiance(float3 worldDir)
 {
     if (worldDir.y < 0.0)
@@ -742,7 +742,7 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
     uint pass = Pass.x;
     if (pass == PassSkyLightSh)
     {
-        // 64 threads x 32 directions stratify the full sphere (32 latitude bands x 64 azimuths).
+        // 64 threads x 32 directions で全球を層化します（緯度帯32 x 方位角64）。
         float3 coefficients[9];
         [unroll] for (uint c = 0; c < 9; c++)
         {
@@ -769,7 +769,7 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
         GroupMemoryBarrierWithGroupSync();
         if (groupIndex == 0)
         {
-            // Irradiance convolution of radiance SH: A0 = pi, A1 = 2pi/3, A2 = pi/4.
+            // 放射輝度 SH の irradiance convolution：A0 = pi、A1 = 2pi/3、A2 = pi/4。
             static const float bandScale[9] = { PI, 2.0 * PI / 3.0, 2.0 * PI / 3.0, 2.0 * PI / 3.0, PI / 4.0, PI / 4.0, PI / 4.0, PI / 4.0, PI / 4.0 };
             for (uint i = 0; i < 9; i++)
             {
@@ -795,7 +795,7 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
     }
     if (pass == PassCloudPanorama)
     {
-        // Either every texel, or one texel of each 4 x 4 block in Bayer order, so 16 frames refresh the whole panorama.
+        // すべての texel、または Bayer 順の4 x 4 block ごとに1 texelを処理します。16 frame で panorama 全体を更新します。
         static const uint2 bayerOffsets[16] = {
             uint2(0, 0), uint2(2, 2), uint2(2, 0), uint2(0, 2), uint2(1, 1), uint2(3, 3), uint2(3, 1), uint2(1, 3),
             uint2(1, 0), uint2(3, 2), uint2(3, 0), uint2(1, 2), uint2(0, 1), uint2(2, 3), uint2(2, 1), uint2(0, 3) };
@@ -805,7 +805,7 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
             return;
         }
         float2 panoramaUv = ((float2)texel + 0.5) / float2(CloudUpdate.zw);
-        // A fixed start offset per texel: the panorama is the same each time it is refreshed with the same inputs.
+        // texel ごとに固定した開始 offset。入力が同じなら、更新のたびに同じ panorama になります。
         OutputTexture[texel] = TraceCloud(CloudPanoramaDirection(panoramaUv), CloudHash01(uint3(texel, 7u)));
         return;
     }
@@ -839,8 +839,8 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
     }
     if (pass == PassSkyRadianceMap)
     {
-        // ADR-0078/M0111: the sky light's radiance (atmosphere and clouds, no sun disk) by direction, octahedrally mapped with +Z as the pole like
-        // the GI probes, for the Lumen-like rays that leave the scene. It is refreshed whenever the sky light SH is.
+        // ADR-0078/M0111：方向ごとの sky light 放射輝度（大気と雲。太陽円盤は含めない）。GI probe と同じく +Z を極とする octahedral mapping を使います。
+        // シーンから出る Lumen 風 ray に使用し、sky light SH の更新時に更新されます。
         float2 e = uv * 2.0 - 1.0;
         float3 direction = float3(e, 1.0 - abs(e.x) - abs(e.y));
         if (direction.z < 0.0)
@@ -856,7 +856,7 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
         float2 ndc = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
         if (distance > 0.0)
         {
-            // M0110: with a sky sphere (Unreal's SM_SkySphere and its Is Sky material), geometry farther than the sphere is covered by the sky.
+            // M0110：sky sphere（Unreal の SM_SkySphere と Is Sky material）がある場合、球より遠い geometry は空で覆われます。
             if (SkySphere.w <= 0.0)
             {
                 return;
@@ -895,12 +895,12 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
                 luminance += SunIlluminance.rgb / solidAngle * transmittance;
             }
         }
-        // The fog's sky contribution is the sky light's zenith irradiance expressed as the
-        // luminance of an equivalent uniform sky (E/pi); geometry fog in the Stage shader uses the
-        // same SH value so sky and surfaces fade into one colour.
+        // fog が空から受ける寄与は、sky light の天頂 irradiance を等価な一様空の
+        // 輝度（E/pi）として表した値です。Stage shader の geometry fog も
+        // 同じ SH 値を使うため、空と表面が同じ色へフェードします。
         if (CloudPhase.w > 0.0)
         {
-            // M0110: the clouds in front of the sky (and of the sun disk).
+            // M0110：空（と太陽円盤）の手前にある雲。
             float4 cloud = SampleCloudPanoramaSmooth(worldDir);
             luminance = luminance * cloud.a + cloud.rgb;
         }

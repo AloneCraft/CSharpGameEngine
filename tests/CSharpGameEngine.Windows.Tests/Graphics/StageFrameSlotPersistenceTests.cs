@@ -5,9 +5,8 @@ using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// Frame constants are double-buffered per frame in flight. A setting made once (the Scene view sets
-/// its ambient light only when the preview renderer is created) must reach every slot, or
-/// consecutive presents alternate between the set value and the slot default and the view flickers.
+/// フレーム定数は処理中のフレームスロットごとに二重化される。1度だけ設定した値（Sceneビューではプレビューレンダラーの作成時にアンビエントライトを設定する）も、
+/// すべてのスロットへ届かなければならない。そうでないと連続するpresent間で設定値とスロットの既定値が交互に使われ、ビューがちらつく。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class StageFrameSlotPersistenceTests {

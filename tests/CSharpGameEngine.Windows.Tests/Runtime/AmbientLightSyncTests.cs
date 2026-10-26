@@ -11,8 +11,8 @@ public sealed class AmbientLightSyncTests {
     [InlineData(nameof(AmbientLight.ColorG))]
     [InlineData("Overflow")]
     public void UnusableValue_KeepsTheLastUsableAmbient(string Case){
-        // Like the typed lights and the camera, a value the renderer cannot use keeps the last usable one. A negative
-        // ambient used to reach the shader, where the tone mapper turns negative radiance white.
+        // 型付きライトやカメラと同様、レンダラーが使えない値は直前の有効値を維持する。負の
+        // アンビエント値は以前シェーダーまで渡り、トーンマッパーが負の放射輝度を白に変換していた。
         var Valid=new AmbientLight { ColorR=0.4f,ColorG=0.5f,ColorB=0.6f,Intensity=0.8f };
         var Invalid=Case switch {
             nameof(AmbientLight.Intensity)=>Valid with { Intensity=-1f },

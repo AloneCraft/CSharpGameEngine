@@ -79,8 +79,7 @@ internal sealed record SpdxDocument(
     IReadOnlyList<SpdxRelationship>Relationships);
 
 /// <summary>
-/// Builds and proves one exact Windows x64 product archive. The archive owns only deployable
-/// payloads; the later immutable release manifest aggregates this report with track evidence.
+/// Windows x64 製品アーカイブを 1 つ作成し、正しさを証明する。アーカイブには配置可能なペイロードだけが含まれる。後続の不変リリースマニフェストで、このレポートをトラック別の証拠とともに集約する。
 /// </summary>
 public static class ReleasePackageEvidence {
     public const string ReportSchema="csharp-game-engine-release-package-v1";

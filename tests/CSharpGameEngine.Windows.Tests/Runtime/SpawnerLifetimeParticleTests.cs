@@ -4,8 +4,7 @@ using UserEcsProject.Scenes;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0105: a Scene can be created while the game runs, an Entity can end itself, and a burst of particles goes off, flies, and
-/// is gone. Runs the generated fixed tick of the showcase project without a window, so it checks what the simulation does tick by tick.
+/// ADR-0078/M0105：ゲーム実行中に Scene を作成し、Entity は自身を終了でき、パーティクルのバーストが発生して飛び散り、消えていく。ウィンドウなしでショーケースプロジェクトの生成済み固定 tick を実行し、シミュレーションの tick ごとの動作を検証する。
 /// </summary>
 public sealed class SpawnerLifetimeParticleTests {
     private sealed class Sim:IDisposable {
@@ -88,7 +87,7 @@ public sealed class SpawnerLifetimeParticleTests {
         Assert.Equal(12,Sim.Particles().Count);
         Sim.Tick(30);
         Assert.Empty(Sim.Particles());
-        // It went off once: more ticks give no second burst.
+        // 1 回だけ発生した。tick をさらに進めても 2 回目のバーストは起きない。
         Sim.Tick(5);
         Assert.Empty(Sim.Particles());
     }
@@ -102,7 +101,7 @@ public sealed class SpawnerLifetimeParticleTests {
         Sim.Tick(6);
         var Middle=Sim.Particles();
         Assert.Equal(12,Middle.Count);
-        // Born at tick 1, moved by ticks 2 to 8 (the motion reads the life before it is counted down): 6 of 12 ticks of the 0.2 s life are gone, half the scale.
+        // tick 1 で生成され、tick 2～8 で移動する（移動処理は寿命が減る前に読み取る）：寿命 0.2 秒の 12 tick 中 6 tick が経過し、スケールは半分。
         Assert.All(Middle,Pair=>Assert.InRange(Single(Pair.Transform.Scale.R),0.49f,0.51f));
         Assert.All(Middle,Pair=>Assert.InRange(Single(Pair.Particle.Velocity.U),0f,5f));
         Sim.Tick(10);
@@ -159,7 +158,7 @@ public sealed class SpawnerLifetimeParticleTests {
         Assert.Equal(LogicalVector3.One,Placed.Scale);
         Assert.True(Sim.World.TryGetComponent(Root,out PrimitiveMesh Mesh));
         Assert.Equal(PrimitiveType.Box,Mesh.Type);
-        // Again: an independent copy, not the same Entity.
+        // 再度生成されるのは、同じ Entity ではなく独立した複製。
         Spawner.Spawn<PrimitiveShowcaseBoxScene>(new LogicalVector3(5f,0f,0f));
         Spawner.Flush(ref Sim.World,Created);
         Sim.World.PlaybackStructuralChanges(ref Sim.State);

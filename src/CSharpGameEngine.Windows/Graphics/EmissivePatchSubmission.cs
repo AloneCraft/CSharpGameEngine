@@ -2,7 +2,7 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.Pipeline;
 namespace CSharpGameEngine.Graphics.D3D12;
 public static class EmissivePatchSubmission {
-    /// <summary>Submits generated patches through the true one-sided rectangle Area-light path.</summary>
+    /// <summary>生成したパッチを、片面長方形の Area Light 経路で送信する。</summary>
     public static void SubmitDirectLighting(
         this StageRenderer Renderer,
         IReadOnlyList<EmissivePatch> Patches,

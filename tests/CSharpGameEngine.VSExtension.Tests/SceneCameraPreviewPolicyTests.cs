@@ -100,8 +100,8 @@ public sealed class SceneCameraPreviewPolicyTests {
 
     [Fact]
     public void Build_ReportsARadialCameraThePreviewHostCannotDraw() {
-        // A radial thumbnail with no depth curve (a transition length typed as 0 on its way to 0.5, a far plane at the
-        // float limit) would make the preview host reject the whole frame, so its card reports it instead.
+        // 深度カーブを持たない放射サムネイル（0.5 へ移行中の長さを 0 と入力した場合や、far 平面が
+        // float の上限にある場合）は、プレビューホストがフレーム全体を拒否する。そのためカード上でその旨を報告する。
         SceneModel Model = SceneAnalysisTestHelper.Analyze([Components, """
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Runtime.Windows;
@@ -131,7 +131,7 @@ public sealed class SceneCameraPreviewPolicyTests {
         Assert.False(Zero.IsAvailable);
         Assert.Contains("RadialTransitionMeters", Zero.ErrorMessage, StringComparison.Ordinal);
         Assert.False(Cameras.Single(Camera => Camera.DisplayName == "FloatLimit").IsAvailable);
-        // Only a radial perspective camera uses the transition length.
+        // 移行長を使うのは、放射透視カメラだけである。
         Assert.True(Cameras.Single(Camera => Camera.DisplayName == "ValidPerspective").IsAvailable);
         Assert.True(Cameras.Single(Camera => Camera.DisplayName == "Orthographic").IsAvailable);
     }

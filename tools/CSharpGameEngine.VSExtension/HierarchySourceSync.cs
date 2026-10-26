@@ -7,8 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// The Hierarchy's selection model is deliberately independent from WPF's single-selected-item
-/// implementation.  That lets Ctrl/Shift selection survive a live Roslyn rebuild.
+/// Hierarchy の選択モデルは、WPF の単一選択項目の実装とは意図的に独立しています。これにより、Roslyn のライブ再ビルド後も Ctrl/Shift 選択を維持できます。
 /// </summary>
 internal sealed class HierarchyNodeSelection {
     internal static readonly HierarchyNodeSelection Empty=new([],PrimaryPath:null,RangeAnchor:null);
@@ -46,7 +45,7 @@ internal static class HierarchyFocusPolicy {
         !SuppressSelectionPublish&&TreeHasKeyboardFocus;
 }
 
-/// <summary>Pure selection policy for the Hierarchy's declaration-order rows.</summary>
+/// <summary>Hierarchy の宣言順行に適用する、純粋な選択ポリシー。</summary>
 internal static class HierarchySelectionPlanner {
     internal static HierarchyNodeSelection Select(
         HierarchyNodeSelection Existing,IReadOnlyList<NodePath> OrderedPaths,NodePath Clicked,
@@ -75,8 +74,8 @@ internal static class HierarchySelectionPlanner {
             Updated.Add(Clicked);
         }
 
-        // Keep presentation and downstream SceneSelection deterministic: declaration order, not
-        // the order in which Ctrl clicks happened.
+        // 表示と下流の SceneSelection を決定論的に保ちます。宣言順を使い、
+        // Ctrl クリックが行われた順序には依存しません。
         Updated=OrderedPaths.Where(Updated.Contains).ToList();
         NodePath?Primary=Updated.Contains(Clicked)
             ?Clicked
@@ -87,7 +86,7 @@ internal static class HierarchySelectionPlanner {
     }
 }
 
-/// <summary>Source range to decorate without changing the editor's native text selection.</summary>
+/// <summary>エディターのネイティブなテキスト選択を変更せずに装飾するソース範囲。</summary>
 internal readonly struct SceneSourceMarkerRange : IEquatable<SceneSourceMarkerRange> {
     internal SceneSourceMarkerRange(TextSpan Span)=>this.Span=Span;
 
@@ -100,11 +99,10 @@ internal readonly struct SceneSourceMarkerRange : IEquatable<SceneSourceMarkerRa
     public override int GetHashCode()=>this.Span.GetHashCode();
 }
 
-/// <summary>Maps selected hierarchy paths to the declaration spans owned by the Scene model.</summary>
+/// <summary>選択された Hierarchy のパスを、Scene モデルが所有する宣言範囲に対応付けます。</summary>
 internal static class SceneSourceMarkerPlanner {
     /// <param name="JsonText">
-    /// The live text of a JSON scene (ADR-0070), whose node locations are looked up in the JSON rather
-    /// than in the model's designer view; <c>null</c> for a C# scene.
+    /// C# シーンでは <c>null</c>。JSON シーン（ADR-0070）のライブテキストです。ノード位置は designer view のモデルではなく JSON 内から検索します。
     /// </param>
     internal static IReadOnlyList<SceneSourceMarkerRange> Create(SceneModel? Model,IReadOnlyList<NodePath> Paths,string? JsonText=null){
         if(Model?.Root is null||Paths.Count==0){

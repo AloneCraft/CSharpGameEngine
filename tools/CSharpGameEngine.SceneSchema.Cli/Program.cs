@@ -3,9 +3,7 @@ using System.Reflection.PortableExecutable;
 using System.Text;
 namespace CSharpGameEngine.SceneSchema.Cli;
 /// <summary>
-/// <c>CSharpGameEngine.SceneSchema.Cli &lt;game assembly&gt; &lt;output schema&gt;</c> (ADR-0070). Copies the
-/// generated scene JSON Schema out of the assembly's metadata. The file is rewritten only when its
-/// content changes, so the VS JSON editor does not reload it on every build.
+/// <c>CSharpGameEngine.SceneSchema.Cli &lt;game assembly&gt; &lt;output schema&gt;</c> (ADR-0070)。生成されたシーン JSON Schema をアセンブリのメタデータからコピーする。Visual Studio の JSON エディターがビルドのたびに再読み込みしないよう、内容が変わった場合にのみファイルを書き換える。
 /// </summary>
 internal static class Program {
     private static int Main(string[] Arguments)=>Run(Arguments);
@@ -24,7 +22,7 @@ internal static class Program {
             Console.WriteLine($"CGE-SCENE-SCHEMA {(Written?"written":"unchanged")} path={Arguments[1]}");
             return 0;
         } catch(Exception Error) when(Error is IOException or BadImageFormatException or UnauthorizedAccessException){
-            // MSBuild's canonical form, so the build lists the cause at the schema and not only MSB3073.
+            // MSBuild の標準形式で出力すると、MSB3073 だけでなく原因をスキーマの位置でビルド一覧に示せる。
             Console.Error.WriteLine($"{Arguments[1]}: error CGE-SCENE-SCHEMA: {Error.Message}");
             return 1;
         }
@@ -34,7 +32,7 @@ internal static class SceneSchemaExtractor {
     internal const string Namespace="CSharpGameEngine.Generated";
     internal const string TypeName="CgeGeneratedSceneSchema";
     internal const string FieldName="Json";
-    /// <summary>Reads the string constant <c>CSharpGameEngine.Generated.CgeGeneratedSceneSchema.Json</c>.</summary>
+    /// <summary>文字列定数 <c>CSharpGameEngine.Generated.CgeGeneratedSceneSchema.Json</c> を読み取る。</summary>
     internal static bool TryRead(string AssemblyPath,out string Schema){
         Schema=string.Empty;
         using var Stream=File.OpenRead(AssemblyPath);
@@ -56,7 +54,7 @@ internal static class SceneSchemaExtractor {
         }
         return false;
     }
-    /// <summary>Writes UTF-8 without a BOM when the file is missing or different; returns whether it wrote.</summary>
+    /// <summary>ファイルがない場合、または内容が異なる場合に BOM なし UTF-8 で書き込む。実際に書き込んだかどうかを返す。</summary>
     internal static bool WriteIfChanged(string Path,string Content){
         if(File.Exists(Path)&&File.ReadAllText(Path,Encoding.UTF8)==Content){ return false; }
         var Directory=System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path));

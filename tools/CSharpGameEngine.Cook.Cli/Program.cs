@@ -1,4 +1,8 @@
 using CSharpGameEngine.Cook.Cli;
+if(args.Length==3&&args[0]=="thumbnail-image"){
+    try { ImageThumbnailCommand.Run(args[1],args[2]);return 0; }
+    catch(Exception Error){ Console.Error.WriteLine(Error.Message);return 1; }
+}
 if(args.Length>=2&&args[0] is "describe" or "import-worker"){
     try {
         if(args[0]=="describe"&&args.Length==2){ Console.WriteLine(ImportWorker.Describe(args[1]));return 0; }
@@ -22,7 +26,7 @@ if(args.Length>=2&&args[0] is "describe" or "import-worker"){
     }
 }
 
-// ADR-0079: runs a plugin's Cook module outside Visual Studio and the game.
+// ADR-0079：プラグインの Cook モジュールを Visual Studio とゲームの外で実行する。
 //   list <cook-module.dll>
 //   cook <cook-module.dll> <input> <output-directory> [--project <directory>] [--cooker <name>] [--verify]
 if(args.Length<2||args[0] is not ("list" or "cook")){
@@ -56,7 +60,7 @@ try {
     var Selected=Host.Select(args[2],Name);
     List<string>Messages=[];
     var Outputs=CookerHost.Cook(Selected,args[2],args[3],Project??Path.GetDirectoryName(Path.GetFullPath(args[2]))!,Verify,Messages);
-    // The cooker's own notes (warnings, statistics) go to standard error so that standard output stays the list of files.
+    // クッカー自身のメモ（警告、統計）は標準エラーへ出す。標準出力にはファイル一覧だけを出す。
     foreach(var Message in Messages){ Console.Error.WriteLine(Message); }
     foreach(var Output in Outputs){ Console.WriteLine(Output); }
     return 0;

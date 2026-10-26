@@ -7,15 +7,9 @@ using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.EditorPreview.Host;
 
 /// <summary>
-/// ADR-0070 B1: a preview session that shows the built game's world through the game's own runtime.
-/// The game assembly is loaded into a collectible context of its own, so its statics (content root,
-/// runtime view) belong to this session and a later build loads fresh. The game's generated
-/// <c>GeneratedEditorPreviewBridge</c> instantiates the world and runs its Presentation systems into
-/// the Scene view's surface from the designer's camera.
+/// ADR-0070 B1：プレビューセッションは、ゲーム自身のランタイムを通してビルド済みゲームのワールドを表示する。ゲームアセンブリは独自のアンロード可能コンテキストに読み込むため、その静的データ（コンテンツルート、ランタイムビュー）はこのセッションに属し、次回のビルド時には新しく読み込まれる。ゲームが生成した <c>GeneratedEditorPreviewBridge</c> がワールドをインスタンス化し、Designer のカメラから Scene ビューのサーフェスへ Presentation システムを実行する。
 /// <para>
-/// M0096 (ADR-0047): the same bridge also runs the editor world, a second world of the edited scene whose
-/// <c>[ExecuteInEditor(Realtime=true)]</c> systems tick at 15 Hz for the Spatial and Physics debug overlays. The
-/// ticks and every request run under one lock, so the bridge never sees two calls at once.
+/// M0096 (ADR-0047)：同じブリッジは、編集済みシーンの第 2 のワールドであるエディターワールドも実行する。<c>[ExecuteInEditor(Realtime=true)]</c> システムは Spatial と Physics のデバッグオーバーレイ用に 15 Hz で tick する。tick と各要求は 1 つのロック内で実行されるため、ブリッジで 2 つの呼び出しが同時に実行されることはない。
 /// </para>
 /// </summary>
 public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
@@ -31,10 +25,10 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private readonly MethodInfo SelectionMethod;
     private const string TransformTypeName="CSharpGameEngine.Entities.Transform";
     private Dictionary<string,int>NodeIndexByPath=new(StringComparer.Ordinal){ ["(root)"]=0 };
-    /// <summary>The last applied document and its nodes in pre-order, the base of a drag's transform overrides.</summary>
+    /// <summary>最後に適用したドキュメントとそのノードの先行順リスト。ドラッグ時の Transform 上書きの基準となる。</summary>
     private string DocumentText=string.Empty;
     private SceneJsonValue[]DocumentNodes=[];
-    /// <summary>Whether the document's angles are turns (schema version 2, ADR-0074); the override keeps the other members' text.</summary>
+    /// <summary>ドキュメントの角度が回転数であるかどうか（スキーマ バージョン 2、ADR-0074）。上書き後も他メンバーのテキストを維持する。</summary>
     private bool DocumentTurns;
     private float[]OverlayTriangles=[];
     private float[]OverlayLines=[];
@@ -47,13 +41,13 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private MethodInfo?EditorSpatialWorldIdMethod;
     private Timer?EditorTimer;
     private long EditorTicks;
-    /// <summary>ADR-0047: the editor world's realtime systems tick at 15 Hz.</summary>
+    /// <summary>ADR-0047：エディターワールドのリアルタイムシステムは 15 Hz で tick する。</summary>
     private static readonly TimeSpan EditorTickPeriod=TimeSpan.FromTicks(TimeSpan.TicksPerSecond/15);
 
-    /// <summary>Whether the editor world runs beside the view (it does unless the build lacks the scene or its bridge).</summary>
+    /// <summary>ビューとともにエディターワールドを実行するか（ビルドにシーンまたはそのブリッジがない場合を除き実行する）。</summary>
     public bool EditorWorldRunning=>this.EditorTimer is not null;
 
-    /// <summary>How many 15 Hz ticks the editor world has run.</summary>
+    /// <summary>エディターワールドが実行した 15 Hz の tick 数。</summary>
     public long EditorWorldTicks=>Interlocked.Read(ref this.EditorTicks);
 
     public Guid EditorSpatialWorldId{
@@ -86,7 +80,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     public RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics=>[];
     public bool BuildRequired{get;private set;}
 
-    /// <summary>Opens <paramref name="Request"/>'s runtime view; it must carry one (see <see cref="RenderPreviewHostRequest.RuntimeView"/>).</summary>
+    /// <summary><paramref name="Request"/> のランタイムビューを開く。要求にはそのビューを含める必要がある（<see cref="RenderPreviewHostRequest.RuntimeView"/> を参照）。</summary>
     public static RenderPreviewRuntimeSession Open(RenderPreviewHostRequest Request){
         ArgumentNullException.ThrowIfNull(Request);
         string?Error=RenderPreviewHostProtocol.Validate(Request);
@@ -108,7 +102,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 Context,Find("RenderRuntimeView"),Find("ResizeRuntimeView"),Find("CaptureRuntimeView"),Find("ShutdownRuntimeView"),
                 Find("RuntimeViewNodeCount"),Find("TrySetRuntimeViewComponent"),Find("SetRuntimeViewOverlay"),
                 Find("SetRuntimeViewSelection"),Request.Scene!.Camera!);
-            // A false result has already released the game's host, so only the context remains to unload.
+            // false の結果はゲームのホストをすでに解放済みであり、アンロードする対象はコンテキストだけである。
             if(Invoke(Initialize,[View.SceneName,ContentDirectory,(nint)Request.SurfaceHandle,Request.Width,Request.Height,View.UseWarp]) is not true){
                 throw new InvalidOperationException($"The game build does not contain the scene '{View.SceneName}'; build the project to show it.");
             }
@@ -122,8 +116,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     }
 
     /// <summary>
-    /// Starts the editor world of <paramref name="SceneName"/>. A failure leaves the view running without it: the
-    /// overlays lose their source, the image does not.
+    /// <paramref name="SceneName"/> のエディターワールドを開始する。失敗した場合はワールドなしでビューを動かし続ける。オーバーレイはデータ元を失うが、画像表示には影響しない。
     /// </summary>
     private void StartEditorWorld(Type Bridge,string?SceneName){
         const BindingFlags Static=BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
@@ -151,7 +144,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 Invoke(Tick,[]);
                 Interlocked.Increment(ref this.EditorTicks);
             } catch(Exception Error){
-                // A faulted editor world stops ticking; the view keeps running.
+                // 障害状態になったエディターワールドは tick を停止するが、ビューは動作を続ける。
                 Console.Error.WriteLine($"The editor world stopped: {Error.Message}");
                 this.EditorTickMethod=null;
             }
@@ -159,9 +152,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     }
 
     /// <summary>
-    /// Applies the edited document's values to the running world. The world keeps the build's
-    /// structure: a node or component the build does not have sets <see cref="BuildRequired"/>, and
-    /// its values wait for the next build. A document that cannot be read changes nothing.
+    /// 実行中のワールドへ編集済みドキュメントの値を適用する。ワールドの構造はビルド時のまま維持する。ビルドに存在しないノードやコンポーネントがあれば <see cref="BuildRequired"/> を設定し、その値の適用は次回のビルドまで待つ。読み取り不能なドキュメントの場合は何も変更しない。
     /// </summary>
     public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
         lock(this.Gate){
@@ -197,7 +188,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 try {
                     Value=SceneJsonRuntimeValues.Component(Type,Component.Get("members")??SceneJsonReader.Parse("{}"),Type.Name,Turns);
                 } catch(InvalidOperationException){
-                    // The generator reports the document's errors; the view keeps the last good values.
+                    // ジェネレーターはドキュメントのエラーを報告する。ビューは最後に正常だった値を維持する。
                     continue;
                 }
                 if(Invoke(this.SetComponentMethod,[Index,Value]) is not true){
@@ -209,10 +200,10 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         this.BuildRequired=Stale;
     }
 
-    /// <summary>A component type as the game build sees it: from the assemblies of the game's own context.</summary>
+    /// <summary>ゲームビルドから見たコンポーネント型。ゲーム独自のコンテキストに読み込まれたアセンブリから取得する。</summary>
     private Type?FindType(string FullName)=>SceneJsonRuntimeValues.FindType(this.Context.Assemblies,FullName);
 
-    /// <summary>The designer's node paths ("(root)", "0", "0/1") mapped to their pre-order index.</summary>
+    /// <summary>デザイナーのノードパス（"(root)"、"0"、"0/1"）を先行順インデックスへ対応付けたもの。</summary>
     private static Dictionary<string,int>NodePaths(SceneJsonValue?Root){
         Dictionary<string,int>Paths=new(StringComparer.Ordinal);
         void Visit(SceneJsonValue Node,string Path){
@@ -234,9 +225,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     }
 
     /// <summary>
-    /// The designer's camera, gizmos and selection. The runtime renders relative to its camera, so the
-    /// gizmos (in world space) are shifted by the camera position; selection maps node paths to the
-    /// document's node order.
+    /// Designer のカメラ、ギズモ、選択状態。ランタイムはカメラ基準でレンダリングするため、ワールド空間のギズモはカメラ位置分だけずれる。選択状態はノードパスをドキュメントのノード順へ対応付ける。
     /// </summary>
     public void UpdateFrame(RenderPreviewFrame Frame){
         ArgumentNullException.ThrowIfNull(Frame);
@@ -258,9 +247,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     }
 
     /// <summary>
-    /// M0096: a gizmo drag's transforms, applied to the running world as the document's Transform with
-    /// only Position, Rotation and Scale replaced (its frame and other members stay). The game's
-    /// Presentation systems carry them to the renderer like any value edit.
+    /// M0096：ギズモのドラッグで得た Transform を、実行中ワールドのドキュメント上の Transform に適用する。Position、Rotation、Scale だけを置き換え、座標系やその他のメンバーは維持する。ゲームの Presentation システムが、他の値の編集と同様にレンダラーへ伝える。
     /// </summary>
     private void ApplyTransformOverrides(RenderPreviewTransformOverride[]Overrides){
         if(Overrides.Length==0||this.FindType(TransformTypeName) is not { }Type){ return; }
@@ -319,7 +306,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private void RenderLocked(bool CaptureForVerification){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         RenderPreviewCamera Camera=this.Camera;
-        // Before the level has loaded (the first frame) there is no renderer yet; the next frame shows them.
+        // レベルの読み込み前（最初のフレーム）にはレンダラーがまだない。次のフレームで表示される。
         Invoke(this.OverlayMethod,[this.OverlayTriangles,this.OverlayLines]);
         Invoke(this.SelectionMethod,[this.Selection]);
         if(Invoke(this.RenderMethod,[
@@ -342,7 +329,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             if(this.Disposed){ return; }
             this.Disposed=true;
         }
-        // Waits for a tick in flight; the Disposed flag stops the next one.
+        // 実行中の tick が終わるのを待つ。Disposed フラグが次の tick を停止する。
         using(var Stopped=new ManualResetEvent(false)){
             if(this.EditorTimer?.Dispose(Stopped)==true){ Stopped.WaitOne(TimeSpan.FromSeconds(5)); }
         }
@@ -357,7 +344,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         }
     }
 
-    /// <summary>Unwraps the game code's own exception so the designer sees its message.</summary>
+    /// <summary>Designer にメッセージを表示できるよう、ゲームコード自身の例外をラップ解除する。</summary>
     private static object?Invoke(MethodInfo Method,object?[]Arguments){
         try {
             return Method.Invoke(null,Arguments);
@@ -367,7 +354,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         }
     }
 
-    /// <summary>Resolves the game's dependencies from its own directory; the framework comes from the default context.</summary>
+    /// <summary>ゲームの依存関係はゲーム自身のディレクトリから解決し、フレームワークは既定のコンテキストから取得する。</summary>
     private sealed class GameLoadContext(string Directory):AssemblyLoadContext("CSharpGameEngine.RuntimeView",isCollectible:true) {
         protected override Assembly?Load(AssemblyName Name){
             string Candidate=Path.Combine(Directory,Name.Name+".dll");

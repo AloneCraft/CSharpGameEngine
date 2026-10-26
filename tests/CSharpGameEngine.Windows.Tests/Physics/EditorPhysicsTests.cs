@@ -6,8 +6,8 @@ using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 
 /// <summary>
-/// M0097: the editor world registers the scene's bodies for the physics debug overlay but does not advance time, so
-/// the overlay stays on the objects the Scene view draws. Only the running game simulates.
+/// M0097：エディターワールドは物理デバッグオーバーレイ用にシーンのボディを登録するが、時間は進めない。そのためオーバーレイはSceneビューに描画されたオブジェクトに一致する。
+/// シミュレーションを行うのは実行中のゲームだけ。
 /// </summary>
 public sealed class EditorPhysicsTests {
     [Theory]
@@ -28,7 +28,7 @@ public sealed class EditorPhysicsTests {
             Assert.True(State.World.TryGetComponent(Body,out Transform After));
             if(Falls){ Assert.True(After.Position.U<Before.Position.U); }
             else { Assert.Equal(Before.Position,After.Position); }
-            // The bodies are still registered, so the overlay has something to draw.
+            // ボディは登録済みのままなので、オーバーレイに描画対象がある。
             Assert.True(Host.PhysicsWorld.TryGetBodyState(Body,out _));
         }
         finally { GeneratedGameLoop.Shutdown(ref State,ref Systems,Host); }

@@ -3,10 +3,7 @@ using System.Xml.Linq;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Visual Studio runs design-time builds (CompileDesignTime) in the background. They run
-/// MarkupCompilePass1 without Pass2 and produce no BAML, package or deployment, so a check of build
-/// outputs there fails spuriously and shows in the Error List. That is how the WPF BAML check reported
-/// "resource generation is incomplete" on every F5.
+/// Visual Studio はデザイン時ビルド (CompileDesignTime) をバックグラウンドで実行する。Pass2 を行わずに MarkupCompilePass1 を実行するため、BAML、パッケージ、配置は生成されない。そこでビルド出力を確認すると誤検知となって Error List に表示される。WPF BAML チェックが毎回の F5 で「resource generation is incomplete」と報告していたのはそのためである。
 /// </summary>
 public sealed class VsixBuildTargetTests {
     [Fact]

@@ -2,9 +2,9 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0073: systems of one phase run in an order that keeps every <c>[RunsAfter]</c> / <c>[RunsBefore]</c>
-/// edge, systems with no path between them run by full name, and startup scenes run first in FrameInput. The
-/// execution tests run the generated <c>Main</c> and read the order the systems actually ran in.
+/// ADR-0073：同一フェーズのシステムは、すべての<c>[RunsAfter]</c>／<c>[RunsBefore]</c>指定を満たす順序で実行する。
+/// 順序経路がないシステムは完全名順。スタートアップシーンはFrameInputで最初に実行する。
+/// 実行テストでは生成された<c>Main</c>を実行し、実際のシステム実行順を読み取る。
 /// </summary>
 public sealed class GameSystemOrderTests {
     private const string TraceAndStartup="""
@@ -36,8 +36,8 @@ public sealed class GameSystemOrderTests {
         GameSystemGeneratorTestHelper.RunGenerator(GameSystemGeneratorTestHelper.CommonComponents,
             "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+Systems).Diagnostics;
     /// <summary>
-    /// By name the order would be A, B, C. A runs after C and B before C, so the edges give B, C, A; A stops
-    /// the loop, so a system that ran too early would leave the later ones out of the trace.
+    /// 名前順ではA、B、C。AはCの後、BはCの前という依存があるため、実行順はB、C、Aとなる。
+    /// Aはループを停止するので、早く実行されるはずのシステムが誤って後回しになると、後続システムがトレースから抜ける。
     /// </summary>
     [Fact]
     public void DeclaredEdges_DecideTheOrderOverTheNames(){
@@ -62,8 +62,8 @@ public sealed class GameSystemOrderTests {
             """)));
     }
     /// <summary>
-    /// Systems with no declared order run by full name, not by file path or declaration position: ZSystem is
-    /// declared in A.cs and ASystem in Z.cs, which the [SystemOrder] era ran file first.
+    /// 順序を宣言していないシステムは、ファイルパスや宣言位置ではなく完全名順で実行する。
+    /// ZSystemはA.cs、ASystemはZ.csに宣言されており、[SystemOrder]時代はファイル順によりZSystemが先だった。
     /// </summary>
     [Fact]
     public void SystemsWithoutADeclaredOrder_RunByFullName(){
@@ -88,9 +88,8 @@ public sealed class GameSystemOrderTests {
                 """)));
     }
     /// <summary>
-    /// Startup scenes run before every other FrameInput system, by startupOrder and then full name. The
-    /// [SystemOrder] era compared startupOrder with the systems' order values, so AInput (0) ran before a
-    /// startup scene with startupOrder 1.
+    /// スタートアップシーンは他のFrameInputシステムより前に実行する。startupOrder、次に完全名で順序を決める。
+    /// [SystemOrder]時代はstartupOrderをシステムの順序値と比較していたため、AInput（0）がstartupOrder 1のスタートアップシーンより前だった。
     /// </summary>
     [Fact]
     public void StartupScenes_RunFirstInFrameInput_ByStartupOrderThenName(){
@@ -149,8 +148,8 @@ public sealed class GameSystemOrderTests {
         Assert.Contains("Game.ASystem -> Game.BSystem -> Game.ASystem",Diagnostic.GetMessage(),StringComparison.Ordinal);
     }
     /// <summary>
-    /// The phase order is fixed: after a later-phase system or before an earlier-phase one is SYSGEN035, and the
-    /// opposite declarations are already true and report nothing.
+    /// フェーズ順は固定。後続フェーズのシステムの後、または先行フェーズのシステムの前に置こうとするとSYSGEN035。
+    /// 逆向きの指定は既に成立しているため、診断は出さない。
     /// </summary>
     [Fact]
     public void AnOrderAgainstThePhaseOrder_IsSysgen035_AndOneAlongItIsAccepted(){
@@ -183,7 +182,7 @@ public sealed class GameSystemOrderTests {
             }
             """));
     }
-    /// <summary>[SystemOrder] is gone; using it is a compile error whose message names the replacement.</summary>
+    /// <summary>[SystemOrder]は廃止済み。使用すると置き換え先を示すコンパイルエラーになる。</summary>
     [Fact]
     public void SystemOrder_IsAnErrorThatNamesTheReplacement(){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation(GameSystemGeneratorTestHelper.CommonComponents,"""

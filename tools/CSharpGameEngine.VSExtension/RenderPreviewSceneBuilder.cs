@@ -133,9 +133,7 @@ internal static class RenderPreviewSceneBuilder {
     }
 
     /// <summary>
-    /// M0096: a runtime view draws the game's own world, so a gizmo drag sends each dragged root's
-    /// parent-relative transform (as the commit will write it) instead of the designer's world matrices.
-    /// The designer's X, Y, Z are R, U, F, and its quaternion is the engine's EulerRuf convention.
+    /// M0096：runtime view はゲーム自身の world を描画するため、gizmo のドラッグ中はデザイナーの world matrix ではなく、各ドラッグ対象 root の親相対 transform（commit 時に書き込まれる値）を送信します。デザイナーの X、Y、Z は R、U、F に対応し、quaternion はエンジンの EulerRuf 規約に従います。
     /// </summary>
     internal static RenderPreviewTransformOverride[]DragOverrides(
         IReadOnlyList<SceneTransformTarget>Targets,IReadOnlyList<SceneTransformPreview>Previews){
@@ -218,6 +216,10 @@ internal static class RenderPreviewSceneBuilder {
         ],
     };
 
+    /// <summary>アセットエディターのビューポートが毎フレーム送るカメラ。</summary>
+    internal static RenderPreviewCamera CreateCamera(
+        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 Position,float FovYRadians=SceneCameraFraming.DefaultFovYRadians)=>
+        Camera(View,Projection,Position,FovYRadians);
     private static RenderPreviewCamera Camera(
         in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 Position,float FovYRadians=SceneCameraFraming.DefaultFovYRadians,
         float?NearZ=null,float?FarZ=null){
@@ -230,10 +232,7 @@ internal static class RenderPreviewSceneBuilder {
     }
 
     /// <summary>
-    /// ADR-0070 B1: the pose and projection a runtime view needs, read back from the Scene view's
-    /// matrices. The view is a right-handed <see cref="Matrix4x4.CreateLookAt"/>, so its columns hold the
-    /// camera's right, up and backward axes; the runtime camera takes its forward (local +F) and up (+U)
-    /// from an RUF rotation whose rows are right, up and forward.
+    /// ADR-0070 B1：runtime view に必要な pose と projection。Scene view の matrix から読み戻します。ビューは右手系の <see cref="Matrix4x4.CreateLookAt"/> なので、列がカメラの右、上、後方の軸を表します。runtime camera は RUF 回転の行から前方（ローカル +F）と上方（+U）を取得します。
     /// </summary>
     internal static void DescribePose(RenderPreviewCamera Camera,in Matrix4x4 View,in Matrix4x4 Projection,float FovYRadians,
         float RadialTransitionMeters=1f,float?NearZ=null,float?FarZ=null){
@@ -247,8 +246,8 @@ internal static class RenderPreviewSceneBuilder {
             0f,0f,0f,1f)));
         Camera.Rotation=[Rotation.X,Rotation.Y,Rotation.Z,Rotation.W];
         Camera.FovYRadians=FovYRadians;
-        // Perspective (M34=-1): M33=f/(n-f), M43=nf/(n-f). Orthographic (M34=0): M33=1/(n-f), M43=n/(n-f).
-        // Preserve supplied clip planes: a huge perspective far plane cannot be recovered from a rounded matrix.
+        // Perspective（M34=-1）：M33=f/(n-f)、M43=nf/(n-f)。Orthographic（M34=0）：M33=1/(n-f)、M43=n/(n-f)。
+        // 指定された clip plane を保持します。巨大な perspective far plane は丸められた matrix から復元できません。
         Camera.NearZ=NearZ??Projection.M43/Projection.M33;
         Camera.FarZ=FarZ??(Projection.M34==0f?(Projection.M43-1f)/Projection.M33:Projection.M43/(Projection.M33+1f));
         Camera.RadialTransitionMeters=RadialTransitionMeters;

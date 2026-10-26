@@ -8,10 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Extensions > C# Game Engine menu/toolbar command that starts or stops <see cref="FabDownloadWatcher"/> (ADR-0011).
-/// Purely a local convenience: it copies files the user already downloaded via their own browser
-/// session on fab.com into <c>UserEcsProject/Assets/Fab/</c>. It never touches fab.com itself -
-/// see <see cref="OpenFabCommand"/> for that.
+/// <see cref="FabDownloadWatcher"/> を開始または停止する Extensions &gt; C# Game Engine のメニュー/ツールバーコマンド (ADR-0011)。ユーザーが fab.com のブラウザーセッションからすでにダウンロードしたファイルを <c>UserEcsProject/Assets/Fab/</c> へコピーするローカルの便宜機能にすぎない。fab.com 自体には触れない。fab.com を開く操作は <see cref="OpenFabCommand"/> を参照。
 /// </summary>
 internal sealed class ToggleFabWatchCommand:IDisposable {
     public const int CommandId=0x0102;

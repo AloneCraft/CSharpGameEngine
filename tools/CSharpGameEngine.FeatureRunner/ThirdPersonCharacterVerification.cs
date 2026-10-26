@@ -37,13 +37,13 @@ public static class ThirdPersonCharacterVerification {
             await Error.WriteLineAsync($"The {Template} template is not built: {Executable}").ConfigureAwait(false);
             return 2;
         }
-        // ThirdPerson keeps its original evidence folder; the other templates (ADR-0077: the same walk, jump and sound contract) get their own.
+        // ThirdPerson は元の証拠フォルダーを維持し、他のテンプレートには独自のものを用意する（ADR-0077：同じ歩行、ジャンプ、音の契約）。
         var Evidence=Template=="ThirdPerson"
             ?Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Adapter)
             :Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Template,Adapter);
         return await RunGameAsync(Executable,Evidence,Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
     }
-    /// <summary>Runs a built ThirdPerson game with the scripted input and judges its report (<see cref="Evaluate"/>).</summary>
+    /// <summary>ビルド済み ThirdPerson ゲームをスクリプト入力で実行し、レポートを判定する (<see cref="Evaluate"/>)。</summary>
     public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         Directory.CreateDirectory(Evidence);
         var ReportPath=Path.Combine(Evidence,"report.json");
@@ -100,13 +100,13 @@ public static class ThirdPersonCharacterVerification {
         }
         var BeforeWalk=Positions[WalkStartFrame-1]!;
         var AfterWalk=Positions[JumpFrame-1]!;
-        // The camera follows the character, so its horizontal travel is the character's walk in any facing.
+        // カメラはキャラクターに追従するため、向きがどの方向でもカメラの水平移動はキャラクターの歩行距離に一致する。
         var Walk=MathF.Sqrt(((AfterWalk[0]-BeforeWalk[0])*(AfterWalk[0]-BeforeWalk[0]))+((AfterWalk[2]-BeforeWalk[2])*(AfterWalk[2]-BeforeWalk[2])));
         var Apex=Positions.Skip(JumpFrame).Max(static Position=>Position![1]);
         var Rise=Apex-AfterWalk[1];
         var Descent=Apex-Positions[^1]![1];
         var Lowest=Positions.Skip(WalkStartFrame-1).Min(static Position=>Position![1]);
-        // Older reports carry no audio fields; only a report that has them is held to the sound contract.
+        // 古いレポートには音声フィールドがない。音声契約の適用対象は、そのフィールドがあるレポートだけ。
         var Audio=Report.TryGetProperty("audioRequests",out var AudioElement)?AudioElement.GetInt32():-1;
         var AudioSuffix=Audio<0?string.Empty:string.Create(CultureInfo.InvariantCulture,$" audioRequests={Audio}");
         Summary=string.Create(CultureInfo.InvariantCulture,$"walk={Walk:F3} rise={Rise:F3} descent={Descent:F3} lowest={Lowest:F3} d3d12Errors={Errors}{AudioSuffix}");

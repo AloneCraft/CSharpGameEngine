@@ -7,9 +7,8 @@ using SharpGLTF.Schema2;
 namespace CSharpGameEngine.Import.Gltf;
 
 /// <summary>
-/// Imports the first mesh/primitive of a .gltf or .glb file, including its base-color texture
-/// (raw encoded bytes, undecoded) and baseColorFactor. No scene graph, multi-mesh, or full PBR
-/// material support - this is a minimal vertical slice, not a general glTF importer.
+/// .gltfまたは.glbファイルから最初のメッシュ／プリミティブをインポートする。ベースカラーのテクスチャ（エンコード済みバイト列のまま。デコードしない）と
+/// baseColorFactorも含む。シーングラフ、複数メッシュ、完全なPBRマテリアルには対応しない。汎用glTFインポーターではなく、最小限の垂直スライスである。
 /// </summary>
 public static class GltfImporter {
     public static GltfImportResult Import(string FilePath){
@@ -24,8 +23,8 @@ public static class GltfImporter {
         try {
             Model=ModelRoot.Load(FullPath);
         } catch(Exception Ex){
-            // SharpGLTF has no single documented exhaustive exception list for malformed input;
-            // a bad file must never escape as an unhandled exception from this importer.
+            // SharpGLTFには、不正入力に対する網羅的な例外一覧が文書化されていない。
+            // 不正ファイルによる未処理例外が、このインポーターから漏れてはならない。
             return Failed($"Failed to parse glTF file '{FullPath}': {Ex.Message}");
         }
 
@@ -89,10 +88,10 @@ public static class GltfImporter {
                 Indices[(I*3)+2]=(uint)Triangles[I].C;
             }
         } else {
-            // A vertex shared by multiple faces can only hold one NORMAL value, so a missing/
-            // inconsistent NORMAL attribute cannot be patched in-place: every triangle is expanded
-            // into 3 unshared vertices carrying one computed flat face normal. UV rides along in
-            // the same expansion (driven solely by the NORMAL case) rather than a second pass.
+            // 1つの頂点を複数の面で共有すると、保持できる法線（NORMAL）は1つだけ。そのため、NORMAL属性がない、または
+            // 一貫しない場合に、その場で修正することはできない。各三角形を共有しない3頂点へ展開し、
+            // 面ごとに計算したフラット法線を持たせる。UVも同じ展開に合わせて引き継ぎ、
+            // NORMALのケースを根拠とするため、別の処理は行わない。
             Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,
                 $"NORMAL attribute missing or inconsistent; synthesized {Triangles.Count} flat per-face normal(s)."));
 
@@ -145,12 +144,11 @@ public static class GltfImporter {
         GltfImportResult.Failed([new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Error,Message)]);
 
     /// <summary>
-    /// Imports every mesh-bearing and light-bearing node of a glTF scene graph, flattened into
-    /// <see cref="ImportedScene.Nodes"/> with fully-resolved world transforms (see
-    /// <see cref="ImportedSceneNode"/>). Unlike <see cref="Import(string)"/> this walks the whole
-    /// node hierarchy and every material's Normal/MetallicRoughness channels - needed to port a
-    /// multi-object level rather than preview a single asset. Existing callers of
-    /// <see cref="Import(string)"/> are unaffected; this is a separate, additive entry point.
+    /// glTFシーングラフ内のメッシュを持つノードとライトを持つノードをすべてインポートし、
+    /// 完全に解決したワールド変換とともに<see cref="ImportedScene.Nodes"/>へ平坦化する
+    ///（<see cref="ImportedSceneNode"/>を参照）。<see cref="Import(string)"/>と異なり、ノード階層全体と、
+    /// すべてのマテリアルのNormal／MetallicRoughnessチャンネルをたどる。単一アセットのプレビューではなく、複数オブジェクトのレベルを移行するために必要。
+    /// 既存の<see cref="Import(string)"/>利用側には影響しない、独立した追加エントリーポイントである。
     /// </summary>
     public static GltfSceneImportResult ImportScene(string FilePath,GltfImportOptions?Options=null){
         ArgumentException.ThrowIfNullOrWhiteSpace(FilePath);
@@ -166,8 +164,8 @@ public static class GltfImporter {
         try {
             Model=ModelRoot.Load(FullPath);
         } catch(Exception Ex){
-            // Mirrors Import(string): SharpGLTF has no single documented exhaustive exception list
-            // for malformed input, so a bad file must never escape as an unhandled exception.
+            // Import(string)と同様、SharpGLTFには不正入力に対する網羅的な例外一覧が文書化されていない。
+            // そのため、不正ファイルによる未処理例外が漏れてはならない。
             return SceneFailed($"Failed to parse glTF file '{FullPath}': {Ex.Message}");
         }
 
@@ -274,7 +272,7 @@ public static class GltfImporter {
         return GltfSceneImportResult.Succeeded(Scene,Diagnostics);
     }
 
-    /// <summary>Depth-first walk of the full visual node hierarchy - top-level scene children are not guaranteed to be the only nodes (a source scene may nest transform/pivot nodes), so every descendant is visited.</summary>
+    /// <summary>描画ノードの階層全体を深さ優先でたどる。ソースシーンにはTransform／ピボット用の入れ子ノードがありうるため、トップレベルの子だけとは限らない。子孫をすべて走査する。</summary>
     private static IEnumerable<Node>Flatten(IEnumerable<Node>Roots){
         foreach(Node Node in Roots){
             yield return Node;
@@ -285,9 +283,9 @@ public static class GltfImporter {
     }
 
     private static int GetOrAddDefaultMaterial(List<ImportedPbrMaterial>Materials,Dictionary<Material,int>MaterialIndexByGltfMaterial){
-        // Keyed by null via a sentinel-free path: a primitive with no Material at all is rare in
-        // practice for this importer's real content, so it's not worth a Dictionary<Material?,int>
-        // (Material is a reference type but SharpGLTF never hands out a boxed "null key" instance).
+        // ここでは特別な番兵値を使わずにnullをキーとして扱う。実際に読み込むコンテンツでMaterialのない
+        // プリミティブはまれなので、Dictionary<Material?,int>を使う価値はない。
+        // Materialは参照型だが、SharpGLTFがボックス化された「nullキー」インスタンスを渡すこともない。
         for(var I=0;I<Materials.Count;I++){
             ImportedPbrMaterial Candidate=Materials[I];
             if(Candidate is { BaseColorTextureBytes:null,NormalTextureBytes:null,MetallicRoughnessTextureBytes:null }
@@ -335,8 +333,8 @@ public static class GltfImporter {
     }
 
     /// <summary>
-    /// Reads <c>extras.CGE_world_grid</c>. A malformed grid is reported and left out so the material falls
-    /// back to its plain surface colour instead of rendering an arbitrary pattern.
+    /// <c>extras.CGE_world_grid</c>を読み取る。不正なグリッドは報告したうえで除外し、マテリアルは任意のパターンを描画せず、
+    /// 単色のベースサーフェス色へフォールバックする。
     /// </summary>
     private static ImportedWorldGrid?ReadWorldGrid(Material Material,List<GltfImportDiagnostic>Diagnostics,string Context){
         if(Material.Extras is not JsonObject Extras||!Extras.TryGetPropertyValue(ImportedWorldGrid.ExtrasKey,out var Node)){
@@ -380,10 +378,9 @@ public static class GltfImporter {
     }
 
     /// <summary>
-    /// The engine has one UV set per vertex, so KHR_texture_transform is baked into TEXCOORD_0 at
-    /// import. The base colour texture's transform wins (or the first textured channel's when there
-    /// is no base colour texture); a channel whose transform differs is reported because it will be
-    /// sampled with that mapping.
+    /// エンジンは頂点ごとにUVセットを1つだけ持つため、インポート時にKHR_texture_transformをTEXCOORD_0へ焼き込む。
+    /// ベースカラーのテクスチャがある場合はその変換を採用し、ない場合は最初に見つかったテクスチャチャンネルの変換を採用する。
+    /// 変換が異なるチャンネルは報告する。異なるマッピングでサンプリングされるためである。
     /// </summary>
     private static GltfUvTransform?ResolveUvTransform(Material?Material,List<GltfImportDiagnostic>Diagnostics,string Context){
         if(Material is null){
@@ -419,9 +416,9 @@ public static class GltfImporter {
     }
 
     /// <summary>
-    /// The encoded bytes of a channel's texture. The engine samples every texture with the vertex's single
-    /// UV set, so a texture bound to another set (<c>texCoord</c> above 0) is reported and left out instead
-    /// of being sampled through the wrong coordinates.
+    /// チャンネルのテクスチャのエンコード済みバイト列。エンジンは各テクスチャを頂点の単一UVセットでサンプリングするため、
+    /// 別のセットに割り当てられたテクスチャ（<c>texCoord</c>が0より大きいもの）は報告して除外する。
+    /// 誤った座標でサンプリングされるのを防ぐためである。
     /// </summary>
     private static byte[]?ExtractTextureBytes(MaterialChannel?Channel,List<GltfImportDiagnostic>Diagnostics,string Context){
         if(Channel?.Texture?.PrimaryImage is not Image Image){
@@ -446,7 +443,10 @@ public static class GltfImporter {
         };
     }
 
-    /// <summary>Builds one drawable's geometry from a single glTF primitive, applying the same missing-NORMAL/TEXCOORD_0 fallbacks as <see cref="Import(string)"/> plus TANGENT generation (not needed by the single-mesh preview path). Returns null (with a diagnostic) only when POSITION or triangle data is entirely absent.</summary>
+    /// <summary>
+    /// 単一のglTFプリミティブから描画可能なジオメトリを構築する。<see cref="Import(string)"/>と同じNORMAL／TEXCOORD_0欠落時の補完に加え、TANGENTも生成す
+    /// る（単一メッシュのプレビュー経路では不要）。POSITIONまたは三角形データが完全にない場合に限り、診断とともにnullを返す。
+    /// </summary>
     private static ImportedMeshData?ImportPrimitiveGeometry(MeshPrimitive Primitive,List<GltfImportDiagnostic>Diagnostics,string Context){
         Accessor?PositionAccessor=Primitive.GetVertexAccessor("POSITION");
         if(PositionAccessor is null){
@@ -534,11 +534,11 @@ public static class GltfImporter {
             }
         }
 
-        // From here on, mesh-local geometry moves from glTF space into engine space (ADR-0027) - a
-        // single-axis mirror, so it must flip triangle winding to keep front-facing orientation
-        // (GltfAxisConversion.FlipTriangleWinding) and does not affect ComputeTangents' output either
-        // way (swapping a triangle's last two indices leaves its tangent/bitangent formula unchanged,
-        // verified algebraically in ADR-0027).
+        // ここからメッシュローカルのジオメトリをglTF空間からエンジン空間へ移す（ADR-0027）。単一軸の
+        // ミラーとなるため、表面の向きを保つには三角形の巻き順を反転する必要がある。
+        //（GltfAxisConversion.FlipTriangleWinding）。これはComputeTangentsの出力にも影響しない。
+        //（各三角形の最後の2つのインデックスを入れ替えても、接線／従接線の式は変わらない。
+        // ADR-0027で代数的に検証済み）。
         for(var I=0;I<Positions.Length;I++){
             Positions[I]=GltfAxisConversion.ConvertVector(Positions[I]);
             Normals[I]=GltfAxisConversion.ConvertVector(Normals[I]);
@@ -550,17 +550,17 @@ public static class GltfImporter {
         Vector4[]?RawTangents=TangentAccessor is null?null:[.. TangentAccessor.AsVector4Array()];
         Vector4[]Tangents;
         if(RawTangents is not null&&RawTangents.Length==Positions.Length&&UvTransform?.PreservesTangentFrame!=false){
-            // A source-provided TANGENT accessor is glTF-space data and must be converted
-            // explicitly (xyz direction plus a handedness-sign flip - see GltfAxisConversion.ConvertTangent).
-            // It follows the untransformed +u axis, so a rotating or mirroring UV transform re-derives it below.
+            // ソースで指定されたTANGENTアクセサーはglTF空間のデータなので、明示的に変換する。
+            //（xyz方向と、接線基底の向きを示す符号を反転。GltfAxisConversion.ConvertTangentを参照）。
+            // これは変換前の+u軸に沿う値なので、UV変換で回転またはミラーが行われた場合は下記で再導出する。
             Tangents=new Vector4[RawTangents.Length];
             for(var I=0;I<RawTangents.Length;I++){
                 Tangents[I]=GltfAxisConversion.ConvertTangent(RawTangents[I]);
             }
         } else {
-            // Synthesized directly from the already-converted (engine-space) positions/normals/uvs/
-            // indices above, so ComputeTangents derives a naturally-correct engine-space handedness
-            // sign with no separate flip needed.
+            // 上記で既に変換済みのエンジン空間の位置／法線／UV／インデックスから
+            // 直接生成するため、ComputeTangentsがエンジン空間で自然に正しい接線基底の
+            // 向きの符号を導出でき、別途反転する必要はない。
             Tangents=ComputeTangents(Positions,Normals,Uvs,Indices);
         }
 
@@ -575,8 +575,8 @@ public static class GltfImporter {
     }
 
     /// <summary>
-    /// Reads JOINTS_n/WEIGHTS_n pairs into <see cref="ImportedSkinInfluences.InfluencesPerVertex"/>
-    /// slots per source vertex and normalizes the weights. Returns null for a rigid primitive.
+    /// JOINTS_n／WEIGHTS_nの組を読み取り、ソース頂点ごとに<see cref="ImportedSkinInfluences.InfluencesPerVertex"/>
+    /// スロットへ格納してウェイトを正規化する。剛体プリミティブの場合はnullを返す。
     /// </summary>
     private static ImportedSkinInfluences?ReadInfluences(MeshPrimitive Primitive,int VertexCount,List<GltfImportDiagnostic>Diagnostics,string Context){
         const int Slots=ImportedSkinInfluences.InfluencesPerVertex;
@@ -691,9 +691,8 @@ public static class GltfImporter {
     }
 
     /// <summary>
-    /// Imports every animation of a glTF file as engine-space joint tracks (ADR-0066). Translation,
-    /// rotation and scale channels are supported; LINEAR and STEP keep their meaning, and CUBICSPLINE
-    /// keeps only its key values with a warning.
+    /// glTFファイル内のすべてのアニメーションを、エンジン空間のジョイントトラックとしてインポートする（ADR-0066）。
+    /// Translation、rotation、scale各チャンネルに対応する。LINEARとSTEPは意味を維持し、CUBICSPLINEは警告を出してキー値のみを使う。
     /// </summary>
     public static GltfAnimationImportResult ImportAnimations(string FilePath){
         ArgumentException.ThrowIfNullOrWhiteSpace(FilePath);
@@ -751,10 +750,9 @@ public static class GltfImporter {
         GltfSceneImportResult.Failed([new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Error,Message)]);
 
     /// <summary>
-    /// Per-vertex tangent generation (Lengyel's method: "Computing Tangent Space Basis Vectors for
-    /// an Arbitrary Mesh") for primitives with no TANGENT accessor. Accumulates each triangle's UV-
-    /// space tangent/bitangent onto its three vertices, then Gram-Schmidt-orthogonalizes against the
-    /// (possibly-shared) vertex normal and derives the handedness sign (w) from the bitangent.
+    /// TANGENTアクセサーがないプリミティブ向けに、頂点ごとの接線を生成する（Lengyelの手法：
+    /// 「Computing Tangent Space Basis Vectors for an Arbitrary Mesh」）。各三角形のUV空間接線／従接線を3頂点へ累積し、
+    /// 頂点法線（共有の場合もある）に対してグラム・シュミット直交化した後、従接線から基底の向きの符号（w）を求める。
     /// </summary>
     private static Vector4[]ComputeTangents(IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector2>Uvs,IReadOnlyList<uint>Indices){
         var VertexCount=Positions.Count;

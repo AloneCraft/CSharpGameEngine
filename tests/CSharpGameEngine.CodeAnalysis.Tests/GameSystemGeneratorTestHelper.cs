@@ -147,7 +147,7 @@ internal static class GameSystemGeneratorTestHelper {
     internal static CSharpCompilation CreateApplicationCompilation(IEnumerable<(string?Path,string Source)>ExtraSources)=>
         CreateCompilation(ExtraSources).WithOptions(new CSharpCompilationOptions(OutputKind.ConsoleApplication));
 
-    /// <summary>C# scene classes in the test sources reach the generator as scene JSON (<see cref="SceneTestJson"/>).</summary>
+    /// <summary>テストソースのC#シーンクラスを、ジェネレーターにシーンJSONとして渡す（<see cref="SceneTestJson"/>）。</summary>
     internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation Compilation)=>
         RunGenerator(Compilation,[]);
 
@@ -166,7 +166,7 @@ internal static class GameSystemGeneratorTestHelper {
     internal static Assembly CompileAndLoad(params string[]ExtraSources)=>
         CompileAndLoad(CreateCompilation(ExtraSources));
 
-    /// <summary>ADR-0070: the generator also reads the scene files (<c>Scenes\**\*.json</c>) among the additional files.</summary>
+    /// <summary>ADR-0070：ジェネレーターは追加ファイルの中にあるシーンファイル（<c>Scenes\**\*.json</c>）も読み込む。</summary>
     internal static Assembly CompileAndLoad(CSharpCompilation Compilation,IEnumerable<AdditionalText>AdditionalTexts){
         var (WithoutScenes,Scenes)=SceneTestJson.Move(Compilation);
         return CompileAndLoad(WithoutScenes,CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],[.. AdditionalTexts,.. Scenes],optionsProvider:SceneProjectOptions.Instance));

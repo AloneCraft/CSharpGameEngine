@@ -12,9 +12,7 @@ using SharpVectors.Renderers.Wpf;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// WPF renderer shared by hierarchy rows, the C# glyph margin, and the icon picker.  It renders
-/// Visual Studio monikers through <see cref="CrispImage"/> and project image assets through frozen
-/// WPF <see cref="ImageSource"/> values, so the same SVG/PNG has one cache entry per file version.
+/// Hierarchy の行、C# のグリフマージン、アイコンピッカーで共有する WPF レンダラー。Visual Studio のモニカーは <see cref="CrispImage"/> で、プロジェクト画像アセットは凍結された WPF <see cref="ImageSource"/> 値で描画するため、同じ SVG/PNG に対しファイルバージョンごとに 1 つのキャッシュ項目を持つ。
 /// </summary>
 public sealed class SceneVisualIconPresenter : ContentControl {
     public static readonly DependencyProperty IconProperty=DependencyProperty.Register(
@@ -86,7 +84,7 @@ public sealed class SceneVisualIconPresenter : ContentControl {
     }
 }
 
-/// <summary>File-version keyed image cache.  Invalid/missing SVG and PNG files return null safely.</summary>
+/// <summary>ファイルバージョンをキーにした画像キャッシュ。不正または欠落した SVG/PNG ファイルに対しては安全に null を返す。</summary>
 internal static class SceneProjectIconImageCache {
     private readonly struct CacheKey : IEquatable<CacheKey> {
         internal CacheKey(string Path,long LastWriteTicks){
@@ -160,8 +158,8 @@ internal static class SceneProjectIconImageCache {
                 return Image;
             }
         } catch(Exception){
-            // Hand-authored assets must never make an editor margin or hierarchy unusable.  The
-            // caller renders the standard Component moniker when decoding fails.
+            // 手作りのアセットによって、エディターのマージンや Hierarchy が使えなくなってはならない。
+            // デコードに失敗した場合、呼び出し側は標準の Component モニカーを描画する。
             return null;
         }
     }

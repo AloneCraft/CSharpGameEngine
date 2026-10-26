@@ -70,9 +70,9 @@ internal sealed class SceneDocumentSnapshot {
                 SceneDiffEngine.Compare(Previous?.Projection,Projection),HasBlockingErrors:false);
         }
 
-        // Syntax/semantic/DSL shape error during typing must not turn a useful preview into a blank
-        // window. Asset errors are handled lower in the Renderer as per-node fallbacks and therefore
-        // do not set HasBlockingErrors here.
+        // 入力中の構文、意味解析、DSL 形状のエラーによって、有用なプレビューを空の
+        // ウィンドウに変えてはいけません。アセットエラーは Renderer の下位層でノード単位の
+        // fallback として処理するため、ここでは HasBlockingErrors を設定しません。
         return new SceneDocumentSnapshot(
             Key,DocumentId,DocumentVersion,AnalysisGeneration,Model,
             Previous?.LastKnownGoodModel,Previous?.Projection,

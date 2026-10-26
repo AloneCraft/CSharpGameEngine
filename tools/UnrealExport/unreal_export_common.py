@@ -94,9 +94,9 @@ def safe_asset_stem(source_mesh_path: str, material_paths: tuple) -> str:
 
 
 PROTOTYPE_GRID_MATERIAL = "/Game/LevelPrototyping/Materials/M_PrototypeGrid"
-# MF_ProcGrid projects the R channel of T_GridChecker_A (one 512 px tile whose four borders carry a 5 px
-# wire, measured from the exported PNG) along the world axes; the wire spans 5/512 of the tile on each
-# side of a grid line. See tools/UnrealExport/inspect_prototype_grid.py and ADR-0075.
+# MF_ProcGrid は T_GridChecker_A の R channel（512 px の1 tile。4辺には PNG export 後に計測した5 px の
+# wire があります）を world 軸に沿って投影します。grid line の両側で wire は tile の5/512を占めます。
+# tools/UnrealExport/inspect_prototype_grid.py と ADR-0075 を参照。
 PROTOTYPE_GRID_WIRE_HALF_WIDTH = 5.0 / 512.0
 
 

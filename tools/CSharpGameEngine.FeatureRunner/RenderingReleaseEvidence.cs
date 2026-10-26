@@ -34,8 +34,7 @@ public sealed record RenderingReleaseReport(
     IReadOnlyList<RenderingReleaseInput>Inputs);
 
 /// <summary>
-/// Produces one Rendering-track release input for later product-wide aggregation. It binds
-/// existing Stage and performance truths without becoming a package or release manifest.
+/// 後続の製品全体の集約に使う Rendering トラックのリリース入力を 1 つ生成する。パッケージやリリースマニフェストになることなく、既存の Stage と性能の事実を結び付ける。
 /// </summary>
 public static class RenderingReleaseEvidence {
     public const string ReportSchema="csharp-game-engine-rendering-release-v1";

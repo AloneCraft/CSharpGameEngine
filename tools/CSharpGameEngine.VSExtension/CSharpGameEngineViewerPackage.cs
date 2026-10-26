@@ -14,13 +14,13 @@ using Microsoft.VisualStudio.Shell.Settings;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>
-/// VSIX shell for the engine commands, asset preview, and the ECS project startup flow.
-/// </summary>
+/// <summary>エンジンコマンド、アセットプレビュー、ECS プロジェクトの起動フローを提供する VSIX シェル。</summary>
 [PackageRegistration(UseManagedResourcesOnly=true,AllowsBackgroundLoading=true)]
 [Guid(PackageGuidString)]
 [ProvideMenuResource("Menus.ctmenu",1)]
-// Template wizards are named by simple assembly name in the vstemplates; this probing path lets VS resolve them.
+[ProvideAutoLoad(UIContextGuids80.SolutionExists,PackageAutoLoadFlags.BackgroundLoad)]
+[ProvideToolWindow(typeof(AssetsToolWindowPane),Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.Outputwindow,DockedHeight=280)]
+// vstemplates ではウィザードを単純なアセンブリ名で指定する。この探索パスで VS が解決できる。
 [ProvideBindingPath]
 [ProvideToolWindow(typeof(HierarchyToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
@@ -33,22 +33,38 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(ComponentPaletteToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=300)]
-// The Scene Editor (SceneJsonEditorFactory) is the Scene Designer's host. This tool window remains
-// registered only as a recovery path when Visual Studio cannot open the Scene Editor.
+// Scene Editor (SceneJsonEditorFactory) が Scene Designer のホストとなる。このツールウィンドウを
+// 登録するのは、Visual Studio が Scene Editor を開けない場合の復旧手段としてのみ。
 [ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=500)]
-[ProvideEditorFactory(typeof(GlbFbxPreviewEditorFactory),110,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
-[ProvideEditorLogicalView(typeof(GlbFbxPreviewEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
-[ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".glb",50)]
-[ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".gltf",50)]
-[ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".fbx",50)]
+// ダブルクリックで UE5 風の専用アセットエディターを開く(M0127)。対象拡張子は AssetEditorRegistry と同じ(テストで照合)。
+[ProvideEditorFactory(typeof(AssetEditorFactory),110,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
+[ProvideEditorLogicalView(typeof(AssetEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".glb",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".gltf",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".fbx",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".png",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".jpg",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".jpeg",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".dds",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".tga",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".hdr",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".exr",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".wav",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".ogg",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".mp3",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".flac",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".cgefont",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".ttf",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".otf",AssetEditorRegistry.ExtensionPriority)]
+[ProvideEditorExtension(typeof(AssetEditorFactory),".cgeasset",AssetEditorRegistry.ExtensionPriority)]
 [ProvideEditorFactory(typeof(ShaderGraphEditorFactory),111,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
 [ProvideEditorLogicalView(typeof(ShaderGraphEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgeshadergraph",60)]
 [ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgesubgraph",60)]
-// ADR-0071: a scene JSON (Scenes\**\*.json) opens in the Scene Editor (Design / JSON). Registered
-// for .json above the JSON editor; other JSON is declined.
+// ADR-0071：Scene Editor (Design / JSON) で開くシーン JSON (Scenes\**\*.json) を登録する。
+// 上記の JSON エディターに対して .json を関連付ける。他の JSON は対象外として開かない。
 [ProvideEditorFactory(typeof(SceneJsonEditorFactory),112,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
 [ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.TextView_string)]
@@ -58,11 +74,13 @@ namespace CSharpGameEngine.VSExtension;
 // GeneratePkgDefFile=true なので .pkgdef へ自動登録される(マニフェストの手編集は不要)。
 [ProvideOptionPage(typeof(SceneEditorOptionsPage),"C# Game Engine","Scene Editor",120,121,
     supportsAutomation:true)]
+[ProvideOptionPage(typeof(AssetEditorOptionsPage),"C# Game Engine","Asset Editors",120,123,
+    supportsAutomation:true)]
 public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     public const string PackageGuidString="aec17804-e2e4-46e7-b373-de11af816203";
 
     private ToggleFabWatchCommand?FabWatchCommand;
-    private AssetMetaWatcher?AssetMetaWatcher;
+    private AssetWorkspaceController?AssetWorkspace;
     private SceneWorkspaceService?SceneWorkspace;
     private SceneEditorSessionService?SceneSession;
     private ActiveDocumentTracker?DocumentTracker;
@@ -87,7 +105,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         await OpenSceneEditorOptionsCommand.InitializeAsync(this);
         await GameDiagnosticsCommands.InitializeAsync(this);
 
-        this.RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
+        this.RegisterEditorFactory(new AssetEditorFactory(this));
         this.RegisterEditorFactory(new ShaderGraphEditorFactory());
         this.RegisterEditorFactory(new SceneJsonEditorFactory(this));
 
@@ -96,7 +114,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
         await this.TryInitializeSceneSubsystemAsync();
 
-        this.RestartAssetMetaWatcher();
+        this.AssetWorkspace=await AssetWorkspaceController.CreateAsync(this);
+        AssetPlacement.Requested+=this.OnAssetPlacement;
         this.ExperimentalToolWindowState=new ExperimentalToolWindowState(this);
         _=this.JoinableTaskFactory.RunAsync(async()=>{
             if(await this.WaitForSolutionOpenAsync()){
@@ -127,10 +146,19 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
                 }
             }
         });
-        // Do not create this package's tool windows while AsyncPackage.InitializeAsync is still
-        // running. FindToolWindowAsync can then wait on this package's own load operation and
-        // prevent Visual Studio from completing startup. The existing Apply Game Engine Layout
-        // command remains the explicit, safe way to create the default layout.
+        // AsyncPackage.InitializeAsync の実行中は、このパッケージのツールウィンドウを作成しない。
+        // その状態で FindToolWindowAsync を呼ぶと、このパッケージ自身の読み込み処理を待ち、
+        // Visual Studio の起動を完了できなくなる場合がある。既存の Apply Game Engine Layout
+        // コマンドを使えば、明示的かつ安全に既定のレイアウトを作成できる。
+    }
+    protected override async Task OnAfterPackageLoadedAsync(CancellationToken CancellationToken){
+        await base.OnAfterPackageLoadedAsync(CancellationToken);
+        try {
+            if(this.AssetWorkspace is not null){ await this.AssetWorkspace.StartAsync(); }
+        }catch(OperationCanceledException)when(CancellationToken.IsCancellationRequested){
+        }catch(Exception Error){
+            ActivityLog.LogError(nameof(CSharpGameEngineViewerPackage),Error.ToString());
+        }
     }
     private async Task<bool>TryInitializeSceneSubsystemAsync(){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
@@ -326,9 +354,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     }
 
     /// <summary>
-    /// Returns the existing projection when <paramref name="Model"/> is already pinned, or pins the
-    /// Roslyn-derived model first. Pinning selects a source-backed scene; it does not create authoring
-    /// state, mutate source, or add an Undo unit. Reusing the projection also avoids redundant Hub updates.
+    /// <paramref name="Model"/> がすでに固定されていれば既存の投影を返す。そうでなければ Roslyn から得たモデルを先に固定する。固定操作でソースに基づくシーンを選択するが、作成状態は生成せず、ソースを変更せず、Undo 項目も追加しない。投影を再利用することで、Hub の重複更新も避ける。
     /// </summary>
     private SceneDocumentSnapshot? EnsurePinned(SceneEditorSessionService Session,SceneModel Model){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -637,8 +663,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
                 return;
             }
 
-            // Do not create or show tool windows until a solution is actually open; the presentation itself uses
-            // ShowNoActivate, so this wait is not a keyboard-focus workaround.
+            // ソリューションが実際に開くまで、ツールウィンドウを作成したり表示したりしない。表示処理自体が
+            // ShowNoActivate を使うため、この待機はキーボードフォーカス対策ではない。
             if(!await this.WaitForSolutionOpenAsync()){
                 return;
             }
@@ -651,9 +677,9 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             await GameEngineLayout.ApplyAsync(this,Dte);
             await GameEngineLayout.MarkInitialLayoutAppliedAsync(this);
         } catch(COMException){
-            // Layout is optional and must not prevent VS from starting.
+            // レイアウトは任意であり、VS の起動を妨げてはならない。
         } catch(OperationCanceledException){
-            // Package disposal while waiting for a solution is benign.
+            // ソリューションの読み込み中にパッケージを破棄しても問題はない。
         }
     }
 
@@ -696,12 +722,6 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             :null;
     }
 
-    /// <summary>Watches the Assets folder of the current game project, replacing any previous watcher.</summary>
-    private void RestartAssetMetaWatcher(){
-        this.AssetMetaWatcher?.Dispose();
-        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
-    }
-
     protected override void Dispose(bool Disposing){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Disposing){
@@ -709,7 +729,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             this.ExperimentalToolWindowState?.Capture();
             this.ExperimentalToolWindowState=null;
             this.FabWatchCommand?.Dispose();
-            this.AssetMetaWatcher?.Dispose();
+            this.AssetWorkspace?.Dispose();
+            AssetPlacement.Requested-=this.OnAssetPlacement;
             this.DocumentTracker?.Dispose();
 
             SceneEditorHub.HierarchySelectionChanged-=this.OnHierarchySelectionChanged;

@@ -4,18 +4,14 @@ using CSharpGameEngine.Numerics;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// Creates a Scene while the game runs (ADR-0078/M0105). A System takes a <c>Spawner</c> as an argument and writes
-/// <c>Spawner.Spawn&lt;CursorMarker&gt;(Hit.Point)</c>: <c>CursorMarker</c> is a scene of the game (<c>Scenes/CursorMarker.json</c>), and the call is
-/// checked when the game is built, because only a Scene whose root has a <see cref="Transform"/> can be named (<see cref="ISpawnableScene"/>).
-/// <para>
-/// The Scene appears at the end of the frame the call was made in (the requests are carried out by <see cref="SpawnerFlush"/> through the
-/// structural command queue, which is the only safe way to create Entities from a System), and is drawn from the next frame. The root's
-/// position is replaced by the one given; its rotation and scale stay as the Scene says unless a rotation is given too. The children keep
-/// their positions relative to the root. Spawning the same Scene again gives an independent copy.
-/// </para>
-/// <para>
-/// A Scene with physics bodies should not be alive twice at once: its <c>PhysicsStableId</c>s come from the Scene's definition, so two copies share them.
-/// </para>
+/// ゲーム実行中に Scene を生成する（ADR-0078/M0105）。System は <c>Spawner</c> を引数に取り、
+/// <c>Spawner.Spawn&lt;CursorMarker&gt;(Hit.Point)</c> のように呼び出す。<c>CursorMarker</c> はゲームのシーン（
+/// <c>Scenes/CursorMarker.json</c>）であり、名前に指定できるのはルートに <see cref="Transform"/> を持つ Scene だけなので、呼び出しはビルド時
+/// に検証する（<see cref="ISpawnableScene"/>）。<para>呼び出しを行ったフレームの末尾にシーンを出現させる。リクエストは
+/// <see cref="SpawnerFlush"/> が構造変更コマンドキューを通して処理する。System から Entity を作成する安全な方法はこのキューだけである。Scene の描画は次の
+/// フレームから始める。ルートの位置は指定された値に置き換える。回転を指定しない場合は Scene の回転とスケールを維持し、指定した場合は回転も置き換える。子はルートに対する相対位置を保つ。同じ
+/// Scene を再度生成すると独立したコピーになる。</para><para>物理ボディを持つ Scene を同時に複数生成してはならない。<c>PhysicsStableId</c> は Scene
+/// の定義から取得するため、コピー同士で重複する。</para>
 /// </summary>
 [EngineService]
 public sealed class Spawner {
@@ -27,17 +23,17 @@ public sealed class Spawner {
             HasRotation?TScene.InstantiateDeferredAt(ref World,Position,Rotation):TScene.InstantiateDeferredAt(ref World,Position);
     }
     private readonly List<Request>Pending=[];
-    /// <summary>How many Scenes are waiting for the end of the frame.</summary>
+    /// <summary>フレーム末尾の処理を待つ Scene の数。</summary>
     public int PendingCount=>this.Pending.Count;
-    /// <summary>Asks for a copy of <typeparamref name="TScene"/> with its root at <paramref name="Position"/>.</summary>
+    /// <summary>ルートを <paramref name="Position"/> に配置した <typeparamref name="TScene"/> のコピーを要求する。</summary>
     public void Spawn<TScene>(LogicalVector3 Position)where TScene:ISpawnableScene=>
         this.Pending.Add(new Request(Placer<TScene>.Run,Position,default,false));
-    /// <summary>The same, with the root turned to <paramref name="Rotation"/>.</summary>
+    /// <summary>同様に、ルートを <paramref name="Rotation"/> に向けたコピーを要求する。</summary>
     public void Spawn<TScene>(LogicalVector3 Position,LogicalQuaternion Rotation)where TScene:ISpawnableScene=>
         this.Pending.Add(new Request(Placer<TScene>.Run,Position,Rotation,true));
     /// <summary>
-    /// Queues every requested Scene into <paramref name="World"/>'s command buffer and forgets the requests. Returns how many.
-    /// <paramref name="Created"/>, if given, receives the handle of each Scene (usable once the frame's structural changes are played back).
+    /// 要求されたすべての Scene を <paramref name="World"/> のコマンドバッファに追加し、要求を消去する。処理件数を返す。<paramref name="Created"/>
+    /// を指定した場合は、各 Scene のハンドルを格納する（フレームの構造変更が再生された後に使用できる）。
     /// </summary>
     public int Flush(ref EcsWorld World,ICollection<SceneInstance>?Created=null){
         var Count=this.Pending.Count;
@@ -52,7 +48,7 @@ public sealed class Spawner {
         return Count;
     }
 }
-/// <summary>ADR-0078/M0105: carries out the Scenes the game asked its <see cref="Spawner"/> for, once per frame after everything else.</summary>
+/// <summary>ゲームが <see cref="Spawner"/> に要求した Scene を、他のすべての処理の後、フレームごとに一度生成する（ADR-0078/M0105）。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(Present))]
 internal struct SpawnerFlush:ISystem {

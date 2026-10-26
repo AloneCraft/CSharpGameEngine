@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 namespace CSharpGameEngine.Entities;
-/// <summary>Local fixed-point bounds that opt an Entity into World global spatial synchronization.</summary>
+/// <summary>EntityをWorldのグローバル空間同期へ参加させる、ローカルの固定小数点境界。</summary>
 [SceneComponentOrder(SceneComponentCategory.Spatial,30)]
 public struct SpatialBounds {
     public LogicalVector3 Center;
     public LogicalVector3 HalfExtents;
     public SpatialLayer Layer;
 
-    /// <summary>Deterministic unit cube bounds used by generated sample render entities.</summary>
+    /// <summary>生成されたサンプル描画Entityに使う、決定的な単位立方体の境界。</summary>
     public static SpatialBounds UnitCube=>new() {
         Center=LogicalVector3.Zero,
         HalfExtents=new LogicalVector3(
@@ -18,9 +18,9 @@ public struct SpatialBounds {
         Layer=new SpatialLayer(0),
     };
 }
-/// <summary>A single spatial layer. The default value is layer zero.</summary>
+/// <summary>空間レイヤーを1つ表す。既定値はレイヤー0。</summary>
 public readonly record struct SpatialLayer(byte Value);
-/// <summary>Bit mask used to select one or more spatial layers during a query.</summary>
+/// <summary>クエリ対象の空間レイヤーを1つ以上選択するビットマスク。</summary>
 public readonly struct SpatialLayerMask(ulong Value) {
     public ulong Value { get; }=Value;
     public static SpatialLayerMask None=>default;
@@ -30,7 +30,7 @@ public readonly struct SpatialLayerMask(ulong Value) {
     public bool Contains(SpatialLayer Layer)=>(this.Value&(1UL<<Layer.Value))!=0;
     public static SpatialLayerMask operator |(SpatialLayerMask Left,SpatialLayerMask Right)=>new(Left.Value|Right.Value);
 }
-/// <summary>An axis-aligned world-space fixed-point bounding box.</summary>
+/// <summary>ワールド空間の軸平行な固定小数点境界ボックス。</summary>
 public readonly struct SpatialAabb(LogicalVector3 Min,LogicalVector3 Max) {
     public LogicalVector3 Min { get; }=Min;
     public LogicalVector3 Max { get; }=Max;
@@ -55,7 +55,7 @@ public readonly struct SpatialAabb(LogicalVector3 Min,LogicalVector3 Max) {
     public bool Intersects(in SpatialAabb Other)=>this.Min.R<=Other.Max.R&&this.Max.R>=Other.Min.R
         &&this.Min.U<=Other.Max.U&&this.Max.U>=Other.Min.U&&this.Min.F<=Other.Max.F&&this.Max.F>=Other.Min.F;
 }
-/// <summary>A fixed-point sphere query volume.</summary>
+/// <summary>固定小数点で表す球形のクエリ領域。</summary>
 public readonly struct SpatialSphere(LogicalVector3 Center,LogicalScalar Radius) {
     public LogicalVector3 Center { get; }=Center;
     public LogicalScalar Radius { get; }=Radius;
@@ -68,7 +68,7 @@ public readonly struct SpatialSphere(LogicalVector3 Center,LogicalScalar Radius)
         return true;
     }
 }
-/// <summary>A normalized fixed-point ray with a non-negative maximum distance.</summary>
+/// <summary>最大距離が0以上の、正規化済み固定小数点レイ。</summary>
 public readonly struct SpatialRay(LogicalVector3 Origin,LogicalVector3 Direction,LogicalScalar MaxDistance) {
     public LogicalVector3 Origin { get; }=Origin;
     public LogicalVector3 Direction { get; }=Direction;
@@ -82,9 +82,9 @@ public readonly struct SpatialRay(LogicalVector3 Origin,LogicalVector3 Direction
         return true;
     }
 }
-/// <summary>An Entity candidate hit by a spatial ray.</summary>
+/// <summary>空間レイにヒットしたEntityの候補。</summary>
 public readonly record struct SpatialRayHit(Entity Entity,LogicalScalar Distance);
-/// <summary>Read-only description of one octree cell for diagnostics and visualization.</summary>
+/// <summary>診断と可視化に使う、オクトリーセル1つ分の読み取り専用説明。</summary>
 public readonly record struct SpatialDebugNode(SpatialAabb Bounds,int Depth,int EntryCount,bool IsRoot);
 public enum SpatialQueryStatus {
     Success,
@@ -97,7 +97,7 @@ public enum SpatialUpdateStatus {
     InvalidInput,
     NumericOverflow,
 }
-/// <summary>Read-only contract shared by global and system-owned Entity spatial indices.</summary>
+/// <summary>グローバルとシステム所有のEntity空間インデックスで共有する、読み取り専用コントラクト。</summary>
 public interface IReadOnlyEntitySpatialIndex {
     int Count { get; }
     bool TryGetBounds(Entity Entity,out SpatialAabb Bounds,out SpatialLayer Layer);
@@ -106,14 +106,14 @@ public interface IReadOnlyEntitySpatialIndex {
     SpatialQueryResult QuerySphere(in SpatialSphere Sphere,SpatialLayerMask Layers,List<Entity> Results);
     SpatialQueryResult QueryRay(in SpatialRay Ray,SpatialLayerMask Layers,List<SpatialRayHit> Results);
 }
-/// <summary>Mutable contract for independently-owned Entity spatial indices.</summary>
+/// <summary>独立所有のEntity空間インデックスが実装する、変更可能なコントラクト。</summary>
 public interface IEntitySpatialIndex:IReadOnlyEntitySpatialIndex {
     SpatialUpdateStatus Upsert(Entity Entity,in SpatialAabb Bounds,SpatialLayer Layer);
     bool Remove(Entity Entity);
     void Clear();
     void Compact();
 }
-/// <summary>Validated loose-octree tuning values for a system-owned index.</summary>
+/// <summary>システム所有インデックス用に検証された、ルーズオクトリーの調整値。</summary>
 public readonly struct SpatialIndexSettings(int NodeCapacity,int MaxDepth,LogicalScalar Looseness,LogicalScalar MinimumRootHalfExtent) {
     public int NodeCapacity { get; }=NodeCapacity;
     public int MaxDepth { get; }=MaxDepth;
@@ -123,8 +123,8 @@ public readonly struct SpatialIndexSettings(int NodeCapacity,int MaxDepth,Logica
     internal bool IsValid=>this.NodeCapacity>0&&this.MaxDepth>=0&&this.Looseness>=LogicalScalar.One&&this.MinimumRootHalfExtent>LogicalScalar.Zero;
 }
 /// <summary>
-/// Dynamic loose octree with a single proxy for each Entity. It is deliberately single-writer;
-/// callers must not query it concurrently with Upsert, Remove, Clear, or Compact.
+/// Entityごとにプロキシを1つだけ持つ動的ルーズオクトリー。書き込みは単一スレッドに限定する。
+/// Upsert、Remove、Clear、Compactと並行してクエリを実行してはならない。
 /// </summary>
 public sealed class EntityLooseOctree:IEntitySpatialIndex {
     private sealed class Entry(Entity Entity,SpatialAabb Bounds,SpatialLayer Layer) {
@@ -155,7 +155,7 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
         }
         this.Settings=Settings;
     }
-    public int Count=>this.EntriesByEntity.Count;    /// <summary>Appends the root and every non-empty descendant without allocating.</summary>
+    public int Count=>this.EntriesByEntity.Count;    /// <summary>割り当てを行わず、ルートと空でないすべての子孫を追加する。</summary>
     public int CollectDebugNodes(List<SpatialDebugNode>Results){
         if(Results is null){
             throw new ArgumentNullException(nameof(Results));

@@ -24,9 +24,7 @@ internal static class SceneTextChangePlanner {
             .ToArray();
 
     /// <summary>
-    /// The one change between two unrelated texts that leaves their common start and end alone, for a scene JSON
-    /// write-back: its text merge (M0095) already changes only the edited values, but <see cref="Plan(SourceText,SourceText)"/>
-    /// replaced the whole document on every edit. A boundary never splits a CRLF or a surrogate pair.
+    /// シーン JSON の書き戻しにおいて、共通する開始位置と終了位置を維持しながら、無関係な 2 つのテキスト間で行う 1 つの変更。テキストのマージ (M0095) はすでに編集値だけを変更しているが、<see cref="Plan(SourceText,SourceText)"/> は編集のたびにドキュメント全体を置換していた。境界が CRLF やサロゲートペアの途中になることはない。
     /// </summary>
     internal static IReadOnlyList<TextChange>PlanMinimal(SourceText Before,string After){
         var Old=Before.ToString();

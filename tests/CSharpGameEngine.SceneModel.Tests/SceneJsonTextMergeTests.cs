@@ -4,8 +4,7 @@ using Xunit;
 namespace CSharpGameEngine.SceneAnalysis.Tests;
 
 /// <summary>
-/// M0095 3-5: an edit is written into the author's text. Only changed values change; the author's layout
-/// and number spellings stay, and the result always reads as the edited document.
+/// M0095 3-5：編集内容を作成者のテキストへ反映する。変更された値だけを変更し、作成者のレイアウトと数値表記を維持する。結果は常に編集後のドキュメントとして読み込める。
 /// </summary>
 public sealed class SceneJsonTextMergeTests {
     private const string HandFormatted="{\n  \"className\":\"Main\",\n  \"root\": { \"components\": [ {\"type\": \"T\", \"members\": { \"X\":1.0, \"Y\": 2 } } ],\n    \"children\": [] }\n}\n";
@@ -38,8 +37,7 @@ public sealed class SceneJsonTextMergeTests {
     }
 
     /// <summary>
-    /// Key order is the author's layout. Objects were compared by their keys in order, so an author's order other than
-    /// the canonical one made every edit rewrite that object (a whole node with its children) in canonical form.
+    /// キーの順序は作成者のレイアウトを表す。オブジェクトをキー順に比較していたため、作成者が標準とは異なる順序を使うと、編集のたびにそのオブジェクト（子要素を含むノード全体）が標準形式で書き直されていた。
     /// </summary>
     [Fact]
     public void ReorderedProperties_KeepTheAuthorsOrder(){
@@ -49,7 +47,7 @@ public sealed class SceneJsonTextMergeTests {
         Assert.Equal(HandFormatted.Replace("\"Y\": 2","\"Y\": 5"),SceneJsonTextMerge.Merge(HandFormatted,Moved));
     }
 
-    /// <summary>A node's empty components or children and a component's empty members read the same left out, so they stay out.</summary>
+    /// <summary>ノードの空のコンポーネントや子要素、コンポーネントの空のメンバーは、同じく除外して読み込まれるため、そのまま除外しておく。</summary>
     [Fact]
     public void EmptyListsTheAuthorLeftOut_StayOut(){
         const string Old="{\n  \"root\": {\n    \"name\": \"Root\",\n    \"children\": [ { \"name\": \"Leaf\", \"components\": [ { \"type\": \"T\" } ] } ]\n  }\n}\n";
@@ -59,8 +57,7 @@ public sealed class SceneJsonTextMergeTests {
     }
 
     /// <summary>
-    /// A key the new document adds is one inserted property, after the nearest key before it that the old text has and
-    /// with the author's spacing, not a canonical rewrite of the object. Inside members an empty list is a value.
+    /// 新しいドキュメントが追加するキーは、旧テキスト内で最も近い直前のキーの後に、作成者の空白を保って挿入する 1 つのプロパティであり、オブジェクト全体を標準形式で書き換えない。メンバー内では空のリストも値となる。
     /// </summary>
     [Fact]
     public void AddedKey_IsInsertedWithTheAuthorsSpacing(){

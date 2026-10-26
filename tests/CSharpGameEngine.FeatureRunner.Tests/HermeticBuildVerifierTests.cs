@@ -23,9 +23,9 @@ public sealed class HermeticBuildVerifierTests {
         HermeticBuildCommand Restore=Plan.Commands[0];
         Assert.Contains("--packages",Restore.Arguments);
         Assert.Contains(Plan.PackageRoot,Restore.Arguments);
-        // Nested restores during the build (tools the build runs) must use the same isolated folder.
+        // ビルド中の入れ子の復元（ビルドが実行するツール）も、同じ隔離フォルダーを使わなければならない。
         Assert.Equal(Plan.PackageRoot,Plan.Environment["NUGET_PACKAGES"]);
-        // The root starts empty; a Rebuild would clean tools that projects built for their own use (AUD-004).
+        // ルートは空の状態で始める。Rebuild では、各プロジェクトが自身の用途でビルドしたツールまで消去してしまう (AUD-004)。
         Assert.All(Plan.Commands.Where(Command=>Command.Phase.StartsWith("build",StringComparison.Ordinal)),
             Command=>Assert.DoesNotContain("--no-incremental",Command.Arguments));
         Assert.All(Plan.Commands.Where(Command=>Command.Phase.StartsWith("test",StringComparison.Ordinal)),
@@ -39,8 +39,8 @@ public sealed class HermeticBuildVerifierTests {
 
         HermeticBuildPlan Plan=HermeticBuildPlan.Create(RepositoryRoot);
 
-        // The VSIX zips Bridges\<project>\<project>.runtimeconfig.json about 110 characters below the artifacts root;
-        // a 32-character run ID pushed it past MAX_PATH for a checkout only 40 characters deep.
+        // VSIX は Bridges\<project>\<project>.runtimeconfig.json を成果物ルートから約 110 文字下に圧縮する。
+        // 32 文字の実行 ID によって、チェックアウトの深さがわずか 40 文字でも MAX_PATH を超えた。
         Assert.True(Plan.ArtifactRoot.Length-Plan.RepositoryRoot.Length<=50,Plan.ArtifactRoot);
     }
 }

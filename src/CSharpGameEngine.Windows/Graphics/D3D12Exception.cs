@@ -2,7 +2,7 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.Backend;
 namespace CSharpGameEngine.Graphics.D3D12;
 
-/// <summary>A native D3D12/DXGI call failed. Carries the failing API name and HRESULT for diagnostics.</summary>
+/// <summary>ネイティブ D3D12 / DXGI 呼び出しの失敗。失敗した API 名と診断用 HRESULT を保持する。</summary>
 public sealed class D3D12Exception:RenderBackendFailureException {
     public D3D12Exception(string Api,int Hresult,string Context,string?Subject=null)
         :base(Api,Hresult,FormatMessage(Api,Hresult,Context,Subject),RecoveryReasonFor(Hresult)){

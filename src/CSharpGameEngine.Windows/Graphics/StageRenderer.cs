@@ -44,7 +44,12 @@ using static TerraFX.Interop.Windows.Windows;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
-/// <summary>One procedural or imported mesh plus its solid base color, for the legacy (pre-ADR-0018) untextured API. Kept only as an input shape for <see cref="StageRenderer.Create(nint, int, int, GraphicsDeviceOptions, string, IReadOnlyList{MeshCreateInfo})"/>, which adapts it into one <see cref="StageMeshCreateInfo"/>+<see cref="StageMaterialCreateInfo"/>+<see cref="StageObjectCreateInfo"/> triple per entry.</summary>
+/// <summary>
+/// 従来方式（ADR-0018以前）の非テクスチャAPI用。ソリッドなベースカラーを持つ、プロシージャルまたはインポート済みメッシュ1つ。
+/// <see cref="StageRenderer.Create(nint, int, int, GraphicsDeviceOptions, string, IReadOnlyList{MeshCreateInfo})"/>
+/// の入力形状としてのみ残し、各項目を<see cref="StageMeshCreateInfo"/>＋<see cref="StageMaterialCreateInfo"/>＋
+/// <see cref="StageObjectCreateInfo"/>の組へ変換する。
+/// </summary>
 public readonly struct MeshCreateInfo {
     public required IReadOnlyList<Vector3>Positions { get; init;}
     public required IReadOnlyList<Vector3>Normals { get; init;}
@@ -53,9 +58,8 @@ public readonly struct MeshCreateInfo {
 }
 
 /// <summary>
-/// Renders textured, transformed meshes through the native logarithmic Stage pipeline, with
-/// physical lighting, shadows, environment effects and presentation. One owner manages the
-/// swap chain, frame resources, hot reload and resize for imported and procedural geometry.
+/// テクスチャ付きメッシュを変換してネイティブの対数Stageパイプラインで描画する。物理ライティング、影、環境効果、プレゼンテーションに対応する。
+/// 単一の所有者が、インポート済み／プロシージャルジオメトリのスワップチェーン、フレームリソース、ホットリロード、リサイズを管理する。
 /// </summary>
 public sealed unsafe partial class StageRenderer:IDisposable {
     public const int FrameCount=2;
@@ -65,13 +69,13 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private const DXGI_FORMAT HdrColorFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT MaterialTextureFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
     /// <summary>
-    /// Material textures are typeless so one resident texture can be read through the view its slot
-    /// requires: glTF base colour and emissive are sRGB-encoded, normal and metallic-roughness are linear.
+    /// マテリアルのテクスチャは型なしで確保し、各スロットに必要なビューから同じ常駐テクスチャを読み取れるようにする。
+    /// glTFのベースカラーと発光はsRGBエンコード、法線とmetallic-roughnessはリニア値である。
     /// </summary>
     private const DXGI_FORMAT MaterialTextureResourceFormat=DXGI_FORMAT_R8G8B8A8_TYPELESS;
     private const DXGI_FORMAT MaterialColorTextureViewFormat=DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     private const float GltfImportEmissiveDefaultNits=100f;
-    /// <summary>The material sampler's anisotropy (M0110; Unreal's r.MaxAnisotropy default).</summary>
+    /// <summary>マテリアルサンプラーの異方性（M0110、Unrealのr.MaxAnisotropy既定値）。</summary>
     internal const uint MaterialMaxAnisotropy=8;
     private const DXGI_FORMAT ShadowAtlasResourceFormat=DXGI_FORMAT_R32_TYPELESS;
     private const DXGI_FORMAT ShadowAtlasDsvFormat=DXGI_FORMAT_D32_FLOAT;
@@ -80,53 +84,53 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     public const int ShadowAtlasTileSizePixels=PhysicalShadowAtlasPlan.TileSizePixels;
     public const int DirectionalShadowAtlasTileIndex=PhysicalShadowAtlasPlan.DirectionalTileIndex;
 
-    /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
+    /// <summary>D3D12の定数バッファビューは256バイト境界にそろったGPUアドレスから始める必要がある。</summary>
     private const uint ConstantAlignment=512;
 
-    /// <summary>Maximum additive directional lights accepted per frame. Must match Stage shader ABI.</summary>
+    /// <summary>1フレームに受け付ける加算式ディレクショナルライトの最大数。StageシェーダーのABIと一致させる。</summary>
     public const int MaxDirectionalLights=4;
 
-    /// <summary>Maximum local lights accepted per frame across point and spot submissions.</summary>
+    /// <summary>ポイントライトとスポットライトの送信を合わせた、1フレームに受け付けるローカルライトの最大数。</summary>
     public const int MaxLocalLights=1024;
     public const int MaxOverlayVertices=32_768;
-    /// <summary>Line vertices of the centre-camera marker drawn over one observer preview (M0099): a frustum of 8 lines.</summary>
+    /// <summary>観測者プレビューの上に描画する中央カメラマーカーの線頂点（M0099）。8本の線からなる視錐台。</summary>
     private const int ObserverMarkerVertexCount=16;
-    /// <summary>Overlay vertices per frame slot: the caller's overlay, then one marker per camera preview.</summary>
+    /// <summary>フレームスロットごとのオーバーレイ頂点数。呼び出し側のオーバーレイに、カメラプレビューごとに1つのマーカーを加える。</summary>
     private const int OverlayFrameVertexCapacity=MaxOverlayVertices+ObserverMarkerVertexCount*RenderCameraPreview.MaximumCount;
 
-    /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
+    /// <summary>ソース互換性のため残している従来の公開上限。現在はポイントライトとスポットライトで1024ライトのStructuredBufferを共有する。</summary>
     public const int MaxPointLights=MaxLocalLights;
 
-    /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
+    /// <summary>ソース互換性のため残している従来の公開上限。現在はポイントライトとスポットライトで1024ライトのStructuredBufferを共有する。</summary>
     public const int MaxSpotLights=MaxLocalLights;
 
-    /// <summary>Forward+ screen-space tile edge length in physical pixels.</summary>
+    /// <summary>Forward+のスクリーンスペースタイルの1辺の長さ（物理ピクセル）。</summary>
     public const int ForwardPlusTileSizePixels=16;
 
-    /// <summary>Maximum local-light candidates evaluated by one Forward+ tile.</summary>
+    /// <summary>Forward+の各タイルが評価するローカルライト候補の最大数。</summary>
     public const int MaxLightsPerForwardPlusTile=64;
 
-    /// <summary>Six 90-degree projections for the one physical Point caster selected by the atlas plan.</summary>
+    /// <summary>アトラス計画が選んだ物理Pointライト1つに用いる、90度の投影6面。</summary>
     public const int MaxPointShadowProjections=
         PhysicalShadowAtlasPlan.PointLightBudget*PhysicalShadowAtlasPlan.PointTilesPerLight;
 
-    /// <summary>Maximum projected spot-light casters selected by the physical atlas plan.</summary>
+    /// <summary>物理アトラス計画で選択する、投影対象スポットライトの最大数。</summary>
     public const int MaxSpotShadowProjections=PhysicalShadowAtlasPlan.SpotTileBudget;
 
-    /// <summary>Maximum projected Area/Emissive casters sharing the physical atlas budget.</summary>
+    /// <summary>物理アトラス予算を共有する、投影対象Area／Emissiveライトの最大数。</summary>
     public const int MaxAreaAndEmissiveShadowProjections=
         PhysicalShadowAtlasPlan.AreaAndEmissiveTileBudget;
 
-    private const uint DirectionalLightStride=32; // 2 float4 - see Stage shader ABI's DirectionalLightData
-    private const uint LocalLightStride=96; // 6 float4 - see Stage shader ABI's LocalLightData
-    private const uint PointShadowProjectionStride=80; // float4x4 + float4 - see Stage shader ABI
-    private const uint SpotShadowProjectionStride=80; // float4x4 + float4 - see Stage shader ABI
-    private const uint AreaShadowMetadataStride=16; // one float4 - see Stage shader ABI
-    private const uint AreaShadowProjectionStride=80; // float4x4 + float4 - see Stage shader ABI
+    private const uint DirectionalLightStride=32; // float4を2つ。StageシェーダーABIのDirectionalLightDataを参照。
+    private const uint LocalLightStride=96; // float4を6つ。StageシェーダーABIのLocalLightDataを参照。
+    private const uint PointShadowProjectionStride=80; // float4x4とfloat4。StageシェーダーABIを参照。
+    private const uint SpotShadowProjectionStride=80; // float4x4とfloat4。StageシェーダーABIを参照。
+    private const uint AreaShadowMetadataStride=16; // float4を1つ。StageシェーダーABIを参照。
+    private const uint AreaShadowProjectionStride=80; // float4x4とfloat4。StageシェーダーABIを参照。
     private const int PointShadowProjectionConstantSlotOffset=1+MaxSpotShadowProjections;
     private const int AreaShadowProjectionConstantSlotOffset=
         PointShadowProjectionConstantSlotOffset+MaxPointShadowProjections;
-    /// <summary>Cascade 0 keeps slot 0; cascades 1-3 follow every local-light projection slot.</summary>
+    /// <summary>Cascade 0はslot 0を使う。Cascade 1～3は各ローカルライト投影スロットの後に続く。</summary>
     private const int CascadeShadowConstantSlotOffset=
         AreaShadowProjectionConstantSlotOffset+MaxAreaAndEmissiveShadowProjections;
     private const int ShadowAtlasProjectionConstantSlotCount=
@@ -143,11 +147,13 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     /// </summary>
     private static readonly uint FrameConstantsStride=((FrameConstantsSize+255u)/256u)*256u;
 
-    // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
-    // empty-scene background stable across the new post-process pass while geometry still benefits
-    // from HDR lighting and bloom.
+    // HDRクリア値には、公開されるLDRのClearColorに対応する逆ACES値を使う。これにより、
+    // 新しいポストプロセスパスでも空シーンの背景を安定させつつ、ジオメトリには
+    // HDRライティングとブルームの利点を保てる。
     private static readonly Vector4 ClearColorVector=StageRenderDefaults.HdrClearColor;
     public static readonly PixelColor ClearColor=StageRenderDefaults.ClearColor;
+    /// <summary>メインパスとカメラプレビューのクリア色。環境設定に背景色があればそれを、なければ従来の <see cref="ClearColorVector"/> を使う（インスタンスごとに独立する）。</summary>
+    private Vector4 BackgroundClearVector=>this.EnvironmentSettings.Background is{ }Color?StageRenderDefaults.HdrFromDisplay(Color):ClearColorVector;
 
     private static readonly Vector3 DefaultLightDirectionTowardLight=Vector3.Normalize(new Vector3(0.4f,0.7f,0.5f));
     private static readonly ShadowAtlasTile DirectionalShadowAtlasTile=
@@ -173,7 +179,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         Area,
     }
 
-    /// <summary>Deferred directional submission used to rank direct lighting independently of shadow priority.</summary>
+    /// <summary>シャドウ優先度とは独立して直接照明を順位付けする、遅延ディレクショナルライト送信データ。</summary>
     private readonly struct DirectionalLightSubmission(
         Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,bool CastsShadows,
         int ShadowPriority,float ShadowBiasMeters,int StableSubmissionOrder) {
@@ -190,7 +196,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         public float ScreenContribution { get; }=ScreenContribution;
     }
 
-    /// <summary>CPU-side deferred local-light submission. Ranking is finalized once the camera for the frame is known.</summary>
+    /// <summary>CPU側に保持する遅延ローカルライト送信データ。フレームのカメラが確定してから一度だけ順位を決める。</summary>
     private readonly struct LocalLightSubmission(
         LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
         Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
@@ -229,7 +235,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         public float ScreenContribution { get; }=ScreenContribution;
     }
 
-    /// <summary>Matches Stage shader ABI's 6-float4 LocalLightData exactly.</summary>
+    /// <summary>StageシェーダーABIの6要素float4 LocalLightDataと完全に一致する。</summary>
     private struct LocalLightGpuData {
         public Vector4 PositionAndRange;
         public Vector4 DirectionAndInnerCos;
@@ -239,30 +245,30 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         public Vector4 UpAndHalfHeight;
     }
 
-    /// <summary>Matches Stage shader ABI's matrix + PhysicalShadowAtlasPlan UV rectangle record for a Point face.</summary>
+    /// <summary>Pointライトの各面に使う、行列とPhysicalShadowAtlasPlanのUV矩形レコード。StageシェーダーABIと一致する。</summary>
     private struct PointShadowProjectionGpuData {
         public Matrix4x4 ViewProjection;
         public Vector4 UvScaleOffset;
     }
 
-    /// <summary>Matches Stage shader ABI's matrix + PhysicalShadowAtlasPlan UV rectangle record.</summary>
+    /// <summary>行列とPhysicalShadowAtlasPlanのUV矩形レコード。StageシェーダーABIと一致する。</summary>
     private struct SpotShadowProjectionGpuData {
         public Matrix4x4 ViewProjection;
         public Vector4 UvScaleOffset;
     }
 
-    /// <summary>Matches Stage shader ABI's Area/Emissive PCSS source radius and clip-distance record at t9.</summary>
+    /// <summary>t9にあるArea／Emissive用PCSSの光源半径とクリップ距離レコード。StageシェーダーABIと一致する。</summary>
     private struct AreaShadowMetadataGpuData {
         public Vector4 SourceRadiusAndPadding;
     }
 
-    /// <summary>Matches Stage shader ABI's independent Area/Emissive center-projection record at t10.</summary>
+    /// <summary>t10にあるArea／Emissive用の独立した中心投影レコード。StageシェーダーABIと一致する。</summary>
     private struct AreaShadowProjectionGpuData {
         public Matrix4x4 ViewProjection;
         public Vector4 UvScaleOffset;
     }
 
-    /// <summary>One atlas projection render target and its shadow-only constant-buffer slot.</summary>
+    /// <summary>アトラス投影1面分のレンダーターゲットと、シャドウ専用定数バッファのスロット。</summary>
     private readonly struct ShadowAtlasProjection(ShadowAtlasTile Tile,int ShadowConstantsSlot) {
         public ShadowAtlasTile Tile { get; }=Tile;
         public int ShadowConstantsSlot { get; }=ShadowConstantsSlot;
@@ -320,12 +326,12 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private Vector3 AtmosphereSunDirection=Vector3.UnitY;
     private Vector3 CurrentCameraPosition;
     private RenderViewDepth CurrentViewDepth=RenderViewDepth.ForOrthographic(Matrix4x4.Identity);
-    /// <summary>The camera's rotation with the radial projection's finite auxiliary planes (radial mode only).</summary>
+    /// <summary>カメラの回転と、放射状投影用の有限な補助平面（放射状モードのみ）。</summary>
     private Matrix4x4 CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
-    /// <summary>The radial main pass's view-projection: the camera's, with the conservative depth row (radial mode only).</summary>
-    /// <summary>The camera basis and field of view of the last <see cref="SetCamera"/>, for observer markers.</summary>
+    /// <summary>放射状メインパスのビュー投影。カメラの投影に保守的な深度行を加える（放射状モードのみ）。</summary>
+    /// <summary>最後の<see cref="SetCamera"/>で設定したカメラ基底と視野角。観測者マーカーに使う。</summary>
     private bool HasCameraBasis;
-    /// <summary>Test-only GPU timestamps around the main pass's draws (performance evidence); null unless enabled.</summary>
+    /// <summary>メインパスの描画前後で取得するテスト専用GPUタイムスタンプ（性能の証拠）。有効化されていなければnull。</summary>
     private ID3D12QueryHeap*MainPassTimestampHeap;
     private ID3D12Resource*MainPassTimestampReadback;
     private ulong MainPassTimestampFrequency;
@@ -346,7 +352,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private byte[]OverlayPixelShaderBytecode=[];
     private byte[]ObserverVertexShaderBytecode=[];
 
-    // Per-mesh (indexed by meshIndex).
+    // メッシュ単位（meshIndexでインデックス化）。
     private int MeshCount;
     private ID3D12Resource*[]VertexBuffers=[];
     private D3D12_VERTEX_BUFFER_VIEW[]VertexBufferViews=[];
@@ -354,13 +360,16 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private D3D12_INDEX_BUFFER_VIEW[]IndexBufferViews=[];
     private uint[]IndexCounts=[];
 
-    // Per-material (indexed by materialIndex). Four material textures plus one shared shadow SRV.
+    // マテリアル単位（materialIndexでインデックス化）。4つのマテリアルテクスチャと共有シャドウSRVを持つ。
     private int MaterialCount;
-    /// <summary>The materials the descriptor heap has room for: the created ones plus <see cref="DynamicMaterialHeadroom"/> that <see cref="AddMaterial"/> can fill later (M0105).</summary>
+    /// <summary>
+    /// ディスクリプタヒープが収容できるマテリアル数。作成済みのものに<see cref="DynamicMaterialHeadroom"/>を加えた容量で、後から
+    /// <see cref="AddMaterial"/>で追加できる（M0105）。
+    /// </summary>
     private int MaterialCapacity;
     private ID3D12Resource*[]MaterialTextures=[];
     private readonly List<nint>OwnedMaterialTextures=[];
-    /// <summary>Material textures by content and colour space (M0110: an sRGB and a linear use of the same texels average their mips differently).</summary>
+    /// <summary>コンテンツと色空間ごとのマテリアルテクスチャ（M0110：同じテクセルでもsRGBとリニアではミップの平均が異なる）。</summary>
     private readonly Dictionary<(Hash256 Hash,RenderTextureColorSpace ColorSpace),nint>ResidentTextures=[];
     private ID3D12DescriptorHeap*SrvHeap;
     private uint SrvDescriptorSize;
@@ -371,20 +380,20 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private StageWorldGrid?[]MaterialWorldGrids=[];
     private Vector3[]MaterialWorldGridAnchors=[];
 
-    // Per-object (indexed by objectIndex). ObjectCount is the number of slots handed out so far (a removed object leaves its slot
-    // free for the next AddObject); ObjectCapacity is how many the constant buffer has room for (M0105).
+    // オブジェクト単位（objectIndexでインデックス化）。ObjectCountはこれまで割り当てたスロット数。オブジェクトを削除するとそのスロットは
+    // 次のAddObjectで再利用する。ObjectCapacityは定数バッファに収容できる数（M0105）。
     private int ObjectCount;
     private int ObjectCapacity;
     private bool[]ObjectActive=[];
-    /// <summary>Objects the camera does not see (UE's OwnerNoSee): the main pass, the GI probes and the camera previews skip them; shadows still use them (M0107).</summary>
+    /// <summary>カメラから見えないオブジェクト（UEのOwnerNoSee）。メインパス、GIプローブ、カメラプレビューでは省くが、影には使う（M0107）。</summary>
     private bool[]ObjectHiddenFromView=[];
-    /// <summary>Objects that cast no shadow (UE's CastShadow off): the shadow passes skip them (M0107).</summary>
+    /// <summary>影を落とさないオブジェクト（UEでCastShadowを無効化）。シャドウパスから省く（M0107）。</summary>
     private bool[]ObjectNoShadow=[];
-    /// <summary>Each object's factor on its material's emission (ADR-0078/M0109: a material scalar a game changes at run time, as brake lights). 1 by default.</summary>
+    /// <summary>各オブジェクトでマテリアルの発光に掛ける係数（ADR-0078/M0109。ブレーキライトなど、ゲーム実行中に変更するマテリアルのスカラー値）。既定値は1。</summary>
     private float[]ObjectEmissiveScales=[];
     private readonly List<int>FreeObjectSlots=[];
     private int[]ObjectMeshIndices=[];
-    /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
+    /// <summary>各メッシュの境界中心。オブジェクトの保守的な放射状ラスター深度が接触する位置（M0100）。</summary>
     private Vector3[]MeshBoundsCentres=[];
     private Vector3[]MeshBoundsMinimums=[];
     private Vector3[]MeshBoundsMaximums=[];
@@ -429,12 +438,12 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private ID3D12Resource*AreaShadowProjectionBuffer;
     private byte*AreaShadowProjectionMapped;
 
-    // AddDirectionalLightTowardLight/point/spot lights are additive per frame. The legacy
-    // SetDirectionalLight singleton is rewritten into every swap-chain frame slot until it is
-    // replaced, matching the original setter's behaviour; additive counts reset so removed
-    // owning entities do not linger. Nothing is lit before a light is submitted: starting at one
-    // (the default light written by InitializeConstantsToDefaults) lit only the first frame, and
-    // the end-of-frame reset then dropped it, so an unlit scene changed after one present.
+    // AddDirectionalLightTowardLight、ポイントライト、スポットライトの追加はフレームごとに有効。従来の
+    // SetDirectionalLight単一設定値は、置き換えられるまでスワップチェーンの全フレームスロットへ反映する。
+    // これは元のsetterの動作に合わせている。追加数はリセットするため、所有Entityを削除しても
+    // ライトが残り続けない。ライトが送信されるまでは照明しない。InitializeConstantsToDefaultsが書く既定ライトを1にすると、
+    // 最初のフレームだけ照明され、
+    // フレーム末のリセット後はライトが消えて、1回のpresent後にシーンが暗転してしまう。
     private int DirectionalLightCount;
     private int DirectionalShadowIndex=-1;
     private bool DirectionalLightsExplicitThisFrame;
@@ -457,22 +466,22 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private int DroppedLocalLightsThisFrameValue;
     private int DroppedTileLightReferencesThisFrameValue;
 
-    /// <summary>Visible diagnostic counter for Directional submissions over the four-light cap.</summary>
+    /// <summary>4灯の上限を超えたDirectional送信数を表示する診断カウンター。</summary>
     public int DroppedDirectionalLightsThisFrame=>this.DroppedDirectionalLightsThisFrameValue;
 
-    /// <summary>Directional overflow count captured when the prior frame was submitted.</summary>
+    /// <summary>前フレームの送信時に記録したDirectionalの超過数。</summary>
     public int DroppedDirectionalLightsLastFrame { get;private set; }
 
-    /// <summary>Visible diagnostic counter; direct lighting for already selected lights continues.</summary>
+    /// <summary>表示用診断カウンター。選択済みライトの直接照明は継続する。</summary>
     public int DroppedLocalLightsThisFrame=>this.DroppedLocalLightsThisFrameValue;
 
-    /// <summary>Overflow count captured when the prior frame was submitted.</summary>
+    /// <summary>前フレームの送信時に記録した超過数。</summary>
     public int DroppedLocalLightsLastFrame { get;private set; }
 
-    /// <summary>Visible count of candidate references rejected by the 64-light per-tile cap during the current frame.</summary>
+    /// <summary>今フレームに64灯／タイルの上限で除外した、候補参照の表示数。</summary>
     public int DroppedTileLightReferencesThisFrame=>this.DroppedTileLightReferencesThisFrameValue;
 
-    /// <summary>Tile-list overflow count captured when the prior frame was submitted.</summary>
+    /// <summary>前フレームの送信時に記録したタイルリストの超過数。</summary>
     public int DroppedTileLightReferencesLastFrame { get;private set; }
 
     private ID3D12Resource*ReadbackBuffer;
@@ -515,17 +524,17 @@ public sealed unsafe partial class StageRenderer:IDisposable {
 
     public uint FramesRendered { get;private set;}
     public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Count;
-    /// <summary>Objects <see cref="AddObject"/> can add beyond the ones the renderer was created with (M0105).</summary>
+    /// <summary>レンダラー作成時の数を超えて<see cref="AddObject"/>で追加できるオブジェクト数（M0105）。</summary>
     public const int DynamicObjectHeadroom=StageRenderLimits.DynamicObjectHeadroom;
-    /// <summary>Materials <see cref="AddMaterial"/> can add beyond the ones the renderer was created with (M0105).</summary>
+    /// <summary>レンダラー作成時の数を超えて<see cref="AddMaterial"/>で追加できるマテリアル数（M0105）。</summary>
     public const int DynamicMaterialHeadroom=StageRenderLimits.DynamicMaterialHeadroom;
-    /// <summary>How many more materials <see cref="AddMaterial"/> accepts.</summary>
+    /// <summary><see cref="AddMaterial"/>が追加で受け付けるマテリアル数。</summary>
     public int FreeMaterialSlots=>this.MaterialCapacity-this.MaterialCount;
-    /// <summary>How many objects are drawn now.</summary>
+    /// <summary>現在描画中のオブジェクト数。</summary>
     public int ActiveObjectCount=>this.ObjectCount-this.FreeObjectSlots.Count;
-    /// <summary>Meshes with a distance field (ADR-0078/M0110).</summary>
+    /// <summary>距離場を持つメッシュ数（ADR-0078/M0110）。</summary>
     public int DistanceFieldMeshCount=>this.GlobalDistanceField?.MeshesWithFields??0;
-    /// <summary>Objects in the global distance field at the last frame (0 without one).</summary>
+    /// <summary>直近フレームのグローバル距離場にあるオブジェクト数（距離場がなければ0）。</summary>
     public int DistanceFieldObjectCount=>this.GlobalDistanceField?.LastFieldObjects??0;
     internal ulong CompletedFence=>this.Fence==null?0:this.Fence->GetCompletedValue();
 
@@ -541,20 +550,20 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         return this.Atmosphere!.ReadbackForTesting();
     }
 
-    /// <summary>Test-only read of the cloud panorama (M0110); waits for the GPU.</summary>
+    /// <summary>雲のパノラマのテスト専用読み戻し（M0110）。GPUの完了を待つ。</summary>
     internal (Vector4[]Texels,int Width,int Height) ReadCloudPanoramaForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Atmosphere!.ReadCloudPanoramaForTesting();
     }
-    /// <summary>Test-only read of the GPU auto exposure state (EV100, scale, settled, valid); waits for the GPU.</summary>
+    /// <summary>GPU自動露出状態（EV100、スケール、収束済み、有効）のテスト専用読み戻し。GPU完了を待つ。</summary>
     internal Vector4 ReadAutoExposureStateForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.AutoExposureStage!.ReadStateForTesting();
     }
 
-    /// <summary>Fixed adaptation step for deterministic tests; null measures wall-clock time between frames.</summary>
+    /// <summary>決定的テスト用の固定適応ステップ。nullならフレーム間の壁時計時間を計測する。</summary>
     internal float?AutoExposureDeltaSecondsForTesting { get;set; }
 
     internal (float[]Values,int Width,int Height) ReadAmbientOcclusionForTesting(){
@@ -630,9 +639,8 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     }
 
     /// <summary>
-    /// Recreates one native device generation from the shader package already validated and
-    /// successfully applied by the prior generation. The path is retained only for subsequent
-    /// Debug hot reload; recovery does not reread it.
+    /// 前の世代ですでに検証され、適用に成功したシェーダーパッケージから、ネイティブデバイスの世代を1つ作り直す。
+    /// パスは以降のDebugホットリロード用としてのみ保持し、復旧時に再読み込みはしない。
     /// </summary>
     internal static StageRenderer CreateFromLastKnownGood(
         nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
@@ -664,7 +672,10 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         }
     }
 
-    /// <summary>Legacy adapter (pre-ADR-0018): one untextured solid-color mesh per object, exactly reproducing the old 1:1 mesh/material/object indexing so existing callers (and <c>StageGpuIntegrationTests</c>) keep working unchanged. Synthesized UVs/tangents never matter visually here since every material falls back to its 1x1 default textures.</summary>
+    /// <summary>
+    /// 従来方式のアダプター（ADR-0018以前）。オブジェクトごとに非テクスチャの単色メッシュを1つ割り当て、以前のメッシュ／マテリアル／オブジェクトの1対1インデックスを厳密に再現する。既存の呼び出し側
+    /// と<c>StageGpuIntegrationTests</c>を変更せず動作させる。すべてのマテリアルが1x1の既定テクスチャへフォールバックするため、合成UV／接線の見た目への影響はない。
+    /// </summary>
     public static StageRenderer Create(
         nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<MeshCreateInfo>Meshes){
@@ -708,6 +719,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.CreateHdrColorBuffer(Width,Height);
         this.CreateSceneDistanceBuffer(Width,Height);
         this.CreateShadowAtlas();
+        this.CreateVirtualShadows();
 
         for(var I=0;I<FrameCount;I++){
             ID3D12CommandAllocator*Allocator;
@@ -843,7 +855,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     }
 
     private void CreateDepthBuffer(int Width,int Height){
-        // Typeless for depth readback; scene effects consume the separate physical-distance target.
+        // 深度読み戻し用には型なしリソースを使う。シーン効果は別の物理距離ターゲットを使う。
         D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(DXGI_FORMAT_R32_TYPELESS,(uint)Width,(uint)Height,mipLevels:1);
         ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
@@ -1070,7 +1082,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
-        // M0110: material textures have mips; anisotropic filtering (Unreal's default r.MaxAnisotropy 8) keeps grazing surfaces sharp.
+        // M0110：マテリアルテクスチャにはミップがある。異方性フィルタリング（Unrealの既定r.MaxAnisotropy 8）で斜めの面を鮮明に保つ。
         D3D12_STATIC_SAMPLER_DESC StaticSampler=new(){
             Filter=D3D12_FILTER_ANISOTROPIC,
             MaxAnisotropy=MaterialMaxAnisotropy,
@@ -1228,8 +1240,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// The root signature of the passes that read one texture and four constants: 0 = pixel SRV table t0, 1 = four 32-bit constants b0, and a
-    /// linear clamp sampler s0. The post-process pass uses it as is; the screen layer adds the input-assembler flag.
+    /// テクスチャ1つと定数4つを読むパスのルートシグネチャ。0 = ピクセルSRVテーブルt0、1 = 32ビット定数4つのb0、
+    /// 線形クランプサンプラーs0。ポストプロセスパスではそのまま使い、スクリーンレイヤーでは入力アセンブラーのフラグを追加する。
     /// </summary>
     private ID3D12RootSignature*CreateSrvAndConstantsRootSignature(D3D12_ROOT_SIGNATURE_FLAGS Flags,string Context){
         D3D12_DESCRIPTOR_RANGE SceneRange=new(){
@@ -1405,12 +1417,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 PsoDesc.BlendState.IndependentBlendEnable=TRUE;
                 PsoDesc.BlendState.RenderTarget[1].RenderTargetWriteMask=0;
             }
-            // Real backface culling is deferred, the imported-mesh winding policy (ADR-0004).
+            // 実際の裏面カリングは後で追加する（インポートメッシュの巻き順方針、ADR-0004）。
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             PsoDesc.RasterizerState.FillMode=FillMode;
             PsoDesc.RasterizerState.DepthClipEnable=DepthClip?TRUE:FALSE;
             PsoDesc.RTVFormats[0]=HdrColorFormat;
-            // M0111: the Lumen surface prepass and card captures write several targets.
+            // M0111：Lumenのサーフェスプリパスとカード撮影では複数のターゲットへ書き込む。
             for(var Target=0;Target<(RenderTargets?.Length??0);Target++){
                 PsoDesc.RTVFormats[Target]=RenderTargets![Target];
             }
@@ -1569,9 +1581,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Adds one mesh after creation (M0105): a game that spawns an Entity whose asset no earlier Entity used. The buffers are
-    /// separate resources, so nothing the GPU draws with is touched. Returns the new mesh index. A skinned mesh (M0107: a character spawned
-    /// after the level loaded) also joins the skinning pass; that grows the palette ring a frame in flight may still read, so it waits for the GPU once.
+    /// 作成後にメッシュを1つ追加する（M0105）。ゲームでまだ使われていないアセットのEntityを新たに生成する場合に使う。
+    /// バッファは個別のリソースなので、GPUが描画中のものには触れない。新しいメッシュインデックスを返す。
+    /// スキニングメッシュ（M0107。レベル読み込み後に生成したキャラクター）もスキニングパスへ追加する。
+    /// パレットリングが拡張され、処理中フレームがまだ読み取っている可能性があるため、その場合は一度GPUの完了を待つ。
     /// </summary>
     public int AddMesh(StageMeshCreateInfo Mesh){
         this.ThrowIfDisposed();
@@ -1590,10 +1603,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateVertexBuffer(Index,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
         this.CreateIndexBuffer(Index,Mesh.Indices);
         if(Mesh.Skin is{ }Skin){
-            // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
+            // すべてのパスでスキニング済みコピーを描画する。アップロードヒープのバッファには、スキニング元のレスト姿勢を保持する。
             this.VertexBufferViews[Index]=this.Skinning!.AddMesh(Index,this.VertexBuffers[Index],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
         }
-        // M0110: a skinned mesh moves its vertices every frame, so its rest-pose field would be wrong; Unreal leaves skinned meshes out too.
+        // M0110：スキニングメッシュは頂点が毎フレーム動くため、レスト姿勢の距離場では誤りになる。Unrealでもスキニングメッシュは対象外。
         this.GlobalDistanceField!.SetMesh(Index,Mesh.Skin is null?Mesh.DistanceField:null);
         this.MeshCount=Index+1;
         return Index;
@@ -1648,14 +1661,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
             if(Mesh.Skin is{ }Skin){
-                // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
+                // すべてのパスでスキニング済みコピーを描画する。アップロードヒープのバッファには、スキニング元のレスト姿勢を保持する。
                 this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
             }
             this.GlobalDistanceField!.SetMesh(I,Mesh.Skin is null?Mesh.DistanceField:null);
         }
     }
 
-    /// <summary>A mesh's axis-aligned bounds (M0111: the box of its surface cache cards).</summary>
+    /// <summary>メッシュの軸平行境界（M0111では、サーフェスキャッシュカードを囲むボックス）。</summary>
     private static (Vector3 Minimum,Vector3 Maximum)Bounds(IReadOnlyList<Vector3>Positions){
         if(Positions.Count==0){ return (Vector3.Zero,Vector3.Zero); }
         var Minimum=Positions[0];
@@ -1667,7 +1680,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return (Minimum,Maximum);
     }
 
-    /// <summary>The centre of a mesh's axis-aligned bounds (its rest pose for a skinned mesh).</summary>
+    /// <summary>メッシュの軸平行境界の中心（スキニングメッシュの場合はレスト姿勢での中心）。</summary>
     private static Vector3 BoundsCentre(IReadOnlyList<Vector3>Positions){
         if(Positions.Count==0){ return Vector3.Zero; }
         var Minimum=Positions[0];
@@ -1775,14 +1788,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Adds one material after creation (M0105). Its textures are uploaded now, which waits for the GPU once, so the first spawn of an
-    /// asset the game has not drawn yet costs a frame. Returns the new material index, or -1 when the
-    /// <see cref="DynamicMaterialHeadroom"/> is used up.
+    /// 作成後にマテリアルを1つ追加する（M0105）。そのテクスチャを今アップロードするため、一度GPUの完了を待つ。
+    /// そのゲームでまだ描画していないアセットを初めて生成すると、1フレーム分のコストがかかる。
+    /// 新しいマテリアルインデックスを返す。<see cref="DynamicMaterialHeadroom"/>を使い切った場合は-1。
     /// </summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         this.ThrowIfDisposed();
         if(this.MaterialCount>=this.MaterialCapacity){ return -1; }
-        // The texture upload resets the first command allocator, which a frame still in flight may be using.
+        // テクスチャのアップロードでは最初のコマンドアロケーターをリセットするが、処理中のフレームが使用中の可能性がある。
         this.WaitForGpuIdle();
         var Index=this.MaterialCount;
         var OwnedBefore=this.OwnedMaterialTextures.Count;
@@ -1804,7 +1817,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private readonly Dictionary<nint,(Hash256 Hash,RenderTextureColorSpace ColorSpace)>OwnedTextureHashes=[];
 
-    /// <summary>Fills one material's per-material state, uploads its textures (sharing the resident ones) and writes its five descriptors.</summary>
+    /// <summary>マテリアル1つ分のマテリアル単位状態を埋め、常駐テクスチャを共有してアップロードし、5つのディスクリプターを書き込む。</summary>
     private void SetUpMaterial(int I,StageMaterialCreateInfo Material){
         this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
         this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
@@ -1815,8 +1828,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ?Material.EmissiveNits
             :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
 
-        // Slots 0 (base colour) and 3 (emissive) hold sRGB colour; 1 (normal) and 2 (metallic-roughness) hold linear data. The
-        // colour space also decides how the mips are averaged (M0110).
+        // スロット0（ベースカラー）と3（発光）はsRGB色。1（法線）と2（metallic-roughness）はリニアデータ。
+        // ミップの平均方法も色空間で決まる（M0110）。
         this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
             Material.BaseColorTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
         this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
@@ -1832,12 +1845,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
-        // Every mip of the texture (M0110); -1 is D3D12's "all levels from the most detailed one".
+        // テクスチャの全ミップ（M0110）。-1はD3D12で「最も詳細なレベルからすべて」を意味する。
         SrvDesc.Texture2D.MipLevels=uint.MaxValue;
         for(var Slot=0;Slot<4;Slot++){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+Slot, this.SrvDescriptorSize);
-            // Slots 0 (base colour) and 3 (emissive) hold colour data; 1 (normal) and 2
-            // (metallic-roughness) hold linear data.
+            // スロット0（ベースカラー）と3（発光）は色データ。1（法線）と2は
+            //（metallic-roughness）リニアデータ。
             SrvDesc.Format=Slot is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
             this.Device!.Device->CreateShaderResourceView(this.MaterialTextures[(I*4)+Slot],&SrvDesc,Handle);
         }
@@ -1851,11 +1864,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.Device!.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,ShadowHandle);
 
         ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
+            ColorSpace=Texture.PreparedColorSpace??ColorSpace;
             var Key=(Texture.ContentHash,ColorSpace);
             if(this.ResidentTextures.TryGetValue(Key,out nint Existing)){
                 return(ID3D12Resource*)Existing;
             }
-            var Chain=RenderTextureMipChain.Build(Texture,ColorSpace);
+            var Chain=Texture.PreparedMipChain??RenderTextureMipChain.Build(Texture,ColorSpace);
             var LevelCount=MaterialMipLevelLimitForTesting>0?Math.Min(MaterialMipLevelLimitForTesting,Chain.Levels.Count):Chain.Levels.Count;
             ID3D12Resource*Created=this.CreateTextureResource(Chain.Levels,LevelCount);
             this.ResidentTextures.Add(Key,(nint)Created);
@@ -1866,8 +1880,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Test-only cap on the mip levels uploaded for material textures (M0110), so one test can render the same texture without mips (1) and with
-    /// them (0 = every level) and measure the difference. Production code never sets it; GPU tests run one at a time.
+    /// マテリアルテクスチャのテスト用ミップレベル上限（M0110）。同じテクスチャをミップなし（1）とあり（0 = 全レベル）で描画し、
+    /// 差を測定する。製品コードでは設定しない。GPUテストは一度に1つずつ実行する。
     /// </summary>
     internal static int MaterialMipLevelLimitForTesting { get;set; }
     private void ReleaseOwnedMaterialTextures(){
@@ -1879,11 +1893,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ResidentTextures.Clear();
     }
 
-    /// <summary>Uploads one already-validated canonical RGBA8 texture with a single level (the screen layer's). Decode/fallback policy lives above L0.</summary>
+    /// <summary>検証済みの正規RGBA8テクスチャ1枚を、単一レベルでアップロードする（スクリーンレイヤー用）。デコード／フォールバック方針はL0より上位で扱う。</summary>
     private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
         return this.CreateTextureResource(RenderTextureMipChain.TopLevelOnly(Texture).Levels,1);
     }
-    /// <summary>Uploads the first <paramref name="LevelCount"/> levels of a texture (M0110: a material texture's whole mip chain) in one copy.</summary>
+    /// <summary>テクスチャの先頭<paramref name="LevelCount"/>レベルを1回のコピーでアップロードする（M0110：マテリアルテクスチャの全ミップチェーンなど）。</summary>
     private ID3D12Resource*CreateTextureResource(IReadOnlyList<RenderTextureMipLevel>Levels,int LevelCount){
         var Base=Levels[0];
         D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
@@ -1907,9 +1921,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         try {
             D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&UploadHeapProps,D3D12_HEAP_FLAG_NONE,&StagingDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Staging),
                 "ID3D12Device::CreateCommittedResource","creating a material texture upload staging buffer");
-            // GetCopyableFootprints' RowPitch is 256-byte aligned; the decoded image is tightly
-            // packed (stride = Width*4). These differ whenever Width*4 isn't already a multiple of
-            // 256, so this must be a per-row copy, not one bulk CopyBlock to respect the texture row pitch.
+            // GetCopyableFootprintsのRowPitchは256バイト境界。デコード済み画像は隙間なく
+            // 配置される（stride = Width*4）。Width*4が256の倍数でなければ行ピッチは一致
+            // しないため、テクスチャの行ピッチを守るには一括CopyBlockではなく行ごとにコピーする。
             D3D12_RANGE NoRead=new();
             byte*Mapped;
             D3D12Diagnostics.EnsureSuccess(Staging->Map(0,&NoRead,(void**)&Mapped),"ID3D12Resource::Map","mapping a material texture upload staging buffer");
@@ -1979,10 +1993,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Adds one drawn object after creation (M0105): an Entity spawned while the game runs. Reuses the slot of a removed object when
-    /// there is one. Returns the object index, or -1 when the <see cref="DynamicObjectHeadroom"/> is used up. The object starts at
-    /// the origin; set its transform every frame like any other. Only the current frame's constants are written, so a frame still in
-    /// flight keeps drawing what it was given.
+    /// 作成後に描画オブジェクトを1つ追加する（M0105）。ゲーム実行中にEntityを生成する場合に使う。
+    /// 削除済みオブジェクトのスロットがあれば再利用する。オブジェクトインデックスを返し、<see cref="DynamicObjectHeadroom"/>を使い切った場合は-1。
+    /// オブジェクトは原点から開始するため、他のオブジェクトと同様に毎フレーム変換を設定する。現在のフレームの定数だけを書き込むため、
+    /// 処理中のフレームは既に渡された値で描画を続ける。
     /// </summary>
     public int AddObject(int MeshIndex,int MaterialIndex){
         this.ThrowIfDisposed();
@@ -2013,9 +2027,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Chooses where one object is drawn (M0107; UE's OwnerNoSee / OnlyOwnerSee and CastShadow): <paramref name="VisibleInView"/> false keeps it out of the camera's
-    /// pass (and the GI probes' and previews'), <paramref name="CastsShadow"/> false keeps it out of every shadow map. Both default to true when an object is
-    /// added. The choice stays until it is changed; it needs no per-frame call.
+    /// オブジェクトの描画方法を選択する（M0107。UEのOwnerNoSee／OnlyOwnerSeeおよびCastShadowに相当）。
+    /// <paramref name="VisibleInView"/>がfalseならカメラパス（GIプローブおよびプレビューも含む）から省く。
+    /// <paramref name="CastsShadow"/>がfalseならすべてのシャドウマップから省く。どちらもオブジェクト追加時の既定値はtrue。
+    /// 設定した値は変更するまで有効であり、フレームごとの呼び出しは不要。
     /// </summary>
     public void SetObjectVisibility(int ObjectIndex,bool VisibleInView,bool CastsShadow){
         this.ThrowIfDisposed();
@@ -2027,9 +2042,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Multiplies one object's material emission (its emissive nits, which the shader multiplies by the emissive texture) by <paramref name="Scale"/>
-    /// (ADR-0078/M0109). It writes the object's existing emissive constant, so the Stage shader contract does not change. 1 is the material's own
-    /// emission; the value stays until it is changed.
+    /// オブジェクトのマテリアル発光（シェーダーが発光テクスチャと乗算する発光ニト）に<paramref name="Scale"/>を掛ける
+    ///（ADR-0078/M0109）。オブジェクト既存の発光定数に書き込むため、Stageシェーダーの契約は変わらない。
+    /// 1ならマテリアル本来の発光。変更されるまで値を維持する。
     /// </summary>
     public void SetObjectEmissiveScale(int ObjectIndex,float Scale){
         this.ThrowIfDisposed();
@@ -2044,7 +2059,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
     }
 
-    /// <summary>Stops drawing one object (M0105). Its slot is handed out again by a later <see cref="AddObject"/>. Removing a removed object does nothing.</summary>
+    /// <summary>オブジェクト1つの描画を停止する（M0105）。後続の<see cref="AddObject"/>でそのスロットを再利用する。削除済みのものを再度削除しても何もしない。</summary>
     public void RemoveObject(int ObjectIndex){
         this.ThrowIfDisposed();
         if((uint)ObjectIndex>=(uint)this.ObjectCount){
@@ -2139,10 +2154,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Writes an identity world matrix (with each object's material factors), a default camera,
-    /// and default light/ambient/fog values into every frame-in-flight slot, so the very first
-    /// Present reads fully-initialized data even if the caller's first SetCamera/SetObjectTransform/
-    /// SetDirectionalLight/etc. call happens after this constructor returns.
+    /// すべての処理中フレームスロットに、単位ワールド行列（各オブジェクトのマテリアル係数を含む）、既定カメラ、既定ライト／アンビエント／フォグ値を書き込む。
+    /// これにより、コンストラクターから戻った後に呼び出し側が初めてSetCamera／SetObjectTransform／SetDirectionalLightなどを呼ぶ場合でも、
+    /// 最初のPresentが完全に初期化されたデータを読み取る。
     /// </summary>
     private void InitializeConstantsToDefaults(){
         Camera DefaultCamera=Camera.CreateDefault(Vector3.Zero);
@@ -2157,7 +2171,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteExposure(Frame,DefaultCamera.ExposureEv100);
             this.WriteViewDepth(Frame);
             this.WriteDirectionalCascades(Frame,DefaultLightDirectionTowardLight);
-            this.WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
+            this.WriteLightCounts(Frame); // D3D12はアップロードヒープメモリがゼロ初期化される保証がない。これをしないと最初のフレームでPointLights／SpotLightsの未初期化値を走査する可能性がある。
             this.WriteAreaShadowDefaults(Frame);
 
             for(var ObjectIndex=0;ObjectIndex< this.ObjectCount;ObjectIndex++){
@@ -2167,19 +2181,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Sets the camera used for the frame currently being built. Must be called every frame,
-    /// before <see cref="RenderFrame"/> - the constant buffer is double-buffered per frame-in-flight
-    /// slot (<see cref="FrameCount"/>) and only the current slot is written here.
+    /// 構築中の現在フレームに使うカメラを設定する。<see cref="RenderFrame"/>より前に毎フレーム呼び出すこと。
+    /// 定数バッファは処理中フレームのスロットごとに二重化される（<see cref="FrameCount"/>）。ここでは現在のスロットだけに書き込む。
     /// </summary>
     public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
         this.ThrowIfDisposed();
-        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/this.Height;
+        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)(this.ShadowSettings.Compare?Math.Max(1,this.Width/2):this.Width)/this.Height;
         this.SetView(RenderViewPolicy.FromCamera(Camera,AspectRatio));
+        this.LastShadowCamera=Camera;
+        this.LastShadowCameraAspect=AspectRatioOverride;
     }
-    /// <summary>Uploads a validated main view for the current frame slot.</summary>
+    /// <summary>現在のフレームスロットに、検証済みのメインビューをアップロードする。</summary>
     public void SetView(in RenderView View){
         this.ThrowIfDisposed();
         if(!View.IsValid){ throw new ArgumentException("A main view must be validated.",nameof(View)); }
+        this.LastShadowCamera=null;
         this.WriteViewProjection(this.FrameIndex,View.ViewProjection);
         this.WriteCameraPosition(this.FrameIndex,View.CameraPosition);
         this.WriteExposure(this.FrameIndex,View.ExposureEv100);
@@ -2197,8 +2213,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// The invertible projection used for sky direction and sun cascades. A logarithmic perspective uses
-    /// an auxiliary clip range because its physical far plane may make the original matrix singular in float.
+    /// 空の方向と太陽カスケードに使う、逆行列可能な投影行列。対数透視投影では物理的な遠クリップ面によって元の行列がfloatで特異になる場合があるため、
+    /// 補助クリップ範囲を使う。
     /// </summary>
     private Matrix4x4 InvertibleViewProjection=>
         this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic?this.CurrentAuxiliaryViewProjection:this.CurrentViewProjection;
@@ -2217,8 +2233,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// M0100: each object's conservative radial raster depth, tangent at the view depth of its mesh's bounds centre
-    /// (the view-projection's W), so hidden fragments are rejected early at every distance and not only near one.
+    /// M0100：オブジェクトごとの保守的な放射状ラスター深度。メッシュ境界中心におけるビュー深度（ビュー投影行列のW）で接線を求める。
+    /// これにより、特定の距離付近だけでなく、すべての距離で隠れた破片を早期に除外できる。
     /// </summary>
     private void WriteRadialRasterDepths(uint FrameIndex){
         var ViewProjection=this.CurrentViewProjection;
@@ -2234,8 +2250,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Accepts an already camera-relative preview matrix through the owning Render Server.
-    /// Internal visibility prevents L8 clients from acquiring the native backend directly.
+    /// 所有するRender Server経由で、既にカメラ相対になっているプレビュー行列を受け取る。
+    /// 内部可視性により、L8クライアントがネイティブバックエンドを直接取得することを防ぐ。
     /// </summary>
     internal void SetViewProjection(in Matrix4x4 ViewProjection){
         this.SetViewProjection(ViewProjection,Vector3.Zero);
@@ -2248,9 +2264,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// M0100: an isolated preview's camera-relative perspective matrix drawn with radial depth. The matrix is used as
-    /// given, so coverage, overlays and picking stay those of the caller's matrix; the radial packet, the
-    /// auxiliary matrix and each object's conservative raster depth are derived from it and <paramref name="Radial"/>.
+    /// M0100：放射状深度で描画する、分離プレビュー用のカメラ相対透視行列。指定された行列をそのまま使うため、
+    /// 視野範囲、オーバーレイ、ピッキングは呼び出し側の行列どおりに保たれる。放射状パケット、補助行列、
+    /// 各オブジェクトの保守的ラスター深度は、その行列と<paramref name="Radial"/>から導出する。
     /// </summary>
     internal void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
@@ -2259,9 +2275,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Backward-compatible singleton setter. It replaces this frame's additive Directional list
-    /// with exactly one light. <paramref name="DirectionTowardLight"/> points from the scene
-    /// toward the light, not the direction light travels.
+    /// 後方互換の単一ライト設定。今フレームの加算式Directionalリストを、ライト1つだけの状態に置き換える。
+    /// <paramref name="DirectionTowardLight"/>はシーンから光源へ向かう方向であり、光が進む方向ではない。
     /// </summary>
     public void SetDirectionalLight(
         Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
@@ -2276,17 +2291,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             StableSubmissionOrder:0);
         this.AddDirectionalLightCore(
             DirectionTowardLight,Color,Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters);
-        // Keep the value in the deferred list too: a later Add in this same frame must retain
-        // the setter's light instead of silently replacing it.
+        // 値は遅延リストにも保持する。同じフレームで後からライトを追加しても、setterで設定したライトを
+        // 黙って置き換えないようにする。
         this.DirectionalLightSubmissions.Add(Submission);
         this.PersistentDirectionalLightSubmission=Submission;
         this.DirectionalLightsPersistAcrossFrames=true;
     }
 
     /// <summary>
-    /// Adds a legacy surface-to-light Directional input for the current frame. Direct-light
-    /// overflow keeps the four largest screen contributions, then stable submission order.
-    /// The one-map shadow pass independently follows <paramref name="ShadowPriority"/>.
+    /// 今フレーム用に、従来の面から光源へ向かうDirectional入力を追加する。直接照明の上限超過時は、画面への寄与が大きい4灯を残し、
+    /// 同点なら送信順で安定させる。単一シャドウマップのパスは<paramref name="ShadowPriority"/>に従って別途選択する。
     /// </summary>
     public void AddDirectionalLightTowardLight(
         Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
@@ -2343,9 +2357,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Finalizes additive Directional submissions after the frame's camera is known. Direct
-    /// lighting intentionally ignores shadow priority: it is ranked by contribution and then
-    /// stable submission order. Shadow priority is applied only to the selected direct lights.
+    /// フレームのカメラ確定後に、加算式Directional送信を確定する。直接照明の順位付けでは意図的に影の優先度を無視し、
+    /// 寄与度、その後に安定した送信順で選ぶ。影の優先度は選択済みの直接ライトにだけ適用する。
     /// </summary>
     private void PrepareDirectionalLights(uint FrameIndex){
         if(this.DirectionalLightsPersistAcrossFrames){
@@ -2442,20 +2455,25 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Replaces the persistent scene environment (ADR-0069): physical sky, sky light, physical fog,
-    /// exposure model and tone mapper. <see cref="EnvironmentLightingSettings.Legacy"/> restores the
-    /// original clear-colour, flat-ambient, legacy-fog and linear ACES output path.
+    /// シーンの永続的な環境を置き換える（ADR-0069）。物理空、スカイライト、物理フォグ、露出モデル、トーンマッパーを設定する。
+    /// <see cref="EnvironmentLightingSettings.Legacy"/>を指定すると、従来のクリアカラー、平坦なアンビエント、旧フォグ、線形ACES出力経路に戻る。
     /// </summary>
     public void SetEnvironmentLighting(in EnvironmentLightingSettings Settings){
         this.ThrowIfDisposed();
         if(!Settings.IsValid){
             throw new ArgumentException("Environment lighting settings must be finite and physically valid.",nameof(Settings));
         }
+        if(Settings.DirectionalShadows is { Compare:true }&&(Settings.Atmosphere is not null||Settings.GlobalIllumination is not null||Settings.AmbientOcclusion is not null||Settings.Lumen is not null||Settings.Exposure.Mode==ExposureMode.AutoHistogram)){
+            throw new ArgumentException("Shadow comparison requires directional/ambient lighting with fixed exposure; screen-space and sky environment passes need independent view execution.",nameof(Settings));
+        }
+        var ComparisonChanged=this.ShadowSettings.Compare!=(Settings.DirectionalShadows?.Compare??false);
+        if(Settings.DirectionalShadows is { }ShadowPolicy&&(ShadowPolicy.Compare||ShadowPolicy.Mode==DirectionalShadowMode.Virtual)){ this.EnsureVirtualShadowAtlas(); }
         this.EnvironmentSettings=Settings;
+        if(ComparisonChanged&&this.LastShadowCamera is Camera Camera){ this.SetCamera(Camera,this.LastShadowCameraAspect); }
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
     }
 
-    /// <summary>Absolute camera height above the world origin in metres, used by the atmosphere and height fog.</summary>
+    /// <summary>大気と高さフォグで使う、ワールド原点からの絶対カメラ高度（m）。</summary>
     public void SetCameraAltitude(float Meters){
         this.ThrowIfDisposed();
         if(!float.IsFinite(Meters)){
@@ -2465,9 +2483,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Height above the world origin, in metres, of the render-space origin. The simplified height fog adds it to
-    /// the receiver's render-space height. Callers that render in world coordinates leave it at zero; the
-    /// camera-relative runtime passes the camera's altitude. Persists until changed.
+    /// 描画空間原点のワールド原点からの高さ（m）。簡易高さフォグでは受け取り側の描画空間高度に加算する。
+    /// ワールド座標で描画する呼び出し側は0のままにする。カメラ相対ランタイム経路ではカメラの高度を指定する。
+    /// 変更するまで値を保持する。
     /// </summary>
     public void SetRenderOriginAltitude(float Meters){
         this.ThrowIfDisposed();
@@ -2479,10 +2497,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// The render-space origin's world position reduced modulo the material's grid size, so the world-space grid
-    /// stays on the world lattice when the frame is rendered camera-relative. Each component lies in
-    /// [0, <see cref="StageWorldGrid.GridSizeMeters"/>]. Callers that render in world coordinates leave it at
-    /// zero. Persists until changed.
+    /// マテリアルのグリッドサイズで割った、描画空間原点のワールド位置の剰余。カメラ相対描画でもワールド空間グリッドをワールド格子に沿わせる。
+    /// 各成分は[0, <see cref="StageWorldGrid.GridSizeMeters"/>]の範囲に入る。ワールド座標で描画する呼び出し側は0のままにする。
+    /// 変更するまで値を保持する。
     /// </summary>
     public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
         this.ThrowIfDisposed();
@@ -2514,7 +2531,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(!Matrix4x4.Invert(this.InvertibleViewProjection,out var Inverse)){
                 Inverse=Matrix4x4.Identity;
             }
-            // Reserved atmosphere packet retained for ABI compatibility; sky composition reads SceneDistance.
+            // ABI互換性のため予約済みの大気パケットを保持する。空の合成ではSceneDistanceを読む。
             var DepthMapping=this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic
                 ?new Vector3(1f,this.CurrentViewDepth.Projection.Curve.TransitionMeters,1f/this.CurrentViewDepth.Projection.InverseMaximumG)
                 :Vector3.Zero;
@@ -2542,7 +2559,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FrameAmbientOcclusionOffset,&AmbientOcclusion,(uint)sizeof(Vector4));
     }
 
-    /// <summary>Produces the physical scene distance before indirect-light shading needs AO.</summary>
+    /// <summary>間接照明のシェーディングでAOを使う前に、物理的なシーン距離を生成する。</summary>
     private void RenderSceneDistances(int Width,int Height){
         D3D12_RESOURCE_BARRIER ToTarget=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
         this.CommandList->ResourceBarrier(1,&ToTarget);
@@ -2553,9 +2570,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->ClearRenderTargetView(DistanceTarget,(float*)&Clear,0,null);
         this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
         this.CommandList->OMSetRenderTargets(2,&NormalTarget,TRUE,&Dsv);
-        // The existing HDR allocation is scratch normal storage here; the colour pass clears it.
+        // 既存のHDR割り当て領域を、ここでは作業用法線ストレージとして使う。色パスでクリアする。
         this.BindMainPassState(this.LumenSurfacePipelineState);
-        // The consumer's active region occupies the top-left of the reusable full-size targets.
+        // 利用側の有効領域は、再利用する全サイズターゲットの左上部分に配置する。
         D3D12_VIEWPORT Viewport=new(){ Width=Width,Height=Height,MinDepth=0f,MaxDepth=1f };
         RECT Scissor=new(){ right=Width,bottom=Height };
         this.CommandList->RSSetViewports(1,&Viewport);
@@ -2565,7 +2582,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var ToReadable=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         this.CommandList->ResourceBarrier(1,&ToReadable);
     }
-    /// <summary>AO reads the shared physical distance and keeps its half-resolution obscurance/blur.</summary>
+    /// <summary>AOは共有物理距離を読み取り、半解像度の遮蔽量とぼかしを維持する。</summary>
     private void RenderAmbientOcclusion(){
         if(this.EnvironmentSettings.AmbientOcclusion is not AmbientOcclusionSettings Settings){
             return;
@@ -2585,8 +2602,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private bool AutoExposureActive=>this.EnvironmentSettings.Exposure.Mode==ExposureMode.AutoHistogram;
 
     /// <summary>
-    /// ADR-0078/M0110: keeps the global distance field around the camera up to date (for M0111's tracing); nothing when the environment has none.
-    /// It reads only the objects' render-space matrices, so a camera move rewrites only the bricks the clipmaps newly cover.
+    /// ADR-0078/M0110：カメラ周囲のグローバル距離場を更新し、M0111のトレースで使えるようにする。
+    /// 環境に距離場がなければ何もしない。オブジェクトの描画空間行列だけを読み取るため、カメラ移動時に書き換えるのは、
+    /// クリップマップが新たに覆ったブリックだけ。
     /// </summary>
     private void UpdateGlobalDistanceField(){
         if(this.EnvironmentSettings.DistanceField is not GlobalDistanceFieldSettings Settings){
@@ -2594,28 +2612,27 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         this.GlobalDistanceField!.Update(this.CommandList,this.FrameIndex,Settings,this.ObjectActive,this.ObjectMeshIndices,this.ObjectTransforms,this.ObjectCount,this.WaitForGpuIdle);
     }
-    /// <summary>Test-only copy of one global distance field level (M0110); waits for the GPU.</summary>
+    /// <summary>グローバル距離場のレベル1つ分のテスト専用コピー（M0110）。GPUの完了を待つ。</summary>
     internal (float[]Values,int Resolution,LongVector3 ClipMinimum) ReadGlobalDistanceFieldForTesting(int Level){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.GlobalDistanceField!.ReadLevelForTesting(Level);
     }
-    /// <summary>Test-only sphere tracing through the global distance field as M0111 will (M0110); waits for the GPU.</summary>
+    /// <summary>M0111と同じ方法でグローバル距離場をトレースするテスト専用処理（M0110）。GPUの完了を待つ。</summary>
     internal Vector4[] TraceGlobalDistanceFieldForTesting(ReadOnlySpan<(Vector3 Origin,Vector3 Direction,float Length)>Rays){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.GlobalDistanceField!.TraceForTesting(Rays);
     }
-    /// <summary>The global distance field's state for tests and diagnostics (M0110).</summary>
+    /// <summary>テストと診断で使うグローバル距離場の状態（M0110）。</summary>
     internal StageGlobalDistanceField GlobalDistanceFieldForTesting=>this.GlobalDistanceField!;
     /// <summary>
-    /// The CPU-side exposure scale. In histogram mode the Stage program and the sky composite read
-    /// the GPU-metered scale instead (ExposureParams.z); this nominal minimum-EV100 value remains for
-    /// consumers without access to the GPU state.
+    /// CPU側の露出スケール。ヒストグラムモードではStageプログラムと空の合成がGPU測光済みスケールを読む（ExposureParams.z）。
+    /// この名目最小EV100値は、GPU状態を参照できない利用側のために残す。
     /// </summary>
     private float CurrentExposureScale()=>this.EnvironmentSettings.Exposure.Scale(this.CurrentCameraEv100);
 
-    /// <summary>Seconds since the previous frame for exposure adaptation, clamped against stalls.</summary>
+    /// <summary>露出適応用の、前フレームからの経過秒数。スタールがあっても大きく飛ばないよう制限する。</summary>
     private float NextAutoExposureDeltaSeconds(){
         var Now=this.AutoExposureClock.Elapsed;
         var DeltaSeconds=this.AutoExposureDeltaSecondsForTesting??Math.Clamp((Now-this.LastAutoExposureTime).Ticks/(float)TimeSpan.TicksPerSecond,0f,0.25f);
@@ -2646,7 +2663,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FrameGiGridSpacingOffset,&Spacing,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FrameGiGridCountsOffset,Counts,16);
         Unsafe.CopyBlock(Slot+FrameGiAtlasSizeOffset,&AtlasSize,(uint)sizeof(Vector4));
-        // M0111: the Stage program reads the Lumen diffuse (x) and reflections (y) only while Lumen runs; zero keeps every earlier frame's path.
+        // M0111：StageプログラムはLumen実行中だけLumen拡散出力（x）と反射出力（y）を読む。0なら従来の各フレーム経路を維持する。
         var Lumen=this.LumenActiveThisFrame
             ?new Vector4(1f,this.EnvironmentSettings.Lumen is { Reflections:true }&&this.Scalability.AllowsLumenReflections?1f:0f,0f,0f)
             :Vector4.Zero;
@@ -2654,11 +2671,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Re-captures this frame's scheduled GI probes (ADR-0069). Every face is drawn with the lit
-    /// Stage pipeline from a copy of the frame constants: the probe is the camera, exposure is 1 so
-    /// the capture holds scene radiance, fog is off, and local lights are off because the Forward+
-    /// tile lists belong to the main camera. The previous GI result stays bound, so every refresh
-    /// adds one more bounce.
+    /// 今フレームに予定されたGIプローブを再撮影する（ADR-0069）。各面はフレーム定数のコピーを使い、照明済みStageパイプラインで描画する。
+    /// プローブをカメラとして扱い、露出は1（シーン放射輝度を保持）、フォグはオフ、局所ライトはオフとする。Forward+のタイル一覧はメインカメラ用のためである。
+    /// 前回のGI結果はバインドしたままにし、更新のたびに光の反射を1回追加する。
     /// </summary>
     private void RenderGlobalIlluminationProbes(){
         if(!this.GlobalIlluminationActive||this.EnvironmentSettings.GlobalIllumination is not GlobalIlluminationSettings Settings){
@@ -2717,8 +2732,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Writes the Stage t12-t17 views (GI irradiance, GI distance, ambient occlusion, exposure state, and M0111's Lumen diffuse irradiance and
-    /// reflections) after the material views.
+    /// マテリアルビューの後に、Stageのt12～t17ビュー（GI照度、GI距離、アンビエントオクルージョン、露出状態、およびM0111のLumen拡散照度と反射）を書き込む。
     /// </summary>
     private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
@@ -2730,6 +2744,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.Lumen!.WriteShadingDescriptors(
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+4,this.SrvDescriptorSize),
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+5,this.SrvDescriptorSize));
+        this.WriteVirtualShadowDescriptors(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+6,this.SrvDescriptorSize),new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+7,this.SrvDescriptorSize));
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
         this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
         this.LumenDescriptorGeneration=this.Lumen.Generation;
@@ -2755,9 +2770,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Sets the flat ambient term (a stand-in for sky/indirect lighting). It persists until changed:
-    /// <see cref="RenderFrame"/> writes it into whichever frame slot it records, like the directional
-    /// lights and exposure, so a value set once never alternates with the other slot's contents.
+    /// 平坦なアンビエント項（空／間接照明の代用）を設定する。変更するまで保持する。
+    /// <see cref="RenderFrame"/>はDirectionalライトや露出と同様、記録対象のフレームスロットへ書き込むため、一度設定すればスロット間で値が交互に変わらない。
     /// </summary>
     public void SetAmbientLight(Vector3 Color){
         this.ThrowIfDisposed();
@@ -2765,7 +2779,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteAmbientLight(this.FrameIndex,Color);
     }
 
-    /// <summary>Sets the simplified exponential height fog; persists like <see cref="SetAmbientLight"/>. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
+    /// <summary>簡易指数型高さフォグを設定する。<see cref="SetAmbientLight"/>と同様に保持する。無効にするには<see cref="FogParams.None"/>（密度0）を渡す。</summary>
     public void SetFog(FogParams Fog){
         this.ThrowIfDisposed();
         this.CurrentFog=Fog;
@@ -2773,11 +2787,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Adds one point light (radiates equally in all directions, attenuated by distance with a
-    /// smooth falloff that reaches zero at <paramref name="Range"/>) for the frame currently being
-    /// built. It is source-compatible with the former fixed point-light cbuffer API; submission is
-    /// deferred until <see cref="RenderFrame"/>, where all point/spot lights share the 1024-entry
-    /// StructuredBuffer and deterministic Forward+ ranking.
+    /// 構築中のフレームにポイントライト（全方向へ均等に放射し、距離に応じて減衰して<paramref name="Range"/>で0になる滑らかな減衰）を1つ追加する。
+    /// 以前の固定ポイントライト定数バッファAPIとソース互換である。<see cref="RenderFrame"/>まで送信を遅延し、その時点でポイント／スポットライトを
+    /// 1024エントリのStructuredBufferと決定的なForward+順位付けでまとめて処理する。
     /// </summary>
     public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
         this.ThrowIfDisposed();
@@ -2801,12 +2813,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Adds one spot light (a point light additionally narrowed to a cone) for the frame currently
-    /// being built. <paramref name="Direction"/> is the direction the cone points toward (need not
-    /// be normalized) and the brightness falls off smoothly between
-    /// <paramref name="InnerConeAngleRadians"/> (full brightness) and
-    /// <paramref name="OuterConeAngleRadians"/> (zero). It shares the same deferred StructuredBuffer
-    /// and 1024-entry global selection as <see cref="AddPointLight(Vector3,Vector3,float,float)"/>.
+    /// 構築中のフレームにスポットライト（ポイントライトを円錐状に絞ったもの）を1つ追加する。
+    /// <paramref name="Direction"/>は円錐が向く方向で、正規化されていなくてもよい。
+    /// <paramref name="InnerConeAngleRadians"/>の範囲内では最大輝度を保ち、<paramref name="OuterConeAngleRadians"/>で0となるよう滑らかに減衰する。
+    /// <see cref="AddPointLight(Vector3,Vector3,float,float)"/>と同じ遅延StructuredBufferおよび1024件の全体選択を共有する。
     /// </summary>
     public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,float InnerConeAngleRadians,float OuterConeAngleRadians){
         this.ThrowIfDisposed();
@@ -2833,9 +2843,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters));
     }
     /// <summary>
-    /// Queues one one-sided rectangle for the current frame. Its shadow settings are retained on
-    /// the submission but are intentionally not allocated until the projected Atlas path is
-    /// connected; direct lighting remains active in that interim state.
+    /// 今フレーム用に片面矩形ライトを1つキューへ追加する。シャドウ設定は送信内容に保持するが、
+    /// 投影アトラス経路が接続されるまでは意図的に割り当てない。その間も直接照明は有効。
     /// </summary>
     internal void AddAreaLight(
         Vector3 Position,Vector3 Direction,Vector3 Right,Vector3 Up,Vector3 LinearRgb,
@@ -2867,7 +2876,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
 
-    /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
+    /// <summary>構築中のフレーム用にオブジェクト1つのワールド変換を設定する（フレームスロットの契約は<see cref="SetCamera"/>を参照）。</summary>
     public void SetObjectTransform(int ObjectIndex,Matrix4x4 World){
         this.ThrowIfDisposed();
         if(ObjectIndex<0||ObjectIndex>= this.ObjectCount){
@@ -3124,7 +3133,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
     }
 
-    /// <summary>Writes Stage shader ABI's DirectionalLightData[index] (direction+bias, color*intensity).</summary>
+    /// <summary>StageシェーダーABIのDirectionalLightData[index]を書き込む（方向＋バイアス、色×強度）。</summary>
     private void WriteDirectionalLight(
         uint FrameIndex,int Index,Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,
         float ShadowBiasMeters){
@@ -3151,17 +3160,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(!float.IsFinite(ExposureEv100)){
             throw new ArgumentOutOfRangeException(nameof(ExposureEv100),"Camera exposure must be finite.");
         }
-        // Legacy: EV100 is one stop per integer (+1 halves the HDR signal). PhysicalCamera mode
-        // replaces the camera EV with the environment's exposure settings (ADR-0069).
+        // 従来モードでは、EV100は整数1段ごとにHDR信号を半分にする。PhysicalCameraモードでは
+        // ADR-0069に従い、カメラのEVを環境の露出設定で置き換える。
         this.CurrentCameraEv100=ExposureEv100;
         Vector4 Packed=new(this.CurrentExposureScale(),ExposureEv100,this.AutoExposureActive?1f:0f,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameExposureOffset,&Packed,(uint)sizeof(Vector4));
     }
 
     /// <summary>
-    /// Fits the four directional cascades to the current camera (ADR-0069) and writes their
-    /// projections for both the shadow pass and the Stage program. Cascade 0 also fills the
-    /// single-projection fields that the preview shaders still sample.
+    /// 現在のカメラに合わせて4つのDirectionalカスケードを設定し（ADR-0069）、シャドウパスとStageプログラム用に投影を書き込む。
+    /// Cascade 0は、プレビューシェーダーがサンプリングする単一投影フィールドも設定する。
     /// </summary>
     private void WriteDirectionalCascades(uint FrameIndex,Vector3 DirectionTowardLight){
         var Cascades=DirectionalShadowCascades.Build(this.InvertibleViewProjection,this.CurrentCameraPosition,DirectionTowardLight);
@@ -3263,9 +3271,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Uses PhysicalShadowAtlasPlan as the only allocation authority. Selected Point casters
-    /// receive their plan-owned six face tiles; selected Spot and Area/Emissive casters each
-    /// receive one center-projection tile through the same single plan selection.
+    /// 唯一の割り当て元としてPhysicalShadowAtlasPlanを使う。選択したPointライトには、計画が所有する6面タイルを割り当てる。
+    /// 選択されたSpotおよびArea／Emissiveライトには、同じ計画内で一度の選択を通じて、中心投影タイルを各1つ割り当てる。
     /// </summary>
     private void PrepareLocalShadowAtlasProjections(uint FrameIndex){
         this.PointShadowAtlasProjections.Clear();
@@ -3278,9 +3285,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Dictionary<int,int>LocalIndexByStableOrder=[];
 
         if(this.DirectionalShadowIndex>=0){
-            // The atlas has one directional tile regardless of the original direct-list stable
-            // order. Normalize it to zero so a selected submission beyond the first four cannot
-            // collide with the local-light namespace used below.
+            // 元の直接ライト一覧の安定順に関係なく、アトラスにはDirectional用タイルが1つある。
+            // そのため、最初の4灯を超えて選ばれた送信が、下記のローカルライト名前空間と
+            // 衝突しないよう、インデックスを0に正規化する。
             PhysicalLightCandidate Directional=this.SelectedDirectionalShadowAtlasCandidate
                 ??new PhysicalLightCandidate(0,PhysicalLightKind.Directional,0,0f,CastsShadows:true);
             Casters.Add(new PhysicalLightCandidate(
@@ -3357,7 +3364,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.WriteSpotShadowProjection(FrameIndex,ProjectionIndex,ShadowViewProjection,Tile);
                 this.WriteSpotShadowMetadata(FrameIndex,LocalIndex,Submission,ProjectionIndex);
                 this.SpotShadowAtlasProjections.Add(new ShadowAtlasProjection(
-                    Tile,ProjectionIndex+1)); // slot zero belongs to the directional projection.
+                    Tile,ProjectionIndex+1)); // スロット0はDirectional投影用。
                 this.SpotShadowProjectionCount++;
                 continue;
             }
@@ -3506,9 +3513,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Writes the source extent and selected center-projection index for one true rectangular
-    /// Area/Emissive light. The metadata record is indexed by projection index; the local-light
-    /// record carries that same index for the later pixel-shadow lookup.
+    /// 真の矩形Area／Emissiveライト1つについて、光源の大きさと選択された中心投影インデックスを書き込む。
+    /// メタデータレコードは投影インデックスで参照し、ローカルライトレコードにも後段のピクセルシャドウ参照用に同じインデックスを格納する。
     /// </summary>
     private void WriteAreaShadowMetadata(
         uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionIndex){
@@ -3554,7 +3560,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             &ViewProjection,(uint)sizeof(Matrix4x4));
     }
 
-    /// <summary>Initializes the independently-bound t9/t10 records before any Area light is submitted.</summary>
+    /// <summary>Areaライトが送信される前に、独立してバインドされるt9／t10レコードを初期化する。</summary>
     private void WriteAreaShadowDefaults(uint FrameIndex){
         AreaShadowMetadataGpuData Metadata=new(){ SourceRadiusAndPadding=Vector4.Zero };
         AreaShadowProjectionGpuData Projection=new(){
@@ -3636,10 +3642,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// Builds the safe center projection used by an Area/Emissive rectangular source's atlas
-    /// tile. The source itself remains a rectangle for direct lighting; this is intentionally a
-    /// conservative, one-tile perspective view centered on the source normal for the later PCSS
-    /// lookup path.
+    /// Area／Emissive矩形光源のアトラスタイルに使う、安全な中心投影を構築する。
+    /// 直接照明では光源を矩形のまま扱う。後段のPCSS参照用に、光源法線を中心とする保守的な単一タイルの透視ビューを作る。
     /// </summary>
     private static bool TryBuildAreaShadowViewProjection(
         in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
@@ -3673,8 +3677,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         IsFinite(Submission.Position)&&float.IsFinite(Submission.Range)&&Submission.Range>0f;
 
     /// <summary>
-    /// Builds the six row-vector 90-degree point-light views in the atlas face order
-    /// +X, -X, +Y, -Y, +Z, -Z. HLSL's face selector uses this exact ordering.
+    /// アトラス面の順序+X、-X、+Y、-Y、+Z、-Zに合わせて、ポイントライト用の90度ビューを行ベクトル形式で6つ作る。
+    /// HLSLの面選択処理もこの順序を使う。
     /// </summary>
     private static bool TryBuildPointShadowViewProjections(
         in LocalLightSubmission Submission,Span<Matrix4x4> FaceViewProjections){
@@ -3740,7 +3744,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Record[0]=Count+1;
     }
 
-    /// <summary>Writes FrameCB counts: local StructuredBuffer count, directional shadow index and directional count.</summary>
+    /// <summary>FrameCBの個数を書き込む。ローカルStructuredBuffer数、Directionalシャドウインデックス、Directional数。</summary>
     private void WriteLightCounts(uint FrameIndex){
         var Counts=stackalloc int[4]{ this.LocalLightCount,this.DirectionalShadowIndex,this.DirectionalLightCount,this.SpotShadowProjectionCount };
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightCountsOffset,Counts,16);
@@ -3768,7 +3772,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ObjectSelectionWeights[ObjectIndex]);
         Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
 
-        // A zero grid size means "no grid": the shader keeps the plain base colour.
+        // グリッドサイズが0なら「グリッドなし」。シェーダーは通常のベースカラーを使う。
         var WorldGrid=this.MaterialWorldGrids[MaterialIndex];
         Vector4 WorldGridParams=WorldGrid is{ }Grid?new Vector4(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,0f):Vector4.Zero;
         Vector4 WorldGridColor=WorldGrid is{ }MainGrid?new Vector4(MainGrid.GridColor,0f):Vector4.Zero;
@@ -3852,8 +3856,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.WaitForGpuIdle();
 
-        // See ADR-0003 §8: ResizeBuffers restarts the swap chain's
-        // back-buffer index cycle, which would otherwise desynchronize the per-slot fence values.
+        // ADR-0003 §8を参照。ResizeBuffersによりスワップチェーンの
+        // バックバッファインデックスの巡回がリセットされる。何もしないとスロットごとのフェンス値とずれる。
         var SyncedFenceValue= this.FenceValues[this.FrameIndex];
         for(var I=0;I<FrameCount;I++){
             this.FenceValues[I]=SyncedFenceValue;
@@ -3893,7 +3897,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateForwardPlusTileBuffer(Width,Height);
         this.Atmosphere?.InvalidateSceneDescriptors();
         if(this.Lumen is not null){
-            // The GPU is idle: the Stage t16/t17 views go back to null until the next Lumen frame makes targets of the new size.
+            // GPUはアイドル状態。次のLumenフレームが新サイズのターゲットを作るまで、Stageのt16／t17ビューをnullに戻す。
             this.Lumen.ReleaseScreen();
             this.WriteEnvironmentDescriptors();
         }
@@ -3905,7 +3909,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.RebuildEffectiveCameraPreviews();
     }
 
-    /// <summary>Renders the selected directional and Spot projection tiles in one Atlas transition pair.</summary>
+    /// <summary>選択されたDirectionalとSpotの投影タイルを、1組のアトラス遷移内で描画する。</summary>
     private void RenderShadowAtlasProjections(){
         if(this.DirectionalShadowIndex<0&&this.PointShadowAtlasProjections.Count==0
             &&this.SpotShadowAtlasProjections.Count==0
@@ -4011,7 +4015,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 (uint)this.OverlayLineVertexCount,1,0,0);
         }
         if(MarkerCount>0){
-            // Each marker is drawn inside its observer preview with that preview's constants (observer view-projection).
+            // 各マーカーは、観測者ビューの定数（観測者のビュー投影）を使って、その観測者プレビュー内に描画する。
             this.CommandList->SetPipelineState(this.OverlayLinePipelineState);
             this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
             for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
@@ -4037,9 +4041,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Preview.Depth.Encoding==RenderDepthEncoding.Observer&&Preview.MarkRadialCenter&&this.HasCameraBasis;
 
     /// <summary>
-    /// Writes the centre-camera marker of every marked observer preview into its overlay slot: the main camera's view
-    /// frustum with its apex at the compressed world's centre, 5 % of that world's radius long, in observer-relative
-    /// coordinates. Returns how many markers were written.
+    /// マーカー対象の各観測者プレビューについて、メインカメラの視錐台をオーバーレイスロットへ書き込む。
+    /// 頂点は圧縮ワールド中心を頂点とし、半径の5 %の長さで、観測者相対座標を使う。書き込んだマーカー数を返す。
     /// </summary>
     private int PrepareObserverMarkers(){
         int Count=0;
@@ -4086,12 +4089,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             Unsafe.CopyBlock(
                 Destination+FrameCameraPositionOffset,&CameraPosition,
                 (uint)sizeof(Vector4));
-            // Forward+ tile lists were prepared for the primary camera. Preview passes retain
-            // directional/ambient light but disable local lights rather than sampling a stale
-            // camera-dependent active set.
+            // Forward+のタイル一覧は主カメラ向けに作成済み。プレビューのパスではその一覧を維持する。
+            // Directional／アンビエントライトはそのまま使うが、カメラ依存のアクティブ集合を古いままサンプリングしないよう、ローカルライトは無効にする。
+            //（次の行コメントと結合して読む）。
             int*LightCounts=(int*)(Destination+FrameLightCountsOffset);
             LightCounts[0]=0;
-            // Screen-space occlusion and the Lumen outputs belong to the primary camera's pixels.
+            // スクリーン空間オクルージョンとLumen出力は、主カメラのピクセルに対応する。
             ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
             *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
             var Depth=Preview.Depth;
@@ -4128,7 +4131,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle){
         if(this.CameraPreviewCount==0){ return; }
         var Wireframe=this.PresentationMode==RenderPresentationMode.Wireframe;
-        Vector4 ClearColor=ClearColorVector;
+        Vector4 ClearColor=this.BackgroundClearVector;
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
             ID3D12PipelineState*Pipeline=Preview.Depth.Encoding==RenderDepthEncoding.Observer
@@ -4158,15 +4161,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    /// <summary>Sets the skin palette (inverse bind * joint model per joint, row-vector convention) of a skinned mesh from the next frame on.</summary>
+    /// <summary>次フレーム以降、スキニングメッシュのスキンパレット（ジョイントごとに逆バインド×ジョイントモデル、行ベクトル規約）を設定する。</summary>
     public void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
         this.ThrowIfDisposed();
         this.Skinning!.SetPalette(MeshIndex,Palette);
     }
 
     /// <summary>
-    /// Test-only: from the next frame on, brackets the main pass's draws with GPU timestamps so performance evidence
-    /// measures GPU time rather than presentation pacing (M0099).
+    /// テスト専用：次フレーム以降、メインパスの描画をGPUタイムスタンプで囲む。プレゼンテーションの待ち時間ではなく、
+    /// GPU時間を性能の証拠として計測する（M0099）。
     /// </summary>
     internal void EnableMainPassTimingForTesting(){
         this.ThrowIfDisposed();
@@ -4187,7 +4190,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.MainPassTimestampFrequency=Frequency;
     }
 
-    /// <summary>Test-only: GPU milliseconds of the last timed frame's main-pass draws, after the GPU is idle.</summary>
+    /// <summary>テスト専用：最後に計測したフレームのメインパス描画にかかったGPU時間（ミリ秒）。GPUの完了後に読み取る。</summary>
     internal float ReadMainPassGpuMillisecondsForTesting(){
         this.ThrowIfDisposed();
         if(this.MainPassTimestampReadback==null||this.LastTimedFrameIndex==uint.MaxValue){
@@ -4207,7 +4210,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    /// <summary>Test-only copy of the main depth buffer after the GPU is idle (row-major, width x height).</summary>
+    /// <summary>テスト専用のメイン深度バッファのコピー。GPU完了後に読み取る（行優先、width x height）。</summary>
     internal float[]ReadDepthForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
@@ -4221,7 +4224,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return Result;
     }
 
-    /// <summary>Test-only physical ray distances, preserved across previews (row-major).</summary>
+    /// <summary>テスト専用の物理レイ距離。プレビュー描画をまたいで保持する（行優先）。</summary>
     internal float[]ReadSceneDistancesForTesting(){
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
@@ -4235,7 +4238,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return Result;
     }
 
-    /// <summary>Test-only copy of a skinned mesh's current vertices (position, normal, tangent, uv; 48 bytes each).</summary>
+    /// <summary>スキニングメッシュの現在の頂点（位置、法線、接線、UV。1頂点48バイト）のテスト専用コピー。</summary>
     internal byte[]ReadSkinnedVerticesForTesting(int MeshIndex){
         this.WaitForGpuIdle();
         return this.Skinning!.ReadSkinnedVerticesForTesting(MeshIndex);
@@ -4243,6 +4246,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     public void RenderFrame(bool CaptureForVerification=false){
         this.ThrowIfDisposed();
+        // 削除済みデバイスへ処理（特にタイムスタンプクエリ）を記録しないこと。そうしないとWARPが、旧世代のリソース解放後に
+        // その処理を実行する可能性がある。
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->GetDeviceRemovedReason(),"ID3D12Device::GetDeviceRemovedReason","checking the device before recording a frame");
         this.TryReloadShaderArtifact();
         if(this.SizeIsZero){
             return;
@@ -4264,11 +4270,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.Lumen!.InvalidateHistory();
         }
         this.Atmosphere!.SkyRadianceMapRequested=this.LumenActiveThisFrame;
+        this.ReadShadowTimings();
         this.PrepareDirectionalLights(this.FrameIndex);
         this.PrepareForwardPlusLocalLights(this.FrameIndex);
 
         this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
+        this.ShadowTimestamp(0);
         this.RenderShadowAtlasProjections();
+        this.ShadowTimestamp(1);
+        this.ShadowTimestamp(2);
+        this.PrepareVirtualShadows();
+        this.ShadowTimestamp(3);
+        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback,(ulong)this.FrameIndex*4*sizeof(ulong));
+        this.ShadowTimestampsValid[this.FrameIndex]=true;
         this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
         this.WriteFog(this.FrameIndex,this.CurrentFog);
         this.WriteViewDepth(this.FrameIndex);
@@ -4302,7 +4316,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var ClearDistance=Vector4.Zero;
         this.CommandList->ClearRenderTargetView(DistanceRtv,(float*)&ClearDistance,0,null);
 
-        Vector4 ClearColor=ClearColorVector;
+        Vector4 ClearColor=this.BackgroundClearVector;
         this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
         this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
@@ -4319,7 +4333,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
         }
-        this.DrawObjects(ExcludedObjectIndex:-1);
+        if(this.ShadowSettings.Compare){ this.DrawShadowComparison(); }
+        else { this.DrawObjects(ExcludedObjectIndex:-1); }
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
             this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
@@ -4332,12 +4347,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             RanComputeAfterMainPass=true;
         }
         if(this.AutoExposureActive){
-            // Metered before camera previews draw into the same target.
+            // 同じターゲットへカメラプレビューを描画する前に測光する。
             this.AutoExposureStage!.RecordMetering(this.CommandList,this.FrameIndex,this.HdrColorBuffer,this.Width,this.Height,this.EnvironmentSettings.Exposure,AutoExposureDeltaSeconds);
             RanComputeAfterMainPass=true;
         }
         if(this.LumenActiveThisFrame){
-            // M0111: the lit frame (sky included, before the previews) is next frame's screen traces' colour.
+            // M0111：照明済みフレーム（空を含み、プレビュー前の状態）を、次フレームのスクリーントレース色として使う。
             this.Lumen!.CopySceneColor(this.CommandList,this.HdrColorBuffer);
             if(this.LumenVisualization!=LumenVisualization.None){
                 this.Lumen.RecordVisualize(this.CommandList,this.FrameIndex,this.LumenVisualization,this.HdrColorBuffer);
@@ -4345,8 +4360,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             }
         }
         if(RanComputeAfterMainPass){
-            // Compute replaces the graphics PSO and descriptor heap, so the main-pass bindings are
-            // restored before camera previews draw with the Stage pipeline again.
+            // ComputeによってグラフィックスPSOとディスクリプタヒープが置き換わるため、メインパスのバインド状態を
+            // 復元してから、再びStageパイプラインでカメラプレビューを描画する。
             this.BindMainPassState(ActivePipelineState);
             fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
             fixed(RECT*PScissorRect=&this.ScissorRect){
@@ -4410,14 +4425,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12Diagnostics.EnsureSuccess(this.SwapChain->Present(1,0),"IDXGISwapChain3::Present","presenting the frame");
 
+        var CapturedShadowTimingSlot=this.FrameIndex;
         this.MoveToNextFrame();
         this.Device.PollDebugMessages();
         this.FramesRendered++;
         this.LumenActiveLastFrame=this.LumenActiveThisFrame;
 
-        // All additive light counts (and the data they gate) have already been submitted to the
-        // GPU above; reset so the next frame starts from zero and only reflects lights that call
-        // their Add method again this frame (see the fields' doc comment).
+        // 加算式ライト数（およびそれに対応するデータ）は上記で既にGPUへ送信した。
+        // 次フレームが0から始まり、そのフレームで再びAddメソッドを呼んだライトだけを反映するよう、
+        // リセットする（各フィールドの説明を参照）。
         if(!this.DirectionalLightsPersistAcrossFrames){
             this.DirectionalLightCount=0;
             this.DirectionalShadowIndex=-1;
@@ -4444,6 +4460,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         if(CaptureForVerification){
             this.WaitForGpuIdle();
+            this.ReadShadowTimings(CapturedShadowTimingSlot);
             this.LastCapturedFrame= this.ReadBackCapturedFrame();
         }
     }
@@ -4538,8 +4555,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         try {
             this.WaitForGpuIdle();
         } catch(D3D12Exception){
-            // A removed/reset device cannot signal its fence. Native objects still have to be
-            // released so the Render Server can create the next generation.
+            // 削除／リセットされたデバイスはフェンスを通知できない。Render Serverが次の世代を作成できるよう、
+            // ネイティブオブジェクトを解放する必要がある。
         }
 
         this.ReleaseReadbackBuffer();
@@ -4557,6 +4574,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalDistanceField?.Dispose();
         this.GlobalDistanceField=null;
         this.Lumen?.Dispose();
+        this.DisposeVirtualShadows();
         this.Lumen=null;
         if(this.LumenSurfacePipelineState!=null){
             _=this.LumenSurfacePipelineState->Release();

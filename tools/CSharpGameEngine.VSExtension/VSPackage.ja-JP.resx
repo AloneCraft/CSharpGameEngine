@@ -92,4 +92,7 @@
   <data name="141" xml:space="preserve">
     <value>地面をクリックした場所へキャラクターが歩くゲーム。真上から見下ろす固定カメラ(Unreal EngineのTop Downテンプレートの移植)。</value>
   </data>
+  <data name="123" xml:space="preserve">
+    <value>アセット エディター</value>
+  </data>
 </root>

@@ -3,8 +3,7 @@ using CSharpGameEngine.Spatial.Abstractions;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Light Tests": Forward is the direction
-/// light travels (photon direction), DirectionToLight is always its opposite.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Light Tests」。Forward は光が進む方向（光子の進行方向）であり、DirectionToLight は常にその反対方向。
 /// </summary>
 public class LightBasisTests {
     [Fact]

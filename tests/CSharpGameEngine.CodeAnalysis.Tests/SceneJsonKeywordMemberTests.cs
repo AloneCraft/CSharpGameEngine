@@ -1,8 +1,8 @@
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// A scene JSON member, constructor parameter or enum member named like a C# keyword (a field declared <c>@class</c>) is
-/// written to the generated scene with its verbatim prefix; it used to make the generated code fail to compile.
+/// C# キーワードと同じ名前の Scene JSON メンバー、コンストラクターパラメーター、列挙メンバー（<c>@class</c> というフィールドなど）は、逐語的識別子の接頭辞を付けて生成
+/// Scene に書き込む。以前は生成コードがコンパイルできなかった。
 /// </summary>
 public sealed class SceneJsonKeywordMemberTests {
     private const string Components="""

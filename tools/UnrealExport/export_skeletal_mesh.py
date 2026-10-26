@@ -17,7 +17,7 @@ try:
         raise RuntimeError("The skeletal mesh was not found: " + os.environ["CGE_SK_ASSET"])
     out_path = os.environ["CGE_SK_OUT"]
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    # CGE_SK_STATIC=1 exports a static mesh (the sports car's body, glass and wheel are static meshes) without skinning.
+    # CGE_SK_STATIC=1 は skinning せずに static mesh を export します（sports car の body、glass、wheel は static mesh です）。
     skinned = os.environ.get("CGE_SK_STATIC") != "1"
     export_gltf(asset, out_path, set(), skinned=skinned)
     log(("Exported skeletal mesh: " if skinned else "Exported static mesh: ") + out_path)

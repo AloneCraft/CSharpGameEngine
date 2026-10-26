@@ -5,7 +5,7 @@ namespace CSharpGameEngine.Vsix.Automation;
 public readonly struct SceneFrameSample {
     public SceneFrameSample(long ElapsedMilliseconds,bool HasRenderedVariation,ulong Signature)
         :this(ElapsedMilliseconds,HasRenderedVariation,Signature,float.NaN){ }
-    /// <param name="AverageLuminance">Mean luminance on a 0-255 scale; NaN when not measured.</param>
+    /// <param name="AverageLuminance">0～255 のスケールでの平均輝度。測定していない場合は NaN。</param>
     public SceneFrameSample(long ElapsedMilliseconds,bool HasRenderedVariation,ulong Signature,float AverageLuminance){
         this.ElapsedMilliseconds=ElapsedMilliseconds;
         this.HasRenderedVariation=HasRenderedVariation;
@@ -36,7 +36,7 @@ public sealed class SceneFrameSequenceAnalysis {
     public int StableFrameCount { get; }
     public int BlankFrameCount { get; }
     public int UnstableFrameCount { get; }
-    /// <summary>Frames after ready whose mean luminance strays from the median; catches uniform flicker the relative signature cannot see.</summary>
+    /// <summary>準備完了後のフレームについて、平均輝度が中央値から外れたもの。相対シグネチャでは検出できない均一なちらつきを捉える。</summary>
     public int BrightnessUnstableFrameCount { get; }
     public long MaximumGapMilliseconds { get; }
     public float AverageFramesPerSecond { get; }

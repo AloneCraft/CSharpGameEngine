@@ -29,9 +29,7 @@ public sealed record ReleaseCandidateReport(
     IReadOnlyList<ReleaseCandidateInput>Inputs);
 
 /// <summary>
-/// Derives one RC prerequisite closure from the Catalog and binds recent Release/WARP Stage
-/// verdicts. Stage results remain the execution truth; this report is only their immutable,
-/// Level-gated selection and provenance closure.
+/// Catalog から RC の前提条件を導出し、最近の Release/WARP Stage 判定を結び付ける。Stage の結果が実行時の正となる。このレポートは、その不変な結果を Level で選び、由来をまとめたものにすぎない。
 /// </summary>
 public static class ReleaseCandidateEvidence {
     public const string ReportSchema="csharp-game-engine-release-candidate-v1";

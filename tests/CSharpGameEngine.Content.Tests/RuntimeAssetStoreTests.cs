@@ -103,8 +103,8 @@ public sealed class RuntimeAssetStoreTests:IDisposable {
 
     [Fact]
     public async Task ManifestUpdate_CancelledWhileItsLastArtifactIsRead_KeepsTheOldManifest(){
-        // Audit AUD-002: the caller cancels after the last candidate artifact was read and validated, before the update
-        // commits. The cancellation wins: the old manifest stays the authority and the result says so.
+        // 呼び出し側が最後の候補アーティファクトを読み込んで検証した後、更新を
+        // 確定する前にキャンセルする場合を検査する AUD-002。キャンセルが優先され、古いマニフェストを正とした結果を返す。
         var First=await this.CreateManifestAsync("first");
         var Second=await this.CreateManifestAsync("second",First.Key,First.Store);
         using var Cancel=new CancellationTokenSource();

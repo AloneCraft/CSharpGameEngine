@@ -25,13 +25,13 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
         this.OnSolutionOpened();
     }
 
-    /// <summary>Points <see cref="CgeProjectContext"/> at the open solution and restarts project-bound services (ADR-0065).</summary>
+    /// <summary><see cref="CgeProjectContext"/> を開いているソリューションに設定し、プロジェクトに結び付いたサービスを再起動する (ADR-0065)。</summary>
     private void OnSolutionOpened(){
         ThreadHelper.ThrowIfNotOnUIThread();
         CgeProjectContext.SolutionPath=this.SolutionEventsSource is{ }Solution
             &&ErrorHandler.Succeeded(Solution.GetSolutionInfo(out _,out var SolutionFile,out _))
             &&!string.IsNullOrWhiteSpace(SolutionFile)?SolutionFile:null;
-        this.RestartAssetMetaWatcher();
+        this.AssetWorkspace?.SolutionChanged();
     }
 
     private void DisposeSolutionLifecycle(){
@@ -50,9 +50,9 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
         ActivityLog.LogInformation(
             nameof(CSharpGameEngineViewerPackage),
             "Preparing Scene subsystem for solution unload.");
-        // Scene documents are projections of C# authoring state. Release them before project
-        // unload starts; waiting until package disposal can leave VisualStudioWorkspace and a
-        // Preview Host alive while the shell is trying to unload their owning project.
+        // シーンのドキュメントは C# の作成状態を投影したもの。プロジェクトの
+        // アンロード開始前に破棄する。パッケージ破棄まで待つと、VisualStudioWorkspace と
+        // Preview Host が残り、シェルがそれらを所有するプロジェクトをアンロードしようとしても終了しない。
         SceneJsonEditorPane.ReleaseRuntimeResourcesForSolutionClose();
         this.SceneSession?.ClearPin();
         ActivityLog.LogInformation(
@@ -69,7 +69,7 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
     int IVsSolutionEvents.OnAfterCloseSolution(object Reserved){
         ThreadHelper.ThrowIfNotOnUIThread();
         CgeProjectContext.SolutionPath=null;
-        this.RestartAssetMetaWatcher();
+        this.AssetWorkspace?.SolutionChanged();
         return VSConstants.S_OK;
     }
     int IVsSolutionEvents.OnAfterOpenProject(
@@ -94,8 +94,8 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
     int IVsSolutionEvents.OnQueryCloseSolution(
         object Reserved,ref int Cancel){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // OnBeforeCloseSolution may be raised only after the shell has begun unloading projects.
-        // Closing these derived documents during the query phase removes that ordering cycle.
+        // OnBeforeCloseSolution は、シェルがプロジェクトのアンロードを開始した後にのみ呼び出される場合がある。
+        // 問い合わせフェーズでこれらの派生ドキュメントを閉じると、その順序の循環を解消できる。
         this.PrepareForSolutionClose();
         return VSConstants.S_OK;
     }

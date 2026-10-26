@@ -3,8 +3,8 @@ using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// Static triangle meshes never move, so re-synchronizing and stepping them must not rescan their
-/// vertices: the ThirdPerson level spent 95% of each frame recomputing those bounds (about 1 fps).
+/// 静的三角形メッシュは動かないため、再同期やステップ実行時に頂点を再走査する必要はない。
+/// ThirdPersonレベルでは各フレームの95 %を境界再計算に費やし、約1 fpsになっていた。
 /// </summary>
 public sealed class PhysicsShapeBoundsCacheTests {
     private static PhysicsShapeAsset Grid(string Id,int Cells){
@@ -56,7 +56,7 @@ public sealed class PhysicsShapeBoundsCacheTests {
             var General=new LogicalQuaternion(LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.One);
             Assert.True(LogicalQuaternion.Identity.TryRotate(Value,out var Rotated));
             Assert.Equal(Value,Rotated);
-            // The general q·p·q* product that the shortcut skips gives the same vector.
+            // 省略された一般式q·p·q*の積でも、同じベクトルになる。
             Assert.True(LogicalQuaternion.TryMultiply(General,new LogicalQuaternion(Value.R,Value.U,Value.F,LogicalScalar.Zero),out var Product));
             Assert.True(LogicalQuaternion.TryMultiply(Product,General.Conjugate(),out Product));
             Assert.Equal(Value,new LogicalVector3(Product.R,Product.U,Product.F));

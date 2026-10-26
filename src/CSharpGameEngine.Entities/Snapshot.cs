@@ -138,7 +138,7 @@ public static class EcsSnapshotComponentCodec<T>where T:struct {
         if(!Stack.Add(Type)){ throw new NotSupportedException($"Snapshot component field type {CanonicalTypeId(Type)} is recursive."); }
         var Members=new List<(string Name,Type Type)>();
         if(ConstructedValueShape.TryGet(Type,out var Constructed)){
-            // A validated value type's state is its constructor's parameters; computed properties such as IsValid are not.
+            // 検証済み値型の状態はコンストラクターのパラメーターで決まり、IsValidなどの計算プロパティは含まない。
             foreach(PropertyInfo Property in Constructed.Properties){ Members.Add((Property.Name,Property.PropertyType)); }
         } else {
             foreach(FieldInfo Field in Type.GetFields(BindingFlags.Instance|BindingFlags.Public)){ Members.Add((Field.Name,Field.FieldType)); }
@@ -334,10 +334,10 @@ internal sealed class AssetIdJsonConverter:StringValueJsonConverter<AssetId>{pro
 internal sealed class SubAssetIdJsonConverter:StringValueJsonConverter<SubAssetId>{protected override SubAssetId Parse(string Value)=>SubAssetId.Parse(Value);protected override string Format(SubAssetId Value)=>Value.ToString();}
 
 /// <summary>
-/// A validated value type (audit AUD-001): a struct with no public fields and only properties without setters, whose state
-/// is the parameters of its one public constructor, each naming a property of its type. The typed light quantities are
-/// such types. System.Text.Json alone cannot set their properties, so the snapshot codec rebuilds them through the
-/// constructor, whose range check then guards a restore too; properties no parameter names (IsValid) are not state.
+/// 検証済み値型（監査AUD-001）を表す。公開フィールドを持たず、setterのないプロパティだけを持つ構造体であり、
+/// その状態は、型のプロパティをそれぞれ1つずつ指定する公開コンストラクターのパラメーターで決まる。
+/// 物理ライト量の型はこの条件を満たす。System.Text.Jsonだけではプロパティを設定できないため、スナップショットコーデックは
+/// コンストラクターを通じて再構築する。コンストラクターの範囲検証は復元時にも行われる。IsValidなど、対応する引数名のないプロパティは状態に含まない。
 /// </summary>
 internal sealed class ConstructedValueShape {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type,ConstructedValueShape?>Shapes=new();
@@ -346,7 +346,7 @@ internal sealed class ConstructedValueShape {
         this.Properties=Properties;
     }
     internal ConstructorInfo Constructor{get;}
-    /// <summary>The properties holding the state, in constructor parameter order.</summary>
+    /// <summary>状態を保持するプロパティ。コンストラクターのパラメーター順に並ぶ。</summary>
     internal PropertyInfo[]Properties{get;}
     internal static bool TryGet(Type Type,out ConstructedValueShape Shape){
         Shape=Shapes.GetOrAdd(Type,Find)!;
@@ -380,7 +380,7 @@ internal sealed class ConstructedValueJsonConverterFactory:JsonConverterFactory 
     }
 }
 internal sealed class ConstructedValueJsonConverter<T>(ConstructedValueShape Shape):JsonConverter<T> {
-    /// <summary>Written in ordinal name order, as the codec orders every other member.</summary>
+    /// <summary>ほかの各メンバーと同様、コーデックが序数名順で書き込む。</summary>
     private readonly PropertyInfo[]Ordered=[.. Shape.Properties.OrderBy(static Property=>Property.Name,StringComparer.Ordinal)];
     public override T Read(ref Utf8JsonReader Reader,Type TypeToConvert,JsonSerializerOptions Options){
         if(Reader.TokenType!=JsonTokenType.StartObject){ throw new JsonException($"{typeof(T).FullName} must be an object."); }

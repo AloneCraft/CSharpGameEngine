@@ -21,10 +21,7 @@ public readonly record struct AudioDeviceSnapshot(
     AudioDeviceState State,AudioBackendMode Mode,uint Generation,string?LastFailure,
     global::CSharpGameEngine.Audio.AudioVoiceRecoveryReport LastRecovery);
 
-/// <summary>
-/// Owns exactly one XAudio2 engine generation. Recovery is explicit; a failed create never
-/// masquerades as Ready and silent fallback owns no native handle.
-/// </summary>
+/// <summary>1つの XAudio2 エンジン世代だけを所有する。回復処理は明示的に行う。作成に失敗しても Ready を装わず、無音フォールバックがネイティブハンドルを所有することもない。</summary>
 public sealed class AudioDeviceServer:IDisposable {
     private readonly Func<XAudio2EngineHandle>CreateEngine;
     private readonly Action<XAudio2EngineHandle>DestroyEngine;
@@ -112,17 +109,16 @@ public sealed class AudioDeviceServer:IDisposable {
 
     private readonly List<XAudio2VoiceHandle>OneShots=[];
 
-    /// <summary>How many one-shots were requested (also in silent mode, where nothing is heard). A test and a diagnostic read this.</summary>
+    /// <summary>要求されたワンショット再生の数（何も聞こえない無音モードでも数える）。テストと診断処理が読み取る。</summary>
     public int OneShotsRequested { get;private set; }
 
-    /// <summary>How many one-shots a device actually started.</summary>
+    /// <summary>デバイスが実際に再生を開始したワンショットの数。</summary>
     public int OneShotsStarted { get;private set; }
 
     /// <summary>
-    /// Plays <paramref name="Clip"/> once on its own source voice (ADR-0077). <paramref name="Gain"/> is the final volume
-    /// (volume times distance attenuation); <paramref name="Pan"/> places a mono clip between the stereo speakers.
-    /// Returns false when nothing was started (silent mode, a device fault); the finished voices are freed by
-    /// <see cref="ReapOneShots"/>.
+    /// 独自のソースボイスで <paramref name="Clip"/> を一度再生する（ADR-0077）。<paramref name="Gain"/> は最終音量（音量と距離減衰の積）。
+    /// <paramref name="Pan"/> はモノラル音声を左右のステレオスピーカー間に定位する。再生を開始しなかった場合（無音モード、デバイス障害）は false を返す。再生が終わったボイスは
+    /// <see cref="ReapOneShots"/> が解放する。
     /// </summary>
     public bool PlayOneShot(global::CSharpGameEngine.Audio.PcmClip Clip,float Gain,float Pan){
         ObjectDisposedException.ThrowIf(this.State==AudioDeviceState.Disposed,this);
@@ -149,7 +145,7 @@ public sealed class AudioDeviceServer:IDisposable {
         }
     }
 
-    /// <summary>Destroys the one-shot voices that have finished playing. Call once per frame.</summary>
+    /// <summary>再生が完了したワンショット用ボイスを破棄する。フレームごとに一度呼び出す。</summary>
     public void ReapOneShots(){
         for(var Index=this.OneShots.Count-1;Index>=0;Index--){
             if(XAudio2Backend.IsFinished(this.OneShots[Index])){

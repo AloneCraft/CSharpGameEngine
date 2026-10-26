@@ -51,7 +51,7 @@ public sealed class SceneViewStateTests {
 
         var Projection=State.GetProjection(1.6f);
 
-        // CreateOrthographic: M33=1/(near-far)、M43=near/(near-far)。
+        // CreateOrthographic：M33=1/(near-far)、M43=near/(near-far)。
         var Near=Projection.M43/Projection.M33;
         Assert.Equal(SceneCameraFraming.BaseNearPlane,Near,Precision);
     }
@@ -471,9 +471,7 @@ public sealed class SceneViewStateTests {
     }
 
     /// <summary>
-    /// M0095 (user request 2026-10-01): Alt+LMB orbit around the selection keeps the selection's center
-    /// where it is on screen, even off the view's center, and at the same distance, so a sphere there
-    /// draws exactly the same while the camera goes around it. The turn equals the plain orbit's.
+    /// M0095（ユーザー要求 2026-10-01）：選択対象を中心に Alt+LMB で軌道回転すると、ビューの中心から外れた位置でも、画面上の選択中心と距離を維持する。そのためカメラが周囲を回っても、そこにある球はまったく同じように描画される。回転量は通常の軌道回転と同じ。
     /// </summary>
     [Theory]
     [InlineData(40f,0f)]

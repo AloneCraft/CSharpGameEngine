@@ -6,19 +6,14 @@ using System.Threading;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Watches the OS downloads folder and copies newly-completed files matching
-/// <see cref="WatchedExtensions"/> into the project's <c>UserEcsProject/Assets/Fab/</c> folder
-/// (ADR-0011). This is a pure "drop zone" convenience - it never talks to Fab, never logs in, and
-/// never downloads anything itself. The actual browse/login/purchase/download flow always happens
-/// in the user's own browser via <see cref="OpenFabCommand"/>; this class only reacts to files that
-/// already landed in the downloads folder as a result of that manual flow.
+/// OS のダウンロードフォルダーを監視し、ダウンロードが完了した <see cref="WatchedExtensions"/> に一致するファイルをプロジェクトの <c>UserEcsProject/Assets/Fab/</c> フォルダーへコピーします（ADR-0011）。これはファイルの「ドロップゾーン」としての利便機能に限られ、Fab との通信、ログイン、ダウンロードは行いません。実際の閲覧、ログイン、購入、ダウンロードは常にユーザー自身のブラウザーで <see cref="OpenFabCommand"/> を使って行い、このクラスは手動操作の結果としてダウンロードフォルダーに保存されたファイルにのみ反応します。
 /// </summary>
 internal sealed class FabDownloadWatcher:IDisposable {
-    // Deliberately an allow-list rather than "copy everything": the downloads folder also
-    // collects unrelated files (installers, PDFs, etc.) that have no business ending up in a game
-    // project's Assets folder. These extensions cover the asset formats Fab actually distributes
-    // (glTF/FBX/OBJ meshes, common texture formats, and the zip archives Fab often packages
-    // multi-file exports as).
+    // 「すべてコピーする」方式ではなく、許可リストを使います。ダウンロードフォルダーには無関係なファイルも
+    // 集まるためです（インストーラーや PDF など、ゲームプロジェクトの Assets フォルダーに
+    // 入れるべきでないものがあります）。以下の拡張子は Fab が実際に配布するアセット形式を対象にし、
+    // glTF/FBX/OBJ のメッシュ、一般的なテクスチャ形式、および Fab がよく複数ファイルの出力をまとめる
+    // zip アーカイブを含みます。
     public static readonly string[]WatchedExtensions=[
         ".fbx",".glb",".gltf",".obj",".zip",".png",".jpg",".jpeg",".tga",".usd",".usdz",
     ];
@@ -45,10 +40,10 @@ internal sealed class FabDownloadWatcher:IDisposable {
                                                              IncludeSubdirectories=false,
                                                          };
         this.Watcher.Created+=(_,E)=> this.HandleCandidate(E.FullPath);
-        // Browsers commonly download to a temp name (e.g. "*.crdownload") and rename to the final
-        // name only once the download finishes - Renamed is the reliable "file is actually ready"
-        // signal for that case; Created alone would fire on the temp file and/or on a truncated
-        // partial write.
+        // ブラウザーはダウンロード中に一時名（例："*.crdownload"）をよく使い、完了時にだけ最終名へ変更します。
+        // その場合、Renamed が「ファイルの準備完了」を示す確実な通知です。Created だけでは一時ファイルや
+        // 不完全なファイルを検出してしまいます。
+        // 書き込みの途中。
         this.Watcher.Renamed+=(_,E)=> this.HandleCandidate(E.FullPath);
         this.Watcher.Error+=(_,E)=>OnError(E.GetException()?.Message??"FileSystemWatcher reported an unknown error.");
     }

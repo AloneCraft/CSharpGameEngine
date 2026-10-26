@@ -6,8 +6,7 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// ADR-0070: a gesture on a JSON scene is written back from the edited model. The write is the edited
-/// line only, node ids survive, and the result is a valid scene document.
+/// ADR-0070：JSON シーンに対する操作は、編集後のモデルから書き戻す。書き込みは編集された行だけで、ノード ID を維持し、結果は有効なシーンドキュメントとなる。
 /// </summary>
 public sealed class SceneJsonCommitPlannerTests {
     private const string TransformTypes="""
@@ -195,9 +194,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Contains("SCENE201",Plan.ErrorMessage,StringComparison.Ordinal);
     }
     /// <summary>
-    /// ADR-0070 (revised by M0095): the Scene Designer analyzes a scene with the build's rules, so a document
-    /// the build rejects (an unknown key, member or type) is not analyzed and nothing is written to it; it is
-    /// fixed in the JSON view, where the same errors show.
+    /// ADR-0070（M0095 による改訂）：Scene Designer はビルドの規則でシーンを解析する。そのため、ビルドで拒否されるドキュメント（不明なキー、メンバー、型）は解析も書き込みも行わない。JSON ビューで修正し、同じエラーを表示する。
     /// </summary>
     [Theory]
     [InlineData("  \"schemaVersion\": 3,\n","  \"schemaVersion\": 3,\n  \"editorNote\": \"x\",\n","SCENE204")]
@@ -211,10 +208,9 @@ public sealed class SceneJsonCommitPlannerTests {
             out _,out _,out _,out var Error));
         Assert.Contains(Diagnostic,Error,StringComparison.Ordinal);
     }
-    /// <summary>M0095 3-5: a gesture on a hand-formatted document changes the edited value only.</summary>
+    /// <summary>M0095 3-5：手作業で書式を整えたドキュメントへの操作では、編集した値だけが変更される。</summary>
     /// <summary>
-    /// An edit keeps a startup scene a startup scene. The designer's model used to lose <c>startupOrder</c>, so the
-    /// first edit rewrote the document without it and the game stopped loading the scene.
+    /// 起動シーンを編集しても起動シーンのまま保つ。以前はデザイナーのモデルが <c>startupOrder</c> を失い、最初の編集でドキュメントから削除されて、ゲームがシーンを読み込めなくなっていた。
     /// </summary>
     [Fact]
     public void Move_KeepsTheStartupOrderOfAStartupScene(){
@@ -228,8 +224,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),After);
     }
     /// <summary>
-    /// The Inspector's enum and text editors write back to a JSON scene. Their values used to be accepted only as C#
-    /// text edits, which a JSON scene does not have, so every enum or string edit failed.
+    /// Inspector の列挙値エディターとテキストエディターは、JSON シーンへ書き戻す。以前は値が C# のテキスト編集としてしか受け入れられなかった。JSON シーンにはそれがないため、列挙値や文字列を編集するたびに失敗していた。
     /// </summary>
     [Fact]
     public void InspectorEnumAndTextEdits_WriteTheirLinesOnly(){
@@ -253,8 +248,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"Label\": \"a \\\"b\\\"\"","\"Label\": \"c\\\\d\""),LabelPlan.WriteStep!.Before.WithChanges(LabelPlan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// A null string stays an editable text value. Scene JSON writes a reference type's null as null! (so the generated
-    /// code does not warn), and the model reads that as the null literal, not as a read-only constant expression.
+    /// null 文字列は編集可能なテキスト値のままにする。Scene JSON は参照型の null を null! として書き出すため（生成コードで警告が出ない）、モデルはそれを読み取り専用の定数式ではなく null リテラルとして読み込む。
     /// </summary>
     [Fact]
     public void NullText_StaysEditable(){
@@ -268,15 +262,13 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Label.IsEditable);
         Assert.Equal(InspectorEditorKind.Text,Label.EditorKind);
         Assert.Equal("null",Label.SourceExpression);
-        // The text field sends only a changed value, always as a quoted string (InspectorTextCommitPolicy, FormatText).
+        // テキストフィールドが送るのは変更された値だけで、常に引用符付き文字列となる (InspectorTextCommitPolicy, FormatText)。
         var Edit=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Label,SceneInspectorValueFormat.FormatText("Lit")),Seed.Reconciler,CancellationToken.None);
         Assert.True(Edit.Succeeded,Edit.ErrorMessage);
         Assert.Equal(Before.Replace("\"Label\": null","\"Label\": \"Lit\""),Edit.WriteStep!.Before.WithChanges(Edit.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// LogicalScalar members (the engine's authored real numbers: character movement, spring arm, every RUF vector of a
-    /// Transform) are edited as floats in the Inspector, as their JSON numbers are read. They used to be read-only, so
-    /// the RUF vector editing the Inspector offers was unavailable for the engine's own vectors.
+    /// LogicalScalar メンバー（エンジンが作成する実数：キャラクターの移動、スプリングアーム、Transform 内のすべての RUF ベクトル）は、JSON 数値として読み取られるとおり Inspector で float として編集する。以前は読み取り専用だったため、Inspector が提供する RUF ベクトル編集をエンジン自身のベクトルで利用できなかった。
     /// </summary>
     [Fact]
     public void InspectorEditsLogicalScalarMembersAsFloats(){
@@ -305,10 +297,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"U\": 2,","\"U\": -4,"),OffsetPlan.WriteStep!.Before.WithChanges(OffsetPlan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// A component added from the palette is written with its declared defaults. The defaults were kept only as C# text,
-    /// so a float or enum default came out as null (SCENE203) or threw, and the engine's own components (Transform, the
-    /// lights, CharacterMotion, ...) could not be added to a scene. A default JSON cannot hold (a static member) is
-    /// left out, which keeps the same default when the scene is built.
+    /// パレットから追加したコンポーネントは、宣言された既定値で書き出す。既定値は C# テキストとしてしか保持されなかったため、float や enum の既定値が null (SCENE203) になるか例外が発生し、エンジン標準のコンポーネント（Transform、ライト、CharacterMotion など）をシーンに追加できなかった。既定値が JSON で表現できない場合（static メンバーなど）は除外し、シーンのビルド時にも同じ既定値が適用されるようにする。
     /// </summary>
     [Fact]
     public void PaletteComponent_IsWrittenWithItsDeclaredDefaults(){
@@ -330,10 +319,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.DoesNotContain("\"Offset\"",After);
     }
     /// <summary>
-    /// An enum default is written as the member it names, whatever expression declares it ((ShapeKind)1 is Sphere). A
-    /// value no single member names (a flags combination) has no scene JSON form, so it is left out and the declared
-    /// default applies, as for any default JSON cannot hold. The constant was written as a number, which the enum's
-    /// member-name string rejected (SCENE203), so such a component could not be added.
+    /// enum の既定値は、宣言式が何であっても、それが示すメンバー名で書き出す（(ShapeKind)1 は Sphere）。単一のメンバー名で表せない値（flags の組み合わせ）は Scene JSON 形式にできないため除外し、JSON で保持できない他の既定値と同様に宣言上の既定値を適用する。定数が数値で書き出され、enum のメンバー名文字列として拒否されていた (SCENE203) ため、そのようなコンポーネントを追加できなかった。
     /// </summary>
     [Fact]
     public void PaletteComponent_WritesEnumDefaultsByName(){
@@ -352,14 +338,10 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.DoesNotContain("\"Unnamed\"",After);
     }
     /// <summary>
-    /// An edit elsewhere leaves a double member's text as it is. The VSIX (.NET Framework) wrote a double with its own
-    /// "R" text (1/3 as 0.33333333333333331, where the tools write 0.3333333333333333), so the merge saw a changed value
-    /// and every edit rewrote the line.
+    /// 別の箇所を編集しても double メンバーのテキストはそのままにする。VSIX（.NET Framework）は独自の "R" 表記で double を書き出し（1/3 は 0.33333333333333331、ツールでは 0.3333333333333333）、マージ処理が値の変更と判断して、編集のたびにその行を書き直していた。
     /// </summary>
     /// <summary>
-    /// A user component's collection member (List&lt;T&gt;, which the schema and the build accept as a JSON array) does not
-    /// stop the Designer: the designer source holds it as a collection expression, which the Scene DSL model rejected as
-    /// a "non-array collection" (SCENE110), so the whole scene could not be edited although it built.
+    /// ユーザーコンポーネントのコレクションメンバー（スキーマとビルドでは JSON 配列として認められる List&lt;T&gt;）があっても Designer は停止しない。Designer のソースはコレクション式として保持するが、Scene DSL モデルがそれを「配列でないコレクション」(SCENE110) として拒否していたため、ビルドできるシーンを一切編集できなかった。
     /// </summary>
     [Fact]
     public void ListMember_KeepsTheSceneEditable(){
@@ -377,9 +359,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// A palette component's constant default that scene JSON cannot hold (a char) is left out, as any such default, so
-    /// the declared default applies at build. It was written as a constant the converter has no JSON form for, and the
-    /// whole add failed.
+    /// パレットコンポーネントの定数既定値が Scene JSON で保持できない場合（char など）は、他の同様な既定値と同じく省略し、ビルド時に宣言された既定値を適用する。以前はコンバーターが JSON 形式にできない定数として書き出され、追加処理全体が失敗していた。
     /// </summary>
     [Fact]
     public void PaletteComponent_LeavesOutAConstantJsonCannotHold(){
@@ -397,10 +377,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.DoesNotContain("\"Letter\"",After);
     }
     /// <summary>
-    /// Integer members are edited exactly. Scene JSON writes one other than int with a cast ((byte)(200)) so an
-    /// overloaded constructor gets the right type, and the Scene DSL model read that cast as a constant expression, so
-    /// the Inspector showed every byte, short, uint or long member as read-only; the edit then parsed every number as a
-    /// float, so 123456790 was written as 123456792 and the U/L suffixes of uint, long and ulong did not parse.
+    /// 整数メンバーは正確に編集する。Scene JSON は int 以外の数値をキャスト付きで書き出す（((byte)(200))）ため、オーバーロードされたコンストラクターが正しい型を受け取る。Scene DSL モデルがそのキャストを定数式として読み込んでいたため、Inspector では byte、short、uint、long の各メンバーがすべて読み取り専用になっていた。さらに編集値はすべて float として解析され、123456790 は 123456792 と書き出され、uint、long、ulong の U/L サフィックスも解析できなかった。
     /// </summary>
     [Theory]
     [InlineData("Tiny","200","201")]
@@ -447,9 +424,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.False(Edit.Succeeded);
     }
     /// <summary>
-    /// A component written with constructor arguments (a positional record: scene JSON names the constructor's
-    /// parameters) shows each argument as a read-only row named by its key, as a nested value's arguments are shown.
-    /// The Inspector showed such a component with no rows at all, as if the document held no value for it.
+    /// コンストラクター引数で書かれたコンポーネント（位置引数を持つ record：Scene JSON はコンストラクターのパラメーターを名前にする）では、各引数をキー名付きの読み取り専用行として表示する。入れ子の値の引数と同様である。以前 Inspector は値が存在しないかのように、そのコンポーネントを行なしで表示していた。
     /// </summary>
     [Fact]
     public void ConstructorArguments_AreShownReadOnly(){
@@ -478,8 +453,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// An edit elsewhere leaves a decimal member as it is. .NET Framework has no "R" format for decimal and threw, so
-    /// no edit could be written to a scene with a decimal member.
+    /// 別の箇所を編集しても decimal メンバーのテキストはそのままにする。.NET Framework には decimal の "R" 書式がなく例外が発生したため、decimal メンバーのあるシーンには編集を書き込めなかった。
     /// </summary>
     [Fact]
     public void Move_KeepsDecimalMembersAsWritten(){
@@ -508,9 +482,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),After);
     }
     /// <summary>
-    /// The author's key order and the lists or ids they leave out are layout, not values: moving the Cube writes its one
-    /// position line. The merge compared objects by their names in order, so any edit rewrote, in canonical form, every
-    /// object written in another order or without an empty list (a whole node, with its children), and a node without an id.
+    /// 作成者のキー順、および省略されているリストや ID は値ではなくレイアウトである。Cube の移動では位置の 1 行だけを書き込む。マージ処理はオブジェクトを名前順で比較していたため、別の順序で書かれたオブジェクトや空リストのないオブジェクトを含むあらゆる編集で、（子を含むノード全体を）標準形式に書き直していた。ID のないノードも同様だった。
     /// </summary>
     [Theory]
     [InlineData("        \"id\": \"LAMP\",\n        \"name\": \"Lamp\",\n","        \"name\": \"Lamp\",\n        \"id\": \"LAMP\",\n")]
@@ -528,9 +500,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// A nested component type is named in the document as C# names it (Outer.Inner), which the converter, the schema and
-    /// the palette write. Only its metadata name (Outer+Inner) resolved, so every edit of a scene with one failed once
-    /// written back (SCENE201) and the palette could not add one. A document that uses the metadata name still reads.
+    /// 入れ子のコンポーネント型は C# の名前 (Outer.Inner) でドキュメントに記述し、コンバーター、スキーマ、パレットもその名前を出力する。メタデータ名 (Outer+Inner) でしか解決できなかったため、該当するシーンを編集すると書き戻し時に毎回失敗し (SCENE201)、パレットからも追加できなかった。メタデータ名を使うドキュメントは引き続き読み込める。
     /// </summary>
     [Theory]
     [InlineData("CSharpGameEngine.Runtime.Windows.Outer.Inner",true)]
@@ -543,7 +513,7 @@ public sealed class SceneJsonCommitPlannerTests {
             new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
             Seed.Reconciler,CancellationToken.None);
         Assert.True(Move.Succeeded,Move.ErrorMessage);
-        // The metadata name is written back in the C# form, once.
+        // メタデータ名は一度だけ C# 形式にして書き戻す。
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,").Replace("Outer+Inner","Outer.Inner"),Move.WriteStep!.Before.WithChanges(Move.WriteStep.Changes).ToString());
         if(!CSharpForm){ return; }
         var Type=Seed.Context.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Windows.Outer+Inner")!;
@@ -554,9 +524,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
     }
     /// <summary>
-    /// Node ids stay across edits also for siblings with the same name and component types. The reconciler gives such
-    /// siblings a new editor id on every analysis, and the write-back carried JSON ids by editor id, so moving any node
-    /// replaced every look-alike's id with a new GUID.
+    /// 同名かつ同じコンポーネント型を持つ兄弟ノードでも、編集後にノード ID を維持する。調整器は解析のたびにそのような兄弟へ新しいエディター ID を付けていた。JSON ID をエディター ID に結び付けて書き戻していたため、ノードを移動するたびに見分けのつかない兄弟すべての ID が新しい GUID に置き換わっていた。
     /// </summary>
     [Fact]
     public void Move_KeepsTheIdsOfLookAlikeSiblings(){
@@ -575,9 +543,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// A write-back replaces only the edited text in the buffer: moving the Cube changes one character. The changes were
-    /// computed between unrelated texts, which gave one change over the whole document on every edit, so the JSON view
-    /// lost its place, folding and bookmarks each time (the flicker M0044 removed from the C# path).
+    /// 書き戻しではバッファー内の編集テキストだけを置換する。Cube の移動なら 1 文字が変わる。以前は無関係なテキスト間で変更を計算し、毎回ドキュメント全体を 1 つの変更としていたため、JSON ビューは編集のたびにカーソル位置、折りたたみ、ブックマークを失っていた（C# 経路では M0044 で解消済みのちらつき）。
     /// </summary>
     [Fact]
     public void Move_ChangesOnlyTheEditedTextInTheBuffer(){
@@ -590,9 +556,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal((Document("1").IndexOf("\"R\": 1,",StringComparison.Ordinal)+5,1,"3"),(Change.Span.Start,Change.Span.Length,Change.NewText));
     }
     /// <summary>
-    /// An edit writes a value as the tools on .NET write it. Since the document keeps a literal's spelling, the VSIX wrote
-    /// .NET Framework's "R" text of the edited float (312985.125 for 312985.12), which reads back the same but differs from
-    /// what the same edit writes on .NET.
+    /// 値の書き出しには .NET のツールと同じ形式を使う。ドキュメントではリテラルの表記を維持するため、VSIX は編集した float を .NET Framework の "R" 表記で書き出していた（312985.12 に対して 312985.125）。同じ値に読み戻せるが、.NET で同じ編集を行ったときの表記とは異なる。
     /// </summary>
     [Fact]
     public void Move_WritesTheValueAsDotNetSpellsIt(){
@@ -604,9 +568,7 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(Document("1").Replace("\"R\": 1,","\"R\": 312985.12,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
     }
     /// <summary>
-    /// An edit leaves the author's spelling of other numbers alone. A float the author wrote with more digits than a float
-    /// holds (3.14159265358979, 16777217) was rewritten as the float's shortest text on every unrelated edit, which read
-    /// back the same but lost the author's digits and changed lines the edit had not touched.
+    /// 別の数値については作成者の表記を維持する。float の桁数より多く記述された数値 (3.14159265358979、16777217) は、関係のない編集のたびに float の最短表記へ書き直されていた。値は同じに読み戻せるが作成者の桁が失われ、編集していない行まで変わっていた。
     /// </summary>
     [Fact]
     public void Move_KeepsTheAuthorsSpellingOfOtherNumbers(){

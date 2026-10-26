@@ -12,10 +12,10 @@ public sealed class HlslCompileResult {
 
     public bool Success { get;}
 
-    /// <summary>DXIL bytecode. Always empty when <see cref="Success"/> is false.</summary>
+    /// <summary>DXIL バイトコード。<see cref="Success"/> が false の場合は常に空。</summary>
     public byte[]Bytecode { get;}
 
-    /// <summary>DXC_OUT_REFLECTION data from a real compile, separate from artifact entry metadata.</summary>
+    /// <summary>実際のコンパイルで得た DXC_OUT_REFLECTION データ。成果物エントリのメタデータとは別。</summary>
     public byte[]DxcReflection { get;}
     public IReadOnlyList<HlslDiagnostic>Diagnostics { get;}
 

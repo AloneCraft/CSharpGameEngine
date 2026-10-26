@@ -1,24 +1,27 @@
 namespace CSharpGameEngine.Contracts;
 
 /// <summary>
-/// Versioned, provider-neutral wire contract between an L8 preview client and the isolated
-/// Render Server host. Only presentation-relative <see cref="float"/> values cross this boundary;
-/// native graphics objects and engine-owned authoritative state never do.
+/// L8プレビュークライアントと分離されたRender Serverホスト間で使う、バージョン付きのプロバイダー非依存通信契約。
+/// この境界を越えるのはプレゼンテーション相対の<see cref="float"/>値のみ。ネイティブのグラフィックスオブジェクトと、
+/// エンジン所有の正本状態は越えない。
 /// </summary>
 public static class RenderPreviewHostProtocol {
     /// <summary>
-    /// 9 (M0119): perspective depth is native logarithmic; the selector is removed and projection metadata is required.
-    /// 8 (M0100): introduced the transition length and depth selector. 7 (M0097): the runtime diagnostics
-    /// snapshot command and its payload were removed.
+    /// 10（M0127）：アセットエディター用に、フレームへ照明・背景・環境（<see cref="RenderPreviewLighting"/>）を、
+    /// マテリアルへ粗さ・金属度・ワールドグリッドを追加した。スケルタル glTF をホストが読む <see cref="RenderPreviewAssetSource"/>、
+    /// 応答の <see cref="RenderPreviewAssetSummary"/>、フレームの <see cref="RenderPreviewAnimation"/>（ADR-0090）も同じ版に含む。
+    /// 9（M0119）：透視深度はネイティブの対数方式であり、セレクターを削除して投影メタデータを必須にした。
+    /// 8（M0100）：遷移長と深度セレクターを導入した。7（M0097）：ランタイム診断スナップショットの
+    /// コマンドとペイロードを削除した。
     /// </summary>
-    public const int CurrentVersion=9;
+    public const int CurrentVersion=11;
     public const int MaximumDimension=16_384;
     public const int MaximumMeshCount=4_096;
     public const int MaximumMaterialCount=4_096;
     public const int MaximumObjectCount=100_000;
     public const int MaximumOverlayVertexCount=32_768;
     public const int MaximumCameraPreviewCount=3;
-    /// <summary>pi as a float (netstandard2.0 has no MathF).</summary>
+    /// <summary>float型の円周率（netstandard2.0にはMathFがない）。</summary>
     private const float Pi=3.14159274f;
 
     public static string?Validate(RenderPreviewHostRequest Request){
@@ -119,6 +122,10 @@ public static class RenderPreviewHostProtocol {
             typeof(RenderPreviewPresentationMode),Request.Frame.PresentationMode)){
             return "Frame presentation mode is unknown.";
         }
+        string?LightingError=RenderPreviewLightingValidation.Validate(Request.Frame.Lighting);
+        if(LightingError is not null){ return LightingError; }
+        string?SkeletalError=RenderPreviewSkeletalValidation.Validate(Request.Frame);
+        if(SkeletalError is not null){ return SkeletalError; }
         if(Request.Frame.OverlayTriangles is null||Request.Frame.OverlayLines is null){
             return "Frame overlay arrays are required.";
         }
@@ -209,6 +216,8 @@ public static class RenderPreviewHostProtocol {
 
     private static string?ValidateScene(RenderPreviewScene Scene){
         if(Scene.Camera is null){ return "Scene camera is required."; }
+        string?AssetError=RenderPreviewSkeletalValidation.Validate(Scene.Asset);
+        if(AssetError is not null){ return AssetError; }
         if(Scene.Meshes is null||Scene.Meshes.Length>MaximumMeshCount){
             return $"Scene mesh count must be between 0 and {MaximumMeshCount}.";
         }
@@ -246,6 +255,12 @@ public static class RenderPreviewHostProtocol {
             if(Material.BaseColor[3]<0f||Material.BaseColor[3]>1f){
                 return $"Material {MaterialIndex} alpha must be between zero and one.";
             }
+            if(!IsFinite(Material.Roughness)||Material.Roughness<0f||Material.Roughness>1f
+                ||!IsFinite(Material.Metallic)||Material.Metallic<0f||Material.Metallic>1f){
+                return $"Material {MaterialIndex} roughness and metallic must be between zero and one.";
+            }
+            string?GridError=RenderPreviewLightingValidation.Validate(Material.WorldGrid,MaterialIndex);
+            if(GridError is not null){ return GridError; }
         }
 
         HashSet<string>ObjectIds=new(StringComparer.Ordinal);
@@ -393,21 +408,21 @@ public sealed class RenderPreviewHostRequest {
     public RenderPreviewScene?Scene { get;set; }
     public RenderPreviewFrame?Frame { get;set; }
     /// <summary>
-    /// ADR-0070 B1: on Open, render the built game's own world with its runtime (the game's startup
-    /// scenes plus <see cref="RenderPreviewRuntimeView.SceneName"/>) instead of <see cref="Scene"/>.
+    /// ADR-0070 B1：Open時、<see cref="Scene"/>ではなく、実行時環境を使ってビルド済みゲーム自身のワールドを描画する
+    ///（ゲームのスタートアップシーンと<see cref="RenderPreviewRuntimeView.SceneName"/>）。
     /// </summary>
     public RenderPreviewRuntimeView?RuntimeView { get;set; }
     /// <summary>
-    /// On Open and ReplaceScene of a runtime view: the edited scene's current scene JSON
-    /// document. Its values are applied to the running world without a build.
+    /// ランタイムビューのOpenおよびReplaceScene時に使う、編集中のシーンの現在のシーンJSON文書。
+    /// ビルドせず、その値を実行中のワールドへ適用する。
     /// </summary>
     public string SceneJson { get;set; }=string.Empty;
 }
 
 public sealed class RenderPreviewRuntimeView {
-    /// <summary>The built game assembly, usually a copy so that the build output stays writable.</summary>
+    /// <summary>ビルド済みゲームのアセンブリ。通常はコピーを使い、ビルド出力を書き込み可能な状態に保つ。</summary>
     public string AssemblyPath { get;set; }=string.Empty;
-    /// <summary>The game build's directory, which its content paths are relative to; empty means the assembly's.</summary>
+    /// <summary>ゲームビルドのディレクトリ。コンテンツのパスはこのディレクトリを基準とする。空の場合はアセンブリのディレクトリを使う。</summary>
     public string ContentDirectory { get;set; }=string.Empty;
     public string SceneName { get;set; }=string.Empty;
     public bool UseWarp { get;set; }
@@ -426,15 +441,17 @@ public sealed class RenderPreviewHostResponse {
     public string Message { get;set; }=string.Empty;
     public RenderPreviewCameraDiagnostics[]CameraPreviews { get;set; }=[];
     /// <summary>
-    /// A runtime view whose scene document changed its structure (nodes or component types) since the
-    /// build it runs; the view shows the build's structure with the document's values until the next build.
+    /// 実行中のビルド後にシーン文書の構造（ノードまたはコンポーネント型）が変わったランタイムビュー。
+    /// 次のビルドまでは、ビルド時の構造に文書の値を適用して表示する。
     /// </summary>
     public bool BuildRequired { get;set; }
     /// <summary>
-    /// M0096 (ADR-0047): the id the runtime view's editor world carries on the host process's Spatial debug pipe;
-    /// empty without one. A Spatial request without a world id already gets this world.
+    /// M0096（ADR-0047）：ランタイムビューのエディターワールドが、ホストプロセスのSpatialデバッグパイプ上で持つID。
+    /// 存在しない場合は空。Spatial要求にワールドIDがなければ、このワールドが既に選択される。
     /// </summary>
     public Guid EditorSpatialWorldId { get;set; }
+    /// <summary>Open／ReplaceScene でスケルタルアセットを読んだときの要約（ADR-0090）。それ以外は null。</summary>
+    public RenderPreviewAssetSummary?AssetSummary { get;set; }
 }
 
 public sealed class RenderPreviewScene {
@@ -442,24 +459,33 @@ public sealed class RenderPreviewScene {
     public RenderPreviewMesh[]Meshes { get;set; }=[];
     public RenderPreviewMaterial[]Materials { get;set; }=[];
     public RenderPreviewObject[]Objects { get;set; }=[];
+    /// <summary>ホストが自分で読み込むスケルタル glTF（ADR-0090）。明示分の後ろにメッシュ・マテリアル・オブジェクトとして足される。</summary>
+    public RenderPreviewAssetSource?Asset { get;set; }
 }
 
 public sealed class RenderPreviewFrame {
     public RenderPreviewCamera?Camera { get;set; }
     public RenderPreviewPresentationMode PresentationMode { get;set; }
+    /// <summary>プレビュー環境（照明・背景・環境）。null ならホストは直前の内容を変えない（最初のフレームではホストの従来の既定）。</summary>
+    public RenderPreviewLighting?Lighting { get;set; }
+    /// <summary>スケルタルアセットのアニメーション姿勢（ADR-0090）。null なら直前の姿勢を保つ（最初のフレームはバインド姿勢）。</summary>
+    public RenderPreviewAnimation?Animation { get;set; }
+    /// <summary>ホストがスケルトンの骨をオーバーレイの線として描く。</summary>
+    public bool ShowSkeleton { get;set; }
+    /// <summary>強調するジョイントの番号。-1 なら強調しない。</summary>
+    public int SelectedJoint { get;set; }=-1;
     public RenderPreviewObjectTransform[]Objects { get;set; }=[];
     public RenderPreviewOverlayVertex[]OverlayTriangles { get;set; }=[];
     public RenderPreviewOverlayVertex[]OverlayLines { get;set; }=[];
     public RenderPreviewCameraPass[]CameraPreviews { get;set; }=[];
     /// <summary>
-    /// M0096: a runtime view draws the game's own world, not <see cref="Objects"/>, so a gizmo drag sends
-    /// the dragged nodes' parent-relative transforms here and the view applies them until the document
-    /// catches up (the commit's ReplaceScene, or a cancel's).
+    /// M0096：ランタイムビューは<see cref="Objects"/>ではなくゲーム自身のワールドを描画する。そのためギズモのドラッグ時、
+    /// ドラッグしたノードの親相対変換をここへ送り、文書が追いつくまで（コミットによるReplaceScene、またはキャンセル時）ビューへ適用する。
     /// </summary>
     public RenderPreviewTransformOverride[]TransformOverrides { get;set; }=[];
 }
 
-/// <summary>A node's parent-relative transform in RUF: Position (3), Rotation quaternion R, U, F, W (4), Scale (3).</summary>
+/// <summary>RUF座標系でのノードの親相対変換。Position（3値）、回転クォータニオンR、U、F、W（4値）、Scale（3値）。</summary>
 public sealed class RenderPreviewTransformOverride {
     public string ObjectId { get;set; }=string.Empty;
     public float[]Position { get;set; }=[0f,0f,0f];
@@ -497,12 +523,12 @@ public sealed class RenderPreviewObjectTransform {
 public sealed class RenderPreviewCamera {
     public RenderPreviewMatrix4x4 ViewProjection { get;set; }=RenderPreviewMatrix4x4.Identity;
     public float[]Position { get;set; }=[0f,0f,0f];
-    /// <summary>The camera's world rotation as an RUF quaternion (R, U, F, W); a runtime view uses it with the projection below.</summary>
+    /// <summary>RUFクォータニオン（R、U、F、W）で表すカメラのワールド回転。ランタイムビューでは下記の投影と組み合わせて使う。</summary>
     public float[]Rotation { get;set; }=[0f,0f,0f,1f];
     public float FovYRadians { get;set; }
     public float NearZ { get;set; }
     public float FarZ { get;set; }
-    /// <summary>Transition length T of the radial depth curve in metres.</summary>
+    /// <summary>放射状深度カーブの遷移長T（メートル）。</summary>
     public float RadialTransitionMeters { get;set; }=1f;
 }
 
@@ -514,6 +540,12 @@ public sealed class RenderPreviewMesh {
 
 public sealed class RenderPreviewMaterial {
     public float[]BaseColor { get;set; }=[1f,1f,1f,1f];
+    /// <summary>粗さ（0..1）。従来のプレビューは常に 1。</summary>
+    public float Roughness { get;set; }=1f;
+    /// <summary>金属度（0..1）。従来のプレビューは常に 0。</summary>
+    public float Metallic { get;set; }
+    /// <summary>ワールドグリッド（床の格子など）。null なら無し。</summary>
+    public RenderPreviewWorldGrid?WorldGrid { get;set; }
 }
 
 public sealed class RenderPreviewObject {

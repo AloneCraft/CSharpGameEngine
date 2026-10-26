@@ -1,14 +1,13 @@
+extern alias PreviewHost;
 using System.Security.Cryptography;
 using CSharpGameEngine.Contracts;
-using CSharpGameEngine.EditorPreview.Host;
+using PreviewHost::CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Graphics.D3D12.Tests;
 using CSharpGameEngine.Platform.Windows;
 using PreviewBridge=CSharpGameEngine.Generated.GeneratedEditorPreviewBridge;
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 /// <summary>
-/// ADR-0070 B1 step 3: the preview host opens a runtime view of a built game over the preview
-/// protocol. It loads the game into a context of its own and draws exactly what the game's bridge
-/// draws from the same camera.
+/// ADR-0070 B1 step 3：preview host は preview protocol 経由で、ビルド済みゲームの runtime view を開きます。ゲームを独自の context にロードし、同じカメラからゲームの bridge が描画する内容をそのまま描画します。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RenderPreviewRuntimeSessionTests {
@@ -83,8 +82,8 @@ public sealed class RenderPreviewRuntimeSessionTests {
         Assert.False(Session.BuildRequired);
         Session.ReplaceScene(Open.Scene!,"{ not json");
         Assert.False(Session.BuildRequired);
-        // A value the component's own type rejects while the author is typing (beyond the Q64.64 range) keeps the
-        // last good value instead of failing the command, which would end the session.
+        // 入力中にコンポーネント自身の型が拒否する値（Q64.64の範囲を超える値など）になっても、
+        // コマンドを失敗させてセッションを終了するのではなく、最後に有効だった値を維持する。
         var OutOfRange=Original.Replace("\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 0 }","\"Position\": { \"R\": 3e30, \"U\": 0.5, \"F\": 0 }");
         Assert.NotEqual(Original,OutOfRange);
         Session.ReplaceScene(Open.Scene!,OutOfRange);
@@ -92,9 +91,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     /// <summary>
-    /// M0096: a gizmo drag sends the dragged node's parent-relative transform with each frame. The runtime
-    /// image follows it during the drag, a cancel's resent document puts it back, and the committed document
-    /// with the same value draws the same image (the user could not see a drag in the runtime view, 2026-10-01).
+    /// M0096：gizmo のドラッグ中、各フレームでドラッグ対象ノードの親相対 Transform を送信します。ドラッグ中は runtime image が追従し、キャンセル時に再送されたドキュメントで元に戻り、確定後も同じ値のドキュメントから同じ画像が描画されます（2026-10-01、runtime view ではドラッグが見えないという報告）。
     /// </summary>
     [WindowsOnlyFact]
     public void DragTransformOverrides_MoveTheObjectUntilTheDocumentIsResent(){
@@ -127,9 +124,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     /// <summary>
-    /// The Scene view's wheel moves the designer camera between frames. The runtime image follows
-    /// it, and returning to the first pose restores the first image (observed 2026-10-01: after one
-    /// wheel step the view showed only sky and never came back).
+    /// Scene view のホイール操作で、フレーム間に designer camera が移動します。runtime image も追従し、最初の位置に戻すと最初の画像に戻ります（2026-10-01 の観測：ホイールを1段動かすとビューが空だけになり、その後元に戻らなかった）。
     /// </summary>
     [WindowsOnlyFact]
     public void CameraMovesBetweenFrames_AreFollowedAndReversible(){
@@ -152,10 +147,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     /// <summary>
-    /// The view's world is the startup scenes plus the edited scene, and more than one of them may
-    /// carry an active camera (EngineShowcaseScene and FirstPersonStageScene do). The designer camera
-    /// replaces them all, so their count is not the game's "exactly one active camera" rule
-    /// (observed 2026-10-01: FirstPersonStageScene failed with "2 were found").
+    /// ビューの world は起動シーンと編集対象シーンで構成され、複数のシーンにアクティブカメラが含まれる場合があります（EngineShowcaseScene と FirstPersonStageScene など）。designer camera はそれらすべてを置き換えるため、カメラ数はゲームの「アクティブカメラは必ず1台」という規則に適用されません（2026-10-01 の観測：FirstPersonStageScene で「2 were found」エラーが発生）。
     /// </summary>
     [WindowsOnlyFact]
     public void EditedSceneWithItsOwnCamera_RendersUnderTheDesignerCamera(){
@@ -188,7 +180,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
             Camera=Camera(3f,0.5f,-4f),
             Objects=[new RenderPreviewObjectTransform { ObjectId="(root)",SelectionWeight=1f }],
         });
-        // A green triangle in world space, just in front of the camera at (3, 0.5, -4).
+        // ワールド座標 (3, 0.5, -4) にある、カメラのすぐ前の緑色の三角形。
         var Gizmo=Frame(new RenderPreviewFrame {
             Camera=Camera(3f,0.5f,-4f),
             OverlayTriangles=[
@@ -236,8 +228,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     /// <summary>
-    /// M0096 (ADR-0047): the runtime view's session also runs the editor world, whose realtime systems tick at
-    /// 15 Hz beside the view and stop with the session. It replaced the preview host's separate --assembly process.
+    /// M0096（ADR-0047）：runtime view のセッションもエディターの world を実行し、その realtime systems は view と並行して15 Hzで tick し、セッション終了時に停止します。preview host の個別の --assembly プロセスを置き換えました。
     /// </summary>
     [WindowsOnlyFact]
     public void Open_RunsTheEditorWorldBesideTheViewUntilDisposed(){

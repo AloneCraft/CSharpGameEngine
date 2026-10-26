@@ -18,7 +18,21 @@ public sealed class VsixLocalizationTests {
         "SceneRenderModeLit",
         "SceneRenderModeNormal",
         "SceneRenderModeWireframe",
-        // The Scene Editor's JSON tab is named after the format, as the XAML editor's tab is.
+        // アセットエディターのチャンネル名・倍率は言語に依存しない記号である。
+        "AssetEditor_ActualSize",
+        "AssetEditor_ChannelAlpha",
+        "AssetEditor_ChannelBlue",
+        "AssetEditor_ChannelColor",
+        "AssetEditor_ChannelGreen",
+        "AssetEditor_ChannelRed",
+        "AssetEditor_Zoom",
+        // 標準のプレビューレベル名は仕様どおりの固有名（Default／Studio／Outdoor／Neutral）。OK は共通の記号。
+        "PreviewLevel_Default",
+        "PreviewLevel_Neutral",
+        "PreviewLevel_Ok",
+        "PreviewLevel_Outdoor",
+        "PreviewLevel_Studio",
+        // Scene Editor の JSON タブ名は形式名に基づく。XAML エディターのタブも同様である。
         "SceneEditorJsonTab",
         "SceneToolTransform",
     };

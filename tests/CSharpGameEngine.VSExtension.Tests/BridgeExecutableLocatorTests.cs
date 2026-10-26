@@ -6,10 +6,7 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Exercises <see cref="BridgeExecutableLocator"/>'s path-selection logic directly against temp
-/// folders shaped like a real bridge project's <c>bin/</c> output (ADR-0010 addendum: launching a
-/// prebuilt apphost <c>.exe</c> instead of <c>dotnet run --project</c>) - never spawns a real
-/// dotnet/MSBuild process, so this stays fast and deterministic.
+/// 実際のブリッジプロジェクトの <c>bin/</c> 出力に似せた一時フォルダーを使い、<see cref="BridgeExecutableLocator"/> のパス選択ロジックを直接検証する（ADR-0010 追補：<c>dotnet run --project</c> ではなく、ビルド済み apphost <c>.exe</c> を起動する）。実際の dotnet/MSBuild プロセスは起動しないため、高速かつ決定論的に実行できる。
 /// </summary>
 public sealed class BridgeExecutableLocatorTests:IDisposable {
     private const string BridgeProjectRelativePath=@"tools\Sample.Bridge.Cli";

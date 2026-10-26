@@ -45,9 +45,7 @@ public sealed class SceneDesignerUndoCommandPolicyTests {
         }
     }
     /// <summary>
-    /// M0095 1-2: every open scene tab polls the keyboard, so with Hierarchy or Inspector focused each
-    /// tab saw the same Ctrl+Z and the pinned scene stepped back once per open tab. Exactly one
-    /// designer, the one showing the pinned scene, owns a keyboard Undo, Redo or Save.
+    /// M0095 1-2：開いている各シーンタブがキーボードをポーリングするため、Hierarchy または Inspector にフォーカスがあると、すべてのタブが同じ Ctrl+Z を受け取り、固定されたシーンがタブの数だけ巻き戻っていた。固定シーンを表示している唯一のデザイナーだけが、キーボードによる Undo、Redo、Save を処理する。
     /// </summary>
     [Fact]
     public void KeyboardOwner_IsExactlyTheTabShowingThePinnedScene(){
@@ -60,7 +58,7 @@ public sealed class SceneDesignerUndoCommandPolicyTests {
         }
         Assert.DoesNotContain(Tabs,Tab=>SceneDesignerUndoCommandPolicy.IsKeyboardOwner(Tab,null));
     }
-    /// <summary>The Scene Designer tool window (no fixed scene) follows the pin, so it owns the keys whenever a scene is pinned.</summary>
+    /// <summary>Scene Designer ツールウィンドウ（固定シーンなし）はピン留めに追従するため、シーンが固定されている間は常にキー操作を処理する。</summary>
     [Fact]
     public void KeyboardOwner_DesignerWithoutAFixedScene_OwnsThePinnedScene(){
         Assert.True(SceneDesignerUndoCommandPolicy.IsKeyboardOwner(null,new SceneKey("project","Game.Scenes.A")));

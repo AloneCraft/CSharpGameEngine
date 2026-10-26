@@ -15,7 +15,7 @@ internal static class ShaderGraphEditorBuildService {
     internal static ShaderGraphEditorBuildOperation GetOperation(string GraphPath)=>
         string.Equals(Path.GetExtension(GraphPath),".cgesubgraph",StringComparison.OrdinalIgnoreCase)?ShaderGraphEditorBuildOperation.ValidateSubgraph:ShaderGraphEditorBuildOperation.BuildRoot;
     internal static ShaderGraphEditorBuildResult BuildAndPublish(string GraphPath) {
-        // The graph's game project decides where outputs go (ADR-0065); a graph outside any project builds beside itself.
+        // 出力先はグラフのゲームプロジェクトで決まる (ADR-0065)。どのプロジェクトにも属さないグラフは自身の隣にビルドする。
         var Context=CgeProjectContext.Resolve(GraphPath);
         var RepoRoot=Context?.WorkspaceRoot??Path.GetDirectoryName(Path.GetFullPath(GraphPath))!;
         var CliPath=FindCli(Context?.EngineRoot);
@@ -41,7 +41,7 @@ internal static class ShaderGraphEditorBuildService {
         }
         return new ShaderGraphEditorBuildResult(true,$"Shader artifact built; published to {Published} active output(s).",HlslPath);
     }
-    /// <summary>The compiler shipped with the extension, else a repository build (SourceMode development).</summary>
+    /// <summary>拡張機能に同梱されたコンパイラー。なければリポジトリのビルド (SourceMode の開発時)。</summary>
     private static string?FindCli(string?EngineRoot) {
         var Bundled=Path.Combine(BridgeExecutableLocator.ExtensionDirectory,"Bridges","CSharpGameEngine.ShaderGraph.Cli","CSharpGameEngine.ShaderGraph.Cli.exe");
         if(File.Exists(Bundled)) { return Bundled; }
@@ -57,7 +57,7 @@ internal static class ShaderGraphEditorBuildService {
         }
         return null;
     }
-    /// <summary>Published copies in the game project's outputs, plus the engine repository's tests and tools in SourceMode.</summary>
+    /// <summary>ゲームプロジェクトの出力先に公開されたコピーと、SourceMode ではエンジンリポジトリのテストおよびツール。</summary>
     private static IEnumerable<string>FindExistingRuntimeArtifacts(CgeProjectContext?Context,string FileName) {
         if(Context is null) { yield break; }
         List<string>Roots=[Context.ProjectDirectory];
@@ -72,8 +72,7 @@ internal static class ShaderGraphEditorBuildService {
     }
     private static string Quote(string Value)=>ExternalBridgeProcess.QuoteArgument(Value);
     /// <summary>
-    /// Runs the CLI and returns its exit code with its standard output and error. Standard error is read as it arrives:
-    /// read after standard output, a CLI that filled the error pipe first blocked forever, and the UI thread with it.
+    /// CLI を実行し、標準出力と標準エラーとともに終了コードを返す。標準エラーは届いた順に読み取る。標準出力を読み終えてから標準エラーを読むと、先にエラーパイプを満たした CLI が永久にブロックされ、UI スレッドも止まる。
     /// </summary>
     internal static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
         var StartInfo=new ProcessStartInfo(Executable,Arguments) { WorkingDirectory=WorkingDirectory,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true };
@@ -85,7 +84,7 @@ internal static class ShaderGraphEditorBuildService {
             if(!ChildProcess.Start()) { return new ValueTuple<int,string>(-1,"Failed to start Shader Graph CLI."); }
             ChildProcess.BeginErrorReadLine();
             var Output=ChildProcess.StandardOutput.ReadToEnd();
-            // Without a timeout, this also waits for the error reader to reach the end of the stream.
+            // タイムアウトがなければ、エラー出力を読む側がストリームの終わりに達するまで、ここでも待つことになる。
             ChildProcess.WaitForExit();
             string Combined;
             lock(Error) { Combined=(Output+Environment.NewLine+Error).Trim(); }

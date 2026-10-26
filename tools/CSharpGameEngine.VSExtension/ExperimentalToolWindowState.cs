@@ -12,9 +12,8 @@ using Microsoft.VisualStudio.Shell.Settings;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Restores only the visibility of C# Game Engine's auxiliary panes in an Experimental instance.
-/// Visual Studio remains the sole owner of window placement, docking groups, sizes and document
-/// tabs; recreating those values here would overwrite the user's saved .winprf layout.
+/// Experimental インスタンス内で C# Game Engine 補助ペインの表示状態だけを復元します。
+/// ウィンドウ配置、ドッキンググループ、サイズ、ドキュメントタブは Visual Studio が管理します。ここで再作成すると、ユーザーが保存した .winprf レイアウトを上書きします。
 /// </summary>
 internal sealed class ExperimentalToolWindowState {
     private const string CollectionPath="CSharpGameEngine\\ExperimentalToolWindows";
@@ -24,6 +23,7 @@ internal sealed class ExperimentalToolWindowState {
         new Entry("Hierarchy",typeof(HierarchyToolWindowPane)),
         new Entry("Inspector",typeof(InspectorToolWindowPane)),
         new Entry("ComponentPalette",typeof(ComponentPaletteToolWindowPane)),
+        new Entry("Assets",typeof(AssetsToolWindowPane)),
     });
 
     private readonly AsyncPackage Package;
@@ -32,8 +32,7 @@ internal sealed class ExperimentalToolWindowState {
         this.Package=Package??throw new ArgumentNullException(nameof(Package));
 
     /// <summary>
-    /// Runs after a solution is available. A missing saved value deliberately means "leave the
-    /// VS-restored layout alone"; this makes rollout safe for existing Experimental hives.
+    /// ソリューションが使用可能になった後に実行します。保存値がなければ、既定で「VS が復元したレイアウトをそのまま使う」とします。既存の Experimental hive に安全に展開できます。
     /// </summary>
     internal async Task RestoreAsync(CancellationToken CancellationToken){
         await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
@@ -63,9 +62,7 @@ internal sealed class ExperimentalToolWindowState {
     }
 
     /// <summary>
-    /// Captures visibility during normal package disposal. The shell itself persists docking,
-    /// size, floating position and document well state, so those values are intentionally not
-    /// copied into extension settings.
+    /// package の通常の破棄時に表示状態を取得します。shell はドッキング、サイズ、フローティング位置、document well の状態を保存するため、それらは extension settings へコピーしません。
     /// </summary>
     internal void Capture(){
         try {
@@ -89,7 +86,7 @@ internal sealed class ExperimentalToolWindowState {
                     "Saved C# Game Engine pane visibility; Visual Studio will retain the previous window placement.");
             });
         } catch(Exception Exception) when(Exception is COMException||Exception is OperationCanceledException){
-            // Shutdown must not be delayed or failed because the VS shell is already disposing frames.
+            // VS shell がすでに frame を破棄中の場合でも、シャットダウンを遅らせたり失敗させたりしてはいけません。
         }
     }
     private WritableSettingsStore GetStore()=>

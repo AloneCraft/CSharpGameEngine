@@ -4,14 +4,10 @@ using System.Text;
 
 namespace CSharpGameEngine.Unreal.SceneImporter;
 
-/// <summary>
-/// Emits the physical-light scene declarations used by the Unreal level importer.
-/// </summary>
+/// <summary>Unreal レベルインポーターが使用する、物理ライトのシーン宣言を生成する。</summary>
 public static class UnrealLightSceneEmitter {
     /// <summary>
-    /// Builds the rotation whose local +Z axis is the direction in which a directional light
-    /// travels. The former scene field named <c>DirectionTowardLight</c> used the opposite,
-    /// surface-to-light convention, so it must be negated at this boundary.
+    /// 指向性ライトが進む方向にローカル +Z 軸を向ける回転を構築する。以前のシーンフィールド <c>DirectionTowardLight</c> は反対の、面から光源へ向かう規約を使っていたため、この境界で符号を反転しなければならない。
     /// </summary>
     public static Vector3 CreateEulerRotationForLightTravelDirection(Vector3 DirectionTowardLight){
         ValidateFiniteNonZero(DirectionTowardLight,nameof(DirectionTowardLight));
@@ -22,7 +18,7 @@ public static class UnrealLightSceneEmitter {
             return Vector3.Zero;
         }
         if(Dot<=-1f+1e-6f){
-            // +Y is the deterministic 180-degree axis that maps +Z to -Z.
+            // +Z を -Z へ対応させる、決定論的な 180 度回転軸は +Y。
             return new Vector3(0f,MathF.PI,0f);
         }
 
@@ -32,9 +28,8 @@ public static class UnrealLightSceneEmitter {
     }
 
     /// <summary>
-    /// Appends a <c>Transform</c> followed by a physical <c>DirectionalLight</c> declaration.
-    /// KHR_lights_punctual defines directional intensity as illuminance in lux, so the source
-    /// value is preserved in <c>IlluminanceLux</c> without an arbitrary legacy-intensity scale.
+    /// <c>Transform</c> の後に、物理特性を持つ <c>DirectionalLight</c> 宣言を追加する。
+    /// KHR_lights_punctual では指向性ライトの強度を lux 単位の照度として定義しているため、任意の旧式強度スケールを掛けず、ソース値を <c>IlluminanceLux</c> に保持する。
     /// </summary>
     public static void AppendDirectionalLightComponents(
         StringBuilder Builder,Vector3 DirectionTowardLight,Vector3 LinearRgb,float IlluminanceLux,string Indent){
@@ -60,10 +55,7 @@ public static class UnrealLightSceneEmitter {
     }
 
     /// <summary>
-    /// Appends a directional light from its source node's world forward, which is the direction
-    /// light travels (<c>ImportedLightDirection.WorldForward</c>). Importers must use this overload:
-    /// passing the travel direction to <see cref="AppendDirectionalLightComponents"/> as a
-    /// surface-to-light vector points the sun into the sky.
+    /// ソースノードのワールド前方、つまりライトが進む方向 (<c>ImportedLightDirection.WorldForward</c>) から指向性ライトを追加する。インポーターはこのオーバーロードを使わなければならない。進行方向を面から光源へ向かうベクトルとして <see cref="AppendDirectionalLightComponents"/> に渡すと、太陽が空を向いてしまう。
     /// </summary>
     public static void AppendDirectionalLightComponentsFromTravelDirection(
         StringBuilder Builder,Vector3 TravelDirection,Vector3 LinearRgb,float IlluminanceLux,string Indent)=>

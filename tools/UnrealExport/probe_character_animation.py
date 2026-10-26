@@ -58,7 +58,7 @@ try:
             ):
                 try:
                     entry[label] = transform(getter())
-                except Exception as exception:  # one missing accessor must not hide the others
+                except Exception as exception:  # accessor が1つ見つからなくても、ほかの accessor を隠してはいけません。
                     entry[label + "Error"] = str(exception)
             try:
                 parents = hierarchy.get_parents(key)
@@ -76,7 +76,7 @@ try:
                 bones[name] = {"error": str(exception)}
         result["bones"] = bones
     result["ok"] = True
-except Exception as exception:  # the probe reports instead of failing the editor run
+except Exception as exception:  # probe は editor の実行を失敗させず、結果を報告します。
     result["error"] = str(exception)
 
 with open(out_path, "w", encoding="utf-8") as stream:

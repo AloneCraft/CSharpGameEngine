@@ -6,12 +6,12 @@ using CSharpGameEngine.Platform.Windows;
 using PreviewBridge=CSharpGameEngine.Generated.GeneratedEditorPreviewBridge;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0070 B1 step 2: a game's generated bridge renders the game's world (its startup scenes plus
-/// the scene being edited) with the game's own Presentation systems into the designer's surface.
+/// ADR-0070 B1 step 2：ゲームが生成したブリッジは、ゲーム自身のPresentationシステムでゲームのワールドを描画する。
+/// 対象はスタートアップシーンと編集中のシーンで、描画先はデザイナーのサーフェス。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class EditorRuntimeViewBridgeTests {
-    // The edited scene holds a box at (3, 0.5, 0); the front camera looks straight at it.
+    // 編集中のシーンには(3, 0.5, 0)にボックスがあり、正面カメラがそれを正対して見る。
     private const string EditedScene="UserEcsProject.Scenes.PrimitiveShowcaseBoxScene";
 
     [WindowsOnlyFact]
@@ -35,7 +35,7 @@ public sealed class EditorRuntimeViewBridgeTests {
             var Side=PreviewBridge.CaptureRuntimeView()!;
             Assert.NotEqual(FrontHash,Convert.ToHexString(SHA256.HashData(Side.Pixels)));
 
-            // A value edit reaches the running world without a rebuild; a component the node lacks does not.
+            // 値の編集は再ビルドせずに実行中のワールドへ反映する。ノードにないコンポーネントの編集は反映しない。
             Assert.Equal(1,PreviewBridge.RuntimeViewNodeCount());
             Assert.True(PreviewBridge.RenderRuntimeView(3f,0.5f,-4f,0f,0f,0f,1f,MathF.PI/4f,0.1f,300f));
             var BeforeMove=Convert.ToHexString(SHA256.HashData(PreviewBridge.CaptureRuntimeView()!.Pixels));

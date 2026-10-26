@@ -47,7 +47,7 @@ try:
                 continue
             entry["properties"][prop] = describe(value)
         if name == "RecastNavMesh":
-            # The generation settings are properties of the class, not listed by dir(): ask for them by name.
+            # generation settings は class の properties で、dir() には列挙されません。名前で取得します。
             names = ["agent_radius", "agent_height", "agent_max_height", "agent_max_slope", "agent_max_step_height", "cell_size", "cell_height",
                      "tile_size_uu", "min_region_area", "merge_region_size", "max_simplification_error", "max_simplification_error",
                      "tile_number_hard_limit", "poly_ref_salt_bits", "navmesh_origin_offset", "region_partitioning", "layer_chunk_splits",

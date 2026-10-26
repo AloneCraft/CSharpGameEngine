@@ -1,20 +1,20 @@
-// Dynamic diffuse global illumination (ADR-0069), a rasterized DDGI-style probe volume. The
-// renderer captures each probe as six 90-degree faces with the Stage program itself (so captured
-// surfaces already include direct light, the sky light and the previous GI bounce); this compute
-// artifact convolves one probe's capture into its octahedral irradiance and distance-moment tiles.
-// Root signature (host-owned, StageGlobalIllumination): b0 GiCB, t0-t1 table (capture radiance
-// and capture depth Texture2DArrays, six slices per probe), t2 root SRV sky light SH
-// (StructuredBuffer<float4>), u0-u1 table (irradiance atlas RWTexture2D<float4>, distance-moment
-// atlas RWTexture2D<float2>). Irradiance alpha is 1 for a captured probe and 0 after a clear.
+// 動的 diffuse global illumination（ADR-0069）。rasterize 方式の DDGI 風 probe volume です。
+// renderer は Stage program 自身で各 probe を90度の6面として capture します（そのため capture 済みの
+// surface には direct light、sky light、前回の GI bounce がすでに含まれます）。この compute
+// artifact は1つの probe の capture を octahedral irradiance と distance-moment tile に畳み込みます。
+// Root signature（host が所有する StageGlobalIllumination）：b0 GiCB、t0-t1 table（capture radiance
+// と capture depth の Texture2DArray。probe ごとに6 slice）、t2 root SRV の sky light SH
+// （StructuredBuffer<float4>）、u0-u1 table（irradiance atlas RWTexture2D<float4>、distance-moment
+// atlas RWTexture2D<float2>）。Irradiance alpha は capture 済みの probe で1、clear 後は0です。
 cbuffer GiCB : register(b0)
 {
     float4 FaceRight[6];
     float4 FaceUp[6];
     float4 FaceForward[6];
-    float4 CaptureParams;   // x face resolution, yz reserved, w hysteresis (0 = replace)
-    uint4 ProbeTile;        // xy irradiance tile origin (texels, including border), zw distance tile origin
-    float4 SkyParams;       // x sky light enabled, y distance written for sky texels
-    uint4 Control;          // x first capture array slice, y 1 = clear both atlases instead of convolving
+    float4 CaptureParams;   // x = face resolution、yz = 予約領域、w = hysteresis（0 = 置換）
+    uint4 ProbeTile;        // xy = irradiance tile の原点（border を含む texel）、zw = distance tile の原点
+    float4 SkyParams;       // x = sky light の有効状態、y = sky texel の距離を書き込むか
+    uint4 Control;          // x = capture array の最初の slice、y = 1 の場合は畳み込みの代わりに両 atlas を clear
 };
 Texture2DArray<float4> CaptureRadiance : register(t0);
 Texture2DArray<float> CaptureDistance : register(t1);
@@ -27,7 +27,7 @@ static const uint IrradianceTexels = 8;
 static const uint DistanceTexels = 16;
 static const uint CaptureSampleStride = 2;
 
-// Octahedral mapping over the unit sphere (z is the octahedron's polar axis).
+// 単位球上の octahedral mapping（z が octahedron の極軸）。
 float2 SignNotZero(float2 v)
 {
     return float2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0);
@@ -43,8 +43,8 @@ float3 OctahedralDecode(float2 e)
     return normalize(v);
 }
 
-// Maps a tile texel (border included) to the interior texel whose direction it stores. Border
-// texels copy the mirrored edge so bilinear sampling across the octahedron seams stays continuous.
+// tile texel（border を含む）を、対応する方向を保持する内部 texel に対応付けます。border
+// texel は反転した edge のコピーであり、octahedron の seam をまたぐ bilinear sampling を連続させます。
 uint2 InteriorTexel(int2 texel, int size)
 {
     int2 t = texel - 1;
@@ -61,9 +61,9 @@ float3 TexelDirection(uint2 interior, uint size)
     return OctahedralDecode(e);
 }
 
-// The SH buffer stores irradiance (each band already multiplied by the clamped-cosine factor
-// A0 = pi, A1 = 2pi/3, A2 = pi/4). Dividing the bands back out recovers the band-limited sky
-// radiance, so convolving it here reproduces the Stage program's SH irradiance exactly.
+// SH buffer は irradiance を保持します（各 band には clamped-cosine factor
+// A0 = pi、A1 = 2pi/3、A2 = pi/4 を乗算済み）。band の値を元に戻すと band-limited sky
+// radiance が得られ、ここで畳み込むことで Stage program と完全に同じ SH irradiance を再現します。
 float3 EvaluateSkyRadiance(float3 n)
 {
     float3 band0 = SkyIrradianceSh[0].rgb * 0.282095;
@@ -96,15 +96,15 @@ CaptureSample ReadCapture(uint face, uint2 texel)
     float rayLength = sqrt(rayLengthSquared);
     CaptureSample s;
     s.Direction = ray / rayLength;
-    // Solid angle of a cube-map texel of side 2/resolution at unit distance.
+    // 単位距離において、辺の長さが2/resolution の cube-map texel が占める立体角。
     float texelArea = 4.0 / (resolution * resolution);
     s.SolidAngle = texelArea / (rayLengthSquared * rayLength);
     uint slice = Control.x + face;
     float distance = CaptureDistance.Load(int4(texel, slice, 0));
     if (distance <= 0.0)
     {
-        // Not clamped per sample: the band-limited radiance rings negative toward a dark ground,
-        // and only the unclamped sum reproduces the Stage SH irradiance in open sky.
+        // sample ごとには clamp しません。band-limited radiance は暗い地面方向で負になるため、
+        // 開けた空で Stage SH irradiance を再現できるのは、clamp していない合計値だけです。
         s.Radiance = SkyParams.x > 0.5 ? EvaluateSkyRadiance(s.Direction) : float3(0.0, 0.0, 0.0);
         s.Distance = SkyParams.y;
         return s;

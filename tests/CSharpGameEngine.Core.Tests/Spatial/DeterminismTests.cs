@@ -4,7 +4,7 @@ using CSharpGameEngine.Spatial.Unity;
 
 namespace CSharpGameEngine.Spatial.Tests;
 
-/// <summary>Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "Determinism Tests".</summary>
+/// <summary>Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Determinism Tests」。</summary>
 public class DeterminismTests {
     [Fact]
     public void ToString_IsCultureInvariant(){
@@ -19,8 +19,8 @@ public class DeterminismTests {
             CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
             var InvariantCultureText=Vector.ToString();
 
-            // Ruf(...) uses ", " as a fixed tuple separator regardless of culture; the invariance
-            // this test is about is the decimal point inside each component (never a German ",").
+            // Ruf(...) はカルチャーにかかわらず、固定のタプル区切りとして ", " を使う。不変性を
+            // このテストで検証するのは、各成分内部の小数点（ドイツ語の "," ではない）。
             Assert.Equal(InvariantCultureText,CommaCultureText);
             Assert.DoesNotContain("1,5",CommaCultureText,StringComparison.Ordinal);
         } finally {

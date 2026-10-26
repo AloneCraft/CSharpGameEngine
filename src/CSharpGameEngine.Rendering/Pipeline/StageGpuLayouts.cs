@@ -61,6 +61,9 @@ public struct StageFrameConstants {
     public Vector4 DepthEncoding0;
     public Vector4 DepthEncoding1;
     public Vector4 LumenParams;
+    public StageMatrixArray4 VirtualShadowProjection;
+    public Vector4 VirtualShadowParams;
+    public Vector4 DirectionalSoftShadowParams;
 }
 [StructLayout(LayoutKind.Sequential)]
 public struct StageObjectConstants {
@@ -74,7 +77,7 @@ public struct StageObjectConstants {
     public Vector4 WorldGridAnchor;
     public Vector4 ConservativeRasterDepth;
 }
-/// <summary>Managed layout authority for the Stage shader ABI. Offsets come from the transported structures.</summary>
+/// <summary>Stage シェーダー ABI の管理コード側におけるレイアウトの正本。オフセットは転送する構造体から取得する。</summary>
 public static class StageGpuLayouts {
     public static readonly uint FrameConstantsSize=checked((uint)Marshal.SizeOf<StageFrameConstants>());
     public static readonly uint ObjectConstantsSize=checked((uint)Marshal.SizeOf<StageObjectConstants>());
@@ -113,5 +116,8 @@ public static class StageGpuLayouts {
     public static readonly uint ObjectWorldSubGridColorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.WorldSubGridColor));
     public static readonly uint ObjectWorldGridAnchorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.WorldGridAnchor));
     public static readonly uint ObjectConservativeRasterDepthOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.ConservativeRasterDepth));
+    public static readonly uint FrameVirtualProjectionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.VirtualShadowProjection));
+    public static readonly uint FrameVirtualParamsOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.VirtualShadowParams));
+    public static readonly uint FrameDirectionalSoftShadowOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DirectionalSoftShadowParams));
     private static uint Offset<T>(string Name) where T:struct=>checked((uint)Marshal.OffsetOf<T>(Name).ToInt64());
 }

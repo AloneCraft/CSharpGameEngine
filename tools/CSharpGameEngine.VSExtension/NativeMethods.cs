@@ -4,18 +4,16 @@ using System.Runtime.InteropServices;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Minimal hand-written Win32 P/Invoke surface for the native window that hosts the in-process
-/// D3D12 swap chain (ADR-0008). <c>TerraFX.Interop.Windows</c> (used elsewhere in this repo)
-/// targets <c>net10.0</c> only and cannot be referenced from this <c>net472</c> project.
+/// プロセス内 D3D12 swap chain をホストするネイティブウィンドウ用の、最小限の手書き Win32 P/Invoke 群（ADR-0008）。このリポジトリの別の場所で使用する <c>TerraFX.Interop.Windows</c> は <c>net10.0</c> のみを対象とし、この <c>net472</c> プロジェクトから参照できません。
 /// </summary>
 internal static class NativeMethods {
     public const uint WS_CHILD=0x40000000;
     public const uint WS_VISIBLE=0x10000000;
 
-    // Required for a DXGI flip-model swap chain (mandatory for D3D12) to actually composite when
-    // targeting a WS_CHILD window instead of a normal top-level window - without this, WDM's
-    // default redirection bitmap for the child window intercepts/hides the swap chain's own
-    // presented surface (confirmed empirically - see ADR-0008).
+    // D3D12 で必須の DXGI flip-model swap chain を、通常のトップレベルウィンドウではなく
+    // WS_CHILD ウィンドウに表示して実際に合成するために必要です。これがないと WDM の
+    // 子ウィンドウ用既定 redirection bitmap が swap chain 自身の
+    // presented surface を遮って隠します（実測で確認済み。ADR-0008 参照）。
     public const uint WS_EX_NOREDIRECTIONBITMAP=0x00200000;
 
     public const uint WM_SIZE=0x0005;

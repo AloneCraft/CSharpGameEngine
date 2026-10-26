@@ -16,11 +16,9 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// Screen-space ambient occlusion (ADR-0069). The shared camera surface pass supplies physical
-/// distance; <see cref="RecordCompute"/> runs AmbientOcclusion.hlsl at half resolution
-/// three times (obscurance, horizontal and vertical depth-aware blur) and leaves the result
-/// readable by the Stage program at t14. Compute root signature (host-owned): 0 = root CBV b0 AoCB,
-/// 1 = SRV table t0-t1 (physical scene distance, blur source), 2 = UAV table u0 (pass output).
+/// スクリーンスペース・アンビエントオクルージョン（ADR-0069）。共通のカメラ面パスから物理距離を受け取り、<see cref="RecordCompute"/> が
+/// AmbientOcclusion.hlsl を半解像度で3回実行する（遮蔽計算、深度を考慮した水平ぼかし、垂直ぼかし）。結果を Stage プログラムの t14 から読み取れるようにする。コンピュート
+/// のルートシグネチャ（ホスト側で所有）：0 = root CBV b0 AoCB、1 = SRV テーブル t0-t1（シーンの物理距離、ぼかしの入力）、2 = UAV テーブル u0（パスの出力）。
 /// </summary>
 internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     internal const string ArtifactFileName="AmbientOcclusion.cgeshaderartifact";
@@ -28,7 +26,7 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     private const uint PassCount=3;
     private const uint ConstantsStride=256;
     private const DXGI_FORMAT OcclusionFormat=DXGI_FORMAT_R16_FLOAT;
-    // Descriptor layout: two (distance, source) SRV pairs so no pass binds its own output as an SRV.
+    // ディスクリプター配置：距離と入力の SRV ペアを2組用意し、各パスが出力自身を SRV としてバインドしないようにする。
     private const uint SrvDistanceWithA=0;
     private const uint SrvDistanceWithB=2;
     private const uint UavA=4;
@@ -57,12 +55,12 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
     }
     internal int Width { get;private set; }
     internal int Height { get;private set; }
-    /// <summary>Incremented whenever the occlusion texture is (re)created, so the Stage t14 view can be refreshed.</summary>
+    /// <summary>遮蔽テクスチャを作成または再作成するたびに増やす。Stage の t14 ビューを更新する必要があるか判定する。</summary>
     internal int Generation { get;private set; }
     internal ID3D12Resource*Result=>this.OcclusionA;
-    /// <summary>Half of the screen size, at least one pixel.</summary>
+    /// <summary>画面サイズの半分（最低1ピクセル）。</summary>
     internal static (int Width,int Height) ResultSize(int ScreenWidth,int ScreenHeight)=>(Math.Max(ScreenWidth/2,1),Math.Max(ScreenHeight/2,1));
-    /// <summary>Creates or resizes the targets. The caller guarantees the GPU no longer uses the old ones.</summary>
+    /// <summary>描画先を作成またはリサイズする。古い描画先を GPU が使用していないことは呼び出し側が保証する。</summary>
     internal void EnsureSize(int ScreenWidth,int ScreenHeight,ID3D12Resource*SceneDistance){
         var (Width,Height)=ResultSize(ScreenWidth,ScreenHeight);
         if(this.OcclusionA!=null&&this.Width==Width&&this.Height==Height&&this.DescribedSceneDistance==SceneDistance&&this.DescribedWidth==ScreenWidth&&this.DescribedHeight==ScreenHeight){
@@ -86,10 +84,7 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
         this.Device.Device->CreateUnorderedAccessView(this.OcclusionB,null,&Uav,this.CpuHandle(UavB));
         this.Generation++;
     }
-    /// <summary>
-    /// Runs obscurance and the two blur passes. Replaces the compute root signature, pipeline and
-    /// descriptor heap; leaves the result in a shader-readable state.
-    /// </summary>
+    /// <summary>遮蔽計算と2つのぼかしパスを実行する。コンピュートルートシグネチャ、パイプライン、ディスクリプターヒープを設定し直し、シェーダーから読み取れる状態で結果を残す。</summary>
     internal void RecordCompute(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in Matrix4x4 ViewProjection,Vector3 CameraPosition,in AmbientOcclusionSettings Settings){
         this.EnsurePipeline();
         if(!Matrix4x4.Invert(ViewProjection,out var Inverse)){
@@ -121,7 +116,7 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
         After[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.DescribedSceneDistance,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
         CommandList->ResourceBarrier(3,After);
     }
-    /// <summary>Writes the Stage t14 view; a null view (reading zero) until the occlusion texture exists.</summary>
+    /// <summary>Stage の t14 ビューへ書き込む。遮蔽テクスチャが作成されるまでは、読み取り値がゼロの null ビューを設定する。</summary>
     internal void WriteShadingDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE Handle){
         D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){
             Format=OcclusionFormat,
@@ -131,7 +126,7 @@ internal sealed unsafe class StageAmbientOcclusion:IDisposable {
         Srv.Texture2D.MipLevels=1;
         this.Device.Device->CreateShaderResourceView(this.OcclusionA,&Srv,Handle);
     }
-    /// <summary>Test-only copy of the blurred occlusion (row-major, <see cref="Width"/> x <see cref="Height"/>).</summary>
+    /// <summary>ぼかし後の遮蔽をテスト用にコピーする（行優先、<see cref="Width"/> × <see cref="Height"/>）。</summary>
     internal float[]ReadbackForTesting(){
         if(this.OcclusionA==null){
             throw new InvalidOperationException("Ambient occlusion has not rendered a frame yet.");

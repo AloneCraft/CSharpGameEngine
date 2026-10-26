@@ -7,9 +7,9 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0110: material textures are uploaded with their whole mip chain and sampled anisotropically. A fine checkerboard floor seen toward the
-/// horizon is rendered without mips (the renderer's upload limited to level 0, the state before M0110) and with them; far from the camera the
-/// mips must turn the aliasing noise into the texture's average and stop it from changing when the camera moves a little.
+/// M0110：マテリアルテクスチャはミップチェーン全体をアップロードし、異方性サンプリングする。
+/// 水平線方向に見える細かいチェッカーボードの床を、ミップなし（レンダラーのアップロードをレベル0に制限。M0110以前の状態）と、
+/// ミップありの両方で描画する。遠方ではミップによりエイリアシングノイズがテクスチャの平均値へ近づき、カメラを少し動かしても見た目が変わらないこと。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) {
@@ -23,7 +23,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         var With=RenderPair(MipLevelLimit:0);
         var Horizon=FirstGroundRow(With.First);
         Assert.True(Horizon>=8&&Horizon<=Height/2,$"horizon row {Horizon}; centre column {string.Join(" ",Enumerable.Range(0,Height).Where(Y=>Y%6==0).Select(Y=>ReadPixel(With.First,Width/2,Y).G))}; without mips {string.Join(" ",Enumerable.Range(0,Height).Where(Y=>Y%6==0).Select(Y=>ReadPixel(Without.First,Width/2,Y).G))}; bottom row {string.Join(" ",Enumerable.Range(0,64).Select(X=>ReadPixel(With.First,X,Height-1).G))}");
-        // Far: the ten rows just under the horizon, tens of metres away. Near: the bottom ten rows, about two metres away.
+        // 遠方は水平線のすぐ下にある10行（数十メートル先）。近傍は最下部の10行（約2メートル先）。
         var FarWithout=Statistics(Without.First,Without.Second,Horizon+1,Horizon+11);
         var FarWith=Statistics(With.First,With.Second,Horizon+1,Horizon+11);
         var NearWithout=Statistics(Without.First,Without.Second,Height-10,Height);
@@ -32,14 +32,14 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         Output.WriteLine(Diagnostic);
         Assert.True(FarWith.Variance*8.0<FarWithout.Variance,Diagnostic);
         Assert.True(FarWith.FrameDifference*4.0<FarWithout.FrameDifference,Diagnostic);
-        // Close to the camera the cells are several pixels wide: the mips must not blur them away.
+        // カメラ近くではセルが複数ピクセル幅になるため、ミップでぼやけて消えてはならない。
         Assert.True(NearWith.Variance>NearWithout.Variance*0.5,Diagnostic);
         Assert.True(NearWith.Variance>500.0,Diagnostic);
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Mipmaps_Warp_UploadOneTexelAndNonPowerOfTwoTexturesWithoutDebugLayerErrors(){
-        // 1 x 1 (one level), 3 x 5 (three levels, odd sizes) and 300 x 7 (nine levels): every footprint copies at its own row pitch.
+        // 1 x 1（1レベル）、3 x 5（奇数サイズの3レベル）、300 x 7（9レベル）。それぞれのコピーで固有の行ピッチを使う。
         RenderTextureResource[]Textures=[
             RenderArtifactCodec.CreateProceduralTexture(1,1,[200,30,30,255]),
             RenderArtifactCodec.CreateProceduralTexture(3,5,Enumerable.Range(0,3*5*4).Select(Index=>(byte)(Index*7)).ToArray()),
@@ -62,7 +62,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
             Renderer.RenderFrame(CaptureForVerification:Frame==1);
         }
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
-        // One texture used as base colour (sRGB) and emissive (sRGB) is resident once per colour space, not once per slot.
+        // ベースカラー（sRGB）と発光（sRGB）に使う同じテクスチャは、スロットごとではなく色空間ごとに1度だけ常駐する。
         Assert.Equal(Textures.Length+2,Renderer.ResidentMaterialTextureCount);
     }
     private static (PixelReadbackResult First,PixelReadbackResult Second) RenderPair(int MipLevelLimit){
@@ -74,7 +74,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         }
     }
     private static PixelReadbackResult Render(float ForwardOffset){
-        // 64 x 64 texels of 4 x 4 black and white cells, repeated once per metre: cells of 6.25 cm.
+        // 4 x 4の白黒セルを並べた64 x 64テクセル。1メートルあたり1回繰り返し、セルの幅は6.25 cm。
         var Pixels=new byte[64*64*4];
         for(var Y=0;Y<64;Y++){
             for(var X=0;X<64;X++){
@@ -102,7 +102,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
         return Renderer.LastCapturedFrame!;
     }
-    /// <summary>The first row of the centre column that is not the clear colour.</summary>
+    /// <summary>クリアカラーでない中央列の最初の行。</summary>
     private static int FirstGroundRow(PixelReadbackResult Frame){
         for(var Y=0;Y<Frame.Height;Y++){
             var Pixel=ReadPixel(Frame,Frame.Width/2,Y);
@@ -113,7 +113,7 @@ public sealed class MaterialMipmapGpuIntegrationTests(ITestOutputHelper Output) 
         }
         return -1;
     }
-    /// <summary>The variance of the green channel over the rows of the first frame, and the mean absolute difference between the two frames.</summary>
+    /// <summary>1フレーム目の各行における緑チャンネルの分散と、2フレーム間の平均絶対差。</summary>
     private static (double Variance,double FrameDifference) Statistics(PixelReadbackResult First,PixelReadbackResult Second,int FromRow,int ToRow){
         List<double>Values=[];
         var Difference=0.0;

@@ -86,7 +86,7 @@ internal static class ImportWorker {
         } finally { if(File.Exists(Temporary)){ File.Delete(Temporary); } }
     }
 }
-/// <summary>Read-set and path confinement for direct M0114 adapters. Tool/nested services are explicitly unavailable.</summary>
+/// <summary>M0114 の直接アダプター向けの読み取りセットとパス制限。ツール/入れ子のサービスは明示的に利用できない。</summary>
 internal sealed class ImportFileContext:IImportContext {
     private readonly string Root;
     private readonly List<ImportDiagnostic>Diagnostics;

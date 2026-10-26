@@ -553,4 +553,218 @@ Discard unsaved edits and reload it?</value></data>
   <data name="Diagnostics_MeasuringStopped" xml:space="preserve"><value>Opened the measurement: {0}</value></data>
   <data name="Diagnostics_GpuGuide" xml:space="preserve"><value>Opened the Performance Profiler. Check GPU Usage, and choose the running game as the Analysis Target.</value></data>
   <data name="Diagnostics_ProfilerUnavailable" xml:space="preserve"><value>The Performance Profiler could not be opened: {0}</value></data>
+<data name="Assets_Title" xml:space="preserve"><value>Assets</value></data>
+<data name="Assets_Lock" xml:space="preserve"><value>Lock location</value></data>
+<data name="Assets_WholeProject" xml:space="preserve"><value>Whole project</value></data>
+<data name="Assets_Search" xml:space="preserve"><value>Search assets</value></data>
+<data name="Assets_Kind" xml:space="preserve"><value>Type</value></data>
+<data name="Assets_Provider" xml:space="preserve"><value>Provider</value></data>
+<data name="Assets_State" xml:space="preserve"><value>State</value></data>
+<data name="Assets_Details" xml:space="preserve"><value>Details</value></data>
+<data name="Assets_Refresh" xml:space="preserve"><value>Refresh</value></data>
+<data name="Assets_Cancel" xml:space="preserve"><value>Cancel</value></data>
+<data name="Assets_Create" xml:space="preserve"><value>Create</value></data>
+<data name="Assets_Organize" xml:space="preserve"><value>Organize</value></data>
+<data name="Assets_Favorite" xml:space="preserve"><value>Save search</value></data>
+<data name="Assets_ShowInSolution" xml:space="preserve"><value>Show in Solution Explorer</value></data>
+<data name="Assets_Name" xml:space="preserve"><value>Name</value></data>
+<data name="Assets_Path" xml:space="preserve"><value>Path</value></data>
+<data name="Assets_Count" xml:space="preserve"><value>{0} assets</value></data>
+<data name="Assets_AllKinds" xml:space="preserve"><value>All types</value></data>
+<data name="Assets_AllProviders" xml:space="preserve"><value>All providers</value></data>
+<data name="Assets_AllStates" xml:space="preserve"><value>All states</value></data>
+<data name="Assets_Cancelled" xml:space="preserve"><value>Cancelled</value></data>
+<data name="Assets_Open" xml:space="preserve"><value>Open</value></data>
+<data name="Assets_Rename" xml:space="preserve"><value>Rename</value></data>
+<data name="Assets_Move" xml:space="preserve"><value>Move</value></data>
+<data name="Assets_Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+<data name="Assets_Delete" xml:space="preserve"><value>Delete</value></data>
+<data name="Assets_References" xml:space="preserve"><value>References</value></data>
+<data name="Assets_NewFolder" xml:space="preserve"><value>Folder</value></data>
+<data name="Assets_NewScene" xml:space="preserve"><value>Scene</value></data>
+<data name="Assets_NewGraph" xml:space="preserve"><value>Shader Graph</value></data>
+<data name="Assets_NewData" xml:space="preserve"><value>Data asset</value></data>
+<data name="Assets_Import" xml:space="preserve"><value>Add source files</value></data>
+<data name="Assets_Reimport" xml:space="preserve"><value>Reimport</value></data>
+<data name="Assets_Migrate" xml:space="preserve"><value>Convert legacy metadata</value></data>
+<data name="Assets_Register" xml:space="preserve"><value>Register metadata</value></data>
+<data name="Assets_Unsupported" xml:space="preserve"><value>Open the source editor to edit this value.</value></data>
+<data name="Assets_Apply" xml:space="preserve"><value>Apply</value></data>
+<data name="Assets_Value" xml:space="preserve"><value>Value (JSON)</value></data>
+<data name="Assets_Conflict" xml:space="preserve"><value>The source changed. Refresh before editing.</value></data>
+<data name="Assets_ReadOnly" xml:space="preserve"><value>Read-only asset</value></data>
+<data name="Assets_Replace" xml:space="preserve"><value>Replacement asset path (required when referenced)</value></data>
+<data name="Assets_Destination" xml:space="preserve"><value>Destination path</value></data>
+<data name="Assets_PreviewChanges" xml:space="preserve"><value>Review asset changes</value></data>
+<data name="Assets_Unavailable" xml:space="preserve"><value>Asset import and reimport are unavailable in this version. You can add source files to the project.</value></data>
+<data name="Assets_NoSelection" xml:space="preserve"><value>Select an asset.</value></data>
+<data name="Assets_Properties" xml:space="preserve"><value>Asset properties</value></data>
+<data name="Assets_None" xml:space="preserve"><value>No references found.</value></data>
+<data name="Assets_Kind_Scene" xml:space="preserve"><value>Scene</value></data>
+<data name="Assets_Kind_Model" xml:space="preserve"><value>Model</value></data>
+<data name="Assets_Kind_Texture" xml:space="preserve"><value>Texture</value></data>
+<data name="Assets_Kind_Audio" xml:space="preserve"><value>Audio</value></data>
+<data name="Assets_Kind_ShaderGraph" xml:space="preserve"><value>Shader graph</value></data>
+<data name="Assets_Kind_Data" xml:space="preserve"><value>Data asset</value></data>
+<data name="Assets_Kind_Font" xml:space="preserve"><value>Font</value></data>
+<data name="Assets_Kind_Other" xml:space="preserve"><value>Other</value></data>
+<data name="Assets_State_Source" xml:space="preserve"><value>Source</value></data>
+<data name="Assets_State_Ready" xml:space="preserve"><value>Registered</value></data>
+<data name="Assets_State_MissingMetadata" xml:space="preserve"><value>Metadata missing</value></data>
+<data name="Assets_State_InvalidMetadata" xml:space="preserve"><value>Metadata error</value></data>
+<data name="Assets_State_MissingSource" xml:space="preserve"><value>Source file missing</value></data>
+<data name="Assets_State_ReadOnly" xml:space="preserve"><value>Read-only</value></data>
+<data name="Assets_Provider_Project" xml:space="preserve"><value>Project</value></data>
+<data name="Assets_Provider_ProjectPlugin" xml:space="preserve"><value>Project plugin</value></data>
+<data name="Assets_Provider_Package" xml:space="preserve"><value>Package</value></data>
+<data name="Assets_DirectoryGuard" xml:space="preserve"><value>Folder operations involving assets are not yet supported. Organize individual assets in the Assets window.</value></data>
+<data name="Assets_Place" xml:space="preserve"><value>Place asset</value></data>
+<data name="Assets_Reveal" xml:space="preserve"><value>Show asset</value></data>
+<data name="Assets_Play" xml:space="preserve"><value>Play</value></data>
+<data name="Assets_Stop" xml:space="preserve"><value>Stop</value></data>
+<data name="Assets_Recovery" xml:space="preserve"><value>Recover interrupted operation</value></data>
+<data name="Assets_Provider_Engine" xml:space="preserve"><value>Engine</value></data>
+<data name="Assets_MigrationResult" xml:space="preserve"><value>Converted {0} of {1} metadata files.</value></data>
+<data name="Assets_Before" xml:space="preserve"><value>Before</value></data>
+<data name="Assets_After" xml:space="preserve"><value>After</value></data>
+  <data name="Assets_FontAtlas" xml:space="preserve"><value>Font atlas {0} × {1} / {2} glyphs</value></data>
+  <data name="Assets_FontSample" xml:space="preserve"><value>Aa Bb Cc 0123456789</value></data>
+  <data name="Assets_Kind_Image" xml:space="preserve"><value>Image file</value></data>
+<data name="Assets_State_ImportFailed" xml:space="preserve"><value>Import failed for latest settings</value></data>
+<data name="Assets_ImageNormalCandidate" xml:space="preserve"><value>Normal candidate: </value></data>
+<data name="Assets_ImageDefault" xml:space="preserve"><value>Default output</value></data>
+<data name="Assets_ImageReplaceDelete" xml:space="preserve"><value>Replace and remove this output</value></data>
+<data name="Assets_ImageRemoveUnused" xml:space="preserve"><value>Remove if unreferenced</value></data>
+<data name="Assets_ImageUsage" xml:space="preserve"><value>Usage</value></data>
+<data name="Assets_ImageMips" xml:space="preserve"><value>Mipmaps</value></data>
+<data name="Assets_ImageFlipGreen" xml:space="preserve"><value>Normal: flip green (-Y)</value></data>
+<data name="Assets_ImageChannel" xml:space="preserve"><value>Single channel</value></data>
+<data name="Assets_ImageInvertRoughness" xml:space="preserve"><value>Invert smoothness to roughness</value></data>
+<data name="Assets_ImageAddTexture" xml:space="preserve"><value>Add texture output</value></data>
+<data name="Assets_ImageAsImage" xml:space="preserve"><value>Use as an encoded image</value></data>
+<data name="Assets_ImageApply" xml:space="preserve"><value>Apply and reimport</value></data>
+<data name="Assets_ImageKeepTexture" xml:space="preserve"><value>Keep a texture output during initial registration to preserve existing references.</value></data>
+<data name="Assets_ImageRevert" xml:space="preserve"><value>Revert</value></data>
+<data name="Assets_ImageRemovalHelp" xml:space="preserve"><value>Add a new output to change a saved usage. Review reference changes before removing an output; use a replacement of the same kind and usage when referenced.</value></data>
+<data name="Assets_ModelMeshes" xml:space="preserve"><value>Meshes</value></data>
+<data name="Assets_ModelMaterials" xml:space="preserve"><value>Materials and referenced images</value></data>
+<data name="Assets_ModelSkeleton" xml:space="preserve"><value>Skeleton and skins</value></data>
+<data name="Assets_ModelTakes" xml:space="preserve"><value>Animation takes</value></data>
+<data name="Assets_ModelClipRange" xml:space="preserve"><value>Clip range: name / first frame / last frame</value></data>
+<data name="Assets_ModelAddClip" xml:space="preserve"><value>Add clip range</value></data>
+<data name="Assets_ModelInvalidRange" xml:space="preserve"><value>Enter a valid frame range.</value></data>
+<data name="Assets_ModelExplicitOperations" xml:space="preserve"><value>Humanoid, root motion, camera, light and collider generation are not automatic.</value></data>
+<data name="Assets_ModelSettings" xml:space="preserve"><value>FBX import settings</value></data>
+<data name="Assets_ImageRegisterFirst" xml:space="preserve"><value>Register the image in the Assets Inspector before assigning it.</value></data>
+<data name="Assets_ImageAddFirst" xml:space="preserve"><value>Add a compatible output first.</value></data>
+<data name="Assets_ImageAddAssign" xml:space="preserve"><value>Add and assign image output</value></data>
+<data name="Assets_ImageAddUndo" xml:space="preserve"><value>Add image output</value></data>
+<data name="Assets_ImageSaveFirst" xml:space="preserve"><value>Save pending metadata edits first.</value></data>
+<data name="Assets_ImageReplacementRequired" xml:space="preserve"><value> — select a replacement.</value></data>
+<data name="Assets_ImageImportAssign" xml:space="preserve"><value>Import and assign image</value></data>
+<data name="Assets_ImageNameConflict" xml:space="preserve"><value>An asset with that name exists. Select an import destination in Assets.</value></data>
+<data name="Assets_ImageTypeMismatch" xml:space="preserve"><value>Reference types differ. Add or select a Texture output.</value></data>
+<data name="Assets_ImagePackedChannels" xml:space="preserve"><value>Packed: AO / Roughness / Metallic</value></data>
+<data name="Assets_ModelGroupCount" xml:space="preserve"><value>{0} ({1})</value></data>
+<data name="Assets_ModelNewClip" xml:space="preserve"><value>NewClip</value></data>
+<data name="Assets_ImageOutputs" xml:space="preserve"><value>Outputs</value></data>
+  <data name="AssetEditor_ShowInSolution" xml:space="preserve"><value>Show in Solution Explorer</value></data>
+  <data name="AssetEditor_ShowInAssets" xml:space="preserve"><value>Show in Assets</value></data>
+  <data name="AssetEditor_DetailsUnavailable" xml:space="preserve"><value>Details are available after the C# Game Engine package has loaded.</value></data>
+  <data name="AssetEditor_NotInInventory" xml:space="preserve"><value>This file is not an asset of the open game project, so its import settings and references are not shown.</value></data>
+  <data name="AssetEditor_Frame" xml:space="preserve"><value>Frame (F)</value></data>
+  <data name="AssetEditor_ViewMode" xml:space="preserve"><value>View mode</value></data>
+  <data name="AssetEditor_MeshLoading" xml:space="preserve"><value>Loading the mesh...</value></data>
+  <data name="AssetEditor_MeshVertices" xml:space="preserve"><value>Vertices: {0}</value></data>
+  <data name="AssetEditor_MeshTriangles" xml:space="preserve"><value>Triangles: {0}</value></data>
+  <data name="AssetEditor_MeshSize" xml:space="preserve"><value>Size (X, Y, Z): {0} x {1} x {2}</value></data>
+  <data name="AssetEditor_MeshNoteFbx" xml:space="preserve"><value>FBX is drawn as geometry with its base color; textures are not shown.</value></data>
+  <data name="AssetEditor_MeshNoteBaseColor" xml:space="preserve"><value>Drawn as geometry with its base color.</value></data>
+  <data name="AssetEditor_OpenLocationFloating" xml:space="preserve"><value>Floating window in front (default)</value></data>
+  <data name="AssetEditor_OpenLocationTab" xml:space="preserve"><value>Document tab</value></data>
+  <data name="AssetEditor_FitView" xml:space="preserve"><value>Fit</value></data>
+  <data name="AssetEditor_ActualSize" xml:space="preserve"><value>100%</value></data>
+  <data name="AssetEditor_Zoom" xml:space="preserve"><value>{0}%</value></data>
+  <data name="AssetEditor_Channel" xml:space="preserve"><value>Channel</value></data>
+  <data name="AssetEditor_ChannelColor" xml:space="preserve"><value>RGBA</value></data>
+  <data name="AssetEditor_ChannelColorOpaque" xml:space="preserve"><value>RGB (ignore alpha)</value></data>
+  <data name="AssetEditor_ChannelRed" xml:space="preserve"><value>R</value></data>
+  <data name="AssetEditor_ChannelGreen" xml:space="preserve"><value>G</value></data>
+  <data name="AssetEditor_ChannelBlue" xml:space="preserve"><value>B</value></data>
+  <data name="AssetEditor_ChannelAlpha" xml:space="preserve"><value>A</value></data>
+  <data name="AssetEditor_TextureLoading" xml:space="preserve"><value>Loading the image preview...</value></data>
+  <data name="AssetEditor_TextureReady" xml:space="preserve"><value>The image preview is ready.</value></data>
+  <data name="AssetEditor_TextureFailed" xml:space="preserve"><value>The image preview is unavailable: {0}</value></data>
+  <data name="AssetEditor_TextureSize" xml:space="preserve"><value>Size: {0} x {1} px</value></data>
+  <data name="AssetEditor_TextureFileSize" xml:space="preserve"><value>File size: {0}</value></data>
+  <data name="AssetEditor_TexturePreviewScaled" xml:space="preserve"><value>The preview is reduced to {0} x {1} px; the display scale is relative to the original.</value></data>
+  <data name="AssetEditor_Play" xml:space="preserve"><value>Play</value></data>
+  <data name="AssetEditor_Pause" xml:space="preserve"><value>Pause</value></data>
+  <data name="AssetEditor_Stop" xml:space="preserve"><value>Stop</value></data>
+  <data name="AssetEditor_Loop" xml:space="preserve"><value>Loop</value></data>
+  <data name="AssetEditor_SoundLoading" xml:space="preserve"><value>Reading the sound waveform...</value></data>
+  <data name="AssetEditor_SoundReady" xml:space="preserve"><value>The sound is ready.</value></data>
+  <data name="AssetEditor_SoundFailed" xml:space="preserve"><value>The sound could not be read: {0}</value></data>
+  <data name="AssetEditor_SoundNotRead" xml:space="preserve"><value>The game does not read this format; playback only. Use a PCM or float .wav.</value></data>
+  <data name="AssetEditor_SoundPlaybackFailed" xml:space="preserve"><value>Playback failed: {0}</value></data>
+  <data name="AssetEditor_SoundSampleRate" xml:space="preserve"><value>Sample rate: {0} Hz</value></data>
+  <data name="AssetEditor_SoundChannels" xml:space="preserve"><value>Channels: {0}</value></data>
+  <data name="AssetEditor_SoundMono" xml:space="preserve"><value>Mono</value></data>
+  <data name="AssetEditor_SoundStereo" xml:space="preserve"><value>Stereo</value></data>
+  <data name="AssetEditor_SoundBits" xml:space="preserve"><value>Bit depth: {0} bit</value></data>
+  <data name="AssetEditor_SoundDuration" xml:space="preserve"><value>Length: {0}</value></data>
+  <data name="AssetEditor_FontLoading" xml:space="preserve"><value>Reading the font...</value></data>
+  <data name="AssetEditor_FontReady" xml:space="preserve"><value>The font is ready.</value></data>
+  <data name="AssetEditor_FontFailed" xml:space="preserve"><value>The font could not be shown: {0}</value></data>
+  <data name="AssetEditor_FontAtlas" xml:space="preserve"><value>SDF atlas: {0} x {1} px</value></data>
+  <data name="AssetEditor_FontGlyphs" xml:space="preserve"><value>Glyphs: {0}</value></data>
+  <data name="AssetEditor_FontPreviewScaled" xml:space="preserve"><value>The atlas is shown reduced to {0} x {1} px.</value></data>
+  <data name="AssetEditor_FontFamily" xml:space="preserve"><value>Family: {0}</value></data>
+  <data name="AssetEditor_OpenAsJson" xml:space="preserve"><value>Open as JSON</value></data>
+  <data name="AssetEditor_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="AssetEditor_Saved" xml:space="preserve"><value>Saved.</value></data>
+  <data name="PreviewLevel_Label" xml:space="preserve"><value>Preview level</value></data>
+  <data name="PreviewLevel_Tooltip" xml:space="preserve"><value>Lighting, background, environment and floor used for the preview</value></data>
+  <data name="PreviewLevel_Manage" xml:space="preserve"><value>Manage...</value></data>
+  <data name="PreviewLevel_Applied" xml:space="preserve"><value>Preview level: {0}</value></data>
+  <data name="PreviewLevel_Unavailable" xml:space="preserve"><value>The preview level '{0}' is unavailable ({1}). Using the default environment.</value></data>
+  <data name="PreviewLevel_Missing" xml:space="preserve"><value>not found</value></data>
+  <data name="PreviewLevel_Default" xml:space="preserve"><value>Default</value></data>
+  <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>The classic asset preview look: renderer default background and flat ambient light, no floor.</value></data>
+  <data name="PreviewLevel_Studio" xml:space="preserve"><value>Studio</value></data>
+  <data name="PreviewLevel_StudioDescription" xml:space="preserve"><value>For checking models and materials: neutral background, key, fill and rim lights, and a floor that shows shadows.</value></data>
+  <data name="PreviewLevel_Outdoor" xml:space="preserve"><value>Outdoor</value></data>
+  <data name="PreviewLevel_OutdoorDescription" xml:space="preserve"><value>For checking outdoor lighting: physical sky, sun light, ground and shadows.</value></data>
+  <data name="PreviewLevel_Neutral" xml:space="preserve"><value>Neutral</value></data>
+  <data name="PreviewLevel_NeutralDescription" xml:space="preserve"><value>Minimizes the influence of lighting to inspect the shape: even ambient light and one weak light. Not the same as the Unlit view mode.</value></data>
+  <data name="PreviewLevel_BuiltInTag" xml:space="preserve"><value>(built-in)</value></data>
+  <data name="PreviewLevel_DefaultTag" xml:space="preserve"><value>(default)</value></data>
+  <data name="PreviewLevel_BrokenTag" xml:space="preserve"><value>(error)</value></data>
+  <data name="PreviewLevel_ManagerTitle" xml:space="preserve"><value>Manage preview levels</value></data>
+  <data name="PreviewLevel_Duplicate" xml:space="preserve"><value>Duplicate...</value></data>
+  <data name="PreviewLevel_Rename" xml:space="preserve"><value>Rename...</value></data>
+  <data name="PreviewLevel_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="PreviewLevel_SetDefault" xml:space="preserve"><value>Set as default</value></data>
+  <data name="PreviewLevel_EditJson" xml:space="preserve"><value>Edit as JSON</value></data>
+  <data name="PreviewLevel_Close" xml:space="preserve"><value>Close</value></data>
+  <data name="PreviewLevel_NamePrompt" xml:space="preserve"><value>Preview level name</value></data>
+  <data name="PreviewLevel_Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="PreviewLevel_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="PreviewLevel_CopyName" xml:space="preserve"><value>{0} Copy</value></data>
+  <data name="PreviewLevel_ConfirmDelete" xml:space="preserve"><value>Delete the preview level '{0}'?</value></data>
+  <data name="PreviewLevel_ProtectedHint" xml:space="preserve"><value>Built-in preview levels cannot be changed. Duplicate one to customize it.</value></data>
+  <data name="AssetEditor_FrameHint" xml:space="preserve"><value>Frame the asset and reset the camera to the preview level's initial view</value></data>
+  <data name="Skeletal_Clip" xml:space="preserve"><value>Animation</value></data>
+  <data name="Skeletal_BindPose" xml:space="preserve"><value>Bind pose</value></data>
+  <data name="Skeletal_Play" xml:space="preserve"><value>Play (Space)</value></data>
+  <data name="Skeletal_Pause" xml:space="preserve"><value>Pause (Space)</value></data>
+  <data name="Skeletal_Loop" xml:space="preserve"><value>Loop</value></data>
+  <data name="Skeletal_Speed" xml:space="preserve"><value>Speed</value></data>
+  <data name="Skeletal_ShowBones" xml:space="preserve"><value>Show bones</value></data>
+  <data name="Skeletal_Joints" xml:space="preserve"><value>Skeleton ({0} joints)</value></data>
+  <data name="Skeletal_PreviewMesh" xml:space="preserve"><value>Preview mesh</value></data>
+  <data name="Skeletal_NoSkinnedMesh" xml:space="preserve"><value>This animation has no skeleton of its own, and the project has no skinned mesh to preview it on.</value></data>
+  <data name="Skeletal_ClipUnbound" xml:space="preserve"><value>This animation does not move any joint of the selected mesh. Choose another preview mesh.</value></data>
+  <data name="Skeletal_NoClips" xml:space="preserve"><value>The file contains no animations.</value></data>
+  <data name="Skeletal_SkinCountUnsupported" xml:space="preserve"><value>The file has {0} skins; only a single skin can be previewed, so only the static shape is shown.</value></data>
 </root>

@@ -4,9 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// Captures Escape before Visual Studio command routing only while its owner has WPF keyboard focus.
-/// The native hook covers the HwndHost viewport path; PreviewKeyDown remains a fallback for ordinary
-/// WPF controls. Repeated key-down messages are consumed without repeating the semantic action.
+/// 所有者が WPF keyboard focus を持つ間だけ、Visual Studio のコマンドルーティングより先に Escape を捕捉します。ネイティブ hook は HwndHost viewport 経路を扱い、PreviewKeyDown は通常の WPF コントロール用の fallback です。同じキーの繰り返し key-down message は消費しますが、意味的な操作は繰り返しません。
 /// </summary>
 internal sealed class SceneEditorEscapeRouter:IDisposable {
     private readonly FrameworkElement Owner;

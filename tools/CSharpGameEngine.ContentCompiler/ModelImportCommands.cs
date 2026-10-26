@@ -7,7 +7,7 @@ namespace CSharpGameEngine.ContentCompiler;
 internal static class ModelImportCommands {
     private static readonly StableId ImplicitAssetNamespace=StableId.Parse("b00b52c8-1e3e-56ed-8f47-c4569aa8ad73");
     internal static async Task<int?>TryRunAsync(string[]Arguments,CancellationToken CancellationToken){
-        if(Arguments.Length==0||Arguments[0] is not("import-ir" or "inspect" or "explain")){ return null; }
+        if(Arguments.Length==0||Arguments[0] is not("compile" or "import-ir" or "inspect" or "explain")){ return null; }
         try {
             if(Arguments.Length<2){ throw new ArgumentException("A source or CGEX file is required."); }
             if(Arguments[0]=="inspect"){
@@ -83,6 +83,17 @@ internal static class ModelImportCommands {
             foreach(var Diagnostic in Result.Diagnostics){ Console.Error.WriteLine(Diagnostic); }
             if(Result.Document is null){ return 1; }
             if(File.Exists(MetadataPath)!=MetadataHash.HasValue||(MetadataHash is{ }Expected&&Hash256.Compute(await File.ReadAllBytesAsync(MetadataPath,CancellationToken))!=Expected)){ throw new InvalidDataException("IMP901: metadata changed during import; output was not published."); }
+            if(Arguments[0]=="compile"){
+                var ContentRoot=Path.GetFullPath(Output);
+                if(File.Exists(ContentRoot)){ throw new InvalidDataException("IMP006: compile output must be a directory."); }
+                var Resolved=Cooking.ImportOptions.Resolve(Registration.Descriptor,Registration.Processors,Options);
+                var OptionsHash=Hash256.Compute(JsonSerializer.SerializeToUtf8Bytes(Resolved));
+                var Prepared=ModelArtifactPreparation.Prepare(AssetId,Result.Document,Result.SourceHash,OptionsHash,"cge.model@1");
+                var Compiled=await new ModelContentCompiler(new ContentAddressedStore(ContentRoot),Path.Combine(Cache,"model-state.json"),Path.Combine(ContentRoot,"content-index.json")).CompileAsync([new(AssetId,SourceUri,_=>Task.FromResult(Prepared))],CancellationToken);
+                foreach(var Diagnostic in Compiled.Diagnostics){ Console.Error.WriteLine(Diagnostic); }
+                Console.WriteLine(JsonSerializer.Serialize(new { Schema="cge-model-compile/1",Compiled.Succeeded,Entries=Compiled.Index.Entries.Length,Rebuilt=Compiled.Compilation?.Rebuilt.Length,Reused=Compiled.Compilation?.Reused.Length }));
+                return Compiled.Succeeded?0:1;
+            }
             var Destination=Path.GetFullPath(Output);
             if(string.Equals(Destination,FullSource,StringComparison.OrdinalIgnoreCase)){ throw new InvalidDataException("IMP006: output cannot replace its source."); }
             Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);

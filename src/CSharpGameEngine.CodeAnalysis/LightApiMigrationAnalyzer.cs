@@ -7,10 +7,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// Reports the pre-physical-light member vocabulary only in an authored Scene compilation that
-/// opted into <c>TransformPrecision</c>. The syntax pass intentionally also sees members that no
-/// longer bind after an API upgrade, so users receive a migration diagnostic instead of only a
-/// generic missing-member compiler error.
+/// <c>TransformPrecision</c>を指定したSceneのコンパイル時に限り、物理ライティング導入前のメンバー名を報告する。
+/// 構文解析ではAPI更新後にバインドされなくなったメンバーも検出するため、一般的なメンバー不在のコンパイラーエラーだけでなく、
+/// 移行用の診断をユーザーに提示できる。
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
@@ -47,9 +46,9 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
     private static void AnalyzeAssignment(SyntaxNodeAnalysisContext Context){
         var Assignment=(AssignmentExpressionSyntax)Context.Node;
 
-        // Resolve the receiver type from syntax, rather than the target member symbol. A removed
-        // member is represented by an invalid operation and never reaches an operation action,
-        // but its object-creation type or member-access receiver is still semantically known.
+        // 対象メンバーのシンボルではなく、構文からレシーバーの型を解決する。削除済み
+        // メンバーは無効な操作として表現され、操作アクションには到達しないが、
+        // オブジェクト生成の型やメンバーアクセスのレシーバーは意味的に特定できる。
         if(!TryGetLegacyMemberAssignment(
                 Assignment,Context.SemanticModel,Context.CancellationToken,
                 out var Type,out var MemberName)
@@ -74,9 +73,9 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
 
         switch(Assignment.Left){
         case IdentifierNameSyntax Identifier:
-            // `new PointLight { Intensity = ... }`: even after Intensity is removed, the type
-            // syntax itself binds to PointLight. Use the nearest creation so nested initializers
-            // do not inherit the outer object's type.
+            // `new PointLight { Intensity = ... }`：Intensityが削除された後も、型の
+            // 構文自体はPointLightにバインドされる。入れ子の初期化子が外側のオブジェクトの型を
+            // 引き継がないよう、最も近い生成式を使う。
             var Creation=FindContainingObjectCreation(Assignment);
             if(Creation is null){
                 return false;
@@ -87,8 +86,8 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
             return Type is not null;
 
         case MemberAccessExpressionSyntax Access:
-            // `light.Intensity = ...`: Access itself is invalid once Intensity is removed, but
-            // its receiver (`light`) remains a correctly bound PointLight expression.
+            // `light.Intensity = ...`：Intensityの削除後、アクセス自体は無効になるが、
+            // レシーバー（`light`）は引き続き正しくバインドされたPointLight式である。
             Type=SemanticModel.GetTypeInfo(Access.Expression,CancellationToken).Type as INamedTypeSymbol;
             MemberName=Access.Name.Identifier.ValueText;
             return Type is not null;

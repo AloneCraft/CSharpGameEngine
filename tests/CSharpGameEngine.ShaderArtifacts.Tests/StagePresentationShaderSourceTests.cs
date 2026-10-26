@@ -5,9 +5,9 @@ namespace CSharpGameEngine.ShaderArtifacts.Tests;
 public sealed class StagePresentationShaderSourceTests {
     [Fact]
     public void PresentationEntries_AvoidTheHardwareLogarithmAndExponent(){
-        // M0100: a GPU's log2 is an approximation. On an RTX 4060 Ti it put a 4 µm surface's radial depth 3 % off and
-        // reordered surfaces 5 cm apart at 20 km. WARP's is exact, so no WARP test can see it; this check keeps the
-        // radial depth on float arithmetic (RadialLog2OnePlus) that every adapter evaluates alike.
+        // M0100：GPU の log2 は近似値である。RTX 4060 Ti では 4 µm の面の放射深度に 3 % の誤差が生じ、
+        // 20 km 離れた 2 つの面の順序が 5 cm の間隔で逆転した。WARP の値は正確なので、WARP テストでは検出できない。このチェックでは
+        // すべてのアダプターで同じように評価される float 演算の放射深度 (RadialLog2OnePlus) を維持する。
         var Code=Regex.Replace(StagePresentationShaderSource.Source,@"//[^\n]*",string.Empty);
         Assert.DoesNotMatch(@"\b(log|log2|log10|exp|exp2|pow)\s*\(",Code);
     }

@@ -3,8 +3,7 @@ using CSharpGameEngine.Spatial.Abstractions;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/Specifications/Spatial-RUF.md "Units": Runtime units are meters/radians/seconds;
-/// <see cref="UnitConversion"/> exists only for the Authoring/Import boundary.
+/// Docs/Specifications/Spatial-RUF.md の「Units」。ランタイムの単位はメートル/ラジアン/秒であり、<see cref="UnitConversion"/> は Authoring/Import 境界でのみ使う。
 /// </summary>
 public class UnitConversionTests {
     [Fact]

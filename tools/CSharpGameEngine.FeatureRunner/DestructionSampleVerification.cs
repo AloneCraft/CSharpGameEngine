@@ -43,7 +43,7 @@ public static class DestructionSampleVerification {
     public const string BakeScene="CgeDestructionSample.Scenes.DestructionBake";
     public const string Prefix="CGE-DESTRUCTION-SAMPLE ";
     public static string InputSchedule=>string.Create(CultureInfo.InvariantCulture,$"W@{WalkStartFrame}-{WalkEndFrame};F@{FireFrame}-{FireFrame+1};E@{ExplodeFrame}-{ExplodeFrame+1}");
-    /// <summary>One <c>CGE-DESTRUCTION-SAMPLE</c> line.</summary>
+    /// <summary><c>CGE-DESTRUCTION-SAMPLE</c> の1行。</summary>
     public readonly record struct SampleFrame(int Frame,long Tick,int Destructibles,int Broken,int Bonds,int Loose,int Sleeping,float Lowest,float Fastest,int Strained=0,int Levels=0);
     public static string ExecutablePath(string RepositoryRoot,string Configuration)=>Path.Combine(
         RepositoryRoot,"samples","CSharpGameEngine.Samples.Destruction","bin",Configuration,"net10.0-windows10.0.19041.0","win-x64","CgeDestructionSample.exe");
@@ -76,6 +76,7 @@ public static class DestructionSampleVerification {
             RedirectStandardOutput=true,
         };
         Start.Environment["CGE_GRAPHICS_ADAPTER"]=Adapter;
+        Start.Environment["CGE_D3D12_DEBUG_LAYER"]="1";
         Start.Environment["CGE_AUTOMATION_FRAMES"]=Frames.ToString(CultureInfo.InvariantCulture);
         Start.Environment["CGE_AUTOMATION_INPUT"]=InputSchedule;
         Start.Environment["CGE_AUTOMATION_REPORT"]=ReportPath;
@@ -99,7 +100,7 @@ public static class DestructionSampleVerification {
         }
         return Failures.Count==0?0:1;
     }
-    /// <summary>Bakes the sample's bake scene twice and plays the first bake back; the three caches must be the same bytes.</summary>
+    /// <summary>サンプルのベイク用シーンを 2 回ベイクし、最初のベイクを再生する。3 つのキャッシュのバイト列は同一でなければならない。</summary>
     private static async Task<int>RunBakeAsync(string PhysicsCli,string GameAssembly,string Evidence,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         var Ticks=BakeTicks.ToString(CultureInfo.InvariantCulture);
         var First=Path.Combine(Evidence,"bake-1.cgephyscache");
@@ -134,7 +135,7 @@ public static class DestructionSampleVerification {
         await Process.WaitForExitAsync(CancellationToken).ConfigureAwait(false);
         return (Process.ExitCode,(await Standard.ConfigureAwait(false))+(await Diagnostics.ConfigureAwait(false)));
     }
-    /// <summary>The three caches are the same bytes: the bake is deterministic and the playback reproduces it.</summary>
+    /// <summary>3 つのキャッシュのバイト列は同一。ベイクは決定論的であり、再生で同じ結果が得られる。</summary>
     public static IReadOnlyList<string>CompareCaches(byte[]First,byte[]Second,byte[]Replayed,out string Summary){
         List<string>Failures=[];
         var Deterministic=First.AsSpan().SequenceEqual(Second);
@@ -145,7 +146,7 @@ public static class DestructionSampleVerification {
         if(!PlayedBack){ Failures.Add($"Playing the bake of {BakeScene} back wrote a different physics cache ({First.Length} and {Replayed.Length} bytes): the playback does not reproduce the bake."); }
         return Failures;
     }
-    /// <summary>The <c>CGE-DESTRUCTION-SAMPLE</c> lines of the sample's output, in order; other lines are ignored.</summary>
+    /// <summary>サンプル出力のうち <c>CGE-DESTRUCTION-SAMPLE</c> の行を順番に取得し、それ以外は無視する。</summary>
     public static IReadOnlyList<SampleFrame>Parse(string Output){
         List<SampleFrame>Frames=[];
         foreach(var Line in Output.Split('\n')){
@@ -160,7 +161,7 @@ public static class DestructionSampleVerification {
                 &&TryInt(Values,"destructibles",out var Destructibles)&&TryInt(Values,"broken",out var Broken)&&TryInt(Values,"bonds",out var Bonds)
                 &&TryInt(Values,"loose",out var Loose)&&TryInt(Values,"sleeping",out var Sleeping)
                 &&TryFloat(Values,"lowest",out var Lowest)&&TryFloat(Values,"fastest",out var Fastest)){
-                // M0124: strained and levels came later; a line without them reads as 0.
+                // M0124：strain と levels は後から追加された。これらを含まない行は 0 として読み込む。
                 _=TryInt(Values,"strained",out var Strained);
                 _=TryInt(Values,"levels",out var Levels);
                 Frames.Add(new SampleFrame(Frame,Tick,Destructibles,Broken,Bonds,Loose,Sleeping,Lowest,Fastest,Strained,Levels));
@@ -179,6 +180,10 @@ public static class DestructionSampleVerification {
         if(!Report.TryGetProperty("schema",out var Schema)||Schema.GetString()!="cge-automation-report/1"){
             Failures.Add("The automation report schema is not cge-automation-report/1.");
             return Failures;
+        }
+        // 「エラー 0」はデバッグ層が有効だったときだけ検証になる(既定は無効)。
+        if(!Report.TryGetProperty("d3d12DebugLayerEnabled",out var DebugLayer)||DebugLayer.ValueKind!=JsonValueKind.True){
+            Failures.Add("The D3D12 debug layer was not enabled during destruction sample verification.");
         }
         var Errors=Report.GetProperty("d3d12Errors").GetInt32();
         if(Errors!=0){
@@ -208,7 +213,7 @@ public static class DestructionSampleVerification {
         if(BeforeFire.Broken<=BeforeWalk.Broken){
             Failures.Add($"Walking into the crates broke nothing ({BeforeWalk.Broken} broken before, {BeforeFire.Broken} after).");
         }
-        // M0124: with the internal strain the walk may break every crate before the explosion; then the explosion only pushes the pieces.
+        // M0124：内部ひずみがあると、爆発より前に歩行で木箱がすべて壊れる場合がある。その場合、爆発では破片を押し出すだけ。
         if(Final.Broken!=Final.Destructibles){
             Failures.Add($"The explosion left {Final.Destructibles-Final.Broken} destructible(s) whole ({BeforeExplosion.Broken} broken before it, {Final.Broken} after); expected every one broken at the end.");
         }

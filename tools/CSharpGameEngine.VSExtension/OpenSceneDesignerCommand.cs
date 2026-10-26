@@ -9,17 +9,13 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// The C# Game Engine toolbar's "Open in Scene Designer": shows the active scene JSON in
-/// the Scene Editor's Design view (ADR-0071), the editor a double-click opens. The code-editor and
-/// Solution Explorer context menus that used to carry this command are retired.
+/// C# Game Engine ツールバーの「Open in Scene Designer」。アクティブなシーン JSON を Scene Editor の Design view（ADR-0071）に表示します。これはダブルクリックで開く editor です。以前このコマンドがあったコードエディターと Solution Explorer のコンテキストメニューは廃止されました。
 /// </summary>
 internal sealed class OpenSceneDesignerCommand {
     public const int ToolbarCommandId=0x0131;
 
     /// <summary>
-    /// IDs retired with the context menus (ADR-0071): 0x0109 (the menu command), 0x0110-0x012F (the
-    /// scene slots) and 0x0130 (the overflow line). Never reused: installed Visual Studio instances
-    /// keep key bindings and customizations for them.
+    /// コンテキストメニューとともに廃止された ID（ADR-0071）：0x0109（メニューコマンド）、0x0110-0x012F（シーンスロット）、0x0130（オーバーフロー行）。Visual Studio のインストール済みインスタンスにはキー割り当てやカスタマイズが残るため、再利用しません。
     /// </summary>
     internal static readonly int[]RetiredCommandIds=[0x0109,.. Enumerable.Range(0x0110,0x21)];
 
@@ -58,7 +54,7 @@ internal sealed class OpenSceneDesignerCommand {
 
     private void Execute(object Sender,EventArgs E){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // The tracker keeps only a scene JSON as the current document.
+        // tracker が現在のドキュメントとして保持するのはシーン JSON だけです。
         if(this.DocumentTracker.CurrentFilePath is not { }FilePath){
             this.SetStatusBarText(VsixText.Get("SceneDesigner_OpenSceneJsonFirst"));
             return;
@@ -76,7 +72,7 @@ internal sealed class OpenSceneDesignerCommand {
         }
     }
 
-    /// <summary>Recovery path only: the Scene Designer tool window, pinned to the file's scene.</summary>
+    /// <summary>復旧経路専用：ファイルのシーンに固定された Scene Designer tool window。</summary>
     private void OpenToolWindowFallback(string FilePath,Exception EditorError){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.SetStatusBarText(VsixText.Get("SceneDesigner_Analyzing"));
@@ -84,7 +80,7 @@ internal sealed class OpenSceneDesignerCommand {
             try {
                 var Models=await this.Session.AnalyzeFileNowAsync(FilePath,this.Package.DisposalToken).ConfigureAwait(false);
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
-                // A scene JSON declares exactly one scene.
+                // シーン JSON が宣言するシーンは1つだけです。
                 if(Models.Count!=1){
                     this.SetStatusBarText(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
                     return;
@@ -101,7 +97,7 @@ internal sealed class OpenSceneDesignerCommand {
                 this.SetStatusBarText(VsixText.Format(
                     "SceneDesigner_FallbackOpened",Models[0].ClassName,$"{EditorError.GetType().Name}, HRESULT 0x{EditorError.HResult:X8}"));
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
-                // Package shutdown.
+                // パッケージの終了処理。
             } catch(Exception Ex){
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ActivityLog.LogError(

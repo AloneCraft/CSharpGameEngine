@@ -3,8 +3,9 @@ using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// M0124: the <c>.cgephyscache</c> schema 4 records, after each frame's bond breaks, the bonds whose internal strain an impact raised (destructible stable ID,
-/// bond, internal strain), in canonical order; a schema 3 file (M0113) is still read as frames without them; a played-back frame restores them to the world.
+/// M0124：<c>.cgephyscache</c>スキーマ4では、各フレームの結合破断記録後に、衝撃で内部ひずみが上昇した結合を正規順で記録する
+///（破壊可能物の安定ID、結合、内部ひずみ）。スキーマ3（M0113）のファイルはひずみ記録なしのフレームとして引き続き読み込み、
+/// 再生フレームではワールドにひずみを復元する。
 /// </summary>
 public sealed class PhysicsCacheBondStrainTests {
     private static SimulationCacheIdentity Identity(int Schema=PhysicsCacheSerializer.SchemaVersion)=>new("physics","LogicalScalar-Q64.64",60,"strain-test",Schema);
@@ -45,7 +46,7 @@ public sealed class PhysicsCacheBondStrainTests {
         using(MemoryStream Input=new(Bytes)){ Assert.True(PhysicsCacheSerializer.TryRead(Input,Identity(),Frames,out var Error),Error); }
         Assert.Equal([new PhysicsBondBreak(1,4,LogicalScalar.One)],Frames[0].Breaks);
         Assert.All(Frames,static Frame=>Assert.Empty(Frame.Strains));
-        // Schema 4 adds a count to every frame: four bytes each.
+        // スキーマ4では各フレームにカウントを追加する（4バイト）。
         using MemoryStream New=new();
         PhysicsCacheSerializer.Write(New,Identity(),Frames);
         Assert.Equal(Bytes.Length+2*4,New.Length);

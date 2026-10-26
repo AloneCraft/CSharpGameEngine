@@ -3,8 +3,7 @@ using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Character;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: the character scenes of the templates carry the values read from the UE Blueprints (UE-Template-Behavior.md): the FirstPerson camera manager's pitch
-/// limits and eye position, TopDown's camera lag and plane constraint, the Mannequin's eight-direction clips, and a world KillZ on every pawn.
+/// ADR-0078/M0107：テンプレートのキャラクター用シーンには、UE Blueprint から読み取った値 (UE-Template-Behavior.md) が含まれる。FirstPerson のカメラマネージャーの pitch 制限と目の位置、TopDown のカメラ遅延と平面制約、Mannequin の 8 方向クリップ、すべての pawn に設定されたワールド KillZ。
 /// </summary>
 public sealed class TemplateCharacterSceneTests {
     private static string RepositoryRoot(){
@@ -32,13 +31,13 @@ public sealed class TemplateCharacterSceneTests {
     private static float Turns(JsonElement Members,string Name,float Default=0f)=>Members.TryGetProperty(Name,out var Value)?Value.GetSingle():Default;
     [Fact]
     public void TheTopDownCharacterBrakesOverUesFixedPathBrakingDistanceOfTwoMetres(){
-        // BP_TopDownCharacter's CharacterMovement: FixedPathBrakingDistance 200 cm with bUseFixedBrakingDistanceForPaths (M0112).
+        // BP_TopDownCharacterのCharacterMovement：bUseFixedBrakingDistanceForPathsを有効にし、FixedPathBrakingDistanceは200 cm（M0112）。
         var Motion=Members(Scene("TopDown","TopDownCharacter"),"CharacterMotion");
         Assert.Equal(2f,Motion.GetProperty("FixedPathBrakingDistance").GetSingle());
     }
     [Fact]
     public void TheFirstPersonCameraManagerLimitsThePitchToMinus70AndPlus80Degrees(){
-        // BP_FirstPersonCameraManager: ViewPitchMin -70, ViewPitchMax 80 (the controller's default is -89 to 89).
+        // BP_FirstPersonCameraManager：ViewPitchMin -70、ViewPitchMax 80（コントローラーの既定値は -89～89）。
         var View=Members(Scene("FirstPerson","FirstPersonCharacter"),"ViewAngles");
         Assert.Equal(-70f,Turns(View,"MinPitch")*360f,2);
         Assert.Equal(80f,Turns(View,"MaxPitch")*360f,2);
@@ -51,15 +50,15 @@ public sealed class TemplateCharacterSceneTests {
     }
     [Fact]
     public void TheFirstPersonEyeIsWhereTheRigsHeadAndTheCameraOffsetPutIt(){
-        // UE (cm): CharacterMesh0 at (-20, 0, -96) relative to the capsule, turned -90 degrees so the mesh's +Y is the actor's forward; the rig's head control at
-        // (0, 0.6631, 162.575) in mesh space; the camera at (2.794, 5.881, 0) in the head bone's frame (the bone's X is up, its Y forward). The eye in the actor's frame:
+        // UE (cm)：CharacterMesh0 は capsule に対して (-20, 0, -96) にあり、メッシュの +Y をアクターの前方に向けるため -90 度回転する。リグの頭部コントロールは
+        // メッシュ空間の (0, 0.6631, 162.575)、カメラは頭部ボーンの座標系の (2.794, 5.881, 0)（ボーンの X が上、Y が前）。アクター座標系での目の位置：
         var Forward=-20f+0.6631227f+5.880724f;
         var Up=-96f+162.5751f+2.79388f;
         var Pivot=Members(Scene("FirstPerson","FirstPersonCharacter"),"OrbitCamera","Eyes").GetProperty("Pivot");
         Assert.Equal(Up/100f,Pivot.GetProperty("U").GetSingle(),3);
         Assert.Equal(Forward/100f,Pivot.GetProperty("F").GetSingle(),3);
         Assert.Equal(0f,Pivot.GetProperty("R").GetSingle());
-        // The field of view is UE's 90 degrees horizontal, at 16:9.
+        // 視野角は UE の水平 90 度、アスペクト比 16:9。
         var FovY=Turns(Members(Scene("FirstPerson","FirstPersonCharacter"),"Camera","Eyes"),"FovY")*360f;
         Assert.Equal(2f*MathF.Atan(MathF.Tan(MathF.PI/4f)*9f/16f)*180f/MathF.PI,FovY,1);
     }

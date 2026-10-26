@@ -37,9 +37,7 @@ public sealed record ReleaseManifest(
     IReadOnlyList<ReleaseEvidenceReference>Evidence);
 
 /// <summary>
-/// Publishes the already-validated RC and package closure into one content-addressed formal
-/// release directory. Publication is atomic and idempotent; an existing invalid identity is
-/// never repaired or overwritten.
+/// 検証済みの RC とパッケージの閉包を、コンテンツアドレス方式の正式リリースディレクトリへ公開する。公開はアトミックかつ冪等であり、既存の無効な ID を修復したり上書きしたりしない。
 /// </summary>
 public static class ReleaseManifestEvidence {
     public const string ManifestSchema="csharp-game-engine-formal-release-v1";

@@ -168,7 +168,7 @@ internal sealed class SceneFrameCaptureSession:IDisposable {
             }
         }
         int Average=Sum/Luminance.Length;
-        // R*3+G*6+B spans 0-2550; report the mean on the 0-255 scale.
+        // R*3+G*6+B は 0～2550 の範囲。0～255 のスケールで平均値を報告する。
         AverageLuminance=Sum/(float)Luminance.Length/10f;
         ulong Signature=0;
         for(int Index=0;Index<Luminance.Length;Index++){

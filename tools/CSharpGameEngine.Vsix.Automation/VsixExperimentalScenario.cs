@@ -177,10 +177,10 @@ internal sealed class VsixExperimentalScenario {
                 VisualStudio.ProductPath,Arguments) {
                     WorkingDirectory=RepoRoot,UseShellExecute=false
                 };
-            // Scene release evidence is a WARP correctness gate. Set the adapter on the owned
-            // Visual Studio process so every out-of-process Preview Host it launches inherits the
-            // same deterministic adapter contract; the user's normal Visual Studio environment is
-            // neither read nor mutated.
+            // Scene のリリース証拠は WARP による正確性ゲートである。所有するアダプターを設定する。
+            // Visual Studio のプロセスに設定することで、そのプロセスが起動するプロセス外 Preview Host も
+            // 同じ決定論的なアダプター契約を継承する。ユーザーの通常の Visual Studio 環境は
+            // 読み取りも変更もしない。
             StartInfo.EnvironmentVariables["CGE_GRAPHICS_ADAPTER"]="warp";
             VisualStudioProcess=Process.Start(StartInfo);
             if(VisualStudioProcess is null) {
@@ -210,20 +210,20 @@ internal sealed class VsixExperimentalScenario {
             var EditorSurface=FindLargestEditorSurface(Window)
                 ??throw new OracleMismatchException(
                     "The MainScene JSON editor surface was not exposed by UI Automation.");
-            // Visual Studio can surface its line-ending prompt asynchronously after the document
-            // tab is already active. Reject normalization before sending the real toolbar click;
-            // otherwise the modal disables the owned main window and silently consumes the click.
+            // ドキュメントタブがすでにアクティブでも、Visual Studio は改行コードの確認を非同期に表示することがある。
+            // 実際のツールバークリックを送る前に、正規化を拒否する。
+            // そうしないとモーダルダイアログが所有するメインウィンドウを無効化し、クリックを黙って消費する。
             DismissLineEndingDialog(VisualStudioProcess.Id);
             var SceneCommandObservation=InvokeSceneDesignerToolbarCommand(
                 SceneToolbarTarget);
             Evidence.Assertions.Add(new VsixEvidenceAssertion {
                 Id="scene-command",Passed=true,Detail=SceneCommandObservation
             });
-            // Opening the WPF designer replaces a large part of Visual Studio's automation
-            // tree. Polling that tree while the replacement is in progress can block inside
-            // the out-of-process UIA provider and cannot be bounded by our managed timeout.
-            // Let the product finish the transition, capture the observable window first, and
-            // then perform one settled-tree observation.
+            // WPF デザイナーを開くと Visual Studio の自動操作
+            // ツリーの大部分が置き換えられる。その置き換え中にツリーをポーリングすると、
+            // プロセス外 UIA プロバイダー内でブロックし、マネージドのタイムアウトでは制限できない。
+            // 製品側の状態遷移が完了するのを待つ。まず画面上で観測できるウィンドウをキャプチャーし、
+            // その後、落ち着いたツリーを 1 回観測する。
             Thread.Sleep(10000);
             Window=WaitForTopLevelWindow(
                 VisualStudioProcess,TimeSpan.FromSeconds(60));
@@ -678,10 +678,10 @@ internal sealed class VsixExperimentalScenario {
         Observe(Evidence,"focus-retained",
             Focused is not null&&Focused.Current.ProcessId==ProcessId,
             "Keyboard focus remained inside the owned Visual Studio process after resize.");
-        // The owned process closes immediately after this method. Restoring the original size
-        // through a second UIA TransformPattern.Resize adds no product assertion and can block
-        // indefinitely while Visual Studio is recalculating its docked layout. Leave the verified
-        // resized window in place and let normal process shutdown own the remaining lifecycle.
+        // このメソッドの直後に所有するプロセスは終了する。元のサイズに戻そうとして
+        // 2 回目の UIA TransformPattern.Resize を行っても製品の検証項目は増えず、
+        // Visual Studio がドッキングレイアウトを再計算中だと、永久にブロックすることがある。検証済みの
+        // サイズ変更後のウィンドウをそのままにし、残りのライフサイクルは通常のプロセス終了に任せる。
     }
     internal static bool HasRenderedSceneVariation(string ScreenshotPath) {
         using(var Screenshot=new Bitmap(ScreenshotPath)) {
@@ -735,9 +735,9 @@ internal sealed class VsixExperimentalScenario {
                         ((ExpandCollapsePattern)ExpandPattern).Expand();
                     } catch(InvalidOperationException) { }
                 }
-                // The product's PreviewMouseLeftButtonDown path owns publication into the shared
-                // Scene selection. SelectionItemPattern only changes WPF container state and is
-                // intentionally insufficient because asynchronous rebinds must not publish.
+                // 共有された Scene の選択状態への反映は、製品の PreviewMouseLeftButtonDown 経路が行う。
+                // SelectionItemPattern が変更するのは WPF コンテナーの状態だけであり、非同期の再バインドが
+                // 選択状態を反映してはならないため、この操作だけでは不十分である。
                 Item.SetFocus();
                 Thread.Sleep(100);
                 Click(Item);
@@ -786,10 +786,10 @@ internal sealed class VsixExperimentalScenario {
         return false;
     }
     private static AutomationElement?FindEditableInspectorValue(AutomationElement Inspector){
-        // WPF ItemsControl does not guarantee a control-view AutomationPeer for its x:Name,
-        // even while the generated editor controls are visible and accessible. The containing
-        // Inspector pane is already an exact localized scope, so search its descendant editors
-        // directly instead of treating the non-semantic MemberList container as an API contract.
+        // WPF の ItemsControl は、x:Name に対するコントロールビュー AutomationPeer の存在を保証しない。
+        // 生成されたエディターコントロールが表示され、アクセス可能な場合も同様である。親となる
+        // Inspector ペインは正確に特定できるローカライズ済みの範囲であるため、意味的な API 契約ではない MemberList コンテナーを対象にせず、
+        // 子孫のエディターを直接検索する。
         var Editors=Inspector.FindAll(
             TreeScope.Descendants,new PropertyCondition(
                 AutomationElement.ControlTypeProperty,ControlType.Edit));
@@ -993,10 +993,10 @@ internal sealed class VsixExperimentalScenario {
                     +Target.Name+"' through its UI Automation InvokePattern.";
             }
         } catch(ElementNotAvailableException) {
-            // The initial tree peer was replaced between capture and invocation. The immutable
-            // screen point remains a safe fallback because it belongs to the same owned window.
+            // キャプチャーと呼び出しの間に、最初のツリーピアは置き換えられていた。不変の
+            // 画面上の座標は同じ所有ウィンドウに属するため、安全な代替手段として使える。
         } catch(InvalidOperationException) {
-            // A provider that cannot invoke the fresh peer falls back to the real pointer gesture.
+            // 新しいピアを呼び出せないプロバイダーの場合は、実際のポインタージェスチャーに切り替える。
         }
         SetCursorPos(Target.X,Target.Y);
         mouse_event(2,0,0,0,UIntPtr.Zero);
@@ -1380,9 +1380,9 @@ internal sealed class VsixExperimentalScenario {
         var Windows=new List<AutomationElement>();
         EnumWindows((Window,Parameter)=>{
             GetWindowThreadProcessId(Window,out var OwnerProcessId);
-            // Every caller is looking for a dialog or popup. Skip the ownerless Visual Studio
-            // main window before crossing into UIA: while shutdown is in progress its provider can
-            // block until the COM timeout and prevent us from reaching the actual save dialog.
+            // 呼び出し元はすべてダイアログまたはポップアップを探している。UIA に入る前に、所有者のない Visual Studio の
+            // メインウィンドウは除外する。シャットダウン中は、そのプロバイダーが COM のタイムアウトまで
+            // ブロックし、実際の保存ダイアログに到達できなくなる場合がある。
             if(OwnerProcessId!=(uint)ProcessId||!IsWindowVisible(Window)
                 ||GetWindow(Window,4)==IntPtr.Zero){
                 return true;

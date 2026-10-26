@@ -17,13 +17,11 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// Dynamic diffuse GI (ADR-0069): a rasterized DDGI-style probe volume. StageRenderer captures
-/// each scheduled probe as six 32x32 faces with the lit Stage pipeline into this object's capture
-/// arrays; <see cref="RecordConvolution"/> then folds every capture into the probe's octahedral
-/// irradiance tile (8x8 + border) and distance-moment tile (16x16 + border). Stage samples both
-/// atlases at t12/t13. Compute root signature (host-owned, see GlobalIllumination.hlsl):
-/// 0 = root CBV b0 GiCB, 1 = SRV table t0-t1 (capture radiance, capture depth), 2 = root SRV t2
-/// (sky light SH), 3 = UAV table u0-u1 (irradiance atlas, distance atlas).
+/// 動的拡散GI（ADR-0069）：ラスタライズ方式のDDGI型プローブボリューム。StageRendererが照明済みStageパイプラインを用いて、
+/// 予定された各プローブを32x32ピクセルの6面として、このオブジェクトの撮影配列へ記録する。続いて<see cref="RecordConvolution"/>が
+/// 各撮影結果をプローブの八面体照度タイル（8x8＋境界）と距離モーメントタイル（16x16＋境界）へ畳み込む。Stageは両アトラスをt12／t13でサンプリングする。
+/// Computeルートシグネチャはホスト所有（GlobalIllumination.hlslを参照）：0 = ルートCBV b0 GiCB、1 = SRVテーブルt0-t1
+///（撮影放射輝度、撮影深度）、2 = ルートSRV t2（スカイライトSH）、3 = UAVテーブルu0-u1（照度アトラス、距離アトラス）。
 /// </summary>
 internal sealed unsafe class StageGlobalIllumination:IDisposable {
     internal const string ArtifactFileName="GlobalIllumination.cgeshaderartifact";
@@ -93,7 +91,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         this.IsSupported=Device.Device->CheckFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS,&Options,(uint)sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS)).SUCCEEDED
             &&Options.TypedUAVLoadAdditionalFormats!=0;
     }
-    /// <summary>Hysteresis reads the previous tile through typed UAV loads of RGBA16F / RG16F.</summary>
+    /// <summary>ヒステリシスでは、RGBA16F／RG16F型のUAV読み込みで前回のタイルを参照する。</summary>
     internal bool IsSupported { get; }
     internal bool HasResources=>this.IrradianceAtlas!=null;
     internal ID3D12Resource*IrradianceResource=>this.IrradianceAtlas;
@@ -101,8 +99,8 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
     internal int ScheduledCount { get;private set; }
     internal int ScheduledProbe(int Index)=>this.ScheduledProbes[Index];
     /// <summary>
-    /// Picks this frame's probes (round robin) and resets every probe when the grid layout changed.
-    /// A probe's first capture replaces its tile; later captures blend with <see cref="GlobalIlluminationSettings.Hysteresis"/>.
+    /// このフレームで使うプローブをラウンドロビン方式で選び、格子配置が変わった場合はすべてのプローブをリセットする。
+    /// 最初の撮影ではプローブのタイルを置き換え、2回目以降は<see cref="GlobalIlluminationSettings.Hysteresis"/>とブレンドする。
     /// </summary>
     internal void Schedule(in GlobalIlluminationSettings Settings){
         this.EnsureResources();
@@ -125,16 +123,15 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         this.ScheduledCount=Count;
     }
     /// <summary>
-    /// View-projection of one capture face: a 90 degree square frustum. It is left-handed (unlike the right-handed main
-    /// camera), so a face's screen +X is <c>Up × Forward</c>, the <see cref="FaceBasis"/> right vector that
-    /// GlobalIllumination.hlsl uses to turn a capture texel back into a direction.
+    /// 1面分の撮影に使うビュー投影。90度の正方形視錐台。メインカメラと異なり左手系なので、面の画面+X方向は
+    /// <c>Up × Forward</c>となる。これは、撮影テクセルから方向を復元するためにGlobalIllumination.hlslが使う<see cref="FaceBasis"/>のRight方向。
     /// </summary>
     internal static Matrix4x4 FaceViewProjection(Vector3 ProbePosition,int Face){
         var (Forward,Up)=Faces[Face];
         return Matrix4x4.CreateLookAtLeftHanded(ProbePosition,ProbePosition+Forward,Up)
             *Matrix4x4.CreatePerspectiveFieldOfViewLeftHanded(MathF.PI/2f,1f,CaptureNearMeters,CaptureFarMeters);
     }
-    /// <summary>The direction a capture face looks along and the directions of its screen +X and +Y.</summary>
+    /// <summary>撮影面が向く方向と、その画面の+X／+Y方向。</summary>
     internal static (Vector3 Forward,Vector3 Right,Vector3 Up)FaceBasis(int Face){
         var (Forward,Up)=Faces[Face];
         return (Forward,Vector3.Cross(Up,Forward),Up);
@@ -146,7 +143,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
     internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureRtv(int Capture)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),Capture*2,this.RtvDescriptorSize);
     internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureDistanceRtv(int Capture)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),Capture*2+1,this.RtvDescriptorSize);
     internal D3D12_CPU_DESCRIPTOR_HANDLE CaptureDsv(int Capture)=>new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),Capture,this.DsvDescriptorSize);
-    /// <summary>Makes the capture arrays writable. Pair with <see cref="RecordConvolution"/>.</summary>
+    /// <summary>撮影配列を書き込み可能にする。<see cref="RecordConvolution"/>と組み合わせて使用する。</summary>
     internal void BeginCapture(ID3D12GraphicsCommandList*CommandList){
         D3D12_RESOURCE_BARRIER*Barriers=stackalloc D3D12_RESOURCE_BARRIER[3];
         Barriers[0]=D3D12_RESOURCE_BARRIER.InitTransition(this.CaptureColor,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -155,9 +152,8 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         CommandList->ResourceBarrier(3,Barriers);
     }
     /// <summary>
-    /// Convolves every scheduled capture into its probe tiles (after a pending layout clear) and
-    /// leaves the atlases readable by the Stage program. Replaces the compute root signature,
-    /// pipeline and descriptor heap.
+    /// 予定された撮影結果をそれぞれのプローブタイルへ畳み込む（保留中の配置クリア後）。Stageプログラムからアトラスを読み取り可能な状態にする。
+    /// Computeルートシグネチャ、パイプライン、ディスクリプタヒープを置き換える。
     /// </summary>
     internal void RecordConvolution(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in GlobalIlluminationSettings Settings,ulong SkyShAddress,bool SkyLightEnabled){
         this.EnsurePipeline();
@@ -198,7 +194,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         After[1]=D3D12_RESOURCE_BARRIER.InitTransition(this.DistanceAtlas,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState);
         CommandList->ResourceBarrier(2,After);
     }
-    /// <summary>Writes the Stage t12/t13 views; null views (reading zero) until the atlases exist.</summary>
+    /// <summary>Stageのt12／t13ビューを書き込む。アトラスが作られるまではnullビュー（読み取り値は0）。</summary>
     internal void WriteShadingDescriptors(D3D12_CPU_DESCRIPTOR_HANDLE Irradiance,D3D12_CPU_DESCRIPTOR_HANDLE Distance){
         D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){
             Format=IrradianceFormat,
@@ -210,10 +206,10 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         Srv.Format=DistanceFormat;
         this.Device.Device->CreateShaderResourceView(this.DistanceAtlas,&Srv,Distance);
     }
-    /// <summary>Tile origin (border included) of a probe in the irradiance and distance atlases.</summary>
+    /// <summary>照度アトラスと距離アトラス内にある、境界を含むプローブのタイル原点。</summary>
     internal static (int IrradianceX,int IrradianceY,int DistanceX,int DistanceY) TileOrigin(int Probe)=>
         (Probe%ProbesPerAtlasRow*IrradianceTile,Probe/ProbesPerAtlasRow*IrradianceTile,Probe%ProbesPerAtlasRow*DistanceTile,Probe/ProbesPerAtlasRow*DistanceTile);
-    /// <summary>Octahedral encoding with +Z as the polar axis, matching GlobalIllumination.hlsl and Stage.</summary>
+    /// <summary>極軸を+Zとする八面体エンコード。GlobalIllumination.hlslとStageに合わせる。</summary>
     internal static Vector2 OctahedralEncode(Vector3 Direction){
         var N=Direction/(MathF.Abs(Direction.X)+MathF.Abs(Direction.Y)+MathF.Abs(Direction.Z));
         if(N.Z>=0f){
@@ -228,7 +224,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         }
         return Vector3.Normalize(V);
     }
-    /// <summary>Direction stored by interior texel (<paramref name="X"/>, <paramref name="Y"/>) of a tile with <paramref name="Size"/> interior texels.</summary>
+    /// <summary><paramref name="Size"/>個の内側テクセルを持つタイルで、内部テクセル座標<paramref name="X"/>、<paramref name="Y"/>が表す方向。</summary>
     internal static Vector3 TexelDirection(int X,int Y,int Size)=>
         OctahedralDecode(new Vector2((X+0.5f)/Size*2f-1f,(Y+0.5f)/Size*2f-1f));
     private ulong WriteConstants(uint FrameIndex,int Index,int Probe,float Hysteresis,bool SkyLightEnabled,float SkyDistance,bool Clear){
@@ -389,8 +385,8 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
     }
     private D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(uint Slot)=>new(this.DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),(int)Slot,this.DescriptorSize);
     /// <summary>
-    /// Test-only GPU readback of both atlases. The caller guarantees the renderer's queue is idle;
-    /// the copy runs on its own list and fence.
+    /// テスト専用の、両アトラスのGPU読み戻し。呼び出し側はレンダラーのキューをアイドル状態にすること。
+    /// コピーは専用のコマンドリストとフェンスで実行する。
     /// </summary>
     internal GlobalIlluminationReadback ReadbackForTesting(){
         if(this.IrradianceAtlas==null){
@@ -497,9 +493,9 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         if(this.DistanceAtlas!=null){ _=this.DistanceAtlas->Release(); }
     }
 }
-/// <summary>Test-only copy of the probe atlases (row-major, <see cref="StageGlobalIllumination"/> atlas sizes).</summary>
+/// <summary>プローブアトラスのテスト専用コピー（行優先。サイズは<see cref="StageGlobalIllumination"/>のアトラスに合わせる）。</summary>
 internal sealed record GlobalIlluminationReadback(Vector4[]Irradiance,Vector2[]Distance){
-    /// <summary>Irradiance stored for a probe toward <paramref name="Direction"/> (nearest interior texel).</summary>
+    /// <summary><paramref name="Direction"/>方向に対するプローブの照度（最も近い内部テクセル）。</summary>
     internal Vector4 ProbeIrradiance(int Probe,Vector3 Direction){
         var Origin=StageGlobalIllumination.TileOrigin(Probe);
         var Texel=Interior(Direction,StageGlobalIllumination.IrradianceTexels);

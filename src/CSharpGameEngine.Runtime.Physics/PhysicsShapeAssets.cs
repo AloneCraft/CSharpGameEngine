@@ -7,13 +7,13 @@ public enum PhysicsShapeAssetKind:byte {
     Convex,
     StaticTriangleMesh,
     /// <summary>
-    /// The union of convex children in one body's frame (ADR-0078/M0113): a piece of a broken <c>Destructible</c> that holds several fragments, which UE's
-    /// Chaos keeps as a cluster union of its children. Built at run time; it is not a cooked artifact.
+    /// ボディ座標枠での凸形状の子要素の結合（ADR-0078/M0113）。複数の破片を含む、壊れた <c>Destructible</c> の破片にあたる。UE Chaos では子形状をクラスター結合とし
+    /// て保持する。実行時に作成し、調理済みアーティファクトには含めない。
     /// </summary>
     Compound,
 }
 
-/// <summary>Immutable cooked geometry. Runtime bodies keep only the asset identity.</summary>
+/// <summary>不変の調理済み形状データ。実行時のボディはアセットの識別情報だけを保持する。</summary>
 public sealed class PhysicsShapeAsset {
     private readonly LogicalVector3[] VertexStorage;
     private readonly int[] IndexStorage;
@@ -56,9 +56,9 @@ public sealed class PhysicsShapeAsset {
     public PhysicsAabb Bounds { get; }
     public string Fingerprint { get; }
     public int TriangleBvhNodeCount=>this.MeshNodes.Length;
-    /// <summary>The outward face planes of a convex polyhedron (<see cref="CreateConvexPolyhedron"/>); empty for a point-cloud convex asset.</summary>
+    /// <summary>凸多面体の外向き面平面（<see cref="CreateConvexPolyhedron"/>）。点群から作った凸形状アセットでは空。</summary>
     public int PlaneCount=>this.PlaneNormalStorage.Length;
-    /// <summary>The convex children of a <see cref="PhysicsShapeAssetKind.Compound"/>, in the body's frame; empty for other kinds.</summary>
+    /// <summary><see cref="PhysicsShapeAssetKind.Compound"/> の凸形状子要素。ボディの座標枠に格納し、他の種類では空。</summary>
     public IReadOnlyList<PhysicsShapeAsset> Children=>this.ChildStorage;
 
     public static PhysicsShapeAsset CreateConvex(string Id,IReadOnlyList<LogicalVector3> Vertices){
@@ -71,10 +71,9 @@ public sealed class PhysicsShapeAsset {
     }
 
     /// <summary>
-    /// A convex polyhedron whose closed triangle mesh (<paramref name="Indices"/>) gives its faces (ADR-0078/M0113, the fragments of a prefractured mesh).
-    /// It collides like <see cref="CreateConvex"/>, and its face planes let the narrow phase find every corner inside it, so a fragment resting on a face
-    /// gets a contact patch of several points instead of one rocking point. The planes face away from the vertices' centre; a vertex outside a plane by more
-    /// than a tenth of a millimetre (not convex) or a zero-area triangle is rejected.
+    /// 閉じた三角形メッシュ（<paramref name="Indices"/>）から面を得る凸多面体（ADR-0078/M0113、事前破砕メッシュの破片など）。衝突判定は
+    /// <see cref="CreateConvex"/> と同様に行う。面平面により狭域判定で内部にある各角を検出できるため、面に載る破片には1点ではなく複数点の接触パッチができ、揺れを防ぐ。面平面は
+    /// 頂点中心から外向きである。平面より0.1 mmを超えて外側にある頂点（凸形状ではない）、または面積ゼロの三角形があれば拒否する。
     /// </summary>
     public static PhysicsShapeAsset CreateConvexPolyhedron(string Id,IReadOnlyList<LogicalVector3> Vertices,IReadOnlyList<int> Indices){
         ValidateId(Id);
@@ -125,8 +124,8 @@ public sealed class PhysicsShapeAsset {
     }
 
     /// <summary>
-    /// The union of convex <paramref name="Children"/> (in the body's own frame) as one shape (ADR-0078/M0113). Its support (bounds, sweeps) is the hull
-    /// of every child's vertices; its contacts are the children's, merged into one patch per touched body by the narrow phase.
+    /// <paramref name="Children"/> の凸形状をボディ自身の座標枠で結合し、1つの形状にする（ADR-0078/M0113）。境界や掃引判定では、すべての子要素の頂点の凸包を使う。
+    /// 接触判定では、狭域判定が接触したボディごとに子要素の接触を1つのパッチへまとめる。
     /// </summary>
     public static PhysicsShapeAsset CreateCompound(string Id,IReadOnlyList<PhysicsShapeAsset> Children){
         ValidateId(Id);
@@ -143,7 +142,7 @@ public sealed class PhysicsShapeAsset {
     internal LogicalVector3 PlaneNormal(int Plane)=>this.PlaneNormalStorage[Plane];
     internal LogicalScalar PlaneDistance(int Plane)=>this.PlaneDistanceStorage[Plane];
 
-    /// <summary>Whether a point of the shape's local frame lies inside every face plane (within <paramref name="Tolerance"/>); false without planes.</summary>
+    /// <summary>形状のローカル座標枠内の点が、<paramref name="Tolerance"/> の許容範囲で全ての面平面の内側にあるか。面平面がなければ false。</summary>
     internal bool ContainsLocal(LogicalVector3 Point,LogicalScalar Tolerance){
         if(this.PlaneNormalStorage.Length==0){ return false; }
         for(var Plane=0;Plane<this.PlaneNormalStorage.Length;Plane++){
@@ -176,7 +175,7 @@ public sealed class PhysicsShapeAsset {
         return new PhysicsShapeAsset(Id,PhysicsShapeAssetKind.StaticTriangleMesh,VertexCopy,IndexCopy);
     }
 
-    /// <summary>Number of full vertex scans by <see cref="Support"/>; lets tests hold steady-state bounds queries off the vertex array.</summary>
+    /// <summary><see cref="Support"/> が全頂点を走査した回数。定常状態の境界問い合わせが頂点配列を走査しないことをテストで確認する。</summary>
     internal long SupportScanCount;
 
     internal LogicalVector3 Support(LogicalVector3 Direction){
@@ -230,7 +229,7 @@ public sealed class PhysicsShapeAsset {
 
     private static int[] BuildMeshBvh(LogicalVector3[] Vertices,int[] Indices,List<MeshNode> Nodes){
         int[] Triangles=Enumerable.Range(0,Indices.Length/3).ToArray();
-        // Each sort comparison used to recompute both centres (a Q64.64 division); compute them once.
+        // 各ソート比較では中心を2つとも再計算していた（Q64.64 の除算）。一度だけ計算する。
         LogicalVector3[] Centers=new LogicalVector3[Triangles.Length];
         for(int Triangle=0;Triangle<Centers.Length;Triangle++){ Centers[Triangle]=TriangleCenter(Vertices,Indices,Triangle); }
         BuildNode(Vertices,Indices,Centers,Triangles,0,Triangles.Length,Nodes);
@@ -301,7 +300,7 @@ public sealed class PhysicsShapeAsset {
             foreach(LogicalVector3 Vertex in Vertices){ WriteVector(Writer,Vertex); }
             Writer.Write(Indices.Length);
             foreach(int Index in Indices){ Writer.Write(Index); }
-            // A compound's children (M0113); nothing is written for the other kinds, so their fingerprints stay as they were.
+            // 複合形状の子要素（M0113）。他の種類には何も書き込まないため、フィンガープリントは従来どおり。
             foreach(var Child in Children){ Writer.Write(Child.Fingerprint); }
         }
         return Convert.ToHexString(SHA256.HashData(Stream.GetBuffer().AsSpan(0,checked((int)Stream.Length)))).ToLowerInvariant();

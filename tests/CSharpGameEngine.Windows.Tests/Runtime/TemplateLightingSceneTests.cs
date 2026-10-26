@@ -1,9 +1,7 @@
 using System.Text.Json;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0112: the four template levels carry the environment parts that M0110 and M0111 added (volumetric cloud, global distance field for the Lumen-like
-/// GI and reflections, sky light and atmosphere, a shadowed sun, the post-process volume), and the levels whose UE original has a sky sphere (`SM_SkySphere` in
-/// ThirdPerson, FirstPerson and TopDown, none in Vehicle: `tools/UnrealExport/probe_sky_and_clouds.py`) have it. The values are UE's (sun lux, exposure range).
+/// ADR-0078/M0112：4 つのテンプレートレベルには M0110 と M0111 で追加された環境要素（ボリューメトリッククラウド、Lumen に似た GI と反射用のグローバル距離場、スカイライトと大気、影を落とす太陽、ポストプロセスボリューム）が含まれる。また、UE オリジナルにスカイスフィアがあるレベル（ThirdPerson、FirstPerson、TopDown では `SM_SkySphere`、Vehicle にはない：`tools/UnrealExport/probe_sky_and_clouds.py`）には、それも含まれる。値は UE のもの（太陽の lux、露出範囲）。
 /// </summary>
 public sealed class TemplateLightingSceneTests {
     private static string RepositoryRoot(){

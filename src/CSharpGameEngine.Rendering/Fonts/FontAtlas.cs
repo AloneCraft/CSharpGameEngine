@@ -3,29 +3,22 @@ using System.Text;
 
 namespace CSharpGameEngine.Rendering;
 
-/// <summary>
-/// One glyph of a <see cref="FontAtlas"/>. The plane rectangle is the glyph's quad in em units, relative to the pen on the baseline with Y
-/// pointing up (it includes the distance-field margin); the UV rectangle is the same quad in the atlas, V pointing down.
-/// </summary>
+/// <summary><see cref="FontAtlas"/> のグリフ1つ。平面矩形はベースライン上のペン位置を基準にした em 単位のグリフ四角形で、Y 軸は上向き（距離場の余白を含む）。UV 矩形はアトラス内の同じ四角形で、V 軸は下向き。</summary>
 public readonly record struct FontGlyph(
     int CodePoint,float Advance,
     float PlaneLeft,float PlaneBottom,float PlaneRight,float PlaneTop,
     float U0,float V0,float U1,float V1){
-    /// <summary>Whether the glyph draws anything (a space has an advance and no quad).</summary>
+    /// <summary>グリフに描画内容があるか（空白にも送り幅はあるが、四角形はない）。</summary>
     public bool HasQuad=>this.PlaneRight>this.PlaneLeft&&this.PlaneTop>this.PlaneBottom;
 }
 
-/// <summary>
-/// A font baked to a signed distance field atlas (ADR-0078/M0104): the glyph table, the vertical metrics and one 8-bit image in which 128 is a
-/// glyph's outline, larger is inside and smaller is outside, over <see cref="SpreadEm"/> on each side. One atlas draws the font at any size.
-/// The file format, little-endian:
+/// <summary>符号付き距離場アトラスに焼き付けたフォント（ADR-0078/M0104）。グリフ表、垂直方向のメトリクス、8ビット画像1枚を保持する。各グリフの輪郭は値128で、その内側ほど大きく、外側ほど小さい値になる。輪郭の両側を <see cref="SpreadEm"/> 分まで格納するため、1つのアトラスで任意のサイズのフォントを描画できる。ファイル形式（リトルエンディアン）：
 /// <code>
 /// char[8] "CGEFONT1"; int32 width; int32 height; float32 ascent; float32 descent; float32 lineGap; float32 spreadEm; int32 glyphCount;
 /// glyphCount × { int32 codePoint; float32 advance; float32 planeLeft, planeBottom, planeRight, planeTop; float32 u0, v0, u1, v1 }  (ascending codePoint)
 /// width × height bytes of distance
 /// </code>
-/// Metrics are fractions of the em; descent is positive downward.
-/// </summary>
+/// メトリクスは em に対する割合で表す。descent は下向きを正とする。</summary>
 public sealed class FontAtlas {
     public const string Magic="CGEFONT1";
     public const int MaximumGlyphs=65_536;
@@ -67,12 +60,12 @@ public sealed class FontAtlas {
     public int AtlasWidth { get; }
     public int AtlasHeight { get; }
     public float Ascent { get; }
-    /// <summary>Distance from the baseline down to the bottom of a line, positive.</summary>
+    /// <summary>ベースラインから行の下端までの距離（正の値）。</summary>
     public float Descent { get; }
     public float LineGap { get; }
-    /// <summary>The distance the field covers on each side of an outline, in em.</summary>
+    /// <summary>輪郭の両側に距離場が広がる幅（em 単位）。</summary>
     public float SpreadEm { get; }
-    /// <summary>The distance between two baselines, in em.</summary>
+    /// <summary>2つのベースライン間の距離（em 単位）。</summary>
     public float LineHeight=>this.Ascent+this.Descent+this.LineGap;
     public IReadOnlyList<FontGlyph>Glyphs=>this.GlyphTable;
     public ReadOnlySpan<byte>Distance=>this.DistanceStorage;
@@ -93,7 +86,7 @@ public sealed class FontAtlas {
         return false;
     }
 
-    /// <summary>The atlas as a texture for a <see cref="RenderScreenShading.DistanceField"/> batch: white, with the distance in alpha.</summary>
+    /// <summary><see cref="RenderScreenShading.DistanceField"/> バッチ用テクスチャとしてのアトラス。白地に距離をアルファ値で格納する。</summary>
     public RenderTextureResource Texture{
         get{
             if(this.TextureResource is { }Existing){ return Existing; }
@@ -132,7 +125,7 @@ public sealed class FontAtlas {
         return Bytes;
     }
 
-    /// <summary>Reads a baked font. Throws <see cref="FormatException"/> for anything that is not a valid file.</summary>
+    /// <summary>焼き付け済みフォントを読み込む。有効なファイル形式でない場合は <see cref="FormatException"/> をスローする。</summary>
     public static FontAtlas Parse(ReadOnlySpan<byte>Bytes){
         if(Bytes.Length<HeaderSize||!Bytes[..8].SequenceEqual(Encoding.ASCII.GetBytes(Magic))){
             throw new FormatException("Not a baked font (CGEFONT1).");

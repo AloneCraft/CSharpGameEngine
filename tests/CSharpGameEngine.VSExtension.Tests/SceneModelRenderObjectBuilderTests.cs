@@ -5,24 +5,14 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// <see cref="SceneModelRenderObjectBuilder"/>'s node-walking/value-extraction logic (ADR-0040 Phase
-/// 9), against a real analysed <see cref="SceneModel"/> (via <see cref="SceneAnalysisTestHelper"/>,
-/// the same shared analyser the Source Generator and Hierarchy use) rather than hand-built fixtures -
-/// same rationale as <see cref="SceneNodeViewModelTests"/>. The mesh-resolver dependency is injected
-/// as a plain delegate so no bridge process/GPU is involved.
+/// <see cref="SceneModelRenderObjectBuilder"/> のノード走査と値抽出ロジック (ADR-0040 フェーズ 9) を、手作りフィクスチャではなく、実際に解析された <see cref="SceneModel"/> を使って検証する（<see cref="SceneAnalysisTestHelper"/> 経由で、Source Generator と Hierarchy が使うものと同じ共有アナライザーを使用）。<see cref="SceneNodeViewModelTests"/> と同じ理由による。メッシュ解決の依存先は通常のデリゲートとして注入し、ブリッジプロセスや GPU を使わない。
 /// </summary>
 public sealed class SceneModelRenderObjectBuilderTests {
     /// <summary>
-    /// Declares components under the exact fully-qualified names <see cref="SceneComponentBindings"/>
-    /// binds (all of <c>CSharpGameEngine.Runtime.Windows.*</c>, matching the real engine vocabulary) -
-    /// the shared <c>SceneAnalysisTestHelper.CommonComponents</c> fixture declares its own same-shaped
-    /// types under a different namespace (<c>Sample</c>), which would not match.
+    /// <see cref="SceneComponentBindings"/> がバインドする完全修飾名（実エンジンの語彙に合わせた <c>CSharpGameEngine.Runtime.Windows.*</c> すべて）でコンポーネントを宣言する。共有の <c>SceneAnalysisTestHelper.CommonComponents</c> フィクスチャは別の名前空間 (<c>Sample</c>) に同じ形の型を宣言するため、一致しない。
     ///
     /// <para>
-    /// Until M0020 Phase 0 the builder hardcoded <c>UserEcsProject.Transform</c> and this fixture
-    /// declared Transform under that namespace to match, so the tests stayed green while every real
-    /// scene rendered with an identity world. The fixture must therefore track the binding table, not
-    /// the other way round.
+    /// M0020 フェーズ 0 までは、ビルダーが <c>UserEcsProject.Transform</c> をハードコードしていた。フィクスチャも合わせてその名前空間に Transform を宣言していたため、実際のすべてのシーンが単位ワールドで描画されてもテストは成功していた。したがってフィクスチャはバインディングテーブルに従うべきであり、その逆ではない。
     /// </para>
     /// </summary>
     private const string Components="""
@@ -44,7 +34,7 @@ public sealed class SceneModelRenderObjectBuilderTests {
         }
         """;
 
-    /// <summary>Matches <see cref="GizmoMeshFactory"/>'s default tint - the marker this test uses to recognize a gizmo fallback without depending on exact vertex geometry.</summary>
+    /// <summary><see cref="GizmoMeshFactory"/> の既定の tint に一致する。厳密な頂点形状に依存せず、テストでギズモの代替表示を識別するマーカー。</summary>
     private static readonly Vector4 GizmoTint=new(0.4f,0.65f,0.95f,1f);
 
     private static SceneModel Analyze(string SceneSource)=>SceneAnalysisTestHelper.Analyze([Components,SceneSource]);
@@ -87,8 +77,8 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_TransformWithUnsetRotation_FallsBackToIdentityRotationInsteadOfNaN(){
-        // RotationX/Y/Z/W all default to 0f (never assigned) - a zero-length quaternion, not a valid
-        // rotation. CreateFromQuaternion on it would poison the whole matrix with NaN.
+        // RotationX/Y/Z/W はすべて既定で 0f（未設定）となる。これは有効な回転ではなく、長さ 0 のクォータニオンである。
+        // それに対して CreateFromQuaternion を実行すると、行列全体が NaN で汚染される。
         var Model=Analyze("""
                           using CSharpGameEngine.Entities;
                           using CSharpGameEngine.Runtime.Windows;
@@ -396,5 +386,23 @@ public sealed class SceneModelRenderObjectBuilderTests {
                           """);
 
         Assert.Empty(SceneModelRenderObjectBuilder.Build(Model,static _=>null));
+    }
+    [Fact]
+    public void ThumbnailModeOmitsEmptyGroupsButRetainsTheirTransformForRealChildren(){
+        var Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new(){Components=[new Transform{PositionX=7f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f}],Children=[
+                    new Node{Name="Empty"},
+                    new Node{Components=[new StaticMesh{AssetPath="Assets/Actual.glb"}]}
+                ]};
+            }
+            """);
+        var Mesh=GizmoMeshFactory.Create();
+        var Objects=SceneModelRenderObjectBuilder.Build(Model,static _=>null,_=>Mesh,IncludePlaceholders:false);
+        var Actual=Assert.Single(Objects);Assert.Same(Mesh,Actual.Mesh);Assert.Equal(7f,Actual.World.M41);
+        Assert.Throws<FileNotFoundException>(()=>SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null,IncludePlaceholders:false));
     }
 }

@@ -80,7 +80,7 @@ def main():
         corner_ids = sorted(set(triangles[first]) | set(triangles[first + 1]))
         if len(corner_ids) != 4:
             raise SystemExit("Triangles %d and %d do not share an edge." % (first, first + 1))
-        # Place the four corners by their UVs: (low u, low v), (high u, low v), (low u, high v), (high u, high v).
+        # UV に従って4隅を配置します：(low u, low v)、(high u, low v)、(low u, high v)、(high u, high v)。
         corner_uvs = uvs[corner_ids]
         low_u, high_u = corner_uvs[:, 0].min(), corner_uvs[:, 0].max()
         low_v, high_v = corner_uvs[:, 1].min(), corner_uvs[:, 1].max()
@@ -125,7 +125,7 @@ def main():
                         out_tangents.append(quad_tangents[cell])
                         out_uvs.append(quad_uvs[cell])
                     ids.append(used[cell])
-                # The source winding: the quad's own triangles decide whether (s, t) runs counter-clockwise seen along the normal.
+                # 元の winding：quad 自身の三角形から、normal 方向に見て (s, t) が反時計回りかどうかを判定します。
                 a, b, d = positions[grid_ids[(False, False)]], positions[grid_ids[(True, False)]], positions[grid_ids[(False, True)]]
                 facing = np.dot(np.cross(b - a, d - a), normals[grid_ids[(False, False)]])
                 if facing >= 0:
@@ -140,7 +140,7 @@ def main():
     out_uvs = np.array(out_uvs, dtype=np.float32)
     out_indices = np.array(out_indices, dtype=np.uint32)
     if double_sided:
-        # The renderer culls back faces and has no double-sided flag: a second copy with flipped winding and normals is the other side.
+        # renderer は back face を cull し、double-sided flag もありません。反対側は winding と normal を反転した複製で表します。
         count = len(out_positions)
         out_positions = np.concatenate([out_positions, out_positions])
         out_normals = np.concatenate([out_normals, -out_normals])

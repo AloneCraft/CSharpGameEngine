@@ -25,8 +25,8 @@ internal static class ShaderGraphCli {
                 _=>UnknownCommand(Arguments[0]),
             };
         } catch(Exception Exception) {
-            // MSBuild's Exec lists only a canonical line as an error; the rest of the output is a message under MSB3073.
-            // An unreadable or missing file is the author's to fix, so it is that line alone; anything else keeps its trace.
+            // MSBuild の Exec は標準形式の 1 行だけをエラーとして一覧表示し、残りの出力は MSB3073 のメッセージとして表示する。
+            // 読み取り不能または存在しないファイルは作成者が修正する必要があるため、その行だけを示す。それ以外はトレースを維持する。
             Console.Error.WriteLine((Arguments.Length>1?Arguments[1]+": ":string.Empty)+"error: "+Exception.Message);
             if(Exception is not (JsonException or InvalidDataException or IOException or UnauthorizedAccessException)) {
                 Console.Error.WriteLine(Exception);
@@ -34,7 +34,7 @@ internal static class ShaderGraphCli {
             return 1;
         }
     }
-    /// <summary>A graph diagnostic in MSBuild's canonical form, which a build lists as an error or warning at the graph.</summary>
+    /// <summary>グラフ上の位置でビルドがエラーまたは警告として表示する、MSBuild 標準形式のグラフ診断。</summary>
     private static string BuildMessage(string GraphPath,ShaderGraphDiagnostic Diagnostic)=>
         $"{GraphPath}: {(Diagnostic.Severity==ShaderGraphDiagnosticSeverity.Error?"error":"warning")} {Diagnostic.Code}: {Diagnostic.Message}"
         +(Diagnostic.NodeId is { }NodeId?$" [node {NodeId}]":string.Empty);
@@ -99,8 +99,7 @@ internal static class ShaderGraphCli {
         return 0;
     }
     /// <summary>
-    /// ADR-0078/M0110: the mesh distance fields of one glTF, made at build time like a shader artifact (the geometry is prepared ahead of the game;
-    /// no lighting is baked). One entry per mesh in the importer's order; a mesh drawn only skinned gets no field. An identical file is left untouched.
+    /// ADR-0078/M0110：1 つの glTF のメッシュ距離場をビルド時に作成する。シェーダー成果物と同様にゲーム開始前にジオメトリを準備するが、ライティングはベイクしない。インポーター順にメッシュ 1 つにつき 1 エントリを作る。スキニングのみで描画されるメッシュには距離場を作らない。同じファイルがある場合は変更しない。
     /// </summary>
     private static int BuildDistanceFields(string[]Arguments) {
         if(Arguments.Length!=3) {

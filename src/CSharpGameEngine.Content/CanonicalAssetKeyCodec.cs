@@ -3,7 +3,7 @@ using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.Content;
 
-/// <summary>Fixed canonical binary encoding shared by artifact envelopes and world-cell payloads.</summary>
+/// <summary>アーティファクトのエンベロープとワールドセルのペイロードで共有する、固定の正規バイナリー形式。</summary>
 public static class CanonicalAssetKeyCodec {
     public const int EncodedLength=69;
 

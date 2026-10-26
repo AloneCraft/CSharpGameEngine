@@ -6,7 +6,7 @@ using Xunit;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
-/// <summary>ADR-0068: the template wizard and the package Stage create the same PackageMode game project.</summary>
+/// <summary>ADR-0068：テンプレートウィザードとパッケージの Stage は、同じ PackageMode のゲームプロジェクトを作成する。</summary>
 public sealed class GameProjectGeneratorTests:IDisposable {
     private readonly string Root=Path.Combine(Path.GetTempPath(),"cge-generator-"+Guid.NewGuid().ToString("N"));
 
@@ -28,8 +28,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     }
 
     /// <summary>
-    /// CopySources renames the template namespace as plain text, so in the real template source it may
-    /// only appear as the namespace itself: an identifier such as CgeThirdPersonCharacter would be renamed too.
+    /// CopySources はテンプレートの名前空間をプレーンテキストとして置換する。そのため実際のテンプレートソースでは名前空間自体としてのみ現れなければならない。CgeThirdPersonCharacter のような識別子まで改名されてしまう。
     /// </summary>
     [Theory]
     [InlineData("ThirdPerson")]
@@ -52,7 +51,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         }
     }
 
-    /// <summary>Each template the wizard offers has its project template, its two string resources and a source folder to copy from.</summary>
+    /// <summary>ウィザードが提示する各テンプレートには、プロジェクトテンプレート、2 つの文字列リソース、コピー元のソースフォルダーがある。</summary>
     [Fact]
     public void EveryOfferedTemplate_HasAVsTemplateWithItsOwnResourceStrings(){
         var Templates=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine");
@@ -76,7 +75,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         }
     }
 
-    /// <summary>The wizard opens <see cref="GameProjectGenerator.StartupScenePath"/> after creation: it exists and is a scene by the build's rule (ADR-0070).</summary>
+    /// <summary>作成後、ウィザードは <see cref="GameProjectGenerator.StartupScenePath"/> を開く。そのパスにはビルド規則 (ADR-0070) に合うシーンが存在する。</summary>
     [Theory]
     [InlineData("ThirdPerson")]
     [InlineData("FirstPerson")]
@@ -100,7 +99,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         Assert.Equal(Expected,GameProjectGenerator.SafeIdentifier(ProjectName));
     }
 
-    /// <summary>A project named like a C# keyword gets a namespace the generated sources can declare (<c>namespace event.Gameplay;</c> does not parse).</summary>
+    /// <summary>C# キーワードと同じ名前のプロジェクトでも、生成ソースで宣言できる名前空間を作る（<c>namespace event.Gameplay;</c> は解析できない）。</summary>
     [Theory]
     [InlineData("event","_event")]
     [InlineData("fixed","_fixed")]
@@ -157,7 +156,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [InlineData("TopDown","Navigation")]
     [InlineData("Vehicle","Vehicles")]
     public void TheGeneratedProject_EnablesTheTemplatesEnginePlugins(string TemplateName,string Plugins){
-        // ADR-0079: the template's own project file names its engine plugins; the package-mode project carries them over.
+        // ADR-0079：テンプレート自身のプロジェクトファイルでエンジンプラグインを指定し、パッケージモードのプロジェクトへ引き継ぐ。
         var Project=Path.Combine(this.Root,TemplateName);
         var ProjectFile=GameProjectGenerator.Generate(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName),Project,"Game","1.2.3",@"C:\feed",TemplateName);
         var Text=File.ReadAllText(ProjectFile);
@@ -229,7 +228,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
 
     [Fact]
     public void PublishToFeed_ReplacesARebuiltPackageOfTheSameLength(){
-        // The package keeps its version while it is rebuilt (ADR-0065); equal length does not make it the same package.
+        // パッケージの再ビルド中もバージョンは維持される (ADR-0065)。長さが同じでも同一のパッケージとは限らない。
         var Package=Path.Combine(this.Root,"CSharpGameEngine.Sdk.0.1.0.nupkg");
         File.WriteAllText(Package,"package");
         var Feed=Path.Combine(this.Root,"feed");

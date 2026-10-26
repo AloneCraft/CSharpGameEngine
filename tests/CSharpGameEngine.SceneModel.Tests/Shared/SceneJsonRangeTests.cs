@@ -4,12 +4,7 @@ using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.SceneAnalysis.Tests;
 
 /// <summary>
-/// A number a member's type cannot hold is SCENE203 at its position, the same on .NET (the tools, a <c>dotnet build</c>) and
-/// .NET Framework (the VSIX, a build under Visual Studio's MSBuild). This file is in <c>Shared</c>, so the VSIX test
-/// project runs it on net472 too. <c>float.TryParse</c> returns an infinity on .NET but fails on .NET Framework, and the
-/// float range check once read only the infinity: a LogicalScalar written as 1e39 had no diagnostic in the editor, where
-/// every Designer edit then failed on "Infinity has no JSON form", and a build on a .NET Framework host got a compile
-/// error in the generated file instead of a diagnostic.
+/// メンバーの型で表現できない数値は、その位置で SCENE203 となる。.NET（ツール、<c>dotnet build</c>）と .NET Framework（VSIX、Visual Studio の MSBuild によるビルド）で同じである。このファイルは <c>Shared</c> にあるため、VSIX テストプロジェクトでも net472 で実行される。<c>float.TryParse</c> は .NET では無限大を返すが、.NET Framework では失敗する。以前の float 範囲チェックは読み取った無限大しか検査していなかったため、LogicalScalar を 1e39 と書いてもエディターでは診断されず、その後 Designer で編集するたびに「Infinity has no JSON form」で失敗していた。また .NET Framework ホストでのビルドでは診断ではなく生成ファイルのコンパイルエラーになっていた。
 /// </summary>
 public sealed class SceneJsonRangeTests {
     private const string Components="""
@@ -52,7 +47,7 @@ public sealed class SceneJsonRangeTests {
 
     [Theory]
     [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the Q64.64 range")]
-    // Just above float.MaxValue, where C# rounds down to it but .NET Framework's float.TryParse fails.
+    // float.MaxValue をわずかに超える値。C# ではそこへ切り下げて丸めるが、.NET Framework の float.TryParse は失敗する。
     [InlineData("\"Height\": 9e18","\"Height\": 3.4028235677973366E+38","beyond the Q64.64 range")]
     [InlineData("\"Height\": 9e18","\"Height\": 1e39","beyond the range of float")]
     [InlineData("\"Height\": 9e18","\"Height\": -1e39","beyond the range of float")]

@@ -1,11 +1,10 @@
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
-/// A two-axis blend space on a regular grid (UE's BS_Idle_Walk_Run, ADR-0078/M0107). Each grid point is a sample; a query lands in one cell
-/// and is shared among the three corners of the triangle that holds it, exactly as UE triangulates the grid: the cells in the left half
-/// of the X axis are cut from lower-left to upper-right, those in the right half from lower-right to upper-left (mirror-symmetric, which
-/// keeps the forward column the shared edge). The weights smooth toward their targets at <see cref="InterpolationSpeed"/> per second
-/// (UE's TargetWeightInterpolationSpeedPerSec), so a sudden turn of the input fades between the clips instead of snapping.
-/// Sample <c>Row * ColumnCount + Column</c> sits at (<see cref="XAxis"/>[Column], <see cref="YAxis"/>[Row]).
+/// 規則格子上の2軸ブレンドスペース（UE の BS_Idle_Walk_Run、ADR-0078/M0107）。各格子点をサンプルとして扱い、問い合わせ点が入るセルを求め、その点を含む三角形の3頂点間で
+/// 重みを分配する。UE が格子を三角形分割するのと同じ方式で、X 軸の左半分にあるセルは左下から右上、右半分のセルは右下から左上へ対角線を引く。この左右対称な分割により、前進方向の列が共有辺になる。重み
+/// は毎秒 <see cref="InterpolationSpeed"/> の速さで目標に近づく（UE の TargetWeightInterpolationSpeedPerSec）。入力が急に変わって
+/// もクリップを瞬時に切り替えず、滑らかに遷移する。サンプル <c>Row * ColumnCount + Column</c> の位置は (<see cref="XAxis"/>[Column]、
+/// <see cref="YAxis"/>[Row])。
 /// </summary>
 public sealed class BlendSpace2D {
     private readonly float[]XValues;
@@ -33,12 +32,12 @@ public sealed class BlendSpace2D {
     public int ColumnCount=>this.XValues.Length;
     public int RowCount=>this.YValues.Length;
     public int SampleCount=>this.Smoothed.Length;
-    /// <summary>0 snaps to the target; otherwise the fraction of the remaining distance covered per second is about this (an exponential approach).</summary>
+    /// <summary>0なら目標値に瞬時に切り替える。それ以外では、指数的に近づき、残りの距離のうち毎秒およそこの割合を移動する。</summary>
     public float InterpolationSpeed { get; }
-    /// <summary>The current (smoothed) weight of each sample; they sum to 1 after the first <see cref="Update"/>.</summary>
+    /// <summary>各サンプルの現在の（平滑化済み）重み。最初の <see cref="Update"/> 後は合計が1になる。</summary>
     public ReadOnlySpan<float>Weights=>this.Smoothed;
     public int SampleIndex(int Column,int Row)=>(Row*this.XValues.Length)+Column;
-    /// <summary>The weights a query at (<paramref name="X"/>, <paramref name="Y"/>) asks for, before smoothing. The input is clamped to the grid.</summary>
+    /// <summary>平滑化前に、(<paramref name="X"/>、<paramref name="Y"/>) の問い合わせが要求する重み。入力は格子の範囲に収める。</summary>
     public void TargetWeights(float X,float Y,Span<float>Weights){
         if(Weights.Length<this.SampleCount){
             throw new ArgumentException($"The blend space has {this.SampleCount} samples.",nameof(Weights));
@@ -61,7 +60,7 @@ public sealed class BlendSpace2D {
         var MiddleX=(this.XValues[0]+this.XValues[^1])*0.5f;
         var LeftHalf=(X0+X1)*0.5f<MiddleX;
         if(LeftHalf){
-            // Diagonal lower-left to upper-right: the lower-right triangle holds the points below it.
+            // 左下から右上への対角線。左下の三角形はその下側の点を含む。
             if(U>=V){
                 Weights[LowerLeft]=1f-U;
                 Weights[LowerRight]=U-V;
@@ -72,7 +71,7 @@ public sealed class BlendSpace2D {
                 Weights[UpperRight]=U;
             }
         } else {
-            // Diagonal lower-right to upper-left: the lower-left triangle holds the points below it.
+            // 右下から左上への対角線。右下の三角形はその下側の点を含む。
             if(U+V<=1f){
                 Weights[LowerLeft]=MathF.Max(1f-U-V,0f);
                 Weights[LowerRight]=U;
@@ -84,7 +83,7 @@ public sealed class BlendSpace2D {
             }
         }
     }
-    /// <summary>Moves every sample's weight toward the query's by <paramref name="DeltaSeconds"/> and renormalizes. The first call snaps.</summary>
+    /// <summary><paramref name="DeltaSeconds"/> の間に、各サンプルの重みを問い合わせ値へ近づけて再正規化する。初回呼び出しでは即座に切り替える。</summary>
     public void Update(float DeltaSeconds,float X,float Y){
         this.TargetWeights(X,Y,this.Target);
         if(!this.Initialized||this.InterpolationSpeed<=0f){
@@ -96,7 +95,7 @@ public sealed class BlendSpace2D {
         var Total=0f;
         for(var Index=0;Index<this.Smoothed.Length;Index++){
             var Moved=this.Smoothed[Index]+((this.Target[Index]-this.Smoothed[Index])*Step);
-            // UE's FInterpTo stops once it is close; a weight that has all but arrived is taken as arrived so the fade ends.
+            // UE の FInterpTo は値が近づくと停止する。ほぼ到達済みの重みを到達済みとみなして、遷移を完了させる。
             this.Smoothed[Index]=MathF.Abs(this.Target[Index]-Moved)<=1e-4f?this.Target[Index]:Moved;
             Total+=this.Smoothed[Index];
         }
@@ -108,7 +107,7 @@ public sealed class BlendSpace2D {
             this.Smoothed[Index]/=Total;
         }
     }
-    /// <summary>Forgets the smoothing: the next <see cref="Update"/> snaps to its query.</summary>
+    /// <summary>平滑化状態を破棄する。次の <see cref="Update"/> で問い合わせ値に即座に切り替える。</summary>
     public void Reset()=>this.Initialized=false;
     private static int Cell(float[]Axis,float Value){
         var Low=0;

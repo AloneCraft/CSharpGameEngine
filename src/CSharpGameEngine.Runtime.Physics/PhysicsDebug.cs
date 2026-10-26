@@ -64,7 +64,7 @@ internal static class PhysicsDebugHub {
                 await HandleAsync(Pipe).ConfigureAwait(false);
             }
             catch(Exception Exception)when(Exception is IOException or UnauthorizedAccessException or JsonException or InvalidDataException){
-                // Debug transport must never terminate the game.
+                // デバッグ用通信処理がゲームを終了させてはならない。
             }
         }
     }
@@ -87,7 +87,7 @@ internal static class PhysicsDebugHub {
                 :ToResponse(Snapshot);
         }
         else {
-            // M0097: the debug pipe only reads; the editor no longer drives the simulation.
+            // M0097：デバッグ用パイプは読み取り専用。エディターからシミュレーションを駆動しない。
             Response=new PhysicsDebugResponse { Protocol=ProtocolVersion,Status="unsupported command" };
         }
         byte[] ResponseBytes=JsonSerializer.SerializeToUtf8Bytes(Response);

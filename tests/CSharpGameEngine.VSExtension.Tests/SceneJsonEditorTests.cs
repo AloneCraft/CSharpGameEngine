@@ -5,13 +5,11 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// ADR-0071: a scene JSON (a <c>*.json</c> under the project's <c>Scenes</c> folder) opens in the Scene Editor (Design / JSON); every other JSON file goes
-/// to the next editor. The views map onto one window's tabs, and each tab shows only its own scene.
+/// ADR-0071：シーン JSON（プロジェクトの <c>Scenes</c> フォルダー内にある <c>*.json</c>）は Scene Editor (Design / JSON) で開き、それ以外の JSON ファイルは次のエディターへ渡す。ビューは 1 つのウィンドウのタブに対応し、各タブにはそれぞれのシーンだけを表示する。
 /// </summary>
 public sealed class SceneJsonEditorTests {
     /// <summary>
-    /// A double-click gives the editor only a path: the project is the nearest folder with a
-    /// <c>*.csproj</c>, and a scene is a <c>*.json</c> under its <c>Scenes</c> folder.
+    /// ダブルクリックでエディターに渡されるのはパスだけである。プロジェクトは最も近い <c>*.csproj</c> フォルダー、シーンはその <c>Scenes</c> フォルダー内の <c>*.json</c> として判定する。
     /// </summary>
     [Theory]
     [InlineData(@"Scenes\Main.json",true)]
@@ -44,7 +42,7 @@ public sealed class SceneJsonEditorTests {
         Assert.Equal(SceneJsonEditorView.Design,SceneJsonEditorPane.ViewFor(VSConstants.LOGVIEWID_Designer));
         Assert.Equal(SceneJsonEditorView.Json,SceneJsonEditorPane.ViewFor(VSConstants.LOGVIEWID_TextView));
         Assert.Equal(SceneJsonEditorView.Json,SceneJsonEditorPane.ViewFor(VSConstants.LOGVIEWID_Code));
-        // A view the editor does not have: MapLogicalView answers E_NOTIMPL from the same mapping.
+        // エディターが持たないビュー：同じマッピングに対する MapLogicalView は E_NOTIMPL を返す。
         Assert.Null(SceneJsonEditorPane.ViewFor(VSConstants.LOGVIEWID_Debugging));
     }
 
@@ -54,7 +52,7 @@ public sealed class SceneJsonEditorTests {
             typeof(CSharpGameEngineViewerPackage).GetCustomAttributes<ProvideEditorExtensionAttribute>(),
             static Attribute=>Attribute.Factory==typeof(SceneJsonEditorFactory).GUID);
         Assert.Equal(".json",Extension.Extension);
-        // The Visual Studio JSON editor registers .json at 0x32.
+        // Visual Studio の JSON エディターは .json を 0x32 で登録する。
         Assert.True(Extension.Priority>0x32);
         var Views=typeof(CSharpGameEngineViewerPackage).GetCustomAttributes<ProvideEditorLogicalViewAttribute>()
             .Where(static Attribute=>Attribute.FactoryType==typeof(SceneJsonEditorFactory).GUID)
@@ -76,8 +74,7 @@ public sealed class SceneJsonEditorTests {
         Assert.False(SceneDesignerTargetFilter.Accepts(Own,null));
     }
     /// <summary>
-    /// M0095 1-4: closing the tab of the pinned scene unpins it, so Hierarchy and Inspector stop showing
-    /// (and editing) a closed document; closing another tab leaves that pin alone.
+    /// M0095 1-4：固定シーンのタブを閉じるとピン留めが解除され、Hierarchy と Inspector は閉じたドキュメントの表示と編集をやめる。他のタブを閉じてもピン留めは維持される。
     /// </summary>
     [Fact]
     public void ClosingATab_ReleasesThePinOnlyWhenItShowsThePinnedScene(){
@@ -86,7 +83,7 @@ public sealed class SceneJsonEditorTests {
         Assert.True(SceneDesignerTargetFilter.ReleasesPinOnClose(Own,Own));
         Assert.False(SceneDesignerTargetFilter.ReleasesPinOnClose(Own,Other));
         Assert.False(SceneDesignerTargetFilter.ReleasesPinOnClose(Own,null));
-        // A tab that never showed its Design view has no scene and pins nothing.
+        // Design ビューを一度も表示していないタブにはシーンがなく、何もピン留めしない。
         Assert.False(SceneDesignerTargetFilter.ReleasesPinOnClose(null,Other));
     }
 }

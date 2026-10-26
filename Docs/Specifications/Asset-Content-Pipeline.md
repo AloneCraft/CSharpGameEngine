@@ -2,7 +2,7 @@
 
 ## Universal model import migration (M0114)
 
-The intended migration is [ADR-0080](../Decisions/ADR-0080-Universal-Model-Import.md); observed progress is [M0114](../Milestones/M0114-Universal-Model-Import.md). `SubAssetIdentity.Derive` defines SHA-256 identity over UTF-8 `cge.subasset/1\n<kind>\n<NFC name>`, independent of payload changes. Kind tokens are `mesh`, `material`, `texture`, `skeleton`, `clip`, `sdf`, `license`. `AssetSelector` carries a source path and optional context-typed escaped name. Catalog injection/metadata migration have not replaced current authoring. Cooking's interchange format is not an L6 runtime payload. Existing source-reader features remain active until the verified S4 cutover.
+The intended migration is [ADR-0080](../Decisions/ADR-0080-Universal-Model-Import.md); observed progress is [M0114](../Milestones/M0114-Universal-Model-Import.md). `SubAssetIdentity.Derive` defines SHA-256 identity over UTF-8 `cge.subasset/1\n<kind>\n<NFC name>`, independent of payload changes. Kind tokens are `mesh`, `material`, `texture`, `skeleton`, `clip`, `sdf`, `license`, `image`. `AssetSelector` carries a source path and optional context-typed escaped name. Catalog injection/metadata migration have not replaced current authoring. Cooking's interchange format is not an L6 runtime payload. Existing source-reader features remain active until the verified S4 cutover.
 
 ## Typed imported lighting
 ImportedLight is a color-only abstract base with directional illuminance and point/spot luminous-intensity variants. Missing range remains null. ImportedSpotCone preserves source half radians, including glTF's legal zero inner angle; conversion to the stricter authored cone requires explicit resolution for that case. See [Typed Lighting](Typed-Lighting.md). The Unreal directional emitter preserves lux/color and emits a separate LightShadow.
@@ -108,3 +108,16 @@ F-L2-004, F-L7-025, F-L6-005, F-L7-026, F-L7-027, F-L4-008, F-L6-006, F-L8-019, 
 - 使うのは、ファイルの一覧(`Game.props` が AdditionalFiles に加える)だけで、中身は読まない。ファイルを足す・消すと、参照のコンパイルエラーとして現れる。
 - シーン JSON が `"Assets/…"` と書いたパスに対応するファイルが無ければ SCENE208(エラー)。
 - シーン JSON のメンバーは文字列のまま。`ModelAsset` は静的メッシュ・骨格・クリップを区別しない。
+
+
+## Authoring inventory and metadata ownership (ADR-0081)
+
+AssetWorkspaceService inspects only explicitly supplied evaluated project sources, validates canonical JSON sidecars and returns typed state/diagnostics without writing or inventing IDs. Source paths locate unregistered items. Provider-owned engine/SDK/package items are read-only. AssetFileMutationService owns source/sidecar writes, hash guards, identity-preserving move/rename, new identity on duplication, recoverable deletes and operation-specific recovery journals. The journal is crash recovery data; Visual Studio owns user edit history.
+
+AssetMetaWatcher and its automatic GUID-line writes have been removed. AssetAuthoringService.MigrateLegacyMetadata is an explicit one-time conversion of a single legacy guid line; it checks the expected sidecar hash and preserves the GUID as AssetId. Normal inspection accepts canonical metadata only. Merely viewing an old sidecar reports InvalidMetadata and leaves it unchanged. This conversion does not claim the broader M0114 importer/artifact migration is complete. A glTF relocation that would lose relative buffers/images fails before mutation.
+
+Baked-font previews reuse the existing FontAtlas codec in the standalone authoring host, bounded to a 512-square grayscale DTO. This is a disposable presentation image; neither fonts nor metadata are rewritten. The VSIX does not parse baked-font bytes or load a renderer.
+
+## Image interpretation and composite FBX
+
+[Image and model interpretation](Image-And-Model-Interpretation.md) extends schema 1 without replacing its fields. The source suffix supplies initial defaults only; saved `cge.image` settings own registered Texture/Image outputs and stable output keys. AssetAuthoringService validates metadata, L7 ImageOutputCompiler/FbxModelCompiler publish engine-owned CAS payloads, and L8 transports requests to the standalone authoring host. Browsing and build do not create metadata. This is an additive image/composite-FBX authoring path; M0114's global artifact-only runtime cutover remains separate.

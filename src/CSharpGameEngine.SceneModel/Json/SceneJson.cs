@@ -3,10 +3,8 @@ using System.Collections.Generic;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 internal enum SceneJsonKind { Object,Array,String,Number,True,False,Null }
 /// <summary>
-/// One parsed JSON value of a scene JSON document (ADR-0070). The DOM is dependency-free so
-/// the same code runs in the source generator (netstandard2.0), the VSIX (net472) and the tools.
-/// Every value keeps its source span and numbers keep their original text, so the generator emits
-/// the author's literal unchanged and an edit can replace exactly one value's text.
+/// Scene JSON ドキュメントから解析した JSON 値1つ（ADR-0070）。DOM は依存関係を持たず、ソースジェネレーター（netstandard2.0）、VSIX（net472）、ツール
+/// で同じコードを実行できる。各値はソース範囲を保持し、数値は元のテキストも保持する。そのためジェネレーターは作成者が書いたリテラルを変更せず出力でき、編集時も対象値のテキストだけを正確に置き換えられる。
 /// </summary>
 internal sealed class SceneJsonValue {
     private static readonly List<SceneJsonProperty>NoProperties=[];
@@ -22,13 +20,13 @@ internal sealed class SceneJsonValue {
         this.ItemList=Items??NoItems;
     }
     internal SceneJsonKind Kind { get; }
-    /// <summary>Offset of the first character of the value in the document text.</summary>
+    /// <summary>ドキュメントテキストにおける値の先頭文字位置。</summary>
     internal int Start { get; }
-    /// <summary>Offset just past the last character of the value.</summary>
+    /// <summary>ドキュメントテキストにおける値の末尾文字の直後の位置。</summary>
     internal int End { get; }
-    /// <summary>The unescaped string, or a number's original text.</summary>
+    /// <summary>エスケープ解除後の文字列、または数値の元のテキスト。</summary>
     internal string?Text { get; }
-    /// <summary>Object properties in document order (duplicates are rejected by the reader).</summary>
+    /// <summary>ドキュメント上の順序を保ったオブジェクトプロパティ（重複は読み込み側で拒否する）。</summary>
     internal IReadOnlyList<SceneJsonProperty>Properties=>this.PropertyList;
     internal IReadOnlyList<SceneJsonValue>Items=>this.ItemList;
     internal SceneJsonValue?Get(string Name){
@@ -51,7 +49,7 @@ internal sealed class SceneJsonProperty {
     internal int NameStart { get; }
     internal SceneJsonValue Value { get; }
 }
-/// <summary>A malformed document; <see cref="Position"/> is the offending character offset.</summary>
+/// <summary>形式が不正なドキュメント。<see cref="Position"/> は問題のある文字位置。</summary>
 internal sealed class SceneJsonException:Exception {
     internal SceneJsonException(string Message,int Position):base(Message){
         this.Position=Position;

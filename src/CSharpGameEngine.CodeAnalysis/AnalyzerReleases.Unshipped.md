@@ -5,6 +5,7 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+ASSET001 | CSharpGameEngine.Entities.CodeGen | Error | Image metadata validation
 SYSGEN001 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN002 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN003 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics

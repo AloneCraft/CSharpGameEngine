@@ -17,15 +17,12 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// Owns the physically based sky (ADR-0069): Transmittance / MultiScattering / SkyView LUTs, the
-/// sky light's irradiance SH and the sky background composite. Every pass is one dispatch of the
-/// single Atmosphere.hlsl compute artifact. Root signature (host-owned, see ShaderArtifactAbi):
-/// 0 = root CBV b0 AtmosphereCB, 1 = SRV table t0-t3 (transmittance, multi-scattering, sky view,
-/// scene depth) and t5-t6 (cloud panorama, cloud noise), 2 = UAV table u0 (the pass output texture), 3 = root UAV u1 (irradiance SH),
-/// 4 = root SRV t4 (auto exposure state, read by the sky composite in histogram mode), 5 = UAV table u2 (the cloud noise volume),
-/// s0 = linear clamp, s1 = linear wrap.
-/// ADR-0078/M0110 adds the volumetric clouds (a panorama of the upper hemisphere traced through the cloud layer, refreshed one texel of each
-/// 4 x 4 block per frame, and read by the sky composite and the sky light) and the sky sphere (geometry beyond it is covered by the sky).
+/// 物理ベースの空を所有する（ADR-0069）。透過率、複数回散乱、スカイビューの LUT、スカイライトの照度 SH、空の背景合成を含む。各パスは単一の Atmosphere.hlsl
+/// コンピュートアーティファクトを1回ディスパッチして実行する。ルートシグネチャはホストが所有する（ShaderArtifactAbi を参照）：0 = root CBV b0 AtmosphereCB、
+/// 1 = SRV テーブル t0-t3（透過率、複数回散乱、スカイビュー、シーン深度）と t5-t6（雲パノラマ、雲ノイズ）、2 = UAV テーブル u0（パス出力テクスチャ）、3 = root
+/// UAV u1（照度 SH）、4 = root SRV t4（自動露出状態。ヒストグラム方式で空の合成が読み取る）、5 = UAV テーブル u2（雲ノイズボリューム）、s0 = linear
+/// clamp、s1 = linear wrap。ADR-0078/M0110 ではボリューム雲とスカイスフィアを追加する。雲は上半球を雲層越しに追跡したパノラマであり、各4×4ブロックから1テクセルを
+/// フレームごとに更新し、空の合成とスカイライトから読み取る。スカイスフィアより遠くにあるジオメトリは空に覆われる。
 /// </summary>
 internal sealed unsafe class StageAtmosphere:IDisposable {
     internal const string ArtifactFileName="Atmosphere.cgeshaderartifact";
@@ -61,13 +58,13 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private const uint SrvSkyRadianceMap=12;
     private const uint UavSkyRadianceMap=13;
     private const uint DescriptorCount=14;
-    /// <summary>Texels per side of the sky radiance map (M0111), octahedral with +Z as the pole.</summary>
+    /// <summary>空の放射輝度マップの1辺あたりのテクセル数（M0111）。極を +Z にした八面体マップ。</summary>
     internal const int SkyRadianceMapSize=128;
     private const DXGI_FORMAT CloudPanoramaFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT CloudNoiseFormat=DXGI_FORMAT_R16_FLOAT;
-    /// <summary>Texels of the tiling cloud noise volume per side (Atmosphere.hlsl CloudNoiseSize).</summary>
+    /// <summary>タイル状の雲ノイズボリュームの1辺あたりのテクセル数（Atmosphere.hlsl の CloudNoiseSize）。</summary>
     internal const int CloudNoiseSize=32;
-    /// <summary>Frames that refresh every texel of the cloud panorama once (one texel of each 4 x 4 block per frame).</summary>
+    /// <summary>各4×4ブロックの1テクセルずつを更新し、雲パノラマ内のすべてのテクセルを一巡するフレーム数。</summary>
     internal const int CloudRefreshFrames=16;
     private const D3D12_RESOURCE_STATES ShaderResourceState=D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE|D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     private readonly GraphicsDevice Device;
@@ -97,34 +94,34 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private bool Disposed;
     internal StageAtmosphere(GraphicsDevice Device,string StageArtifactPath,uint FrameCount){
         this.Device=Device;
-        // WARP draws on the CPU: a coarser panorama and fewer samples keep its frames usable (M0110); a GPU gets the finer one.
+        // WARP は CPU で描画する。CPU で使えるフレーム時間を保つため、パノラマ解像度とサンプル数を下げる（M0110）。GPU では高い方を使う。
         (this.CloudPanoramaWidth,this.CloudPanoramaHeight,this.CloudViewSamples)=Device.IsWarp?(1024,256,24):(2048,512,48);
         this.FrameCount=FrameCount;
         this.ArtifactPath=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(StageArtifactPath))??string.Empty,ArtifactFileName);
         this.ShBuffer=this.CreateBuffer(ShCoefficientCount*16,D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,ShaderResourceState,"creating the sky light SH buffer");
     }
-    /// <summary>GPU address of the 9 float4 irradiance SH coefficients (Stage t11).</summary>
+    /// <summary>9個の float4 で表す照度 SH 係数の GPU アドレス（Stage t11）。</summary>
     internal ulong ShBufferAddress=>this.ShBuffer->GetGPUVirtualAddress();
     internal bool HasValidSkyLight { get;private set; }
-    /// <summary>GPU address of StageAutoExposure's state; always bound so every root parameter is set.</summary>
+    /// <summary>StageAutoExposure の状態の GPU アドレス。すべてのルートパラメーターを設定するため、常にバインドする。</summary>
     internal ulong ExposureStateAddress { get;set; }
     internal Vector3 LastSunDirection { get;private set; }
     internal int CloudPanoramaWidth { get; }
     internal int CloudPanoramaHeight { get; }
-    /// <summary>View-ray samples per panorama texel.</summary>
+    /// <summary>パノラマの1テクセルあたりのビュー方向サンプル数。</summary>
     internal int CloudViewSamples { get; }
-    /// <summary>Whether the cloud panorama holds this frame's clouds (it is refreshed in <see cref="Update"/> when the frame has clouds).</summary>
+    /// <summary>雲があるフレームで <see cref="Update"/> が更新する、このフレームの雲パノラマを保持しているか。</summary>
     private bool CloudsDrawn;
     private bool SkyRadianceMapCurrent;
     /// <summary>
-    /// ADR-0078/M0111: set by the renderer while the Lumen-like lighting runs; <see cref="Update"/> then keeps <see cref="SkyRadianceMapResource"/>
-    /// (the sky light's radiance by direction, octahedral like the GI probes, <see cref="SkyRadianceMapSize"/> texels per side) up to date with the
-    /// sky light SH.
+    /// ADR-0078/M0111：Lumen 相当のライティング中にレンダラーが設定する。この場合 <see cref="Update"/> は、スカイライトの方向ごとの放射輝度を格納した八面体マップ（
+    /// GI プローブと同様）である <see cref="SkyRadianceMapResource"/> を、スカイライトの SH と一致するよう更新し続ける。マップの1辺のテクセル数は
+    /// <see cref="SkyRadianceMapSize"/>。
     /// </summary>
     internal bool SkyRadianceMapRequested { get;set; }
-    /// <summary>The sky radiance map (shader-readable once the sky has been updated; null before).</summary>
+    /// <summary>空の放射輝度マップ。空が更新され、シェーダーから読み取り可能になった後に設定する。更新前は null。</summary>
     internal ID3D12Resource*SkyRadianceMapResource=>this.SkyRadianceMap;
-    /// <summary>Records the LUT and sky light passes. Leaves every LUT and the SH buffer readable by shaders.</summary>
+    /// <summary>LUT とスカイライトの各パスを記録する。すべての LUT と SH バッファをシェーダーから読み取り可能な状態にする。</summary>
     internal void Update(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame){
         this.EnsurePipeline();
         this.EnsureLuts();
@@ -141,8 +138,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         if(SkyViewChanged){
             this.Dispatch(CommandList,FrameIndex,PassSkyView,Constants,this.SkyViewLut,UavSkyView,SkyViewWidth,SkyViewHeight);
         }
-        // M0110: the clouds are traced after the sky view and before the sky light, which sees them. The sky light is projected again whenever
-        // the panorama has been refreshed completely (CloudSkyLightVersion), so it follows the moving clouds.
+        // M0110：雲はスカイビューの後、雲を見るスカイライトの前に追跡する。パノラマを
+        // すべて更新したとき（CloudSkyLightVersion）にもスカイライトを再投影し、移動する雲を反映させる。
         this.CloudsDrawn=false;
         if(Frame.Clouds is VolumetricCloudSettings Clouds){
             this.UpdateClouds(CommandList,FrameIndex,Frame,Clouds);
@@ -156,7 +153,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
             this.SkyViewState=State;
             this.SkyRadianceMapCurrent=false;
         }
-        // M0111: the sky by direction for the Lumen-like rays that leave the scene, only while something reads it.
+        // M0111：シーンから外へ出る Lumen 相当のレイ用に、方向ごとの空を生成する。読み取り側がある間だけ作成する。
         if(this.SkyRadianceMapRequested&&!this.SkyRadianceMapCurrent){
             this.Dispatch(CommandList,FrameIndex,PassSkyRadianceMap,Constants,this.SkyRadianceMap,UavSkyRadianceMap,SkyRadianceMapSize,SkyRadianceMapSize);
             this.SkyRadianceMapCurrent=true;
@@ -165,8 +162,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.LastSunDirection=Frame.SunDirection;
     }
     /// <summary>
-    /// Makes the cloud noise once, then refreshes the panorama: every texel when the clouds, the atmosphere or the panorama are new, otherwise
-    /// one texel of each 4 x 4 block (the next of the 16 Bayer phases). Leaves both readable by shaders.
+    /// 雲ノイズを一度生成してからパノラマを更新する。雲、大気、パノラマが新規なら全テクセルを更新し、それ以外では各4×4ブロックの1テクセル（16段階の Bayer 位相の次の位相）を更新する。どちらも
+    /// シェーダーから読み取り可能な状態で残す。
     /// </summary>
     private void UpdateClouds(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame,in VolumetricCloudSettings Clouds){
         if(!this.CloudNoiseReady){
@@ -205,7 +202,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
             }
         }
     }
-    /// <summary>Writes sky where the physical scene distance is zero or behind the sky sphere. Restores both targets to RENDER_TARGET.</summary>
+    /// <summary>シーンの物理距離がゼロまたはスカイスフィアの背後にある場合、空を描画する。両方の描画先を RENDER_TARGET に戻す。</summary>
     internal void CompositeSky(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame,ID3D12Resource*SceneDistance,ID3D12Resource*SceneColor,int Width,int Height,bool UseExposureState){
         this.EnsurePipeline();
         this.EnsureLuts();
@@ -282,7 +279,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         Pass4[1]=Width;
         Pass4[2]=Height;
         Pass4[3]=UseExposureState?1u:0u;
-        // M0110: clouds (zero when the frame has none, so the composite and the sky light skip them) and the sky sphere.
+        // M0110：雲のあるフレームでは雲の目標を設定する（雲がない場合はゼロにするため、合成とスカイライトが雲を読み飛ばす）。スカイスフィアも設定する。
         var Clouds=Frame.Clouds;
         var Bottom=Atmosphere.BottomRadiusKm;
         Write(16,new Vector3(Bottom+(Clouds?.LayerBottomAltitudeKm??0f),Bottom+(Clouds?.LayerBottomAltitudeKm??0f)+(Clouds?.LayerHeightKm??1f),Clouds?.TracingStartMaxDistanceKm??0f),Clouds?.TracingMaxDistanceKm??0f);
@@ -325,7 +322,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.CreateUploadConstants();
     }
     private ID3D12RootSignature*CreateRootSignature(){
-        // t0-t3 then, after the root SRV t4, t5-t6 (cloud panorama and noise), all from one contiguous run of the heap.
+        // 連続するヒープ領域から t0-t3、続いて root SRV t4 の後の t5-t6（雲パノラマとノイズ）をバインドする。
         D3D12_DESCRIPTOR_RANGE*SrvRanges=stackalloc D3D12_DESCRIPTOR_RANGE[2];
         SrvRanges[0]=new D3D12_DESCRIPTOR_RANGE { RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,NumDescriptors=4,BaseShaderRegister=0,OffsetInDescriptorsFromTableStart=0 };
         SrvRanges[1]=new D3D12_DESCRIPTOR_RANGE { RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,NumDescriptors=2,BaseShaderRegister=5,OffsetInDescriptorsFromTableStart=4 };
@@ -401,7 +398,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.TransmittanceLut=this.CreateLut(TransmittanceWidth,TransmittanceHeight,SrvTransmittance,UavTransmittance);
         this.MultiScatteringLut=this.CreateLut(MultiScatteringSize,MultiScatteringSize,SrvMultiScattering,UavMultiScattering);
         this.SkyViewLut=this.CreateLut(SkyViewWidth,SkyViewHeight,SrvSkyView,UavSkyView);
-        // M0110: the cloud targets exist with the sky, so their descriptors are written once and never while a frame may read them.
+        // M0110：雲の描画先は空とともに作成し、各ディスクリプターを一度だけ書き込む。フレームから読み取られる可能性のある間に書き換えない。
         this.CloudPanorama=this.CreateCloudTexture(false,CloudPanoramaFormat,(ulong)this.CloudPanoramaWidth,(uint)this.CloudPanoramaHeight,1,SrvCloudPanorama,UavCloudPanorama);
         this.CloudNoise=this.CreateCloudTexture(true,CloudNoiseFormat,CloudNoiseSize,CloudNoiseSize,CloudNoiseSize,SrvCloudNoise,UavCloudNoise);
         this.SkyRadianceMap=this.CreateLut(SkyRadianceMapSize,SkyRadianceMapSize,SrvSkyRadianceMap,UavSkyRadianceMap);
@@ -447,15 +444,15 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.Device.Device->CreateUnorderedAccessView(Resource,null,&Uav,this.CpuHandle(UavSlot));
         return Resource;
     }
-    /// <summary>Forces the next composite to rewrite its target views; call after the depth or HDR target is recreated.</summary>
+    /// <summary>深度または HDR 描画先を再作成した後に呼び出す。次の合成処理で、出力先のビューを強制的に書き直す。</summary>
     internal void InvalidateSceneDescriptors(){
         this.DescribedSceneDistance=0;
         this.DescribedSceneColor=0;
     }
     private void WriteSceneDescriptors(ID3D12Resource*SceneDistance,ID3D12Resource*SceneColor){
-        // The previous frame's composite may still be reading these shader-visible descriptors, so
-        // they are written only when the targets change; Resize recreates them with the GPU idle and
-        // calls InvalidateSceneDescriptors, because a new target can reuse the old one's address.
+        // 前フレームの合成処理が、これらのシェーダー可視ディスクリプターを読み取り中の場合がある。そのため、
+        // 描画先が変更されたときだけ書き込む。Resize は GPU がアイドルの状態で再作成し、
+        // 新しい描画先が古いものと同じアドレスを再利用する可能性があるため InvalidateSceneDescriptors を呼ぶ。
         if(this.DescribedSceneDistance==(nint)SceneDistance&&this.DescribedSceneColor==(nint)SceneColor){
             return;
         }
@@ -480,11 +477,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
             "ID3D12Device::CreateCommittedResource",Context);
         return Resource;
     }
-    /// <summary>
-    /// Test-only GPU readback of the transmittance LUT, the sky view LUT and the irradiance SH.
-    /// The caller guarantees the renderer's queue is idle; the copy runs on its own list and fence.
-    /// </summary>
-    /// <summary>Test-only copy of the cloud panorama (rgb cloud luminance, a sky kept), row-major; the caller guarantees the queue is idle.</summary>
+    /// <summary>テスト専用の GPU 読み戻し。透過率 LUT、スカイビュー LUT、照度 SH をコピーする。レンダラーのキューがアイドルであることは呼び出し側が保証する。コピーには独自のコマンドリストとフェンスを使う。</summary>
+    /// <summary>テスト専用の雲パノラマのコピー（RGB は雲の輝度、アルファは空が残る割合）、行優先。キューがアイドルであることは呼び出し側が保証する。</summary>
     internal (Vector4[]Texels,int Width,int Height) ReadCloudPanoramaForTesting(){
         if(this.CloudPanorama==null){
             throw new InvalidOperationException("The atmosphere has not rendered a frame yet.");
@@ -614,17 +608,17 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         if(this.SkyRadianceMap!=null){ _=this.SkyRadianceMap->Release(); }
     }
     private readonly record struct SkyViewKey(Vector3 SunDirection,Vector3 SunIlluminance,float AltitudeBucket,SkyLightSettings SkyLight);
-    /// <summary>The sky light depends on the sky view and on which refresh of the cloud panorama it saw (-1 = no clouds).</summary>
+    /// <summary>スカイライトが参照したスカイビューと雲パノラマの更新番号（-1 は雲なし）に依存する。</summary>
     private readonly record struct SkyLightKey(SkyViewKey SkyView,int CloudVersion);
-    /// <summary>What forces a full refresh of the cloud panorama: the cloud values (without the camera position and wind), the atmosphere and the sun.</summary>
+    /// <summary>雲パノラマの全体更新を引き起こす条件。カメラ位置と風を除いた雲設定、大気、太陽。</summary>
     private readonly record struct CloudKey(VolumetricCloudSettings Clouds,SkyAtmosphereSettings Atmosphere,Vector3 SunDirection,Vector3 SunIlluminance);
 }
-/// <summary>Test-only copy of the atmosphere's GPU state.</summary>
+/// <summary>テスト専用の大気 GPU 状態のコピー。</summary>
 internal sealed record AtmosphereReadback(
     Vector3[]Transmittance,int TransmittanceWidth,int TransmittanceHeight,
     Vector3[]SkyView,int SkyViewWidth,int SkyViewHeight,
     Vector3[]IrradianceSh);
-/// <summary>Per-frame inputs of the atmosphere passes.</summary>
+/// <summary>大気パスのフレームごとの入力。</summary>
 internal readonly record struct AtmosphereFrame(
     SkyAtmosphereSettings Atmosphere,
     SkyLightSettings SkyLight,

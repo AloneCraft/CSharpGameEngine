@@ -1,7 +1,7 @@
 using System;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Lighting;
-/// <summary>Shared validation of physical light quantities; independent of rendering and authoring.</summary>
+/// <summary>レンダリングとアセット作成に依存しない、物理ライト量の共通検証。</summary>
 public static class LightValueValidation {
     public static bool Finite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
     public static bool NonNegative(float Value)=>Finite(Value)&&Value>=0f;
@@ -10,7 +10,7 @@ public static class LightValueValidation {
         if(!Valid){throw new ArgumentOutOfRangeException(Parameter,"The physical light value is outside its finite valid range.");}
     }
 }
-/// <summary>Validated LuminousFlux measured in Lumens.</summary>
+/// <summary>ルーメン単位で検証済みのLuminousFlux。</summary>
 public readonly struct LuminousFlux:IEquatable<LuminousFlux> {
     public LuminousFlux(float Lumens){
         LightValueValidation.Require(LightValueValidation.NonNegative(Lumens),nameof(Lumens));
@@ -24,7 +24,7 @@ public readonly struct LuminousFlux:IEquatable<LuminousFlux> {
     public static bool operator ==(LuminousFlux Left,LuminousFlux Right)=>Left.Equals(Right);
     public static bool operator !=(LuminousFlux Left,LuminousFlux Right)=>!Left.Equals(Right);
 }
-/// <summary>Validated Illuminance measured in Lux.</summary>
+/// <summary>ルクス単位で検証済みのIlluminance。</summary>
 public readonly struct Illuminance:IEquatable<Illuminance> {
     public Illuminance(float Lux){
         LightValueValidation.Require(LightValueValidation.NonNegative(Lux),nameof(Lux));
@@ -38,7 +38,7 @@ public readonly struct Illuminance:IEquatable<Illuminance> {
     public static bool operator ==(Illuminance Left,Illuminance Right)=>Left.Equals(Right);
     public static bool operator !=(Illuminance Left,Illuminance Right)=>!Left.Equals(Right);
 }
-/// <summary>Validated Luminance measured in Nits.</summary>
+/// <summary>ニト単位で検証済みのLuminance。</summary>
 public readonly struct Luminance:IEquatable<Luminance> {
     public Luminance(float Nits){
         LightValueValidation.Require(LightValueValidation.NonNegative(Nits),nameof(Nits));
@@ -52,7 +52,7 @@ public readonly struct Luminance:IEquatable<Luminance> {
     public static bool operator ==(Luminance Left,Luminance Right)=>Left.Equals(Right);
     public static bool operator !=(Luminance Left,Luminance Right)=>!Left.Equals(Right);
 }
-/// <summary>Validated LuminousIntensity measured in Candela.</summary>
+/// <summary>カンデラ単位で検証済みのLuminousIntensity。</summary>
 public readonly struct LuminousIntensity:IEquatable<LuminousIntensity> {
     public LuminousIntensity(float Candela){
         LightValueValidation.Require(LightValueValidation.NonNegative(Candela),nameof(Candela));
@@ -66,7 +66,7 @@ public readonly struct LuminousIntensity:IEquatable<LuminousIntensity> {
     public static bool operator ==(LuminousIntensity Left,LuminousIntensity Right)=>Left.Equals(Right);
     public static bool operator !=(LuminousIntensity Left,LuminousIntensity Right)=>!Left.Equals(Right);
 }
-/// <summary>Validated LightRange measured in Meters.</summary>
+/// <summary>メートル単位で検証済みのLightRange。</summary>
 public readonly struct LightRange:IEquatable<LightRange> {
     public LightRange(float Meters){
         LightValueValidation.Require(LightValueValidation.Positive(Meters),nameof(Meters));
@@ -80,7 +80,7 @@ public readonly struct LightRange:IEquatable<LightRange> {
     public static bool operator ==(LightRange Left,LightRange Right)=>Left.Equals(Right);
     public static bool operator !=(LightRange Left,LightRange Right)=>!Left.Equals(Right);
 }
-/// <summary>Validated ShadowBias measured in Meters.</summary>
+/// <summary>メートル単位で検証済みのShadowBias。</summary>
 public readonly struct ShadowBias:IEquatable<ShadowBias> {
     public ShadowBias(float Meters){
         LightValueValidation.Require(LightValueValidation.NonNegative(Meters),nameof(Meters));

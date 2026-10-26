@@ -8,11 +8,11 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 namespace CSharpGameEngine.Entities;
-/// <summary>One fixed-point-independent wire node used by the Scene View diagnostics channel.</summary>
+/// <summary>Scene View診断チャネルで使う、固定小数点に依存しない単一のワイヤーノード。</summary>
 public readonly record struct SpatialDebugWireNode(
     float MinX,float MinY,float MinZ,float MaxX,float MaxY,float MaxZ,
     int Depth,int EntryCount,bool IsRoot);
-/// <summary>Immutable global spatial snapshot exposed to the opt-in Scene View diagnostics client.</summary>
+/// <summary>オプトインしたScene View診断クライアントが公開する、不変のグローバル空間スナップショット。</summary>
 public sealed class SpatialDebugSnapshot {
     public Guid WorldId { get; }
     public long Sequence { get; }
@@ -35,8 +35,8 @@ internal static class SpatialDebugHub {
     private static int Started;
     private static long Sequence;
     /// <summary>
-    /// The world a request without a world id gets when several publish in one process (M0096: the Scene view's
-    /// render server holds the view world and the editor world, and the overlay shows the editor world).
+    /// 1つのプロセスで複数のWorldが公開されている場合、World IDのない要求に割り当てるWorld（M0096：Scene Viewの
+    /// Render ServerにはビューのWorldとエディターのWorldがあり、オーバーレイにはエディターのWorldが表示される）。
     /// </summary>
     private static Guid PreferredWorldId;
     internal static string PipeName=>$"CSharpGameEngine.SpatialDebug.{Environment.ProcessId}";

@@ -45,11 +45,11 @@ internal static class SceneEditConflictMerger {
             List<SceneEditOperation>Operations=[];
             foreach(var Operation in Request.DirectOperations){
                 if(Operation is SetComponentMemberOperation Member){
-                    // A stale member edit without its observed original value cannot prove that it
-                    // is not overwriting an external edit. Reject it instead of silently choosing
-                    // last-writer-wins. Inspector commits leave the original out (a typed value must not
-                    // be rebased as a delta), so a stale Inspector commit is rejected; a property drag
-                    // carries its start value and is rebased below.
+                    // 観測時の元の値がない古いメンバー編集では、外部編集を上書きしないことを証明できません。
+                    // last-writer-wins を暗黙に選ぶのではなく、要求を拒否します。
+                    // Inspector commit では元の値を残しません（型付き値を delta として再適用してはいけません）。
+                    // そのため古い Inspector commit は拒否します。一方、property drag は開始時の値を保持し、
+                    // 以下で rebase します。
                     if(Member.OriginalValueExpression is null){
                         return SceneEditConflictMergeResult.Failure(
                             VsixText.Format("ConflictMemberExternallyChanged",Member.MemberName));

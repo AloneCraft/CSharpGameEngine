@@ -6,7 +6,7 @@ namespace CSharpGameEngine.ContentCompiler;
 public sealed record ImporterRegistration(string ModulePath,Hash256 ModuleHash,ImporterDescriptor Descriptor,bool ProjectModule) {
     public ImmutableArray<ModelProcessorDescriptor>Processors{get;init;}=[];
 }
-/// <summary>The registry is constructed from describe subprocess output, never from reflected provider code.</summary>
+/// <summary>リフレクションで読み込んだプロバイダーコードではなく、describe サブプロセスの出力からレジストリを構築する。</summary>
 public sealed class ImporterRegistry:IImporterCatalog {
     private readonly ImmutableArray<ImporterRegistration>Registrations;
     public ImporterRegistry(IEnumerable<ImporterRegistration>Registrations){

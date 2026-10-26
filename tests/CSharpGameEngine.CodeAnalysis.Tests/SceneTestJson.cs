@@ -5,11 +5,10 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0070: the generator builds scenes only from scene JSON (<c>Scenes\**\*.json</c>). Tests keep writing their scenes in
-/// the C# scene DSL because it is short and type-checked; before the generator runs, each scene class is
-/// turned into its scene JSON exactly as <c>CSharpGameEngine.SceneJson.Cli convert --delete-source</c>
-/// does (the same analyzer and converter), and the class is removed from the compilation. A scene the
-/// converter cannot represent stays as C# and is therefore not built, like a user's unconverted scene.
+/// ADR-0070：ジェネレーターは Scene JSON（<c>Scenes\**\*.json</c>）だけから Scene をビルドする。テストでは短く型検査もできる C# Scene DSL で
+///  Scene を記述しておく。ジェネレーター実行前に各 Scene クラスを、<c>CSharpGameEngine.SceneJson.Cli convert --delete-source</c>
+///  と同じ方法（同じアナライザーとコンバーター）で Scene JSON に変換し、コンパイルからクラスを削除する。コンバーターで表現できない Scene は C# のまま残り、ユーザーが未変換のまま置
+/// いた Scene と同様にビルドされない。
 /// </summary>
 internal static class SceneTestJson {
     internal static (CSharpCompilation Compilation,ImmutableArray<AdditionalText>Scenes)Move(CSharpCompilation Compilation){
@@ -20,7 +19,7 @@ internal static class SceneTestJson {
             if(!SceneTypePredicates.ImplementsSceneInterface(Type)){ continue; }
             var Model=SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken.None);
             if(Model.HasErrors||SceneJsonConverter.Convert(Model,null).Text is not { }Json){ continue; }
-            // Numbered paths keep the scenes in their C# declaration order, which fixes archetype order.
+            // 番号付きパスで Scene の C# 宣言順を維持し、アーキタイプの順序を固定する。
             Scenes.Add(new InMemoryAdditionalText($@"{SceneProjectOptions.ScenesDirectory}{Index++:D3}.{Type.Name}.json",Json));
             foreach(var Reference in Type.DeclaringSyntaxReferences){
                 if(!Declarations.TryGetValue(Reference.SyntaxTree,out var Nodes)){ Declarations[Reference.SyntaxTree]=Nodes=[]; }

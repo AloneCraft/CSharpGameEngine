@@ -5,10 +5,9 @@ using CSharpGameEngine.Graphics.D3D12.Tests;
 namespace CSharpGameEngine.Audio.Tests;
 
 /// <summary>
-/// Smoke-tests the real XAudio2 backend against whatever audio device the test host exposes
-/// (Windows always registers at least a default endpoint, even headless - same rationale as the
-/// WARP-backed GPU tests not needing a physical GPU). Reuses <see cref="WindowsOnlyFactAttribute"/>
-/// from the Graphics tests since this is the same "native Windows API, skip elsewhere" gate.
+/// テストホストが使用可能なオーディオデバイスに対し、実際のXAudio2バックエンドをスモークテストする。
+/// ヘッドレスでもWindowsは最低1つの既定エンドポイントを登録する（実GPUを必要としないWARPベースのGPUテストと同じ考え方）。
+/// Graphicsテストの<see cref="WindowsOnlyFactAttribute"/>を再利用する。同じ「ネイティブWindows APIなので、他環境ではスキップ」という条件である。
 /// </summary>
 public class XAudio2BackendTests {
     [WindowsOnlyFact]

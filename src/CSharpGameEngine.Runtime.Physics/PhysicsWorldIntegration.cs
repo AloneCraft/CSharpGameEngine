@@ -3,7 +3,7 @@ using CSharpGameEngine.Entities;
 
 namespace CSharpGameEngine.Runtime.Physics;
 
-/// <summary>Host-owned solver state for exactly one reference-frame domain.</summary>
+/// <summary>ホストが所有するソルバー状態。参照座標枠の領域1つにつき1つ。</summary>
 internal sealed class PhysicsDomainRuntime:IDisposable {
     private readonly DeterministicPhysicsWorld WorldStorage=new();
     private readonly HashSet<Entity>SeenEntities=[];
@@ -23,7 +23,7 @@ internal sealed class PhysicsDomainRuntime:IDisposable {
     internal IReadOnlyPhysicsWorld World=>this.WorldStorage;
     internal PhysicsCommands Commands=>this.WorldStorage.Commands;
     internal DeterministicPhysicsWorld MutableWorld=>this.WorldStorage;
-    /// <summary>Cooked StaticMeshCollider triangles; kept for the domain's lifetime so replays reuse them.</summary>
+    /// <summary>調理済み StaticMeshCollider の三角形。再生時に再利用できるよう、領域の存続中保持する。</summary>
     internal StaticMeshCollisionCooker StaticMeshes { get; }=new();
     internal PhysicsCachePlaybackState CacheState=>this.CachePlayer?.State??PhysicsCachePlaybackState.Stopped;
 

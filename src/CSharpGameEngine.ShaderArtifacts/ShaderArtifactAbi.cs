@@ -36,11 +36,11 @@ public static class ShaderArtifactAbi {
     public static string GetHash(ShaderArtifactTargetKind Target) {
         var Contract=Target switch {
             ShaderArtifactTargetKind.Stage=>
-                "stage-v14:mrt1-physical-scene-distance,b0-frame960-depth-encoding-inverse-viewport,b1-object-conservative-raster-depth,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,t16-lumen-diffuse,t17-lumen-reflection,s0-anisotropic-wrap,s1-shadow,post-b0-params,screen-t0-texture,screen-b0-params:"
+                "stage-v16:mrt1-physical-scene-distance,b0-frame1248-depth-encoding-inverse-viewport-virtual-soft-shadows,b1-object-conservative-raster-depth,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,t16-lumen-diffuse,t17-lumen-reflection,t18-virtual-shadow,t19-virtual-pages,s0-anisotropic-wrap,s1-shadow,post-b0-params,screen-t0-texture,screen-b0-params:"
                 +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain,ScreenVSMain,ScreenPSMain,ObserverVSMain,SurfacePrepassPSMain,LumenCardPSMain:"
                 +ComputeHash(StagePresentationShaderSource.Source),
-            // Compute artifacts share one entry contract; every host that dispatches one owns and documents
-            // its root signature next to the HLSL (for example Atmosphere.hlsl and StageAtmosphere).
+            // Compute アーティファクトは共通のエントリー契約を持つ。各ディスパッチホストが所有するルートシグネチャを、
+            // HLSL の隣に記載する（Atmosphere.hlsl と StageAtmosphere など）。
             ShaderArtifactTargetKind.Compute=>"compute-v2:CSMain:host-owned-root-signature",
             _=>throw new ArgumentOutOfRangeException(nameof(Target)),
         };

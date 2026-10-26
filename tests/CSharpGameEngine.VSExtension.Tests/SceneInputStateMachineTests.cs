@@ -44,8 +44,7 @@ public sealed class SceneInputStateMachineTests {
     }
 
     /// <summary>
-    /// M0095 (user request 2026-10-01): the selection's gizmos are hidden while an Alt+LMB orbit drags and
-    /// come back when it ends. Holding Alt alone keeps them, so Alt on a handle still duplicates (§6.2).
+    /// M0095（ユーザー要求 2026-10-01）：Alt+LMB の軌道ドラッグ中は選択中のギズモを隠し、終了時に再表示する。Alt だけを押している間は表示を維持し、ハンドル上で Alt を押せば複製できる (§6.2)。
     /// </summary>
     [Fact]
     public void Gizmos_AreHiddenOnlyWhileOrbiting(){

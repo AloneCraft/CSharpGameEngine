@@ -4,16 +4,12 @@ using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// The truth a predicted model must match (ADR-0070): the model is written as scene JSON exactly as a
-/// commit writes it (<see cref="SceneJsonConverter"/>) and read back through the designer view
-/// (<see cref="SceneJsonCommitPlanner.TryAnalyze"/>). Tests author their base scene in the C# scene DSL,
-/// so the scene class is removed from <paramref name="Compilation"/> first, as the converter does.
+/// 予測モデルが一致すべき正解 (ADR-0070)：コミットと同じようにモデルを Scene JSON として書き出し（<see cref="SceneJsonConverter"/>）、デザイナービューを通して読み戻す（<see cref="SceneJsonCommitPlanner.TryAnalyze"/>）。テストでは C# シーン DSL で元のシーンを作成するため、コンバーターと同じように最初に <paramref name="Compilation"/> からシーンクラスを除去する。
 /// </summary>
 internal static class SceneJsonRoundTrip {
     internal static SceneModel Reanalyze(SceneModel Predicted,Compilation Compilation)=>ToJsonScene(Predicted,Compilation).Context.Model;
     /// <summary>
-    /// <paramref name="Model"/> as a scene JSON document and the commit context the Scene Designer would
-    /// build for it; <c>Base</c> is <paramref name="Compilation"/> without the C# scene class.
+    /// シーン JSON ドキュメントとしての <paramref name="Model"/> と、Scene Designer が構築するコミットコンテキスト。<c>Base</c> は C# シーンクラスを除いた <paramref name="Compilation"/>。
     /// </summary>
     internal static (string Json,SceneSourceCommitContext Context,Compilation Base)ToJsonScene(SceneModel Model,Compilation Compilation){
         var Converted=SceneJsonConverter.Convert(Model,null);
@@ -29,8 +25,7 @@ internal static class SceneJsonRoundTrip {
         return new SceneSourceCommitContext(Model!,Root!,Microsoft.CodeAnalysis.Text.SourceText.From(Json),AnalysisCompilation!);
     }
     /// <summary>
-    /// A value's meaning without its spelling: JSON writes <c>25</c> where C# wrote <c>25f</c> and names
-    /// constructor arguments, so source text cannot be compared across the round trip.
+    /// 表記を除いた値の意味：JSON は、C# が <c>25f</c> と書く値を <c>25</c> と書き、コンストラクター引数にも名前を付ける。そのため往復でソーステキストを比較できない。
     /// </summary>
     internal static string Signature(SceneValue Value)=>Value.Kind switch {
         SceneValueKind.ObjectCreation=>(Value.Type?.ToDisplayString()??"?")

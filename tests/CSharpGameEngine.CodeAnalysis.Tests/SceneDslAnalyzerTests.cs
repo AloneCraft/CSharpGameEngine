@@ -6,10 +6,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// The scene boundary in C# (ADR-0070): scenes are JSON documents under <c>Scenes</c>, so a C# scene class
-/// or <c>[StartupScene]</c> left in the code is SCENE206 rather than a scene that silently disappears;
-/// code that builds or reads <c>Node</c> trees is still SCENE114; and two JSON startup scenes with the
-/// same order are SCENE118 at the later document's value.
+/// C#側のシーン境界（ADR-0070）。シーンは<c>Scenes</c>配下のJSON文書である。そのためC#のシーンクラスや<c>[StartupScene]</c>がコードに残っている場合、
+/// シーンが黙って消えるのではなくSCENE206を報告する。<c>Node</c>ツリーを構築／読み取るコードは引き続きSCENE114、
+/// startupOrderが同じJSONシーンは後の文書の値の位置でSCENE118となる。
 /// </summary>
 public sealed class SceneDslAnalyzerTests {
     private const string CSharpScene="""
@@ -69,7 +68,7 @@ public sealed class SceneDslAnalyzerTests {
 
     [Fact]
     public void Generator_DoesNotBuildACSharpSceneTheConverterCouldNotRead(){
-        // A scene the converter rejects (here: not partial) stays as C#; the generator must not emit it.
+        // コンバーターが拒否したシーン（ここではpartialでないもの）はC#のまま残す。ジェネレーターは出力してはならない。
         var Result=GameSystemGeneratorTestHelper.RunGenerator(
                                                               [.. GameSystemGeneratorTestHelper.SceneDslSources,
                                                                   """
@@ -143,7 +142,7 @@ public sealed class SceneDslAnalyzerTests {
 
     [Fact]
     public void SupportedDiagnostics_AreExactlyWhatEachAnalyzerReports(){
-        // A reported ID missing from SupportedDiagnostics never reaches the IDE.
+        // 報告したIDがSupportedDiagnosticsにないと、IDEには届かない。
         Assert.Equal(["SCENE114","SCENE206"],new SceneDslAnalyzer().SupportedDiagnostics.Select(static D=>D.Id).Order(StringComparer.Ordinal));
         Assert.Equal(["SCENE118","SCENE201","SCENE202","SCENE203","SCENE204","SCENE205","SCENE207"],new SceneJsonDslAnalyzer().SupportedDiagnostics.Select(static D=>D.Id).Order(StringComparer.Ordinal));
     }

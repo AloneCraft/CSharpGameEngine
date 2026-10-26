@@ -9,8 +9,7 @@ using CSharpGameEngine.Lighting;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: where an object is drawn. An object can be kept out of the camera's picture (UE's OwnerNoSee, the first-person body) while it still casts its
-/// shadow, or be seen without casting one (the first-person arms). The choice is recorded with the frame, so it survives a device loss.
+/// ADR-0078/M0107：オブジェクトの描画方法。カメラから見えないようにしながら影は落とす（UE の OwnerNoSee、ファーストパーソンの胴体）、または見えるが影を落とさない（ファーストパーソンの腕）ようにできる。この選択はフレームとともに記録されるため、デバイス消失後も維持される。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RenderServerVisibilityTests {
@@ -18,7 +17,7 @@ public sealed class RenderServerVisibilityTests {
     private const int Floor=0;
     private const int Caster=1;
     private static RenderServer CreateServer(Win32Window Window){
-        // One mesh per primitive type, in the order the types first appear: the plane is mesh 0 and the box mesh 1.
+        // プリミティブ型ごとにメッシュを 1 つ作り、型が最初に現れた順に並べる：plane はメッシュ 0、box はメッシュ 1。
         (var Meshes,var Materials,var Objects)=PrimitiveRoster.Build([PrimitiveType.Plane,PrimitiveType.Box],0,0);
         return D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
     }
@@ -56,13 +55,13 @@ public sealed class RenderServerVisibilityTests {
         var BodyHidden=Frame(Renderer,CasterVisible:false);
         var NoCaster=Frame(Renderer,CasterVisible:false,CasterCastsShadow:false);
         var BodyWithoutShadow=Frame(Renderer,CasterCastsShadow:false);
-        // Hidden but casting: the box itself is gone from the picture, its shadow on the floor is not.
+        // 非表示だが影は落とす：box 自体は画面から消えるが、床に落ちる影は残る。
         Assert.NotEqual(Everything.Hash,BodyHidden.Hash);
         Assert.NotEqual(BodyHidden.Hash,NoCaster.Hash);
-        // Seen but not casting: the box is drawn and the floor has no shadow of it.
+        // 表示するが影は落とさない：box は描画され、床にその影はない。
         Assert.NotEqual(Everything.Hash,BodyWithoutShadow.Hash);
         Assert.NotEqual(BodyWithoutShadow.Hash,NoCaster.Hash);
-        // Both off is the floor alone, whichever way it is reached; and turning them back on restores the first picture.
+        // 両方をオフにすると、どの方法でも床だけが表示される。再びオンにすると最初の画像に戻る。
         Assert.True(NoCaster.Covered>0);
         Assert.Equal(Everything.Hash,Frame(Renderer).Hash);
     });
@@ -75,7 +74,7 @@ public sealed class RenderServerVisibilityTests {
         var Recovered=Frame(Renderer,CasterVisible:false,Recovery:true);
         Assert.Equal(2u,Renderer.DeviceSnapshot.Generation);
         Assert.Equal(Hidden.Hash,Recovered.Hash);
-        // A new object starts visible and casting, even in the slot a hidden one gave up.
+        // 新しいオブジェクトは、非表示のオブジェクトが空けたスロットであっても、表示され影を落とす状態で開始する。
         Renderer.RemoveObject(Caster);
         var Reused=Renderer.AddObject(1,0);
         Assert.Equal(Caster,Reused);

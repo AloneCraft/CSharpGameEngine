@@ -1,17 +1,17 @@
-// Lumen-like dynamic global illumination and reflections (ADR-0078/M0111). Everything is recomputed every frame from the scene as it is; nothing is
-// baked. The host (StageLumen) selects the pass through LumenCB.Pass.x:
-//   0 card lighting       the surface cache: each card texel (albedo, normal and emission captured from its mesh) is lit by the sun (shadow map,
-//                         or the global distance field off the cascades), the local lights and last frame's radiance cache, so bounces add up.
-//   1 radiance cache      world probes in clipmaps around the camera trace the global distance field; a hit reads the surface cache, a miss the sky.
-//   2 screen probe trace  a probe every few pixels traces the screen, then the distance field near it, then reads the radiance cache further away.
-//   3 screen probe filter the probes' radiance is filtered with their neighbours and projected to irradiance spherical harmonics.
-//   4 integrate           each pixel interpolates its probes' irradiance and blends it with last frame's (reprojected).
-//   5 reflection trace    a GGX-sampled ray per pixel: the screen, then the distance field (the surface cache), then the sky; rough lobes read the
+// Lumen 風の動的 global illumination と反射（ADR-0078/M0111）。すべての値を現在のシーンから毎 frame 再計算し、何も
+// ベイクしません。host（StageLumen）は LumenCB.Pass.x で pass を選びます。
+//   0 card lighting       surface cache：各 card texel（mesh から取得した albedo、normal、emission）に太陽光（shadow map、または cascade 外では global distance field）、
+//                         local light、前 frame の radiance cache を当て、bounce を積み重ねます。
+//   1 radiance cache      camera 周囲の clipmap にある world probe が global distance field を trace します。hit 時は surface cache、miss 時は空を読み取ります。
+//   2 screen probe trace  数 pixel ごとの probe が画面を trace し、その近傍では distance field、遠方では radiance cache を読み取ります。
+//   3 screen probe filter probe の radiance を隣接 probe とともに filter し、irradiance spherical harmonics に投影します。
+//   4 integrate           各 pixel は probe の irradiance を補間し、前 frame の値（reproject 済み）と blend します。
+//   5 reflection trace    pixel ごとに GGX sampling した ray を trace：画面、次に distance field（surface cache）、最後に空。rough lobe は
 //                         probes instead.
-//   6 reflection resolve  the traces are filtered and blended with last frame's.
-//   7 visualize           debugging (Unreal's r.Lumen.Visualize): the frame shows the diffuse irradiance, the reflections or the surface cache.
-// Root signature (host-owned, StageLumen): 0 = root CBV b0 LumenCB, 1 = root CBV b1 the Stage FrameCB of the frame, 2-14 = root SRVs t0-t12,
-// 15 = SRV table t13-t37, 16 = UAV table u0-u9. s0 linear clamp, s1 linear wrap, s2 shadow comparison, s3 point clamp.
+//   6 reflection resolve  trace 結果を filter し、前 frame の結果と blend します。
+//   7 visualize           デバッグ表示（Unreal の r.Lumen.Visualize）：diffuse irradiance、反射、または surface cache を frame に表示します。
+// Root signature（host が所有する StageLumen）：0 = root CBV b0 LumenCB、1 = root CBV b1（frame の Stage FrameCB）、2-14 = root SRV t0-t12、
+// 15 = SRV table t13-t37、16 = UAV table u0-u9。s0 linear clamp、s1 linear wrap、s2 shadow comparison、s3 point clamp。
 struct DirectionalLightData
 {
     float4 DirectionAndShadowBias;
@@ -31,7 +31,7 @@ struct ShadowProjectionData
     row_major float4x4 ViewProjection;
     float4 UvScaleOffset;
 };
-// The Stage program's FrameCB (stage-v14), read for the lights, the shadow cascades and the sky light flag.
+// ライト、shadow cascade、sky light flag を読むための Stage program の FrameCB（stage-v14）。
 cbuffer FrameCB : register(b1)
 {
     row_major float4x4 ViewProjection;
@@ -60,31 +60,34 @@ cbuffer FrameCB : register(b1)
     float4 DepthEncoding0;
     float4 DepthEncoding1;
     float4 LumenParams;
+    row_major float4x4 VirtualShadowProjection[4];
+    float4 VirtualShadowParams;
+    float4 DirectionalSoftShadowParams;
 };
 cbuffer LumenCB : register(b0)
 {
-    uint4 Pass;                          // x pass, y work items, z frame number, w flags (Flag*)
-    uint4 Screen;                        // xy screen size, zw reflection trace size
-    uint4 ProbeGrid;                     // xy screen probes, z pixels per probe, w reflection downsample (1 or 2)
-    float4 Jitter;                       // xy this frame's probe pixel within its tile, zw ray jitter within an octahedral texel
-    row_major float4x4 CameraViewProjection;   // render space -> clip (x, y and w are the camera's)
-    row_major float4x4 InverseViewProjection;  // clip -> render space (finite planes, for pixel rays)
-    row_major float4x4 PreviousViewProjection; // last frame's view-projection applied to this frame's render space
-    float4 Camera;                       // xyz camera (render space), w exposure of the scene colour history (manual exposure)
-    float4 PreviousCamera;               // xyz last frame's camera in this frame's render space
-    float4 Trace;                        // x max trace distance m, y screen probe near field m, z screen trace distance m, w max roughness to trace
-    float4 Surface;                      // x atlas texels, y 1 / atlas texels, z diffuse colour boost, w skylight leaking
-    float4 GridOrigin;                   // x, z render-space corner of the object grid, w cell size m
-    uint4 Grid;                          // x cells per side, y objects
-    float4 CacheScale[4];                // radiance cache level: x probe spacing m, y probes per side, z 1 / probes per side
-    float4 CacheOrigin[4];               // xyz render-space position of the level's lowest probe
-    uint4 CacheSlot[4];                  // xyz slot of the lowest probe (its coordinate mod probes per side), w first probe index of the level
-    uint4 Cache;                         // x levels, y probes per side, z probes per atlas row, w unused
-    float4 ClipmapScale[4];              // the global distance field (StageGlobalDistanceField.ClipmapConstants)
+    uint4 Pass;                          // x = pass、y = work item 数、z = frame number、w = flag（Flag*）
+    uint4 Screen;                        // xy = screen size、zw = reflection trace size
+    uint4 ProbeGrid;                     // xy = screen probe 数、z = probe あたりの pixel 数、w = reflection downsample（1または2）
+    float4 Jitter;                       // xy = tile 内における今 frame の probe pixel、zw = octahedral texel 内の ray jitter
+    row_major float4x4 CameraViewProjection;   // render space から clip へ（x、y、w はカメラの値）
+    row_major float4x4 InverseViewProjection;  // clip から render space へ（pixel ray 用の有限 plane）
+    row_major float4x4 PreviousViewProjection; // 今 frame の render space に、前 frame の view-projection を適用
+    float4 Camera;                       // xyz = カメラ（render space）、w = シーン色履歴の露出（manual exposure）
+    float4 PreviousCamera;               // xyz = 今 frame の render space における前 frame のカメラ位置
+    float4 Trace;                        // x = 最大 trace 距離 m、y = screen probe の near field m、z = screen trace 距離 m、w = trace する最大 roughness
+    float4 Surface;                      // x = atlas texel 数、y = 1 / atlas texel 数、z = diffuse 色の boost、w = skylight leaking
+    float4 GridOrigin;                   // x、z = object grid の render-space corner、w = cell size m
+    uint4 Grid;                          // x = 一辺あたりの cell 数、y = object 数
+    float4 CacheScale[4];                // radiance cache level：x = probe 間隔 m、y = 一辺あたりの probe 数、z = 1 / 一辺あたりの probe 数
+    float4 CacheOrigin[4];               // xyz = level の最下位 probe の render-space position
+    uint4 CacheSlot[4];                  // xyz = 最下位 probe の slot（座標 mod 一辺あたりの probe 数）、w = level の最初の probe index
+    uint4 Cache;                         // x = level 数、y = 一辺あたりの probe 数、z = atlas row あたりの probe 数、w = 未使用
+    float4 ClipmapScale[4];              // global distance field（StageGlobalDistanceField.ClipmapConstants）
     float4 ClipmapOrigin[4];
     float4 ClipmapTexel[4];
     uint4 Clipmap;                       // x levels
-    float4 Temporal;                     // x diffuse new-sample weight, y reflection new-sample weight, z radiance cache new-sample weight, w this frame's exposure
+    float4 Temporal;                     // x = diffuse の新規 sample weight、y = reflection の新規 sample weight、z = radiance cache の新規 sample weight、w = 今 frame の露出
 };
 struct LumenObject
 {
@@ -94,9 +97,9 @@ struct LumenObject
     float4 LocalToWorld0;                // world = (dot(row.xyz, q) + row.w, ...)
     float4 LocalToWorld1;
     float4 LocalToWorld2;
-    float4 BoundsMin;                    // xyz the cards' box in the mesh's space, w mesh record (asuint)
-    float4 BoundsMax;                    // xyz, w distance scale (the object's smallest scale)
-    uint4 Cards;                         // x first card, y faces ready (bit per face), z unused, w emissive scale (asuint)
+    float4 BoundsMin;                    // xyz = mesh 空間における card の box、w = mesh record（asuint）
+    float4 BoundsMax;                    // xyz、w = 距離スケール（object の最小スケール）
+    uint4 Cards;                         // x = 最初の card、y = 準備済み face（face ごとに bit）、z = 未使用、w = emissive scale（asuint）
 };
 struct MeshRecord
 {
@@ -106,8 +109,8 @@ struct MeshRecord
     uint DataOffset;
 };
 StructuredBuffer<LumenObject> Objects : register(t0);
-StructuredBuffer<uint4> Cards : register(t1);              // x, y atlas texel of the card's tile, z width, w height
-StructuredBuffer<uint2> GridCells : register(t2);          // x first entry in GridObjects, y count
+StructuredBuffer<uint4> Cards : register(t1);              // x、y = card tile の atlas texel、z = 幅、w = 高さ
+StructuredBuffer<uint2> GridCells : register(t2);          // x = GridObjects の先頭 entry、y = 個数
 StructuredBuffer<uint> GridObjects : register(t3);
 StructuredBuffer<MeshRecord> Meshes : register(t4);
 ByteAddressBuffer MeshDistances : register(t5);
@@ -117,7 +120,7 @@ StructuredBuffer<ShadowProjectionData> PointShadowProjections : register(t8);
 StructuredBuffer<float4> SkyIrradianceSh : register(t9);
 StructuredBuffer<uint4> WorkItems : register(t10);
 StructuredBuffer<float4> ExposureState : register(t11);
-StructuredBuffer<uint> CacheValid : register(t12);         // per probe: 1 once traced since it entered its clip
+StructuredBuffer<uint> CacheValid : register(t12);         // probe ごと：clip に入って以降 tracing 済みなら1
 Texture3D<float> ClipmapLevels[4] : register(t13);         // t13-t16
 Texture2D<float4> CardAlbedo : register(t17);
 Texture2D<float4> CardNormal : register(t18);
@@ -134,12 +137,12 @@ Texture2D<float4> PreviousSurfaceNormal : register(t28);
 Texture2D<float> PreviousSurfaceDistance : register(t29);
 Texture2D<float4> SceneColorHistory : register(t30);
 Texture2D<float4> ProbeRadiance : register(t31);
-StructuredBuffer<float4> ProbeInfo : register(t32);        // per screen probe: position (w valid), normal (w distance)
-StructuredBuffer<float4> ProbeSh : register(t33);          // per screen probe: 9 irradiance SH coefficients
+StructuredBuffer<float4> ProbeInfo : register(t32);        // screen probe ごと：position（w = 有効）、normal（w = 距離）
+StructuredBuffer<float4> ProbeSh : register(t33);          // screen probe ごと：irradiance SH 係数9個
 Texture2D<float4> DiffuseHistory : register(t34);
 Texture2D<float4> ReflectionHistory : register(t35);
 Texture2D<float4> ReflectionTrace : register(t36);
-StructuredBuffer<float4> HistoryExposureState : register(t37);  // the auto exposure state the scene colour history was drawn with
+StructuredBuffer<float4> HistoryExposureState : register(t37);  // シーン色の履歴を描画したときの auto exposure state
 RWTexture2D<float4> CardRadianceOut : register(u0);
 RWTexture2D<float4> CacheRadianceOut : register(u1);
 RWStructuredBuffer<float4> CacheIrradianceOut : register(u2);
@@ -173,7 +176,7 @@ static const uint FlagSceneColorHistory = 32u;
 static const uint OctahedronTexels = 8;
 static const uint CacheTile = OctahedronTexels + 2;
 static const uint MaximumCellObjects = 32;
-// The surface cache, the probes and the reflections hold radiance in half floats; anything brighter than this (or not finite) is clamped or dropped.
+// surface cache、probe、反射は radiance を half float で保持します。これより明るい値（または有限値でないもの）は clamp または破棄します。
 static const float MaximumRadiance = 60000.0;
 
 float3 Sanitize(float3 value, float maximum)
@@ -182,7 +185,7 @@ float3 Sanitize(float3 value, float maximum)
 }
 
 // ---- Directions --------------------------------------------------------------------------------------------------------------------------
-// Octahedral mapping with +Z as the pole, as the GI probes and the sky radiance map use it.
+// GI probe と sky radiance map と同じく、+Z を極とする octahedral mapping。
 float2 OctahedralEncode(float3 direction)
 {
     float3 n = direction / (abs(direction.x) + abs(direction.y) + abs(direction.z));
@@ -202,12 +205,12 @@ float3 OctahedralDecode(float2 e)
     }
     return normalize(v);
 }
-// The direction of octahedral texel (x, y) of a size x size map, shifted by a jitter in [0, 1)^2 (0.5 is the texel centre).
+// size x size map における octahedral texel（x, y）の方向。jitter は [0, 1)^2 の範囲（0.5 は texel 中心）です。
 float3 TexelDirection(uint2 texel, float2 jitter, float size)
 {
     return OctahedralDecode(((float2)texel + jitter) / size * 2.0 - 1.0);
 }
-// Solid angle weight of an octahedral texel centre (the octahedron's point v has density 1 / |v|^3); the callers normalise the sum.
+// octahedral texel 中心の立体角 weight（octahedron の点 v の密度は 1 / |v|^3）。呼び出し側で合計を正規化します。
 float TexelSolidAngle(uint2 texel, float size)
 {
     float2 e = ((float2)texel + 0.5) / size * 2.0 - 1.0;
@@ -240,7 +243,7 @@ float2 Random2(uint2 pixel, uint frame)
     return float2((float)(seed & 0xffffu) / 65536.0, (float)(Hash(seed) & 0xffffu) / 65536.0);
 }
 
-// ---- Spherical harmonics (the sky light's convention: irradiance coefficients, evaluated with the radiance basis) --------------------------
+// ---- Spherical harmonics（sky light の規約：irradiance 係数を radiance basis で評価） --------------------------
 void ShBasis(float3 d, out float basis[9])
 {
     basis[0] = 0.282095;
@@ -278,7 +281,7 @@ float3 SkyRadianceAt(float3 direction)
     return EvaluateSkyIrradiance(direction) / PI;
 }
 
-// ---- Global distance field (as GlobalDistanceField.hlsl) ----------------------------------------------------------------------------------
+// ---- Global distance field（GlobalDistanceField.hlsl と同様） ----------------------------------------------------------------------------------
 float SampleGlobalDistance(float3 position, out float voxelSize)
 {
     uint levelCount = Clipmap.x;
@@ -307,9 +310,9 @@ float3 GlobalNormal(float3 position, float voxelSize)
     float lengthSquared = dot(gradient, gradient);
     return lengthSquared > 1e-12 ? gradient * rsqrt(lengthSquared) : float3(0.0, 1.0, 0.0);
 }
-// Sphere tracing from tMin to tMax: x = distance to the hit (or tMax), y = voxel size at the hit, z = 1 on a hit. A hit is half a voxel from the
-// surface: a wall thinner than a voxel never reads much below that between the voxel centres around it; TraceSurface confirms the candidate on
-// the object's own mesh distance field.
+// tMin から tMax まで sphere tracing：x = hit までの距離（または tMax）、y = hit 地点の voxel size、z = hit 時に1。hit は surface から半 voxel の位置です。
+// voxel より薄い壁でも、周囲の voxel 中心間の距離はその値を大きく下回りません。TraceSurface が候補を
+// object 自身の mesh distance field で確認します。
 float4 TraceGlobal(float3 origin, float3 direction, float tMin, float tMax, uint maximumSteps)
 {
     float t = tMin;
@@ -330,7 +333,7 @@ float4 TraceGlobal(float3 origin, float3 direction, float tMin, float tMax, uint
     return float4(tMax, 0.0, 0.0, 0.0);
 }
 
-// ---- Mesh distance fields (as GlobalDistanceField.hlsl) ----------------------------------------------------------------------------------
+// ---- Mesh distance fields（GlobalDistanceField.hlsl と同様） ----------------------------------------------------------------------------------
 float LoadMeshDistance(MeshRecord mesh, uint3 voxel)
 {
     uint index = mesh.DataOffset + (voxel.z * mesh.Resolution.y + voxel.y) * mesh.Resolution.x + voxel.x;
@@ -364,8 +367,8 @@ float3 MeshNormal(MeshRecord mesh, float3 local)
     return lengthSquared > 1e-12 ? gradient * rsqrt(lengthSquared) : float3(0.0, 1.0, 0.0);
 }
 
-// ---- Objects and their cards --------------------------------------------------------------------------------------------------------------
-// Card f of an object looks at its box from the side of axis CardAxis[f]; (CardU, CardV) span the card and CardU x CardV = CardAxis.
+// ---- オブジェクトと対応するカード --------------------------------------------------------------------------------------------------------------
+// object の card f は、axis CardAxis[f] 側からその box を見ます（CardU、CardV は card の面を張り、CardU x CardV = CardAxis）。
 static const float3 CardAxis[6] = { float3(1.0, 0.0, 0.0), float3(-1.0, 0.0, 0.0), float3(0.0, 1.0, 0.0), float3(0.0, -1.0, 0.0), float3(0.0, 0.0, 1.0), float3(0.0, 0.0, -1.0) };
 static const float3 CardU[6] = { float3(0.0, 0.0, -1.0), float3(0.0, 0.0, 1.0), float3(1.0, 0.0, 0.0), float3(1.0, 0.0, 0.0), float3(1.0, 0.0, 0.0), float3(-1.0, 0.0, 0.0) };
 static const float3 CardV[6] = { float3(0.0, 1.0, 0.0), float3(0.0, 1.0, 0.0), float3(0.0, 0.0, -1.0), float3(0.0, 0.0, 1.0), float3(0.0, 1.0, 0.0), float3(0.0, 1.0, 0.0) };
@@ -381,7 +384,7 @@ float3 ToWorld(LumenObject item, float3 q)
 {
     return float3(dot(item.LocalToWorld0.xyz, q) + item.LocalToWorld0.w, dot(item.LocalToWorld1.xyz, q) + item.LocalToWorld1.w, dot(item.LocalToWorld2.xyz, q) + item.LocalToWorld2.w);
 }
-// A normal goes from the mesh's space to the world through the inverse transpose: the rows of WorldToLocal weighted by its components.
+// normal は inverse transpose を通して mesh 空間から world へ変換します。WorldToLocal の各行に normal の成分を重み付けします。
 float3 ToWorldNormal(LumenObject item, float3 n)
 {
     return normalize(item.WorldToLocal0.xyz * n.x + item.WorldToLocal1.xyz * n.y + item.WorldToLocal2.xyz * n.z);
@@ -390,12 +393,12 @@ float3 ToLocalNormal(LumenObject item, float3 n)
 {
     return normalize(item.LocalToWorld0.xyz * n.x + item.LocalToWorld1.xyz * n.y + item.LocalToWorld2.xyz * n.z);
 }
-// Metres per unit of the mesh's space along a direction of that space (the object's scale that way).
+// mesh 空間の単位距離あたりのメートル数。その空間の方向に沿った object のスケールです。
 float WorldScale(LumenObject item, float3 axis)
 {
     return length(float3(dot(item.LocalToWorld0.xyz, axis), dot(item.LocalToWorld1.xyz, axis), dot(item.LocalToWorld2.xyz, axis)));
 }
-// Where a point of the mesh's space falls on card f: xy in [-1, 1] across the card (y up), z the depth in [0, 1] from the card's face.
+// mesh 空間の点が card f に投影される位置：card 上の xy は [-1, 1]（y は上方向）、z は card 面からの深度 [0, 1]。
 float3 CardCoordinates(LumenObject item, uint face, float3 q, out float depthExtent)
 {
     float3 centre = (item.BoundsMin.xyz + item.BoundsMax.xyz) * 0.5;
@@ -416,8 +419,8 @@ float3 CardPoint(LumenObject item, uint face, float2 clip, float depth)
     float hn = dot(abs(CardAxis[face]), halfSize);
     return centre + CardU[face] * (clip.x * hu) + CardV[face] * (clip.y * hv) + CardAxis[face] * (hn - depth * 2.0 * hn);
 }
-// The surface cache's radiance at a point of the mesh's space with the given normal: the cards facing it, each kept only where its captured
-// depth is that point's (a card does not see the parts its own mesh hides). w is the summed weight (0 = no card saw it).
+// 指定された normal を持つ mesh 空間上の点における surface cache の radiance。点を向く card のみを使い、capture 済みの
+// depth がその点の深度と一致する場合に限ります（card 自身の mesh に隠れた部分は見えません）。w は合計 weight（0 = 見た card なし）。
 float4 SampleCards(LumenObject item, float3 q, float3 localNormal)
 {
     float3 total = 0.0;
@@ -448,7 +451,7 @@ float4 SampleCards(LumenObject item, float3 q, float3 localNormal)
         {
             continue;
         }
-        // The captured depth must be this point's, within three texels (in metres) and 2 % of the box's depth.
+        // capture 済み depth は、この点の depth と一致する必要があります。許容誤差は3 texel 分（メートル単位）および box depth の2 %です。
         float3 halfSize = (item.BoundsMax.xyz - item.BoundsMin.xyz) * 0.5;
         float texelMeters = max(2.0 * dot(abs(CardU[face]), halfSize) * WorldScale(item, CardU[face]) / size.x,
             2.0 * dot(abs(CardV[face]), halfSize) * WorldScale(item, CardV[face]) / size.y);
@@ -464,7 +467,7 @@ float4 SampleCards(LumenObject item, float3 q, float3 localNormal)
     }
     return weightSum > 0.0 ? float4(total / weightSum, weightSum) : float4(0.0, 0.0, 0.0, 0.0);
 }
-// The object whose surface is nearest a render-space point (from the object grid's column), and the point in its space.
+// render-space の点に最も近い surface を持つ object（object grid の column から検索）と、その空間上の点。
 bool FindObject(float3 p, float accept, out uint found, out float3 foundLocal)
 {
     found = 0u;
@@ -501,16 +504,16 @@ bool FindObject(float3 p, float accept, out uint found, out float3 foundLocal)
 }
 struct SurfaceHit
 {
-    float Distance;     // along the ray (the trace's end on a miss)
-    float VoxelSize;    // the global field's voxel where it hit
+    float Distance;     // ray 上の距離（hit しなかった場合は trace の終点）
+    float VoxelSize;    // global field で hit した voxel
     bool Hit;
-    bool HasObject;     // a surface cache object is there (else a mesh the cache does not hold)
+    bool HasObject;     // そこに surface cache object があるか（ない場合は cache にない mesh）
     uint Object;
-    float3 Local;       // the hit in the object's space
+    float3 Local;       // object 空間上での hit 点
 };
-// Sphere tracing through the global distance field. Each candidate it finds (half a voxel from a surface) is confirmed on the nearest object's own
-// mesh distance field, which is much finer: a ray that only passes near a surface goes on past it, and a wall thinner than a voxel is still hit.
-// A candidate with no surface cache object there (a mesh beyond the cache's view distance) is a hit without cards.
+// global distance field 内の sphere tracing。検出した各候補（surface から半 voxel の位置）は、最も近い object 自身の
+// mesh distance field で確認します。これははるかに高解像度です。surface の近くだけを通る ray は先へ進み、voxel より薄い壁にも hit します。
+// surface cache object のない候補（cache の表示距離より遠い mesh）は、card がなくても hit とします。
 SurfaceHit TraceSurface(float3 origin, float3 direction, float tMin, float tMax, uint maximumSteps)
 {
     SurfaceHit result;
@@ -568,7 +571,7 @@ SurfaceHit TraceSurface(float3 origin, float3 direction, float tMin, float tMax,
     }
     return result;
 }
-// The light leaving a surface a ray hit: the hit object's cards. found is false when no card saw the point (or no object holds it).
+// ray が hit した surface から出る光：hit した object の card。点を見た card がない（または保持する object がない）場合は found = false。
 float3 SurfaceRadiance(SurfaceHit hit, out bool found)
 {
     found = false;
@@ -599,7 +602,7 @@ float2 CacheAtlasUv(uint probe, float3 direction)
     CacheRadiance.GetDimensions(width, height);
     return texel / float2(width, height);
 }
-// Trilinear interpolation of the finest level whose probes surround p. Mode 0 = irradiance toward n, 1 = radiance along n. w = 1 when found.
+// p を囲む probe のうち最も細かい level で trilinear 補間します。Mode 0 = n 方向の irradiance、1 = n 方向に沿う radiance。見つかった場合 w = 1。
 float4 CacheLookup(float3 p, float3 n, uint mode)
 {
     [loop] for (uint level = 0; level < Cache.x; level++)
@@ -677,7 +680,7 @@ float HistoryExposure()
 {
     return (Pass.w & FlagAutoExposure) != 0u ? HistoryExposureState[0].y : Camera.w;
 }
-// Last frame's lit colour (exposure removed) where a render-space point was, or w = 0 off screen or without history.
+// render-space の点があった位置における、前 frame の照明済み色（exposure を除去済み）。画面外または履歴なしの場合は w = 0。
 float4 HistoryColor(float3 p)
 {
     if ((Pass.w & FlagSceneColorHistory) == 0u)
@@ -696,15 +699,15 @@ float4 HistoryColor(float3 p)
     }
     float exposure = HistoryExposure();
     float3 color = SceneColorHistory.SampleLevel(LinearClamp, uv, 0).rgb;
-    // A pixel the history could not hold (half-float overflow while the exposure adapts) is no sample.
+    // exposure の適応中に half-float overflow した履歴 pixel は sample として扱いません。
     if (!(exposure > 0.0) || any(!isfinite(color)) || any(color >= 65000.0))
     {
         return float4(0.0, 0.0, 0.0, 0.0);
     }
     return float4(Sanitize(color / exposure, MaximumRadiance), 1.0);
 }
-// How far a ray point is behind the surface the screen shows where the point projects: x = that depth (negative in front), y = the surface's
-// distance (0 = the sky). z = 0 when the point is off the screen or behind the camera.
+// ray 上の点が投影される場所で画面上の surface よりどれだけ後方にあるか：x = その深度（surface より前方なら負）、y = surface の
+// 距離（0 = 空）。z = 点が画面外、またはカメラの後方にある場合は0。
 float3 ScreenDepth(float3 q)
 {
     float4 clip = mul(float4(q, 1.0), CameraViewProjection);
@@ -720,8 +723,8 @@ float3 ScreenDepth(float3 q)
     float sceneDistance = SurfaceDistance.Load(int3(int2(uv * (float2)Screen.xy), 0));
     return float3(length(q - Camera.xyz) - sceneDistance, sceneDistance, 1.0);
 }
-// March the depth of this frame's surface prepass along a ray. When a step goes from in front of the screen's surface to behind it, the crossing is
-// bisected; it is a hit only if the ray there is just behind the surface (a ray passing behind an object is not one).
+// 今 frame の surface prepass の depth を ray に沿って march します。step が画面上の surface の前方から後方へ移ると crossing を
+// 二分探索します。ray が surface のすぐ後ろにある場合だけ hit とします（object の裏側を通る ray は hit ではありません）。
 bool ScreenTrace(float3 origin, float3 direction, float maximumDistance, uint steps, float jitter, out float3 radiance)
 {
     radiance = 0.0;
@@ -769,7 +772,7 @@ bool ScreenTrace(float3 origin, float3 direction, float maximumDistance, uint st
     return false;
 }
 
-// ---- Direct light on the surface cache ----------------------------------------------------------------------------------------------------
+// ---- サーフェスキャッシュへの直接光 ----------------------------------------------------------------------------------------------------
 float ComputeAtlasShadowProjected(float3 projected, float2 tileUv, float4 uvScaleOffset, float shadowBias)
 {
     float2 atlasUv = tileUv * uvScaleOffset.xy + uvScaleOffset.zw;
@@ -787,7 +790,7 @@ float ComputeAtlasShadowProjected(float3 projected, float2 tileUv, float4 uvScal
     }
     return visibility / 9.0;
 }
-// The sun's visibility from the cascades (as the Stage program), or -1 off them.
+// 太陽が cascade から見えるか（Stage program と同様）。cascade の外では -1。
 float CascadedShadow(float3 worldPosition, float3 normal, float biasMeters)
 {
     [unroll] for (int cascade = 0; cascade < 4; cascade++)
@@ -841,7 +844,7 @@ float DistanceAttenuation(float distance, float range)
     float windowed = saturate(1.0 - distSq * distSq / (rangeSq * rangeSq));
     return windowed * windowed / max(distSq, 1e-4);
 }
-// Irradiance on a surface point from every light the frame has (Lambert; the cards keep no view-dependent light).
+// frame 内のすべての light による surface point 上の irradiance（Lambert）。card は view に依存する光を保持しません。
 float3 DirectIrradiance(float3 p, float3 n)
 {
     float3 irradiance = 0.0;
@@ -925,7 +928,7 @@ float3 DirectIrradiance(float3 p, float3 n)
 groupshared float3 SharedRadiance[64];
 groupshared float SharedWeight[64];
 
-// Projects the 64 directions held in SharedRadiance (one per thread, octahedral) to irradiance SH; thread c < 9 returns coefficient c.
+// SharedRadiance に保持した64方向（thread ごとに1方向、octahedral）を irradiance SH に投影します。thread c < 9 は係数 c を返します。
 float3 ProjectSharedToIrradiance(uint coefficient)
 {
     float3 total = 0.0;
@@ -986,11 +989,11 @@ void RadianceCacheTrace(uint3 groupId, uint3 groupThread, uint groupIndex)
     float clearance = min(0.3 * spacing, voxelSize * 2.0);
     if (fieldDistance < clearance)
     {
-        // Move a probe that sits in or against geometry out along the field's gradient (at most half a spacing); one still inside is off.
+        // geometry 内または接触位置にある probe を field の勾配に沿って外へ移動します（最大で spacing の半分）。まだ内部なら無効です。
         p += GlobalNormal(p, voxelSize) * min(clearance - fieldDistance, 0.5 * spacing);
         active = SampleGlobalDistance(p, voxelSize) > 0.0;
     }
-    // The cache's probes trace their texel centres every time: a probe's radiance then changes only when the scene does.
+    // cache の probe は毎回 texel 中心を trace します。以後、その radiance が変わるのはシーンが変化したときだけです。
     float3 direction = TexelDirection(groupThread.xy, float2(0.5, 0.5), (float)OctahedronTexels);
     float3 radiance = 0.0;
     if (active)
@@ -1002,7 +1005,7 @@ void RadianceCacheTrace(uint3 groupId, uint3 groupThread, uint groupIndex)
             radiance = SurfaceRadiance(hit, found);
             if (!found)
             {
-                // A surface no card saw: a grey surface under the open sky.
+                // card が見ていない surface：開けた空の下にある灰色の surface。
                 radiance = 0.18 * EvaluateSkyIrradiance(GlobalNormal(p + direction * hit.Distance, hit.VoxelSize)) / PI;
             }
         }
@@ -1020,7 +1023,7 @@ void RadianceCacheTrace(uint3 groupId, uint3 groupThread, uint groupIndex)
         radiance = lerp(Sanitize(CacheRadianceOut[interior].rgb, MaximumRadiance), radiance, Temporal.z);
     }
     CacheRadianceOut[interior] = float4(radiance, 1.0);
-    // The octahedral border repeats the mirrored edge, so bilinear reads stay inside the probe.
+    // octahedral border は反転した edge を繰り返し、bilinear read を probe の内側に保ちます。
     uint last = OctahedronTexels - 1u;
     uint2 t = groupThread.xy;
     if (t.y == 0u) { CacheRadianceOut[origin + uint2(1u + last - t.x, 0u)] = float4(radiance, 1.0); }
@@ -1060,7 +1063,7 @@ void ScreenProbeTrace(uint3 groupId, uint3 groupThread, uint groupIndex)
     {
         if (dot(direction, n) <= 0.0)
         {
-            // Below the surface: no trace, only so the probe's harmonics stay smooth.
+            // surface の下：trace は行いません。probe の harmonics を滑らかにするためだけの範囲です。
             float4 cached = CacheLookup(p + n * 0.25, direction, 1u);
             radiance = cached.w > 0.0 ? cached.rgb : 0.0;
         }
@@ -1090,7 +1093,7 @@ void ScreenProbeTrace(uint3 groupId, uint3 groupThread, uint groupIndex)
                 }
                 else
                 {
-                    // The near field is clear: the radiance cache at its end sees the rest of the way.
+                    // near field は clear されています。radiance cache はその終端から先を確認します。
                     float3 end = start + direction * Trace.y;
                     float4 cached = CacheLookup(end, direction, 1u);
                     if (cached.w > 0.0)
@@ -1163,7 +1166,7 @@ void ScreenProbeFilter(uint3 groupId, uint3 groupThread, uint groupIndex)
     }
 }
 
-// The screen probes' irradiance toward n at a pixel: the four probes around it, weighted by how well each one's plane and normal fit. w = weight.
+// pixel における screen probe の n 方向 irradiance。周囲の4 probe を、それぞれの plane と normal の適合度で重み付けします。w = weight。
 float4 ProbeIrradiance(uint2 pixel, float3 p, float3 n, float distance, float3 direction)
 {
     float2 f = ((float2)pixel - Jitter.xy) / (float)ProbeGrid.z;
@@ -1197,7 +1200,7 @@ float4 ProbeIrradiance(uint2 pixel, float3 p, float3 n, float distance, float3 d
     }
     return weightSum > 1e-3 ? float4(total / weightSum, weightSum) : float4(0.0, 0.0, 0.0, 0.0);
 }
-// The history at this pixel's surface last frame, or w = 0 when the surface was elsewhere (disocclusion) or off screen.
+// 前 frame の、この pixel の surface の履歴。surface が別の場所だった（disocclusion）か画面外なら w = 0。
 float4 Reproject(Texture2D<float4> history, float3 p, float3 n)
 {
     if ((Pass.w & FlagHistory) == 0u)
@@ -1254,12 +1257,12 @@ void Integrate(uint2 pixel)
     {
         irradiance = lerp(history.rgb, irradiance, Temporal.x);
     }
-    // Unreal's Skylight Leaking: at least that fraction of the open sky's irradiance.
+    // Unreal の Skylight Leaking：開けた空の irradiance のうち、少なくともこの割合を残します。
     irradiance = max(irradiance, Surface.w * EvaluateSkyIrradiance(n));
     DiffuseOut[pixel] = float4(Sanitize(irradiance, 1e9), distance);
 }
 
-// GGX visible normal sampling (Heitz 2018) in the tangent frame where the normal is +Z.
+// normal が +Z となる tangent frame 内での GGX visible normal sampling（Heitz 2018）。
 float3 SampleGgxVisibleNormal(float3 view, float alpha, float2 u)
 {
     float3 vh = normalize(float3(alpha * view.x, alpha * view.y, view.z));
@@ -1275,7 +1278,7 @@ float3 SampleGgxVisibleNormal(float3 view, float alpha, float2 u)
     float3 nh = a * t1 + b * t2 + sqrt(saturate(1.0 - a * a - b * b)) * vh;
     return normalize(float3(alpha * nh.x, alpha * nh.y, max(nh.z, 1e-6)));
 }
-// The specular light a rough lobe sees: the screen probes' irradiance around the reflection direction as an average radiance.
+// rough lobe が見る specular light：反射方向周辺の screen probe irradiance を平均 radiance として扱います。
 float3 RoughSpecular(uint2 pixel, float3 p, float3 n, float distance, float3 reflected)
 {
     float4 probes = ProbeIrradiance(pixel, p, n, distance, reflected);
@@ -1355,7 +1358,7 @@ void ReflectionTraceMain(uint2 tracePixel)
             radiance = SkyRadianceAt(direction);
         }
     }
-    // Lumen fades the traced lobe into the rough one as the roughness nears the limit.
+    // roughness が上限に近づくにつれ、Lumen は trace 済み lobe をより粗い lobe に近づけます。
     radiance = lerp(radiance, rough, saturate((roughness - 0.75 * maximumRoughness) / max(0.25 * maximumRoughness, 1e-4)));
     ReflectionTraceOut[tracePixel] = float4(Sanitize(radiance, MaximumRadiance), distance);
 }
@@ -1377,7 +1380,7 @@ void ReflectionResolve(uint2 pixel)
     float roughness = surface.w;
     float3 p = SurfacePosition(pixel, distance);
     uint downsample = ProbeGrid.w;
-    // A rough surface gathers a wider footprint of traces; a mirror keeps its own.
+    // rough surface は trace のより広い範囲を集め、mirror は自身の trace 範囲を維持します。
     int radius = roughness > 0.2 ? 2 : (downsample > 1u || roughness > 0.05 ? 1 : 0);
     int2 centre = int2(pixel / downsample);
     float3 total = 0.0;
@@ -1422,7 +1425,7 @@ void ReflectionResolve(uint2 pixel)
     float4 history = Reproject(ReflectionHistory, p, n);
     if (history.w > 0.0)
     {
-        // Clamp the history to what this frame's traces around the pixel saw (with some slack), so a moving reflection does not smear.
+        // pixel 周辺で今 frame の trace が観測した範囲（少し余裕を加えた値）に履歴を clamp し、動く反射がにじまないようにします。
         float3 slack = (highest - lowest) * 0.5 + 0.05 * radiance;
         float3 clamped = clamp(history.rgb, lowest - slack, highest + slack);
         float weight = lerp(0.6, Temporal.y, saturate(roughness / max(Trace.w, 0.01)));
@@ -1431,8 +1434,8 @@ void ReflectionResolve(uint2 pixel)
     ReflectionOut[pixel] = float4(Sanitize(radiance, MaximumRadiance), 1.0);
 }
 
-// Unreal's r.Lumen.Visualize: Pass.y 1 = the diffuse irradiance on a white surface, 2 = the reflections, 3 = the surface cache where the pixel's
-// surface is (black where no card saw it), all through this frame's exposure.
+// Unreal の r.Lumen.Visualize：Pass.y 1 = 白い surface 上の diffuse irradiance、2 = 反射、3 = pixel の
+// surface の位置における surface cache（card が見ていない部分は黒）。すべて今 frame の露出を適用します。
 void Visualize(uint2 pixel)
 {
     if (any(pixel >= Screen.xy))

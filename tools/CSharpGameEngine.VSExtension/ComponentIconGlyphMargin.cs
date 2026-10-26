@@ -24,7 +24,7 @@ using Microsoft.VisualStudio.Utilities;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>All information needed to edit the component declaration represented by a glyph.</summary>
+/// <summary>グリフで表されるコンポーネント宣言を編集するために必要なすべての情報。</summary>
 internal sealed class ComponentIconGlyphTarget {
     internal ComponentIconGlyphTarget(
         ITextBuffer Buffer,DocumentId DocumentId,ProjectId ProjectId,string FilePath,string ProjectDirectory,
@@ -56,7 +56,7 @@ internal sealed class ComponentIconGlyphTarget {
     internal SceneVisualIcon Icon { get; }
 }
 
-/// <summary>Glyph-margin tag for a source component declaration.</summary>
+/// <summary>ソース内のコンポーネント宣言を示すグリフマージンのタグ。</summary>
 internal sealed class ComponentIconGlyphTag : IGlyphTag {
     internal ComponentIconGlyphTag(ComponentIconGlyphTarget Target)=>this.Target=Target;
 
@@ -64,9 +64,7 @@ internal sealed class ComponentIconGlyphTag : IGlyphTag {
 }
 
 /// <summary>
-/// MEF tagger for the native C# glyph margin.  It emits tags only for addable component structs
-/// declared by the currently open writable source document; metadata/referenced components never
-/// have a source declaration in this buffer and therefore cannot show an editing glyph.
+/// Visual Studio のネイティブ C# グリフマージン用 MEF tagger。現在開いている書き込み可能なソースドキュメントで宣言された、追加可能なコンポーネント構造体にのみタグを付けます。メタデータや参照先のコンポーネントはこのバッファー内にソース宣言がないため、編集用グリフは表示されません。
 /// </summary>
 [Export(typeof(ITaggerProvider))]
 [ContentType("CSharp")]
@@ -164,8 +162,8 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
     private void OnBufferChanged(object?Sender,TextContentChangedEventArgs Args)=>this.ScheduleRefresh();
 
     private void OnWorkspaceChanged(object?Sender,WorkspaceChangeEventArgs Args){
-        // The workspace can report any of several linked DocumentIds for one physical path.  A
-        // cheap path check is safer than assuming the first ID stays stable during project reload.
+        // ワークスペースは1つの物理パスに対して複数のリンクされた DocumentId を返すことがあります。
+        // プロジェクトの再読み込み中に最初の ID が安定するとは限らないため、軽量なパス確認を使います。
         if(Args.DocumentId is { }Id
             &&this.Workspace.CurrentSolution.GetDocument(Id) is { }Document
             &&string.Equals(Document.FilePath,this.FilePath,StringComparison.OrdinalIgnoreCase)){
@@ -184,13 +182,13 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
 
         this.RunningRefresh=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
             try {
-                // Roslyn's workspace notification follows a TextBuffer edit asynchronously.  A
-                // tiny debounce prevents a transient mismatched snapshot from blanking glyphs as
-                // the user types while still keeping the margin responsive.
+                // Roslyn のワークスペース通知は TextBuffer の編集より非同期に届きます。
+                // わずかな debounce により、入力中の一時的な不一致でグリフが消えるのを防ぎます。
+                // マージンの応答性も保ちます。
                 await Task.Delay(TimeSpan.FromMilliseconds(80),Current.Token).ConfigureAwait(false);
                 await this.RefreshAsync(Current.Token).ConfigureAwait(false);
             } catch(OperationCanceledException){
-                // A newer buffer/workspace generation superseded this one.
+                // これより新しい buffer/workspace generation に置き換えられました。
             } catch(Exception Exception){
                 ActivityLog.LogError(nameof(ComponentIconGlyphTagger),Exception.ToString());
             }
@@ -209,7 +207,7 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
         var Text=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
         var Snapshot=this.Buffer.CurrentSnapshot;
         if(!string.Equals(Text.ToString(),Snapshot.GetText(),StringComparison.Ordinal)){
-            // The next workspace or buffer event will retry against the matching live generation.
+            // 次の workspace または buffer event で、一致する live generation に対して再試行します。
             return;
         }
 
@@ -255,9 +253,9 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
                                                                  string.Equals(Attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                                                                                SceneComponentIconMetadata.AttributeFullyQualifiedName,StringComparison.Ordinal));
         if(IconAttribute?.ApplicationSyntaxReference is null){
-            // No icon yet: the clicked declaration becomes its owner.  This is intentional for a
-            // partial component because writing another document would violate the one-buffer Undo
-            // and no-focus contract.
+            // まだアイコンがない場合はクリックした宣言をその所有者にします。partial component では意図的な動作です。
+            // 別ドキュメントへの書き込みは、単一バッファーでUndoを行う契約と、
+            // フォーカスを移さないという契約に違反する。
             return true;
         }
 
@@ -290,7 +288,7 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
     }
 }
 
-/// <summary>Writes the selected icon metadata into the already-open glyph document in one Undo unit.</summary>
+/// <summary>選択したアイコンのメタデータを、すでに開いているグリフのドキュメントへ1回の Undo 単位で書き込みます。</summary>
 internal sealed class ComponentIconEditorService {
     private readonly VisualStudioWorkspace Workspace;
     private readonly SceneTextBufferWriter TextBufferWriter;
@@ -359,7 +357,7 @@ internal readonly struct ComponentIconWriteResult {
     internal static ComponentIconWriteResult Failure(string ErrorMessage)=>new(false,ErrorMessage);
 }
 
-/// <summary>Provides clickable visuals in Visual Studio's native glyph margin.</summary>
+/// <summary>Visual Studio のネイティブグリフマージンにクリック可能なビジュアルを提供します。</summary>
 [Export(typeof(IGlyphFactoryProvider))]
 [Name("CSharpGameEngine.ComponentIconGlyphFactory")]
 [Order(After="VsTextMarker")]
@@ -421,7 +419,7 @@ internal sealed class ComponentIconGlyphFactory : IGlyphFactory {
     }
 }
 
-/// <summary>Anchored picker menu used only by a glyph click; it never opens or activates another document.</summary>
+/// <summary>グリフのクリック時だけ使う、グリフに固定されたピッカーメニュー。別のドキュメントを開いたりアクティブにしたりしません。</summary>
 internal sealed class ComponentIconPickerPopup {
     private static readonly ComponentIconPickerPopup Shared=new();
     private JoinableTask?RunningWrite;

@@ -29,9 +29,7 @@ public sealed record ContentReleaseReport(
     IReadOnlyList<ContentReleasePerformanceEvidence>Performance);
 
 /// <summary>
-/// Publishes and revalidates the content-scoped release evidence consumed later by the
-/// product-wide package/SBOM/signing stages. This is evidence over existing content truths;
-/// it is deliberately not a second artifact, package, or release-manifest format.
+/// ECS スキーマ、スケジュール、決定論的再生、性能の各事実をトラック単位のリリース入力にまとめて提供する。パッケージでも製品全体のリリースマニフェストでもない。
 /// </summary>
 public static class ContentReleaseEvidence {
     public const string ReportSchema="csharp-game-engine-content-release-v1";

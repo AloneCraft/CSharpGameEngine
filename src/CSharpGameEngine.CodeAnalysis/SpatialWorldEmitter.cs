@@ -2,7 +2,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.CodeAnalysis;
-/// <summary>Emits the archetype-complete fixed-point global spatial-index synchronization pass.</summary>
+/// <summary>archetype を完全に扱う fixed-point global spatial-index 同期 pass を生成します。</summary>
 internal static class SpatialWorldEmitter {
     private const string HintName="SpatialWorld.g.cs";
     private const string SpatialBoundsFullyQualifiedName="global::CSharpGameEngine.Entities.SpatialBounds";

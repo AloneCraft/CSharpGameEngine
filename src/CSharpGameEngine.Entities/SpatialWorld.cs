@@ -26,13 +26,13 @@ public partial struct World {
         return new GlobalSpatialState();
     }
     public IReadOnlyEntitySpatialIndex GlobalSpatialIndex=>this.SpatialState.Index;
-    /// <summary>The id this world's spatial snapshots carry on the debug pipe.</summary>
+    /// <summary>このWorldの空間スナップショットがデバッグパイプ上で使うID。</summary>
     internal Guid GlobalSpatialDebugWorldId=>this.SpatialState.DebugWorldId;
-    /// <summary>Makes this world the one a debug request without a world id gets (M0096, the Scene view's editor world).</summary>
+    /// <summary>ワールドIDのないデバッグ要求に、このWorldを割り当てる（M0096、Scene ViewのエディターWorld）。</summary>
     internal void PreferForSpatialDebug()=>SpatialDebugHub.Prefer(this.SpatialState.DebugWorldId);
     public GlobalSpatialSyncReport LastGlobalSpatialSync=>this.SpatialState.Report;
     public bool TryGetGlobalSpatialFailure(Entity Entity,out SpatialSyncFailure Failure)=>this.SpatialState.Failures.TryGetValue(Entity,out Failure);
-    /// <summary>Rebuilds the current World snapshot immediately. Calls are single-writer only.</summary>
+    /// <summary>現在のWorldスナップショットを直ちに再構築する。呼び出しは単一スレッドで行うこと。</summary>
     public void RefreshGlobalSpatialIndex(){
         this.SpatialState.Seen.Clear();
         this.SpatialState.Resolver.BeginFrame();

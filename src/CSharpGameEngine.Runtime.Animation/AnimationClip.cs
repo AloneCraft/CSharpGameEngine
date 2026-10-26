@@ -2,9 +2,8 @@ using System.Numerics;
 using CSharpGameEngine.Import.Gltf;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
-/// An imported clip bound to a <see cref="Skeleton"/> by joint name (ADR-0066). Sampling writes a
-/// full local pose: joints the clip does not animate keep the skeleton's rest transform, and a track
-/// for a joint the skeleton lacks is ignored.
+/// 関節名で <see cref="Skeleton"/> に結び付けたインポート済みアニメーションクリップ（ADR-0066）。サンプリングするとローカル姿勢全体を書き込む。クリップが動かさない関節は
+/// スケルトンの静止時変換を保ち、スケルトンにない関節のトラックは無視する。
 /// </summary>
 public sealed class AnimationClip {
     private readonly (int Joint,ImportedJointTrack Track)[]Tracks;
@@ -21,7 +20,7 @@ public sealed class AnimationClip {
         ArgumentNullException.ThrowIfNull(Skeleton);
         return new AnimationClip(Clip.Name,Clip.DurationSeconds,[.. Clip.Tracks.Select(Track=>(Skeleton.IndexOf(Track.JointName),Track)).Where(static Pair=>Pair.Item1>=0)]);
     }
-    /// <summary>Wraps <paramref name="Time"/> into the clip when <paramref name="Loop"/>, otherwise clamps it to the ends.</summary>
+    /// <summary><paramref name="Loop"/> が有効なら <paramref name="Time"/> をクリップ内に折り返す。無効なら両端の範囲に収める。</summary>
     public float ClipTime(float Time,bool Loop){
         if(this.DurationSeconds<=0f||!float.IsFinite(Time)){
             return 0f;
@@ -47,7 +46,7 @@ public sealed class AnimationClip {
             }
         }
     }
-    /// <summary>The key at or before <paramref name="Time"/> and the fraction toward the next one (0 for step keys and at the ends).</summary>
+    /// <summary><paramref name="Time"/> 以前または同時刻のキーと、次のキーまでの補間率（ステップキーと両端では0）。</summary>
     internal static (int Index,float Fraction)Locate<T>(ImportedKeys<T>Keys,float Time) where T:struct{
         var Times=Keys.Times;
         if(Times.Count<=1||Time<=Times[0]){

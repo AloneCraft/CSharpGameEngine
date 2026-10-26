@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 namespace CSharpGameEngine.Interchange;
-/// <summary>A fixed-schema binary projection. JSON is used only as an in-memory record construction adapter, never on the wire.</summary>
+/// <summary>固定スキーマのバイナリープロジェクション。JSONはメモリ上のレコード構築用アダプターとしてのみ使用し、通信形式には使わない。</summary>
 internal static class InterchangeBinaryPayload {
     private static readonly UTF8Encoding Utf8=new(false,true);
     private static readonly JsonSerializerOptions ShapeOptions=new() { IncludeFields=true,IgnoreReadOnlyProperties=true,TypeInfoResolver=new DefaultJsonTypeInfoResolver() };

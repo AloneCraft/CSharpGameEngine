@@ -3,13 +3,10 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Contracts.Tests;
 
 public sealed class RenderPreviewHostProtocolTests {
-    /// <summary>
-    /// M0097: version 7 removed the runtime diagnostics snapshot. The command is gone, so a request that still
-    /// carries its old value is an unknown command. M0119: version 9 derives depth from projection.
-    /// </summary>
+    /// <summary>M0097：バージョン7で実行時診断スナップショットは削除された。コマンド自体がなくなったため、古い値を引き続き持つリクエストは未知のコマンドになる。M0119：バージョン9では投影から深度を導出する。</summary>
     [Fact]
     public void Protocol_HasNoDiagnosticsSnapshotCommand(){
-        Assert.Equal(9,RenderPreviewHostProtocol.CurrentVersion);
+        Assert.Equal(11,RenderPreviewHostProtocol.CurrentVersion);
         Assert.DoesNotContain("Snapshot",Enum.GetNames(typeof(RenderPreviewHostCommand)));
         Assert.Null(typeof(RenderPreviewHostResponse).GetProperty("DebugSnapshot"));
         RenderPreviewHostRequest Request=CreateCommand((RenderPreviewHostCommand)6);
@@ -18,7 +15,7 @@ public sealed class RenderPreviewHostProtocolTests {
 
     [Fact]
     public void ProtocolV9_ValidatesNativePerspectiveCameras(){
-        // Perspective metadata is mandatory even when the caller supplies only the default curve.
+        // 呼び出し側が既定の曲線だけを渡しても、透視投影メタデータは必須。
         var Perspective=System.Numerics.Matrix4x4.CreateLookAt(new(0f,1f,-4f),System.Numerics.Vector3.Zero,System.Numerics.Vector3.UnitY)
             *System.Numerics.Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.1f,300f);
         RenderPreviewHostRequest Request=CreateCommand(RenderPreviewHostCommand.UpdateFrame);
@@ -82,7 +79,7 @@ public sealed class RenderPreviewHostProtocolTests {
             RenderPreviewHostProtocol.Validate(Request)),
             StringComparison.OrdinalIgnoreCase);
 
-        // Protocol 6 (ADR-0070 B1): the runtime view's camera carries its rotation and projection.
+        // プロトコル6（ADR-0070 B1）：実行時ビューのカメラは回転と投影を保持する。
         Request.Frame.PresentationMode=RenderPreviewPresentationMode.Wireframe;
         Request.Frame.Camera.Rotation=[0f,0f,0f];
         Assert.Contains("rotation",Assert.IsType<string>(

@@ -1,9 +1,7 @@
 using System.Text;
 namespace CSharpGameEngine.Destruction.Tests;
 /// <summary>
-/// ADR-0078/M0113: the engine's seeded Voronoi cooker and the <c>.cgefracture</c> version 2 format, as the Cook module compiles them. Every fragment is a closed
-/// outward volume, the volumes fill the source, a triangle is outer exactly when it lies on the source's surface, each bond's area is the face both of its
-/// fragments share, the clusters are connected, and the same input gives the same bytes. What cannot be cut is refused with a FRACTUREnnn reason.
+/// ADR-0078/M0113：エンジンのシード付き Voronoi クッカーと、Cook モジュールがコンパイルする <c>.cgefracture</c> バージョン 2 形式。すべてのフラグメントは外向きの閉じた体積で、体積の合計はソースを満たす。三角形がソース表面上にある場合に限り外面となり、各結合の面積は両フラグメントが共有する面の面積となる。クラスターは連結され、同じ入力からは同じバイト列が生成される。切り分けられない場合は FRACTUREnnn の理由とともに拒否する。
 /// </summary>
 public sealed class PrefractureCookerTests {
     private static LogicalScalar S(float Value)=>LogicalScalar.FromSingle(Value);
@@ -44,7 +42,7 @@ public sealed class PrefractureCookerTests {
             var Center=Asset.Fragments[Index].LocalCenter;
             for(var Triangle=0;Triangle<Mesh.Slots.Count;Triangle++){
                 var Points=Enumerable.Range(0,3).Select(Corner=>Mesh.Vertices[Mesh.Indices[Triangle*3+Corner]]+Center).ToArray();
-                // A sliver of a cut face can have its corners within 0.1 mm of a source face, so the triangle must also face along that axis.
+                // 切断面の細長い部分は、頂点がソース面から 0.1 mm 以内に収まることがあるため、三角形もその軸方向を向いていなければならない。
                 if(!LogicalVector3.Cross(Points[1]-Points[0],Points[2]-Points[0]).TryNormalize(out var Normal)){ continue; }
                 var OnFace=Enumerable.Range(0,3).Any(Axis=>Points.All(Point=>MathF.Abs(MathF.Abs(F(Axis==0?Point.R:Axis==1?Point.U:Point.F))-Limit[Axis])<0.0001f)
                     &&MathF.Abs(F(Axis==0?Normal.R:Axis==1?Normal.U:Normal.F))>0.999f);
@@ -76,14 +74,12 @@ public sealed class PrefractureCookerTests {
                 Assert.True(LogicalScalar.TrySquareRoot(LogicalVector3.Cross(B-A,C-A).LengthSquared,out var Twice));
                 Interior+=F(Twice)/2f;
             }
-            // Faces under a square millimetre are corner touches, not bonds.
+            // 1 平方ミリメートル未満の面は、結合ではなく頂点同士の接触である。
             Assert.InRange(Bonded[Index],Interior-0.0001f*Count,Interior+0.0001f);
         }
     }
     /// <summary>
-    /// A cluster grows to ⌈fragments / clusters⌉ unless its neighbours are taken first; such a short cluster joins a neighbour while there are more than
-    /// asked for. So there are at least the asked-for number of clusters, each connected; one cluster is the whole object and as many clusters as
-    /// fragments is no hierarchy.
+    /// クラスターは、近傍が先に割り当てられない限り ⌈fragments / clusters⌉ 個まで成長する。このように小さいクラスターは、要求数を超える間は近傍へ結合する。そのため要求数以上の連結クラスターができる。クラスターが 1 つならオブジェクト全体であり、クラスター数がフラグメント数と同じなら階層はない。
     /// </summary>
     [Theory]
     [InlineData(16,0,4)]
@@ -150,7 +146,7 @@ public sealed class PrefractureCookerTests {
         Assert.StartsWith("FRACTURE001",OpenError);
         Assert.False(PrefractureCooker.TryGenerate(PhysicsShapeAsset.CreateConvex("convex",[new LogicalVector3(0,0,0),new LogicalVector3(1,0,0),new LogicalVector3(0,1,0),new LogicalVector3(0,0,1)]),Settings,out _,out var KindError));
         Assert.StartsWith("FRACTURE001",KindError);
-        // An L of two boxes: closed, but not convex.
+        // 2 つのボックスを L 字に配置：閉じているが凸ではない。
         LogicalVector3 V(float X,float Y,float Z)=>new(S(X),S(Y),S(Z));
         LogicalVector3[]Points=[V(0,0,0),V(2,0,0),V(2,1,0),V(1,1,0),V(1,2,0),V(0,2,0),V(0,0,1),V(2,0,1),V(2,1,1),V(1,1,1),V(1,2,1),V(0,2,1)];
         List<int>Indices=[];
@@ -166,7 +162,7 @@ public sealed class PrefractureCookerTests {
         Assert.False(PrefractureCooker.TryGenerate(Concave,Settings,out _,out var ConcaveError));
         Assert.StartsWith("FRACTURE003",ConcaveError);
     }
-    /// <summary>The M0055 layout: no settings, sites, clusters, slots or areas.</summary>
+    /// <summary>M0055 のレイアウト：設定、サイト、クラスター、スロット、面積がない。</summary>
     private static byte[]WriteVersion1(PrefractureAsset Asset){
         using MemoryStream Stream=new();
         using(BinaryWriter Writer=new(Stream,Encoding.UTF8,true)){

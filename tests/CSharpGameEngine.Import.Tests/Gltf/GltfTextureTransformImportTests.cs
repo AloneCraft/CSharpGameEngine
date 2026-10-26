@@ -2,8 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 namespace CSharpGameEngine.Import.Gltf.Tests;
 /// <summary>
-/// KHR_texture_transform (used by Unreal's GLTFExporter for baked material atlases) must reach the
-/// vertex UVs; ignoring it samples the wrong atlas region, e.g. the dark gutters between islands.
+/// KHR_texture_transform（Unreal の GLTFExporter がベイク済みマテリアルアトラスに使用）は、頂点 UV に反映されなければならない。無視すると、島の間にある暗い溝など、誤ったアトラス領域をサンプリングする。
 /// </summary>
 public class GltfTextureTransformImportTests {
     private static readonly Vector2[]SourceUvs=[new(0f,0f),new(1f,0f),new(0f,1f)];
@@ -15,7 +14,7 @@ public class GltfTextureTransformImportTests {
     }
     [Fact]
     public void ImportScene_TextureTransformRotation_FollowsTheSpecificationMatrix(){
-        // uv' = T * R * S * uv with R = [cos sin; -sin cos]: a quarter turn maps +u to -v and +v to +u.
+        // uv' = T * R * S * uv、R = [cos sin; -sin cos]：4 分の 1 回転で +u は -v に、+v は +u に写る。
         var Mesh=ImportSingleMesh(BaseColorTransform:"\"rotation\": 1.5707963",NormalTransform:null,out _);
         AssertUvs([new(0f,0f),new(0f,-1f),new(1f,0f)],Mesh);
     }

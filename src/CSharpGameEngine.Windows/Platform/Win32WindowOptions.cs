@@ -12,9 +12,8 @@ public sealed class Win32WindowOptions {
     public bool Visible { get; init;}=true;
 
     /// <summary>
-    /// Drops keyboard, raw mouse and gamepad input from the devices, so only keys injected through
-    /// <see cref="Win32Window.InjectKey"/> reach the input stream. Automation runs use it to stay
-    /// independent of whoever is using the machine.
+    /// デバイスからのキーボード、Rawマウス、ゲームパッド入力を破棄し、<see cref="Win32Window.InjectKey"/>で注入したキーだけを入力ストリームへ通す。
+    /// 自動実行では、マシンを操作しているユーザーから独立して実行できるように使う。
     /// </summary>
     public bool IgnoreDeviceInput { get; init;}
 }

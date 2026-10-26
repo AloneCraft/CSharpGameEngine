@@ -1,11 +1,7 @@
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Declared handedness of an <see cref="ICoordinateConvention"/>. This is authoritative metadata
-/// about the target external tool's own convention (matching how that tool documents itself),
-/// not a value derived from the RUF/XYZ axis mapping in isolation - see
-/// Docs/Specifications/Spatial-RUF.md "Handedness の定義" for the verified relationship between
-/// this value and <see cref="Spatial{TConvention}.Cross"/>.
+/// <see cref="ICoordinateConvention"/> が宣言する座標系の左右系。これは対象とする外部ツール自身の規約についての正式なメタデータであり（ツールの説明に合わせる）、RUF/XYZ の軸マッピングだけから導出する値ではない。この値と <see cref="Spatial{TConvention}.Cross"/> の検証済みの関係は Docs/Specifications/Spatial-RUF.md の「Handedness の定義」を参照。
 /// </summary>
 public enum CoordinateHandedness {
     LeftHanded,

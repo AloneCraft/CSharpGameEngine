@@ -1,9 +1,7 @@
 using System.Numerics;
 namespace CSharpGameEngine.Numerics.Tests;
 /// <summary>
-/// M0096: the Scene Editor builds rotations with System.Numerics (X=R, Y=U, Z=F, yaw about U, pitch about R,
-/// roll about F) and hands them to the runtime as quaternion components R, U, F, W. That is only the same
-/// rotation if the engine's EulerRuf convention composes the same way.
+/// M0096：Scene Editor は System.Numerics で回転を構築する（X=R、Y=U、Z=F、yaw は U 軸、pitch は R 軸、roll は F 軸周り）。それをクォータニオン成分 R、U、F、W としてランタイムに渡す。同じ回転になるのは、エンジンの EulerRuf 規約が同じ順序で合成する場合に限られる。
 /// </summary>
 public sealed class LogicalQuaternionConventionTests {
     [Theory]
@@ -16,7 +14,7 @@ public sealed class LogicalQuaternionConventionTests {
         Assert.True(LogicalQuaternion.TryFromEulerRuf(new LogicalVector3(LogicalScalar.FromSingle(R),LogicalScalar.FromSingle(U),LogicalScalar.FromSingle(F)),out var Engine));
         Assert.True(Engine.TryToSingle(out var EngineSingle));
         var Editor=Quaternion.CreateFromYawPitchRoll(U,R,F);
-        // q and -q are the same rotation.
+        // q と -q は同じ回転を表す。
         Assert.True(Math.Abs(Quaternion.Dot(EngineSingle,Editor))>0.99999f,$"engine {EngineSingle} editor {Editor}");
     }
 }

@@ -25,7 +25,7 @@ public sealed class Win32InputEventAdapterTests {
             EventValue=>Assert.Equal(InputEventKind.Connected,EventValue.Kind),
             EventValue=>{Assert.Equal(InputEventKind.Pressed,EventValue.Kind);Assert.Equal("Gamepad_FaceButton_Bottom",EventValue.Control.Code);},
             EventValue=>{Assert.Equal(Win32InputEventAdapter.GamepadLeftStick,EventValue.Control);Assert.Equal(new InputValue(0.5f,-0.25f),EventValue.Value);},
-            // The two axes follow as controls of their own (M0108).
+            // 2つの軸は独立したコントロールとして続く（M0108）。
             EventValue=>{Assert.Equal(Win32InputEventAdapter.GamepadLeftX,EventValue.Control);Assert.Equal(new InputValue(0.5f,0f),EventValue.Value);},
             EventValue=>{Assert.Equal(Win32InputEventAdapter.GamepadLeftY,EventValue.Control);Assert.Equal(new InputValue(-0.25f,0f),EventValue.Value);});
         Assert.All(Connected,EventValue=>Assert.Equal(Adapter.GamepadDevice,EventValue.DeviceId));

@@ -3,7 +3,7 @@ using System.Text;
 
 namespace CSharpGameEngine.Rendering;
 
-/// <summary>Where the lines of a block of text sit inside the block's width.</summary>
+/// <summary>テキストブロックの幅の中で、各行をどこに配置するか。</summary>
 public enum TextAlignment:byte {
     Left=0,
     Center=1,
@@ -11,14 +11,14 @@ public enum TextAlignment:byte {
 }
 
 /// <summary>
-/// Lays text out with a <see cref="FontAtlas"/> (ADR-0078/M0104): the size of a block of text, and the textured quads of its glyphs. Pure and
-/// allocation-light; there is no kerning or shaping, so each glyph advances by its own width. A new line is <c>\n</c> (a <c>\r</c> is ignored);
-/// a code point the font lacks is drawn as <c>?</c> when it has one, and skipped otherwise.
+/// <see cref="FontAtlas"/> を使ってテキストをレイアウトする（ADR-0078/M0104）。テキストブロックのサイズと、グリフを表すテクスチャ付き四角形を求める。状態を持たず、割
+/// り当てを抑えた処理。カーニングや字形整形は行わないため、各グリフは自身の幅だけ進む。改行には <c>\n</c> を使い、<c>\r</c> は無視する。フォントにないコードポイントは、
+/// <c>?</c> があればそれを描画し、なければ読み飛ばす。
 /// </summary>
 public static class ScreenTextLayout {
     private const int Fallback='?';
 
-    /// <summary>The width and height, in pixels, of <paramref name="Text"/> at <paramref name="Size"/> pixels per em.</summary>
+    /// <summary><paramref name="Size"/> ピクセルを em あたりの大きさとして描画した <paramref name="Text"/> の幅と高さ（ピクセル）。</summary>
     public static Vector2 Measure(FontAtlas Font,string Text,float Size){
         ArgumentNullException.ThrowIfNull(Font);
         ArgumentNullException.ThrowIfNull(Text);
@@ -40,8 +40,8 @@ public static class ScreenTextLayout {
     }
 
     /// <summary>
-    /// Appends the glyph quads of <paramref name="Text"/> to <paramref name="Quads"/> (six vertices each, two triangles), with the block's top-left
-    /// corner at <paramref name="TopLeft"/>. Returns the size of the block, which is what <see cref="Measure"/> returns.
+    /// <paramref name="Text"/> のグリフ四角形を <paramref name="Quads"/> に追加する（各グリフ6頂点、三角形2つ）。ブロックの左上角を
+    /// <paramref name="TopLeft"/> に置く。ブロックのサイズを返す。これは <see cref="Measure"/> の戻り値と同じ。
     /// </summary>
     public static Vector2 Append(List<RenderScreenVertex>Quads,FontAtlas Font,string Text,float Size,TextAlignment Alignment,Vector2 TopLeft,Vector4 Color){
         ArgumentNullException.ThrowIfNull(Quads);
@@ -87,7 +87,7 @@ public static class ScreenTextLayout {
         _=>0f,
     };
 
-    /// <summary>The width of line <paramref name="LineIndex"/> (zero based) of <paramref name="Text"/>.</summary>
+    /// <summary><paramref name="Text"/> の0始まりの <paramref name="LineIndex"/> 行の幅。</summary>
     private static float LineWidthOf(FontAtlas Font,string Text,int LineIndex,float Size){
         int Line=0;
         float Width=0f;

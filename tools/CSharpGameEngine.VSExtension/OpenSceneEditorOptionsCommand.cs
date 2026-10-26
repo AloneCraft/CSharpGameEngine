@@ -6,9 +6,7 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Extensions &gt; C# Game Engine &gt; Options... opens the Scene Editor options page
-/// (<see cref="SceneEditorOptionsPage"/>: navigation speed and the look/orbit invert switches)
-/// directly, instead of leaving it under Tools &gt; Options &gt; C# Game Engine where it is hard to find.
+/// Extensions &gt; C# Game Engine &gt; Options... は Scene Editor のオプションページ（<see cref="SceneEditorOptionsPage"/>：移動速度と視点回転の反転設定）を直接開きます。見つけにくい Tools &gt; Options &gt; C# Game Engine の下に置いたままにしません。
 /// </summary>
 internal sealed class OpenSceneEditorOptionsCommand {
     public const int CommandId=0x0132;

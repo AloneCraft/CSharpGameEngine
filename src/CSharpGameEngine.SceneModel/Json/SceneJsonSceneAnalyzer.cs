@@ -7,7 +7,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.SceneAnalysis.Json;
-/// <summary>One problem found in a scene document, located by character offsets in its text.</summary>
+/// <summary>Scene ドキュメント内で見つかった問題1つ。テキスト上の文字オフセットで位置を示す。</summary>
 internal readonly struct SceneJsonProblem {
     internal SceneJsonProblem(DiagnosticDescriptor Descriptor,int Start,int End,params object[]Arguments){
         this.Descriptor=Descriptor;
@@ -20,7 +20,7 @@ internal readonly struct SceneJsonProblem {
     internal int End { get; }
     internal object[]Arguments { get; }
 }
-/// <summary>A component of a node: its <c>global::</c> type name and the C# creation expression.</summary>
+/// <summary>ノードのコンポーネント。<c>global::</c> 形式の型名と、C# で生成する式を持つ。</summary>
 internal readonly struct SceneJsonComponent {
     internal SceneJsonComponent(string TypeFullyQualifiedName,string EmitExpressionText){
         this.TypeFullyQualifiedName=TypeFullyQualifiedName;
@@ -39,12 +39,12 @@ internal sealed class SceneJsonNode {
     }
     internal string?Id { get; }
     internal string?Name { get; }
-    /// <summary>Child indices from the root, like <see cref="NodePath"/>.</summary>
+    /// <summary><see cref="NodePath"/> と同様に、ルートからの子インデックスを並べる。</summary>
     internal ImmutableArray<int>Path { get; }
     internal ImmutableArray<SceneJsonComponent>Components { get; }
     internal ImmutableArray<SceneJsonNode>Children { get; }
 }
-/// <summary>A key that names an angle by its C# name where the current schema writes <see cref="Key"/> (ADR-0074).</summary>
+/// <summary>現在のスキーマで <see cref="Key"/> が使われている角度キーを、C# 側の名前で表したもの（ADR-0074）。</summary>
 internal readonly struct SceneJsonKeyRename {
     internal SceneJsonKeyRename(int Start,int End,string Name,string Key){
         this.Start=Start;
@@ -52,13 +52,13 @@ internal readonly struct SceneJsonKeyRename {
         this.Name=Name;
         this.Key=Key;
     }
-    /// <summary>The offsets of the key's text, quotes included.</summary>
+    /// <summary>角度メンバーが保持する、ドキュメント内の数値テキストの範囲。JSON には C# 側の単位を含めない。</summary>
     internal int Start { get; }
     internal int End { get; }
     internal string Name { get; }
     internal string Key { get; }
 }
-/// <summary>A number in the document that an angle member holds (ADR-0074), with the member's C# unit.</summary>
+/// <summary>角度メンバーが持つドキュメント内の数値（ADR-0074）。単位は C# メンバーのもの。</summary>
 internal readonly struct SceneJsonAngleValue {
     internal SceneJsonAngleValue(int Start,int End,string Text,SceneAngleUnit Unit){
         this.Start=Start;
@@ -84,14 +84,11 @@ internal sealed class SceneJsonScene {
         this.AngleValues=AngleValues.IsDefault?ImmutableArray<SceneJsonAngleValue>.Empty:AngleValues;
         this.KeyRenames=KeyRenames.IsDefault?ImmutableArray<SceneJsonKeyRename>.Empty:KeyRenames;
     }
-    /// <summary>
-    /// The document's <c>schemaVersion</c>: 3 writes angle keys without the C# unit word, 2 and 3 store angles in
-    /// turns, and 1 holds each member's own unit.
-    /// </summary>
+    /// <summary>ドキュメントの <c>schemaVersion</c>。3では C# の単位名を省いた角度キーを使い、2と3では角度を回転数で格納し、1では各メンバー自身の単位を格納する。</summary>
     internal int SchemaVersion { get; }
-    /// <summary>Every angle key that uses the C# name where the current schema writes the unit-free key.</summary>
+    /// <summary>現行スキーマで単位なしキーを使う位置にある、C# の名前を使った角度キーすべて。</summary>
     internal ImmutableArray<SceneJsonKeyRename>KeyRenames { get; }
-    /// <summary>Every number an angle member holds, in document order.</summary>
+    /// <summary>ドキュメント順に並べた、角度メンバーが持つ数値すべて。</summary>
     internal ImmutableArray<SceneJsonAngleValue>AngleValues { get; }
     internal string?Namespace { get; }
     internal string ClassName { get; }
@@ -99,7 +96,7 @@ internal sealed class SceneJsonScene {
     internal SceneJsonNode?Root { get; }
     internal ImmutableArray<SceneJsonProblem>Problems { get; }
     internal bool HasErrors=>!this.Problems.IsEmpty||this.Root is null;
-    /// <summary>Each node's id by its path (the editor's write-back reads the same from the JSON tree alone).</summary>
+    /// <summary>エディターが JSON ツリーだけから同じ情報を読み取って書き戻せるよう、パスごとに各ノードの ID を記録する。</summary>
     internal Dictionary<NodePath,string>NodeIdsByPath(){
         var Result=new Dictionary<NodePath,string>();
         void Walk(SceneJsonNode Node){
@@ -111,25 +108,18 @@ internal sealed class SceneJsonScene {
     }
 }
 /// <summary>
-/// Reads a scene JSON document against a <see cref="Compilation"/> (ADR-0070). Values follow
-/// the member's declared C# type; there are no tags in the JSON:
-/// <list type="bullet">
-/// <item>enums are member-name strings; bool, string and numeric members use JSON literals, and a
-/// number's text is emitted unchanged with the literal suffix of the target type;</item>
-/// <item>a struct or class value is an object whose keys are constructor parameter names (the public
-/// constructor consuming the most keys wins) followed by settable members;</item>
-/// <item>a number may also fill a type with an implicit conversion from <c>float</c>
-/// (for example <c>LogicalScalar</c>).</item>
-/// <item>every number inside a member or constructor parameter marked <c>[Angle]</c> is in turns from schema
-/// version 2 on and becomes the member's unit in the emitted literal (ADR-0074); version 1 holds the unit itself.
-/// Its key may leave out the C# unit word (<see cref="KeyOf"/>), which version 3 writes; the C# name still reads.</item>
-/// </list>
-/// Every rejected entry becomes a <see cref="SceneJsonProblem"/> so the whole document is reported at once.
+/// <see cref="Compilation"/> に照らして Scene JSON ドキュメントを読み込む（ADR-0070）。値はメンバーの宣言された C# 型に従う。JSON にタグは付けない：
+/// <list type="bullet"><item>列挙型はメンバー名の文字列。bool、string、数値メンバーは JSON リテラルを使い、リテラルの型接尾辞は変更せず出力する。</item>
+/// <item>構造体またはクラスの値は、コンストラクターパラメーター名をキーにしたオブジェクトに続けて、設定可能なメンバーを記載する。最も多くのキーを受け取る public コンストラクターを使う。
+/// </item><item><c>LogicalScalar</c> のように、<c>float</c> からの暗黙的変換を持つ型には数値を指定できる。</item><item>
+/// <c>[Angle]</c> が付いたメンバーまたはコンストラクターパラメーター内の数値は、スキーマバージョン2以降では回転数で記述し、出力するリテラル内ではメンバーの単位に変換する（ADR-0074
+/// ）。バージョン1ではメンバーの単位をそのまま使う。キーから C# の単位名を省略することもでき（<see cref="KeyOf"/>）、これはバージョン3で出力する。C# の名前でも引き続き読み込め
+/// る。</item></list>拒否した項目はすべて <see cref="SceneJsonProblem"/> に変換し、ドキュメント全体の問題をまとめて報告する。
 /// </summary>
 internal static class SceneJsonSceneAnalyzer {
-    /// <summary>The version this code writes (ADR-0074: angles in turns under unit-free keys). Versions 1 and 2 are still read.</summary>
+    /// <summary>このコードが書き込むバージョン（ADR-0074：単位名のないキーで角度を回転数として保存する）。バージョン1と2も引き続き読み込む。</summary>
     internal const int SchemaVersion=SceneJsonAngles.UnitFreeKeysSchemaVersion;
-    /// <summary>How the numbers of angle members read: in turns or in the member's unit, collected for an upgrade.</summary>
+    /// <summary>更新用に収集した、角度メンバーの数値を読み取ったときの単位（回転数またはメンバー自身の単位）。</summary>
     private sealed class AngleReading {
         internal AngleReading(bool Turns){
             this.Turns=Turns;
@@ -174,8 +164,8 @@ internal static class SceneJsonSceneAnalyzer {
         } else if(!IsIdentifier(ClassName)){
             Problems.Add(Invalid(Document.Get("className")!,$"'{ClassName}' is not a C# identifier."));
         } else if(SyntaxFacts.GetContextualKeywordKind(ClassName)!=SyntaxKind.None){
-            // A class named like a contextual keyword breaks or changes the generated code: 'var' turns its implicitly
-            // typed locals into the scene type, 'file' and 'required' parse as modifiers, 'scoped' is an error, 'record' a warning.
+            // 文脈依存キーワードと同じ名前のクラスがあると、生成コードが壊れるか意味が変わる。「var」は暗黙的に
+            // 型が決まるローカル変数を Scene 型へ変え、「file」と「required」は修飾子として解析され、「scoped」はエラー、「record」は警告になる。
             Problems.Add(Invalid(Document.Get("className")!,$"'{ClassName}' is a C# contextual keyword; give the scene another className."));
         } else if(ClassNameConflict(Namespace,ClassName,Compilation) is { }Conflict){
             Problems.Add(Invalid(Document.Get("className")!,Conflict));
@@ -200,9 +190,9 @@ internal static class SceneJsonSceneAnalyzer {
     internal const string DataAssetAttributeMetadataName="CSharpGameEngine.Authoring.DataAssetAttribute";
     private static readonly string[]DataAssetKeys=["$schema","schemaVersion","type","members"];
     /// <summary>
-    /// Reads a data asset document (<c>*.cgeasset</c>, ADR-0079): one value of a <c>[DataAsset]</c> type, written like a scene component,
-    /// <c>{ "schemaVersion": 3, "type": "Full.TypeName", "members": { … } }</c>, with the same value rules (and angles in turns).
-    /// Returns the type and the C# expression that creates the value, or null with the problems.
+    /// データアセットドキュメント（<c>*.cgeasset</c>、ADR-0079）を読み込む。<c>[DataAsset]</c> 型の値を1つ、Scene コンポーネントと同じ形式（
+    /// <c>{ "schemaVersion": 3, "type": "Full.TypeName", "members": { … } }</c>）で記述し、同じ値規則（角度は回転数）を適用する。型名と
+    /// 、値を作る C# 式を返す。問題がある場合は null を返す。
     /// </summary>
     internal static SceneJsonComponent?AnalyzeDataAsset(string Text,Compilation Compilation,out ImmutableArray<SceneJsonProblem>Problems){
         List<SceneJsonProblem>Found=[];
@@ -311,9 +301,8 @@ internal static class SceneJsonSceneAnalyzer {
         return new SceneJsonComponent(SceneTypePredicates.ToFullyQualifiedName(Type!),Expression);
     }
     /// <summary>
-    /// A nested type as C# and the scene document name it (<c>Ns.Outer.Inner</c>, as the converter, the schema and the
-    /// palette write it), whose metadata name joins nested types with '+': each dot from the right is tried as one. Only
-    /// the metadata name resolved, so every edit of a scene with a nested component failed once written back.
+    /// C# と Scene ドキュメントで使う、入れ子型の名前（<c>Ns.Outer.Inner</c>。コンバーター、スキーマ、パレットが出力する名前）。メタデータ名では入れ子型を '+' でつなぐため
+    /// 、右側からドットを1つずつ置き換えて解決を試す。以前はメタデータ名だけで解決していたため、入れ子コンポーネントのある Scene は書き戻すたびに編集エラーになっていた。
     /// </summary>
     private static INamedTypeSymbol?ResolveNestedType(string TypeName,Compilation Compilation){
         var Name=TypeName;
@@ -323,7 +312,7 @@ internal static class SceneJsonSceneAnalyzer {
         }
         return null;
     }
-    /// <summary>A component type is a non-generic, non-reserved struct that is not a runtime companion.</summary>
+    /// <summary>コンポーネント型は、非ジェネリックかつ予約型ではない構造体で、実行時コンパニオンではないもの。</summary>
     internal static bool TryResolveComponentType(string TypeName,Compilation Compilation,out INamedTypeSymbol?Type,out string Reason){
         Type=Compilation.GetTypeByMetadataName(TypeName)??ResolveNestedType(TypeName,Compilation);
         if(Type is null){
@@ -362,7 +351,7 @@ internal static class SceneJsonSceneAnalyzer {
         var ProblemsBefore=Problems.Count;
         var Arguments=new List<string>();
         var Consumed=new HashSet<string>(StringComparer.Ordinal);
-        // An angle named by both its C# name and its unit-free key is reported and set from the first of the two.
+        // 同じ角度が C# の名前と単位のないキーの両方で指定された場合は、両方の値を診断して、先に現れた値を設定する。
         void ReportSameTarget(string Earlier,SceneJsonProperty Later,string Target)=>
             Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.InvalidDocument,Later.NameStart,Later.NameStart+Later.Name.Length+2,
                 $"'{Earlier}' and '{Later.Name}' name the same member '{Target}' of {TypeText.Replace("global::",string.Empty)}; keep one."));
@@ -385,8 +374,8 @@ internal static class SceneJsonSceneAnalyzer {
                 Arguments.Add(Identifier(Parameter.Name)+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                     Angles,Unit??AngleUnitOf(Parameter)));
             }
-            // A physical light value's constructor rejects values outside its range when the scene is instantiated,
-            // so the build reports them here, as the Scene DSL analyzer does for the editor's model.
+            // 物理ライトの値は Scene のインスタンス化時にコンストラクターが範囲外の値を拒否するため、
+            // エディターのモデルを扱う Scene DSL アナライザーと同様に、ビルド時にここで報告する。
             if(Value is not null&&LightValueContract.Find(Type) is { }Physical&&Physical.MatchesConstructor(Constructor)){
                 var Numbers=new float[Constructor.Parameters.Length];
                 var Complete=true;
@@ -413,8 +402,8 @@ internal static class SceneJsonSceneAnalyzer {
             if(Consumed.Contains(Property.Name)){ continue; }
             var MemberSymbol=FindSettableMemberSymbol(Type,Property.Name)??FindSettableAngleByKey(Type,Property.Name);
             if(TypeOf(MemberSymbol) is not { }MemberType){
-                // A constructor parameter name that no usable constructor consumed means the other
-                // required arguments are missing; say which, once, instead of "no such member".
+                // 使用可能なコンストラクターが受け取らないコンストラクターパラメーター名があると、他の
+                // 必須引数も不足している。「そのようなメンバーはない」ではなく、不足している引数を一度示す。
                 if(IncompleteConstructorFor(Type,Keys,Property.Name) is { }Incomplete){
                     if(!IncompleteConstructorReported&&Value is not null){
                         IncompleteConstructorReported=true;
@@ -443,7 +432,7 @@ internal static class SceneJsonSceneAnalyzer {
             Assignments.Add(Identifier(MemberSymbol.Name)+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                 Angles,Unit??AngleUnitOf(MemberSymbol)));
         }
-        // new T(...) { ... } must compile: the generated file is no place for the error. Said only when nothing else was.
+        // new T(...) { ... } は必ずコンパイルできなければならない。エラーを生成ファイルへ持ち込まず、他に報告済みの問題がない場合にのみ診断する。
         if(Value is not null&&Problems.Count==ProblemsBefore&&CreationProblem(Type,Constructor,SeenMembers) is { }Reason){
             Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.ValueMismatch,Value.Start,Value.End,DisplayName,Type.ToDisplayString(),Reason));
         }
@@ -452,8 +441,8 @@ internal static class SceneJsonSceneAnalyzer {
         return Builder.ToString();
     }
     /// <summary>
-    /// Why <c>new T(...) { ... }</c> would not compile, or null: an obsolete-as-error type, no constructor to call without
-    /// arguments when no constructor was chosen (CS7036, CS0122), or a required member the initializer leaves out (CS9035).
+    /// <c>new T(...) { ... }</c> がコンパイルできない理由、または理由がないことを示す。エラーとして扱う obsolete 型、コンストラクターを選択していない場合に引数なしで呼べる
+    /// コンストラクターがない（CS7036、CS0122）、または初期化子で必須メンバーを設定していない（CS9035）。
     /// </summary>
     private static string?CreationProblem(INamedTypeSymbol Type,IMethodSymbol?Constructor,Dictionary<string,string>SetMembers){
         if(IsObsoleteError(Type)){ return "the type is obsolete and cannot be created"; }
@@ -476,19 +465,16 @@ internal static class SceneJsonSceneAnalyzer {
     }
     private static bool IsCallableWithValues(IMethodSymbol Constructor)=>
         !IsObsoleteError(Constructor)&&Constructor.Parameters.All(static Parameter=>Parameter.RefKind is RefKind.None or RefKind.In);
-    /// <summary>Whether a use of the symbol is a compile error: <c>[Obsolete(message, true)]</c>.</summary>
+    /// <summary>シンボルの使用がコンパイルエラーになるか（<c>[Obsolete(message, true)]</c>）。</summary>
     private static bool IsObsoleteError(ISymbol Symbol)=>Symbol.GetAttributes().Any(static Attribute=>
         Attribute.AttributeClass?.ToDisplayString()=="System.ObsoleteAttribute"&&Attribute.ConstructorArguments.Length==2
         &&Attribute.ConstructorArguments[1].Value is true);
-    /// <summary>
-    /// The public constructor whose parameters are all named by the keys (or have defaults) and that
-    /// consumes the most keys. A parameterless constructor (implicit for structs) consumes none.
-    /// </summary>
+    /// <summary>すべてのパラメーターに対応するキーがあり、既定値のあるパラメーターは省略可能な public コンストラクターのうち、最も多くのキーを受け取るもの。引数なしのコンストラクター（構造体に暗黙に用意されるものを含む）はキーを受け取らない。</summary>
     private static IMethodSymbol?ChooseConstructor(INamedTypeSymbol Type,HashSet<string>Keys){
         IMethodSymbol?Best=null;
         var BestCount=-1;
         foreach(var Candidate in Type.InstanceConstructors){
-            // A ref or out parameter cannot take a named value argument (CS1620), nor can an obsolete-as-error one be called.
+            // ref または out パラメーターには、名前付き値引数を渡せない（CS1620）。エラーとして扱う obsolete メンバーも呼び出せない。
             if(Candidate.DeclaredAccessibility!=Accessibility.Public||!IsCallableWithValues(Candidate)){ continue; }
             var Count=0;
             var Usable=true;
@@ -507,7 +493,7 @@ internal static class SceneJsonSceneAnalyzer {
         }
         return BestCount>0?Best:null;
     }
-    /// <summary>The public constructor with the most parameters named by the keys that includes <paramref name="Name"/>.</summary>
+    /// <summary><paramref name="Name"/> を含むキーが指定された public コンストラクターのうち、名前が一致するパラメーターを最も多く持つもの。</summary>
     private static IMethodSymbol?IncompleteConstructorFor(INamedTypeSymbol Type,HashSet<string>Keys,string Name)=>
         Type.InstanceConstructors
             .Where(static Candidate=>Candidate.DeclaredAccessibility==Accessibility.Public)
@@ -517,15 +503,15 @@ internal static class SceneJsonSceneAnalyzer {
     private static bool NamesParameter(HashSet<string>Keys,IParameterSymbol Parameter)=>
         Keys.Contains(Parameter.Name)||Keys.Contains(KeyOf(Parameter));
     /// <summary>
-    /// The key a member or constructor parameter has in the document: an <c>[Angle]</c>'s name without its C# unit
-    /// word (ADR-0074, schema version 3), any other name as it is. The C# name of an angle still reads.
+    /// メンバーまたはコンストラクターパラメーターがドキュメントで使うキー。<c>[Angle]</c> の場合は C# の単位名を省いた名前（ADR-0074、スキーマバージョン3）。それ以外は名前をそのま
+    /// ま使う。角度メンバーは C# 側の名前でも引き続き読み込む。
     /// </summary>
     internal static string KeyOf(ISymbol Symbol){
         if(AngleUnitOf(Symbol) is null){ return Symbol.Name; }
         var Type=Symbol is IParameterSymbol{ ContainingSymbol:IMethodSymbol Method }?Method.ContainingType:Symbol.ContainingType;
         return SceneJsonAngles.KeyFor(Symbol.Name,Key=>IsNameTaken(Type,Key));
     }
-    /// <summary>Whether a type has a member, or a public constructor a parameter, with this name.</summary>
+    /// <summary>型に同名のメンバーがあるか、public コンストラクターに同名のパラメーターがあるか。</summary>
     private static bool IsNameTaken(INamedTypeSymbol?Type,string Name){
         for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
             if(!Current.GetMembers(Name).IsEmpty){ return true; }
@@ -533,7 +519,7 @@ internal static class SceneJsonSceneAnalyzer {
         return Type is not null&&Type.InstanceConstructors.Any(Constructor=>
             Constructor.DeclaredAccessibility==Accessibility.Public&&Constructor.Parameters.Any(Parameter=>Parameter.Name==Name));
     }
-    /// <summary>The settable angle member whose unit-free key is <paramref name="Key"/>.</summary>
+    /// <summary>単位なしのキーが <paramref name="Key"/> である、設定可能な角度メンバー。</summary>
     private static ISymbol?FindSettableAngleByKey(INamedTypeSymbol Type,string Key){
         for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
             foreach(var Member in Current.GetMembers()){
@@ -543,7 +529,7 @@ internal static class SceneJsonSceneAnalyzer {
         return null;
     }
     internal static ITypeSymbol?FindSettableMember(INamedTypeSymbol Type,string Name)=>TypeOf(FindSettableMemberSymbol(Type,Name));
-    /// <summary>The public instance field or settable property a JSON key assigns.</summary>
+    /// <summary>JSON キーが代入する、public インスタンスフィールドまたは設定可能なプロパティ。</summary>
     internal static ISymbol?FindSettableMemberSymbol(INamedTypeSymbol Type,string Name){
         for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
             foreach(var Member in Current.GetMembers(Name)){
@@ -559,7 +545,7 @@ internal static class SceneJsonSceneAnalyzer {
         IPropertySymbol Property=>Property.Type,
         _=>null,
     };
-    /// <summary>The unit an <c>[Angle]</c> attribute declares on a field, property or parameter (ADR-0074).</summary>
+    /// <summary>フィールド、プロパティ、パラメーター上の <c>[Angle]</c> 属性が宣言する単位（ADR-0074）。</summary>
     internal static SceneAngleUnit?AngleUnitOf(ISymbol?Symbol){
         if(Symbol is null){ return null; }
         foreach(var Attribute in Symbol.GetAttributes()){
@@ -576,9 +562,9 @@ internal static class SceneJsonSceneAnalyzer {
             return "default";
         }
         if(Value.Kind==SceneJsonKind.Null){
-            // A reference type's null is null!: the generated file is #nullable enable, so null for a member the game declares
-            // non-nullable (the palette writes one for an unset string or array) was a CS8625 warning, an error where
-            // warnings are errors. The value is the same null.
+            // 参照型メンバーの null は null! として出力する。生成ファイルは #nullable enable のため、ゲームが null 不可として宣言した
+            // メンバーを null にすると CS8625 警告になり、警告をエラー扱いする場所ではエラーになる。未設定の string や配列に対して
+            // パレットが出力する値も同じ null とする。
             if(Type.IsReferenceType){ return "null!"; }
             return Type.OriginalDefinition.SpecialType==SpecialType.System_Nullable_T?"null":Mismatch("null is only valid for reference and nullable types");
         }
@@ -592,8 +578,8 @@ internal static class SceneJsonSceneAnalyzer {
             if(IsObsoleteError(Member)){ return Mismatch($"'{Value.Text}' is obsolete and cannot be used"); }
             return SceneTypePredicates.ToFullyQualifiedName(Type)+"."+Identifier(Member.Name);
         }
-        // An angle in turns becomes its member's unit, where a number that fits float may not (1e37 turns in degrees):
-        // formatting that infinity as the literal threw, failing the analyzer and the whole generator (CS8785).
+        // 回転数の角度をメンバーの単位に変換すると、float で表せる値でもその単位では表せないことがある（度数への変換で1e37回転など）。
+        // 無限大をリテラルとして書式化すると例外になり、アナライザー全体とジェネレーターが失敗していた（CS8785）。
         if(Unit is not null&&Angles.Turns&&NumberIn(Value,Angles,Unit) is { }Converted&&(float.IsInfinity(Converted)||float.IsNaN(Converted))){
             return Mismatch($"the angle is beyond the range of float in {(Unit==SceneAngleUnit.Radians?"radians":"degrees")}");
         }
@@ -616,16 +602,16 @@ internal static class SceneJsonSceneAnalyzer {
         }
         if(Value.Kind==SceneJsonKind.Number){
             var Single=Compilation.GetSpecialType(SpecialType.System_Single);
-            // Every emitted position (named argument, initializer, array or collection element) is
-            // target-typed, so the implicit conversion applies without a cast. A cast would also make
-            // the value unreadable to the Scene DSL analyzer that the editor runs over this text.
+            // 出力する各位置（名前付き引数、初期化子、配列またはコレクション要素）は
+            // 目標型が決まっているため、キャストなしで暗黙変換が適用される。キャストを付けると
+            // エディターがこのテキストに対して実行する Scene DSL アナライザーが値を読み取れなくなる。
             if(!Compilation.ClassifyConversion(Single,Type).IsImplicit){
                 return Mismatch("a number needs a numeric member or a type convertible from float");
             }
             if(FloatRange(Value,Mismatch) is { }OutOfFloat){ return OutOfFloat; }
-            // LogicalScalar's conversion from float throws beyond Q64.64 when the scene is instantiated.
-            // No value here is a number that fits float but that this runtime's parse rejects (.NET Framework, for text
-            // just above float.MaxValue that C# rounds down to it): far past Q64.64.
+            // Scene のインスタンス化時、LogicalScalar の float からの変換は Q64.64 の範囲を超えると例外をスローする。
+            // この値に含まれるのは、float には収まるが実行環境の解析処理で拒否される数値（.NET Framework では、
+            // float.MaxValue を少し超え、C# がその値に丸めるような数値）ではない。Q64.64 の範囲を大きく超えている。
             if(SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar"
                 &&(NumberIn(Value,Angles,Unit) is not { }Scalar||!(Math.Abs(Scalar)<LogicalScalarLimit))){
                 return Mismatch("the number is beyond the Q64.64 range of about ±9.2e18");
@@ -635,7 +621,7 @@ internal static class SceneJsonSceneAnalyzer {
         if(Value.Kind==SceneJsonKind.Array){
             var Element=Type is IArrayTypeSymbol Array?Array.ElementType:ElementTypeOf(Type,Compilation);
             if(Element is null){ return Mismatch("an array needs an array or collection member"); }
-            // The emitted array creation or collection expression must compile; the generated file is no place for the error.
+            // 出力する配列生成式またはコレクション式はコンパイル必須。エラーを生成ファイルへ持ち込まない。
             if(Type is IArrayTypeSymbol{ Rank:>1 }){ return Mismatch("a multidimensional array cannot be written in scene JSON; use an array of arrays"); }
             if(Type is not IArrayTypeSymbol&&!IsCollectionExpressionTarget(Type,Element,Compilation)){
                 return Mismatch("this collection type cannot be created from a list of elements (it needs a public parameterless constructor and a public Add that takes one element)");
@@ -646,7 +632,7 @@ internal static class SceneJsonSceneAnalyzer {
                 :"["+string.Join(", ",Items)+"]";
         }
         if(Value.Kind==SceneJsonKind.Object&&Type is INamedTypeSymbol Named&&Named.TypeKind is TypeKind.Struct or TypeKind.Class){
-            // An object is emitted as new T(...) { ... }, which C# does not allow for a tuple type.
+            // オブジェクトは new T(...) { ... } として出力するが、C# ではタプル型にこの構文を使えない。
             if(Named.IsTupleType){ return Mismatch("a tuple cannot be written in scene JSON; use a struct with named members"); }
             if(Named.IsAbstract){ return Mismatch("an abstract type cannot be created; use a concrete type"); }
             return ObjectExpression(Named,Value,MemberName,Compilation,Problems,Angles,Unit);
@@ -654,9 +640,8 @@ internal static class SceneJsonSceneAnalyzer {
         return Mismatch("this JSON value cannot be converted to the member's type");
     }
     /// <summary>
-    /// A number's literal text. Inside an angle member it is recorded, and a turns document's value becomes the
-    /// member's unit (ADR-0074). The literal is the shortest text of that float in either version, so a version 1
-    /// document and its upgrade emit the same text.
+    /// 数値のリテラルテキスト。角度メンバー内では記録しておき、回転数形式のドキュメント値はメンバーの単位に変換する（ADR-0074）。どちらのバージョンでも、その float を表す最短テキストを使うため
+    /// 、バージョン1のドキュメントと更新後のドキュメントで出力が一致する。
     /// </summary>
     private static string AngleText(SceneJsonValue Value,AngleReading Angles,SceneAngleUnit?Unit){
         if(Unit is not { }AngleUnit||Value.Kind!=SceneJsonKind.Number){ return Value.Text??string.Empty; }
@@ -667,10 +652,10 @@ internal static class SceneJsonSceneAnalyzer {
             :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture));
     }
     /// <summary>
-    /// Whether a collection expression creates this type (C# 12): one of the list interfaces, a type with a
-    /// <c>[CollectionBuilder]</c> (<c>ImmutableArray&lt;T&gt;</c>), or a concrete type with a public parameterless
-    /// constructor and a public <c>Add</c> that takes one element (<c>List&lt;T&gt;</c>, <c>HashSet&lt;T&gt;</c>; not
-    /// <c>Queue&lt;T&gt;</c>, <c>Stack&lt;T&gt;</c> or <c>Dictionary&lt;K,V&gt;</c>).
+    /// コレクション式でこの型のインスタンスを作成できるか（C# 12）。対象はリスト系インターフェース、<c>[CollectionBuilder]</c> を持つ型（
+    /// <c>ImmutableArray&lt;T&gt;</c>）、または public の引数なしコンストラクターと要素を1つ取る public <c>Add</c> を持つ具象型（
+    /// <c>List&lt;T&gt;</c>、<c>HashSet&lt;T&gt;</c>）。<c>Queue&lt;T&gt;</c>、<c>Stack&lt;T&gt;</c>、
+    /// <c>Dictionary&lt;K,V&gt;</c> は対象外。
     /// </summary>
     internal static bool IsCollectionExpressionTarget(ITypeSymbol Type,ITypeSymbol Element,Compilation Compilation){
         if(Type is not INamedTypeSymbol Named){ return false; }
@@ -705,30 +690,27 @@ internal static class SceneJsonSceneAnalyzer {
         }
         return null;
     }
-    /// <summary>A member, parameter or enum member name as C# source: a reserved keyword (a field named <c>@class</c>) needs the verbatim prefix.</summary>
+    /// <summary>メンバー、パラメーター、列挙メンバーの名前を C# ソースとして出力する形式。予約キーワード（<c>@class</c> というフィールドなど）には逐語的識別子の接頭辞が必要。</summary>
     private static string Identifier(string Name)=>SyntaxFacts.GetKeywordKind(Name)==SyntaxKind.None?Name:"@"+Name;
-    /// <summary>2^63, the magnitude where a float stops fitting Q64.64's integer part (<c>LogicalScalar.TryFromSingle</c>).</summary>
+    /// <summary>2^63。float が Q64.64 の整数部に収まらなくなる境界（<c>LogicalScalar.TryFromSingle</c>）。</summary>
     private const float LogicalScalarLimit=9.223372e18f;
     /// <summary>
-    /// A mismatch for a number a float cannot hold (its literal would not compile), or null. The compiler's lexer decides,
-    /// as in <see cref="RealLiteral"/>: <c>float.TryParse</c> returns an infinity on .NET but fails on .NET Framework (the
-    /// VSIX and a build under Visual Studio's MSBuild), where reading only the infinity let such a number through.
+    /// float で保持できず、リテラルがコンパイルされない数値の不一致、または不一致がないことを示す。<see cref="RealLiteral"/> と同様にコンパイラーの字句解析を使う。
+    /// <c>float.TryParse</c> は .NET では無限大を返すが、.NET Framework（VSIX と Visual Studio の MSBuild でのビルド）では失敗する。
+    /// 無限大だけを確認すると、そのような数値を受け入れてしまっていた。
     /// </summary>
     private static string?FloatRange(SceneJsonValue Value,Func<string,string>Mismatch)=>
         Value.Kind==SceneJsonKind.Number&&SyntaxFactory.ParseToken(Value.Text!.TrimStart('-')+"f").ContainsDiagnostics
             ?Mismatch("the number is beyond the range of float")
             :null;
-    /// <summary>A number in its member's unit (a turns document's angle converted, as the emitted literal is), or null.</summary>
+    /// <summary>メンバーの単位に変換した数値（回転数形式のドキュメントでは、出力リテラルと同様に変換した角度）、または null。</summary>
     private static float?NumberIn(SceneJsonValue Value,AngleReading Angles,SceneAngleUnit?Unit){
         if(Value.Kind!=SceneJsonKind.Number||!SceneJsonAngles.IsNumber(Value.Text)){ return null; }
         return Unit is { }AngleUnit&&Angles.Turns
             ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
             :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture);
     }
-    /// <summary>
-    /// A real literal, or a mismatch for a number its type cannot hold: the compiler's lexer decides, as it rejects the
-    /// generated literal (CS0594). A JSON minus sign is a separate C# token, so it is left out of the check.
-    /// </summary>
+    /// <summary>実数リテラル、または型で保持できない数値との不一致。生成したリテラルを拒否するかどうか（CS0594）を、コンパイラーの字句解析で判断する。JSON の負号は独立した C# トークンなので、検査対象に含めない。</summary>
     private static string RealLiteral(string Text,SceneJsonValue Value,string Suffix,Func<string,string>Mismatch){
         if(Value.Kind!=SceneJsonKind.Number){ return Mismatch("expected a number"); }
         if(SyntaxFactory.ParseToken(Text.TrimStart('-')+Suffix).ContainsDiagnostics){
@@ -744,14 +726,14 @@ internal static class SceneJsonSceneAnalyzer {
         } else if(ulong.TryParse(Value.Text,NumberStyles.None,CultureInfo.InvariantCulture,out var Unsigned)){
             InRange=Unsigned<=Maximum;
         } else {
-            // Past ulong's range both parses fail on digits alone: that is out of range, not a missing integer.
+            // ulong の範囲を超える数字だけのテキストは、どちらの解析でも失敗する。整数がないのではなく範囲外。
             var Digits=Value.Text!.TrimStart('-');
             return Mismatch(Digits.Length>0&&Digits.All(static Digit=>Digit>='0'&&Digit<='9')
                 ?"the integer is out of range"
                 :"expected an integer without a fraction or exponent");
         }
         if(!InRange){ return Mismatch("the integer is out of range"); }
-        // A cast needs parentheses around a negative literal: (short)(-5), not (short)-5.
+        // 負のリテラルへキャストするときは括弧が必要。(short)(-5) が正しく、(short)-5 ではない。
         return Cast.Length==0?Value.Text!:Cast+"("+Value.Text+")";
     }
     private static void RejectUnknownKeys(SceneJsonValue Object,string[]Allowed,string Kind,List<SceneJsonProblem>Problems){
@@ -772,11 +754,9 @@ internal static class SceneJsonSceneAnalyzer {
     }
     private static SceneJsonProblem Invalid(SceneJsonValue At,string Message)=>new(SceneJsonDiagnostics.InvalidDocument,At.Start,At.End,Message);
     /// <summary>
-    /// Why the scene class cannot be generated under this name, or null. The generated <c>partial class</c> joins a user's
-    /// partial class of the same name, but a type that is not (a struct, a non-partial class, a referenced assembly's type)
-    /// or a namespace of the same full name made the generated file fail to compile (CS0101, CS0260, CS0261, CS0436).
-    /// The scene's own generated file (<c>{FullName}.Scene.g.cs</c>, in the compilation an analyzer or the editor sees) is
-    /// not a conflict.
+    /// この名前で Scene クラスを生成できない理由、または生成上の問題がないことを示す。生成する <c>partial class</c> は同名のユーザー定義 partial クラスに結合する。ただし
+    /// 、型ではないもの（構造体、partial ではないクラス、参照アセンブリの型）や、同じ完全修飾名の名前空間があると生成ファイルがコンパイルできない（CS0101、CS0260、CS0261、
+    /// CS0436）。Scene 自身の生成ファイル（<c>{FullName}.Scene.g.cs</c>。アナライザーまたはエディターから見えるコンパイル内のもの）は競合しない。
     /// </summary>
     private static string?ClassNameConflict(string?Namespace,string ClassName,Compilation Compilation){
         var FullName=Namespace is null?ClassName:Namespace+"."+ClassName;

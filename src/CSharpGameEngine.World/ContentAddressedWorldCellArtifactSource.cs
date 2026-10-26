@@ -3,7 +3,7 @@ using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.World;
 
-/// <summary>Retained world-cell leases over immutable CAS objects resolved by one published index snapshot.</summary>
+/// <summary>公開された1つのインデックススナップショットで解決した、不変CASオブジェクトに対する保持中のワールドセルリース。</summary>
 public sealed class ContentAddressedWorldCellArtifactSource:IWorldCellArtifactSource {
     private readonly object Gate=new();
     private readonly Dictionary<AssetArtifactReference,CacheEntry>Cache=[];

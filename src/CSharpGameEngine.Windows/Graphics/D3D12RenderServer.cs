@@ -3,7 +3,7 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.Backend;
 using CSharpGameEngine.Rendering.Server;
 namespace CSharpGameEngine.Graphics.D3D12;
-/// <summary>Native composition root; the returned server owns portable state and recovery.</summary>
+/// <summary>ネイティブ描画の構成ルート。返すサーバーが移植可能な状態と回復処理を所有する。</summary>
 public static class D3D12RenderServer {
     private static readonly ConditionalWeakTable<RenderServer,D3D12StageBackendFactory>Factories=new();
     public static RenderServer Create(nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
@@ -45,7 +45,7 @@ public static class D3D12RenderServer {
         }
     }
 }
-/// <summary>Native-only executable probes; the production L4 port has no fault-injection or depth-readback test API.</summary>
+/// <summary>ネイティブ専用の実行テスト。製品用 L4 ポートには、障害注入や深度読み戻し用のテスト API はない。</summary>
 internal static class D3D12RenderServerTestAccess {
     internal static void RemoveDeviceForTesting(this RenderServer Server)=>D3D12RenderServer.BackendForTesting(Server).RemoveDeviceForTesting();
     internal static float[]ReadDepthForTesting(this RenderServer Server)=>D3D12RenderServer.BackendForTesting(Server).ReadDepthForTesting();

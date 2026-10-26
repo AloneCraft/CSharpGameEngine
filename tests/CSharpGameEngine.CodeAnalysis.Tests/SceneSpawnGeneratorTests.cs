@@ -1,13 +1,13 @@
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0078/M0105: a Scene whose root has a Transform can be created at a position while the game runs. The generator gives it
-/// <c>InstantiateDeferredAt</c> and marks it <c>ISpawnableScene</c>, so <c>Spawner.Spawn&lt;TScene&gt;</c> accepts exactly those Scenes. Also the
-/// service the Spawner is: a sealed class that is not disposable must compile into the loop.
+/// ADR-0078/M0105：ルートに Transform がある Scene は、ゲーム実行中に指定位置へ生成できる。ジェネレーターは <c>InstantiateDeferredAt</c> を
+/// 実装し、<c>ISpawnableScene</c> の印を付ける。そのため <c>Spawner.Spawn&lt;TScene&gt;</c> が受け付けるのはこの Scene だけ。
+/// Spawner サービス自体も、sealed で IDisposable を実装しないクラスとしてループ内にコンパイルできることを確認する。
 /// </summary>
 public sealed class SceneSpawnGeneratorTests {
     private static readonly string EngineServiceAttribute=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Core","EngineServiceAttribute.cs"));
-    /// <summary>The engine's Transform, vectors and the spawnable-scene contract, reduced to what the generated code touches.</summary>
+    /// <summary>生成コードが使用する範囲に絞った、エンジンの Transform、ベクトル、生成可能 Scene の契約。</summary>
     private const string Contract="""
         namespace CSharpGameEngine.Numerics
         {
@@ -59,7 +59,7 @@ public sealed class SceneSpawnGeneratorTests {
         Assert.Contains("partial class WithTransform : global::CSharpGameEngine.Entities.ISceneDefinition, global::CSharpGameEngine.Entities.ISpawnableScene {",With);
         Assert.Contains("public static global::CSharpGameEngine.Entities.SceneInstance InstantiateDeferredAt(ref global::CSharpGameEngine.Entities.World World, global::CSharpGameEngine.Numerics.LogicalVector3 Position) {",With);
         Assert.Contains("public static global::CSharpGameEngine.Entities.SceneInstance InstantiateDeferredAt(ref global::CSharpGameEngine.Entities.World World, global::CSharpGameEngine.Numerics.LogicalVector3 Position, global::CSharpGameEngine.Numerics.LogicalQuaternion Rotation) {",With);
-        // Only the root's Transform is replaced; the child keeps what it was authored with.
+        // 置き換えるのはルートの Transform だけ。子は作成時に設定されたままにする。
         Assert.Equal(2,Count(With,"global::CSharpGameEngine.Entities.SceneSpawn.At("));
         var Without=Text(Result,"WithoutTransform");
         Assert.DoesNotContain("ISpawnableScene",Without);
@@ -67,7 +67,7 @@ public sealed class SceneSpawnGeneratorTests {
     }
     [Fact]
     public void WithoutTheSpawnContractInTheCompilationNothingSpawnableIsEmitted(){
-        // A compilation that does not have ISpawnableScene (such as the generator's other tests) gets the scenes it always got.
+        // ISpawnableScene がないコンパイル（ジェネレーターの他のテストなど）では、従来どおりの Scene を取得する。
         var Result=GameSystemGeneratorTestHelper.RunGenerator([GameSystemGeneratorTestHelper.CommonComponents,Contract.Replace("ISpawnableScene : ISceneDefinition","ISomethingElse : ISceneDefinition"),Scenes]);
         Assert.DoesNotContain("InstantiateDeferredAt",Text(Result,"WithTransform"));
     }
@@ -108,7 +108,7 @@ public sealed class SceneSpawnGeneratorTests {
     }
     [Fact]
     public void ASealedServiceThatIsNotDisposableCompilesIntoTheLoopAndShutdownLeavesItAlone(){
-        // The loop disposes the services it made when the game ends; testing a sealed class against IDisposable directly is CS8121.
+        // ゲーム終了時にループが生成したサービスを破棄する。sealed クラスを IDisposable と直接照合するテストは CS8121 になる。
         const string Service="""
             using CSharpGameEngine.Authoring;
             namespace Game;

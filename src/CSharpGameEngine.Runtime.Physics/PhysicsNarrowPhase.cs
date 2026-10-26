@@ -46,7 +46,7 @@ internal readonly struct PhysicsContactCandidate {
     }
 
     internal LogicalVector3 Normal { get; }
-    /// <summary>Face normal of the touched triangle, pointing toward the other shape; zero for contacts without a single face.</summary>
+    /// <summary>接触した三角形の面法線。もう一方の形状を向く。単一の面がない接触ではゼロ。</summary>
     internal LogicalVector3 SurfaceNormal { get;init; }
     internal uint FeatureId { get; }
     internal int Count { get; }
@@ -71,7 +71,7 @@ internal readonly struct PhysicsContactCandidate {
     private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
 }
 
-/// <summary>Support-mapped convex narrow phase. Meshes are queried through their cooked BVH.</summary>
+/// <summary>サポート写像を使う凸形状の狭域判定。メッシュは調理済み BVH を使って問い合わせる。</summary>
 internal sealed class PhysicsNarrowPhase {
     private const int GjkIterations=32;
     private const int EpaIterations=48;
@@ -80,12 +80,11 @@ internal sealed class PhysicsNarrowPhase {
     private static readonly LogicalScalar EpaTolerance=LogicalScalar.FromSingle(0.0001f);
     private static readonly LogicalScalar TriangleHalfThickness=LogicalScalar.FromSingle(0.0005f);
     /// <summary>
-    /// How far above a mesh face a box's corner still joins the contact patch (ADR-0078/M0109). A fast box meets a face with the lowest corners first (30 m/s is half a metre a tick),
-    /// so a patch of the entered corners alone puts the whole impact on two points and spins the box; the corners just above the face carry their share, as speculative points
-    /// (a negative penetration: the solver lets them approach only as fast as they can before touching).
+    /// ボックスの角が接触パッチに含まれる、メッシュ面より上側の許容範囲（ADR-0078/M0109）。高速のボックスは、まず低い角から面に接触する（速度30 m/sなら1ティックに0.5 m進む）。接触し
+    /// た角だけでパッチを作ると衝撃全体が2点に集中してボックスが回転するため、面のすぐ上にある角にも予測接触点として荷重を分担させる（深さを負の値とし、接触前に近づける速度を制限する）。
     /// </summary>
     private static readonly LogicalScalar BoxMeshSpeculativeMargin=LogicalScalar.FromSingle(0.05f);
-    // Contact slack plus a margin for the support-mapped query bounds' rounding.
+    // 接触の許容幅に、サポート写像による問い合わせ境界の丸め分を加える。
     private static readonly LogicalScalar TriangleCullSlack=TriangleHalfThickness+LogicalScalar.FromSingle(0.001f);
     private readonly List<int> TriangleCandidates=[];
     private readonly Dictionary<PhysicsShapeAsset,AssetBoundsEntry> AssetBounds=new(ReferenceEqualityComparer.Instance);
@@ -105,16 +104,16 @@ internal sealed class PhysicsNarrowPhase {
     private readonly record struct EpaEdge(int A,int B);
 
     /// <summary>
-    /// The most face orientations one contact holds at once (M0124): a box, polyhedron or compound against a triangle mesh (a car straddling a curb's slope and
-    /// the ground) or a compound against anything gets one patch of up to four points per orientation, so one pair has at most <see cref="MaximumContactPoints"/>.
+    /// 1つの接触が同時に保持できる面の向きの最大数（M0124）。メッシュ三角形に乗るボックス、多面体、複合形状（車が縁石の斜面と地面をまたぐ場合など）、または何らかの形状と接触する複合形状では、向きごとに
+    /// 最大4点のパッチを1つずつ作る。そのため、1つの形状対に含まれる接触点は <see cref="MaximumContactPoints"/> 以下となる。
     /// </summary>
     internal const int MaximumContactPatches=3;
     internal const int MaximumContactPoints=MaximumContactPatches*4;
-    /// <summary>Two contact normals within about 18 degrees (a dot product of 0.95 or more) are one orientation.</summary>
+    /// <summary>内積が0.95以上（およそ18度以内）となる2つの接触法線は、同じ向きとして扱う。</summary>
     private static readonly LogicalScalar SameOrientation=LogicalScalar.FromSingle(0.95f);
     private readonly List<PhysicsContactCandidate>SinglePatches=[];
 
-    /// <summary>The deepest patch of <see cref="TryCreateContacts"/> (the whole contact for every pair that has one orientation).</summary>
+    /// <summary><see cref="TryCreateContacts"/> が返す、最も深いパッチ（向きが1つの形状対なら接触全体）。</summary>
     internal bool TryCreateContact(
         in PhysicsCollisionShape First,in PhysicsCollisionShape Second,
         out PhysicsContactCandidate Contact){
@@ -128,8 +127,8 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     /// <summary>
-    /// Appends the contact of two shapes to <paramref name="Patches"/>: one patch per face orientation (at most <see cref="MaximumContactPatches"/>), the deepest
-    /// first. Every patch's normal points from the first shape into the second. False (nothing appended) when they do not touch.
+    /// 2つの形状の接触を <paramref name="Patches"/> に追加する。面の向きごとに最大 <see cref="MaximumContactPatches"/> 個のパッチを作り、深い
+    /// 順に並べる。各パッチの法線は第1形状から第2形状へ向く。接触していない場合は false（何も追加しない）。
     /// </summary>
     internal bool TryCreateContacts(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,List<PhysicsContactCandidate>Patches){
         if(First.Collider.Shape==ColliderShape.Compound||Second.Collider.Shape==ColliderShape.Compound){
@@ -150,27 +149,27 @@ internal sealed class PhysicsNarrowPhase {
         Contact=default;
         if(!IsConvex(First.Collider.Shape)||!IsConvex(Second.Collider.Shape)){ return false; }
         if(TryPrimitiveContact(First,Second,out Contact)){ return true; }
-        // ADR-0078/M0113: two polytopes, one of them a polyhedron (a fragment): the face planes decide it in most cases (see TryPolytopeContact).
+        // ADR-0078/M0113：凸多面体同士（少なくとも一方は破片などの多面体）。多くの場合、面の平面を使って判定する（TryPolytopeContact を参照）。
         if((IsPolyhedron(First)||IsPolyhedron(Second))&&HasPolytope(First)&&HasPolytope(Second)
             &&this.TryPolytopeContact(First,Second,out var Touching,out Contact)){ return Touching; }
         if(!TryConvexContact(new ShapeProxy(First),new ShapeProxy(Second),0,out Contact)){ return false; }
-        // ADR-0078/M0113: a convex polyhedron (a fragment) touching a face gets a patch of every corner inside the other shape, not GJK's one point.
+        // ADR-0078/M0113：凸多面体（破片）が面に接触したとき、GJK の1点ではなく、もう一方の形状内にある各角から接触パッチを作る。
         if((IsPolyhedron(First)||IsPolyhedron(Second))&&HasPolytope(First)&&HasPolytope(Second)){
             Contact=ExpandPolytopeManifold(First,Second,Contact);
         }
         return true;
     }
 
-    /// <summary>A convex asset with face planes (<see cref="PhysicsShapeAsset.CreateConvexPolyhedron"/>).</summary>
+    /// <summary>面の平面を持つ凸形状アセット（<see cref="PhysicsShapeAsset.CreateConvexPolyhedron"/>）。</summary>
     private static bool IsPolyhedron(in PhysicsCollisionShape Shape)=>
         Shape.Collider.Shape==ColliderShape.ConvexAsset&&Shape.Asset is { Kind:PhysicsShapeAssetKind.Convex,PlaneCount:>0 };
 
-    /// <summary>A shape whose corners and inside are known: a box or a convex polyhedron.</summary>
+    /// <summary>角と内部形状が既知の形状。ボックスまたは凸多面体。</summary>
     private static bool HasPolytope(in PhysicsCollisionShape Shape)=>Shape.Collider.Shape==ColliderShape.Box||IsPolyhedron(Shape);
 
     private const int MaximumPolytopeVertices=64;
 
-    /// <summary>Writes the world corners of a box (8) or a polyhedron (its vertices) into <paramref name="Corners"/>; -1 when they do not fit or overflow.</summary>
+    /// <summary>ボックスのワールド座標上の角（8点）または多面体の頂点を <paramref name="Corners"/> に書き込む。格納できない、またはオーバーフローした場合は -1。</summary>
     private static int PolytopeCorners(in PhysicsCollisionShape Shape,Span<LogicalVector3>Corners){
         if(!TryColliderCenter(Shape,out var Center)){ return -1; }
         if(Shape.Collider.Shape==ColliderShape.Box){
@@ -191,7 +190,7 @@ internal sealed class PhysicsNarrowPhase {
         return Vertices.Count;
     }
 
-    /// <summary>Whether a world point lies inside a box or polyhedron, within <paramref name="Tolerance"/> of every face.</summary>
+    /// <summary>ワールド座標上の点が、各面から <paramref name="Tolerance"/> 以内でボックスまたは多面体の内部にあるか。</summary>
     private static bool PolytopeContains(in PhysicsCollisionShape Shape,LogicalVector3 Point,LogicalScalar Tolerance){
         if(!TryColliderCenter(Shape,out var Center)||!Shape.Rotation.Conjugate().TryRotate(Point-Center,out var Local)){ return false; }
         if(Shape.Collider.Shape==ColliderShape.Box){
@@ -202,10 +201,9 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     /// <summary>
-    /// ADR-0078/M0113: widens a GJK/EPA contact between two polytopes (at least one a convex polyhedron) into a patch. Every corner of one shape that lies inside
-    /// the other (within 0.1 mm) is a point; its depth is measured along the contact normal from the other shape's extreme along it. Up to four points are kept,
-    /// the deepest first and then the ones farthest from those already kept, so the patch spans the touching face. Fewer than two points keep the single
-    /// EPA point (an edge or a tip touching).
+    /// ADR-0078/M0113：GJK/EPA が2つの凸形状（少なくとも一方は凸多面体）に対して求めた接触を、接触パッチに広げる。一方の形状の角がもう一方の内部にあれば（0.1 mm以内）、その角を
+    /// 接触点にする。深さは、接触法線に沿って測ったもう一方の形状の最外点から求める。最大4点を選び、最も深い点を先頭にし、その後は既に選んだ点から最も遠い点を選んで、接触面全体を覆うパッチにする。2点未満の
+    /// 場合は、EPA の1点接触を維持する（辺または頂点での接触）。
     /// </summary>
     private static PhysicsContactCandidate ExpandPolytopeManifold(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,in PhysicsContactCandidate Contact){
         if(!Contact.Normal.TryNormalize(out var Normal)){ return Contact; }
@@ -243,7 +241,7 @@ internal sealed class PhysicsNarrowPhase {
 
     private const int MaximumPolytopePlanes=64;
 
-    /// <summary>Writes a box's (6) or a polyhedron's world face planes (outward normal, distance); -1 when they do not fit or overflow.</summary>
+    /// <summary>ボックス（6面）または多面体のワールド座標上の面平面（外向き法線と距離）を書き込む。格納できない、またはオーバーフローした場合は -1。</summary>
     private static int PolytopePlanes(in PhysicsCollisionShape Shape,Span<LogicalVector3>Normals,Span<LogicalScalar>Distances){
         if(!TryColliderCenter(Shape,out var Center)){ return -1; }
         if(Shape.Collider.Shape==ColliderShape.Box){
@@ -278,9 +276,8 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     /// <summary>
-    /// A polytope placed in the world for one pose: its corners, its outward face planes, its centre and the radius of a sphere about the centre that holds
-    /// it. A polyhedron's frame is kept per asset and made again only when the pose changes, so every pair a body takes part in during a tick shares one set
-    /// of rotations (a rotation costs about 10 µs and a dot product 1 µs in Q64.64).
+    /// 1つの姿勢におけるワールド空間の凸形状。各角、外向き面平面、中心、および形状全体を囲む中心を基準とした球の半径を保持する。多面体の座標枠はアセットごとに保持し、姿勢が変わったときだけ再作成する。これに
+    /// より、1ティック中にボディが関わるすべての形状対で回転計算を共有できる（Q64.64 では回転に約10 µs、内積に約1 µsかかる）。
     /// </summary>
     private sealed class PolytopeFrame {
         internal readonly LogicalVector3[]Corners=new LogicalVector3[MaximumPolytopeVertices];
@@ -302,14 +299,14 @@ internal sealed class PhysicsNarrowPhase {
     private readonly Dictionary<PhysicsShapeAsset,PolytopeFrame>PolyhedronFrames=new(ReferenceEqualityComparer.Instance);
     private readonly PolytopeFrame FirstBoxFrame=new();
     private readonly PolytopeFrame SecondBoxFrame=new();
-    /// <summary>The second shape's frame when both shapes of a pair are the same polyhedron asset (made again for every such pair).</summary>
+    /// <summary>形状対の両方が同一の多面体アセットである場合の、第2形状の座標枠（そのような各形状対について再作成する）。</summary>
     private readonly PolytopeFrame SharedSecondFrame=new();
     private const int MaximumPolyhedronFrames=4096;
 
     /// <summary>
-    /// The world frame of a box or polyhedron (null when it does not fit or overflows). <paramref name="Taken"/> is the frame the pair's first shape already
-    /// holds: two bodies cut from one fracture asset (two crates of one cook) share each fragment's shape, and the second must not overwrite the first's frame,
-    /// or the pair is tested against itself (a full overlap: bodies sank through each other and piles bounced for ever).
+    /// ボックスまたは多面体のワールド座標枠（格納不能またはオーバーフロー時は null）。<paramref name="Taken"/> は形状対の第1形状がすでに保持している座標枠。同じ破砕アセットから
+    /// 作られた2つのボディ（同じ調理結果を使う箱など）は各破片の衝突形状を共有するため、第2形状で第1形状の座標枠を上書きしてはならない。上書きすると形状対が自身と衝突判定され、完全に重なったものとして扱わ
+    /// れる（ボディが互いに沈み込み、積み上げた物体がいつまでも跳ね続ける）。
     /// </summary>
     private PolytopeFrame?Frame(in PhysicsCollisionShape Shape,bool First,PolytopeFrame?Taken=null){
         PolytopeFrame Frame;
@@ -350,11 +347,10 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     /// <summary>
-    /// ADR-0078/M0113: two polytopes (a box or a convex polyhedron each, at least one a polyhedron) by their face planes, in place of GJK/EPA. Two spheres
-    /// about the shapes that do not meet separate them at once. A face whose plane has every corner of the other shape outside (by more than 0.1 mm)
-    /// separates them. Otherwise the face with the least overlap gives the normal and its depth, and the patch is every corner inside the other shape
-    /// (as <see cref="ExpandPolytopeManifold"/>). Returns false (undecided) when no corner is inside: an edge crossing an edge, or two shapes that only an
-    /// edge-to-edge axis separates; GJK/EPA then decides.
+    /// ADR-0078/M0113：GJK/EPA の代わりに、2つの凸形状（それぞれボックスまたは凸多面体で、少なくとも一方は多面体）を面平面で判定する。形状を囲む2つの球が接触しなければ、すぐに非接触と
+    /// 判断する。もう一方の形状の全頂点が面の外側（0.1 mmを超える距離）にある面が見つかれば、非接触と判断する。そうでなければ、重なりが最小の面から法線と深さを求め、その面について相手形状の内部にあるす
+    /// べての角を接触パッチにする（<see cref="ExpandPolytopeManifold"/> と同様）。内部の角が見つからず判定できない場合は false を返す。辺同士の交差や、辺と辺の軸だ
+    /// けで分離できる2形状などを、GJK/EPA で判定する。
     /// </summary>
     private bool TryPolytopeContact(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,out bool Touching,out PhysicsContactCandidate Contact){
         Touching=false;
@@ -427,10 +423,9 @@ internal sealed class PhysicsNarrowPhase {
         return true;
     }
     /// <summary>
-    /// Chooses up to four of <paramref name="Points"/> and returns them in the order they were given (so a point keeps its slot, and its warm-started
-    /// impulse, from tick to tick): first the deepest, then each time the one farthest from those already chosen, so the patch is as wide as the touching
-    /// area. Depths within 0.5 mm and distances within 1 mm² count as equal and go to the earlier point: a body resting on a face has corners of nearly the
-    /// same depth, and a choice that flipped between them every tick moved the warm-started impulses to other corners and kept the body rocking.
+    /// <paramref name="Points"/> から最大4点を選び、入力された順序のまま返す。これにより各点はティック間で同じスロットとウォームスタート済み力積を保つ。まず最も深い点を選び、その後
+    /// は選択済みの点から最も遠い点を順に選び、接触領域を幅広く覆うパッチにする。深さの差が0.5 mm以内、または距離の差が1 mm²以内なら同値として、先に現れた点を選ぶ。面に載ったボディの角は深さがほぼ
+    /// 等しいため、毎ティック選択が入れ替わるとウォームスタート済み力積が別の角へ移り、ボディが揺れ続ける。
     /// </summary>
     private static int SpreadPoints(ReadOnlySpan<LogicalVector3>Points,ReadOnlySpan<LogicalScalar>Depths,Span<LogicalVector3>Patch,Span<LogicalScalar>PatchDepths){
         var First=0;
@@ -442,8 +437,8 @@ internal sealed class PhysicsNarrowPhase {
         Taken[First]=true;
         Chosen[0]=First;
         var Kept=1;
-        // M0124: the points that entered the surface (a positive depth) are spread first, and only the slots left go to speculative points (a negative
-        // depth: a corner a little above it). A speculative corner far away beat the second end of a ridge holding the body, which then turned about one point.
+        // M0124：まず面に入り込んだ点（深さが正の点）を広げて配置し、残ったスロットにだけ予測接触点（深さが負の、
+        // 面から少し浮いた角など）を割り当てる。遠く離れた予測接触点が、ボディを支える稜線の反対端より先に選ばれ、ボディが1点を軸に回転していた。
         var EnteredOnly=Depths[First]>LogicalScalar.Zero;
         while(Kept<4){
             var Best=-1;
@@ -457,7 +452,7 @@ internal sealed class PhysicsNarrowPhase {
                 }
                 if(Best<0?Nearest>LogicalScalar.Zero:Nearest>BestDistance+SameDistanceSquared){ Best=Index;BestDistance=Nearest; }
             }
-            // Points on top of one already kept (within 0.1 mm) add nothing.
+            // 既に採用した点と重なる（0.1 mm以内の）点は、追加しても効果がない。
             if(Best<0||BestDistance<=EpaTolerance*EpaTolerance){
                 if(EnteredOnly){ EnteredOnly=false;continue; }
                 break;
@@ -480,7 +475,7 @@ internal sealed class PhysicsNarrowPhase {
     private readonly List<LogicalVector3>CompoundPoints=[];
     private readonly List<LogicalScalar>CompoundDepths=[];
 
-    /// <summary>One child of a compound, placed where the compound is.</summary>
+    /// <summary>複合形状の子要素1つ。複合形状と同じ位置に配置する。</summary>
     private static PhysicsCollisionShape CompoundChild(in PhysicsCollisionShape Compound,PhysicsShapeAsset Child)=>
         new(Compound.Collider with { Shape=ColliderShape.ConvexAsset,Asset=Child.Id },Compound.Position,Compound.Rotation,Child);
 
@@ -488,12 +483,11 @@ internal sealed class PhysicsNarrowPhase {
     private readonly List<bool>CompoundUsed=[];
 
     /// <summary>
-    /// ADR-0078/M0113: the contact of a compound (a piece of several fragments) with another shape, or of two compounds. Each child whose bounds meet the other
-    /// shape (or child) is tested as it is (a child against a mesh gives a patch per orientation). The deepest child patch gives the first normal, and the
-    /// points of every child patch within about 18 degrees of it form one patch of up to four points (deepest first, then the widest spread). M0124: against a
-    /// triangle mesh the child patches left over form the next orientations the same way (the deepest left first, at most <see cref="MaximumContactPatches"/>),
-    /// and a point within 1 mm of a point of an earlier patch is dropped; against a convex shape the pair keeps one orientation. So a piece resting on several
-    /// of its fragments is held at all of them, on every face of a mesh it touches.
+    /// ADR-0078/M0113：複合形状（複数の破片からなる破片）と別の形状、または複合形状同士の接触を求める。境界が重なる各子要素を、それぞれ相手形状（または相手側の子要素）と判定する。子要素と
+    /// メッシュの接触では、面の向きごとにパッチができる。最も深い子要素パッチの法線を基準にし、そこから約18度以内にある各パッチの点を1つの最大4点のパッチにまとめる（深い点を先にし、その後は広がりが最大に
+    /// なるよう選ぶ）。M0124：三角形メッシュとの接触では、残った子要素パッチも同様に次の向きとしてまとめる（残った点のうち最深のものから始め、最大
+    /// <see cref="MaximumContactPatches"/> 個）。先行パッチの点から1 mm以内にある点は除外する。凸形状との接触では向きは1つだけとする。この処理により、複数の破片が接地
+    /// する破片は、接触するメッシュの各面で支えられる。
     /// </summary>
     private bool TryCompoundContacts(in PhysicsCollisionShape First,in PhysicsCollisionShape Second,List<PhysicsContactCandidate>Patches){
         this.CompoundCandidates.Clear();
@@ -525,8 +519,8 @@ internal sealed class PhysicsNarrowPhase {
         var Before=Patches.Count;
         Span<LogicalVector3>Patch=stackalloc LogicalVector3[4];
         Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
-        // Against a convex shape (a box floor, another piece) one orientation, as before M0124: giving those pairs more orientations changed how the
-        // destruction sample's pieces settled, and its explosion missed the last crate. Only a mesh has faces of several orientations under one body.
+        // 凸形状（箱形の床、別の破片）との接触は従来どおり1つの向きとする。M0124 で向きを増やしたところ、
+        // 破壊サンプルの破片の落ち着き方が変わり、爆発が最後の箱に届かなくなった。1つのボディ内に複数の面向きがあるのはメッシュだけ。
         var MostPatches=First.Collider.Shape==ColliderShape.StaticTriangleMesh||Second.Collider.Shape==ColliderShape.StaticTriangleMesh?MaximumContactPatches:1;
         while(Patches.Count-Before<MostPatches){
             var Deepest=-1;
@@ -553,14 +547,14 @@ internal sealed class PhysicsNarrowPhase {
             }
             if(this.CompoundPoints.Count==0){ continue; }
             var Kept=SpreadPoints(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundPoints),System.Runtime.InteropServices.CollectionsMarshal.AsSpan(this.CompoundDepths),Patch,PatchDepths);
-            // The feature names the deepest child pair, so the solver's warm start follows the same child from tick to tick.
+            // 形状要素には最深の子要素対を記録し、ソルバーのウォームスタートがティックごとに同じ子要素を追跡できるようにする。
             var Feature=unchecked(((uint)this.CompoundChildren[Deepest]<<16)^Best.FeatureId);
             Patches.Add(PhysicsContactCandidate.CreatePatch(Best.Normal,Feature,Patch,PatchDepths,Kept) with { SurfaceNormal=Best.SurfaceNormal });
         }
         return Patches.Count>Before;
     }
 
-    /// <summary>Whether <paramref name="Position"/> lies within 1 mm of a point of the patches appended since <paramref name="Before"/> (the same point, already held).</summary>
+    /// <summary><paramref name="Position"/> が、<paramref name="Before"/> 以降に追加されたパッチのいずれかの点から1 mm以内にあるか（同じ点をすでに保持しているか）。</summary>
     private static bool NearAnEarlierPatch(List<PhysicsContactCandidate>Patches,int Before,LogicalVector3 Position){
         for(var Index=Before;Index<Patches.Count;Index++){
             var Earlier=Patches[Index];
@@ -573,8 +567,8 @@ internal sealed class PhysicsNarrowPhase {
 
     internal PhysicsAabb CalculateBounds(in PhysicsCollisionShape Shape){
         if(Shape.Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh or ColliderShape.Compound)){
-            // Character and spring-arm queries bound the same capsule dozens of times per tick; its
-            // support offsets depend only on the primitive's dimensions and rotation.
+            // キャラクターとスプリングアームの問い合わせでは、ティックごとに同じカプセルの境界を何十回も求める。その
+            // サポートオフセットは基本形状の寸法と回転だけで決まる。
             ShapeProxy PrimitiveProxy=new(Shape);
             PrimitiveBoundsKey Key=new(Shape.Collider.Shape,Shape.Collider.Center,Shape.Collider.HalfExtents,Shape.Collider.Radius,Shape.Collider.HalfHeight,Shape.Rotation);
             if(!this.PrimitiveBounds.TryGetValue(Key,out AssetBoundsEntry Primitive)){
@@ -585,10 +579,10 @@ internal sealed class PhysicsNarrowPhase {
             return OffsetBounds(PrimitiveProxy.Center,Primitive);
         }
         if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
-        // Asset supports scan every vertex, and static meshes are re-bounded several times per tick
-        // without moving. The six support points relative to the proxy centre depend only on the
-        // asset, rotation and collider centre, and the translation is an exact addition, so a cached
-        // entry reproduces CalculateBoundsUncached bit for bit.
+        // アセットのサポート判定は全頂点を走査し、静的メッシュの境界も移動していないのにティックごとに複数回求める。
+        // プロキシ中心からの6つのサポート点は、
+        // アセット、回転、コライダー中心だけで決まり、平行移動は正確な加算なので、キャッシュした
+        // エントリーから CalculateBoundsUncached とビット単位で同じ結果を再現できる。
         ShapeProxy Proxy=new(Shape);
         if(!this.AssetBounds.TryGetValue(Shape.Asset,out AssetBoundsEntry Entry)
             ||Entry.Rotation!=Shape.Rotation||Entry.ColliderCenter!=Shape.Collider.Center){
@@ -631,10 +625,10 @@ internal sealed class PhysicsNarrowPhase {
         if(!TryTransformBoundsToLocal(WorldBounds,Mesh.Position,Mesh.Rotation,out PhysicsAabb LocalBounds)){ return false; }
         this.TriangleCandidates.Clear();
         Asset.QueryTriangles(LocalBounds,this.TriangleCandidates);
-        // ADR-0078/M0109: a box resting on or pushed against a mesh touches it with a face, so it gets one point per corner below the touched face
-        // (up to four). A single deepest point let a box on a mesh floor rock, spin and sink (the vehicle's body). ADR-0078/M0113: a convex polyhedron
-        // (a fragment) the same way, with its own corners. M0124: a patch per face orientation, and the mesh's ridges that enter a face of the shape.
-        // Edge-on touches fall back to GJK.
+        // ADR-0078/M0109：メッシュ面に載る、または押し付けられたボックスは面で接触するため、接触面より下にある角ごとに接触点を作る。
+        // （最大4点）。最深点1つだけでは、メッシュ床の上のボックス（車体）が揺れ、回転し、沈み込んだ。ADR-0078/M0113：凸多面体
+        // （破片）も同様に、独自の角を使って接触させる。M0124：面の向きごとにパッチを作り、形状の面に食い込むメッシュの稜線も扱う。
+        // 辺同士の接触は GJK に任せる。
         if(HasPolytope(Convex)&&this.TryPolytopeMeshContacts(Convex,Mesh,Asset,MeshIsFirst,Patches)){ return true; }
         bool Found=false;
         PhysicsContactCandidate Best=default;
@@ -666,23 +660,19 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     private const int MaximumRidgePoints=64;
-    /// <summary>The feature bit of a patch whose deepest point is a ridge of the mesh entering a face of the shape (not a corner of the shape under a triangle).</summary>
+    /// <summary>メッシュの稜線が形状の面に入り込むパッチの特徴ビット（メッシュ三角形の下にある形状の角ではない）。</summary>
     private const uint RidgeFeature=0x8000_0000u;
 
     /// <summary>
-    /// The contact of a box or convex polyhedron with the candidate triangles of a mesh, as patches per face orientation (ADR-0078/M0109, M0113, M0124).
-    /// For every triangle two overlaps are compared (as a separating-axis test does): how deep the shape's corners lie under the triangle's face (the face
-    /// taken on the side of the shape's centre, so a box pressed into a thin wall is pushed back out of the side it came from; corners that project inside
-    /// the triangle, between the face and the shape's own depth along it, and corners within <see cref="BoxMeshSpeculativeMargin"/> above it as speculative
-    /// points), and how deep the triangle reaches into the shape through one of the shape's faces (a ridge of the mesh, such as the edge of a curb's top,
-    /// under a car's floor: the part of the triangle inside the shape's other faces, measured from that face). The smaller overlap wins, as the axis that
-    /// separates them least; a triangle almost parallel to a face of the shape (within about 18 degrees) only has corners (a floor under a box). Before
-    /// M0124 only the corners counted, and only those of the deepest corner's face: a car straddling a curb's slope and the ground lost the ground's
-    /// support, the curb's top edge entered its floor unseen, and a small slope triangle whose plane passed above the box's centre pulled the box down.
-    /// Each corner counts once (its deepest face). The patches: the deepest entered point gives the first orientation, and every point whose normal is
-    /// within about 18 degrees of it joins it; the deepest point left gives the next, at most <see cref="MaximumContactPatches"/>. A box keeps the four
-    /// deepest of a patch in candidate order (corners first), a polyhedron the deepest and then the widest spread; a point within 1 mm of an earlier
-    /// patch's point is dropped. False when no point entered (edge-on touches go to GJK).
+    /// メッシュの候補三角形とボックスまたは凸多面体との接触を、面の向きごとにパッチとして求める（ADR-0078/M0109、M0113、M0124）。各三角形について、分離軸テストと同様に2種類の重なりを
+    /// 比較する。1つ目は、形状の角が三角形の面よりどれだけ深く入り込んでいるか（形状中心側の面を採用するため、薄い壁に押し付けられたボックスは元来た側へ押し戻される）。三角形内に投影され、三角形面から
+    /// 形状内部の深さの範囲にある角と、<see cref="BoxMeshSpeculativeMargin"/> 以内の上方にある角を予測接触点として含める。2つ目は、三角形が形状の面を通じてどれだけ内部
+    /// に入り込むか（車の床に縁石上端の稜線が入り込む場合など）。その深さは、形状の他の面の内側にある三角形部分を面から測る。重なりの小さい方を、最も分離しにくい軸として採用する。三角形の面が形状の面とほぼ
+    /// 平行（約18度以内）なら、角だけを使う（ボックスの下の床など）。M0124 より前は角だけを数え、最深の角が属する面の角だけを使っていた。そのため、縁石の斜面と地面をまたぐ車が地面の支えを失う、
+    /// 縁石上端の稜線が車体の床に見えないまま入り込む、斜面の小さな三角形の面がボックス中心より上を通るとボックスを引き下げる、といった問題があった。各角は最も深い面について一度だけ数える。接触パッチでは、最
+    /// も深く入り込んだ点が最初の向きを決め、法線が約18度以内の各点を同じパッチに加える。残りから最も深い点を選び、次のパッチを作る。最大数は
+    /// <see cref="MaximumContactPatches"/>。ボックスでは候補順（角が先）のまま最深の4点を使い、多面体では最深点に続けて最も広がる点を選ぶ。先行パッチの点から1 mm以内に
+    /// ある点は除外する。入り込んだ点がない場合は false（辺同士の接触は GJK に渡す）。
     /// </summary>
     private bool TryPolytopeMeshContacts(in PhysicsCollisionShape Convex,in PhysicsCollisionShape Mesh,PhysicsShapeAsset Asset,bool MeshIsFirst,List<PhysicsContactCandidate>Patches){
         if(!TryColliderCenter(Convex,out var Center)){ return false; }
@@ -727,7 +717,7 @@ internal sealed class PhysicsNarrowPhase {
                 if(Height>Highest){ Highest=Height; }
                 if(Height<Lowest){ Lowest=Height; }
             }
-            // The shape's depth along the face: corners deeper than the whole shape lie on the face's far side.
+            // 面に沿った形状の深さ：形状全体より深い角は、面の向こう側にある。
             LogicalScalar Spread;
             if(IsBox){
                 var Thickness=Abs(LogicalVector3.Dot(AxisR,Face))*Half.R+Abs(LogicalVector3.Dot(AxisU,Face))*Half.U+Abs(LogicalVector3.Dot(AxisF,Face))*Half.F;
@@ -749,21 +739,21 @@ internal sealed class PhysicsNarrowPhase {
                 var Projected=Corners[Index]-Face*Height;
                 if(!InsideTriangle(Projected,A,B,C)){ continue; }
                 var Depth=TriangleHalfThickness-Height;
-                // M0124: a corner truly under a slanted face has the shape around it on the face's side, so the point of the triangle over it lies inside
-                // the shape (moving from the corner along the face's normal stays within the faces that meet at the corner). Under a face taken on the
-                // wrong side (its plane passes above the shape's centre) that point leaves the shape at once, about as far as the corner's "depth".
+                // M0124：傾いた面の下に実際に入り込んだ角では、その角を囲む形状の側面が面の側にあるため、その真上の三角形上の点は内部に含まれる。
+                // （角から面の法線方向に進んでも、その角で交わる各面の範囲内にとどまる）。一方、
+                // 誤った側にある面（その平面が形状中心より上を通る）では、その点はすぐに形状の外へ出る。距離は角の「深さ」と同程度。
                 if(!Parallel&&Depth>LogicalScalar.Zero&&Outside(PlaneNormals,PlaneDistances,Projected)>TriangleHalfThickness+Depth/LogicalScalar.FromInt64(2)){ continue; }
                 TriangleDepths[Index]=Depth;
                 if(Depth>CornerOverlap){ CornerOverlap=Depth; }
             }
-            // The triangle's reach into the shape through each of the shape's faces (none for a triangle almost parallel to a face).
+            // 形状の各面を通じた、三角形の形状内部への入り込み（面とほぼ平行な三角形では発生しない）。
             var RidgePlane=-1;
             var RidgeOverlap=LogicalScalar.MaxValue;
-            // A triangle that a face of the shape separates from it (by more than the contact slack) has no entered corner: the corners "under" it lie
-            // under its plane extended past its edges, on the side of the centre only because the plane passes above the centre (a small slope triangle
-            // beside a large box, or under a box tilted as it climbs). Speculative corners stay (they hold only what reaches the face). The test runs for
-            // every triangle a ridge may come from and every triangle with an entered corner (a few per tick), not for each parallel triangle the shape
-            // only hangs over.
+            // 形状の面で分離される三角形（接触許容幅を超えるもの）には、入り込んだ角がない。その下にあるように見える角は、
+            // 平面を辺の外まで延長した部分の下にあり、形状中心側にあるのは平面が中心より上を通るためだけである（大きなボックスの横にある小さな斜面三角形や、登坂中に傾いたボックスの下など）。予測接触点は残し、面に届く分だけ支える。テストは、稜線の候補となる各三角形と、入り込んだ角を持つ各三角形（1ティックに数個）に対して行う。形状が上に突き出ているだけで接触しない平行三角形には行わない。
+            // 接触許容幅以内で面に触れているだけの傾斜三角形にも、入り込んだ角はない。傾いた面の下に実際に入り込んだ角では、その
+            // 三角形は近くにある形状のすべての面を越えて内部に達する。平行な三角形では、角を残す（床の三角形の継ぎ目にある角など）。
+            // その形状が上に突き出ているだけで接触しない。
             var NoEnteredCorners=false;
             if(!Parallel||CornerOverlap>LogicalScalar.Zero){
                 var Separated=false;
@@ -774,14 +764,14 @@ internal sealed class PhysicsNarrowPhase {
                     if(Reach<=LogicalScalar.Zero){ Separated=true; }
                     if(Reach<RidgeOverlap){ RidgeOverlap=Reach;RidgePlane=Plane; }
                 }
-                // A slanted triangle a face only touches (within the slack) has no entered corner either: a corner truly under a slanted face has the
-                // triangle reaching past every face of the shape near it. A parallel one keeps them (a corner on the seam of a floor's triangles).
+                // 面に接するだけの傾斜三角形にも、入り込んだ角はない。傾いた面の下に実際に入り込んだ角では、
+                // 三角形が近くにある形状のすべての面を越えて内部に達する。平行な三角形では角を残す（床の三角形の継ぎ目にある角など）。
                 if(Separated&&!Parallel){ NoEnteredCorners=true; }
                 if(Parallel||Separated||NoEnteredCorners){ RidgePlane=-1; }
             }
-            // Both overlaps count the triangle's half thickness, as the points' depths do; the smaller one is the axis that separates them least.
+            // どちらの重なりも、点の深さと同様に三角形の半分の厚みを含める。小さい方が、2形状を最も分離しにくい軸を表す。
             if(RidgePlane>=0&&RidgeOverlap+TriangleHalfThickness<CornerOverlap||RidgePlane>=0&&CornerOverlap<=LogicalScalar.Zero){
-                // The triangle inside every other face of the shape; its vertices inside the ridge face are the points, pushed out along that face.
+                // 三角形のうち、形状の他のすべての面の内側にある部分。その頂点が稜線側の面の内側にあれば接触点となり、その面に沿って押し戻す。
                 Polygon[0]=A;Polygon[1]=B;Polygon[2]=C;
                 var Count=3;
                 for(var Plane=0;Plane<PlaneCount&&Count>0;Plane++){
@@ -789,7 +779,7 @@ internal sealed class PhysicsNarrowPhase {
                     Count=ClipPolygonToPlane(Polygon[..Count],Clipped,PlaneNormals[Plane],PlaneDistances[Plane]);
                     Clipped[..Count].CopyTo(Polygon);
                 }
-                // The depth counts the triangle's half thickness as a corner's does, so a ridge just touching the face is held, not dropped and found again.
+                // 深さには三角形の半分の厚みも含める。これにより、面にちょうど触れる稜線を落として次の判定で再検出することがない。
                 var RidgeNormal=PlaneNormals[RidgePlane];
                 var RidgeStart=RidgeCount;
                 for(var Index=0;Index<Count&&RidgeCount<MaximumRidgePoints;Index++){
@@ -801,7 +791,7 @@ internal sealed class PhysicsNarrowPhase {
                     RidgeTriangles[RidgeCount++]=Triangle;
                 }
                 if(RidgeCount>RidgeStart){ continue; }
-                // The ridge is the smaller overlap but reaches no deeper than the contact slack: the corners' overlap is not real either.
+                // 稜線側の重なりが小さくても、接触許容幅を超える深さがない場合、角の重なりも実際の接触ではない。
                 NoEnteredCorners=true;
             }
             for(var Index=0;Index<CornerCount;Index++){
@@ -812,7 +802,7 @@ internal sealed class PhysicsNarrowPhase {
                 CornerNormal[Index]=Face;
             }
         }
-        // Every candidate point: the corners (in corner order), then the ridge points (in triangle order).
+        // すべての候補点。角（角の順）を先にし、次に稜線の点（三角形の順）を並べる。
         var Total=0;
         Span<LogicalVector3>Points=stackalloc LogicalVector3[MaximumPolytopeVertices+MaximumRidgePoints];
         Span<LogicalScalar>Depths=stackalloc LogicalScalar[MaximumPolytopeVertices+MaximumRidgePoints];
@@ -838,7 +828,7 @@ internal sealed class PhysicsNarrowPhase {
         Span<LogicalScalar>PatchDepths=stackalloc LogicalScalar[4];
         var Before=Patches.Count;
         while(Patches.Count-Before<MaximumContactPatches){
-            // A face none of whose points has entered it is no contact: points within the margin are speculative and only join an orientation that was entered.
+            // どの点も面に入り込んでいない場合は接触なし。許容幅内の点は予測接触点なので、実際に入り込んだパッチと同じ向きにのみ加える。
             var Seed=-1;
             for(var Index=0;Index<Total;Index++){
                 if(!Used[Index]&&Depths[Index]>LogicalScalar.Zero&&(Seed<0||Depths[Index]>Depths[Seed])){ Seed=Index; }
@@ -857,13 +847,13 @@ internal sealed class PhysicsNarrowPhase {
             var Kept=IsBox
                 ?DeepestFour(Members[..MemberCount],MemberDepths[..MemberCount],Patch,PatchDepths)
                 :SpreadPoints(Members[..MemberCount],MemberDepths[..MemberCount],Patch,PatchDepths);
-            // The contact normal points from the first shape into the second: the face normal points from the mesh toward the shape.
+            // 接触法線は第1形状から第2形状へ向く。面法線はメッシュから形状へ向く。
             Patches.Add(PhysicsContactCandidate.CreatePatch(MeshIsFirst?Normal:-Normal,Features[Seed],Patch,PatchDepths,Kept) with { SurfaceNormal=Normal });
         }
         return Patches.Count>Before;
     }
 
-    /// <summary>How far a point lies outside a polytope's face planes (the largest excess; zero or less inside).</summary>
+    /// <summary>凸多面体の面平面に対する点の外側への距離（超過量の最大値。0以下なら内側）。</summary>
     private static LogicalScalar Outside(ReadOnlySpan<LogicalVector3>Normals,ReadOnlySpan<LogicalScalar>Distances,LogicalVector3 Point){
         var Result=LogicalScalar.MinValue;
         for(var Plane=0;Plane<Normals.Length;Plane++){
@@ -873,7 +863,7 @@ internal sealed class PhysicsNarrowPhase {
         return Result;
     }
 
-    /// <summary>The four deepest of <paramref name="Points"/> (the earlier of equal depths), in the order they were given, so the patch is the same for the same pose.</summary>
+    /// <summary><paramref name="Points"/> のうち最も深い4点（深さが同じなら先の点）を、入力と同じ順に返す。これにより同じ姿勢では同じパッチになる。</summary>
     private static int DeepestFour(ReadOnlySpan<LogicalVector3>Points,ReadOnlySpan<LogicalScalar>Depths,Span<LogicalVector3>Patch,Span<LogicalScalar>PatchDepths){
         Span<bool>Taken=stackalloc bool[Points.Length];
         for(var Pick=0;Pick<4;Pick++){
@@ -893,7 +883,7 @@ internal sealed class PhysicsNarrowPhase {
         return Count;
     }
 
-    /// <summary>The part of a convex polygon on the inner side of a plane (normal · point ≤ distance), written to <paramref name="Output"/>; returns its vertex count.</summary>
+    /// <summary>平面の内側（法線 · 点 ≤ 距離）にある凸多角形部分を <paramref name="Output"/> に書き込み、頂点数を返す。</summary>
     private static int ClipPolygonToPlane(ReadOnlySpan<LogicalVector3>Polygon,Span<LogicalVector3>Output,LogicalVector3 Normal,LogicalScalar Distance){
         var Count=0;
         for(var Index=0;Index<Polygon.Length;Index++){
@@ -910,7 +900,7 @@ internal sealed class PhysicsNarrowPhase {
         return Count;
     }
 
-    /// <summary>Whether <paramref name="Point"/> (in the triangle's plane) lies inside triangle ABC, its edges included.</summary>
+    /// <summary>三角形の平面上にある <paramref name="Point"/> が、辺を含めて三角形 ABC の内側にあるか。</summary>
     private static bool InsideTriangle(LogicalVector3 Point,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C){
         LogicalVector3 Normal=LogicalVector3.Cross(B-A,C-A);
         return LogicalVector3.Dot(LogicalVector3.Cross(B-A,Point-A),Normal)>=LogicalScalar.Zero
@@ -919,17 +909,14 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     /// <summary>
-    /// Every penetrating triangle of <paramref name="Mesh"/> against a sphere or capsule, in
-    /// triangle order, with normals pointing from the query shape into the mesh. Character
-    /// movement needs all of them (a floor and a wall at once), not only the deepest.
+    /// <paramref name="Mesh"/> 内で球またはカプセルが貫入している三角形をすべて返す。三角形順に並べ、法線は問い合わせ形状からメッシュへ向ける。床と壁の両方に接する場合など、
+    /// キャラクター移動では最深の接触だけではなくすべてが必要になる。
     /// </summary>
     internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results)=>
         this.CollectMeshContacts(Query,Mesh,Results,true);
 
     /// <param name="CullTriangles">
-    /// Skips leaf triangles whose bounds miss the query bounds widened by the contact slack. A
-    /// triangle within the contact radius has a point inside the swept query volume, so culling never
-    /// changes the result; tests compare against <see langword="false"/>.
+    /// 接触許容幅だけ拡大した問い合わせ境界と交差しない境界を持つ葉ノードの三角形を除外する。接触半径内の三角形には、掃引問い合わせ領域に含まれる点があるため、除外しても結果は変わらない。テストでは <see langword="false"/> と比較する。
     /// </param>
     internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results,bool CullTriangles){
         if(Query.Collider.Shape is not (ColliderShape.Sphere or ColliderShape.Capsule)
@@ -1015,11 +1002,7 @@ internal sealed class PhysicsNarrowPhase {
         return Result<C?Result:C;
     }
 
-    /// <summary>
-    /// Closed-form capsule-triangle contact: the closest points between the capsule's segment and
-    /// the triangle. A segment crossing the triangle is pushed out along the face normal toward the
-    /// capsule centre's side, deep enough to clear both segment ends.
-    /// </summary>
+    /// <summary>カプセルと三角形の接触を閉形式で求める。カプセルの線分と三角形の最近接点を使う。線分が三角形を貫通する場合は、カプセル中心側へ向く面法線に沿って押し出し、線分の両端がともに面の外へ出る深さを確保する。</summary>
     private static bool TryCapsuleTriangleContact(
         in PhysicsCollisionShape Capsule,in PhysicsCollisionShape Mesh,
         LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,bool MeshIsFirst,uint Feature,
@@ -1055,7 +1038,7 @@ internal sealed class PhysicsNarrowPhase {
         return true;
     }
 
-    /// <summary>Closest points between segment PQ and triangle ABC; returns true when the segment crosses the triangle.</summary>
+    /// <summary>線分 PQ と三角形 ABC の最近接点を求める。線分が三角形を横切る場合は true を返す。</summary>
     internal static bool ClosestSegmentTriangle(
         LogicalVector3 P,LogicalVector3 Q,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,
         out LogicalVector3 OnSegment,out LogicalVector3 OnTriangle){
@@ -1094,7 +1077,7 @@ internal sealed class PhysicsNarrowPhase {
         }
     }
 
-    /// <summary>Closest points between segments P1Q1 and P2Q2 (Ericson, Real-Time Collision Detection 5.1.9).</summary>
+    /// <summary>線分 P1Q1 と P2Q2 の最近接点を求める（Ericson, Real-Time Collision Detection 5.1.9）。</summary>
     internal static void ClosestSegmentSegment(
         LogicalVector3 P1,LogicalVector3 Q1,LogicalVector3 P2,LogicalVector3 Q2,
         out LogicalVector3 First,out LogicalVector3 Second){
@@ -1413,7 +1396,7 @@ internal sealed class PhysicsNarrowPhase {
         return true;
     }
 
-    /// <summary>Unit face normal of triangle ABC on the side of <paramref name="Point"/>; zero for a degenerate triangle.</summary>
+    /// <summary>点 <paramref name="Point"/> 側を向く三角形 ABC の単位面法線。三角形が退化している場合はゼロ。</summary>
     private static LogicalVector3 FaceToward(LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,LogicalVector3 Point){
         if(!LogicalVector3.Cross(B-A,C-A).TryNormalize(out LogicalVector3 Face)){ return LogicalVector3.Zero; }
         return LogicalVector3.Dot(Face,Point-A)>=LogicalScalar.Zero?Face:-Face;

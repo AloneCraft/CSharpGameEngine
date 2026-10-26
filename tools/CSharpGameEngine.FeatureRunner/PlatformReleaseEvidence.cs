@@ -12,8 +12,7 @@ public sealed record PlatformReleasePayload(string Schema,DateTimeOffset Created
 public sealed record PlatformReleaseReport(string Schema,string ReportSha256,DateTimeOffset CreatedUtc,string Configuration,string Commit,bool IsDirty,string TargetOs,string MinimumOsVersion,string Architecture,PlatformReleaseModes RequiredModes,PerformanceMachineFingerprint Machine,PlatformReleaseStageEvidence Compatibility,IReadOnlyList<PlatformReleaseOptionalEvidence>OptionalHardware,IReadOnlyList<PlatformReleaseInput>Inputs);
 
 /// <summary>
-/// Binds the existing Platform truths into one track-scoped report. This is evidence consumed
-/// by later release stages, not another package, device owner, or product release manifest.
+/// 既存の Platform の事実をトラック単位の 1 つのレポートにまとめる。後続のリリースステージで使う証拠であり、別のパッケージ、デバイス所有者、製品全体のリリースマニフェストではない。
 /// </summary>
 public static class PlatformReleaseEvidence {
     public const string ReportSchema="csharp-game-engine-platform-release-v1";

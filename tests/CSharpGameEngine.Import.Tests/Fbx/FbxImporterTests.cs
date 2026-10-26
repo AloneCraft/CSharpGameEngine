@@ -21,9 +21,7 @@ public class FbxImporterTests {
     }
 
     /// <summary>
-    /// A path no single ANSI code page holds (Japanese and Korean names, or a Japanese folder on an English Windows)
-    /// imports. AssimpNet hands a file name to the native importer as an ANSI string, which turned such names into "?"
-    /// ("Unable to open file").
+    /// 単一の ANSI コードページでは表現できないパス（日本語と韓国語の名前、または英語版 Windows 上の日本語フォルダー）をインポートできる。AssimpNet はネイティブインポーターにファイル名を ANSI 文字列として渡すため、このような名前は「?」になっていた（「Unable to open file」）。
     /// </summary>
     [Fact]
     public void Import_BoxFbx_FromAPathOutsideTheAnsiCodePage_Succeeds(){
@@ -92,13 +90,13 @@ public class FbxImporterTests {
 
     [Fact]
     public void ConcurrentImports_KeepTheProcessAndTheirOwnDiagnostics(){
-        // Assimp's log stream is process-wide; attaching and detaching it from parallel imports crashed the test host
-        // (ProviderNeutralImportTests imports FBX in parallel with this class), and a stream sees every import's messages.
+        // Assimp のログストリームはプロセス全体で共有される。並列インポート間で接続・切断するとテストホストがクラッシュした。
+        // （ProviderNeutralImportTests はこのクラスと並列に FBX をインポートする）。ストリームにはすべてのインポートのメッセージが届く。
         var Box=FixturePath("Box.fbx");
         var Malformed=Path.Combine(Path.GetTempPath(),$"malformed-{Guid.NewGuid():N}.fbx");
         File.WriteAllText(Malformed,"this is not a valid FBX file");
         try {
-            // Assimp's lines name the thread ("T1234:"), which differs between imports.
+            // Assimp の各行にはスレッド名（"T1234:"）が含まれ、インポートごとに異なる。
             static string[]Lines(FbxImportResult Result)=>[.. Result.Diagnostics.Select(D=>System.Text.RegularExpressions.Regex.Replace(D.ToString()??"",@"\bT\d+:","T:"))];
             var Alone=Lines(FbxImporter.Import(Box));
             var Results=new FbxImportResult[64];

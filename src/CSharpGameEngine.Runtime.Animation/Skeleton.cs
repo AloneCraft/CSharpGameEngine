@@ -1,7 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Import.Gltf;
 namespace CSharpGameEngine.Runtime.Animation;
-/// <summary>A joint's local transform. Blending lerps translation and scale and nlerps rotation along the shorter arc.</summary>
+/// <summary>ジョイントのローカル変換。ブレンドでは平行移動とスケールをlerpし、回転を短い方の弧に沿ってnlerpする。</summary>
 public struct JointPose {
     public Vector3 Translation;
     public Quaternion Rotation;
@@ -19,8 +19,8 @@ public struct JointPose {
     }
 }
 /// <summary>
-/// The joint hierarchy of an imported skin (ADR-0066), in engine space. <see cref="ComputePalette"/>
-/// turns local joint poses into skinning matrices: <c>InverseBind[j] * Model[j]</c> (row vectors).
+/// インポートしたスキンのジョイント階層（ADR-0066）。エンジン空間で表す。<see cref="ComputePalette"/>はローカルのジョイント姿勢をスキニング行列
+///（行ベクトル規約で<c>InverseBind[j] * Model[j]</c>）へ変換する。
 /// </summary>
 public sealed class Skeleton {
     private readonly Dictionary<string,int>IndexByName;
@@ -45,9 +45,9 @@ public sealed class Skeleton {
     public int JointCount=>this.JointNames.Count;
     public ReadOnlySpan<JointPose>Rest=>this.RestPose;
     public int ParentOf(int Joint)=>this.Parents[Joint];
-    /// <summary>The transform the root joints sit in (the skin's skeleton transform).</summary>
+    /// <summary>ルートジョイントが配置される変換（スキンのスケルトン変換）。</summary>
     public Matrix4x4 RootTransform=>this.Root;
-    /// <summary>The joints ordered so every parent precedes its children.</summary>
+    /// <summary>すべての親がその子より前に来る順序で並べたジョイント。</summary>
     public ReadOnlySpan<int>ParentsFirstOrder=>this.EvaluationOrder;
     public int IndexOf(string Name)=>this.IndexByName.TryGetValue(Name,out var Index)?Index:-1;
     public static Skeleton FromImported(ImportedSkin Skin){
@@ -59,7 +59,7 @@ public sealed class Skeleton {
         }
         return new Skeleton([.. Skin.JointNames],[.. Skin.ParentIndices],Rest,[.. Skin.InverseBindMatrices],Skin.SkeletonTransform);
     }
-    /// <summary>Writes each joint's model matrix for <paramref name="Local"/> (the skinning palette without the inverse bind).</summary>
+    /// <summary><paramref name="Local"/>の各ジョイントのモデル行列を書き込む（逆バインドを含まないスキニングパレット）。</summary>
     public void ComputeModel(ReadOnlySpan<JointPose>Local,Span<Matrix4x4>Model){
         if(Local.Length<this.JointCount||Model.Length<this.JointCount){
             throw new ArgumentException($"The skeleton has {this.JointCount} joints.");
@@ -69,7 +69,7 @@ public sealed class Skeleton {
             Model[Joint]=Local[Joint].ToMatrix()*(Parent<0?this.Root:Model[Parent]);
         }
     }
-    /// <summary>Writes each joint's model matrix and skinning matrix for <paramref name="Local"/>.</summary>
+    /// <summary><paramref name="Local"/>の各ジョイントのモデル行列とスキニング行列を書き込む。</summary>
     public void ComputePalette(ReadOnlySpan<JointPose>Local,Span<Matrix4x4>Model,Span<Matrix4x4>Palette){
         if(Local.Length<this.JointCount||Model.Length<this.JointCount||Palette.Length<this.JointCount){
             throw new ArgumentException($"The skeleton has {this.JointCount} joints.");
@@ -80,7 +80,7 @@ public sealed class Skeleton {
             Palette[Joint]=this.InverseBind[Joint]*Model[Joint];
         }
     }
-    /// <summary>Joint indices ordered so every parent precedes its children; a cycle throws.</summary>
+    /// <summary>各親がその子より前に来る順序で並べたジョイントインデックス。循環がある場合は例外をスローする。</summary>
     private static int[]ParentsFirst(int[]Parents){
         var Order=new List<int>(Parents.Length);
         var State=new byte[Parents.Length];

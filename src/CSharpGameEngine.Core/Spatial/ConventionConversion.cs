@@ -1,6 +1,6 @@
 using System.Numerics;
 namespace CSharpGameEngine.Spatial.Abstractions;
-/// <summary>Row-vector basis conversion. Unit conversion is a separate import pass.</summary>
+/// <summary>行ベクトル規約での基底変換。単位変換は別のインポート処理で行う。</summary>
 public static class ConventionConversion<TSource,TTarget> where TSource:struct,ICoordinateConvention where TTarget:struct,ICoordinateConvention {
     public static Matrix4x4 Basis{get;}=BuildBasis();
     public static bool IsMirror{get;}=Basis.GetDeterminant()<0f;

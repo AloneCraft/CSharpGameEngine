@@ -1,9 +1,9 @@
 using System.Numerics;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
-/// The surface cache's card atlas (ADR-0078/M0111): rectangles whose sides are powers of two from <see cref="MinimumCardTexels"/> to
-/// <see cref="PageTexels"/>, packed in pages of <see cref="PageTexels"/>^2 that each hold one size. Allocation and release are O(pages) at worst
-/// and need no defragmentation: a page whose last card goes back to the free pages.
+/// サーフェスキャッシュのカードアトラス（ADR-0078/M0111）。<see cref="MinimumCardTexels"/> から <see cref="PageTexels"/> まで、辺の
+/// 長さが2の累乗であるカードを、<see cref="PageTexels"/>^2 のページにサイズごとに格納する。割り当てと解放は最悪でも O(ページ数) で、断片化解消は不要。最後のカードが解放さ
+/// れたページは空きページへ戻す。
 /// </summary>
 internal sealed class LumenCardAtlas {
     internal const int PageTexels=128;
@@ -31,10 +31,10 @@ internal sealed class LumenCardAtlas {
     internal int AtlasTexels { get; }
     internal int PageCount=>this.PagesPerSide*this.PagesPerSide;
     internal int FreePageCount=>this.FreePages.Count;
-    /// <summary>Whether a card size can be allocated at all: both sides powers of two within the page.</summary>
+    /// <summary>カードサイズを割り当て可能か。両辺がページ内に収まる2の累乗である必要がある。</summary>
     internal static bool IsValidSize(int Width,int Height)=>IsPowerOfTwoInRange(Width)&&IsPowerOfTwoInRange(Height);
     private static bool IsPowerOfTwoInRange(int Value)=>Value>=MinimumCardTexels&&Value<=PageTexels&&(Value&(Value-1))==0;
-    /// <summary>Finds room for a <paramref name="Width"/> x <paramref name="Height"/> card; false when the atlas is full.</summary>
+    /// <summary>幅 <paramref name="Width"/> × 高さ <paramref name="Height"/> のカード用の領域を探す。アトラスが満杯なら false。</summary>
     internal bool TryAllocate(int Width,int Height,out int X,out int Y){
         if(!IsValidSize(Width,Height)){
             throw new ArgumentOutOfRangeException(nameof(Width),"Card sides must be powers of two within a page.");
@@ -69,7 +69,7 @@ internal sealed class LumenCardAtlas {
         Y=Page/this.PagesPerSide*PageTexels+Slot/Columns*Height;
         return true;
     }
-    /// <summary>Gives back a card that <see cref="TryAllocate"/> returned.</summary>
+    /// <summary><see cref="TryAllocate"/> が割り当てたカードを解放する。</summary>
     internal void Free(int X,int Y,int Width,int Height){
         var Page=Y/PageTexels*this.PagesPerSide+X/PageTexels;
         if(this.PageSlots[Page] is not{ }Slots||this.PageClass[Page]!=(Width,Height)){
@@ -94,10 +94,11 @@ internal sealed class LumenCardAtlas {
     }
 }
 /// <summary>
-/// The geometry of the surface cache's cards (ADR-0078/M0111): each mesh gets six cards, one per side of its box in its own space. Card f looks at
-/// the box from the side of <see cref="Axis"/>(f); (<see cref="U"/>, <see cref="V"/>) span it with U x V = Axis. A point q of the mesh's space maps
-/// to clip x = (q - c)·U / hu, y = (q - c)·V / hv and depth z = (hn - (q - c)·Axis) / 2hn, where c is the box centre and hu, hv, hn its half sizes
-/// along U, V and Axis. Lumen.hlsl (CardCoordinates, CardPoint) uses the same mapping, and the capture rasterizes with <see cref="CaptureProjection"/>.
+/// サーフェスキャッシュのカード形状（ADR-0078/M0111）。各メッシュには自身の空間にあるボックスの6面それぞれに1つ、計6枚のカードを割り当てる。面 f のカードは
+/// <see cref="Axis"/>(f) 側からボックスを見る。(<see cref="U"/>、<see cref="V"/>) はボックス面に広がり、U x V = Axis となる。メッシュ
+/// 空間の点 q は、ボックス中心 c、U、V、Axis 方向の半サイズ hu、hv、hn を使って、クリップ座標 x = (q - c)·U / hu、y = (q - c)·V / hv、深度 z =
+///  (hn - (q - c)·Axis) / 2hn に写像する。Lumen.hlsl の CardCoordinates と CardPoint も同じ写像を使い、キャプチャーには
+/// <see cref="CaptureProjection"/> を使う。
 /// </summary>
 internal static class LumenCards {
     internal const int FaceCount=6;
@@ -107,15 +108,12 @@ internal static class LumenCards {
     internal static Vector3 Axis(int Face)=>Axes[Face];
     internal static Vector3 U(int Face)=>Us[Face];
     internal static Vector3 V(int Face)=>Vs[Face];
-    /// <summary>
-    /// The cards' box: the mesh's bounds grown by 1 % of their size and 1 mm on every side, so a face lying exactly on the bounds is not clipped by
-    /// the capture's depth range. A flat axis still gets a thickness.
-    /// </summary>
+    /// <summary>カードが囲むボックス。メッシュの境界を、サイズの1%および各面につき1 mmずつ拡張する。境界面と完全に一致する面も、キャプチャーの深度範囲でクリップされない。平坦な軸にも厚みを持たせる。</summary>
     internal static (Vector3 Minimum,Vector3 Maximum)CardBox(Vector3 BoundsMinimum,Vector3 BoundsMaximum){
         var Margin=(BoundsMaximum-BoundsMinimum)*0.01f+new Vector3(0.001f);
         return (BoundsMinimum-Margin,BoundsMaximum+Margin);
     }
-    /// <summary>The capture's view-projection (row vectors, as the Stage program multiplies): the mesh's space to the card's clip space.</summary>
+    /// <summary>キャプチャー用のビュープロジェクション（Stage プログラムの乗算と同じ行ベクトル規約）。メッシュ空間からカードのクリップ空間へ変換する。</summary>
     internal static Matrix4x4 CaptureProjection(int Face,Vector3 BoxMinimum,Vector3 BoxMaximum){
         var Centre=(BoxMinimum+BoxMaximum)*0.5f;
         var Half=Vector3.Max((BoxMaximum-BoxMinimum)*0.5f,new Vector3(1e-5f));
@@ -132,9 +130,9 @@ internal static class LumenCards {
             -Vector3.Dot(Centre,AxisU)/Hu,-Vector3.Dot(Centre,AxisV)/Hv,(Hn+Vector3.Dot(Centre,AxisN))/(2f*Hn),1f);
     }
     /// <summary>
-    /// A card's texels: each side the power of two nearest above its world length times <paramref name="TexelsPerMeter"/>, from
-    /// <see cref="LumenCardAtlas.MinimumCardTexels"/> to <paramref name="MaximumTexels"/>. <paramref name="AxisScale"/> is the object's scale along
-    /// each local axis.
+    /// カードのテクセル密度。<paramref name="TexelsPerMeter"/> と各軸のワールド長の積より大きい、最も近い2の累乗を選び、
+    /// <see cref="LumenCardAtlas.MinimumCardTexels"/> から <paramref name="MaximumTexels"/> の範囲に収める。
+    /// <paramref name="AxisScale"/> は各ローカル軸に沿うオブジェクトのスケール。
     /// </summary>
     internal static (int Width,int Height)Resolution(int Face,Vector3 BoxMinimum,Vector3 BoxMaximum,Vector3 AxisScale,float TexelsPerMeter,int MaximumTexels){
         var Size=(BoxMaximum-BoxMinimum)*AxisScale;

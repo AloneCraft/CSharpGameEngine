@@ -1,13 +1,12 @@
 namespace CSharpGameEngine.FontBaker;
 
 /// <summary>
-/// The exact Euclidean distance transform (Felzenszwalb and Huttenlocher, "Distance Transforms of Sampled Functions"): two linear passes over
-/// the rows and columns, and the signed distance field built from it.
+/// 正確なユークリッド距離変換 (Felzenszwalb と Huttenlocher, "Distance Transforms of Sampled Functions")。行と列を 2 回線形走査し、そこから符号付き距離場を構築する。
 /// </summary>
 internal static class DistanceTransform {
     private const float Infinity=1e20f;
 
-    /// <summary>The squared distance, in pixels, from every pixel to the nearest pixel that is set in <paramref name="Set"/> (zero on the set itself).</summary>
+    /// <summary><paramref name="Set"/> で指定した画素集合自身（集合上では 0）から、各画素までの距離の二乗をピクセル単位で表す。</summary>
     internal static float[]SquaredDistanceToSet(bool[]Set,int Width,int Height){
         if(Set.Length!=Width*Height){ throw new ArgumentException("The mask must be width × height.",nameof(Set)); }
         float[]Grid=new float[Set.Length];
@@ -31,8 +30,7 @@ internal static class DistanceTransform {
     }
 
     /// <summary>
-    /// The signed distance, in pixels, to the outline between the inside and the outside pixels: positive inside, negative outside, and
-    /// ±0.5 on the pixels next to the outline (the outline lies halfway between an inside and an outside pixel).
+    /// 内側と外側のピクセル間の輪郭までの符号付き距離（ピクセル単位）：内側は正、外側は負。輪郭の隣にあるピクセルでは ±0.5（輪郭は内側と外側のピクセルの中間に位置する）。
     /// </summary>
     internal static float[]Signed(bool[]Inside,int Width,int Height){
         bool[]Outside=new bool[Inside.Length];
@@ -48,7 +46,7 @@ internal static class DistanceTransform {
         return Result;
     }
 
-    /// <summary>The lower envelope of the parabolas rooted at each sample, evaluated at each position.</summary>
+    /// <summary>各サンプルを根とする放物線の下側包絡線を、それぞれの位置で評価したもの。</summary>
     private static void Transform(float[]Samples,float[]Output,int[]Parabolas,float[]Boundaries,int Count){
         int Last=0;
         Parabolas[0]=0;
@@ -73,7 +71,7 @@ internal static class DistanceTransform {
         }
     }
 
-    /// <summary>Where the parabola rooted at <paramref name="Position"/> rises above the one rooted at <paramref name="Previous"/> (Previous &lt; Position).</summary>
+    /// <summary><paramref name="Position"/> を根とする放物線が、<paramref name="Previous"/> を根とする放物線を上回る位置（Previous &lt; Position）。</summary>
     private static float Intersection(float[]Samples,int Position,int Previous)=>
         ((Samples[Position]+((float)Position*Position))-(Samples[Previous]+((float)Previous*Previous)))/(2f*(Position-Previous));
 }

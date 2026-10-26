@@ -4,14 +4,14 @@ using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Destruction.Cook;
-/// <summary>One <c>Destructible</c> of a scene, as the cook reads it: its source and its cut.</summary>
+/// <summary>調理側が読み取った、シーン内の <c>Destructible</c> 1つ。元形状と分割設定を保持する。</summary>
 internal sealed record DestructibleSource(string Name,string Node,PhysicsShapeAsset Source,PrefractureCookSettings Settings,string SourceDescription);
 /// <summary>
-/// Cuts every <c>CSharpGameEngine.Destruction.Destructible</c> of a scene into a prefracture (ADR-0078/M0113, UE's Fracture mode):
-/// <c>Assets/Destruction/&lt;FractureAsset&gt;.cgefracture</c>. The source is the node's <c>Collider</c> box (its <c>Center</c> and <c>HalfExtents</c> in
-/// the node's frame), or the closed convex <c>.glb</c> named by <c>SourceMesh</c>. The cut is the engine's seeded Voronoi cooker
-/// (<see cref="PrefractureCooker"/>): the same scene gives the same bytes. Failures and warnings are <c>file: error DSTnnn: message</c> lines, which the
-/// build's Exec turns into diagnostics.
+/// シーン内のすべての <c>CSharpGameEngine.Destruction.Destructible</c> を事前破砕する（ADR-0078/M0113、UE の Fracture モード）
+/// 。出力先は <c>Assets/Destruction/&lt;FractureAsset&gt;.cgefracture</c>。元形状はノードの座標枠における <c>Center</c> と
+/// <c>HalfExtents</c> で定義される <c>Collider</c> のボックス、または <c>SourceMesh</c> で指定された閉じた凸形状の <c>.glb</c>。分割には
+/// エンジンのシード付きボロノイ調理処理（<see cref="PrefractureCooker"/>）を使い、同じシーンからは同じバイト列を生成する。失敗と警告は
+/// <c>file: error DSTnnn: message</c> の各行で出力し、ビルドの Exec が診断情報に変換する。
 /// </summary>
 public sealed class FractureCooker:IAssetCooker {
     public string Name=>"Fracture";
@@ -44,7 +44,7 @@ public sealed class FractureCooker:IAssetCooker {
         return new CookResult(true,Outputs,Messages);
     }
 }
-/// <summary>Reads the destructibles of one scene JSON (<see cref="FractureCooker"/>).</summary>
+/// <summary>1つのシーン JSON から破壊可能オブジェクトを読み込む（<see cref="FractureCooker"/>）。</summary>
 internal static class DestructibleScene {
     private const string TransformType="CSharpGameEngine.Entities.Transform";
     private const string ColliderType="CSharpGameEngine.Runtime.Physics.Collider";
@@ -177,13 +177,13 @@ internal static class DestructibleScene {
         Sources.Add(new DestructibleSource(FractureAsset,Node,Source,new PrefractureCookSettings(FragmentCount,Seed,Density,Strength,ClusterCount,ClusterLevels),Description));
         return true;
     }
-    /// <summary>A closed box of twelve outward-wound triangles in the node's frame.</summary>
+    /// <summary>ノードの座標枠内にある、外向きの巻き順を持つ12個の三角形で構成した閉じたボックス。</summary>
     internal static PhysicsShapeAsset Box(string Id,LogicalVector3 Center,LogicalVector3 Half){
         LogicalVector3[]Vertices=new LogicalVector3[8];
         for(var Index=0;Index<8;Index++){
             Vertices[Index]=Center+new LogicalVector3((Index&1)==0?-Half.R:Half.R,(Index&2)==0?-Half.U:Half.U,(Index&4)==0?-Half.F:Half.F);
         }
-        // Each face, outward: -R, +R, -U, +U, -F, +F.
+        // 各面の外向き方向：-R、+R、-U、+U、-F、+F。
         int[]Indices=[0,4,6,0,6,2, 1,3,7,1,7,5, 0,1,5,0,5,4, 2,6,7,2,7,3, 0,2,3,0,3,1, 4,5,7,4,7,6];
         return PhysicsShapeAsset.CreateStaticTriangleMesh(Id,Vertices,Indices);
     }
@@ -229,7 +229,7 @@ internal static class DestructibleScene {
         if(!Members.TryGetProperty(Name,out var Element)){ return true; }
         return Element.ValueKind==JsonValueKind.Number&&Element.TryGetInt32(out Value);
     }
-    /// <summary>A number: the JSON text goes straight to fixed point, so no rounding comes in. Strings (such as "NaN") are refused.</summary>
+    /// <summary>数値。JSON テキストをそのまま固定小数点に変換するため丸め誤差が生じない。「NaN」などの文字列は拒否する。</summary>
     private static bool TryReadScalar(JsonElement Members,string Name,ref LogicalScalar Value){
         if(!Members.TryGetProperty(Name,out var Element)){ return true; }
         return Element.ValueKind==JsonValueKind.Number&&LogicalScalar.TryParseInvariant(Element.GetRawText(),out Value);

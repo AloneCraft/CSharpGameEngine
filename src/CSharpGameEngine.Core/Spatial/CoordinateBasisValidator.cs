@@ -1,17 +1,15 @@
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Authoring/Build-time validation of an <see cref="ICoordinateConvention"/>'s declared physical
-/// basis - not called on any hot path (see Docs/Specifications/Spatial-RUF.md "エラー処理").
+/// 作成時/ビルド時に行う、<see cref="ICoordinateConvention"/> が宣言する物理基底の検証。ホットパスでは呼び出さない (Docs/Specifications/Spatial-RUF.md の「エラー処理」を参照)。
 /// </summary>
 public static class CoordinateBasisValidator {
     private const float LengthTolerance=1e-4f;
     private const float OrthogonalityTolerance=1e-4f;
 
     /// <summary>
-    /// Throws <see cref="SpatialConfigurationException"/> if <typeparamref name="TConvention"/>'s
-    /// Right/Up/Forward axes are not unit length, not mutually orthogonal, non-finite, or
-    /// duplicate the same physical axis.
+    /// <typeparamref name="TConvention"/>のRight／Up／Forward軸が単位長でない、互いに直交しない、有限値でない、
+    /// または同じ物理軸を重複して指す場合、<see cref="SpatialConfigurationException"/>をスローする。
     /// </summary>
     public static void Validate<TConvention>()
         where TConvention:struct,ICoordinateConvention {

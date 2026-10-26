@@ -30,7 +30,7 @@ public sealed class StageSceneDataBuilderTests {
             Material.BaseColorTexture.Pixels.Length);
     }
 
-    /// <summary>M0098: a glTF material's <c>extras.CGE_world_grid</c> must reach the renderer's material.</summary>
+    /// <summary>M0098：glTF マテリアルの <c>extras.CGE_world_grid</c> をレンダラーのマテリアルへ渡さなければならない。</summary>
     [WindowsOnlyFact]
     public void WorldGridGltf_ReachesTheStageMaterialAlongsideItsSurfaceColor(){
         var Directory=Path.Combine(Path.GetTempPath(),$"stage-world-grid-{Guid.NewGuid():N}");

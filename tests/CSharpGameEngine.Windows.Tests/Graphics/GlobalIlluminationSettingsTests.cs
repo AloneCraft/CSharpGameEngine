@@ -6,8 +6,8 @@ public sealed class GlobalIlluminationSettingsTests {
         new(new Vector3(1f,2f,3f),HalfExtent,Spacing,ProbesPerFrame,0.5f,1f);
     [Fact]
     public void CaptureFaces_ProjectTheDirectionsTheGiShaderReadsBack(){
-        // GlobalIllumination.hlsl turns capture texel NDC (x, y) back into the direction Forward + Right*x + Up*y; the
-        // capture's view-projection must put that direction at the same NDC, or bounced light lands mirrored.
+        // GlobalIllumination.hlslは撮影テクセルのNDC (x, y)をForward + Right*x + Up*y方向へ変換する。
+        // 撮影のビュー投影でも同じ方向が同じNDCに来なければ、反射光が左右反転して届く。
         var Probe=new Vector3(3f,-2f,7f);
         for(var Face=0;Face<6;Face++){
             var (Forward,Right,Up)=StageGlobalIllumination.FaceBasis(Face);

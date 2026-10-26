@@ -1,7 +1,8 @@
+extern alias PreviewHost;
 using System.IO.Pipes;
 using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.Contracts;
-using CSharpGameEngine.EditorPreview.Host;
+using PreviewHost::CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Windows.Tests.Runtime;
@@ -38,8 +39,8 @@ public sealed class RenderPreviewHostPipeTests {
 
     [Fact]
     public async Task NamedPipe_StopsWhileAClientIsMidRequest(){
-        // Audit AUD-003: after the connection the request read used no token, so a client that sent part of a request
-        // and kept the pipe open kept the host from stopping.
+        // Audit AUD-003：接続後のリクエスト読み取りにトークンが使われていなかったため、リクエストの一部だけを送信してパイプを開いたままにするクライアントがホストの停止を妨げていました。
+        // ホストのパイプインスタンスは1つだけなので、停止したクライアントが受信期限を超えて占有しないようにします。
         string PipeName=$"CSharpGameEngine.Preview.Test.{Guid.NewGuid():N}";
         using CancellationTokenSource Stop=new();
         Task Server=RenderPreviewHostServer.RunAsync(PipeName,_=>new FakeSession(),Stop.Token);
@@ -52,7 +53,7 @@ public sealed class RenderPreviewHostPipeTests {
 
     [Fact]
     public async Task NamedPipe_DropsAClientThatDoesNotFinishItsRequestInTime(){
-        // The host has one pipe instance, so a stalled client must not hold it past the receive deadline.
+        // DXGI は異常終了したプロセスの HWND 関連付けを保持することがあります。復旧では、新しい
         string PipeName=$"CSharpGameEngine.Preview.Test.{Guid.NewGuid():N}";
         using CancellationTokenSource Stop=new();
         Task Server=RenderPreviewHostServer.RunAsync(PipeName,_=>new FakeSession(),TimeSpan.FromMilliseconds(200),Stop.Token);

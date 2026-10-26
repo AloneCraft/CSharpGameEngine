@@ -6,6 +6,23 @@ using static CSharpGameEngine.VSExtension.NativeMethods;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class PackagedRenderPreviewHostTests {
+    [Theory]
+    [InlineData("Atmosphere")]
+    [InlineData("GlobalIllumination")]
+    [InlineData("AmbientOcclusion")]
+    [InlineData("LuminanceHistogram")]
+    [InlineData("Skinning")]
+    [InlineData("GlobalDistanceField")]
+    [InlineData("Lumen")]
+    public void VsixPayload_CarriesEveryComputeShaderArtifactTheHostLoads(string Name){
+        string VsixPath=Path.Combine(
+            AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        using ZipArchive Archive=ZipFile.OpenRead(VsixPath);
+
+        Assert.Contains(Archive.Entries,Entry=>
+            Entry.FullName==$"PreviewHost/Shaders/{Name}.cgeshaderartifact");
+    }
+
     [Fact]
     public void VsixPayload_AppHostRendersWithWarpAndPackagedShader(){
         string Root=Path.Combine(

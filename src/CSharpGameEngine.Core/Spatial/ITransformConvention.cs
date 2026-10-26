@@ -3,13 +3,7 @@ using System.Numerics;
 namespace CSharpGameEngine.Spatial.Abstractions;
 
 /// <summary>
-/// Scale/Rotation/Translation composition, parent/child combination, and Point/Direction/Normal
-/// application - kept as a separate contract from <see cref="ICoordinateConvention"/> on purpose
-/// (see Docs/Specifications/Spatial-RUF.md "Transformとの分離"): whether RUF's R/U/F map to
-/// physical +X/+Y/+Z is a different question from row-vs-column vectors, matrix multiplication
-/// order, and how a parent world matrix combines with a local one. <see cref="Matrix4x4"/> here is
-/// pure 16-float storage; the actual row/column-vector and multiplication-order convention lives
-/// entirely inside a given implementation's method bodies, not in the type itself.
+/// Scale/Rotation/Translation の合成、親/子の合成、Point/Direction/Normal への適用を定義する。意図的に <see cref="ICoordinateConvention"/> とは別の契約としている (Docs/Specifications/Spatial-RUF.md の「Transformとの分離」を参照)。RUF の R/U/F が物理 +X/+Y/+Z のどれに対応するかは、行ベクトルと列ベクトルの違い、行列の乗算順序、親のワールド行列とローカル行列をどう合成するかとは別の問題である。ここの <see cref="Matrix4x4"/> は 16 個の float を格納するだけであり、行/列ベクトルの実際の規約と乗算順序は型自体ではなく、各実装のメソッド本体だけで決まる。
 /// </summary>
 public interface ITransformConvention {
     static abstract Matrix4x4 Compose(in RufVector Position,in RufQuaternion Rotation,in RufVector Scale);

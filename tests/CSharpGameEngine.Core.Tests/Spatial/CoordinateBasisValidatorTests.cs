@@ -6,8 +6,7 @@ using CSharpGameEngine.Spatial.Unreal;
 namespace CSharpGameEngine.Spatial.Tests;
 
 /// <summary>
-/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md "エラー処理": invalid basis, non-orthogonal
-/// axes, zero-length axes, non-finite values must be clear Authoring/Build-time errors.
+/// Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「エラー処理」：無効な基底、直交しない軸、長さ 0 の軸、有限でない値は、作成時/ビルド時の明確なエラーにしなければならない。
 /// </summary>
 public class CoordinateBasisValidatorTests {
     [Fact]
@@ -32,11 +31,7 @@ public class CoordinateBasisValidatorTests {
         =>Assert.Throws<SpatialConfigurationException>(CoordinateBasisValidator.Validate<NonFiniteConvention>);
 
     /// <summary>
-    /// Reverse-engineered behavior: any pair of literally duplicate unit axes has dot product 1, so
-    /// <see cref="CoordinateBasisValidator"/>'s orthogonality checks (which run before its explicit
-    /// duplicate-axis check) always reject a duplicate basis first. The duplicate-axis-specific error
-    /// message is therefore unreachable by construction - still an error, just always surfaced as an
-    /// orthogonality violation. See Docs/Specifications/Spatial-RUF.md "エラー処理".
+    /// リバースエンジニアリングで確認した動作：単位軸の組が文字どおり重複していると、どの組の内積も 1 になる。そのため、明示的な重複軸チェックより先に実行される <see cref="CoordinateBasisValidator"/> の直交性チェックが、必ず先に重複基底を拒否する。構造上、重複軸専用のエラーメッセージには到達できない。いずれもエラーではあるが、常に直交性違反として表面化する。Docs/Specifications/Spatial-RUF.md の「エラー処理」を参照。
     /// </summary>
     [Fact]
     public void DuplicateAxes_ThrowsViaOrthogonalityCheck(){

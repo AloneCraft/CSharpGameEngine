@@ -38,7 +38,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             "        switch (SceneName) {",
         ];
         if(!HasEditorSystems&&!HasRealtimeSystems){
-            // Only an editor or realtime frame reads the system set; declared and reset without one, it was CS0414.
+            // system set を読むのは editor frame または realtime frame だけです。それ以外で宣言して reset するだけだと CS0414 になっていました。
             Lines.Remove("    private static GeneratedSystemSet PreviewSystems;");
             Lines.Remove("        PreviewSystems = default;");
         }
@@ -83,7 +83,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             if(HasSpatialIndex){ Lines.Add("        PreviewState.World.RefreshGlobalSpatialIndex();"); }
         }
         if(HasSpatialIndex){
-            // M0096: the render server also holds the view world; the debug overlay shows this one.
+            // M0096：render server は view world も保持し、debug overlay はこの world を表示します。
             Lines.Add("        PreviewState.World.PreferForSpatialDebug();");
         }
         Lines.Add("        Initialized = true;");
@@ -134,9 +134,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
     }
     /// <summary>
-    /// ADR-0070 B1: the Scene Designer's runtime view. The world is what the game starts with (every
-    /// startup scene in order) plus the scene being edited, rendered by the game's own Presentation
-    /// systems into the designer's surface from the designer's camera.
+    /// ADR-0070 B1：Scene Designer の runtime view。world はゲームの開始時と同じ内容（startup scene を順番にすべて含む）に、編集中のシーンを加えたものです。designer の camera からゲーム自身の Presentation system を使って designer の surface に描画します。
     /// </summary>
     private static void AddRuntimeView(List<string> Lines,IReadOnlyList<SceneEmitModel> Scenes,GameSystemRegistry Registry){
         const string Host="global::CSharpGameEngine.Runtime.Windows.EngineHost";

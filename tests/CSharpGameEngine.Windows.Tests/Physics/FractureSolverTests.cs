@@ -1,9 +1,9 @@
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0113: the breaking solver (<see cref="FractureState"/>, Runtime.Physics). A bond breaks when the strain gathered in one tick reaches its strength
-/// (equal breaks), impulses spread ring by ring, bonds inside a cluster are stronger, the parts that come apart become pieces in fragment order, anchored
-/// fragments keep their pieces still, and a recorded set of bonds makes the same pieces as the strain that broke them.
+/// ADR-0078/M0113：破壊ソルバー（Runtime.Physicsの<see cref="FractureState"/>）。1ティックに蓄積したひずみが強度に達すると結合が破断する
+///（同値なら破断）。力積はリングごとに広がり、クラスタ内部の結合ほど強い。分離したパーツは破片順の破片になり、固定された破片の子パーツは動かない。
+/// また、記録された破断結合からも、ひずみで破断した場合と同じ破片を作る。
 /// </summary>
 public sealed class FractureSolverTests {
     private static readonly FractureSettings Plain=new(LogicalScalar.One,LogicalScalar.Zero,false);
@@ -41,7 +41,7 @@ public sealed class FractureSolverTests {
         var State=new FractureState(Asset,new FractureSettings(LogicalScalar.One,LogicalScalar.One/LogicalScalar.FromInt64(2),false));
         var Impulse=LogicalScalar.FromInt64(64);
         State.AddImpulse(0,Impulse);
-        // Ring of a bond: the fewer hops of its two fragments from fragment 0.
+        // 結合のリング数は、その両端の破片から破片0までのホップ数の小さい方。
         var Hops=new int[Asset.Fragments.Count];
         Array.Fill(Hops,-1);
         Hops[0]=0;
@@ -88,7 +88,7 @@ public sealed class FractureSolverTests {
         Assert.False(State.IsWhole);
         Assert.Equal(Asset.Fragments[0].Mass,Step.Began[0].Mass);
         Assert.Equal(Asset.Fragments[0].LocalCenter,Step.Began[0].Center);
-        // A crack that does not separate anything changes no piece.
+        // 何も分離しない亀裂では、パーツに変化はない。
         var Rest=Step.Began[1];
         var Inner=Enumerable.Range(0,Asset.Bonds.Count).First(Bond=>!State.IsBondBroken(Bond));
         State.AddStrain(Inner,State.StrengthOf(Inner));

@@ -6,22 +6,20 @@ using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// Turns a scene JSON document into a <see cref="SceneEmitModel"/> (ADR-0070): the only
-/// boundary between scene analysis and generation.
+/// シーンJSON文書から<see cref="SceneEmitModel"/>を生成する（ADR-0070）。シーン解析とコード生成の間にある唯一の境界。
 ///
 /// <para>
-/// <b>Nothing holding symbols leaves this class.</b> <c>ISymbol</c> roots its <c>Compilation</c> and has
-/// no value equality, so flowing it through an <c>IncrementalValuesProvider</c> would defeat caching
-/// and leak memory.
+/// <b>シンボルを保持するオブジェクトをこのクラスの外へ渡さない。</b><c>ISymbol</c>は<c>Compilation</c>をルート参照し、値の等価性も持たない。
+/// そのため<c>IncrementalValuesProvider</c>を経由させるとキャッシュが機能せず、メモリリークも起きる。
 /// </para>
 ///
 /// <para>
-/// <b>It reports no diagnostics.</b> <see cref="SceneJsonDslAnalyzer"/> reports the document's problems;
-/// here they only decide whether the scene is emitted (<see cref="SceneEmitModel.HasErrors"/>).
+/// <b>診断は報告しない。</b>文書の問題は<see cref="SceneJsonDslAnalyzer"/>が報告する。ここではそれらの問題を、シーンを出力するかどうかの
+/// 判定にのみ使う（<see cref="SceneEmitModel.HasErrors"/>）。
 /// </para>
 /// </summary>
 internal static class SceneModelBridge {
-    /// <summary>ADR-0070: a scene JSON document; <c>null</c> outside engine projects or without text.</summary>
+    /// <summary>ADR-0070：シーンJSON文書。エンジンプロジェクト外、またはテキストがない場合は<c>null</c>。</summary>
     internal static SceneEmitModel?TryAnalyzeJson(AdditionalText File,Compilation Compilation,CancellationToken CancellationToken){
         if(Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName) is null
             ||File.GetText(CancellationToken) is not { }Text){
@@ -59,7 +57,7 @@ internal static class SceneModelBridge {
         return new SceneEmitNode(BuildLocalName(Path),Path.ToDisplayString(),Node.Name,Components,Children.ToImmutable());
     }
 
-    /// <summary>The declared components plus the ones generation adds.</summary>
+    /// <summary>宣言済みコンポーネントと、生成処理が追加するコンポーネント。</summary>
     private static ImmutableArray<SceneEmitComponent>WithGeneratedComponents(IEnumerable<SceneEmitComponent>Declared,bool AddSampleSpatialBounds){
         var Components=ImmutableArray.CreateBuilder<SceneEmitComponent>();
 
@@ -74,8 +72,8 @@ internal static class SceneModelBridge {
             HasSpatialBounds|=string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Entities.SpatialBounds",StringComparison.Ordinal);
         }
 
-        // The sample executable opts its renderable Scene nodes into the global index at generation time.
-        // The generated component is explicit and deterministic; runtime mesh bounds are never inferred.
+        // サンプル実行ファイルは、生成時にレンダリング可能なSceneノードをグローバルインデックスへ登録する。
+        // 生成するコンポーネントは明示的かつ決定的である。実行時のメッシュ境界を推測して追加することはない。
         if(AddSampleSpatialBounds&&HasTransform&&HasRenderableMesh&&!HasSpatialBounds){
             Components.Add(new SceneEmitComponent(
                 "global::CSharpGameEngine.Entities.SpatialBounds",

@@ -9,13 +9,13 @@ public sealed class ImportedMesh {
 
     public required IReadOnlyList<Vector2>Uvs { get; init;}
 
-    /// <summary>Raw encoded (e.g. PNG/JPEG) base-color texture bytes, undecoded. Null if the material has no texture.</summary>
+    /// <summary>未デコードの、エンコード済みベースカラー画像データ（PNG／JPEGなど）。マテリアルにテクスチャがない場合はnull。</summary>
     public byte[]?BaseColorTextureBytes { get; init;}
 
-    /// <summary>glTF baseColorFactor tint; defaults to (1,1,1,1) when the primitive has no material.</summary>
+    /// <summary>glTFのbaseColorFactorによる色合い。プリミティブにマテリアルがない場合は(1,1,1,1)。</summary>
     public required Vector4 BaseColorFactor { get; init;}
 
-    /// <summary>Triangle list; always a multiple of 3.</summary>
+    /// <summary>三角形リスト。要素数は常に3の倍数。</summary>
     public required IReadOnlyList<uint>Indices { get; init;}
 
     public required BoundingBox Bounds { get; init;}

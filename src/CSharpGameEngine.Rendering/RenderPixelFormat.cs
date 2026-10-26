@@ -1,5 +1,5 @@
 namespace CSharpGameEngine.Rendering;
-/// <summary>CPU readback formats independent of any graphics provider.</summary>
+/// <summary>グラフィックスプロバイダーに依存しない CPU 読み戻し形式。</summary>
 public enum RenderPixelFormat:byte {
     Unknown=0,
     Rgba8Unorm=1,

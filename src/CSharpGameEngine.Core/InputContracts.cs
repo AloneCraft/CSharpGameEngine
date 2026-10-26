@@ -25,8 +25,8 @@ public readonly record struct InputActionId(StableId Value) {
 }
 public enum InputDeviceKind { Keyboard,Mouse,Gamepad }
 /// <summary>
-/// Relative kinds (mouse delta, wheel) report a per-event increment rather than a held value: the
-/// input server accumulates them for the processed frame and never keeps them as held state.
+/// 相対値（マウスの移動量、ホイールなど）は、保持値ではなくイベントごとの増分を報告する。
+/// 入力サーバーは処理対象フレーム中に値を累積し、保持状態としては記憶しない。
 /// </summary>
 public enum InputControlKind { Button,Axis1D,Axis2D,RelativeAxis1D,RelativeAxis2D }
 public readonly record struct InputControl(InputDeviceKind DeviceKind,string Code,InputControlKind Kind=InputControlKind.Button) {

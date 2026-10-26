@@ -65,9 +65,9 @@ public sealed class VsixCompatibilityMatrixValidatorTests {
 
     [Fact]
     public void PreReleaseValidationAcceptsPassedEvidenceThisCheckoutDoesNotHave(){
-        // Experimental evidence lives under the untracked .artifacts root (ADR-0061), so a fresh checkout has none of
-        // it. An ordinary build (the Feature Runner's post-build verification, CI's first step) must still pass; only
-        // release validation demands the evidence, as it alone demands freshness.
+        // 実験の証拠は未追跡の .artifacts ルート (ADR-0061) にあるため、新規チェックアウトには存在しない。
+        // そのためである。通常のビルド（Feature Runner のビルド後検証、CI の最初のステップ）は引き続き成功しなければならない。要求するのはリリース検証のみである。
+        // 証拠はリリース検証でのみ必須となる。新しさも要求するのはリリース検証だけである。
         string Root=CopyContractFiles();
         try {
             DateTimeOffset Now=new(2026,9,1,0,0,0,TimeSpan.Zero);

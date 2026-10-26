@@ -1,12 +1,12 @@
 namespace CSharpGameEngine.Rendering;
-/// <summary>How a material texture's colour channels are encoded, which decides the space its mip levels are averaged in (M0110).</summary>
+/// <summary>マテリアルテクスチャの色チャンネルの符号化形式。ミップレベルの平均を計算する色空間が決まる（M0110）。</summary>
 public enum RenderTextureColorSpace:byte {
-    /// <summary>Data read as it is (normal and metallic-roughness maps): every channel is averaged as stored.</summary>
+    /// <summary>そのまま読み取るデータ（法線マップ、メタリック・ラフネスマップ）。各チャンネルは保存された値のまま平均する。</summary>
     Linear=0,
-    /// <summary>sRGB-encoded colour (base colour and emissive maps): RGB is decoded to linear light, averaged and encoded again; alpha is linear.</summary>
+    /// <summary>sRGB 符号化色（ベースカラーと発光マップ）。RGB はリニア光にデコードして平均した後、再符号化する。アルファはリニア値として扱う。</summary>
     Srgb=1,
 }
-/// <summary>One level of a <see cref="RenderTextureMipChain"/>: tightly packed RGBA8 rows.</summary>
+/// <summary><see cref="RenderTextureMipChain"/> のミップレベル1つ。RGBA8 の行を隙間なく格納する。</summary>
 public sealed class RenderTextureMipLevel {
     private readonly byte[]PixelsStorage;
     internal RenderTextureMipLevel(int Width,int Height,byte[]Pixels){
@@ -19,17 +19,15 @@ public sealed class RenderTextureMipLevel {
     public ReadOnlySpan<byte>Pixels=>this.PixelsStorage;
 }
 /// <summary>
-/// The full mip chain of a material texture (M0110), made on the CPU when the texture is uploaded. Deterministic: the result depends only on
-/// the texels and the colour space, never on the machine. Each level halves the previous one (rounding down, at least one texel, the D3D12
-/// rule), and every texel is the area-weighted box average of the texels it covers, so a dimension that is not a power of two gets fractional
-/// weights instead of losing a row. The weights are integers (the overlap lengths in units of one over the destination size) and the
-/// averages are rounded integer divisions. Colour is carried at 16 bits per channel from level to level; an sRGB texture's RGB is averaged in
-/// linear light through a fixed decoding table and encoded back by the nearest 8-bit value.
+/// マテリアルテクスチャの全ミップチェーン（M0110）。テクスチャのアップロード時に CPU 上で作成する。結果はテクセルと色空間だけで決まり、実行マシンに依存しない。各レベルは直前の半分にする（端数は
+/// 切り捨て、最低1テクセル。D3D12 の規則）。各テクセルは、その領域に含まれるテクセルの面積加重平均を求めるため、2の累乗でない寸法でも行を捨てずに小数の重みで処理する。重みは整数（出力サイズの
+/// 逆数単位で表した重なり長）とし、平均は整数除算で丸める。レベル間では各色チャンネルを16ビットで保持する。sRGB テクスチャの RGB は固定デコードテーブルを使ってリニア光で平均し、最も近い8
+/// ビット値で再符号化する。
 /// </summary>
 public sealed class RenderTextureMipChain {
     /// <summary>
-    /// The IEC 61966-2-1 decoding of each 8-bit code (code / 255 <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055)^2.4) times 65535, rounded half
-    /// to even. Written out instead of computed so no platform's pow can change a mip (and product code carries no doubles).
+    /// 各8ビット符号値を IEC 61966-2-1 に従ってデコードした値。式は (code / 255 = 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055)^2.4
+    /// )。65535を掛け、最近接の偶数へ丸める。どのプラットフォームの pow 関数でもミップ結果が変わらないよう、実行時計算ではなく値を記述しておく（製品コードで double も使わない）。
     /// </summary>
     private static readonly ushort[]SrgbToLinear16=[
         0,20,40,60,80,99,119,139,159,179,199,219,241,264,288,313,
@@ -53,8 +51,12 @@ public sealed class RenderTextureMipChain {
     private RenderTextureMipChain(RenderTextureMipLevel[]Levels){
         this.LevelsStorage=Levels;
     }
+    public static RenderTextureMipChain FromImported(CSharpGameEngine.Content.TextureOutputData Texture){
+        _=CSharpGameEngine.Content.ImageArtifactCodec.WriteTexture(Texture);
+        return new(Texture.Levels.Select(Level=>new RenderTextureMipLevel(Level.Width,Level.Height,Level.Pixels.ToArray())).ToArray());
+    }
     public IReadOnlyList<RenderTextureMipLevel>Levels=>this.LevelsStorage;
-    /// <summary>The number of levels down to 1 x 1: floor(log2(max(Width, Height))) + 1, computed on integers.</summary>
+    /// <summary>整数演算で求める、1×1までのレベル数。floor(log2(max(Width, Height))) + 1。</summary>
     public static int LevelCount(int Width,int Height){
         ArgumentOutOfRangeException.ThrowIfLessThan(Width,1);
         ArgumentOutOfRangeException.ThrowIfLessThan(Height,1);
@@ -66,9 +68,9 @@ public sealed class RenderTextureMipChain {
         }
         return Count;
     }
-    /// <summary>The linear value (0 to 65535) the 8-bit sRGB code decodes to; the table every sRGB average goes through.</summary>
+    /// <summary>8ビット sRGB 符号値をデコードしたリニア値（0～65535）。sRGB 平均はすべてこのテーブルを通す。</summary>
     public static ushort DecodeSrgb(byte Code)=>SrgbToLinear16[Code];
-    /// <summary>The 8-bit sRGB code whose decoded value is nearest to <paramref name="Linear"/> (the upper one on a tie).</summary>
+    /// <summary><paramref name="Linear"/> に最も近いデコード済み値を持つ8ビット sRGB 符号値。同距離なら大きい方。</summary>
     public static byte EncodeSrgb(ushort Linear){
         var Low=0;
         var High=255;
@@ -82,17 +84,17 @@ public sealed class RenderTextureMipChain {
         }
         return (byte)Low;
     }
-    /// <summary>A chain of the texture alone, without smaller levels (what the screen layer uploads: its glyphs and images are drawn at their size).</summary>
+    /// <summary>小さいミップレベルを持たないテクスチャ単独のチェーン（スクリーンレイヤーのアップロード対象。グリフや画像を元のサイズで描画する）。</summary>
     public static RenderTextureMipChain TopLevelOnly(RenderTextureResource Texture){
         ArgumentNullException.ThrowIfNull(Texture);
         return new RenderTextureMipChain([new RenderTextureMipLevel(Texture.Width,Texture.Height,Texture.Pixels.ToArray())]);
     }
-    /// <summary>Builds every level of <paramref name="Texture"/>; level 0 is the texture itself.</summary>
+    /// <summary><paramref name="Texture"/> の全レベルを生成する。レベル0はテクスチャ自体。</summary>
     public static RenderTextureMipChain Build(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
         ArgumentNullException.ThrowIfNull(Texture);
         return Build(Texture.Width,Texture.Height,Texture.Pixels,ColorSpace);
     }
-    /// <summary>Builds every level of an RGBA8 image of <paramref name="Width"/> x <paramref name="Height"/> texels.</summary>
+    /// <summary>幅 <paramref name="Width"/>、高さ <paramref name="Height"/> の RGBA8 画像について全レベルを生成する。</summary>
     public static RenderTextureMipChain Build(int Width,int Height,ReadOnlySpan<byte>Rgba8Pixels,RenderTextureColorSpace ColorSpace){
         ArgumentOutOfRangeException.ThrowIfLessThan(Width,1);
         ArgumentOutOfRangeException.ThrowIfLessThan(Height,1);
@@ -131,7 +133,7 @@ public sealed class RenderTextureMipChain {
         }
         return new RenderTextureMipChain(Levels);
     }
-    /// <summary>The area-weighted box reduction of one 16-bit RGBA level.</summary>
+    /// <summary>16ビット RGBA レベル1つを面積加重で縮小する。</summary>
     private static ushort[]Reduce(ushort[]Source,int SourceWidth,int SourceHeight,int TargetWidth,int TargetHeight){
         var Columns=Footprints(SourceWidth,TargetWidth);
         var Rows=Footprints(SourceHeight,TargetHeight);
@@ -164,8 +166,8 @@ public sealed class RenderTextureMipChain {
         return Target;
     }
     /// <summary>
-    /// For each target texel along one axis, the source texels it covers and their overlap lengths, measured in units of 1 / target size so
-    /// they are integers: target texel x spans [x * S, (x + 1) * S) and source texel i spans [i * T, (i + 1) * T). The weights of a texel sum to S.
+    /// 1つの軸に沿う各出力テクセルについて、覆う入力テクセルと重なり長を求める。長さは出力サイズの逆数を単位とする整数。出力テクセル x は [x * S, (x + 1) * S)、入力テクセル i は
+    /// [i * T, (i + 1) * T) の範囲を占める。各入力テクセルの重みの合計は S。
     /// </summary>
     private static Footprint[]Footprints(int SourceSize,int TargetSize){
         var Result=new Footprint[TargetSize];

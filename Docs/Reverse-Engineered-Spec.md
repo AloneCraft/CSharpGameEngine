@@ -614,3 +614,66 @@
 - Observed: the portable server owns roster closure, pending/completed value snapshots, device lifecycle and recovery. Its assembly references no native binding and its public creation API carries no window or native options. The native factory owns their snapshots, validates its artifact implementation and creates/recreates the provider. Camera/matrix convenience remains L5; actual scene type names are unchanged. Native test extensions locate the current generation through a weak composition table.
 - Verified: targeted52 plus full22 projects pass3596/fail0/skip2 opt-in hardware tests, exit0; Windows791, Rendering178, Core159, FeatureRunner250, generator338, VSIX1197 and Import73 are included. Release boundary/canonical-payload5 also pass. Seven pinned images and Stage artifact remain unchanged. Maximum physical RAM66% full/62% Release, no guard stop. Evidence: `.artifacts/M0120/server-move-solution.summary.json` and the milestone.
 - Limit: native planners, compatibility initialization and frame ordering/state remain; current submission port is not yet the final frame-plan executor. Four paths and physics milestones remain incomplete. The older full22/3570 SDK0.1.32 measurement is historical provenance.
+
+## RE-M0124 — メッシュ接触の複数の面の向き、縁石の衝突、破壊の内部ひずみと多段クラスター
+- Evidence: `src/CSharpGameEngine.Runtime.Physics/PhysicsNarrowPhase.cs`(`TryCreateContacts`・`TryPolytopeMeshContacts`・`TryCompoundContacts`・`SpreadPoints`)、`DeterministicPhysicsWorld.cs`(`AddContact`、`CachedPoint.Normal`、`BondStrains`)、`FractureSolver.cs`、`PhysicsCooking.cs`、`PrefractureCooking.cs`、`PhysicsCache.cs`、`plugins/CSharpGameEngine.Destruction/Runtime/Destruction.cs`・`DestructionSystems.cs`、`Templates/CSharpGameEngine.Templates.Vehicle/Scenes/Lvl_VehicleBasic.json`
+- Observed behavior:
+  - 箱・凸多面体とメッシュの接触は、三角形ごとに「角が面の下に入る深さ」と「三角形が形の面から入る深さ(稜線)」の小さいほうを採る。形の面とほぼ平行(内積 0.95 以上)な三角形は角だけ。形の面で離れている三角形と、角から面の法線の向きに進んだ点が形の外に出る三角形からは、入った角を採らない。点は法線の向き(内積 0.95)ごとに深い順で最大 3 つのパッチ、各 4 点(箱は深い 4 点を角の順、凸多面体は入った点を先に広がりで)、前のパッチの点から 1 mm 以内は除く。複合形状は子の接触をメッシュの相手なら同じ規則で向きごとにまとめ、凸の相手なら 1 つの向き。
+  - ワールドは 1 組の接触にパッチを並べ、点ごとに法線を持ち、warm start はパッチの特徴と法線(約 18°)が合うものから点を順に引き継ぐ。イベントは 1 組に 1 つ。1 つの向きの接触は M0109 と同じ値。
+  - Vehicle の `TrackCurbs` は `StaticMeshCollider`(摩擦 1、反発 0)。
+  - `FractureState` は結合ごとに内部ひずみ D を持つ。切断は D + tick のひずみ ≥ 強さ。切れていない結合は D ← (D + 残るひずみ) × 保持率、強さの 2⁻²⁰ 未満は 0。保持率は `FractureSettings.StrainRetention`(既定 0)。プラグインは `Destructible.StrainDecay`(既定 0.5/s)から max(0, 1 − 減衰/tick の頻度)。残るひずみは、接触の `ContactBegin` の tick の力積、ゲームの `ApplyImpulse`、`StrainField`、キャラクターの衝突のうち接触が始まった tick のもの。
+  - 結合の強さは面積の強さ × `ClusterStrengthScale`^(共有する段の数)。調理は `ClusterLevels`(1〜4)。段ごとに各クラスターを √n 個の連結なクラスターへ分け、最小の破片の順に番号。
+  - `.cgefracture` は 2 段以上で版 3、1 段は版 2。`.cgephyscache` はスキーマ 4(切断の後に増えた内部ひずみ)。`Replay` は記録の結合を切り、D を減衰させ、記録の値を置く。
+- 観測(Fact): 修正前の接触は、斜面と段にまたがる形を 8.3〜8.6 cm 沈め、裏向きの法線 (0, −0.894, ±0.447) を出し、縁石を含めたレベルで車を −98.8 m まで落とした。修正後は 1 cm 未満。内部ひずみは、1 回の打撃(結合の 40%)で切れず、0.1 秒おきの 3 回目で切れ、2 秒おきでは切れず、減衰 60/s では溜まらない(宙の木箱)。床に置いた木箱は自重で 20 秒立つ。
+- 推測(Hypothesis): 「接触の始まり = 衝撃」は静止の揺れで接触が切れてまた始まると荷重を衝撃として溜める。眠りで多くは止まる。
+
+## RE-M0115 — Virtual sun shadows and scaled ramp normals
+
+- Confidence: High for CPU cache contracts and Standard/Radial WARP pixels; runtime image evidence for TopDown and the hardware comparison.
+- Evidence: `VirtualDirectionalShadows.cs`, `StageRenderer.VirtualShadows.cs`, Stage Shader Graph, `VirtualDirectionalShadowTests`, `VirtualShadowGpuTests`, M0115.
+- Observed behavior: CPU receiver requests populate a world-grid page table; only dirty depth pages are redrawn. Transform/mesh changes invalidate even unchanged AABBs. Missing requests retain cascaded shadows. All virtual frames still pay for the cascades. The physical atlas is allocated lazily and retained until renderer disposal.
+- Comparison: Two viewports use one world and synchronized camera/time/exposure, with independent FrameCB slots and depth resources for their selected shadow methods. The sample has a moving caster, thin fence, steps, slopes and a distant receiver. The fixed-lighting comparison deliberately excludes screen-space environment passes.
+- TopDown: The reported dark ramp was reproduced before the correction. Inverse-transpose normals removed the extreme darkness without changing light, material or exposure settings. Measured sRGB patch luminance was 27.79 -> 94.42 on the left ramp, 82.08 -> 117.96 on the right, 128.37 -> 127.38 on nearby floor. Both captures used the same camera and 32 frames with zero D3D12 errors. These are pixel observations, not physical irradiance ratios.
+- Conformance: See M0115 for current completed checks and remaining verification. Do not infer a speedup from page reuse alone.
+
+
+## RE-L4-020 extension — directional soft shadows (M0125)
+
+Code inspection and WARP tests confirm shared PCSS for the CSM and virtual directional paths: 32+centre blocker queries, depth-gap × tan(half angular diameter), bounded radius, 64 disk filter samples, bilinear depth comparisons and receiver-plane correction. The opt-in environment settings survive the existing retained frame and reproduce pixels after device recovery. Page planning expands the halo by the maximum soft radius. Legacy defaults stay disabled. Stage ABI is stage-v15. Debug/Release regressions and actual RTX 4060 Ti captures verify behavior; increasing diameter/separation widens transitions in both modes and Radial. Frozen comparison reuses 652 pages without redraw or missing requests. Confidence: High for these bounded cases; no performance improvement is inferred. M0125 records commands, counts and sample limitations.
+
+## RE-L8-035 — Asset workspace
+
+- Icon presentation: L8 `AssetWorkspaceIcons` maps the Assets tab/commands/filter entry to ImageGroup and eight asset kinds to standard VS monikers. Tiles use a 32 DIP fallback, then actual thumbnails with a 16 DIP type marker; independent 12 DIP lock/error/warning badges have themed background plates. Details and Inspector share the mapping at 16 DIP. ReadOnly metadata diagnostics retain an error marker and label alongside the lock. Native buffer/data contracts are unchanged. Icon policy tests pass; exact actual-theme/DPI verification is recorded in M0123.
+
+- Confidence: High for tested standalone contracts; CodeVerified for shell integration; Japanese/dark shell display and basic interaction have been observed in the dedicated Experimental Instance, while the full gesture matrix remains incomplete.
+- Evidence: F-L8-035 implementation files/tests and `Docs/Milestones/M0123-Asset-Workspace.md`.
+- Observed behavior: Evaluated DTE items and evaluated plugin roots supply a project-scoped inventory. Content reads canonical sidecars only. Invalid legacy metadata remains untouched until explicit conversion; conversion preserves its GUID. Read-only providers remain visible. Tiles virtualize visible rows and PNG/JPEG thumbnails load from realized bindings. Search cancellation suppresses stale publication. Favorites store queries/locations, not copies of sources.
+- Editing: DataAsset scalar, enum, nested and array value spans are validated with the shared compilation/analyzer and patched into VS buffers. The SDK buffer undo manager is obtained before the first write; actual Inspector edit/native Undo/Redo/Save restored the smoke asset's exact original bytes. Full linked file/multi-document Undo remains unverified. Single asset selection displays its Inspector without changing the scene session. A model drop uses the existing AddNode operation and scene-session commit path. Typed reference drops must match an existing catalog symbol candidate.
+- Organize: Roslyn field/type symbols, aliases and static imports use the same catalog name mapping as generation; known JSON reference fields and graph dependencies use parsers. Plans include snapshot/read guards and full before/after review. Physical source/sidecar mutation supports identity-preserving move, new-ID duplicate, case-only rename, conflict rejection, inverse operations and pending-operation recovery. Referenced deletes need a same-kind replacement (DataAssets additionally share their type) or are rejected. Standard file rename/delete notifications are redirected to that plan; directory changes involving assets are rejected pending batch support.
+- Limits: Dynamic/unknown reference candidates, shared editable physical sources across projects, explicit project XML item references and missing glTF destination dependencies stop before mutation. Add Source copies files but is not artifact import. Reimport is disabled with the M0114 reason; no subasset identities are fabricated. Font previews use the existing FontAtlas codec in the standalone host and WPF for TTF/OTF. Extended image formats and importer settings do not yet have complete dedicated previews/editing.
+- Result: Partial against ADR-0081. Native shell behavior and the remaining integration gates are not inferred from passing unit tests.
+- Layout/recovery observations: Assets and Output share a shell tab group and retain its saved height. Explicit layout no longer assigns EnvDTE linked-frame Height, which resized the whole IDE in the target VS; 280 DIP for an existing group remains unmet. Interrupted physical-operation recovery checks known source/metadata states before changing any participant and rejects a recreated original even if its bytes match. Atomic source/metadata publication avoids exposing partially rewritten bytes. Simulated interruption cases are covered; this is not a complete crash/power-loss guarantee.
+
+## RE-main-integration (2026-10-26)
+- Observed: main contains both parent histories after merge e8a81ad. Original dirty work is restored and unstaged; there are no unmerged index entries.
+- Observed: restored virtual/soft shadows compile against the moved Rendering.Server and RenderCamera APIs. Portable shadow diagnostics, comparison aspect selection and replay agree with the native backend. Stage and Lumen match the appended managed constant layout in DXC reflection.
+- Evidence: Conformance main-integration entry and `.artifacts/Integration/` manifests/build and test logs. Full clean-merge tests and focused restored-workspace tests are separate evidence sets.
+
+
+## RE-L7-058 — Image/model interpretation
+
+- Confidence: High for tested standalone imports/transactions; Medium for unexercised VS shell integration.
+- Evidence: ImageOutputTests, FbxCompositeTests, AssetFileMutationTests, AssetCatalogTests; L7 ImageOutputCompiler/FbxModelCompiler and L6 ImageArtifactCodec.
+- Observed: schema 1 sidecars retain source AssetId while explicitly named outputs derive separate Image/Texture keys. Data channels remain linear; normals renormalize at each mip. Encoded Image bytes are retained. Profile-compatible artifacts reuse validated CAS objects; final manifests are replaced after source/metadata validation. Static FBX publication uses actual Box.fbx; synthetic scenes establish skins, Takes and animation-only behavior.
+- Boundary: existing model source readers remain; this does not assert the global M0114 runtime cutover. Generated catalog fields are migrated through Roslyn edits. Full Visual Studio linked file/text Undo and real skinned/multi-Take FBX-file evidence remain unverified.
+- Intended behavior: Image-And-Model-Interpretation.md and ADR-0088. Acceptance result and commands: M0126.
+
+## RE-L8-036 — Asset editor windows and preview levels
+
+- Confidence: High for the tested policies, models and WARP renders; Medium for the live shell behaviour recorded in M0127.
+- Evidence: AssetEditorFoundationTests, AssetEditorModelTests, PreviewLevelTests, PreviewLevelStoreTests, RenderPreviewLightingSessionTests; live captures under `.artifacts/AssetEditors/`.
+- Observed: `IVsWindowFrame.SetProperty(VSFPROPID_FrameMode, VSFM_Float)` succeeds only from `IVsWindowFrameNotify3.OnShow` (it returns E_UNEXPECTED in `OnCreate`). The `FrameMode`/`IsFloating` readback of a document frame is stale, so success is judged by the HRESULT. Sizing the frame immediately after floating left the WPF layer partly unpainted; sizing about 1.2 s later paints fully. A restore or open-with carries `CEF_OPENSPECIFIC (0x10)` in `CreateFlags`, and honouring the saved layout there keeps the restored geometry.
+- Observed: preview lights are resent every frame while background/ambient/environment apply only when `EnvironmentRevision` changes; `ReplaceScene` rebuilds the server and reapplies the last lighting. The Default template reproduces the former fixed +Y light, so undersides are lit.
+- Observed: the preview host compiles the ECS-free `Skeleton.cs`, `AnimationClip.cs` and `StageGltfAssets.cs` of the shared projects and references managed `Import`; `StageSceneDataBuilder` calls the same `StageGltfAssets`. Linking the public `Skeleton`/`JointPose`/`AnimationClip` types makes them exist in both the host and `UserEcsProject`, so `Windows.Tests` reaches the host through the extern alias `PreviewHost`. `CheckBox` automation toggles raise Checked/Unchecked, not Click.
+- Boundary: Scene JSON lights are not reachable without a built game, so a level cannot be a template. Static-mesh glTF textures in the preview and the DPI/high-contrast matrix are not asserted.
+- Intended behavior: Asset-Editors.md and ADR-0089. Acceptance result and commands: M0127.

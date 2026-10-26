@@ -4,7 +4,7 @@ using System.Numerics;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
-/// <summary>WARP oracles for the ADR-0069 sky atmosphere: GPU LUTs against the CPU reference.</summary>
+/// <summary>空大気とGPU LUTの結果をCPU参照値と比較する、ADR-0069用WARP検証オラクル。</summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class AtmosphereGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
@@ -16,7 +16,7 @@ public sealed class AtmosphereGpuIntegrationTests {
         Assert.All(Readback.Transmittance,Value=>Assert.True(float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z),$"Transmittance {Value}"));
         Assert.All(Readback.SkyView,Value=>Assert.True(float.IsFinite(Value.X)&&Value.X>=0f,$"SkyView {Value}"));
         Assert.All(Readback.IrradianceSh,Value=>Assert.True(float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z),$"SH {Value}"));
-        // Zenith view from the ground: uv.y=0 (ground height), uv.x at d=dMin (straight up).
+        // 地面から天頂を見る。uv.y=0は地面の高さ、uv.xはd=dMinに対応し、真上を向く。
         var ZenithTransmittance=Readback.Transmittance[0];
         var Cpu=AtmosphereTransmittance.Evaluate(SkyAtmosphereSettings.Earth,0f,Vector3.UnitY);
         Assert.InRange(ZenithTransmittance.X,Cpu.X-0.02f,Cpu.X+0.02f);

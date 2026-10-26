@@ -41,7 +41,7 @@ public class ModelPixelVerifierTests {
 
     [Fact]
     public void Verify_PlausibleCoverage_Succeeds(){
-        // A centered disc covering roughly 20% of a 100x100 frame.
+        // 100x100フレームの約20%を覆う、中央配置の円盤。
         var Frame=BuildFrame(100,100,ExtraRowPitchPadding:0,RenderPixelFormat.Rgba8Unorm,
                              (X,Y)=>(X-50)*(X-50)+(Y-50)*(Y-50)<32*32);
 

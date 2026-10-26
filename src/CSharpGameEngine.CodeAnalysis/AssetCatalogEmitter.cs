@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 using System.Text.RegularExpressions;
 using CSharpGameEngine.SceneAnalysis.Json;
+using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -13,7 +14,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <c>ModelAsset</c>、<c>.png</c>/<c>.jpg</c> は <c>TextureAsset</c>、<c>.cgefont</c> は <c>FontAsset</c>。シーン JSON が <c>"Assets/…"</c> で書いたパスに対応するファイルが
 /// 無ければ SCENE208(エラー)にする。
 /// </summary>
-internal static class AssetCatalogEmitter {
+internal static partial class AssetCatalogEmitter {
     internal const string HintName="GameSystem.Assets.g.cs";
     private static readonly Regex AssetPathPattern=new("\"((?:Plugins/[^\"/\\\\]+/)?Assets/[^\"\\\\]+)\"",RegexOptions.Compiled);
 
@@ -56,7 +57,7 @@ internal static class AssetCatalogEmitter {
         return (Relative.StartsWith("Assets/",StringComparison.Ordinal)||IsProjectPluginAsset(Relative))&&KindOf(Relative) is not null?Relative:null;
     }
 
-    /// <summary><c>Plugins/&lt;名前&gt;/Assets/…</c>: a project plugin's asset.</summary>
+    /// <summary><c>Plugins/&lt;名前&gt;/Assets/…</c>：プロジェクトプラグインのアセット。</summary>
     private static bool IsProjectPluginAsset(string Relative){
         var Segments=Relative.Split('/');
         return Segments.Length>3&&Segments[0]==SceneFiles.PluginsFolderName&&Segments[2]=="Assets";
@@ -74,11 +75,11 @@ internal static class AssetCatalogEmitter {
         };
     }
 
-    /// <summary>A data asset (ADR-0079): one value of a <c>[DataAsset]</c> type, compiled like a scene component.</summary>
+    /// <summary>データアセット (ADR-0079)：シーンコンポーネントと同様にコンパイルされる、<c>[DataAsset]</c> 型の値 1 つ。</summary>
     internal const string DataAssetExtension=".cgeasset";
     private const string DataAssetKind="DataAsset";
 
-    /// <summary>A data asset file read against the compilation: its value as C#, or the problems that keep it out of the catalog.</summary>
+    /// <summary>コンパイル内容に照らして読み取ったデータアセットファイル。その値を C# として表すか、カタログから除外する原因となる問題を表す。</summary>
     internal readonly struct DataAssetModel(string RelativePath,string?TypeFullyQualifiedName,string?Expression,ImmutableArray<Diagnostic>Diagnostics) {
         internal readonly string RelativePath=RelativePath;
         internal readonly string?TypeFullyQualifiedName=TypeFullyQualifiedName;
@@ -95,18 +96,20 @@ internal static class AssetCatalogEmitter {
             [.. Problems.Select(Problem=>Diagnostic.Create(Problem.Descriptor,SceneJsonDslAnalyzer.Locate(File.Path,Text,Problem.Start,Problem.End),Problem.Arguments))]);
     }
 
-    internal static void Emit(SourceProductionContext Context,ImmutableArray<string>AssetPaths,ImmutableArray<DataAssetModel>DataAssets=default){
+    internal static void Emit(SourceProductionContext Context,ImmutableArray<string>AssetPaths,ImmutableArray<DataAssetModel>DataAssets=default,ImmutableArray<(string Path,string Json)>ImageMetadata=default){
         if(AssetPaths.IsEmpty){ return; }
         Dictionary<string,DataAssetModel>DataByPath=new(StringComparer.Ordinal);
         foreach(var Data in DataAssets.IsDefault?[]:DataAssets){
             foreach(var Problem in Data.Diagnostics){ Context.ReportDiagnostic(Problem); }
             DataByPath[Data.RelativePath]=Data;
         }
+        var Images=ReadImages(Context,ImageMetadata);
         var Root=new Folder("Assets");
+        var Names=AssetCatalogLayout.Map(AssetPaths);
         foreach(var Path in AssetPaths.Distinct(StringComparer.Ordinal).OrderBy(static P=>P,StringComparer.Ordinal)){
             var Segments=Path.Split('/');
             var Current=Root;
-            // Assets/Sounds/Jump.wav → Assets.Sounds.Jump; Plugins/Vehicles/Assets/Car.glb → Assets.Plugins.Vehicles.Car (ADR-0079).
+            // Assets/Sounds/Jump.wav → Assets.Sounds.Jump。Plugins/Vehicles/Assets/Car.glb → Assets.Plugins.Vehicles.Car (ADR-0079)。
             IEnumerable<string>Folders=IsProjectPluginAsset(Path)
                 ?[Segments[0],Segments[1],.. Segments.Skip(3).Take(Segments.Length-4)]
                 :Segments.Skip(1).Take(Segments.Length-2);
@@ -115,7 +118,7 @@ internal static class AssetCatalogEmitter {
             }
 
             var FileName=Segments[Segments.Length-1];
-            Current.Add(System.IO.Path.GetFileNameWithoutExtension(FileName),System.IO.Path.GetExtension(FileName),Path);
+            Current.Add(Names[Path].Split('.').Last(),System.IO.Path.GetExtension(FileName),Path);
         }
 
         List<string>Lines=[
@@ -123,7 +126,7 @@ internal static class AssetCatalogEmitter {
             "#nullable enable",
             "/// <summary>The project's asset files as typed references (ADR-0077). A missing file or a wrong name is a compile error.</summary>",
         ];
-        Write(Root,0,Lines,DataByPath);
+        Write(Root,0,Lines,DataByPath,Images);
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
     }
 
@@ -140,29 +143,31 @@ internal static class AssetCatalogEmitter {
         }
     }
 
-    private static void Write(Folder Node,int Depth,List<string>Lines,Dictionary<string,DataAssetModel>DataByPath){
+    private static void Write(Folder Node,int Depth,List<string>Lines,Dictionary<string,DataAssetModel>DataByPath,Dictionary<string,CSharpGameEngine.CodeAnalysis.ImageContract.ImageImportSettings>Images){
         var Indent=new string(' ',Depth*4);
         Lines.Add($"{Indent}internal static class {Node.Name} {{");
         foreach(var Entry in Node.Entries){
-            if(Entry.Kind!=DataAssetKind){
+            if(Entry.Kind=="TextureAsset"&&Images.TryGetValue(Entry.Path,out var Image)){
+                WriteImage(Entry.Name,Entry.Path,Image,Indent+"    ",Lines);
+            } else if(Entry.Kind!=DataAssetKind){
                 Lines.Add($"{Indent}    public static readonly global::CSharpGameEngine.Authoring.{Entry.Kind} {Entry.Name} = new(\"{Entry.Path}\");");
             } else if(DataByPath.TryGetValue(Entry.Path,out var Data)&&Data.TypeFullyQualifiedName is { }Type&&Data.Expression is { }Expression){
-                // A data asset is its value itself; a document with problems is left out (they are reported).
+                // データアセットはその値自体を指す。問題のあるドキュメントは除外する（問題は報告する）。
                 Lines.Add($"{Indent}    public static readonly {Type} {Entry.Name} = {Expression};");
             }
         }
 
-        foreach(var Child in Node.Children){ Write(Child,Depth+1,Lines,DataByPath); }
+        foreach(var Child in Node.Children){ Write(Child,Depth+1,Lines,DataByPath,Images); }
         Lines.Add($"{Indent}}}");
     }
 
     private sealed class Folder(string RawName) {
-        internal readonly string Name=Identifier(RawName);
+        internal readonly string Name=AssetCatalogLayout.Identifier(RawName);
         internal readonly List<(string Name,string Kind,string Path)>Entries=[];
         internal readonly List<Folder>Children=[];
 
         internal Folder Child(string Raw){
-            var Wanted=Identifier(Raw);
+            var Wanted=AssetCatalogLayout.Identifier(Raw);
             var Existing=this.Children.FirstOrDefault(Child=>Child.Name==Wanted);
             if(Existing is not null){ return Existing; }
             var Created=new Folder(Raw);
@@ -170,23 +175,9 @@ internal static class AssetCatalogEmitter {
             return Created;
         }
 
-        internal void Add(string Stem,string Extension,string Path){
-            var Name=Identifier(Stem);
-            if(this.Taken(Name)){ Name=Identifier(Stem+"_"+Extension.TrimStart('.')); }
-            var Candidate=Name;
-            var Suffix=2;
-            while(this.Taken(Candidate)){ Candidate=Name+"_"+Suffix++; }
-            this.Entries.Add((Candidate,KindOf(Path)!,Path));
+        internal void Add(string Name,string Extension,string Path){
+            this.Entries.Add((Name,KindOf(Path)!,Path));
         }
-
-        private bool Taken(string Candidate)=>this.Entries.Any(Entry=>Entry.Name==Candidate)||this.Children.Any(Child=>Child.Name==Candidate);
     }
 
-    private static string Identifier(string Raw){
-        var Builder=new StringBuilder();
-        foreach(var Character in Raw){ Builder.Append(char.IsLetterOrDigit(Character)||Character=='_'?Character:'_'); }
-        if(Builder.Length==0||char.IsDigit(Builder[0])){ Builder.Insert(0,'_'); }
-        var Text=Builder.ToString();
-        return Microsoft.CodeAnalysis.CSharp.SyntaxFacts.GetKeywordKind(Text)!=Microsoft.CodeAnalysis.CSharp.SyntaxKind.None?"@"+Text:Text;
-    }
 }

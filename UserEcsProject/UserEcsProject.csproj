@@ -2,6 +2,16 @@
 
   <!-- エンジン取り込み規約はゲームプロジェクト共通のGame.propsに集約する(ADR-0065)。 -->
   <Import Project="..\build\CSharpGameEngine.Game.props" />
+  <PropertyGroup Condition="'$(CgeShadowComparison)' == 'true'">
+    <!-- Include scene selection in the compiler input cache, including when switching an existing output directory. -->
+    <DefineConstants>$(DefineConstants);CGE_SHADOW_COMPARISON</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(CgeShadowComparison)' != 'true'">
+    <AdditionalFiles Remove="Scenes\VirtualShadowComparisonScene.json" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(CgeShadowComparison)' == 'true'">
+    <AdditionalFiles Remove="Scenes\MainScene.json;Scenes\EngineShowcaseScene.json;Scenes\EngineShowcaseRigidBottomScene.json;Scenes\EngineShowcaseRigidMiddleScene.json;Scenes\EngineShowcaseRigidTopScene.json;Scenes\EngineShowcaseProjectileScene.json" />
+  </ItemGroup>
 
   <PropertyGroup>
     <!-- The engine showcase builds with every engine plugin (ADR-0079); CSharpGameEngine.Windows.Tests tests them through it. -->

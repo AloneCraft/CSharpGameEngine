@@ -157,6 +157,34 @@ internal static class SceneEditorSettings {
         ThreadHelper.ThrowIfNotOnUIThread();
         WriteEnum("RenderMode",Value);
     }
+    internal const AssetEditorOpenLocation DefaultAssetEditorOpenLocation=AssetEditorOpenLocation.Floating;
+    /// <summary>アセットエディター（ダブルクリックで開く専用ウィンドウ）を最初に開く場所。</summary>
+    internal static AssetEditorOpenLocation ReadAssetEditorOpenLocation(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return ReadEnum("AssetEditorOpenLocation",DefaultAssetEditorOpenLocation);
+    }
+    internal static void WriteAssetEditorOpenLocation(AssetEditorOpenLocation Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteEnum("AssetEditorOpenLocation",Value);
+    }
+    /// <summary>任意の文字列設定（プレビューレベルの選択状態など）。保存されていなければ null。</summary>
+    internal static string?ReadText(string Name){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(TryGetStore()is not{ }Store||!Store.PropertyExists(CollectionPath,Name)){
+            return null;
+        }
+        return Store.GetString(CollectionPath,Name,string.Empty);
+    }
+    /// <summary>文字列設定を書く。<paramref name="Value"/> が null なら削除する。</summary>
+    internal static void WriteText(string Name,string?Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(TryGetStore()is not{ }Store){ return; }
+        if(Value is null){
+            if(Store.PropertyExists(CollectionPath,Name)){ Store.DeleteProperty(CollectionPath,Name); }
+            return;
+        }
+        Store.SetString(CollectionPath,Name,Value);
+    }
     internal static bool ReadShowGlobalSpatialOctree(){
         ThreadHelper.ThrowIfNotOnUIThread();
         return ReadBoolean("ShowGlobalSpatialOctree",DefaultShowGlobalSpatialOctree);

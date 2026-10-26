@@ -1,8 +1,8 @@
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>
-/// The <see cref="TheoryAttribute"/> counterpart of <see cref="WindowsOnlyFactAttribute"/>: explicitly Skipped on
-/// non-Windows platforms and always run on Windows.
+/// <see cref="WindowsOnlyFactAttribute"/>に対応する<see cref="TheoryAttribute"/>。Windows以外では明示的にSkipped、
+/// Windowsでは常に実行する。
 /// </summary>
 public sealed class WindowsOnlyTheoryAttribute:TheoryAttribute {
     public WindowsOnlyTheoryAttribute(){

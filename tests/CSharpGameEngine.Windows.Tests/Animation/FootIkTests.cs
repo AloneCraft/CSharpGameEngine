@@ -3,8 +3,8 @@ using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: the two-bone IK and the mannequin's foot IK (CR_Mannequin_FootIK). The test skeleton is a pelvis 1 m up with a leg on each side:
-/// thigh to calf 0.5 m down and 0.05 m forward, calf to foot 0.5 m down and 0.05 m back, a ball 0.1 m ahead of the ankle.
+/// ADR-0078/M0107：2ボーンIKとマネキンの足IK（CR_Mannequin_FootIK）。テスト用スケルトンは、1 m上の骨盤と左右の脚からなる。
+/// 太ももからふくらはぎへは0.5 m下かつ0.05 m前方、ふくらはぎから足へは0.5 m下かつ0.05 m後方、ボールジョイントは足首の0.1 m前方。
 /// </summary>
 public sealed class FootIkTests {
     private const int Root=0;
@@ -54,11 +54,11 @@ public sealed class FootIkTests {
         Assert.True(Vector3.Distance(Target,Position(After,FootLeft))<1e-4f);
         Assert.Equal(UpperLength,Vector3.Distance(Position(After,ThighLeft),Position(After,CalfLeft)),4);
         Assert.Equal(LowerLength,Vector3.Distance(Position(After,CalfLeft),Position(After,FootLeft)),4);
-        // The thigh stays where it was and the foot keeps its orientation; the ball follows the foot rigidly.
+        // 太ももは元の位置を保ち、足は向きを保つ。ボールジョイントは足に固定して追従する。
         Assert.True(Vector3.Distance(Position(Before,ThighLeft),Position(After,ThighLeft))<1e-6f);
         Assert.True(Vector3.Distance(Vector3.TransformNormal(Vector3.UnitZ,Before[FootLeft]),Vector3.TransformNormal(Vector3.UnitZ,After[FootLeft]))<1e-4f);
         Assert.True(Vector3.Distance(Position(After,BallLeft)-Position(After,FootLeft),Position(Before,BallLeft)-Position(Before,FootLeft))<1e-4f);
-        // The other leg is untouched.
+        // 反対側の脚は変更しない。
         Assert.True(Vector3.Distance(Position(Before,FootRight),Position(After,FootRight))<1e-6f);
     }
     [Fact]
@@ -109,14 +109,14 @@ public sealed class FootIkTests {
         var Ik=new FootIkPose(Skeleton,new FootIk());
         Ik.Update(0.05f,true,0f,0f);
         Assert.True(Ik.IsNeutral);
-        // Speed 10 for 0.05 s covers half of the way.
+        // 速度10で0.05秒進むと、残り距離の半分に到達する。
         Ik.Update(0.05f,true,-0.1f,0.04f);
         Assert.Equal(-0.1f,Ik.TargetOffset(FootIkPose.Left),5);
         Assert.Equal(-0.05f,Ik.FootOffset(FootIkPose.Left),5);
         Assert.Equal(0.02f,Ik.FootOffset(FootIkPose.Right),5);
         Assert.Equal(-0.05f,Ik.PelvisOffset,5);
         Assert.False(Ik.IsNeutral);
-        // A ray that hits nothing, or a number that is not one, means no correction for that foot.
+        // レイが何も検出しない場合、または値が1でない場合、その足には補正を行わない。
         Ik.Update(0.05f,true,null,float.NaN);
         Assert.Equal(0f,Ik.TargetOffset(FootIkPose.Left));
         Assert.Equal(0f,Ik.TargetOffset(FootIkPose.Right));
@@ -142,7 +142,7 @@ public sealed class FootIkTests {
         var Pose=Skeleton.Rest.ToArray();
         var Before=Model(Skeleton,Pose);
         var Ik=new FootIkPose(Skeleton,new FootIk());
-        // The left foot's ground is 10 cm lower than the mesh origin, the right foot's is level with it.
+        // 左足の地面はメッシュ原点より10 cm低く、右足の地面は原点と同じ高さ。
         Ik.Update(0.05f,true,-0.1f,0f);
         Ik.Apply(Pose,new Matrix4x4[Skeleton.JointCount]);
         var After=Model(Skeleton,Pose);

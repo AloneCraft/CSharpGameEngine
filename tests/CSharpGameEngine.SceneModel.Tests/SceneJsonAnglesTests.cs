@@ -1,7 +1,7 @@
 using System.Globalization;
 using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.SceneModel.Tests;
-/// <summary>ADR-0074: angles are written in turns and shown in degrees, each spelling reading back to the same float.</summary>
+/// <summary>ADR-0074：角度は回転数で書き、度数で表示する。どの表記から読み戻しても同じ float 値になる。</summary>
 public sealed class SceneJsonAnglesTests {
     [Theory]
     [InlineData(1.5707964f,false,"0.25")]
@@ -24,7 +24,7 @@ public sealed class SceneJsonAnglesTests {
         Assert.Equal(Expected,SceneJsonAngles.FormatDegrees(Value,Unit));
         Assert.Equal(Value,SceneJsonAngles.FromDegrees(Expected,Unit));
     }
-    /// <summary>Every float reads back exactly from its turns and degrees text, in both units.</summary>
+    /// <summary>どの float 値も回転数と度数の両方の表記から、正確に読み戻せる。</summary>
     [Fact]
     public void EverySpelling_RoundTripsRandomFloats(){
         var Random=new Random(20261001);

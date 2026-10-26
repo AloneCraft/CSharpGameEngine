@@ -34,7 +34,7 @@ public sealed class PackagedContentStore:IContentArtifactReader {
     }
 }
 
-/// <summary>A validated immutable package directory containing one exact manifest closure.</summary>
+/// <summary>厳密に指定された1つのマニフェスト依存関係一式を含む、検証済みの不変なパッケージディレクトリ。</summary>
 public sealed class ShippingContentPackage {
     public const string ManifestFileName="content.manifest.json";
     private const int MaximumManifestBytes=64*1024*1024;

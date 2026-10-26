@@ -1,5 +1,5 @@
 namespace CSharpGameEngine.Cooking;
-/// <summary>One defaulting/validation rule for the registry fingerprint and the worker invocation.</summary>
+/// <summary>レジストリーフィンガープリントとワーカー呼び出しで共通する、既定値設定／検証規則。</summary>
 public static class ImportOptions {
     public static IReadOnlyDictionary<string,string>Resolve(ImporterDescriptor Importer,IEnumerable<ModelProcessorDescriptor>Processors,IReadOnlyDictionary<string,string>Values){
         var Declared=new Dictionary<string,ImportOptionDescriptor>(StringComparer.Ordinal);

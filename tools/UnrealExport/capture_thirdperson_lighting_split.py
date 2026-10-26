@@ -19,7 +19,7 @@ VARIANTS = {
     "lighting_split_no_gi": ["GlobalIllumination"],
     "lighting_split_no_sky_no_gi": ["SkyLighting", "GlobalIllumination"],
     "lighting_split_no_ao": ["AmbientOcclusion"],
-    # The GlobalIllumination flag changed nothing; Lumen has its own flags.
+    # GlobalIllumination flag を変えても結果は変わりません。Lumen は独自の flag を持ちます。
     "lighting_split_no_lumen_gi": ["LumenGlobalIllumination"],
     "lighting_split_no_lumen_gi_no_sky": ["LumenGlobalIllumination", "SkyLighting"],
     "lighting_split_no_lumen_gi_no_ao": ["LumenGlobalIllumination", "AmbientOcclusion"],

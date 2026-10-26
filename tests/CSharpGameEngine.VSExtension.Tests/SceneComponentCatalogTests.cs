@@ -109,7 +109,7 @@ public sealed class SceneComponentCatalogTests {
 
     [Fact]
     public void Build_ListsThePublicStructsOfAPluginLibrary(){
-        // ADR-0079: a plugin's Library module is a DLL that says so with [assembly: PluginLibrary]; its components are offered.
+        // ADR-0079：プラグインの Library モジュールは [assembly: PluginLibrary] で宣言された DLL であり、そのコンポーネントを選択肢に表示する。
         var Library=SceneAnalysisTestHelper.CreateCompilation(
             """
             [assembly: CSharpGameEngine.Authoring.PluginLibrary]

@@ -5,9 +5,7 @@ using System.Security.Cryptography;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Verifies that the assembly loaded by Visual Studio is the same bytes as the latest local build.
-/// This is deliberately independent of VS extension caches: a clean build without deployment is
-/// still reported as stale rather than being mistaken for a successful VSIX update.
+/// Visual Studio が読み込んだアセンブリのバイト列が、最新のローカルビルドと同一か検証する。VS 拡張機能のキャッシュには依存しない。配置を行わないクリーンビルドも、VSIX 更新の成功と誤認せず、古い状態として報告する。
 /// </summary>
 internal static class VsixDeploymentVerifier {
     internal static VsixDeploymentVerification Verify(string LoadedAssemblyPath,string BuildOutputPath){

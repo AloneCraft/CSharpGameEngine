@@ -40,8 +40,7 @@ internal sealed class GizmoOverlayPrimitive {
     internal IReadOnlyList<GizmoOverlayVertex>Vertices { get; }
 
     /// <summary>
-    /// True when both overlays draw exactly the same primitives. The Scene view rebuilds its overlay
-    /// on every UI tick; comparing lets it request a new preview frame only when the overlay changed.
+    /// 2 つのオーバーレイが同じプリミティブを完全に描画する場合に true。Scene ビューは UI tick ごとにオーバーレイを再構築する。比較することで、オーバーレイが変わった場合だけ新しいプレビューフレームを要求できる。
     /// </summary>
     internal static bool SameContent(IReadOnlyList<GizmoOverlayPrimitive>Left,IReadOnlyList<GizmoOverlayPrimitive>Right){
         if(Left.Count!=Right.Count){

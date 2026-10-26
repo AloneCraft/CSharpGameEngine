@@ -45,7 +45,7 @@ internal static class VsixText {
         try {
             ActivityLog.LogWarning(nameof(VsixText),$"Missing VSIX localization resource: {Key}");
         } catch(Exception){
-            // Unit tests and early package loading may not have a Visual Studio Activity Log service.
+            // 単体テストと、パッケージの読み込み初期には Visual Studio の Activity Log サービスがない場合がある。
         }
     }
 }

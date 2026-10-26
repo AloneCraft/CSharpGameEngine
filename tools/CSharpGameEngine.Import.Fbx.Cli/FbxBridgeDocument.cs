@@ -3,10 +3,7 @@ using CSharpGameEngine.Import.Fbx;
 namespace CSharpGameEngine.Import.Fbx.Cli;
 
 /// <summary>
-/// Flat, JSON-friendly view of an <see cref="ImportedMesh"/> (ADR-0010). This is the sole contract
-/// between this out-of-process bridge and the VSIX's <c>ExternalFbxLoader</c> - kept deliberately
-/// primitive (flat float arrays, no custom types) so the net472 VSIX side never needs to reference
-/// <c>System.Numerics.Vector3</c>/<c>Vector4</c> serialization behavior or this net10.0 assembly.
+/// <see cref="ImportedMesh"/> を平坦で JSON に適した形式にしたもの (ADR-0010)。この別プロセスブリッジと VSIX の <c>ExternalFbxLoader</c> の間で使う唯一の契約である。net472 の VSIX 側が <c>System.Numerics.Vector3</c>/<c>Vector4</c> のシリアル化動作や、この net10.0 アセンブリを参照せずに済むよう、意図的にプリミティブ型（平坦な float 配列、独自型なし）に限定する。
 /// </summary>
 public sealed class FbxBridgeDocument {
     public bool Success { get; init;}

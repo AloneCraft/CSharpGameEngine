@@ -5,9 +5,7 @@ using static CSharpGameEngine.VSExtension.NativeMethods;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// A single lightweight native <c>WS_CHILD</c> window used purely as the D3D12 swap-chain target
-/// - the "slot" that <see cref="ViewerHwndHost"/> returns from <c>BuildWindowCore</c>. Forwards
-/// <c>WM_SIZE</c> so the caller can resize the swap chain to match (ADR-0008).
+/// D3D12 swap-chain target 専用の軽量なネイティブ <c>WS_CHILD</c> ウィンドウ。<see cref="ViewerHwndHost"/> が <c>BuildWindowCore</c> から返す「スロット」です。一致するように swap chain をリサイズできるよう、<c>WM_SIZE</c> を転送します（ADR-0008）。
 /// </summary>
 internal sealed class RenderSurfaceWindow:IDisposable {
     private const string ClassName="CSharpGameEngine.VSExtension.RenderSurface";
@@ -109,13 +107,13 @@ internal sealed class RenderSurfaceWindow:IDisposable {
         }
 
         if(this.Hwnd!=IntPtr.Zero){
-            // If this native child window still owns real Win32 keyboard focus when destroyed,
-            // Windows leaves focus dangling on a handle that no longer exists and WPF's own focus
-            // tracking (Keyboard.FocusedElement) desyncs from the real OS focus state for the rest
-            // of the VS session - Tab/Backspace/Delete stop reaching the text editor even after this
-            // pane is closed, while plain character input (routed differently) keeps working. Hand
-            // focus back to the last valid external owner (or the parent as a fallback) before
-            // tearing down the native window.
+            // このネイティブ子ウィンドウの破棄時に、実際の Win32 キーボードフォーカスがまだ残っていると、
+            // Windows は存在しないハンドルにフォーカスを残し、WPF 自身のフォーカス追跡
+            // （Keyboard.FocusedElement）も、その後の VS セッション中ずっと実際の OS のフォーカス状態から
+            // ずれてしまいます。このペインを閉じた後も Tab/Backspace/Delete がテキストエディターに届かなくなり、
+            // 異なる経路でルーティングされる通常の文字入力だけが動き続けます。
+            // ネイティブウィンドウを破棄する前に、フォーカスを最後の有効な外部 owner（なければ親）へ
+            // 戻してください。
             var SurfaceHandle= this.Hwnd;
             var CurrentFocus=GetFocus();
             var PreviousIsWindow= this.LastExternalFocusHwnd!=IntPtr.Zero&&IsWindow(this.LastExternalFocusHwnd);

@@ -189,9 +189,9 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         if(Value.Raw==0){ return true; }
         var Magnitude=(UInt128)Value.Raw;
         var Radicand=new UInt256(0,(ulong)Magnitude,(ulong)(Magnitude>>64),0);
-        // Integer Newton iteration from above converges to the unique floor square root of
-        // Magnitude·2^64, the value TrySquareRootBinarySearch finds with 96 bisection steps. The
-        // start 2^ceil(bits/2) is never below the root.
+        // 上から始める整数ニュートン反復は、唯一の切り捨て平方根へ収束する。
+        // Magnitude·2^64 は、96回の二分探索で TrySquareRootBinarySearch が求める値。その
+        // 初期値 2^ceil(bits/2) が平方根を下回ることはない。
         var RadicandBits=128-(int)UInt128.LeadingZeroCount(Magnitude)+64;
         var Root=(UInt128)1<<((RadicandBits+1)/2);
         while(true){
@@ -280,16 +280,15 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         return true;
     }
     /// <summary>
-    /// Truncated (<paramref name="NumeratorMagnitude"/> · 2^64) / <paramref name="Denominator"/> and its
-    /// remainder; false when the quotient needs more than 128 bits. Uses 64-bit-digit long division
-    /// (Knuth's algorithm D). Integer division has one answer, so this matches
-    /// <see cref="TryDivideScaledBitwise"/> exactly while avoiding its 192 shift-subtract steps.
+    /// 切り捨てた (<paramref name="NumeratorMagnitude"/> · 2^64) / <paramref name="Denominator"/> とその余りを求める。商が
+    /// 128ビットを超える場合は false。64ビット桁単位の筆算（Knuth のアルゴリズム D）を使う。整数除算の答えは一意なので、192回のシフト・減算を行う
+    /// <see cref="TryDivideScaledBitwise"/> と完全に同じ結果を、より少ない処理で求められる。
     /// </summary>
     internal static bool TryDivideScaled(UInt128 NumeratorMagnitude,UInt128 Denominator,out UInt128 Quotient,out UInt128 Remainder){
         var NumeratorHigh=(ulong)(NumeratorMagnitude>>64);
         var NumeratorLow=(ulong)NumeratorMagnitude;
         if(Denominator>>64==0){
-            // One-limb divisor: the quotient needs more than 128 bits exactly when the top limb is at least the divisor.
+            // 除数が1桁の場合、最上位の桁が除数以上なら商は128ビットを超える。
             var Divisor=(ulong)Denominator;
             if(NumeratorHigh>=Divisor){
                 Quotient=0;
@@ -303,7 +302,7 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
             Remainder=Second%Divisor;
             return true;
         }
-        // Two-limb divisor: the quotient is below the numerator magnitude, so it always fits.
+        // 除数が2桁の場合、商は被除数の絶対値より小さいため、必ず収まる。
         var Shift=BitOperations.LeadingZeroCount((ulong)(Denominator>>64));
         var Normalized=Denominator<<Shift;
         var DivisorHigh=(ulong)(Normalized>>64);
@@ -356,7 +355,7 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         Target=Result;
         return Next;
     }
-    /// <summary>The original shift-subtract division, kept as the reference for <see cref="TryDivideScaled"/>.</summary>
+    /// <summary><see cref="TryDivideScaled"/> の参照実装として残している、元のシフト・減算除算。</summary>
     internal static bool TryDivideScaledBitwise(UInt128 NumeratorMagnitude,UInt128 Denominator,out UInt128 Quotient,out UInt128 Remainder){
         Quotient=0;
         Remainder=0;
@@ -375,7 +374,7 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         var SourceBit=Bit-64;
         return SourceBit is >=0 and <128?(Magnitude>>SourceBit)&1:0;
     }
-    /// <summary>Full 256-bit product from four 64×64 partial products; <see cref="MultiplyUnsignedLimbwise"/> is its reference.</summary>
+    /// <summary>64×64ビットの部分積4つから得る256ビット全体の積。<see cref="MultiplyUnsignedLimbwise"/> はこの実装を基準にする。</summary>
     internal static (ulong L0,ulong L1,ulong L2,ulong L3) MultiplyUnsignedLimbs(UInt128 Left,UInt128 Right){
         var Product=MultiplyUnsigned(Left,Right);
         return (Product.L0,Product.L1,Product.L2,Product.L3);
@@ -393,7 +392,7 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         var LowHigh=(UInt128)LeftLow*RightHigh;
         var HighLow=(UInt128)LeftHigh*RightLow;
         var Middle=(LowLow>>64)+(ulong)LowHigh+(ulong)HighLow;
-        // The high half is the product divided by 2^128, which always fits in 128 bits.
+        // 上位半分は積を2^128で割った値で、必ず128ビットに収まる。
         var High=(Middle>>64)+(LowHigh>>64)+(HighLow>>64)+(UInt128)LeftHigh*RightHigh;
         return new UInt256((ulong)LowLow,(ulong)Middle,(ulong)High,(ulong)(High>>64));
     }

@@ -4,8 +4,9 @@ using CSharpGameEngine.Runtime.Character;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0107: UE's plane constraint (bConstrainToPlane, PlaneConstraintNormal and Origin, bSnapToPlaneAtStart) on the kinematic character. The TopDown
-/// template turns it on with the normal left at zero, which constrains nothing (measured from the Blueprint: PlaneConstraintAxisSetting Custom, normal 0).
+/// ADR-0078/M0107：キネマティックキャラクターに対するUEの平面制約（bConstrainToPlane、PlaneConstraintNormalとOrigin、bSnapToPlaneAtStart）。
+/// TopDownテンプレートでは有効にするが、法線は0のままなので何も制限しない
+///（Blueprintで確認：PlaneConstraintAxisSettingはCustom、法線は0）。
 /// </summary>
 public sealed class CharacterPlaneConstraintTests {
     private static readonly LogicalScalar DeltaSeconds=LogicalScalar.One/LogicalScalar.FromInt64(60);
@@ -59,7 +60,7 @@ public sealed class CharacterPlaneConstraintTests {
     public void ANormalAlongRRemovesAllMovementAcrossThePlane(){
         var Walker=new Walker(Constrained(LogicalVector3.UnitR,Snap:false),X:0.5f);
         Walker.Run(120,new LogicalVector3(0.6f,0f,0.8f));
-        // Moving diagonally only advances along F; the offset from the plane the character started at never changes.
+        // 斜めに移動しても+F方向への移動だけとなり、キャラクターが開始した平面からのオフセットは変化しない。
         Assert.True(Walker.Z>2f);
         Assert.Equal(0.5f,Walker.X,5);
         Assert.Equal(0f,ToSingle(Walker.State.Velocity.R));
@@ -70,7 +71,7 @@ public sealed class CharacterPlaneConstraintTests {
         Snapped.Run(1,LogicalVector3.Zero);
         Assert.Equal(2f,Snapped.X,5);
         Assert.True(Snapped.State.PlaneSnapped);
-        // Later moves keep it there even though the input pushes across.
+        // 後続の移動入力が平面を横切る方向でも、平面上にとどまる。
         Snapped.Run(60,new LogicalVector3(1f,0f,0f));
         Assert.Equal(2f,Snapped.X,5);
         var NotSnapped=new Walker(Constrained(LogicalVector3.UnitR,new LogicalVector3(2f,0f,0f),Snap:false),X:0.5f);

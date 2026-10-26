@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-/// <summary>ADR-0079: a data asset (*.cgeasset) is one value of a [DataAsset] type, compiled into the Assets catalog like a scene component.</summary>
+/// <summary>ADR-0079：データアセット（*.cgeasset）は[DataAsset]型の値1つ。シーンコンポーネントと同様にコンパイルし、Assetsカタログに登録する。</summary>
 public sealed class DataAssetTests {
     private const string Root=SceneProjectOptions.ProjectDirectory;
     private static readonly string Attribute=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Core","DataAssetAttribute.cs"));

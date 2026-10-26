@@ -3,7 +3,7 @@ using SimulationCommand=CSharpGameEngine.Runtime.Simulation.SimulationCommand<CS
 
 namespace CSharpGameEngine.Runtime.Physics;
 
-/// <summary>Deterministic single-writer sequential rigid-body world for a local meter domain.</summary>
+/// <summary>ローカルのメートル座標領域に対する、決定論的な単一書き込み逐次剛体ワールド。</summary>
 public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     private sealed class Body(in PhysicsBodyDescription Description,PhysicsShapeAsset? Asset) {
         internal readonly Entity Entity=Description.Entity;
@@ -20,32 +20,32 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         internal bool IsSleeping;
         internal ushort SleepTicks;
         internal bool Faulted;
-        /// <summary>ADR-0078/M0113: a body it touched was removed or changed, so a sleeping body wakes at the start of the next step (it may have lost its support).</summary>
+        /// <summary>ADR-0078/M0113：接触していたボディが削除または変更されたため、スリープ中のボディを次のステップ開始時に起こす（支持を失った可能性がある）。</summary>
         internal bool WakeRequested;
     }
 
     private struct CachedPoint {
-        /// <summary>The normal of the point's patch (M0124: one contact holds a patch per face orientation), from the first body into the second.</summary>
+        /// <summary>接触パッチの法線（M0124：1つの接触は面の向きごとに1つのパッチを保持する）。第1ボディから第2ボディへ向かう。</summary>
         internal LogicalVector3 Normal;
         internal LogicalVector3 Position;
         internal LogicalScalar Penetration;
         internal LogicalScalar NormalImpulse;
         internal LogicalScalar TangentImpulse;
         internal LogicalVector3 Tangent;
-        /// <summary>The speed this point leaves the surface at, from the approach speed before the solve (every iteration aims at the same value).</summary>
+        /// <summary>解決前の接近速度を基にした、この点が面から離れる速度（反復処理の各回で同じ値を目標にする）。</summary>
         internal LogicalScalar Bounce;
-        /// <summary>A speculative point (negative penetration) that reaches the surface in this step, so it is held like a touching one.</summary>
+        /// <summary>このステップ中に面へ到達する予測接触点（貫入量は負）。接触中の点と同じように拘束する。</summary>
         internal bool Reaching;
-        /// <summary>The approach speed of the last step was an impact (above the bounce threshold), so its impulse is not carried into the next step as a support force.</summary>
+        /// <summary>直前のステップでの接近速度が跳ね返りしきい値を超える衝撃だったため、その力積を支持力として次のステップに引き継がない。</summary>
         internal bool Impacted;
     }
 
     private sealed class CachedContact(Body First,Body Second) {
         internal readonly Body First=First;
         internal readonly Body Second=Second;
-        /// <summary>The points of every patch, packed in patch order (patch k is <see cref="PatchStart"/>[k] .. + <see cref="PatchCount"/>[k]).</summary>
+        /// <summary>パッチの順に格納したすべてのパッチの接触点（パッチ k の範囲は <see cref="PatchStart"/>[k] ～ PatchStart[k] + <see cref="PatchCount"/>[k]）。</summary>
         internal readonly CachedPoint[] Points=new CachedPoint[PhysicsNarrowPhase.MaximumContactPoints];
-        /// <summary>The points of the last tick while the new patches take over their warm-started impulses.</summary>
+        /// <summary>新しいパッチがウォームスタート済みの力積を引き継ぐ間、直前のティックの接触点を保持する。</summary>
         internal readonly CachedPoint[] Previous=new CachedPoint[PhysicsNarrowPhase.MaximumContactPoints];
         internal int PointCount;
         internal int Patches;
@@ -56,7 +56,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         internal bool Active;
         internal bool WasActive;
         internal bool IsTrigger;
-        /// <summary>Solved this tick: one of its bodies is a dynamic body that is awake (a contact between sleeping or static bodies only holds).</summary>
+        /// <summary>このティックに解決した。少なくとも一方のボディが起きている動的ボディである（両方ともスリープ中または静的ボディだけの接触は保持のみ）。</summary>
         internal bool Solve;
         internal LogicalScalar MaximumPenetration {
             get {
@@ -112,31 +112,28 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
 
     public int BodyCount=>this.Bodies.Count;
     public IReadOnlyList<PhysicsEvent> Events=>this.MutableEvents;
-    /// <summary>
-    /// The bonds of destructibles that broke in the last tick (ADR-0078/M0113): reported by the destruction solver after <see cref="Step"/>, or restored from a
-    /// played-back cache frame. Cleared when the next tick starts.
-    /// </summary>
+    /// <summary>直前のティックに切れた破壊可能オブジェクトのボンド（ADR-0078/M0113）。<see cref="Step"/> 後に破壊ソルバーが報告するか、再生したキャッシュフレームから復元する。次のティック開始時にクリアする。</summary>
     public IReadOnlyList<PhysicsBondBreak> BondBreaks=>this.MutableBondBreaks;
     /// <summary>
-    /// The bonds of destructibles whose internal strain an impact raised in the last tick, with the internal strain each carries on (M0124): reported by the
-    /// destruction solver after <see cref="Step"/>, or restored from a played-back cache frame. Cleared when the next tick starts.
+    /// 直前のティックに衝撃で内部ひずみが増加した破壊可能オブジェクトのボンドと、それぞれが保持する内部ひずみ（M0124）。<see cref="Step"/> 後に破壊ソルバーが報告するか、再生した
+    /// キャッシュフレームから復元する。次のティック開始時にクリアする。
     /// </summary>
     public IReadOnlyList<PhysicsBondStrain> BondStrains=>this.MutableBondStrains;
-    /// <summary>Records that an impact raised a destructible bond's internal strain in this tick (M0124); the cache keeps it. No event is raised.</summary>
+    /// <summary>このティックに衝撃が破壊可能オブジェクトのボンドの内部ひずみを増加させたことを記録する（M0124）。キャッシュに保持する。イベントは発生させない。</summary>
     public void ReportBondStrain(ulong RootStableId,int Bond,LogicalScalar Strain){
         if(RootStableId==0||Bond<0||Strain<=LogicalScalar.Zero){ throw new ArgumentOutOfRangeException(nameof(Bond),"An internal strain names a destructible's stable ID, a bond and a strain above zero."); }
         this.MutableBondStrains.Add(new PhysicsBondStrain(RootStableId,Bond,Strain));
     }
 
     /// <summary>
-    /// Records that a destructible's bond broke in <paramref name="Tick"/> (ADR-0078/M0113): it joins <see cref="BondBreaks"/> (the cache keeps it) and
-    /// <see cref="Events"/> as a <see cref="PhysicsEventType.BondBroken"/> event whose <see cref="PhysicsEvent.First"/> is the destructible, whose impulse is
-    /// the strain that broke it and whose pair ID is unique to the bond.
+    /// <paramref name="Tick"/> に破壊可能オブジェクトのボンドが切れたことを記録する（ADR-0078/M0113）。<see cref="BondBreaks"/>（キャッシュが保持
+    /// する）と <see cref="Events"/> に追加し、<see cref="PhysicsEventType.BondBroken"/> イベントを発生させる。その
+    /// <see cref="PhysicsEvent.First"/> は破壊可能オブジェクト、力積はボンドを切ったひずみ、ペア ID はそのボンド固有の値とする。
     /// </summary>
     public void ReportBondBreak(ulong Tick,Entity Destructible,ulong RootStableId,int Bond,LogicalScalar Strain){
         if(RootStableId==0||Bond<0||Strain<LogicalScalar.Zero){ throw new ArgumentOutOfRangeException(nameof(Bond),"A bond break names a destructible's stable ID, a bond and a strain of zero or more."); }
         this.MutableBondBreaks.Add(new PhysicsBondBreak(RootStableId,Bond,Strain));
-        // Kept in the order Step leaves the events in (tick, pair ID, type), so readers see one canonical order.
+        // Step がイベントを並べる順（ティック、ペア ID、種類）を保ち、読み取り側に一貫した順序で渡す。
         var Event=new PhysicsEvent(Tick,BondPairId(RootStableId,Bond),PhysicsEventType.BondBroken,Destructible,default,Strain,default);
         var Index=this.MutableEvents.Count;
         while(Index>0&&CompareEvents(this.MutableEvents[Index-1],Event)>0){ Index--; }
@@ -150,7 +147,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         return Result!=0?Result:Left.Type.CompareTo(Right.Type);
     }
 
-    /// <summary>The pair ID of a <see cref="PhysicsEventType.BondBroken"/> event: an FNV-1a hash of the destructible's stable ID and the bond, so each bond's event is ordered on its own.</summary>
+    /// <summary><see cref="PhysicsEventType.BondBroken"/> イベントのペア ID。破壊可能オブジェクトの安定 ID とボンドから計算する FNV-1a ハッシュで、各ボンドのイベントを個別に順序付ける。</summary>
     public static ulong BondPairId(ulong RootStableId,int Bond){
         ulong Hash=14695981039346656037UL;
         Hash=(Hash^RootStableId)*1099511628211UL;
@@ -284,7 +281,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             try {
                 LogicalVector3 Acceleration=Gravity*RigidBody.GravityFactor;
                 Body.Velocity.Linear+=Acceleration*FixedDelta;
-                // ADR-0078/M0109: UE's (Chaos's) linear and angular damping, v × max(0, 1 - damping × Δt). Zero damping leaves the velocity exact.
+                // ADR-0078/M0109：UE（Chaos）の線形・角減衰。v × max(0, 1 - damping × Δt)。減衰が0なら速度は変化しない。
                 if(!RigidBody.LinearDamping.IsZero){ Body.Velocity.Linear*=DampingFactor(RigidBody.LinearDamping); }
                 if(!RigidBody.AngularDamping.IsZero){ Body.Velocity.Angular*=DampingFactor(RigidBody.AngularDamping); }
                 Body.Position=this.IntegratePositionWithCcd(Body,PreviousPosition,Body.Position+Body.Velocity.Linear*FixedDelta);
@@ -373,9 +370,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     /// <summary>
-    /// Every penetration of a sphere or capsule placed at <paramref name="Position"/>: one contact per
-    /// penetrating triangle of a static triangle mesh and one per other body, ordered by stable ID
-    /// then feature. Normals point from the query shape into the body. Triggers are skipped.
+    /// <paramref name="Position"/> に配置した球またはカプセルが貫入している箇所をすべて返す。静的三角形メッシュでは、貫入した三角形ごとに1つ、他のボディではボディごとに1つの
+    /// 接触点を返す。安定 ID、続いて形状要素で順序付ける。法線は問い合わせ形状からボディへ向ける。トリガーは対象外。
     /// </summary>
     public PhysicsQueryResult CollectContacts(in Collider Shape,in LogicalVector3 Position,in LogicalQuaternion Rotation,PhysicsLayerMask Layers,List<PhysicsShapeContact> Results){
         ArgumentNullException.ThrowIfNull(Results);
@@ -436,7 +432,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         return true;
     }
 
-    /// <summary>The surface material of a body (ADR-0078/M0109): a vehicle's tyre reads the friction of what its ray hit, as UE reads the hit's physical material.</summary>
+    /// <summary>ボディの表面材質（ADR-0078/M0109）。車両のタイヤは、レイが当たった面の摩擦を読み取る。UE ではヒットした面の物理マテリアルを読む。</summary>
     public bool TryGetMaterial(Entity Entity,out PhysicsMaterial Material){
         if(!this.StableIdByEntity.TryGetValue(Entity,out ulong StableId)||!this.Bodies.TryGetValue(StableId,out Body? Body)){
             Material=default;
@@ -593,7 +589,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                         Wake(Body,Tick,this.MutableEvents);
                         break;
                     case PhysicsCommandType.ForceAtPoint when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
-                        // ADR-0078/M0109: the force moves the centre of mass as Force does and turns the body by its moment about it.
+                        // ADR-0078/M0109：この力は Force と同様に重心を移動させ、重心まわりのモーメントでボディを回転させる。
                         Body.Velocity.Linear+=Command.Vector/RigidBody.Mass*FixedDelta;
                         Body.Velocity.Angular+=ApplyInverseInertia(Body,LogicalVector3.Cross(Command.Point-Body.Position,Command.Vector))*FixedDelta;
                         Wake(Body,Tick,this.MutableEvents);
@@ -608,7 +604,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                         break;
                     case PhysicsCommandType.Sleep when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
                         if(!Body.IsSleeping){
-                            // The tick's sleep update counts the last tick and reports the Sleep event, as for a body that came to rest by itself.
+                            // このティックのスリープ更新では直前のティックも数え、自然に静止したボディと同様に Sleep イベントを報告する。
                             Body.IsSleeping=true;
                             Body.SleepTicks=59;
                             Body.Velocity=PhysicsVelocity.Zero;
@@ -703,8 +699,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                     ||!CanCollide(Dynamic,Other)){ continue; }
                 Body First=Dynamic.StableId<Other.StableId?Dynamic:Other;
                 Body Second=ReferenceEquals(First,Dynamic)?Other:Dynamic;
-                // ADR-0078/M0113: a sleeping body against a static or sleeping one has not moved since it fell asleep, so its contact holds as it was
-                // (no narrow phase; the solver leaves it alone). A pile of fragments at rest costs nothing a tick.
+                // ADR-0078/M0113：静的またはスリープ中のボディに接しているスリープ中のボディは、スリープに入ってから動いていないため、接触状態をそのまま保持する。
+                // （狭域判定は行わず、ソルバーも処理しない）。静止した破片の山には、ティックごとの処理コストがかからない。
                 if(Dynamic.IsSleeping&&(Other.RigidBody is null||Other.RigidBody is { MotionType:PhysicsMotionType.Dynamic }&&Other.IsSleeping)){
                     if(this.TryGetContact((First.StableId,Second.StableId),out CachedContact Held)){ Held.Active=true; }
                     continue;
@@ -718,9 +714,9 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     /// <summary>
-    /// Stores the patches of a pair's contact for this tick (M0124: one per face orientation, the deepest first). A patch whose feature and normal (within
-    /// about 18 degrees) match a patch of the last tick takes over that patch's warm-started impulses slot by slot; any other starts from zero. A second
-    /// contact of the same pair in one tick (a CCD contact, then the narrow phase's) replaces the first only when it is deeper.
+    /// このティックのボディ対の接触パッチを保存する（M0124：面の向きごとに1つ、最も深いものが先）。形状要素と法線（約18度以内）が前ティックのパッチと一致するパッチは、そのパッチのウォームスタート済み
+    /// 力積を要素ごとに引き継ぐ。一致しない場合はゼロから始める。同じボディ対に同一ティック中2つ目の接触（CCD の接触に続いて狭域判定の接触が発生する場合など）があるときは、より深い場合に限って先の接触を
+    /// 置き換える。
     /// </summary>
     private void AddContact(Body First,Body Second,List<PhysicsContactCandidate>Candidates){
         (ulong First,ulong Second) Key=(First.StableId,Second.StableId);
@@ -776,8 +772,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     /// <summary>
-    /// ADR-0078/M0113: a sleeping body touched by an awake dynamic body wakes (it is being pushed); a contact with no awake dynamic body is not solved, so
-    /// a body at rest keeps its pose and its sleep. The pass runs in contact order, so the same contacts wake the same bodies.
+    /// ADR-0078/M0113：起きている動的ボディに触れたスリープ中のボディは起きる（押されているため）。起きている動的ボディが関与しない接触は解決しないので、静止中のボディは姿勢とスリープ状態を維持
+    /// する。接触順に処理するため、同じ接触からは常に同じボディが起きる。
     /// </summary>
     private void SolveContacts(ulong Tick){
         for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
@@ -823,9 +819,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     /// <summary>
-    /// Takes the point's bounce from its approach speed before any impulse of this step. Aiming every iteration at that one value keeps the points of a face-on impact
-    /// equal; a bounce taken from the speed as the iterations change it differed point to point and spun the body. A speculative point (negative penetration: a corner a
-    /// little above the face, ADR-0078/M0109) bounces only if it reaches the face in this tick.
+    /// このステップで力積を適用する前の接近速度を使って、接触点の跳ね返りを求める。すべての反復処理で同じ値を目標にすることで、面に正面から当たったときの各接触点の値が揃う。反復処理で速度が変わるたびに跳ね返
+    /// りを計算すると、接触点ごとに値が異なり、ボディが回転してしまう。予測接触点（貫入量が負で、面よりわずかに上にある角。ADR-0078/M0109）は、このティック中に面へ到達した場合だけ跳ね返る。
     /// </summary>
     private static void PrepareBounce(CachedContact Contact,int PointIndex){
         ref CachedPoint Point=ref Contact.Points[PointIndex];
@@ -833,8 +828,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Point.Normal);
         LogicalScalar Restitution=Min(Contact.First.Collider.Material.Restitution,Contact.Second.Collider.Material.Restitution);
         LogicalScalar Gap=Point.Penetration<LogicalScalar.Zero?-Point.Penetration:LogicalScalar.Zero;
-        // The impulse that stopped an impact is not what holds the body afterwards: warm-starting it would throw the body back off the surface at the impact speed, and the
-        // iterations that take it out again leave the points' leftovers as a spin (a car at 30 m/s into a wall).
+        // 衝撃を止めた力積は、その後ボディを支える力ではない。ウォームスタートすると衝撃時の速度で面から跳ね返り、また、
+        // 反復処理で力積を再び取り除くと、各接触点に残った力積が回転力になる（速度30 m/sで壁に衝突する車など）。
         if(Point.Impacted){
             Point.NormalImpulse=LogicalScalar.Zero;
             Point.TangentImpulse=LogicalScalar.Zero;
@@ -848,8 +843,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         ref CachedPoint Point=ref Contact.Points[PointIndex];
         LogicalVector3 Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
         LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Point.Normal);
-        // A speculative point that does not reach the surface in this step is free; one that does is held like a touching point (a corner a few millimetres off the wall
-        // that kept approaching would turn the body).
+        // このステップで面に届かない予測接触点は拘束しない。届く点は接触中の点と同じように拘束する（壁から数ミリ離れた角が、なお接近していたときに、
+        // ボディを回転させてしまうため）。
         LogicalScalar Target=Point.Reaching?Point.Bounce:Point.Penetration/FixedDelta;
         LogicalScalar Effective=EffectiveMass(Contact,Point,Point.Normal);
         if(Effective<=LogicalScalar.Zero){ return; }
@@ -886,8 +881,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         LogicalScalar Correction=Penetration*PositionCorrection
             /LogicalScalar.FromInt64(checked(3*Contact.PointCount));
         LogicalVector3 Offset=Point.Normal*(Correction/Total);
-        // ADR-0078/M0113: the correction moves the body but is not motion that keeps it awake: a body at rest is pushed out of its support every tick
-        // (gravity sinks it by g·Δt² and this lifts it back), and counting that as motion kept every resting body awake for ever.
+        // ADR-0078/M0113：補正によってボディは動くが、この動きはスリープ解除の判定には使わない。静止中のボディは毎ティック支持面から押し出される。
+        // （重力で g·Δt² だけ沈み、その分を押し戻す）。これを動きとして数えると、静止中のボディがいつまでもスリープに入らない。
         if(!FirstInverse.IsZero){ Contact.First.Position-=Offset*FirstInverse; }
         if(!SecondInverse.IsZero){ Contact.Second.Position+=Offset*SecondInverse; }
         Point.Penetration=Max(ContactSlop,Point.Penetration-Correction);
@@ -1039,7 +1034,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     private static bool IsDynamic(Body Body)=>Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }&&!Body.Faulted;
-    /// <summary>A body that moves things it touches: an awake dynamic body, or a kinematic one (driven by its targets).</summary>
+    /// <summary>接触した物体を動かすボディ。起きている動的ボディ、または目標値で駆動されるキネマティックボディ。</summary>
     private static bool IsAwakeDynamic(Body Body)=>IsDynamic(Body)&&!Body.IsSleeping||Body.RigidBody is { MotionType:PhysicsMotionType.Kinematic }&&!Body.Faulted;
     private PhysicsUpdateStatus ValidateAndCalculateBounds(
         in PhysicsBodyDescription Description,out PhysicsAabb Bounds,out PhysicsShapeAsset? Asset){
@@ -1098,8 +1093,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     };
 
     /// <summary>
-    /// Drops the contacts of a body that was removed or changed. ADR-0078/M0113: a sleeping body is not integrated, so the other side of each dropped contact
-    /// is asked to wake at the next step; otherwise a piece resting on a piece that expired, or on a destructible that came apart, hung in the air.
+    /// 削除または変更されたボディの接触を破棄する。ADR-0078/M0113：スリープ中のボディは積分処理されないため、破棄した接触の相手側に次のステップで起きるよう通知する。これをしないと、寿命が尽きた
+    /// 破片や崩壊した破壊可能オブジェクトに寄りかかっていた破片が空中に浮いたままになる。
     /// </summary>
     private void RemoveContactsFor(ulong StableId){
         this.ContactRemovalScratch.Clear();

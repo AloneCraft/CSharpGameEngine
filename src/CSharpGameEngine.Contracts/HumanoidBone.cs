@@ -1,5 +1,5 @@
 namespace CSharpGameEngine.Contracts;
-/// <summary>The 55 VRM 1.0 human-bone roles; values are stable engine identities.</summary>
+/// <summary>VRM 1.0の55種類のヒューマンボーン役割。値は安定したエンジン識別子。</summary>
 public enum HumanoidBone:byte {
     Hips,Spine,Chest,UpperChest,Neck,Head,LeftEye,RightEye,Jaw,
     LeftUpperLeg,LeftLowerLeg,LeftFoot,LeftToes,RightUpperLeg,RightLowerLeg,RightFoot,RightToes,

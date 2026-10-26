@@ -1,25 +1,25 @@
-// Histogram auto exposure (ADR-0069), Unreal's AEM_HISTOGRAM kept entirely on the GPU so the CPU
-// never waits for or maps the result. ExposureState[0] = (metered EV100, exposure scale, settled,
-// 1). The Stage program and the sky composite read the scale; each frame then bins the log2 scene
-// luminance of the HDR target (the applied scale divided back out) and adapts the state for the
+// histogram auto exposure（ADR-0069）。Unreal の AEM_HISTOGRAM をすべて GPU 上に実装するため、CPU は
+// 結果を待ったり map したりしません。ExposureState[0] =（計測した EV100、露出スケール、settled、
+// 1）。Stage program と sky composite はスケールを読み取ります。各 frame で HDR target の log2 scene
+// luminance（適用済みスケールを除去）を binning し、次の state に適応します。
 // next frame.
-// Passes (Control.z): 0 initialize the state at the minimum EV100, 1 clear the bins, 2 bin every
-// pixel, 3 meter and adapt (one thread).
-// Root signature (host-owned, StageAutoExposure): b0 16 root constants, t0 table (HDR scene colour),
-// u0 root UAV (RWStructuredBuffer<uint> bins), u1 root UAV (RWStructuredBuffer<float4> state).
+// Passes（Control.z）：0 = 最小 EV100 で state を初期化、1 = bin を clear、2 = 各 pixel を binning、
+// 3 = 計測して適応（thread 1つ）。
+// Root signature（host が所有する StageAutoExposure）：b0 16 root constants、t0 table（HDR scene colour）、
+// u0 root UAV（RWStructuredBuffer<uint> bins）、u1 root UAV（RWStructuredBuffer<float4> state）。
 cbuffer HistogramCB : register(b0)
 {
-    uint4 Control;       // xy = HDR size, z = pass
-    float4 Range;        // x = min log2 luminance, y = 1 / bin width, z = seconds since the last adaptation, w = compensation (stops)
-    float4 Metering;     // x = min EV100, y = max EV100, z = speed up, w = speed down (per second)
-    float4 Percentiles;  // x = low, y = high fraction of the pixels averaged
+    uint4 Control;       // xy = HDR size、z = pass
+    float4 Range;        // x = 最小 log2 luminance、y = 1 / bin width、z = 前回適応からの秒数、w = compensation（stops）
+    float4 Metering;     // x = 最小 EV100、y = 最大 EV100、z = speed up、w = speed down（毎秒）
+    float4 Percentiles;  // x = low、y = high：平均する pixel の割合
 };
 Texture2D<float4> SceneColor : register(t0);
 RWStructuredBuffer<uint> Bins : register(u0);
 RWStructuredBuffer<float4> State : register(u1);
 
 static const uint BinCount = 64;
-// log2(100 / 12.5): EV100 of a luminance measured by the K = 12.5 reflected-light meter.
+// log2(100 / 12.5)：K = 12.5 の反射光 meter で計測した輝度の EV100。
 static const float Log2LuminanceToEv100 = 3.0;
 groupshared uint LocalBins[BinCount];
 
@@ -45,8 +45,8 @@ void Accumulate(uint3 dispatchThreadId, uint groupIndex)
         float3 color = SceneColor.Load(int3(dispatchThreadId.xy, 0)).rgb;
         float exposed = dot(color, float3(0.2126, 0.7152, 0.0722));
         float bin = (log2(max(exposed / State[0].y, 1e-10)) - Range.x) * Range.y;
-        // A pixel at the RGBA16F ceiling (or overflowed to infinity) only bounds its luminance from
-        // below; the last bin marks it as clipped.
+        // RGBA16F の上限に達した（または infinity に overflow した）pixel は輝度の下限しか示さず、
+        // 最後の bin が clipping を示します。
         uint index = exposed < 60000.0 ? (uint)clamp(bin, 0.0, (float)(BinCount - 2)) : BinCount - 1;
         InterlockedAdd(LocalBins[index], 1u);
     }
@@ -94,8 +94,8 @@ void Adapt()
         float speed = target > state.x ? Metering.z : Metering.w;
         ev100 = state.x + (target - state.x) * (1.0 - exp(-speed * Range.z));
     }
-    // Until a histogram whose clipped pixels stay inside the discarded brightest fraction arrives,
-    // jump straight to each target: a clipped measurement only bounds the luminance from below.
+    // clipped pixel が破棄対象の最明部割合内に収まる histogram を得るまでは、
+    // 各 target に直接ジャンプします。clipped measurement は輝度の下限しか示さないためです。
     float settled = state.z > 0.5 || (float)Bins[BinCount - 1] <= total * (1.0 - Percentiles.y) ? 1.0 : 0.0;
     State[0] = float4(ev100, ExposureScale(ev100), settled, 1.0);
 }

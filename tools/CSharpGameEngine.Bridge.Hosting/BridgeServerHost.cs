@@ -5,21 +5,11 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Bridge.Hosting;
 
 /// <summary>
-/// Generic named-pipe accept loop for a resident bridge process (ADR-0023). One connection per
-/// request (never a single multiplexed connection with request-ID correlation) - mirrors the
-/// "one process per request" mental model the one-shot bridge already used, and lets the VSIX's own
-/// already-parallel requests (e.g. <c>SceneHwndHost</c> warming several distinct meshes at once) be
-/// handled concurrently here too, with no correlation layer needed on either side. Each connection
-/// is dispatched to its own fire-and-forget handler task rather than serviced in the accept loop
-/// itself, so slow/concurrent requests never block new connections from being accepted.
+/// 常駐ブリッジプロセス用の汎用名前付きパイプ受付ループ (ADR-0023)。要求ごとに 1 接続を使い、要求 ID で相関させる単一の多重化接続は使わない。既存の 1 回限りのブリッジが採用していた「要求ごとに 1 プロセス」という考え方に沿い、VSIX 側ですでに並列化された複数の要求（例：<c>SceneHwndHost</c> が複数の別メッシュを同時に準備する処理）も、どちら側にも相関レイヤーを設けず並行処理できる。各接続は受付ループ内で処理せず、専用の fire-and-forget ハンドラータスクへ振り分けるため、遅い要求や並列要求が新しい接続の受付を妨げない。
 ///
-/// Stops accepting after <paramref name="idleTimeout"/> with no new connections and drains accepted
-/// requests before exiting. The client distinguishes unavailability before request submission from
-/// timeout or crash after submission; only the former may start a fresh one-shot request.
+/// <paramref name="idleTimeout"/> の間、新しい接続がなければ受付を停止し、受付済み要求を処理してから終了する。クライアントは要求送信前の利用不能と、送信後のタイムアウトまたはクラッシュを区別する。新しい 1 回限りの要求を開始できるのは前者だけである。
 ///
-/// With an owner process (the Visual Studio that started the bridge) it also stops, the same way,
-/// when the owner exits: a bridge that outlives its Visual Studio would keep the extension's files
-/// locked against the next deployment.
+/// 所有者プロセス（ブリッジを起動した Visual Studio）がある場合、その終了時にも同じように停止する。Visual Studio 終了後もブリッジが残ると、次回の配置で拡張機能のファイルがロックされたままになるためである。
 /// </summary>
 public static class BridgeServerHost {
     public static Task RunAsync(
@@ -40,8 +30,8 @@ public static class BridgeServerHost {
         TimeSpan IdleTimeout,
         CancellationToken CancellationToken=default,
         int?OwnerProcessId=null){
-        // The lifetime (the caller's token and the owner process) ends everything, a request still being received too.
-        // The idle window ends only the accept loop, which then drains the connections it accepted.
+        // 呼び出し元のトークンと所有者プロセスが終了すると、受信中の要求も含め、すべての処理が終了する。
+        // idle の時間枠で受付ループだけが終了し、その後、受付済み接続の処理を完了する。
         using var LifetimeCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         using var Owner=ParentProcessLifetime.Attach(OwnerProcessId,LifetimeCts);
         using var IdleCts=CancellationTokenSource.CreateLinkedTokenSource(LifetimeCts.Token);
@@ -61,9 +51,9 @@ public static class BridgeServerHost {
                 return;
             }
 
-            // Reset the idle window now that a connection came in, before handing it off - a burst
-            // of requests should keep the server alive for idleTimeout past the *last* one, not the
-            // first.
+            // 接続が到着したら、引き渡す前に idle の時間枠をリセットする。要求が連続して届く場合、最後の要求から idleTimeout が経過するまで
+            // サーバーを稼働させるべきであり、最初の要求からではない。
+            // 最初に行う。
             IdleCts.CancelAfter(IdleTimeout);
 
             var RequestTask=HandleConnectionAsync(Pipe,Handler,LifetimeCts.Token);
@@ -83,9 +73,9 @@ public static class BridgeServerHost {
         await using(Pipe){
             AuthoringHostRequest Request;
             try {
-                // The accept loop drains accepted connections before it exits, so receiving must end with the server's
-                // lifetime or after a deadline (audit AUD-003); a request still incomplete then has no one to answer. The
-                // idle window does not end it: a request that arrives after the window is still answered.
+                // 受付ループは終了前に受付済み接続を処理する。そのため受信処理はサーバーの
+                // 寿命が終わるか期限に達した時点で終了しなければならない (audit AUD-003)。その時点で未完了の要求には応答者がいない。
+                // idle の時間枠では受信を終了しない。その時間枠の後に到着した要求にも応答する。
                 Request=await BridgeWireMessage.ReadRequestAsync<AuthoringHostRequest>(
                     Pipe,BridgeWireMessage.RequestReceiveTimeout,Lifetime);
             } catch(OperationCanceledException){
@@ -106,9 +96,9 @@ public static class BridgeServerHost {
                     },ClientConnection.Token);
                 await BridgeWireMessage.WriteAsync(Pipe,Response,CancellationToken.None);
             } catch(Exception Ex){
-                // A handler exception (bad input file etc.) must not take the resident process down -
-                // report it as a normal failure response instead, exactly like the one-shot bridge's
-                // non-zero exit code + stderr text.
+                // ハンドラーの例外（入力ファイルの不備など）で常駐プロセスを終了させてはならない。
+                // 代わりに、1 回限りのブリッジと同じように、通常の失敗応答として
+                // 0 以外の終了コードと標準エラーのテキストを返す。
                 await TryWriteFailureAsync(Pipe,Ex.Message);
             }
         }
@@ -127,7 +117,7 @@ public static class BridgeServerHost {
                 }],
             },CancellationToken.None);
         } catch {
-            // Client already gone / pipe broken - nothing more to do for this connection.
+            // クライアントがすでに終了した、またはパイプが切断された場合：この接続に対してこれ以上行うことはない。
         }
     }
 

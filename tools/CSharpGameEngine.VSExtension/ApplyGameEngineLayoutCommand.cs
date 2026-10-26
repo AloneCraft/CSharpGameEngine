@@ -8,12 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Extensions > C# Game Engine menu command that (re)applies the "GameEngine" default panel arrangement (<see cref="GameEngineLayout"/>,
-/// ADR-0021) on demand. Necessary because VS's own "Window &gt; Apply Window Layout" mechanism has
-/// no public SDK API to register a named entry, and because a tool window's
-/// <c>[ProvideToolWindow]</c> default docking only ever applies the very first time that window is
-/// created in a given hive - once VS has persisted a real layout (<c>.winprf</c>), this command is
-/// the only way to force the panels back to their intended positions.
+/// 要求に応じて「GameEngine」既定パネル配置 (<see cref="GameEngineLayout"/>、ADR-0021) を再適用する Extensions &gt; C# Game Engine メニューコマンド。VS の「Window &gt; Apply Window Layout」には名前付き項目を登録する公開 SDK API がないため必要となる。また、<c>[ProvideToolWindow]</c> の既定ドッキングは特定のハイブでウィンドウを初めて作成するときだけ適用される。VS が実際の配置を保存した後 (<c>.winprf</c>)、パネルを意図した位置に戻す方法はこのコマンドだけである。
 /// </summary>
 internal sealed class ApplyGameEngineLayoutCommand {
     public const int CommandId=0x0106;
@@ -51,7 +46,10 @@ internal sealed class ApplyGameEngineLayoutCommand {
                                                          }
 
 
-                                                         await GameEngineLayout.ApplyAsync(this.Package,Dte);
+                                                         try { await GameEngineLayout.ApplyAsync(this.Package,Dte); }
+                                                         catch(Exception Error){
+                                                             ActivityLog.LogError(nameof(ApplyGameEngineLayoutCommand),Error.ToString());
+                                                         }
                                                      });
     }
 }

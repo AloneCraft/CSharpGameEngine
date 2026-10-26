@@ -15,7 +15,7 @@ public sealed class Win32InputEventAdapter {
         this.MouseDevice=new InputDeviceId(StableId.FromName(DeviceNamespace,WindowId+"/mouse"));
         this.GamepadDevice=new InputDeviceId(StableId.FromName(DeviceNamespace,WindowId+"/gamepad0"));
     }
-    /// <summary>Unreal key names for the XInput buttons, by XINPUT_GAMEPAD bit.</summary>
+    /// <summary>XInputボタンのビットを表すXINPUT_GAMEPAD準拠のUnrealキー名。</summary>
     private static readonly (ushort Mask,string Code)[]GamepadButtons=[
         (0x0001,"Gamepad_DPad_Up"),(0x0002,"Gamepad_DPad_Down"),(0x0004,"Gamepad_DPad_Left"),(0x0008,"Gamepad_DPad_Right"),
         (0x0010,"Gamepad_Special_Right"),(0x0020,"Gamepad_Special_Left"),(0x0040,"Gamepad_LeftThumbstick"),(0x0080,"Gamepad_RightThumbstick"),
@@ -26,15 +26,18 @@ public sealed class Win32InputEventAdapter {
     public static InputControl GamepadRightStick=>new(InputDeviceKind.Gamepad,"Gamepad_Right2D",InputControlKind.Axis2D);
     public static InputControl GamepadLeftTrigger=>new(InputDeviceKind.Gamepad,"Gamepad_LeftTriggerAxis",InputControlKind.Axis1D);
     public static InputControl GamepadRightTrigger=>new(InputDeviceKind.Gamepad,"Gamepad_RightTriggerAxis",InputControlKind.Axis1D);
-    /// <summary>One axis of a stick as its own control (Unreal's Gamepad_LeftX / Gamepad_LeftY / Gamepad_RightX / Gamepad_RightY, M0108): a dead zone per axis, not by length.</summary>
+    /// <summary>
+    /// スティックの1軸を個別のコントロールとして扱う（UnrealのGamepad_LeftX／Gamepad_LeftY／Gamepad_RightX／Gamepad_RightY、M0108）。長さでは
+    /// なく軸ごとにデッドゾーンを適用する。
+    /// </summary>
     public static InputControl GamepadLeftX=>new(InputDeviceKind.Gamepad,"Gamepad_LeftX",InputControlKind.Axis1D);
     public static InputControl GamepadLeftY=>new(InputDeviceKind.Gamepad,"Gamepad_LeftY",InputControlKind.Axis1D);
     public static InputControl GamepadRightX=>new(InputDeviceKind.Gamepad,"Gamepad_RightX",InputControlKind.Axis1D);
     public static InputControl GamepadRightY=>new(InputDeviceKind.Gamepad,"Gamepad_RightY",InputControlKind.Axis1D);
     private GamepadSnapshot Gamepad;
     /// <summary>
-    /// Turns a polled controller state into events: button presses/releases, stick and trigger value
-    /// changes, and Connected/Disconnected transitions (a disconnect releases everything held).
+    /// ポーリングしたコントローラー状態をイベントへ変換する。ボタン押下／解放、スティック／トリガー値の変化、接続／切断の遷移を通知する。
+    /// 切断時は押下状態のすべてを解放する。
     /// </summary>
     public void RecordGamepad(in GamepadSnapshot State){
         var Previous=this.Gamepad;
@@ -50,7 +53,7 @@ public sealed class Win32InputEventAdapter {
         }
         if(State.LeftStick!=Previous.LeftStick){ this.Enqueue(this.GamepadDevice,GamepadLeftStick,InputEventKind.ValueChanged,new InputValue(State.LeftStick.X,State.LeftStick.Y)); }
         if(State.RightStick!=Previous.RightStick){ this.Enqueue(this.GamepadDevice,GamepadRightStick,InputEventKind.ValueChanged,new InputValue(State.RightStick.X,State.RightStick.Y)); }
-        // The same movement once more per axis, for bindings that use one axis of a stick (M0108).
+        // M0108：スティックの1軸を使うバインディング向けに、各軸について同じ移動量をもう一度記録する。
         if(State.LeftStick.X!=Previous.LeftStick.X){ this.Enqueue(this.GamepadDevice,GamepadLeftX,InputEventKind.ValueChanged,new InputValue(State.LeftStick.X,0)); }
         if(State.LeftStick.Y!=Previous.LeftStick.Y){ this.Enqueue(this.GamepadDevice,GamepadLeftY,InputEventKind.ValueChanged,new InputValue(State.LeftStick.Y,0)); }
         if(State.RightStick.X!=Previous.RightStick.X){ this.Enqueue(this.GamepadDevice,GamepadRightX,InputEventKind.ValueChanged,new InputValue(State.RightStick.X,0)); }
@@ -63,11 +66,11 @@ public sealed class Win32InputEventAdapter {
         ("GamepadSouth",0x1000),("GamepadEast",0x2000),("GamepadWest",0x4000),("GamepadNorth",0x8000),("GamepadLeftShoulder",0x0100),("GamepadRightShoulder",0x0200),("GamepadBack",0x0020),("GamepadStart",0x0010),
     ];
     private static readonly string[]InjectableAxes=["GamepadLeftX","GamepadLeftY","GamepadRightX","GamepadRightY","GamepadLeftTrigger","GamepadRightTrigger"];
-    /// <summary>Whether <paramref name="Code"/> names a scripted gamepad axis, trigger or button (<see cref="InjectGamepad"/>).</summary>
+    /// <summary><paramref name="Code"/>がスクリプト指定のゲームパッド軸、トリガー、ボタンを表すかどうか（<see cref="InjectGamepad"/>）。</summary>
     public static bool IsGamepadInjectionCode(string Code)=>Array.IndexOf(InjectableAxes,Code)>=0||Array.Exists(InjectableButtons,Pair=>Pair.Code==Code);
     /// <summary>
-    /// Sets one control of a scripted controller (automation, M0108) and records the change: axes and triggers take <paramref name="Value"/> (a non-finite value reads 0),
-    /// buttons are down for a non-zero value. The controller is connected from the first call and keeps what the earlier calls set.
+    /// スクリプト制御のコントローラーの入力を1つ設定し（自動実行、M0108）、変化を記録する。軸とトリガーには<paramref name="Value"/>を設定する
+    ///（有限値でなければ読み取り値は0）。ボタンは値が0以外なら押下状態。最初の呼び出しから接続済みとなり、以前の呼び出しが設定した状態を保持する。
     /// </summary>
     public void InjectGamepad(string Code,float Value){
         var State=this.Injected;
@@ -96,7 +99,7 @@ public sealed class Win32InputEventAdapter {
     public InputDeviceId MouseDevice { get;}
     public InputDeviceId GamepadDevice { get;}
     public void RecordKey(int VirtualKeyCode,bool Pressed)=>this.RecordKeyCode(KeyCode(VirtualKeyCode),Pressed);
-    /// <summary>Records a keyboard key by its control code (<see cref="KeyCode"/>); repeated presses are collapsed.</summary>
+    /// <summary><see cref="KeyCode"/>に対応する制御コードでキーボードキーを記録する。重複する押下は1つにまとめる。</summary>
     public void RecordKeyCode(string Code,bool Pressed)=>this.RecordButton(this.KeyboardDevice,new InputControl(InputDeviceKind.Keyboard,Code),Pressed);
     public void RecordMouseButton(string Code,bool Pressed)=>this.RecordButton(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,Code),Pressed);
     public void RecordMouseDelta(float DeltaX,float DeltaY){
@@ -114,7 +117,7 @@ public sealed class Win32InputEventAdapter {
         this.Pending.Clear();
         return Result;
     }
-    /// <summary>Unreal key names for letters, digits and the named keys; other virtual keys are VK_xx.</summary>
+    /// <summary>文字、数字、名前付きキーのUnrealキー名。その他の仮想キーはVK_xx。</summary>
     public static string KeyCode(int VirtualKeyCode)=>VirtualKeyCode switch {
         0x20=>"SpaceBar",0x25=>"Left",0x26=>"Up",0x27=>"Right",0x28=>"Down",0x70=>"F1",
         >=0x30 and <=0x39=>((char)VirtualKeyCode).ToString(),

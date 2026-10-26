@@ -5,23 +5,17 @@ using CSharpGameEngine.Spatial.Abstractions;
 using CSharpGameEngine.Spatial.Unity;
 namespace CSharpGameEngine.Rendering.View;
 /// <summary>
-/// UE5 ThirdPerson-style spring-arm orbit camera: yaw/pitch around a target point, at a fixed
-/// distance. Pure System.Numerics logic, tested without a graphics device.
-/// Yaw is measured around +Y from +Z toward +X; pitch tilts toward +Y. Forward/Right direction math
-/// is derived in RUF (<see cref="RufVector"/>/<see cref="RufQuaternion"/>) space under
-/// <see cref="UnityCoordinateConvention"/> (ADR-0026) and converted to <see cref="Vector3"/> only at
-/// each method's return - <see cref="GetView"/>/<see cref="GetProjection"/> stay on raw
-/// <see cref="Vector3"/>/<see cref="Matrix4x4"/> since D3D's view/clip-space convention is outside
-/// RUF's scope (see Docs/Specifications/Spatial-RUF.md "Rendering境界").
+/// UE5 の ThirdPerson 形式のスプリングアーム軌道カメラ。固定距離からターゲット点の周りを yaw/pitch で回転する。純粋な System.Numerics の処理であり、グラフィックスデバイスなしでテストできる。
+/// yaw は +Y 周りに +Z から +X へ向かう角度、pitch は +Y 方向への傾きとして測る。Forward/Right の方向計算は <see cref="UnityCoordinateConvention"/> (ADR-0026) に基づき RUF 空間 (<see cref="RufVector"/>/<see cref="RufQuaternion"/>) で導出し、各メソッドの戻り値でのみ <see cref="Vector3"/> に変換する。<see cref="GetView"/>/<see cref="GetProjection"/> は生の <see cref="Vector3"/>/<see cref="Matrix4x4"/> を使い続ける。D3D のビュー/クリップ空間規約は RUF の対象外であるため (Docs/Specifications/Spatial-RUF.md の「Rendering境界」を参照)。
 /// </summary>
 public struct RenderCamera {
     public const float MinPitchRadians=-80f*MathF.PI/180f;
     public const float MaxPitchRadians=40f*MathF.PI/180f;
-    /// <summary>Wider than the orbit camera's range (a first-person view has no orbit-collision reason to stay near-level) - see <see cref="CreateFirstPerson"/>.</summary>
+    /// <summary>軌道カメラより広いピッチ範囲（フリービューでは、軌道衝突の制約がないため水平付近に保つ必要がない）。<see cref="CreateFirstPerson"/> を参照。</summary>
     public const float MinPitchRadiansFirstPerson=-85f*MathF.PI/180f;
     public const float MaxPitchRadiansFirstPerson=85f*MathF.PI/180f;
     public Vector3 Target;
-    /// <summary>World-space camera up. Transform-driven cameras set this from their resolved local +Y basis so roll is preserved by <see cref="GetView"/>.</summary>
+    /// <summary>ワールド空間のカメラ上方向。Transform 駆動カメラでは、ロールを <see cref="GetView"/> に反映するため、解決済みローカル +Y 基底から設定する。</summary>
     public Vector3 Up;
     public float Yaw;
     public float Pitch;
@@ -29,14 +23,17 @@ public struct RenderCamera {
     public float FovYRadians;
     public float NearZ;
     public float FarZ;
-    /// <summary>HDR radiance to display exposure in EV100. Zero preserves the legacy exposure.</summary>
+    /// <summary>HDR 放射輝度をディスプレイ露出に変換するための EV100。0なら従来の露出を維持する。</summary>
     public float ExposureEv100;
-    /// <summary>Transition length T of native logarithmic depth in metres.</summary>
+    /// <summary>ネイティブ対数深度の遷移距離 T（メートル）。</summary>
     public float RadialTransitionMeters;
-    /// <summary>Pitch clamp range applied by <see cref="ApplyMouseDelta"/>. Set by the <c>Create*</c> factories; <see cref="MinPitchRadians"/>/<see cref="MaxPitchRadians"/> remain the orbit-camera default values callers may still compare against directly.</summary>
+    /// <summary>
+    /// <see cref="ApplyMouseDelta"/> が適用するピッチ角の制限範囲。<c>Create*</c> ファクトリが設定する。<see cref="MinPitchRadians"/>
+    ///  と <see cref="MaxPitchRadians"/> は軌道カメラの既定値のままなので、呼び出し側で引き続き直接比較できる。
+    /// </summary>
     public float PitchClampMinRadians;
     public float PitchClampMaxRadians;
-    /// <summary>Direct object initializers use the same logarithmic depth defaults as the camera factories.</summary>
+    /// <summary>直接オブジェクトを初期化した場合も、カメラファクトリと同じ対数深度の既定値を使う。</summary>
     public RenderCamera(){
         this.RadialTransitionMeters=RadialDepthCurve.DefaultTransitionMeters;
     }
@@ -63,11 +60,9 @@ public struct RenderCamera {
         };
     }
     /// <summary>
-    /// A first-person eye camera: <see cref="Distance"/> is zero, so <see cref="Target"/> doubles
-    /// as the eye position itself (the caller updates it every frame to the player's eye position,
-    /// exactly like the orbit camera's <see cref="Target"/> is already updated to the player's
-    /// position each frame). <see cref="GetView"/> looks along <see cref="GetForward"/> from there
-    /// rather than toward a distinct target point, since eye and target would otherwise coincide.
+    /// 一人称視点カメラ。<see cref="Distance"/> は0なので、<see cref="Target"/> は視点の位置も兼ねる。呼び出し側はプレイヤーの視点位置に合わせ、毎フレームその値を
+    /// 更新する。軌道カメラの <see cref="Target"/> も同様に、プレイヤー位置へ毎フレーム更新する。目と注視点が同じ位置になるのを避けるため、<see cref="GetView"/> は
+    /// そこから別の目標点へ向かうのではなく、<see cref="GetForward"/> の方向を見る。
     /// </summary>
     [SceneFactory]
     public static RenderCamera CreateFirstPerson(Vector3 EyePosition){
@@ -78,13 +73,13 @@ public struct RenderCamera {
             Pitch=0f,
             Distance=0f,
             FovYRadians=MathF.PI/4f,
-            // Non-reversed-Z perspective (CreatePerspectiveFieldOfView) concentrates almost all
-            // depth-buffer precision within the first few units of Near, so Near/Far ratio matters
-            // far more than either value alone. The original 0.05/1000 (20000:1) caused visible
-            // Z-fighting across whole walls/ceilings in a ~38-unit room-scale level (M0004) - values
-            // this close to the eye were never exercised by earlier vertical-slice scenes, where the
-            // camera sat right next to the only two objects in view. 0.1/300 (3000:1) keeps a wide
-            // safety margin over this room's scale while cutting the ratio by ~7x.
+            // 非リバース Z の透視投影（CreatePerspectiveFieldOfView）では、深度バッファ精度の大半が、近平面から数単位以内に集中する。
+            // そのため近平面と遠平面の比は、各値単独よりもはるかに重要。
+            // 元の 0.05 / 1000（比率 20000:1）では、約38単位の室内規模のシーン全体で、
+            // 壁や天井に目に見える Z ファイティングが発生した（M0004）。以前の垂直スライスシーンでは、
+            // このような視点に近い値は、以前の垂直スライスシーンでは検証していなかった。
+            // そこではカメラを、視界内にある2つのオブジェクトのすぐ横に置いていた。0.1 / 300（比率3000:1）なら、
+            // この部屋の規模に十分な安全余裕を保ちながら、比率を約7分の1にできる。
             NearZ=0.1f,
             FarZ=300f,
             ExposureEv100=0f,
@@ -94,28 +89,24 @@ public struct RenderCamera {
         };
     }
     /// <summary>
-    /// An orbit camera framed so the given world-space bounds fit entirely in view, seen from a
-    /// fixed elevated diagonal angle. Reuses the exact (1,0.75,1) eye direction and
-    /// Radius/sin(FovY/2)*1.5 distance relationship already used by the accepted thumbnail and
-    /// shared Preview Host camera baselines, instead of inventing a differently-angled fifth
-    /// "frame everything" convention. Since <see cref="RenderCamera"/>
-    /// has no raw eye-position constructor, the direction is converted into this type's orbit
-    /// (<see cref="Target"/>/<see cref="Yaw"/>/<see cref="Pitch"/>/<see cref="Distance"/>)
-    /// representation by inverting <see cref="GetForward"/>'s documented
-    /// Forward=(CosPitch*SinYaw, SinPitch, CosPitch*CosYaw) formula.
+    /// 指定したワールド境界全体が、固定された高めの斜め方向から見て画面内に収まるように構図を決める軌道カメラ。採用済みのサムネイルと共有 Preview Host のカメラ基準で使用している、正確な視線方向
+    ///  (1, 0.75, 1) と距離の関係 Radius/sin(FovY/2)*1.5 を再利用する。異なる角度を持つ5つ目の「全体を表示」方式は作らない。
+    /// <see cref="RenderCamera"/> には目の位置を直接指定するコンストラクターがないため、<see cref="GetForward"/> の仕様である Forward=(
+    /// CosPitch*SinYaw, SinPitch, CosPitch*CosYaw) を逆算し、<see cref="Target"/> / <see cref="Yaw"/> /
+    /// <see cref="Pitch"/> / <see cref="Distance"/> によるこの型の軌道表現に変換する。
     /// </summary>
     [SceneFactory]
     public static RenderCamera CreateBoundsFit(Vector3 BoundsMin,Vector3 BoundsMax){
         var Target=(BoundsMin+BoundsMax)/2f;
         var Radius=MathF.Max(Vector3.Distance(BoundsMin,BoundsMax)/2f,0.001f);
         var FovY=MathF.PI/4f;
-        // Distance=Radius/sin(FovY/2) is the exact tangent distance at which the enclosing sphere
-        // (radius=half the AABB diagonal, so it bounds the box from every direction, not just this
-        // one) fills the vertical FOV edge-to-edge - true regardless of view direction, since a
-        // sphere's silhouette is the same from anywhere outside it. *1.1f only adds a small safety
-        // margin over that exact value, unlike the accepted thumbnail/preview *1.5f/*3.0f baselines
-        // (tuned for arbitrary-rotation previews); a fixed demo angle can sit close to the tangent
-        // distance and still keep every corner of the level in frame.
+        // Distance=Radius/sin(FovY/2) は、境界球を囲む視錐台が球にちょうど接する距離。
+        // 半径は AABB の対角線の半分なので、この向きだけでなく、どの向きからもボックス全体を囲む。
+        // その球が垂直視野角いっぱいにちょうど収まる。球のシルエットは外側のどこから見ても同じなので、視線方向に依存しない。
+        // *1.1f はその正確な値にわずかな安全余裕を加えるだけ。
+        // 任意の回転を想定した、採用済みサムネイル／プレビューの *1.5f / *3.0f という基準とは異なる。
+        // 固定されたデモ角度なら、接する距離に近づけても
+        // レベルのすべての角をフレーム内に保てる。
         var Distance=Radius/MathF.Sin(FovY/2f)*1.1f;
         var Forward=-Vector3.Normalize(new Vector3(1f,0.75f,1f));
         return new RenderCamera {
@@ -133,22 +124,21 @@ public struct RenderCamera {
             PitchClampMaxRadians=MaxPitchRadians,
         };
     }
-    /// <summary>Full 3D forward direction (includes pitch), from the eye toward the target.</summary>
+    /// <summary>目からターゲットへ向かう、ピッチを含む3D前方方向。</summary>
     public readonly Vector3 GetForward(){
-        // Child (pitch, in the camera's un-yawed local frame) applied first, then parent (yaw) -
-        // see RufQuaternion.operator* semantics. Pitch rotates around RufVector.Left (not Right):
-        // rotating Forward by +Pitch around Right would tilt it toward -Up, the opposite of this
-        // type's documented "pitch tilts toward +Y" (verified by hand via the standard axis-angle
-        // rotation formula, and pinned down permanently by
+        // 子側のピッチ（カメラのヨーを適用する前のローカル座標）を先に適用し、その後に親側のヨーを適用する。
+        // RufQuaternion.operator* の演算規則を参照。ピッチは Right ではなく RufVector.Left を軸に回転させる。
+        // Forward を Right のまわりに +Pitch 回転させると -Up 方向へ傾き、ここで求める向きと逆になる。
+        // この型の仕様である「ピッチを上げると +Y 方向へ傾く」動作に合わせる。
+        // 標準の軸角回転の式を手計算で確認し、次のテストでこの規則を固定した。
         // CameraTests.GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep).
         var Facing=RufQuaternion.FromAxisAngle(RufVector.Up, this.Yaw)*RufQuaternion.FromAxisAngle(RufVector.Left, this.Pitch);
         var Forward=RufQuaternion.RotateVector(Facing,RufVector.Forward).Normalize();
         return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Forward);
     }
     /// <summary>
-    /// RenderCamera up after removing any component parallel to <see cref="GetForward"/>.
-    /// A default-constructed legacy camera has no stored up vector, so it remains world-up
-    /// compatible instead of producing a degenerate view.
+    /// <see cref="GetForward"/> に平行な成分を取り除いた後の RenderCamera の上方向。既定値で構築された従来型カメラには上方向ベクトルが保存されていない。その場合はビュー
+    /// が退化しないよう、ワールド上方向との互換性を維持する。
     /// </summary>
     public readonly Vector3 GetUp(){
         Vector3 Forward=this.GetForward();
@@ -157,10 +147,8 @@ public struct RenderCamera {
             :GetFallbackUp(Forward);
     }
     /// <summary>
-    /// Applies a resolved Transform basis to this camera. <paramref name="Forward"/> is the
-    /// Transform's local +Z direction and <paramref name="Up"/> is local +Y. Both are
-    /// orthonormalized before mutating the camera, so a rejected non-finite or collapsed basis
-    /// leaves its last valid view untouched.
+    /// 解決済み Transform の基底をこのカメラに適用する。<paramref name="Forward"/> は Transform のローカル +Z 方向、
+    /// <paramref name="Up"/> はローカル +Y 方向。カメラを変更する前に両方を正規直交化する。有限値でない基底や潰れた基底を拒否した場合も、最後に有効だったビューを維持する。
     /// </summary>
     public bool TrySetWorldOrientation(Vector3 Forward,Vector3 Up){
         if(!TryNormalizeOrientation(Forward,Up,out Vector3 NormalizedForward,out Vector3 NormalizedUp)){
@@ -171,10 +159,7 @@ public struct RenderCamera {
         this.Up=NormalizedUp;
         return true;
     }
-    /// <summary>
-    /// Determines whether a resolved Transform basis is visually the legacy identity orientation.
-    /// Both axes are checked so a pure local +Z roll is not mistaken for an identity camera.
-    /// </summary>
+    /// <summary>解決済み Transform の基底が、見た目上、従来の単位姿勢と同じか判定する。ローカル +Z 方向のロールだけを単位カメラと誤認しないよう、両軸を検査する。</summary>
     public static bool IsIdentityWorldOrientation(Vector3 Forward,Vector3 Up){
         const float CosineTolerance=1e-5f;
         return TryNormalizeOrientation(Forward,Up,out Vector3 NormalizedForward,out Vector3 NormalizedUp)
@@ -182,9 +167,8 @@ public struct RenderCamera {
             &&Vector3.Dot(NormalizedUp,Vector3.UnitY)>=1f-CosineTolerance;
     }
     /// <summary>
-    /// Normalizes a Transform's local +Z/+Y world basis while preserving the +Z direction.
-    /// The up vector is projected off forward so a non-uniform parent scale cannot skew the
-    /// GPU view matrix. A collapsed or non-finite basis is rejected.
+    /// Transform のローカル +Z / +Y のワールド基底を正規化し、+Z 方向を維持する。上方向ベクトルを前方ベクトルへの射影で補正し、親の不均一スケールによる GPU ビュー行列の歪みを防ぐ。
+    /// 潰れた基底や有限でない基底は拒否する。
     /// </summary>
     public static bool TryNormalizeOrientation(
         Vector3 Forward,Vector3 Up,
@@ -211,19 +195,16 @@ public struct RenderCamera {
         Vector3 Orthogonal=Reference-(Forward*Vector3.Dot(Reference,Forward));
         return Vector3.Normalize(Orthogonal);
     }
-    /// <summary>Forward direction projected onto the XZ plane (pitch removed) - the basis for WASD movement.</summary>
+    /// <summary>XZ 平面に射影した前方方向（ピッチを除く）。WASD 移動の基準。</summary>
     public readonly Vector3 GetFlatForward(){
         return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(this.GetFlatForwardRuf());
     }
     /// <summary>
-    /// Right direction on the XZ plane. Built from <see cref="Spatial{TConvention}.RightFromUpForward"/>,
-    /// which is Handedness-aware (ADR-0025) - under <see cref="UnityCoordinateConvention"/> (identity
-    /// mapping, LeftHanded) this is provably identical to the previous ad-hoc
-    /// <c>Cross(Vector3.UnitY, GetFlatForward())</c> formula (verified permanently by
-    /// CameraTests.GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep). The sign itself
-    /// still awaits interactive confirmation that it *feels* correct when strafing (ADR-0004 §6
-    /// precedent) - this change only proves the formula is internally consistent, not that left/right
-    /// matches human intuition at the keyboard.
+    /// XZ 平面上の右方向。Handedness を考慮する <see cref="Spatial{TConvention}.RightFromUpForward"/> から求める（ADR-0025）。
+    /// <see cref="UnityCoordinateConvention"/>（恒等変換、LeftHanded）では、従来の
+    /// <c>Cross(Vector3.UnitY, GetFlatForward())</c> による式と数学的に同一であることを示せる（
+    /// CameraTests.GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep で永続的に検証）。横移動したときに操作感が正しいかは、
+    /// まだ実際に操作して確認する必要がある（ADR-0004 §6 の先例）。この変更で証明したのは式の内部一貫性までであり、左右がキーボード操作の直感と一致するかではない。
     /// </summary>
     public readonly Vector3 GetFlatRight(){
         var Right=Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, this.GetFlatForwardRuf());
@@ -237,10 +218,9 @@ public struct RenderCamera {
         return this.Target-(this.GetForward()* this.Distance);
     }
     /// <summary>
-    /// At Distance > 0 (orbit cameras) this looks from the eye toward <see cref="Target"/>, as
-    /// before. At Distance == 0 (see <see cref="CreateFirstPerson"/>) the eye and Target coincide,
-    /// so CreateLookAt's from/to points would be identical (an undefined/degenerate view direction)
-    /// - instead it looks from the eye along <see cref="GetForward"/>.
+    /// Distance > 0（軌道カメラ）の場合は、従来どおり目から <see cref="Target"/> を見る。Distance == 0（
+    /// <see cref="CreateFirstPerson"/> を参照）の場合は目と Target が一致するため、CreateLookAt の始点と終点が同じになり、ビュー方向が未定義または退化する
+    /// 。その代わり、目の位置から <see cref="GetForward"/> の方向を見る。
     /// </summary>
     public readonly Matrix4x4 GetView(){
         var Eye= this.GetEyePosition();
@@ -250,11 +230,9 @@ public struct RenderCamera {
     public readonly Matrix4x4 GetProjection(float AspectRatio){
         return Matrix4x4.CreatePerspectiveFieldOfView(this.FovYRadians,AspectRatio, this.NearZ, this.FarZ);
     }
-    /// <summary>
-    /// Shared right-handed look-at construction for runtime and preview cameras (ADR-0026).
-    /// </summary>
+    /// <summary>実行時カメラとプレビューカメラで共有する右手系 LookAt の構築処理（ADR-0026）。</summary>
     public static Matrix4x4 BuildViewMatrix(Vector3 Eye,Vector3 Target,Vector3 Up)=>Matrix4x4.CreateLookAt(Eye,Target,Up);
-    /// <summary>Applies raw mouse-delta input to yaw/pitch, clamping pitch to avoid gimbal flip.</summary>
+    /// <summary>生のマウス差分入力をヨー角／ピッチ角に適用する。ジンバル反転を防ぐため、ピッチを制限する。</summary>
     public void ApplyMouseDelta(float DeltaX,float DeltaY,float YawSensitivity,float PitchSensitivity){
         this.Yaw+=DeltaX*YawSensitivity;
         this.Pitch=Math.Clamp(this.Pitch-(DeltaY*PitchSensitivity), this.PitchClampMinRadians, this.PitchClampMaxRadians);

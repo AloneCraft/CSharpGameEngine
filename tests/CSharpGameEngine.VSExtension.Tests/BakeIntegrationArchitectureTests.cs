@@ -26,13 +26,14 @@ public sealed class BakeIntegrationArchitectureTests {
 
     [Fact]
     public void AssetImportPublishesInlineProgressAndDiagnostics(){
-        string Control=Read("AssetPreviewControl.xaml.cs");
-        string Xaml=Read("AssetPreviewControl.xaml");
-        string Host=Read("AssetPreviewHwndHost.cs");
+        string Content=Read("StaticMeshEditorContent.cs");
+        string Shell=Read("AssetEditorShell.cs");
+        string Host=Read("AssetViewportHost.cs");
 
-        Assert.Contains("OperationChanged",Control,StringComparison.Ordinal);
-        Assert.Contains("AssetOperationProgressBar",Xaml,StringComparison.Ordinal);
-        Assert.Contains("AssetOperationDiagnosticText",Xaml,StringComparison.Ordinal);
+        Assert.Contains("OperationChanged",Content,StringComparison.Ordinal);
+        Assert.Contains("Operation.Fraction",Content,StringComparison.Ordinal);
+        Assert.Contains("Operation.Diagnostics",Content,StringComparison.Ordinal);
+        Assert.Contains("OperationProgressBar",Shell,StringComparison.Ordinal);
         Assert.Contains("AuthoringHostOperation.Import",Host,StringComparison.Ordinal);
         Assert.Contains("ApplyProgress(",Host,StringComparison.Ordinal);
         Assert.Contains("ASSET_IMPORT_FAILED",Host,StringComparison.Ordinal);
@@ -42,13 +43,15 @@ public sealed class BakeIntegrationArchitectureTests {
 
     [Fact]
     public void AssetAuthoringKeepsCanonicalMetadataOutsideTheVsix(){
-        string Control=Read("AssetPreviewControl.xaml.cs");
-        string Xaml=Read("AssetPreviewControl.xaml");
+        string Inspector=Read("AssetInspectorControl.cs");
+        string Mesh=Read("StaticMeshEditorContent.cs");
         string Client=Read("AssetAuthoringHostClient.cs");
 
-        Assert.Contains("AssetAuthoringHostClient.Inspect",Control,StringComparison.Ordinal);
-        Assert.Contains("AssetAuthoringHostClient.SaveMetadata",Control,StringComparison.Ordinal);
-        Assert.Contains("CreateAssetMetadataButton",Xaml,StringComparison.Ordinal);
+        // アセットエディターのメタデータ操作は Details（Inspector と同じ経路）に一本化され、エディター自身は解析も保存もしない。
+        Assert.Contains("AssetAuthoringHostClient.Inspect",Inspector,StringComparison.Ordinal);
+        Assert.Contains("AssetAuthoringHostClient.SaveMetadata",Inspector,StringComparison.Ordinal);
+        Assert.DoesNotContain("AssetAuthoringHostClient",Mesh,StringComparison.Ordinal);
+        Assert.DoesNotContain("AssetMetadata.TryParse",Mesh,StringComparison.Ordinal);
         Assert.Contains("AssetAuthoringProtocol.Validate(Request,Result",Client,StringComparison.Ordinal);
         Assert.Contains("CSharpGameEngine.Import.AssetAuthoring.Cli",Client,StringComparison.Ordinal);
         Assert.DoesNotContain("AssetMetadata.TryParse",Client,StringComparison.Ordinal);

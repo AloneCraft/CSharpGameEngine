@@ -12,6 +12,10 @@ public static class AssetAuthoringService {
         if(RequestError is not null){ return Rejected(Request?.RequestId??Guid.Empty,"ASSET_REQUEST_INVALID",RequestError); }
         try {
             AuthoringContext Context=ResolveContext(Request);
+            if(Request.Command==AssetAuthoringCommand.MigrateLegacyMetadata){
+                var Failure=TryMigrateLegacy(Request,Context);
+                if(Failure is not null){ return Failure; }
+            }
             if(Request.Command==AssetAuthoringCommand.SaveMetadata){
                 AssetAuthoringResult?Failure=TrySave(Request,Context);
                 if(Failure is not null){ return Failure; }
@@ -31,6 +35,7 @@ public static class AssetAuthoringService {
         string Relative=Path.GetRelativePath(Root,Source).Replace(Path.DirectorySeparatorChar,'/').Replace(Path.AltDirectorySeparatorChar,'/');
         if(Relative.StartsWith("../",StringComparison.Ordinal)||Path.IsPathRooted(Relative)){ throw new ArgumentException("Asset source URI escapes the repository root."); }
         string Importer=Path.GetExtension(Source).ToLowerInvariant()switch {
+            ".png" or ".jpg" or ".jpeg"=>ImageImportSettings.Importer,
             ".fbx"=>"AssimpNet",
             ".glb" or ".gltf"=>"SharpGLTF",
             _=>throw new NotSupportedException("Asset authoring supports .fbx, .glb, and .gltf sources."),
@@ -41,11 +46,13 @@ public static class AssetAuthoringService {
     private static AssetAuthoringResult Inspect(Guid RequestId,AuthoringContext Context){
         if(!File.Exists(Context.MetadataPath)){
             AssetId Candidate=new(StableId.New());
-            return Success(RequestId,AssetAuthoringState.MissingMetadata,Context,Candidate,[],string.Empty,[Info("ASSET_METADATA_MISSING","Canonical metadata has not been created yet.")]);
+            return Success(RequestId,AssetAuthoringState.MissingMetadata,Context,Candidate,Context.Importer==ImageImportSettings.Importer?ImageImportSettings.Initial(Context.SourcePath).ToOptions():[],string.Empty,[Info("ASSET_METADATA_MISSING","Canonical metadata has not been created yet.")]);
         }
         byte[]Bytes=ReadBoundedMetadata(Context.MetadataPath);
         if(!AssetMetadata.TryParse(Bytes,out AssetMetadata?Metadata,out AssetMetadataError Error)||Metadata is null){
-            return Rejected(RequestId,"ASSET_METADATA_INVALID",$"{Error.Field}: {Error.Message}",Context.MetadataPath);
+            var Failure=Rejected(RequestId,"ASSET_METADATA_INVALID",$"{Error.Field}: {Error.Message}",Context.MetadataPath);
+            Failure.MetadataSha256=ComputeSha256(Bytes);
+            return Failure;
         }
         if(Metadata.SourceUri!=Context.SourceUri){ return Rejected(RequestId,"ASSET_SOURCE_MISMATCH",$"Metadata sourceUri must be {Context.SourceUri}.",Context.MetadataPath); }
         if(Metadata.Importer!=Context.Importer){ return Rejected(RequestId,"ASSET_IMPORTER_MISMATCH",$"Metadata importer must be {Context.Importer} for this source type.",Context.MetadataPath); }
@@ -64,9 +71,30 @@ public static class AssetAuthoringService {
             if(Existing.AssetId!=Asset){ return Rejected(Request.RequestId,"ASSET_ID_IMMUTABLE","An existing AssetId cannot be changed.",Context.MetadataPath); }
         }
         IEnumerable<KeyValuePair<string,string>>Options=(Request.Options??[]).Select(static Option=>new KeyValuePair<string,string>(Option.Name,Option.Value));
+        if(Context.Importer==ImageImportSettings.Importer){
+            var Settings=ImageImportSettings.FromOptions(Options.ToDictionary(P=>P.Key,P=>P.Value,StringComparer.Ordinal));
+            if(Exists){
+                AssetMetadata.TryParse(ReadBoundedMetadata(Context.MetadataPath),out var Previous,out _);
+                var Old=ImageImportSettings.FromOptions(Previous!.Options);
+                foreach(var Output in Old.Outputs){
+                    if(!Settings.Outputs.Any(O=>O.Key==Output.Key&&O.Kind==Output.Kind)){ return Rejected(Request.RequestId,"IMAGE_REFERENCE_REVIEW_REQUIRED","Removing or changing an output kind requires reference replacement.",Context.MetadataPath); }
+                }
+            }
+        }
         AssetMetadata Metadata=AssetMetadata.Create(Asset,Context.SourceUri,Context.Importer,Options);
         byte[]Canonical=Metadata.ToCanonicalUtf8();
         AtomicWrite(Context.MetadataPath,Canonical);
+        return null;
+    }
+    private static AssetAuthoringResult?TryMigrateLegacy(AssetAuthoringRequest Request,AuthoringContext Context){
+        var Bytes=ReadBoundedMetadata(Context.MetadataPath);
+        if(ComputeSha256(Bytes)!=Request.ExpectedMetadataSha256){ return Rejected(Request.RequestId,"ASSET_METADATA_CONFLICT","Metadata changed after inspection.",Context.MetadataPath); }
+        var Text=new System.Text.UTF8Encoding(false,true).GetString(Bytes).Trim();
+        if(!Text.StartsWith("guid: ",StringComparison.Ordinal)||!Guid.TryParse(Text[6..],out var LegacyId)||LegacyId==Guid.Empty){
+            return Rejected(Request.RequestId,"ASSET_MIGRATION_FORMAT","Expected exactly one legacy guid line; no files were changed.",Context.MetadataPath);
+        }
+        var Metadata=AssetMetadata.Create(AssetId.Parse(LegacyId.ToString("D")),Context.SourceUri,Context.Importer);
+        AtomicWrite(Context.MetadataPath,Metadata.ToCanonicalUtf8());
         return null;
     }
 

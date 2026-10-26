@@ -3,7 +3,7 @@ using System.Text.Json;
 using CSharpGameEngine.Import.Gltf;
 using static CSharpGameEngine.Unreal.SceneImporter.SceneSourceFormatting;
 namespace CSharpGameEngine.Unreal.SceneImporter;
-/// <summary>The names a template's generated level scene and asset catalog take (namespace, classes, and the text of the generated comments).</summary>
+/// <summary>テンプレートが生成するレベルシーンとアセットカタログで使う名前（名前空間、クラス名、生成コメントのテキスト）。</summary>
 internal sealed class LevelNames(string Namespace,string LevelClass,string AssetsClass,string TemplateName,string RunScript) {
     internal string Namespace { get; }=Namespace;
     internal string LevelClass { get; }=LevelClass;
@@ -48,7 +48,7 @@ internal static class LevelTemplateImporter {
         if(DirectionalNodes.Length!=1){
             throw new InvalidOperationException($"Expected one directional light node, found {DirectionalNodes.Length}.");
         }
-        // The sky dome is an IsSky material the glTF bake cannot represent; a SkySphere node stands for it (ADR-0069, M0110).
+        // スカイドームは glTF ベイクでは表現できない IsSky マテリアルを使うため、SkySphere ノードで表す (ADR-0069、M0110)。
         var SkyDomeAssets=Manifest.Actors.Where(Actor=>SkyDomeActors.Contains(Actor.Label)).Select(Actor=>Actor.AssetPath).ToHashSet(StringComparer.Ordinal);
         foreach(var Asset in SkyDomeAssets.Where(Asset=>Manifest.Actors.All(Actor=>SkyDomeActors.Contains(Actor.Label)||Actor.AssetPath!=Asset))){
             File.Delete(Path.Combine(TemplateDirectory,Asset));

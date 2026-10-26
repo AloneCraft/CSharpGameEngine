@@ -1,11 +1,11 @@
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-/// <summary>The scripted key schedule that automation runs use to drive a game without a user.</summary>
+/// <summary>自動操作の実行でユーザーなしにゲームを操作するための、スクリプト化されたキー入力スケジュール。</summary>
 public sealed class RuntimeAutomationTests {
     [Fact]
     public void FixedFrameTime_AdvancesTheCapEveryFrameWithoutBacklog(){
-        // An automation run must not depend on how fast the adapter presents: each frame advances exactly the
-        // per-frame cap (WARP happened to reach it every frame, a GPU does not).
+        // 自動操作の実行は、アダプターの描画速度に依存してはならない。各フレームは正確に
+        // フレームあたりの上限まで進む（WARP はたまたま毎フレーム上限に達するが、GPU はそうならない）。
         var Scheduler=new CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
         var (Elapsed,Frequency)=RuntimeAutomation.FixedFrameTime(Scheduler);
         for(var Frame=0;Frame<1000;Frame++){
@@ -35,7 +35,7 @@ public sealed class RuntimeAutomationTests {
     }
     [Fact]
     public void TryParseInput_ReadsTheValueOfAnAnalogControl(){
-        // M0108: a trigger or stick axis takes its value, the mouse its counts per frame; a key or button without a value is 1.
+        // M0108：トリガーまたはスティック軸は値を取り、マウスはフレームあたりのカウントを取る。値のないキーまたはボタンは 1。
         Assert.True(RuntimeAutomation.TryParseInput("GamepadRightTrigger=0.5@10-40;GamepadLeftX=-1@12-20;MouseDeltaX=-12.5@5-9;GamepadSouth@1-2;W@3-4",out var Holds,out var Error),Error);
         Assert.Equal([
             new RuntimeAutomationKeyHold("GamepadRightTrigger",10,40,0.5f),

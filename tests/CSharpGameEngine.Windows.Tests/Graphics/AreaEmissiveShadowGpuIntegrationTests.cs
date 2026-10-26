@@ -8,9 +8,8 @@ using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>
-/// WARP regressions for the Area/Emissive center-projection shadow path. These tests keep the
-/// source on its -Y center axis so an off-axis projection error cannot be mistaken for a PCSS
-/// penumbra failure.
+/// Area／Emissiveライトの中心投影シャドウ経路に対するWARP回帰テスト。
+/// 光源を中心軸-Y上に配置することで、投影の軸ずれによるエラーをPCSSの半影失敗と取り違えない。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class AreaEmissiveShadowGpuIntegrationTests {
@@ -62,10 +61,10 @@ public sealed class AreaEmissiveShadowGpuIntegrationTests {
         Assert.True(ShadowedCenterSum<UnoccludedCenterSum-15,
             $"Expected the Area center projection to darken the blocked receiver: unoccluded={UnoccludedCenter} (sum={UnoccludedCenterSum}), shadowed={ShadowedCenter} (sum={ShadowedCenterSum}).");
 
-        // Keep L * area exactly equal (80 nit-m²) so a change in the normalized receiver
-        // visibility can only come from the source extent used by PCSS, not a brighter direct
-        // source. The small source should retain a hard umbra near the projected blocker edge;
-        // the large source must admit partial visibility across a wider penumbra.
+        // L * areaを80 nit-m²に固定する。これにより正規化された受光側の
+        // 可視性変化はPCSSが使う光源サイズだけから生じ、直接光源が明るくなることはない。
+        // 小さな光源では投影遮蔽物の端近くに硬い完全影が残り、
+        // 大きな光源ではより広い半影に部分的な可視性が生じる。
         PixelReadbackResult SmallUnoccluded=Render(
             Scene,Camera,FarAway,
             static Renderer=>SubmitArea(Renderer,LuminanceNits:320f,WidthMeters:0.5f,HeightMeters:0.5f));
@@ -223,17 +222,17 @@ public sealed class AreaEmissiveShadowGpuIntegrationTests {
         Vector3 Up=Vector3.Normalize(Vector3.Cross(Forward,Right));
         float HalfWidth=WidthMeters*0.5f;
         float HalfHeight=HeightMeters*0.5f;
-        // The geometry is deliberately authored around the local origin. ObjectWorld must place
-        // it at the live emitter transform; this prevents a world-space pre-bake from masking a
-        // transform-following regression.
+        // ジオメトリは意図的にローカル原点を基準に作成する。ObjectWorldで実際の
+        // 発光体Transform位置へ配置する。これにより、ワールド空間での事前ベイクが
+        // Transform追従の回帰を隠すことを防ぐ。
         Vector3 A=-(Right*HalfWidth)-(Up*HalfHeight);
         Vector3 B=(Right*HalfWidth)-(Up*HalfHeight);
         Vector3 C=-(Right*HalfWidth)+(Up*HalfHeight);
         Vector3 D=(Right*HalfWidth)+(Up*HalfHeight);
         return EmissivePatchBuilder.Build(new EmissivePatchBuildInput {
             Positions=[A,B,C,D],
-            // Both triangles intentionally wind toward Forward so this patch emits down onto
-            // the ground rather than away from the tested receiver.
+            // 2つの三角形はどちらも意図的にForward向きにする。このパッチが
+            // テスト対象の受光面から離れるのではなく、下向きに地面を照らすようにする。
             Indices=[0,1,2,1,3,2],
             ObjectWorld=ObjectWorld,
             EmissiveNits=new Vector3(AuthoredEmissiveNits),

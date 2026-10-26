@@ -4,9 +4,7 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Dockable VS tool window showing the currently-open scene's node tree (ADR-0020), Unity Hierarchy-
-/// style. Contains no scene-loading logic itself - <see cref="HierarchyToolWindowControl"/> reacts to
-/// <see cref="SceneEditorHub"/> events.
+/// 現在開いているシーンのノードツリーを表示する、ドッキング可能な VS tool window（ADR-0020）。Unity の Hierarchy 形式です。シーンのロード処理は持たず、<see cref="HierarchyToolWindowControl"/> が <see cref="SceneEditorHub"/> のイベントに応答します。
 /// </summary>
 [Guid(PaneGuidString)]
 public sealed class HierarchyToolWindowPane:ToolWindowPane {
@@ -20,9 +18,9 @@ public sealed class HierarchyToolWindowPane:ToolWindowPane {
     protected override bool PreProcessMessage(
         ref System.Windows.Forms.Message Message){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // ToolWindowPane.TranslateAccelerator is the first Visual Studio-owned keyboard
-        // boundary. Escape can be consumed by shell command routing before WPF raises a
-        // KeyEvent, so handle it here when this pane owns the accelerator.
+        // ToolWindowPane.TranslateAccelerator は Visual Studio が所有する最初のキーボード境界です。
+        // このペインがアクセラレーターを所有しているとき、WPF が KeyEvent を発生させる前に、
+        // シェルのコマンドルーティングで Escape が消費されることがあるため、ここで処理します。
         if(SceneEditorEscapeRoutingPolicy.IsVisualStudioEscapeKeyDown(
                 Message.Msg,Message.WParam.ToInt64())
             &&this.Content is HierarchyToolWindowControl Hierarchy){

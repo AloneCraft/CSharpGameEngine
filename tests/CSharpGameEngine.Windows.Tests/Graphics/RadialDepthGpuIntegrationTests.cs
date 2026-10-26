@@ -9,8 +9,8 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// Native logarithmic depth oracles: depth orders surfaces correctly at every scale, and the passes around it (sky,
-/// sun cascades, AO, previews, frame slots, device recovery) must keep working with extreme far planes.
+/// ネイティブ対数深度の検証オラクル。どのスケールでも面の深度順が正しく、空、太陽カスケード、AO、プレビュー、フレームスロット、デバイス復旧の各パスが
+/// 極端な遠クリップ面でも動作すること。
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]
 public sealed class RadialDepthGpuIntegrationTests {
@@ -29,10 +29,10 @@ public sealed class RadialDepthGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void Radial_KeepsSkyShadowsAndOcclusionFiniteWithExtremeFarPlanes(){
-        // Far planes of 1e7 m and 1e18 m would make the camera matrix singular for the sky, the cascades and the AO
-        // prepass; the auxiliary projection keeps them finite. Both far planes clamp the auxiliary far plane to
-        // near * 65536, so they render identical colour; a 300 m far plane (beyond all geometry) differs only by
-        // rounding.
+        // 1e7 mと1e18 mの遠クリップ面では、空、カスケード、AOプリパス用のカメラ行列が特異になる可能性がある。
+        // 補助投影で有限値に保つ。どちらの遠クリップ面も補助遠クリップをnear * 65536に制限するため、
+        // 描画色は同じ。300 mの遠クリップ面（すべてのジオメトリより遠い場合）は異なるのは、
+        // 丸め誤差。
         var Ordinary=FloatingScene.RenderFresh(ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:300f),Environment:true);
         var Planetary=FloatingScene.RenderFresh(ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e7f),Environment:true);
         var Interstellar=FloatingScene.RenderFresh(ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:1e18f),Environment:true);
@@ -72,7 +72,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,View.NearZ,View.FarZ,View.FovYRadians,(float)Width/Height,out var Projection));
         var TanHalfFov=MathF.Tan(View.FovYRadians*0.5f);
         foreach(var (X,Y) in new[]{(Width/2,Height/2),(3,4),(Width-5,Height-2)}){
-            // The view ray through the pixel centre meets the quad at z = 50.
+            // ピクセル中心を通るビュー方向のレイがz = 50でクアッドと交差する。
             var NdcX=(X+0.5f)/Width*2f-1f;
             var NdcY=1f-(Y+0.5f)/Height*2f;
             var Ray=new Vector3(NdcX*TanHalfFov*Width/Height,NdcY*TanHalfFov,1f);
@@ -126,14 +126,14 @@ public sealed class RadialDepthGpuIntegrationTests {
             new RenderCameraPreview(0,0,16,16,Perspective,Vector3.Zero,RenderViewDepth.ForPerspective(Projection)),
         ]));
     }
-    /// <summary>The view-projection matrix and radial parameters an editor would hand over for <paramref name="View"/>.</summary>
+    /// <summary>エディターが<paramref name="View"/>用に渡すビュー投影行列と放射状パラメーター。</summary>
     private static (Matrix4x4 ViewProjection,Vector3 Eye,RadialViewParameters Radial)AsMatrix(Camera View,float Aspect)=>
         (View.GetView()*View.GetProjection(Aspect),View.GetEyePosition(),new RadialViewParameters(View.FovYRadians,View.NearZ,View.FarZ,View.RadialTransitionMeters));
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void RadialViewProjection_RendersWhatTheRadialCameraRenders(){
-        // M0100: an editor hands the renderer its camera as one perspective matrix. Drawn radial from that matrix, the
-        // frame and its depth equal the radial camera's.
+        // M0100：エディターは1つの透視投影行列としてカメラをレンダラーへ渡す。これを基に放射状で描画すると、
+        // フレームと深度は放射状カメラを直接使った場合と一致する。
         using var Scene=FloatingScene.Create(Environment:false);
         var View=ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
         var CameraPixels=Scene.Render(View);
@@ -142,7 +142,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         var MatrixPixels=Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye,Parameters));
         Assert.Equal(CameraPixels,MatrixPixels);
         Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
-        // A bare perspective matrix has no physical far range and cannot silently choose a different encoding.
+        // 透視行列単体には物理的な遠方範囲がないため、異なるエンコード方式を黙って選択することはできない。
         Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye));
         Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
         Scene.AssertNoDebugLayerErrors();
@@ -150,8 +150,8 @@ public sealed class RadialDepthGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void RadialViewProjection_WithAnExtremeRange_RendersWhatTheRadialCameraRenders(){
-        // Near 1 mm and far 1e7 m: the sky, the sun cascades and the AO prepass take the auxiliary matrix, which the
-        // matrix path rebuilds from the matrix's own view depth.
+        // near 1 mm、far 1e7 m。空、太陽カスケード、AOプリパスでは補助行列を使う。この行列経路は、
+        // 投影行列自身のビュー深度から補助行列を再構築する。
         var View=ViewAt(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,NearZ:0.001f,FarZ:1e7f);
         var (ViewProjection,Eye,Parameters)=AsMatrix(View,160f/90f);
         Assert.Equal(FloatingScene.RenderFresh(View,Environment:true),
@@ -193,8 +193,8 @@ public sealed class RadialDepthGpuIntegrationTests {
             Assert.Equal(2u,Renderer.DeviceSnapshot.Generation);
             Assert.Equal(Before,Renderer.LastCapturedFrame!.Pixels);
             Assert.Equal(DepthBefore,Renderer.ReadDepthForTesting());
-            // The box 4.5 m away: radial depth log2(1 + 4.5) / log2(1 + rMax) is about 0.06; standard depth with a 1e12 m
-            // far plane would be about 0.98.
+            // 4.5 m先のボックスでは、放射状深度log2(1 + 4.5) / log2(1 + rMax)は約0.06。遠クリップ面を1e12 mにした標準深度では約
+            // 0.98となる。
             var Center=DepthBefore[64*128+64];
             Assert.True(Center>0f&&Center<0.2f,$"centre depth {Center}");
             Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
@@ -228,8 +228,8 @@ public sealed class RadialDepthGpuIntegrationTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre(){
-        // A sphere of radius 3e5 m, 1e6 m to the side of the radial camera. The observer inset must show it where the
-        // CPU compression T·G(r) puts it; the main view outside the inset must not change; the marker is optional.
+        // 半径3e5 mの球を、放射状カメラから横へ1e6 mの位置に置く。観測者インセットでは
+        // CPU圧縮T·G(r)で定まる位置に球を表示する。インセット外のメインビューは変化させない。マーカーは任意。
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Observer",Width=256,Height=144,Visible=false });
         using var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
             [ToMesh(ProceduralMeshFactory.CreateSphere(0.5f))],[new StageMaterialCreateInfo { BaseColorFactor=Red,RoughnessFactor=1f,MetallicFactor=0f }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
@@ -254,7 +254,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         var Marked=Render([Observer(true)]);
         var Unmarked=Render([Observer(false)]);
         var RowPitch=(int)Renderer.LastCapturedFrame!.RowPitch;
-        // The sphere centre compresses to T·G(1e6) metres along +X; project it through the observer view.
+        // 球の中心は+X方向へT·G(1e6)メートル圧縮される。観測者ビューを通して投影する。
         var Mapped=new Vector3(Projection.Curve.Map(1e6f),0f,0f)-Eye;
         var Clip=Vector4.Transform(new Vector4(Mapped,1f),ObserverView);
         var PixelX=Inset.X+(int)((Clip.X/Clip.W*0.5f+0.5f)*Inset.Size);
@@ -288,7 +288,7 @@ public sealed class RadialDepthGpuIntegrationTests {
         }
         return new StageMeshCreateInfo { Positions=Data.Positions,Normals=Data.Normals,Tangents=Tangents,Uvs=new Vector2[Data.Positions.Length],Indices=Data.Indices };
     }
-    /// <summary>A grid floor, floating objects, one straddling the near plane and one beyond a 40 m far plane.</summary>
+    /// <summary>格子状の床と浮遊オブジェクト。1つはnear面をまたぎ、もう1つは40 mのfar面を越える。</summary>
     private sealed class FloatingScene:IDisposable {
         private FloatingScene(Win32Window Window,StageRenderer Renderer,bool Environment,bool Clipped){
             this.Window=Window;
@@ -300,8 +300,8 @@ public sealed class RadialDepthGpuIntegrationTests {
         public StageRenderer Renderer { get; }
         public bool Environment { get; }
         /// <summary>
-        /// True keeps the floor (crossing the eye and far planes) and the box straddling the near plane; false moves the
-        /// floor behind the camera and the box into view, so no triangle is clipped.
+        /// trueなら視点／遠方クリップ面を横切る床と、near面をまたぐボックスを維持する。falseなら床をカメラ後方へ、ボックスを視界内へ移動し、
+        /// 三角形がクリップされない状態にする。
         /// </summary>
         public bool Clipped { get; }
         public static FloatingScene Create(bool Environment,bool Clipped=true){
@@ -331,7 +331,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             Assert.True(Renderer.ShaderArtifactLoaded,string.Join(System.Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
             return new FloatingScene(Window,Renderer,Environment,Clipped);
         }
-        /// <summary>Renders from a new renderer, so temporal state (GI history) cannot leak between compared frames.</summary>
+        /// <summary>新しいレンダラーから描画する。比較するフレーム間で時間状態（GI履歴）が漏れない。</summary>
         public static byte[]RenderFresh(Camera View,bool Environment,int Frames=4,bool Clipped=true)=>
             RenderFresh(Renderer=>Renderer.SetCamera(View),Environment,Frames,Clipped);
         public static byte[]RenderFresh(Action<StageRenderer>SetView,bool Environment,int Frames=4,bool Clipped=true){
@@ -341,7 +341,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             return Pixels;
         }
         public byte[]Render(Camera View,int Frames=2)=>this.Render(Renderer=>Renderer.SetCamera(View),Frames);
-        /// <summary>Renders with the view <paramref name="SetView"/> sets each frame (a camera or a view-projection).</summary>
+        /// <summary>各フレームで<paramref name="SetView"/>が設定するビュー（カメラ、またはビュー投影行列）から描画する。</summary>
         public byte[]Render(Action<StageRenderer>SetView,int Frames=2){
             for(var Frame=0;Frame<Frames;Frame++){
                 SetView(this.Renderer);
@@ -363,9 +363,9 @@ public sealed class RadialDepthGpuIntegrationTests {
                 this.Renderer.SetObjectTransform(1,Matrix4x4.CreateRotationY(0.5f)*Matrix4x4.CreateTranslation(-0.9f,1.2f,0f));
                 this.Renderer.SetObjectTransform(2,Matrix4x4.CreateTranslation(0.9f,0.9f,-0.6f));
                 this.Renderer.SetObjectTransform(3,Matrix4x4.CreateTranslation(0f,2.5f,3f));
-                // Straddles the near plane at the right edge of the view.
+                // ビュー右端でnear面をまたぐ。
                 this.Renderer.SetObjectTransform(4,Matrix4x4.CreateTranslation(0.6f,1.3f,this.Clipped?-3.6f:-1.5f));
-                // Beyond the 40 m far plane.
+                // 40 mのfar面より先。
                 this.Renderer.SetObjectTransform(5,Matrix4x4.CreateTranslation(0f,2f,60f));
                 this.Renderer.RenderFrame(CaptureForVerification:Frame==Frames-1);
             }
@@ -378,7 +378,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             this.Window.Dispose();
         }
     }
-    /// <summary>Quads facing the camera (which looks along +Z from the origin), lit only by the flat ambient term.</summary>
+    /// <summary>原点から+Z方向を向くカメラに正対し、平坦なアンビエント項だけで照明するクアッド。</summary>
     private sealed class QuadScene:IDisposable {
         private QuadScene(Win32Window Window,StageRenderer Renderer,int QuadCount){
             this.Window=Window;
@@ -397,7 +397,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             Assert.True(Renderer.ShaderArtifactLoaded,string.Join(System.Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
             return new QuadScene(Window,Renderer,Colors.Length);
         }
-        /// <summary>A square of the given size facing the camera at the given distance.</summary>
+        /// <summary>指定したサイズと距離でカメラに正対する正方形。</summary>
         public static Matrix4x4 Facing(float Distance,float Size)=>
             Matrix4x4.CreateScale(Size,1f,Size)*Matrix4x4.CreateRotationX(-MathF.PI/2f)*Matrix4x4.CreateTranslation(0f,0f,Distance);
         public byte[]Render(Camera View,Matrix4x4[]Transforms,Action<StageRenderer>?Setup=null){
@@ -412,7 +412,7 @@ public sealed class RadialDepthGpuIntegrationTests {
             }
             return this.Renderer.LastCapturedFrame!.Pixels.ToArray();
         }
-        /// <summary>The fraction of pixels in the rectangle (the whole frame by default) where red dominates green.</summary>
+        /// <summary>既定では全フレーム、指定矩形内で赤が緑より強いピクセルの割合。</summary>
         public float RedFraction(byte[]Pixels,int Left=0,int Top=0,int Width=-1,int Height=-1){
             var Frame=this.Renderer.LastCapturedFrame!;
             Width=Width<0?Frame.Width:Width;

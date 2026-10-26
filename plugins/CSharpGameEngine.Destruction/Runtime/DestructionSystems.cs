@@ -4,16 +4,13 @@ using CSharpGameEngine.Runtime.Character;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Destruction;
-/// <summary>
-/// Registers the Entities the destruction plugin makes at run time (ADR-0078/M0113): a drawn fragment, the body of a loose piece and the body of an anchored
-/// piece. Archetypes are a closed set, so they are declared here.
-/// </summary>
+/// <summary>実行時に破壊プラグインが作成する Entity（描画用破片、分離破片のボディ、固定破片のボディ）を登録する（ADR-0078/M0113）。アーキタイプは固定集合なので、ここで宣言する。</summary>
 internal struct DestructionShapes:ISystem {
     public void Spawn(ref Transform Transform,ref FragmentMesh Mesh,ref DestructibleFragment Fragment){}
     public void Spawn(ref Transform Transform,ref Collider Collider,ref RigidBody Body,ref PhysicsRotation Rotation,ref PhysicsVelocity Velocity,ref PhysicsStableId StableId,ref DestructiblePiece Piece){}
     public void Spawn(ref Transform Transform,ref Collider Collider,ref PhysicsRotation Rotation,ref PhysicsStableId StableId,ref DestructiblePiece Piece){}
 }
-/// <summary>Loads each <see cref="Destructible"/> the first fixed tick it exists (once; a problem is printed once and kept in <see cref="DestructibleState.Problem"/>).</summary>
+/// <summary>各 <see cref="Destructible"/> を、存在して最初の固定ティックに読み込む（一度だけ。問題は一度だけ出力し、<see cref="DestructibleState.Problem"/> に保持する）。</summary>
 [SystemPhase(SystemPhase.FixedSimulation)]
 internal struct DestructibleLoad:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref Destructible Destructible,ref DestructibleState Runtime,Destruction Destruction,ref State State){
@@ -22,10 +19,9 @@ internal struct DestructibleLoad:ISystem {
     }
 }
 /// <summary>
-/// A character with a <see cref="DestructionImpact"/> that is about to move into a destructible (or a piece of one) this tick hits it: the point of contact
-/// takes the character's mass times the approach speed as strain, and a loose piece is pushed by the same impulse. Runs after the physics step and before
-/// the character moves, so the approach speed is the one the character arrives with. M0124: the strain is an impact (it adds to the internal strain) only in
-/// the tick the character's touch of that body began.
+/// <see cref="DestructionImpact"/> を持つキャラクターが、今ティックに破壊可能オブジェクト（またはその破片）へ衝突しようとしている場合、衝突させる。接触点にはキャラクターの
+/// 質量と接近速度の積に相当するひずみを加え、分離中の破片には同じ力積で押す。物理ステップ後、キャラクターの移動前に実行するため、接近速度には到達時の値を使う。M0124：ひずみが衝撃（内部ひずみに加算）
+/// になるのは、そのボディへの接触を始めたティックだけ。
 /// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(PhysicsTransformWriteback))]
@@ -54,7 +50,7 @@ internal struct DestructionImpacts:ISystem {
         }
     }
 }
-/// <summary>Hands every <see cref="StrainField"/> to the <see cref="Destruction"/> step of this tick (at its first tick, or every tick when it repeats).</summary>
+/// <summary>各 <see cref="StrainField"/> を、このティックの<see cref="Destruction"/>処理（最初のティック、または繰り返し設定時は毎ティック）へ渡す。</summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(PhysicsStep))]
 [RunsBefore(typeof(DestructionStep))]
@@ -66,7 +62,7 @@ internal struct StrainFieldApply:ISystem {
         Destruction.ApplyStrain(new LogicalVector3(World.M41,World.M42,World.M43),Field.Radius,Field.Strain);
     }
 }
-/// <summary>The destruction step of the tick (<see cref="Destruction"/>): after the physics step and the impacts, before the bodies are written back.</summary>
+/// <summary>ティックの破壊処理（<see cref="Destruction"/>）。物理ステップと衝撃処理の後、ボディの状態を書き戻す前に実行する。</summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(PhysicsStep))]
 [RunsAfter(typeof(DestructionImpacts))]
@@ -76,7 +72,7 @@ internal struct DestructionStep:IWorldSystem {
         Destruction.Step(Host,ref State);
     }
 }
-/// <summary>Pushes the moving bodies around every <see cref="ForceField"/> (each body once over the field's life), for the next tick.</summary>
+/// <summary>すべての <see cref="ForceField"/> の周囲にある移動中のボディを押す（フィールドの有効期間中、各ボディにつき一度）。力は次のティックに適用する。</summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [RunsAfter(typeof(DestructionStep))]
 internal struct ForceFieldApply:ISystem {
@@ -87,8 +83,8 @@ internal struct ForceFieldApply:ISystem {
     }
 }
 /// <summary>
-/// Places every drawn fragment where its body is: the body's position plus the fragment's offset turned by the body's rotation (a body's
-/// <c>PhysicsRotation</c> when it has one). Runs after the physics writes the bodies back, so the fragments are drawn with this tick's poses.
+/// 描画用の各破片をボディの位置に配置する。ボディの位置に、その回転（<c>PhysicsRotation</c> がある場合はその回転）で回転させた破片のオフセットを加える。物理処理によるボディ状態の書
+/// き戻し後に実行し、このティックの姿勢で破片を描画する。
 /// </summary>
 [SystemPhase(SystemPhase.PostPhysics)]
 internal struct DestructionFollow:ISystem {
@@ -100,10 +96,7 @@ internal struct DestructionFollow:ISystem {
         Transform.Rotation=Rotation;
     }
 }
-/// <summary>
-/// Removes the bodies and the drawn fragments of a destructible whose Entity is gone (its scene was unloaded or it was destroyed), the tick after: a body
-/// made in the tick its destructible went could not be destroyed in that tick.
-/// </summary>
+/// <summary>Entity が消えた（シーンのアンロードまたは破棄）破壊可能オブジェクトのボディと描画用破片を、次のティックに削除する。破壊可能オブジェクトが消えたティック内に作成されたボディは、そのティック中には破棄できないため。</summary>
 [SystemPhase(SystemPhase.FixedSimulation)]
 internal struct DestructionOrphans:ISystem {
     public void Update(Entity Entity,ref DestructiblePiece Piece,ref State State){

@@ -7,9 +7,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Extensions > C# Game Engine menu command that shows/creates <see cref="InspectorToolWindowPane"/> (M0031) - a manual
-/// fallback since <see cref="CSharpGameEngineViewerPackage.InitializeAsync"/> also auto-shows it once
-/// at package load, mirroring <see cref="ShowHierarchyToolWindowCommand"/>.
+/// Extensions &gt; C# Game Engine メニューから <see cref="InspectorToolWindowPane"/> を表示または作成するコマンド (M0031)。手動で実行できる代替手段である。パッケージ読み込み時に一度だけ自動表示する点は <see cref="CSharpGameEngineViewerPackage.InitializeAsync"/> と同じで、<see cref="ShowHierarchyToolWindowCommand"/> に合わせている。
 /// </summary>
 internal sealed class ShowInspectorToolWindowCommand {
     public const int CommandId=0x010A;

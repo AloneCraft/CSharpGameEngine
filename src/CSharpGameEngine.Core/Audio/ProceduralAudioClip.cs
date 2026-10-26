@@ -1,15 +1,14 @@
 namespace CSharpGameEngine.Audio.Abstractions;
 
 /// <summary>
-/// Generates PCM sample data entirely in managed code (no file I/O, no asset pipeline). The
-/// repository has no imported audio assets yet, so this is the minimal way to get audible output
-/// out of any <see cref="IAudioBackend{TEngine, TVoice}"/> implementation. Platform-independent by
-/// construction: it only produces <c>short[]</c> samples, never touches a backend.
+/// PCMサンプルデータをマネージドコードだけで生成する（ファイルI/Oやアセットパイプラインは使わない）。
+/// リポジトリにはまだインポート済みの音声アセットがないため、あらゆる<see cref="IAudioBackend{TEngine, TVoice}"/>実装から
+/// 音を出すための最小限の手段となる。<c>short[]</c>サンプルを生成するだけでバックエンドには触れず、構造上プラットフォームに依存しない。
 /// </summary>
 public static class ProceduralAudioClip {
     /// <summary>
-    /// Generates a mono 16-bit PCM sine wave. <paramref name="AmplitudeScale"/> defaults to leave
-    /// headroom below <see cref="short.MaxValue"/> so the signal never clips.
+    /// モノラルの16ビットPCM正弦波を生成する。<paramref name="AmplitudeScale"/>の既定値では
+    /// <see cref="short.MaxValue"/>より小さいヘッドルームを確保し、信号がクリッピングしない。
     /// </summary>
     public static short[]GenerateSineWave(float FrequencyHz,float DurationSeconds,int SampleRate,float AmplitudeScale=0.3f){
         if(FrequencyHz<=0f){

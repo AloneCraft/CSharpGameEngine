@@ -4,21 +4,21 @@ using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// Draws one fragment of a cooked prefracture asset (ADR-0078/M0113): the part of one mesh that the fragment is, placed by its own Entity's
-/// <see cref="Transform"/> (the fragment's centre and the rotation of the body it rides on). The destruction plugin makes one Entity per fragment and moves
-/// it; the renderer adds and removes the objects as those Entities come and go (M0105). A fragment's triangles on the source's surface use
-/// <see cref="OuterColor"/>, the ones on a Voronoi cut <see cref="InteriorColor"/> (UE's interior material slot).
+/// ベイク済みの事前破砕アセットに含まれる破片を描画する（ADR-0078/M0113）。破片はメッシュの一部で、破片自身のEntityの
+/// <see cref="Transform"/>（中心位置と、乗っているボディの回転）に従って配置する。Destructionプラグインが破片ごとにEntityを作成して移動させ、
+/// レンダラーはEntityの生成／破棄に合わせてオブジェクトを追加／除去する（M0105）。ソース表面にある破片の三角形には<see cref="OuterColor"/>、
+/// Voronoiの切断面には<see cref="InteriorColor"/>を使う（UEの内側マテリアルスロット）。
 /// </summary>
 public struct FragmentMesh {
-    /// <summary>The asset under the content root (for example <c>Assets/Destruction/Crate.cgefracture</c>).</summary>
+    /// <summary>コンテンツルート内のアセット（例：<c>Assets/Destruction/Crate.cgefracture</c>）。</summary>
     public string AssetPath;
     public int Fragment;
-    /// <summary>Linear RGB of the outer surface.</summary>
+    /// <summary>外側表面の線形RGB。</summary>
     public Vector3 OuterColor;
-    /// <summary>Linear RGB of the cut faces.</summary>
+    /// <summary>切断面の線形RGB。</summary>
     public Vector3 InteriorColor;
 }
-/// <summary>ADR-0078/M0113: gives an Entity that has a <see cref="FragmentMesh"/> and is not drawn yet its renderer objects.</summary>
+/// <summary>ADR-0078/M0113：<see cref="FragmentMesh"/>を持ち、まだ描画されていないEntityに、レンダラーオブジェクトを割り当てる。</summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
 [RunsBefore(typeof(TransformSync))]
@@ -27,11 +27,11 @@ internal struct FragmentMeshBind:ISystem {
         Host.Roster?.BindFragmentMesh(Entity,in Transform,in Mesh,Host,ref State);
     }
 }
-/// <summary>The renderer meshes of a fragment: flat-shaded triangles of one material slot in the fragment's own frame.</summary>
+/// <summary>破片のレンダラーメッシュ。破片のローカル座標系にある、単一マテリアルスロットのフラットシェーディング三角形。</summary>
 internal static class FragmentMeshBuilder {
     /// <summary>
-    /// The triangles of <paramref name="Slot"/>, each with its own three vertices (flat normals from the outward winding, a tangent along the first edge, and
-    /// a box projection of the source-frame position for the UVs, so neighbouring fragments' textures meet); null when the slot has no triangle.
+    /// <paramref name="Slot"/>に属する三角形。それぞれ独立した3頂点を持ち、外向き巻き順に基づくフラット法線、最初の辺に沿う接線、
+    /// 隣り合う破片のテクスチャがつながるようソース座標系の位置を使ったボックス投影UVを含む。スロットに三角形がない場合はnull。
     /// </summary>
     internal static StageMeshCreateInfo?Build(PrefractureAsset Asset,int Fragment,byte Slot){
         var Mesh=Asset.Meshes[Fragment];

@@ -12,15 +12,17 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 #pragma warning disable VSTHRD010,VSTHRD001
-internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,IPersistFileFormat,IOleCommandTarget {
+internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,IPersistFileFormat,IOleCommandTarget,IVsWindowFrameNotify3 {
     private readonly ShaderGraphEditorControl Control;
     private readonly FileSystemWatcher Watcher;
     private readonly ErrorListProvider ErrorList;
     private ShaderGraphEditorDocument Document;
     private bool OwnSave;
     private int ExternalChangeTicket;
+    private readonly AssetEditorFramePlacement Placement;
     internal ShaderGraphEditorWindowPane(string FilePath) {
         this.Document=ShaderGraphEditorDocument.Load(FilePath);
+        this.Placement=new AssetEditorFramePlacement(ServiceProvider.GlobalProvider,()=>this.Document.FilePath,()=>this.Control);
         this.Control=new ShaderGraphEditorControl(this.Document);
         this.Control.SaveRequested+=this.Save;
         this.Control.OpenGeneratedHlslRequested+=this.OpenGeneratedHlsl;
@@ -136,6 +138,26 @@ internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,I
         if(CommandId==(uint)VSConstants.VSStd97CmdID.SaveProjectItem) { this.Save();return VSConstants.S_OK; }
         return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
     }
+    /// <summary>復元された文書などで、保存済みの配置を尊重してフロート配置をしない。</summary>
+    internal void RespectSavedPlacement()=>this.Placement.RespectSavedPlacement();
+    /// <summary>シェーダーグラフ（UE5 のマテリアルエディター相当）も、他のアセットエディターと同じく既定で前面のフローティングウィンドウに開く（M0127）。</summary>
+    protected override void OnCreate() {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        base.OnCreate();
+        if(this.GetService(typeof(SVsWindowFrame)) is IVsWindowFrame Created) {
+            this.Placement.Attach(Created);
+            ErrorHandler.ThrowOnFailure(Created.SetProperty((int)__VSFPROPID.VSFPROPID_ViewHelper,this));
+        }
+    }
+    public int OnShow(int Show) {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.Placement.OnShow(Show);
+        return VSConstants.S_OK;
+    }
+    public int OnMove(int X,int Y,int Width,int Height)=>VSConstants.S_OK;
+    public int OnSize(int X,int Y,int Width,int Height)=>VSConstants.S_OK;
+    public int OnDockableChange(int Docked,int X,int Y,int Width,int Height)=>VSConstants.S_OK;
+    public int OnClose(ref uint Options)=>VSConstants.S_OK;
     protected override void Dispose(bool Disposing) {
         if(Disposing) {
             this.Watcher.EnableRaisingEvents=false;

@@ -235,3 +235,25 @@ ECS preserves the generated one-to-sixty-four-component single-`ulong` generator
 ### Static ECS mask boundary
 
 現行のComponent型上限は512である(ADR-0079。プラグインがゲームと同じ番号の空間を使うため、128から広げた)。Source GeneratorのArchetype部分集合判定は64型ごとに1語の`ulong`を使い(`ComponentMask`、語の名前はLow・High・Word2…)、1–64型はlow一語、65–128型はlow/high二語で、この範囲の生成コードは広げる前と同じ文字列である。生成Runtimeにはmask判定が残らず、513型以上はSYSGEN026で拒否する。
+
+## Virtual directional shadow boundary (M0115)
+`Rendering` owns portable `DirectionalShadowSettings`, world-grid page planning and cache diagnostics. `Runtime.Lighting` declares optional `DirectionalShadowRendering`, `Runtime.Windows` extracts it, and RenderServer retains it in the completed environment frame for recovery. StageRenderer owns native depth resources, fence-slot uploads and rasterization; no D3D12 type crosses the policy boundary. Shader Graph owns Stage `stage-v15` sampling. The comparison is a fixed-lighting presentation of one world through two frame-constant slots, not a second ECS simulation or a general multi-view Render Graph executor.
+
+
+## Asset authoring workspace (ADR-0081 / M0123)
+
+Solution Explorer owns navigation. L8 projects evaluated game-project and plugin items into a bottom Assets window and the existing Inspector, without another folder hierarchy or another scene session. The public HierarchyTreeFilterProvider supplies the Assets-only filter. L8 uses Roslyn symbols and the existing JSON/graph parsers to plan reference edits; native text buffers and linked Visual Studio Undo own document history.
+
+Content owns read-only inventory, canonical metadata writes and physical file/sidecar transactions, reached through the existing standalone AssetAuthoring host and Contracts DTOs. Browsing does not allocate identities or write sidecars. The old AssetMetaWatcher writer is removed; legacy GUID lines require an explicit hash-checked conversion. The generator and refactoring planner share AssetCatalogLayout so symbol collision rules agree. M0114 import/artifact services remain a prerequisite for reimport, model thumbnails and subasset projection; no additional legacy importer fallback is introduced. Observed limitations and verification are tracked in M0123 rather than treated as architectural exceptions.
+
+
+## Directional soft-shadow boundary (M0125)
+The directional environment policy also carries an opt-in angular diameter and maximum penumbra radius. Both shadow backends call a shared Shader Graph PCSS function; the page planner owns conservative filter coverage, while the native renderer uploads frame constants. The same saved RenderServer environment frame replays the settings after recovery. Raster-pass timestamps exclude the added pixel-shading filter cost. ADR-0083 records the bounded approximation and matching contract.
+
+
+## Explicit image and composite-FBX authoring (ADR-0088)
+
+L2 Contracts owns image/model interpretation settings and stable output identity. L6 Content owns canonical sidecars, recoverable file transactions, distinct raw Image/processed Texture payloads and runtime codecs. L7 Import owns bounded PNG/JPEG decode (StbImageSharp), channel/normal/mip processing and Assimp composite FBX adaptation; the standalone authoring host publishes CAS results. L8 VSIX transports these requests, previews settings and references, and supplies native text Undo. Image source suffixes are initial hints; persisted metadata wins on reimport. No decoder or provider SDK is moved into runtime or the VSIX. See [the interpretation specification](Specifications/Image-And-Model-Interpretation.md) for the additive path and its boundary with M0114.
+
+## Asset editor windows and preview levels (M0127)
+L8 owns the asset editors (`tools/CSharpGameEngine.VSExtension/AssetEditors/`): a registry maps an extension to an editor kind, one `IVsEditorFactory` builds the document, and a shared shell hosts the per-kind content. The 3D viewport reuses the Scene View camera maths and the out-of-process Render Preview Host (protocol 10); the host applies the template's lights, ambient/sky, background and floor through the same typed lighting values as the runtime. Templates are L8 data (`.cgepreview`); the runtime layers L0-L6 do not depend on them or on the Visual Studio SDK. The host loads skinned glTF itself: it references managed `Import` and compiles the ECS-free `Skeleton.cs`, `AnimationClip.cs` (Runtime.Animation) and `StageGltfAssets.cs` (Runtime.Windows) as linked sources, so the preview and the game share one conversion and one pose evaluation (ADR-0090). See ADR-0089.

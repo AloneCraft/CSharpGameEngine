@@ -3,9 +3,9 @@ using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Rendering.Tests;
 
-/// <summary>ADR-0078/M0104: the baked font format and the text layout over it, on a small hand-made font.</summary>
+/// <summary>ADR-0078/M0104：手作りの小さなフォントを使った、ベイク済みフォント形式とそのテキストレイアウト。</summary>
 public sealed class FontAtlasTests {
-    /// <summary>Ascent 0.8, descent 0.2, no gap (so a line is one em). 'A' advances 0.6 and draws; ' ' advances 0.3 and draws nothing; '?' is the fallback.</summary>
+    /// <summary>Ascent 0.8、descent 0.2、行間なし（1 行が 1 em）。'A' は 0.6 進んで描画され、' ' は 0.3 進んで何も描画せず、'?' は代替グリフとなる。</summary>
     private static FontAtlas MakeFont(bool WithFallback=true){
         List<FontGlyph>Glyphs=[
             new(' ',0.3f,0f,0f,0f,0f,0f,0f,0f,0f),
@@ -50,7 +50,7 @@ public sealed class FontAtlasTests {
         byte[]NotANumber=(byte[])Good.Clone();
         BitConverter.GetBytes(float.NaN).CopyTo(NotANumber,16);
         Assert.Throws<FormatException>(()=>FontAtlas.Parse(NotANumber));
-        // The second glyph record starts after the header (36) and the first record (40); its code point is first.
+        // 2 番目のグリフレコードはヘッダー (36) と最初のレコード (40) の後に始まり、コードポイントが先頭にある。
         byte[]Unordered=(byte[])Good.Clone();
         BitConverter.GetBytes((int)' ').CopyTo(Unordered,36+40);
         Assert.Throws<FormatException>(()=>FontAtlas.Parse(Unordered));
@@ -123,7 +123,7 @@ public sealed class FontAtlasTests {
 
         Assert.Equal(new Vector2(6f,10f),Block);
         Assert.Equal(6,Quads.Count);
-        // Baseline y = 50 + ascent 8 = 58. Plane x 0.1..0.6 -> 101..106; plane y 0..0.7 up -> 58..51.
+        // ベースライン y = 50 + ascent 8 = 58。平面 x 0.1..0.6 -> 101..106、平面 y 0..0.7（上向き）-> 58..51。
         Assert.Equal(new Vector2(101f,51f),Quads[0].Position);
         Assert.Equal(new Vector2(106f,51f),Quads[1].Position);
         Assert.Equal(new Vector2(101f,58f),Quads[2].Position);
@@ -133,7 +133,7 @@ public sealed class FontAtlasTests {
         Assert.Equal(new Vector2(0.25f,0.75f),Quads[2].Uv);
         Assert.Equal(new Vector2(0.5f,0.75f),Quads[4].Uv);
         Assert.All(Quads,Vertex=>Assert.Equal(Color,Vertex.Color));
-        // The second triangle repeats two corners of the first.
+        // 2 番目の三角形は、最初の三角形の頂点 2 つを繰り返す。
         Assert.Equal(Quads[1],Quads[3]);
         Assert.Equal(Quads[2],Quads[5]);
     }
@@ -144,7 +144,7 @@ public sealed class FontAtlasTests {
 
         ScreenTextLayout.Append(Quads,MakeFont(),"A A",10f,TextAlignment.Left,Vector2.Zero,Vector4.One);
 
-        // Two glyph quads; the second 'A' starts after 0.6 + 0.3 em: pen x 9, quad left 9 + 1 = 10.
+        // グリフ四角形は 2 つ。2 番目の 'A' は 0.6 + 0.3 em の後から始まる：ペン x は 9、四角形の左端は 9 + 1 = 10。
         Assert.Equal(12,Quads.Count);
         Assert.Equal(1f,Quads[0].Position.X);
         Assert.Equal(10f,Quads[6].Position.X);
@@ -157,7 +157,7 @@ public sealed class FontAtlasTests {
     public void Append_AlignsEachLineInsideTheBlock(TextAlignment Alignment,float ShortLineOffset){
         List<RenderScreenVertex>Quads=[];
 
-        // Line 1 is 'AAA' (18 wide), line 2 is 'A' (6 wide): the block is 18 wide and the short line starts 0, 6 or 12 in.
+        // 1 行目は 'AAA'（幅 18）、2 行目は 'A'（幅 6）。ブロック幅は 18 で、短い行の開始位置は 0、6、12 のいずれか。
         Vector2 Block=ScreenTextLayout.Append(Quads,MakeFont(),"AAA\nA",10f,TextAlignment.Left,Vector2.Zero,Vector4.One);
         Quads.Clear();
         ScreenTextLayout.Append(Quads,MakeFont(),"AAA\nA",10f,Alignment,Vector2.Zero,Vector4.One);
@@ -165,7 +165,7 @@ public sealed class FontAtlasTests {
         Assert.Equal(18f,Block.X,3);
         RenderScreenVertex ShortLineFirst=Quads[^6];
         Assert.Equal(ShortLineOffset+1f,ShortLineFirst.Position.X,3);
-        // The second line is one line height (10) lower.
+        // 2 行目は 1 行分の高さ (10) だけ下がる。
         Assert.Equal(10f,ShortLineFirst.Position.Y-Quads[0].Position.Y,3);
     }
 
@@ -177,11 +177,11 @@ public sealed class FontAtlasTests {
         ScreenTextLayout.Append(WithFallback,MakeFont(),"B\U0001F642",10f,TextAlignment.Left,Vector2.Zero,Vector4.One);
         ScreenTextLayout.Append(WithoutFallback,MakeFont(WithFallback:false),"B\U0001F642A",10f,TextAlignment.Left,Vector2.Zero,Vector4.One);
 
-        // Both the unknown letter and the emoji (one code point, two UTF-16 units) draw the '?' quad, advancing 0.5 em each.
+        // 未知の文字と絵文字（コードポイント 1 つ、UTF-16 単位 2 つ）はどちらも '?' の四角形を描き、それぞれ 0.5 em 進む。
         Assert.Equal(12,WithFallback.Count);
         Assert.Equal(new Vector2(0.5f,0.5f),WithFallback[0].Uv);
         Assert.Equal(5f+0.5f,WithFallback[6].Position.X,3);
-        // Without a fallback they advance nothing and draw nothing, so only the 'A' draws.
+        // 代替グリフがなければ進まず、何も描画しないため、'A' だけが描画される。
         Assert.Equal(6,WithoutFallback.Count);
         Assert.Equal(1f,WithoutFallback[0].Position.X,3);
     }

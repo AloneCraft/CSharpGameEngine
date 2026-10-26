@@ -1,14 +1,13 @@
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Pure policy for replacing a failed native surface with visible WPF diagnostics.</summary>
+/// <summary>失敗したネイティブサーフェスを、WPF 上で表示可能な診断へ置き換える純粋なポリシー。</summary>
 internal static class SceneRenderFailurePolicy {
     internal static bool ShouldShowFailure(bool HasFatalRenderFailure,bool IsBuildPending)
         =>HasFatalRenderFailure&&!IsBuildPending;
 }
 
 /// <summary>
-/// UI-thread-confined lease for the latest asynchronous scene-build request. A worker can finish
-/// after the target has changed, so only the request that still owns this lease may complete it.
+/// 最新の非同期シーンビルド要求に対する、UI スレッド専用の lease。ビルド対象が変更された後にワーカーが完了することもあるため、この lease をまだ所有する要求だけが完了できる。
 /// </summary>
 internal sealed class SceneRenderBuildLifecycle {
     private long NextEpoch;
@@ -28,12 +27,11 @@ internal sealed class SceneRenderBuildLifecycle {
     }
 
     /// <summary>
-    /// Invalidates the active request without waiting for its worker. Its eventual callback is
-    /// intentionally ignored, while a newer request (if any) retains its own pending state.
+    /// 実行中のワーカーを待たずにアクティブな要求を無効にする。後から届くコールバックは意図的に無視する。新しい要求があれば、独自の保留状態を維持する。
     /// </summary>
     internal void Invalidate()=>this.ActiveEpoch=0;
 
-    /// <summary>Completes the lease only when the callback belongs to the current request.</summary>
+    /// <summary>現在の要求に属するコールバックの場合に限り、lease を完了する。</summary>
     internal bool TryComplete(long Epoch){
         if(this.ActiveEpoch==0||this.ActiveEpoch!=Epoch){
             return false;

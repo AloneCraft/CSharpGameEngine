@@ -27,7 +27,7 @@ internal static class ComponentMask {
         return [.. Words];
     }
 
-    /// <summary>Whether every bit of <paramref name="Required"/> is set in <paramref name="Available"/>.</summary>
+    /// <summary><paramref name="Available"/>のすべてのビットに<paramref name="Required"/>が設定されているかどうか。</summary>
     internal static bool Contains(ImmutableArray<ulong> Available,ImmutableArray<ulong> Required){
         for(var Word=0;Word<Required.Length;Word++){
             if((Available[Word]&Required[Word])!=Required[Word]){ return false; }
@@ -37,10 +37,10 @@ internal static class ComponentMask {
 
     internal static string Literal(ulong Word)=>$"0x{Word:X16}UL";
 
-    /// <summary>"0x…UL, 0x…UL": the words as arguments.</summary>
+    /// <summary>「0x…UL, 0x…UL」：引数として渡すワード列。</summary>
     internal static string Literals(ImmutableArray<ulong> Words)=>string.Join(", ",Words.Select(Literal));
 
-    /// <summary>"ulong Low, ulong High": one parameter per word, with an optional prefix on the names.</summary>
+    /// <summary>「ulong Low, ulong High」：ワードごとに1つのパラメーターを置き、名前には任意の接頭辞を付けられる。</summary>
     internal static string Parameters(int WordCount,string Prefix="")=>
         string.Join(", ",Enumerable.Range(0,WordCount).Select(Word=>$"ulong {Prefix}{WordName(Word)}"));
 }

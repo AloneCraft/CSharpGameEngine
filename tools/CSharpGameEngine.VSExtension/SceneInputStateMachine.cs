@@ -10,8 +10,7 @@ namespace CSharpGameEngine.VSExtension;
 internal enum SceneNavState { Idle, Flying, Panning, Orbiting, PendingSelect, MarqueeSelecting, GizmoDragging }
 
 /// <summary>
-/// M0095 (user request 2026-10-01): the selection's gizmos are hidden while an Alt+LMB orbit drags. Holding
-/// Alt alone keeps them, so Alt on a handle still begins a duplicate drag (Scene-Editor-Design §6.2).
+/// M0095（2026-10-01 のユーザー要望）：Alt+LMB で orbit をドラッグしている間、選択中の gizmo を非表示にします。Alt だけを押しても gizmo は表示したままなので、handle 上で Alt を押すと複製ドラッグを開始できます（Scene-Editor-Design §6.2）。
 /// </summary>
 internal static class SceneGizmoVisibilityPolicy {
     internal static bool ShowsGizmos(SceneNavState State)=>State!=SceneNavState.Orbiting;

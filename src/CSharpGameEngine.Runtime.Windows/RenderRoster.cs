@@ -6,15 +6,14 @@ using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
-/// ADR-0078/M0105: the drawn objects follow the Entities. <see cref="LevelLoad"/> still builds the renderer from the Entities that
-/// exist when the level loads; from then on this keeps the renderer's objects in step with the world. An Entity that gains a
-/// <see cref="StaticMesh"/> or <see cref="PrimitiveMesh"/> (spawned, or moved to a shape that has one) gets its objects added; when it
-/// is destroyed or loses the mesh, its objects stop being drawn (<see cref="Release"/>, called by the renderable wrappers).
-/// A mesh asset no Entity has used yet is loaded and uploaded the first time one is bound, which costs one frame.
-/// A <see cref="CSharpGameEngine.Runtime.Animation.SkeletalMesh"/> spawned later (M0107: a respawned character) gets its own copy of the asset's skinned
-/// meshes and materials, which join the renderer's skinning pass (the first one costs a GPU wait); when that Entity is gone its copy goes back to a
-/// pool for the next Entity of the same asset, so respawning over and over does not grow the renderer. What is not followed: a changed
-/// <see cref="StaticMesh.AssetPath"/> on an Entity that is already drawn.
+/// ADR-0078/M0105：描画オブジェクトをEntityに追従させる。<see cref="LevelLoad"/>では引き続き、レベル読み込み時に存在するEntityからレンダラーを構築する。
+/// その後はこれを使って、レンダラーのオブジェクトをワールド内のEntityと同期させる。<see cref="StaticMesh"/>または<see cref="PrimitiveMesh"/>を取得したEntity
+///（新規生成、またはメッシュを持つ形状へ変更した場合）には描画オブジェクトを追加する。破棄された場合、またはメッシュを失った場合は描画を止める
+///（Renderableラッパーが<see cref="Release"/>を呼び出す）。まだEntityに使われていないメッシュアセットは、最初にバインドされた際に読み込んでGPUへ送るため1フレームかかる。
+/// 後から生成された<see cref="CSharpGameEngine.Runtime.Animation.SkeletalMesh"/>（M0107：再出現したキャラクター）には、アセットのスキニング済みメッシュと
+/// マテリアルの独自コピーを作成し、レンダラーのスキニングパスへ追加する。最初の1回はGPU待ちが発生する。Entity破棄後はコピーをプールへ戻し、
+/// 同じアセットを使う次のEntityで再利用するため、何度再出現させてもレンダラーが増え続けない。
+/// 追従対象外の変更は、既に描画中のEntityに対する<see cref="StaticMesh.AssetPath"/>の変更。
 /// </summary>
 internal sealed class RenderRoster {
     private readonly Dictionary<string,StageSceneDataBuilder.AssetTemplate>StaticAssets;
@@ -45,11 +44,11 @@ internal sealed class RenderRoster {
             this.SkeletalOwners[Instance.Entity]=Instance;
         }
     }
-    /// <summary>The roster of a level just loaded: every Entity <paramref name="Scene"/> turned into objects counts as bound.</summary>
+    /// <summary>読み込み直後のレベルの登録一覧。<paramref name="Scene"/>がオブジェクト化したEntityはすべてバインド済みとして扱う。</summary>
     internal static RenderRoster FromScene(StageSceneDataBuilder Scene)=>new(Scene);
-    /// <summary>What went wrong binding an Entity (an asset that did not load, no room left), one line each, for the log and the tests.</summary>
+    /// <summary>Entityのバインド時に発生した問題（アセットの読み込み失敗、空き領域不足など）。ログとテスト用に1行ずつ記録する。</summary>
     internal IReadOnlyList<string>Diagnostics=>this.DiagnosticList;
-    /// <summary>How many objects could not be added because the renderer's headroom was used up.</summary>
+    /// <summary>レンダラーの余裕がなく、追加できなかったオブジェクト数。</summary>
     internal int DroppedObjects { get;private set;}
     internal bool IsBound(Entity Source)=>this.Bound.Contains(Source);
     internal static (Vector3 Nits,float LuminanceScale)EmissionOf(in StageMaterialCreateInfo Material)=>(
@@ -57,11 +56,11 @@ internal sealed class RenderRoster {
         Material.EmissiveTextureLuminanceScale);
     internal static bool IsEmissive(Vector3 Nits)=>Nits.X>0f||Nits.Y>0f||Nits.Z>0f;
     /// <summary>
-    /// Whether an emissive mesh also lights its surroundings (its light patches). A mesh with a <see cref="MeshEmissive"/> (ADR-0078/M0109: lamps that the game
-    /// turns up and down, as brake lights) only glows on its surface: its emission changes every frame and is a small part of a large mesh.
+    /// 発光メッシュが周囲も照らすかどうか（ライトパッチ）。<see cref="MeshEmissive"/>を持つメッシュ（ADR-0078/M0109。ブレーキライトのようにゲーム実行中に
+    /// 発光の強さを変更するもの）は表面だけが光る。その発光はフレームごとに変化し、大きなメッシュの一部に過ぎないためである。
     /// </summary>
     internal static bool LightsTheScene(Entity Source,CSharpGameEngine.Entities.World World)=>!World.TryGetComponent(Source,out MeshEmissive _);
-    /// <summary>Whether an Entity still has something to draw: it is alive and has a mesh component.</summary>
+    /// <summary>Entityがまだ描画対象を持つかどうか。生存しており、メッシュコンポーネントがある。</summary>
     internal static bool IsDrawnSource(Entity Source,CSharpGameEngine.Entities.World World)=>
         World.IsAlive(Source)
         &&(World.TryGetComponent(Source,out StaticMesh _)
@@ -71,8 +70,8 @@ internal sealed class RenderRoster {
     private readonly Dictionary<(string Path,int Fragment),StageSceneDataBuilder.AssetObject[]>FragmentObjects=new();
     private readonly Dictionary<(Vector3 Outer,Vector3 Interior),(int Outer,int Interior)>FragmentMaterials=new();
     /// <summary>
-    /// ADR-0078/M0113: gives an Entity with a <see cref="FragmentMesh"/> its objects: the fragment's outer and cut triangles as two meshes (made once per
-    /// fragment of an asset), with a pair of plain materials per colour pair. An asset that cannot be loaded is reported once and not drawn.
+    /// ADR-0078/M0113：<see cref="FragmentMesh"/>を持つEntityにオブジェクトを割り当てる。破片の外側と切断面の三角形を2つのメッシュとして扱う
+    ///（アセット内の各破片につき一度作成）。色の組ごとに単色マテリアルを2つ用意する。アセットを読み込めない場合は一度だけ報告し、描画しない。
     /// </summary>
     internal void BindFragmentMesh(Entity Source,in Transform Transform,in FragmentMesh Mesh,EngineHost Host,ref State State){
         if(this.Bound.Contains(Source)||Host.Renderer is not{ }Renderer){ return; }
@@ -117,7 +116,7 @@ internal sealed class RenderRoster {
             this.EmissiveMeshes.TryAdd(MeshIndex,Mesh);
         }
     }
-    /// <summary>The wrapper that submits an emissive object's light patches every frame; made at load and for every object bound later.</summary>
+    /// <summary>毎フレーム、発光オブジェクトのライトパッチを送信するラッパー。読み込み時と後からオブジェクトをバインドするたびに作成する。</summary>
     internal static EmissiveMeshLighting NewEmissiveLighting(Entity Source,StageMeshCreateInfo Mesh,(Vector3 Nits,float LuminanceScale)Emission,
         Matrix4x4 MeshLocalTransform,Matrix4x4 CameraRelativeWorld,FixedTransformResolveStatus ResolveStatus)=>new(){
         Mesh=Mesh,
@@ -151,13 +150,13 @@ internal sealed class RenderRoster {
         this.BindObjects(Source,in Transform,[new StageSceneDataBuilder.AssetObject(MeshIndex,MaterialIndex,Matrix4x4.Identity)],Renderer,Host,ref State);
     }
     /// <summary>
-    /// Gives an Entity that has a <see cref="CSharpGameEngine.Runtime.Animation.SkeletalMesh"/> and is not drawn yet its renderer objects (M0107): a copy of the asset's meshes
-    /// and materials that an earlier Entity of the asset gave back, or a new copy added to the renderer.
+    /// <see cref="CSharpGameEngine.Runtime.Animation.SkeletalMesh"/>を持ち、まだ描画されていないEntityにレンダラーオブジェクトを割り当てる（M0107）。
+    /// 過去に同じアセットのEntityが返却したメッシュ／マテリアルのコピーを使うか、新しいコピーを作ってレンダラーへ追加する。
     /// </summary>
     internal void BindSkeletalMesh(Entity Source,in Transform Transform,in CSharpGameEngine.Runtime.Animation.SkeletalMesh Mesh,EngineHost Host,ref State State){
         if(this.Bound.Contains(Source)||Host.Renderer is not{ }Renderer){ return; }
         if(string.IsNullOrEmpty(Mesh.AssetPath)){
-            // Said once per Entity, not every frame.
+            // フレームごとではなく、Entityごとに一度だけ通知する。
             var NoAsset=$"skeletal-without-asset:{Source}";
             if(!this.FailedAssets.Contains(NoAsset)){
                 this.Fail(NoAsset,$"A SkeletalMesh on {Source} names no asset.");
@@ -177,7 +176,7 @@ internal sealed class RenderRoster {
         }
         this.BindObjects(Source,in Transform,Instance.Template.Objects,Renderer,Host,ref State);
         if(!this.Bound.Contains(Source)){
-            // No place to draw it yet (or no room): the copy waits for the next try.
+            // まだ描画場所がない、または空きがない場合は、次の試行までコピーを保留する。
             if(!this.FreeSkeletal.TryGetValue(FullPath,out Pool)){
                 this.FreeSkeletal[FullPath]=Pool=[];
             }
@@ -187,14 +186,14 @@ internal sealed class RenderRoster {
         this.SkeletalOwners[Source]=Instance with { Entity=Source };
         Host.RegisterSkinnedMeshes(Source,Instance.SkinnedMeshIndices);
         if(Reused){
-            // The copy still holds its last owner's pose; start the new Entity from the bind pose until its animator writes one.
+            // コピーには前の所有者の姿勢が残っているため、アニメーターが書き込むまではバインド姿勢から新しいEntityを開始する。
             var Identity=Enumerable.Repeat(Matrix4x4.Identity,CSharpGameEngine.Runtime.Animation.SkeletalAssetCache.Skeleton(Mesh.AssetPath).JointCount).ToArray();
             foreach(var MeshIndex in Instance.SkinnedMeshIndices){
                 Renderer.SetSkinPalette(MeshIndex,Identity);
             }
         }
     }
-    /// <summary>Adds a new copy of a skeletal asset's meshes and materials to the renderer; null (with a diagnostic) when it cannot be loaded or does not fit.</summary>
+    /// <summary>スケルタルアセットのメッシュとマテリアルを新しくコピーしてレンダラーへ追加する。読み込めない場合、または領域に収まらない場合は診断とともにnull。</summary>
     private StageSceneDataBuilder.SkeletalInstance?AddSkeletalInstance(string FullPath,string AssetPath,RenderServer Renderer,EngineHost Host){
         List<StageMeshCreateInfo>Meshes=[];
         List<StageMaterialCreateInfo>Materials=[];
@@ -226,7 +225,7 @@ internal sealed class RenderRoster {
         }
         return new StageSceneDataBuilder.SkeletalInstance(default,FullPath,new StageSceneDataBuilder.AssetTemplate(Objects),[.. Skinned.Select(Index=>MeshBase+Index)]);
     }
-    /// <summary>Stops drawing one object of <paramref name="Source"/> and lets the Entity bind again if it gets a mesh later.</summary>
+    /// <summary><paramref name="Source"/>のオブジェクト1つの描画を停止する。後からEntityにメッシュが追加された場合は、再びバインドできる。</summary>
     internal void Release(Entity Source,int ObjectIndex,EngineHost Host){
         if(ObjectIndex>=0&&Host.Renderer is{ } Renderer){
             Renderer.RemoveObject(ObjectIndex);
@@ -234,7 +233,7 @@ internal sealed class RenderRoster {
         Host.UnregisterRenderObject(Source,ObjectIndex);
         this.Bound.Remove(Source);
         if(this.SkeletalOwners.TryGetValue(Source,out var Owner)&&!Host.HasRenderObjects(Source)){
-            // The last object of a skeletal Entity: its meshes and materials wait for the next Entity of the asset.
+            // スケルタルEntityの最後のオブジェクトを破棄する。メッシュとマテリアルは次の同アセットEntity用に保持する。
             this.SkeletalOwners.Remove(Source);
             Host.UnregisterSkinnedMeshes(Source);
             if(!this.FreeSkeletal.TryGetValue(Owner.FullPath,out var Pool)){
@@ -244,7 +243,7 @@ internal sealed class RenderRoster {
         }
     }
     private void BindObjects(Entity Source,in Transform Transform,ReadOnlySpan<StageSceneDataBuilder.AssetObject>Objects,RenderServer Renderer,EngineHost Host,ref State State){
-        // Without a place the object would be drawn at the camera; the Entity is tried again next frame.
+        // 描画領域がないとオブジェクトはカメラ位置に描画されてしまうため、次のフレームにEntityを再試行する。
         if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Source,State.World,Host,out var CameraRelative,out var ResolveStatus)!=FixedTransformStatus.Success){ return; }
         var Added=0;
         foreach(var Object in Objects){

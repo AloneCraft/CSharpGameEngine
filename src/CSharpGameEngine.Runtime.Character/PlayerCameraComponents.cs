@@ -4,9 +4,9 @@ using CSharpGameEngine.Input;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
 /// <summary>
-/// The player's control rotation (Unreal's controller rotation), in degrees on the character root.
-/// Yaw 0 looks along +F and grows toward +R; positive pitch looks up. Presentation data: the look
-/// input changes it every frame, and movement reads its yaw to build a camera-relative direction.
+/// プレイヤーの制御回転（Unrealコントローラーの回転）を、キャラクタールート上の度数で表す。
+/// Yaw 0は+F方向を向き、+R側へ増加する。Pitchが正なら上を向く。プレゼンテーションデータであり、視点入力でフレームごとに変化する。
+/// 移動処理はカメラ相対の方向を作るため、このYawを読む。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,13)]
 public struct ViewAngles() {
@@ -24,33 +24,32 @@ public struct ViewAngles() {
     public readonly LogicalVector3 Planar(Stick Move)=>PlayerControl.MoveDirection(this,Move.X,Move.Y);
 }
 /// <summary>
-/// Places its entity (a camera that is a direct child of a character root) behind the parent's
-/// <see cref="ViewAngles"/> rotation, as Unreal's SpringArmComponent with
-/// bUsePawnControlRotation. A probe sphere swept from the pivot shortens the arm at obstacles.
+/// キャラクタールートの直接の子であるカメラを、親の<see cref="ViewAngles"/>回転の後方へ配置する。
+/// UnrealのbUsePawnControlRotationを有効にしたSpringArmComponentと同様、ピボットからスイープするプローブ球で障害物に応じてアームを短くする。
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Camera,1)]
 public struct OrbitCamera() {
-    /// <summary>Pivot in the parent's local frame (Unreal's spring arm relative location).</summary>
+    /// <summary>親のローカル座標系でのピボット位置（Unrealのスプリングアーム相対位置）。</summary>
     public LogicalVector3 Pivot=LogicalVector3.Zero;
     public LogicalScalar Distance=LogicalScalar.FromSingle(3f);
     public LogicalScalar Radius=LogicalScalar.FromSingle(0.12f);
     public bool Collide=true;
     public PhysicsLayerMask CollidesWith=PhysicsLayerMask.All;
     /// <summary>
-    /// Offset of the camera from the arm's end, in the camera's own frame (R, U, F; UE's SocketOffset). It is added after the arm is shortened for
-    /// obstacles, so the probe still runs along the arm itself.
+    /// アーム先端からカメラ自身の座標系（R、U、F）で表したカメラのオフセット（UEのSocketOffset）。
+    /// 障害物に応じてアームを短くした後に加えるため、プローブはアーム本体に沿って移動する。
     /// </summary>
     public LogicalVector3 SocketOffset=LogicalVector3.Zero;
-    /// <summary>UE's CameraLagSpeed (per second), ADR-0078/M0107: the arm's pivot follows its target by this fraction of the remaining distance per second. 0 follows at once.</summary>
+    /// <summary>UEのCameraLagSpeed（毎秒、ADR-0078/M0107）。残り距離に対して毎秒この割合だけ、アームのピボットを目標へ近づける。0なら即座に追従。</summary>
     public LogicalScalar Lag=LogicalScalar.Zero;
-    /// <summary>UE's CameraLagMaxTimeStep (seconds): a frame longer than this is lagged in steps of this length, so the lag does not depend on the frame rate.</summary>
+    /// <summary>UEのCameraLagMaxTimeStep（秒）。これより長いフレームをこの長さのステップに分割して遅延させ、フレームレートへの依存を防ぐ。</summary>
     public LogicalScalar LagMaxTimeStep=LogicalScalar.FromSingle(1f/60f);
-    /// <summary>UE's CameraLagMaxDistance (m): the pivot never falls further behind than this. 0 is unlimited.</summary>
+    /// <summary>UEのCameraLagMaxDistance（m）。ピボットが遅れてよい最大距離。0は制限なし。</summary>
     public LogicalScalar LagMaxDistance=LogicalScalar.Zero;
-    /// <summary>UE's CameraRotationLagSpeed (per second): the view rotation follows the control rotation by this fraction per second (a slerp). 0 follows at once.</summary>
+    /// <summary>UEのCameraRotationLagSpeed（毎秒）。ビュー回転を制御回転へ近づける速度（slerp）。0なら即座に追従。</summary>
     public LogicalScalar RotationLag=LogicalScalar.Zero;
 }
-/// <summary>What the lagging spring arm remembers from the last frame (<see cref="OrbitCamera.Lag"/>, <see cref="OrbitCamera.RotationLag"/>); not part of the snapshot.</summary>
+/// <summary>前フレームからラグのあるスプリングアームが保持する値（<see cref="OrbitCamera.Lag"/>、<see cref="OrbitCamera.RotationLag"/>）。スナップショットには含めない。</summary>
 public struct OrbitCameraRuntime:IRuntimeComponent<OrbitCamera> {
     public LogicalVector3 Pivot;
     public System.Numerics.Quaternion Rotation;

@@ -6,9 +6,9 @@ using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Character;
 /// <summary>
-/// Puts a character's feet on the ground (CR_Mannequin_FootIK, ADR-0078/M0107; see <see cref="FootIk"/>). Runs after the locomotion pose
-/// is made and before the palette goes to the renderer: it traces the ground under both feet in the physics world, smooths the offsets, edits the
-/// pose and recomputes the skinning palette. Presentation data: nothing here feeds back into the simulation.
+/// キャラクターの足を地面へ合わせる（CR_Mannequin_FootIK、ADR-0078/M0107、<see cref="FootIk"/>を参照）。
+/// 移動姿勢の作成後、パレットをレンダラーへ渡す前に実行する。物理ワールドで両足下の地面をトレースし、オフセットを平滑化して姿勢を編集し、
+/// スキニングパレットを再計算する。プレゼンテーションデータであり、シミュレーションへは反映しない。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(LocomotionAnimation))]
@@ -25,7 +25,7 @@ internal struct FootIkUpdate:ISystem {
                 Runtime.Scratch=new Matrix4x4[Skeleton.JointCount];
             }
             catch(ArgumentException Ex){
-                // A skeleton without the named joints keeps its animated pose; the component says why.
+                // 指定されたジョイントを持たないスケルトンでは、アニメーション姿勢を維持する。理由はコンポーネントに記録する。
                 Runtime.Error=Ex.Message;
                 return;
             }
@@ -47,8 +47,8 @@ internal struct FootIkUpdate:ISystem {
         Skeleton.ComputePalette(Pose,Mesh.Model,Mesh.Palette);
     }
     /// <summary>
-    /// The height of the ground below a model-space ray start, relative to the mesh origin (the node's origin: UE's component origin); null when
-    /// the ray finds nothing within the trace length or a number cannot be represented.
+    /// モデル空間のレイ開始位置より下にある地面の高さを、メッシュ原点（ノード原点。UEのコンポーネント原点）基準で表す。
+    /// レイの長さ以内に何も検出しない場合、または値を表現できない場合はnull。
     /// </summary>
     internal static float?GroundHeight(List<PhysicsRayHit>Results,DeterministicPhysicsWorld Physics,in FixedAffineTransform World,Vector3 Origin,float TraceTop,float TraceBottom){
         if(!LogicalScalar.TryFromSingle(Origin.X,out var R)||!LogicalScalar.TryFromSingle(Origin.Y,out var U)||!LogicalScalar.TryFromSingle(Origin.Z,out var F)
@@ -80,8 +80,9 @@ internal struct FootIkUpdate:ISystem {
     }
 }
 /// <summary>
-/// The first-person arms follow the body (ABP_FP_Copy and CtrlRig_FPWarp, ADR-0078/M0107; see <see cref="FirstPersonPose"/>). The mesh with a <see cref="FirstPersonPose"/>
-/// is a child of the body's mesh: it takes the body's final pose (after the foot IK), warps it with <see cref="FirstPersonRig"/> and computes its own skinning palette.
+/// 一人称視点の腕をボディに追従させる（ABP_FP_CopyおよびCtrlRig_FPWarp、ADR-0078/M0107、<see cref="FirstPersonPose"/>を参照）。
+/// <see cref="FirstPersonPose"/>を持つメッシュはボディのメッシュの子となる。ボディの最終姿勢（足IK後）を取り込み、
+/// <see cref="FirstPersonRig"/>で変形して、独自のスキニングパレットを計算する。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(FootIkUpdate))]
@@ -97,7 +98,7 @@ internal struct FirstPersonPoseUpdate:ISystem {
                 Runtime.Scratch=new Matrix4x4[Skeleton.JointCount];
             }
             catch(ArgumentException Ex){
-                // A skeleton without the named joints keeps its bind pose; the component says why.
+                // 指定されたジョイントを持たないスケルトンでは、バインド姿勢を維持する。理由はコンポーネントに記録する。
                 Runtime.Error=Ex.Message;
                 return;
             }

@@ -14,8 +14,7 @@ internal enum AuthoringOperationUiState:byte {
 }
 
 /// <summary>
-/// Immutable UI projection of one versioned authoring-host request. Execution remains owned by the
-/// host; this type only validates and presents correlated progress, terminal state, and diagnostics.
+/// バージョン付き作成ホスト要求を 1 件表示する、不変の UI 投影。実行は引き続きホストが所有する。この型は相関された進行状況、終了状態、診断を検証して表示するだけである。
 /// </summary>
 internal sealed class AuthoringOperationSnapshot {
     private AuthoringOperationSnapshot(

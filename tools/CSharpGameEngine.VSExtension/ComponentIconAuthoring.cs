@@ -15,9 +15,7 @@ internal static class SceneComponentIconMetadata {
     internal const string AttributeFullyQualifiedName="global::CSharpGameEngine.Entities.SceneComponentIconAttribute";
 
     /// <summary>
-    /// Returns the value declared by the component itself.  The result is deliberately not trusted
-    /// as a file path until <see cref="ProjectIconPath.TryResolve"/> has checked it against the
-    /// current project root.
+    /// コンポーネント自身が宣言した値を返す。<see cref="ProjectIconPath.TryResolve"/> が現在のプロジェクトルートに対して検査するまでは、結果をファイルパスとして信頼しない。
     /// </summary>
     internal static string?TryGetDeclaredProjectRelativePath(INamedTypeSymbol Type){
         foreach(var Attribute in Type.GetAttributes()){
@@ -38,10 +36,7 @@ internal static class SceneComponentIconMetadata {
 }
 
 /// <summary>
-/// A reusable icon description.  Hierarchy rows and C# editor glyphs can both render this model
-/// without knowing whether the image came from the Visual Studio catalog or a project asset.
-/// <see cref="HasReservedLockOverlay"/> is intentionally false today; keeping it here reserves the
-/// consistent overlay slot for a later authoring-lock feature.
+/// 再利用可能なアイコンの説明。Hierarchy の行と C# エディターのグリフは、画像が Visual Studio カタログ由来かプロジェクトアセット由来かを知らずに、このモデルを描画できる。現在 <see cref="HasReservedLockOverlay"/> は意図的に false。ここに保持することで、後の作成ロック機能に向けて一貫したオーバーレイ領域を確保する。
 /// </summary>
 public sealed class SceneVisualIcon {
     private SceneVisualIcon(ImageMoniker Moniker,string?ProjectRelativePath,string?AbsolutePath){
@@ -60,7 +55,7 @@ public sealed class SceneVisualIcon {
 
     public bool HasReservedLockOverlay=>false;
 
-    /// <summary>Accessible tooltip text shared by hierarchy rows and editor glyphs.</summary>
+    /// <summary>Hierarchy の行とエディターのグリフが共有する、アクセシビリティ対応のツールチップテキスト。</summary>
     public string ToolTip=>this.ProjectRelativePath??VsixText.Get("ComponentIcon_DefaultIcon");
 
     internal static SceneVisualIcon ComponentDefault()=>new(KnownMonikers.Component,null,null);
@@ -70,8 +65,7 @@ public sealed class SceneVisualIcon {
 }
 
 /// <summary>
-/// Validation boundary for the attribute and picker.  Attribute values are project-relative only;
-/// no rooted path, parent traversal, or non-image extension can reach the image loader.
+/// 属性値とピッカーの検証境界。属性値はプロジェクト相対パスに限り、ルート付きパス、親ディレクトリへの移動、画像以外の拡張子は画像ローダーに到達できない。
 /// </summary>
 internal static class ProjectIconPath {
     internal static bool TryNormalize(string? Value,out string Normalized){
@@ -161,7 +155,7 @@ internal static class ProjectIconPath {
     }
 }
 
-/// <summary>One selectable SVG/PNG asset in the current Roslyn project.</summary>
+/// <summary>現在の Roslyn プロジェクトで選択可能な SVG/PNG アセット1件。</summary>
 internal sealed class ProjectIconAsset {
     internal ProjectIconAsset(string ProjectRelativePath,string AbsolutePath){
         this.ProjectRelativePath=ProjectRelativePath;
@@ -176,10 +170,7 @@ internal sealed class ProjectIconAsset {
 }
 
 /// <summary>
-/// Lists image files beneath an SDK-style project's physical root.  Project files include unmatched
-/// files as <c>None</c> by default; build/intermediate roots are excluded so generated or arbitrary
-/// machine-local output can never be selected.  Every result passes <see cref="ProjectIconPath"/>
-/// before it reaches the UI.
+/// SDK スタイルのプロジェクトの物理ルート以下にある画像ファイルを列挙します。プロジェクトファイルに含まれないファイルも既定で <c>None</c> として含まれます。生成物や任意のマシンローカル出力が選択されないよう、build/intermediate ルートは除外します。各結果は UI に渡す前に <see cref="ProjectIconPath"/> を通します。
 /// </summary>
 internal static class ProjectIconAssetCatalog {
     private static readonly HashSet<string>ExcludedDirectories=new(StringComparer.OrdinalIgnoreCase){
@@ -195,10 +186,10 @@ internal static class ProjectIconAssetCatalog {
         try {
             EnumerateDirectory(Path.GetFullPath(ProjectDirectory),Path.GetFullPath(ProjectDirectory),Assets);
         } catch(UnauthorizedAccessException){
-            // A project may contain an inaccessible directory.  It is not an image candidate and
-            // must not prevent the rest of the project from being selectable.
+            // プロジェクトにアクセスできないディレクトリが含まれている場合があります。そのディレクトリは画像候補ではなく、
+            // プロジェクト内のほかのファイルを選択できなくすることもありません。
         } catch(IOException){
-            // File changes while the picker is opening are benign; a later opening will refresh.
+            // ピッカーを開いている間のファイル変更は問題ありません。次に開いたときに更新されます。
         }
 
         return Assets
@@ -227,7 +218,7 @@ internal static class ProjectIconAssetCatalog {
     }
 }
 
-/// <summary>Builds a validated visual description for a component, falling back without throwing.</summary>
+/// <summary>例外をスローせず、フォールバックを使いながらコンポーネントの検証済み視覚表現を構築します。</summary>
 internal static class SceneComponentIconResolver {
     internal static SceneVisualIcon Resolve(INamedTypeSymbol Type,string?ProjectDirectory){
         var DeclaredPath=SceneComponentIconMetadata.TryGetDeclaredProjectRelativePath(Type);

@@ -2,7 +2,7 @@ using CSharpGameEngine.Content;
 
 namespace CSharpGameEngine.Import;
 
-/// <summary>The sole engine-owned boundary shared by provider-specific glTF and FBX adapters.</summary>
+/// <summary>プロバイダー固有の glTF / FBX アダプター間で共有する、エンジンが所有する唯一の境界。</summary>
 public static class ProviderNeutralImport {
     public static ContentMeshImportResult ImportGltf(string SourcePath){
         Gltf.GltfImportResult Result=Gltf.GltfImporter.Import(SourcePath);

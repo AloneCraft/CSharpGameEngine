@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 namespace CSharpGameEngine.SceneAnalysis.Json;
-/// <summary>A JSON value to write. Objects and arrays choose multi-line or inline layout.</summary>
+/// <summary>書き込む JSON 値。オブジェクトと配列は複数行またはインライン形式を選ぶ。</summary>
 internal sealed class SceneJsonOut {
     private SceneJsonOut(SceneJsonKind Kind,string?Text,List<KeyValuePair<string,SceneJsonOut>>?Properties,List<SceneJsonOut>?Items,bool Multiline){
         this.Kind=Kind;
@@ -20,7 +20,7 @@ internal sealed class SceneJsonOut {
     internal static SceneJsonOut Object(bool Multiline=false)=>new(SceneJsonKind.Object,null,[],null,Multiline);
     internal static SceneJsonOut Array(bool Multiline=false)=>new(SceneJsonKind.Array,null,null,[],Multiline);
     internal static SceneJsonOut String(string Value)=>new(SceneJsonKind.String,Value??throw new ArgumentNullException(nameof(Value)),null,null,false);
-    /// <summary>A number written exactly as <paramref name="Text"/> (already a valid JSON number).</summary>
+    /// <summary>有効な JSON 数値である <paramref name="Text"/> をそのまま書き込む。</summary>
     internal static SceneJsonOut Number(string Text)=>new(SceneJsonKind.Number,Text,null,null,false);
     internal static SceneJsonOut Boolean(bool Value)=>new(Value?SceneJsonKind.True:SceneJsonKind.False,null,null,null,false);
     internal static SceneJsonOut Null()=>new(SceneJsonKind.Null,null,null,null,false);
@@ -35,10 +35,7 @@ internal sealed class SceneJsonOut {
         return this;
     }
 }
-/// <summary>
-/// Deterministic scene JSON text (ADR-0070): two-space indentation, "\n" line breaks, ": " after names,
-/// inline values separated by ", " inside braces. Numbers are written from their text unchanged.
-/// </summary>
+/// <summary>決定論的な Scene JSON テキスト（ADR-0070）。インデントはスペース2個、改行は "\n"、名前の後は ": "、波括弧の中のインライン値は ", " で区切る。数値はテキストを変更せずに書き込む。</summary>
 internal static class SceneJsonWriter {
     internal static string Write(SceneJsonOut Value){
         var Builder=new StringBuilder();
@@ -46,7 +43,7 @@ internal static class SceneJsonWriter {
         Builder.Append('\n');
         return Builder.ToString();
     }
-    /// <summary>The inline text of a value, as it appears after a property name.</summary>
+    /// <summary>プロパティ名の後に続く、値のインラインテキスト。</summary>
     internal static string WriteInline(SceneJsonOut Value){
         var Builder=new StringBuilder();
         WriteValue(Builder,Value,0,ForceInline:true);
@@ -135,13 +132,12 @@ internal static class SceneJsonWriter {
     }
 }
 /// <summary>
-/// Number text for scene values. A float is written in the shortest form that parses back to the
-/// same float (trying 6 to 9 significant digits), and a double likewise (15 to 17 digits), identical on
-/// .NET Framework and .NET, so the VSIX and the tools write the same text for the same value.
+/// Scene の値に使う数値テキスト。float は同じ float に戻る最短形式（有効桁数6～9を試す）、double も同様（15～17桁）で書き込む。結果は .NET Framework と .
+/// NET で同一なので、VSIX とツールは同じ値に同じテキストを出力する。
 /// </summary>
 internal static class SceneJsonNumbers {
-    // The double boundary of the numeric policy (NUM001) is these two methods and SceneJsonDecimal, which rounds and
-    // parses exactly on both runtimes (.NET Framework's own formatting and parsing differ from .NET's).
+    // 数値ポリシー（NUM001）における double の境界はこの2つのメソッドと、丸めと
+    // 両ランタイムで正確な解析を行う SceneJsonDecimal。.NET Framework と .NET の書式化／解析は異なる。
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
 #endif
@@ -149,10 +145,7 @@ internal static class SceneJsonNumbers {
         if(float.IsNaN(Value)||float.IsInfinity(Value)){ throw new ArgumentOutOfRangeException(nameof(Value),"JSON numbers must be finite."); }
         return Normalize(SceneJsonDecimal.Shortest(Value,6,9,false,Parsed=>(float)Parsed==Value)??SceneJsonDecimal.Format(Value,9));
     }
-    /// <summary>
-    /// A double's shortest text of 15 to 17 digits that reads back to it, or a decimal's exact text with its scale (1.50
-    /// stays 1.50; .NET Framework has no "R" for decimal).
-    /// </summary>
+    /// <summary>double の場合は15～17桁の最短テキストで元の値へ戻す。decimal の場合は小数桁を保った正確なテキスト（1.50 は1.50のまま）。.NET Framework には decimal 用の "R" 形式がない。</summary>
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
 #endif
@@ -162,6 +155,6 @@ internal static class SceneJsonNumbers {
         }
         return Value.ToString(null,CultureInfo.InvariantCulture);
     }
-    /// <summary>"G" may produce "1E-05"; JSON accepts it. "-0" becomes "0" so a value has one spelling.</summary>
+    /// <summary>"G" は "1E-05" を出力する場合があるが、JSON では有効。"-0" は "0" にして、値ごとに表記を1つへ統一する。</summary>
     private static string Normalize(string Text)=>Text=="-0"?"0":Text;
 }

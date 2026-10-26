@@ -9,7 +9,7 @@ public sealed class GltfSceneImportResult {
 
     public bool Success { get;}
 
-    /// <summary>The imported scene. Always <see langword="null"/> when <see cref="Success"/> is false.</summary>
+    /// <summary>インポートしたシーン。<see cref="Success"/>がfalseの場合は常に<see langword="null"/>。</summary>
     public ImportedScene?Scene { get;}
 
     public IReadOnlyList<GltfImportDiagnostic>Diagnostics { get;}

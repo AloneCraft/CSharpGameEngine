@@ -39,3 +39,6 @@ Systemの中で遅延生成でき、Context引数がゼロになって `Generate
 The project now owns only scene DSL, gameplay components (`GameplayComponents.cs`), assets, and the selected Logical precision. AppHost/Level/lights/audio, fixed hierarchy resolution, stage roster construction, and the Windows system scheduler are imported from `src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems`.
 
 `PlayerStart` is an empty gameplay marker. Camera pose always comes from the active Camera entity Transform. Exactly one active Camera is required; environment lights, fog, and audio remain optional.
+## 仮想シャドウ比較
+
+`dotnet build UserEcsProject/UserEcsProject.csproj -c Release -p:CgeShadowComparison=true -m:1` でビルドし、`dotnet run --project UserEcsProject/UserEcsProject.csproj -c Release --no-build` で、通常の影(左)と仮想シャドウ(右)を同じカメラで比較できる。操作・単独モード・自動撮影は [VirtualShadows.md](VirtualShadows.md) を参照。

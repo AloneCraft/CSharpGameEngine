@@ -1,6 +1,6 @@
 namespace CSharpGameEngine.Audio;
 
-/// <summary>Decoded 16-bit PCM of one sound (interleaved). The runtime plays it as is; it owns no codec.</summary>
+/// <summary>1つのサウンドをデコードした16ビットPCM（インターリーブ形式）。実行時はそのまま再生し、コーデックは所有しない。</summary>
 public sealed class PcmClip {
     private readonly short[]SamplesStorage;
 
@@ -22,9 +22,9 @@ public sealed class PcmClip {
 }
 
 /// <summary>
-/// Reads a RIFF/WAVE container (PCM 8/16/24-bit or 32-bit float, mono or stereo) into <see cref="PcmClip"/>.
-/// This is container parsing, not a codec: compressed formats are rejected. ADR-0056 plans a build-time conversion to a
-/// stream artifact; until that exists the game's <c>.wav</c> files are read as they are (ADR-0077).
+/// RIFF/WAVEコンテナーを読み込み、PCM 8/16/24ビットまたは32ビット浮動小数点のモノラル／ステレオ音声を<see cref="PcmClip"/>に格納する。
+/// これはコンテナー解析であり、コーデックではない。圧縮形式は拒否する。ADR-0056ではビルド時にストリーム成果物へ変換する計画がある。
+/// それが実現するまでは、ゲームの<c>.wav</c>ファイルを現状のまま読み込む（ADR-0077）。
 /// </summary>
 public static class WavReader {
     public static bool TryRead(ReadOnlySpan<byte>Data,out PcmClip?Clip,out string?Error){

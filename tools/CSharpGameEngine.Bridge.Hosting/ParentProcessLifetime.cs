@@ -3,10 +3,8 @@ using System.Diagnostics;
 namespace CSharpGameEngine.Bridge.Hosting;
 
 /// <summary>
-/// Cancels a token when the process that started this one exits. The Visual Studio extension's
-/// helper processes (the preview host, the resident bridges) run from the extension's install folder,
-/// so one outliving its Visual Studio locks that folder against the next deployment; they end with it.
-/// A parent that is already gone, or cannot be observed, cancels at once.
+/// このプロセスを起動したプロセスが終了したときにトークンをキャンセルする。Visual Studio 拡張機能のヘルパープロセス（プレビューホスト、常駐ブリッジ）は拡張機能のインストールフォルダーから実行されるため、Visual Studio 終了後もプロセスが残ると、次回配置時にフォルダーがロックされる。親とともに終了させる。
+/// 親がすでに終了しているか、状態を監視できない場合は直ちにキャンセルする。
 /// </summary>
 public sealed class ParentProcessLifetime:IDisposable {
     private readonly Process Parent;
@@ -23,7 +21,7 @@ public sealed class ParentProcessLifetime:IDisposable {
         }
     }
 
-    /// <summary>Null (and nothing to watch) when <paramref name="ParentProcessId"/> is null.</summary>
+    /// <summary><paramref name="ParentProcessId"/> が null の場合は null（監視対象なし）。</summary>
     public static ParentProcessLifetime?Attach(int?ParentProcessId,CancellationTokenSource Cancellation){
         ArgumentNullException.ThrowIfNull(Cancellation);
         if(ParentProcessId is null){

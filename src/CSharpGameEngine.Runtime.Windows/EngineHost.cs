@@ -18,14 +18,14 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
-/// ADR-0070 B1: a window the host renders into instead of creating its own, such as the Scene
-/// Designer's view in another process. The host never pumps or destroys it.
+/// ADR-0070 B1：Scene Designerなど、別プロセスのビューのように、ホストが自身で作成せず描画するウィンドウ。
+/// ホストはそのウィンドウのメッセージ処理も破棄も行わない。
 /// </summary>
 internal readonly record struct ExternalRenderSurface(nint Handle,int Width,int Height,GraphicsDeviceOptions DeviceOptions);
 
 /// <summary>
-/// ADR-0070 B1: the Scene Designer's camera. It replaces the scene's active camera where the runtime
-/// applies it, so the view goes through the same camera-relative path as the game's camera.
+/// ADR-0070 B1：Scene Designerのカメラ。ランタイムが適用する場所でシーンのアクティブカメラと置き換わるため、
+/// ゲームのカメラと同じカメラ相対経路でビューを描画する。
 /// </summary>
 public readonly record struct EditorCameraPose(Transform Pose,float FovYRadians,float NearZ,float FarZ);
 
@@ -36,8 +36,8 @@ public readonly record struct AudioSourceSnapshot(
 }
 
 /// <summary>
-/// Owns process-local runtime resources for one game loop. ECS state borrows this context; no
-/// native window, renderer, audio voice, or host lease is stored in a component.
+/// 1つのゲームループが使う、プロセス内ランタイムリソースを所有する。ECS状態はこのコンテキストを借用する。
+/// ネイティブウィンドウ、レンダラー、オーディオボイス、ホストリースはコンポーネントに保存しない。
 /// </summary>
 public sealed class EngineHost:IDisposable,IPhysicsHost {
     private readonly ReferenceFrameGraph FrameGraphStorage=new(ReferenceFrameId.Root);
@@ -52,7 +52,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
     private readonly Dictionary<Entity,List<int>>RenderObjectsBySource=[];
     private (int MaterialIndex,LogicalScalar CellMeters)[]WorldGridMaterials=[];
-    /// <summary>ADR-0078/M0105: keeps the renderer's objects in step with the Entities after the level loaded. Null until <see cref="LevelLoad"/> has built the renderer.</summary>
+    /// <summary>ADR-0078/M0105：レベル読み込み後、レンダラーのオブジェクトをEntitiesに同期させる。<see cref="LevelLoad"/>がレンダラーを構築するまではnull。</summary>
     internal RenderRoster?Roster { get;set;}
     private readonly RenderCameraPreview[]RadialObserverPreviews=new RenderCameraPreview[RenderCameraPreview.MaximumCount];
     private int RadialObserverPreviewCount;
@@ -129,7 +129,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         if(Width<=0||Height<=0){ return false; }
         return Picking.TryCreateRay(this.CameraFrameLocalOrigin.Logical,this.RenderCamera.FovYRadians,Width/(float)Height,X,Y,out Ray);
     }
-    /// <summary>M0096 G: the physics domains, which the physics and character systems reach through <see cref="IPhysicsHost"/>.</summary>
+    /// <summary>M0096 G：物理とキャラクターのシステムが<see cref="IPhysicsHost"/>経由でアクセスする物理ドメイン。</summary>
     public PhysicsDomainRegistry Physics { get; }
     public IReadOnlyPhysicsWorld PhysicsWorld=>this.Physics.Active.World;
     public PhysicsCommands PhysicsCommands=>this.Physics.Active.Commands;
@@ -150,7 +150,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         return this.Physics.Active.TryHandoffCache(NextTick);
     }
 
-    /// <summary>Streams one completed fixed tick through host-owned bounded scratch storage.</summary>
+    /// <summary>ホスト所有のサイズ上限付き作業領域を使い、完了した固定ティックを1つストリーミングする。</summary>
     public void WritePhysicsCacheFrame(PhysicsCacheStreamWriter Writer,ulong CompletedTick){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.Physics.Active.WriteCacheFrame(Writer,CompletedTick);
@@ -185,8 +185,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     }
 
     /// <summary>
-    /// Renders into <paramref name="Handle"/> instead of a window of the host's own. Call before the
-    /// first frame; the level then loads into this surface and input is not read.
+    /// ホスト自身のウィンドウではなく、<paramref name="Handle"/>へ描画する。
+    /// 最初のフレームより前に呼び出すこと。以後、レベルはこのサーフェスへ読み込まれ、入力は読み取られない。
     /// </summary>
     public void UseExternalSurface(nint Handle,int Width,int Height,GraphicsDeviceOptions DeviceOptions){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
@@ -217,8 +217,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     internal Win32Window EnsureWindow(in AppHost App){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         return this.Window??=new Win32Window(new Win32WindowOptions {
-            Title=App.Title,Width=App.Width,Height=App.Height,Visible=true,
-            // An automation run is driven only by its scripted keys (CGE_AUTOMATION_INPUT).
+            Title=App.Title,Width=App.Width,Height=App.Height,Visible=this.Automation is null,
+            // 自動実行では、スクリプトで指定されたキー（CGE_AUTOMATION_INPUT）だけで操作する。
             IgnoreDeviceInput=this.Automation is not null,
         });
     }
@@ -240,7 +240,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
             Renderer.Dispose();
             throw new InvalidOperationException("EngineHost already owns a renderer.");
         }
-        // ADR-0078/M0111: the adapter's default scalability (Lumen on a GPU, the probe volume on WARP) unless CGE_SCALABILITY_GI / _REFLECTIONS name one.
+        // ADR-0078/M0111：アダプターの既定のスケーラビリティを使う（GPUではLumen、WARPではプローブボリューム）。CGE_SCALABILITY_GI／_REFLECTIONSで個別に指定可能。
         Renderer.Scalability=RenderScalabilityResolver.FromEnvironment(Renderer.IsWarp);
         Renderer.LumenVisualization=RenderScalabilityResolver.VisualizationFromEnvironment();
         this.Renderer=Renderer;
@@ -257,15 +257,15 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     }
 
     /// <summary>
-    /// Remembers the materials with a world-space grid, so every frame can anchor their lines to the world lattice
-    /// although the renderer works camera-relative.
+    /// ワールド空間グリッドを持つマテリアルを記録する。レンダラーがカメラ相対空間で処理する場合も、
+    /// 毎フレーム、線をワールド格子に沿わせられる。
     /// </summary>
     internal void RegisterWorldGridMaterials(IReadOnlyList<StageMaterialCreateInfo>Materials){
         this.WorldGridMaterials=[];
         this.AppendWorldGridMaterials(0,Materials);
     }
 
-    /// <summary>The same for materials added to the renderer after the level loaded (M0105); <paramref name="FirstIndex"/> is the index the first of them got.</summary>
+    /// <summary>レベル読み込み後にレンダラーへ追加されたマテリアルについても同様に記録する（M0105）。<paramref name="FirstIndex"/>は追加された最初のマテリアルのインデックス。</summary>
     internal void AppendWorldGridMaterials(int FirstIndex,IReadOnlyList<StageMaterialCreateInfo>Materials){
         List<(int,LogicalScalar)>Grids=[.. this.WorldGridMaterials];
         for(var Index=0;Index<Materials.Count;Index++){
@@ -277,8 +277,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     }
 
     /// <summary>
-    /// The position modulo one grid cell, in [0, cell]. The remainder is exact in Q64.64 and is rounded to float
-    /// once, so the anchor keeps full float precision however far the camera is from the world origin.
+    /// 1グリッドセルに対する位置の剰余を[0, cell]の範囲で表す。Q64.64で剰余を正確に求めてから一度だけfloatへ丸めるため、
+    /// カメラがワールド原点からどれだけ離れていてもアンカーはfloatの精度を保つ。
     /// </summary>
     internal static float ReduceToGridCell(LogicalScalar Position,LogicalScalar CellMeters){
         var Remainder=Position.Raw%CellMeters.Raw;
@@ -289,14 +289,14 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         return Reduced;
     }
 
-    /// <summary>Queues an observer inset (M0099) for this frame; previews beyond the renderer's maximum are dropped.</summary>
+    /// <summary>このフレーム用の観測者インセットをキューに入れる（M0099）。レンダラーの最大数を超えるプレビューは破棄する。</summary>
     internal void AddRadialObserverPreview(in RenderCameraPreview Preview){
         if(this.RadialObserverPreviewCount<this.RadialObserverPreviews.Length){
             this.RadialObserverPreviews[this.RadialObserverPreviewCount++]=Preview;
         }
     }
 
-    /// <summary>Records which renderer object an authored entity's mesh became, for the editor's selection.</summary>
+    /// <summary>アセット作成したEntityのメッシュがどのレンダラーオブジェクトになったかを記録し、エディターの選択に使う。</summary>
     internal void RegisterRenderObject(Entity Source,int ObjectIndex){
         if(!this.RenderObjectsBySource.TryGetValue(Source,out var Objects)){
             this.RenderObjectsBySource[Source]=Objects=[];
@@ -304,7 +304,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         Objects.Add(ObjectIndex);
     }
 
-    /// <summary>Stops drawing one renderer object of <paramref name="Source"/> (M0105): the Entity was destroyed or lost its mesh.</summary>
+    /// <summary><paramref name="Source"/>のレンダラーオブジェクト1つの描画を停止する（M0105）。Entityが破棄されたか、メッシュがなくなった場合に呼び出す。</summary>
     internal void ReleaseRenderObject(Entity Source,int ObjectIndex){
         if(this.Roster is{ }Roster){
             Roster.Release(Source,ObjectIndex,this);
@@ -314,14 +314,14 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         }
     }
 
-    /// <summary>Forgets that a renderer object belonged to <paramref name="Source"/>: the object stopped being drawn (M0105).</summary>
+    /// <summary><paramref name="Source"/>がどのレンダラーオブジェクトを所有していたか忘れる。オブジェクトの描画が停止された場合に使う（M0105）。</summary>
     internal void UnregisterRenderObject(Entity Source,int ObjectIndex){
         if(!this.RenderObjectsBySource.TryGetValue(Source,out var Objects)){ return; }
         Objects.Remove(ObjectIndex);
         if(Objects.Count==0){ this.RenderObjectsBySource.Remove(Source); }
     }
 
-    /// <summary>ADR-0070 B1: highlights the renderer objects of the Scene Designer's selected entities.</summary>
+    /// <summary>ADR-0070 B1：Scene Designerで選択したEntityに対応するレンダラーオブジェクトをハイライトする。</summary>
     public void SetEditorSelection(IReadOnlyCollection<Entity>Selected){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         ArgumentNullException.ThrowIfNull(Selected);
@@ -332,18 +332,18 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         }
     }
 
-    /// <summary>ADR-0070 B1: the Scene Designer's gizmos, in camera-relative render space.</summary>
+    /// <summary>ADR-0070 B1：カメラ相対の描画空間でScene Designerのギズモを表す。</summary>
     public void SetEditorOverlay(ReadOnlySpan<CSharpGameEngine.Rendering.RenderOverlayVertex>Triangles,ReadOnlySpan<CSharpGameEngine.Rendering.RenderOverlayVertex>Lines){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.Renderer?.SetOverlay(Triangles,Lines);
     }
 
-    /// <summary>Records which renderer meshes a SkeletalMesh entity skins (ADR-0066).</summary>
+    /// <summary>スケルタルメッシュのEntityがスキニングするレンダラーメッシュを記録する（ADR-0066）。</summary>
     internal void RegisterSkinnedMeshes(Entity Entity,int[]MeshIndices)=>this.SkinnedMeshIndices[Entity]=MeshIndices;
     internal bool TryGetSkinnedMeshes(Entity Entity,out int[]MeshIndices)=>this.SkinnedMeshIndices.TryGetValue(Entity,out MeshIndices!);
-    /// <summary>Forgets which renderer meshes a SkeletalMesh entity skinned (M0107): the Entity is gone and its meshes go back to the roster's pool.</summary>
+    /// <summary>スケルタルメッシュのEntityがスキニングしていたレンダラーメッシュを忘れる（M0107）。Entityが消え、メッシュは登録一覧のプールへ戻る。</summary>
     internal void UnregisterSkinnedMeshes(Entity Entity)=>this.SkinnedMeshIndices.Remove(Entity);
-    /// <summary>Whether any renderer object still belongs to <paramref name="Source"/>.</summary>
+    /// <summary><paramref name="Source"/>に属するレンダラーオブジェクトがまだあるかどうか。</summary>
     internal bool HasRenderObjects(Entity Source)=>this.RenderObjectsBySource.ContainsKey(Source);
 
     internal bool TryGetCameraPose(out FixedAffineTransform Origin,out ReferenceFrameId Frame){
@@ -359,9 +359,9 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     public RuntimeAutomation?Automation { get; }=RuntimeAutomation.FromEnvironment();
 
     /// <summary>
-    /// The elapsed time the generated game loop feeds one frame. An automation run advances exactly the fixed-tick cap
-    /// per frame (8 ticks at 60 Hz), so its frame-numbered input and observations do not depend on how fast the adapter
-    /// presents: WARP is slow enough to reach the cap every frame, a GPU is not. Otherwise the measured time.
+    /// 生成されたゲームループが各フレームに渡す経過時間。自動実行では1フレームにつき固定ティックの上限分だけ進める
+    ///（60 Hzで8ティック）。そのため、フレーム番号に基づく入力と観測結果はアダプターの描画速度に依存しない。
+    /// WARPは十分遅いため毎フレーム上限に達するが、GPUではそうならない。それ以外では実測時間を使う。
     /// </summary>
     public (long ElapsedCounter,long CounterFrequency)FrameTime(long MeasuredElapsedCounter,long CounterFrequency){
         var Time=this.Automation is null
@@ -370,7 +370,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         this.CloudClock.Advance(Time.Item1,Time.Item2);
         return Time;
     }
-    /// <summary>The game time the clouds move by (ADR-0078/M0110): the frames' elapsed time, so an automation run's clouds are the same on every adapter.</summary>
+    /// <summary>雲の移動に使うゲーム時間（ADR-0078/M0110）。各フレームの経過時間を使うため、自動実行時の雲はどのアダプターでも同じになる。</summary>
     private EnvironmentClock CloudClock;
 
     /// <summary>1フレームを表示する。自動検証が規定フレーム数に達したらfalseを返し、ループ終了を要求する。</summary>
@@ -385,8 +385,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     }
 
     /// <summary>
-    /// Where the Entity the active camera hangs from is (ADR-0078/M0107; the character a spring arm follows), in the camera's reference frame, or null for a camera
-    /// with no parent. A camera that lags behind its character no longer says where the character is, so an automation report carries both.
+    /// アクティブカメラがぶら下がるEntity（ADR-0078/M0107。スプリングアームが追従するキャラクター）の位置を、カメラの基準座標系で表す。
+    /// 親がいないカメラではnull。キャラクターより遅れて動くカメラはキャラクターの位置を表さなくなったため、自動実行レポートでは両方を記録する。
     /// </summary>
     internal Vector3? AutomationFocusPosition { get;set;}
 
@@ -400,7 +400,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
             Collected.CameraHorizontalMeters=new Vector2(CameraR,CameraF);
         }
         Collected.CloudSeconds=this.CloudClock.Seconds;
-        // M0110: the global distance field's voxels sit on the world grid; the camera is the render-space origin.
+        // M0110：グローバル距離場のボクセルはワールドグリッドに配置する。カメラを描画空間の原点とする。
         if(Collected.DistanceField is { }Field&&this.HasCameraPose
             &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M41,Field.VoxelSizeMeters,out var VoxelR,out var RemainderR)
             &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M42,Field.VoxelSizeMeters,out var VoxelU,out var RemainderU)
@@ -416,7 +416,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         Renderer.SetEnvironmentLighting(Settings);
         if(this.HasCameraPose&&this.CameraFrameLocalOrigin.M42.TryToSingle(out var Altitude)){
             Renderer.SetCameraAltitude(Altitude);
-            // The camera is the render-space origin, so it is also where render-space heights start.
+            // カメラは描画空間の原点なので、描画空間の高さもここから始まる。
             Renderer.SetRenderOriginAltitude(Altitude);
         }
         if(this.HasCameraPose){
@@ -427,15 +427,15 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
                     ReduceToGridCell(this.CameraFrameLocalOrigin.M43,CellMeters)));
             }
         }
-        // M0099: the observer insets queued this frame; an empty list clears the previous frame's. The editor owns
-        // the camera previews, so its view never gets observer insets.
+        // M0099：このフレームにキューへ入れた観測者インセット。空リストなら前フレームの値を消去する。エディターが
+        // カメラプレビューを所有するため、エディターのビューでは観測者インセットを使わない。
         if(this.EditorCamera is null&&(this.RadialObserverPreviewCount>0||this.RadialObserverPreviewsSubmitted)){
             Renderer.SetCameraPreviews(this.RadialObserverPreviews.AsSpan(0,this.RadialObserverPreviewCount));
             this.RadialObserverPreviewsSubmitted=this.RadialObserverPreviewCount>0;
         }
         this.RadialObserverPreviewCount=0;
         if(Settings.SkyLight is not null&&!Collected.AmbientSubmitted){
-            // The flat ambient term is a stand-in for sky light; a captured sky light replaces it.
+            // 平坦なアンビエント項はスカイライトの代用。撮影済みのスカイライトがあれば置き換える。
             Renderer.SetAmbientLight(Vector3.Zero);
         }
         Collected.Reset();
@@ -466,8 +466,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     }
 
     /// <summary>
-    /// A world position's distance and pan relative to the listener (ADR-0077). False when the entity has no resolvable pose or
-    /// no AudioListener was submitted this frame; the caller then plays the sound unspatialized.
+    /// リスナーから見たワールド位置の距離とパン（ADR-0077）。Entityの姿勢を解決できない場合、またはこのフレームにAudioListenerが
+    /// 提出されなかった場合はfalse。その場合、呼び出し側は空間化せず音を再生する。
     /// </summary>
     internal bool TrySpatialize(Entity Source,out AudioSpatialMix Mix){
         Mix=default;

@@ -5,10 +5,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Builds the per-project JSON Schema for scene JSON (ADR-0070) from the same Roslyn rules as
-/// <see cref="SceneJsonSceneAnalyzer"/>. The VS JSON editor uses it to warn about undefined component
-/// types, members and value kinds while the user types, and to complete names. The build still
-/// reports the authoritative SCENE2xx errors.
+/// <see cref="SceneJsonSceneAnalyzer"/> と同じ Roslyn 規則を使い、プロジェクトごとの Scene JSON 用 JSON Schema を生成する（
+/// ADR-0070）。VS の JSON エディターが入力中の未定義コンポーネント型、メンバー、値の種類を警告し、名前を補完するために使う。ビルドでは引き続き正規の SCENE2xx エラーを報告する。
 /// </summary>
 internal static class SceneJsonSchemaBuilder {
     internal const string FileName="scene.schema.json";
@@ -59,10 +57,9 @@ internal static class SceneJsonSchemaBuilder {
         return SceneJsonWriter.Write(Document);
     }
     /// <summary>
-    /// Component candidates: non-generic structs that the scene JSON check accepts, declared in the
-    /// game's compilation (including the engine's shared runtime sources and the plugins' Runtime modules), in the engine's
-    /// assemblies (Camera and PrimitiveMesh live in CSharpGameEngine.Windows; StaticMesh is in the Entities sources), or in a
-    /// plugin's Library module (<c>[assembly: PluginLibrary]</c>, ADR-0079).
+    /// コンポーネント候補。Scene JSON 検査で受け入れられる非ジェネリック構造体で、ゲームのコンパイル（エンジンの共有ランタイムソースとプラグイン Runtime モジュールを含む）、
+    /// エンジンアセンブリ（Camera と PrimitiveMesh は CSharpGameEngine.Windows、StaticMesh は Entities ソース内）、またはプラグイン
+    /// Library モジュール（<c>[assembly: PluginLibrary]</c>、ADR-0079）で宣言されている。
     /// </summary>
     internal static IEnumerable<INamedTypeSymbol>EnumerateComponentTypes(Compilation Compilation){
         var Assemblies=new List<IAssemblySymbol>{ Compilation.Assembly };
@@ -78,7 +75,7 @@ internal static class SceneJsonSchemaBuilder {
         }
     }
     internal const string PluginLibraryAttributeMetadataName="CSharpGameEngine.Authoring.PluginLibraryAttribute";
-    /// <summary>Whether a referenced DLL is a plugin's Library module (<c>[assembly: PluginLibrary]</c>, ADR-0079).</summary>
+    /// <summary>参照 DLL がプラグイン Library モジュールか（<c>[assembly: PluginLibrary]</c>、ADR-0079）。</summary>
     internal static bool IsPluginLibrary(IAssemblySymbol Assembly)=>
         Assembly.GetAttributes().Any(static Attribute=>Attribute.AttributeClass?.ToDisplayString()==PluginLibraryAttributeMetadataName);
     private static IEnumerable<INamedTypeSymbol>EnumerateTypes(INamespaceSymbol Namespace){
@@ -122,7 +119,7 @@ internal static class SceneJsonSchemaBuilder {
         }
         return SceneJsonOut.Object().Add("$ref",SceneJsonOut.String("#/definitions/"+Key));
     }
-    /// <summary>ADR-0074: an angle member's numbers are turns in the document, whatever its C# unit.</summary>
+    /// <summary>ADR-0074：C# の単位にかかわらず、角度メンバーの値はドキュメント内で回転数。</summary>
     private static string AngleNote(ISymbol Symbol)=>
         SceneJsonSceneAnalyzer.AngleUnitOf(Symbol) is { }Unit
             ?"Angle in turns (1 = one full rotation; the C# member "+Symbol.Name+" is in "+(Unit==SceneAngleUnit.Radians?"radians":"degrees")+"). "
@@ -160,7 +157,7 @@ internal static class SceneJsonSchemaBuilder {
             case SpecialType.System_Int64:
             case SpecialType.System_UInt64:return Typed("integer");
         }
-        // A value the build rejects (SCENE203) matches nothing, so the editor warns while typing as the build would.
+        // ビルドが拒否する値（SCENE203）はどのスキーマにも一致しないため、入力中のエディターにもビルドと同じ警告が表示される。
         if(Type is IArrayTypeSymbol Array){
             return Array.Rank>1
                 ?Unwritable("A multidimensional array cannot be written in scene JSON.")
@@ -180,9 +177,9 @@ internal static class SceneJsonSchemaBuilder {
         }
         return AcceptsNumber?Typed("number"):SceneJsonOut.Object();
     }
-    /// <summary>A schema no value matches, with the reason for the editor's warning.</summary>
+    /// <summary>スキーマ内のどの値にも一致しない理由。エディター警告に表示する。</summary>
     private static SceneJsonOut Unwritable(string Reason)=>Described(SceneJsonOut.Object().Add("not",SceneJsonOut.Object()),Reason);
-    /// <summary>The element of an enumerable, the type itself included (an IEnumerable&lt;T&gt; member), as the analyzer reads it.</summary>
+    /// <summary>アナライザーが読み取った enumerable の要素型（メンバー自体が IEnumerable&lt;T&gt; の場合も含む）。</summary>
     private static ITypeSymbol?CollectionElement(ITypeSymbol Type,Compilation Compilation){
         var Enumerable=Compilation.GetSpecialType(SpecialType.System_Collections_Generic_IEnumerable_T);
         foreach(var Interface in Type.AllInterfaces.Prepend(Type as INamedTypeSymbol).OfType<INamedTypeSymbol>()){

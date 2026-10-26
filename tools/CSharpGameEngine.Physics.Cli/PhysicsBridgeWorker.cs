@@ -17,8 +17,7 @@ internal static class PhysicsBridgeWorker {
     }
 
     /// <summary>
-    /// ADR-0078/M0113: <c>replay --assembly &lt;game.dll&gt; &lt;scene&gt; &lt;cache&gt; &lt;output&gt; &lt;tickCount&gt; &lt;dependencyHash&gt;</c> plays a baked cache back in the
-    /// game and writes what the world held as a cache. Equal bytes to the bake mean the playback reproduced it (bodies, poses, events and bond breaks).
+    /// ADR-0078/M0113：<c>replay --assembly &lt;game.dll&gt; &lt;scene&gt; &lt;cache&gt; &lt;output&gt; &lt;tickCount&gt; &lt;dependencyHash&gt;</c> は、ゲーム内でベイク済みキャッシュを再生し、ワールドが保持した内容をキャッシュに書き出す。ベイクとバイト列が一致すれば、再生で剛体、ポーズ、イベント、結合の破断を再現できている。
     /// </summary>
     internal static(int ExitCode,string Output)Replay(string[]Arguments,CancellationToken CancellationToken){
         if(Arguments is not ["replay","--assembly",var AssemblyArgument,var SceneName,var CacheArgument,var OutputArgument,var TickArgument,var DependencyHash]){
@@ -62,7 +61,7 @@ internal static class PhysicsBridgeWorker {
         }
         catch(Exception Exception)when(Exception is ArgumentException or NotSupportedException){ return(2,Exception.Message); }
         if(!File.Exists(GameAssembly)){ return(2,$"The game assembly was not found: {GameAssembly}"); }
-        // The upper bound is the game's physics cache limit, which the game's generated TryBake checks.
+        // 上限はゲームの物理キャッシュの制限であり、ゲームの生成済み TryBake が検査する。
         if(!int.TryParse(TickArgument,NumberStyles.Integer,CultureInfo.InvariantCulture,out int TickCount)||TickCount<1){
             return(2,"Tick count is outside the supported physics cache range.");
         }
@@ -128,10 +127,7 @@ internal static class PhysicsBridgeWorker {
     }
 
     /// <summary>
-    /// ADR-0078/M0113, the Visual Studio extension's Fracture preview: <c>preview-prefracture &lt;halfR&gt; &lt;halfU&gt; &lt;halfF&gt; &lt;fragmentCount&gt; &lt;seed&gt;
-    /// &lt;clusterCount&gt; &lt;output.json&gt; [centerR centerU centerF] [density] [bondStrength] [clusterLevels]</c> cuts a box collider as the build's Cook
-    /// module would (the same twelve-triangle box and cooker) and writes the inspection document with each fragment's edges and clusters, and each bond's shared
-    /// cluster levels (M0124), so a changed count, seed or level count shows at once, before a build. A refused cut (FRACTUREnnn) exits with 5 and its message.
+    /// ADR-0078/M0113、Visual Studio 拡張機能の Fracture プレビュー：<c>preview-prefracture &lt;halfR&gt; &lt;halfU&gt; &lt;halfF&gt; &lt;fragmentCount&gt; &lt;seed&gt; &lt;clusterCount&gt; &lt;output.json&gt; [centerR centerU centerF] [density] [bondStrength] [clusterLevels]</c> は、ビルドの Cook モジュールと同じ方法でボックス Collider を切断する（同じ 12 三角形のボックスとクッカーを使用）。フラグメントの辺とクラスター、および各結合が共有するクラスター階層 (M0124) を確認用ドキュメントに書き込む。そのため、ビルド前に個数、シード、レベル数の変更をすぐ確認できる。切断を拒否した場合 (FRACTUREnnn) は、メッセージとともに 5 で終了する。
     /// </summary>
     internal static(int ExitCode,string Output)PreviewPrefracture(string[]Arguments,CancellationToken CancellationToken){
         if(Arguments.Length is not (8 or 11 or 12 or 13 or 14)){
@@ -200,7 +196,7 @@ internal static class PhysicsBridgeWorker {
         File.WriteAllText(OutputPath,JsonSerializer.Serialize(Document));
     }
 
-    /// <summary>The outline of a fragment in the source's frame: each edge between two faces that are not coplanar, as six floats (R, U, F twice).</summary>
+    /// <summary>ソース座標系におけるフラグメントの輪郭：同一平面上にない 2 面の間の各辺を (R, U, F) の 2 点、計 6 個の float で表す。</summary>
     private static float[]FragmentEdges(PrefractureAsset Asset,int Fragment){
         var Mesh=Asset.Meshes[Fragment];
         var Center=Asset.Fragments[Fragment].LocalCenter;
@@ -235,12 +231,12 @@ internal static class PhysicsBridgeWorker {
     private sealed class PrefractureInspectionDocument {
         public string SourceHash { get;set; }=string.Empty;
         public int ClusterCount { get;set; }
-        /// <summary>The levels of clusters (M0124; 0 for an asset without clusters).</summary>
+        /// <summary>クラスターのレベル (M0124)。クラスターのないアセットでは 0。</summary>
         public int ClusterLevels { get;set; }
         public PrefractureInspectionFragment[]Fragments { get;set; }=[];
         public PrefractureInspectionBond[]Bonds { get;set; }=[];
     }
     private sealed class PrefractureInspectionFragment { public int Index { get;set; }public float R { get;set; }public float U { get;set; }public float F { get;set; }public int Cluster { get;set; }public int[]Clusters { get;set; }=[];public float[]Edges { get;set; }=[]; }
-    /// <summary>A bond; <see cref="Level"/> is how many cluster levels hold both its fragments (0 breaks first).</summary>
+    /// <summary>結合。<see cref="Level"/> は両方のフラグメントを保持するクラスター階層の数を表す（0 は最初に破断）。</summary>
     private sealed class PrefractureInspectionBond { public int First { get;set; }public int Second { get;set; }public float Strength { get;set; }public float Area { get;set; }public int Level { get;set; } }
 }

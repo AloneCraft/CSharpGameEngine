@@ -5,24 +5,18 @@ using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.EditorPreview.Host;
 
 /// <summary>
-/// Turns a scene JSON value into a value of the game's own type by reflection (ADR-0070 decision 6).
-/// It follows the generator's rules (<c>SceneJsonSceneAnalyzer</c>): enums are member names, numbers
-/// fill numeric members or types with an implicit conversion from <c>float</c>, and objects use the
-/// public constructor that consumes the most keys and then settable members. The runtime view uses it
-/// to apply the editor's values to the running world; the generator has already checked the document.
-/// In a schema version 2 or later document every number inside an <c>[Angle]</c> member is in turns, and an angle's key
-/// may leave out the C# unit word (ADR-0074, <see cref="SceneJsonAngles.KeyFor"/>).
+/// リフレクションを使ってシーン JSON の値をゲーム独自の型の値へ変換する (ADR-0070 決定 6)。ジェネレーターの規則 (<c>SceneJsonSceneAnalyzer</c>) に従う。enum はメンバー名で指定し、数値は数値メンバーまたは <c>float</c> から暗黙の変換がある型に設定する。オブジェクトには、最も多くのキーを受け取り、その後メンバーも設定できる public コンストラクターを使う。ランタイムビューはこれを使ってエディターの値を実行中のワールドに適用する。ドキュメントはすでにジェネレーターで検査済みである。
+/// スキーマ バージョン 2 以降のドキュメントでは、<c>[Angle]</c> メンバー内のすべての数値が回転数で記述され、角度のキーでは C# の単位語を省略できる (ADR-0074、<see cref="SceneJsonAngles.KeyFor"/> を参照)。
 /// </summary>
 internal static class SceneJsonRuntimeValues {
     internal static object?Create(Type Type,SceneJsonValue Value,string Where)=>Create(Type,Value,Where,new Reading(Turns:false),null);
 
-    /// <summary>A component: its members object, read as the component type's object value.</summary>
+    /// <summary>コンポーネント：メンバーオブジェクトを、コンポーネント型のオブジェクト値として読み込む。</summary>
     internal static object Component(Type Type,SceneJsonValue Members,string Where,bool Turns=false)=>
         Object(Type,Members,Where,new Reading(Turns),null);
 
     /// <summary>
-    /// A component type by its document name, as the generator resolves it: the metadata name, or a nested type as C# and
-    /// the document name it (<c>Ns.Outer.Inner</c>), whose metadata name joins nested types with '+'.
+    /// ドキュメント名で指定されたコンポーネント型。ジェネレーターの解決方法に従い、メタデータ名、または C# とドキュメントの名前 ( <c>Ns.Outer.Inner</c> ) で表される入れ子型を使う。メタデータ名では、入れ子型を '+' でつなぐ。
     /// </summary>
     internal static Type?FindType(IEnumerable<Assembly>Assemblies,string FullName){
         var Name=FullName;
@@ -35,7 +29,7 @@ internal static class SceneJsonRuntimeValues {
         return null;
     }
 
-    /// <summary>Whether the document's angles are turns: <c>schemaVersion</c> 2 or later.</summary>
+    /// <summary>ドキュメントの角度が回転数で記述されるかどうか：<c>schemaVersion</c> が 2 以上。</summary>
     internal static bool UsesTurns(SceneJsonValue Document)=>
         Document.Get("schemaVersion") is { Kind:SceneJsonKind.Number }Version
         &&int.TryParse(Version.Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Number)
@@ -66,7 +60,7 @@ internal static class SceneJsonRuntimeValues {
             return Value.Kind==SceneJsonKind.String?Value.Text!:throw Mismatch(Where,Type,"expected a string");
         }
         if(Value.Kind==SceneJsonKind.Number){
-            // An angle in turns becomes the member's unit; the rest of the number rules then apply unchanged.
+            // 回転数の角度はメンバーの単位へ変換し、残りの数値処理規則はそのまま適用する。
             var Text=Unit is { }AngleUnit&&Reading.Turns&&SceneJsonAngles.IsNumber(Value.Text)
                 ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit).ToString("R",CultureInfo.InvariantCulture)
                 :Value.Text!;
@@ -77,7 +71,7 @@ internal static class SceneJsonRuntimeValues {
         throw Mismatch(Where,Type,"this JSON value cannot be converted to the member's type");
     }
 
-    /// <summary>The unit an <c>[Angle]</c> attribute declares, matched by name so the game's own load of Contracts counts.</summary>
+    /// <summary><c>[Angle]</c> 属性で宣言された単位。ゲーム自身の Contracts 読み込みも一致するよう、名前で照合する。</summary>
     private static SceneAngleUnit?AngleUnitOf(IEnumerable<CustomAttributeData>Attributes){
         foreach(var Attribute in Attributes){
             if(Attribute.AttributeType.FullName==SceneJsonAngles.AttributeFullName&&Attribute.ConstructorArguments is [{ }Argument]){
@@ -89,8 +83,8 @@ internal static class SceneJsonRuntimeValues {
 
     private static object Number(Type Type,string Text,string Where){
         IFormatProvider Culture=CultureInfo.InvariantCulture;
-        // A real reads as the generator's literal of it does: with an exponent (Convert rejects one for decimal), and a
-        // number beyond the type is a build error (SCENE203), which .NET's parse would read as infinity.
+        // 実数はジェネレーターが出力するリテラルと同様に読み込む。指数表記も使える（Convert は decimal に対してそれを拒否する）。また、
+        // 型の範囲を超える数値はビルドエラー (SCENE203) であり、.NET の解析では無限大になる。
         if(Type==typeof(float)){
             return float.TryParse(Text,RealStyles,Culture,out var Single)&&float.IsFinite(Single)
                 ?Single
@@ -106,9 +100,9 @@ internal static class SceneJsonRuntimeValues {
                 throw Mismatch(Where,Type,Error.Message);
             }
         }
-        // The generator writes the literal with an f suffix into a target-typed position, so the type's
-        // implicit conversion from float (or a wider real reached from float) applies: boxing for an object or
-        // interface member (IComparable), else the type's own conversion.
+        // ジェネレーターは f サフィックス付きのリテラルを型指定された位置に出力するため、型の
+        // float（または float から得られる、より広い実数型）からの暗黙変換が適用される。object または
+        // インターフェイス型（IComparable）のメンバーではボックス化し、それ以外では型自身の変換を使う。
         if(Type.IsAssignableFrom(typeof(float))){
             return float.TryParse(Text,RealStyles,Culture,out var Boxed)&&float.IsFinite(Boxed)
                 ?Boxed
@@ -124,10 +118,10 @@ internal static class SceneJsonRuntimeValues {
         throw Mismatch(Where,Type,"a number needs a numeric member or a type convertible from float");
     }
 
-    /// <summary>A JSON number's styles, as the compiler reads the generator's real literal (its minus sign is a separate token).</summary>
+    /// <summary>コンパイラーがジェネレーターの実数リテラルを読み取る際の JSON 数値の形式（マイナス記号は別トークン）。</summary>
     private const NumberStyles RealStyles=NumberStyles.AllowLeadingSign|NumberStyles.AllowDecimalPoint|NumberStyles.AllowExponent;
 
-    /// <summary>A finite double or a decimal from a JSON number, or null when the type cannot hold it.</summary>
+    /// <summary>JSON 数値から得る有限の double または decimal。型が保持できない場合は null。</summary>
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
 #endif
@@ -151,9 +145,9 @@ internal static class SceneJsonRuntimeValues {
                 .GetMethods().First(static Method=>Method.Name=="Create"&&Method.GetParameters() is [{ ParameterType.IsArray:true }]);
             return Create.MakeGenericMethod(Element).Invoke(null,[Items])!;
         }
-        // The rest as the generator's collection expression creates them: a type with a public parameterless constructor
-        // and a public Add for one element (List<T>, HashSet<T>), else a [CollectionBuilder] type (ImmutableList<T>,
-        // ReadOnlyCollection<T>) through its builder's CreateRange or a public constructor that takes the elements.
+        // そのほかは、ジェネレーターがコレクション式を作成する方法に従う。public な引数なしコンストラクターを持つ型と、
+        // 要素 1 つを受け取る public Add を持つ型 (List<T>, HashSet<T>)。それ以外は [CollectionBuilder] 型 (ImmutableList<T>、
+        // ReadOnlyCollection<T>) を使い、ビルダーの CreateRange、または要素を受け取る public コンストラクターで作成する。
         if(!Type.IsAbstract&&(Type.IsValueType||Type.GetConstructor(Type.EmptyTypes) is not null)&&AddMethod(Type,Element) is { }Add){
             var Filled=Activator.CreateInstance(Type)!;
             foreach(var Item in Items){ Invoke(Where,Type,()=>Add.Invoke(Filled,[Item])); }
@@ -168,7 +162,7 @@ internal static class SceneJsonRuntimeValues {
                     return Invoke(Where,Type,()=>Closed.Invoke(null,[Items])!);
                 }
             }
-            // A collection expression never calls a constructor with the elements, so only a builder type is made this way.
+            // コレクション式は要素を渡すコンストラクターを呼び出さないため、この方法で作成されるのはビルダー型だけ。
             foreach(var Constructor in Type.GetConstructors()){
                 if(Constructor.GetParameters() is [{ }Only]&&Only.ParameterType.IsAssignableFrom(Items.GetType())){
                     return Invoke(Where,Type,()=>Constructor.Invoke([Items]));
@@ -178,13 +172,13 @@ internal static class SceneJsonRuntimeValues {
         throw Mismatch(Where,Type,"this collection type cannot be created from a JSON array");
     }
 
-    /// <summary>A public instance Add that takes one element (any further parameters optional).</summary>
+    /// <summary>要素 1 つを受け取る public インスタンス Add（それ以外の引数は省略可能）。</summary>
     private static MethodInfo?AddMethod(Type Type,Type Element)=>
         Type.GetMethods(BindingFlags.Public|BindingFlags.Instance).FirstOrDefault(Method=>Method.Name=="Add"
             &&Method.GetParameters() is [{ }First,..]&&First.ParameterType.IsAssignableFrom(Element)
             &&Method.GetParameters().Skip(1).All(static Parameter=>Parameter.IsOptional));
 
-    /// <summary>The builder type a <c>[CollectionBuilder]</c> attribute names, matched by name as the game's own load sees it.</summary>
+    /// <summary><c>[CollectionBuilder]</c> 属性が指定するビルダー型。ゲーム自身の読み込み規則に合わせ、名前で照合する。</summary>
     private static Type?CollectionBuilder(Type Type)=>
         (Type.IsGenericType?Type.GetGenericTypeDefinition():Type).CustomAttributes
             .FirstOrDefault(static Attribute=>Attribute.AttributeType.FullName=="System.Runtime.CompilerServices.CollectionBuilderAttribute")
@@ -212,8 +206,8 @@ internal static class SceneJsonRuntimeValues {
             }).ToArray();
             Instance=Invoke(Where,Type,()=>Constructor.Invoke(Arguments));
         } else {
-            // A struct's parameterless constructor runs its field initializers, as `new T { ... }` does. A class without
-            // one does not fit (the generated code would not compile either) rather than throwing past the caller.
+            // 構造体の引数なしコンストラクターは、`new T { ... }` と同様にフィールド初期化子を実行する。クラスではそれを
+            // 行わない。その場合、呼び出し元へ例外を伝えるのではなく不適合として扱う（生成コードもコンパイルできない）。
             try {
                 Instance=Activator.CreateInstance(Type)
                     ??throw Mismatch(Where,Type,"the type cannot be constructed");
@@ -239,12 +233,12 @@ internal static class SceneJsonRuntimeValues {
         return Instance;
     }
 
-    /// <summary>The generator's choice: the public constructor whose parameters are all named or defaulted and that consumes the most keys.</summary>
+    /// <summary>ジェネレーターの選択規則：パラメーターがすべて名前付きまたは省略可能で、最も多くのキーを消費する public コンストラクター。</summary>
     private static ConstructorInfo?ChooseConstructor(Type Type,HashSet<string>Keys){
         ConstructorInfo?Best=null;
         var BestCount=-1;
         foreach(var Candidate in Type.GetConstructors(BindingFlags.Public|BindingFlags.Instance)){
-            // As the generator: a ref or out parameter cannot take a value, and an obsolete-as-error constructor cannot be called.
+            // ジェネレーターと同様に、ref/out パラメーターには値を渡せず、エラーとして obsolete 指定されたコンストラクターも呼び出せない。
             if(Candidate.GetParameters().Any(static Parameter=>Parameter.ParameterType.IsByRef&&!Parameter.IsIn)
                 ||Candidate.CustomAttributes.Any(static Attribute=>Attribute.AttributeType.FullName=="System.ObsoleteAttribute"
                     &&Attribute.ConstructorArguments is [_,{ Value:true }])){
@@ -268,7 +262,7 @@ internal static class SceneJsonRuntimeValues {
         return BestCount>0?Best:null;
     }
 
-    /// <summary>The settable member a key names: by its C# name, or an angle by its unit-free key.</summary>
+    /// <summary>キーが示す設定可能なメンバー。C# 名、または角度なら単位語を除いたキーで指定する。</summary>
     private static MemberInfo?FindSettableMember(Type Type,string Name){
         if(FindSettableMemberNamed(Type,Name) is { }Named){ return Named; }
         foreach(var Member in Type.GetMembers(BindingFlags.Public|BindingFlags.Instance)){
@@ -284,7 +278,7 @@ internal static class SceneJsonRuntimeValues {
         return Type.GetProperty(Name,BindingFlags.Public|BindingFlags.Instance) is { SetMethod.IsPublic:true }Property?Property:null;
     }
 
-    /// <summary>The key of a member or constructor parameter, by the generator's rule (<c>SceneJsonSceneAnalyzer.KeyOf</c>).</summary>
+    /// <summary>ジェネレーターの規則に従う、メンバーまたはコンストラクターパラメーターのキー (<c>SceneJsonSceneAnalyzer.KeyOf</c>)。</summary>
     private static string KeyOf(Type Type,string Name,IEnumerable<CustomAttributeData>Attributes)=>
         AngleUnitOf(Attributes) is null?Name:SceneJsonAngles.KeyFor(Name,Key=>
             Type.GetMember(Key,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static).Length>0
@@ -294,8 +288,7 @@ internal static class SceneJsonRuntimeValues {
         new($"The value for '{Where}' does not fit '{Type.FullName}': {Reason}.");
 
     /// <summary>
-    /// Calls a conversion, constructor or setter of the game's type. A value the type itself rejects (a position beyond
-    /// the Q64.64 range, a negative light colour) does not fit either, so the caller can keep the last good value.
+    /// ゲーム型の変換、コンストラクター、または setter を呼び出す。型自身が拒否する値（Q64.64 の範囲を超える位置、負のライト色など）は適用できず、呼び出し元は最後に正常だった値を維持できる。
     /// </summary>
     private static T Invoke<T>(string Where,Type Type,Func<T>Call){
         try {
