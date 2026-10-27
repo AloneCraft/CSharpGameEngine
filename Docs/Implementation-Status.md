@@ -5072,7 +5072,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Reverse-engineered behavior: `RE-L8-036` in `Docs/Reverse-Engineered-Spec.md`.
 - Conformance: Partial. The accepted target has not been reduced.
 - Known deviations: skinned glTF is previewed with one clip at a time (no blend spaces, IK or state machines) and only a single skin is supported; static glTF PBR and transformed-node bounds are handled by the host, but live appearance is unverified; FBX is untextured and not skeletal. The Default template keeps the previous fixed +Y directional light, which lights undersides. Scene JSON levels cannot be templates (ADR-0089 section 4).
-- Next action: Run the remaining live gestures (orbit, scrubbing, joint selection) and the DPI/high-contrast matrix; complete multi-node static glTF framing and verify the live textured preview.
+- Next action: Run the remaining live gestures (orbit, scrubbing, joint selection) and the DPI/high-contrast matrix; verify the live framing of a multi-node static glTF (the textured preview itself was observed on the CgeAssets hive with BoxTextured.glb and SM_SportsCar.glb).
 
 ## F-L0-011 — D3D12 の描画計画の実行器(L4 のフレーム計画を D3D12 で実行する)
 
