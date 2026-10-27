@@ -574,6 +574,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
 <data name="Assets_AllStates" xml:space="preserve"><value>すべての状態</value></data>
 <data name="Assets_Cancelled" xml:space="preserve"><value>キャンセルしました</value></data>
 <data name="Assets_Open" xml:space="preserve"><value>開く</value></data>
+<data name="Assets_ShowInExplorer" xml:space="preserve"><value>エクスプローラーで表示</value></data>
 <data name="Assets_Rename" xml:space="preserve"><value>名前の変更</value></data>
 <data name="Assets_Move" xml:space="preserve"><value>移動</value></data>
 <data name="Assets_Duplicate" xml:space="preserve"><value>複製</value></data>

@@ -574,6 +574,7 @@ Discard unsaved edits and reload it?</value></data>
 <data name="Assets_AllStates" xml:space="preserve"><value>All states</value></data>
 <data name="Assets_Cancelled" xml:space="preserve"><value>Cancelled</value></data>
 <data name="Assets_Open" xml:space="preserve"><value>Open</value></data>
+<data name="Assets_ShowInExplorer" xml:space="preserve"><value>Show in File Explorer</value></data>
 <data name="Assets_Rename" xml:space="preserve"><value>Rename</value></data>
 <data name="Assets_Move" xml:space="preserve"><value>Move</value></data>
 <data name="Assets_Duplicate" xml:space="preserve"><value>Duplicate</value></data>

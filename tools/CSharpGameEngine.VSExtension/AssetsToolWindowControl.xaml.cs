@@ -50,7 +50,9 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         foreach(var List in new ListBox[]{this.Tiles,this.Rows}){
             List.ContextMenu=new ContextMenu();
             List.PreviewMouseRightButtonDown+=(_,Args)=>{
-                if(ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) is ListBoxItem Container&&!Container.IsSelected){ List.SelectedItem=Container.DataContext; }
+                var Container=ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) as ListBoxItem;
+                if(Container is null){ List.SelectedItems.Clear(); }
+                else if(!Container.IsSelected){ List.SelectedItem=Container.DataContext; }
             };
             List.ContextMenuOpening+=(_,Args)=>{ Args.Handled=true;this.OnOrganize(List,Args); };
         }
@@ -73,7 +75,6 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         this.ProjectChoice.SelectedValue=Controller.Query.ProjectPath;
         this.LockLocation.IsChecked=Controller.Query.Locked;this.WholeProject.IsChecked=Controller.Query.WholeProject;
         this.Details.IsChecked=Controller.Query.Details;
-        this.Location.Text=Controller.Query.Folder;
         this.Search.Text=Controller.Query.Search;
         this.KindChoice.SelectedValue=Controller.Query.Kind;
         this.ProviderChoice.SelectedValue=Controller.Query.Provider;
@@ -86,7 +87,6 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         if(this.Updating||this.Controller is not { }Controller||this.ProjectChoice.SelectedValue is not string Project){ return; }
         Controller.Query.ProjectPath=Project;
         Controller.Query.Folder=Controller.Projects.FirstOrDefault(Item=>Item.ProjectFilePath==Project)?.ProjectDirectory??string.Empty;
-        this.Location.Text=Controller.Query.Folder;
         _=this.ApplyQueryAsync();
     }
     private void OnQueryChanged(object Sender,RoutedEventArgs Args){

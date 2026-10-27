@@ -28,6 +28,9 @@ internal static class AssetWorkspaceCommands {
     internal static void ShowOrganizeMenu(FrameworkElement Placement,AssetWorkspaceController Controller,IReadOnlyList<AssetWorkspaceItem>Items){
         ThreadHelper.ThrowIfNotOnUIThread();
         var Menu=new ContextMenu();
+        // 1 件選択: そのファイルを選択して開く。選択なし: 現在のフォルダを開くだけ。2 件以上: エクスプローラーは 1 件しか選べないので無効。
+        var Reveal=Items.Count switch{ 0=>AssetExplorerReveal.Resolve(null,Controller.Query.Folder),1=>AssetExplorerReveal.Resolve(Items[0].Source.SourcePath,null),_=>null };
+        Add(Menu,"Assets_ShowInExplorer",()=>{ AssetExplorerReveal.Launch(Reveal!);return Task.CompletedTask; },Reveal is not null);
         if(Items.Count==1){
             var Item=Items[0];
             var Capabilities=Item.GetCapabilities();
