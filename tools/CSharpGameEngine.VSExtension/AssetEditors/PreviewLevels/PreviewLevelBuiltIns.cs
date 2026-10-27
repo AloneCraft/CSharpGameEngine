@@ -43,7 +43,8 @@ internal static class PreviewLevelBuiltIns {
         Template.Ambient=new(){ Color=[0f,0f,0f],Intensity=0f };
         Template.Lights=[new(){ Kind=PreviewLightKind.Directional,Name="Sun",Color=[1f,0.98f,0.94f],Intensity=3f,YawDegrees=200f,PitchDegrees=-40f,CastsShadows=true }];
         Template.Environment=new(){ Atmosphere=true,SkyLightIntensity=1f,PhysicalExposure=true,ExposureEv100=0f,ExposureCompensation=1f,FilmicToneMapper=true,BloomIntensity=0.675f,AmbientOcclusion=true };
-        Template.Floor=new(){ Visible=true,SizeRadii=40f,Color=[0.26f,0.23f,0.18f] };
+        // 空は地平線の下に何も描かないので、床を遠方まで広げて地平線に接するようにする（遠方クリップ面も床に合わせて伸びる）。
+        Template.Floor=new(){ Visible=true,SizeRadii=1000f,Color=[0.26f,0.23f,0.18f] };
     });
     /// <summary>
     /// ライティングの影響を最小にして形状を確認する環境。均一なアンビエントと弱い 1 灯だけで、影も床もない。

@@ -164,6 +164,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     }
     private float Aspect=>this.SurfaceWidth/(float)Math.Max(1,this.SurfaceHeight);
     private PreviewSceneComposition Compose(){
+        this.Camera.SetFarReach(PreviewSceneComposer.FarReachRadii(this.Template));
         var Next=PreviewSceneComposer.Compose(this.Mesh,this.Bounds,this.Template,this.SurfaceWidth,this.SurfaceHeight,this.Skeletal,this.StaticAssetPath);
         // ReplaceScene／Open が最初に Present するフレームで、固定の既定カメラが一瞬映らないように、いまのカメラを入れておく。
         Next.Scene.Camera=RenderPreviewSceneBuilder.CreateCamera(this.Camera.View,this.Camera.Projection(this.Aspect),this.Camera.Eye,this.Camera.FovYRadians);

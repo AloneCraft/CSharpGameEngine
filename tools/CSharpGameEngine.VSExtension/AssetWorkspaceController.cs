@@ -29,6 +29,8 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
     private readonly List<FileSystemWatcher>Watchers=[];
     private System.Threading.Timer?RefreshTimer;
     internal AssetWorkspaceItem[]Items{get;private set;}=[];
+    /// <summary>読み込み済みのゲーム プロジェクトの Assets 一覧にあるファイルか。</summary>
+    internal bool IsListed(string SourcePath)=>this.Items.Any(Item=>string.Equals(Item.Source.SourcePath,SourcePath,StringComparison.OrdinalIgnoreCase));
     internal CgeProjectContext[]Projects{get;private set;}=[];
     internal AssetWorkspaceQuery Query{get;}=new();
     internal event Action?Changed;
@@ -162,15 +164,29 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
         if((Item.GetCapabilities()&AssetWorkspaceCapabilities.Open)==0){ this.Report(VsixText.Get("Assets_State_"+Item.State));return; }
         VsShellUtilities.OpenDocument(this.Package,Item.Source.SourcePath);
     }
-    internal void ShowInSolution(AssetWorkspaceItem Item){
+    /// <summary>
+    /// Assets で選んだアセットをソリューション エクスプローラーでも選択する。フォーカスを奪わず、プロジェクトにないファイルでは何もしない。
+    /// 選択イベントが自分の選択の反響として戻ってきたときに、フォルダーの切り替えや再選択をしないよう短時間だけ無視する。
+    /// </summary>
+    internal void SyncSolutionSelection(AssetWorkspaceItem Item){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.Report(AssetEditorNavigation.ShowInSolution(this.Package,Item.Source.SourcePath));
+        var PathValue=Item.Source.SourcePath;
+        this.SolutionSyncPath=PathValue;
+        this.SolutionSyncUntil=DateTime.UtcNow.AddMilliseconds(500);
+        if(!AssetEditorNavigation.SelectInSolution(this.Package,PathValue)){ this.SolutionSyncPath=null; }
     }
+    private string?SolutionSyncPath;
+    private DateTime SolutionSyncUntil;
     public int OnSelectionChanged(IVsHierarchy OldHierarchy,uint OldItemId,IVsMultiItemSelect OldMulti,ISelectionContainer OldContainer,
         IVsHierarchy NewHierarchy,uint NewItemId,IVsMultiItemSelect NewMulti,ISelectionContainer NewContainer){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Query.Locked||NewHierarchy is null||NewItemId==VSConstants.VSITEMID_NIL){ return VSConstants.S_OK; }
         if(ErrorHandler.Succeeded(NewHierarchy.GetCanonicalName(NewItemId,out var PathValue))&&!string.IsNullOrEmpty(PathValue)){
+            if(this.SolutionSyncPath is { }Echo){
+                var Expected=DateTime.UtcNow<=this.SolutionSyncUntil&&string.Equals(Echo,PathValue,StringComparison.OrdinalIgnoreCase);
+                this.SolutionSyncPath=null;
+                if(Expected){ return VSConstants.S_OK; }
+            }
             var Item=this.Items.FirstOrDefault(Candidate=>string.Equals(Candidate.Source.SourcePath,PathValue,StringComparison.OrdinalIgnoreCase));
             if(Item is not null){
                 this.Query.ProjectPath=Item.Source.ProjectPath;this.Query.Folder=Path.GetDirectoryName(PathValue)!;

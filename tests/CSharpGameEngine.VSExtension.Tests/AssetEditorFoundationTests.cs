@@ -143,6 +143,26 @@ public sealed class AssetViewportCameraTests {
         Camera.Frame(new Vector3(1f,2f,3f),2f,16f/9f);
         return Camera;
     }
+    private static float FarPlane(AssetViewportCamera Camera){
+        var Projection=Camera.Projection(1f);
+        return Projection.M43/(Projection.M33+1f);
+    }
+    [Fact]
+    public void FarReach_ExtendsTheFarPlaneToTheFloorAndSurvivesReframing(){
+        var Camera=Framed();
+        var Default=FarPlane(Camera);
+        // 既定は半径の 20 倍（境界球）か、視点の距離の 20 倍のどちらか大きいほう。
+        Assert.True(Default>=2f*20f*0.99f);
+        Camera.SetFarReach(1500f);
+        Assert.True(FarPlane(Camera)>=2f*1500f*0.99f);
+        Camera.Frame(new Vector3(1f,2f,3f),2f,16f/9f);
+        Assert.True(FarPlane(Camera)>=2f*1500f*0.99f);
+        Camera.SetFarReach(0f);
+        Assert.Equal(Default,FarPlane(Camera),1);
+        Camera.SetFarReach(1500f);
+        Camera.SetFarReach(float.NaN);
+        Assert.Equal(Default,FarPlane(Camera),1);
+    }
     [Fact]
     public void Frame_FocusesTheBoundsCenterAndBacksOffByTheRadius(){
         var Camera=Framed();

@@ -18,9 +18,9 @@ public sealed class RenderPreviewLightingSessionTests {
         internal readonly RenderPreviewRenderSession Session;
         internal readonly RenderPreviewCamera Camera;
         internal readonly RenderPreviewHostRequest OpenRequest;
-        internal Preview(bool Floor=false){
+        internal Preview(bool Floor=false,float FloorSize=40f){
             this.Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Preview Lighting Test",Width=Size,Height=Size,Visible=false });
-            this.OpenRequest=CreateOpen(this.Window,Floor);
+            this.OpenRequest=CreateOpen(this.Window,Floor,FloorSize);
             this.Camera=this.OpenRequest.Scene!.Camera!;
             this.Session=RenderPreviewRenderSession.Open(this.OpenRequest,Options);
         }
@@ -40,7 +40,7 @@ public sealed class RenderPreviewLightingSessionTests {
             this.Window.Dispose();
         }
     }
-    private static RenderPreviewHostRequest CreateOpen(Win32Window Window,bool Floor){
+    private static RenderPreviewHostRequest CreateOpen(Win32Window Window,bool Floor,float FloorSize=40f){
         var Box=ProceduralMeshFactory.CreateBox(Vector3.One);
         var Camera=CSharpGameEngine.Rendering.View.RenderCamera.CreateDefault(Vector3.Zero);
         var ViewProjection=Camera.GetView()*Camera.GetProjection((float)Window.ClientWidth/Window.ClientHeight);
@@ -48,7 +48,7 @@ public sealed class RenderPreviewLightingSessionTests {
         List<RenderPreviewMaterial>Materials=[new(){ BaseColor=[0.6f,0.6f,0.6f,1f] }];
         List<RenderPreviewObject>Objects=[new(){ ObjectId="AssetPreview",MeshIndex=0,MaterialIndex=0,World=RenderPreviewMatrix4x4.Identity }];
         if(Floor){
-            var Plane=ProceduralMeshFactory.CreatePlane(Width:40f,Depth:40f);
+            var Plane=ProceduralMeshFactory.CreatePlane(Width:FloorSize,Depth:FloorSize);
             Meshes.Add(new(){ Positions=Flatten(Plane.Positions),Normals=Flatten(Plane.Normals),Indices=Plane.Indices });
             Materials.Add(new(){ BaseColor=[0.5f,0.5f,0.5f,1f],WorldGrid=new(){ GridSizeMeters=1f,SubGridDivisions=4,WireHalfWidth=0.05f,GridColor=[1f,0f,0f],SubGridColor=[0f,0f,1f] } });
             Objects.Add(new(){ ObjectId="PreviewFloor",MeshIndex=1,MaterialIndex=1,World=ToWire(Matrix4x4.CreateTranslation(0f,-1f,0f)) });
@@ -180,10 +180,41 @@ public sealed class RenderPreviewLightingSessionTests {
         Assert.NotEqual(Plain,Top);
         Assert.True(Top.B>=Top.R,$"sky pixel {Top}");
     }
+    /// <summary>床の端と地平線のあいだに黒い帯が出ないこと（Outdoor を低い視点から見たときの不具合）。</summary>
+    [Fact]
+    public void WARP_OutdoorFloorMeetsTheSkyAtTheHorizonWithoutABlackBand(){
+        if(!OperatingSystem.IsWindows()){ return; }
+        using var Test=new Preview(Floor:true,FloorSize:8000f);
+        var Eye=new Vector3(0f,0f,8f);
+        var View=Matrix4x4.CreateLookAt(Eye,Eye+new Vector3(0f,0f,-1f),Vector3.UnitY);
+        var Projection=Matrix4x4.CreatePerspectiveFieldOfView(0.6f,1f,0.05f,8000f);
+        var Right=Vector3.Cross(Vector3.UnitY,-Vector3.UnitZ);
+        var Rotation=Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(new Matrix4x4(Right.X,Right.Y,Right.Z,0f,0f,1f,0f,0f,0f,0f,-1f,0f,0f,0f,0f,1f)));
+        var Camera=new RenderPreviewCamera {
+            ViewProjection=ToWire(View*Projection),Position=[Eye.X,Eye.Y,Eye.Z],Rotation=[Rotation.X,Rotation.Y,Rotation.Z,Rotation.W],
+            FovYRadians=0.6f,NearZ=0.05f,FarZ=8000f,
+        };
+        var Sky=Legacy(2);
+        Sky.Ambient=[0f,0f,0f];
+        Sky.Directionals=[new(){ Forward=[-0.3f,-0.8f,-0.2f],IlluminanceLux=3f,CastsShadows=true }];
+        Sky.Environment=new(){ Atmosphere=true,SkyLightIntensity=1f,PhysicalExposure=true,ExposureEv100=0f,ExposureCompensation=1f,FilmicToneMapper=true,BloomIntensity=0.675f };
+        var Frame=Test.Frame(Sky);
+        Frame.Camera=Camera;
+        Test.Session.UpdateFrame(Frame);
+        Test.Session.RenderForVerification();
+        var Captured=Test.Session.LastCapturedFrame!;
+        PreviewFramePng.SaveIfRequested(Captured,"outdoor-horizon");
+        var Column=Enumerable.Range(0,Size).Select(Y=>Luma(At(Captured,Size/2+30,Y))).ToArray();
+        Assert.True(Column.Take(Size/2-10).All(static Value=>Value>10),$"sky rows: {string.Join(",",Column)}");
+        // 上の空と下の床のあいだに、ほぼ黒の行が続かない。
+        var Run=0;var Longest=0;
+        foreach(var Value in Column.Skip(Size/4)){ Run=Value<12?Run+1:0;Longest=Math.Max(Longest,Run); }
+        Assert.True(Longest<=1,$"black rows between sky and floor: {Longest}; column {string.Join(",",Column)}");
+    }
     [Fact]
     public void WARP_FloorWorldGridDrawsGridLinesOnTheFloor(){
         if(!OperatingSystem.IsWindows()){ return; }
-        using var Test=new Preview(Floor:true);
+        using var Test=new Preview(Floor:true,FloorSize:40f);
         var Lighting=new RenderPreviewLighting { EnvironmentRevision=1,Ambient=[1f,1f,1f] };
         var Frame=Test.Render(Lighting,RenderPreviewPresentationMode.Lit,"floor-grid");
         var Distinct=new HashSet<(int,int,int)>();

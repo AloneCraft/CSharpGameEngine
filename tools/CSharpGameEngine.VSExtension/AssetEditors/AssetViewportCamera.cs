@@ -30,12 +30,26 @@ internal sealed class AssetViewportCamera {
     internal float FocusDistance=>this.State.FocusDistance;
     internal Vector3 FocusPosition=>this.State.FocusPosition;
     internal bool IsDragging=>this.DragButton!=PointerButton.None;
+    /// <summary>
+    /// 遠方クリップ面が届く距離を、境界球の半径の何倍にするか（既定 20）。床が見えるテンプレートでは、床の端が遠方クリップ面の内側に
+    /// 見えて地平線とのあいだに何も描かれない帯ができないよう、床の広がりまで伸ばす。近クリップ面は遠方に比例するので、
+    /// モデルの大きさに対する比率は変わらない。
+    /// </summary>
+    internal void SetFarReach(float Radii){
+        this.FarReachRadii=Math.Max(DefaultFarReachRadii,!float.IsNaN(Radii)&&!float.IsInfinity(Radii)?Radii:DefaultFarReachRadii);
+        this.ApplyFarReach();
+    }
+    private const float DefaultFarReachRadii=20f;
+    private float FarReachRadii=DefaultFarReachRadii;
+    // SceneViewState は LastKnownBoundsRadius の 20 倍を遠方の下限にする。
+    private void ApplyFarReach()=>this.State.LastKnownBoundsRadius=this.BoundsRadius*this.FarReachRadii/DefaultFarReachRadii;
     /// <summary>境界球に合わせて視点を初期化する（既定の向きと視野角）。</summary>
     internal void Frame(Vector3 Center,float Radius,float AspectRatio){
         this.BoundsCenter=Center;
         this.BoundsRadius=Radius>0f?Radius:1f;
         this.State.ProjectionMode=SceneProjectionMode.Perspective;
         this.State.ResetToBounds(Center,this.BoundsRadius,DefaultViewDirection,SceneCameraFraming.DefaultFovYRadians,Math.Max(AspectRatio,0.001f));
+        this.ApplyFarReach();
     }
     /// <summary>境界球に合わせて、プレビューレベルのカメラ初期値（方向・視野角・投影方式）で視点を初期化する（フレーム操作と明示的なリセット）。</summary>
     internal void Frame(Vector3 Center,float Radius,float AspectRatio,PreviewCameraDefaults Defaults){
@@ -43,6 +57,7 @@ internal sealed class AssetViewportCamera {
         this.BoundsRadius=Radius>0f?Radius:1f;
         this.State.ProjectionMode=Defaults.Projection==PreviewProjection.Orthographic?SceneProjectionMode.Orthographic:SceneProjectionMode.Perspective;
         this.State.ResetToBounds(Center,this.BoundsRadius,ViewDirection(Defaults),Defaults.FovDegrees*FloatMath.Pi/180f,Math.Max(AspectRatio,0.001f));
+        this.ApplyFarReach();
     }
     /// <summary>対象から視点へ向かう単位ベクトル（方位角・仰角から）。</summary>
     internal static Vector3 ViewDirection(PreviewCameraDefaults Defaults){

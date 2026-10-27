@@ -119,8 +119,12 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         }catch(OperationCanceledException){ }
     }
     private void OnSelectionChanged(object Sender,SelectionChangedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Updating||Sender is not ListBox List){ return; }
-        AssetWorkspaceSelection.Select(List.SelectedItems.Cast<AssetWorkspaceRow>().Select(static Row=>Row.Item).ToArray());
+        var Items=List.SelectedItems.Cast<AssetWorkspaceRow>().Select(static Row=>Row.Item).ToArray();
+        AssetWorkspaceSelection.Select(Items);
+        // Assets での選択をソリューション エクスプローラーへ同期する（1 件だけ選んだとき）。
+        if(Items.Length==1){ this.Controller?.SyncSolutionSelection(Items[0]); }
     }
     private void OnGlobalSelection(IReadOnlyList<AssetWorkspaceItem>Items){
         if(this.Disposed){ return; }
@@ -136,8 +140,6 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private AssetWorkspaceItem?Selected=>AssetWorkspaceSelection.Current.Count==1?AssetWorkspaceSelection.Current[0]:null;
     private void OnOpen(object Sender,MouseButtonEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread(); if(this.Selected is { }Item){ this.Controller?.Open(Item); } }
-    private void OnShowInSolution(object Sender,RoutedEventArgs Args){
-        ThreadHelper.ThrowIfNotOnUIThread(); if(this.Selected is { }Item){ this.Controller?.ShowInSolution(Item); } }
     private void OnRefresh(object Sender,RoutedEventArgs Args){ if(this.Controller is { }Controller){ Controller.Run(Controller.RefreshAsync); } }
     private void OnCancel(object Sender,RoutedEventArgs Args){ if(this.Disposed){ return; }this.SearchCancellation?.Cancel();this.Controller?.CancelRefresh(); }
     private void OnKeyDown(object Sender,KeyEventArgs Args){

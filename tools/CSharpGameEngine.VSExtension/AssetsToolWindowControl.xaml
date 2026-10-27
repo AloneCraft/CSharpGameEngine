@@ -30,7 +30,6 @@
    <Button Content="{local:Loc Assets_Organize}" Click="OnOrganize" Margin="4,0" Padding="6,1"/>
    <Button Content="{local:Loc Assets_Favorite}" Click="OnFavorite" Margin="4,0" Padding="6,1"/>
    <ComboBox x:Name="Favorites" Width="140" SelectionChanged="OnFavoriteSelected" DisplayMemberPath="Name" ToolTip="{local:Loc Assets_Favorite}"/>
-   <Button Content="{local:Loc Assets_ShowInSolution}" Click="OnShowInSolution" Margin="4,0" Padding="6,1"/>
    <TextBlock x:Name="Location" VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis"/>
   </WrapPanel>
   <Grid Grid.Row="2">

@@ -113,6 +113,61 @@ public sealed class AssetEditorNavigationTests {
             } finally { AssetsToolWindowPane.Controller=Prior; }
         });
     }
+    [Fact]
+    public void SelectingInTheSolutionIsSilentAndNeverShowsOrCreatesTheWindow(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var Calls=new List<string>();
+            var Hierarchy=Proxy<IVsUIHierarchy>((_,_)=>throw new NotSupportedException());
+            var Tree=Proxy<IVsUIHierarchyWindow>((Call,Args)=>{ Calls.Add(((EXPANDFLAGS)Args[2]).ToString());return VSConstants.S_OK; });
+            var Frame=Proxy<IVsWindowFrame>((Call,Args)=>{
+                Assert.Equal("GetProperty",Call.MethodName);
+                Args[1]=Tree;
+                return VSConstants.S_OK;
+            });
+            var Documents=Proxy<IVsUIShellOpenDocument>((Call,Args)=>{ Args[1]=Hierarchy;Args[2]=7u;Args[3]=null!;Args[4]=1;return VSConstants.S_OK; });
+            var Shell=Proxy<IVsUIShell>((Call,Args)=>{
+                Assert.Equal("FindToolWindow",Call.MethodName);
+                Assert.Equal((uint)__VSFINDTOOLWIN.FTW_fFindFirst,(uint)Args[0]);
+                Args[2]=Frame;
+                return VSConstants.S_OK;
+            });
+            var Services=new Services(new Dictionary<Type,object> { [typeof(SVsUIShellOpenDocument)]=Documents,[typeof(SVsUIShell)]=Shell });
+            Assert.True(AssetEditorNavigation.SelectInSolution(Services,@"C:\Linked\Hero.glb"));
+            Assert.Equal(new[]{"EXPF_ExpandParentsToShowItem","EXPF_SelectItem"},Calls);
+        });
+    }
+    [Fact]
+    public void SelectingInTheSolutionDoesNothingForAFileOutsideItOrWithoutAnOpenExplorer(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var Outside=Proxy<IVsUIShellOpenDocument>((Call,Args)=>{ Args[1]=null!;Args[2]=VSConstants.VSITEMID_NIL;Args[3]=null!;Args[4]=0;return VSConstants.S_OK; });
+            Assert.False(AssetEditorNavigation.SelectInSolution(new Services(new Dictionary<Type,object> { [typeof(SVsUIShellOpenDocument)]=Outside }),@"C:\External\Idle.glb"));
+            var Hierarchy=Proxy<IVsUIHierarchy>((_,_)=>throw new NotSupportedException());
+            var Inside=Proxy<IVsUIShellOpenDocument>((Call,Args)=>{ Args[1]=Hierarchy;Args[2]=7u;Args[3]=null!;Args[4]=1;return VSConstants.S_OK; });
+            var Closed=Proxy<IVsUIShell>((Call,Args)=>{ Args[2]=null!;return VSConstants.S_OK; });
+            Assert.False(AssetEditorNavigation.SelectInSolution(new Services(new Dictionary<Type,object> { [typeof(SVsUIShellOpenDocument)]=Inside,[typeof(SVsUIShell)]=Closed }),@"C:\Linked\Hero.glb"));
+        });
+    }
+    [Fact]
+    public void ANavigationButtonThatCannotWorkIsDisabledWithItsReasonAsTheTooltip(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var Prior=AssetsToolWindowPane.Controller;
+            AssetsToolWindowPane.Controller=null;
+            try {
+                using var Shell=new AssetEditorShell(new EmptyContent());
+                Shell.RefreshNavigationState();
+                var Toolbar=(System.Windows.Controls.Border)Shell.Children[0];
+                var Panel=(System.Windows.Controls.StackPanel)Toolbar.Child;
+                var Solution=(System.Windows.Controls.Button)Panel.Children[0];
+                Assert.False(Solution.IsEnabled);
+                Assert.Equal(VsixText.Get("AssetEditor_NotInSolution"),Solution.ToolTip);
+                // Assets が開かれていない間は一覧がないので判定できず、押せるまま。
+                Assert.True(((System.Windows.Controls.Button)Panel.Children[1]).IsEnabled);
+            } finally { AssetsToolWindowPane.Controller=Prior; }
+        });
+    }
     private sealed class EmptyContent():AssetEditorContent(@"C:\External\Idle.glb") {
         internal override System.Windows.UIElement Center{get;}=new System.Windows.Controls.Grid();
     }

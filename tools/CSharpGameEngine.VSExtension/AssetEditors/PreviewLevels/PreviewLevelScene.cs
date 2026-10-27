@@ -104,6 +104,8 @@ internal static class PreviewSceneComposer {
     internal const string FloorObjectId="PreviewFloor";
     /// <summary>床を対象の底面から離す距離（境界半径の割合）。同一平面での深度の競合を避ける。</summary>
     private const float FloorGapRadii=0.002f;
+    /// <summary>床が見えるテンプレートで、遠方クリップ面が届くべき距離（半径の倍数）。床の対角まで届かせる。</summary>
+    internal static float FarReachRadii(PreviewLevelTemplate Template)=>Template.Floor.Visible?Template.Floor.SizeRadii*1.5f:0f;
     /// <param name="Skeletal">スケルタル glTF をホストが読み込む場合（ADR-0090）。静的なメッシュのオブジェクトは入れず、ホストが足すスキン付きのオブジェクトに任せる。<paramref name="Mesh"/> は境界の計算だけに使う。</param>
     internal static PreviewSceneComposition Compose(SimpleMesh?Mesh,PreviewBounds Bounds,PreviewLevelTemplate Template,int Width,int Height,RenderPreviewAssetSource?Skeletal=null,string?StaticAssetPath=null){
         var HostAsset=Skeletal is not null||!string.IsNullOrEmpty(StaticAssetPath);

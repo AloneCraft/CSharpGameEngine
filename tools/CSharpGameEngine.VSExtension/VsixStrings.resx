@@ -566,7 +566,6 @@ Discard unsaved edits and reload it?</value></data>
 <data name="Assets_Create" xml:space="preserve"><value>Create</value></data>
 <data name="Assets_Organize" xml:space="preserve"><value>Organize</value></data>
 <data name="Assets_Favorite" xml:space="preserve"><value>Save search</value></data>
-<data name="Assets_ShowInSolution" xml:space="preserve"><value>Show in Solution Explorer</value></data>
 <data name="Assets_Name" xml:space="preserve"><value>Name</value></data>
 <data name="Assets_Path" xml:space="preserve"><value>Path</value></data>
 <data name="Assets_Count" xml:space="preserve"><value>{0} assets</value></data>

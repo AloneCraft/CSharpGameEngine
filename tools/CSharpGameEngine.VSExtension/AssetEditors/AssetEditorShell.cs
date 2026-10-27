@@ -19,6 +19,8 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
     private readonly ProgressBar OperationProgressBar=new(){ Height=3,Minimum=0,Maximum=1,Visibility=Visibility.Collapsed };
     private bool Disposed;
     private JoinableTask?NavigationTask;
+    private Button?SolutionButton;
+    private Button?AssetsButton;
     internal AssetEditorShell(AssetEditorContent Content){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.Content=Content;
@@ -47,12 +49,32 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
         Content.ProgressChanged+=this.OnProgressChanged;
         Content.FocusRequested+=this.OnFocusRequested;
         this.PreviewKeyDown+=this.OnPreviewKeyDown;
+        this.Loaded+=(_,_)=>this.RefreshNavigationState();
+        this.IsVisibleChanged+=(_,Args)=>{ if(Args.NewValue is true){ this.RefreshNavigationState(); } };
+    }
+    /// <summary>
+    /// 「ソリューション エクスプローラーで表示」「Assets で表示」は、ファイルが開いているプロジェクトに含まれるときだけ使える。
+    /// 含まれないときは無効にして、理由をツールチップに出す（押しても状態表示が変わるだけで気付きにくいため）。
+    /// </summary>
+    internal void RefreshNavigationState(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed||this.SolutionButton is not { }Solution||this.AssetsButton is not { }Assets){ return; }
+        var FilePath=this.Content.FilePath;
+        var InSolution=AssetEditorNavigation.IsInSolution(ServiceProvider.GlobalProvider,FilePath);
+        Solution.IsEnabled=InSolution;
+        Solution.ToolTip=VsixText.Get(InSolution?"AssetEditor_ShowInSolutionHelp":"AssetEditor_NotInSolution");
+        // Assets が一度も開かれていない間は一覧がないので判定できず、押せるままにする（押すと開いて探す）。
+        var Listed=AssetsToolWindowPane.Controller is not { }Controller||Controller.IsListed(FilePath);
+        Assets.IsEnabled=Listed;
+        Assets.ToolTip=VsixText.Get(Listed?"AssetEditor_ShowInAssetsHelp":"AssetEditor_NotInAssets");
     }
     internal AssetEditorContent EditorContent=>this.Content;
     private Border CreateToolbar(){
         var Panel=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(4,3,4,3) };
         var Solution=CreateButton(VsixText.Get("AssetEditor_ShowInSolution"),()=>this.Navigate(()=>Task.FromResult(AssetEditorNavigation.ShowInSolution(ServiceProvider.GlobalProvider,this.Content.FilePath))));
         Solution.ToolTip=VsixText.Get("AssetEditor_ShowInSolutionHelp");
+        ToolTipService.SetShowOnDisabled(Solution,true);
+        this.SolutionButton=Solution;
         Panel.Children.Add(Solution);
         var Assets=CreateButton(VsixText.Get("AssetEditor_ShowInAssets"),()=>this.Navigate(async()=>{
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -60,6 +82,8 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
             return await Controller.RevealAsync(this.Content.FilePath)?VsixText.Get("AssetEditor_RevealedInAssets"):VsixText.Get("AssetEditor_NotInAssets");
         }));
         Assets.ToolTip=VsixText.Get("AssetEditor_ShowInAssetsHelp");
+        ToolTipService.SetShowOnDisabled(Assets,true);
+        this.AssetsButton=Assets;
         Panel.Children.Add(Assets);
         foreach(var Item in this.Content.ToolbarItems){
             Panel.Children.Add(Item);
