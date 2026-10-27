@@ -46,7 +46,7 @@ internal sealed class AssetViewportCamera {
     }
     /// <summary>対象から視点へ向かう単位ベクトル（方位角・仰角から）。</summary>
     internal static Vector3 ViewDirection(PreviewCameraDefaults Defaults){
-        var Yaw=Defaults.YawDegrees*FloatMath.Pi/180f;
+        var Yaw=(Defaults.YawDegrees%360f)*FloatMath.Pi/180f;
         var Elevation=Defaults.ElevationDegrees*FloatMath.Pi/180f;
         return Vector3.Normalize(new Vector3(FloatMath.Cos(Elevation)*FloatMath.Sin(Yaw),FloatMath.Sin(Elevation),FloatMath.Cos(Elevation)*FloatMath.Cos(Yaw)));
     }

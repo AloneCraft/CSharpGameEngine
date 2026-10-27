@@ -11,6 +11,20 @@ internal readonly struct PreviewBounds(Vector3 Min,Vector3 Max,Vector3 Center,fl
     internal Vector3 Center { get;}=Center;
     internal float Radius { get;}=Radius>0f?Radius:1f;
     internal static PreviewBounds From(SimpleMesh Mesh,AssetMeshStatistics Statistics)=>new(Statistics.BoundsMin,Statistics.BoundsMax,Mesh.BoundsCenter,Mesh.BoundsRadius);
+    internal static bool TryFrom(RenderPreviewAssetBounds?Source,out PreviewBounds Bounds){
+        Bounds=default;
+        if(Source?.Min is not{ Length:3 }Min||Source.Max is not{ Length:3 }Max||Source.VertexCount<0||Source.TriangleCount<0){ return false; }
+        for(var Index=0;Index<3;Index++){
+            if(float.IsNaN(Min[Index])||float.IsInfinity(Min[Index])||float.IsNaN(Max[Index])||float.IsInfinity(Max[Index])||Min[Index]>Max[Index]){ return false; }
+        }
+        var Minimum=new Vector3(Min[0],Min[1],Min[2]);
+        var Maximum=new Vector3(Max[0],Max[1],Max[2]);
+        var Center=Minimum*0.5f+Maximum*0.5f;
+        var Radius=(Maximum*0.5f-Minimum*0.5f).Length();
+        if(float.IsNaN(Radius)||float.IsInfinity(Radius)){ return false; }
+        Bounds=new PreviewBounds(Minimum,Maximum,Center,Radius);
+        return true;
+    }
 }
 /// <summary>
 /// テンプレートをプレビューホストのワイヤ DTO（<see cref="RenderPreviewLighting"/>）へ変換する（M0127）。単位は型付きライトと同じ。
@@ -55,7 +69,8 @@ internal static class PreviewLevelWire {
         var Spots=new System.Collections.Generic.List<RenderPreviewSpotLight>();
         foreach(var Light in Template.Lights){
             var Color=(float[])Light.Color.Clone();
-            var Position=new Vector3(Bounds.Center.X+Light.PositionRadii[0]*Radius,Bounds.Center.Y+Light.PositionRadii[1]*Radius,Bounds.Center.Z+Light.PositionRadii[2]*Radius);
+            var Position=Light.Kind==PreviewLightKind.Directional?Vector3.Zero
+                :new Vector3(Bounds.Center.X+Light.PositionRadii[0]*Radius,Bounds.Center.Y+Light.PositionRadii[1]*Radius,Bounds.Center.Z+Light.PositionRadii[2]*Radius);
             var Forward=PreviewLevelWire.Forward(Light.YawDegrees,Light.PitchDegrees);
             switch(Light.Kind){
                 case PreviewLightKind.Directional:
@@ -90,16 +105,11 @@ internal static class PreviewSceneComposer {
     /// <summary>床を対象の底面から離す距離（境界半径の割合）。同一平面での深度の競合を避ける。</summary>
     private const float FloorGapRadii=0.002f;
     /// <param name="Skeletal">スケルタル glTF をホストが読み込む場合（ADR-0090）。静的なメッシュのオブジェクトは入れず、ホストが足すスキン付きのオブジェクトに任せる。<paramref name="Mesh"/> は境界の計算だけに使う。</param>
-    internal static PreviewSceneComposition Compose(SimpleMesh Mesh,PreviewBounds Bounds,PreviewLevelTemplate Template,int Width,int Height,RenderPreviewAssetSource?Skeletal=null){
-        var Scene=RenderPreviewSceneBuilder.FromMesh(Mesh,Width,Height);
-        RenderPreviewObjectTransform[]Objects=[new(){ ObjectId=AssetObjectId,World=RenderPreviewMatrix4x4.Identity,SelectionWeight=0f }];
-        if(Skeletal is not null){
-            Scene.Meshes=[];
-            Scene.Materials=[];
-            Scene.Objects=[];
-            Scene.Asset=Skeletal;
-            Objects=[];
-        }
+    internal static PreviewSceneComposition Compose(SimpleMesh?Mesh,PreviewBounds Bounds,PreviewLevelTemplate Template,int Width,int Height,RenderPreviewAssetSource?Skeletal=null,string?StaticAssetPath=null){
+        var HostAsset=Skeletal is not null||!string.IsNullOrEmpty(StaticAssetPath);
+        var Scene=HostAsset?new RenderPreviewScene { Camera=new RenderPreviewCamera(),Asset=Skeletal,StaticAssetPath=StaticAssetPath??string.Empty }
+            :RenderPreviewSceneBuilder.FromMesh(Mesh??throw new ArgumentNullException(nameof(Mesh)),Width,Height);
+        RenderPreviewObjectTransform[]Objects=HostAsset?[]:[new(){ ObjectId=AssetObjectId,World=RenderPreviewMatrix4x4.Identity,SelectionWeight=0f }];
         var Floor=Template.Floor;
         if(!Floor.Visible){ return new PreviewSceneComposition(Scene,string.Empty,Objects); }
         var Half=Floor.SizeRadii*Bounds.Radius;

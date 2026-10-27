@@ -3,6 +3,23 @@ using CSharpGameEngine.VSExtension;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>Skeletal／Animation エディターの純粋なモデル（再生状態と glTF の判定。ADR-0090）。</summary>
 public sealed class AssetSkeletalModelTests {
+    [Theory]
+    [InlineData(true,false)]
+    [InlineData(true,true)]
+    [InlineData(false,true)]
+    public void RenamingTheDocumentRetargetsOnlyItsOwnMeshAndAnimation(bool OwnMesh,bool OwnAnimation){
+        const string Previous=@"C:\Game\Assets\Old.glb";
+        const string Current=@"C:\Game\Assets\Renamed.glb";
+        const string External=@"C:\Game\Assets\Other.glb";
+        var Source=new CSharpGameEngine.Contracts.RenderPreviewAssetSource {
+            MeshPath=OwnMesh?Previous.ToUpperInvariant():External,AnimationPath=OwnAnimation?Previous:string.Empty,
+        };
+        var Retargeted=SkeletalAssetSourcePolicy.Retarget(Source,Previous,Current)!;
+        Assert.Equal(OwnMesh?Current:External,Retargeted.MeshPath);
+        Assert.Equal(OwnAnimation?Current:string.Empty,Retargeted.AnimationPath);
+        Assert.Equal(OwnMesh?Previous.ToUpperInvariant():External,Source.MeshPath);
+        Assert.Null(SkeletalAssetSourcePolicy.Retarget(null,Previous,Current));
+    }
     private static byte[] Glb(string Json,uint Version=2,uint ChunkType=0x4E4F534A){
         var Body=Encoding.UTF8.GetBytes(Json);
         var Padded=(Body.Length+3)/4*4;
@@ -42,6 +59,7 @@ public sealed class AssetSkeletalModelTests {
         var Cases=new (string Json,int Skins,bool Skeletal,bool AnimationOnly)[] {
             ("{\"animations\":[{\"name\":\"A\"}]}",0,false,true),
             ("{\"meshes\":[{}]}",0,false,false),
+            ("{\"meshes\":[{}],\"animations\":[{\"name\":\"A\"}]}",0,false,false),
             ("{\"skins\":[{},{}]}",2,false,false),
             ("{\"skins\":\"nope\",\"animations\":5}",0,false,false),
         };

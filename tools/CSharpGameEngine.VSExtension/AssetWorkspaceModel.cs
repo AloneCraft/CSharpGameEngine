@@ -15,6 +15,15 @@ internal sealed class AssetWorkspaceQuery {
     internal bool WholeProject{get;set;}
     internal bool Locked{get;set;}
     internal bool Details{get;set;}
+    internal void Reveal(AssetWorkspaceItem Item){
+        this.ProjectPath=Item.Source.ProjectPath;
+        this.Folder=Path.GetDirectoryName(Item.Source.SourcePath)??string.Empty;
+        this.WholeProject=false;
+        this.Search=string.Empty;
+        this.Kind=string.Empty;
+        this.Provider=string.Empty;
+        this.State=string.Empty;
+    }
     internal AssetWorkspaceItem[]Apply(IEnumerable<AssetWorkspaceItem>Items,CancellationToken CancellationToken){
         var Result=new List<AssetWorkspaceItem>();
         foreach(var Item in Items){

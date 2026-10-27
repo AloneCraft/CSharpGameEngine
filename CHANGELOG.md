@@ -1,5 +1,7 @@
 # Changelog
 
+- アセットエディターの浮動ウィンドウをVS本体の所有ウィンドウとして維持するよう修正。Solution Explorerへの移動はAssets登録に依存せず対象を選択し、Assetsへの移動はフィルターを解除して選択位置へスクロールする。プロジェクト外など移動できない場合は理由を表示する。VS実画面での修正後の受入は継続中。
+
 - SDK 0.1.37: main のモデルインポート・破壊機能と、対数ネイティブ深度およびポータブル描画層を統合。FragmentMesh のメッシュ提出型を新しい Rendering 名前空間へ接続した。統合したコミットの全体テストは 3783 件合格、失敗0件、明示実行用のGPU計測2件をスキップ。
 - SDK 0.1.36: RenderServer/RenderFrameStateをポータブルなRendering.Serverへ移動。Nativeの作成口はD3D12RenderServer.Create、再生成はIStageRenderBackendFactoryへ分離。SetCamera/SetViewProjectionはL5 Viewの拡張メソッドで維持し、シーンComponent名は同じ。Server本体はNative/ウィンドウ/Native成果物型を参照しない。パス実行計画の抽出は継続する。
 - SDK 0.1.35: L4 IStageRenderBackend/IStageShaderArtifactへ実提出・フレーム再生・成果物閉包を接続。FrameStateがNativeクラス/光源kindを直接参照する依存を除いた。クリア値/オブジェクト余力/Debugホットリロード能力も共通値を正本にする。ServerのNative作成口とパス計画は引き続き移行中。

@@ -23,7 +23,8 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     private RenderPreviewHostClient?PreviewClient;
     private EventHandler?RenderingHandler;
     private Action<int,int>?ResizeHandler;
-    private bool HostCrashRecoveryUsed;
+    private readonly AssetViewportResizeQueue ResizeQueue=new();
+    private readonly AssetViewportRecovery Recovery=new();
     private AuthoringOperationSnapshot?CurrentOperation;
     private SimpleMesh?Mesh;
     private PreviewBounds Bounds;
@@ -37,6 +38,8 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     private int SurfaceHeight=600;
     private RenderPreviewPresentationMode Mode=RenderPreviewPresentationMode.Lit;
     private RenderPreviewAssetSource?Skeletal;
+    private string?StaticAssetPath;
+    internal bool UsesHostGltf=>this.StaticAssetPath is not null||this.Skeletal is not null;
     private RenderPreviewAnimation?AnimationValue;
     private bool ShowSkeletonValue;
     private int SelectedJointValue=-1;
@@ -117,6 +120,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     }
     /// <summary>別のファイルへ再読み込みする（VS が名前変更・再読み込みしたドキュメントに DocData を再利用する場合）。</summary>
     internal void SetModelPath(string ModelPath){
+        this.Skeletal=SkeletalAssetSourcePolicy.Retarget(this.Skeletal,this.ModelPath,ModelPath);
         this.ModelPath=ModelPath;
         this.CameraInitialized=false;
         if(this.Surface is not null){
@@ -129,7 +133,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     /// 通常のテンプレート切り替えはユーザーのカメラ操作を維持する。
     /// </summary>
     internal void FrameMesh(){
-        if(this.Mesh is not null){
+        if(this.Mesh is not null||this.StaticAssetPath is not null||this.Skeletal is not null){
             this.Camera.Frame(this.Bounds.Center,this.Bounds.Radius,this.Aspect,this.Template.Camera);
             this.CameraInitialized=true;
             this.Dirty=true;
@@ -141,7 +145,11 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     /// </summary>
     internal void SetTemplate(PreviewLevelTemplate Template){
         this.Template=Template;
-        if(this.Mesh is null||this.PreviewClient is null){ return; }
+        if(this.PreviewClient is null){
+            if(this.Surface is not null){ this.LoadIntoSurface(IsRecovery:false); }
+            return;
+        }
+        if(this.Mesh is null&&this.StaticAssetPath is null&&this.Skeletal is null){ return; }
         try {
             var Next=this.Compose();
             this.Lighting=PreviewLevelWire.CreateLighting(Template,this.Bounds,++this.EnvironmentRevision);
@@ -156,37 +164,55 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     }
     private float Aspect=>this.SurfaceWidth/(float)Math.Max(1,this.SurfaceHeight);
     private PreviewSceneComposition Compose(){
-        var Next=PreviewSceneComposer.Compose(this.Mesh!,this.Bounds,this.Template,this.SurfaceWidth,this.SurfaceHeight,this.Skeletal);
+        var Next=PreviewSceneComposer.Compose(this.Mesh,this.Bounds,this.Template,this.SurfaceWidth,this.SurfaceHeight,this.Skeletal,this.StaticAssetPath);
         // ReplaceScene／Open が最初に Present するフレームで、固定の既定カメラが一瞬映らないように、いまのカメラを入れておく。
         Next.Scene.Camera=RenderPreviewSceneBuilder.CreateCamera(this.Camera.View,this.Camera.Projection(this.Aspect),this.Camera.Eye,this.Camera.FovYRadians);
         return Next;
     }
-    private void LoadIntoSurface(bool IsRecovery){
+    private bool LoadIntoSurface(bool IsRecovery){
         var Surface=this.Surface;
-        if(Surface is null||(this.AwaitSkeletalSource&&this.Skeletal is null)){ return; }
-        if(!IsRecovery){ this.HostCrashRecoveryUsed=false; }
+        if(Surface is null||(this.AwaitSkeletalSource&&this.Skeletal is null)){ return false; }
+        if(!IsRecovery){ this.Recovery.Reset(); }
         var RequestId=Guid.NewGuid();
         this.PublishOperation(AuthoringOperationSnapshot.Start(RequestId,AuthoringHostOperation.Import,"Import",VsixText.Get("AssetPreview_Loading")));
         try {
             this.RepoRoot??=CgeProjectContext.Resolve(this.ModelPath)?.WorkspaceRoot;
             if(this.RepoRoot is null){ throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound")); }
-            var Loaded=MeshLoader.Load(this.GeometryPath,this.RepoRoot);
+            var GltfInfo=this.Skeletal is null?GltfSkeletalProbe.Probe(this.GeometryPath):null;
+            this.StaticAssetPath=GltfInfo is{ SkinCount:0,IsAnimationOnly:false }?this.GeometryPath:null;
+            var HostAsset=this.StaticAssetPath is not null||this.Skeletal is not null;
+            var Loaded=HostAsset?null:MeshLoader.Load(this.GeometryPath,this.RepoRoot);
             this.PublishOperation(this.CurrentOperation!.ApplyProgress(new AuthoringHostProgress { RequestId=RequestId,Sequence=1,Fraction=0.6f,Phase="Preview" },VsixText.Get("AssetPreview_PreparingPreview")));
             var HostPath=RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot);
             var ShaderArtifactPath=RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot);
             this.SurfaceWidth=this.SurfaceHost?.Width??this.SurfaceWidth;
             this.SurfaceHeight=this.SurfaceHost?.Height??this.SurfaceHeight;
             this.Mesh=Loaded;
-            var Statistics=AssetMeshStatistics.From(Loaded);
-            this.Bounds=PreviewBounds.From(Loaded,Statistics);
+            var Statistics=Loaded is null?null:AssetMeshStatistics.From(Loaded);
+            this.Bounds=Loaded is null?new PreviewBounds(new System.Numerics.Vector3(-0.5f),new System.Numerics.Vector3(0.5f),System.Numerics.Vector3.Zero,1f):PreviewBounds.From(Loaded,Statistics!);
+            var NeedsInitialFrame=!this.CameraInitialized;
             if(!this.CameraInitialized){
                 this.Camera.Frame(this.Bounds.Center,this.Bounds.Radius,this.Aspect,this.Template.Camera);
-                this.CameraInitialized=true;
+                if(!HostAsset){ this.CameraInitialized=true; }
             }
             this.Composition=this.Compose();
             this.Lighting=PreviewLevelWire.CreateLighting(this.Template,this.Bounds,++this.EnvironmentRevision);
             this.PreviewClient=RenderPreviewHostClient.Start(HostPath);
             var Opened=this.PreviewClient.Open(Surface.Handle.ToInt64(),this.SurfaceWidth,this.SurfaceHeight,ShaderArtifactPath,this.Composition.Scene);
+            if(HostAsset){
+                var HostBounds=this.Skeletal is not null?Opened.AssetSummary?.RestBounds:Opened.StaticBounds;
+                if(!PreviewBounds.TryFrom(HostBounds,out var ActualBounds)){ throw new InvalidOperationException("Asset bounds are missing or invalid."); }
+                this.Bounds=ActualBounds;
+                Statistics=AssetMeshStatistics.From(HostBounds!,ActualBounds);
+                if(NeedsInitialFrame){ this.Camera.Frame(this.Bounds.Center,this.Bounds.Radius,this.Aspect,this.Template.Camera);this.CameraInitialized=true; }
+                var ActualComposition=this.Compose();
+                if(this.Composition.FloorSignature!=ActualComposition.FloorSignature){ this.PreviewClient.ReplaceScene(ActualComposition.Scene); }
+                this.Composition=ActualComposition;
+                this.Lighting=PreviewLevelWire.CreateLighting(this.Template,this.Bounds,++this.EnvironmentRevision);
+            }
+            // Openだけではテンプレートの環境は未適用。最初のフレームが成功してからReady／縮退成功を通知する。
+            this.PreviewClient.UpdateFrame(this.CreateFrame());
+            this.PreviewClient.Render(captureForVerification:false);
             this.PublishOperation(this.CurrentOperation!.Complete(new AuthoringHostResult {
                 RequestId=RequestId,State=AuthoringHostTerminalState.Succeeded,ExitCode=0,Output=VsixText.Get("AssetPreview_Ready"),
                 Progress=new AuthoringHostProgress { RequestId=RequestId,Sequence=2,Fraction=1f,Phase="Completed" },
@@ -197,7 +223,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
                     this.SurfaceHeight=Math.Max(1,H);
                 }
                 this.Dirty=true;
-                this.PreviewClient?.Resize(W==0&&H==0?0:Math.Max(1,W),W==0&&H==0?0:Math.Max(1,H));
+                this.ResizeQueue.Request(W,H);
             };
             Surface.Resized+=this.ResizeHandler;
             Surface.PointerInput+=this.OnPointerInput;
@@ -206,14 +232,17 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
             this.RenderingHandler=(_,_)=>this.OnRendering();
             CompositionTarget.Rendering+=this.RenderingHandler;
             this.Dirty=true;
-            this.MeshLoaded?.Invoke(Statistics);
+            this.MeshLoaded?.Invoke(Statistics!);
             if(Opened.AssetSummary is{ }Summary){ this.AssetSummaryLoaded?.Invoke(Summary); }
+            return true;
         } catch(Exception Error){
             ActivityLog.LogError(nameof(AssetViewportHost),Error.ToString());
             var Message=VsixText.Format("AssetPreview_LoadFailed",Error.Message);
             var Operation=this.CurrentOperation??AuthoringOperationSnapshot.Start(RequestId,AuthoringHostOperation.Import,"Import",Message);
             this.PublishOperation(Error is AuthoringHostOperationException HostFailure?Operation.Fail(Message,HostFailure.Result.Diagnostics):Operation.Fail("ASSET_IMPORT_FAILED",Message));
             this.TearDownRenderer();
+            if(!IsRecovery&&Error is RenderPreviewHostException PreviewError){ return this.HandleHostFailure(PreviewError); }
+            return false;
         }
     }
     private void OnRendering(){
@@ -221,6 +250,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
         if(Client is null){ return; }
         if(!this.Dirty&&++this.FramesSinceRender<KeepAliveFrames){ return; }
         try {
+            this.ResizeQueue.Apply((W,H)=>{ Client.Resize(W,H); });
             Client.UpdateFrame(this.CreateFrame());
             Client.Render(captureForVerification:false);
             this.Dirty=false;
@@ -261,43 +291,41 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
         this.Camera.Dolly(Notches);
         this.Dirty=true;
     }
-    private void HandleHostFailure(RenderPreviewHostException Error){
+    private bool HandleHostFailure(RenderPreviewHostException Error){
         ActivityLog.LogError(nameof(AssetViewportHost),Error.ToString());
         this.TearDownRenderer();
-        if(Error.RequiresFreshSurfaceGeneration&&!this.HostCrashRecoveryUsed&&this.SurfaceHost is{ }Host){
-            this.HostCrashRecoveryUsed=true;
+        if(this.SurfaceHost is{ }Host){
+            var Rejected=this.Template;
+            var Safe=PreviewLevelBuiltIns.Default();
             try {
-                _=Host.RecreateSurface(InitiallyVisible:true);
-                this.LoadIntoSurface(IsRecovery:true);
-                return;
+                if(this.Recovery.TryRecover(Error.RequiresFreshSurfaceGeneration,
+                    string.Equals(this.Template.Id,PreviewLevelBuiltIns.DefaultId,StringComparison.OrdinalIgnoreCase),
+                    ReloadFresh:()=>{
+                        _=Host.RecreateSurface(InitiallyVisible:true);
+                        return this.LoadIntoSurface(IsRecovery:true);
+                    },
+                    LoadDefault:()=>{
+                        this.Template=Safe;
+                        _=Host.RecreateSurface(InitiallyVisible:true);
+                        return this.LoadIntoSurface(IsRecovery:true);
+                    },
+                    DefaultApplied:()=>this.TemplateRejected?.Invoke(Rejected,Safe,Error.Message))){ return true; }
             } catch(Exception RecoveryError){
                 ActivityLog.LogError(nameof(AssetViewportHost),RecoveryError.ToString());
             }
         }
-        if(!Error.RequiresFreshSurfaceGeneration&&this.SurfaceHost is{ }FallbackHost
-            &&!string.Equals(this.Template.Id,PreviewLevelBuiltIns.DefaultId,StringComparison.OrdinalIgnoreCase)){
-            var Rejected=this.Template;
-            var Safe=PreviewLevelBuiltIns.Default();
-            this.Template=Safe;
-            try {
-                _=FallbackHost.RecreateSurface(InitiallyVisible:true);
-                this.LoadIntoSurface(IsRecovery:true);
-                this.TemplateRejected?.Invoke(Rejected,Safe,Error.Message);
-                return;
-            } catch(Exception FallbackError){
-                ActivityLog.LogError(nameof(AssetViewportHost),FallbackError.ToString());
-            }
-        }
-        if(this.CurrentOperation is{ }Operation){
+        if(this.CurrentOperation is{ State:not AuthoringOperationUiState.Failed }Operation){
             this.PublishOperation(Operation.Fail("ASSET_PREVIEW_HOST_FAILED",Error.Message));
         }
         this.Surface?.SetVisible(false);
+        return false;
     }
     private void PublishOperation(AuthoringOperationSnapshot Operation){
         this.CurrentOperation=Operation;
         this.OperationChanged?.Invoke(Operation);
     }
     private void TearDownRenderer(){
+        this.ResizeQueue.Clear();
         if(this.RenderingHandler is not null){
             CompositionTarget.Rendering-=this.RenderingHandler;
             this.RenderingHandler=null;

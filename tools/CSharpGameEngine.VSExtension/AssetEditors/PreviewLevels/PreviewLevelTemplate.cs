@@ -128,6 +128,7 @@ internal sealed class PreviewLevelTemplate {
         if(this.SchemaVersion<1||this.SchemaVersion>CurrentSchemaVersion){ return $"Unsupported preview level schema version {this.SchemaVersion}; expected {CurrentSchemaVersion}."; }
         if(string.IsNullOrWhiteSpace(this.DisplayName)){ return "DisplayName is required."; }
         if(this.Background is null||this.Ambient is null||this.Lights is null||this.Environment is null||this.Floor is null||this.Camera is null){ return "A preview level section is missing."; }
+        if(!Enum.IsDefined(typeof(PreviewBackgroundMode),this.Background.Mode)){ return "Background mode is invalid."; }
         if(!Color(this.Background.Color,0f,1f)){ return "Background color needs three values between 0 and 1."; }
         if(!Color(this.Ambient.Color,0f,16f)||!Finite(this.Ambient.Intensity)||this.Ambient.Intensity<0f||this.Ambient.Intensity>16f){ return "Ambient needs a color and an intensity between 0 and 16."; }
         if(this.Lights.Count>MaximumLights){ return $"At most {MaximumLights} lights are supported."; }

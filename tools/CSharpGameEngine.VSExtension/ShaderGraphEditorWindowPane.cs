@@ -156,10 +156,15 @@ internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,I
     }
     public int OnMove(int X,int Y,int Width,int Height)=>VSConstants.S_OK;
     public int OnSize(int X,int Y,int Width,int Height)=>VSConstants.S_OK;
-    public int OnDockableChange(int Docked,int X,int Y,int Width,int Height)=>VSConstants.S_OK;
+    public int OnDockableChange(int Docked,int X,int Y,int Width,int Height){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.Placement.OnHostingChanged();
+        return VSConstants.S_OK;
+    }
     public int OnClose(ref uint Options)=>VSConstants.S_OK;
     protected override void Dispose(bool Disposing) {
         if(Disposing) {
+            this.Placement.Dispose();
             this.Watcher.EnableRaisingEvents=false;
             this.Watcher.Dispose();
             this.ErrorList.Dispose();

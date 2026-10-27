@@ -75,6 +75,7 @@ internal sealed class TextureEditorContent:AssetEditorContent {
         this.Loading=new CancellationTokenSource();
         var Token=this.Loading.Token;
         var Path=this.FilePath;
+        this.View.Visibility=Visibility.Collapsed;
         this.Message.Text=VsixText.Get("AssetEditor_TextureLoading");
         this.Message.Visibility=Visibility.Visible;
         this.SetStatus(VsixText.Get("AssetEditor_TextureLoading"));
@@ -85,6 +86,7 @@ internal sealed class TextureEditorContent:AssetEditorContent {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 if(this.Disposed||Token.IsCancellationRequested){ return; }
                 this.View.SetImage(Preview,this.OriginalWidth);
+                this.View.Visibility=Visibility.Visible;
                 this.Message.Visibility=Visibility.Collapsed;
                 this.ShowFacts(Path,Preview);
                 this.SetStatus(VsixText.Get("AssetEditor_TextureReady"));

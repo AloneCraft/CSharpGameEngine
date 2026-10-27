@@ -10,6 +10,7 @@ namespace CSharpGameEngine.VSExtension;
 internal abstract class AssetEditorContent(string FilePath):IDisposable {
     private string CurrentPath=FilePath;
     internal string FilePath=>this.CurrentPath;
+    internal string CurrentStatus { get;private set; }=string.Empty;
     /// <summary>中央の表示（ビューポート、画像、波形、フォーム等）。</summary>
     internal abstract UIElement Center { get;}
     /// <summary>右側の Details 欄。</summary>
@@ -22,7 +23,10 @@ internal abstract class AssetEditorContent(string FilePath):IDisposable {
     internal event Action?FocusRequested;
     /// <summary>ステータスバーの進行バー（0..1）。</summary>
     internal event Action<float>?ProgressChanged;
-    protected void SetStatus(string Text)=>this.StatusChanged?.Invoke(Text);
+    protected void SetStatus(string Text){
+        this.CurrentStatus=Text;
+        this.StatusChanged?.Invoke(Text);
+    }
     protected void SetProgress(float Fraction)=>this.ProgressChanged?.Invoke(Fraction);
     protected void RequestFocus()=>this.FocusRequested?.Invoke();
     /// <summary>シェルの <c>PreviewKeyDown</c> から呼ぶ。処理したら true。</summary>

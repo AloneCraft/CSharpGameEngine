@@ -74,6 +74,48 @@ internal static class AssetFileTransaction {
         Request.ExpectedSourceHash=Snapshot.SourceHash;Request.ExpectedMetadataHash=Snapshot.MetadataHash;Request.FileMutationCommand=2;
         Execute(Package,new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,Mutation=Request});
     }
+    /// <summary>依存ファイルを先に作成し、ルートを最後に公開する。一式を1つのネイティブUndo取引にまとめる。</summary>
+    internal static void CreateBundle(AsyncPackage Package,string Destination,IReadOnlyDictionary<string,string>Files){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var Context=CgeProjectContext.Resolve(Path.GetDirectoryName(Destination))??throw new InvalidOperationException("Game project unavailable.");
+        var Primary=Path.GetFullPath(Destination);
+        if(Files.Count==0||!Files.Keys.Any(PathValue=>string.Equals(Path.GetFullPath(PathValue),Primary,StringComparison.OrdinalIgnoreCase))){ throw new ArgumentException("The graph bundle requires its root file."); }
+        var Ordered=Files.OrderBy(File=>string.Equals(Path.GetFullPath(File.Key),Primary,StringComparison.OrdinalIgnoreCase)?1:0).ThenBy(File=>File.Key,StringComparer.OrdinalIgnoreCase).ToArray();
+        foreach(var File in Ordered){
+            var FullPath=Path.GetFullPath(File.Key);
+            if(!AssetWorkspaceQuery.IsWithin(FullPath,Context.ProjectDirectory)){ throw new InvalidOperationException("Bundle destination is outside the game project."); }
+            if(System.IO.File.Exists(FullPath)||Directory.Exists(FullPath)||System.IO.File.Exists(FullPath+".meta")){ throw new IOException("Bundle destination already exists: "+FullPath); }
+        }
+        var Linked=Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(SVsLinkedUndoTransactionManager)) as IVsLinkedUndoTransactionManager;
+        var Description=VsixText.Get("Assets_Organize")+": Create Graph";
+        if(Linked is not null){ ErrorHandler.ThrowOnFailure(Linked.OpenLinkedUndo(0,Description)); }
+        try {
+            var History=AssetDocumentWorkspace.Histories.RegisterHistory(HistoryContext);
+            using(var Transaction=History.CreateTransaction(Description)){
+                var Primitives=new List<FilePrimitive>();
+                try {
+                    foreach(var File in Ordered){
+                        var Request=new AssetFileMutationRequest {
+                            FileMutationCommand=2,RequestId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Root=Context.ProjectDirectory,
+                            MetadataRoot=Context.WorkspaceRoot,Destination=Path.GetFullPath(File.Key),Operation=AssetFileOperation.Create,Content=File.Value,
+                        };
+                        var Primitive=new FilePrimitive(Request,Context.WorkspaceRoot,Reopen:false);
+                        Primitive.Do();
+                        try { Transaction.AddUndo(Primitive); }
+                        catch { Primitive.Undo();throw; }
+                        Primitives.Add(Primitive);
+                    }
+                    foreach(var Primitive in Primitives){ Primitive.Commit(); }
+                } catch {
+                    Transaction.Cancel();
+                    throw;
+                }
+                Transaction.Complete();
+            }
+            LastHistory=History;
+            if(Linked is not null){ ErrorHandler.ThrowOnFailure(Linked.CloseLinkedUndo()); }
+        } catch { Linked?.AbortLinkedUndo();throw; }
+    }
     private sealed class FilePrimitive(AssetFileMutationRequest Request,string WorkspaceRoot,bool Reopen):ITextUndoPrimitive {
         private bool Applied;
         private bool HasRun;

@@ -27,7 +27,7 @@ public sealed class RenderPreviewLightingProtocolTests {
     };
     [Fact]
     public void Protocol_IsVersionElevenAndAFrameWithoutLightingStaysValid(){
-        Assert.Equal(11,RenderPreviewHostProtocol.CurrentVersion);
+        Assert.Equal(13,RenderPreviewHostProtocol.CurrentVersion);
         Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(null)));
         Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(new RenderPreviewLighting())));
     }

@@ -79,14 +79,20 @@ internal static class AssetDocumentWorkspace {
     }
     internal static void Save(string PathValue){
         ThreadHelper.ThrowIfNotOnUIThread();
-        var Rdt=(IVsRunningDocumentTable)Package.GetGlobalService(typeof(SVsRunningDocumentTable));
+        var Rdt=Package.GetGlobalService(typeof(SVsRunningDocumentTable)) as IVsRunningDocumentTable
+            ??throw new InvalidOperationException(VsixText.Format("AssetEditor_SaveUnavailable",PathValue));
+        Save(PathValue,Rdt);
+    }
+    internal static void Save(string PathValue,IVsRunningDocumentTable Rdt){
+        ThreadHelper.ThrowIfNotOnUIThread();
         var Pointer=IntPtr.Zero;
         try {
             ErrorHandler.ThrowOnFailure(Rdt.FindAndLockDocument((uint)_VSRDTFLAGS.RDT_NoLock,PathValue,out _,out _,out Pointer,out _));
-            if(Pointer!=IntPtr.Zero&&Marshal.GetObjectForIUnknown(Pointer) is IVsPersistDocData Persist){
-                ErrorHandler.ThrowOnFailure(Persist.SaveDocData(VSSAVEFLAGS.VSSAVE_Save,out _,out var Cancelled));
-                if(Cancelled!=0){ throw new OperationCanceledException(); }
+            if(Pointer==IntPtr.Zero||Marshal.GetObjectForIUnknown(Pointer) is not IVsPersistDocData Persist){
+                throw new InvalidOperationException(VsixText.Format("AssetEditor_SaveUnavailable",PathValue));
             }
+            ErrorHandler.ThrowOnFailure(Persist.SaveDocData(VSSAVEFLAGS.VSSAVE_Save,out _,out var Cancelled));
+            if(Cancelled!=0){ throw new OperationCanceledException(); }
         }finally { if(Pointer!=IntPtr.Zero){ Marshal.Release(Pointer); } }
     }
 }

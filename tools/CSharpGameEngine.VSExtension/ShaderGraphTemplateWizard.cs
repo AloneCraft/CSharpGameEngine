@@ -25,18 +25,31 @@ public sealed class ShaderGraphTemplateWizard:IWizard {
     public void RunFinished() { }
     public bool ShouldAddProjectItem(string FilePath)=>true;
     internal static ShaderGraphDocument Remap(ShaderGraphDocument Source)=>Remap(Source,new Dictionary<StableId,StableId>());
-    internal static ShaderGraphDocument RemapBundle(ShaderGraphDocument Source,string SourceDirectory,string Destination,Action<string>?DependencyCreated=null) {
+    internal static IReadOnlyDictionary<string,string>PlanStageBundle(string TemplateDirectory,string Destination){
+        var Source=Path.Combine(TemplateDirectory,"Stage.cgeshadergraph");
+        var Graph=ShaderGraphCanonicalization.FromJson(File.ReadAllText(Source))??throw new InvalidDataException("Invalid graph template.");
+        var Files=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        var Remapped=RemapBundle(Graph,TemplateDirectory,Destination,WriteDependency:(PathValue,Text)=>Files.Add(PathValue,Text));
+        Files.Add(Path.GetFullPath(Destination),ShaderGraphCanonicalization.ToCanonicalJson(Remapped));
+        return Files;
+    }
+    internal static ShaderGraphDocument RemapBundle(ShaderGraphDocument Source,string SourceDirectory,string Destination,Action<string>?DependencyCreated=null,Action<string,string>?WriteDependency=null) {
         var IdMap=new Dictionary<StableId,StableId>();
         var Result=Remap(Source,IdMap);
         var DestinationDirectory=Path.GetDirectoryName(Path.GetFullPath(Destination))!;
         var DestinationStem=Path.GetFileNameWithoutExtension(Destination);
         var CopiedPaths=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        var CopiedIdentities=new Dictionary<string,StableId>(StringComparer.OrdinalIgnoreCase);
         var OutputNames=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var Stack=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string CopyDependency(string DependencySourcePath,StableId ExpectedId) {
             var FullSourcePath=Path.GetFullPath(DependencySourcePath);
-            if(CopiedPaths.TryGetValue(FullSourcePath,out var ExistingName)) { return ExistingName; }
-            if(!Stack.Add(FullSourcePath)) { throw new InvalidDataException("Shader Graph template dependency recursion: "+FullSourcePath); }
+            if(Stack.Contains(FullSourcePath)) { throw new InvalidDataException("Shader Graph template dependency recursion: "+FullSourcePath); }
+            if(CopiedPaths.TryGetValue(FullSourcePath,out var ExistingName)) {
+                if(CopiedIdentities[FullSourcePath]!=ExpectedId){ throw new InvalidDataException("Shader Graph template dependency identity mismatch: "+FullSourcePath); }
+                return ExistingName;
+            }
+            Stack.Add(FullSourcePath);
             try {
                 if(!File.Exists(FullSourcePath)) { throw new FileNotFoundException("Shader Graph template dependency is missing.",FullSourcePath); }
                 var Dependency=ShaderGraphCanonicalization.FromJson(File.ReadAllText(FullSourcePath))??throw new InvalidDataException("Shader Graph template dependency is invalid: "+FullSourcePath);
@@ -45,12 +58,15 @@ public sealed class ShaderGraphTemplateWizard:IWizard {
                 var OutputName=DestinationStem+"."+Path.GetFileName(FullSourcePath);
                 if(!OutputNames.Add(OutputName)) { OutputName=DestinationStem+"."+Dependency.Id.ToString().Substring(0,8)+"."+Path.GetFileName(FullSourcePath);OutputNames.Add(OutputName); }
                 CopiedPaths.Add(FullSourcePath,OutputName);
+                CopiedIdentities.Add(FullSourcePath,Dependency.Id);
                 for(var Index=0;Index<Dependency.Dependencies.Count;Index++) {
                     var SourceReference=Dependency.Dependencies[Index];
                     RemappedDependency.Dependencies[Index].Path=CopyDependency(Path.Combine(Path.GetDirectoryName(FullSourcePath)!,SourceReference.Path),SourceReference.Id);
                 }
                 var OutputPath=Path.Combine(DestinationDirectory,OutputName);
-                File.WriteAllText(OutputPath,ShaderGraphCanonicalization.ToCanonicalJson(RemappedDependency));
+                var Text=ShaderGraphCanonicalization.ToCanonicalJson(RemappedDependency);
+                if(WriteDependency is null){ File.WriteAllText(OutputPath,Text); }
+                else { WriteDependency(OutputPath,Text); }
                 DependencyCreated?.Invoke(OutputPath);
                 return OutputName;
             } finally { Stack.Remove(FullSourcePath); }

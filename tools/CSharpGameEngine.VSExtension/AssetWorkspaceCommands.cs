@@ -72,10 +72,11 @@ internal static class AssetWorkspaceCommands {
             if(!Microsoft.CodeAnalysis.CSharp.SyntaxFacts.IsValidIdentifier(Path.GetFileNameWithoutExtension(PathValue))){ throw new InvalidOperationException("Invalid scene class name."); }
             SourceTextValue="{\n  \"schemaVersion\": 3,\n  \"className\": \""+Path.GetFileNameWithoutExtension(PathValue)+"\",\n  \"root\": {\"id\": \""+Guid.NewGuid().ToString("D")+"\", \"name\": \"Root\", \"components\": [], \"children\": []}\n}\n";
         } else if(Kind=="Graph"){
-            var Template=Path.Combine(Path.GetDirectoryName(typeof(ShaderGraphTemplateWizard).Assembly.Location)!,"ShaderGraphTemplates","Model.cgeshadergraph");
-            var Graph=ShaderGraph.ShaderGraphCanonicalization.FromJson(File.ReadAllText(Template))??throw new InvalidDataException("Invalid graph template.");
-            if(Graph.Dependencies.Count>0){ throw new InvalidOperationException("Use Add New Item to create this graph dependency bundle."); }
-            SourceTextValue=ShaderGraph.ShaderGraphCanonicalization.ToCanonicalJson(ShaderGraphTemplateWizard.Remap(Graph));
+            var Templates=Path.Combine(Path.GetDirectoryName(typeof(ShaderGraphTemplateWizard).Assembly.Location)!,"ShaderGraphTemplates");
+            var Files=ShaderGraphTemplateWizard.PlanStageBundle(Templates,PathValue);
+            AssetFileTransaction.CreateBundle(Controller.Owner,PathValue,Files);
+            await Controller.RefreshAsync();
+            return;
         } else if(Kind=="Data"){
             var Compilation=await AssetDocumentWorkspace.CompilationAsync(Controller.Query.ProjectPath,System.Threading.CancellationToken.None);
             var Types=await Task.Run(()=>AssetDataEditing.Types(Compilation));

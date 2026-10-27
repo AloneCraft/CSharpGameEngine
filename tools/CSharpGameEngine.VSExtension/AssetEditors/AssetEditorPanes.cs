@@ -15,6 +15,7 @@ internal abstract class AssetEditorPaneBase:WindowPane,IVsWindowFrameNotify3 {
     protected AssetEditorPaneBase(System.IServiceProvider Services):base(Services)=>this.Placement=new AssetEditorFramePlacement(Services,()=>this.DocumentPath,()=>this.Shell);
     protected string DocumentPath { get;set;}=string.Empty;
     protected AssetEditorShell?EditorShell=>this.Shell;
+    internal AssetEditorContent?EditorContent=>this.Shell?.EditorContent;
     /// <summary>復元された文書などで、保存済みの配置を尊重してフロート配置をしない。</summary>
     internal void RespectSavedPlacement()=>this.Placement.RespectSavedPlacement();
     /// <summary>派生クラスが種類固有の中身を作ってから呼ぶ。</summary>
@@ -43,8 +44,16 @@ internal abstract class AssetEditorPaneBase:WindowPane,IVsWindowFrameNotify3 {
     }
     public int OnMove(int X,int Y,int Width,int Height)=>VSConstants.S_OK;
     public int OnSize(int X,int Y,int Width,int Height)=>VSConstants.S_OK;
-    public int OnDockableChange(int Docked,int X,int Y,int Width,int Height)=>VSConstants.S_OK;
+    public int OnDockableChange(int Docked,int X,int Y,int Width,int Height){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.Placement.OnHostingChanged();
+        return VSConstants.S_OK;
+    }
     public int OnClose(ref uint Options)=>VSConstants.S_OK;
+    protected override void Dispose(bool Disposing){
+        if(Disposing){ this.Placement.Dispose(); }
+        base.Dispose(Disposing);
+    }
     protected void ReloadContent(string Path){
         this.DocumentPath=Path;
         this.Shell?.EditorContent.Reload(Path);
@@ -59,10 +68,10 @@ internal sealed class AssetEditorDocumentPane:AssetEditorPaneBase,IVsPersistDocD
     internal AssetEditorDocumentPane(System.IServiceProvider Services,string FilePath,AssetEditorDescriptor Descriptor):base(Services){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.DocumentPath=FilePath;
-        this.Attach(new AssetEditorShell(FilePath,AssetEditorContentFactory.Create(Descriptor,FilePath)));
+        this.Attach(new AssetEditorShell(AssetEditorContentFactory.Create(Descriptor,FilePath)));
     }
-    private int LoadFromPath(string Path){
-        if(string.Equals(Path,this.DocumentPath,StringComparison.OrdinalIgnoreCase)){ return VSConstants.S_OK; }
+    private int LoadFromPath(string Path,bool ForceReload=false){
+        if(!ForceReload&&string.Equals(Path,this.DocumentPath,StringComparison.OrdinalIgnoreCase)){ return VSConstants.S_OK; }
         this.ReloadContent(Path);
         return VSConstants.S_OK;
     }
@@ -113,17 +122,55 @@ internal sealed class AssetEditorDocumentPane:AssetEditorPaneBase,IVsPersistDocD
         Reloadable=1;
         return VSConstants.S_OK;
     }
-    int IVsPersistDocData.ReloadDocData(uint Flags)=>this.LoadFromPath(this.DocumentPath);
+    int IVsPersistDocData.ReloadDocData(uint Flags)=>this.LoadFromPath(this.DocumentPath,ForceReload:true);
 }
 /// <summary>
 /// 共有 JSON テキストバッファーを DocData とするエディター（.cgeasset のデータアセットエディター）。
 /// 保存・dirty・Undo は VS のテキストバッファーが持ち、この Pane は DocView だけを担当する（Scene Editor と同じ形）。
 /// 「JSON で開く」は同じバッファーを VS 標準のテキストエディターで開く。
 /// </summary>
-internal sealed class AssetEditorTextPane:AssetEditorPaneBase {
+internal sealed class AssetEditorTextPane:AssetEditorPaneBase,IVsRunningDocTableEvents2 {
+    private IVsRunningDocumentTable?RunningDocuments;
+    private uint RunningDocumentsCookie;
     internal AssetEditorTextPane(System.IServiceProvider Services,string FilePath,AssetEditorDescriptor Descriptor):base(Services){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.DocumentPath=FilePath;
-        this.Attach(new AssetEditorShell(FilePath,AssetEditorContentFactory.Create(Descriptor,FilePath)));
+        this.Attach(new AssetEditorShell(AssetEditorContentFactory.Create(Descriptor,FilePath)));
+    }
+    protected override void OnCreate(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        base.OnCreate();
+        if(this.GetService(typeof(SVsRunningDocumentTable)) is IVsRunningDocumentTable Table){
+            this.TrackRunningDocuments(Table);
+        }
+    }
+    internal void TrackRunningDocuments(IVsRunningDocumentTable Table){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.RunningDocuments is not null){ return; }
+        ErrorHandler.ThrowOnFailure(Table.AdviseRunningDocTableEvents(this,out this.RunningDocumentsCookie));
+        this.RunningDocuments=Table;
+    }
+    public int OnAfterAttributeChangeEx(uint Cookie,uint Attributes,IVsHierarchy OldHierarchy,uint OldItemId,string OldMoniker,IVsHierarchy NewHierarchy,uint NewItemId,string NewMoniker){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if((Attributes&(uint)__VSRDTATTRIB.RDTA_MkDocument)!=0&&!string.IsNullOrEmpty(NewMoniker)
+            &&string.Equals(OldMoniker,this.DocumentPath,StringComparison.OrdinalIgnoreCase)){
+            this.ReloadContent(NewMoniker);
+        }
+        return VSConstants.S_OK;
+    }
+    public int OnAfterFirstDocumentLock(uint Cookie,uint LockType,uint ReadLocks,uint EditLocks)=>VSConstants.S_OK;
+    public int OnBeforeLastDocumentUnlock(uint Cookie,uint LockType,uint ReadLocks,uint EditLocks)=>VSConstants.S_OK;
+    public int OnAfterSave(uint Cookie)=>VSConstants.S_OK;
+    public int OnAfterAttributeChange(uint Cookie,uint Attributes)=>VSConstants.S_OK;
+    public int OnBeforeDocumentWindowShow(uint Cookie,int FirstShow,IVsWindowFrame Frame)=>VSConstants.S_OK;
+    public int OnAfterDocumentWindowHide(uint Cookie,IVsWindowFrame Frame)=>VSConstants.S_OK;
+    protected override void Dispose(bool Disposing){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Disposing&&this.RunningDocuments is{ }Table){
+            Table.UnadviseRunningDocTableEvents(this.RunningDocumentsCookie);
+            this.RunningDocuments=null;
+            this.RunningDocumentsCookie=0;
+        }
+        base.Dispose(Disposing);
     }
 }

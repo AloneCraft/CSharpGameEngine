@@ -15,6 +15,7 @@ public interface IRenderPreviewSession:IDisposable {
     Guid EditorSpatialWorldId=>Guid.Empty;
     /// <summary>ホストが読み込んだスケルタルアセットの要約（ADR-0090）。ない場合は null。</summary>
     RenderPreviewAssetSummary?AssetSummary=>null;
+    RenderPreviewAssetBounds?StaticBounds=>null;
     void UpdateFrame(RenderPreviewFrame Frame);
     void Resize(int Width,int Height);
     void Render(bool CaptureForVerification);
@@ -141,6 +142,7 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
             BuildRequired=Session.BuildRequired,
             EditorSpatialWorldId=Session.EditorSpatialWorldId,
             AssetSummary=Session.AssetSummary,
+            StaticBounds=Session.StaticBounds,
         };
 
     private static RenderPreviewHostResponse Success(

@@ -27,7 +27,7 @@ public sealed class RenderPreviewSkeletalProtocolTests {
     [Fact]
     public void ThePreviousHostProtocolIsRejectedBeforeLoadingAnAsset(){
         var Request=Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" });
-        Request.ProtocolVersion=10;
+        Request.ProtocolVersion=12;
         Assert.Contains("Unsupported",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)));
     }
     [Fact]
@@ -35,6 +35,20 @@ public sealed class RenderPreviewSkeletalProtocolTests {
         Assert.Null(RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" })));
         Assert.Null(RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb",AnimationPath=@"C:\Game\Assets\Anims\Run.GLTF" })));
         Assert.Null(RenderPreviewHostProtocol.Validate(Open(null)));
+    }
+    [Fact]
+    public void StaticAssetPathsAreValidatedAndCannotBeCombinedWithASkeletalAsset(){
+        var Request=Open(null);
+        var Scene=Request.Scene!;
+        Scene.StaticAssetPath=@"C:\Game\Assets\Box.glb";
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
+        Scene.Asset=new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" };
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+        Scene.Asset=null;
+        Scene.StaticAssetPath=@"Assets\Box.glb";
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+        Scene.StaticAssetPath=@"C:\Game\Assets\Box.fbx";
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
     }
     [Theory]
     [InlineData("")]
@@ -70,4 +84,9 @@ public sealed class RenderPreviewSkeletalProtocolTests {
         yield return [(Action<RenderPreviewFrame>)(static F=>F.SelectedJoint=int.MaxValue),"joint"];
     }
     [Theory]
-    
+    [MemberData(nameof(InvalidFrames))]
+    public void AnInvalidAnimationFrameIsRejectedWithItsReason(Action<RenderPreviewFrame>Edit,string Fragment){
+        var Error=RenderPreviewHostProtocol.Validate(FrameRequest(Edit));
+        Assert.Contains(Fragment,Assert.IsType<string>(Error),StringComparison.OrdinalIgnoreCase);
+    }
+}

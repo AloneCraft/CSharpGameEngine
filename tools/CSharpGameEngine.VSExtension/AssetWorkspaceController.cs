@@ -144,11 +144,18 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
         await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
         if(Pane is AssetsToolWindowPane Assets){ Assets.Control.Attach(this); }
     }
-    private void Reveal(string SourcePath){
+    private void Reveal(string SourcePath)=>this.Run(async()=>{ await this.RevealAsync(SourcePath); });
+    internal async Task<bool>RevealAsync(string SourcePath){
+        await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
         var Item=this.Items.FirstOrDefault(Candidate=>string.Equals(Candidate.Source.SourcePath,SourcePath,StringComparison.OrdinalIgnoreCase));
-        if(Item is null){ return; }
-        this.Query.ProjectPath=Item.Source.ProjectPath;this.Query.Folder=Path.GetDirectoryName(SourcePath)!;this.Query.WholeProject=false;
-        this.Run(async()=>{ await this.ShowAsync();this.Changed?.Invoke();AssetWorkspaceSelection.Select([Item]); });
+        if(Item is null){ this.Report(VsixText.Get("AssetEditor_NotInAssets"));return false; }
+        await this.ShowAsync();
+        await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
+        if(this.Disposed){ return false; }
+        this.Query.Reveal(Item);
+        this.Changed?.Invoke();
+        AssetWorkspaceSelection.Select([Item]);
+        return true;
     }
     internal void Open(AssetWorkspaceItem Item){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -157,18 +164,7 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
     }
     internal void ShowInSolution(AssetWorkspaceItem Item){
         ThreadHelper.ThrowIfNotOnUIThread();
-        var Window=this.Dte.Windows.Item(EnvDTE.Constants.vsWindowKindSolutionExplorer);
-        if(Window.Object is UIHierarchy Hierarchy){
-            foreach(UIHierarchyItem Root in Hierarchy.UIHierarchyItems){ if(SelectItem(Root,Item.Source.SourcePath)){ Window.Activate();return; } }
-        }
-    }
-    private static bool SelectItem(UIHierarchyItem Item,string PathValue){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(Item.Object is ProjectItem ProjectItem&&ProjectItem.FileCount>0&&string.Equals(ProjectItem.FileNames[1],PathValue,StringComparison.OrdinalIgnoreCase)){
-            Item.Select(vsUISelectionType.vsUISelectionTypeSelect);return true;
-        }
-        foreach(UIHierarchyItem Child in Item.UIHierarchyItems){ if(SelectItem(Child,PathValue)){ return true; } }
-        return false;
+        this.Report(AssetEditorNavigation.ShowInSolution(this.Package,Item.Source.SourcePath));
     }
     public int OnSelectionChanged(IVsHierarchy OldHierarchy,uint OldItemId,IVsMultiItemSelect OldMulti,ISelectionContainer OldContainer,
         IVsHierarchy NewHierarchy,uint NewItemId,IVsMultiItemSelect NewMulti,ISelectionContainer NewContainer){

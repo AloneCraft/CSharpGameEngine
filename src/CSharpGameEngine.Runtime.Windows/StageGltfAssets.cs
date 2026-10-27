@@ -22,6 +22,31 @@ internal static class StageGltfAssets {
     /// <summary>描画オブジェクト1つ分の配置（メッシュ・マテリアルのインデックスと、アセット内のローカル変換）。</summary>
     internal readonly record struct Placement(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);
 
+    /// <summary>静的 glTF をゲームとプレビューで同じメッシュ・マテリアル・配置に変換する。</summary>
+    internal static Placement[]AppendStatic(ImportedScene Imported,string FullPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials,MeshDistanceField?[]?Fields=null){
+        var MeshOffset=Meshes.Count;
+        var MaterialOffset=Materials.Count;
+        for(var Index=0;Index<Imported.Meshes.Count;Index++){
+            var Mesh=Imported.Meshes[Index];
+            Meshes.Add(new StageMeshCreateInfo {
+                Positions=Mesh.Positions,Normals=Mesh.Normals,Tangents=Mesh.Tangents,Uvs=Mesh.Uvs,Indices=Mesh.Indices,
+                DistanceField=Fields is null?null:Fields[Index],
+            });
+        }
+        var SourceHash=Hash256.Compute(File.ReadAllBytes(FullPath));
+        RenderMaterialCatalog Catalog=new();
+        for(var Index=0;Index<Imported.Materials.Count;Index++){
+            Materials.Add(BakeMaterial(Catalog,Imported.Materials[Index],SourceHash,Index));
+        }
+        List<Placement>Placements=[];
+        foreach(var Node in Imported.Nodes){
+            if(Node.MeshIndex is int MeshIndex&&Node.MaterialIndex is int MaterialIndex){
+                Placements.Add(new Placement(MeshOffset+MeshIndex,MaterialOffset+MaterialIndex,Node.WorldTransform));
+            }
+        }
+        return [.. Placements];
+    }
+
     /// <summary>スキニングされた glTF のメッシュとマテリアルを <paramref name="Meshes"/> と <paramref name="Materials"/> の末尾に追加し、各描画オブジェクトの配置とスキニング対象のレンダラーメッシュインデックスを返す。インデックスは追加前の各リストの長さから数える。</summary>
     internal static (Placement[]Placements,int[]SkinnedMeshIndices)AppendSkeletal(ImportedScene Imported,string FullPath,string AssetPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
         var Skin=Imported.Skins[0];

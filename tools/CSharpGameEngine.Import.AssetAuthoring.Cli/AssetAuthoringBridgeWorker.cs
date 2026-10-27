@@ -63,7 +63,7 @@ internal static class AssetAuthoringBridgeWorker {
                 for(var X=0;X<Width;X++){ Distance[Y*Width+X]=Font.Distance[(Y*Font.AtlasHeight/Height)*Font.AtlasWidth+X*Font.AtlasWidth/Width]; }
             }
             return new(){RequestId=Request.RequestId,Success=true,FontPreview=new(){SourceWidth=Font.AtlasWidth,SourceHeight=Font.AtlasHeight,GlyphCount=Font.Glyphs.Count,Width=Width,Height=Height,Distance=Distance}};
-        }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException or ArgumentException or FormatException){
+        }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException or ArgumentException or FormatException or InvalidDataException){
             return new(){RequestId=Request.RequestId,Diagnostic=Error.Message};
         }
     }

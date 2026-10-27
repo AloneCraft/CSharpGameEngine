@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// プレビューレベルの管理（複製・名前変更・削除・既定の指定・JSON で編集）。組み込みは変更できず、複製してから編集する（M0127）。
+/// プレビューレベルの管理（新規・複製・名前変更・削除・既定の指定・JSON で編集）。組み込みは変更できず、複製してから編集する（M0127）。
 /// ダイアログは <see cref="PreviewLevelStore"/> と <see cref="PreviewLevelPreferences"/> だけを操作し、開いているプレビューの適用は呼び出し側が結果（<see cref="Changed"/>）を見て行う。
 /// </summary>
 internal sealed class PreviewLevelManagerDialog:DialogWindow {
@@ -50,6 +50,7 @@ internal sealed class PreviewLevelManagerDialog:DialogWindow {
         Root.Children.Add(this.List);
         var Side=new StackPanel();
         Side.Children.Add(this.Details);
+        this.Button(Side,"PreviewLevel_New",this.OnNew);
         this.DuplicateButton=this.Button(Side,"PreviewLevel_Duplicate",this.OnDuplicate);
         this.RenameButton=this.Button(Side,"PreviewLevel_Rename",this.OnRename);
         this.DeleteButton=this.Button(Side,"PreviewLevel_Delete",this.OnDelete);
@@ -108,6 +109,14 @@ internal sealed class PreviewLevelManagerDialog:DialogWindow {
         this.Message.Text=string.Empty;
     }
     private void ShowMessage(string Text)=>this.Message.Text=Text;
+    private void OnNew(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var Name=NamePromptDialog.Ask(this,VsixText.Get("PreviewLevel_Label"));
+        if(Name is null){ return; }
+        var Created=this.Store.Create(Name);
+        this.Changed=true;
+        this.Refresh(Created.Id);
+    }
     private void OnDuplicate(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Selected is not{ Template:{ }Source }Entry){ return; }

@@ -19,6 +19,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
     private Dictionary<string,int>ObjectIndices;
     /// <summary>ホストが読み込んだスケルタルアセット（ADR-0090）。なければ null。</summary>
     private RenderPreviewSkeletalAsset?Skeletal;
+    private RenderPreviewStaticAsset?StaticAsset;
     private readonly List<RenderOverlayVertex>BoneLines=[];
     private RenderOverlayVertex[]OverlayTriangleBuffer=[];
     private RenderOverlayVertex[]OverlayLineBuffer=[];
@@ -33,7 +34,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
 
     private RenderPreviewRenderSession(
         nint SurfaceHandle,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
-        string ShaderArtifactPath,RenderServer Server,Dictionary<string,int>ObjectIndices,RenderPreviewSkeletalAsset?Skeletal){
+        string ShaderArtifactPath,RenderServer Server,Dictionary<string,int>ObjectIndices,RenderPreviewSkeletalAsset?Skeletal,RenderPreviewStaticAsset?StaticAsset){
         this.SurfaceHandle=SurfaceHandle;
         this.Width=Width;
         this.Height=Height;
@@ -42,9 +43,11 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         this.Server=Server;
         this.ObjectIndices=ObjectIndices;
         this.Skeletal=Skeletal;
+        this.StaticAsset=StaticAsset;
     }
 
     public RenderPreviewAssetSummary?AssetSummary=>this.Skeletal?.Summary;
+    public RenderPreviewAssetBounds?StaticBounds=>this.StaticAsset?.Bounds;
 
     public uint DeviceGeneration=>this.Active.DeviceSnapshot.Generation;
     public ulong CompletedFence=>this.Active.CompletedFence;
@@ -69,11 +72,11 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             DeviceOptions??GraphicsDeviceOptionsResolver.FromEnvironment());
         RenderServer Server=CreateServer(
             (nint)Request.SurfaceHandle,Request.Width,Request.Height,OwnedOptions,
-            Request.ShaderArtifactPath,Request.Scene!,out RenderPreviewSkeletalAsset?Skeletal);
+            Request.ShaderArtifactPath,Request.Scene!,out RenderPreviewSkeletalAsset?Skeletal,out RenderPreviewStaticAsset?StaticAsset);
         return new RenderPreviewRenderSession(
             (nint)Request.SurfaceHandle,Request.Width,Request.Height,OwnedOptions,
             Path.GetFullPath(Request.ShaderArtifactPath),Server,
-            BuildObjectIndices(Request.Scene!),Skeletal);
+            BuildObjectIndices(Request.Scene!),Skeletal,StaticAsset);
     }
 
     public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
@@ -100,7 +103,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         this.CameraPreviewDiagnosticsValue=[];
         RenderServer Replacement=CreateServer(
             this.SurfaceHandle,this.Width,this.Height,this.DeviceOptions,
-            this.ShaderArtifactPath,Scene,out RenderPreviewSkeletalAsset?ReplacementSkeletal);
+            this.ShaderArtifactPath,Scene,out RenderPreviewSkeletalAsset?ReplacementSkeletal,out RenderPreviewStaticAsset?ReplacementStatic,this.Skeletal,this.StaticAsset);
         try {
             // StageRenderer の構築でスワップチェーンがクリアされる場合がある。置き換え後のフレーム全体を Present し、
             // セッションに公開してから、HWND が後の WPF 描画 tick を待つ状態にならないようにする。
@@ -114,6 +117,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         }
         this.ObjectIndices=ReplacementIndices;
         this.Skeletal=ReplacementSkeletal;
+        this.StaticAsset=ReplacementStatic;
         this.AppliedEnvironmentRevision=this.LastLighting?.EnvironmentRevision??int.MinValue;
     }
 
@@ -227,9 +231,10 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
 
     private static RenderServer CreateServer(
         nint SurfaceHandle,int Width,int Height,GraphicsDeviceOptions DeviceOptions,
-        string ShaderArtifactPath,RenderPreviewScene Scene,out RenderPreviewSkeletalAsset?Skeletal){
+        string ShaderArtifactPath,RenderPreviewScene Scene,out RenderPreviewSkeletalAsset?Skeletal,out RenderPreviewStaticAsset?StaticAsset,RenderPreviewSkeletalAsset?Reusable=null,RenderPreviewStaticAsset?ReusableStatic=null){
         Skeletal=null;
-        bool EmptyScene=Scene.Objects.Length==0&&Scene.Asset is null;
+        StaticAsset=null;
+        bool EmptyScene=Scene.Objects.Length==0&&Scene.Asset is null&&string.IsNullOrEmpty(Scene.StaticAssetPath);
         StageMeshCreateInfo[]Meshes=EmptyScene
             ?[CreateEmptySentinelMesh()]
             :new StageMeshCreateInfo[Scene.Meshes.Length];
@@ -275,7 +280,9 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             // 明示分の後ろへ、ホストが読み込んだスケルタルアセットのメッシュ・マテリアル・オブジェクトを足す（ADR-0090）。
             List<StageMeshCreateInfo>MeshList=[.. Meshes];
             List<StageMaterialCreateInfo>MaterialList=[.. Materials];
-            Skeletal=RenderPreviewSkeletalAsset.Load(Asset,MeshList,MaterialList);
+            Skeletal=Reusable is not null&&Reusable.Matches(Asset)
+                ?Reusable.AppendTo(MeshList,MaterialList)
+                :RenderPreviewSkeletalAsset.Load(Asset,MeshList,MaterialList);
             List<StageObjectCreateInfo>ObjectList=[.. Objects];
             foreach(var Placement in Skeletal.ObjectPlacements){
                 ObjectList.Add(new StageObjectCreateInfo { MeshIndex=Placement.MeshIndex,MaterialIndex=Placement.MaterialIndex });
@@ -283,6 +290,18 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             Meshes=[.. MeshList];
             Materials=[.. MaterialList];
             Objects=[.. ObjectList];
+        }
+        if(!string.IsNullOrEmpty(Scene.StaticAssetPath)){
+            List<StageMeshCreateInfo>MeshList=[.. Meshes];
+            List<StageMaterialCreateInfo>MaterialList=[.. Materials];
+            StaticAsset=ReusableStatic is not null&&ReusableStatic.Matches(Scene.StaticAssetPath)
+                ?ReusableStatic.AppendTo(MeshList,MaterialList)
+                :RenderPreviewStaticAsset.Load(Scene.StaticAssetPath,MeshList,MaterialList);
+            List<StageObjectCreateInfo>ObjectList=[.. Objects];
+            foreach(var Placement in StaticAsset.ObjectPlacements){
+                ObjectList.Add(new StageObjectCreateInfo { MeshIndex=Placement.MeshIndex,MaterialIndex=Placement.MaterialIndex });
+            }
+            Meshes=[.. MeshList];Materials=[.. MaterialList];Objects=[.. ObjectList];
         }
 
         RenderServer Server=D3D12RenderServer.Create(
@@ -301,6 +320,11 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
                 foreach(var Placement in Skeletal.ObjectPlacements){
                     Server.SetObjectTransform(Base+PlacementIndex++,Placement.LocalTransform);
                 }
+                Skeletal.Apply(Server,new RenderPreviewFrame(),[]);
+            }
+            if(StaticAsset is not null){
+                var Index=Scene.Objects.Length;
+                foreach(var Placement in StaticAsset.ObjectPlacements){ Server.SetObjectTransform(Index++,Placement.LocalTransform); }
             }
             return Server;
         } catch {

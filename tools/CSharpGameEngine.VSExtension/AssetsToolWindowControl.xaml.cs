@@ -74,6 +74,10 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         this.LockLocation.IsChecked=Controller.Query.Locked;this.WholeProject.IsChecked=Controller.Query.WholeProject;
         this.Details.IsChecked=Controller.Query.Details;
         this.Location.Text=Controller.Query.Folder;
+        this.Search.Text=Controller.Query.Search;
+        this.KindChoice.SelectedValue=Controller.Query.Kind;
+        this.ProviderChoice.SelectedValue=Controller.Query.Provider;
+        this.StateChoice.SelectedValue=Controller.Query.State;
         this.Favorites.ItemsSource=Controller.LoadFavorites();
         this.Updating=false;
         _=this.ApplyQueryAsync();
@@ -125,6 +129,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
             var Paths=new HashSet<string>(Items.Select(static Item=>Item.Source.SourcePath),StringComparer.OrdinalIgnoreCase);
             foreach(var Row in List.SelectedItems.Cast<AssetWorkspaceRow>().Where(Row=>!Paths.Contains(Row.Item.Source.SourcePath)).ToArray()){ List.SelectedItems.Remove(Row); }
             foreach(var Row in List.Items.Cast<AssetWorkspaceRow>().Where(Row=>Paths.Contains(Row.Item.Source.SourcePath)&&!List.SelectedItems.Contains(Row))){ List.SelectedItems.Add(Row); }
+            if(List.Visibility==Visibility.Visible&&List.SelectedItem is { }Selected){ List.ScrollIntoView(Selected); }
         }
         this.Updating=false;
     }

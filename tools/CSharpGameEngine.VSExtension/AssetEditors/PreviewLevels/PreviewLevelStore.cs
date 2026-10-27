@@ -66,6 +66,8 @@ internal sealed class PreviewLevelStore(string ProjectDirectory) {
             return new PreviewLevelEntry { Id=Id,DisplayName=Id,FilePath=FilePath,Error=Failure.Message };
         }
     }
+    /// <summary>Default の初期値を持つ新しいユーザーテンプレートを保存する。</summary>
+    internal PreviewLevelEntry Create(string DisplayName)=>this.Duplicate(PreviewLevelBuiltIns.Default(),DisplayName);
     /// <summary>テンプレートを複製して新しいファイルとして保存する（組み込みを複製してカスタマイズする入口）。</summary>
     internal PreviewLevelEntry Duplicate(PreviewLevelTemplate Source,string DisplayName){
         if(string.IsNullOrWhiteSpace(DisplayName)){ throw new ArgumentException("A display name is required.",nameof(DisplayName)); }

@@ -6,7 +6,7 @@ public sealed class RenderPreviewHostProtocolTests {
     /// <summary>M0097：バージョン7で実行時診断スナップショットは削除された。コマンド自体がなくなったため、古い値を引き続き持つリクエストは未知のコマンドになる。M0119：バージョン9では投影から深度を導出する。</summary>
     [Fact]
     public void Protocol_HasNoDiagnosticsSnapshotCommand(){
-        Assert.Equal(11,RenderPreviewHostProtocol.CurrentVersion);
+        Assert.Equal(13,RenderPreviewHostProtocol.CurrentVersion);
         Assert.DoesNotContain("Snapshot",Enum.GetNames(typeof(RenderPreviewHostCommand)));
         Assert.Null(typeof(RenderPreviewHostResponse).GetProperty("DebugSnapshot"));
         RenderPreviewHostRequest Request=CreateCommand((RenderPreviewHostCommand)6);

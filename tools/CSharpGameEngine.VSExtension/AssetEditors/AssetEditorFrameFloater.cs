@@ -48,7 +48,7 @@ internal static class AssetEditorFrameFloater {
     }
     /// <summary>
     /// 浮いたフレームを中央・希望サイズに置く。浮かせた直後（WPF が最初の描画を終える前）にサイズを変えると、フローティングウィンドウの WPF 部分が
-    /// 描画されなくなる（実機で確認）ので、呼び出し側（<see cref="AssetEditorFramePlacement"/>）がコンテンツの描画後に遅延して呼ぶ。
+    /// 描画されない状態を以前に観測したため、呼び出し側（<see cref="AssetEditorFramePlacement"/>）が暫定的に遅延して呼ぶ。全面描画の最終受入は未完了。
     /// </summary>
     internal static string Place(IVsWindowFrame Frame,IServiceProvider Services){
         ThreadHelper.ThrowIfNotOnUIThread();

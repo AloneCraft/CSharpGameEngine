@@ -113,6 +113,7 @@ public sealed class PreviewLevelTemplateTests {
     [InlineData("{ \"SchemaVersion\": 0, \"DisplayName\": \"x\" }")]
     [InlineData("{ \"SchemaVersion\": 1, \"DisplayName\": \"x\", \"Lights\": [ { \"Kind\": \"Banana\" } ] }")]
     [InlineData("{ \"SchemaVersion\": 1, \"DisplayName\": \"x\", \"Background\": { \"Color\": [1,2] } }")]
+    [InlineData("{ \"SchemaVersion\": 1, \"DisplayName\": \"x\", \"Background\": { \"Mode\": 99 } }")]
     public void Json_RejectsBrokenFilesWithAReasonInsteadOfThrowing(string Json){
         var Template=PreviewLevelTemplate.TryParse(Json,out var Error);
         Assert.Null(Template);
@@ -199,6 +200,17 @@ public sealed class PreviewLevelWireTests {
         Assert.Equal(0f,Sun.Forward[2],4);
         Assert.Empty(Lighting.Points);
         Assert.Empty(Lighting.Spots);
+    }
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    public void DirectionalLightDoesNotRequireALocalPosition(string Position){
+        var Json="{ \"DisplayName\": \"Sun\", \"Lights\": [{ \"Kind\": \"Directional\", \"PositionRadii\": "+Position+" }] }";
+        var Template=PreviewLevelTemplate.TryParse(Json,out var Error);
+        Assert.True(Template is not null,Error);
+        var Lighting=PreviewLevelWire.CreateLighting(Template!,Bounds(1f),1);
+        Assert.Single(Lighting.Directionals);
+        Assert.Null(RenderPreviewLightingValidation.Validate(Lighting));
     }
     [Fact]
     public void SolidBackgroundAndEnvironmentAreCopiedNotShared(){
@@ -293,6 +305,33 @@ public sealed class PreviewSceneComposerTests {
     private static RenderPreviewHostRequest AsOpen(RenderPreviewScene Scene)=>new(){
         RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,SurfaceHandle=1,Width=128,Height=96,ShaderArtifactPath="Stage.cgeshaderartifact",Scene=Scene,
     };
+    [Fact]
+    public void StaticBoundsUseAllExtentsAndRejectInvalidHostData(){
+        var Source=new RenderPreviewAssetBounds { Min=[-4f,0f,0f],Max=[5f,4f,0f],VertexCount=6,TriangleCount=2 };
+        Assert.True(PreviewBounds.TryFrom(Source,out var Bounds));
+        Assert.Equal(new Vector3(0.5f,2f,0f),Bounds.Center);
+        Assert.True(Bounds.Radius>4.5f);
+        var Statistics=AssetMeshStatistics.From(Source,Bounds);
+        Assert.Equal(6,Statistics.VertexCount);
+        Assert.Equal(2,Statistics.TriangleCount);
+        Assert.False(PreviewBounds.TryFrom(null,out _));
+        Assert.False(PreviewBounds.TryFrom(new RenderPreviewAssetBounds { Min=[0f,0f],Max=[1f,1f,1f] },out _));
+        Assert.False(PreviewBounds.TryFrom(new RenderPreviewAssetBounds { Min=[2f,0f,0f],Max=[1f,1f,1f] },out _));
+        Assert.False(PreviewBounds.TryFrom(new RenderPreviewAssetBounds { Min=[float.NaN,0f,0f],Max=[1f,1f,1f] },out _));
+        Assert.False(PreviewBounds.TryFrom(new RenderPreviewAssetBounds { Min=[0f,0f,0f],Max=[1f,1f,1f],VertexCount=-1 },out _));
+    }
+    [Fact]
+    public void StaticHostAssetKeepsOnlyTheFloorInTheExplicitRoster(){
+        var Subject=Box();
+        var Bounds=PreviewBounds.From(Subject,AssetMeshStatistics.From(Subject));
+        var Path=@"C:\Game\Assets\Box.glb";
+        var Composition=PreviewSceneComposer.Compose(null,Bounds,PreviewLevelBuiltIns.Studio(),128,96,StaticAssetPath:Path);
+        Assert.Equal(Path,Composition.Scene.StaticAssetPath);
+        Assert.Null(Composition.Scene.Asset);
+        Assert.Equal(PreviewSceneComposer.FloorObjectId,Assert.Single(Composition.Scene.Objects).ObjectId);
+        Assert.Equal(PreviewSceneComposer.FloorObjectId,Assert.Single(Composition.Objects).ObjectId);
+        Assert.Null(RenderPreviewHostProtocol.Validate(AsOpen(Composition.Scene)));
+    }
     [Fact]
     public void WithoutAFloor_OnlyTheAssetIsInTheScene(){
         var Composition=Compose(PreviewLevelBuiltIns.Default());
@@ -395,6 +434,22 @@ public sealed class PreviewSceneComposerTests {
     }
 }
 public sealed class PreviewCameraDefaultsTests {
+    [Theory]
+    [InlineData(float.MaxValue)]
+    [InlineData(float.MinValue)]
+    public void LargeFiniteYawFramesLikeTheEquivalentAngle(float Yaw){
+        var Template=PreviewLevelBuiltIns.Default();
+        Template.Camera.YawDegrees=Yaw;
+        Assert.Null(Template.Validate());
+        var Actual=AssetViewportCamera.ViewDirection(Template.Camera);
+        var Expected=AssetViewportCamera.ViewDirection(new PreviewCameraDefaults { YawDegrees=Yaw%360f });
+        Assert.Equal(Expected.X,Actual.X,4);
+        Assert.Equal(Expected.Y,Actual.Y,4);
+        Assert.Equal(Expected.Z,Actual.Z,4);
+        var Camera=new AssetViewportCamera();
+        Camera.Frame(Vector3.Zero,1f,1.5f,Template.Camera);
+        Assert.False(float.IsNaN(Camera.Eye.X)||float.IsInfinity(Camera.Eye.X));
+    }
     [Fact]
     public void TheDefaultViewDirectionMatchesTheClassicPreview(){
         var Direction=AssetViewportCamera.ViewDirection(new PreviewCameraDefaults());

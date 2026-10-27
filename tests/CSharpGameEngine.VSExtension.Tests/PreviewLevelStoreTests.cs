@@ -27,6 +27,19 @@ public sealed class PreviewLevelStoreTests:IDisposable {
         Assert.False(Directory.Exists(this.Store.Directory));
     }
     [Fact]
+    public void Create_StartsFromDefaultAndPersistsAnIndependentTemplate(){
+        var Entry=this.Store.Create("My Preview");
+        Assert.Equal("My-Preview",Entry.Id);
+        Assert.False(Entry.BuiltIn);
+        Assert.Equal("My Preview",Entry.DisplayName);
+        Assert.True(File.Exists(this.Store.PathFor(Entry.Id)));
+        var Loaded=this.Store.Load().Single(Item=>Item.Id==Entry.Id);
+        Assert.Equal(PreviewLevelBuiltIns.Default().Lights.Count,Loaded.Template!.Lights.Count);
+        Assert.Equal("My Preview",Loaded.DisplayName);
+        Assert.Equal("My-Preview-2",this.Store.Create("My Preview").Id);
+        Assert.Throws<ArgumentException>(()=>this.Store.Create(" "));
+    }
+    [Fact]
     public void Duplicate_WritesAProjectFileWithAStableUniqueId(){
         var Studio=PreviewLevelBuiltIns.Studio();
         var First=this.Store.Duplicate(Studio,"My Studio");

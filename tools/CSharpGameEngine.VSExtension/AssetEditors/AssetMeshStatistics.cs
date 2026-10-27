@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>メッシュの統計（Static Mesh Editor の Details に表示する）。</summary>
 internal sealed class AssetMeshStatistics {
@@ -9,6 +10,9 @@ internal sealed class AssetMeshStatistics {
     internal Vector3 BoundsMax { get;init;}
     internal Vector3 Size=>this.BoundsMax-this.BoundsMin;
     internal Vector4 BaseColor { get;init;}
+    internal static AssetMeshStatistics From(RenderPreviewAssetBounds Source,PreviewBounds Bounds)=>new(){
+        VertexCount=Source.VertexCount,TriangleCount=Source.TriangleCount,BoundsMin=Bounds.Min,BoundsMax=Bounds.Max,BaseColor=Vector4.One,
+    };
     internal static AssetMeshStatistics From(SimpleMesh Mesh){
         if(Mesh is null){ throw new ArgumentNullException(nameof(Mesh)); }
         var Min=Vector3.Zero;

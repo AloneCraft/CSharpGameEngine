@@ -22,6 +22,8 @@ public sealed class RenderPreviewAssetSummary {
     /// <summary>スキニング対象のメッシュ数。</summary>
     public int SkinnedMeshCount { get;set; }
     public RenderPreviewClipSummary[]Clips { get;set; }=[];
+    /// <summary>レスト姿勢における全描画ノードの境界と、参照プリミティブの統計。</summary>
+    public RenderPreviewAssetBounds?RestBounds { get;set; }
 }
 
 public sealed class RenderPreviewClipSummary {
@@ -57,7 +59,7 @@ public static class RenderPreviewSkeletalValidation {
         }
         return null;
     }
-    private static string?ValidatePath(string?Path,string Name,bool required){
+    internal static string?ValidatePath(string?Path,string Name,bool required){
         if(string.IsNullOrEmpty(Path)){ return required?Name+" is required.":null; }
         if(Path!.Length>RenderPreviewAssetSource.MaximumPathLength||Path.IndexOf('\0')>=0){ return Name+" is invalid."; }
         bool Rooted=Path.Length>=3&&Path[1]==':'&&(Path[2]=='\\'||Path[2]=='/')||Path.StartsWith("\\\\",System.StringComparison.Ordinal);

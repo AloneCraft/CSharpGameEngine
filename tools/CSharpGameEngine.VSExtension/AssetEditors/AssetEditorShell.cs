@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
 /// UE5 のアセットエディター風の共通レイアウト。上にツールバー、中央にビューポート等、右に Details、下にステータスを置く。
@@ -17,7 +18,8 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
     private readonly TextBlock Status=new(){ TextWrapping=TextWrapping.NoWrap,TextTrimming=TextTrimming.CharacterEllipsis,Margin=new Thickness(8,3,8,3) };
     private readonly ProgressBar OperationProgressBar=new(){ Height=3,Minimum=0,Maximum=1,Visibility=Visibility.Collapsed };
     private bool Disposed;
-    internal AssetEditorShell(string FilePath,AssetEditorContent Content){
+    private JoinableTask?NavigationTask;
+    internal AssetEditorShell(AssetEditorContent Content){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.Content=Content;
         this.Focusable=true;
@@ -26,7 +28,7 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
         this.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto });
         this.RowDefinitions.Add(new RowDefinition { Height=new GridLength(1,GridUnitType.Star) });
         this.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto });
-        var Toolbar=this.CreateToolbar(FilePath);
+        var Toolbar=this.CreateToolbar();
         Grid.SetRow(Toolbar,0);
         this.Children.Add(Toolbar);
         var Body=this.CreateBody();
@@ -41,18 +43,24 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
         Grid.SetRow(StatusBar,2);
         this.Children.Add(StatusBar);
         Content.StatusChanged+=this.OnStatusChanged;
+        this.OnStatusChanged(Content.CurrentStatus);
         Content.ProgressChanged+=this.OnProgressChanged;
         Content.FocusRequested+=this.OnFocusRequested;
         this.PreviewKeyDown+=this.OnPreviewKeyDown;
     }
     internal AssetEditorContent EditorContent=>this.Content;
-    private Border CreateToolbar(string FilePath){
+    private Border CreateToolbar(){
         var Panel=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(4,3,4,3) };
-        Panel.Children.Add(CreateButton(VsixText.Get("AssetEditor_ShowInSolution"),()=>{
-            ThreadHelper.ThrowIfNotOnUIThread();
-            ShowInSolution(FilePath);
+        var Solution=CreateButton(VsixText.Get("AssetEditor_ShowInSolution"),()=>this.Navigate(()=>Task.FromResult(AssetEditorNavigation.ShowInSolution(ServiceProvider.GlobalProvider,this.Content.FilePath))));
+        Solution.ToolTip=VsixText.Get("AssetEditor_ShowInSolutionHelp");
+        Panel.Children.Add(Solution);
+        var Assets=CreateButton(VsixText.Get("AssetEditor_ShowInAssets"),()=>this.Navigate(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if(AssetsToolWindowPane.Controller is not { }Controller){ return VsixText.Get("AssetEditor_NavigationUnavailable"); }
+            return await Controller.RevealAsync(this.Content.FilePath)?VsixText.Get("AssetEditor_RevealedInAssets"):VsixText.Get("AssetEditor_NotInAssets");
         }));
-        Panel.Children.Add(CreateButton(VsixText.Get("AssetEditor_ShowInAssets"),()=>AssetWorkspaceSelection.Reveal(FilePath)));
+        Assets.ToolTip=VsixText.Get("AssetEditor_ShowInAssetsHelp");
+        Panel.Children.Add(Assets);
         foreach(var Item in this.Content.ToolbarItems){
             Panel.Children.Add(Item);
         }
@@ -84,11 +92,16 @@ internal sealed class AssetEditorShell:Grid,IDisposable {
         Button.Click+=(_,_)=>Click();
         return Button;
     }
-    private static void ShowInSolution(string FilePath){
+    private void Navigate(Func<Task<string>> Action){
         ThreadHelper.ThrowIfNotOnUIThread();
-        var Controller=AssetsToolWindowPane.Controller;
-        var Item=Controller?.Items.FirstOrDefault(Candidate=>string.Equals(Candidate.Source.SourcePath,FilePath,StringComparison.OrdinalIgnoreCase));
-        if(Controller is not null&&Item is not null){ Controller.ShowInSolution(Item); }
+        if(this.Disposed||this.NavigationTask is { IsCompleted:false }){ return; }
+        this.NavigationTask=ThreadHelper.JoinableTaskFactory.RunAsync(async()=>{
+            string Message;
+            try { Message=await Action(); }
+            catch(Exception Error){ Message=VsixText.Format("AssetEditor_NavigationFailed",Error.Message); }
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if(!this.Disposed){ this.OnStatusChanged(Message); }
+        });
     }
     private void OnStatusChanged(string Text){
         this.Status.Text=Text;

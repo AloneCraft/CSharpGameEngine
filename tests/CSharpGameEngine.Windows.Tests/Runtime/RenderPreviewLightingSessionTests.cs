@@ -228,6 +228,51 @@ public sealed class RenderPreviewLightingSessionTests {
         // 失敗した後も、次の正しいフレームで描ける。
         Assert.NotNull(Test.Render(Legacy(2)));
     }
+    [Fact]
+    public void WARP_MissingAtmosphereArtifactEndsSessionAndFreshDefaultSessionRenders(){
+        if(!OperatingSystem.IsWindows()){ return; }
+        var DirectoryPath=Path.Combine(Path.GetTempPath(),$"CgePreviewLighting-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(DirectoryPath);
+        var StagePath=Path.Combine(DirectoryPath,"Stage.cgeshaderartifact");
+        try {
+            File.Copy(ShaderArtifactPath,StagePath);
+            using var First=new Win32Window(new Win32WindowOptions { Title="Preview failure",Width=Size,Height=Size,Visible=false });
+            using var Second=new Win32Window(new Win32WindowOptions { Title="Preview recovery",Width=Size,Height=Size,Visible=false });
+            using var Table=new RenderPreviewHostSessionTable(Request=>RenderPreviewRenderSession.Open(Request,Options));
+            var Open=CreateOpen(First,Floor:false);
+            Open.ShaderArtifactPath=StagePath;
+            Assert.Equal(RenderPreviewHostResultState.Succeeded,Table.Handle(Open).State);
+            var Sky=Legacy(1);
+            Sky.Environment=new(){ Atmosphere=true,SkyLightIntensity=1f };
+            RenderPreviewFrame Frame(RenderPreviewHostRequest Source,RenderPreviewLighting Lighting)=>new(){
+                Camera=Source.Scene!.Camera,Lighting=Lighting,
+                Objects=Source.Scene.Objects.Select(static Object=>new RenderPreviewObjectTransform { ObjectId=Object.ObjectId,World=Object.World }).ToArray(),
+            };
+            var Update=new RenderPreviewHostRequest { RequestId=Guid.NewGuid(),SessionId=Open.SessionId,Sequence=2,Command=RenderPreviewHostCommand.UpdateFrame,Frame=Frame(Open,Sky) };
+            Assert.Equal(RenderPreviewHostResultState.Succeeded,Table.Handle(Update).State);
+            var Render=new RenderPreviewHostRequest { RequestId=Guid.NewGuid(),SessionId=Open.SessionId,Sequence=3,Command=RenderPreviewHostCommand.Render,CaptureForVerification=true };
+            var Failed=Table.Handle(Render);
+            Assert.Equal(RenderPreviewHostResultState.Failed,Failed.State);
+            Assert.Equal("PREVIEW_COMMAND_FAILED",Failed.DiagnosticCode);
+            Assert.Contains("Atmosphere.cgeshaderartifact",Failed.Message,StringComparison.OrdinalIgnoreCase);
+            Render.Sequence=4;
+            Assert.Equal(RenderPreviewHostResultState.SessionNotFound,Table.Handle(Render).State);
+            var Fresh=CreateOpen(Second,Floor:false);
+            Fresh.ShaderArtifactPath=StagePath;
+            Assert.Equal(RenderPreviewHostResultState.Succeeded,Table.Handle(Fresh).State);
+            Update.SessionId=Fresh.SessionId;
+            Update.Frame=Frame(Fresh,Legacy(2));
+            Assert.Equal(RenderPreviewHostResultState.Succeeded,Table.Handle(Update).State);
+            Render.SessionId=Fresh.SessionId;
+            Render.Sequence=3;
+            var Recovered=Table.Handle(Render);
+            Assert.Equal(RenderPreviewHostResultState.Succeeded,Recovered.State);
+            Assert.NotEmpty(Recovered.FrameHash);
+        } finally {
+            File.Delete(StagePath);
+            Directory.Delete(DirectoryPath);
+        }
+    }
 }
 internal static class RenderPreviewTestColors {
     internal static readonly (int R,int G,int B)DefaultClear=(89,140,217);

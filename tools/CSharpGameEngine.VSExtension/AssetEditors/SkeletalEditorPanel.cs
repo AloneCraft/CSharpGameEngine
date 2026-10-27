@@ -20,7 +20,7 @@ internal sealed class SkeletalEditorPanel:IDisposable {
     /// <summary>プレビューするメッシュの選択（プロジェクトのディレクトリ → 選んだメッシュ）。セッション内だけの記憶。</summary>
     private static readonly Dictionary<string,string>RememberedMeshes=new(StringComparer.OrdinalIgnoreCase);
     private readonly AssetViewportHost Viewport;
-    private readonly string FilePath;
+    private string FilePath;
     private readonly string ProjectDirectory;
     private readonly bool AnimationOnly;
     private readonly AssetAnimationTimeline State=new();
@@ -70,6 +70,11 @@ internal sealed class SkeletalEditorPanel:IDisposable {
     }
     /// <summary>ビューポートの下に置くタイムラインの帯。</summary>
     internal UIElement Timeline=>this.Strip;
+    /// <summary>次にプレビューメッシュを選び直す際も、名前変更後のクリップを使う。</summary>
+    internal void Retarget(string FilePath){
+        this.FilePath=FilePath;
+        this.ResetSummary();
+    }
     /// <summary>Details に置くスケルトンのツリーと案内。</summary>
     internal UIElement Details=>this.DetailsPart;
     internal AssetAnimationTimeline TimelineStateForTesting=>this.State;
@@ -161,7 +166,27 @@ internal sealed class SkeletalEditorPanel:IDisposable {
     }
     private void UseMesh(string MeshPath){
         this.HideMessage();
+        var Current=this.Viewport.SkeletalSource;
+        if(Current is null||!string.Equals(Current.MeshPath,MeshPath,StringComparison.Ordinal)||!string.Equals(Current.AnimationPath,this.FilePath,StringComparison.Ordinal)){
+            this.ResetSummary();
+        }
         this.Viewport.SkeletalSource=new RenderPreviewAssetSource { MeshPath=MeshPath,AnimationPath=this.FilePath };
+    }
+    private void ResetSummary(){
+        this.PlaybackTimer.Stop();
+        this.Clock.Reset();
+        this.State.SetClip(0f);
+        this.Summary=null;
+        this.Updating=true;
+        try {
+            this.ClipBox.Items.Clear();
+            this.JointTree.Items.Clear();
+            this.TreeHeader.Text=string.Empty;
+            this.Viewport.SelectedJoint=-1;
+        } finally {
+            this.Updating=false;
+        }
+        this.SyncControls();
     }
     /// <summary>ホストが読み込んだ要約から、クリップの一覧とスケルトンのツリーを作る。</summary>
     private void OnSummaryLoaded(RenderPreviewAssetSummary Summary){

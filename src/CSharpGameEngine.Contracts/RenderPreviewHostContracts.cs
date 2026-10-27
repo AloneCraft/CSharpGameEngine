@@ -7,14 +7,17 @@ namespace CSharpGameEngine.Contracts;
 /// </summary>
 public static class RenderPreviewHostProtocol {
     /// <summary>
+    /// 13：スケルタルのレスト姿勢境界と統計をホスト応答に追加した。
+    /// 12：ホストによる静的 glTF 読み込みを追加した。
+    /// 11（ADR-0090）：ホストによるスケルタル読み込み（RenderPreviewAssetSource）、
+    /// 要約応答（RenderPreviewAssetSummary）、時刻指定による姿勢評価（RenderPreviewAnimation）を追加した。
     /// 10（M0127）：アセットエディター用に、フレームへ照明・背景・環境（<see cref="RenderPreviewLighting"/>）を、
-    /// マテリアルへ粗さ・金属度・ワールドグリッドを追加した。スケルタル glTF をホストが読む <see cref="RenderPreviewAssetSource"/>、
-    /// 応答の <see cref="RenderPreviewAssetSummary"/>、フレームの <see cref="RenderPreviewAnimation"/>（ADR-0090）も同じ版に含む。
+    /// マテリアルへ粗さ・金属度・ワールドグリッドを追加した。
     /// 9（M0119）：透視深度はネイティブの対数方式であり、セレクターを削除して投影メタデータを必須にした。
     /// 8（M0100）：遷移長と深度セレクターを導入した。7（M0097）：ランタイム診断スナップショットの
     /// コマンドとペイロードを削除した。
     /// </summary>
-    public const int CurrentVersion=11;
+    public const int CurrentVersion=13;
     public const int MaximumDimension=16_384;
     public const int MaximumMeshCount=4_096;
     public const int MaximumMaterialCount=4_096;
@@ -218,6 +221,11 @@ public static class RenderPreviewHostProtocol {
         if(Scene.Camera is null){ return "Scene camera is required."; }
         string?AssetError=RenderPreviewSkeletalValidation.Validate(Scene.Asset);
         if(AssetError is not null){ return AssetError; }
+        if(!string.IsNullOrEmpty(Scene.StaticAssetPath)){
+            if(Scene.Asset is not null){ return "A scene cannot contain both a static and skeletal asset."; }
+            AssetError=RenderPreviewSkeletalValidation.ValidatePath(Scene.StaticAssetPath,"Static asset path",required:true);
+            if(AssetError is not null){ return AssetError; }
+        }
         if(Scene.Meshes is null||Scene.Meshes.Length>MaximumMeshCount){
             return $"Scene mesh count must be between 0 and {MaximumMeshCount}.";
         }
@@ -452,6 +460,17 @@ public sealed class RenderPreviewHostResponse {
     public Guid EditorSpatialWorldId { get;set; }
     /// <summary>Open／ReplaceScene でスケルタルアセットを読んだときの要約（ADR-0090）。それ以外は null。</summary>
     public RenderPreviewAssetSummary?AssetSummary { get;set; }
+    /// <summary>静的 glTF の描画ノード全体の境界。対象がない場合は null。</summary>
+    public RenderPreviewAssetBounds?StaticBounds { get;set; }
+}
+
+public sealed class RenderPreviewAssetBounds {
+    public float[]Min { get;set; }=[];
+    public float[]Max { get;set; }=[];
+    /// <summary>参照される各プリミティブを一度ずつ数えた頂点数。</summary>
+    public int VertexCount { get;set; }
+    /// <summary>参照される各プリミティブを一度ずつ数えた三角形数。</summary>
+    public int TriangleCount { get;set; }
 }
 
 public sealed class RenderPreviewScene {
@@ -461,6 +480,8 @@ public sealed class RenderPreviewScene {
     public RenderPreviewObject[]Objects { get;set; }=[];
     /// <summary>ホストが自分で読み込むスケルタル glTF（ADR-0090）。明示分の後ろにメッシュ・マテリアル・オブジェクトとして足される。</summary>
     public RenderPreviewAssetSource?Asset { get;set; }
+    /// <summary>ホストが読み込む静的 glTF の絶対パス。空なら使用しない。</summary>
+    public string StaticAssetPath { get;set; }=string.Empty;
 }
 
 public sealed class RenderPreviewFrame {

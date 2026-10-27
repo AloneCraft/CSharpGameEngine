@@ -93,6 +93,33 @@ public class AssetAuthoringBridgeWorkerTests {
         Assert.False(Result.Success);Assert.NotEmpty(Result.Diagnostic);Assert.Null(Result.FontPreview);
     }
     [Fact]
+    public void EmptyFontReturnsACorrelatedDiagnosticAndDoesNotWriteTheSource(){
+        using var Directory=new TemporaryDirectory();
+        var Source=Path.Combine(Directory.Path,"Empty.cgefont");
+        File.WriteAllBytes(Source,[]);
+        var Request=new AssetWorkspaceRequest { WorkspaceCommand=2,RequestId=Guid.NewGuid(),Sources=[new(){ SourcePath=Source }] };
+        var RequestPath=Path.Combine(Directory.Path,"request.json");
+        var ResultPath=Path.Combine(Directory.Path,"result.json");
+        File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request));
+        var Execution=AssetAuthoringBridgeWorker.Run(RequestPath,ResultPath);
+        Assert.True(Execution.ExitCode==0,Execution.Output);
+        var Result=JsonSerializer.Deserialize<AssetWorkspaceResult>(File.ReadAllText(ResultPath))!;
+        Assert.Equal(Request.RequestId,Result.RequestId);
+        Assert.False(Result.Success);
+        Assert.Contains("ASSET_FONT_PREVIEW_SIZE_INVALID",Result.Diagnostic);
+        Assert.Null(Result.FontPreview);
+        Assert.Empty(File.ReadAllBytes(Source));
+    }
+    [Fact]
+    public void InvalidFontPreviewRequestReturnsADiagnostic(){
+        var Request=new AssetWorkspaceRequest { WorkspaceCommand=2,RequestId=Guid.NewGuid(),Sources=[new(){ SourcePath="relative.cgefont" }] };
+        var Result=AssetAuthoringBridgeWorker.PreviewFont(Request);
+        Assert.Equal(Request.RequestId,Result.RequestId);
+        Assert.False(Result.Success);
+        Assert.Contains("ASSET_FONT_PREVIEW_REQUEST_INVALID",Result.Diagnostic);
+        Assert.Null(Result.FontPreview);
+    }
+    [Fact]
     public void InspectAndSave_RoundTripsThroughTypedFiles(){
         using TemporaryDirectory Directory=new();
         string Source=Path.Combine(Directory.Path,"mesh.glb");

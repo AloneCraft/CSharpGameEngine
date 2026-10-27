@@ -132,35 +132,12 @@ internal sealed class StageSceneDataBuilder {
             throw new InvalidOperationException($"StaticMesh '{FullPath}' の読み込みに失敗しました: {string.Join("; ",Result.Diagnostics)}");
         }
 
-        var MeshOffset=Meshes.Count;
-        var MaterialOffset=Materials.Count;
         var Fields=LoadDistanceFields(FullPath,Scene);
-        Meshes.AddRange(Scene.Meshes.Select((Mesh,Index)=>new StageMeshCreateInfo {
-            Positions=Mesh.Positions,
-            Normals=Mesh.Normals,
-            Tangents=Mesh.Tangents,
-            Uvs=Mesh.Uvs,
-            Indices=Mesh.Indices,
-            DistanceField=Fields[Index],
-        }));
-        byte[]SourceBytes=File.ReadAllBytes(FullPath);
-        Hash256 SourceHash=Hash256.Compute(SourceBytes);
-        RenderMaterialCatalog MaterialCatalog=new();
-        for(int Index=0;Index<Scene.Materials.Count;Index++){
-            Materials.Add(StageGltfAssets.BakeMaterial(
-                MaterialCatalog,Scene.Materials[Index],SourceHash,Index));
-        }
-
-        List<AssetObject>Objects=[];
-        foreach(var Node in Scene.Nodes){
-            if(Node.MeshIndex is int MeshIndex&&Node.MaterialIndex is int MaterialIndex){
-                Objects.Add(new AssetObject(MeshOffset+MeshIndex,MaterialOffset+MaterialIndex,Node.WorldTransform));
-            }
-        }
-        if(Objects.Count==0){
+        var Placements=StageGltfAssets.AppendStatic(Scene,FullPath,Meshes,Materials,Fields);
+        if(Placements.Length==0){
             throw new InvalidOperationException($"StaticMesh '{FullPath}' に描画可能なノードがありません。");
         }
-        return new AssetTemplate([.. Objects]);
+        return new AssetTemplate([.. Placements.Select(Item=>new AssetObject(Item.MeshIndex,Item.MaterialIndex,Item.LocalTransform))]);
     }
 
     /// <summary>

@@ -71,7 +71,10 @@ internal sealed class SoundEditorContent:AssetEditorContent {
         var Token=this.Loading.Token;
         var Path=this.FilePath;
         this.Facts.Children.Clear();
+        this.DurationSeconds=0f;
         this.Waveform.SetPeaks([]);
+        this.Waveform.SetPlayhead(0f);
+        this.TimeText.Text=AssetWaveform.FormatTime(0f)+" / "+AssetWaveform.FormatTime(0f);
         this.Message.Visibility=Visibility.Collapsed;
         this.OpenPlayer(Path);
         if(!this.IsWav){

@@ -40,11 +40,11 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
     private bool UpdatingLevelBox;
     private bool Disposed;
     private string OperationText=string.Empty;
-    internal StaticMeshEditorContent(string FilePath):base(FilePath){
+    internal StaticMeshEditorContent(string FilePath,IPreviewLevelSettings?Settings=null):base(FilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
         var ProjectDirectory=CgeProjectContext.Resolve(FilePath)?.ProjectDirectory??Path.GetDirectoryName(FilePath)??string.Empty;
         this.Store=new PreviewLevelStore(ProjectDirectory);
-        this.Preferences=new PreviewLevelPreferences(new VsPreviewLevelSettings(),ProjectDirectory);
+        this.Preferences=new PreviewLevelPreferences(Settings??new VsPreviewLevelSettings(),ProjectDirectory);
         this.Entries=this.Store.Load();
         var Resolution=PreviewLevelResolver.Resolve(this.Entries,this.Preferences.LastUsedId,this.Preferences.KindDefaultId(KindName),this.Preferences.DefaultId);
         this.CurrentId=Resolution.Template.Id;
@@ -152,10 +152,10 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
     private void Apply(PreviewLevelTemplate Template,bool Persist){
         this.CurrentId=Template.Id;
         this.AppliedJson=Template.ToJson();
-        this.Viewport.SetTemplate(Template);
         if(Persist){ this.Preferences.LastUsedId=Template.Id; }
         this.HideEnvironmentMessage();
         this.SetStatus(VsixText.Format("PreviewLevel_Applied",Template.DisplayName));
+        this.Viewport.SetTemplate(Template);
     }
     /// <summary>ホストがテンプレートを適用できず Default へ戻ったとき。ドロップダウンを合わせ、理由を表示する（保存済みの選択は変えない）。</summary>
     private void OnTemplateRejected(PreviewLevelTemplate Rejected,PreviewLevelTemplate Fallback,string Reason){
@@ -175,7 +175,7 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
     }
     /// <summary>
     /// カタログを読み直す（ドロップダウンを開いたとき・管理ダイアログのあと・ファイル編集のとき）。いま使っているテンプレートが消えた場合は
-    /// 標準の Default へ戻して理由を表示する。内容が変わった場合は即座に反映し、壊れた場合は直前の内容を保ったまま理由を表示する（編集の途中でちらつかせない）。
+    /// 標準の Default へ戻して理由を表示する。内容が変わった場合は即座に反映し、壊れた場合も Default へ戻して理由を表示する。
     /// </summary>
     private void RefreshEntries(){
         this.Entries=this.Store.Load();
@@ -183,8 +183,7 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
         var Entry=this.Entries.FirstOrDefault(Candidate=>string.Equals(Candidate.Id,this.CurrentId,StringComparison.OrdinalIgnoreCase));
         if(Entry is null){
             var Missing=this.CurrentId;
-            var Fallback=PreviewLevelResolver.Resolve(this.Entries,this.Preferences.DefaultId);
-            this.Apply(Fallback.Template,Persist:false);
+            this.Apply(PreviewLevelBuiltIns.Default(),Persist:false);
             this.RebuildLevelBox();
             this.ShowEnvironmentMessage(VsixText.Format("PreviewLevel_Unavailable",Missing,VsixText.Get("PreviewLevel_Missing")));
             return;
@@ -193,6 +192,8 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
         if(Entry.Template is{ }Template){
             if(Template.ToJson()!=this.AppliedJson){ this.Apply(Template,Persist:false); }
         } else {
+            this.Apply(PreviewLevelBuiltIns.Default(),Persist:false);
+            this.RebuildLevelBox();
             this.ShowEnvironmentMessage(VsixText.Format("PreviewLevel_Unavailable",Entry.Id,Entry.Error??string.Empty));
         }
     }
@@ -242,7 +243,9 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
         this.Statistics.Children.Add(Line(VsixText.Format("AssetEditor_MeshTriangles",Mesh.TriangleCount.ToString("N0",Culture))));
         var Size=Mesh.Size;
         this.Statistics.Children.Add(Line(VsixText.Format("AssetEditor_MeshSize",Size.X.ToString("0.###",Culture),Size.Y.ToString("0.###",Culture),Size.Z.ToString("0.###",Culture))));
-        this.Statistics.Children.Add(Line(VsixText.Get(Path.GetExtension(this.FilePath).Equals(".fbx",StringComparison.OrdinalIgnoreCase)?"AssetEditor_MeshNoteFbx":"AssetEditor_MeshNoteBaseColor")));
+        var Note=Path.GetExtension(this.FilePath).Equals(".fbx",StringComparison.OrdinalIgnoreCase)?"AssetEditor_MeshNoteFbx"
+            :this.Viewport.UsesHostGltf?"AssetEditor_MeshNoteGltf":"AssetEditor_MeshNoteBaseColor";
+        this.Statistics.Children.Add(Line(VsixText.Get(Note)));
     }
     private void OnOperationChanged(AuthoringOperationSnapshot Operation){
         var Diagnostics=string.Join(" ",Operation.Diagnostics.Select(static Diagnostic=>$"{Diagnostic.Code}: {Diagnostic.Message}"));
@@ -266,6 +269,7 @@ internal sealed class StaticMeshEditorContent:AssetEditorContent {
     protected override void OnReload(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.ShowStatisticsPlaceholder();
+        this.Skeletal?.Retarget(this.FilePath);
         this.Viewport.SetModelPath(this.FilePath);
         this.DetailsView.Retarget(this.FilePath);
     }

@@ -670,6 +670,14 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
 <data name="Assets_ImageOutputs" xml:space="preserve"><value>出力</value></data>
   <data name="AssetEditor_ShowInSolution" xml:space="preserve"><value>ソリューション エクスプローラーで表示</value></data>
   <data name="AssetEditor_ShowInAssets" xml:space="preserve"><value>Assets で表示</value></data>
+  <data name="AssetEditor_ShowInSolutionHelp" xml:space="preserve"><value>ソリューション エクスプローラーで親フォルダーを展開し、このファイルを選択します。</value></data>
+  <data name="AssetEditor_ShowInAssetsHelp" xml:space="preserve"><value>Assets で対象のフォルダーを開き、フィルターを解除してアセットを選択し、その位置へスクロールします。</value></data>
+  <data name="AssetEditor_NotInSolution" xml:space="preserve"><value>このファイルは読み込み済みのプロジェクトに含まれていません。ソリューション エクスプローラーで選択するにはプロジェクトへ追加してください。</value></data>
+  <data name="AssetEditor_NotInAssets" xml:space="preserve"><value>このファイルは読み込み済みのゲーム プロジェクトの Assets 一覧にありません。ゲーム プロジェクトへ追加して Assets を更新すると選択できます。</value></data>
+  <data name="AssetEditor_NavigationUnavailable" xml:space="preserve"><value>ソリューションまたは Assets の準備ができていないため移動できません。読み込み完了後に再実行してください。</value></data>
+  <data name="AssetEditor_NavigationFailed" xml:space="preserve"><value>ファイルの表示先へ移動できませんでした: {0}</value></data>
+  <data name="AssetEditor_RevealedInSolution" xml:space="preserve"><value>ソリューション エクスプローラーでこのファイルを選択しました。</value></data>
+  <data name="AssetEditor_RevealedInAssets" xml:space="preserve"><value>Assets でこのアセットを選択しました。</value></data>
   <data name="AssetEditor_DetailsUnavailable" xml:space="preserve"><value>C# Game Engine パッケージの読み込み後に Details を表示できます。</value></data>
   <data name="AssetEditor_NotInInventory" xml:space="preserve"><value>このファイルは開いているゲーム プロジェクトのアセットではないため、取り込み設定と参照は表示されません。</value></data>
   <data name="AssetEditor_Frame" xml:space="preserve"><value>フレーム (F)</value></data>
@@ -679,6 +687,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="AssetEditor_MeshTriangles" xml:space="preserve"><value>三角形数: {0}</value></data>
   <data name="AssetEditor_MeshSize" xml:space="preserve"><value>サイズ (X, Y, Z): {0} x {1} x {2}</value></data>
   <data name="AssetEditor_MeshNoteFbx" xml:space="preserve"><value>FBX は形状と基本色で表示します。テクスチャは表示しません。</value></data>
+  <data name="AssetEditor_MeshNoteGltf" xml:space="preserve"><value>glTF のマテリアルとテクスチャを表示します。</value></data>
   <data name="AssetEditor_MeshNoteBaseColor" xml:space="preserve"><value>形状と基本色で表示します。</value></data>
   <data name="AssetEditor_OpenLocationFloating" xml:space="preserve"><value>前面のフローティング ウィンドウ (既定)</value></data>
   <data name="AssetEditor_OpenLocationTab" xml:space="preserve"><value>ドキュメント タブ</value></data>
@@ -723,6 +732,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="AssetEditor_OpenAsJson" xml:space="preserve"><value>JSON で開く</value></data>
   <data name="AssetEditor_Save" xml:space="preserve"><value>保存</value></data>
   <data name="AssetEditor_Saved" xml:space="preserve"><value>保存しました。</value></data>
+  <data name="AssetEditor_SaveUnavailable" xml:space="preserve"><value>開いている文書が見つからないため保存できません: {0}</value></data>
   <data name="PreviewLevel_Label" xml:space="preserve"><value>プレビューレベル</value></data>
   <data name="PreviewLevel_Tooltip" xml:space="preserve"><value>プレビューの照明・背景・環境・床</value></data>
   <data name="PreviewLevel_Manage" xml:space="preserve"><value>管理...</value></data>
@@ -741,6 +751,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="PreviewLevel_DefaultTag" xml:space="preserve"><value>(既定)</value></data>
   <data name="PreviewLevel_BrokenTag" xml:space="preserve"><value>(エラー)</value></data>
   <data name="PreviewLevel_ManagerTitle" xml:space="preserve"><value>プレビューレベルの管理</value></data>
+  <data name="PreviewLevel_New" xml:space="preserve"><value>新規...</value></data>
   <data name="PreviewLevel_Duplicate" xml:space="preserve"><value>複製...</value></data>
   <data name="PreviewLevel_Rename" xml:space="preserve"><value>名前の変更...</value></data>
   <data name="PreviewLevel_Delete" xml:space="preserve"><value>削除</value></data>

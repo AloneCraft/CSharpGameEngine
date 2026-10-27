@@ -21,6 +21,11 @@ public sealed class RenderPreviewHostPipeTests {
         Assert.Equal(Open.RequestId,Opened.RequestId);
         Assert.Equal(Open.SessionId,Opened.SessionId);
         Assert.Equal(RenderPreviewHostResultState.Succeeded,Opened.State);
+        Assert.Equal(new[]{ -4f,0f,0f },Opened.StaticBounds!.Min);
+        Assert.Equal(new[]{ 5f,4f,0f },Opened.StaticBounds.Max);
+        Assert.Equal(6,Opened.StaticBounds.VertexCount);
+        Assert.Equal(2,Opened.StaticBounds.TriangleCount);
+        Assert.Equal(new[]{ -2f,0f,0f },Opened.AssetSummary!.RestBounds!.Min);
 
         RenderPreviewHostRequest Render=new(){
             RequestId=Guid.NewGuid(),
@@ -89,6 +94,8 @@ public sealed class RenderPreviewHostPipeTests {
         public ulong CompletedFence=>5;
         public string LastFrameHash=>string.Empty;
         public RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics{get;}=[];
+        public RenderPreviewAssetBounds?StaticBounds=>new(){ Min=[-4f,0f,0f],Max=[5f,4f,0f],VertexCount=6,TriangleCount=2 };
+        public RenderPreviewAssetSummary?AssetSummary=>new(){ RestBounds=new(){ Min=[-2f,0f,0f],Max=[2f,3f,0f],VertexCount=5,TriangleCount=2 } };
         public int RenderCalls{get;private set;}
         public bool Disposed{get;private set;}
         public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){ }

@@ -5,7 +5,17 @@ namespace CSharpGameEngine.VSExtension;
 [Guid(PaneGuidString)]
 public sealed class AssetsToolWindowPane:ToolWindowPane {
     public const string PaneGuidString="ac836ce6-8b5d-4eda-a8f9-2f9145d85943";
-    internal static AssetWorkspaceController?Controller{get;set;}
+    private static AssetWorkspaceController?ControllerValue;
+    internal static event Action?ControllerChanged;
+    internal static AssetWorkspaceController?Controller{
+        get=>ControllerValue;
+        set{
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if(ReferenceEquals(ControllerValue,value)){ return; }
+            ControllerValue=value;
+            ControllerChanged?.Invoke();
+        }
+    }
     internal AssetsToolWindowControl Control{get;}
     public AssetsToolWindowPane():base(null){
         ThreadHelper.ThrowIfNotOnUIThread();

@@ -60,7 +60,10 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         else if(Item.Kind==AssetWorkspaceKind.Font){ _=this.ShowFontAsync(Item,this.Generation); }
         else if(Item.Kind==AssetWorkspaceKind.Audio){
             this.Audio=new System.Windows.Media.MediaPlayer();
-            this.Audio.MediaFailed+=(_,Args)=>this.Label(Args.ErrorException.Message);
+            var AudioGeneration=this.Generation;
+            this.Audio.MediaFailed+=(_,Args)=>{
+                if(!this.Disposed&&AudioGeneration==this.Generation){ this.Label(Args.ErrorException.Message); }
+            };
             this.Audio.Open(new Uri(Item.Source.SourcePath));
             this.Button("Assets_Play",()=>{ this.Audio?.Play();return Task.CompletedTask; });
             this.Button("Assets_Stop",()=>{ this.Audio?.Stop();return Task.CompletedTask; });

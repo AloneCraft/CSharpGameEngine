@@ -670,6 +670,14 @@ Discard unsaved edits and reload it?</value></data>
 <data name="Assets_ImageOutputs" xml:space="preserve"><value>Outputs</value></data>
   <data name="AssetEditor_ShowInSolution" xml:space="preserve"><value>Show in Solution Explorer</value></data>
   <data name="AssetEditor_ShowInAssets" xml:space="preserve"><value>Show in Assets</value></data>
+  <data name="AssetEditor_ShowInSolutionHelp" xml:space="preserve"><value>Expand the parent folders and select this file in Solution Explorer.</value></data>
+  <data name="AssetEditor_ShowInAssetsHelp" xml:space="preserve"><value>Open the asset's folder in Assets, clear the filters, and select and scroll to the asset.</value></data>
+  <data name="AssetEditor_NotInSolution" xml:space="preserve"><value>This file is not included in a loaded project. Add it to a project to select it in Solution Explorer.</value></data>
+  <data name="AssetEditor_NotInAssets" xml:space="preserve"><value>This file is not in the loaded game projects' Assets list. Add it to a game project and refresh Assets to select it here.</value></data>
+  <data name="AssetEditor_NavigationUnavailable" xml:space="preserve"><value>Navigation is unavailable while the solution or Assets workspace is not ready. Try again after loading finishes.</value></data>
+  <data name="AssetEditor_NavigationFailed" xml:space="preserve"><value>Could not reveal this file: {0}</value></data>
+  <data name="AssetEditor_RevealedInSolution" xml:space="preserve"><value>Selected this file in Solution Explorer.</value></data>
+  <data name="AssetEditor_RevealedInAssets" xml:space="preserve"><value>Selected this asset in Assets.</value></data>
   <data name="AssetEditor_DetailsUnavailable" xml:space="preserve"><value>Details are available after the C# Game Engine package has loaded.</value></data>
   <data name="AssetEditor_NotInInventory" xml:space="preserve"><value>This file is not an asset of the open game project, so its import settings and references are not shown.</value></data>
   <data name="AssetEditor_Frame" xml:space="preserve"><value>Frame (F)</value></data>
@@ -679,6 +687,7 @@ Discard unsaved edits and reload it?</value></data>
   <data name="AssetEditor_MeshTriangles" xml:space="preserve"><value>Triangles: {0}</value></data>
   <data name="AssetEditor_MeshSize" xml:space="preserve"><value>Size (X, Y, Z): {0} x {1} x {2}</value></data>
   <data name="AssetEditor_MeshNoteFbx" xml:space="preserve"><value>FBX is drawn as geometry with its base color; textures are not shown.</value></data>
+  <data name="AssetEditor_MeshNoteGltf" xml:space="preserve"><value>glTF materials and textures are displayed.</value></data>
   <data name="AssetEditor_MeshNoteBaseColor" xml:space="preserve"><value>Drawn as geometry with its base color.</value></data>
   <data name="AssetEditor_OpenLocationFloating" xml:space="preserve"><value>Floating window in front (default)</value></data>
   <data name="AssetEditor_OpenLocationTab" xml:space="preserve"><value>Document tab</value></data>
@@ -723,6 +732,7 @@ Discard unsaved edits and reload it?</value></data>
   <data name="AssetEditor_OpenAsJson" xml:space="preserve"><value>Open as JSON</value></data>
   <data name="AssetEditor_Save" xml:space="preserve"><value>Save</value></data>
   <data name="AssetEditor_Saved" xml:space="preserve"><value>Saved.</value></data>
+  <data name="AssetEditor_SaveUnavailable" xml:space="preserve"><value>Cannot save because the open document is unavailable: {0}</value></data>
   <data name="PreviewLevel_Label" xml:space="preserve"><value>Preview level</value></data>
   <data name="PreviewLevel_Tooltip" xml:space="preserve"><value>Lighting, background, environment and floor used for the preview</value></data>
   <data name="PreviewLevel_Manage" xml:space="preserve"><value>Manage...</value></data>
@@ -741,6 +751,7 @@ Discard unsaved edits and reload it?</value></data>
   <data name="PreviewLevel_DefaultTag" xml:space="preserve"><value>(default)</value></data>
   <data name="PreviewLevel_BrokenTag" xml:space="preserve"><value>(error)</value></data>
   <data name="PreviewLevel_ManagerTitle" xml:space="preserve"><value>Manage preview levels</value></data>
+  <data name="PreviewLevel_New" xml:space="preserve"><value>New...</value></data>
   <data name="PreviewLevel_Duplicate" xml:space="preserve"><value>Duplicate...</value></data>
   <data name="PreviewLevel_Rename" xml:space="preserve"><value>Rename...</value></data>
   <data name="PreviewLevel_Delete" xml:space="preserve"><value>Delete</value></data>

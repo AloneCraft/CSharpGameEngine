@@ -25,17 +25,25 @@ internal sealed class AssetDetailsView:Grid,IDisposable {
         this.Message.SetResourceReference(TextBlock.ForegroundProperty,VsBrushes.WindowTextKey);
         this.Children.Add(this.Inspector);
         this.Children.Add(this.Message);
+        AssetsToolWindowPane.ControllerChanged+=this.OnControllerChanged;
+        this.OnControllerChanged();
+    }
+    /// <summary>このエディターのアセットに対応する在庫項目（まだ在庫にない場合は null）。</summary>
+    internal AssetWorkspaceItem?Item=>this.Controller?.Items.FirstOrDefault(Candidate=>string.Equals(Candidate.Source.SourcePath,this.SourcePath,StringComparison.OrdinalIgnoreCase));
+    private void OnControllerChanged(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed){ return; }
+        if(this.Controller is not null){ this.Controller.Changed-=this.Refresh; }
         this.Controller=AssetsToolWindowPane.Controller;
         if(this.Controller is not null){ this.Controller.Changed+=this.Refresh; }
         this.Refresh();
     }
-    /// <summary>このエディターのアセットに対応する在庫項目（まだ在庫にない場合は null）。</summary>
-    internal AssetWorkspaceItem?Item=>this.Controller?.Items.FirstOrDefault(Candidate=>string.Equals(Candidate.Source.SourcePath,this.SourcePath,StringComparison.OrdinalIgnoreCase));
     internal void Refresh(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed){ return; }
         var Current=this.Item;
         if(Current is null){
+            this.Inspector.Show(Array.Empty<AssetWorkspaceItem>());
             this.Inspector.Visibility=Visibility.Collapsed;
             this.Message.Visibility=Visibility.Visible;
             this.Message.Text=this.Controller is null?VsixText.Get("AssetEditor_DetailsUnavailable"):VsixText.Get("AssetEditor_NotInInventory");
@@ -58,6 +66,7 @@ internal sealed class AssetDetailsView:Grid,IDisposable {
     }
     public void Dispose(){
         this.Disposed=true;
+        AssetsToolWindowPane.ControllerChanged-=this.OnControllerChanged;
         if(this.Controller is not null){ this.Controller.Changed-=this.Refresh; }
         this.Controller=null;
         this.Inspector.Dispose();

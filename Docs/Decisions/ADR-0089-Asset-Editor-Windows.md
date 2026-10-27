@@ -28,9 +28,13 @@ Skeletal Mesh / Animation は同じ基盤の上に載せる。ホストがスケ
   実際にどこへ置かれたかは、フレーム HWND のルートがメインウィンドウと異なるかで判定する（診断ログ用）。
 - 位置とサイズは `SetFramePos(SFP_fMove|SFP_fSize)`、だめなら DTE の `Window.Left/Top/Width/Height`。**フロート直後すぐではなく約 1.2 秒遅らせて**一度だけ行う。
   直後に大きさを変えると、WPF の描画が一部しか塗られない状態を観測した。メイン画面の 85%（最大 1280×800、最小 640×480）を中央に置く（`AssetEditorOpenLocationPolicy.CenteredBounds`）。
+  この遅延は以前の観測に基づく暫定回避であり、最初の描画完了や根本原因の解消を保証しない。最終ビルドの全面表示はM0127の未確認項目として維持する。
 - VS の復元・「プログラムから開く」では `CreateFlags` に `CEF_OPENSPECIFIC (0x10)` が立つ。この場合は保存されたレイアウトを尊重し、**フロート化も位置決めもしない**。
   これを見ないと、復元のたびにユーザーが置いたウィンドウが中央に戻された。
 - ユーザーがドッキングしたウィンドウは、再表示や再アクティブ化で浮かせ直さない（フレームごとに最初の一度だけ）。
+- フロート化と前面維持は別の契約である。2026-10-27のユーザー確認ではドッキングは合格だが、VS本体を操作したときの前面維持は不合格だった。VSの既定のFloating Windows設定はTool Windowsだけを本体の所有ウィンドウにするため、ドキュメントを浮かせるだけでは継続した前面維持にならない（[VS公式資料](https://learn.microsoft.com/visualstudio/ide/customizing-window-layouts-in-visual-studio?view=visualstudio#floating-window-ownership)）。
+  L8の`AssetEditorFloatingOwner`は表示中の内容から最上位HWNDを解決し、同じプロセスのVS本体へ`GWLP_HWNDPARENT`を設定する。内容が本体内にドッキングされている場合は変更しない。表示・Loaded・PresentationSource変更・ドッキング変更で更新し、破棄時にイベントを解除する。保存済みの位置やフロート／ドッキング状態を変更せず、所有関係だけを適用する。浮動タブ群を共有する場合、所有関係はその最上位ウィンドウ全体に適用される。
+  [所有ウィンドウは所有者より上に置かれる](https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows)。VS全体の設定を変更する案は他の文書へ影響するため採用しない。Topmostや前面化の繰り返しも使わない。ネイティブ所有関係のテストと、VS実画面での前面維持の受入は区別する。
 - 「開く場所」は Tools > Options > C# Game Engine > Asset Editors の「フローティング（既定）／ドキュメントタブ」で切り替える。
   シェーダーグラフも同じ仕組みで既定フローティング。シーン JSON は変えず、中央のドキュメントのまま。
 
