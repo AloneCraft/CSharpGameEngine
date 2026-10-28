@@ -132,3 +132,28 @@ F-L8-031 adds an IVsEditorFactory-backed WPF editor for .cgeshadergraph and .cge
 [Asset Workspace](Asset-Workspace.md) defines the asset UX and acceptance contracts. The implementation provides the public Solution Explorer filter, selection following/location locking, a virtualized bottom tile/details view, search/provider/state filters, saved locations/searches, explicit reveal, asset Inspector and typed model/reference drops. Initial ShowNoActivate runs after package load and only once for a game project; normal startup does not reapply Game Engine Layout. Output-tab docking is registered with a 280 DIP default.
 
 DataAsset edits validate with the shared scene analyzer and edit the live text buffer. Organize actions show complete before/after text, validate source/sidecar/read-set/compilation snapshots and use linked native Undo plus a physical-file primitive. The source in the active scene remains its placement session. Runtime UI verification, importer integration and remaining organize cases are recorded in [M0123](../Milestones/M0123-Asset-Workspace.md); registration and automated tests alone are not evidence of actual docking, focus or Undo gestures.
+
+## ウィンドウ配置（既定のレイアウトと保存手順）
+
+ゲーム エンジンのウィンドウ（Hierarchy・Inspector・コンポーネント・Assets）の既定の位置は、各ツール ウィンドウの `[ProvideToolWindow]` 属性が決める。VS は属性の位置を「そのハイブでウィンドウが初めて作られたとき」にしか守らず、以後は VS が保存した配置が優先される。Unity や UE5 のような配置（Hierarchy が左、ソリューション エクスプローラーが右上、Inspector とプロパティが右下、Assets が下）を自動で適用する機能はない。
+
+実機（VS 18、専用ハイブ）で確かめた制約は次のとおり。
+
+- ツール ウィンドウのドック指定（`IVsWindowFrame.SetFramePos` の `SFP_fDock*`）は `E_NOTIMPL` で失敗する。「Apply Game Engine Layout」コマンドはこの結果を無視しているので、ウィンドウを属性の位置に表示するだけで、並べ替えはしない。
+- DTE の `CreateLinkedWindowFrame` で縦に積むと、2 つのウィンドウが元の列から外れて別の枠になる。動くのは、Assets を Output とタブにする形（`DockAssets`）だけ。
+- 属性だけで標準配置から再現すると、Hierarchy・ソリューション エクスプローラー・Inspector が右側に細い列で並び、使えない。
+- VS の保存レイアウトは、設定ファイルのレイアウト一覧（Key の昇順）に、`1|0|名前|GZip の Base64（ウィンドウ プロファイルの XML）` として入る。XML は自作でき、最小のもの（約 11 KB）を VS が適用することも確かめた。拡張機能から実行時に登録することもできた（一覧は文字列ではなく「キーと値の組の配列」として書く）。ただし、標準配置へリセットした直後からの適用は「適用できませんでした」で失敗し、すでにウィンドウが表示されている状態からしか成功しなかった。新規ユーザーへ自動で配る方法としては採用していない。
+
+### 好みの配置を保存して使う手順
+
+1. ゲーム プロジェクトを開き、ゲーム エンジンのウィンドウ（Hierarchy・Inspector・コンポーネント・Assets）をすべて表示する。
+2. タイトル バーをドラッグして、次のように並べる。
+   - 左: Hierarchy（上）とコンポーネント（下）。コンポーネントは Hierarchy と Inspector へのドロップ元なので、どちらともタブにしない。
+   - 右上: ソリューション エクスプローラー。Assets の選択が同期されるので、タブの奥には隠さない。
+   - 右下: Inspector とプロパティをタブで重ね、Inspector を手前にする。
+   - 下: Assets・出力・エラー一覧をタブにし、Assets を手前にする。
+3. 「ウィンドウ > ウィンドウ レイアウトを保存」で名前（例: `Game Engine`）を付けて保存する。
+4. 別のプロジェクトや環境で使うときは、「ウィンドウ > ウィンドウ レイアウトを適用」からその名前を選ぶ。適用すると、今の配置は破棄される（VS が確認する）。
+5. 保存したレイアウトの削除や並べ替えは「ウィンドウ > ウィンドウ レイアウトの管理」、VS の標準配置へ戻すときは「ウィンドウ > ウィンドウ レイアウトのリセット」を使う。リセットは、ほかの拡張機能のウィンドウも標準配置へ戻す。
+
+適用は、必要なウィンドウがすでに開いている状態から行う（リセットした直後は、先にゲーム エンジンのウィンドウを開いてから適用する）。保存レイアウトは、ハイブごとのローカル設定（`%LOCALAPPDATA%\Microsoft\VisualStudio\<バージョン>_<ハイブ>\ApplicationPrivateSettings.xml`）に入る。別の PC へ持ち出す方法は確かめていない。

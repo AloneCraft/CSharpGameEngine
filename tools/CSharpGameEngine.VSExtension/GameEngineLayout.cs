@@ -42,7 +42,7 @@ internal static class GameEngineLayout {
     }
 
     /// <summary>
-    /// ツールバーを表示し、補助 Hierarchy ペインをキーボードフォーカスを奪わずに Solution Explorer の隣へドッキングします。Scene Designer は対象となる具体的な IScene が必要なため、ここでは扱わず、<see cref="OpenSceneDesignerCommand"/> からのみ開きます。
+    /// ツールバーを表示し、ゲーム エンジンのウィンドウをキーボードフォーカスを奪わずに表示します。ドック指定の <c>SetFramePos</c> は VS 18 で <c>E_NOTIMPL</c> を返して効かない（結果は無視している）ので、ウィンドウは各 <c>[ProvideToolWindow]</c> 属性の位置に出るだけで、並べ替えはしません（Docs/Specifications/Editor-VSIX.md の「ウィンドウ配置」）。Scene Designer は対象となる具体的な IScene が必要なため、ここでは扱わず、<see cref="OpenSceneDesignerCommand"/> からのみ開きます。
     /// </summary>
     public static async Task ApplyAsync(AsyncPackage Package,DTE Dte){
         await Package.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);

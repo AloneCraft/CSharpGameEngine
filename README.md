@@ -224,7 +224,7 @@ Add `SpatialBounds` beside a fixed-point `Transform` to participate in `World.Gl
 
 ## Assets in Visual Studio (VSIX 0.1.8, integration in progress)
 
-Open a game project and use **Game Engine > Assets** to open the bottom asset window. The first game-project display registers it with Output at 280 DIP; later layout and visibility belong to Visual Studio. **Apply Game Engine Layout** explicitly reapplies defaults. Solution Explorer's **Assets only** filter narrows project items; folder/asset selection follows into Assets unless **Lock location** is enabled. Search scope, kind/provider/state, thumbnail/details view and saved searches are available. **Show in Solution Explorer** explicitly reveals the selection.
+Open a game project and use **Game Engine > Assets** to open the bottom asset window. The first game-project display registers it with Output at 280 DIP; later layout and visibility belong to Visual Studio. **Apply Game Engine Layout** shows the game engine windows (it does not re-dock them: docking by API is not implemented in VS 18); to keep a preferred arrangement, save it with **Window > Save Window Layout** (steps in `Docs/Specifications/Editor-VSIX.md`, "ウィンドウ配置"). Solution Explorer's **Assets only** filter narrows project items; folder/asset selection follows into Assets unless **Lock location** is enabled. Search scope, kind/provider/state, thumbnail/details view and saved searches are available. **Show in Solution Explorer** explicitly reveals the selection.
 
 Type icons identify assets even before a thumbnail is available. Read-only locks and error/warning badges are shown independently, alongside text labels.
 
