@@ -740,9 +740,9 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="PreviewLevel_Unavailable" xml:space="preserve"><value>プレビューレベル '{0}' を使えません({1})。標準の環境を使います。</value></data>
   <data name="PreviewLevel_Missing" xml:space="preserve"><value>見つかりません</value></data>
   <data name="PreviewLevel_Default" xml:space="preserve"><value>Default</value></data>
-  <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>従来のアセットプレビューの見た目。レンダラー既定の背景と平坦なアンビエント光で、床はありません。</value></data>
+  <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>モデル・マテリアルの確認向けの標準。ニュートラルな背景、キー・フィル・リムのライト、影が確認できる床。</value></data>
   <data name="PreviewLevel_Studio" xml:space="preserve"><value>Studio</value></data>
-  <data name="PreviewLevel_StudioDescription" xml:space="preserve"><value>モデル・マテリアルの確認向け。ニュートラルな背景、キー・フィル・リムのライト、影が確認できる床。</value></data>
+  <data name="PreviewLevel_StudioDescription" xml:space="preserve"><value>床・壁・天井のある部屋。室内の点ライトで照らし、壁と天井も影を落とします。サムネイルもこの環境で描きます。</value></data>
   <data name="PreviewLevel_Outdoor" xml:space="preserve"><value>Outdoor</value></data>
   <data name="PreviewLevel_OutdoorDescription" xml:space="preserve"><value>屋外の照明確認向け。物理ベースの空、太陽光、地面と影。</value></data>
   <data name="PreviewLevel_Neutral" xml:space="preserve"><value>Neutral</value></data>

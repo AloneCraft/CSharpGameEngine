@@ -125,7 +125,7 @@ public sealed class PreviewLevelSelectionFailureTests {
             Assert.Equal(SecondCamera,Second.Camera.View);
             var Replace=Assert.Single(Requests);
             Assert.Equal(RenderPreviewHostCommand.ReplaceScene,Replace.Command);
-            Assert.Equal(new[]{ PreviewSceneComposer.AssetObjectId,PreviewSceneComposer.FloorObjectId },Replace.Scene!.Objects.Select(static Object=>Object.ObjectId));
+            Assert.Equal(new[]{ PreviewSceneComposer.AssetObjectId,PreviewSceneComposer.FloorObjectId,PreviewSceneComposer.WallsObjectId,PreviewSceneComposer.CeilingObjectId },Replace.Scene!.Objects.Select(static Object=>Object.ObjectId));
             Assert.Same(Mesh,typeof(AssetViewportHost).GetField("Mesh",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(First));
             Assert.Equal(new[]{ First.Camera.Eye.X,First.Camera.Eye.Y,First.Camera.Eye.Z },Replace.Scene.Camera!.Position);
             Assert.Equal(Camera,First.Camera.View);

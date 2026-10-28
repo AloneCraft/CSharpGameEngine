@@ -62,6 +62,19 @@ internal sealed class PreviewFloor {
     public float[]GridColor { get;set;}=[0.25f,0.25f,0.25f];
     public float[]SubGridColor { get;set;}=[0.38f,0.38f,0.38f];
 }
+/// <summary>
+/// 床の上に立てる部屋（壁 4 枚と天井）。壁と天井も影を落とす。大きさは境界半径の倍数で、<see cref="PreviewFloor"/> と同じ中心に置く。
+/// 保存済みのテンプレートにこの節がなければ非表示（従来どおり）。
+/// </summary>
+internal sealed class PreviewRoom {
+    public bool Visible { get;set;}
+    /// <summary>壁までの半辺の長さ（境界半径の倍数）。</summary>
+    public float HalfSizeRadii { get;set;}=8f;
+    /// <summary>床から天井までの高さ（境界半径の倍数）。</summary>
+    public float HeightRadii { get;set;}=7f;
+    public float[]WallColor { get;set;}=[0.62f,0.62f,0.64f];
+    public float[]CeilingColor { get;set;}=[0.72f,0.72f,0.74f];
+}
 internal sealed class PreviewCameraDefaults {
     /// <summary>対象から視点へ向かう方位角（度）。</summary>
     public float YawDegrees { get;set;}=45f;
@@ -90,6 +103,7 @@ internal sealed class PreviewLevelTemplate {
     public List<PreviewLight>Lights { get;set;}=[];
     public PreviewEnvironment Environment { get;set;}=new();
     public PreviewFloor Floor { get;set;}=new();
+    public PreviewRoom Room { get;set;}=new();
     public PreviewCameraDefaults Camera { get;set;}=new();
     /// <summary>ファイル名（拡張子なし）で、名前変更で変わらない識別子。ファイルには書かない。</summary>
     [JsonIgnore]
@@ -127,7 +141,7 @@ internal sealed class PreviewLevelTemplate {
     internal string?Validate(){
         if(this.SchemaVersion<1||this.SchemaVersion>CurrentSchemaVersion){ return $"Unsupported preview level schema version {this.SchemaVersion}; expected {CurrentSchemaVersion}."; }
         if(string.IsNullOrWhiteSpace(this.DisplayName)){ return "DisplayName is required."; }
-        if(this.Background is null||this.Ambient is null||this.Lights is null||this.Environment is null||this.Floor is null||this.Camera is null){ return "A preview level section is missing."; }
+        if(this.Background is null||this.Ambient is null||this.Lights is null||this.Environment is null||this.Floor is null||this.Room is null||this.Camera is null){ return "A preview level section is missing."; }
         if(!Enum.IsDefined(typeof(PreviewBackgroundMode),this.Background.Mode)){ return "Background mode is invalid."; }
         if(!Color(this.Background.Color,0f,1f)){ return "Background color needs three values between 0 and 1."; }
         if(!Color(this.Ambient.Color,0f,16f)||!Finite(this.Ambient.Intensity)||this.Ambient.Intensity<0f||this.Ambient.Intensity>16f){ return "Ambient needs a color and an intensity between 0 and 16."; }
@@ -157,6 +171,11 @@ internal sealed class PreviewLevelTemplate {
         if(!Finite(Floor.SizeRadii)||Floor.SizeRadii<=0f||Floor.SizeRadii>1000f||!Color(Floor.Color,0f,1f)||!Finite(Floor.Roughness)||Floor.Roughness<0f||Floor.Roughness>1f
             ||!Finite(Floor.GridSizeMeters)||Floor.GridSizeMeters<0f||!Color(Floor.GridColor,0f,16f)||!Color(Floor.SubGridColor,0f,16f)){
             return "Floor values are out of range.";
+        }
+        var Room=this.Room;
+        if(!Finite(Room.HalfSizeRadii)||Room.HalfSizeRadii<=0f||Room.HalfSizeRadii>1000f||!Finite(Room.HeightRadii)||Room.HeightRadii<=0f||Room.HeightRadii>1000f
+            ||!Color(Room.WallColor,0f,1f)||!Color(Room.CeilingColor,0f,1f)){
+            return "Room values are out of range.";
         }
         var Camera=this.Camera;
         if(!Finite(Camera.YawDegrees)||!Finite(Camera.ElevationDegrees)||Camera.ElevationDegrees<-80f||Camera.ElevationDegrees>80f||!Finite(Camera.FovDegrees)||Camera.FovDegrees<5f||Camera.FovDegrees>120f

@@ -15,6 +15,14 @@ internal sealed class AssetWorkspaceQuery {
     internal bool WholeProject{get;set;}
     internal bool Locked{get;set;}
     internal bool Details{get;set;}
+    /// <summary>場所（プロジェクトとフォルダー）を移す。変わったときだけ true を返す。</summary>
+    internal bool MoveTo(string Project,string FolderPath){
+        if(string.Equals(this.ProjectPath,Project,StringComparison.Ordinal)&&string.Equals(this.Folder,FolderPath,StringComparison.Ordinal)){ return false; }
+        this.ProjectPath=Project;this.Folder=FolderPath;
+        return true;
+    }
+    /// <summary>一覧に影響する条件を 1 つの文字列にする（同じなら一覧を作り直さなくてよい）。</summary>
+    internal string ViewKey=>string.Join("\u001f",this.ProjectPath,this.Folder,this.Search,this.Kind,this.Provider,this.State,this.WholeProject,this.Details);
     internal void Reveal(AssetWorkspaceItem Item){
         this.ProjectPath=Item.Source.ProjectPath;
         this.Folder=Path.GetDirectoryName(Item.Source.SourcePath)??string.Empty;

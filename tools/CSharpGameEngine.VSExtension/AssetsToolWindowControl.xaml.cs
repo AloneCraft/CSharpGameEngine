@@ -69,7 +69,9 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private void OnInventoryChanged(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Controller is not { }Controller||this.Disposed){ return; }
-        AssetThumbnailService.Invalidate();
+        // アセット一覧そのものが変わったときだけサムネイルのキャッシュを捨てる（選択や診断だけの通知では残す）。
+        var ItemsChanged=!ReferenceEquals(this.LastItems,Controller.Items);
+        if(ItemsChanged){ AssetThumbnailService.Invalidate();this.LastItems=Controller.Items; }
         this.Updating=true;
         this.ProjectChoice.ItemsSource=Controller.Projects.Select(static Project=>new AssetProjectChoice(Project.ProjectFilePath)).ToArray();
         this.ProjectChoice.SelectedValue=Controller.Query.ProjectPath;
@@ -81,8 +83,15 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         this.StateChoice.SelectedValue=Controller.Query.State;
         this.Favorites.ItemsSource=Controller.LoadFavorites();
         this.Updating=false;
+        if(!ItemsChanged&&this.AppliedViewKey==Controller.Query.ViewKey&&this.Rows.ItemsSource is AssetWorkspaceRow[]Existing){
+            // 一覧も条件も同じ: 行（とサムネイル）はそのまま、ステータス行だけ更新する。
+            this.Status.Text=string.IsNullOrEmpty(Controller.Diagnostic)?VsixText.Format("Assets_Count",Existing.Length):Controller.Diagnostic;
+            return;
+        }
         _=this.ApplyQueryAsync();
     }
+    private AssetWorkspaceItem[]?LastItems;
+    private string?AppliedViewKey;
     private void OnProjectChanged(object Sender,SelectionChangedEventArgs Args){
         if(this.Updating||this.Controller is not { }Controller||this.ProjectChoice.SelectedValue is not string Project){ return; }
         Controller.Query.ProjectPath=Project;
@@ -105,9 +114,11 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         var Query=new AssetWorkspaceQuery{ProjectPath=Controller.Query.ProjectPath,Folder=Controller.Query.Folder,Search=Controller.Query.Search,
             Kind=Controller.Query.Kind,Provider=Controller.Query.Provider,State=Controller.Query.State,WholeProject=Controller.Query.WholeProject};
         var Items=Controller.Items;
+        var ViewKey=Controller.Query.ViewKey;
         try {
             var Result=await Task.Run(()=>Query.Apply(Items,Token),Token);
             if(this.Disposed||Token.IsCancellationRequested){ return; }
+            this.AppliedViewKey=ViewKey;
             this.Updating=true;
             var Rows=Result.Select(static Item=>new AssetWorkspaceRow(Item)).ToArray();
             this.Rows.ItemsSource=Rows;this.Tiles.ItemsSource=Rows;
@@ -182,7 +193,17 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     }
     private void OnDragStart(object Sender,MouseButtonEventArgs Args){
         this.DragOrigin=Args.GetPosition(this);
-        if(Sender is ListBox List&&ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) is ListBoxItem Container){ Container.Focus(); }
+        if(Sender is not ListBox List){ return; }
+        if(ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) is ListBoxItem Container){ Container.Focus();return; }
+        // アイテム以外の空き領域のクリックは選択を解除する（スクロールバーと列ヘッダーは除く）。
+        if(IsEmptySpace(Args.OriginalSource as DependencyObject)){ List.SelectedItems.Clear(); }
+    }
+    /// <summary>スクロールバーと列ヘッダーの上ではない、一覧の空き領域か。</summary>
+    internal static bool IsEmptySpace(DependencyObject?Source){
+        for(var Node=Source;Node is not null;Node=Node is System.Windows.Media.Visual||Node is System.Windows.Media.Media3D.Visual3D?System.Windows.Media.VisualTreeHelper.GetParent(Node):LogicalTreeHelper.GetParent(Node)){
+            if(Node is System.Windows.Controls.Primitives.ScrollBar or GridViewColumnHeader or ListBoxItem){ return false; }
+        }
+        return true;
     }
     private void OnDragMove(object Sender,MouseEventArgs Args){
         if(Args.LeftButton!=MouseButtonState.Pressed||this.Selected is not { }Item){ return; }

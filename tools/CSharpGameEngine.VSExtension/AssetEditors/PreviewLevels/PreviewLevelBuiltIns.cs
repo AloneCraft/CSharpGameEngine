@@ -19,16 +19,8 @@ internal static class PreviewLevelBuiltIns {
         Configure(Template);
         return Template;
     }
-    /// <summary>
-    /// 現在のアセットプレビューの見た目を保つ環境。レンダラー既定の青い背景、平坦なアンビエント 0.4、床なし、ホストが従来固定していた +Y 向き 2 lux の方向ライト。
-    /// 従来の描画と同じであることはホストのテストで固定している（ライトの向きが不自然に見える場合は Studio を使う）。
-    /// </summary>
+    /// <summary>モデル・マテリアルの確認向けの標準。ニュートラルな背景、キー・フィル・リムの 3 灯、影が落ちる床。</summary>
     internal static PreviewLevelTemplate Default()=>Create(DefaultId,"PreviewLevel_Default","PreviewLevel_DefaultDescription",static Template=>{
-        Template.Ambient=new(){ Color=[1f,1f,1f],Intensity=0.4f };
-        Template.Lights=[new(){ Kind=PreviewLightKind.Directional,Name="Sun",Intensity=2f,YawDegrees=0f,PitchDegrees=90f,CastsShadows=true }];
-    });
-    /// <summary>モデル・マテリアルの確認向け。ニュートラルな背景、キー・フィル・リムの 3 灯、影が落ちる床。</summary>
-    internal static PreviewLevelTemplate Studio()=>Create(StudioId,"PreviewLevel_Studio","PreviewLevel_StudioDescription",static Template=>{
         Template.Background=new(){ Mode=PreviewBackgroundMode.Solid,Color=[0.17f,0.18f,0.2f] };
         Template.Ambient=new(){ Color=[0.9f,0.95f,1f],Intensity=0.14f };
         Template.Lights=[
@@ -37,6 +29,20 @@ internal static class PreviewLevelBuiltIns {
             new(){ Kind=PreviewLightKind.Directional,Name="Rim",Color=[1f,1f,1f],Intensity=2f,YawDegrees=25f,PitchDegrees=-25f },
         ];
         Template.Floor=new(){ Visible=true,Color=[0.42f,0.42f,0.44f],Grid=true,GridColor=[0.2f,0.2f,0.22f],SubGridColor=[0.3f,0.3f,0.33f] };
+    });
+    /// <summary>
+    /// 床・壁・天井のある部屋（サムネイルもこの環境で描く）。壁と天井も影を落とすので、平行ライトではなく室内の点ライトで照らす
+    /// （平行ライトは天井で全部遮られる）。主灯は影を落とし、補助灯は影なし。
+    /// </summary>
+    internal static PreviewLevelTemplate Studio()=>Create(StudioId,"PreviewLevel_Studio","PreviewLevel_StudioDescription",static Template=>{
+        Template.Background=new(){ Mode=PreviewBackgroundMode.Solid,Color=[0.17f,0.18f,0.2f] };
+        Template.Ambient=new(){ Color=[0.9f,0.95f,1f],Intensity=0.3f };
+        Template.Lights=[
+            new(){ Kind=PreviewLightKind.Point,Name="Key",Color=[1f,0.95f,0.88f],Intensity=900f,PositionRadii=[-2.2f,4.2f,2.6f],RangeRadii=20f,CastsShadows=true },
+            new(){ Kind=PreviewLightKind.Point,Name="Fill",Color=[0.85f,0.92f,1f],Intensity=220f,PositionRadii=[3.2f,2.4f,-2.4f],RangeRadii=20f },
+        ];
+        Template.Floor=new(){ Visible=true,SizeRadii=8f,Color=[0.42f,0.42f,0.44f],Grid=true,GridColor=[0.2f,0.2f,0.22f],SubGridColor=[0.3f,0.3f,0.33f] };
+        Template.Room=new(){ Visible=true,HalfSizeRadii=8f,HeightRadii=7f };
     });
     /// <summary>屋外の照明確認向け。物理ベースの空とスカイライト、太陽に相当する方向ライト、地面と影（ThirdPerson テンプレートのレベルと同じ露出）。</summary>
     internal static PreviewLevelTemplate Outdoor()=>Create(OutdoorId,"PreviewLevel_Outdoor","PreviewLevel_OutdoorDescription",static Template=>{

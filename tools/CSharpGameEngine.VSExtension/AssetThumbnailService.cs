@@ -59,7 +59,7 @@ internal static class AssetThumbnailService {
             if(Project is null){ return Task.FromResult<BitmapSource?>(null); }
         }
         var File=new FileInfo(Item.Source.SourcePath);
-        var Key=(ThumbnailKey??Item.GetKey())?.ToString()+"|"+Item.Source.SourcePath+"|"+File.Length+"|"+File.LastWriteTimeUtc.Ticks+"|"+Item.MetadataSha256+"|"+Project?.Version.ToString()+"|"+Generation+"|geometry-basecolor-v1";
+        var Key=(ThumbnailKey??Item.GetKey())?.ToString()+"|"+Item.Source.SourcePath+"|"+File.Length+"|"+File.LastWriteTimeUtc.Ticks+"|"+Item.MetadataSha256+"|"+Project?.Version.ToString()+"|"+Generation+"|geometry-studio-room-v1";
         lock(Gate){
             if(Cache.TryGetValue(Key,out var Existing)){ Recency.Remove(Existing.Node);Recency.AddFirst(Existing.Node);return Task.FromResult<BitmapSource?>(Existing.Image); }
             if(Pending.TryGetValue(Key,out var ExistingWork)&&!ExistingWork.Cancellation.IsCancellationRequested){ return SubscribeAsync(ExistingWork,Cancellation); }
@@ -116,9 +116,11 @@ internal static class AssetThumbnailService {
         var Request=new AssetThumbnailRequest();
         if(Item.Kind is AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image){ Request.ImagePath=Item.Source.SourcePath; }
         else{
-            Request.Scene=Item.Kind==AssetWorkspaceKind.Model
-                ?Frame([new SceneRenderObject{Mesh=LoadMesh(Item.Source.SourcePath,Context),World=Matrix4x4.Identity,NodeId=NodePath.Root}])
-                :await SceneAsync(Work,Context).ConfigureAwait(false);
+            if(Item.Kind==AssetWorkspaceKind.Model){
+                // モデルは Studio（床・壁・天井のある部屋）で描く。シーンは自分の世界を描くので従来どおり。
+                Request.Scene=StudioScene(LoadMesh(Item.Source.SourcePath,Context),out var Lighting);
+                Request.Lighting=Lighting;
+            } else { Request.Scene=await SceneAsync(Work,Context).ConfigureAwait(false); }
             Request.ShaderArtifactPath=RenderPreviewSceneBuilder.ResolveShaderArtifactPath(Context.WorkspaceRoot);
         }
         Work.Cancellation.ThrowIfCancellationRequested();
@@ -143,6 +145,21 @@ internal static class AssetThumbnailService {
                 return Bitmap;
             }
         }finally { try { Directory.Delete(Temp,true); }catch(IOException){ }catch(UnauthorizedAccessException){ } }
+    }
+    /// <summary>モデルを Studio の部屋に置いた 128 px 用のシーンと照明（エディターのプレビューと同じ構成・カメラ既定）。</summary>
+    internal static RenderPreviewScene StudioScene(SimpleMesh Mesh,out RenderPreviewLighting Lighting){
+        var Template=PreviewLevelBuiltIns.Studio();
+        var Min=new Vector3(float.PositiveInfinity);var Max=new Vector3(float.NegativeInfinity);
+        foreach(var Position in Mesh.Positions){ Min=Vector3.Min(Min,Position);Max=Vector3.Max(Max,Position); }
+        if(Mesh.Positions.Length==0){ Min=Max=Mesh.BoundsCenter; }
+        var Bounds=new PreviewBounds(Min,Max,Mesh.BoundsCenter,Mesh.BoundsRadius);
+        var Composition=PreviewSceneComposer.Compose(Mesh,Bounds,Template,128,128);
+        var Camera=new AssetViewportCamera();
+        Camera.SetFarReach(PreviewSceneComposer.FarReachRadii(Template));
+        Camera.Frame(Bounds.Center,Bounds.Radius,1f,Template.Camera);
+        Composition.Scene.Camera=RenderPreviewSceneBuilder.CreateCamera(Camera.View,Camera.Projection(1f),Camera.Eye,Camera.FovYRadians);
+        Lighting=PreviewLevelWire.CreateLighting(Template,Bounds,1);
+        return Composition.Scene;
     }
     private static SimpleMesh LoadMesh(string PathValue,CgeProjectContext Context){
         var Mesh=Path.GetExtension(PathValue).Equals(".fbx",StringComparison.OrdinalIgnoreCase)

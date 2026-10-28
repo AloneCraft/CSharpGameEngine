@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -72,15 +73,17 @@ internal static class PreviewLevelWire {
             var Position=Light.Kind==PreviewLightKind.Directional?Vector3.Zero
                 :new Vector3(Bounds.Center.X+Light.PositionRadii[0]*Radius,Bounds.Center.Y+Light.PositionRadii[1]*Radius,Bounds.Center.Z+Light.PositionRadii[2]*Radius);
             var Forward=PreviewLevelWire.Forward(Light.YawDegrees,Light.PitchDegrees);
+            // 光束は半径の 2 乗に比例させるが、プロトコルの上限（巨大なアセットでは超える）に丸めて、常に有効なライティングにする。
+            var Flux=Math.Min(Light.Intensity*Radius*Radius,RenderPreviewLightingValidation.MaximumIntensity);
             switch(Light.Kind){
                 case PreviewLightKind.Directional:
                     Directionals.Add(new RenderPreviewDirectionalLight { Forward=[Forward.X,Forward.Y,Forward.Z],Color=Color,IlluminanceLux=Light.Intensity,CastsShadows=Light.CastsShadows,ShadowBiasMeters=Bias });
                     break;
                 case PreviewLightKind.Point:
-                    Points.Add(new RenderPreviewPointLight { Position=[Position.X,Position.Y,Position.Z],Color=Color,FluxLumens=Light.Intensity*Radius*Radius,RangeMeters=Light.RangeRadii*Radius,CastsShadows=Light.CastsShadows,ShadowBiasMeters=Bias });
+                    Points.Add(new RenderPreviewPointLight { Position=[Position.X,Position.Y,Position.Z],Color=Color,FluxLumens=Flux,RangeMeters=Light.RangeRadii*Radius,CastsShadows=Light.CastsShadows,ShadowBiasMeters=Bias });
                     break;
                 case PreviewLightKind.Spot:
-                    Spots.Add(new RenderPreviewSpotLight { Position=[Position.X,Position.Y,Position.Z],Forward=[Forward.X,Forward.Y,Forward.Z],Color=Color,FluxLumens=Light.Intensity*Radius*Radius,RangeMeters=Light.RangeRadii*Radius,InnerConeDegrees=Light.InnerConeDegrees,OuterConeDegrees=Light.OuterConeDegrees,CastsShadows=Light.CastsShadows,ShadowBiasMeters=Bias });
+                    Spots.Add(new RenderPreviewSpotLight { Position=[Position.X,Position.Y,Position.Z],Forward=[Forward.X,Forward.Y,Forward.Z],Color=Color,FluxLumens=Flux,RangeMeters=Light.RangeRadii*Radius,InnerConeDegrees=Light.InnerConeDegrees,OuterConeDegrees=Light.OuterConeDegrees,CastsShadows=Light.CastsShadows,ShadowBiasMeters=Bias });
                     break;
             }
         }
@@ -105,7 +108,14 @@ internal static class PreviewSceneComposer {
     /// <summary>床を対象の底面から離す距離（境界半径の割合）。同一平面での深度の競合を避ける。</summary>
     private const float FloorGapRadii=0.002f;
     /// <summary>床が見えるテンプレートで、遠方クリップ面が届くべき距離（半径の倍数）。床の対角まで届かせる。</summary>
-    internal static float FarReachRadii(PreviewLevelTemplate Template)=>Template.Floor.Visible?Template.Floor.SizeRadii*1.5f:0f;
+    internal static float FarReachRadii(PreviewLevelTemplate Template){
+        var Reach=Template.Floor.Visible?Template.Floor.SizeRadii*1.5f:0f;
+        // 部屋の対角（床の中心から最も遠い天井の角）まで届かせる。
+        if(Template.Room.Visible){ Reach=Math.Max(Reach,Template.Room.HalfSizeRadii*2.9f+Template.Room.HeightRadii); }
+        return Reach;
+    }
+    internal const string WallsObjectId="PreviewWalls";
+    internal const string CeilingObjectId="PreviewCeiling";
     /// <param name="Skeletal">スケルタル glTF をホストが読み込む場合（ADR-0090）。静的なメッシュのオブジェクトは入れず、ホストが足すスキン付きのオブジェクトに任せる。<paramref name="Mesh"/> は境界の計算だけに使う。</param>
     internal static PreviewSceneComposition Compose(SimpleMesh?Mesh,PreviewBounds Bounds,PreviewLevelTemplate Template,int Width,int Height,RenderPreviewAssetSource?Skeletal=null,string?StaticAssetPath=null){
         var HostAsset=Skeletal is not null||!string.IsNullOrEmpty(StaticAssetPath);
@@ -113,7 +123,8 @@ internal static class PreviewSceneComposer {
             :RenderPreviewSceneBuilder.FromMesh(Mesh??throw new ArgumentNullException(nameof(Mesh)),Width,Height);
         RenderPreviewObjectTransform[]Objects=HostAsset?[]:[new(){ ObjectId=AssetObjectId,World=RenderPreviewMatrix4x4.Identity,SelectionWeight=0f }];
         var Floor=Template.Floor;
-        if(!Floor.Visible){ return new PreviewSceneComposition(Scene,string.Empty,Objects); }
+        if(!Floor.Visible&&!Template.Room.Visible){ return new PreviewSceneComposition(Scene,string.Empty,Objects); }
+        if(!Floor.Visible){ return ComposeRoom(Scene,Objects,Bounds,Template,string.Empty,Bounds.Min.Y-FloorGapRadii*Bounds.Radius); }
         var Half=Floor.SizeRadii*Bounds.Radius;
         var FloorY=Bounds.Min.Y-FloorGapRadii*Bounds.Radius;
         var MeshIndex=Scene.Meshes.Length;
@@ -127,7 +138,59 @@ internal static class PreviewSceneComposer {
         var World=RenderPreviewSceneBuilder.Matrix(Matrix4x4.CreateTranslation(0f,FloorY,0f));
         Scene.Objects=[..Scene.Objects,new RenderPreviewObject { ObjectId=FloorObjectId,MeshIndex=MeshIndex,MaterialIndex=MaterialIndex,World=World }];
         Objects=[..Objects,new RenderPreviewObjectTransform { ObjectId=FloorObjectId,World=RenderPreviewSceneBuilder.Matrix(Matrix4x4.CreateTranslation(0f,FloorY,0f)),SelectionWeight=0f }];
-        return new PreviewSceneComposition(Scene,Signature(Floor,GridSize,Half,FloorY,Bounds.Center),Objects);
+        var FloorSignature=Signature(Floor,GridSize,Half,FloorY,Bounds.Center);
+        return Template.Room.Visible?ComposeRoom(Scene,Objects,Bounds,Template,FloorSignature,FloorY):new PreviewSceneComposition(Scene,FloorSignature,Objects);
+    }
+    /// <summary>床の上に壁 4 枚と天井（内向きの面）を足す。壁と天井は影を落とす（描画サーバーの既定）。</summary>
+    private static PreviewSceneComposition ComposeRoom(RenderPreviewScene Scene,RenderPreviewObjectTransform[]Objects,PreviewBounds Bounds,PreviewLevelTemplate Template,string FloorSignature,float FloorY){
+        var Room=Template.Room;
+        var Half=Room.HalfSizeRadii*Bounds.Radius;
+        var CeilingY=FloorY+Room.HeightRadii*Bounds.Radius;
+        var X0=Bounds.Center.X-Half;var X1=Bounds.Center.X+Half;
+        var Z0=Bounds.Center.Z-Half;var Z1=Bounds.Center.Z+Half;
+        var Walls=new List<(Vector3 A,Vector3 B,Vector3 C,Vector3 D,Vector3 Normal)>{
+            (new(X0,FloorY,Z0),new(X1,FloorY,Z0),new(X1,CeilingY,Z0),new(X0,CeilingY,Z0),Vector3.UnitZ),
+            (new(X1,FloorY,Z0),new(X1,FloorY,Z1),new(X1,CeilingY,Z1),new(X1,CeilingY,Z0),-Vector3.UnitX),
+            (new(X1,FloorY,Z1),new(X0,FloorY,Z1),new(X0,CeilingY,Z1),new(X1,CeilingY,Z1),-Vector3.UnitZ),
+            (new(X0,FloorY,Z1),new(X0,FloorY,Z0),new(X0,CeilingY,Z0),new(X0,CeilingY,Z1),Vector3.UnitX),
+        };
+        var Ceiling=new List<(Vector3 A,Vector3 B,Vector3 C,Vector3 D,Vector3 Normal)>{
+            (new(X0,CeilingY,Z0),new(X1,CeilingY,Z0),new(X1,CeilingY,Z1),new(X0,CeilingY,Z1),-Vector3.UnitY),
+        };
+        var MeshIndex=Scene.Meshes.Length;
+        var MaterialIndex=Scene.Materials.Length;
+        Scene.Meshes=[..Scene.Meshes,QuadMesh(Walls),QuadMesh(Ceiling)];
+        Scene.Materials=[..Scene.Materials,
+            new RenderPreviewMaterial { BaseColor=[Room.WallColor[0],Room.WallColor[1],Room.WallColor[2],1f],Roughness=1f,Metallic=0f },
+            new RenderPreviewMaterial { BaseColor=[Room.CeilingColor[0],Room.CeilingColor[1],Room.CeilingColor[2],1f],Roughness=1f,Metallic=0f }];
+        var Identity=RenderPreviewMatrix4x4.Identity;
+        Scene.Objects=[..Scene.Objects,
+            new RenderPreviewObject { ObjectId=WallsObjectId,MeshIndex=MeshIndex,MaterialIndex=MaterialIndex,World=Identity },
+            new RenderPreviewObject { ObjectId=CeilingObjectId,MeshIndex=MeshIndex+1,MaterialIndex=MaterialIndex+1,World=RenderPreviewMatrix4x4.Identity }];
+        Objects=[..Objects,
+            new RenderPreviewObjectTransform { ObjectId=WallsObjectId,World=RenderPreviewMatrix4x4.Identity,SelectionWeight=0f },
+            new RenderPreviewObjectTransform { ObjectId=CeilingObjectId,World=RenderPreviewMatrix4x4.Identity,SelectionWeight=0f }];
+        var Builder=new StringBuilder(FloorSignature).Append("|room:");
+        void Add(float Value)=>Builder.Append(Value.ToString("R",CultureInfo.InvariantCulture)).Append('|');
+        Add(Half);Add(CeilingY);Add(FloorY);Add(Bounds.Center.X);Add(Bounds.Center.Z);
+        foreach(var Value in Room.WallColor){ Add(Value); }
+        foreach(var Value in Room.CeilingColor){ Add(Value); }
+        return new PreviewSceneComposition(Scene,Builder.ToString(),Objects);
+    }
+    /// <summary>四角形の集まり。各四角形は <c>Normal</c> が表（前面）になる向きの巻き順にする（床と同じく、表から見て時計回り）。</summary>
+    internal static RenderPreviewMesh QuadMesh(IReadOnlyList<(Vector3 A,Vector3 B,Vector3 C,Vector3 D,Vector3 Normal)>Quads){
+        var Positions=new List<float>();var Normals=new List<float>();var Indices=new List<uint>();
+        foreach(var Quad in Quads){
+            var Base=(uint)(Positions.Count/3);
+            foreach(var Corner in new[]{ Quad.A,Quad.B,Quad.C,Quad.D }){
+                Positions.AddRange([Corner.X,Corner.Y,Corner.Z]);
+                Normals.AddRange([Quad.Normal.X,Quad.Normal.Y,Quad.Normal.Z]);
+            }
+            // 三角形 (a,b,c) の表の向きは cross(c-a,b-a)（床のメッシュと同じ規則）。
+            var Front=Vector3.Dot(Vector3.Cross(Quad.C-Quad.A,Quad.B-Quad.A),Quad.Normal)>0f;
+            Indices.AddRange(Front?new[]{ Base,Base+1,Base+2,Base,Base+2,Base+3 }:new[]{ Base,Base+2,Base+1,Base,Base+3,Base+2 });
+        }
+        return new RenderPreviewMesh { Positions=[..Positions],Normals=[..Normals],Indices=[..Indices] };
     }
     /// <summary>上向きの 1 枚の四角形。エンジンの平面メッシュ（<c>ProceduralMeshFactory.CreatePlane</c>）と同じ頂点順・インデックスで、上から見たとき表になる。</summary>
     internal static RenderPreviewMesh FloorMesh(float CenterX,float CenterZ,float Half)=>new(){

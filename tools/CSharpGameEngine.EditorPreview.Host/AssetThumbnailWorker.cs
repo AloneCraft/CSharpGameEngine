@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CSharpGameEngine.Contracts;
+using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.EditorPreview.Host;
@@ -12,18 +13,29 @@ internal static class AssetThumbnailWorker {
         var Request=JsonSerializer.Deserialize<AssetThumbnailRequest>(File.ReadAllBytes(RequestPath))??throw new InvalidDataException("Thumbnail request is missing.");
         var Error=AssetThumbnailRequest.Validate(Request);
         if(Error is not null){ throw new InvalidDataException(Error); }
-        if(Request.Scene is null){ throw new InvalidDataException("Image thumbnails belong to the Cook worker."); }
-        using var Surface=new Win32Window(new(){Title="CSharpGameEngine Asset Thumbnail",Width=Edge,Height=Edge,Visible=false,IgnoreDeviceInput=true});
-        using var Session=RenderPreviewRenderSession.Open(new(){RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,
-            SurfaceHandle=(long)Surface.Handle,Width=Edge,Height=Edge,ShaderArtifactPath=Request.ShaderArtifactPath,Scene=Request.Scene});
-        Session.Render(true);
-        var Frame=Session.LastCapturedFrame??throw new InvalidDataException("Thumbnail readback is unavailable.");
+        var Frame=Render(Request,null);
         var Width=Frame.Width;var Height=Frame.Height;var Pixels=Pack(Frame);
         var Destination=Path.GetFullPath(OutputPath);
         Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);
         var Temporary=Destination+"."+Guid.NewGuid().ToString("N")+".tmp";
         try { File.WriteAllBytes(Temporary,Encode(Width,Height,Pixels));File.Move(Temporary,Destination,true); }
         finally { if(File.Exists(Temporary)){ File.Delete(Temporary); } }
+    }
+    /// <summary>Renders one hidden-surface frame and reads it back. A null <paramref name="AdapterOptions"/> uses the default adapter (tests pass WARP).</summary>
+    internal static PixelReadbackResult Render(AssetThumbnailRequest Request,GraphicsDeviceOptions?AdapterOptions){
+        if(Request.Scene is null){ throw new InvalidDataException("Image thumbnails belong to the Cook worker."); }
+        using var Surface=new Win32Window(new(){Title="CSharpGameEngine Asset Thumbnail",Width=Edge,Height=Edge,Visible=false,IgnoreDeviceInput=true});
+        using var Session=RenderPreviewRenderSession.Open(new(){RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,
+            SurfaceHandle=(long)Surface.Handle,Width=Edge,Height=Edge,ShaderArtifactPath=Request.ShaderArtifactPath,Scene=Request.Scene},AdapterOptions);
+        // プレビューレベル（Studio の部屋など）の照明・背景を適用してから描く。なければ従来の既定の見た目。
+        if(Request.Lighting is{ } Lighting&&Request.Scene.Camera is{ } Camera){
+            Session.UpdateFrame(new RenderPreviewFrame {
+                Camera=Camera,PresentationMode=RenderPreviewPresentationMode.Lit,Lighting=Lighting,
+                Objects=Request.Scene.Objects.Select(static Object=>new RenderPreviewObjectTransform { ObjectId=Object.ObjectId,World=Object.World,SelectionWeight=0f }).ToArray(),
+            });
+        }
+        Session.Render(true);
+        return Session.LastCapturedFrame??throw new InvalidDataException("Thumbnail readback is unavailable.");
     }
     internal static byte[]Pack(PixelReadbackResult Frame){
         if(Frame.Width is <1 or >Edge||Frame.Height is <1 or >Edge||Frame.RowPitch<(uint)Frame.Width*4||Frame.Pixels.LongLength<(long)Frame.RowPitch*Frame.Height

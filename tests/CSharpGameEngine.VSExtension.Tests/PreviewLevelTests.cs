@@ -16,34 +16,101 @@ public sealed class PreviewLevelTemplateTests {
         Assert.Equal(PreviewLevelBuiltIns.ReservedIds,All.Select(static Template=>Template.Id));
     }
     [Fact]
-    public void Default_KeepsTheCurrentPreviewLook(){
+    public void Default_IsTheNeutralThreeLightEnvironmentWithAShadowReceivingFloor(){
         var Template=PreviewLevelBuiltIns.Default();
-        Assert.Equal(PreviewBackgroundMode.RendererDefault,Template.Background.Mode);
-        Assert.False(Template.Floor.Visible);
-        Assert.True(Template.Environment.IsLegacy);
-        Assert.Equal(0.4f,Template.Ambient.Intensity);
-        var Sun=Assert.Single(Template.Lights);
-        Assert.Equal(PreviewLightKind.Directional,Sun.Kind);
-        Assert.Equal(2f,Sun.Intensity);
-        Assert.True(Sun.CastsShadows);
-        // ホストが従来固定していた向き（+Y）。
-        var Forward=PreviewLevelWire.Forward(Sun.YawDegrees,Sun.PitchDegrees);
-        Assert.Equal(0f,Forward.X,4);
-        Assert.Equal(1f,Forward.Y,4);
-        Assert.Equal(0f,Forward.Z,4);
-        Assert.Equal(PreviewProjection.Perspective,Template.Camera.Projection);
-        Assert.Equal(45f,Template.Camera.FovDegrees);
-    }
-    [Fact]
-    public void Studio_HasKeyFillRimLightsAndAShadowReceivingFloor(){
-        var Template=PreviewLevelBuiltIns.Studio();
         Assert.Equal(new[]{ "Key","Fill","Rim" },Template.Lights.Select(static Light=>Light.Name));
         Assert.All(Template.Lights,static Light=>Assert.Equal(PreviewLightKind.Directional,Light.Kind));
         Assert.True(Template.Lights[0].CastsShadows);
         Assert.True(Template.Floor.Visible);
+        Assert.False(Template.Room.Visible);
         Assert.Equal(PreviewBackgroundMode.Solid,Template.Background.Mode);
-        // キーが最も強く、フィルは弱い。
         Assert.True(Template.Lights[0].Intensity>Template.Lights[1].Intensity);
+        Assert.Equal(PreviewProjection.Perspective,Template.Camera.Projection);
+        Assert.Equal(45f,Template.Camera.FovDegrees);
+    }
+    /// <summary>従来のプレビューの見た目（青い背景・平坦なアンビエント 0.4・+Y 向きの 1 灯・床なし）。標準テンプレートからは外れたが、ホストへの対応は引き続き固定する。</summary>
+    internal static PreviewLevelTemplate LegacyTemplate(){
+        var Template=new PreviewLevelTemplate { DisplayName="Legacy" };
+        Template.Ambient=new(){ Color=[1f,1f,1f],Intensity=0.4f };
+        Template.Lights=[new(){ Kind=PreviewLightKind.Directional,Name="Sun",Intensity=2f,YawDegrees=0f,PitchDegrees=90f,CastsShadows=true }];
+        return Template;
+    }
+    [Fact]
+    public void TheLegacyLookTemplateKeepsTheRendererBackgroundAndAnUpwardSun(){
+        var Template=LegacyTemplate();
+        Assert.Equal(PreviewBackgroundMode.RendererDefault,Template.Background.Mode);
+        Assert.False(Template.Floor.Visible);
+        Assert.True(Template.Environment.IsLegacy);
+        var Sun=Assert.Single(Template.Lights);
+        var Forward=PreviewLevelWire.Forward(Sun.YawDegrees,Sun.PitchDegrees);
+        Assert.Equal(0f,Forward.X,4);
+        Assert.Equal(1f,Forward.Y,4);
+        Assert.Equal(0f,Forward.Z,4);
+    }
+    [Fact]
+    public void Studio_IsARoomLitByPointLightsInsideIt(){
+        var Template=PreviewLevelBuiltIns.Studio();
+        Assert.Equal(new[]{ "Key","Fill" },Template.Lights.Select(static Light=>Light.Name));
+        Assert.All(Template.Lights,static Light=>Assert.Equal(PreviewLightKind.Point,Light.Kind));
+        Assert.True(Template.Lights[0].CastsShadows);
+        Assert.True(Template.Lights[0].Intensity>Template.Lights[1].Intensity);
+        Assert.True(Template.Floor.Visible);
+        Assert.True(Template.Room.Visible);
+        // 主灯は天井より低い、部屋の中。
+        Assert.True(Template.Lights[0].PositionRadii[1]<Template.Room.HeightRadii);
+        Assert.True(Math.Abs(Template.Lights[0].PositionRadii[0])<Template.Room.HalfSizeRadii);
+        Assert.True(Math.Abs(Template.Lights[0].PositionRadii[2])<Template.Room.HalfSizeRadii);
+    }
+    [Fact]
+    public void TheRoomAddsFourWallsAndACeilingThatFaceInward(){
+        var Bounds=new PreviewBounds(new Vector3(-1f),new Vector3(1f),Vector3.Zero,1f);
+        var Mesh=new SimpleMesh { Positions=[Vector3.Zero,Vector3.UnitX,Vector3.UnitY],Normals=[Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],Indices=[0,1,2],BaseColorFactor=Vector4.One,BoundsCenter=Vector3.Zero,BoundsRadius=1f };
+        var Template=PreviewLevelBuiltIns.Studio();
+        var Room=PreviewSceneComposer.Compose(Mesh,Bounds,Template,800,600);
+        Assert.Equal(new[]{ PreviewSceneComposer.AssetObjectId,PreviewSceneComposer.FloorObjectId,PreviewSceneComposer.WallsObjectId,PreviewSceneComposer.CeilingObjectId },Room.Scene.Objects.Select(static Object=>Object.ObjectId));
+        var Walls=Room.Scene.Meshes[Room.Scene.Objects[2].MeshIndex];
+        Assert.Equal(4*4*3,Walls.Positions.Length);
+        Assert.Equal(4*6,Walls.Indices.Length);
+        // どの面も、巻き順から求めた表の向きが部屋の内側（中心）を向く。
+        void AssertFacesInward(RenderPreviewMesh Mesh){
+            for(var Triangle=0;Triangle<Mesh.Indices.Length;Triangle+=3){
+                Vector3 P(int K)=>new(Mesh.Positions[(int)Mesh.Indices[Triangle+K]*3],Mesh.Positions[(int)Mesh.Indices[Triangle+K]*3+1],Mesh.Positions[(int)Mesh.Indices[Triangle+K]*3+2]);
+                var Front=Vector3.Cross(P(2)-P(0),P(1)-P(0));
+                var Centroid=(P(0)+P(1)+P(2))/3f;
+                var Inside=new Vector3(0f,Centroid.Y,0f)-Centroid;
+                if(Inside.LengthSquared()<1e-6f){ Inside=-Vector3.UnitY; }
+                if(Mesh==Walls){ Assert.True(Vector3.Dot(Front,new Vector3(Inside.X,0f,Inside.Z))>0f,"a wall faces outward"); }
+                else { Assert.True(Front.Y<0f,"the ceiling faces up"); }
+            }
+        }
+        AssertFacesInward(Walls);
+        AssertFacesInward(Room.Scene.Meshes[Room.Scene.Objects[3].MeshIndex]);
+        // 部屋の有無で署名が変わり、床だけのテンプレートでは壁も天井も足さない。
+        var FloorOnly=PreviewSceneComposer.Compose(Mesh,Bounds,PreviewLevelBuiltIns.Default(),800,600);
+        Assert.Equal(new[]{ PreviewSceneComposer.AssetObjectId,PreviewSceneComposer.FloorObjectId },FloorOnly.Scene.Objects.Select(static Object=>Object.ObjectId));
+        Assert.NotEqual(FloorOnly.FloorSignature,Room.FloorSignature);
+        var Taller=PreviewLevelBuiltIns.Studio();
+        Taller.Room.HeightRadii+=1f;
+        Assert.NotEqual(Room.FloorSignature,PreviewSceneComposer.Compose(Mesh,Bounds,Taller,800,600).FloorSignature);
+    }
+    [Fact]
+    public void TheFarPlaneReachesTheFarCornerOfTheRoom(){
+        var Studio=PreviewLevelBuiltIns.Studio();
+        var Half=Studio.Room.HalfSizeRadii;
+        var Height=Studio.Room.HeightRadii;
+        Assert.True(PreviewSceneComposer.FarReachRadii(Studio)>=(float)Math.Sqrt(2f*Half*Half+Height*Height));
+    }
+    [Fact]
+    public void AnOldTemplateWithoutARoomLoadsWithoutOneAndABadRoomIsRejected(){
+        var Old=PreviewLevelTemplate.TryParse("{ \"DisplayName\": \"Old\", \"Floor\": { \"Visible\": true } }",out var Error);
+        Assert.NotNull(Old);
+        Assert.Null(Error);
+        Assert.False(Old!.Room.Visible);
+        foreach(var Edit in new Action<PreviewRoom>[]{ static Room=>Room.HalfSizeRadii=0f,static Room=>Room.HeightRadii=-1f,static Room=>Room.HalfSizeRadii=float.NaN,static Room=>Room.WallColor=[2f,0f,0f],static Room=>Room.CeilingColor=[0f] }){
+            var Template=PreviewLevelBuiltIns.Studio();
+            Edit(Template.Room);
+            Assert.Contains("Room",Template.Validate());
+        }
     }
     [Fact]
     public void Outdoor_UsesAPhysicalSkyWithTheThirdPersonLevelExposure(){
@@ -77,7 +144,7 @@ public sealed class PreviewLevelTemplateTests {
     public void Json_RoundTripsEveryBuiltInWithStringEnums(){
         foreach(var Template in PreviewLevelBuiltIns.All()){
             var Json=Template.ToJson();
-            Assert.Contains("\"Kind\": \"Directional\"",Json);
+            Assert.Contains("\"Kind\": \""+Template.Lights[0].Kind+"\"",Json);
             Assert.DoesNotContain("\"Id\"",Json);
             Assert.DoesNotContain("BuiltIn",Json);
             var Parsed=PreviewLevelTemplate.TryParse(Json,out var Error);
@@ -186,7 +253,7 @@ public sealed class PreviewLevelWireTests {
     }
     [Fact]
     public void DefaultTemplate_MapsToTheLegacyHostLighting(){
-        var Lighting=PreviewLevelWire.CreateLighting(PreviewLevelBuiltIns.Default(),Bounds(1f),7);
+        var Lighting=PreviewLevelWire.CreateLighting(PreviewLevelTemplateTests.LegacyTemplate(),Bounds(1f),7);
         Assert.Equal(7,Lighting.EnvironmentRevision);
         Assert.Equal(new[]{ 0.4f,0.4f,0.4f },Lighting.Ambient);
         Assert.Null(Lighting.Background);
@@ -325,7 +392,7 @@ public sealed class PreviewSceneComposerTests {
         var Subject=Box();
         var Bounds=PreviewBounds.From(Subject,AssetMeshStatistics.From(Subject));
         var Path=@"C:\Game\Assets\Box.glb";
-        var Composition=PreviewSceneComposer.Compose(null,Bounds,PreviewLevelBuiltIns.Studio(),128,96,StaticAssetPath:Path);
+        var Composition=PreviewSceneComposer.Compose(null,Bounds,PreviewLevelBuiltIns.Default(),128,96,StaticAssetPath:Path);
         Assert.Equal(Path,Composition.Scene.StaticAssetPath);
         Assert.Null(Composition.Scene.Asset);
         Assert.Equal(PreviewSceneComposer.FloorObjectId,Assert.Single(Composition.Scene.Objects).ObjectId);
@@ -334,7 +401,7 @@ public sealed class PreviewSceneComposerTests {
     }
     [Fact]
     public void WithoutAFloor_OnlyTheAssetIsInTheScene(){
-        var Composition=Compose(PreviewLevelBuiltIns.Default());
+        var Composition=Compose(PreviewLevelTemplateTests.LegacyTemplate());
         Assert.False(Composition.HasFloor);
         Assert.Equal(string.Empty,Composition.FloorSignature);
         Assert.Single(Composition.Scene.Objects);
@@ -344,7 +411,7 @@ public sealed class PreviewSceneComposerTests {
     }
     [Fact]
     public void WithAFloor_TheSceneHasTheAssetThenTheFloorAndThePerFrameRosterMatches(){
-        var Composition=Compose(PreviewLevelBuiltIns.Studio());
+        var Composition=Compose(PreviewLevelBuiltIns.Default());
         Assert.True(Composition.HasFloor);
         Assert.Equal(2,Composition.Scene.Objects.Length);
         Assert.Equal(2,Composition.Scene.Meshes.Length);
@@ -411,7 +478,7 @@ public sealed class PreviewSceneComposerTests {
     }
     [Fact]
     public void ToggleTheFloorOffAndOnAgainGivesTheSameSignature(){
-        var Template=PreviewLevelBuiltIns.Studio();
+        var Template=PreviewLevelBuiltIns.Default();
         var Original=Compose(Template).FloorSignature;
         Template.Floor.Visible=false;
         Assert.Equal(string.Empty,Compose(Template).FloorSignature);

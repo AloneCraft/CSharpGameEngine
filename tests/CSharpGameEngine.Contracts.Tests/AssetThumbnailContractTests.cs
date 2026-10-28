@@ -27,4 +27,25 @@ public sealed class AssetThumbnailContractTests {
         Assert.NotNull(AssetThumbnailRequest.Validate(new(){Scene=Open.Scene,ShaderArtifactPath=Open.ShaderArtifactPath}));
         Assert.NotNull(AssetThumbnailRequest.Validate(new(){ImagePath="image.png",ProtocolVersion=2}));
     }
+    [Fact]
+    public void AGeometryThumbnailMayCarryAValidLightingAndRejectsAnInvalidOne(){
+        var Open=RenderPreviewHostProtocolTests.CreateOpenRequest();
+        var Lighting=new RenderPreviewLighting {
+            EnvironmentRevision=1,Ambient=[0.3f,0.3f,0.3f],Background=[0.17f,0.18f,0.2f],
+            Points=[new(){ Position=[0f,3f,0f],FluxLumens=680f,RangeMeters=20f,CastsShadows=true }],
+        };
+        Assert.Null(AssetThumbnailRequest.Validate(new(){Scene=Open.Scene,ShaderArtifactPath=Open.ShaderArtifactPath,Lighting=Lighting}));
+        Lighting.Points[0].FluxLumens=float.NaN;
+        Assert.NotNull(AssetThumbnailRequest.Validate(new(){Scene=Open.Scene,ShaderArtifactPath=Open.ShaderArtifactPath,Lighting=Lighting}));
+    }
+    [Fact]
+    public void TheLightingSurvivesTheRequestFileRoundTrip(){
+        var Open=RenderPreviewHostProtocolTests.CreateOpenRequest();
+        var Request=new AssetThumbnailRequest{Scene=Open.Scene,ShaderArtifactPath=Open.ShaderArtifactPath,Lighting=new RenderPreviewLighting { EnvironmentRevision=3,Background=[0.1f,0.2f,0.3f] }};
+        var Back=System.Text.Json.JsonSerializer.Deserialize<AssetThumbnailRequest>(System.Text.Json.JsonSerializer.Serialize(Request))!;
+        Assert.Equal(3,Back.Lighting!.EnvironmentRevision);
+        Assert.Equal(new[]{ 0.1f,0.2f,0.3f },Back.Lighting.Background);
+        // 古いワーカー向けの JSON（照明なし）も読める。
+        Assert.Null(System.Text.Json.JsonSerializer.Deserialize<AssetThumbnailRequest>("{\"ProtocolVersion\":1,\"ImagePath\":\"a.png\"}")!.Lighting);
+    }
 }

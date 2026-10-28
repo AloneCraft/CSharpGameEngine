@@ -187,15 +187,11 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
                 this.SolutionSyncPath=null;
                 if(Expected){ return VSConstants.S_OK; }
             }
-            var Item=this.Items.FirstOrDefault(Candidate=>string.Equals(Candidate.Source.SourcePath,PathValue,StringComparison.OrdinalIgnoreCase));
-            if(Item is not null){
-                this.Query.ProjectPath=Item.Source.ProjectPath;this.Query.Folder=Path.GetDirectoryName(PathValue)!;
-                this.Changed?.Invoke();AssetWorkspaceSelection.Select([Item]);
-            } else if(this.Projects.FirstOrDefault(Project=>
-                (Directory.Exists(PathValue)&&(AssetWorkspaceQuery.IsWithin(PathValue,Project.ProjectDirectory)||string.Equals(PathValue,Project.ProjectDirectory,StringComparison.OrdinalIgnoreCase)))
-                ||this.Items.Any(Candidate=>Candidate.Source.ProjectPath==Project.ProjectFilePath&&AssetWorkspaceQuery.InFolder(Candidate,PathValue))) is { }Project){
-                this.Query.ProjectPath=Project.ProjectFilePath;this.Query.Folder=PathValue;this.Changed?.Invoke();
-            }
+            var Plan=AssetSelectionPlanner.Decide(this.Items,this.Projects.Select(static Project=>(Project.ProjectFilePath,Project.ProjectDirectory)).ToArray(),PathValue,Directory.Exists);
+            // 場所が変わったときだけ一覧を作り直す（同じファイルの選択通知でサムネイルを消さない）。
+            if(Plan.Kind!=AssetSelectionPlanner.Kind.Other&&this.Query.MoveTo(Plan.ProjectPath,Plan.Folder)){ this.Changed?.Invoke(); }
+            if(Plan.Item is { }Selected){ AssetWorkspaceSelection.Select([Selected]); }
+            else if(AssetWorkspaceSelection.Current.Count>0){ AssetWorkspaceSelection.Clear(); }
         }
         return VSConstants.S_OK;
     }

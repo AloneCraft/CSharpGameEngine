@@ -740,9 +740,9 @@ Discard unsaved edits and reload it?</value></data>
   <data name="PreviewLevel_Unavailable" xml:space="preserve"><value>The preview level '{0}' is unavailable ({1}). Using the default environment.</value></data>
   <data name="PreviewLevel_Missing" xml:space="preserve"><value>not found</value></data>
   <data name="PreviewLevel_Default" xml:space="preserve"><value>Default</value></data>
-  <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>The classic asset preview look: renderer default background and flat ambient light, no floor.</value></data>
+  <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>The standard for checking models and materials: neutral background, key, fill and rim lights, and a floor that shows shadows.</value></data>
   <data name="PreviewLevel_Studio" xml:space="preserve"><value>Studio</value></data>
-  <data name="PreviewLevel_StudioDescription" xml:space="preserve"><value>For checking models and materials: neutral background, key, fill and rim lights, and a floor that shows shadows.</value></data>
+  <data name="PreviewLevel_StudioDescription" xml:space="preserve"><value>A room with a floor, walls and a ceiling, lit by point lights inside; walls and the ceiling cast shadows too. Thumbnails are drawn in this environment.</value></data>
   <data name="PreviewLevel_Outdoor" xml:space="preserve"><value>Outdoor</value></data>
   <data name="PreviewLevel_OutdoorDescription" xml:space="preserve"><value>For checking outdoor lighting: physical sky, sun light, ground and shadows.</value></data>
   <data name="PreviewLevel_Neutral" xml:space="preserve"><value>Neutral</value></data>

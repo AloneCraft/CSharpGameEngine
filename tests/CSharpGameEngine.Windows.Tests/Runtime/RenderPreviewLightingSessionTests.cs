@@ -211,6 +211,76 @@ public sealed class RenderPreviewLightingSessionTests {
         foreach(var Value in Column.Skip(Size/4)){ Run=Value<12?Run+1:0;Longest=Math.Max(Longest,Run); }
         Assert.True(Longest<=1,$"black rows between sky and floor: {Longest}; column {string.Join(",",Column)}");
     }
+    private static RenderPreviewMesh QuadMesh(params (Vector3 A,Vector3 B,Vector3 C,Vector3 D,Vector3 Normal)[]Quads){
+        var Positions=new List<float>();var Normals=new List<float>();var Indices=new List<uint>();
+        foreach(var Quad in Quads){
+            var Base=(uint)(Positions.Count/3);
+            foreach(var Corner in new[]{ Quad.A,Quad.B,Quad.C,Quad.D }){ Positions.AddRange([Corner.X,Corner.Y,Corner.Z]);Normals.AddRange([Quad.Normal.X,Quad.Normal.Y,Quad.Normal.Z]); }
+            var Front=Vector3.Dot(Vector3.Cross(Quad.C-Quad.A,Quad.B-Quad.A),Quad.Normal)>0f;
+            Indices.AddRange(Front?new[]{ Base,Base+1,Base+2,Base,Base+2,Base+3 }:new[]{ Base,Base+2,Base+1,Base,Base+3,Base+2 });
+        }
+        return new RenderPreviewMesh { Positions=[..Positions],Normals=[..Normals],Indices=[..Indices] };
+    }
+    /// <summary>モデル（箱）を床・壁・天井のある部屋（Studio と同じ構成）に置いたサムネイル用の要求。カメラは部屋の中。</summary>
+    private static AssetThumbnailRequest RoomThumbnailRequest(bool WithLighting){
+        const float H=4f;const float Top=4f;
+        var Box=ProceduralMeshFactory.CreateBox(Vector3.One);
+        var Walls=QuadMesh(
+            (new(-H,0f,-H),new(H,0f,-H),new(H,Top,-H),new(-H,Top,-H),Vector3.UnitZ),
+            (new(H,0f,-H),new(H,0f,H),new(H,Top,H),new(H,Top,-H),-Vector3.UnitX),
+            (new(H,0f,H),new(-H,0f,H),new(-H,Top,H),new(H,Top,H),-Vector3.UnitZ),
+            (new(-H,0f,H),new(-H,0f,-H),new(-H,Top,-H),new(-H,Top,H),Vector3.UnitX));
+        var Ceiling=QuadMesh((new(-H,Top,-H),new(H,Top,-H),new(H,Top,H),new(-H,Top,H),-Vector3.UnitY));
+        var Floor=QuadMesh((new(-H,0f,-H),new(H,0f,-H),new(H,0f,H),new(-H,0f,H),Vector3.UnitY));
+        var Eye=new Vector3(2.2f,1.8f,3.0f);var Target=new Vector3(0f,0.5f,0f);
+        var View=Matrix4x4.CreateLookAt(Eye,Target,Vector3.UnitY);
+        var Projection=Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1f,0.05f,50f);
+        var Forward=Vector3.Normalize(Target-Eye);var Right=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,Forward));var Up=Vector3.Cross(Forward,Right);
+        var Rotation=Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(new Matrix4x4(Right.X,Right.Y,Right.Z,0f,Up.X,Up.Y,Up.Z,0f,Forward.X,Forward.Y,Forward.Z,0f,0f,0f,0f,1f)));
+        var Identity=RenderPreviewMatrix4x4.Identity;
+        var Scene=new RenderPreviewScene {
+            Camera=new RenderPreviewCamera { ViewProjection=ToWire(View*Projection),Position=[Eye.X,Eye.Y,Eye.Z],Rotation=[Rotation.X,Rotation.Y,Rotation.Z,Rotation.W],FovYRadians=0.8f,NearZ=0.05f,FarZ=50f },
+            Meshes=[new(){ Positions=Flatten(Box.Positions),Normals=Flatten(Box.Normals),Indices=Box.Indices },Floor,Walls,Ceiling],
+            Materials=[new(){ BaseColor=[0.8f,0.35f,0.2f,1f] },new(){ BaseColor=[0.42f,0.42f,0.44f,1f] },new(){ BaseColor=[0.62f,0.62f,0.64f,1f] },new(){ BaseColor=[0.72f,0.72f,0.74f,1f] }],
+            Objects=[
+                new(){ ObjectId="AssetPreview",MeshIndex=0,MaterialIndex=0,World=ToWire(Matrix4x4.CreateTranslation(0f,0.5f,0f)) },
+                new(){ ObjectId="PreviewFloor",MeshIndex=1,MaterialIndex=1,World=Identity },
+                new(){ ObjectId="PreviewWalls",MeshIndex=2,MaterialIndex=2,World=Identity },
+                new(){ ObjectId="PreviewCeiling",MeshIndex=3,MaterialIndex=3,World=Identity },
+            ],
+        };
+        return new AssetThumbnailRequest {
+            ShaderArtifactPath=ShaderArtifactPath,Scene=Scene,
+            Lighting=WithLighting?new RenderPreviewLighting {
+                EnvironmentRevision=1,Ambient=[0.3f,0.3f,0.3f],Background=[0.17f,0.18f,0.2f],
+                Points=[
+                    new(){ Position=[-1.5f,3.2f,1.5f],Color=[1f,0.95f,0.88f],FluxLumens=680f,RangeMeters=20f,CastsShadows=true,ShadowBiasMeters=0.01f },
+                    new(){ Position=[2.5f,2f,-2f],Color=[0.85f,0.92f,1f],FluxLumens=170f,RangeMeters=20f },
+                ],
+            }:null,
+        };
+    }
+    [Fact]
+    public void WARP_TheThumbnailWorkerRendersARoomLitByItsPointLightsInsteadOfTheBlueDefault(){
+        if(!OperatingSystem.IsWindows()){ return; }
+        var Lit=AssetThumbnailWorker.Render(RoomThumbnailRequest(WithLighting:true),Options);
+        var Plain=AssetThumbnailWorker.Render(RoomThumbnailRequest(WithLighting:false),Options);
+        PreviewFramePng.SaveIfRequested(Lit,"studio-room-thumbnail");
+        PreviewFramePng.SaveIfRequested(Plain,"studio-room-thumbnail-without-lighting");
+        // 照明の有無で絵が変わる（ワーカーが照明を適用している）。
+        Assert.NotEqual(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Lit.Pixels)),Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Plain.Pixels)));
+        var Total=0;var Dark=0;var Distinct=new HashSet<(int,int,int)>();
+        for(var Y=0;Y<Lit.Height;Y++){ for(var X=0;X<Lit.Width;X++){ var Pixel=At(Lit,X,Y);var L=Luma(Pixel);Total+=L;if(L<6){ Dark++; }Distinct.Add(Pixel); } }
+        var Mean=Total/(Lit.Width*Lit.Height);
+        Assert.InRange(Mean,30,215);
+        Assert.True(Dark<Lit.Width*Lit.Height/20,$"{Dark} nearly black pixels");
+        Assert.True(Distinct.Count>40,$"{Distinct.Count} colours");
+        // 部屋の壁がフレームの隅まで描かれ、レンダラーの青い背景ではない。
+        foreach(var (X,Y) in new[]{ (2,2),(Lit.Width-3,2),(2,Lit.Height-3),(Lit.Width-3,Lit.Height-3) }){
+            var Corner=At(Lit,X,Y);
+            Assert.False(Corner.B-Corner.R>60,$"corner {X},{Y} looks like the blue default: {Corner}");
+        }
+    }
     [Fact]
     public void WARP_FloorWorldGridDrawsGridLinesOnTheFloor(){
         if(!OperatingSystem.IsWindows()){ return; }

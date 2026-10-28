@@ -9,6 +9,11 @@ public sealed class AssetThumbnailRequest {
     public RenderPreviewScene?Scene{get;set;}
     public string ImagePath{get;set;}=string.Empty;
     public string ShaderArtifactPath{get;set;}=string.Empty;
+    /// <summary>
+    /// 形状のサムネイルを描くときの照明・背景（プレビューレベル）。null なら従来どおりレンダラーの既定。版は上げない追加項目で、
+    /// 古いワーカーは無視する（VSIX とホストは同じパッケージで配布する）。
+    /// </summary>
+    public RenderPreviewLighting?Lighting{get;set;}
     /// <summary>Longest edge of an image preview in pixels. Geometry requests always render <see cref="DefaultEdge"/>.</summary>
     public int MaxEdge{get;set;}=DefaultEdge;
     public static string?Validate(AssetThumbnailRequest Request){
@@ -17,6 +22,8 @@ public sealed class AssetThumbnailRequest {
         if(Request.Scene is null){ return Request.MaxEdge is<MinimumImageEdge or>MaximumImageEdge?"Image preview edge is out of range.":null; }
         if(Request.MaxEdge!=DefaultEdge){ return "Geometry thumbnails are always 128px."; }
         if(Request.Scene.Objects is not {Length:>0}){ return "Thumbnail geometry is unavailable."; }
-        return RenderPreviewHostProtocol.Validate(new(){RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,SurfaceHandle=1,Width=128,Height=128,ShaderArtifactPath=Request.ShaderArtifactPath,Scene=Request.Scene});
+        var SceneError=RenderPreviewHostProtocol.Validate(new(){RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,SurfaceHandle=1,Width=128,Height=128,ShaderArtifactPath=Request.ShaderArtifactPath,Scene=Request.Scene});
+        if(SceneError is not null){ return SceneError; }
+        return Request.Lighting is null?null:RenderPreviewLightingValidation.Validate(Request.Lighting);
     }
 }
