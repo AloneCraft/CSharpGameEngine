@@ -29,8 +29,6 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
     private readonly List<FileSystemWatcher>Watchers=[];
     private System.Threading.Timer?RefreshTimer;
     internal AssetWorkspaceItem[]Items{get;private set;}=[];
-    /// <summary>読み込み済みのゲーム プロジェクトの Assets 一覧にあるファイルか。</summary>
-    internal bool IsListed(string SourcePath)=>this.Items.Any(Item=>string.Equals(Item.Source.SourcePath,SourcePath,StringComparison.OrdinalIgnoreCase));
     internal CgeProjectContext[]Projects{get;private set;}=[];
     internal AssetWorkspaceQuery Query{get;}=new();
     internal event Action?Changed;

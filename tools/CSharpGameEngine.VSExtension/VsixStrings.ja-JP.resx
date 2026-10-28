@@ -668,16 +668,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
 <data name="Assets_ModelGroupCount" xml:space="preserve"><value>{0}（{1}件）</value></data>
 <data name="Assets_ModelNewClip" xml:space="preserve"><value>新しいクリップ</value></data>
 <data name="Assets_ImageOutputs" xml:space="preserve"><value>出力</value></data>
-  <data name="AssetEditor_ShowInSolution" xml:space="preserve"><value>ソリューション エクスプローラーで表示</value></data>
-  <data name="AssetEditor_ShowInAssets" xml:space="preserve"><value>Assets で表示</value></data>
-  <data name="AssetEditor_ShowInSolutionHelp" xml:space="preserve"><value>ソリューション エクスプローラーで親フォルダーを展開し、このファイルを選択します。</value></data>
-  <data name="AssetEditor_ShowInAssetsHelp" xml:space="preserve"><value>Assets で対象のフォルダーを開き、フィルターを解除してアセットを選択し、その位置へスクロールします。</value></data>
-  <data name="AssetEditor_NotInSolution" xml:space="preserve"><value>このファイルは読み込み済みのプロジェクトに含まれていません。ソリューション エクスプローラーで選択するにはプロジェクトへ追加してください。</value></data>
   <data name="AssetEditor_NotInAssets" xml:space="preserve"><value>このファイルは読み込み済みのゲーム プロジェクトの Assets 一覧にありません。ゲーム プロジェクトへ追加して Assets を更新すると選択できます。</value></data>
-  <data name="AssetEditor_NavigationUnavailable" xml:space="preserve"><value>ソリューションまたは Assets の準備ができていないため移動できません。読み込み完了後に再実行してください。</value></data>
-  <data name="AssetEditor_NavigationFailed" xml:space="preserve"><value>ファイルの表示先へ移動できませんでした: {0}</value></data>
-  <data name="AssetEditor_RevealedInSolution" xml:space="preserve"><value>ソリューション エクスプローラーでこのファイルを選択しました。</value></data>
-  <data name="AssetEditor_RevealedInAssets" xml:space="preserve"><value>Assets でこのアセットを選択しました。</value></data>
   <data name="AssetEditor_DetailsUnavailable" xml:space="preserve"><value>C# Game Engine パッケージの読み込み後に Details を表示できます。</value></data>
   <data name="AssetEditor_NotInInventory" xml:space="preserve"><value>このファイルは開いているゲーム プロジェクトのアセットではないため、取り込み設定と参照は表示されません。</value></data>
   <data name="AssetEditor_Frame" xml:space="preserve"><value>フレーム (F)</value></data>
