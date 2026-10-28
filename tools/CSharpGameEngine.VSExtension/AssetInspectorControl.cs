@@ -55,6 +55,7 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         if(!string.IsNullOrEmpty(Item.Diagnostic)){ this.Label(Item.Diagnostic); }
         this.Button("Assets_Open",async()=>{ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();AssetsToolWindowPane.Controller?.Open(Item); }).IsEnabled=(Item.GetCapabilities()&AssetWorkspaceCapabilities.Open)!=0;
         this.Button("Assets_References",()=>AssetWorkspaceCommands.ShowReferencesAsync(Item)).IsEnabled=Item.State!=AssetWorkspaceState.MissingSource;
+        this.ShowFacts(Item,Presentation.ProviderLabel,this.Generation);
         if(Item.State==AssetWorkspaceState.MissingSource){ return; }
         if(Item.Kind==AssetWorkspaceKind.Data){ _=this.ShowDataAsync(Item,this.Generation); }
         else if(Item.Kind==AssetWorkspaceKind.Font){ _=this.ShowFontAsync(Item,this.Generation); }
@@ -89,27 +90,23 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
             if(!Path.GetExtension(Item.Source.SourcePath).Equals(".fbx",StringComparison.OrdinalIgnoreCase)){ var Reimport=this.Button("Assets_Reimport",()=>Task.CompletedTask);Reimport.IsEnabled=false;Reimport.ToolTip=VsixText.Get("Assets_Unavailable"); }
         }
     }
+    /// <summary>フォントの節: そのフォント自身で描いた見本、対応する言語、表示できない文字（<see cref="AssetFontView"/>）。.cgefont はアトラスの絵も出す。</summary>
     internal void RefreshSelection(){ ThreadHelper.ThrowIfNotOnUIThread();this.OnSelection(this.FollowSelection?AssetWorkspaceSelection.Current:this.CurrentItems); }
     private async Task ShowFontAsync(AssetWorkspaceItem Item,int Generation){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
         try {
-            if(Path.GetExtension(Item.Source.SourcePath).Equals(".cgefont",StringComparison.OrdinalIgnoreCase)){
-                var Context=CgeProjectContext.TryCreate(Item.Source.ProjectPath)??throw new InvalidOperationException(VsixText.Get("Assets_NoSelection"));
-                var Result=await Task.Run(()=>AssetAuthoringHostClient.InspectWorkspace(new(){WorkspaceCommand=2,RequestId=Guid.NewGuid(),Sources=[Item.Source]},Context.WorkspaceRoot));
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if(this.Disposed||Generation!=this.Generation){ return; }
-                var Preview=Result.FontPreview!;
+            var Data=await Task.Run(()=>AssetFontData.LoadAsync(Item.Source.SourcePath,System.Threading.CancellationToken.None))??throw new InvalidOperationException(VsixText.Get("Font_TipUnavailable"));
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if(this.Disposed||Generation!=this.Generation){ return; }
+            var Content=new StackPanel { Margin=new Thickness(0,6,0,0) };
+            AssetFontView.Populate(Content,Data,Detailed:true,AssetFontView.Ink(null));
+            this.Panel.Children.Add(Content);
+            if(Data.Baked is{ } Preview){
                 var Bitmap=System.Windows.Media.Imaging.BitmapSource.Create(Preview.Width,Preview.Height,96,96,System.Windows.Media.PixelFormats.Gray8,null,Preview.Distance,Preview.Width);Bitmap.Freeze();
-                this.Label(VsixText.Format("Assets_FontAtlas",Preview.SourceWidth,Preview.SourceHeight,Preview.GlyphCount));
-                this.Panel.Children.Add(new Image{Source=Bitmap,MaxHeight=300,Stretch=System.Windows.Media.Stretch.Uniform});
-            } else {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if(this.Disposed||Generation!=this.Generation){ return; }
-                var Typeface=new System.Windows.Media.GlyphTypeface(new Uri(Item.Source.SourcePath));
-                var Name=Typeface.FamilyNames.Values.First();
-                this.Label(Name);
-                this.Panel.Children.Add(new TextBlock{Text=VsixText.Get("Assets_FontSample"),TextWrapping=TextWrapping.Wrap,FontSize=28,
-                    FontFamily=new System.Windows.Media.FontFamily(new Uri(Path.GetDirectoryName(Item.Source.SourcePath)!+Path.DirectorySeparatorChar),"./#"+Name)});
+                var Atlas=new Expander { Header=VsixText.Format("Assets_FontAtlas",Preview.SourceWidth,Preview.SourceHeight,Preview.GlyphCount),Margin=new Thickness(0,8,0,0),
+                    Content=new Image{Source=Bitmap,MaxHeight=300,Stretch=System.Windows.Media.Stretch.Uniform} };
+                Atlas.SetResourceReference(Control.ForegroundProperty,VsBrushes.WindowTextKey);
+                this.Panel.Children.Add(Atlas);
             }
         }catch(Exception Error){
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();

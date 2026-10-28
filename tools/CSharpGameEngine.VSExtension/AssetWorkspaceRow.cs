@@ -26,6 +26,9 @@ internal sealed class AssetWorkspaceRow:INotifyPropertyChanged {
     public event PropertyChangedEventHandler?PropertyChanged;
     internal AssetKey?ThumbnailKey{get;}
     internal AssetWorkspaceRow(AssetWorkspaceItem Item,AssetKey?ThumbnailKey=null){ this.Item=Item;this.ThumbnailKey=ThumbnailKey??Item.GetKey(); }
+    private object?Tip;
+    /// <summary>タイルのツールチップ。フォントは見本・対応言語・表示できない記号（開いたときに読む）、それ以外はパス。</summary>
+    public object ToolTipContent=>this.Item.Kind==AssetWorkspaceKind.Font?(this.Tip??=AssetFontView.CreateTooltip(this.Item.Source.SourcePath)):this.Path;
     public ImageSource?Thumbnail{
         get {
             if(this.Image?.TryGetTarget(out var Existing)==true){ return Existing; }

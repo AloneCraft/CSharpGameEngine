@@ -50,7 +50,7 @@ internal static class AssetThumbnailService {
         return await Operation.ConfigureAwait(false);
     }
     private static Task<BitmapSource?>RequestCoreAsync(AssetWorkspaceItem Item,CancellationToken Cancellation,AssetKey?ThumbnailKey){
-        if(Cancellation.IsCancellationRequested||Item.Kind is not(AssetWorkspaceKind.Scene or AssetWorkspaceKind.Model or AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image)){ return Task.FromResult<BitmapSource?>(null); }
+        if(Cancellation.IsCancellationRequested||Item.Kind is not(AssetWorkspaceKind.Scene or AssetWorkspaceKind.Model or AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image or AssetWorkspaceKind.Font)){ return Task.FromResult<BitmapSource?>(null); }
         // A child must supply its real artifact/selector before it can be previewed; never reuse its parent's picture.
         if(ThumbnailKey?.SubAssetId is not null){ return Task.FromResult<BitmapSource?>(null); }
         Project?Project=null;
@@ -112,6 +112,7 @@ internal static class AssetThumbnailService {
         }
     }
     private static async Task<BitmapSource>GenerateAsync(Work Work){
+        if(Work.Item.Kind==AssetWorkspaceKind.Font){ return await FontTileAsync(Work.Item,Work.Cancellation).ConfigureAwait(false); }
         var Item=Work.Item;var Context=CgeProjectContext.Resolve(Item.Source.ProjectPath)??throw new InvalidOperationException("Game project is unavailable.");
         var Request=new AssetThumbnailRequest();
         if(Item.Kind is AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image){ Request.ImagePath=Item.Source.SourcePath; }
@@ -160,6 +161,17 @@ internal static class AssetThumbnailService {
         Composition.Scene.Camera=RenderPreviewSceneBuilder.CreateCamera(Camera.View,Camera.Projection(1f),Camera.Eye,Camera.FovYRadians);
         Lighting=PreviewLevelWire.CreateLighting(Template,Bounds,1);
         return Composition.Scene;
+    }
+    /// <summary>フォントのタイル: そのフォント自身で描いた "Aa"（暗い背景）。読めない・描ける字形がなければ例外で、タイルは汎用アイコンのまま。</summary>
+    private static async Task<BitmapSource>FontTileAsync(AssetWorkspaceItem Item,CancellationToken Cancellation){
+        var Data=await AssetFontData.LoadAsync(Item.Source.SourcePath,Cancellation).ConfigureAwait(false)??throw new InvalidDataException("The font cannot be read.");
+        var Tile=Data.CreateTile(128);
+        if(Tile is null){
+            // .ttf/.otf は WPF の描画なので UI スレッドで作る。
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Cancellation);
+            Tile=Data.CreateTrueTypeTile(128);
+        }
+        return Tile??throw new InvalidDataException("The font has no drawable glyphs.");
     }
     private static SimpleMesh LoadMesh(string PathValue,CgeProjectContext Context){
         var Mesh=Path.GetExtension(PathValue).Equals(".fbx",StringComparison.OrdinalIgnoreCase)

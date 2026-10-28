@@ -62,7 +62,13 @@ internal static class AssetAuthoringBridgeWorker {
             for(var Y=0;Y<Height;Y++){
                 for(var X=0;X<Width;X++){ Distance[Y*Width+X]=Font.Distance[(Y*Font.AtlasHeight/Height)*Font.AtlasWidth+X*Font.AtlasWidth/Width]; }
             }
-            return new(){RequestId=Request.RequestId,Success=true,FontPreview=new(){SourceWidth=Font.AtlasWidth,SourceHeight=Font.AtlasHeight,GlyphCount=Font.Glyphs.Count,Width=Width,Height=Height,Distance=Distance}};
+            var Glyphs=new AssetFontGlyph[Font.Glyphs.Count];
+            for(var Index=0;Index<Glyphs.Length;Index++){
+                var Glyph=Font.Glyphs[Index];
+                Glyphs[Index]=new(){CodePoint=Glyph.CodePoint,Advance=Glyph.Advance,PlaneLeft=Glyph.PlaneLeft,PlaneBottom=Glyph.PlaneBottom,PlaneRight=Glyph.PlaneRight,PlaneTop=Glyph.PlaneTop,U0=Glyph.U0,V0=Glyph.V0,U1=Glyph.U1,V1=Glyph.V1};
+            }
+            return new(){RequestId=Request.RequestId,Success=true,FontPreview=new(){SourceWidth=Font.AtlasWidth,SourceHeight=Font.AtlasHeight,GlyphCount=Font.Glyphs.Count,Width=Width,Height=Height,Distance=Distance,
+                Ascent=Font.Ascent,Descent=Font.Descent,LineGap=Font.LineGap,SpreadEm=Font.SpreadEm,Glyphs=Glyphs}};
         }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException or ArgumentException or FormatException or InvalidDataException){
             return new(){RequestId=Request.RequestId,Diagnostic=Error.Message};
         }

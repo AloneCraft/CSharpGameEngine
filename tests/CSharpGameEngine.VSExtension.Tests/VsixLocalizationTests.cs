@@ -14,6 +14,9 @@ public sealed class VsixLocalizationTests {
         "PhysicsLabel",
         "PhysicsPanelOpenGlyph",
         "PhysicsPanelCloseGlyph",
+        // フォントの対応言語の代表文字は言語に依存しない（日本語・中国語の文字の表）。
+        "FontChars_ja",
+        "FontChars_zh",
         "SceneRenderModeBaseColor",
         "SceneRenderModeLit",
         "SceneRenderModeNormal",

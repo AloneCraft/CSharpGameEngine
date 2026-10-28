@@ -18,6 +18,10 @@ public class AssetAuthoringBridgeWorkerTests {
         Assert.True(Result!.Success,Result.Diagnostic);Assert.Equal(Request.RequestId,Result.RequestId);
         var Preview=Result.FontPreview!;Assert.Equal(512,Preview.Width);Assert.Equal(2,Preview.Height);Assert.Equal(1024,Preview.SourceWidth);Assert.Equal(1,Preview.GlyphCount);
         Assert.All(Preview.Distance,static Pixel=>Assert.Equal(200,Pixel));Assert.Equal(Bytes,File.ReadAllBytes(Source));Assert.False(File.Exists(Source+".meta"));
+        Assert.Null(AssetFontPreview.Validate(Preview));
+        Assert.Equal(0.8f,Preview.Ascent);Assert.Equal(0.2f,Preview.Descent);Assert.Equal(0.1f,Preview.SpreadEm);
+        var Glyph=Assert.Single(Preview.Glyphs);
+        Assert.Equal(65,Glyph.CodePoint);Assert.Equal(0.6f,Glyph.Advance);Assert.Equal(0.6f,Glyph.PlaneRight);Assert.Equal(0.8f,Glyph.PlaneTop);Assert.Equal(1f,Glyph.U1);Assert.True(Glyph.HasQuad);
     }
     private static byte[]Wav(int SampleRate,int Channels,short[]Samples){
         using var Stream=new MemoryStream();

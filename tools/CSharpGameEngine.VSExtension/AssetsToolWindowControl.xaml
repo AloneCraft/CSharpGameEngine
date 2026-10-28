@@ -35,7 +35,7 @@
    <ListBox x:Name="Tiles" SelectionMode="Extended" SelectionChanged="OnSelectionChanged" MouseDoubleClick="OnOpen" PreviewMouseLeftButtonDown="OnDragStart" PreviewMouseMove="OnDragMove" PreviewKeyDown="OnKeyDown" ScrollViewer.CanContentScroll="True" AutomationProperties.AutomationId="Assets.Tiles">
     <ListBox.ItemsPanel><ItemsPanelTemplate><local:VirtualizingAssetPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
     <ListBox.ItemTemplate><DataTemplate>
-     <StackPanel Width="126" Height="116" ToolTip="{Binding Path}">
+     <StackPanel Width="126" Height="116" ToolTip="{Binding ToolTipContent}">
       <Grid Height="70">
        <Image Source="{Binding Thumbnail}" Stretch="Uniform" IsHitTestVisible="False"/>
        <Border ToolTip="{Binding KindLabel}" IsHitTestVisible="False">
@@ -59,7 +59,7 @@
     <ListView.View><GridView AllowsColumnReorder="True">
      <GridViewColumn Width="190">
       <GridViewColumn.Header><GridViewColumnHeader Content="{local:Loc Assets_Name}" Tag="Name"/></GridViewColumn.Header>
-      <GridViewColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><imaging:CrispImage Width="16" Height="16" Margin="0,0,4,0" Moniker="{Binding KindMoniker}" ToolTip="{Binding KindLabel}" AutomationProperties.Name="{Binding KindLabel}"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel></DataTemplate></GridViewColumn.CellTemplate>
+      <GridViewColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal" ToolTip="{Binding ToolTipContent}"><imaging:CrispImage Width="16" Height="16" Margin="0,0,4,0" Moniker="{Binding KindMoniker}" ToolTip="{Binding KindLabel}" AutomationProperties.Name="{Binding KindLabel}"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel></DataTemplate></GridViewColumn.CellTemplate>
      </GridViewColumn>
      <GridViewColumn Header="{local:Loc Assets_ImageOutputs}" Width="160"><GridViewColumn.CellTemplate><DataTemplate><Expander Header="{local:Loc Assets_ImageOutputs}"><ItemsControl ItemsSource="{Binding ImageOutputs}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" ToolTip="{Binding Kind}" PreviewMouseMove="OnOutputDragMove"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></Expander></DataTemplate></GridViewColumn.CellTemplate></GridViewColumn>
      <GridViewColumn Header="{local:Loc Assets_Kind}" DisplayMemberBinding="{Binding KindLabel}" Width="100"/>

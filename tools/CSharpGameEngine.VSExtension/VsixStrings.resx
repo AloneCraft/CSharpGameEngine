@@ -730,6 +730,57 @@ Discard unsaved edits and reload it?</value></data>
   <data name="PreviewLevel_Applied" xml:space="preserve"><value>Preview level: {0}</value></data>
   <data name="PreviewLevel_Unavailable" xml:space="preserve"><value>The preview level '{0}' is unavailable ({1}). Using the default environment.</value></data>
   <data name="PreviewLevel_Missing" xml:space="preserve"><value>not found</value></data>
+  <data name="FontLang_en" xml:space="preserve"><value>English</value></data>
+  <data name="FontLang_fr" xml:space="preserve"><value>French</value></data>
+  <data name="FontLang_de" xml:space="preserve"><value>German</value></data>
+  <data name="FontLang_es" xml:space="preserve"><value>Spanish</value></data>
+  <data name="FontLang_pt" xml:space="preserve"><value>Portuguese</value></data>
+  <data name="FontLang_pl" xml:space="preserve"><value>Polish</value></data>
+  <data name="FontLang_tr" xml:space="preserve"><value>Turkish</value></data>
+  <data name="FontLang_vi" xml:space="preserve"><value>Vietnamese</value></data>
+  <data name="FontLang_ru" xml:space="preserve"><value>Russian</value></data>
+  <data name="FontLang_el" xml:space="preserve"><value>Greek</value></data>
+  <data name="FontLang_ja" xml:space="preserve"><value>Japanese</value></data>
+  <data name="FontLang_zh" xml:space="preserve"><value>Chinese (Simplified)</value></data>
+  <data name="FontLang_ko" xml:space="preserve"><value>Korean</value></data>
+  <data name="FontLang_ar" xml:space="preserve"><value>Arabic</value></data>
+  <data name="FontLang_th" xml:space="preserve"><value>Thai</value></data>
+  <data name="Font_Section" xml:space="preserve"><value>Font</value></data>
+  <data name="Font_Sample" xml:space="preserve"><value>Sample</value></data>
+  <data name="Font_Languages" xml:space="preserve"><value>Supported languages</value></data>
+  <data name="Font_LangFull" xml:space="preserve"><value>Full</value></data>
+  <data name="Font_LangPartial" xml:space="preserve"><value>Partial ({0}/{1})</value></data>
+  <data name="Font_LangNone" xml:space="preserve"><value>None</value></data>
+  <data name="Font_MissingSymbols" xml:space="preserve"><value>Symbols that cannot be shown ({0}/{1}): {2}</value></data>
+  <data name="Font_NoMissingSymbols" xml:space="preserve"><value>All the common symbols can be shown.</value></data>
+  <data name="Font_MissingInSample" xml:space="preserve"><value>Characters in the sample that cannot be shown: {0} (underlined)</value></data>
+  <data name="Font_FallbackNote" xml:space="preserve"><value>At run time a character the font lacks is drawn as ? (nothing if ? is missing too).</value></data>
+  <data name="Font_Metrics" xml:space="preserve"><value>Glyphs {0}, atlas {1} × {2}, ascent {3}, descent {4}</value></data>
+  <data name="Font_TipTitle" xml:space="preserve"><value>{0} — {1} glyphs</value></data>
+  <data name="Font_TipLanguages" xml:space="preserve"><value>Supports: {0}</value></data>
+  <data name="Font_TipPartial" xml:space="preserve"><value>Partial: {0}</value></data>
+  <data name="Font_TipMissing" xml:space="preserve"><value>Symbols that cannot be shown: {0} / {1}</value></data>
+  <data name="Font_TipLoading" xml:space="preserve"><value>Loading…</value></data>
+  <data name="Font_TipUnavailable" xml:space="preserve"><value>Could not build the font sample.</value></data>
+  <data name="FontChars_ja" xml:space="preserve"><value>あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン日本語漢字文字年月時人大小中学校</value></data>
+  <data name="FontChars_zh" xml:space="preserve"><value>的一是不了人我在有他这中大来上国个到说们为子和你地出道也时年得就那要下以生会自着去之过家学对可她里后小么心多天而能好都然没日于起还发成事只作当想看文无开手十用主行方又如前所本见经头面公同三</value></data>
+  <data name="Font_SampleText" xml:space="preserve"><value>The quick brown fox jumps over the lazy dog 0123456789</value></data>
+  <data name="AssetInfo_Section" xml:space="preserve"><value>Information</value></data>
+  <data name="AssetInfo_FileSize" xml:space="preserve"><value>File size</value></data>
+  <data name="AssetInfo_Modified" xml:space="preserve"><value>Modified</value></data>
+  <data name="AssetInfo_Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="AssetInfo_Vertices" xml:space="preserve"><value>Vertices</value></data>
+  <data name="AssetInfo_Triangles" xml:space="preserve"><value>Triangles</value></data>
+  <data name="AssetInfo_Size" xml:space="preserve"><value>Size (X × Y × Z)</value></data>
+  <data name="AssetInfo_Skins" xml:space="preserve"><value>Skins</value></data>
+  <data name="AssetInfo_Clips" xml:space="preserve"><value>Animations</value></data>
+  <data name="AssetInfo_Dimensions" xml:space="preserve"><value>Dimensions</value></data>
+  <data name="AssetInfo_SampleRate" xml:space="preserve"><value>Sample rate</value></data>
+  <data name="AssetInfo_Channels" xml:space="preserve"><value>Channels</value></data>
+  <data name="AssetInfo_Mono" xml:space="preserve"><value>Mono</value></data>
+  <data name="AssetInfo_Stereo" xml:space="preserve"><value>Stereo</value></data>
+  <data name="AssetInfo_BitDepth" xml:space="preserve"><value>Bit depth</value></data>
+  <data name="AssetInfo_Duration" xml:space="preserve"><value>Duration</value></data>
   <data name="PreviewLevel_Default" xml:space="preserve"><value>Default</value></data>
   <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>The standard for checking models and materials: neutral background, key, fill and rim lights, and a floor that shows shadows.</value></data>
   <data name="PreviewLevel_Studio" xml:space="preserve"><value>Studio</value></data>

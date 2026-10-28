@@ -730,6 +730,57 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="PreviewLevel_Applied" xml:space="preserve"><value>プレビューレベル: {0}</value></data>
   <data name="PreviewLevel_Unavailable" xml:space="preserve"><value>プレビューレベル '{0}' を使えません({1})。標準の環境を使います。</value></data>
   <data name="PreviewLevel_Missing" xml:space="preserve"><value>見つかりません</value></data>
+  <data name="FontLang_en" xml:space="preserve"><value>英語</value></data>
+  <data name="FontLang_fr" xml:space="preserve"><value>フランス語</value></data>
+  <data name="FontLang_de" xml:space="preserve"><value>ドイツ語</value></data>
+  <data name="FontLang_es" xml:space="preserve"><value>スペイン語</value></data>
+  <data name="FontLang_pt" xml:space="preserve"><value>ポルトガル語</value></data>
+  <data name="FontLang_pl" xml:space="preserve"><value>ポーランド語</value></data>
+  <data name="FontLang_tr" xml:space="preserve"><value>トルコ語</value></data>
+  <data name="FontLang_vi" xml:space="preserve"><value>ベトナム語</value></data>
+  <data name="FontLang_ru" xml:space="preserve"><value>ロシア語</value></data>
+  <data name="FontLang_el" xml:space="preserve"><value>ギリシャ語</value></data>
+  <data name="FontLang_ja" xml:space="preserve"><value>日本語</value></data>
+  <data name="FontLang_zh" xml:space="preserve"><value>中国語（簡体）</value></data>
+  <data name="FontLang_ko" xml:space="preserve"><value>韓国語</value></data>
+  <data name="FontLang_ar" xml:space="preserve"><value>アラビア語</value></data>
+  <data name="FontLang_th" xml:space="preserve"><value>タイ語</value></data>
+  <data name="Font_Section" xml:space="preserve"><value>フォント</value></data>
+  <data name="Font_Sample" xml:space="preserve"><value>見本</value></data>
+  <data name="Font_Languages" xml:space="preserve"><value>対応している言語</value></data>
+  <data name="Font_LangFull" xml:space="preserve"><value>対応</value></data>
+  <data name="Font_LangPartial" xml:space="preserve"><value>一部 ({0}/{1})</value></data>
+  <data name="Font_LangNone" xml:space="preserve"><value>未対応</value></data>
+  <data name="Font_MissingSymbols" xml:space="preserve"><value>表示できない記号 ({0}/{1}): {2}</value></data>
+  <data name="Font_NoMissingSymbols" xml:space="preserve"><value>よく使う記号はすべて表示できます。</value></data>
+  <data name="Font_MissingInSample" xml:space="preserve"><value>例文の中の表示できない文字: {0} 文字（下線で表示）</value></data>
+  <data name="Font_FallbackNote" xml:space="preserve"><value>表示できない文字は、実行時には ? で描かれます（? も無ければ何も描かれません）。</value></data>
+  <data name="Font_Metrics" xml:space="preserve"><value>字数 {0}、アトラス {1} × {2}、Ascent {3}、Descent {4}</value></data>
+  <data name="Font_TipTitle" xml:space="preserve"><value>{0} — {1} 字</value></data>
+  <data name="Font_TipLanguages" xml:space="preserve"><value>対応: {0}</value></data>
+  <data name="Font_TipPartial" xml:space="preserve"><value>一部: {0}</value></data>
+  <data name="Font_TipMissing" xml:space="preserve"><value>表示できない記号: {0} / {1}</value></data>
+  <data name="Font_TipLoading" xml:space="preserve"><value>読み込み中…</value></data>
+  <data name="Font_TipUnavailable" xml:space="preserve"><value>フォントの見本を作れませんでした。</value></data>
+  <data name="FontChars_ja" xml:space="preserve"><value>あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン日本語漢字文字年月時人大小中学校</value></data>
+  <data name="FontChars_zh" xml:space="preserve"><value>的一是不了人我在有他这中大来上国个到说们为子和你地出道也时年得就那要下以生会自着去之过家学对可她里后小么心多天而能好都然没日于起还发成事只作当想看文无开手十用主行方又如前所本见经头面公同三</value></data>
+  <data name="Font_SampleText" xml:space="preserve"><value>いろはにほへと アイウエオ 日本語の見本 ABC abc 0123456789 「」。</value></data>
+  <data name="AssetInfo_Section" xml:space="preserve"><value>情報</value></data>
+  <data name="AssetInfo_FileSize" xml:space="preserve"><value>ファイルの大きさ</value></data>
+  <data name="AssetInfo_Modified" xml:space="preserve"><value>更新日時</value></data>
+  <data name="AssetInfo_Provider" xml:space="preserve"><value>提供元</value></data>
+  <data name="AssetInfo_Vertices" xml:space="preserve"><value>頂点数</value></data>
+  <data name="AssetInfo_Triangles" xml:space="preserve"><value>三角形数</value></data>
+  <data name="AssetInfo_Size" xml:space="preserve"><value>大きさ (X × Y × Z)</value></data>
+  <data name="AssetInfo_Skins" xml:space="preserve"><value>スキン</value></data>
+  <data name="AssetInfo_Clips" xml:space="preserve"><value>アニメーション</value></data>
+  <data name="AssetInfo_Dimensions" xml:space="preserve"><value>画素の大きさ</value></data>
+  <data name="AssetInfo_SampleRate" xml:space="preserve"><value>サンプルレート</value></data>
+  <data name="AssetInfo_Channels" xml:space="preserve"><value>チャンネル</value></data>
+  <data name="AssetInfo_Mono" xml:space="preserve"><value>モノラル</value></data>
+  <data name="AssetInfo_Stereo" xml:space="preserve"><value>ステレオ</value></data>
+  <data name="AssetInfo_BitDepth" xml:space="preserve"><value>ビット深度</value></data>
+  <data name="AssetInfo_Duration" xml:space="preserve"><value>長さ</value></data>
   <data name="PreviewLevel_Default" xml:space="preserve"><value>Default</value></data>
   <data name="PreviewLevel_DefaultDescription" xml:space="preserve"><value>モデル・マテリアルの確認向けの標準。ニュートラルな背景、キー・フィル・リムのライト、影が確認できる床。</value></data>
   <data name="PreviewLevel_Studio" xml:space="preserve"><value>Studio</value></data>

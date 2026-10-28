@@ -58,7 +58,7 @@ internal static class AssetAuthoringHostClient {
             var Result=JsonSerializer.Deserialize<AssetWorkspaceResult>(Json,JsonOptions);
             if(Result is null||Result.ProtocolVersion!=1||Result.RequestId!=Request.RequestId||Result.Items is null||Result.Items.Length>100_000){ throw new InvalidDataException("Invalid asset inventory response."); }
             if(!Result.Success){ throw new InvalidDataException(Result.Diagnostic); }
-            if(Request.WorkspaceCommand==2&&(Result.FontPreview is not {Width:>0 and <=512,Height:>0 and <=512,SourceWidth:>0 and <=8192,SourceHeight:>0 and <=8192,GlyphCount:>0 and <=65536,Distance:{ }Pixels}Preview||Pixels.Length!=Preview.Width*Preview.Height)){
+            if(Request.WorkspaceCommand==2&&AssetFontPreview.Validate(Result.FontPreview) is not null){
                 throw new InvalidDataException("Invalid asset font preview response.");
             }
             if(Request.WorkspaceCommand==3&&Result.AudioPreview is not {SampleRate:>0,Channels:1 or 2,FrameCount:>0,Peaks:{Length:>0 and <=AssetAudioPreview.MaximumPeaks}}){
