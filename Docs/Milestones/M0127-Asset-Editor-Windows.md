@@ -127,3 +127,12 @@ DTE（ROT）と UIA のパターンで操作し、ホストへの入力は使っ
 
 1. 未確認の実機項目（上記）を専用ハイブで確認する。窓を動かさずに全面の画面を撮れる環境で、スケルタルのタイムラインとツリーの見た目も撮る。
 2. 静的な glTF のテクスチャ付き表示（protocol 12、ホスト読み込み）は、単一ノードと複数ノードのどちらも WARP と専用ハイブで確認済み。
+
+## 2026-10-27 — GLB／モデルのアニメーション再生中のUI停止対策
+
+- 原因として確認した経路: `SkeletalEditorPanel` の再生タイマーが更新するフレームを、`AssetViewportHost.OnRendering` が VS の UI スレッドから同期 `UpdateFrame`／`Render` として送っていた。各要求は名前付きパイプを開き、描画応答にはホストの描画・Present待ちが含まれる。パイプ、姿勢評価、GPU待ちの個別寄与率は未計測。
+- 修正: `AssetViewportFramePump` の専用バックグラウンドスレッドにフレームを渡し、未送信分は最新だけを保持する。リサイズとシーン版数を対応するフレームより先に送る。初回 Open／最初のフレームの成功確認は従来どおり Ready より前に行う。終了・再読み込みでは所有ホストの停止を確認し、失敗時は同じ描画面を再利用しない。
+- 検証: `AssetViewportFramePumpTests` と `RenderPreviewHostClientTests` の対象10件がx64 Debug／Releaseで合格。VSIX全体はx64 Debug 1498/1498、x64 Release 1498/1498。Release全体の後にテスト用送信を専用スレッドへ変更し、対象Release 10/10とDebug全体 1498/1498を再確認した。TRXは`tests/CSharpGameEngine.VSExtension.Tests/TestResults/preview-vsix-full-release-thread.trx`、`preview-vsix-full-debug-thread-final.trx`、`preview-frame-pump-release-thread-final.trx`、`preview-frame-pump-debug-thread-final.trx`。途中のDebug全体 1497/1498はテスト用`Task.Run`の起動遅延による失敗で、成功へ数えていない。
+- 残る確認: ユーザーが実VSでGLB／モデルの再生時の体感速度、画面更新、通常終了／再起動を確認する。実FPSとGPU段階別の時間は未測定。OSが所有ホストの終了を確認できない異常時は復旧を止めるが、閉じる画面のHWND寿命までは自動テストで証明していない。M0127全体は部分適合のまま。
+
+2026-10-29のmain統合候補では、失敗通知中のDisposeを直列化する回帰テストを追加した。新しいcheckoutで露出したSDK pack時のNavigation／Destruction Cookモジュール復元漏れも修正した。この候補のVSIX対象Debugは11/11、VSIX全体はDebug／Releaseとも1560/1560で、失敗・スキップは0件。TRXは`.artifacts/preview-merge/preview-merge-focused-debug.trx`、`preview-merge-full-debug.trx`、`preview-merge-full-release.trx`。実VSでの再生速度と終了挙動は引き続き未確認。

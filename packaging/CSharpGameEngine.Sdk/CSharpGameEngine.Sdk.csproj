@@ -80,10 +80,12 @@
       <Output TaskParameter="TargetOutputs" ItemName="_CgeCookCli" />
     </MSBuild>
     <!-- ADR-0079/M0106: the Navigation plugin's Cook module, built here and carried next to the plugin's sources (Navigation.plugin.items runs it from Cook\lib). -->
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Navigation\Cook\CSharpGameEngine.Navigation.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" BuildInParallel="false" />
     <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Navigation\Cook\CSharpGameEngine.Navigation.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookModule" />
     </MSBuild>
     <!-- ADR-0078/M0113: the Destruction plugin's Cook module (the fracture cooker), the same way. -->
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Destruction\Cook\CSharpGameEngine.Destruction.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" BuildInParallel="false" />
     <MSBuild Projects="$(CgeRepositoryRoot)plugins\CSharpGameEngine.Destruction\Cook\CSharpGameEngine.Destruction.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookModule" />
     </MSBuild>

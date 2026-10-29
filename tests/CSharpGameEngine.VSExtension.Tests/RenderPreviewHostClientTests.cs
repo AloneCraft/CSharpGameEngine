@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.VSExtension;
 
@@ -104,6 +106,39 @@ public sealed class RenderPreviewHostClientTests {
         Assert.Equal(RenderPreviewHostClientState.Faulted,Client.State);
         Assert.Throws<InvalidOperationException>(()=>{ Client.Resize(20,20); });
         Assert.Equal(2,Calls);
+    }
+    [Fact]
+    public async Task AbortWaitsForAnEarlierFaultToReleaseTheOwnedTransport(){
+        using var StopEntered=new ManualResetEventSlim();
+        using var ReleaseStop=new ManualResetEventSlim();
+        using var StopCompleted=new ManualResetEventSlim();
+        var Aborts=0;
+        using var Client=new RenderPreviewHostClient(
+            Guid.NewGuid(),
+            Request=>Request.Command==RenderPreviewHostCommand.Render
+                ?throw new IOException("host stopped")
+                :Success(Request),
+            ()=>{
+                StopEntered.Set();
+                Assert.True(ReleaseStop.Wait(TimeSpan.FromSeconds(10)));
+                StopCompleted.Set();
+            },
+            AbortTransport:()=>{
+                Interlocked.Increment(ref Aborts);
+                ReleaseStop.Set();
+                Assert.True(StopCompleted.Wait(TimeSpan.FromSeconds(10)));
+            });
+        Client.Open(123,64,48,"Stage.cgeshaderartifact",Scene());
+        var Sending=Task.Factory.StartNew(
+            ()=>Assert.Throws<RenderPreviewHostException>(()=>Client.Render(captureForVerification:false)),
+            CancellationToken.None,TaskCreationOptions.LongRunning,TaskScheduler.Default);
+        try {
+            Assert.True(StopEntered.Wait(TimeSpan.FromSeconds(10)));
+            Client.Abort();
+        } finally { ReleaseStop.Set(); }
+        Assert.Same(Sending,await Task.WhenAny(Sending,Task.Delay(TimeSpan.FromSeconds(10))));
+        await Sending;
+        Assert.Equal(1,Volatile.Read(ref Aborts));
     }
 
     private static RenderPreviewHostResponse Success(RenderPreviewHostRequest Request)=>new(){

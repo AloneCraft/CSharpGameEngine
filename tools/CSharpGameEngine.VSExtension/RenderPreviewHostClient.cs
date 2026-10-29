@@ -34,19 +34,21 @@ internal sealed class RenderPreviewHostClient:IDisposable {
     private readonly Guid SessionId;
     private readonly Func<RenderPreviewHostRequest,RenderPreviewHostResponse>SendRequest;
     private readonly Action DisposeTransport;
+    private readonly Action AbortTransport;
     private ulong Sequence;
-    private bool TransportDisposed;
+    private int TransportDisposed;
 
     internal RenderPreviewHostClient(
         Guid SessionId,
         Func<RenderPreviewHostRequest,RenderPreviewHostResponse>SendRequest,
         Action DisposeTransport,
-        int?ProcessId=null){
+        int?ProcessId=null,Action?AbortTransport=null){
         if(SessionId==Guid.Empty){ throw new ArgumentException("Session ID is required.",nameof(SessionId)); }
         this.ProcessId=ProcessId;
         this.SessionId=SessionId;
         this.SendRequest=SendRequest??throw new ArgumentNullException(nameof(SendRequest));
         this.DisposeTransport=DisposeTransport??throw new ArgumentNullException(nameof(DisposeTransport));
+        this.AbortTransport=AbortTransport??this.DisposeTransport;
     }
 
     internal RenderPreviewHostClientState State{get;private set;}=RenderPreviewHostClientState.Created;
@@ -61,7 +63,7 @@ internal sealed class RenderPreviewHostClient:IDisposable {
         RenderPreviewHostProcessTransport Transport=new(HostPath,ResponseTimeout??TimeSpan.FromSeconds(15));
         try {
             return new RenderPreviewHostClient(
-                Guid.NewGuid(),Transport.Send,Transport.Dispose,Transport.ProcessId);
+                Guid.NewGuid(),Transport.Send,Transport.Dispose,Transport.ProcessId,Transport.Abort);
         } catch {
             Transport.Dispose();
             throw;
@@ -158,6 +160,11 @@ internal sealed class RenderPreviewHostClient:IDisposable {
     }
 
     public void Dispose()=>this.Close();
+    /// <summary>別スレッドの送信が完了しない場合に、所有するホストだけを停止する。以後 Close は送信しない。</summary>
+    internal void Abort(){
+        this.State=RenderPreviewHostClientState.Faulted;
+        this.ReleaseTransport(Abort:true);
+    }
 
     private RenderPreviewHostResponse Send(
         RenderPreviewHostRequest Request,bool responseFailureIsTerminal=true){
@@ -203,10 +210,13 @@ internal sealed class RenderPreviewHostClient:IDisposable {
         this.ReleaseTransport();
     }
 
-    private void ReleaseTransport(){
-        if(this.TransportDisposed){ return; }
-        this.TransportDisposed=true;
-        this.DisposeTransport();
+    private void ReleaseTransport(bool Abort=false){
+        if(Abort){
+            Interlocked.Exchange(ref this.TransportDisposed,1);
+            this.AbortTransport();
+            return;
+        }
+        if(Interlocked.Exchange(ref this.TransportDisposed,1)==0){ this.DisposeTransport(); }
     }
 }
 
@@ -249,7 +259,10 @@ internal static class PreviewHostProcessStartInfo {
 internal sealed class RenderPreviewHostProcessTransport:IDisposable {
     private readonly string PipeName=$"CSharpGameEngine.Preview.{Guid.NewGuid():N}";
     private readonly Process Process;
-    private bool Disposed;
+    private int Disposed;
+    private int StopStarted;
+    private readonly ManualResetEventSlim StopCompleted=new(initialState:false);
+    private Exception?StopFailure;
     private bool ConnectedOnce;
     private readonly TimeSpan ResponseTimeout;
 
@@ -264,7 +277,7 @@ internal sealed class RenderPreviewHostProcessTransport:IDisposable {
     internal int ProcessId=>this.Process.Id;
 
     internal RenderPreviewHostResponse Send(RenderPreviewHostRequest Request){
-        if(this.Disposed){ throw new ObjectDisposedException(nameof(RenderPreviewHostProcessTransport)); }
+        if(Volatile.Read(ref this.Disposed)!=0){ throw new ObjectDisposedException(nameof(RenderPreviewHostProcessTransport)); }
         using NamedPipeClientStream Pipe=new(
             ".",this.PipeName,PipeDirection.InOut,PipeOptions.None);
         Connect(Pipe,this.Process,this.ConnectedOnce?TimeSpan.FromSeconds(2):TimeSpan.FromSeconds(10));
@@ -274,16 +287,39 @@ internal sealed class RenderPreviewHostProcessTransport:IDisposable {
             Pipe,this.ResponseTimeout,CancellationToken.None);
     }
 
-    public void Dispose(){
-        if(this.Disposed){ return; }
-        this.Disposed=true;
-        try {
-            if(!this.Process.HasExited&&!this.Process.WaitForExit(1_000)){
-                this.Process.Kill();
-                this.Process.WaitForExit(1_000);
+    public void Dispose()=>this.Stop(Abort:false);
+    internal void Abort()=>this.Stop(Abort:true);
+    private void Stop(bool Abort){
+        Volatile.Write(ref this.Disposed,1);
+        if(Interlocked.CompareExchange(ref this.StopStarted,1,0)!=0){
+            if(!this.StopCompleted.Wait(TimeSpan.FromSeconds(3))){
+                throw new TimeoutException("Preview host termination did not complete.");
             }
-        } catch(InvalidOperationException){ }
-        finally { this.Process.Dispose(); }
+            if(this.StopFailure is not null){ throw new IOException("Preview host termination failed.",this.StopFailure); }
+            return;
+        }
+        try {
+            if(!this.Process.HasExited&&(Abort||!this.Process.WaitForExit(1_000))){
+                this.Process.Kill();
+                if(!this.Process.WaitForExit(1_000)){
+                    throw new TimeoutException("Preview host did not exit after termination.");
+                }
+            }
+        } catch(InvalidOperationException Error){
+            bool Exited;
+            try { Exited=this.Process.HasExited; }
+            catch(InvalidOperationException){ Exited=false; }
+            if(!Exited){
+                this.StopFailure=Error;
+                throw new IOException("Preview host termination could not be verified.",Error);
+            }
+        } catch(Exception Error){
+            this.StopFailure=Error;
+            throw;
+        } finally {
+            this.Process.Dispose();
+            this.StopCompleted.Set();
+        }
     }
 
     private static void Connect(NamedPipeClientStream Pipe,Process Process,TimeSpan Timeout){

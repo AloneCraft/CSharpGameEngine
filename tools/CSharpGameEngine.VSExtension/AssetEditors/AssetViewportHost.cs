@@ -21,6 +21,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     private RenderSurfaceHostWindow?SurfaceHost;
     private RenderSurfaceWindow?SubscribedSurface;
     private RenderPreviewHostClient?PreviewClient;
+    private AssetViewportFramePump?FramePump;
     private EventHandler?RenderingHandler;
     private Action<int,int>?ResizeHandler;
     private readonly AssetViewportResizeQueue ResizeQueue=new();
@@ -34,6 +35,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     private bool CameraInitialized;
     private int FramesSinceRender;
     private bool Dirty=true;
+    private bool ShutdownFailed;
     private int SurfaceWidth=800;
     private int SurfaceHeight=600;
     private RenderPreviewPresentationMode Mode=RenderPreviewPresentationMode.Lit;
@@ -67,8 +69,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
             this.AnimationValue=value is null?null:new RenderPreviewAnimation { ClipIndex=-1 };
             this.CameraInitialized=false;
             if(this.Surface is not null){
-                this.TearDownRenderer();
-                this.LoadIntoSurface(IsRecovery:false);
+                if(this.TearDownRenderer()){ this.LoadIntoSurface(IsRecovery:false); }
             }
         }
     }
@@ -124,8 +125,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
         this.ModelPath=ModelPath;
         this.CameraInitialized=false;
         if(this.Surface is not null){
-            this.TearDownRenderer();
-            this.LoadIntoSurface(IsRecovery:false);
+            if(this.TearDownRenderer()){ this.LoadIntoSurface(IsRecovery:false); }
         }
     }
     /// <summary>
@@ -154,7 +154,8 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
             var Next=this.Compose();
             this.Lighting=PreviewLevelWire.CreateLighting(Template,this.Bounds,++this.EnvironmentRevision);
             if(this.Composition is null||this.Composition.FloorSignature!=Next.FloorSignature){
-                this.PreviewClient.ReplaceScene(Next.Scene);
+                if(this.FramePump is{ }Pump){ Pump.SetScene(Next.Scene); }
+                else { this.PreviewClient.ReplaceScene(Next.Scene); }
             }
             this.Composition=Next;
             this.Dirty=true;
@@ -172,7 +173,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     }
     private bool LoadIntoSurface(bool IsRecovery){
         var Surface=this.Surface;
-        if(Surface is null||(this.AwaitSkeletalSource&&this.Skeletal is null)){ return false; }
+        if(this.ShutdownFailed||Surface is null||(this.AwaitSkeletalSource&&this.Skeletal is null)){ return false; }
         if(!IsRecovery){ this.Recovery.Reset(); }
         var RequestId=Guid.NewGuid();
         this.PublishOperation(AuthoringOperationSnapshot.Start(RequestId,AuthoringHostOperation.Import,"Import",VsixText.Get("AssetPreview_Loading")));
@@ -230,6 +231,18 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
             Surface.PointerInput+=this.OnPointerInput;
             Surface.WheelInput+=this.OnWheelInput;
             this.SubscribedSurface=Surface;
+            AssetViewportFramePump?Pump=null;
+            Pump=new AssetViewportFramePump(this.PreviewClient,Error=>{
+                try {
+                    // HwndHost の Dispatcher に戻し、失敗時の HWND 復旧と WPF 状態の変更を同じ UI thread で行う。
+#pragma warning disable VSTHRD001
+                    _=this.Dispatcher.BeginInvoke(new Action(()=>{
+                        if(ReferenceEquals(this.FramePump,Pump)){ this.HandleHostFailure(Error); }
+                    }));
+#pragma warning restore VSTHRD001
+                } catch(InvalidOperationException){ }
+            });
+            this.FramePump=Pump;
             this.RenderingHandler=(_,_)=>this.OnRendering();
             CompositionTarget.Rendering+=this.RenderingHandler;
             this.Dirty=true;
@@ -241,23 +254,20 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
             var Message=VsixText.Format("AssetPreview_LoadFailed",Error.Message);
             var Operation=this.CurrentOperation??AuthoringOperationSnapshot.Start(RequestId,AuthoringHostOperation.Import,"Import",Message);
             this.PublishOperation(Error is AuthoringHostOperationException HostFailure?Operation.Fail(Message,HostFailure.Result.Diagnostics):Operation.Fail("ASSET_IMPORT_FAILED",Message));
-            this.TearDownRenderer();
+            if(!this.TearDownRenderer()){ return false; }
             if(!IsRecovery&&Error is RenderPreviewHostException PreviewError){ return this.HandleHostFailure(PreviewError); }
             return false;
         }
     }
     private void OnRendering(){
-        var Client=this.PreviewClient;
-        if(Client is null){ return; }
+        var Pump=this.FramePump;
+        if(Pump is null){ return; }
         if(!this.Dirty&&++this.FramesSinceRender<KeepAliveFrames){ return; }
-        try {
-            this.ResizeQueue.Apply((W,H)=>{ Client.Resize(W,H); });
-            Client.UpdateFrame(this.CreateFrame());
-            Client.Render(captureForVerification:false);
+        (int Width,int Height)?Resize=null;
+        this.ResizeQueue.Apply((W,H)=>{ Resize=(W,H); });
+        if(Pump.Submit(this.CreateFrame(),Resize)){
             this.Dirty=false;
             this.FramesSinceRender=0;
-        } catch(RenderPreviewHostException Error){
-            this.HandleHostFailure(Error);
         }
     }
     private RenderPreviewFrame CreateFrame(){
@@ -294,7 +304,10 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
     }
     private bool HandleHostFailure(RenderPreviewHostException Error){
         ActivityLog.LogError(nameof(AssetViewportHost),Error.ToString());
-        this.TearDownRenderer();
+        if(!this.TearDownRenderer()){
+            this.PublishOperation((this.CurrentOperation??AuthoringOperationSnapshot.Start(Guid.NewGuid(),AuthoringHostOperation.Import,"Import",Error.Message)).Fail("ASSET_PREVIEW_HOST_FAILED","Previous preview host did not stop; the surface cannot be reused."));
+            return false;
+        }
         if(this.SurfaceHost is{ }Host){
             var Rejected=this.Template;
             var Safe=PreviewLevelBuiltIns.Default();
@@ -325,7 +338,7 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
         this.CurrentOperation=Operation;
         this.OperationChanged?.Invoke(Operation);
     }
-    private void TearDownRenderer(){
+    private bool TearDownRenderer(){
         this.ResizeQueue.Clear();
         if(this.RenderingHandler is not null){
             CompositionTarget.Rendering-=this.RenderingHandler;
@@ -339,7 +352,18 @@ internal sealed class AssetViewportHost(string ModelPath,PreviewLevelTemplate In
         }
         this.ResizeHandler=null;
         this.SubscribedSurface=null;
-        this.PreviewClient?.Dispose();
+        var Pump=this.FramePump;
+        this.FramePump=null;
+        var Client=this.PreviewClient;
         this.PreviewClient=null;
+        try {
+            if(Pump is not null){ Pump.Dispose(); }
+            else { Client?.Abort(); }
+            return true;
+        } catch(Exception Error){
+            this.ShutdownFailed=true;
+            ActivityLog.LogError(nameof(AssetViewportHost),Error.ToString());
+            return false;
+        }
     }
 }
