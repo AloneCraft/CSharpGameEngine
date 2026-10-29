@@ -556,6 +556,7 @@ Discard unsaved edits and reload it?</value></data>
 <data name="Assets_Title" xml:space="preserve"><value>Assets</value></data>
 <data name="Assets_Lock" xml:space="preserve"><value>Lock location</value></data>
 <data name="Assets_WholeProject" xml:space="preserve"><value>Whole project</value></data>
+<data name="Assets_WholeSolution" xml:space="preserve"><value>Whole solution</value></data>
 <data name="Assets_Search" xml:space="preserve"><value>Search assets</value></data>
 <data name="Assets_Kind" xml:space="preserve"><value>Type</value></data>
 <data name="Assets_Provider" xml:space="preserve"><value>Provider</value></data>
@@ -820,4 +821,10 @@ Discard unsaved edits and reload it?</value></data>
   <data name="Skeletal_ClipUnbound" xml:space="preserve"><value>This animation does not move any joint of the selected mesh. Choose another preview mesh.</value></data>
   <data name="Skeletal_NoClips" xml:space="preserve"><value>The file contains no animations.</value></data>
   <data name="Skeletal_SkinCountUnsupported" xml:space="preserve"><value>The file has {0} skins; only a single skin can be previewed, so only the static shape is shown.</value></data>
+  <data name="ReferenceViewer_Title" xml:space="preserve"><value>References: {0}</value></data>
+  <data name="ReferenceViewer_Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="ReferenceViewer_ReferencersDepth" xml:space="preserve"><value>Search Referencers Depth</value></data>
+  <data name="ReferenceViewer_DependenciesDepth" xml:space="preserve"><value>Search Dependencies Depth</value></data>
+  <data name="ReferenceViewer_Loading" xml:space="preserve"><value>Loading...</value></data>
+  <data name="ReferenceViewer_Empty" xml:space="preserve"><value>No references found.</value></data>
 </root>

@@ -26,7 +26,7 @@
    <CheckBox x:Name="Details" Content="{local:Loc Assets_Details}" Margin="4,0,8,0" VerticalAlignment="Center" Click="OnQueryChanged"/>
    <Button Content="{local:Loc Assets_Refresh}" Click="OnRefresh" Padding="6,1"/>
    <Button Content="{local:Loc Assets_Cancel}" Click="OnCancel" Margin="4,0" Padding="6,1"/>
-   <Button Content="{local:Loc Assets_Create}" Click="OnCreate" Margin="4,0" Padding="6,1"/>
+   <Button x:Name="CreateButton" Content="{local:Loc Assets_Create}" Click="OnCreate" Margin="4,0" Padding="6,1"/>
    <Button Content="{local:Loc Assets_Organize}" Click="OnOrganize" Margin="4,0" Padding="6,1"/>
    <Button Content="{local:Loc Assets_Favorite}" Click="OnFavorite" Margin="4,0" Padding="6,1"/>
    <ComboBox x:Name="Favorites" Width="140" SelectionChanged="OnFavoriteSelected" DisplayMemberPath="Name" ToolTip="{local:Loc Assets_Favorite}"/>

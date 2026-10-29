@@ -21,6 +21,12 @@ internal static class AssetEditorOpenLocationPolicy {
     /// </summary>
     internal static bool ShouldFloat(AssetEditorOpenLocation Setting,bool AlreadyPlaced)=>
         Setting==AssetEditorOpenLocation.Floating&&!AlreadyPlaced;
+    /// <summary>
+    /// 既存のフローティングウィンドウの別タブとしてドッキングするか。
+    /// 設定がフローティングで、未配置であり、既存のフローティングウィンドウが存在する場合に true。
+    /// </summary>
+    internal static bool ShouldDockToExistingFloating(AssetEditorOpenLocation Setting,bool HasExistingFloating,bool AlreadyPlaced)=>
+        Setting==AssetEditorOpenLocation.Floating&&!AlreadyPlaced&&HasExistingFloating;
     /// <summary>VS メインウィンドウの中央に、希望サイズ（メインウィンドウの 85% を上限）で置く。</summary>
     internal static AssetEditorFloatingBounds CenteredBounds(int MainLeft,int MainTop,int MainWidth,int MainHeight){
         var Width=Math.Max(MinimumWidth,Math.Min(PreferredWidth,MainWidth*85/100));

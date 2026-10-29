@@ -4295,6 +4295,8 @@ Intended: ADR-0083 angular diameter and blocker distance control penumbra for bo
 
 ## M0123 — Asset workspace (in progress)
 
+- Root selection extension (2026-10-28): The accepted project/solution navigation contract is implemented through explicit query scopes over the existing evaluated inventory. Project selection removes folder restrictions; solution selection includes loaded game projects outside the solution directory. Refresh/favorites preserve the scope, lock/search conditions remain effective, and destination-dependent commands are disabled for solution scope. Two project-root regressions failed as Other before the selection fix; focused planner/navigation/workspace/localization tests then passed (45/45). Final VSIX Debug and Release suites each passed 1,553/1,553 with no skipped cases or compiler warnings/errors; commands/results are in M0123. Result: Matches for the automated root-navigation contract. Automated contract conformance is separate from actual Visual Studio shell verification, which has not been performed for this extension; overall M0123 remains Partial.
+
 - Icon plan: ImageGroup tab/commands/filter entry, kind-specific monikers, thumbnail fallback/marker, independent read-only and diagnostic badges, and shared Inspector/details presentation are implemented in L8. No icon data is persisted in Contracts or asset sources. Theme/DPI and real-shell verification must follow the recorded M0123 evidence; this does not complete the outstanding asset-workspace gates.
 
 - Intended: ADR-0081 and Asset-Workspace require finding, comparing, editing and reference-safe organization from Solution Explorer through Assets/Inspector, plus canonical import and SDK/VSIX distribution.

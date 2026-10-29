@@ -83,8 +83,8 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
     }
     internal void SaveFavorite(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        var Favorite=new AssetWorkspaceFavorite{Project=this.Query.ProjectPath,Folder=this.Query.Folder,Search=this.Query.Search,Kind=this.Query.Kind,Provider=this.Query.Provider,State=this.Query.State,WholeProject=this.Query.WholeProject};
-        var Favorites=this.LoadFavorites().Where(Value=>Value.Name!=Favorite.Name||Value.Project!=Favorite.Project).Concat(new[]{Favorite}).Take(100).ToArray();
+        var Favorite=AssetWorkspaceFavorite.Capture(this.Query);
+        var Favorites=this.LoadFavorites().Where(Value=>Value.Name!=Favorite.Name||Value.Project!=Favorite.Project||Value.Scope!=Favorite.Scope).Concat(new[]{Favorite}).Take(100).ToArray();
         var Store=new ShellSettingsManager(this.Package).GetWritableSettingsStore(SettingsScope.UserSettings);
         const string Collection="CSharpGameEngine\\Assets";
         if(!Store.CollectionExists(Collection)){ Store.CreateCollection(Collection); }
@@ -102,9 +102,7 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
         var Version=++this.Generation;
         var Sources=AssetWorkspaceProjectItems.Collect(this.Dte,out var Projects);
         this.Projects=Projects;
-        if(!Projects.Any(Project=>Project.ProjectFilePath==this.Query.ProjectPath)){
-            this.Query.ProjectPath=Projects.FirstOrDefault()?.ProjectFilePath??string.Empty;this.Query.Folder=Projects.FirstOrDefault()?.ProjectDirectory??string.Empty;
-        }
+        this.Query.ReconcileProjects(Projects.Select(static Project=>(Project.ProjectFilePath,Project.ProjectDirectory)).ToArray());
         if(Projects.Length==0){ this.Items=[];this.ResetWatchers(Sources);AssetWorkspaceSelection.Clear();this.Changed?.Invoke();return; }
         var Context=Projects[0];
         var Request=new AssetWorkspaceRequest{RequestId=Guid.NewGuid(),Sources=Sources};
@@ -178,20 +176,33 @@ internal sealed class AssetWorkspaceController:IVsSelectionEvents,IDisposable {
     public int OnSelectionChanged(IVsHierarchy OldHierarchy,uint OldItemId,IVsMultiItemSelect OldMulti,ISelectionContainer OldContainer,
         IVsHierarchy NewHierarchy,uint NewItemId,IVsMultiItemSelect NewMulti,ISelectionContainer NewContainer){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Query.Locked||NewHierarchy is null||NewItemId==VSConstants.VSITEMID_NIL){ return VSConstants.S_OK; }
-        if(ErrorHandler.Succeeded(NewHierarchy.GetCanonicalName(NewItemId,out var PathValue))&&!string.IsNullOrEmpty(PathValue)){
+        if(this.Query.Locked||NewItemId==VSConstants.VSITEMID_NIL||NewMulti is not null){ return VSConstants.S_OK; }
+        var IsSolution=AssetSelectionPlanner.IsSolutionRoot(NewHierarchy,NewItemId,false,this.IsSolutionSelected);
+        var PathValue=string.Empty;
+        if(!IsSolution&&NewHierarchy is not null){
+            if(NewItemId==VSConstants.VSITEMID_ROOT&&ErrorHandler.Succeeded(NewHierarchy.GetProperty(NewItemId,(int)__VSHPROPID.VSHPROPID_ExtObject,out var Value))&&Value is Project Project){
+                PathValue=Project.FullName;
+            }else if(ErrorHandler.Succeeded(NewHierarchy.GetCanonicalName(NewItemId,out var Canonical))){ PathValue=Canonical; }
+        }
+        if(IsSolution||!string.IsNullOrEmpty(PathValue)){
             if(this.SolutionSyncPath is { }Echo){
                 var Expected=DateTime.UtcNow<=this.SolutionSyncUntil&&string.Equals(Echo,PathValue,StringComparison.OrdinalIgnoreCase);
                 this.SolutionSyncPath=null;
                 if(Expected){ return VSConstants.S_OK; }
             }
-            var Plan=AssetSelectionPlanner.Decide(this.Items,this.Projects.Select(static Project=>(Project.ProjectFilePath,Project.ProjectDirectory)).ToArray(),PathValue,Directory.Exists);
+            var Plan=AssetSelectionPlanner.Decide(this.Items,this.Projects.Select(static Project=>(Project.ProjectFilePath,Project.ProjectDirectory)).ToArray(),PathValue,Directory.Exists,IsSolution);
             // 場所が変わったときだけ一覧を作り直す（同じファイルの選択通知でサムネイルを消さない）。
-            if(Plan.Kind!=AssetSelectionPlanner.Kind.Other&&this.Query.MoveTo(Plan.ProjectPath,Plan.Folder)){ this.Changed?.Invoke(); }
+            if(this.Query.Follow(Plan)){ this.Changed?.Invoke(); }
             if(Plan.Item is { }Selected){ AssetWorkspaceSelection.Select([Selected]); }
             else if(AssetWorkspaceSelection.Current.Count>0){ AssetWorkspaceSelection.Clear(); }
         }
         return VSConstants.S_OK;
+    }
+    private bool IsSolutionSelected(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        try {
+            return this.Dte is EnvDTE80.DTE2 Dte&&Dte.ToolWindows.SolutionExplorer.SelectedItems is object[]{Length:1}Items&&Items[0] is UIHierarchyItem Item&&Item.Object is Solution;
+        }catch(COMException){ return false; }
     }
     public int OnElementValueChanged(uint ElementId,object OldValue,object NewValue)=>VSConstants.S_OK;
     public int OnCmdUIContextChanged(uint Cookie,int Active)=>VSConstants.S_OK;

@@ -53,10 +53,9 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         if(Presentation.IsReadOnly&&(Item.State!=AssetWorkspaceState.ReadOnly||Presentation.HasStateIcon)){ this.IconLabel(Presentation.ReadOnlyLabel,Presentation.LockMoniker); }
         if(!string.IsNullOrEmpty(Item.AssetId)){ this.Label(Item.AssetId); }
         if(!string.IsNullOrEmpty(Item.Diagnostic)){ this.Label(Item.Diagnostic); }
-        this.Button("Assets_Open",async()=>{ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();AssetsToolWindowPane.Controller?.Open(Item); }).IsEnabled=(Item.GetCapabilities()&AssetWorkspaceCapabilities.Open)!=0;
         this.Button("Assets_References",()=>AssetWorkspaceCommands.ShowReferencesAsync(Item)).IsEnabled=Item.State!=AssetWorkspaceState.MissingSource;
-        this.ShowFacts(Item,Presentation.ProviderLabel,this.Generation);
         if(Item.State==AssetWorkspaceState.MissingSource){ return; }
+        this.ShowFacts(Item,Presentation.ProviderLabel,this.Generation);
         if(Item.Kind==AssetWorkspaceKind.Data){ _=this.ShowDataAsync(Item,this.Generation); }
         else if(Item.Kind==AssetWorkspaceKind.Font){ _=this.ShowFontAsync(Item,this.Generation); }
         else if(Item.Kind==AssetWorkspaceKind.Audio){
@@ -90,8 +89,8 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
             if(!Path.GetExtension(Item.Source.SourcePath).Equals(".fbx",StringComparison.OrdinalIgnoreCase)){ var Reimport=this.Button("Assets_Reimport",()=>Task.CompletedTask);Reimport.IsEnabled=false;Reimport.ToolTip=VsixText.Get("Assets_Unavailable"); }
         }
     }
-    /// <summary>フォントの節: そのフォント自身で描いた見本、対応する言語、表示できない文字（<see cref="AssetFontView"/>）。.cgefont はアトラスの絵も出す。</summary>
     internal void RefreshSelection(){ ThreadHelper.ThrowIfNotOnUIThread();this.OnSelection(this.FollowSelection?AssetWorkspaceSelection.Current:this.CurrentItems); }
+    /// <summary>フォントの節: そのフォント自身で描いた見本、対応する言語、表示できない文字（<see cref="AssetFontView"/>）。.cgefont はアトラスの絵も出す。</summary>
     private async Task ShowFontAsync(AssetWorkspaceItem Item,int Generation){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
         try {

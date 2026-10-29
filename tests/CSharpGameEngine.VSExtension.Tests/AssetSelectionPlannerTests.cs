@@ -10,6 +10,21 @@ public sealed class AssetSelectionPlannerTests {
     };
     private static bool Dir(string PathValue)=>PathValue is @"C:\Game\Assets" or @"C:\Game\Assets\Models" or Root;
     [Fact]
+    public void ProjectFileSelectionShowsItsWholeProjectEvenWithoutAssets(){
+        var Plan=AssetSelectionPlanner.Decide([],Projects,Project,Dir);
+        Assert.Equal("Project",Plan.Kind.ToString());
+        Assert.Equal(Project,Plan.ProjectPath);
+        Assert.Equal(Root,Plan.Folder);
+        Assert.Null(Plan.Item);
+    }
+    [Fact]
+    public void ProjectFileSelectionIsCaseInsensitiveAndDoesNotSelectANeighbour(){
+        var Plan=AssetSelectionPlanner.Decide([Item("Assets/Models/Hero.glb")],Projects,Project.ToUpperInvariant(),Dir);
+        Assert.Equal("Project",Plan.Kind.ToString());
+        Assert.Equal(Project,Plan.ProjectPath);
+        Assert.Equal(AssetSelectionPlanner.Kind.Other,AssetSelectionPlanner.Decide([],Projects,Project+".backup",Dir).Kind);
+    }
+    [Fact]
     public void AnAssetIsSelectedAndItsFolderBecomesTheLocation(){
         var Hero=Item("Assets/Models/Hero.glb");
         var Plan=AssetSelectionPlanner.Decide([Hero],Projects,Hero.Source.SourcePath,Dir);
@@ -59,6 +74,62 @@ public sealed class AssetSelectionPlannerTests {
         Query.Details=true;Assert.NotEqual(Base,Query.ViewKey);Query.Details=false;
         Query.Folder=@"C:\Game\Assets";Assert.NotEqual(Base,Query.ViewKey);Query.Folder=Root;
         Assert.Equal(Base,Query.ViewKey);
+    }
+    [Fact]
+    public void RootScopesIncludeLinkedAndExternalProjectAssetsAndKeepSearchFilters(){
+        var Hero=Item("Assets/Models/Hero.glb");
+        var Linked=Item("Assets/Models/Linked.glb");Linked.Source.SourcePath=@"D:\Sdk\Linked.glb";Linked.Source.RelativePath=Linked.Source.SourcePath;
+        var Other=Item("Assets/Hero.glb");Other.Source.ProjectPath=@"D:\Other\Other.csproj";Other.Source.ProjectRoot=@"D:\Other";Other.Source.SourcePath=@"D:\Other\Assets\Hero.glb";
+        var Items=new[]{Hero,Linked,Other};
+        var Query=new AssetWorkspaceQuery{ProjectPath=Project,Folder=@"C:\Game\Assets\Missing"};
+        Assert.Empty(Query.Apply(Items,default));
+        Assert.True(Query.Follow(AssetSelectionPlanner.Decide(Items,Projects,Project,Dir)));
+        Assert.Equal(new[]{Hero,Linked},Query.Apply(Items,default));
+        Query.Search="Hero";Query.Kind="Model";Query.State="Source";
+        Assert.True(Query.Follow(AssetSelectionPlanner.Decide(Items,Projects,string.Empty,Dir,true)));
+        Assert.Equal(2,Query.Apply(Items,default).Length);
+        Assert.False(Query.CanChooseDestination);
+        Assert.Equal("Hero",Query.Search);Assert.Equal("Model",Query.Kind);Assert.Equal("Source",Query.State);
+        Assert.True(Query.Follow(AssetSelectionPlanner.Decide(Items,Projects,@"C:\Game\Assets\Models",Dir)));
+        Assert.Same(Hero,Assert.Single(Query.Apply(Items,default)));
+        Assert.True(Query.CanChooseDestination);
+    }
+    [Fact]
+    public void ScopeChangesInvalidateTheViewEvenAtTheSameProjectRootAndLockPreventsFollowing(){
+        var Query=new AssetWorkspaceQuery{ProjectPath=Project,Folder=Root};
+        var Before=Query.ViewKey;
+        var Plan=AssetSelectionPlanner.Decide([],Projects,Project,Dir);
+        Query.Locked=true;Assert.False(Query.Follow(Plan));Assert.Equal(Before,Query.ViewKey);
+        Query.Locked=false;Assert.True(Query.Follow(Plan));Assert.NotEqual(Before,Query.ViewKey);
+        Assert.False(Query.Follow(Plan));
+        Query.Reveal(Item("Assets/Hero.glb"));Assert.Equal(AssetWorkspaceScope.Folder,Query.Scope);
+    }
+    [Fact]
+    public void SolutionScopeSurvivesRefreshIncludingAnEmptyInventoryAndProjectScopeFallsBackWhenUnloaded(){
+        var Query=new AssetWorkspaceQuery{Scope=AssetWorkspaceScope.Solution,ProjectPath=Project,Folder=Root};
+        Query.ReconcileProjects(Projects);Assert.Equal(AssetWorkspaceScope.Solution,Query.Scope);Assert.Empty(Query.ProjectPath);Assert.Empty(Query.Folder);
+        Query.ReconcileProjects([]);Assert.Equal(AssetWorkspaceScope.Solution,Query.Scope);Assert.Empty(Query.Apply([],default));
+        Query.MoveTo(Project,Root,AssetWorkspaceScope.Project);Query.ReconcileProjects(Projects);Assert.Equal(AssetWorkspaceScope.Project,Query.Scope);
+        Query.ReconcileProjects([(@"D:\Other\Other.csproj",@"D:\Other")]);Assert.Equal(@"D:\Other\Other.csproj",Query.ProjectPath);Assert.Equal(AssetWorkspaceScope.Folder,Query.Scope);
+        Query.ReconcileProjects([]);Assert.False(Query.CanChooseDestination);
+    }
+    [Theory]
+    [InlineData("Folder")]
+    [InlineData("Project")]
+    [InlineData("Solution")]
+    public void FavoritesRoundTripScopeAndFilters(string Scope){
+        var Query=new AssetWorkspaceQuery{Scope=(AssetWorkspaceScope)Enum.Parse(typeof(AssetWorkspaceScope),Scope),ProjectPath=Project,Folder=Root,Search="Hero",Kind="Model",Provider="Engine",State="Source",WholeProject=true};
+        var Json=System.Text.Json.JsonSerializer.Serialize(AssetWorkspaceFavorite.Capture(Query));
+        var Restored=new AssetWorkspaceQuery();System.Text.Json.JsonSerializer.Deserialize<AssetWorkspaceFavorite>(Json)!.Restore(Restored);
+        Assert.Equal(Query.ViewKey,Restored.ViewKey);
+    }
+    [Theory]
+    [InlineData("{\"Project\":\"Game\",\"Folder\":\"Assets\",\"WholeProject\":true}")]
+    [InlineData("{\"Project\":\"Game\",\"Folder\":\"Assets\",\"Scope\":\"FutureScope\",\"WholeProject\":true}")]
+    public void ExistingOrUnknownFavoriteScopesKeepLegacyFolderBehaviour(string Json){
+        var Query=new AssetWorkspaceQuery{Scope=AssetWorkspaceScope.Solution};
+        System.Text.Json.JsonSerializer.Deserialize<AssetWorkspaceFavorite>(Json)!.Restore(Query);
+        Assert.Equal(AssetWorkspaceScope.Folder,Query.Scope);Assert.Equal("Game",Query.ProjectPath);Assert.Equal("Assets",Query.Folder);Assert.True(Query.WholeProject);
     }
 }
 [Collection(MockedVsCollection.Name)]

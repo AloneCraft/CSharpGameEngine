@@ -20,9 +20,9 @@ internal static class ImageReferenceMigration {
         ValidateOwnership(Item,AssetsToolWindowPane.Controller?.Items??[]);
         var Context=CgeProjectContext.TryCreate(Item.Source.ProjectPath)??throw new InvalidOperationException("Game project unavailable.");
         var Solution=AssetDocumentWorkspace.Workspace.CurrentSolution;
-        var Plan=new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,SolutionVersion=Solution.Version,
-            Mutation=new(){FileMutationCommand=2,RequestId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Root=Context.ProjectDirectory,MetadataRoot=Context.WorkspaceRoot,
-                Operation=AssetFileOperation.Create,Destination=Item.Source.SourcePath+".meta",Content=Metadata}};
+        var Mutation=AssetReferencePlanner.CreateRequest(Context);Mutation.FileMutationCommand=2;Mutation.Operation=AssetFileOperation.Create;
+        Mutation.Destination=Item.Source.SourcePath+".meta";Mutation.Content=Metadata;
+        var Plan=new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,SolutionVersion=Solution.Version,Mutation=Mutation};
         var Paths=(AssetsToolWindowPane.Controller?.Items??[]).Where(I=>I.Source.ProjectPath==Item.Source.ProjectPath&&AssetReferencePlanner.InCatalog(I.Source.RelativePath)).Select(I=>I.Source.RelativePath).Append(Item.Source.RelativePath);
         var Map=AssetCatalogLayout.Map(Paths);
         if(!Map.TryGetValue(Item.Source.RelativePath,out var Old)){ return Plan; }
@@ -45,7 +45,9 @@ internal static class ImageReferenceMigration {
         var Solution=AssetDocumentWorkspace.Workspace.CurrentSolution;
         var PathValue=Item.Source.SourcePath+".meta";var Before=AssetDocumentWorkspace.Read(PathValue);
         if(Before!=File.ReadAllText(PathValue)){ throw new InvalidOperationException(VsixText.Get("Assets_ImageSaveFirst")); }
-        var Plan=new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,SolutionVersion=Solution.Version,Mutation=new(){FileMutationCommand=2,RequestId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Root=Context.ProjectDirectory,MetadataRoot=Context.WorkspaceRoot,Operation=AssetFileOperation.UpdateMetadata,Source=PathValue,Destination=PathValue,ExpectedSourceHash=MetadataHash,Content=Metadata}};
+        var Mutation=AssetReferencePlanner.CreateRequest(Context);Mutation.FileMutationCommand=2;Mutation.Operation=AssetFileOperation.UpdateMetadata;
+        Mutation.Source=PathValue;Mutation.Destination=PathValue;Mutation.ExpectedSourceHash=MetadataHash;Mutation.Content=Metadata;
+        var Plan=new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,SolutionVersion=Solution.Version,Mutation=Mutation};
         Plan.Edits.Add(new(PathValue,Before,Metadata));
         var Items=AssetsToolWindowPane.Controller?.Items??[];
         var Names=AssetCatalogLayout.Map(Items.Where(I=>I.Source.ProjectPath==Item.Source.ProjectPath&&AssetReferencePlanner.InCatalog(I.Source.RelativePath)).Select(I=>I.Source.RelativePath));

@@ -41,6 +41,11 @@ internal sealed class AssetEditorFramePlacement(System.IServiceProvider Services
     internal void OnHostingChanged(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed){ return; }
+        if(this.Frame is{ }Frame){
+            var Hosting=AssetEditorFrameFloater.DescribeHosting(Content(),Services);
+            if(Hosting=="Floating"){ AssetEditorFloatingTracker.Register(Frame); }
+            else if(Hosting=="Main"){ AssetEditorFloatingTracker.Unregister(Frame); }
+        }
         this.UpdateOwner();
         // ドッキングの移動中は新しいHwndSourceがまだ接続されていない場合がある。
         if(this.OwnerTask is { IsCompleted:false }){ return; }
@@ -85,9 +90,22 @@ internal sealed class AssetEditorFramePlacement(System.IServiceProvider Services
             return;
         }
         this.PlacementAttempts++;
+        var ExistingFloating=AssetEditorFloatingTracker.GetActiveFloatingFrame(Services);
+        if(ExistingFloating is not null&&!ReferenceEquals(ExistingFloating,Target)){
+            var DockResult=AssetEditorFrameFloater.TryDockToExistingFloating(Target,ExistingFloating,Content(),Services);
+            ActivityLog.LogInformation(nameof(AssetEditorFramePlacement),$"Asset editor dock to existing '{Describe()}': floating={DockResult.Floating}, route={DockResult.Route}, detail={DockResult.Detail}, attempt={this.PlacementAttempts}.");
+            if(DockResult.Floating){
+                AssetEditorFloatingTracker.Register(Target);
+                this.PlacementDone=true;
+                return;
+            }
+        }
         var Result=AssetEditorFrameFloater.TryFloat(Target,Services);
         ActivityLog.LogInformation(nameof(AssetEditorFramePlacement),$"Asset editor float '{Describe()}': floating={Result.Floating}, route={Result.Route}, detail={Result.Detail}, attempt={this.PlacementAttempts}.");
-        if(Result.Floating){ this.ScheduleBounds(Target); }
+        if(Result.Floating){
+            AssetEditorFloatingTracker.Register(Target);
+            this.ScheduleBounds(Target);
+        }
         if(Result.Floating||this.PlacementAttempts>=MaximumPlacementAttempts){ this.PlacementDone=true; }
     }
     /// <summary>
@@ -107,6 +125,9 @@ internal sealed class AssetEditorFramePlacement(System.IServiceProvider Services
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
+        if(this.Frame is{ }Frame){
+            AssetEditorFloatingTracker.Unregister(Frame);
+        }
         if(this.Element is { }Element){
             Element.Loaded-=this.OnLoaded;
             System.Windows.PresentationSource.RemoveSourceChangedHandler(Element,this.OnSourceChanged);

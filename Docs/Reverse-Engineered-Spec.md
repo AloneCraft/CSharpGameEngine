@@ -643,6 +643,8 @@ Code inspection and WARP tests confirm shared PCSS for the CSM and virtual direc
 
 ## RE-L8-035 — Asset workspace
 
+- Root scopes (2026-10-28): The planner matches project-file identity before folder classification. Shell root identity plus the solution hierarchy/ExtObject, or an explicitly selected DTE solution when the hierarchy is absent, selects solution scope; missing/NIL/multiple selections alone do not. Project scope filters by owner without a folder restriction; solution scope uses all collected owners without a physical solution-directory restriction. Both retain search/kind/provider/state filters. Scope participates in the view key, refresh reconciliation and favorite persistence; missing/unknown favorite scopes restore as Folder. Destination operations are guarded in both UI and import entry points. Evidence: `AssetSelectionPlannerTests` and `AssetEditorNavigationTests`; final configuration results and shell limitations are in M0123.
+
 - Icon presentation: L8 `AssetWorkspaceIcons` maps the Assets tab/commands/filter entry to ImageGroup and eight asset kinds to standard VS monikers. Tiles use a 32 DIP fallback, then actual thumbnails with a 16 DIP type marker; independent 12 DIP lock/error/warning badges have themed background plates. Details and Inspector share the mapping at 16 DIP. ReadOnly metadata diagnostics retain an error marker and label alongside the lock. Native buffer/data contracts are unchanged. Icon policy tests pass; exact actual-theme/DPI verification is recorded in M0123.
 
 - Confidence: High for tested standalone contracts; CodeVerified for shell integration; Japanese/dark shell display and basic interaction have been observed in the dedicated Experimental Instance, while the full gesture matrix remains incomplete.

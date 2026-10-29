@@ -5041,6 +5041,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L8-035 — Solution Explorer linked asset workspace
 
+- Root selection (2026-10-28): Project roots show all owned inventory assets; solution roots show all loaded game-project inventories, including external project locations and linked providers. Explicit folder/project/solution query scopes survive refresh/favorites; existing favorites retain folder semantics. Search filters and location lock are preserved. Destination-dependent commands are disabled in solution scope. Evidence: `AssetSelectionPlanner`, `AssetWorkspaceQuery`, controller/control/favorite integration and navigation/planner regression tests. Exact verification and remaining real-shell boundary are recorded in M0123; the overall feature remains PartiallyImplemented.
+
 - Layer: L8 — Visual Studio Authoring Environment; Content/L7 — inventory, metadata and physical mutations; L2 — Contracts DTOs
 - Parent capability: Asset authoring (ADR-0081 / M0123)
 - Depends on: F-L8-019, F-L8-024, F-L8-025

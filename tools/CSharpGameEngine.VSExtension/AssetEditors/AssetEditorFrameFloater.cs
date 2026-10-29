@@ -46,6 +46,105 @@ internal static class AssetEditorFrameFloater {
         if(ErrorHandler.Failed(Hr)){ return new(false,"None","FrameMode hr=0x"+Hr.ToString("X8")+" before="+Before); }
         return new(true,"FrameMode","before="+Before+" after="+ReadMode(Frame));
     }
+    /// <summary>既存の浮動フレームと同じタブグループ（コンテナ）へ別タブとしてドッキングする。</summary>
+    internal static AssetEditorFloatResult TryDockToExistingFloating(IVsWindowFrame Target,IVsWindowFrame Existing,System.Windows.Media.Visual? TargetContent,IServiceProvider Services){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        try {
+            var TargetView=ResolveViewElement(Target,TargetContent);
+            var ExistingView=ResolveViewElement(Existing,null);
+            if(TargetView is not null&&ExistingView is not null){
+                var ViewElementType=ExistingView.GetType();
+                var DockOpsType=ViewElementType.Assembly.GetType("Microsoft.VisualStudio.PlatformUI.Shell.DockOperations")
+                    ??System.Type.GetType("Microsoft.VisualStudio.PlatformUI.Shell.DockOperations, Microsoft.VisualStudio.Shell.ViewManager");
+                if(DockOpsType is not null){
+                    var DockMethod=System.Linq.Enumerable.FirstOrDefault(
+                        DockOpsType.GetMethods(System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.Static),
+                        M=>M.Name=="Dock"&&M.GetParameters().Length==3);
+                    if(DockMethod is not null){
+                        // Dock(targetView, dockingView, dockDirection: 0=Fill)
+                        DockMethod.Invoke(null,[ExistingView,TargetView,0]);
+                        Target.Show();
+                        return new(true,"DockOperations.Dock","docked as tab into existing floating group");
+                    }
+                }
+                var TargetParentProp=TargetView.GetType().GetProperty("Parent");
+                var ExistingParentProp=ExistingView.GetType().GetProperty("Parent");
+                if(TargetParentProp?.GetValue(TargetView) is{ }TargetGroup&&ExistingParentProp?.GetValue(ExistingView) is{ }ExistingGroup){
+                    var TargetChildrenProp=TargetGroup.GetType().GetProperty("Children");
+                    var ExistingChildrenProp=ExistingGroup.GetType().GetProperty("Children");
+                    if(TargetChildrenProp?.GetValue(TargetGroup) is System.Collections.IList TargetList
+                        &&ExistingChildrenProp?.GetValue(ExistingGroup) is System.Collections.IList ExistingList){
+                        TargetList.Remove(TargetView);
+                        ExistingList.Add(TargetView);
+                        var SelectedProp=ExistingGroup.GetType().GetProperty("SelectedElement");
+                        SelectedProp?.SetValue(ExistingGroup,TargetView);
+                        Target.Show();
+                        return new(true,"DocumentGroup.Children","added to existing floating document group");
+                    }
+                }
+            }
+        } catch(Exception Error){
+            ActivityLog.LogWarning(nameof(AssetEditorFrameFloater),$"Native dock attempt failed: {Error.GetType().Name} {Error.Message}");
+        }
+        const int VsfpropidMdiContainerId=-5010;
+        var ContainerHr=Existing.GetProperty(VsfpropidMdiContainerId,out var ContainerId);
+        if(ErrorHandler.Succeeded(ContainerHr)&&ContainerId is not null){
+            var SetHr=Target.SetProperty(VsfpropidMdiContainerId,ContainerId);
+            if(ErrorHandler.Succeeded(SetHr)){
+                Target.Show();
+                return new(true,"MDIContainerID","containerId="+ContainerId);
+            }
+        }
+        try {
+            var ExWinHr=Existing.GetProperty((int)__VSFPROPID.VSFPROPID_ExtWindowObject,out var ExWinObj);
+            var TgWinHr=Target.GetProperty((int)__VSFPROPID.VSFPROPID_ExtWindowObject,out var TgWinObj);
+            if(ErrorHandler.Succeeded(ExWinHr)&&ErrorHandler.Succeeded(TgWinHr)
+                &&ExWinObj is Window ExWin&&TgWinObj is Window TgWin){
+                var LinkedFrame=ExWin.LinkedWindowFrame;
+                if(LinkedFrame is not null){
+                    LinkedFrame.LinkedWindows.Add(TgWin);
+                    Target.Show();
+                    return new(true,"LinkedWindows.Add","added to existing linked frame");
+                }
+                var Created=ExWin.DTE.Windows.CreateLinkedWindowFrame(ExWin,TgWin,vsLinkedWindowType.vsLinkedWindowTypeTabbed);
+                if(Created is not null){
+                    Target.Show();
+                    return new(true,"CreateLinkedWindowFrame","tabbed linked frame created");
+                }
+            }
+        } catch(Exception Error) when(Error is System.Runtime.InteropServices.COMException or InvalidOperationException or ArgumentException){
+            ActivityLog.LogWarning(nameof(AssetEditorFrameFloater),$"DTE linked frame fallback failed: {Error.Message}");
+        }
+        return new(false,"None","docking failed (containerHr=0x"+ContainerHr.ToString("X8")+")");
+    }
+    private static object? ResolveViewElement(IVsWindowFrame Frame,System.Windows.Media.Visual? Content){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        try {
+            var Prop=Frame.GetType().GetProperty("FrameView",System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+            if(Prop?.GetValue(Frame) is{ }View){ return View; }
+            var Field=Frame.GetType().GetField("innerFrame",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)
+                ??Frame.GetType().GetField("_frame",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+            if(Field?.GetValue(Frame) is{ }Inner){
+                var InnerProp=Inner.GetType().GetProperty("FrameView",System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+                if(InnerProp?.GetValue(Inner) is{ }InnerView){ return InnerView; }
+            }
+        } catch {}
+        if(Content is not null){
+            try {
+                var Current=Content as System.Windows.DependencyObject;
+                while(Current is not null){
+                    if(Current is System.Windows.FrameworkElement Fe){
+                        var Dc=Fe.DataContext;
+                        if(Dc is not null&&Dc.GetType().FullName=="Microsoft.VisualStudio.Platform.WindowManagement.WMView"){
+                            return Dc;
+                        }
+                    }
+                    Current=System.Windows.Media.VisualTreeHelper.GetParent(Current);
+                }
+            } catch {}
+        }
+        return null;
+    }
     /// <summary>
     /// 浮いたフレームを中央・希望サイズに置く。浮かせた直後（WPF が最初の描画を終える前）にサイズを変えると、フローティングウィンドウの WPF 部分が
     /// 描画されない状態を以前に観測したため、呼び出し側（<see cref="AssetEditorFramePlacement"/>）が暫定的に遅延して呼ぶ。全面描画の最終受入は未完了。

@@ -103,6 +103,8 @@
 
 ## Unreleased
 
+- Fixed Assets navigation from Solution Explorer project and solution roots. Project roots show all owned assets; solution roots and the localized Whole solution selector show all loaded game-project assets. Scope survives refresh and favorites, preserves search/location lock, and prevents creation/import without a destination project.
+
 - Adds explicit PNG/JPEG Texture and raw Image outputs backed by canonical full-filename `.meta` files, stable output IDs, advisory Normal detection, linear packed-PBR conversion, normal mip normalization and typed generated output references. Adds standalone image/model commands and composite FBX meshes, shared skeletons, materials and Take/frame-range clips. VSIX Inspector exposes settings and reviewed reference migration; real-shell acceptance remains separately tracked in M0126.
 
 - The SDK package is 0.1.15, so games built from the package get the scene JSON generator and runtime fixes below: NuGet keeps using a package version it has already extracted (ADR-0065).

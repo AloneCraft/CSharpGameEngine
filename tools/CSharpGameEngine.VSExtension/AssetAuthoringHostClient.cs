@@ -16,9 +16,8 @@ internal static class AssetAuthoringHostClient {
     internal static AssetImageResult Image(AssetImageRequest Request){
         var Root=Path.Combine(Path.GetTempPath(),"CgeImageAuthoring",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Root);
         try {
-            Request.RequestId=Guid.NewGuid();
             var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");
-            Request.Root=Context.WorkspaceRoot;
+            BindRequest(Request,Context);
             var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");
             File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
             var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
@@ -29,24 +28,27 @@ internal static class AssetAuthoringHostClient {
     internal static AssetModelResult Model(AssetModelRequest Request){
         var Root=Path.Combine(Path.GetTempPath(),"CgeModelAuthoring",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Root);
         try {
-            Request.RequestId=Guid.NewGuid();var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");Request.Root=Context.WorkspaceRoot;
+            var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");
+            BindRequest(Request,Context);
             var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
             var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
             var Result=JsonSerializer.Deserialize<AssetModelResult>(Json,JsonOptions)??throw new InvalidDataException("Model result missing.");
             if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Model response mismatch."); }return Result;
         }finally { foreach(var FileName in new[]{"request.json","result.json"}){ var PathValue=Path.Combine(Root,FileName);if(File.Exists(PathValue)){ File.Delete(PathValue); } }Directory.Delete(Root); }
     }
+    internal static void BindRequest(AssetImageRequest Request,CgeProjectContext Context){ Request.RequestId=Guid.NewGuid();Request.Root=Context.AssetMetadataRoot(Request.SourcePath); }
+    internal static void BindRequest(AssetModelRequest Request,CgeProjectContext Context){ Request.RequestId=Guid.NewGuid();Request.Root=Context.AssetMetadataRoot(Request.SourcePath); }
+    internal static AssetAuthoringRequest CreateRequest(CgeProjectContext Context,string SourcePath,AssetAuthoringCommand Command)=>new(){RequestId=Guid.NewGuid(),Command=Command,RepositoryRoot=Context.AssetMetadataRoot(SourcePath),SourcePath=SourcePath};
     public static AssetAuthoringResult Inspect(string SourcePath){
-        string RepoRoot=ResolveWorkspaceRoot(SourcePath);
-        return Execute(new AssetAuthoringRequest {
-            RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.Inspect,
-            RepositoryRoot=RepoRoot,SourcePath=SourcePath,
-        });
+        var Context=ResolveContext(SourcePath);
+        return Execute(CreateRequest(Context,SourcePath,AssetAuthoringCommand.Inspect));
     }
-    public static AssetAuthoringResult MigrateLegacy(string SourcePath,string ExpectedHash)=>Execute(new AssetAuthoringRequest{
-        RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.MigrateLegacyMetadata,
-        RepositoryRoot=ResolveWorkspaceRoot(SourcePath),SourcePath=SourcePath,ExpectedMetadataSha256=ExpectedHash,
-    });
+    public static AssetAuthoringResult MigrateLegacy(string SourcePath,string ExpectedHash){
+        var Context=ResolveContext(SourcePath);
+        var Request=CreateRequest(Context,SourcePath,AssetAuthoringCommand.MigrateLegacyMetadata);
+        Request.ExpectedMetadataSha256=ExpectedHash;
+        return Execute(Request);
+    }
     internal static AssetWorkspaceResult InspectWorkspace(AssetWorkspaceRequest Request,string WorkspaceRoot){
         var Root=Path.Combine(Path.GetTempPath(),"CgeAssetWorkspace",Request.RequestId.ToString("N"));
         Directory.CreateDirectory(Root);
@@ -86,14 +88,11 @@ internal static class AssetAuthoringHostClient {
     public static AssetAuthoringResult SaveMetadata(
         string SourcePath,AssetAuthoringResult Snapshot){
         if(Snapshot is null){ throw new ArgumentNullException(nameof(Snapshot)); }
-        string RepoRoot=ResolveWorkspaceRoot(SourcePath);
-        return Execute(new AssetAuthoringRequest {
-            RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.SaveMetadata,
-            RepositoryRoot=RepoRoot,SourcePath=SourcePath,
-            ExpectedMetadataSha256=Snapshot.MetadataSha256,
-            AssetId=Snapshot.AssetId,Importer=Snapshot.Importer,
-            Options=CloneOptions(Snapshot.Options),
-        });
+        var Context=ResolveContext(SourcePath);
+        var Request=CreateRequest(Context,SourcePath,AssetAuthoringCommand.SaveMetadata);
+        Request.ExpectedMetadataSha256=Snapshot.MetadataSha256;
+        Request.AssetId=Snapshot.AssetId;Request.Importer=Snapshot.Importer;Request.Options=CloneOptions(Snapshot.Options);
+        return Execute(Request);
     }
 
     internal static AssetAuthoringResult DeserializeValidatedResult(
@@ -126,7 +125,7 @@ internal static class AssetAuthoringHostClient {
     }
 
     /// <summary><paramref name="SourcePath"/> を所有するゲームプロジェクトのワークスペース (ADR-0065)。</summary>
-    private static string ResolveWorkspaceRoot(string SourcePath)=>CgeProjectContext.Resolve(SourcePath)?.WorkspaceRoot
+    private static CgeProjectContext ResolveContext(string SourcePath)=>CgeProjectContext.Resolve(SourcePath)
         ??throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
 
     private static AssetAuthoringOption[]CloneOptions(AssetAuthoringOption[]?Options){

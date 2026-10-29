@@ -9,6 +9,48 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class AssetEditorNavigationTests {
     public AssetEditorNavigationTests(MockedVsFixture Fixture){ }
     [Fact]
+    public void SolutionSelectionClearsOldFolderAndAssetButLockAndUnrelatedNotificationsPreserveThem(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var Constructor=typeof(AssetWorkspaceController).GetConstructors(System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance).Single();
+            var Controller=(AssetWorkspaceController)Constructor.Invoke([null,null,null]);
+            var Old=AssetWorkspaceSelection.Current;
+            var Item=new AssetWorkspaceItem{Source=new(){ProjectPath="Game.csproj",SourcePath=@"C:\Game\Assets\Hero.glb"}};
+            var Solution=Proxy<EnvDTE.Solution>((_,_)=>throw new NotSupportedException());
+            var Hierarchy=Proxy<IVsHierarchy>((Call,Args)=>{ Args[2]=Solution;return VSConstants.S_OK; });
+            var Notifications=0;Controller.Changed+=()=>Notifications++;
+            try {
+                Controller.Query.MoveTo("Game.csproj",@"C:\Game\Assets");AssetWorkspaceSelection.Select([Item]);
+                Controller.OnSelectionChanged(null!,0,null!,null!,Hierarchy,VSConstants.VSITEMID_ROOT,null!,null!);
+                Assert.Equal(AssetWorkspaceScope.Solution,Controller.Query.Scope);Assert.Empty(Controller.Query.ProjectPath);Assert.Empty(Controller.Query.Folder);Assert.Empty(AssetWorkspaceSelection.Current);Assert.Equal(1,Notifications);
+                Controller.OnSelectionChanged(null!,0,null!,null!,Hierarchy,VSConstants.VSITEMID_ROOT,null!,null!);Assert.Equal(1,Notifications);
+                Controller.Query.MoveTo("Game.csproj",@"C:\Game\Assets");Controller.Query.Locked=true;AssetWorkspaceSelection.Select([Item]);
+                Controller.OnSelectionChanged(null!,0,null!,null!,Hierarchy,VSConstants.VSITEMID_ROOT,null!,null!);
+                Assert.Equal(AssetWorkspaceScope.Folder,Controller.Query.Scope);Assert.Same(Item,Assert.Single(AssetWorkspaceSelection.Current));
+                Controller.Query.Locked=false;
+                Controller.OnSelectionChanged(null!,0,null!,null!,null!,VSConstants.VSITEMID_NIL,null!,null!);
+                Controller.OnSelectionChanged(null!,0,null!,null!,null!,VSConstants.VSITEMID_ROOT,null!,null!);
+                Assert.Equal(AssetWorkspaceScope.Folder,Controller.Query.Scope);Assert.Same(Item,Assert.Single(AssetWorkspaceSelection.Current));Assert.Equal(1,Notifications);
+            }finally { AssetWorkspaceSelection.Select(Old); }
+        });
+    }
+    [Fact]
+    public void SolutionRootRequiresRootIdentityAndDoesNotTreatMissingHierarchiesAsSolutions(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            Assert.False(AssetSelectionPlanner.IsSolutionRoot(null,VSConstants.VSITEMID_NIL,false,()=>throw new InvalidOperationException()));
+            Assert.False(AssetSelectionPlanner.IsSolutionRoot(null,7,false,()=>throw new InvalidOperationException()));
+            Assert.False(AssetSelectionPlanner.IsSolutionRoot(null,VSConstants.VSITEMID_ROOT,true,()=>throw new InvalidOperationException()));
+            Assert.False(AssetSelectionPlanner.IsSolutionRoot(null,VSConstants.VSITEMID_ROOT,false,()=>false));
+            Assert.True(AssetSelectionPlanner.IsSolutionRoot(null,VSConstants.VSITEMID_ROOT,false,()=>true));
+            var Solution=Proxy<EnvDTE.Solution>((_,_)=>throw new NotSupportedException());
+            var Hierarchy=Proxy<IVsHierarchy>((Call,Args)=>{ Assert.Equal("GetProperty",Call.MethodName);Args[2]=Solution;return VSConstants.S_OK; });
+            Assert.True(AssetSelectionPlanner.IsSolutionRoot(Hierarchy,VSConstants.VSITEMID_ROOT,false,()=>throw new InvalidOperationException()));
+            var Project=Proxy<IVsHierarchy>((Call,Args)=>{ Args[2]=null!;return VSConstants.E_FAIL; });
+            Assert.False(AssetSelectionPlanner.IsSolutionRoot(Project,VSConstants.VSITEMID_ROOT,false,()=>true));
+        });
+    }
+    [Fact]
     public void RevealClearsEveryHidingFilterAndChangesProjectAndFolder(){
         var PathValue=Path.Combine(Path.GetTempPath(),"Game","Assets","Models","Hero.glb");
         var Item=new AssetWorkspaceItem { Kind=AssetWorkspaceKind.Model,State=AssetWorkspaceState.Source,Source=new AssetWorkspaceSource { ProjectPath="Game.csproj",SourcePath=PathValue,RelativePath="Assets/Models/Hero.glb",Provider="Project" } };

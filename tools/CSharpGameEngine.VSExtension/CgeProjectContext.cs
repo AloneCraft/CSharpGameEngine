@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -40,6 +41,7 @@ internal sealed class CgeProjectContext {
     internal string?EngineRoot { get; }
     internal string AssemblyName { get; }
     internal string WorkspaceRoot=>this.EngineRoot??this.ProjectDirectory;
+    internal string AssetMetadataRoot(string SourcePath)=>AssetWorkspaceQuery.IsWithin(SourcePath,this.ProjectDirectory)?this.ProjectDirectory:this.WorkspaceRoot;
     internal string AssetsDirectory=>Path.Combine(this.ProjectDirectory,"Assets");
 
     /// <summary><paramref name="Configuration"/> に対してプロジェクトがビルドするゲームアセンブリ (Game.props がフレームワークとランタイムを固定)。</summary>

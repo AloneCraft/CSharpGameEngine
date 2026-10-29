@@ -126,6 +126,14 @@ public sealed class AssetEditorFoundationTests {
     [InlineData(0x32u,true)]
     public void Placement_IsSkippedOnlyForShellRestoreOrSpecificEditorOpens(uint CreateFlags,bool Skipped)=>
         Assert.Equal(Skipped,AssetEditorFramePlacement.IsShellRestoreOrSpecificEditor(CreateFlags));
+    [Theory]
+    [InlineData(0,true,false,true)]
+    [InlineData(0,false,false,false)]
+    [InlineData(0,true,true,false)]
+    [InlineData(1,true,false,false)]
+    [InlineData(1,false,false,false)]
+    public void OpenLocation_DocksToExistingFloatingOnlyWhenFloatingSettingAndExistingExistsAndUnplaced(int Setting,bool HasExisting,bool Placed,bool Expected)=>
+        Assert.Equal(Expected,AssetEditorOpenLocationPolicy.ShouldDockToExistingFloating((AssetEditorOpenLocation)Setting,HasExisting,Placed));
     [Fact]
     public void FrameFloater_DecidesBySetPropertyResultNotByReadback(){
         // 実機では文書フレームが浮いた後も FrameMode／IsFloating は「浮いていない」を返し続ける。読み戻しで成功判定すると毎回再試行してしまう。

@@ -62,14 +62,14 @@ internal static class AssetFileTransaction {
     internal static void Create(AsyncPackage Package,string Destination,string?Text){
         ThreadHelper.ThrowIfNotOnUIThread();
         var Context=CgeProjectContext.Resolve(Path.GetDirectoryName(Destination))??throw new InvalidOperationException("Game project unavailable.");
-        var Request=new AssetFileMutationRequest{FileMutationCommand=2,RequestId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Root=Context.ProjectDirectory,MetadataRoot=Context.WorkspaceRoot,
-            Destination=Destination,Operation=AssetFileOperation.Create,Content=Text??string.Empty,Directory=Text is null};
+        var Request=AssetReferencePlanner.CreateRequest(Context);Request.FileMutationCommand=2;
+        Request.Destination=Destination;Request.Operation=AssetFileOperation.Create;Request.Content=Text??string.Empty;Request.Directory=Text is null;
         Execute(Package,new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,Mutation=Request});
     }
     internal static void Copy(AsyncPackage Package,string Source,string Destination,CSharpGameEngine.Contracts.TextureUsage?TargetTextureUsage=null){
         ThreadHelper.ThrowIfNotOnUIThread();
         var Context=CgeProjectContext.Resolve(Path.GetDirectoryName(Destination))??throw new InvalidOperationException("Game project unavailable.");
-        var Request=new AssetFileMutationRequest{RequestId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Root=Context.ProjectDirectory,MetadataRoot=Context.WorkspaceRoot,Source=Source,Destination=Destination,Operation=AssetFileOperation.Copy,TargetTextureUsage=TargetTextureUsage};
+        var Request=AssetReferencePlanner.CreateRequest(Context);Request.Source=Source;Request.Destination=Destination;Request.Operation=AssetFileOperation.Copy;Request.TargetTextureUsage=TargetTextureUsage;
         var Snapshot=AssetAuthoringHostClient.MutateFiles(Request,Context.WorkspaceRoot);
         Request.ExpectedSourceHash=Snapshot.SourceHash;Request.ExpectedMetadataHash=Snapshot.MetadataHash;Request.FileMutationCommand=2;
         Execute(Package,new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,Mutation=Request});

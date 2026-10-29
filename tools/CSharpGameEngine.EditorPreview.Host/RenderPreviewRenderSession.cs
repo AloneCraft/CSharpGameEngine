@@ -310,7 +310,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         try {
             SetView(Server,Scene.Camera!);
             Server.SetAmbientLight(new Vector3(0.4f));
-            Server.SetDirectionalLight(new CSharpGameEngine.Rendering.DirectionalLightSubmission(Vector3.UnitY,new CSharpGameEngine.Lighting.LinearLightColor(1f,1f,1f),new CSharpGameEngine.Lighting.Illuminance(2f),new CSharpGameEngine.Lighting.LightShadowSettings(0,new CSharpGameEngine.Lighting.ShadowBias(0.0015f))));
+            Server.SetDirectionalLight(new CSharpGameEngine.Rendering.DirectionalLightSubmission(Vector3.Normalize(new Vector3(-0.4f,-0.8f,-0.5f)),new CSharpGameEngine.Lighting.LinearLightColor(1f,1f,1f),new CSharpGameEngine.Lighting.Illuminance(2.5f),new CSharpGameEngine.Lighting.LightShadowSettings(0,new CSharpGameEngine.Lighting.ShadowBias(0.0015f))));
             for(int Index=0;Index<Scene.Objects.Length;Index++){
                 Server.SetObjectTransform(Index,ToMatrix(Scene.Objects[Index].World));
             }

@@ -25,6 +25,7 @@ internal sealed class AssetReferencePlan {
         +string.Join(Environment.NewLine,this.Edits.Select(static Edit=>Edit.Path));
 }
 internal static class AssetReferencePlanner {
+    internal static AssetFileMutationRequest CreateRequest(CgeProjectContext Context)=>new(){RequestId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Root=Context.ProjectDirectory,MetadataRoot=Context.ProjectDirectory};
     internal static bool InCatalog(string PathValue){
         var Parts=PathValue.Replace('\\','/').Split('/');
         return (Parts.Length>1&&Parts[0]=="Assets"||Parts.Length>3&&Parts[0]=="Plugins"&&Parts[2]=="Assets")
@@ -33,8 +34,8 @@ internal static class AssetReferencePlanner {
     internal static async Task<AssetReferencePlan>PlanAsync(AssetWorkspaceItem Item,string Destination,AssetFileOperation Operation,CancellationToken CancellationToken,AssetWorkspaceItem?Replacement=null){
         if(Operation is not(AssetFileOperation.Inspect or AssetFileOperation.Duplicate)&&Item.Source.ReadOnly){ throw new InvalidOperationException(VsixText.Get("Assets_ReadOnly")); }
         var Context=CgeProjectContext.TryCreate(Item.Source.ProjectPath)??throw new InvalidOperationException("Game project unavailable.");
-        var Result=new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,Mutation=new(){RequestId=Guid.NewGuid(),Root=Context.ProjectDirectory,
-            MetadataRoot=Context.WorkspaceRoot,Source=Item.Source.SourcePath,Destination=Destination,Operation=Operation,OperationId=Guid.NewGuid()}};
+        var Request=CreateRequest(Context);Request.Source=Item.Source.SourcePath;Request.Destination=Destination;Request.Operation=Operation;
+        var Result=new AssetReferencePlan{WorkspaceRoot=Context.WorkspaceRoot,Mutation=Request};
         if(Operation!=AssetFileOperation.Inspect){
             var Snapshot=await Task.Run(()=>AssetAuthoringHostClient.MutateFiles(Result.Mutation,Context.WorkspaceRoot),CancellationToken);
             Result.Mutation.ExpectedSourceHash=Snapshot.SourceHash;Result.Mutation.ExpectedMetadataHash=Snapshot.MetadataHash;

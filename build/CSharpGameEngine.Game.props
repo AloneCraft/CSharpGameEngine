@@ -103,4 +103,10 @@
   <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">
     <None Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- Solution Explorerで <Name>.<ext>.meta を <Name>.<ext> の子として入れ子表示する。 -->
+  <ItemGroup>
+    <None Update="Assets\**\*.meta" DependentUpon="%(Filename)" />
+    <AdditionalFiles Update="Assets\**\*.meta" DependentUpon="%(Filename)" />
+  </ItemGroup>
 </Project>

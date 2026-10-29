@@ -52,13 +52,16 @@ internal static class AssetWorkspaceProjectItems {
                     }
                 }
                 if(AssetWorkspaceClassification.Classify(Relative) is null||AssetWorkspaceClassification.IsExcluded(Relative)){ continue; }
-                var Inside=AssetWorkspaceQuery.IsWithin(SourcePath,Context.ProjectDirectory);
-                var Provider=!Inside?Context.EngineRoot is not null&&AssetWorkspaceQuery.IsWithin(SourcePath,Context.EngineRoot)?"Engine":"Package":Relative.StartsWith("Plugins/",StringComparison.OrdinalIgnoreCase)?"ProjectPlugin":"Project";
-                Sources.Add(new(){ProjectPath=Context.ProjectFilePath,ProjectRoot=Context.ProjectDirectory,SourcePath=SourcePath,
-                    MetadataRoot=Context.WorkspaceRoot,RelativePath=Relative,Provider=Provider,ReadOnly=!Inside||((File.Exists(SourcePath)?File.GetAttributes(SourcePath):0)&FileAttributes.ReadOnly)!=0});
+                Sources.Add(CreateSource(Context,SourcePath,Relative));
             }
             VisitItems(Item.ProjectItems,Context,Sources,Plugins);
         }
+    }
+    internal static AssetWorkspaceSource CreateSource(CgeProjectContext Context,string SourcePath,string Relative){
+        var Inside=AssetWorkspaceQuery.IsWithin(SourcePath,Context.ProjectDirectory);
+        var Provider=!Inside?Context.EngineRoot is not null&&AssetWorkspaceQuery.IsWithin(SourcePath,Context.EngineRoot)?"Engine":"Package":Relative.StartsWith("Plugins/",StringComparison.OrdinalIgnoreCase)?"ProjectPlugin":"Project";
+        return new(){ProjectPath=Context.ProjectFilePath,ProjectRoot=Context.ProjectDirectory,SourcePath=SourcePath,
+            MetadataRoot=Context.AssetMetadataRoot(SourcePath),RelativePath=Relative,Provider=Provider,ReadOnly=!Inside||((File.Exists(SourcePath)?File.GetAttributes(SourcePath):0)&FileAttributes.ReadOnly)!=0};
     }
     internal static string RelativePath(string Root,string PathValue){
         var Prefix=Root.TrimEnd('\\','/')+System.IO.Path.DirectorySeparatorChar;

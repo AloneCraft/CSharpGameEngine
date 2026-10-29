@@ -6,6 +6,23 @@
 - Feature: F-L8-035 (PartiallyImplemented)
 - Specification: [Asset Workspace](../Specifications/Asset-Workspace.md)
 
+## Project and solution root selection (2026-10-28)
+
+- F-L8-035 remains PartiallyImplemented; this change implements the approved root-navigation extension, without reducing the outstanding milestone gates.
+- Project roots use project identity and display all owned inventory items; solution roots display all loaded game-project inventories, including linked assets and projects outside the physical solution directory. Folder/project/solution scopes are explicit and participate in refresh reconciliation, view invalidation and favorites. Legacy favorites default to Folder. Location lock and existing search filters are preserved.
+- The project chooser includes localized Whole solution / ソリューション全体. Create/import/drop/recovery actions requiring a destination project are disabled in that scope; selected-asset operations retain their own owner. No runtime asset format, inventory collection or importer changes were made.
+- Before the selection fix, `AssetSelectionPlannerTests` ran with 6 passes and 2 failures: project roots were classified Other. The first sandbox test run could not connect to the net472 testhost; the same built tests reproduced the failures with normal process permissions. After the fix, the focused planner/navigation/workspace/localization set passed 45/45.
+- Final VSIX test suites: Debug **1,553/1,553 passed**, Release **1,553/1,553 passed**; zero failed/skipped and no compiler warnings/errors in either configuration. Both VSIX packages were rebuilt. The final runs include internal `[JsonInclude]` favorite scope persistence and the root-scope toolbar state.
+- Commands/results are stored in `.artifacts/asset-scope/`: `asset-scope-before.trx`, `asset-scope-focused-debug.trx`, `asset-scope-full-debug.trx`, `asset-scope-full-release.trx`, `focused-debug.log`, `full-debug.log`, `full-release.log` and `verification-summary.json`. The full-suite commands were:
+
+```powershell
+dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Debug -m:1 -p:UseSharedCompilation=false --logger "trx;LogFileName=asset-scope-full-debug.trx" --results-directory .artifacts/asset-scope
+dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Release -m:1 -p:UseSharedCompilation=false --logger "trx;LogFileName=asset-scope-full-release.trx" --results-directory .artifacts/asset-scope
+```
+
+- Conformance: Matches for the automated root-navigation contract. F-L8-035 and M0123 overall remain Partial because the existing broader acceptance gates remain open.
+- Actual Visual Studio shell interaction and installation of the rebuilt VSIX are Unverified for this change. No running IDE was restarted or reconfigured.
+
 ## Asset icon plan implementation
 
 The approved icon plan is implemented with the existing VS catalog/CrispImage path. AssetWorkspaceIcons is the single L8 mapping used by rows and Inspector. The window tab and all three localized VSCT command/filter entries use ImageGroup. Kind icons, 32 DIP thumbnail fallback, 16 DIP markers/details/Inspector, independent 12 DIP lock/error/warning badges and themed thumbnail overlay plates are present. Data/Contracts/persistent metadata are unchanged. Import-running/reimport-needed signals remain unavailable with M0114; no progress state is invented.

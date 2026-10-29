@@ -14,10 +14,12 @@ namespace CSharpGameEngine.VSExtension;
 internal static class AssetWorkspaceCommands {
     internal static async Task ShowCreateMenuAsync(FrameworkElement Placement,AssetWorkspaceController Controller){
         await Controller.Owner.JoinableTaskFactory.SwitchToMainThreadAsync();
+        if(!Controller.Query.CanChooseDestination){ return; }
         var Compilation=await AssetDocumentWorkspace.CompilationAsync(Controller.Query.ProjectPath,Controller.Owner.DisposalToken);
         var Types=await Task.Run(()=>AssetDataEditing.Types(Compilation),Controller.Owner.DisposalToken);
         await Controller.Owner.JoinableTaskFactory.SwitchToMainThreadAsync();
         var Menu=new ContextMenu();
+        if(!Controller.Query.CanChooseDestination){ return; }
         Add(Menu,"Assets_NewFolder",()=>CreateAsync(Controller,"Folder"));
         Add(Menu,"Assets_NewScene",()=>CreateAsync(Controller,"Scene"));
         Add(Menu,"Assets_NewGraph",()=>CreateAsync(Controller,"Graph"));
@@ -50,7 +52,7 @@ internal static class AssetWorkspaceCommands {
         }
         var MigrationSources=(Items.Count>0?Items:Controller.Items.Where(Item=>Item.Source.ProjectPath==Controller.Query.ProjectPath).ToArray()).Where(static Item=>Item.Kind==AssetWorkspaceKind.Model&&Item.State==AssetWorkspaceState.InvalidMetadata&&!Item.Source.ReadOnly).ToArray();
         Add(Menu,"Assets_Migrate",()=>MigrateAsync(Controller,MigrationSources),MigrationSources.Length>0);
-        Add(Menu,"Assets_Recovery",()=>RecoverAsync(Controller));
+        Add(Menu,"Assets_Recovery",()=>RecoverAsync(Controller),Controller.Query.CanChooseDestination);
         Menu.PlacementTarget=Placement;Menu.IsOpen=true;
     }
     private static void Add(ContextMenu Menu,string Key,Func<Task>Action,bool Enabled=true){
@@ -60,6 +62,7 @@ internal static class AssetWorkspaceCommands {
     }
     private static async Task CreateAsync(AssetWorkspaceController Controller,string Kind){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+        if(!Controller.Query.CanChooseDestination){ return; }
         var Root=Controller.Projects.FirstOrDefault(Item=>Item.ProjectFilePath==Controller.Query.ProjectPath)?.ProjectDirectory;
         if(Root is null){ throw new InvalidOperationException(VsixText.Get("Assets_NoSelection")); }
         var Folder=Controller.Query.Folder;
@@ -98,6 +101,7 @@ internal static class AssetWorkspaceCommands {
     }
     private static async Task ImportAsync(AssetWorkspaceController Controller){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+        if(!Controller.Query.CanChooseDestination){ return; }
         var Dialog=new Microsoft.Win32.OpenFileDialog{Multiselect=true,CheckFileExists=true};
         if(Dialog.ShowDialog()!=true){ return; }
         var Root=Controller.Projects.FirstOrDefault(Item=>Item.ProjectFilePath==Controller.Query.ProjectPath)?.ProjectDirectory;
@@ -107,6 +111,7 @@ internal static class AssetWorkspaceCommands {
     }
     internal static async Task ImportFilesAsync(AssetWorkspaceController Controller,string[]Sources,string?Destination=null){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+        if(!Controller.Query.CanChooseDestination){ throw new InvalidOperationException(VsixText.Get("Assets_NoSelection")); }
         var Root=Controller.Projects.FirstOrDefault(P=>P.ProjectFilePath==Controller.Query.ProjectPath)?.ProjectDirectory??throw new InvalidOperationException("Game project unavailable.");
         var Folder=Destination??(AssetWorkspaceQuery.IsWithin(Controller.Query.Folder,Path.Combine(Root,"Assets"))?Controller.Query.Folder:Path.Combine(Root,"Assets"));
         foreach(var Source in Sources){
@@ -146,8 +151,7 @@ internal static class AssetWorkspaceCommands {
     }
     internal static async Task ShowReferencesAsync(AssetWorkspaceItem Item){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-        var Plan=await AssetReferencePlanner.PlanAsync(Item,Item.Source.SourcePath,AssetFileOperation.Inspect,System.Threading.CancellationToken.None);
-        ShowMessage(Plan.Edits.Count==0?VsixText.Get("Assets_None"):string.Join(Environment.NewLine,Plan.Edits.Select(static Edit=>Edit.Path)));
+        AssetReferenceViewerService.Open(ServiceProvider.GlobalProvider,Item);
     }
     private static async Task RecoverAsync(AssetWorkspaceController Controller){
         await Controller.Owner.JoinableTaskFactory.SwitchToMainThreadAsync();

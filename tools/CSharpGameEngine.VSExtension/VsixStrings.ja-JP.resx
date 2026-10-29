@@ -556,6 +556,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
 <data name="Assets_Title" xml:space="preserve"><value>アセット</value></data>
 <data name="Assets_Lock" xml:space="preserve"><value>場所を固定</value></data>
 <data name="Assets_WholeProject" xml:space="preserve"><value>プロジェクト全体</value></data>
+<data name="Assets_WholeSolution" xml:space="preserve"><value>ソリューション全体</value></data>
 <data name="Assets_Search" xml:space="preserve"><value>アセットを検索</value></data>
 <data name="Assets_Kind" xml:space="preserve"><value>種類</value></data>
 <data name="Assets_Provider" xml:space="preserve"><value>提供元</value></data>
@@ -820,4 +821,10 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="Skeletal_ClipUnbound" xml:space="preserve"><value>このアニメーションは、選んだメッシュのどの関節も動かしません。別のプレビューメッシュを選んでください。</value></data>
   <data name="Skeletal_NoClips" xml:space="preserve"><value>このファイルにはアニメーションがありません。</value></data>
   <data name="Skeletal_SkinCountUnsupported" xml:space="preserve"><value>このファイルには {0} 個のスキンがあり、プレビューできるのは 1 つだけです。形状のみ表示します。</value></data>
+  <data name="ReferenceViewer_Title" xml:space="preserve"><value>参照: {0}</value></data>
+  <data name="ReferenceViewer_Refresh" xml:space="preserve"><value>更新</value></data>
+  <data name="ReferenceViewer_ReferencersDepth" xml:space="preserve"><value>参照元の探索の深さ</value></data>
+  <data name="ReferenceViewer_DependenciesDepth" xml:space="preserve"><value>依存先の探索の深さ</value></data>
+  <data name="ReferenceViewer_Loading" xml:space="preserve"><value>読み込み中...</value></data>
+  <data name="ReferenceViewer_Empty" xml:space="preserve"><value>参照は見つかりませんでした。</value></data>
 </root>

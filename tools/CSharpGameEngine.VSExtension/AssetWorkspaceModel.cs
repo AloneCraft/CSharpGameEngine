@@ -5,7 +5,9 @@ using System.Linq;
 using System.Threading;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.VSExtension;
+internal enum AssetWorkspaceScope { Folder, Project, Solution }
 internal sealed class AssetWorkspaceQuery {
+    internal AssetWorkspaceScope Scope{get;set;}
     internal string ProjectPath{get;set;}=string.Empty;
     internal string Folder{get;set;}=string.Empty;
     internal string Search{get;set;}=string.Empty;
@@ -16,14 +18,22 @@ internal sealed class AssetWorkspaceQuery {
     internal bool Locked{get;set;}
     internal bool Details{get;set;}
     /// <summary>場所（プロジェクトとフォルダー）を移す。変わったときだけ true を返す。</summary>
-    internal bool MoveTo(string Project,string FolderPath){
-        if(string.Equals(this.ProjectPath,Project,StringComparison.Ordinal)&&string.Equals(this.Folder,FolderPath,StringComparison.Ordinal)){ return false; }
-        this.ProjectPath=Project;this.Folder=FolderPath;
+    internal bool MoveTo(string Project,string FolderPath,AssetWorkspaceScope Scope=AssetWorkspaceScope.Folder){
+        if(this.Scope==Scope&&string.Equals(this.ProjectPath,Project,StringComparison.Ordinal)&&string.Equals(this.Folder,FolderPath,StringComparison.Ordinal)){ return false; }
+        this.Scope=Scope;this.ProjectPath=Project;this.Folder=FolderPath;
         return true;
     }
+    internal void ReconcileProjects(IReadOnlyList<(string ProjectFilePath,string ProjectDirectory)>Projects){
+        if(this.Scope==AssetWorkspaceScope.Solution){ this.ProjectPath=string.Empty;this.Folder=string.Empty;return; }
+        if(Projects.Any(Project=>string.Equals(Project.ProjectFilePath,this.ProjectPath,StringComparison.OrdinalIgnoreCase))){ return; }
+        this.MoveTo(Projects.FirstOrDefault().ProjectFilePath??string.Empty,Projects.FirstOrDefault().ProjectDirectory??string.Empty);
+    }
+    internal bool CanChooseDestination=>this.Scope!=AssetWorkspaceScope.Solution&&!string.IsNullOrEmpty(this.ProjectPath);
+    internal bool Follow(AssetSelectionPlanner.Plan Plan)=>!this.Locked&&Plan.Kind!=AssetSelectionPlanner.Kind.Other&&this.MoveTo(Plan.ProjectPath,Plan.Folder,Plan.Scope);
     /// <summary>一覧に影響する条件を 1 つの文字列にする（同じなら一覧を作り直さなくてよい）。</summary>
-    internal string ViewKey=>string.Join("\u001f",this.ProjectPath,this.Folder,this.Search,this.Kind,this.Provider,this.State,this.WholeProject,this.Details);
+    internal string ViewKey=>string.Join("\u001f",this.Scope,this.ProjectPath,this.Folder,this.Search,this.Kind,this.Provider,this.State,this.WholeProject,this.Details);
     internal void Reveal(AssetWorkspaceItem Item){
+        this.Scope=AssetWorkspaceScope.Folder;
         this.ProjectPath=Item.Source.ProjectPath;
         this.Folder=Path.GetDirectoryName(Item.Source.SourcePath)??string.Empty;
         this.WholeProject=false;
@@ -36,8 +46,8 @@ internal sealed class AssetWorkspaceQuery {
         var Result=new List<AssetWorkspaceItem>();
         foreach(var Item in Items){
             CancellationToken.ThrowIfCancellationRequested();
-            if(!string.IsNullOrEmpty(this.ProjectPath)&&!string.Equals(Item.Source.ProjectPath,this.ProjectPath,StringComparison.OrdinalIgnoreCase)){ continue; }
-            if(!this.WholeProject&&!string.IsNullOrEmpty(this.Folder)&&!InFolder(Item,this.Folder)){ continue; }
+            if(this.Scope!=AssetWorkspaceScope.Solution&&!string.IsNullOrEmpty(this.ProjectPath)&&!string.Equals(Item.Source.ProjectPath,this.ProjectPath,StringComparison.OrdinalIgnoreCase)){ continue; }
+            if(this.Scope==AssetWorkspaceScope.Folder&&!this.WholeProject&&!string.IsNullOrEmpty(this.Folder)&&!InFolder(Item,this.Folder)){ continue; }
             if(!string.IsNullOrEmpty(this.Search)&&Item.Source.RelativePath.IndexOf(this.Search,StringComparison.OrdinalIgnoreCase)<0){ continue; }
             if(!string.IsNullOrEmpty(this.Kind)&&Item.Kind.ToString()!=this.Kind){ continue; }
             if(!string.IsNullOrEmpty(this.Provider)&&Item.Source.Provider!=this.Provider){ continue; }

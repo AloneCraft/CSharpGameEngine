@@ -52,5 +52,24 @@ public sealed class AssetWorkspaceTests:IDisposable {
         var Result=AssetWorkspaceService.Inspect(new(){RequestId=Guid.NewGuid(),Sources=Items.Concat([this.Entry(Path.Combine(this.Root,"obj","cache.png"))]).ToArray()});
         Assert.True(Result.Success);Assert.Equal(10_000,Result.Items.Length);
     }
+    [Fact]
+    public void UserEcsProjectAssetsInspectWithoutMetadataErrors(){
+        var Repo=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","..","..","..",".."));
+        var UserEcs=Path.Combine(Repo,"UserEcsProject");
+        var Assets=Path.Combine(UserEcs,"Assets");
+        if(!Directory.Exists(Assets)){ return; }
+        var Sources=Directory.GetFiles(Assets,"*.*",SearchOption.AllDirectories)
+            .Where(static P=>!P.EndsWith(".meta",StringComparison.OrdinalIgnoreCase))
+            .Select(P=>new AssetWorkspaceSource {
+                ProjectPath=Path.Combine(UserEcs,"UserEcsProject.csproj"),
+                ProjectRoot=UserEcs,MetadataRoot=UserEcs,SourcePath=P,
+                RelativePath=Path.GetRelativePath(UserEcs,P).Replace('\\','/'),
+                Provider="UserEcsProject",ReadOnly=false
+            }).ToArray();
+        var Result=AssetWorkspaceService.Inspect(new(){RequestId=Guid.NewGuid(),Sources=Sources});
+        Assert.True(Result.Success);
+        var Invalid=Result.Items.Where(static I=>I.State==AssetWorkspaceState.InvalidMetadata).ToArray();
+        Assert.Empty(Invalid);
+    }
     public void Dispose(){ if(Directory.Exists(this.Root)){ Directory.Delete(this.Root,true); } }
 }

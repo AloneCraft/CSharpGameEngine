@@ -22,9 +22,10 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
         this.InitializeComponent();
         this.AllowDrop=true;
-        this.DragOver+=(_,Args)=>{ Args.Handled=true;Args.Effects=this.Controller is not null&&Args.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Copy:DragDropEffects.None; };
+        this.DragOver+=(_,Args)=>{ Args.Handled=true;Args.Effects=this.Controller?.Query.CanChooseDestination==true&&Args.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Copy:DragDropEffects.None; };
         this.Drop+=(_,Args)=>{
-            if(this.Controller is { }Controller&&Args.Data.GetData(DataFormats.FileDrop) is string[]Files){ Args.Handled=true;Controller.Run(()=>AssetWorkspaceCommands.ImportFilesAsync(Controller,Files)); }
+            Args.Handled=true;
+            if(this.Controller is { Query.CanChooseDestination:true }Controller&&Args.Data.GetData(DataFormats.FileDrop) is string[]Files){ Controller.Run(()=>AssetWorkspaceCommands.ImportFilesAsync(Controller,Files)); }
         };
         AssetTheme.Apply(this);
         // Aero テンプレートは独自の選択背景を描画するため、VS のパレットを上書きする。
@@ -73,9 +74,11 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         var ItemsChanged=!ReferenceEquals(this.LastItems,Controller.Items);
         if(ItemsChanged){ AssetThumbnailService.Invalidate();this.LastItems=Controller.Items; }
         this.Updating=true;
-        this.ProjectChoice.ItemsSource=Controller.Projects.Select(static Project=>new AssetProjectChoice(Project.ProjectFilePath)).ToArray();
-        this.ProjectChoice.SelectedValue=Controller.Query.ProjectPath;
-        this.LockLocation.IsChecked=Controller.Query.Locked;this.WholeProject.IsChecked=Controller.Query.WholeProject;
+        this.ProjectChoice.ItemsSource=new[]{new AssetProjectChoice(string.Empty)}.Concat(Controller.Projects.Select(static Project=>new AssetProjectChoice(Project.ProjectFilePath))).ToArray();
+        this.ProjectChoice.SelectedValue=Controller.Query.Scope==AssetWorkspaceScope.Solution?string.Empty:Controller.Query.ProjectPath;
+        this.CreateButton.IsEnabled=Controller.Query.CanChooseDestination;
+        this.WholeProject.IsEnabled=Controller.Query.Scope==AssetWorkspaceScope.Folder;
+        this.LockLocation.IsChecked=Controller.Query.Locked;this.WholeProject.IsChecked=Controller.Query.Scope!=AssetWorkspaceScope.Folder||Controller.Query.WholeProject;
         this.Details.IsChecked=Controller.Query.Details;
         this.Search.Text=Controller.Query.Search;
         this.KindChoice.SelectedValue=Controller.Query.Kind;
@@ -93,16 +96,18 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private AssetWorkspaceItem[]?LastItems;
     private string?AppliedViewKey;
     private void OnProjectChanged(object Sender,SelectionChangedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Updating||this.Controller is not { }Controller||this.ProjectChoice.SelectedValue is not string Project){ return; }
-        Controller.Query.ProjectPath=Project;
-        Controller.Query.Folder=Controller.Projects.FirstOrDefault(Item=>Item.ProjectFilePath==Project)?.ProjectDirectory??string.Empty;
-        _=this.ApplyQueryAsync();
+        Controller.Query.MoveTo(Project,Controller.Projects.FirstOrDefault(Item=>Item.ProjectFilePath==Project)?.ProjectDirectory??string.Empty,
+            string.IsNullOrEmpty(Project)?AssetWorkspaceScope.Solution:AssetWorkspaceScope.Project);
+        this.OnInventoryChanged();
     }
     private void OnQueryChanged(object Sender,RoutedEventArgs Args){
         if(this.Updating||this.Controller is not { }Controller){ return; }
         Controller.Query.Search=this.Search.Text;Controller.Query.Kind=(this.KindChoice.SelectedValue as string)??string.Empty;
         Controller.Query.Provider=(this.ProviderChoice.SelectedValue as string)??string.Empty;Controller.Query.State=(this.StateChoice.SelectedValue as string)??string.Empty;
-        Controller.Query.Locked=this.LockLocation.IsChecked==true;Controller.Query.WholeProject=this.WholeProject.IsChecked==true;
+        Controller.Query.Locked=this.LockLocation.IsChecked==true;
+        if(Controller.Query.Scope==AssetWorkspaceScope.Folder){ Controller.Query.WholeProject=this.WholeProject.IsChecked==true; }
         Controller.Query.Details=this.Details.IsChecked==true;
         _=this.ApplyQueryAsync();
     }
@@ -111,7 +116,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         this.SearchCancellation?.Cancel();this.SearchCancellation?.Dispose();
         var Cancellation=this.SearchCancellation=new CancellationTokenSource();
         var Token=Cancellation.Token;
-        var Query=new AssetWorkspaceQuery{ProjectPath=Controller.Query.ProjectPath,Folder=Controller.Query.Folder,Search=Controller.Query.Search,
+        var Query=new AssetWorkspaceQuery{Scope=Controller.Query.Scope,ProjectPath=Controller.Query.ProjectPath,Folder=Controller.Query.Folder,Search=Controller.Query.Search,
             Kind=Controller.Query.Kind,Provider=Controller.Query.Provider,State=Controller.Query.State,WholeProject=Controller.Query.WholeProject};
         var Items=Controller.Items;
         var ViewKey=Controller.Query.ViewKey;
@@ -185,8 +190,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private void OnFavoriteSelected(object Sender,SelectionChangedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Updating||this.Controller is not { }Controller||this.Favorites.SelectedItem is not AssetWorkspaceFavorite Favorite){ return; }
-        Controller.Query.ProjectPath=Favorite.Project;Controller.Query.Folder=Favorite.Folder;Controller.Query.Search=Favorite.Search;
-        Controller.Query.Kind=Favorite.Kind;Controller.Query.Provider=Favorite.Provider;Controller.Query.State=Favorite.State;Controller.Query.WholeProject=Favorite.WholeProject;
+        Favorite.Restore(Controller.Query);
         this.Updating=true;
         this.Search.Text=Favorite.Search;this.KindChoice.SelectedValue=Favorite.Kind;this.ProviderChoice.SelectedValue=Favorite.Provider;this.StateChoice.SelectedValue=Favorite.State;
         this.Updating=false;this.OnInventoryChanged();
@@ -226,7 +230,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private sealed record AssetChoice(string Value,string Name);
     private sealed class AssetProjectChoice {
         public string Path{get;}
-        public string Name=>System.IO.Path.GetFileNameWithoutExtension(this.Path);
+        public string Name=>string.IsNullOrEmpty(this.Path)?VsixText.Get("Assets_WholeSolution"):System.IO.Path.GetFileNameWithoutExtension(this.Path);
         internal AssetProjectChoice(string Path)=>this.Path=Path;
     }
 }
