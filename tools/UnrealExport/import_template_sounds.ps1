@@ -1,4 +1,4 @@
-# ユーザーの UE5 project（G:\UE\5.0）にある Epic 自身のコンテンツから、game template の footstep、jump、landing sound を import します。
+﻿# ユーザーの UE5 project（G:\UE\5.0）にある Epic 自身のコンテンツから、game template の footstep、jump、landing sound を import します。
 # 3つの source SoundWave asset は Epic の学習コースのコンテンツです（Northwood：GameplayDesigner の footsteps、ShooterGame の foley）。
 # これらを参照用 project（G:\UE\5.8\FirstPerson）の /Game/CgeImportedSounds にコピーし、UnrealEditor-Cmd で WAV に export してから、
 # stage に置いたコピーを削除します。同じ WAV 名を再生するすべての template に書き込むため、Assets.Sounds.* は変更されません。

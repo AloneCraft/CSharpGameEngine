@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 $ErrorActionPreference='Stop'
 $RepositoryRoot=Split-Path -Parent $PSScriptRoot
