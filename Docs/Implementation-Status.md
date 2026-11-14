@@ -5,6 +5,7 @@
 - Layer: L1 — Core Kernel
 - Parent capability: Static production flow / configurable numerics
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 数値設定の保証は 3 段（目標文書 4.1）で、段 3（Q64.64 以外の固定幅と Float）はビルドと数値ライブラリの試験だけを保証する。
 - Verification: TestVerified
 - Intended specification: `Docs/Specifications/Numeric-Configuration.md`, ADR-0093
 - Implementation evidence: `FixedArithmetic.cs`, `ProfileLogicalScalar.cs`, `Int192.cs`, `FixedAngleMath.cs`, `WideAngleScalar.cs`, `LogicalMath.cs`, `FloatingScalarExtensions.cs`, `FloatingLogicalMath.cs`, `LogicalNumeric.cs`, numeric-profile props/targets, `CanonicalNumericAnalyzer.cs`, `NumericProfileCompatibilityAnalyzer.cs`, `WorldCellArtifact.cs`
@@ -22,6 +23,7 @@
 - Layer: L1 — Core Kernel
 - Parent capability: Static production flow / configurable numerics
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 ゲームの保存画面は段階 B（ゲームで要る分だけ）。
 - Verification: TestVerified
 - Intended specification: `Docs/Specifications/Numeric-Persistence.md`, ADR-0091
 - Implementation evidence: `src/CSharpGameEngine.Numerics/NumericValueCodec.cs`, `LogicalScalar.cs`
@@ -62,6 +64,7 @@
 - Layer: L6 — Content
 - Parent capability: Universal model import (M0114)
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 M0114 の表現の残り（詰めた骨の重みなど）は段階 D。
 - Verification: TestVerified
 - Intended specification: ADR-0080 section 5
 - Implementation evidence: `src/CSharpGameEngine.Content/Models`, `ContentArtifact.cs`
@@ -75,6 +78,7 @@
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Universal model import (M0114)
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 meta/serve の全体の調停と資源の強制は、制作の一巡に使わないので段階 D。
 - Verification: TestVerified
 - Intended specification: ADR-0080 S3
 - Implementation evidence: `tools/CSharpGameEngine.ContentCompiler`, `src/CSharpGameEngine.Import/{Gltf/BuiltInGltfImporter.cs,Models}`, `build/CSharpGameEngine.ModelContent.targets`
@@ -87,7 +91,8 @@
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Universal model import (M0114)
-- Status: PartiallyImplemented
+- Status: Deferred（2026-11-15、ADR-0098: 残りを段階 D へ送る）
+- Phase (ADR-0098, 2026-11-15): 残りの範囲（リグ拡張の全体、上限と敵対的な入力の網羅、新しいアダプターとの一致）は段階 A の出口条件に効かないので段階 D へ送る。実装済みの部分（CGEX wire v2、型グラフの試験）は M0128 の制作の流れで使い続け、試験も維持する。
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 3
 - Implementation evidence: `src/CSharpGameEngine.Cooking/Interchange/{InterchangeDocument,InterchangeCodec,InterchangeValidator}.cs`
@@ -100,7 +105,8 @@
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Universal model import (M0114)
-- Status: PartiallyImplemented
+- Status: Deferred（2026-11-15、ADR-0098: 残りを段階 D へ送る）
+- Phase (ADR-0098, 2026-11-15): 残りの範囲（ツール・入れ子の取り込み、Job object とネットワーク・プロセスの資源方針、取り込みの隔離の調停）は段階 A の出口条件に効かないので段階 D へ送る。`describe`/`import-worker`、別プロセスの同等性、期限と取り消しは実装済みのまま使い続ける。完全なサンドボックスは主張しない。
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 4
 - Implementation evidence: `src/CSharpGameEngine.Cooking/{AssetImporter,PluginModuleLoadContext}.cs`, `tools/CSharpGameEngine.Cook.Cli/CookerHost.cs`
@@ -113,7 +119,8 @@
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Universal model import (M0114)
-- Status: PartiallyImplemented
+- Status: Deferred（2026-11-15、ADR-0098: 残りを段階 D へ送る）
+- Phase (ADR-0098, 2026-11-15): 残りの範囲（カスタム・モーフの中間値の全処理、新しいアダプターと凍結した基準との一致、標準フレームの同等性）は段階 A の出口条件に効かないので段階 D へ送る。テンプレートのモデルは `M0114-Source-Parity.json` の基準との一致を引き続き試験する。
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` sections 6 and 10
 - Implementation evidence: `src/CSharpGameEngine.Cooking/Interchange/ModelImportPipeline.cs`, `assets/TestFixtures/Import/M0114-Source-Parity.json`
@@ -4747,7 +4754,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: ECS Source Generator
-- Status: PartiallyImplemented
+- Status: Implemented（2026-11-15、ADR-0098: 段階 1〜9 の範囲で閉じる）
+- Phase (ADR-0098, 2026-11-15): M0101 の段階 1〜9 は Matches のまま閉じる。段階 10（フェーズの推論、`GameWindow` の統合）とエンジン音は、段階 B のゲームで要れば先に行い、要らなければ段階 D。
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0077-Gameplay-Code-Simplification.md`、`Templates/README.md`（理想コード）
 - Implementation evidence:
@@ -5080,6 +5088,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L8-019, F-L8-024, F-L8-025
 - Stage: `vsix.asset-workspace` (contract tests only; actual shell acceptance remains outstanding)
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 M0114 の正規サービスとの接続のうち、制作の一巡に要らない部分は段階 D。
 - Verification: TestVerified for inventory, metadata migration, physical mutation/undo/recovery, shared catalog names, semantic reference planning and typed data edits. Actual Japanese/dark create, Inspector edit, native text Undo/Redo/Save, reviewed delete and Output tab grouping were exercised in the dedicated Experimental Instance; the full native gesture matrix remains Unverified.
 - Intended specification: `Docs/Specifications/Asset-Workspace.md`
 - Implementation evidence: `AssetWorkspaceContracts.cs`, `AssetFileMutationContracts.cs`, `AssetWorkspaceService.cs`, `AssetFileMutationService.cs`, `AssetCatalogLayout.cs`; VSIX `AssetsToolWindowControl`, `AssetWorkspaceController`, `AssetSolutionExplorerFilter`, `AssetInspectorControl`, `AssetReferencePlanner`, `AssetFileTransaction`, `AssetProjectMutationGuard`, `AssetPlacement`.
@@ -5102,6 +5111,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L8-035
 - Stage: `vsix.asset-editors`（単体テスト・WARP 描画テストと専用ハイブの実機確認。高コントラスト・DPI の組み合わせは未確認）
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 残りの実際の操作（周回、スクラブ、関節の選択）は受け入れで行う。DPI と高コントラストの組み合わせの表は段階 D（目標文書 4.3: 実 VS の手動確認は出口条件に入っているものだけ）。
 - Verification: TestVerified for the registry/open-location policy/floating placement policy, camera, image/waveform models, preview level template/store/resolver/composer, protocol validation and WARP lighting renders. Live in the dedicated Experimental Instance (CgeAssets hive, Japanese, dark): floating front-most open, default placement painting fully, restore keeping the saved geometry, and Default/Studio/Outdoor/Neutral rendering and switching. Skeletal viewer live in the same hive: the 89-joint mannequin tree, the bind pose, bones drawn in the viewport, the animation-only `MM_Idle.glb` choosing the mannequin as its preview mesh and playing its clip (time advancing and looping). The Texture, Sound, Font and Data Asset editors, a textured single- and four-node static glTF, and a Data Asset edit-apply (unsaved, file untouched) were also observed live. Real orbit/pan gestures, scrubbing and joint selection by mouse, Sound playback output, Texture channel and zoom gestures, Data Asset undo and save, high contrast and DPI are Unverified live.
 - Intended specification: `Docs/Specifications/Asset-Editors.md`, `Docs/Decisions/ADR-0089-Asset-Editor-Windows.md`
 - Implementation evidence: VSIX `AssetEditors/` (`AssetEditorRegistry`, `AssetEditorFactory`, `AssetEditorPanes`, `AssetEditorShell`, `AssetEditorFramePlacement`, `AssetEditorFrameFloater`, `AssetEditorOpenLocationPolicy`, `AssetViewportHost`, `AssetViewportFramePump`, `AssetViewportCamera`, the five content classes, `PreviewLevels/*`); `RenderPreviewHostClient.Abort`; `RenderPreviewLightingContracts.cs`, `RenderPreviewHostContracts.cs` (v14; prepared-model references verified in contract/worker/CPU/WARP tests); `RenderPreviewLightingApplier.cs`; `EnvironmentLightingSettings.Background`; skeletal: `RenderPreviewSkeletalContracts.cs`, host `RenderPreviewSkeletalAsset.cs`, `StageModelAssets.cs` (common artifact-to-stage conversion; M0128 CPU/WARP and source-free shipping validation; 148 final Windows Release cases pass; final SDK 0.1.42 runtime passes; actual Visual Studio UI acceptance pending), VSIX `SkeletalEditorPanel`, `GltfSkeletalProbe`, `AssetAnimationTimeline`.
@@ -5177,6 +5187,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Layer: L2 settings/identity, L6 artifacts/metadata, L7 import, L8 frontend.
 - Parent capability: Asset Content Pipeline; related F-L8-035 and M0114.
 - Status: PartiallyImplemented
+- Phase (ADR-0098, 2026-11-15): 段階 A に残すのは実際の VS での受け入れ（画像と FBX の設定の Inspector）だけ。リグ付き・複数 Take の実 FBX の試験データ、M0114 の生成物・カタログの全体の統合、高度な Humanoid などの処理は段階 D（テンプレートは glb を使う）。
 - Verification: TestVerified for standalone import/contracts; native shell interactions remain Unverified.
 - Intended specification: `Docs/Specifications/Image-And-Model-Interpretation.md`, ADR-0088.
 - Implementation evidence: `Contracts/ImageImportSettings.cs`, `Contracts/ModelImportSettings.cs`, `Content/ImageArtifactCodec.cs`, `Import/Images/ImageOutputCompiler.cs`, `Import/Fbx/FbxCompositeImporter.cs`, `Import/Fbx/FbxModelCompiler.cs`, VSIX `AssetImageInspector.cs` / `AssetModelInspector.cs` / `ImageReferenceMigration.cs`.

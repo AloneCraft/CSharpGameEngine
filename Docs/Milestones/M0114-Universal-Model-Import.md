@@ -1,7 +1,7 @@
 # M0114 — Universal model import on the content pipeline
 
 - Date: 2026-10-25
-- Status: Implementing
+- Status: Implementing（2026-11-15: 段階 A に残す部分と段階 D へ送る部分に分けた。下の「段階の分け方」）
 - Decision: [ADR-0080](../Decisions/ADR-0080-Universal-Model-Import.md) (Proposed)
 - Scope: S0–S5 only; native shims and M0115–M0122 are excluded.
 
@@ -46,6 +46,22 @@ The normal-permission foundations solution run completed with **exit code 0: 3,6
 The earlier solution run stopped on five xUnit2000 assertions in the unowned dirty `PrefractureDebugServiceTests.cs`. The user explicitly authorized swapping only those five expected/actual pairs; they are fixed, and the related 13 tests and later full VSIX suite pass. The five-line fix remains within the other task's uncommitted file and is excluded from M0114 commits. Restricted execution also caused atomic replacement/owner-process failures; affected tests pass outside the sandbox. NuGet audit connectivity was resolved with normal restore, without disabling audit.
 
 The first oracle included 156 bin/obj copies. Before any source-reader change, enumeration was corrected; the 97-source oracle was recaptured and then compared successfully without the update flag.
+
+## 段階の分け方（ADR-0098、2026-11-15）
+
+[目標、ロードマップ、戦略.md](../目標、ロードマップ、戦略.md) の段階 A は「モデル取り込みの残りを、要るものと送るものに分ける」。基準は段階 A の出口条件（制作の一巡が実際の VS で通る）に効くかどうか。
+
+この節より下の「Conformance and remaining work」のうち、次の記述は M0128 で古くなった: 「Existing source readers remain active」「New worker-based import is not available to games yet」。M0128 で、ゲーム・プレビュー・当たり判定・ナビメッシュ・距離場は Cook ワーカーが作る準備済みのモデル生成物を読むように切り替わり、ランタイムの glTF の読み手は削除された（glTF の読み手はビルド時の取り込み `src/CSharpGameEngine.Import/Gltf/` にだけある）。
+
+| 残り | 行き先 | 理由 |
+|---|---|---|
+| 実際の VS での制作の一巡（素材追加、設定、再取り込み、配布） | 段階 A | 出口条件そのもの。M0128 の受け入れで行う |
+| リグ拡張の全体、上限と敵対的な入力の網羅（F-L7-054） | 段階 D | テンプレートと段階 B のゲームの素材は既存の範囲で取り込める |
+| 新しいアダプターと凍結した基準との一致、標準フレームの同等性、モーフの中間値（F-L7-057） | 段階 D | テンプレートの一致は `M0114-Source-Parity.json` で引き続き試験する |
+| ツール・入れ子の取り込み、Job object と資源方針、隔離の調停（F-L7-055） | 段階 D | 取り込むのは所有者の素材だけ。完全なサンドボックスは主張しない |
+| meta/serve の全体の調停と資源の強制（F-L7-056） | 段階 D | 制作の一巡は compile/prepare の経路だけを使う |
+| 詰めた骨の重みの表現、POD の種類 8〜12（F-L6-010） | 段階 D | 生産者も利用者も無い試作 |
+| リグ付き・複数 Take の実 FBX（F-L7-058） | 段階 D | テンプレートは glb を使う |
 
 ## Conformance and remaining work
 

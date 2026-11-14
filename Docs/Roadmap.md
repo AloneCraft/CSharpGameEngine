@@ -2,33 +2,21 @@
 
 目標、段階の順序、妥協する範囲、後方互換性の規則は [目標、ロードマップ、戦略.md](目標、ロードマップ、戦略.md) と [ADR-0098](Decisions/ADR-0098-Product-Goal-Phases-And-Compatibility.md) が上位の正本である。この文書は機能単位の計画を持つ。
 
-## Current static production flow and numeric builds
+## 最近のマイルストーン
 
-The accepted M0128 design adds configurable fixed 64/128/192-bit storage or actual float/double computation, independently selectable Logarithmic/Identity projection, static persistence and an authoring-to-distribution path. F-L1-012 remains partial pending final-candidate acceptance. Numeric-library modes, Source/SDK dependency and cooking-tool propagation, isolated outputs, profile mismatch diagnostics and mathematical-range handling are implemented. Actual Japanese project pages save all numeric modes, the three fixed widths/fraction positions and independent Identity depth. SDK0.1.42 passes all four scripted template runtimes, source-free self-contained Double execution and separate-process Float-to-Double restoration. SDK0.1.44 also passes Visual Studio MSBuild Debug build, self-contained Release publish and source-free WARP execution. SDK0.1.45 corrects the editor's numeric references; its final package, actual editor/runtime DLL agreement and minimal IDE run/reopen acceptance remain unverified. F-L1-011 provides common persisted values; WorldCell v2 and F-L6-007's generated Snapshot v2 include explicit legacy reading. [M0128](Milestones/M0128-Static-Production-Flow.md) and [Numeric Configuration](Specifications/Numeric-Configuration.md) record the exact verification scopes. Earlier fixed-Q64.64/log-only plans below are extended by these accepted numeric/projection choices.
+経過と検証の記録は各マイルストーン文書が持つ。この表は入口だけを示す（2026-11-15 に、ここへ積んでいた経過報告を各文書へ移した）。
 
-## Current asset editor windows update
-M0127/ADR-0089 adds F-L8-036: asset editors open as floating, dockable Visual Studio documents (Static Mesh, Texture, Sound Wave, Font, Data Asset, plus the shader graph) and the asset preview gets Preview Level templates. Skinned glTF models get a skeleton tree and animation timeline. After the M0128 cutover, the preview and game consume the common prepared model artifacts (ADR-0097), rather than decoding source models in the rendering host. See [Asset Editors](Specifications/Asset-Editors.md), [M0127](Milestones/M0127-Asset-Editor-Windows.md) and [M0128](Milestones/M0128-Static-Production-Flow.md).
-
-## Current logarithmic-native rendering, render-path and full-scale physics plan
-ADR-0084〜ADR-0087(2026-10-25)が、対数深度を最初から対数で書く Stage シェーダー 1 系統にする(標準深度の削除)、URP の 4 描画パスを移植する、物理を Q64.64 のまま全スケールにする、描画と物理を適切な層へ置く、を決めた。計画は M0119〜M0123 で、新しい機能は F-L0-011(D3D12 の描画計画の実行器)、F-L4-022(URP の 4 描画パス)、F-L4-021(Entity を使わない物理の契約)、F-L5-047(全スケールの決定的な剛体)。F-L5-038 は「Logarithmic depth of every perspective view」へ改名する。順序は M0119(対数ネイティブ、`stage-v14`)→ M0120(描画の L4 化と Forward/Forward+、`stage-v15`)→ M0121(Deferred/Deferred+、`stage-v16`)、物理は進行中の M0112 の後に M0122(全スケール)→ M0123(契約とソルバーの分離)。M0113(破壊)は M0123 の後。詳細は [ADR-0084](Decisions/ADR-0084-Logarithmic-Native-Depth.md)、[ADR-0085](Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0086](Decisions/ADR-0086-Full-Scale-Physics.md)、[ADR-0087](Decisions/ADR-0087-Rendering-And-Physics-Layers.md)。2026-11-15 の [ADR-0098](Decisions/ADR-0098-Product-Goal-Phases-And-Compatibility.md) で時期を変えた: M0120 はフレーム計画の移行までを段階 A、M0122 は段階 B、Forward 系の作り直し・M0121・M0123 は 1.0 の後の段階 D。
-
-## Current typed-light contract update
-M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005 and F-L0-009 without adding a new feature identity. See [Typed Lighting](Specifications/Typed-Lighting.md) and [verification milestone](Milestones/M0088-Typed-Lighting.md).
-
-## Current environment-lighting update
-M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun shadows, dynamic GI and ambient occlusion) and refines F-L5-001 and F-L0-005. See [Rendering](Specifications/Rendering.md#environment-lighting) and the [verification milestone](Milestones/M0089-Physically-Based-Environment-Lighting.md).
-
-## Current character-movement update
-M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is playable. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
-
-## Current scene JSON and editor world update
-M0093/ADR-0070 refines F-L7-012, F-L7-013, F-L8-011 and F-L8-025. Scenes are JSON documents under each project's `Scenes` folder. They are checked against a per-project schema, turned into C# at build time, and edited in memory by the Scene Designer until Save. Every repository scene is converted, and a C# scene class is a build error (SCENE206). For a built game the Scene view is drawn by the game runtime, and value edits show without a build; a structural edit asks for one. M0094/ADR-0071 opens a scene JSON by double-click in the Scene Editor (Design / JSON tabs over one text buffer) and removes the scene context menus. Manual Visual Studio checks remain. See the [verification milestone](Milestones/M0093-Scene-Json-And-Editor-World.md).
-
-## Current SDK package and project template update
-M0092/ADR-0065/ADR-0068 add F-L6-009 and F-L8-032. Games build from the `CSharpGameEngine.Sdk` NuGet package anywhere; the VSIX finds the game project from the open solution and ships its bridges. Visual Studio's New Project dialog offers "Third Person / 三人称", which creates the ported Unreal template. See the [verification milestone](Milestones/M0092-Sdk-Package-And-Project-Template.md).
-
-## Current skeletal-animation update
-M0091/ADR-0066 adds F-L4-015. It adds glTF skins and clips, GPU compute skinning, and Unreal's ABP_Unarmed locomotion graph. The ThirdPerson template now shows Quinn idling, walking, jogging, jumping and landing. See [Rendering](Specifications/Rendering.md#skeletal-meshes-and-animation) and the [verification milestone](Milestones/M0091-Skeletal-Animation.md).
+| マイルストーン | 機能 | 内容 |
+|---|---|---|
+| [M0128](Milestones/M0128-Static-Production-Flow.md) | F-L1-011、F-L1-012、F-L6-007、F-L6-008、F-L8-035、F-L8-036 | 数値設定別のビルド、深度方式の選択、静的な保存、制作から配布までの流れ。段階 A で実 VS の受け入れを行う |
+| [M0127](Milestones/M0127-Asset-Editor-Windows.md) | F-L8-036 | アセットエディターのウィンドウとプレビューレベル（[Asset Editors](Specifications/Asset-Editors.md)） |
+| M0119〜M0123 | F-L0-011、F-L4-021、F-L4-022、F-L5-047、F-L5-038 | 対数ネイティブ深度、URP の描画パス、全スケール物理、描画と物理の層（ADR-0084〜0087）。時期は ADR-0098 で変更: M0120 はフレーム計画の移行までを段階 A、M0122 は段階 B、Forward 系の作り直し・M0121・M0123 は段階 D |
+| [M0093](Milestones/M0093-Scene-Json-And-Editor-World.md) / [M0094](Milestones/M0094-Scene-Editor-Document.md) | F-L7-012、F-L7-013、F-L8-011、F-L8-025 | シーン JSON、ランタイムで描くエディターの世界、Scene Editor の文書 |
+| [M0092](Milestones/M0092-Sdk-Package-And-Project-Template.md) | F-L6-009、F-L8-032 | SDK パッケージと ThirdPerson のプロジェクトテンプレート |
+| [M0091](Milestones/M0091-Skeletal-Animation.md) | F-L4-015 | スケルタルアニメーション |
+| [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md) | F-L5-006 | キャラクター移動 |
+| [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md) | F-L4-014 | 物理ベースの環境照明 |
+| [M0088](Milestones/M0088-Typed-Lighting.md) | F-L5-001 ほか | 型付きライト（[Typed Lighting](Specifications/Typed-Lighting.md)） |
 
 ## Non-physics Feature index (authoritative)
 

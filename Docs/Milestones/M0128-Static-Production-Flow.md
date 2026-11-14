@@ -16,7 +16,7 @@
 | 要求 | 現在の証拠と状態 |
 |---|---|
 | Fixed 64/128/192bitと小数位置、実体がSingle/Doubleの設定 | Source/SDKの設定別ビルド、型・配置の実行検証、数値80件と生成器410件の両構成で検証済み。実際の日本語設定ページで64/32、128/64、192/96、Float、Doubleを選択し、csprojへの保存を確認。 |
-| Roslyn・属性を使った静的な保存処理 | 生成Worldの閉じた値グラフ、Snapshot v2、証明可能なv1移行を検証済み。配布物のモデル・一覧のJSONも生成契約を使用。 |
+| Roslyn・属性を使った静的な保存処理 | 生成Worldの閉じた値グラフ、Snapshot v2、証明可能なv1移行を検証済み（v1の読み取りは2026-11-15にADR-0098 §5 規則 2で削除）。配布物のモデル・一覧のJSONも生成契約を使用。 |
 | 計算型に依存しないテキストとバイナリ保存 | 正確な有限10進とCGN1、丸め・範囲検査・失敗時の一括拒否を検証済み。最終配布物でFloat保存を別プロセスのDoubleへ復元。 |
 | 数値型と独立したIdentity/Logarithmic | ビルド設定、CPU/GPUのビュー・リサイズ・復旧、Source/SDKのIdentity実行を検証済み。実画面でLogarithmicからIdentityへ切り替え、Doubleとは独立した設定として保存を確認。 |
 | 素材生成から実行・配布までの共通モデル | ゲーム・プレビュー・衝突・ナビメッシュ・距離場を接続済み。最終外部4テンプレートと元モデルなしの自己完結配布が実行成功。 |
@@ -78,7 +78,7 @@
 
 生の128bit配置を使っていた物理・車両・Navigation・格子処理を、値の比較・分数・剰余・離散座標の操作へ置換した。負の座標の商は負の無限大へ丸め、Float/DoubleはIEEEの仮数・指数から求めて、除算が整数境界へ丸まる誤差を避ける。固定幅の比率拡縮は積だけが保存幅を越えるケースを処理する。正規化と軌道計算の許容誤差は精度に応じて選び、既定の値を維持する。物理の調理データと生成キャッシュ・プレビューの数値識別も選択した設定に接続した。
 
-WorldCell v2は6座標を長さ付きCGN1で保存する。v1はQ64.64として明示的に読み、選択した型へ一度だけ最近接・偶数丸めを行う。元の値の正規性、範囲、丸め後のBounds、閉包、依存順序を検証し、成功するまで定義を返さない。独立に組み立てたv1のバイト列、最近接・偶数丸め、破損値、範囲外での一括拒否を既存WorldCellテストへ統合した。
+WorldCell v2は6座標を長さ付きCGN1で保存する。v1はQ64.64として明示的に読み、選択した型へ一度だけ最近接・偶数丸めを行う。元の値の正規性、範囲、丸め後のBounds、閉包、依存順序を検証し、成功するまで定義を返さない。独立に組み立てたv1のバイト列、最近接・偶数丸め、破損値、範囲外での一括拒否を既存WorldCellテストへ統合した。（2026-11-15 追記: ADR-0098 §5 規則 2 により v1 の読み取りを削除し、WorldCell は v2 だけを読む。この段落の v1 の記述は当時の実装の記録。）
 
 | Source実ゲーム | Debug | Release |
 |---|---|---|
@@ -125,7 +125,7 @@ FixedのLogicalScalar、Single、Doubleの葉を共通の実数として構造�
 
 実際の数値ソースと生成器をそれぞれ独立してコンパイルし、64/32・128/64・192/96・Single・DoubleのWorldで同じ値の保存バイト一致、1+2^-40の読込時の丸め、後続Entityの範囲外でも全体を変更しないことを検証した。保留する領域も適用前に範囲検査する。同じ設定間試験に領域の保留・保存の更新・後続適用を組み込み、通常のEntities試験も維持する。
 
-形式変更前の実装で保存したv1の固定テストデータを保持し、固定型とSingle型への読み込みを検証した。旧構造と現在構造の対応は閉じたコンパイルから生成する。v1には型一覧がなく、ハッシュだけから未知の旧構造を復元しない。別DLLで消去された別名など、対応を証明できない場合は元の対応設定で開いてv2へ再保存する。詳細はADR-0095。
+形式変更前の実装で保存したv1の固定テストデータを保持し、固定型とSingle型への読み込みを検証した。旧構造と現在構造の対応は閉じたコンパイルから生成する。v1には型一覧がなく、ハッシュだけから未知の旧構造を復元しない。別DLLで消去された別名など、対応を証明できない場合は元の対応設定で開いてv2へ再保存する。詳細はADR-0095。（2026-11-15 追記: Snapshot v1 は破棄し、v1 は「保存し直す」案内付きで拒否する。この段落の v1 の読み込みは当時の実装の記録。）
 
 使われなくなった2個の値生成器と旧生成モードを削除し、JSON属性・引数順・検証付きreadonly値の試験を、本番が使う一つのグラフ生成器へ統合した。
 
@@ -320,3 +320,17 @@ SDK 0.1.48 / VSIX 0.1.23 では、Doubleの角度45度を入力・保存し、�
 ThirdPersonはUE 5.0 `ThirdPersonMap` の配置・開始位置と灰色／青の資産を使用する。格子はワールド基準で近似し、壁面テキストは未移植。モデル・壁・開始位置に関する15件のテストと、VSのシーン表示を確認した。同一カメラ条件の差し替え前後と実VS画面は `.artifacts/UE50-reference/render/comparison.html` を参照する。
 
 SDK 0.1.49 / VSIX 0.1.24 のソースでは、UE 5.0の壁文字を静的メッシュにし、格子の原点を物体ごとに設定した。キャラクターの初期位置をステージのPlayerStartに合わせ、キャラクター単体と起動シーン群にそれぞれ適した表示範囲を作る。静的メッシュ選択ではglTFのスキン付きモデルとメッシュを持たないファイルを除外し、単一アセットのInspectorでは512pxの派生画像をペインに合わせて表示する。VSIXと描画ホストのコンパイル、VSIX関連92件、サムネイル契約5件を確認した。WARPの実描画で外壁と格子の比較、および128pxと512pxの出力を保存した（`.artifacts/UE50-reference/renderer-check/comparison.html`）。修正前のゲームはWARPで約0.82 FPSかつ床下への落下を再現した。梱包後の実画面、修正後の通常GPUでのフレーム時間とゲーム操作は検証待ち。
+
+## 経過の記録（Roadmap.md・Architecture.md から移動、2026-11-15）
+
+ADR-0098 の段階 A の作業として、Roadmap.md と Architecture.md に積んでいた M0128 の経過報告を書かれたままここへ移した。版の番号や「未確認」は書かれた時点のもので、現在の状態は上の各節と残件が正本である。v1 の読み取りの記述は 2026-11-15 に削除済み（ADR-0098 §5 規則 2）。
+
+- Architecture.md: 生成後に元ファイルを削除して共通読込できることを確認済み。
+- Architecture.md: 切替後のSource/SDKビルドと関連CPU/WARPはDebugで検証済み。
+- Architecture.md: 実行時の型検索を無効にしたContent全71件が合格した。修正版の自己完結Double配布物で旧30モデルの読込、Floatからの保存再開、WARP110フレームの移動・ジャンプ・描画を確認した。最終SDK0.1.42の自己完結Double実行と4テンプレート実行、関連148件のRelease回帰が成功した。
+- Architecture.md: 実画面では新規作成、素材追加、モデル描画、登録後のIDを保持した改名、Inspector編集と保存を確認した。最終候補のIDE実行・再開はM0128で追跡する。
+- Architecture.md: 実設定画面で全数値型と固定幅・小数位置の保存を確認した。
+- Architecture.md: 各設定の画面なしの物理保存・再生と、別設定でのSnapshot読み込みを検証済みだが、制作画面の操作・描画・配布物の受け入れは別途確認する。
+- Architecture.md: 設定の評価・XAML読込とCPU/GPUのビュー契約は検証済み。数値型・固定幅・小数位置・深度の実画面からの保存は確認済み。SDK0.1.44はVisual Studio用MSBuildでDebugビルド・自己完結Release発行・元モデルなしの実行に成功した。最終候補のIDE起動・再開はM0128で確認する。
+- Architecture.md: 2026-11-04: ThirdPerson シーン表示の壁位置（F-L8-036 / M0128） 今回の壁修正は Implemented / TestVerified・RuntimeVerified（非表示描画）。Scene Designer とシーン・モデルのサムネイルに残っていた旧単一 glTF 読込を、AssetAuthoring worker の共通モデル成果物へ接続した。成果物ハッシュを照合し、階層変換・サブメッシュ材質・選択用形状を保持する。シーン単位でモデルをまとめて準備する。片側原点の壁 SM_Cube2 は配置値を変えず、誤った F=20..60 から F=-20..20 へ戻る。実 ThirdPerson・ソース削除後の読込・ハッシュ不一致を含むワーカー15件、固定値と float の四分の一回転・部品 ID/選択/材質、VSIX Release 全1596件が成功した。旧読込を再実行した修正前と修正後を同一カメラ・900×900・WARPで直接描画し、両方54描画オブジェクト、D3D12エラー0件を確認した（.artifacts/StaticProduction/wall-preview-20261104）。VS の画面写真ではなく、実ステージのエンジン描画の比較。FBXと生成プリミティブの既存経路、プレビューのテクスチャ制約は維持する。F-L8-036/M0128全体の PartiallyImplemented は維持し、残る制作一巡の実画面受け入れを別途確認する。設計・実装・検証の対応は 20261104-thirdperson-wall-preview.md に記録する。  2026-11-04 実画面追記: SDK46/VSIX16の梱包と実プロジェクトの発行・WARP起動・制作専用DLL除外は成功した。一方、専用VSでのシーン表示はSceneRenderFailedを実際に観測した（32-sdk46-scene-preview-failed.jpg）。非表示の比較描画の成功を実VSの成功へ読み替えない。この統合表示はInvestigating / Mismatch、F-L8-036・M0128全体はPartiallyImplementedのまま。通常終了の自動承認審査と操作ツールのタイムアウトがあり、保存確認済みのVSの終了・診断付き再起動を明示確認待ち。詳細と次の検証はM0128へ記録した。  追記: 実VS16の失敗は実行用プレビューでの素材読み込みと周期更新の待機を独立再現した。VSIX17は周期更新を積み残さず、同じSDK46で通常GPU/WARPの描画が成功。梱包関連23件、Release全1597件、既存Windowsプレビュー9件が成功。17の配置と実画面確認は保存済みVSの終了・再起動の明示確認待ち。Current integration remains PartiallyImplemented / Partial; see M0128 and 20261104-runtime-preview-ticks.md.
+- Roadmap.md: The accepted M0128 design adds configurable fixed 64/128/192-bit storage or actual float/double computation, independently selectable Logarithmic/Identity projection, static persistence and an authoring-to-distribution path. F-L1-012 remains partial pending final-candidate acceptance. Numeric-library modes, Source/SDK dependency and cooking-tool propagation, isolated outputs, profile mismatch diagnostics and mathematical-range handling are implemented. Actual Japanese project pages save all numeric modes, the three fixed widths/fraction positions and independent Identity depth. SDK0.1.42 passes all four scripted template runtimes, source-free self-contained Double execution and separate-process Float-to-Double restoration. SDK0.1.44 also passes Visual Studio MSBuild Debug build, self-contained Release publish and source-free WARP execution. SDK0.1.45 corrects the editor's numeric references; its final package, actual editor/runtime DLL agreement and minimal IDE run/reopen acceptance remain unverified. F-L1-011 provides common persisted values; WorldCell v2 and F-L6-007's generated Snapshot v2 include explicit legacy reading. [M0128](Milestones/M0128-Static-Production-Flow.md) and [Numeric Configuration](Specifications/Numeric-Configuration.md) record the exact verification scopes. Earlier fixed-Q64.64/log-only plans below are extended by these accepted numeric/projection choices.
