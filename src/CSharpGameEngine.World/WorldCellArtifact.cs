@@ -26,8 +26,8 @@ public readonly record struct WorldCellArtifactError(
 /// <summary>WorldCellコンテンツアーティファクト内の正規ペイロードをベイクして読み込む。</summary>
 public static class WorldCellArtifactCodec {
     private const uint Magic=0x43574743;
-    private const ushort SchemaVersion=1;
-    private const int FixedPayloadSize=253;
+    private const ushort SchemaVersion=2;
+    private const int HeaderSize=84;
 
     public static ContentArtifact Bake(
         WorldCellDefinition Definition,
@@ -40,17 +40,24 @@ public static class WorldCellArtifactCodec {
         for(var Index=1;Index<Dependencies.Length;Index++){
             if(Dependencies[Index-1]==Dependencies[Index]){ throw new ArgumentException("World cell dependencies must be unique.",nameof(Definition)); }
         }
-        byte[]Payload=new byte[checked(FixedPayloadSize+Dependencies.Length*36)];
+        byte[][]Coordinates=[
+            Definition.Bounds.Center.R.ToCanonicalBytes(),Definition.Bounds.Center.U.ToCanonicalBytes(),Definition.Bounds.Center.F.ToCanonicalBytes(),
+            Definition.Bounds.HalfExtents.R.ToCanonicalBytes(),Definition.Bounds.HalfExtents.U.ToCanonicalBytes(),Definition.Bounds.HalfExtents.F.ToCanonicalBytes()];
+        var CoordinateSize=Coordinates.Sum(static Value=>2+Value.Length);
+        byte[]Payload=new byte[checked(HeaderSize+CoordinateSize+CanonicalAssetKeyCodec.EncodedLength+4+Dependencies.Length*36)];
         BinaryPrimitives.WriteUInt32LittleEndian(Payload.AsSpan(0,4),Magic);
         BinaryPrimitives.WriteUInt16LittleEndian(Payload.AsSpan(4,2),SchemaVersion);
         WriteIdentity(Payload.AsSpan(8,36),Definition.Id.ToString());
         WriteIdentity(Payload.AsSpan(44,36),Definition.Frame.ToString());
         BinaryPrimitives.WriteInt32LittleEndian(Payload.AsSpan(80,4),Definition.LevelOfDetail);
-        WriteVector(Payload.AsSpan(84,48),Definition.Bounds.Center);
-        WriteVector(Payload.AsSpan(132,48),Definition.Bounds.HalfExtents);
-        CanonicalAssetKeyCodec.Write(Payload.AsSpan(180,CanonicalAssetKeyCodec.EncodedLength),Definition.EntityPayload);
-        BinaryPrimitives.WriteUInt32LittleEndian(Payload.AsSpan(249,4),(uint)Dependencies.Length);
-        int Offset=FixedPayloadSize;
+        var Offset=HeaderSize;
+        foreach(var Value in Coordinates){
+            BinaryPrimitives.WriteUInt16LittleEndian(Payload.AsSpan(Offset,2),checked((ushort)Value.Length));
+            Value.CopyTo(Payload.AsSpan(Offset+2));Offset+=2+Value.Length;
+        }
+        CanonicalAssetKeyCodec.Write(Payload.AsSpan(Offset,CanonicalAssetKeyCodec.EncodedLength),Definition.EntityPayload);
+        Offset+=CanonicalAssetKeyCodec.EncodedLength;
+        BinaryPrimitives.WriteUInt32LittleEndian(Payload.AsSpan(Offset,4),(uint)Dependencies.Length);Offset+=4;
         foreach(WorldCellId Dependency in Dependencies){
             WriteIdentity(Payload.AsSpan(Offset,36),Dependency.ToString());
             Offset+=36;
@@ -74,15 +81,23 @@ public static class WorldCellArtifactCodec {
             return false;
         }
         ReadOnlySpan<byte>Payload=Artifact.Payload.AsSpan();
-        if(Payload.Length<FixedPayloadSize
+        if(Payload.Length<HeaderSize
             ||BinaryPrimitives.ReadUInt32LittleEndian(Payload.Slice(0,4))!=Magic
             ||BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(4,2))!=SchemaVersion
             ||BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(6,2))!=0){
             Error=CreateError(WorldCellArtifactErrorCode.InvalidPayload,"payload.header","World cell payload header is invalid.");
             return false;
         }
-        uint DependencyCount=BinaryPrimitives.ReadUInt32LittleEndian(Payload.Slice(249,4));
-        if(DependencyCount>65535||FixedPayloadSize+(long)DependencyCount*36!=Payload.Length){
+        var Offset=HeaderSize;
+        if(!TryReadCoordinates(Payload,ref Offset,out var Center,out var HalfExtents)){
+            Error=CreateError(WorldCellArtifactErrorCode.InvalidBounds,"payload.bounds","World cell coordinates are malformed or outside the selected numeric range.");return false;
+        }
+        if(Payload.Length-Offset<CanonicalAssetKeyCodec.EncodedLength+4){
+            Error=CreateError(WorldCellArtifactErrorCode.InvalidPayload,"payload.length","World cell payload is truncated.");return false;
+        }
+        var EntityOffset=Offset;Offset+=CanonicalAssetKeyCodec.EncodedLength;
+        uint DependencyCount=BinaryPrimitives.ReadUInt32LittleEndian(Payload.Slice(Offset,4));Offset+=4;
+        if(DependencyCount>65535||Offset+(long)DependencyCount*36!=Payload.Length){
             Error=CreateError(WorldCellArtifactErrorCode.InvalidPayload,"payload.length","World cell payload length is invalid.");
             return false;
         }
@@ -96,20 +111,17 @@ public static class WorldCellArtifactCodec {
             Error=CreateError(WorldCellArtifactErrorCode.InvalidPayload,"payload.levelOfDetail","World cell level of detail cannot be negative.");
             return false;
         }
-        LogicalVector3 Center=ReadVector(Payload.Slice(84,48));
-        LogicalVector3 HalfExtents=ReadVector(Payload.Slice(132,48));
         FrameLocalBounds Bounds=new(Center,HalfExtents);
         if(!Bounds.IsValid){
             Error=CreateError(WorldCellArtifactErrorCode.InvalidBounds,"payload.bounds","World cell half extents must be positive.");
             return false;
         }
         if(!CanonicalAssetKeyCodec.TryRead(
-            Payload.Slice(180,CanonicalAssetKeyCodec.EncodedLength),out var EntityPayload)){
+            Payload.Slice(EntityOffset,CanonicalAssetKeyCodec.EncodedLength),out var EntityPayload)){
             Error=CreateError(WorldCellArtifactErrorCode.InvalidEntityPayload,"payload.entityPayload","World cell entity payload identity is invalid.");
             return false;
         }
         var Dependencies=ImmutableArray.CreateBuilder<WorldCellId>((int)DependencyCount);
-        int Offset=FixedPayloadSize;
         WorldCellId?Previous=null;
         for(var Index=0;Index<DependencyCount;Index++){
             if(!WorldCellId.TryParse(Encoding.ASCII.GetString(Payload.Slice(Offset,36)),out var Dependency)||!Dependency.IsValid){
@@ -157,24 +169,16 @@ public static class WorldCellArtifactCodec {
         if(Text.Length!=36){ throw new ArgumentException("Canonical stable identity must contain 36 bytes.",nameof(Value)); }
         Text.CopyTo(Bytes);
     }
-    private static void WriteVector(Span<byte>Bytes,LogicalVector3 Value){
-        WriteScalar(Bytes.Slice(0,16),Value.R);
-        WriteScalar(Bytes.Slice(16,16),Value.U);
-        WriteScalar(Bytes.Slice(32,16),Value.F);
-    }
-    private static LogicalVector3 ReadVector(ReadOnlySpan<byte>Bytes)=>new(
-        ReadScalar(Bytes.Slice(0,16)),
-        ReadScalar(Bytes.Slice(16,16)),
-        ReadScalar(Bytes.Slice(32,16)));
-    private static void WriteScalar(Span<byte>Bytes,LogicalScalar Value){
-        UInt128 Bits=unchecked((UInt128)Value.Raw);
-        BinaryPrimitives.WriteUInt64LittleEndian(Bytes.Slice(0,8),(ulong)Bits);
-        BinaryPrimitives.WriteUInt64LittleEndian(Bytes.Slice(8,8),(ulong)(Bits>>64));
-    }
-    private static LogicalScalar ReadScalar(ReadOnlySpan<byte>Bytes){
-        UInt128 Bits=BinaryPrimitives.ReadUInt64LittleEndian(Bytes.Slice(0,8))
-            |(UInt128)BinaryPrimitives.ReadUInt64LittleEndian(Bytes.Slice(8,8))<<64;
-        return LogicalScalar.FromRaw(unchecked((Int128)Bits));
+    private static bool TryReadCoordinates(ReadOnlySpan<byte>Payload,ref int Offset,out LogicalVector3 Center,out LogicalVector3 HalfExtents){
+        Center=default;HalfExtents=default;
+        Span<LogicalScalar>Values=stackalloc LogicalScalar[6];
+        for(var Index=0;Index<Values.Length;Index++){
+            if(Payload.Length-Offset<2){ return false; }
+            var Length=BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(Offset,2));Offset+=2;
+            if(Length>Payload.Length-Offset||!LogicalScalar.TryReadCanonical(Payload.Slice(Offset,Length),out Values[Index])){ return false; }
+            Offset+=Length;
+        }
+        Center=new(Values[0],Values[1],Values[2]);HalfExtents=new(Values[3],Values[4],Values[5]);return true;
     }
     private static WorldCellArtifactError CreateError(WorldCellArtifactErrorCode Code,string Field,string Message)=>new(Code,Field,Message);
 }

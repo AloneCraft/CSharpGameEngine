@@ -102,6 +102,9 @@ internal static class SceneJsonConverter {
         }
         return Result;
     }
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
     private static SceneJsonOut Value(SceneValue Value,string Where,List<string>Problems,SceneAngleUnit?Unit){
         switch(Value.Kind){
             case SceneValueKind.EnumMember:
@@ -119,6 +122,14 @@ internal static class SceneJsonConverter {
                 }
                 return Array;
             }
+            case SceneValueKind.Literal when Value.Type is { }NumericType&&SceneTypePredicates.ToFullyQualifiedName(NumericType)=="global::CSharpGameEngine.Numerics.LogicalScalar"
+                &&Value.ConstantValue is string Number&&SceneJsonReader.IsNumber(Number):
+                if(Unit is { }FixedUnit){
+                    if(SceneJsonFixedValue.TryAngleToTurns(NumericType,Number,FixedUnit,out var Turns)){ return SceneJsonOut.Number(Turns); }
+                    Problems.Add($"{Where}: fixed angle cannot be represented in turns.");
+                    return SceneJsonOut.Null();
+                }
+                return SceneJsonOut.Number(Number);
             case SceneValueKind.Literal when Unit is null&&LiteralSpelling(Value) is { }Spelling:
                 return SceneJsonOut.Number(Spelling);
             case SceneValueKind.Literal:
@@ -130,6 +141,9 @@ internal static class SceneJsonConverter {
                 if(Value.Type?.TypeKind==TypeKind.Enum&&Value.ConstantValue is not null){
                     var Member=Value.Type.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(Field=>Field.HasConstantValue&&Equals(Field.ConstantValue,Value.ConstantValue));
                     if(Member is not null){ return SceneJsonOut.String(Member.Name); }
+                }
+                if(Unit is { }DoubleUnit&&Value.ConstantValue is double DoubleAngle&&!double.IsNaN(DoubleAngle)&&!double.IsInfinity(DoubleAngle)){
+                    return SceneJsonOut.Number(SceneJsonAngles.FormatTurns(DoubleAngle,DoubleUnit));
                 }
                 return Unit is { }AngleUnit&&Value.ConstantValue is float Angle&&!float.IsNaN(Angle)&&!float.IsInfinity(Angle)
                     ?SceneJsonOut.Number(SceneJsonAngles.FormatTurns(Angle,AngleUnit))

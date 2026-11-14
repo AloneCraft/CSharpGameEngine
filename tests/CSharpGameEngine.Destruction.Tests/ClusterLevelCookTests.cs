@@ -64,16 +64,19 @@ public sealed class ClusterLevelCookTests {
         Assert.Contains(Asset.Bonds,Bond=>Asset.SharedClusterLevels(Bond.FirstFragment,Bond.SecondFragment)>=2);
     }
     [Fact]
-    public void OneLevelIsM0113sCutByteForByteInVersionTwo(){
-        // 既定値 (1) と明示的な 1 は、M0113 が書き出したバイト列と同じになる：バージョン 2、最上位クラスターのみ。
+    public void OneLevelIsWrittenInVersionThreeWithOneLevelAndRoundTrips(){
+        // 既定値 (1) と明示的な 1 は同じバイト列になる。1 段も版 3 で書く（ADR-0098 §5 の C：読み手は版 3 だけ）。
         Assert.True(PrefractureCooker.TryGenerate(Box(Half(1f,0.5f,1f)),new PrefractureCookSettings(24,5,LogicalScalar.FromInt64(500),LogicalScalar.FromInt64(2000)),out var Default,out var Error),Error);
         var One=Cut(24,5,1);
         var Bytes=PrefractureArtifact.ToBytes(One);
         Assert.Equal(PrefractureArtifact.ToBytes(Default!),Bytes);
-        Assert.Equal("CGEFRAC2",Encoding.ASCII.GetString(Bytes,0,8));
-        Assert.Equal(2,PrefractureArtifact.VersionOf(One));
+        Assert.Equal("CGEFRAC3",Encoding.ASCII.GetString(Bytes,0,8));
+        Assert.Equal(3,BitConverter.ToInt32(Bytes,8));
         Assert.Equal(1,One.ClusterLevelCount);
         Assert.Empty(One.SubClusters);
+        Assert.True(PrefractureArtifact.TryRead(Bytes,out var Read,out var ReadError),ReadError);
+        Assert.Equal(1,Read!.ClusterLevelCount);
+        Assert.Equal(Bytes,PrefractureArtifact.ToBytes(Read));
         // より深い分割の最上位レベルは、同じ 1 レベル分割である。
         var Two=Cut(24,5,2);
         Assert.Equal(One.Clusters,Two.Clusters);

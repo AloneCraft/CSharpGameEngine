@@ -26,8 +26,7 @@ public sealed class RenderPreviewLightingProtocolTests {
         Spots=[new(){ Position=[0f,3f,0f],Forward=[0f,-1f,0f],InnerConeDegrees=20f,OuterConeDegrees=40f }],
     };
     [Fact]
-    public void Protocol_IsVersionElevenAndAFrameWithoutLightingStaysValid(){
-        Assert.Equal(13,RenderPreviewHostProtocol.CurrentVersion);
+    public void AFrameWithoutLightingStaysValid(){
         Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(null)));
         Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(new RenderPreviewLighting())));
     }

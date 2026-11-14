@@ -8,6 +8,61 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// <see cref="SceneModelRenderObjectBuilder"/> のノード走査と値抽出ロジック (ADR-0040 フェーズ 9) を、手作りフィクスチャではなく、実際に解析された <see cref="SceneModel"/> を使って検証する（<see cref="SceneAnalysisTestHelper"/> 経由で、Source Generator と Hierarchy が使うものと同じ共有アナライザーを使用）。<see cref="SceneNodeViewModelTests"/> と同じ理由による。メッシュ解決の依存先は通常のデリゲートとして注入し、ブリッジプロセスや GPU を使わない。
 /// </summary>
 public sealed class SceneModelRenderObjectBuilderTests {
+    [Fact]
+    public void SkeletalSceneUsesItsDeclaredMeshForFramingAndThumbnail(){
+        var Model=SceneAnalysisTestHelper.Analyze([Components,"""
+            namespace CSharpGameEngine.Runtime.Animation {
+                public struct SkeletalMesh { public string AssetPath; }
+            }
+            namespace Game {
+                using CSharpGameEngine.Entities;
+                using CSharpGameEngine.Runtime.Animation;
+                public partial class Character:IScene {
+                    public Node Root=>new() { Components=[new SkeletalMesh { AssetPath="Assets/Character.glb" }] };
+                }
+            }
+            """]);
+        var Mesh=new SimpleMesh{Positions=[new(0,0,0),new(1,2,0)],Normals=[Vector3.UnitY,Vector3.UnitY],Indices=[0,1,0],BaseColorFactor=Vector4.One,BoundsCenter=Vector3.Zero,BoundsRadius=1};
+        string? Requested=null;
+        var Object=Assert.Single(SceneModelRenderObjectBuilder.Build(Model,static _=>null,Path=>{ Requested=Path;return Mesh; },IncludePlaceholders:false));
+        Assert.True(SceneModelRenderObjectBuilder.IsCharacterScene(Model));
+        Assert.Equal("Assets/Character.glb",Requested);
+        Assert.Same(Mesh,Object.Mesh);
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void JsonQuarterTurnPreservesTheImportedWallDirection(bool Fixed){
+        const string Types="""
+            namespace CSharpGameEngine.Contracts {
+                public enum AngleUnit:byte { Radians,Degrees }
+                [System.AttributeUsage(System.AttributeTargets.Parameter)] public sealed class AngleAttribute:System.Attribute { public AngleAttribute(AngleUnit Unit){} }
+            }
+            namespace CSharpGameEngine.Runtime.Windows {
+                public struct Vector { public Vector(float R,float U,float F){} }
+                public struct Rotation { public Rotation([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)] Vector EulerRuf){} }
+                [CSharpGameEngine.Entities.SceneComponentOrder]
+                public struct StaticMesh { public string AssetPath; }
+            }
+            namespace CSharpGameEngine.Entities {
+                public sealed class SceneComponentOrderAttribute:System.Attribute { }
+                [SceneComponentOrder]
+                public struct Transform { public CSharpGameEngine.Runtime.Windows.Vector Position;public CSharpGameEngine.Runtime.Windows.Rotation Rotation;public CSharpGameEngine.Runtime.Windows.Vector Scale; }
+            }
+            """;
+        const string Json="""
+            {"schemaVersion":3,"namespace":"Game","className":"Wall","root":{"id":"0f3c6c7a-0000-4000-8000-000000000001","components":[
+              {"type":"CSharpGameEngine.Entities.Transform","members":{"Position":{"R":-18,"U":0,"F":18},"Rotation":{"EulerRuf":{"R":0,"U":-0.25,"F":0}},"Scale":{"R":2,"U":2,"F":36}}},
+              {"type":"CSharpGameEngine.Runtime.Windows.StaticMesh","members":{"AssetPath":"Wall.glb"}}
+            ],"children":[]}}
+            """;
+        var ScalarTypes=Fixed?Types.Replace("Vector(float R,float U,float F)","Vector(CSharpGameEngine.Numerics.LogicalScalar R,CSharpGameEngine.Numerics.LogicalScalar U,CSharpGameEngine.Numerics.LogicalScalar F)")+"namespace CSharpGameEngine.Numerics { public readonly struct LogicalScalar { public const int TotalBits=128;public const int FractionalBits=64;public static LogicalScalar ParseInvariant(string Text)=>default; } }":Types;
+        var Context=SceneJsonRoundTrip.Analyze(Json,"Wall","Game.Wall",SceneAnalysisTestHelper.CreateCompilation(ScalarTypes));
+        var Mesh=new SimpleMesh{Positions=[new(0,0,-1),new(1,1,0)],Normals=[Vector3.UnitY,Vector3.UnitY],Indices=[0,1,0],BaseColorFactor=Vector4.One,BoundsCenter=Vector3.Zero,BoundsRadius=1};
+        var Object=Assert.Single(SceneModelRenderObjectBuilder.Build(Context.Model,static _=>null,_=>Mesh));
+        var First=Vector3.Transform(Mesh.Positions[0],Object.World);var Last=Vector3.Transform(Mesh.Positions[1],Object.World);
+        Assert.Equal(18f,First.X,3);Assert.Equal(18f,First.Z,3);Assert.Equal(-18f,Last.X,3);Assert.Equal(20f,Last.Z,3);
+    }
     /// <summary>
     /// <see cref="SceneComponentBindings"/> がバインドする完全修飾名（実エンジンの語彙に合わせた <c>CSharpGameEngine.Runtime.Windows.*</c> すべて）でコンポーネントを宣言する。共有の <c>SceneAnalysisTestHelper.CommonComponents</c> フィクスチャは別の名前空間 (<c>Sample</c>) に同じ形の型を宣言するため、一致しない。
     ///

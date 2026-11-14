@@ -31,4 +31,9 @@
     <!-- The CLI is run as a process (a bake is a separate process in the build); it only has to be built. -->
     <ProjectReference Include="..\..\tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ModelArtifactTestContent.cs" Link="Testing/ModelArtifactTestContent.cs" />
+    <ProjectReference Include="../../tools/CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj" />
+    <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
+  </ItemGroup>
 </Project>

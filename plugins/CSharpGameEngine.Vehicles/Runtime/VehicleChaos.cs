@@ -69,7 +69,7 @@ public static class VehicleChaos {
         if(MaximumX<=LogicalScalar.Zero){ return LogicalScalar.Zero; }
         var Step=MaximumX/LogicalScalar.FromInt64(Samples.Length-1);
         var Scaled=X/Step;
-        var StartIndex=Scaled<LogicalScalar.Zero?0:(int)Math.Min(int.MaxValue,(long)(Scaled.Raw>>64));
+        var StartIndex=Scaled<LogicalScalar.Zero?0:(int)Math.Min(int.MaxValue,LogicalNumeric.FloorToInt64(Scaled));
         LogicalScalar Value;
         if(StartIndex>=Samples.Length-1){
             Value=Samples[^1];
@@ -87,7 +87,7 @@ public static class VehicleChaos {
         if(X>=MaximumX){ return Samples[^1]; }
         var Step=MaximumX/LogicalScalar.FromInt64(Samples.Length-1);
         var Scaled=X/Step;
-        var StartIndex=(int)(long)(Scaled.Raw>>64);
+        var StartIndex=(int)LogicalNumeric.FloorToInt64(Scaled);
         if(StartIndex>=Samples.Length-1){ return Samples[^1]; }
         var Ramp=(X-LogicalScalar.FromInt64(StartIndex)*Step)/Step;
         return Samples[StartIndex]*(LogicalScalar.One-Ramp)+Samples[StartIndex+1]*Ramp;

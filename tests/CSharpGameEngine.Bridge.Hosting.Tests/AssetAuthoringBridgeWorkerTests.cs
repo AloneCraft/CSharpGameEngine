@@ -6,6 +6,39 @@ namespace CSharpGameEngine.Bridge.Hosting.Tests;
 
 public class AssetAuthoringBridgeWorkerTests {
     [Fact]
+    public async Task ModelPreviewWorkerPreparesSourceFreeContentAndRetainsItAfterImportFailure(){
+        using var Directory=new TemporaryDirectory();var Repository=new DirectoryInfo(AppContext.BaseDirectory);
+        while(Repository is not null&&!File.Exists(Path.Combine(Repository.FullName,"CSharpGameEngine.slnx"))){ Repository=Repository.Parent; }
+        Assert.NotNull(Repository);
+#if DEBUG
+        const string Configuration="Debug";
+#else
+        const string Configuration="Release";
+#endif
+        var Worker=Path.Combine(Repository.FullName,"tools","CSharpGameEngine.Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Import.AssetAuthoring.Cli.dll");
+        var Source=Path.Combine(Directory.Path,"Assets","Box.glb");System.IO.Directory.CreateDirectory(Path.GetDirectoryName(Source)!);File.Copy(Path.Combine(Repository.FullName,"assets","TestFixtures","Gltf","BoxTextured.glb"),Source);
+        var RequestPath=Path.Combine(Directory.Path,"request.json");var ResultPath=Path.Combine(Directory.Path,"result.json");
+        var Request=new AssetModelRequest {ModelCommand=4,RequestId=Guid.NewGuid(),Root=Directory.Path,SourcePath=Source,PreviewSourcePaths=[Source]};File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request));
+        async Task<AssetModelResult>Run(){
+            var Start=new System.Diagnostics.ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};Start.ArgumentList.Add(Worker);Start.ArgumentList.Add(RequestPath);Start.ArgumentList.Add(ResultPath);
+            using var Process=System.Diagnostics.Process.Start(Start)!;var Output=Process.StandardOutput.ReadToEndAsync();var Error=Process.StandardError.ReadToEndAsync();await Process.WaitForExitAsync();Assert.True(Process.ExitCode==0,await Error+await Output);
+            return JsonSerializer.Deserialize<AssetModelResult>(await File.ReadAllTextAsync(ResultPath))!;
+        }
+        var Ready=await Run();Assert.True(Ready.Success,Ready.Diagnostic);var Prepared=Assert.Single(Ready.PreparedSources);Assert.Null(RenderPreviewSkeletalValidation.ValidateModel(Prepared,Source));File.Delete(Source);
+        await using(var Bundle=await CSharpGameEngine.Content.Models.ModelAssetBundle.OpenAsync(Prepared.ContentDirectory,Prepared.SourceUri)){ Assert.NotEmpty(Bundle.Meshes);Assert.Equal(Prepared.ModelHash,Bundle.Index.Resolve(Prepared.SourceUri,CSharpGameEngine.Content.ContentArtifactKind.Model).ContentHash.ToString()); }
+        File.WriteAllText(Source,"broken model");var Failed=await Run();Assert.False(Failed.Success);Assert.NotEmpty(Failed.Diagnostic);
+        await using var Retained=await CSharpGameEngine.Content.Models.ModelAssetBundle.OpenAsync(Prepared.ContentDirectory,Prepared.SourceUri);Assert.Equal(Prepared.ModelHash,Retained.Index.Resolve(Prepared.SourceUri,CSharpGameEngine.Content.ContentArtifactKind.Model).ContentHash.ToString());
+    }
+    [Fact]
+    public void CancelledModelPreparationPreservesThePreviousResult(){
+        using var Directory=new TemporaryDirectory();using var Cancellation=new CancellationTokenSource();Cancellation.Cancel();
+        var Request=Path.Combine(Directory.Path,"request.json");var Result=Path.Combine(Directory.Path,"result.json");
+        File.WriteAllText(Request,JsonSerializer.Serialize(new AssetModelRequest {ModelCommand=4,RequestId=Guid.NewGuid(),Root=Directory.Path,SourcePath=Path.Combine(Directory.Path,"Missing.glb")}));
+        File.WriteAllText(Result,"previous successful result");
+        Assert.Throws<OperationCanceledException>(()=>AssetAuthoringBridgeWorker.Run(Request,Result,Cancellation.Token));
+        Assert.Equal("previous successful result",File.ReadAllText(Result));
+    }
+    [Fact]
     public void FontPreviewUsesTheCanonicalCodecWithoutWritingTheSource(){
         using var Directory=new TemporaryDirectory();
         var Font=new CSharpGameEngine.Rendering.FontAtlas(1024,2,0.8f,0.2f,0,0.1f,[new(65,0.6f,0,0,0.6f,0.8f,0,0,1,1)],Enumerable.Repeat((byte)200,2048).ToArray());
@@ -160,7 +193,7 @@ public class AssetAuthoringBridgeWorkerTests {
         string ResultPath=Path.Combine(Root,Guid.NewGuid().ToString("N")+".result.json");
         AssetAuthoringRequest Request=new(){
             RequestId=Guid.NewGuid(),Command=Command,RepositoryRoot=Root,SourcePath=Source,
-            AssetId=AssetId,Importer=Command==AssetAuthoringCommand.SaveMetadata?"SharpGLTF":string.Empty,
+            AssetId=AssetId,Importer=Command==AssetAuthoringCommand.SaveMetadata?"cge.gltf":string.Empty,
             ExpectedMetadataSha256=ExpectedHash,
         };
         File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request));

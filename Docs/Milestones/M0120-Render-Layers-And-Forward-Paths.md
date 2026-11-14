@@ -1,6 +1,6 @@
 # M0120 — 描画の L4 化と Forward / Forward+(URP 方式)
 - 日付: 2026-10-25
-- 状態: Implementing(2026-10-26。値/CB/ビュー/診断/提出ポートとServer/FrameStateはL4へ移動済み。段階1の実フレーム計画、Forward系は未移行)
+- 状態: Implementing(2026-10-26。値/CB/ビュー/診断/提出ポートとServer/FrameStateはL4へ移動済み。段階1の実フレーム計画、Forward系は未移行。2026-11-15 の ADR-0098 で、フレーム計画の移行までを段階 A、Forward / Forward+ の作り直しを段階 D とした)
 - 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0087](../Decisions/ADR-0087-Rendering-And-Physics-Layers.md) §1
 - ABI: `stage-v15`
 

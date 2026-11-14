@@ -1,0 +1,37 @@
+<Project>
+  <Target Name="CgeValidateNumericProfile" BeforeTargets="PrepareForBuild;CgeGenerateNumericProfile">
+    <Error Condition="'$(_CgeNumericVariant)' == 'true' and '$(CgeNumericProfileLateImport)' == 'true' and '$(CgeNumericProfileBeforeCommon)' != 'true'" Text="Numeric settings must be applied before Microsoft.Common targets. A custom CustomBeforeMicrosoftCommonTargets file must import CSharpGameEngine.NumericProfile.BeforeCommon.targets." />
+    <Error Condition="'$(CgeNumericMode)' != 'Fixed' and '$(CgeNumericMode)' != 'Float' and '$(CgeNumericMode)' != 'Double'" Text="CgeNumericMode must be Fixed, Float or Double." />
+    <CallTarget Targets="CgeValidateFixedNumericProfile" Condition="'$(CgeNumericMode)' == 'Fixed'" />
+  </Target>
+  <Target Name="CgeValidateFixedNumericProfile">
+    <Error Condition="'$(CgeNumericMode)' == 'Fixed' and '$(CgeFixedBits)' != '64' and '$(CgeFixedBits)' != '128' and '$(CgeFixedBits)' != '192'" Text="CgeFixedBits must be 64, 128 or 192." />
+    <Error Condition="'$(CgeNumericMode)' == 'Fixed' and !$([System.Text.RegularExpressions.Regex]::IsMatch('$(CgeFractionalBits)', '^\d{1,3}$'))" Text="CgeFractionalBits must be a nonnegative integer." />
+    <Error Condition="'$(CgeNumericMode)' == 'Fixed' and $(CgeFractionalBits) &gt; $([MSBuild]::Subtract($(CgeFixedBits),2))" Text="CgeFractionalBits must leave room for the sign and the value one (0 through CgeFixedBits - 2)." />
+  </Target>
+  <Target Name="CgeGenerateNumericProfile" BeforeTargets="CoreCompile" Condition="'$(_CgeCustomFixed)' == 'true' and '$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics'">
+    <PropertyGroup>
+      <DefineConstants Condition="$(CgeFractionalBits) &lt; 32 or $(CgeFractionalBits) &gt; $([MSBuild]::Subtract($(CgeFixedBits),4))">$(DefineConstants);CGE_FIXED_EXTENDED_MATH</DefineConstants>
+      <_CgeNumericProfileFile>$(IntermediateOutputPath)NumericBuildProfile.g.cs</_CgeNumericProfileFile>
+      <_CgeNumericProfileSource>namespace CSharpGameEngine.Numerics%3B internal static class NumericBuildProfile { internal const int TotalBits = $(CgeFixedBits)%3B internal const int FractionalBits = $(CgeFractionalBits)%3B }</_CgeNumericProfileSource>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_CgeNumericProfileFile)" Lines="$(_CgeNumericProfileSource)" Overwrite="true" WriteOnlyWhenDifferent="true" Encoding="UTF-8" />
+    <ItemGroup>
+      <Compile Include="$(_CgeNumericProfileFile)" />
+      <FileWrites Include="$(_CgeNumericProfileFile)" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CgePropagateNumericProfile" BeforeTargets="AssignProjectConfiguration;_GetAllRestoreProjectPathItems">
+    <ItemGroup>
+      <ProjectReference Update="@(ProjectReference)" Condition="'%(ProjectReference.OutputItemType)' != 'Analyzer'">
+        <AdditionalProperties>%(ProjectReference.AdditionalProperties);CgeNumericMode=$(CgeNumericMode);CgeFixedBits=$(CgeFixedBits);CgeFractionalBits=$(CgeFractionalBits)</AdditionalProperties>
+      </ProjectReference>
+      <ProjectReference Update="@(ProjectReference)" Condition="'%(ProjectReference.OutputItemType)' == 'Analyzer'">
+        <GlobalPropertiesToRemove>%(ProjectReference.GlobalPropertiesToRemove);CgeNumericMode;CgeFixedBits;CgeFractionalBits;CgeNumericProfileId</GlobalPropertiesToRemove>
+      </ProjectReference>
+    </ItemGroup>
+  </Target>
+  <Target Name="CgePrepareNumericProfileOutput" BeforeTargets="CoreCompile" Condition="'$(_CgeNumericVariant)' == 'true'">
+    <MakeDir Directories="$(IntermediateOutputPath);$(OutputPath);$(CompilerGeneratedFilesOutputPath)" />
+  </Target>
+</Project>

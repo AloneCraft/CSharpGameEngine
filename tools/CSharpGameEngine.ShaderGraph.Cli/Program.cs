@@ -102,27 +102,26 @@ internal static class ShaderGraphCli {
     /// ADR-0078/M0110：1 つの glTF のメッシュ距離場をビルド時に作成する。シェーダー成果物と同様にゲーム開始前にジオメトリを準備するが、ライティングはベイクしない。インポーター順にメッシュ 1 つにつき 1 エントリを作る。スキニングのみで描画されるメッシュには距離場を作らない。同じファイルがある場合は変更しない。
     /// </summary>
     private static int BuildDistanceFields(string[]Arguments) {
-        if(Arguments.Length!=3) {
+        if(Arguments.Length!=4) {
             WriteUsage();
             return 2;
         }
-        string SourcePath=Path.GetFullPath(Arguments[1]);
-        string OutputPath=Path.GetFullPath(Arguments[2]);
-        var Imported=CSharpGameEngine.Import.Gltf.GltfImporter.ImportScene(SourcePath);
-        if(!Imported.Success||Imported.Scene is not { }Scene) {
-            Console.Error.WriteLine($"{SourcePath}: error MSDF001: the glTF could not be imported: {string.Join("; ",Imported.Diagnostics)}");
-            return 1;
-        }
-        var Skinned=Scene.Nodes.Where(Node=>Node.SkinIndex is not null&&Node.MeshIndex is not null).Select(Node=>Node.MeshIndex!.Value).ToHashSet();
+        string SourcePath=Arguments[2].Replace('\\','/');
+        string OutputPath=Path.GetFullPath(Arguments[3]);
+        using var Scene=CSharpGameEngine.Content.Models.ModelAssetBundle.OpenAsync(Arguments[1],SourcePath).GetAwaiter().GetResult();
+        var Rigid=Scene.Model.Nodes.Where(Node=>Node.SkinIndex<0&&Node.MeshIndex>=0).Select(Node=>Node.MeshIndex).ToHashSet();
+        var Skinned=Scene.Model.Nodes.Where(Node=>Node.SkinIndex>=0&&Node.MeshIndex>=0).Select(Node=>Node.MeshIndex).Where(Index=>!Rigid.Contains(Index)).ToHashSet();
+        IReadOnlyList<(CSharpGameEngine.Contracts.Hash256 MeshHash,CSharpGameEngine.Rendering.MeshDistanceField?Field)>Previous=[];
+        if(File.Exists(OutputPath)){ _=CSharpGameEngine.Rendering.MeshDistanceFieldCodec.TryRead(File.ReadAllBytes(OutputPath),out Previous,out _); }
         List<(CSharpGameEngine.Contracts.Hash256 MeshHash,CSharpGameEngine.Rendering.MeshDistanceField?Field)>Entries=[];
         var Fields=0;
-        for(var Index=0;Index<Scene.Meshes.Count;Index++) {
+        for(var Index=0;Index<Scene.Meshes.Length;Index++) {
             var Mesh=Scene.Meshes[Index];
             var Hash=CSharpGameEngine.Rendering.MeshDistanceField.ComputeMeshHash(Mesh.Positions,Mesh.Indices);
             CSharpGameEngine.Rendering.MeshDistanceField?Field=null;
             if(!Skinned.Contains(Index)) {
                 try {
-                    Field=CSharpGameEngine.Rendering.MeshDistanceFieldBuilder.Build(Mesh.Positions,Mesh.Indices);
+                    Field=Index<Previous.Count&&Previous[Index].MeshHash==Hash&&Previous[Index].Field is{}Cached?Cached:CSharpGameEngine.Rendering.MeshDistanceFieldBuilder.Build(Mesh.Positions,Mesh.Indices);
                 } catch(ArgumentException Error) {
                     Console.Error.WriteLine($"{SourcePath}: error MSDF002: mesh {Index}: {Error.Message}");
                     return 1;
@@ -132,7 +131,7 @@ internal static class ShaderGraphCli {
             Entries.Add((Hash,Field));
         }
         WriteAtomicBytes(OutputPath,CSharpGameEngine.Rendering.MeshDistanceFieldCodec.Write(Entries));
-        Console.WriteLine($"built {OutputPath} {Fields}/{Scene.Meshes.Count} meshes");
+        Console.WriteLine($"built {OutputPath} {Fields}/{Scene.Meshes.Length} meshes");
         return 0;
     }
     private static int Validate(string[]Arguments) {
@@ -386,7 +385,7 @@ internal static class ShaderGraphCli {
         Console.Error.WriteLine("validate <graph>");
         Console.Error.WriteLine("build <graph> <artifact> [generated-hlsl] [Debug|Release]");
         Console.Error.WriteLine("build-compute <hlsl> <artifact> [Debug|Release]");
-        Console.Error.WriteLine("build-distance-fields <gltf> <output.cgesdf>");
+        Console.Error.WriteLine("build-distance-fields <model-content-directory> <source-uri> <output.cgesdf>");
         Console.Error.WriteLine("dump-hlsl <graph> [output]");
         Console.Error.WriteLine("publish <artifact> <output>");
         Console.Error.WriteLine("extract-subgraph-internal <root-graph> <subgraph> <name> <indices>");

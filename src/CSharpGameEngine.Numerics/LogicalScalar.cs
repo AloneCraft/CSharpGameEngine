@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Globalization;
 using System.Text;
 namespace CSharpGameEngine.Numerics;
-public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEquatable<LogicalScalar> {
+public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEquatable<LogicalScalar>,IFixedMathScalar<LogicalScalar> {
     public const int TotalBits=128;
     public const int FractionalBits=64;
     public const int SerializedSize=16;
@@ -16,6 +16,10 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
     public bool IsZero=>this.Raw==0;
     public static LogicalScalar FromRaw(Int128 Raw)=>new(Raw);
     public static LogicalScalar FromInt64(long Value)=>new((Int128)Value<<FractionalBits);
+    public static LogicalScalar FromRatio(long Numerator,long Denominator)=>FromInt64(Numerator)/FromInt64(Denominator);
+    public static bool TryMultiplyInteger(LogicalScalar Value,long Factor,out LogicalScalar Result)=>TryMultiply(Value,FromInt64(Factor),out Result);
+    static int IFixedMathScalar<LogicalScalar>.FractionalPrecision=>FractionalBits;
+    static bool IFixedMathScalar<LogicalScalar>.TryDivideInteger(LogicalScalar Value,long Divisor,out LogicalScalar Result)=>TryDivide(Value,FromInt64(Divisor),out Result);
     public static LogicalScalar FromSingle(float Value)=>TryFromSingle(Value,out var Result)?Result:throw new OverflowException();
     public static bool TryFromSingle(float Value,out LogicalScalar Result){
         Result=default;
@@ -86,6 +90,17 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
         return TryCreateSigned(Magnitude,Negative,out Result);
     }
     public override string ToString()=>this.ToStringInvariant();
+    /// <summary>内部の Q64.64 配置に依存しない数値保存。旧16バイト形式とは別形式。</summary>
+    public byte[]ToCanonicalBytes(){
+        Span<byte>RawBytes=stackalloc byte[SerializedSize];
+        this.WriteLittleEndian(RawBytes);
+        return NumericValueCodec.WriteFixed(RawBytes,FractionalBits);
+    }
+    public static bool TryReadCanonical(ReadOnlySpan<byte>Source,out LogicalScalar Result){
+        Result=default;
+        Span<byte>RawBytes=stackalloc byte[SerializedSize];
+        return NumericValueCodec.TryReadFixed(Source,FractionalBits,RawBytes)&&TryReadLittleEndian(RawBytes,out Result);
+    }
     public string ToStringInvariant(){
         var Negative=this.Raw<0;
         var Magnitude=GetMagnitude(this.Raw);
@@ -235,6 +250,7 @@ public readonly struct LogicalScalar(Int128 Raw):IComparable<LogicalScalar>,IEqu
     public static LogicalScalar operator -(LogicalScalar Value)=>Value.Raw==Int128.MinValue?throw new OverflowException():new LogicalScalar(-Value.Raw);
     public static LogicalScalar operator *(LogicalScalar Left,LogicalScalar Right)=>TryMultiply(Left,Right,out var Result)?Result:throw new OverflowException();
     public static LogicalScalar operator /(LogicalScalar Left,LogicalScalar Right)=>TryDivide(Left,Right,out var Result)?Result:Right.IsZero?throw new DivideByZeroException():throw new OverflowException();
+    public static LogicalScalar operator %(LogicalScalar Left,LogicalScalar Right)=>Right.Raw==-1?Zero:new(Left.Raw%Right.Raw);
     public static implicit operator LogicalScalar(int Value)=>FromInt64(Value);
     public static implicit operator LogicalScalar(long Value)=>FromInt64(Value);
     public static implicit operator LogicalScalar(float Value)=>FromSingle(Value);

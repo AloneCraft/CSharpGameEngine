@@ -1,5 +1,7 @@
 # Omni — radial (logarithmic) depth specification
 
+M0128 adds a project-level Identity perspective option independently of numeric storage; see [Render Projection](Render-Projection.md) and [ADR-0096](../Decisions/ADR-0096-Project-Depth-Mapping.md). This document describes the default Logarithmic mode. Statements below about every perspective view apply to that mode; an Identity game explicitly uses ordinary raster depth and does not submit logarithmic observer insets. Internal GI and light-space views retain their own contracts.
+
 - Status: Implemented (M0099, 2026-10-04); radial depth is the default since M0100 (2026-10-04). M0119 removes camera depth selectors, legacy matrix/preview compatibility and standalone Model/Triangle renderers. This file is the intended contract; [Implementation Status](../Implementation-Status.md) F-L5-038 and F-L5-039 track the evidence.
 - Decision: [ADR-0076](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md); implementation migration [ADR-0084](../Decisions/ADR-0084-Logarithmic-Native-Depth.md) / M0119.
 - Reference: the Unity asset Omni (`G:\Unity\6.6\Omni\Assets\Omni`), ported natively without its URP adapter.

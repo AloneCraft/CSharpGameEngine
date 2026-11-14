@@ -1,8 +1,12 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.NumericProfile.props" Condition="'$(CgeNumericProfileApplied)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.RenderProfile.props" Condition="'$(CgeRenderProfileApplied)' != 'true'" />
   <!-- Offline shader compilation with the compiler shipped in the package (ADR-0065). -->
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.ShaderGraph.targets" />
   <!-- The scene JSON Schema for editor warnings (ADR-0070). -->
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.SceneSchema.targets" />
   <!-- The game's plugins (ADR-0079), after the project file so its CgePlugins is known. -->
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Game.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.NumericProfile.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Sdk.NumericProfiles.targets" />
 </Project>

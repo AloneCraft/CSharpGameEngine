@@ -65,7 +65,7 @@ public sealed class SceneJsonGeneratorTests {
     private const string JsonScene="""
         {
           "$schema": "../.cge/scene.schema.json",
-          "schemaVersion": 1,
+          "schemaVersion": 3,
           "namespace": "Game",
           "className": "MainScene",
           "root": {
@@ -163,7 +163,7 @@ public sealed class SceneJsonGeneratorTests {
     [InlineData("\"Count\": 7","\"Count\": 7.5","SCENE203",24,57)]
     [InlineData("\"className\": \"MainScene\"","\"className\": \"MainScene\", \"extra\": 1","SCENE204",5,29)]
     [InlineData("\"Offset\": -3.25 } }","\"Offset\": -3.25 } }, { \"type\": \"Sample.Tag\" }","SCENE205",24,104)]
-    [InlineData("\"schemaVersion\": 1","\"schemaVersion\": 4","SCENE204",3,20)]
+    [InlineData("\"schemaVersion\": 3","\"schemaVersion\": 4","SCENE204",3,20)]
     public void EachKindOfProblem_IsAnErrorAtItsJsonPosition(string Original,string Replacement,string ExpectedId,int Line,int Column){
         Assert.Contains(Original,JsonScene);
         var Diagnostic=Assert.Single(Analyze(JsonScene.Replace(Original,Replacement)));
@@ -728,7 +728,10 @@ public sealed class SceneJsonGeneratorTests {
         }
         namespace CSharpGameEngine.Numerics {
             public readonly struct LogicalScalar {
+                public const int TotalBits=128;
+                public const int FractionalBits=64;
                 public static implicit operator LogicalScalar(float Value)=>default;
+                public static LogicalScalar ParseInvariant(string Text)=>default;
             }
         }
         namespace Sample {
@@ -740,7 +743,7 @@ public sealed class SceneJsonGeneratorTests {
         """;
     private const string RangedScene="""
         {
-          "schemaVersion": 1,
+          "schemaVersion": 3,
           "namespace": "Game",
           "className": "MainScene",
           "root": {
@@ -755,7 +758,7 @@ public sealed class SceneJsonGeneratorTests {
         """;
     [Theory]
     [InlineData("\"R\": 1,","\"R\": -1,","a LinearLightColor needs finite non-negative values")]
-    [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the Q64.64 range")]
+    [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the selected 128-bit fixed range")]
     [InlineData("\"Scale\": 3e38","\"Scale\": 1e39","beyond the range of float")]
     [InlineData("\"Far\": -1e308","\"Far\": -1e309","beyond the range of double")]
     [InlineData("\"Price\": 7.9e28","\"Price\": 7.93e28","beyond the range of decimal")]
@@ -767,6 +770,42 @@ public sealed class SceneJsonGeneratorTests {
         var Diagnostic=Assert.Single(Analyze(RangedScene.Replace(Original,Replacement),RangedComponents));
         Assert.Equal("SCENE203",Diagnostic.Id);
         Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
+    }
+    [Theory]
+    [InlineData(64,32,"2147483648",false)]
+    [InlineData(64,32,"-2147483648",true)]
+    [InlineData(64,32,"2147483647.9999999998",true)]
+    [InlineData(64,32,"2147483647.9999999999",false)]
+    [InlineData(64,0,"9223372036854775806.5",true)]
+    [InlineData(64,0,"9223372036854775807.5",false)]
+    [InlineData(64,0,"-9223372036854775808.5",true)]
+    [InlineData(128,64,"1e24",false)]
+    [InlineData(192,96,"1e24",true)]
+    [InlineData(192,190,"2",false)]
+    [InlineData(192,190,"-2",true)]
+    [InlineData(64,32,"1e-1000",true)]
+    [InlineData(64,32,"1e100000",false)]
+    public void FixedJsonInputsUseSelectedRangeAndNearestEvenAtTheOriginalSourcePosition(int Bits,int Fraction,string Value,bool Accepted){
+        var Components=RangedComponents.Replace("TotalBits=128","TotalBits="+Bits).Replace("FractionalBits=64","FractionalBits="+Fraction);
+        var Json=RangedScene.Replace("\"Height\": 9e18","\"Height\": "+Value);
+        var Diagnostics=Analyze(Json,Components);
+        if(Accepted){ Assert.Empty(Diagnostics); }
+        else{
+            var Error=Assert.Single(Diagnostics);Assert.Equal("SCENE203",Error.Id);
+            Assert.Contains("Height",Error.GetMessage(),StringComparison.Ordinal);
+            Assert.Equal(Value,Json.Substring(Error.Location.SourceSpan.Start,Error.Location.SourceSpan.Length));
+        }
+    }
+    [Fact]
+    public void GeneratedFixedJsonValuePreservesDecimalDigitsWithoutAFloatIntermediate(){
+        const string Value="0.100000000000000000000000000001";
+        var Json=RangedScene.Replace("\"Height\": 9e18","\"Height\": "+Value);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,RangedComponents]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
+        var Source=string.Join("\n",Result.GeneratedTrees.Select(static Tree=>Tree.ToString()));
+        Assert.Contains("LogicalScalar.ParseInvariant(\""+Value+"\")",Source,StringComparison.Ordinal);
+        Assert.DoesNotContain(Value+"f",Source,StringComparison.Ordinal);
     }
     private static ImmutableArray<Diagnostic>Analyze(string Json,string ComponentSource=Components){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,ComponentSource]);

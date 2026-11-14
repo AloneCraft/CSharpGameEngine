@@ -1,4 +1,5 @@
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel;
@@ -36,6 +37,10 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
         this.DisplayText=Member.EditorKind switch {
             InspectorEditorKind.PhysicalValue=>Member.ConstantValue as string??Member.SourceExpression,
             InspectorEditorKind.Text=>Member.ConstantValue as string??string.Empty,
+            InspectorEditorKind.Number when Member.FixedNumericType is { }FixedType&&Member.AngleUnit is { }FixedUnit=>SceneJsonFixedValue.FormatAngleDegrees(FixedType,SceneInspectorValueFormat.FixedNumberText(Member.SourceExpression),FixedUnit),
+            InspectorEditorKind.Number when Member.FixedNumericType is not null=>SceneInspectorValueFormat.FixedNumberText(Member.SourceExpression),
+            InspectorEditorKind.Number when Member.NumericType==Microsoft.CodeAnalysis.SpecialType.System_Double&&Member.AngleUnit is { }DoubleUnit=>SceneInspectorValueFormat.FormatDoubleAngle(Member.SourceExpression,DoubleUnit),
+            InspectorEditorKind.Number when Member.NumericType==Microsoft.CodeAnalysis.SpecialType.System_Double=>Member.SourceExpression.TrimEnd('d','D'),
             InspectorEditorKind.Number when Member.AngleUnit is { }Unit=>SceneInspectorValueFormat.FormatAngle(Member.SourceExpression,Unit),
             InspectorEditorKind.Number=>SceneInspectorValueFormat.RemoveFloatSuffix(Member.SourceExpression),
             InspectorEditorKind.ReadOnly when Member.AngleUnit is { }ReadOnlyUnit=>SceneInspectorValueFormat.FormatAngle(Member.SourceExpression,ReadOnlyUnit),
@@ -60,6 +65,10 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
         :this.Member.DisplayName;
 
     public InspectorEditorKind EditorKind=>this.Member.EditorKind;
+
+    public bool IsModelAssetPath=>this.Member.IsEditable&&this.Member.EditorKind==InspectorEditorKind.Text
+        &&this.Member.MemberName=="AssetPath"
+        &&this.Member.ComponentTypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Windows.StaticMesh";
 
     /// <summary>Number/Textエディタの初期表示・Escape復帰先。数値はソース式の接尾辞(3f等)を保つ。</summary>
     public string DisplayText { get; }

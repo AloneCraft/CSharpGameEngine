@@ -5,6 +5,20 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class RenderPreviewSceneBuilderTests {
+    [Fact]
+    public void PreparedPartsRetainPivotsMaterialsPickingAndStableFrameIdentity(){
+        var First=CreateMesh();
+        var Prepared=RenderPreviewSceneBuilder.FromMesh(First,128,128);Prepared.Meshes=[Prepared.Meshes[0],Prepared.Meshes[0]];
+        Prepared.Materials=[new(){BaseColor=[1,0,0,1],Roughness=0.25f},new(){BaseColor=[0,1,0,1],Metallic=0.75f}];
+        Prepared.Objects=[new(){ObjectId="a",MeshIndex=0,MaterialIndex=0,World=RenderPreviewSceneBuilder.Matrix(Matrix4x4.CreateScale(2,1,1)*Matrix4x4.CreateTranslation(10,0,0))},new(){ObjectId="b",MeshIndex=1,MaterialIndex=1,World=RenderPreviewSceneBuilder.Matrix(Matrix4x4.CreateTranslation(-10,0,0))}];
+        var Mesh=SimpleMesh.FromPreparedScene(Prepared);Assert.Equal(2,Mesh.Parts.Length);Assert.Equal(First.Positions.Length*2,Mesh.Positions.Length);
+        Assert.Equal(Vector3.Transform(First.Positions[0],Matrix4x4.CreateScale(2,1,1)*Matrix4x4.CreateTranslation(10,0,0)),Mesh.Positions[0]);
+        var Objects=new[]{new SceneRenderObject{Mesh=Mesh,NodeId=NodePath.Root,World=Matrix4x4.CreateTranslation(0,0,20)}};
+        var Scene=RenderPreviewSceneBuilder.FromScene(Objects,Matrix4x4.Identity,Matrix4x4.Identity,Vector3.Zero);
+        var Frame=RenderPreviewSceneBuilder.CreateFrame(Objects,Matrix4x4.Identity,Matrix4x4.Identity,Vector3.Zero,SceneViewRenderMode.Lit,[NodePath.Root],[],[]);
+        Assert.Equal(2,Scene.Objects.Length);Assert.Equal(Scene.Objects.Select(Object=>Object.ObjectId),Frame.Objects.Select(Object=>Object.ObjectId));
+        Assert.All(Frame.Objects,Object=>Assert.Equal(1f,Object.SelectionWeight));Assert.Equal(0.25f,Scene.Materials[0].Roughness);Assert.Equal(0.75f,Scene.Materials[1].Metallic);
+    }
     /// <summary>
     /// M0096：ランタイムビューは、コミット時に書き込まれる値として、各ルートの親相対変換をドラッグで取得する。ランタイムビューのノードパスをキーにする。ここでは親が R=1 にあり、U 周りに 4 分の 1 回転しているため、ワールド位置 (1, 0.5, -2) は親に対して (2, 0.5, 0) となる。
     /// </summary>

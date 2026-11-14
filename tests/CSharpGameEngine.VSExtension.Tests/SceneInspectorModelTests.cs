@@ -142,6 +142,9 @@ public sealed class SceneInspectorModelTests {
     [InlineData("3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"3")]
     [InlineData("-3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"-3")]
     [InlineData("4",Microsoft.CodeAnalysis.SpecialType.System_Int64,"4L")]
+    [InlineData("1.0000000000000002",Microsoft.CodeAnalysis.SpecialType.System_Double,"1.0000000000000002d")]
+    [InlineData("1e200",Microsoft.CodeAnalysis.SpecialType.System_Double,"1e200d")]
+    [InlineData("-0",Microsoft.CodeAnalysis.SpecialType.System_Double,"-0d")]
     public void TryFormatNumber_ValidInput_ProducesTypeCorrectLiteral(
         string Text,Microsoft.CodeAnalysis.SpecialType Type,string Expected){
         Assert.True(SceneInspectorValueFormat.TryFormatNumber(Type,Text,out var Expression));
@@ -149,10 +152,29 @@ public sealed class SceneInspectorModelTests {
     }
 
     [Theory]
-    [InlineData(Microsoft.CodeAnalysis.SpecialType.System_Double)]
     [InlineData(Microsoft.CodeAnalysis.SpecialType.System_Decimal)]
     public void TryFormatNumber_NonCanonicalRealType_IsRejected(Microsoft.CodeAnalysis.SpecialType Type){
         Assert.False(SceneInspectorValueFormat.TryFormatNumber(Type,"5",out _));
+    }
+    [Theory]
+    [InlineData("float64",true)]
+    [InlineData("float32",false)]
+    [InlineData(null,false)]
+    public void DoubleMembersAreEditableOnlyInTheSelectedDoubleProfile(string?Profile,bool Editable){
+        var Attribute=Profile is null?string.Empty:"[assembly:System.Reflection.AssemblyMetadata(\"CgeNumericProfile\",\""+Profile+"\")]";
+        var Model=SceneAnalysisTestHelper.Analyze("using CSharpGameEngine.Entities;"+Attribute+"""
+            namespace Sample {public struct Precise {public double Distance;}}
+            namespace Game {
+                public partial class MainScene:IScene {
+                    public Node Root=>new(){Name="Precise",Components=[new Sample.Precise{Distance=1.0000000000000002d}]};
+                }
+            }
+            """);
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document",1,1,Model,false,null,new SceneProjectionReconciler());
+        var Member=BuildSingleMember(Snapshot,"Precise","Distance");
+        Assert.Equal(Editable,Member.IsEditable);
+        Assert.Equal(Editable?InspectorEditorKind.Number:InspectorEditorKind.ReadOnly,Member.EditorKind);
+        if(Editable){ Assert.Equal("1.0000000000000002",new InspectorMemberViewModel(Member).DisplayText); }
     }
 
     [Fact]
@@ -357,6 +379,29 @@ public sealed class SceneInspectorModelTests {
         }
     }
 
+    [Theory]
+    [InlineData("float64",true)]
+    [InlineData("float32",false)]
+    public void DoubleVectorArgumentsFollowTheirDeclaringProfile(string Profile,bool Editable){
+        var Model=SceneAnalysisTestHelper.Analyze("""
+            using CSharpGameEngine.Entities;
+            [assembly:System.Reflection.AssemblyMetadata("CgeNumericProfile","PROFILE")]
+            namespace Sample {
+                public struct Vector3 { public Vector3(double R,double U,double F){} }
+                public struct Transform { public Vector3 Position; }
+                public partial class MainScene:IScene {
+                    public Node Root=>new(){Name="Thing",Components=[new Transform{Position=new Vector3(1.0000000000000002d,2d,3d)}]};
+                }
+            }
+            """.Replace("PROFILE",Profile));
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document",1,1,Model,false,null,new SceneProjectionReconciler());
+        var Group=Assert.Single(SceneInspectorModelBuilder.BuildGroups(Snapshot,SelectAllOf(Snapshot,"Thing")));
+        var Position=Assert.IsType<SceneInspectorNestedRow>(Assert.Single(Group.Rows));
+        var Members=Position.Rows.Cast<SceneInspectorMemberRow>().Select(static Row=>Row.Member).ToArray();
+        Assert.All(Members,Member=>Assert.Equal(Editable,Member.IsEditable));
+        if(Editable){ Assert.Equal("1.0000000000000002",new InspectorMemberViewModel(Members[0]).DisplayText); }
+    }
+
     [Fact]
     public void BuildGroups_RufTransformVectors_AreEditableNestedLeavesWithMemberPaths(){
         const string Types="""
@@ -469,6 +514,80 @@ public sealed class SceneInspectorModelTests {
         var Pitch=BuildSingleMember(Snapshot,"Eye","R");
         Assert.Equal(SceneAngleUnit.Radians,Pitch.AngleUnit);
         Assert.Equal("45",new InspectorMemberViewModel(Pitch).DisplayText);
+        Assert.True(Pitch.IsEditable);
+    }
+
+    [Fact]
+    public void DoubleAngleIsDisplayedInDegrees(){
+        var Model=SceneAnalysisTestHelper.Analyze([AngleTypes,"""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Contracts;
+            [assembly:System.Reflection.AssemblyMetadata("CgeNumericProfile","float64")]
+            namespace Game {
+                public struct AimDouble { [Angle(AngleUnit.Radians)] public double Yaw; }
+                public partial class MainScene:IScene {
+                    public Node Root=>new(){Name="Eye",Components=[new AimDouble{Yaw=1.5707963267948966d}]};
+                }
+            }
+            """]);
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document",1,1,Model,false,null,new SceneProjectionReconciler());
+        var Yaw=BuildSingleMember(Snapshot,"Eye","Yaw");
+        Assert.True(Yaw.IsEditable);
+        Assert.Equal("90",new InspectorMemberViewModel(Yaw).DisplayText);
+        Assert.True(SceneInspectorValueFormat.TryFormatAngle(Yaw.NumericType!.Value,"90",Yaw.AngleUnit!.Value,out _));
+    }
+
+    [Fact]
+    public void FixedAngleIsDisplayedInDegrees(){
+        var Model=SceneAnalysisTestHelper.Analyze([AngleTypes,"""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Contracts;
+            namespace CSharpGameEngine.Numerics {
+                public readonly struct LogicalScalar {
+                    public const int TotalBits=128;
+                    public const int FractionalBits=64;
+                    public static LogicalScalar ParseInvariant(string Text)=>default;
+                }
+            }
+            namespace Game {
+                public struct AimFixed { [Angle(AngleUnit.Radians)] public CSharpGameEngine.Numerics.LogicalScalar Yaw; }
+                public partial class MainScene:IScene {
+                    public Node Root=>new(){Name="Eye",Components=[new AimFixed{Yaw=CSharpGameEngine.Numerics.LogicalScalar.ParseInvariant("1.57079632679489661923")}]};
+                }
+            }
+            """]);
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document",1,1,Model,false,null,new SceneProjectionReconciler());
+        var Yaw=BuildSingleMember(Snapshot,"Eye","Yaw");
+        Assert.True(Yaw.IsEditable);
+        Assert.Equal("90",new InspectorMemberViewModel(Yaw).DisplayText);
+        Assert.True(SceneJsonFixedValue.TryAngleFromDegrees(Yaw.FixedNumericType!,"-180",Yaw.AngleUnit!.Value,out var Expression));
+        Assert.StartsWith("global::CSharpGameEngine.Numerics.LogicalScalar.ParseInvariant(\"-3.14159",Expression,StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(64,32)]
+    [InlineData(128,64)]
+    [InlineData(192,96)]
+    [InlineData(192,160)]
+    public void FixedAnglesRoundTripUsingTheSelectedPrecision(int Bits,int Fraction){
+        var Source=$$"""
+            namespace CSharpGameEngine.Numerics {
+                public readonly struct LogicalScalar {
+                    public const int TotalBits={{Bits}};
+                    public const int FractionalBits={{Fraction}};
+                    public static LogicalScalar ParseInvariant(string Text)=>default;
+                }
+            }
+            """;
+        var Type=SceneAnalysisTestHelper.CreateCompilation(Source).GetTypeByMetadataName("CSharpGameEngine.Numerics.LogicalScalar")!;
+        foreach(var Degrees in new[]{"0","90","-180"}){
+            Assert.True(SceneJsonFixedValue.TryAngleFromDegrees(Type,Degrees,SceneAngleUnit.Radians,out var Expression));
+            var Text=SceneInspectorValueFormat.FixedNumberText(Expression);
+            Assert.Equal(Degrees,SceneJsonFixedValue.FormatAngleDegrees(Type,Text,SceneAngleUnit.Radians));
+            Assert.True(SceneJsonFixedValue.TryAngleToTurns(Type,Text,SceneAngleUnit.Radians,out var Turns));
+            Assert.True(SceneJsonFixedValue.TryAngleFromTurns(Type,Turns,SceneAngleUnit.Radians,out var Reloaded,out _));
+            Assert.Equal(Expression,Reloaded);
+        }
     }
 
     private const string AngleTypes="""

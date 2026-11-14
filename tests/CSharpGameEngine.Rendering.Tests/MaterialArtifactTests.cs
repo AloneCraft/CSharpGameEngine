@@ -14,8 +14,11 @@ public sealed class MaterialArtifactTests {
         Hash256.Compute(Encoding.UTF8.GetBytes("source")),
         "test",Hash256.Compute(Encoding.UTF8.GetBytes("options")));
 
-    [Fact]
-    public void Catalog_ValidatesDependenciesDeduplicatesResidencyAndShadesCpuReference(){
+    [Theory]
+    [InlineData(false,false)]
+    [InlineData(true,false)]
+    [InlineData(true,true)]
+    public void Catalog_ValidatesDependenciesDeduplicatesResidencyAndShadesCpuReference(bool IncludeGrid,bool AnchorToObject){
         RenderMaterialCatalog Catalog=new();
         AssetKey RedKey=Key("red");
         AssetKey RedAliasKey=Key("red-alias");
@@ -31,7 +34,7 @@ public sealed class MaterialArtifactTests {
         AssetArtifactReference NormalReference=new(NormalKey,Normal.ContentHash);
         RenderMaterialArtifactDefinition Definition=new(
             new Vector4(0.5f,1f,1f,1f),0.75f,0.25f,new Vector3(10f,20f,30f),1f,
-            RedReference,NormalReference,RedReference,RedReference);
+            RedReference,NormalReference,RedReference,RedReference,IncludeGrid?new(1f,10,0.02f,new(0.2f),new(0.4f),AnchorToObject):null);
         AssetKey MaterialKey=Key("material");
 
         RenderMaterialResource Material=Catalog.RegisterMaterial(
@@ -41,6 +44,7 @@ public sealed class MaterialArtifactTests {
         Assert.Equal(3,Catalog.TextureAssetCount);
         Assert.Equal(2,Catalog.ResidentTextureCount);
         Assert.Equal(1,Catalog.MaterialCount);
+        Assert.Equal(Definition.WorldGrid,Material.WorldGrid);
         Assert.Equal(new Vector4(0.5f,0f,0f,1f),Material.ShadeBaseColor(0f,0f));
         Assert.Equal(new Vector4(0f,1f,0f,1f),Material.ShadeBaseColor(1f,0f));
         Assert.True(Catalog.TryGetMaterial(MaterialKey,out RenderMaterialResource?Resolved));
@@ -101,6 +105,29 @@ public sealed class MaterialArtifactTests {
             RenderArtifactCodec.CreateMaterialEnvelope(Provenance,Invalid));
         Assert.Throws<ArgumentException>(()=>
             RenderArtifactCodec.CreateTextureEnvelope(Provenance,2,1,[0,0,0,0]));
+        foreach(var Grid in new StageWorldGrid[]{new(float.NaN,10,0.02f,Vector3.One,Vector3.One),new(1f,0,0.02f,Vector3.One,Vector3.One),new(1f,10,0.5f,Vector3.One,Vector3.One),new(1f,10,0.02f,new(-1f),Vector3.One)}){
+            Assert.ThrowsAny<ArgumentException>(()=>RenderArtifactCodec.CreateMaterialEnvelope(Provenance,Invalid with {BaseColorFactor=Vector4.One,WorldGrid=Grid}));
+        }
+    }
+    [Theory]
+    [InlineData("truncated")]
+    [InlineData("flags")]
+    [InlineData("nan")]
+    public void MalformedWorldGridMaterialCannotChangeTheCatalog(string Damage){
+        var Catalog=new RenderMaterialCatalog();var TextureKey=Key("grid-texture");
+        var Texture=Catalog.RegisterTexture(TextureKey,RenderArtifactCodec.CreateTextureEnvelope(Provenance,1,1,[255,255,255,255]));
+        var Reference=new AssetArtifactReference(TextureKey,Texture.ContentHash);
+        var Definition=new RenderMaterialArtifactDefinition(Vector4.One,1f,0f,Vector3.Zero,1f,Reference,Reference,Reference,Reference,new(1f,10,0.02f,Vector3.One,Vector3.One));
+        var Envelope=RenderArtifactCodec.CreateMaterialEnvelope(Provenance,Definition);
+        Assert.True(ContentArtifactCodec.TryRead(Envelope,out var Artifact,out _));
+        var Payload=Artifact!.Payload.ToArray();
+        if(Damage=="truncated"){ Payload=Payload[..^1]; }
+        else if(Damage=="flags"){ Payload[6]=0; }
+        else{ System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(Payload.AsSpan(48,4),float.NaN); }
+        var Broken=ContentArtifactCodec.Write(new(ContentArtifactKind.Material,Provenance,Artifact.Dependencies,Payload));
+        Assert.Throws<InvalidDataException>(()=>Catalog.RegisterMaterial(Key("grid-material"),Broken));
+        Assert.Equal(0,Catalog.MaterialCount);
+        Assert.Equal(Definition.WorldGrid,Catalog.RegisterMaterial(Key("grid-material"),Envelope).WorldGrid);
     }
 
     [Fact]
@@ -109,10 +136,10 @@ public sealed class MaterialArtifactTests {
             Key("zero-texture"),Hash256.Compute(Encoding.UTF8.GetBytes("texture")));
         RenderMaterialArtifactDefinition Positive=new(
             new Vector4(0f,1f,1f,1f),1f,0f,Vector3.Zero,1f,
-            Reference,Reference,Reference,Reference);
+            Reference,Reference,Reference,Reference,new(1f,10,0.02f,new(0f,1f,0f),Vector3.Zero));
         RenderMaterialArtifactDefinition Negative=new(
             new Vector4(-0f,1f,1f,1f),1f,-0f,new Vector3(-0f,0f,-0f),1f,
-            Reference,Reference,Reference,Reference);
+            Reference,Reference,Reference,Reference,new(1f,10,0.02f,new(-0f,1f,-0f),new(-0f,0f,-0f)));
 
         Assert.Equal(
             RenderArtifactCodec.CreateMaterialEnvelope(Provenance,Positive),

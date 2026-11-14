@@ -31,4 +31,5 @@
       <CgePluginRootsEncoded>$(CgePluginRoots.Replace('#','?h').Replace(';','?s'))</CgePluginRootsEncoded>
     </PropertyGroup>
   </Target>
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.ModelContent.targets" />
 </Project>

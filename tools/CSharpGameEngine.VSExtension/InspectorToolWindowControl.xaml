@@ -11,6 +11,7 @@
              d:DesignHeight="400" d:DesignWidth="300">
     <UserControl.Resources>
         <local:InspectorEditorKindVisibilityConverter x:Key="EditorKindVisibilityConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanVisibilityConverter" />
 
         <!-- 既定のButtonクロムはVSテーマの背景色に馴染まず"×"の文字が事実上見えなくなる
              (実機報告)。テーマ非依存で確実に文字が見える自前テンプレートへ差し替える。 -->
@@ -72,7 +73,7 @@
                                ToolTip="{Binding Label}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
 
                     <Grid Grid.Column="1">
-                        <TextBox Text="{Binding DisplayText, Mode=OneTime}"
+                        <TextBox Text="{Binding DisplayText, Mode=OneTime}" AllowDrop="True" DragOver="AssetPath_DragOver" Drop="AssetPath_Drop"
                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text,PhysicalValue'}"
                                  PreviewKeyDown="InspectorRow_PreviewKeyDown" KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus">
                             <TextBox.Style>
@@ -100,9 +101,6 @@
                                   SelectedItem="{Binding SelectedChoiceName, Mode=OneWay}"
                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Enum,AssetReference'}"
                                   DropDownClosed="ChoiceField_DropDownClosed" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
-                        <Button Grid.Column="2" AutomationProperties.Name="{local:Loc Assets_Reveal}" Margin="3,0,0,0" Padding="3,0" ToolTip="{local:Loc Assets_Reveal}"
-                                Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='AssetReference,Text'}"
-                                Click="RevealAsset_Click"><Path Width="12" Height="12" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}" StrokeThickness="1.5" Data="M 2,10 L 10,2 M 3,2 L 10,2 L 10,9"/></Button>
                         <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
@@ -119,6 +117,20 @@
                              </TextBlock.Style>
                          </TextBlock>
                     </Grid>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button AutomationProperties.Name="{local:Loc Assets_ChooseModel}" Margin="3,0,0,0" Padding="3,0" ToolTip="{local:Loc Assets_ChooseModel}"
+                                Visibility="{Binding IsModelAssetPath, Converter={StaticResource BooleanVisibilityConverter}}" Click="ChooseModelAsset_Click">
+                            <Path Width="12" Height="12" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}" StrokeThickness="1.4" Data="M 1,3 L 5,3 L 6,4 L 11,4 L 11,10 L 1,10 Z M 4,6 L 6,8 L 8,6" />
+                        </Button>
+                        <Button AutomationProperties.Name="{local:Loc Assets_Reveal}" Margin="3,0,0,0" Padding="3,0" ToolTip="{local:Loc Assets_Reveal}"
+                                Visibility="{Binding IsModelAssetPath, Converter={StaticResource BooleanVisibilityConverter}}" Click="RevealAsset_Click">
+                            <Path Width="12" Height="12" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}" StrokeThickness="1.4" Data="M 7.5,5 A 3,3 0 1 1 1.5,5 A 3,3 0 1 1 7.5,5 M 7,7.5 L 10.5,11" />
+                        </Button>
+                        <Button AutomationProperties.Name="{local:Loc Assets_Reveal}" Margin="3,0,0,0" Padding="3,0" ToolTip="{local:Loc Assets_Reveal}"
+                                Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=AssetReference}" Click="RevealAsset_Click">
+                            <Path Width="12" Height="12" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}" StrokeThickness="1.4" Data="M 7.5,5 A 3,3 0 1 1 1.5,5 A 3,3 0 1 1 7.5,5 M 7,7.5 L 10.5,11" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>

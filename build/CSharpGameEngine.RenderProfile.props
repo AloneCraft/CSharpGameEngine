@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <CgeRenderProfileApplied>true</CgeRenderProfileApplied>
+    <CgeDepthMapping Condition="'$(CgeDepthMapping)' == ''">Logarithmic</CgeDepthMapping>
+    <_CgePropertyPageLocale Condition="'$(VSLang)' == '1041'">ja-JP\</_CgePropertyPageLocale>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CgeDepthMapping)' == 'Identity'">
+    <DefineConstants>$(DefineConstants);CGE_DEPTH_IDENTITY</DefineConstants>
+    <OutputPath>$(OutputPath)identity\</OutputPath>
+    <IntermediateOutputPath>$(IntermediateOutputPath)identity\</IntermediateOutputPath>
+    <CompilerGeneratedFilesOutputPath>$(IntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PropertyPageSchema Include="$(MSBuildThisFileDirectory)PropertyPages\$(_CgePropertyPageLocale)CgeRuntime.xaml" Context="Project" />
+    <CompilerVisibleProperty Include="CgeDepthMapping" />
+    <AssemblyMetadata Include="CgeDepthMapping" Value="$(CgeDepthMapping)" />
+  </ItemGroup>
+  <Target Name="CgeValidateRenderProfile" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CgeDepthMapping)' != 'Logarithmic' and '$(CgeDepthMapping)' != 'Identity'" Text="CgeDepthMapping must be Logarithmic or Identity." />
+    <Error Condition="'$(CgeDepthMapping)' == 'Identity' and '$(CgeRenderProfileBeforeCommon)' != 'true'" Text="Import CSharpGameEngine.NumericProfile.BeforeCommon.targets from CustomBeforeMicrosoftCommonTargets so Identity output paths are established before Microsoft.Common.targets." />
+  </Target>
+</Project>

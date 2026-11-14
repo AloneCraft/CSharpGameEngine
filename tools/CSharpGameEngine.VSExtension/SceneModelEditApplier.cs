@@ -5,6 +5,10 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SpecialType=Microsoft.CodeAnalysis.SpecialType;
 
 namespace CSharpGameEngine.VSExtension;
@@ -550,7 +554,7 @@ internal static class SceneModelEditApplier {
         }
 
         var Value=CreateLiteral(
-                                ConstantValue,Operation.ValueExpression.Trim(),Existing,Component.Location);
+                                ConstantValue,Operation.ValueExpression.Trim(),Existing,Component.Location,GetDeclaredMemberType(Component,Operation.MemberName));
         var Members=SetMember(
                              Component.Members,Existing,Operation.MemberName,Value,Component.Location);
         Updated=ReplaceComponent(Node,Component,WithMembers(Component,Members));
@@ -562,33 +566,51 @@ internal static class SceneModelEditApplier {
         SetComponentMemberOperation Operation,out SceneNode Updated){
         Updated=Node;
         SceneComponentMember?Top=FindMember(Component.Members,Path[0]);
-        if(Top?.Value.Kind!=SceneValueKind.ObjectCreation||!TryGetVectorComponentIndex(Path[1],out int Index)
-            ||Top.Value.Arguments.Length<=Index){
+        if(Top is null||!TryReplaceNestedValue(Top.Value,Path,1,Operation.ValueExpression,Component.Location,out var TopValue)){
             return false;
         }
-        SceneValue ExistingValue=Top.Value.Arguments[Index];
-        SceneComponentMember ExistingChild=new(Path[1],MemberSymbol:null,ExistingValue,ExistingValue.Location);
-        if(!ExistingValue.IsEditable||!TryParseLiteral(Operation.ValueExpression,ExistingValue.Type,ExistingChild,out var ConstantValue)){
-            return false;
-        }
-        SceneValue UpdatedChild=CreateLiteral(ConstantValue,Operation.ValueExpression.Trim(),ExistingChild,Component.Location);
-        SceneValue TopValue=new(
-            Top.Value.Kind,Top.Value.Type,Top.Value.ConstantValue,Top.Value.ReferencedSymbol,
-            Top.Value.Members,Top.Value.Arguments.SetItem(Index,UpdatedChild),Top.Value.Elements,
-            Top.Value.EmitExpressionText,Top.Value.SourceExpressionText,Top.Value.Location);
         ImmutableArray<SceneComponentMember>Members=SetMember(
             Component.Members,Top,Path[0],TopValue,Component.Location);
         Updated=ReplaceComponent(Node,Component,WithMembers(Component,Members));
         return true;
     }
 
-    private static bool TryGetVectorComponentIndex(string Name,out int Index){
-        switch(Name){
-            case "R": Index=0; return true;
-            case "U": Index=1; return true;
-            case "F": Index=2; return true;
-            default: Index=-1; return false;
+    private static bool TryReplaceNestedValue(SceneValue Value,ImmutableArray<string>Path,int Depth,string Expression,SceneSourceLocation Fallback,out SceneValue Updated){
+        Updated=Value;
+        if(Value.Kind!=SceneValueKind.ObjectCreation||Depth>=Path.Length){ return false; }
+        var Existing=FindMember(Value.Members,Path[Depth]);
+        var Index=-1;
+        if(Existing is null&&Value.Type is INamedTypeSymbol Type){
+            var Matches=Type.Constructors.Where(Constructor=>Constructor.Parameters.Length==Value.Arguments.Length).ToArray();
+            if(Matches.Length!=1){ return false; }
+            for(var I=0;I<Matches[0].Parameters.Length;I++){
+                if(string.Equals(Matches[0].Parameters[I].Name,Path[Depth],StringComparison.Ordinal)){
+                    Index=I;
+                    var Argument=Value.Arguments[I];
+                    Existing=new SceneComponentMember(Path[Depth],Matches[0].Parameters[I],Argument,Argument.Location);
+                    break;
+                }
+            }
         }
+        if(Existing is null){ return false; }
+        SceneValue Child;
+        if(Depth+1<Path.Length){
+            if(!TryReplaceNestedValue(Existing.Value,Path,Depth+1,Expression,Fallback,out Child)){ return false; }
+        } else {
+            var DeclaredType=Existing.MemberSymbol switch {
+                IParameterSymbol Parameter=>Parameter.Type,
+                IFieldSymbol Field=>Field.Type,
+                IPropertySymbol Property=>Property.Type,
+                _=>Existing.Value.Type,
+            };
+            if(!Existing.Value.IsEditable||!TryParseLiteral(Expression,DeclaredType,Existing,out var Constant)){ return false; }
+            Child=CreateLiteral(Constant,Expression.Trim(),Existing,Fallback,DeclaredType);
+        }
+        var Members=Index<0?SetMember(Value.Members,Existing,Path[Depth],Child,Fallback):Value.Members;
+        var Arguments=Index>=0?Value.Arguments.SetItem(Index,Child):Value.Arguments;
+        Updated=new SceneValue(Value.Kind,Value.Type,Value.ConstantValue,Value.ReferencedSymbol,Members,Arguments,Value.Elements,
+            Value.EmitExpressionText,Value.SourceExpressionText,Value.Location);
+        return true;
     }
     /// <summary>
     /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。書き戻しが成立する2つの前提を
@@ -701,12 +723,29 @@ internal static class SceneModelEditApplier {
     /// 定数式・静的参照・ファクトリ呼び出しなどは解決にセマンティックモデルが要るため受け付けず、その編集は失敗する
     /// (シーン JSON には C# のテキストを直接書き換える経路が無い)。
     /// </summary>
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
     private static bool TryParseLiteral(
         string Expression,Microsoft.CodeAnalysis.ITypeSymbol?DeclaredType,SceneComponentMember?Existing,out object?ConstantValue){
         ConstantValue=null;
         var Text=Expression.Trim();
         if(Text.Length==0){
             return false;
+        }
+        var NumericType=DeclaredType??Existing?.Value.Type;
+        if(NumericType is not null&&SceneTypePredicates.ToFullyQualifiedName(NumericType)=="global::CSharpGameEngine.Numerics.LogicalScalar"){
+            var Input=Text.TrimEnd('f','F');
+            if(SyntaxFactory.ParseExpression(Text) is InvocationExpressionSyntax{ArgumentList.Arguments.Count:1}Call
+                &&Call.Expression.ToString()=="global::CSharpGameEngine.Numerics.LogicalScalar.ParseInvariant"
+                &&Call.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax Literal&&Literal.Token.Value is string FixedText){ Input=FixedText; }
+            if(!SceneJsonFixedValue.TryExpression(NumericType,Input,out _,out _,out var Normalized)){ return false; }
+            ConstantValue=Normalized;return true;
+        }
+        if(NumericType?.SpecialType==SpecialType.System_Double){
+            var Input=Text.TrimEnd('d','D');
+            if(!SceneJsonReader.IsNumber(Input)){ return false; }
+            var Token=SyntaxFactory.ParseToken(Input.TrimStart('-')+"d");
+            if(Token.ContainsDiagnostics||Token.Value is not double NumberValue){ return false; }
+            ConstantValue=Input.StartsWith("-",StringComparison.Ordinal)?-NumberValue:NumberValue;return true;
         }
         if(bool.TryParse(Text,out var Boolean)){
             ConstantValue=Boolean;
@@ -788,9 +827,9 @@ internal static class SceneModelEditApplier {
             _=>null,
         };
     private static SceneValue CreateLiteral(
-        object?ConstantValue,string Text,SceneComponentMember?Existing,SceneSourceLocation Fallback)=>
+        object?ConstantValue,string Text,SceneComponentMember?Existing,SceneSourceLocation Fallback,Microsoft.CodeAnalysis.ITypeSymbol?DeclaredType=null)=>
         new(SceneValueKind.Literal,
-            Existing?.Value.Type,
+            DeclaredType??Existing?.Value.Type,
             ConstantValue,
             ReferencedSymbol:null,
             ImmutableArray<SceneComponentMember>.Empty,

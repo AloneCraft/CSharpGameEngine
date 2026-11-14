@@ -38,6 +38,30 @@ public sealed class SceneJsonCommitPlannerTests {
             [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Precise { public double Ratio; public double Tiny; }
             [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct PreciseAngle { [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)] public double Yaw; }
+            public struct AngleTurn {
+                public AngleTurn([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]LogicalVector3 EulerRuf){ this.EulerRuf=EulerRuf; }
+                public LogicalVector3 EulerRuf;
+            }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct AnglePose { public AngleTurn Rotation; }
+            public struct FixedAngleTurn {
+                public FixedAngleTurn([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]RufScalarVector EulerRuf){ this.EulerRuf=EulerRuf; }
+                public RufScalarVector EulerRuf;
+            }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct FixedAnglePose { public FixedAngleTurn Rotation; }
+            public readonly struct DoubleVector {
+                public DoubleVector(double R,double U,double F){ this.R=R;this.U=U;this.F=F; }
+                public readonly double R; public readonly double U; public readonly double F;
+            }
+            public struct DoubleAngleTurn {
+                public DoubleAngleTurn([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]DoubleVector EulerRuf){ this.EulerRuf=EulerRuf; }
+                public DoubleVector EulerRuf;
+            }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
+            public struct DoubleAnglePose { public DoubleAngleTurn Rotation; }
+            [CSharpGameEngine.Entities.SceneComponentOrder]
             public struct Priced { public decimal Price; public decimal Huge; }
             [System.Flags]
             public enum Layers { None=0, A=1, B=2 }
@@ -75,6 +99,9 @@ public sealed class SceneJsonCommitPlannerTests {
         }
         namespace CSharpGameEngine.Numerics {
             public readonly struct LogicalScalar {
+                public const int TotalBits=128;
+                public const int FractionalBits=64;
+                public static LogicalScalar ParseInvariant(string Text)=>default;
                 public static implicit operator LogicalScalar(float Value)=>default;
                 public static LogicalScalar FromSingle(float Value)=>default;
             }
@@ -271,7 +298,7 @@ public sealed class SceneJsonCommitPlannerTests {
     /// LogicalScalar メンバー（エンジンが作成する実数：キャラクターの移動、スプリングアーム、Transform 内のすべての RUF ベクトル）は、JSON 数値として読み取られるとおり Inspector で float として編集する。以前は読み取り専用だったため、Inspector が提供する RUF ベクトル編集をエンジン自身のベクトルで利用できなかった。
     /// </summary>
     [Fact]
-    public void InspectorEditsLogicalScalarMembersAsFloats(){
+    public void InspectorEditsLogicalScalarMembersWithoutAFloatConversion(){
         var Before=Document("1").Replace(
             "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
             "            \"type\": \"CSharpGameEngine.Runtime.Windows.Mover\",\n            \"members\": {\n              \"Speed\": 6,\n              \"Offset\": { \"R\": 1, \"U\": 2, \"F\": 3 }\n            }");
@@ -284,13 +311,16 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Speed.IsEditable);
         Assert.Equal(InspectorEditorKind.Number,Speed.EditorKind);
         Assert.True(OffsetU.IsEditable);
-        Assert.True(SceneInspectorValueFormat.TryFormatNumber(Speed.NumericType!.Value,"7.5",out var SpeedText));
-        Assert.True(SceneInspectorValueFormat.TryFormatNumber(OffsetU.NumericType!.Value,"-4",out var OffsetText));
+        const string Precise="0.100000000000000000005";
+        Assert.Equal("6",new InspectorMemberViewModel(Speed).DisplayText);
+        Assert.True(SceneInspectorValueFormat.TryFormatFixedNumber(Speed.FixedNumericType!,Precise,out var SpeedText));
+        Assert.True(SceneInspectorValueFormat.TryFormatFixedNumber(OffsetU.FixedNumericType!,"-4",out var OffsetText));
+        Assert.False(SceneInspectorValueFormat.TryFormatFixedNumber(Speed.FixedNumericType!,"1e30",out _));
 
         var SpeedPlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
             SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Speed,SpeedText),Seed.Reconciler,CancellationToken.None);
         Assert.True(SpeedPlan.Succeeded,SpeedPlan.ErrorMessage);
-        Assert.Equal(Before.Replace("\"Speed\": 6","\"Speed\": 7.5"),SpeedPlan.WriteStep!.Before.WithChanges(SpeedPlan.WriteStep.Changes).ToString());
+        Assert.Equal(Before.Replace("\"Speed\": 6","\"Speed\": "+Precise),SpeedPlan.WriteStep!.Before.WithChanges(SpeedPlan.WriteStep.Changes).ToString());
         var OffsetPlan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
             SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,OffsetU,OffsetText),Seed.Reconciler,CancellationToken.None);
         Assert.True(OffsetPlan.Succeeded,OffsetPlan.ErrorMessage);
@@ -438,6 +468,47 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Equal(["0.25f","global::CSharpGameEngine.Runtime.Windows.LightMode.Bright"],Members.Select(static Member=>Member.SourceExpression));
         Assert.All(Members,static Member=>Assert.False(Member.IsEditable));
         Assert.All(Members,static Member=>Assert.Equal(InspectorEditorKind.ReadOnly,Member.EditorKind));
+    }
+    [Fact]
+    public void Move_KeepsUneditedDoubleAnglesAsWritten(){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.PreciseAngle\",\n            \"members\": {\n              \"Yaw\": 0.100000000000000000005\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
+    [Theory]
+    [InlineData(false,false)]
+    [InlineData(true,false)]
+    [InlineData(false,true)]
+    public void NestedRotation_EditDegreesAndSaveTurns(bool Fixed,bool Double){
+        var Before=Document("1").Replace(
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows.Light\",\n            \"members\": {\n              \"Intensity\": 3\n            }",
+            "            \"type\": \"CSharpGameEngine.Runtime.Windows."+(Fixed?"FixedAnglePose":Double?"DoubleAnglePose":"AnglePose")+"\",\n            \"members\": {\n              \"Rotation\": { \"EulerRuf\": { \"R\": 0, \"U\": 0.25, \"F\": 0 } }\n            }");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler(),DoubleProfile:Double);
+        var Lamp=Find(Seed.Snapshot,"Lamp");
+        var Member=Assert.Single(SceneInspectorModelBuilder.Build(Seed.Snapshot,new SceneSelection(Key,[Lamp],Lamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid())),
+            Candidate=>Candidate.DefinitionMemberPath.SequenceEqual(["Rotation","EulerRuf","U"]));
+        Assert.True(Member.IsEditable);
+        Assert.Equal("90",new InspectorMemberViewModel(Member).DisplayText);
+        string Expression;
+        Assert.True(Fixed
+            ?SceneJsonFixedValue.TryAngleFromDegrees(Member.FixedNumericType!,"180",Member.AngleUnit!.Value,out Expression)
+            :SceneInspectorValueFormat.TryFormatAngle(Member.NumericType!.Value,"180",Member.AngleUnit!.Value,out Expression));
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            SceneInspectorCommitPlanner.CreateCommit(Key,Seed.Snapshot.DocumentVersion,Member,Expression),Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
+        Assert.Equal(Before.Replace("\"U\": 0.25","\"U\": 0.5"),After);
+        var Reopened=CreateSeed(After,Version:2,Previous:null,new SceneProjectionReconciler(),DoubleProfile:Double);
+        var ReopenedLamp=Find(Reopened.Snapshot,"Lamp");
+        var ReopenedMember=Assert.Single(SceneInspectorModelBuilder.Build(Reopened.Snapshot,new SceneSelection(Key,[ReopenedLamp],ReopenedLamp,null,null,SceneSelectionOrigin.Inspector,1,System.Guid.NewGuid())),
+            Candidate=>Candidate.DefinitionMemberPath.SequenceEqual(["Rotation","EulerRuf","U"]));
+        Assert.Equal("180",new InspectorMemberViewModel(ReopenedMember).DisplayText);
     }
     [Fact]
     public void Move_KeepsDoubleMembersAsWritten(){
@@ -591,8 +662,8 @@ public sealed class SceneJsonCommitPlannerTests {
     private static SceneTransformValue At(float X)=>new(new Vector3(X,0f,0f),Quaternion.Identity,Vector3.One);
     private static EditorNodeId Find(SceneDocumentSnapshot Snapshot,string Name)=>
         Assert.Single(Snapshot.Projection!.Nodes,Node=>Node.Node.Name==Name).Id;
-    private static Seed CreateSeed(string Json,long Version,SceneDocumentSnapshot?Previous,SceneProjectionReconciler Reconciler){
-        var Base=SceneAnalysisTestHelper.CreateCompilation(TransformTypes);
+    private static Seed CreateSeed(string Json,long Version,SceneDocumentSnapshot?Previous,SceneProjectionReconciler Reconciler,bool DoubleProfile=false){
+        var Base=SceneAnalysisTestHelper.CreateCompilation(DoubleProfile?"[assembly:System.Reflection.AssemblyMetadata(\"CgeNumericProfile\",\"float64\")]\n"+TransformTypes:TransformTypes);
         Assert.True(SceneJsonCommitPlanner.TryAnalyze(Json,JsonPath,Base,"Game.MainScene",CancellationToken.None,
             out var Model,out var Root,out var Compilation,out var Error),Error);
         var Snapshot=SceneDocumentSnapshot.Create(Key,"document-a",Version,Version,Model!,HasBlockingErrors:false,Previous,Reconciler);

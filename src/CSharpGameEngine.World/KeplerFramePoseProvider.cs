@@ -31,7 +31,7 @@ public readonly record struct KeplerPropagationError(KeplerPropagationErrorCode 
 }
 public sealed class KeplerFramePoseProvider {
     private const int MaximumSolverIterations=24;
-    private const long SolverToleranceRaw=64;
+    private static readonly LogicalScalar SolverTolerance=LogicalNumeric.Tolerance(58,8);
     private static readonly LogicalScalar HighEccentricityThreshold=LogicalScalar.ParseInvariant("0.8");
     public KeplerFramePoseProvider(ReferenceFrameId Frame,KeplerOrbit Orbit){
         if(!Frame.IsValid){ throw new ArgumentException("A valid target frame is required.",nameof(Frame)); }
@@ -104,7 +104,7 @@ public sealed class KeplerFramePoseProvider {
                 ||!LogicalScalar.TrySubtract(LogicalScalar.One,EccentricCosine,out var Derivative)
                 ||!LogicalScalar.TryDivide(Function,Derivative,out var Delta)
                 ||!LogicalScalar.TrySubtract(EccentricAnomaly,Delta,out EccentricAnomaly)){ return false; }
-            if(Delta.Raw>=-SolverToleranceRaw&&Delta.Raw<=SolverToleranceRaw){ Converged=true;return true; }
+            if(Delta>=-SolverTolerance&&Delta<=SolverTolerance){ Converged=true;return true; }
         }
         return true;
     }

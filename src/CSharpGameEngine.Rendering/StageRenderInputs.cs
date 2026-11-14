@@ -48,7 +48,7 @@ public readonly struct StageMaterialCreateInfo() {
 /// <param name="WireHalfWidth">各区画の幅に対する線幅の半分の割合（主グリッドと補助グリッドで共通）。</param>
 /// <param name="GridColor">主グリッド線のリニア RGB 色。</param>
 /// <param name="SubGridColor">補助グリッド線のリニア RGB 色。</param>
-public readonly record struct StageWorldGrid(float GridSizeMeters,int SubGridDivisions,float WireHalfWidth,Vector3 GridColor,Vector3 SubGridColor);
+public readonly record struct StageWorldGrid(float GridSizeMeters,int SubGridDivisions,float WireHalfWidth,Vector3 GridColor,Vector3 SubGridColor,bool AnchorToObject=false);
 /// <summary>描画要素1つ。メッシュとマテリアルの組み合わせ。複数のオブジェクトで同じメッシュやマテリアルのインデックスを参照できる（1つの焼き付け済みメッシュを共有する20個の立方体、または単色マテリアルを共有する形状の異なる2つの小道具など）。</summary>
 public readonly struct StageObjectCreateInfo {
     public required int MeshIndex { get; init;}

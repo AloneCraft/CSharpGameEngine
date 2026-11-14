@@ -1,8 +1,28 @@
 using CSharpGameEngine.ShaderArtifacts;
 using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
+using CSharpGameEngine.Testing;
+using CSharpGameEngine.Rendering;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
+    [Fact]
+    public void DistanceFieldsUseSavedModelsAndPreserveTheirOutputOnInputFailure(){
+        var Repository=new DirectoryInfo(AppContext.BaseDirectory);
+        while(Repository is not null&&!File.Exists(Path.Combine(Repository.FullName,"CSharpGameEngine.slnx"))){ Repository=Repository.Parent; }
+        Assert.NotNull(Repository);
+        var Folder=Path.Combine(Path.GetTempPath(),"cge-model-distance-field-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Folder);
+        try {
+            var Source=Path.Combine(Folder,"Box.glb");var Output=Path.Combine(Folder,"Box.cgesdf");File.Copy(Path.Combine(Repository.FullName,"assets","TestFixtures","Gltf","Box.glb"),Source);
+            using var Content=new ModelArtifactTestContent([Source],Folder);var Model=Content.Source(Source);File.Delete(Source);
+            string[]Arguments=["build-distance-fields",Content.ContentDirectory,Model.SourceUri,Output];
+            Assert.Equal(0,global::ShaderGraphCli.Run(Arguments));var Bytes=File.ReadAllBytes(Output);
+            Assert.True(MeshDistanceFieldCodec.TryRead(Bytes,out var Entries,out var Error),Error);Assert.NotNull(Assert.Single(Entries).Field);
+            File.SetAttributes(Output,FileAttributes.ReadOnly);
+            try { Assert.Equal(0,global::ShaderGraphCli.Run(Arguments)); }finally{ File.SetAttributes(Output,FileAttributes.Normal); }
+            Assert.Equal(Bytes,File.ReadAllBytes(Output));File.WriteAllText(Path.Combine(Content.ContentDirectory,"content-index.json"),"{ damaged");
+            Assert.Equal(1,global::ShaderGraphCli.Run(Arguments));Assert.Equal(Bytes,File.ReadAllBytes(Output));
+        }finally{ Directory.Delete(Folder,true); }
+    }
     public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,14 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]

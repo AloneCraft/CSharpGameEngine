@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)build\CSharpGameEngine.NumericProfile.BeforeCommon.targets</CustomBeforeMicrosoftCommonTargets>
 	<Nullable>enable</Nullable>
 	<ImplicitUsings>enable</ImplicitUsings>
 	<Deterministic>true</Deterministic>

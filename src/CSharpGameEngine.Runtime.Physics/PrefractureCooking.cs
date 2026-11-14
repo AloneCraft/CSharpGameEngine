@@ -150,25 +150,18 @@ public sealed class FractureMesh {
 }
 
 /// <summary>
-/// <c>.cgefracture</c> アーティファクト形式（L6、ADR-0078/M0113）。リトルエンディアンで、すべてのスカラーは16バイトの Q64.64
-/// <see cref="LogicalScalar"/>、文字列は7ビット長付き UTF-8。クラスター1階層向けに書き込むバージョン2（<c>CGEFRAC2</c>）は、ソースハッシュ、シード、密度
-/// 、面積あたりの強度、破片数に続き、各破片のインデックス、形状 ID、中心、質量、ボロノイサイト、クラスター、頂点、インデックス、三角形ごとの材質スロット1バイトを格納し、その後にボンド（最初、2番目、
-/// 面積、強度）を格納する。2～4階層向けに書き込むバージョン3（<c>CGEFRAC3</c>、M0124）は、同じ内容に加え、破片数の後に段数（int32）を格納し、各破片について単一のクラスターの代
-/// わりに、各階層のクラスター番号（最上位から）を格納する。1階層のアセットはバージョン2で書き込むため、M0113 が生成したものとバイト列が一致する。サイト、クラスター、材質スロット、面積、設定値を持
-/// たないバージョン1（<c>CGEFRAC1</c>、M0055）も引き続き読み込む。読み込み時に切り詰め、末尾の余分なデータ、範囲外の値、非正規形式を検出した場合は例外を投げずに拒否する。
+/// <c>.cgefracture</c> アーティファクト形式（L6、ADR-0078/M0113/M0124）。リトルエンディアンで、すべてのスカラーは16バイトの Q64.64
+/// <see cref="LogicalScalar"/>、文字列は7ビット長付き UTF-8。バージョン3（<c>CGEFRAC3</c>）は、ソースハッシュ、シード、密度、面積あたりの強度、破片数、
+/// クラスターの段数（int32、1〜<see cref="PrefractureCookSettings.MaximumClusterLevels"/>）に続き、各破片のインデックス、形状 ID、中心、質量、ボロノイサイト、
+/// 各段のクラスター番号（最上位から）、頂点、インデックス、三角形ごとの材質スロット1バイトを格納し、その後にボンド（最初、2番目、面積、強度）を格納する。
+/// 作り直せる生成物なので、読み書きともバージョン3だけを扱い、旧版は拒否して cook し直す（ADR-0098 §5 の C）。読み込み時に切り詰め、末尾の余分なデータ、
+/// 範囲外の値、非正規形式を検出した場合は例外を投げずに拒否する。
 /// </summary>
 public static class PrefractureArtifact {
-    private static ReadOnlySpan<byte>MagicVersion1=>"CGEFRAC1"u8;
-    private static ReadOnlySpan<byte>MagicVersion2=>"CGEFRAC2"u8;
     private static ReadOnlySpan<byte>Magic=>"CGEFRAC3"u8;
     private static readonly UTF8Encoding StrictUtf8=new(false,true);
-    /// <summary><see cref="Write"/> が書き込む最新バージョン（クラスター階層が複数あるアセットの場合。<see cref="VersionOf"/> を参照）。</summary>
+    /// <summary><see cref="Write"/> が書き込み、<see cref="TryRead(Stream,out PrefractureAsset?,out string)"/> が読むただ一つのバージョン。</summary>
     public const int Version=3;
-    /// <summary><paramref name="Asset"/> に対して <see cref="Write"/> が書き込むバージョン。クラスターが複数階層なら3、それ以外なら2。</summary>
-    public static int VersionOf(PrefractureAsset Asset){
-        ArgumentNullException.ThrowIfNull(Asset);
-        return Asset.ClusterLevelCount>1?3:2;
-    }
     private const int MaximumStringBytes=4096;
     private const int MaximumFragments=256;
     private const int MaximumVerticesPerFragment=65_536;
@@ -182,17 +175,16 @@ public static class PrefractureArtifact {
             ||Asset.Sites.Count!=Asset.Fragments.Count||Asset.Clusters.Count!=Asset.Fragments.Count){
             throw new ArgumentException("Prefracture asset is not canonical.",nameof(Asset));
         }
-        var FileVersion=VersionOf(Asset);
-        if(Asset.ClusterLevelCount>PrefractureCookSettings.MaximumClusterLevels){ throw new ArgumentException("Prefracture asset has too many cluster levels.",nameof(Asset)); }
+        if(Asset.ClusterLevelCount is <1 or >PrefractureCookSettings.MaximumClusterLevels){ throw new ArgumentException("Prefracture asset has an unsupported number of cluster levels.",nameof(Asset)); }
         using BinaryWriter Writer=new(Output,Encoding.UTF8,true);
-        Writer.Write(FileVersion==3?Magic:MagicVersion2);
-        Writer.Write(FileVersion);
+        Writer.Write(Magic);
+        Writer.Write(Version);
         Writer.Write(Asset.SourceHash);
         Writer.Write(Asset.Seed);
         WriteScalar(Writer,Asset.Density);
         WriteScalar(Writer,Asset.BondStrengthPerArea);
         Writer.Write(Asset.Fragments.Count);
-        if(FileVersion==3){ Writer.Write(Asset.ClusterLevelCount); }
+        Writer.Write(Asset.ClusterLevelCount);
         for(var Index=0;Index<Asset.Fragments.Count;Index++){
             var Fragment=Asset.Fragments[Index];
             var Mesh=Asset.Meshes[Index];
@@ -231,36 +223,33 @@ public static class PrefractureArtifact {
         try {
             Span<byte>MagicBytes=stackalloc byte[Magic.Length];
             Input.ReadExactly(MagicBytes);
-            var FileVersion=MagicBytes.SequenceEqual(Magic)?3:MagicBytes.SequenceEqual(MagicVersion2)?2:MagicBytes.SequenceEqual(MagicVersion1)?1:0;
-            if(FileVersion==0){ throw new InvalidDataException(); }
+            if(!MagicBytes.SequenceEqual(Magic)){ throw new InvalidDataException(); }
             using BinaryReader Reader=new(Input,Encoding.UTF8,true);
-            if(Reader.ReadInt32()!=FileVersion){ throw new InvalidDataException(); }
+            if(Reader.ReadInt32()!=Version){ throw new InvalidDataException(); }
             var SourceHash=ReadString(Reader);
             if(string.IsNullOrWhiteSpace(SourceHash)){ throw new InvalidDataException(); }
             var Seed=Reader.ReadInt32();
-            var Density=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
-            var StrengthPerArea=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
+            var Density=ReadScalar(Reader);
+            var StrengthPerArea=ReadScalar(Reader);
             if(Density<LogicalScalar.Zero||StrengthPerArea<LogicalScalar.Zero){ throw new InvalidDataException(); }
             var FragmentCount=ReadCount(Reader,2,MaximumFragments);
-            var Levels=FileVersion>=3?ReadCount(Reader,2,PrefractureCookSettings.MaximumClusterLevels):FileVersion==2?1:0;
-            var SubClusters=new int[Math.Max(0,Levels-1)][];
+            var Levels=ReadCount(Reader,1,PrefractureCookSettings.MaximumClusterLevels);
+            var SubClusters=new int[Levels-1][];
             for(var Level=0;Level<SubClusters.Length;Level++){ SubClusters[Level]=new int[FragmentCount]; }
             var Fragments=new FractureFragment[FragmentCount];
             var Meshes=new FractureMesh[FragmentCount];
             var Shapes=new PhysicsShapeAsset[FragmentCount];
-            var Sites=new LogicalVector3[FileVersion>=2?FragmentCount:0];
-            var Clusters=new int[FileVersion>=2?FragmentCount:0];
+            var Sites=new LogicalVector3[FragmentCount];
+            var Clusters=new int[FragmentCount];
             for(var FragmentIndex=0;FragmentIndex<FragmentCount;FragmentIndex++){
                 if(Reader.ReadInt32()!=FragmentIndex){ throw new InvalidDataException(); }
                 var ShapeId=ReadString(Reader);
                 var Center=ReadVector(Reader);
                 var Mass=ReadScalar(Reader);
                 if(Mass<=LogicalScalar.Zero){ throw new InvalidDataException(); }
-                if(FileVersion>=2){
-                    Sites[FragmentIndex]=ReadVector(Reader);
-                    Clusters[FragmentIndex]=Reader.ReadInt32();
-                    foreach(var Level in SubClusters){ Level[FragmentIndex]=Reader.ReadInt32(); }
-                }
+                Sites[FragmentIndex]=ReadVector(Reader);
+                Clusters[FragmentIndex]=Reader.ReadInt32();
+                foreach(var Level in SubClusters){ Level[FragmentIndex]=Reader.ReadInt32(); }
                 var VertexCount=ReadCount(Reader,4,MaximumVerticesPerFragment);
                 var Vertices=new LogicalVector3[VertexCount];
                 for(var VertexIndex=0;VertexIndex<VertexCount;VertexIndex++){ Vertices[VertexIndex]=ReadVector(Reader); }
@@ -268,11 +257,8 @@ public static class PrefractureArtifact {
                 if(IndexCount%3!=0){ throw new InvalidDataException(); }
                 var Indices=new int[IndexCount];
                 for(var MeshIndex=0;MeshIndex<IndexCount;MeshIndex++){ Indices[MeshIndex]=Reader.ReadInt32(); }
-                byte[]?Slots=null;
-                if(FileVersion>=2){
-                    Slots=Reader.ReadBytes(IndexCount/3);
-                    if(Slots.Length!=IndexCount/3){ throw new EndOfStreamException(); }
-                }
+                var Slots=Reader.ReadBytes(IndexCount/3);
+                if(Slots.Length!=IndexCount/3){ throw new EndOfStreamException(); }
                 var Mesh=new FractureMesh(Vertices,Indices,Slots);
                 if(!Mesh.IsClosedManifold()){ throw new InvalidDataException(); }
                 Fragments[FragmentIndex]=new FractureFragment(FragmentIndex,ShapeId,Center,Mass);
@@ -285,7 +271,7 @@ public static class PrefractureArtifact {
             for(var BondIndex=0;BondIndex<BondCount;BondIndex++){
                 var First=Reader.ReadInt32();
                 var Second=Reader.ReadInt32();
-                var Area=FileVersion>=2?ReadScalar(Reader):LogicalScalar.Zero;
+                var Area=ReadScalar(Reader);
                 Bonds[BondIndex]=new FractureBond(First,Second,ReadScalar(Reader),Area);
             }
             PrefractureAsset Candidate=new(){
@@ -438,8 +424,8 @@ public static class PrefractureArtifactCooker {
                 &&ReadInt32(Root,"fragmentCount")==Expected.Fragments.Count
                 &&ReadInt32(Root,"bondCount")==Expected.Bonds.Count
                 &&ReadString(Root,"artifactHash")==ComputeFileHash(ArtifactPath)
-                &&ReadString(Root,"schema")==$"prefracture-artifact-{PrefractureArtifact.VersionOf(Expected)}"
-                &&ReadString(Root,"scalar")=="LogicalScalar-Q64.64";
+                &&ReadString(Root,"schema")==$"prefracture-artifact-{PrefractureArtifact.Version}"
+                &&ReadString(Root,"scalar")==LogicalNumeric.CacheProfileId;
         }
         catch(Exception Exception)when(Exception is IOException or UnauthorizedAccessException or InvalidDataException
             or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException){
@@ -460,8 +446,8 @@ public static class PrefractureArtifactCooker {
             Writer.WriteNumber("fragmentCount",Asset.Fragments.Count);
             Writer.WriteNumber("bondCount",Asset.Bonds.Count);
             Writer.WriteString("artifactHash",ArtifactHash);
-            Writer.WriteString("schema",$"prefracture-artifact-{PrefractureArtifact.VersionOf(Asset)}");
-            Writer.WriteString("scalar","LogicalScalar-Q64.64");
+            Writer.WriteString("schema",$"prefracture-artifact-{PrefractureArtifact.Version}");
+            Writer.WriteString("scalar",LogicalNumeric.CacheProfileId);
             Writer.WriteEndObject();
         }
         Stream.Flush(true);
@@ -1063,7 +1049,7 @@ public static class PrefractureCooker {
         Value=(Value^(Value>>27))*0x94d049bb133111ebUL;
         Value^=Value>>31;
         uint Fraction=unchecked((uint)(Value>>32));
-        return LogicalScalar.FromRaw(((Int128)Fraction<<32)+(Int128.One<<31));
+        return LogicalScalar.FromRatio((long)Fraction*2+1,1L<<33);
     }
 
     private static ulong FingerprintSeed(string Fingerprint){
@@ -1076,10 +1062,10 @@ public static class PrefractureCooker {
     }
 
     private static int Compare(LogicalVector3 Left,LogicalVector3 Right){
-        int Result=Left.R.Raw.CompareTo(Right.R.Raw);
+        int Result=Left.R.CompareTo(Right.R);
         if(Result!=0){ return Result; }
-        Result=Left.U.Raw.CompareTo(Right.U.Raw);
-        return Result!=0?Result:Left.F.Raw.CompareTo(Right.F.Raw);
+        Result=Left.U.CompareTo(Right.U);
+        return Result!=0?Result:Left.F.CompareTo(Right.F);
     }
 
     private static LogicalScalar Abs(LogicalScalar Value)=>Value<LogicalScalar.Zero?-Value:Value;

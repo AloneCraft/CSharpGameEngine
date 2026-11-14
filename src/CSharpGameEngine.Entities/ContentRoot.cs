@@ -6,11 +6,17 @@ namespace CSharpGameEngine.Entities;
 /// </summary>
 public static class ContentRoot {
     public static string Directory { get;private set; }=AppContext.BaseDirectory;
+    public static string ModelDirectory { get;private set; }=Path.Combine(AppContext.BaseDirectory,"Content","Models");
 
     public static string Resolve(string RelativePath)=>Path.GetFullPath(Path.Combine(Directory,RelativePath));
 
     public static void Use(string Directory){
+        Use(Directory,Path.Combine(Directory,"Content","Models"));
+    }
+    public static void Use(string Directory,string ModelDirectory){
         ArgumentException.ThrowIfNullOrWhiteSpace(Directory);
-        ContentRoot.Directory=Path.GetFullPath(Directory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ModelDirectory);
+        var FullDirectory=Path.GetFullPath(Directory);var FullModels=Path.GetFullPath(ModelDirectory);
+        ContentRoot.Directory=FullDirectory;ContentRoot.ModelDirectory=FullModels;
     }
 }

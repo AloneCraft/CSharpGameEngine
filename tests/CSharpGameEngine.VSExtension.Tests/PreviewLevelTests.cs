@@ -393,6 +393,7 @@ public sealed class PreviewSceneComposerTests {
         var Bounds=PreviewBounds.From(Subject,AssetMeshStatistics.From(Subject));
         var Path=@"C:\Game\Assets\Box.glb";
         var Composition=PreviewSceneComposer.Compose(null,Bounds,PreviewLevelBuiltIns.Default(),128,96,StaticAssetPath:Path);
+        Composition.Scene.StaticModel=new RenderPreviewModelSource { SourcePath=Path,ContentDirectory=@"C:\Game\Content\Models",SourceUri="Assets/Box.glb",ModelHash=new string('1',64) };
         Assert.Equal(Path,Composition.Scene.StaticAssetPath);
         Assert.Null(Composition.Scene.Asset);
         Assert.Equal(PreviewSceneComposer.FloorObjectId,Assert.Single(Composition.Scene.Objects).ObjectId);

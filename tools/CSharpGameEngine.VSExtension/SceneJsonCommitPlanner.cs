@@ -83,8 +83,11 @@ internal static class SceneJsonCommitPlanner {
         if(Converted.Text is null){
             return SceneSourceCommitPlan.Failure(string.Join(Environment.NewLine,Converted.Problems));
         }
-        // M0095：canonical text を作成者のテキストにマージするため、変更された値だけが変わります。
-        var NewText=SceneJsonTextMerge.Merge(OldText,MatchLineEndings(Converted.Text,OldText));
+        // 編集前の正規化結果と比較し、読み込み時の丸めだけで未編集値を書き換えない。
+        var Baseline=SceneJsonConverter.Convert(Context.Model,SchemaReferenceOf(OldText),Path=>OldIds.TryGetValue(Path,out var OldId)?OldId:null);
+        var NewText=Baseline.Text is { }BaselineText
+            ?SceneJsonTextMerge.Merge(OldText,MatchLineEndings(BaselineText,OldText),MatchLineEndings(Converted.Text,OldText))
+            :SceneJsonTextMerge.Merge(OldText,MatchLineEndings(Converted.Text,OldText));
         if(!TryAnalyze(NewText,Context.Model.FilePath,BaseCompilation,Request.SceneKey.ClassFullyQualifiedName,CancellationToken,
             out var Canonical,out var FinalRoot,out _,out var Error)){
             return SceneSourceCommitPlan.Failure(Error);

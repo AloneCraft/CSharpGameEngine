@@ -152,7 +152,6 @@ public readonly record struct ShippingContentManifestError(
 
 public static class ShippingContentManifestCodec {
     public const int CurrentSchemaVersion=1;
-    private static readonly JsonSerializerOptions Options=new(){ PropertyNameCaseInsensitive=false };
 
     public static byte[]Write(ShippingContentManifest Manifest){
         ArgumentNullException.ThrowIfNull(Manifest);
@@ -175,7 +174,7 @@ public static class ShippingContentManifestCodec {
                 Dependencies=Entry.Dependencies.Select(ToReferenceDocument).ToArray(),
             }).ToArray(),
         };
-        return JsonSerializer.SerializeToUtf8Bytes(Document,Options);
+        return JsonSerializer.SerializeToUtf8Bytes(Document,ShippingContentManifestJsonContext.Default.ManifestDocument);
     }
 
     public static bool TryRead(
@@ -184,7 +183,7 @@ public static class ShippingContentManifestCodec {
         Manifest=null;
         Error=ShippingContentManifestError.None;
         try {
-            ManifestDocument?Document=JsonSerializer.Deserialize<ManifestDocument>(Utf8,Options);
+            ManifestDocument?Document=JsonSerializer.Deserialize(Utf8,ShippingContentManifestJsonContext.Default.ManifestDocument);
             if(Document is null){ return Fail(ShippingContentManifestErrorCode.InvalidJson,string.Empty,"Manifest is empty.",out Error); }
             if(Document.SchemaVersion!=CurrentSchemaVersion){
                 return Fail(ShippingContentManifestErrorCode.UnsupportedSchema,"schemaVersion",$"Unsupported shipping manifest schema {Document.SchemaVersion}.",out Error);
@@ -239,16 +238,16 @@ public static class ShippingContentManifestCodec {
         return false;
     }
 
-    private sealed class ManifestDocument {
+    internal sealed class ManifestDocument {
         [JsonPropertyName("schemaVersion")]public int SchemaVersion{get;set;}
         [JsonPropertyName("roots")]public ReferenceDocument[]?Roots{get;set;}
         [JsonPropertyName("artifacts")]public EntryDocument[]?Artifacts{get;set;}
     }
-    private sealed class ReferenceDocument {
+    internal sealed class ReferenceDocument {
         [JsonPropertyName("asset")]public string?Asset{get;set;}
         [JsonPropertyName("contentHash")]public string?ContentHash{get;set;}
     }
-    private sealed class EntryDocument {
+    internal sealed class EntryDocument {
         [JsonPropertyName("asset")]public string?Asset{get;set;}
         [JsonPropertyName("contentHash")]public string?ContentHash{get;set;}
         [JsonPropertyName("address")]public string?Address{get;set;}
@@ -257,13 +256,16 @@ public static class ShippingContentManifestCodec {
         [JsonPropertyName("provenance")]public ProvenanceDocument?Provenance{get;set;}
         [JsonPropertyName("dependencies")]public ReferenceDocument[]?Dependencies{get;set;}
     }
-    private sealed class ProvenanceDocument {
+    internal sealed class ProvenanceDocument {
         [JsonPropertyName("toolVersion")]public string?ToolVersion{get;set;}
         [JsonPropertyName("sourceUri")]public string?SourceUri{get;set;}
         [JsonPropertyName("sourceHash")]public string?SourceHash{get;set;}
         [JsonPropertyName("importerIdentity")]public string?ImporterIdentity{get;set;}
         [JsonPropertyName("optionsHash")]public string?OptionsHash{get;set;}
     }
+}
+[JsonSerializable(typeof(ShippingContentManifestCodec.ManifestDocument))]
+internal partial class ShippingContentManifestJsonContext:JsonSerializerContext {
 }
 
 public static class ShippingContentManifestBuilder {

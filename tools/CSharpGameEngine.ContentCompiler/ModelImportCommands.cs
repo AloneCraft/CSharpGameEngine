@@ -7,6 +7,7 @@ namespace CSharpGameEngine.ContentCompiler;
 internal static class ModelImportCommands {
     private static readonly StableId ImplicitAssetNamespace=StableId.Parse("b00b52c8-1e3e-56ed-8f47-c4569aa8ad73");
     internal static async Task<int?>TryRunAsync(string[]Arguments,CancellationToken CancellationToken){
+        if(Arguments.Length!=0&&Arguments[0]=="compile-project"){ return await ModelProjectCommands.RunAsync(Arguments,CancellationToken); }
         if(Arguments.Length==0||Arguments[0] is not("compile" or "import-ir" or "inspect" or "explain")){ return null; }
         try {
             if(Arguments.Length<2){ throw new ArgumentException("A source or CGEX file is required."); }
@@ -27,6 +28,7 @@ internal static class ModelImportCommands {
             string?Output=null;
             string?Identity=null;
             string?Asset=null;
+            string?ResourcesModule=null;
             var Modules=new List<(string ModulePath,bool ProjectModule)>();
             var Options=new SortedDictionary<string,string>(StringComparer.Ordinal);
             var Verify=false;
@@ -38,6 +40,7 @@ internal static class ModelImportCommands {
                     case "--out" when Index+1<Arguments.Length:Output=Arguments[++Index];break;
                     case "--importer" when Index+1<Arguments.Length:Identity=Arguments[++Index];break;
                     case "--asset" when Index+1<Arguments.Length:Asset=Arguments[++Index];break;
+                    case "--resources-module" when Index+1<Arguments.Length:ResourcesModule=Arguments[++Index];break;
                     case "--verify":Verify=true;break;
                     case "--option" when Index+1<Arguments.Length:
                         var Pair=Arguments[++Index];
@@ -63,11 +66,9 @@ internal static class ModelImportCommands {
             var MetadataPath=ModelImportClient.Resolve(Project,SourceUri+".meta");
             Hash256?MetadataHash=null;
             if(File.Exists(MetadataPath)){
-                if(new FileInfo(MetadataPath).Length>64*1024){ throw new InvalidDataException("IMP007: metadata exceeds its bound."); }
-                var MetadataBytes=await File.ReadAllBytesAsync(MetadataPath,CancellationToken);
-                if(!AssetMetadata.TryParse(MetadataBytes,out var Metadata,out var MetadataError)||Metadata is null){ throw new InvalidDataException("IMP007: canonical metadata is required; migration is pending: "+MetadataError.Message); }
+                var Read=await ModelSourceMetadata.ReadAsync(FullSource,SourceUri,CancellationToken);var Metadata=Read.Metadata;
                 if(Metadata.SourceUri!=SourceUri||(Identity is not null&&Identity!=Metadata.Importer)||(Asset is not null&&Asset!=Metadata.AssetId.ToString())){ throw new InvalidDataException("IMP007: explicit importer/identity or project-relative source URI disagrees with metadata."); }
-                MetadataHash=Hash256.Compute(MetadataBytes);
+                MetadataHash=Read.Hash;
                 Identity=Metadata.Importer;Asset=Metadata.AssetId.ToString();
                 foreach(var Option in Metadata.Options){ if(!Options.ContainsKey(Option.Key)){ Options.Add(Option.Key,Option.Value); } }
             }
@@ -82,13 +83,15 @@ internal static class ModelImportCommands {
             var Result=await new ModelImportClient(Cook,Path.Combine(Cache,"ir-cache")).ImportAsync(Registration,AssetId,Project,Arguments[1],Options,Verify,CancellationToken);
             foreach(var Diagnostic in Result.Diagnostics){ Console.Error.WriteLine(Diagnostic); }
             if(Result.Document is null){ return 1; }
-            if(File.Exists(MetadataPath)!=MetadataHash.HasValue||(MetadataHash is{ }Expected&&Hash256.Compute(await File.ReadAllBytesAsync(MetadataPath,CancellationToken))!=Expected)){ throw new InvalidDataException("IMP901: metadata changed during import; output was not published."); }
+            if(!await ModelSourceMetadata.UnchangedAsync(MetadataPath,MetadataHash,CancellationToken)){ throw new InvalidDataException("IMP901: metadata changed during import; output was not published."); }
             if(Arguments[0]=="compile"){
                 var ContentRoot=Path.GetFullPath(Output);
                 if(File.Exists(ContentRoot)){ throw new InvalidDataException("IMP006: compile output must be a directory."); }
                 var Resolved=Cooking.ImportOptions.Resolve(Registration.Descriptor,Registration.Processors,Options);
                 var OptionsHash=Hash256.Compute(JsonSerializer.SerializeToUtf8Bytes(Resolved));
-                var Prepared=ModelArtifactPreparation.Prepare(AssetId,Result.Document,Result.SourceHash,OptionsHash,"cge.model@1");
+                var Resources=await new ModelResourceClient(Cook,ResourcesModule??Registration.ModulePath,Project,Cache).PrepareAsync(AssetId,Result.Document,Result.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Verify,CancellationToken);
+                if(!await ModelSourceMetadata.UnchangedAsync(MetadataPath,MetadataHash,CancellationToken)){ throw new InvalidDataException("IMP901: metadata changed during material preparation; output was not published."); }
+                var Prepared=ModelArtifactPreparation.Prepare(AssetId,Result.Document,Result.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Resources);
                 var Compiled=await new ModelContentCompiler(new ContentAddressedStore(ContentRoot),Path.Combine(Cache,"model-state.json"),Path.Combine(ContentRoot,"content-index.json")).CompileAsync([new(AssetId,SourceUri,_=>Task.FromResult(Prepared))],CancellationToken);
                 foreach(var Diagnostic in Compiled.Diagnostics){ Console.Error.WriteLine(Diagnostic); }
                 Console.WriteLine(JsonSerializer.Serialize(new { Schema="cge-model-compile/1",Compiled.Succeeded,Entries=Compiled.Index.Entries.Length,Rebuilt=Compiled.Compilation?.Rebuilt.Length,Reused=Compiled.Compilation?.Reused.Length }));

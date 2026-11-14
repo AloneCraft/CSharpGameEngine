@@ -49,13 +49,14 @@ public sealed class RenderOriginTests {
         try {
             var AssetPath=Path.Combine(Directory,"Wall.gltf");
             File.WriteAllText(AssetPath,CreateGridWallGltf());
+            using var Content=new CSharpGameEngine.Testing.ModelArtifactTestContent([AssetPath]);using var Scope=new CSharpGameEngine.Windows.Tests.Runtime.ModelArtifactContentRoot(Content);
             using var Surface=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Render Origin Test",Width=128,Height=128,Visible=false });
             using var Host=new EngineHost();
             Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
             ref var World=ref Host.World;
             var App=new AppHost();
             var AppRuntime=new AppHostRuntime();
-            var Level=new Level { ShaderArtifactPath=Path.Combine("Shaders","Stage.cgeshaderartifact") };
+            var Level=new Level { ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact") };
             var LevelRuntime=new LevelRuntime();
             var LevelEntity=World.Create(App,AppRuntime,Level,LevelRuntime);
             var WallTransform=new Transform { Position=WallPosition };

@@ -1,5 +1,5 @@
 using System.Numerics;
-using CSharpGameEngine.Import.Gltf;
+using CSharpGameEngine.Content.Models;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>ジョイントのローカル変換。ブレンドでは平行移動とスケールをlerpし、回転を短い方の弧に沿ってnlerpする。</summary>
 public struct JointPose {
@@ -50,14 +50,19 @@ public sealed class Skeleton {
     /// <summary>すべての親がその子より前に来る順序で並べたジョイント。</summary>
     public ReadOnlySpan<int>ParentsFirstOrder=>this.EvaluationOrder;
     public int IndexOf(string Name)=>this.IndexByName.TryGetValue(Name,out var Index)?Index:-1;
-    public static Skeleton FromImported(ImportedSkin Skin){
-        ArgumentNullException.ThrowIfNull(Skin);
-        var Count=Skin.JointNames.Count;
-        var Rest=new JointPose[Count];
-        for(var Joint=0;Joint<Count;Joint++){
-            Rest[Joint]=new JointPose { Translation=Skin.RestTranslations[Joint],Rotation=Skin.RestRotations[Joint],Scale=Skin.RestScales[Joint] };
+    public static Skeleton FromModel(ModelSkeletonData Data,ModelSkinData Skin){
+        ArgumentNullException.ThrowIfNull(Data);ArgumentNullException.ThrowIfNull(Skin);
+        if(Data.Rest.Length!=Data.JointNames.Length||Data.ParentIndices.Length!=Data.JointNames.Length){ throw new InvalidDataException("Skeleton joint names, parents and rest transforms differ in length."); }
+        if(Skin.JointMap.Length!=Skin.InverseBindMatrices.Length){ throw new InvalidDataException("Skin joint map and inverse bind matrices differ in length."); }
+        var Rest=Data.Rest.Select(static Value=>new JointPose {Translation=Value.Translation,Rotation=Value.Rotation,Scale=Value.Scale}).ToArray();
+        var Inverse=Enumerable.Repeat(Matrix4x4.Identity,Data.JointNames.Length).ToArray();
+        var Assigned=new HashSet<int>();
+        for(var Joint=0;Joint<Skin.JointMap.Length;Joint++){
+            var Index=Skin.JointMap[Joint];
+            if(Index<0||Index>=Inverse.Length||!Assigned.Add(Index)){ throw new InvalidDataException("Skin has invalid or duplicate skeleton joint indices."); }
+            Inverse[Index]=Skin.InverseBindMatrices[Joint];
         }
-        return new Skeleton([.. Skin.JointNames],[.. Skin.ParentIndices],Rest,[.. Skin.InverseBindMatrices],Skin.SkeletonTransform);
+        return new([..Data.JointNames],[..Data.ParentIndices],Rest,Inverse,Data.RootTransform);
     }
     /// <summary><paramref name="Local"/>の各ジョイントのモデル行列を書き込む（逆バインドを含まないスキニングパレット）。</summary>
     public void ComputeModel(ReadOnlySpan<JointPose>Local,Span<Matrix4x4>Model){

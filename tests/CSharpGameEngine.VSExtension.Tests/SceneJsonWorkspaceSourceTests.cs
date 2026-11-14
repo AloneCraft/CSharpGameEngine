@@ -12,7 +12,7 @@ public sealed class SceneJsonWorkspaceSourceTests {
     private const string JsonPath=@"C:\Game\Scenes\MainScene.json";
     private const string Json="""
         {
-          "schemaVersion": 1,
+          "schemaVersion": 3,
           "namespace": "Game",
           "className": "MainScene",
           "root": {

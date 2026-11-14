@@ -2,6 +2,7 @@ extern alias PreviewHost;
 using System.Numerics;
 using System.Security.Cryptography;
 using CSharpGameEngine.Contracts;
+using CSharpGameEngine.Testing;
 using PreviewHost::CSharpGameEngine.EditorPreview.Host;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
@@ -27,10 +28,12 @@ public sealed class RenderPreviewSkeletalSessionTests {
         throw new InvalidOperationException("Repository root not found.");
     }
     private sealed class Preview:IDisposable {
+        private readonly ModelArtifactTestContent Content;
         private readonly Win32Window Window;
         internal readonly RenderPreviewRenderSession Session;
         internal readonly RenderPreviewCamera Camera;
         internal Preview(RenderPreviewAssetSource?Source,string?StaticAssetPath=null){
+            this.Content=new ModelArtifactTestContent(new[]{Source?.MeshPath??string.Empty,Source?.AnimationPath??string.Empty,StaticAssetPath??string.Empty});
             this.Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Preview Skeletal Test",Width=Size,Height=Size,Visible=false });
             var Fit=RenderCamera.CreateBoundsFit(new Vector3(-1f,0f,-1f),new Vector3(1f,1.8f,1f));
             var ViewProjection=Fit.GetView()*Fit.GetProjection(1f);
@@ -43,8 +46,10 @@ public sealed class RenderPreviewSkeletalSessionTests {
                 SurfaceHandle=this.Window.Handle,Width=this.Window.ClientWidth,Height=this.Window.ClientHeight,ShaderArtifactPath=ShaderArtifactPath,
                 Scene=new RenderPreviewScene { Camera=this.Camera,Asset=Source,StaticAssetPath=StaticAssetPath??string.Empty },
             };
-            Assert.Null(RenderPreviewHostProtocol.Validate(Open));
-            this.Session=RenderPreviewRenderSession.Open(Open,Options);
+            try {
+                this.Content.Prepare(Open.Scene!);Assert.Null(RenderPreviewHostProtocol.Validate(Open));
+                this.Session=RenderPreviewRenderSession.Open(Open,Options);
+            }catch{ this.Window.Dispose();this.Content.Dispose();throw; }
         }
         internal string Render(RenderPreviewAnimation?Animation,bool ShowSkeleton=false,int SelectedJoint=-1,string?Snapshot=null,RenderPreviewObjectTransform[]?Objects=null,RenderPreviewPresentationMode Mode=RenderPreviewPresentationMode.Lit){
             var Frame=new RenderPreviewFrame { Camera=this.Camera,Animation=Animation,ShowSkeleton=ShowSkeleton,SelectedJoint=SelectedJoint,Objects=Objects??[],PresentationMode=Mode };
@@ -60,7 +65,9 @@ public sealed class RenderPreviewSkeletalSessionTests {
         public void Dispose(){
             this.Session.Dispose();
             this.Window.Dispose();
+            this.Content.Dispose();
         }
+        internal void ReplaceScene(RenderPreviewScene Scene,string Json){ this.Content.Prepare(Scene);this.Session.ReplaceScene(Scene,Json); }
     }
     private static RenderPreviewMatrix4x4 ToWire(in Matrix4x4 Value)=>new(){ Values=[Value.M11,Value.M12,Value.M13,Value.M14,Value.M21,Value.M22,Value.M23,Value.M24,Value.M31,Value.M32,Value.M33,Value.M34,Value.M41,Value.M42,Value.M43,Value.M44] };
     [Fact]
@@ -130,10 +137,10 @@ public sealed class RenderPreviewSkeletalSessionTests {
                 Materials=[new RenderPreviewMaterial { BaseColor=[0.4f,0.4f,0.4f,1f] }],
                 Objects=[new RenderPreviewObject { ObjectId="Floor",MeshIndex=0,MaterialIndex=0 }],
             };
-            Test.Session.ReplaceScene(Scene,string.Empty);
+            Test.ReplaceScene(Scene,string.Empty);
             Assert.Same(Summary,Test.Session.AssetSummary);
             Assert.Equal(Before,Test.Render(Animation,ShowSkeleton:true,SelectedJoint:5,Objects:[new RenderPreviewObjectTransform { ObjectId="Floor" }]));
-            Test.Session.ReplaceScene(new RenderPreviewScene { Camera=Test.Camera,Asset=Scene.Asset },string.Empty);
+            Test.ReplaceScene(new RenderPreviewScene { Camera=Test.Camera,Asset=Scene.Asset },string.Empty);
             Assert.Equal(Before,Test.Render(Animation,ShowSkeleton:true,SelectedJoint:5));
         } finally {
             Directory.Delete(DirectoryPath,true);
@@ -201,7 +208,7 @@ public sealed class RenderPreviewSkeletalSessionTests {
             Assert.Equal(new[]{ 5f,4f,0f },Bounds.Max);
             Assert.Equal(6,Bounds.VertexCount);
             Assert.Equal(2,Bounds.TriangleCount);
-            Test.Session.ReplaceScene(new RenderPreviewScene { Camera=Test.Camera,StaticAssetPath=PathValue },string.Empty);
+            Test.ReplaceScene(new RenderPreviewScene { Camera=Test.Camera,StaticAssetPath=PathValue },string.Empty);
             Assert.Equal(Bounds.Min,Test.Session.StaticBounds!.Min);
             Assert.Equal(Bounds.Max,Test.Session.StaticBounds!.Max);
         } finally { Directory.Delete(Folder,true); }
@@ -227,9 +234,9 @@ public sealed class RenderPreviewSkeletalSessionTests {
                 Materials=[new RenderPreviewMaterial { BaseColor=[0.4f,0.4f,0.4f,1f] }],
                 Objects=[new RenderPreviewObject { ObjectId="Floor",MeshIndex=0,MaterialIndex=0 }],
             };
-            Test.Session.ReplaceScene(Scene,string.Empty);
+            Test.ReplaceScene(Scene,string.Empty);
             Assert.Equal(Before,Test.Render(null,Objects:[new RenderPreviewObjectTransform { ObjectId="Floor" }],Mode:RenderPreviewPresentationMode.BaseColor));
-            Test.Session.ReplaceScene(new RenderPreviewScene { Camera=Test.Camera,StaticAssetPath=Source },string.Empty);
+            Test.ReplaceScene(new RenderPreviewScene { Camera=Test.Camera,StaticAssetPath=Source },string.Empty);
             Assert.Equal(Before,Test.Render(null,Mode:RenderPreviewPresentationMode.BaseColor));
         } finally { Directory.Delete(DirectoryPath,true); }
     }

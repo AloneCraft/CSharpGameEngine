@@ -122,7 +122,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 | 実行時(ひずみ、切断、剛体化、アンカー、上限、眠り、除去、`BondBroken`、決定性) | 完了 | M0113 ではひずみを tick ごとに捨てた。M0124 で内部ひずみ(衝撃が溜まり減衰する)を実装した。接続グラフの再計算は塊の中だけ |
 | Field(ひずみ、外へ押す力) | 完了 | UE の Field System の任意の組み合わせ(Falloff の種類、Mask、Culling)は無い。球の線形の減衰だけ |
 | 描画(破片ごとの Transform) | 完了 | 破片は平らな陰影の 2 色(外側・断面)。元のメッシュの材質やテクスチャは使わない |
-| ベイクと再生(スキーマ 3、旧版の読み込み) | 完了 | — |
+| ベイクと再生(スキーマ 3、旧版の読み込み) | 完了 | 2026-11-15 に旧版の読み込みを削除(ADR-0098 §5 の C・E。`.cgephyscache` はスキーマ 4、`.cgefracture` は版 3 だけを読み書きする) |
 | VSIX の Fracture のプレビュー | 完了(単体試験まで) | VS の実機での操作は未検証 |
 | 見本と FeatureRunner の実走 | 完了(WARP) | 実機の GPU は未確認 |
 | プラグインと SDK パッケージ | 完了 | SDK 0.1.25 に `plugins/CSharpGameEngine.Destruction/`(ソースと `Cook/lib/` の Cook モジュール)が入る。パッケージから見本と同じゲームを作ると、ビルドが 4 つの `.cgefracture` を焼き、WARP で 6 個が読み込まれて壊れる(手で確認。`verify-plugin-package` は Destruction を含まない) |

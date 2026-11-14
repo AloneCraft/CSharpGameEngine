@@ -104,30 +104,43 @@ internal sealed class PluginManifest {
         Microsoft.CodeAnalysis.CSharp.SyntaxFacts.IsValidIdentifier(Value);
 }
 
-/// <summary>最大4つの数値で表すバージョン（<c>1</c>、<c>1.2</c>、<c>1.2.3</c>、<c>1.2.3.4</c>）。省略部分は0。</summary>
+/// <summary>
+/// 最大4つの数値で表すバージョン（<c>1</c>、<c>1.2</c>、<c>1.2.3</c>、<c>1.2.3.4</c>。省略部分は0）と、任意のプレリリース（<c>0.1.0-dev.50</c>）。
+/// 比較は SemVer と同じ：数値が同じなら、プレリリースは正式版より前。プレリリース同士は点で区切った識別子を順に比べ、数字だけの識別子は数として比べる
+/// （ADR-0098 §5 規則 4：最初の公開まで、エンジンの版は <c>0.1.0-dev.N</c>）。
+/// </summary>
 internal readonly struct PluginVersion:IComparable<PluginVersion> {
     private readonly int Major;
     private readonly int Minor;
     private readonly int Patch;
     private readonly int Revision;
+    private readonly string?Prerelease;
 
-    private PluginVersion(int Major,int Minor,int Patch,int Revision){
+    private PluginVersion(int Major,int Minor,int Patch,int Revision,string?Prerelease){
         this.Major=Major;
         this.Minor=Minor;
         this.Patch=Patch;
         this.Revision=Revision;
+        this.Prerelease=Prerelease;
     }
 
     internal static bool TryParse(string?Text,out PluginVersion Version){
         Version=default;
         if(string.IsNullOrEmpty(Text)){ return false; }
-        var Parts=Text!.Split('.');
+        var Separator=Text!.IndexOf('-');
+        var Core=Separator<0?Text:Text.Substring(0,Separator);
+        string?Prerelease=null;
+        if(Separator>=0){
+            Prerelease=Text.Substring(Separator+1);
+            if(Prerelease.Split('.').Any(static Identifier=>Identifier.Length==0||!Identifier.All(static Character=>Character is >='0' and <='9' or >='A' and <='Z' or >='a' and <='z' or '-'))){ return false; }
+        }
+        var Parts=Core.Split('.');
         if(Parts.Length>4){ return false; }
         var Numbers=new int[4];
         for(var Index=0;Index<Parts.Length;Index++){
             if(Parts[Index].Length==0||!Parts[Index].All(char.IsDigit)||!int.TryParse(Parts[Index],out Numbers[Index])){ return false; }
         }
-        Version=new PluginVersion(Numbers[0],Numbers[1],Numbers[2],Numbers[3]);
+        Version=new PluginVersion(Numbers[0],Numbers[1],Numbers[2],Numbers[3],Prerelease);
         return true;
     }
 
@@ -135,10 +148,35 @@ internal readonly struct PluginVersion:IComparable<PluginVersion> {
         var Result=this.Major.CompareTo(Other.Major);
         if(Result==0){ Result=this.Minor.CompareTo(Other.Minor); }
         if(Result==0){ Result=this.Patch.CompareTo(Other.Patch); }
-        return Result!=0?Result:this.Revision.CompareTo(Other.Revision);
+        if(Result==0){ Result=this.Revision.CompareTo(Other.Revision); }
+        return Result!=0?Result:ComparePrerelease(this.Prerelease,Other.Prerelease);
     }
 
-    public override string ToString()=>this.Revision!=0?$"{this.Major}.{this.Minor}.{this.Patch}.{this.Revision}":$"{this.Major}.{this.Minor}.{this.Patch}";
+    private static int ComparePrerelease(string?Left,string?Right){
+        if(Left is null||Right is null){ return Left is null?(Right is null?0:1):-1; }
+        var LeftParts=Left.Split('.');
+        var RightParts=Right.Split('.');
+        for(var Index=0;Index<Math.Min(LeftParts.Length,RightParts.Length);Index++){
+            var Result=CompareIdentifier(LeftParts[Index],RightParts[Index]);
+            if(Result!=0){ return Result; }
+        }
+        return LeftParts.Length.CompareTo(RightParts.Length);
+    }
+
+    /// <summary>数字だけの識別子は数として比べ、英数字の識別子より前に並べる。英数字同士は序数で比べる。</summary>
+    private static int CompareIdentifier(string Left,string Right){
+        var LeftNumeric=Left.All(char.IsDigit);
+        var RightNumeric=Right.All(char.IsDigit);
+        if(LeftNumeric!=RightNumeric){ return LeftNumeric?-1:1; }
+        if(!LeftNumeric){ return string.CompareOrdinal(Left,Right); }
+        var LeftDigits=Left.TrimStart('0');
+        var RightDigits=Right.TrimStart('0');
+        var Length=LeftDigits.Length.CompareTo(RightDigits.Length);
+        return Length!=0?Length:string.CompareOrdinal(LeftDigits,RightDigits);
+    }
+
+    public override string ToString()=>(this.Revision!=0?$"{this.Major}.{this.Minor}.{this.Patch}.{this.Revision}":$"{this.Major}.{this.Minor}.{this.Patch}")
+        +(this.Prerelease is null?string.Empty:"-"+this.Prerelease);
 }
 
 /// <summary>

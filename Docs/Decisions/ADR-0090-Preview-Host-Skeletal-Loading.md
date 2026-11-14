@@ -1,9 +1,11 @@
 # ADR-0090 — プレビューホストはランタイムと同じ glTF／スケルタル読み込みを共有する
 
-- Status: Accepted
+- Status: Superseded in part by ADR-0097
 - Date: 2026-10-27
 - Feature: F-L8-036、関連 F-L5（スケルタル）、ADR-0066
 - 関連: ADR-0019/0020（VSIX の glTF 読み込みは別プロセス）、ADR-0089（アセットエディター）
+
+生成済みモデルの共通読込とprotocol 14へ切り替える現在の境界は[ADR-0097](ADR-0097-Model-Artifact-Production.md)が定める。以下のImport参照・StageGltfAssets・元ファイルパス入力はM0127時点の決定であり、現行の表示ホストへ追加する経路ではない。共通の骨格評価、型付きプレビュー要求、フレームの所有権は引き継ぐ。
 
 ## Context
 

@@ -1,10 +1,21 @@
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Physics;
+using CSharpGameEngine.Testing;
+using CSharpGameEngine.Windows.Tests.Runtime;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>ADR-0067：StaticMeshColliderは描画三角形を、完全なワールド変換をベイクしてCookする。</summary>
-public sealed class StaticMeshCollisionTests {
+[Collection("Model artifact content root")]
+public sealed class StaticMeshCollisionTests:IDisposable {
     private const string BoxAsset="Assets/Primitives/Box.glb";
+    private readonly string Project=Path.Combine(Path.GetTempPath(),"cge-collision-model-"+Guid.NewGuid().ToString("N"));
+    private readonly ModelArtifactTestContent Content;
+    private readonly ModelArtifactContentRoot Scope;
+    public StaticMeshCollisionTests(){
+        var Source=Path.Combine(this.Project,BoxAsset);Directory.CreateDirectory(Path.GetDirectoryName(Source)!);File.Copy(Path.Combine(AppContext.BaseDirectory,"Fixtures","Box.glb"),Source);
+        this.Content=new([Source],this.Project);this.Scope=new(this.Content);
+    }
+    public void Dispose(){ this.Scope.Dispose();this.Content.Dispose();Directory.Delete(this.Project,true); }
     private static LogicalAffineTransform Placement(float Y,float ScaleXz){
         Assert.True(LogicalAffineTransform.TryCreateTrs(new LogicalVector3(0,Y,0),LogicalQuaternion.Identity,new LogicalVector3(ScaleXz,1,ScaleXz),out var Result));
         return Result;
@@ -39,9 +50,13 @@ public sealed class StaticMeshCollisionTests {
         Assert.NotEmpty(Contacts);
         Assert.All(Contacts,Contact=>Assert.True(Contact.Normal.U<LogicalScalar.FromSingle(-0.99f),$"normal {Contact.Normal}"));
     }
-    [Fact]
-    public void TryEnsure_ReportsAMissingAsset(){
-        Assert.False(new StaticMeshCollisionCooker().TryEnsure(new DeterministicPhysicsWorld().Shapes,"Assets/Missing.glb",LogicalAffineTransform.Identity,out _,out var Error));
-        Assert.Contains("Missing.glb",Error,StringComparison.Ordinal);
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TryEnsure_ReportsMissingAndCorruptSavedAssets(bool Corrupt){
+        var Asset=Corrupt?BoxAsset:"Assets/Missing.glb";
+        if(Corrupt){ File.WriteAllText(Path.Combine(this.Content.ContentDirectory,"content-index.json"),"{ invalid"); }
+        Assert.False(new StaticMeshCollisionCooker().TryEnsure(new DeterministicPhysicsWorld().Shapes,Asset,LogicalAffineTransform.Identity,out _,out var Error));
+        Assert.Contains(Path.GetFileName(Asset),Error,StringComparison.Ordinal);
     }
 }

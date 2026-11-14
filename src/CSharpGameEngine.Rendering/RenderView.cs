@@ -53,8 +53,8 @@ public readonly record struct RenderView {
     public RenderViewBasis?Basis { get; }
     public static RenderView Create(in Matrix4x4 ViewProjection,in Matrix4x4 AuxiliaryViewProjection,
         Vector3 CameraPosition,float ExposureEv100,in RenderViewDepth Depth,RenderViewBasis?Basis=null){
-        if(!Depth.IsValid||Depth.Encoding is not (RenderDepthEncoding.Linear or RenderDepthEncoding.Logarithmic)
-            ||RadialDepthProjection.IsPerspective(ViewProjection)!=(Depth.Encoding==RenderDepthEncoding.Logarithmic)){
+        if(!Depth.IsValid||Depth.Encoding is not (RenderDepthEncoding.Linear or RenderDepthEncoding.Logarithmic or RenderDepthEncoding.IdentityPerspective)
+            ||RadialDepthProjection.IsPerspective(ViewProjection)!=(Depth.Encoding!=RenderDepthEncoding.Linear)){
             throw new ArgumentException("Main-view projection and depth encoding must agree.",nameof(Depth));
         }
         if(!Finite(ViewProjection)||!Finite(AuxiliaryViewProjection)
@@ -67,7 +67,7 @@ public readonly record struct RenderView {
             ||ViewProjection.M32!=AuxiliaryViewProjection.M32||ViewProjection.M42!=AuxiliaryViewProjection.M42
             ||ViewProjection.M14!=AuxiliaryViewProjection.M14||ViewProjection.M24!=AuxiliaryViewProjection.M24
             ||ViewProjection.M34!=AuxiliaryViewProjection.M34||ViewProjection.M44!=AuxiliaryViewProjection.M44
-            ||(Depth.Encoding==RenderDepthEncoding.Linear&&ViewProjection!=AuxiliaryViewProjection)){
+            ||(Depth.Encoding!=RenderDepthEncoding.Logarithmic&&ViewProjection!=AuxiliaryViewProjection)){
             throw new ArgumentException("Auxiliary reconstruction must preserve the view rays.",nameof(AuxiliaryViewProjection));
         }
         if(!float.IsFinite(CameraPosition.X)||!float.IsFinite(CameraPosition.Y)||!float.IsFinite(CameraPosition.Z)){
@@ -76,7 +76,7 @@ public readonly record struct RenderView {
         if(!float.IsFinite(ExposureEv100)){ throw new ArgumentOutOfRangeException(nameof(ExposureEv100)); }
         if(Basis is { IsValid:false }){ throw new ArgumentException("A supplied camera basis must be validated.",nameof(Basis)); }
         if(Basis is { }CameraBasis){
-            if(Depth.Encoding!=RenderDepthEncoding.Logarithmic){ throw new ArgumentException("A perspective basis requires a perspective view.",nameof(Basis)); }
+            if(Depth.Encoding==RenderDepthEncoding.Linear){ throw new ArgumentException("A perspective basis requires a perspective view.",nameof(Basis)); }
             var Right=new Vector3(ViewProjection.M11,ViewProjection.M21,ViewProjection.M31);
             var Up=new Vector3(ViewProjection.M12,ViewProjection.M22,ViewProjection.M32);
             var Forward=new Vector3(ViewProjection.M14,ViewProjection.M24,ViewProjection.M34);

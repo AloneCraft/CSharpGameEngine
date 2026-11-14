@@ -615,12 +615,17 @@ Discard unsaved edits and reload it?</value></data>
 <data name="Assets_State_InvalidMetadata" xml:space="preserve"><value>Metadata error</value></data>
 <data name="Assets_State_MissingSource" xml:space="preserve"><value>Source file missing</value></data>
 <data name="Assets_State_ReadOnly" xml:space="preserve"><value>Read-only</value></data>
+<data name="Assets_ThumbnailLoading" xml:space="preserve"><value>Loading…</value></data>
+<data name="Assets_ThumbnailUnavailable" xml:space="preserve"><value>No preview</value></data>
+<data name="Assets_ThumbnailUnavailableHint" xml:space="preserve"><value>A thumbnail is not available for this asset.</value></data>
 <data name="Assets_Provider_Project" xml:space="preserve"><value>Project</value></data>
 <data name="Assets_Provider_ProjectPlugin" xml:space="preserve"><value>Project plugin</value></data>
 <data name="Assets_Provider_Package" xml:space="preserve"><value>Package</value></data>
 <data name="Assets_DirectoryGuard" xml:space="preserve"><value>Folder operations involving assets are not yet supported. Organize individual assets in the Assets window.</value></data>
 <data name="Assets_Place" xml:space="preserve"><value>Place asset</value></data>
 <data name="Assets_Reveal" xml:space="preserve"><value>Show asset</value></data>
+<data name="Assets_ChooseModel" xml:space="preserve"><value>Choose a model asset</value></data>
+<data name="Assets_NoCompatibleModels" xml:space="preserve"><value>No compatible models in this project</value></data>
 <data name="Assets_Play" xml:space="preserve"><value>Play</value></data>
 <data name="Assets_Stop" xml:space="preserve"><value>Stop</value></data>
 <data name="Assets_Recovery" xml:space="preserve"><value>Recover interrupted operation</value></data>
@@ -827,4 +832,5 @@ Discard unsaved edits and reload it?</value></data>
   <data name="ReferenceViewer_DependenciesDepth" xml:space="preserve"><value>Search Dependencies Depth</value></data>
   <data name="ReferenceViewer_Loading" xml:space="preserve"><value>Loading...</value></data>
   <data name="ReferenceViewer_Empty" xml:space="preserve"><value>No references found.</value></data>
+  <data name="Assets_InvalidName" xml:space="preserve"><value>Enter a file name without folder separators or invalid characters. The name cannot end with a dot or space.</value></data>
 </root>

@@ -6,7 +6,8 @@ namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// スケルトンは足IKと一人称腕が参照するジョイントを持つ。モデル空間でのレスト姿勢はUEのControl Rigの作成時と同じ
 ///（頭の高さ162.6 cm、上腕の間隔±19 cm）なので、数値をそのまま引き継げる。
 /// </summary>
-public sealed class MannequinAssetTests {
+[Collection("Model artifact content root")]
+public sealed class MannequinAssetTests(MannequinArtifactFixture Artifacts):IClassFixture<MannequinArtifactFixture> {
     private static string RepositoryRoot(){
         var Directory=new DirectoryInfo(AppContext.BaseDirectory);
         while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
@@ -18,7 +19,9 @@ public sealed class MannequinAssetTests {
         "MF_Unarmed_Walk_Fwd","MF_Unarmed_Walk_Fwd_Left","MF_Unarmed_Walk_Fwd_Right","MF_Unarmed_Walk_Left","MF_Unarmed_Walk_Right","MF_Unarmed_Walk_Bwd","MF_Unarmed_Walk_Bwd_Left","MF_Unarmed_Walk_Bwd_Right",
         "MF_Unarmed_Jog_Fwd","MF_Unarmed_Jog_Fwd_Left","MF_Unarmed_Jog_Fwd_Right","MF_Unarmed_Jog_Left","MF_Unarmed_Jog_Right","MF_Unarmed_Jog_Bwd","MF_Unarmed_Jog_Bwd_Left","MF_Unarmed_Jog_Bwd_Right",
     ];
-    private static Skeleton SkeletonOf(string Template,string Mesh)=>Skeleton.FromImported(SkeletalAssetCache.Scene(Asset(Template,Mesh)).Skins[0]);
+    private Skeleton SkeletonOf(string Template,string Mesh){
+        Artifacts.Select(Template);return SkeletalAssetCache.Skeleton(Asset(Template,Mesh));
+    }
     [Theory]
     [InlineData("ThirdPerson","SKM_Quinn_Simple.glb")]
     [InlineData("TopDown","SKM_Manny_Simple.glb")]
@@ -96,7 +99,7 @@ public sealed class MannequinAssetTests {
         Assert.True(Difference<15f,$"{Name} travels {Degrees:0}° but is named for {ExpectedDegrees:0}°.");
     }
     /// <summary><paramref name="Name"/>クリップ（TopDownテンプレートのマネキン）の<paramref name="Seconds"/>時点におけるボディ姿勢。</summary>
-    private static (Skeleton Skeleton,JointPose[]Pose)Posed(string Name,float Seconds){
+    private (Skeleton Skeleton,JointPose[]Pose)Posed(string Name,float Seconds){
         var Skeleton=SkeletonOf("TopDown","SKM_Manny_Simple.glb");
         var Clip=SkeletalAssetCache.Clip(Asset("TopDown",Path.Combine("Anims",Name+".glb")),Skeleton);
         var Pose=new JointPose[Skeleton.JointCount];

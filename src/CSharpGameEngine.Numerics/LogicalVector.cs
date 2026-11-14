@@ -91,7 +91,7 @@ public readonly record struct LogicalQuaternion(LogicalScalar R,LogicalScalar U,
     public static bool TryCreateAxisAngle(LogicalVector3 Axis,LogicalScalar Angle,out LogicalQuaternion Result){
         Result=default;
         if(!Axis.TryNormalize(out var Unit)
-            ||!LogicalScalar.TryMultiply(Angle,LogicalScalar.FromRaw((Int128)1<<63),out var HalfAngle)
+            ||!LogicalScalar.TryMultiply(Angle,LogicalScalar.FromRatio(1,2),out var HalfAngle)
             ||!LogicalMath.TrySinCos(HalfAngle,out var Sin,out var Cos)
             ||!LogicalScalar.TryMultiply(Unit.R,Sin,out var R)
             ||!LogicalScalar.TryMultiply(Unit.U,Sin,out var U)

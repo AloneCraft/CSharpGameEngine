@@ -3,6 +3,67 @@ using CSharpGameEngine.SceneAnalysis;
 using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class AssetWorkspaceTests {
+    [Theory]
+    [InlineData("{\"meshes\":[{}]}",true)]
+    [InlineData("{\"animations\":[{}]}",false)]
+    [InlineData("{\"meshes\":[{}],\"skins\":[{}]}",false)]
+    public void StaticMeshSelectionFiltersByModelContents(string Json,bool Expected){
+        var Source=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString("N")+".gltf");
+        try {
+            File.WriteAllText(Source,Json);
+            Assert.Equal(Expected,AssetPlacement.HasStaticMesh(Source));
+        }finally{
+            File.Delete(Source);
+        }
+    }
+    [Fact]
+    public void ModelAssignmentAcceptsOnlyAvailableModelsFromTheSceneProject(){
+        var Model=new AssetWorkspaceItem{Kind=AssetWorkspaceKind.Model,State=AssetWorkspaceState.Source,Source=new(){ProjectPath=@"C:\Game\Game.csproj",RelativePath="Assets/Stage/Wall.glb"}};
+        Assert.True(AssetPlacement.CanAssignModel(Model,@"c:\game\game.csproj"));
+        Assert.False(AssetPlacement.CanAssignModel(Model,@"C:\Other\Other.csproj"));
+        Model.Kind=AssetWorkspaceKind.Audio;Assert.False(AssetPlacement.CanAssignModel(Model,@"C:\Game\Game.csproj"));
+        Model.Kind=AssetWorkspaceKind.Model;Model.State=AssetWorkspaceState.MissingSource;Assert.False(AssetPlacement.CanAssignModel(Model,@"C:\Game\Game.csproj"));
+        Model.State=AssetWorkspaceState.InvalidMetadata;Assert.False(AssetPlacement.CanAssignModel(Model,@"C:\Game\Game.csproj"));
+        Model.State=AssetWorkspaceState.Ready;Model.Source.RelativePath="Outside/Wall.glb";Assert.False(AssetPlacement.CanAssignModel(Model,@"C:\Game\Game.csproj"));
+    }
+    [Fact]
+    public void InlineRenameIsTransientAndKeepsTheFolderAndExtension(){
+        var Source=Path.GetFullPath(Path.Combine(Path.GetTempPath(),"RenameAssets","Ship.glb"));
+        var Row=new AssetWorkspaceRow(new(){Source=new(){SourcePath=Source}});var Changes=new List<string?>();
+        Row.PropertyChanged+=(_,Args)=>Changes.Add(Args.PropertyName);
+        Assert.True(Row.BeginRename());Assert.True(Row.IsRenaming);Assert.Equal("Ship.glb",Row.RenameText);
+        Row.RenameText="New Ship.glb";Assert.Equal(Path.Combine(Path.GetDirectoryName(Source)!,"New Ship.glb"),Row.RenameDestination());
+        Assert.Equal(Source,Row.Item.Source.SourcePath);Assert.Equal("Ship.glb",Row.Name);
+        Row.EndRename();Assert.False(Row.IsRenaming);Assert.True(Row.BeginRename());Assert.Equal("Ship.glb",Row.RenameText);
+        Assert.Equal(3,Changes.Count(Name=>Name==nameof(Row.IsRenaming)));
+    }
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("../Other.glb")]
+    [InlineData("Other\\Ship.glb")]
+    [InlineData("C:\\Other.glb")]
+    [InlineData("Ship.glb.")]
+    [InlineData("Ship.glb ")]
+    public void InlineRenameRejectsEmptyNamesAndPathsWithoutChangingTheSource(string Name){
+        var Row=new AssetWorkspaceRow(new(){Source=new(){SourcePath=Path.GetFullPath("Assets/Ship.glb")}});
+        Assert.True(Row.BeginRename());Row.RenameText=Name;
+        Assert.Throws<ArgumentException>(()=>Row.RenameDestination());Assert.True(Row.IsRenaming);Assert.Equal("Ship.glb",Row.Name);
+    }
+    [Theory]
+    [InlineData(true,AssetWorkspaceState.ReadOnly)]
+    [InlineData(false,AssetWorkspaceState.ReadOnly)]
+    [InlineData(false,AssetWorkspaceState.MissingSource)]
+    public void InlineRenameCannotEditUnavailableOrProviderSources(bool ReadOnly,AssetWorkspaceState State){
+        var Row=new AssetWorkspaceRow(new(){State=State,Source=new(){ReadOnly=ReadOnly,SourcePath="Ship.glb"}});
+        Assert.False(Row.BeginRename());Assert.False(Row.IsRenaming);
+    }
+    [Fact]
+    public void InlineRenameCannotRenameAChildByChangingItsSourceFile(){
+        var Key=new AssetKey(AssetId.Parse(Guid.NewGuid().ToString("D")),SubAssetId.FromCanonicalBytes([1,2,3]));
+        var Row=new AssetWorkspaceRow(new(){Source=new(){SourcePath="Ship.glb"}},Key);
+        Assert.False(Row.BeginRename());Assert.False(Row.IsRenaming);
+    }
     [Fact]
     public void ImageOutputRefactoringRejectsOtherLoadedProjectOwnersAndReadOnlySources(){
         var Item=new AssetWorkspaceItem{Source=new(){ProjectPath="A",SourcePath="C:/Images/Wall.png"}};

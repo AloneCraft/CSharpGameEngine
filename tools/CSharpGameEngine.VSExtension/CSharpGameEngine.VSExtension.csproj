@@ -44,7 +44,8 @@
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
     <!-- Bump each deployable VSIX revision.  The installer/version cache must never be asked to
          distinguish a newly fixed extension from a prior binary with the same identity. -->
-    <CSharpGameEngineVsixVersion>0.1.10</CSharpGameEngineVsixVersion>
+    <!-- ADR-0098 §5 rule 4: a VSIX version is numeric only and must grow to update an installation, so it is 0.1.0.N until the first release. -->
+    <CSharpGameEngineVsixVersion>0.1.0.25</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
     <CgeEditorPreviewHostProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj'))</CgeEditorPreviewHostProject>

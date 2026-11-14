@@ -18,6 +18,7 @@ public sealed class AssetThumbnailContractTests {
         Assert.NotNull(AssetThumbnailRequest.Validate(new(){ImagePath="image.png",MaxEdge=AssetThumbnailRequest.MinimumImageEdge-1}));
         var Open=RenderPreviewHostProtocolTests.CreateOpenRequest();
         Assert.NotNull(AssetThumbnailRequest.Validate(new(){Scene=Open.Scene,ShaderArtifactPath=Open.ShaderArtifactPath,MaxEdge=256}));
+        Assert.Null(AssetThumbnailRequest.Validate(new(){Scene=Open.Scene,ShaderArtifactPath=Open.ShaderArtifactPath,MaxEdge=AssetThumbnailRequest.InspectorEdge}));
     }
     [Fact]
     public void EmptyOrInvalidGeometryCannotMasqueradeAsAnAssetThumbnail(){

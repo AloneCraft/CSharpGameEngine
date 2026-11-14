@@ -19,6 +19,8 @@ public sealed class CookRequest(string InputPath,string OutputDirectory,string P
     public string OutputDirectory { get; }=OutputDirectory;
     /// <summary>ゲームのプロジェクトのフォルダ。入力が参照するほかのファイルを探すのに使う。</summary>
     public string ProjectDirectory { get; }=ProjectDirectory;
+    /// <summary>呼出元が明示した正規コンテンツ生成物の場所。ソースの代替読込先として探索しない。</summary>
+    public string?ContentDirectory { get;init; }
 }
 /// <summary>1 回の調理の結果。<see cref="Outputs"/> は <see cref="CookRequest.OutputDirectory"/> からの相対パス。</summary>
 public sealed class CookResult(bool Succeeded,IReadOnlyList<string> Outputs,IReadOnlyList<string> Messages) {

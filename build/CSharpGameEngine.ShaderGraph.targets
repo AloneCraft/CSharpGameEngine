@@ -36,16 +36,16 @@
     <Touch Files="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')" />
   </Target>
   <!--
-    ADR-0078/M0110: the mesh distance fields of every glTF in CgeMeshDistanceFieldSource (Game.props: the game's Assets\**\*.glb), made by the same
+    ADR-0078/M0110: the mesh distance fields of every model in CgeMeshDistanceFieldSource (Game.props: the game's Assets\**\*.glb), made from prepared artifacts by the same
     CLI as the shader artifacts into obj\...\DistanceFields\ and copied next to the game as Assets\<path>.glb.cgesdf, where the runtime looks for them
-    when it loads the glTF. One file per glTF, rebuilt only when that glTF or the CLI is newer. It is geometry made ahead of the game; no lighting is baked.
+    when it loads the model. One file per source, rebuilt when its inputs change. It is geometry made ahead of the game; no lighting is baked.
   -->
-  <Target Name="CompileCgeMeshDistanceFields" BeforeTargets="AssignTargetPaths" DependsOnTargets="BuildCgeShaderGraphCli"
+  <Target Name="CompileCgeMeshDistanceFields" BeforeTargets="AssignTargetPaths" DependsOnTargets="CgePrepareModels;BuildCgeShaderGraphCli"
           Condition="'@(CgeMeshDistanceFieldSource)' != '' and '$(DesignTimeBuild)' != 'true'"
-          Inputs="@(CgeMeshDistanceFieldSource);$(CgeShaderGraphCliExe)"
+          Inputs="@(CgeMeshDistanceFieldSource);$(CgeModelCookDirectory)\content-index.json;$(CgeShaderGraphCliExe)"
           Outputs="@(CgeMeshDistanceFieldSource->'$(CgeMeshDistanceFieldIntermediateDirectory)%(RecursiveDir)%(Filename)%(Extension).cgesdf')">
     <MakeDir Directories="$(CgeMeshDistanceFieldIntermediateDirectory)" />
-    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build-distance-fields &quot;%(CgeMeshDistanceFieldSource.FullPath)&quot; &quot;$(CgeMeshDistanceFieldIntermediateDirectory)%(CgeMeshDistanceFieldSource.RecursiveDir)%(CgeMeshDistanceFieldSource.Filename)%(CgeMeshDistanceFieldSource.Extension).cgesdf&quot;" />
+    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build-distance-fields &quot;$(CgeModelCookDirectory)&quot; &quot;$([MSBuild]::MakeRelative('$(MSBuildProjectDirectory)','%(CgeMeshDistanceFieldSource.FullPath)'))&quot; &quot;$(CgeMeshDistanceFieldIntermediateDirectory)%(CgeMeshDistanceFieldSource.RecursiveDir)%(CgeMeshDistanceFieldSource.Filename)%(CgeMeshDistanceFieldSource.Extension).cgesdf&quot;" />
     <Touch Files="@(CgeMeshDistanceFieldSource->'$(CgeMeshDistanceFieldIntermediateDirectory)%(RecursiveDir)%(Filename)%(Extension).cgesdf')" />
   </Target>
   <Target Name="CollectCgeMeshDistanceFields" BeforeTargets="AssignTargetPaths" DependsOnTargets="CompileCgeMeshDistanceFields"

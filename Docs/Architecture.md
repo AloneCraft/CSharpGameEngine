@@ -1,8 +1,26 @@
 # アーキテクチャ
 
+## モデル制作と生成物の境界（M0128）
+
+共通のモデル生成CLIは全入力をまとめて処理し、取り込みと画像・材質の生成をCookワーカーへ委譲する。ModelContentIndexと正規CASを、ModelArtifactReader、既存の依存閉包検証、RuntimeAssetStore、閉じたModelRuntimeCodecsで読む。生成後に元ファイルを削除して共通読込できることを確認済み。失敗した資産の検証済み前回生成物を保持し、実行用コピーは全入力の準備が成功した場合だけ更新する。材質のグリッドも保存する（ADR-0097）。ゲーム・プレビュー・ナビメッシュ・距離場を共通読込へ切り替え、Source/SDKのビルド接続と旧ゲーム読込の削除を反映した。切替後のSource/SDKビルドと関連CPU/WARPはDebugで検証済み。モデルの項目と配布用一覧のJSON契約もビルド時生成へ移し、実行時の型検索を無効にしたContent全71件が合格した。修正版の自己完結Double配布物で旧30モデルの読込、Floatからの保存再開、WARP110フレームの移動・ジャンプ・描画を確認した。最終SDK0.1.42の自己完結Double実行と4テンプレート実行、関連148件のRelease回帰が成功した。生成した数値リーダーによる実行中の固定値編集、ProjectReference先へのモデルコピー、欠落モデルの報告も接続した。実画面では新規作成、素材追加、モデル描画、登録後のIDを保持した改名、Inspector編集と保存を確認した。最終候補のIDE実行・再開はM0128で追跡する。
+
+## 数値保存の独立化（M0128）
+
+承認済みの [静的構成と制作フローの統合](refactoring-designs/20261031-static-production-flow.md) は数値設定別のビルドと制作から配布までの接続を目指す。[数値保存の共通境界](Specifications/Numeric-Persistence.md) と既存 LogicalScalar からの明示的な接続に加え、生成WorldのSnapshot構造・値の読み書きをRoslynで生成する。対応する閉じた値型の構造は直接のC#アクセスとコンストラクターで処理し、反射コーデックへの暗黙の切替は行わない。保存を要求するコンパイルで未対応の永続Componentがある場合はSYSGEN044となる。詳細は [Snapshot契約](Specifications/Ecs-Runtime.md#snapshot-artifact) と [M0128](Milestones/M0128-Static-Production-Flow.md) を参照。
+
+数値ライブラリとSourceゲームは [設定別の実装](Specifications/Numeric-Configuration.md) を持つ。Fixedは64/128/192bitと小数位置から8/16/24バイトの型を構築し、Float/Doubleは実際のSystem.Single/System.Doubleへビルド時に解決する。既定Q64.64の最適化済み経路を維持し、追加設定の演算は固定長のスタック領域で処理する。狭い整数部や粗い設定では数学関数の一時型を静的に特殊化し、結果を保存型へ範囲検査付きで戻す。Sourceの依存DLL・作成ツールへ設定を渡し、不一致をNUM002で拒否する。WorldCell v2は共通の数値表現を保存する。Snapshot v2も共通の実数識別・保存文字列と静的なv1移行を使う。実設定画面で全数値型と固定幅・小数位置の保存を確認した。SDKは選択した設定を利用側で構築する。補助DLLは短い構成・数値設定別の中間ルートへ置き、編集用の参照もその出力を使う。設定変更後の未生成DLLを既定型へ戻さずビルドを要求する。
+
+数値設定はSource・SDKの依存先まで伝達する。各設定の画面なしの物理保存・再生と、別設定でのSnapshot読み込みを検証済みだが、制作画面の操作・描画・配布物の受け入れは別途確認する。保存の互換性はシミュレーションのビット一致を意味しない。
+
+## ビルド時の描画方式と設定画面（M0128）
+
+[深度方式](Specifications/Render-Projection.md)は数値型から独立し、既定LogarithmicまたはIdentityを選ぶ。Identityは通常の透視行列と直接深度を使う。CPUでは正射影と区別し、既存Stageシェーダーの直接深度パケットを使う。カメラの提出は条件付きコンパイル、出力と生成ソースは設定別の階層にする。ビューのリサイズ・復旧は共通の所有境界を使い、物理キャッシュや数値DLLへ描画設定を混ぜない。
+
+Source・SDKのプロジェクトは、数値型・固定幅・小数位置・深度方式を編集する標準CPSの設定ページを登録する。値はcsprojが正本で、日本語・英語の定義を同梱する。設定の評価・XAML読込とCPU/GPUのビュー契約は検証済み。数値型・固定幅・小数位置・深度の実画面からの保存は確認済み。SDK0.1.44はVisual Studio用MSBuildでDebugビルド・自己完結Release発行・元モデルなしの実行に成功した。最終候補のIDE起動・再開はM0128で確認する。
+
 ## Model import migration (M0114, in progress)
 
-[ADR-0080](Decisions/ADR-0080-Universal-Model-Import.md) preserves the proposed design. Additive foundations are L2 subasset/catalog/humanoid contracts, L1 `ConventionConversion`, L6 standalone model payload records/codecs, and L7 binary interchange/normalization/importer contracts. Cooking shares Contracts/Core with its collectible module host. Cook.Cli offers `describe` and `import-worker`; ContentCompiler discovers modules through subprocesses, caches dependency-addressed IR, and offers `import-ir`/`inspect`/`explain`. Runtime still uses the existing glTF source path. Artifact producers/consumers, complete orchestration, built-in adapters and artifact-only cutover remain unfinished. [M0114](Milestones/M0114-Universal-Model-Import.md) records actual stage evidence and remaining gates.
+[ADR-0080](Decisions/ADR-0080-Universal-Model-Import.md) preserves the proposed design. Additive foundations are L2 subasset/catalog/humanoid contracts, L1 `ConventionConversion`, L6 standalone model payload records/codecs, and L7 binary interchange/normalization/importer contracts. Cooking shares Contracts/Core with its collectible module host. Cook.Cli offers `describe` and `import-worker`; ContentCompiler discovers modules through subprocesses, caches dependency-addressed IR, and offers `import-ir`/`inspect`/`explain`. Runtime and the game renderer consume prepared model artifacts after the M0128 cutover; the old glTF source reader has been removed. ModelArtifactPreparation/ModelContentCompiler provide incremental DAG/CAS compilation, content-index publication and RuntimeAssetStore loading. ContentCompiler also exposes compile. Broader orchestration and adapter/rig coverage remain tracked by M0114. [M0114](Milestones/M0114-Universal-Model-Import.md) records actual stage evidence and remaining gates.
 
 ## Typed lighting boundary (ADR-0064, M0088)
 The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lighting.md). Contracts owns validated physical quantities; portable Runtime.Lighting shared source owns Directional/Point/Spot/RectArea and optional LightShadow; Runtime.Windows owns fixed-transform extraction; Rendering owns applicable-only submissions; RenderServer owns ordered typed frame replay. Scene JSON (ADR-0070) and the editor's native text Undo are the only authoring/history truth. Earlier light vocabulary below is historical where it conflicts with ADR-0064.
@@ -256,4 +274,15 @@ The directional environment policy also carries an opt-in angular diameter and m
 L2 Contracts owns image/model interpretation settings and stable output identity. L6 Content owns canonical sidecars, recoverable file transactions, distinct raw Image/processed Texture payloads and runtime codecs. L7 Import owns bounded PNG/JPEG decode (StbImageSharp), channel/normal/mip processing and Assimp composite FBX adaptation; the standalone authoring host publishes CAS results. L8 VSIX transports these requests, previews settings and references, and supplies native text Undo. Image source suffixes are initial hints; persisted metadata wins on reimport. No decoder or provider SDK is moved into runtime or the VSIX. See [the interpretation specification](Specifications/Image-And-Model-Interpretation.md) for the additive path and its boundary with M0114.
 
 ## Asset editor windows and preview levels (M0127)
-L8 owns the asset editors (`tools/CSharpGameEngine.VSExtension/AssetEditors/`): a registry maps an extension to an editor kind, one `IVsEditorFactory` builds the document, and a shared shell hosts the per-kind content. The 3D viewport reuses the Scene View camera maths and the out-of-process Render Preview Host (protocol 13); the host applies the template's lights, ambient/sky, background and floor through the same typed lighting values as the runtime. Templates are L8 data (`.cgepreview`); the runtime layers L0-L6 do not depend on them or on the Visual Studio SDK. The host loads static and skinned glTF itself: it references managed `Import` and compiles the ECS-free `Skeleton.cs`, `AnimationClip.cs` (Runtime.Animation) and `StageGltfAssets.cs` (Runtime.Windows) as linked sources, so the preview and the game share conversion and pose evaluation (ADR-0090). See ADR-0089.
+L8 owns the asset editors (`tools/CSharpGameEngine.VSExtension/AssetEditors/`): a registry maps an extension to an editor kind, one `IVsEditorFactory` builds the document, and a shared shell hosts the per-kind content. The 3D viewport reuses the Scene View camera maths and the out-of-process Render Preview Host (protocol 14); the host applies the template's lights, ambient/sky, background and floor through the same typed lighting values as the runtime. Templates are L8 data (`.cgepreview`); the runtime layers L0-L6 do not depend on them or on the Visual Studio SDK. Model preparation runs in the AssetAuthoring worker. Protocol 14 carries an artifact directory, source URI and pinned model hash. The display host references Content, links StageModelAssets plus Skeleton/AnimationClip, and does not decode glTF or images (ADR-0097). The source cutover still requires build and rendering verification. See ADR-0089.
+
+
+### 2026-11-04: ThirdPerson シーン表示の壁位置（F-L8-036 / M0128）
+
+今回の壁修正は Implemented / TestVerified・RuntimeVerified（非表示描画）。Scene Designer とシーン・モデルのサムネイルに残っていた旧単一 glTF 読込を、AssetAuthoring worker の共通モデル成果物へ接続した。成果物ハッシュを照合し、階層変換・サブメッシュ材質・選択用形状を保持する。シーン単位でモデルをまとめて準備する。片側原点の壁 SM_Cube2 は配置値を変えず、誤った F=20..60 から F=-20..20 へ戻る。実 ThirdPerson・ソース削除後の読込・ハッシュ不一致を含むワーカー15件、固定値と float の四分の一回転・部品 ID/選択/材質、VSIX Release 全1596件が成功した。旧読込を再実行した修正前と修正後を同一カメラ・900×900・WARPで直接描画し、両方54描画オブジェクト、D3D12エラー0件を確認した（.artifacts/StaticProduction/wall-preview-20261104）。VS の画面写真ではなく、実ステージのエンジン描画の比較。FBXと生成プリミティブの既存経路、プレビューのテクスチャ制約は維持する。F-L8-036/M0128全体の PartiallyImplemented は維持し、残る制作一巡の実画面受け入れを別途確認する。設計・実装・検証の対応は 20261104-thirdperson-wall-preview.md に記録する。
+
+
+2026-11-04 実画面追記: SDK46/VSIX16の梱包と実プロジェクトの発行・WARP起動・制作専用DLL除外は成功した。一方、専用VSでのシーン表示はSceneRenderFailedを実際に観測した（32-sdk46-scene-preview-failed.jpg）。非表示の比較描画の成功を実VSの成功へ読み替えない。この統合表示はInvestigating / Mismatch、F-L8-036・M0128全体はPartiallyImplementedのまま。通常終了の自動承認審査と操作ツールのタイムアウトがあり、保存確認済みのVSの終了・診断付き再起動を明示確認待ち。詳細と次の検証はM0128へ記録した。
+
+
+追記: 実VS16の失敗は実行用プレビューでの素材読み込みと周期更新の待機を独立再現した。VSIX17は周期更新を積み残さず、同じSDK46で通常GPU/WARPの描画が成功。梱包関連23件、Release全1597件、既存Windowsプレビュー9件が成功。17の配置と実画面確認は保存済みVSの終了・再起動の明示確認待ち。Current integration remains PartiallyImplemented / Partial; see M0128 and 20261104-runtime-preview-ticks.md.

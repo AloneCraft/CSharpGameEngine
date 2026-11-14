@@ -1,0 +1,46 @@
+<Project>
+  <PropertyGroup>
+    <CgeNumericProfileApplied>true</CgeNumericProfileApplied>
+    <CgeNumericMode Condition="'$(CgeNumericMode)' == ''">Fixed</CgeNumericMode>
+    <CgeFixedBits Condition="'$(CgeFixedBits)' == ''">128</CgeFixedBits>
+    <CgeFractionalBits Condition="'$(CgeFractionalBits)' == '' and '$(CgeFixedBits)' == '64'">32</CgeFractionalBits>
+    <CgeFractionalBits Condition="'$(CgeFractionalBits)' == '' and '$(CgeFixedBits)' == '128'">64</CgeFractionalBits>
+    <CgeFractionalBits Condition="'$(CgeFractionalBits)' == '' and '$(CgeFixedBits)' == '192'">96</CgeFractionalBits>
+    <CgeNumericProfileId>fixed-$(CgeFixedBits)-$(CgeFractionalBits)</CgeNumericProfileId>
+    <CgeNumericProfileId Condition="'$(CgeNumericMode)' == 'Float'">float32</CgeNumericProfileId>
+    <CgeNumericProfileId Condition="'$(CgeNumericMode)' == 'Double'">float64</CgeNumericProfileId>
+    <CgeNumericBuildProperties>CgeNumericMode=$(CgeNumericMode);CgeFixedBits=$(CgeFixedBits);CgeFractionalBits=$(CgeFractionalBits)</CgeNumericBuildProperties>
+    <_CgeCustomFixed Condition="'$(CgeNumericMode)' == 'Fixed' and ('$(CgeFixedBits)' != '128' or '$(CgeFractionalBits)' != '64')">true</_CgeCustomFixed>
+    <_CgeNumericVariant Condition="'$(_CgeCustomFixed)' == 'true' or '$(CgeNumericMode)' == 'Float' or '$(CgeNumericMode)' == 'Double'">true</_CgeNumericVariant>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_CgeNumericVariant)' == 'true' and '$(CgeNumericProfileLateImport)' != 'true'">
+    <IntermediateOutputPath>obj\$(Configuration)\$(CgeNumericProfileId)\</IntermediateOutputPath>
+    <OutputPath>bin\$(Configuration)\$(CgeNumericProfileId)\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_CgeNumericVariant)' == 'true' and '$(CgeNumericProfileLateImport)' == 'true'">
+    <IntermediateOutputPath>$(IntermediateOutputPath)$(CgeNumericProfileId)\</IntermediateOutputPath>
+    <OutputPath>$(OutputPath)$(CgeNumericProfileId)\</OutputPath>
+    <CompilerGeneratedFilesOutputPath>$(IntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_CgeCustomFixed)' == 'true'">
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_CUSTOM_FIXED</DefineConstants>
+    <DefineConstants Condition="'$(CgeFixedBits)' == '64'">$(DefineConstants);CGE_FIXED_64</DefineConstants>
+    <DefineConstants Condition="'$(CgeFixedBits)' == '192'">$(DefineConstants);CGE_FIXED_192</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CgeNumericMode)' == 'Float'">
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_FLOAT</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CgeNumericMode)' == 'Double'">
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_DOUBLE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_CgeNumericVariant)' == 'true' and '$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics'">
+    <Compile Remove="LogicalScalar.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="CgeNumericMode" />
+    <CompilerVisibleProperty Include="CgeNumericProfileId" />
+    <AssemblyMetadata Include="CgeNumericProfile" Value="$(CgeNumericProfileId)" />
+    <Using Include="System.Single" Alias="LogicalScalar" Condition="'$(CgeNumericMode)' == 'Float'" />
+    <Using Include="System.Double" Alias="LogicalScalar" Condition="'$(CgeNumericMode)' == 'Double'" />
+  </ItemGroup>
+</Project>

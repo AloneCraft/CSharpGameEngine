@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <!-- The scene-upgrade tests live here: the generator and the VSIX builds exclude that code (ADR-0098 §5 rule 2). -->
+    <DefineConstants>$(DefineConstants);CGE_SCENE_UPGRADE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +30,8 @@
     <Compile Include="..\..\src\CSharpGameEngine.SceneModel\**\*.cs"
              Exclude="..\..\src\CSharpGameEngine.SceneModel\obj\**\*.cs;..\..\src\CSharpGameEngine.SceneModel\bin\**\*.cs"
              Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- The scene upgrade lives in SceneJson.Cli only (ADR-0098 §5 rule 2); its tests compile it from there. -->
+    <Compile Include="..\..\tools\CSharpGameEngine.SceneJson.Cli\SceneJsonAngleUpgrade.cs" Link="SceneJsonCli\SceneJsonAngleUpgrade.cs" />
   </ItemGroup>
 
   <!--

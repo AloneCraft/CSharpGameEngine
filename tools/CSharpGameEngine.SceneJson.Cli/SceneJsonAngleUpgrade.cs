@@ -1,3 +1,4 @@
+// 旧版のシーンを読む変換は SceneJson.Cli だけにある（ADR-0098 §5 規則 2）。生成器と VSIX はこのファイルを取り込まない。
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -23,17 +24,19 @@ internal static class SceneJsonAngleUpgrade {
         internal IReadOnlyList<string>Problems { get; }
     }
     internal static Result Upgrade(string Text,Compilation Compilation){
-        var Before=SceneJsonSceneAnalyzer.Analyze(Text,Compilation);
+        var Before=SceneJsonSceneAnalyzer.AnalyzeEarlierVersion(Text,Compilation);
         if(!Before.Problems.IsEmpty||Before.Root is null){
             return new Result(null,false,[.. Before.Problems.Select(Describe)]);
         }
-        if(Before.SchemaVersion>=SceneJsonSceneAnalyzer.SchemaVersion){ return new Result(Text,false,[]); }
+        if(Before.SchemaVersion>=SceneJsonSceneAnalyzer.SchemaVersion&&Before.KeyRenames.IsEmpty){ return new Result(Text,false,[]); }
         var Version=SceneJsonReader.Parse(Text).Get("schemaVersion")!;
         List<(int Start,int End,string Text)>Edits=[(Version.Start,Version.End,SceneJsonSceneAnalyzer.SchemaVersion.ToString(CultureInfo.InvariantCulture))];
         if(Before.SchemaVersion<SceneJsonAngles.TurnsSchemaVersion){
             foreach(var Angle in Before.AngleValues){
-                var Value=float.Parse(Angle.Text,NumberStyles.Float,CultureInfo.InvariantCulture);
-                Edits.Add((Angle.Start,Angle.End,SceneJsonAngles.FormatTurns(Value,Angle.Unit)));
+                if(!TryFormatTurns(Angle,out var Turns)){
+                    return new Result(null,false,[$"the angle at {Angle.Start.ToString(CultureInfo.InvariantCulture)} cannot be represented without changing its value."]);
+                }
+                Edits.Add((Angle.Start,Angle.End,Turns));
             }
         }
         foreach(var Rename in Before.KeyRenames){
@@ -56,6 +59,24 @@ internal static class SceneJsonAngleUpgrade {
             return new Result(null,false,[$"the upgraded document would change {Difference}; it was left as it is."]);
         }
         return new Result(Upgraded,true,[]);
+    }
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static bool TryFormatTurns(SceneJsonAngleValue Angle,out string Turns){
+        Turns=string.Empty;
+        if(Angle.NumericType is { }Type&&SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar"){
+            return SceneJsonFixedValue.TryAngleToTurns(Type,Angle.Text,Angle.Unit,out Turns);
+        }
+        if(Angle.NumericType?.SpecialType==SpecialType.System_Double){
+            var Token=Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ParseToken(Angle.Text.TrimStart('-')+"d");
+            if(Token.ContainsDiagnostics||Token.Value is not double Value||double.IsNaN(Value)||double.IsInfinity(Value)){ return false; }
+            Turns=SceneJsonAngles.FormatTurns(Angle.Text.StartsWith("-",StringComparison.Ordinal)?-Value:Value,Angle.Unit);
+            return true;
+        }
+        if(!float.TryParse(Angle.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var Single)||float.IsNaN(Single)||float.IsInfinity(Single)){ return false; }
+        Turns=SceneJsonAngles.FormatTurns(Single,Angle.Unit);
+        return true;
     }
     private static string Describe(SceneJsonProblem Problem)=>
         $"{Problem.Descriptor.Id} at {Problem.Start.ToString(CultureInfo.InvariantCulture)}: {string.Format(CultureInfo.InvariantCulture,Problem.Descriptor.MessageFormat.ToString(CultureInfo.InvariantCulture),Problem.Arguments)}";

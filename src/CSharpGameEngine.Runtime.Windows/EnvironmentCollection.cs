@@ -1,4 +1,5 @@
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Numerics;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Lighting;
@@ -140,27 +141,18 @@ internal sealed class EnvironmentCollection {
 }
 /// <summary>
 /// 固定小数点のワールド位置がボクセル格子のどこにあるか（ADR-0078/M0110）。ボクセル位置（位置／ボクセルサイズのfloor）と、
-/// その角からどれだけ進んでいるかを固定小数点値上で計算する。カメラが遠くへ移動しても、グローバル距離場のボクセルはワールド格子に沿う。
+/// その角からどれだけ進んでいるかを選択した数値型で計算する。整数インデックスは、除算の丸めで隣のセルへ移らないように求める。
 /// ボクセルサイズが正でない場合、またはボクセルインデックスが64ビットに収まらない場合はfalse。
 /// </summary>
 internal static class WorldVoxelGrid {
-    internal static bool TryLocate(CSharpGameEngine.Numerics.LogicalScalar Position,float VoxelSizeMeters,out long Voxel,out float Remainder){
+    internal static bool TryLocate(LogicalScalar Position,float VoxelSizeMeters,out long Voxel,out float Remainder){
         Voxel=0;
         Remainder=0f;
-        if(!(VoxelSizeMeters>0f)||!CSharpGameEngine.Numerics.LogicalScalar.TryFromSingle(VoxelSizeMeters,out var Size)||Size.Raw<=0){
+        if(!(VoxelSizeMeters>0f)||!LogicalScalar.TryFromSingle(VoxelSizeMeters,out var Size)||Size<=LogicalScalar.Zero){
             return false;
         }
-        var Quotient=Position.Raw/Size.Raw;
-        var Rest=Position.Raw%Size.Raw;
-        if(Rest<0){
-            Rest+=Size.Raw;
-            Quotient--;
-        }
-        if(Quotient>long.MaxValue||Quotient<long.MinValue){
-            return false;
-        }
-        Voxel=(long)Quotient;
-        CSharpGameEngine.Numerics.LogicalScalar.FromRaw(Rest).TryToSingle(out Remainder);
+        if(!LogicalNumeric.TryDivRemFloor(Position,Size,out Voxel,out var Rest)){ return false; }
+        Rest.TryToSingle(out Remainder);
         Remainder=Math.Clamp(Remainder,0f,VoxelSizeMeters);
         return true;
     }

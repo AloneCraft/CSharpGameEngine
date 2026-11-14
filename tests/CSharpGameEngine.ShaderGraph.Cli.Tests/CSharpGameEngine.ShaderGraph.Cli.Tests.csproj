@@ -5,4 +5,10 @@
  <ItemGroup><ProjectReference Include="../../tools/CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj"/></ItemGroup>
  <ItemGroup><ProjectReference Include="../../src/CSharpGameEngine.Rendering/CSharpGameEngine.Rendering.csproj"/><None Include="../../assets/Shaders/Lumen.hlsl" Link="Graphs/Lumen.hlsl" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
  <ItemGroup><None Include="../../assets/Shaders/*.cgeshadergraph" Link="Graphs/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/><None Include="../../assets/Shaders/*.cgesubgraph" Link="Graphs/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+ <ItemGroup>
+  <Compile Include="../Shared/ModelArtifactTestContent.cs" Link="Testing/ModelArtifactTestContent.cs"/>
+  <ProjectReference Include="../../tools/CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj"/>
+  <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj"/>
+  <ProjectReference Include="../../tools/CSharpGameEngine.Cook.Cli/CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="Platform;RuntimeIdentifier;SelfContained"/>
+ </ItemGroup>
 </Project>

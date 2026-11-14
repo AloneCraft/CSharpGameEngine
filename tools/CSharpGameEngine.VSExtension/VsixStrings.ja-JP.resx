@@ -615,12 +615,17 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
 <data name="Assets_State_InvalidMetadata" xml:space="preserve"><value>メタデータエラー</value></data>
 <data name="Assets_State_MissingSource" xml:space="preserve"><value>ソースが見つかりません</value></data>
 <data name="Assets_State_ReadOnly" xml:space="preserve"><value>読み取り専用</value></data>
+<data name="Assets_ThumbnailLoading" xml:space="preserve"><value>読み込み中…</value></data>
+<data name="Assets_ThumbnailUnavailable" xml:space="preserve"><value>画像なし</value></data>
+<data name="Assets_ThumbnailUnavailableHint" xml:space="preserve"><value>このアセットの縮小画像は表示できません。</value></data>
 <data name="Assets_Provider_Project" xml:space="preserve"><value>プロジェクト</value></data>
 <data name="Assets_Provider_ProjectPlugin" xml:space="preserve"><value>プロジェクトのプラグイン</value></data>
 <data name="Assets_Provider_Package" xml:space="preserve"><value>SDK / パッケージ</value></data>
 <data name="Assets_DirectoryGuard" xml:space="preserve"><value>アセットを含むフォルダー単位の操作には未対応です。アセットウィンドウで個々のアセットを整理してください。</value></data>
 <data name="Assets_Place" xml:space="preserve"><value>アセットを配置</value></data>
 <data name="Assets_Reveal" xml:space="preserve"><value>アセットを表示</value></data>
+<data name="Assets_ChooseModel" xml:space="preserve"><value>モデルアセットを選択</value></data>
+<data name="Assets_NoCompatibleModels" xml:space="preserve"><value>このプロジェクトに選択できるモデルがありません</value></data>
 <data name="Assets_Play" xml:space="preserve"><value>再生</value></data>
 <data name="Assets_Stop" xml:space="preserve"><value>停止</value></data>
 <data name="Assets_Recovery" xml:space="preserve"><value>中断した操作を復元</value></data>
@@ -827,4 +832,5 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="ReferenceViewer_DependenciesDepth" xml:space="preserve"><value>依存先の探索の深さ</value></data>
   <data name="ReferenceViewer_Loading" xml:space="preserve"><value>読み込み中...</value></data>
   <data name="ReferenceViewer_Empty" xml:space="preserve"><value>参照は見つかりませんでした。</value></data>
+  <data name="Assets_InvalidName" xml:space="preserve"><value>フォルダー区切りや使用できない文字を含まない名前を入力してください。末尾に点や空白は使えません。</value></data>
 </root>

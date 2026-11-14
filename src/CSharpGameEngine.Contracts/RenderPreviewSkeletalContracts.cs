@@ -1,16 +1,25 @@
 namespace CSharpGameEngine.Contracts;
+/// <summary>制作側が生成済みのモデル参照。表示ホストは元ファイルを読まない。</summary>
+public sealed class RenderPreviewModelSource {
+    public string SourcePath { get;set; }=string.Empty;
+    public string ContentDirectory { get;set; }=string.Empty;
+    public string SourceUri { get;set; }=string.Empty;
+    public string ModelHash { get;set; }=string.Empty;
+}
 
 /// <summary>
-/// スケルタル（スキン付き）glTF をホストが自分で読み込むための入力（プロトコル 11、M0127、ADR-0090）。
-/// VSIX は glTF を読まない（ADR-0019/0020）ので、パスだけを渡し、ホストがランタイムと同じ読み込み・テクスチャ焼き込み・姿勢評価を行う。
+/// 制作側が用意したスケルタルモデルの参照（プロトコル 14、ADR-0097）。
+/// 表示ホストはゲームと同じ生成済みモデルを読み、ソース解析・テクスチャ生成を行わない。
 /// メッシュ・マテリアル・オブジェクトは <see cref="RenderPreviewScene"/> の明示分の後ろに足され、原点に置かれる。
 /// </summary>
 public sealed class RenderPreviewAssetSource {
     public const int MaximumPathLength=1_024;
-    /// <summary>スキンを正確に 1 つ持つ .glb／.gltf の絶対パス。</summary>
+    /// <summary>画面上で選択したソースの絶対パス。表示ホストのファイル入力には使わない。</summary>
     public string MeshPath { get;set; }=string.Empty;
     /// <summary>クリップを読む .glb／.gltf の絶対パス。空なら <see cref="MeshPath"/> のクリップを使う。ジョイント名が <see cref="MeshPath"/> のスキンと一致するものだけが評価される。</summary>
     public string AnimationPath { get;set; }=string.Empty;
+    public RenderPreviewModelSource?MeshModel { get;set; }
+    public RenderPreviewModelSource?AnimationModel { get;set; }
 }
 
 /// <summary>Open／ReplaceScene の応答でホストが返す、読み込んだスケルタルアセットの要約。</summary>
@@ -47,7 +56,25 @@ public static class RenderPreviewSkeletalValidation {
         if(Asset is null){ return null; }
         string?Error=ValidatePath(Asset.MeshPath,"Asset mesh path",required:true);
         if(Error is not null){ return Error; }
-        return ValidatePath(Asset.AnimationPath,"Asset animation path",required:false);
+        Error=ValidatePath(Asset.AnimationPath,"Asset animation path",required:false);
+        if(Error is not null){ return Error; }
+        Error=ValidateModel(Asset.MeshModel,Asset.MeshPath);if(Error is not null){ return Error; }
+        if(!string.IsNullOrEmpty(Asset.AnimationPath)){ return ValidateModel(Asset.AnimationModel,Asset.AnimationPath); }
+        return Asset.AnimationModel is null?null:"An animation model reference requires its source identity.";
+    }
+    public static string?ValidateModel(RenderPreviewModelSource?Source,string ExpectedPath){
+        if(Source is null){ return "A prepared model reference is required."; }
+        if(!string.Equals(Source.SourcePath,ExpectedPath,System.StringComparison.OrdinalIgnoreCase)){ return "Prepared model source identity differs from the selected asset."; }
+        var Directory=Source.ContentDirectory;
+        if(string.IsNullOrEmpty(Directory)||Directory.Length>RenderPreviewAssetSource.MaximumPathLength||Directory.IndexOf('\0')>=0){ return "Model content directory is invalid."; }
+        var Rooted=Directory.Length>=3&&Directory[1]==':'&&(Directory[2]=='\\'||Directory[2]=='/')||Directory.StartsWith("\\\\",System.StringComparison.Ordinal);
+        if(!Rooted){ return "Model content directory must be absolute."; }
+        var Uri=Source.SourceUri;
+        if(string.IsNullOrEmpty(Uri)||Uri.Length>4096||Uri.IndexOf('\\')>=0||Uri.IndexOf(':')>=0||!Uri.IsNormalized(System.Text.NormalizationForm.FormC)){ return "Model source URI is invalid."; }
+        foreach(var Character in Uri){ if(char.IsControl(Character)){ return "Model source URI is invalid."; } }
+        foreach(var Part in Uri.Split('/')){ if(Part is "" or "." or ".."){ return "Model source URI must remain inside the project."; } }
+        if(!Hash256.TryParse(Source.ModelHash,out var Hash)||!Hash.IsValid){ return "Model content hash is invalid."; }
+        return null;
     }
     public static string?Validate(RenderPreviewFrame Frame){
         if(Frame.SelectedJoint<-1||Frame.SelectedJoint>=ushort.MaxValue){ return "Frame selected joint is out of range."; }

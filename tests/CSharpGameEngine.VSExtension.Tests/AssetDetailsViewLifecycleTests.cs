@@ -7,6 +7,44 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class AssetDetailsViewLifecycleTests {
     public AssetDetailsViewLifecycleTests(MockedVsFixture Fixture){ }
     [Fact]
+    public void NativeRenameEscapeDiscardsTypedTextBeforeTheShellCanMoveFocus(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            using var Control=new AssetsToolWindowControl();
+            var Row=new AssetWorkspaceRow(new(){Source=new(){SourcePath="Ship.glb"}});Assert.True(Row.BeginRename());Row.RenameText="Discarded.glb";
+            // The IDE normally establishes this active edit through selection and F2.
+            typeof(AssetsToolWindowControl).GetField("EditingRow",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(Control,Row);
+            Assert.True(Control.HandleRenameEscape());Assert.False(Row.IsRenaming);Assert.Equal("Ship.glb",Row.RenameText);
+            Assert.False(Control.HandleRenameEscape());
+        });
+    }
+    [Fact]
+    public void LoadingAssetTilesCanBeRealizedAndTheirAnimationStopsOnCancellation(){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            using var Control=new AssetsToolWindowControl();
+            var List=(ListBox)Control.FindName("Tiles");
+            foreach(var InitiallyLoading in new[]{true,false}){
+                var Row=new AssetWorkspaceRow(new(){Kind=AssetWorkspaceKind.Model,Source=new(){SourcePath="Ship.glb"}},ThumbnailLoader:async Cancellation=>{ await Task.Delay(Timeout.Infinite,Cancellation);return null; });
+                var Request=InitiallyLoading?Row.LoadAsync():null;
+                var Presenter=new ContentPresenter{Content=Row,ContentTemplate=List.ItemTemplate};
+                Presenter.Measure(new(130,160));Presenter.Arrange(new(0,0,130,160));
+                var Tile=(StackPanel)System.Windows.Media.VisualTreeHelper.GetChild(Presenter,0);
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                var Spinner=((Grid)Tile.Children[0]).Children.OfType<System.Windows.Shapes.Path>().Single();
+                Assert.Equal(System.Windows.Visibility.Visible,Spinner.Visibility);Assert.True(Spinner.RenderTransform.HasAnimatedProperties);
+                Row.CancelThumbnail();
+#pragma warning disable VSTHRD003 // This test owns and cancels the pending loader; it has no VS work to join.
+                if(Request is not null){ await Request; }
+#pragma warning restore VSTHRD003
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                Assert.Equal(System.Windows.Visibility.Collapsed,Spinner.Visibility);Assert.False(Spinner.RenderTransform.HasAnimatedProperties);
+            }
+        });
+    }
+    [Fact]
     public void DetailsReconnectWhenTheWorkspaceControllerAppearsOrChanges(){
         ThreadHelper.JoinableTaskFactory.Run(async()=>{
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();

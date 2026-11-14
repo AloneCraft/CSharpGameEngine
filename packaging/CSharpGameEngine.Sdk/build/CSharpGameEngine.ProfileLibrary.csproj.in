@@ -1,0 +1,62 @@
+<Project>
+  <PropertyGroup>
+    <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
+    <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <CgeNumericProfileLateImport>false</CgeNumericProfileLateImport>
+    <_CgeSdkLib>$(CgeEngineRoot)lib\net10.0-windows10.0.19041.0\</_CgeSdkLib>
+    <_CgeSdkCook Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Navigation.Cook' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Destruction.Cook'">true</_CgeSdkCook>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="CSharpGameEngine.Contracts" HintPath="$(_CgeSdkLib)CSharpGameEngine.Contracts.dll" />
+    <Analyzer Include="$(CgeEngineRoot)analyzers\dotnet\cs\CSharpGameEngine.CodeAnalysis.dll" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics'">
+    <Compile Include="$(CgeEngineRoot)src\CSharpGameEngine.Numerics\*.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.World'">
+    <Compile Include="$(CgeEngineRoot)src\CSharpGameEngine.World\*.cs" />
+    <Reference Include="CSharpGameEngine.Content" HintPath="$(_CgeSdkLib)CSharpGameEngine.Content.dll" />
+    <ProjectReference Include="..\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(_CgeSdkCook)' == 'true'">
+    <Reference Include="CSharpGameEngine.Cooking" HintPath="$(CgeEngineRoot)tools\Cook\CSharpGameEngine.Cooking.dll" />
+    <Reference Include="CSharpGameEngine.Import" HintPath="$(CgeEngineRoot)tools\ModelImport\CSharpGameEngine.Import.dll" />
+    <Reference Include="CSharpGameEngine.Core" HintPath="$(_CgeSdkLib)CSharpGameEngine.Core.dll" />
+    <Reference Include="CSharpGameEngine.Content" HintPath="$(_CgeSdkLib)CSharpGameEngine.Content.dll" />
+    <Reference Include="CSharpGameEngine.Rendering" HintPath="$(_CgeSdkLib)CSharpGameEngine.Rendering.dll" />
+    <ProjectReference Include="..\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Navigation.Cook'">
+    <Compile Include="$(CgeEngineRoot)plugins\CSharpGameEngine.Navigation\Cook\*.cs" />
+    <Compile Include="$(CgeEngineRoot)plugins\CSharpGameEngine.Navigation\Runtime\NavMesh.cs;$(CgeEngineRoot)plugins\CSharpGameEngine.Navigation\Runtime\NavMesh.Query.cs;$(CgeEngineRoot)plugins\CSharpGameEngine.Navigation\Runtime\NavigationDefaults.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Destruction.Cook'">
+    <Compile Include="$(CgeEngineRoot)plugins\CSharpGameEngine.Destruction\Cook\*.cs" />
+    <Compile Include="$(CgeEngineRoot)plugins\CSharpGameEngine.Destruction\Runtime\DestructionDefaults.cs" />
+    <Compile Include="$(CgeEngineRoot)src\CSharpGameEngine.Runtime.Physics\PhysicsShapeAssets.cs;$(CgeEngineRoot)src\CSharpGameEngine.Runtime.Physics\PhysicsCooking.cs;$(CgeEngineRoot)src\CSharpGameEngine.Runtime.Physics\PrefractureCooking.cs;$(CgeEngineRoot)src\CSharpGameEngine.Runtime.Physics\PhysicsAabb.cs" />
+    <Using Include="CSharpGameEngine.Numerics" />
+  </ItemGroup>
+  <Import Project="$(CgeEngineRoot)build\CSharpGameEngine.NumericProfile.props" />
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics' and '$(_CgeNumericVariant)' == 'true'">
+    <Compile Remove="$(CgeEngineRoot)src\CSharpGameEngine.Numerics\LogicalScalar.cs" />
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="$(CgeEngineRoot)build\CSharpGameEngine.NumericProfile.targets" />
+</Project>

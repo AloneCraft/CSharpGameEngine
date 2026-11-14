@@ -46,7 +46,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 {
   "Name": "Vehicles",
   "Version": "0.1.0",
-  "EngineVersion": ">=0.1.16",
+  "EngineVersion": ">=0.1.0-dev.50",
   "Description": "…",
   "Dependencies": []
 }
@@ -55,7 +55,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 |---|---|---|
 | `Name` | C# の識別子。カタログの名前とアセットの置き場所になる | PLUGIN001(不正)、PLUGIN002(有効なプラグインに同じ名前が 2 つ) |
 | `Version` | 1〜4 個の数(`1`、`1.2.3`) | PLUGIN001 |
-| `EngineVersion` | 空白で区切った条件がすべて成り立つ(`>=`、`>`、`<=`、`<`、`=`、数だけなら一致)。エンジンの版は `build/CSharpGameEngine.Version.props` | PLUGIN001(書式)、PLUGIN005(合わない) |
+| `EngineVersion` | 空白で区切った条件がすべて成り立つ(`>=`、`>`、`<=`、`<`、`=`、数だけなら一致)。版は SemVer と同じく比べ、`0.1.0-dev.50` のようなプレリリースは正式版 `0.1.0` より前。エンジンの版は `build/CSharpGameEngine.Version.props`(最初の公開まで `0.1.0-dev.N`、ADR-0098 §5 規則 4) | PLUGIN001(書式)、PLUGIN005(合わない)、PLUGIN006(エンジンの版が読めない。検査を飛ばさない) |
 | `Dependencies` | 有効なプラグインの名前の配列 | PLUGIN003(有効でない)、PLUGIN004(循環) |
 
 ### `<名前>.plugin.props` と `<名前>.plugin.items`

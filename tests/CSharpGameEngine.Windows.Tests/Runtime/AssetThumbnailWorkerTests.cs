@@ -14,7 +14,7 @@ public sealed class AssetThumbnailWorkerTests {
     }
     [Fact]
     public void InvalidReadbacksFailBeforeAllocatingTheirClaimedPixelSize(){
-        Assert.Throws<InvalidDataException>(()=>AssetThumbnailWorker.Pack(new(){Width=129,Height=1,RowPitch=516,Format=RenderPixelFormat.Rgba8Unorm,Pixels=[]}));
+        Assert.Throws<InvalidDataException>(()=>AssetThumbnailWorker.Pack(new(){Width=513,Height=1,RowPitch=2052,Format=RenderPixelFormat.Rgba8Unorm,Pixels=[]}));
         Assert.Throws<InvalidDataException>(()=>AssetThumbnailWorker.Pack(new(){Width=1,Height=2,RowPitch=4,Format=RenderPixelFormat.Rgba8Unorm,Pixels=[1,2,3,4]}));
     }
 }

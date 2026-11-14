@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CSharpGameEngine.Contracts;
 using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
@@ -18,9 +20,21 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private bool Updating=true;
     private bool Disposed;
     private Point DragOrigin;
+    private readonly DispatcherTimer RenameTimer=new();
+    private AssetWorkspaceRow?RenameCandidate;
+    private AssetWorkspaceRow?EditingRow;
+    [DllImport("user32.dll")]
+    private static extern uint GetDoubleClickTime();
     public AssetsToolWindowControl(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.InitializeComponent();
+        this.RenameTimer.Interval=TimeSpan.FromMilliseconds(GetDoubleClickTime());
+        this.RenameTimer.Tick+=(_,_)=>{
+            var Row=this.RenameCandidate;this.CancelRenameWait();
+            var List=this.ActiveList;
+            if(Row is not null&&List.IsKeyboardFocusWithin&&List.SelectedItems.Count==1&&ReferenceEquals(List.SelectedItem,Row)){ this.BeginRename(Row); }
+        };
+        this.Unloaded+=(_,_)=>this.CancelRename();
         this.AllowDrop=true;
         this.DragOver+=(_,Args)=>{ Args.Handled=true;Args.Effects=this.Controller?.Query.CanChooseDestination==true&&Args.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Copy:DragDropEffects.None; };
         this.Drop+=(_,Args)=>{
@@ -63,6 +77,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     internal void Attach(AssetWorkspaceController?Controller){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||ReferenceEquals(this.Controller,Controller)){ return; }
+        this.CancelRename();
         if(this.Controller is { }Previous){ Previous.Changed-=this.OnInventoryChanged; }
         this.Controller=Controller;
         if(Controller is not null){ Controller.Changed+=this.OnInventoryChanged;this.OnInventoryChanged(); }
@@ -113,6 +128,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     }
     private async Task ApplyQueryAsync(){
         if(this.Disposed||this.Controller is not { }Controller){ return; }
+        this.CancelRename();
         this.SearchCancellation?.Cancel();this.SearchCancellation?.Dispose();
         var Cancellation=this.SearchCancellation=new CancellationTokenSource();
         var Token=Cancellation.Token;
@@ -137,6 +153,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     private void OnSelectionChanged(object Sender,SelectionChangedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Updating||Sender is not ListBox List){ return; }
+        this.CancelRename();
         var Items=List.SelectedItems.Cast<AssetWorkspaceRow>().Select(static Row=>Row.Item).ToArray();
         AssetWorkspaceSelection.Select(Items);
         // Assets での選択をソリューション エクスプローラーへ同期する（1 件だけ選んだとき）。
@@ -144,6 +161,7 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
     }
     private void OnGlobalSelection(IReadOnlyList<AssetWorkspaceItem>Items){
         if(this.Disposed){ return; }
+        if(this.EditingRow is { }Editing&&(Items.Count!=1||!string.Equals(Items[0].Source.SourcePath,Editing.Item.Source.SourcePath,StringComparison.OrdinalIgnoreCase))){ this.CancelRename(); }
         this.Updating=true;
         foreach(var List in new ListBox[]{this.Rows,this.Tiles}){
             var Paths=new HashSet<string>(Items.Select(static Item=>Item.Source.SourcePath),StringComparer.OrdinalIgnoreCase);
@@ -154,12 +172,27 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         this.Updating=false;
     }
     private AssetWorkspaceItem?Selected=>AssetWorkspaceSelection.Current.Count==1?AssetWorkspaceSelection.Current[0]:null;
+    private ListBox ActiveList=>this.Rows.Visibility==Visibility.Visible?this.Rows:this.Tiles;
     private void OnOpen(object Sender,MouseButtonEventArgs Args){
-        ThreadHelper.ThrowIfNotOnUIThread(); if(this.Selected is { }Item){ this.Controller?.Open(Item); } }
+        ThreadHelper.ThrowIfNotOnUIThread();this.CancelRenameWait();
+        if(this.EditingRow is null&&Args.ChangedButton==MouseButton.Left&&Sender is ListBox List
+            &&ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) is ListBoxItem&&this.Selected is { }Item){ this.Controller?.Open(Item); }
+    }
     private void OnRefresh(object Sender,RoutedEventArgs Args){ if(this.Controller is { }Controller){ Controller.Run(Controller.RefreshAsync); } }
     private void OnCancel(object Sender,RoutedEventArgs Args){ if(this.Disposed){ return; }this.SearchCancellation?.Cancel();this.Controller?.CancelRefresh(); }
     private void OnKeyDown(object Sender,KeyEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
+        this.CancelRenameWait();
+        if(this.EditingRow is not null){
+            if(Args.Key==Key.Escape){ Args.Handled=this.HandleRenameEscape(); }
+            else if(Args.Key==Key.Enter){ this.CommitRename();Args.Handled=true; }
+            return;
+        }
+        if(Keyboard.FocusedElement is TextBox){ return; }
+        if(Args.Key==Key.F2&&Keyboard.Modifiers==ModifierKeys.None){
+            if(this.ActiveList.SelectedItems.Count==1&&this.ActiveList.SelectedItem is AssetWorkspaceRow Row){ this.BeginRename(Row); }
+            Args.Handled=true;return;
+        }
         if(Keyboard.Modifiers==ModifierKeys.Control&&this.HandleNativeShortcut(Args.Key)){ Args.Handled=true;return; }
         if(Args.Key==Key.Enter&&this.Selected is { }Item){ this.Controller?.Open(Item);Args.Handled=true; }
         if(Args.Key==Key.F5){ this.OnRefresh(Sender,Args);Args.Handled=true; }
@@ -196,9 +229,14 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         this.Updating=false;this.OnInventoryChanged();
     }
     private void OnDragStart(object Sender,MouseButtonEventArgs Args){
+        this.CancelRenameWait();
         this.DragOrigin=Args.GetPosition(this);
         if(Sender is not ListBox List){ return; }
-        if(ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) is ListBoxItem Container){ Container.Focus();return; }
+        if(ItemsControl.ContainerFromElement(List,Args.OriginalSource as DependencyObject) is ListBoxItem Container){
+            if(Container.DataContext is AssetWorkspaceRow { IsRenaming:true }){ return; }
+            if(Container.IsSelected&&List.SelectedItems.Count==1&&Args.ClickCount==1&&Keyboard.Modifiers==ModifierKeys.None){ this.RenameCandidate=Container.DataContext as AssetWorkspaceRow; }
+            Container.Focus();return;
+        }
         // アイテム以外の空き領域のクリックは選択を解除する（スクロールバーと列ヘッダーは除く）。
         if(IsEmptySpace(Args.OriginalSource as DependencyObject)){ List.SelectedItems.Clear(); }
     }
@@ -210,16 +248,61 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         return true;
     }
     private void OnDragMove(object Sender,MouseEventArgs Args){
-        if(Args.LeftButton!=MouseButtonState.Pressed||this.Selected is not { }Item){ return; }
+        if(Args.LeftButton!=MouseButtonState.Pressed||Keyboard.FocusedElement is TextBox||this.Selected is not { }Item){ return; }
         var Point=Args.GetPosition(this);
         if(Math.Abs(Point.X-this.DragOrigin.X)<SystemParameters.MinimumHorizontalDragDistance&&Math.Abs(Point.Y-this.DragOrigin.Y)<SystemParameters.MinimumVerticalDragDistance){ return; }
+        this.CancelRenameWait();
         var Data=new DataObject(typeof(AssetWorkspaceItem),Item);Data.SetData(DataFormats.FileDrop,new[]{Item.Source.SourcePath});
         DragDrop.DoDragDrop(this,Data,DragDropEffects.Copy);
     }
     private void OnCreate(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread(); if(this.Controller is { }Controller){ Controller.Run(()=>AssetWorkspaceCommands.ShowCreateMenuAsync(this,Controller)); } }
-    private void OnOrganize(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread(); if(this.Controller is { }Controller){ AssetWorkspaceCommands.ShowOrganizeMenu(this,Controller,AssetWorkspaceSelection.Current); } }
+    private void OnRenameClick(object Sender,MouseButtonEventArgs Args){
+        if(this.RenameCandidate is not null&&Args.ClickCount==1){ this.RenameTimer.Start(); }
+    }
+    private void CancelRenameWait(){ this.RenameTimer?.Stop();this.RenameCandidate=null; }
+    private void CancelRename(){
+        this.CancelRenameWait();var Row=this.EditingRow;this.EditingRow=null;Row?.EndRename();
+    }
+    internal bool HandleRenameEscape(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.EditingRow is null){ return false; }
+        this.CancelRename();this.ActiveList.Focus();return true;
+    }
+    private void BeginRename(AssetWorkspaceRow Row){
+        this.CancelRename();
+        if(this.Controller is null||this.Disposed){ return; }
+        this.EditingRow=Row;
+        if(!Row.BeginRename()){ this.EditingRow=null;return; }
+        this.ActiveList.ScrollIntoView(Row);
+    }
+    private void OnRenameVisible(object Sender,DependencyPropertyChangedEventArgs Args){
+        if(Sender is not TextBox Input||!Input.IsVisible||this.Controller is not { }Controller){ return; }
+        Controller.Run(async()=>{
+            await Controller.Owner.JoinableTaskFactory.SwitchToMainThreadAsync(alwaysYield:true);
+            if(Input.IsVisible&&Input.DataContext is AssetWorkspaceRow { IsRenaming:true }Row&&ReferenceEquals(this.EditingRow,Row)){
+                Input.Focus();Input.Select(0,Path.GetFileNameWithoutExtension(Row.Name).Length);
+            }
+        });
+    }
+    private void OnRenameLostFocus(object Sender,KeyboardFocusChangedEventArgs Args){
+        if(Sender is TextBox { DataContext:AssetWorkspaceRow Row }&&ReferenceEquals(this.EditingRow,Row)){ this.CommitRename(); }
+    }
+    private void CommitRename(){
+        if(this.EditingRow is not { }Row||this.Controller is not { }Controller){ return; }
+        string Destination;
+        try { Destination=Row.RenameDestination(); }catch(ArgumentException Error){ this.Status.Text=Error.Message;return; }
+        this.CancelRename();this.ActiveList.Focus();
+        if(!string.Equals(Row.Item.Source.SourcePath,Destination,StringComparison.Ordinal)){ Controller.Run(()=>AssetWorkspaceCommands.RenameAsync(Controller,Row.Item,Destination)); }
+    }
+    private void OnOrganize(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();this.CancelRenameWait();
+        if(this.Controller is { }Controller){ AssetWorkspaceCommands.ShowOrganizeMenu(this,Controller,AssetWorkspaceSelection.Current,Item=>{
+            if(this.ActiveList.Items.Cast<AssetWorkspaceRow>().FirstOrDefault(Row=>ReferenceEquals(Row.Item,Item)) is { }Row){ this.BeginRename(Row); }
+        }); }
+    }
     public void Dispose(){
         if(this.Disposed){ return; }
+        this.CancelRename();
         this.Disposed=true;
         var Cancellation=Interlocked.Exchange(ref this.SearchCancellation,null);
         Cancellation?.Cancel();Cancellation?.Dispose();

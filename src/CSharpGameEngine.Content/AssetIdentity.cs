@@ -63,6 +63,10 @@ public readonly record struct AssetMetadataError(AssetMetadataErrorCode Code,str
 /// <summary>正本アセットの隣に保存する、正規形式のUTF-8メタデータ。</summary>
 public sealed class AssetMetadata {
     public const int CurrentSchemaVersion=1;
+    /// <summary>glTF モデルの廃止したインポーター名（M0114 以前）。明示の「Convert legacy metadata」だけが現行の <c>cge.gltf</c> へ書き換える。</summary>
+    public const string RetiredGltfImporter="SharpGLTF";
+    /// <summary>ビルドが読まずに止める、廃止したモデルのインポーター名かどうか。</summary>
+    public static bool IsRetiredModelImporter(string Importer)=>string.Equals(Importer,RetiredGltfImporter,StringComparison.Ordinal);
     private readonly ImmutableSortedDictionary<string,string>OptionsValue;
 
     private AssetMetadata(

@@ -31,6 +31,8 @@ public sealed class AssetsToolWindowPane:ToolWindowPane {
     }
     protected override bool PreProcessMessage(ref System.Windows.Forms.Message Message){
         ThreadHelper.ThrowIfNotOnUIThread();
+        // The shell can move focus on Escape before WPF key events, which would commit on focus loss.
+        if(SceneEditorEscapeRoutingPolicy.IsVisualStudioEscapeKeyDown(Message.Msg,Message.WParam.ToInt64())&&this.Control.HandleRenameEscape()){ return true; }
         return this.Control.HandleNativeShortcut(AssetToolWindowInput.Shortcut(ref Message))||base.PreProcessMessage(ref Message);
     }
 }

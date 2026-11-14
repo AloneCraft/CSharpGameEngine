@@ -2,6 +2,40 @@ using System.Numerics;
 namespace CSharpGameEngine.Rendering.Tests;
 public sealed class RenderViewDepthTests {
     [Fact]
+    public void IdentityPerspectivePreservesOrdinaryProjectionAndRejectsMismatchedReconstruction(){
+        var Projection=Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3f,1.5f,0.1f,1000f);
+        var Depth=RenderViewDepth.ForIdentityPerspective(Projection);
+        Assert.Equal(RenderDepthEncoding.IdentityPerspective,Depth.Encoding);
+        Assert.Equal(Vector4.Zero,Depth.Packet0);
+        Assert.Equal(Vector4.Zero,Depth.Packet1);
+        var View=RenderView.Create(Projection,Projection,Vector3.Zero,0f,Depth);
+        Assert.Equal(Projection,View.AuxiliaryViewProjection);
+        foreach(var Distance in new[]{0.1f,1f,100f,1000f}){
+            var Clip=Vector4.Transform(new Vector4(0f,0f,-Distance,1f),View.ViewProjection);
+            var Expected=1000f/(1000f-0.1f)*(1f-0.1f/Distance);
+            Assert.InRange(MathF.Abs(Clip.Z/Clip.W-Expected),0f,2e-7f);
+        }
+        Assert.Throws<ArgumentException>(()=>RenderViewDepth.ForIdentityPerspective(Matrix4x4.Identity));
+        Assert.Throws<ArgumentException>(()=>RenderViewDepth.ForIdentityPerspective(default));
+        Assert.Throws<ArgumentException>(()=>RenderViewDepth.ForOrthographic(Projection));
+        var Changed=Projection;Changed.M43*=0.5f;
+        Assert.Throws<ArgumentException>(()=>RenderView.Create(Projection,Changed,Vector3.Zero,0f,Depth));
+    }
+    [Fact]
+    public void IdentityViewSourceResizesWithoutRequiringALogarithmicCurve(){
+        var Camera=View.RenderCamera.CreateDefault(Vector3.Zero);
+        Camera.RadialTransitionMeters=float.NaN;
+        var Source=View.RenderViewPolicy.FromIdentityCameraSource(Camera);
+        var Original=Source.Resolve(2f);var Resized=Source.Resolve(0.5f);
+        Assert.Equal(Camera.GetView()*Camera.GetProjection(2f),Original.ViewProjection);
+        Assert.Equal(Camera.GetView()*Camera.GetProjection(0.5f),Resized.ViewProjection);
+        Assert.Equal(RenderDepthEncoding.IdentityPerspective,Resized.Depth.Encoding);
+        Assert.NotEqual(Original.ViewProjection,Resized.ViewProjection);
+        Assert.Throws<ArgumentException>(()=>View.RenderViewPolicy.FromCameraSource(Camera).Resolve(2f));
+        Camera.NearZ=0f;
+        Assert.Throws<ArgumentException>(()=>View.RenderViewPolicy.FromIdentityCameraSource(Camera).Resolve(2f));
+    }
+    [Fact]
     public void PerspectiveAndCaptureUseTheSamePhysicalEncodingWithDifferentRasterWeights(){
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,0.1f,1e18f,MathF.PI/4f,16f/9f,out var Projection));
         var Main=RenderViewDepth.ForPerspective(Projection);

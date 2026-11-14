@@ -93,7 +93,8 @@ internal static class GameProjectGenerator {
     }
 
     /// <summary>
-    /// ゲームプロジェクトファイル：Game.props の規約は SDK パッケージから提供される。ローカルに置くのは復元に必要なものと、テンプレートが使うエンジンプラグイン（<paramref name="Plugins"/>、テンプレートの <c>CgePlugins</c>、ADR-0079）だけ。
+    /// ゲームプロジェクトファイル：Game.props の規約は SDK パッケージから提供される。構成の一覧は復元前から宣言し、初回のパッケージ読み込みで CPS の構成数が変わらないようにする。
+    /// テンプレートが使うエンジンプラグイン（<paramref name="Plugins"/>、テンプレートの <c>CgePlugins</c>、ADR-0079）も引き継ぐ。
     /// </summary>
     internal static string ProjectFile(string RootNamespace,string EngineVersion,string Plugins="")=>
         "<Project Sdk=\"Microsoft.NET.Sdk\">\r\n"
@@ -102,6 +103,7 @@ internal static class GameProjectGenerator {
         +"    <OutputType>Exe</OutputType>\r\n"
         +"    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>\r\n"
         +"    <RuntimeIdentifier>win-x64</RuntimeIdentifier>\r\n"
+        +"    <Platforms>AnyCPU;x64</Platforms>\r\n"
         +"    <RootNamespace>"+RootNamespace+"</RootNamespace>\r\n"
         +(Plugins.Length==0?string.Empty:"    <CgePlugins>"+Plugins+"</CgePlugins>\r\n")
         +"  </PropertyGroup>\r\n"

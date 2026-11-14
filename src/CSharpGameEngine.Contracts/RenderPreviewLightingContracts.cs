@@ -68,6 +68,7 @@ public sealed class RenderPreviewSpotLight {
 public sealed class RenderPreviewWorldGrid {
     public float GridSizeMeters { get;set; }=1f;
     public int SubGridDivisions { get;set; }=10;
+    public bool AnchorToObject { get;set; }
     public float WireHalfWidth { get;set; }=0.01f;
     public float[]GridColor { get;set; }=[0.2f,0.2f,0.2f];
     public float[]SubGridColor { get;set; }=[0.35f,0.35f,0.35f];

@@ -11,7 +11,7 @@
       {
         "type": "CSharpGameEngine.Entities.Transform",
         "members": {
-          "Position": { "R": 0, "U": 3.0201263, "F": 0 },
+          "Position": { "R": 9, "U": 0.92012604, "F": -11.1 },
           "Rotation": { "EulerRuf": { "R": 0, "U": 0.25, "F": 0 } }
         }
       },

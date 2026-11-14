@@ -10,6 +10,9 @@ public sealed class SceneJsonRangeTests {
     private const string Components="""
         namespace CSharpGameEngine.Numerics {
             public readonly struct LogicalScalar {
+                public const int TotalBits=128;
+                public const int FractionalBits=64;
+                public static LogicalScalar ParseInvariant(string Text)=>default;
                 public static implicit operator LogicalScalar(float Value)=>default;
             }
         }
@@ -24,7 +27,7 @@ public sealed class SceneJsonRangeTests {
 
     private const string Scene="""
         {
-          "schemaVersion": 1,
+          "schemaVersion": 3,
           "namespace": "Game",
           "className": "MainScene",
           "root": {
@@ -46,13 +49,13 @@ public sealed class SceneJsonRangeTests {
     public void TheLimitsThemselves_AreAccepted()=>Assert.Empty(Problems(Scene));
 
     [Theory]
-    [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the Q64.64 range")]
+    [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the selected 128-bit fixed range")]
     // float.MaxValue をわずかに超える値。C# ではそこへ切り下げて丸めるが、.NET Framework の float.TryParse は失敗する。
-    [InlineData("\"Height\": 9e18","\"Height\": 3.4028235677973366E+38","beyond the Q64.64 range")]
-    [InlineData("\"Height\": 9e18","\"Height\": 1e39","beyond the range of float")]
-    [InlineData("\"Height\": 9e18","\"Height\": -1e39","beyond the range of float")]
-    [InlineData("\"Height\": 9e18","\"Height\": 9.9999999999999994E+38","beyond the range of float")]
-    [InlineData("\"Height\": 9e18","\"Height\": 1e400","beyond the range of float")]
+    [InlineData("\"Height\": 9e18","\"Height\": 3.4028235677973366E+38","beyond the selected 128-bit fixed range")]
+    [InlineData("\"Height\": 9e18","\"Height\": 1e39","beyond the selected 128-bit fixed range")]
+    [InlineData("\"Height\": 9e18","\"Height\": -1e39","beyond the selected 128-bit fixed range")]
+    [InlineData("\"Height\": 9e18","\"Height\": 9.9999999999999994E+38","beyond the selected 128-bit fixed range")]
+    [InlineData("\"Height\": 9e18","\"Height\": 1e400","beyond the selected 128-bit fixed range")]
     [InlineData("\"Scale\": 3e38","\"Scale\": 1e39","beyond the range of float")]
     [InlineData("\"Scale\": 3e38","\"Scale\": -3.5e38","beyond the range of float")]
     [InlineData("\"Far\": -1e308","\"Far\": -1e309","beyond the range of double")]

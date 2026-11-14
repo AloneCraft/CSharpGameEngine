@@ -169,9 +169,35 @@ public sealed class CanonicalNumericAnalyzerTests {
         var Diagnostics=Analyze("using System.Numerics; public sealed class Oracle { public double Value; public BigInteger Raw; }","CSharpGameEngine.Numerics.Tests");
         Assert.Empty(Diagnostics);
     }
-    private static ImmutableArray<Diagnostic> Analyze(string Source,string AssemblyName="CSharpGameEngine.Runtime.NumericPolicySample",IReadOnlyList<MetadataReference>? AdditionalReferences=null){
+    [Theory]
+    [InlineData("Fixed",false,"CSharpGameEngine.Runtime.NumericPolicySample")]
+    [InlineData("Float",false,"CSharpGameEngine.Runtime.NumericPolicySample")]
+    [InlineData("Double",true,"CSharpGameEngine.Runtime.NumericPolicySample")]
+    [InlineData("Fixed",false,"MyIndependentGame")]
+    [InlineData("Float",false,"MyIndependentGame")]
+    [InlineData("Double",true,"MyIndependentGame")]
+    public void DoubleIsAvailableOnlyForTheSelectedProjectMode(string Mode,bool Allowed,string AssemblyName){
+        var Diagnostics=Analyze("public static class State {public static double Step(double Value)=>Value+1d;}",AssemblyName,NumericMode:Mode);
+        Assert.Equal(Allowed,Diagnostics.IsEmpty);
+    }
+    [Fact]
+    public void DoubleSelectionDoesNotPermitDecimalOrBigIntegerState(){
+        var Diagnostics=Analyze("public sealed class State {public double Time;public decimal Amount;public System.Numerics.BigInteger Count;}",NumericMode:"Double");
+        Assert.NotEmpty(Diagnostics);
+        Assert.All(Diagnostics,static Diagnostic=>Assert.DoesNotContain("'double'",Diagnostic.GetMessage(),StringComparison.Ordinal));
+    }
+    private sealed class NumericOptions(string?Mode):AnalyzerConfigOptionsProvider {
+        private sealed class Values(string?Mode):AnalyzerConfigOptions {
+            public override bool TryGetValue(string Key,[System.Diagnostics.CodeAnalysis.NotNullWhen(true)]out string?Value){ Value=Mode;return Value is not null&&Key=="build_property.CgeNumericMode"; }
+        }
+        private readonly AnalyzerConfigOptions Options=new Values(Mode);
+        public override AnalyzerConfigOptions GlobalOptions=>this.Options;
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree Tree)=>this.Options;
+        public override AnalyzerConfigOptions GetOptions(AdditionalText Text)=>this.Options;
+    }
+    private static ImmutableArray<Diagnostic> Analyze(string Source,string AssemblyName="CSharpGameEngine.Runtime.NumericPolicySample",IReadOnlyList<MetadataReference>? AdditionalReferences=null,string?NumericMode=null){
         var Compilation=CSharpCompilation.Create(AssemblyName,[CSharpSyntaxTree.ParseText(Source,new CSharpParseOptions(LanguageVersion.Latest))],[.. References,.. AdditionalReferences??[]],new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        return Compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CanonicalNumericAnalyzer())).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
+        return Compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CanonicalNumericAnalyzer()),new AnalyzerOptions([],new NumericOptions(NumericMode))).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
     }
     private static MetadataReference CreateReference(string Source,string AssemblyName){
         var Compilation=CSharpCompilation.Create(AssemblyName,[CSharpSyntaxTree.ParseText(Source,new CSharpParseOptions(LanguageVersion.Latest))],References,new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

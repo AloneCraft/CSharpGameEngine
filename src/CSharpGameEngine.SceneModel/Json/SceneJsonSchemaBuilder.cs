@@ -47,8 +47,8 @@ internal static class SceneJsonSchemaBuilder {
             .Add("additionalProperties",SceneJsonOut.Boolean(false))
             .Add("properties",SceneJsonOut.Object(Multiline:true)
                 .Add("$schema",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
-                .Add("schemaVersion",Described(SceneJsonOut.Object().Add("enum",SceneJsonOut.Array().Add(SceneJsonOut.Number("1")).Add(SceneJsonOut.Number("2")).Add(SceneJsonOut.Number("3"))),
-                    "3 stores every angle in turns (1 = one full rotation) under a key without the C# unit word; 2 uses the C# names; 1 holds each member's own unit. All are read."))
+                .Add("schemaVersion",Described(SceneJsonOut.Object().Add("enum",SceneJsonOut.Array().Add(SceneJsonOut.Number("3"))),
+                    "3 stores every angle in turns (1 = one full rotation) under a key without the C# unit word. Run '"+SceneJsonSceneAnalyzer.UpgradeCommand+"' to convert versions 1 and 2."))
                 .Add("namespace",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
                 .Add("className",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
                 .Add("startupOrder",SceneJsonOut.Object().Add("type",SceneJsonOut.String("integer")))

@@ -118,14 +118,6 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("    }");
 
-        // 互換性用オーバーロード。GeneratedSystemSet より前に生成された呼び出し元向け。ランタイム経路とエディター経路では使わない。
-        Lines.Add($"    internal static void RunFrame({BuildLegacyFrameParameterList(Systems,Contexts)}) {{");
-        Lines.Add("        GeneratedSystemSet Systems = default;");
-        foreach(SystemBinding System in Systems){ Lines.Add($"        Systems.{System.VariableName} = {System.VariableName};"); }
-        Lines.Add($"        RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, CounterFrequency{BuildContextArgumentSuffix(Contexts)});");
-        foreach(SystemBinding System in Systems){ Lines.Add($"        {System.VariableName} = Systems.{System.VariableName};"); }
-        Lines.Add("    }");
-
         Lines.Add($"    private static void RunPhase(global::CSharpGameEngine.Entities.SystemPhase Phase, {BuildPhaseParameterList(Contexts)}) {{");
         Lines.Add("        State.SetSimulationTiming(State.FixedTick, State.FixedTickRate, Phase);");
         Lines.Add("        State.World.BeginSystemExecution();");
@@ -458,15 +450,6 @@ internal static class GameSystemLoopEmitter {
         "ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems"+BuildContextParameterSuffix(Contexts)+", bool EditorOnly, bool RealtimeOnly";
     private static string BuildSimulationTickParameterList(List<ContextBinding> Contexts)=>
         "ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems"+BuildContextParameterSuffix(Contexts)+", bool EditorOnly, bool RealtimeOnly";
-    private static string BuildLegacyFrameParameterList(List<SystemBinding> Systems,List<ContextBinding> Contexts){
-        List<string> Parameters=["ref global::CSharpGameEngine.Entities.State State"];
-        Parameters.AddRange(Systems.Select(static System=>$"ref {System.TypeReference} {System.VariableName}"));
-        Parameters.Add("ref global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler Scheduler");
-        Parameters.Add("long ElapsedCounter");
-        Parameters.Add("long CounterFrequency");
-        Parameters.AddRange(Contexts.Select(static Context=>$"{(Context.IsReferenceType?string.Empty:"in ")}{Context.TypeFullyQualifiedName} {Context.ParameterName}"));
-        return string.Join(", ",Parameters);
-    }
     private static string BuildRunParameterList(List<ContextBinding> Contexts){
         List<string> Parameters=["ref global::CSharpGameEngine.Entities.State State"];
         Parameters.AddRange(Contexts.Select(static Context=>$"{(Context.IsReferenceType?string.Empty:"in ")}{Context.TypeFullyQualifiedName} {Context.ParameterName}"));

@@ -58,8 +58,16 @@ public sealed class PluginManifestAnalyzer:DiagnosticAnalyzer {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
+    internal static readonly DiagnosticDescriptor EngineVersionUnreadable=new(
+        id:"PLUGIN006",
+        title:"The engine version must be readable to check a plugin's engine range",
+        messageFormat:"The plugin '{0}' declares engine versions '{1}', but this build's engine version '{2}' (CgeEngineVersion) cannot be read",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
     public override ImmutableArray<DiagnosticDescriptor>SupportedDiagnostics=>
-        ImmutableArray.Create(InvalidManifest,DuplicatePlugin,MissingDependency,DependencyCycle,EngineVersionMismatch);
+        ImmutableArray.Create(InvalidManifest,DuplicatePlugin,MissingDependency,DependencyCycle,EngineVersionMismatch,EngineVersionUnreadable);
 
     public override void Initialize(AnalysisContext Context){
         Context.EnableConcurrentExecution();
@@ -78,9 +86,14 @@ public sealed class PluginManifestAnalyzer:DiagnosticAnalyzer {
                     FileContext.ReportDiagnostic(Diagnostic.Create(InvalidManifest,SceneJsonDslAnalyzer.Locate(File.Path,Text,Start,End),Problem));
                     return;
                 }
-                if(EngineVersion is { }Engine&&Manifest.EngineVersion is { }Range&&PluginVersionRange.TryParse(Range,out var Constraints)&&!Constraints.Contains(Engine)){
-                    FileContext.ReportDiagnostic(Diagnostic.Create(EngineVersionMismatch,SceneJsonDslAnalyzer.Locate(File.Path,Text,Manifest.EngineVersionStart,Manifest.EngineVersionEnd),
-                        Manifest.Name,Range,Engine.ToString()));
+                if(Manifest.EngineVersion is { }Range&&PluginVersionRange.TryParse(Range,out var Constraints)){
+                    var RangeLocation=SceneJsonDslAnalyzer.Locate(File.Path,Text,Manifest.EngineVersionStart,Manifest.EngineVersionEnd);
+                    if(EngineVersion is { }Engine){
+                        if(!Constraints.Contains(Engine)){ FileContext.ReportDiagnostic(Diagnostic.Create(EngineVersionMismatch,RangeLocation,Manifest.Name,Range,Engine.ToString())); }
+                    }else if(!string.IsNullOrEmpty(EngineVersionText)){
+                        // 版が読めないときに範囲の検査を黙って飛ばさない。
+                        FileContext.ReportDiagnostic(Diagnostic.Create(EngineVersionUnreadable,RangeLocation,Manifest.Name,Range,EngineVersionText));
+                    }
                 }
                 Manifests.Add((Manifest,File.Path,Text));
             });

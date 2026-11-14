@@ -6,6 +6,7 @@ using CSharpGameEngine.SceneAnalysis;
 using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -39,7 +40,8 @@ internal sealed class SceneInspectorMember {
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
         IReadOnlyList<InspectorChoiceCandidate>Candidates,
         IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null,SceneAngleUnit?AngleUnit=null,
-        string?DisplayName=null,string?AssetTypeName=null,CSharpGameEngine.Contracts.TextureUsage?TextureUsage=null){
+        string?DisplayName=null,string?AssetTypeName=null,CSharpGameEngine.Contracts.TextureUsage?TextureUsage=null,ITypeSymbol?FixedNumericType=null){
+        this.FixedNumericType=FixedNumericType;
         this.AssetTypeName=AssetTypeName;this.TextureUsage=TextureUsage;
         this.PhysicalContract=PhysicalContract;
         this.AngleUnit=AngleUnit;
@@ -57,6 +59,7 @@ internal sealed class SceneInspectorMember {
             ?[MemberName]
             :DefinitionMemberPath;
     }
+    internal ITypeSymbol?FixedNumericType { get; }
 
     internal string?AssetTypeName{get;}
     internal CSharpGameEngine.Contracts.TextureUsage?TextureUsage{get;}
@@ -117,11 +120,8 @@ internal sealed class SceneInspectorMemberRow:SceneInspectorRow {
 /// もう1段(以上)再帰的に重ねる。
 ///
 /// <para>
-/// <see cref="Rows"/>の葉は、メンバー直下のRUFベクトル(<c>R</c>/<c>U</c>/<c>F</c>)だけを編集可能にし、
-/// それ以外は読み取り専用として構築する。<see cref="SceneModelEditApplier"/>の入れ子の適用は
-/// <c>Member.R</c>のような2段だけを扱い、それより深い子(<c>Rotation.EulerRuf.R</c>)や
-/// RUF以外の名前を編集可能へ倒すと、<c>Transform { …, X=5f }</c>のような存在しない偽メンバーを
-/// 生やす実害あるバグになる。
+/// <see cref="Rows"/>の葉はRUFベクトルと角度の入れ子のうち、実際に編集できる値だけを編集可能にする。
+/// 保存時は既存のメンバーと一意に解決できるコンストラクター引数をたどり、存在しないメンバーは作らない。
 /// </para>
 /// </summary>
 internal sealed class SceneInspectorNestedRow:SceneInspectorRow {
@@ -280,8 +280,7 @@ internal static class SceneInspectorModelBuilder {
 
     /// <summary>
     /// Component直下のMemberでも、ネストしたObjectCreationのMemberでも使う共通の行構築関数。
-    /// <paramref name="AllowEdit"/>はComponent直下だけ<see langword="true"/>で渡す — ネストの葉は
-    /// <see cref="SceneInspectorNestedRow"/>のドキュメントコメントにある理由で常に読み取り専用にする。
+    /// <paramref name="AllowEdit"/>はComponent直下から渡し、RUFベクトルと角度の入れ子を編集可能な経路に限って引き継ぐ。
     /// </summary>
     private static SceneInspectorRow BuildRow(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
@@ -304,9 +303,10 @@ internal static class SceneInspectorModelBuilder {
         ITypeSymbol?DeclaredType=Member.MemberSymbol switch {
             IFieldSymbol Field=>Field.Type,
             IPropertySymbol Property=>Property.Type,
+            IParameterSymbol Parameter=>Parameter.Type,
             _=>Member.Value.Type,
         };
-        var Kind=AllowEdit?DetermineEditorKind(Member.Value,DeclaredType):InspectorEditorKind.ReadOnly;
+        var Kind=AllowEdit?DetermineEditorKind(Member.Value,DeclaredType,IsDoubleProfile(Member.MemberSymbol)):InspectorEditorKind.ReadOnly;
         IReadOnlyList<InspectorChoiceCandidate>Candidates=Kind switch {
             InspectorEditorKind.Enum=>EnumerateEnumCandidates(DeclaredType),
             InspectorEditorKind.AssetReference=>EnumerateAssetCandidates(Member.Value,DeclaredType,Member.MemberSymbol?.ContainingAssembly),
@@ -324,11 +324,11 @@ internal static class SceneInspectorModelBuilder {
             IsEditable,
             Kind,
             Member.Value.ConstantValue,
-            Kind==InspectorEditorKind.Number?(IsLogicalScalar(DeclaredType)?SpecialType.System_Single:DeclaredType?.SpecialType):null,
+            Kind==InspectorEditorKind.Number&&!IsLogicalScalar(DeclaredType)?DeclaredType?.SpecialType:null,
             Candidates,
             [..ParentPath,Member.MemberName],
             AngleUnit:Angle,
-            DisplayName:Display,AssetTypeName:DeclaredType?.ToDisplayString(),
+            DisplayName:Display,AssetTypeName:DeclaredType?.ToDisplayString(),FixedNumericType:IsLogicalScalar(DeclaredType)?DeclaredType:null,
             TextureUsage:Member.MemberSymbol?.GetAttributes().FirstOrDefault(A=>A.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Contracts.TextureUsageAttribute")?.ConstructorArguments.FirstOrDefault().Value is int Usage?(CSharpGameEngine.Contracts.TextureUsage)Usage:null));
     }
 
@@ -351,14 +351,16 @@ internal static class SceneInspectorModelBuilder {
                 ||Value.Members.Select(static Member=>Member.MemberName).SequenceEqual(["R","U","F"],StringComparer.Ordinal));
         List<SceneInspectorRow>Rows=[];
         foreach(var Member in Value.Members){
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit,Angle));
+            var MemberAngle=Angle??SceneJsonSceneAnalyzer.AngleUnitOf(Member.MemberSymbol);
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit||AllowEdit&&MemberAngle is not null,MemberAngle));
         }
 
         for(var Index=0;Index<Value.Arguments.Length;Index++){
             var Argument=Value.Arguments[Index];
-            SceneComponentMember Synthetic=new(ArgumentLabels[Index],MemberSymbol:null,Argument,Argument.Location);
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit,
-                Angle??(ArgumentParameters.Count>Index?SceneJsonSceneAnalyzer.AngleUnitOf(ArgumentParameters[Index]):null),
+            SceneComponentMember Synthetic=new(ArgumentLabels[Index],MemberSymbol:ArgumentParameters.Count>Index?ArgumentParameters[Index]:null,Argument,Argument.Location);
+            var ArgumentAngle=Angle??(ArgumentParameters.Count>Index?SceneJsonSceneAnalyzer.AngleUnitOf(ArgumentParameters[Index]):null);
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit||AllowEdit&&ArgumentAngle is not null,
+                ArgumentAngle,
                 ArgumentParameters.Count>Index?SceneJsonSceneAnalyzer.KeyOf(ArgumentParameters[Index]):null));
         }
 
@@ -402,14 +404,15 @@ internal static class SceneInspectorModelBuilder {
     /// EnumMember/Default)をCLR型からUIの入力コントロールへ振り分けるだけでよい。
     /// </summary>
     /// <summary>
-    /// The engine's authored real number (Q64.64), edited as a float: scene JSON holds it as a number read through float
-    /// (ADR-0070), so a float literal loses nothing the document keeps. Character movement, the spring arm and every RUF
-    /// vector of a Transform are LogicalScalar.
+    /// Recognizes fixed-profile logical scalar values for editing without a floating-point conversion.
     /// </summary>
     private static bool IsLogicalScalar(ITypeSymbol?Type)=>
         Type is not null&&SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar";
 
-    private static InspectorEditorKind DetermineEditorKind(SceneValue Value,ITypeSymbol?DeclaredType){
+    private static bool IsDoubleProfile(ISymbol?Member)=>Member?.ContainingAssembly.GetAttributes().Any(static Attribute=>
+        Attribute.AttributeClass?.ToDisplayString()=="System.Reflection.AssemblyMetadataAttribute"&&Attribute.ConstructorArguments.Length==2
+        &&Attribute.ConstructorArguments[0].Value as string=="CgeNumericProfile"&&Attribute.ConstructorArguments[1].Value as string=="float64")==true;
+    private static InspectorEditorKind DetermineEditorKind(SceneValue Value,ITypeSymbol?DeclaredType,bool AllowDouble){
         if(DeclaredType?.ToDisplayString() is "CSharpGameEngine.Authoring.TextureAsset" or "CSharpGameEngine.Authoring.ImageAsset"||Value.Kind==SceneValueKind.StaticMemberRef&&Value.ReferencedSymbol?.ContainingType is not null){
             return InspectorEditorKind.AssetReference;
         }
@@ -431,6 +434,7 @@ internal static class SceneInspectorModelBuilder {
                 or SpecialType.System_Int32 or SpecialType.System_UInt32
                 or SpecialType.System_Int64 or SpecialType.System_UInt64
                 or SpecialType.System_Single=>InspectorEditorKind.Number,
+            SpecialType.System_Double when AllowDouble=>InspectorEditorKind.Number,
             _=>InspectorEditorKind.ReadOnly,
         };
     }
@@ -479,9 +483,21 @@ internal static class SceneInspectorModelBuilder {
 /// したまま素通りし、生成ソースがコンパイルエラーになる)。
 /// </summary>
 internal static class SceneInspectorValueFormat {
+    internal static bool TryFormatFixedNumber(ITypeSymbol Type,string Text,out string Expression)=>
+        SceneJsonFixedValue.TryExpression(Type,Text.Trim(),out Expression,out _);
+    internal static string FixedNumberText(string Expression){
+        var Syntax=SyntaxFactory.ParseExpression(Expression);
+        return Syntax is InvocationExpressionSyntax{ArgumentList.Arguments.Count:1}Call
+            &&Call.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax Literal&&Literal.Token.Value is string Text
+            ?Text:RemoveFloatSuffix(Expression);
+    }
     internal static bool TryFormatNumber(SpecialType Type,string Text,out string Expression){
         Text=Text.Trim();
         switch(Type){
+            case SpecialType.System_Double:
+                var Number=Text.StartsWith("+",StringComparison.Ordinal)?Text.Substring(1):Text;
+                if(!SceneJsonReader.IsNumber(Number)||SyntaxFactory.ParseToken(Number.TrimStart('-')+"d").ContainsDiagnostics){ Expression=string.Empty;return false; }
+                Expression=Number+"d";return true;
             case SpecialType.System_Single:
                 // "NaN" と "Infinity" は解析できますが、その文字列は C# リテラル（"Infinityf"）でも JSON 数値でもありません。
                 if(!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var SingleValue)
@@ -571,14 +587,37 @@ internal static class SceneInspectorValueFormat {
             :Number;
     }
 
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+    internal static string FormatDoubleAngle(string Expression,SceneAngleUnit Unit){
+        var Text=Expression.TrimEnd('d','D');
+        var Token=SyntaxFactory.ParseToken(Text.TrimStart('-')+"d");
+        if(Token.ContainsDiagnostics||Token.Value is not double Value){ return Text; }
+        if(Text.StartsWith("-",StringComparison.Ordinal)){ Value=-Value; }
+        return SceneJsonAngles.FormatDegrees(Value,Unit);
+    }
+
     /// <summary>ADR-0074：角度行に入力された degree を、メンバーの単位に合わせたソース式に変換します。</summary>
     internal static bool TryFormatAngle(SpecialType Type,string Degrees,SceneAngleUnit Unit,out string Expression){
         Degrees=Degrees.Trim();
+        if(Type==SpecialType.System_Double){ return TryFormatDoubleAngle(Degrees,Unit,out Expression); }
         if(Type!=SpecialType.System_Single||!SceneJsonAngles.IsNumber(Degrees)){
             Expression=string.Empty;
             return false;
         }
         return TryFormatNumber(Type,SceneJsonAngles.FromDegrees(Degrees,Unit).ToString("R",CultureInfo.InvariantCulture),out Expression);
+    }
+
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+    private static bool TryFormatDoubleAngle(string Degrees,SceneAngleUnit Unit,out string Expression){
+        Expression=string.Empty;
+        var Text=Degrees.StartsWith("+",StringComparison.Ordinal)?Degrees.Substring(1):Degrees;
+        if(!SceneJsonReader.IsNumber(Text)){ return false; }
+        var Token=SyntaxFactory.ParseToken(Text.TrimStart('-')+"d");
+        if(Token.ContainsDiagnostics||Token.Value is not double Value){ return false; }
+        if(Text.StartsWith("-",StringComparison.Ordinal)){ Value=-Value; }
+        var Converted=SceneJsonAngles.FromDegreesDouble(Value,Unit);
+        return !double.IsNaN(Converted)&&!double.IsInfinity(Converted)
+            &&TryFormatNumber(SpecialType.System_Double,SceneJsonNumbers.FormatOther(Converted),out Expression);
     }
 }
 

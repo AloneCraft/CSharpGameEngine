@@ -60,16 +60,18 @@ internal readonly struct SceneJsonKeyRename {
 }
 /// <summary>角度メンバーが持つドキュメント内の数値（ADR-0074）。単位は C# メンバーのもの。</summary>
 internal readonly struct SceneJsonAngleValue {
-    internal SceneJsonAngleValue(int Start,int End,string Text,SceneAngleUnit Unit){
+    internal SceneJsonAngleValue(int Start,int End,string Text,SceneAngleUnit Unit,ITypeSymbol?NumericType=null){
         this.Start=Start;
         this.End=End;
         this.Text=Text;
         this.Unit=Unit;
+        this.NumericType=NumericType;
     }
     internal int Start { get; }
     internal int End { get; }
     internal string Text { get; }
     internal SceneAngleUnit Unit { get; }
+    internal ITypeSymbol?NumericType { get; }
 }
 internal sealed class SceneJsonScene {
     internal SceneJsonScene(string?Namespace,string ClassName,int?StartupOrder,SceneJsonNode?Root,ImmutableArray<SceneJsonProblem>Problems,
@@ -112,26 +114,47 @@ internal sealed class SceneJsonScene {
 /// <list type="bullet"><item>列挙型はメンバー名の文字列。bool、string、数値メンバーは JSON リテラルを使い、リテラルの型接尾辞は変更せず出力する。</item>
 /// <item>構造体またはクラスの値は、コンストラクターパラメーター名をキーにしたオブジェクトに続けて、設定可能なメンバーを記載する。最も多くのキーを受け取る public コンストラクターを使う。
 /// </item><item><c>LogicalScalar</c> のように、<c>float</c> からの暗黙的変換を持つ型には数値を指定できる。</item><item>
-/// <c>[Angle]</c> が付いたメンバーまたはコンストラクターパラメーター内の数値は、スキーマバージョン2以降では回転数で記述し、出力するリテラル内ではメンバーの単位に変換する（ADR-0074
-/// ）。バージョン1ではメンバーの単位をそのまま使う。キーから C# の単位名を省略することもでき（<see cref="KeyOf"/>）、これはバージョン3で出力する。C# の名前でも引き続き読み込め
-/// る。</item></list>拒否した項目はすべて <see cref="SceneJsonProblem"/> に変換し、ドキュメント全体の問題をまとめて報告する。
+/// <c>[Angle]</c> が付いたメンバーまたはコンストラクターパラメーター内の数値は回転数で記述し、出力するリテラル内ではメンバーの単位に変換する（ADR-0074）。角度のキーは
+/// C# の単位名を省いた名前（<see cref="KeyOf"/>）。旧版の読み方（バージョン1のメンバー単位、C# の名前のキー）は <c>AnalyzeEarlierVersion</c> だけが受け付ける。
+/// </item></list>拒否した項目はすべて <see cref="SceneJsonProblem"/> に変換し、ドキュメント全体の問題をまとめて報告する。
 /// </summary>
 internal static class SceneJsonSceneAnalyzer {
-    /// <summary>このコードが書き込むバージョン（ADR-0074：単位名のないキーで角度を回転数として保存する）。バージョン1と2も引き続き読み込む。</summary>
+    /// <summary>このコードが読み書きするバージョン（ADR-0074：単位名のないキーで角度を回転数として保存する）。バージョン1と2は <c>AnalyzeEarlierVersion</c> だけが読む。</summary>
     internal const int SchemaVersion=SceneJsonAngles.UnitFreeKeysSchemaVersion;
-    /// <summary>更新用に収集した、角度メンバーの数値を読み取ったときの単位（回転数またはメンバー自身の単位）。</summary>
+    /// <summary>
+    /// 角度メンバーの数値を読み取ったときの単位と、更新用に集めた値。現行版は常に回転数。メンバー自身の単位（バージョン1）で読むのは、
+    /// <c>CGE_SCENE_UPGRADE</c> を定義した変換ツール（<c>SceneJson.Cli</c>）のビルドだけ。
+    /// </summary>
     private sealed class AngleReading {
-        internal AngleReading(bool Turns){
+#if CGE_SCENE_UPGRADE
+        internal AngleReading(bool Turns=true){
             this.Turns=Turns;
         }
         internal bool Turns { get; }
+#else
+        internal bool Turns=>true;
+#endif
         internal List<SceneJsonAngleValue>Values { get; }=[];
         internal List<SceneJsonKeyRename>KeyRenames { get; }=[];
     }
     private static readonly string[]DocumentKeys=["$schema","schemaVersion","namespace","className","startupOrder","root"];
     private static readonly string[]NodeKeys=["id","name","components","children"];
     private static readonly string[]ComponentKeys=["type","members"];
-    internal static SceneJsonScene Analyze(string Text,Compilation Compilation){
+    /// <summary>旧版のシーンを現行版へ書き換えるコマンド。旧版や旧キー名を見つけたときのメッセージで案内する。</summary>
+    internal const string UpgradeCommand="CSharpGameEngine.SceneJson.Cli upgrade <game .csproj> --write";
+    /// <summary>
+    /// 現行版（<see cref="SchemaVersion"/>）のシーンだけを読む。ビルド、生成器、エディターはこの入口を使う。旧版の文書と、C# の単位名を含む角度キーは、
+    /// 変換コマンドを示す問題にする（ADR-0098 §5 規則 2：旧版を読む経路をランタイムと生成器に残さない）。
+    /// </summary>
+    internal static SceneJsonScene Analyze(string Text,Compilation Compilation)=>Analyze(Text,Compilation,AcceptEarlierVersions:false);
+#if CGE_SCENE_UPGRADE
+    /// <summary>
+    /// バージョン1〜3を読む。<c>tools/CSharpGameEngine.SceneJson.Cli/SceneJsonAngleUpgrade.cs</c> だけが使う。解析器の値の組み立てに織り込まれた旧版の分岐と
+    /// この入口は、<c>CGE_SCENE_UPGRADE</c> を定義した変換ツールとその試験のビルドにだけ入る。生成器と VSIX には入らない（<c>SceneJsonUpgradeBoundaryTests</c> が検査する）。
+    /// </summary>
+    internal static SceneJsonScene AnalyzeEarlierVersion(string Text,Compilation Compilation)=>Analyze(Text,Compilation,AcceptEarlierVersions:true);
+#endif
+    private static SceneJsonScene Analyze(string Text,Compilation Compilation,bool AcceptEarlierVersions){
         List<SceneJsonProblem>Problems=[];
         SceneJsonValue Document;
         try {
@@ -147,12 +170,20 @@ internal static class SceneJsonSceneAnalyzer {
         RejectUnknownKeys(Document,DocumentKeys,"document",Problems);
         var Version=Document.Get("schemaVersion");
         var DocumentVersion=SchemaVersion;
-        if(Version is { Kind:SceneJsonKind.Number,Text:"1" or "2" or "3" }){
+        if(Version is { Kind:SceneJsonKind.Number,Text:"3" }||AcceptEarlierVersions&&Version is { Kind:SceneJsonKind.Number,Text:"1" or "2" }){
             DocumentVersion=int.Parse(Version.Text!,CultureInfo.InvariantCulture);
+        } else if(Version is { Kind:SceneJsonKind.Number,Text:"1" or "2" }){
+            Problems.Add(Invalid(Version,$"'schemaVersion' {Version.Text} is no longer read; run '{UpgradeCommand}' to convert this scene to version {SchemaVersion}."));
+            // 文書ごと変換を案内したので、旧版の角度キーを個別に重ねて報告しない。
+            AcceptEarlierVersions=true;
         } else {
-            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be 1, 2 or {SchemaVersion}."));
+            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be {SchemaVersion}."));
         }
+#if CGE_SCENE_UPGRADE
         var Angles=new AngleReading(DocumentVersion>=SceneJsonAngles.TurnsSchemaVersion);
+#else
+        var Angles=new AngleReading();
+#endif
         var Namespace=OptionalString(Document,"namespace",Problems);
         if(Namespace is not null&&!Namespace.Split('.').All(IsIdentifier)){
             Problems.Add(Invalid(Document.Get("namespace")!,$"'{Namespace}' is not a namespace name."));
@@ -183,6 +214,12 @@ internal static class SceneJsonSceneAnalyzer {
             Root=AnalyzeNode(RootValue,ImmutableArray<int>.Empty,Compilation,Problems,Angles);
         } else {
             Problems.Add(Invalid(Document,"'root' is required."));
+        }
+        if(!AcceptEarlierVersions){
+            foreach(var Rename in Angles.KeyRenames){
+                Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.InvalidDocument,Rename.Start,Rename.End,
+                    $"The angle key '{Rename.Name}' is no longer read; write it as '{Rename.Key}', or run '{UpgradeCommand}'."));
+            }
         }
         return new SceneJsonScene(Namespace,ClassName,StartupOrder,Root,Problems.ToImmutableArray(),DocumentVersion,Angles.Values.ToImmutableArray(),
             Angles.KeyRenames.ToImmutableArray());
@@ -234,7 +271,7 @@ internal static class SceneJsonSceneAnalyzer {
             Problems.Add(Invalid(Members,"'members' must be a JSON object."));
             return null;
         }
-        var Expression=ObjectExpression(Type,Members,TypeName,Compilation,Problems,new AngleReading(Turns:true),null);
+        var Expression=ObjectExpression(Type,Members,TypeName,Compilation,Problems,new AngleReading(),null);
         return new SceneJsonComponent(SceneTypePredicates.ToFullyQualifiedName(Type),Expression);
     }
     private static SceneJsonNode?AnalyzeNode(SceneJsonValue Node,ImmutableArray<int>Path,Compilation Compilation,List<SceneJsonProblem>Problems,AngleReading Angles){
@@ -580,8 +617,18 @@ internal static class SceneJsonSceneAnalyzer {
         }
         // 回転数の角度をメンバーの単位に変換すると、float で表せる値でもその単位では表せないことがある（度数への変換で1e37回転など）。
         // 無限大をリテラルとして書式化すると例外になり、アナライザー全体とジェネレーターが失敗していた（CS8785）。
-        if(Unit is not null&&Angles.Turns&&NumberIn(Value,Angles,Unit) is { }Converted&&(float.IsInfinity(Converted)||float.IsNaN(Converted))){
+        if(Type.SpecialType!=SpecialType.System_Double&&SceneTypePredicates.ToFullyQualifiedName(Type)!="global::CSharpGameEngine.Numerics.LogicalScalar"&&Unit is not null&&Angles.Turns&&NumberIn(Value,Angles,Unit) is { }Converted&&(float.IsInfinity(Converted)||float.IsNaN(Converted))){
             return Mismatch($"the angle is beyond the range of float in {(Unit==SceneAngleUnit.Radians?"radians":"degrees")}");
+        }
+        if(Value.Kind==SceneJsonKind.Number&&SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar"){
+            if(Unit is { }FixedUnit){
+                Angles.Values.Add(new SceneJsonAngleValue(Value.Start,Value.End,Value.Text!,FixedUnit,Type));
+#if CGE_SCENE_UPGRADE
+                if(!Angles.Turns){ return SceneJsonFixedValue.TryExpression(Type,Value.Text!,out var MemberUnitAngle,out var MemberUnitError)?MemberUnitAngle:Mismatch(MemberUnitError); }
+#endif
+                return SceneJsonFixedValue.TryAngleFromTurns(Type,Value.Text!,FixedUnit,out var AngleExpression,out var AngleError)?AngleExpression:Mismatch(AngleError);
+            }
+            return SceneJsonFixedValue.TryExpression(Type,AngleText(Value,Angles,Unit),out var Expression,out var Error)?Expression:Mismatch(Error);
         }
         switch(Type.SpecialType){
             case SpecialType.System_Boolean:
@@ -589,7 +636,7 @@ internal static class SceneJsonSceneAnalyzer {
             case SpecialType.System_String:
                 return Value.Kind==SceneJsonKind.String?SymbolDisplay.FormatLiteral(Value.Text!,quote:true):Mismatch("expected a string");
             case SpecialType.System_Single:return FloatRange(Value,Mismatch)??RealLiteral(AngleText(Value,Angles,Unit),Value,"f",Mismatch);
-            case SpecialType.System_Double:return RealLiteral(AngleText(Value,Angles,Unit),Value,"d",Mismatch);
+            case SpecialType.System_Double:return DoubleLiteral(Type,Value,Angles,Unit,Mismatch);
             case SpecialType.System_Decimal:return RealLiteral(AngleText(Value,Angles,Unit),Value,"m",Mismatch);
             case SpecialType.System_SByte:return IntegerLiteral(Value,sbyte.MinValue,(ulong)sbyte.MaxValue,"(sbyte)",Mismatch);
             case SpecialType.System_Byte:return IntegerLiteral(Value,byte.MinValue,byte.MaxValue,"(byte)",Mismatch);
@@ -609,13 +656,6 @@ internal static class SceneJsonSceneAnalyzer {
                 return Mismatch("a number needs a numeric member or a type convertible from float");
             }
             if(FloatRange(Value,Mismatch) is { }OutOfFloat){ return OutOfFloat; }
-            // Scene のインスタンス化時、LogicalScalar の float からの変換は Q64.64 の範囲を超えると例外をスローする。
-            // この値に含まれるのは、float には収まるが実行環境の解析処理で拒否される数値（.NET Framework では、
-            // float.MaxValue を少し超え、C# がその値に丸めるような数値）ではない。Q64.64 の範囲を大きく超えている。
-            if(SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar"
-                &&(NumberIn(Value,Angles,Unit) is not { }Scalar||!(Math.Abs(Scalar)<LogicalScalarLimit))){
-                return Mismatch("the number is beyond the Q64.64 range of about ±9.2e18");
-            }
             return AngleText(Value,Angles,Unit)+"f";
         }
         if(Value.Kind==SceneJsonKind.Array){
@@ -647,9 +687,27 @@ internal static class SceneJsonSceneAnalyzer {
         if(Unit is not { }AngleUnit||Value.Kind!=SceneJsonKind.Number){ return Value.Text??string.Empty; }
         Angles.Values.Add(new SceneJsonAngleValue(Value.Start,Value.End,Value.Text!,AngleUnit));
         if(!SceneJsonAngles.IsNumber(Value.Text)){ return Value.Text!; }
-        return SceneJsonNumbers.FormatSingle(Angles.Turns
-            ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
-            :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture));
+#if CGE_SCENE_UPGRADE
+        if(!Angles.Turns){ return SceneJsonNumbers.FormatSingle(float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture)); }
+#endif
+        return SceneJsonNumbers.FormatSingle(SceneJsonAngles.FromTurns(Value.Text!,AngleUnit));
+    }
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static string DoubleLiteral(ITypeSymbol Type,SceneJsonValue Value,AngleReading Angles,SceneAngleUnit?Unit,Func<string,string>Mismatch){
+        if(Unit is not { }AngleUnit||Value.Kind!=SceneJsonKind.Number){ return RealLiteral(Value.Text??string.Empty,Value,"d",Mismatch); }
+        Angles.Values.Add(new SceneJsonAngleValue(Value.Start,Value.End,Value.Text!,AngleUnit,Type));
+        var Text=Value.Text!;
+        var Token=SyntaxFactory.ParseToken(Text.TrimStart('-')+"d");
+        if(Token.ContainsDiagnostics||Token.Value is not double Number){ return Mismatch("the number is beyond the range of double"); }
+        if(Text.StartsWith("-",StringComparison.Ordinal)){ Number=-Number; }
+        var Converted=SceneJsonAngles.FromTurnsDouble(Number,AngleUnit);
+#if CGE_SCENE_UPGRADE
+        if(!Angles.Turns){ Converted=Number; }
+#endif
+        if(double.IsNaN(Converted)||double.IsInfinity(Converted)){ return Mismatch("the angle is beyond the range of double"); }
+        return RealLiteral(SceneJsonNumbers.FormatOther(Converted),Value,"d",Mismatch);
     }
     /// <summary>
     /// コレクション式でこの型のインスタンスを作成できるか（C# 12）。対象はリスト系インターフェース、<c>[CollectionBuilder]</c> を持つ型（
@@ -692,8 +750,6 @@ internal static class SceneJsonSceneAnalyzer {
     }
     /// <summary>メンバー、パラメーター、列挙メンバーの名前を C# ソースとして出力する形式。予約キーワード（<c>@class</c> というフィールドなど）には逐語的識別子の接頭辞が必要。</summary>
     private static string Identifier(string Name)=>SyntaxFacts.GetKeywordKind(Name)==SyntaxKind.None?Name:"@"+Name;
-    /// <summary>2^63。float が Q64.64 の整数部に収まらなくなる境界（<c>LogicalScalar.TryFromSingle</c>）。</summary>
-    private const float LogicalScalarLimit=9.223372e18f;
     /// <summary>
     /// float で保持できず、リテラルがコンパイルされない数値の不一致、または不一致がないことを示す。<see cref="RealLiteral"/> と同様にコンパイラーの字句解析を使う。
     /// <c>float.TryParse</c> は .NET では無限大を返すが、.NET Framework（VSIX と Visual Studio の MSBuild でのビルド）では失敗する。
@@ -706,9 +762,8 @@ internal static class SceneJsonSceneAnalyzer {
     /// <summary>メンバーの単位に変換した数値（回転数形式のドキュメントでは、出力リテラルと同様に変換した角度）、または null。</summary>
     private static float?NumberIn(SceneJsonValue Value,AngleReading Angles,SceneAngleUnit?Unit){
         if(Value.Kind!=SceneJsonKind.Number||!SceneJsonAngles.IsNumber(Value.Text)){ return null; }
-        return Unit is { }AngleUnit&&Angles.Turns
-            ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
-            :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture);
+        if(Unit is { }AngleUnit&&Angles.Turns){ return SceneJsonAngles.FromTurns(Value.Text!,AngleUnit); }
+        return float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture);
     }
     /// <summary>実数リテラル、または型で保持できない数値との不一致。生成したリテラルを拒否するかどうか（CS0594）を、コンパイラーの字句解析で判断する。JSON の負号は独立した C# トークンなので、検査対象に含めない。</summary>
     private static string RealLiteral(string Text,SceneJsonValue Value,string Suffix,Func<string,string>Mismatch){

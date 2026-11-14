@@ -69,7 +69,6 @@
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">
     <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.World\CSharpGameEngine.World.csproj" />

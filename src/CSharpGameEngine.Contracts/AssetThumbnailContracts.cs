@@ -1,8 +1,9 @@
 namespace CSharpGameEngine.Contracts;
-/// <summary>Disposable content preview. Geometry thumbnails are 128px (geometry and base color only; authored textures, lights, animation and game code are excluded). An image request may ask for a larger derived preview up to <see cref="MaximumImageEdge"/> for the Texture Editor.</summary>
+/// <summary>Disposable content preview. Geometry previews use the tile or inspector size.</summary>
 public sealed class AssetThumbnailRequest {
     public const int CurrentVersion=1;
     public const int DefaultEdge=128;
+    public const int InspectorEdge=512;
     public const int MinimumImageEdge=16;
     public const int MaximumImageEdge=2048;
     public int ProtocolVersion{get;set;}=CurrentVersion;
@@ -14,15 +15,15 @@ public sealed class AssetThumbnailRequest {
     /// 古いワーカーは無視する（VSIX とホストは同じパッケージで配布する）。
     /// </summary>
     public RenderPreviewLighting?Lighting{get;set;}
-    /// <summary>Longest edge of an image preview in pixels. Geometry requests always render <see cref="DefaultEdge"/>.</summary>
+    /// <summary>Longest preview edge in pixels.</summary>
     public int MaxEdge{get;set;}=DefaultEdge;
     public static string?Validate(AssetThumbnailRequest Request){
         if(Request is null||Request.ProtocolVersion!=CurrentVersion){ return "Unsupported thumbnail protocol."; }
         if((Request.Scene is null)==string.IsNullOrWhiteSpace(Request.ImagePath)){ return "Exactly one image or geometry scene is required."; }
         if(Request.Scene is null){ return Request.MaxEdge is<MinimumImageEdge or>MaximumImageEdge?"Image preview edge is out of range.":null; }
-        if(Request.MaxEdge!=DefaultEdge){ return "Geometry thumbnails are always 128px."; }
+        if(Request.MaxEdge is not(DefaultEdge or InspectorEdge)){ return "Unsupported geometry preview size."; }
         if(Request.Scene.Objects is not {Length:>0}){ return "Thumbnail geometry is unavailable."; }
-        var SceneError=RenderPreviewHostProtocol.Validate(new(){RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,SurfaceHandle=1,Width=128,Height=128,ShaderArtifactPath=Request.ShaderArtifactPath,Scene=Request.Scene});
+        var SceneError=RenderPreviewHostProtocol.Validate(new(){RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,SurfaceHandle=1,Width=Request.MaxEdge,Height=Request.MaxEdge,ShaderArtifactPath=Request.ShaderArtifactPath,Scene=Request.Scene});
         if(SceneError is not null){ return SceneError; }
         return Request.Lighting is null?null:RenderPreviewLightingValidation.Validate(Request.Lighting);
     }

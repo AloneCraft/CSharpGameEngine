@@ -37,6 +37,10 @@ Kepler propagation is a deterministic frame pose provider. It reads immutable or
 
 A World Cell is a sparse Bake unit identified by `WorldCellId`; it is not constrained to one global fixed grid. Its canonical manifest contains frame-local bounds, dependency cell IDs, LOD, entity payload identity, and complete artifact closure. Dependencies form a DAG. Activation owns every runtime Entity created from the cell, and unload destroys that ownership set at one structural barrier.
 
+WorldCell payload version 2 uses little-endian fields: magic `0x43574743` (4 bytes), version 2 (2), zero reserved flags (2), canonical cell ID (36), frame ID (36), nonnegative LOD (4), six coordinates in center R/U/F and half-extents R/U/F order, entity AssetKey (69), dependency count (4), then sorted unique dependency IDs (36 each). Each coordinate is a UInt16 byte length followed by one canonical [CGN1 numeric value](Numeric-Persistence.md). The footer offset is determined by the six lengths; it is not a fixed byte offset.
+
+Readers accept only version 2 (ADR-0098 §5 C: a WorldCell is a rebuildable artifact, so the former version-1 layout of six signed 16-byte Q64.64 values is rejected as an invalid payload and rebaked). Numeric values pass through the selected target type's checked nearest-even reader. Malformed numbers, overflow, rounded nonpositive half-extents, invalid closure or dependency order reject the entire definition. No partially read definition is published. Source canonicality is checked before rounding; the rounded destination need not reserialize to the original source bytes. New writers emit only version 2. See [ADR-0094](../Decisions/ADR-0094-WorldCell-Numeric-Values.md).
+
 ## Cell state model
 
 The only legal lifecycle is `Unloaded -> Loading -> Loaded -> Activating -> Active -> Deactivating -> Unloading -> Unloaded`, with failure entering `Faulted`. A fault does not retry automatically. Cancellation, corrupt artifacts, missing dependencies, or budget exhaustion do not mutate the last-known-good active set. Loading may run asynchronously; activation and unload are atomic fixed-tick commands.

@@ -15,7 +15,7 @@ public static class AssetFileMutationService {
                     foreach(var Folder in Directory.EnumerateDirectories(OperationsRoot)){
                         CheckPath(Request.Root,Path.Combine(Folder,"state"),false);
                         if(!File.Exists(Path.Combine(Folder,"state"))||File.ReadAllText(Path.Combine(Folder,"state"))!="Applying"){ continue; }
-                        var Original=JsonSerializer.Deserialize<AssetFileMutationRequest>(File.ReadAllText(Path.Combine(Folder,"operation.json")));
+                        var Original=JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(Folder,"operation.json")),AssetFileMutationJsonContext.Default.AssetFileMutationRequest);
                         if(Original is not null&&Original.Root==Request.Root){ Pending.Add(new(){OperationId=Original.OperationId,Description=Original.Operation+": "+Original.Source+" → "+Original.Destination}); }
                     }
                 }
@@ -30,7 +30,7 @@ public static class AssetFileMutationService {
                 File.WriteAllText(Path.Combine(Recovery,"state"),"Complete");return new(){RequestId=Request.RequestId,Success=true,OperationId=Request.OperationId};
             }
             if(Request.FileMutationCommand==5){
-                var Original=JsonSerializer.Deserialize<AssetFileMutationRequest>(File.ReadAllText(Path.Combine(Recovery,"operation.json")))??throw new InvalidDataException("Missing recovery request.");
+                var Original=JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(Recovery,"operation.json")),AssetFileMutationJsonContext.Default.AssetFileMutationRequest)??throw new InvalidDataException("Missing recovery request.");
                 if(Original.Root!=Request.Root||Original.OperationId!=Request.OperationId||File.ReadAllText(Path.Combine(Recovery,"state"))!="Applying"){ throw new InvalidOperationException("Recovery identity or state mismatch."); }
                 Validate(Original);
                 Recover(Original,Recovery);
@@ -122,7 +122,7 @@ public static class AssetFileMutationService {
         }
         System.IO.Directory.CreateDirectory(Recovery);
         CheckPath(Request.Root,Path.Combine(Recovery,"operation.json"),false);
-        File.WriteAllText(Path.Combine(Recovery,"operation.json"),JsonSerializer.Serialize(Request));
+        File.WriteAllText(Path.Combine(Recovery,"operation.json"),JsonSerializer.Serialize(Request,AssetFileMutationJsonContext.Default.AssetFileMutationRequest));
         if(File.Exists(Sidecar(Request.Source))){ File.Copy(Sidecar(Request.Source),Path.Combine(Recovery,"metadata.before"),true); }
         if(Request.Content.Length>0&&File.Exists(Request.Source)){ File.Copy(Request.Source,Path.Combine(Recovery,"source.before"),true); }
         var AfterSourceHash=Request.Content.Length>0||IsCreate&&!Request.Directory?Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Request.Content))):Request.ExpectedSourceHash;
@@ -224,7 +224,7 @@ public static class AssetFileMutationService {
         File.WriteAllText(Path.Combine(Recovery,"state"),"Undone");
     }
     private static void Reverse(AssetFileMutationRequest Request,string Recovery){
-        var Original=JsonSerializer.Deserialize<AssetFileMutationRequest>(File.ReadAllText(Path.Combine(Recovery,"operation.json")))??throw new InvalidDataException("Missing recovery request.");
+        var Original=JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(Recovery,"operation.json")),AssetFileMutationJsonContext.Default.AssetFileMutationRequest)??throw new InvalidDataException("Missing recovery request.");
         Validate(Original);
         if(Original.OperationId!=Request.OperationId||Original.Operation!=Request.Operation||Original.Directory!=Request.Directory
             ||Original.Source!=Request.Source||Original.Destination!=Request.Destination||Original.Root!=Request.Root
@@ -255,4 +255,7 @@ public static class AssetFileMutationService {
         using var Stream=File.Open(PathValue,FileMode.Open,FileAccess.Read,FileShare.Read);
         return Convert.ToHexStringLower(SHA256.HashData(Stream));
     }
+}
+[System.Text.Json.Serialization.JsonSerializable(typeof(AssetFileMutationRequest))]
+internal partial class AssetFileMutationJsonContext:System.Text.Json.Serialization.JsonSerializerContext {
 }

@@ -2,7 +2,7 @@ using System.Numerics;
 namespace CSharpGameEngine.Rendering;
 /// <summary>呼び出し側が値を所有するメインビュー入力。解決時に検証し、置き換えた描画面のアスペクト比を適用できる。</summary>
 public readonly record struct RenderViewSource {
-    private enum SourceKind:byte { Empty,Fixed,Perspective,PerspectiveMatrix }
+    private enum SourceKind:byte { Empty,Fixed,Perspective,PerspectiveMatrix,IdentityPerspective,IdentityPerspectiveMatrix }
     private readonly SourceKind Kind;
     private readonly RenderView FixedView;
     private readonly Matrix4x4 Transform;
@@ -32,6 +32,11 @@ public readonly record struct RenderViewSource {
     /// <summary>呼び出し側の VP 行列を変更せずに保ち、現在の描画面に合わせて物理深度メタデータを解決する。</summary>
     public static RenderViewSource PerspectiveMatrix(in Matrix4x4 ViewProjection,Vector3 CameraPosition,in RadialViewParameters Parameters)=>
         new(SourceKind.PerspectiveMatrix,default,ViewProjection,CameraPosition,Parameters,0f,0f);
+    public static RenderViewSource IdentityPerspective(in Matrix4x4 WorldToView,Vector3 CameraPosition,in RadialViewParameters Parameters,
+        float ExposureEv100=0f,float AspectRatioOverride=0f)=>
+        new(SourceKind.IdentityPerspective,default,WorldToView,CameraPosition,Parameters,ExposureEv100,AspectRatioOverride);
+    public static RenderViewSource IdentityPerspectiveMatrix(in Matrix4x4 ViewProjection,Vector3 CameraPosition)=>
+        new(SourceKind.IdentityPerspectiveMatrix,default,ViewProjection,CameraPosition,default,0f,0f);
     public RenderView Resolve(int Width,int Height){
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Height);
@@ -39,9 +44,10 @@ public readonly record struct RenderViewSource {
     }
     public RenderView Resolve(float SurfaceAspectRatio){
         if(!this.HasValue){ throw new ArgumentException("A view source must be initialized."); }
-        if(!float.IsFinite(SurfaceAspectRatio)||SurfaceAspectRatio<=0f){ throw new ArgumentException("A logarithmic perspective view needs a positive finite curve, valid clip range and field of view."); }
+        if(!float.IsFinite(SurfaceAspectRatio)||SurfaceAspectRatio<=0f){ throw new ArgumentException("A view needs a positive finite aspect ratio."); }
         if(this.Kind==SourceKind.Fixed){ return this.FixedView; }
         var AspectRatio=this.AspectRatioOverride>0f?this.AspectRatioOverride:SurfaceAspectRatio;
+        if(this.Kind is SourceKind.IdentityPerspective or SourceKind.IdentityPerspectiveMatrix){ return this.ResolveIdentity(AspectRatio); }
         if(!RadialDepthCurve.TryCreate(this.Parameters.TransitionMeters,out var Curve)
             ||!RadialDepthProjection.TryCreate(Curve,this.Parameters.NearZ,this.Parameters.FarZ,this.Parameters.FovYRadians,AspectRatio,out var Projection)){
             throw new ArgumentException("A logarithmic perspective view needs a positive finite curve, valid clip range and field of view.");
@@ -54,5 +60,20 @@ public readonly record struct RenderViewSource {
             -new Vector3(View.M13,View.M23,View.M33),MathF.Tan(this.Parameters.FovYRadians*0.5f),AspectRatio);
         return RenderView.Create(View*Matrix4x4.CreatePerspectiveFieldOfView(this.Parameters.FovYRadians,AspectRatio,this.Parameters.NearZ,this.Parameters.FarZ),
             View*Projection.CreateAuxiliaryProjection(this.Parameters.FovYRadians,AspectRatio),this.CameraPosition,this.ExposureEv100,RenderViewDepth.ForPerspective(Projection),Basis);
+    }
+    private RenderView ResolveIdentity(float AspectRatio){
+        if(this.Kind==SourceKind.IdentityPerspectiveMatrix){
+            return RenderView.Create(this.Transform,this.Transform,this.CameraPosition,this.ExposureEv100,RenderViewDepth.ForIdentityPerspective(this.Transform));
+        }
+        if(!float.IsFinite(this.Parameters.FovYRadians)||!float.IsFinite(this.Parameters.NearZ)||!float.IsFinite(this.Parameters.FarZ)
+            ||!float.IsFinite(AspectRatio)||AspectRatio<=0f||this.Parameters.FovYRadians<=0f||this.Parameters.FovYRadians>=MathF.PI
+            ||this.Parameters.NearZ<=0f||this.Parameters.FarZ<=this.Parameters.NearZ){
+            throw new ArgumentException("An Identity perspective view needs a finite field of view and valid clip range.");
+        }
+        var View=this.Transform;
+        var ViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(this.Parameters.FovYRadians,AspectRatio,this.Parameters.NearZ,this.Parameters.FarZ);
+        var Basis=RenderViewBasis.Create(new Vector3(View.M11,View.M21,View.M31),new Vector3(View.M12,View.M22,View.M32),
+            -new Vector3(View.M13,View.M23,View.M33),MathF.Tan(this.Parameters.FovYRadians*0.5f),AspectRatio);
+        return RenderView.Create(ViewProjection,ViewProjection,this.CameraPosition,this.ExposureEv100,RenderViewDepth.ForIdentityPerspective(ViewProjection),Basis);
     }
 }

@@ -65,7 +65,7 @@ internal static class GeneratedSceneBakeHostEmitter {
         Lines.Add("                State.ExecutionMode = global::CSharpGameEngine.Entities.EngineExecutionMode.Runtime;");
         Lines.Add("                LoopInitialized = true;");
         Lines.Add("                var Identity = new global::CSharpGameEngine.Runtime.Simulation.SimulationCacheIdentity(");
-        Lines.Add("                    "+Quote("physics")+", "+Quote("LogicalScalar-Q64.64")+", State.FixedTickRate, DependencyHash!,");
+        Lines.Add("                    "+Quote("physics")+", global::CSharpGameEngine.Numerics.LogicalNumeric.CacheProfileId, State.FixedTickRate, DependencyHash!,");
         Lines.Add("                    global::CSharpGameEngine.Runtime.Physics.PhysicsCacheSerializer.SchemaVersion);");
         Lines.Add("                using var Writer = new global::CSharpGameEngine.Runtime.Physics.PhysicsCacheStreamWriter(Output, Identity, TickCount);");
         Lines.Add("                for (int FrameIndex = 0; FrameIndex < TickCount; FrameIndex++) {");
@@ -133,7 +133,7 @@ internal static class GeneratedSceneBakeHostEmitter {
         Lines.Add("                State.ExecutionMode = global::CSharpGameEngine.Entities.EngineExecutionMode.Runtime;");
         Lines.Add("                LoopInitialized = true;");
         Lines.Add("                var Identity = new global::CSharpGameEngine.Runtime.Simulation.SimulationCacheIdentity(");
-        Lines.Add("                    "+Quote("physics")+", "+Quote("LogicalScalar-Q64.64")+", State.FixedTickRate, DependencyHash!,");
+        Lines.Add("                    "+Quote("physics")+", global::CSharpGameEngine.Numerics.LogicalNumeric.CacheProfileId, State.FixedTickRate, DependencyHash!,");
         Lines.Add("                    global::CSharpGameEngine.Runtime.Physics.PhysicsCacheSerializer.SchemaVersion);");
         Lines.Add("                if (!EngineHost.TryLoadPhysicsCache(Cache, Identity, false, out var LoadError)) { Error = LoadError; }");
         Lines.Add("                else {");

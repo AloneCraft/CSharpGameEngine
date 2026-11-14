@@ -559,7 +559,8 @@ internal sealed class SceneHwndHost:HwndHost {
         this.WatchedBuild=null;
         this.ShownBuildTime=DateTime.MinValue;
         if(!SceneJsonCommitPlanner.IsJsonDocument(this.TargetFilePath)
-            ||this.TargetModel?.ClassFullyQualifiedName is not { Length:>0 }SceneName){
+            ||this.TargetModel is not {ClassFullyQualifiedName:{ Length:>0 }SceneName}Model
+            ||SceneModelRenderObjectBuilder.IsCharacterScene(Model)){
             return null;
         }
         CgeProjectContext? Context;
@@ -2230,20 +2231,27 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         long BuildEpoch=this.BuildLifecycle.Begin();
+        var Project=SceneModelRenderObjectBuilder.IsGameMode(Model)
+            ?AssetDocumentWorkspace.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>Candidate.AdditionalDocuments.Any(Document=>string.Equals(Document.FilePath,this.TargetFilePath,StringComparison.OrdinalIgnoreCase)))
+            :null;
         Worker.Request(new SceneRenderBuildRequest(
                                                     Model, this.TargetKey.Value, this.TargetSnapshot.AnalysisGeneration,
-                                                    this.TargetFilePath, this.TargetClassName, this.Surface.Handle,BuildEpoch));
+                                                    this.TargetFilePath, this.TargetClassName, this.Surface.Handle,BuildEpoch,Project));
     }
 
     private SceneRenderBuildResult BuildRenderObjects(SceneRenderBuildRequest Request){
         CgeProjectContext Context=CgeProjectContext.Resolve(Request.FilePath)
             ??throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
         this.RepoRoot??=Context.WorkspaceRoot;
+        SceneModelRenderObjectBuilder.Prepare(Request.Model,Context);
         IReadOnlyList<SceneRenderObject>RenderObjects=SceneModelRenderObjectBuilder.Build(
             Request.Model,
             EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,Context),
             AssetPath=>SceneModelRenderObjectBuilder.ResolveStaticMeshViaBridge(AssetPath,Context));
-        return new SceneRenderBuildResult(Request,RenderObjects);
+        var FramingObjects=Request.StartupProject is { }Project
+            ?ThreadHelper.JoinableTaskFactory.Run(()=>AssetThumbnailService.BuildStartupGeometryAsync(Project,Request.Model,Context,CancellationToken.None))
+            :RenderObjects;
+        return new SceneRenderBuildResult(Request,RenderObjects,FramingObjects.Count==0?RenderObjects:FramingObjects);
     }
 
     private void OnBuildCompleted(SceneRenderBuildRequest Request,SceneRenderBuildResult?Result,Exception?Error){
@@ -2280,7 +2288,7 @@ internal sealed class SceneHwndHost:HwndHost {
         // M0020 Phase 0/Phase 3)。ここでサーフェスを隠すと前フレームの残像や背面ペインの露出を
         // 招くだけで、0件でも RenderFrame は clear + Present を行う。
         try {
-            (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Result.RenderObjects);
+            (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Result.FramingObjects);
             this.CurrentRenderObjects=Result.RenderObjects;
             this.CurrentPreviewRenderObjects=[];
             this.PreviewSelectedNodePaths=[];
@@ -2559,9 +2567,11 @@ internal sealed class SceneHwndHost:HwndHost {
         string FilePath,
         string ClassName,
         IntPtr SurfaceHandle,
-        long BuildEpoch);
+        long BuildEpoch,
+        Microsoft.CodeAnalysis.Project?StartupProject);
 
     private sealed record SceneRenderBuildResult(
         SceneRenderBuildRequest Request,
-        IReadOnlyList<SceneRenderObject>RenderObjects);
+        IReadOnlyList<SceneRenderObject>RenderObjects,
+        IReadOnlyList<SceneRenderObject>FramingObjects);
 }

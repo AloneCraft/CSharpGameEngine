@@ -1,5 +1,7 @@
 # Rendering specification
 
+M0128 extends the default logarithmic camera policy with an explicit, independently selected project-level Identity option. The current contract and integration evidence are [Render Projection](Render-Projection.md), [ADR-0096](../Decisions/ADR-0096-Project-Depth-Mapping.md) and M0128. Earlier logarithmic-only camera descriptions below describe the default policy.
+
 ## Typed light submissions
 [Typed Lighting](Typed-Lighting.md) and ADR-0064 replace unitless/kind-dependent public light payloads with DirectionalLightSubmission, PointLightSubmission, SpotLightSubmission and RectAreaLightSubmission. Rectangle submissions include forward and up so Transform roll is retained independently of physical width/height. Optional LightShadowSettings is a request; budget and GPU implementation remain backend-owned. Ordered reusable buffers, separate emissive records and completed-frame ownership are verified by TypedLightFrameTests, including exact WARP pixels after two device recoveries.
 
@@ -269,3 +271,6 @@ Diagnostics expose requested/resident/rendered/reused/missing/invalidated counts
 Stage VSMain transforms normals by the inverse transpose, orthogonalizes the transformed tangent and applies the determinant sign to its handedness. Scaling the matrix before taking cofactors avoids overflow. Positive uniform transforms retain the previous arithmetic. Standard, Radial, preview and GI surface paths share VSMain. The result is tested against geometry with the transform baked into its positions and analytically recomputed normals.
 
 See `UserEcsProject/VirtualShadows.md` for the comparison scene and capture commands; `rendering.virtual-shadows` runs page and WARP pixel oracles.
+## Persistent model materials (M0128)
+
+Model production preserves a material's optional world grid in its artifact ([ADR-0097](../Decisions/ADR-0097-Model-Artifact-Production.md)). Materials without a grid retain MAT1/version 1. Materials with a grid use version 2 and flags=1, storing grid size, subdivisions, line width, and both linear colors. The reader validates these values before catalog registration; malformed data cannot change the catalog. This changes the persisted material contract without changing the GPU material layout. The common model producer and reader are implemented; migration of the game and preview consumers remains incomplete.

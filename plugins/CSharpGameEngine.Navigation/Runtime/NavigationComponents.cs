@@ -45,11 +45,11 @@ public struct NavMeshBoundsRuntime:IRuntimeComponent<NavMeshBounds> {
 [SceneComponentOrder(SceneComponentCategory.Gameplay,31)]
 public struct NavAgent() {
     /// <summary>途中の経由点に、水平にこの距離(m)まで近づいたら、着いたとみなして次へ進む。</summary>
-    public LogicalScalar WaypointRadius=LogicalScalar.FromRaw(LogicalScalar.One.Raw*3/10);
+    public LogicalScalar WaypointRadius=LogicalScalar.FromRatio(3,10);
     /// <summary>経路の線(出発点から次の経由点まで)から水平にこの距離(m)以上離れたら、経路を探し直す。</summary>
-    public LogicalScalar ReplanDistance=LogicalScalar.FromRaw(LogicalScalar.One.Raw*3/2);
+    public LogicalScalar ReplanDistance=LogicalScalar.FromRatio(3,2);
     /// <summary>目的地がこの距離(m)以上動いたら、経路を探し直す。押し続けてカーソルを動かすと目的地が毎 tick わずかに動くので、細かい動きでは探し直さない。</summary>
-    public LogicalScalar GoalTolerance=LogicalScalar.FromRaw(LogicalScalar.One.Raw/4);
+    public LogicalScalar GoalTolerance=LogicalScalar.FromRatio(1,4);
 }
 /// <summary>歩いている経路。実行時の状態で、スナップショットには入らない(巻き戻したあとは、目的地が残っていれば探し直す)。</summary>
 public struct NavAgentState:IRuntimeComponent<NavAgent> {

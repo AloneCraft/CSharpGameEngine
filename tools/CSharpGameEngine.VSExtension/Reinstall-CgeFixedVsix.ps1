@@ -305,9 +305,11 @@ if($Legacy.Count -ne 0){ throw "Legacy CSharpGameEngine extension directories re
 
 $Devenv=Join-Path (Split-Path -Parent $Installer) 'devenv.exe'
 if(Test-Path -LiteralPath $Devenv){
-    Write-Log 'Refreshing item-template cache because the VSIX deployment changed.'
-    $TemplateProcess=Start-Process -FilePath $Devenv -ArgumentList '/RootSuffix',$RootSuffix,'/InstallVSTemplates','/Log',$LogPath -WindowStyle Hidden -Wait -PassThru
-    if($TemplateProcess.ExitCode -ne 0){ throw "Visual Studio item-template cache rebuild failed (exit code $($TemplateProcess.ExitCode))." }
+    foreach($RefreshCommand in '/UpdateConfiguration','/InstallVSTemplates'){
+        Write-Log "Refreshing Visual Studio configuration and templates: $RefreshCommand."
+        $TemplateProcess=Start-Process -FilePath $Devenv -ArgumentList '/RootSuffix',$RootSuffix,$RefreshCommand,'/Log',$LogPath -WindowStyle Hidden -Wait -PassThru
+        if($TemplateProcess.ExitCode -ne 0){ throw "Visual Studio $RefreshCommand failed (exit code $($TemplateProcess.ExitCode))." }
+    }
 }
 
 Write-Log "Verified CgeFixed VSIX $ExpectedVersion at $($Installed[0].Assembly) with SHA-256 $InstalledHash."

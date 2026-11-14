@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Text.Json;
-using CSharpGameEngine.Import.Gltf;
+using CSharpGameEngine.Content.Models;
 using CSharpGameEngine.Numerics;
 namespace CSharpGameEngine.Navigation.Cook;
 /// <summary>ナビメッシュを作る領域(<c>NavMeshBounds</c>のノード)。同じ<see cref="Id"/>の領域は、1つのナビメッシュに合わせる。</summary>
@@ -26,10 +26,12 @@ internal sealed class SceneGeometry {
     private const string RigidBodyType="CSharpGameEngine.Runtime.Physics.RigidBody";
     internal const string BoundsType="CSharpGameEngine.Navigation.NavMeshBounds";
     private readonly string ProjectDirectory;
+    private readonly string?ContentDirectory;
     private readonly Dictionary<string,(Vector3[]Positions,int[]Indices)>Meshes=new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string>MissingMeshes=new(StringComparer.OrdinalIgnoreCase);
-    private SceneGeometry(string ProjectDirectory){
+    private SceneGeometry(string ProjectDirectory,string?ContentDirectory){
         this.ProjectDirectory=ProjectDirectory;
+        this.ContentDirectory=ContentDirectory;
     }
     public List<NavTriangle>Triangles { get; }=[];
     public List<NavVolume>Volumes { get; }=[];
@@ -38,8 +40,8 @@ internal sealed class SceneGeometry {
     /// <paramref name="InputScene"/>の領域を、<paramref name="ProjectDirectory"/>の<c>Scenes</c>にある起動シーン(<c>startupOrder</c>を持つもの)と<paramref name="InputScene"/>の
     /// 静的な衝突形状に対して作る。UE のレベルが、読み込まれている全レベルの形状でナビメッシュを作るのと同じ。起動時に読まれないシーン(実行中に出すもの)は含めない。
     /// </summary>
-    internal static bool TryLoad(string InputScene,string ProjectDirectory,out SceneGeometry Geometry,out string Error){
-        Geometry=new SceneGeometry(ProjectDirectory);
+    internal static bool TryLoad(string InputScene,string ProjectDirectory,out SceneGeometry Geometry,out string Error,string?ContentDirectory=null){
+        Geometry=new SceneGeometry(ProjectDirectory,ContentDirectory);
         Error=string.Empty;
         var Input=Path.GetFullPath(InputScene);
         List<string>Scenes=[Input];
@@ -72,9 +74,18 @@ internal sealed class SceneGeometry {
                     continue;
                 }
                 if(!Own&&!Root.TryGetProperty("startupOrder",out _)){ continue; }
-                var Version=Root.TryGetProperty("schemaVersion",out var VersionElement)&&VersionElement.ValueKind==JsonValueKind.Number&&VersionElement.TryGetInt32(out var Parsed)?Parsed:3;
+                // シーン JSON は版 3 だけを読む（ADR-0098 §5 規則 2）。旧版はシーンのビルドが SCENE204 で変換コマンドを示す。
+                if(!Root.TryGetProperty("schemaVersion",out var VersionElement)||VersionElement.ValueKind!=JsonValueKind.Number||VersionElement.GetRawText()!="3"){
+                    var Message=$"{Path.GetFileName(Scene)}: error NAV013: The scene is not schemaVersion 3; run 'CSharpGameEngine.SceneJson.Cli upgrade <game .csproj> --write'.";
+                    if(Own){
+                        Error=Message;
+                        return false;
+                    }
+                    Geometry.Messages.Add(Message.Replace(": error ",": warning ",StringComparison.Ordinal));
+                    continue;
+                }
                 var KeepTriangles=Geometry.Triangles.Count;
-                if(!Geometry.TryReadNode(RootNode,LogicalAffineTransform.Identity,Version,Path.GetFileName(Scene),Own,out Error)){
+                if(!Geometry.TryReadNode(RootNode,LogicalAffineTransform.Identity,Path.GetFileName(Scene),Own,out Error)){
                     if(Own){ return false; }
                     // 別のシーンの不備はそのシーンのビルドの診断が報告する。ここでは、そのシーンの形状を足さずに警告だけ出す。
                     Geometry.Triangles.RemoveRange(KeepTriangles,Geometry.Triangles.Count-KeepTriangles);
@@ -89,7 +100,7 @@ internal sealed class SceneGeometry {
         }
         return true;
     }
-    private bool TryReadNode(JsonElement Node,LogicalAffineTransform Parent,int Version,string Scene,bool Own,out string Error){
+    private bool TryReadNode(JsonElement Node,LogicalAffineTransform Parent,string Scene,bool Own,out string Error){
         Error=string.Empty;
         Dictionary<string,JsonElement>Components=new(StringComparer.Ordinal);
         if(Node.TryGetProperty("components",out var List)&&List.ValueKind==JsonValueKind.Array){
@@ -102,13 +113,13 @@ internal sealed class SceneGeometry {
         var Name=Node.TryGetProperty("name",out var NameElement)&&NameElement.ValueKind==JsonValueKind.String?NameElement.GetString():"(node)";
         var World=Parent;
         if(Components.TryGetValue(TransformType,out var Transform)){
-            if(!TryReadTransform(Transform,Version,out var Local)||!LogicalAffineTransform.TryMultiply(Local,Parent,out World)){
+            if(!TryReadTransform(Transform,out var Local)||!LogicalAffineTransform.TryMultiply(Local,Parent,out World)){
                 Error=$"{Scene}: error NAV004: The Transform of '{Name}' is not a valid placement.";
                 return false;
             }
         }
         if(Own&&Components.TryGetValue(BoundsType,out var Bounds)){
-            if(!this.TryReadVolume(Bounds,Version,World,Scene,Name!,out Error)){ return false; }
+            if(!this.TryReadVolume(Bounds,World,Scene,Name!,out Error)){ return false; }
         }
         var Dynamic=Components.TryGetValue(RigidBodyType,out _);
         if(!Dynamic){
@@ -117,17 +128,17 @@ internal sealed class SceneGeometry {
                 if(!this.TryAddMesh(AssetElement.GetString()!,World,Scene,Name!,out Error)){ return false; }
             }
             if(Components.TryGetValue(ColliderType,out var Collider)){
-                if(!this.TryAddCollider(Collider,Version,World,Scene,Name!,out Error)){ return false; }
+                if(!this.TryAddCollider(Collider,World,Scene,Name!,out Error)){ return false; }
             }
         }
         if(Node.TryGetProperty("children",out var Children)&&Children.ValueKind==JsonValueKind.Array){
             foreach(var Child in Children.EnumerateArray()){
-                if(Child.ValueKind==JsonValueKind.Object&&!this.TryReadNode(Child,World,Version,Scene,Own,out Error)){ return false; }
+                if(Child.ValueKind==JsonValueKind.Object&&!this.TryReadNode(Child,World,Scene,Own,out Error)){ return false; }
             }
         }
         return true;
     }
-    private static bool TryReadTransform(JsonElement Members,int Version,out LogicalAffineTransform Local){
+    private static bool TryReadTransform(JsonElement Members,out LogicalAffineTransform Local){
         Local=LogicalAffineTransform.Identity;
         if(Members.ValueKind!=JsonValueKind.Object){ return true; }
         var Position=LogicalVector3.Zero;
@@ -135,7 +146,7 @@ internal sealed class SceneGeometry {
         var Scale=LogicalVector3.One;
         if(Members.TryGetProperty("Position",out var PositionElement)&&!TryReadVector(PositionElement,LogicalVector3.Zero,out Position)){ return false; }
         if(Members.TryGetProperty("Scale",out var ScaleElement)&&!TryReadVector(ScaleElement,LogicalVector3.One,out Scale)){ return false; }
-        if(Members.TryGetProperty("Rotation",out var RotationElement)&&!TryReadRotation(RotationElement,Version,out Rotation)){ return false; }
+        if(Members.TryGetProperty("Rotation",out var RotationElement)&&!TryReadRotation(RotationElement,out Rotation)){ return false; }
         return LogicalAffineTransform.TryCreateTrs(Position,Rotation,Scale,out Local);
     }
     /// <summary>数。JSON の数の文字をそのまま固定小数点にして、丸めの誤差を持ち込まない。</summary>
@@ -157,13 +168,13 @@ internal sealed class SceneGeometry {
         Value=new LogicalVector3(R,U,F);
         return true;
     }
-    /// <summary>回転。<c>EulerRuf</c>は版 2 以降で回転数(1 = 1周)、版 1 でラジアン。</summary>
-    private static bool TryReadRotation(JsonElement Element,int Version,out LogicalQuaternion Rotation){
+    /// <summary>回転。<c>EulerRuf</c>は回転数(1 = 1周)。</summary>
+    private static bool TryReadRotation(JsonElement Element,out LogicalQuaternion Rotation){
         Rotation=LogicalQuaternion.Identity;
         if(Element.ValueKind!=JsonValueKind.Object){ return false; }
         if(Element.TryGetProperty("EulerRuf",out var EulerElement)){
             if(!TryReadVector(EulerElement,LogicalVector3.Zero,out var Euler)){ return false; }
-            if(Version>=2){ Euler=Euler*LogicalMath.TwoPi; }
+            Euler=Euler*LogicalMath.TwoPi;
             return LogicalQuaternion.TryFromEulerRuf(Euler,out Rotation);
         }
         var W=LogicalScalar.One;
@@ -172,7 +183,7 @@ internal sealed class SceneGeometry {
         if(!TryReadVector(Element,LogicalVector3.Zero,out Vector)||(Element.TryGetProperty("W",out var WElement)&&!TryReadScalar(WElement,out W))){ return false; }
         return new LogicalQuaternion(Vector.R,Vector.U,Vector.F,W).TryNormalize(out Rotation);
     }
-    private bool TryReadVolume(JsonElement Members,int Version,LogicalAffineTransform World,string Scene,string Name,out string Error){
+    private bool TryReadVolume(JsonElement Members,LogicalAffineTransform World,string Scene,string Name,out string Error){
         Error=string.Empty;
         var Id=NavigationDefaults.Id;
         var Half=new LogicalVector3(LogicalScalar.FromInt64(10),LogicalScalar.FromInt64(5),LogicalScalar.FromInt64(10));
@@ -194,11 +205,10 @@ internal sealed class SceneGeometry {
             if(Members.TryGetProperty("AgentMaxClimb",out var ClimbElement)&&!TryReadScalar(ClimbElement,out Climb)){ Error=Problem("AgentMaxClimb"); return false; }
             if(Members.TryGetProperty("CellSize",out var CellElement)&&!TryReadScalar(CellElement,out CellSize)){ Error=Problem("CellSize"); return false; }
             if(Members.TryGetProperty("CellHeight",out var CellHeightElement)&&!TryReadScalar(CellHeightElement,out CellHeight)){ Error=Problem("CellHeight"); return false; }
-            // 角度: 版 3 は単位語なしのキーに回転数、版 2 は C# の名前のキーに回転数、版 1 は C# の名前のキーに度。
-            var SlopeKey=Version>=3?"AgentMaxSlope":"AgentMaxSlopeDegrees";
-            if(Members.TryGetProperty(SlopeKey,out var SlopeElement)){
-                if(!TryReadScalar(SlopeElement,out Slope)){ Error=Problem(SlopeKey); return false; }
-                if(Version>=2){ Slope=Slope*LogicalScalar.FromInt64(360); }
+            // 角度は単位語なしのキーに回転数（ADR-0074）。
+            if(Members.TryGetProperty("AgentMaxSlope",out var SlopeElement)){
+                if(!TryReadScalar(SlopeElement,out Slope)){ Error=Problem("AgentMaxSlope"); return false; }
+                Slope=Slope*LogicalScalar.FromInt64(360);
             }
         }
         if(Half.R<=LogicalScalar.Zero||Half.U<=LogicalScalar.Zero||Half.F<=LogicalScalar.Zero){ Error=Problem("HalfExtents (all three must be positive)"); return false; }
@@ -223,26 +233,18 @@ internal sealed class SceneGeometry {
     private bool TryAddMesh(string AssetPath,LogicalAffineTransform World,string Scene,string Name,out string Error){
         Error=string.Empty;
         var FullPath=Path.GetFullPath(Path.Combine(this.ProjectDirectory,AssetPath.Replace('/',Path.DirectorySeparatorChar)));
-        if(!File.Exists(FullPath)){
-            this.MissingMeshes.Add(AssetPath);
-            return true;
-        }
         if(!this.Meshes.TryGetValue(FullPath,out var Mesh)){
-            var Result=GltfImporter.ImportScene(FullPath);
-            if(!Result.Success||Result.Scene is not { }Imported){
-                Error=$"{Scene}: error NAV006: The mesh '{AssetPath}' of '{Name}' could not be imported: {string.Join("; ",Result.Diagnostics)}";
-                return false;
+            var SourceUri=Path.GetRelativePath(this.ProjectDirectory,FullPath).Replace('\\','/');
+            try {
+                if(this.ContentDirectory is null){ throw new InvalidDataException("The model artifact directory was not supplied to navigation cooking."); }
+                using var Bundle=ModelAssetBundle.OpenAsync(this.ContentDirectory,SourceUri).GetAwaiter().GetResult();
+                var Geometry=ModelGeometry.FlattenStatic(Bundle);Mesh=([..Geometry.Positions],[..Geometry.Indices]);
             }
-            List<Vector3>Positions=[];
-            List<int>Indices=[];
-            foreach(var Item in Imported.Nodes){
-                if(Item.MeshIndex is not { }MeshIndex){ continue; }
-                var Data=Imported.Meshes[MeshIndex];
-                var Offset=Positions.Count;
-                foreach(var Position in Data.Positions){ Positions.Add(Vector3.Transform(Position,Item.WorldTransform)); }
-                foreach(var Index in Data.Indices){ Indices.Add(Offset+(int)Index); }
+            // ModelAssetBundle は、索引に無いモデルを FileNotFoundException(FileName はそのモデル)で知らせる。他の I/O の失敗は NAV006 のまま。
+            catch(FileNotFoundException Missing)when(string.Equals(Missing.FileName,SourceUri,StringComparison.Ordinal)){ this.MissingMeshes.Add(AssetPath);return true; }
+            catch(Exception Failure)when(Failure is IOException or InvalidDataException or ArgumentException or InvalidOperationException){
+                Error=$"{Scene}: error NAV006: The saved mesh '{AssetPath}' of '{Name}' could not be loaded: {Failure.Message}";return false;
             }
-            Mesh=([.. Positions],[.. Indices]);
             this.Meshes[FullPath]=Mesh;
         }
         var Vertices=new LogicalVector3[Mesh.Positions.Length];
@@ -267,7 +269,7 @@ internal sealed class SceneGeometry {
     /// <summary>基底の向きが逆(行列式が負)か。</summary>
     internal static bool IsMirrored(LogicalAffineTransform World)=>
         LogicalVector3.Dot(World.RAxis,LogicalVector3.Cross(World.UAxis,World.FAxis))<LogicalScalar.Zero;
-    private bool TryAddCollider(JsonElement Members,int Version,LogicalAffineTransform World,string Scene,string Name,out string Error){
+    private bool TryAddCollider(JsonElement Members,LogicalAffineTransform World,string Scene,string Name,out string Error){
         Error=string.Empty;
         if(Members.ValueKind==JsonValueKind.Object&&Members.TryGetProperty("IsTrigger",out var Trigger)&&Trigger.ValueKind==JsonValueKind.True){ return true; }
         var Shape=Members.ValueKind==JsonValueKind.Object&&Members.TryGetProperty("Shape",out var ShapeElement)&&ShapeElement.ValueKind==JsonValueKind.String?ShapeElement.GetString():"Box";

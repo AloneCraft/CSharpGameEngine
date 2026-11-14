@@ -120,6 +120,17 @@ public sealed class ContentAddressedStore:IContentArtifactReader {
         }
         return Bytes;
     }
+    public async ValueTask<ImmutableArray<string>>ExportAsync(IEnumerable<PublishedContentArtifact>Artifacts,string DestinationDirectory,CancellationToken CancellationToken=default){
+        var Destination=new ContentAddressedStore(DestinationDirectory,this.MaximumArtifactBytes);
+        var Files=ImmutableArray.CreateBuilder<string>();
+        foreach(var Artifact in Artifacts.OrderBy(static Artifact=>Artifact.Address)){
+            var Bytes=await this.ReadAsync(Artifact.Address,CancellationToken).ConfigureAwait(false);
+            var Copied=await Destination.PublishAsync(Artifact.Reference.Key,Bytes,CancellationToken).ConfigureAwait(false);
+            if(Copied!=Artifact){ throw new InvalidDataException("Exported artifact differs from its exact reference or address."); }
+            Files.Add(Destination.GetObjectPath(Copied.Address));
+        }
+        return Files.Distinct(StringComparer.OrdinalIgnoreCase).ToImmutableArray();
+    }
 
     public int RecoverInterruptedPublications(){
         var Removed=0;

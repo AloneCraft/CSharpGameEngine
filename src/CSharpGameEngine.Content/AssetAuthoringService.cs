@@ -37,7 +37,7 @@ public static class AssetAuthoringService {
         string Importer=Path.GetExtension(Source).ToLowerInvariant()switch {
             ".png" or ".jpg" or ".jpeg"=>ImageImportSettings.Importer,
             ".fbx"=>"AssimpNet",
-            ".glb" or ".gltf"=>"SharpGLTF",
+            ".glb" or ".gltf"=>"cge.gltf",
             _=>throw new NotSupportedException("Asset authoring supports .fbx, .glb, and .gltf sources."),
         };
         return new AuthoringContext(Source,Source+".meta",Relative,Importer);
@@ -89,6 +89,10 @@ public static class AssetAuthoringService {
     private static AssetAuthoringResult?TryMigrateLegacy(AssetAuthoringRequest Request,AuthoringContext Context){
         var Bytes=ReadBoundedMetadata(Context.MetadataPath);
         if(ComputeSha256(Bytes)!=Request.ExpectedMetadataSha256){ return Rejected(Request.RequestId,"ASSET_METADATA_CONFLICT","Metadata changed after inspection.",Context.MetadataPath); }
+        if(AssetMetadata.TryParse(Bytes,out var Previous,out _)&&Previous is not null){
+            if(Context.Importer!="cge.gltf"||!AssetMetadata.IsRetiredModelImporter(Previous.Importer)||Previous.SourceUri!=Context.SourceUri){ return Rejected(Request.RequestId,"ASSET_MIGRATION_FORMAT","Only matching legacy glTF importer metadata can be migrated.",Context.MetadataPath); }
+            AtomicWrite(Context.MetadataPath,AssetMetadata.Create(Previous.AssetId,Previous.SourceUri,Context.Importer,Previous.Options).ToCanonicalUtf8());return null;
+        }
         var Text=new System.Text.UTF8Encoding(false,true).GetString(Bytes).Trim();
         if(!Text.StartsWith("guid: ",StringComparison.Ordinal)||!Guid.TryParse(Text[6..],out var LegacyId)||LegacyId==Guid.Empty){
             return Rejected(Request.RequestId,"ASSET_MIGRATION_FORMAT","Expected exactly one legacy guid line; no files were changed.",Context.MetadataPath);

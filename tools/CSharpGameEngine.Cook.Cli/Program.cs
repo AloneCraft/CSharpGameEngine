@@ -46,11 +46,13 @@ try {
     }
     string?Project=null;
     string?Name=null;
+    string?ContentDirectory=null;
     var Verify=false;
     for(var Index=4;Index<args.Length;Index++){
         switch(args[Index]){
             case "--project" when Index+1<args.Length:Project=args[++Index];break;
             case "--cooker" when Index+1<args.Length:Name=args[++Index];break;
+            case "--content-root" when Index+1<args.Length:ContentDirectory=Path.GetFullPath(args[++Index]);break;
             case "--verify":Verify=true;break;
             default:
                 Console.Error.WriteLine($"Unknown option: {args[Index]}");
@@ -59,7 +61,7 @@ try {
     }
     var Selected=Host.Select(args[2],Name);
     List<string>Messages=[];
-    var Outputs=CookerHost.Cook(Selected,args[2],args[3],Project??Path.GetDirectoryName(Path.GetFullPath(args[2]))!,Verify,Messages);
+    var Outputs=CookerHost.Cook(Selected,args[2],args[3],Project??Path.GetDirectoryName(Path.GetFullPath(args[2]))!,Verify,Messages,ContentDirectory);
     // クッカー自身のメモ（警告、統計）は標準エラーへ出す。標準出力にはファイル一覧だけを出す。
     foreach(var Message in Messages){ Console.Error.WriteLine(Message); }
     foreach(var Output in Outputs){ Console.WriteLine(Output); }

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Content.Models;
 public sealed record ModelContentEntry(string SourceUri,string Asset,string Name,ContentArtifactKind Kind,string Uri,string Hash,string Address,int EnvelopeBytes,bool LastKnownGood);
@@ -8,7 +7,6 @@ public sealed record ModelContentEntry(string SourceUri,string Asset,string Name
 public sealed class ModelContentIndex:IContentArtifactLocator {
     private const string Schema="cge-content-index/1";
     private const int MaximumBytes=16*1024*1024;
-    private static readonly JsonSerializerOptions Options=new() { UnmappedMemberHandling=JsonUnmappedMemberHandling.Disallow };
     private readonly ImmutableDictionary<AssetArtifactReference,Hash256>ByReference;
     public ImmutableArray<ModelContentEntry>Entries{get;}
     public ModelContentIndex(IEnumerable<ModelContentEntry>Entries){
@@ -32,23 +30,24 @@ public sealed class ModelContentIndex:IContentArtifactLocator {
     public bool TryResolve(AssetArtifactReference Reference,out Hash256 Address)=>this.ByReference.TryGetValue(Reference,out Address);
     public AssetArtifactReference Resolve(string SourceUri,ContentArtifactKind Kind,string?Name=null){
         var Matches=this.Entries.Where(E=>E.SourceUri==SourceUri&&E.Kind==Kind&&(Name is null||E.Name==Name)).Take(2).ToArray();
-        if(Matches.Length!=1){ throw new InvalidDataException(Matches.Length==0?"Content selector was not found.":"Content selector is ambiguous; specify its name."); }
+        if(Matches.Length==0){ throw new KeyNotFoundException("Content selector was not found: "+SourceUri); }
+        if(Matches.Length!=1){ throw new InvalidDataException("Content selector is ambiguous; specify its name."); }
         return new(AssetUri.Parse(Matches[0].Uri).Key,Hash256.Parse(Matches[0].Hash));
     }
     public byte[]Write(){
-        var Bytes=JsonSerializer.SerializeToUtf8Bytes(new IndexDocument(Schema,this.Entries),Options);
+        var Bytes=JsonSerializer.SerializeToUtf8Bytes(new IndexDocument(Schema,this.Entries),ModelContentIndexJsonContext.Default.IndexDocument);
         if(Bytes.Length>MaximumBytes){ throw new InvalidDataException("Content index exceeds its byte limit."); }
         return Bytes;
     }
     public static ModelContentIndex Read(byte[]Bytes){
         if(Bytes.Length>MaximumBytes){ throw new InvalidDataException("Content index exceeds its byte limit."); }
         try {
-            var Document=JsonSerializer.Deserialize<IndexDocument>(Bytes,Options)??throw new InvalidDataException("Missing content index.");
+            var Document=JsonSerializer.Deserialize(Bytes,ModelContentIndexJsonContext.Default.IndexDocument)??throw new InvalidDataException("Missing content index.");
             if(Document.Schema!=Schema||Document.Entries.IsDefault){ throw new InvalidDataException("Unsupported content index schema."); }
             var Result=new ModelContentIndex(Document.Entries);
             if(!Bytes.AsSpan().SequenceEqual(Result.Write())){ throw new InvalidDataException("Noncanonical content index."); }
             return Result;
         } catch(Exception Error) when(Error is JsonException or ArgumentException or NullReferenceException){ throw new InvalidDataException("Invalid content index.",Error); }
     }
-    private sealed record IndexDocument(string Schema,ImmutableArray<ModelContentEntry>Entries);
+    internal sealed record IndexDocument(string Schema,ImmutableArray<ModelContentEntry>Entries);
 }

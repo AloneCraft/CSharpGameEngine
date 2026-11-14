@@ -37,7 +37,7 @@ public sealed class SceneDslAnalyzerTests {
 
     private static AdditionalText JsonScene(string Path,string ClassName,int?StartupOrder)=>new InMemoryAdditionalText(Path,
         "{\n"
-        +"  \"schemaVersion\": 1,\n"
+        +"  \"schemaVersion\": 3,\n"
         +"  \"namespace\": \"Game\",\n"
         +"  \"className\": \""+ClassName+"\",\n"
         +(StartupOrder is { }Order?"  \"startupOrder\": "+Order+",\n":string.Empty)

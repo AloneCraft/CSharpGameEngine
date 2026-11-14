@@ -1,5 +1,4 @@
 using System.Numerics;
-using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
@@ -14,24 +13,8 @@ public sealed class LocomotionGraphTests {
     private const float JumpMarker=1000f;
     private const float FallMarker=2000f;
     private const float LandMarker=3000f;
-    private static Skeleton TwoJoints(){
-        var ChildRest=Matrix4x4.CreateTranslation(0f,1f,0f);
-        Assert.True(Matrix4x4.Invert(ChildRest,out var ChildInverse));
-        return Skeleton.FromImported(new ImportedSkin {
-            JointNames=["root","child"],
-            ParentIndices=[-1,0],
-            RestTranslations=[Vector3.Zero,Vector3.UnitY],
-            RestRotations=[Quaternion.Identity,Quaternion.Identity],
-            RestScales=[Vector3.One,Vector3.One],
-            InverseBindMatrices=[Matrix4x4.Identity,ChildInverse],
-            SkeletonTransform=Matrix4x4.Identity,
-        });
-    }
-    private static AnimationClip Marker(Skeleton Skeleton,float Marker,float Duration)=>AnimationClip.Bind(new ImportedAnimationClip {
-        Name=$"marker{Marker}",
-        DurationSeconds=Duration,
-        Tracks=[new ImportedJointTrack { JointName="child",Translation=new ImportedKeys<Vector3> { Times=[0f,Duration],Values=[new Vector3(Marker,1f,0f),new Vector3(Marker,1f,0f)],Step=false } }],
-    },Skeleton);
+    private static Skeleton TwoJoints()=>AnimationTestData.TwoJoints();
+    private static AnimationClip Marker(Skeleton Skeleton,float Marker,float Duration)=>AnimationTestData.Marker(Skeleton,Marker,Duration);
     private static LocomotionStateMachine Machine(Skeleton Skeleton,float Interpolation=LocomotionStateMachine.WeightInterpolationSpeed){
         var Walk=Enumerable.Range(0,LocomotionDirection.Count).Select(Direction=>Marker(Skeleton,WalkMarker+Direction,1f)).ToArray();
         var Jog=Enumerable.Range(0,LocomotionDirection.Count).Select(Direction=>Marker(Skeleton,JogMarker+Direction,1f)).ToArray();

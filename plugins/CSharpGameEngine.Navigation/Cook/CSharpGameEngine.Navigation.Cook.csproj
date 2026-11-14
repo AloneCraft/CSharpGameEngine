@@ -6,6 +6,7 @@
     The mesh format and the path search are the Runtime module's sources, compiled here too, so the writer and the game's reader are the same code.
   -->
   <PropertyGroup>
+    <CgeNumericProfileProject>true</CgeNumericProfileProject>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>CSharpGameEngine.Navigation.Cook</AssemblyName>
     <RootNamespace>CSharpGameEngine.Navigation.Cook</RootNamespace>
@@ -22,7 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
     <ProjectReference Include="..\..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
-    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+    <ProjectReference Include="..\..\..\src\CSharpGameEngine.Content\CSharpGameEngine.Content.csproj" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Navigation.Tests</_Parameter1></AssemblyAttribute>

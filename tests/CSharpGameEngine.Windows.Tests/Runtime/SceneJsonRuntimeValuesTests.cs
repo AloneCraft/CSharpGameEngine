@@ -10,6 +10,16 @@ namespace CSharpGameEngine.Windows.Tests.Runtime;
 /// ADR-0070 決定 6：ランタイムビューはジェネレーターの規則で、リフレクションを使ってエディターのシーン JSON を読み込む。実際のシーンでは、生成コードが同じ JSON からワールドに配置したものと、生成されるすべてのコンポーネントが一致する。
 /// </summary>
 public sealed class SceneJsonRuntimeValuesTests {
+    private static object ReadComponent(Type Type,SceneJsonValue Members,string Where)=>SceneJsonRuntimeValues.Component(Type,Members,Where,CSharpGameEngine.Generated.GeneratedEditorPreviewBridge.ParseRuntimeLogicalScalar);
+    [Theory]
+    [InlineData("1.0000000000000000000542101086242752217003726400434970855712890625")]
+    [InlineData("1844674407370955161.25")]
+    public void FixedNumbersUseTheGamesGeneratedReaderWithoutFloatNarrowing(string Text){
+        var Value=(Sample)ReadComponent(typeof(Sample),SceneJsonReader.Parse("{\"Scalar\":"+Text+"}"),"Sample");
+        Assert.Equal(LogicalScalar.ParseInvariant(Text),Value.Scalar);
+        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("{\"Scalar\":"+Text+"}"),"Sample"));
+        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("{\"Scalar\":"+Text+"}"),"Sample",ParseLogicalScalar:static _=>1f));
+    }
     public enum Shade { Dark,Bright }
     public struct Pair(float X,float Y) {
         public float X=X;
@@ -79,7 +89,7 @@ public sealed class SceneJsonRuntimeValuesTests {
         for(var Index=0;Index<Nodes.Length;Index++){
             foreach(var Component in Nodes[Index].Get("components")!.Items){
                 var Type=ResolveType(Component.Get("type")!.Text!);
-                var Made=SceneJsonRuntimeValues.Component(Type,Component.Get("members")!,Type.Name,SceneJsonRuntimeValues.UsesTurns(Json));
+                var Made=ReadComponent(Type,Component.Get("members")!,Type.Name);
                 var Getter=typeof(EcsWorld).GetMethods().Single(Method=>Method.Name==nameof(EcsWorld.TryGetComponent)
                     &&Method.GetParameters() is [_,{ }Out]&&Out.ParameterType.GetElementType()==Type);
                 object?[]Arguments=[Entities[Index],null];
@@ -98,17 +108,17 @@ public sealed class SceneJsonRuntimeValuesTests {
         // Q64.64 の範囲を超える位置や負のライト色は、型独自の変換または
         // コンストラクターによって拒否される。他の不一致と同じく InvalidOperationException として表面化し、ランタイムビューは
         // リフレクションのラッパーとしてではなく、その例外をスキップする（最後に正常だった値を維持する）。
-        var Error=Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(Type,SceneJsonReader.Parse(Json),Type.Name));
+        var Error=Assert.Throws<InvalidOperationException>(()=>ReadComponent(Type,SceneJsonReader.Parse(Json),Type.Name));
         Assert.Contains("does not fit",Error.Message,StringComparison.Ordinal);
     }
 
     [Fact]
     public void Camera_ReadsTheNativeCurveAndPreservesItsDefaults(){
-        var Radial=(CSharpGameEngine.Runtime.Windows.Camera)SceneJsonRuntimeValues.Component(typeof(CSharpGameEngine.Runtime.Windows.Camera),
+        var Radial=(CSharpGameEngine.Runtime.Windows.Camera)ReadComponent(typeof(CSharpGameEngine.Runtime.Windows.Camera),
             SceneJsonReader.Parse("""{ "RadialTransitionMeters": 2, "NearZ": 0.001, "FarZ": 1e18 }"""),"Camera");
         Assert.Equal(2f,Radial.RadialTransitionMeters);
         Assert.Equal(1e18f,Radial.FarZ);
-        var Existing=(CSharpGameEngine.Runtime.Windows.Camera)SceneJsonRuntimeValues.Component(typeof(CSharpGameEngine.Runtime.Windows.Camera),
+        var Existing=(CSharpGameEngine.Runtime.Windows.Camera)ReadComponent(typeof(CSharpGameEngine.Runtime.Windows.Camera),
             SceneJsonReader.Parse("""{ "FarZ": 500 }"""),"Camera");
         Assert.Equal(1f,Existing.RadialTransitionMeters);
         Assert.Equal(500f,Existing.FarZ);
@@ -121,7 +131,7 @@ public sealed class SceneJsonRuntimeValuesTests {
               "Scalar": 0.25, "Maybe": null, "Array": [1, 2], "List": [0.5], "Shades": ["Dark", "Bright"] }
             """);
 
-        var Value=(Sample)SceneJsonRuntimeValues.Component(typeof(Sample),Json,"Sample");
+        var Value=(Sample)ReadComponent(typeof(Sample),Json,"Sample");
 
         Assert.Equal(7,Value.Count);
         Assert.Equal((byte)200,Value.Small);
@@ -134,9 +144,9 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Equal([1,2],Value.Array);
         Assert.Equal([0.5f],Value.List);
         Assert.Equal(new[]{Shade.Dark,Shade.Bright},Value.Shades.ToArray());
-        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Mode": "Dim" }"""),"Sample"));
-        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Small": 300 }"""),"Sample"));
-        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Missing": 1 }"""),"Sample"));
+        Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Sample),SceneJsonReader.Parse("""{ "Mode": "Dim" }"""),"Sample"));
+        Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Sample),SceneJsonReader.Parse("""{ "Small": 300 }"""),"Sample"));
+        Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Sample),SceneJsonReader.Parse("""{ "Missing": 1 }"""),"Sample"));
     }
 
     /// <summary>
@@ -144,15 +154,15 @@ public sealed class SceneJsonRuntimeValuesTests {
     /// </summary>
     [Fact]
     public void Numbers_ReadAsTheGeneratedLiteralsDo(){
-        var Value=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),
+        var Value=(Measures)ReadComponent(typeof(Measures),
             SceneJsonReader.Parse("""{ "Price": 1.5e3, "Ratio": 2E-3, "Speed": 1e-2 }"""),"Measures");
         Assert.Equal((1.5e3m,2E-3d,1e-2f),(Value.Price,Value.Ratio,Value.Speed));
         // オブジェクトまたはインターフェイス型のメンバーには、生成された float リテラルをボックス化して設定する。
-        var Boxed=(Measures)SceneJsonRuntimeValues.Component(typeof(Measures),SceneJsonReader.Parse("""{ "Boxed": 2.5, "Comparable": 3 }"""),"Measures");
+        var Boxed=(Measures)ReadComponent(typeof(Measures),SceneJsonReader.Parse("""{ "Boxed": 2.5, "Comparable": 3 }"""),"Measures");
         Assert.Equal((object)2.5f,Boxed.Boxed);
         Assert.Equal((IComparable)3f,Boxed.Comparable);
         foreach(var Json in new[]{"""{ "Speed": 1e39 }""","""{ "Ratio": 1e400 }""","""{ "Price": 1e29 }""","""{ "Boxed": 1e39 }"""}){
-            Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Measures),SceneJsonReader.Parse(Json),"Measures"));
+            Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Measures),SceneJsonReader.Parse(Json),"Measures"));
         }
     }
 
@@ -161,7 +171,7 @@ public sealed class SceneJsonRuntimeValuesTests {
     /// </summary>
     [Fact]
     public void Collections_FillAsTheGeneratedCollectionExpressionDoes(){
-        var Value=(Shelves)SceneJsonRuntimeValues.Component(typeof(Shelves),SceneJsonReader.Parse(
+        var Value=(Shelves)ReadComponent(typeof(Shelves),SceneJsonReader.Parse(
             """{ "Tags": [3, 1], "Sorted": [5, 2], "Plain": [7], "Fixed": [8, 9], "Frozen": [4], "View": [6] }"""),"Shelves");
         Assert.Equal(new HashSet<int>{1,3},Value.Tags);
         Assert.Equal([2,5],Value.Sorted);
@@ -169,7 +179,7 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Equal([8,9],Value.Fixed);
         Assert.Equal([4],Value.Frozen);
         Assert.Equal([6],Value.View);
-        Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Shelves),SceneJsonReader.Parse("""{ "Waiting": [1] }"""),"Shelves"));
+        Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Shelves),SceneJsonReader.Parse("""{ "Waiting": [1] }"""),"Shelves"));
     }
 
     /// <summary>
@@ -177,8 +187,8 @@ public sealed class SceneJsonRuntimeValuesTests {
     /// </summary>
     [Fact]
     public void Constructors_TheGeneratorSkips_AreSkipped(){
-        Assert.Equal(4,((ByRef)SceneJsonRuntimeValues.Component(typeof(ByRef),SceneJsonReader.Parse("""{ "A": 4 }"""),"ByRef")).A);
-        Assert.Equal(4,((Retired)SceneJsonRuntimeValues.Component(typeof(Retired),SceneJsonReader.Parse("""{ "A": 4 }"""),"Retired")).A);
+        Assert.Equal(4,((ByRef)ReadComponent(typeof(ByRef),SceneJsonReader.Parse("""{ "A": 4 }"""),"ByRef")).A);
+        Assert.Equal(4,((Retired)ReadComponent(typeof(Retired),SceneJsonReader.Parse("""{ "A": 4 }"""),"Retired")).A);
     }
 
     /// <summary>
@@ -192,17 +202,20 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Null(SceneJsonRuntimeValues.FindType([typeof(Pair).Assembly],Name+"Missing"));
     }
 
-    /// <summary>ADR-0074 バージョン 3：ジェネレーターと同様に、角度のキーでは C# の単位語を省略できる。</summary>
+    /// <summary>
+    /// ADR-0074 バージョン 3：角度は回転数で、キーは C# の単位語を省いた名前。C# の名前の角度キーは、ジェネレーターと同じく読まない（ADR-0098 §5 規則 2）。
+    /// </summary>
     [Fact]
-    public void AngleKeys_ReadWithoutTheUnitWordAndByTheCSharpName(){
-        var Unitless=(Aim)SceneJsonRuntimeValues.Component(typeof(Aim),
-            SceneJsonReader.Parse("""{ "Yaw": 0.25, "Fov": 0.25, "PitchDegrees": 0.125, "Pitch": 7 }"""),"Aim",Turns:true);
+    public void AngleKeys_ReadWithoutTheUnitWordAndRejectTheCSharpName(){
+        var Unitless=(Aim)ReadComponent(typeof(Aim),
+            SceneJsonReader.Parse("""{ "Yaw": 0.25, "Fov": 0.25, "PitchDegrees": 0.125, "Pitch": 7 }"""),"Aim");
         Assert.Equal((90f,1.5707964f,45f,7f),(Unitless.YawDegrees,Unitless.FovRadians,Unitless.PitchDegrees,Unitless.Pitch));
-        var Named=(Aim)SceneJsonRuntimeValues.Component(typeof(Aim),
-            SceneJsonReader.Parse("""{ "YawDegrees": 0.25, "FovRadians": 0.25 }"""),"Aim",Turns:true);
-        Assert.Equal((90f,1.5707964f),(Named.YawDegrees,Named.FovRadians));
-        var Cone=(Cone)SceneJsonRuntimeValues.Component(typeof(Cone),SceneJsonReader.Parse("""{ "Outer": 0.25 }"""),"Cone",Turns:true);
+        var Field=Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Aim),SceneJsonReader.Parse("""{ "YawDegrees": 0.25 }"""),"Aim"));
+        Assert.Contains("'YawDegrees' is no longer read; write it as 'Yaw'",Field.Message,StringComparison.Ordinal);
+        var Cone=(Cone)ReadComponent(typeof(Cone),SceneJsonReader.Parse("""{ "Outer": 0.25 }"""),"Cone");
         Assert.Equal(90f,Cone.OuterDegrees);
+        var Parameter=Assert.Throws<InvalidOperationException>(()=>ReadComponent(typeof(Cone),SceneJsonReader.Parse("""{ "OuterDegrees": 0.25 }"""),"Cone"));
+        Assert.Contains("'OuterDegrees' is no longer read; write it as 'Outer'",Parameter.Message,StringComparison.Ordinal);
     }
 
     private static IEnumerable<SceneJsonValue>PreOrder(SceneJsonValue Node){

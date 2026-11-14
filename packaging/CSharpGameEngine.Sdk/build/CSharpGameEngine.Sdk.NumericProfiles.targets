@@ -1,0 +1,44 @@
+<Project>
+  <PropertyGroup Condition="'$(_CgeNumericVariant)' == 'true'">
+    <CgeSdkProfileDirectory>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)','$(BaseIntermediateOutputPath)','CgeProfiles','$(Configuration)','$(CgeNumericProfileId)'))\</CgeSdkProfileDirectory>
+    <_CgeSdkProfileProperties>Configuration=$(Configuration);$(CgeNumericBuildProperties);CgeEngineRoot=$(CgeEngineRoot);UseSharedCompilation=false;BuildInParallel=false</_CgeSdkProfileProperties>
+    <_CgeSdkProfileRemoveProperties>TargetFramework;TargetFrameworks;RuntimeIdentifier;SelfContained;PublishDir;Platform;OutDir;OutputPath;BaseIntermediateOutputPath;MSBuildProjectExtensionsPath;IntermediateOutputPath;CustomBeforeMicrosoftCommonTargets</_CgeSdkProfileRemoveProperties>
+  </PropertyGroup>
+  <Target Name="CgeBuildSdkNumericProfile" BeforeTargets="_CgeRunNavigationCook;_CgeRunDestructionCook" Condition="'$(_CgeNumericVariant)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_CgeSdkProfileName Include="CSharpGameEngine.Numerics;CSharpGameEngine.World" />
+      <_CgeSdkProfileName Include="CSharpGameEngine.Navigation.Cook" Condition="'$(CgeNavigationCookModule)' != ''" />
+      <_CgeSdkProfileName Include="CSharpGameEngine.Destruction.Cook" Condition="'$(CgeDestructionCookModule)' != ''" />
+      <_CgeSdkProfileProject Include="@(_CgeSdkProfileName->'$(CgeSdkProfileDirectory)%(Identity)\%(Identity).csproj')" />
+    </ItemGroup>
+    <MakeDir Directories="@(_CgeSdkProfileProject->'%(RootDir)%(Directory)')" />
+    <Copy SourceFiles="@(_CgeSdkProfileProject->'$(MSBuildThisFileDirectory)CSharpGameEngine.ProfileLibrary.csproj.in')" DestinationFiles="@(_CgeSdkProfileProject)" SkipUnchangedFiles="true" />
+    <MSBuild Projects="@(_CgeSdkProfileProject)" Targets="Restore" Properties="$(_CgeSdkProfileProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" RemoveProperties="$(_CgeSdkProfileRemoveProperties)" BuildInParallel="false" />
+    <MSBuild Projects="@(_CgeSdkProfileProject)" Targets="Build" Properties="$(_CgeSdkProfileProperties)" RemoveProperties="$(_CgeSdkProfileRemoveProperties)" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeSdkProfileAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <_CgeSdkNavigation Include="@(_CgeSdkProfileAssembly)" Condition="'%(Filename)' == 'CSharpGameEngine.Navigation.Cook'" />
+      <_CgeSdkDestruction Include="@(_CgeSdkProfileAssembly)" Condition="'%(Filename)' == 'CSharpGameEngine.Destruction.Cook'" />
+    </ItemGroup>
+    <PropertyGroup>
+      <CgeNavigationCookModule Condition="'@(_CgeSdkNavigation)' != ''">@(_CgeSdkNavigation)</CgeNavigationCookModule>
+      <CgeDestructionCookModule Condition="'@(_CgeSdkDestruction)' != ''">@(_CgeSdkDestruction)</CgeDestructionCookModule>
+    </PropertyGroup>
+  </Target>
+  <Target Name="CgeResolveSdkNumericProfile" BeforeTargets="ResolveAssemblyReferences" DependsOnTargets="CgeBuildSdkNumericProfile" Condition="'$(_CgeNumericVariant)' == 'true'">
+    <ItemGroup Condition="'$(DesignTimeBuild)' == 'true'">
+      <_CgeSdkProfileAssembly Include="$(CgeSdkProfileDirectory)CSharpGameEngine.Numerics\bin\$(Configuration)\$(CgeNumericProfileId)\net10.0\CSharpGameEngine.Numerics.dll;$(CgeSdkProfileDirectory)CSharpGameEngine.World\bin\$(Configuration)\$(CgeNumericProfileId)\net10.0\CSharpGameEngine.World.dll" />
+    </ItemGroup>
+    <ItemGroup>
+      <_CgeSdkNumerics Include="@(_CgeSdkProfileAssembly)" Condition="'%(Filename)' == 'CSharpGameEngine.Numerics'" />
+      <_CgeSdkWorld Include="@(_CgeSdkProfileAssembly)" Condition="'%(Filename)' == 'CSharpGameEngine.World'" />
+      <Reference Remove="@(Reference)" Condition="'%(Reference.Identity)' == 'CSharpGameEngine.Numerics' or '%(Reference.Identity)' == 'CSharpGameEngine.World' or '%(Reference.Filename)' == 'CSharpGameEngine.Numerics' or '%(Reference.Filename)' == 'CSharpGameEngine.World'" />
+      <Reference Include="CSharpGameEngine.Numerics" HintPath="@(_CgeSdkNumerics)" Private="true" />
+      <Reference Include="CSharpGameEngine.World" HintPath="@(_CgeSdkWorld)" Private="true" />
+      <RuntimeCopyLocalItems Remove="@(RuntimeCopyLocalItems)" Condition="'%(RuntimeCopyLocalItems.Filename)' == 'CSharpGameEngine.Numerics' or '%(RuntimeCopyLocalItems.Filename)' == 'CSharpGameEngine.World'" />
+    </ItemGroup>
+    <Error Condition="'@(_CgeSdkNumerics)' == '' or '@(_CgeSdkWorld)' == ''" Text="Selected numeric-profile libraries were not produced; default numeric DLLs cannot be substituted." />
+    <Error Condition="!Exists('@(_CgeSdkNumerics)') or !Exists('@(_CgeSdkWorld)')" Text="Selected numeric-profile libraries are unavailable. Build the game once after changing its numeric settings; the editor cannot substitute the default numeric DLLs." />
+  </Target>
+</Project>

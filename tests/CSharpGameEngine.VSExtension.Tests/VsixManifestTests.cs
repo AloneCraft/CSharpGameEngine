@@ -115,7 +115,18 @@ public sealed class VsixManifestTests {
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.exe",Entries);
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.runtimeconfig.json",Entries);
         }
-        Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
+        foreach(var File in new[]{"CSharpGameEngine.Cook.Cli.dll","CSharpGameEngine.Cook.Cli.deps.json","CSharpGameEngine.Cook.Cli.runtimeconfig.json"}){
+            Assert.Contains("Bridges/CSharpGameEngine.Import.AssetAuthoring.Cli/Cook/"+File,Entries);
+        }
+        var SdkPath=Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
+        using(var Input=Archive.GetEntry(SdkPath)!.Open()){
+            using var Bytes=new MemoryStream();Input.CopyTo(Bytes);Bytes.Position=0;
+            using var Sdk=new ZipArchive(Bytes,ZipArchiveMode.Read);
+            var SdkEntries=Sdk.Entries.Select(static Entry=>Entry.FullName.Replace('\\','/')).ToArray();
+            Assert.DoesNotContain(SdkEntries,static Entry=>Entry.StartsWith("lib/",StringComparison.Ordinal)&&
+                (Path.GetFileName(Entry).StartsWith("CSharpGameEngine.Cook",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("CSharpGameEngine.Import",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("Microsoft.CodeAnalysis",StringComparison.Ordinal)));
+            Assert.Contains("tools/Cook/CSharpGameEngine.Cooking.dll",SdkEntries);Assert.Contains("tools/ModelImport/CSharpGameEngine.Import.dll",SdkEntries);
+        }
         foreach(var Template in new[]{"ThirdPerson","FirstPerson","TopDown","Vehicle"}){
             Assert.Contains($"ProjectTemplates/CSharp/GameEngine/1033/{Template}/{Template}.vstemplate",Entries);
             Assert.Contains($"ProjectTemplates/CSharp/GameEngine/1041/{Template}/{Template}.csproj.template",Entries);

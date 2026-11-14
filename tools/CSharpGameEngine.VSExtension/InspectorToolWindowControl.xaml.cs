@@ -11,6 +11,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -541,7 +542,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     private static DependencyObject?FindInputControl(DependencyObject? Source){
         for(DependencyObject?Current=Source;Current is not null;Current=GetParent(Current)){
-            if(Current is TextBox or ComboBox or CheckBox){
+            if(Current is TextBox or ComboBox or ButtonBase){
                 return Current;
             }
         }
@@ -737,9 +738,13 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
         SceneInspectorMember Member=ViewModel.Member;
         string?NewExpression=Member.EditorKind switch {
-            InspectorEditorKind.Number when Member.AngleUnit is { }Unit&&Member.NumericType is { }AngleType
+            InspectorEditorKind.Number when Member.FixedNumericType is { }AngleFixedType&&Member.AngleUnit is { }FixedUnit
+                &&SceneJsonFixedValue.TryAngleFromDegrees(AngleFixedType,Text,FixedUnit,out string FixedAngleExpression)=>FixedAngleExpression,
+            InspectorEditorKind.Number when Member.FixedNumericType is { }FixedType&&Member.AngleUnit is null
+                &&SceneInspectorValueFormat.TryFormatFixedNumber(FixedType,Text,out string FixedExpression)=>FixedExpression,
+            InspectorEditorKind.Number when Member.FixedNumericType is null&&Member.AngleUnit is { }Unit&&Member.NumericType is { }AngleType
                 &&SceneInspectorValueFormat.TryFormatAngle(AngleType,Text,Unit,out string AngleExpression)=>AngleExpression,
-            InspectorEditorKind.Number when Member.AngleUnit is null&&Member.NumericType is { }Type
+            InspectorEditorKind.Number when Member.FixedNumericType is null&&Member.AngleUnit is null&&Member.NumericType is { }Type
                 &&SceneInspectorValueFormat.TryFormatNumber(Type,Text,out string Formatted)=>Formatted,
             InspectorEditorKind.PhysicalValue when Member.PhysicalContract?.TryFormatInput(Text,out string PhysicalExpression)==true=>PhysicalExpression,
             InspectorEditorKind.Text=>SceneInspectorValueFormat.FormatText(Text),
@@ -858,6 +863,40 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         var Item=ProjectItems.FirstOrDefault(Item=>Item.Source.RelativePath==ViewModel.Member.ConstantValue as string
             ||Names.TryGetValue(Item.Source.RelativePath,out var Name)&&Name==ViewModel.Member.SourceExpression.Replace("global::",string.Empty));
         if(Item is not null){ AssetWorkspaceSelection.Reveal(Item.Source.SourcePath); }
+    }
+    private void ChooseModelAsset_Click(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}Button||!ViewModel.IsModelAssetPath){ return; }
+        var ScenePath=SceneEditorHub.ActiveSceneModel?.FilePath;
+        var Items=(AssetsToolWindowPane.Controller?.Items??[]).Where(Item=>AssetPlacement.CanPlace(Item,ScenePath))
+            .OrderBy(static Item=>Item.Source.RelativePath,StringComparer.OrdinalIgnoreCase).ToArray();
+        var Menu=new ContextMenu{PlacementTarget=Button,Placement=PlacementMode.Bottom,MaxHeight=360};
+        if(Items.Length==0){ Menu.Items.Add(new MenuItem{Header=VsixText.Get("Assets_NoCompatibleModels"),IsEnabled=false}); }
+        foreach(var Item in Items){
+            var Choice=new MenuItem{Header=Item.Source.RelativePath,ToolTip=Item.Source.SourcePath};
+            Choice.Click+=(_,_)=>{ ThreadHelper.ThrowIfNotOnUIThread();this.AssignModelAsset(ViewModel,Item); };
+            Menu.Items.Add(Choice);
+        }
+        Button.ContextMenu=Menu;Menu.IsOpen=true;Args.Handled=true;
+    }
+    private void AssetPath_DragOver(object Sender,DragEventArgs Args){
+        if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}||!ViewModel.IsModelAssetPath){ return; }
+        var Item=Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) as CSharpGameEngine.Contracts.AssetWorkspaceItem;
+        Args.Effects=Item is not null&&AssetPlacement.CanPlace(Item,SceneEditorHub.ActiveSceneModel?.FilePath)?DragDropEffects.Copy:DragDropEffects.None;
+        Args.Handled=true;
+    }
+    private void AssetPath_Drop(object Sender,DragEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}||!ViewModel.IsModelAssetPath){ return; }
+        if(Args.Data.GetData(typeof(CSharpGameEngine.Contracts.AssetWorkspaceItem)) is CSharpGameEngine.Contracts.AssetWorkspaceItem Item){ this.AssignModelAsset(ViewModel,Item); }
+        Args.Handled=true;
+    }
+    private void AssignModelAsset(InspectorMemberViewModel ViewModel,CSharpGameEngine.Contracts.AssetWorkspaceItem Item){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!ViewModel.IsModelAssetPath||this.CurrentSnapshot is not { }Snapshot||this.CurrentSelection is not { }Selection
+            ||!Selection.NodeIds.Contains(ViewModel.Member.NodeId)||!AssetPlacement.CanPlace(Item,SceneEditorHub.ActiveSceneModel?.FilePath)){ return; }
+        var Expression=Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Item.Source.RelativePath,quote:true);
+        this.SubmitCommit(SceneInspectorCommitPlanner.CreateCommit(Snapshot.Key,Snapshot.DocumentVersion,ViewModel.Member,Expression));
     }
     private static InspectorChoiceCandidate?AssetCandidate(object Sender,DragEventArgs Args){
         if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}

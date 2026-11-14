@@ -1,7 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Contracts.Tests;
-/// <summary>プロトコル 11：ホストが読み込むスケルタル glTF の入力とアニメーションフレームの検証（ADR-0090）。</summary>
+/// <summary>生成済みモデルの参照とアニメーションフレームの検証（ADR-0097）。</summary>
 public sealed class RenderPreviewSkeletalProtocolTests {
     private static RenderPreviewCamera Camera(){
         var Matrix=Matrix4x4.CreateLookAt(new(0f,1f,-4f),Vector3.Zero,Vector3.UnitY)*Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.1f,300f);
@@ -12,11 +12,15 @@ public sealed class RenderPreviewSkeletalProtocolTests {
             FovYRadians=0.8f,NearZ=0.1f,FarZ=300f,
         };
     }
-    private static RenderPreviewHostRequest Open(RenderPreviewAssetSource?Asset)=>new(){
+    private static RenderPreviewModelSource Prepared(string Path)=>new(){SourcePath=Path,ContentDirectory=@"C:\Game\obj\Models",SourceUri="Assets/Model.glb",ModelHash=new string('1',64)};
+    private static RenderPreviewHostRequest Open(RenderPreviewAssetSource?Asset){
+        if(Asset is not null){ Asset.MeshModel=Prepared(Asset.MeshPath);if(!string.IsNullOrEmpty(Asset.AnimationPath)){ Asset.AnimationModel=Prepared(Asset.AnimationPath); } }
+        return new(){
         RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,
         SurfaceHandle=1,Width=64,Height=64,ShaderArtifactPath="Stage.cgeshaderartifact",
         Scene=new RenderPreviewScene { Camera=Camera(),Asset=Asset },
-    };
+        };
+    }
     private static RenderPreviewHostRequest FrameRequest(Action<RenderPreviewFrame>Edit){
         var Frame=new RenderPreviewFrame { Camera=Camera() };
         Edit(Frame);
@@ -27,7 +31,7 @@ public sealed class RenderPreviewSkeletalProtocolTests {
     [Fact]
     public void ThePreviousHostProtocolIsRejectedBeforeLoadingAnAsset(){
         var Request=Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" });
-        Request.ProtocolVersion=12;
+        Request.ProtocolVersion=RenderPreviewHostProtocol.CurrentVersion-1;
         Assert.Contains("Unsupported",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)));
     }
     [Fact]
@@ -36,11 +40,34 @@ public sealed class RenderPreviewSkeletalProtocolTests {
         Assert.Null(RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb",AnimationPath=@"C:\Game\Assets\Anims\Run.GLTF" })));
         Assert.Null(RenderPreviewHostProtocol.Validate(Open(null)));
     }
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("hash")]
+    [InlineData("directory")]
+    [InlineData("identity")]
+    [InlineData("escape")]
+    [InlineData("empty-part")]
+    [InlineData("control")]
+    public void InvalidPreparedModelsAreRejectedBeforeOpeningAHost(string Failure){
+        var Request=Open(new RenderPreviewAssetSource {MeshPath=@"C:\Game\Assets\Hero.glb"});var Asset=Request.Scene!.Asset!;
+        switch(Failure){
+            case "missing":Asset.MeshModel=null;break;
+            case "hash":Asset.MeshModel!.ModelHash=new string('0',64);break;
+            case "directory":Asset.MeshModel!.ContentDirectory="relative";break;
+            case "identity":Asset.MeshModel!.SourcePath=@"C:\Game\Assets\Other.glb";break;
+            case "escape":Asset.MeshModel!.SourceUri="../Other.glb";break;
+            case "empty-part":Asset.MeshModel!.SourceUri="Assets//Hero.glb";break;
+            case "control":Asset.MeshModel!.SourceUri="Assets/Hero\0.glb";break;
+            default:throw new InvalidOperationException(Failure);
+        }
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+    }
     [Fact]
     public void StaticAssetPathsAreValidatedAndCannotBeCombinedWithASkeletalAsset(){
         var Request=Open(null);
         var Scene=Request.Scene!;
         Scene.StaticAssetPath=@"C:\Game\Assets\Box.glb";
+        Scene.StaticModel=Prepared(Scene.StaticAssetPath);
         Assert.Null(RenderPreviewHostProtocol.Validate(Request));
         Scene.Asset=new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" };
         Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));

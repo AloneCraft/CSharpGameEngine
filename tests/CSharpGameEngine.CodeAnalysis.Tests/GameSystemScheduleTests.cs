@@ -2,13 +2,13 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 public sealed class GameSystemScheduleTests {
     [Fact]
-    public void ReadOnlyComponentUsesInAndDoesNotStampAChangeVersion(){
+    public void InComponentDoesNotStampAChangeVersion(){
         var Result=Run(
             """
             [ScheduledSystem]
             internal struct ReadSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] in Position position, ref Velocity velocity, ref State state) => true;
+                public bool Update(in Position position, ref Velocity velocity, ref State state) => true;
             }
             """);
 
@@ -26,7 +26,7 @@ public sealed class GameSystemScheduleTests {
             [ScheduledSystem]
             internal struct ReadSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] in Position position, ref State state) => true;
+                public bool Update(in Position position, ref State state) => true;
             }
 
             [ScheduledSystem, RunsAfter(typeof(ReadSystem))]
@@ -53,13 +53,13 @@ public sealed class GameSystemScheduleTests {
             [ScheduledSystem]
             internal struct FirstReadSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] in Position position, ref State state) => true;
+                public bool Update(in Position position, ref State state) => true;
             }
 
             [ScheduledSystem]
             internal struct SecondReadSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] in Position position, ref State state) => true;
+                public bool Update(in Position position, ref State state) => true;
             }
             """);
 
@@ -82,7 +82,7 @@ public sealed class GameSystemScheduleTests {
             [ScheduledSystem]
             internal struct SecondSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] in Position position, ref State state) => true;
+                public bool Update(in Position position, ref State state) => true;
             }
             """);
 
@@ -157,7 +157,7 @@ public sealed class GameSystemScheduleTests {
             [ScheduledSystem, RunsAfter(typeof(MiddleSystem))]
             internal struct ReadSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] in Position position, ref State state) => true;
+                public bool Update(in Position position, ref State state) => true;
             }
             """);
 
@@ -191,17 +191,20 @@ public sealed class GameSystemScheduleTests {
         Assert.Contains("Game.SecondSystem",Diagnostic.GetMessage());
     }
 
+    /// <summary>ADR-0098 §5 の B：廃止した書き方は、書き換え方を示すビルドエラーにする。</summary>
     [Fact]
-    public void ReadOnlyAttributeRequiresAnInStructParameter(){
-        var Result=Run(
-            """
-            internal struct BrokenSystem : ISystem
+    public void RetiredReadOnlyAttributeIsACompileErrorThatNamesTheReplacement(){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([(null,GameSystemGeneratorTestHelper.CommonComponents),(null,"""
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            internal struct OldSystem : ISystem
             {
-                public bool Update([ReadOnlyComponent] ref Position position, ref State state) => true;
+                public void Update([ReadOnlyComponent] in Position position) {}
             }
-            """);
-
-        Assert.Single(Result.Diagnostics,static Diagnostic=>Diagnostic.Id=="SYSGEN029");
+            """)]);
+        var Error=Assert.Single(Compilation.GetDiagnostics(),static Diagnostic=>Diagnostic.Id=="CS0619");
+        Assert.Contains("'in T' struct parameter already reads the component",Error.GetMessage(System.Globalization.CultureInfo.InvariantCulture),StringComparison.Ordinal);
     }
 
     private static Microsoft.CodeAnalysis.GeneratorDriverRunResult Run(string Systems)=>

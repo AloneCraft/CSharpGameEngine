@@ -10,6 +10,15 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// アクセシビリティ自体をここで明示的に固定する。
 /// </summary>
 public sealed class InspectorMemberViewModelTests {
+    [Fact]
+    public void ModelPathPickerAppearsOnlyForEditableStaticMeshPaths(){
+        SceneInspectorMember Member=new(new EditorNodeId(1),"global::CSharpGameEngine.Runtime.Windows.StaticMesh","AssetPath","\"Assets/Wall.glb\"",
+            IsEditable:true,InspectorEditorKind.Text,ConstantValue:"Assets/Wall.glb",NumericType:null,Candidates:[]);
+        Assert.True(new InspectorMemberViewModel(Member).IsModelAssetPath);
+        SceneInspectorMember Other=new(new EditorNodeId(1),"global::Game.Label","Text","\"Label\"",
+            IsEditable:true,InspectorEditorKind.Text,ConstantValue:"Label",NumericType:null,Candidates:[]);
+        Assert.False(new InspectorMemberViewModel(Other).IsModelAssetPath);
+    }
     [Theory]
     [InlineData(nameof(InspectorMemberViewModel.IsSelected))]
     [InlineData(nameof(InspectorMemberViewModel.Label))]

@@ -56,17 +56,11 @@ public sealed partial class NavMesh {
     }
     /// <summary>世界の座標を、原点からのサブ単位(切り捨て)にする。</summary>
     private long ToSubUnits(LogicalScalar Value,LogicalScalar OriginValue){
-        var Numerator=(Value.Raw-OriginValue.Raw)*SubUnits;
-        return Math.Clamp(FloorDivide(Numerator,this.CellSize.Raw),-CoordinateLimit,CoordinateLimit);
+        return Math.Clamp(LogicalNumeric.FloorQuotientClamped(Value-OriginValue,this.CellSize,SubUnits),-CoordinateLimit,CoordinateLimit);
     }
-    private long ToSteps(LogicalScalar Value)=>Math.Clamp(FloorDivide(Value.Raw-this.Origin.U.Raw,this.CellHeight.Raw),-CoordinateLimit,CoordinateLimit);
-    private static long FloorDivide(Int128 Numerator,Int128 Denominator){
-        var Quotient=Numerator/Denominator;
-        if((Numerator%Denominator)!=0&&((Numerator<0)!=(Denominator<0))){ Quotient--; }
-        return Quotient>long.MaxValue?long.MaxValue:Quotient<long.MinValue?long.MinValue:(long)Quotient;
-    }
-    private LogicalScalar FromSubUnits(long Value,LogicalScalar OriginValue)=>LogicalScalar.FromRaw(OriginValue.Raw+this.CellSize.Raw*Value/SubUnits);
-    private LogicalVector3 ToWorld(long X,long Z,int Y)=>new(this.FromSubUnits(X,this.Origin.R),LogicalScalar.FromRaw(this.Origin.U.Raw+this.CellHeight.Raw*Y),this.FromSubUnits(Z,this.Origin.F));
+    private long ToSteps(LogicalScalar Value)=>Math.Clamp(LogicalNumeric.FloorQuotientClamped(Value-this.Origin.U,this.CellHeight),-CoordinateLimit,CoordinateLimit);
+    private LogicalScalar FromSubUnits(long Value,LogicalScalar OriginValue)=>OriginValue+LogicalNumeric.ScaleByRatio(this.CellSize,Value,SubUnits);
+    private LogicalVector3 ToWorld(long X,long Z,int Y)=>new(this.FromSubUnits(X,this.Origin.R),this.Origin.U+LogicalNumeric.ScaleByRatio(this.CellHeight,Y,1),this.FromSubUnits(Z,this.Origin.F));
     /// <summary>
     /// 床の点<paramref name="Point"/>(足の位置)に一番近い、多角形の中の点を探す。点が多角形の中にあれば、その中で床の高さが一番近いものを選ぶ。
     /// 外なら、水平に<see cref="ProjectionRadius"/>以内で床が歩く者の背丈の範囲に入る、一番近い多角形を選ぶ。無ければ false。
@@ -84,7 +78,7 @@ public sealed partial class NavMesh {
     }
     /// <summary>水平にこの距離(m)以内の多角形だけを、<see cref="TryLocate"/>と経路の出発点・目的地の置き場にする。</summary>
     public LogicalScalar ProjectionRadius=>FromRatio(this.ProjectionRadiusSubUnits,this.CellSize);
-    private static LogicalScalar FromRatio(int SubUnitCount,LogicalScalar CellSize)=>LogicalScalar.FromRaw(CellSize.Raw*SubUnitCount/SubUnits);
+    private static LogicalScalar FromRatio(int SubUnitCount,LogicalScalar CellSize)=>LogicalNumeric.ScaleByRatio(CellSize,SubUnitCount,SubUnits);
     private bool Nearest(long X,long Z,long Step,int RadiusSubUnits,out int Best){
         Best=-1;
         var BestDistance=long.MaxValue;

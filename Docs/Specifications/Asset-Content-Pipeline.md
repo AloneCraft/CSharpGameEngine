@@ -121,3 +121,14 @@ Baked-font previews reuse the existing FontAtlas codec in the standalone authori
 ## Image interpretation and composite FBX
 
 [Image and model interpretation](Image-And-Model-Interpretation.md) extends schema 1 without replacing its fields. The source suffix supplies initial defaults only; saved `cge.image` settings own registered Texture/Image outputs and stable output keys. AssetAuthoringService validates metadata, L7 ImageOutputCompiler/FbxModelCompiler publish engine-owned CAS payloads, and L8 transports requests to the standalone authoring host. Browsing and build do not create metadata. This is an additive image/composite-FBX authoring path; M0114's global artifact-only runtime cutover remains separate.
+## M0128: モデル生成と共通読込の接続
+
+現在の部分実装は[ADR-0097](../Decisions/ADR-0097-Model-Artifact-Production.md)を正本とする。`compile-project --project <dir> --cook <Cook.Cli.dll> --module <Import.dll> --inputs <UTF-8行一覧> --out <生成場所>`が全モデルの入力集合を処理する。`--copy-to <実行場所> --file-list <一覧>`は成功時だけ、現在の依存閉包をコピーし、配布対象のファイル一覧を返す。`--resources-module`で材質生成の組み込みワーカーを明示できる。モデルの取り込み自体と材質・画像の生成は別のワーカー処理で、親CLIはソースSDKを読み込まない。
+
+ModelContentIndexのLastKnownGoodは前回成功のエンベロープと依存閉包を検証したものに限る。コンパイル結果にも同じ参照を含める。資産なしは空の正規indexとして公開する。実行時のModelAssetBundleは、一覧・実データ・宣言されたハッシュと依存関係を照合し、閉じたcodec集合で読む。元モデルがなくても読め、不一致時にソース読込へ切り替えない。
+
+同じ出力先へのモデル生成はプロセス間で排他する。シーンとサムネイルが同時に要求した場合も既存の生成を待ち、待機中のキャンセルを受け付ける。
+
+ゲーム・プレビュー・ナビメッシュ・距離場を共通生成物の読込へ切り替え、Source/SDKのビルドへ接続した。旧StageGltfAssetsとゲームのImport参照を削除した。切替後のSource/SDKビルド、CPU/WARP、元素材削除後のワーカー生成物読込はDebugで検証済み。モデルv1の型一覧・要素・参照の有無を明示し、項目の記述とJSONの読み書きはソース生成器の契約を使う。配布用一覧も同じく静的なJSON契約を使い、実行時の項目探索や既定Reflection resolverへ切り替えない。Content全71件は型検索を無効にして合格。自己完結Double配布物の旧30モデル読込、Floatからの保存再開、WARP110フレームの描画は検証済み。最終SDK0.1.42の4テンプレート実行と関連148件のRelease回帰も成功した。生成物一覧は標準Content項目として参照先へコピーし、配布は現在の厳密な一覧から選ぶ。ModelContentIndexの検索APIは欠落をKeyNotFoundExceptionとし、ModelAssetBundleの読込APIはその欠落をFileNotFoundExceptionに統一する。破損・曖昧性はInvalidDataExceptionとして拒否する。残る実画面の受け入れはM0128で継続する。
+
+新規glTF/GLBメタデータは`cge.gltf`を指定する。正規メタデータの旧`SharpGLTF`識別子は、生成前にAssetAuthoringServiceへ移行を依頼する。ID・ソースURI・設定を維持し、期待したファイルハッシュと不一致なら更新しない。移行後のハッシュで生成中の変更を検査する。単体CLIとプロジェクト生成は同じ読込を使う。

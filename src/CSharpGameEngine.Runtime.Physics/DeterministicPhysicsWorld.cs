@@ -564,9 +564,13 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
     }
 
     private static ulong HashScalar(ulong Hash,LogicalScalar Value,ulong Prime){
-        var Bits=unchecked((UInt128)Value.Raw);
-        Hash=(Hash^(ulong)Bits)*Prime;
-        return (Hash^(ulong)(Bits>>64))*Prime;
+        Span<byte>Bytes=stackalloc byte[LogicalScalar.SerializedSize];
+        (Value==LogicalScalar.Zero?LogicalScalar.Zero:Value).WriteLittleEndian(Bytes);
+        for(var Offset=0;Offset<Bytes.Length;Offset+=8){
+            var Bits=Bytes.Length-Offset>=8?System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(Bytes[Offset..]):System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(Bytes[Offset..]);
+            Hash=(Hash^Bits)*Prime;
+        }
+        return Hash;
     }
 
     private void ApplyCommands(ulong Tick){

@@ -2,12 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
+using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>ライブRoslyn SceneModelをScene Designerの描画オブジェクトへ変換する。</summary>
 internal static class SceneModelRenderObjectBuilder {
+    internal static void Prepare(SceneModel Model,CgeProjectContext Context)=>MeshLoader.Prepare(Model.EnumerateNodes().Select(ExtractMeshAssetPath).Where(PathValue=>!string.IsNullOrWhiteSpace(PathValue)).Select(PathValue=>Context.ResolveProjectPath(PathValue!)),Context.WorkspaceRoot);
+    internal static bool IsGameMode(SceneModel Model)=>Model.IsStartupScene&&Model.Root?.Components.Any(Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Windows.AppHost")==true;
+    internal static bool IsCharacterScene(SceneModel Model)=>Model.EnumerateNodes().Any(Node=>SkeletalMesh(Node) is not null)
+        &&!Model.EnumerateNodes().Any(Node=>ExtractStaticMeshAssetPath(Node) is not null);
     private const string PrimitiveBridgeProjectRelativePath=@"tools\CSharpGameEngine.Primitive.Cli";
     private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
 
@@ -33,7 +38,7 @@ internal static class SceneModelRenderObjectBuilder {
                            ?SceneTransformMath.ToMatrix(Local)
                            :Matrix4x4.Identity)*ParentWorld;
 
-            var AssetPath=ExtractStaticMeshAssetPath(Node);
+            var AssetPath=ExtractMeshAssetPath(Node);
             var PrimitiveMeshEnumMemberName=ExtractPrimitiveMeshEnumMemberName(Node);
             SimpleMesh Mesh;
             if(AssetPath is not null){
@@ -110,4 +115,6 @@ internal static class SceneModelRenderObjectBuilder {
     private static string?ExtractStaticMeshAssetPath(SceneNode Node)=>
         SceneComponentBindings.FindComponent(Node,SceneComponentRole.StaticMesh)
             ?.FindMember("AssetPath")?.Value.ConstantValue as string;
+    private static SceneComponent?SkeletalMesh(SceneNode Node)=>Node.Components.FirstOrDefault(Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Animation.SkeletalMesh");
+    private static string?ExtractMeshAssetPath(SceneNode Node)=>ExtractStaticMeshAssetPath(Node)??SkeletalMesh(Node)?.FindMember("AssetPath")?.Value.ConstantValue as string;
 }

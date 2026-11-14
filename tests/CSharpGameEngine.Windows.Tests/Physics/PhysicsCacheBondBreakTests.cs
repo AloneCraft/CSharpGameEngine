@@ -4,11 +4,18 @@ using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
-/// ADR-0078/M0113：<c>.cgephyscache</c>スキーマ3では、イベント後にティックごとに破断した結合を記録する。
-/// スキーマ2（M0055）のファイルも、結合破断のないフレームとして引き続き読み込む。
+/// ADR-0078/M0113：<c>.cgephyscache</c>では、イベント後にティックごとに破断した結合を記録する。現在のスキーマ以外のファイルは
+/// 読まない（ADR-0098 §5 の E）。
 /// </summary>
 public sealed class PhysicsCacheBondBreakTests {
     private static SimulationCacheIdentity Identity(int Schema=PhysicsCacheSerializer.SchemaVersion)=>new("physics","LogicalScalar-Q64.64",60,"bond-test",Schema);
+    /// <summary>指定したスキーマの識別情報とフレーム数 0 だけを持つキャッシュ。書き手は現在のスキーマしか書かないので、ヘッダーを直接書く。</summary>
+    private static byte[]EmptyCache(SimulationCacheIdentity Identity){
+        using MemoryStream Stream=new();
+        SimulationCacheHeader.Write(Stream,Identity);
+        Stream.Write(BitConverter.GetBytes(0));
+        return Stream.ToArray();
+    }
     private static PhysicsBodyState Body(ulong StableId)=>new(new Entity((int)StableId,1),StableId,PhysicsMotionType.Dynamic,new LogicalVector3(1,2,3),LogicalQuaternion.Identity,PhysicsVelocity.Zero,false,0);
     [Fact]
     public void TheBondBreaksOfAFrameRoundTripInCanonicalOrder(){
@@ -66,36 +73,30 @@ public sealed class PhysicsCacheBondBreakTests {
         Assert.Throws<ArgumentException>(()=>Writer.WriteFrame(new PhysicsCacheFrame(1,[],[],[new PhysicsBondBreak(3,-1,LogicalScalar.One)])));
         Assert.Throws<ArgumentException>(()=>Writer.WriteFrame(new PhysicsCacheFrame(1,[],[],[new PhysicsBondBreak(3,1,-LogicalScalar.One)])));
     }
-    [Fact]
-    public void ASchemaTwoCacheIsReadAndPlayedBackWithoutBondBreaks(){
-        using MemoryStream Old=new();
-        PhysicsCacheSerializer.Write(Old,Identity(2),[new PhysicsCacheFrame(1,[Body(1)],[]),new PhysicsCacheFrame(2,[Body(1)],[])]);
-        var Bytes=Old.ToArray();
-        // スキーマ2のフレームはイベントの直後で終わる。結合破断数は含まれない。
-        Assert.Equal(2,BitConverter.ToInt32(Bytes,8));
-        List<PhysicsCacheFrame>Frames=[];
-        using(MemoryStream Input=new(Bytes)){ Assert.True(PhysicsCacheSerializer.TryRead(Input,Identity(),Frames,out var Error),Error); }
-        Assert.Equal(2,Frames.Count);
-        Assert.All(Frames,static Frame=>Assert.Empty(Frame.Breaks));
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(5)]
+    public void AnyOtherSchemaIsRefusedByTheWriterAndByTheReaderAndThePlayer(int Schema){
+        // ADR-0098 §5 の E：決定性に縛られた記録なので、旧スキーマは読まずにベイクし直す。
+        Assert.Throws<ArgumentOutOfRangeException>(()=>new PhysicsCacheStreamWriter(new MemoryStream(),Identity(Schema),1));
+        var Bytes=EmptyCache(Identity(Schema));
         using(MemoryStream Input=new(Bytes)){
-            Assert.True(PhysicsCachePlayer.TryLoad(Input,Identity(),false,out var Player,out var LoadError),LoadError);
-            DeterministicPhysicsWorld World=new();
-            World.Upsert(new PhysicsBodyDescription(new Entity(1,1),1,new Collider(),new RigidBody(),LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero));
-            Assert.True(Player!.TryApply(1,World));
-            Assert.True(Player.TryApply(2,World));
-            Assert.Empty(World.BondBreaks);
+            Assert.False(PhysicsCacheSerializer.TryRead(Input,Identity(),[],out var Error));
+            Assert.Contains("does not match",Error);
+        }
+        using(MemoryStream Input=new(Bytes)){
+            Assert.False(PhysicsCachePlayer.TryLoad(Input,Identity(),false,out var Player,out var LoadError));
+            Assert.Null(Player);
+            Assert.Contains("does not match",LoadError);
         }
     }
     [Fact]
-    public void ASchemaTwoCacheCannotRecordABondBreakAndOtherIdentitiesStayRefused(){
-        using MemoryStream Stream=new();
-        using(PhysicsCacheStreamWriter Writer=new(Stream,Identity(2),1)){
-            Assert.Throws<ArgumentException>(()=>Writer.WriteFrame(new PhysicsCacheFrame(1,[],[],[new PhysicsBondBreak(3,1,LogicalScalar.One)])));
-        }
-        Assert.Throws<ArgumentOutOfRangeException>(()=>new PhysicsCacheStreamWriter(new MemoryStream(),Identity(1),1));
+    public void OtherIdentitiesStayRefused(){
         using MemoryStream Old=new();
-        PhysicsCacheSerializer.Write(Old,Identity(2),[]);
-        foreach(var Expected in new[]{ Identity() with { DependencyHash="other" },Identity() with { TickRate=30 },Identity(PhysicsCacheSerializer.SchemaVersion+1) }){
+        PhysicsCacheSerializer.Write(Old,Identity(),[]);
+        foreach(var Expected in new[]{ Identity() with { DependencyHash="other" },Identity() with { TickRate=30 },Identity() with { LogicalProfile="float32" },Identity(PhysicsCacheSerializer.SchemaVersion+1) }){
             Old.Position=0;
             Assert.False(PhysicsCacheSerializer.TryRead(Old,Expected,[],out var Error));
             Assert.Contains("does not match",Error);

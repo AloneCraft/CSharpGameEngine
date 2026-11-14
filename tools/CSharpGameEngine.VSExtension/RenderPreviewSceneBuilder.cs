@@ -16,6 +16,10 @@ internal static class RenderPreviewSceneBuilder {
         Matrix4x4 View=Matrix4x4.CreateLookAt(Eye,Center,Vector3.UnitY);
         Matrix4x4 Projection=Matrix4x4.CreatePerspectiveFieldOfView(
             FloatMath.Pi/4f,Math.Max(1,Width)/(float)Math.Max(1,Height),0.05f,Radius*20f);
+        if(Mesh.Parts.Length>0||Mesh.Material is not null){
+            var Result=FromScene([new(){Mesh=Mesh,World=Matrix4x4.Identity,NodeId=NodePath.Root}],View,Projection,Eye);
+            Result.Camera=Camera(View,Projection,Eye,NearZ:0.05f,FarZ:Radius*20f);return Result;
+        }
         return new RenderPreviewScene {
             Camera=Camera(View,Projection,Eye,NearZ:0.05f,FarZ:Radius*20f),
             Meshes=[new RenderPreviewMesh {
@@ -43,6 +47,7 @@ internal static class RenderPreviewSceneBuilder {
         in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 CameraPosition,
         float FovYRadians=SceneCameraFraming.DefaultFovYRadians){
         if(Objects is null){ throw new ArgumentNullException(nameof(Objects)); }
+        Objects=ExpandParts(Objects);
         Dictionary<SimpleMesh,int>MeshIndices=[];
         List<RenderPreviewMesh>Meshes=[];
         List<RenderPreviewMaterial>Materials=[];
@@ -60,14 +65,14 @@ internal static class RenderPreviewSceneBuilder {
                     Indices=[..Object.Mesh.Indices],
                 });
                 Vector4 BaseColor=Object.Mesh.BaseColorFactor;
-                Materials.Add(new RenderPreviewMaterial {
+                Materials.Add(Object.Mesh.Material??new RenderPreviewMaterial {
                     BaseColor=[
                         BaseColor.X,BaseColor.Y,BaseColor.Z,BaseColor.W,
                     ],
                 });
             }
             WireObjects[ObjectIndex]=new RenderPreviewObject {
-                ObjectId=Object.NodeId.ToDisplayString(),
+                ObjectId=Object.RenderId,
                 MeshIndex=MeshIndex,
                 MaterialIndex=MeshIndex,
                 World=Matrix(Object.World),
@@ -93,6 +98,7 @@ internal static class RenderPreviewSceneBuilder {
         if(SelectedPaths is null){ throw new ArgumentNullException(nameof(SelectedPaths)); }
         if(Overlay is null){ throw new ArgumentNullException(nameof(Overlay)); }
         if(CameraPreviews is null){ throw new ArgumentNullException(nameof(CameraPreviews)); }
+        Objects=ExpandParts(Objects);
         HashSet<NodePath>Selected=new(SelectedPaths);
         RenderPreviewObjectTransform[]WireObjects=
             new RenderPreviewObjectTransform[Objects.Count];
@@ -101,7 +107,7 @@ internal static class RenderPreviewSceneBuilder {
                 ??throw new ArgumentException(
                     $"Scene render object {ObjectIndex} is null.",nameof(Objects));
             WireObjects[ObjectIndex]=new RenderPreviewObjectTransform {
-                ObjectId=Object.NodeId.ToDisplayString(),
+                ObjectId=Object.RenderId,
                 World=Matrix(Object.World),
                 SelectionWeight=Selected.Contains(Object.NodeId)?1f:0f,
             };
@@ -203,6 +209,16 @@ internal static class RenderPreviewSceneBuilder {
             Result[Index*3]=Values[Index].X;
             Result[Index*3+1]=Values[Index].Y;
             Result[Index*3+2]=Values[Index].Z;
+        }
+        return Result;
+    }
+    private static IReadOnlyList<SceneRenderObject>ExpandParts(IReadOnlyList<SceneRenderObject>Objects){
+        var Result=new List<SceneRenderObject>();
+        foreach(var Object in Objects){
+            if(Object.Mesh.Parts.Length==0){ Result.Add(Object);continue; }
+            for(var Index=0;Index<Object.Mesh.Parts.Length;Index++){
+                Result.Add(new(){Mesh=Object.Mesh.Parts[Index],World=Object.World,NodeId=Object.NodeId,PartId=Object.RenderId+"/part/"+Index,IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable});
+            }
         }
         return Result;
     }

@@ -12,8 +12,8 @@
     <ProjectReference Include="../../src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="../../src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="../CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
-    <!-- ADR-0090: the host loads skinned glTF itself (managed Import only; no RuntimeIdentifier, so AssimpNet's native DLL is not copied). -->
-    <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
+    <!-- ADR-0097: decoding source models belongs to the production worker. -->
+    <ProjectReference Include="../../src/CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CSharpGameEngine.Windows.Tests" />
@@ -24,12 +24,14 @@
     <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonReader.cs" Link="SceneJson/SceneJsonReader.cs" />
     <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonAngles.cs" Link="SceneJson/SceneJsonAngles.cs" />
     <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonDecimal.cs" Link="SceneJson/SceneJsonDecimal.cs" />
+    <!-- The generator's exact fixed-point angle conversion, shared so the preview reads scene angles to the same values. -->
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonFixedAngles.cs" Link="SceneJson/SceneJsonFixedAngles.cs" />
   </ItemGroup>
   <ItemGroup><Compile Include="../Shared/ThumbnailPng.cs" Link="ThumbnailPng.cs" /></ItemGroup>
   <ItemGroup>
     <!-- ADR-0090: the same skeleton/clip evaluation and glTF-to-stage conversion the game runs (ECS-free sources of the shared projects). -->
     <Compile Include="../../src/CSharpGameEngine.Runtime.Animation/Skeleton.cs" Link="SharedRuntime/Skeleton.cs" />
     <Compile Include="../../src/CSharpGameEngine.Runtime.Animation/AnimationClip.cs" Link="SharedRuntime/AnimationClip.cs" />
-    <Compile Include="../../src/CSharpGameEngine.Runtime.Windows/StageGltfAssets.cs" Link="SharedRuntime/StageGltfAssets.cs" />
+    <Compile Include="../../src/CSharpGameEngine.Runtime.Windows/StageModelAssets.cs" Link="SharedRuntime/StageModelAssets.cs" />
   </ItemGroup>
 </Project>

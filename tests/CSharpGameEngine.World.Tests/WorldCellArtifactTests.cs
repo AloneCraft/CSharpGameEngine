@@ -1,4 +1,5 @@
 using System.Text;
+using System.Buffers.Binary;
 using CSharpGameEngine.Content;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
@@ -10,7 +11,7 @@ public sealed class WorldCellArtifactTests {
     private static readonly StableId Namespace=StableId.Parse("d4f14467-ae64-521f-a94b-f45716627020");
 
     [Fact]
-    public void Bake_IsCanonicalAndRoundTripsQ64PointBoundsAndClosure(){
+    public void Bake_IsCanonicalAndRoundTripsNumericValuesBoundsAndClosure(){
         WorldCellDefinition Definition=CreateDefinition();
         ArtifactProvenance Provenance=CreateProvenance();
 
@@ -50,6 +51,38 @@ public sealed class WorldCellArtifactTests {
 
         Assert.False(WorldPartitionManifest.TryCreate([Missing],out _,out var Error));
         Assert.Equal(WorldPartitionErrorCode.MissingEntityPayloadArtifact,Error.Code);
+    }
+    [Fact]
+    public void Read_RejectsTheVersionOneQ64Payload(){
+        var Current=WorldCellArtifactCodec.Bake(CreateDefinition(),CreateProvenance());
+        var Source=Current.Payload.AsSpan();var Tail=84;
+        for(var Index=0;Index<6;Index++){ Tail+=2+BinaryPrimitives.ReadUInt16LittleEndian(Source.Slice(Tail,2)); }
+        var Legacy=new byte[253+Current.Payload.Length-Tail-73];Source[..84].CopyTo(Legacy);
+        BinaryPrimitives.WriteUInt16LittleEndian(Legacy.AsSpan(4),1);
+        var Values=new Int128[]{Int128.One<<61,(Int128)2<<64,(Int128)3<<64,(Int128)100<<64,(Int128)200<<64,(Int128)300<<64};
+        for(var Index=0;Index<Values.Length;Index++){ BinaryPrimitives.WriteInt128LittleEndian(Legacy.AsSpan(84+Index*16),Values[Index]); }
+        Source[Tail..].CopyTo(Legacy.AsSpan(180));
+        var Envelope=ContentArtifactCodec.Write(new ContentArtifact(Current.Kind,Current.Provenance,Current.Dependencies,Legacy));
+        // ADR-0098 §5 の C：WorldCell はベイクで作り直せる生成物なので、版 1 は読まずに拒否する。
+        Assert.False(WorldCellArtifactCodec.TryRead(Envelope,out var Read,out var Error));Assert.Null(Read);Assert.Equal(WorldCellArtifactErrorCode.InvalidPayload,Error.Code);
+    }
+    [Theory]
+    [InlineData("rounded")]
+    [InlineData("overflow")]
+    [InlineData("malformed")]
+    public void Read_ConvertsCommonValuesOnceAndRejectsInvalidDataAtomically(string Case){
+        var Current=WorldCellArtifactCodec.Bake(CreateDefinition(),CreateProvenance());
+        var Raw=new byte[Case=="overflow"?24:16];
+        if(Case=="overflow"){ Raw[16]=1; }else{ Raw[0]=3; }
+        var Value=NumericValueCodec.WriteFixed(Raw,Case=="overflow"?0:65);
+        if(Case=="malformed"){ Value[0]^=1; }
+        var PreviousLength=BinaryPrimitives.ReadUInt16LittleEndian(Current.Payload.AsSpan().Slice(84,2));
+        var Payload=new byte[Current.Payload.Length-PreviousLength+Value.Length];Current.Payload.AsSpan()[..84].CopyTo(Payload);
+        BinaryPrimitives.WriteUInt16LittleEndian(Payload.AsSpan(84),checked((ushort)Value.Length));Value.CopyTo(Payload.AsSpan(86));
+        Current.Payload.AsSpan()[(86+PreviousLength)..].CopyTo(Payload.AsSpan(86+Value.Length));
+        var Envelope=ContentArtifactCodec.Write(new ContentArtifact(Current.Kind,Current.Provenance,Current.Dependencies,Payload));
+        var Success=WorldCellArtifactCodec.TryRead(Envelope,out var Read,out var Error);
+        if(Case=="rounded"){ Assert.True(Success,Error.Message);Assert.Equal(LogicalScalar.FromRaw(2),Read!.Bounds.Center.R); }else{ Assert.False(Success);Assert.Null(Read);Assert.Equal(WorldCellArtifactErrorCode.InvalidBounds,Error.Code); }
     }
 
     private static WorldCellDefinition CreateDefinition(){

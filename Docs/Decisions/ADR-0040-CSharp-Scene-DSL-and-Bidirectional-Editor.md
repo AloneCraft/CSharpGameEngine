@@ -1,5 +1,7 @@
 # ADR-0040: C# Scene DSLとScene Editorの双方向同期基盤
 
+> M0128更新: 固定小数点の正確な入力について、LogicalScalar自身の静的ParseInvariantと定数文字列を、範囲検証済みの数値リテラルとして認める。一般の呼び出しの許可には拡張しない。現在の精度・範囲・編集契約は [Numeric Configuration](../Specifications/Numeric-Configuration.md#シーン入力の精度と範囲) を参照。
+
 ## ステータス
 
 一部 Superseded by [[ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World]]:作者が書くシーンはC#クラスではなく

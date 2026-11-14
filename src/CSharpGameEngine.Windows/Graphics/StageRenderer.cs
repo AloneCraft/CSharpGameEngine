@@ -3780,7 +3780,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Destination+ObjectWorldGridParamsOffset,&WorldGridParams,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&WorldGridColor,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&WorldSubGridColor,(uint)sizeof(Vector4));
-        Vector4 WorldGridAnchor=new(this.MaterialWorldGridAnchors[MaterialIndex],0f);
+        // Object-origin grids share the world axes. Quarter turns preserve the cubic grid.
+        Vector4 WorldGridAnchor=new(WorldGrid is{AnchorToObject:true}?-World.Translation:this.MaterialWorldGridAnchors[MaterialIndex],0f);
         Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&WorldGridAnchor,(uint)sizeof(Vector4));
     }
 

@@ -11,7 +11,7 @@ public readonly record struct RenderMaterialArtifactDefinition(
     AssetArtifactReference BaseColorTexture,
     AssetArtifactReference NormalTexture,
     AssetArtifactReference MetallicRoughnessTexture,
-    AssetArtifactReference EmissiveTexture);
+    AssetArtifactReference EmissiveTexture,StageWorldGrid?WorldGrid=null);
 
 public sealed class RenderTextureResource {
     private readonly byte[]PixelsStorage;
@@ -62,6 +62,7 @@ public sealed class RenderMaterialResource {
         this.NormalTexture=NormalTexture;
         this.MetallicRoughnessTexture=MetallicRoughnessTexture;
         this.EmissiveTexture=EmissiveTexture;
+        this.WorldGrid=Definition.WorldGrid;
     }
 
     public Hash256 ArtifactAddress { get; }
@@ -74,6 +75,7 @@ public sealed class RenderMaterialResource {
     public RenderTextureResource NormalTexture { get; }
     public RenderTextureResource MetallicRoughnessTexture { get; }
     public RenderTextureResource EmissiveTexture { get; }
+    public StageWorldGrid?WorldGrid { get; }
 
     public Vector4 ShadeBaseColor(float U,float V)=>
         this.BaseColorTexture.Sample(U,V)*this.BaseColorFactor;
@@ -86,6 +88,7 @@ public static class RenderArtifactCodec {
     private const ushort Rgba8UnormFormat=1;
     private const int TextureHeaderSize=16;
     private const int MaterialHeaderSize=48;
+    private const int WorldGridSize=36;
     private const int TextureSlotCount=4;
     private const int MaterialPayloadSize=MaterialHeaderSize+
         TextureSlotCount*CanonicalAssetKeyCodec.EncodedLength;
@@ -132,18 +135,27 @@ public static class RenderArtifactCodec {
             }
             Dependencies[Slot.Key]=Slot;
         }
-        byte[]Payload=new byte[MaterialPayloadSize];
+        var SlotStart=MaterialHeaderSize+(Definition.WorldGrid.HasValue?WorldGridSize:0);
+        byte[]Payload=new byte[MaterialPayloadSize+SlotStart-MaterialHeaderSize];
         BinaryPrimitives.WriteUInt32LittleEndian(Payload.AsSpan(0,4),MaterialMagic);
-        BinaryPrimitives.WriteUInt16LittleEndian(Payload.AsSpan(4,2),SchemaVersion);
+        BinaryPrimitives.WriteUInt16LittleEndian(Payload.AsSpan(4,2),Definition.WorldGrid.HasValue?(ushort)2:SchemaVersion);
+        BinaryPrimitives.WriteUInt16LittleEndian(Payload.AsSpan(6,2),Definition.WorldGrid is { }GridFlags?(ushort)(GridFlags.AnchorToObject?3:1):(ushort)0);
         WriteVector4(Payload.AsSpan(8,16),Definition.BaseColorFactor);
         WriteSingle(Payload.AsSpan(24,4),Definition.RoughnessFactor);
         WriteSingle(Payload.AsSpan(28,4),Definition.MetallicFactor);
         WriteVector3(Payload.AsSpan(32,12),Definition.EmissiveNits);
         WriteSingle(Payload.AsSpan(44,4),Definition.EmissiveTextureLuminanceScale);
+        if(Definition.WorldGrid is{}Grid){
+            WriteSingle(Payload.AsSpan(48,4),Grid.GridSizeMeters);
+            BinaryPrimitives.WriteInt32LittleEndian(Payload.AsSpan(52,4),Grid.SubGridDivisions);
+            WriteSingle(Payload.AsSpan(56,4),Grid.WireHalfWidth);
+            WriteVector3(Payload.AsSpan(60,12),Grid.GridColor);
+            WriteVector3(Payload.AsSpan(72,12),Grid.SubGridColor);
+        }
         for(int Index=0;Index<Slots.Length;Index++){
             CanonicalAssetKeyCodec.Write(
                 Payload.AsSpan(
-                    MaterialHeaderSize+Index*CanonicalAssetKeyCodec.EncodedLength,
+                    SlotStart+Index*CanonicalAssetKeyCodec.EncodedLength,
                     CanonicalAssetKeyCodec.EncodedLength),
                 Slots[Index].Key);
         }
@@ -205,18 +217,21 @@ public static class RenderArtifactCodec {
             return false;
         }
         ReadOnlySpan<byte>Payload=Artifact.Payload.AsSpan();
-        if(Payload.Length!=MaterialPayloadSize
+        if(Payload.Length<MaterialPayloadSize
             ||BinaryPrimitives.ReadUInt32LittleEndian(Payload.Slice(0,4))!=MaterialMagic
-            ||BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(4,2))!=SchemaVersion
-            ||BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(6,2))!=0){
+            ||!(Payload.Length==MaterialPayloadSize&&BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(4,2))==SchemaVersion&&BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(6,2))==0
+                ||Payload.Length==MaterialPayloadSize+WorldGridSize&&BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(4,2))==2&&BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(6,2)) is 1 or 3)){
             Error="Material payload header is invalid or unsupported.";
             return false;
         }
+        var HasGrid=Payload.Length==MaterialPayloadSize+WorldGridSize;
+        var SlotStart=MaterialHeaderSize+(HasGrid?WorldGridSize:0);
+        StageWorldGrid?Grid=HasGrid?new(ReadSingle(Payload.Slice(48,4)),BinaryPrimitives.ReadInt32LittleEndian(Payload.Slice(52,4)),ReadSingle(Payload.Slice(56,4)),ReadVector3(Payload.Slice(60,12)),ReadVector3(Payload.Slice(72,12)),BinaryPrimitives.ReadUInt16LittleEndian(Payload.Slice(6,2))==3):null;
         AssetKey[]Keys=new AssetKey[TextureSlotCount];
         for(int Index=0;Index<Keys.Length;Index++){
             if(!CanonicalAssetKeyCodec.TryRead(
                 Payload.Slice(
-                    MaterialHeaderSize+Index*CanonicalAssetKeyCodec.EncodedLength,
+                    SlotStart+Index*CanonicalAssetKeyCodec.EncodedLength,
                     CanonicalAssetKeyCodec.EncodedLength),
                 out Keys[Index])){
                 Error=$"Material texture slot {Index} has an invalid AssetKey.";
@@ -245,7 +260,7 @@ public static class RenderArtifactCodec {
             ReadSingle(Payload.Slice(28,4)),
             ReadVector3(Payload.Slice(32,12)),
             ReadSingle(Payload.Slice(44,4)),
-            Slots[0],Slots[1],Slots[2],Slots[3]);
+            Slots[0],Slots[1],Slots[2],Slots[3],Grid);
         try { ValidateMaterial(Definition); }
         catch(ArgumentException Exception){
             Error=Exception.Message;
@@ -270,6 +285,13 @@ public static class RenderArtifactCodec {
     }
 
     private static void ValidateMaterial(in RenderMaterialArtifactDefinition Definition){
+        if(Definition.WorldGrid is{}Grid){
+            ValidateFinite(Grid.GridColor,nameof(Grid.GridColor));ValidateFinite(Grid.SubGridColor,nameof(Grid.SubGridColor));
+            if(!float.IsFinite(Grid.GridSizeMeters)||Grid.GridSizeMeters<=0f||Grid.SubGridDivisions<1||!float.IsFinite(Grid.WireHalfWidth)||Grid.WireHalfWidth<=0f||Grid.WireHalfWidth>=0.5f
+                ||Grid.GridColor.X<0f||Grid.GridColor.Y<0f||Grid.GridColor.Z<0f||Grid.SubGridColor.X<0f||Grid.SubGridColor.Y<0f||Grid.SubGridColor.Z<0f){
+                throw new ArgumentOutOfRangeException(nameof(Definition),"World grid values are outside the supported range.");
+            }
+        }
         ValidateFinite(Definition.BaseColorFactor,nameof(Definition.BaseColorFactor));
         if(Definition.BaseColorFactor.X is <0f or >1f
             ||Definition.BaseColorFactor.Y is <0f or >1f

@@ -29,7 +29,11 @@ internal sealed class AuthoringHostOperationException:InvalidOperationException 
 /// </summary>
 internal static class ExternalBridgeProcess {
     public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
-        RunProcess(BridgeProjectRelativePath,InputPath,OutputJsonPath,RepoRoot,Timeout,UseResidentServer);
+        return RunAndReadJson(BridgeProjectRelativePath,InputPath,OutputJsonPath,RepoRoot,Timeout,UseResidentServer,CancellationToken.None);
+    }
+    public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer,CancellationToken CancellationToken){
+        var ExecutablePath=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        RunProcess(BridgeProjectRelativePath,[InputPath,OutputJsonPath],RepoRoot,Timeout,UseResidentServer,ExecutablePath,CancellationToken);
 
         if(!File.Exists(OutputJsonPath)){
             throw new InvalidOperationException(VsixText.Format("Bridge_OutputNotGenerated",BridgeProjectRelativePath));

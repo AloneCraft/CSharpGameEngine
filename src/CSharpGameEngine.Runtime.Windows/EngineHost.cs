@@ -9,6 +9,7 @@ using CSharpGameEngine.Input;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.View;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 using CSharpGameEngine.World;
@@ -269,7 +270,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     internal void AppendWorldGridMaterials(int FirstIndex,IReadOnlyList<StageMaterialCreateInfo>Materials){
         List<(int,LogicalScalar)>Grids=[.. this.WorldGridMaterials];
         for(var Index=0;Index<Materials.Count;Index++){
-            if(Materials[Index].WorldGrid is{ }Grid&&LogicalScalar.TryFromSingle(Grid.GridSizeMeters,out var CellMeters)&&CellMeters.Raw>0){
+            if(Materials[Index].WorldGrid is{AnchorToObject:false}Grid&&LogicalScalar.TryFromSingle(Grid.GridSizeMeters,out var CellMeters)&&CellMeters>LogicalScalar.Zero){
                 Grids.Add((FirstIndex+Index,CellMeters));
             }
         }
@@ -277,15 +278,15 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     }
 
     /// <summary>
-    /// 1グリッドセルに対する位置の剰余を[0, cell]の範囲で表す。Q64.64で剰余を正確に求めてから一度だけfloatへ丸めるため、
-    /// カメラがワールド原点からどれだけ離れていてもアンカーはfloatの精度を保つ。
+    /// 1グリッドセルに対する位置の剰余を選択した数値型で求め、[0, cell]の範囲のfloatへ投影する。
+    /// 固定小数点では、世界の位置全体をfloatへ投影する前にセル内へ縮めて精度を保つ。
     /// </summary>
     internal static float ReduceToGridCell(LogicalScalar Position,LogicalScalar CellMeters){
-        var Remainder=Position.Raw%CellMeters.Raw;
-        if(Remainder<0){
-            Remainder+=CellMeters.Raw;
+        var Remainder=Position%CellMeters;
+        if(Remainder<LogicalScalar.Zero){
+            Remainder+=CellMeters;
         }
-        LogicalScalar.FromRaw(Remainder).TryToSingle(out var Reduced);
+        Remainder.TryToSingle(out var Reduced);
         return Reduced;
     }
 
@@ -389,6 +390,13 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// 親がいないカメラではnull。キャラクターより遅れて動くカメラはキャラクターの位置を表さなくなったため、自動実行レポートでは両方を記録する。
     /// </summary>
     internal Vector3? AutomationFocusPosition { get;set;}
+    internal void SubmitCamera(in RenderCamera Camera){
+#if CGE_DEPTH_IDENTITY
+        this.Renderer?.SetViewSource(CSharpGameEngine.Rendering.View.RenderViewPolicy.FromIdentityCameraSource(Camera));
+#else
+        this.Renderer?.SetCamera(Camera);
+#endif
+    }
 
     private Vector3? AutomationCameraPosition()=>
         this.HasCameraPose&&this.CameraFrameLocalOrigin.M41.TryToSingle(out var R)&&this.CameraFrameLocalOrigin.M42.TryToSingle(out var U)&&this.CameraFrameLocalOrigin.M43.TryToSingle(out var F)

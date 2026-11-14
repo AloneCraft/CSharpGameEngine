@@ -27,7 +27,7 @@ internal static class AssetWorkspaceCommands {
         Add(Menu,"Assets_Import",()=>ImportAsync(Controller));
         Menu.PlacementTarget=Placement;Menu.IsOpen=true;
     }
-    internal static void ShowOrganizeMenu(FrameworkElement Placement,AssetWorkspaceController Controller,IReadOnlyList<AssetWorkspaceItem>Items){
+    internal static void ShowOrganizeMenu(FrameworkElement Placement,AssetWorkspaceController Controller,IReadOnlyList<AssetWorkspaceItem>Items,Action<AssetWorkspaceItem>?Rename=null){
         ThreadHelper.ThrowIfNotOnUIThread();
         var Menu=new ContextMenu();
         // 1 件選択: そのファイルを選択して開く。選択なし: 現在のフォルダを開くだけ。2 件以上: エクスプローラーは 1 件しか選べないので無効。
@@ -36,7 +36,7 @@ internal static class AssetWorkspaceCommands {
         if(Items.Count==1){
             var Item=Items[0];
             var Capabilities=Item.GetCapabilities();
-            Add(Menu,"Assets_Rename",()=>OrganizeAsync(Controller,Item,AssetFileOperation.Rename),(Capabilities&AssetWorkspaceCapabilities.Organize)!=0);
+            Add(Menu,"Assets_Rename",()=>{ if(Rename is null){ return OrganizeAsync(Controller,Item,AssetFileOperation.Rename); }Rename(Item);return Task.CompletedTask; },(Capabilities&AssetWorkspaceCapabilities.Organize)!=0);
             Add(Menu,"Assets_Move",()=>OrganizeAsync(Controller,Item,AssetFileOperation.Move),(Capabilities&AssetWorkspaceCapabilities.Organize)!=0);
             Add(Menu,"Assets_Duplicate",()=>OrganizeAsync(Controller,Item,AssetFileOperation.Duplicate),(Capabilities&AssetWorkspaceCapabilities.Duplicate)!=0);
             Add(Menu,"Assets_Delete",()=>OrganizeAsync(Controller,Item,AssetFileOperation.Delete),(Capabilities&AssetWorkspaceCapabilities.Organize)!=0);
@@ -143,11 +143,16 @@ internal static class AssetWorkspaceCommands {
                 if(Replacement is null){ throw new InvalidOperationException("Replacement is not an asset of this project."); }
             }
         }
-        var Plan=await AssetReferencePlanner.PlanAsync(Item,Destination,Operation,System.Threading.CancellationToken.None,Replacement);
+        await OrganizeToAsync(Controller,Item,Destination,Operation,Replacement,true);
+    }
+    internal static Task RenameAsync(AssetWorkspaceController Controller,AssetWorkspaceItem Item,string Destination)=>OrganizeToAsync(Controller,Item,Destination,AssetFileOperation.Rename,null,false);
+    private static async Task OrganizeToAsync(AssetWorkspaceController Controller,AssetWorkspaceItem Item,string Destination,AssetFileOperation Operation,AssetWorkspaceItem?Replacement,bool AlwaysReview){
+        var Plan=await AssetReferencePlanner.PlanAsync(Item,Destination,Operation,Controller.Owner.DisposalToken,Replacement);
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-        if(new AssetChangeReviewDialog(Plan).ShowDialog()!=true){ return; }
+        if((AlwaysReview||Plan.Edits.Any(static Edit=>Edit.Before!=Edit.After))&&new AssetChangeReviewDialog(Plan).ShowDialog()!=true){ return; }
         AssetFileTransaction.Execute(Controller.Owner,Plan);
         await Controller.RefreshAsync();
+        if(Operation==AssetFileOperation.Rename&&Controller.Items.FirstOrDefault(Candidate=>Candidate.Source.ProjectPath==Item.Source.ProjectPath&&string.Equals(Candidate.Source.SourcePath,Destination,StringComparison.OrdinalIgnoreCase)) is { }Renamed){ AssetWorkspaceSelection.Select([Renamed]); }
     }
     internal static async Task ShowReferencesAsync(AssetWorkspaceItem Item){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();

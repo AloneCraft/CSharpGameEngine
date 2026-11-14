@@ -258,8 +258,12 @@ internal static class SceneTransformBinding {
 
     private static float ReadLegacyFloat(SceneComponent Component,string Name,float Default=0f)=>
         ReadFloat(Component.FindMember(Name)?.Value.ConstantValue,Default);
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
     private static float ReadFloat(object? Value,float Default)=>Value switch {
         float Float=>Float,
+        double Double when Double>=-float.MaxValue&&Double<=float.MaxValue=>(float)Double,
+        string Text when float.TryParse(Text,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out var Parsed)
+            &&!float.IsNaN(Parsed)&&!float.IsInfinity(Parsed)=>Parsed,
         int Integer=>Integer, long Long=>Long, _=>Default,
     };
 }

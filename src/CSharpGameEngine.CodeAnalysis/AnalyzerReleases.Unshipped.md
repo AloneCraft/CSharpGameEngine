@@ -6,6 +6,8 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 ASSET001 | CSharpGameEngine.Entities.CodeGen | Error | Image metadata validation
+NUM002 | CSharpGameEngine.Numerics | Error | Compile-time numeric dependency profile agreement
+SYSGEN044 | CSharpGameEngine.Entities.CodeGen | Error | Static snapshot value contract
 SYSGEN001 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN002 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN003 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
@@ -28,7 +30,6 @@ SYSGEN021 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN026 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN027 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN028 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
-SYSGEN029 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN032 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN033 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN034 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
@@ -81,3 +82,4 @@ PLUGIN002 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
 PLUGIN003 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
 PLUGIN004 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
 PLUGIN005 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer
+PLUGIN006 | CSharpGameEngine.Plugins | Error | PluginManifestAnalyzer

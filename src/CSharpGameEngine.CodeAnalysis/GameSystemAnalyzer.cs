@@ -10,7 +10,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <item>先頭・値渡し・型が<c>Entity</c> → Entityスロット(任意)</item>
 /// <item>末尾・<c>ref State</c> → Stateスロット(任意。ADR-0077)</item>
 /// <item><c>ref</c>の非nullable struct → 書き込むComponent</item>
-/// <item><c>in</c>の非nullable struct → 読み取るComponent(ADR-0077。<c>[ReadOnlyComponent] in</c>と同じ)</item>
+/// <item><c>in</c>の非nullable struct → 読み取るComponent(ADR-0077。旧<c>[ReadOnlyComponent]</c>は廃止)</item>
 /// <item>それ以外(参照型は値渡し) → Context</item>
 /// </list>
 /// 書き込みは<c>ref</c>・読み取りは<c>in</c>・Contextは参照型の値渡しなので、ref-kindと型の種類だけで曖昧性なく判別できる。
@@ -24,7 +24,6 @@ internal static class GameSystemAnalyzer {
     internal const string SystemInterfaceMetadataName="CSharpGameEngine.Entities.ISystem";
     internal const string WorldSystemInterfaceMetadataName="CSharpGameEngine.Entities.IWorldSystem";
     internal const string SystemPhaseAttributeMetadataName="CSharpGameEngine.Entities.SystemPhaseAttribute";
-    internal const string ReadOnlyComponentAttributeMetadataName="CSharpGameEngine.Entities.ReadOnlyComponentAttribute";
     internal const string ScheduledSystemAttributeMetadataName="CSharpGameEngine.Entities.ScheduledSystemAttribute";
     internal const string RunsAfterAttributeMetadataName="CSharpGameEngine.Entities.RunsAfterAttribute";
     internal const string RunsBeforeAttributeMetadataName="CSharpGameEngine.Entities.RunsBeforeAttribute";
@@ -281,8 +280,6 @@ internal static class GameSystemAnalyzer {
         for(var I=ScanStart;I<ScanEndExclusive;I++){
             var Parameter=Parameters[I];
             var ParameterTypeFqn=TypeFqn(Parameter);
-            var IsReadOnlyComponent=Parameter.GetAttributes().Any(static Attribute=>
-                Attribute.AttributeClass?.ToDisplayString()==ReadOnlyComponentAttributeMetadataName);
 
             if(ParameterTypeFqn==EntityFullyQualifiedName||ParameterTypeFqn==StateFullyQualifiedName){
                 Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EntityOrStateMustNotBeUsedAsComponent,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name,ParameterTypeFqn));
@@ -366,26 +363,7 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            if(IsReadOnlyComponent){
-                if(Parameter.RefKind!=RefKind.In||!IsNonNullableStruct(Parameter.Type)){
-                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ReadOnlyComponentMustBeInStruct,
-                        Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
-                    IsValid=false;
-                    continue;
-                }
-
-                if(!SeenComponentTypes.Add(ParameterTypeFqn)){
-                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
-                    IsValid=false;
-                    continue;
-                }
-
-                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Component,Components.Count));
-                Components.Add(new GameSystemComponentParameterModel(Parameter.Name,ParameterTypeFqn,IsReadOnly:true));
-                continue;
-            }
-
-            // ADR-0077：構造体型の`in T`はコンポーネントを読み取る。従来の`[ReadOnlyComponent] in T`も引き続き受け付ける。
+            // ADR-0077：構造体型の`in T`はコンポーネントを読み取る（`[ReadOnlyComponent]`は廃止し、使うとビルドエラー）。
             // プリミティブ型と列挙型は従来どおり、`in`による値コンテキストとして扱う。
             if(Parameter.RefKind==RefKind.In&&Parameter.Type.SpecialType==SpecialType.None&&Parameter.Type.TypeKind==TypeKind.Struct&&IsNonNullableStruct(Parameter.Type)){
                 if(!SeenComponentTypes.Add(ParameterTypeFqn)){

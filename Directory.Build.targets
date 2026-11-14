@@ -9,11 +9,17 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <CgeNumericProfileLateImport Condition="'$(CgeGameProject)' == 'true' or '$(CgeNumericProfileProject)' == 'true'">true</CgeNumericProfileLateImport>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.NumericProfile.props" Condition="'$(CgeNumericProfileLateImport)' == 'true' and '$(CgeNumericProfileApplied)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.RenderProfile.props" Condition="'$(CgeGameProject)' == 'true' and '$(CgeRenderProfileApplied)' != 'true'" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.ShaderGraph.targets" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.SceneSchema.targets" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Showcase.targets" />
   <!-- The game projects' plugins (ADR-0079); the package imports it from CSharpGameEngine.Sdk.targets. -->
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Game.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.NumericProfile.targets" Condition="'$(CgeNumericProfileLateImport)' == 'true' and '$(MSBuildProjectName)' != 'CSharpGameEngine.Numerics'" />
 </Project>
 
 

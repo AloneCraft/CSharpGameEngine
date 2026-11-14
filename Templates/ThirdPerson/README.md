@@ -24,5 +24,5 @@ UE5.8 の Third Person テンプレートと同じ構成のサンプル。既定
 
 ## 取り込みの出典
 
-モデル・アニメーションは UE5.8 ThirdPerson テンプレートから取り込み済み(`Templates/CSharpGameEngine.Templates.ThirdPerson`)。
+ビルド可能なテンプレート（`Templates/CSharpGameEngine.Templates.ThirdPerson`）は、ステージにUE 5.0 Third Personの配置、キャラクターとアニメーションにUE 5.8由来の資産を使用する。ステージの格子は各物体を原点とし、90度刻みの元の配置に合わせる。壁面の文言とサイズはUEの元データを使い、字形はRoboto Boldから静的メッシュにする。
 効果音(Jump / Land / Footstep)の取り込み元は未確定(UE のテンプレートには音声が無い)。

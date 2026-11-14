@@ -104,13 +104,8 @@ internal static class NavMeshBuilder {
             this.WalkableCosineSquared=Cosine*Cosine;
             return true;
         }
-        private static long FloorIndex(LogicalScalar Value,LogicalScalar Size)=>FloorDivide(Value.Raw,Size.Raw);
-        private static long CeilIndex(LogicalScalar Value,LogicalScalar Size)=>-FloorDivide(-Value.Raw,Size.Raw);
-        private static long FloorDivide(Int128 Numerator,Int128 Denominator){
-            var Quotient=Numerator/Denominator;
-            if((Numerator%Denominator)!=0&&((Numerator<0)!=(Denominator<0))){ Quotient--; }
-            return Quotient>int.MaxValue?int.MaxValue:Quotient<int.MinValue?int.MinValue:(long)Quotient;
-        }
+        private static long FloorIndex(LogicalScalar Value,LogicalScalar Size)=>Math.Clamp(LogicalNumeric.FloorQuotientClamped(Value,Size),int.MinValue,int.MaxValue);
+        private static long CeilIndex(LogicalScalar Value,LogicalScalar Size)=>-FloorIndex(-Value,Size);
         // ---- 1. ボクセル化 ----
         public void Rasterize(NavTriangle Triangle){
             var Normal=LogicalVector3.Cross(Triangle.B-Triangle.A,Triangle.C-Triangle.A);
@@ -179,7 +174,7 @@ internal static class NavMeshBuilder {
                     if(SpanMax>this.Max.U-this.Min.U){ SpanMax=this.Max.U-this.Min.U; }
                     var Bottom=(int)Math.Clamp(FloorIndex(SpanMin,CellHeight),0,this.Steps);
                     var Top=(int)Math.Clamp(CeilIndex(SpanMax,CellHeight),Bottom+1,this.Steps+1);
-                    var Fine=(int)Math.Clamp(FloorDivide(SpanMax.Raw*FineUnits,CellHeight.Raw),0,int.MaxValue/2);
+                    var Fine=(int)Math.Clamp(LogicalNumeric.FloorQuotientClamped(SpanMax,CellHeight,FineUnits),0,int.MaxValue/2);
                     this.AddSpan(X,Z,Bottom,Top,Area,FacesUp?Fine:NoFace,FacesDown?Fine:NoFace);
                 }
             }

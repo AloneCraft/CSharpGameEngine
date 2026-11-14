@@ -208,14 +208,6 @@ internal static class GameSystemDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
-    /// <summary>1つのSystem解析結果が持つ全診断を報告する。生成には関与しない診断専用の出力段。</summary>
-    internal static readonly DiagnosticDescriptor ReadOnlyComponentMustBeInStruct=new(
-        id:"SYSGEN029",
-        title:"A read-only component must be an in struct parameter",
-        messageFormat:"Parameter '{0}' on '{1}' uses ReadOnlyComponent but is not an in non-nullable struct parameter",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
 
 
     internal static readonly DiagnosticDescriptor AmbiguousScheduledAccessConflict=new(
@@ -320,6 +312,13 @@ internal static class GameSystemDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
+    internal static readonly DiagnosticDescriptor SnapshotMustBeStatic=new(
+        id:"SYSGEN044",
+        title:"Snapshot state must have a static value codec",
+        messageFormat:"'{0}' cannot be saved statically because {1}. Use supported value fields, or mark derived runtime state with [EcsSnapshotTransient].",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
     internal static void ReportAll(SourceProductionContext Context,GameSystemResult Result){
         foreach(var Diagnostic in Result.Diagnostics){
             Context.ReportDiagnostic(Diagnostic);

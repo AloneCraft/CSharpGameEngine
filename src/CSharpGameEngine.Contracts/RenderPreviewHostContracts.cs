@@ -17,7 +17,7 @@ public static class RenderPreviewHostProtocol {
     /// 8（M0100）：遷移長と深度セレクターを導入した。7（M0097）：ランタイム診断スナップショットの
     /// コマンドとペイロードを削除した。
     /// </summary>
-    public const int CurrentVersion=13;
+    public const int CurrentVersion=14;
     public const int MaximumDimension=16_384;
     public const int MaximumMeshCount=4_096;
     public const int MaximumMaterialCount=4_096;
@@ -225,7 +225,10 @@ public static class RenderPreviewHostProtocol {
             if(Scene.Asset is not null){ return "A scene cannot contain both a static and skeletal asset."; }
             AssetError=RenderPreviewSkeletalValidation.ValidatePath(Scene.StaticAssetPath,"Static asset path",required:true);
             if(AssetError is not null){ return AssetError; }
+            AssetError=RenderPreviewSkeletalValidation.ValidateModel(Scene.StaticModel,Scene.StaticAssetPath);
+            if(AssetError is not null){ return AssetError; }
         }
+        else if(Scene.StaticModel is not null){ return "A static model reference requires its source identity."; }
         if(Scene.Meshes is null||Scene.Meshes.Length>MaximumMeshCount){
             return $"Scene mesh count must be between 0 and {MaximumMeshCount}.";
         }
@@ -478,10 +481,11 @@ public sealed class RenderPreviewScene {
     public RenderPreviewMesh[]Meshes { get;set; }=[];
     public RenderPreviewMaterial[]Materials { get;set; }=[];
     public RenderPreviewObject[]Objects { get;set; }=[];
-    /// <summary>ホストが自分で読み込むスケルタル glTF（ADR-0090）。明示分の後ろにメッシュ・マテリアル・オブジェクトとして足される。</summary>
+    /// <summary>生成済みスケルタルモデルの参照。明示分の後ろへメッシュ・マテリアル・オブジェクトを追加する。</summary>
     public RenderPreviewAssetSource?Asset { get;set; }
-    /// <summary>ホストが読み込む静的 glTF の絶対パス。空なら使用しない。</summary>
+    /// <summary>静的モデルの画面上のソース識別子。ファイル入力はStaticModelが指定する生成物だけを使う。</summary>
     public string StaticAssetPath { get;set; }=string.Empty;
+    public RenderPreviewModelSource?StaticModel { get;set; }
 }
 
 public sealed class RenderPreviewFrame {

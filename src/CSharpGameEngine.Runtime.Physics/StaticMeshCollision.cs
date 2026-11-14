@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Import.Gltf;
+using CSharpGameEngine.Content.Models;
 using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Physics;
 /// <summary>
@@ -26,8 +26,7 @@ internal sealed class StaticMeshCollisionCooker {
     /// アセットを読み込めない、または使用可能な三角形がない場合は false。
     /// </summary>
     internal bool TryEnsure(PhysicsShapeCatalog Shapes,string AssetPath,in LogicalAffineTransform World,out string Id,out string Error){
-        // 毎ティック、すべての静的メッシュを再確認する。配置文字列の書式化では12個の
-        // Q64.64 値を decimal に変換するため、まず値で配置を照合する。
+        // 毎ティックの配置文字列の生成を避け、選択中の数値型の値で照合する。
         if(this.ShapeIdByTransform.TryGetValue((AssetPath,World),out Id!)){
             Error=string.Empty;
             return true;
@@ -85,28 +84,13 @@ internal sealed class StaticMeshCollisionCooker {
         }
         Positions=[];
         Indices=[];
-        var Result=GltfImporter.ImportScene(FullPath);
-        if(!Result.Success||Result.Scene is not { }Scene){
-            Error=$"StaticMesh '{FullPath}' could not be imported: {string.Join("; ",Result.Diagnostics)}";
-            return false;
+        try {
+            var Root=ContentRoot.Directory;var SourceUri=Path.GetRelativePath(Root,FullPath).Replace('\\','/');
+            using var Bundle=ModelAssetBundle.OpenAsync(ContentRoot.ModelDirectory,SourceUri).GetAwaiter().GetResult();
+            var Geometry=ModelGeometry.FlattenStatic(Bundle);Positions=[..Geometry.Positions];Indices=[..Geometry.Indices];
+        }catch(Exception Failure)when(Failure is IOException or InvalidDataException or ArgumentException or KeyNotFoundException or InvalidOperationException){
+            Error=$"StaticMesh '{FullPath}' saved geometry could not be loaded: {Failure.Message}";return false;
         }
-        List<Vector3>AllPositions=[];
-        List<int>AllIndices=[];
-        foreach(var Node in Scene.Nodes){
-            if(Node.MeshIndex is not int MeshIndex){
-                continue;
-            }
-            var Mesh=Scene.Meshes[MeshIndex];
-            var Offset=AllPositions.Count;
-            foreach(var Position in Mesh.Positions){
-                AllPositions.Add(Vector3.Transform(Position,Node.WorldTransform));
-            }
-            foreach(var Index in Mesh.Indices){
-                AllIndices.Add(Offset+(int)Index);
-            }
-        }
-        Positions=[.. AllPositions];
-        Indices=[.. AllIndices];
         this.Imported[FullPath]=(Positions,Indices);
         return true;
     }

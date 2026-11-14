@@ -56,6 +56,45 @@ public readonly record struct EcsSnapshotRestoreResult(bool Succeeded,int Applie
 }
 
 public sealed record EcsSnapshotComponentDescriptor(string TypeId,bool Transient,string Shape);
+internal static class EcsSnapshotValueCodec {
+    internal static byte[]ReadNumber(JsonElement Element){
+        if(Element.ValueKind!=JsonValueKind.String||!NumericValueCodec.TryReadCanonicalText(Element.GetString(),out var Value)){ throw new JsonException("Snapshot number is not canonical."); }
+        return Value;
+    }
+    internal static void WriteSingle(Utf8JsonWriter Writer,float Value)=>Writer.WriteStringValue(NumericValueCodec.ToText(NumericValueCodec.WriteSingle(Value)));
+    [ExternalNumericAdapter]
+    internal static void WriteDouble(Utf8JsonWriter Writer,double Value)=>Writer.WriteStringValue(NumericValueCodec.ToText(NumericValueCodec.WriteDouble(Value)));
+    internal static float ReadSingle(JsonElement Element)=>NumericValueCodec.TryReadSingle(ReadNumber(Element),out var Result)?Result:throw new JsonException("Snapshot number is outside the selected range.");
+    [ExternalNumericAdapter]
+    internal static double ReadDouble(JsonElement Element)=>NumericValueCodec.TryReadDouble(ReadNumber(Element),out var Result)?Result:throw new JsonException("Snapshot number is outside the selected range.");
+    internal static void AssertNumber(JsonElement Element,string Expected){
+        if(Element.ValueKind!=JsonValueKind.Number||!string.Equals(Element.GetRawText(),Expected,StringComparison.Ordinal)){ throw new JsonException("Snapshot number is not canonical."); }
+    }
+    internal static void AssertText(JsonElement Element,string?Expected){
+        if(!string.Equals(Element.GetString(),Expected,StringComparison.Ordinal)){ throw new JsonException("Snapshot text is not canonical."); }
+    }
+    internal static void AssertObject(JsonElement Element,params string[]Names){
+        if(Element.ValueKind!=JsonValueKind.Object||!Element.EnumerateObject().Select(static Property=>Property.Name).SequenceEqual(Names,StringComparer.Ordinal)){ throw new JsonException("Snapshot members or their order are not canonical."); }
+    }
+    internal static void AssertCanonicalJson(byte[]Payload,JsonElement Element){
+        using var Buffer=new MemoryStream();using(var Writer=new Utf8JsonWriter(Buffer)){ WriteJson(Writer,Element); }
+        if(!Payload.AsSpan().SequenceEqual(Buffer.ToArray())){ throw new JsonException("Snapshot JSON is not canonical."); }
+    }
+    private static void WriteJson(Utf8JsonWriter Writer,JsonElement Element){
+        switch(Element.ValueKind){
+            case JsonValueKind.Object:
+                Writer.WriteStartObject();foreach(var Property in Element.EnumerateObject()){ Writer.WritePropertyName(Property.Name);WriteJson(Writer,Property.Value); }Writer.WriteEndObject();break;
+            case JsonValueKind.Array:
+                Writer.WriteStartArray();foreach(var Value in Element.EnumerateArray()){ WriteJson(Writer,Value); }Writer.WriteEndArray();break;
+            case JsonValueKind.String:Writer.WriteStringValue(Element.GetString());break;
+            case JsonValueKind.Number:Writer.WriteRawValue(Element.GetRawText(),true);break;
+            case JsonValueKind.True:Writer.WriteBooleanValue(true);break;
+            case JsonValueKind.False:Writer.WriteBooleanValue(false);break;
+            case JsonValueKind.Null:Writer.WriteNullValue();break;
+            default:throw new JsonException("Unsupported snapshot JSON value.");
+        }
+    }
+}
 
 public sealed class EcsSnapshotArchetypeDescriptor {
     private EcsSnapshotArchetypeDescriptor(string Key,IReadOnlyList<EcsSnapshotComponentDescriptor>Components){ this.Key=Key;this.Components=Components; }
@@ -158,7 +197,7 @@ public static class EcsSnapshotComponentCodec<T>where T:struct {
 
 public static class EcsSnapshotArtifactCodec {
     private static readonly byte[]Magic=Encoding.ASCII.GetBytes("CGECSNP1");
-    private const uint Version=1;
+    private const uint Version=2;
     private const int HeaderSize=80;
     private const int MaximumArtifactBytes=512*1024*1024;
     public static byte[]Write(string SchemaFingerprint,ulong Tick,string EventHash,IEnumerable<WorldCellId>CapturedCells,IEnumerable<EcsSnapshotEntityData>Entities){
@@ -191,10 +230,12 @@ public static class EcsSnapshotArtifactCodec {
         Payload.CopyTo(Result,HeaderSize);
         return Result;
     }
+    /// <summary>現在の版の Snapshot だけを読む。1.0 までセーブは互換を約束しないので、旧版は保存し直すよう案内して拒否する（ADR-0098 §5 の D）。</summary>
     public static bool TryRead(ReadOnlySpan<byte>Artifact,string ExpectedSchema,out EcsSnapshotDocument?Document,out EcsSnapshotError Error){
         Document=null;
         if(Artifact.Length<HeaderSize||!Artifact[..Magic.Length].SequenceEqual(Magic)){ Error=Create(EcsSnapshotErrorCode.InvalidHeader,"Snapshot magic/header is invalid.");return false; }
-        if(BinaryPrimitives.ReadUInt32LittleEndian(Artifact[8..])!=Version){ Error=Create(EcsSnapshotErrorCode.UnsupportedVersion,"Snapshot version is unsupported; no legacy reader is retained.");return false; }
+        var FormatVersion=BinaryPrimitives.ReadUInt32LittleEndian(Artifact[8..]);
+        if(FormatVersion!=Version){ Error=Create(EcsSnapshotErrorCode.UnsupportedVersion,$"Snapshot version {FormatVersion} is unsupported; this engine reads only version {Version}. Save the world again with this engine version.");return false; }
         int PayloadLength=BinaryPrimitives.ReadInt32LittleEndian(Artifact[12..]);
         if(PayloadLength<72||PayloadLength>MaximumArtifactBytes||Artifact.Length!=HeaderSize+PayloadLength){ Error=Create(EcsSnapshotErrorCode.InvalidLength,"Snapshot payload length is invalid.");return false; }
         string Schema=Convert.ToHexString(Artifact.Slice(16,32)).ToLowerInvariant();
@@ -234,6 +275,16 @@ public static class EcsSnapshotArtifactCodec {
         WorldCellId[]FilteredCells=Source.CapturedCells.Where(Cells.Contains).ToArray();
         EcsSnapshotEntityData[]FilteredEntities=Source.Entities.Where(Entity=>Cells.Contains(Entity.Cell)).ToArray();
         return new EcsSnapshotDocument(Source.SchemaFingerprint,Source.Tick,Source.StateHash,Source.EventHash,FilteredCells,FilteredEntities);
+    }
+    internal static EcsSnapshotDocument CreateDocument(string Schema,ulong Tick,string EventHash,IEnumerable<WorldCellId>CapturedCells,IEnumerable<EcsSnapshotEntityData>Entities){
+        if(!IsHash(Schema)||!IsHash(EventHash)){ throw new ArgumentException("Snapshot hashes must be canonical."); }
+        var Cells=CapturedCells.Distinct().Order().ToArray();
+        if(Cells.Any(static Cell=>!Cell.IsValid)){ throw new ArgumentException("Snapshot cells must be valid."); }
+        var Ordered=Entities.Select(Canonicalize).OrderBy(static Entity=>Entity.Cell).ThenBy(static Entity=>Entity.Persistent.ToString(),StringComparer.Ordinal).ToArray();
+        ValidateCanonical(Cells,Ordered,Cells.ToHashSet());
+        var StateSection=WriteStateSection(Cells,Ordered);
+        if(StateSection.Length>MaximumArtifactBytes-72){ throw new InvalidOperationException("Normalized snapshot exceeds the maximum size."); }
+        return new EcsSnapshotDocument(Schema,Tick,Hash(StateSection),EventHash,Cells,Ordered);
     }
     private static EcsSnapshotEntityData Canonicalize(EcsSnapshotEntityData Entity)=>Entity with{Components=Entity.Components.OrderBy(static Component=>Component.TypeId,StringComparer.Ordinal).Select(static Component=>Component with{Payload=(byte[])Component.Payload.Clone()}).ToArray()};
     private static void ValidateCanonical(WorldCellId[]Cells,EcsSnapshotEntityData[]Entities,HashSet<WorldCellId>CellSet){

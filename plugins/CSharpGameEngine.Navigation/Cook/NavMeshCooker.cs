@@ -12,7 +12,7 @@ public sealed class NavMeshCooker:IAssetCooker {
     public IReadOnlyList<string> InputExtensions=>[".json"];
     public CookResult Cook(CookRequest Request){
         var SceneName=Path.GetFileName(Request.InputPath);
-        if(!SceneGeometry.TryLoad(Request.InputPath,Request.ProjectDirectory,out var Geometry,out var LoadError)){ return CookResult.Failure(LoadError); }
+        if(!SceneGeometry.TryLoad(Request.InputPath,Request.ProjectDirectory,out var Geometry,out var LoadError,Request.ContentDirectory)){ return CookResult.Failure(LoadError); }
         List<string>Messages=[.. Geometry.Messages];
         if(Geometry.Volumes.Count==0){
             return CookResult.Failure($"{SceneName}: error NAV009: The scene has no {SceneGeometry.BoundsType}, so there is no navigation volume to bake.");

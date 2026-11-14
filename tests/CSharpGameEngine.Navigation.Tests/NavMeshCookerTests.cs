@@ -18,7 +18,7 @@ public sealed class NavMeshCookerTests {
     private static CookResult Cook(TestProject Project,string Scene,string OutputName="out"){
         var Output=Path.Combine(Project.Root,OutputName);
         Directory.CreateDirectory(Output);
-        return new NavMeshCooker().Cook(new CookRequest(Scene,Output,Project.Root));
+        return new NavMeshCooker().Cook(new CookRequest(Scene,Output,Project.Root){ContentDirectory=Project.ModelDirectory});
     }
     [Fact]
     public void ACookWritesTheMeshForEachId_AndItReadsBack(){

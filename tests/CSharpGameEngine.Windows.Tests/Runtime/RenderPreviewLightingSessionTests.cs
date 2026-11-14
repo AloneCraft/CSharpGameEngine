@@ -91,9 +91,14 @@ public sealed class RenderPreviewLightingSessionTests {
         var Direction=Vector3.Normalize(-Position);
         return [Direction.X,Direction.Y,Direction.Z];
     }
+    /// <summary>
+    /// セッション作成時の既定の照明（<c>RenderPreviewRenderSession</c>：環境光 0.4、上から照らす太陽 2.5 lux、影あり）と同じ照明。2026-10-29 に既定の太陽が
+    /// 真上向き 2 lux から変わったのに合わせる。照明を送っても既定と同じ見た目になることを確かめるために使う。
+    /// </summary>
+    private static readonly Vector3 DefaultSunForward=Vector3.Normalize(new Vector3(-0.4f,-0.8f,-0.5f));
     private static RenderPreviewLighting Legacy(int Revision=0)=>new(){
         EnvironmentRevision=Revision,Ambient=[0.4f,0.4f,0.4f],
-        Directionals=[new(){ Forward=[0f,1f,0f],IlluminanceLux=2f,CastsShadows=true,ShadowBiasMeters=0.0015f }],
+        Directionals=[new(){ Forward=[DefaultSunForward.X,DefaultSunForward.Y,DefaultSunForward.Z],IlluminanceLux=2.5f,CastsShadows=true,ShadowBiasMeters=0.0015f }],
     };
     [Fact]
     public void WARP_LegacyEquivalentLightingMatchesTheLookWithoutAnyLighting(){

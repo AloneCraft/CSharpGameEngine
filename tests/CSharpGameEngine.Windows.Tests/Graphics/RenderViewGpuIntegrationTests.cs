@@ -12,6 +12,7 @@ public sealed class RenderViewGpuIntegrationTests {
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
+    [InlineData(3)]
     [Trait("Category","GPU")]
     public void TypedViewMatchesLegacySubmissionAndSurvivesDeviceRecovery(int Mode){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine typed view",Width=80,Height=48,Visible=false });
@@ -27,11 +28,13 @@ public sealed class RenderViewGpuIntegrationTests {
         var View=Mode switch {
             0=>RenderViewPolicy.FromCamera(Camera,Aspect),
             1=>RenderViewPolicy.FromPerspective(Vp,Camera.GetEyePosition(),Parameters,Aspect),
+            3=>RenderViewPolicy.FromIdentityCamera(Camera,Aspect),
             _=>RenderViewPolicy.FromOrthographic(Vp,Camera.GetEyePosition()),
         };
         for(var Frame=0;Frame<2;Frame++){
             if(Mode==0){ Server.SetCamera(Camera,Aspect); }
             else if(Mode==1){ Server.SetViewProjection(Vp,Camera.GetEyePosition(),Parameters); }
+            else if(Mode==3){ Server.SetViewSource(RenderViewPolicy.FromIdentityCameraSource(Camera,Aspect)); }
             else { Server.SetViewProjection(Vp,Camera.GetEyePosition()); }
             Server.RenderFrame(CaptureForVerification:true);
         }
@@ -53,6 +56,8 @@ public sealed class RenderViewGpuIntegrationTests {
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
     [Trait("Category","GPU")]
     public void ViewSourceRetainsResizeSemanticsAndRecoversWithoutResubmission(int Mode){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine view source",Width=80,Height=48,Visible=false });
@@ -69,10 +74,14 @@ public sealed class RenderViewGpuIntegrationTests {
             0=>RenderViewPolicy.FromCameraSource(Camera),
             1=>RenderViewPolicy.FromCameraSource(Camera,2f),
             2=>RenderViewPolicy.FromPerspectiveSource(Vp,Camera.GetEyePosition(),Parameters),
+            4=>RenderViewPolicy.FromIdentityCameraSource(Camera),
+            5=>RenderViewPolicy.FromIdentityPerspectiveSource(Vp,Camera.GetEyePosition()),
             _=>RenderViewSource.Fixed(Fixed),
         };
         if(Mode<2){ Server.SetCamera(Camera,Mode==1?2f:0f); }
         else if(Mode==2){ Server.SetViewProjection(Vp,Camera.GetEyePosition(),Parameters); }
+        else if(Mode==4){ Server.SetViewSource(RenderViewPolicy.FromIdentityCameraSource(Camera)); }
+        else if(Mode==5){ Server.SetViewSource(RenderViewPolicy.FromIdentityPerspectiveSource(Vp,Camera.GetEyePosition())); }
         else { Server.SetView(Fixed); }
         Server.RenderFrame(CaptureForVerification:true);
         var Initial=Hash(Server);
@@ -86,6 +95,8 @@ public sealed class RenderViewGpuIntegrationTests {
             0=>RenderViewPolicy.FromCamera(Camera,48f/80f),
             1=>RenderViewPolicy.FromCamera(Camera,2f),
             2=>RenderViewPolicy.FromPerspective(Vp,Camera.GetEyePosition(),Parameters,48f/80f),
+            4=>RenderViewPolicy.FromIdentityCamera(Camera,48f/80f),
+            5=>RenderViewPolicy.FromIdentityPerspectiveSource(Vp,Camera.GetEyePosition()).Resolve(48f/80f),
             _=>Fixed,
         };
         Server.SetView(Expected);

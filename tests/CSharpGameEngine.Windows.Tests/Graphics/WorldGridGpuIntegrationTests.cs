@@ -82,6 +82,34 @@ public sealed class WorldGridGpuIntegrationTests {
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
+    public void ObjectAnchoredGridRemainsFixedWhenTheRenderOriginMoves(){
+        var Grid=PrototypeGrid with { AnchorToObject=true };
+        using var World=GridScene.Create(Grid,FloorUvs.Zero);
+        using var CameraRelative=GridScene.Create(Grid,FloorUvs.Zero,RenderOrigin:new Vector3(0.7f,1.5f,0.5f));
+        World.Render();
+        CameraRelative.Render();
+        var Expected=World.Pixels();
+        var Actual=CameraRelative.Pixels();
+        var Largest=0;
+        for(var Index=0;Index<Expected.Length;Index++){
+            Largest=Math.Max(Largest,Math.Abs(Expected[Index]-Actual[Index]));
+        }
+        Assert.True(Largest<=2,$"largest channel difference {Largest}");
+        CameraRelative.AssertNoDebugLayerErrors();
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void ObjectAnchoredGridMovesWithTheObject(){
+        var Grid=PrototypeGrid with { AnchorToObject=true };
+        using var Scene=GridScene.Create(Grid,FloorUvs.Zero,FloorOffset:new Vector3(0.3f,0f,0f));
+        Scene.Render();
+        var ObjectLine=Scene.Luminance(new Vector3(0.3f,0f,0.3f));
+        var Surface=Scene.Luminance(new Vector3(0.4f,0f,0.3f));
+        Assert.True(ObjectLine<Surface*0.5f,$"line={ObjectLine} surface={Surface}");
+        Scene.AssertNoDebugLayerErrors();
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
     public void LegacyFog_Warp_CameraRelativeRenderingThinsWithTheWorldHeight(){
         // 簡易高さフォグは受光側のワールド高度が高いほど薄くなる。ワールド原点から3 m上の床を
         // 高度1.5 mから見たとき、ワールド座標描画と
@@ -106,7 +134,7 @@ public sealed class WorldGridGpuIntegrationTests {
         Scrambled,
     }
     private sealed class GridScene:IDisposable {
-        private GridScene(Win32Window Window,StageRenderer Renderer,Camera Camera,bool HasWall,Vector3 RenderOrigin,float FloorHeight,FogParams?Fog){
+        private GridScene(Win32Window Window,StageRenderer Renderer,Camera Camera,bool HasWall,Vector3 RenderOrigin,float FloorHeight,FogParams?Fog,Vector3 FloorOffset){
             this.Window=Window;
             this.Renderer=Renderer;
             this.Camera=Camera;
@@ -114,6 +142,7 @@ public sealed class WorldGridGpuIntegrationTests {
             this.RenderOrigin=RenderOrigin;
             this.FloorHeight=FloorHeight;
             this.Fog=Fog;
+            this.FloorOffset=FloorOffset;
         }
         public Win32Window Window { get; }
         public StageRenderer Renderer { get; }
@@ -124,7 +153,8 @@ public sealed class WorldGridGpuIntegrationTests {
         public Vector3 RenderOrigin { get; }
         public float FloorHeight { get; }
         public FogParams?Fog { get; }
-        public static GridScene Create(StageWorldGrid?Grid,FloorUvs Uvs,bool Wall=false,Vector3 RenderOrigin=default,float FloorHeight=0f,FogParams?Fog=null,Vector3?Eye=null,float PitchDegrees=-85f){
+        public Vector3 FloorOffset { get; }
+        public static GridScene Create(StageWorldGrid?Grid,FloorUvs Uvs,bool Wall=false,Vector3 RenderOrigin=default,float FloorHeight=0f,FogParams?Fog=null,Vector3?Eye=null,float PitchDegrees=-85f,Vector3 FloorOffset=default){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine World Grid GPU Test",Width=320,Height=180,Visible=false });
             StageMeshCreateInfo ToMesh(ProceduralMeshData Data){
                 var Tangents=new Vector4[Data.Positions.Length];
@@ -159,7 +189,7 @@ public sealed class WorldGridGpuIntegrationTests {
             if(!Wall){
                 View.Pitch=PitchDegrees*MathF.PI/180f;
             }
-            return new GridScene(Window,Renderer,View,Wall,RenderOrigin,FloorHeight,Fog);
+            return new GridScene(Window,Renderer,View,Wall,RenderOrigin,FloorHeight,Fog,FloorOffset);
         }
         public void Render(){
             var RenderCamera=this.Camera;
@@ -171,7 +201,7 @@ public sealed class WorldGridGpuIntegrationTests {
                 if(this.Fog is{ }Fog){
                     this.Renderer.SetFog(Fog);
                 }
-                this.Renderer.SetObjectTransform(0,Matrix4x4.CreateTranslation(new Vector3(0f,this.FloorHeight,0f)-this.RenderOrigin));
+                this.Renderer.SetObjectTransform(0,Matrix4x4.CreateTranslation(new Vector3(0f,this.FloorHeight,0f)+this.FloorOffset-this.RenderOrigin));
                 if(this.HasWall){
                     this.Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(new Vector3(1f,2.5f,2.75f)-this.RenderOrigin));
                 }

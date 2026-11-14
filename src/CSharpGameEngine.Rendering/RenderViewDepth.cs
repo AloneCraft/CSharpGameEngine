@@ -1,12 +1,13 @@
 using System.Numerics;
 namespace CSharpGameEngine.Rendering;
-/// <summary>ビューの投影が指定する深度符号化方式（ADR-0084）。</summary>
+/// <summary>ビューの投影が指定する深度符号化方式。</summary>
 public enum RenderDepthEncoding:byte {
     Linear=0,
     Logarithmic=1,
     Observer=2,
+    IdentityPerspective=3,
 }
-/// <summary>検証済みの L4 深度パケット。透視ビューは物理的な対数距離を格納する。線形パケットには正射影が必要。</summary>
+/// <summary>検証済みの L4 深度パケット。Identity透視と正射影はGPUの直接深度経路を共有する。</summary>
 public readonly record struct RenderViewDepth {
     private RenderViewDepth(RenderDepthEncoding Encoding,RadialDepthProjection Projection,Vector4 Packet0,Vector4 Packet1){
         this.Encoding=Encoding;
@@ -23,6 +24,13 @@ public readonly record struct RenderViewDepth {
     public static RenderViewDepth ForPerspective(in RadialDepthProjection Projection,bool ConservativeRasterDepth=true){
         ValidateProjection(Projection);
         return new(RenderDepthEncoding.Logarithmic,Projection,LogarithmicPacket(RenderDepthEncoding.Logarithmic,Projection),new Vector4(0f,0f,0f,ConservativeRasterDepth?1f:0f));
+    }
+    public static RenderViewDepth ForIdentityPerspective(in Matrix4x4 ViewProjection){
+        if(!IsFinite(ViewProjection)||!RadialDepthProjection.IsPerspective(ViewProjection)
+            ||!Matrix4x4.Invert(ViewProjection,out var Inverse)||!IsFinite(Inverse)){
+            throw new ArgumentException("Identity depth requires a finite invertible perspective projection.",nameof(ViewProjection));
+        }
+        return new(RenderDepthEncoding.IdentityPerspective,default,Vector4.Zero,Vector4.Zero);
     }
     public static RenderViewDepth ForOrthographic(in Matrix4x4 ViewProjection){
         if(!IsFinite(ViewProjection)||RadialDepthProjection.IsPerspective(ViewProjection)||ViewProjection.M44==0f

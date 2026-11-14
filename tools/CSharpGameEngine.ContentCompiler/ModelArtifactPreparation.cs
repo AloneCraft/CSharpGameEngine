@@ -10,6 +10,7 @@ public sealed record PreparedModelArtifact(AssetKey Key,ContentArtifactKind Kind
 public sealed record PreparedModelSource(AssetId AssetId,string SourceUri,ImmutableArray<PreparedModelArtifact>Artifacts,ImmutableArray<ContentCompileNode>Nodes,AssetKey Root);
 /// <summary>コンパイルノードを公開する前に、すべての変換とエンベロープ検証を完了する。</summary>
 public static class ModelArtifactPreparation {
+    public const string CurrentToolVersion="cge.model@2";
     public static PreparedModelSource Prepare(AssetId AssetId,InterchangeDocument Document,Hash256 SourceHash,Hash256 OptionsHash,string ToolVersion,IEnumerable<PreparedModelArtifact>?Resources=null){
         ArgumentNullException.ThrowIfNull(Document);
         var Errors=ModelImportPipeline.ValidateEngine(Document).Where(D=>D.Severity==ImportSeverity.Error).ToArray();
@@ -59,12 +60,15 @@ public static class ModelArtifactPreparation {
             if(!ByKey.TryGetValue(Key,out var Prepared)||Prepared.Kind!=ContentArtifactKind.Material){ throw new InvalidDataException("IMP902: material resource was not prepared: "+Material.Name); }
             Materials.Add(ModelReference.From(Prepared.Reference));
         }
+        if(Document.RuntimeBlocks.Any(static Block=>Block.Schema==ModelClipOrder.Schema)){ throw new InvalidDataException("IMP902: animation order is owned by model preparation."); }
+        var RuntimeBlocks=Document.RuntimeBlocks.Select(static Block=>new ModelRuntimeBlock(Block.Schema,Block.Payload)).ToList();
+        if(Document.Clips.Length!=0){ RuntimeBlocks.Add(ModelClipOrder.Create(Document.Clips.Select(static Clip=>Clip.Name))); }
         var Model=new ModelData(Path.GetFileNameWithoutExtension(Document.Provenance.SourceUri),
             [..Document.Nodes.Select(N=>new ModelNodeData(N.Name,N.ParentIndex,Pose(N.Local),N.MeshIndex,N.MaterialSlots,N.SkinIndex,(uint)N.Flags))],
             [..Meshes],[..Materials],[..Skeletons],
             [..Document.Skins.Select(S=>new ModelSkinData(S.Name,S.SkeletonIndex,S.JointMap,S.InverseBindMatrices,S.BindShape))],
             [..Document.Rig.Avatars.Select(A=>new ModelAvatarData(A.SkeletonIndex,A.RootNode,[..A.Bones.Select(B=>new ModelHumanBone(B.Bone,B.JointIndex))],A.RestToReference,A.HipsHeightMeters,A.MappingSource))],
-            [..Document.RuntimeBlocks.Select(B=>new ModelRuntimeBlock(B.Schema,B.Payload))],new(Document.Space.Origin.X,Document.Space.Origin.Y,Document.Space.Origin.Z));
+            [..RuntimeBlocks],new(Document.Space.Origin.X,Document.Space.Origin.Y,Document.Space.Origin.Z));
         var RootKey=new AssetKey(AssetId,null);
         var RootArtifact=Validate(RootKey,Model.Name,ContentArtifactCodec.Write(new(ContentArtifactKind.Model,Provenance,Artifacts.Select(A=>A.Reference),ModelArtifactCodec.WriteModel(Model))),Provenance);
         Add(RootArtifact);

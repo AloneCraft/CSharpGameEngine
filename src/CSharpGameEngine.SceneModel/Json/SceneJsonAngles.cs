@@ -8,8 +8,8 @@ internal enum SceneAngleUnit:byte {
 }
 /// <summary>
 /// ADR-0074：<see cref="TurnsSchemaVersion"/> 以降の Scene JSON では角度を回転数（1 = 1回転）で保存する。エディターでは度で表示し、C# メンバー
-/// はそれぞれの単位を保つ。テキスト値は double 演算でメンバーの float に変換する。回転数を float で扱うと、すべてのラジアン値や度数値を表せるとは限らない（500度に対応する回転数の
-///  float が存在しない）。値を同じ float に戻せる最小桁数で書き込むため、変更されていない角度のテキストを編集時も維持し、バージョン1のドキュメントを値を変えずに更新できる。
+/// はそれぞれの単位を保つ。float と double はそれぞれの値に戻せる短い十進表記へ変換する。固定小数点は
+/// <see cref="SceneJsonFixedValue"/> が選択された精度で扱う。バージョン1のドキュメントは元の単位から更新する。
 /// </summary>
 internal static class SceneJsonAngles {
     /// <summary>角度を回転数で表す最初のスキーマバージョン。バージョン1ではメンバーごとの単位を使う。</summary>
@@ -30,7 +30,23 @@ internal static class SceneJsonAngles {
     /// <summary>度数で書き込まれた数値に対するメンバー値（エディターで使用する単位）。</summary>
     internal static float FromDegrees(string Text,SceneAngleUnit Unit)=>Multiply(Text,Unit==SceneAngleUnit.Radians?Factor.DegreesToRadians:Factor.One);
     internal static string FormatTurns(float Value,SceneAngleUnit Unit)=>Shortest(Value,Unit==SceneAngleUnit.Radians?Factor.TurnsToRadians:Factor.TurnsToDegrees);
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    internal static string FormatTurns(double Value,SceneAngleUnit Unit)=>ShortestDouble(Value,Unit==SceneAngleUnit.Radians?Factor.TurnsToRadians:Factor.TurnsToDegrees);
     internal static string FormatDegrees(float Value,SceneAngleUnit Unit)=>Shortest(Value,Unit==SceneAngleUnit.Radians?Factor.DegreesToRadians:Factor.One);
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    internal static string FormatDegrees(double Value,SceneAngleUnit Unit)=>ShortestDouble(Value,Unit==SceneAngleUnit.Radians?Factor.DegreesToRadians:Factor.One);
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    internal static double FromTurnsDouble(double Value,SceneAngleUnit Unit)=>Value*(Unit==SceneAngleUnit.Radians?2d*Math.PI:360d);
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    internal static double FromDegreesDouble(double Value,SceneAngleUnit Unit)=>Value*(Unit==SceneAngleUnit.Radians?Math.PI/180d:1d);
     /// <summary>
     /// <paramref name="Name"/> という名前の角度メンバーまたはコンストラクターパラメーターに対する JSON キー。ドキュメントでは回転数を保持するため、末尾の単位名を除いた名前にする
     /// （<c>FovYRadians</c> は <c>FovY</c> になる。2026-10-01のユーザー判断で C# 側の名前は維持）。単位名を除くと空になる名前や、型内の別メンバー／パラメーターと
@@ -51,7 +67,7 @@ internal static class SceneJsonAngles {
     /// <summary>属性のコンストラクター引数が示す単位（列挙値の基底値）。</summary>
     internal static SceneAngleUnit?UnitFromArgument(object?Argument)=>
         Argument is null?null:System.Convert.ToInt32(Argument,CultureInfo.InvariantCulture)==1?SceneAngleUnit.Degrees:SceneAngleUnit.Radians;
-    // 数値ポリシー（NUM001）で double の境界となるのはこの2つのメソッド。ポリシー適用位置に属性を置く。
+    // 数値ポリシー（NUM001）では制作時の浮動小数点変換を明示的な境界として扱う。
 #if CGE_NUMERIC_ADAPTER
     [CSharpGameEngine.Contracts.ExternalNumericAdapter]
 #endif
@@ -84,5 +100,22 @@ internal static class SceneJsonAngles {
         if(Text is not null){ return Text=="-0"?"0":Text; }
         // Quotient の値へ戻せるテキストはない。Quotient 自身の最短表記は、"R" が出力する形式になる。
         return SceneJsonDecimal.Shortest(Quotient,1,17,false,Parsed=>Parsed==Quotient,NotationDigits:15)!;
+    }
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static string ShortestDouble(double Value,Factor Kind){
+        if(double.IsNaN(Value)||double.IsInfinity(Value)){ throw new ArgumentOutOfRangeException(nameof(Value),"JSON numbers must be finite."); }
+        var Scale=Kind switch {
+            Factor.TurnsToRadians=>2d*Math.PI,
+            Factor.TurnsToDegrees=>360d,
+            Factor.DegreesToRadians=>Math.PI/180d,
+            _=>1d,
+        };
+        var Quotient=Value/Scale;
+        var Positional=Math.Abs(Quotient)>=1e-4&&Math.Abs(Quotient)<1e15;
+        var Text=SceneJsonDecimal.Shortest(Quotient,1,17,Positional,Parsed=>Parsed*Scale==Value)
+            ??SceneJsonDecimal.Shortest(Quotient,1,17,false,Parsed=>Parsed==Quotient,NotationDigits:15)!;
+        return Text=="-0"?"0":Text;
     }
 }

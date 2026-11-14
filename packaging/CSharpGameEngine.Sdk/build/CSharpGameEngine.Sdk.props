@@ -11,6 +11,7 @@
     <CgeSceneSchemaCli>$(CgeEngineRoot)tools\SceneSchema\CSharpGameEngine.SceneSchema.Cli.dll</CgeSceneSchemaCli>
     <!-- ADR-0079: run a plugin's Cook module with "dotnet $(CgeCookCli) cook <module.dll> <input> <output-directory>". -->
     <CgeCookCli>$(CgeEngineRoot)tools\Cook\CSharpGameEngine.Cook.Cli.dll</CgeCookCli>
+    <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)CSharpGameEngine.NumericProfile.BeforeCommon.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Game.props" />
 </Project>

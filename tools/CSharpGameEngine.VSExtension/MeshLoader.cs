@@ -1,15 +1,30 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>
-/// ファイル拡張子で振り分け、<c>CSharpGameEngine.Extension</c> の CLI ビューアー (Program.cs) に合わせる。<see cref="ExternalFbxLoader"/> (ADR-0010) が扱う .fbx と <see cref="ExternalGltfLoader"/> (ADR-0019) が扱う .glb/.gltf はどちらも <see cref="ExternalBridgeProcess"/> 経由でプロセス外で解析するため、各形式のパーサーを devenv.exe に直接読み込むことはない。<see cref="AssetPreviewHwndHost"/> (ADR-0013、単一アセットのプレビュー) と <see cref="SceneHwndHost"/> (ADR-0020、シーンタブ) で共有し、どちらも同じ方法でモデルを読み込む。以前このコメントに記載していた <c>ViewerHwndHost</c> (ADR-0007/0008) は ADR-0021 で削除された。
-/// 結果は devenv.exe のプロセスが存続する間キャッシュする。正規化済み絶対パスをキーとし、最終書き込み時刻で無効化するため、変更されていないアセットを再度開いたり読み込んだりしても（シーンタブの再読み込みごと、または同じプリミティブを形状パレットで繰り返し選択しても）ブリッジプロセスは起動しない。これは ADR-0010 追補の修正（ビルド済み exe を起動）を置き換えるのではなく補完する。キャッシュだけではシーンを初めて読み込む際のコールドロードは改善できないためである。
-/// </summary>
+/// <summary>glTF は共通モデル成果物から読み、FBX は専用の外部ブリッジで読む。VS 本体にソース解析器を読み込まない。シーン単位の Prepare は依存変更を再評価し、成果物ハッシュで形状を共有する。</summary>
 internal static class MeshLoader {
     private static readonly ConcurrentDictionary<string,(SimpleMesh Mesh,DateTime LastWriteTimeUtc)>Cache=new(StringComparer.OrdinalIgnoreCase);
+    internal static void Prepare(IEnumerable<string>Paths,string RepoRoot){
+        var Sources=Paths.Select(Path.GetFullPath).Where(PathValue=>Path.GetExtension(PathValue).ToLowerInvariant() is ".glb" or ".gltf").Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        for(var Offset=0;Offset<Sources.Length;Offset+=16){
+            var Selected=Sources.Skip(Offset).Take(16).ToArray();
+            var Result=AssetAuthoringHostClient.Model(new AssetModelRequest{ModelCommand=4,SourcePath=Selected[0],PreviewSourcePaths=Selected});
+            if(!Result.Success){ throw new InvalidDataException(Result.Diagnostic); }
+            foreach(var Source in Result.PreparedSources){
+                var FullPath=Path.GetFullPath(Source.SourcePath);var Stamp=File.GetLastWriteTimeUtc(FullPath);
+                var Key=Source.ModelHash;
+                if(!PreparedCache.TryGetValue(Key,out var Mesh)){ Mesh=AssetAuthoringHostClient.Geometry(Source,RepoRoot);PreparedCache[Key]=Mesh; }
+                Cache[FullPath]=(Mesh,Stamp);
+            }
+        }
+    }
+    private static readonly ConcurrentDictionary<string,SimpleMesh>PreparedCache=new(StringComparer.Ordinal);
 
     public static SimpleMesh Load(string ModelPath,string RepoRoot){
         var FullPath=Path.GetFullPath(ModelPath);
@@ -21,9 +36,10 @@ internal static class MeshLoader {
 
         SimpleMesh Mesh=string.Equals(Path.GetExtension(FullPath),".fbx",StringComparison.OrdinalIgnoreCase)
             ?ExternalFbxLoader.Load(FullPath,RepoRoot)
-            :ExternalGltfLoader.Load(FullPath,RepoRoot);
+            :LoadPrepared(FullPath,RepoRoot);
 
         Cache[FullPath]=(Mesh,LastWriteTimeUtc);
         return Mesh;
     }
+    private static SimpleMesh LoadPrepared(string FullPath,string RepoRoot){ Prepare([FullPath],RepoRoot);return Cache[FullPath].Mesh; }
 }

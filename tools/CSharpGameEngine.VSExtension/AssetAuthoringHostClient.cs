@@ -25,19 +25,28 @@ internal static class AssetAuthoringHostClient {
             if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Image response identity mismatch."); }return Result;
         }finally { if(File.Exists(Path.Combine(Root,"request.json"))){ File.Delete(Path.Combine(Root,"request.json")); }if(File.Exists(Path.Combine(Root,"result.json"))){ File.Delete(Path.Combine(Root,"result.json")); }Directory.Delete(Root); }
     }
-    internal static AssetModelResult Model(AssetModelRequest Request){
+    internal static AssetModelResult Model(AssetModelRequest Request,System.Threading.CancellationToken CancellationToken=default){
         var Root=Path.Combine(Path.GetTempPath(),"CgeModelAuthoring",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Root);
         try {
             var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");
             BindRequest(Request,Context);
             var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
-            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,Request.ModelCommand==4?TimeSpan.FromMinutes(10):BridgeTimeout,UseResidentServer:true,CancellationToken);
             var Result=JsonSerializer.Deserialize<AssetModelResult>(Json,JsonOptions)??throw new InvalidDataException("Model result missing.");
             if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Model response mismatch."); }return Result;
         }finally { foreach(var FileName in new[]{"request.json","result.json"}){ var PathValue=Path.Combine(Root,FileName);if(File.Exists(PathValue)){ File.Delete(PathValue); } }Directory.Delete(Root); }
     }
     internal static void BindRequest(AssetImageRequest Request,CgeProjectContext Context){ Request.RequestId=Guid.NewGuid();Request.Root=Context.AssetMetadataRoot(Request.SourcePath); }
-    internal static void BindRequest(AssetModelRequest Request,CgeProjectContext Context){ Request.RequestId=Guid.NewGuid();Request.Root=Context.AssetMetadataRoot(Request.SourcePath); }
+    internal static SimpleMesh Geometry(RenderPreviewModelSource Source,string WorkspaceRoot){
+        var Root=Path.Combine(Path.GetTempPath(),"CgeModelGeometry",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(Root);
+        try {
+            var Input=Path.Combine(Root,"request.json");var Output=Path.Combine(Root,"result.json");
+            File.WriteAllText(Input,JsonSerializer.Serialize(new{ModelGeometry=Source},JsonOptions));
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,Input,Output,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            return SimpleMesh.FromPreparedScene(JsonSerializer.Deserialize<RenderPreviewScene>(Json,JsonOptions)??throw new InvalidDataException("Prepared model geometry missing."));
+        }finally { foreach(var Name in new[]{"request.json","result.json"}){ var PathValue=Path.Combine(Root,Name);if(File.Exists(PathValue)){ File.Delete(PathValue); } }Directory.Delete(Root); }
+    }
+    internal static void BindRequest(AssetModelRequest Request,CgeProjectContext Context){ Request.RequestId=Guid.NewGuid();Request.Root=Request.ModelCommand==4?Context.ProjectDirectory:Context.AssetMetadataRoot(Request.SourcePath); }
     internal static AssetAuthoringRequest CreateRequest(CgeProjectContext Context,string SourcePath,AssetAuthoringCommand Command)=>new(){RequestId=Guid.NewGuid(),Command=Command,RepositoryRoot=Context.AssetMetadataRoot(SourcePath),SourcePath=SourcePath};
     public static AssetAuthoringResult Inspect(string SourcePath){
         var Context=ResolveContext(SourcePath);

@@ -15,6 +15,7 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
     private readonly StackPanel Panel=new(){Margin=new Thickness(8)};
     private int Generation;
     private bool Disposed;
+    private CancellationTokenSource?ThumbnailRequest;
     private System.Windows.Media.MediaPlayer?Audio;
     private ITextBuffer?WatchedBuffer;
     private string WatchedPath=string.Empty;
@@ -39,6 +40,8 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         if(this.Disposed){ return; }
         this.CurrentItems=Items;
         this.Generation++;
+        this.ThumbnailRequest?.Cancel();
+        this.ThumbnailRequest=null;
         this.StopWatching();
         if(Items.Count!=1||this.PendingFocus is { }Pending&&Pending.Path!=Items[0].Source.SourcePath){ this.PendingFocus=null; }
         this.Audio?.Close();this.Audio=null;
@@ -55,6 +58,13 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         if(!string.IsNullOrEmpty(Item.Diagnostic)){ this.Label(Item.Diagnostic); }
         this.Button("Assets_References",()=>AssetWorkspaceCommands.ShowReferencesAsync(Item)).IsEnabled=Item.State!=AssetWorkspaceState.MissingSource;
         if(Item.State==AssetWorkspaceState.MissingSource){ return; }
+        if(Item.Kind!=AssetWorkspaceKind.Font&&AssetThumbnailService.SupportsThumbnail(Item)){
+            var Preview=new Image{Margin=new Thickness(0,6,0,6),MaxHeight=AssetThumbnailRequest.InspectorEdge,Stretch=System.Windows.Media.Stretch.Uniform,Visibility=Visibility.Collapsed};
+            this.Panel.Children.Add(Preview);
+            var Request=new CancellationTokenSource();
+            this.ThumbnailRequest=Request;
+            _=this.ShowThumbnailAsync(Item,Preview,Request);
+        }
         this.ShowFacts(Item,Presentation.ProviderLabel,this.Generation);
         if(Item.Kind==AssetWorkspaceKind.Data){ _=this.ShowDataAsync(Item,this.Generation); }
         else if(Item.Kind==AssetWorkspaceKind.Font){ _=this.ShowFontAsync(Item,this.Generation); }
@@ -67,10 +77,6 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
             this.Audio.Open(new Uri(Item.Source.SourcePath));
             this.Button("Assets_Play",()=>{ this.Audio?.Play();return Task.CompletedTask; });
             this.Button("Assets_Stop",()=>{ this.Audio?.Stop();return Task.CompletedTask; });
-        }
-        else if(Item.Kind is AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image&&Path.GetExtension(Item.Source.SourcePath).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg"){
-            var Image=new Image{MaxHeight=180,Stretch=System.Windows.Media.Stretch.Uniform};
-            Image.SetBinding(Image.SourceProperty,new System.Windows.Data.Binding(nameof(AssetWorkspaceRow.Thumbnail)){Source=new AssetWorkspaceRow(Item)});this.Panel.Children.Add(Image);
         }
         if(!Item.Source.ReadOnly&&(ImageImportSettings.Supports(Item.Source.SourcePath)||Path.GetExtension(Item.Source.SourcePath).Equals(".fbx",StringComparison.OrdinalIgnoreCase))){
             this.Button("Assets_Reimport",async()=>{
@@ -90,6 +96,21 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         }
     }
     internal void RefreshSelection(){ ThreadHelper.ThrowIfNotOnUIThread();this.OnSelection(this.FollowSelection?AssetWorkspaceSelection.Current:this.CurrentItems); }
+    private async Task ShowThumbnailAsync(AssetWorkspaceItem Item,Image Preview,CancellationTokenSource Request){
+        try {
+            var Thumbnail=await AssetThumbnailService.RequestAsync(Item,Request.Token,Edge:AssetThumbnailRequest.InspectorEdge);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Request.Token);
+            if(Thumbnail is null||!ReferenceEquals(this.ThumbnailRequest,Request)){ return; }
+            Preview.Source=Thumbnail;
+            Preview.Visibility=Visibility.Visible;
+        }catch(OperationCanceledException) when(Request.IsCancellationRequested){
+        }catch(Exception Error){
+            ActivityLog.LogWarning(nameof(AssetInspectorControl),Error.Message);
+        }finally{
+            if(ReferenceEquals(this.ThumbnailRequest,Request)){ this.ThumbnailRequest=null; }
+            Request.Dispose();
+        }
+    }
     /// <summary>フォントの節: そのフォント自身で描いた見本、対応する言語、表示できない文字（<see cref="AssetFontView"/>）。.cgefont はアトラスの絵も出す。</summary>
     private async Task ShowFontAsync(AssetWorkspaceItem Item,int Generation){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -218,5 +239,5 @@ internal sealed partial class AssetInspectorControl:ScrollViewer,IDisposable {
         return Button;
     }
     private void Run(Func<Task>Operation)=>AssetsToolWindowPane.Controller?.Run(Operation);
-    public void Dispose(){ this.Disposed=true;this.Generation++;this.StopWatching();this.Audio?.Close();if(this.FollowSelection){ AssetWorkspaceSelection.Changed-=this.OnSelection; } }
+    public void Dispose(){ this.Disposed=true;this.Generation++;this.ThumbnailRequest?.Cancel();this.ThumbnailRequest=null;this.StopWatching();this.Audio?.Close();if(this.FollowSelection){ AssetWorkspaceSelection.Changed-=this.OnSelection; } }
 }

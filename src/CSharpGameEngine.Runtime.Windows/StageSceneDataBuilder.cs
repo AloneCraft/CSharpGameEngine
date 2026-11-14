@@ -5,7 +5,7 @@ using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
-using CSharpGameEngine.Import.Gltf;
+using CSharpGameEngine.Content.Models;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Animation;
 
@@ -127,13 +127,11 @@ internal sealed class StageSceneDataBuilder {
     }
 
     internal static AssetTemplate LoadAsset(string FullPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
-        var Result=GltfImporter.ImportScene(FullPath);
-        if(!Result.Success||Result.Scene is not{ }Scene){
-            throw new InvalidOperationException($"StaticMesh '{FullPath}' の読み込みに失敗しました: {string.Join("; ",Result.Diagnostics)}");
-        }
-
+        var Root=ContentRoot.Directory;
+        var SourceUri=Path.GetRelativePath(Root,FullPath).Replace('\\','/');
+        using var Scene=ModelAssetBundle.OpenAsync(ContentRoot.ModelDirectory,SourceUri).GetAwaiter().GetResult();
         var Fields=LoadDistanceFields(FullPath,Scene);
-        var Placements=StageGltfAssets.AppendStatic(Scene,FullPath,Meshes,Materials,Fields);
+        var Placements=StageModelAssets.AppendStatic(Scene,Meshes,Materials,Fields);
         if(Placements.Length==0){
             throw new InvalidOperationException($"StaticMesh '{FullPath}' に描画可能なノードがありません。");
         }
@@ -145,13 +143,13 @@ internal sealed class StageSceneDataBuilder {
     /// がない、読み込めない、または読み込んだメッシュとは異なる三角形から作られている（コンテンツハッシュが違う）場合、そのメッシュには距離場を設定しない。そのメッシュはグローバル距離場に含まれないが、ゲーム
     /// は引き続き実行される。
     /// </summary>
-    internal static MeshDistanceField?[]LoadDistanceFields(string FullPath,ImportedScene Scene){
-        var Fields=new MeshDistanceField?[Scene.Meshes.Count];
+    internal static MeshDistanceField?[]LoadDistanceFields(string FullPath,ModelAssetBundle Scene){
+        var Fields=new MeshDistanceField?[Scene.Meshes.Length];
         var FieldPath=FullPath+".cgesdf";
         if(!File.Exists(FieldPath)){
             return Fields;
         }
-        if(!MeshDistanceFieldCodec.TryRead(File.ReadAllBytes(FieldPath),out var Entries,out _)||Entries.Count!=Scene.Meshes.Count){
+        if(!MeshDistanceFieldCodec.TryRead(File.ReadAllBytes(FieldPath),out var Entries,out _)||Entries.Count!=Scene.Meshes.Length){
             return Fields;
         }
         for(var Index=0;Index<Fields.Length;Index++){
@@ -166,9 +164,8 @@ internal sealed class StageSceneDataBuilder {
     /// レンダラーは各コピーを専用パレットでスキニングする）。そのオブジェクトを返し、スキニング対象のレンダラーメッシュインデックスも設定する。インデックスは追加前の各リストの長さから数える。
     /// </summary>
     internal static (AssetTemplate Template,int[]SkinnedMeshIndices)LoadSkeletalAsset(string AssetPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
-        var Imported=SkeletalAssetCache.Scene(AssetPath);
-        var FullPath=SkeletalAssetCache.ResolvePath(AssetPath);
-        var (Placements,Skinned)=StageGltfAssets.AppendSkeletal(Imported,FullPath,AssetPath,Meshes,Materials);
+        var Imported=SkeletalAssetCache.Asset(AssetPath);
+        var (Placements,Skinned)=StageModelAssets.AppendSkeletal(Imported,Meshes,Materials);
         return (new AssetTemplate([.. Placements.Select(Item=>new AssetObject(Item.MeshIndex,Item.MaterialIndex,Item.LocalTransform))]),Skinned);
     }
 

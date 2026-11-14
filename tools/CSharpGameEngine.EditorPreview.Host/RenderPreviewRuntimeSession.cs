@@ -21,6 +21,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private readonly MethodInfo ShutdownMethod;
     private readonly MethodInfo NodeCountMethod;
     private readonly MethodInfo SetComponentMethod;
+    private readonly Func<string,object>ParseLogicalScalar;
     private readonly MethodInfo OverlayMethod;
     private readonly MethodInfo SelectionMethod;
     private const string TransformTypeName="CSharpGameEngine.Entities.Transform";
@@ -29,7 +30,6 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private string DocumentText=string.Empty;
     private SceneJsonValue[]DocumentNodes=[];
     /// <summary>ドキュメントの角度が回転数であるかどうか（スキーマ バージョン 2、ADR-0074）。上書き後も他メンバーのテキストを維持する。</summary>
-    private bool DocumentTurns;
     private float[]OverlayTriangles=[];
     private float[]OverlayLines=[];
     private int[]Selection=[];
@@ -61,7 +61,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private RenderPreviewRuntimeSession(
         GameLoadContext Context,MethodInfo RenderMethod,MethodInfo ResizeMethod,MethodInfo CaptureMethod,
         MethodInfo ShutdownMethod,MethodInfo NodeCountMethod,MethodInfo SetComponentMethod,MethodInfo OverlayMethod,
-        MethodInfo SelectionMethod,RenderPreviewCamera Camera){
+        MethodInfo SelectionMethod,RenderPreviewCamera Camera,Func<string,object>ParseLogicalScalar){
         this.Context=Context;
         this.RenderMethod=RenderMethod;
         this.ResizeMethod=ResizeMethod;
@@ -69,6 +69,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         this.ShutdownMethod=ShutdownMethod;
         this.NodeCountMethod=NodeCountMethod;
         this.SetComponentMethod=SetComponentMethod;
+        this.ParseLogicalScalar=ParseLogicalScalar;
         this.OverlayMethod=OverlayMethod;
         this.SelectionMethod=SelectionMethod;
         this.Camera=Camera;
@@ -101,7 +102,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             RenderPreviewRuntimeSession Session=new(
                 Context,Find("RenderRuntimeView"),Find("ResizeRuntimeView"),Find("CaptureRuntimeView"),Find("ShutdownRuntimeView"),
                 Find("RuntimeViewNodeCount"),Find("TrySetRuntimeViewComponent"),Find("SetRuntimeViewOverlay"),
-                Find("SetRuntimeViewSelection"),Request.Scene!.Camera!);
+                Find("SetRuntimeViewSelection"),Request.Scene!.Camera!,Find("ParseRuntimeLogicalScalar").CreateDelegate<Func<string,object>>());
             // false の結果はゲームのホストをすでに解放済みであり、アンロードする対象はコンテキストだけである。
             if(Invoke(Initialize,[View.SceneName,ContentDirectory,(nint)Request.SurfaceHandle,Request.Width,Request.Height,View.UseWarp]) is not true){
                 throw new InvalidOperationException($"The game build does not contain the scene '{View.SceneName}'; build the project to show it.");
@@ -138,7 +139,9 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     }
 
     private void TickEditorWorld(object?_){
-        lock(this.Gate){
+        // Periodic callbacks must not occupy the pool while rendering awaits asynchronous content I/O.
+        if(!Monitor.TryEnter(this.Gate)){ return; }
+        try {
             if(this.Disposed||this.EditorTickMethod is not { }Tick){ return; }
             try {
                 Invoke(Tick,[]);
@@ -148,7 +151,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 Console.Error.WriteLine($"The editor world stopped: {Error.Message}");
                 this.EditorTickMethod=null;
             }
-        }
+        }finally{ Monitor.Exit(this.Gate); }
     }
 
     /// <summary>
@@ -163,10 +166,8 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private void ApplySceneDocument(string SceneJson){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         SceneJsonValue[]Nodes;
-        bool Turns;
         try {
             var Document=SceneJsonReader.Parse(SceneJson);
-            Turns=SceneJsonRuntimeValues.UsesTurns(Document);
             Nodes=[.. PreOrder(Document.Get("root")
                 ??throw new SceneJsonException("The scene document has no root.",0))];
         } catch(SceneJsonException){
@@ -174,7 +175,6 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         }
         this.NodeIndexByPath=NodePaths(Nodes.Length>0?Nodes[0]:null);
         this.DocumentText=SceneJson;
-        this.DocumentTurns=Turns;
         this.DocumentNodes=Nodes;
         var Stale=Nodes.Length!=(int)Invoke(this.NodeCountMethod,[])!;
         for(var Index=0;Index<Nodes.Length&&!Stale;Index++){
@@ -186,7 +186,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 }
                 object Value;
                 try {
-                    Value=SceneJsonRuntimeValues.Component(Type,Component.Get("members")??SceneJsonReader.Parse("{}"),Type.Name,Turns);
+                    Value=SceneJsonRuntimeValues.Component(Type,Component.Get("members")??SceneJsonReader.Parse("{}"),Type.Name,this.ParseLogicalScalar);
                 } catch(InvalidOperationException){
                     // ジェネレーターはドキュメントのエラーを報告する。ビューは最後に正常だった値を維持する。
                     continue;
@@ -258,7 +258,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             if(Component is null){ continue; }
             object Value;
             try {
-                Value=SceneJsonRuntimeValues.Component(Type,this.OverriddenMembers(Component.Get("members"),Override),Type.Name,this.DocumentTurns);
+                Value=SceneJsonRuntimeValues.Component(Type,this.OverriddenMembers(Component.Get("members"),Override),Type.Name,this.ParseLogicalScalar);
             } catch(Exception Error)when(Error is InvalidOperationException or SceneJsonException){
                 continue;
             }

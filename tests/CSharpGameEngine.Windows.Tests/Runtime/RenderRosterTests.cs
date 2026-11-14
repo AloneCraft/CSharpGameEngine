@@ -6,6 +6,8 @@ using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
 using CSharpGameEngine.Platform.Windows;
 using UserEcsProject.Scenes;
+using CSharpGameEngine.Testing;
+using CSharpGameEngine.Windows.Tests.Runtime;
 using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
@@ -22,7 +24,7 @@ public sealed class RenderRosterTests {
             this.Surface=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Render Roster Test",Width=128,Height=128,Visible=false });
             this.Host.UseExternalSurface(this.Surface.Handle,this.Surface.ClientWidth,this.Surface.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true });
             ref var World=ref this.Host.World;
-            World.Create(new AppHost(),new AppHostRuntime(),new Level { ShaderArtifactPath=Path.Combine("Shaders","Stage.cgeshaderartifact") },new LevelRuntime());
+            World.Create(new AppHost(),new AppHostRuntime(),new Level { ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact") },new LevelRuntime());
             World.Create(new Transform { Position=new LogicalVector3(0f,0.5f,-4f) },new Camera());
             this.State=this.Host.CreateState();
             this.State.Enabled=true;
@@ -134,6 +136,7 @@ public sealed class RenderRosterTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void AMeshAssetNoEntityHasUsedIsLoadedWhenTheFirstEntityWithItAppears(){
+        using var Content=new ModelArtifactTestContent([Path.Combine(AppContext.BaseDirectory,"Fixtures","Box.glb"),Path.Combine(AppContext.BaseDirectory,"Fixtures","BoxTextured.glb")],AppContext.BaseDirectory);using var Scope=new ModelArtifactContentRoot(Content);
         using var Game=new Game();
         SpawnPrimitive(Game,PrimitiveType.Box,0f);
         var Before=Game.Capture();
@@ -193,6 +196,7 @@ public sealed class RenderRosterTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void ASkeletalMeshSpawnedAfterTheLevelLoadedIsDrawnAndItsMeshesAreReusedByTheNextOne(){
+        using var Content=new ModelArtifactTestContent([Mannequin()]);using var Scope=new ModelArtifactContentRoot(Content);
         using var Game=new Game();
         Game.World.Create(new Transform { Position=new LogicalVector3(0f,0f,8f) },new PrimitiveMesh { Type=PrimitiveType.Box });
         var Empty=Game.Capture();

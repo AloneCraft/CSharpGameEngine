@@ -46,6 +46,9 @@ public static class AssetWorkspaceService {
                             if(Failure.Length>0){ Item.State=AssetWorkspaceState.ImportFailed;Item.Diagnostic="最新設定の取り込み失敗: "+Failure; }
                             if(!Source.ReadOnly&&Metadata.SourceUri!=Path.GetRelativePath(MetadataRoot,Source.SourcePath).Replace('\\','/')){
                                 Item.State=AssetWorkspaceState.InvalidMetadata;Item.Diagnostic="ASSET_SOURCE_MISMATCH";
+                            }else if(!Source.ReadOnly&&Kind==AssetWorkspaceKind.Model&&AssetMetadata.IsRetiredModelImporter(Metadata.Importer)){
+                                // ビルドは IMP008 で止まる。無効なメタデータとして示し、明示の「Convert legacy metadata」を出す。
+                                Item.State=AssetWorkspaceState.InvalidMetadata;Item.Diagnostic="ASSET_IMPORTER_RETIRED: "+Metadata.Importer;
                             }
                         } else {
                             Item.State=AssetWorkspaceState.InvalidMetadata;

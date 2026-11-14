@@ -11,6 +11,8 @@
     <CgeSkipEngineAnalyzerReference>true</CgeSkipEngineAnalyzerReference>
     <!-- Release tracking of the linked SceneDsl/SceneJson descriptors belongs to CSharpGameEngine.CodeAnalysis. -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <!-- ADR-0098 §5 rule 2: only this tool (and the SceneModel tests) compile the reading of earlier scene versions. -->
+    <DefineConstants>$(DefineConstants);CGE_SCENE_UPGRADE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Locator" Version="1.9.1" />

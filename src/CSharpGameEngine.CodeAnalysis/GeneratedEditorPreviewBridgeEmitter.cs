@@ -30,7 +30,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             "    private static global::CSharpGameEngine.Entities.State PreviewState;",
             "    private static GeneratedSystemSet PreviewSystems;",
             "    private static bool Initialized;",
-            "    internal static string SelectedLogicalSpatialProfile => \"LogicalScalar-Q64.64\";",
+            "    internal static string SelectedLogicalSpatialProfile => global::CSharpGameEngine.Numerics.LogicalNumeric.CacheProfileId;",
             "    internal static bool Initialize(string? SceneName) {",
             "        PreviewWorld = new global::CSharpGameEngine.Entities.World();",
             "        PreviewSystems = default;",
@@ -138,6 +138,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
     /// </summary>
     private static void AddRuntimeView(List<string> Lines,IReadOnlyList<SceneEmitModel> Scenes,GameSystemRegistry Registry){
         const string Host="global::CSharpGameEngine.Runtime.Windows.EngineHost";
+        Lines.Add("    internal static object ParseRuntimeLogicalScalar(string Text) => global::CSharpGameEngine.Numerics.LogicalNumeric.ParseInvariant(Text);");
         Lines.Add($"    private static {Host}? ViewHost;");
         Lines.Add("    private static global::CSharpGameEngine.Entities.State ViewState;");
         Lines.Add("    private static GeneratedSystemSet ViewSystems;");

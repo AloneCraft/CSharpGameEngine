@@ -56,14 +56,14 @@ internal sealed class CookerHost:IDisposable {
     /// <summary>
     /// <paramref name="InputPath"/> を <paramref name="OutputDirectory"/> に Cook する。<paramref name="Verify"/> を指定すると、最初に別々のフォルダーへ 2 回 Cook し、同じバイト列のファイルが書かれなければ失敗する（クッカーは決定論的でなければならない）。書き込まれたファイルを <paramref name="OutputDirectory"/> からの相対パスで返す。成功したクッカーが報告したメッセージ（警告、統計など）は <paramref name="Messages"/> に返す。
     /// </summary>
-    internal static IReadOnlyList<string> Cook(IAssetCooker Cooker,string InputPath,string OutputDirectory,string ProjectDirectory,bool Verify,IList<string>?Messages=null){
+    internal static IReadOnlyList<string> Cook(IAssetCooker Cooker,string InputPath,string OutputDirectory,string ProjectDirectory,bool Verify,IList<string>?Messages=null,string?ContentDirectory=null){
         var Input=Path.GetFullPath(InputPath);
         if(!File.Exists(Input)){ throw new FileNotFoundException($"The input was not found: {Input}",Input); }
         var Scratch=Path.Combine(Path.GetTempPath(),"cge-cook-"+Guid.NewGuid().ToString("N"));
         try {
-            var First=CookInto(Cooker,Input,Path.Combine(Scratch,"1"),ProjectDirectory,Messages);
+            var First=CookInto(Cooker,Input,Path.Combine(Scratch,"1"),ProjectDirectory,Messages,ContentDirectory);
             if(Verify){
-                var Second=CookInto(Cooker,Input,Path.Combine(Scratch,"2"),ProjectDirectory,null);
+                var Second=CookInto(Cooker,Input,Path.Combine(Scratch,"2"),ProjectDirectory,null,ContentDirectory);
                 if(!First.SequenceEqual(Second,StringComparer.Ordinal)){
                     throw new InvalidOperationException($"The cooker {Cooker.Name} is not deterministic: two runs wrote different files ({string.Join(", ",First)} / {string.Join(", ",Second)}).");
                 }
@@ -85,9 +85,9 @@ internal sealed class CookerHost:IDisposable {
         }
     }
 
-    private static IReadOnlyList<string> CookInto(IAssetCooker Cooker,string Input,string Directory,string ProjectDirectory,IList<string>?Messages){
+    private static IReadOnlyList<string> CookInto(IAssetCooker Cooker,string Input,string Directory,string ProjectDirectory,IList<string>?Messages,string?ContentDirectory){
         System.IO.Directory.CreateDirectory(Directory);
-        var Result=Cooker.Cook(new CookRequest(Input,Directory,Path.GetFullPath(ProjectDirectory)));
+        var Result=Cooker.Cook(new CookRequest(Input,Directory,Path.GetFullPath(ProjectDirectory)){ContentDirectory=ContentDirectory});
         if(!Result.Succeeded){
             throw new CookFailedException(Cooker.Name,Result.Messages);
         }

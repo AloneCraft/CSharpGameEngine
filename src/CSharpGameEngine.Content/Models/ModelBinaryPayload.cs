@@ -1,113 +1,74 @@
 using System.Buffers.Binary;
-using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
 namespace CSharpGameEngine.Content.Models;
 /// <summary>固定スキーマのバイナリープロジェクション。JSONはメモリ上のレコード構築用アダプターとしてのみ使用し、通信形式には使わない。</summary>
 internal static class ModelBinaryPayload {
     private static readonly UTF8Encoding Utf8=new(false,true);
-    private static readonly JsonSerializerOptions ShapeOptions=new() { IncludeFields=true,IgnoreReadOnlyProperties=true,TypeInfoResolver=new DefaultJsonTypeInfoResolver() };
-    private static readonly ConcurrentDictionary<Type,JsonPropertyInfo[]>Members=new();
-    private static JsonPropertyInfo[]Shape(Type Type)=>Members.GetOrAdd(Type,Type=>{
-        if(Type.Namespace!="CSharpGameEngine.Content.Models"&&Type!=typeof(System.Numerics.Vector2)&&Type!=typeof(System.Numerics.Vector3)&&Type!=typeof(System.Numerics.Vector4)&&Type!=typeof(System.Numerics.Quaternion)&&Type!=typeof(System.Numerics.Matrix4x4)){
-            throw new InvalidDataException($"Unsupported model scalar or record: {Type.FullName}.");
-        }
-        var Properties=ShapeOptions.GetTypeInfo(Type).Properties.Where(Property=>Property.Get is not null&&Property.Set is not null);
-        if(Type==typeof(System.Numerics.Matrix4x4)){ Properties=Properties.Where(Property=>Property.Name.Length==3&&Property.Name[0]=='M'&&Property.Name[1] is >= '1' and <= '4'&&Property.Name[2] is >= '1' and <= '4'); }
-        else if(Type.Namespace=="System.Numerics"){ Properties=Properties.Where(Property=>Property.Name is "X" or "Y" or "Z" or "W"); }
-        return Properties.OrderBy(Property=>Property.Name,StringComparer.Ordinal).ToArray();
-    });
     internal static void Write(BinaryWriter Writer,Type Type,JsonElement Value,int MaximumBytes){
         if(Writer.BaseStream.Position>MaximumBytes){ throw new InvalidDataException("IMP803: model payload exceeds its configured bound."); }
-        var Underlying=Nullable.GetUnderlyingType(Type);
-        if(!Type.IsValueType||Underlying is not null){
+        var Shape=ModelBinarySchema.Get(Type);
+        if(Shape.HasPresence){
             var Present=Value.ValueKind!=JsonValueKind.Null;
             Writer.Write(Present);
             if(!Present){ return; }
-            Type=Underlying??Type;
         }
-        if(Type.IsEnum){ Type=Enum.GetUnderlyingType(Type); }
-        if(Type==typeof(float)){
+        if(Shape.Kind==ModelBinaryKind.Single){
             var Number=Value.GetSingle();
             if(!float.IsFinite(Number)){ throw new InvalidDataException("IMP102: nonfinite scalar."); }
             Writer.Write(Number==0f?0f:Number);return;
         }
-        if(Type==typeof(int)){ Writer.Write(Value.GetInt32());return; }
-        if(Type==typeof(uint)){ Writer.Write(Value.GetUInt32());return; }
-        if(Type==typeof(ushort)){ Writer.Write(Value.GetUInt16());return; }
-        if(Type==typeof(byte)){ Writer.Write(Value.GetByte());return; }
-        if(Type==typeof(bool)){ Writer.Write(Value.GetBoolean());return; }
-        if(Type==typeof(Int128)){
+        if(Shape.Kind==ModelBinaryKind.Int32){ Writer.Write(Value.GetInt32());return; }
+        if(Shape.Kind==ModelBinaryKind.UInt32){ Writer.Write(Value.GetUInt32());return; }
+        if(Shape.Kind==ModelBinaryKind.UInt16){ Writer.Write(Value.GetUInt16());return; }
+        if(Shape.Kind==ModelBinaryKind.Byte){ Writer.Write(Value.GetByte());return; }
+        if(Shape.Kind==ModelBinaryKind.Boolean){ Writer.Write(Value.GetBoolean());return; }
+        if(Shape.Kind==ModelBinaryKind.Int128){
             Span<byte>Bytes=stackalloc byte[16];
             BinaryPrimitives.WriteInt128LittleEndian(Bytes,Int128.Parse(Value.GetRawText(),CultureInfo.InvariantCulture));
             Writer.Write(Bytes);return;
         }
-        if(Type==typeof(string)){ WriteText(Writer,Value.GetString()!,MaximumBytes);return; }
-        if(Type.IsGenericType&&Type.GetGenericTypeDefinition()==typeof(ImmutableArray<>)){
+        if(Shape.Kind==ModelBinaryKind.Text){ WriteText(Writer,Value.GetString()!,MaximumBytes);return; }
+        if(Shape.Kind==ModelBinaryKind.Array){
             Writer.Write(Value.GetArrayLength());
-            var ElementType=Type.GetGenericArguments()[0];
+            var ElementType=Shape.ElementType!;
             foreach(var Element in Value.EnumerateArray()){ Write(Writer,ElementType,Element,MaximumBytes); }
             return;
         }
-        if(Type.IsGenericType&&Type.GetGenericTypeDefinition()==typeof(ImmutableSortedDictionary<,>)&&Type.GetGenericArguments()[0]==typeof(string)){
-            var Properties=Value.EnumerateObject().OrderBy(Property=>Property.Name,StringComparer.Ordinal).ToArray();
-            Writer.Write(Properties.Length);
-            var ValueType=Type.GetGenericArguments()[1];
-            foreach(var Property in Properties){ WriteText(Writer,Property.Name,MaximumBytes);Write(Writer,ValueType,Property.Value,MaximumBytes); }
-            return;
-        }
-        foreach(var Property in Shape(Type)){ Write(Writer,Property.PropertyType,Value.GetProperty(Property.Name),MaximumBytes); }
+        foreach(var Property in Shape.Members){ Write(Writer,Property.PropertyType,Value.GetProperty(Property.Name),MaximumBytes); }
     }
     internal static void Read(BinaryReader Reader,Utf8JsonWriter Writer,Type Type,int Depth){
         if(Depth>64){ throw new InvalidDataException("IMP803: model nesting exceeds its bound."); }
-        var Underlying=Nullable.GetUnderlyingType(Type);
-        if(!Type.IsValueType||Underlying is not null){
+        var Shape=ModelBinarySchema.Get(Type);
+        if(Shape.HasPresence){
             if(!ReadBoolean(Reader)){ Writer.WriteNullValue();return; }
-            Type=Underlying??Type;
         }
-        if(Type.IsEnum){ Type=Enum.GetUnderlyingType(Type); }
-        if(Type==typeof(float)){
+        if(Shape.Kind==ModelBinaryKind.Single){
             var Number=Reader.ReadSingle();
             if(!float.IsFinite(Number)){ throw new InvalidDataException("IMP102: nonfinite scalar."); }
             Writer.WriteNumberValue(Number);return;
         }
-        if(Type==typeof(int)){ Writer.WriteNumberValue(Reader.ReadInt32());return; }
-        if(Type==typeof(uint)){ Writer.WriteNumberValue(Reader.ReadUInt32());return; }
-        if(Type==typeof(ushort)){ Writer.WriteNumberValue(Reader.ReadUInt16());return; }
-        if(Type==typeof(byte)){ Writer.WriteNumberValue(Reader.ReadByte());return; }
-        if(Type==typeof(bool)){ Writer.WriteBooleanValue(ReadBoolean(Reader));return; }
-        if(Type==typeof(Int128)){
+        if(Shape.Kind==ModelBinaryKind.Int32){ Writer.WriteNumberValue(Reader.ReadInt32());return; }
+        if(Shape.Kind==ModelBinaryKind.UInt32){ Writer.WriteNumberValue(Reader.ReadUInt32());return; }
+        if(Shape.Kind==ModelBinaryKind.UInt16){ Writer.WriteNumberValue(Reader.ReadUInt16());return; }
+        if(Shape.Kind==ModelBinaryKind.Byte){ Writer.WriteNumberValue(Reader.ReadByte());return; }
+        if(Shape.Kind==ModelBinaryKind.Boolean){ Writer.WriteBooleanValue(ReadBoolean(Reader));return; }
+        if(Shape.Kind==ModelBinaryKind.Int128){
             var Bytes=Reader.ReadBytes(16);
             if(Bytes.Length!=16){ throw new EndOfStreamException(); }
             Writer.WriteRawValue(BinaryPrimitives.ReadInt128LittleEndian(Bytes).ToString(CultureInfo.InvariantCulture));return;
         }
-        if(Type==typeof(string)){ Writer.WriteStringValue(ReadText(Reader));return; }
-        if(Type.IsGenericType&&Type.GetGenericTypeDefinition()==typeof(ImmutableArray<>)){
+        if(Shape.Kind==ModelBinaryKind.Text){ Writer.WriteStringValue(ReadText(Reader));return; }
+        if(Shape.Kind==ModelBinaryKind.Array){
             var Count=ReadCount(Reader);
-            var ElementType=Type.GetGenericArguments()[0];
+            var ElementType=Shape.ElementType!;
             Writer.WriteStartArray();
             for(var Index=0;Index<Count;Index++){ Read(Reader,Writer,ElementType,Depth+1); }
             Writer.WriteEndArray();return;
         }
-        if(Type.IsGenericType&&Type.GetGenericTypeDefinition()==typeof(ImmutableSortedDictionary<,>)&&Type.GetGenericArguments()[0]==typeof(string)){
-            var Count=ReadCount(Reader);
-            var ValueType=Type.GetGenericArguments()[1];
-            string?Previous=null;
-            Writer.WriteStartObject();
-            for(var Index=0;Index<Count;Index++){
-                var Key=ReadText(Reader);
-                if(Previous is not null&&string.CompareOrdinal(Previous,Key)>=0){ throw new InvalidDataException("Noncanonical model dictionary order."); }
-                Writer.WritePropertyName(Key);
-                Read(Reader,Writer,ValueType,Depth+1);
-                Previous=Key;
-            }
-            Writer.WriteEndObject();return;
-        }
         Writer.WriteStartObject();
-        foreach(var Property in Shape(Type)){
+        foreach(var Property in Shape.Members){
             Writer.WritePropertyName(Property.Name);
             Read(Reader,Writer,Property.PropertyType,Depth+1);
         }

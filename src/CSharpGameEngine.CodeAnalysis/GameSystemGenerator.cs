@@ -154,7 +154,9 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 .Select(static(Data,_)=>(Data.Left.Left,Data.Left.Right,Data.Right))
                 .Combine(Gate);
 
-        Context.RegisterSourceOutput(Combined,static(Spc,Source)=>{
+        var WithSnapshotSchemas=Combined.Combine(Context.CompilationProvider).Select(static(Pair,_)=>
+            (Pair.Left.Sources,Pair.Left.Gate,Schemas:SnapshotSchemaMap.Build(Pair.Right,Pair.Left.Sources.Systems,Pair.Left.Sources.SceneDeclarations,Pair.Left.Sources.RuntimeComponentPairs)));
+        Context.RegisterSourceOutput(WithSnapshotSchemas,static(Spc,Source)=>{
             if(!Source.Gate.HasRuntimeMarker){
                 return;
             }
@@ -236,7 +238,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
 
             GameSystemTypesEmitter.Emit(Spc,Registry);
             GameSystemWorldEmitter.Emit(Spc,Registry);
-            GameSystemSnapshotEmitter.Emit(Spc,Registry);
+            GameSystemSnapshotEmitter.Emit(Spc,Registry,Source.Schemas);
             SpatialWorldEmitter.Emit(Spc,Registry);
             GameSystemLoopEmitter.Emit(Spc,Registry);
             GameSystemScheduleEmitter.Emit(Spc,Schedule);

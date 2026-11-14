@@ -129,7 +129,7 @@ public static class PhysicsShapeCooker {
                 &&ReadString(Root,"shapeKind")==Shape.Kind.ToString()
                 &&ReadString(Root,"shapeFingerprint")==ExpectedShapeFingerprint
                 &&ReadString(Root,"schema")=="physics-shape-artifact-1"
-                &&ReadString(Root,"scalar")=="LogicalScalar-Q64.64";
+                &&ReadString(Root,"scalar")==LogicalNumeric.CacheProfileId;
         }
         catch(Exception Exception)when(Exception is IOException or UnauthorizedAccessException or InvalidDataException
             or JsonException or KeyNotFoundException or InvalidOperationException){
@@ -148,7 +148,7 @@ public static class PhysicsShapeCooker {
             Writer.WriteString("shapeKind",Asset.Kind.ToString());
             Writer.WriteString("shapeFingerprint",Asset.Fingerprint);
             Writer.WriteString("schema","physics-shape-artifact-1");
-            Writer.WriteString("scalar","LogicalScalar-Q64.64");
+            Writer.WriteString("scalar",LogicalNumeric.CacheProfileId);
             Writer.WriteEndObject();
         }
         Stream.Flush(true);

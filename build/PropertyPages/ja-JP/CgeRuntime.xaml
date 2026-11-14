@@ -1,0 +1,33 @@
+<Rule Name="CgeRuntime" DisplayName="C# Game Engine" PageTemplate="generic" Order="500" xmlns="http://schemas.microsoft.com/build/2009/properties">
+  <Rule.DataSource>
+    <DataSource Persistence="ProjectFile" SourceOfDefaultValue="AfterContext" HasConfigurationCondition="False" />
+  </Rule.DataSource>
+  <Rule.Categories>
+    <Category Name="Numerics" DisplayName="位置とシミュレーション" />
+    <Category Name="Rendering" DisplayName="描画" />
+  </Rule.Categories>
+  <EnumProperty Name="CgeNumericMode" DisplayName="数値の型" Description="位置とシミュレーションの計算・保存に使う型を選びます。" Category="Numerics">
+    <EnumValue Name="Fixed" DisplayName="固定小数点" />
+    <EnumValue Name="Float" DisplayName="float（32ビット）" />
+    <EnumValue Name="Double" DisplayName="double（64ビット）" />
+  </EnumProperty>
+  <EnumProperty Name="CgeFixedBits" DisplayName="全体のビット数" Description="符号と小数部を含む、値全体の大きさです。" Category="Numerics">
+    <EnumValue Name="64" DisplayName="64" />
+    <EnumValue Name="128" DisplayName="128" />
+    <EnumValue Name="192" DisplayName="192" />
+    <EnumProperty.Metadata>
+      <NameValuePair Name="DependsOn" Value="CgeRuntime::CgeNumericMode" />
+      <NameValuePair Name="VisibilityCondition" Value="(has-evaluated-value &quot;CgeRuntime&quot; &quot;CgeNumericMode&quot; &quot;Fixed&quot;)" />
+    </EnumProperty.Metadata>
+  </EnumProperty>
+  <IntProperty Name="CgeFractionalBits" DisplayName="小数に使うビット数" MinValue="0" MaxValue="190" Description="0から全体のビット数−2まで。省略時は全体の半分です。増やすと細かい値を表せますが、扱える範囲が小さくなります。" Category="Numerics">
+    <IntProperty.Metadata>
+      <NameValuePair Name="DependsOn" Value="CgeRuntime::CgeNumericMode;CgeRuntime::CgeFixedBits" />
+      <NameValuePair Name="VisibilityCondition" Value="(has-evaluated-value &quot;CgeRuntime&quot; &quot;CgeNumericMode&quot; &quot;Fixed&quot;)" />
+    </IntProperty.Metadata>
+  </IntProperty>
+  <EnumProperty Name="CgeDepthMapping" DisplayName="透視表示の深度" Description="数値の型と独立して選べます。Identityは通常の透視表示の深度を使い、対数は広い距離の範囲で深度の精度を保ちます。" Category="Rendering">
+    <EnumValue Name="Logarithmic" DisplayName="対数（Logarithmic）" />
+    <EnumValue Name="Identity" DisplayName="変えない（Identity）" />
+  </EnumProperty>
+</Rule>

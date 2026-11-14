@@ -23,10 +23,22 @@ public sealed class AssetAuthoringServiceTests:IDisposable {
         Assert.Equal(AssetAuthoringState.Ready,Ready.State);
         Assert.Equal(Ready.AssetId,Reloaded.AssetId);
         Assert.Equal("Assets/Ship.glb",Ready.SourceUri);
-        Assert.Equal("SharpGLTF",Ready.Importer);
+        Assert.Equal("cge.gltf",Ready.Importer);
         Assert.Equal("asset://"+Ready.AssetId,Ready.AssetUri);
         Assert.Equal(SourceHash,Hash(File.ReadAllBytes(Source)));
-        Assert.Equal(File.ReadAllBytes(Source+".meta"),AssetMetadata.Create(AssetId.Parse(Ready.AssetId),"Assets/Ship.glb","SharpGLTF").ToCanonicalUtf8());
+        Assert.Equal(File.ReadAllBytes(Source+".meta"),AssetMetadata.Create(AssetId.Parse(Ready.AssetId),"Assets/Ship.glb","cge.gltf").ToCanonicalUtf8());
+    }
+    [Theory]
+    [InlineData(".glb")]
+    [InlineData(".gltf")]
+    public void LegacyGltfImporterMigrationPreservesIdentityOptionsAndSource(string Extension){
+        var Source=CreateSource("Assets/Ship"+Extension,[1,2,3]);var Asset=new AssetId(StableId.New());
+        var Previous=AssetMetadata.Create(Asset,"Assets/Ship"+Extension,"SharpGLTF",[new("retained","setting")]).ToCanonicalUtf8();File.WriteAllBytes(Source+".meta",Previous);
+        var Request=CreateRequest(AssetAuthoringCommand.MigrateLegacyMetadata,Source);Request.ExpectedMetadataSha256=new string('0',64);
+        Assert.Equal("ASSET_METADATA_CONFLICT",Assert.Single(AssetAuthoringService.Execute(Request).Diagnostics).Code);Assert.Equal(Previous,File.ReadAllBytes(Source+".meta"));Request.ExpectedMetadataSha256=Hash(Previous);
+        var Result=AssetAuthoringService.Execute(Request);Assert.True(Result.Success,string.Join("; ",Result.Diagnostics.Select(static Diagnostic=>Diagnostic.Message)));
+        Assert.Equal(Asset.ToString(),Result.AssetId);Assert.Equal("cge.gltf",Result.Importer);Assert.Equal("setting",Assert.Single(Result.Options).Value);Assert.Equal(new byte[]{1,2,3},File.ReadAllBytes(Source));
+        Assert.True(AssetMetadata.TryParse(File.ReadAllBytes(Source+".meta"),out var Metadata,out _));Assert.Equal(Asset,Metadata!.AssetId);Assert.Equal("cge.gltf",Metadata.Importer);
     }
 
     [Fact]

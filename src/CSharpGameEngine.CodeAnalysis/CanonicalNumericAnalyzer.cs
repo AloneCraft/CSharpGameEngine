@@ -12,7 +12,8 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
         Context.EnableConcurrentExecution();
         Context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         Context.RegisterCompilationStartAction(static StartContext=>{
-            if(!IsProductCompilation(StartContext.Compilation.AssemblyName)){ return; }
+            var Configured=StartContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.CgeNumericMode",out var Mode)&&!string.IsNullOrEmpty(Mode);
+            if(!Configured&&!IsProductCompilation(StartContext.Compilation.AssemblyName)){ return; }
             StartContext.RegisterSyntaxNodeAction(AnalyzePredefinedType,SyntaxKind.PredefinedType);
             StartContext.RegisterSyntaxNodeAction(AnalyzeIdentifierName,SyntaxKind.IdentifierName);
             StartContext.RegisterSyntaxNodeAction(AnalyzeNumericLiteral,SyntaxKind.NumericLiteralExpression);
@@ -25,7 +26,7 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
         var Syntax=(PredefinedTypeSyntax)Context.Node;
         if(IsAdapter(Context,Syntax)){ return; }
         var Type=Context.SemanticModel.GetTypeInfo(Syntax,Context.CancellationToken).Type;
-        if(!ContainsForbiddenType(Type,out var Forbidden)){ return; }
+        if(!ContainsForbiddenType(Type,Context,out var Forbidden)){ return; }
         Context.ReportDiagnostic(Diagnostic.Create(CanonicalNumericDiagnostics.ForbiddenNumericType,Syntax.GetLocation(),Forbidden));
     }
     private static void AnalyzeIdentifierName(SyntaxNodeAnalysisContext Context){
@@ -37,14 +38,14 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
             ITypeSymbol TypeSymbol=>TypeSymbol,
             _=>null,
         };
-        if(!ContainsForbiddenType(Type,out var Forbidden)){ return; }
+        if(!ContainsForbiddenType(Type,Context,out var Forbidden)){ return; }
         Context.ReportDiagnostic(Diagnostic.Create(CanonicalNumericDiagnostics.ForbiddenNumericType,Syntax.GetLocation(),Forbidden));
     }
     private static void AnalyzeInferredExpression(SyntaxNodeAnalysisContext Context){
         var Syntax=(ExpressionSyntax)Context.Node;
         if(IsAdapter(Context,Syntax)||IsProjectedExternalMember(Context,Syntax)||HasExplicitForbiddenSource(Context,Syntax)){ return; }
         var Type=Context.SemanticModel.GetTypeInfo(Syntax,Context.CancellationToken).Type;
-        if(!ContainsForbiddenType(Type,out var Forbidden)){ return; }
+        if(!ContainsForbiddenType(Type,Context,out var Forbidden)){ return; }
         Context.ReportDiagnostic(Diagnostic.Create(CanonicalNumericDiagnostics.ForbiddenNumericType,Syntax.GetLocation(),Forbidden));
     }
     private static bool IsProjectedExternalMember(SyntaxNodeAnalysisContext Context,ExpressionSyntax Expression){
@@ -72,7 +73,7 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
                 };
             }
             else if(Syntax is LiteralExpressionSyntax Literal){ Type=Context.SemanticModel.GetTypeInfo(Literal,Context.CancellationToken).Type; }
-            if(ContainsForbiddenType(Type,out _)){ return true; }
+            if(ContainsForbiddenType(Type,Context,out _)){ return true; }
         }
         return false;
     }
@@ -80,7 +81,7 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
         var Syntax=(LiteralExpressionSyntax)Context.Node;
         if(IsAdapter(Context,Syntax)){ return; }
         var Type=Context.SemanticModel.GetTypeInfo(Syntax,Context.CancellationToken).Type;
-        if(!ContainsForbiddenType(Type,out var Forbidden)){ return; }
+        if(!ContainsForbiddenType(Type,Context,out var Forbidden)){ return; }
         Context.ReportDiagnostic(Diagnostic.Create(CanonicalNumericDiagnostics.ForbiddenNumericType,Syntax.GetLocation(),Forbidden));
     }
     private static bool IsAdapter(ISymbol? Symbol){
@@ -111,16 +112,20 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
         var Namespace=Type.ContainingNamespace?.ToDisplayString()??string.Empty;
         return Namespace.StartsWith("System.Windows",StringComparison.Ordinal)||Namespace.StartsWith("System.Drawing",StringComparison.Ordinal);
     }
-    private static bool ContainsForbiddenType(ITypeSymbol? Type,out string Forbidden){
+    private static bool ContainsForbiddenType(ITypeSymbol? Type,SyntaxNodeAnalysisContext Context,out string Forbidden){
+        var DoubleMode=Context.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.CgeNumericMode",out var Mode)&&string.Equals(Mode,"Double",StringComparison.OrdinalIgnoreCase);
+        return ContainsForbiddenType(Type,DoubleMode,out Forbidden);
+    }
+    private static bool ContainsForbiddenType(ITypeSymbol? Type,bool DoubleMode,out string Forbidden){
         Forbidden=string.Empty;
         if(Type is null){ return false; }
-        if(Type.SpecialType==SpecialType.System_Double){ Forbidden="double";return true; }
+        if(Type.SpecialType==SpecialType.System_Double&&!DoubleMode){ Forbidden="double";return true; }
         if(Type.SpecialType==SpecialType.System_Decimal){ Forbidden="decimal";return true; }
         if(Type.ToDisplayString()=="System.Numerics.BigInteger"){ Forbidden="BigInteger";return true; }
-        if(Type is IArrayTypeSymbol Array){ return ContainsForbiddenType(Array.ElementType,out Forbidden); }
-        if(Type is IPointerTypeSymbol Pointer){ return ContainsForbiddenType(Pointer.PointedAtType,out Forbidden); }
+        if(Type is IArrayTypeSymbol Array){ return ContainsForbiddenType(Array.ElementType,DoubleMode,out Forbidden); }
+        if(Type is IPointerTypeSymbol Pointer){ return ContainsForbiddenType(Pointer.PointedAtType,DoubleMode,out Forbidden); }
         if(Type is INamedTypeSymbol Named){
-            foreach(var Argument in Named.TypeArguments){ if(ContainsForbiddenType(Argument,out Forbidden)){ return true; } }
+            foreach(var Argument in Named.TypeArguments){ if(ContainsForbiddenType(Argument,DoubleMode,out Forbidden)){ return true; } }
         }
         return false;
     }

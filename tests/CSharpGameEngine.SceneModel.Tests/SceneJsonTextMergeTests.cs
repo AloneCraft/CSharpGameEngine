@@ -22,6 +22,54 @@ public sealed class SceneJsonTextMergeTests {
     }
 
     [Fact]
+    public void ThreeWayMergeKeepsUneditedPrecisionAndAppliesTheEdit(){
+        const string Old="{\"schemaVersion\":3,\"root\":{\"id\":\"root\",\"components\":[{\"type\":\"T\",\"members\":{\"angle\":0.100000000000000000005,\"position\":1}}]}}";
+        const string Baseline="{\"schemaVersion\":3,\"root\":{\"id\":\"root\",\"components\":[{\"type\":\"T\",\"members\":{\"angle\":0.1,\"position\":1}}]}}";
+        var Edited=Baseline.Replace("\"position\":1","\"position\":2");
+        Assert.Equal(Old.Replace("\"position\":1","\"position\":2"),SceneJsonTextMerge.Merge(Old,Baseline,Edited));
+        var ChangedAngle=Edited.Replace("\"angle\":0.1","\"angle\":0.2");
+        Assert.Equal(Old.Replace("0.100000000000000000005","0.2").Replace("\"position\":1","\"position\":2"),SceneJsonTextMerge.Merge(Old,Baseline,ChangedAngle));
+    }
+    [Fact]
+    public void ThreeWayMergeDoesNotPreserveNumbersAcrossDifferentNodeIdentities(){
+        const string Old="{\"schemaVersion\":3,\"root\":{\"id\":\"old\",\"value\":0.100000000000000000005}}";
+        const string Baseline="{\"schemaVersion\":3,\"root\":{\"id\":\"old\",\"value\":0.1}}";
+        const string Replaced="{\"schemaVersion\":3,\"root\":{\"id\":\"new\",\"value\":0.1}}";
+        Assert.Equal(Replaced,SceneJsonTextMerge.Merge(Old,Baseline,Replaced));
+    }
+
+    [Fact]
+    public void ThreeWayMergeMatchesReorderedAndAddedNodesByIdentity(){
+        const string Old="{\"schemaVersion\":3,\"root\":{\"children\":[{\"id\":\"a\",\"value\":0.100000000000000000005},{\"id\":\"b\",\"value\":0.200000000000000000005}]}}";
+        const string Baseline="{\"schemaVersion\":3,\"root\":{\"children\":[{\"id\":\"a\",\"value\":0.1},{\"id\":\"b\",\"value\":0.2}]}}";
+        const string Edited="{\"schemaVersion\":3,\"root\":{\"children\":[{\"id\":\"b\",\"value\":0.2},{\"id\":\"new\",\"value\":0.1},{\"id\":\"a\",\"value\":0.1}]}}";
+        var Result=SceneJsonTextMerge.Merge(Old,Baseline,Edited);
+        Assert.Contains("\"id\":\"b\",\"value\":0.200000000000000000005",Result);
+        Assert.Contains("\"id\":\"new\",\"value\":0.1",Result);
+        Assert.Contains("\"id\":\"a\",\"value\":0.100000000000000000005",Result);
+        var Removed=Edited.Replace("{\"id\":\"a\",\"value\":0.1},","").Replace(",{\"id\":\"a\",\"value\":0.1}","");
+        Assert.Contains("\"id\":\"b\",\"value\":0.200000000000000000005",SceneJsonTextMerge.Merge(Old,Baseline,Removed));
+    }
+
+    [Fact]
+    public void ThreeWayMergeDoesNotTransferPrecisionBetweenDuplicateIdentities(){
+        const string Old="{\"schemaVersion\":3,\"root\":{\"components\":[{\"type\":\"T\",\"value\":0.100000000000000000005},{\"type\":\"T\",\"value\":0.200000000000000000005}]}}";
+        const string Baseline="{\"schemaVersion\":3,\"root\":{\"components\":[{\"type\":\"T\",\"value\":0.1},{\"type\":\"T\",\"value\":0.2}]}}";
+        const string Edited="{\"schemaVersion\":3,\"root\":{\"components\":[{\"type\":\"T\",\"value\":0.2},{\"type\":\"T\",\"value\":0.1}]}}";
+        Assert.Equal(Edited,SceneJsonTextMerge.Merge(Old,Baseline,Edited));
+    }
+
+    [Fact]
+    public void ThreeWayMergeKeepsPrecisionWhenNodeMovesToAnotherParent(){
+        const string Old="{\"schemaVersion\":3,\"root\":{\"id\":\"root\",\"children\":[{\"id\":\"a\",\"children\":[{\"id\":\"moved\",\"value\":0.100000000000000000005}]},{\"id\":\"b\"}]}}";
+        const string Baseline="{\"schemaVersion\":3,\"root\":{\"id\":\"root\",\"children\":[{\"id\":\"a\",\"children\":[{\"id\":\"moved\",\"value\":0.1}]},{\"id\":\"b\",\"children\":[]}]}}";
+        const string Edited="{\"schemaVersion\":3,\"root\":{\"id\":\"root\",\"children\":[{\"id\":\"a\",\"children\":[]},{\"id\":\"b\",\"children\":[{\"id\":\"moved\",\"value\":0.1}]}]}}";
+        var Result=SceneJsonTextMerge.Merge(Old,Baseline,Edited);
+        Assert.Contains("\"id\":\"moved\",\"value\":0.100000000000000000005",Result);
+        Assert.DoesNotContain("\"id\":\"moved\",\"value\":0.100000000000000000005",SceneJsonTextMerge.Merge(Old,Baseline,Edited.Replace("\"value\":0.1","\"value\":0.2")));
+    }
+
+    [Fact]
     public void AddedChild_ReplacesOnlyTheChangedArray(){
         var Edited=Canonical.Replace("\"children\": []","\"children\": [\n      { \"name\": \"Box\" }\n    ]");
         var Merged=SceneJsonTextMerge.Merge(HandFormatted,Edited);

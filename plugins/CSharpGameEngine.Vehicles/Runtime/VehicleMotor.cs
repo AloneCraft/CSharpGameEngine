@@ -64,7 +64,7 @@ public sealed class VehicleMotor {
         var Reset=Intent.ResetRequested;
         Intent.ResetRequested=false;
         if(Car.FlipCheckSeconds>LogicalScalar.Zero&&DeltaSeconds>LogicalScalar.Zero){
-            var Interval=(int)Math.Max(1L,(long)((Car.FlipCheckSeconds/DeltaSeconds+VehicleChaos.Half).Raw>>64));
+            var Interval=(int)Math.Clamp(LogicalNumeric.FloorToInt64(Car.FlipCheckSeconds/DeltaSeconds+VehicleChaos.Half),1L,int.MaxValue);
             State.FlipCheckTicks++;
             if(State.FlipCheckTicks>=Interval){
                 State.FlipCheckTicks=0;
@@ -442,8 +442,7 @@ public sealed class VehicleMotor {
         }
         // UE は回転の角を FMath::Modf で 1 回転の内に戻す(符号は残る)。
         var Angle=State.AngularPosition+State.Omega*DeltaSeconds;
-        var Turns=Angle.Raw/LogicalMath.TwoPi.Raw;
-        State.AngularPosition=Angle-LogicalMath.TwoPi*LogicalScalar.FromInt64((long)Turns);
+        State.AngularPosition=Angle%LogicalMath.TwoPi;
         State.SlipMagnitude=State.Omega*Radius-Forward;
         State.SkidMagnitude=Side;
         if(!Contact){

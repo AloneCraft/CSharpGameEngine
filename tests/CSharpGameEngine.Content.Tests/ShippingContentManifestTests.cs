@@ -7,6 +7,19 @@ namespace CSharpGameEngine.Content.Tests;
 public sealed class ShippingContentManifestTests:IDisposable {
     private static readonly StableId Namespace=StableId.Parse("816335c3-34e9-52e5-8aa5-1850fd4a7184");
     private readonly string Root=Path.Combine(Path.GetTempPath(),"CgeShippingManifestTests",Guid.NewGuid().ToString("N"));
+    [Fact]
+    public void CanonicalVersionOneWireRemainsCompatibleWithoutJsonReflection(){
+        var Hash=new string('1',64);var SourceHash=new string('2',64);var OptionsHash=new string('3',64);var Address=new string('4',64);
+        const string Asset="00000000-0000-5000-8000-000000000001";
+        var Reference=new AssetArtifactReference(new AssetKey(AssetId.Parse(Asset),null),Hash256.Parse(Hash));
+        var Provenance=new ArtifactProvenance("tests/1","fixture.glb",Hash256.Parse(SourceHash),"test",Hash256.Parse(OptionsHash));
+        var Manifest=new ShippingContentManifest([Reference],[new(Reference,Hash256.Parse(Address),ContentArtifactKind.Mesh,Provenance,[],1)]);
+        var Expected=Encoding.UTF8.GetBytes($$"""{"schemaVersion":1,"roots":[{"asset":"{{Asset}}","contentHash":"{{Hash}}"}],"artifacts":[{"asset":"{{Asset}}","contentHash":"{{Hash}}","address":"{{Address}}","kind":1,"envelopeByteLength":1,"provenance":{"toolVersion":"tests/1","sourceUri":"fixture.glb","sourceHash":"{{SourceHash}}","importerIdentity":"test","optionsHash":"{{OptionsHash}}"},"dependencies":[]}]}""");
+        Assert.False(System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault);
+        Assert.Equal(Expected,ShippingContentManifestCodec.Write(Manifest));
+        Assert.True(ShippingContentManifestCodec.TryRead(Expected,out var Read,out var Error),Error.Message);
+        Assert.Equal(Manifest.Fingerprint,Read!.Fingerprint);
+    }
 
     [Fact]
     public async Task BuilderAndCodec_UseOnlyTheExactReachableClosureDeterministically(){

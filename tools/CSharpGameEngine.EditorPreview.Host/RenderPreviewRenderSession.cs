@@ -263,7 +263,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
                     WorldGrid=Source.WorldGrid is{ }Grid
                         ?new StageWorldGrid(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,
                             new Vector3(Grid.GridColor[0],Grid.GridColor[1],Grid.GridColor[2]),
-                            new Vector3(Grid.SubGridColor[0],Grid.SubGridColor[1],Grid.SubGridColor[2]))
+                            new Vector3(Grid.SubGridColor[0],Grid.SubGridColor[1],Grid.SubGridColor[2]),Grid.AnchorToObject)
                         :null,
                 };
             }
@@ -294,9 +294,9 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         if(!string.IsNullOrEmpty(Scene.StaticAssetPath)){
             List<StageMeshCreateInfo>MeshList=[.. Meshes];
             List<StageMaterialCreateInfo>MaterialList=[.. Materials];
-            StaticAsset=ReusableStatic is not null&&ReusableStatic.Matches(Scene.StaticAssetPath)
+            StaticAsset=ReusableStatic is not null&&ReusableStatic.Matches(Scene.StaticModel)
                 ?ReusableStatic.AppendTo(MeshList,MaterialList)
-                :RenderPreviewStaticAsset.Load(Scene.StaticAssetPath,MeshList,MaterialList);
+                :RenderPreviewStaticAsset.Load(Scene.StaticModel,MeshList,MaterialList);
             List<StageObjectCreateInfo>ObjectList=[.. Objects];
             foreach(var Placement in StaticAsset.ObjectPlacements){
                 ObjectList.Add(new StageObjectCreateInfo { MeshIndex=Placement.MeshIndex,MaterialIndex=Placement.MaterialIndex });

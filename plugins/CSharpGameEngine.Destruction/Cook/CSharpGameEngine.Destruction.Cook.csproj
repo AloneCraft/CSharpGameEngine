@@ -7,6 +7,7 @@
     game's reader are the same code.
   -->
   <PropertyGroup>
+    <CgeNumericProfileProject>true</CgeNumericProfileProject>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>CSharpGameEngine.Destruction.Cook</AssemblyName>
     <RootNamespace>CSharpGameEngine.Destruction.Cook</RootNamespace>

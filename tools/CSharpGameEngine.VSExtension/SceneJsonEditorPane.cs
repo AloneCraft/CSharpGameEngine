@@ -205,8 +205,11 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
                 // M0095 3-7：ソリューションのロード中は、プロジェクトがまだ workspace に存在しない場合があります。
                 this.DesignMessage.Text=VsixText.Get("SceneEditorStarting");
                 this.DesignHost.Content??=this.DesignMessage;
+                ActivityLog.LogInformation(nameof(SceneJsonEditorPane),$"Waiting for the scene document in the workspace: '{this.FilePath}'.");
                 await Session.WaitForDocumentAsync(this.FilePath,this.Closing.Token).ConfigureAwait(false);
+                ActivityLog.LogInformation(nameof(SceneJsonEditorPane),$"Scene document found; analyzing: '{this.FilePath}'.");
                 var Models=await Session.AnalyzeFileNowAsync(this.FilePath,this.Closing.Token).ConfigureAwait(false);
+                ActivityLog.LogInformation(nameof(SceneJsonEditorPane),$"Scene analysis completed with {Models.Count} model(s): '{this.FilePath}'.");
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 if(this.Closed){ return; }
                 if(Models.Count!=1){

@@ -44,16 +44,16 @@ internal static class EcsPerformanceRawCapture {
                 Last=Created;
             }
             State State=new(World){Enabled=true};
-            HotSystem System=new();
+            GeneratedSystemSet Systems=default;
             FixedTickScheduler Scheduler=new();
             for(int Index=0;Index<WarmupCount;Index++){
-                RunOnce(ref State,ref System,ref Scheduler);
+                RunOnce(ref State,ref Systems,ref Scheduler);
             }
             var Samples=new RawSample[SampleCount];
             for(int Index=0;Index<Samples.Length;Index++){
                 long AllocationStart=GC.GetAllocatedBytesForCurrentThread();
                 long TimestampStart=Stopwatch.GetTimestamp();
-                RunOnce(ref State,ref System,ref Scheduler);
+                RunOnce(ref State,ref Systems,ref Scheduler);
                 long TimestampEnd=Stopwatch.GetTimestamp();
                 long Allocated=GC.GetAllocatedBytesForCurrentThread()-AllocationStart;
                 Samples[Index]=new(
@@ -65,16 +65,17 @@ internal static class EcsPerformanceRawCapture {
             int LastValue=BenchmarkWorldFactory.ReadHot(World,Last);
             int ExpectedLast=checked(EntityCount-1+WarmupCount+SampleCount);
             WorldStatistics Statistics=World.GetStatistics();
-            if(System.Calls!=ExpectedCalls
+            var Calls=Systems.HotSystem.Calls;
+            if(Calls!=ExpectedCalls
                 ||FirstValue!=WarmupCount+SampleCount
                 ||LastValue!=ExpectedLast
                 ||Statistics.AliveEntityCount!=EntityCount
                 ||Statistics.EntitySlotCount!=EntityCount){
                 throw new InvalidDataException(
-                    $"ECS state oracle failed: calls={System.Calls}, first={FirstValue}, last={LastValue}, alive={Statistics.AliveEntityCount}, slots={Statistics.EntitySlotCount}.");
+                    $"ECS state oracle failed: calls={Calls}, first={FirstValue}, last={LastValue}, alive={Statistics.AliveEntityCount}, slots={Statistics.EntitySlotCount}.");
             }
             string StateSha256=Sha256(
-                $"{ComponentTypeCount}|{EntityCount}|{System.Calls}|{FirstValue}|{LastValue}|{Statistics.AliveEntityCount}|{Statistics.EntitySlotCount}");
+                $"{ComponentTypeCount}|{EntityCount}|{Calls}|{FirstValue}|{LastValue}|{Statistics.AliveEntityCount}|{Statistics.EntitySlotCount}");
             var Report=new RawReport(
                 Schema,BuildConfiguration,RuntimeMode(),ComponentTypeCount,
                 $"C{ComponentTypeCount-1}",EntityCount,1,
@@ -108,8 +109,8 @@ internal static class EcsPerformanceRawCapture {
     }
 
     private static void RunOnce(
-        ref State State,ref HotSystem System,ref FixedTickScheduler Scheduler)=>
-        GeneratedGameLoop.RunFrame(ref State,ref System,ref Scheduler,1,60);
+        ref State State,ref GeneratedSystemSet Systems,ref FixedTickScheduler Scheduler)=>
+        GeneratedGameLoop.RunFrame(ref State,ref Systems,ref Scheduler,1,60);
 
     private static (string Sha256,bool ContainsHighWord)ReadGeneratedSource(
         string RepositoryRoot,string Configuration){

@@ -1,16 +1,16 @@
-# 仕様: 閉集合Archetype ECS + `GameSystemGenerator`(属性ゼロ、構造的推論)
+# 仕様: 閉集合Archetype ECS + `GameSystemGenerator`(構造的推論)
 
 このドキュメントは`CSharpGameEngine.Entities`(ランタイム)と`GameSystemGenerator`
 (`CSharpGameEngine.CodeAnalysis`)が実装するECSの仕様を記録する。設計判断の理由と代替案は
 [[ADR-0033-Static-Archetype-Ecs-Migration]]を参照。動的Archetype方式([[ADR-0029-Dynamic-Archetype-Soa-Ecs]])は
 本仕様への移行に伴い削除された。
 
-> Parent specification: [ECS / Runtime](Ecs-Runtime.md). This document remains the lower-level description of the generated archetype/system implementation. Generational entities, unified structural replay, enable/change tracking, deterministic jobs, and generated schedule diagnostics are implemented by the parent contract; schema-fingerprinted snapshots remain specified.
+> Parent specification: [ECS / Runtime](Ecs-Runtime.md). Generational entities, unified structural replay, enable/change tracking, deterministic jobs, generated schedule diagnostics and schema-fingerprinted snapshots are implemented. The parent contract defines current runtime behavior; older API examples below must be checked against it.
 
 ## 概要
 
 ユーザーはComponent型(`struct`)と、`ISystem`を実装するstructの`Update`/`Spawn`メソッドだけを書く。
-**属性は一切使わない**。Entity型・Archetype型・Query・foreach・ゲームループは一切書かない。
+通常のデータの読み書きは引数から判別する。実行順序やサービスなどの追加指定には属性を使う。Entity型・Archetype型・Query・foreach・ゲームループは生成器が用意する。
 `GameSystemGenerator`はメソッド引数の書き方(位置と`ref`/`in`/値渡し)からすべての役割を推論し、
 Archetype型・`World`の生成/移動API・単一のゲームループ(`GeneratedGameLoop`)を生成する。
 
@@ -24,17 +24,11 @@ public struct Position { public float X, Y, Z; }
 public struct Velocity { public float X, Y, Z; }
 public struct MovableTag { }
 
-public readonly struct FrameContext
-{
-    public FrameContext(float deltaTime) { this.DeltaTime = deltaTime; }
-    public float DeltaTime { get; }
-}
-
 internal struct MovementSystem : ISystem
 {
-    public void Update(ref Position position, ref Velocity velocity, ref MovableTag _, in FrameContext frame, ref State state)
+    public void Update(ref Position position, in Velocity velocity, in MovableTag _, ref State state)
     {
-        position.X += velocity.X * frame.DeltaTime;
+        position.X += velocity.X * state.FrameDeltaSeconds;
     }
 }
 ```
@@ -49,20 +43,20 @@ ThirdPersonテンプレート(`Templates/CSharpGameEngine.Templates.ThirdPerson/
 | 位置・渡し方 | 役割 |
 |---|---|
 | 先頭・値渡し・型が`Entity` | Entityスロット(任意。省略可) |
-| 末尾・`ref State` | Stateスロット(`Update`では必須) |
-| それ以外で**`ref`**の非nullable struct | **Component**(Archetypeの構成要素) |
-| それ以外(**`ref`でない**。structは`in`、参照型は値渡し) | **Context**(ゲームループの引数として転送) |
+| 末尾・`ref State` | 実行状態と時間などを受け取る(任意) |
+| それ以外で**`ref`**の非nullable struct | エンティティごとのデータを書き換える |
+| それ以外で**`in`**の非nullable struct | エンティティごとのデータを読み取る |
+| 値渡しの参照型 | ホストや生成済みサービスを受け取る(内部ではContextと呼ぶ) |
 
-Componentは`ref`必須・Contextは`ref`禁止なので、ref-kindだけで曖昧性なく判別できる。
+通常のComponentは`ref`と`in`、共有のサービスは参照型の値渡しで区別する。イベントなどの専用引数はそれぞれの規則を先に適用する。
 
-> **注意**: 0フィールドのタグComponent(`PlayerTag`等)も**`ref`で受ける**必要がある。`in`にすると
-> Contextとして分類され、Archetype一致に参加しなくなる(コンパイルは通るため、サイレント障害になる)。
+> フィールドのないタグも、`in`で読み取るComponentとして指定できる。`in struct`を共有サービスとして扱う旧説明はADR-0077で置き換えられた。
 
 ### メソッドの種類
 
 | メソッド名 | 役割 |
 |---|---|
-| `Update` | Archetypeを登録し、該当phaseのディスパッチ対象になる。戻り値は`void`(ADR-0072。`bool`も受け付ける)、末尾に`ref State`必須。経過時間は`State.FrameDeltaSeconds`/`State.FixedDeltaSeconds` |
+| `Update` | Archetypeを登録し、該当phaseのディスパッチ対象になる。戻り値は`void`(ADR-0072。`bool`も受け付ける)、末尾の`ref State`は任意。経過時間は`State.FrameDeltaSeconds`/`State.FixedDeltaSeconds` |
 | `Spawn` | **Archetype形状の宣言のみ**。ディスパッチされない。戻り値`void`、`ref` Component引数のみ(Entity/State不可) |
 
 `Spawn`は「どの`Update`オーバーロードとも一致しない構成」を成立させるために使う。実例:
@@ -72,7 +66,7 @@ Componentは`ref`必須・Contextは`ref`禁止なので、ref-kindだけで曖�
 ## Componentの認識規則
 
 - 非nullableな`struct`のみ(class・`Nullable<T>`は不可)。
-- マーカー(属性・インターフェース)は不要。`Update`/`Spawn`の`ref`引数として現れた型がComponentになる。
+- マーカー(属性・インターフェース)は不要。`Update`の`ref`/`in`、`Spawn`の`ref`引数として現れた型がComponentになる。
 - どのSystemからも参照されないstructは、宣言されていてもComponentにならない(何も生成されない)。
 - 異なる名前空間に同じ単純名のComponentが2つあると、生成される`ArchetypeNN`のフィールド名が衝突するため
   `SYSGEN020`で弾く。
@@ -153,8 +147,8 @@ internal static class GeneratedGameLoop
 {
     internal static void RunFrame(ref State State, ref GeneratedSystemSet Systems,
         ref FixedTickScheduler Scheduler, long ElapsedCounter, long CounterFrequency,
-        in FrameContext frameContext, StageRenderer stageRenderer, …);
-    internal static void Run(ref State State, in FrameContext frameContext, …);
+        EngineHost engineHost, …);
+    internal static void Run(ref State State, EngineHost engineHost, …);
 }
 ```
 

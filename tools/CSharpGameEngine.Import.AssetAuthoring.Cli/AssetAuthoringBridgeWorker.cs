@@ -8,13 +8,22 @@ internal static class AssetAuthoringBridgeWorker {
     private const int MaximumRequestBytes=32*1024*1024;
     private static readonly JsonSerializerOptions JsonOptions=new(){ PropertyNameCaseInsensitive=false };
 
-    public static(int ExitCode,string Output)Run(string RequestPath,string ResultPath){
+    public static(int ExitCode,string Output)Run(string RequestPath,string ResultPath)=>Run(RequestPath,ResultPath,CancellationToken.None);
+    public static(int ExitCode,string Output)Run(string RequestPath,string ResultPath,CancellationToken CancellationToken){
         try {
+            CancellationToken.ThrowIfCancellationRequested();
             byte[]RequestBytes=ReadBoundedRequest(RequestPath);
             using(var Envelope=JsonDocument.Parse(RequestBytes)){
+                if(Envelope.RootElement.TryGetProperty("ModelGeometry",out var Geometry)){
+                    var Source=Geometry.Deserialize<RenderPreviewModelSource>(JsonOptions)??throw new ArgumentException("Prepared model required.");
+                    var Scene=ModelPreviewGeometry.ReadAsync(Source,CancellationToken).GetAwaiter().GetResult();
+                    CancellationToken.ThrowIfCancellationRequested();
+                    WriteResultAtomically(ResultPath,JsonSerializer.SerializeToUtf8Bytes(Scene,JsonOptions));return(0,string.Empty);
+                }
                 if(Envelope.RootElement.TryGetProperty("ModelCommand",out _)){
                     var Model=JsonSerializer.Deserialize<AssetModelRequest>(RequestBytes,JsonOptions)??throw new ArgumentException("Model request required.");
-                    var ModelResult=CSharpGameEngine.Import.Fbx.FbxModelCompiler.Execute(Model);
+                    var ModelResult=Model.ModelCommand==4?ModelPreviewPreparation.RunAsync(Model,CancellationToken).GetAwaiter().GetResult():CSharpGameEngine.Import.Fbx.FbxModelCompiler.Execute(Model);
+                    CancellationToken.ThrowIfCancellationRequested();
                     WriteResultAtomically(ResultPath,JsonSerializer.SerializeToUtf8Bytes(ModelResult,JsonOptions));return(0,string.Empty);
                 }
                 if(Envelope.RootElement.TryGetProperty("ImageCommand",out _)){

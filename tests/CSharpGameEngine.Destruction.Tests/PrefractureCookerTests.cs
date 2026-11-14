@@ -107,7 +107,7 @@ public sealed class PrefractureCookerTests {
         Assert.NotEqual(First,PrefractureArtifact.ToBytes(Cut(Half(0.5f,1f,0.5f),20,43)));
         Assert.True(PrefractureArtifact.TryRead(First,out var Read,out var Error),Error);
         Assert.Equal(First,PrefractureArtifact.ToBytes(Read!));
-        Assert.Equal("CGEFRAC2",Encoding.ASCII.GetString(First,0,8));
+        Assert.Equal("CGEFRAC3",Encoding.ASCII.GetString(First,0,8));
     }
     [Fact]
     public void EveryTruncationAndATrailingByteAreRefusedWithoutThrowing(){
@@ -118,16 +118,17 @@ public sealed class PrefractureCookerTests {
         Assert.False(PrefractureArtifact.TryRead([..Bytes,0x7f],out _,out _));
     }
     [Fact]
-    public void AVersionOneArtifactIsStillRead(){
+    public void EarlierArtifactVersionsAreRefusedSoTheyAreCookedAgain(){
+        // ADR-0098 §5 の C：作り直せる生成物なので、版 1（M0055）と版 2（M0113）は読まない。
         var Asset=Cut(Half(0.5f,0.5f,0.5f),4,2);
-        var Version1=WriteVersion1(Asset);
-        Assert.True(PrefractureArtifact.TryRead(Version1,out var Read,out var Error),Error);
-        Assert.Equal(Asset.Fragments,Read!.Fragments);
-        Assert.Empty(Read.Sites);
-        Assert.Empty(Read.Clusters);
-        Assert.Equal(Asset.Fragments.Count,Read.ClusterCount);
-        Assert.All(Read.Meshes,static Mesh=>Assert.All(Mesh.Slots,static Slot=>Assert.Equal(FractureMesh.OuterSlot,Slot)));
-        Assert.Equal(Asset.Bonds.Select(static Bond=>Bond.Strength),Read.Bonds.Select(static Bond=>Bond.Strength));
+        Assert.False(PrefractureArtifact.TryRead(WriteVersion1(Asset),out var Read,out var Error));
+        Assert.Null(Read);
+        Assert.NotEmpty(Error);
+        var Current=PrefractureArtifact.ToBytes(Asset);
+        var Version2=(byte[])Current.Clone();
+        Encoding.ASCII.GetBytes("CGEFRAC2").CopyTo(Version2,0);
+        BitConverter.GetBytes(2).CopyTo(Version2,8);
+        Assert.False(PrefractureArtifact.TryRead(Version2,out _,out _));
     }
     [Theory]
     [InlineData(0)]

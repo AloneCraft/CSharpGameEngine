@@ -1,6 +1,6 @@
 # M0121 — Deferred / Deferred+ と 4 パスの選択
 - 日付: 2026-10-25
-- 状態: 計画(2026-10-25 に ADR-0085 を Accepted。M0120 の完了後に始める)
+- 状態: 計画(2026-10-25 に ADR-0085 を Accepted。2026-11-15 の ADR-0098 で 1.0 の後の段階 D へ送った。設計は変えない)
 - 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)
 - ABI: `stage-v16`
 

@@ -247,7 +247,16 @@ internal sealed class SceneValueReader(
                 SceneEmitExpressionWriter.WriteConstant(Constant.Value));
         }
 
-        if(this.SemanticModel.GetSymbolInfo(Invocation,this.CancellationToken).Symbol is not IMethodSymbol Method
+        var Symbol=this.SemanticModel.GetSymbolInfo(Invocation,this.CancellationToken).Symbol;
+        if(Symbol is IMethodSymbol{IsStatic:true,Name:"ParseInvariant",Parameters.Length:1}Numeric
+            &&SceneTypePredicates.ToFullyQualifiedName(Numeric.ContainingType)=="global::CSharpGameEngine.Numerics.LogicalScalar"
+            &&SymbolEqualityComparer.Default.Equals(Numeric.ReturnType,Numeric.ContainingType)
+            &&Numeric.Parameters[0].Type.SpecialType==SpecialType.System_String&&Invocation.ArgumentList.Arguments.Count==1
+            &&this.SemanticModel.GetConstantValue(Invocation.ArgumentList.Arguments[0].Expression,this.CancellationToken).Value is string Text
+            &&Json.SceneJsonFixedValue.TryExpression(Numeric.ContainingType,Text,out var NumericExpression,out _,out var Normalized)){
+            return this.Create(SceneValueKind.Literal,Invocation,ResolvedType,Normalized,Numeric,NumericExpression);
+        }
+        if(Symbol is not IMethodSymbol Method
             ||!SceneTypePredicates.HasAttribute(Method,SceneDslWellKnownNames.SceneFactoryAttributeMetadataName)){
             if(SceneTypePredicates.IsUnresolved(ResolvedType)){
                 return SceneValue.Unsupported(Invocation.ToString(),SceneSourceLocation.FromNode(Invocation));

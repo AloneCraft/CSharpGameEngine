@@ -194,8 +194,13 @@ internal struct LevelLoad:ISystem {
         if(!(float.IsFinite(View.NearZ)&&View.NearZ>0f)){ return nameof(Camera.NearZ); }
         if(!(float.IsFinite(View.FarZ)&&View.FarZ>View.NearZ)){ return nameof(Camera.FarZ); }
         if(!float.IsFinite(View.ExposureEv100)){ return nameof(Camera.ExposureEv100); }
+#if CGE_DEPTH_IDENTITY
+        try{ _=CSharpGameEngine.Rendering.View.RenderViewPolicy.FromIdentityCamera(View,AspectRatio); }
+        catch(ArgumentException){ return nameof(Camera.FarZ); }
+#else
         if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
         if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
+#endif
         return null;
     }
 
@@ -259,7 +264,7 @@ internal struct LevelLoad:ISystem {
                 LevelRuntime.LastCameraTransformStatus=RuntimeWorldTransform.ToTransformStatus(
                     CameraResolveStatus);
             }
-            Host.Renderer?.SetCamera(Host.RenderCamera);
+            Host.SubmitCamera(Host.RenderCamera);
             return;
         }
         Win32Window?Window=Host.Window;
@@ -328,7 +333,7 @@ internal struct LevelLoad:ISystem {
         LevelRuntime.ShaderSemanticHash=Renderer.ShaderSemanticHash;
         LevelRuntime.ShaderArtifactLoaded=Renderer.ShaderArtifactLoaded;
         LevelRuntime.ShaderArtifactDiagnosticCount=Renderer.ShaderArtifactDiagnostics.Count;
-        Renderer.SetCamera(Camera);
+        Host.SubmitCamera(Camera);
 
 
         for(var ObjectIndex=0;ObjectIndex<Scene.Objects.Length;ObjectIndex++){
@@ -469,6 +474,7 @@ internal struct CameraOriginSync:ISystem {
 [RunsAfter(typeof(CameraOriginSync))]
 internal struct RadialObserverSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref RadialObserver Observer,EngineHost Host,ref State State){
+#if !CGE_DEPTH_IDENTITY
         if(!Observer.Enabled||Host.EditorCamera is not null||Host.Renderer is not{ }Renderer){
             return;
         }
@@ -478,6 +484,7 @@ internal struct RadialObserverSync:ISystem {
         if(RadialObserverView.TryCreatePreview(Host.RenderCamera,Renderer.SurfaceWidth,Renderer.SurfaceHeight,Observer,Eye,Forward,Up,out var Preview)){
             Host.AddRadialObserverPreview(Preview);
         }
+#endif
     }
 }
 

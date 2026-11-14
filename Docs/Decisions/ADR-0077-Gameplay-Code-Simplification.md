@@ -18,7 +18,7 @@
 | `in T`（非 nullable struct。プリミティブを除く） | **読み取る Component**。`[ReadOnlyComponent] in T` と同じで、変更バージョンを刻まない |
 | 参照型の値渡し | Context |
 
-- `[ReadOnlyComponent]` は受け付けるが不要になる（廃止は後の段階で行う）。
+- `[ReadOnlyComponent]` は受け付けるが不要になる（廃止は後の段階で行う）。→ 2026-11-15 に廃止した（ADR-0098 §5 の B）。属性は `[Obsolete(error)]` で、使うと書き換え方を示す CS0619 になる。SYSGEN029 は削除。
 - 構造体の Context（`in` で受ける struct）は書けなくなる。Context は参照型の値渡しだけ。エンジンの System とテンプレートには、この形の Context は無かった。
 - ADR-0033 §3「Write→Read の推論は原理的に成立しない」は、`ref`=書く、`in`=読む と明示したことで、後の段階（フェーズと順序の推論）で扱える前提ができた。
 

@@ -3,7 +3,7 @@ using System.IO.Compression;
 using System.Text;
 namespace CSharpGameEngine.Tools.Imaging;
 internal static class ThumbnailPng {
-    /// <summary>Texture Editor の派生プレビュー（最大 2048px）も出力するため、上限は AssetThumbnailRequest.MaximumImageEdge と同じ。ジオメトリのサムネイルは要求側が 128px に固定している。</summary>
+    /// <summary>Texture Editor の派生プレビューも出力するため、上限は AssetThumbnailRequest.MaximumImageEdge と同じ。</summary>
     private const int Edge=2048;
     internal static byte[]Encode(int Width,int Height,byte[]Pixels){
         if(Width is <1 or >Edge||Height is <1 or >Edge||Pixels.Length!=checked(Width*Height*4)){ throw new InvalidDataException("Thumbnail pixels are invalid."); }

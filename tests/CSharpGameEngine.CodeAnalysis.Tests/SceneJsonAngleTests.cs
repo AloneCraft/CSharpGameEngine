@@ -1,9 +1,9 @@
 using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0074：スキーマバージョン2以降、シーンJSONでは<c>[Angle]</c>メンバーに含まれる数値をすべて回転数で保存する。
-/// C#メンバーはそれぞれの単位を保持するため、バージョン1とバージョン2の文書は同じ値をビルドする。
-/// バージョン3以降では回転数を使うため、角度キーからC#の単位を示す語を省く（<c>YawDegrees</c>は<c>Yaw</c>）。
+/// ADR-0074：シーンJSON（バージョン3）では<c>[Angle]</c>メンバーに含まれる数値をすべて回転数で保存し、角度キーからC#の単位を示す語を省く
+///（<c>YawDegrees</c>は<c>Yaw</c>）。C#メンバーはそれぞれの単位を保持する。バージョン1・2とC#の名前のキーは、ビルドとエディターでは読まず
+///（ADR-0098 §5 規則 2）、<c>SceneJson.Cli upgrade</c> だけがバージョン3へ書き換える。
 /// </summary>
 public sealed class SceneJsonAngleTests {
     private const string Components="""
@@ -60,18 +60,37 @@ public sealed class SceneJsonAngleTests {
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,Driver]),
             [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]),
         "Game.Driver","Describe")!;
+    private static string Format(SceneJsonProblem Problem)=>string.Format(System.Globalization.CultureInfo.InvariantCulture,
+        Problem.Descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture),Problem.Arguments);
     [Fact]
-    public void TurnsDocument_BuildsTheSameValuesAsItsVersionOneForm(){
-        var VersionOne=Describe(Document("1","90","1.5707964","1.2","0.3"));
-        Assert.Equal("90|1.5707964|2|1.2|0.3|0",VersionOne);
-        Assert.Equal(VersionOne,Describe(Document("2","0.25","0.25","0.19098594","0.047746485")));
+    public void VersionThree_BuildsTheMemberValuesFromTurns(){
+        Assert.Equal("90|1.5707964|2|1.2|0.3|0",Describe(VersionThree("0.25","0.25","0.19098594","0.047746485")));
+    }
+    [Theory]
+    [InlineData("1","90","1.5707964","1.2","0.3")]
+    [InlineData("2","0.25","0.25","0.19098594","0.047746485")]
+    public void EarlierVersions_AreRejectedWithTheUpgradeCommand(string Version,string Yaw,string Fov,string R,string U){
+        // 変換（SceneJson.Cli upgrade）とその試験は SceneModel.Tests の SceneJsonUpgradeTests にある。生成器のビルドには入らない。
+        var Problem=Assert.Single(SceneJsonSceneAnalyzer.Analyze(Document(Version,Yaw,Fov,R,U),Base()).Problems);
+        Assert.Contains("is no longer read",Format(Problem),StringComparison.Ordinal);
+        Assert.Contains(SceneJsonSceneAnalyzer.UpgradeCommand,Format(Problem),StringComparison.Ordinal);
+    }
+    /// <summary>ADR-0098 §5 規則 2：生成器のビルドには、旧版を読む入口も変換も入らない（<c>CGE_SCENE_UPGRADE</c> は SceneJson.Cli だけが定義する）。</summary>
+    [Fact]
+    public void TheGeneratorAssemblyContainsNoEarlierVersionReader(){
+        var Assembly=typeof(SceneJsonSceneAnalyzer).Assembly;
+        Assert.Equal("CSharpGameEngine.CodeAnalysis",Assembly.GetName().Name);
+        Assert.Null(Assembly.GetType("CSharpGameEngine.SceneAnalysis.Json.SceneJsonAngleUpgrade"));
+        Assert.Null(typeof(SceneJsonSceneAnalyzer).GetMethod("AnalyzeEarlierVersion",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Public));
+        Assert.NotNull(typeof(SceneJsonSceneAnalyzer).GetMethod("Analyze",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic,[typeof(string),typeof(Microsoft.CodeAnalysis.Compilation)]));
     }
     [Fact]
-    public void UnitFreeKeys_BuildTheSameValuesAsTheMemberNames(){
-        var MemberNames=Describe(Document("2","0.25","0.25","0.19098594","0.047746485"));
-        Assert.Equal(MemberNames,Describe(VersionThree("0.25","0.25","0.19098594","0.047746485")));
-        // 文書にC#メンバー名を記述してもよい。どちらの場合も数値は回転数として扱う。
-        Assert.Equal(MemberNames,Describe(Document("3","0.25","0.25","0.19098594","0.047746485")));
+    public void MemberNameAngleKeys_AreRejectedInVersionThree(){
+        var Old=Document("3","0.25","0.25","0.19098594","0.047746485");
+        var Problems=SceneJsonSceneAnalyzer.Analyze(Old,Base()).Problems.Select(Format).ToArray();
+        Assert.Equal(2,Problems.Length);
+        Assert.Contains(Problems,static Message=>Message.Contains("'YawDegrees' is no longer read; write it as 'Yaw'",StringComparison.Ordinal));
+        Assert.Contains(Problems,static Message=>Message.Contains("'FovRadians' is no longer read; write it as 'Fov'",StringComparison.Ordinal));
     }
     [Fact]
     public void UnitFreeKeys_ReachConstructorParametersAndKeepATakenName(){
@@ -87,9 +106,7 @@ public sealed class SceneJsonAngleTests {
     public void BothKeysOfOneMember_AreRejected(){
         var Json=VersionThree("0.25","0.25","0","0").Replace("\"Plain\": 2","\"YawDegrees\": 0.25, \"Plain\": 2",StringComparison.Ordinal);
         var Scene=SceneJsonSceneAnalyzer.Analyze(Json,Base());
-        var Problem=Assert.Single(Scene.Problems);
-        Assert.Contains("'Yaw' and 'YawDegrees'",string.Format(System.Globalization.CultureInfo.InvariantCulture,
-            Problem.Descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture),Problem.Arguments),StringComparison.Ordinal);
+        Assert.Contains(Scene.Problems,static Problem=>Format(Problem).Contains("'Yaw' and 'YawDegrees'",StringComparison.Ordinal));
     }
     /// <summary>
     /// 回転数ならfloatに収まっても、メンバーの単位へ変換すると収まらない場合がある（1e37回転を度数で表す場合など）。
@@ -107,6 +124,28 @@ public sealed class SceneJsonAngleTests {
             Problem.Descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture),Problem.Arguments),StringComparison.Ordinal);
         var Result=GameSystemGeneratorTestHelper.RunGenerator(Base(),[new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
         Assert.DoesNotContain(Result.Diagnostics,static Diagnostic=>Diagnostic.Id=="CS8785");
+    }
+    [Fact]
+    public void DoubleAnglesRemainInTurnsWhenAnUnrelatedValueIsEdited(){
+        const string Types="""
+            using CSharpGameEngine.Contracts;
+            namespace Sample;
+            public struct DoubleAim { [Angle(AngleUnit.Degrees)] public double YawDegrees; public double Position; }
+            """;
+        const string Source="""
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Components=[new DoubleAim { YawDegrees=90d, Position=13.250000000000002d }] };
+            }
+            """;
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Types,Source]);
+        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Compilation.GetTypeByMetadataName("Game.MainScene")!,Compilation,CancellationToken.None);
+        var Converted=SceneJsonConverter.Convert(Model,null);
+        Assert.Empty(Converted.Problems);
+        Assert.Contains("\"Yaw\": 0.25",Converted.Text!,StringComparison.Ordinal);
+        Assert.Contains("\"Position\": 13.250000000000002",Converted.Text!,StringComparison.Ordinal);
     }
     [Fact]
     public void Converter_WritesVersionThreeWithAnglesInTurnsUnderUnitFreeKeys(){
@@ -133,63 +172,11 @@ public sealed class SceneJsonAngleTests {
         Assert.Contains("\"Outer\": 0.25",Json,StringComparison.Ordinal);
         Assert.Equal("90|1.5707964|2|1.2|0.3|0|45|7|90",Describe(Json));
     }
-    /// <summary>
-    /// エディターで編集する際、作成者の文書へエディターの正規テキストを統合する（M0095）。
-    /// バージョン2の文書に適用すると、現在のバージョンと単位のないキーになり、同じ値をビルドする。
-    /// </summary>
     [Fact]
-    public void EditMerge_OverAVersionTwoDocumentWritesTheCurrentForm(){
-        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,"""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Aim { YawDegrees=90f,FovRadians=1.5707964f,Plain=2f },new Spin(new Euler(1.2f,0.3f,0f))] };
-            }
-            """]);
-        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Compilation.GetTypeByMetadataName("Game.MainScene")!,Compilation,CancellationToken.None);
-        var Old=Document("2","0.25","0.25","0.19098594","0.047746485");
-        var Merged=SceneJsonTextMerge.Merge(Old,SceneJsonConverter.Convert(Model,null).Text!);
-        Assert.Contains("\"schemaVersion\": 3",Merged,StringComparison.Ordinal);
-        Assert.Contains("\"Yaw\": 0.25",Merged,StringComparison.Ordinal);
-        Assert.DoesNotContain("YawDegrees",Merged,StringComparison.Ordinal);
-        Assert.Equal(Describe(Old),Describe(Merged));
-    }
-    /// <summary>アップグレード時は角度の数値、角度キー、バージョンを書き換え、それ以外のテキストの文字はすべて維持する。</summary>
-    [Fact]
-    public void Upgrade_RewritesOnlyTheAngleNumbersKeysAndTheVersion(){
-        var Before=Document("1","90","1.5707964","1.2","0.3").Replace("\"Plain\": 2","\"Plain\":2",StringComparison.Ordinal);
-        var Result=SceneJsonAngleUpgrade.Upgrade(Before,Base());
-        Assert.Empty(Result.Problems);
-        Assert.True(Result.Changed);
-        Assert.Equal(VersionThree("0.25","0.25","0.19098594","0.047746485").Replace("\"Plain\": 2","\"Plain\":2",StringComparison.Ordinal),Result.Text);
-        var Again=SceneJsonAngleUpgrade.Upgrade(Result.Text!,Base());
-        Assert.False(Again.Changed);
-        Assert.Equal(Result.Text,Again.Text);
-    }
-    /// <summary>
-    /// 回転数を float で表すと粗すぎて、度数やラジアンのすべての float 値へ変換できない（500度、1.5707965ラジアンなど）。変換には double を使うため、更新後も値を正確に維持す
-    /// る。最初の float のみを使うバージョンでは、ここで失敗していた。
-    /// </summary>
-    /// <summary>バージョン2のドキュメントはすでに回転数を保持している。更新では角度キーの名前だけを変え、数値は変更しない。</summary>
-    [Fact]
-    public void Upgrade_FromVersionTwoRenamesTheKeysOnly(){
-        var Result=SceneJsonAngleUpgrade.Upgrade(Document("2","0.25","0.25","0.19098594","0.047746485"),Base());
-        Assert.Empty(Result.Problems);
-        Assert.True(Result.Changed);
-        Assert.Equal(VersionThree("0.25","0.25","0.19098594","0.047746485"),Result.Text);
-    }
-    [Fact]
-    public void Upgrade_KeepsValuesWithoutAFloatPreimageInTurns(){
-        var Before=Document("1","500","1.5707965","-3.1415925","1.5707961");
-        var Result=SceneJsonAngleUpgrade.Upgrade(Before,Base());
-        Assert.Empty(Result.Problems);
-        Assert.Equal(Describe(Before),Describe(Result.Text!));
-    }
-    [Fact]
-    public void Schema_DescribesAngleMembersInTurnsUnderUnitFreeKeysAndAcceptsEveryVersion(){
+    public void Schema_DescribesAngleMembersInTurnsUnderUnitFreeKeysAndAcceptsOnlyTheCurrentVersion(){
         var Schema=SceneJsonSchemaBuilder.Build(Base());
-        Assert.Contains("\"enum\": [ 1, 2, 3 ]",Schema,StringComparison.Ordinal);
+        Assert.Contains("\"enum\": [ 3 ]",Schema,StringComparison.Ordinal);
+        Assert.Contains("SceneJson.Cli upgrade",Schema,StringComparison.Ordinal);
         Assert.Contains("\"Yaw\": {",Schema,StringComparison.Ordinal);
         Assert.DoesNotContain("\"YawDegrees\"",Schema,StringComparison.Ordinal);
         Assert.Contains("\"PitchDegrees\": {",Schema,StringComparison.Ordinal);

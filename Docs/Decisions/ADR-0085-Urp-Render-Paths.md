@@ -1,5 +1,6 @@
 # ADR-0085 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)を、最初から対数深度で書いた Stage シェーダーとして移植する
 - 状態: Accepted(2026-10-25。ユーザーの依頼:「unity の URP のシェーダーの Forward, Forward+, Deferred, Deferred+ を参考に… 最初から対数化したシェーダーとして」。計画はユーザーが承認し、「4 つすべてを移植し、既定は Forward+」を選んだ)
+- 実施時期: 2026-11-15 の [ADR-0098](ADR-0098-Product-Goal-Phases-And-Compatibility.md) で、Forward / Forward+ の作り直しと M0121 を 1.0 の後(段階 D)へ送った。この ADR の設計は変えない。
 - 関連: ADR-0084(対数ネイティブの深度)、ADR-0087(層の配置)、ADR-0076(対数深度)、ADR-0064(型付きライト)、ADR-0069(物理的な環境照明)、ADR-0078(UE テンプレートの完全移植)、ADR-0052(Render Graph)、M0120、M0121
 
 ## 背景

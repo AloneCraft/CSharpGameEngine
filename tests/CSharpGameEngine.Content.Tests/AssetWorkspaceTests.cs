@@ -23,6 +23,20 @@ public sealed class AssetWorkspaceTests:IDisposable {
         Assert.Equal(AssetWorkspaceState.InvalidMetadata,Assert.Single(Result.Items).State);Assert.Equal(Legacy,File.ReadAllText(Model+".meta"));
     }
     [Fact]
+    public void RetiredImporterMetadataIsInvalidAndOffersTheExplicitConversion(){
+        var Model=this.Source("Assets/Ship.glb");
+        var Bytes=AssetMetadata.Create(AssetId.Parse(Guid.NewGuid().ToString("D")),"Assets/Ship.glb",AssetMetadata.RetiredGltfImporter).ToCanonicalUtf8();
+        File.WriteAllBytes(Model+".meta",Bytes);
+        var Item=Assert.Single(AssetWorkspaceService.Inspect(new(){RequestId=Guid.NewGuid(),Sources=[this.Entry(Model)]}).Items);
+        Assert.Equal(AssetWorkspaceState.InvalidMetadata,Item.State);
+        Assert.StartsWith("ASSET_IMPORTER_RETIRED",Item.Diagnostic,StringComparison.Ordinal);
+        Assert.True(Item.GetCapabilities().HasFlag(AssetWorkspaceCapabilities.ConvertLegacyMetadata));
+        Assert.Equal(Bytes,File.ReadAllBytes(Model+".meta"));
+        var Result=AssetAuthoringService.Execute(new(){RequestId=Guid.NewGuid(),RepositoryRoot=this.Root,SourcePath=Model,Command=AssetAuthoringCommand.MigrateLegacyMetadata,ExpectedMetadataSha256=Convert.ToHexStringLower(SHA256.HashData(Bytes))});
+        Assert.True(Result.Success,string.Join("; ",Result.Diagnostics.Select(static Diagnostic=>Diagnostic.Message)));
+        Assert.Equal(AssetWorkspaceState.Ready,Assert.Single(AssetWorkspaceService.Inspect(new(){RequestId=Guid.NewGuid(),Sources=[this.Entry(Model)]}).Items).State);
+    }
+    [Fact]
     public void LegacyConversionPreservesGuidAndRequiresSnapshotHash(){
         var Model=this.Source("Assets/Ship.glb");var Id=Guid.NewGuid();File.WriteAllText(Model+".meta","guid: "+Id.ToString("N")+"\n");
         var Inspect=AssetAuthoringService.Execute(new(){RequestId=Guid.NewGuid(),RepositoryRoot=this.Root,SourcePath=Model});

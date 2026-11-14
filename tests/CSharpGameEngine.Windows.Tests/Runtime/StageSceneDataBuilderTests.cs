@@ -5,15 +5,29 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
+using CSharpGameEngine.Windows.Tests.Runtime;
+using CSharpGameEngine.Testing;
 
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 
+[Collection("Model artifact content root")]
 public sealed class StageSceneDataBuilderTests {
+    [Fact]
+    public void ContentLocationChangesValidateBothPathsBeforeChangingTheCurrentLocation(){
+        var Previous=ContentRoot.Directory;var PreviousModels=ContentRoot.ModelDirectory;
+        try {
+            var Game=Path.Combine(Path.GetTempPath(),"cge-game-"+Guid.NewGuid().ToString("N"));ContentRoot.Use(Game);
+            Assert.Equal(Path.GetFullPath(Game),ContentRoot.Directory);Assert.Equal(Path.Combine(Path.GetFullPath(Game),"Content","Models"),ContentRoot.ModelDirectory);
+            Assert.Throws<ArgumentException>(()=>ContentRoot.Use(Path.Combine(Game,"other"),"\0"));Assert.Equal(Path.GetFullPath(Game),ContentRoot.Directory);Assert.Equal(Path.Combine(Path.GetFullPath(Game),"Content","Models"),ContentRoot.ModelDirectory);
+        }finally{ ContentRoot.Use(Previous,PreviousModels); }
+    }
     [WindowsOnlyFact]
     public void TexturedGltf_IsConvertedToCanonicalMaterialResourcesBeforeL0(){
+        var Asset=Path.Combine(AppContext.BaseDirectory,"Fixtures","BoxTextured.glb");
+        using var Content=new ModelArtifactTestContent([Asset]);using var Scope=new ModelArtifactContentRoot(Content);
         StageSceneDataBuilder Scene=StageSceneDataBuilder.Build(
             [(new Entity(0,1),new Transform(),new StaticMesh {
-                AssetPath=Path.Combine("Fixtures","BoxTextured.glb"),
+                AssetPath=Asset,
                 Mobility=MeshMobility.Static,
             })],
             []);
@@ -38,6 +52,7 @@ public sealed class StageSceneDataBuilderTests {
         try {
             var AssetPath=Path.Combine(Directory,"Floor.gltf");
             File.WriteAllText(AssetPath,CreateWorldGridGltf());
+            using var Content=new ModelArtifactTestContent([AssetPath]);using var Scope=new ModelArtifactContentRoot(Content);
             StageSceneDataBuilder Scene=StageSceneDataBuilder.Build(
                 [(new Entity(0,1),new Transform(),new StaticMesh { AssetPath=AssetPath,Mobility=MeshMobility.Static })],
                 []);

@@ -1,5 +1,4 @@
 using System.Numerics;
-using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Animation;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// <summary>
@@ -25,15 +24,7 @@ public sealed class FootIkTests {
             new Vector3(0.1f,0f,0f),new Vector3(0f,-0.5f,KneeForward),new Vector3(0f,-0.5f,-KneeForward),new Vector3(0f,0f,0.1f),
             new Vector3(-0.1f,0f,0f),new Vector3(0f,-0.5f,KneeForward),new Vector3(0f,-0.5f,-KneeForward),new Vector3(0f,0f,0.1f),
         ];
-        return Skeleton.FromImported(new ImportedSkin {
-            JointNames=Names,
-            ParentIndices=Parents,
-            RestTranslations=Translations,
-            RestRotations=[.. Enumerable.Repeat(Quaternion.Identity,Names.Length)],
-            RestScales=[.. Enumerable.Repeat(Vector3.One,Names.Length)],
-            InverseBindMatrices=[.. Enumerable.Repeat(Matrix4x4.Identity,Names.Length)],
-            SkeletonTransform=Matrix4x4.Identity,
-        });
+        return AnimationTestData.Create(Names,Parents,Translations);
     }
     private static Matrix4x4[]Model(Skeleton Skeleton,ReadOnlySpan<JointPose>Pose){
         var Result=new Matrix4x4[Skeleton.JointCount];

@@ -25,7 +25,7 @@ public sealed class ModelImportParityTests {
             Assert.True(Result.Success,Path+": "+string.Join(";",Result.Diagnostics.Select(D=>D.Message)));
             var Scene=Result.Scene!;
             var Skins=Scene.Skins.Select(Skin=>{
-                var Skeleton=CSharpGameEngine.Runtime.Animation.Skeleton.FromImported(Skin);
+                var Skeleton=LegacyAnimationOracleAdapter.Skeleton(Skin);
                 var Pose=Skeleton.Rest.ToArray();
                 var Models=new Matrix4x4[Skeleton.JointCount];
                 var Palette=new Matrix4x4[Skeleton.JointCount];
@@ -38,8 +38,8 @@ public sealed class ModelImportParityTests {
             foreach(var ImportedClip in Animation.Clips!){
                 Clips++;
                 foreach(var Skin in Scene.Skins.Count>0?Scene.Skins:[QuinnSkin]){
-                    var Skeleton=CSharpGameEngine.Runtime.Animation.Skeleton.FromImported(Skin);
-                    var Clip=AnimationClip.Bind(ImportedClip,Skeleton);
+                    var Skeleton=LegacyAnimationOracleAdapter.Skeleton(Skin);
+                    var Clip=LegacyAnimationOracleAdapter.Clip(ImportedClip,Skeleton);
                     var Pose=new JointPose[Skeleton.JointCount];
                     var Models=new Matrix4x4[Skeleton.JointCount];
                     var Palette=new Matrix4x4[Skeleton.JointCount];

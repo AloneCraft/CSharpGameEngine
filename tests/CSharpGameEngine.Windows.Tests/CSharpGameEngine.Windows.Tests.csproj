@@ -32,6 +32,8 @@
     <!-- Test-only edge: production CSharpGameEngine.Windows itself has no reference to the
          importers - only the model/stage GPU integration tests load .glb fixtures. -->
     <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+    <ProjectReference Include="../../tools/CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj" />
+    <ProjectReference Include="../../tools/CSharpGameEngine.Cook.Cli/CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="Platform;RuntimeIdentifier;SelfContained" />
   </ItemGroup>
 
   <ItemGroup>
@@ -55,4 +57,5 @@
     <None Include="..\..\assets\TestFixtures\Gltf\Malformed.glb" Link="Fixtures\Malformed.glb" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup><Compile Include="../Shared/ModelArtifactTestContent.cs" Link="Testing/ModelArtifactTestContent.cs" /></ItemGroup>
 </Project>

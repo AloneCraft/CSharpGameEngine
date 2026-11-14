@@ -1,0 +1,33 @@
+<Rule Name="CgeRuntime" DisplayName="C# Game Engine" PageTemplate="generic" Order="500" xmlns="http://schemas.microsoft.com/build/2009/properties">
+  <Rule.DataSource>
+    <DataSource Persistence="ProjectFile" SourceOfDefaultValue="AfterContext" HasConfigurationCondition="False" />
+  </Rule.DataSource>
+  <Rule.Categories>
+    <Category Name="Numerics" DisplayName="Position and simulation" />
+    <Category Name="Rendering" DisplayName="Rendering" />
+  </Rule.Categories>
+  <EnumProperty Name="CgeNumericMode" DisplayName="Number type" Description="Choose the calculation and storage type for positions and simulation." Category="Numerics">
+    <EnumValue Name="Fixed" DisplayName="Fixed point" />
+    <EnumValue Name="Float" DisplayName="float (32 bit)" />
+    <EnumValue Name="Double" DisplayName="double (64 bit)" />
+  </EnumProperty>
+  <EnumProperty Name="CgeFixedBits" DisplayName="Total bits" Description="Total storage size, including the sign and fractional part." Category="Numerics">
+    <EnumValue Name="64" DisplayName="64" />
+    <EnumValue Name="128" DisplayName="128" />
+    <EnumValue Name="192" DisplayName="192" />
+    <EnumProperty.Metadata>
+      <NameValuePair Name="DependsOn" Value="CgeRuntime::CgeNumericMode" />
+      <NameValuePair Name="VisibilityCondition" Value="(has-evaluated-value &quot;CgeRuntime&quot; &quot;CgeNumericMode&quot; &quot;Fixed&quot;)" />
+    </EnumProperty.Metadata>
+  </EnumProperty>
+  <IntProperty Name="CgeFractionalBits" DisplayName="Fractional bits" MinValue="0" MaxValue="190" Description="Use 0 through total bits minus 2. If not specified, half the total bits are used. More fractional bits reduce the available range." Category="Numerics">
+    <IntProperty.Metadata>
+      <NameValuePair Name="DependsOn" Value="CgeRuntime::CgeNumericMode;CgeRuntime::CgeFixedBits" />
+      <NameValuePair Name="VisibilityCondition" Value="(has-evaluated-value &quot;CgeRuntime&quot; &quot;CgeNumericMode&quot; &quot;Fixed&quot;)" />
+    </IntProperty.Metadata>
+  </IntProperty>
+  <EnumProperty Name="CgeDepthMapping" DisplayName="Perspective depth" Description="Choose independently of the number type. Identity uses ordinary perspective depth; Logarithmic retains depth precision over a larger distance range." Category="Rendering">
+    <EnumValue Name="Logarithmic" DisplayName="Logarithmic" />
+    <EnumValue Name="Identity" DisplayName="Unchanged (Identity)" />
+  </EnumProperty>
+</Rule>

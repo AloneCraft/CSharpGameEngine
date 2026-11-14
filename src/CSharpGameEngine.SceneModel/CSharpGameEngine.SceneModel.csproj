@@ -16,6 +16,8 @@
     <NoWarn>$(NoWarn);RS2008</NoWarn>
     <!-- SceneJsonAngles marks its double boundary with Contracts' ExternalNumericAdapter where NUM001 runs. -->
     <DefineConstants>$(DefineConstants);CGE_NUMERIC_ADAPTER</DefineConstants>
+    <!-- Compile-check the scene-upgrade code here too; the generator and the VSIX do not define it (ADR-0098 §5 rule 2). -->
+    <DefineConstants>$(DefineConstants);CGE_SCENE_UPGRADE</DefineConstants>
   </PropertyGroup>
 
   <!--

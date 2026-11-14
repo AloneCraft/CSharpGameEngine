@@ -1,5 +1,36 @@
 # Implementation Status (Feature Ledger)
 
+## F-L1-012 — Configurable numeric runtime
+
+- Layer: L1 — Core Kernel
+- Parent capability: Static production flow / configurable numerics
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: `Docs/Specifications/Numeric-Configuration.md`, ADR-0093
+- Implementation evidence: `FixedArithmetic.cs`, `ProfileLogicalScalar.cs`, `Int192.cs`, `FixedAngleMath.cs`, `WideAngleScalar.cs`, `LogicalMath.cs`, `FloatingScalarExtensions.cs`, `FloatingLogicalMath.cs`, `LogicalNumeric.cs`, numeric-profile props/targets, `CanonicalNumericAnalyzer.cs`, `NumericProfileCompatibilityAnalyzer.cs`, `WorldCellArtifact.cs`
+- Tests: Numerics Debug/Release 80 each; generator suite Debug/Release 410 each includes twelve fixed and two native-floating profile compilations and selected-mode analyzer checks. Actual numeric-library builds cover ordinary, narrow-range, integer-only, Float and Double settings. Final task IDs: M0128.
+- Observed: The numeric library selects actual 8/16/24-byte fixed storage or CLR Single/Double at build time. Nondefault outputs are isolated. Bounded stack arithmetic and a closed 256-bit mathematical temporary avoid storage-range initialization failures; final unrepresentable results fail atomically. Higher-precision mathematical series are verified against independent guarded integer oracles for selected values. Native floating vectors/quaternions have primitive layouts and retain subnormals/negative zero. NUM001 follows Double selection while retaining decimal/BigInteger restrictions.
+- Conformance: Partial for the complete numeric runtime contract. Supported library builds and tested arithmetic match their bounded specification.
+- Source integration: Game properties propagate to numeric-sensitive dependency projects and cooking tools. Outputs/generated sources are isolated; assembly metadata and NUM002 reject incompatible or untagged critical dependencies. Grid indices use exact floor, independent of rounded floating division. Runtime/cooked cache identifiers follow the selected storage; default cache identity is retained. WorldCell v2 stores common numeric values; version 1 is rejected (ADR-0098 §5 C, 2026-11-15).
+- SDK integration: Default libraries stay prebuilt Q64.64; other modes build immutable packaged Numerics/World and active Navigation/Destruction Cook sources under consumer obj. Compile references and runtime copies use the selected outputs. External ThirdPerson consumers build default/Float/Double/64-32/192-96 and native-floating Release without repository references. Float metadata is actual Single/12-byte vectors and the copied DLL matches the profile build. TopDown Float produces navigation data with both Cook modules selected. An external ThirdPerson Float 180-tick physics bake/replay matches byte-for-byte.
+- Authoring/render extension: Standard CPS project pages persist numeric and depth settings to csproj, with English/Japanese schemas verified by actual MSBuild XAML loading and localized evaluation. Identity camera submission is chosen at build time and has isolated game outputs. Rendering 195 Debug/Release and ten WARP view/resize/recovery cases in each configuration pass. External SDK Float Debug and Double Release Identity games render 56 objects and move about 4.5 m with scripted input over twelve frames, with an active D3D12 debug layer and zero errors. M0128 records the scope and package-localization correction.
+- Known deviations: Actual Japanese project-page selection/save for all numeric modes, fixed widths/fraction positions and Identity passes. IDE creation, asset addition/preview/registration, inline rename and Inspector edit/save are observed; final-candidate IDE execution/reopen remains pending. Selected JSON/Inspector range validation and exact fixed input are implemented; generator 410 and VSIX 1565 pass each configuration. Snapshot v2 migration is verified separately under F-L6-007. SDK 0.1.42 passes source-free self-contained Double execution, separate-process Float-to-Double restore and all four scripted template runtime checks; these establish the recorded runtime/distribution scopes, not actual UI acceptance.
+- Next action: Complete final-candidate SDK/IDE execution and reopen in M0128.
+
+## F-L1-011 — Profile-independent numeric persistence
+
+- Layer: L1 — Core Kernel
+- Parent capability: Static production flow / configurable numerics
+- Status: PartiallyImplemented
+- Verification: TestVerified
+- Intended specification: `Docs/Specifications/Numeric-Persistence.md`, ADR-0091
+- Implementation evidence: `src/CSharpGameEngine.Numerics/NumericValueCodec.cs`, `LogicalScalar.cs`
+- Tests: `tests/CSharpGameEngine.Numerics.Tests/NumericValueCodecTests.cs`; current Numerics Debug/Release 80 each includes arithmetic and Single/Double conversion regression. ECS evidence: M0128.
+- Reverse-engineered behavior: Shared canonical finite-value binary supports signed 64/128/192-bit fixed input, float/double input, cross-format nearest-even restoration and exact decimal output. Failed fixed reads leave the destination unchanged. LogicalScalar exposes canonical-value methods; raw scalar formats retain the selected width. WorldCell and generated Snapshot readers and writers use only version 2 with common numeric values; version 1 is rejected (ADR-0098 §5, 2026-11-15).
+- Conformance: Matches the implemented numeric codec boundary; Partial for the approved end-to-end plan.
+- Known deviations: Actual project-page selection/save and authoring edits are observed. Final-candidate IDE execution/reopen remains pending. Artifact-only consumer cutover and source-free SDK 0.1.42 distribution are verified in M0128, including Float snapshot restoration in a separate Double process. Identity CPU/GPU contracts are implemented under ADR-0096. Static World snapshot generation for supported value graphs is implemented under F-L6-007.
+- Next action: Complete final-candidate SDK/IDE execution and reopen; retain the distinction between generated World persistence and a gameplay save UI.
+
 ## F-L1-010 — Signed coordinate convention conversion
 
 - Layer: L1 — Core Kernel
@@ -34,10 +65,10 @@
 - Verification: TestVerified
 - Intended specification: ADR-0080 section 5
 - Implementation evidence: `src/CSharpGameEngine.Content/Models`, `ContentArtifact.cs`
-- Tests: `tests/CSharpGameEngine.Content.Tests/ModelArtifactTests.cs` (Content suite: 43 passed)
-- Reverse-engineered behavior: Typed binary model/mesh/skeleton/clip/license codecs validate hierarchy, references and streams; new artifact kinds 8–12 are recognized. The assembly has no Cooking/Import dependency.
-- Conformance: Partial. No artifact producer/store/runtime consumer is connected. Float influence weights are a prototype; packed representation remains outstanding.
-- Next action: Connect prepared artifact production and exact-reference runtime loading during S3/S4.
+- Tests: `tests/CSharpGameEngine.Content.Tests/ModelArtifactTests.cs` (Content suite: 71 passed with JSON reflection disabled; c2ca910138fd4f9abd5614d655f61c3d)
+- Reverse-engineered behavior: Typed binary model/mesh/skeleton/clip/license codecs validate hierarchy, references and streams; new artifact kinds 8–12 are recognized. ModelArtifactReader checks indexed kind, hash, provenance and size; ModelAssetBundle reuses ShippingContentManifestBuilder and RuntimeAssetStore with closed codecs, and validates payload references against the declared closure. The assembly has no Cooking/Import dependency.
+- Conformance: Partial. Actual GLB production and source-free bundle loading are tested, including substituted hashes and missing dependencies. Game, preview, collision, navigation and distance-field consumers now use prepared models in source; Source/SDK builds and related CPU/WARP tests pass in Debug. Generated JSON contracts and a closed binary schema remove runtime member discovery; the revised self-contained Double shipping runtime passes legacy-model loading, cross-profile separate-process restore and 110-frame WARP execution; 148 final Windows Release cases pass; SDK 0.1.42 shipping/all-template execution passes; actual model preview, source addition/registration and inline rename are observed; final-candidate IDE execution/reopen remains pending. Float influence weights remain a prototype; packed representation is outstanding.
+- Next action: Complete actual Visual Studio production/settings acceptance in M0128; preserve the separate remaining M0114 representation work.
 
 ## F-L7-056 — Model import orchestration
 
@@ -46,11 +77,11 @@
 - Status: PartiallyImplemented
 - Verification: TestVerified
 - Intended specification: ADR-0080 S3
-- Implementation evidence: `tools/CSharpGameEngine.ContentCompiler/{ImporterRegistry,ImportProcessRunner,ModelImportClient,ModelImportCommands}.cs`
-- Tests: `tests/CSharpGameEngine.ContentCompiler.Tests/ModelImportClientTests.cs` (suite: 16 passed)
-- Reverse-engineered behavior: Discovery runs outside the parent process. Frozen default-expanded options, module/engine hashes and actual read-set hashes identify canonical IR caches. Separate-worker verification detects nondeterminism. CLI exposes import-ir/inspect/explain; cancellation sends a request then terminates the owned process tree when necessary.
-- Conformance: Partial. Compile/meta/serve, metadata migration, artifact/DAG/index production and full resource enforcement remain. IncrementalContentCompiler is unchanged.
-- Next action: Implement remaining S3 integration before runtime cutover.
+- Implementation evidence: `tools/CSharpGameEngine.ContentCompiler`, `src/CSharpGameEngine.Import/{Gltf/BuiltInGltfImporter.cs,Models}`, `build/CSharpGameEngine.ModelContent.targets`
+- Tests: ContentCompiler Debug suite: 33 passed in `405ea4d698ee43db9de03b7b8def0af0` before the following worker-package build failed; metadata authoring/migration: 5 passed in `a85bfa0b431a4539881731ea0f708c2d`. The resource-worker metadata race failed before the fix in `f3309bcae63547d5824c91ba7ab6e8be`. Material artifact tests: 9 passed in `6a64b4d14de84ca19dc8309743c7dd09`.
+- Reverse-engineered behavior: Discovery and source SDK decoding remain outside the parent. Module/engine/options/read-set fingerprints identify canonical IR caches. cge.gltf reads tracked resources in the import worker; ModelResourcesCooker produces images, textures and PBR materials through IAssetCooker. compile-project processes the complete input set and preserves verified last-known-good source closures in both indexes. Successful export selects exact current root closures, copies canonical CAS objects, and returns the current runtime file list; failed source preparation leaves the runtime copy unchanged.
+- Conformance: Partial. Real Manny/clip/textured/floor models, external-only changes, source-free loading, failure/recovery/removal/empty projects and runtime-copy retention are tested. New metadata uses cge.gltf; legacy SharpGLTF metadata migrates through AssetAuthoringService while preserving identity and options. Resource-worker metadata mutation is rejected before publication. Source/SDK five-profile/four-template builds and consumer cutover tests pass in Debug; updated self-contained static-contract shipping execution passes; full meta/serve orchestration and complete resource enforcement remain separate M0114 work.
+- Next action: Complete actual Visual Studio production/settings acceptance in M0128; retain broader M0114 orchestration work separately.
 
 ## F-L7-054 — Interchange document and codec
 
@@ -62,7 +93,7 @@
 - Implementation evidence: `src/CSharpGameEngine.Cooking/Interchange/{InterchangeDocument,InterchangeCodec,InterchangeValidator}.cs`
 - Tests: `tests/CSharpGameEngine.Cook.Tests/InterchangeTests.cs`
 - Reverse-engineered behavior: CGEX wire v2 has a bounded little-endian header, SHA-256 and binary scalar payload with ordered UTF-8 dictionary keys; corruption/truncation and forged lengths are rejected. IR records contain engine/BCL/Contracts values only.
-- Conformance: Partial. A provider-free type-graph test exists; full rig extensions and exhaustive resource/adversarial validation remain unresolved. Standalone runtime payload codecs exist, but no producer/consumer is connected.
+- Conformance: Partial. A provider-free type-graph test exists; full rig extensions and exhaustive resource/adversarial validation remain unresolved. Prepared production and RuntimeAssetStore consumption are connected by ModelArtifactPreparationTests; the active game model-loading path still requires cutover.
 - Next action: Complete S2 coverage before S3 worker/orchestrator integration.
 
 ## F-L7-055 — Importer contracts and module isolation
@@ -3460,7 +3491,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for canonical convex/static-mesh artifacts, deterministic BVH, immutable cook identity, atomic publish/reuse, concurrent convergence, corruption and path-boundary rejection, strict cache serialization, transactional playback, explicit realtime handoff, engine-owned sequential spool lifecycle, and Q64.64 offline Voronoi prefracture artifacts. Prefracture coverage includes deterministic seeds, 2-16 fragments, 1/16-1024 scale, volume conservation, bond connectivity, closed consistently-wound single-shell meshes, mesh/collision identity, strict serialization, atomic publication, corrupt immutable entry rejection, and real GLB CLI cooking.
 - Evidence: PhysicsCooking.cs, PhysicsCache.cs, PrefractureCooking.cs, PhysicsBakeTests.cs, tools/CSharpGameEngine.Physics.Cli/.
-- Conformance: Matches. The playback artifact contains the closed render mesh, local convex collision shape, center, mass, stable fragment index, and ordered adjacency bonds for every fragment. M0113: the prefracture artifact is version 2 (`CGEFRAC2`: per-triangle outer/interior material slot, Voronoi site, one level of connected clusters, bond area; version 1 still read), and the simulation cache is schema 3 (the bonds broken in each tick; schema 2 still read). M0124: version 3 (`CGEFRAC3`, written only for two to four nested levels of clusters; a one-level asset stays version 2, byte for byte) and cache schema 4 (after the breaks, the bonds whose internal strain an impact raised and the internal strain they carry; schemas 2 and 3 still read). Breaking at run time is F-L5-049, not an artifact responsibility.
+- Conformance: Matches. The playback artifact contains the closed render mesh, local convex collision shape, center, mass, stable fragment index, and ordered adjacency bonds for every fragment. M0113: the prefracture artifact is version 2 (`CGEFRAC2`: per-triangle outer/interior material slot, Voronoi site, one level of connected clusters, bond area), and the simulation cache is schema 3 (the bonds broken in each tick). Since 2026-11-15 (ADR-0098 §5 C/E) only `.cgefracture` version 3 and cache schema 4 are read or written; earlier versions are refused and cooked or baked again. M0124: version 3 (`CGEFRAC3`, written only for two to four nested levels of clusters; a one-level asset stays version 2, byte for byte) and cache schema 4 (after the breaks, the bonds whose internal strain an impact raised and the internal strain they carry; schemas 2 and 3 still read). Breaking at run time is F-L5-049, not an artifact responsibility.
 
 ## F-L7-020 — Physics CLI and Bake Host
 
@@ -3613,8 +3644,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: `Docs/Specifications/World-Scale-Runtime.md#world-cell-artifacts`
 - Stage: `world.cell-artifacts` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L2-006, F-L5-036, F-L6-005
-- Current delta: None for the canonical sparse cell schema and deterministic artifact envelope. Runtime activation is implemented by F-L5-037.
-- Conformance: `WorldCellArtifactTests` cover deterministic round-trip, exact Q64.64 bounds, closure validation, corruption rejection, and canonical dependency ordering.
+- Current delta: Version 2 replaces six fixed Q64.64 slots with length-prefixed CGN1 values. Version 1 is rejected as an invalid payload since 2026-11-15 (ADR-0098 §5 C). Runtime activation is implemented by F-L5-037. See ADR-0094.
+- Conformance: `WorldCellArtifactTests` cover deterministic round-trip, rejection of an independent version-1 fixture, nearest-even conversion, malformed/overflow atomic rejection, closure validation, corruption rejection, and canonical dependency ordering.
 - Next action: compile authoring definitions incrementally through F-L7-026 without changing the runtime artifact schema.
 
 ## F-L5-023 — Kepler frame pose provider
@@ -4310,12 +4341,13 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Layer: L6 — Runtime Artifacts
 - Parent capability: ECS / Runtime
 - Status: Implemented
-- Verification: Automated
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#snapshot-artifact`
 - Stage: `ecs.snapshot` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-022, F-L3-019
-- Current delta: None. Generated archetype/Component schemas, canonical checksummed cell deltas, completed-tick capture, atomic loaded-cell restore, tombstones, and unloaded-cell pending deltas are implemented without a legacy reader.
+- Current delta: None. Generated archetype/Component schemas, canonical checksummed cell deltas, completed-tick capture, atomic loaded-cell restore, tombstones, and unloaded-cell pending deltas are implemented. Version 1 is rejected as UnsupportedVersion; the generated version-1 migration of ADR-0095 was removed under ADR-0098 §5 (2026-11-15).
 - Conformance: `WorldSnapshotSpec` covers exact round-trip, corruption/schema rejection, canonical-payload validation, tombstones, unloaded-cell merge/pending restore, transient derived links, archetype/entity mismatch, and structural-barrier atomicity. `SnapshotGeneratorTests` fixes the generated boundary including zero-archetype compilations, and `GeneratedWorldCellActivationTests` validates the shipping Scene/cell path and `IRuntimeComponent` exclusion.
+- M0128 extension: Roslyn emits descriptors and direct codecs for closed supported value graphs, including nested structs, nullable enums, identifiers, exact LogicalScalar text, validated readonly properties and constructor-bound readonly fields. Generated World has no reflective codec fallback; unsupported persistence requested by a direct World call in the same source compilation is SYSGEN044. An unrelated method with the same name does not request that capability. Scene-only unsupported state fails explicitly if persistence is subsequently invoked. The standalone generic codec remains a separate public API. Version 2 normalizes fixed/Single/Double leaves to a common saved real-value identity and exact decimal strings. Source canonicality is checked before target rounding; a normalized current document is created before mutation, pending-cell handling or merge. Provable v1 schema/key mappings and direct readers are generated statically. Current generator Debug/Release 410 each includes actual cross-profile World artifacts, rounding and atomic-overflow checks; Entities Debug/Release 84 each cover persistence, pending cells and merge. See M0128 for task IDs and legacy compatibility limits.
 - Next action: Bind the stable schema/source hashes and ECS performance reports into F-L7-033 release closure.
 
 ## F-L7-032 — ECS runtime performance evidence
@@ -5051,7 +5083,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified for inventory, metadata migration, physical mutation/undo/recovery, shared catalog names, semantic reference planning and typed data edits. Actual Japanese/dark create, Inspector edit, native text Undo/Redo/Save, reviewed delete and Output tab grouping were exercised in the dedicated Experimental Instance; the full native gesture matrix remains Unverified.
 - Intended specification: `Docs/Specifications/Asset-Workspace.md`
 - Implementation evidence: `AssetWorkspaceContracts.cs`, `AssetFileMutationContracts.cs`, `AssetWorkspaceService.cs`, `AssetFileMutationService.cs`, `AssetCatalogLayout.cs`; VSIX `AssetsToolWindowControl`, `AssetWorkspaceController`, `AssetSolutionExplorerFilter`, `AssetInspectorControl`, `AssetReferencePlanner`, `AssetFileTransaction`, `AssetProjectMutationGuard`, `AssetPlacement`.
-- Icon presentation: Shared L8 AssetWorkspaceIcons and CrispImage use ImageGroup for the window/commands/filter entry, type icons, thumbnail fallback/markers and independent lock/diagnostic badges. AssetWorkspaceIconTests covers mapping, normal-state suppression and read-only/error coexistence; M0123 records real-shell verification.
+- Icon presentation: Shared L8 AssetWorkspaceIcons and CrispImage use ImageGroup for the window/commands/filter entry, type icons, thumbnail fallback/markers and independent lock/diagnostic badges. AssetWorkspaceRow exposes cancellable thumbnail loading; tiles show a rotating indicator during a request and a completed-unavailable label only for supported preview kinds. AssetWorkspaceIconTests covers lifecycle, stale completion, icon-only kinds and independent badges.
+- Inline rename: Selected-item delayed click, F2 and the rename menu edit the name in tiles/details; Enter/focus loss commits and Escape cancels. The pane consumes native Escape before the IDE can commit through focus loss. The UI validates a file name in the same folder, blocks read-only/missing/child assets, and reuses reference planning and file transactions. AssetWorkspaceTests and AssetDetailsViewLifecycleTests cover transient editing, invalid names and native cancel. Japanese/dark shell edit/rename/Undo/Redo/cancel observations are recorded in M0128; the larger M0123 matrix remains partial.
 - Tests: `Content.Tests/AssetWorkspaceTests.cs`, `AssetFileMutationTests.cs`; `VSExtension.Tests/AssetWorkspaceTests.cs`; generator regression suite. Exact configuration results are in M0123.
 - Reverse-engineered behavior: `RE-L8-035` in `Docs/Reverse-Engineered-Spec.md`.
 - Conformance: Partial. The accepted target has not been reduced.
@@ -5071,7 +5104,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Status: PartiallyImplemented
 - Verification: TestVerified for the registry/open-location policy/floating placement policy, camera, image/waveform models, preview level template/store/resolver/composer, protocol validation and WARP lighting renders. Live in the dedicated Experimental Instance (CgeAssets hive, Japanese, dark): floating front-most open, default placement painting fully, restore keeping the saved geometry, and Default/Studio/Outdoor/Neutral rendering and switching. Skeletal viewer live in the same hive: the 89-joint mannequin tree, the bind pose, bones drawn in the viewport, the animation-only `MM_Idle.glb` choosing the mannequin as its preview mesh and playing its clip (time advancing and looping). The Texture, Sound, Font and Data Asset editors, a textured single- and four-node static glTF, and a Data Asset edit-apply (unsaved, file untouched) were also observed live. Real orbit/pan gestures, scrubbing and joint selection by mouse, Sound playback output, Texture channel and zoom gestures, Data Asset undo and save, high contrast and DPI are Unverified live.
 - Intended specification: `Docs/Specifications/Asset-Editors.md`, `Docs/Decisions/ADR-0089-Asset-Editor-Windows.md`
-- Implementation evidence: VSIX `AssetEditors/` (`AssetEditorRegistry`, `AssetEditorFactory`, `AssetEditorPanes`, `AssetEditorShell`, `AssetEditorFramePlacement`, `AssetEditorFrameFloater`, `AssetEditorOpenLocationPolicy`, `AssetViewportHost`, `AssetViewportFramePump`, `AssetViewportCamera`, the five content classes, `PreviewLevels/*`); `RenderPreviewHostClient.Abort`; `RenderPreviewLightingContracts.cs`, `RenderPreviewHostContracts.cs` (v13); `RenderPreviewLightingApplier.cs`; `EnvironmentLightingSettings.Background`; skeletal: `RenderPreviewSkeletalContracts.cs`, host `RenderPreviewSkeletalAsset.cs`, `StageGltfAssets.cs` (extracted from `StageSceneDataBuilder`), VSIX `SkeletalEditorPanel`, `GltfSkeletalProbe`, `AssetAnimationTimeline`.
+- Implementation evidence: VSIX `AssetEditors/` (`AssetEditorRegistry`, `AssetEditorFactory`, `AssetEditorPanes`, `AssetEditorShell`, `AssetEditorFramePlacement`, `AssetEditorFrameFloater`, `AssetEditorOpenLocationPolicy`, `AssetViewportHost`, `AssetViewportFramePump`, `AssetViewportCamera`, the five content classes, `PreviewLevels/*`); `RenderPreviewHostClient.Abort`; `RenderPreviewLightingContracts.cs`, `RenderPreviewHostContracts.cs` (v14; prepared-model references verified in contract/worker/CPU/WARP tests); `RenderPreviewLightingApplier.cs`; `EnvironmentLightingSettings.Background`; skeletal: `RenderPreviewSkeletalContracts.cs`, host `RenderPreviewSkeletalAsset.cs`, `StageModelAssets.cs` (common artifact-to-stage conversion; M0128 CPU/WARP and source-free shipping validation; 148 final Windows Release cases pass; final SDK 0.1.42 runtime passes; actual Visual Studio UI acceptance pending), VSIX `SkeletalEditorPanel`, `GltfSkeletalProbe`, `AssetAnimationTimeline`.
 - Tests: `VSExtension.Tests/AssetEditorFoundationTests.cs`, `AssetEditorModelTests.cs`, `PreviewLevelTests.cs`, `PreviewLevelStoreTests.cs`, `AssetSkeletalModelTests.cs`, `PackagedRenderPreviewHostTests.cs`; `Windows.Tests/Runtime/RenderPreviewLightingSessionTests.cs`, `RenderPreviewSkeletalSessionTests.cs`; `Contracts.Tests/RenderPreviewLightingProtocolTests.cs`, `RenderPreviewSkeletalProtocolTests.cs`; Bridge/Cook additions. Exact results are in M0127.
 - Reverse-engineered behavior: `RE-L8-036` in `Docs/Reverse-Engineered-Spec.md`.
 - Conformance: Partial. The accepted target has not been reduced.
@@ -5152,3 +5185,14 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Partial. Standalone and frontend contract tests pass; real shell acceptance and complete M0114 integration remain.
 - Known deviations: real skinned/multi-Take FBX fixtures and linked native multi-document/file Undo remain runtime gates; advanced Humanoid/retarget/root-motion/collision/extraction processors are explicitly unsupported. Global M0114 artifact-only runtime migration remains separate.
 - Next action: Real shell acceptance, real rigged/multi-Take FBX fixtures and complete M0114 artifact/catalog integration.
+
+
+### 2026-11-04: ThirdPerson シーン表示の壁位置（F-L8-036 / M0128）
+
+今回の壁修正は Implemented / TestVerified・RuntimeVerified（非表示描画）。Scene Designer とシーン・モデルのサムネイルに残っていた旧単一 glTF 読込を、AssetAuthoring worker の共通モデル成果物へ接続した。成果物ハッシュを照合し、階層変換・サブメッシュ材質・選択用形状を保持する。シーン単位でモデルをまとめて準備する。片側原点の壁 SM_Cube2 は配置値を変えず、誤った F=20..60 から F=-20..20 へ戻る。実 ThirdPerson・ソース削除後の読込・ハッシュ不一致を含むワーカー15件、固定値と float の四分の一回転・部品 ID/選択/材質、VSIX Release 全1596件が成功した。旧読込を再実行した修正前と修正後を同一カメラ・900×900・WARPで直接描画し、両方54描画オブジェクト、D3D12エラー0件を確認した（.artifacts/StaticProduction/wall-preview-20261104）。VS の画面写真ではなく、実ステージのエンジン描画の比較。FBXと生成プリミティブの既存経路、プレビューのテクスチャ制約は維持する。F-L8-036/M0128全体の PartiallyImplemented は維持し、残る制作一巡の実画面受け入れを別途確認する。設計・実装・検証の対応は 20261104-thirdperson-wall-preview.md に記録する。
+
+
+2026-11-04 実画面追記: SDK46/VSIX16の梱包と実プロジェクトの発行・WARP起動・制作専用DLL除外は成功した。一方、専用VSでのシーン表示はSceneRenderFailedを実際に観測した（32-sdk46-scene-preview-failed.jpg）。非表示の比較描画の成功を実VSの成功へ読み替えない。この統合表示はInvestigating / Mismatch、F-L8-036・M0128全体はPartiallyImplementedのまま。通常終了の自動承認審査と操作ツールのタイムアウトがあり、保存確認済みのVSの終了・診断付き再起動を明示確認待ち。詳細と次の検証はM0128へ記録した。
+
+
+追記: 実VS16の失敗は実行用プレビューでの素材読み込みと周期更新の待機を独立再現した。VSIX17は周期更新を積み残さず、同じSDK46で通常GPU/WARPの描画が成功。梱包関連23件、Release全1597件、既存Windowsプレビュー9件が成功。17の配置と実画面確認は保存済みVSの終了・再起動の明示確認待ち。Current integration remains PartiallyImplemented / Partial; see M0128 and 20261104-runtime-preview-ticks.md.

@@ -4,8 +4,8 @@ using CSharpGameEngine.Import.AssetAuthoring.Cli;
 if(ImageModelCommands.Run(args) is { }AuthoringExit){ return AuthoringExit; }
 
 if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
-    await BridgeServerHost.RunAsync(
-        PipeName,AssetAuthoringBridgeWorker.Run,TimeSpan.FromMinutes(15),OwnerProcessId:OwnerProcessId);
+    await BridgeServerHost.RunArgumentsAsync(
+        PipeName,(Arguments,Cancellation)=>Arguments.Length==2?AssetAuthoringBridgeWorker.Run(Arguments[0],Arguments[1],Cancellation):(2,"Two request paths are required."),TimeSpan.FromMinutes(15),OwnerProcessId:OwnerProcessId);
     return 0;
 }
 

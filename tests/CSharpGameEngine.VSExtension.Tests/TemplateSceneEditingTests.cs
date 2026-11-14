@@ -26,7 +26,7 @@ public sealed class TemplateSceneEditingTests {
         var Project=Path.Combine(Root!.FullName,"Templates","CSharpGameEngine.Templates.ThirdPerson");
         var StartInfo=new ProcessStartInfo("dotnet",
             "msbuild \""+Path.Combine(Project,"CSharpGameEngine.Templates.ThirdPerson.csproj")+"\" -nologo -restore -target:ResolveReferences"
-            +" -getItem:Compile -getItem:ReferencePath -getProperty:DefineConstants -p:Configuration=Debug"){
+            +" -getItem:Compile -getItem:ReferencePath -getProperty:DefineConstants -p:Configuration=Debug -p:UseSharedCompilation=false -m:1 -nr:false"){
             UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true,WorkingDirectory=Project,
         };
         string Text;

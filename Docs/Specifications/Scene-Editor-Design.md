@@ -5,8 +5,9 @@
 挙げた項目は本書の範囲外である。意思決定の根拠は
 [[ADR-0041-Scene-Editor-Interaction-Architecture]]、実装フェーズと完了条件は
 [[M0020-Scene-Editor-Interaction]]、既存基盤の決定は
-[[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]を参照。実装が本書と食い違った場合は
-実装・テストを正とし、本書を追記修正する(ドキュメント真実性の序列に従う)。
+[[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]を参照。実装が本書と食い違った場合は、
+現在の要求・不変条件・観測事実からあるべき挙動を判断し、実装・テスト・文書を同じ作業で一致させる。
+数値設定に応じた現在の入力・精度・編集契約は [Numeric Configuration](Numeric-Configuration.md#シーン入力の精度と範囲) を参照。
 
 ```text
 Docs/シーンエディタの仕様.md   … 要求仕様(何をしたいか)
@@ -574,7 +575,7 @@ Scene View 上部の `View` は `Lit`、`Base Color`、`Normal`、`Wireframe` �
 
 ## Editor Preview World
 
-Scene Viewの未実行状態は、Source Generatorが出力する GeneratedEditorPreviewBridge を隔離net10 Preview Hostから実行する。Runtimeと同じWorld、SystemOrder、GlobalSpatialIndex、SpatialDebugHubを使い、[ExecuteInEditor] のSystemだけを変更時（Realtime=trueは15Hz追加）に実行する。Runtimeスナップショットが有効な間はRuntimeを優先し、終了または未接続時はEditor Previewへ自動フォールバックする。
+Scene Viewの未実行状態は、Source Generatorが出力する GeneratedEditorPreviewBridge を隔離net10 Preview Hostから実行する。Runtimeと同じWorld、SystemOrder、GlobalSpatialIndex、SpatialDebugHubを使い、[ExecuteInEditor] のSystemだけを変更時（Realtime=trueは15Hz追加。描画や別の更新が処理中なら周期更新を積み残さず、次回の実時間差で進む）に実行する。Runtimeスナップショットが有効な間はRuntimeを優先し、終了または未接続時はEditor Previewへ自動フォールバックする。
 
 
 ## Runtime component namespace

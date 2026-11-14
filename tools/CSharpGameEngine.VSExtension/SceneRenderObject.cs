@@ -10,6 +10,8 @@ internal sealed class SceneRenderObject {
     public required SimpleMesh Mesh { get;init;}
     public required Matrix4x4 World { get;init;}
     public required NodePath NodeId { get;init;}
+    public string?PartId { get;init;}
+    public string RenderId=>this.PartId??this.NodeId.ToDisplayString();
     public bool IncludeInBounds { get;init;}=true;
     public bool IsPickable { get;init;}=true;
 }

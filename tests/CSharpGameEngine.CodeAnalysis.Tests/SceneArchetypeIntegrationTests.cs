@@ -193,14 +193,14 @@ public sealed class SceneArchetypeIntegrationTests {
                     World world = new();
                     Entity entity = world.Create({{CreateArguments}});
                     State state = new(world) { Enabled = true };
-                    High high = default;
+                    CSharpGameEngine.Generated.GeneratedSystemSet systems = default;
                     FixedTickScheduler scheduler = new();
                     if (!world.SetComponentEnabled(entity, EcsComponentType.C{{HighIndex}}, false)) return -2;
-                    CSharpGameEngine.Generated.GeneratedGameLoop.RunFrame(ref state, ref high, ref scheduler, 1, 60);
+                    CSharpGameEngine.Generated.GeneratedGameLoop.RunFrame(ref state, ref systems, ref scheduler, 1, 60);
                     if (!world.TryGetComponent(entity, out C{{HighIndex}} disabled) || disabled.Value != 0) return -3;
                     world.SetComponentEnabled(entity, EcsComponentType.C{{HighIndex}}, true);
                     ChangeVersion beforeWrite = world.CaptureChangeVersion();
-                    CSharpGameEngine.Generated.GeneratedGameLoop.RunFrame(ref state, ref high, ref scheduler, 1, 60);
+                    CSharpGameEngine.Generated.GeneratedGameLoop.RunFrame(ref state, ref systems, ref scheduler, 1, 60);
                     Span<Entity> changed = stackalloc Entity[1];
                     int count = world.CollectChanged(EcsComponentType.C{{HighIndex}}, beforeWrite, changed);
                     return world.TryGetComponent(entity, out C{{HighIndex}} value) ? value.Value * 10 + count : -1;

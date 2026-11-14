@@ -2,6 +2,8 @@
 - 状態: Accepted（2026-10-02、ユーザーの依頼: 「ThirdPerson の地面のグリッドを UE と同じにする」）
 - 関連: ADR-0017（UE レベル取り込み）、ADR-0067/0068（ThirdPerson テンプレート）、ADR-0069（ライティングの取り込み）、M0098
 
+材質生成物の隣にだけグリッドを保持する境界は[ADR-0097](ADR-0097-Model-Artifact-Production.md)で更新した。共通モデル生成物では任意のグリッドを材質へ保存する。手続き的グリッドの描画規則とGPU配置は維持する。ゲームとプレビューの旧読込からの移行はM0128で管理する。
+
 ## 背景
 2026-10-02 に観測した事実:
 - ThirdPerson テンプレートの床に、崩れた模様（三角形や密な格子）が出ていた。UE の参照画像（`.artifacts/UnrealExport/Lvl_ThirdPerson/ue_reference_spawn_camera.png`）では、床と壁に 1m 角ほどの灰色のグリッドが均一に並ぶ。
@@ -78,4 +80,7 @@
 - 検証の追加: `WorldGridGpuIntegrationTests.WorldGrid_Warp_CameraRelativeRenderingKeepsTheLinesOnTheWorldGrid`、`RenderOriginTests`（`EngineHost` を通し、セルの整数倍だけ離れた 2 か所の視点で画素が一致し、半セルずらすと変わる。0.75 m と 10000.75 m）。
 
 ## 関連する機能
+
+UE 5.0 Third Personの材質に限り、glTFの `anchorToObject` を材質成果物とプレビュー要求へ渡す。描画時の格子座標は各描画オブジェクトの原点から測る。元の配置は90度刻みなので、立方体格子をワールド軸に保っても向きが一致する。任意角度のローカル軸投影はこの指定の契約に含まれない。
+
 - F-L0-002（StageRenderer）、F-L0-005（GltfImporter.ImportScene）、F-L7-005（UE レベル取り込み）、F-L8-032（ThirdPerson テンプレート）

@@ -8,7 +8,7 @@ public sealed class SceneGeometryTests {
         return (Points.Min(static P=>Geometry.F(P.R)),Points.Max(static P=>Geometry.F(P.R)),Points.Min(static P=>Geometry.F(P.U)),Points.Max(static P=>Geometry.F(P.U)),Points.Min(static P=>Geometry.F(P.F)),Points.Max(static P=>Geometry.F(P.F)));
     }
     private static SceneGeometry Load(TestProject Project,string Scene){
-        Assert.True(SceneGeometry.TryLoad(Scene,Project.Root,out var Geometry,out var Error),Error);
+        Assert.True(SceneGeometry.TryLoad(Scene,Project.Root,out var Geometry,out var Error,Project.ModelDirectory),Error);
         return Geometry;
     }
     [Fact]
@@ -44,9 +44,10 @@ public sealed class SceneGeometryTests {
         }
     }
     [Fact]
-    public void AStaticMeshWithACollider_IsReadThroughItsGlbAndPlaced(){
+    public void AStaticMeshWithACollider_IsReadFromItsSavedModelAndPlacedWithoutTheSource(){
         using var Project=new TestProject();
         var Asset=Project.CopyBox();
+        File.Delete(Path.Combine(Project.Root,Asset));
         var Floor=Node("Floor",[Transform(U:-0.5f,ScaleR:10f,ScaleU:1f,ScaleF:10f),StaticMesh(Asset)]);
         var Scene=Project.WriteScene("Level.json","Level",Node("Root",[Bounds()],Floor));
         var Geometry_=Load(Project,Scene);
@@ -106,16 +107,22 @@ public sealed class SceneGeometryTests {
         Assert.Equal(NavigationDefaults.CellHeight,Volume.Settings.CellHeight);
     }
     [Fact]
-    public void TheSlopeKeyFollowsTheSchemaVersion(){
-        // 版 3: 単位語なしのキーに回転数。版 2: C# の名前のキーに回転数。版 1: C# の名前のキーに度。
+    public void TheSlopeIsReadInTurnsUnderTheUnitFreeKey(){
         using var Project=new TestProject();
-        LogicalScalar Slope(int Version,string Key,string Value){
-            var Root=Node("Volume",[Bounds("Level",Extra:$", \"{Key}\": {Value}")]);
-            return Assert.Single(Load(Project,Project.WriteScene("V"+Version+".json","V"+Version,Root,SchemaVersion:Version)).Volumes).Settings.AgentMaxSlopeDegrees;
-        }
-        Assert.Equal(36f,Geometry.F(Slope(3,"AgentMaxSlope","0.1")),0.01f);
-        Assert.Equal(36f,Geometry.F(Slope(2,"AgentMaxSlopeDegrees","0.1")),0.01f);
-        Assert.Equal(36f,Geometry.F(Slope(1,"AgentMaxSlopeDegrees","36")),0.01f);
+        var Root=Node("Volume",[Bounds("Level",Extra:", \"AgentMaxSlope\": 0.1")]);
+        Assert.Equal(36f,Geometry.F(Assert.Single(Load(Project,Project.WriteScene("V3.json","V3",Root)).Volumes).Settings.AgentMaxSlopeDegrees),0.01f);
+    }
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void AnEarlierSceneVersionIsRefusedWithTheUpgradeCommand(int Version){
+        // ADR-0098 §5 規則 2：Cook も版 3 だけを読む。旧版はシーンの変換を案内する。
+        using var Project=new TestProject();
+        var Root=Node("Volume",[Bounds("Level",Extra:", \"AgentMaxSlopeDegrees\": 36")]);
+        var Scene=Project.WriteScene("V"+Version+".json","V"+Version,Root,SchemaVersion:Version);
+        Assert.False(SceneGeometry.TryLoad(Scene,Project.Root,out _,out var Error));
+        Assert.Contains("error NAV013",Error,StringComparison.Ordinal);
+        Assert.Contains("SceneJson.Cli upgrade",Error,StringComparison.Ordinal);
     }
     [Fact]
     public void BrokenInput_IsRefusedWithACodedMessage(){
@@ -139,21 +146,20 @@ public sealed class SceneGeometryTests {
         Assert.Contains("error NAV005",Half);
     }
     [Fact]
-    public void AMissingMeshFile_IsAnErrorNamingIt(){
+    public void AMissingModelArtifact_IsAnErrorNamingIt(){
         using var Project=new TestProject();
         var Scene=Project.WriteScene("Level.json","Level",Node("Root",[Bounds()],Node("Wall",[Transform(),StaticMesh("Assets/Meshes/Gone.glb")])));
-        Assert.False(SceneGeometry.TryLoad(Scene,Project.Root,out _,out var Error));
+        Assert.False(SceneGeometry.TryLoad(Scene,Project.Root,out _,out var Error,Project.ModelDirectory));
         Assert.Contains("error NAV003",Error);
         Assert.Contains("Assets/Meshes/Gone.glb",Error);
     }
     [Fact]
-    public void ACorruptMeshFile_IsAnErrorNamingItsNode(){
+    public void ACorruptModelArtifact_IsAnErrorNamingItsNode(){
         using var Project=new TestProject();
-        var Path_=System.IO.Path.Combine(Project.Root,"Assets","Meshes","Bad.glb");
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path_)!);
-        File.WriteAllText(Path_,"not a glb");
+        Project.CopyBox("Assets/Meshes/Bad.glb");
+        File.WriteAllText(Path.Combine(Project.ModelDirectory,"content-index.json"),"{ broken index");
         var Scene=Project.WriteScene("Level.json","Level",Node("Root",[Bounds()],Node("Wall",[Transform(),StaticMesh("Assets/Meshes/Bad.glb")])));
-        Assert.False(SceneGeometry.TryLoad(Scene,Project.Root,out _,out var Error));
+        Assert.False(SceneGeometry.TryLoad(Scene,Project.Root,out _,out var Error,Project.ModelDirectory));
         Assert.Contains("error NAV006",Error);
         Assert.Contains("'Wall'",Error);
     }

@@ -33,10 +33,11 @@ internal static class AssetThumbnailService {
         internal readonly LinkedListNode<string>Node=Node;
         internal int Bytes=>this.Image.PixelWidth*this.Image.PixelHeight*4;
     }
-    private sealed class Work(string Key,AssetWorkspaceItem Item,Project?Project){
+    private sealed class Work(string Key,AssetWorkspaceItem Item,Project?Project,int Edge){
         internal readonly string Key=Key;
         internal readonly AssetWorkspaceItem Item=Item;
         internal readonly Project?Project=Project;
+        internal readonly int Edge=Edge;
         internal readonly CancellationTokenSource Stop=new();
         internal CancellationToken Cancellation=>this.Stop.Token;
         internal int Subscribers;
@@ -44,22 +45,24 @@ internal static class AssetThumbnailService {
     }
     /// <summary>Inventory refresh invalidates transitive source dependencies that are not themselves a tile.</summary>
     internal static void Invalidate(){ lock(Gate){ Generation++;Cache.Clear();Recency.Clear();Bytes=0; } }
-    internal static async Task<BitmapSource?>RequestAsync(AssetWorkspaceItem Item,CancellationToken Cancellation,AssetKey?ThumbnailKey=null){
+    internal static bool SupportsThumbnail(AssetWorkspaceItem Item,AssetKey?ThumbnailKey=null)=>
+        Item.Kind is AssetWorkspaceKind.Scene or AssetWorkspaceKind.Model or AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image or AssetWorkspaceKind.Font
+        &&ThumbnailKey?.SubAssetId is null;
+    internal static async Task<BitmapSource?>RequestAsync(AssetWorkspaceItem Item,CancellationToken Cancellation,AssetKey?ThumbnailKey=null,int Edge=AssetThumbnailRequest.DefaultEdge){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Cancellation);
-        var Operation=RequestCoreAsync(Item,Cancellation,ThumbnailKey);
+        var Operation=RequestCoreAsync(Item,Cancellation,ThumbnailKey,Edge);
         return await Operation.ConfigureAwait(false);
     }
-    private static Task<BitmapSource?>RequestCoreAsync(AssetWorkspaceItem Item,CancellationToken Cancellation,AssetKey?ThumbnailKey){
-        if(Cancellation.IsCancellationRequested||Item.Kind is not(AssetWorkspaceKind.Scene or AssetWorkspaceKind.Model or AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image or AssetWorkspaceKind.Font)){ return Task.FromResult<BitmapSource?>(null); }
+    private static Task<BitmapSource?>RequestCoreAsync(AssetWorkspaceItem Item,CancellationToken Cancellation,AssetKey?ThumbnailKey,int Edge){
         // A child must supply its real artifact/selector before it can be previewed; never reuse its parent's picture.
-        if(ThumbnailKey?.SubAssetId is not null){ return Task.FromResult<BitmapSource?>(null); }
+        if(Cancellation.IsCancellationRequested||!SupportsThumbnail(Item,ThumbnailKey)){ return Task.FromResult<BitmapSource?>(null); }
         Project?Project=null;
         if(Item.Kind==AssetWorkspaceKind.Scene){
             Project=AssetDocumentWorkspace.Workspace.CurrentSolution.Projects.FirstOrDefault(P=>string.Equals(P.FilePath,Item.Source.ProjectPath,StringComparison.OrdinalIgnoreCase));
             if(Project is null){ return Task.FromResult<BitmapSource?>(null); }
         }
         var File=new FileInfo(Item.Source.SourcePath);
-        var Key=(ThumbnailKey??Item.GetKey())?.ToString()+"|"+Item.Source.SourcePath+"|"+File.Length+"|"+File.LastWriteTimeUtc.Ticks+"|"+Item.MetadataSha256+"|"+Project?.Version.ToString()+"|"+Generation+"|geometry-studio-room-v1";
+        var Key=(ThumbnailKey??Item.GetKey())?.ToString()+"|"+Item.Source.SourcePath+"|"+File.Length+"|"+File.LastWriteTimeUtc.Ticks+"|"+Item.MetadataSha256+"|"+Project?.Version.ToString()+"|"+Generation+"|"+Edge;
         lock(Gate){
             if(Cache.TryGetValue(Key,out var Existing)){ Recency.Remove(Existing.Node);Recency.AddFirst(Existing.Node);return Task.FromResult<BitmapSource?>(Existing.Image); }
             if(Pending.TryGetValue(Key,out var ExistingWork)&&!ExistingWork.Cancellation.IsCancellationRequested){ return SubscribeAsync(ExistingWork,Cancellation); }
@@ -67,7 +70,7 @@ internal static class AssetThumbnailService {
             while(Queue.Count>=MaximumPending){
                 var Old=Queue.Last!.Value;Queue.RemoveLast();if(Pending.TryGetValue(Old.Key,out var Current)&&ReferenceEquals(Current,Old)){ Pending.Remove(Old.Key); }Old.Completion.TrySetCanceled();Old.Stop.Cancel();Old.Stop.Dispose();
             }
-            var Next=new Work(Key,Item,Project);Queue.AddFirst(Next);Pending[Key]=Next;
+            var Next=new Work(Key,Item,Project,Edge);Queue.AddFirst(Next);Pending[Key]=Next;
             if(!Running){ Running=true;_=Task.Run(RunAsync); }
             return SubscribeAsync(Next,Cancellation);
         }
@@ -114,7 +117,7 @@ internal static class AssetThumbnailService {
     private static async Task<BitmapSource>GenerateAsync(Work Work){
         if(Work.Item.Kind==AssetWorkspaceKind.Font){ return await FontTileAsync(Work.Item,Work.Cancellation).ConfigureAwait(false); }
         var Item=Work.Item;var Context=CgeProjectContext.Resolve(Item.Source.ProjectPath)??throw new InvalidOperationException("Game project is unavailable.");
-        var Request=new AssetThumbnailRequest();
+        var Request=new AssetThumbnailRequest{MaxEdge=Work.Edge};
         if(Item.Kind is AssetWorkspaceKind.Texture or AssetWorkspaceKind.Image){ Request.ImagePath=Item.Source.SourcePath; }
         else{
             if(Item.Kind==AssetWorkspaceKind.Model){
@@ -140,9 +143,9 @@ internal static class AssetThumbnailService {
             ExternalBridgeProcess.RunExecutableCommandProducingFile(Host,ImageRequest?"CSharpGameEngine.Cook.Cli":"CSharpGameEngine.EditorPreview.Host",[ImageRequest?"thumbnail-image":"--thumbnail",Input,Output],Output,Context.WorkspaceRoot,TimeSpan.FromSeconds(30),false,Work.Cancellation);
             Work.Cancellation.ThrowIfCancellationRequested();
             using(var Stream=File.OpenRead(Output)){
-                if(Stream.Length>128*128*8){ throw new InvalidDataException("Thumbnail PNG exceeds its bound."); }
-                var Bitmap=new BitmapImage();Bitmap.BeginInit();Bitmap.CacheOption=BitmapCacheOption.OnLoad;Bitmap.DecodePixelWidth=128;Bitmap.StreamSource=Stream;Bitmap.EndInit();Bitmap.Freeze();
-                if(Bitmap.PixelWidth is <1 or >128||Bitmap.PixelHeight is <1 or >128){ throw new InvalidDataException("Thumbnail dimensions are invalid."); }
+                if(Stream.Length>Work.Edge*Work.Edge*8){ throw new InvalidDataException("Thumbnail PNG exceeds its bound."); }
+                var Bitmap=new BitmapImage();Bitmap.BeginInit();Bitmap.CacheOption=BitmapCacheOption.OnLoad;Bitmap.StreamSource=Stream;Bitmap.EndInit();Bitmap.Freeze();
+                if(Bitmap.PixelWidth<1||Bitmap.PixelWidth>Work.Edge||Bitmap.PixelHeight<1||Bitmap.PixelHeight>Work.Edge){ throw new InvalidDataException("Thumbnail dimensions are invalid."); }
                 return Bitmap;
             }
         }finally { try { Directory.Delete(Temp,true); }catch(IOException){ }catch(UnauthorizedAccessException){ } }
@@ -174,8 +177,7 @@ internal static class AssetThumbnailService {
         return Tile??throw new InvalidDataException("The font has no drawable glyphs.");
     }
     private static SimpleMesh LoadMesh(string PathValue,CgeProjectContext Context){
-        var Mesh=Path.GetExtension(PathValue).Equals(".fbx",StringComparison.OrdinalIgnoreCase)
-            ?ExternalFbxLoader.Load(PathValue,Context.WorkspaceRoot):ExternalGltfLoader.Load(PathValue,Context.WorkspaceRoot);
+        var Mesh=MeshLoader.Load(PathValue,Context.WorkspaceRoot);
         if(Mesh.Positions.Length>250_000||Mesh.Indices.Length>750_000){ throw new InvalidDataException("Model exceeds the thumbnail geometry budget."); }
         return Mesh;
     }
@@ -183,16 +185,45 @@ internal static class AssetThumbnailService {
         var Project=Work.Project??throw new InvalidOperationException("Scene workspace is unavailable.");
         var Document=Project.AdditionalDocuments.FirstOrDefault(D=>string.Equals(D.FilePath,Work.Item.Source.SourcePath,StringComparison.OrdinalIgnoreCase))??throw new InvalidOperationException("Scene document is unavailable.");
         var Compilation=await Project.GetCompilationAsync(Work.Cancellation).ConfigureAwait(false)??throw new InvalidOperationException("Scene compilation is unavailable.");
-        var Text=await Document.GetTextAsync(Work.Cancellation).ConfigureAwait(false);
-        var ClassName=SceneJsonWorkspaceSource.TryReadClassFullyQualifiedName(Text.ToString())??throw new InvalidDataException("Scene declaration is invalid.");
-        var Added=await SceneJsonWorkspaceSource.AddDesignerTreeAsync(Project,Compilation,Document,Work.Cancellation).ConfigureAwait(false)??throw new InvalidDataException("Scene analysis failed.");
-        var Type=Added.Compilation.GetTypeByMetadataName(ClassName)??throw new InvalidDataException("Scene type is unavailable.");
-        var Model=SceneDeclarationAnalyzer.Analyze(Type,Added.Compilation,Work.Cancellation);
-        if(Model.HasErrors){ throw new InvalidDataException("Scene analysis has errors."); }
-        var Objects=SceneModelRenderObjectBuilder.Build(Model,Name=>Primitive(Name,Context,Work.Cancellation),PathValue=>LoadMesh(Context.ResolveProjectPath(PathValue),Context),IncludePlaceholders:false);
+        var Model=await AnalyzeSceneAsync(Project,Compilation,Document,Work.Cancellation).ConfigureAwait(false);
+        var Objects=SceneModelRenderObjectBuilder.IsGameMode(Model)
+            ?await BuildStartupGeometryAsync(Project,Model,Context,Work.Cancellation).ConfigureAwait(false)
+            :BuildGeometry(Model,Context,Work.Cancellation);
         if(Objects.Count==0){ throw new InvalidDataException("Scene has no supported geometry."); }
         Work.Cancellation.ThrowIfCancellationRequested();
         return Frame(Objects);
+    }
+    internal static async Task<IReadOnlyList<SceneRenderObject>>BuildStartupGeometryAsync(Project Project,SceneModel GameMode,CgeProjectContext Context,CancellationToken Cancellation){
+        var Compilation=await Project.GetCompilationAsync(Cancellation).ConfigureAwait(false)??throw new InvalidOperationException("Scene compilation is unavailable.");
+        var Objects=new List<SceneRenderObject>();
+        Append(GameMode);
+        foreach(var Document in SceneJsonWorkspaceSource.JsonScenes(Project)){
+            if(string.Equals(Document.FilePath,GameMode.FilePath,StringComparison.OrdinalIgnoreCase)){ continue; }
+            var Text=await Document.GetTextAsync(Cancellation).ConfigureAwait(false);
+            if(SceneJsonWorkspaceSource.TryReadClassFullyQualifiedName(Text.ToString()) is null||SceneJsonReader.Parse(Text.ToString()).Get("startupOrder") is null){ continue; }
+            var Model=await AnalyzeSceneAsync(Project,Compilation,Document,Cancellation).ConfigureAwait(false);
+            if(Model.IsStartupScene){ Append(Model); }
+        }
+        return Objects;
+        void Append(SceneModel Model){
+            foreach(var Object in BuildGeometry(Model,Context,Cancellation)){
+                Objects.Add(new(){Mesh=Object.Mesh,World=Object.World,NodeId=Object.NodeId,
+                    PartId=Model.ClassFullyQualifiedName+"/"+Object.RenderId,IncludeInBounds=Object.IncludeInBounds,IsPickable=false});
+            }
+        }
+    }
+    private static async Task<SceneModel>AnalyzeSceneAsync(Project Project,Compilation Compilation,TextDocument Document,CancellationToken Cancellation){
+        var Text=await Document.GetTextAsync(Cancellation).ConfigureAwait(false);
+        var ClassName=SceneJsonWorkspaceSource.TryReadClassFullyQualifiedName(Text.ToString())??throw new InvalidDataException("Scene declaration is invalid.");
+        var Added=await SceneJsonWorkspaceSource.AddDesignerTreeAsync(Project,Compilation,Document,Cancellation).ConfigureAwait(false)??throw new InvalidDataException("Scene analysis failed.");
+        var Type=Added.Compilation.GetTypeByMetadataName(ClassName)??throw new InvalidDataException("Scene type is unavailable.");
+        var Model=SceneDeclarationAnalyzer.Analyze(Type,Added.Compilation,Cancellation);
+        if(Model.HasErrors){ throw new InvalidDataException("Scene analysis has errors."); }
+        return Model;
+    }
+    private static IReadOnlyList<SceneRenderObject>BuildGeometry(SceneModel Model,CgeProjectContext Context,CancellationToken Cancellation){
+        SceneModelRenderObjectBuilder.Prepare(Model,Context);
+        return SceneModelRenderObjectBuilder.Build(Model,Name=>Primitive(Name,Context,Cancellation),PathValue=>LoadMesh(Context.ResolveProjectPath(PathValue),Context),IncludePlaceholders:false);
     }
     private static RenderPreviewScene Frame(IReadOnlyList<SceneRenderObject>Objects){
         if(Objects.Sum(O=>(long)O.Mesh.Positions.Length)>250_000||Objects.Sum(O=>(long)O.Mesh.Indices.Length)>750_000){ throw new InvalidDataException("Scene exceeds the thumbnail geometry budget."); }
@@ -205,14 +236,19 @@ internal static class AssetThumbnailService {
         var Kind=Name switch {"Plane"=>"Rectangle","Box"=>"Box","Sphere"=>"Sphere","Cylinder"=>"Cylinder","Cone"=>"Cone","Torus"=>"Torus","Disk"=>"Disk","Capsule"=>"Capsule",_=>null};
         if(Kind is null){ return null; }
         var Key=Context.WorkspaceRoot+"|"+Kind;
-        if(Primitives.TryGetValue(Key,out var Existing)){ return Existing; }
-        // The Cook reader confines dependencies to this workspace; generated preview data belongs in its disposable output tree.
-        var DirectoryPath=Path.Combine(Context.WorkspaceRoot,"obj","cge-content","asset-thumbnails",PrimitiveCacheName);Directory.CreateDirectory(DirectoryPath);
-        var Output=Path.Combine(DirectoryPath,Kind+".glb");
-        if(!File.Exists(Output)){
-            var Tool=BridgeExecutableLocator.FindExecutable(Context.WorkspaceRoot,@"tools\CSharpGameEngine.Primitive.Cli")??throw new FileNotFoundException("The packaged primitive producer is unavailable.");
-            ExternalBridgeProcess.RunExecutableCommandProducingFile(Tool,"CSharpGameEngine.Primitive.Cli",[Kind,Output],Output,Context.WorkspaceRoot,TimeSpan.FromSeconds(30),true,Cancellation);
+        lock(Primitives){
+            if(Primitives.TryGetValue(Key,out var Existing)){ return Existing; }
+            // The Cook reader confines dependencies to this workspace.
+            var DirectoryPath=Path.Combine(Context.WorkspaceRoot,"obj","cge-content","asset-thumbnails",PrimitiveCacheName);
+            Directory.CreateDirectory(DirectoryPath);
+            var Output=Path.Combine(DirectoryPath,Kind+".glb");
+            if(!File.Exists(Output)){
+                var Tool=BridgeExecutableLocator.FindExecutable(Context.WorkspaceRoot,@"tools\CSharpGameEngine.Primitive.Cli")??throw new FileNotFoundException("The packaged primitive producer is unavailable.");
+                ExternalBridgeProcess.RunExecutableCommandProducingFile(Tool,"CSharpGameEngine.Primitive.Cli",[Kind,Output],Output,Context.WorkspaceRoot,TimeSpan.FromSeconds(30),true,Cancellation);
+            }
+            var Mesh=ExternalGltfLoader.Load(Output,Context.WorkspaceRoot);
+            Primitives.Add(Key,Mesh);
+            return Mesh;
         }
-        var Mesh=LoadMesh(Output,Context);Primitives.Add(Key,Mesh);return Mesh;
     }
 }

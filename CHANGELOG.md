@@ -1,5 +1,43 @@
 # Changelog
 
+- エディターのプレビューが固定小数点の角度を生成器と同じ値で読むように修正(以前は float を経由して、カメラの回転などが約 1e-10 ずれた)。プレビューも角度を回転数でだけ読み、C# の名前の角度キーは生成器と同じく受け付けない。ナビメッシュの Cook で、見つからないモデルが NAV003 でなく NAV006 と報告されていたのを修正。ThirdPerson のステージに、書き換えで落ちていた `GlobalDistanceField` を戻した。
+
+- 旧版の読み手を削除し、版を付け直した(ADR-0098 §5、[設計と記録](Docs/refactoring-designs/20261115-legacy-reader-removal.md))。**移行が必要な変更**:
+  - シーン JSON は `schemaVersion` 3 だけをビルド・エディターで読む。版 1・2 と、C# の単位名を含む角度キー(例 `YawDegrees`)は SCENE204 になる。`dotnet run --project tools/CSharpGameEngine.SceneJson.Cli -- upgrade <game .csproj> --write` で版 3 へ書き換える(この CLI だけが旧版を読む)。ナビメッシュの Cook も版 3 だけを読む。
+  - Snapshot は版 2 だけを読む。版 1 は `UnsupportedVersion`(現行のエンジンで保存し直す)。1.0 までセーブは互換を約束しない。
+  - WorldCell は版 2、`.cgephyscache` はスキーマ 4、`.cgefracture` は版 3 だけを読み書きする。古い生成物は拒否されるので、ビルド・ベイクし直す。
+  - glTF のメタデータに廃止したインポーター名 `SharpGLTF` があると、ビルドは書き換えずに IMP008 で止まる。Assets ウィンドウの「Convert legacy metadata」で変換する。
+  - `[ReadOnlyComponent]` を廃止(CS0619)。属性を消すだけでよい(構造体の `in T` が読み取り専用のコンポーネント)。SYSGEN029 を削除。
+  - 生成される `GeneratedGameLoop.RunFrame` の System を個別に渡す旧オーバーロードを削除。`GeneratedSystemSet` を渡す。
+  - 版: 最初の公開まで製品の版は 0.1.0。SDK パッケージは `0.1.0-dev.50`(以後 N を上げる)、VSIX は `0.1.0.25`。プラグインの `EngineVersion` はプレリリースを SemVer どおりに比べ、エンジンの版が読めなければ PLUGIN006。同梱プラグインの下限は `>=0.1.0-dev.50`。VSIX の番号が下がるので、インストール済みの実験インスタンスでは一度アンインストールしてから入れ直す。
+
+- VSIX0.1.17で、実行用プレビューがモデルの材質読込み中に停止する問題を修正。周期更新の待機を積み重ねず、読込み完了に必要な実行枠を保つ。両GPUの別プロセス再現と、初回モデル描画を含むRelease全1,597件・既存Windowsプレビュー9件が成功。保存済みの確認用VSの再起動・実画面受け入れをM0128で追跡する。
+
+- UE ThirdPerson の壁が床の外へずれるシーン表示を修正。旧単一 glTF 読込からゲームと共通の変換済みモデルへ接続し、配置座標・原点を保ったまま奥行きを一致させる。階層・部品の材質・選択表示も保持。VSIX0.1.15のRelease全1,596件と実ステージの同一カメラ前後描画が成功（M0128）。
+
+- SDK0.1.45候補で編集用の参照を選択済み数値DLLへ統一。未生成時はビルドを要求し、既定の固定小数点DLLへ戻さない。SDK補助ライブラリを短い構成・数値設定別の中間ルートへ配置し、モデル・距離場のパス計算をVisual Studio用MSBuildでも使える関数へ変更。再配置時に構成更新を実行し、テンプレート一覧と新規作成を回復する。実設定画面で全数値型とIdentityの保存を確認。SDK0.1.44までの実プロジェクトのビルド・自己完結発行・元モデルなし実行が成功し、最終候補をM0128で追跡する。
+
+- アセット一覧に、選択済みの再クリック待機・F2・整理メニューからの名前編集を追加。Enter/フォーカス移動で確定、EscはIDEの先行フォーカス移動前に破棄し、参照更新・ID保持・Undo/Redoは既存の整理処理へ統合。縮小画像の待機中は回転表示、取得不可なら「画像なし」とし、通常の音声アイコンなどへ待機表示を出さない。新規ゲームの構成を復元前からAnyCPU/x64へ統一し、作成直後の設定ページの構成不一致を修正。Authoring CLIの発行にもCook一式を含め、配置後のモデルプレビュー生成に接続。VSIX0.1.14のDebug/Release各1,593件が合格。実画面の受け入れはM0128で追跡する。
+
+- M0128のバックグラウンド検証を更新。SDK0.1.42・VSIX0.1.13を作成し、外部4テンプレートのビルド・WARP操作実行、元モデル/ソースSDKなしの自己完結Double配布物、型検索無効の旧30モデル読込と別プロセスFloat→Double保存再開を確認。実行中の固定値編集を生成済み数値リーダーへ接続し、モデルをProjectReference先へコピー、欠落モデルの読込エラーを統一した。関連148件のRelease回帰が合格。ユーザーの実操作許可を受け、Visual Studioでの設定・制作一巡の検証を継続する。
+
+- モデル制作の共通生成物を部分接続。cge.gltfの専用ワーカー、材質・画像生成、プロジェクト一括CLI、前回成功した依存一式の保持、成功時だけの実行用コピーと現在の配布ファイル一覧、元モデルなしでの共通読込を追加。材質には任意のグリッドを保存する。ゲーム・プレビュー・衝突・ナビメッシュ・距離場の読込を接続し、旧StageGltfAssetsとゲームのImport参照を削除。プレビュー生成を画面スレッドの外へ出し、protocol 14の内容ハッシュ付き参照と取り消しへ接続。glTFメタデータの作成・移行もcge.gltfへ統一した。モデル本体と配布用一覧を生成済みJSON契約・閉じたバイナリ型一覧へ移し、Content全71件を型検索無効で検証。切替後ビルド・CPU/WARP・VSIXのDebug回帰は成功し、最終SDKの配布実行・4テンプレート操作は成功し、制作画面の実操作の受け入れは継続中（ADR-0097、M0128）。
+
+- 固定値のシーン入力・Inspectorからfloat経由とQ64.64固定の上限を除去。選択した幅・小数位置への最近接・偶数丸めと範囲を元のJSON位置で検査し、正確な式を静的Scene DSL・予測モデル・保存・プレビューへ接続。Doubleの編集は選択プロファイルに従い、数値規則を任意の名前のSDKゲームにも適用する（F-L1-012、M0128）。
+
+- 数値型と独立したCgeDepthMapping=Logarithmic/Identityを追加。Identityは通常の透視・直接深度を使い、カメラ提出をビルド時に選び、ゲーム出力を分離する。既存GPU試験へIdentityの表示・リサイズ・復旧を統合。数値型・固定幅・小数位置・深度をcsprojへ保存する日本語・英語の標準プロジェクト設定ページを追加（ADR-0096、M0128）。
+
+- 生成WorldのSnapshotをv2へ移行。Fixed・Single・Doubleで共通の実数識別と正確な保存文字列を使い、元データの正規性を読み先の丸めと分離する。全体検証後に復元・保留・更新へ渡し、範囲外は一括拒否。確定できるv1構造は静的に読み込み、未知の構造を推測しない。実際の5数値設定の保存一致・設定間読込・旧形式を検証し、旧値生成器と専用試験を本番のグラフ生成器へ統合（F-L6-007、ADR-0095、M0128）。
+
+- 数値ライブラリでFloat/Doubleを実際のSystem.Single/System.Doubleとして選択可能にした。座標・回転の格納、最小非ゼロ値、負のゼロ、直接演算・数学関数・保存を検証。NUM001はDouble選択に従う。固定設定の狭い整数部・整数精度では数学用一時型を静的に選び、高精度設定の級数の項数を拡張。π/π/2/2πはreadonlyフィールドから個別検査のプロパティへ変更し、定数が表せない場合の型初期化失敗を解消。ゲーム・依存DLL・SDKへの設定伝達も接続済み（F-L1-012、M0128）。
+
+- 数値ライブラリ・Sourceゲーム・SDKに64/128/192bit・小数位置別のFixed、および実体がSingle/Doubleの設定を接続。数値型を使う依存DLL・作成ツールへ設定を渡し、完成DLLと参照・中間ファイルを分離し、NUM002で混在を拒否する。SDKは既定のDLLを維持し、他の設定を利用側のobjでパッケージ内ソースから構築する。負の座標と浮動小数点の整数境界を扱う格子演算、精度別の許容誤差、調理データ・キャッシュの数値識別も接続。設定画面・実画面の受け入れは継続中（F-L1-012、M0128）。
+- WorldCellを数値型に依存しないCGN1座標のv2へ移行。従来v1のQ64.64座標も読める。読込は最近接・偶数丸め、範囲検査、全体検証後の一括反映とし、破損や範囲外では定義を返さない（F-L6-008、ADR-0094）。
+
+- ECS Snapshotの構造と値の読み書きをRoslynで生成。入れ子の値型、Nullable、Enum、識別子、検証付きreadonly値を直接処理し、生成Worldから反射コーデックへの暗黙の切替を除去。保存を要求するソースで未対応の永続Componentがある場合はSYSGEN044とする。Sceneだけを利用するコードは保存対応を要求しない。既存Snapshot形式は維持（M0128、進行中）。
+
+- 数値設定に依存しない `NumericValueCodec` を追加。64/128/192bit固定小数点・float・doubleの共通バイナリ保存、最近接・偶数丸めでの読込、正確な10進出力を提供する。`LogicalScalar` に `ToCanonicalBytes` / `TryReadCanonical` を追加。Snapshotの保存形式は未移行（M0128、進行中）。
+
 - 既定のウィンドウ レイアウトの自動適用は実現できないことを実機で確かめ、記述を実際に合わせた。ドック指定（`SetFramePos`）は VS 18 で未実装、DTE の縦積みは枠が崩れ、保存レイアウトの実行時登録は標準配置から適用できなかった。好みの配置を VS の「ウィンドウ レイアウトを保存」で使う手順と、確かめた制約を Editor-VSIX.md に追加。
 - Assets で 1 件を選ぶと Solution Explorer でも同じファイルを選択するようにし、Assets の「Solution Explorer で表示」ボタンを削除。アセットエディターの 2 つの「表示」ボタンは、対象がプロジェクトにないとき無効にして理由をツールチップに出す。Outdoor の床と遠方クリップ面を広げ、低い視点で地平線の下に出ていた黒い帯をなくした。
 - アセットエディターの浮動ウィンドウをVS本体の所有ウィンドウとして維持するよう修正。Solution Explorerへの移動はAssets登録に依存せず対象を選択し、Assetsへの移動はフィルターを解除して選択位置へスクロールする。プロジェクト外など移動できない場合は理由を表示する。VS実画面での修正後の受入は継続中。
@@ -102,6 +140,8 @@
 - Completed the F-L8-028 VSIX compatibility matrix and fail-closed evidence boundary. A versioned manifest now agrees bidirectionally with the net472/VS 17.14+ amd64 package contract, toolchain pins, en-US/ja-JP packaging, CgeFixed/CgeAutomation hive separation, CI cells, and exact detailed/manual evidence ledgers. Pre-release validation preserves explicit Pending rows; strict release validation rejects every required non-passing or expired row instead of manufacturing compatibility evidence.
 
 ## Unreleased
+
+- Third Person starts inside the UE 5.0 stage and includes the wall label and object-origin grids. The editor frames character scenes independently and startup AppHost scenes against the startup geometry. Scene and model thumbnails support a larger Inspector preview. The StaticMesh picker filters glTF animation-only and skinned assets.
 
 - Fixed Assets navigation from Solution Explorer project and solution roots. Project roots show all owned assets; solution roots and the localized Whole solution selector show all loaded game-project assets. Scope survives refresh and favorites, preserves search/location lock, and prevents creation/import without a destination project.
 

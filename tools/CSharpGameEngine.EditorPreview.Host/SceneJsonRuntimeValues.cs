@@ -6,14 +6,15 @@ namespace CSharpGameEngine.EditorPreview.Host;
 
 /// <summary>
 /// リフレクションを使ってシーン JSON の値をゲーム独自の型の値へ変換する (ADR-0070 決定 6)。ジェネレーターの規則 (<c>SceneJsonSceneAnalyzer</c>) に従う。enum はメンバー名で指定し、数値は数値メンバーまたは <c>float</c> から暗黙の変換がある型に設定する。オブジェクトには、最も多くのキーを受け取り、その後メンバーも設定できる public コンストラクターを使う。ランタイムビューはこれを使ってエディターの値を実行中のワールドに適用する。ドキュメントはすでにジェネレーターで検査済みである。
-/// スキーマ バージョン 2 以降のドキュメントでは、<c>[Angle]</c> メンバー内のすべての数値が回転数で記述され、角度のキーでは C# の単位語を省略できる (ADR-0074、<see cref="SceneJsonAngles.KeyFor"/> を参照)。
+/// <c>[Angle]</c> メンバー内の数値は回転数で記述し、角度のキーは C# の単位語を省いた名前にする（ADR-0074）。現行版（3）だけを読み、C# の名前の角度キーは
+/// 生成器と同じく受け付けない（ADR-0098 §5 規則 2）。固定小数点の角度は生成器と同じ計算（<see cref="SceneJsonFixedAngles"/>）で作る。
 /// </summary>
 internal static class SceneJsonRuntimeValues {
-    internal static object?Create(Type Type,SceneJsonValue Value,string Where)=>Create(Type,Value,Where,new Reading(Turns:false),null);
+    internal static object?Create(Type Type,SceneJsonValue Value,string Where)=>Create(Type,Value,Where,new Reading(),null);
 
     /// <summary>コンポーネント：メンバーオブジェクトを、コンポーネント型のオブジェクト値として読み込む。</summary>
-    internal static object Component(Type Type,SceneJsonValue Members,string Where,bool Turns=false)=>
-        Object(Type,Members,Where,new Reading(Turns),null);
+    internal static object Component(Type Type,SceneJsonValue Members,string Where,Func<string,object>?ParseLogicalScalar=null)=>
+        Object(Type,Members,Where,new Reading(ParseLogicalScalar),null);
 
     /// <summary>
     /// ドキュメント名で指定されたコンポーネント型。ジェネレーターの解決方法に従い、メタデータ名、または C# とドキュメントの名前 ( <c>Ns.Outer.Inner</c> ) で表される入れ子型を使う。メタデータ名では、入れ子型を '+' でつなぐ。
@@ -29,13 +30,8 @@ internal static class SceneJsonRuntimeValues {
         return null;
     }
 
-    /// <summary>ドキュメントの角度が回転数で記述されるかどうか：<c>schemaVersion</c> が 2 以上。</summary>
-    internal static bool UsesTurns(SceneJsonValue Document)=>
-        Document.Get("schemaVersion") is { Kind:SceneJsonKind.Number }Version
-        &&int.TryParse(Version.Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Number)
-        &&Number>=SceneJsonAngles.TurnsSchemaVersion;
 
-    private sealed record Reading(bool Turns);
+    private sealed record Reading(Func<string,object>?ParseLogicalScalar=null);
 
     private static object?Create(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
         if(Value.Kind==SceneJsonKind.Null){
@@ -61,10 +57,9 @@ internal static class SceneJsonRuntimeValues {
         }
         if(Value.Kind==SceneJsonKind.Number){
             // 回転数の角度はメンバーの単位へ変換し、残りの数値処理規則はそのまま適用する。
-            var Text=Unit is { }AngleUnit&&Reading.Turns&&SceneJsonAngles.IsNumber(Value.Text)
-                ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit).ToString("R",CultureInfo.InvariantCulture)
-                :Value.Text!;
-            return Number(Type,Text,Where);
+            return Unit is { }AngleUnit&&SceneJsonAngles.IsNumber(Value.Text)
+                ?Number(Type,AngleText(Type,Value.Text!,AngleUnit,Where),Where,Reading)
+                :Number(Type,Value.Text!,Where,Reading);
         }
         if(Value.Kind==SceneJsonKind.Array){ return Collection(Type,Value,Where,Reading,Unit); }
         if(Value.Kind==SceneJsonKind.Object&&(Type.IsValueType||Type.IsClass)){ return Object(Type,Value,Where,Reading,Unit); }
@@ -81,8 +76,36 @@ internal static class SceneJsonRuntimeValues {
         return null;
     }
 
-    private static object Number(Type Type,string Text,string Where){
+    /// <summary>
+    /// 回転数の角度を、メンバーの型で生成器と同じ値になるメンバーの単位の数値表記にする。固定小数点は選択中の数値設定で正確に丸め（<see cref="SceneJsonFixedAngles"/>）、
+    /// double は double で、それ以外は float で換算する（<c>SceneJsonSceneAnalyzer</c> と同じ）。
+    /// </summary>
+#if CGE_NUMERIC_ADAPTER
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+#endif
+    private static string AngleText(Type Type,string Turns,SceneAngleUnit Unit,string Where){
+        if(Type.FullName=="CSharpGameEngine.Numerics.LogicalScalar"){
+            var Bits=Type.GetField("TotalBits",BindingFlags.Public|BindingFlags.Static)?.GetRawConstantValue() is int TotalBits?TotalBits:0;
+            var Fraction=Type.GetField("FractionalBits",BindingFlags.Public|BindingFlags.Static)?.GetRawConstantValue() is int FractionalBits?FractionalBits:-1;
+            return SceneJsonFixedAngles.TryTurnsToFixedText(Turns,Unit,Bits,Fraction,out var Fixed)?Fixed:throw Mismatch(Where,Type,"the angle is beyond the selected fixed range");
+        }
+        if(Type==typeof(double)){
+            var Converted=SceneJsonAngles.FromTurnsDouble(double.Parse(Turns,RealStyles,CultureInfo.InvariantCulture),Unit);
+            return double.IsFinite(Converted)?Converted.ToString("R",CultureInfo.InvariantCulture):throw Mismatch(Where,Type,"the angle is beyond the range of double");
+        }
+        return SceneJsonAngles.FromTurns(Turns,Unit).ToString("R",CultureInfo.InvariantCulture);
+    }
+
+    private static object Number(Type Type,string Text,string Where,Reading Reading){
         IFormatProvider Culture=CultureInfo.InvariantCulture;
+        if(Type.FullName=="CSharpGameEngine.Numerics.LogicalScalar"){
+            if(Reading.ParseLogicalScalar is null){ throw Mismatch(Where,Type,"the game's generated numeric reader is required; rebuild the game"); }
+            try {
+                var Parsed=Reading.ParseLogicalScalar(Text);
+                if(Parsed.GetType()!=Type){ throw Mismatch(Where,Type,"the generated numeric reader does not match this game's profile"); }
+                return Parsed;
+            }catch(Exception Error)when(Error is FormatException or OverflowException or ArgumentException){ throw Mismatch(Where,Type,Error.Message); }
+        }
         // 実数はジェネレーターが出力するリテラルと同様に読み込む。指数表記も使える（Convert は decimal に対してそれを拒否する）。また、
         // 型の範囲を超える数値はビルドエラー (SCENE203) であり、.NET の解析では無限大になる。
         if(Type==typeof(float)){
@@ -197,8 +220,8 @@ internal static class SceneJsonRuntimeValues {
         if(Constructor is not null){
             var Arguments=Constructor.GetParameters().Select(Parameter=>{
                 var Key=KeyOf(Type,Parameter.Name!,Parameter.CustomAttributes);
-                if((Value.Get(Parameter.Name!)??Value.Get(Key)) is { }Argument){
-                    Consumed.Add(Parameter.Name!);
+                if(Key!=Parameter.Name&&Value.Get(Parameter.Name!) is not null){ throw RetiredAngleKey(Where,Type,Parameter.Name!,Key); }
+                if(Value.Get(Key) is { }Argument){
                     Consumed.Add(Key);
                     return Create(Parameter.ParameterType,Argument,Where+"."+Parameter.Name,Reading,Unit??AngleUnitOf(Parameter.CustomAttributes));
                 }
@@ -217,6 +240,9 @@ internal static class SceneJsonRuntimeValues {
         }
         foreach(var Property in Value.Properties){
             if(Consumed.Contains(Property.Name)){ continue; }
+            if(FindSettableMemberNamed(Type,Property.Name) is { }Named&&KeyOf(Type,Named.Name,Named.CustomAttributes) is var NamedKey&&NamedKey!=Named.Name){
+                throw RetiredAngleKey(Where,Type,Named.Name,NamedKey);
+            }
             switch(FindSettableMember(Type,Property.Name)){
                 case FieldInfo Field:
                     Field.SetValue(Instance,Create(Field.FieldType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Field.CustomAttributes)));
@@ -283,6 +309,10 @@ internal static class SceneJsonRuntimeValues {
         AngleUnitOf(Attributes) is null?Name:SceneJsonAngles.KeyFor(Name,Key=>
             Type.GetMember(Key,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static).Length>0
             ||Type.GetConstructors(BindingFlags.Public|BindingFlags.Instance).Any(Constructor=>Constructor.GetParameters().Any(Parameter=>Parameter.Name==Key)));
+
+    /// <summary>C# の名前の角度キー（例 <c>YawDegrees</c>）。生成器と同じく読まず、単位語を省いたキーを求める（ADR-0098 §5 規則 2）。</summary>
+    private static InvalidOperationException RetiredAngleKey(string Where,Type Type,string Name,string Key)=>
+        Mismatch(Where,Type,$"the angle key '{Name}' is no longer read; write it as '{Key}'");
 
     private static InvalidOperationException Mismatch(string Where,Type Type,string Reason)=>
         new($"The value for '{Where}' does not fit '{Type.FullName}': {Reason}.");

@@ -50,6 +50,7 @@ public sealed class AssetModelRequest {
     public Guid RequestId{get;set;}
     public string Root{get;set;}=string.Empty;
     public string SourcePath{get;set;}=string.Empty;
+    public string[]PreviewSourcePaths{get;set;}=[];
 }
 public sealed class ModelSubassetSummary {
     public string Name{get;set;}=string.Empty;
@@ -65,4 +66,5 @@ public sealed class AssetModelResult {
     public string MetadataHash{get;set;}=string.Empty;
     public string ManifestPath{get;set;}=string.Empty;
     public ModelSubassetSummary[]Subassets{get;set;}=[];
+    public RenderPreviewModelSource[]PreparedSources{get;set;}=[];
 }

@@ -1,6 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
 using CSharpGameEngine.ProjectTemplates;
 using Xunit;
 
@@ -149,6 +152,38 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         var Template=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine",TemplateName,TemplateName+".csproj.template");
         var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName));
         Assert.Equal(GameProjectGenerator.ProjectFile("$safeprojectname$",GameProjectGenerator.EngineVersionToken,Plugins),File.ReadAllText(Template));
+    }
+    [Theory]
+    [InlineData("ThirdPerson")]
+    [InlineData("FirstPerson")]
+    [InlineData("TopDown")]
+    [InlineData("Vehicle")]
+    public async Task GeneratedProject_KeepsItsConfigurationDimensionsWhenThePackageBecomesAvailable(string TemplateName){
+        var Project=Path.Combine(this.Root,TemplateName+".csproj");
+        var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName));
+        File.WriteAllText(Project,GameProjectGenerator.ProjectFile("Game","1.2.3",Plugins));
+        var Before=await ReadDimensionsAsync(Project,false);
+        var After=await ReadDimensionsAsync(Project,true);
+        Assert.Equal(Before,After);
+    }
+    private static async Task<(string Configurations,string Platforms)>ReadDimensionsAsync(string Project,bool IncludeEngine){
+        var Engine=RepositoryFile("build","CSharpGameEngine.Game.props");
+        var Arguments="msbuild \""+Project+"\" -nologo -m:1 -nr:false -getProperty:Configurations,Platforms -p:ExcludeRestorePackageImports=true";
+        if(IncludeEngine){ Arguments+=" -p:CgeEngineMode=Package -p:CustomAfterMicrosoftCommonTargets=\""+Engine+"\""; }
+        var Start=new ProcessStartInfo("dotnet",Arguments){WorkingDirectory=RepositoryFile(),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
+        using(var Child=new Process{StartInfo=Start,EnableRaisingEvents=true}){
+            var Exited=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Child.Exited+=(_,_)=>Exited.TrySetResult(true);
+            Assert.True(Child.Start());
+            var Output=Child.StandardOutput.ReadToEndAsync();var Errors=Child.StandardError.ReadToEndAsync();
+            if(await Task.WhenAny(Exited.Task,Task.Delay(30000))!=Exited.Task){ Child.Kill();throw new TimeoutException("Project-dimension evaluation did not finish."); }
+            var Text=await Output;var ErrorText=await Errors;
+            Assert.True(Child.ExitCode==0,ErrorText+Text);
+            using(var Document=JsonDocument.Parse(Text)){
+                var Properties=Document.RootElement.GetProperty("Properties");
+                return(Properties.GetProperty("Configurations").GetString()!,Properties.GetProperty("Platforms").GetString()!);
+            }
+        }
     }
 
     [Theory]

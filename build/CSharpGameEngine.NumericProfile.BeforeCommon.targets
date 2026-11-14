@@ -1,0 +1,12 @@
+<Project>
+  <!-- Project properties are now known; OutDir, TargetPath and reference-assembly paths are not yet frozen. -->
+  <PropertyGroup>
+    <CgeNumericProfileBeforeCommon>true</CgeNumericProfileBeforeCommon>
+    <CgeNumericProfileLateImport Condition="'$(CgeGameProject)' == 'true' or '$(CgeNumericProfileProject)' == 'true'">true</CgeNumericProfileLateImport>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.NumericProfile.props" Condition="'$(CgeNumericProfileLateImport)' == 'true' and '$(CgeNumericProfileApplied)' != 'true'" />
+  <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
+    <CgeRenderProfileBeforeCommon>true</CgeRenderProfileBeforeCommon>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.RenderProfile.props" Condition="'$(CgeGameProject)' == 'true' and '$(CgeRenderProfileApplied)' != 'true'" />
+</Project>

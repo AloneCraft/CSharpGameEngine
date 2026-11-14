@@ -35,7 +35,7 @@ public sealed class SceneJsonKeywordMemberTests {
         """;
     private const string JsonScene="""
         {
-          "schemaVersion": 1,
+          "schemaVersion": 3,
           "namespace": "Game",
           "className": "MainScene",
           "root": {

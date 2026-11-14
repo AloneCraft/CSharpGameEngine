@@ -1,14 +1,19 @@
 using System.Globalization;
 using System.Text;
+using CSharpGameEngine.Testing;
 namespace CSharpGameEngine.Navigation.Tests;
 /// <summary>テスト用のゲームのフォルダ(<c>Scenes</c>と<c>Assets</c>)を一時の場所に作り、シーン JSON を書く。</summary>
 internal sealed class TestProject:IDisposable {
     public static readonly string RepositoryRoot=FindRepositoryRoot();
     public string Root { get; }=Path.Combine(Path.GetTempPath(),"cge-nav-tests-"+Guid.NewGuid().ToString("N"));
+    private ModelArtifactTestContent?Models;
+    private readonly List<string>ModelSources=[];
+    public string ModelDirectory=>(this.Models??=new ModelArtifactTestContent([],this.Root)).ContentDirectory;
     public TestProject(){
         Directory.CreateDirectory(Path.Combine(this.Root,"Scenes"));
     }
     public void Dispose(){
+        this.Models?.Dispose();
         if(Directory.Exists(this.Root)){ Directory.Delete(this.Root,recursive:true); }
     }
     private static string FindRepositoryRoot(){
@@ -46,6 +51,7 @@ internal sealed class TestProject:IDisposable {
         var Destination=Path.Combine(this.Root,RelativePath.Replace('/',Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);
         File.Copy(Path.Combine(RepositoryRoot,"assets","TestFixtures","Gltf","Box.glb"),Destination,overwrite:true);
+        this.ModelSources.Add(Destination);var Prepared=new ModelArtifactTestContent(this.ModelSources,this.Root);this.Models?.Dispose();this.Models=Prepared;
         return RelativePath;
     }
 }

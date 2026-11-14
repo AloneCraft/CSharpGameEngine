@@ -20,7 +20,8 @@ public sealed class SystemPhaseAttribute(SystemPhase Phase):Attribute {
     public SystemPhase Phase { get; }=Phase;
 }
 
-/// <summary><c>in</c>構造体パラメーターがECSコンポーネントへの読み取り専用アクセスであることを示す。</summary>
+/// <summary>廃止（ADR-0077、ADR-0098 §5 の B）。構造体の <c>in T</c> がそのまま読み取り専用のコンポーネントになる。使うとビルドエラーで書き換え方を示す。</summary>
+[Obsolete("[ReadOnlyComponent] is retired: an 'in T' struct parameter already reads the component. Remove the attribute.",error:true)]
 [AttributeUsage(AttributeTargets.Parameter,AllowMultiple=false,Inherited=false)]
 public sealed class ReadOnlyComponentAttribute:Attribute {
 }

@@ -1,5 +1,6 @@
 using CSharpGameEngine.Cooking;
 using CSharpGameEngine.Navigation.Cook;
+using CSharpGameEngine.Testing;
 namespace CSharpGameEngine.Navigation.Tests;
 /// <summary>
 /// ADR-0079/M0106: UE5.8 の TopDown のレベル(中央の台とスロープ、壁、角の建物)を、テンプレートのシーンと glb から実際に焼く。
@@ -8,13 +9,15 @@ namespace CSharpGameEngine.Navigation.Tests;
 public sealed class TopDownLevelTests:IDisposable {
     private static readonly string Template=Path.Combine(TestProject.RepositoryRoot,"Templates","CSharpGameEngine.Templates.TopDown");
     private readonly string Output=Path.Combine(Path.GetTempPath(),"cge-nav-topdown-"+Guid.NewGuid().ToString("N"));
+    private readonly ModelArtifactTestContent Models=new(Directory.EnumerateFiles(Path.Combine(Template,"Assets","Stage"),"*.glb",SearchOption.AllDirectories),Template);
     public void Dispose(){
+        this.Models.Dispose();
         if(Directory.Exists(this.Output)){ Directory.Delete(this.Output,recursive:true); }
     }
     private NavMesh Bake(string Folder="a"){
         var Directory_=Path.Combine(this.Output,Folder);
         Directory.CreateDirectory(Directory_);
-        var Result=new NavMeshCooker().Cook(new CookRequest(Path.Combine(Template,"Scenes","TopDownNavigation.json"),Directory_,Template));
+        var Result=new NavMeshCooker().Cook(new CookRequest(Path.Combine(Template,"Scenes","TopDownNavigation.json"),Directory_,Template){ContentDirectory=this.Models.ContentDirectory});
         Assert.True(Result.Succeeded,string.Join(" ",Result.Messages));
         Assert.True(NavMesh.TryRead(File.ReadAllBytes(Path.Combine(Directory_,"Assets","Navigation","Lvl_TopDown.cgenav")),out var Mesh,out var Error),Error);
         return Mesh!;

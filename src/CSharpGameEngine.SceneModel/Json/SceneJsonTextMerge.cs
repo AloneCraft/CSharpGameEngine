@@ -55,6 +55,102 @@ internal static class SceneJsonTextMerge {
         }
     }
 
+    /// <summary>編集前後の生成結果が同じ数値は、読み込み時に丸められていても元の文書の表記を維持する。</summary>
+    internal static string Merge(string OldText,string BaselineText,string NewText){
+        try {
+            var Old=SceneJsonReader.Parse(OldText);
+            var Baseline=SceneJsonReader.Parse(BaselineText);
+            var New=SceneJsonReader.Parse(NewText);
+            var Edits=new List<Edit>();
+            PreserveUnchangedNumbers(Old,Baseline,New,OldText,Edits);
+            PreserveReparentedNodes(Old,Baseline,New,OldText,Edits);
+            var Builder=new StringBuilder(NewText);
+            foreach(var Change in Edits.OrderByDescending(static Change=>Change.Start)){
+                Builder.Remove(Change.Start,Change.End-Change.Start);
+                Builder.Insert(Change.Start,Change.Text);
+            }
+            return Merge(OldText,Builder.ToString());
+        } catch(SceneJsonException){
+            return Merge(OldText,NewText);
+        }
+    }
+
+    // 別の親へ移したノードは配列の位置だけでは対応できない。全ノードの ID が一意な場合だけ元のノードを探す。
+    private static void PreserveReparentedNodes(SceneJsonValue Old,SceneJsonValue Baseline,SceneJsonValue New,string OldText,List<Edit>Edits){
+        if(!TryIndexNodes(Old,out var OldNodes)||!TryIndexNodes(Baseline,out var BaselineNodes)||!TryIndexNodes(New,out var NewNodes)){ return; }
+        foreach(var Pair in NewNodes){
+            if(OldNodes.TryGetValue(Pair.Key,out var OldNode)&&BaselineNodes.TryGetValue(Pair.Key,out var BaselineNode)
+                &&string.Equals(OldNode.Parent,BaselineNode.Parent,StringComparison.Ordinal)
+                &&!string.Equals(OldNode.Parent,Pair.Value.Parent,StringComparison.Ordinal)){
+                PreserveUnchangedNumbers(OldNode.Node,BaselineNode.Node,Pair.Value.Node,OldText,Edits);
+            }
+        }
+    }
+    private static bool TryIndexNodes(SceneJsonValue Document,out Dictionary<string,(string?Parent,SceneJsonValue Node)>Nodes){
+        var Index=new Dictionary<string,(string?Parent,SceneJsonValue Node)>(StringComparer.Ordinal);
+        bool Visit(SceneJsonValue Node,string?Parent){
+            if(Node.Kind!=SceneJsonKind.Object||HasDuplicateNames(Node)||Node.Get("id") is not { Kind:SceneJsonKind.String,Text:{ Length:>0 }Id }||Index.ContainsKey(Id)){ return false; }
+            Index.Add(Id,(Parent,Node));
+            if(Node.Get("children") is { }Children){
+                if(Children.Kind!=SceneJsonKind.Array){ return false; }
+                foreach(var Child in Children.Items){ if(!Visit(Child,Id)){ return false; } }
+            }
+            return true;
+        }
+        Nodes=Index;
+        return Document.Kind==SceneJsonKind.Object&&Document.Get("root") is { }Root&&Visit(Root,null);
+    }
+
+    private static void PreserveUnchangedNumbers(SceneJsonValue Old,SceneJsonValue Baseline,SceneJsonValue New,string OldText,List<Edit>Edits){
+        if(Old.Kind!=Baseline.Kind||Baseline.Kind!=New.Kind){ return; }
+        if(New.Kind==SceneJsonKind.Number){
+            if(SameNumber(Baseline.Text!,New.Text!)){
+                Edits.Add(new Edit(New.Start,New.End,OldText.Substring(Old.Start,Old.End-Old.Start),Edits.Count));
+            }
+            return;
+        }
+        if(New.Kind==SceneJsonKind.Object){
+            if(HasDuplicateNames(Old)||HasDuplicateNames(Baseline)||HasDuplicateNames(New)||!SameIdentity(Old,Baseline,New,"id")||!SameIdentity(Old,Baseline,New,"type")){ return; }
+            foreach(var Property in New.Properties){
+                if(Old.Get(Property.Name) is { }OldValue&&Baseline.Get(Property.Name) is { }BaselineValue){
+                    PreserveUnchangedNumbers(OldValue,BaselineValue,Property.Value,OldText,Edits);
+                }
+            }
+            return;
+        }
+        if(New.Kind==SceneJsonKind.Array){
+            foreach(var Name in new[]{"id","type"}){
+                if(Old.Items.Concat(Baseline.Items).Concat(New.Items).Any(Item=>Item.Kind==SceneJsonKind.Object&&Item.Get(Name) is not null)){
+                    if(TryIndexByIdentity(Old,Name,out var OldItems)&&TryIndexByIdentity(Baseline,Name,out var BaselineItems)&&TryIndexByIdentity(New,Name,out var NewItems)){
+                        foreach(var Pair in NewItems){
+                            if(OldItems.TryGetValue(Pair.Key,out var OldItem)&&BaselineItems.TryGetValue(Pair.Key,out var BaselineItem)){
+                                PreserveUnchangedNumbers(OldItem,BaselineItem,Pair.Value,OldText,Edits);
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+            if(Old.Items.Count==Baseline.Items.Count&&Baseline.Items.Count==New.Items.Count){
+                for(var Index=0;Index<New.Items.Count;Index++){
+                    PreserveUnchangedNumbers(Old.Items[Index],Baseline.Items[Index],New.Items[Index],OldText,Edits);
+                }
+            }
+        }
+    }
+    private static bool TryIndexByIdentity(SceneJsonValue Array,string Name,out Dictionary<string,SceneJsonValue>Items){
+        Items=new Dictionary<string,SceneJsonValue>(StringComparer.Ordinal);
+        foreach(var Item in Array.Items){
+            if(Item.Kind!=SceneJsonKind.Object||HasDuplicateNames(Item)||Item.Get(Name) is not { Kind:SceneJsonKind.String,Text:{ }Identity }||Items.ContainsKey(Identity)){ return false; }
+            Items.Add(Identity,Item);
+        }
+        return true;
+    }
+    private static bool SameIdentity(SceneJsonValue Old,SceneJsonValue Baseline,SceneJsonValue New,string Name){
+        var A=Old.Get(Name);var B=Baseline.Get(Name);var C=New.Get(Name);
+        return A is null&&B is null&&C is null||A is not null&&B is not null&&C is not null&&SameValue(A,B)&&SameValue(B,C);
+    }
+
     /// <summary>古い値のテキストから新しい値に変換する編集操作。</summary>
     private static void Collect(SceneJsonValue Old,SceneJsonValue New,Role Role,string OldText,string NewText,List<Edit>Edits){
         if(SameValue(Old,New,Role)){ return; }
