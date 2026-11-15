@@ -767,10 +767,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.CreateShadowRootSignature();
         this.CreatePostProcessRootSignature();
         this.CreateScreenRootSignature();
-        this.CreatePipelineState();
-        this.CreateShadowPipelineState();
-        this.CreatePostProcessPipelineState();
-        this.CreateScreenPipelineState();
+        _=this.UsePipelineStates(this.BuildPipelineStates());
         this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateMeshBuffers(Meshes);
         this.CreateMaterialResources(Materials);
@@ -982,46 +979,20 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldPostProcessPixelShader=this.PostProcessPixelShaderBytecode;
         var OldShadowVertexShader=this.ShadowVertexShaderBytecode;
         var OldObserverVertexShader=this.ObserverVertexShaderBytecode;
-        var OldObserverPipelineState=this.ObserverPipelineState;
-        var OldObserverWireframePipelineState=this.ObserverWireframePipelineState;
-        var OldPipelineState=this.PipelineState;
-        var OldPresentationPipelineState=this.PresentationPipelineState;
-        var OldWireframePipelineState=this.WireframePipelineState;
-        var OldCameraPreviewPipelineState=this.CameraPreviewPipelineState;
-        var OldCameraPreviewWireframePipelineState=
-            this.CameraPreviewWireframePipelineState;
-        var OldOverlayTrianglePipelineState=this.OverlayTrianglePipelineState;
-        var OldOverlayLinePipelineState=this.OverlayLinePipelineState;
-        var OldShadowPipelineState=this.ShadowPipelineState;
-        var OldPostProcessPipelineState=this.PostProcessPipelineState;
         var OldScreenVertexShader=this.ScreenVertexShaderBytecode;
         var OldScreenPixelShader=this.ScreenPixelShaderBytecode;
-        var OldScreenPipelineState=this.ScreenPipelineState;
         var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
         var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
-        var OldLumenSurfacePipelineState=this.LumenSurfacePipelineState;
-        var OldLumenCardPipelineState=this.LumenCardPipelineState;
         try{
             this.ApplyShaderArtifact(Package);
-            this.CreatePipelineState();
-            this.CreateShadowPipelineState();
-            this.CreatePostProcessPipelineState();
-            this.CreateScreenPipelineState();
-            this.WaitForGpuIdle();
-            if(OldObserverPipelineState!=null){ _=OldObserverPipelineState->Release(); }
-            if(OldObserverWireframePipelineState!=null){ _=OldObserverWireframePipelineState->Release(); }
-            if(OldPipelineState!=null){ _=OldPipelineState->Release(); }
-            if(OldPresentationPipelineState!=null){ _=OldPresentationPipelineState->Release(); }
-            if(OldWireframePipelineState!=null){ _=OldWireframePipelineState->Release(); }
-            if(OldCameraPreviewPipelineState!=null){ _=OldCameraPreviewPipelineState->Release(); }
-            if(OldCameraPreviewWireframePipelineState!=null){ _=OldCameraPreviewWireframePipelineState->Release(); }
-            if(OldOverlayTrianglePipelineState!=null){ _=OldOverlayTrianglePipelineState->Release(); }
-            if(OldOverlayLinePipelineState!=null){ _=OldOverlayLinePipelineState->Release(); }
-            if(OldShadowPipelineState!=null){ _=OldShadowPipelineState->Release(); }
-            if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
-            if(OldScreenPipelineState!=null){ _=OldScreenPipelineState->Release(); }
-            if(OldLumenSurfacePipelineState!=null){ _=OldLumenSurfacePipelineState->Release(); }
-            if(OldLumenCardPipelineState!=null){ _=OldLumenCardPipelineState->Release(); }
+            var Created=this.BuildPipelineStates();
+            try{
+                this.WaitForGpuIdle();
+            }catch{
+                ReleasePipelineStates(Created);
+                throw;
+            }
+            ReleasePipelineStates(this.UsePipelineStates(Created));
             this.CommitShaderArtifact(Package);
         }catch(Exception Exception){
             this.VertexShaderBytecode=OldVertexShader;
@@ -1038,20 +1009,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ScreenPixelShaderBytecode=OldScreenPixelShader;
             this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
             this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
-            if(this.LumenSurfacePipelineState!=OldLumenSurfacePipelineState){ _=this.LumenSurfacePipelineState->Release();this.LumenSurfacePipelineState=OldLumenSurfacePipelineState; }
-            if(this.LumenCardPipelineState!=OldLumenCardPipelineState){ _=this.LumenCardPipelineState->Release();this.LumenCardPipelineState=OldLumenCardPipelineState; }
-            if(this.ScreenPipelineState!=OldScreenPipelineState){ _=this.ScreenPipelineState->Release();this.ScreenPipelineState=OldScreenPipelineState; }
-            if(this.ObserverPipelineState!=OldObserverPipelineState){ _=this.ObserverPipelineState->Release();this.ObserverPipelineState=OldObserverPipelineState; }
-            if(this.ObserverWireframePipelineState!=OldObserverWireframePipelineState){ _=this.ObserverWireframePipelineState->Release();this.ObserverWireframePipelineState=OldObserverWireframePipelineState; }
-            if(this.PipelineState!=OldPipelineState){ _=this.PipelineState->Release();this.PipelineState=OldPipelineState; }
-            if(this.PresentationPipelineState!=OldPresentationPipelineState){ _=this.PresentationPipelineState->Release();this.PresentationPipelineState=OldPresentationPipelineState; }
-            if(this.WireframePipelineState!=OldWireframePipelineState){ _=this.WireframePipelineState->Release();this.WireframePipelineState=OldWireframePipelineState; }
-            if(this.CameraPreviewPipelineState!=OldCameraPreviewPipelineState){ _=this.CameraPreviewPipelineState->Release();this.CameraPreviewPipelineState=OldCameraPreviewPipelineState; }
-            if(this.CameraPreviewWireframePipelineState!=OldCameraPreviewWireframePipelineState){ _=this.CameraPreviewWireframePipelineState->Release();this.CameraPreviewWireframePipelineState=OldCameraPreviewWireframePipelineState; }
-            if(this.OverlayTrianglePipelineState!=OldOverlayTrianglePipelineState){ _=this.OverlayTrianglePipelineState->Release();this.OverlayTrianglePipelineState=OldOverlayTrianglePipelineState; }
-            if(this.OverlayLinePipelineState!=OldOverlayLinePipelineState){ _=this.OverlayLinePipelineState->Release();this.OverlayLinePipelineState=OldOverlayLinePipelineState; }
-            if(this.ShadowPipelineState!=OldShadowPipelineState){ _=this.ShadowPipelineState->Release();this.ShadowPipelineState=OldShadowPipelineState; }
-            if(this.PostProcessPipelineState!=OldPostProcessPipelineState){ _=this.PostProcessPipelineState->Release();this.PostProcessPipelineState=OldPostProcessPipelineState; }
             this.ShaderArtifactDiagnostics=[Exception.Message];
         }
     }
@@ -1297,286 +1254,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         } finally {
             if(SignatureBlob!=null){ _=SignatureBlob->Release(); }
             if(ErrorBlob!=null){ _=ErrorBlob->Release(); }
-        }
-    }
-
-    private void CreatePipelineState(){
-        ID3D12PipelineState*Shipping=null;
-        ID3D12PipelineState*Presentation=null;
-        ID3D12PipelineState*Wireframe=null;
-        ID3D12PipelineState*Observer=null;
-        ID3D12PipelineState*ObserverWireframe=null;
-        ID3D12PipelineState*CameraPreview=null;
-        ID3D12PipelineState*CameraPreviewWireframe=null;
-        ID3D12PipelineState*OverlayTriangles=null;
-        ID3D12PipelineState*OverlayLines=null;
-        ID3D12PipelineState*LumenSurface=null;
-        ID3D12PipelineState*LumenCard=null;
-        try {
-            LumenSurface=this.CreateMeshPipelineState(this.LumenSurfacePixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
-                RenderTargets:[StageLumen.SurfaceNormalFormat,StageLumen.SurfaceDistanceFormat]);
-            LumenCard=this.CreateMeshPipelineState(this.LumenCardPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
-                RenderTargets:[StageLumen.CardAlbedoFormat,StageLumen.CardNormalFormat,StageLumen.CardEmissiveFormat]);
-            Shipping=this.CreateMeshPipelineState(
-                this.PixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
-            Presentation=this.CreateMeshPipelineState(
-                this.PreviewPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
-            Wireframe=this.CreateMeshPipelineState(
-                this.PreviewPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
-            CameraPreview=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,WriteSceneDistance:false);
-            CameraPreviewWireframe=this.CreateMeshPipelineState(
-                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,WriteSceneDistance:false);
-            OverlayTriangles=this.CreateOverlayPipelineState(
-                D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-            OverlayLines=this.CreateOverlayPipelineState(
-                D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE);
-            Observer=this.CreateMeshPipelineState(this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.ObserverVertexShaderBytecode,WriteSceneDistance:false);
-            ObserverWireframe=this.CreateMeshPipelineState(this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.ObserverVertexShaderBytecode,WriteSceneDistance:false);
-            this.ObserverPipelineState=Observer;
-            this.ObserverWireframePipelineState=ObserverWireframe;
-            this.PipelineState=Shipping;
-            this.PresentationPipelineState=Presentation;
-            this.WireframePipelineState=Wireframe;
-            this.CameraPreviewPipelineState=CameraPreview;
-            this.CameraPreviewWireframePipelineState=CameraPreviewWireframe;
-            this.OverlayTrianglePipelineState=OverlayTriangles;
-            this.OverlayLinePipelineState=OverlayLines;
-            this.LumenSurfacePipelineState=LumenSurface;
-            this.LumenCardPipelineState=LumenCard;
-        } catch {
-            if(Observer!=null){ _=Observer->Release(); }
-            if(ObserverWireframe!=null){ _=ObserverWireframe->Release(); }
-            if(LumenSurface!=null){ _=LumenSurface->Release(); }
-            if(LumenCard!=null){ _=LumenCard->Release(); }
-            if(Shipping!=null){ _=Shipping->Release(); }
-            if(Presentation!=null){ _=Presentation->Release(); }
-            if(Wireframe!=null){ _=Wireframe->Release(); }
-            if(CameraPreview!=null){ _=CameraPreview->Release(); }
-            if(CameraPreviewWireframe!=null){ _=CameraPreviewWireframe->Release(); }
-            if(OverlayTriangles!=null){ _=OverlayTriangles->Release(); }
-            if(OverlayLines!=null){ _=OverlayLines->Release(); }
-            throw;
-        }
-    }
-
-    private ID3D12PipelineState*CreateMeshPipelineState(
-        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=false,DXGI_FORMAT[]?RenderTargets=null,bool WriteSceneDistance=true){
-        var VertexShader=VertexShaderBytecode??this.VertexShaderBytecode;
-        RenderTargets??=[HdrColorFormat,DXGI_FORMAT_R32_FLOAT];
-        fixed(byte*PPosition="POSITION\0"u8)
-        fixed(byte*PNormal="NORMAL\0"u8)
-        fixed(byte*PTangent="TANGENT\0"u8)
-        fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PVertexShader=VertexShader)
-        fixed(byte*PPixelShader=PixelShaderBytecode){
-            D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
-                new D3D12_INPUT_ELEMENT_DESC {
-                    SemanticName=(sbyte*)PPosition,
-                    Format=DXGI_FORMAT_R32G32B32_FLOAT,
-                    InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                },
-                new D3D12_INPUT_ELEMENT_DESC {
-                    SemanticName=(sbyte*)PNormal,
-                    Format=DXGI_FORMAT_R32G32B32_FLOAT,
-                    AlignedByteOffset=12,
-                    InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                },
-                new D3D12_INPUT_ELEMENT_DESC {
-                    SemanticName=(sbyte*)PTangent,
-                    Format=DXGI_FORMAT_R32G32B32A32_FLOAT,
-                    AlignedByteOffset=24,
-                    InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                },
-                new D3D12_INPUT_ELEMENT_DESC {
-                    SemanticName=(sbyte*)PTexCoord,
-                    Format=DXGI_FORMAT_R32G32_FLOAT,
-                    AlignedByteOffset=40,
-                    InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                },
-            };
-
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
-                InputLayout=new D3D12_INPUT_LAYOUT_DESC {
-                    pInputElementDescs=InputElements,
-                    NumElements=4,
-                },
-                pRootSignature= this.RootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)VertexShader.Length },
-                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)PixelShaderBytecode.Length },
-                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
-                BlendState=D3D12_BLEND_DESC.DEFAULT,
-                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
-                SampleMask=uint.MaxValue,
-                PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-                NumRenderTargets=(uint)(RenderTargets?.Length??1),
-                DSVFormat=DepthBufferFormat,
-                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
-            };
-            if(!WriteSceneDistance){
-                PsoDesc.BlendState.IndependentBlendEnable=TRUE;
-                PsoDesc.BlendState.RenderTarget[1].RenderTargetWriteMask=0;
-            }
-            // 実際の裏面カリングは後で追加する（インポートメッシュの巻き順方針、ADR-0004）。
-            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
-            PsoDesc.RasterizerState.FillMode=FillMode;
-            PsoDesc.RasterizerState.DepthClipEnable=DepthClip?TRUE:FALSE;
-            PsoDesc.RTVFormats[0]=HdrColorFormat;
-            // M0111：Lumenのサーフェスプリパスとカード撮影では複数のターゲットへ書き込む。
-            for(var Target=0;Target<(RenderTargets?.Length??0);Target++){
-                PsoDesc.RTVFormats[Target]=RenderTargets![Target];
-            }
-
-            ID3D12PipelineState*PipelineState;
-            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&PipelineState),
-                "ID3D12Device::CreateGraphicsPipelineState","creating the stage pipeline state");
-            return PipelineState;
-        }
-    }
-
-    private ID3D12PipelineState*CreateOverlayPipelineState(
-        D3D12_PRIMITIVE_TOPOLOGY_TYPE TopologyType){
-        byte*PPositionSemantic=stackalloc byte[]{
-            (byte)'P',(byte)'O',(byte)'S',(byte)'I',
-            (byte)'T',(byte)'I',(byte)'O',(byte)'N',0,
-        };
-        byte*PColorSemantic=stackalloc byte[]{
-            (byte)'C',(byte)'O',(byte)'L',(byte)'O',(byte)'R',0,
-        };
-        fixed(byte*PPosition="POSITION\\0"u8)
-        fixed(byte*PColor="COLOR\\0"u8)
-        fixed(byte*PVertexShader=this.OverlayVertexShaderBytecode)
-        fixed(byte*PPixelShader=this.OverlayPixelShaderBytecode){
-            D3D12_INPUT_ELEMENT_DESC*InputElements=
-                stackalloc D3D12_INPUT_ELEMENT_DESC[2]{
-                    new D3D12_INPUT_ELEMENT_DESC {
-                        SemanticName=(sbyte*)PPositionSemantic,
-                        Format=DXGI_FORMAT_R32G32B32_FLOAT,
-                        InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                    },
-                    new D3D12_INPUT_ELEMENT_DESC {
-                        SemanticName=(sbyte*)PColorSemantic,
-                        Format=DXGI_FORMAT_R32G32B32A32_FLOAT,
-                        AlignedByteOffset=12,
-                        InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                    },
-                };
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
-                InputLayout=new D3D12_INPUT_LAYOUT_DESC {
-                    pInputElementDescs=InputElements,
-                    NumElements=2,
-                },
-                pRootSignature=this.RootSignature,
-                VS=new D3D12_SHADER_BYTECODE {
-                    pShaderBytecode=PVertexShader,
-                    BytecodeLength=(nuint)this.OverlayVertexShaderBytecode.Length,
-                },
-                PS=new D3D12_SHADER_BYTECODE {
-                    pShaderBytecode=PPixelShader,
-                    BytecodeLength=(nuint)this.OverlayPixelShaderBytecode.Length,
-                },
-                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
-                BlendState=D3D12_BLEND_DESC.DEFAULT,
-                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
-                SampleMask=uint.MaxValue,
-                PrimitiveTopologyType=TopologyType,
-                NumRenderTargets=1,
-                DSVFormat=DepthBufferFormat,
-                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
-            };
-            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
-            PsoDesc.DepthStencilState.DepthEnable=FALSE;
-            PsoDesc.DepthStencilState.StencilEnable=FALSE;
-            PsoDesc.BlendState.RenderTarget[0]=
-                new D3D12_RENDER_TARGET_BLEND_DESC {
-                    BlendEnable=TRUE,
-                    LogicOpEnable=FALSE,
-                    SrcBlend=D3D12_BLEND.D3D12_BLEND_SRC_ALPHA,
-                    DestBlend=D3D12_BLEND.D3D12_BLEND_INV_SRC_ALPHA,
-                    BlendOp=D3D12_BLEND_OP.D3D12_BLEND_OP_ADD,
-                    SrcBlendAlpha=D3D12_BLEND.D3D12_BLEND_ONE,
-                    DestBlendAlpha=D3D12_BLEND.D3D12_BLEND_INV_SRC_ALPHA,
-                    BlendOpAlpha=D3D12_BLEND_OP.D3D12_BLEND_OP_ADD,
-                    LogicOp=D3D12_LOGIC_OP.D3D12_LOGIC_OP_NOOP,
-                    RenderTargetWriteMask=(byte)
-                        D3D12_COLOR_WRITE_ENABLE.D3D12_COLOR_WRITE_ENABLE_ALL,
-                };
-            PsoDesc.RTVFormats[0]=BackBufferFormat;
-            ID3D12PipelineState*PipelineState;
-            HRESULT Result=this.Device!.Device->CreateGraphicsPipelineState(
-                &PsoDesc,__uuidof<ID3D12PipelineState>(),
-                (void**)&PipelineState);
-            if(Result.FAILED){ this.Device.PollDebugMessages(); }
-            string DebugContext=Result.FAILED
-                ?string.Join(Environment.NewLine,this.Device.CollectedMessages)
-                :string.Empty;
-            D3D12Diagnostics.EnsureSuccess(
-                Result,"ID3D12Device::CreateGraphicsPipelineState",
-                string.IsNullOrEmpty(DebugContext)
-                    ?"creating the Stage overlay pipeline state"
-                    :"creating the Stage overlay pipeline state"
-                        +Environment.NewLine+DebugContext);
-            return PipelineState;
-        }
-    }
-
-    private void CreateShadowPipelineState(){
-        fixed(byte*PPosition="POSITION\0"u8)
-        fixed(byte*PNormal="NORMAL\0"u8)
-        fixed(byte*PTangent="TANGENT\0"u8)
-        fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PVertexShader= this.ShadowVertexShaderBytecode){
-            D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PPosition,Format=DXGI_FORMAT_R32G32B32_FLOAT,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PNormal,Format=DXGI_FORMAT_R32G32B32_FLOAT,AlignedByteOffset=12,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PTangent,Format=DXGI_FORMAT_R32G32B32A32_FLOAT,AlignedByteOffset=24,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PTexCoord,Format=DXGI_FORMAT_R32G32_FLOAT,AlignedByteOffset=40,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-            };
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
-                InputLayout=new D3D12_INPUT_LAYOUT_DESC { pInputElementDescs=InputElements,NumElements=4 },
-                pRootSignature= this.ShadowRootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.ShadowVertexShaderBytecode.Length },
-                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
-                BlendState=D3D12_BLEND_DESC.DEFAULT,
-                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
-                SampleMask=uint.MaxValue,
-                PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-                NumRenderTargets=0,
-                DSVFormat=ShadowAtlasDsvFormat,
-                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
-            };
-            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
-            ID3D12PipelineState*Pipeline;
-            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),nameof(this.CreateShadowPipelineState),nameof(this.CreateShadowPipelineState));
-            this.ShadowPipelineState=Pipeline;
-        }
-    }
-
-    private void CreatePostProcessPipelineState(){
-        fixed(byte*PVertexShader= this.FullscreenVertexShaderBytecode)
-        fixed(byte*PPixelShader= this.PostProcessPixelShaderBytecode){
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
-                pRootSignature= this.PostProcessRootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.FullscreenVertexShaderBytecode.Length },
-                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)this.PostProcessPixelShaderBytecode.Length },
-                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
-                BlendState=D3D12_BLEND_DESC.DEFAULT,
-                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
-                SampleMask=uint.MaxValue,
-                PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-                NumRenderTargets=1,
-                RTVFormats=default,
-                DSVFormat=DXGI_FORMAT_UNKNOWN,
-                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
-            };
-            PsoDesc.DepthStencilState.DepthEnable=FALSE;
-            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
-            PsoDesc.RTVFormats[0]=BackBufferFormat;
-
-            ID3D12PipelineState*Pipeline;
-            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),
-                nameof(this.CreatePostProcessPipelineState),nameof(this.CreatePostProcessPipelineState));
-            this.PostProcessPipelineState=Pipeline;
         }
     }
 
@@ -4577,14 +4254,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.Lumen?.Dispose();
         this.DisposeVirtualShadows();
         this.Lumen=null;
-        if(this.LumenSurfacePipelineState!=null){
-            _=this.LumenSurfacePipelineState->Release();
-            this.LumenSurfacePipelineState=null;
-        }
-        if(this.LumenCardPipelineState!=null){
-            _=this.LumenCardPipelineState->Release();
-            this.LumenCardPipelineState=null;
-        }
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);
@@ -4685,36 +4354,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             }
         }
 
-        if(this.ObserverPipelineState!=null){ _=this.ObserverPipelineState->Release();this.ObserverPipelineState=null; }
-        if(this.ObserverWireframePipelineState!=null){ _=this.ObserverWireframePipelineState->Release();this.ObserverWireframePipelineState=null; }
-        if(this.PipelineState!=null){
-            _= this.PipelineState->Release();
-            this.PipelineState=null;
-        }
-        if(this.PresentationPipelineState!=null){
-            _=this.PresentationPipelineState->Release();
-            this.PresentationPipelineState=null;
-        }
-        if(this.WireframePipelineState!=null){
-            _=this.WireframePipelineState->Release();
-            this.WireframePipelineState=null;
-        }
-        if(this.CameraPreviewPipelineState!=null){
-            _=this.CameraPreviewPipelineState->Release();
-            this.CameraPreviewPipelineState=null;
-        }
-        if(this.CameraPreviewWireframePipelineState!=null){
-            _=this.CameraPreviewWireframePipelineState->Release();
-            this.CameraPreviewWireframePipelineState=null;
-        }
-        if(this.OverlayTrianglePipelineState!=null){
-            _=this.OverlayTrianglePipelineState->Release();
-            this.OverlayTrianglePipelineState=null;
-        }
-        if(this.OverlayLinePipelineState!=null){
-            _=this.OverlayLinePipelineState->Release();
-            this.OverlayLinePipelineState=null;
-        }
+        this.ReleaseAllPipelineStates();
         if(this.MainPassTimestampHeap!=null){
             _=this.MainPassTimestampHeap->Release();
             this.MainPassTimestampHeap=null;
@@ -4722,16 +4362,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.MainPassTimestampReadback!=null){
             _=this.MainPassTimestampReadback->Release();
             this.MainPassTimestampReadback=null;
-        }
-
-        if(this.ShadowPipelineState!=null){
-            _= this.ShadowPipelineState->Release();
-            this.ShadowPipelineState=null;
-        }
-
-        if(this.PostProcessPipelineState!=null){
-            _= this.PostProcessPipelineState->Release();
-            this.PostProcessPipelineState=null;
         }
 
         if(this.RootSignature!=null){

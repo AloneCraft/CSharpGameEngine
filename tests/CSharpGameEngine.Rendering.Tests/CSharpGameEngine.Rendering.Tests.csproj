@@ -10,5 +10,6 @@
     <Using Include="Xunit" />
     <ProjectReference Include="../../src/CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
     <ProjectReference Include="../../src/CSharpGameEngine.Rendering/CSharpGameEngine.Rendering.csproj" />
+    <ProjectReference Include="../../src/CSharpGameEngine.ShaderArtifacts/CSharpGameEngine.ShaderArtifacts.csproj" />
   </ItemGroup>
 </Project>

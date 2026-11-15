@@ -102,57 +102,6 @@ public sealed unsafe partial class StageRenderer {
         this.ScreenRootSignature=this.CreateSrvAndConstantsRootSignature(D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,nameof(this.CreateScreenRootSignature));
     }
 
-    private void CreateScreenPipelineState(){
-        fixed(byte*PPosition="POSITION\0"u8)
-        fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PColor="COLOR\0"u8)
-        fixed(byte*PVertexShader=this.ScreenVertexShaderBytecode)
-        fixed(byte*PPixelShader=this.ScreenPixelShaderBytecode){
-            D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[3]{
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PPosition,Format=DXGI_FORMAT_R32G32_FLOAT,AlignedByteOffset=0,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PTexCoord,Format=DXGI_FORMAT_R32G32_FLOAT,AlignedByteOffset=8,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PColor,Format=DXGI_FORMAT_R32G32B32A32_FLOAT,AlignedByteOffset=16,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
-            };
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
-                InputLayout=new D3D12_INPUT_LAYOUT_DESC { pInputElementDescs=InputElements,NumElements=3 },
-                pRootSignature=this.ScreenRootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.ScreenVertexShaderBytecode.Length },
-                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)this.ScreenPixelShaderBytecode.Length },
-                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
-                BlendState=D3D12_BLEND_DESC.DEFAULT,
-                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
-                SampleMask=uint.MaxValue,
-                PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-                NumRenderTargets=1,
-                DSVFormat=DXGI_FORMAT_UNKNOWN,
-                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
-            };
-            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
-            PsoDesc.DepthStencilState.DepthEnable=FALSE;
-            PsoDesc.DepthStencilState.StencilEnable=FALSE;
-            // フレームの上にストレートアルファで描画する。バックバッファのアルファチャンネルにはフレームが書いた値を保持する。
-            PsoDesc.BlendState.RenderTarget[0]=new D3D12_RENDER_TARGET_BLEND_DESC {
-                BlendEnable=TRUE,
-                LogicOpEnable=FALSE,
-                SrcBlend=D3D12_BLEND.D3D12_BLEND_SRC_ALPHA,
-                DestBlend=D3D12_BLEND.D3D12_BLEND_INV_SRC_ALPHA,
-                BlendOp=D3D12_BLEND_OP.D3D12_BLEND_OP_ADD,
-                SrcBlendAlpha=D3D12_BLEND.D3D12_BLEND_ZERO,
-                DestBlendAlpha=D3D12_BLEND.D3D12_BLEND_ONE,
-                BlendOpAlpha=D3D12_BLEND_OP.D3D12_BLEND_OP_ADD,
-                LogicOp=D3D12_LOGIC_OP.D3D12_LOGIC_OP_NOOP,
-                RenderTargetWriteMask=(byte)D3D12_COLOR_WRITE_ENABLE.D3D12_COLOR_WRITE_ENABLE_ALL,
-            };
-            PsoDesc.RTVFormats[0]=BackBufferFormat;
-            ID3D12PipelineState*Pipeline;
-            HRESULT Result=this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline);
-            if(Result.FAILED){ this.Device.PollDebugMessages(); }
-            D3D12Diagnostics.EnsureSuccess(Result,"ID3D12Device::CreateGraphicsPipelineState",
-                Result.FAILED?"creating the screen layer pipeline state"+Environment.NewLine+string.Join(Environment.NewLine,this.Device.CollectedMessages):"creating the screen layer pipeline state");
-            this.ScreenPipelineState=Pipeline;
-        }
-    }
-
     /// <summary>初回使用時に頂点バッファとディスクリプタヒープを作成する。スクリーンレイヤーを使わないゲームにはコストを発生させない。</summary>
     private void EnsureScreenResources(){
         if(this.ScreenVertexBuffer!=null){ return; }
@@ -245,10 +194,6 @@ public sealed unsafe partial class StageRenderer {
         if(this.ScreenSrvHeap!=null){
             _=this.ScreenSrvHeap->Release();
             this.ScreenSrvHeap=null;
-        }
-        if(this.ScreenPipelineState!=null){
-            _=this.ScreenPipelineState->Release();
-            this.ScreenPipelineState=null;
         }
         if(this.ScreenRootSignature!=null){
             _=this.ScreenRootSignature->Release();
