@@ -1,7 +1,5 @@
 using CSharpGameEngine.Rendering.Backend;
-using CSharpGameEngine.Rendering.View;
 using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
-using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using CSharpGameEngine.Rendering.Pipeline;
 using System.Diagnostics;
 using System.Collections.Generic;
@@ -1828,16 +1826,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// 最初のPresentが完全に初期化されたデータを読み取る。
     /// </summary>
     private void InitializeConstantsToDefaults(){
-        Camera DefaultCamera=Camera.CreateDefault(Vector3.Zero);
-        this.SetCamera(DefaultCamera);
-
+        this.SetViewSource(StageRenderDefaults.InitialViewSource);
+        var InitialView=StageRenderDefaults.InitialViewSource.Resolve(this.ViewSourceWidth,this.Height);
         for(uint Frame=0;Frame<FrameCount;Frame++){
-            this.WriteViewProjection(Frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)this.Width/ this.Height));
-            this.WriteCameraPosition(Frame,DefaultCamera.GetEyePosition());
+            this.WriteViewProjection(Frame,InitialView.ViewProjection);
+            this.WriteCameraPosition(Frame,InitialView.CameraPosition);
             this.WriteDirectionalLight(Frame,0,DefaultLightDirectionTowardLight,DefaultLightColor,0.0015f);
             this.WriteAmbientLight(Frame,DefaultAmbientColor);
             this.WriteFog(Frame,FogParams.None);
-            this.WriteExposure(Frame,DefaultCamera.ExposureEv100);
+            this.WriteExposure(Frame,InitialView.ExposureEv100);
             this.WriteViewDepth(Frame);
             this.WriteDirectionalCascades(Frame,DefaultLightDirectionTowardLight);
             this.WriteLightCounts(Frame); // D3D12はアップロードヒープメモリがゼロ初期化される保証がない。これをしないと最初のフレームでPointLights／SpotLightsの未初期化値を走査する可能性がある。
@@ -1850,21 +1847,24 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// 構築中の現在フレームに使うカメラを設定する。<see cref="RenderFrame"/>より前に毎フレーム呼び出すこと。
-    /// 定数バッファは処理中フレームのスロットごとに二重化される（<see cref="FrameCount"/>）。ここでは現在のスロットだけに書き込む。
+    /// 描画面の大きさで解決するビューの元を受け取り、現在のフレームスロットへ書く。影の比較表示へ切り替わったときは、半分の幅で解決し直す。
+    /// ビューの方針（透視なら対数深度など）は L4・L5 が元を作るときに決め、ここは解決した値を書くだけ（ADR-0087 §1-7）。
+    /// RenderServer を通さず StageRenderer を直接使う起動直後と試験のためで、RenderServer は自分の元を持って同じことをする。
     /// </summary>
-    public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
+    internal void SetViewSource(in RenderViewSource Source){
         this.ThrowIfDisposed();
-        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)(this.ShadowSettings.Compare?Math.Max(1,this.Width/2):this.Width)/this.Height;
-        this.SetView(RenderViewPolicy.FromCamera(Camera,AspectRatio));
-        this.LastShadowCamera=Camera;
-        this.LastShadowCameraAspect=AspectRatioOverride;
+        this.SetView(Source.Resolve(this.ViewSourceWidth,this.Height));
+        this.RetainedViewSource=Source;
     }
+    /// <summary>ビューの元を解決するときの幅。影の比較表示では左右に分けるので半分。</summary>
+    private int ViewSourceWidth=>this.ShadowSettings.Compare?Math.Max(1,this.Width/2):this.Width;
+    /// <summary>描画面の大きさ（試験の補助が、ビューの元を使わない行列のビューを解決するため）。</summary>
+    internal (int Width,int Height)SurfaceSize=>(this.Width,this.Height);
     /// <summary>現在のフレームスロットに、検証済みのメインビューをアップロードする。</summary>
     public void SetView(in RenderView View){
         this.ThrowIfDisposed();
         if(!View.IsValid){ throw new ArgumentException("A main view must be validated.",nameof(View)); }
-        this.LastShadowCamera=null;
+        this.RetainedViewSource=default;
         this.WriteViewProjection(this.FrameIndex,View.ViewProjection);
         this.WriteCameraPosition(this.FrameIndex,View.CameraPosition);
         this.WriteExposure(this.FrameIndex,View.ExposureEv100);
@@ -1916,31 +1916,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
             Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectConservativeRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
         }
-    }
-
-    /// <summary>
-    /// 所有するRender Server経由で、既にカメラ相対になっているプレビュー行列を受け取る。
-    /// 内部可視性により、L8クライアントがネイティブバックエンドを直接取得することを防ぐ。
-    /// </summary>
-    internal void SetViewProjection(in Matrix4x4 ViewProjection){
-        this.SetViewProjection(ViewProjection,Vector3.Zero);
-    }
-
-    internal void SetViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
-        this.ThrowIfDisposed();
-        this.SetView(RenderViewPolicy.FromOrthographic(ViewProjection,CameraPosition));
-    }
-
-    /// <summary>
-    /// M0100：放射状深度で描画する、分離プレビュー用のカメラ相対透視行列。指定された行列をそのまま使うため、
-    /// 視野範囲、オーバーレイ、ピッキングは呼び出し側の行列どおりに保たれる。放射状パケット、補助行列、
-    /// 各オブジェクトの保守的ラスター深度は、その行列と<paramref name="Radial"/>から導出する。
-    /// </summary>
-    internal void SetViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
-        this.ThrowIfDisposed();
-        this.SetView(RenderViewPolicy.FromPerspective(ViewProjection,CameraPosition,Radial,(float)this.Width/this.Height));
     }
 
     /// <summary>
@@ -2124,7 +2099,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var ComparisonChanged=this.ShadowSettings.Compare!=(Settings.DirectionalShadows?.Compare??false);
         if(Settings.DirectionalShadows is { }ShadowPolicy&&(ShadowPolicy.Compare||ShadowPolicy.Mode==DirectionalShadowMode.Virtual)){ this.EnsureVirtualShadowAtlas(); }
         this.EnvironmentSettings=Settings;
-        if(ComparisonChanged&&this.LastShadowCamera is Camera Camera){ this.SetCamera(Camera,this.LastShadowCameraAspect); }
+        if(ComparisonChanged&&this.RetainedViewSource.HasValue){ this.SetViewSource(this.RetainedViewSource); }
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
     }
 

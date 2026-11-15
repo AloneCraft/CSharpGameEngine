@@ -231,3 +231,15 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 - 方向光のカスケード(`DirectionalShadowCascades`)とアトラスの割り当て(`PhysicalShadowAtlasPlan`)はもともと L4 にあるので、移すものは無かった。L0 の `RadialDepthProjection.TryCreate` の呼び出しは消えた。
 - 試験: `StageShadowPlannerTests` 4 件。Rendering.Tests 218 件合格。
 - 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit3`)。描画と光の試験 226 件中 224 件合格・2 件対象外・失敗 0。
+
+### 単位 4: カメラの互換入口の削除(2026-11-15)
+- L0 から `SetCamera(RenderCamera)` と `SetViewProjection` の 3 つの重ね定義、覚えておいたカメラ(`LastShadowCamera`)を削除した。L0 は L5 の `Rendering.View` 名前空間を参照しなくなった。
+- 代わりに L0 は内部の `SetViewSource(RenderViewSource)` で L4 のビューの元を受け取り、影の比較表示へ切り替わったときは半分の幅で解決し直す。以前は覚えておいたカメラで同じことをしていたので、比較表示の切り替えの動きは変わらない。固定のビュー(`SetView`)を受け取るとビューの元は消える(以前の `LastShadowCamera=null` と同じ)。
+- 起動直後の既定のビューは L4 の `StageRenderDefaults.InitialViewSource` に置いた。L5 の `RenderCamera.CreateDefault(Vector3.Zero)` と同じ目の位置と上方向をビット列のまま持ち、`StageRenderDefaultsTests` が L5 の計算とビット単位で一致することを固定する(M0119・M0120 の起動の契約)。
+- StageRenderer を直接使う試験のために、試験側に `StageRendererViewExtensions`(以前と同じ計算で L5 の `RenderViewPolicy` からビューを作って渡す)を置いた。製品の経路(EngineHost、プレビュー)は RenderServer を通すので変更なし。
+- 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit4`)。Windows.Tests 全体 940 件中 938 件合格・2 件対象外・失敗 0。Rendering.Tests 219 件合格。
+
+### 単位 5 の分割(2026-11-15、実装中の判断)
+単位 5 の準備で、光と影の計画の呼び出しを L0 から無くすには、光源の提出そのもの(`Submit*`、`SetLight`)と、そのフレームごとの持続の規則(`DirectionalLightsPersistAcrossFrames`、そのフレームだけ明示した提出、落とした件数の数え方、提出の途中で書き込む経路)を RenderServer へ移す必要があると分かった。さらに、StageRenderer を直接作って描く試験(約 40 か所)も、RenderServer を通す形へ移す必要がある。単位 5 を一度に行うと、画素の食い違いが出たときに原因を切り分けにくいので、次の 2 つに分ける。
+- **5a: パスの列と実行。** L4 の `StagePipelinePlanner` がパスの列(`StagePipelinePlan`)を作り、L0 は `Execute` でその順に記録する。RenderServer が計画を作り、`DeclaredQualityPlan` を `CurrentPipeline` で置き換える。各パスの中の「やることが無ければ何もしない」判定は、非目的のとおり実行器に残す。
+- **5b: 光源と影の提出と計画を RenderServer へ。** 光源の提出と持続の規則を RenderServer へ移し、毎フレームの `StageFrameData` で L0 へ渡す。StageRenderer を直接使う試験を移す。これで L0 から光と影の計画の呼び出しが無くなり、単位 6 の `NativeBackendDoesNotPlanFrames` を足せる。

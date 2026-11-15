@@ -1,5 +1,4 @@
 using System.Numerics;
-using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.Rendering;
@@ -17,8 +16,8 @@ public sealed unsafe partial class StageRenderer {
     private const int VirtualAtlasSize=4096,VirtualPages=1024;
     private readonly VirtualDirectionalShadowCache VirtualShadowCache=new();
     private readonly List<VirtualShadowBounds>VirtualShadowObjects=[];
-    private Camera?LastShadowCamera;
-    private float LastShadowCameraAspect;
+    /// <summary><see cref="SetViewSource"/> で受け取ったビューの元。<see cref="SetView"/> で固定のビューを受け取ると消える。</summary>
+    private RenderViewSource RetainedViewSource;
     private ID3D12Resource*VirtualShadowAtlas;
     private bool VirtualAtlasAllocated;
     private ID3D12DescriptorHeap*VirtualShadowDsv;

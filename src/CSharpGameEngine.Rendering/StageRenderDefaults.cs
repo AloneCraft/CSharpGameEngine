@@ -5,6 +5,18 @@ public static class StageRenderLimits {
     public const int DynamicMaterialHeadroom=256;
 }
 public static class StageRenderDefaults {
+    /// <summary>
+    /// 一度もビューを受け取っていない描画面の最初のビュー（M0119・M0120 の起動の契約）。L5 の <c>RenderCamera.CreateDefault(Vector3.Zero)</c>
+    /// （原点を 15 度上から 4.5 m 離れて見る、視野 45 度、0.1〜1000 m、露出 0）と同じ値で、L0 が L5 のカメラを使わずに済むよう、
+    /// 目の位置と上方向をそのビット列のまま持つ。一致は <c>StageRenderDefaultsTests</c> が L5 の計算と比べて固定する。
+    /// </summary>
+    public static RenderViewSource InitialViewSource{get;}=CreateInitialViewSource();
+    private static RenderViewSource CreateInitialViewSource(){
+        var Eye=new Vector3(BitConverter.Int32BitsToSingle(0x00000000),BitConverter.Int32BitsToSingle(0x3F95146D),BitConverter.Int32BitsToSingle(unchecked((int)0xC08B17E4)));
+        var Up=new Vector3(BitConverter.Int32BitsToSingle(0x00000000),BitConverter.Int32BitsToSingle(0x3F7746EB),BitConverter.Int32BitsToSingle(0x3E8483F0));
+        return RenderViewSource.Perspective(Matrix4x4.CreateLookAt(Eye,Vector3.Zero,Up),Eye,
+            new RadialViewParameters(MathF.PI/4f,0.1f,1000f,RadialDepthCurve.DefaultTransitionMeters),0f);
+    }
     public static readonly PixelColor ClearColor=new(89,140,217,255);
     public static readonly Vector4 HdrClearColor=new(0.23238164f,0.4095592f,1.2785315f,1.0f);
     /// <summary>
