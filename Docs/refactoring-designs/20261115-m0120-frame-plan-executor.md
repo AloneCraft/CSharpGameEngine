@@ -218,3 +218,10 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 - 試験: `StagePipelinesTests` 6 件(入口名がシェーダーの成果物の一覧にあり種類が合う、使われていない入口が無い、重複が無い、深度だけの描画は影だけ、距離を書かない描画、画面に重ねる描画)。Rendering.Tests 206 件合格。
 - 画素: 書き換え前(`F:\CodexTemp\cge-m0120\baseline`)と書き換え後(`unit1`)の固定 7 画像は、生の画素のバイト列が完全に一致した。描画の試験(`CSharpGameEngine.Graphics.D3D12.Tests`)は 204 件中 202 件合格・2 件対象外・失敗 0。
 - 書き換え前の基準の実行では `RenderViewGpuIntegrationTests.TypedViewMatchesLegacySubmissionAndSurvivesDeviceRecovery(Mode: 2)`(正射影で、装置の作り直しの後に絵が同じか)が 1 回失敗した(実行時間 22 分、機械が混んでいた)。書き換え後の実行と、単独の 5 回(各 4 通り)ではすべて合格した。負荷のあるときだけ起きる不安定さと推測する。原因は未特定で、単位 6 の全体の検証で再度確かめる。
+
+### 単位 2: 光源の計画を L4 へ(2026-11-15)
+- L4 に `StageLightPlanner` を置いた。局所光・方向光の画面上の寄与の見積もり、使う順の比べ方(局所光は優先度 → 寄与 → 提出順、方向光は寄与 → 提出順)、局所光が届く範囲から Forward+ のタイル範囲を出す計算を、L0 から式と比較の順を変えずに移した。比べ方は提出順が異なれば全順序なので、並べ方の手順によらず結果は一つに決まる。
+- L0 の `CalculateScreenContribution`・`CalculateDirectionalScreenContribution`・`TryGetForwardPlusTileBounds` と、並べるための入れ物 2 つを削除した。L0 はまだ L4 の計画の関数を呼ぶ(呼び出しを RenderServer へ移すのは単位 5)。
+- 方向光の影の選び方 `PhysicalLightBudget` はもともと L4 にあるので、移すものは無かった(呼び出しの位置は単位 5 で移す)。
+- 試験: `StageLightPlannerTests` 8 件(並べる順、深度の 2 乗で弱まる寄与、有限でない値、画面の中・外、カメラの後ろへ回る光、画面いっぱいの光)。Rendering.Tests 214 件合格。
+- 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`F:\CodexTemp\cge-m0120\unit2`)。描画の試験 204 件中 202 件合格・2 件対象外・失敗 0。光の試験(`TypedLightFrameTests`・`RenderPreviewLightingSessionTests`・`AmbientLightSyncTests`)22 件合格。

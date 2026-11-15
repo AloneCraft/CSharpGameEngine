@@ -191,11 +191,6 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         public int StableSubmissionOrder { get; }=StableSubmissionOrder;
     }
 
-    private readonly struct RankedDirectionalLightSubmission(DirectionalLightSubmission Submission,float ScreenContribution) {
-        public DirectionalLightSubmission Submission { get; }=Submission;
-        public float ScreenContribution { get; }=ScreenContribution;
-    }
-
     /// <summary>CPU側に保持する遅延ローカルライト送信データ。フレームのカメラが確定してから一度だけ順位を決める。</summary>
     private readonly struct LocalLightSubmission(
         LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
@@ -230,10 +225,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         public PhysicalLightKind ShadowKind { get; }=ShadowKind;
     }
 
-    private readonly struct RankedLocalLightSubmission(LocalLightSubmission Submission,float ScreenContribution) {
-        public LocalLightSubmission Submission { get; }=Submission;
-        public float ScreenContribution { get; }=ScreenContribution;
-    }
+
 
     /// <summary>StageシェーダーABIの6要素float4 LocalLightDataと完全に一致する。</summary>
     private struct LocalLightGpuData {
@@ -2060,7 +2052,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(Submission.CastsShadows){
                 var Candidate=new PhysicalLightCandidate(
                     Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
-                    Submission.ShadowPriority,CalculateDirectionalScreenContribution(Submission),
+                    Submission.ShadowPriority,StageLightPlanner.DirectionalScreenContribution(Submission.ColorTimesIntensity),
                     CastsShadows:true);
                 this.DirectionalShadowCandidates.Add(Candidate);
                 this.DirectionalShadowIndex=0;
@@ -2075,28 +2067,23 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return;
         }
 
-        List<RankedDirectionalLightSubmission> Ranked=new(this.DirectionalLightSubmissions.Count);
-        foreach(DirectionalLightSubmission Submission in this.DirectionalLightSubmissions){
-            Ranked.Add(new RankedDirectionalLightSubmission(
-                Submission,CalculateDirectionalScreenContribution(Submission)));
+        var Ranked=new StageLightRank[this.DirectionalLightSubmissions.Count];
+        for(var Position=0;Position<Ranked.Length;Position++){
+            var Submitted=this.DirectionalLightSubmissions[Position];
+            Ranked[Position]=new StageLightRank(Position,0,StageLightPlanner.DirectionalScreenContribution(Submitted.ColorTimesIntensity),Submitted.StableSubmissionOrder);
         }
-        Ranked.Sort(static (Left,Right)=>{
-            int Contribution=Right.ScreenContribution.CompareTo(Left.ScreenContribution);
-            return Contribution!=0
-                ?Contribution
-                :Left.Submission.StableSubmissionOrder.CompareTo(Right.Submission.StableSubmissionOrder);
-        });
-
-        this.DirectionalLightCount=Math.Min(Ranked.Count,MaxDirectionalLights);
-        this.DroppedDirectionalLightsThisFrameValue=Ranked.Count-this.DirectionalLightCount;
+        StageLightPlanner.SortDirectional(Ranked);
+        this.DirectionalLightCount=Math.Min(Ranked.Length,MaxDirectionalLights);
+        this.DroppedDirectionalLightsThisFrameValue=Ranked.Length-this.DirectionalLightCount;
         this.DirectionalShadowIndex=-1;
         this.SelectedDirectionalShadowAtlasCandidate=null;
         this.DirectionalShadowCandidates.Clear();
         if(this.DirectionalLightCount>0){
-            this.RecordAtmosphereSun(Ranked[0].Submission.DirectionTowardLight,Ranked[0].Submission.ColorTimesIntensity);
+            var Strongest=this.DirectionalLightSubmissions[Ranked[0].Index];
+            this.RecordAtmosphereSun(Strongest.DirectionTowardLight,Strongest.ColorTimesIntensity);
         }
         for(int Index=0;Index<this.DirectionalLightCount;Index++){
-            DirectionalLightSubmission Submission=Ranked[Index].Submission;
+            DirectionalLightSubmission Submission=this.DirectionalLightSubmissions[Ranked[Index].Index];
             this.WriteDirectionalLight(
                 FrameIndex,Index,Submission.DirectionTowardLight,
                 this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
@@ -2115,20 +2102,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 }
                 this.DirectionalShadowIndex=Index;
                 this.SelectedDirectionalShadowAtlasCandidate=this.DirectionalShadowCandidates[Index];
-                this.WriteDirectionalCascades(FrameIndex,Ranked[Index].Submission.DirectionTowardLight);
+                this.WriteDirectionalCascades(FrameIndex,this.DirectionalLightSubmissions[Ranked[Index].Index].DirectionTowardLight);
                 break;
             }
         }
         this.WriteLightCounts(FrameIndex);
-    }
-
-    private static float CalculateDirectionalScreenContribution(in DirectionalLightSubmission Submission){
-        float Contribution=MathF.Max(Submission.ColorTimesIntensity.X,
-            MathF.Max(Submission.ColorTimesIntensity.Y,Submission.ColorTimesIntensity.Z));
-        if(!float.IsFinite(Contribution)){
-            return float.MaxValue;
-        }
-        return MathF.Max(0f,Contribution);
     }
 
     /// <summary>
@@ -2911,34 +2889,24 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PointShadowProjectionCount=0;
         this.AreaShadowProjectionCount=0;
         Matrix4x4 ViewProjection=this.FrameViewProjections[FrameIndex];
-        List<RankedLocalLightSubmission> Ranked=new(this.LocalLightSubmissions.Count);
-        foreach(LocalLightSubmission Submission in this.LocalLightSubmissions){
-            Ranked.Add(new RankedLocalLightSubmission(
-                Submission,CalculateScreenContribution(Submission,ViewProjection)));
+        var Ranked=new StageLightRank[this.LocalLightSubmissions.Count];
+        for(var Position=0;Position<Ranked.Length;Position++){
+            var Submitted=this.LocalLightSubmissions[Position];
+            Ranked[Position]=new StageLightRank(Position,Submitted.SelectionPriority,
+                StageLightPlanner.LocalScreenContribution(Submitted.ColorTimesIntensity,Submitted.Position,Submitted.Range,ViewProjection),Submitted.StableSubmissionOrder);
         }
-
-        Ranked.Sort(static (Left,Right)=>{
-            int Priority=Right.Submission.SelectionPriority.CompareTo(Left.Submission.SelectionPriority);
-            if(Priority!=0){
-                return Priority;
-            }
-            int Contribution=Right.ScreenContribution.CompareTo(Left.ScreenContribution);
-            return Contribution!=0
-                ?Contribution
-                :Left.Submission.StableSubmissionOrder.CompareTo(Right.Submission.StableSubmissionOrder);
-        });
-
-        this.LocalLightCount=Math.Min(Ranked.Count,MaxLocalLights);
-        this.DroppedLocalLightsThisFrameValue=Ranked.Count-this.LocalLightCount;
+        StageLightPlanner.SortLocal(Ranked);
+        this.LocalLightCount=Math.Min(Ranked.Length,MaxLocalLights);
+        this.DroppedLocalLightsThisFrameValue=Ranked.Length-this.LocalLightCount;
         this.DroppedTileLightReferencesThisFrameValue=0;
         for(int LocalIndex=0;LocalIndex<this.LocalLightCount;LocalIndex++){
-            LocalLightSubmission Submission=Ranked[LocalIndex].Submission;
+            LocalLightSubmission Submission=this.LocalLightSubmissions[Ranked[LocalIndex].Index];
             this.WriteLocalLight(FrameIndex,LocalIndex,Submission);
             this.SelectedLocalLightSubmissions.Add(Submission);
-            if(this.TryGetForwardPlusTileBounds(Submission,ViewProjection,
-                out int MinimumTileX,out int MaximumTileX,out int MinimumTileY,out int MaximumTileY)){
-                for(int TileY=MinimumTileY;TileY<=MaximumTileY;TileY++){
-                    for(int TileX=MinimumTileX;TileX<=MaximumTileX;TileX++){
+            if(StageLightPlanner.TryGetTileRange(Submission.Position,Submission.Range,ViewProjection,this.Width,this.Height,
+                this.ForwardPlusTileCountX,this.ForwardPlusTileCountY,ForwardPlusTileSizePixels,out var Tiles)){
+                for(int TileY=Tiles.MinimumY;TileY<=Tiles.MaximumY;TileY++){
+                    for(int TileX=Tiles.MinimumX;TileX<=Tiles.MaximumX;TileX++){
                         this.AddForwardPlusTileCandidate(FrameIndex,TileX,TileY,LocalIndex);
                     }
                 }
@@ -2989,7 +2957,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             PhysicalLightKind Kind=Submission.ShadowKind;
             Casters.Add(new PhysicalLightCandidate(
                 StableOrder,Kind,Submission.SelectionPriority,
-                CalculateScreenContribution(Submission,ViewProjection),CastsShadows:true));
+                StageLightPlanner.LocalScreenContribution(Submission.ColorTimesIntensity,Submission.Position,Submission.Range,ViewProjection),CastsShadows:true));
             LocalIndexByStableOrder.Add(StableOrder,LocalIndex);
         }
 
@@ -3067,78 +3035,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
 
         this.WriteLightCounts(FrameIndex);
-    }
-
-    private static float CalculateScreenContribution(in LocalLightSubmission Submission,in Matrix4x4 ViewProjection){
-        float Luminance=MathF.Max(Submission.ColorTimesIntensity.X,
-            MathF.Max(Submission.ColorTimesIntensity.Y,Submission.ColorTimesIntensity.Z));
-        if(!float.IsFinite(Luminance)||!float.IsFinite(Submission.Range)){
-            return float.MaxValue;
-        }
-        Luminance=MathF.Max(0f,Luminance);
-        Vector4 Clip=Vector4.Transform(new Vector4(Submission.Position,1f),ViewProjection);
-        float Depth=MathF.Abs(Clip.W);
-        if(!float.IsFinite(Depth)||Depth<1e-3f){
-            return MathF.Min(float.MaxValue,Luminance*Submission.Range*Submission.Range);
-        }
-        float Contribution=Luminance*Submission.Range*Submission.Range/MathF.Max(Depth*Depth,1e-4f);
-        return float.IsFinite(Contribution)?Contribution:float.MaxValue;
-    }
-
-    private bool TryGetForwardPlusTileBounds(
-        in LocalLightSubmission Submission,in Matrix4x4 ViewProjection,
-        out int MinimumTileX,out int MaximumTileX,out int MinimumTileY,out int MaximumTileY){
-        if(this.ForwardPlusTileCountX<=0||this.ForwardPlusTileCountY<=0){
-            MinimumTileX=MaximumTileX=MinimumTileY=MaximumTileY=0;
-            return false;
-        }
-        if(!IsFinite(Submission.Position)||!float.IsFinite(Submission.Range)||Submission.Range<=0f){
-            MinimumTileX=0;
-            MaximumTileX=this.ForwardPlusTileCountX-1;
-            MinimumTileY=0;
-            MaximumTileY=this.ForwardPlusTileCountY-1;
-            return true;
-        }
-
-        float MinimumNdcX=float.MaxValue;
-        float MaximumNdcX=float.MinValue;
-        float MinimumNdcY=float.MaxValue;
-        float MaximumNdcY=float.MinValue;
-        for(int X=-1;X<=1;X+=2){
-            for(int Y=-1;Y<=1;Y+=2){
-                for(int Z=-1;Z<=1;Z+=2){
-                    Vector3 Corner=Submission.Position+(new Vector3(X,Y,Z)*Submission.Range);
-                    Vector4 Clip=Vector4.Transform(new Vector4(Corner,1f),ViewProjection);
-                    if(!float.IsFinite(Clip.X)||!float.IsFinite(Clip.Y)||!float.IsFinite(Clip.W)||Clip.W<=1e-4f){
-                        MinimumTileX=0;
-                        MaximumTileX=this.ForwardPlusTileCountX-1;
-                        MinimumTileY=0;
-                        MaximumTileY=this.ForwardPlusTileCountY-1;
-                        return true;
-                    }
-                    float NdcX=Clip.X/Clip.W;
-                    float NdcY=Clip.Y/Clip.W;
-                    MinimumNdcX=MathF.Min(MinimumNdcX,NdcX);
-                    MaximumNdcX=MathF.Max(MaximumNdcX,NdcX);
-                    MinimumNdcY=MathF.Min(MinimumNdcY,NdcY);
-                    MaximumNdcY=MathF.Max(MaximumNdcY,NdcY);
-                }
-            }
-        }
-
-        if(MaximumNdcX< -1f||MinimumNdcX>1f||MaximumNdcY< -1f||MinimumNdcY>1f){
-            MinimumTileX=MaximumTileX=MinimumTileY=MaximumTileY=0;
-            return false;
-        }
-        float MinimumPixelX=(MinimumNdcX*0.5f+0.5f)*this.Width;
-        float MaximumPixelX=(MaximumNdcX*0.5f+0.5f)*this.Width;
-        float MinimumPixelY=(-MaximumNdcY*0.5f+0.5f)*this.Height;
-        float MaximumPixelY=(-MinimumNdcY*0.5f+0.5f)*this.Height;
-        MinimumTileX=Math.Clamp((int)MathF.Floor(MinimumPixelX/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountX-1);
-        MaximumTileX=Math.Clamp((int)MathF.Floor(MaximumPixelX/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountX-1);
-        MinimumTileY=Math.Clamp((int)MathF.Floor(MinimumPixelY/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountY-1);
-        MaximumTileY=Math.Clamp((int)MathF.Floor(MaximumPixelY/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountY-1);
-        return true;
     }
 
     private static bool IsFinite(Vector3 Value)=>float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z);
