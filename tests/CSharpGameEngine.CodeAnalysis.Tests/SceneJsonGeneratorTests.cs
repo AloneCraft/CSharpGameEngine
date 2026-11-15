@@ -215,6 +215,30 @@ public sealed class SceneJsonGeneratorTests {
             &&Condition.Get("then")!.Get("properties")!.Get("members")!.Get("$ref")!.Text=="#/definitions/type:Sample.Light");
     }
     /// <summary>
+    /// 参照先のエンジンの DLL は、名前に接頭辞が無くても、エンジンの名前空間を持てばスキーマの対象になる（ADR-0099）。
+    /// 名前の接頭辞だけを持ち、エンジンの名前空間を持たない DLL は対象にしない。
+    /// </summary>
+    [Theory]
+    [InlineData("Windows","CSharpGameEngine.Sample",true)]
+    [InlineData("CSharpGameEngine.Windows","CSharpGameEngine.Sample",true)]
+    [InlineData("CSharpGameEngine.Fake","Elsewhere",false)]
+    public void GeneratedSchema_FindsEngineComponentsByNamespaceNotByAssemblyName(string AssemblyName,string Namespace,bool Listed){
+        var Library=Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(AssemblyName,
+            // エンジンの名前空間の部品は、パレット用の印を持つものだけが候補になる。Windows の DLL と同じく、印の型を自分で持つ。
+            [Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(Namespace.StartsWith("CSharpGameEngine.",StringComparison.Ordinal)
+                ?"namespace CSharpGameEngine.Entities { internal sealed class SceneComponentIconAttribute:System.Attribute {} }"
+                    +"namespace "+Namespace+" { [CSharpGameEngine.Entities.SceneComponentIcon] public struct Gauge { public float Level; } }"
+                :"namespace "+Namespace+" { public struct Gauge { public float Level; } }")],
+            GameSystemGeneratorTestHelper.References,new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var Stream=new MemoryStream();
+        Assert.True(Library.Emit(Stream).Success);
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components])
+            .AddReferences(MetadataReference.CreateFromImage(Stream.ToArray()));
+        var Schema=CSharpGameEngine.SceneAnalysis.Json.SceneJsonReader.Parse(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation));
+        var TypeNames=Schema.Get("definitions")!.Get("component")!.Get("properties")!.Get("type")!.Get("enum")!.Items.Select(static Item=>Item.Text).ToArray();
+        Assert.Equal(Listed,TypeNames.Contains(Namespace+".Gauge"));
+    }
+    /// <summary>
     /// <c>ulong</c> メンバーでは全範囲を扱える。コンバーターが書き込み、ドキュメントは同じ値にコンパイルされ、Scene Designer も変更せず読み戻す。負の数はエラーとなり、スキーマでは
     /// 整数と認識する。以前は JSON リーダーが、コンバーターと Inspector が出力するすべての ulong 値を拒否していた。
     /// </summary>

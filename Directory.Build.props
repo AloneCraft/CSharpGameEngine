@@ -9,4 +9,11 @@
 	<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 	<LangVersion>14</LangVersion>
   </PropertyGroup>
+  <!-- Classify projects by folder, not by name: projects under tests/ are tests, and the other engine
+       folders build engine assemblies. The analyzers read CgeEngineAssembly (ADR-0099). -->
+  <PropertyGroup>
+    <_CgeRepositoryRelativeDirectory>$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)','$(MSBuildProjectDirectory)').Replace('\','/'))/</_CgeRepositoryRelativeDirectory>
+    <CgeTestProject Condition="'$(CgeTestProject)' == '' and $(_CgeRepositoryRelativeDirectory.StartsWith('tests/'))">true</CgeTestProject>
+    <CgeEngineAssembly Condition="'$(CgeEngineAssembly)' == '' and '$(CgeTestProject)' != 'true' and ($(_CgeRepositoryRelativeDirectory.StartsWith('src/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('tools/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('plugins/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('stages/')))">true</CgeEngineAssembly>
+  </PropertyGroup>
 </Project>

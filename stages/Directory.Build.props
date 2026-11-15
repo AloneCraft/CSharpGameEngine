@@ -16,6 +16,7 @@
     <!-- ADR-0070: stage scenes are the *.json files under Scenes (SceneFiles), compiled by GameSystemGenerator. -->
     <AdditionalFiles Include="Scenes\**\*.json" />
     <CompilerVisibleProperty Include="ProjectDir" />
+    <CompilerVisibleProperty Include="CgeEngineAssembly" />
     <Compile Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <!-- These two attribute files are compiled into CSharpGameEngine.Windows too (linked); use that copy. -->
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" />

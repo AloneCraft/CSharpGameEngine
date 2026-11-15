@@ -166,7 +166,20 @@ public sealed class CanonicalNumericAnalyzerTests {
     }
     [Fact]
     public void TestAssembliesRemainAvailableForIndependentHighPrecisionOracles(){
-        var Diagnostics=Analyze("using System.Numerics; public sealed class Oracle { public double Value; public BigInteger Raw; }","CSharpGameEngine.Numerics.Tests");
+        var Diagnostics=Analyze("using System.Numerics; public sealed class Oracle { public double Value; public BigInteger Raw; }","CSharpGameEngine.Numerics.Tests",EngineAssembly:false);
+        Assert.Empty(Diagnostics);
+    }
+    [Theory]
+    [InlineData("Core")]
+    [InlineData("Windows")]
+    [InlineData("CSharpGameEngine.Runtime.NumericPolicySample")]
+    public void EngineAssembliesAreCheckedWhateverTheirName(string AssemblyName){
+        var Diagnostics=Analyze("public sealed class State { public double Value; }",AssemblyName);
+        Assert.NotEmpty(Diagnostics);
+    }
+    [Fact]
+    public void TheNamePrefixAloneDoesNotMakeAnEngineAssembly(){
+        var Diagnostics=Analyze("public sealed class State { public double Value; }","CSharpGameEngine.Runtime.NumericPolicySample",EngineAssembly:false);
         Assert.Empty(Diagnostics);
     }
     [Theory]
@@ -186,18 +199,25 @@ public sealed class CanonicalNumericAnalyzerTests {
         Assert.NotEmpty(Diagnostics);
         Assert.All(Diagnostics,static Diagnostic=>Assert.DoesNotContain("'double'",Diagnostic.GetMessage(),StringComparison.Ordinal));
     }
-    private sealed class NumericOptions(string?Mode):AnalyzerConfigOptionsProvider {
-        private sealed class Values(string?Mode):AnalyzerConfigOptions {
-            public override bool TryGetValue(string Key,[System.Diagnostics.CodeAnalysis.NotNullWhen(true)]out string?Value){ Value=Mode;return Value is not null&&Key=="build_property.CgeNumericMode"; }
+    private sealed class NumericOptions(string?Mode,bool EngineAssembly):AnalyzerConfigOptionsProvider {
+        private sealed class Values(string?Mode,bool EngineAssembly):AnalyzerConfigOptions {
+            public override bool TryGetValue(string Key,[System.Diagnostics.CodeAnalysis.NotNullWhen(true)]out string?Value){
+                Value=Key switch {
+                    "build_property.CgeNumericMode"=>Mode,
+                    "build_property.CgeEngineAssembly"=>EngineAssembly?"true":null,
+                    _=>null,
+                };
+                return Value is not null;
+            }
         }
-        private readonly AnalyzerConfigOptions Options=new Values(Mode);
+        private readonly AnalyzerConfigOptions Options=new Values(Mode,EngineAssembly);
         public override AnalyzerConfigOptions GlobalOptions=>this.Options;
         public override AnalyzerConfigOptions GetOptions(SyntaxTree Tree)=>this.Options;
         public override AnalyzerConfigOptions GetOptions(AdditionalText Text)=>this.Options;
     }
-    private static ImmutableArray<Diagnostic> Analyze(string Source,string AssemblyName="CSharpGameEngine.Runtime.NumericPolicySample",IReadOnlyList<MetadataReference>? AdditionalReferences=null,string?NumericMode=null){
+    private static ImmutableArray<Diagnostic> Analyze(string Source,string AssemblyName="CSharpGameEngine.Runtime.NumericPolicySample",IReadOnlyList<MetadataReference>? AdditionalReferences=null,string?NumericMode=null,bool EngineAssembly=true){
         var Compilation=CSharpCompilation.Create(AssemblyName,[CSharpSyntaxTree.ParseText(Source,new CSharpParseOptions(LanguageVersion.Latest))],[.. References,.. AdditionalReferences??[]],new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        return Compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CanonicalNumericAnalyzer()),new AnalyzerOptions([],new NumericOptions(NumericMode))).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
+        return Compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CanonicalNumericAnalyzer()),new AnalyzerOptions([],new NumericOptions(NumericMode,EngineAssembly))).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
     }
     private static MetadataReference CreateReference(string Source,string AssemblyName){
         var Compilation=CSharpCompilation.Create(AssemblyName,[CSharpSyntaxTree.ParseText(Source,new CSharpParseOptions(LanguageVersion.Latest))],References,new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

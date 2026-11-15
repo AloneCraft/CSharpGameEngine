@@ -17,12 +17,14 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <CgeNumericProfileLateImport>false</CgeNumericProfileLateImport>
+    <CgeEngineAssembly>true</CgeEngineAssembly>
     <_CgeSdkLib>$(CgeEngineRoot)lib\net10.0-windows10.0.19041.0\</_CgeSdkLib>
     <_CgeSdkCook Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Navigation.Cook' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Destruction.Cook'">true</_CgeSdkCook>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="CSharpGameEngine.Contracts" HintPath="$(_CgeSdkLib)CSharpGameEngine.Contracts.dll" />
     <Analyzer Include="$(CgeEngineRoot)analyzers\dotnet\cs\CSharpGameEngine.CodeAnalysis.dll" />
+    <CompilerVisibleProperty Include="CgeEngineAssembly" />
   </ItemGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics'">
     <Compile Include="$(CgeEngineRoot)src\CSharpGameEngine.Numerics\*.cs" />

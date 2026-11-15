@@ -63,7 +63,7 @@ internal static class SceneJsonSchemaBuilder {
     /// </summary>
     internal static IEnumerable<INamedTypeSymbol>EnumerateComponentTypes(Compilation Compilation){
         var Assemblies=new List<IAssemblySymbol>{ Compilation.Assembly };
-        Assemblies.AddRange(Compilation.SourceModule.ReferencedAssemblySymbols.Where(static Assembly=>Assembly.Name.StartsWith("CSharpGameEngine",StringComparison.Ordinal)||IsPluginLibrary(Assembly)));
+        Assemblies.AddRange(Compilation.SourceModule.ReferencedAssemblySymbols.Where(static Assembly=>IsEngineAssembly(Assembly)||IsPluginLibrary(Assembly)));
         foreach(var Assembly in Assemblies){
             foreach(var Type in EnumerateTypes(Assembly.GlobalNamespace)){
                 if(Type.TypeKind!=TypeKind.Struct||Type.IsGenericType||!IsVisibleTo(Type,Compilation)){ continue; }
@@ -74,6 +74,12 @@ internal static class SceneJsonSchemaBuilder {
             }
         }
     }
+    /// <summary>
+    /// 参照 DLL がエンジンのアセンブリか。DLL 名ではなく、エンジンの名前空間 <c>CSharpGameEngine</c> を持つかで判定する
+    /// （DLL 名から接頭辞を外しても、スキーマの対象から黙って外れないようにするため。ADR-0099）。
+    /// </summary>
+    internal static bool IsEngineAssembly(IAssemblySymbol Assembly)=>
+        Assembly.GlobalNamespace.GetNamespaceMembers().Any(static Namespace=>Namespace.Name=="CSharpGameEngine");
     internal const string PluginLibraryAttributeMetadataName="CSharpGameEngine.Authoring.PluginLibraryAttribute";
     /// <summary>参照 DLL がプラグイン Library モジュールか（<c>[assembly: PluginLibrary]</c>、ADR-0079）。</summary>
     internal static bool IsPluginLibrary(IAssemblySymbol Assembly)=>

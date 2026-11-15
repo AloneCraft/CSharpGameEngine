@@ -12,16 +12,21 @@ public sealed class CanonicalNumericAnalyzer:DiagnosticAnalyzer {
         Context.EnableConcurrentExecution();
         Context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         Context.RegisterCompilationStartAction(static StartContext=>{
-            var Configured=StartContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.CgeNumericMode",out var Mode)&&!string.IsNullOrEmpty(Mode);
-            if(!Configured&&!IsProductCompilation(StartContext.Compilation.AssemblyName)){ return; }
+            var Options=StartContext.Options.AnalyzerConfigOptionsProvider.GlobalOptions;
+            var Configured=Options.TryGetValue("build_property.CgeNumericMode",out var Mode)&&!string.IsNullOrEmpty(Mode);
+            if(!Configured&&!IsProductCompilation(Options,StartContext.Compilation.AssemblyName)){ return; }
             StartContext.RegisterSyntaxNodeAction(AnalyzePredefinedType,SyntaxKind.PredefinedType);
             StartContext.RegisterSyntaxNodeAction(AnalyzeIdentifierName,SyntaxKind.IdentifierName);
             StartContext.RegisterSyntaxNodeAction(AnalyzeNumericLiteral,SyntaxKind.NumericLiteralExpression);
             StartContext.RegisterSyntaxNodeAction(AnalyzeInferredExpression,SyntaxKind.SimpleMemberAccessExpression,SyntaxKind.InvocationExpression,SyntaxKind.ElementAccessExpression);
         });
     }
-    private static bool IsProductCompilation(string? AssemblyName)=>AssemblyName=="UserEcsProject"
-        ||AssemblyName is not null&&AssemblyName.StartsWith("CSharpGameEngine.",StringComparison.Ordinal)&&!AssemblyName.EndsWith(".Tests",StringComparison.Ordinal)&&AssemblyName!="CSharpGameEngine.CodeAnalysis";
+    /// <summary>
+    /// エンジン本体のコンパイルか。アセンブリ名ではなく、MSBuild がフォルダの場所から決めた <c>CgeEngineAssembly</c> で判定する
+    /// （プロジェクト名や DLL 名を変えても、黙って検査から外れないようにするため。ADR-0099）。
+    /// </summary>
+    private static bool IsProductCompilation(AnalyzerConfigOptions Options,string? AssemblyName)=>AssemblyName=="UserEcsProject"
+        ||Options.TryGetValue("build_property.CgeEngineAssembly",out var Engine)&&string.Equals(Engine,"true",StringComparison.OrdinalIgnoreCase);
     private static void AnalyzePredefinedType(SyntaxNodeAnalysisContext Context){
         var Syntax=(PredefinedTypeSyntax)Context.Node;
         if(IsAdapter(Context,Syntax)){ return; }
