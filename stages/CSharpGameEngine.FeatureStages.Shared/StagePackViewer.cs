@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Lighting;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.Server;
@@ -35,7 +36,9 @@ internal static class StagePackViewer {
         try {
             Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
             for(var Index=0;Index<Placements.Length;Index++){ Renderer.SetObjectTransform(Index,Placements[Index]); }
-            Renderer.SetAmbientLight(new Vector3(0.9f));
+            // 環境光だけでは面の向きが分からないので、カメラ側の上から斜めに当てる方向光を足す（Forward は光が進む向き）。
+            Renderer.SetAmbientLight(new Vector3(AmbientLight));
+            Renderer.SetDirectionalLight(new DirectionalLightSubmission(LightForward,new LinearLightColor(1f,1f,1f),new Illuminance(LightLux)));
             Renderer.SetViewSource(FrameAll(Visuals));
             Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp?"WARP":"Hardware")}), visuals={Visuals.Count}, shader={(Renderer.ShaderArtifactLoaded?"OK":"FAILED")}");
             var Rendered=0;
@@ -62,6 +65,10 @@ internal static class StagePackViewer {
         }
         return ExitCode;
     }
+    // 露出 0（EV100）のビューで WARP に描いて決めた値。1 ルクスでは暗く、10 ルクスでは色が白く飛び、環境光 0.25 では陰の面が黒くつぶれた。
+    private const float AmbientLight=0.4f;
+    private const float LightLux=3f;
+    private static readonly Vector3 LightForward=Vector3.Normalize(new Vector3(0.4f,-0.8f,0.5f));
     private const int CubeMesh=0;
     private const int SphereMesh=1;
     private const int TriangleMesh=2;
