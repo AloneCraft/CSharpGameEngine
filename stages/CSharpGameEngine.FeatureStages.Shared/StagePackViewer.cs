@@ -10,7 +10,7 @@ namespace CSharpGameEngine.FeatureStages;
 public sealed record StageViewOptions(int Width,int Height,int? Frames,bool Hidden,bool UseWarp,string? CapturePath);
 /// <summary>
 /// ステージのシーンに入っている <see cref="StageVisual"/> を、実際の窓に描くビューア。形の対応は次のとおり（シーンの部品名から決めた表示用の取り決めで、物理の形ではない）。
-/// 0 = カメラの目印（小さい箱）、1 = 箱、2 = 球、3 = 三角形、4 = 平たい板（布・波の格子）、5 = 細い棒（ロープ・軸）。
+/// 0 = カメラの目印（箱）、1 = 箱、2 = 球、3 = 三角形、4 = 板（布・波の格子）、5 = 棒（ロープ・軸）。0・1・4・5 はどれも箱で、薄さや細さはシーンの Scale のまま描く。
 /// </summary>
 internal static class StagePackViewer {
     public static int Show(string Pack,string SceneId,IReadOnlyList<StageVisual>Visuals,StageViewOptions Options){
@@ -78,9 +78,8 @@ internal static class StagePackViewer {
                 RoughnessFactor=0.6f,MetallicFactor=0f,
             };
             Objects[Index]=new StageObjectCreateInfo { MeshIndex=Visual.Primitive switch { 2=>SphereMesh,3=>TriangleMesh,_=>CubeMesh },MaterialIndex=Index };
+            // 板（4）と棒（5）の薄さ・細さはシーンの Scale が既に表している（布は 3×0.1×3、ロープは 0.15×5×0.15）ので、箱をそのまま伸ばす。
             var Scale=new Vector3(Visual.ScaleX,Visual.ScaleY,Visual.ScaleZ);
-            if(Visual.Primitive==4){ Scale=new Vector3(Scale.X,Scale.Y*0.05f,Scale.Z); }
-            if(Visual.Primitive==5){ Scale=new Vector3(Scale.X*0.1f,Scale.Y*0.1f,Scale.Z*0.1f); }
             Placements[Index]=Matrix4x4.CreateScale(Scale)*Matrix4x4.CreateTranslation(Visual.X,Visual.Y,Visual.Z);
         }
         return (Meshes,Materials,Objects,Placements);

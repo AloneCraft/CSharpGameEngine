@@ -162,7 +162,7 @@ dotnet run --project stages/CSharpGameEngine.FeatureStages.<Pack> -- show <scene
 
 - 窓を閉じるまで描き続ける。`--frames N`で枚数を限り、`--hidden`で窓を出さず、`--warp`でWARPを使う。`--capture`は最後のフレームをPNGに保存する（枚数を省くと3枚）。
 - 描くのはSceneの`StageVisual`だけである。値は生成されたSystem（`StageVisualCollectSystem`）が編集用の1フレームで集める。物理・流体・破壊などのsolverは動かさない。シーンの配置を見るための表示であり、`run`の合否（Oracle）を置き換えない。
-- `Primitive`の形は表示用の取り決めで、シーンの部品名から決めた。0=カメラの目印（小さい箱）、1=箱、2=球、3=三角形、4=平たい板（布・波の格子）、5=細い棒（ロープ・軸）。色は`Color`のARGB。カメラは全体が収まる位置へ自動で置く。
+- `Primitive`の形は表示用の取り決めで、シーンの部品名から決めた。0=カメラの目印、1=箱、2=球、3=三角形、4=板（布・波の格子）、5=棒（ロープ・軸）。0・1・4・5はどれも箱で、薄さや細さはシーンの`ScaleX/Y/Z`のまま描く（布は3×0.1×3、ロープは0.15×5×0.15）。色は`Color`のARGB。カメラは全体が収まる位置へ自動で置く。光は環境光だけなので、面の陰影は出ない。
 - 描画のため、Packは`net10.0-windows10.0.19041.0`を対象にし、`CSharpGameEngine.Windows`を参照して`Stage.cgeshaderartifact`を出力先の`Shaders\`へ置く。`run`と`list`の出力は変わらない。
 
 
