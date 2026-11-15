@@ -171,60 +171,6 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         public Vector4 Color;
     }
 
-    private enum LocalLightType {
-        Point,
-        Spot,
-        Area,
-    }
-
-    /// <summary>シャドウ優先度とは独立して直接照明を順位付けする、遅延ディレクショナルライト送信データ。</summary>
-    private readonly struct DirectionalLightSubmission(
-        Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,bool CastsShadows,
-        int ShadowPriority,float ShadowBiasMeters,int StableSubmissionOrder) {
-        public Vector3 DirectionTowardLight { get; }=DirectionTowardLight;
-        public Vector3 ColorTimesIntensity { get; }=ColorTimesIntensity;
-        public bool CastsShadows { get; }=CastsShadows;
-        public int ShadowPriority { get; }=ShadowPriority;
-        public float ShadowBiasMeters { get; }=ShadowBiasMeters;
-        public int StableSubmissionOrder { get; }=StableSubmissionOrder;
-    }
-
-    /// <summary>CPU側に保持する遅延ローカルライト送信データ。フレームのカメラが確定してから一度だけ順位を決める。</summary>
-    private readonly struct LocalLightSubmission(
-        LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
-        Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
-        bool CastsShadows,float ShadowBiasMeters,
-        Vector3 Right,Vector3 Up,float HalfWidth,float HalfHeight,PhysicalLightKind ShadowKind) {
-        public LocalLightSubmission(
-            LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
-            Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
-            bool CastsShadows,float ShadowBiasMeters)
-            :this(Type,Position,Range,Direction,InnerConeCos,ColorTimesIntensity,OuterConeCos,
-                SelectionPriority,StableSubmissionOrder,CastsShadows,ShadowBiasMeters,
-                Vector3.Zero,Vector3.Zero,0f,0f,
-                Type==LocalLightType.Point?PhysicalLightKind.Point:PhysicalLightKind.Spot) {
-            if(Type==LocalLightType.Area)throw new ArgumentOutOfRangeException(nameof(Type));
-        }
-        public LocalLightType Type { get; }=Type;
-        public Vector3 Position { get; }=Position;
-        public float Range { get; }=Range;
-        public Vector3 Direction { get; }=Direction;
-        public float InnerConeCos { get; }=InnerConeCos;
-        public Vector3 ColorTimesIntensity { get; }=ColorTimesIntensity;
-        public float OuterConeCos { get; }=OuterConeCos;
-        public int SelectionPriority { get; }=SelectionPriority;
-        public int StableSubmissionOrder { get; }=StableSubmissionOrder;
-        public bool CastsShadows { get; }=CastsShadows;
-        public float ShadowBiasMeters { get; }=ShadowBiasMeters;
-        public Vector3 Right { get; }=Right;
-        public Vector3 Up { get; }=Up;
-        public float HalfWidth { get; }=HalfWidth;
-        public float HalfHeight { get; }=HalfHeight;
-        public PhysicalLightKind ShadowKind { get; }=ShadowKind;
-    }
-
-
-
     /// <summary>StageシェーダーABIの6要素float4 LocalLightDataと完全に一致する。</summary>
     private struct LocalLightGpuData {
         public Vector4 PositionAndRange;
@@ -434,39 +380,29 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     // ライトが残り続けない。ライトが送信されるまでは照明しない。InitializeConstantsToDefaultsが書く既定ライトを1にすると、
     // 最初のフレームだけ照明され、
     // フレーム末のリセット後はライトが消えて、1回のpresent後にシーンが暗転してしまう。
-    private int DirectionalLightCount;
-    private int DirectionalShadowIndex=-1;
-    private bool DirectionalLightsExplicitThisFrame;
-    private bool DirectionalLightsPersistAcrossFrames;
-    private readonly List<PhysicalLightCandidate>DirectionalShadowCandidates=[];
-    private PhysicalLightCandidate?SelectedDirectionalShadowAtlasCandidate;
-    private DirectionalLightSubmission?PersistentDirectionalLightSubmission;
-    private readonly List<DirectionalLightSubmission>DirectionalLightSubmissions=[];
-    private readonly List<LocalLightSubmission>LocalLightSubmissions=[];
-    private readonly List<LocalLightSubmission>SelectedLocalLightSubmissions=[];
+    /// <summary>光源の提出、そのフレームごとの持続の規則、計画（L4、M0120 単位 5b）。L0 は計画の結果を GPU へ書くだけ。</summary>
+    private readonly StageLightSubmissions Lights=new();
+    private int DirectionalLightCount=>this.Lights.DirectionalLightCount;
+    private int DirectionalShadowIndex=>this.Lights.DirectionalShadowIndex;
+    private int LocalLightCount=>this.Lights.LocalLightCount;
+    private int SpotShadowProjectionCount=>this.Lights.SpotShadowProjectionCount;
     private readonly List<ShadowAtlasProjection>PointShadowAtlasProjections=[];
     private readonly List<ShadowAtlasProjection>SpotShadowAtlasProjections=[];
     private readonly List<ShadowAtlasProjection>AreaShadowAtlasProjections=[];
     private readonly Matrix4x4[]FrameViewProjections=new Matrix4x4[FrameCount];
-    private int LocalLightCount;
-    private int PointShadowProjectionCount;
-    private int SpotShadowProjectionCount;
-    private int AreaShadowProjectionCount;
-    private int DroppedDirectionalLightsThisFrameValue;
-    private int DroppedLocalLightsThisFrameValue;
     private int DroppedTileLightReferencesThisFrameValue;
 
     /// <summary>4灯の上限を超えたDirectional送信数を表示する診断カウンター。</summary>
-    public int DroppedDirectionalLightsThisFrame=>this.DroppedDirectionalLightsThisFrameValue;
+    public int DroppedDirectionalLightsThisFrame=>this.Lights.DroppedDirectionalLightsThisFrame;
 
     /// <summary>前フレームの送信時に記録したDirectionalの超過数。</summary>
-    public int DroppedDirectionalLightsLastFrame { get;private set; }
+    public int DroppedDirectionalLightsLastFrame=>this.Lights.DroppedDirectionalLightsLastFrame;
 
     /// <summary>表示用診断カウンター。選択済みライトの直接照明は継続する。</summary>
-    public int DroppedLocalLightsThisFrame=>this.DroppedLocalLightsThisFrameValue;
+    public int DroppedLocalLightsThisFrame=>this.Lights.DroppedLocalLightsThisFrame;
 
     /// <summary>前フレームの送信時に記録した超過数。</summary>
-    public int DroppedLocalLightsLastFrame { get;private set; }
+    public int DroppedLocalLightsLastFrame=>this.Lights.DroppedLocalLightsLastFrame;
 
     /// <summary>今フレームに64灯／タイルの上限で除外した、候補参照の表示数。</summary>
     public int DroppedTileLightReferencesThisFrame=>this.DroppedTileLightReferencesThisFrameValue;
@@ -1926,20 +1862,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
         bool CastsShadows=true,float ShadowBiasMeters=0.0015f,int ShadowPriority=0){
         this.ThrowIfDisposed();
-        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
-            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
-        }
-        this.BeginDirectionalLightSubmission();
-        var Submission=new DirectionalLightSubmission(
-            DirectionTowardLight,Color*Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters,
-            StableSubmissionOrder:0);
-        this.AddDirectionalLightCore(
-            DirectionTowardLight,Color,Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters);
-        // 値は遅延リストにも保持する。同じフレームで後からライトを追加しても、setterで設定したライトを
-        // 黙って置き換えないようにする。
-        this.DirectionalLightSubmissions.Add(Submission);
-        this.PersistentDirectionalLightSubmission=Submission;
-        this.DirectionalLightsPersistAcrossFrames=true;
+        this.Lights.SetDirectionalLight(DirectionTowardLight,Color,Intensity,CastsShadows,ShadowBiasMeters,ShadowPriority);
     }
 
     /// <summary>
@@ -1950,136 +1873,34 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
         bool CastsShadows=true,int ShadowPriority=0,float ShadowBiasMeters=0.0015f){
         this.ThrowIfDisposed();
-        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
-            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
-        }
-        if(!this.DirectionalLightsExplicitThisFrame){
-            this.BeginDirectionalLightSubmission();
-        }
-        this.DirectionalLightsPersistAcrossFrames=false;
-        this.DirectionalLightSubmissions.Add(new DirectionalLightSubmission(
-            DirectionTowardLight,Color*Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters,
-            this.DirectionalLightSubmissions.Count));
+        this.Lights.AddDirectionalLightTowardLight(DirectionTowardLight,Color,Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters);
     }
 
-    private void BeginDirectionalLightSubmission(){
-        this.DirectionalLightsExplicitThisFrame=true;
-        this.DirectionalLightsPersistAcrossFrames=false;
-        this.DirectionalLightCount=0;
-        this.DirectionalShadowIndex=-1;
-        this.SelectedDirectionalShadowAtlasCandidate=null;
-        this.DirectionalShadowCandidates.Clear();
-        this.PersistentDirectionalLightSubmission=null;
-        this.DirectionalLightSubmissions.Clear();
-    }
 
-    private void AddDirectionalLightCore(
-        Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        if(this.DirectionalLightCount>=MaxDirectionalLights){
-            this.DroppedDirectionalLightsThisFrameValue++;
-            return;
-        }
 
-        int Index=this.DirectionalLightCount;
-        this.WriteDirectionalLight(
-            this.FrameIndex,Index,DirectionTowardLight,Color*Intensity,ShadowBiasMeters);
-        this.DirectionalLightCount++;
-        this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(
-            Index,PhysicalLightKind.Directional,ShadowPriority,ScreenContribution:0f,CastsShadows));
-        int SelectedShadowIndex=PhysicalLightBudget.SelectDirectionalShadowIndex(
-            this.DirectionalShadowCandidates);
-        this.SelectedDirectionalShadowAtlasCandidate=SelectedShadowIndex>=0
-            ?this.DirectionalShadowCandidates[SelectedShadowIndex] :null;
-        if(SelectedShadowIndex!=this.DirectionalShadowIndex){
-            this.DirectionalShadowIndex=SelectedShadowIndex;
-            if(SelectedShadowIndex>=0){
-                this.WriteDirectionalCascades(this.FrameIndex,DirectionTowardLight);
-            }
-        }
-        this.WriteLightCounts(this.FrameIndex);
-    }
+
 
     /// <summary>
     /// フレームのカメラ確定後に、加算式Directional送信を確定する。直接照明の順位付けでは意図的に影の優先度を無視し、
     /// 寄与度、その後に安定した送信順で選ぶ。影の優先度は選択済みの直接ライトにだけ適用する。
     /// </summary>
     private void PrepareDirectionalLights(uint FrameIndex){
-        if(this.DirectionalLightsPersistAcrossFrames){
-            if(this.PersistentDirectionalLightSubmission is not DirectionalLightSubmission Submission){
-                this.DirectionalLightCount=0;
-                this.DirectionalShadowIndex=-1;
-                this.SelectedDirectionalShadowAtlasCandidate=null;
-                this.DirectionalShadowCandidates.Clear();
-                this.WriteLightCounts(FrameIndex);
-                return;
-            }
-
-            this.DirectionalLightCount=1;
-            this.DirectionalShadowIndex=-1;
-            this.SelectedDirectionalShadowAtlasCandidate=null;
-            this.DirectionalShadowCandidates.Clear();
-            this.RecordAtmosphereSun(Submission.DirectionTowardLight,Submission.ColorTimesIntensity);
-            this.WriteDirectionalLight(
-                FrameIndex,0,Submission.DirectionTowardLight,
-                this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
-                Submission.ShadowBiasMeters);
-            if(Submission.CastsShadows){
-                var Candidate=new PhysicalLightCandidate(
-                    Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
-                    Submission.ShadowPriority,StageLightPlanner.DirectionalScreenContribution(Submission.ColorTimesIntensity),
-                    CastsShadows:true);
-                this.DirectionalShadowCandidates.Add(Candidate);
-                this.DirectionalShadowIndex=0;
-                this.SelectedDirectionalShadowAtlasCandidate=Candidate;
-                this.WriteDirectionalCascades(FrameIndex,Submission.DirectionTowardLight);
-            }
-            this.WriteLightCounts(FrameIndex);
+        this.Lights.PlanDirectional();
+        if(!this.Lights.DirectionalsPlanned){
             return;
         }
-
-        if(!this.DirectionalLightsExplicitThisFrame){
-            return;
+        if(this.Lights.Sun is StageDirectionalLight Sun){
+            this.RecordAtmosphereSun(Sun.DirectionTowardLight,Sun.ColorTimesIntensity);
         }
-
-        var Ranked=new StageLightRank[this.DirectionalLightSubmissions.Count];
-        for(var Position=0;Position<Ranked.Length;Position++){
-            var Submitted=this.DirectionalLightSubmissions[Position];
-            Ranked[Position]=new StageLightRank(Position,0,StageLightPlanner.DirectionalScreenContribution(Submitted.ColorTimesIntensity),Submitted.StableSubmissionOrder);
-        }
-        StageLightPlanner.SortDirectional(Ranked);
-        this.DirectionalLightCount=Math.Min(Ranked.Length,MaxDirectionalLights);
-        this.DroppedDirectionalLightsThisFrameValue=Ranked.Length-this.DirectionalLightCount;
-        this.DirectionalShadowIndex=-1;
-        this.SelectedDirectionalShadowAtlasCandidate=null;
-        this.DirectionalShadowCandidates.Clear();
-        if(this.DirectionalLightCount>0){
-            var Strongest=this.DirectionalLightSubmissions[Ranked[0].Index];
-            this.RecordAtmosphereSun(Strongest.DirectionTowardLight,Strongest.ColorTimesIntensity);
-        }
-        for(int Index=0;Index<this.DirectionalLightCount;Index++){
-            DirectionalLightSubmission Submission=this.DirectionalLightSubmissions[Ranked[Index].Index];
+        for(int Index=0;Index<this.Lights.PlannedDirectionals.Count;Index++){
+            var Submission=this.Lights.PlannedDirectionals[Index];
             this.WriteDirectionalLight(
                 FrameIndex,Index,Submission.DirectionTowardLight,
                 this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
                 Submission.ShadowBiasMeters);
-            this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(
-                Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
-                Submission.ShadowPriority,Ranked[Index].ScreenContribution,Submission.CastsShadows));
         }
-
-        int SelectedStableOrder=PhysicalLightBudget.SelectDirectionalShadowIndex(
-            this.DirectionalShadowCandidates);
-        if(SelectedStableOrder>=0){
-            for(int Index=0;Index<this.DirectionalShadowCandidates.Count;Index++){
-                if(this.DirectionalShadowCandidates[Index].StableSubmissionOrder!=SelectedStableOrder){
-                    continue;
-                }
-                this.DirectionalShadowIndex=Index;
-                this.SelectedDirectionalShadowAtlasCandidate=this.DirectionalShadowCandidates[Index];
-                this.WriteDirectionalCascades(FrameIndex,this.DirectionalLightSubmissions[Ranked[Index].Index].DirectionTowardLight);
-                break;
-            }
+        if(this.Lights.CascadeDirectionTowardLight is Vector3 CascadeDirection){
+            this.WriteDirectionalCascades(FrameIndex,CascadeDirection);
         }
         this.WriteLightCounts(FrameIndex);
     }
@@ -2431,12 +2252,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     internal void AddPointLight(
         Vector3 Position,Vector3 Color,float Intensity,float Range,int SelectionPriority,
         bool CastsShadows,float ShadowBiasMeters){
-        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
-            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
-        }
-        this.LocalLightSubmissions.Add(new LocalLightSubmission(
-            LocalLightType.Point,Position,Range,Vector3.Zero,0f,Color*Intensity,0f,
-            SelectionPriority,this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters));
+        this.Lights.AddPointLight(Position,Color,Intensity,Range,SelectionPriority,CastsShadows,ShadowBiasMeters);
     }
 
     /// <summary>
@@ -2461,13 +2277,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,
         float InnerConeAngleRadians,float OuterConeAngleRadians,int SelectionPriority,
         bool CastsShadows,float ShadowBiasMeters){
-        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
-            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
-        }
-        this.LocalLightSubmissions.Add(new LocalLightSubmission(
-            LocalLightType.Spot,Position,Range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),
-            Color*Intensity,MathF.Cos(OuterConeAngleRadians),SelectionPriority,
-            this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters));
+        this.Lights.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,OuterConeAngleRadians,SelectionPriority,CastsShadows,ShadowBiasMeters);
     }
     /// <summary>
     /// 今フレーム用に片面矩形ライトを1つキューへ追加する。シャドウ設定は送信内容に保持するが、
@@ -2477,29 +2287,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector3 Position,Vector3 Direction,Vector3 Right,Vector3 Up,Vector3 LinearRgb,
         float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
         int SelectionPriority,bool CastsShadows,float ShadowBiasMeters,PhysicalLightKind ShadowKind){
-        if(ShadowKind!=PhysicalLightKind.Area&&ShadowKind!=PhysicalLightKind.Emissive){
-            throw new ArgumentOutOfRangeException(nameof(ShadowKind));
-        }
-        if(!IsFinite(Position)||!IsFinite(LinearRgb)
-            ||!float.IsFinite(LuminanceNits)||LuminanceNits<0f
-            ||!float.IsFinite(WidthMeters)||WidthMeters<=0f
-            ||!float.IsFinite(HeightMeters)||HeightMeters<=0f
-            ||!float.IsFinite(RangeMeters)||RangeMeters<=0f
-            ||!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f
-            ||!TryNormalize(Direction,out Vector3 UnitDirection)
-            ||!TryNormalize(Right,out Vector3 UnitRight)
-            ||!TryNormalize(Up,out Vector3 UnitUp)
-            ||MathF.Abs(Vector3.Dot(UnitDirection,UnitRight))>1e-3f
-            ||MathF.Abs(Vector3.Dot(UnitDirection,UnitUp))>1e-3f
-            ||MathF.Abs(Vector3.Dot(UnitRight,UnitUp))>1e-3f
-            ||Vector3.Dot(Vector3.Cross(UnitRight,UnitUp),UnitDirection)<0.999f){
-            throw new ArgumentException(
-                "Area lights require finite positive dimensions/range and a right-handed orthonormal basis.");
-        }
-        this.LocalLightSubmissions.Add(new LocalLightSubmission(
-            LocalLightType.Area,Position,RangeMeters,UnitDirection,0f,LinearRgb*LuminanceNits,0f,
-            SelectionPriority,this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters,
-            UnitRight,UnitUp,WidthMeters*0.5f,HeightMeters*0.5f,ShadowKind));
+        this.Lights.AddAreaLight(Position,Direction,Right,Up,LinearRgb,LuminanceNits,WidthMeters,HeightMeters,RangeMeters,SelectionPriority,CastsShadows,ShadowBiasMeters,ShadowKind);
     }
 
 
@@ -2856,27 +2644,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void PrepareForwardPlusLocalLights(uint FrameIndex){
         this.ClearForwardPlusTileList(FrameIndex);
-        this.SelectedLocalLightSubmissions.Clear();
-        this.SpotShadowProjectionCount=0;
-        this.PointShadowProjectionCount=0;
-        this.AreaShadowProjectionCount=0;
         Matrix4x4 ViewProjection=this.FrameViewProjections[FrameIndex];
-        var Ranked=new StageLightRank[this.LocalLightSubmissions.Count];
-        for(var Position=0;Position<Ranked.Length;Position++){
-            var Submitted=this.LocalLightSubmissions[Position];
-            Ranked[Position]=new StageLightRank(Position,Submitted.SelectionPriority,
-                StageLightPlanner.LocalScreenContribution(Submitted.ColorTimesIntensity,Submitted.Position,Submitted.Range,ViewProjection),Submitted.StableSubmissionOrder);
-        }
-        StageLightPlanner.SortLocal(Ranked);
-        this.LocalLightCount=Math.Min(Ranked.Length,MaxLocalLights);
-        this.DroppedLocalLightsThisFrameValue=Ranked.Length-this.LocalLightCount;
+        this.Lights.PlanLocal(ViewProjection,this.Width,this.Height,this.ForwardPlusTileCountX,this.ForwardPlusTileCountY,ForwardPlusTileSizePixels);
         this.DroppedTileLightReferencesThisFrameValue=0;
-        for(int LocalIndex=0;LocalIndex<this.LocalLightCount;LocalIndex++){
-            LocalLightSubmission Submission=this.LocalLightSubmissions[Ranked[LocalIndex].Index];
-            this.WriteLocalLight(FrameIndex,LocalIndex,Submission);
-            this.SelectedLocalLightSubmissions.Add(Submission);
-            if(StageLightPlanner.TryGetTileRange(Submission.Position,Submission.Range,ViewProjection,this.Width,this.Height,
-                this.ForwardPlusTileCountX,this.ForwardPlusTileCountY,ForwardPlusTileSizePixels,out var Tiles)){
+        for(int LocalIndex=0;LocalIndex<this.Lights.SelectedLocals.Count;LocalIndex++){
+            this.WriteLocalLight(FrameIndex,LocalIndex,this.Lights.SelectedLocals[LocalIndex]);
+            if(this.Lights.SelectedLocalTiles[LocalIndex] is StageTileRange Tiles){
                 for(int TileY=Tiles.MinimumY;TileY<=Tiles.MaximumY;TileY++){
                     for(int TileX=Tiles.MinimumX;TileX<=Tiles.MaximumX;TileX++){
                         this.AddForwardPlusTileCandidate(FrameIndex,TileX,TileY,LocalIndex);
@@ -2895,117 +2668,32 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PointShadowAtlasProjections.Clear();
         this.SpotShadowAtlasProjections.Clear();
         this.AreaShadowAtlasProjections.Clear();
-        this.PointShadowProjectionCount=0;
-        this.SpotShadowProjectionCount=0;
-        this.AreaShadowProjectionCount=0;
-        List<PhysicalLightCandidate>Casters=[];
-        Dictionary<int,int>LocalIndexByStableOrder=[];
-
-        if(this.DirectionalShadowIndex>=0){
-            // 元の直接ライト一覧の安定順に関係なく、アトラスにはDirectional用タイルが1つある。
-            // そのため、最初の4灯を超えて選ばれた送信が、下記のローカルライト名前空間と
-            // 衝突しないよう、インデックスを0に正規化する。
-            PhysicalLightCandidate Directional=this.SelectedDirectionalShadowAtlasCandidate
-                ??new PhysicalLightCandidate(0,PhysicalLightKind.Directional,0,0f,CastsShadows:true);
-            Casters.Add(new PhysicalLightCandidate(
-                0,PhysicalLightKind.Directional,Directional.ShadowPriority,
-                Directional.ScreenContribution,CastsShadows:true));
+        this.Lights.PlanLocalShadows(this.FrameViewProjections[FrameIndex]);
+        foreach(var Shadow in this.Lights.ShadowAllocations){
+            var Submission=this.Lights.SelectedLocals[Shadow.LocalIndex];
+            switch(Shadow.Kind){
+                case StageLocalLightType.Point:
+                    for(int FaceIndex=0;FaceIndex<MaxPointShadowProjections;FaceIndex++){
+                        ShadowAtlasTile PointTile=Shadow.Allocation.GetTile(FaceIndex);
+                        this.WritePointShadowProjection(FrameIndex,Shadow.ProjectionIndex+FaceIndex,this.Lights.PointFaceViewProjections[FaceIndex],PointTile);
+                        this.PointShadowAtlasProjections.Add(new ShadowAtlasProjection(PointTile,PointShadowProjectionConstantSlotOffset+Shadow.ProjectionIndex+FaceIndex));
+                    }
+                    this.WritePointShadowMetadata(FrameIndex,Shadow.LocalIndex,Submission,Shadow.ProjectionIndex);
+                    break;
+                case StageLocalLightType.Spot:
+                    ShadowAtlasTile Tile=Shadow.Allocation.GetTile(0);
+                    this.WriteSpotShadowProjection(FrameIndex,Shadow.ProjectionIndex,Shadow.ViewProjection,Tile);
+                    this.WriteSpotShadowMetadata(FrameIndex,Shadow.LocalIndex,Submission,Shadow.ProjectionIndex);
+                    this.SpotShadowAtlasProjections.Add(new ShadowAtlasProjection(Tile,Shadow.ProjectionIndex+1)); // スロット0は方向光の投影用。
+                    break;
+                case StageLocalLightType.Area:
+                    ShadowAtlasTile AreaTile=Shadow.Allocation.GetTile(0);
+                    this.WriteAreaShadowProjection(FrameIndex,Shadow.ProjectionIndex,Shadow.ViewProjection,AreaTile);
+                    this.WriteAreaShadowMetadata(FrameIndex,Shadow.LocalIndex,Submission,Shadow.ProjectionIndex);
+                    this.AreaShadowAtlasProjections.Add(new ShadowAtlasProjection(AreaTile,AreaShadowProjectionConstantSlotOffset+Shadow.ProjectionIndex));
+                    break;
+            }
         }
-
-        Matrix4x4 ViewProjection=this.FrameViewProjections[FrameIndex];
-        for(int LocalIndex=0;LocalIndex<this.SelectedLocalLightSubmissions.Count;LocalIndex++){
-            LocalLightSubmission Submission=this.SelectedLocalLightSubmissions[LocalIndex];
-            bool IsValidCaster=Submission.Type switch {
-                LocalLightType.Point=>StageShadowPlanner.IsValidPointCaster(Submission.Position,Submission.Range),
-                LocalLightType.Spot=>TryBuildSpotShadowViewProjection(Submission,out _),
-                LocalLightType.Area=>TryBuildAreaShadowViewProjection(Submission,out _),
-                _=>false,
-            };
-            if(!Submission.CastsShadows||!IsValidCaster){
-                continue;
-            }
-
-            int StableOrder=MaxDirectionalLights+Submission.StableSubmissionOrder;
-            PhysicalLightKind Kind=Submission.ShadowKind;
-            Casters.Add(new PhysicalLightCandidate(
-                StableOrder,Kind,Submission.SelectionPriority,
-                StageLightPlanner.LocalScreenContribution(Submission.ColorTimesIntensity,Submission.Position,Submission.Range,ViewProjection),CastsShadows:true));
-            LocalIndexByStableOrder.Add(StableOrder,LocalIndex);
-        }
-
-        if(Casters.Count==0){
-            this.WriteLightCounts(FrameIndex);
-            return;
-        }
-
-        PhysicalShadowAtlasPlan Plan=PhysicalShadowAtlasPlan.Select(Casters);
-        Span<Matrix4x4> PointFaceViewProjections=stackalloc Matrix4x4[MaxPointShadowProjections];
-        foreach(ShadowAtlasAllocation Allocation in Plan.Allocations){
-            if(!LocalIndexByStableOrder.TryGetValue(
-                Allocation.Candidate.StableSubmissionOrder,out int LocalIndex)){
-                continue;
-            }
-
-            LocalLightSubmission Submission=this.SelectedLocalLightSubmissions[LocalIndex];
-            if(Allocation.Candidate.Kind==PhysicalLightKind.Point){
-                if(this.PointShadowProjectionCount!=0
-                    ||Allocation.TileCount!=MaxPointShadowProjections){
-                    continue;
-                }
-
-                if(!StageShadowPlanner.TryBuildPointFaceViewProjections(Submission.Position,Submission.Range,PointFaceViewProjections)){
-                    continue;
-                }
-
-                int ProjectionBaseIndex=this.PointShadowProjectionCount;
-                for(int FaceIndex=0;FaceIndex<MaxPointShadowProjections;FaceIndex++){
-                    ShadowAtlasTile PointTile=Allocation.GetTile(FaceIndex);
-                    this.WritePointShadowProjection(
-                        FrameIndex,ProjectionBaseIndex+FaceIndex,PointFaceViewProjections[FaceIndex],PointTile);
-                    this.PointShadowAtlasProjections.Add(new ShadowAtlasProjection(
-                        PointTile,PointShadowProjectionConstantSlotOffset+ProjectionBaseIndex+FaceIndex));
-                }
-                this.WritePointShadowMetadata(FrameIndex,LocalIndex,Submission,ProjectionBaseIndex);
-                this.PointShadowProjectionCount+=MaxPointShadowProjections;
-                continue;
-            }
-
-            if(Allocation.Candidate.Kind==PhysicalLightKind.Spot){
-                if(this.SpotShadowProjectionCount>=MaxSpotShadowProjections
-                    ||!TryBuildSpotShadowViewProjection(Submission,out Matrix4x4 ShadowViewProjection)){
-                    continue;
-                }
-
-                int ProjectionIndex=this.SpotShadowProjectionCount;
-                ShadowAtlasTile Tile=Allocation.GetTile(0);
-                this.WriteSpotShadowProjection(FrameIndex,ProjectionIndex,ShadowViewProjection,Tile);
-                this.WriteSpotShadowMetadata(FrameIndex,LocalIndex,Submission,ProjectionIndex);
-                this.SpotShadowAtlasProjections.Add(new ShadowAtlasProjection(
-                    Tile,ProjectionIndex+1)); // スロット0はDirectional投影用。
-                this.SpotShadowProjectionCount++;
-                continue;
-            }
-
-            if((Allocation.Candidate.Kind!=PhysicalLightKind.Area
-                &&Allocation.Candidate.Kind!=PhysicalLightKind.Emissive)
-                ||this.AreaShadowProjectionCount>=MaxAreaAndEmissiveShadowProjections
-                ||!TryBuildAreaShadowViewProjection(Submission,out Matrix4x4 AreaShadowViewProjection)){
-                continue;
-            }
-
-            int AreaProjectionIndex=this.AreaShadowProjectionCount;
-            if(Allocation.TileCount!=1){
-                continue;
-            }
-            ShadowAtlasTile AreaTile=Allocation.GetTile(0);
-            this.WriteAreaShadowProjection(
-                FrameIndex,AreaProjectionIndex,AreaShadowViewProjection,AreaTile);
-            this.WriteAreaShadowMetadata(FrameIndex,LocalIndex,Submission,AreaProjectionIndex);
-            this.AreaShadowAtlasProjections.Add(new ShadowAtlasProjection(
-                AreaTile,AreaShadowProjectionConstantSlotOffset+AreaProjectionIndex));
-            this.AreaShadowProjectionCount++;
-        }
-
         this.WriteLightCounts(FrameIndex);
     }
 
@@ -3024,7 +2712,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return IsFinite(Normalized);
     }
 
-    private void WriteLocalLight(uint FrameIndex,int Index,in LocalLightSubmission Submission){
+    private void WriteLocalLight(uint FrameIndex,int Index,in StageLocalLight Submission){
         LocalLightGpuData Data=new(){
             PositionAndRange=new Vector4(Submission.Position,Submission.Range),
             DirectionAndInnerCos=new Vector4(Submission.Direction,Submission.InnerConeCos),
@@ -3038,8 +2726,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WritePointShadowMetadata(
-        uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionBaseIndex){
-        if(Submission.Type!=LocalLightType.Point){
+        uint FrameIndex,int LocalLightIndex,in StageLocalLight Submission,int ProjectionBaseIndex){
+        if(Submission.Type!=StageLocalLightType.Point){
             throw new ArgumentException("Only point lights may own six-face atlas shadows.",nameof(Submission));
         }
         Vector4 Metadata=new((float)Submission.Type,ProjectionBaseIndex,Submission.ShadowBiasMeters,0f);
@@ -3048,8 +2736,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteSpotShadowMetadata(
-        uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionIndex){
-        if(Submission.Type!=LocalLightType.Spot){
+        uint FrameIndex,int LocalLightIndex,in StageLocalLight Submission,int ProjectionIndex){
+        if(Submission.Type!=StageLocalLightType.Spot){
             throw new ArgumentException("Only spot lights may own projected atlas shadows.",nameof(Submission));
         }
         Vector4 Metadata=new((float)Submission.Type,ProjectionIndex,Submission.ShadowBiasMeters,0f);
@@ -3062,8 +2750,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// メタデータレコードは投影インデックスで参照し、ローカルライトレコードにも後段のピクセルシャドウ参照用に同じインデックスを格納する。
     /// </summary>
     private void WriteAreaShadowMetadata(
-        uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionIndex){
-        if(Submission.Type!=LocalLightType.Area){
+        uint FrameIndex,int LocalLightIndex,in StageLocalLight Submission,int ProjectionIndex){
+        if(Submission.Type!=StageLocalLightType.Area){
             throw new ArgumentException("Only Area/Emissive lights may own area atlas shadows.",nameof(Submission));
         }
         if((uint)ProjectionIndex>=(uint)MaxAreaAndEmissiveShadowProjections){
@@ -3159,16 +2847,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             &ViewProjection,(uint)sizeof(Matrix4x4));
     }
 
-    private static bool TryBuildSpotShadowViewProjection(in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection)=>
-        StageShadowPlanner.TryBuildSpotViewProjection(Submission.Position,Submission.Direction,Submission.Range,Submission.OuterConeCos,out ShadowViewProjection);
-    /// <summary>面光源（矩形と発光面）だけが、面光源のアトラスの投影を持つ。</summary>
-    private static bool TryBuildAreaShadowViewProjection(in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
-        if(Submission.Type!=LocalLightType.Area){
-            ShadowViewProjection=Matrix4x4.Identity;
-            return false;
-        }
-        return StageShadowPlanner.TryBuildAreaViewProjection(Submission.Position,Submission.Direction,Submission.Up,Submission.Range,Submission.HalfWidth,Submission.HalfHeight,out ShadowViewProjection);
-    }
+
 
     private void AddForwardPlusTileCandidate(uint FrameIndex,int TileX,int TileY,int LocalLightIndex){
         uint TileIndex=(uint)((TileY*this.ForwardPlusTileCountX)+TileX);
@@ -3751,30 +3430,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.FramesRendered++;
         this.LumenActiveLastFrame=this.LumenActiveThisFrame;
 
-        // 加算式ライト数（およびそれに対応するデータ）は上記で既にGPUへ送信した。
-        // 次フレームが0から始まり、そのフレームで再びAddメソッドを呼んだライトだけを反映するよう、
-        // リセットする（各フィールドの説明を参照）。
-        if(!this.DirectionalLightsPersistAcrossFrames){
-            this.DirectionalLightCount=0;
-            this.DirectionalShadowIndex=-1;
-            this.SelectedDirectionalShadowAtlasCandidate=null;
-        }
-        this.DirectionalLightsExplicitThisFrame=false;
-        this.DirectionalShadowCandidates.Clear();
-        this.DirectionalLightSubmissions.Clear();
-        this.LocalLightSubmissions.Clear();
-        this.SelectedLocalLightSubmissions.Clear();
+        // 追加した光源はこのフレームだけ有効。次のフレームは、そのフレームで提出し直した光源だけを反映する（StageLightSubmissions.EndFrame）。
+        this.Lights.EndFrame();
         this.PointShadowAtlasProjections.Clear();
         this.SpotShadowAtlasProjections.Clear();
         this.AreaShadowAtlasProjections.Clear();
-        this.LocalLightCount=0;
-        this.PointShadowProjectionCount=0;
-        this.SpotShadowProjectionCount=0;
-        this.AreaShadowProjectionCount=0;
-        this.DroppedDirectionalLightsLastFrame=this.DroppedDirectionalLightsThisFrameValue;
-        this.DroppedDirectionalLightsThisFrameValue=0;
-        this.DroppedLocalLightsLastFrame=this.DroppedLocalLightsThisFrameValue;
-        this.DroppedLocalLightsThisFrameValue=0;
         this.DroppedTileLightReferencesLastFrame=this.DroppedTileLightReferencesThisFrameValue;
         this.DroppedTileLightReferencesThisFrameValue=0;
 
