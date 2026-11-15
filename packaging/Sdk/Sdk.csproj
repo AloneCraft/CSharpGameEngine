@@ -1,0 +1,131 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The engine SDK package (ADR-0065). A game project references only this package: its layout mirrors
+    the repository (build/, src/, assets/Shaders/, tools/), so build/CSharpGameEngine.Game.props applies
+    the same conventions in PackageMode as in SourceMode. The package carries:
+    - build/: CSharpGameEngine.Sdk.props/.targets (NuGet entry points), Game.props and ShaderGraph.targets;
+    - lib/: the engine libraries a game compiles against;
+    - analyzers/: the ECS source generator and analyzers;
+    - src/: the shared runtime sources the generator completes inside each game (ADR-0033);
+    - assets/Shaders/: the default Stage shader graph and compute shaders;
+    - tools/ShaderGraph/: the offline shader compiler the build invokes;
+    - plugins/: the engine plugins (ADR-0079), enabled per game with CgePlugins.
+    External libraries are NuGet dependencies of this package.
+  -->
+  <Import Project="..\..\build\CSharpGameEngine.Version.props" />
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <CgeSkipEngineAnalyzerReference>true</CgeSkipEngineAnalyzerReference>
+    <PackageId>CSharpGameEngine.Sdk</PackageId>
+    <Version Condition="'$(Version)' == ''">$(CgeEngineVersion)</Version>
+    <Authors>CSharpGameEngine</Authors>
+    <Description>C# Game Engine SDK: runtime libraries, ECS source generator, shared runtime sources, default shaders and the shader compiler for game projects.</Description>
+    <PackageTags>gamedev;ecs;direct3d12</PackageTags>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <NoWarn>$(NoWarn);NU5100;NU5128;NU5127</NoWarn>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\.artifacts\packages\</PackageOutputPath>
+    <CgeRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))\</CgeRepositoryRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Contracts\Contracts.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Windows\Windows.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Core\Core.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Numerics\Numerics.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\World\World.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Audio\Audio.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Content\Content.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Rendering\Rendering.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\ShaderArtifacts\ShaderArtifacts.csproj" />
+    <!-- ADR-0079: build the Cook contract for the tool host; it is excluded from runtime lib below. -->
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Cooking\Cooking.csproj" />
+    <None Include="build\CSharpGameEngine.Sdk.props;build\CSharpGameEngine.Sdk.targets" Pack="true" PackagePath="build\" />
+    <None Include="build\CSharpGameEngine.Sdk.NumericProfiles.targets;build\CSharpGameEngine.ProfileLibrary.csproj.in" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.NumericProfile.*" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.RenderProfile.props" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.ModelContent.targets" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\PropertyPages\**\*.xaml" Pack="true" PackagePath="build\PropertyPages\" />
+    <None Include="$(CgeRepositoryRoot)src\Numerics\*.cs" Pack="true" PackagePath="src\Numerics\" />
+    <None Include="$(CgeRepositoryRoot)src\World\*.cs" Pack="true" PackagePath="src\World\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.Game.props;$(CgeRepositoryRoot)build\CSharpGameEngine.Game.targets;$(CgeRepositoryRoot)build\CSharpGameEngine.Version.props;$(CgeRepositoryRoot)build\CSharpGameEngine.ShaderGraph.targets;$(CgeRepositoryRoot)build\CSharpGameEngine.SceneSchema.targets" Pack="true" PackagePath="build\" />
+    <!-- Evaluation-time wildcards: NuGet keeps each file's RecursiveDir under PackagePath. Inside a target, an unqualified %(RecursiveDir) batched
+         over the other None items and packed copies under their folders (src\<module>\win-x64\ in 0.1.15). -->
+    <None Include="$(CgeRepositoryRoot)plugins\**\*" Exclude="$(CgeRepositoryRoot)plugins\**\bin\**;$(CgeRepositoryRoot)plugins\**\obj\**" Pack="true" PackagePath="plugins\" />
+    <None Include="$(CgeRepositoryRoot)src\Entities\*.cs" Pack="true" PackagePath="src\Entities\" />
+    <None Include="$(CgeRepositoryRoot)src\Runtime.Simulation\**\*" Exclude="$(CgeRepositoryRoot)src\Runtime.Simulation\bin\**;$(CgeRepositoryRoot)src\Runtime.Simulation\obj\**" Pack="true" PackagePath="src\Runtime.Simulation\" />
+    <None Include="$(CgeRepositoryRoot)src\Runtime.Physics\**\*" Exclude="$(CgeRepositoryRoot)src\Runtime.Physics\bin\**;$(CgeRepositoryRoot)src\Runtime.Physics\obj\**" Pack="true" PackagePath="src\Runtime.Physics\" />
+    <None Include="$(CgeRepositoryRoot)src\Runtime.Animation\**\*" Exclude="$(CgeRepositoryRoot)src\Runtime.Animation\bin\**;$(CgeRepositoryRoot)src\Runtime.Animation\obj\**" Pack="true" PackagePath="src\Runtime.Animation\" />
+    <None Include="$(CgeRepositoryRoot)src\Runtime.Character\**\*" Exclude="$(CgeRepositoryRoot)src\Runtime.Character\bin\**;$(CgeRepositoryRoot)src\Runtime.Character\obj\**" Pack="true" PackagePath="src\Runtime.Character\" />
+    <None Include="$(CgeRepositoryRoot)src\Runtime.Lighting\**\*" Exclude="$(CgeRepositoryRoot)src\Runtime.Lighting\bin\**;$(CgeRepositoryRoot)src\Runtime.Lighting\obj\**" Pack="true" PackagePath="src\Runtime.Lighting\" />
+    <None Include="$(CgeRepositoryRoot)src\Runtime.Windows\**\*" Exclude="$(CgeRepositoryRoot)src\Runtime.Windows\bin\**;$(CgeRepositoryRoot)src\Runtime.Windows\obj\**" Pack="true" PackagePath="src\Runtime.Windows\" />
+    <None Include="$(CgeRepositoryRoot)assets\Fonts\*" Pack="true" PackagePath="assets\Fonts\" />
+    <None Include="$(CgeRepositoryRoot)assets\Shaders\*.cgeshadergraph;$(CgeRepositoryRoot)assets\Shaders\*.cgesubgraph;$(CgeRepositoryRoot)assets\Shaders\*.hlsl;$(CgeRepositoryRoot)assets\Shaders\*.hlsli" Pack="true" PackagePath="assets\Shaders\" />
+  </ItemGroup>
+  <!-- Builds the engine libraries, the analyzer and the shader compiler, then adds their outputs to the package. -->
+  <Target Name="CgeCollectEnginePayload" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="@(CgeEngineLibrary)" Targets="Build" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeEngineAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)src\CodeAnalysis\CodeAnalysis.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeAnalyzerAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\ShaderGraph.Cli\ShaderGraph.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeShaderCli" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\SceneSchema.Cli\SceneSchema.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeSceneSchemaCli" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\Cook.Cli\Cook.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeCookCli" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\ContentCompiler\ContentCompiler.csproj;$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Restore" BuildInParallel="false"
+      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" />
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\ContentCompiler\ContentCompiler.csproj" Targets="Build"
+      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeContentCompiler" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Build"
+      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeModelImport" />
+    </MSBuild>
+    <!-- ADR-0079/M0106: the Navigation plugin's Cook module, built here and carried next to the plugin's sources (Navigation.plugin.items runs it from Cook\lib). -->
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Navigation\Cook\Navigation.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" BuildInParallel="false" />
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Navigation\Cook\Navigation.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookModule" />
+    </MSBuild>
+    <!-- ADR-0078/M0113: the Destruction plugin's Cook module (the fracture cooker), the same way. -->
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Destruction\Cook\Destruction.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" BuildInParallel="false" />
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Destruction\Cook\Destruction.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookModule" />
+    </MSBuild>
+    <PropertyGroup>
+      <_CgeNavigationCookDirectory>@(_CgeNavigationCookModule->'%(RootDir)%(Directory)')</_CgeNavigationCookDirectory>
+      <_CgeDestructionCookDirectory>@(_CgeDestructionCookModule->'%(RootDir)%(Directory)')</_CgeDestructionCookDirectory>
+      <_CgeShaderCliDirectory>@(_CgeShaderCli->'%(RootDir)%(Directory)')</_CgeShaderCliDirectory>
+      <_CgeSceneSchemaCliDirectory>@(_CgeSceneSchemaCli->'%(RootDir)%(Directory)')</_CgeSceneSchemaCliDirectory>
+      <_CgeCookCliDirectory>@(_CgeCookCli->'%(RootDir)%(Directory)')</_CgeCookCliDirectory>
+      <_CgeContentCompilerDirectory>@(_CgeContentCompiler->'%(RootDir)%(Directory)')</_CgeContentCompilerDirectory>
+      <_CgeModelImportDirectory>@(_CgeModelImport->'%(RootDir)%(Directory)')</_CgeModelImportDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <None Include="@(_CgeEngineAssembly)" Condition="'%(_CgeEngineAssembly.Filename)' != 'Cooking'" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+      <None Include="@(_CgeAnalyzerAssembly)" Pack="true" PackagePath="analyzers\dotnet\cs\" />
+      <None Include="$(_CgeShaderCliDirectory)**\*" Exclude="$(_CgeShaderCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\ShaderGraph\" />
+      <!-- Top level only: the CLI has no dependencies, and an x64 test run of the solution leaves a win-x64\ copy below it that would be packed twice. -->
+      <None Include="$(_CgeSceneSchemaCliDirectory)*" Exclude="$(_CgeSceneSchemaCliDirectory)*.pdb" Pack="true" PackagePath="tools\SceneSchema\" />
+      <!-- The Cook module with its dependencies (the host shares CSharpGameEngine.Cooking with it, so that one is left out). -->
+      <None Include="$(_CgeNavigationCookDirectory)*" Exclude="$(_CgeNavigationCookDirectory)*.pdb;$(_CgeNavigationCookDirectory)Cooking.dll" Pack="true" PackagePath="plugins\Navigation\Cook\lib\" />
+      <None Include="$(_CgeDestructionCookDirectory)*" Exclude="$(_CgeDestructionCookDirectory)*.pdb;$(_CgeDestructionCookDirectory)Cooking.dll" Pack="true" PackagePath="plugins\Destruction\Cook\lib\" />
+      <!-- ADR-0079: runs a plugin's Cook module in its own process (top level only, for the same reason as above). -->
+      <None Include="$(_CgeCookCliDirectory)*" Exclude="$(_CgeCookCliDirectory)*.pdb" Pack="true" PackagePath="tools\Cook\" />
+      <None Include="$(_CgeContentCompilerDirectory)*" Exclude="$(_CgeContentCompilerDirectory)*.pdb" Pack="true" PackagePath="tools\ContentCompiler\" />
+      <None Include="$(_CgeModelImportDirectory)*" Exclude="$(_CgeModelImportDirectory)*.pdb" Pack="true" PackagePath="tools\ModelImport\" />
+      <None Include="$(_CgeModelImportDirectory)runtimes\**\*" Exclude="$(_CgeModelImportDirectory)runtimes\**\*.pdb" Pack="true" PackagePath="tools\ModelImport\runtimes\" />
+    </ItemGroup>
+  </Target>
+</Project>

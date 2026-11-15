@@ -11,7 +11,7 @@ Superseded by [[ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World]]。シ�
 いる。実装は2系統に分裂していた:
 - `src/CSharpGameEngine.Scene`(net10.0、`SceneNode`/`Transform`/`SceneGraph`)。Docs/EditorSpec.mdの
   正本という位置づけだが、自分自身のテスト以外どこからも参照されていない。
-- `tools/CSharpGameEngine.VSExtension/SceneFile.cs`(net472、TFMの壁による独立複製、`Guid`直書き、
+- `tools/VSExtension/SceneFile.cs`(net472、TFMの壁による独立複製、`Guid`直書き、
   `Components`フィールド自体が存在せず往復で静かに失われる)。実際の`UserGameProject/DefaultScene.scene`
   はこちら側のみが書き込んでいる。
 
@@ -44,7 +44,7 @@ Scene Hierarchy編集機能の実装依頼があった:
 今回のスコープとする。VSIX側のRoslyn Workspaceによるライブ編集(Hierarchy Docking Windowでの
 Add/Delete/Rename/Reparent)は、このリポジトリに前例が無い新規領域
 (`DocumentEditor`/`Renamer.RenameSymbolAsync`/`VisualStudioWorkspace.TryApplyChanges`のいずれも
-未使用、`CSharpGameEngine.VSExtension.csproj`にWorkspace系PackageReferenceが無い)かつ実機VS
+未使用、`VSExtension.csproj`にWorkspace系PackageReferenceが無い)かつ実機VS
 デバッグが必須な部分が多いため、次回以降の別タスクとする。ADR-0029(ECS移行)は「削除と移行が
 相互に強制し合う」ため一括実装が必然だったが、今回はJSON版が無改修のまま並行して動き続けられる
 ため分割する理由がある、とユーザーへ説明の上で確定した。
@@ -109,12 +109,12 @@ ADR-0029の`Entity`/`World`踏襲と同じ方針で実在の型をそのまま�
 
 ## 実装
 
-`src/CSharpGameEngine.Entities/`に`SceneDefinitionAttribute`/`SceneNodeId`/`SceneNodeSymbol`/
+`src/Entities/`に`SceneDefinitionAttribute`/`SceneNodeId`/`SceneNodeSymbol`/
 `SceneBuilder`/`SceneNodeBuilder`/`Parent`/`SceneNodeTag`を追加した。`SceneBuilder`/
 `SceneNodeBuilder`の`Create`/`Set`メソッド本体はDefineをコンパイル可能にするためだけの
 ほぼ空実装で、SceneDefinitionGeneratorは構文木を静的解析するだけでこれらを実行しない。
 
-`src/CSharpGameEngine.CodeAnalysis/`に`SceneDefinitionDiagnostics`(SCENE001〜009)/
+`src/CodeAnalysis/`に`SceneDefinitionDiagnostics`(SCENE001〜009)/
 `SceneDefinitionModel`(`SceneNodeModel`木構造+`ComponentSetModel`)/`SceneDefinitionAnalyzer`
 (`Create`/`Set`呼び出しの構文的検証、レシーバー名はテキスト一致のみで検証しクロージャ越しの
 誤参照も検出、FNV-1a 64bitによる決定論的NodeId導出)/`SceneDefinitionGenerator`(`.Collect()`
@@ -145,9 +145,9 @@ MainCamera/Player構成を実際に動くコードとして再現し、`dotnet r
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.Entities/...csproj -c Debug        → 成功、警告0/エラー0
+dotnet build src/Entities/...csproj -c Debug        → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Entities.Tests/...                → 成功、61件(9件新規)
-dotnet build src/CSharpGameEngine.CodeAnalysis/...csproj -c Debug    → 成功、警告0/エラー0
+dotnet build src/CodeAnalysis/...csproj -c Debug    → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...            → 成功、52件(16件新規)
 dotnet run --project samples/SceneAuthoringDemo                      → "OK"
 dotnet build CSharpGameEngine.slnx -c Debug / -c Release             → 成功、警告0/エラー0
@@ -169,6 +169,6 @@ dotnet test CSharpGameEngine.slnx                                     → 成功
 あとこのプロジェクトに**生きた利用者が1つも残らなかった**ためである(参照は自分自身のテストのみ)。
 
 VSIXが`*.scene`ファイルを読むためのパーサ
-(`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)はVSIX内にそのまま残っており、影響はない。
+(`tools/VSExtension/SceneFile.cs`)はVSIX内にそのまま残っており、影響はない。
 出荷される`UserGameProject/DefaultScene.scene`を実際に読む唯一のテストだった
 `DefaultSceneFileTests`は、削除に先立って`tests/CSharpGameEngine.VSExtension.Tests/`へ移植した。

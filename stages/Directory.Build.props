@@ -10,26 +10,26 @@
     <!-- ADR-0070: write .cge/scene.schema.json after the build, the target of the stage scenes' "$schema". -->
     <CgeGameProject>true</CgeGameProject>
   </PropertyGroup>
-  <Import Project="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
+  <Import Project="$(MSBuildThisFileDirectory)..\src\Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
     <!-- ADR-0070: stage scenes are the *.json files under Scenes (SceneFiles), compiled by GameSystemGenerator. -->
     <AdditionalFiles Include="Scenes\**\*.json" />
     <CompilerVisibleProperty Include="ProjectDir" />
     <CompilerVisibleProperty Include="CgeEngineAssembly" />
-    <Compile Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\src\Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <!-- These two attribute files are compiled into CSharpGameEngine.Windows too (linked); use that copy. -->
-    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" />
-    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SceneComponentOrderAttribute.cs" />
-    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\FixedTransform.cs" />
-    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialPartitioning.cs" />
-    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialWorld.cs" />
-    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialDebug.cs" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\SceneComponentIconAttribute.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\SceneComponentOrderAttribute.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\FixedTransform.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\SpatialPartitioning.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\SpatialWorld.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\SpatialDebug.cs" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Contracts\Contracts.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Numerics\Numerics.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Core/Core.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Windows\Windows.csproj" />
     <!-- The window's shader artifact, published to Shaders\ next to the pack as in TestHost. -->
     <CgeShaderGraph Include="$(MSBuildThisFileDirectory)..\assets\Shaders\Stage.cgeshadergraph" />
   </ItemGroup>

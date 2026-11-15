@@ -22,7 +22,7 @@
 実装完了後、プレイウィンドウを「3Dモデルプレビューウィンドウと同じ仕組みでゲームドッキング
 ウィンドウとして実現してほしい」という追加要望があった。既存の3Dモデルプレビュー
 (`ViewerToolWindowPane`/`ViewerHwndHost`/`VorticeRenderer`、ADR-0007/0008)は、
-`tools/CSharpGameEngine.VSExtension`(net472、.NET Framework)プロセス**内**で
+`tools/VSExtension`(net472、.NET Framework)プロセス**内**で
 `Vortice.Windows`ベースのD3D12レンダラーが直接ネイティブ子ウィンドウに描画する仕組みである。
 
 一方、`CSharpGameEngine.Ecs`の`IEcsArchetype<TSelf>`はC# 11の`static abstract`インターフェース
@@ -70,10 +70,10 @@ ADR-0004の「複製して後で統合(duplicate now, consolidate later)」の�
 Alt-Tab時のキャプチャ解除/復帰とキー状態クリアを行う。
 
 ### `UserGameProject`のExe化
-`TargetFramework`を`net10.0-windows10.0.19041.0`に変更(`tools/CSharpGameEngine.Extension`と
+`TargetFramework`を`net10.0-windows10.0.19041.0`に変更(`tools/Extension`と
 同じTFM/`Platforms=x64`/`RuntimeIdentifier=win-x64`/`SelfContained=false`)、`OutputType=Exe`。
 新規`ProjectReference`: `CSharpGameEngine.Platform.Windows`・`CSharpGameEngine.Graphics.D3D12`。
-`Program.cs`は`tools/CSharpGameEngine.Extension/Program.cs`と同じWindow+Renderer+ループの
+`Program.cs`は`tools/Extension/Program.cs`と同じWindow+Renderer+ループの
 配線パターンを踏襲した。
 
 ### ECS側: `StaticProp`アーキタイプ + Player/Groundをローカル変数で直接操作
@@ -90,7 +90,7 @@ CharacterMotionResult`。カメラのflat forward/right・WASD押下状態・現
 実装し(`UserGameProject`は`net10.0-windows`なので`record`の`IsExternalInit`要件は問題にならない、
 ADR-0015のnetstandard2.0の制約とは異なる)、テストで`with`式による構築を使えるようにした。
 
-### `OpenGameCommand`(新規、`tools/CSharpGameEngine.VSExtension`)
+### `OpenGameCommand`(新規、`tools/VSExtension`)
 `OpenViewerCommand`(ADR-0006)と完全に同一の実装パターン: Toolsメニューコマンドから
 `dotnet run --project UserGameProject`を別プロセス・別トップレベルウィンドウとして起動する。
 VS本体への埋め込みは行わない(上記「実装途中で追加された要件」参照)。
@@ -136,7 +136,7 @@ VS本体への埋め込みは行わない(上記「実装途中で追加され�
 - `UserGameProject.exe`を実際に起動し、4秒間クラッシュせず動作し続けることを確認した上で、
   ウィンドウのスクリーンショットを撮影し、空(水色)・地面(緑の平面)・キャラクター
   (赤い天面を持つ黒いボックス)が意図通り描画されていることを目視確認した。
-- `tools/CSharpGameEngine.VSExtension`(`OpenGameCommand`追加後)がDebug/Release両方で
+- `tools/VSExtension`(`OpenGameCommand`追加後)がDebug/Release両方で
   ビルド成功し、`.vsix`パッケージングも成功することを確認した。
 - マウスでカメラが実際に旋回する、WASDでキャラクターが意図通り動く、Jump/重力の感触といった
   対話的な操作感は、この環境からは操作を注入できないため自動検証できていない。ユーザー自身が

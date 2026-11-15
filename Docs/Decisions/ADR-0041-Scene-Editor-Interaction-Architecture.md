@@ -56,7 +56,7 @@ SceneView状態を宣言へ保存しない原則(§20)。
 `ComputeViewMatrix`の固定計算をやめ、view/proj行列を毎フレーム外部から受け取る
 (`SetCamera(in Matrix4x4 View,in Matrix4x4 Projection)`+毎フレームの定数バッファ更新)。
 
-カメラ数学はnet10.0側の実績実装`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(型は
+カメラ数学はnet10.0側の実績実装`src/Windows/Graphics/Camera.cs`(型は
 `CSharpGameEngine.Graphics.D3D12.Camera`。Scene DSLのComponent `CSharpGameEngine.Runtime.Windows.Camera`
 とは**別物**)の**式**をnet472側へ書き写す。TFM境界の共有は`GizmoMeshFactory.cs`冒頭コメントの前例
 (小さな断片は複製し、ランタイムAPIをエディタ都合で汚さない)に従う。座標系は

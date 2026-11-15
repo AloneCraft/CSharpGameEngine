@@ -9,7 +9,7 @@
 
 ## 実装したこと
 
-### ランタイム `src/CSharpGameEngine.Entities/`
+### ランタイム `src/Entities/`
 - 旧動的Archetype実装19ファイル(`Entity`/`World`/`Archetype`/`EntityArchetype`/`ComponentType`/
   `ComponentMask`/`ComponentTypeSet`/`IComponentColumn`/`ComponentColumn`/`EntityQuery`/`QueryMatches`/
   `EntityCommandBuffer`/`ComponentValueStore`と属性6ファイル)を削除。
@@ -20,7 +20,7 @@
 - csprojを**ソース正本**化: `InternalsVisibleTo`2件を削除、Analyzer参照と
   `EmitCompilerGeneratedFiles`を追加。消費側は`<Compile Include Link>`で取り込む(ADR-0033決定事項1)。
 
-### `GameSystemGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `GameSystemGenerator`(`src/CodeAnalysis/`)
 - 旧属性ベースの`GameSystem{Generator,Analyzer,Model,Scheduler,ExecutorEmitter,LoopEmitter,Diagnostics}.cs`
   7ファイルと`SceneDefinitionGenerator.cs`を削除。
 - M0012の`StaticArchetype*.cs`8ファイルを`GameSystem*.cs`へリネームし、次を追加実装:

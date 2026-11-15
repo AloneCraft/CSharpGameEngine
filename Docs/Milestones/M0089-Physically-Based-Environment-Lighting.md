@@ -28,7 +28,7 @@ Commands executed from the repository root (WARP):
 dotnet test CSharpGameEngine.slnx -c Debug
 dotnet test CSharpGameEngine.slnx -c Release
 dotnet test tests/CSharpGameEngine.VSExtension.Tests -c Release
-dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -c Debug -- run rendering.environment-lighting --configuration Debug --profile environment-lighting-m0089 --adapter warp
+dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -c Debug -- run rendering.environment-lighting --configuration Debug --profile environment-lighting-m0089 --adapter warp
 dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c Debug -p:Platform=x64 --filter "FullyQualifiedName~GlobalIllumination|FullyQualifiedName~AmbientOcclusion|FullyQualifiedName~EnvironmentComponent"
 dotnet test tests/CSharpGameEngine.Import.Tests -c Debug -p:Platform=x64
 python tools/ShaderGraphMaintenance/edit_stage_graph.py tools/ShaderGraphMaintenance/edits/<edit>.py

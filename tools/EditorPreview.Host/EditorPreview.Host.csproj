@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <Platforms>x64</Platforms>
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_ADAPTER</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Contracts/Contracts.csproj" />
+    <ProjectReference Include="../../src/Windows/Windows.csproj" />
+    <ProjectReference Include="../Bridge.Hosting/Bridge.Hosting.csproj" />
+    <!-- ADR-0097: decoding source models belongs to the production worker. -->
+    <ProjectReference Include="../../src/Content/Content.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CSharpGameEngine.Windows.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ADR-0070 B1: the runtime view reads the editor's scene JSON with the generator's own reader. -->
+    <Compile Include="../../src/SceneModel/Json/SceneJson.cs" Link="SceneJson/SceneJson.cs" />
+    <Compile Include="../../src/SceneModel/Json/SceneJsonReader.cs" Link="SceneJson/SceneJsonReader.cs" />
+    <Compile Include="../../src/SceneModel/Json/SceneJsonAngles.cs" Link="SceneJson/SceneJsonAngles.cs" />
+    <Compile Include="../../src/SceneModel/Json/SceneJsonDecimal.cs" Link="SceneJson/SceneJsonDecimal.cs" />
+    <!-- The generator's exact fixed-point angle conversion, shared so the preview reads scene angles to the same values. -->
+    <Compile Include="../../src/SceneModel/Json/SceneJsonFixedAngles.cs" Link="SceneJson/SceneJsonFixedAngles.cs" />
+  </ItemGroup>
+  <ItemGroup><Compile Include="../Shared/ThumbnailPng.cs" Link="ThumbnailPng.cs" /></ItemGroup>
+  <ItemGroup>
+    <!-- ADR-0090: the same skeleton/clip evaluation and glTF-to-stage conversion the game runs (ECS-free sources of the shared projects). -->
+    <Compile Include="../../src/Runtime.Animation/Skeleton.cs" Link="SharedRuntime/Skeleton.cs" />
+    <Compile Include="../../src/Runtime.Animation/AnimationClip.cs" Link="SharedRuntime/AnimationClip.cs" />
+    <Compile Include="../../src/Runtime.Windows/StageModelAssets.cs" Link="SharedRuntime/StageModelAssets.cs" />
+  </ItemGroup>
+</Project>

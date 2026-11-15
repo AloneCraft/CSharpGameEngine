@@ -15,7 +15,7 @@ internal static class GameSystemGeneratorTestHelper {
     /// </summary>
     private const string ImplicitUsingsSource="global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\n";
 
-    /// <summary>正本の<c>Runtime.cs</c>(src/CSharpGameEngine.Entities)。テストと実体のドリフトを防ぐためファイルから読む。</summary>
+    /// <summary>正本の<c>Runtime.cs</c>(src/Entities)。テストと実体のドリフトを防ぐためファイルから読む。</summary>
     internal static readonly string RuntimeSource=ReadTestAsset("Runtime.cs");
     internal static readonly string SnapshotTransientAttributeSource=
         ReadTestAsset("EcsSnapshotTransientAttribute.cs");

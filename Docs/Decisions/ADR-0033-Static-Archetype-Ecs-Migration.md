@@ -43,8 +43,8 @@ World`に`ListArchetypeNN`/`Create`/`MoveArchetype`/`Detach`/`PlaybackMoveArchet
 **C#のpartial型は同一コンパイル内でしか合成できない**ため、コンパイル済みDLLを`<ProjectReference>`する
 方式は原理的に成立しない。
 
-`src/CSharpGameEngine.Entities/`はソースの**正本置き場**となり、消費側(`UserGameProject`・各テスト
-プロジェクト)は`<Compile Include="..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\..." />`で
+`src/Entities/`はソースの**正本置き場**となり、消費側(`UserGameProject`・各テスト
+プロジェクト)は`<Compile Include="..\src\Entities\*.cs" Link="Entities\..." />`で
 自分のコンパイルへ取り込む。同プロジェクト単体の`dotnet build`は「System 0件でも空の`Archetype` enumと
 空の`partial struct World`が生成され、`Runtime.cs`がコンパイルできる」ことのスモークテストとして残す。
 
@@ -216,10 +216,10 @@ ECSで書けるようにする**」形で満たした。`UserGameProject`では`
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet build src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj -c Debug
+dotnet build src/Entities/Entities.csproj -c Debug
   → 成功(System 0件でも空のArchetype enum/partial struct Worldが生成されRuntime.csがコンパイルできる)
 
 dotnet build UserGameProject/UserGameProject.csproj -c Debug

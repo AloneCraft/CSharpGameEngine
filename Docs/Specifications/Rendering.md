@@ -172,7 +172,7 @@ ADR-0078 / M0104. After the frame is tone mapped and the overlay is drawn, the s
 
 - A layer is a list of pixel-space vertices (`RenderScreenVertex`: position, UV, straight color) and batches (`RenderScreenBatch`: texture, shading, vertex range). Limits: 24,576 vertices, 32 batches, 64 resident textures. The CPU converts pixels to NDC when the layer is set. The layer lasts one frame; `RenderFrameState` replays it after a device loss.
 - Shading is `Image` (`texture × color`) or `DistanceField` (the texture's alpha is a signed distance, 128 = the outline; coverage is `smoothstep(0.5 ± fwidth)`). Blending is straight alpha over the frame.
-- Textures are `RenderTextureResource` (RGBA8), resident by content hash and uploaded after `WaitForGpuIdle`. Fonts are `.cgefont` (`CGEFONT1`: em-unit metrics, plane and UV quads, an 8-bit distance atlas), baked by `tools/CSharpGameEngine.FontBaker`.
+- Textures are `RenderTextureResource` (RGBA8), resident by content hash and uploaded after `WaitForGpuIdle`. Fonts are `.cgefont` (`CGEFONT1`: em-unit metrics, plane and UV quads, an 8-bit distance atlas), baked by `tools/FontBaker`.
 - Placement is UMG's: an element's `Pivot` sits on the screen's `Anchor` plus an offset; sizes and offsets are pixels of a screen whose shorter side is 1080 and are scaled to the surface. The Stage contract entries are `ScreenVSMain`/`ScreenPSMain` (`stage-v11`).
 - Evidence: `FontAtlasTests`, `FontBakerTests`, `ScreenUiTests`, `ScreenLayerTests` (WARP: placement, blend, one-frame lifetime, device recovery, distance-field threshold), and the Vehicle template's HUD in `VehicleDriveVerification` (`screenLayerFingerprints`).
 

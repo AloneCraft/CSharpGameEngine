@@ -16,5 +16,5 @@ The M0064 dirty-worktree baseline is retained in `Docs/Verification/M0064-Regres
 - `RepositoryVerificationTests`
 - `FeatureStageCatalogTests`
 - `FeatureRunnerApplicationTests.VerificationCommandsValidateTheRepositoryContracts`
-- `dotnet run --project tools/CSharpGameEngine.FeatureRunner -- verify-coverage`
-- `dotnet run --project tools/CSharpGameEngine.FeatureRunner -- verify-manual-ledger`
+- `dotnet run --project tools/FeatureRunner -- verify-coverage`
+- `dotnet run --project tools/FeatureRunner -- verify-manual-ledger`

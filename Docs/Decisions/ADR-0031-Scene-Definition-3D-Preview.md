@@ -30,7 +30,7 @@ Scene Authoring Phase A(ADR-0030/M0010)で、`[SceneDefinition] static partial c
 
 ### 3. ブリッジCLIは対象アセンブリを`AssemblyLoadContext`でロードし、`CreateRuntime`を実際に実行する
 
-`CSharpGameEngine.Entities.csproj`に`InternalsVisibleTo`を`CSharpGameEngine.SceneAuthoring.Cli`へ追加し、`Archetype`/`ComponentTypeRegistry`等の`internal`なArchetype走査APIへアクセスする(公開APIには「このArchetypeが持つComponent型を列挙する」手段が意図的に存在しない — 通常の`[GameSystem]`/`[Update]`コードは必要としないため)。`ComponentColumn<T>.Items`は`Span<T>`ではなく素の`public T[]`フィールドなので、`FieldInfo`経由で読める(`Span<T>`は`MethodInfo.Invoke`を跨いで返せないため、これが無ければ汎用的なリフレクション走査自体が成立しなかった)。
+`Entities.csproj`に`InternalsVisibleTo`を`CSharpGameEngine.SceneAuthoring.Cli`へ追加し、`Archetype`/`ComponentTypeRegistry`等の`internal`なArchetype走査APIへアクセスする(公開APIには「このArchetypeが持つComponent型を列挙する」手段が意図的に存在しない — 通常の`[GameSystem]`/`[Update]`コードは必要としないため)。`ComponentColumn<T>.Items`は`Span<T>`ではなく素の`public T[]`フィールドなので、`FieldInfo`経由で読める(`Span<T>`は`MethodInfo.Invoke`を跨いで返せないため、これが無ければ汎用的なリフレクション走査自体が成立しなかった)。
 
 Position/Rotation/Scaleという型の単純名一致で変換規則を適用する(ADR-0030 決定事項3で確立済みの規約)。`Parent`は型そのもの(`clrType == typeof(Parent)`)で判定し、直接キャストして値を取り出す(このブリッジ自身が`CSharpGameEngine.Entities`を直接参照しているため、`Parent`型はブリッジと対象アセンブリの間でCLR型として統一される)。
 
@@ -48,7 +48,7 @@ Position/Rotation/Scaleという型の単純名一致で変換規則を適用す
 
 ## 実装
 
-新規ブリッジCLI`tools/CSharpGameEngine.SceneAuthoring.Cli/`(`SceneDefinitionSourceParser`/`SceneRuntimeInvoker`/`WorldInspector`/`ScenePreviewBridgeWorker`)、VSIX側新規ファイル(`PreviewSceneDefinitionCommand`/`SceneDefinitionTextDetector`/`ProjectOutputAssemblyResolver`/`ExternalScenePreviewLoader`/`ScenePreviewSceneFileAdapter`/`GizmoMeshFactory`、および両側のDTOミラー`ScenePreviewRequest`/`ScenePreviewBridgeDocument`)、`SceneHwndHost.LoadIntoSurface`のギズモフォールバック拡張、`.vsct`/パッケージ登録、`CSharpGameEngine.Entities.csproj`への`InternalsVisibleTo`追加を実装した。テスト用フィクスチャとして`UserGameProject/Scene1.cs`(`[SceneDefinition]`、Root→MainCamera/Player/Lighting、Lighting→Sun/Ambientの3階層6ノード、既存`Components.cs`の型のみ使用、Program.csには組み込まない)を新規作成した。
+新規ブリッジCLI`tools/CSharpGameEngine.SceneAuthoring.Cli/`(`SceneDefinitionSourceParser`/`SceneRuntimeInvoker`/`WorldInspector`/`ScenePreviewBridgeWorker`)、VSIX側新規ファイル(`PreviewSceneDefinitionCommand`/`SceneDefinitionTextDetector`/`ProjectOutputAssemblyResolver`/`ExternalScenePreviewLoader`/`ScenePreviewSceneFileAdapter`/`GizmoMeshFactory`、および両側のDTOミラー`ScenePreviewRequest`/`ScenePreviewBridgeDocument`)、`SceneHwndHost.LoadIntoSurface`のギズモフォールバック拡張、`.vsct`/パッケージ登録、`Entities.csproj`への`InternalsVisibleTo`追加を実装した。テスト用フィクスチャとして`UserGameProject/Scene1.cs`(`[SceneDefinition]`、Root→MainCamera/Player/Lighting、Lighting→Sun/Ambientの3階層6ノード、既存`Components.cs`の型のみ使用、Program.csには組み込まない)を新規作成した。
 
 ## 帰結
 
@@ -72,7 +72,7 @@ dotnet run --project tools/CSharpGameEngine.SceneAuthoring.Cli -- <request> <res
   → samples/SceneAuthoringDemo向け: 終了コード0、JSON応答がMainScene.csの実値(Position [0,2,-10]等)と完全一致
   → UserGameProject/Scene1.cs向け: 終了コード0、JSON応答が6ノード全て(Root→MainCamera/Player/Lighting、
     Lighting→Sun/Ambient)期待どおりの階層・値で一致
-dotnet build tools/CSharpGameEngine.VSExtension/...              → 成功、警告0/エラー0(.vsctコンパイル含む)
+dotnet build tools/VSExtension/...              → 成功、警告0/エラー0(.vsctコンパイル含む)
 dotnet test tests/CSharpGameEngine.VSExtension.Tests/...         → 成功、39件(新規17件: GizmoMeshFactory6、
   ScenePreviewSceneFileAdapter6、ProjectOutputAssemblyResolver4、実ブリッジサブプロセスを起動する
   ExternalScenePreviewLoader統合テスト1)

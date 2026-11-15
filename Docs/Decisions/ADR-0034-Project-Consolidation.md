@@ -54,15 +54,15 @@
   合成できない**。コンパイル済みDLLを`<ProjectReference>`する方式は原理的に成立しない
   ([[ADR-0033-Static-Archetype-Ecs-Migration]]決定事項1)。
 
-`Core`はディレクトリを**再利用**した(`src/CSharpGameEngine.Core/`のまま)。README/
+`Core`はディレクトリを**再利用**した(`src/Core/`のまま)。README/
 [[ADR-0003-Windows-D3D12-Vertical-Slice]]の「Coreはwindows/D3D/DXCに一切依存しない」という
 記述はそのまま真であり続ける。
 
 ### 2. 名前空間は一切変更しない(本ADRで最も重要な判断)
 
-**アセンブリだけ統合し、名前空間は現状維持**した。`CSharpGameEngine.Core.dll`が
+**アセンブリだけ統合し、名前空間は現状維持**した。`Core.dll`が
 `CSharpGameEngine.Core` / `.Spatial.Abstractions` / `.Spatial.Unity` / … / `.Geometry`を含み、
-`CSharpGameEngine.Windows.dll`が`.Graphics.D3D12` / `.Platform.Windows` / `.Compiler.Hlsl`を含む。
+`Windows.dll`が`.Graphics.D3D12` / `.Platform.Windows` / `.Compiler.Hlsl`を含む。
 .NETではアセンブリ名≠名前空間は普通のことで、実害はない。
 
 根拠は**実測した改修量**である:
@@ -89,9 +89,9 @@
 配置は「名前空間の末尾がアセンブリ名と一致するものは根、それ以外は名前空間名のサブフォルダ」:
 
 ```
-src/CSharpGameEngine.Core/          {既存5ファイル} + Spatial/ + Spatial/Conventions/ + Geometry/
-src/CSharpGameEngine.Import/        Gltf/ + Fbx/
-src/CSharpGameEngine.Windows/       Graphics/ + Platform/ + Hlsl/
+src/Core/          {既存5ファイル} + Spatial/ + Spatial/Conventions/ + Geometry/
+src/Import/        Gltf/ + Fbx/
+src/Windows/       Graphics/ + Platform/ + Hlsl/
 ```
 
 移動はすべて`git mv`で行った。ADRがファイルパスを引用しているため、`git log --follow`が
@@ -133,7 +133,7 @@ src/CSharpGameEngine.Windows/       Graphics/ + Platform/ + Hlsl/
 `Gltf`と`Fbx`が1アセンブリになったため、glTFしか使わない消費者も**マネージドの**
 `AssimpNet.dll`を解決する。ただし**ネイティブの`assimp.dll`は入らない**:
 これはRID固有アセットで、`RuntimeIdentifier`を設定した消費者にしかコピーされないため。
-`tools/CSharpGameEngine.Import.Gltf.Cli`は意図的に`RuntimeIdentifier`を設定しないままにしてある。
+`tools/Import.Gltf.Cli`は意図的に`RuntimeIdentifier`を設定しないままにしてある。
 実際の出力ディレクトリで次を確認済み:
 
 | 出力 | `AssimpNet.dll`(マネージド) | `assimp.dll`(ネイティブ) |
@@ -159,7 +159,7 @@ src/CSharpGameEngine.Windows/       Graphics/ + Platform/ + Hlsl/
 ### (d) `Compiler.Hlsl`のDXCネイティブコピーの所在が変わった
 
 `dxcompiler.dll` / `dxil.dll`を`$(PkgMicrosoft_Direct3D_DXC)`からコピーする`<None>`ブロック
-([[ADR-0003-Windows-D3D12-Vertical-Slice]])は`CSharpGameEngine.Windows.csproj`へ**逐語で**移した。
+([[ADR-0003-Windows-D3D12-Vertical-Slice]])は`Windows.csproj`へ**逐語で**移した。
 これが消えると**実行時にのみ**壊れ、ユニットテストでは検出できないため、実バイナリの配置と
 実行スモークで確認した(下記「検証」)。
 

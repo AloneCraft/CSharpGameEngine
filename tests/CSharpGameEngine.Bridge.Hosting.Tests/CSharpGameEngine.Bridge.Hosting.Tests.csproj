@@ -18,8 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.Bridge.Hosting\CSharpGameEngine.Bridge.Hosting.csproj" />
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.Import.AssetAuthoring.Cli\CSharpGameEngine.Import.AssetAuthoring.Cli.csproj" />
+    <ProjectReference Include="..\..\tools\Bridge.Hosting\Bridge.Hosting.csproj" />
+    <ProjectReference Include="..\..\tools\Import.AssetAuthoring.Cli\Import.AssetAuthoring.Cli.csproj" />
   </ItemGroup>
 
 </Project>

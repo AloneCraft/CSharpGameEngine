@@ -14,6 +14,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.ShaderGraph\CSharpGameEngine.ShaderGraph.csproj" />
+    <ProjectReference Include="..\..\src\ShaderGraph\ShaderGraph.csproj" />
   </ItemGroup>
 </Project>

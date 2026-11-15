@@ -130,7 +130,7 @@ public sealed class InterchangeTests {
         while(Pending.TryPop(out var Type)){
             if(!Seen.Add(Type)){ continue; }
             var Assembly=Type.Assembly.GetName().Name!;
-            Assert.True(Assembly.StartsWith("System",StringComparison.Ordinal)||Assembly is "CSharpGameEngine.Cooking" or "CSharpGameEngine.Contracts",Type.FullName);
+            Assert.True(Assembly.StartsWith("System",StringComparison.Ordinal)||Assembly is "Cooking" or "Contracts",Type.FullName);
             if(Type.IsGenericType){ foreach(var Argument in Type.GetGenericArguments()){ Pending.Push(Argument); } }
             if(Type.IsArray){ Pending.Push(Type.GetElementType()!); }
             if(Type.Namespace!="CSharpGameEngine.Interchange"){ continue; }

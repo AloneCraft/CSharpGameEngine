@@ -15,10 +15,10 @@ $PSDefaultParameterValues['Set-Content:Encoding']='utf8'
 $PSDefaultParameterValues['Add-Content:Encoding']='utf8'
 $RootSuffix='CgeFixed'
 $RepoRoot=Split-Path -Parent $PSScriptRoot
-$Project=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj'
-$ReinstallScript=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\Reinstall-CgeFixedVsix.ps1'
+$Project=Join-Path $RepoRoot 'tools\VSExtension\VSExtension.csproj'
+$ReinstallScript=Join-Path $RepoRoot 'tools\VSExtension\Reinstall-CgeFixedVsix.ps1'
 $Solution=Join-Path $RepoRoot 'UserEcsProject.slnx'
-$Vsix=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\bin\Debug\net472\CSharpGameEngine.VSExtension.vsix'
+$Vsix=Join-Path $RepoRoot 'tools\VSExtension\bin\Debug\net472\VSExtension.vsix'
 $Timestamp=Get-Date -Format 'yyyyMMdd-HHmmss'
 
 if([string]::IsNullOrWhiteSpace($LogPath)){

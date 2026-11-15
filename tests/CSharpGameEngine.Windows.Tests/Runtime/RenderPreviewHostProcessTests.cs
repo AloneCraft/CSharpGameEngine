@@ -140,7 +140,7 @@ public sealed class RenderPreviewHostProcessTests {
     });
 
     private static Process StartHost(string PipeName,int?ParentProcessId=null){
-        string HostPath=Path.Combine(AppContext.BaseDirectory,"CSharpGameEngine.EditorPreview.Host.dll");
+        string HostPath=Path.Combine(AppContext.BaseDirectory,"EditorPreview.Host.dll");
         Assert.True(File.Exists(HostPath),HostPath);
         ProcessStartInfo StartInfo=new("dotnet"){
             UseShellExecute=false,

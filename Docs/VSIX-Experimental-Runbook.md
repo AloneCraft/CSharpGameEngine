@@ -6,7 +6,7 @@ Studio プロファイルや `.vs` を消すと、ウィンドウ状態の再現
 
 ## 更新手順
 
-1. `tools/CSharpGameEngine.VSExtension/source.extension.vsixmanifest` と csproj の VSIX
+1. `tools/VSExtension/source.extension.vsixmanifest` と csproj の VSIX
    Version が一致していることを確認する。
 2. `tools/Launch-VSExtension.ps1 -CloseCgeFixed` を実行する。実行中の VS は
    `CloseMainWindow()` による通常終了だけを要求し、プロセスを強制終了しない。
@@ -85,4 +85,4 @@ devenv.exe /RootSuffix CgeFixed /LCID 1041
 
 Scene Viewヘッダーの`VSIX <version> | build <UTC> | current`は意図的に翻訳しない。ToolTipとActivity Logには選択されたUI culture、revision、検証状態、ロード済みDLL path/hashを残す。日本語resourceが欠けた場合は英語、英語keyも欠けた場合は`[Resource.Key]`となるため、角括弧付きkeyが見えた場合は不完全なVSIXとして扱う。
 
-If deployment reports missing BAML, rebuild with `dotnet build tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj -c Debug -t:Rebuild`. If it reports a package hash mismatch, discard the stale package and rebuild. Duplicate, stale-version, stale-hash, or installed-BAML errors stop F5 before `devenv.exe`; inspect `%LOCALAPPDATA%\\CSharpGameEngine\\Logs\\CgeFixed-VsixMaintenance-*.log`.
+If deployment reports missing BAML, rebuild with `dotnet build tools/VSExtension/VSExtension.csproj -c Debug -t:Rebuild`. If it reports a package hash mismatch, discard the stale package and rebuild. Duplicate, stale-version, stale-hash, or installed-BAML errors stop F5 before `devenv.exe`; inspect `%LOCALAPPDATA%\\CSharpGameEngine\\Logs\\CgeFixed-VsixMaintenance-*.log`.

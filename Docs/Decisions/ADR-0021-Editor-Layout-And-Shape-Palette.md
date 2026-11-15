@@ -61,7 +61,7 @@ net10.0側に二重実装しないため、既存`src/CSharpGameEngine.Graphics.
 カプセルは半径>0を検証済みなので幾何学的に退化しない)。`tests/CSharpGameEngine.Geometry.Tests`で
 全8種について頂点/インデックス範囲・法線の単位長・退化三角形の不在を検証(30件、初回実行で全て成功)。
 
-### 4. `tools/CSharpGameEngine.Primitive.Cli`(新規ブリッジ)
+### 4. `tools/Primitive.Cli`(新規ブリッジ)
 
 `CSharpGameEngine.Import.Gltf.Cli`(ADR-0019)と同型のnet10.0コンソールアプリ。引数
 `<PrimitiveName> <output.glb>`で、`CSharpGameEngine.Geometry`が生成した頂点データを
@@ -172,10 +172,10 @@ EnvDTEのリンクフレームはIDE全体を表す場合があるため、そ�
 
 ## 検証結果(実際に実行して確認)
 
-- `dotnet build tools/CSharpGameEngine.VSExtension/...csproj`: 警告・エラーなし(VSCT コンパイル
+- `dotnet build tools/VSExtension/...csproj`: 警告・エラーなし(VSCT コンパイル
   含む、`TreatWarningsAsErrors=true`下、VS threading analyzerのVSTHRD010指摘は
   `ThreadHelper.ThrowIfNotOnUIThread()`追加で解消)。
-- `dotnet build tools/CSharpGameEngine.Primitive.Cli/...csproj` および 8種全てのプリミティブを
+- `dotnet build tools/Primitive.Cli/...csproj` および 8種全てのプリミティブを
   `dotnet run`で実際に生成、終了コード0を確認。生成した`.glb`を`CSharpGameEngine.Import.Gltf.Cli`
   で読み直せることも確認(ブリッジ間往復)。
 - `dotnet test tests/CSharpGameEngine.Geometry.Tests/...csproj`: 30件全て成功(初回実行)。

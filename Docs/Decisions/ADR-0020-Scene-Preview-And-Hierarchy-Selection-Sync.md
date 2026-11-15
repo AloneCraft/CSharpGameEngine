@@ -55,7 +55,7 @@ transform:{position,rotation,scale},meshAssetPath,components}`)と完全一致�
 ### 2. net472のVSExtensionは`CSharpGameEngine.Scene`を参照せず、独立した薄いパーサーを持つ
 [[project-ecs-net472-boundary]]で確認済みの通り、net10.0専用プロジェクトはnet472の
 `CSharpGameEngine.VSExtension`から`ProjectReference`できない(TFM非互換で参照自体が失敗する、
-`CSharpGameEngine.Ecs`固有の問題ではなく一般的な制約)。そのため`tools/CSharpGameEngine.VSExtension/
+`CSharpGameEngine.Ecs`固有の問題ではなく一般的な制約)。そのため`tools/VSExtension/
 SceneFile.cs`に、同じ`*.scene.json`スキーマを読む**独立した**`SceneFileNode`/`SceneFile`/
 `SceneFileNodeTreeItem`を実装した(`Id`/`ParentId`は`StableId`ではなく素の`Guid`)。既存の
 `SceneDocument.cs`(M0004用DTO)と同じ「VSIX側は薄い専用DTOを持つ」慣習に合わせている。

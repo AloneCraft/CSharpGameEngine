@@ -10,7 +10,7 @@ WindowがRoslynで同じコードを解析・編集する(Phase B以降)、と�
 
 ## 実装したこと
 
-### 新ランタイム型 `src/CSharpGameEngine.Entities/`
+### 新ランタイム型 `src/Entities/`
 - `SceneDefinitionAttribute`(`[AttributeUsage(AttributeTargets.Class)]`のみ)。
 - `SceneNodeId`(`readonly record struct(ulong Value)`)、`SceneNodeSymbol`
   (`readonly record struct(SceneNodeId Id, string Name)`)。
@@ -25,7 +25,7 @@ WindowがRoslynで同じコードを解析・編集する(Phase B以降)、と�
   追加。
 - `tests/CSharpGameEngine.Entities.Tests/SceneAuthoringSpec.cs`: 9件。
 
-### `SceneDefinitionGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `SceneDefinitionGenerator`(`src/CodeAnalysis/`)
 - `SceneDefinitionDiagnostics`: `SCENE001`〜`009`(見本のSCENE001〜006・008・009を踏襲、
   見本のSCENE007「循環検出」はSCENE005が構造的に包含するため不採用、見本のSCENE010「削除時の
   被参照チェック」はPhase B以降の対象のため不採用、Phase A固有の`SCENE009`(8型引数上限超過)を
@@ -82,12 +82,12 @@ Rootが`SceneNodeTag`のみで`Parent`を持たないこと、MainCamera/Player�
 ## 実行したコマンドと結果
 
 ```
-dotnet build src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj -c Debug
+dotnet build src/Entities/Entities.csproj -c Debug
   → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Entities.Tests/...csproj -c Debug
   → 成功、61件(SceneAuthoringSpec.cs 9件新規)
 
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0(SceneDefinitionDiagnostics追加直後はAnalyzerReleases.Unshipped.md未更新で
     RS2000が9件発生、追記して解消)
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj -c Debug
@@ -146,7 +146,7 @@ ADR-0030に記録済み。
 - `SceneNodeId`はRenameのたびに再計算され、Rename前後で値が変わる。ノードIDをまたいで安定させる
   必要のある消費者(セーブデータでのノード参照等)が生まれた時点で、IDE管理のhidden annotationや
   `.scene.meta`方式を別途検討する。
-- JSON版Scene実装(`src/CSharpGameEngine.Scene`、`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)
+- JSON版Scene実装(`src/CSharpGameEngine.Scene`、`tools/VSExtension/SceneFile.cs`)
   は今回変更しておらず、既存の乖離(`SceneFile.cs`に`Components`フィールドが無い等)もそのまま残る。
 - `World.CreateArchetype`の型引数8個という上限(M0009から引き継いだ既知の制約)は、Scene
   Authoring側では`SCENE009`で静的に検出するのみで、`EntityCommandBuffer`経由の回避策は

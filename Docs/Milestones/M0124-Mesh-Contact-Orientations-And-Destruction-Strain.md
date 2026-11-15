@@ -57,7 +57,7 @@ Vehicle のレベルに縁石の衝突を足した修正前のコードでは、
 
 ## 実装の場所
 - L5 `Runtime.Physics`: `PhysicsNarrowPhase.cs`(`TryCreateContacts`、`TryPolytopeMeshContacts`、`TryCompoundContacts`、`SpreadPoints`)、`DeterministicPhysicsWorld.cs`(パッチ、点の法線、`BondStrains`・`ReportBondStrain`)、`FractureSolver.cs`(`StrainRetention`・`RetentionFor`・`InternalStrainOf`・`Replay`・段の強さ)、`PhysicsCooking.cs`(`SubClusters`・`ClusterLevelCount`・`ClusterOf(破片, 段)`・`SharedClusterLevels`)、`PrefractureCooking.cs`(`ClusterLevels`、版 3)、`PhysicsCache.cs`(スキーマ 4、`PhysicsBondStrain`)、`PhysicsWorldIntegration.cs`。
-- L5 プラグイン `plugins/CSharpGameEngine.Destruction`: `Destructible.ClusterLevels`・`StrainDecay`、`Destruction`(衝撃の区別、記録と再生)、Cook の `ClusterLevels`(DST003 の範囲)。`Destruction.cgeplugin` の要求 ≥0.1.26。
+- L5 プラグイン `plugins/Destruction`: `Destructible.ClusterLevels`・`StrainDecay`、`Destruction`(衝撃の区別、記録と再生)、Cook の `ClusterLevels`(DST003 の範囲)。`Destruction.cgeplugin` の要求 ≥0.1.26。
 - L7 `Physics.Cli`(`preview-prefracture`)、L8 VSIX(`PrefractureDebugService`・`PhysicsDebugOverlay`)。
 - L9: Vehicle テンプレートのレベル(縁石の衝突)、見本(壁を 2 段、毎フレームの行に `strained`・`levels`)、`verify-destruction` の判定に段の数と内部ひずみ。
 - SDK のパッケージの内容が変わるので版を上げる(作業中は 0.1.26 にしたが、並行する作業のコミットで HEAD が 0.1.37 になったので、コミットの時に次の版へ)。`Destruction.cgeplugin` の要求は ≥0.1.26。

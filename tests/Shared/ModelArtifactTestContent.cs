@@ -23,7 +23,7 @@ internal sealed class ModelArtifactTestContent:IDisposable {
 #else
         const string Configuration="Release";
 #endif
-        var Cook=Path.Combine(Repository.FullName,"tools","CSharpGameEngine.Cook.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Cook.Cli.dll");
+        var Cook=Path.Combine(Repository.FullName,"tools","Cook.Cli","bin",Configuration,"net10.0","Cook.Cli.dll");
         try {
             var Result=Task.Run(()=>new ModelProjectCompiler(Project,Cook,[(typeof(GltfImporter).Assembly.Location,true)],this.Root).CompileAsync(Selected)).GetAwaiter().GetResult();
             if(!Result.Succeeded){ throw new InvalidDataException(string.Join("\n",Result.Diagnostics.Select(static Diagnostic=>Diagnostic.ToString()))); }

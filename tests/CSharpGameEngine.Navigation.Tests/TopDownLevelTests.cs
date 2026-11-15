@@ -7,7 +7,7 @@ namespace CSharpGameEngine.Navigation.Tests;
 /// 歩ける領域と経路が、レベルの形に合っていることを固定する。
 /// </summary>
 public sealed class TopDownLevelTests:IDisposable {
-    private static readonly string Template=Path.Combine(TestProject.RepositoryRoot,"Templates","CSharpGameEngine.Templates.TopDown");
+    private static readonly string Template=Path.Combine(TestProject.RepositoryRoot,"Templates","TopDown");
     private readonly string Output=Path.Combine(Path.GetTempPath(),"cge-nav-topdown-"+Guid.NewGuid().ToString("N"));
     private readonly ModelArtifactTestContent Models=new(Directory.EnumerateFiles(Path.Combine(Template,"Assets","Stage"),"*.glb",SearchOption.AllDirectories),Template);
     public void Dispose(){

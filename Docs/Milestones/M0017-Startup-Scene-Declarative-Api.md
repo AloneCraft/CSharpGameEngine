@@ -13,11 +13,11 @@ Component初期値の宣言だけへ置き換える追加機能。設計判断�
 
 ## 実装したこと
 
-### ランタイム `src/CSharpGameEngine.Entities/`
+### ランタイム `src/Entities/`
 - `StartupSceneAttribute.cs`(新規): `[AttributeUsage(AttributeTargets.Class)]`、`Order`は`init`プロパティ。
 - `SceneEntityAttribute.cs`(新規): `[AttributeUsage(AttributeTargets.Property)]`のマーカー。
 
-### `GameSystemGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `GameSystemGenerator`(`src/CodeAnalysis/`)
 - `StartupSceneModel.cs`(新規): `StartupSceneComponentModel`/`StartupSceneEntityModel`/`StartupSceneClassResult`。
 - `StartupSceneAnalyzer.cs`(新規): `[StartupScene]`クラスと`[SceneEntity]`プロパティを構造的に解析する
   (staticクラス/partial/非ジェネリック、プロパティのstatic/getter/非indexer/非ref返し、戻り値が
@@ -77,10 +77,10 @@ Component初期値の宣言だけへ置き換える追加機能。設計判断�
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet build src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj -c Debug
+dotnet build src/Entities/Entities.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/... -c Debug

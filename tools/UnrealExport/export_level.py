@@ -2,7 +2,7 @@
 
 Generalizes export_lvl_thirdperson.py for levels that have no PostProcessVolume. Run through run_export_level.cmd, which opens
 G:\\UE\\5.8\\<Template> (made by create_template_project.ps1). The source level is never saved. Outputs:
-- Templates/CSharpGameEngine.Templates.<Template>/Assets/Stage/<Level>/Meshes/*.glb
+- Templates/<Template>/Assets/Stage/<Level>/Meshes/*.glb
 - .artifacts/UnrealExport/<Level>/manifest.json (version 4: level, environment, lighting; no character)
 The character of a template is authored by hand from the Blueprint dump (dump_blueprint.py).
 """
@@ -43,7 +43,7 @@ TEMPLATE = os.environ["CSGE_LEVEL_TEMPLATE"]
 CONFIG = TEMPLATES[TEMPLATE]
 LEVEL_ASSET_PATH = CONFIG["level"]
 LEVEL_NAME = CONFIG["levelName"]
-TEMPLATE_DIR = f"{REPO_ROOT}/Templates/CSharpGameEngine.Templates.{TEMPLATE}"
+TEMPLATE_DIR = f"{REPO_ROOT}/Templates/{TEMPLATE}"
 STAGE_ASSET_PREFIX = f"Assets/Stage/{LEVEL_NAME}/Meshes"
 MESH_OUTPUT_DIR = f"{TEMPLATE_DIR}/{STAGE_ASSET_PREFIX}"
 STAGING_DIR = f"{REPO_ROOT}/.artifacts/UnrealExport/{LEVEL_NAME}"

@@ -4,7 +4,7 @@
   "ClipCount": 60,
   "Records": [
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
       "SourceHash": "564cdd301d0c1869d5084217b4e9414c63bece22ee8be8a694376e74b529514e",
       "Meshes": [],
       "Materials": [],
@@ -24,7 +24,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
       "SourceHash": "edc61cbc31aa5bf303ca744751fbdfe74fdf49acab3803a96b0a4a69927eca9f",
       "Meshes": [],
       "Materials": [],
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
       "SourceHash": "23d87910a6a56a67045e576ad04af8373acdbc6a564cf8e7556ea5245115f510",
       "Meshes": [],
       "Materials": [],
@@ -64,7 +64,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
       "SourceHash": "bce2346ae3f8cb6d2986bbf02aae549d8c66ed21affb765ceeb32c9829042a9d",
       "Meshes": [],
       "Materials": [],
@@ -84,7 +84,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
       "SourceHash": "5e8e5cc397e3e1edbce0c95fa256ed767bbd1fb3537357b7a83b9a30f109746b",
       "Meshes": [],
       "Materials": [],
@@ -104,7 +104,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
       "SourceHash": "7f55f588733da63c530f17caa1bd7bdc823e57c99582b3df40d2ab48ef49cebc",
       "Meshes": [],
       "Materials": [],
@@ -124,7 +124,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
       "SourceHash": "641b413c813c9f0ff4de94efb5bc057cf9b402f923a153fc3dd42ef0ea9dccab",
       "Meshes": [],
       "Materials": [],
@@ -144,7 +144,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
       "SourceHash": "05503f979bf60014dd0e477613cf9a555558899ad065d4103b49b0db11a52f96",
       "Meshes": [],
       "Materials": [],
@@ -164,7 +164,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
       "SourceHash": "a3740414ed1bba770315b2374868cdacce4b885394883317f175207b9b1a43f5",
       "Meshes": [],
       "Materials": [],
@@ -184,7 +184,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
       "SourceHash": "14f9ba178e336caeb3c2730b9607e81de4194f5243fb36edb4d63903c17bf3c0",
       "Meshes": [],
       "Materials": [],
@@ -204,7 +204,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
       "SourceHash": "1cf372eb46b315d7edb11c57d885d9fd6685b026203043d46aa75a7ed694e042",
       "Meshes": [],
       "Materials": [],
@@ -224,7 +224,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
       "SourceHash": "ac77617ed88af3110501867423bc9d5941fae14c9a8c092bc6661352e2f40e86",
       "Meshes": [],
       "Materials": [],
@@ -244,7 +244,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
       "SourceHash": "4fa57831fbe69111526db900766f804d12e6163c938f9af4617826b336acc692",
       "Meshes": [],
       "Materials": [],
@@ -264,7 +264,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
       "SourceHash": "35660d4bbc29ea706aa93308f270e3581918c509e11e4dd2358e6920de5e6f34",
       "Meshes": [],
       "Materials": [],
@@ -284,7 +284,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
       "SourceHash": "e48b34846b222889bbdd035a3ce435167af69f03f5a8467580f15a68d738abf9",
       "Meshes": [],
       "Materials": [],
@@ -304,7 +304,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
       "SourceHash": "e164cead5fc8606b91a464118075b294edf6f48b42942369fa74169adfeb289b",
       "Meshes": [],
       "Materials": [],
@@ -324,7 +324,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
       "SourceHash": "ec60d8923dbcbea52a80fe7456522afa39d911b887154f615e3daa883f8420c9",
       "Meshes": [],
       "Materials": [],
@@ -344,7 +344,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MM_Idle.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MM_Idle.glb",
       "SourceHash": "f8cb3d77b587bb7278d54b8b30e3c26483e09808fd2ffee69dc034d2af43c6c3",
       "Meshes": [],
       "Materials": [],
@@ -364,7 +364,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MM_Jump.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MM_Jump.glb",
       "SourceHash": "a61fe3036732326f6f9114873bcac2d5230e2e3cb9953a823835ded122eb0632",
       "Meshes": [],
       "Materials": [],
@@ -384,7 +384,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MM_Land.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/Anims/MM_Land.glb",
       "SourceHash": "467e3bb20d7b65425c73ffe5dbc2d356c55551d81ff9c3ca481987045c90439e",
       "Meshes": [],
       "Materials": [],
@@ -404,7 +404,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",
+      "Path": "templates/FirstPerson/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",
       "SourceHash": "738bcb7b740df0b51697cba6f00322de2bc2b92c40e89bcfba048217ce089407",
       "Meshes": [
         {
@@ -594,7 +594,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_913717f394.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_913717f394.glb",
       "SourceHash": "07ae9d6b83a6955a47fd3161d34dcb38b1bf75f075e101fd6b701ecbac314312",
       "Meshes": [
         {
@@ -692,7 +692,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cube_bfe650e90f.glb",
       "SourceHash": "727c615c9a87cacc9d8f92d81ff06373f279141c9b7ed6c697ba6ab30349092a",
       "Meshes": [
         {
@@ -804,7 +804,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cylinder_e89d7d5009.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Cylinder_e89d7d5009.glb",
       "SourceHash": "f796aee96efed3647c1f53b330335c1a30bb94d68db5025ccbfe101978dd3169",
       "Meshes": [
         {
@@ -902,7 +902,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
       "SourceHash": "83fa132bc44b08a269b33c32ae5e6e9fcc3bdf300369fd602c00c827e0cf2889",
       "Meshes": [
         {
@@ -1014,7 +1014,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_8c7c560cd3.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_QuarterCylinder_8c7c560cd3.glb",
       "SourceHash": "7a14d4d1dabcd5f7594c16ab57ab5107c468e439e582df3ca3ffca5d3e772e63",
       "Meshes": [
         {
@@ -1112,7 +1112,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
       "SourceHash": "f034d08b80356eb1461ecadc2d8b375b6b3f818f71dfea4cb0b112ff1d2a4e22",
       "Meshes": [
         {
@@ -1224,7 +1224,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_8bc3259d14.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Ramp_8bc3259d14.glb",
       "SourceHash": "669df4da67ae849c5569f5d998873d1edd55cc7b572e3917b18ce4d405c6ea1b",
       "Meshes": [
         {
@@ -1322,7 +1322,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
+      "Path": "templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
       "SourceHash": "691b3e2445d804c7f82aa2f4aad0f508a2cdc9481af276f61c829dc69750aba9",
       "Meshes": [
         {
@@ -1434,7 +1434,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
       "SourceHash": "564cdd301d0c1869d5084217b4e9414c63bece22ee8be8a694376e74b529514e",
       "Meshes": [],
       "Materials": [],
@@ -1454,7 +1454,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
       "SourceHash": "edc61cbc31aa5bf303ca744751fbdfe74fdf49acab3803a96b0a4a69927eca9f",
       "Meshes": [],
       "Materials": [],
@@ -1474,7 +1474,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
       "SourceHash": "23d87910a6a56a67045e576ad04af8373acdbc6a564cf8e7556ea5245115f510",
       "Meshes": [],
       "Materials": [],
@@ -1494,7 +1494,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
       "SourceHash": "bce2346ae3f8cb6d2986bbf02aae549d8c66ed21affb765ceeb32c9829042a9d",
       "Meshes": [],
       "Materials": [],
@@ -1514,7 +1514,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
       "SourceHash": "5e8e5cc397e3e1edbce0c95fa256ed767bbd1fb3537357b7a83b9a30f109746b",
       "Meshes": [],
       "Materials": [],
@@ -1534,7 +1534,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
       "SourceHash": "7f55f588733da63c530f17caa1bd7bdc823e57c99582b3df40d2ab48ef49cebc",
       "Meshes": [],
       "Materials": [],
@@ -1554,7 +1554,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
       "SourceHash": "641b413c813c9f0ff4de94efb5bc057cf9b402f923a153fc3dd42ef0ea9dccab",
       "Meshes": [],
       "Materials": [],
@@ -1574,7 +1574,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
       "SourceHash": "05503f979bf60014dd0e477613cf9a555558899ad065d4103b49b0db11a52f96",
       "Meshes": [],
       "Materials": [],
@@ -1594,7 +1594,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
       "SourceHash": "a3740414ed1bba770315b2374868cdacce4b885394883317f175207b9b1a43f5",
       "Meshes": [],
       "Materials": [],
@@ -1614,7 +1614,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
       "SourceHash": "14f9ba178e336caeb3c2730b9607e81de4194f5243fb36edb4d63903c17bf3c0",
       "Meshes": [],
       "Materials": [],
@@ -1634,7 +1634,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
       "SourceHash": "1cf372eb46b315d7edb11c57d885d9fd6685b026203043d46aa75a7ed694e042",
       "Meshes": [],
       "Materials": [],
@@ -1654,7 +1654,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
       "SourceHash": "ac77617ed88af3110501867423bc9d5941fae14c9a8c092bc6661352e2f40e86",
       "Meshes": [],
       "Materials": [],
@@ -1674,7 +1674,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
       "SourceHash": "4fa57831fbe69111526db900766f804d12e6163c938f9af4617826b336acc692",
       "Meshes": [],
       "Materials": [],
@@ -1694,7 +1694,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
       "SourceHash": "35660d4bbc29ea706aa93308f270e3581918c509e11e4dd2358e6920de5e6f34",
       "Meshes": [],
       "Materials": [],
@@ -1714,7 +1714,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
       "SourceHash": "e48b34846b222889bbdd035a3ce435167af69f03f5a8467580f15a68d738abf9",
       "Meshes": [],
       "Materials": [],
@@ -1734,7 +1734,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
       "SourceHash": "e164cead5fc8606b91a464118075b294edf6f48b42942369fa74169adfeb289b",
       "Meshes": [],
       "Materials": [],
@@ -1754,7 +1754,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
       "SourceHash": "ec60d8923dbcbea52a80fe7456522afa39d911b887154f615e3daa883f8420c9",
       "Meshes": [],
       "Materials": [],
@@ -1774,7 +1774,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Idle.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Idle.glb",
       "SourceHash": "f8cb3d77b587bb7278d54b8b30e3c26483e09808fd2ffee69dc034d2af43c6c3",
       "Meshes": [],
       "Materials": [],
@@ -1794,7 +1794,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Jump.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Jump.glb",
       "SourceHash": "a61fe3036732326f6f9114873bcac2d5230e2e3cb9953a823835ded122eb0632",
       "Meshes": [],
       "Materials": [],
@@ -1814,7 +1814,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Land.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/Anims/MM_Land.glb",
       "SourceHash": "467e3bb20d7b65425c73ffe5dbc2d356c55551d81ff9c3ca481987045c90439e",
       "Meshes": [],
       "Materials": [],
@@ -1834,7 +1834,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Characters/Mannequins/SKM_Quinn_Simple.glb",
+      "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/SKM_Quinn_Simple.glb",
       "SourceHash": "e7c2e77a09d5ec2c234267afb874574e4f7ab3b1e3f8867b0d3994da38d94558",
       "Meshes": [
         {
@@ -2024,7 +2024,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_ChamferCube_109c33a6a4.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_ChamferCube_109c33a6a4.glb",
       "SourceHash": "d73376a05df0fea775e3a9e7662e70a386a1db4ae22e53b178b8232a5fa41beb",
       "Meshes": [
         {
@@ -2122,7 +2122,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Cube_aa1b9ba22d.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Cube_aa1b9ba22d.glb",
       "SourceHash": "917b518323bc7857a735b8aa1852b962f7768d0f3c585272b02ca162cf4eb400",
       "Meshes": [
         {
@@ -2334,7 +2334,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Cube_bfe650e90f.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Cube_bfe650e90f.glb",
       "SourceHash": "859a2dd8596572b50e823acc7ab39c8cd0d1a24db4123264f544f9b139d28f17",
       "Meshes": [
         {
@@ -2446,7 +2446,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_QuarterCylinder_431a6eca8d.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_QuarterCylinder_431a6eca8d.glb",
       "SourceHash": "b9fac4ae01474c51d05ad54d47729d873add491cf9e847593fd17882eb2d9d18",
       "Meshes": [
         {
@@ -2658,7 +2658,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Ramp_87f3deca16.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Ramp_87f3deca16.glb",
       "SourceHash": "614a9baff8c7dbf50a0d6dde2c1a9e55ed58aa81fadf39b3ca23df8a2e197bf3",
       "Meshes": [
         {
@@ -2870,7 +2870,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/ThirdPersonWallText.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/ThirdPersonWallText.glb",
       "SourceHash": "c46b8fc5c90ec52bf594136058c1556e03b9a73957dbbaddcf708a10a28ae66a",
       "Meshes": [
         {
@@ -2968,7 +2968,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Cube_913717f394.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Cube_913717f394.glb",
       "SourceHash": "07ae9d6b83a6955a47fd3161d34dcb38b1bf75f075e101fd6b701ecbac314312",
       "Meshes": [
         {
@@ -3066,7 +3066,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Cube_bfe650e90f.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Cube_bfe650e90f.glb",
       "SourceHash": "727c615c9a87cacc9d8f92d81ff06373f279141c9b7ed6c697ba6ab30349092a",
       "Meshes": [
         {
@@ -3178,7 +3178,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Cylinder_e89d7d5009.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Cylinder_e89d7d5009.glb",
       "SourceHash": "f796aee96efed3647c1f53b330335c1a30bb94d68db5025ccbfe101978dd3169",
       "Meshes": [
         {
@@ -3276,7 +3276,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_QuarterCylinder_75b03732c6.glb",
       "SourceHash": "83fa132bc44b08a269b33c32ae5e6e9fcc3bdf300369fd602c00c827e0cf2889",
       "Meshes": [
         {
@@ -3388,7 +3388,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_QuarterCylinder_8c7c560cd3.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_QuarterCylinder_8c7c560cd3.glb",
       "SourceHash": "7a14d4d1dabcd5f7594c16ab57ab5107c468e439e582df3ca3ffca5d3e772e63",
       "Meshes": [
         {
@@ -3486,7 +3486,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Ramp_3808c5dfe2.glb",
       "SourceHash": "f034d08b80356eb1461ecadc2d8b375b6b3f818f71dfea4cb0b112ff1d2a4e22",
       "Meshes": [
         {
@@ -3598,7 +3598,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Ramp_8bc3259d14.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Ramp_8bc3259d14.glb",
       "SourceHash": "669df4da67ae849c5569f5d998873d1edd55cc7b572e3917b18ce4d405c6ea1b",
       "Meshes": [
         {
@@ -3696,7 +3696,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
+      "Path": "templates/ThirdPerson/Assets/Stage/Lvl_ThirdPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
       "SourceHash": "691b3e2445d804c7f82aa2f4aad0f508a2cdc9481af276f61c829dc69750aba9",
       "Meshes": [
         {
@@ -3808,7 +3808,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd.glb",
       "SourceHash": "564cdd301d0c1869d5084217b4e9414c63bece22ee8be8a694376e74b529514e",
       "Meshes": [],
       "Materials": [],
@@ -3828,7 +3828,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Left.glb",
       "SourceHash": "edc61cbc31aa5bf303ca744751fbdfe74fdf49acab3803a96b0a4a69927eca9f",
       "Meshes": [],
       "Materials": [],
@@ -3848,7 +3848,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Bwd_Right.glb",
       "SourceHash": "23d87910a6a56a67045e576ad04af8373acdbc6a564cf8e7556ea5245115f510",
       "Meshes": [],
       "Materials": [],
@@ -3868,7 +3868,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
       "SourceHash": "bce2346ae3f8cb6d2986bbf02aae549d8c66ed21affb765ceeb32c9829042a9d",
       "Meshes": [],
       "Materials": [],
@@ -3888,7 +3888,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Left.glb",
       "SourceHash": "5e8e5cc397e3e1edbce0c95fa256ed767bbd1fb3537357b7a83b9a30f109746b",
       "Meshes": [],
       "Materials": [],
@@ -3908,7 +3908,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd_Right.glb",
       "SourceHash": "7f55f588733da63c530f17caa1bd7bdc823e57c99582b3df40d2ab48ef49cebc",
       "Meshes": [],
       "Materials": [],
@@ -3928,7 +3928,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Left.glb",
       "SourceHash": "641b413c813c9f0ff4de94efb5bc057cf9b402f923a153fc3dd42ef0ea9dccab",
       "Meshes": [],
       "Materials": [],
@@ -3948,7 +3948,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Right.glb",
       "SourceHash": "05503f979bf60014dd0e477613cf9a555558899ad065d4103b49b0db11a52f96",
       "Meshes": [],
       "Materials": [],
@@ -3968,7 +3968,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd.glb",
       "SourceHash": "a3740414ed1bba770315b2374868cdacce4b885394883317f175207b9b1a43f5",
       "Meshes": [],
       "Materials": [],
@@ -3988,7 +3988,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Left.glb",
       "SourceHash": "14f9ba178e336caeb3c2730b9607e81de4194f5243fb36edb4d63903c17bf3c0",
       "Meshes": [],
       "Materials": [],
@@ -4008,7 +4008,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Bwd_Right.glb",
       "SourceHash": "1cf372eb46b315d7edb11c57d885d9fd6685b026203043d46aa75a7ed694e042",
       "Meshes": [],
       "Materials": [],
@@ -4028,7 +4028,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
       "SourceHash": "ac77617ed88af3110501867423bc9d5941fae14c9a8c092bc6661352e2f40e86",
       "Meshes": [],
       "Materials": [],
@@ -4048,7 +4048,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Left.glb",
       "SourceHash": "4fa57831fbe69111526db900766f804d12e6163c938f9af4617826b336acc692",
       "Meshes": [],
       "Materials": [],
@@ -4068,7 +4068,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd_Right.glb",
       "SourceHash": "35660d4bbc29ea706aa93308f270e3581918c509e11e4dd2358e6920de5e6f34",
       "Meshes": [],
       "Materials": [],
@@ -4088,7 +4088,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Left.glb",
       "SourceHash": "e48b34846b222889bbdd035a3ce435167af69f03f5a8467580f15a68d738abf9",
       "Meshes": [],
       "Materials": [],
@@ -4108,7 +4108,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Right.glb",
       "SourceHash": "e164cead5fc8606b91a464118075b294edf6f48b42942369fa74169adfeb289b",
       "Meshes": [],
       "Materials": [],
@@ -4128,7 +4128,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
       "SourceHash": "ec60d8923dbcbea52a80fe7456522afa39d911b887154f615e3daa883f8420c9",
       "Meshes": [],
       "Materials": [],
@@ -4148,7 +4148,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MM_Idle.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MM_Idle.glb",
       "SourceHash": "f8cb3d77b587bb7278d54b8b30e3c26483e09808fd2ffee69dc034d2af43c6c3",
       "Meshes": [],
       "Materials": [],
@@ -4168,7 +4168,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MM_Jump.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MM_Jump.glb",
       "SourceHash": "a61fe3036732326f6f9114873bcac2d5230e2e3cb9953a823835ded122eb0632",
       "Meshes": [],
       "Materials": [],
@@ -4188,7 +4188,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/Anims/MM_Land.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/Anims/MM_Land.glb",
       "SourceHash": "467e3bb20d7b65425c73ffe5dbc2d356c55551d81ff9c3ca481987045c90439e",
       "Meshes": [],
       "Materials": [],
@@ -4208,7 +4208,7 @@
       ]
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",
+      "Path": "templates/TopDown/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",
       "SourceHash": "738bcb7b740df0b51697cba6f00322de2bc2b92c40e89bcfba048217ce089407",
       "Meshes": [
         {
@@ -4398,7 +4398,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Cursor/SM_CursorMesh.glb",
+      "Path": "templates/TopDown/Assets/Cursor/SM_CursorMesh.glb",
       "SourceHash": "5970ada06e940b5d7505f48ad61e882bc0541b673833c731a199df5cca8e2647",
       "Meshes": [
         {
@@ -4496,7 +4496,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_bfe650e90f.glb",
       "SourceHash": "727c615c9a87cacc9d8f92d81ff06373f279141c9b7ed6c697ba6ab30349092a",
       "Meshes": [
         {
@@ -4608,7 +4608,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Cube_e2d6194c2b.glb",
       "SourceHash": "16a7ab61754d5393e764a776c02db1f7868ccdaf4bff6ea98914b5e133f8592c",
       "Meshes": [
         {
@@ -4706,7 +4706,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Cylinder_e5baa95a87.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Cylinder_e5baa95a87.glb",
       "SourceHash": "28f538142f82040c6d031a1a04ec695045463dd5d9ef73b842c766225f6a77dc",
       "Meshes": [
         {
@@ -4804,7 +4804,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_75b03732c6.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_75b03732c6.glb",
       "SourceHash": "83fa132bc44b08a269b33c32ae5e6e9fcc3bdf300369fd602c00c827e0cf2889",
       "Meshes": [
         {
@@ -4916,7 +4916,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_QuarterCylinder_e681ec19ef.glb",
       "SourceHash": "3393c6c67819e8682334da4bef20c5b93614ea941e92f87d0f8fe1ad9a6222ea",
       "Meshes": [
         {
@@ -5014,7 +5014,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_1030b15fa5.glb",
       "SourceHash": "ca6d23490b317d2eb39a6be983244c36e4cc8d92fe9f20eb9525569d23303431",
       "Meshes": [
         {
@@ -5112,7 +5112,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_3808c5dfe2.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Ramp_3808c5dfe2.glb",
       "SourceHash": "f034d08b80356eb1461ecadc2d8b375b6b3f818f71dfea4cb0b112ff1d2a4e22",
       "Meshes": [
         {
@@ -5224,7 +5224,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
+      "Path": "templates/TopDown/Assets/Stage/Lvl_TopDown/Meshes/SM_Template_Map_Floor_78eccfff4a.glb",
       "SourceHash": "691b3e2445d804c7f82aa2f4aad0f508a2cdc9481af276f61c829dc69750aba9",
       "Meshes": [
         {
@@ -5336,7 +5336,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Cube_00292bb170.glb",
+      "Path": "templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Cube_00292bb170.glb",
       "SourceHash": "617fd4c9c859a910b6f80007d322840595648f5f6bfd724453496c4f90f74893",
       "Meshes": [
         {
@@ -5434,7 +5434,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb",
+      "Path": "templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb",
       "SourceHash": "a468fca0c59c1aeb236cdc7a661c098fc4f37f9b5c8780b58ac19274859039f7",
       "Meshes": [
         {
@@ -5532,7 +5532,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/SM_Cone_2db6080234.glb",
+      "Path": "templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/SM_Cone_2db6080234.glb",
       "SourceHash": "30dba4cd7d646f6ca650212caf0a455ed9a1b17cb0ffdf41fae81de94930da19",
       "Meshes": [
         {
@@ -5630,7 +5630,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/SM_Tunnel_1151b5a3f7.glb",
+      "Path": "templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/SM_Tunnel_1151b5a3f7.glb",
       "SourceHash": "554dd614a87130942368d6bf129a15ce3bc4f78d7381d675e4b9d1222c6b22e4",
       "Meshes": [
         {
@@ -5728,7 +5728,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Curbs.glb",
+      "Path": "templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Curbs.glb",
       "SourceHash": "b0a90618b743dcc6f7ed5964d61c154f13d65bdbd73edc237e92034187965ec8",
       "Meshes": [
         {
@@ -5826,7 +5826,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Road.glb",
+      "Path": "templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Track_Road.glb",
       "SourceHash": "375507131d938b64fabd64c24afbcf015718db0c8cb7a5480d23b36b7e3f7a3c",
       "Meshes": [
         {
@@ -5924,7 +5924,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar.glb",
+      "Path": "templates/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar.glb",
       "SourceHash": "1e6d4310f22e49d3538c3bcbbd66f383e43537e6e9f12b6d19e7fd2639b9e439",
       "Meshes": [
         {
@@ -6108,7 +6108,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar_Glass.glb",
+      "Path": "templates/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar_Glass.glb",
       "SourceHash": "7f2e5384813e281f8ac747baa0871fb2d643d58c8d15562b51e3978e0803c683",
       "Meshes": [
         {
@@ -6206,7 +6206,7 @@
       "Samples": []
     },
     {
-      "Path": "templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb",
+      "Path": "templates/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb",
       "SourceHash": "5ab6f2128ed29c8bb1d244fe4711bcae2ef0cb14098eadc41b98290486353474",
       "Meshes": [
         {

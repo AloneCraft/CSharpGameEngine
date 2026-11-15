@@ -37,7 +37,7 @@
 | 見送り | `Start` メソッド | 「到着バージョン」の保持場所とスナップショットの扱いが未決。入力の据え付けは M4 が吸収する |
 
 ### 3. 置き場所
-- 新しいテンプレートと既定のサンプルは `Templates/ThirdPerson`、`FirstPerson`、`TopDown`、`Vehicle`（UE のテンプレート名と同じ）に置く。現行の `Templates/CSharpGameEngine.Templates.ThirdPerson` は、移行が終わるまで出荷物として残し、その後に置き換える。
+- 新しいテンプレートと既定のサンプルは `Templates/ThirdPerson`、`FirstPerson`、`TopDown`、`Vehicle`（UE のテンプレート名と同じ）に置く。現行の `Templates/ThirdPerson` は、移行が終わるまで出荷物として残し、その後に置き換える。
 - 理想コードに `.csproj` は置かない。ビルドできるようにするのは、対応する段階の実装が入ってから。
 
 ## 採らなかった案

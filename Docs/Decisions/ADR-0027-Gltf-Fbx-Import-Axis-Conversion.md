@@ -59,7 +59,7 @@ Golden Value/RoundTrip/Handednessテストを追加)に従う。
 (後述)のために同じ変換ロジックを必要としたため`public`にした。
 
 古い`GltfImporter.Import(string)`(単一プリミティブのプレビュー専用API、VSIXのアセットプレビュー
-ブリッジ`tools/CSharpGameEngine.Import.Gltf.Cli`が使う)は対象外とした — 自身のXMLコメントが
+ブリッジ`tools/Import.Gltf.Cli`が使う)は対象外とした — 自身のXMLコメントが
 「minimal vertical slice」と明記する通りプレビュー専用であり、実機確認済みのゲームプレイ
 コンテンツ(UE FirstPersonステージ)には使われない。
 

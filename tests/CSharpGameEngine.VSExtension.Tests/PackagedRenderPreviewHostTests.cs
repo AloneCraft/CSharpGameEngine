@@ -16,7 +16,7 @@ public sealed class PackagedRenderPreviewHostTests {
     [InlineData("Lumen")]
     public void VsixPayload_CarriesEveryComputeShaderArtifactTheHostLoads(string Name){
         string VsixPath=Path.Combine(
-            AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+            AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         using ZipArchive Archive=ZipFile.OpenRead(VsixPath);
 
         Assert.Contains(Archive.Entries,Entry=>
@@ -28,11 +28,11 @@ public sealed class PackagedRenderPreviewHostTests {
         string Root=Path.Combine(
             Path.GetTempPath(),$"CgePackagedPreview-{Guid.NewGuid():N}");
         string VsixPath=Path.Combine(
-            AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+            AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         Directory.CreateDirectory(Root);
         ZipFile.ExtractToDirectory(VsixPath,Root);
         string HostPath=Path.Combine(
-            Root,"PreviewHost","CSharpGameEngine.EditorPreview.Host.exe");
+            Root,"PreviewHost","EditorPreview.Host.exe");
         string ShaderPath=Path.Combine(
             Root,"PreviewHost","Shaders","Stage.cgeshaderartifact");
         Assert.True(File.Exists(HostPath),HostPath);

@@ -23,7 +23,7 @@ ADR-0078 の「TopDown のナビメッシュの経路」(`SimpleMoveToLocation`)
 
 ## 決定
 ### 1. 形(ADR-0079 のプラグインと Cook)
-- `plugins/CSharpGameEngine.Navigation`: `Navigation.cgeplugin`、`.plugin.props`、`.plugin.items`、`Runtime/`(Component・System・サービス。ゲームと一緒にコンパイル)、`Cook/`(`IAssetCooker` の DLL)。ゲームは `<CgePlugins>Navigation</CgePlugins>` で有効にする(TopDown と UserEcsProject)。
+- `plugins/Navigation`: `Navigation.cgeplugin`、`.plugin.props`、`.plugin.items`、`Runtime/`(Component・System・サービス。ゲームと一緒にコンパイル)、`Cook/`(`IAssetCooker` の DLL)。ゲームは `<CgePlugins>Navigation</CgePlugins>` で有効にする(TopDown と UserEcsProject)。
 - Runtime の `NavMesh`(形式・読み込み・経路探索)は、Cook にも同じソースをコンパイルする(書く側と読む側が同じコード)。Library の DLL にはしなかった(SDK パッケージで Library の DLL を参照する道が無いため。ソースの共有で足りる)。
 
 ### 2. 領域と値(`NavMeshBounds`)
@@ -66,21 +66,21 @@ ADR-0078 の「TopDown のナビメッシュの経路」(`SimpleMoveToLocation`)
   - 目的地がナビメッシュの外(壁の中など): 近くの多角形の点へ寄せて、そこで止まる。壁を押し続けない。
 
 ### 7. ビルドと VSIX
-- ビルド(`Navigation.plugin.items`): `Scenes/**/*.json` のうち `CSharpGameEngine.Navigation.NavMeshBounds` を含むシーンごとに、`dotnet CSharpGameEngine.Cook.Cli.dll cook <モジュール> <シーン> <obj/…/cge-navigation> --project <プロジェクト>` を動かす(ターゲット `CgeCookNavigation`。`AssignTargetPaths` の前)。出力は `Assets/Navigation/` へ複製(`None` の `CopyToOutputDirectory`)。シーン・アセット・ツールが新しいときだけ(`Inputs`/`Outputs` とスタンプ)。リポジトリのビルドは Cook CLI とモジュールを自分でビルドする。デザイン時のビルドでは動かさない。
+- ビルド(`Navigation.plugin.items`): `Scenes/**/*.json` のうち `CSharpGameEngine.Navigation.NavMeshBounds` を含むシーンごとに、`dotnet Cook.Cli.dll cook <モジュール> <シーン> <obj/…/cge-navigation> --project <プロジェクト>` を動かす(ターゲット `CgeCookNavigation`。`AssignTargetPaths` の前)。出力は `Assets/Navigation/` へ複製(`None` の `CopyToOutputDirectory`)。シーン・アセット・ツールが新しいときだけ(`Inputs`/`Outputs` とスタンプ)。リポジトリのビルドは Cook CLI とモジュールを自分でビルドする。デザイン時のビルドでは動かさない。
   - ターゲットの `Condition` は `DependsOnTargets` より先に評価されるので、見つけたシーンへの条件はタスクに付けた。
   - 失敗は、Cook の `scene.json: error NAVnnn: 内容` の行が、そのままビルドのエラーになる。
 - Cook の CLI(`CSharpGameEngine.Cook.Cli`): 失敗した処理のメッセージを 1 行ずつ出す(`CookFailedException`)。成功した処理のメッセージ(警告、統計)は標準エラーへ。
-- SDK パッケージ: Cook モジュール(と依存)を `plugins/CSharpGameEngine.Navigation/Cook/lib/` へ入れる。版を 0.1.17 に上げた(パッケージの中身を変えたため)。
+- SDK パッケージ: Cook モジュール(と依存)を `plugins/Navigation/Cook/lib/` へ入れる。版を 0.1.17 に上げた(パッケージの中身を変えたため)。
 - VSIX: Scene Designer の物理のベイクの下に「ナビメッシュ」の節(説明、ボタン、状態、診断)。選択したシーンの保存のあと、そのプロジェクトで `dotnet msbuild -t:CgeCookNavigation -getItem:CgeNavigationOutput` を動かし、出力と診断を出す(`NavigationCookService`)。エンジンのソースの場所に頼らないので、パッケージから作ったプロジェクトでも使える。VS の実機での操作は、検証していない(単体テストの範囲)。
 - 範囲外: 既存の `Physics.Cli bake` を Cook の上に載せ直すこと(ベイクの形が違う。ゲームのアセンブリを読み、世界を回す)。
 
 ## 作ったもの
 | 層 | 中身 |
 |---|---|
-| L5 プラグイン | `plugins/CSharpGameEngine.Navigation/Runtime`: `NavMesh`(形式、読み込み、検査)、`NavMesh.Query`(A*、funnel、位置の探索)、`NavigationComponents`(`NavMeshBounds`・`NavMeshBoundsRuntime`・`NavAgent`・`NavAgentState`)、`Navigator`、`NavigationSystems`(`NavigationLoad`・`NavigationSteering`)、`NavigationDefaults` |
+| L5 プラグイン | `plugins/Navigation/Runtime`: `NavMesh`(形式、読み込み、検査)、`NavMesh.Query`(A*、funnel、位置の探索)、`NavigationComponents`(`NavMeshBounds`・`NavMeshBoundsRuntime`・`NavAgent`・`NavAgentState`)、`Navigator`、`NavigationSystems`(`NavigationLoad`・`NavigationSteering`)、`NavigationDefaults` |
 | L5 コア | `MoveIntent` の `Waypoint`・`HasWaypoint`・`WaypointIsEnd` と `Steer` |
-| L7 Cook | `plugins/CSharpGameEngine.Navigation/Cook`: `NavMeshCooker`、`NavMeshBuilder`、`SceneGeometry`。`tools/CSharpGameEngine.Cook.Cli` のメッセージの出し方 |
-| L7 ビルド | `Navigation.plugin.items`(ターゲット)、`packaging/CSharpGameEngine.Sdk` |
+| L7 Cook | `plugins/Navigation/Cook`: `NavMeshCooker`、`NavMeshBuilder`、`SceneGeometry`。`tools/Cook.Cli` のメッセージの出し方 |
+| L7 ビルド | `Navigation.plugin.items`(ターゲット)、`packaging/Sdk` |
 | L8 | `NavigationCookService`、Scene Designer のボタン、`VsixStrings*.resx` |
 | L9 | TopDown の `TopDownNavigation.json`、`NavAgent`、csproj の `CgePlugins`、VS テンプレートの csproj |
 | 検証 | `ClickToMoveVerification`(2 回の実走)、`verify-template-package --template TopDown` |

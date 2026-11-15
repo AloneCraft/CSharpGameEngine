@@ -59,7 +59,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - 固定する前に全場面の画像を書き出して確かめた。テストのメッシュの接線を全頂点 (1,0,0) にしていたため ±X 面で TBN が壊れて斑点が出ていた（テスト側の誤り）ので、法線に直交する接線を作るよう直した。2 回続けて実行して一致した。
 
 ## Phase 2. CPU 側の数式
-- `src/CSharpGameEngine.Rendering/RadialDepth.cs`（float だけ。ADR-0063）:
+- `src/Rendering/RadialDepth.cs`（float だけ。ADR-0063）:
   - `RenderDepthMapping`（Standard / Radial / RadialObserver）。
   - `RadialDepthCurve`: `G(r) = log2(1 + r/T)`（Kahan の log1p で `1 + x` の丸めを補正）、観察者の `Map = T·G`。
   - `RadialDepthProjection`: 錐台の角の距離、`InverseMaximumG`、`EncodeDepth`（0.99999994 で頭打ち）、補助の near/far と投影、観察者の世界半径。
@@ -103,7 +103,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - テスト: `RadialObserverTests`（4 件）、`RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre`。画像を書き出して、1e6 m 先の半径 3e5 m の球が放射方向に強く圧縮された縦長の形で写り、小窓の中央に中央カメラの模型が出ることを目で確かめた。
 
 ## Phase 7. ステージ、実機の確認、照合
-- Visual Stage `rendering.radial-depth`（WARP 必須）: `RadialDepthTests`、`ShaderGraphCompilerTests`、Windows.Tests の対数・標準基準・観察者・エディタ・シーン・ホットリロードのテスト、Rendering パックの参照シーン。Roadmap の Rendering 表に F-L5-038（レベル 6）と F-L5-039（レベル 7）を足し、`FeatureStageCatalogTests` を更新した。`dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run rendering.radial-depth --adapter warp` が合格した（`.artifacts/FeatureStages/20261003T154551274Z-single-b6d439afb5e14c29867861b963d5fa05.run-result.json`）。
+- Visual Stage `rendering.radial-depth`（WARP 必須）: `RadialDepthTests`、`ShaderGraphCompilerTests`、Windows.Tests の対数・標準基準・観察者・エディタ・シーン・ホットリロードのテスト、Rendering パックの参照シーン。Roadmap の Rendering 表に F-L5-038（レベル 6）と F-L5-039（レベル 7）を足し、`FeatureStageCatalogTests` を更新した。`dotnet run --project tools/FeatureRunner -- run rendering.radial-depth --adapter warp` が合格した（`.artifacts/FeatureStages/20261003T154551274Z-single-b6d439afb5e14c29867861b963d5fa05.run-result.json`）。
 - 実機: ThirdPerson テンプレートのシーンを一時的に対数カメラ（near 0.01 m・far 1e12 m）と観察者に変えて WARP で 40 フレーム歩かせ、撮影した（D3D12 エラー 0）。メインビューは標準の撮影とほぼ同じ（小窓の外で平均 0.2 階調）で、小窓には圧縮したレベルと中央カメラの模型が写った（`.artifacts/M0099/phase7/radial_walked.png`、`radial_inset_zoom.png`）。撮影後にシーンを元に戻した。
 - 文書: Rendering 仕様のステージ表、Architecture、CHANGELOG（ABI の更新で古い Stage グラフの複製が読めなくなること）、Conformance、Implementation-Status（F-L5-038/039 は Implemented、TestVerified と RuntimeVerified (WARP)）。
 

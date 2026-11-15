@@ -8,11 +8,11 @@
 
 | 対象 | 場所 | 旧版の扱い |
 |---|---|---|
-| シーン JSON v1・v2 | `src/CSharpGameEngine.SceneModel/Json/SceneJsonSceneAnalyzer.cs:157`(`AngleReading(DocumentVersion>=TurnsSchemaVersion)`)、`SceneJsonAngles.cs`、`SceneJsonAngleUpgrade.cs` | 共有ソースの解析器が v1〜v3 を読む。SceneModel は生成器・VSIX・CLI の全部に入るので、ビルドとエディターも旧版を読める。`SceneJson.Cli upgrade` はこの解析器で旧版を読み、書き換え、読み直して同じ意味かを確かめる |
-| Snapshot v1 | `src/CSharpGameEngine.Entities/Snapshot.cs:69-85,250-283`、`src/CSharpGameEngine.CodeAnalysis/GameSystemSnapshotEmitter.cs:43-90` | `TryRead` が版 1 と旧スキーマ指紋を受け付け、生成コードが旧構造の記述子(`SnapshotLegacy*`、`SnapshotDefaultLegacy*`)で読む |
-| WorldCell v1 | `src/CSharpGameEngine.World/WorldCellArtifact.cs:86,177` | 版 1 の 16 バイト固定の座標を読む |
-| `.cgephyscache` スキーマ 2・3 | `src/CSharpGameEngine.Runtime.Physics/PhysicsCache.cs:39,58-62,175-209,304,362-387` | 読み手が 2〜4、書き手も 2〜4 を扱う |
-| glTF の旧メタデータ | `tools/CSharpGameEngine.ContentCompiler/ModelImportCommands.cs:72`(IMP008) | 読むときに黙って移行する。詳細は未調査 |
+| シーン JSON v1・v2 | `src/SceneModel/Json/SceneJsonSceneAnalyzer.cs:157`(`AngleReading(DocumentVersion>=TurnsSchemaVersion)`)、`SceneJsonAngles.cs`、`SceneJsonAngleUpgrade.cs` | 共有ソースの解析器が v1〜v3 を読む。SceneModel は生成器・VSIX・CLI の全部に入るので、ビルドとエディターも旧版を読める。`SceneJson.Cli upgrade` はこの解析器で旧版を読み、書き換え、読み直して同じ意味かを確かめる |
+| Snapshot v1 | `src/Entities/Snapshot.cs:69-85,250-283`、`src/CodeAnalysis/GameSystemSnapshotEmitter.cs:43-90` | `TryRead` が版 1 と旧スキーマ指紋を受け付け、生成コードが旧構造の記述子(`SnapshotLegacy*`、`SnapshotDefaultLegacy*`)で読む |
+| WorldCell v1 | `src/World/WorldCellArtifact.cs:86,177` | 版 1 の 16 バイト固定の座標を読む |
+| `.cgephyscache` スキーマ 2・3 | `src/Runtime.Physics/PhysicsCache.cs:39,58-62,175-209,304,362-387` | 読み手が 2〜4、書き手も 2〜4 を扱う |
+| glTF の旧メタデータ | `tools/ContentCompiler/ModelImportCommands.cs:72`(IMP008) | 読むときに黙って移行する。詳細は未調査 |
 
 すでに規則に合っているもの(変えない):
 - `guid:` の旧サイドカー: 明示の「Convert legacy metadata」だけが変換する(`AssetAuthoringService.TryMigrateLegacy`)。
@@ -43,7 +43,7 @@
 
 ### 1. シーン JSON
 - `SceneJsonSceneAnalyzer` は `schemaVersion` が 3 のときだけ読む。それ以外は診断(既存の版不一致の診断があれば使い、無ければ新しい SCENE 番号)で止め、メッセージに `SceneJson.Cli upgrade <project>` を書く。
-- v1・v2 の角度の読み方と旧キー名の対応(`AngleReading` の旧分岐、`SceneJsonAngleUpgrade`)を、`tools/CSharpGameEngine.SceneJson.Cli` の中へ移す。SceneModel の共有ソースからは消す。
+- v1・v2 の角度の読み方と旧キー名の対応(`AngleReading` の旧分岐、`SceneJsonAngleUpgrade`)を、`tools/SceneJson.Cli` の中へ移す。SceneModel の共有ソースからは消す。
 - `upgrade` の「読み直して同じ意味か」の確認は、旧版側を CLI の中の旧リーダーで、新版側を共有の解析器で読んで比べる。
 
 ### 2. Snapshot
@@ -63,7 +63,7 @@
 - 先に調べる。読むときに書き換えているなら、`guid:` と同じ明示の変換へ寄せる。読むだけで書き換えていないなら、旧形式をエラーにして変換の操作を示す。
 
 ### 6. そのほかの互換の残り
-- `GameSystemLoopEmitter.BuildLegacyFrameParameterList` の `RunFrame` の旧オーバーロード: 使っているのは `tools/CSharpGameEngine.Ecs.Benchmarks/Program.cs:112` だけ。ベンチマークを新しい形に直して消す。
+- `GameSystemLoopEmitter.BuildLegacyFrameParameterList` の `RunFrame` の旧オーバーロード: 使っているのは `tools/Ecs.Benchmarks/Program.cs:112` だけ。ベンチマークを新しい形に直して消す。
 - `[ReadOnlyComponent]`(ADR-0077「受け付けるが不要。廃止は後の段階」): 使用箇所を調べ、リポジトリ内を `in T` に直してから、属性を診断つきで廃止する。
 
 ### 7. 版の付け直し(ADR-0098 §5 規則 4)
@@ -130,7 +130,7 @@
 - 版: `0.1.0-dev.50` と VSIX `0.1.0.25`。`PluginVersion` は SemVer のプレリリースを比べ、エンジンの版が読めないときは PLUGIN006(検査を黙って飛ばさない)。同梱・見本のプラグイン 5 つの下限を `>=0.1.0-dev.50` へ。
 
 設計から変えたもの(理由つき):
-- **シーン JSON の旧版の変換を CLI へ移した。** 変換処理 `SceneJsonAngleUpgrade.cs` は `tools/CSharpGameEngine.SceneJson.Cli/` へ移動し、生成器・VSIX が取り込む共有ソース(SceneModel)には無い。試験は SceneModel.Tests がこのファイルを CLI のフォルダーから取り込む。ただし、旧版を読む入口 `AnalyzeEarlierVersion` と、版 1 の角度の単位で読む分岐 5 か所は、解析器の値の組み立て(約 400 行)のメソッドの途中にあり、切り出すと解析器を CLI へ丸ごと複製することになる(読み手が 2 つになり、規則 2 が防ぎたい食い違いを自分で作る)。そのため、この部分だけは共有ソースに残し、`#if CGE_SCENE_UPGRADE` で囲んだ。記号を定義するのは SceneJson.Cli・SceneModel(単体のコンパイル確認用)・SceneModel.Tests だけで、生成器と VSIX のビルドには入らない。生成器の DLL に `SceneJsonAngleUpgrade` 型と `AnalyzeEarlierVersion` が無いことを `TheGeneratorAssemblyContainsNoEarlierVersionReader` が、ファイルの置き場所・記号を定義するプロジェクト・呼び出し元を `SceneJsonUpgradeBoundaryTests` が検査する。生成器・VSIX・エディターが使う `Analyze` は版 3 だけを読み、旧版と C# の名前の角度キーを `SceneJson.Cli upgrade` を示す SCENE204 にする。スキーマ定義も版 3 だけを受け付け、エディターのテキスト統合にあった版 1 の分岐は削除した。
+- **シーン JSON の旧版の変換を CLI へ移した。** 変換処理 `SceneJsonAngleUpgrade.cs` は `tools/SceneJson.Cli/` へ移動し、生成器・VSIX が取り込む共有ソース(SceneModel)には無い。試験は SceneModel.Tests がこのファイルを CLI のフォルダーから取り込む。ただし、旧版を読む入口 `AnalyzeEarlierVersion` と、版 1 の角度の単位で読む分岐 5 か所は、解析器の値の組み立て(約 400 行)のメソッドの途中にあり、切り出すと解析器を CLI へ丸ごと複製することになる(読み手が 2 つになり、規則 2 が防ぎたい食い違いを自分で作る)。そのため、この部分だけは共有ソースに残し、`#if CGE_SCENE_UPGRADE` で囲んだ。記号を定義するのは SceneJson.Cli・SceneModel(単体のコンパイル確認用)・SceneModel.Tests だけで、生成器と VSIX のビルドには入らない。生成器の DLL に `SceneJsonAngleUpgrade` 型と `AnalyzeEarlierVersion` が無いことを `TheGeneratorAssemblyContainsNoEarlierVersionReader` が、ファイルの置き場所・記号を定義するプロジェクト・呼び出し元を `SceneJsonUpgradeBoundaryTests` が検査する。生成器・VSIX・エディターが使う `Analyze` は版 3 だけを読み、旧版と C# の名前の角度キーを `SceneJson.Cli upgrade` を示す SCENE204 にする。スキーマ定義も版 3 だけを受け付け、エディターのテキスト統合にあった版 1 の分岐は削除した。
 - **IMP008 は「変換を案内して止める」にした。** ContentCompiler が読み込み時に利用者のメタデータ(`SharpGLTF` → `cge.gltf`)を黙って書き換えていた。ビルドは書き換えずに IMP008 で止め、Assets ウィンドウはこのメタデータを無効として「Convert legacy metadata」を出す。判定は `AssetMetadata.IsRetiredModelImporter` 1 か所にまとめた。
 - **設計の表から漏れていた旧版の読み手 2 つを追加した**(機能台帳の再確認で発見): `.cgefracture` の版 1・2(と 1 階層のときの版 2 の書き込み)、Navigation プラグインの Cook がシーン JSON を直接読むときの版 1・2 の角度の扱い。どちらも同じ規則(生成物は互換なし、シーンは版 3 だけ)で整理した。
 

@@ -535,7 +535,7 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
   再実装はヒエラルキー編集マイルストーンへ。`SceneNodeAdder.GetRelativePath`(net472用
   `Path.GetRelativePath`ポリフィル)も他の消費者が無いため一緒に落とした — 必要になったら書き直す。
 - **シェイプパレット(プリミティブのクリック配置)**(旧ADR-0021 / 台帳F-L8-006): 同じ理由で
-  Phase 0 で全面削除。プリミティブ生成そのものは`tools/CSharpGameEngine.Primitive.Cli`として存続し、
+  Phase 0 で全面削除。プリミティブ生成そのものは`tools/Primitive.Cli`として存続し、
   Scene デザイナーの`PrimitiveMesh`描画(`SceneModelRenderObjectBuilder.ResolveViaBridge`)が
   利用している。
 

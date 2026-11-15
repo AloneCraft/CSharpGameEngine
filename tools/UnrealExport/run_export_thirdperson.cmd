@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem Imports the UE5.8 ThirdPerson (BP) template into Templates\CSharpGameEngine.Templates.ThirdPerson.
+rem Imports the UE5.8 ThirdPerson (BP) template into Templates\ThirdPerson.
 rem export_lvl_thirdperson.py refuses to replace existing generated assets unless --force is given.
 set "UE_ROOT=C:\Program Files\Epic Games\UE_5.8"
 set "UE_EDITOR_CMD=%UE_ROOT%\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
@@ -10,7 +10,7 @@ for %%I in ("%SCRIPT_DIR%..\..") do set "REPO_ROOT=%%~fI"
 set "CSGE_REPO_ROOT=%REPO_ROOT%"
 set "PYTHON_SCRIPT=%SCRIPT_DIR%export_lvl_thirdperson.py"
 set "MANIFEST=%REPO_ROOT%\.artifacts\UnrealExport\Lvl_ThirdPerson\manifest.json"
-set "TEMPLATE_DIR=%REPO_ROOT%\Templates\CSharpGameEngine.Templates.ThirdPerson"
+set "TEMPLATE_DIR=%REPO_ROOT%\Templates\ThirdPerson"
 
 if /I "%~1"=="--force" set "CSGE_UNREAL_EXPORT_FORCE=1"
 
@@ -35,15 +35,15 @@ if not exist "%MANIFEST%" (
 
 rem The importer writes the scenes as C# classes; the converter turns them into scene JSON (ADR-0070).
 for %%S in (Lvl_ThirdPerson ThirdPersonCharacter) do if exist "%TEMPLATE_DIR%\Scenes\%%S.json" del /q "%TEMPLATE_DIR%\Scenes\%%S.json"
-dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj" -- ^
+dotnet run --project "%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj" -- ^
   thirdperson "%MANIFEST%" "%TEMPLATE_DIR%"
 if errorlevel 1 exit /b %errorlevel%
-dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.SceneJson.Cli\CSharpGameEngine.SceneJson.Cli.csproj" -- ^
-  convert "%TEMPLATE_DIR%\CSharpGameEngine.Templates.ThirdPerson.csproj" --write --delete-source
+dotnet run --project "%SCRIPT_DIR%..\SceneJson.Cli\SceneJson.Cli.csproj" -- ^
+  convert "%TEMPLATE_DIR%\ThirdPerson.csproj" --write --delete-source
 if errorlevel 1 exit /b %errorlevel%
 
 rem The prototype grid materials are drawn procedurally in world space, not from the baked textures (ADR-0075).
-dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj" -- ^
+dotnet run --project "%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj" -- ^
   worldgrid "%MANIFEST%" "%TEMPLATE_DIR%"
 if errorlevel 1 exit /b %errorlevel%
 

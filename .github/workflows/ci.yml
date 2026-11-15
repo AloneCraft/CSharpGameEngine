@@ -68,7 +68,7 @@ jobs:
       - name: Restore canonical solution
         run: dotnet restore CSharpGameEngine.slnx --arch x64
       - name: Verify declared matrix
-        run: dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -- verify-ci-matrix
+        run: dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -- verify-ci-matrix
       - name: Test solution
         if: matrix.workload == 'solution'
         run: dotnet test CSharpGameEngine.slnx -c "${{ matrix.configuration }}" --arch x64 --no-restore
@@ -77,7 +77,7 @@ jobs:
         run: dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --arch x64 --no-restore
       - name: Build net472 VSIX
         if: matrix.workload == 'vsix'
-        run: dotnet build tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --no-restore
+        run: dotnet build tools/VSExtension/VSExtension.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --no-restore
       - name: Certify all implemented Visual Stages with WARP
         if: matrix.workload == 'warp'
-        run: dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -c "${{ matrix.configuration }}" -- suite visual --configuration "${{ matrix.configuration }}" --adapter warp --profile visual
+        run: dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -c "${{ matrix.configuration }}" -- suite visual --configuration "${{ matrix.configuration }}" --adapter warp --profile visual

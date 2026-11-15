@@ -3,7 +3,7 @@
 - 関連: ADR-0063(正準数値と階層 World)、ADR-0049(決定的な物理ドメイン。一部 Superseded)、ADR-0076・ADR-0084(対数深度)、ADR-0087(層の配置)、ADR-0078(UE テンプレートの完全移植)、ADR-0067(キャラクターの移動)、M0122、[Physics 仕様](../Specifications/Physics.md)
 
 ## 背景
-- 物理はすでに Q64.64 の `LogicalScalar`(`Int128`、±9.22e18 m、分解能 2^-64 m)の局所座標でネイティブに動いている。ソルバー内部(積分、拘束、接触、狭域判定、Dynamic AABB Tree、レイキャスト、スイープ、CCD、スリープ)に `float`/`double` は無い(`src/CSharpGameEngine.Runtime.Physics`。`Docs/Specifications/Physics.md:31`)。float が入るのは定数(`FromSingle`)、glTF の取り込み、入出力の境界だけである。
+- 物理はすでに Q64.64 の `LogicalScalar`(`Int128`、±9.22e18 m、分解能 2^-64 m)の局所座標でネイティブに動いている。ソルバー内部(積分、拘束、接触、狭域判定、Dynamic AABB Tree、レイキャスト、スイープ、CCD、スリープ)に `float`/`double` は無い(`src/Runtime.Physics`。`Docs/Specifications/Physics.md:31`)。float が入るのは定数(`FromSingle`)、glTF の取り込み、入出力の境界だけである。
 - 対数は GPU の深度の書き方であり、座標系ではない。位置の正本は Q64.64 のままで、カメラ相対の float への変換は 1 か所だけ(ADR-0063、ADR-0076)。Omni の Charter も「論理座標対応は、物理・照明・ベイクを対数空間で計算することと同義ではない」と明記し、Omni に Logical 空間の物理エンジンは無い。対数で圧縮した空間で解くと、積分・慣性・貫入の線形性が崩れるので採らない。
 - 「全スケール対応」で実際に残っている問題(調べた事実、2026-10-25):
   - 次数による桁あふれ。GJK の `Cross(Cross(AB,AO),AB)` は L³、その `LengthSquared` は L⁶(`PhysicsNarrowPhase.cs:857,900-901,927`)で、約 1.4 km で桁あふれする(`Physics.md:35` は床を 100 m の格子に分けて回避している)。広域判定の表面積は L²(`DeterministicAabbTree.cs:216-219`)で約 1.2e9 m。静的メッシュはドメインの絶対座標で焼き込み(`StaticMeshCollision.cs:54-61,131-142`)、サポート関数の `Dot` が絶対座標の 2 乗になるので約 3e9 m。`LogicalVector3.LengthSquared` は演算子で例外を投げ(`LogicalVector.cs:8-11,28`)、`TryNormalize` は約 3.04e9 m を超えると Try なのに例外を出す。

@@ -23,8 +23,8 @@ Float/Doubleの実体はSystem.Single/System.Doubleとし、演算を固定小�
 | CgeNumericProfileId | fixed-幅-小数位置 / float32 / float64 |
 
 ```powershell
-dotnet build src/CSharpGameEngine.Numerics/CSharpGameEngine.Numerics.csproj -c Debug -p:CgeFixedBits=192 -p:CgeFractionalBits=96
-dotnet build src/CSharpGameEngine.Numerics/CSharpGameEngine.Numerics.csproj -c Release -p:CgeNumericMode=Float
+dotnet build src/Numerics/Numerics.csproj -c Debug -p:CgeFixedBits=192 -p:CgeFractionalBits=96
+dotnet build src/Numerics/Numerics.csproj -c Release -p:CgeNumericMode=Float
 dotnet build UserEcsProject/UserEcsProject.csproj -c Debug -p:CgeNumericMode=Float
 dotnet build UserEcsProject/UserEcsProject.csproj -c Debug -p:CgeFixedBits=192 -p:CgeFractionalBits=96
 ```

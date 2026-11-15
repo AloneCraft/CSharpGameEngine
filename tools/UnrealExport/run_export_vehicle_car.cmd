@@ -7,7 +7,7 @@ set "UE_EDITOR_CMD=C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\Unre
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "REPO_ROOT=%%~fI"
 set "CGE_VEHICLE_CAR_OUT_DIR=%~1"
-if "%CGE_VEHICLE_CAR_OUT_DIR%"=="" set "CGE_VEHICLE_CAR_OUT_DIR=%REPO_ROOT%\Templates\CSharpGameEngine.Templates.Vehicle\Assets\Vehicles\SportsCar"
+if "%CGE_VEHICLE_CAR_OUT_DIR%"=="" set "CGE_VEHICLE_CAR_OUT_DIR=%REPO_ROOT%\Templates\Vehicle\Assets\Vehicles\SportsCar"
 "%UE_EDITOR_CMD%" "G:\UE\5.8\Vehicle\Vehicle.uproject" ^
   -ExecutePythonScript="%SCRIPT_DIR%export_vehicle_car.py" ^
   -EnablePlugins=PythonScriptPlugin,GLTFExporter ^

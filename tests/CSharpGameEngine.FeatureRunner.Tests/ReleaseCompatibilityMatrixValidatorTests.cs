@@ -101,9 +101,9 @@ public sealed class ReleaseCompatibilityMatrixValidatorTests {
             "Docs/Verification/CI-Matrix.json",
             "Docs/Verification/Manual-Evidence.json",
             ".github/workflows/ci.yml",
-            "tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj",
-            "tools/CSharpGameEngine.VSExtension/source.extension.vsixmanifest",
-            "tools/CSharpGameEngine.Vsix.Automation/CSharpGameEngine.Vsix.Automation.csproj",
+            "tools/VSExtension/VSExtension.csproj",
+            "tools/VSExtension/source.extension.vsixmanifest",
+            "tools/Vsix.Automation/Vsix.Automation.csproj",
         }){
             string Destination=Path.Combine(
                 Root,Relative.Replace('/',Path.DirectorySeparatorChar));

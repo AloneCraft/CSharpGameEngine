@@ -44,7 +44,7 @@
 - テスト: `PluginManifestAnalyzerTests`(18 件)、`PluginSceneTests`、`AssetCatalogTests`(プラグインのアセット)、`SceneFilesTests`(プラグインの `Scenes`)。
 
 ## 段階 5. エンジンのプラグイン Vehicles
-- M0101 段階 9 の簡易の車両(`Vehicle`・`VehicleState`・`VehicleIntent`・`VehicleMotor`・2 つの System)を `Runtime.Character` から `plugins/CSharpGameEngine.Vehicles/Runtime` へ移し、名前空間を `CSharpGameEngine.Vehicles` にした。Vehicle テンプレートと UserEcsProject が `CgePlugins` で有効にする。VS の新規作成は、テンプレートの csproj の `CgePlugins` を写す(`GameProjectGenerator.PluginsOf`、VS テンプレートの csproj も同じ文字列であることをテストで固定)。
+- M0101 段階 9 の簡易の車両(`Vehicle`・`VehicleState`・`VehicleIntent`・`VehicleMotor`・2 つの System)を `Runtime.Character` から `plugins/Vehicles/Runtime` へ移し、名前空間を `CSharpGameEngine.Vehicles` にした。Vehicle テンプレートと UserEcsProject が `CgePlugins` で有効にする。VS の新規作成は、テンプレートの csproj の `CgePlugins` を写す(`GameProjectGenerator.PluginsOf`、VS テンプレートの csproj も同じ文字列であることをテストで固定)。
 - 実走(WARP): パッケージから作った Vehicle は移動 48.281 m、曲がり 38.3°、D3D12 のエラー 0。移す前と同じ値。
 
 ## 段階 6. データアセット
@@ -61,11 +61,11 @@
 - 残り(2026-10-23 更新): ビルド中の自動実行と VSIX のボタンは、最初の実際の Cook(ナビメッシュ)と一緒に [M0106](M0106-Navmesh-Bake-And-Path-Following.md) で足した。既存の `Physics.Cli bake` はまだこの上に載せ直していない。
 
 ## 段階 9. SDK パッケージ
-- 版を `build/CSharpGameEngine.Version.props`(`CgeEngineVersion` 0.1.16)の 1 か所にした。パッケージに `plugins/`、`build/CSharpGameEngine.Game.targets`、`lib/…/CSharpGameEngine.Cooking.dll`、`tools/Cook/` を足した。
+- 版を `build/CSharpGameEngine.Version.props`(`CgeEngineVersion` 0.1.16)の 1 か所にした。パッケージに `plugins/`、`build/CSharpGameEngine.Game.targets`、`lib/…/Cooking.dll`、`tools/Cook/` を足した。
 - 見つけて直した不具合(0.1.15 から): 梱包のターゲットの中の `%(RecursiveDir)` がほかの項目と掛け合わされ、`src/<モジュール>/win-x64/…` などの余分な写しが入っていた。ワイルドカードを評価時へ移し、`PackagePath` から `%(RecursiveDir)` を外した(NuGet が自分でフォルダを保つ)。
 
 ## 段階 10. 見本と実走
-- `samples/Plugins/Weather`(プロジェクトのプラグイン: System、`[EngineService]`、`[DataAsset]`、起動時のシーン)と `samples/Plugins/CSharpGameEngine.Samples.Lightning`(NuGet のプラグイン: Library の DLL と Runtime のソース)。どちらにも `Intensity` がある。
+- `samples/Plugins/Weather`(プロジェクトのプラグイン: System、`[EngineService]`、`[DataAsset]`、起動時のシーン)と `samples/Plugins/Samples.Lightning`(NuGet のプラグイン: Library の DLL と Runtime のソース)。どちらにも `Intensity` がある。
 - `CSharpGameEngine.FeatureRunner verify-plugin-package`: SDK から作った ThirdPerson に 2 つを入れてビルドし、WARP で動かす。各サービスが終了時に出す合計の整合(雨量 = 更新回数 × 3、エネルギー = 落雷数 × 20)、データアセットの値、2 つの `Intensity` の名前、Vehicles が入っていないこと、プラグインのアセットのコピーを調べる。
 - 結果(WARP): 歩行 15.700 m・跳躍 1.228 m(プラグインなしと同じ)、Weather の更新 888 回・雨量 2664.0、Lightning の落雷 888 回・エネルギー 17760.0、D3D12 のエラー 0。この検証が段階 4 の 2 つの不具合(MSB4011 と .editorconfig)を見つけた。
 

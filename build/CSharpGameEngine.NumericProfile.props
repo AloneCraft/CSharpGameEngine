@@ -33,7 +33,7 @@
   <PropertyGroup Condition="'$(CgeNumericMode)' == 'Double'">
     <DefineConstants>$(DefineConstants);CGE_NUMERIC_DOUBLE</DefineConstants>
   </PropertyGroup>
-  <ItemGroup Condition="'$(_CgeNumericVariant)' == 'true' and '$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics'">
+  <ItemGroup Condition="'$(_CgeNumericVariant)' == 'true' and '$(MSBuildProjectName)' == 'Numerics'">
     <Compile Remove="LogicalScalar.cs" />
   </ItemGroup>
   <ItemGroup>

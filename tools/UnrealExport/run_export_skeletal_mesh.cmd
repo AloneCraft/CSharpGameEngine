@@ -2,7 +2,7 @@
 setlocal
 rem No -nullrhi: the glTF exporter reads and bakes materials through the render device, and without one it writes empty materials (a grey level).
 rem Usage: run_export_skeletal_mesh.cmd <ProjectName> <AssetPath> <OutputGlb>
-rem Example: run_export_skeletal_mesh.cmd TopDown /Game/Characters/Mannequins/Meshes/SKM_Manny_Simple Templates\CSharpGameEngine.Templates.TopDown\Assets\Characters\Mannequins\SKM_Manny_Simple.glb
+rem Example: run_export_skeletal_mesh.cmd TopDown /Game/Characters/Mannequins/Meshes/SKM_Manny_Simple Templates\TopDown\Assets\Characters\Mannequins\SKM_Manny_Simple.glb
 rem Opens G:\UE\5.8\<ProjectName> without rendering and exports the skeletal mesh as a skinned glb. Nothing is saved back to Unreal.
 set "UE_EDITOR_CMD=C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 set "SCRIPT_DIR=%~dp0"

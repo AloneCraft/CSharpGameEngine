@@ -3,10 +3,10 @@
 UE5.8 の基本テンプレートと同じ名前のテンプレート群。`ThirdPerson` / `FirstPerson` / `TopDown` / `Vehicle`。
 これらは「新規プロジェクトのテンプレート」であり、同時に既定のサンプルでもある。
 
-既存の `CSharpGameEngine.Templates.ThirdPerson`(現行の出荷物。VSIX のプロジェクトテンプレートの原本)とは内容が重複する。
+既存の `ThirdPerson`(現行の出荷物。VSIX のプロジェクトテンプレートの原本)とは内容が重複する。
 重複は承知の上で、役割が「テンプレート」なのでこの場所に置く。移行が終わったら、現行のフォルダを置き換えて名前を寄せる。
 
-**ここにあるコード(`Templates/ThirdPerson` など、`CSharpGameEngine.Templates.ThirdPerson` 以外)は、まだビルドできない。** 「ユーザーがこう書けたらいい」と思えるコードを先に書いたもので、コンパイルエラーになってよい。
+**ここにあるコード(`Templates/ThirdPerson` など、`ThirdPerson` 以外)は、まだビルドできない。** 「ユーザーがこう書けたらいい」と思えるコードを先に書いたもので、コンパイルエラーになってよい。
 流れは次のとおり。
 
 1. 理想コードを書く(このフォルダの `ThirdPerson` など4つ)。
@@ -73,11 +73,11 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 | `BP_ThirdPersonCharacter` | `Character.json` | |
 | `CgeThirdPerson` | `ThirdPerson` | |
 
-実装状況(M0101 段階 2): `CharacterMotion`、`CharacterMotionState`、`MoveIntent`(`Direction` / `Jump()`)、`ViewAngles`、`OrbitCamera`、`Locomotion` とそれぞれのフィールドの改名は実装済み(現行の `CSharpGameEngine.Templates.ThirdPerson` はこの名前で動く)。未実装: `GameWindow` への統合、`ViewAngles` の turns 化と `Turn()` / `Planar()`、`IA_*` の `PlayerActions` 化、`CharacterMotion.Capsule` の入れ子。
+実装状況(M0101 段階 2): `CharacterMotion`、`CharacterMotionState`、`MoveIntent`(`Direction` / `Jump()`)、`ViewAngles`、`OrbitCamera`、`Locomotion` とそれぞれのフィールドの改名は実装済み(現行の `ThirdPerson` はこの名前で動く)。未実装: `GameWindow` への統合、`ViewAngles` の turns 化と `Turn()` / `Planar()`、`IA_*` の `PlayerActions` 化、`CharacterMotion.Capsule` の入れ子。
 
 ### 実装状況(M0101、2026-10-22 時点)
 
-現行の `CSharpGameEngine.Templates.ThirdPerson`(ビルドできる出荷物)は、次の仕組みで動いている。このフォルダの `ThirdPerson` などの理想コードとの差は、シーン JSON の書式(`Game.json`、短い型名)と、型付きの資産の指し方だけ。
+現行の `ThirdPerson`(ビルドできる出荷物)は、次の仕組みで動いている。このフォルダの `ThirdPerson` などの理想コードとの差は、シーン JSON の書式(`Game.json`、短い型名)と、型付きの資産の指し方だけ。
 
 | # | 仕組み | 状態 |
 |---|---|---|
@@ -99,16 +99,16 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 
 | テンプレート | プロジェクト | 理想コードとの差 |
 |---|---|---|
-| ThirdPerson | `Templates/CSharpGameEngine.Templates.ThirdPerson` | シーン JSON の書式、資産の指し方。M0107 で、歩きと走りの 8 方向(`Locomotion` の 16 本のクリップ)、足の IK(`FootIk`)、`KillZ` を足した |
-| FirstPerson | `Templates/CSharpGameEngine.Templates.FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0)。M0107 で、体(`CharacterMesh0`。カメラに見えず影だけを落とす)と腕(`FirstPersonMesh`。一人称の FOV 70・縮尺 0.6 で描き、影は落とさない)の 2 つの Manny、`FirstPersonAnimation`(`Locomotion` を体へ渡す)、`PlayerControls` の体の Yaw(`bUseControllerRotationYaw`)、視点の上下の制限 −70°〜80°(`BP_FirstPersonCameraManager`)、目の位置(`Eyes` の `Pivot`)を足した |
-| TopDown | `Templates/CSharpGameEngine.Templates.TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Cached.Point)` で出す(M0108 から、UE のとおり短押しの離した瞬間。押していた時間 0.5 秒未満が短押しで、その離した瞬間に `MoveTo` と目印。長押しは押している間カーソルの下の地面へ直接歩き、離すと止まり、目印は出ない。`ClickToMove` と、UE の `CachedDestination` に当たる `ClickDestination` Component)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索は Navigation プラグイン(`plugins/CSharpGameEngine.Navigation`。csproj の `<CgePlugins>Navigation</CgePlugins>`、M0106)。`Scenes/TopDownNavigation.json` の `NavMeshBounds`(UE の NavMeshBoundsVolume)の領域で、ビルドがレベルの静的な衝突形状から `Assets/Navigation/Lvl_TopDown.cgenav` を焼き、キャラクターの `NavAgent` が `MoveIntent.MoveTo` の目的地への経路(台のスロープを下り、壁の端を回る)に沿って歩く。`Lvl_TopDown.json` は UE から書き出した生成物なので、領域は別のシーンに置いた。M0107 で、カメラの遅れ追従(`OrbitCamera.Lag` 3)、キャラクターのアニメーション(`TopDownAnimation`)、平面への拘束(UE と同じ値で、法線 0 のため拘束にならない)、`KillZ` と `RespawnPlayer`(壊れたら無作為の PlayerStart に `TopDownCharacter` を出す)を足した |
-| Vehicle | `Templates/CSharpGameEngine.Templates.Vehicle` | UE の Chaos Vehicle 相当の車(M0109)。車体は動的な剛体で、車輪ごとの光線のサスペンション、トルク曲線と 5 速の自動変速、アッカーマン操舵、タイヤの摩擦(路面の摩擦を読む)、空気抵抗、転倒の判定とリセットを、エンジンのプラグイン Vehicles(`plugins/CSharpGameEngine.Vehicles`。csproj の `<CgePlugins>Vehicles</CgePlugins>`、ADR-0079)が UE の式で解く。値はデータアセット `Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(`[DataAsset] VehicleSetup`。ゲームのコード `UseSportsCarSetup` が車へ入れる)。操作は `VehicleControls`(アクセル・ブレーキ・ハンドルはアナログの `Axis`、ハンドブレーキ、リセット)、カメラは `CameraToggle`(Tab で前と後ろ)と `LookAround`(見回し。離すと戻る)、灯りは `BrakeLightControl`(テールランプの発光 `MeshEmissive`)と `HeadlightToggle`(L で左のヘッドライト。UE と同じく右は点かない)。速度とギアは画面の文字(M0104)。`KillZ`(−50 m)より下へ落ちた車は最初の PlayerStart に出し直す(M0107)。エンジン音は作らない(UE のテンプレートに音の資産が無い。M0112 の決定)。レベルの地面は M0112 から UE のとおり: Landscape は高さから作った静的な三角形メッシュ `Landscape_Terrain.glb`(126 m 四方、中央に高さ 2.8 m の丘)、Landscape Spline の `SM_Track_10M` 16 個は 1 つに曲げた路面 `Track_Road.glb` と縁石 `Track_Curbs.glb`(どちらも衝突あり。縁石は M0124 から)で、`tools/UnrealExport/build_vehicle_ground.py` が UE の読み出しから作る |
+| ThirdPerson | `Templates/ThirdPerson` | シーン JSON の書式、資産の指し方。M0107 で、歩きと走りの 8 方向(`Locomotion` の 16 本のクリップ)、足の IK(`FootIk`)、`KillZ` を足した |
+| FirstPerson | `Templates/FirstPerson` | 同上。ステージは ThirdPerson のコピー(UE の配置が同じで、FirstPerson から書き出すと緑が白くなったため)。`Gameplay/` は ThirdPerson と同じ形(カメラは `OrbitCamera` の `Distance` 0)。M0107 で、体(`CharacterMesh0`。カメラに見えず影だけを落とす)と腕(`FirstPersonMesh`。一人称の FOV 70・縮尺 0.6 で描き、影は落とさない)の 2 つの Manny、`FirstPersonAnimation`(`Locomotion` を体へ渡す)、`PlayerControls` の体の Yaw(`bUseControllerRotationYaw`)、視点の上下の制限 −70°〜80°(`BP_FirstPersonCameraManager`)、目の位置(`Eyes` の `Pivot`)を足した |
+| TopDown | `Templates/TopDown` | `Touch` は未実装。クリックした地面に目印(`CursorMarker`。`ParticleBurst` と `Lifetime` で 0.7 秒)を `Spawner.Spawn<CursorMarker>(Cached.Point)` で出す(M0108 から、UE のとおり短押しの離した瞬間。押していた時間 0.5 秒未満が短押しで、その離した瞬間に `MoveTo` と目印。長押しは押している間カーソルの下の地面へ直接歩き、離すと止まり、目印は出ない。`ClickToMove` と、UE の `CachedDestination` に当たる `ClickDestination` Component)。`Cursor.Ray` は `Picking.TryPick(Cursor)` に置き換え。経路探索は Navigation プラグイン(`plugins/Navigation`。csproj の `<CgePlugins>Navigation</CgePlugins>`、M0106)。`Scenes/TopDownNavigation.json` の `NavMeshBounds`(UE の NavMeshBoundsVolume)の領域で、ビルドがレベルの静的な衝突形状から `Assets/Navigation/Lvl_TopDown.cgenav` を焼き、キャラクターの `NavAgent` が `MoveIntent.MoveTo` の目的地への経路(台のスロープを下り、壁の端を回る)に沿って歩く。`Lvl_TopDown.json` は UE から書き出した生成物なので、領域は別のシーンに置いた。M0107 で、カメラの遅れ追従(`OrbitCamera.Lag` 3)、キャラクターのアニメーション(`TopDownAnimation`)、平面への拘束(UE と同じ値で、法線 0 のため拘束にならない)、`KillZ` と `RespawnPlayer`(壊れたら無作為の PlayerStart に `TopDownCharacter` を出す)を足した |
+| Vehicle | `Templates/Vehicle` | UE の Chaos Vehicle 相当の車(M0109)。車体は動的な剛体で、車輪ごとの光線のサスペンション、トルク曲線と 5 速の自動変速、アッカーマン操舵、タイヤの摩擦(路面の摩擦を読む)、空気抵抗、転倒の判定とリセットを、エンジンのプラグイン Vehicles(`plugins/Vehicles`。csproj の `<CgePlugins>Vehicles</CgePlugins>`、ADR-0079)が UE の式で解く。値はデータアセット `Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(`[DataAsset] VehicleSetup`。ゲームのコード `UseSportsCarSetup` が車へ入れる)。操作は `VehicleControls`(アクセル・ブレーキ・ハンドルはアナログの `Axis`、ハンドブレーキ、リセット)、カメラは `CameraToggle`(Tab で前と後ろ)と `LookAround`(見回し。離すと戻る)、灯りは `BrakeLightControl`(テールランプの発光 `MeshEmissive`)と `HeadlightToggle`(L で左のヘッドライト。UE と同じく右は点かない)。速度とギアは画面の文字(M0104)。`KillZ`(−50 m)より下へ落ちた車は最初の PlayerStart に出し直す(M0107)。エンジン音は作らない(UE のテンプレートに音の資産が無い。M0112 の決定)。レベルの地面は M0112 から UE のとおり: Landscape は高さから作った静的な三角形メッシュ `Landscape_Terrain.glb`(126 m 四方、中央に高さ 2.8 m の丘)、Landscape Spline の `SM_Track_10M` 16 個は 1 つに曲げた路面 `Track_Road.glb` と縁石 `Track_Curbs.glb`(どちらも衝突あり。縁石は M0124 から)で、`tools/UnrealExport/build_vehicle_ground.py` が UE の読み出しから作る |
 
 4 つのレベルは M0110 から、UE と同じ雲(`VolumetricCloud`)とグローバル距離場(`GlobalDistanceField`。M0111 の GI と反射の土台で、画面は変えない)を持ち、ThirdPerson・FirstPerson・TopDown は空の球(`SkySphere`。UE の SM_SkySphere)も持つ。ビルドは glb ごとにメッシュの距離場(`Assets/…/X.glb.cgesdf`)を作る(`CgeGenerateMeshDistanceFields`、既定で有効)。材質テクスチャは全ミップと異方性フィルターで描く。M0111 から、実機の GPU では Lumen 相当の GI と反射(High 段)で描く。WARP は既定で DDGI のプローブボリューム(Medium 段。M0110 と同じ画面)で、`CGE_SCALABILITY_GI=high` を付けると Lumen で描く(`CGE_LUMEN_VISUALIZE=diffuse|reflections|surfacecache` で中身を見る)。
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
 
-壊れる物体(UE の Chaos の Geometry Collection・Fracture・Field に当たる。M0113)は UE の 4 テンプレートに無いので、テンプレートのレベルは変えていない。エンジンのプラグイン Destruction(`plugins/CSharpGameEngine.Destruction`。csproj の `<CgePlugins>Destruction</CgePlugins>`)を有効にしたゲームで、シーンの節点に `Collider`(箱)と `Destructible` を置くと、ビルドがボロノイで切り、ぶつかる・撃つ・`StrainField` で壊れる。使い方の見本は `samples/CSharpGameEngine.Samples.Destruction`(ThirdPerson の操作。F で球を撃ち、E で爆発。WARP の `verify-destruction` で検証)。
+壊れる物体(UE の Chaos の Geometry Collection・Fracture・Field に当たる。M0113)は UE の 4 テンプレートに無いので、テンプレートのレベルは変えていない。エンジンのプラグイン Destruction(`plugins/Destruction`。csproj の `<CgePlugins>Destruction</CgePlugins>`)を有効にしたゲームで、シーンの節点に `Collider`(箱)と `Destructible` を置くと、ビルドがボロノイで切り、ぶつかる・撃つ・`StrainField` で壊れる。使い方の見本は `samples/Samples.Destruction`(ThirdPerson の操作。F で球を撃ち、E で爆発。WARP の `verify-destruction` で検証)。
 
 ### プラグインを作る(ADR-0079)
 - 機能(Component、System、サービス、データの型)を足すときはプラグインにする。値だけを足すときはアセット。作り方の全体は `Docs/Specifications/Plugins-And-Assets.md`。
@@ -120,7 +120,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
   - `Runtime/`: ソース。
   - `Assets/`: アセット。コードからは `Assets.Plugins.<名前>.*` で指す。
   - `Scenes/`: シーン。
-- 配るときは NuGet パッケージにする(`samples/Plugins/CSharpGameEngine.Samples.Lightning`)。ECS の型を使わない処理は、`lib/` の DLL に置いてよい。
+- 配るときは NuGet パッケージにする(`samples/Plugins/Samples.Lightning`)。ECS の型を使わない処理は、`lib/` の DLL に置いてよい。
 - 動作の確認: `CSharpGameEngine.FeatureRunner verify-plugin-package`。SDK パッケージから作ったゲームに、2 つの見本を入れてビルドし、動かす。
 
 参照プロジェクト: UE5.8 のインストールには Templates が無いため、UE5.7 の Blueprint 版テンプレートから `G:\UE\5.8\FirstPerson`・`TopDown`・`Vehicle` を作った(`tools/UnrealExport/create_template_project.ps1`)。3 つとも UE5.8 のエディターで開けて、起動マップが読み込めることを確認した(`run_probe.cmd`。観測は `tools/UnrealExport/README.md`)。理想コードの名前と構成は、これらのプロジェクトのアセット(InputAction、Blueprint、レベル)を参照して決める。FirstPerson と TopDown は、ステージ・キャラクターの値・マネキンのメッシュを取り込んで移植した(`tools/UnrealExport/README.md`)。Vehicle もステージ(Landscape は同じ大きさの板で代用)と車の静的メッシュを取り込んだ。3 つとも音声アセットは無いので、効果音は UE のテンプレートからは取り込めない。

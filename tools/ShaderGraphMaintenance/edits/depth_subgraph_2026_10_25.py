@@ -12,7 +12,7 @@ import os
 import re
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-SUFFIX_FILE = os.path.join(REPO, "src", "CSharpGameEngine.ShaderArtifacts", "StagePresentationShaderSource.cs")
+SUFFIX_FILE = os.path.join(REPO, "src", "ShaderArtifacts", "StagePresentationShaderSource.cs")
 
 
 def replace_once(source, old, new):

@@ -61,62 +61,62 @@
     <CgeVsixPlatformOutputSegment Condition="'$(Platform)' == 'x64'">x64\</CgeVsixPlatformOutputSegment>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\Reinstall-CgeFixedVsix.ps1" Link="TestAssets\Reinstall-CgeFixedVsix.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\Reinstall-CgeFixedVsix.ps1" Link="TestAssets\Reinstall-CgeFixedVsix.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\Launch-VSExtension.ps1" Link="TestAssets\Launch-VSExtension.ps1" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\bin\$(CgeVsixPlatformOutputSegment)$(Configuration)\net472\CSharpGameEngine.VSExtension.vsix" Link="TestAssets\CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\**\*"
+    <None Include="..\..\tools\VSExtension\bin\$(CgeVsixPlatformOutputSegment)$(Configuration)\net472\VSExtension.vsix" Link="TestAssets\VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\**\*"
           Link="TestAssets\ItemTemplates\CSharp\GameEngine\SceneFile\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\ShaderGraph\**\*" Link="TestAssets\ItemTemplates\CSharp\GameEngine\ShaderGraph\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\ShaderSubgraph\**\*" Link="TestAssets\ItemTemplates\CSharp\GameEngine\ShaderSubgraph\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\ItemTemplates\CSharp\GameEngine\ShaderGraph\**\*" Link="TestAssets\ItemTemplates\CSharp\GameEngine\ShaderGraph\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\ItemTemplates\CSharp\GameEngine\ShaderSubgraph\**\*" Link="TestAssets\ItemTemplates\CSharp\GameEngine\ShaderSubgraph\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ExperimentalToolWindowState.cs" Link="TestAssets\Source\ExperimentalToolWindowState.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngineViewerPackage.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngineViewerPackage.SolutionLifecycle.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.SolutionLifecycle.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\HierarchyToolWindowControl.xaml.cs" Link="TestAssets\Source\HierarchyToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\HierarchyToolWindowPane.cs" Link="TestAssets\Source\HierarchyToolWindowPane.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneJsonEditorPane.cs" Link="TestAssets\Source\SceneJsonEditorPane.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngineViewerPackage.ComponentDrop.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.ComponentDrop.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\InspectorToolWindowControl.xaml.cs" Link="TestAssets\Source\InspectorToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneDesignerToolWindowControl.xaml.cs" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneEditorSessionService.cs" Link="TestAssets\Source\SceneEditorSessionService.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneSourceCommitPlanner.cs" Link="TestAssets\Source\SceneSourceCommitPlanner.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneJsonCommitPlanner.cs" Link="TestAssets\Source\SceneJsonCommitPlanner.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneTextBufferWriter.cs" Link="TestAssets\Source\SceneTextBufferWriter.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AuthoringOperationPresentation.cs" Link="TestAssets\Source\AuthoringOperationPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\PhysicsSceneBakeService.cs" Link="TestAssets\Source\PhysicsSceneBakeService.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ExternalBridgeProcess.cs" Link="TestAssets\Source\ExternalBridgeProcess.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneDesignerToolWindowControl.xaml" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\AssetEditorFrameFloater.cs" Link="TestAssets\Source\AssetEditorFrameFloater.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\AssetViewportHost.cs" Link="TestAssets\Source\AssetViewportHost.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\AssetEditorShell.cs" Link="TestAssets\Source\AssetEditorShell.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetEditors\StaticMeshEditorContent.cs" Link="TestAssets\Source\StaticMeshEditorContent.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetInspectorControl.cs" Link="TestAssets\Source\AssetInspectorControl.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetAuthoringHostClient.cs" Link="TestAssets\Source\AssetAuthoringHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetAuthoringPresentation.cs" Link="TestAssets\Source\AssetAuthoringPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\RenderPreviewHostClient.cs" Link="TestAssets\Source\RenderPreviewHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneHwndHost.cs" Link="TestAssets\Source\SceneHwndHost.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.EditorPreview.Host\RenderPreviewHostSessionTable.cs" Link="TestAssets\Source\RenderPreviewHostSessionTable.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.EditorPreview.Host\RenderPreviewRenderSession.cs" Link="TestAssets\Source\RenderPreviewRenderSession.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\ExperimentalToolWindowState.cs" Link="TestAssets\Source\ExperimentalToolWindowState.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\CSharpGameEngineViewerPackage.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\CSharpGameEngineViewerPackage.SolutionLifecycle.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.SolutionLifecycle.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\HierarchyToolWindowControl.xaml.cs" Link="TestAssets\Source\HierarchyToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\HierarchyToolWindowPane.cs" Link="TestAssets\Source\HierarchyToolWindowPane.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneJsonEditorPane.cs" Link="TestAssets\Source\SceneJsonEditorPane.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\CSharpGameEngineViewerPackage.ComponentDrop.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.ComponentDrop.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\InspectorToolWindowControl.xaml.cs" Link="TestAssets\Source\InspectorToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneDesignerToolWindowControl.xaml.cs" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneEditorSessionService.cs" Link="TestAssets\Source\SceneEditorSessionService.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneSourceCommitPlanner.cs" Link="TestAssets\Source\SceneSourceCommitPlanner.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneJsonCommitPlanner.cs" Link="TestAssets\Source\SceneJsonCommitPlanner.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneTextBufferWriter.cs" Link="TestAssets\Source\SceneTextBufferWriter.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AuthoringOperationPresentation.cs" Link="TestAssets\Source\AuthoringOperationPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\PhysicsSceneBakeService.cs" Link="TestAssets\Source\PhysicsSceneBakeService.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\ExternalBridgeProcess.cs" Link="TestAssets\Source\ExternalBridgeProcess.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneDesignerToolWindowControl.xaml" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetEditors\AssetEditorFrameFloater.cs" Link="TestAssets\Source\AssetEditorFrameFloater.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetEditors\AssetViewportHost.cs" Link="TestAssets\Source\AssetViewportHost.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetEditors\AssetEditorShell.cs" Link="TestAssets\Source\AssetEditorShell.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetEditors\StaticMeshEditorContent.cs" Link="TestAssets\Source\StaticMeshEditorContent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetInspectorControl.cs" Link="TestAssets\Source\AssetInspectorControl.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetAuthoringHostClient.cs" Link="TestAssets\Source\AssetAuthoringHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\AssetAuthoringPresentation.cs" Link="TestAssets\Source\AssetAuthoringPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\RenderPreviewHostClient.cs" Link="TestAssets\Source\RenderPreviewHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneHwndHost.cs" Link="TestAssets\Source\SceneHwndHost.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\EditorPreview.Host\RenderPreviewHostSessionTable.cs" Link="TestAssets\Source\RenderPreviewHostSessionTable.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\EditorPreview.Host\RenderPreviewRenderSession.cs" Link="TestAssets\Source\RenderPreviewRenderSession.cs" CopyToOutputDirectory="PreserveNewest" />
 
     <!-- M0051 Step 1-8: デバウンス状態がポリシー経由でのみ遷移することを検査するためのソース。
          直接代入へ戻すと「シーンが開けなくなる」ライブロックが再発する。 -->
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneWorkspaceService.cs" Link="TestAssets\Source\SceneWorkspaceService.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.Vsix.Automation\VsixExperimentalScenario.cs" Link="TestAssets\Source\VsixExperimentalScenario.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\VSExtension\SceneWorkspaceService.cs" Link="TestAssets\Source\SceneWorkspaceService.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\Vsix.Automation\VsixExperimentalScenario.cs" Link="TestAssets\Source\VsixExperimentalScenario.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The Scene DSL declaration surface, read as text by the shared helper so both hosts compile
        against exactly what ships. -->
   <ItemGroup>
-    <None Include="..\..\src\CSharpGameEngine.Entities\IScene.cs" Link="TestAssets\Entities\IScene.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\Node.cs" Link="TestAssets\Entities\Node.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\IScene.cs" Link="TestAssets\Entities\IScene.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\Node.cs" Link="TestAssets\Entities\Node.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -127,8 +127,8 @@
     <!-- Only exercises VS-independent classes (FabDownloadWatcher, KnownFolders) via
          InternalsVisibleTo - never loads the VSPackage/command types, which require a running VS
          host. -->
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj" />
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.Vsix.Automation\CSharpGameEngine.Vsix.Automation.csproj" />
+    <ProjectReference Include="..\..\tools\VSExtension\VSExtension.csproj" />
+    <ProjectReference Include="..\..\tools\Vsix.Automation\Vsix.Automation.csproj" />
     <!-- ADR-0070 B1: a built game for the packaged preview host's runtime view. Built, not referenced;
          its output path reaches the tests as assembly metadata. -->
     <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj"
@@ -150,19 +150,19 @@
        their own ProjectReference generation rather than a stale package from the normal tree. -->
   <PropertyGroup>
     <CgeLowerConfiguration>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</CgeLowerConfiguration>
-    <CgeActiveVsixPackagePath Condition="'$(ArtifactsPath)' != ''">$(ArtifactsPath)/bin/CSharpGameEngine.VSExtension/$(CgeLowerConfiguration)/CSharpGameEngine.VSExtension.vsix</CgeActiveVsixPackagePath>
-    <CgeActiveVsixPackagePath Condition="'$(CgeActiveVsixPackagePath)' == ''">../../tools/CSharpGameEngine.VSExtension/bin/$(CgeVsixPlatformOutputSegment)$(Configuration)/net472/CSharpGameEngine.VSExtension.vsix</CgeActiveVsixPackagePath>
+    <CgeActiveVsixPackagePath Condition="'$(ArtifactsPath)' != ''">$(ArtifactsPath)/bin/VSExtension/$(CgeLowerConfiguration)/VSExtension.vsix</CgeActiveVsixPackagePath>
+    <CgeActiveVsixPackagePath Condition="'$(CgeActiveVsixPackagePath)' == ''">../../tools/VSExtension/bin/$(CgeVsixPlatformOutputSegment)$(Configuration)/net472/VSExtension.vsix</CgeActiveVsixPackagePath>
   </PropertyGroup>
   <Target Name="SelectActiveVsixPackageForTests" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
       <!-- The static item above spells its Link with a backslash; MSBuild compares metadata as plain text. -->
-      <_LegacyVsixPackage Include="@(None)" Condition="'%(None.Link)' == 'TestAssets\CSharpGameEngine.VSExtension.vsix' or '%(None.Link)' == 'TestAssets/CSharpGameEngine.VSExtension.vsix'" />
+      <_LegacyVsixPackage Include="@(None)" Condition="'%(None.Link)' == 'TestAssets\VSExtension.vsix' or '%(None.Link)' == 'TestAssets/VSExtension.vsix'" />
       <None Remove="@(_LegacyVsixPackage)" />
-      <None Include="$(CgeActiveVsixPackagePath)" Link="TestAssets/CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
+      <None Include="$(CgeActiveVsixPackagePath)" Link="TestAssets/VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
 
   <ItemGroup>
-    <None Include="../../src/CSharpGameEngine.Entities/EcsSnapshotTransientAttribute.cs" Link="TestAssets/Entities/EcsSnapshotTransientAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Entities/EcsSnapshotTransientAttribute.cs" Link="TestAssets/Entities/EcsSnapshotTransientAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

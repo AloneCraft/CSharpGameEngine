@@ -46,7 +46,7 @@ M0052のComponentパレットを実機確認したところ、追加したCompon
 
 ### 1. マーカーインターフェース
 
-`src/CSharpGameEngine.Entities/IRuntimeComponent.cs`(新規)。generic版は随伴先を宣言し、
+`src/Entities/IRuntimeComponent.cs`(新規)。generic版は随伴先を宣言し、
 非generic版は「単独で生成されるだけの実行時Component」を表す。
 判定は`SceneTypePredicates.ImplementsRuntimeComponentInterface`/`TryGetAuthoredComponentType`。
 

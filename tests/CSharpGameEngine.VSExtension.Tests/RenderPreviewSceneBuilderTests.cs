@@ -145,7 +145,7 @@ public sealed class RenderPreviewSceneBuilderTests {
         string PreviewDirectory=Path.Combine(ExtensionDirectory,"PreviewHost");
         string ShaderDirectory=Path.Combine(PreviewDirectory,"Shaders");
         string HostPath=Path.Combine(
-            PreviewDirectory,"CSharpGameEngine.EditorPreview.Host.exe");
+            PreviewDirectory,"EditorPreview.Host.exe");
         string ShaderPath=Path.Combine(ShaderDirectory,"Stage.cgeshaderartifact");
         Directory.CreateDirectory(ShaderDirectory);
         File.WriteAllBytes(HostPath,[1]);

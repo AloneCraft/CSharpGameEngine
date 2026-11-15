@@ -12,6 +12,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.FeatureRunner\CSharpGameEngine.FeatureRunner.csproj" />
+    <ProjectReference Include="..\..\tools\FeatureRunner\FeatureRunner.csproj" />
   </ItemGroup>
 </Project>

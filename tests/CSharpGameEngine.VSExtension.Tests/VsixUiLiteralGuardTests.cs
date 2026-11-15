@@ -52,7 +52,7 @@ public sealed class VsixUiLiteralGuardTests {
     };
     [Fact]
     public void KnownUiSinks_DoNotReceiveNewDisplayStringLiterals(){
-        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
         HashSet<string>Violations=new(StringComparer.Ordinal);
         foreach(string FilePath in Directory.EnumerateFiles(DirectoryPath,"*.cs",SearchOption.TopDirectoryOnly)){
             SyntaxTree Tree=CSharpSyntaxTree.ParseText(File.ReadAllText(FilePath));

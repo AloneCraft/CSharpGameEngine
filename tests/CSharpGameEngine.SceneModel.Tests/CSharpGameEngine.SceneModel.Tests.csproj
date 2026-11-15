@@ -27,11 +27,11 @@
     まったく同じだからである(内部型へそのままアクセスでき、InternalsVisibleToも不要)。
   -->
   <ItemGroup>
-    <Compile Include="..\..\src\CSharpGameEngine.SceneModel\**\*.cs"
-             Exclude="..\..\src\CSharpGameEngine.SceneModel\obj\**\*.cs;..\..\src\CSharpGameEngine.SceneModel\bin\**\*.cs"
+    <Compile Include="..\..\src\SceneModel\**\*.cs"
+             Exclude="..\..\src\SceneModel\obj\**\*.cs;..\..\src\SceneModel\bin\**\*.cs"
              Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- The scene upgrade lives in SceneJson.Cli only (ADR-0098 §5 rule 2); its tests compile it from there. -->
-    <Compile Include="..\..\tools\CSharpGameEngine.SceneJson.Cli\SceneJsonAngleUpgrade.cs" Link="SceneJsonCli\SceneJsonAngleUpgrade.cs" />
+    <Compile Include="..\..\tools\SceneJson.Cli\SceneJsonAngleUpgrade.cs" Link="SceneJsonCli\SceneJsonAngleUpgrade.cs" />
   </ItemGroup>
 
   <!--
@@ -39,17 +39,17 @@
     そのものに対して走る(ドリフトゼロ、既存 CodeAnalysis.Tests と同じ方式)。
   -->
   <ItemGroup>
-    <None Include="..\..\src\CSharpGameEngine.Entities\IScene.cs" Link="TestAssets\Entities\IScene.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\Node.cs" Link="TestAssets\Entities\Node.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\IScene.cs" Link="TestAssets\Entities\IScene.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\Node.cs" Link="TestAssets\Entities\Node.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../src/CSharpGameEngine.Entities/EcsSnapshotTransientAttribute.cs" Link="TestAssets/Entities/EcsSnapshotTransientAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Entities/EcsSnapshotTransientAttribute.cs" Link="TestAssets/Entities/EcsSnapshotTransientAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

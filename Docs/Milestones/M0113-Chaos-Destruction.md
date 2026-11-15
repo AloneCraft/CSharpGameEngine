@@ -4,7 +4,7 @@
 - 追補(2026-10-26): 範囲外の表の 2 行(箱と三角形メッシュの接触の複数の面の向き、内部ひずみと多段のクラスター)は [M0124](M0124-Mesh-Contact-Orientations-And-Destruction-Strain.md) で実装した。本書の §3 の「ひずみは tick ごとに捨てる」と「1 段のクラスター」は M0113 時点の記述で、現在の仕様は M0124 と `Docs/Specifications/Physics.md`
 
 ## 目的
-ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相当)」を作る。計画の段階 1 の 8。UE の 4 テンプレートには壊れる物体が無いので、テンプレートのレベルは変えず、エンジン機能(物理の `Runtime.Physics` とプラグイン `plugins/CSharpGameEngine.Destruction`)と専用の見本(`samples/CSharpGameEngine.Samples.Destruction`)にする。
+ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相当)」を作る。計画の段階 1 の 8。UE の 4 テンプレートには壊れる物体が無いので、テンプレートのレベルは変えず、エンジン機能(物理の `Runtime.Physics` とプラグイン `plugins/Destruction`)と専用の見本(`samples/Samples.Destruction`)にする。
 - 調理: シード付き・決定的なボロノイ分割。断面の材質の区別、1 段のクラスター、接触面積から結合の強さ。閉じていない・凹んだ・退化したメッシュと、破片数 0/1 は診断で拒否する。
 - 実行時: 衝撃と接触の力積で結合のひずみを溜め、強さに届いた結合を切る。離れた塊は動的剛体。アンカー、破片の上限、眠り、一定時間後の除去。`PhysicsEventType.BondBroken` で通知する。決定的。
 - Field 相当: 範囲のひずみ(`StrainField`)と外へ押す力(`ForceField`)。
@@ -14,7 +14,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 
 ## 引き継ぎ時の状態(2026-10-25、事実)
 前任のエージェントが途中で止められ、作業ツリーに未コミットの実装が約 43 ファイル残っていた。引き継いで確かめた事実:
-- ソリューションは `dotnet build CSharpGameEngine.slnx -c Debug` で通った。1 回目は `CSharpGameEngine.Cook.Cli.dll` を「別のプロセスが使用中」(CS2012)で失敗したが、詳細ログでは Cook.Cli のビルドは全部同じプロジェクト インスタンス(1 つの構成番号)で、入れ子のビルドどうしの競合ではなかった。同時に動いていた別のプロセスがファイルを開いていたと推測する(2 回目は成功。同じ作業ツリーで別の作業(Asset Workspace、ADR-0081)が並行して進んでおり、そのビルドの可能性がある。推測)。
+- ソリューションは `dotnet build CSharpGameEngine.slnx -c Debug` で通った。1 回目は `Cook.Cli.dll` を「別のプロセスが使用中」(CS2012)で失敗したが、詳細ログでは Cook.Cli のビルドは全部同じプロジェクト インスタンス(1 つの構成番号)で、入れ子のビルドどうしの競合ではなかった。同時に動いていた別のプロセスがファイルを開いていたと推測する(2 回目は成功。同じ作業ツリーで別の作業(Asset Workspace、ADR-0081)が並行して進んでおり、そのビルドの可能性がある。推測)。
 - `MathF` の net472 への置き換え(前任の止まった作業)は済んでいた(VSExtension に `MathF` の使用は無い)。
 - 関連の試験はすべて合格: Destruction.Tests 47、Windows.Tests の物理と破壊 122、VSExtension の `Prefracture` 13、FeatureRunner の `DestructionSampleVerification` 12、`SolutionProjectRegistration` 4。
 - `verify-destruction`(WARP)も合格した(下の「検証」)。
@@ -24,12 +24,12 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 ## 決定
 ### 1. 層と置き場所(ADR-0078 §3)
 - L5 `Runtime.Physics`(ソルバー本体。UE でも Chaos の本体はエンジンにある): `FractureSolver.cs`(`FractureState`・`FracturePiece`・`FractureStep`・`FractureSettings`・`PrefractureAssetCache`)、`PrefractureCooking.cs`(ボロノイの調理と `.cgefracture` 版 2)、`PhysicsCooking.cs`(`PrefractureAsset` のサイト・クラスター・面積)、`PhysicsShapeAssets.cs`(凸多面体 `CreateConvexPolyhedron` と複合 `Compound`)、`PhysicsNarrowPhase.cs`(多面体と複合の接触)、`DeterministicPhysicsWorld.cs`(`ReportBondBreak`・`BondBreaks`・眠りの扱い)、`PhysicsCache.cs`(スキーマ 3)。
-- L5 プラグイン `plugins/CSharpGameEngine.Destruction`(ADR-0079。UE の GeometryCollection プラグインに当たる): Component(`Destructible`・`DestructibleState`・`DestructiblePiece`・`DestructibleFragment`・`DestructionImpact`・`StrainField`・`ForceField`)、サービス `[EngineService] Destruction`、System(`DestructibleLoad`・`DestructionImpacts`・`StrainFieldApply`・`DestructionStep`・`ForceFieldApply`・`DestructionFollow`・`DestructionOrphans`)、Cook モジュール `Cook/CSharpGameEngine.Destruction.Cook.csproj`(`FractureCooker`)。`Destructible` は `Runtime.Physics` からこのプラグインへ移した(M0055 の未使用の `Destructible`・`PrefractureRuntime`・`FractureBreak` は削除)。
+- L5 プラグイン `plugins/Destruction`(ADR-0079。UE の GeometryCollection プラグインに当たる): Component(`Destructible`・`DestructibleState`・`DestructiblePiece`・`DestructibleFragment`・`DestructionImpact`・`StrainField`・`ForceField`)、サービス `[EngineService] Destruction`、System(`DestructibleLoad`・`DestructionImpacts`・`StrainFieldApply`・`DestructionStep`・`ForceFieldApply`・`DestructionFollow`・`DestructionOrphans`)、Cook モジュール `Cook/Destruction.Cook.csproj`(`FractureCooker`)。`Destructible` は `Runtime.Physics` からこのプラグインへ移した(M0055 の未使用の `Destructible`・`PrefractureRuntime`・`FractureBreak` は削除)。
 - L5 描画(`Runtime.Windows`): `FragmentMesh`(1 破片を描く Component)、`FragmentMeshBind`、`RenderRoster.BindFragmentMesh`(破片ごとに外側と断面の 2 メッシュを 1 度だけ作り、色の組ごとに材質を 2 つ)。描画契約は変えない。
 - L3 ECS(`Entities`、生成器): `World.TakeSceneOrdinal` と `SceneStableIds.ForInstance`。同じシーンの 2 つ目以降のインスタンスの物理の stable ID を変える(下の「実装中に見つけた事実」の 3)。
 - L7: `Physics.Cli` の `preview-prefracture`(箱を切って輪郭と結合の JSON)と `replay`(焼いたキャッシュを再生して書き出す。生成した Bake Host の `TryReplay`)。Cook は `Cook.Cli` がプラグインの Cook モジュールを別プロセスで動かす(ADR-0079)。
 - L8 VSIX: `PrefractureDebugService` のプレビュー(下の §6)。
-- L9: 見本 `samples/CSharpGameEngine.Samples.Destruction`、UserEcsProject の検証シーン(`DestructionBallScene`・`DestructionDropScene`・`DestructionFieldScene`・`DestructionWallScene`)。テンプレートは変えない。
+- L9: 見本 `samples/Samples.Destruction`、UserEcsProject の検証シーン(`DestructionBallScene`・`DestructionDropScene`・`DestructionFieldScene`・`DestructionWallScene`)。テンプレートは変えない。
 
 ### 2. 調理(UE の Fracture モード)
 - 入力は `Destructible` の節点の `Collider` の箱(`Center` と `HalfExtents`)か、`SourceMesh` の閉じた凸の `.glb`。節点の拡大縮小は 1 でなければならない(大きさは衝突形状で決める)。
@@ -68,7 +68,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 - VS の実機での操作は検証していない(net472 の単体試験まで)。
 
 ### 7. 見本と実走の検証
-- 見本 `samples/CSharpGameEngine.Samples.Destruction`(ThirdPerson の操作とカプセルのキャラクター): 球が当たる壁(24 片、アンカー、密度 2400・強さ 1200)、上から落ちる木箱(12 片、`RigidBody` 500 kg)、床の木箱 3 つとその上の 1 つ(各 10 片、強さ 600)。F で球を撃ち、E で 3 m 先に爆発(`StrainField` 20000 N·s・半径 2 m と `ForceField` 5 m/s・半径 3 m、0.1 秒)。焼きの検証用シーン `DestructionBake`(床の上の木箱の中で爆発)。
+- 見本 `samples/Samples.Destruction`(ThirdPerson の操作とカプセルのキャラクター): 球が当たる壁(24 片、アンカー、密度 2400・強さ 1200)、上から落ちる木箱(12 片、`RigidBody` 500 kg)、床の木箱 3 つとその上の 1 つ(各 10 片、強さ 600)。F で球を撃ち、E で 3 m 先に爆発(`StrainField` 20000 N·s・半径 2 m と `ForceField` 5 m/s・半径 3 m、0.1 秒)。焼きの検証用シーン `DestructionBake`(床の上の木箱の中で爆発)。
 - `FeatureRunner verify-destruction`(段 `destruction.prefracture`): 見本を自動入力(W 10〜40、F 50、E 70、170 フレーム)で WARP で動かし、6 個すべてが順に壊れること、破片の重心が床より下に行かないこと、最後に最も速い破片が 0.2 m/s 以下、D3D12 のデバッグ層のエラー 0 を判定する。続けて `DestructionBake` を 2 回焼き、1 回目を再生して書き出し、3 つが同じバイト列であることを判定する。
 
 ## 実装中に見つけた事実(再現して直したもの)
@@ -89,7 +89,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 | `FeatureRunner verify-destruction --adapter warp` | 合格: `destructibles=6 broken=2/5/5/6 bonds=203 loose=64 sleeping=18 lowest=0.059 fastest=0.014 d3d12Errors=0`、`bytes=636670 deterministic=True playbackMatches=True` |
 | `dotnet test` CodeAnalysis・Entities・Cook | 338・76・29 合格 |
 | `FeatureRunner verify-thirdperson-character --template ThirdPerson/FirstPerson/TopDown/Vehicle` | 4 つとも合格(下の基準値) |
-| `dotnet pack packaging/CSharpGameEngine.Sdk -c Debug` と `verify-template-package`(4 テンプレート) | 合格(SDK 0.1.25。値は基準値と同じ) |
+| `dotnet pack packaging/Sdk -c Debug` と `verify-template-package`(4 テンプレート) | 合格(SDK 0.1.25。値は基準値と同じ) |
 | パッケージ経由の破壊のゲーム(見本のソース + `<CgePlugins>Destruction</CgePlugins>` + SDK 0.1.25) | ビルドが `BakeCrate`・`FallingCrate`・`SampleCrate`・`ShotWall` の `.cgefracture` を焼いた。WARP 12 フレームで `destructibles=6 broken=2`、D3D12 のエラー 0 |
 | `dotnet test CSharpGameEngine.slnx -c Debug`(`.artifacts/m0113/fulltest1.txt`) | M0113 に関係する失敗 0。失敗は 3 種で、どれも M0113 の変更によるものではない: (1) VSExtension 3 件(`VsixUiLiteralGuardTests`・`VsixLocalizationTests` 2 件。同じ作業ツリーで並行中の Asset Workspace の作業の `AssetWorkspaceCommands.cs`・`InspectorToolWindowControl.xaml`・`Assets_Reveal` が原因。残り 1218 合格)、(2) ShaderGraph.Cli 1 件(`ProductionStage_ExternalSubgraphsPreserveGoldenHlsl`。並行作業が `Stage.cgeshadergraph`・`ShaderArtifactAbi.cs` を変更中。単独で再実行して合格)、(3) Windows.Tests のテストホストのクラッシュ(697 件合格の後)。落ちたのは `TypedLightFrameTests.TypedLights_RenderIdenticalPixelsAfterDeviceRecovery` の実行中で、WARP(`d3d10warp.dll`)内のアクセス違反(c0000005)。x64 の出力(22:45 のビルド)では単独でも再現するが、M0113 の変更をすべて含む AnyCPU の出力(22:40 のビルド)では Windows.Tests 全体が 874 合格・2 スキップ・失敗 0。2 つのビルドの間に、並行中の別の作業(仮想シャドウ、描画契約 `stage-v14`: `StageRenderer.VirtualShadows.cs`・`StageRenderer.cs`・`ShaderArtifactAbi.cs`・`Stage.cgeshadergraph` を変更中)の描画の変更が入っており、その途中の状態が原因と推測する(M0113 は描画契約を変えていない)。ほかの試験プロジェクトはすべて合格 |
 
@@ -125,7 +125,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 | ベイクと再生(スキーマ 3、旧版の読み込み) | 完了 | 2026-11-15 に旧版の読み込みを削除(ADR-0098 §5 の C・E。`.cgephyscache` はスキーマ 4、`.cgefracture` は版 3 だけを読み書きする) |
 | VSIX の Fracture のプレビュー | 完了(単体試験まで) | VS の実機での操作は未検証 |
 | 見本と FeatureRunner の実走 | 完了(WARP) | 実機の GPU は未確認 |
-| プラグインと SDK パッケージ | 完了 | SDK 0.1.25 に `plugins/CSharpGameEngine.Destruction/`(ソースと `Cook/lib/` の Cook モジュール)が入る。パッケージから見本と同じゲームを作ると、ビルドが 4 つの `.cgefracture` を焼き、WARP で 6 個が読み込まれて壊れる(手で確認。`verify-plugin-package` は Destruction を含まない) |
+| プラグインと SDK パッケージ | 完了 | SDK 0.1.25 に `plugins/Destruction/`(ソースと `Cook/lib/` の Cook モジュール)が入る。パッケージから見本と同じゲームを作ると、ビルドが 4 つの `.cgefracture` を焼き、WARP で 6 個が読み込まれて壊れる(手で確認。`verify-plugin-package` は Destruction を含まない) |
 | 箱と三角形メッシュの接触の複数の面の向き(M0112 の報告) | M0124 で実装 | 縁石の衝突も M0124 で付けた(Vehicle の基準値の変化は M0124) |
 | 実行時のブール演算・ボクセルの破壊(F-L5-021・F-L5-022) | 範囲外 | 事前破砕だけ |
 

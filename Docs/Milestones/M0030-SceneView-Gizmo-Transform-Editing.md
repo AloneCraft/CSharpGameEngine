@@ -64,9 +64,9 @@ near:far 比が 20000:1 を超えていた。near を far 連動の比率で決�
 Near = max(BaseNearPlane, Far / MaxDepthRatio)   // BaseNearPlane=0.05f, MaxDepthRatio=10000f
 ```
 
-- `tools/CSharpGameEngine.VSExtension/SceneCameraFraming.cs` — `BaseNearPlane`/`MaxDepthRatio`/
+- `tools/VSExtension/SceneCameraFraming.cs` — `BaseNearPlane`/`MaxDepthRatio`/
   `ComputeNearPlane(float)`を新設し、`CreateProjection`をこれに切り替えた。
-- `tools/CSharpGameEngine.VSExtension/SceneViewState.cs` — **`NearPlane=0.05f`の二重定義を削除**し、
+- `tools/VSExtension/SceneViewState.cs` — **`NearPlane=0.05f`の二重定義を削除**し、
   `SceneCameraFraming`側を唯一の出所にした。ドラッグ操作中に実際に使われるのはこちらの`GetProjection`。
 - **正射投影には比率調整を適用しない**。正射の深度は線形なので1/z分布の問題が無く、nearを遠ざけると
   手前を無駄にクリップするだけになるため`BaseNearPlane`をそのまま渡す。
@@ -162,7 +162,7 @@ VSExtension.Tests は M0020 完了時点の431件から **448件**(+17)へ増え
 ### 1. Wキー無しで即ギズモ表示(UX変更)
 
 `SceneEditorSettings.DefaultActiveTool`を`Select`から`Move`へ変更した
-([SceneEditorSettings.cs:42](tools/CSharpGameEngine.VSExtension/SceneEditorSettings.cs#L42))。
+([SceneEditorSettings.cs:42](tools/VSExtension/SceneEditorSettings.cs#L42))。
 `UpdateMoveGizmo()`は`ActiveTool==Select`のとき明示的にギズモを隠す仕様のため、既定が`Select`だと
 選択しただけではギズモが出ずWキーを押す一手間が必要だった。永続設定に既存の値がある場合はそちらが
 優先されるため、初回起動時のみ影響する。
@@ -234,7 +234,7 @@ C#ソース側は何も起きないという非対称がユーザーから報告
 スクロール(3.で実装した`EnumViews`経由の経路)や、選択が実際に変わった時だけスクロールする重複防止
 ロジックも既に備えている。呼び出し側の`OnSelectionChangedForHierarchy`を、Hierarchy以外の発生源でも
 選択中の`NodeIds`を`NodePath`へ解決して`SourceMarkerService.Update`へ渡すよう書き換えるだけで対応
-できた([CSharpGameEngineViewerPackage.cs](tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs)、
+できた([CSharpGameEngineViewerPackage.cs](tools/VSExtension/CSharpGameEngineViewerPackage.cs)、
 `OnSelectionChangedForHierarchy`)。Hierarchyツリーへのprimary選択publish(既存動作)はそのまま維持。
 
 マーキー(矩形)選択は完了時1回のみ選択発行され、ギズモドラッグ中は選択集合が変化しないため
@@ -260,7 +260,7 @@ W/E/Rキーで切り替える方式だった。ユーザーからBlender/Unity�
 同一平面上にあり、対角最大到達距離(≈0.68)より内側だと平面ハンドルの当たり判定を貫通する。
 `TransformGizmo.cs`/`TransformGizmoPhase4.cs`の関連定数を、Rotateリング(0.78)→Scale軸キューブ
 (1.0)→Move矢印の円錐(1.15〜1.35)の順に重ならない帯へ再配置した(詳細と根拠は
-[TransformGizmoPhase4.cs](tools/CSharpGameEngine.VSExtension/TransformGizmoPhase4.cs)の該当コメント
+[TransformGizmoPhase4.cs](tools/VSExtension/TransformGizmoPhase4.cs)の該当コメント
 参照)。半径は実機での見た目確認前提の出発値。
 
 **ヒットテストの統合**: `TransformGizmo.TryHitTransform`を新設し、Move/Rotate/Scale/Local-Global

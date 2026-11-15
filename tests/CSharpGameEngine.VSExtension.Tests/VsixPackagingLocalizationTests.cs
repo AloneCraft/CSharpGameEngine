@@ -4,7 +4,7 @@ using System.Xml.Linq;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class VsixPackagingLocalizationTests {
-    private static readonly string ProjectDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+    private static readonly string ProjectDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
     [Fact]
     public void Manifest_UsesEnglishNeutralIdentityAndCurrentBuildVersion(){
         XNamespace Namespace="http://schemas.microsoft.com/developer/vsx-schema/2011";
@@ -48,9 +48,9 @@ public sealed class VsixPackagingLocalizationTests {
     }
     [Fact]
     public void BuiltVsix_ContainsJapaneseSatelliteLanguagePackAndBothTemplateCultures(){
-        string VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        string VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         using var Archive=ZipFile.OpenRead(VsixPath);
-        Assert.NotNull(Archive.GetEntry("ja-JP/CSharpGameEngine.VSExtension.resources.dll"));
+        Assert.NotNull(Archive.GetEntry("ja-JP/VSExtension.resources.dll"));
         Assert.NotNull(Archive.GetEntry("ja-JP/Extension.vsixlangpack"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/templateManifest0.1033.vstman"));
         Assert.Contains(Archive.Entries,Entry=>Entry.FullName.StartsWith("ItemTemplates/templateManifest",StringComparison.Ordinal) && Entry.FullName.EndsWith(".1041.vstman",StringComparison.Ordinal));
@@ -65,7 +65,7 @@ public sealed class VsixPackagingLocalizationTests {
     }
     [Fact]
     public void CopiedBuiltVsix_MatchesPackageBesideBuildOutputAssemblyByteForByte(){
-        string CopiedVsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        string CopiedVsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         string BuiltVsixPath=Path.ChangeExtension(VsixBuildIdentity.BuildOutputPath,".vsix");
         Assert.True(File.Exists(BuiltVsixPath),$"VSIX beside BuildOutputPath was not found: {BuiltVsixPath}");
         Assert.Equal(File.ReadAllBytes(BuiltVsixPath),File.ReadAllBytes(CopiedVsixPath));

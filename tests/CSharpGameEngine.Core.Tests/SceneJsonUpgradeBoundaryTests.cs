@@ -8,8 +8,8 @@ public sealed class SceneJsonUpgradeBoundaryTests {
     private static readonly string[]Roots=["src","tools","plugins","Templates","UserEcsProject","samples","stages"];
     private static readonly string[]SkippedDirectories=["bin","obj",".vs",".artifacts","node_modules"];
     private static readonly string[]Allowed=[
-        "src/CSharpGameEngine.SceneModel/Json/SceneJsonSceneAnalyzer.cs",
-        "tools/CSharpGameEngine.SceneJson.Cli/",
+        "src/SceneModel/Json/SceneJsonSceneAnalyzer.cs",
+        "tools/SceneJson.Cli/",
     ];
     [Fact]
     public void OnlyTheUpgradeCommandReadsEarlierSceneVersions(){
@@ -19,18 +19,18 @@ public sealed class SceneJsonUpgradeBoundaryTests {
             .Where(static Entry=>!Allowed.Any(Prefix=>Entry.Path.StartsWith(Prefix,StringComparison.Ordinal)))
             .Select(static Entry=>Entry.Path).ToArray();
         Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
-        Assert.Contains("SceneJsonAngleUpgrade.Upgrade(",File.ReadAllText(Path.Combine(RepositoryRoot,"tools","CSharpGameEngine.SceneJson.Cli","Program.cs")),StringComparison.Ordinal);
+        Assert.Contains("SceneJsonAngleUpgrade.Upgrade(",File.ReadAllText(Path.Combine(RepositoryRoot,"tools","SceneJson.Cli","Program.cs")),StringComparison.Ordinal);
         // 変換処理は CLI のフォルダーにだけあり、生成器と VSIX が取り込む共有ソース（SceneModel）には無い。
-        Assert.True(File.Exists(Path.Combine(RepositoryRoot,"tools","CSharpGameEngine.SceneJson.Cli","SceneJsonAngleUpgrade.cs")));
-        Assert.False(File.Exists(Path.Combine(RepositoryRoot,"src","CSharpGameEngine.SceneModel","Json","SceneJsonAngleUpgrade.cs")));
+        Assert.True(File.Exists(Path.Combine(RepositoryRoot,"tools","SceneJson.Cli","SceneJsonAngleUpgrade.cs")));
+        Assert.False(File.Exists(Path.Combine(RepositoryRoot,"src","SceneModel","Json","SceneJsonAngleUpgrade.cs")));
     }
     /// <summary>旧版の読み方を有効にする記号を定義してよいのは、変換ツールと SceneModel（とその試験）だけ。生成器・VSIX・ゲームは定義しない。</summary>
     [Fact]
     public void OnlyTheUpgradeToolAndSceneModelDefineTheUpgradeSymbol(){
         string[]AllowedProjects=[
-            "src/CSharpGameEngine.SceneModel/CSharpGameEngine.SceneModel.csproj",
+            "src/SceneModel/SceneModel.csproj",
             "tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj",
-            "tools/CSharpGameEngine.SceneJson.Cli/CSharpGameEngine.SceneJson.Cli.csproj",
+            "tools/SceneJson.Cli/SceneJson.Cli.csproj",
         ];
         var Defining=Roots.Append("tests").Append("build").Append("packaging").Select(Root=>Path.Combine(RepositoryRoot,Root)).Where(Directory.Exists)
             .SelectMany(static Root=>ProjectFiles(Root))

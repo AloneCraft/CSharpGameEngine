@@ -94,7 +94,7 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
     public void LifecycleCaptureScriptIsIsolatedAndFailsClosed(){
         string Root=FeatureStageRepositoryLocator.Find();
         string Script=File.ReadAllText(Resolve(
-            Root,"tools/CSharpGameEngine.VSExtension/Capture-CgeVsixReleaseLifecycle.ps1"));
+            Root,"tools/VSExtension/Capture-CgeVsixReleaseLifecycle.ps1"));
 
         Assert.Contains("CgeRelease",Script,StringComparison.Ordinal);
         Assert.Contains("-WindowStyle Hidden",Script,StringComparison.Ordinal);
@@ -112,7 +112,7 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
         byte[]Before=File.ReadAllBytes(LedgerPath);
         string InstalledDllPath=Resolve(
             this.Root,
-            "tools/CSharpGameEngine.VSExtension/bin/Release/net472/CSharpGameEngine.VSExtension.dll");
+            "tools/VSExtension/bin/Release/net472/VSExtension.dll");
 
         await Assert.ThrowsAsync<ArgumentException>(()=>
             VsixObservationLedger.RecordManualAsync(
@@ -128,7 +128,7 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
         this.CreateInputsAndEvidence();
         string InstalledDllPath=Resolve(
             this.Root,
-            "tools/CSharpGameEngine.VSExtension/bin/Release/net472/CSharpGameEngine.VSExtension.dll");
+            "tools/VSExtension/bin/Release/net472/VSExtension.dll");
         DateTimeOffset ObservedUtc=DateTimeOffset.UtcNow.AddMinutes(-1);
         DateTimeOffset ExpiresUtc=ObservedUtc.AddDays(7);
         VsixObservationAssertion[]Assertions=[
@@ -187,8 +187,8 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
             this.Root,"Release");
         File.AppendAllText(
             Resolve(this.Root,
-                "tools/CSharpGameEngine.VSExtension/bin/Release/net472/"
-                +"CSharpGameEngine.VSExtension.vsix"),
+                "tools/VSExtension/bin/Release/net472/"
+                +"VSExtension.vsix"),
             "mutable-bin-change");
 
         VsixReleasePackage After=VsixReleaseEvidence.ReadCurrentPackage(
@@ -249,17 +249,17 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
             File.Copy(Resolve(SourceRoot,Relative),Destination,true);
         }
         string OutputRoot=Path.Combine(
-            this.Root,"tools","CSharpGameEngine.VSExtension","bin","Release","net472");
+            this.Root,"tools","VSExtension","bin","Release","net472");
         Directory.CreateDirectory(OutputRoot);
         byte[]DllBytes=Enumerable.Range(0,512).Select(Index=>(byte)(Index%251)).ToArray();
-        string BuildDllPath=Path.Combine(OutputRoot,"CSharpGameEngine.VSExtension.dll");
+        string BuildDllPath=Path.Combine(OutputRoot,"VSExtension.dll");
         File.WriteAllBytes(BuildDllPath,DllBytes);
-        string PackagePath=Path.Combine(OutputRoot,"CSharpGameEngine.VSExtension.vsix");
+        string PackagePath=Path.Combine(OutputRoot,"VSExtension.vsix");
         using(FileStream Stream=File.Create(PackagePath))
         using(var Archive=new ZipArchive(Stream,ZipArchiveMode.Create,false)){
-            WriteEntry(Archive,"CSharpGameEngine.VSExtension.dll",DllBytes);
+            WriteEntry(Archive,"VSExtension.dll",DllBytes);
             WriteEntry(Archive,"extension.vsixmanifest",File.ReadAllBytes(Resolve(
-                this.Root,"tools/CSharpGameEngine.VSExtension/source.extension.vsixmanifest")));
+                this.Root,"tools/VSExtension/source.extension.vsixmanifest")));
         }
         _=VsixReleaseInputStore.PublishCurrentAsync(
             this.Root,DateTimeOffset.UtcNow.AddMinutes(-11)).GetAwaiter().GetResult();

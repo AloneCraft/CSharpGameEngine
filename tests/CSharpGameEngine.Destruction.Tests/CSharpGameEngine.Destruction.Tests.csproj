@@ -26,10 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\plugins\CSharpGameEngine.Destruction\Cook\CSharpGameEngine.Destruction.Cook.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <ProjectReference Include="..\..\plugins\Destruction\Cook\Destruction.Cook.csproj" />
+    <ProjectReference Include="..\..\src\Cooking\Cooking.csproj" />
+    <ProjectReference Include="..\..\src\Numerics\Numerics.csproj" />
     <!-- The CLI is run as a process (a cook is a separate process in the build); it only has to be built. -->
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\tools\Cook.Cli\Cook.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

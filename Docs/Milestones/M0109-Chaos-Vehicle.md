@@ -26,7 +26,7 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 ## 決定
 ### 1. 層と置き場所(ADR-0078 §3)
 - L4 物理の契約(`Runtime.Physics`): `PhysicsCommands` に `ForceAtPoint`・`Torque`・`SetVelocity`・`Sleep`(`PhysicsCommand` の末尾に既定値つきの `Point`)、`RigidBody.LinearDamping`・`AngularDamping`、`DeterministicPhysicsWorld.TryGetMaterial`、`StaticMeshCollider.Material`。車両はこの契約と光線だけを使う(L5 → L4 の向き)。
-- L5 プラグイン `plugins/CSharpGameEngine.Vehicles`(ECS のソース。ADR-0079): `VehicleSetup`([DataAsset])、`Vehicle`・`VehicleState`・`VehicleIntent`・`VehicleWheelVisual`・`VehicleCameraLook`、`VehicleChaos`(UE の式)、`VehicleTuning`(前もって求める値)、`VehicleAckermann`、`VehicleMotor`(1 tick)、System(`VehicleBodySetup`・`VehicleMotionUpdate`・`VehicleBodyWriteback`・`VehicleWheelPose`・`VehicleChaseView`)。
+- L5 プラグイン `plugins/Vehicles`(ECS のソース。ADR-0079): `VehicleSetup`([DataAsset])、`Vehicle`・`VehicleState`・`VehicleIntent`・`VehicleWheelVisual`・`VehicleCameraLook`、`VehicleChaos`(UE の式)、`VehicleTuning`(前もって求める値)、`VehicleAckermann`、`VehicleMotor`(1 tick)、System(`VehicleBodySetup`・`VehicleMotionUpdate`・`VehicleBodyWriteback`・`VehicleWheelPose`・`VehicleChaseView`)。
 - L5 描画(`Runtime.Windows`、`Windows`): `MeshEmissive` と `StageRenderer.SetObjectEmissiveScale`(物体の定数バッファの既存の発光の欄に掛ける。描画契約 `stage-v11` とシェーダーは変えない)、`LightVisibility`(`Runtime.Lighting`)、表示中のカメラが無効になったら有効な別のカメラへ切り替える。
 - L1/L7 入力: `Pad.Back`・`Pad.Start`(末尾に追加。UE の Gamepad_Special_Left/Right)。L1 数値: `LogicalMath.TryAtan2`(決定的)。
 - L9 テンプレート: `VehicleControls`・`UseSportsCarSetup`・`CameraToggle`・`LookAround`・`BrakeLightControl`・`HeadlightToggle`、`SportsCar.json`、`SportsCarSetup.cgeasset`、車体の glb の発光、レベルの路面の摩擦。
@@ -77,7 +77,7 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 | L1/L7 入力 | `Pad.Back`・`Pad.Start`、`InputActionsEmitter`、`Win32InputEventAdapter`(自動実行の `GamepadBack`・`GamepadStart`) |
 | L4/L5 物理 | `PhysicsCommands`(`ForceAtPoint`・`Torque`・`SetVelocity`・`Sleep`)、`RigidBody.LinearDamping`・`AngularDamping`、`TryGetMaterial`、`StaticMeshCollider.Material`、`PhysicsNarrowPhase.TryBoxMeshManifold` |
 | L5 描画 | `MeshEmissive`、`RenderServer`・`StageRenderer.SetObjectEmissiveScale`、`RenderFrameState`(装置の回復で再生)、`MeshEmissive` のメッシュを光源にしない、`LightVisibility`、カメラの切り替え |
-| L5 プラグイン | `plugins/CSharpGameEngine.Vehicles/Runtime/`(`VehicleSetup.cs`・`VehicleChaos.cs`・`VehicleComponents.cs`・`VehicleMotor.cs`・`VehicleSystems.cs`)、`Vehicles.cgeplugin` 0.2.0 |
+| L5 プラグイン | `plugins/Vehicles/Runtime/`(`VehicleSetup.cs`・`VehicleChaos.cs`・`VehicleComponents.cs`・`VehicleMotor.cs`・`VehicleSystems.cs`)、`Vehicles.cgeplugin` 0.2.0 |
 | L9 | Vehicle テンプレート(`Gameplay/`、`Scenes/SportsCar.json`・`Lvl_VehicleBasic.json`、`Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`・`SM_SportsCar.glb`)、`build/CSharpGameEngine.Version.props` 0.1.20 |
 | ツール | `tools/UnrealExport/probe_vehicle_physics.py`・`probe_vehicle_brake_lights.py`・`probe_vehicle_emissive.py`(と `.cmd`)、`add_brake_light_emission.py`、`VehicleDriveVerification` の窓 |
 
@@ -130,7 +130,7 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 ## 完了の判定
 - 全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクトで失敗 0(Windows.Tests 753 合格・2 スキップ、VSExtension.Tests 1197、CodeAnalysis.Tests 338、FeatureRunner.Tests 222、SceneModel.Tests 212、Core.Tests 154、Numerics.Tests 32)。
 - 最初の全テストで 2 つの欠陥が見つかり、根本から直した: `Vehicle` の参照型の欄によるスナップショットの型の初期化の例外(決定 6)と、`SpotLight` に足した `bool Visible` による VS 拡張の光の型の変換の失敗(決定 9。`LightVisibility` に移した)。
-- `verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown・Vehicle)と、SDK 0.1.20 のパッケージから作ったゲームの `verify-template-package`(ThirdPerson・TopDown・Vehicle)が通る。最初のパッケージ検証は `.artifacts/packages` の最新の 0.1.19 を使って失敗した(`Pad.Back` が無い)ので、`dotnet pack packaging/CSharpGameEngine.Sdk -c Release` で 0.1.20 を作ってやり直した。
+- `verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown・Vehicle)と、SDK 0.1.20 のパッケージから作ったゲームの `verify-template-package`(ThirdPerson・TopDown・Vehicle)が通る。最初のパッケージ検証は `.artifacts/packages` の最新の 0.1.19 を使って失敗した(`Pad.Back` が無い)ので、`dotnet pack packaging/Sdk -c Release` で 0.1.20 を作ってやり直した。
 - 車の振る舞いの範囲の決め方: UE の式と値から見積もった物理の量(最高速は空気抵抗とエンジンの釣り合い、ブレーキの距離はタイヤの摩擦の上限など)。UE を同じ入力で走らせた数値との比較はしていない。
 
 ## 追補(2026-10-24): 実機で見つかった 2 つの不具合

@@ -13,13 +13,13 @@
 
 ## 実装したこと
 
-### ランタイム `src/CSharpGameEngine.Entities/`
+### ランタイム `src/Entities/`
 - `SystemOrderAttribute.cs`(新規): `[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class)]`の
   `SystemOrderAttribute(int order)`。`ISystem`実装struct自身に直接(そのSystem1つだけの順序)、または
   `file`スコープのマーカークラスに(ファイル既定値)、どちらにも付けられる。
   ADR-0033決定事項2(属性ゼロの構造的推論)からの唯一の例外。
 
-### `GameSystemGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `GameSystemGenerator`(`src/CodeAnalysis/`)
 - `GameSystemModel.cs`: `GameSystemOrderTargetKind`(`System`/`FileMarker`)、`GameSystemOrderResult`、
   `GameSystemOrderContext`(System単体マップとファイル既定値マップを束ねる)を追加。
 - `GameSystemAnalyzer.cs`: `ComputeClassFullyQualifiedName`を追加(`GameSystemResult.ClassFullyQualifiedName`
@@ -70,7 +70,7 @@
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...

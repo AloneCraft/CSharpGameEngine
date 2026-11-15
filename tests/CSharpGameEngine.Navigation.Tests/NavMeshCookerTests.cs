@@ -95,7 +95,7 @@ public sealed class NavMeshCookerTests {
     }
     private static string CookCli(){
         // テストは bin/<構成>/net10.0 で動く。CLI は同じ構成でビルドされている(プロジェクト参照)。
-        return Path.Combine(RepositoryRoot,"tools","CSharpGameEngine.Cook.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Cook.Cli.dll");
+        return Path.Combine(RepositoryRoot,"tools","Cook.Cli","bin",Configuration,"net10.0","Cook.Cli.dll");
     }
     private static string Configuration=>new DirectoryInfo(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory)).Parent!.Name;
     private static (int ExitCode,string Output,string Error)RunCli(params string[]Arguments){
@@ -109,7 +109,7 @@ public sealed class NavMeshCookerTests {
         return (Process.ExitCode,Output.Result,Error.Result);
     }
     /// <summary>モジュールは自分の出力フォルダ(.deps.json と依存の DLL が隣にある)から読ませる。</summary>
-    private static string Module=>Path.Combine(RepositoryRoot,"plugins","CSharpGameEngine.Navigation","Cook","bin",Configuration,"net10.0","CSharpGameEngine.Navigation.Cook.dll");
+    private static string Module=>Path.Combine(RepositoryRoot,"plugins","Navigation","Cook","bin",Configuration,"net10.0","Navigation.Cook.dll");
     [Fact]
     public void TheCookCli_BakesInItsOwnProcess_AndVerifiesDeterminism(){
         using var Project=new TestProject();

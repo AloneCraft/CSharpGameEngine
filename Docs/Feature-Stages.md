@@ -4,7 +4,7 @@
 
 `CSharpGameEngine.FeatureRunner`は、機能IDと自動検証シナリオを一対多で結び、対話操作なしで実行・再開・結果保存するL7ツールである。実装済み機能は実行可能なStageへ、未実装機能はOracleまで確定した`NotImplemented` Stageへ登録する。未実装・タイムアウト・基盤障害を成功として扱わない。
 
-正本は`tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`であり、この文書は人間向けの契約である。カタログの一意性、参照整合性、実装済み機能の実行可能Stage割り当て、未実装機能の`NotImplemented`割り当ては自動テストで固定する。
+正本は`tools/FeatureRunner/FeatureStageCatalog.cs`であり、この文書は人間向けの契約である。カタログの一意性、参照整合性、実装済み機能の実行可能Stage割り当て、未実装機能の`NotImplemented`割り当ては自動テストで固定する。
 
 ## Catalog v2 and non-physics registration
 

@@ -1,13 +1,13 @@
 <Project>
-  <ItemGroup Condition="'$(CgeSkipEngineAnalyzerReference)' != 'true' and '$(MSBuildProjectName)' != 'CSharpGameEngine.CodeAnalysis' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  <ItemGroup Condition="'$(CgeSkipEngineAnalyzerReference)' != 'true' and '$(MSBuildProjectName)' != 'CodeAnalysis' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <CompilerVisibleProperty Include="CgeEngineAssembly" />
   </ItemGroup>
   <!-- Logical numeric formats are runtime-owned. Game projects receive the reference from
        build/CSharpGameEngine.Game.props; the listed engine/test compilations get it here, and the
        library itself is excluded to avoid a cycle. -->
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CSharpGameEngine.Entities' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Windows.Tests' or '$(MSBuildProjectName)' == 'CSharpGameEngine.CodeAnalysis.Tests'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Entities' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Windows.Tests' or '$(MSBuildProjectName)' == 'CSharpGameEngine.CodeAnalysis.Tests'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\Numerics\Numerics.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -20,7 +20,7 @@
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Showcase.targets" />
   <!-- The game projects' plugins (ADR-0079); the package imports it from CSharpGameEngine.Sdk.targets. -->
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Game.targets" />
-  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.NumericProfile.targets" Condition="'$(CgeNumericProfileLateImport)' == 'true' and '$(MSBuildProjectName)' != 'CSharpGameEngine.Numerics'" />
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.NumericProfile.targets" Condition="'$(CgeNumericProfileLateImport)' == 'true' and '$(MSBuildProjectName)' != 'Numerics'" />
 </Project>
 
 

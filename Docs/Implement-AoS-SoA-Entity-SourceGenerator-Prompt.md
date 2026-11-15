@@ -321,7 +321,7 @@ buildごとに変わる連番
 ```text
 src/
   CSharpGameEngine.Generation.Abstractions/
-  CSharpGameEngine.CodeAnalysis/
+  CodeAnalysis/
   CSharpGameEngine.ECS/
   または既存Runtime/ECSプロジェクト
 
@@ -385,7 +385,7 @@ Generator AssemblyはRuntimeの通常参照にしないでください。
 
 ```xml
 <ProjectReference
-    Include="..\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj"
+    Include="..\CodeAnalysis\CodeAnalysis.csproj"
     OutputItemType="Analyzer"
     ReferenceOutputAssembly="false" />
 ```

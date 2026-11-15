@@ -61,9 +61,9 @@ M0049の動機はユーザーの「c#に反映されていない」という報�
 
 ### 往復検証(round-trip verification)
 
-- `src/CSharpGameEngine.SceneModel/SceneModelStructuralSignature.cs`(新規、純粋クラス):
+- `src/SceneModel/SceneModelStructuralSignature.cs`(新規、純粋クラス):
   `SceneModel`からID・ソース位置に依存しない正規化文字列を再帰生成する。
-- `tools/CSharpGameEngine.VSExtension/SceneSaveVerification.cs`(新規): 書き戻した構文木を
+- `tools/VSExtension/SceneSaveVerification.cs`(新規): 書き戻した構文木を
   `Compilation.ReplaceSyntaxTree`で差し替えて`SceneDeclarationAnalyzer`で**読み直し**、
   再構築した`SceneModel`の署名を`Document.Model`の署名と比較する。不一致なら
   **テキストへ一切書き込まずに中止**する(壊れた結果を保存するより保存できないほうがましという判断)。

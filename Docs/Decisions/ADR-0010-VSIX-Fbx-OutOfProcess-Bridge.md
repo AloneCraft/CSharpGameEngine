@@ -12,7 +12,7 @@ ADR-0009でCLIビューア(`CSharpGameEngine.Extension`)にFBXインポート(As
 しかし、VSIX(`CSharpGameEngine.VSExtension`)は`devenv.exe`プロセス内で直接動作する
 (ADR-0008で確立したin-process設計)。ADR-0009のFBXインポーターをそのままVSIXに
 `ProjectReference`すると、AssimpNetのネイティブ`assimp.dll`が**Visual Studio自身のプロセスに
-直接ロードされる**ことになる。CLIビューア(`CSharpGameEngine.Extension.exe`)であれば
+直接ロードされる**ことになる。CLIビューア(`Extension.exe`)であれば
 ネイティブコードのクラッシュはそのプロセスだけが落ちて済むが、`devenv.exe`で同じことが起きると
 **VS全体がクラッシュし、開いている全てのドキュメント・未保存の変更が失われかねない**。
 不正な(あるいは悪意のある)FBXファイルがネイティブパーサーのバグを突く可能性はゼロではなく、
@@ -21,7 +21,7 @@ ADR-0009でCLIビューア(`CSharpGameEngine.Extension`)にFBXインポート(As
 ## 決定事項
 
 ### 1. VSIXはAssimpNetを直接参照しない。FBXパースは短命の別プロセス(ブリッジ)に隔離する
-新規プロジェクト`tools/CSharpGameEngine.Import.Fbx.Cli`(net10.0コンソールアプリ、
+新規プロジェクト`tools/Import.Fbx.Cli`(net10.0コンソールアプリ、
 `CSharpGameEngine.Import.Fbx`を`ProjectReference`)を作成した。引数は
 `<input.fbx> <output.json>`の2つのみ。`FbxImporter.Import`を呼び、結果を
 `FbxBridgeDocument`(positions/normals/uvs/indices/baseColorFactorをフラットな`float[]`/
@@ -32,8 +32,8 @@ ADR-0009でCLIビューア(`CSharpGameEngine.Extension`)にFBXインポート(As
 ブリッジがクラッシュしても、それは`devenv.exe`とは別プロセスなので、VS自体は無傷のまま。
 
 ### 2. VSIX側は`ExternalFbxLoader`が`dotnet run`でブリッジを起動し、JSON経由で結果を受け取る
-`tools/CSharpGameEngine.VSExtension/ExternalFbxLoader.cs`が`Process.Start("dotnet", "run
---project tools/CSharpGameEngine.Import.Fbx.Cli -- <fbx> <json>")`を実行し、
+`tools/VSExtension/ExternalFbxLoader.cs`が`Process.Start("dotnet", "run
+--project tools/Import.Fbx.Cli -- <fbx> <json>")`を実行し、
 最大60秒待機した後、生成されたJSONファイルを`System.Text.Json`(net472から参照可能な
 NuGetパッケージ版、バージョンは`SharpGLTF.Core`が要求する`>= 10.0.1`に合わせて固定)で
 デシリアライズして、既存の`SimpleMesh`型(後述)に変換する。既存の
@@ -68,7 +68,7 @@ ADR-0008時点でテクスチャ非対応)のデータを渡す必要がある�
 
 ## 検証結果(実際に実行して確認)
 
-- **ブリッジCLI単体**: `CSharpGameEngine.Import.Fbx.Cli.exe`を`assets/TestFixtures/Fbx/Box.fbx`
+- **ブリッジCLI単体**: `Import.Fbx.Cli.exe`を`assets/TestFixtures/Fbx/Box.fbx`
   に対して直接実行し、終了コード0、および`Positions`(24頂点分、72要素)・
   `Indices`(36要素、12三角形)・`BaseColorFactor`を含む正しいJSONが生成されることを
   実際のコマンド実行で確認した。
@@ -197,11 +197,11 @@ ADR-0021追記で経験した種類のデッドロックを再び招きかねな
 
 理由は、本ADRの隔離が「アセンブリを分ける」ことではなく「**プロセスを分ける**」ことで
 成立しているためである。VSIX(net472、`devenv.exe`内で動作)はAssimpNetを直接参照せず、
-`tools/CSharpGameEngine.Import.Fbx.Cli`を短命な別プロセスとして起動する形のままである。
+`tools/Import.Fbx.Cli`を短命な別プロセスとして起動する形のままである。
 ネイティブ`assimp.dll`がVisual Studio自身のプロセスへロードされることは引き続きない。
 
 変わったのは`Import.Fbx.Cli`の`<ProjectReference>`先が
-`src/CSharpGameEngine.Import.Fbx/` から `src/CSharpGameEngine.Import/` になった点だけである。
+`src/Import.Fbx/` から `src/Import/` になった点だけである。
 ブリッジCLIの引数・JSON出力形式・`--serve`常駐モード([[ADR-0023-Bridge-Process-Residency]])は無変更。
 統合後に`Box.fbx`の実変換を再実行し、`exit=0` / `Success:true`(ネイティブ`assimp.dll`のロード成功)を
 確認済み。

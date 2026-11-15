@@ -29,7 +29,7 @@ glTF向けの純粋C#実装(`SharpGLTF.Core`)に相当する「依存ゼロで�
 
 ## 決定事項
 
-### 1. `src/CSharpGameEngine.Import.Fbx`を新規作成(net10.0、`CSharpGameEngine.Import.Gltf`と同じ設計方針)
+### 1. `src/Import.Fbx`を新規作成(net10.0、`CSharpGameEngine.Import.Gltf`と同じ設計方針)
 `FbxImporter.Import(path)`はファイルを開いて`AssimpContext.ImportFileFromStream`(拡張子を形式のヒント)を
 `Triangulate | GenerateSmoothNormals | JoinIdenticalVertices`付きで呼び出し、最初のメッシュのposition/normal/uv/インデックス/
 diffuse色を抽出して、`Import.Gltf`と同形の`ImportedMesh`/`FbxImportResult`/
@@ -49,7 +49,7 @@ NuGetは、消費側プロジェクトに明示的な`RuntimeIdentifier`が設�
 `runtimes/{win-x64,...}/native/`配下のRID固有ネイティブアセット(`assimp.dll`)をビルド出力に
 コピーする。`RuntimeIdentifier`なしの`dotnet build`はRID非依存の出力になり、`assimp.dll`が
 配置されずクラス実行時に`DllNotFoundException`になる(実際に確認済み)。これを回避するため、
-`tools/CSharpGameEngine.Extension.csproj`と`tests/CSharpGameEngine.Import.Fbx.Tests.csproj`に
+`tools/Extension.csproj`と`tests/CSharpGameEngine.Import.Fbx.Tests.csproj`に
 `<RuntimeIdentifier>win-x64</RuntimeIdentifier>` + `<SelfContained>false</SelfContained>`を
 追加した。副作用として、ビルド出力パスに`win-x64`サブフォルダが追加される
 (例: `bin/Debug/net10.0-windows10.0.19041.0/win-x64/`)。
@@ -73,7 +73,7 @@ Assimpリポジトリの`test/models/FBX/box.fbx`を最初に試したが、Assi
 
 - `dotnet test tests/CSharpGameEngine.Import.Fbx.Tests`: 7件全て成功
   (正常インポート、バウンディングボックス、ファイル不在、null/空文字列、不正ファイル)。
-- `dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.fbx --hidden
+- `dotnet run --project tools/Extension -- --model Samples/Box.fbx --hidden
   --debug-layer --frames 3 --verify`をハードウェアGPU(NVIDIA GeForce RTX 4060 Ti)と
   WARPソフトウェアアダプタの両方で実行し、双方で
   `Mesh: 24 vertices, 12 triangles`・`Verification: PASSED`・
@@ -89,8 +89,8 @@ Assimpリポジトリの`test/models/FBX/box.fbx`を最初に試したが、Assi
 
 ## ADR-0034による追記(AssimpNetの到達範囲)
 
-[[ADR-0034-Project-Consolidation]]が`src/CSharpGameEngine.Import.Fbx`と
-`src/CSharpGameEngine.Import.Gltf`を単一の`src/CSharpGameEngine.Import`へ統合した。
+[[ADR-0034-Project-Consolidation]]が`src/Import.Fbx`と
+`src/Import.Gltf`を単一の`src/Import`へ統合した。
 **名前空間`CSharpGameEngine.Import.Fbx`/`.Import.Gltf`は無変更**で、型もAPIも本ADRの決定事項も
 そのままである。本ADRのNuGetライブラリ選定根拠(純C#のFBXライブラリが存在しない件)は
 新しいcsprojに**逐語でコメントとして保持**した。
@@ -102,10 +102,10 @@ NuGetは`RuntimeIdentifier`を設定した消費者にしかコピーしない�
 | 出力 | `AssimpNet.dll`(マネージド) | `assimp.dll`(ネイティブ) |
 |---|---|---|
 | `tests/CSharpGameEngine.Import.Tests` (RID=win-x64) | あり | あり |
-| `tools/CSharpGameEngine.Import.Gltf.Cli` (RID無し) | あり | **なし** |
+| `tools/Import.Gltf.Cli` (RID無し) | あり | **なし** |
 | `tests/CSharpGameEngine.Windows.Tests` (RID無し) | あり | **なし** |
 
-`tools/CSharpGameEngine.Import.Gltf.Cli`は統合後も意図的に`RuntimeIdentifier`を設定していない。
+`tools/Import.Gltf.Cli`は統合後も意図的に`RuntimeIdentifier`を設定していない。
 本ADR決定事項2の「`RuntimeIdentifier`を足すのはネイティブDLLが必要な消費者だけ」という方針は
 維持されている。テストプロジェクトは`Import.Fbx.Tests`と`Import.Gltf.Tests`が
 `CSharpGameEngine.Import.Tests`へ統合され、`RuntimeIdentifier=win-x64`は和集合として引き継いだ。

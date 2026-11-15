@@ -7,7 +7,7 @@
 ADR-0001(レイヤードアーキテクチャ)では L8「Visual Studio Authoring Environment」を保留レイヤーと
 定義しており、明示的なルールとして「VS拡張はエンジン/コンパイラ/CLIの契約に対する薄いフロントエンド
 であり続けること」「ランタイムレイヤー(L0-L6)はRoslynやVS SDKを参照してはならない」がある。
-ADR-0004 §7 では、`tools/CSharpGameEngine.Extension` を「将来、本物のVSIXシェルがラップすることに
+ADR-0004 §7 では、`tools/Extension` を「将来、本物のVSIXシェルがラップすることに
 なるプロジェクト」として明示的に見据えて作られていたが、実際のVSIX作成は見送られていた。理由は、
 本物のVSIXパッケージが `net472` を必要とし、このリポジトリの `net10.0` ベースのプロジェクトとは
 互換性がないためである。
@@ -29,7 +29,7 @@ flatcontainerインデックスに直接問い合わせて確認済み。.NET Fr
 
 ### 1. HWND埋め込みではなく外部プロセス起動方式を採用(ユーザー確認済みの選択)
 ユーザーには次の2案を提示した: (A) VSのToolsメニューコマンドから、既存の・既に動作検証済みの
-`CSharpGameEngine.Extension.exe` を `Process.Start` で別の独立ウィンドウとして起動する方式、
+`Extension.exe` を `Process.Start` で別の独立ウィンドウとして起動する方式、
 (B) D3D12の描画面をネイティブHWNDの再親化(WPFの `HwndHost` への `SetParent`)でVSのツール
 ウィンドウに直接埋め込む方式。ユーザーは (A) を選んだうえで、将来ツールウィンドウへの埋め込みに
 簡単に移植できるかを質問した。
@@ -48,7 +48,7 @@ flatcontainerインデックスに直接問い合わせて確認済み。.NET Fr
 残るリスクは、入力フォーカスのルーティング、リサイズ/DPIの同期、reparent時のちらつきであり、
 全体構造そのものではない(今回の実装がその土台になる)。
 
-### 2. 新規プロジェクト: `tools/CSharpGameEngine.VSExtension`、`net472`、`ProjectReference` なし
+### 2. 新規プロジェクト: `tools/VSExtension`、`net472`、`ProjectReference` なし
 ローカルの実際のVS生成VSIXテンプレートをそのまま踏襲: `Microsoft.VisualStudio.SDK`
 `17.14.40265`(`ExcludeAssets="runtime"`)と `Microsoft.VSSDK.BuildTools` `18.8.739`。リポジトリ
 内の他プロジェクトへの `ProjectReference` は一切持たない - `Extension.exe` を外部プロセスとして
@@ -88,7 +88,7 @@ Extensions\...` にコピーしてしまうため、実行時にアセンブリ�
 プロンプトなど)は未解決/保留 - 下記参照。
 
 ### 5. コマンドの実行内容
-`OpenViewerCommand.Execute` は `dotnet run --project tools/CSharpGameEngine.Extension --
+`OpenViewerCommand.Execute` は `dotnet run --project tools/Extension --
 --model Samples/Box.glb` を `Process.Start` で実行し、`WorkingDirectory` は特定したリポジトリ
 ルートに設定する - ADR-0003/0004/0005の各マイルストーンを通じて既に手動検証済みの、まさにその
 コマンドであり、新しい描画経路は一切導入していない。失敗時(リポジトリルートが特定できない、

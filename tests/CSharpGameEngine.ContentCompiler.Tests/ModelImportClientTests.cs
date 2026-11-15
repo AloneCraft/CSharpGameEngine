@@ -68,7 +68,7 @@ public sealed class ModelImportClientTests:IDisposable {
             var Directory=new DirectoryInfo(AppContext.BaseDirectory);
             var Configuration=Directory.Parent!.Name;
             while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
-            return Path.Combine(Directory!.FullName,"tools","CSharpGameEngine.Cook.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Cook.Cli.dll");
+            return Path.Combine(Directory!.FullName,"tools","Cook.Cli","bin",Configuration,"net10.0","Cook.Cli.dll");
         }
     }
     private async Task<ImporterRegistry>RegistryAsync(string?ToolPath=null)=>await ImporterRegistry.DiscoverAsync(ToolPath??Tool,[(typeof(RegistryFixtureImporter).Assembly.Location,true)],Path.Combine(this.Cache,"registry"));
@@ -123,9 +123,9 @@ public sealed class ModelImportClientTests:IDisposable {
     }
     [Theory]
     [InlineData("assets/TestFixtures/Gltf/BoxTextured.glb")]
-    [InlineData("Templates/CSharpGameEngine.Templates.FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb")]
-    [InlineData("Templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/SKM_Manny_Simple.glb")]
-    [InlineData("Templates/CSharpGameEngine.Templates.FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb")]
+    [InlineData("Templates/FirstPerson/Assets/Stage/Lvl_FirstPerson/Meshes/SM_Template_Map_Floor_78eccfff4a.glb")]
+    [InlineData("Templates/FirstPerson/Assets/Characters/Mannequins/SKM_Manny_Simple.glb")]
+    [InlineData("Templates/FirstPerson/Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb")]
     public async Task CommonGltfPreservesExistingGeometryRestPaletteAndAnimationKeys(string Source){
         var Directory=new DirectoryInfo(AppContext.BaseDirectory);
         while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }

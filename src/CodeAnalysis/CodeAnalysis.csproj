@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <DefineConstants>$(DefineConstants);IMAGE_CODEGEN</DefineConstants>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>true</IsPackable>
+    <PackageId>CSharpGameEngine.CodeAnalysis</PackageId>
+    <Description>Source generator / analyzer foundation for CSharpGameEngine.</Description>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!--
+    Scene解析の共有ソース(ADR-0040)。ProjectReferenceではなくソースリンクなのは、アナライザーは
+    自己完結アセンブリとして読み込まれ、OutputItemType="Analyzer"が推移的依存DLLを確実には流さないため。
+    まったく同じソースが tools/VSExtension(net472)へもリンクされ、SGとVSIXが
+    定義上同じSceneを見ることを保証する。
+    SceneDslDiagnosticsのリリース追跡(RS2008)は、実際にアナライザーとして出荷されるこのプロジェクトが
+    AnalyzerReleases.*.md で一元的に負う。
+  -->
+  <ItemGroup>
+    <Compile Include="..\Contracts\ImageImportSettings.cs" Link="Contracts\ImageImportSettings.cs" />
+    <Compile Include="..\SceneModel\**\*.cs"
+             Exclude="..\SceneModel\obj\**\*.cs;..\SceneModel\bin\**\*.cs"
+             Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 生成層のモデル(SceneEmitModel/GenerationGate)は internal だが、値等価性が壊れると
+         インクリメンタルキャッシュが静かにミスし続けて性能だけが劣化する。テストで直接固定する。 -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.CodeAnalysis.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+</Project>

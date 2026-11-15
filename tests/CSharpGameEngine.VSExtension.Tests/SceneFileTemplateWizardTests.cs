@@ -27,7 +27,7 @@ public sealed class SceneFileTemplateWizardTests {
     }
     [Fact]
     public void Template_WithItsTokensReplaced_IsACompleteSceneDocument(){
-        var Template=File.ReadAllText(Path.Combine(RepositoryRoot(),"tools","CSharpGameEngine.VSExtension","ItemTemplates","CSharp","GameEngine","SceneFile","Scene.json"));
+        var Template=File.ReadAllText(Path.Combine(RepositoryRoot(),"tools","VSExtension","ItemTemplates","CSharp","GameEngine","SceneFile","Scene.json"));
         var Text=SceneFileTemplateWizard.Complete(Template,@"C:\Games\My Game\Scenes\Level.json",Project)
             .Replace("$rootnamespace$","My_Game.Scenes").Replace("$safeitemname$","Level")
             .Replace("$guid1$","7b1c2f4e-0d3a-4c7e-9f1b-2a6d8e5c3b10").Replace("$guid2$","9e4d1a6b-3c2f-4b8a-8d7e-1f0c5a2b6e93");

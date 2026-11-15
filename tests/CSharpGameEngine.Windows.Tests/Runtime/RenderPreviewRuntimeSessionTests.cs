@@ -203,7 +203,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
             RenderPreviewRuntimeSession.Open(CreateOpen(Surface,GameAssembly,"UserEcsProject.Scenes.NotBuiltYet")));
         Assert.Contains("build",MissingScene.Message,StringComparison.OrdinalIgnoreCase);
         var NoBridge=Assert.Throws<InvalidOperationException>(()=>
-            RenderPreviewRuntimeSession.Open(CreateOpen(Surface,Path.Combine(AppContext.BaseDirectory,"CSharpGameEngine.Contracts.dll"),EditedScene)));
+            RenderPreviewRuntimeSession.Open(CreateOpen(Surface,Path.Combine(AppContext.BaseDirectory,"Contracts.dll"),EditedScene)));
         Assert.Contains("runtime view",NoBridge.Message,StringComparison.Ordinal);
     }
 

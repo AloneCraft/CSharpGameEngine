@@ -14,7 +14,7 @@ ADR-0006で実装した「VSコマンドから別ウィンドウを起動する�
 ADR-0006で既に整理していた通り、`Graphics.D3D12`/`Import.Gltf`は`net10.0`(CoreCLR)、
 `devenv.exe`は`net472`(.NET Framework CLR)であり、レンダラーを本当の意味でVSプロセスに
 in-processで埋め込むことはそもそも不可能だった(当時の技術調査の範囲では)。そのため、レンダラー
-は引き続き別プロセス(`CSharpGameEngine.Extension.exe`)として動かしつつ、その**ウィンドウだけ**
+は引き続き別プロセス(`Extension.exe`)として動かしつつ、その**ウィンドウだけ**
 をVSのツールウィンドウにネイティブHWND再親化で組み込む、という設計を採用した。
 
 ## 決定事項(当時の実装)
@@ -27,7 +27,7 @@ CLIオプションを追加した。
 ### 2. VSIX側の新規コンポーネント
 `ViewerContainerWindow.cs`(WPFの`HwndHost`に返す軽量なネイティブ`WS_CHILD`コンテナウィンドウ、
 `WM_SIZE`を子(グランドチャイルド)に転送)、`ViewerHwndHost.cs`(`dotnet run --project
-tools/CSharpGameEngine.Extension -- --model Samples/Box.glb --parent-hwnd <コンテナHWND>`
+tools/Extension -- --model Samples/Box.glb --parent-hwnd <コンテナHWND>`
 を起動し、ポーリングでグランドチャイルドのHWNDを検出して初回リサイズを行う)、新規コマンド
 「C# Game Engine Viewer パネルを表示」を追加した。既存の`OpenViewerCommand`(別ウィンドウ方式)
 はそのまま残した。
@@ -39,7 +39,7 @@ tools/CSharpGameEngine.Extension -- --model Samples/Box.glb --parent-hwnd <コ�
 - **VSの「閉じる」ボタンは`DestroyWindowCore`を呼ばない**: ツールウィンドウの標準的な
   「閉じる(Shift+Esc)」ボタンは、VSの設計上ペインを`Hide()`するだけで、`HwndHost`の
   `DestroyWindowCore`は実際には呼ばれないことが判明した。このため、閉じるボタンを押しても
-  外部プロセス(`CSharpGameEngine.Extension.exe`)は生き続けた。
+  外部プロセス(`Extension.exe`)は生き続けた。
 - **`DestroyWindow`によるカスケード削除は、子プロセスのメッセージキューに`WM_DESTROY`を
   確実には届けない**: 親(コンテナ)ウィンドウが破棄されると、Win32はその子ウィンドウ(別プロセス
   所有でも)を実際にカスケード的に破棄するが、それを所有するプロセス(`Extension.exe`)の

@@ -131,7 +131,7 @@ public sealed class PhysicsSceneBakeServiceTests {
         string Result=PhysicsSceneBakeService.GetExactHostExecutablePath(Root,"ABC123");
 
         Assert.Equal(Path.Combine(Root,".artifacts","PhysicsBakeHost","ABC123","build","bin",
-            "CSharpGameEngine.Physics.Cli","debug_win-x64","CSharpGameEngine.Physics.Cli.exe"),Result);
+            "Physics.Cli","debug_win-x64","Physics.Cli.exe"),Result);
     }
 
     [Fact]

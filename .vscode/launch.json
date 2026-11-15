@@ -19,11 +19,11 @@
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost/bin/x64/Debug/net10.0-windows10.0.19041.0/CSharpGameEngine.TestHost.exe",
+                               "program":  "${workspaceFolder}/tools/TestHost/bin/x64/Debug/net10.0-windows10.0.19041.0/TestHost.exe",
                                "args":  [
                                             "self-test"
                                         ],
-                               "cwd":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost",
+                               "cwd":  "${workspaceFolder}/tools/TestHost",
                                "console":  "internalConsole",
                                "stopAtEntry":  false
                            },
@@ -32,11 +32,11 @@
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost/bin/x64/Debug/net10.0-windows10.0.19041.0/CSharpGameEngine.TestHost.exe",
+                               "program":  "${workspaceFolder}/tools/TestHost/bin/x64/Debug/net10.0-windows10.0.19041.0/TestHost.exe",
                                "args":  [
                                             "triangle"
                                         ],
-                               "cwd":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost",
+                               "cwd":  "${workspaceFolder}/tools/TestHost",
                                "console":  "internalConsole",
                                "stopAtEntry":  false
                            },
@@ -45,12 +45,12 @@
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Extension/bin/x64/Debug/net10.0-windows10.0.19041.0/win-x64/CSharpGameEngine.Extension.exe",
+                               "program":  "${workspaceFolder}/tools/Extension/bin/x64/Debug/net10.0-windows10.0.19041.0/win-x64/Extension.exe",
                                "args":  [
                                             "--model",
                                             "${workspaceFolder}/assets/TestFixtures/Gltf/Box.glb"
                                         ],
-                               "cwd":  "${workspaceFolder}/tools/CSharpGameEngine.Extension",
+                               "cwd":  "${workspaceFolder}/tools/Extension",
                                "console":  "internalConsole",
                                "stopAtEntry":  false
                            },
@@ -59,7 +59,7 @@
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Import.Gltf.Cli/bin/Debug/net10.0/CSharpGameEngine.Import.Gltf.Cli.exe",
+                               "program":  "${workspaceFolder}/tools/Import.Gltf.Cli/bin/Debug/net10.0/Import.Gltf.Cli.exe",
                                "args":  [
                                             "${input:gltfInputPath}",
                                             "${input:gltfOutputPath}"
@@ -73,7 +73,7 @@
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Import.Fbx.Cli/bin/Debug/net10.0/win-x64/CSharpGameEngine.Import.Fbx.Cli.exe",
+                               "program":  "${workspaceFolder}/tools/Import.Fbx.Cli/bin/Debug/net10.0/win-x64/Import.Fbx.Cli.exe",
                                "args":  [
                                             "${input:fbxInputPath}",
                                             "${input:fbxOutputPath}"
@@ -87,7 +87,7 @@
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Primitive.Cli/bin/Debug/net10.0/CSharpGameEngine.Primitive.Cli.exe",
+                               "program":  "${workspaceFolder}/tools/Primitive.Cli/bin/Debug/net10.0/Primitive.Cli.exe",
                                "args":  [
                                             "${input:primitiveKind}",
                                             "${input:primitiveOutputPath}"

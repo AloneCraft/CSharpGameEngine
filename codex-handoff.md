@@ -18,7 +18,7 @@
 
 ## 対策
 
-- `CSharpGameEngine.VSExtension.csproj` に次を明示した。
+- `VSExtension.csproj` に次を明示した。
 
   ```xml
   <VSSDKTargetPlatformRegRootSuffix>CgeFixed</VSSDKTargetPlatformRegRootSuffix>
@@ -36,7 +36,7 @@
 - 変更後は次を実行し、値が一致することを確認する。
 
   ```powershell
-  dotnet msbuild tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj `
+  dotnet msbuild tools/VSExtension/VSExtension.csproj `
     -getProperty:VSSDKTargetPlatformRegRootSuffix,StartArguments
   ```
 
@@ -59,7 +59,7 @@
 - VSCT に `<Button>` を追加しただけではツールバーには表示されない。ツールバーの `<Group>` を親にする `<CommandPlacement>` も必ず追加する。
 - コマンド追加時は、Tools メニュー、ツールバー、必要なコンテキストメニューの配置先を個別に確認する。
 - VSIX ビルド後、既存の Visual Studio セッションには古い VSCT が残るため、VSIX を再インストールして Visual Studio を再起動する。
-- 最低限、`dotnet build tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj -c Debug --no-restore` と `git diff --check` を実行する。
+- 最低限、`dotnet build tools/VSExtension/VSExtension.csproj -c Debug --no-restore` と `git diff --check` を実行する。
 ## 項目テンプレートが「新しい項目」に表示されない場合（2026-08-21）
 
 ### 原因
@@ -70,7 +70,7 @@
 
 ### 対策と確認手順
 
-- `CSharpGameEngine.VSExtension.csproj` で `VSTemplate` を宣言し、生成 ZIP を `VSIXSourceItem` に渡す。最終 VSIX は `ItemTemplates` 配下に `.vstman`、`.vstemplate`、テンプレート C#、アイコンを含む形にする。
+- `VSExtension.csproj` で `VSTemplate` を宣言し、生成 ZIP を `VSIXSourceItem` に渡す。最終 VSIX は `ItemTemplates` 配下に `.vstman`、`.vstemplate`、テンプレート C#、アイコンを含む形にする。
 - `GenerateTemplatesManifest` の直前に、生成済み `.vstman`、`createTemplateManifests.cache`、`templateFiles.json` を削除するターゲットを置く。これにより増分ビルドでも XML 末尾の残骸を防ぐ。
 - `source.extension.vsixmanifest` の VSIX バージョンを上げ、`<Asset Type="Microsoft.VisualStudio.ItemTemplate" Path="ItemTemplates" />` を登録する。`Launch-VSExtension.ps1` は VSIXInstaller の終了を待ち、展開済みの版・テンプレートマニフェスト・テンプレート SHA-256 を検証してから `/InstallVSTemplates` を実行する。
 - 検証は、生成 `.vsix` を ZIP として開き、`ItemTemplates/templateManifest0.1033.vstman` が単一の有効 XML であること、`CSharp/GameEngine/1033/SceneFile` 一式があることを自動テストで確認する。

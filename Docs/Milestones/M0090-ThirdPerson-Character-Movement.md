@@ -46,11 +46,11 @@ Commands executed from the repository root:
 ```text
 dotnet test CSharpGameEngine.slnx -c Release
 dotnet test tests/CSharpGameEngine.Windows.Tests -c Release --filter "FullyQualifiedName~SpringArmTests|FullyQualifiedName~CharacterMotorTests"
-dotnet run --project tools/CSharpGameEngine.Unreal.SceneImporter --no-build -- thirdperson .artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json Templates/CSharpGameEngine.Templates.ThirdPerson
-dotnet build Templates/CSharpGameEngine.Templates.ThirdPerson -c Debug
-dotnet tools/CSharpGameEngine.FeatureRunner/bin/Debug/net10.0/CSharpGameEngine.FeatureRunner.dll verify-thirdperson-character --adapter hardware
-dotnet tools/CSharpGameEngine.FeatureRunner/bin/Debug/net10.0/CSharpGameEngine.FeatureRunner.dll verify-thirdperson-character --adapter warp
-dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -c Debug -- run rigid.character-controller --configuration Debug --adapter warp
+dotnet run --project tools/Unreal.SceneImporter --no-build -- thirdperson .artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json Templates/ThirdPerson
+dotnet build Templates/ThirdPerson -c Debug
+dotnet tools/FeatureRunner/bin/Debug/net10.0/FeatureRunner.dll verify-thirdperson-character --adapter hardware
+dotnet tools/FeatureRunner/bin/Debug/net10.0/FeatureRunner.dll verify-thirdperson-character --adapter warp
+dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -c Debug -- run rigid.character-controller --configuration Debug --adapter warp
 ```
 | Check | Result |
 |---|---|

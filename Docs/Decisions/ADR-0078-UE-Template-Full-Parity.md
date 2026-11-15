@@ -32,7 +32,7 @@ M0114以降の番号は、[ADR-0080](ADR-0080-Universal-Model-Import.md)のユ�
 | 静的なライティングのベイク | 作らない | ユーザーの決定。UE のテンプレートも Lumen の動的 GI で、焼いていない |
 | Lumen 相当の動的 GI と反射、ボリュメトリック雲、空の球 | 作る | ユーザーの決定。ADR-0069 の DDGI プローブは、低品質と WARP の代替の段として残す |
 | Chaos Vehicle 相当(剛体、車輪ごとのサスペンション、トルク曲線、変速、アッカーマン操舵、タイヤの摩擦、空中の減衰、転倒とリセット) | 作る(M0109 で実装) | ユーザーの決定。M0101 段階 9 の簡易モデルは置き換えた |
-| Chaos の破壊(Geometry Collection、Fracture、Field に相当) | 作る(M0113 で実装) | ユーザーの追加依頼。テンプレートには無いので、エンジン機能(`Runtime.Physics` のソルバーと Destruction プラグイン)と専用の見本(`samples/CSharpGameEngine.Samples.Destruction`)にした。テンプレートのレベルは変えない |
+| Chaos の破壊(Geometry Collection、Fracture、Field に相当) | 作る(M0113 で実装) | ユーザーの追加依頼。テンプレートには無いので、エンジン機能(`Runtime.Physics` のソルバーと Destruction プラグイン)と専用の見本(`samples/Samples.Destruction`)にした。テンプレートのレベルは変えない |
 | Vehicle のレベルの路面(Landscape の舗装の材質)、Spline に沿ったトラックと縁石(`SM_Track_10M`)、傾斜、アーチ | 作る(M0112 で実装) | UE の参照画像との比較(2026-10-22)で、エンジンが平らな板 1 枚だと分かった。Landscape は glTF に書き出せないので、UE から高さと Spline のメッシュの配置を読み、静的な三角形メッシュにした。地形のコンポーネントは作らない(§6) |
 | 地形(`Terrain`)のコンポーネント、Landscape の層と仮想テクスチャ | 作らない(M0112) | テンプレートのレベルは静的で、起伏は静的なメッシュで足りる。層の重みと斜面の色は UE の撮影で基本色のテクスチャにした |
 | Vehicle のエンジン音 | 作らない(M0112) | UE のテンプレートに音の資産が無い。§2 の「音」と同じ理由 |
@@ -46,8 +46,8 @@ M0114以降の番号は、[ADR-0080](ADR-0080-Universal-Model-Import.md)のユ�
 | レイヤー | 置くもの |
 |---|---|
 | L5 `Runtime.Physics`(既存の拡張) | ソルバー本体: 剛体、結合のひずみ、クラスターの分離、破片の剛体化、アンカー、破片の上限と除去。UE の Chaos の実行時に当たる。 |
-| L5 プラグイン `plugins/CSharpGameEngine.Vehicles`(ADR-0079) | 車両: 車輪ごとのサスペンション、トルク曲線と変速、アッカーマン操舵、タイヤの摩擦、空中の減衰、転倒とリセット。UE の ChaosVehicles プラグインに当たり、物理の上に載る。M0101 段階 9 の `Runtime.Character` の簡易版は、ここへ移して置き換える。 |
-| L5 プラグイン `plugins/CSharpGameEngine.Destruction`(ADR-0079) | 破壊の Component と System、Field。UE の GeometryCollection プラグインに当たる。結合とクラスターを解くソルバーは上の `Runtime.Physics` に置く(UE でも Chaos 本体はエンジンにある)。 |
+| L5 プラグイン `plugins/Vehicles`(ADR-0079) | 車両: 車輪ごとのサスペンション、トルク曲線と変速、アッカーマン操舵、タイヤの摩擦、空中の減衰、転倒とリセット。UE の ChaosVehicles プラグインに当たり、物理の上に載る。M0101 段階 9 の `Runtime.Character` の簡易版は、ここへ移して置き換える。 |
+| L5 プラグイン `plugins/Destruction`(ADR-0079) | 破壊の Component と System、Field。UE の GeometryCollection プラグインに当たる。結合とクラスターを解くソルバーは上の `Runtime.Physics` に置く(UE でも Chaos 本体はエンジンにある)。 |
 | L4 物理ドメインの契約(`IPhysicsHost`、`PhysicsDomainRegistry`、`PhysicsContracts`) | 点に加える力、トルク、接触の衝撃(ひずみの元)のコマンドとイベント。L5 の車両は、この契約だけを使う(L5 の solver は engine-owned な L4 の契約だけを参照する、という Architecture の決定)。 |
 | L3 ECS | Component と System。固定 tick の PhysicsSimulation・PostPhysics のフェーズで回る。ランタイムとベイクで同じ System を使う。 |
 | L6 成果物 | 調理済みの破砕資産(破片・結合・クラスター)、破壊を記録した物理キャッシュ(`.cgephyscache` の拡張)。 |

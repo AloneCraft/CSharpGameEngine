@@ -9,7 +9,7 @@
     <Error Condition="'$(CgeNumericMode)' == 'Fixed' and !$([System.Text.RegularExpressions.Regex]::IsMatch('$(CgeFractionalBits)', '^\d{1,3}$'))" Text="CgeFractionalBits must be a nonnegative integer." />
     <Error Condition="'$(CgeNumericMode)' == 'Fixed' and $(CgeFractionalBits) &gt; $([MSBuild]::Subtract($(CgeFixedBits),2))" Text="CgeFractionalBits must leave room for the sign and the value one (0 through CgeFixedBits - 2)." />
   </Target>
-  <Target Name="CgeGenerateNumericProfile" BeforeTargets="CoreCompile" Condition="'$(_CgeCustomFixed)' == 'true' and '$(MSBuildProjectName)' == 'CSharpGameEngine.Numerics'">
+  <Target Name="CgeGenerateNumericProfile" BeforeTargets="CoreCompile" Condition="'$(_CgeCustomFixed)' == 'true' and '$(MSBuildProjectName)' == 'Numerics'">
     <PropertyGroup>
       <DefineConstants Condition="$(CgeFractionalBits) &lt; 32 or $(CgeFractionalBits) &gt; $([MSBuild]::Subtract($(CgeFixedBits),4))">$(DefineConstants);CGE_FIXED_EXTENDED_MATH</DefineConstants>
       <_CgeNumericProfileFile>$(IntermediateOutputPath)NumericBuildProfile.g.cs</_CgeNumericProfileFile>

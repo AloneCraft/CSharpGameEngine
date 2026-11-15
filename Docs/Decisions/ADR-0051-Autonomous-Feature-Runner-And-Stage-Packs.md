@@ -39,8 +39,8 @@
 ## Verification
 
 - `dotnet test tests/CSharpGameEngine.FeatureRunner.Tests/CSharpGameEngine.FeatureRunner.Tests.csproj --configuration Debug`
-- `dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -- list --json`
-- `dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -- run-feature F-L5-004`
+- `dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -- list --json`
+- `dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -- run-feature F-L5-004`
 
 ## Related features
 

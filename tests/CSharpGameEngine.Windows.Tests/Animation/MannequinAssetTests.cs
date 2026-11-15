@@ -13,7 +13,7 @@ public sealed class MannequinAssetTests(MannequinArtifactFixture Artifacts):ICla
         while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
         return Directory?.FullName??throw new InvalidOperationException("The repository root was not found.");
     }
-    private static string Asset(string Template,string Name)=>Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates."+Template,"Assets","Characters","Mannequins",Name);
+    private static string Asset(string Template,string Name)=>Path.Combine(RepositoryRoot(),"Templates",""+Template,"Assets","Characters","Mannequins",Name);
     private static readonly string[]Clips=[
         "MM_Idle","MM_Jump","MM_Fall_Loop","MM_Land",
         "MF_Unarmed_Walk_Fwd","MF_Unarmed_Walk_Fwd_Left","MF_Unarmed_Walk_Fwd_Right","MF_Unarmed_Walk_Left","MF_Unarmed_Walk_Right","MF_Unarmed_Walk_Bwd","MF_Unarmed_Walk_Bwd_Left","MF_Unarmed_Walk_Bwd_Right",

@@ -32,7 +32,7 @@ public sealed class PackagedAssetAuthoringTests {
         var PackageRoot=Path.Combine(Root,"package");
         Directory.CreateDirectory(Root);
         try {
-            ZipFile.ExtractToDirectory(Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix"),PackageRoot);
+            ZipFile.ExtractToDirectory(Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix"),PackageRoot);
             await Verify(Root,PackageRoot);
         } finally {
             Assert.StartsWith(Path.GetFullPath(Path.GetTempPath()),Path.GetFullPath(Root),StringComparison.OrdinalIgnoreCase);
@@ -40,7 +40,7 @@ public sealed class PackagedAssetAuthoringTests {
         }
     }
     private static async Task RunAsync(string PackageRoot,string Input,string Output){
-        var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","CSharpGameEngine.Import.AssetAuthoring.Cli","CSharpGameEngine.Import.AssetAuthoring.Cli.exe")){
+        var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","Import.AssetAuthoring.Cli","Import.AssetAuthoring.Cli.exe")){
             Arguments="\""+Input+"\" \""+Output+"\"",WorkingDirectory=Path.GetDirectoryName(Input),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
         };
         using var Process=System.Diagnostics.Process.Start(Start)??throw new InvalidOperationException("Packaged bridge did not start.");

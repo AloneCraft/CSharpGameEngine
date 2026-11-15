@@ -10,7 +10,7 @@ internal sealed class SceneProjectOptions:AnalyzerConfigOptionsProvider {
     internal const string ProjectDirectory=@"C:\Game\";
     internal const string ScenesDirectory=ProjectDirectory+@"Scenes\";
     /// <summary>有効化されたエンジンプラグイン Vehicles（ADR-0079）。実際のビルドと同様、プロジェクトフォルダーの外にある。</summary>
-    internal const string EnginePluginDirectory=@"C:\Engine\plugins\CSharpGameEngine.Vehicles\";
+    internal const string EnginePluginDirectory=@"C:\Engine\plugins\Vehicles\";
     internal const string EngineVersion="0.1.16";
     internal static readonly SceneProjectOptions Instance=new(EngineVersion);
     private readonly Options Global;

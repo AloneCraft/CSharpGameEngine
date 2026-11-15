@@ -5,19 +5,19 @@
 ## 背景
 - 目標の層は、Win32/D3D12/XAudio2 の binding が L0、移植可能な値が L1〜L5、エンジンのサーバーが L4、成果物が L6、静的コンパイラが L7、VS が L8(`Docs/Architecture.md:214,224-227`、`Docs/Specifications/Rendering.md:42-48,65`、ADR-0052)。層はアセンブリでは強制されず、Feature ID 単位で追跡する(`Architecture.md:118-120`)。
 - 現状(調べた事実、2026-10-25):
-  - `src/CSharpGameEngine.Windows`(文書上は L0)の `Graphics/` は 39 ファイル 14,595 行で、D3D12/DXGI/Win32 の binding は約 866 行(約 6 %)。残りはパス構成・光源・影・GI・空・Lumen・自動露出・ポスト・マテリアル・対数深度などの描画機能である。`StageRenderer.RenderFrame` がパスを固定の順に記録し、Forward+ のタイル振り分けも `StageRenderer` の中にある。
+  - `src/Windows`(文書上は L0)の `Graphics/` は 39 ファイル 14,595 行で、D3D12/DXGI/Win32 の binding は約 866 行(約 6 %)。残りはパス構成・光源・影・GI・空・Lumen・自動露出・ポスト・マテリアル・対数深度などの描画機能である。`StageRenderer.RenderFrame` がパスを固定の順に記録し、Forward+ のタイル振り分けも `StageRenderer` の中にある。
   - 移植可能な CPU アルゴリズムと値型が L0 のアセンブリ・名前空間 `CSharpGameEngine.Graphics.D3D12` にある(`PhysicalLighting`、`DirectionalShadowCascades`、`EmissivePatchBuilder`、`EnvironmentLighting`、`StageRenderInputs`、`TypedLightBackend`、`Camera`)。L5 の `Runtime.Windows` が 8 ファイルでその名前空間を `using` している。
-  - `src/CSharpGameEngine.Rendering`(net10.0、TerraFX なし)に `RenderGraph`(宣言のみ、実行器なし)・`RenderQualityProfile`・`RenderWorldSnapshot`(可視性。実行時の経路に無い)・`LightSubmissions`・`RadialDepth` がある。文書上の層は L1・L4・L5 で揺れている。
-  - `RenderServer`(`src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`)は具象の `StageRenderer` を持つ facade で、`D3D12Exception` と DXGI の HRESULT(`0x887A0005/06/07`)を直接扱う。公開 API に L0 の型(`Graphics.D3D12.Camera`、`D3D12DebugMessage`、`DXGI_FORMAT` 付きの `PixelReadbackResult`、`nint Hwnd`、`Stage*CreateInfo`)が出ている。`Rendering.md:44` の「D3D12 types do not cross L0」に反する。
+  - `src/Rendering`(net10.0、TerraFX なし)に `RenderGraph`(宣言のみ、実行器なし)・`RenderQualityProfile`・`RenderWorldSnapshot`(可視性。実行時の経路に無い)・`LightSubmissions`・`RadialDepth` がある。文書上の層は L1・L4・L5 で揺れている。
+  - `RenderServer`(`src/Windows/Runtime/RenderServer.cs`)は具象の `StageRenderer` を持つ facade で、`D3D12Exception` と DXGI の HRESULT(`0x887A0005/06/07`)を直接扱う。公開 API に L0 の型(`Graphics.D3D12.Camera`、`D3D12DebugMessage`、`DXGI_FORMAT` 付きの `PixelReadbackResult`、`nint Hwnd`、`Stage*CreateInfo`)が出ている。`Rendering.md:44` の「D3D12 types do not cross L0」に反する。
   - シーンの Component `Camera`・`PrimitiveMesh` は L0 のアセンブリにあるが、シーン JSON は Component の完全修飾名(`CSharpGameEngine.Runtime.Windows.Camera`)を正本にする。
-  - 物理: L4 の契約(`PhysicsContracts`・`PhysicsDomainRegistry`・`IPhysicsHost`)と L5 のソルバーが同じ共有プロジェクト `Runtime.Physics` にあり、契約は `Entity`(L3)を使う(`PhysicsContracts.cs` で 24 回、`DeterministicPhysicsWorld.cs` で 34 回)。ECS なしでコンパイルできるのは 4 ファイルだけ(`tools/CSharpGameEngine.Physics.Cli/CSharpGameEngine.Physics.Cli.csproj:15-19`)。
+  - 物理: L4 の契約(`PhysicsContracts`・`PhysicsDomainRegistry`・`IPhysicsHost`)と L5 のソルバーが同じ共有プロジェクト `Runtime.Physics` にあり、契約は `Entity`(L3)を使う(`PhysicsContracts.cs` で 24 回、`DeterministicPhysicsWorld.cs` で 34 回)。ECS なしでコンパイルできるのは 4 ファイルだけ(`tools/Physics.Cli/Physics.Cli.csproj:15-19`)。
   - 層の試験 `EngineLayerSpec` は `Runtime.Physics` と `Runtime.Character` 直下の `.cs` だけを正規表現で検査する(`TopDirectoryOnly`)。
 
 ## 決定
 
 ### §1 描画
 1. **L0(`CSharpGameEngine.Windows`)は D3D12 の実行だけにする。** デバイス、swap chain、ヒープ、ルートシグネチャ(レジスターは L6 の ABI に従う)、`StagePipelineDesc` から PSO を作る、計画のテクスチャと遷移バリア、アップロードリング、記述子、フェンス、Present、readback、デバイス喪失の判定、機能実行器(大気・GI・AO・自動露出・GDF・Lumen・Skinning)の記録、シェーダー成果物のホットリロード。カメラ・光源・物体の状態、パスの順、深度の方針は持たない。
-2. **移植可能な描画は既存の `src/CSharpGameEngine.Rendering`(net10.0)に集める。** 新しい csproj は作らない(slnx・SDK の梱包・Game.props の変更が増え、値型と Server の置き場が二つに割れるだけで得るものが無い)。参照に `CSharpGameEngine.Core` を足す。
+2. **移植可能な描画は既存の `src/Rendering`(net10.0)に集める。** 新しい csproj は作らない(slnx・SDK の梱包・Game.props の変更が増え、値型と Server の置き場が二つに割れるだけで得るものが無い)。参照に `CSharpGameEngine.Core` を足す。
 
    | 層 | 名前空間 | 中身 |
    |---|---|---|
@@ -45,8 +45,8 @@
 6. 物理は L4 の Physics Server として切り出さない(`IPhysicsHost` の契約と L5 のソルバーの分離までを今回の範囲とする)。
 
 ### §3 層の試験(`EngineLayerSpec` に足す。再帰で調べる)
-- 描画: `PortableRenderingDoesNotNameNativeBinding`(`src/CSharpGameEngine.Rendering/**/*.cs` に `TerraFX|CSharpGameEngine\.Graphics\.D3D12|CSharpGameEngine\.Platform\.Windows|\bWin32\b|\bDXGI_|\bD3D12_|\bID3D12|\bIDXGI|\bHWND\b` が無い)、`PortableRenderingReferencesOnlyPortableProjects`(TFM が `net10.0` ちょうど、PackageReference と AllowUnsafeBlocks が無い、ProjectReference が Contracts・Content・Core の中、`CSharpGameEngine.Windows` への `InternalsVisibleTo` が無い)、`RenderingL4DoesNotNameL5View`、`NativeBackendDoesNotPlanFrames`(L0 のソースに `RenderViewPolicy.`・`StagePipelinePlanner.`・`StageLightPlanner.`・`RadialDepthProjection.TryCreate`・`DirectionalShadowCascades.Build`・`PhysicalLightBudget.` が無い)、`NoEngineLibraryReferencesTheNativeBackend`。
-- 物理: `PhysicsContractAndSolverDoNotNameTheEcs`、`PhysicsProjectsReferenceOnlyLowerLayers`、`PhysicsSolverHasNoFloatArithmetic`。ポータブル検査の対象に新しい 3 プロジェクトと `plugins/CSharpGameEngine.Vehicles/Runtime` を加え、`TopDirectoryOnly` をやめて再帰で調べる。
+- 描画: `PortableRenderingDoesNotNameNativeBinding`(`src/Rendering/**/*.cs` に `TerraFX|CSharpGameEngine\.Graphics\.D3D12|CSharpGameEngine\.Platform\.Windows|\bWin32\b|\bDXGI_|\bD3D12_|\bID3D12|\bIDXGI|\bHWND\b` が無い)、`PortableRenderingReferencesOnlyPortableProjects`(TFM が `net10.0` ちょうど、PackageReference と AllowUnsafeBlocks が無い、ProjectReference が Contracts・Content・Core の中、`CSharpGameEngine.Windows` への `InternalsVisibleTo` が無い)、`RenderingL4DoesNotNameL5View`、`NativeBackendDoesNotPlanFrames`(L0 のソースに `RenderViewPolicy.`・`StagePipelinePlanner.`・`StageLightPlanner.`・`RadialDepthProjection.TryCreate`・`DirectionalShadowCascades.Build`・`PhysicalLightBudget.` が無い)、`NoEngineLibraryReferencesTheNativeBackend`。
+- 物理: `PhysicsContractAndSolverDoNotNameTheEcs`、`PhysicsProjectsReferenceOnlyLowerLayers`、`PhysicsSolverHasNoFloatArithmetic`。ポータブル検査の対象に新しい 3 プロジェクトと `plugins/Vehicles/Runtime` を加え、`TopDirectoryOnly` をやめて再帰で調べる。
 - その他: `ShaderArtifactRuntimeBoundaryTests` は `typeof(StageRenderer).Assembly` を検査する形にし、`RenderServer` のアセンブリが TerraFX と `CSharpGameEngine.Windows` を参照しないことも検査する。`FeatureStageCatalogTests.EveryStageInputPathExists`(今は誰も存在を検査していない InputPaths を検査する。`FeatureStageCatalog.cs`・`RenderingReleaseEvidence.cs`・`ChangedStageSelectorTests.cs` のパスの直書きを移動に合わせて直す)。
 
 ## 採らなかった案
@@ -67,7 +67,7 @@
 - §3 の試験。移動の前後で対数の 7 SHA と既存の WARP 画素の期待値を書き換えない。
 - `StagePipelinePlannerTests.EveryPipelineNamesAnAbiEntry`(すべてのキーで作った計画のエントリー名が `ShaderArtifactAbi.GetEntries(Stage)` に含まれる)、`StageConstantLayoutReflectionTests`、`StageGpuLayoutTests`。
 - TestHost の `frame-plan`(GPU なしでパスの一覧を表示)。
-- `PhysicsGoldenStateTests` とテンプレートの実走が M0122 の終わりと同じ値。`tools/CSharpGameEngine.Physics.Cli` が ECS なしでソルバーまでコンパイルする。
+- `PhysicsGoldenStateTests` とテンプレートの実走が M0122 の終わりと同じ値。`tools/Physics.Cli` が ECS なしでソルバーまでコンパイルする。
 
 ## 関連する機能
 - F-L0-011(D3D12 render plan executor)、F-L4-021(Entity-free physics contracts)、F-L0-002、F-L4-002、F-L4-004、F-L5-003、F-L5-038

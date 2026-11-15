@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Cooking\CSharpGameEngine.Cooking.csproj" />
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.Cook.Cli\CSharpGameEngine.Cook.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Cooking\Cooking.csproj" />
+    <ProjectReference Include="..\..\tools\Cook.Cli\Cook.Cli.csproj" />
   </ItemGroup>
 </Project>

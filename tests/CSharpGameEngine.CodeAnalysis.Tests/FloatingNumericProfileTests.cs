@@ -50,7 +50,7 @@ public sealed class FloatingNumericProfileTests {
             }
             """,Options));
         var References=((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Where(Path=>!System.IO.Path.GetFileName(Path).StartsWith("CSharpGameEngine.",StringComparison.Ordinal))
+            .Where(Path=>!EngineAssemblyFiles.IsEngineAssembly(Path))
             .Append(typeof(CSharpGameEngine.Contracts.AngleAttribute).Assembly.Location)
             .Distinct(StringComparer.OrdinalIgnoreCase).Select(Path=>MetadataReference.CreateFromFile(Path));
         var Compilation=CSharpCompilation.Create("PrimitiveProfile"+Mode,Sources,References,new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,nullableContextOptions:NullableContextOptions.Enable,generalDiagnosticOption:ReportDiagnostic.Error));

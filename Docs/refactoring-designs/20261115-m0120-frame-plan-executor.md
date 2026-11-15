@@ -40,7 +40,7 @@
 
 2026-11-15 の main(`c98c39f8`)で確認した事実。
 
-- `src/CSharpGameEngine.Windows/Graphics/StageRenderer*.cs` は 5 ファイル 5,469 行(本体 4,809 行)。
+- `src/Windows/Graphics/StageRenderer*.cs` は 5 ファイル 5,469 行(本体 4,809 行)。
 - `StageRenderer.RenderFrame`(`StageRenderer.cs:4248` から約 220 行)が、パスの順と D3D12 の命令を 1 つのメソッドで記録している。順は次のとおり。
   1. デバイス喪失の確認、シェーダー成果物のホットリロード、サイズ 0 なら終了。
   2. PSO の選択(Wireframe なら Wireframe、Lit 以外か選択ありなら Presentation、それ以外は通常)。
@@ -60,7 +60,7 @@
   - `DirectionalShadowCascades.Build`(`:3175`)
   - 局所光の順位付けと Forward+ のタイル範囲は、L4 の関数ではなく L0 の中の自前の処理(`:3230` からの `PrepareForwardPlusLocalLights`)。
 - PSO は 11 個のフィールド(`StageRenderer.cs:295-345`)で、`StagePipelineDesc` は無い。
-- `IStageRenderBackend`(`src/CSharpGameEngine.Rendering/Backend/IStageRenderBackend.cs`)は setter 群と `RenderFrame(bool)` で、要約コメントにも「次の抽出段階で、明示的なフレーム計画の実行に置き換える」とある。
+- `IStageRenderBackend`(`src/Rendering/Backend/IStageRenderBackend.cs`)は setter 群と `RenderFrame(bool)` で、要約コメントにも「次の抽出段階で、明示的なフレーム計画の実行に置き換える」とある。
 - `RenderServer.RenderFrame`(`Server/RenderServer.cs:359`)は、デバイス喪失から復旧するとき `RenderFrameState.Replay` で setter を再生してからバックエンドの `RenderFrame` を呼ぶ。
 - `RenderServer.DeclaredQualityPlan` は `RenderQualityProfile` の宣言だけのグラフで、実際のパス(Lumen、GDF、AO、大気、プレビュー、画面レイヤー)と一致しない(ADR-0085 の調査)。
 - 層の試験 `NativeBackendDoesNotPlanFrames` はまだ無い(ADR-0087 §3 は計画抽出の後に足すとしている)。
@@ -156,10 +156,10 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 
 ## 影響範囲
 
-- `src/CSharpGameEngine.Windows/Graphics/StageRenderer*.cs`、`D3D12RenderServer.cs`、`StagePhysicalLightApi.cs`、`TypedLightBackend.cs`
-- `src/CSharpGameEngine.Rendering/Backend/IStageRenderBackend.cs`、`Server/RenderServer.cs`、`Server/RenderFrameState.cs`、`RenderQualityProfile.cs`、新しい `Pipeline/StagePipelinePlanner.cs`・`StagePipelinePlan.cs`・`StagePipelineDesc.cs`・`StageFrameData.cs`・`StageLightPlanner.cs`・`StageShadowPlanner.cs`
-- `src/CSharpGameEngine.CodeAnalysis/GeneratedEditorPreviewBridgeEmitter.cs`(バックエンドの型名を出している)
-- `tools/CSharpGameEngine.TestHost`(`frame-plan`)、`tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`(InputPaths)
+- `src/Windows/Graphics/StageRenderer*.cs`、`D3D12RenderServer.cs`、`StagePhysicalLightApi.cs`、`TypedLightBackend.cs`
+- `src/Rendering/Backend/IStageRenderBackend.cs`、`Server/RenderServer.cs`、`Server/RenderFrameState.cs`、`RenderQualityProfile.cs`、新しい `Pipeline/StagePipelinePlanner.cs`・`StagePipelinePlan.cs`・`StagePipelineDesc.cs`・`StageFrameData.cs`・`StageLightPlanner.cs`・`StageShadowPlanner.cs`
+- `src/CodeAnalysis/GeneratedEditorPreviewBridgeEmitter.cs`(バックエンドの型名を出している)
+- `tools/TestHost`(`frame-plan`)、`tools/FeatureRunner/FeatureStageCatalog.cs`(InputPaths)
 - 試験: `tests/CSharpGameEngine.Rendering.Tests`、`tests/CSharpGameEngine.Windows.Tests/Graphics`、`tests/CSharpGameEngine.Core.Tests` の `EngineLayerSpec`
 - 文書: M0120、Rendering.md、Architecture.md、Implementation-Status(F-L0-011)、Conformance
 - 公開 API の破壊: `IStageRenderBackend.RenderFrame`、`RenderServer.DeclaredQualityPlan`、L0 のカメラ互換入口。ADR-0098 §5 で許す。SDK の版は `0.1.0-dev.N` の N を上げる。
@@ -275,7 +275,7 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 
 ### 単位 6: 層の試験と全体の検証(2026-11-15)
 - GI のプローブを撮る面の近い面・遠い面と深度の符号化を L4 の `StageProbeCapture` に置き、L0 の GI の実行器は値を読むだけにした。
-- `EngineLayerSpec.NativeBackendDoesNotPlanFrames` を足した。L0(`src/CSharpGameEngine.Windows`)のコードに、ADR-0087 §3 の一覧(`RenderViewPolicy.`、`StagePipelinePlanner.`、`StageLightPlanner.`、`RadialDepthProjection.TryCreate`、`DirectionalShadowCascades.Build`、`PhysicalLightBudget.`)と、この移行で足した計画の関数(`StageShadowPlanner.`、`PhysicalShadowAtlasPlan.Select`、光源の計画)が無いことを確かめる。L0 に `StageShadowPlanner.ProbeCaptureDepth(...)` を一時的に戻すと失敗してその行を示し、戻すと合格することを確かめた。
+- `EngineLayerSpec.NativeBackendDoesNotPlanFrames` を足した。L0(`src/Windows`)のコードに、ADR-0087 §3 の一覧(`RenderViewPolicy.`、`StagePipelinePlanner.`、`StageLightPlanner.`、`RadialDepthProjection.TryCreate`、`DirectionalShadowCascades.Build`、`PhysicalLightBudget.`)と、この移行で足した計画の関数(`StageShadowPlanner.`、`PhysicalShadowAtlasPlan.Select`、光源の計画)が無いことを確かめる。L0 に `StageShadowPlanner.ProbeCaptureDepth(...)` を一時的に戻すと失敗してその行を示し、戻すと合格することを確かめた。
 - 見落としの訂正: 単位 4 で L4 の `StageRenderDefaults` の要約コメントに L5 の型名を書き、`EngineLayerSpec.RenderingL4DoesNotNameL5View`(コメントも検査する)が失敗していた。単位 4〜5 の検証は Windows.Tests と Rendering.Tests だけで、Core.Tests を流していなかったため気づかなかった。コメントから型名を外して合格した。以後の教訓として、ポートや既定値を変える単位では全ソリューションの試験を流す。
 - 文書: 台帳 F-L0-011 を PartiallyImplemented(境界と計画の実行は済み、毎フレームの割り当て 0 は未完)、M0120 の状態と段階 1 の完了、Architecture のフレーム計画と実行器の節、CHANGELOG(利用側の変更)、Conformance、逆仕様の根拠のパスを更新した。
 - F-L4-007(`RenderQualityProfile`): ADR-0087 は宣言だけのグラフを消すとしているが、型は F-L4-007(Implemented)の根拠で自動の Stage もあるため、この段階では残した。RenderServer はもう使っていない。機能を取り下げるかは台帳とあわせて別に決める。

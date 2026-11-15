@@ -13,11 +13,11 @@
 
 ## 実装したこと
 
-### ランタイム `src/CSharpGameEngine.Entities/`
+### ランタイム `src/Entities/`
 - `Bootstrap.cs`(新規): 生成されたMainが作る唯一のシードEntityのComponent(`Done`フラグ付き)。
   `Parent.cs`/`SceneNodeTag.cs`と同じ「エンジンが持つComponent」の位置づけ。
 
-### `GameSystemGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `GameSystemGenerator`(`src/CodeAnalysis/`)
 - `GameSystemEntryPointEmitter.cs`(新規): `GameSystem.EntryPoint.g.cs`を出力する。
   出力条件の判定(`ShouldEmitPlan`)は、Bootstrapの形状を注入するかどうかを決めるためレジストリ構築の
   **前**に行う。条件はOutputKind・ユーザーMainの不在・ディスパッチSystemの存在・Context引数ゼロの4つ。

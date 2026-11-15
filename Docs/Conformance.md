@@ -12,7 +12,7 @@
 - Result: **Matches** for the readers and writers listed below. CgeFixed carries the reinstalled VSIX 0.1.0.25 (hash verified).
 - Intended: ADR-0098 §5 rules 2 and 4; design `Docs/refactoring-designs/20261115-legacy-reader-removal.md`.
 - Observed: scene JSON `Analyze` accepts schemaVersion 3 only; versions 1/2 and C#-named angle keys are SCENE204 naming `SceneJson.Cli upgrade`; `AnalyzeEarlierVersion` is reachable only from `SceneJsonAngleUpgrade` (boundary test). Navigation Cook reads version 3 only (NAV013). Snapshot reads version 2 only (UnsupportedVersion), generator emits no legacy schema. WorldCell reads version 2 only. `.cgephyscache` reads/writes schema 4 only. `.cgefracture` reads/writes version 3 only (one-level assets included). Build no longer rewrites retired glTF importer metadata (IMP008; explicit Convert legacy metadata). `[ReadOnlyComponent]` is CS0619; SYSGEN029 removed. The legacy `RunFrame` overload is gone. Engine version `0.1.0-dev.50`, VSIX `0.1.0.25`; plugin ranges compare SemVer prereleases; unreadable engine version is PLUGIN006.
-- Verification: Debug solution build with -m:1 passed (0 errors). The scene upgrade lives in `tools/CSharpGameEngine.SceneJson.Cli/` only; `AnalyzeEarlierVersion` and the version-1 angle branches compile only under `CGE_SCENE_UPGRADE` (SceneJson.Cli, SceneModel, SceneModel.Tests), and the generator assembly has no earlier-version reader (test). The preview runtime reader (`SceneJsonRuntimeValues`) now reads angles only in turns, rejects C#-named angle keys like the generator, and converts fixed-point angles with the generator's shared `SceneJsonFixedAngles`, so the three scene readers agree again. Final GPU-excluded run after fixing the remaining failures (Navigation consumer of the M0128 missing-model contract, a Bridge.Hosting test walker, the M0114 parity golden after six new template glbs, a 30 s compiler guard against a 27.8 s compile, the ThirdPerson scene's dropped GlobalDistanceField, the preview lighting test after the 10-29 default sun change, and the preview reader's float angle path): 23 projects, 4,464 tests passed, 0 failed. Evidence: F:\CodexTemp\cge-legacy\full3.
+- Verification: Debug solution build with -m:1 passed (0 errors). The scene upgrade lives in `tools/SceneJson.Cli/` only; `AnalyzeEarlierVersion` and the version-1 angle branches compile only under `CGE_SCENE_UPGRADE` (SceneJson.Cli, SceneModel, SceneModel.Tests), and the generator assembly has no earlier-version reader (test). The preview runtime reader (`SceneJsonRuntimeValues`) now reads angles only in turns, rejects C#-named angle keys like the generator, and converts fixed-point angles with the generator's shared `SceneJsonFixedAngles`, so the three scene readers agree again. Final GPU-excluded run after fixing the remaining failures (Navigation consumer of the M0128 missing-model contract, a Bridge.Hosting test walker, the M0114 parity golden after six new template glbs, a 30 s compiler guard against a 27.8 s compile, the ThirdPerson scene's dropped GlobalDistanceField, the preview lighting test after the 10-29 default sun change, and the preview reader's float angle path): 23 projects, 4,464 tests passed, 0 failed. Evidence: F:\CodexTemp\cge-legacy\full3.
 
 ## M0128 — Model production and exact artifact loading
 
@@ -997,7 +997,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityGenerator.cs、GenerateEntityAnalyzer.cs、
+  - src/CodeAnalysis/GenerateEntityGenerator.cs、GenerateEntityAnalyzer.cs、
     GenerateEntityCommonEmitter.cs、GenerateEntityAosEmitter.cs、GenerateEntitySoaEmitter.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorEmissionTests.cs、
     GenerateEntityGeneratorConstSwitchTests.cs、GenerateEntityAosRuntimeTests.cs、
@@ -1023,7 +1023,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/CSharpGameEngine.Generation.Abstractions/EntityStorageKind.cs
-  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityEmitterSupport.cs、GenerateEntityGenerator.cs、
+  - src/CodeAnalysis/GenerateEntityEmitterSupport.cs、GenerateEntityGenerator.cs、
     GenerateEntitySoaEmitter.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityCombinedKindTests.cs
 - Observed behavior:
@@ -1062,7 +1062,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityDiagnostics.cs、
+  - src/CodeAnalysis/GenerateEntityDiagnostics.cs、
     GenerateEntityAnalyzer.cs、AnalyzerReleases.Unshipped.md
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorDiagnosticsTests.cs
 - Observed behavior:
@@ -1078,7 +1078,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Core/Spatial/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
+  - src/Core/Spatial/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
     CoordinateBasisValidator.cs、UnitConversion.cs、Spatial.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、CoordinateBasisValidatorTests.cs、
     UnitConversionTests.cs、ImportAxisConversionTests.cs、DeterminismTests.cs
@@ -1099,7 +1099,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Core/Spatial/RufQuaternion.cs、ITransformConvention.cs、
+  - src/Core/Spatial/RufQuaternion.cs、ITransformConvention.cs、
     StandardTransformConvention.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs、TransformConventionTests.cs
 - Observed behavior:
@@ -1117,9 +1117,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Core/Spatial/Conventions/UnityCoordinateConvention.cs、
-    src/CSharpGameEngine.Core/Spatial/Conventions/UnrealCoordinateConvention.cs、
-    src/CSharpGameEngine.Core/Spatial/Conventions/BlenderWorldConvention.cs
+  - src/Core/Spatial/Conventions/UnityCoordinateConvention.cs、
+    src/Core/Spatial/Conventions/UnrealCoordinateConvention.cs、
+    src/Core/Spatial/Conventions/BlenderWorldConvention.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
   - samples/SpatialPresetDemoの実行結果(Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md参照)
 - Observed behavior:
@@ -1159,7 +1159,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Core/Spatial/CameraBasis.cs、DirectionalLightBasis.cs、
+  - src/Core/Spatial/CameraBasis.cs、DirectionalLightBasis.cs、
     SpotLightBasis.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs、LightBasisTests.cs
 - Observed behavior:
@@ -1174,7 +1174,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Windows/Graphics/Camera.cs
+  - src/Windows/Graphics/Camera.cs
   - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(既存60件、シャドウテスト2件含む)
 - Observed behavior:
   - `GetFlatRight()`は`Spatial<UnityCoordinateConvention>.RightFromUpForward`経由になり、
@@ -1190,7 +1190,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Core/Geometry/ProceduralMeshFactory.cs
+  - src/Core/Geometry/ProceduralMeshFactory.cs
   - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs(既存30件、無改修)
 - Observed behavior:
   - 全8プリミティブの頂点/法線計算が`RufVector`ベースになり、出力直前の
@@ -1204,7 +1204,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Windows/Graphics/Camera.cs、ModelRenderer.cs
+  - src/Windows/Graphics/Camera.cs、ModelRenderer.cs
 - Observed behavior:
   - `Matrix4x4.CreateLookAt`への薄い委譲。`Camera.GetView`と`ModelRenderer`独自のバウンディング
     スフィア自動フィットeye計算の両方から呼ばれ、以前は2箇所独立していたLookAt構築を統一した。
@@ -1216,8 +1216,8 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Core/Spatial/Conventions/GltfCoordinateConvention.cs、
-    src/CSharpGameEngine.Core/Spatial/Conventions/FbxCoordinateConvention.cs
+  - src/Core/Spatial/Conventions/GltfCoordinateConvention.cs、
+    src/Core/Spatial/Conventions/FbxCoordinateConvention.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
 - Observed behavior:
   - 両方ともR=+X,U=+Y,F=-Z,RightHanded(数値的に同一定義だが独立した型)。Golden Value・
@@ -1230,7 +1230,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Import/Gltf/GltfAxisConversion.cs、GltfImporter.cs、
+  - src/Import/Gltf/GltfAxisConversion.cs、GltfImporter.cs、
     ImportedLightDirection.cs
   - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs(既存18件+Z非ゼロ新規2件)
 - Observed behavior:
@@ -1278,7 +1278,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Entities/ComponentType.cs、World.cs、Archetype.cs
+  - src/Entities/ComponentType.cs、World.cs、Archetype.cs
   - tests/CSharpGameEngine.Entities.Tests/ComponentTypeRegistrySpec.cs、ArchetypeSpec.cs、
     WorldSpec.cs
 - Observed behavior:
@@ -1296,7 +1296,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Entities/World.cs、Archetype.cs
+  - src/Entities/World.cs、Archetype.cs
   - tests/CSharpGameEngine.Entities.Tests/StructuralChangeSpec.cs
 - Observed behavior:
   - Component追加・削除の即時APIは`internal`であり、外部(`[Update]`メソッド)からは
@@ -1311,7 +1311,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Entities/EntityQuery.cs
+  - src/Entities/EntityQuery.cs
   - samples/SoaSystemsDemo/DemoScenario.cs(実行時シナリオ)
 - Observed behavior:
   - `samples/SoaSystemsDemo`のシナリオで、既に1回`Update`済みのQueryが、フレーム間に新規生成
@@ -1326,8 +1326,8 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Entities/EntityCommandBuffer.cs
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs(`world.Commands.Playback(world)`
+  - src/Entities/EntityCommandBuffer.cs
+  - src/CodeAnalysis/GameSystemLoopEmitter.cs(`world.Commands.Playback(world)`
     をループ末尾に生成)
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
     (`Commands_StructuralChangesApplyOnlyAfterPlaybackAtEndOfGeneratedLoop`)
@@ -1342,7 +1342,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemAnalyzer.cs、GameSystemExecutorEmitter.cs
+  - src/CodeAnalysis/GameSystemAnalyzer.cs、GameSystemExecutorEmitter.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs、
     GameSystemGeneratorEndToEndTests.cs
 - Observed behavior:
@@ -1360,7 +1360,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemScheduler.cs、GameSystemLoopEmitter.cs
+  - src/CodeAnalysis/GameSystemScheduler.cs、GameSystemLoopEmitter.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs、
     GameSystemGeneratorDiagnosticsTests.cs
 - Observed behavior:
@@ -1377,7 +1377,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemDiagnostics.cs、AnalyzerReleases.Unshipped.md
+  - src/CodeAnalysis/GameSystemDiagnostics.cs、AnalyzerReleases.Unshipped.md
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs
 - Observed behavior:
   - `SYSGEN001`〜`020`の20件それぞれが対象コードで報告され、正しい`[GameSystem]`クラスでは
@@ -1412,7 +1412,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Entities/Parent.cs、SceneNodeTag.cs、SceneNodeId.cs
+  - src/Entities/Parent.cs、SceneNodeTag.cs、SceneNodeId.cs
   - tests/CSharpGameEngine.Entities.Tests/SceneAuthoringSpec.cs
 - Observed behavior:
   - `Parent`/`SceneNodeTag`は他Componentと同じ`World.CreateArchetype<T1..T8>`+`GetRef<T>`経路で
@@ -1426,7 +1426,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionAnalyzer.cs、SceneRuntimeEmitter.cs
+  - src/CodeAnalysis/SceneDefinitionAnalyzer.cs、SceneRuntimeEmitter.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorEndToEndTests.cs、
     SceneDefinitionGeneratorEmissionTests.cs
 - Observed behavior:
@@ -1442,7 +1442,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionDiagnostics.cs、AnalyzerReleases.Unshipped.md
+  - src/CodeAnalysis/SceneDefinitionDiagnostics.cs、AnalyzerReleases.Unshipped.md
   - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorDiagnosticsTests.cs
 - Observed behavior:
   - `SCENE001`〜`009`の9件それぞれが対象コードで報告され、正しい`[SceneDefinition]`クラスでは
@@ -1493,7 +1493,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - tools/CSharpGameEngine.VSExtension/PreviewSceneDefinitionCommand.cs、SceneHwndHost.cs、
+  - tools/VSExtension/PreviewSceneDefinitionCommand.cs、SceneHwndHost.cs、
     GizmoMeshFactory.cs
   - tests/CSharpGameEngine.VSExtension.Tests/GizmoMeshFactoryTests.cs、
     ExternalScenePreviewLoaderTests.cs
@@ -1621,7 +1621,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   **入れ子`Children`を持つシーンがリポジトリに1つも存在しないため、実シーンでの証跡は無く、
   ユニットテスト4件のみが証跡**である。
 - **ObsoleteSpecification removed(設計時の事実誤り3件)**:
-  1. ADR-0041 決定事項1 は`src/CSharpGameEngine.Windows/Graphics/Camera.cs`を「純
+  1. ADR-0041 決定事項1 は`src/Windows/Graphics/Camera.cs`を「純
      `System.Numerics`・依存なし」と記述していたが誤り。実際は`[SceneFactory]`
      (`CSharpGameEngine.Authoring`)と`Spatial.Abstractions`/`Spatial.Unity`経由のRUF(いずれも
      net10.0)に依存する。net472移植では属性を落とし、方向計算を`CameraTests`が固定する閉形式へ
@@ -1643,7 +1643,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - **受け入れ済み退行の清算**: ADR-0040 Phase 9で書き込み経路を失った`.scene`系
   (`SceneFile.cs`/`SceneNodeAdder.cs`)、シェイプパレット一式、ヒエラルキーのドラッグ&ドロップを、
   Phase 10を待たず全面削除した(台帳F-L8-006/007をRemoved、F-L8-002/003/010を更新)。
-  プリミティブ生成ブリッジ(`tools/CSharpGameEngine.Primitive.Cli`)は描画側が使うため存続。
+  プリミティブ生成ブリッジ(`tools/Primitive.Cli`)は描画側が使うため存続。
 - **注記**: `SceneRenderer`の空オブジェクトフレーム許容は観測可能なバグの修正ではなく、
   Phase 3(グリッド/ギズモ)の前提整備である。`Count==0`はPhase 0の本番経路では到達不能。
 - Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、
@@ -1733,7 +1733,7 @@ Phase 2の実機確認10項目のうち#5/#8/#9で問題が報告され、3件�
   View/Projection/直交投影を左手系で明示構築した。修正前に失敗するテストまで書いて反転の存在を
   証明し(`右方向がNDC X=-0.244065`)、テストは全て通った。**しかしランタイム側を確認していなかった。**
   実機で見た目が変わったとの指摘を受けて確認したところ、**ゲーム本体も同じ右手系**
-  (`src/CSharpGameEngine.Windows/Graphics/Camera.cs`の`BuildViewMatrix`/`BuildProjection`、
+  (`src/Windows/Graphics/Camera.cs`の`BuildViewMatrix`/`BuildProjection`、
   `StageRenderer`、`ModelRenderer`)であり、修正前のVSIXの描画はゲームと一致していた。
   つまり左手系化はシーンデザイナーだけをゲームと左右反転させる改悪だったため差し戻した。
   **判断基準は「シーンデザイナーはゲームの見た目を再現するものなので、ゲームとの一致が正しさ」**。
@@ -1988,8 +1988,8 @@ M0020の残作業のうち「設計判断が要らないもの」をまとめて
   オプション画面17件)。VSExtension.Testsは245→268件。
   なお全体テストの1回目で`TriangleGpuIntegrationTests.Triangle_Warp_DebugLayer_Verify_RendersAndPasses`が
   `CreateDXGIFactory2`の`HRESULT=0x887A0001`で1件失敗したが、**単体で再実行すると成功**し、
-  全体を再実行しても成功した。変更範囲は`tools/CSharpGameEngine.VSExtension/`とテスト・ドキュメント
-  のみで`src/CSharpGameEngine.Windows/`に一切触れていない(`git status`で確認)ため、
+  全体を再実行しても成功した。変更範囲は`tools/VSExtension/`とテスト・ドキュメント
+  のみで`src/Windows/`に一切触れていない(`git status`で確認)ため、
   Scene Designerが生きたD3D12デバイスを持つExpハイブ2つと並行実行したことによるGPU競合の
   一時的な失敗と判断した(この種の並行実行時の揺れは記録に残す)。
 
@@ -3268,7 +3268,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
   だけ)を追加し、「シーン デザイナーで開く」の拡張子判定も`.scene.json`対応させた。
 - **副次的な移設**: `SceneJsonModel.cs`(POCO)を`CSharpGameEngine.CodeAnalysis`から共有ソース
   プロジェクト`CSharpGameEngine.SceneModel`へ移設し、VSIX側とRuntime側の両方から使えるようにした。
-  この移設に伴い、単独ビルド検証用の`CSharpGameEngine.SceneModel.csproj`(バイナリ参照されない
+  この移設に伴い、単独ビルド検証用の`SceneModel.csproj`(バイナリ参照されない
   共有ソース束)に`System.Text.Json`参照が新たに必要になり追加した。
 - **次マイルストーンへ送ったもの**: JSON内の正確なテキスト位置追跡(`Utf8JsonReader`ベース、
   Hierarchyのダブルクリックでの精密ジャンプ)。現状は`SceneSourceLocation.FromJsonFile`で
@@ -4001,7 +4001,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - 意図: ADR-0077 §1。末尾の `ref State` は任意、`in` の非 nullable struct は読み取りの Component、Context は参照型の値渡し。
 - 観測（Fact）: `GameSystemAnalyzer.AnalyzeMethod` が `State` なしの `Update` を受け付け、生成された呼び出しは `ref State` を渡さない。`in Position` は `in State.World.Archetype0.GetPositionRefUnchecked(Index)` で渡され、`MarkPositionChangedUnchecked` を出さない。`in` と `ref` で同じ型を受けると SYSGEN011。
 - 実装: `GameSystemAnalyzer.cs`、`GameSystemDiagnostics.cs`（SYSGEN013 削除）。
-- 自動化された証拠: `GameSystemGeneratorDiagnosticsTests` の新規 3 件と CodeAnalysis.Tests 220/220。`Templates/CSharpGameEngine.Templates.ThirdPerson` と UserEcsProject のビルド。
+- 自動化された証拠: `GameSystemGeneratorDiagnosticsTests` の新規 3 件と CodeAnalysis.Tests 220/220。`Templates/ThirdPerson` と UserEcsProject のビルド。
 - 結果: Matches（段階 1 の範囲）。
 
 ## 2026-10-20 探索 — UE 由来の名前の清算（ADR-0077 段階 2）
@@ -4046,7 +4046,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 
 ## 2026-10-22 探索 — FirstPerson・TopDown の移植（ADR-0077 段階 8）
 - 意図: ADR-0077 の理想コードを、UE の FirstPerson・TopDown テンプレートを出典にした 2 つの出荷物で確かめる。TopDown は、ポインター入力、画面からの 3D の位置の取得、目的地への歩行を要する。
-- 観測（Fact）: `Templates/CSharpGameEngine.Templates.FirstPerson` は、ThirdPerson と同じ `PlayerControls` のまま WARP で歩行 16.000 m、跳躍 0.863 m、`audioRequests=15`、D3D12 のエラー 0。`Templates/CSharpGameEngine.Templates.TopDown` は、画面上部の 1 点を 5 フレームだけクリックすると、離したあとも目的地まで 10.845 m 歩いて止まり（最後の 10 フレームの移動 0.000 m）、`audioRequests=7`、D3D12 のエラー 0。ThirdPerson は改名前と同じ値（歩行 15.700 m、跳躍 1.228 m）のまま。
+- 観測（Fact）: `Templates/FirstPerson` は、ThirdPerson と同じ `PlayerControls` のまま WARP で歩行 16.000 m、跳躍 0.863 m、`audioRequests=15`、D3D12 のエラー 0。`Templates/TopDown` は、画面上部の 1 点を 5 フレームだけクリックすると、離したあとも目的地まで 10.845 m 歩いて止まり（最後の 10 フレームの移動 0.000 m）、`audioRequests=7`、D3D12 のエラー 0。ThirdPerson は改名前と同じ値（歩行 15.700 m、跳躍 1.228 m）のまま。
 - 実装: `Core/InputActionDeclarations.cs`（`MouseButton`、`Pointer`、`[Pointer]`、`[Mouse(MouseButton)]`）、`InputActionsEmitter`（`Read` の第 3 引数）、`EngineHost.Cursor`/`Picking`/`TryPointerRay`、`Runtime.Windows/Picking.cs`、`MoveIntent.MoveTo`/`Stop`/`Steer`、`CharacterMotionUpdate`、`RuntimeAutomation`（`CGE_AUTOMATION_CURSOR`、`MouseLeft`）、`Win32Window.InjectMouseButton`/`TryGetCursorClient`、`tools/UnrealExport` の `export_level.py`・`export_skeletal_mesh.py`・`create_template_project.ps1`・`dump_blueprint.py`、`LevelTemplateImporter`。
 - 自動化された証拠: `InputActionsGeneratorTests`（Mouse ボタンと Pointer）、`PickingTests`、`CharacterMotorTests`（`MoveTo` 3 件）、`ClickToMoveVerificationTests`、`verify-thirdperson-character --template FirstPerson|TopDown`（WARP）。
 - 既知の差: UE のクリック移動はナビメッシュで経路を探すが、こちらは直線（障害物はコリジョンで止まる）。`Touch`、クリック位置の目印（`Spawner.Spawn`）、理想コードの `Cursor.Ray` は未実装（`Cursor.Ray` は `Picking` に置き換え）。出典は UE5.7 のテンプレート（UE5.8 のインストールに Templates が無い）。効果音は、のちに UE5 の Epic 教材のコンテンツから取り込んだ（M0101 段階 5 の素材）。
@@ -4054,7 +4054,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 
 ## 2026-10-22 探索 — Vehicle の移植と VS テンプレートの登録（ADR-0077 段階 9）
 - 意図: ADR-0077 の理想コードを、UE の Vehicle テンプレートを出典にした出荷物で確かめる。車両の動き、地面に沿う接地、画面への出力が要る。あわせて 4 つのテンプレートを VS の新規プロジェクトに出す。
-- 観測（Fact）: 実コードを読むと、物理の `Raycast` は静的三角形メッシュに対しても外接ボックスとの交差しか見ておらず、坂の手前の何も無い所にも当たった（探査用の一時テストで、坂の端の外に高さ 0.55 m の光線が当たることを確認した）。三角形そのものへ当てるようにしたあと、`Templates/CSharpGameEngine.Templates.Vehicle` を WARP で動かすと、W を押し続けて途中で右へ切ると、カメラの移動 48.281 m、進む向きの変化 38.3°、高さ 2.685 m（一定）、D3D12 のエラー 0。最終フレームで車は壁際に後ろ姿で止まっている。ThirdPerson・FirstPerson・TopDown は同じ値（歩行 15.700 m、16.000 m、クリック移動 10.845 m）。シーン JSON の角度は回転数で、`MaxSteering` に 34 と書くと 12240° になって過剰に曲がった（0.0944444 に直して解消）。
+- 観測（Fact）: 実コードを読むと、物理の `Raycast` は静的三角形メッシュに対しても外接ボックスとの交差しか見ておらず、坂の手前の何も無い所にも当たった（探査用の一時テストで、坂の端の外に高さ 0.55 m の光線が当たることを確認した）。三角形そのものへ当てるようにしたあと、`Templates/Vehicle` を WARP で動かすと、W を押し続けて途中で右へ切ると、カメラの移動 48.281 m、進む向きの変化 38.3°、高さ 2.685 m（一定）、D3D12 のエラー 0。最終フレームで車は壁際に後ろ姿で止まっている。ThirdPerson・FirstPerson・TopDown は同じ値（歩行 15.700 m、16.000 m、クリック移動 10.845 m）。シーン JSON の角度は回転数で、`MaxSteering` に 34 と書くと 12240° になって過剰に曲がった（0.0944444 に直して解消）。
 - 実装: `PhysicsNarrowPhase.TryRaycastMesh`、`DeterministicPhysicsWorld.Raycast`、`Vehicle`/`VehicleState`/`VehicleIntent`/`VehicleMotor`/`VehicleMotionUpdate`/`VehicleChaseView`、`Hud`/`EngineHost.Hud`、`GameProjectGenerator`（テンプレート名対応）、`GameProjectTemplateWizard`、`VSExtension.csproj`、`VSPackage*.resx`、`tools/UnrealExport` の `export_level.py`（Vehicle、Landscape の代わりの板）・`export_skeletal_mesh.py`（静的メッシュ）・`probe_vehicle_level.py`。
 - 自動化された証拠: `PhysicsMeshRaycastTests`、`VehicleMotorTests`、`VehicleDriveVerificationTests`、`GameProjectGeneratorTests`・`VsixManifestTests`（4 テンプレート）、`verify-thirdperson-character --template Vehicle`（WARP）。Windows.Tests 491 合格（2 スキップ）、VSExtension.Tests 1185、FeatureRunner.Tests 179。
 - 既知の差: UE の Chaos Vehicle（車輪ごとの物理、サスペンション、トルク曲線と変速、タイヤの滑り）ではなく簡易モデル。エンジン音、車輪の回転・ステア、画面上の文字（速度とギアはタイトルバー）、リセット、カメラ切り替え、`Axis` 入力、地形（Landscape は同じ大きさの板で代用）は未実装（この記録の時点。画面上の文字は M0104、`Axis` 入力は M0108 で実装した）。`Sweep` は静的三角形メッシュを扱わない。VS のダイアログからの新規作成は手動確認（ADR-0068 のとおり）で、自動検証は `vsix.project-template` が ThirdPerson だけ。

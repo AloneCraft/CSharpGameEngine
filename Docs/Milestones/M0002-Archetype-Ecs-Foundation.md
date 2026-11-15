@@ -14,7 +14,7 @@
   (`Type[]`シーケンス一致によるストレージ共有キー)、`IEcsArchetype<TSelf>`(`static abstract`
   メンバーによるCRTP契約)、`EcsArchetypeAttribute`/`EcsReadOnlyAttribute`、
   `WorldEcsExtensions.Create<T>()`(引数なし版の唯一の汎用実装)。
-- `src/CSharpGameEngine.CodeAnalysis/`に`EcsArchetypeGenerator`(`IIncrementalGenerator`、
+- `src/CodeAnalysis/`に`EcsArchetypeGenerator`(`IIncrementalGenerator`、
   `ForAttributeWithMetadataName`ベース)を追加。`EcsArchetypeAnalyzer`(シンボル解析・
   完全修飾名Ordinalソートによる正規化・診断)、`EcsArchetypeEmitter`(partialプロパティ実装・
   `IEcsArchetype<T>`静的メンバー・マーカーインターフェース・名前付き引数版ファクトリの生成)、
@@ -36,7 +36,7 @@
   `UserGameProject.csproj`に`CSharpGameEngine.Ecs`への通常`ProjectReference`と
   `CSharpGameEngine.CodeAnalysis`への`OutputItemType="Analyzer"`参照を追加した。
 - `CSharpGameEngine.slnx`・`UserGameProject.slnx`双方に`src/CSharpGameEngine.Ecs`・
-  `src/CSharpGameEngine.CodeAnalysis`(および本ADR/Milestoneファイル)を登録した。
+  `src/CodeAnalysis`(および本ADR/Milestoneファイル)を登録した。
 
 ## 意図的に除外したこと
 - `AllowAddComponent`/`AllowRemoveComponent`による動的構造変更(エンティティのアーキタイプ間移動)。
@@ -62,18 +62,18 @@
 ```
 dotnet build src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj -c Debug        → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Ecs.Tests/...csproj                            → 17件成功
-dotnet build src/CSharpGameEngine.CodeAnalysis/...csproj -c Debug                 → 成功、警告0/エラー0
+dotnet build src/CodeAnalysis/...csproj -c Debug                 → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj                   → 20件成功(既存3+新規17)
 dotnet build UserGameProject/UserGameProject.csproj -c Debug                      → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Debug                                       → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Release                                     → 成功、警告0/エラー0
 dotnet test CSharpGameEngine.slnx                                                 → 125件成功(既存91+新規34)、失敗0
-dotnet pack src/CSharpGameEngine.CodeAnalysis/...csproj -c Release                → 成功
+dotnet pack src/CodeAnalysis/...csproj -c Release                → 成功
 ```
 `dotnet build UserGameProject/UserGameProject.csproj -c Debug -t:Rebuild
 -p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedFilesOutputPath=GeneratedFiles`を実行し、
 実際に生成された`MyGame.Archetypes.Player.g.cs`等4ファイルを目視確認した(確認後、この一時出力は
-削除した)。`.nupkg`の内容は`unzip -l`で`analyzers/dotnet/cs/CSharpGameEngine.CodeAnalysis.dll`
+削除した)。`.nupkg`の内容は`unzip -l`で`analyzers/dotnet/cs/CodeAnalysis.dll`
 のみが含まれることを確認した。
 
 ## リバースエンジニアリングした挙動

@@ -29,7 +29,7 @@ Unreal Engine 5のThirdPersonテンプレートに似せる(マウスオービ�
 - `tests/CSharpGameEngine.Graphics.D3D12.Tests/`に`CameraTests`(8件)・
   `ProceduralMeshFactoryTests`(13件)・`StageGpuIntegrationTests`(2件、WARP実描画検証)を追加。
 - `tests/UserGameProject.Tests/`(新規プロジェクト)に`CharacterMotionTests`(11件)を追加。
-- `tools/CSharpGameEngine.VSExtension/OpenGameCommand.cs`(新規): `OpenViewerCommand`(ADR-0006)
+- `tools/VSExtension/OpenGameCommand.cs`(新規): `OpenViewerCommand`(ADR-0006)
   と同一パターンで、Toolsメニューから`dotnet run --project UserGameProject`を別プロセス・
   別トップレベルウィンドウとして起動するコマンド。`.vsct`にボタン登録、
   `CSharpGameEngineViewerPackage.InitializeAsync`に配線を追加。
@@ -65,7 +65,7 @@ dotnet test tests/CSharpGameEngine.Graphics.D3D12.Tests/...csproj      → 66件
 dotnet build src/CSharpGameEngine.Platform.Windows/...csproj -c Debug → 成功、警告0/エラー0
 dotnet build UserGameProject/UserGameProject.csproj -c Debug          → 成功、警告0/エラー0
 dotnet test tests/UserGameProject.Tests/...csproj                     → 11件成功
-dotnet build tools/CSharpGameEngine.VSExtension/...csproj -c Debug    → 成功、警告0/エラー0(.vsixパッケージング含む)
+dotnet build tools/VSExtension/...csproj -c Debug    → 成功、警告0/エラー0(.vsixパッケージング含む)
 dotnet build CSharpGameEngine.slnx -c Debug                           → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Release                         → 成功、警告0/エラー0
 dotnet test CSharpGameEngine.slnx                                     → 159件成功、失敗0

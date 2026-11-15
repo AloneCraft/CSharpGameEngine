@@ -24,7 +24,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 | NuGet パッケージ | Fab のプラグイン | `PackageReference` で有効(パッケージの `build/<Id>.targets` が自分を取り込む) |
 
 - 取り込みは `build/CSharpGameEngine.Game.targets` が行う。プロジェクトファイルの後に読まれるので、`CgePlugins` が見える(リポジトリでは `Directory.Build.targets`、パッケージでは `CSharpGameEngine.Sdk.targets` から読む)。
-- エンジンのプラグインは Vehicles(`plugins/CSharpGameEngine.Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)、Navigation(`plugins/CSharpGameEngine.Navigation`。TopDown テンプレートが有効にする。M0106)、Destruction(`plugins/CSharpGameEngine.Destruction`。UE の Geometry Collection・Fracture・Field に当たる Chaos 相当の破壊。M0113。テンプレートは有効にせず、見本 `samples/CSharpGameEngine.Samples.Destruction` が有効にする)。UserEcsProject は 3 つとも有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
+- エンジンのプラグインは Vehicles(`plugins/Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)、Navigation(`plugins/Navigation`。TopDown テンプレートが有効にする。M0106)、Destruction(`plugins/Destruction`。UE の Geometry Collection・Fracture・Field に当たる Chaos 相当の破壊。M0113。テンプレートは有効にせず、見本 `samples/Samples.Destruction` が有効にする)。UserEcsProject は 3 つとも有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
 
 ## 3. プラグインの形
 ```
@@ -38,8 +38,8 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
   Scenes/                   シーン(ゲームのシーンと同じ扱い。startupOrder があれば起動時に読まれる)
 ```
 - Library モジュール(任意): DLL。`[assembly: PluginLibrary]` を付ける。公開 struct はパレットとスキーマに出る。`World`・`State`・`Entity`・`ISystem` を名指ししない。NuGet のプラグインはパッケージの `lib/` に入れる。
-- Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。Navigation は `Cook/CSharpGameEngine.Navigation.Cook.csproj`、Destruction は `Cook/CSharpGameEngine.Destruction.Cook.csproj`(ソースはエンジンのリポジトリでビルドされ、SDK パッケージでは `Cook/lib/` に出力が入る)。
-- 見本: `samples/Plugins/Weather`(プロジェクトのプラグイン)、`samples/Plugins/CSharpGameEngine.Samples.Lightning`(NuGet のプラグイン。Library の DLL と Runtime のソース)。
+- Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。Navigation は `Cook/Navigation.Cook.csproj`、Destruction は `Cook/Destruction.Cook.csproj`(ソースはエンジンのリポジトリでビルドされ、SDK パッケージでは `Cook/lib/` に出力が入る)。
+- 見本: `samples/Plugins/Weather`(プロジェクトのプラグイン)、`samples/Plugins/Samples.Lightning`(NuGet のプラグイン。Library の DLL と Runtime のソース)。
 
 ### マニフェスト `<名前>.cgeplugin`
 ```json
@@ -138,8 +138,8 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 - DataAsset の Inspector 編集は ADR-0081 / F-L8-035 で追加した。既存の型解析を共有し、ライブバッファの値を検証して編集する。実際の VS 操作は M0123 の検証待ち。シーンの値からの参照は既存の型付き候補と照合する。
 
 ### 実例: 車の設定 `VehicleSetup`(Vehicles プラグイン、M0109)
-- 型はエンジンのプラグインの `[DataAsset] public sealed class VehicleSetup`(`plugins/CSharpGameEngine.Vehicles/Runtime/VehicleSetup.cs`)。UE の `ChaosWheeledVehicleMovementComponent` と `ChaosVehicleWheel` の値: 質量、空気抵抗、`Engine`(トルク曲線の点の配列、最大トルク、回転数)、`Transmission`(ギア比の配列、変速の回転数)、`Steering`(アッカーマン、速さの曲線)、差動、`FrontWheel`・`RearWheel`(車輪とサスペンション)、入力の速さ、眠り。入れ子の struct と配列もシーンと同じ書き方で書ける。
-- 値はゲームのアセット `Templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(UE の `BP_VehicleAdvSportsCar` の値を SI 単位に直したもの)。カタログでは `Assets.Vehicles.SportsCar.SportsCarSetup`(ファイル名をフォルダ名と同じにすると、クラスと同じ名前のメンバーになりコンパイルできないので、`…Setup` とした)。
+- 型はエンジンのプラグインの `[DataAsset] public sealed class VehicleSetup`(`plugins/Vehicles/Runtime/VehicleSetup.cs`)。UE の `ChaosWheeledVehicleMovementComponent` と `ChaosVehicleWheel` の値: 質量、空気抵抗、`Engine`(トルク曲線の点の配列、最大トルク、回転数)、`Transmission`(ギア比の配列、変速の回転数)、`Steering`(アッカーマン、速さの曲線)、差動、`FrontWheel`・`RearWheel`(車輪とサスペンション)、入力の速さ、眠り。入れ子の struct と配列もシーンと同じ書き方で書ける。
+- 値はゲームのアセット `Templates/Vehicle/Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(UE の `BP_VehicleAdvSportsCar` の値を SI 単位に直したもの)。カタログでは `Assets.Vehicles.SportsCar.SportsCarSetup`(ファイル名をフォルダ名と同じにすると、クラスと同じ名前のメンバーになりコンパイルできないので、`…Setup` とした)。
 - シーンからは参照できないので、ゲームのコードが車の Component へ入れる: `internal struct UseSportsCarSetup:ISystem { public void Update(ref Vehicle Car){ Car.Setup??=Assets.Vehicles.SportsCar.SportsCarSetup; } }`。設定の無い車は力を加えない(物理だけで落ちる)。
 - 角度の値(`MaxSteerAngleDegrees`)は、シーンと同じく JSON では回転数(`"MaxSteerAngle": 0.1111111111111111` = 40°)。
 

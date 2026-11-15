@@ -7,7 +7,7 @@ Superseded by ADR-0052(共有の外部プロセス Preview Host、F-L8-018、202
 ## 背景
 
 ADR-0007では、VSツールウィンドウ内にglTFビューアを表示する方式として、「別プロセス
-(`CSharpGameEngine.Extension.exe`)を起動し、そのウィンドウだけをHWND再親化でVSツールウィンドウ
+(`Extension.exe`)を起動し、そのウィンドウだけをHWND再親化でVSツールウィンドウ
 に埋め込む」方式を実装した。ユーザーはこれを見て「別プロセスであること」自体を問題視し、
 「それはやめてvsixインプロセスにして」と明確に指示した。
 
@@ -38,7 +38,7 @@ Vortice.Windows側で行われたバインディング層のバグフィック�
 ## 決定事項
 
 ### 1. VSIX専用の独立した軽量レンダラーを新規実装(既存コードは無変更)
-`tools/CSharpGameEngine.VSExtension` 内に、`Vortice.Direct3D12`/`Vortice.DXGI`/
+`tools/VSExtension` 内に、`Vortice.Direct3D12`/`Vortice.DXGI`/
 `Vortice.D3DCompiler`(いずれも`2.4.2`)と`SharpGLTF.Core`(1.0.6、netstandard2.0グループ)を
 直接参照する、完全に独立したD3D12レンダラー(`VorticeRenderer`)とglTFローダー
 (`SimpleGltfLoader`)を新規に書いた。既存の`src/CSharpGameEngine.Graphics.D3D12`等への
@@ -99,7 +99,7 @@ ADR-0007のような別プロセス・HWND再親化・Job Object・生存ポー�
 1. `dotnet build`(リポジトリ全体)+ `dotnet test`(GPU/非GPU問わず全73+3件)- 既存のnet10.0
    ビルド・CLI・テストに一切影響がないことを確認した(疎結合の実証)。
 2. VS実験用インスタンスにインストールし、「C# Game Engine Viewer パネルを表示」を実行して、
-   **`CSharpGameEngine.Extension.exe`(別プロセス版)が一切起動せず**(`Get-Process`で確認)、
+   **`Extension.exe`(別プロセス版)が一切起動せず**(`Get-Process`で確認)、
    ツールウィンドウ内に`Box.glb`が実際に描画されることを実スクリーンショットで確認した。
 3. ツールウィンドウのリサイズに描画面(スワップチェーン)が正しく追従することを確認した。
 4. VSを閉じた際、クラッシュせず正常に終了することを確認した。別プロセスが存在しないため、

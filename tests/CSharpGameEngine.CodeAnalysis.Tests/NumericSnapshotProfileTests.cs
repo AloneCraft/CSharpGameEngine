@@ -34,7 +34,7 @@ public sealed class NumericSnapshotProfileTests {
             .Select(Path=>CSharpSyntaxTree.ParseText(File.ReadAllText(Path),Options,Path)));
         if(Custom){ Trees.Add(CSharpSyntaxTree.ParseText($"namespace CSharpGameEngine.Numerics;internal static class NumericBuildProfile {{internal const int TotalBits={Width};internal const int FractionalBits={Fraction};}}",Options)); }
         if(Mode!="Fixed"){ Trees.Add(CSharpSyntaxTree.ParseText("global using LogicalScalar=System."+(Mode=="Float"?"Single":"Double")+";",Options)); }
-        var References=Base.References.Where(static Reference=>System.IO.Path.GetFileName(Reference.Display) is not ("CSharpGameEngine.Numerics.dll" or "CSharpGameEngine.Entities.dll"));
+        var References=Base.References.Where(static Reference=>System.IO.Path.GetFileName(Reference.Display) is not ("Numerics.dll" or "Entities.dll"));
         var Compilation=CSharpCompilation.Create("SnapshotProfile_"+Guid.NewGuid().ToString("N"),Trees,References,Base.Options.WithNullableContextOptions(NullableContextOptions.Enable).WithGeneralDiagnosticOption(ReportDiagnostic.Error));
         GeneratorDriver Driver=CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],parseOptions:Options);
         Driver.RunGeneratorsAndUpdateCompilation(Compilation,out var Generated,out var Diagnostics);

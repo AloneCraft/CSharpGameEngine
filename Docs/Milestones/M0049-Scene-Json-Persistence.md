@@ -61,7 +61,7 @@ JSON化続行を選択した。
 | 2 | `SceneJsonAnalyzer.cs` | `(AdditionalText,Compilation)→SceneEmitModel?`。型・メンバー・enum解決、SCENE2xx診断 |
 | 3 | `SceneDslDiagnostics.cs` | SCENE200(不正なJSON)〜SCENE204(非対応の型)を追加 |
 | 4 | `GameSystemGenerator.cs` | `Context.AdditionalTextsProvider`で`*.scene.json`を拾う新プロバイダー。C#構文由来の`SceneDeclarations`プロバイダーは削除 |
-| 5 | `CSharpGameEngine.CodeAnalysis.csproj` | `System.Text.Json`参照を追加 |
+| 5 | `CodeAnalysis.csproj` | `System.Text.Json`参照を追加 |
 | 6 | `UserEcsProject.csproj` | `<AdditionalFiles Include="Scenes/*.scene.json" />`を追加 |
 
 `SceneInstantiateEmitter`/`SceneStartupSystemEmitter`/`SceneComponentSetCollector`/`SceneEmitModel`は
@@ -72,7 +72,7 @@ JSON化続行を選択した。
 
 - `FirstPersonStageAssets.cs`・`MainScene.cs`・`FirstPersonStageScene.cs`・
   `PrimitiveShowcaseScene.cs`は削除し、対応する`*.scene.json`へ置き換えた。
-- `src/CSharpGameEngine.Entities/IScene.cs`・`Node.cs`・`StartupSceneAttribute.cs`は
+- `src/Entities/IScene.cs`・`Node.cs`・`StartupSceneAttribute.cs`は
   **削除しなかった(計画からの逸脱)**。承認済み計画は「手書きC#側の権威が無くなるため削除」と
   していたが、実装中に次の2点を確認し、削除しない判断に変更した:
   1. `tests/CSharpGameEngine.{SceneModel,CodeAnalysis,VSExtension}.Tests`の`.csproj`が
@@ -85,7 +85,7 @@ JSON化続行を選択した。
 
   結果として3ファイルは**リポジトリに残るが、新規Sceneはどれも実装しない**(死んでいないが
   今後参照されない宣言)。
-- `src/CSharpGameEngine.Entities/Runtime.cs`の`World.InstantiateScene<TScene>()`ジェネリック制約を
+- `src/Entities/Runtime.cs`の`World.InstantiateScene<TScene>()`ジェネリック制約を
   `where TScene:IScene,ISceneDefinition`から`where TScene:ISceneDefinition`へ緩和した。JSON由来の
   生成Sceneクラスは手書きのpartial宣言を持たないため`IScene`を実装しようがなく、この制約緩和が
   無いと**あらゆるScene呼び出しがコンパイル不能**になっていた(メソッド本体は元から

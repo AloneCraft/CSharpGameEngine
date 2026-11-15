@@ -9,14 +9,14 @@ public sealed class AssetGraphBundleTests {
         var PackageRoot=Path.Combine(Root,"package");
         Directory.CreateDirectory(Root);
         try {
-            ZipFile.ExtractToDirectory(Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix"),PackageRoot);
+            ZipFile.ExtractToDirectory(Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix"),PackageRoot);
             var Output=Path.Combine(Root,"output");
             var GraphPath=Path.Combine(Output,"MyStage.cgeshadergraph");
             var Files=ShaderGraphTemplateWizard.PlanStageBundle(Path.Combine(PackageRoot,"ShaderGraphTemplates"),GraphPath);
             Directory.CreateDirectory(Output);
             foreach(var Entry in Files){ File.WriteAllText(Entry.Key,Entry.Value); }
             var Artifact=Path.Combine(Output,"MyStage.cgeshaderartifact");
-            var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","CSharpGameEngine.ShaderGraph.Cli","CSharpGameEngine.ShaderGraph.Cli.exe")){
+            var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","ShaderGraph.Cli","ShaderGraph.Cli.exe")){
                 Arguments="build \""+GraphPath+"\" \""+Artifact+"\"",WorkingDirectory=Output,
                 UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
             };

@@ -180,7 +180,7 @@ publicに公開しており、隠蔽している情報は無いため)。
 - `dotnet test CSharpGameEngine.slnx`: 全310件成功、失敗0件
   (`CSharpGameEngine.Ecs.Tests`39件(既存22+新規17)、`CSharpGameEngine.CodeAnalysis.Tests`79件
   (既存20+新規59)を含む)。既存テストに回帰は無かった。
-- `dotnet pack src/CSharpGameEngine.CodeAnalysis -c Release`: 成功。`ENTGEN`診断追加後も
+- `dotnet pack src/CodeAnalysis -c Release`: 成功。`ENTGEN`診断追加後も
   analyzers-onlyパッケージング(NU5128抑制方針)は変わらない。
 - `dotnet build samples/AosSoaGeneratedExpansion/AosSoaGeneratedExpansion.csproj -c Debug`:
   成功。見本ファイル自身は内容をほぼ変更せず(`ReadOnlySpan<string>`を返す式形式プロパティが

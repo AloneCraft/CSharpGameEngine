@@ -10,24 +10,24 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public class ResidentBridgeClientTests {
     [Fact]
     public void ComputePipeName_SameInputs_ReturnsSameName(){
-        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
-        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
+        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\Import.Gltf.Cli",OwnerProcessId:100);
+        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\Import.Gltf.Cli",OwnerProcessId:100);
 
         Assert.Equal(First,Second);
     }
 
     [Fact]
     public void ComputePipeName_DifferentRepoRoot_ReturnsDifferentName(){
-        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo-one",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
-        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo-two",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
+        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo-one",@"tools\Import.Gltf.Cli",OwnerProcessId:100);
+        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo-two",@"tools\Import.Gltf.Cli",OwnerProcessId:100);
 
         Assert.NotEqual(First,Second);
     }
 
     [Fact]
     public void ComputePipeName_DifferentBridgeProject_ReturnsDifferentName(){
-        var Gltf=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
-        var Fbx=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Fbx.Cli",OwnerProcessId:100);
+        var Gltf=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\Import.Gltf.Cli",OwnerProcessId:100);
+        var Fbx=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\Import.Fbx.Cli",OwnerProcessId:100);
 
         Assert.NotEqual(Gltf,Fbx);
     }
@@ -35,8 +35,8 @@ public class ResidentBridgeClientTests {
     [Fact]
     public void ComputePipeName_DifferentOwner_ReturnsDifferentName(){
         // 各 Visual Studio は専用のブリッジを持ち、別のインストール環境とは共有しない。
-        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:100);
-        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Gltf.Cli",OwnerProcessId:200);
+        var First=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\Import.Gltf.Cli",OwnerProcessId:100);
+        var Second=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\Import.Gltf.Cli",OwnerProcessId:200);
 
         Assert.NotEqual(First,Second);
     }
@@ -47,9 +47,9 @@ public class ResidentBridgeClientTests {
     }
 
     [Theory]
-    [InlineData(@"tools\CSharpGameEngine.Import.Gltf.Cli",AuthoringHostOperation.Import)]
-    [InlineData(@"tools\CSharpGameEngine.Import.Fbx.Cli",AuthoringHostOperation.Import)]
-    [InlineData(@"tools\CSharpGameEngine.Primitive.Cli",AuthoringHostOperation.Preview)]
+    [InlineData(@"tools\Import.Gltf.Cli",AuthoringHostOperation.Import)]
+    [InlineData(@"tools\Import.Fbx.Cli",AuthoringHostOperation.Import)]
+    [InlineData(@"tools\Primitive.Cli",AuthoringHostOperation.Preview)]
     [InlineData(@"tools\CSharpGameEngine.Scene.Bake.Cli",AuthoringHostOperation.Bake)]
     public void ClassifyOperation_UsesAuthoringBoundary(string Project,AuthoringHostOperation Expected){
         Assert.Equal(Expected,ResidentBridgeClient.ClassifyOperation(Project));

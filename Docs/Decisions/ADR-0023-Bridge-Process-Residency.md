@@ -67,7 +67,7 @@ ADR-0010追記(本ADRの直前の変更)で、`ExternalBridgeProcess.RunProcess`
 - アイドルタイムアウト(15分)はそのまま残る。
 
 **`FbxImporter.Import`の呼び出しを排他する**（2026-10-04 の追記で、排他は`FbxImporter`自身へ移した）:
-`FbxImporter.Import`(`src/CSharpGameEngine.Import.Fbx/FbxImporter.cs`)は呼び出しのたびに
+`FbxImporter.Import`(`src/Import.Fbx/FbxImporter.cs`)は呼び出しのたびに
 AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロセス全体で共有される
 ネイティブロギング登録である。一発モードでは1プロセスにつき1回しか呼ばれないため問題に
 ならなかったが、常駐サーバーは複数のFBXリクエストを本当に並行実行しうる(例: 複数の`.fbx`を
@@ -77,7 +77,7 @@ AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロ�
 
 追記（2026-10-04）: `FbxImporter`は公開 API で、`ProviderNeutralImport`、Extension、テストもブリッジを通さずに呼ぶ。`ProviderNeutralImportTests`と`FbxImporterTests`が並列に動いた clean build で、テストホストがアクセス違反（0xC0000005）で落ちた。並列の`FbxImporter.Import`は毎回落ち、ログストリームなしの並列`AssimpContext.ImportFile`は落ちなかったので、原因はプロセス全体のログストリームの Attach/Detach の競合と確かめた。排他は`FbxImporter`の中（ログストリームを持つ区間）へ移し、ブリッジのセマフォは外した。
 
-### 3. VSIX側`ResidentBridgeClient`(net472、`tools/CSharpGameEngine.VSExtension/`)
+### 3. VSIX側`ResidentBridgeClient`(net472、`tools/VSExtension/`)
 
 `CSharpGameEngine.Bridge.Hosting`とはアセンブリを共有しない(net472はnet10.0を
 `ProjectReference`できない)- ワイヤープロトコルの**形**だけを独立実装で踏襲する
@@ -126,7 +126,7 @@ AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロ�
   単発往復・8件並行リクエストの無混線・ハンドラ例外後もサーバーが使え続けること・
   アイドルタイムアウトでループが実際に終了すること。`ResidentBridgeClientTests`新規3件 -
   `ComputePipeName`の決定性・repoRoot違いでの別名・ブリッジ違いでの別名)。
-- **`--serve`モードの実プロセス実地確認**: ビルド済み`CSharpGameEngine.Import.Gltf.Cli.exe`を
+- **`--serve`モードの実プロセス実地確認**: ビルド済み`Import.Gltf.Cli.exe`を
   `--serve <pipeName>`で実際に起動し、PowerShellから生のNamed Pipeクライアント
   (`System.IO.Pipes.NamedPipeClientStream`)で接続・リクエスト送信・応答受信を行い、
   `{"ExitCode":0,"Output":"..."}`という正しい応答と、期待通りの出力ファイル生成を確認した。

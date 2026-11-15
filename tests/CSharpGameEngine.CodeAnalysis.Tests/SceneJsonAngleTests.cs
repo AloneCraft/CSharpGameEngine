@@ -79,7 +79,7 @@ public sealed class SceneJsonAngleTests {
     [Fact]
     public void TheGeneratorAssemblyContainsNoEarlierVersionReader(){
         var Assembly=typeof(SceneJsonSceneAnalyzer).Assembly;
-        Assert.Equal("CSharpGameEngine.CodeAnalysis",Assembly.GetName().Name);
+        Assert.Equal("CodeAnalysis",Assembly.GetName().Name);
         Assert.Null(Assembly.GetType("CSharpGameEngine.SceneAnalysis.Json.SceneJsonAngleUpgrade"));
         Assert.Null(typeof(SceneJsonSceneAnalyzer).GetMethod("AnalyzeEarlierVersion",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Public));
         Assert.NotNull(typeof(SceneJsonSceneAnalyzer).GetMethod("Analyze",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic,[typeof(string),typeof(Microsoft.CodeAnalysis.Compilation)]));

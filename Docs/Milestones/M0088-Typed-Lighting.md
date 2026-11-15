@@ -27,7 +27,7 @@ dotnet build CSharpGameEngine.slnx -c Release --no-restore --nologo -v quiet
 dotnet test CSharpGameEngine.slnx -c Debug --no-build --nologo -v quiet
 dotnet test CSharpGameEngine.slnx -c Release --no-restore --nologo -v quiet
 dotnet test tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj -c Debug --no-build --filter FullyQualifiedName~SolutionProjectRegistrationSpec
-dotnet run --no-build --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -c <Configuration> -- run <Stage> --configuration <Configuration> --profile typed-light-m0088 --adapter warp
+dotnet run --no-build --project tools/FeatureRunner/FeatureRunner.csproj -c <Configuration> -- run <Stage> --configuration <Configuration> --profile typed-light-m0088 --adapter warp
 git -c core.safecrlf=false diff --check
 ```
 | Check | Debug | Release |

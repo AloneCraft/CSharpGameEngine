@@ -66,13 +66,13 @@ SceneEditOperation
 
 ### 2. `SceneModel`は共有ソース(バイナリ参照しない)
 
-`src/CSharpGameEngine.SceneModel/`(namespace `CSharpGameEngine.SceneAnalysis`、全型`internal`)は
+`src/SceneModel/`(namespace `CSharpGameEngine.SceneAnalysis`、全型`internal`)は
 プロジェクト参照されず、次の2ホストへ`<Compile Include>`でソースごと取り込まれる。
 
 | ホスト | TFM | 用途 |
 |---|---|---|
-| `src/CSharpGameEngine.CodeAnalysis`(Source Generator) | netstandard2.0 | `SceneModelBridge`経由で`SceneEmitModel`化しコード生成 |
-| `tools/CSharpGameEngine.VSExtension`(VSIX) | net472 | ライブRoslynでの表示・編集 |
+| `src/CodeAnalysis`(Source Generator) | netstandard2.0 | `SceneModelBridge`経由で`SceneEmitModel`化しコード生成 |
+| `tools/VSExtension`(VSIX) | net472 | ライブRoslynでの表示・編集 |
 
 このため`SceneModel`プロジェクトではnetstandard2.0に`IsExternalInit`が無いことから`record`/`init`を
 禁止し、全型を手書きの`sealed class`/`readonly struct`で書く(csprojコメントに明記)。

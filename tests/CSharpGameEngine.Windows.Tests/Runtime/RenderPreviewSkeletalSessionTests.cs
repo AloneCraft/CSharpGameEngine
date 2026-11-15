@@ -18,7 +18,7 @@ public sealed class RenderPreviewSkeletalSessionTests {
     private static string ShaderArtifactPath=>Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private const int Size=160;
     private static readonly GraphicsDeviceOptions Options=new(){ UseWarp=true,EnableDebugLayer=true };
-    private static string Mannequins=>Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.FirstPerson","Assets","Characters","Mannequins");
+    private static string Mannequins=>Path.Combine(RepositoryRoot(),"Templates","FirstPerson","Assets","Characters","Mannequins");
     private static string Mesh=>Path.Combine(Mannequins,"SKM_Manny_Simple.glb");
     private static string Idle=>Path.Combine(Mannequins,"Anims","MM_Idle.glb");
     private static string RepositoryRoot(){

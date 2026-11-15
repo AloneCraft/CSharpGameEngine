@@ -15,5 +15,8 @@
     <_CgeRepositoryRelativeDirectory>$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)','$(MSBuildProjectDirectory)').Replace('\','/'))/</_CgeRepositoryRelativeDirectory>
     <CgeTestProject Condition="'$(CgeTestProject)' == '' and $(_CgeRepositoryRelativeDirectory.StartsWith('tests/'))">true</CgeTestProject>
     <CgeEngineAssembly Condition="'$(CgeEngineAssembly)' == '' and '$(CgeTestProject)' != 'true' and ($(_CgeRepositoryRelativeDirectory.StartsWith('src/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('tools/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('plugins/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('stages/')))">true</CgeEngineAssembly>
+    <!-- Project and DLL names carry no CSharpGameEngine. prefix, but the namespaces keep it (ADR-0099).
+         The default namespace also names embedded resources, so it stays CSharpGameEngine.<project>. -->
+    <RootNamespace Condition="'$(RootNamespace)' == '' and '$(CgeEngineAssembly)' == 'true' and !$(MSBuildProjectName.StartsWith('CSharpGameEngine.'))">CSharpGameEngine.$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
 </Project>

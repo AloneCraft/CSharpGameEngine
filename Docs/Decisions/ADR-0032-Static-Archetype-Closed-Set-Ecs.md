@@ -6,7 +6,7 @@
 
 本ADRが対象としたのは、既存の本番ECS(ADR-0029/M0009)に一切手を入れずに設計を独立検証することであり、
 そのために作った`src/CSharpGameEngine.StaticArchetype`と`samples/StaticArchetypeSystemsDemo`は
-ADR-0033で役割を終えて削除された(内容は`src/CSharpGameEngine.Entities`と`GameSystemGenerator`へ吸収)。
+ADR-0033で役割を終えて削除された(内容は`src/Entities`と`GameSystemGenerator`へ吸収)。
 `StaticArchetypeGenerator`もADR-0033決定事項7の統合により`GameSystemGenerator`へ改称・吸収されている。
 
 **ADR-0033で変更された本ADRの決定事項**:
@@ -173,7 +173,7 @@ Archetypeは、コンパイル全体の全`Update`オーバーロードが要求
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet build src/CSharpGameEngine.StaticArchetype/CSharpGameEngine.StaticArchetype.csproj -c Debug
@@ -212,7 +212,7 @@ dotnet test CSharpGameEngine.slnx
     12件、Bridge.Hosting.Tests 8件、Scene.Tests 8件、Import.Fbx.Tests 10件、Compiler.Hlsl.Tests
     7件)、失敗0・回帰0
 
-dotnet pack src/CSharpGameEngine.CodeAnalysis -c Release
+dotnet pack src/CodeAnalysis -c Release
   → 成功。unzip -lで.nupkg内容を確認し、analyzers/dotnet/cs/CSharpGameEngine.CodeAnalysis.dllのみが
     含まれ、lib/配下には何も含まれないことを確認した(ADR-0014のNU5128抑制方針を継続)。
 ```

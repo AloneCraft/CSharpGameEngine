@@ -87,7 +87,7 @@ Write→Read依存エッジは並列実行の有効化には使わず、単一�
 
 ## 実装
 
-新ランタイム`src/CSharpGameEngine.Entities/`は、旧`CSharpGameEngine.Ecs`の
+新ランタイム`src/Entities/`は、旧`CSharpGameEngine.Ecs`の
 `Entity`/`ComponentColumn<T>`/`ArchetypeStorage`のswap-back+2倍成長`EnsureCapacity`/
 `World`のfree-list ID割当+Generationという実証済みの部分を流用しつつ、動的Archetype生成・
 構造変更・Query・Command Bufferを新規実装した。詳細な仕様は[[Ecs-Soa-Systems]]を参照。
@@ -126,7 +126,7 @@ Write→Read依存エッジは並列実行の有効化には使わず、単一�
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/... -c Debug     → 成功、警告0/エラー0
+dotnet build src/CodeAnalysis/... -c Debug     → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...       → 成功、121件(旧削除前)→36件(旧削除後)+新規テスト
 dotnet run --project samples/SoaSystemsDemo                     → "OK"
 dotnet build UserGameProject/UserGameProject.csproj -c Debug    → 成功、警告0/エラー0

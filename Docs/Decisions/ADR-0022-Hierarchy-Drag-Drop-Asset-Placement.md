@@ -48,7 +48,7 @@ Phase 2後半)。
 
 ## 検証結果(実際に実行して確認)
 
-- `dotnet build tools/CSharpGameEngine.VSExtension/...csproj`: 警告・エラーなし(VS threading
+- `dotnet build tools/VSExtension/...csproj`: 警告・エラーなし(VS threading
   analyzerのVSTHRD010指摘は`ThreadHelper.ThrowIfNotOnUIThread()`追加で解消)。
 - `dotnet build CSharpGameEngine.slnx` / `dotnet test CSharpGameEngine.slnx`: 全11アセンブリ・
   218件成功。

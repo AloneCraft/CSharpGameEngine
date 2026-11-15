@@ -4,7 +4,7 @@ Usage: python build_vehicle_ground.py <heights.json> <SM_Track_10M.glb> <ground_
   heights.json     probe_vehicle_landscape_heights.py's output (Landscape heights on a 1 m grid, SplineMeshComponent parameters)
   SM_Track_10M.glb the glb run_export_skeletal_mesh.cmd writes for /Game/VehicleTemplate/Meshes/SM_Track_10M (CGE_SK_STATIC=1)
   ground_color.png capture_vehicle_ground_color.py's top-down base-colour capture of the Landscape (sRGB)
-  template-dir     Templates/CSharpGameEngine.Templates.Vehicle
+  template-dir     Templates/Vehicle
 Writes Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb, Track_Road.glb (the road) and Track_Curbs.glb (the curbs), all three colliding,
 under template-dir, and swaps the scene's flat "Ground" slab for the "Landscape", "Track" and "TrackCurbs" nodes that use them
 (Scenes/Lvl_VehicleBasic.json, edited as text so the rest of the file stays as it was; running it again replaces the same nodes).

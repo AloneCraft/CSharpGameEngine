@@ -188,7 +188,7 @@ public sealed class RenderRosterTests {
     private static string Mannequin(){
         var Directory=new DirectoryInfo(AppContext.BaseDirectory);
         while(Directory is not null&&!File.Exists(System.IO.Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
-        return System.IO.Path.Combine(Directory?.FullName??throw new InvalidOperationException("The repository root was not found."),"Templates","CSharpGameEngine.Templates.ThirdPerson","Assets","Characters","Mannequins","SKM_Quinn_Simple.glb");
+        return System.IO.Path.Combine(Directory?.FullName??throw new InvalidOperationException("The repository root was not found."),"Templates","ThirdPerson","Assets","Characters","Mannequins","SKM_Quinn_Simple.glb");
     }
     /// <summary>
     /// ADR-0078/M0107：レベルのロード後に生成されたキャラクター（再スポーンした pawn）には、スキンメッシュとマテリアルの専用コピーが割り当てられます。キャラクターが消えるとコピーは pool に戻り、pawn が何度再スポーンしてもレンダラーの使用量は増えません。同時に2体いる場合は2つ目のコピーが使われます。

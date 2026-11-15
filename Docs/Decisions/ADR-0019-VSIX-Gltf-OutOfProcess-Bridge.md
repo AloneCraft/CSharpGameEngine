@@ -24,8 +24,8 @@ netstandard2.0対応)を`CSharpGameEngine.VSExtension`から直接参照し、`d
 
 ## 決定事項
 
-### 1. 新規ブリッジプロジェクト`tools/CSharpGameEngine.Import.Gltf.Cli`
-`tools/CSharpGameEngine.Import.Fbx.Cli`(ADR-0010)と同型の net10.0 コンソールアプリ。
+### 1. 新規ブリッジプロジェクト`tools/Import.Gltf.Cli`
+`tools/Import.Fbx.Cli`(ADR-0010)と同型の net10.0 コンソールアプリ。
 `CSharpGameEngine.Import.Gltf`を`ProjectReference`し、`GltfImporter.Import(inputPath)`
 (既存の単一メッシュ・先頭プリミティブのみのAPI、無改修)を呼び、結果を`GltfBridgeDocument`
 (positions/normals/uvs/indices/baseColorFactorをフラットな`float[]`/`uint[]`で持つ、
@@ -37,12 +37,12 @@ netstandard2.0対応)を`CSharpGameEngine.VSExtension`から直接参照し、`d
 は不要 - 素の`net10.0`コンソールアプリのままで`dotnet run`から実行できる。
 
 ### 2. VSIX側の2つのローダーが共通のプロセス起動ヘルパーを共有する
-`tools/CSharpGameEngine.VSExtension/ExternalFbxLoader.cs`(ADR-0010)が持っていた
+`tools/VSExtension/ExternalFbxLoader.cs`(ADR-0010)が持っていた
 「`dotnet run --project ... -- <input> <output.json>`を起動し、標準出力/エラーを
 `BeginOutputReadLine`/`BeginErrorReadLine`で非同期に読み、タイムアウト(60秒)で
 `Process.Kill()`、非0終了コードで例外」というロジックを`ExternalBridgeProcess.cs`
 (新規、internal static)に切り出した。新規`ExternalGltfLoader.cs`は同じヘルパーを
-`tools\CSharpGameEngine.Import.Gltf.Cli`向けに呼ぶだけで、`ExternalFbxLoader.cs`自体も
+`tools\Import.Gltf.Cli`向けに呼ぶだけで、`ExternalFbxLoader.cs`自体も
 このヘルパーを使うようリファクタリングした。
 
 両ブリッジが出力するJSONは同一形状(`FbxBridgeDocument`/`GltfBridgeDocument`ともに
@@ -55,7 +55,7 @@ positions/normals/indices/baseColorFactorのフラット配列)なので、VSIX�
 ### 3. `SimpleGltfLoader.cs`を削除し、`SharpGLTF.Core`パッケージ参照を除去
 `MeshLoader.cs`の振り分けは「`.fbx`は`ExternalFbxLoader`、それ以外(`.glb`/`.gltf`)は
 `ExternalGltfLoader`」に変更した。`SimpleGltfLoader.cs`(in-process実装)は削除し、
-`CSharpGameEngine.VSExtension.csproj`から`SharpGLTF.Core`パッケージ参照も除去した
+`VSExtension.csproj`から`SharpGLTF.Core`パッケージ参照も除去した
 (このプロジェクトはもうAssimpNetもSharpGLTF.Coreも直接参照しない)。`System.Text.Json`
 パッケージ参照(バージョン10.0.1)はブリッジJSON読み込みのため引き続き必要だが、
 バージョン固定理由のコメントは「SharpGLTF.Coreが要求するため」から「既に動作実績のある
@@ -63,7 +63,7 @@ positions/normals/indices/baseColorFactorのフラット配列)なので、VSIX�
 
 ## 検証結果(実際に実行して確認)
 
-- **ブリッジCLI単体**: `dotnet run --project tools/CSharpGameEngine.Import.Gltf.Cli -- assets/TestFixtures/Gltf/Box.glb <tmp>.json`
+- **ブリッジCLI単体**: `dotnet run --project tools/Import.Gltf.Cli -- assets/TestFixtures/Gltf/Box.glb <tmp>.json`
   を実際に実行し、終了コード0、`Positions`(24頂点分、72要素)・`Normals`・`Indices`
   (36要素、12三角形)・`BaseColorFactor`を含む正しいJSONが生成されることを確認した
   (`TEXCOORD_0`欠落による既存の警告メッセージも従来どおり標準出力に出た)。
@@ -82,8 +82,8 @@ positions/normals/indices/baseColorFactorのフラット配列)なので、VSIX�
 
 ## ADR-0034による追記
 
-[[ADR-0034-Project-Consolidation]]により、`tools/CSharpGameEngine.Import.Gltf.Cli`の
-`<ProjectReference>`先が`src/CSharpGameEngine.Import.Gltf/`から`src/CSharpGameEngine.Import/`へ
+[[ADR-0034-Project-Consolidation]]により、`tools/Import.Gltf.Cli`の
+`<ProjectReference>`先が`src/Import.Gltf/`から`src/Import/`へ
 変わった。名前空間`CSharpGameEngine.Import.Gltf`は無変更で、`GltfImporter.Import(inputPath)`の
 呼び出しもJSON出力形式も本ADRの決定事項もそのままである。
 

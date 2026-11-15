@@ -50,7 +50,7 @@ Offline Voronoi prefractureはclosed convex static meshをQ64.64 half-spaceで�
 
 ## 破壊(ADR-0078/M0113)
 
-ソルバーは`FractureSolver.cs`の`FractureState`(ECSに依存しない。調理・実行時・試験が共有する)。Component、System、Fieldは`plugins/CSharpGameEngine.Destruction`(`Destructible`ほか。`Docs/Specifications/Plugins-And-Assets.md`)。
+ソルバーは`FractureSolver.cs`の`FractureState`(ECSに依存しない。調理・実行時・試験が共有する)。Component、System、Fieldは`plugins/Destruction`(`Destructible`ほか。`Docs/Specifications/Plugins-And-Assets.md`)。
 
 - ひずみは力積(N·s)。1 tickの間に`AddImpulse`(当たった破片の結合に全部、結合1つ離れるごとに`DamagePropagation`倍、最大4環)・`AddStrain`・`AddStrainSphere`で集める。結合は tick をまたぐ内部ひずみ D を持ち(M0124、UEのChaosの内部ひずみ)、`Resolve`が D + そのtickのひずみ ≥ 強さの結合を結合の番号順に切る(等しければ切れる)。続けて切れていない結合ごとに D ← (D + そのtickの残るひずみ) × `StrainRetention`(保持率 = max(0, 1 − 減衰 × Δt)、`FractureSettings.RetentionFor`)、強さの2⁻²⁰を下回ったら0。残るひずみは衝撃だけ(`Lasting`: 接触が始まったtickの力積、ゲームの力積、キャラクターの衝突のうちそのキャラクターがその物体に触れ始めたtickのもの、`StrainField`)。続いている接触(置かれた物体の荷重)はそのtickだけのひずみで、溜まらない。`StrainRetention`の既定は0(毎tick捨てる。M0113と同じ)、Destructionプラグインは`Destructible.StrainDecay`(既定0.5/s)から作る。
 - 多段クラスター(M0124): 結合の強さは面積 × 面積あたりの強さ × `ClusterStrengthScale`^(両方の破片を同じクラスターに持つ段の数、`PrefractureAsset.SharedClusterLevels`)。外側の段のクラスターの間の結合が一番弱く先に切れ、深い段ほど後(UEの段ごとのしきい値)。1段の資産ではクラスターの中が`ClusterStrengthScale`倍(M0113と同じ)。

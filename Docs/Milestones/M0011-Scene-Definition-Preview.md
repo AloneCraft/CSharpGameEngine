@@ -9,11 +9,11 @@ Scene Authoring Phase A(M0010)で完成した`[SceneDefinition]`クラスを、�
 ### 新規ブリッジCLI `tools/CSharpGameEngine.SceneAuthoring.Cli/`(net10.0)
 - `SceneDefinitionSourceParser`: ソース.csの構文のみ解析(`CSharpSyntaxTree.ParseText`、Compilation不要)で`[SceneDefinition]`クラスの`Define`メソッドから宣言順(深さ優先)のノード名リストを復元。
 - `SceneRuntimeInvoker`/`SceneAuthoringLoadContext`: Collectible `AssemblyLoadContext`+`AssemblyDependencyResolver`で対象アセンブリをロードし、`[SceneDefinition]`型の`CreateRuntime(World)`をReflectionで実際に実行。同名アセンブリ(`CSharpGameEngine.Entities`)は既定コンテキストの既ロード版を優先して型を統一する。
-- `WorldInspector`: `CSharpGameEngine.Entities.csproj`への新規`InternalsVisibleTo`経由で`Archetype`/`ComponentTypeRegistry`等を歩き、Position/Rotation/Scaleを型の単純名一致で、`Parent`を型そのもので判定して読み取る。`ComponentColumn<T>.Items`(public `T[]`)を`FieldInfo`経由で読む(`GetSpan<T>`が返す`Span<T>`はReflection越しに返せないため)。
+- `WorldInspector`: `Entities.csproj`への新規`InternalsVisibleTo`経由で`Archetype`/`ComponentTypeRegistry`等を歩き、Position/Rotation/Scaleを型の単純名一致で、`Parent`を型そのもので判定して読み取る。`ComponentColumn<T>.Items`(public `T[]`)を`FieldInfo`経由で読む(`GetSpan<T>`が返す`Span<T>`はReflection越しに返せないため)。
 - `ScenePreviewBridgeWorker`/`Program.cs`: 既存3ブリッジ(Import.Gltf.Cli等)と同型の`--serve <pipeName>`/2引数one-shotの二重モード。共有ブリッジ基盤が「入力パス1つ+出力パス1つ」固定のため、`ScenePreviewRequest{ SourceFilePath, TargetAssemblyPath }`を一時JSONへ書いてそのパスを入力パスとして渡す間接化を行った。
 - `tests/CSharpGameEngine.SceneAuthoring.Cli.Tests/`: 12件(`WorldInspector`のハンドビルドWorldに対する単体テスト、`SceneDefinitionSourceParser`のソーステキストスニペットテスト、`SceneRuntimeInvoker`+`WorldInspector`を`samples/SceneAuthoringDemo`の実ビルド出力に対して実行する統合テスト)。
 
-### VSIX側新規ファイル `tools/CSharpGameEngine.VSExtension/`(net472)
+### VSIX側新規ファイル `tools/VSExtension/`(net472)
 - `PreviewSceneDefinitionCommand`: このリポジトリ初の、コードエディタコンテキストメニュー配置+`BeforeQueryStatus`によるVisible/Enabled動的切替コマンド。`EnvDTE.TextDocument`のライブバッファテキストを見て判定し(`IWpfTextView`/Roslyn Workspaceは使わない)、`Execute`でブリッジを呼び、結果を一時`.scene`へ変換して`dte.ItemOperations.OpenFile(...)`で開く。
 - `SceneDefinitionTextDetector`: `[SceneDefinition]`存在の正規表現による軽量判定(Roslyn不使用)。
 - `ProjectOutputAssemblyResolver`: `EnvDTE.Project`の実ビルド出力パスをTFM/RID非依存に解決(`OutputPath`/`OutputFileName`プロパティ読み取り、失敗時は`bin/`配下のnewest-by-write-timeグロブへフォールバック)。
@@ -57,7 +57,7 @@ dotnet run --project tools/CSharpGameEngine.SceneAuthoring.Cli -- <request.json>
   → UserGameProject/Scene1.cs向け(net10.0-windows10.0.19041.0+win-x64という非標準TFM): 終了コード0
     応答JSON: Root→MainCamera/Player/Lighting、Lighting→Sun/Ambientの6ノード、期待どおりの階層・値
 
-dotnet build tools/CSharpGameEngine.VSExtension/...csproj -c Debug
+dotnet build tools/VSExtension/...csproj -c Debug
   → 成功、警告0/エラー0(.vsctコンパイル含む、IDM_VS_CTXT_CODEWIN・DynamicVisibilityとも初回で正常解決)
 dotnet test tests/CSharpGameEngine.VSExtension.Tests/...csproj -c Debug
   → 成功、39件(既存22件+新規17件)

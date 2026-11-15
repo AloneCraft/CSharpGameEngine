@@ -96,7 +96,7 @@ public sealed class ReleaseManifestEvidenceTests:IDisposable {
         FeatureStageCommand CandidateRunner=Candidate.Commands[0];
         Assert.Equal("dotnet",CandidateRunner.FileName);
         Assert.StartsWith(
-            "tools/CSharpGameEngine.FeatureRunner/bin/{configuration}/",
+            "tools/FeatureRunner/bin/{configuration}/",
             CandidateRunner.Arguments[0],StringComparison.Ordinal);
         Assert.DoesNotContain("--project",CandidateRunner.Arguments);
         Assert.Equal("{configuration}",
@@ -105,7 +105,7 @@ public sealed class ReleaseManifestEvidenceTests:IDisposable {
         Assert.All(Manifest.Commands.Take(2),Command=>{
             Assert.Equal("dotnet",Command.FileName);
             Assert.StartsWith(
-                "tools/CSharpGameEngine.FeatureRunner/bin/{configuration}/",
+                "tools/FeatureRunner/bin/{configuration}/",
                 Command.Arguments[0],StringComparison.Ordinal);
             Assert.DoesNotContain("--project",Command.Arguments);
         });
@@ -138,27 +138,27 @@ public sealed class ReleaseManifestEvidenceTests:IDisposable {
     private PreparedReleasePayload CreatePreparedPayload(){
         string Input=Path.Combine(this.Root,"package-input");
         string Cli=Path.Combine(Input,"cli");
-        Write(Path.Combine(Cli,"CSharpGameEngine.Extension.exe"),"fixture-exe");
-        Write(Path.Combine(Cli,"CSharpGameEngine.Extension.dll"),"fixture-dll");
-        Write(Path.Combine(Cli,"CSharpGameEngine.Extension.deps.json"),
+        Write(Path.Combine(Cli,"Extension.exe"),"fixture-exe");
+        Write(Path.Combine(Cli,"Extension.dll"),"fixture-dll");
+        Write(Path.Combine(Cli,"Extension.deps.json"),
             """{"runtimeTarget":{"name":".NETCoreApp,Version=v10.0/win-x64"},"targets":{},"libraries":{}}""");
-        Write(Path.Combine(Cli,"CSharpGameEngine.Extension.runtimeconfig.json"),
+        Write(Path.Combine(Cli,"Extension.runtimeconfig.json"),
             """{"runtimeOptions":{"tfm":"net10.0"}}""");
         Write(Path.Combine(Cli,"assimp.dll"),"fixture-native");
         Write(Path.Combine(Cli,"Samples","Box.glb"),"fixture-model");
         Write(Path.Combine(Cli,"Shaders","Stage.cgeshaderartifact"),"fixture-shader");
-        string Vsix=Path.Combine(Input,"CSharpGameEngine.VSExtension.vsix");
+        string Vsix=Path.Combine(Input,"VSExtension.vsix");
         CreateZip(Vsix,new Dictionary<string,string>(StringComparer.Ordinal){
             ["extension.vsixmanifest"]="""<PackageManifest><Metadata><Identity Id="CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203" Version="0.1.7" /></Metadata></PackageManifest>""",
-            ["CSharpGameEngine.VSExtension.dll"]="fixture-vsix",
-            ["PreviewHost/CSharpGameEngine.EditorPreview.Host.exe"]="fixture-preview",
+            ["VSExtension.dll"]="fixture-vsix",
+            ["PreviewHost/EditorPreview.Host.exe"]="fixture-preview",
             ["ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.json"]="fixture-en",
             ["ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.json"]="fixture-ja",
         });
         string Nuget=Path.Combine(Input,"CSharpGameEngine.CodeAnalysis.0.1.7.nupkg");
         CreateZip(Nuget,new Dictionary<string,string>(StringComparer.Ordinal){
             ["CSharpGameEngine.CodeAnalysis.nuspec"]="<package><metadata><id>CSharpGameEngine.CodeAnalysis</id><version>0.1.7</version></metadata></package>",
-            ["analyzers/dotnet/cs/CSharpGameEngine.CodeAnalysis.dll"]="fixture-analyzer",
+            ["analyzers/dotnet/cs/CodeAnalysis.dll"]="fixture-analyzer",
         });
         return new PreparedReleasePayload(
             Cli,Vsix,Nuget,"0.1.7",

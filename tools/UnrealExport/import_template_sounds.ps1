@@ -35,7 +35,7 @@ try {
     $env:CGE_SOUND_EXPORTS = '[' + (($Exports | ForEach-Object { $_ | ConvertTo-Json -Compress }) -join ',') + ']'
     & $Editor $Project "-ExecutePythonScript=$PSScriptRoot\export_sound_waves.py" -EnablePlugins=PythonScriptPlugin -stdout -unattended -NoSplash -nosound -nullrhi | Out-Null
     foreach ($Template in $Targets.Keys) {
-        $Dir = Join-Path $Repo "Templates\CSharpGameEngine.Templates.$Template\Assets\Sounds"
+        $Dir = Join-Path $Repo "Templates\$Template\Assets\Sounds"
         New-Item -ItemType Directory -Force $Dir | Out-Null
         foreach ($Name in $Targets[$Template]) {
             $Wav = Join-Path $Temp "$Name.wav"

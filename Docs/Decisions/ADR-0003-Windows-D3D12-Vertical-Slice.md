@@ -162,7 +162,7 @@ source; only the assembly they live in changed.
 The `<None>` block that copies `dxcompiler.dll` / `dxil.dll` out of
 `$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\` moved **verbatim** from
 `src/CSharpGameEngine.Compiler.Hlsl/CSharpGameEngine.Compiler.Hlsl.csproj` to
-`src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj`. The reasoning in this ADR is
+`src/Windows/Windows.csproj`. The reasoning in this ADR is
 unchanged: `Microsoft.Direct3D.DXC` ships `build/native/*.targets` meant for vcxproj consumers
 only, so SDK-style C# projects must copy the redistributable themselves.
 
@@ -170,8 +170,8 @@ Because losing that block breaks `HlslCompiler` **at runtime only** - no unit te
 the move was verified by inspecting the real output directories and running the renderer:
 
 ```
-tools/CSharpGameEngine.TestHost/bin/Debug/net10.0-windows10.0.19041.0/{dxcompiler.dll,dxil.dll}      present
-tools/CSharpGameEngine.Extension/bin/Debug/net10.0-windows10.0.19041.0/win-x64/{dxcompiler,dxil}.dll present
+tools/TestHost/bin/Debug/net10.0-windows10.0.19041.0/{dxcompiler.dll,dxil.dll}      present
+tools/Extension/bin/Debug/net10.0-windows10.0.19041.0/win-x64/{dxcompiler,dxil}.dll present
 UserGameProject/bin/Debug/net10.0-windows10.0.19041.0/win-x64/{dxcompiler,dxil}.dll                  present
 
 TestHost.exe triangle --hidden --frames 3 --warp --debug-layer --verify

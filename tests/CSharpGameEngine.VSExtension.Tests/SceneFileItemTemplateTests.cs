@@ -78,7 +78,7 @@ public sealed class SceneFileItemTemplateTests {
     }
     [Fact]
     public void BuiltVsix_ContainsRegisteredSceneTemplateManifestAndFiles(){
-        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
 
         using var Archive=ZipFile.OpenRead(VsixPath);
         var TemplateManifest=Archive.GetEntry("ItemTemplates/templateManifest0.1033.vstman");

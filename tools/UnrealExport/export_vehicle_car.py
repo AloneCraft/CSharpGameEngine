@@ -1,6 +1,6 @@
 """Exports the Vehicle template's sports car (body, glass, wheel) to glTF with its materials.
 
-Run: run_export_vehicle_car.cmd [output folder]. The default folder is Templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar.
+Run: run_export_vehicle_car.cmd [output folder]. The default folder is Templates/Vehicle/Assets/Vehicles/SportsCar.
 The editor must have a render device (no -nullrhi): the glTF exporter reads and bakes materials through it, and without one
 it writes empty materials (the exported car was grey). Nothing in the UE project is saved.
 """

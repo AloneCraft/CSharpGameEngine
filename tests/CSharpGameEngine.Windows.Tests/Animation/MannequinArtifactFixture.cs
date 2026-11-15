@@ -14,7 +14,7 @@ public sealed class MannequinArtifactFixture:IAsyncLifetime {
         while(Repository is not null&&!File.Exists(Path.Combine(Repository.FullName,"CSharpGameEngine.slnx"))){ Repository=Repository.Parent; }
         if(Repository is null){ throw new InvalidOperationException("Repository root was not found."); }
         foreach(var Template in new[]{"FirstPerson","ThirdPerson","TopDown"}){
-            var Project=Path.Combine(Repository.FullName,"Templates","CSharpGameEngine.Templates."+Template);
+            var Project=Path.Combine(Repository.FullName,"Templates",""+Template);
             var Sources=Directory.EnumerateFiles(Path.Combine(Project,"Assets","Characters","Mannequins"),"*.glb",SearchOption.AllDirectories).ToArray();
             this.Templates.Add(Template,new ModelArtifactTestContent(Sources,Project));
         }

@@ -29,7 +29,7 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
 
 実装前の調査で以下を確認し、当初想定より単純な設計に収まった:
 
-- `src/CSharpGameEngine.SceneModel/`の`SceneModel`/`SceneComponent`/`SceneComponentMember`/
+- `src/SceneModel/`の`SceneModel`/`SceneComponent`/`SceneComponentMember`/
   `SceneValue`のシンボル系プロパティ(`ClassSymbol`/`TypeSymbol`/`MemberSymbol`/
   `ReferencedSymbol`/`Type`)は全て`?`付き(nullable)だった。C#解析でも「型未解決」を表現する
   ために元々null許容だったため、**型を1本化でき、JSON専用の並行モデルは不要**だった。
@@ -50,20 +50,20 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
 
 ### 1. SceneModel構築のJSON対応
 
-- `src/CSharpGameEngine.CodeAnalysis/SceneJsonModel.cs`(POCO: `SceneJsonDocument`/
-  `SceneJsonNode`/`SceneJsonComponent`)を`src/CSharpGameEngine.SceneModel/`へ移設した
+- `src/CodeAnalysis/SceneJsonModel.cs`(POCO: `SceneJsonDocument`/
+  `SceneJsonNode`/`SceneJsonComponent`)を`src/SceneModel/`へ移設した
   (`git mv`+名前空間を`CSharpGameEngine.SceneAnalysis`へ変更)。この移設に伴い、単独ビルド検証用の
-  `CSharpGameEngine.SceneModel.csproj`(バイナリ参照されない共有ソース束、`Directory.Build.props`の
+  `SceneModel.csproj`(バイナリ参照されない共有ソース束、`Directory.Build.props`の
   `netstandard2.0`+net472両対応要件)に`System.Text.Json`の`PackageReference`が新たに必要になり
   追加した(Version 9.0.0、消費側の`CSharpGameEngine.CodeAnalysis`/`CSharpGameEngine.VSExtension`
   とバージョンを揃える必要はない — このcsproj自体はバイナリ参照されないため)。
-- `tools/CSharpGameEngine.VSExtension/SceneJsonModelBuilder.cs`(新規): Runtime側
+- `tools/VSExtension/SceneJsonModelBuilder.cs`(新規): Runtime側
   `SceneJsonAnalyzer.cs`と同じ値解釈ロジック(宣言型で判定、enumは文字列でメンバー名解決、
   `Compilation.GetTypeByMetadataName`での型解決、readonlyフィールド除外)を移植したが、出力先が
   `SceneEmitModel`(文字列専用)ではなく`SceneModel`/`SceneNode`/`SceneComponent`/
   `SceneComponentMember`/`SceneValue`である点が異なる。診断は`SceneDslDiagnostics`のSCENE2xxを
   Runtime側とそのまま共有する。
-- `src/CSharpGameEngine.SceneModel/SceneSourceLocation.cs`に`FromJsonFile(string FilePath)`
+- `src/SceneModel/SceneSourceLocation.cs`に`FromJsonFile(string FilePath)`
   ファクトリを追加(ファイルパスだけを持つ軽量版。正確なテキスト位置追跡は次マイルストーンへ)。
 - `SceneWorkspaceService.AnalyzeAllAsync`: `GetDocument`が`null`のとき`GetAdditionalDocument`を
   試し、`*.scene.json`なら新設の`AnalyzeJsonAsync`(1ファイル=1シーンとして単一の
@@ -82,7 +82,7 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
 - `ResolveSceneAsync`/`ResolveSceneEditContextAsync`: C#側で型が見つからなければ
   `Project.AdditionalDocuments`から`*.scene.json`を探す共通ヘルパー`FindJsonSceneAsync`
   (`(TextDocument,FilePath,SceneModel,SourceText)`のタプルを返す)へフォールバックする。
-- `tools/CSharpGameEngine.VSExtension/SceneJsonSourceWriter.cs`(新規): `SceneModel`を
+- `tools/VSExtension/SceneJsonSourceWriter.cs`(新規): `SceneModel`を
   `System.Text.Json.Nodes.JsonObject`ツリーへ変換し、丸ごとシリアライズし直す。C#の
   `SceneSourceEditor.ApplyForSave`(1024行、`SyntaxAnnotation`で対象追跡する部分差分書き換え)
   ほどの複雑さは不要と判断した — JSONファイルは数百行規模で全文再構築のコストは無視できる。
@@ -97,7 +97,7 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
 
 ### 3. コンテキストメニュー「JSON で表示」
 
-- `tools/CSharpGameEngine.VSExtension/OpenSceneJsonCommand.cs`(新規): コマンドID`0x010B`
+- `tools/VSExtension/OpenSceneJsonCommand.cs`(新規): コマンドID`0x010B`
   (空きIDから採番)。`BeforeQueryStatus`は`FilePath.EndsWith(".scene.json")`の文字列比較のみ
   (Roslyn解析不要)。実行は`SceneSourceMarkerService.Navigate`と同じパターン
   (`Dte.ItemOperations.OpenFile(FilePath)`)で標準テキスト/JSONエディタへ委譲する。
@@ -161,7 +161,7 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
 ユーザーが`FirstPersonStageScene.scene.json`を右クリックしたところ、「シーン デザイナーで開く」
 「JSON で表示」のどちらも一切表示されないと報告(スクリーンショット添付)。
 
-**根本原因**: `tools/CSharpGameEngine.VSExtension/ActiveDocumentTracker.cs`に、`SceneWorkspaceService`
+**根本原因**: `tools/VSExtension/ActiveDocumentTracker.cs`に、`SceneWorkspaceService`
 のRoslyn解析よりさらに手前の入り口で`.cs`拡張子だけをハードコードで許可しているフィルタが
 2箇所(`OnSelectionChanged`のソリューションエクスプローラー選択判定、`SetDocumentPath`の
 アクティブなコードエディタ文書判定)あり、この見落としを本マイルストーンの実装時に発見できて
@@ -229,7 +229,7 @@ Pin・保存・ComboBox表示など、後続の各経路が個別に同種のC#�
 上記の調査を踏まえ、「ActivityLog.xmlに頼らず原因を確認できるようにする」ことの延長として、
 当初Phase 4に位置づけていた項目を本マイルストーン内で前倒し実施した:
 
-- `tools/CSharpGameEngine.VSExtension/SceneDiagnosticsErrorListSync.cs`(新規):
+- `tools/VSExtension/SceneDiagnosticsErrorListSync.cs`(新規):
   `Microsoft.VisualStudio.Shell.ErrorListProvider`/`ErrorTask`を使い、Scene Designerが実際に
   Pinしている(開いている)Sceneの解析診断(SCENE1xx/2xx、Error severityのみ)をVisual Studioの
   エラー一覧ウィンドウへ反映する。`SceneEditorSessionService.PinnedSnapshotChanged`を購読し、

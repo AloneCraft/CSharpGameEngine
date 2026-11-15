@@ -20,9 +20,9 @@ ADR-0025で完成したRUF(Right/Up/Forward)意味座標系のコア契約・Uni
 ### glTF/FBXインポート境界の軸変換(ADR-0027、最高リスク)
 - `src/CSharpGameEngine.Spatial.Gltf/`(新規)・`src/CSharpGameEngine.Spatial.Fbx/`(新規):
   glTF/AssimpNetそれぞれの既定出力規約(右手系・Y-up・Forward=-Z)を表すConvention。
-- `src/CSharpGameEngine.Import.Gltf/GltfAxisConversion.cs`(新規): Translation/Rotation(ミラー行列
+- `src/Import.Gltf/GltfAxisConversion.cs`(新規): Translation/Rotation(ミラー行列
   共役変換)/メッシュローカル頂点/Tangent/Windingの変換。
-- `src/CSharpGameEngine.Import.Fbx/FbxAxisConversion.cs`(新規): Positions/Normals/Windingの変換。
+- `src/Import.Fbx/FbxAxisConversion.cs`(新規): Positions/Normals/Windingの変換。
 - `UserGameProject/SceneLoader.cs`: PlayerStart(scene_meta.jsonがglTF空間の値を書き出している)にも
   同じ変換を適用、`TryImportDirectionalLight`の`-Vector3.UnitZ`重複実装を`ImportedLightDirection.
   WorldForward`へ集約。

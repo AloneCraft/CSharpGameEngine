@@ -99,7 +99,7 @@ public sealed class PrefractureDebugServiceTests {
 
     [Fact]
     public void TheDefaultsAreThePluginsDefaults(){
-        var Text=File.ReadAllText(Path.Combine(RepositoryRoot(),"plugins","CSharpGameEngine.Destruction","Runtime","DestructionDefaults.cs"));
+        var Text=File.ReadAllText(Path.Combine(RepositoryRoot(),"plugins","Destruction","Runtime","DestructionDefaults.cs"));
         int Constant(string Name)=>int.Parse(Regex.Match(Text,$@"public const int {Name}=(-?\d+);").Groups[1].Value,CultureInfo.InvariantCulture);
         Assert.Equal(PrefractureDebugService.DefaultFragmentCount,Constant("FragmentCount"));
         Assert.Equal(PrefractureDebugService.DefaultSeed,Constant("Seed"));

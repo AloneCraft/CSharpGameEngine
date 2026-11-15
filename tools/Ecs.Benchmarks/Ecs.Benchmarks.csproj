@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <CgeNumericProfileProject>true</CgeNumericProfileProject>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <EcsComponentCount Condition="'$(EcsComponentCount)'==''">128</EcsComponentCount>
+    <DefineConstants>$(DefineConstants);ECS_COMPONENT_COUNT_$(EcsComponentCount)</DefineConstants>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(TargetFramework)\generated\ecs-$(EcsComponentCount)</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Entities\*.cs" Exclude="..\..\src\Entities\FixedTransform.cs;..\..\src\Entities\SpatialPartitioning.cs;..\..\src\Entities\SpatialWorld.cs;..\..\src\Entities\SpatialDebug.cs" Link="Entities\%(Filename)%(Extension)" />
+    <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Core\Core.csproj" />
+    <ProjectReference Include="..\..\src\Numerics\Numerics.csproj" />
+    <ProjectReference Include="..\..\src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="ValidateEcsComponentCount" BeforeTargets="CoreCompile"
+          Condition="'$(EcsComponentCount)'!='1' And '$(EcsComponentCount)'!='64' And '$(EcsComponentCount)'!='65' And '$(EcsComponentCount)'!='128'">
+    <Error Text="EcsComponentCount must be 1, 64, 65, or 128." />
+  </Target>
+  <Import Project="..\..\src\Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
+</Project>

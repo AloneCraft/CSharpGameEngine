@@ -13,7 +13,7 @@ public sealed class ShaderArtifactRuntimeBoundaryTests {
     public void RenderServerAssemblyUsesOnlyPortableRuntimeDependencies(){
         var Assembly=typeof(RenderServer).Assembly;
         Assert.Equal(typeof(RenderView).Assembly,Assembly);
-        Assert.DoesNotContain(Assembly.GetReferencedAssemblies(),Reference=>Reference.Name is "CSharpGameEngine.Windows" or "TerraFX.Interop.Windows");
+        Assert.DoesNotContain(Assembly.GetReferencedAssemblies(),Reference=>Reference.Name is "Windows" or "TerraFX.Interop.Windows");
         Assert.DoesNotContain(typeof(RenderServer).GetMethods().SelectMany(Method=>Method.GetParameters()),Parameter=>Parameter.ParameterType==typeof(GraphicsDeviceOptions)||Parameter.ParameterType==typeof(nint));
     }
     [Fact]

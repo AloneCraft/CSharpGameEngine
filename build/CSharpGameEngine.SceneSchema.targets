@@ -6,10 +6,10 @@
     (CgeGameProject) run it.
   -->
   <PropertyGroup>
-    <CgeSceneSchemaCliProject>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.SceneSchema.Cli\CSharpGameEngine.SceneSchema.Cli.csproj</CgeSceneSchemaCliProject>
+    <CgeSceneSchemaCliProject>$(MSBuildThisFileDirectory)..\tools\SceneSchema.Cli\SceneSchema.Cli.csproj</CgeSceneSchemaCliProject>
     <!-- PackageMode (ADR-0065) predefines the CLI shipped in the SDK package; SourceMode builds it from the repository
          and BuildCgeSceneSchemaCli replaces this with the path the build produced (an artifacts path moves it). -->
-    <CgeSceneSchemaCli Condition="'$(CgeSceneSchemaCli)' == ''">$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.SceneSchema.Cli\bin\$(Configuration)\net10.0\CSharpGameEngine.SceneSchema.Cli.dll</CgeSceneSchemaCli>
+    <CgeSceneSchemaCli Condition="'$(CgeSceneSchemaCli)' == ''">$(MSBuildThisFileDirectory)..\tools\SceneSchema.Cli\bin\$(Configuration)\net10.0\SceneSchema.Cli.dll</CgeSceneSchemaCli>
     <CgeSceneSchemaPath Condition="'$(CgeSceneSchemaPath)' == ''">$(MSBuildProjectDirectory)\.cge\scene.schema.json</CgeSceneSchemaPath>
   </PropertyGroup>
   <Target Name="BuildCgeSceneSchemaCli" BeforeTargets="WriteCgeSceneSchema" Condition="'$(CgeGameProject)' == 'true' and '$(CgeEngineMode)' != 'Package'">

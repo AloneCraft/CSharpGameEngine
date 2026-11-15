@@ -2,7 +2,7 @@
 # UE ThirdPerson template には音声が含まれないため、これは Unreal のコンテンツではなく決定論的な音です。.wav ファイルを
 # 同じ名前の実際の効果音に置き換えてください。ゲームは見つかった PCM .wav（8/16/24-bit または float、mono または stereo）を再生します。
 param(
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\..\Templates\CSharpGameEngine.Templates.ThirdPerson\Assets\Sounds')
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\..\Templates\ThirdPerson\Assets\Sounds')
 )
 $ErrorActionPreference = 'Stop'
 $Rate = 22050

@@ -4,7 +4,7 @@
 - 関連: ADR-0084(対数ネイティブの深度)、ADR-0087(層の配置)、ADR-0076(対数深度)、ADR-0064(型付きライト)、ADR-0069(物理的な環境照明)、ADR-0078(UE テンプレートの完全移植)、ADR-0052(Render Graph)、M0120、M0121
 
 ## 背景
-- 今のエンジンの描画パスは Forward+ 相当の 1 つだけ。CPU が光の範囲の箱の 8 隅をクリップ空間の XY と W へ投影して 2D タイル(16 px、1 タイル最大 64 灯、局所光は全体で 1024 灯)へ振り分け、`PSMain` が自分のタイルのリストだけを回す。深度方向の分割(クラスタ)は無い(`src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs:86-106`、`:3330-3371`、`:3512-3566`、`Docs/Specifications/Rendering.md:140`)。Deferred、GBuffer、ステンシル、半透明の物体は無い。
+- 今のエンジンの描画パスは Forward+ 相当の 1 つだけ。CPU が光の範囲の箱の 8 隅をクリップ空間の XY と W へ投影して 2D タイル(16 px、1 タイル最大 64 灯、局所光は全体で 1024 灯)へ振り分け、`PSMain` が自分のタイルのリストだけを回す。深度方向の分割(クラスタ)は無い(`src/Windows/Graphics/StageRenderer.cs:86-106`、`:3330-3371`、`:3512-3566`、`Docs/Specifications/Rendering.md:140`)。Deferred、GBuffer、ステンシル、半透明の物体は無い。
 - パス構成を決めた ADR・仕様は無い(Docs 全体を検索して確認)。Render Graph(ADR-0052)は宣言だけで、実行器は未実装(`Rendering.md:36`)。宣言のグラフ(`RenderQualityProfile.cs`)は実際のパス(Lumen、GDF、AO、大気、プレビュー、画面レイヤー)と一致しない。
 - URP 17.6(`G:\Unity\6.6\Omni\Library\PackageCache\com.unity.render-pipelines.universal@9b1eb8be54e0`)の 4 モードの軸は 2 つ: Deferred の照明か(`usesDeferredLighting` は Deferred と Deferred+)、クラスタの光源ループか(`usesClusterLightLoop` は Forward+ と Deferred+。`Runtime/UniversalRenderer.cs:120-122`)。
   - Forward: CPU の物体ごとの光源インデックス(最大 8 灯、`RealtimeLights.hlsl:216-253`)、頂点ライティング可。

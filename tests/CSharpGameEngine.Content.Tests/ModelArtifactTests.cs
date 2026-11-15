@@ -54,7 +54,7 @@ public sealed class ModelArtifactTests {
     public void RuntimeModelAssembly_DoesNotReferenceCookingOrImport(){
         Assert.False(System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault);
         var References=typeof(ModelData).Assembly.GetReferencedAssemblies().Select(Reference=>Reference.Name).ToArray();
-        Assert.DoesNotContain("CSharpGameEngine.Cooking",References);
-        Assert.DoesNotContain("CSharpGameEngine.Import",References);
+        Assert.DoesNotContain("Cooking",References);
+        Assert.DoesNotContain("Import",References);
     }
 }

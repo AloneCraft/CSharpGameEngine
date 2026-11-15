@@ -2,8 +2,8 @@
   "schemaVersion": "csharp-game-engine-vsix-compatibility-v1",
   "featureId": "F-L8-028",
   "package": {
-    "projectPath": "tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj",
-    "sourceManifestPath": "tools/CSharpGameEngine.VSExtension/source.extension.vsixmanifest",
+    "projectPath": "tools/VSExtension/VSExtension.csproj",
+    "sourceManifestPath": "tools/VSExtension/source.extension.vsixmanifest",
     "targetFramework": "net472",
     "architecture": "amd64",
     "neutralLanguage": "en-US",
@@ -24,7 +24,7 @@
     "roslynVersion": "4.14.0"
   },
   "automation": {
-    "projectPath": "tools/CSharpGameEngine.Vsix.Automation/CSharpGameEngine.Vsix.Automation.csproj",
+    "projectPath": "tools/Vsix.Automation/Vsix.Automation.csproj",
     "targetFramework": "net472",
     "developmentRootSuffix": "CgeFixed",
     "evidenceRootSuffix": "CgeAutomation",

@@ -9,7 +9,7 @@ x86/
 
 # Roslyn generator output written to disk for step-through debugging (EmitCompilerGeneratedFiles)
 UserGameProject/Generated/
-src/CSharpGameEngine.Entities/Generated/
+src/Entities/Generated/
 
 # Visual Studio cache/options
 .vs/

@@ -15,7 +15,7 @@ public sealed class ThirdPersonPreviewGeometryTests {
         var Repository=new DirectoryInfo(AppContext.BaseDirectory);
         while(Repository is not null&&!File.Exists(Path.Combine(Repository.FullName,"CSharpGameEngine.slnx"))){ Repository=Repository.Parent; }
         Assert.NotNull(Repository);using var Directory=new TemporaryDirectory();
-        var Template=Path.Combine(Repository.FullName,"Templates","CSharpGameEngine.Templates.ThirdPerson");var Assets=Path.Combine(Directory.Path,"Assets");System.IO.Directory.CreateDirectory(Assets);
+        var Template=Path.Combine(Repository.FullName,"Templates","ThirdPerson");var Assets=Path.Combine(Directory.Path,"Assets");System.IO.Directory.CreateDirectory(Assets);
         foreach(var FileName in System.IO.Directory.GetFiles(Path.Combine(Template,"Assets","Stage","LegacyThirdPerson","Meshes"),"*.glb")){ File.Copy(FileName,Path.Combine(Assets,Path.GetFileName(FileName))); }
         var Sources=System.IO.Directory.GetFiles(Assets,"*.glb");
 #if DEBUG
@@ -23,7 +23,7 @@ public sealed class ThirdPersonPreviewGeometryTests {
 #else
         const string Configuration="Release";
 #endif
-        var Worker=Path.Combine(Repository.FullName,"tools","CSharpGameEngine.Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Import.AssetAuthoring.Cli.dll");
+        var Worker=Path.Combine(Repository.FullName,"tools","Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","Import.AssetAuthoring.Cli.dll");
         var Input=Path.Combine(Directory.Path,"request.json");var Output=Path.Combine(Directory.Path,"result.json");
         File.WriteAllText(Input,JsonSerializer.Serialize(new AssetModelRequest{ModelCommand=4,RequestId=Guid.NewGuid(),Root=Directory.Path,SourcePath=Sources[0],PreviewSourcePaths=Sources}));
         var Start=new System.Diagnostics.ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};Start.ArgumentList.Add(Worker);Start.ArgumentList.Add(Input);Start.ArgumentList.Add(Output);

@@ -8,7 +8,7 @@
 
 ## 段階
 1. **契約と分離**: `src/CSharpGameEngine.Physics`(L4)、`src/CSharpGameEngine.Physics.Deterministic`(L5)、`src/CSharpGameEngine.Physics.Artifacts`(L6)を作る(slnx に登録し、登録の試験を流す)。`PhysicsBodyId`、`IReadOnlyPhysicsWorld`/`IPhysicsWorld`、`SceneComponentOrder`/`Icon` の属性を Contracts へ。ECS への接続は共有プロジェクト `Runtime.Physics`(L5 アダプター)に残す。
-2. **利用者の移行と試験**: `Runtime.Character`・`plugins/CSharpGameEngine.Vehicles`・`Navigation`・FootIk を移し、`Physics.Cli` を ProjectReference にし、物理キャッシュの `SchemaVersion` を 3 に。`EngineLayerSpec` の物理の規則。アダプターの `Runtime.Windows` への依存を許すかを明記する。文書。
+2. **利用者の移行と試験**: `Runtime.Character`・`plugins/Vehicles`・`Navigation`・FootIk を移し、`Physics.Cli` を ProjectReference にし、物理キャッシュの `SchemaVersion` を 3 に。`EngineLayerSpec` の物理の規則。アダプターの `Runtime.Windows` への依存を許すかを明記する。文書。
 
 ## 完了条件
 - `EngineLayerSpec` の物理の規則に合格。`Physics.Cli` が ECS なしでソルバー全部をコンパイルする(4 ファイル → 全部)。

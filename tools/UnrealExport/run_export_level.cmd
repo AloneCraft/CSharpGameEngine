@@ -5,7 +5,7 @@ rem No -nullrhi: the glTF exporter reads and bakes materials through the render 
 rem Usage: run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]
 rem Note: the FirstPerson template now uses a copy of the ThirdPerson level (same layout, and this export loses the green material), so do not re-export it.
 rem Imports the level of a UE5.8 game template project (G:\UE\5.8\<Template>, made by create_template_project.ps1) into
-rem Templates\CSharpGameEngine.Templates.<Template>: static meshes as glb, the level as scene JSON (ADR-0070), the world grid.
+rem Templates\<Template>: static meshes as glb, the level as scene JSON (ADR-0070), the world grid.
 rem The character is authored by hand from dump_blueprint.py's output; this script does not touch it.
 set "TEMPLATE=%~1"
 if "%TEMPLATE%"=="" (
@@ -25,8 +25,8 @@ for %%I in ("%SCRIPT_DIR%..\..") do set "REPO_ROOT=%%~fI"
 set "CSGE_REPO_ROOT=%REPO_ROOT%"
 set "CSGE_LEVEL_TEMPLATE=%TEMPLATE%"
 set "MANIFEST=%REPO_ROOT%\.artifacts\UnrealExport\%LEVEL%\manifest.json"
-set "TEMPLATE_DIR=%REPO_ROOT%\Templates\CSharpGameEngine.Templates.%TEMPLATE%"
-set "IMPORTER=%SCRIPT_DIR%..\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj"
+set "TEMPLATE_DIR=%REPO_ROOT%\Templates\%TEMPLATE%"
+set "IMPORTER=%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj"
 
 if /I "%~2"=="--force" set "CSGE_UNREAL_EXPORT_FORCE=1"
 if exist "%MANIFEST%" del /q "%MANIFEST%"
@@ -45,8 +45,8 @@ rem The importer writes the level as a C# class; the converter turns it into the
 if exist "%TEMPLATE_DIR%\Scenes\%LEVEL%.json" del /q "%TEMPLATE_DIR%\Scenes\%LEVEL%.json"
 dotnet run --project "%IMPORTER%" -- level "%MANIFEST%" "%TEMPLATE_DIR%" %TEMPLATE% %LEVEL%
 if errorlevel 1 exit /b %errorlevel%
-dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.SceneJson.Cli\CSharpGameEngine.SceneJson.Cli.csproj" -- ^
-  convert "%TEMPLATE_DIR%\CSharpGameEngine.Templates.%TEMPLATE%.csproj" --write --delete-source
+dotnet run --project "%SCRIPT_DIR%..\SceneJson.Cli\SceneJson.Cli.csproj" -- ^
+  convert "%TEMPLATE_DIR%\%TEMPLATE%.csproj" --write --delete-source
 if errorlevel 1 exit /b %errorlevel%
 
 rem The asset catalog the converter needed is an intermediate; the typed Assets.* replaces it (ADR-0077).

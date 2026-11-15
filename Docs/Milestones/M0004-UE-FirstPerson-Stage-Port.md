@@ -20,7 +20,7 @@
   実行時には読まない参照用ミラー)。
 
 ### インポータ拡張
-- `src/CSharpGameEngine.Import.Gltf/GltfImporter.cs`(変更、既存`Import()`は無改修):
+- `src/Import.Gltf/GltfImporter.cs`(変更、既存`Import()`は無改修):
   `ImportScene(string)`を追加。glTFノードグラフ全体を歩いて`ImportedScene`
   (Nodes/Meshes/Materials/Lights)を返す。TANGENT欠落時はLengyel法で生成。
 - 新規: `ImportedScene.cs`・`ImportedSceneNode.cs`・`ImportedMeshData.cs`・
@@ -96,7 +96,7 @@
 ## 実行したコマンドと結果
 ```
 UnrealEditor-Cmd.exe ... -ExecutePythonScript=export_lvl_firstperson.py ...  → 成功(3回目、scene_meta.json/GLB生成確認)
-dotnet build src/CSharpGameEngine.Import.Gltf/...csproj              → 成功、警告0/エラー0
+dotnet build src/Import.Gltf/...csproj              → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Import.Gltf.Tests/...csproj        → 18件成功(新規5件含む)
 dotnet build src/CSharpGameEngine.Graphics.D3D12/...csproj            → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Graphics.D3D12.Tests/...csproj     → 71件成功(新規5件含む)

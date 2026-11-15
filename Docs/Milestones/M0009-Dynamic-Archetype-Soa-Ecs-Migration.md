@@ -10,7 +10,7 @@ Query・Read/Writeアクセス・SoAループ・依存順序・ゲームルー�
 
 ## 実装したこと
 
-### 新ランタイム `src/CSharpGameEngine.Entities/`
+### 新ランタイム `src/Entities/`
 - `Entity`/`ComponentType<T>`/`ComponentTypeRegistry`/`ComponentMask`/`ComponentTypeSet`/
   `ComponentColumn<T>`/`Archetype`/`EntityArchetype`/`World`: 動的Archetype生成、
   `CreateArchetype<T1..T8>`、`GetRef<T>`。
@@ -22,7 +22,7 @@ Query・Read/Writeアクセス・SoAループ・依存順序・ゲームルー�
 - `[GameSystem]`/`[Update]`/`[Context]`/`[CurrentEntity]`/`[Commands]`/`[Without]`属性。
 - `tests/CSharpGameEngine.Entities.Tests/`: 51件。
 
-### `GameSystemGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `GameSystemGenerator`(`src/CodeAnalysis/`)
 - `GameSystemAnalyzer`/`GameSystemModel`/`GameSystemExecutorEmitter`: 引数からのQuery/
   Read-Write推論、メソッドごとの独立したExecutor型生成。
 - `GameSystemScheduler`/`GameSystemLoopEmitter`: Write→Read依存順序のKahn法トポロジカル
@@ -93,7 +93,7 @@ Queryキャッシュの差分更新を同時に検証し、"OK"を返す。
 ## 実行したコマンドと結果
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/...csproj -c Debug  → 成功、警告0/エラー0
+dotnet build src/CodeAnalysis/...csproj -c Debug  → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...          → 成功、121件
   (Step7時点、GameSystemGenerator関連33件新規+既存88件)
 dotnet run --project samples/SoaSystemsDemo                        → "OK"

@@ -5,7 +5,7 @@
 
 ## Decision
 
-Windows runtime components and systems are maintained as shared source in `src/CSharpGameEngine.Runtime.Windows` and imported through `CSharpGameEngine.Runtime.Windows.projitems`. The source is compiled together with each consuming ECS application so the selected Logical128/192/256 precision and generated World/State partials remain one compilation.
+Windows runtime components and systems are maintained as shared source in `src/Runtime.Windows` and imported through `Runtime.Windows.projitems`. The source is compiled together with each consuming ECS application so the selected Logical128/192/256 precision and generated World/State partials remain one compilation.
 
 The module owns AppHost, Level, Camera-facing renderer systems, lights, audio facade (XAudio2), stage roster construction, and fixed-precision hierarchy resolution. Runtime companion components are implementation types and are not authored by game scenes. `PlayerStart` remains an optional game marker with no camera fallback.
 

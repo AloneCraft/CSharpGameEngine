@@ -10,7 +10,7 @@
     - `World` と `State` は partial 型で、生成器(`GameSystemGenerator`)が同じコンパイルの中で完成させる。Entities のソースはゲームごとにコンパイルされ、型の同一性はゲームごとに違う。
     - 生成器は `ISystem` をソースの構文からだけ探す(`CreateSyntaxProvider`)。
     - Archetype と Component の番号は、ゲームごとに 1 つの空間で振る(`GameSystemIndexAssigner`)。
-  - Component の構造体とサービスの型は DLL に置ける(例: `Camera` は `CSharpGameEngine.Windows.dll`)。
+  - Component の構造体とサービスの型は DLL に置ける(例: `Camera` は `Windows.dll`)。
   - サービスは `EngineHost` のプロパティの型だけ(`GameSystemAnalyzer`)。Component は全部で 128 種類まで(SYSGEN026)で、UserEcsProject だけで 58 を使う。
   - アセットはデータだけのファイルで、`Assets/` をそのままコピーしてパスで読む。シーンは C# にコンパイルする。ユーザーが定義するデータの型は無い。
 
@@ -72,7 +72,7 @@ UE の Game モジュール、Project プラグイン、Engine と Fab のプラ
 - Cook モジュール: 契約は `CSharpGameEngine.Cooking`(`IAssetCooker`)。`CSharpGameEngine.Cook.Cli` が専用の AssemblyLoadContext で読む。出力フォルダの外へ書くことと、決定的でないこと(`--verify`)を拒否する。
 - 生成器へ渡すフォルダ: MSBuild のプロパティは .editorconfig を通って生成器に渡り、その読み取りは値の `#` と `;` から後ろを捨てる。プラグインの根は `|` で区切り、プロジェクトとプラグインのフォルダは `#`→`?h`、`;`→`?s` に書き換えて渡す(`CgeProjectDirectory`、`CgePluginRootsEncoded`)。これで、ADR-0070 から続いていた「`#` を含むフォルダのゲームはシーンとカタログが無しにビルドされる」問題も直る。
 - エンジンの版: `build/CSharpGameEngine.Version.props` の `CgeEngineVersion` 1 か所にする。SDK パッケージの版と、PLUGIN005 の判定に使う。
-- 最初のエンジンのプラグイン: Vehicles(`plugins/CSharpGameEngine.Vehicles`)。M0101 段階 9 の簡易の車両を `Runtime.Character` から移し、名前空間を `CSharpGameEngine.Vehicles` にした。M0109 で中身を Chaos 相当に書き直し、データアセットの実例 `VehicleSetup` を持つ。2 つ目は Navigation(`plugins/CSharpGameEngine.Navigation`。M0106)で、最初の実際の Cook モジュール(ビルド中の自動実行と VSIX のボタンつき)を持つ。
+- 最初のエンジンのプラグイン: Vehicles(`plugins/Vehicles`)。M0101 段階 9 の簡易の車両を `Runtime.Character` から移し、名前空間を `CSharpGameEngine.Vehicles` にした。M0109 で中身を Chaos 相当に書き直し、データアセットの実例 `VehicleSetup` を持つ。2 つ目は Navigation(`plugins/Navigation`。M0106)で、最初の実際の Cook モジュール(ビルド中の自動実行と VSIX のボタンつき)を持つ。
 
 ## 結果
 - エンジンの新しい機能(車両、ナビメッシュ、破壊)は、ユーザーと同じ形のプラグインとして作る。エンジンが自分で使うので、仕組みの抜けがすぐ分かる。

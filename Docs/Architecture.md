@@ -78,15 +78,15 @@ netstandard2.0)、`ShaderArtifacts`、`ShaderGraph`、`World`の各csprojと、�
   (`PhysicsDomainRegistry`)として受け取り、`EngineHost`がそれを実装する。`StaticMesh`/`MeshMobility`と、World変換の解決
   (`RuntimeWorldTransform.TryResolveWorld`)はEntitiesの共有ソースにある(名前空間`CSharpGameEngine.Runtime.Windows`はシーン
   JSONの互換のため維持)。
-- `tools/CSharpGameEngine.Physics.Cli`(L7)はゲームを参照しない。cook/inspectはECSを使わない物理ソースを取り込み、
+- `tools/Physics.Cli`(L7)はゲームを参照しない。cook/inspectはECSを使わない物理ソースを取り込み、
   Bakeは渡されたゲームのビルドを`bake --assembly <game.dll>`で収集可能なALCへ読み込み、生成された
   `GeneratedSceneBakeHost.TryBake`を呼ぶ。
 
 **アセンブリ名と名前空間は一致しない**。これは意図的である(ADR-0034決定事項2)。
-`CSharpGameEngine.Core.dll`は`CSharpGameEngine.Core`/`.Spatial.Abstractions`/`.Spatial.Unity`/
+`Core.dll`は`CSharpGameEngine.Core`/`.Spatial.Abstractions`/`.Spatial.Unity`/
 `.Spatial.Unreal`/`.Spatial.Blender`/`.Spatial.Gltf`/`.Spatial.Fbx`/`.Geometry`を含み、
-`CSharpGameEngine.Windows.dll`は`.Graphics.D3D12`/`.Platform.Windows`/`.Compiler.Hlsl`を、
-`CSharpGameEngine.Import.dll`は`.Import.Gltf`/`.Import.Fbx`を含む。
+`Windows.dll`は`.Graphics.D3D12`/`.Platform.Windows`/`.Compiler.Hlsl`を、
+`Import.dll`は`.Import.Gltf`/`.Import.Fbx`を含む。
 **コード上の名前空間は統合前と完全に同一**なので、`using`は統合の前後で変わっていない。
 
 `CSharpGameEngine.Entities`と`CSharpGameEngine.CodeAnalysis`が統合できないのは技術的制約である:
@@ -100,19 +100,19 @@ Roslynにロードされない。
   `Hlsl/`(DXC ベースの HLSL コンパイル)、`Graphics/`(デバイス/スワップチェーン/パイプライン)。
   メッシュインポート(glTF/GLB・FBX、プラットフォーム非依存)は`CSharpGameEngine.Import`。
   **`Core` 自体には Windows/D3D/DXC への依存も、`PackageReference`も一切ない**。
-- `tools/CSharpGameEngine.TestHost` と `tools/CSharpGameEngine.Extension` が合成ルート
+- `tools/TestHost` と `tools/Extension` が合成ルート
   (composition root)である: `TestHost` はエンジンのセルフテストと `triangle` 垂直スライスを、
   `Extension` は glTF/FBX モデルをインポートして固定カメラで表示するヘッドレスビューアを実行する。
   いずれも `--verify` でピクセル検証まで行うため、CI/スモークのレンダリング経路検証に使う。
-  Visual Studio 拡張の本体は別プロジェクト `tools/CSharpGameEngine.VSExtension`(net472、
+  Visual Studio 拡張の本体は別プロジェクト `tools/VSExtension`(net472、
   実際に`.vsix`を生成する)であり、重い処理は`Import.Gltf.Cli`/`Import.Fbx.Cli`/
   `Import.AssetAuthoring.Cli`/`Primitive.Cli`/`Physics.Cli`/`ShaderGraph.Cli`への別プロセスブリッジへ
   逃がしている(ADR-0010/0019/0023)。
 - `UserEcsProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**で、ECS と
-  シーン JSON の実証場所である。新規プロジェクトの雛形は`Templates/CSharpGameEngine.Templates.ThirdPerson`。
-- L3の唯一のECSランタイムは `src/CSharpGameEngine.Entities`(SoA専業、**閉集合(静的)Archetype**)
+  シーン JSON の実証場所である。新規プロジェクトの雛形は`Templates/ThirdPerson`。
+- L3の唯一のECSランタイムは `src/Entities`(SoA専業、**閉集合(静的)Archetype**)
   である。ユーザーはComponent型(`struct`)と`ISystem`を実装する`struct`だけを書き、
-  `src/CSharpGameEngine.CodeAnalysis` の `GameSystemGenerator` が`Update`/`Spawn`メソッドの
+  `src/CodeAnalysis` の `GameSystemGenerator` が`Update`/`Spawn`メソッドの
   **引数の渡し方**から役割を推論して、Archetype型・`World.Create`
   オーバーロード・`GeneratedGameLoop`を生成する(ADR-0033、[[Ecs-Soa-Systems]]参照)。
   ユーザーはQuery・foreach・Chunk走査・ゲームループ・起動時のエンティティ生成を書かない。
@@ -204,9 +204,9 @@ Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセ�
 
 UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.
 
-**Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way. Vehicles are not one of them: they are the engine plugin `plugins/CSharpGameEngine.Vehicles`, compiled into the games that enable it (ADR-0079).
+**Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way. Vehicles are not one of them: they are the engine plugin `plugins/Vehicles`, compiled into the games that enable it (ADR-0079).
 
-**How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `Templates/CSharpGameEngine.Templates.ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
+**How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `Templates/ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
 
 ## プラグイン(ADR-0079)
 
@@ -220,7 +220,7 @@ UserEcsProject remains an L9 composition root for scenes, gameplay components, a
 | エディタの宣言 | 属性(アイコン、表示順) | L8 が読む |
 
 - ECS のコードがソースでしか足せないのは、`World` と `State` が生成器の完成させる partial 型で、Archetype の空間がゲームごとに 1 つだからである。生成器は 1 つで、ユーザーは生成器を足さない。
-- エンジンのプラグイン: Vehicles(`plugins/CSharpGameEngine.Vehicles`、UE の ChaosVehicles に当たる)、Navigation(`plugins/CSharpGameEngine.Navigation`、UE の NavigationSystem と Recast に当たる。Runtime は L5 のソース、Cook モジュールは L7 で、ビルドが別のプロセスで動かして `Assets/Navigation/<Id>.cgenav` を焼く。M0106)、Destruction(`plugins/CSharpGameEngine.Destruction`、UE の GeometryCollection・Fracture・Field に当たる。Component・System・Field は L5 のソース、結合とクラスターを解くソルバーはエンジンの L5 `Runtime.Physics`(`FractureSolver.cs`。UE でも Chaos の本体はエンジンにある)、Cook モジュールは L7 で `Assets/Destruction/<名前>.cgefracture` を焼く。M0113)。
+- エンジンのプラグイン: Vehicles(`plugins/Vehicles`、UE の ChaosVehicles に当たる)、Navigation(`plugins/Navigation`、UE の NavigationSystem と Recast に当たる。Runtime は L5 のソース、Cook モジュールは L7 で、ビルドが別のプロセスで動かして `Assets/Navigation/<Id>.cgenav` を焼く。M0106)、Destruction(`plugins/Destruction`、UE の GeometryCollection・Fracture・Field に当たる。Component・System・Field は L5 のソース、結合とクラスターを解くソルバーはエンジンの L5 `Runtime.Physics`(`FractureSolver.cs`。UE でも Chaos の本体はエンジンにある)、Cook モジュールは L7 で `Assets/Destruction/<名前>.cgefracture` を焼く。M0113)。
 - 取り込みは `build/CSharpGameEngine.Game.targets`(プロジェクトファイルの後に読む)、エンジンの版は `build/CSharpGameEngine.Version.props`。
 
 ## Deterministic Simulation / Physics domains
@@ -278,4 +278,4 @@ The directional environment policy also carries an opt-in angular diameter and m
 L2 Contracts owns image/model interpretation settings and stable output identity. L6 Content owns canonical sidecars, recoverable file transactions, distinct raw Image/processed Texture payloads and runtime codecs. L7 Import owns bounded PNG/JPEG decode (StbImageSharp), channel/normal/mip processing and Assimp composite FBX adaptation; the standalone authoring host publishes CAS results. L8 VSIX transports these requests, previews settings and references, and supplies native text Undo. Image source suffixes are initial hints; persisted metadata wins on reimport. No decoder or provider SDK is moved into runtime or the VSIX. See [the interpretation specification](Specifications/Image-And-Model-Interpretation.md) for the additive path and its boundary with M0114.
 
 ## Asset editor windows and preview levels (M0127)
-L8 owns the asset editors (`tools/CSharpGameEngine.VSExtension/AssetEditors/`): a registry maps an extension to an editor kind, one `IVsEditorFactory` builds the document, and a shared shell hosts the per-kind content. The 3D viewport reuses the Scene View camera maths and the out-of-process Render Preview Host (protocol 14); the host applies the template's lights, ambient/sky, background and floor through the same typed lighting values as the runtime. Templates are L8 data (`.cgepreview`); the runtime layers L0-L6 do not depend on them or on the Visual Studio SDK. Model preparation runs in the AssetAuthoring worker. Protocol 14 carries an artifact directory, source URI and pinned model hash. The display host references Content, links StageModelAssets plus Skeleton/AnimationClip, and does not decode glTF or images (ADR-0097). The source cutover still requires build and rendering verification. See ADR-0089.
+L8 owns the asset editors (`tools/VSExtension/AssetEditors/`): a registry maps an extension to an editor kind, one `IVsEditorFactory` builds the document, and a shared shell hosts the per-kind content. The 3D viewport reuses the Scene View camera maths and the out-of-process Render Preview Host (protocol 14); the host applies the template's lights, ambient/sky, background and floor through the same typed lighting values as the runtime. Templates are L8 data (`.cgepreview`); the runtime layers L0-L6 do not depend on them or on the Visual Studio SDK. Model preparation runs in the AssetAuthoring worker. Protocol 14 carries an artifact directory, source URI and pinned model hash. The display host references Content, links StageModelAssets plus Skeleton/AnimationClip, and does not decode glTF or images (ADR-0097). The source cutover still requires build and rendering verification. See ADR-0089.

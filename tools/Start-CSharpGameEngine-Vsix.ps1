@@ -2,7 +2,7 @@
 param()
 $ErrorActionPreference='Stop'
 $RepositoryRoot=Split-Path -Parent $PSScriptRoot
-$ProjectPath=Join-Path $RepositoryRoot 'tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj'
+$ProjectPath=Join-Path $RepositoryRoot 'tools\VSExtension\VSExtension.csproj'
 $SolutionPath=Join-Path $RepositoryRoot 'UserEcsProject.slnx'
 $VsWherePath=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if(!(Test-Path -LiteralPath $VsWherePath)){
@@ -24,7 +24,7 @@ foreach($RequiredPath in @($ProjectPath,$SolutionPath,$MsBuildPath,$VsixInstalle
 if($LASTEXITCODE -ne 0){
     throw "VSIX の再ビルドに失敗しました。終了コード: $LASTEXITCODE"
 }
-$VsixDirectory=Join-Path $RepositoryRoot 'tools\CSharpGameEngine.VSExtension\bin\x64\Debug\net472'
+$VsixDirectory=Join-Path $RepositoryRoot 'tools\VSExtension\bin\x64\Debug\net472'
 $Vsix=Get-ChildItem -LiteralPath $VsixDirectory -Filter '*.vsix' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 if($null -eq $Vsix){
     throw "再ビルド後の VSIX が見つかりません: $VsixDirectory"

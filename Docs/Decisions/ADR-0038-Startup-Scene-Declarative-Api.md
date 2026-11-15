@@ -57,7 +57,7 @@ public sealed class SceneEntityAttribute : Attribute
 }
 ```
 
-`SystemOrderAttribute`/`Bootstrap`/`Parent`と同じく`src/CSharpGameEngine.Entities/`へ手書きで置き、
+`SystemOrderAttribute`/`Bootstrap`/`Parent`と同じく`src/Entities/`へ手書きで置き、
 消費側csprojのワイルドカード(`*.cs`)で自動伝播する(csproj変更不要)。`SceneEntity`という名前にした
 理由は、ランタイムに存在する`Entity`型との名前上の衝突・混同を避けつつ、Scene宣言であることを
 明確にするため(セクション5参照)。
@@ -206,10 +206,10 @@ Order 0のSystemとして自動的に実行されることが本質的要件で�
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet build src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj -c Debug
+dotnet build src/Entities/Entities.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/... -c Debug

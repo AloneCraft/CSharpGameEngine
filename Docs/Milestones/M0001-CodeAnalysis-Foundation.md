@@ -9,7 +9,7 @@ L7(Static Compiler / Bake)で計画済みだったSource Generator/Analyzer機�
 Incremental Generator・Diagnostic Analyzer・Code Fixを安全に追加できる土台を作ることが目的。
 
 ## 実装したこと
-- `src/CSharpGameEngine.CodeAnalysis/`: netstandard2.0・`LangVersion=14`のRoslyn Analyzer/Generator
+- `src/CodeAnalysis/`: netstandard2.0・`LangVersion=14`のRoslyn Analyzer/Generator
   プロジェクト。`IsRoslynComponent`/`EnforceExtendedAnalyzerRules`を有効化し、`Microsoft.CodeAnalysis.
   CSharp`/`Microsoft.CodeAnalysis.Analyzers` 4.14.0(VS 17.14と同一ブランチ由来、`PrivateAssets="all"`)
   を参照。`analyzers/dotnet/cs`規約でRelease向けにNuGetパッケージ化可能。
@@ -49,11 +49,11 @@ Incremental Generator・Diagnostic Analyzer・Code Fixを安全に追加でき�
 dotnet restore CSharpGameEngine.slnx                                                  → 成功
 dotnet build CSharpGameEngine.slnx -c Debug                                           → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Release                                         → 成功、警告0/エラー0
-dotnet pack src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Release
+dotnet pack src/CodeAnalysis/CodeAnalysis.csproj -c Release
                                                                                         → 成功
 dotnet test CSharpGameEngine.slnx                                                     → 91件成功(88件既存+3件新規)、失敗0
 ```
-`.nupkg`の内容を`unzip -l`で確認し、`analyzers/dotnet/cs/CSharpGameEngine.CodeAnalysis.dll`のみが
+`.nupkg`の内容を`unzip -l`で確認し、`analyzers/dotnet/cs/CodeAnalysis.dll`のみが
 含まれ`lib/`配下が空であることを確認した。
 
 ## リバースエンジニアリングした挙動

@@ -16,7 +16,7 @@ public sealed class VehicleLevelTests(ITestOutputHelper Output) {
         while(Root is not null&&!File.Exists(Path.Combine(Root,"CSharpGameEngine.slnx"))){ Root=Path.GetDirectoryName(Root); }
         return Root??throw new InvalidOperationException("CSharpGameEngine.slnx was not found above the test binaries.");
     }
-    private static string Template(params string[]Parts)=>Path.Combine([RepositoryRoot(),"Templates","CSharpGameEngine.Templates.Vehicle",.. Parts]);
+    private static string Template(params string[]Parts)=>Path.Combine([RepositoryRoot(),"Templates","Vehicle",.. Parts]);
     private static string Mesh(string Name)=>Template("Assets","Stage","Lvl_VehicleBasic","Meshes",Name);
     /// <summary>
     /// レベルの 3 つの面(シーンの <c>Landscape</c>・<c>Track</c>・<c>TrackCurbs</c> と同じ材質。M0124 から縁石も衝突する)だけを置いた物理世界の上の、

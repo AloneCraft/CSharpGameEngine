@@ -51,13 +51,13 @@ dotnet test CSharpGameEngine.slnx --filter "Category!=GPU"
 デバッグ構成を用意しています。VS Codeでリポジトリを開き、拡張機能`ms-dotnettools.csharp`
 (初回は推奨通知が出ます)をインストールした状態で「実行とデバッグ」パネルから選択してください。
 ビルドは各構成の起動前に自動実行されます(`.vscode/tasks.json`)。CLIブリッジ3つは入出力パスを
-起動時に尋ねます。`tools/CSharpGameEngine.VSExtension`(net472 VSIX)はVisual Studio本体
+起動時に尋ねます。`tools/VSExtension`(net472 VSIX)はVisual Studio本体
 (`devenv.exe`)のホストが必須のため対象外です。
 
 ## TestHost
 ```bash
-dotnet run --project tools/CSharpGameEngine.TestHost -- --help
-dotnet run --project tools/CSharpGameEngine.TestHost -- self-test
+dotnet run --project tools/TestHost -- --help
+dotnet run --project tools/TestHost -- self-test
 ```
 
 ## Feature Runner
@@ -65,11 +65,11 @@ dotnet run --project tools/CSharpGameEngine.TestHost -- self-test
 Feature IDから自動Stageを列挙・実行・再開できます。Visual検証の既定はWARPで、結果はGit管理外の`.artifacts/FeatureStages/`へversioned JSONとして保存されます。
 
 ```bash
-dotnet run --project tools/CSharpGameEngine.FeatureRunner -- list
-dotnet run --project tools/CSharpGameEngine.FeatureRunner -- export-showcase --output .artifacts/showcase-manifest.json
-dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run-feature F-L7-021
-dotnet run --project tools/CSharpGameEngine.FeatureRunner -- suite changed
-dotnet run --project tools/CSharpGameEngine.FeatureRunner -- resume <run-result.json>
+dotnet run --project tools/FeatureRunner -- list
+dotnet run --project tools/FeatureRunner -- export-showcase --output .artifacts/showcase-manifest.json
+dotnet run --project tools/FeatureRunner -- run-feature F-L7-021
+dotnet run --project tools/FeatureRunner -- suite changed
+dotnet run --project tools/FeatureRunner -- resume <run-result.json>
 ```
 
 将来機能もStageとOracleを列挙できますが、実装されるまで明示的な`NotImplemented`となり成功扱いされません。詳細は[Docs/Feature-Stages.md](Docs/Feature-Stages.md)を参照してください。
@@ -83,16 +83,16 @@ VSIXを入れたVisual Studioで「新しいプロジェクトの作成」を開
 - エンジンは`CSharpGameEngine.Sdk` NuGetパッケージから参照されます。VSIXに同梱のパッケージを、ウィザードが`%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`へ配置します。
 - 同梱のUnreal Engineコンテンツの条件は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
 
-リポジトリ内のテンプレート原本は`Templates/CSharpGameEngine.Templates.ThirdPerson`です。次のコマンドで直接実行できます。
+リポジトリ内のテンプレート原本は`Templates/ThirdPerson`です。次のコマンドで直接実行できます。
 
 ```bash
-dotnet run --project Templates/CSharpGameEngine.Templates.ThirdPerson -c Debug
+dotnet run --project Templates/ThirdPerson -c Debug
 ```
 
 ## エンジンSDKパッケージ
 
 ```bash
-dotnet pack packaging/CSharpGameEngine.Sdk -c Release
+dotnet pack packaging/Sdk -c Release
 ```
 
 `.artifacts/packages/CSharpGameEngine.Sdk.<version>.nupkg`が出力されます。パッケージの構成は[ADR-0065](Docs/Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md)を参照してください。
@@ -108,7 +108,7 @@ NuGetは一度展開したバージョンを`%USERPROFILE%\.nuget\packages\cshar
 リポジトリ外で生成・ビルド・実走までを検証するには、次を実行します。
 
 ```bash
-dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run vsix.project-template --adapter warp
+dotnet run --project tools/FeatureRunner -- run vsix.project-template --adapter warp
 ```
 
 ## Engine Showcase
@@ -122,24 +122,24 @@ dotnet run --project UserEcsProject -c Debug
 操作は`1`〜`4`でECS/Rendering/Physics/Progress、`P`でPause/Resume、`O`で1 tick Step、`F1`でdashboard表示切替、矢印キーでProgress閲覧です。無操作600 running ticksでページを自動巡回します。自動WARP証跡は次で取得できます。
 
 ```bash
-dotnet run --project tools/CSharpGameEngine.Showcase.Automation -- run --configuration Debug --adapter warp --locale auto --timeout-seconds 180 --evidence-dir .artifacts/Showcase/manual
+dotnet run --project tools/Showcase.Automation -- run --configuration Debug --adapter warp --locale auto --timeout-seconds 180 --evidence-dir .artifacts/Showcase/manual
 ```
 
 ### Triangle（Windows + Direct3D 12）
 通常起動（ウィンドウを表示し、閉じるまで描画を継続）:
 ```bash
-dotnet run --project tools/CSharpGameEngine.TestHost -- triangle
+dotnet run --project tools/TestHost -- triangle
 ```
 
 自動検証（非表示ウィンドウ、WARPアダプタ、Debug Layer有効、3フレーム描画後にReadback検証、成功時0終了）:
 ```bash
-dotnet run --project tools/CSharpGameEngine.TestHost -- triangle --hidden --frames 3 --warp --debug-layer --verify
+dotnet run --project tools/TestHost -- triangle --hidden --frames 3 --warp --debug-layer --verify
 ```
 
 Hardware Adapterでの検証（`--warp`を外すとHardware Adapterを使用。利用不可の場合は明確なエラーで終了し、
 勝手にWARPへフォールバックしません）:
 ```bash
-dotnet run --project tools/CSharpGameEngine.TestHost -- triangle --hidden --frames 3 --debug-layer --verify
+dotnet run --project tools/TestHost -- triangle --hidden --frames 3 --debug-layer --verify
 ```
 
 triangleコマンドのオプション:
@@ -152,29 +152,29 @@ triangleコマンドのオプション:
 - `--verify`: 描画結果をGPUからReadbackし、Triangleが実際に描画されたかをピクセル単位で検証する
 
 ## Viewer（glTFモデル表示、Windows + Direct3D 12）
-`tools/CSharpGameEngine.Extension`は、glTF/GLBファイルをインポートして固定カメラ・簡易陰影で表示する
+`tools/Extension`は、glTF/GLBファイルをインポートして固定カメラ・簡易陰影で表示する
 最小Viewerです（テクスチャ・マテリアル・シーングラフ・カメラ操作は未実装。詳細:
 [Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md](Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md)）。
 
 同梱サンプル（Khronos公式のBox.glb）を表示:
 ```bash
-dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb
+dotnet run --project tools/Extension -- --model Samples/Box.glb
 ```
 
 自動検証（非表示ウィンドウ、WARPアダプタ、Debug Layer有効、3フレーム描画後にReadback検証、成功時0終了）:
 ```bash
-dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb --hidden --frames 3 --warp --debug-layer --verify
+dotnet run --project tools/Extension -- --model Samples/Box.glb --hidden --frames 3 --warp --debug-layer --verify
 ```
 
 Hardware Adapterでの検証:
 ```bash
-dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb --hidden --frames 3 --debug-layer --verify
+dotnet run --project tools/Extension -- --model Samples/Box.glb --hidden --frames 3 --debug-layer --verify
 ```
 
 自分で購入・ダウンロードしたFabアセット（glTF/GLB形式）を表示する場合は、
 `UserEcsProject/Assets/Fab/`配下に配置し、`--model`でそのパスを指定してください（`Assets/Fab/`は`.gitignore`で除外され、コミットされません）。
 ```bash
-dotnet run --project tools/CSharpGameEngine.Extension -- --model UserEcsProject/Assets/Fab/<アセット名>/<ファイル名>.gltf
+dotnet run --project tools/Extension -- --model UserEcsProject/Assets/Fab/<アセット名>/<ファイル名>.gltf
 ```
 
 Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--width` / `--height` / `--hidden` /
@@ -192,8 +192,8 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
   Debug Layerなしで継続します（診断出力にその旨を表示）
 
 ## Notes
-- Visual Studio拡張の本体は`tools/CSharpGameEngine.VSExtension`（net472、実際に`.vsix`を生成）です。
-  `tools/CSharpGameEngine.Extension`はヘッドレスのモデルビューア実行ファイルで、
+- Visual Studio拡張の本体は`tools/VSExtension`（net472、実際に`.vsix`を生成）です。
+  `tools/Extension`はヘッドレスのモデルビューア実行ファイルで、
   `--verify`によるピクセル検証を伴うレンダリング経路のスモークに使います（VSIXではありません）。
 - エンジン本体は Visual Studio から独立して実行できる設計方針です。
 - `src/`は14のプロジェクトと6の共有プロジェクトです。一覧の正本は`CSharpGameEngine.slnx`、構成と層の境界は

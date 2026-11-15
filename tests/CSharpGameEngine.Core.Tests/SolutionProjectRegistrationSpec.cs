@@ -44,7 +44,7 @@ public sealed class SolutionProjectRegistrationSpec {
     }
     [Fact]
     public void TransientWpfBuildProjectsAreNotRegistrationCandidates(){
-        var TransientPath=Path.Combine(RepositoryRoot,"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension_build_wpftmp.csproj");
+        var TransientPath=Path.Combine(RepositoryRoot,"tools","VSExtension","VSExtension_build_wpftmp.csproj");
         Assert.False(IsTrackedArea(TransientPath));
     }
     [Fact]

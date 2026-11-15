@@ -5,17 +5,17 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 public sealed class NumericProfileCompatibilityAnalyzerTests {
     [Theory]
-    [InlineData("CSharpGameEngine.Numerics","float32","float32",false)]
-    [InlineData("CSharpGameEngine.World","fixed-128-64","float32",true)]
-    [InlineData("CSharpGameEngine.Numerics",null,"float32",true)]
-    [InlineData("CSharpGameEngine.World",null,"float64",true)]
-    [InlineData("CSharpGameEngine.Entities",null,"float64",true)]
+    [InlineData("Numerics","float32","float32",false)]
+    [InlineData("World","fixed-128-64","float32",true)]
+    [InlineData("Numerics",null,"float32",true)]
+    [InlineData("World",null,"float64",true)]
+    [InlineData("Entities",null,"float64",true)]
     [InlineData("IndependentLibrary",null,"float64",false)]
     [InlineData("SharedRuntime","fixed-64-32","fixed-64-31",true)]
-    [InlineData("CSharpGameEngine.Numerics","float32",null,false)]
+    [InlineData("Numerics","float32",null,false)]
     public async Task RejectsIncompatibleDependenciesWithoutRejectingIndependentLibraries(string Name,string?Profile,string?Expected,bool Rejected){
         var References=((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Where(static Path=>!System.IO.Path.GetFileName(Path).StartsWith("CSharpGameEngine.",StringComparison.Ordinal))
+            .Where(static Path=>!EngineAssemblyFiles.IsEngineAssembly(Path))
             .Select(static Path=>MetadataReference.CreateFromFile(Path)).ToArray();
         var Source=Profile is null?"public sealed class Dependency {}":"[assembly:System.Reflection.AssemblyMetadata(\"CgeNumericProfile\",\""+Profile+"\")] public sealed class Dependency {}";
         var Library=CSharpCompilation.Create(Name,[CSharpSyntaxTree.ParseText(Source)],References,new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

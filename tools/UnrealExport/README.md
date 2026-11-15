@@ -31,7 +31,7 @@ SkyAtmosphere、VolumetricCloud、Brush、Blueprint、GameMode、アニメーシ
 
 # Unreal ThirdPerson Template Import
 
-UE5.8の`Templates\TP_ThirdPersonBP`と共有Content Pack(LevelPrototyping/Characters/Input)から、`Templates/CSharpGameEngine.Templates.ThirdPerson`のシーンJSON・C#と資産を生成する開発用ツールです(ADR-0067/0068/0069)。
+UE5.8の`Templates\TP_ThirdPersonBP`と共有Content Pack(LevelPrototyping/Characters/Input)から、`Templates/ThirdPerson`のシーンJSON・C#と資産を生成する開発用ツールです(ADR-0067/0068/0069)。
 
 - `Program Files`配下のUEには書き込みません。
 - `prepare_thirdperson_project.ps1`が`.artifacts/UnrealExport/TP_ThirdPerson/`へステージング用プロジェクトを組み立て、そこで書き出します。
@@ -101,7 +101,7 @@ FirstPerson / TopDown / Vehicle の理想コード(`Templates/`)と、将来の�
   - FirstPerson: レベルのアクター 63(StaticMeshActor 55、PlayerStart 1、環境 6)。InputAction 4、AnimSequence 97、SkeletalMesh 2、WidgetBlueprint 2、Niagara 1。
   - TopDown: レベルのアクター 65(StaticMeshActor 55、NavMeshBoundsVolume 1、RecastNavMesh 1、PlayerStart 1)。InputAction 2、Niagara 4(カーソルの演出)、StaticMesh 16。ナビメッシュが前提のテンプレート。
   - Vehicle: レベルのアクター 38(Landscape 1、StaticMeshActor 24、RuntimeVirtualTextureVolume 1、PostProcessVolume 1)。Blueprint 14、InputAction 12、InputMappingContext 5、CurveFloat 2(トルク曲線)、PhysicalMaterial 2、WidgetBlueprint 4(HUD)、SkeletalMesh 2(車)。
-  - 取り込み(2026-10-22): `run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]` がステージを `Templates\CSharpGameEngine.Templates.<名前>` へ取り込む(静的メッシュを glb、レベルをシーン JSON、Vehicle 以外はワールドグリッドも)。キャラクターの値は `run_dump_blueprint.cmd` の出力から手で書く。マネキンのメッシュは `run_export_skeletal_mesh.cmd`、Vehicle の車の静的メッシュ(`SM_SportsCar`・`_Glass`・`_Wheel`)は `CGE_SK_STATIC=1` を付けた同じスクリプトで書き出す(`SKM_SportsCar` は物理用の骨格だけで、見た目ではない)。Vehicle のレベルの Landscape は glTF に書き出せないので、`export_level.py` が同じ大きさの 1 m の板を作業中のエディターのワールドにだけ足して代える(保存しない)。`probe_vehicle_level.py`(`run_probe_vehicle_level.cmd`)は、レベルのクラスの一覧・Landscape の位置・メッシュの配置を UE のログ(`G:\UE\5.8\Vehicle\Saved\Logs\Vehicle.log` の `[UnrealExport]` 行)へ出す。
+  - 取り込み(2026-10-22): `run_export_level.cmd <FirstPerson|TopDown|Vehicle> [--force]` がステージを `Templates\<名前>` へ取り込む(静的メッシュを glb、レベルをシーン JSON、Vehicle 以外はワールドグリッドも)。キャラクターの値は `run_dump_blueprint.cmd` の出力から手で書く。マネキンのメッシュは `run_export_skeletal_mesh.cmd`、Vehicle の車の静的メッシュ(`SM_SportsCar`・`_Glass`・`_Wheel`)は `CGE_SK_STATIC=1` を付けた同じスクリプトで書き出す(`SKM_SportsCar` は物理用の骨格だけで、見た目ではない)。Vehicle のレベルの Landscape は glTF に書き出せないので、`export_level.py` が同じ大きさの 1 m の板を作業中のエディターのワールドにだけ足して代える(保存しない)。`probe_vehicle_level.py`(`run_probe_vehicle_level.cmd`)は、レベルのクラスの一覧・Landscape の位置・メッシュの配置を UE のログ(`G:\UE\5.8\Vehicle\Saved\Logs\Vehicle.log` の `[UnrealExport]` 行)へ出す。
   - **3つとも、音声アセット(SoundWave、SoundCue)は1つも無い。** 効果音は UE のテンプレートからは取り込めない。
 
 ## 材質を残した書き出し(2026-10-22)
@@ -119,7 +119,7 @@ FirstPerson / TopDown / Vehicle の理想コード(`Templates/`)と、将来の�
 
 ```cmd
 tools\UnrealExport\run_dump_blueprint_logic.cmd G:\UE\5.8\Vehicle .artifacts\UnrealExport\logic\Vehicle /Game/VehicleTemplate/Blueprints/SportsCar/BP_VehicleAdvSportsCar /Game/VehicleTemplate/Blueprints/BP_VehicleAdvPlayerController
-dotnet run --project tools\CSharpGameEngine.Unreal.SceneImporter -- logic .artifacts\UnrealExport\logic\Vehicle
+dotnet run --project tools\Unreal.SceneImporter -- logic .artifacts\UnrealExport\logic\Vehicle
 ```
 
 - `run_dump_blueprint_logic.cmd <プロジェクト> <出力先> <資産のパス...>` は、描画なしのエディターで資産ごとに次を書く(何も保存しない)。
@@ -142,7 +142,7 @@ dotnet run --project tools\CSharpGameEngine.Unreal.SceneImporter -- logic .artif
 ```cmd
 set CGE_SK_STATIC=1
 tools\UnrealExport\run_export_skeletal_mesh.cmd TopDown /Game/TopDown/Cursor/SM_CursorMesh .artifacts\UnrealExport\cursor\SM_CursorMesh.glb
-python tools\UnrealExport\cut_masked_mesh.py .artifacts\UnrealExport\cursor\SM_CursorMesh.glb Templates\CSharpGameEngine.Templates.TopDown\Assets\Cursor\SM_CursorMesh.glb 24
+python tools\UnrealExport\cut_masked_mesh.py .artifacts\UnrealExport\cursor\SM_CursorMesh.glb Templates\TopDown\Assets\Cursor\SM_CursorMesh.glb 24
 ```
 
 - `cut_masked_mesh.py <入力.glb> <出力.glb> [四角形の一辺の分割数]`: 帯の四角形(2 枚の三角形が辺を共有する)を分割数 × 分割数に割り、ベースカラーのテクスチャのアルファが材質の `alphaCutoff` 以上のセルだけを残す。残したテクセルの平均色を `baseColorFactor` にして、テクスチャは持たせない。`doubleSided` なら、向きと法線を反転した複製を足す(レンダラーは裏面を捨て、両面のフラグを持たない)。
@@ -164,7 +164,7 @@ set CGE_SK_STATIC=1
 tools\UnrealExport\run_export_skeletal_mesh.cmd Vehicle /Game/VehicleTemplate/Meshes/SM_Track_10M .artifacts\m0112\track\SM_Track_10M.glb
 tools\UnrealExport\run_capture_vehicle_ground_color.cmd
 copy .artifacts\UnrealExport\Lvl_VehicleBasic\ground_color .artifacts\m0112\ground_color_src.png
-python tools\UnrealExport\build_vehicle_ground.py .artifacts\m0112\landscape_heights.json .artifacts\m0112\track\SM_Track_10M.glb .artifacts\m0112\ground_color_src.png Templates\CSharpGameEngine.Templates.Vehicle
+python tools\UnrealExport\build_vehicle_ground.py .artifacts\m0112\landscape_heights.json .artifacts\m0112\track\SM_Track_10M.glb .artifacts\m0112\ground_color_src.png Templates\Vehicle
 ```
 
 - `probe_vehicle_landscape_heights.py`(`run_probe_vehicle_landscape.cmd <スクリプト>`。`CGE_PROBE_OUT` が結果の JSON): Landscape の高さを、100 cm 間隔の格子の真上からの衝突のライン トレースで読む(127 × 127 点。Python から高さのデータは読めないので、衝突の高さがそのまま正本になる)。同時に、16 個の `SplineMeshComponent`(`SM_Track_10M` を Spline に沿って曲げたもの)の `SplineMeshParams`(始点・終点の位置と接線・縮尺・ロール)を書く。

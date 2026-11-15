@@ -122,10 +122,10 @@ public sealed class FractureCookerTests {
         Assert.Matches(@"^Empty\.json: error DST009: .+",FailError.Trim());
     }
     private static string Configuration=>new DirectoryInfo(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory)).Parent!.Name;
-    private static string Module=>Path.Combine(RepositoryRoot,"plugins","CSharpGameEngine.Destruction","Cook","bin",Configuration,"net10.0","CSharpGameEngine.Destruction.Cook.dll");
+    private static string Module=>Path.Combine(RepositoryRoot,"plugins","Destruction","Cook","bin",Configuration,"net10.0","Destruction.Cook.dll");
     private static (int ExitCode,string Output,string Error)RunCli(params string[]Arguments){
         var Start=new ProcessStartInfo("dotnet"){ RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false };
-        Start.ArgumentList.Add(Path.Combine(RepositoryRoot,"tools","CSharpGameEngine.Cook.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Cook.Cli.dll"));
+        Start.ArgumentList.Add(Path.Combine(RepositoryRoot,"tools","Cook.Cli","bin",Configuration,"net10.0","Cook.Cli.dll"));
         foreach(var Argument in Arguments){ Start.ArgumentList.Add(Argument); }
         using var Process=System.Diagnostics.Process.Start(Start)!;
         var Output=Process.StandardOutput.ReadToEndAsync();

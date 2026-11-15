@@ -31,12 +31,12 @@ public sealed class SceneFilesTests {
     [InlineData(@"C:\Game\Plugins\Scenes\Storm.json",false)]
     [InlineData(@"C:\Game\Plugins\Weather\Assets\Scenes\Storm.json",false)]
     [InlineData(@"C:\Game\Plugins\Weather\Deep\Scenes\Storm.json",false)]
-    [InlineData(@"C:\Engine\plugins\CSharpGameEngine.Vehicles\Scenes\Car.json",true)]
-    [InlineData(@"C:\Engine\plugins\CSharpGameEngine.Vehicles\Runtime\Car.json",false)]
-    [InlineData(@"C:\Engine\plugins\CSharpGameEngine.Navigation\Scenes\Map.json",false)]
+    [InlineData(@"C:\Engine\plugins\Vehicles\Scenes\Car.json",true)]
+    [InlineData(@"C:\Engine\plugins\Vehicles\Runtime\Car.json",false)]
+    [InlineData(@"C:\Engine\plugins\Navigation\Scenes\Map.json",false)]
     public void APluginsScenesFolder_HoldsScenes(string Path,bool Expected){
         // ADR-0079：プロジェクトプラグインは自身のフォルダー（Plugins\<Name>\Scenes）で判定し、エンジンまたはパッケージのプラグインはビルドのルートで判定する。
-        var Roots=PluginRoot.Parse(@"|Vehicles=C:\Engine\plugins\CSharpGameEngine.Vehicles\|=ignored|Broken");
+        var Roots=PluginRoot.Parse(@"|Vehicles=C:\Engine\plugins\Vehicles\|=ignored|Broken");
 
         Assert.Equal(Expected,SceneFiles.IsScene(Path,@"C:\Game",Roots));
     }

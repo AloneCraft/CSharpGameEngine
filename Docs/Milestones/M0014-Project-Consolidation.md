@@ -30,7 +30,7 @@ VSIX同梱の`SceneFile.Load`と既存の`FindRepoRoot()`を使い約20行)。�
 
 ### CP-B: `CSharpGameEngine.Core`統合
 
-被参照数が最大なので最初に安定させた。ディレクトリは`src/CSharpGameEngine.Core/`を**再利用**。
+被参照数が最大なので最初に安定させた。ディレクトリは`src/Core/`を**再利用**。
 
 - 22ファイルを`git mv`: `Spatial/`(15) + `Spatial/Conventions/`(5) + `Geometry/`(2)。既存5ファイルは根に据置。
 - 7つのcsprojを削除(`Spatial.Abstractions`/`.Unity`/`.Unreal`/`.Blender`/`.Gltf`/`.Fbx`/`Geometry`)。
@@ -131,11 +131,11 @@ apphostの`.exe`経由なら成功する。
 ソリューションファイルは`CSharpGameEngine.slnx`ただ1つ、`samples/`は無し。
 
 ```
-src/CSharpGameEngine.CodeAnalysis   netstandard2.0            Roslyn Analyzer
-src/CSharpGameEngine.Entities       net10.0                   共有ソース(partial struct World)
-src/CSharpGameEngine.Core           net10.0                   外部パッケージ依存ゼロ
-src/CSharpGameEngine.Import         net10.0                   SharpGLTF / AssimpNet
-src/CSharpGameEngine.Windows        net10.0-windows / x64     TerraFX / DXC
+src/CodeAnalysis   netstandard2.0            Roslyn Analyzer
+src/Entities       net10.0                   共有ソース(partial struct World)
+src/Core           net10.0                   外部パッケージ依存ゼロ
+src/Import         net10.0                   SharpGLTF / AssimpNet
+src/Windows        net10.0-windows / x64     TerraFX / DXC
 ```
 
 依存辺は3本のみ: `Entities → CodeAnalysis`(Analyzer)、`Import → Core`、`Windows → Core`。
@@ -156,6 +156,6 @@ src/CSharpGameEngine.Windows        net10.0-windows / x64     TerraFX / DXC
   ([[ADR-0001-Layered-Architecture]]、レイヤーはFeature ID単位で追跡する)。
 - `UserGameProject`の実機描画は自動検証できていない(本統合は名前空間もロジックも変えていないため
   原理的に影響は無く、`--verify`付きスモークが代替検証になっている)。
-- (2026-10-04 解消)`src/CSharpGameEngine.Entities/Generated/`は`.gitignore`に列挙されているのに
+- (2026-10-04 解消)`src/Entities/Generated/`は`.gitignore`に列挙されているのに
   git追跡下にあった。生成器が6つ書くうち3つだけが追跡され、改行をCRLFでチェックアウトする新しいcloneでは
   ビルドがLFで書き直すたびに`git status`が変更ありと表示した。追跡をやめ、ディスク上のデバッグ用出力に戻した。

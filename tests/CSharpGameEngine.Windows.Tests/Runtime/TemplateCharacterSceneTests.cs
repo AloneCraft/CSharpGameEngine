@@ -11,7 +11,7 @@ public sealed class TemplateCharacterSceneTests {
         while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
         return Directory?.FullName??throw new InvalidOperationException("The repository root was not found.");
     }
-    private static string TemplateDirectory(string Template)=>Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates."+Template);
+    private static string TemplateDirectory(string Template)=>Path.Combine(RepositoryRoot(),"Templates",""+Template);
     private static JsonElement Scene(string Template,string Name)=>JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory(Template),"Scenes",Name+".json"))).RootElement.GetProperty("root");
     private static IEnumerable<JsonElement>Nodes(JsonElement Node){
         yield return Node;

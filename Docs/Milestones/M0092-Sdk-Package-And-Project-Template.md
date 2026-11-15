@@ -17,17 +17,17 @@ Changed features: F-L6-009 (new), F-L8-032 (new), F-L8-018 (bundling now also co
   - After that, the VSSDK's `GetVSTemplateItems` still collected only `<ProjectItem>` children, not the `<Project File>` of a childless `<Project>`.
   - Stale archives were also not rebuilt incrementally, which masked the change.
   - With a `ReadMe.md` item the archive and its manifests are complete.
-- **Wizard assembly.** The first manual run in the Experimental instance failed on "Create" with "this template tried to load component assembly 'CSharpGameEngine.VSExtension'". The vstemplates name their wizard by simple assembly name, and the package declared no `BindingPaths`, so Visual Studio could not resolve the assembly. The package now carries `[ProvideBindingPath]`, and `VsixManifestTests` checks the packaged pkgdef for the entry.
+- **Wizard assembly.** The first manual run in the Experimental instance failed on "Create" with "this template tried to load component assembly 'VSExtension'". The vstemplates name their wizard by simple assembly name, and the package declared no `BindingPaths`, so Visual Studio could not resolve the assembly. The package now carries `[ProvideBindingPath]`, and `VsixManifestTests` checks the packaged pkgdef for the entry.
 - **Stale New Project dialog cache.** A second dialog attempt failed with STG_E_FILENOTFOUND and an empty file name. The Experimental hive's `NpdProjectTemplateCache_ja-JP` (written 21:44) still pointed at the previous F5 deployment folder (`Extensions\a22iltlo.rz2\...\ThirdPerson.vstemplate`). That folder had been removed by the 21:56 redeploy to a new random folder. This only affects F5 development deployments, whose folder name changes each time; an installed VSIX keeps a stable path. Deleting the cache file lets Visual Studio rebuild it. The same template, run through DTE `Solution.AddFromTemplate` against the current deployment, created the project.
 - **Repository paths.** The first package game ran with the repository removed from its build inputs. The Stage checks this on every run: `obj/*.nuget.g.*`, `project.assets.json` and `*.deps.json` must not mention the repository root.
 ## Commands and results
 Commands executed from the repository root:
 ```text
-dotnet pack packaging/CSharpGameEngine.Sdk -c Release
-dotnet build tools/CSharpGameEngine.VSExtension -c Debug
+dotnet pack packaging/Sdk -c Release
+dotnet build tools/VSExtension -c Debug
 dotnet test tests/CSharpGameEngine.VSExtension.Tests -c Debug
-dotnet tools/CSharpGameEngine.FeatureRunner/bin/Debug/net10.0/CSharpGameEngine.FeatureRunner.dll verify-template-package --adapter hardware
-dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -c Debug -- run vsix.project-template --configuration Debug --adapter warp
+dotnet tools/FeatureRunner/bin/Debug/net10.0/FeatureRunner.dll verify-template-package --adapter hardware
+dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -c Debug -- run vsix.project-template --configuration Debug --adapter warp
 dotnet test CSharpGameEngine.slnx -c Release
 ```
 | Check | Result |

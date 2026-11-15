@@ -99,7 +99,7 @@ public sealed class TemplateSoundTests {
     [InlineData("TopDown","Land.wav")]
     [InlineData("TopDown","Footstep.wav")]
     public void TheTemplateSoundIsADecodableShortClip(string Template,string Name){
-        var Path=System.IO.Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates."+Template,"Assets","Sounds",Name);
+        var Path=System.IO.Path.Combine(RepositoryRoot(),"Templates",""+Template,"Assets","Sounds",Name);
 
         Assert.True(WavReader.TryRead(File.ReadAllBytes(Path),out var Clip,out var Error),Error);
 

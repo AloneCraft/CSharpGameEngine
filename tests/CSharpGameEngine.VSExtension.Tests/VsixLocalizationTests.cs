@@ -89,7 +89,7 @@ public sealed class VsixLocalizationTests {
     [Fact]
     public void XamlLocalizationKeys_AllExistInNeutralResource(){
         Dictionary<string,string>English=ReadResource(CultureInfo.InvariantCulture);
-        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
         Regex Pattern=new(@"\{local:Loc\s+([A-Za-z0-9_.]+)\}",RegexOptions.CultureInvariant);
         string[] Keys=Directory.EnumerateFiles(DirectoryPath,"*.xaml",SearchOption.TopDirectoryOnly)
             .SelectMany(FilePath=>Pattern.Matches(File.ReadAllText(FilePath)).Cast<Match>())
@@ -101,7 +101,7 @@ public sealed class VsixLocalizationTests {
     }
     [Fact]
     public void XamlPresentationAttributes_DoNotContainUnlocalizedText(){
-        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
         string[] PresentationAttributes=[
             "Text","Content","ToolTip","Header","Title",
             "AutomationProperties.Name","AutomationProperties.HelpText","InputGestureText",

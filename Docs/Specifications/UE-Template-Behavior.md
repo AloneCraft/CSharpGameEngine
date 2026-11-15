@@ -131,7 +131,7 @@ M0109 で Chaos 相当に作り直した(Vehicles プラグイン。[M0109](../M
 | `ABP_SportsCar` | MeshRefPose → WheelController(車輪の回転・ステア・サスペンション)→ 部品空間 → ControlRig `CtrlRig_SportsCar` | 実装済み(WheelController は上の行)。**作らない**: `CtrlRig_SportsCar`。見えない骨格メッシュのダンパーと車軸の骨だけを動かし、見えるメッシュは付いていない | M0109 済 |
 
 ### Chaos の移動(`VehicleMovementComp`、`SportsCar_Wheels*`)
-値は `Templates/CSharpGameEngine.Templates.Vehicle/Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(`[DataAsset] VehicleSetup`。SI 単位に直した。`ChaosVehicleTests.TheTemplateAssetCarriesTheValuesTheTestsDriveWith`)。
+値は `Templates/Vehicle/Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`(`[DataAsset] VehicleSetup`。SI 単位に直した。`ChaosVehicleTests.TheTemplateAssetCarriesTheValuesTheTestsDriveWith`)。
 | 項目 | 値 | 状態 | 担当 |
 |---|---|---|---|
 | 車体 | 質量 1500 kg、空気抵抗 0.31、ダウンフォース 0.3、車体の幅 180・高さ 144、慣性の倍率 1、重心の上書きなし(物理アセットの重心は (−6.96, 0.04, 50.09) cm) | 実装済み(剛体は質量 1500 の箱 1.9 × 0.9 × 4.5 m。根は重心。空気抵抗とダウンフォースは UE の式(後退ではダウンフォースが持ち上げる向きになるのも UE のまま)。慣性は箱の値で、UE の物理アセットの形の慣性ではない) | M0109 済 |

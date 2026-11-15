@@ -8,8 +8,8 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
     <Using Include="Xunit" />
-    <ProjectReference Include="../../src/CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
-    <ProjectReference Include="../../src/CSharpGameEngine.Rendering/CSharpGameEngine.Rendering.csproj" />
-    <ProjectReference Include="../../src/CSharpGameEngine.ShaderArtifacts/CSharpGameEngine.ShaderArtifacts.csproj" />
+    <ProjectReference Include="../../src/Content/Content.csproj" />
+    <ProjectReference Include="../../src/Rendering/Rendering.csproj" />
+    <ProjectReference Include="../../src/ShaderArtifacts/ShaderArtifacts.csproj" />
   </ItemGroup>
 </Project>

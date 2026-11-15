@@ -41,7 +41,7 @@ public sealed class SystemOrderAttribute : Attribute
 ```
 
 `Bootstrap.cs`/`Parent.cs`と同じ「エンジンが持つ小さな型」の一つとして
-`src/CSharpGameEngine.Entities/SystemOrderAttribute.cs`に置く。ワイルドカード(`*.cs`)で消費側へ
+`src/Entities/SystemOrderAttribute.cs`に置く。ワイルドカード(`*.cs`)で消費側へ
 自動的に伝播するので、消費プロジェクトのcsproj変更は不要。
 
 ### 2. 2通りの付け方
@@ -150,7 +150,7 @@ SYSGEN024はユーザーへ確認の上で「ビルドエラーにする」を�
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj -c Debug
+dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...

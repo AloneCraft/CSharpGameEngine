@@ -27,7 +27,7 @@ public sealed class WpfBamlResourceTests {
             .Select(Entry=>Entry.Key.ToString()!.ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        string XamlDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+        string XamlDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
         string[] Expected=Directory.EnumerateFiles(XamlDirectory,"*.xaml",SearchOption.TopDirectoryOnly)
             .Select(FilePath=>Path.GetFileNameWithoutExtension(FilePath).ToLowerInvariant()+".baml")
             .ToArray();
@@ -39,13 +39,13 @@ public sealed class WpfBamlResourceTests {
     [Fact]
     public void VsixContainsTheSameAssemblyBytesAsBuildOutput(){
         string BuildAssembly=VsixBuildIdentity.BuildOutputPath;
-        string VsixPath=Path.Combine(Path.GetDirectoryName(BuildAssembly)!,"CSharpGameEngine.VSExtension.vsix");
+        string VsixPath=Path.Combine(Path.GetDirectoryName(BuildAssembly)!,"VSExtension.vsix");
         Assert.True(File.Exists(BuildAssembly),$"Build assembly was not found: {BuildAssembly}");
         Assert.True(File.Exists(VsixPath),$"VSIX package was not found: {VsixPath}");
 
         using ZipArchive Archive=ZipFile.OpenRead(VsixPath);
         ZipArchiveEntry Entry=Archive.Entries.Single(Entry=>
-            Entry.FullName.EndsWith("CSharpGameEngine.VSExtension.dll",StringComparison.OrdinalIgnoreCase));
+            Entry.FullName.EndsWith("VSExtension.dll",StringComparison.OrdinalIgnoreCase));
         using Stream PackageStream=Entry.Open();
         using SHA256 Hash=SHA256.Create();
         string PackageHash=ToHex(Hash.ComputeHash(PackageStream));

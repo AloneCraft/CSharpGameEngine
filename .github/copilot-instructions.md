@@ -12,7 +12,7 @@
 - ローカル変数宣言は、型推論できるすべての箇所で `var` を使用する（`const`、引数、フィールド、戻り値など `var` を使用できない宣言は除く）
 - インスタンスメンバーアクセスには常に `this.` を付ける
 
-このルールは `src/CSharpGameEngine.Core/StableId.cs` の現在の書式に合わせる。
+このルールは `src/Core/StableId.cs` の現在の書式に合わせる。
 
 ## Visual Studio ソリューション登録
 

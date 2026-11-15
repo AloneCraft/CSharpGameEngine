@@ -15,7 +15,7 @@ F-L4-002 / F-L8-010が当時の一次記録)。本書は2026-08にコミット�
 
 | Phase | コミット | 内容 |
 |---|---|---|
-| 1 | `f80a10f` | C# Scene DSL共通解析基盤: `src/CSharpGameEngine.SceneModel/`(共有ソース、netstandard2.0、`SceneDeclarationAnalyzer`/`SceneModel`/`NodePath`) |
+| 1 | `f80a10f` | C# Scene DSL共通解析基盤: `src/SceneModel/`(共有ソース、netstandard2.0、`SceneDeclarationAnalyzer`/`SceneModel`/`NodePath`) |
 | 2 | `2eb3e82` | Scene DSLアナライザー: `SceneDslAnalyzer`(SCENE100〜118診断。SGブリッジ側は診断を出さず二重スキグルを回避) |
 | 3 | `403e2db` | `SceneInstance`ランタイムとEntity破棄: `World.InstantiateScene<TScene>()`/`UnloadScene`/`DestroyDeferred`等 |
 | 4 | `a3aed37` | Scene DSLからRuntime ECSへの直接生成: `SceneModelBridge`→`SceneEmitModel`→`SceneInstantiateEmitter`/`SceneStartupSystemEmitter` |
@@ -27,7 +27,7 @@ F-L4-002 / F-L8-010が当時の一次記録)。本書は2026-08にコミット�
 
 Phase 9以後、`9813781`がEditor→Code方向の配管層を一括追加した(Phase 10の準備。呼び出し元は未配線):
 
-### `tools/CSharpGameEngine.VSExtension/`(セッション契約と書き込み配管)
+### `tools/VSExtension/`(セッション契約と書き込み配管)
 
 - `SceneEditorContracts.cs`: `SceneKey`/`EditorNodeId`/`SceneProjection`/`SceneProjectionReconciler`
   (2パス兄弟照合)/`SceneDiffEngine`。
@@ -39,7 +39,7 @@ Phase 9以後、`9813781`がEditor→Code方向の配管層を一括追加した
 - `SceneTextBufferWriter.cs`: `SourceText`差分を1つの`ITextUndoTransaction`でlive bufferへ適用。
 - `SceneInspectorModel.cs`/`SceneComponentCatalog.cs`: 将来のInspector/AddComponent用の純粋モデル層。
 
-### `src/CSharpGameEngine.Windows/Runtime/`(エンジン標準Component語彙の拡充)
+### `src/Windows/Runtime/`(エンジン標準Component語彙の拡充)
 
 - `Transform.cs`: フラットfloat(`PositionX/Y/Z`,`RotationX/Y/Z/W`,`ScaleX/Y/Z`)+`TransformMath`
   (`ToMatrix`/`ToWorld`/`TryCalculateLocal`)。

@@ -60,7 +60,7 @@ ADR-0078 の「クリック地点の目印」(TopDown の `FX_Cursor_Success`)�
 |---|---|
 | L0 描画 | `StageRenderer` の `AddObject`・`RemoveObject`・`AddMesh`・`AddMaterial`(オブジェクト・マテリアルの余裕、有効フラグ、スロットの再利用)、`StageObjectCreateInfo.Removed` |
 | L0 サーバー | `RenderServer` の同名の口と一覧、成果物の閉包の更新(`RefreshObjectRosterArtifact`)、`RenderFrameState` の自動の拡張 |
-| L3 ECS | `FixedTransformWorldResolver` を `Entity` キーへ、`ISpawnableScene`・`SceneSpawn`(`src/CSharpGameEngine.Entities/ISpawnableScene.cs`) |
+| L3 ECS | `FixedTransformWorldResolver` を `Entity` キーへ、`ISpawnableScene`・`SceneSpawn`(`src/Entities/ISpawnableScene.cs`) |
 | L5 ランタイム | `RenderRoster`、`StaticMeshBind`・`PrimitiveMeshBind`・`SkeletalMeshBindNotice`、`TransformSync` の外し、`Spawner`・`SpawnerFlush`、`Lifetime`・`LifetimeExpire`、`ParticleBurst` ほか |
 | L7 生成器 | `SceneInstantiateEmitter`(`InstantiateDeferredAt`、`ISpawnableScene`)、`GenerationGate`、`GameSystemLoopEmitter`(サービスの後始末) |
 | L7 ツール | `tools/UnrealExport/cut_masked_mesh.py` |

@@ -8,7 +8,7 @@
     <!-- Inherited from the former CSharpGameEngine.Import.Fbx.Tests: AssimpNet's native assimp.dll
          (ADR-0009) ships under runtimes/win-x64/native/, and a RuntimeIdentifier is required for the
          test host to actually get the native binary next to the test assembly (same reason as
-         CSharpGameEngine.Extension.csproj). Now that ADR-0034 put Gltf and Fbx in one assembly this
+         Extension.csproj). Now that ADR-0034 put Gltf and Fbx in one assembly this
          also applies to the glTF tests, which do not need it but are not harmed by it. -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
@@ -24,14 +24,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj" />
+    <ProjectReference Include="..\..\tools\Unreal.SceneImporter\Unreal.SceneImporter.csproj" />
     <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../../src/CSharpGameEngine.Runtime.Animation/Skeleton.cs" Link="Parity/Skeleton.cs" />
-    <Compile Include="../../src/CSharpGameEngine.Runtime.Animation/AnimationClip.cs" Link="Parity/AnimationClip.cs" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+    <Compile Include="../../src/Runtime.Animation/Skeleton.cs" Link="Parity/Skeleton.cs" />
+    <Compile Include="../../src/Runtime.Animation/AnimationClip.cs" Link="Parity/AnimationClip.cs" />
+    <ProjectReference Include="..\..\src\Import\Import.csproj" />
   </ItemGroup>
 
   <ItemGroup>

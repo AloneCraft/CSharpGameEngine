@@ -5,7 +5,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class VsixJapaneseLiteralGuardTests {
     [Fact]
     public void CSharpDisplayCode_HasNoJapaneseStringLiteralsOutsideResources(){
-        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+        string DirectoryPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
         List<string>Violations=[];
         foreach(string FilePath in Directory.EnumerateFiles(DirectoryPath,"*.cs",SearchOption.TopDirectoryOnly)){
             SyntaxTree Tree=CSharpSyntaxTree.ParseText(File.ReadAllText(FilePath));

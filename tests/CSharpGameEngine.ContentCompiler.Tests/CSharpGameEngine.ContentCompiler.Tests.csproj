@@ -10,8 +10,8 @@
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../tools/CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj" />
-    <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
-    <ProjectReference Include="../../tools/CSharpGameEngine.Cook.Cli/CSharpGameEngine.Cook.Cli.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../tools/ContentCompiler/ContentCompiler.csproj" />
+    <ProjectReference Include="../../src/Import/Import.csproj" />
+    <ProjectReference Include="../../tools/Cook.Cli/Cook.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

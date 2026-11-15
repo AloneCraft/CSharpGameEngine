@@ -89,7 +89,7 @@ by keeping the global as a plain literal (`LightDirectionRaw`) and calling `norm
 inside `PSMain` instead.
 
 ### 7. Extension project is a placeholder exe, not a real VSIX
-`tools/CSharpGameEngine.Extension` targets `net10.0-windows10.0.19041.0`, the same shape as
+`tools/Extension` targets `net10.0-windows10.0.19041.0`, the same shape as
 `CSharpGameEngine.TestHost` - not a Visual Studio SDK/VSIX project. Per ADR-0001, L8 ("Visual
 Studio Authoring Environment") is explicitly deferred, and a real VSIX would need `net472`-ish
 constraints incompatible with this repo's `net10.0` path. `Extension` is positioned as "the future
@@ -102,7 +102,7 @@ real VSIX shell would eventually wrap. A minimal VSIX shell that does exactly th
 Nothing in this milestone consumes `UserGameProject` programmatically - the viewer takes
 `--model <path>` as a plain string argument. A permanently-empty build unit that must still
 compile clean under `TreatWarningsAsErrors=true` for zero functional payoff was not worth adding
-yet; `tools/CSharpGameEngine.Extension` already *is* the "engine is consumable from an external
+yet; `tools/Extension` already *is* the "engine is consumable from an external
 project" signal this milestone needs. `UserGameProject/Assets/Fab/` is where a user places their
 own purchased Fab content manually - Claude cannot access Fab.com (paid marketplace, no
 credentials, and downloading third-party commercial content is a user action) - and that content
@@ -110,7 +110,7 @@ must not be committed/redistributed. Revisit a real `.csproj` once there is actu
 or a real VS extension needs a concrete project to load.
 
 ### 9. glTF asset consumed for real verification
-`tools/CSharpGameEngine.Extension` bundles the Khronos-provided `Box.glb` sample
+`tools/Extension` bundles the Khronos-provided `Box.glb` sample
 (`assets/TestFixtures/Gltf/Box.glb`, CC BY 4.0, © 2017 Cesium - attribution recorded in
 `assets/TestFixtures/Gltf/NOTICE.md`) as `Samples/Box.glb`, giving an out-of-the-box smoke test
 that needs no manually-placed Fab content. The same fixture is reused by

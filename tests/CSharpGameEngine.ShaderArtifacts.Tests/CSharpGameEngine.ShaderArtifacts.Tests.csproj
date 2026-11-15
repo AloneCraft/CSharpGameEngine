@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.ShaderArtifacts\CSharpGameEngine.ShaderArtifacts.csproj" />
+    <ProjectReference Include="..\..\src\ShaderArtifacts\ShaderArtifacts.csproj" />
   </ItemGroup>
 
 </Project>

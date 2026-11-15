@@ -51,7 +51,7 @@ The first oracle included 156 bin/obj copies. Before any source-reader change, e
 
 [目標、ロードマップ、戦略.md](../目標、ロードマップ、戦略.md) の段階 A は「モデル取り込みの残りを、要るものと送るものに分ける」。基準は段階 A の出口条件（制作の一巡が実際の VS で通る）に効くかどうか。
 
-この節より下の「Conformance and remaining work」のうち、次の記述は M0128 で古くなった: 「Existing source readers remain active」「New worker-based import is not available to games yet」。M0128 で、ゲーム・プレビュー・当たり判定・ナビメッシュ・距離場は Cook ワーカーが作る準備済みのモデル生成物を読むように切り替わり、ランタイムの glTF の読み手は削除された（glTF の読み手はビルド時の取り込み `src/CSharpGameEngine.Import/Gltf/` にだけある）。
+この節より下の「Conformance and remaining work」のうち、次の記述は M0128 で古くなった: 「Existing source readers remain active」「New worker-based import is not available to games yet」。M0128 で、ゲーム・プレビュー・当たり判定・ナビメッシュ・距離場は Cook ワーカーが作る準備済みのモデル生成物を読むように切り替わり、ランタイムの glTF の読み手は削除された（glTF の読み手はビルド時の取り込み `src/Import/Gltf/` にだけある）。
 
 | 残り | 行き先 | 理由 |
 |---|---|---|

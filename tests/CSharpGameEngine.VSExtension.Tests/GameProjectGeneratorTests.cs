@@ -39,7 +39,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [InlineData("TopDown")]
     [InlineData("Vehicle")]
     public void TemplateSource_UsesItsNamespaceOnlyAsTheNamespace(string TemplateName){
-        var Template=RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName);
+        var Template=RepositoryFile("Templates",""+TemplateName);
         var TemplateNamespace=GameProjectGenerator.NamespaceOf(TemplateName);
         var Whole=new System.Text.RegularExpressions.Regex(@"(?<![A-Za-z0-9_])"+TemplateNamespace+@"(?![A-Za-z0-9_])");
         var Files=Directory.EnumerateFiles(Template,"*",SearchOption.AllDirectories)
@@ -57,12 +57,12 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     /// <summary>ウィザードが提示する各テンプレートには、プロジェクトテンプレート、2 つの文字列リソース、コピー元のソースフォルダーがある。</summary>
     [Fact]
     public void EveryOfferedTemplate_HasAVsTemplateWithItsOwnResourceStrings(){
-        var Templates=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine");
-        var Resources=System.Xml.Linq.XDocument.Load(RepositoryFile("tools","CSharpGameEngine.VSExtension","VSPackage.resx"));
-        var JapaneseResources=System.Xml.Linq.XDocument.Load(RepositoryFile("tools","CSharpGameEngine.VSExtension","VSPackage.ja-JP.resx"));
+        var Templates=RepositoryFile("tools","VSExtension","ProjectTemplates","CSharp","GameEngine");
+        var Resources=System.Xml.Linq.XDocument.Load(RepositoryFile("tools","VSExtension","VSPackage.resx"));
+        var JapaneseResources=System.Xml.Linq.XDocument.Load(RepositoryFile("tools","VSExtension","VSPackage.ja-JP.resx"));
         var Seen=new System.Collections.Generic.HashSet<string>();
         foreach(var Name in GameProjectGenerator.TemplateNames){
-            Assert.True(Directory.Exists(RepositoryFile("Templates","CSharpGameEngine.Templates."+Name)),Name);
+            Assert.True(Directory.Exists(RepositoryFile("Templates",""+Name)),Name);
             var Template=System.Xml.Linq.XDocument.Load(Path.Combine(Templates,Name,Name+".vstemplate"));
             System.Xml.Linq.XNamespace Schema="http://schemas.microsoft.com/developer/vstemplate/2005";
             var Data=Template.Root!.Element(Schema+"TemplateData")!;
@@ -86,7 +86,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [InlineData("Vehicle")]
     public void GeneratedProject_StartupSceneIsASceneOfTheProject(string TemplateName){
         var Project=Path.Combine(this.Root,"My Game");
-        var Created=GameProjectGenerator.CopySources(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName),Project,"My_Game",TemplateName);
+        var Created=GameProjectGenerator.CopySources(RepositoryFile("Templates",""+TemplateName),Project,"My_Game",TemplateName);
         var Startup=Path.GetFullPath(Path.Combine(Project,GameProjectGenerator.StartupSceneOf(TemplateName)));
         Assert.Contains(Startup,Created.Select(Path.GetFullPath));
         Assert.True(CSharpGameEngine.SceneAnalysis.Json.SceneFiles.IsScene(Startup,Project));
@@ -114,7 +114,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [Fact]
     public void Generate_WithAKeywordProjectName_WritesSourcesThatParse(){
         var Project=Path.Combine(this.Root,"event");
-        GameProjectGenerator.Generate(RepositoryFile("Templates","CSharpGameEngine.Templates.ThirdPerson"),Project,"event","1.2.3",this.Root);
+        GameProjectGenerator.Generate(RepositoryFile("Templates","ThirdPerson"),Project,"event","1.2.3",this.Root);
         foreach(var File in Directory.EnumerateFiles(Project,"*.cs",SearchOption.AllDirectories)){
             var Tree=Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(System.IO.File.ReadAllText(File),
                 new Microsoft.CodeAnalysis.CSharp.CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview));
@@ -149,8 +149,8 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [InlineData("TopDown")]
     [InlineData("Vehicle")]
     public void TemplateProjectFile_IsTheGeneratorsProjectFileWithTemplateTokens(string TemplateName){
-        var Template=RepositoryFile("tools","CSharpGameEngine.VSExtension","ProjectTemplates","CSharp","GameEngine",TemplateName,TemplateName+".csproj.template");
-        var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName));
+        var Template=RepositoryFile("tools","VSExtension","ProjectTemplates","CSharp","GameEngine",TemplateName,TemplateName+".csproj.template");
+        var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates",""+TemplateName));
         Assert.Equal(GameProjectGenerator.ProjectFile("$safeprojectname$",GameProjectGenerator.EngineVersionToken,Plugins),File.ReadAllText(Template));
     }
     [Theory]
@@ -160,7 +160,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     [InlineData("Vehicle")]
     public async Task GeneratedProject_KeepsItsConfigurationDimensionsWhenThePackageBecomesAvailable(string TemplateName){
         var Project=Path.Combine(this.Root,TemplateName+".csproj");
-        var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName));
+        var Plugins=GameProjectGenerator.PluginsOf(RepositoryFile("Templates",""+TemplateName));
         File.WriteAllText(Project,GameProjectGenerator.ProjectFile("Game","1.2.3",Plugins));
         var Before=await ReadDimensionsAsync(Project,false);
         var After=await ReadDimensionsAsync(Project,true);
@@ -193,7 +193,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     public void TheGeneratedProject_EnablesTheTemplatesEnginePlugins(string TemplateName,string Plugins){
         // ADR-0079：テンプレート自身のプロジェクトファイルでエンジンプラグインを指定し、パッケージモードのプロジェクトへ引き継ぐ。
         var Project=Path.Combine(this.Root,TemplateName);
-        var ProjectFile=GameProjectGenerator.Generate(RepositoryFile("Templates","CSharpGameEngine.Templates."+TemplateName),Project,"Game","1.2.3",@"C:\feed",TemplateName);
+        var ProjectFile=GameProjectGenerator.Generate(RepositoryFile("Templates",""+TemplateName),Project,"Game","1.2.3",@"C:\feed",TemplateName);
         var Text=File.ReadAllText(ProjectFile);
 
         Assert.Equal(Plugins.Length>0,Text.Contains("<CgePlugins>"+Plugins+"</CgePlugins>",StringComparison.Ordinal));
@@ -202,7 +202,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
 
     [Fact]
     public void Generate_WritesAPackageModeProjectAndItsFeed(){
-        var Template=RepositoryFile("Templates","CSharpGameEngine.Templates.ThirdPerson");
+        var Template=RepositoryFile("Templates","ThirdPerson");
         var Project=Path.Combine(this.Root,"My Game");
         var ProjectFile=GameProjectGenerator.Generate(Template,Project,"My Game","1.2.3",@"C:\feeds\cge & co");
 

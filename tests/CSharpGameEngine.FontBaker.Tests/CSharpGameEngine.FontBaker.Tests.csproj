@@ -16,6 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\CSharpGameEngine.FontBaker\CSharpGameEngine.FontBaker.csproj" />
+    <ProjectReference Include="..\..\tools\FontBaker\FontBaker.csproj" />
   </ItemGroup>
 </Project>

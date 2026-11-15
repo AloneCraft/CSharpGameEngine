@@ -37,17 +37,17 @@
   </PropertyGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Version.props" />
-  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Physics\CSharpGameEngine.Runtime.Physics.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Animation\CSharpGameEngine.Runtime.Animation.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Character\CSharpGameEngine.Runtime.Character.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Windows\CSharpGameEngine.Runtime.Windows.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)Runtime.Physics\Runtime.Physics.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)Runtime.Animation\Runtime.Animation.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)Runtime.Character\Runtime.Character.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)Runtime.Windows\Runtime.Windows.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- World/Stateはpartial structで、GameSystemGeneratorが同じコンパイル内で完成させる(ADR-0033)。 -->
-    <Compile Include="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
-    <Compile Remove="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" />
-    <Compile Remove="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\SceneComponentOrderAttribute.cs" />
+    <Compile Include="$(CgeEngineSourceRoot)Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+    <Compile Remove="$(CgeEngineSourceRoot)Entities\SceneComponentIconAttribute.cs" />
+    <Compile Remove="$(CgeEngineSourceRoot)Entities\SceneComponentOrderAttribute.cs" />
     <Compile Remove="Generated\**\*.cs" />
     <!-- ADR-0070: scene documents are the *.json files under Scenes (SceneFiles), compiled to C# by
          GameSystemGenerator in the same build. The generator finds them with ProjectDir. -->
@@ -67,11 +67,11 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">
-    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.World\CSharpGameEngine.World.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)Contracts\Contracts.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)Windows\Windows.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)Core\Core.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)Numerics\Numerics.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)World\World.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeIncludeDefaultStageShaders)' == 'true'">

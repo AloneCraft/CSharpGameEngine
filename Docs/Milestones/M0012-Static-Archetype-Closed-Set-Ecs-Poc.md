@@ -19,7 +19,7 @@ Source Generatorを、既存の本番ECS(`CSharpGameEngine.Entities`+`GameSystem
   をAnalyzerとして参照し、このプロジェクト単体の`dotnet build`が「System0件でもコンパイルできる」
   ことのスモークテストになる。
 
-### `StaticArchetypeGenerator`(`src/CSharpGameEngine.CodeAnalysis/`)
+### `StaticArchetypeGenerator`(`src/CodeAnalysis/`)
 - `StaticArchetypeGenerator.cs`: `IIncrementalGenerator`本体。属性を使わないため
   `CreateSyntaxProvider`でbase listを持つ型宣言を拾い、`ISystem`実装を意味解析で確認する。
   `compilation.GetTypeByMetadataName("ISystem")`によるゲート(`Runtime.cs`を取り込んだプロジェクトの

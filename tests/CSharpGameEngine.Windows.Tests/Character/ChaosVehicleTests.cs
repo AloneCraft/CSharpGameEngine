@@ -379,14 +379,14 @@ public sealed class ChaosVehicleTests(ITestOutputHelper Output) {
     }
     /// <summary>取り込んだ(エンジンの座標の)メッシュの、R・U・F それぞれの大きさ(m)。</summary>
     private static (float R,float U,float F)MeshSize(string Asset){
-        var Result=GltfImporter.ImportScene(Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.Vehicle","Assets","Vehicles","SportsCar",Asset));
+        var Result=GltfImporter.ImportScene(Path.Combine(RepositoryRoot(),"Templates","Vehicle","Assets","Vehicles","SportsCar",Asset));
         Assert.True(Result.Success,string.Join("; ",Result.Diagnostics.Select(static Item=>Item.Message)));
         var Points=Result.Scene!.Meshes.SelectMany(static Mesh=>Mesh.Positions).ToArray();
         return (Points.Max(static P=>P.X)-Points.Min(static P=>P.X),Points.Max(static P=>P.Y)-Points.Min(static P=>P.Y),Points.Max(static P=>P.Z)-Points.Min(static P=>P.Z));
     }
     /// <summary>シーンの子ノードの休みの Yaw(回転数。EulerRuf の U)。</summary>
     private static float SceneYawTurns(string Node){
-        using var Scene=JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.Vehicle","Scenes","SportsCar.json")));
+        using var Scene=JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(),"Templates","Vehicle","Scenes","SportsCar.json")));
         static JsonElement?Find(JsonElement Current,string Name){
             if(Current.GetProperty("name").GetString()==Name){ return Current; }
             foreach(var Child in Current.GetProperty("children").EnumerateArray()){ if(Find(Child,Name) is { }Found){ return Found; } }
@@ -515,7 +515,7 @@ public sealed class ChaosVehicleTests(ITestOutputHelper Output) {
         var Root=AppContext.BaseDirectory;
         while(Root is not null&&!File.Exists(Path.Combine(Root,"CSharpGameEngine.slnx"))){ Root=Path.GetDirectoryName(Root); }
         Assert.NotNull(Root);
-        using var Asset=JsonDocument.Parse(File.ReadAllText(Path.Combine(Root,"Templates","CSharpGameEngine.Templates.Vehicle","Assets","Vehicles","SportsCar","SportsCarSetup.cgeasset")));
+        using var Asset=JsonDocument.Parse(File.ReadAllText(Path.Combine(Root,"Templates","Vehicle","Assets","Vehicles","SportsCar","SportsCarSetup.cgeasset")));
         var Members=Asset.RootElement.GetProperty("members");
         var Setup=ChaosVehicleTrack.SportsCar();
         Assert.Equal("CSharpGameEngine.Vehicles.VehicleSetup",Asset.RootElement.GetProperty("type").GetString());

@@ -9,7 +9,7 @@ public sealed class TemplateLightingSceneTests {
         while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
         return Directory?.FullName??throw new InvalidOperationException("The repository root was not found.");
     }
-    private static JsonElement Level(string Template,string Name)=>JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates."+Template,"Scenes",Name+".json"))).RootElement.GetProperty("root");
+    private static JsonElement Level(string Template,string Name)=>JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(),"Templates",""+Template,"Scenes",Name+".json"))).RootElement.GetProperty("root");
     private static IEnumerable<JsonElement>Nodes(JsonElement Node){
         yield return Node;
         foreach(var Child in Node.GetProperty("children").EnumerateArray()){

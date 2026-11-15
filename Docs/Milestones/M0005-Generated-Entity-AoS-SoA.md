@@ -17,7 +17,7 @@
   AoS物理ストレージの汎用実装)、`ArchetypeChunk`(public readonly struct、コンストラクタは
   internal)、`ArchetypeStorage.GetEntitiesSpan()`/`GetColumnSpan<T>()`(internal追加)、
   `World.TryGetArchetypeChunk<T>()`(public追加)。
-- `src/CSharpGameEngine.CodeAnalysis/`に`GenerateEntityGenerator`(`IIncrementalGenerator`、
+- `src/CodeAnalysis/`に`GenerateEntityGenerator`(`IIncrementalGenerator`、
   `ForAttributeWithMetadataName`ベース)を追加。`GenerateEntityAnalyzer`(シンボル解析・
   属性定数解決・完全修飾名Ordinal正規化・診断)、`GenerateEntityModel`(不変DTO)、
   `GenerateEntityDiagnostics`(`ENTGEN001`〜`ENTGEN015`)、`GenerateEntityCommonEmitter`
@@ -91,7 +91,7 @@
 ## 実行したコマンドと結果
 ```
 dotnet build src/CSharpGameEngine.Ecs/...csproj -c Debug                          → 成功、警告0/エラー0
-dotnet build src/CSharpGameEngine.CodeAnalysis/...csproj -c Debug                 → 成功、警告0/エラー0
+dotnet build src/CodeAnalysis/...csproj -c Debug                 → 成功、警告0/エラー0
 dotnet build samples/AosSoaGeneratedExpansion/...csproj -c Debug                  → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Ecs.Tests/...csproj                            → 39件成功(既存22+新規17)
 dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj                   → 79件成功(既存20+新規59)
@@ -99,7 +99,7 @@ dotnet build UserGameProject/UserGameProject.csproj -c Debug                    
 dotnet build CSharpGameEngine.slnx -c Debug                                       → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Release                                     → 成功、警告0/エラー0
 dotnet test CSharpGameEngine.slnx                                                 → 310件成功、失敗0
-dotnet pack src/CSharpGameEngine.CodeAnalysis/...csproj -c Release                → 成功
+dotnet pack src/CodeAnalysis/...csproj -c Release                → 成功
 ```
 
 ## リバースエンジニアリングした挙動

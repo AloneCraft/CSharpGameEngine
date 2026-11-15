@@ -109,9 +109,9 @@ public sealed class VsixCompatibilityMatrixValidatorTests {
     public void ProjectManifestAndCiDriftAreRejectedBidirectionally(){
         string Root=CopyContractFiles();
         try {
-            string ProjectPath=Path.Combine(Root,"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension.csproj");
+            string ProjectPath=Path.Combine(Root,"tools","VSExtension","VSExtension.csproj");
             File.WriteAllText(ProjectPath,File.ReadAllText(ProjectPath).Replace("<TargetFramework>net472</TargetFramework>","<TargetFramework>net471</TargetFramework>",StringComparison.Ordinal));
-            string ManifestPath=Path.Combine(Root,"tools","CSharpGameEngine.VSExtension","source.extension.vsixmanifest");
+            string ManifestPath=Path.Combine(Root,"tools","VSExtension","source.extension.vsixmanifest");
             XDocument Manifest=XDocument.Load(ManifestPath);
             XNamespace VsixNamespace="http://schemas.microsoft.com/developer/vsx-schema/2011";
             Manifest.Root!.Element(VsixNamespace+"Installation")!.Element(VsixNamespace+"InstallationTarget")!.SetAttributeValue("Version","[18.0,)");
@@ -204,9 +204,9 @@ public sealed class VsixCompatibilityMatrixValidatorTests {
             "Docs/Verification/VSIX-Experimental-Baseline.json",
             "Docs/Verification/Manual-Evidence.json",
             "Docs/Verification/CI-Matrix.json",
-            "tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj",
-            "tools/CSharpGameEngine.VSExtension/source.extension.vsixmanifest",
-            "tools/CSharpGameEngine.Vsix.Automation/CSharpGameEngine.Vsix.Automation.csproj",
+            "tools/VSExtension/VSExtension.csproj",
+            "tools/VSExtension/source.extension.vsixmanifest",
+            "tools/Vsix.Automation/Vsix.Automation.csproj",
         }){
             string Destination=Path.Combine(Root,RelativePath.Replace('/',Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);

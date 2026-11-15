@@ -1,0 +1,64 @@
+<Project>
+  <PropertyGroup>
+    <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
+    <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <CgeNumericProfileLateImport>false</CgeNumericProfileLateImport>
+    <CgeEngineAssembly>true</CgeEngineAssembly>
+    <_CgeSdkLib>$(CgeEngineRoot)lib\net10.0-windows10.0.19041.0\</_CgeSdkLib>
+    <_CgeSdkCook Condition="'$(MSBuildProjectName)' == 'Navigation.Cook' or '$(MSBuildProjectName)' == 'Destruction.Cook'">true</_CgeSdkCook>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Contracts" HintPath="$(_CgeSdkLib)Contracts.dll" />
+    <Analyzer Include="$(CgeEngineRoot)analyzers\dotnet\cs\CodeAnalysis.dll" />
+    <CompilerVisibleProperty Include="CgeEngineAssembly" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Numerics'">
+    <Compile Include="$(CgeEngineRoot)src\Numerics\*.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'World'">
+    <Compile Include="$(CgeEngineRoot)src\World\*.cs" />
+    <Reference Include="Content" HintPath="$(_CgeSdkLib)Content.dll" />
+    <ProjectReference Include="..\Numerics\Numerics.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(_CgeSdkCook)' == 'true'">
+    <Reference Include="Cooking" HintPath="$(CgeEngineRoot)tools\Cook\Cooking.dll" />
+    <Reference Include="Import" HintPath="$(CgeEngineRoot)tools\ModelImport\Import.dll" />
+    <Reference Include="Core" HintPath="$(_CgeSdkLib)Core.dll" />
+    <Reference Include="Content" HintPath="$(_CgeSdkLib)Content.dll" />
+    <Reference Include="Rendering" HintPath="$(_CgeSdkLib)Rendering.dll" />
+    <ProjectReference Include="..\Numerics\Numerics.csproj" />
+    <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Navigation.Cook'">
+    <Compile Include="$(CgeEngineRoot)plugins\Navigation\Cook\*.cs" />
+    <Compile Include="$(CgeEngineRoot)plugins\Navigation\Runtime\NavMesh.cs;$(CgeEngineRoot)plugins\Navigation\Runtime\NavMesh.Query.cs;$(CgeEngineRoot)plugins\Navigation\Runtime\NavigationDefaults.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Destruction.Cook'">
+    <Compile Include="$(CgeEngineRoot)plugins\Destruction\Cook\*.cs" />
+    <Compile Include="$(CgeEngineRoot)plugins\Destruction\Runtime\DestructionDefaults.cs" />
+    <Compile Include="$(CgeEngineRoot)src\Runtime.Physics\PhysicsShapeAssets.cs;$(CgeEngineRoot)src\Runtime.Physics\PhysicsCooking.cs;$(CgeEngineRoot)src\Runtime.Physics\PrefractureCooking.cs;$(CgeEngineRoot)src\Runtime.Physics\PhysicsAabb.cs" />
+    <Using Include="CSharpGameEngine.Numerics" />
+  </ItemGroup>
+  <Import Project="$(CgeEngineRoot)build\CSharpGameEngine.NumericProfile.props" />
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Numerics' and '$(_CgeNumericVariant)' == 'true'">
+    <Compile Remove="$(CgeEngineRoot)src\Numerics\LogicalScalar.cs" />
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="$(CgeEngineRoot)build\CSharpGameEngine.NumericProfile.targets" />
+</Project>

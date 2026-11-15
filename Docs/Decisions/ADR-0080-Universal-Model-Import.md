@@ -46,7 +46,7 @@ Provisional IDs and milestone scope are listed in section 11 below; availability
 | C7 envelope 依存数、診断数、フレーム上限 | 採用 | §10.6 に追記した。診断は同一コードを集約して 256 件以内にする。サブアセット一覧は件数で切り詰め、全体は一時ファイル経由にする。依存数 65,535 を超える Model は中間 Model に分ける。 |
 | C8 `.gitignore` の否定パターン | 採用 | `.gitignore:59` が `**/Assets/Fab/` というディレクトリ除外であることを確認した。この形では `.meta` を再包含できない。`**/Assets/Fab/**`、`!**/Assets/Fab/**/`、`!**/Assets/Fab/**/*.meta` の 3 行に置き換える。 |
 | C9 `ToolRequired` モードは存在しない | 採用 | `FeatureStageMode` は `Headless` と `Visual` の 2 値だけで、`FeatureStageRunStatus.Blocked` は既にある。モードは `Headless` のままにし、Stage 属性 `RequiredTools` で判定して、ツールが無ければ `Blocked` を返す。 |
-| C10 `StableId.FromName` の署名 | 一部採用 | 引用された `src/CSharpGameEngine.Core/StableId.cs` はその場所に見つからず、署名は未検証。ただし第 1 引数が `StableId` なら文字列では呼べないので、名前空間用の定数 `StableId` を 1 つ定義する形に直す。実際のファイルと署名は実装時に確認する。 |
+| C10 `StableId.FromName` の署名 | 一部採用 | 引用された `src/Core/StableId.cs` はその場所に見つからず、署名は未検証。ただし第 1 引数が `StableId` なら文字列では呼べないので、名前空間用の定数 `StableId` を 1 つ定義する形に直す。実際のファイルと署名は実装時に確認する。 |
 | C11 AssimpNetter の CVE 修正の断定 | 採用 | 断定を外す。ネイティブの assimp の版を実行時に取得し、6.0.2 以上であることを契約テストで確かめる。 |
 | C12 bpy スクリプトの GPL とスナップショット | 採用 | `cge_blender_export.py` は GPL-2.0-or-later のヘッダーを付けた別ファイルとし、DLL には埋め込まずデータとして同梱する。THIRD_PARTY_NOTICES に記載する。`NoRawRedistribution`、UE-Only、不明のスナップショットは、doctor でコミットを拒否する。50 MB 超はテクスチャを分けるか、コミットしない運用にする。 |
 | F01 1 ファイル複数スキン(blocker) | 採用 | 既定は P07 で「スキン統合」を行う。各メッシュの JOINTS を骨格の和集合の番号に付け替え、IBM が 1e-4 以内で一致することを検証する。不一致は IMP エラーで、`skin.merge=error\|keep` で選ばせる。`keep` のときは、スキンごとにパレットを持つ実行時の拡張(`SkeletalMeshRuntime.Palettes[]`、`SkinOfMesh[]`)を M0116 で入れる。ChiralityRig に 2 スキンと VRoid 形式を足す。 |
@@ -89,7 +89,7 @@ Provisional IDs and milestone scope are listed in section 11 below; availability
 - **D1** 新しいプラグインの種類は作らない。importer は ADR-0079 の Cook モジュールに置く兄弟の契約で、動かすのは Cook.Cli のワーカーだけ。
 - **D2** IR と artifact の payload は分ける。
   - IR(名前空間 `CSharpGameEngine.Interchange`)は既存の `CSharpGameEngine.Cooking` に置く。
-  - 実行時の codec は `CSharpGameEngine.Content/Models` に置く。
+  - 実行時の codec は `Content/Models` に置く。
   - 新しい csproj は `src/` に作らない(ADR-0034)。
 - **D3** `IncrementalContentCompiler` は改造しない。取り込みはコンパイラの手前で行い、ソース 1 つをサブアセットごとのノードに展開する。
 - **D4** 正規化はエンジンが持つ。1 つの実装をワーカー内で動かし、オーケストレーターは最後の不変条件(P18)を再検証する。
@@ -168,24 +168,24 @@ Game.exe / EditorPreview.Host ─► RuntimeAssetStore + RuntimeAssetCodec<T>(Co
 
 | コンポーネント | 置き場所 | 層 | TFM | プロセス | 区分 |
 |---|---|---|---|---|---|
-| `SubAssetIdentity`、`AssetSelector`、`HumanoidBone`、`IImporterCatalog`、VSIX の DTO | `src/CSharpGameEngine.Contracts` | L2 | netstandard2.0 | 全て | 追加 |
-| `AssetAuthoringService`(カタログ注入) | `src/CSharpGameEngine.Content` | L6 | net10 | ContentCompiler serve | 変更(固定 switch を削除) |
-| `ConventionConversion<TS,TT>` | `src/CSharpGameEngine.Core/Spatial` | L1 | net10 | 全て | 追加。`GltfAxisConversion`/`FbxAxisConversion` は削除 |
-| IR、codec、検証器、契約、`ImportDiagnostic`、エンジンのパス、`PluginModuleLoadContext` | `src/CSharpGameEngine.Cooking` | L7 | net10 | ワーカー、オーケストレーター(codec と検証器のみ) | 変更 |
-| 組み込み reader と processor(glTF/VRM 土台、FBX/ufbx、OBJ/STL/PLY/BVH/3MF、Unity YAML、Godot `.tres`、Assimp 予備、TextureCook/Repack、MeshOptimize) | `src/CSharpGameEngine.Import`(Cook モジュール化) | L7 | net10 | ワーカー ALC | 変更 |
+| `SubAssetIdentity`、`AssetSelector`、`HumanoidBone`、`IImporterCatalog`、VSIX の DTO | `src/Contracts` | L2 | netstandard2.0 | 全て | 追加 |
+| `AssetAuthoringService`(カタログ注入) | `src/Content` | L6 | net10 | ContentCompiler serve | 変更(固定 switch を削除) |
+| `ConventionConversion<TS,TT>` | `src/Core/Spatial` | L1 | net10 | 全て | 追加。`GltfAxisConversion`/`FbxAxisConversion` は削除 |
+| IR、codec、検証器、契約、`ImportDiagnostic`、エンジンのパス、`PluginModuleLoadContext` | `src/Cooking` | L7 | net10 | ワーカー、オーケストレーター(codec と検証器のみ) | 変更 |
+| 組み込み reader と processor(glTF/VRM 土台、FBX/ufbx、OBJ/STL/PLY/BVH/3MF、Unity YAML、Godot `.tres`、Assimp 予備、TextureCook/Repack、MeshOptimize) | `src/Import`(Cook モジュール化) | L7 | net10 | ワーカー ALC | 変更 |
 | ネイティブ shim(ufbx を倍精度で、meshopt、Draco、basisu、必要なら libwebp) | `native/CSharpGameEngine.Import.Native`(CMake) | L7 | win-x64 | ワーカー | 追加 |
-| payload codec(Mesh/Model/Skeleton/AnimationClip/License)、kind 8〜12 | `src/CSharpGameEngine.Content/Models`、`ContentArtifact.cs` | L6 | net10 | ゲーム、Preview、オーケストレーター | 追加 |
+| payload codec(Mesh/Model/Skeleton/AnimationClip/License)、kind 8〜12 | `src/Content/Models`、`ContentArtifact.cs` | L6 | net10 | ゲーム、Preview、オーケストレーター | 追加 |
 | Material v2 | `Rendering/MaterialArtifacts.cs` | L4 | net10 | 同上 | 変更 |
-| ワーカー | `tools/CSharpGameEngine.Cook.Cli` | L7 | net10 | 別プロセス | 変更 |
-| オーケストレーター | `tools/CSharpGameEngine.ContentCompiler` | L7 | net10 | MSBuild、VSIX 常駐 | 変更。Import.Gltf.Cli、Import.Fbx.Cli、Import.AssetAuthoring.Cli を置換して削除 |
+| ワーカー | `tools/Cook.Cli` | L7 | net10 | 別プロセス | 変更 |
+| オーケストレーター | `tools/ContentCompiler` | L7 | net10 | MSBuild、VSIX 常駐 | 変更。Import.Gltf.Cli、Import.Fbx.Cli、Import.AssetAuthoring.Cli を置換して削除 |
 | VRM | `plugins/CSharpGameEngine.Vrm/{Cook,Runtime}` | L7/L5 | net10 / shproj | ワーカー、ゲーム | 追加 |
 | DCC ブリッジ | `plugins/CSharpGameEngine.DccBridges/Cook`(`Scripts/<tool>/`) | L7 | net10 | ワーカーから外部ツール | 追加 |
 | USD、CAD | `plugins/CSharpGameEngine.Usd/Cook`、`plugins/CSharpGameEngine.Cad/Cook`、`native/CSharpGameEngine.Occt.Convert` | L7 | net10 / C++ | 変換プロセス | 追加 |
 | 実行時 | `Runtime.Animation`、`Runtime.Windows`、`Runtime.Physics`、Rendering | L4/L5 | — | ゲーム | 変更 |
 | 生成器 | `CSharpGameEngine.CodeAnalysis` | L7 | netstandard2.0 | csc | 変更 |
-| SDK パッケージ(追加) | `packaging/CSharpGameEngine.Sdk` | — | — | NuGet | 変更。下記参照 |
+| SDK パッケージ(追加) | `packaging/Sdk` | — | — | NuGet | 変更。下記参照 |
 | MSBuild | `build/CSharpGameEngine.Content.targets`(新規)、`Game.props`、`Game.targets` | — | — | MSBuild | 追加と変更 |
-| VSIX | `tools/CSharpGameEngine.VSExtension` | L8 | net472 | devenv | 変更 |
+| VSIX | `tools/VSExtension` | L8 | net472 | devenv | 変更 |
 
 - **SDK パッケージ**(C3、F15)
   - Import を `lib/` から `tools/Cook/`(モジュールフォルダ。shim と `runtimes/win-x64/native` を含む)へ移す。
@@ -858,12 +858,12 @@ public static class ConventionConversion<TSource,TTarget> where TSource:struct,I
     - (b) batchmode のみ(全員に Unity ライセンスが要る)。
 
 ### Critical Files for Implementation
-- G:\GitHub\CSharpGameEngine\src\CSharpGameEngine.Cooking\AssetCooker.cs
-- G:\GitHub\CSharpGameEngine\tools\CSharpGameEngine.Cook.Cli\CookerHost.cs
-- G:\GitHub\CSharpGameEngine\tools\CSharpGameEngine.ContentCompiler\IncrementalContentCompiler.cs
-- G:\GitHub\CSharpGameEngine\src\CSharpGameEngine.Content\ContentArtifact.cs
-- G:\GitHub\CSharpGameEngine\src\CSharpGameEngine.Content\AssetAuthoringService.cs
-- G:\GitHub\CSharpGameEngine\plugins\CSharpGameEngine.Navigation\Navigation.plugin.items
-- G:\GitHub\CSharpGameEngine\packaging\CSharpGameEngine.Sdk\CSharpGameEngine.Sdk.csproj
-- G:\GitHub\CSharpGameEngine\src\CSharpGameEngine.Runtime.Windows\StageSceneDataBuilder.cs
-- G:\GitHub\CSharpGameEngine\src\CSharpGameEngine.Runtime.Animation\SkeletalAssetCache.cs
+- G:\GitHub\CSharpGameEngine\src\Cooking\AssetCooker.cs
+- G:\GitHub\CSharpGameEngine\tools\Cook.Cli\CookerHost.cs
+- G:\GitHub\CSharpGameEngine\tools\ContentCompiler\IncrementalContentCompiler.cs
+- G:\GitHub\CSharpGameEngine\src\Content\ContentArtifact.cs
+- G:\GitHub\CSharpGameEngine\src\Content\AssetAuthoringService.cs
+- G:\GitHub\CSharpGameEngine\plugins\Navigation\Navigation.plugin.items
+- G:\GitHub\CSharpGameEngine\packaging\Sdk\Sdk.csproj
+- G:\GitHub\CSharpGameEngine\src\Runtime.Windows\StageSceneDataBuilder.cs
+- G:\GitHub\CSharpGameEngine\src\Runtime.Animation\SkeletalAssetCache.cs

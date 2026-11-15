@@ -6,7 +6,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class VsixMenuPlacementTests {
     private static readonly XNamespace Vsct="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable";
     private const string CommandSet="guidOpenViewerCommandPackageCmdSet";
-    private static readonly string ProjectDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension");
+    private static readonly string ProjectDirectory=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension");
     private static XDocument Load(string Name)=>XDocument.Load(Path.Combine(ProjectDirectory,Name));
     private static XElement Parent(XElement Element)=>Assert.IsType<XElement>(Element.Element(Vsct+"Parent"));
     private static XElement ById(XDocument Document,string Kind,string Id)=>

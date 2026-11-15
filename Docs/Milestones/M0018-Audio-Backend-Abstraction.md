@@ -17,12 +17,12 @@
 
 ## 実装したこと
 
-### `src/CSharpGameEngine.Core/Audio/`(プラットフォーム非依存、L1 Core Kernel)
+### `src/Core/Audio/`(プラットフォーム非依存、L1 Core Kernel)
 - `IAudioBackend.cs`: 全メンバーが`static abstract`のバックエンド契約。
 - `AudioBackend.cs`: `Spatial<TConvention>`と同型のジェネリックFacade。
 - `ProceduralAudioClip.cs`: サイン波PCM生成(ファイルI/O・アセットパイプライン不要)。
 
-### `src/CSharpGameEngine.Windows/Audio/`(XAudio2、L4 Domain Servers)
+### `src/Windows/Audio/`(XAudio2、L4 Domain Servers)
 - `XAudio2EngineHandle.cs`/`XAudio2VoiceHandle.cs`: `nint`だけを持つ安全なハンドルstruct。
 - `XAudio2Backend.cs`: `IAudioBackend<XAudio2EngineHandle, XAudio2VoiceHandle>`実装。
   `TerraFX.Interop.DirectX`経由のXAudio2 COM呼び出し(追加パッケージ不要、既存
@@ -59,13 +59,13 @@ Audio関連L1エントリ)・F-L4-001(このプロジェクト初のL4 Domain Se
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj -c Debug
+dotnet build src/Core/Core.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.Core.Tests/... -c Debug
   → 119/119 成功(既存111件 + 新規8件)
 
-dotnet build src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj -c Debug
+dotnet build src/Windows/Windows.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.Windows.Tests/... -c Debug

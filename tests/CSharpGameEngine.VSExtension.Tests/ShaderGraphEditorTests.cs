@@ -116,7 +116,7 @@ public sealed class ShaderGraphEditorTests {
     }
     [Fact]
     public void Vsix_ContainsEditorFactoryAndLocalizedGraphTemplates() {
-        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         using var Archive=ZipFile.OpenRead(VsixPath);
         foreach(var Culture in new[]{"1033","1041"}) {
             Assert.NotNull(Archive.GetEntry($"ItemTemplates/CSharp/GameEngine/{Culture}/ShaderGraph/ShaderGraph.vstemplate"));
@@ -130,7 +130,7 @@ public sealed class ShaderGraphEditorTests {
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Depth.cgesubgraph"));
         Assert.Null(Archive.GetEntry("ShaderGraphTemplates/Model.cgeshadergraph"));
         Assert.Null(Archive.GetEntry("ShaderGraphTemplates/Triangle.cgeshadergraph"));
-        var PkgDef=Archive.GetEntry("CSharpGameEngine.VSExtension.pkgdef");
+        var PkgDef=Archive.GetEntry("VSExtension.pkgdef");
         Assert.NotNull(PkgDef);
         using var Reader=new StreamReader(PkgDef!.Open());
         var Text=Reader.ReadToEnd();

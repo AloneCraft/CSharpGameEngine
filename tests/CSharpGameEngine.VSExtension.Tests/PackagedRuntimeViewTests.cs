@@ -43,8 +43,8 @@ public sealed class PackagedRuntimeViewTests {
         var Game=typeof(PackagedRuntimeViewTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(static Attribute=>Attribute.Key=="CgeRuntimeViewGame").Value!;
         Assert.True(File.Exists(Game),Game);
         var Root=Path.Combine(Path.GetTempPath(),$"CgePackagedRuntimeView-{Guid.NewGuid():N}");Directory.CreateDirectory(Root);
-        ZipFile.ExtractToDirectory(Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix"),Root);
-        var HostPath=Path.Combine(Root,"PreviewHost","CSharpGameEngine.EditorPreview.Host.exe");var ShaderPath=Path.Combine(Root,"PreviewHost","Shaders","Stage.cgeshaderartifact");
+        ZipFile.ExtractToDirectory(Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix"),Root);
+        var HostPath=Path.Combine(Root,"PreviewHost","EditorPreview.Host.exe");var ShaderPath=Path.Combine(Root,"PreviewHost","Shaders","Stage.cgeshaderartifact");
         var Parent=IntPtr.Zero;
         try {
             Parent=CreateWindowEx(0,"STATIC",string.Empty,0,0,0,160,120,IntPtr.Zero,IntPtr.Zero,GetModuleHandle(null),IntPtr.Zero);Assert.NotEqual(IntPtr.Zero,Parent);

@@ -8,7 +8,7 @@ The ThirdPerson port has everything a user needs:
 - the character, camera and input (ADR-0067);
 - Quinn's animation (ADR-0066).
 
-It lives in the repository as an ordinary compilable project, `Templates/CSharpGameEngine.Templates.ThirdPerson`, whose namespace is `CgeThirdPerson`.
+It lives in the repository as an ordinary compilable project, `Templates/ThirdPerson`, whose namespace is `CgeThirdPerson`.
 
 The user decided (2026-09-30) on three points:
 - a Visual Studio New Project entry;
@@ -17,7 +17,7 @@ The user decided (2026-09-30) on three points:
 
 ## Decision
 1. **The template source stays the repository project.** It is built and tested there in SourceMode. Nothing is duplicated into a token-filled copy.
-2. **`GameProjectGenerator`** (`tools/CSharpGameEngine.ProjectTemplates`, linked into the VSIX and the Feature Runner) creates a game from the template source:
+2. **`GameProjectGenerator`** (`tools/ProjectTemplates`, linked into the VSIX and the Feature Runner) creates a game from the template source:
    - It copies the source except `bin/`, `obj/` and the template csproj.
    - It replaces `CgeThirdPerson` with the project's safe identifier (Visual Studio's `$safeprojectname$` rule; a C# reserved keyword such as `event` also gets a leading underscore, added 2026-10-04 because `namespace event.Gameplay;` does not parse).
    - It writes the PackageMode project file: TargetFramework, RuntimeIdentifier, RootNamespace and `PackageReference CSharpGameEngine.Sdk`.
@@ -59,7 +59,7 @@ The user decided (2026-09-30) on three points:
 
 ## Addendum (2026-10-22): more templates
 FirstPerson, TopDown and Vehicle ports (ADR-0077/M0101 stages 8 and 9) use the same mechanism, so the extension offers four project templates. Nothing about the mechanism changed:
-- each is a compilable project `Templates/CSharpGameEngine.Templates.<name>` with namespace `Cge<name>`, registered in `CSharpGameEngine.slnx`;
+- each is a compilable project `Templates/<name>` with namespace `Cge<name>`, registered in `CSharpGameEngine.slnx`;
 - each has `ProjectTemplates/CSharp/GameEngine/<name>` (`.vstemplate`, `.csproj.template`, `ReadMe.md`, icon) with its own name and description resources (IDs 138–143, English and Japanese), and its sources under `ProjectTemplateSources/<name>`;
 - `GameProjectGenerator` takes the template name and derives the namespace to replace and the level to open (`GeneratedProject_StartupSceneIsASceneOfTheProject` and `EveryOfferedTemplate_HasAVsTemplateWithItsOwnResourceStrings` cover all four).
 The Stage `vsix.project-template` still builds and plays only "My ThirdPerson"; the other three are built and played in place by `verify-thirdperson-character --template <name>`.

@@ -8,7 +8,7 @@ This closes both sides of the Component boundary: 1 and 64 emit one enable-mask 
 
 ## Source of truth and ownership
 
-- `tools/CSharpGameEngine.Ecs.Benchmarks` is the isolated raw producer. The `EcsComponentCount` MSBuild property accepts only 1, 64, 65, or 128 and places persisted generator output under a count-qualified `obj/<configuration>/net10.0/generated` directory.
+- `tools/Ecs.Benchmarks` is the isolated raw producer. The `EcsComponentCount` MSBuild property accepts only 1, 64, 65, or 128 and places persisted generator output under a count-qualified `obj/<configuration>/net10.0/generated` directory.
 - The generated `World`, archetype storage, and `GeneratedGameLoop` are the measured implementation. Setup creates one full-shape archetype with 100,000 entities; measured work writes the highest-index Component.
 - Raw reports are canonical newline-terminated JSON and are published by same-directory temporary-file move. They record configuration, runtime mode, boundary, query, entity and worker counts, mask shape, generated-source SHA-256, deterministic state SHA-256, and every timing/allocation sample.
 - `EcsPerformanceProbe` is the independent validator. It recomputes the known final state hash, reopens and rehashes the persisted generated source, reinspects its high-word shape, and then publishes common machine/Git/SHA-bound performance reports.

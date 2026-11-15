@@ -58,7 +58,7 @@ public sealed class TemplateExportMaterialTests {
     [Fact]
     public void EveryTemplateGlbWithMeshesKeepsItsMaterials(){
         var Root=RepositoryRoot();
-        var Files=Directory.EnumerateDirectories(System.IO.Path.Combine(Root,"Templates"),"CSharpGameEngine.Templates.*")
+        var Files=Directory.EnumerateDirectories(System.IO.Path.Combine(Root,"Templates"),"*")
             .SelectMany(static Template=>Directory.EnumerateFiles(System.IO.Path.Combine(Template,"Assets"),"*.glb",SearchOption.AllDirectories))
             .ToArray();
         Assert.NotEmpty(Files);

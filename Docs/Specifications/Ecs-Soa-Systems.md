@@ -34,7 +34,7 @@ internal struct MovementSystem : ISystem
 ```
 
 実行可能な実例は`UserEcsProject/`(`GameplayComponents.cs`・`Showcase/ShowcaseSystems.cs`、エントリポイントもSGが生成する)と
-ThirdPersonテンプレート(`Templates/CSharpGameEngine.Templates.ThirdPerson/`)を参照。
+ThirdPersonテンプレート(`Templates/ThirdPerson/`)を参照。
 
 ## 推論規則
 
@@ -254,8 +254,8 @@ partial型はアセンブリ境界をまたげないため、`CSharpGameEngine.E
 できない。消費側は**ソースとして取り込む**:
 
 ```xml
-<Compile Include="..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
-<ProjectReference Include="..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj"
+<Compile Include="..\src\Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+<ProjectReference Include="..\src\CodeAnalysis\CodeAnalysis.csproj"
                   OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 ```
 
@@ -337,7 +337,7 @@ When `Transform` and `SpatialBounds` share an Archetype, generated code scans th
 
 ## Windows Runtime source boundary
 
-The generated ECS compilation imports `CSharpGameEngine.Runtime.Windows.projitems`. Runtime companion components remain in the generated archetype surface, while their implementation source is shared and precision-selected with the user compilation.
+The generated ECS compilation imports `Runtime.Windows.projitems`. Runtime companion components remain in the generated archetype surface, while their implementation source is shared and precision-selected with the user compilation.
 
 ## System-major phase scheduling
 

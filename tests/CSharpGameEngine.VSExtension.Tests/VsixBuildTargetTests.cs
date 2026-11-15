@@ -8,7 +8,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class VsixBuildTargetTests {
     [Fact]
     public void ProjectTargetsThatFailTheBuild_NeverRunInDesignTimeBuilds(){
-        XDocument Project=XDocument.Load(Path.Combine(RepositoryRoot(),"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension.csproj"));
+        XDocument Project=XDocument.Load(Path.Combine(RepositoryRoot(),"tools","VSExtension","VSExtension.csproj"));
         var Failing=Project.Descendants("Target")
             .Where(static Target=>Target.Descendants("Error").Any())
             .ToList();

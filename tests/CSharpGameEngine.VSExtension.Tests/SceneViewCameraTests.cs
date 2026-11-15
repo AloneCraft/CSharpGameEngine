@@ -163,7 +163,7 @@ public sealed class SceneViewCameraTests {
     /// 基底は左手系(<c>GetFlatForward=(sinY,0,cosY)</c>、ADR-0025のUnity規約)なのに行列は右手系
     /// (<c>Matrix4x4.CreateLookAt</c>は<c>xaxis=Cross(Up,normalize(Eye-Target))=-GetFlatRight</c>を作る)
     /// という食い違いがあるため。2026-08にこれを「バグ」と判断して左手系へ組み替えたが、
-    /// <b>ゲーム本体も同じ右手系</b>(<c>src/CSharpGameEngine.Rendering/View/RenderCamera.cs</c>の
+    /// <b>ゲーム本体も同じ右手系</b>(<c>src/Rendering/View/RenderCamera.cs</c>の
     /// <c>BuildViewMatrix</c>/<c>BuildProjection</c>、<c>StageRenderer</c>)なので、
     /// シーンデザイナーだけがゲームと左右反転してしまい差し戻した。シーンデザイナーはゲームの見た目を
     /// 再現するものなので、ゲームとの一致が判断基準になる。

@@ -94,7 +94,7 @@ public sealed class AssetSkeletalModelTests {
     }
     [Fact]
     public void Probe_ClassifiesTheTemplateMannequinAndItsAnimation(){
-        var Mannequins=System.IO.Path.Combine(RepositoryRoot(),"Templates","CSharpGameEngine.Templates.FirstPerson","Assets","Characters","Mannequins");
+        var Mannequins=System.IO.Path.Combine(RepositoryRoot(),"Templates","FirstPerson","Assets","Characters","Mannequins");
         var Mesh=GltfSkeletalProbe.Probe(System.IO.Path.Combine(Mannequins,"SKM_Manny_Simple.glb"))!;
         Assert.True(Mesh.IsSkeletalMesh);
         var Idle=GltfSkeletalProbe.Probe(System.IO.Path.Combine(Mannequins,"Anims","MM_Idle.glb"))!;

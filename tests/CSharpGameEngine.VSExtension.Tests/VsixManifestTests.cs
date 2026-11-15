@@ -44,7 +44,7 @@ public sealed class VsixManifestTests {
         Assert.True(File.Exists(Path.Combine(VsixBuildIdentity.RepoRoot,RepoLocator.RepoMarkerFileName)));
         Assert.Equal(VsixBuildIdentity.RepoRoot,RepoLocator.ResolveRepoRoot());
         Assert.True(DateTimeOffset.TryParse(VsixBuildIdentity.BuildUtc,out _));
-        Assert.EndsWith("CSharpGameEngine.VSExtension.dll",VsixBuildIdentity.BuildOutputPath,StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("VSExtension.dll",VsixBuildIdentity.BuildOutputPath,StringComparison.OrdinalIgnoreCase);
         Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.RepoRoot);
         Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.Version);
         Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.BuildUtc);
@@ -67,7 +67,7 @@ public sealed class VsixManifestTests {
     }
     [Fact]
     public void VsixProject_ForcesIdentityRefreshDuringIncrementalBuild(){
-        string ProjectPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension.csproj");
+        string ProjectPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension","VSExtension.csproj");
         string Project=File.ReadAllText(ProjectPath);
         Assert.Contains("<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>",Project);
         Assert.Contains("BeforeTargets=\"CoreCompile\"",Project);
@@ -78,20 +78,20 @@ public sealed class VsixManifestTests {
     public void VsixProject_UsesPreviewHostBoundaryWithoutNativeRendererPackages(){
         string ProjectRoot=VsixBuildIdentity.RepoRoot;
         string ProjectPath=Path.Combine(
-            ProjectRoot,"tools","CSharpGameEngine.VSExtension",
-            "CSharpGameEngine.VSExtension.csproj");
+            ProjectRoot,"tools","VSExtension",
+            "VSExtension.csproj");
         string Project=File.ReadAllText(ProjectPath);
 
-        Assert.Contains("CSharpGameEngine.Contracts.csproj",Project);
+        Assert.Contains("Contracts.csproj",Project);
         Assert.Contains("PackageReference Include=\"PolySharp\"",Project);
         Assert.Contains("PackageReference Include=\"Microsoft.Bcl.HashCode\"",Project);
         Assert.DoesNotContain("PackageReference Include=\"Vortice.",Project);
         Assert.False(File.Exists(Path.Combine(
-            ProjectRoot,"tools","CSharpGameEngine.VSExtension","SceneRenderer.cs")));
+            ProjectRoot,"tools","VSExtension","SceneRenderer.cs")));
         Assert.False(File.Exists(Path.Combine(
-            ProjectRoot,"tools","CSharpGameEngine.VSExtension","VorticeRenderer.cs")));
+            ProjectRoot,"tools","VSExtension","VorticeRenderer.cs")));
         Assert.False(File.Exists(Path.Combine(
-            ProjectRoot,"tools","CSharpGameEngine.VSExtension","NativeEvent.cs")));
+            ProjectRoot,"tools","VSExtension","NativeEvent.cs")));
     }
 
     private static string GameProjectGeneratorStartup(string Template)=>CSharpGameEngine.ProjectTemplates.GameProjectGenerator.StartupSceneOf(Template);
@@ -99,24 +99,24 @@ public sealed class VsixManifestTests {
     [Fact]
     public void VsixPackage_ContainsPreviewContractsWithoutNativeRendererAssemblies(){
         string VsixPath=Path.Combine(
-            AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+            AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         using ZipArchive Archive=ZipFile.OpenRead(VsixPath);
         string[]Entries=Archive.Entries.Select(static Entry=>Entry.FullName).ToArray();
 
-        Assert.Contains("CSharpGameEngine.Contracts.dll",Entries);
+        Assert.Contains("Contracts.dll",Entries);
         Assert.Contains("Microsoft.Bcl.HashCode.dll",Entries);
-        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.exe",Entries);
-        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.dll",Entries);
-        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.deps.json",Entries);
-        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.runtimeconfig.json",Entries);
+        Assert.Contains("PreviewHost/EditorPreview.Host.exe",Entries);
+        Assert.Contains("PreviewHost/EditorPreview.Host.dll",Entries);
+        Assert.Contains("PreviewHost/EditorPreview.Host.deps.json",Entries);
+        Assert.Contains("PreviewHost/EditorPreview.Host.runtimeconfig.json",Entries);
         Assert.Contains("PreviewHost/Shaders/Stage.cgeshaderartifact",Entries);
         // ADR-0065/0068：ブリッジ、エンジン SDK パッケージ、ThirdPerson テンプレートがあるため、VSIX はリポジトリ外でも動作する。
-        foreach(var Bridge in new[]{"CSharpGameEngine.Import.Gltf.Cli","CSharpGameEngine.Import.Fbx.Cli","CSharpGameEngine.Import.AssetAuthoring.Cli","CSharpGameEngine.Primitive.Cli","CSharpGameEngine.ShaderGraph.Cli"}){
+        foreach(var Bridge in new[]{"Import.Gltf.Cli","Import.Fbx.Cli","Import.AssetAuthoring.Cli","Primitive.Cli","ShaderGraph.Cli"}){
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.exe",Entries);
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.runtimeconfig.json",Entries);
         }
-        foreach(var File in new[]{"CSharpGameEngine.Cook.Cli.dll","CSharpGameEngine.Cook.Cli.deps.json","CSharpGameEngine.Cook.Cli.runtimeconfig.json"}){
-            Assert.Contains("Bridges/CSharpGameEngine.Import.AssetAuthoring.Cli/Cook/"+File,Entries);
+        foreach(var File in new[]{"Cook.Cli.dll","Cook.Cli.deps.json","Cook.Cli.runtimeconfig.json"}){
+            Assert.Contains("Bridges/Import.AssetAuthoring.Cli/Cook/"+File,Entries);
         }
         var SdkPath=Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
         using(var Input=Archive.GetEntry(SdkPath)!.Open()){
@@ -124,8 +124,8 @@ public sealed class VsixManifestTests {
             using var Sdk=new ZipArchive(Bytes,ZipArchiveMode.Read);
             var SdkEntries=Sdk.Entries.Select(static Entry=>Entry.FullName.Replace('\\','/')).ToArray();
             Assert.DoesNotContain(SdkEntries,static Entry=>Entry.StartsWith("lib/",StringComparison.Ordinal)&&
-                (Path.GetFileName(Entry).StartsWith("CSharpGameEngine.Cook",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("CSharpGameEngine.Import",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("Microsoft.CodeAnalysis",StringComparison.Ordinal)));
-            Assert.Contains("tools/Cook/CSharpGameEngine.Cooking.dll",SdkEntries);Assert.Contains("tools/ModelImport/CSharpGameEngine.Import.dll",SdkEntries);
+                (Path.GetFileName(Entry).StartsWith("Cook",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("Import",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("Microsoft.CodeAnalysis",StringComparison.Ordinal)));
+            Assert.Contains("tools/Cook/Cooking.dll",SdkEntries);Assert.Contains("tools/ModelImport/Import.dll",SdkEntries);
         }
         foreach(var Template in new[]{"ThirdPerson","FirstPerson","TopDown","Vehicle"}){
             Assert.Contains($"ProjectTemplates/CSharp/GameEngine/1033/{Template}/{Template}.vstemplate",Entries);
@@ -152,9 +152,9 @@ public sealed class VsixManifestTests {
         // vstemplates は IWizard を単純なアセンブリ名で指定する。Visual Studio がそれを解決できるのは、パッケージの
         // BindingPaths 経由だけである。これがないと、プロジェクト作成時に
         // Third Person テンプレートで「tried to load component assembly」が発生する。
-        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","VSExtension.vsix");
         using var Archive=ZipFile.OpenRead(VsixPath);
-        var Entry=Archive.GetEntry("CSharpGameEngine.VSExtension.pkgdef");
+        var Entry=Archive.GetEntry("VSExtension.pkgdef");
         Assert.NotNull(Entry);
         using var Reader=new StreamReader(Entry!.Open());
         var Pkgdef=Reader.ReadToEnd();

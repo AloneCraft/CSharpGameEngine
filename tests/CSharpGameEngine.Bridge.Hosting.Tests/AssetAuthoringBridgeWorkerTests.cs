@@ -15,7 +15,7 @@ public class AssetAuthoringBridgeWorkerTests {
 #else
         const string Configuration="Release";
 #endif
-        var Worker=Path.Combine(Repository.FullName,"tools","CSharpGameEngine.Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","CSharpGameEngine.Import.AssetAuthoring.Cli.dll");
+        var Worker=Path.Combine(Repository.FullName,"tools","Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","Import.AssetAuthoring.Cli.dll");
         var Source=Path.Combine(Directory.Path,"Assets","Box.glb");System.IO.Directory.CreateDirectory(Path.GetDirectoryName(Source)!);File.Copy(Path.Combine(Repository.FullName,"assets","TestFixtures","Gltf","BoxTextured.glb"),Source);
         var RequestPath=Path.Combine(Directory.Path,"request.json");var ResultPath=Path.Combine(Directory.Path,"result.json");
         var Request=new AssetModelRequest {ModelCommand=4,RequestId=Guid.NewGuid(),Root=Directory.Path,SourcePath=Source,PreviewSourcePaths=[Source]};File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request));

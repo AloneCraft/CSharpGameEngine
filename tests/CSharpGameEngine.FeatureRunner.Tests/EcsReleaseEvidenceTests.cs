@@ -30,7 +30,7 @@ public sealed class EcsReleaseEvidenceTests:IDisposable {
             EcsReleaseEvidence.RequiredRepositoryInputPaths.Count(),
             Report.Inputs.Count);
         Directory.Delete(Path.Combine(
-            this.Root,"tools","CSharpGameEngine.Ecs.Benchmarks","obj"),true);
+            this.Root,"tools","Ecs.Benchmarks","obj"),true);
         Assert.Empty(await EcsReleaseEvidence.ValidateAsync(
             this.Root,ReportPath));
     }
@@ -162,7 +162,7 @@ public sealed class EcsReleaseEvidenceTests:IDisposable {
     private void CreateGeneratedSources(){
         foreach(int Count in new[]{1,64,65,128}){
             string DirectoryPath=Path.Combine(
-                this.Root,"tools","CSharpGameEngine.Ecs.Benchmarks",
+                this.Root,"tools","Ecs.Benchmarks",
                 "obj","Debug","net10.0","generated",
                 $"ecs-{Count}","fixture");
             Directory.CreateDirectory(DirectoryPath);

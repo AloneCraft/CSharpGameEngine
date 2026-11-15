@@ -141,8 +141,8 @@ ADR-0014は「2つ目のGeneratorが追加された時点で再検討する」�
 - `dotnet test CSharpGameEngine.slnx`: 全125件成功(内訳: 既存91件 + 新規`CSharpGameEngine.Ecs.Tests`
   17件 + `CSharpGameEngine.CodeAnalysis.Tests`への新規追加17件、同プロジェクトの既存3件と合わせて
   20件)。既存テストに回帰は無かった。
-- `dotnet pack src/CSharpGameEngine.CodeAnalysis -c Release`: 成功。`unzip -l`で`.nupkg`内容を
-  確認し、`analyzers/dotnet/cs/CSharpGameEngine.CodeAnalysis.dll`のみが含まれることを確認済み
+- `dotnet pack src/CodeAnalysis -c Release`: 成功。`unzip -l`で`.nupkg`内容を
+  確認し、`analyzers/dotnet/cs/CodeAnalysis.dll`のみが含まれることを確認済み
   (ADR-0014のNU5128抑制方針を継続)。
 - `dotnet build UserGameProject/UserGameProject.csproj`: 成功。`EmitCompilerGeneratedFiles=true`で
   実際に生成された`MyGame.Archetypes.Player.g.cs`等4ファイルを目視確認し、`Player`の
