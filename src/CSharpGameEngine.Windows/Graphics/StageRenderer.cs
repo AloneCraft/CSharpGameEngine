@@ -2340,9 +2340,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteEnvironmentDescriptors();
         }
         var Source=this.FrameSlot(this.FrameIndex);
-        if(!RadialDepthProjection.TryCreate(RadialDepthCurve.Default,StageGlobalIllumination.CaptureNearMeters,StageGlobalIllumination.CaptureFarMeters,MathF.PI/2f,1f,out var CaptureProjection)){
-            throw new InvalidOperationException("Invalid probe capture projection.");
-        }
+        var CaptureDepth=StageShadowPlanner.ProbeCaptureDepth(StageGlobalIllumination.CaptureNearMeters,StageGlobalIllumination.CaptureFarMeters);
         GlobalIllumination.BeginCapture(this.CommandList);
         this.BindMainPassState(this.PipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2368,7 +2366,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 ((int*)(Destination+FrameLightCountsOffset))[0]=0;
                 ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
                 *(Vector4*)(Destination+FrameLumenParamsOffset)=Vector4.Zero;
-                var CaptureDepth=RenderViewDepth.ForPerspective(CaptureProjection,ConservativeRasterDepth:false);
                 *(Vector4*)(Destination+FrameDepthEncoding0Offset)=CaptureDepth.Packet0;
                 *(Vector4*)(Destination+FrameDepthEncoding1Offset)=CaptureDepth.Packet1;
                 var Rtv=GlobalIllumination.CaptureRtv(Capture);
@@ -2944,7 +2941,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         for(int LocalIndex=0;LocalIndex<this.SelectedLocalLightSubmissions.Count;LocalIndex++){
             LocalLightSubmission Submission=this.SelectedLocalLightSubmissions[LocalIndex];
             bool IsValidCaster=Submission.Type switch {
-                LocalLightType.Point=>TryValidatePointShadowProjection(Submission),
+                LocalLightType.Point=>StageShadowPlanner.IsValidPointCaster(Submission.Position,Submission.Range),
                 LocalLightType.Spot=>TryBuildSpotShadowViewProjection(Submission,out _),
                 LocalLightType.Area=>TryBuildAreaShadowViewProjection(Submission,out _),
                 _=>false,
@@ -2981,7 +2978,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     continue;
                 }
 
-                if(!TryBuildPointShadowViewProjections(Submission,PointFaceViewProjections)){
+                if(!StageShadowPlanner.TryBuildPointFaceViewProjections(Submission.Position,Submission.Range,PointFaceViewProjections)){
                     continue;
                 }
 
@@ -3187,122 +3184,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             &ViewProjection,(uint)sizeof(Matrix4x4));
     }
 
-    private static bool TryBuildSpotShadowViewProjection(
-        in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
-        ShadowViewProjection=Matrix4x4.Identity;
-        if(!IsFinite(Submission.Position)||!IsFinite(Submission.Direction)
-            ||!float.IsFinite(Submission.Range)||Submission.Range<=0f
-            ||!float.IsFinite(Submission.OuterConeCos)){
+    private static bool TryBuildSpotShadowViewProjection(in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection)=>
+        StageShadowPlanner.TryBuildSpotViewProjection(Submission.Position,Submission.Direction,Submission.Range,Submission.OuterConeCos,out ShadowViewProjection);
+    /// <summary>面光源（矩形と発光面）だけが、面光源のアトラスの投影を持つ。</summary>
+    private static bool TryBuildAreaShadowViewProjection(in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
+        if(Submission.Type!=LocalLightType.Area){
+            ShadowViewProjection=Matrix4x4.Identity;
             return false;
         }
-
-        float DirectionLengthSquared=Submission.Direction.LengthSquared();
-        if(DirectionLengthSquared<1e-8f||!float.IsFinite(DirectionLengthSquared)){
-            return false;
-        }
-
-        Vector3 Direction=Vector3.Normalize(Submission.Direction);
-        Vector3 Up=MathF.Abs(Vector3.Dot(Direction,Vector3.UnitY))>0.99f
-            ?Vector3.UnitX:Vector3.UnitY;
-        float OuterHalfAngleRadians=MathF.Acos(Math.Clamp(Submission.OuterConeCos,-1f,1f));
-        float FieldOfView=Math.Clamp(OuterHalfAngleRadians*2f,0.01f,MathF.PI-0.01f);
-        float NearZ=Math.Clamp(Submission.Range*0.005f,0.01f,0.1f);
-        float FarZ=MathF.Max(Submission.Range,NearZ+0.01f);
-        Matrix4x4 View=Matrix4x4.CreateLookAt(
-            Submission.Position,Submission.Position+Direction,Up);
-        ShadowViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(FieldOfView,1f,NearZ,FarZ);
-        return true;
-    }
-
-    /// <summary>
-    /// Area／Emissive矩形光源のアトラスタイルに使う、安全な中心投影を構築する。
-    /// 直接照明では光源を矩形のまま扱う。後段のPCSS参照用に、光源法線を中心とする保守的な単一タイルの透視ビューを作る。
-    /// </summary>
-    private static bool TryBuildAreaShadowViewProjection(
-        in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
-        ShadowViewProjection=Matrix4x4.Identity;
-        if(Submission.Type!=LocalLightType.Area
-            ||!IsFinite(Submission.Position)||!IsFinite(Submission.Direction)||!IsFinite(Submission.Up)
-            ||!float.IsFinite(Submission.Range)||Submission.Range<=0f
-            ||!float.IsFinite(Submission.HalfWidth)||Submission.HalfWidth<=0f
-            ||!float.IsFinite(Submission.HalfHeight)||Submission.HalfHeight<=0f){
-            return false;
-        }
-        if(!TryNormalize(Submission.Direction,out Vector3 Direction)
-            ||!TryNormalize(Submission.Up,out Vector3 Up)){
-            return false;
-        }
-        float DirectionUpDot=MathF.Abs(Vector3.Dot(Direction,Up));
-        if(!float.IsFinite(DirectionUpDot)||DirectionUpDot>=0.999f){
-            return false;
-        }
-
-        float NearZ=Math.Clamp(Submission.Range*0.005f,0.01f,0.1f);
-        float FarZ=MathF.Max(Submission.Range,NearZ+0.01f);
-        Matrix4x4 View=Matrix4x4.CreateLookAt(
-            Submission.Position,Submission.Position+Direction,Up);
-        ShadowViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(
-            MathF.PI/2f,1f,NearZ,FarZ);
-        return true;
-    }
-
-    private static bool TryValidatePointShadowProjection(in LocalLightSubmission Submission)=>
-        IsFinite(Submission.Position)&&float.IsFinite(Submission.Range)&&Submission.Range>0f;
-
-    /// <summary>
-    /// アトラス面の順序+X、-X、+Y、-Y、+Z、-Zに合わせて、ポイントライト用の90度ビューを行ベクトル形式で6つ作る。
-    /// HLSLの面選択処理もこの順序を使う。
-    /// </summary>
-    private static bool TryBuildPointShadowViewProjections(
-        in LocalLightSubmission Submission,Span<Matrix4x4> FaceViewProjections){
-        if(FaceViewProjections.Length<MaxPointShadowProjections
-            ||!TryValidatePointShadowProjection(Submission)){
-            return false;
-        }
-
-        float NearZ=Math.Clamp(Submission.Range*0.005f,0.01f,0.1f);
-        float FarZ=MathF.Max(Submission.Range,NearZ+0.01f);
-        Matrix4x4 Projection=Matrix4x4.CreatePerspectiveFieldOfView(
-            MathF.PI/2f,1f,NearZ,FarZ);
-        for(int FaceIndex=0;FaceIndex<MaxPointShadowProjections;FaceIndex++){
-            GetPointShadowFaceBasis(FaceIndex,out Vector3 Direction,out Vector3 Up);
-            Matrix4x4 View=Matrix4x4.CreateLookAt(
-                Submission.Position,Submission.Position+Direction,Up);
-            FaceViewProjections[FaceIndex]=View*Projection;
-        }
-        return true;
-    }
-
-    private static void GetPointShadowFaceBasis(
-        int FaceIndex,out Vector3 Direction,out Vector3 Up){
-        switch(FaceIndex){
-            case 0:
-                Direction=Vector3.UnitX;
-                Up=Vector3.UnitY;
-                return;
-            case 1:
-                Direction=-Vector3.UnitX;
-                Up=Vector3.UnitY;
-                return;
-            case 2:
-                Direction=Vector3.UnitY;
-                Up=-Vector3.UnitZ;
-                return;
-            case 3:
-                Direction=-Vector3.UnitY;
-                Up=Vector3.UnitZ;
-                return;
-            case 4:
-                Direction=Vector3.UnitZ;
-                Up=Vector3.UnitY;
-                return;
-            case 5:
-                Direction=-Vector3.UnitZ;
-                Up=Vector3.UnitY;
-                return;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(FaceIndex));
-        }
+        return StageShadowPlanner.TryBuildAreaViewProjection(Submission.Position,Submission.Direction,Submission.Up,Submission.Range,Submission.HalfWidth,Submission.HalfHeight,out ShadowViewProjection);
     }
 
     private void AddForwardPlusTileCandidate(uint FrameIndex,int TileX,int TileY,int LocalLightIndex){

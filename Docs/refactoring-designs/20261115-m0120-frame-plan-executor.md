@@ -225,3 +225,9 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 - 方向光の影の選び方 `PhysicalLightBudget` はもともと L4 にあるので、移すものは無かった(呼び出しの位置は単位 5 で移す)。
 - 試験: `StageLightPlannerTests` 8 件(並べる順、深度の 2 乗で弱まる寄与、有限でない値、画面の中・外、カメラの後ろへ回る光、画面いっぱいの光)。Rendering.Tests 214 件合格。
 - 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`F:\CodexTemp\cge-m0120\unit2`)。描画の試験 204 件中 202 件合格・2 件対象外・失敗 0。光の試験(`TypedLightFrameTests`・`RenderPreviewLightingSessionTests`・`AmbientLightSyncTests`)22 件合格。
+
+### 単位 3: 影の計画を L4 へ(2026-11-15)
+- L4 に `StageShadowPlanner` を置いた。スポットライトと面光源の影のアトラスへの投影、点光源の 6 面の投影と面の向き、点光源が影を落とせるかの判定、GI のプローブを撮るときの対数深度の符号化を、L0 から式を変えずに移した。点光源の面の数 6 はアトラスの割り当て(`PhysicalShadowAtlasPlan.PointTilesPerLight`)と一致することを試験で固定した。
+- 方向光のカスケード(`DirectionalShadowCascades`)とアトラスの割り当て(`PhysicalShadowAtlasPlan`)はもともと L4 にあるので、移すものは無かった。L0 の `RadialDepthProjection.TryCreate` の呼び出しは消えた。
+- 試験: `StageShadowPlannerTests` 4 件。Rendering.Tests 218 件合格。
+- 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit3`)。描画と光の試験 226 件中 224 件合格・2 件対象外・失敗 0。
