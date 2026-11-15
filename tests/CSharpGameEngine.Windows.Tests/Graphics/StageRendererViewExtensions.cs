@@ -1,5 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 using CSharpGameEngine.Rendering.View;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
@@ -16,6 +17,12 @@ internal static class StageRendererViewExtensions {
     /// <summary>正射影の行列のビュー。</summary>
     public static void SetViewProjection(this StageRenderer Renderer,in Matrix4x4 ViewProjection,in Vector3 CameraPosition)=>
         Renderer.SetView(RenderViewPolicy.FromOrthographic(ViewProjection,CameraPosition));
+    /// <summary>
+    /// 1 フレームを描く。M0120 単位 5a で L0 の <c>RenderFrame</c> を L4 の計画の実行（<see cref="StageRenderer.Execute"/>）に置き換えたため、
+    /// RenderServer と同じく、描画面の今の状態から計画を作って実行する。
+    /// </summary>
+    public static void RenderFrame(this StageRenderer Renderer,bool CaptureForVerification=false)=>
+        Renderer.Execute(StagePipelinePlanner.Build(new StagePipelinePlanKey(Renderer.FrameInputs,CaptureForVerification)));
     /// <summary>対数深度で描く透視の行列のビュー。描画面全体の縦横比で解決する。</summary>
     public static void SetViewProjection(this StageRenderer Renderer,in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
         var (Width,Height)=Renderer.SurfaceSize;

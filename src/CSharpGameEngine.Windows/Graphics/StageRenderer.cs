@@ -2398,7 +2398,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     /// <summary>
     /// 平坦なアンビエント項（空／間接照明の代用）を設定する。変更するまで保持する。
-    /// <see cref="RenderFrame"/>はDirectionalライトや露出と同様、記録対象のフレームスロットへ書き込むため、一度設定すればスロット間で値が交互に変わらない。
+    /// <see cref="Execute"/>はDirectionalライトや露出と同様、記録対象のフレームスロットへ書き込むため、一度設定すればスロット間で値が交互に変わらない。
     /// </summary>
     public void SetAmbientLight(Vector3 Color){
         this.ThrowIfDisposed();
@@ -2415,7 +2415,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     /// <summary>
     /// 構築中のフレームにポイントライト（全方向へ均等に放射し、距離に応じて減衰して<paramref name="Range"/>で0になる滑らかな減衰）を1つ追加する。
-    /// 以前の固定ポイントライト定数バッファAPIとソース互換である。<see cref="RenderFrame"/>まで送信を遅延し、その時点でポイント／スポットライトを
+    /// 以前の固定ポイントライト定数バッファAPIとソース互換である。<see cref="Execute"/>まで送信を遅延し、その時点でポイント／スポットライトを
     /// 1024エントリのStructuredBufferと決定的なForward+順位付けでまとめて処理する。
     /// </summary>
     public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
@@ -3683,7 +3683,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return this.Skinning!.ReadSkinnedVerticesForTesting(MeshIndex);
     }
 
-    public void RenderFrame(bool CaptureForVerification=false){
+    /// <summary>計画を決める、この描画面の今の状態（表示モード、選択、影の比較、物理空、自動露出）。</summary>
+    public StageFrameInputs FrameInputs=>new(this.PresentationMode,this.SelectedObjectCount>0,this.ShadowSettings.Compare,
+        this.EnvironmentSettings.Atmosphere is not null,this.AutoExposureActive);
+    /// <summary>1 フレームの記録の途中で、パスの間で受け渡す値。</summary>
+    private struct FrameRecording {
+        public ID3D12PipelineState*MainPipeline;
+        public float AutoExposureDeltaSeconds;
+        public bool RanComputeAfterMainPass;
+    }
+    /// <summary>
+    /// L4 の計画のパスを順に記録して、表示する（ADR-0087 §1-3）。パスの順と主パスの PSO は計画が決め、ここは D3D12 の命令を出すだけ。
+    /// 検証用の読み戻しは計画の <see cref="StagePipelinePlanKey.Capture"/> で決まる。
+    /// </summary>
+    public void Execute(StagePipelinePlan Plan){
+        ArgumentNullException.ThrowIfNull(Plan);
         this.ThrowIfDisposed();
         // 削除済みデバイスへ処理（特にタイムスタンプクエリ）を記録しないこと。そうしないとWARPが、旧世代のリソース解放後に
         // その処理を実行する可能性がある。
@@ -3692,171 +3706,38 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.SizeIsZero){
             return;
         }
-
-        var Radial=this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic;
-        ID3D12PipelineState*ActivePipelineState=this.PresentationMode==RenderPresentationMode.Wireframe
-            ?this.WireframePipelineState
-            :this.PresentationMode!=RenderPresentationMode.Lit||this.SelectedObjectCount>0?this.PresentationPipelineState:this.PipelineState;
+        var CaptureForVerification=Plan.Key.Capture;
+        FrameRecording Recording=new(){ MainPipeline=this.ResolvePipelineState(Plan.MainPipeline) };
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
-        D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,ActivePipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
-        if(this.Skinning is{ HasMeshes:true }){
-            this.Skinning.Record(this.CommandList,this.FrameIndex);
-            this.CommandList->SetPipelineState(ActivePipelineState);
-        }
-        this.LumenActiveThisFrame=this.LumenWanted;
-        if(!this.LumenActiveThisFrame){
-            this.Lumen!.InvalidateHistory();
-        }
-        this.Atmosphere!.SkyRadianceMapRequested=this.LumenActiveThisFrame;
-        this.ReadShadowTimings();
-        this.PrepareDirectionalLights(this.FrameIndex);
-        this.PrepareForwardPlusLocalLights(this.FrameIndex);
-
-        this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
-        this.ShadowTimestamp(0);
-        this.RenderShadowAtlasProjections();
-        this.ShadowTimestamp(1);
-        this.ShadowTimestamp(2);
-        this.PrepareVirtualShadows();
-        this.ShadowTimestamp(3);
-        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback,(ulong)this.FrameIndex*4*sizeof(ulong));
-        this.ShadowTimestampsValid[this.FrameIndex]=true;
-        this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
-        this.WriteFog(this.FrameIndex,this.CurrentFog);
-        this.WriteViewDepth(this.FrameIndex);
-        if(Radial){
-            this.WriteRadialRasterDepths(this.FrameIndex);
-        }
-        this.PrepareCameraPreviewConstants(this.FrameIndex);
-        this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
-        this.PrepareEnvironment(this.FrameIndex);
-        var AutoExposureDeltaSeconds=this.NextAutoExposureDeltaSeconds();
-        if(!this.AutoExposureActive){
-            this.AutoExposureInitialized=false;
-        } else if(!this.AutoExposureInitialized){
-            this.AutoExposureStage!.RecordInitialize(this.CommandList,this.EnvironmentSettings.Exposure);
-            this.AutoExposureInitialized=true;
-        }
-        this.UpdateGlobalDistanceField();
-        this.RenderGlobalIlluminationProbes();
-        this.RenderLumen();
-        this.RenderAmbientOcclusion();
-
-        ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
-
-        D3D12_RESOURCE_BARRIER ToHdrRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
-        this.CommandList->ResourceBarrier(1,&ToHdrRenderTarget);
-
-        D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount, this.RtvDescriptorSize);
-        D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle= this.DsvHeap->GetCPUDescriptorHandleForHeapStart();
-        this.CommandList->OMSetRenderTargets(2,&HdrRtvHandle,TRUE,&DsvHandle);
-        D3D12_CPU_DESCRIPTOR_HANDLE DistanceRtv=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount+1,this.RtvDescriptorSize);
-        var ClearDistance=Vector4.Zero;
-        this.CommandList->ClearRenderTargetView(DistanceRtv,(float*)&ClearDistance,0,null);
-
-        Vector4 ClearColor=this.BackgroundClearVector;
-        this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
-        this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
-
-        this.BindMainPassState(ActivePipelineState);
-
-        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
-        fixed(RECT*PScissorRect=&this.ScissorRect){
-            this.CommandList->RSSetViewports(1,PViewport);
-            this.CommandList->RSSetScissorRects(1,PScissorRect);
-        }
-
-        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-        if(this.MainPassTimestampHeap!=null){
-            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
-        }
-        if(this.ShadowSettings.Compare){ this.DrawShadowComparison(); }
-        else { this.DrawObjects(ExcludedObjectIndex:-1); }
-        if(this.MainPassTimestampHeap!=null){
-            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
-            this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
-                this.FrameIndex*2,2,this.MainPassTimestampReadback,(ulong)this.FrameIndex*2*sizeof(ulong));
-            this.LastTimedFrameIndex=this.FrameIndex;
-        }
-        var RanComputeAfterMainPass=false;
-        if(this.EnvironmentSettings.Atmosphere is not null){
-            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.SceneDistanceBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
-            RanComputeAfterMainPass=true;
-        }
-        if(this.AutoExposureActive){
-            // 同じターゲットへカメラプレビューを描画する前に測光する。
-            this.AutoExposureStage!.RecordMetering(this.CommandList,this.FrameIndex,this.HdrColorBuffer,this.Width,this.Height,this.EnvironmentSettings.Exposure,AutoExposureDeltaSeconds);
-            RanComputeAfterMainPass=true;
-        }
-        if(this.LumenActiveThisFrame){
-            // M0111：照明済みフレーム（空を含み、プレビュー前の状態）を、次フレームのスクリーントレース色として使う。
-            this.Lumen!.CopySceneColor(this.CommandList,this.HdrColorBuffer);
-            if(this.LumenVisualization!=LumenVisualization.None){
-                this.Lumen.RecordVisualize(this.CommandList,this.FrameIndex,this.LumenVisualization,this.HdrColorBuffer);
-                RanComputeAfterMainPass=true;
+        D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,Recording.MainPipeline),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
+        foreach(var Pass in Plan.Passes){
+            switch(Pass){
+                case StagePass.Skinning:this.RecordSkinning(ref Recording);break;
+                case StagePass.FramePreparation:this.RecordFramePreparation();break;
+                case StagePass.ShadowAtlas:this.RecordShadowAtlas();break;
+                case StagePass.VirtualShadows:this.RecordVirtualShadows();break;
+                case StagePass.FrameConstants:this.RecordFrameConstants(ref Recording);break;
+                case StagePass.AutoExposureInitialize:this.RecordAutoExposureInitialize();break;
+                case StagePass.GlobalDistanceField:this.UpdateGlobalDistanceField();break;
+                case StagePass.GlobalIllumination:this.RenderGlobalIlluminationProbes();break;
+                case StagePass.Lumen:this.RenderLumen();break;
+                case StagePass.AmbientOcclusion:this.RenderAmbientOcclusion();break;
+                case StagePass.MainPass:this.RecordMainPass(ref Recording,ShadowComparison:false);break;
+                case StagePass.ShadowComparison:this.RecordMainPass(ref Recording,ShadowComparison:true);break;
+                case StagePass.SkyComposite:this.RecordSkyComposite(ref Recording);break;
+                case StagePass.ExposureMetering:this.RecordExposureMetering(ref Recording);break;
+                case StagePass.LumenSceneCopy:this.RecordLumenSceneCopy(ref Recording);break;
+                case StagePass.RestoreMainBindings:this.RecordRestoreMainBindings(ref Recording);break;
+                case StagePass.CameraPreviews:this.RenderCameraPreviews(this.HdrRenderTargetHandle,this.DsvHeap->GetCPUDescriptorHandleForHeapStart());break;
+                case StagePass.PostProcess:this.RecordPostProcess();break;
+                case StagePass.Overlay:this.RenderOverlay();break;
+                case StagePass.ScreenLayer:this.DrawScreenLayer();break;
+                case StagePass.Capture:this.RecordCapture();break;
+                case StagePass.PresentTransition:this.RecordPresentTransition();break;
+                default:throw new ArgumentOutOfRangeException(nameof(Plan),Pass,"The Stage executor has no such pass.");
             }
         }
-        if(RanComputeAfterMainPass){
-            // ComputeによってグラフィックスPSOとディスクリプタヒープが置き換わるため、メインパスのバインド状態を
-            // 復元してから、再びStageパイプラインでカメラプレビューを描画する。
-            this.BindMainPassState(ActivePipelineState);
-            fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
-            fixed(RECT*PScissorRect=&this.ScissorRect){
-                this.CommandList->RSSetViewports(1,PViewport);
-                this.CommandList->RSSetScissorRects(1,PScissorRect);
-            }
-        }
-        this.RenderCameraPreviews(HdrRtvHandle,DsvHandle);
-
-        D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        this.CommandList->ResourceBarrier(1,&ToHdrShaderResource);
-
-        D3D12_RESOURCE_BARRIER ToBackBufferRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_PRESENT,D3D12_RESOURCE_STATE_RENDER_TARGET);
-        this.CommandList->ResourceBarrier(1,&ToBackBufferRenderTarget);
-        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),(int)this.FrameIndex, this.RtvDescriptorSize);
-        this.CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,null);
-        this.CommandList->SetGraphicsRootSignature(this.PostProcessRootSignature);
-        this.CommandList->SetPipelineState(this.PostProcessPipelineState);
-        ID3D12DescriptorHeap*PostSrvHeap= this.HdrSrvHeap;
-        this.CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
-        this.CommandList->SetGraphicsRootDescriptorTable(0, this.HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
-        float*PostProcessConstants=stackalloc float[4]{
-            this.EnvironmentSettings.ToneMapper==ToneMapper.UnrealFilmicSrgb?1f:0f,
-            this.EnvironmentSettings.BloomIntensity,0f,0f,
-        };
-        this.CommandList->SetGraphicsRoot32BitConstants(1,4,PostProcessConstants,0);
-        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
-        fixed(RECT*PScissorRect=&this.ScissorRect){
-            this.CommandList->RSSetViewports(1,PViewport);
-            this.CommandList->RSSetScissorRects(1,PScissorRect);
-        }
-
-        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        this.CommandList->DrawInstanced(3,1,0,0);
-        this.RenderOverlay();
-        this.DrawScreenLayer();
-
-        if(CaptureForVerification){
-            this.EnsureReadbackBuffer();
-
-            D3D12_RESOURCE_BARRIER ToCopySource=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_COPY_SOURCE);
-            this.CommandList->ResourceBarrier(1,&ToCopySource);
-
-            D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource= this.ReadbackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-            Dst.PlacedFootprint= this.ReadbackFootprint;
-            D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=BackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-            Src.SubresourceIndex=0;
-            this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
-
-            D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_PRESENT);
-            this.CommandList->ResourceBarrier(1,&ToPresent);
-        } else {
-            D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
-            this.CommandList->ResourceBarrier(1,&ToPresent);
-        }
-
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing the frame command list");
 
         ID3D12CommandList*CommandListBase=(ID3D12CommandList*)this.CommandList;
@@ -3902,6 +3783,178 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ReadShadowTimings(CapturedShadowTimingSlot);
             this.LastCapturedFrame= this.ReadBackCapturedFrame();
         }
+    }
+    /// <summary>HDR の色と距離の 2 つの描画先の先頭（主パスとカメラプレビューが使う）。</summary>
+    private D3D12_CPU_DESCRIPTOR_HANDLE HdrRenderTargetHandle=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,this.RtvDescriptorSize);
+    private void RecordSkinning(ref FrameRecording Recording){
+        if(this.Skinning is{ HasMeshes:true }){
+            this.Skinning.Record(this.CommandList,this.FrameIndex);
+            this.CommandList->SetPipelineState(Recording.MainPipeline);
+        }
+    }
+    private void RecordFramePreparation(){
+        this.LumenActiveThisFrame=this.LumenWanted;
+        if(!this.LumenActiveThisFrame){
+            this.Lumen!.InvalidateHistory();
+        }
+        this.Atmosphere!.SkyRadianceMapRequested=this.LumenActiveThisFrame;
+        this.ReadShadowTimings();
+        this.PrepareDirectionalLights(this.FrameIndex);
+        this.PrepareForwardPlusLocalLights(this.FrameIndex);
+        this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
+    }
+    private void RecordShadowAtlas(){
+        this.ShadowTimestamp(0);
+        this.RenderShadowAtlasProjections();
+        this.ShadowTimestamp(1);
+    }
+    private void RecordVirtualShadows(){
+        this.ShadowTimestamp(2);
+        this.PrepareVirtualShadows();
+        this.ShadowTimestamp(3);
+        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback,(ulong)this.FrameIndex*4*sizeof(ulong));
+        this.ShadowTimestampsValid[this.FrameIndex]=true;
+    }
+    private void RecordFrameConstants(ref FrameRecording Recording){
+        this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
+        this.WriteFog(this.FrameIndex,this.CurrentFog);
+        this.WriteViewDepth(this.FrameIndex);
+        if(this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic){
+            this.WriteRadialRasterDepths(this.FrameIndex);
+        }
+        this.PrepareCameraPreviewConstants(this.FrameIndex);
+        this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
+        this.PrepareEnvironment(this.FrameIndex);
+        Recording.AutoExposureDeltaSeconds=this.NextAutoExposureDeltaSeconds();
+    }
+    private void RecordAutoExposureInitialize(){
+        if(!this.AutoExposureActive){
+            this.AutoExposureInitialized=false;
+        } else if(!this.AutoExposureInitialized){
+            this.AutoExposureStage!.RecordInitialize(this.CommandList,this.EnvironmentSettings.Exposure);
+            this.AutoExposureInitialized=true;
+        }
+    }
+    private void RecordMainPass(ref FrameRecording Recording,bool ShadowComparison){
+        D3D12_RESOURCE_BARRIER ToHdrRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        this.CommandList->ResourceBarrier(1,&ToHdrRenderTarget);
+
+        D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle=this.HdrRenderTargetHandle;
+        D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle= this.DsvHeap->GetCPUDescriptorHandleForHeapStart();
+        this.CommandList->OMSetRenderTargets(2,&HdrRtvHandle,TRUE,&DsvHandle);
+        D3D12_CPU_DESCRIPTOR_HANDLE DistanceRtv=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount+1,this.RtvDescriptorSize);
+        var ClearDistance=Vector4.Zero;
+        this.CommandList->ClearRenderTargetView(DistanceRtv,(float*)&ClearDistance,0,null);
+
+        Vector4 ClearColor=this.BackgroundClearVector;
+        this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
+        this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
+
+        this.BindMainPassState(Recording.MainPipeline);
+
+        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+        fixed(RECT*PScissorRect=&this.ScissorRect){
+            this.CommandList->RSSetViewports(1,PViewport);
+            this.CommandList->RSSetScissorRects(1,PScissorRect);
+        }
+
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+        if(this.MainPassTimestampHeap!=null){
+            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
+        }
+        if(ShadowComparison){ this.DrawShadowComparison(); }
+        else { this.DrawObjects(ExcludedObjectIndex:-1); }
+        if(this.MainPassTimestampHeap!=null){
+            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
+            this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
+                this.FrameIndex*2,2,this.MainPassTimestampReadback,(ulong)this.FrameIndex*2*sizeof(ulong));
+            this.LastTimedFrameIndex=this.FrameIndex;
+        }
+    }
+    private void RecordSkyComposite(ref FrameRecording Recording){
+        if(this.EnvironmentSettings.Atmosphere is not null){
+            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.SceneDistanceBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
+            Recording.RanComputeAfterMainPass=true;
+        }
+    }
+    private void RecordExposureMetering(ref FrameRecording Recording){
+        if(this.AutoExposureActive){
+            // 同じターゲットへカメラプレビューを描画する前に測光する。
+            this.AutoExposureStage!.RecordMetering(this.CommandList,this.FrameIndex,this.HdrColorBuffer,this.Width,this.Height,this.EnvironmentSettings.Exposure,Recording.AutoExposureDeltaSeconds);
+            Recording.RanComputeAfterMainPass=true;
+        }
+    }
+    private void RecordLumenSceneCopy(ref FrameRecording Recording){
+        if(this.LumenActiveThisFrame){
+            // M0111：照明済みフレーム（空を含み、プレビュー前の状態）を、次フレームのスクリーントレース色として使う。
+            this.Lumen!.CopySceneColor(this.CommandList,this.HdrColorBuffer);
+            if(this.LumenVisualization!=LumenVisualization.None){
+                this.Lumen.RecordVisualize(this.CommandList,this.FrameIndex,this.LumenVisualization,this.HdrColorBuffer);
+                Recording.RanComputeAfterMainPass=true;
+            }
+        }
+    }
+    private void RecordRestoreMainBindings(ref FrameRecording Recording){
+        if(Recording.RanComputeAfterMainPass){
+            // ComputeによってグラフィックスPSOとディスクリプタヒープが置き換わるため、メインパスのバインド状態を
+            // 復元してから、再びStageパイプラインでカメラプレビューを描画する。
+            this.BindMainPassState(Recording.MainPipeline);
+            fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+            fixed(RECT*PScissorRect=&this.ScissorRect){
+                this.CommandList->RSSetViewports(1,PViewport);
+                this.CommandList->RSSetScissorRects(1,PScissorRect);
+            }
+        }
+    }
+    private void RecordPostProcess(){
+        ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
+        D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        this.CommandList->ResourceBarrier(1,&ToHdrShaderResource);
+
+        D3D12_RESOURCE_BARRIER ToBackBufferRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_PRESENT,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        this.CommandList->ResourceBarrier(1,&ToBackBufferRenderTarget);
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),(int)this.FrameIndex, this.RtvDescriptorSize);
+        this.CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,null);
+        this.CommandList->SetGraphicsRootSignature(this.PostProcessRootSignature);
+        this.CommandList->SetPipelineState(this.PostProcessPipelineState);
+        ID3D12DescriptorHeap*PostSrvHeap= this.HdrSrvHeap;
+        this.CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
+        this.CommandList->SetGraphicsRootDescriptorTable(0, this.HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
+        float*PostProcessConstants=stackalloc float[4]{
+            this.EnvironmentSettings.ToneMapper==ToneMapper.UnrealFilmicSrgb?1f:0f,
+            this.EnvironmentSettings.BloomIntensity,0f,0f,
+        };
+        this.CommandList->SetGraphicsRoot32BitConstants(1,4,PostProcessConstants,0);
+        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+        fixed(RECT*PScissorRect=&this.ScissorRect){
+            this.CommandList->RSSetViewports(1,PViewport);
+            this.CommandList->RSSetScissorRects(1,PScissorRect);
+        }
+
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        this.CommandList->DrawInstanced(3,1,0,0);
+    }
+    private void RecordCapture(){
+        ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
+        this.EnsureReadbackBuffer();
+
+        D3D12_RESOURCE_BARRIER ToCopySource=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_COPY_SOURCE);
+        this.CommandList->ResourceBarrier(1,&ToCopySource);
+
+        D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource= this.ReadbackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+        Dst.PlacedFootprint= this.ReadbackFootprint;
+        D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=BackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+        Src.SubresourceIndex=0;
+        this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
+
+        D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_PRESENT);
+        this.CommandList->ResourceBarrier(1,&ToPresent);
+    }
+    private void RecordPresentTransition(){
+        ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
+        D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
+        this.CommandList->ResourceBarrier(1,&ToPresent);
     }
 
     private void EnsureReadbackBuffer(){

@@ -1,6 +1,7 @@
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
 namespace CSharpGameEngine.Rendering.Backend;
-/// <summary>現在の Stage 送信境界。次の抽出段階では、順序付きネイティブフレーム記録を、明示的なフレーム計画の実行に置き換える。</summary>
+/// <summary>Stage の描画のポート（ADR-0087 §1-3）。L4 が作ったフレーム計画（<see cref="StagePipelinePlan"/>）を実行する。</summary>
 public interface IStageRenderBackend:IDisposable {
     string AdapterDescription { get; }
     bool IsWarp { get; }
@@ -57,5 +58,8 @@ public interface IStageRenderBackend:IDisposable {
     void SetCameraPreviews(ReadOnlySpan<RenderCameraPreview>Previews);
     RenderCameraPreviewDiagnostics[]GetCameraPreviewDiagnostics();
     void Resize(int Width,int Height);
-    void RenderFrame(bool CaptureForVerification=false);
+    /// <summary>計画を決める、この描画面の今の状態。</summary>
+    StageFrameInputs FrameInputs { get; }
+    /// <summary>計画のパスを順に記録して表示する。検証用の読み戻しは計画のキーで決まる。</summary>
+    void Execute(StagePipelinePlan Plan);
 }

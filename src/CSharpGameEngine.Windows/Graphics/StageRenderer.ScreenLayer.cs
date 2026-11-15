@@ -64,7 +64,7 @@ public sealed unsafe partial class StageRenderer {
 
     /// <summary>
     /// これから描画するフレームのスクリーンレイヤーを設定する。<paramref name="Vertices"/>は描画サーフェス上のピクセル座標（原点は左上）。
-    /// <paramref name="Batches"/>を順番に描画する。レイヤーは次の<see cref="RenderFrame"/>で消費される。
+    /// <paramref name="Batches"/>を順番に描画する。レイヤーは次の<see cref="Execute"/>で消費される。
     /// </summary>
     public void SetScreenLayer(ReadOnlySpan<RenderScreenVertex>Vertices,ReadOnlySpan<RenderScreenBatch>Batches){
         this.ThrowIfDisposed();

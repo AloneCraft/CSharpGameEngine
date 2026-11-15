@@ -1,3 +1,4 @@
+using CSharpGameEngine.Rendering.Pipeline;
 using CSharpGameEngine.Rendering.Backend;
 using System.Numerics;
 using CSharpGameEngine.Contracts;
@@ -20,7 +21,7 @@ public sealed class RenderServer:IDisposable {
     private readonly RenderDeviceLifecycle Lifecycle;
     private RenderFrameState PendingFrame;
     private RenderFrameState CompletedFrame;
-    private RenderQualityPlan DeclaredQualityPlanValue;
+    private StagePipelinePlan?CurrentPipelineValue;
     private IStageShaderArtifact AppliedShaderPackage;
     private IStageRenderBackend?Renderer;
     private ulong FenceBase;
@@ -43,9 +44,6 @@ public sealed class RenderServer:IDisposable {
         this.Lifecycle=new RenderDeviceLifecycle(ArtifactClosure);
         this.PendingFrame=new RenderFrameState(Objects.Length+StageRenderLimits.DynamicObjectHeadroom);
         this.CompletedFrame=new RenderFrameState(Objects.Length+StageRenderLimits.DynamicObjectHeadroom);
-        this.DeclaredQualityPlanValue=RenderQualityPlan.Build(
-            checked((uint)Width),checked((uint)Height),
-            RenderQualityProfile.Compatibility);
     }
 
     public RenderDeviceSnapshot DeviceSnapshot=>this.Lifecycle.Snapshot;
@@ -65,8 +63,8 @@ public sealed class RenderServer:IDisposable {
     public int ResidentMaterialTextureCount=>this.Backend.ResidentMaterialTextureCount;
     public int ResidentScreenTextureCount=>this.Backend.ResidentScreenTextureCount;
     public PixelReadbackResult?LastCapturedFrame=>this.Backend.LastCapturedFrame;
-    /// <summary>設定済み互換パイプラインに対する、正準形式の L4 宣言。実行結果の正解基準は引き続きバックエンドが持つため、ツールはパスごとの実行証拠ではなく、宣言された計画として表示する。</summary>
-    public RenderQualityPlan DeclaredQualityPlan=>this.DeclaredQualityPlanValue;
+    /// <summary>直前のフレームで実行した計画（ADR-0087 §1-4）。まだ描いていなければ null。</summary>
+    public StagePipelinePlan?CurrentPipeline=>this.CurrentPipelineValue;
     public int SurfaceWidth=>this.Width;
     public int SurfaceHeight=>this.Height;
     /// <summary>作成時または追加時にレンダラーが保持するすべてのメッシュ。メッシュのインデックスはサーバーの存続中有効。</summary>
@@ -338,12 +336,8 @@ public sealed class RenderServer:IDisposable {
             return;
         }
 
-        RenderQualityPlan ReplacementPlan=RenderQualityPlan.Build(
-            checked((uint)Width),checked((uint)Height),
-            this.DeclaredQualityPlanValue.Profile);
         this.Width=Width;
         this.Height=Height;
-        this.DeclaredQualityPlanValue=ReplacementPlan;
         if(this.DeviceSnapshot.State==RenderDeviceState.Suspended){
             this.Recover(RenderRecoveryReason.Resume);
             return;
@@ -362,7 +356,7 @@ public sealed class RenderServer:IDisposable {
             if(this.PendingFrame.IsEmpty&&!this.CompletedFrame.IsEmpty){
                 this.CompletedFrame.Replay(Renderer,this.Width,this.Height);
             }
-            Renderer.RenderFrame(CaptureForVerification);
+            this.ExecuteFrame(Renderer,CaptureForVerification);
             _=this.ObserveCompletedFence(Renderer);
             this.RefreshObjectRosterArtifact();
             this.SynchronizeArtifactClosure(Renderer);
@@ -370,6 +364,13 @@ public sealed class RenderServer:IDisposable {
         } catch(RenderBackendFailureException Exception){
             this.HandleBackendFailure(Exception,CaptureForVerification);
         }
+    }
+
+    /// <summary>バックエンドの今の状態から計画を作り（同じ状態なら作り直さない）、実行する。</summary>
+    private void ExecuteFrame(IStageRenderBackend Renderer,bool CaptureForVerification){
+        var Plan=StagePipelinePlanner.Build(new StagePipelinePlanKey(Renderer.FrameInputs,CaptureForVerification));
+        Renderer.Execute(Plan);
+        this.CurrentPipelineValue=Plan;
     }
 
     public void Dispose(){
@@ -419,7 +420,7 @@ public sealed class RenderServer:IDisposable {
             bool CompletesPendingFrame=!this.PendingFrame.IsEmpty;
             if(!RecoveryFrame.IsEmpty){
                 RecoveryFrame.Replay(Replacement,this.Width,this.Height);
-                Replacement.RenderFrame(CaptureForVerification);
+                this.ExecuteFrame(Replacement,CaptureForVerification);
             }
             this.Lifecycle.CompleteRecovery(
                 this.Lifecycle.RequiredArtifacts,

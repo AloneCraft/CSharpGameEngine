@@ -5,6 +5,7 @@ using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
 
 const string ProductDisplayName="C# Game Engine";
@@ -19,6 +20,7 @@ var ExitCode=args[0]switch {
     "self-test"=>RunSelfTest(),
     "triangle"=>RunTriangle(args[1..]),
     "rendering-performance"=>RenderingPerformanceRawCapture.Run(args[1..]),
+    "frame-plan"=>RunFramePlan(args[1..]),
     _ =>RunUnknownCommand(args[0]),
 };
 
@@ -187,6 +189,31 @@ static int RunUnknownCommand(string Command){
     return 2;
 }
 
+/// <summary>GPU を使わずに、Stage のフレーム計画（パスの順と主パスの PSO）を表示する（ADR-0087 の検証）。</summary>
+static int RunFramePlan(string[]PlanArgs){
+    var Mode=RenderPresentationMode.Lit;
+    bool Selection=false,ShadowComparison=false,Atmosphere=false,AutoExposure=false,Capture=false;
+    for(var Index=0;Index<PlanArgs.Length;Index++){
+        switch(PlanArgs[Index]){
+            case "--selection":Selection=true;break;
+            case "--shadow-comparison":ShadowComparison=true;break;
+            case "--atmosphere":Atmosphere=true;break;
+            case "--auto-exposure":AutoExposure=true;break;
+            case "--capture":Capture=true;break;
+            case "--mode" when Index+1<PlanArgs.Length&&Enum.TryParse(PlanArgs[Index+1],ignoreCase:true,out Mode):Index++;break;
+            default:
+                Console.WriteLine($"FAILED: unknown frame-plan option '{PlanArgs[Index]}'.");
+                return 2;
+        }
+    }
+    var Plan=StagePipelinePlanner.Build(new StagePipelinePlanKey(new StageFrameInputs(Mode,Selection,ShadowComparison,Atmosphere,AutoExposure),Capture));
+    Console.WriteLine($"Main pipeline: {Plan.MainPipeline.VertexEntry}/{Plan.MainPipeline.PixelEntry} ({Plan.MainPipeline.Fill})");
+    for(var Index=0;Index<Plan.Passes.Count;Index++){
+        Console.WriteLine($"{Index+1,2}. {Plan.Passes[Index]}");
+    }
+    return 0;
+}
+
 static void PrintHelp(){
     Console.WriteLine($"{ProductDisplayName} ({InternalName}) TestHost");
     Console.WriteLine("Usage:");
@@ -194,6 +221,8 @@ static void PrintHelp(){
     Console.WriteLine("  self-test             Run minimal core self-test.");
     Console.WriteLine("  triangle [options]    Run the Windows + Direct3D 12 triangle vertical slice.");
     Console.WriteLine("  rendering-performance --configuration Debug|Release --adapter warp|hardware --output <path>");
+    Console.WriteLine("  frame-plan [--mode Lit|BaseColor|Normal|Wireframe] [--selection] [--shadow-comparison] [--atmosphere] [--auto-exposure] [--capture]");
+    Console.WriteLine("                        Print the Stage frame plan without a GPU.");
     Console.WriteLine();
     Console.WriteLine("triangle options:");
     Console.WriteLine("  --frames <count>      Render exactly <count> frames, then exit.");

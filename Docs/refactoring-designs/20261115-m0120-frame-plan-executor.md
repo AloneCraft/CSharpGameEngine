@@ -243,3 +243,14 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 単位 5 の準備で、光と影の計画の呼び出しを L0 から無くすには、光源の提出そのもの(`Submit*`、`SetLight`)と、そのフレームごとの持続の規則(`DirectionalLightsPersistAcrossFrames`、そのフレームだけ明示した提出、落とした件数の数え方、提出の途中で書き込む経路)を RenderServer へ移す必要があると分かった。さらに、StageRenderer を直接作って描く試験(約 40 か所)も、RenderServer を通す形へ移す必要がある。単位 5 を一度に行うと、画素の食い違いが出たときに原因を切り分けにくいので、次の 2 つに分ける。
 - **5a: パスの列と実行。** L4 の `StagePipelinePlanner` がパスの列(`StagePipelinePlan`)を作り、L0 は `Execute` でその順に記録する。RenderServer が計画を作り、`DeclaredQualityPlan` を `CurrentPipeline` で置き換える。各パスの中の「やることが無ければ何もしない」判定は、非目的のとおり実行器に残す。
 - **5b: 光源と影の提出と計画を RenderServer へ。** 光源の提出と持続の規則を RenderServer へ移し、毎フレームの `StageFrameData` で L0 へ渡す。StageRenderer を直接使う試験を移す。これで L0 から光と影の計画の呼び出しが無くなり、単位 6 の `NativeBackendDoesNotPlanFrames` を足せる。
+
+### 単位 5a: パスの列と実行(2026-11-15)
+- L4 に `StagePass`(22 種類のパス)、`StageFrameInputs`(表示モード、選択の有無、影の比較、物理空、自動露出)、`StagePipelinePlanKey`(状態と読み戻しの有無)、`StagePipelinePlan`(パスの列、主パスの PSO、資源の宣言を検証した `RenderGraph`)、`StagePipelinePlanner`(キーごとに計画を作って使い回す。主パスの PSO の選び方を含む)を置いた。
+- L0 の `RenderFrame` を、計画のパスを順に記録する `Execute(StagePipelinePlan)` に置き換えた。各パスの中身は元の記録を切り出しただけで、命令の順は変えていない。パスの中の「準備ができていなければ何もしない」判定(スキニング、Lumen、カメラプレビューなど)は非目的のとおり実行器に残した。
+- ポート `IStageRenderBackend` は `RenderFrame` の代わりに `FrameInputs` と `Execute` を持つ。5a では計画の材料(`FrameInputs`)を L0 が持つ状態から読む。選択の数え方(消えた物を数えないなど)を RenderServer に写すと食い違いのもとになるため。5b で状態そのものを RenderServer へ移したら、RenderServer の値に切り替える。
+- RenderServer は、記録の再生の後に計画を作って実行し、直前の計画を `CurrentPipeline` で公開する。`DeclaredQualityPlan` と、RenderServer が持っていた `RenderQualityPlan` は削除した。`RenderQualityProfile`/`RenderQualityPlan` の型そのものは F-L4-007(Rendering quality profiles、Implemented)の根拠なので、5a では残し、扱いは単位 6 で台帳と合わせて決める。
+- TestHost に `frame-plan`(GPU を使わずにパスの列と主パスの PSO を表示)を足した。
+- StageRenderer を直接使う試験のために、試験側の `StageRendererViewExtensions` に `RenderFrame`(今の状態から計画を作って `Execute`)を足した。
+- 途中の誤り: 最初の置き換えの手順が、`RenderFrame` の直前の別のメソッド(試験専用の `ReadSkinnedVerticesForTesting`)まで消していた。L0 だけをビルドした時点では見つからず、差分の確認で気づいた。ファイルを戻し、置き換えの範囲を `RenderFrame` だけに限ってやり直した。
+- 試験: `StagePipelinePlannerTests` 4 件(既定の順、空と測光の位置と読み戻し、主パスの PSO、全キーでの使い回しとグラフの順)。Rendering.Tests 223 件合格。ソリューション全体のビルドは成功。
+- 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit5a`)。Windows.Tests 940 件中 937 件合格・2 件対象外・1 件失敗。失敗は `RenderPreviewRenderSessionTests.WARP_CameraDepthIsDerivedFromProjectionWithoutASelector(Perspective: False)` で、装置の世代が期待の 2 に対して 3(作り直しが 1 回多い)。同じ症状は今回の作業の前(2026-11-15 の旧版リーダー削除の全体実行)にも 1 回出ており、今回も単独の 5 回(各 2 通り)ではすべて合格した。全体実行の負荷のときだけ起きる不安定さで、原因は未特定。単位 6 の全体の検証で再度確かめ、残れば別の調査とする。
