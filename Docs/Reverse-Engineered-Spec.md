@@ -594,7 +594,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 
 ## RE-M0120 — Portable values and CPU rendering calculations (partial extraction)
 - Confidence: High for the moved unit; the full layer migration is incomplete.
-- Evidence: `src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`, `StageRenderInputs.cs`, `EmissivePatch.cs`, `Pipeline/{PhysicalLighting,DirectionalShadowCascades,EmissivePatchBuilder}.cs`; native `StagePhysicalLightApi.cs` and `EmissivePatchSubmission.cs`; Rendering.Tests and EngineLayerSpec.
+- Evidence: `src/CSharpGameEngine.Rendering/EnvironmentLighting.cs`, `StageRenderInputs.cs`, `EmissivePatch.cs`, `Pipeline/{PhysicalLighting,DirectionalShadowCascades,EmissivePatchBuilder}.cs`; `Pipeline/StageLightSubmissionsExtensions.cs` (physical and typed light conversion, moved from the native `StagePhysicalLightApi.cs` and `EmissivePatchSubmission.cs` in M0120 unit 5b); Rendering.Tests and EngineLayerSpec.
 - Observed: environment/mesh/material inputs no longer require Windows.dll. Photometric units, deterministic light/shadow budgets, cascades and emissive rectangles compile and pass their unchanged CPU expectations in net10.0 tests. Native submission adapters remain separate. Five normalized source comparisons match the pre-move calculations; seven WARP image hashes also match.
 - Result: Matches for the extraction unit. Native frame planning/state and four render paths remain subsequent work. EveryStageInputPathExists additionally found three old Spatial directory inputs; the catalog now names their actual source/test files and change-selection tests cover the paths.
 

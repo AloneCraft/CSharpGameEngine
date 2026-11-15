@@ -18,6 +18,10 @@
 
 Source・SDKのプロジェクトは、数値型・固定幅・小数位置・深度方式を編集する標準CPSの設定ページを登録する。値はcsprojが正本で、日本語・英語の定義を同梱する。
 
+## フレーム計画と D3D12 の実行器(M0120 段階 1、ADR-0087 §1)
+
+L4 の `CSharpGameEngine.Rendering` がフレームの計画を作り、L0 の `StageRenderer` は D3D12 の命令を出すだけ。RenderServer は、描画面の今の状態(`FrameInputs`)から `StagePipelinePlanner` でパスの列と主パスの PSO を決め、自分が持つ `StageLightSubmissions` で光源・カスケード影・局所光のタイル・影のアトラスを計画して、`Execute(plan, lights)` を呼ぶ。PSO は L4 の `StagePipelineDesc` の値をキーにして L0 が作る。ビューは L4 の `RenderView`/`RenderViewSource` で渡し、L0 は L5 のカメラを参照しない。L0 が計画の関数を呼ばないことは `EngineLayerSpec.NativeBackendDoesNotPlanFrames` で固定する。
+
 ## Model import migration (M0114, in progress)
 
 [ADR-0080](Decisions/ADR-0080-Universal-Model-Import.md) preserves the proposed design. Additive foundations are L2 subasset/catalog/humanoid contracts, L1 `ConventionConversion`, L6 standalone model payload records/codecs, and L7 binary interchange/normalization/importer contracts. Cooking shares Contracts/Core with its collectible module host. Cook.Cli offers `describe` and `import-worker`; ContentCompiler discovers modules through subprocesses, caches dependency-addressed IR, and offers `import-ir`/`inspect`/`explain`. Runtime and the game renderer consume prepared model artifacts after the M0128 cutover; the old glTF source reader has been removed. ModelArtifactPreparation/ModelContentCompiler provide incremental DAG/CAS compilation, content-index publication and RuntimeAssetStore loading. ContentCompiler also exposes compile. Broader orchestration and adapter/rig coverage remain tracked by M0114. [M0114](Milestones/M0114-Universal-Model-Import.md) records actual stage evidence and remaining gates.

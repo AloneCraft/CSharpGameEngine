@@ -64,6 +64,27 @@ public sealed class EngineLayerSpec {
             .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
         Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
     }
+    /// <summary>
+    /// ADR-0087 §1-3・§3、M0120 単位 6：L0（D3D12 の実行器）は計画の関数を呼ばない。ビューの方針、フレームの計画、光源と影の計画、
+    /// 対数深度の投影、カスケード影、光源の予算とアトラスの割り当ては L4・L5 が決め、L0 は計画の結果を受け取って書くだけ。
+    /// </summary>
+    [Fact]
+    public void NativeBackendDoesNotPlanFrames(){
+        var Forbidden=new Regex(
+            @"RenderViewPolicy\.|StagePipelinePlanner\.|StageLightPlanner\.|StageShadowPlanner\.|RadialDepthProjection\.TryCreate|DirectionalShadowCascades\.Build"
+            +@"|PhysicalLightBudget\.|PhysicalShadowAtlasPlan\.Select|\.PlanDirectional\(|\.PlanLocal\(|\.PlanLocalShadows\(|\bLights\.Plan\(",
+            RegexOptions.CultureInvariant);
+        var Violations=NativeBackendViolations(Forbidden);
+        Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
+    }
+    private static string[]NativeBackendViolations(Regex Forbidden){
+        var Root=Path.Combine(RepositoryRoot,"src","CSharpGameEngine.Windows");
+        return Directory.EnumerateFiles(Root,"*.cs",SearchOption.AllDirectories)
+            .Where(File=>!Path.GetRelativePath(Root,File).Split(Path.DirectorySeparatorChar).Any(Part=>Part is "bin" or "obj"))
+            .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
+            .Where(Entry=>!Entry.Line.TrimStart().StartsWith("//",StringComparison.Ordinal)&&Forbidden.IsMatch(Entry.Line))
+            .Select(Entry=>$"{Path.GetRelativePath(Root,Entry.File)}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
+    }
     [Fact]
     public void NoPortableEngineLibraryReferencesTheNativeBackend(){
         var Root=Path.Combine(RepositoryRoot,"src");

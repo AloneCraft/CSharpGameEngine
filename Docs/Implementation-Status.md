@@ -5125,16 +5125,16 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L0 — D3D12 の実行だけ(`StageRenderer` が `IStageRenderBackend` を実装、`D3D12RenderServer`)。計画・光源・深度の方針は L4/L5(F-L4-022)
 - Parent capability: Rendering Roadmap / 描画パスと層の配置(ADR-0085・ADR-0087)
-- Status: Specified
-- Verification: Unverified
+- Status: PartiallyImplemented(2026-11-15。L0 は L4 の計画を実行するだけになり、層の試験で固定した。毎フレームの計画の割り当て 0 は未完)
+- Verification: TestVerified(CPU の計画の試験と層の試験)、RuntimeVerified(WARP の描画の試験と固定 7 画像の生の画素の一致)
 - Intended specification: `Docs/Decisions/ADR-0087-Rendering-And-Physics-Layers.md` §1、`Docs/Specifications/Rendering.md`(M0120 で更新)
 - Stage: `rendering.render-paths`(M0120 で追加)
 - Depends on: F-L4-004、F-L0-009
-- Implementation evidence: なし(計画のみ。M0120 で実装する)
-- Tests: なし(`EngineLayerSpec` の描画の規則、`StagePipelinePlannerTests`、`StageConstantLayoutReflectionTests` を M0120 で足す)
-- Current delta: M0120で環境/描画入力と光源/影/発光のCPU計算をRenderingへ移動済み。L4 RenderView/L5 RenderViewPolicyと型付きSetView/復旧を接続済み。L4 RenderViewSourceが再生成入力を値保持し、FrameStateのL5カメラ型/旧行列分岐を除去した。CPU読み戻し値とFormatもL4へ移し、DXGI型を公開結果から除去した。シーンCamera/PrimitiveMesh/PrimitiveTypeと組立はL5共有ソースへ移動済み。Native互換入口のPolicy呼出しは残る。カメラ数学はL5 View、Frame/Object CBの型と35オフセットはL4 StageGpuLayoutsへ移動し、L7のDXC実反射で照合する。公開メッセージ/回復理由もL4の値に揃え、ServerのHRESULT定数分岐をNativeへ移した。実提出/FrameState再生と正規成果物バイトをL4ポートへ接続し、FrameStateのNative参照を除去した。Server/FrameState本体をRendering.Serverへ移し、生成/再生成はIStageRenderBackendFactory、Native作成口はD3D12RenderServerへ分離した。L5互換入口はView拡張。L0はまだCPU計算の呼出し・フレーム順序/描画状態を持つ。計画実行器そのものは未実装。
-- Conformance: Unknown
-- Next action: M0120 段階 1(画素を変えずに境界を動かす)。[M0120](Milestones/M0120-Render-Layers-And-Forward-Paths.md)
+- Implementation evidence: L4 `Pipeline/StagePipelineDesc.cs`(PSO の値と一覧)、`StagePipelinePlan.cs`(パスの列・計画・主パスの PSO)、`StageLightPlanner.cs`、`StageShadowPlanner.cs`(`StageProbeCapture`)、`StageLightSubmissions.cs`(光源の提出・持続・計画・カスケード)、`StageLightSubmissionsExtensions.cs`、`StageRenderDefaults.InitialViewSource`/`InitialDirectionalCascades`、`Server/RenderServer.cs`(計画して `Execute`、`CurrentPipeline`)、ポート `IStageRenderBackend`(`FrameInputs`・`LightPlanInputs`・`Execute`)。L0 `StageRenderer.Pipelines.cs`(値をキーにした PSO のキャッシュ)、`StageRenderer.Execute`(パスごとの記録)。設計と記録は `Docs/refactoring-designs/20261115-m0120-frame-plan-executor.md`
+- Tests: Rendering.Tests の `StagePipelinesTests`、`StagePipelinePlannerTests`、`StageLightPlannerTests`、`StageShadowPlannerTests`、`StageLightSubmissionsTests`、`StageRenderDefaultsTests`。Core.Tests の `EngineLayerSpec.NativeBackendDoesNotPlanFrames`。Windows.Tests の描画の試験(`StageGoldenFrameTests` の固定 7 画像ほか)。TestHost `frame-plan`
+- Current delta: M0120 段階 1 を 2026-11-15 に終えた(単位 1〜6)。PSO は L4 の値から作り、L0 のカメラの互換入口・光源の提出・光源と影とビューの計画の呼び出しを消した。RenderServer が光源を持って計画し、パスの列を L4 の計画として `Execute` へ渡す。デバイスの復旧は記録の再生のまま(設計の未決事項 1、所有者の合意)。毎フレームの計画は配列とリストを割り当てる(設計の目的 3 の割り当て 0 は未完)。`RenderQualityProfile` の型は F-L4-007 の根拠として残した
+- Conformance: Partial(境界と計画の実行は Matches。割り当て 0 の `StageFrameData` は未実装)
+- Next action: 毎フレームの計画の割り当てを 0 にする(配列とリストの使い回し、`PhysicalShadowAtlasPlan.Select` とカスケードの結果の再利用)。Forward / Forward+ の作り直し(F-L4-022)は ADR-0098 の段階 D
 
 ## F-L4-022 — URP の 4 描画パス(Forward / Forward+ / Deferred / Deferred+)
 

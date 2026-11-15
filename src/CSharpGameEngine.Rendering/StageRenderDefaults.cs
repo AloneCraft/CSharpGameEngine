@@ -6,8 +6,8 @@ public static class StageRenderLimits {
 }
 public static class StageRenderDefaults {
     /// <summary>
-    /// 一度もビューを受け取っていない描画面の最初のビュー（M0119・M0120 の起動の契約）。L5 の <c>RenderCamera.CreateDefault(Vector3.Zero)</c>
-    /// （原点を 15 度上から 4.5 m 離れて見る、視野 45 度、0.1〜1000 m、露出 0）と同じ値で、L0 が L5 のカメラを使わずに済むよう、
+    /// 一度もビューを受け取っていない描画面の最初のビュー（M0119・M0120 の起動の契約）。L5 の既定のカメラ（原点を目標にした <c>CreateDefault</c>。
+    /// 原点を 15 度上から 4.5 m 離れて見る、視野 45 度、0.1〜1000 m、露出 0）と同じ値で、L0 が L5 のカメラを使わずに済むよう、
     /// 目の位置と上方向をそのビット列のまま持つ。一致は <c>StageRenderDefaultsTests</c> が L5 の計算と比べて固定する。
     /// </summary>
     public static RenderViewSource InitialViewSource{get;}=CreateInitialViewSource();

@@ -1,5 +1,10 @@
 # Changelog
 
+- 描画のフレーム計画を L4 へ移した(M0120 段階 1、[設計と記録](Docs/refactoring-designs/20261115-m0120-frame-plan-executor.md))。**利用側の変更**:
+  - `StageRenderer` の `RenderFrame`、`SetCamera`、`SetViewProjection`、光源の入口(`SetDirectionalLight`、`Add*Light`、`StagePhysicalLightApi`・`EmissivePatchSubmission` の拡張)を削除した。描画は `RenderServer`(`D3D12RenderServer.Create`)を通す。
+  - `IStageRenderBackend` は光源の提出を持たず、`Execute(StagePipelinePlan, StageLightSubmissions)` で計画を実行する。`RenderServer.DeclaredQualityPlan` は実行した計画 `CurrentPipeline` に置き換えた。
+  - 画面の見た目は変わらない(固定 7 画像の生の画素が一致)。TestHost に `frame-plan`(GPU を使わずにフレームの計画を表示)を足した。
+
 - エディターのプレビューが固定小数点の角度を生成器と同じ値で読むように修正(以前は float を経由して、カメラの回転などが約 1e-10 ずれた)。プレビューも角度を回転数でだけ読み、C# の名前の角度キーは生成器と同じく受け付けない。ナビメッシュの Cook で、見つからないモデルが NAV003 でなく NAV006 と報告されていたのを修正。ThirdPerson のステージに、書き換えで落ちていた `GlobalDistanceField` を戻した。
 
 - 旧版の読み手を削除し、版を付け直した(ADR-0098 §5、[設計と記録](Docs/refactoring-designs/20261115-legacy-reader-removal.md))。**移行が必要な変更**:

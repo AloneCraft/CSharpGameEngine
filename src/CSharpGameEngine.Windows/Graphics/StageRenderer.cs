@@ -2119,7 +2119,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteEnvironmentDescriptors();
         }
         var Source=this.FrameSlot(this.FrameIndex);
-        var CaptureDepth=StageShadowPlanner.ProbeCaptureDepth(StageGlobalIllumination.CaptureNearMeters,StageGlobalIllumination.CaptureFarMeters);
+        var CaptureDepth=StageProbeCapture.Depth;
         GlobalIllumination.BeginCapture(this.CommandList);
         this.BindMainPassState(this.PipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

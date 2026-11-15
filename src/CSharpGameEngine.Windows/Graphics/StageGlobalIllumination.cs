@@ -1,4 +1,5 @@
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
@@ -26,8 +27,8 @@ namespace CSharpGameEngine.Graphics.D3D12;
 internal sealed unsafe class StageGlobalIllumination:IDisposable {
     internal const string ArtifactFileName="GlobalIllumination.cgeshaderartifact";
     internal const int CaptureResolution=32;
-    internal const float CaptureNearMeters=0.05f;
-    internal const float CaptureFarMeters=500f;
+    internal const float CaptureNearMeters=StageProbeCapture.NearMeters;
+    internal const float CaptureFarMeters=StageProbeCapture.FarMeters;
     internal const int IrradianceTexels=8;
     internal const int DistanceTexels=16;
     internal const int ProbesPerAtlasRow=64;

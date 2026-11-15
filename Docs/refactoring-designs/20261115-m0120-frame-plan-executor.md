@@ -272,3 +272,14 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 - L0 は直前の `Execute` で受け取った計画済みの光源を読むだけで、計画の関数(`PhysicalLightBudget`、`StageLightPlanner`、`DirectionalShadowCascades.Build`、`PhysicalShadowAtlasPlan.Select`、光源の計画)を呼ばない。残る L4 の呼び出しは、GI のプローブを撮る深度(`StageShadowPlanner.ProbeCaptureDepth`、単位 6 で値にする)と、仮想影のページの計画(`VirtualDirectionalShadowCache.Plan`、ADR-0087 の禁止の一覧に無い仮想影の実行器の中身)。
 - StageRenderer を直接使う試験のために、試験側の補助(`StageRendererViewExtensions`)が描画面ごとに光源の部品を持ち、以前の入口と同じ名前・引数で提出し、`RenderFrame` で計画・実行・フレームの終わりを行う。物理単位の入口は、もとと同じく外側の名前空間に置いた(名前つきの引数で従来の入口と両方に当てはまる呼び出しを、従来の入口へ解決するため。最初は同じ名前空間に置いて、あいまいな呼び出しの誤りが 1 件出た)。
 - 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit5b2`)。ソリューション全体のビルドは成功。Windows.Tests 940 件中 938 件合格・2 件対象外・失敗 0。
+
+### 単位 6: 層の試験と全体の検証(2026-11-15)
+- GI のプローブを撮る面の近い面・遠い面と深度の符号化を L4 の `StageProbeCapture` に置き、L0 の GI の実行器は値を読むだけにした。
+- `EngineLayerSpec.NativeBackendDoesNotPlanFrames` を足した。L0(`src/CSharpGameEngine.Windows`)のコードに、ADR-0087 §3 の一覧(`RenderViewPolicy.`、`StagePipelinePlanner.`、`StageLightPlanner.`、`RadialDepthProjection.TryCreate`、`DirectionalShadowCascades.Build`、`PhysicalLightBudget.`)と、この移行で足した計画の関数(`StageShadowPlanner.`、`PhysicalShadowAtlasPlan.Select`、光源の計画)が無いことを確かめる。L0 に `StageShadowPlanner.ProbeCaptureDepth(...)` を一時的に戻すと失敗してその行を示し、戻すと合格することを確かめた。
+- 見落としの訂正: 単位 4 で L4 の `StageRenderDefaults` の要約コメントに L5 の型名を書き、`EngineLayerSpec.RenderingL4DoesNotNameL5View`(コメントも検査する)が失敗していた。単位 4〜5 の検証は Windows.Tests と Rendering.Tests だけで、Core.Tests を流していなかったため気づかなかった。コメントから型名を外して合格した。以後の教訓として、ポートや既定値を変える単位では全ソリューションの試験を流す。
+- 文書: 台帳 F-L0-011 を PartiallyImplemented(境界と計画の実行は済み、毎フレームの割り当て 0 は未完)、M0120 の状態と段階 1 の完了、Architecture のフレーム計画と実行器の節、CHANGELOG(利用側の変更)、Conformance、逆仕様の根拠のパスを更新した。
+- F-L4-007(`RenderQualityProfile`): ADR-0087 は宣言だけのグラフを消すとしているが、型は F-L4-007(Implemented)の根拠で自動の Stage もあるため、この段階では残した。RenderServer はもう使っていない。機能を取り下げるかは台帳とあわせて別に決める。
+- 最終の全体の検証: ソリューション全体を `-m:1` でビルドし、全試験(GPU を含む)を実行した。23 プロジェクト、4,650 件中 4,648 件合格・2 件対象外(実機の測定)・失敗 0。固定 7 画像は書き換え前と生の画素が完全に一致(`F:\CodexTemp\cge-m0120\final`)。単位 5a で 1 回出た負荷のときだけの不安定な失敗(装置の世代が 1 多い)は、この実行では出なかった。原因は未特定のまま。
+
+## 完了状態
+- 2026-11-15: 単位 1〜6 を終えた。残りは、毎フレームの計画の割り当て 0(目的 3)と、F-L4-007 の扱いの決定。デバイスの復旧の作り直しは合意どおり行っていない。

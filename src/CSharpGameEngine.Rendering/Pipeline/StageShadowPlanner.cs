@@ -125,3 +125,13 @@ public static class StageShadowPlanner {
         return IsFinite(Normalized);
     }
 }
+/// <summary>
+/// GI のプローブを撮る面の決まり（ADR-0069、M0120 単位 6）。近い面と遠い面と、そこから作る対数深度の符号化を L4 が持ち、
+/// L0 の GI の実行器はこの値を書くだけ。
+/// </summary>
+public static class StageProbeCapture {
+    public const float NearMeters=0.05f;
+    public const float FarMeters=500f;
+    /// <summary>90 度・縦横比 1 の撮影の面の深度の符号化。</summary>
+    public static RenderViewDepth Depth { get; }=StageShadowPlanner.ProbeCaptureDepth(NearMeters,FarMeters);
+}
