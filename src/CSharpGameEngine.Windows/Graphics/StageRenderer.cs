@@ -380,8 +380,12 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     // ライトが残り続けない。ライトが送信されるまでは照明しない。InitializeConstantsToDefaultsが書く既定ライトを1にすると、
     // 最初のフレームだけ照明され、
     // フレーム末のリセット後はライトが消えて、1回のpresent後にシーンが暗転してしまう。
-    /// <summary>光源の提出、そのフレームごとの持続の規則、計画（L4、M0120 単位 5b）。L0 は計画の結果を GPU へ書くだけ。</summary>
-    private readonly StageLightSubmissions Lights=new();
+    /// <summary>
+    /// 直前の <see cref="Execute"/> で受け取った、計画済みの光源（M0120 単位 5b）。提出・持続の規則・計画は L4（RenderServer）が持ち、
+    /// L0 は結果を GPU へ書くだけ。まだ描いていなければ光源の無い計画。
+    /// </summary>
+    private StageLightSubmissions Lights=NoLights;
+    private static readonly StageLightSubmissions NoLights=new();
     private int DirectionalLightCount=>this.Lights.DirectionalLightCount;
     private int DirectionalShadowIndex=>this.Lights.DirectionalShadowIndex;
     private int LocalLightCount=>this.Lights.LocalLightCount;
@@ -1772,7 +1776,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteFog(Frame,FogParams.None);
             this.WriteExposure(Frame,InitialView.ExposureEv100);
             this.WriteViewDepth(Frame);
-            this.WriteDirectionalCascades(Frame,DefaultLightDirectionTowardLight);
+            this.WriteDirectionalCascades(Frame,StageRenderDefaults.InitialDirectionalCascades((float)this.Width/this.Height,DefaultLightDirectionTowardLight));
             this.WriteLightCounts(Frame); // D3D12はアップロードヒープメモリがゼロ初期化される保証がない。これをしないと最初のフレームでPointLights／SpotLightsの未初期化値を走査する可能性がある。
             this.WriteAreaShadowDefaults(Frame);
 
@@ -1854,27 +1858,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    /// <summary>
-    /// 後方互換の単一ライト設定。今フレームの加算式Directionalリストを、ライト1つだけの状態に置き換える。
-    /// <paramref name="DirectionTowardLight"/>はシーンから光源へ向かう方向であり、光が進む方向ではない。
-    /// </summary>
-    public void SetDirectionalLight(
-        Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
-        bool CastsShadows=true,float ShadowBiasMeters=0.0015f,int ShadowPriority=0){
-        this.ThrowIfDisposed();
-        this.Lights.SetDirectionalLight(DirectionTowardLight,Color,Intensity,CastsShadows,ShadowBiasMeters,ShadowPriority);
-    }
 
-    /// <summary>
-    /// 今フレーム用に、従来の面から光源へ向かうDirectional入力を追加する。直接照明の上限超過時は、画面への寄与が大きい4灯を残し、
-    /// 同点なら送信順で安定させる。単一シャドウマップのパスは<paramref name="ShadowPriority"/>に従って別途選択する。
-    /// </summary>
-    public void AddDirectionalLightTowardLight(
-        Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
-        bool CastsShadows=true,int ShadowPriority=0,float ShadowBiasMeters=0.0015f){
-        this.ThrowIfDisposed();
-        this.Lights.AddDirectionalLightTowardLight(DirectionTowardLight,Color,Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters);
-    }
 
 
 
@@ -1885,7 +1869,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// 寄与度、その後に安定した送信順で選ぶ。影の優先度は選択済みの直接ライトにだけ適用する。
     /// </summary>
     private void PrepareDirectionalLights(uint FrameIndex){
-        this.Lights.PlanDirectional();
         if(!this.Lights.DirectionalsPlanned){
             return;
         }
@@ -1899,8 +1882,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
                 Submission.ShadowBiasMeters);
         }
-        if(this.Lights.CascadeDirectionTowardLight is Vector3 CascadeDirection){
-            this.WriteDirectionalCascades(FrameIndex,CascadeDirection);
+        if(this.Lights.Cascades is{ }Cascades){
+            this.WriteDirectionalCascades(FrameIndex,Cascades);
         }
         this.WriteLightCounts(FrameIndex);
     }
@@ -2234,61 +2217,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteFog(this.FrameIndex,Fog);
     }
 
-    /// <summary>
-    /// 構築中のフレームにポイントライト（全方向へ均等に放射し、距離に応じて減衰して<paramref name="Range"/>で0になる滑らかな減衰）を1つ追加する。
-    /// 以前の固定ポイントライト定数バッファAPIとソース互換である。<see cref="Execute"/>まで送信を遅延し、その時点でポイント／スポットライトを
-    /// 1024エントリのStructuredBufferと決定的なForward+順位付けでまとめて処理する。
-    /// </summary>
-    public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
-        this.ThrowIfDisposed();
-        this.AddPointLight(Position,Color,Intensity,Range,SelectionPriority:0);
-    }
 
-    internal void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range,int SelectionPriority){
-        this.AddPointLight(
-            Position,Color,Intensity,Range,SelectionPriority,CastsShadows:false,ShadowBiasMeters:0f);
-    }
 
-    internal void AddPointLight(
-        Vector3 Position,Vector3 Color,float Intensity,float Range,int SelectionPriority,
-        bool CastsShadows,float ShadowBiasMeters){
-        this.Lights.AddPointLight(Position,Color,Intensity,Range,SelectionPriority,CastsShadows,ShadowBiasMeters);
-    }
 
-    /// <summary>
-    /// 構築中のフレームにスポットライト（ポイントライトを円錐状に絞ったもの）を1つ追加する。
-    /// <paramref name="Direction"/>は円錐が向く方向で、正規化されていなくてもよい。
-    /// <paramref name="InnerConeAngleRadians"/>の範囲内では最大輝度を保ち、<paramref name="OuterConeAngleRadians"/>で0となるよう滑らかに減衰する。
-    /// <see cref="AddPointLight(Vector3,Vector3,float,float)"/>と同じ遅延StructuredBufferおよび1024件の全体選択を共有する。
-    /// </summary>
-    public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,float InnerConeAngleRadians,float OuterConeAngleRadians){
-        this.ThrowIfDisposed();
-        this.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,OuterConeAngleRadians,SelectionPriority:0);
-    }
 
-    internal void AddSpotLight(
-        Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,
-        float InnerConeAngleRadians,float OuterConeAngleRadians,int SelectionPriority){
-        this.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,
-            OuterConeAngleRadians,SelectionPriority,CastsShadows:false,ShadowBiasMeters:0f);
-    }
 
-    internal void AddSpotLight(
-        Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,
-        float InnerConeAngleRadians,float OuterConeAngleRadians,int SelectionPriority,
-        bool CastsShadows,float ShadowBiasMeters){
-        this.Lights.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,OuterConeAngleRadians,SelectionPriority,CastsShadows,ShadowBiasMeters);
-    }
-    /// <summary>
-    /// 今フレーム用に片面矩形ライトを1つキューへ追加する。シャドウ設定は送信内容に保持するが、
-    /// 投影アトラス経路が接続されるまでは意図的に割り当てない。その間も直接照明は有効。
-    /// </summary>
-    internal void AddAreaLight(
-        Vector3 Position,Vector3 Direction,Vector3 Right,Vector3 Up,Vector3 LinearRgb,
-        float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
-        int SelectionPriority,bool CastsShadows,float ShadowBiasMeters,PhysicalLightKind ShadowKind){
-        this.Lights.AddAreaLight(Position,Direction,Right,Up,LinearRgb,LuminanceNits,WidthMeters,HeightMeters,RangeMeters,SelectionPriority,CastsShadows,ShadowBiasMeters,ShadowKind);
-    }
 
 
     /// <summary>構築中のフレーム用にオブジェクト1つのワールド変換を設定する（フレームスロットの契約は<see cref="SetCamera"/>を参照）。</summary>
@@ -2586,11 +2519,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// 現在のカメラに合わせて4つのDirectionalカスケードを設定し（ADR-0069）、シャドウパスとStageプログラム用に投影を書き込む。
     /// Cascade 0は、プレビューシェーダーがサンプリングする単一投影フィールドも設定する。
     /// </summary>
-    private void WriteDirectionalCascades(uint FrameIndex,Vector3 DirectionTowardLight){
-        var Cascades=DirectionalShadowCascades.Build(this.InvertibleViewProjection,this.CurrentCameraPosition,DirectionTowardLight);
+    private void WriteDirectionalCascades(uint FrameIndex,IReadOnlyList<DirectionalShadowCascade>Cascades){
         var Slot=this.FrameSlot(FrameIndex);
         var DepthRanges=Vector4.Zero;
-        for(var Cascade=0;Cascade<Cascades.Length;Cascade++){
+        for(var Cascade=0;Cascade<Cascades.Count;Cascade++){
             var ViewProjection=Cascades[Cascade].ViewProjection;
             var Sphere=new Vector4(Cascades[Cascade].Center,Cascades[Cascade].Radius);
             var UvScaleOffset=Cascades[Cascade].Tile.UvScaleOffset;
@@ -2644,8 +2576,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void PrepareForwardPlusLocalLights(uint FrameIndex){
         this.ClearForwardPlusTileList(FrameIndex);
-        Matrix4x4 ViewProjection=this.FrameViewProjections[FrameIndex];
-        this.Lights.PlanLocal(ViewProjection,this.Width,this.Height,this.ForwardPlusTileCountX,this.ForwardPlusTileCountY,ForwardPlusTileSizePixels);
         this.DroppedTileLightReferencesThisFrameValue=0;
         for(int LocalIndex=0;LocalIndex<this.Lights.SelectedLocals.Count;LocalIndex++){
             this.WriteLocalLight(FrameIndex,LocalIndex,this.Lights.SelectedLocals[LocalIndex]);
@@ -2668,7 +2598,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PointShadowAtlasProjections.Clear();
         this.SpotShadowAtlasProjections.Clear();
         this.AreaShadowAtlasProjections.Clear();
-        this.Lights.PlanLocalShadows(this.FrameViewProjections[FrameIndex]);
         foreach(var Shadow in this.Lights.ShadowAllocations){
             var Submission=this.Lights.SelectedLocals[Shadow.LocalIndex];
             switch(Shadow.Kind){
@@ -3365,6 +3294,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// <summary>計画を決める、この描画面の今の状態（表示モード、選択、影の比較、物理空、自動露出）。</summary>
     public StageFrameInputs FrameInputs=>new(this.PresentationMode,this.SelectedObjectCount>0,this.ShadowSettings.Compare,
         this.EnvironmentSettings.Atmosphere is not null,this.AutoExposureActive);
+    /// <summary>光源の計画に要る、描画面の今のビュー（主ビューのビュー投影、カスケード用の逆行列を取れるビュー投影、カメラの位置、Forward+ のタイル）。</summary>
+    public StageLightPlanInputs LightPlanInputs=>new(this.FrameViewProjections[this.FrameIndex],this.InvertibleViewProjection,this.CurrentCameraPosition,
+        this.Width,this.Height,this.ForwardPlusTileCountX,this.ForwardPlusTileCountY,ForwardPlusTileSizePixels);
     /// <summary>1 フレームの記録の途中で、パスの間で受け渡す値。</summary>
     private struct FrameRecording {
         public ID3D12PipelineState*MainPipeline;
@@ -3375,16 +3307,18 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// L4 の計画のパスを順に記録して、表示する（ADR-0087 §1-3）。パスの順と主パスの PSO は計画が決め、ここは D3D12 の命令を出すだけ。
     /// 検証用の読み戻しは計画の <see cref="StagePipelinePlanKey.Capture"/> で決まる。
     /// </summary>
-    public void Execute(StagePipelinePlan Plan){
+    public bool Execute(StagePipelinePlan Plan,StageLightSubmissions Lights){
         ArgumentNullException.ThrowIfNull(Plan);
+        ArgumentNullException.ThrowIfNull(Lights);
         this.ThrowIfDisposed();
         // 削除済みデバイスへ処理（特にタイムスタンプクエリ）を記録しないこと。そうしないとWARPが、旧世代のリソース解放後に
         // その処理を実行する可能性がある。
         D3D12Diagnostics.EnsureSuccess(this.Device!.Device->GetDeviceRemovedReason(),"ID3D12Device::GetDeviceRemovedReason","checking the device before recording a frame");
         this.TryReloadShaderArtifact();
         if(this.SizeIsZero){
-            return;
+            return false;
         }
+        this.Lights=Lights;
         var CaptureForVerification=Plan.Key.Capture;
         FrameRecording Recording=new(){ MainPipeline=this.ResolvePipelineState(Plan.MainPipeline) };
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
@@ -3430,8 +3364,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.FramesRendered++;
         this.LumenActiveLastFrame=this.LumenActiveThisFrame;
 
-        // 追加した光源はこのフレームだけ有効。次のフレームは、そのフレームで提出し直した光源だけを反映する（StageLightSubmissions.EndFrame）。
-        this.Lights.EndFrame();
+        // 追加した光源はこのフレームだけ有効。光源のフレームは、表示を確かめた呼び出し側が閉じる（StageLightSubmissions.EndFrame）。
         this.PointShadowAtlasProjections.Clear();
         this.SpotShadowAtlasProjections.Clear();
         this.AreaShadowAtlasProjections.Clear();
@@ -3443,6 +3376,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ReadShadowTimings(CapturedShadowTimingSlot);
             this.LastCapturedFrame= this.ReadBackCapturedFrame();
         }
+        return true;
     }
     /// <summary>HDR の色と距離の 2 つの描画先の先頭（主パスとカメラプレビューが使う）。</summary>
     private D3D12_CPU_DESCRIPTOR_HANDLE HdrRenderTargetHandle=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,this.RtvDescriptorSize);

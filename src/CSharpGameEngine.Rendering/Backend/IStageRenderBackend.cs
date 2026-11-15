@@ -34,13 +34,6 @@ public interface IStageRenderBackend:IDisposable {
     int AddObject(int MeshIndex,int MaterialIndex);
     void RemoveObject(int ObjectIndex);
     void SetView(in RenderView View);
-    void SetLight(in DirectionalLightSubmission Value);
-    void Submit(in DirectionalLightSubmission Value);
-    void Submit(in PointLightSubmission Value);
-    void Submit(in SpotLightSubmission Value);
-    void Submit(in RectAreaLightSubmission Value);
-    void SubmitEmissivePatch(in EmissivePatch Patch,float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters);
-    void SubmitDirectLighting(IReadOnlyList<EmissivePatch>Patches,float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters);
     void SetAmbientLight(Vector3 Color);
     void SetFog(FogParams Fog);
     void SetEnvironmentLighting(in EnvironmentLightingSettings Settings);
@@ -60,6 +53,11 @@ public interface IStageRenderBackend:IDisposable {
     void Resize(int Width,int Height);
     /// <summary>計画を決める、この描画面の今の状態。</summary>
     StageFrameInputs FrameInputs { get; }
-    /// <summary>計画のパスを順に記録して表示する。検証用の読み戻しは計画のキーで決まる。</summary>
-    void Execute(StagePipelinePlan Plan);
+    /// <summary>光源の計画に要る、描画面の今のビュー。</summary>
+    StageLightPlanInputs LightPlanInputs { get; }
+    /// <summary>
+    /// 計画のパスを順に記録して表示する。<paramref name="Lights"/> は計画済みの光源で、実行器は結果を書くだけ。
+    /// 検証用の読み戻しは計画のキーで決まる。描画面の大きさが 0 で表示しなかったら false（呼び出し側はフレームを閉じない）。
+    /// </summary>
+    bool Execute(StagePipelinePlan Plan,StageLightSubmissions Lights);
 }

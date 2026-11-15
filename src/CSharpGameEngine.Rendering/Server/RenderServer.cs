@@ -22,6 +22,8 @@ public sealed class RenderServer:IDisposable {
     private RenderFrameState PendingFrame;
     private RenderFrameState CompletedFrame;
     private StagePipelinePlan?CurrentPipelineValue;
+    /// <summary>光源の提出、そのフレームごとの持続の規則、計画（M0120 単位 5b）。デバイスを作り直すときは、新しいバックエンドと同じく作り直して記録を再生する。</summary>
+    private StageLightSubmissions Lights=new();
     private IStageShaderArtifact AppliedShaderPackage;
     private IStageRenderBackend?Renderer;
     private ulong FenceBase;
@@ -193,12 +195,14 @@ public sealed class RenderServer:IDisposable {
 
     public void SetDirectionalLight(in DirectionalLightSubmission Value){
         Value.Validate();
-        this.Backend.SetLight(Value);
+        _=this.Backend; // デバイスが提出を受け付ける状態かを、以前バックエンドへ提出していたときと同じく確かめる。
+        this.Lights.SetLight(Value);
         this.PendingFrame.RecordSetDirectional(Value);
     }
     public void AddDirectionalLight(in DirectionalLightSubmission Value){
         Value.Validate();
-        this.Backend.Submit(Value);
+        _=this.Backend; // デバイスが提出を受け付ける状態かを、以前バックエンドへ提出していたときと同じく確かめる。
+        this.Lights.Submit(Value);
         this.PendingFrame.RecordAddDirectional(Value);
     }
     public void SetAmbientLight(Vector3 Color){
@@ -237,23 +241,27 @@ public sealed class RenderServer:IDisposable {
 
     public void AddPointLight(in PointLightSubmission Value){
         Value.Validate();
-        this.Backend.Submit(Value);
+        _=this.Backend; // デバイスが提出を受け付ける状態かを、以前バックエンドへ提出していたときと同じく確かめる。
+        this.Lights.Submit(Value);
         this.PendingFrame.RecordPoint(Value);
     }
     public void AddSpotLight(in SpotLightSubmission Value){
         Value.Validate();
-        this.Backend.Submit(Value);
+        _=this.Backend; // デバイスが提出を受け付ける状態かを、以前バックエンドへ提出していたときと同じく確かめる。
+        this.Lights.Submit(Value);
         this.PendingFrame.RecordSpot(Value);
     }
     public void AddRectAreaLight(in RectAreaLightSubmission Value){
         Value.Validate();
-        this.Backend.Submit(Value);
+        _=this.Backend; // デバイスが提出を受け付ける状態かを、以前バックエンドへ提出していたときと同じく確かめる。
+        this.Lights.Submit(Value);
         this.PendingFrame.RecordArea(Value);
     }
     public void SubmitDirectLighting(
         IReadOnlyList<EmissivePatch>Patches,float RangeMeters,
         bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        this.Backend.SubmitDirectLighting(
+        _=this.Backend; // デバイスが提出を受け付ける状態かを、以前バックエンドへ提出していたときと同じく確かめる。
+        this.Lights.SubmitDirectLighting(
             Patches,RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters);
         this.PendingFrame.RecordEmissive(
             Patches,RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters);
@@ -354,7 +362,7 @@ public sealed class RenderServer:IDisposable {
         try {
             IStageRenderBackend Renderer=this.Backend;
             if(this.PendingFrame.IsEmpty&&!this.CompletedFrame.IsEmpty){
-                this.CompletedFrame.Replay(Renderer,this.Width,this.Height);
+                this.CompletedFrame.Replay(Renderer,this.Lights,this.Width,this.Height);
             }
             this.ExecuteFrame(Renderer,CaptureForVerification);
             _=this.ObserveCompletedFence(Renderer);
@@ -366,10 +374,13 @@ public sealed class RenderServer:IDisposable {
         }
     }
 
-    /// <summary>バックエンドの今の状態から計画を作り（同じ状態なら作り直さない）、実行する。</summary>
+    /// <summary>バックエンドの今の状態からフレームの計画を作り（同じ状態なら作り直さない）、光源を計画して実行する。表示できたらフレームの光源を閉じる。</summary>
     private void ExecuteFrame(IStageRenderBackend Renderer,bool CaptureForVerification){
         var Plan=StagePipelinePlanner.Build(new StagePipelinePlanKey(Renderer.FrameInputs,CaptureForVerification));
-        Renderer.Execute(Plan);
+        this.Lights.Plan(Renderer.LightPlanInputs);
+        if(Renderer.Execute(Plan,this.Lights)){
+            this.Lights.EndFrame();
+        }
         this.CurrentPipelineValue=Plan;
     }
 
@@ -418,8 +429,10 @@ public sealed class RenderServer:IDisposable {
             RenderFrameState RecoveryFrame=
                 !this.PendingFrame.IsEmpty?this.PendingFrame:this.CompletedFrame;
             bool CompletesPendingFrame=!this.PendingFrame.IsEmpty;
+            // 新しいバックエンドと同じく、光源も空から始めて記録を再生する（作り直す前と同じ動き）。
+            this.Lights=new StageLightSubmissions();
             if(!RecoveryFrame.IsEmpty){
-                RecoveryFrame.Replay(Replacement,this.Width,this.Height);
+                RecoveryFrame.Replay(Replacement,this.Lights,this.Width,this.Height);
                 this.ExecuteFrame(Replacement,CaptureForVerification);
             }
             this.Lifecycle.CompleteRecovery(

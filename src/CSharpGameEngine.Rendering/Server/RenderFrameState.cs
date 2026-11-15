@@ -292,8 +292,10 @@ internal sealed class RenderFrameState {
         Renderer.SetView(this.ViewSource.Resolve(Renderer.DirectionalShadows.Compare?Math.Max(1,Width/2):Width,Height));
         return true;
     }
-    public void Replay(IStageRenderBackend Renderer,int Width,int Height){
+    /// <summary>記録をバックエンドへ再生する。光源は RenderServer が持つ <paramref name="Lights"/> へ提出し直す。</summary>
+    public void Replay(IStageRenderBackend Renderer,StageLightSubmissions Lights,int Width,int Height){
         ArgumentNullException.ThrowIfNull(Renderer);
+        ArgumentNullException.ThrowIfNull(Lights);
         if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
         this.TryReplayView(Renderer,Width,Height);
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
@@ -305,12 +307,12 @@ internal sealed class RenderFrameState {
         }
         foreach(var Command in this.LightOrder){
             switch(Command.Kind){
-                case LightCommandKind.SetDirectional:Renderer.SetLight(this.DirectionalLights[Command.Index]);break;
-                case LightCommandKind.Directional:Renderer.Submit(this.DirectionalLights[Command.Index]);break;
-                case LightCommandKind.Point:Renderer.Submit(this.PointLights[Command.Index]);break;
-                case LightCommandKind.Spot:Renderer.Submit(this.SpotLights[Command.Index]);break;
-                case LightCommandKind.Rect:Renderer.Submit(this.RectLights[Command.Index]);break;
-                case LightCommandKind.Emissive:this.EmissiveLights[Command.Index].Replay(Renderer);break;
+                case LightCommandKind.SetDirectional:Lights.SetLight(this.DirectionalLights[Command.Index]);break;
+                case LightCommandKind.Directional:Lights.Submit(this.DirectionalLights[Command.Index]);break;
+                case LightCommandKind.Point:Lights.Submit(this.PointLights[Command.Index]);break;
+                case LightCommandKind.Spot:Lights.Submit(this.SpotLights[Command.Index]);break;
+                case LightCommandKind.Rect:Lights.Submit(this.RectLights[Command.Index]);break;
+                case LightCommandKind.Emissive:this.EmissiveLights[Command.Index].Replay(Lights);break;
                 default:throw new InvalidOperationException("Unknown light command.");
             }
         }
@@ -395,8 +397,8 @@ internal sealed class RenderFrameState {
     private enum LightCommandKind:byte {SetDirectional,Directional,Point,Spot,Rect,Emissive}
     private readonly record struct LightCommandIndex(LightCommandKind Kind,int Index);
     private readonly record struct EmissiveCommand(EmissivePatch Patch,float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        public void Replay(IStageRenderBackend Renderer){
-            Renderer.SubmitEmissivePatch(this.Patch,this.RangeMeters,this.CastsShadows,this.ShadowPriority,this.ShadowBiasMeters);
+        public void Replay(StageLightSubmissions Lights){
+            Lights.SubmitEmissivePatch(this.Patch,this.RangeMeters,this.CastsShadows,this.ShadowPriority,this.ShadowBiasMeters);
         }
     }
 }

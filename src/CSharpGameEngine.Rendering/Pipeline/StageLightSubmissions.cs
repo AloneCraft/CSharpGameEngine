@@ -101,6 +101,20 @@ public sealed class StageLightSubmissions {
     public StageDirectionalLight?Sun { get;private set; }
     /// <summary>カスケード影を作る方向光の向き（面から光源へ）。カスケード影が無ければ null。</summary>
     public Vector3?CascadeDirectionTowardLight { get;private set; }
+    /// <summary>カスケード影の 4 段（<see cref="Plan"/> が今のビューで作る）。カスケード影が無ければ null。</summary>
+    public IReadOnlyList<DirectionalShadowCascade>?Cascades { get;private set; }
+    /// <summary>
+    /// このフレームの光源をすべて計画する。方向光、カスケード影、局所光とそのタイル、局所光の影のアトラスの順。
+    /// 同じ提出のまま何度呼んでも同じ結果になる（描かれなかったフレームの後に呼び直してよい）。
+    /// </summary>
+    public void Plan(in StageLightPlanInputs Inputs){
+        this.PlanDirectional();
+        if(this.CascadeDirectionTowardLight is Vector3 Direction){
+            this.Cascades=DirectionalShadowCascades.Build(Inputs.InvertibleViewProjection,Inputs.CameraPosition,Direction);
+        }
+        this.PlanLocal(Inputs.ViewProjection,Inputs.Width,Inputs.Height,Inputs.TileCountX,Inputs.TileCountY,Inputs.TileSizePixels);
+        this.PlanLocalShadows(Inputs.ViewProjection);
+    }
     /// <summary>このフレームで使う局所光の数。</summary>
     public int LocalLightCount { get;private set; }
     /// <summary>使う順の局所光。</summary>
@@ -206,6 +220,7 @@ public sealed class StageLightSubmissions {
         this.DirectionalsPlanned=false;
         this.Sun=null;
         this.CascadeDirectionTowardLight=null;
+        this.Cascades=null;
         this.PlannedDirectionalsStorage.Clear();
         if(this.PersistAcrossFrames){
             this.DirectionalsPlanned=true;
@@ -411,3 +426,13 @@ public sealed class StageLightSubmissions {
         return IsFinite(Normalized);
     }
 }
+/// <summary>光源の計画に要る、描画面の今のビュー。</summary>
+/// <param name="ViewProjection">主ビューのビュー投影。局所光の寄与とタイル、影の候補に使う。</param>
+/// <param name="InvertibleViewProjection">逆行列を取れるビュー投影（対数深度では補助のクリップ範囲）。カスケード影に使う。</param>
+/// <param name="CameraPosition">カメラの位置。</param>
+/// <param name="Width">描画面の幅（ピクセル）。</param>
+/// <param name="Height">描画面の高さ（ピクセル）。</param>
+/// <param name="TileCountX">Forward+ の横のタイル数。</param>
+/// <param name="TileCountY">Forward+ の縦のタイル数。</param>
+/// <param name="TileSizePixels">Forward+ のタイルの一辺（ピクセル）。</param>
+public readonly record struct StageLightPlanInputs(Matrix4x4 ViewProjection,Matrix4x4 InvertibleViewProjection,Vector3 CameraPosition,int Width,int Height,int TileCountX,int TileCountY,int TileSizePixels);

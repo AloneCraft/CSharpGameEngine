@@ -17,6 +17,15 @@ public static class StageRenderDefaults {
         return RenderViewSource.Perspective(Matrix4x4.CreateLookAt(Eye,Vector3.Zero,Up),Eye,
             new RadialViewParameters(MathF.PI/4f,0.1f,1000f,RadialDepthCurve.DefaultTransitionMeters),0f);
     }
+    /// <summary>
+    /// 起動直後の既定のビュー（<see cref="InitialViewSource"/>）と既定の方向光から作るカスケード影。L0 が全フレームスロットを初期化するときに書く
+    /// （GPU のアップロード用のメモリは 0 で初期化される保証がないため）。カスケードを作る計算は L4 の <c>DirectionalShadowCascades</c>。
+    /// </summary>
+    public static IReadOnlyList<Pipeline.DirectionalShadowCascade>InitialDirectionalCascades(float AspectRatio,Vector3 DirectionTowardLight){
+        var View=InitialViewSource.Resolve(AspectRatio);
+        var Invertible=View.Depth.Encoding==RenderDepthEncoding.Logarithmic?View.AuxiliaryViewProjection:View.ViewProjection;
+        return Pipeline.DirectionalShadowCascades.Build(Invertible,View.CameraPosition,DirectionTowardLight);
+    }
     public static readonly PixelColor ClearColor=new(89,140,217,255);
     public static readonly Vector4 HdrClearColor=new(0.23238164f,0.4095592f,1.2785315f,1.0f);
     /// <summary>

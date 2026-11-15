@@ -263,3 +263,12 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 - 途中の誤り: 置き換えの手順が、波かっこを使わない 1 行のメソッドを波かっこの対応で探し、次のメソッドまで消そうとした。保存の前に例外で止まったのでファイルは変わらず、手順を直してやり直した。その後、差分で消えた宣言を一覧にし、意図したものだけであることを確かめた。
 - 試験: `StageLightSubmissionsTests` 6 件(提出されるまで照らさない、単一設定の持続と置き換え、4 灯と影の選び方と落とした数、局所光は 1 フレームだけでタイル範囲は画面の中だけ、影のアトラスの割り当て、不正な提出の拒否)。Rendering.Tests 229 件合格。
 - 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit5b1`)。Windows.Tests 940 件中 938 件合格・2 件対象外・失敗 0。
+
+### 単位 5b-2: 光源の提出と計画の持ち主を RenderServer へ(2026-11-15)
+- RenderServer が `StageLightSubmissions` を持つ。光源の入口(方向光の設定と追加、点・スポット・矩形の光源、発光面)は、以前バックエンドへ提出していたときと同じく先にデバイスの状態を確かめてから(`_=this.Backend`)、この部品へ提出する。フレームを描く前に、バックエンドの今のビュー(`LightPlanInputs`)で光源を計画し、`Execute(plan, lights)` に渡す。表示できたら(`Execute` が true)光源のフレームを閉じる。描画面の大きさが 0 で表示しなかったフレームは閉じない(以前の L0 と同じく、提出を次のフレームへ持ち越す)。
+- 記録の再生(`RenderFrameState.Replay`)は、光源をバックエンドではなくこの部品へ提出し直す。デバイスを作り直すときは、新しいバックエンドが光源を持たずに始まっていたのと同じく、部品を作り直してから記録を再生する(作り直す前のフレームの単一の方向光は、その記録に無ければ引き継がない。以前と同じ動き)。
+- カスケード影も計画に含めた(`StageLightSubmissions.Plan` が `DirectionalShadowCascades.Build` を呼ぶ)。起動時の全フレームスロットの初期化で書くカスケードは、L4 の `StageRenderDefaults.InitialDirectionalCascades`(既定のビューと既定の方向光)から書く。
+- 物理単位と型付きの光源の写し方(L0 の `StagePhysicalLightApi`・`TypedLightBackend`・`EmissivePatchSubmission`)を、L4 の `StageLightSubmissionsExtensions` へ式を変えずに移し、L0 の 3 ファイルと、StageRenderer の光源の入口(方向光 2 つ、点光源 3 つ、スポット 3 つ、矩形 1 つ)を削除した。ポートから `SetLight`・`Submit` 4 つ・`SubmitEmissivePatch`・`SubmitDirectLighting` を外した。
+- L0 は直前の `Execute` で受け取った計画済みの光源を読むだけで、計画の関数(`PhysicalLightBudget`、`StageLightPlanner`、`DirectionalShadowCascades.Build`、`PhysicalShadowAtlasPlan.Select`、光源の計画)を呼ばない。残る L4 の呼び出しは、GI のプローブを撮る深度(`StageShadowPlanner.ProbeCaptureDepth`、単位 6 で値にする)と、仮想影のページの計画(`VirtualDirectionalShadowCache.Plan`、ADR-0087 の禁止の一覧に無い仮想影の実行器の中身)。
+- StageRenderer を直接使う試験のために、試験側の補助(`StageRendererViewExtensions`)が描画面ごとに光源の部品を持ち、以前の入口と同じ名前・引数で提出し、`RenderFrame` で計画・実行・フレームの終わりを行う。物理単位の入口は、もとと同じく外側の名前空間に置いた(名前つきの引数で従来の入口と両方に当てはまる呼び出しを、従来の入口へ解決するため。最初は同じ名前空間に置いて、あいまいな呼び出しの誤りが 1 件出た)。
+- 画素: 固定 7 画像は書き換え前と生の画素が完全に一致(`unit5b2`)。ソリューション全体のビルドは成功。Windows.Tests 940 件中 938 件合格・2 件対象外・失敗 0。
