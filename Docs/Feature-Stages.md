@@ -152,6 +152,19 @@ PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celes
 
 10個の独立Pack実行プロジェクト、共有host、各PackのC# `IScene`、生成ECSの実体化・ownership・unload・state hash検証まで実装済みである。将来solver本体は、対応Featureが実装されるまで明示的な`NotImplemented` Stageとして維持する。
 
+### 画面表示モード `show`
+
+各Packの実行ファイルは、検証用の`run`（テキストのJSONを出すだけで、描画も物理も走らない）のほかに、Sceneの見た目を実際の窓に描く`show`を持つ。
+
+```text
+dotnet run --project stages/CSharpGameEngine.FeatureStages.<Pack> -- show <scene-id> [--frames N] [--hidden] [--warp] [--width W] [--height H] [--capture <png>]
+```
+
+- 窓を閉じるまで描き続ける。`--frames N`で枚数を限り、`--hidden`で窓を出さず、`--warp`でWARPを使う。`--capture`は最後のフレームをPNGに保存する（枚数を省くと3枚）。
+- 描くのはSceneの`StageVisual`だけである。値は生成されたSystem（`StageVisualCollectSystem`）が編集用の1フレームで集める。物理・流体・破壊などのsolverは動かさない。シーンの配置を見るための表示であり、`run`の合否（Oracle）を置き換えない。
+- `Primitive`の形は表示用の取り決めで、シーンの部品名から決めた。0=カメラの目印（小さい箱）、1=箱、2=球、3=三角形、4=平たい板（布・波の格子）、5=細い棒（ロープ・軸）。色は`Color`のARGB。カメラは全体が収まる位置へ自動で置く。
+- 描画のため、Packは`net10.0-windows10.0.19041.0`を対象にし、`CSharpGameEngine.Windows`を参照して`Stage.cgeshaderartifact`を出力先の`Shaders\`へ置く。`run`と`list`の出力は変わらない。
+
 
 ## M0060 executable shader stages
 

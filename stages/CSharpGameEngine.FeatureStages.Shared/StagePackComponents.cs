@@ -23,6 +23,14 @@ public struct StageLink {
     public int Target;
     public int Kind;
 }
+/// <summary>`show` が、シーンに入った <see cref="StageVisual"/> を窓へ渡すための受け皿。値の読み出しは生成された System 経由に限られるため、System が集める。</summary>
+internal static class StageVisualSink {
+    internal static readonly List<StageVisual>Items=[];
+}
+[ExecuteInEditor]
+internal struct StageVisualCollectSystem:ISystem {
+    public void Update(ref StageVisual Visual){ StageVisualSink.Items.Add(Visual); }
+}
 [ExecuteInEditor]
 internal struct StageLifecycleSystem:ISystem {
     public void Update(ref StageScenario Scenario,ref State State){ }

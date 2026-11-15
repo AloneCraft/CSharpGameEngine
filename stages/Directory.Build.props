@@ -2,7 +2,9 @@
   <Import Project="..\Directory.Build.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- `show` draws the scene in a window with the D3D12 renderer, so the packs target Windows like TestHost. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsPackable>false</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <!-- ADR-0070: write .cge/scene.schema.json after the build, the target of the stage scenes' "$schema". -->
@@ -15,6 +17,9 @@
     <AdditionalFiles Include="Scenes\**\*.json" />
     <CompilerVisibleProperty Include="ProjectDir" />
     <Compile Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+    <!-- These two attribute files are compiled into CSharpGameEngine.Windows too (linked); use that copy. -->
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" />
+    <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SceneComponentOrderAttribute.cs" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\FixedTransform.cs" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialPartitioning.cs" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialWorld.cs" />
@@ -23,5 +28,8 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
+    <!-- The window's shader artifact, published to Shaders\ next to the pack as in TestHost. -->
+    <CgeShaderGraph Include="$(MSBuildThisFileDirectory)..\assets\Shaders\Stage.cgeshadergraph" />
   </ItemGroup>
 </Project>

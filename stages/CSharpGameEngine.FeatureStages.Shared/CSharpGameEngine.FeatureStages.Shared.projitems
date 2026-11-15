@@ -11,5 +11,6 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)StagePackComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StagePackHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StagePackViewer.cs" />
   </ItemGroup>
 </Project>
