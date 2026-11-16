@@ -137,6 +137,7 @@
     <File Path="Directory.Build.targets" />
     <File Path="build/CSharpGameEngine.ShaderGraph.targets" />
     <File Path="build/CSharpGameEngine.Showcase.targets" />
+    <File Path="build/CSharpGameEngine.StartupProjects.targets" />
     <File Path="build/CSharpGameEngine.Game.props" />
     <File Path="global.json" />
     <File Path="README.md" />

@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
+    <!-- F5 starts the Visual Studio experimental instance, so it stays in the startup project list (StartupProjects.targets). -->
+    <CgeStartupCandidate>true</CgeStartupCandidate>
     <UseWindowsForms>false</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <NeutralLanguage>en-US</NeutralLanguage>

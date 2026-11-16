@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    Visual Studio の起動先の一覧(デバッグ実行で選ぶプロジェクト)に出すのは、引数なしで起動して意味のあるものだけにする。
+    ゲーム(CgeGameProject)は既定で出す。試験、ほかの道具や VS 拡張から呼ばれる道具、引数なしでは使い方の文を出すだけの
+    コマンドは出さない。出したいプロジェクトは CgeStartupCandidate を true に、出したくないゲームは false にする。
+
+    VS は LaunchProfiles の印(Microsoft.Managed.DesignTime.targets が付ける)を持つプロジェクトだけを候補にする。
+    この印はこのファイルより先に付くので、ここで外せる。外しても組み立てと試験の実行には影響しない(設計時だけの印)。
+  -->
+  <PropertyGroup>
+    <CgeStartupCandidate Condition="'$(CgeStartupCandidate)' == ''">$(CgeGameProject)</CgeStartupCandidate>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(CgeStartupCandidate)' != 'true'">
+    <ProjectCapability Remove="LaunchProfiles" />
+  </ItemGroup>
+</Project>

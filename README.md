@@ -47,12 +47,15 @@ dotnet test CSharpGameEngine.slnx --filter "Category!=GPU"
 
 ## VS Code
 `.vscode/launch.json`に、`UserEcsProject`・`TestHost`(self-test/triangle)・
-`Extension`(Viewer)・3つのCLIブリッジ`Import.Gltf.Cli`/`Import.Fbx.Cli`/`Primitive.Cli`)分の
-デバッグ構成を用意しています。VS Codeでリポジトリを開き、拡張機能`ms-dotnettools.csharp`
+`Extension`(Viewer)と、`tools/VSExtension`をVisual Studioの実験用インスタンスで起動する構成を
+用意しています。VS Codeでリポジトリを開き、拡張機能`ms-dotnettools.csharp`
 (初回は推奨通知が出ます)をインストールした状態で「実行とデバッグ」パネルから選択してください。
-ビルドは各構成の起動前に自動実行されます(`.vscode/tasks.json`)。CLIブリッジ3つは入出力パスを
-起動時に尋ねます。`tools/VSExtension`(net472 VSIX)はVisual Studio本体
-(`devenv.exe`)のホストが必須のため対象外です。
+ビルドは各構成の起動前に自動実行されます(`.vscode/tasks.json`)。ほかの道具やVS拡張から呼ばれる
+コマンド(取り込みのブリッジなど)は、デバッグ実行で選ぶ意味がないので構成を置いていません。
+
+Visual Studioの起動先の一覧に出るのは、ゲーム(見本・テンプレート・`UserEcsProject`)と
+`tools/VSExtension`だけです。試験と道具は`build/CSharpGameEngine.StartupProjects.targets`で一覧から外しています。
+出したいプロジェクトは`CgeStartupCandidate`を`true`にしてください。
 
 ## TestHost
 ```bash
