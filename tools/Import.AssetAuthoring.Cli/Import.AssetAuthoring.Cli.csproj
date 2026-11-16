@@ -10,7 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Import\Import.csproj" />
     <ProjectReference Include="..\..\src\Content\Content.csproj" />
-    <ProjectReference Include="..\..\src\Audio\Audio.csproj" />
+    <ProjectReference Include="..\..\src\Core\Core.csproj" />
     <ProjectReference Include="..\..\src\Rendering\Rendering.csproj" />
     <ProjectReference Include="..\Bridge.Hosting\Bridge.Hosting.csproj" />
     <ProjectReference Include="../ContentCompiler/ContentCompiler.csproj" />

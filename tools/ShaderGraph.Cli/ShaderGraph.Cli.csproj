@@ -12,7 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/ShaderGraph/ShaderGraph.csproj" />
-    <ProjectReference Include="../../src/ShaderArtifacts/ShaderArtifacts.csproj" />
+    <ProjectReference Include="../../src/Contracts/Contracts.csproj" />
     <!-- ADR-0078/M0110: build-distance-fields reads glTF meshes with the engine's importer and writes their distance fields. -->
     <ProjectReference Include="../../src/Content/Content.csproj" />
     <ProjectReference Include="../../src/Rendering/Rendering.csproj" />

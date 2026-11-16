@@ -161,17 +161,16 @@
     <File Path="assets/TestFixtures/Fbx/NOTICE.md" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Audio/Audio.csproj" />
     <Project Path="src/Content/Content.csproj" />
-    <Project Path="src/World/World.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
     <Project Path="src/Contracts/Contracts.csproj" />
     <Project Path="src/Cooking/Cooking.csproj" />
     <Project Path="src/Core/Core.csproj" />
     <Project Path="src/CodeAnalysis/CodeAnalysis.csproj" />
     <Project Path="src/Entities/Entities.csproj" />
     <Project Path="src/Numerics/Numerics.csproj" />
+    <Project Path="src/World/World.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
     <Project Path="src/Rendering/Rendering.csproj" />
     <Project Path="src/Import/Import.csproj" />
     <Project Path="src/SceneModel/SceneModel.csproj" />
@@ -179,7 +178,6 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/ShaderGraph/ShaderGraph.csproj" />
-    <Project Path="src/ShaderArtifacts/ShaderArtifacts.csproj" />
     <Project Path="src/Runtime.Simulation/Runtime.Simulation.shproj" />
     <File Path="src/Runtime.Simulation/Runtime.Simulation.projitems" />
     <Project Path="src/Runtime.Physics/Runtime.Physics.shproj" />

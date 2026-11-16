@@ -38,10 +38,8 @@
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Core\Core.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Numerics\Numerics.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\World\World.csproj" />
-    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Audio\Audio.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Content\Content.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Rendering\Rendering.csproj" />
-    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\ShaderArtifacts\ShaderArtifacts.csproj" />
     <!-- ADR-0079: build the Cook contract for the tool host; it is excluded from runtime lib below. -->
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Cooking\Cooking.csproj" />
     <None Include="build\CSharpGameEngine.Sdk.props;build\CSharpGameEngine.Sdk.targets" Pack="true" PackagePath="build\" />

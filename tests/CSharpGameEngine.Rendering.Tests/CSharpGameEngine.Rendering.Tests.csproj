@@ -10,6 +10,6 @@
     <Using Include="Xunit" />
     <ProjectReference Include="../../src/Content/Content.csproj" />
     <ProjectReference Include="../../src/Rendering/Rendering.csproj" />
-    <ProjectReference Include="../../src/ShaderArtifacts/ShaderArtifacts.csproj" />
+    <ProjectReference Include="../../src/Contracts/Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -46,7 +46,7 @@ def run(*arguments):
 
 
 def presentation_suffix():
-    source = open(os.path.join(REPO, "src", "ShaderArtifacts", "StagePresentationShaderSource.cs"), encoding="utf-8").read()
+    source = open(os.path.join(REPO, "src", "Contracts", "ShaderArtifacts", "StagePresentationShaderSource.cs"), encoding="utf-8").read()
     body = re.search(r'Source="""\r?\n(.*?)\r?\n(\s*)""";', source, re.S)
     indent = body.group(2)
     lines = [line[len(indent):] if line.startswith(indent) else line for line in body.group(1).split("\n")]

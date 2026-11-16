@@ -27,7 +27,7 @@ public sealed class ChangedStageSelectorTests {
         FeatureStageCatalog Catalog=FeatureStageCatalog.CreateDefault();
 
         IReadOnlyList<FeatureStageDefinition>Selected=ChangedStageSelector.Select(
-            Catalog,["src/Audio/AudioMixer.cs"]);
+            Catalog,["src/Core/Audio/AudioMixer.cs"]);
 
         Assert.Contains(Selected,Stage=>Stage.Id=="audio.mixer");
         Assert.Contains(Selected,Stage=>Stage.Id=="audio.spatial");
@@ -36,7 +36,7 @@ public sealed class ChangedStageSelectorTests {
             Assert.Contains("changed",Stage.Profiles,StringComparer.OrdinalIgnoreCase);
         });
         IReadOnlyList<FeatureStageDefinition>NearMiss=ChangedStageSelector.Select(
-            Catalog,["src/CSharpGameEngine.AudioExtra/AudioMixer.cs"]);
+            Catalog,["src/AudioExtra/AudioMixer.cs"]);
         Assert.Equal("runner.contract",Assert.Single(NearMiss).Id);
     }
 
