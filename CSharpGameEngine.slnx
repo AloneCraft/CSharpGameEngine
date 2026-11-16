@@ -214,7 +214,7 @@
     <Project Path="plugins/Destruction/Cook/Destruction.Cook.csproj" />
   </Folder>
   <Folder Name="/samples/Destruction/">
-    <Project Path="samples/Samples.Destruction/Samples.Destruction.csproj" />
+    <Project Path="samples/Destruction/Destruction.csproj" />
   </Folder>
   <Folder Name="/samples/Plugins/Weather/">
     <File Path="samples/Plugins/Weather/Weather.cgeplugin" />
@@ -226,8 +226,8 @@
     <File Path="samples/Plugins/Weather/Runtime/Weather.Runtime.projitems" />
   </Folder>
   <Folder Name="/samples/Plugins/Lightning/">
-    <Project Path="samples/Plugins/Samples.Lightning/Samples.Lightning.csproj" />
-    <File Path="samples/Plugins/Samples.Lightning/plugin/Runtime/Lightning.Runtime.projitems" />
+    <Project Path="samples/Plugins/Lightning/Lightning.csproj" />
+    <File Path="samples/Plugins/Lightning/plugin/Runtime/Lightning.Runtime.projitems" />
   </Folder>
   <Folder Name="/packaging/">
     <Project Path="packaging/Sdk/Sdk.csproj" />

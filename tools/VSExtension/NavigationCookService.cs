@@ -11,7 +11,7 @@ namespace CSharpGameEngine.VSExtension;
 internal readonly record struct NavigationCookResult(bool Succeeded,string Message,IReadOnlyList<string>OutputPaths,IReadOnlyList<string>Diagnostics);
 /// <summary>
 /// シーンのゲームのナビメッシュを、ビルドと同じ手順で焼く(ADR-0079/M0106)。Navigation プラグインのターゲット <c>CgeCookNavigation</c> を、そのプロジェクトで
-/// <c>dotnet msbuild</c> に実行させる。Cook 本体(<c>CSharpGameEngine.Cook.Cli</c>とプラグインの Cook モジュール)は別のプロセスで動き、VS のプロセスはユーザーの DLL を読まない
+/// <c>dotnet msbuild</c> に実行させる。Cook 本体(<c>Cook.Cli</c>とプラグインの Cook モジュール)は別のプロセスで動き、VS のプロセスはユーザーの DLL を読まない
 /// (ADR-0019/0020)。物理のベイクのようにエンジンのソースの場所に頼らないので、エンジンのリポジトリのプロジェクトでも、パッケージから作ったプロジェクトでも使える。
 /// </summary>
 internal static class NavigationCookService {

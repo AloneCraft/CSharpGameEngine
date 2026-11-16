@@ -1,7 +1,7 @@
 namespace CSharpGameEngine.Cooking;
 /// <summary>
 /// プラグインの Cook モジュールが足す、取り込みとベイクの処理(ADR-0079)。1 つの入力ファイルから、出力フォルダへファイルを書く。
-/// 同じ入力からは同じバイト列を書く(決定的)。<c>CSharpGameEngine.Cook.Cli cook --verify</c> は 2 回書いて比べる。
+/// 同じ入力からは同じバイト列を書く(決定的)。<c>Cook.Cli cook --verify</c> は 2 回書いて比べる。
 /// 実装は公開の、引数なしのコンストラクターを持つクラスにする。
 /// </summary>
 public interface IAssetCooker {

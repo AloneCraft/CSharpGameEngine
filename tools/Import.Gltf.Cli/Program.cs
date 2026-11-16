@@ -7,8 +7,8 @@ if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
 }
 
 if(args.Length!=2){
-    Console.Error.WriteLine("Usage: CSharpGameEngine.Import.Gltf.Cli <input.glb|input.gltf> <output.json>");
-    Console.Error.WriteLine("       CSharpGameEngine.Import.Gltf.Cli --serve <pipeName>");
+    Console.Error.WriteLine("Usage: Import.Gltf.Cli <input.glb|input.gltf> <output.json>");
+    Console.Error.WriteLine("       Import.Gltf.Cli --serve <pipeName>");
     return 2;
 }
 

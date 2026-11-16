@@ -7,8 +7,8 @@ if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
 }
 
 if(args.Length!=2){
-    Console.Error.WriteLine("Usage: CSharpGameEngine.Import.Fbx.Cli <input.fbx> <output.json>");
-    Console.Error.WriteLine("       CSharpGameEngine.Import.Fbx.Cli --serve <pipeName>");
+    Console.Error.WriteLine("Usage: Import.Fbx.Cli <input.fbx> <output.json>");
+    Console.Error.WriteLine("       Import.Fbx.Cli --serve <pipeName>");
     return 2;
 }
 

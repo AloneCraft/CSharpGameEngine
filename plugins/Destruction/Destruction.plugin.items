@@ -4,7 +4,7 @@
     after every property, so they must not use the CgePlugin* properties that each plugin overwrites.
 
     The build cooks the fractures: every scene of the game that holds a CSharpGameEngine.Destruction.Destructible is cooked with the plugin's
-    Cook module (CSharpGameEngine.Destruction.Cook) through CSharpGameEngine.Cook.Cli, in a process of its own, into
+    Cook module (Destruction.Cook) through Cook.Cli, in a process of its own, into
     obj\...\cge-destruction\Assets\Destruction\<FractureAsset>.cgefracture, which is copied next to the game as Assets\Destruction\<FractureAsset>.cgefracture.
     The cook runs again when a scene, an asset or a tool is newer than the last run, and a failure is a build error (the Cook module prints
     "scene.json: error DSTnnn: message"). CgeCookDestruction is also the target the Visual Studio extension can run to cook without a full build.

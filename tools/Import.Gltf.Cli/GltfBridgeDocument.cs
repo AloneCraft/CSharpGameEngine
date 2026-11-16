@@ -3,7 +3,7 @@ using CSharpGameEngine.Import.Gltf;
 namespace CSharpGameEngine.Import.Gltf.Cli;
 
 /// <summary>
-/// <see cref="ImportedMesh"/> を平坦で JSON に適した形式にしたもの。<c>CSharpGameEngine.Import.Fbx.Cli</c> の <c>FbxBridgeDocument</c> に相当する (ADR-0010)。net472 の VSIX 側が <c>System.Numerics.Vector3</c>/<c>Vector4</c> のシリアル化動作や、この net10.0 アセンブリを参照せずに済むよう、意図的にプリミティブ型（平坦な float 配列、独自型なし）に限定する。
+/// <see cref="ImportedMesh"/> を平坦で JSON に適した形式にしたもの。<c>Import.Fbx.Cli</c> の <c>FbxBridgeDocument</c> に相当する (ADR-0010)。net472 の VSIX 側が <c>System.Numerics.Vector3</c>/<c>Vector4</c> のシリアル化動作や、この net10.0 アセンブリを参照せずに済むよう、意図的にプリミティブ型（平坦な float 配列、独自型なし）に限定する。
 /// </summary>
 public sealed class GltfBridgeDocument {
     public bool Success { get; init;}

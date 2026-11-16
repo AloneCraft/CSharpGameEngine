@@ -4,7 +4,7 @@ using CSharpGameEngine.Numerics;
 namespace CSharpGameEngine.Navigation;
 /// <summary>
 /// ナビメッシュを作る領域(UE の NavMeshBoundsVolume に当たる)。シーンのノードに付け、ノードの Transform の位置と拡縮で置く(回転は、領域を含む軸に平行の箱にして使う)。
-/// ビルドの Cook(<c>CSharpGameEngine.Navigation.Cook</c>)がこのシーンを読み、領域の中の静的な衝突形状から<c>Assets/Navigation/&lt;Id&gt;.cgenav</c>を作る。
+/// ビルドの Cook(<c>Navigation.Cook</c>)がこのシーンを読み、領域の中の静的な衝突形状から<c>Assets/Navigation/&lt;Id&gt;.cgenav</c>を作る。
 /// 同じ<see cref="Id"/>の領域は 1 つのナビメッシュにまとまり、その値(歩く者と格子の大きさ)は同じでなければならない。実行時は、この Component のある Entity が現れると
 /// その<see cref="Id"/>のナビメッシュを読む(<see cref="Navigator"/>)。既定値は UE5.8 の TopDown テンプレートの RecastNavMesh の値(<see cref="NavigationDefaults"/>)。
 /// </summary>

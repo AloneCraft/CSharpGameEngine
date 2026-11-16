@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
 /// ADR-0070：ジェネレーターは Scene JSON（<c>Scenes\**\*.json</c>）だけから Scene をビルドする。テストでは短く型検査もできる C# Scene DSL で
-///  Scene を記述しておく。ジェネレーター実行前に各 Scene クラスを、<c>CSharpGameEngine.SceneJson.Cli convert --delete-source</c>
+///  Scene を記述しておく。ジェネレーター実行前に各 Scene クラスを、<c>SceneJson.Cli convert --delete-source</c>
 ///  と同じ方法（同じアナライザーとコンバーター）で Scene JSON に変換し、コンパイルからクラスを削除する。コンバーターで表現できない Scene は C# のまま残り、ユーザーが未変換のまま置
 /// いた Scene と同様にビルドされない。
 /// </summary>

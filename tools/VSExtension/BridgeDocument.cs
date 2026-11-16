@@ -4,7 +4,7 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// VSIX 側でデシリアライズする対象。<c>CSharpGameEngine.Import.Fbx.Cli</c> の <c>FbxBridgeDocument</c> (ADR-0010) と、<c>CSharpGameEngine.Import.Gltf.Cli</c> の <c>GltfBridgeDocument</c> (ADR-0019) の両方に対応する。どちらのブリッジも同じ平坦な JSON 形式を生成するため、<see cref="ExternalFbxLoader"/> と <see cref="ExternalGltfLoader"/> はこの型と <see cref="ToSimpleMesh"/> の変換を共有し、形式ごとに重複させない。VSIX のレンダラーはテクスチャをサポートしないため、<c>Uvs</c> は意図的にモデル化しない。
+/// VSIX 側でデシリアライズする対象。<c>Import.Fbx.Cli</c> の <c>FbxBridgeDocument</c> (ADR-0010) と、<c>Import.Gltf.Cli</c> の <c>GltfBridgeDocument</c> (ADR-0019) の両方に対応する。どちらのブリッジも同じ平坦な JSON 形式を生成するため、<see cref="ExternalFbxLoader"/> と <see cref="ExternalGltfLoader"/> はこの型と <see cref="ToSimpleMesh"/> の変換を共有し、形式ごとに重複させない。VSIX のレンダラーはテクスチャをサポートしないため、<c>Uvs</c> は意図的にモデル化しない。
 /// </summary>
 internal sealed class BridgeDocument {
     public bool Success { get; set;}

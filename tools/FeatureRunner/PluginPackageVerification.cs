@@ -10,7 +10,7 @@ public static class PluginPackageVerification {
     public const string LightningPackageId="CSharpGameEngine.Samples.Lightning";
     public const string LightningVersion="1.0.0";
     /// <summary>パッケージのプラグインの見本のプロジェクト。フォルダ名とプロジェクト名には <c>CSharpGameEngine.</c> を付けない(ADR-0099)。PackageId は付けたまま。</summary>
-    public static string LightningProjectPath(string RepositoryRoot)=>Path.Combine(RepositoryRoot,"samples","Plugins","Samples.Lightning","Samples.Lightning.csproj");
+    public static string LightningProjectPath(string RepositoryRoot)=>Path.Combine(RepositoryRoot,"samples","Plugins","Lightning","Lightning.csproj");
     private static readonly Regex WeatherLine=new(@"CGE-PLUGIN-SAMPLE Weather updates=(\d+) rainfall=([0-9.]+) gusts=(\d+)",RegexOptions.CultureInvariant);
     private static readonly Regex LightningLine=new(@"CGE-PLUGIN-SAMPLE Lightning bolts=(\d+) energy=([0-9.]+)",RegexOptions.CultureInvariant);
 

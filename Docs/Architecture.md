@@ -221,7 +221,7 @@ UserEcsProject remains an L9 composition root for scenes, gameplay components, a
 |---|---|---|
 | Runtime | 共有ソース(`.projitems`)。ゲームと同じコンパイルに入る。Component、System、`[EngineService]`、イベント | L5(ゲームの中ではエンジンの Runtime.* と同じ扱い) |
 | Library | DLL(`[assembly: PluginLibrary]`)。`World`・`State`・`Entity`・`ISystem` を名指ししない | L4〜L5 |
-| Cook | DLL(`IAssetCooker`)。`CSharpGameEngine.Cook.Cli` が別のプロセスで動かす | L7 |
+| Cook | DLL(`IAssetCooker`)。`Cook.Cli` が別のプロセスで動かす | L7 |
 | エディタの宣言 | 属性(アイコン、表示順) | L8 が読む |
 
 - ECS のコードがソースでしか足せないのは、`World` と `State` が生成器の完成させる partial 型で、Archetype の空間がゲームごとに 1 つだからである。生成器は 1 つで、ユーザーは生成器を足さない。

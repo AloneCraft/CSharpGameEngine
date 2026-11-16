@@ -141,7 +141,7 @@ internal static class SceneJsonSceneAnalyzer {
     private static readonly string[]NodeKeys=["id","name","components","children"];
     private static readonly string[]ComponentKeys=["type","members"];
     /// <summary>旧版のシーンを現行版へ書き換えるコマンド。旧版や旧キー名を見つけたときのメッセージで案内する。</summary>
-    internal const string UpgradeCommand="CSharpGameEngine.SceneJson.Cli upgrade <game .csproj> --write";
+    internal const string UpgradeCommand="SceneJson.Cli upgrade <game .csproj> --write";
     /// <summary>
     /// 現行版（<see cref="SchemaVersion"/>）のシーンだけを読む。ビルド、生成器、エディターはこの入口を使う。旧版の文書と、C# の単位名を含む角度キーは、
     /// 変換コマンドを示す問題にする（ADR-0098 §5 規則 2：旧版を読む経路をランタイムと生成器に残さない）。

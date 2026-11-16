@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 namespace CSharpGameEngine.FeatureStages;
 /// <summary>
-/// 破壊の見本(ADR-0078/M0113、<c>samples/Samples.Destruction</c>)の実走検証。見本を自動実行の入力つきで WARP で動かし、
+/// 破壊の見本(ADR-0078/M0113、<c>samples/Destruction</c>)の実走検証。見本を自動実行の入力つきで WARP で動かし、
 /// 見本が毎フレーム出す <c>CGE-DESTRUCTION-SAMPLE</c> の行(壊れたもの・切れた結合・ばらけた破片・眠った破片・一番低い破片・一番速い破片)で、
 /// 始まってすぐ壁に当たる球と落ちる木箱が壊れること、歩いてぶつかった木箱が壊れること、終わりに 6 個すべてが壊れ、爆発(E)が破片を押すこと、破片が床を抜けずに積もって静まることを判定する。
 /// M0124: 壁が 2 段のクラスター(<c>ClusterLevels</c> 2)で調理されていること、走行中にどこかの切れていない結合が以前の衝撃の内部ひずみを持ったことも判定する。
@@ -46,7 +46,7 @@ public static class DestructionSampleVerification {
     /// <summary><c>CGE-DESTRUCTION-SAMPLE</c> の1行。</summary>
     public readonly record struct SampleFrame(int Frame,long Tick,int Destructibles,int Broken,int Bonds,int Loose,int Sleeping,float Lowest,float Fastest,int Strained=0,int Levels=0);
     public static string ExecutablePath(string RepositoryRoot,string Configuration)=>Path.Combine(
-        RepositoryRoot,"samples","Samples.Destruction","bin",Configuration,"net10.0-windows10.0.19041.0","win-x64","CgeDestructionSample.exe");
+        RepositoryRoot,"samples","Destruction","bin",Configuration,"net10.0-windows10.0.19041.0","win-x64","CgeDestructionSample.exe");
     public static string PhysicsCliPath(string RepositoryRoot,string Configuration)=>Path.Combine(
         RepositoryRoot,"tools","Physics.Cli","bin",Configuration,"net10.0-windows10.0.19041.0","win-x64","Physics.Cli.exe");
     public static async Task<int>RunAsync(string RepositoryRoot,string Configuration,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){

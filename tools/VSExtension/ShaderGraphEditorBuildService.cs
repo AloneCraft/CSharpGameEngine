@@ -19,7 +19,7 @@ internal static class ShaderGraphEditorBuildService {
         var Context=CgeProjectContext.Resolve(GraphPath);
         var RepoRoot=Context?.WorkspaceRoot??Path.GetDirectoryName(Path.GetFullPath(GraphPath))!;
         var CliPath=FindCli(Context?.EngineRoot);
-        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not available. Reinstall the extension or build CSharpGameEngine.ShaderGraph.Cli.",null); }
+        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not available. Reinstall the extension or build ShaderGraph.Cli.",null); }
         if(GetOperation(GraphPath)==ShaderGraphEditorBuildOperation.ValidateSubgraph) {
             var Validation=Run(CliPath,"validate "+Quote(GraphPath),RepoRoot);
             return Validation.ExitCode==0

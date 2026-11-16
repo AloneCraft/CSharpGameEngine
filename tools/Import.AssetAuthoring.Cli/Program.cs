@@ -11,9 +11,9 @@ if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
 
 if(args.Length!=2){
     Console.Error.WriteLine(
-        "Usage: CSharpGameEngine.Import.AssetAuthoring.Cli <request.json> <result.json>");
+        "Usage: Import.AssetAuthoring.Cli <request.json> <result.json>");
     Console.Error.WriteLine(
-        "       CSharpGameEngine.Import.AssetAuthoring.Cli --serve <pipeName>");
+        "       Import.AssetAuthoring.Cli --serve <pipeName>");
     return 2;
 }
 

@@ -10,7 +10,7 @@ namespace CSharpGameEngine.Unreal.SceneImporter;
 /// 生成物はLvl_ThirdPerson(レベル配置とコリジョン)、ThirdPersonAssets(資産カタログ)、ThirdPersonCharacter
 /// (キャラクター)。入力(Gameplay/PlayerActions)は手書きで、生成しない(ADR-0077)。アニメーションglbは
 /// ジョイント階層とアニメーションだけを残す形へ縮約し、UEが同梱した重複メッシュ・テクスチャを除く。
-/// SceneクラスのC#は中間形式で、run_export_thirdperson.cmdが続けて<c>CSharpGameEngine.SceneJson.Cli
+/// SceneクラスのC#は中間形式で、run_export_thirdperson.cmdが続けて<c>SceneJson.Cli
 /// convert</c>でシーンJSONへ変換する(ADR-0070)。
 /// </summary>
 internal static class ThirdPersonTemplateImporter {

@@ -30,8 +30,8 @@ if(args.Length>=2&&args[0] is "describe" or "import-worker"){
 //   list <cook-module.dll>
 //   cook <cook-module.dll> <input> <output-directory> [--project <directory>] [--cooker <name>] [--verify]
 if(args.Length<2||args[0] is not ("list" or "cook")){
-    Console.Error.WriteLine("Usage: CSharpGameEngine.Cook.Cli list <cook-module.dll>");
-    Console.Error.WriteLine("       CSharpGameEngine.Cook.Cli cook <cook-module.dll> <input> <output-directory> [--project <directory>] [--cooker <name>] [--verify]");
+    Console.Error.WriteLine("Usage: Cook.Cli list <cook-module.dll>");
+    Console.Error.WriteLine("       Cook.Cli cook <cook-module.dll> <input> <output-directory> [--project <directory>] [--cooker <name>] [--verify]");
     return 2;
 }
 try {

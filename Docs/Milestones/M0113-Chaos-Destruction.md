@@ -4,7 +4,7 @@
 - 追補(2026-10-26): 範囲外の表の 2 行(箱と三角形メッシュの接触の複数の面の向き、内部ひずみと多段のクラスター)は [M0124](M0124-Mesh-Contact-Orientations-And-Destruction-Strain.md) で実装した。本書の §3 の「ひずみは tick ごとに捨てる」と「1 段のクラスター」は M0113 時点の記述で、現在の仕様は M0124 と `Docs/Specifications/Physics.md`
 
 ## 目的
-ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相当)」を作る。計画の段階 1 の 8。UE の 4 テンプレートには壊れる物体が無いので、テンプレートのレベルは変えず、エンジン機能(物理の `Runtime.Physics` とプラグイン `plugins/Destruction`)と専用の見本(`samples/Samples.Destruction`)にする。
+ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相当)」を作る。計画の段階 1 の 8。UE の 4 テンプレートには壊れる物体が無いので、テンプレートのレベルは変えず、エンジン機能(物理の `Runtime.Physics` とプラグイン `plugins/Destruction`)と専用の見本(`samples/Destruction`)にする。
 - 調理: シード付き・決定的なボロノイ分割。断面の材質の区別、1 段のクラスター、接触面積から結合の強さ。閉じていない・凹んだ・退化したメッシュと、破片数 0/1 は診断で拒否する。
 - 実行時: 衝撃と接触の力積で結合のひずみを溜め、強さに届いた結合を切る。離れた塊は動的剛体。アンカー、破片の上限、眠り、一定時間後の除去。`PhysicsEventType.BondBroken` で通知する。決定的。
 - Field 相当: 範囲のひずみ(`StrainField`)と外へ押す力(`ForceField`)。
@@ -29,7 +29,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 - L3 ECS(`Entities`、生成器): `World.TakeSceneOrdinal` と `SceneStableIds.ForInstance`。同じシーンの 2 つ目以降のインスタンスの物理の stable ID を変える(下の「実装中に見つけた事実」の 3)。
 - L7: `Physics.Cli` の `preview-prefracture`(箱を切って輪郭と結合の JSON)と `replay`(焼いたキャッシュを再生して書き出す。生成した Bake Host の `TryReplay`)。Cook は `Cook.Cli` がプラグインの Cook モジュールを別プロセスで動かす(ADR-0079)。
 - L8 VSIX: `PrefractureDebugService` のプレビュー(下の §6)。
-- L9: 見本 `samples/Samples.Destruction`、UserEcsProject の検証シーン(`DestructionBallScene`・`DestructionDropScene`・`DestructionFieldScene`・`DestructionWallScene`)。テンプレートは変えない。
+- L9: 見本 `samples/Destruction`、UserEcsProject の検証シーン(`DestructionBallScene`・`DestructionDropScene`・`DestructionFieldScene`・`DestructionWallScene`)。テンプレートは変えない。
 
 ### 2. 調理(UE の Fracture モード)
 - 入力は `Destructible` の節点の `Collider` の箱(`Center` と `HalfExtents`)か、`SourceMesh` の閉じた凸の `.glb`。節点の拡大縮小は 1 でなければならない(大きさは衝突形状で決める)。
@@ -68,7 +68,7 @@ ADR-0078 §2 の「Chaos の破壊(Geometry Collection、Fracture、Field に相
 - VS の実機での操作は検証していない(net472 の単体試験まで)。
 
 ### 7. 見本と実走の検証
-- 見本 `samples/Samples.Destruction`(ThirdPerson の操作とカプセルのキャラクター): 球が当たる壁(24 片、アンカー、密度 2400・強さ 1200)、上から落ちる木箱(12 片、`RigidBody` 500 kg)、床の木箱 3 つとその上の 1 つ(各 10 片、強さ 600)。F で球を撃ち、E で 3 m 先に爆発(`StrainField` 20000 N·s・半径 2 m と `ForceField` 5 m/s・半径 3 m、0.1 秒)。焼きの検証用シーン `DestructionBake`(床の上の木箱の中で爆発)。
+- 見本 `samples/Destruction`(ThirdPerson の操作とカプセルのキャラクター): 球が当たる壁(24 片、アンカー、密度 2400・強さ 1200)、上から落ちる木箱(12 片、`RigidBody` 500 kg)、床の木箱 3 つとその上の 1 つ(各 10 片、強さ 600)。F で球を撃ち、E で 3 m 先に爆発(`StrainField` 20000 N·s・半径 2 m と `ForceField` 5 m/s・半径 3 m、0.1 秒)。焼きの検証用シーン `DestructionBake`(床の上の木箱の中で爆発)。
 - `FeatureRunner verify-destruction`(段 `destruction.prefracture`): 見本を自動入力(W 10〜40、F 50、E 70、170 フレーム)で WARP で動かし、6 個すべてが順に壊れること、破片の重心が床より下に行かないこと、最後に最も速い破片が 0.2 m/s 以下、D3D12 のデバッグ層のエラー 0 を判定する。続けて `DestructionBake` を 2 回焼き、1 回目を再生して書き出し、3 つが同じバイト列であることを判定する。
 
 ## 実装中に見つけた事実(再現して直したもの)

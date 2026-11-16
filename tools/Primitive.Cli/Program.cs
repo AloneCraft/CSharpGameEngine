@@ -7,8 +7,8 @@ if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
 }
 
 if(args.Length!=2){
-    Console.Error.WriteLine("Usage: CSharpGameEngine.Primitive.Cli <PrimitiveName> <output.glb>");
-    Console.Error.WriteLine("       CSharpGameEngine.Primitive.Cli --serve <pipeName>");
+    Console.Error.WriteLine("Usage: Primitive.Cli <PrimitiveName> <output.glb>");
+    Console.Error.WriteLine("       Primitive.Cli --serve <pipeName>");
     return 2;
 }
 

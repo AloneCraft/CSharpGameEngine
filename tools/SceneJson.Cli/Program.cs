@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 namespace CSharpGameEngine.SceneJson.Cli;
 /// <summary>
-/// <c>CSharpGameEngine.SceneJson.Cli convert &lt;game .csproj&gt; [--write] [--delete-source]</c> (ADR-0070)。各 C# シーンの変換結果を出力する。<c>--write</c> を指定すると <c>&lt;ClassName&gt;.json</c> をプロジェクトの <c>Scenes</c> フォルダーに書き込む。シーンファイルはそこに置く必要があり (ADR-0070)、ソースがすでに <c>Scenes</c> 以下ならその隣、そうでなければ <c>Scenes</c> 直下に配置する。<c>--delete-source</c> も指定すると、ソースファイルからシーンクラスを削除し、ほかに宣言がないファイルは削除する。変換できないシーンがプロジェクトに含まれる場合は、何も書き込まない。
+/// <c>SceneJson.Cli convert &lt;game .csproj&gt; [--write] [--delete-source]</c> (ADR-0070)。各 C# シーンの変換結果を出力する。<c>--write</c> を指定すると <c>&lt;ClassName&gt;.json</c> をプロジェクトの <c>Scenes</c> フォルダーに書き込む。シーンファイルはそこに置く必要があり (ADR-0070)、ソースがすでに <c>Scenes</c> 以下ならその隣、そうでなければ <c>Scenes</c> 直下に配置する。<c>--delete-source</c> も指定すると、ソースファイルからシーンクラスを削除し、ほかに宣言がないファイルは削除する。変換できないシーンがプロジェクトに含まれる場合は、何も書き込まない。
 /// <para>
 /// <c>upgrade &lt;game .csproj&gt; [--write]</c> (ADR-0074) は、スキーマバージョン 1 または 2 のすべてのシーンファイルを現行のバージョン 3 に書き換える。角度は回転数に変換し、角度のキーでは C# の単位語を省略する。それ以外のテキストは維持する。いずれかのファイルに問題がある場合は何も書き込まない。
 /// </para>
@@ -13,8 +13,8 @@ namespace CSharpGameEngine.SceneJson.Cli;
 internal static class Program {
     private static async Task<int>Main(string[] Arguments){
         if(Arguments.Length<2||Arguments[0] is not("convert" or "upgrade")){
-            Console.Error.WriteLine("usage: CSharpGameEngine.SceneJson.Cli convert <game .csproj> [--write] [--delete-source]");
-            Console.Error.WriteLine("       CSharpGameEngine.SceneJson.Cli upgrade <game .csproj> [--write]");
+            Console.Error.WriteLine("usage: SceneJson.Cli convert <game .csproj> [--write] [--delete-source]");
+            Console.Error.WriteLine("       SceneJson.Cli upgrade <game .csproj> [--write]");
             return 2;
         }
         var ProjectPath=Path.GetFullPath(Arguments[1]);

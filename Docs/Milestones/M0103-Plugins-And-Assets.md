@@ -65,7 +65,7 @@
 - 見つけて直した不具合(0.1.15 から): 梱包のターゲットの中の `%(RecursiveDir)` がほかの項目と掛け合わされ、`src/<モジュール>/win-x64/…` などの余分な写しが入っていた。ワイルドカードを評価時へ移し、`PackagePath` から `%(RecursiveDir)` を外した(NuGet が自分でフォルダを保つ)。
 
 ## 段階 10. 見本と実走
-- `samples/Plugins/Weather`(プロジェクトのプラグイン: System、`[EngineService]`、`[DataAsset]`、起動時のシーン)と `samples/Plugins/Samples.Lightning`(NuGet のプラグイン: Library の DLL と Runtime のソース)。どちらにも `Intensity` がある。
+- `samples/Plugins/Weather`(プロジェクトのプラグイン: System、`[EngineService]`、`[DataAsset]`、起動時のシーン)と `samples/Plugins/Lightning`(NuGet のプラグイン: Library の DLL と Runtime のソース)。どちらにも `Intensity` がある。
 - `CSharpGameEngine.FeatureRunner verify-plugin-package`: SDK から作った ThirdPerson に 2 つを入れてビルドし、WARP で動かす。各サービスが終了時に出す合計の整合(雨量 = 更新回数 × 3、エネルギー = 落雷数 × 20)、データアセットの値、2 つの `Intensity` の名前、Vehicles が入っていないこと、プラグインのアセットのコピーを調べる。
 - 結果(WARP): 歩行 15.700 m・跳躍 1.228 m(プラグインなしと同じ)、Weather の更新 888 回・雨量 2664.0、Lightning の落雷 888 回・エネルギー 17760.0、D3D12 のエラー 0。この検証が段階 4 の 2 つの不具合(MSB4011 と .editorconfig)を見つけた。
 

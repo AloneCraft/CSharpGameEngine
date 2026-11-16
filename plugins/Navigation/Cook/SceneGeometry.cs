@@ -76,7 +76,7 @@ internal sealed class SceneGeometry {
                 if(!Own&&!Root.TryGetProperty("startupOrder",out _)){ continue; }
                 // シーン JSON は版 3 だけを読む（ADR-0098 §5 規則 2）。旧版はシーンのビルドが SCENE204 で変換コマンドを示す。
                 if(!Root.TryGetProperty("schemaVersion",out var VersionElement)||VersionElement.ValueKind!=JsonValueKind.Number||VersionElement.GetRawText()!="3"){
-                    var Message=$"{Path.GetFileName(Scene)}: error NAV013: The scene is not schemaVersion 3; run 'CSharpGameEngine.SceneJson.Cli upgrade <game .csproj> --write'.";
+                    var Message=$"{Path.GetFileName(Scene)}: error NAV013: The scene is not schemaVersion 3; run 'SceneJson.Cli upgrade <game .csproj> --write'.";
                     if(Own){
                         Error=Message;
                         return false;

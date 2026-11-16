@@ -24,7 +24,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 | NuGet パッケージ | Fab のプラグイン | `PackageReference` で有効(パッケージの `build/<Id>.targets` が自分を取り込む) |
 
 - 取り込みは `build/CSharpGameEngine.Game.targets` が行う。プロジェクトファイルの後に読まれるので、`CgePlugins` が見える(リポジトリでは `Directory.Build.targets`、パッケージでは `CSharpGameEngine.Sdk.targets` から読む)。
-- エンジンのプラグインは Vehicles(`plugins/Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)、Navigation(`plugins/Navigation`。TopDown テンプレートが有効にする。M0106)、Destruction(`plugins/Destruction`。UE の Geometry Collection・Fracture・Field に当たる Chaos 相当の破壊。M0113。テンプレートは有効にせず、見本 `samples/Samples.Destruction` が有効にする)。UserEcsProject は 3 つとも有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
+- エンジンのプラグインは Vehicles(`plugins/Vehicles`。UE の ChaosVehicles に当たる Chaos 相当の車。M0109。Vehicle テンプレートが有効にする)、Navigation(`plugins/Navigation`。TopDown テンプレートが有効にする。M0106)、Destruction(`plugins/Destruction`。UE の Geometry Collection・Fracture・Field に当たる Chaos 相当の破壊。M0113。テンプレートは有効にせず、見本 `samples/Destruction` が有効にする)。UserEcsProject は 3 つとも有効にしている。VS の新規作成は、テンプレートの csproj の `CgePlugins` を生成する csproj へ写す(`GameProjectGenerator.PluginsOf`)。
 
 ## 3. プラグインの形
 ```
@@ -39,7 +39,7 @@ ADR-0079 / M0103。ゲームに機能とデータを足す方法。UE のプラ�
 ```
 - Library モジュール(任意): DLL。`[assembly: PluginLibrary]` を付ける。公開 struct はパレットとスキーマに出る。`World`・`State`・`Entity`・`ISystem` を名指ししない。NuGet のプラグインはパッケージの `lib/` に入れる。
 - Cook モジュール(任意): `IAssetCooker`(`CSharpGameEngine.Cooking`)を実装した DLL。§6。Navigation は `Cook/Navigation.Cook.csproj`、Destruction は `Cook/Destruction.Cook.csproj`(ソースはエンジンのリポジトリでビルドされ、SDK パッケージでは `Cook/lib/` に出力が入る)。
-- 見本: `samples/Plugins/Weather`(プロジェクトのプラグイン)、`samples/Plugins/Samples.Lightning`(NuGet のプラグイン。Library の DLL と Runtime のソース)。
+- 見本: `samples/Plugins/Weather`(プロジェクトのプラグイン)、`samples/Plugins/Lightning`(NuGet のプラグイン。Library の DLL と Runtime のソース)。
 
 ### マニフェスト `<名前>.cgeplugin`
 ```json

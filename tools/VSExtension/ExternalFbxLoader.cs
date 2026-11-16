@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// VSIX ツールウィンドウで .fbx ファイルを読み込みます。この処理では AssimpNet のネイティブ <c>assimp.dll</c> を <c>devenv.exe</c> にロードしません（ADR-0010）。FBX の解析は短時間で終了する別プロセスの helper（<c>CSharpGameEngine.Import.Fbx.Cli</c>、net10.0、<c>CSharpGameEngine.Import.Fbx</c>/AssimpNet をラップ）で実行し、共通の <see cref="ExternalBridgeProcess"/> runner（ADR-0019。<see cref="ExternalGltfLoader"/> も使用）経由で起動します。信頼できない .fbx ファイルの解析中にネイティブ FBX parser がクラッシュまたは停止しても helper プロセス内に封じ込められ、Visual Studio 自体を終了させず、ここで通常の例外として通知されます（<see cref="ViewerHwndHost.BuildWindowCore"/> で捕捉）。
+/// VSIX ツールウィンドウで .fbx ファイルを読み込みます。この処理では AssimpNet のネイティブ <c>assimp.dll</c> を <c>devenv.exe</c> にロードしません（ADR-0010）。FBX の解析は短時間で終了する別プロセスの helper（<c>Import.Fbx.Cli</c>、net10.0、<c>CSharpGameEngine.Import.Fbx</c>/AssimpNet をラップ）で実行し、共通の <see cref="ExternalBridgeProcess"/> runner（ADR-0019。<see cref="ExternalGltfLoader"/> も使用）経由で起動します。信頼できない .fbx ファイルの解析中にネイティブ FBX parser がクラッシュまたは停止しても helper プロセス内に封じ込められ、Visual Studio 自体を終了させず、ここで通常の例外として通知されます（<see cref="ViewerHwndHost.BuildWindowCore"/> で捕捉）。
 /// </summary>
 internal static class ExternalFbxLoader {
     private const string BridgeProjectRelativePath=@"tools\Import.Fbx.Cli";

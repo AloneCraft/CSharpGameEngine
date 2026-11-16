@@ -98,7 +98,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
 
 4 つとも VS の新規プロジェクトに出る(M0101 段階 9)。このフォルダの `Vehicle` は理想コードのままで、ビルドできる出荷物は上の表のプロジェクト。
 
-壊れる物体(UE の Chaos の Geometry Collection・Fracture・Field に当たる。M0113)は UE の 4 テンプレートに無いので、テンプレートのレベルは変えていない。エンジンのプラグイン Destruction(`plugins/Destruction`。csproj の `<CgePlugins>Destruction</CgePlugins>`)を有効にしたゲームで、シーンの節点に `Collider`(箱)と `Destructible` を置くと、ビルドがボロノイで切り、ぶつかる・撃つ・`StrainField` で壊れる。使い方の見本は `samples/Samples.Destruction`(ThirdPerson の操作。F で球を撃ち、E で爆発。WARP の `verify-destruction` で検証)。
+壊れる物体(UE の Chaos の Geometry Collection・Fracture・Field に当たる。M0113)は UE の 4 テンプレートに無いので、テンプレートのレベルは変えていない。エンジンのプラグイン Destruction(`plugins/Destruction`。csproj の `<CgePlugins>Destruction</CgePlugins>`)を有効にしたゲームで、シーンの節点に `Collider`(箱)と `Destructible` を置くと、ビルドがボロノイで切り、ぶつかる・撃つ・`StrainField` で壊れる。使い方の見本は `samples/Destruction`(ThirdPerson の操作。F で球を撃ち、E で爆発。WARP の `verify-destruction` で検証)。
 
 ### プラグインを作る(ADR-0079)
 - 機能(Component、System、サービス、データの型)を足すときはプラグインにする。値だけを足すときはアセット。作り方の全体は `Docs/Specifications/Plugins-And-Assets.md`。
@@ -110,7 +110,7 @@ UE と Unity から引き継いだ仕組みと名前を清算し、**ECS だか�
   - `Runtime/`: ソース。
   - `Assets/`: アセット。コードからは `Assets.Plugins.<名前>.*` で指す。
   - `Scenes/`: シーン。
-- 配るときは NuGet パッケージにする(`samples/Plugins/Samples.Lightning`)。ECS の型を使わない処理は、`lib/` の DLL に置いてよい。
+- 配るときは NuGet パッケージにする(`samples/Plugins/Lightning`)。ECS の型を使わない処理は、`lib/` の DLL に置いてよい。
 - 動作の確認: `CSharpGameEngine.FeatureRunner verify-plugin-package`。SDK パッケージから作ったゲームに、2 つの見本を入れてビルドし、動かす。
 
 参照プロジェクト: UE5.8 のインストールには Templates が無いため、UE5.7 の Blueprint 版テンプレートから `G:\UE\5.8\FirstPerson`・`TopDown`・`Vehicle` を作った(`tools/UnrealExport/create_template_project.ps1`)。3 つとも UE5.8 のエディターで開けて、起動マップが読み込めることを確認した(`run_probe.cmd`。観測は `tools/UnrealExport/README.md`)。理想コードの名前と構成は、これらのプロジェクトのアセット(InputAction、Blueprint、レベル)を参照して決める。FirstPerson と TopDown は、ステージ・キャラクターの値・マネキンのメッシュを取り込んで移植した(`tools/UnrealExport/README.md`)。Vehicle もステージ(Landscape は同じ大きさの板で代用)と車の静的メッシュを取り込んだ。3 つとも音声アセットは無いので、効果音は UE のテンプレートからは取り込めない。

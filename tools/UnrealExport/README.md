@@ -23,7 +23,7 @@ tools\UnrealExport\run_export.cmd --force
 
 - `UserEcsProject/Assets/Stage/Lvl_FirstPerson/Meshes/*.glb`: ソースStaticMeshと解決済みマテリアル構成で共有した個別描画資産。
 - `UserEcsProject/Scenes/FirstPersonStageAssets.cs`: `[SceneAssets]`資産カタログ。
-- `UserEcsProject/Scenes/FirstPersonStageScene.json`: 55 StaticMeshActor、DirectionalLight、SkyLight、Fog、PlayerStartの宣言。インポーターが書いたC#のSceneクラスを、スクリプトの最後で`CSharpGameEngine.SceneJson.Cli convert`がシーンJSONへ変換します(ADR-0070)。
+- `UserEcsProject/Scenes/FirstPersonStageScene.json`: 55 StaticMeshActor、DirectionalLight、SkyLight、Fog、PlayerStartの宣言。インポーターが書いたC#のSceneクラスを、スクリプトの最後で`SceneJson.Cli convert`がシーンJSONへ変換します(ADR-0070)。
 - `.artifacts/UnrealExport/Lvl_FirstPerson/`: 座標変換照合用の一時レベルGLBとmanifest。Git／ランタイム対象外。
 
 現在の受け入れ基準はStaticMeshActor 55体、DirectionalLight 1体、SkyLight／Fog／PlayerStart各1体です。

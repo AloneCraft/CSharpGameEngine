@@ -572,7 +572,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0113 — Chaos 相当の破壊(Destruction プラグイン)
 
 - Confidence: High(単体試験 `FractureSolverTests`・`DestructionTests`・`FragmentContactTests`・`PhysicsCacheBondBreakTests`・`PrefractureCookerTests`・`FractureCookerTests`・`PrefractureDebugServiceTests` と、WARP の実走 `verify-destruction`)。VS の実機のプレビューの操作は Low(未実行。net472 の単体試験だけ)。
-- Evidence: `src/Runtime/Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`、`plugins/Destruction/`、`src/Runtime/Windows/FragmentMesh.cs`、`tools/VSExtension/PrefractureDebugService.cs`、`samples/Samples.Destruction/`、`.artifacts/feature-evidence/destruction.sample/warp/`。
+- Evidence: `src/Runtime/Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`、`plugins/Destruction/`、`src/Runtime/Windows/FragmentMesh.cs`、`tools/VSExtension/PrefractureDebugService.cs`、`samples/Destruction/`、`.artifacts/feature-evidence/destruction.sample/warp/`。
 - Observed behavior:
   - 調理: 箱か閉じた凸のメッシュを、シードとソースの指紋から決まるボロノイのサイトで切る。同じ設定は同じバイト列(`.cgefracture` 版 2)。破片は閉じて外向きで、三角形ごとに外側(0)か断面(1)。結合は共有面の面積(両側の差 0.1% 以内、1 mm² 以下は捨てる)× 面積あたりの強さ。クラスターは 1 段でつながっている。開いた・凹んだ・退化したメッシュと破片数 2〜256 以外は FRACTURE001〜007、ビルドでは DST001〜011。
   - 実行時: ひずみ(力積 N·s)は 1 tick で集め、ひずみ ≥ 強さの結合を番号順に切り(等号で切れる)、残りのひずみは捨てる。力積は当たった破片の結合に全部、1 環ごとに `DamagePropagation` 倍(最大 4 環)。同じクラスターの中は `ClusterStrengthScale` 倍強い。つながりが切れた塊は新しい物体(1 破片は凸多面体、複数は複合形状)になり、割れる前の物体のその点の速度を引き継ぐ。最下面のアンカーを含む塊は静的。動く塊は `FragmentBudget` を超えると古い順に、`FragmentLifetime` を過ぎると除かれる。

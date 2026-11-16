@@ -3,14 +3,14 @@ using System.Reflection.PortableExecutable;
 using System.Text;
 namespace CSharpGameEngine.SceneSchema.Cli;
 /// <summary>
-/// <c>CSharpGameEngine.SceneSchema.Cli &lt;game assembly&gt; &lt;output schema&gt;</c> (ADR-0070)。生成されたシーン JSON Schema をアセンブリのメタデータからコピーする。Visual Studio の JSON エディターがビルドのたびに再読み込みしないよう、内容が変わった場合にのみファイルを書き換える。
+/// <c>SceneSchema.Cli &lt;game assembly&gt; &lt;output schema&gt;</c> (ADR-0070)。生成されたシーン JSON Schema をアセンブリのメタデータからコピーする。Visual Studio の JSON エディターがビルドのたびに再読み込みしないよう、内容が変わった場合にのみファイルを書き換える。
 /// </summary>
 internal static class Program {
     private static int Main(string[] Arguments)=>Run(Arguments);
 
     internal static int Run(string[] Arguments){
         if(Arguments.Length!=2){
-            Console.Error.WriteLine("usage: CSharpGameEngine.SceneSchema.Cli <game assembly> <output schema>");
+            Console.Error.WriteLine("usage: SceneSchema.Cli <game assembly> <output schema>");
             return 2;
         }
         try {

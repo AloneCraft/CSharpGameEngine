@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// VSIX ツールウィンドウ向けに、短時間で終了する別プロセスの helper（<c>CSharpGameEngine.Import.Gltf.Cli</c>、net10.0、<c>CSharpGameEngine.Import.Gltf</c>/SharpGLTF.Core をラップ）を使って .glb/.gltf ファイルを読み込みます。共通の <see cref="ExternalBridgeProcess"/> runner（ADR-0019）で起動します。
+/// VSIX ツールウィンドウ向けに、短時間で終了する別プロセスの helper（<c>Import.Gltf.Cli</c>、net10.0、<c>CSharpGameEngine.Import.Gltf</c>/SharpGLTF.Core をラップ）を使って .glb/.gltf ファイルを読み込みます。共通の <see cref="ExternalBridgeProcess"/> runner（ADR-0019）で起動します。
 /// glTF の読み込みを <see cref="ExternalFbxLoader"/> のプロセス分離方式（ADR-0010）に統一します。以前は FBX だけをプロセス分離し、glTF は <c>devenv.exe</c> 内で SharpGLTF.Core により直接解析する非対称な状態でしたが、これを意図的に解消しました。
 /// </summary>
 internal static class ExternalGltfLoader {

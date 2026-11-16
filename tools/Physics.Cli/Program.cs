@@ -190,12 +190,12 @@ static bool TryLoadMesh(
 }
 
 static int Usage(){
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli cook <sourceAsset> <repositoryRoot> <assetGuid> [static-mesh|convex] [seed]");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli prefracture <sourceAsset> <repositoryRoot> <assetGuid> <fragmentCount> [seed] [density] [bondStrengthPerArea]");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli inspect-prefracture <artifact.cgefracture> <output.json>");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli bake --assembly <game.dll> <fullyQualifiedSceneType> <output.cgephyscache> <tickCount> <dependencyHash>");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli replay --assembly <game.dll> <fullyQualifiedSceneType> <input.cgephyscache> <output.cgephyscache> <tickCount> <dependencyHash>");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli preview-prefracture <halfR> <halfU> <halfF> <fragmentCount> <seed> <clusterCount> <output.json>");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli --serve <pipeName>");
+    Console.Error.WriteLine("Physics.Cli cook <sourceAsset> <repositoryRoot> <assetGuid> [static-mesh|convex] [seed]");
+    Console.Error.WriteLine("Physics.Cli prefracture <sourceAsset> <repositoryRoot> <assetGuid> <fragmentCount> [seed] [density] [bondStrengthPerArea]");
+    Console.Error.WriteLine("Physics.Cli inspect-prefracture <artifact.cgefracture> <output.json>");
+    Console.Error.WriteLine("Physics.Cli bake --assembly <game.dll> <fullyQualifiedSceneType> <output.cgephyscache> <tickCount> <dependencyHash>");
+    Console.Error.WriteLine("Physics.Cli replay --assembly <game.dll> <fullyQualifiedSceneType> <input.cgephyscache> <output.cgephyscache> <tickCount> <dependencyHash>");
+    Console.Error.WriteLine("Physics.Cli preview-prefracture <halfR> <halfU> <halfF> <fragmentCount> <seed> <clusterCount> <output.json>");
+    Console.Error.WriteLine("Physics.Cli --serve <pipeName>");
     return 1;
 }

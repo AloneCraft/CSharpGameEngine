@@ -4,7 +4,7 @@
     after every property, so they must not use the CgePlugin* properties that each plugin overwrites.
 
     The build bakes the navigation meshes: every scene of the game that holds a CSharpGameEngine.Navigation.NavMeshBounds is cooked with the plugin's
-    Cook module (CSharpGameEngine.Navigation.Cook) through CSharpGameEngine.Cook.Cli, in a process of its own, into
+    Cook module (Navigation.Cook) through Cook.Cli, in a process of its own, into
     obj\...\cge-navigation\Assets\Navigation\<Id>.cgenav, which is copied next to the game as Assets\Navigation\<Id>.cgenav. The bake runs again when a scene, an asset or
     a tool is newer than the last run, and a failure is a build error (the Cook module prints "scene.json: error NAVnnn: message").
     CgeCookNavigation is also the target the Visual Studio extension runs for its "Cook navigation meshes" button.

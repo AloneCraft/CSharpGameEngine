@@ -5039,7 +5039,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L5-049 — Chaos 相当の破壊(Destruction プラグイン: ボロノイの調理、結合のひずみと切断、破片の剛体化、Field、ベイクと再生、Fracture のプレビュー)
 
-- Layer: L5 — `Runtime.Physics`(ソルバー)と `plugins/Destruction`(Component・System・Field・Cook モジュール)、L5 — `Runtime.Windows`(`FragmentMesh`)、L6 — `.cgefracture` 版 3(1 段は版 2)・`.cgephyscache` スキーマ 4、L7 — `Physics.Cli`(`preview-prefracture`・`replay`)と `Cook.Cli`、L8 — `PrefractureDebugService`、L9 — `samples/Samples.Destruction`
+- Layer: L5 — `Runtime.Physics`(ソルバー)と `plugins/Destruction`(Component・System・Field・Cook モジュール)、L5 — `Runtime.Windows`(`FragmentMesh`)、L6 — `.cgefracture` 版 3(1 段は版 2)・`.cgephyscache` スキーマ 4、L7 — `Physics.Cli`(`preview-prefracture`・`replay`)と `Cook.Cli`、L8 — `PrefractureDebugService`、L9 — `samples/Destruction`
 - Parent capability: UE テンプレートの完全移植(ADR-0078 §2・§3。UE の Geometry Collection・Fracture・Field)
 - Status: Implemented
 - Verification: TestVerified + RuntimeVerified(WARP。`verify-destruction`)。VS の実機の操作は未検証(net472 の単体試験まで)
@@ -5050,7 +5050,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `plugins/Destruction/`(`Runtime/Destruction.cs`・`DestructionComponents.cs`・`DestructionSystems.cs`・`DestructionDefaults.cs`、`Cook/FractureCooker.cs`、`Destruction.plugin.items`)
   - `src/Runtime/Windows/FragmentMesh.cs`・`RenderRoster.cs`、`src/Entities/Runtime.cs`(`TakeSceneOrdinal`)・`ISpawnableScene.cs`(`SceneStableIds`)、`src/CodeAnalysis/SceneInstantiateEmitter.cs`・`GeneratedSceneBakeHostEmitter.cs`(`TryReplay`)
   - `tools/Physics.Cli/`(`Program.cs`・`PhysicsBridgeWorker.cs`・`GameBake.cs`)、`tools/VSExtension/PrefractureDebugService.cs`・`PhysicsDebugOverlay.cs`、`tools/FeatureRunner/DestructionSampleVerification.cs`
-  - `samples/Samples.Destruction/`、`UserEcsProject/Scenes/Destruction*.json`、`packaging/Sdk/Sdk.csproj`(Cook モジュールを `plugins/Destruction/Cook/lib/` へ)
+  - `samples/Destruction/`、`UserEcsProject/Scenes/Destruction*.json`、`packaging/Sdk/Sdk.csproj`(Cook モジュールを `plugins/Destruction/Cook/lib/` へ)
 - Tests: `tests/エンジンのテスト/Destruction/`(57。M0124 の `ClusterLevelCookTests` を含む)、`tests/Windowsのテスト/Windows/Physics/DestructionTests.cs`・`FractureSolverTests.cs`・`PhysicsFractureInternalStrainTests.cs`・`FragmentContactTests.cs`・`PhysicsCacheBondBreakTests.cs`・`PhysicsCacheBondStrainTests.cs`・`PhysicsMeshMultiFaceContactTests.cs`、`tests/VS拡張のテスト/PrefractureDebugServiceTests.cs`、`tests/エンジンのテスト/FeatureRunner/DestructionSampleVerificationTests.cs`
 - Reverse-engineered behavior: `Docs/Reverse-Engineered-Spec.md` の RE-M0113 と RE-M0124
 - Current delta: M0124 で内部ひずみ(衝撃が溜まり、既定 0.5/s で減衰。置かれた荷重は溜まらない)と多段クラスター(`ClusterLevels` 1〜4、結合の強さは共有する段の数だけ `ClusterStrengthScale` 倍)を実装した。「接触の始まり = 衝撃」は UE の損傷の作り方と同じではない。再生から実時間への引き継ぎでは接触の記憶がキャッシュに無いので、置かれた物体の荷重がその tick に衝撃として溜まる。凹んだソースは拒否。Field は球の線形の減衰だけ。破片の描画は平らな陰影の 2 色。複合形状と凸の相手の接触は 1 つの面の向き。`verify-destruction` の基準(M0124): 壊れた数 2/6/6/6(歩く間に木箱が 4 つとも壊れる)、結合 204、破片 65、終わりの最低の重心 0.079 m、キャッシュ 637,630 バイト。

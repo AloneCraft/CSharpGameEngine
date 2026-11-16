@@ -52,7 +52,7 @@ public sealed class SceneDslAnalyzerTests {
         Assert.Equal("SCENE206",Diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error,Diagnostic.Severity);
         Assert.Contains("Game.MainScene",Diagnostic.GetMessage(),StringComparison.Ordinal);
-        Assert.Contains("CSharpGameEngine.SceneJson.Cli convert",Diagnostic.GetMessage(),StringComparison.Ordinal);
+        Assert.Contains("SceneJson.Cli convert",Diagnostic.GetMessage(),StringComparison.Ordinal);
         Assert.Equal("MainScene",Diagnostic.Location.SourceTree!.GetText().ToString(Diagnostic.Location.SourceSpan));
     }
 

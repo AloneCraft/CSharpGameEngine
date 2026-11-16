@@ -45,7 +45,7 @@ internal static class SceneJsonDiagnostics {
     internal static readonly DiagnosticDescriptor CSharpSceneNotBuilt=new(
         id:"SCENE206",
         title:"C# scene classes are not built; scenes are JSON documents under Scenes",
-        messageFormat:"'{0}' is a C# scene class, which is no longer built; convert it to a scene JSON (Scenes/*.json) with 'CSharpGameEngine.SceneJson.Cli convert <project> --write --delete-source'",
+        messageFormat:"'{0}' is a C# scene class, which is no longer built; convert it to a scene JSON (Scenes/*.json) with 'SceneJson.Cli convert <project> --write --delete-source'",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
