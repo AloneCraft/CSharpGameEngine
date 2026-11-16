@@ -14,6 +14,23 @@
 
 このルールは `src/Engine/Core/StableId.cs` の現在の書式に合わせる。
 
+## 識別子の言語（ADR-0099）
+
+- 日本語の識別子を使ってよいもの:
+  - コメント
+  - テストのプロジェクト（`tests/` の下）の中のすべて。プロジェクト名、クラス、メソッド、プロパティ、引数、ローカル変数を含む。
+  - ランタイムの内部（利用者が使わない、public でない要素）
+- 英語（ASCII の英数字と `_`）が必須のもの:
+  - 利用者が使うライブラリの public・protected の要素すべて。型、メソッド、引数、プロパティ、フィールド、イベント、列挙値、型引数を含む。
+  - ソースのまま利用者のゲームへ入るファイル（`src/Runtime`、`src/Entities`、`plugins/*/Runtime`）では、利用者のコードから見える `internal` の要素も英語にする。日本語を使えるのは private とローカル変数だけ。
+- 守り方: 診断 NAME001（`src/CodeAnalysis/EnglishApiIdentifierAnalyzer.cs`）が、エンジン自身のプロジェクトと、このリポジトリの中のゲームで、英語でない公開名をビルドエラーにする。利用者のゲームの名前の付け方は縛らない。
+
+## プロジェクトの名前と置き場所（ADR-0099）
+
+- フォルダ名・プロジェクト名・DLL 名には `CSharpGameEngine.` を付けない（例: `src/Engine/Engine.csproj` が `Engine.dll` を作る）。名前空間、NuGet の PackageId、VSIX の ID、テンプレートの ID は `CSharpGameEngine` のまま。
+- プロジェクトは、分ける理由（対象の環境、別のプロセスで動く必要、ソースのまま取り込む、配布物の単位など）があるものだけを分ける。理由が無いものはまとめる。
+- テストかどうかは名前ではなく、`tests/` の下にあるかで決まる（`CgeTestProject`）。エンジンのプロジェクトかどうかも、置き場所で決まる（`CgeEngineAssembly`）。
+
 ## Visual Studio ソリューション登録
 
 - `CSharpGameEngine.slnx` はプロジェクト表示の正本である。

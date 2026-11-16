@@ -7,6 +7,7 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 ASSET001 | CSharpGameEngine.Entities.CodeGen | Error | Image metadata validation
 NUM002 | CSharpGameEngine.Numerics | Error | Compile-time numeric dependency profile agreement
+NAME001 | CSharpGameEngine.Naming | Error | EnglishApiIdentifierAnalyzer
 SYSGEN044 | CSharpGameEngine.Entities.CodeGen | Error | Static snapshot value contract
 SYSGEN001 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN002 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics

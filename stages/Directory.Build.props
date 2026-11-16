@@ -21,6 +21,7 @@
     <AdditionalFiles Include="Scenes\**\*.json" />
     <CompilerVisibleProperty Include="ProjectDir" />
     <CompilerVisibleProperty Include="CgeEngineAssembly" />
+    <CompilerVisibleProperty Include="CgeEnforceEnglishApi" />
     <Compile Include="$(MSBuildThisFileDirectory)..\src\Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <!-- These two attribute files are compiled into CSharpGameEngine.Windows too (linked); use that copy. -->
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\Entities\SceneComponentIconAttribute.cs" />

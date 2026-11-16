@@ -18,7 +18,9 @@ The documentation must never claim that a feature exists merely because it appea
 ## Product naming
 
 - User-facing product name: **C# Game Engine**
-- Internal identifier: **CSharpGameEngine**
+- Internal identifier: **CSharpGameEngine**, used for namespaces (`CSharpGameEngine.*`), NuGet IDs, the VSIX ID and template IDs.
+- Folders, project names and assembly names carry no `CSharpGameEngine.` prefix (`src/Engine/Engine.csproj` builds `Engine.dll`; ADR-0099). Test projects live under `tests/` and may be named in Japanese.
+- Identifier language (ADR-0099): names users of the engine read are English; see `.github/copilot-instructions.md`.
 - Do not use `#` in file names, project names, assembly names, namespaces, NuGet IDs, VSIX IDs, cache keys, or command names.
 
 ---

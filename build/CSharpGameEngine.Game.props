@@ -60,6 +60,9 @@
     <CompilerVisibleProperty Include="CgeEngineVersion" />
     <CompilerVisibleProperty Include="CgeProjectDirectory" />
     <CompilerVisibleProperty Include="CgePluginRootsEncoded" />
+    <!-- NAME001 (ADR-0099) checks the engine runtime source a game compiles only when this is true: the repository's own
+         games set it in Directory.Build.props. A user's game leaves it unset, so its names are not checked. -->
+    <CompilerVisibleProperty Include="CgeEnforceEnglishApi" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">

@@ -4,6 +4,7 @@
   <ItemGroup Condition="'$(CgeSkipEngineAnalyzerReference)' != 'true' and '$(MSBuildProjectName)' != 'CodeAnalysis' and '$(CgeTestProject)' != 'true' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <CompilerVisibleProperty Include="CgeEngineAssembly" />
+    <CompilerVisibleProperty Include="CgeEnforceEnglishApi" />
   </ItemGroup>
   <!-- Logical numeric formats are runtime-owned. Game projects receive the reference from
        build/CSharpGameEngine.Game.props; the listed engine/test compilations get it here, and the

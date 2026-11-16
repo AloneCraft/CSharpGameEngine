@@ -18,5 +18,8 @@
     <!-- Project and DLL names carry no CSharpGameEngine. prefix, but the namespaces keep it (ADR-0099).
          The default namespace also names embedded resources, so it stays CSharpGameEngine.<project>. -->
     <RootNamespace Condition="'$(RootNamespace)' == '' and '$(CgeEngineAssembly)' == 'true' and !$(MSBuildProjectName.StartsWith('CSharpGameEngine.'))">CSharpGameEngine.$(MSBuildProjectName)</RootNamespace>
+    <!-- NAME001: names users read are English (ADR-0099). Checked in the engine's own projects and in the games kept in
+         this repository, which compile the engine's runtime source; tests and users' own games are not checked. -->
+    <CgeEnforceEnglishApi Condition="'$(CgeEnforceEnglishApi)' == '' and ('$(CgeEngineAssembly)' == 'true' or $(_CgeRepositoryRelativeDirectory.StartsWith('Templates/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('samples/')) or $(_CgeRepositoryRelativeDirectory.StartsWith('UserEcsProject/')))">true</CgeEnforceEnglishApi>
   </PropertyGroup>
 </Project>
