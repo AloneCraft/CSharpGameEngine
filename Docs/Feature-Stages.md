@@ -97,7 +97,7 @@ resume <run-result.json> [options]
 | `rigid.character-controller` | Rigid | F-L5-006 | 休止・ジャンプ頂点・6 m/s歩行と制動・壁滑り・30°坂/40 cm段の登坂と50°/50 cmの拒否・完全再現、SpringArmの壁/床での短縮、ThirdPersonテンプレートのWARP実走(W→Spaceでカメラが水平に1 m以上移動、0.5 m以上上昇して着地、床抜けとD3D12エラーなし) |
 | `destruction.prefracture` | Destruction | F-L5-049 | ボロノイの調理のバイト一致・閉じた破片・対称な面積の結合・つながったクラスター、強さちょうどで切れる結合、アンカー・上限・寿命・`BondBroken`の試験、破壊の見本のWARP実走(W・F・Eの自動入力で6個すべてが壊れる、破片が床より上で0.2 m/s以下に静まる、D3D12エラーなし)、焼き2回と再生のキャッシュのバイト一致(M0113) |
 | `runner.contract` | Foundation | F-L7-021 | catalog・CLI選択・結果schemaテストが成功 |
-| `stage-packs.contract` | Foundation | F-L9-008 | 10個の独立PackがC# `IScene`を生成・実体化・unloadし、安定state hashを出力 |
+| `stage-packs.contract` | Foundation | F-L9-008 | 10個のPackの代表の場面がC# `IScene`を生成・実体化・unloadし、安定state hashを出力（全Packは1つの実行ファイル `stages/FeatureStages`） |
 
 ## 将来Simulation Stage
 
@@ -148,16 +148,18 @@ resume <run-result.json> [options]
 
 ## Stage Pack分離
 
-PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分離する。分離理由はComponent mask上限ではなく、solver依存、native/GPU初期化、障害隔離、timeout、artifact量、再開単位である。Visual StageはC# `IScene`を正本とし、手書きMainが選択Sceneだけを固定tick実行する。`[StartupScene]`は使用しない。
+PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分類する。分類はStageの結果（`pack`）と、Featureの一覧での並びに使う。Visual StageはC# `IScene`を正本とし、手書きMainが選択Sceneだけを固定tick実行する。`[StartupScene]`は使用しない。
 
-10個の独立Pack実行プロジェクト、共有host、各PackのC# `IScene`、生成ECSの実体化・ownership・unload・state hash検証まで実装済みである。将来solver本体は、対応Featureが実装されるまで明示的な`NotImplemented` Stageとして維持する。
+全Packの場面は、1つの実行ファイル `stages/FeatureStages` に入る（ADR-0099）。各PackのシーンJSONは `stages/FeatureStages/Scenes/<Pack>/` に置き、名前空間は `CSharpGameEngine.FeatureStages.<Pack>` のままである。場面のIDはPackをまたいで重ならないので、起動の形は `run <scene-id>`・`show <scene-id>`・`list` のまま変わらない。生成されるECSの `World` は全Packのコンポーネントをまとめた1つになるが、各場面は自分の `IScene` だけを実体化するので、state hashはPackごとの実行ファイルだった頃と同じである（Foundation・Fluidで確かめた）。以前はPackごとに別の実行ファイルにしていたが、どのPackもsolver本体を持たず、同じhostと同じ参照だけを持つため、まとめた。将来solverを持つPackが、native依存や障害の隔離のために別のプロセスを必要とした時は、そのPackだけを分け直す。
+
+共有host、各PackのC# `IScene`、生成ECSの実体化・ownership・unload・state hash検証まで実装済みである。将来solver本体は、対応Featureが実装されるまで明示的な`NotImplemented` Stageとして維持する。
 
 ### 画面表示モード `show`
 
-各Packの実行ファイルは、検証用の`run`（テキストのJSONを出すだけで、描画も物理も走らない）のほかに、Sceneの見た目を実際の窓に描く`show`を持つ。
+Stageの実行ファイルは、検証用の`run`（テキストのJSONを出すだけで、描画も物理も走らない）のほかに、Sceneの見た目を実際の窓に描く`show`を持つ。
 
 ```text
-dotnet run --project stages/CSharpGameEngine.FeatureStages.<Pack> -- show <scene-id> [--frames N] [--hidden] [--warp] [--width W] [--height H] [--capture <png>]
+dotnet run --project stages/FeatureStages -- show <scene-id> [--frames N] [--hidden] [--warp] [--width W] [--height H] [--capture <png>]
 ```
 
 - 窓を閉じるまで描き続ける。`--frames N`で枚数を限り、`--hidden`で窓を出さず、`--warp`でWARPを使う。`--capture`は最後のフレームをPNGに保存する（枚数を省くと3枚）。

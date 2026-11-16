@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Every feature stage pack in one executable; stages/Directory.Build.props holds the settings (ADR-0099). -->
+</Project>

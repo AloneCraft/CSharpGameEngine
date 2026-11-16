@@ -4,17 +4,18 @@ using System.Text.Json;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Generated;
 namespace CSharpGameEngine.FeatureStages;
-public readonly record struct StageSceneRegistration(string Id,Func<StageSceneRunResult>Execute,Func<IReadOnlyList<StageVisual>>CollectVisuals);
+/// <summary>1 つの場面の登録。全 Pack が 1 つの実行ファイルに入るので（ADR-0099）、場面ごとに Pack の名前を持つ。</summary>
+public readonly record struct StageSceneRegistration(string Pack,string Id,Func<StageSceneRunResult>Execute,Func<IReadOnlyList<StageVisual>>CollectVisuals);
 public sealed record StageSceneRunResult(string Schema,string Pack,string SceneId,string SceneType,int EntityCount,string StateHash,IReadOnlyList<string>Assertions,bool Passed);
 public static class StagePackHost {
     private static readonly JsonSerializerOptions JsonOptions=new(){PropertyNamingPolicy=JsonNamingPolicy.CamelCase,WriteIndented=true};
-    public static StageSceneRegistration Scene<TScene>(string Id)where TScene:ISceneDefinition=>new(Id,static()=>RunScene<TScene>(),static()=>CollectVisuals<TScene>());
-    public static int Run(string Pack,string[]Args,IReadOnlyList<StageSceneRegistration>Scenes){
+    public static StageSceneRegistration Scene<TScene>(string Pack,string Id)where TScene:ISceneDefinition=>new(Pack,Id,static()=>RunScene<TScene>(),static()=>CollectVisuals<TScene>());
+    public static int Run(string[]Args,IReadOnlyList<StageSceneRegistration>Scenes){
         if(Args.Length==0||Args[0] is "list" or "--help" or "-h"){
-            Console.WriteLine(JsonSerializer.Serialize(new {schema="csharp-game-engine-stage-pack-v1",pack=Pack,scenes=Scenes.Select(static Scene=>Scene.Id)},JsonOptions));
+            Console.WriteLine(JsonSerializer.Serialize(new {schema="csharp-game-engine-stage-pack-v2",scenes=Scenes.Select(static Scene=>new {pack=Scene.Pack,id=Scene.Id})},JsonOptions));
             return 0;
         }
-        if(Args.Length>=2&&Args[0]=="show"){ return Show(Pack,Args,Scenes); }
+        if(Args.Length>=2&&Args[0]=="show"){ return Show(Args,Scenes); }
         if(Args.Length!=2||Args[0]!="run"){
             Console.Error.WriteLine("Usage: list | run <scene-id> | show <scene-id> [--frames N] [--hidden] [--warp] [--width W] [--height H] [--capture <png>]");
             return 2;
@@ -25,7 +26,7 @@ public static class StagePackHost {
             return 2;
         }
         try {
-            var Result=Registration.Execute()with{Pack=Pack,SceneId=Registration.Id};
+            var Result=Registration.Execute()with{Pack=Registration.Pack,SceneId=Registration.Id};
             Console.WriteLine(JsonSerializer.Serialize(Result,JsonOptions));
             return Result.Passed?0:1;
         } catch(Exception Ex){
@@ -34,7 +35,7 @@ public static class StagePackHost {
         }
     }
     /// <summary>`show`: シーンの見た目を実際の窓に描く。`run` と違い、窓を閉じるまで（`--frames` があればその枚数まで）続く。</summary>
-    private static int Show(string Pack,string[]Args,IReadOnlyList<StageSceneRegistration>Scenes){
+    private static int Show(string[]Args,IReadOnlyList<StageSceneRegistration>Scenes){
         var Registration=Scenes.FirstOrDefault(Scene=>Scene.Id==Args[1]);
         if(string.IsNullOrWhiteSpace(Registration.Id)){
             Console.Error.WriteLine($"Unknown scene ID: {Args[1]}");
@@ -56,7 +57,7 @@ public static class StagePackHost {
         }
         if(Capture is not null&&Frames is null){ Frames=3; }
         try {
-            return StagePackViewer.Show(Pack,Registration.Id,Registration.CollectVisuals(),new StageViewOptions(Width,Height,Frames,Hidden,Warp,Capture));
+            return StagePackViewer.Show(Registration.Pack,Registration.Id,Registration.CollectVisuals(),new StageViewOptions(Width,Height,Frames,Hidden,Warp,Capture));
         } catch(Exception Ex){
             Console.Error.WriteLine(Ex);
             return 1;

@@ -31,7 +31,7 @@ public sealed class StagePackShowTests {
 
     private static List<(byte R,byte G,byte B)>RunShow(string Pack,string SceneId){
         var RepositoryRoot=FeatureStageRepositoryLocator.Find();
-        var Project=Path.Combine(RepositoryRoot,"stages",$"CSharpGameEngine.FeatureStages.{Pack}",$"CSharpGameEngine.FeatureStages.{Pack}.csproj");
+        var Project=Path.Combine(RepositoryRoot,"stages","FeatureStages","FeatureStages.csproj");
         var Capture=Path.Combine(Path.GetTempPath(),$"cge-show-{Guid.NewGuid():N}.png");
         try {
             var Start=new ProcessStartInfo("dotnet") {

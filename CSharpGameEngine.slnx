@@ -175,18 +175,7 @@
     <File Path="src/Runtime/Runtime.projitems" />
   </Folder>
   <Folder Name="/stages/">
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Celestial/CSharpGameEngine.FeatureStages.Celestial.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Coupling/CSharpGameEngine.FeatureStages.Coupling.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Deformable/CSharpGameEngine.FeatureStages.Deformable.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Destruction/CSharpGameEngine.FeatureStages.Destruction.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Fluid/CSharpGameEngine.FeatureStages.Fluid.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Foundation/CSharpGameEngine.FeatureStages.Foundation.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.ProbabilityQuantum/CSharpGameEngine.FeatureStages.ProbabilityQuantum.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Rendering/CSharpGameEngine.FeatureStages.Rendering.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Rigid/CSharpGameEngine.FeatureStages.Rigid.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.shproj" />
-    <File Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.projitems" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Vsix/CSharpGameEngine.FeatureStages.Vsix.csproj" />
+    <Project Path="stages/FeatureStages/FeatureStages.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/エンジンのテスト/エンジンのテスト.csproj" />
