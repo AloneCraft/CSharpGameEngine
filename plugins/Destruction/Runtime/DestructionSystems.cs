@@ -20,7 +20,7 @@ internal struct DestructibleLoad:ISystem {
 }
 /// <summary>
 /// <see cref="DestructionImpact"/> を持つキャラクターが、今ティックに破壊可能オブジェクト（またはその破片）へ衝突しようとしている場合、衝突させる。接触点にはキャラクターの
-/// 質量と接近速度の積に相当するひずみを加え、分離中の破片には同じ力積で押す。物理ステップ後、キャラクターの移動前に実行するため、接近速度には到達時の値を使う。M0124：ひずみが衝撃（内部ひずみに加算）
+/// 質量と接近速度の積に相当するひずみを加え、分離中の破片は、キャラクターと破片の換算質量と接近速度の積の力積で押す（破片は接近速度より速くならない）。物理ステップ後、キャラクターの移動前に実行するため、接近速度には到達時の値を使う。M0124：ひずみが衝撃（内部ひずみに加算）
 /// になるのは、そのボディへの接触を始めたティックだけ。
 /// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
@@ -44,8 +44,12 @@ internal struct DestructionImpacts:ISystem {
             if(Approach<Impact.MinimumSpeed){ continue; }
             var Impulse=Impact.Mass*Approach;
             Destruction.ApplyCharacterImpulse(Entity,Contact.Entity,Contact.Point,Impulse,State.FixedTick);
-            if(Host.Physics.Active.World.TryGetBodyState(Contact.Entity,out var Body)&&Body.MotionType==PhysicsMotionType.Dynamic){
-                Host.Physics.Active.Commands.Impulse(State.FixedTick+1,(1UL<<61)|(ulong)(uint)Entity.Index,Sequence++,Contact.Entity,Contact.Normal*Impulse);
+            if(Host.Physics.Active.World.TryGetBodyState(Contact.Entity,out var Body)&&Body.MotionType==PhysicsMotionType.Dynamic
+                &&State.World.TryGetComponent(Contact.Entity,out RigidBody Rigid)&&Rigid.Mass>LogicalScalar.Zero){
+                // 動く破片は、キャラクターと破片の換算質量 M·m/(M+m) で押す（くっつく衝突）。破片の速さは接近速度を超えない。
+                // キャラクターの質量だけで押すと、軽い破片が接近速度の何倍もの速さで飛び、上から踏むと床を抜けた。
+                var Push=Impact.Mass*Rigid.Mass/(Impact.Mass+Rigid.Mass)*Approach;
+                Host.Physics.Active.Commands.Impulse(State.FixedTick+1,(1UL<<61)|(ulong)(uint)Entity.Index,Sequence++,Contact.Entity,Contact.Normal*Push);
             }
         }
     }
