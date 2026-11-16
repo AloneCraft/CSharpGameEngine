@@ -2,7 +2,7 @@ namespace CSharpGameEngine.ShaderArtifacts;
 
 /// <summary>
 /// DXC の前にすべての Stage 翻訳単位へ追加する、エンジン所有のプレゼンテーション用エントリー。Stage のリソースレイアウトを共有し、ハッシュ化された ABI の一部となる。実行時にこの
-/// ソースをコンパイルすることはない。MaterialParams.z は表示モード、EmissiveNits.w は選択ウェイトを保持する。出荷用 Stage エントリーでは、この2つの成分を意図的に
+/// ソースをコンパイルすることはない。表示モードは描画ごとの定数 DrawPresentationMode、選択ウェイトは物体の表の SelectionWeight にある。出荷用 Stage エントリーでは、この2つを意図的に
 /// 無視する。Stage グラフがビュー深度と、頂点／ピクセル間の単一インターフェースを所有する（ADR-0084）。Lumen エントリー（M0111）は PSMain と同じマテリアル入力を使い、
 /// サーフェス前処理とサーフェスキャッシュのカードを書き込む。
 /// </summary>
@@ -25,10 +25,10 @@ static const float3 PreviewSelectionTint = float3(0.6, 0.35, 0.05);
 
 float4 PreviewSurfacePSMain(VertexOutput input)
 {
-    float renderMode = MaterialParams.z;
+    float renderMode = float(DrawPresentationMode);
     if (renderMode > 0.5 && renderMode < 1.5)
     {
-        float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
+        float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * Materials[Instances[input.Instance].Material].BaseColorFactor.rgb;
         return float4(saturate(baseColor), 1.0);
     }
     if (renderMode >= 1.5 && renderMode < 2.5)
@@ -51,7 +51,7 @@ StagePixelOutput PreviewPSMain(VertexOutput input)
         discard;
     }
     float4 surface = PreviewSurfacePSMain(input);
-    float selectionWeight = EmissiveNits.w;
+    float selectionWeight = Instances[input.Instance].SelectionWeight;
     return CompleteStageSurface(input, float4(saturate(surface.rgb + selectionWeight * PreviewSelectionTint), surface.a));
 }
 
@@ -163,7 +163,7 @@ SurfacePrepassOutput SurfacePrepassPSMain(VertexOutput input)
     {
         discard;
     }
-    float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * MaterialParams.x), 0.045);
+    float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * Materials[Instances[input.Instance].Material].MaterialParams.x), 0.045);
     SurfacePrepassOutput output;
     output.NormalRoughness = float4(LumenShadingNormal(input), roughness);
     output.Distance = RadialSafeLength(input.WorldPosition - CameraPositionWS.xyz);
@@ -178,17 +178,18 @@ struct LumenCardOutput
     float4 Emissive : SV_Target2;
 };
 
-// The surface cache capture: one mesh in its own space (the host gives it an identity World) through a card's orthographic projection. The
+// The surface cache capture: one mesh in its own space (the host draws it with DrawFlagMeshSpace) through a card's orthographic projection. The
 // albedo is the diffuse colour (a metal has none), the normal is in the mesh's space and the emission leaves out the object's run-time scale,
 // which the card lighting applies.
 LumenCardOutput LumenCardPSMain(VertexOutput input)
 {
-    float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
-    float metallic = saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).b * MaterialParams.y);
+    MaterialData material = Materials[Instances[input.Instance].Material];
+    float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * material.BaseColorFactor.rgb;
+    float metallic = saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).b * material.MaterialParams.y);
     LumenCardOutput output;
     output.Albedo = float4(baseColor * (1.0 - metallic), 1.0);
     output.Normal = float4(LumenShadingNormal(input) * 0.5 + 0.5, 1.0);
-    output.Emissive = float4(EmissiveTexture.Sample(LinearSampler, input.Uv).rgb * EmissiveNits.xyz, 1.0);
+    output.Emissive = float4(EmissiveTexture.Sample(LinearSampler, input.Uv).rgb * material.EmissiveNits.xyz, 1.0);
     return output;
 }
 """;

@@ -1,5 +1,6 @@
 using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop.DirectX;
@@ -95,14 +96,14 @@ public sealed unsafe partial class StageRenderer {
                 Unsafe.CopyBlock(FrameDestination+FrameViewProjectionOffset,&Projection,(uint)sizeof(Matrix4x4));
                 *(Vector4*)(FrameDestination+FrameLumenParamsOffset)=Vector4.Zero;
                 *(Vector4*)(FrameDestination+FrameDepthEncoding0Offset)=Vector4.Zero;
-                this.WriteLumenCaptureObjectConstants(Lumen.CaptureObjectSlot(this.FrameIndex,Index),Capture.ObjectIndex);
                 Lumen.ClearCard(this.CommandList,Capture);
                 D3D12_VIEWPORT Viewport=new(){ TopLeftX=Capture.X,TopLeftY=Capture.Y,Width=Capture.Width,Height=Capture.Height,MinDepth=0f,MaxDepth=1f };
                 RECT Scissor=new(){ left=Capture.X,top=Capture.Y,right=Capture.X+Capture.Width,bottom=Capture.Y+Capture.Height };
                 this.CommandList->RSSetViewports(1,&Viewport);
                 this.CommandList->RSSetScissorRects(1,&Scissor);
                 this.CommandList->SetGraphicsRootConstantBufferView(0,Lumen.CaptureFrameAddress(this.FrameIndex,Index));
-                this.CommandList->SetGraphicsRootConstantBufferView(1,Lumen.CaptureObjectAddress(this.FrameIndex,Index));
+                // メッシュを自身の空間で描く。カードのシェーダーは世界格子を使わず、材質本来の発光を書く（実行時の物体の倍率はカード照明が掛ける）。
+                this.SetDrawConstants(Capture.ObjectIndex,StageDrawFlags.MeshSpace);
                 this.CommandList->SetGraphicsRootDescriptorTable(2,this.GetMaterialDescriptorTable(this.ObjectMaterialIndices[Capture.ObjectIndex]));
                 var MeshIndex=this.ObjectMeshIndices[Capture.ObjectIndex];
                 fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
@@ -126,27 +127,6 @@ public sealed unsafe partial class StageRenderer {
             SkyMap=this.EnvironmentSettings.Atmosphere is not null?this.Atmosphere.SkyRadianceMapResource:null,
             Field=Field,
         });
-    }
-    /// <summary>
-    /// 撮影時のオブジェクト定数。Worldを恒等変換にし、メッシュを自身の空間で描画する。ワールド格子は使用しない（線をメッシュではなく
-    /// ワールドに沿わせるため）。マテリアル本来の発光を使う（カード照明で実行時のオブジェクト倍率を適用）。プレゼンテーション色は加えない。
-    /// </summary>
-    private void WriteLumenCaptureObjectConstants(byte*Destination,int ObjectIndex){
-        var MaterialIndex=this.ObjectMaterialIndices[ObjectIndex];
-        var World=Matrix4x4.Identity;
-        Unsafe.CopyBlock(Destination+ObjectWorldOffset,&World,(uint)sizeof(Matrix4x4));
-        var BaseColorFactor=this.MaterialBaseColorFactors[MaterialIndex];
-        Unsafe.CopyBlock(Destination+ObjectBaseColorFactorOffset,&BaseColorFactor,(uint)sizeof(Vector4));
-        var MaterialParams=new Vector4(this.MaterialRoughnessFactors[MaterialIndex],this.MaterialMetallicFactors[MaterialIndex],0f,0f);
-        Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
-        var EmissiveNits=new Vector4(this.MaterialEmissiveNits[MaterialIndex],0f);
-        Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
-        var Zero=Vector4.Zero;
-        Unsafe.CopyBlock(Destination+ObjectWorldGridParamsOffset,&Zero,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&Zero,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&Zero,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&Zero,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectConservativeRasterDepthOffset,&Zero,(uint)sizeof(Vector4));
     }
     /// <summary>テスト専用：デバイスが削除された理由（動作中はS_OK）。</summary>
     internal int DeviceRemovedReasonForTesting=>this.Device!.Device->GetDeviceRemovedReason().Value;

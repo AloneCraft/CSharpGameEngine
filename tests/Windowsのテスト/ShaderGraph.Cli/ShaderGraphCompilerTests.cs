@@ -126,9 +126,11 @@ public sealed class ShaderGraphCompilerTests {
         // 深度マッピングのパケット）、M0099 の保守的ラスタ行列、M0111（FrameCB.LumenParams、t16/t17、および PSMain の
         // Lumen 分岐、tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py）、M0119（対数深度関数が
         // Depth サブグラフになること、edits/depth_subgraph_2026_10_25.py）、M0129 単位 2（PSMain を EvaluateSurface と
-        // EvaluateSurfaceLighting に分けること、edits/surface_split_2026_11_17.py。式は一字も変えず、固定 7 画像は同じ）は、
+        // EvaluateSurfaceLighting に分けること、edits/surface_split_2026_11_17.py。式は一字も変えず、固定 7 画像は同じ）、
+        // M0129 単位 3（ObjectCB をやめ、物体の表 t20・材質の表 t21・描画ごとの定数 b1 にすること、
+        // edits/gpu_scene_2026_11_17.py。stage-v17。固定 7 画像は同じ）は、
         // Stage プログラムを意図的に変更した。これらの編集前に、migrate/extract の往復でバイト単位の一致を確認済み。
-        Assert.True(Hash=="5E85B8CDF8D42CC2F54A331287CEAAB203149DB7ABCD627E5FA04C71F81F0599",Hash);
+        Assert.True(Hash=="56E4D5053BCE00A178D1AB2DEC13C561A6AB3222B2CF83294ED0803922CD7F76",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {

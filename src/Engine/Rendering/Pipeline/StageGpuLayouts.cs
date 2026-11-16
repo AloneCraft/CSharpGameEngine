@@ -65,22 +65,72 @@ public struct StageFrameConstants {
     public Vector4 VirtualShadowParams;
     public Vector4 DirectionalSoftShadowParams;
 }
+/// <summary>物体の表（Stage シェーダーの <c>Instances</c>、t20）の 1 件。物体 1 つにつき 1 件を、フレームごとに書く（ADR-0100 決定 2）。</summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct StageObjectConstants {
+public struct StageInstanceData {
     public Matrix4x4 World;
+    /// <summary>対数深度のビューで頂点シェーダーが使う、保守的なラスタ深度の（Limit, Slope）。それ以外のビューでは 0。</summary>
+    public Vector2 ConservativeRasterDepth;
+    /// <summary>材質の発光に掛ける、物体ごとの倍率。</summary>
+    public float EmissiveScale;
+    /// <summary>選択の強調の重み（0〜1）。表示用のエントリーだけが読む。</summary>
+    public float SelectionWeight;
+    /// <summary>材質の表の番号。</summary>
+    public uint Material;
+}
+/// <summary>材質の表（Stage シェーダーの <c>Materials</c>、t21）の 1 件。</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageMaterialData {
     public Vector4 BaseColorFactor;
+    /// <summary>x は粗さの係数、y は metallic の係数。</summary>
     public Vector4 MaterialParams;
     public Vector4 EmissiveNits;
+    /// <summary>x は格子の間隔（0 なら格子なし）、y は副格子の分割数、z は線の半幅。</summary>
     public Vector4 WorldGridParams;
     public Vector4 WorldGridColor;
     public Vector4 WorldSubGridColor;
+    /// <summary>xyz は格子の原点のずれ。w が 1 なら、ずれの代わりに物体の位置を原点にする。</summary>
     public Vector4 WorldGridAnchor;
-    public Vector4 ConservativeRasterDepth;
+    /// <summary>材質の値から表の 1 件を作る。格子が無い材質は、格子の欄がすべて 0 になる。</summary>
+    public static StageMaterialData Create(Vector4 BaseColorFactor,float RoughnessFactor,float MetallicFactor,Vector3 EmissiveNits,StageWorldGrid?WorldGrid,Vector3 WorldGridAnchor){
+        StageMaterialData Data=new(){
+            BaseColorFactor=BaseColorFactor,
+            MaterialParams=new(RoughnessFactor,MetallicFactor,0f,0f),
+            EmissiveNits=new(EmissiveNits,0f),
+        };
+        if(WorldGrid is{ }Grid){
+            Data.WorldGridParams=new(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,0f);
+            Data.WorldGridColor=new(Grid.GridColor,0f);
+            Data.WorldSubGridColor=new(Grid.SubGridColor,0f);
+            Data.WorldGridAnchor=Grid.AnchorToObject?new(0f,0f,0f,1f):new(WorldGridAnchor,0f);
+        }
+        return Data;
+    }
+}
+/// <summary>描画ごとの印（Stage シェーダーの <c>DrawFlags</c>）。</summary>
+[Flags]
+public enum StageDrawFlags:uint {
+    None=0,
+    /// <summary>物体のメッシュを、メッシュ自身の空間で描く（Lumen のカード撮影）。</summary>
+    MeshSpace=1,
+}
+/// <summary>描画ごとのルート定数（Stage シェーダーの <c>DrawCB</c>、b1）。</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageDrawConstants {
+    /// <summary>描く物体の、物体の表での番号。</summary>
+    public uint Instance;
+    /// <summary>表示モード（<see cref="RenderPresentationMode"/> の値）。表示用のエントリーだけが読む。</summary>
+    public uint PresentationMode;
+    /// <summary><see cref="StageDrawFlags"/> の値。</summary>
+    public uint Flags;
 }
 /// <summary>Stage シェーダー ABI の管理コード側におけるレイアウトの正本。オフセットは転送する構造体から取得する。</summary>
 public static class StageGpuLayouts {
     public static readonly uint FrameConstantsSize=checked((uint)Marshal.SizeOf<StageFrameConstants>());
-    public static readonly uint ObjectConstantsSize=checked((uint)Marshal.SizeOf<StageObjectConstants>());
+    public static readonly uint InstanceDataSize=checked((uint)Marshal.SizeOf<StageInstanceData>());
+    public static readonly uint MaterialDataSize=checked((uint)Marshal.SizeOf<StageMaterialData>());
+    /// <summary>描画ごとのルート定数の、32 ビット値の個数。</summary>
+    public static readonly uint DrawConstantCount=checked((uint)Marshal.SizeOf<StageDrawConstants>())/sizeof(uint);
     public static readonly uint FrameViewProjectionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.ViewProjection));
     public static readonly uint FrameCameraPositionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.CameraPositionWS));
     public static readonly uint FrameDirectionalLightsOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DirectionalLights));
@@ -107,15 +157,6 @@ public static class StageGpuLayouts {
     public static readonly uint FrameDepthEncoding0Offset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DepthEncoding0));
     public static readonly uint FrameDepthEncoding1Offset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DepthEncoding1));
     public static readonly uint FrameLumenParamsOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.LumenParams));
-    public static readonly uint ObjectWorldOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.World));
-    public static readonly uint ObjectBaseColorFactorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.BaseColorFactor));
-    public static readonly uint ObjectMaterialParamsOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.MaterialParams));
-    public static readonly uint ObjectEmissiveFactorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.EmissiveNits));
-    public static readonly uint ObjectWorldGridParamsOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.WorldGridParams));
-    public static readonly uint ObjectWorldGridColorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.WorldGridColor));
-    public static readonly uint ObjectWorldSubGridColorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.WorldSubGridColor));
-    public static readonly uint ObjectWorldGridAnchorOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.WorldGridAnchor));
-    public static readonly uint ObjectConservativeRasterDepthOffset=Offset<StageObjectConstants>(nameof(StageObjectConstants.ConservativeRasterDepth));
     public static readonly uint FrameVirtualProjectionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.VirtualShadowProjection));
     public static readonly uint FrameVirtualParamsOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.VirtualShadowParams));
     public static readonly uint FrameDirectionalSoftShadowOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DirectionalSoftShadowParams));

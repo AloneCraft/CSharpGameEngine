@@ -6,6 +6,8 @@ namespace CSharpGameEngine.Rendering.Pipeline;
 public enum StagePass {
     /// <summary>スキニングの compute。</summary>
     Skinning,
+    /// <summary>物体の表と材質の表を、このフレームの値で書く（ADR-0100 決定 2）。物体を描くどのパスよりも前。</summary>
+    SceneUpload,
     /// <summary>Lumen を使うかの確定、影の時間の読み取り、光源と局所光の影の準備。</summary>
     FramePreparation,
     /// <summary>局所光の影のアトラス。</summary>
@@ -101,6 +103,7 @@ public static class StagePipelinePlanner {
         var Inputs=Key.Inputs;
         List<StagePass>Passes=[
             StagePass.Skinning,
+            StagePass.SceneUpload,
             StagePass.FramePreparation,
             StagePass.ShadowAtlas,
             StagePass.VirtualShadows,

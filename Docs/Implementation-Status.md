@@ -3706,7 +3706,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-014, F-L0-009
 - Milestone: `Docs/Milestones/M0119-Logarithmic-Native-Depth.md` (Verified; original foundation M0099)
-- Implementation evidence: `src/Engine/Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, `ObjectCB.ConservativeRasterDepth`, `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
+- Implementation evidence: `src/Engine/Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, the per-object `ConservativeRasterDepth` (ObjectCB then, the instance table since stage-v17), `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
 - Reverse-engineered behavior: main views, Lumen surface views and DDGI captures write native logarithmic depth. Main view geometry remains physical and camera relative; only observer insets warp positions. SceneDistance supplies physical distance to AO and sky; DDGI uses CaptureDistance. Preview PSOs preserve the main distance target. Shadow maps retain light-space projection. Retired standard PSO families, wrapper entries, standalone Model/Triangle renderers and their artifact/graph producers are removed; retired serialized target values are rejected.
 - Tests: `RenderViewDepthTests`, `LogarithmicDepthOracleTests`, `StageGoldenFrameTests`, `RadialDepthGpuIntegrationTests`, `SceneDistanceGpuIntegrationTests`, `LumenSurfaceDepthTests`, shader ABI/compiler/artifact tests and hot reload/recovery coverage. Latest solution at 5f4d647 (SDK 0.1.29): 22 projects, 3548 pass, 0 fail, 2 opt-in measurements skipped and measured separately on RTX with the unchanged Stage shader. Eight template cases from M0119 (a8c6df8) report an actually active debug layer and zero errors; nine M0111 metrics, complete camera trajectories and final images match. Evidence paths and per-step provenance are in M0119.
 - Conformance: Matches for native depth (ADR-0084). RTX centre error is at most about 2.56 ulp over 4e-6 to 5e18 m. The seven golden images remain fixed after the documented AO rounding update. Release visibility/batching of 100000 objects meets the 6ms median / 8.33ms p95 / zero allocation-p95 budget (4.10015ms / 4.34760ms / 0byte). GPU main-pass measurements are not a whole-game frame budget.
@@ -5151,6 +5151,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: 描画パスは Forward+ 相当の 1 つだけ(16 px・64 灯の 2D タイル、深度方向の分割なし)。Deferred・GBuffer・ステンシルは無い。
 - Conformance: Unknown
 - Next action: M0120(Forward+ を URP 方式に、Forward を足す)、M0121(Deferred・Deferred+)。
+
+## F-L4-023 — GPU シーン(物体の表と材質の表)
+
+- Layer: L4 — 表の形とフレーム計画(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs`、`StagePipelinePlan.cs`)、L0 — 表の書き込みと束縛(`src/Windows/Graphics/StageRenderer.Scene.cs`)、L6 — Stage の ABI(`stage-v17`)
+- Parent capability: Rendering Roadmap / 仮想化描画の共通の下回り(ADR-0100 決定 2)
+- Status: PartiallyImplemented(2026-11-17。M0129 の単位 3 まで。従来のメッシュは全部この経路で描く)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified(表の形の CPU の試験、DXC の反射との配置の照合)、RuntimeVerified(WARP の描画の試験と固定 7 画像の一致)。実機の GPU では未確認
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 2、`Docs/Specifications/Shader-Graph.md`(GPU シーン)、`Docs/Milestones/M0129-Gpu-Scene-Foundation.md`
+- Stage: 未登録(M0129 の締めで FeatureRunner のカタログに登録する)
+- Depends on: F-L0-011
+- Implementation evidence: L4 `StageInstanceData`・`StageMaterialData`(`Create`)・`StageDrawConstants`・`StageDrawFlags`、`StagePass.SceneUpload`。L0 `StageRenderer.Scene.cs`(`RecordSceneUpload`、`BindSceneTables`、`BindShadowInstanceTable`、`SetDrawConstants`)、主パスと影のルートシグネチャ(`StageRenderer.cs`)、Lumen のカード撮影(`StageRenderer.Lumen.cs`)。シェーダー `assets/Shaders/Stage.cgeshadergraph`(`DrawCB`・`Instances`・`Materials`、編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py`)、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`
+- Tests: エンジンのテスト `StageSceneLayoutsTests`、`StagePipelinePlannerTests`。Windowsのテスト `StageConstantLayoutReflectionTests`(エントリーごとの配置と、使わないバッファが無いこと)、`StageFrameSlotPersistenceTests.ObjectValuesSetOnce_Warp_RenderIdenticallyInEveryFrameSlot`、`StageGoldenFrameTests`(固定 7 画像)、既存の描画の試験(影、Lumen、世界格子、カメラプレビュー)
+- Current delta: 材質のテクスチャは材質ごとの束のまま(番号引きは単位 4)。表はアップロード用のバッファへ毎フレーム全部書く(輪にするのは単位 5)。描画は物体ごとに 1 回で、GPU 側の選択と間接描画は M0130 以降
+- Conformance: Partial(M0129 の単位 4〜6 が残る)
+- Next action: M0129 単位 4(材質テクスチャの番号引き、影の画像を環境の表へ)
 
 ## F-L4-021 — Entity を使わない物理の契約
 

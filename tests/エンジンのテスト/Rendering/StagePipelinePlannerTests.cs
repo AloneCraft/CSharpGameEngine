@@ -8,7 +8,7 @@ public sealed class StagePipelinePlannerTests {
     public void APlainFrameRunsTheFixedOrderAndPresents(){
         var Plan=StagePipelinePlanner.Build(new StagePipelinePlanKey(Plain,Capture:false));
         Assert.Equal([
-            StagePass.Skinning,StagePass.FramePreparation,StagePass.ShadowAtlas,StagePass.VirtualShadows,StagePass.FrameConstants,
+            StagePass.Skinning,StagePass.SceneUpload,StagePass.FramePreparation,StagePass.ShadowAtlas,StagePass.VirtualShadows,StagePass.FrameConstants,
             StagePass.AutoExposureInitialize,StagePass.GlobalDistanceField,StagePass.GlobalIllumination,StagePass.Lumen,StagePass.AmbientOcclusion,
             StagePass.MainPass,StagePass.LumenSceneCopy,StagePass.RestoreMainBindings,StagePass.CameraPreviews,StagePass.PostProcess,
             StagePass.Overlay,StagePass.ScreenLayer,StagePass.PresentTransition,

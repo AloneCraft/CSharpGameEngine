@@ -122,6 +122,7 @@ public sealed unsafe partial class StageRenderer {
         var Dsv=this.VirtualShadowDsv->GetCPUDescriptorHandleForHeapStart();
         this.CommandList->OMSetRenderTargets(0,null,FALSE,&Dsv);
         this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
+        this.BindShadowInstanceTable();
         this.CommandList->SetPipelineState(this.ShadowPipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         var Index=0;
@@ -137,7 +138,7 @@ public sealed unsafe partial class StageRenderer {
             foreach(var Object in this.VirtualShadowObjects){
                 if(!Object.CastsShadow||!IntersectsProjection(Object,Projection)){ continue; }
                 var ObjectIndex=Object.Id;var Mesh=this.ObjectMeshIndices[ObjectIndex];
-                this.CommandList->SetGraphicsRootConstantBufferView(1,this.GetObjectConstantsAddress(this.FrameIndex,ObjectIndex));
+                this.SetDrawConstants(ObjectIndex);
                 fixed(D3D12_VERTEX_BUFFER_VIEW*Vertex=&this.VertexBufferViews[Mesh])
                 fixed(D3D12_INDEX_BUFFER_VIEW*Indices=&this.IndexBufferViews[Mesh]){
                     this.CommandList->IASetVertexBuffers(0,1,Vertex);this.CommandList->IASetIndexBuffer(Indices);this.CommandList->DrawIndexedInstanced(this.IndexCounts[Mesh],1,0,0,0);

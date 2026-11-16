@@ -1,9 +1,9 @@
 # M0129 — 仮想化描画の共通の下回り(GPU シーン、間接描画、番号引き)
 - 日付: 2026-11-17
-- 状態: Implementing(単位 0〜2 を終えた)
+- 状態: Implementing(単位 0〜3 を終えた)
 - 段階: ADR-0098 の段階 D の前倒し(ユーザーの判断。`Docs/目標、ロードマップ、戦略.md` は変えない)
 - 決定: [ADR-0100](../Decisions/ADR-0100-Virtualized-Rendering.md) 決定 1〜3
-- ABI: `stage-v16` → `stage-v17`(単位 3)
+- ABI: `stage-v17`(単位 3 で `stage-v16` から上げた)
 
 ## 用語
 | 語 | 意味 |
@@ -23,7 +23,7 @@
 | 0 | ADR-0100 とこの文書 | 文書の参照が正しい | 済 |
 | 1 | デバイスの能力の問い合わせと関門試験 | WARP と実機で通る | 済 |
 | 2 | `PSMain` を「表面の評価」と「照明」に分ける。ABI は変えない | ゴールデン 7 枚が同じ | 済 |
-| 3 | GPU シーン化。物体ごとの定数をやめ、物体と材質の表にする。ABI を `stage-v17` へ | ゴールデン 7 枚が同じ | 未 |
+| 3 | GPU シーン化。物体ごとの定数をやめ、物体と材質の表にする。ABI を `stage-v17` へ | ゴールデン 7 枚が同じ | 済 |
 | 4 | 材質テクスチャの番号引き化。影の画像を環境側の表へ移す | 同上。材質数の上限が消える | 未 |
 | 5 | アップロードの輪と読み戻しの輪 | 材質・メッシュの追加で GPU を待たない | 未 |
 | 6 | L4 の共通部品(画面上の大きさの式、空き枠の割り当て、報告) | CPU の試験 | 未 |
@@ -34,12 +34,13 @@
 - 空き枠の割り当て: 予算を超えない。固定した項目は追い出さない。同じ入力で同じ順。
 - 画面上の大きさの式: CPU とシェーダーで結果が一致する。
 - デバイスを作り直した後、物体と材質が元に戻る。
+- 物体の値(位置、発光の倍率など)は、1 度設定すればどのフレームの枠でも同じ絵になる(単位 3 で足した)。
 
 ## 範囲外
 仮想ジオメトリ(M0130・M0131)、Hi-Z(M0131)、仮想シャドウ(M0132)、仮想テクスチャ(M0134・M0135)、スキニングの経路の変更。
 
 ## 機能 ID
-単位 3 で機能台帳に登録する(登録の直前に採番する)。
+F-L4-023(GPU シーン)。単位 3 で機能台帳(`Docs/Implementation-Status.md`)に登録した。FeatureRunner のカタログ(Stage)への登録は M0129 の締めで行う。
 
 ## 実行記録: 単位 1 関門(2026-11-17)
 - **確かめたこと**: 後の段階が前提にする 3 つの D3D12 の機能が、エンジンの描画器を通さずに動くか。
@@ -65,3 +66,17 @@
 - **コマンド**: `python tools/ShaderGraphMaintenance/edit_stage_graph.py tools/ShaderGraphMaintenance/edits/surface_split_2026_11_17.py`、`dotnet test "tests/Windowsのテスト/Windowsのテスト.csproj" -c Debug --filter "FullyQualifiedName~StageGoldenFrameTests|FullyQualifiedName~ShaderGraphCompilerTests|FullyQualifiedName~GpuDrivenDrawGateTests"`
 - **適合**: この単位は Matches。M0129 全体は Partial(単位 3〜6 が残る)。
 - **未確認**: ソリューション全体の試験と、4 つのテンプレートの画像の前後比較は、単位 3(GPU シーン化)の後にまとめて行う。この単位では、主パスの画素を固定する 7 枚と、シェーダーの組み立ての試験だけを通した。
+
+## 実行記録: 単位 3 GPU シーン化(2026-11-17)
+- **変えたこと**: 物体ごとの定数バッファ(ObjectCB、b1)をやめた。代わりに、物体の表(`Instances`、t20、1 件 84 バイト)、材質の表(`Materials`、t21、1 件 112 バイト)、描画ごとのルート定数(`DrawCB`、b1、物体の番号・表示モード・描画の印の 3 個)にした。契約は `stage-v17`。
+  - シェーダー: `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py`(グラフ本体)と `StagePresentationShaderSource`(表示用・Lumen 用)。頂点シェーダーが物体の番号を `VertexOutput.Instance`(補間なし)で画素シェーダーへ渡す。
+  - L4: `StageInstanceData`・`StageMaterialData`・`StageDrawConstants`・`StageDrawFlags`、フレーム計画の `StagePass.SceneUpload`(スキニングの直後)。
+  - L0: `StageRenderer.Scene.cs` が表を 1 フレームに 1 回、今の値で全部書く。物体を描く入口 9 か所は、物体の番号を渡すだけになった。Lumen のカード撮影は、物体の写しを作らず「メッシュ自身の空間で描く」印で描く。
+  - L7: DXC の反射を読む部品が、構造化バッファの要素の配置も返すようにした。配置の試験はエントリーごとに、使う表の配置と、使わない表が無いことを確かめる。
+- **見つけて直したこと(副次)**: 以前は、物体の値を 1 度だけ設定すると、その時のフレームの枠にしか書かれなかった。設定を毎フレーム呼び直さない使い方では、枠ごとに古い値と新しい値が交互に出る。表を毎フレーム全部書く形にしたので起きなくなった。
+- **修正前**: 単位 2 のコミット(cfc72c83)の写しに新しい試験だけを入れると、`StageFrameSlotPersistenceTests.ObjectValuesSetOnce_Warp_RenderIdenticallyInEveryFrameSlot` が「frame 1 differs from frame 0」で失敗した(`.artifacts/M0129/unit3-before-slot.log`)。
+- **修正後**: ゴールデン 7 枚が同じハッシュで合格。Windowsのテストの全体 1017 件のうち、合格 1014、対象外 3(実機専用など)、失敗 0(`.artifacts/M0129/unit3-windows-all.log`)。エンジンのテストの関連 18 件(表の形、計画の順、層の検査)が合格(`.artifacts/M0129/unit3-engine.log`)。
+- **意図して更新した固定値**: 合成した Stage の HLSL のハッシュを `5E85B8CD…` から `56E4D505…` へ。
+- **配置の事故(2026-11-17 07:54)**: この単位の書き換えの途中で、VS の F5 が拡張を組み立てた。拡張に、新しいシェーダーと古い描画層 `Windows.dll`(x64、02:48 の版)が混ざって入り、プレビューとサムネイルが `CreateGraphicsPipelineState` の `E_INVALIDARG` で失敗した。今の作業ツリーから x64 でプレビュー用ホストを組み立てると、すべて新しい版でそろうことを確かめた。取り決めの版を確かめているのは `Contracts.dll` だけで、描画層は確かめていない。描画層にも版の確認を持たせることを、この段階の続きで検討する。
+- **適合**: この単位は Matches。M0129 全体は Partial(単位 4〜6 が残る)。
+- **未確認**: 実機の GPU での確認、4 つのテンプレートの画像の前後比較、作り直した拡張での実画面のプレビュー。
