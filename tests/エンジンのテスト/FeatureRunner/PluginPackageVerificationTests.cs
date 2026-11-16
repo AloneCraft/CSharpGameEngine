@@ -39,4 +39,17 @@ public sealed class PluginPackageVerificationTests {
         Assert.Contains(PluginPackageVerification.Evaluate(BothPlugins,Generated,false,out _),
             static Failure=>Failure.Contains("asset was not copied",StringComparison.Ordinal));
     }
+    /// <summary>ADR-0099 で名前を変えた後も、確かめの道具が組み立てるパスが実在する(PackageId からパスを作って外れたことがある)。</summary>
+    [Fact]
+    public void 確かめの道具が使う見本とプロジェクトが実在する(){
+        var 根=FeatureStageRepositoryLocator.Find();
+        Assert.True(File.Exists(PluginPackageVerification.LightningProjectPath(根)),PluginPackageVerification.LightningProjectPath(根));
+        foreach(var フォルダ in new[]{Path.Combine(根,"samples","Plugins","Weather"),Path.Combine(根,"Templates","ThirdPerson")}){
+            Assert.True(Directory.Exists(フォルダ),フォルダ);
+        }
+        foreach(var 実行ファイル in new[]{DestructionSampleVerification.ExecutablePath(根,"Debug"),DestructionSampleVerification.PhysicsCliPath(根,"Debug")}){
+            var プロジェクトの場所=Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(実行ファイル)))))!;
+            Assert.True(Directory.EnumerateFiles(プロジェクトの場所,"*.csproj").Any(),プロジェクトの場所);
+        }
+    }
 }

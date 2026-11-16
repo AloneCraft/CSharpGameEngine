@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     The Cook module of the Navigation engine plugin (ADR-0079/M0106): an IAssetCooker that bakes a scene's static collision into a navigation mesh
-    (Assets/Navigation/<Id>.cgenav). CSharpGameEngine.Cook.Cli loads this DLL in its own process; the build runs it before the game is copied
+    (Assets/Navigation/<Id>.cgenav). Cook.Cli loads this DLL in its own process; the build runs it before the game is copied
     (Navigation.plugin.items), and the SDK package carries the built output next to this folder's sources.
     The mesh format and the path search are the Runtime module's sources, compiled here too, so the writer and the game's reader are the same code.
   -->

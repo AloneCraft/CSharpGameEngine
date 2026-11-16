@@ -11,7 +11,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Unlike CSharpGameEngine.Import.Fbx.Cli, this bridge only ever calls GltfImporter, and
+    <!-- Unlike Import.Fbx.Cli, this bridge only ever calls GltfImporter, and
          SharpGLTF.Core is fully managed (no native DLL), so no RuntimeIdentifier/SelfContained is
          needed here - a plain portable net10.0 console app is enough for `dotnet run` to work from
          the VSIX's ExternalGltfLoader.

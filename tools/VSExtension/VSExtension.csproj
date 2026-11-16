@@ -87,7 +87,7 @@
     <PackageReference Include="Microsoft.VisualStudio.CommandBars" Version="17.14.40260" ExcludeAssets="runtime" />
 
     <!-- ADR-0010/ADR-0019: deserializes the JSON produced by both out-of-process import bridges
-         (CSharpGameEngine.Import.Fbx.Cli and CSharpGameEngine.Import.Gltf.Cli). Neither AssimpNet
+         (Import.Fbx.Cli and Import.Gltf.Cli). Neither AssimpNet
          nor SharpGLTF.Core is referenced directly by this project anymore - see
          ExternalFbxLoader.cs/ExternalGltfLoader.cs. 10.0.1 was the version originally forced by a
          since-removed transitive SharpGLTF.Core dependency; kept pinned since it's already proven
@@ -225,7 +225,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Lets CSharpGameEngine.VSExtension.Tests unit-test internal, VS-independent classes
+    <!-- Lets tests/VS拡張のテスト unit-test internal, VS-independent classes
          (FabDownloadWatcher, KnownFolders) directly, since live VS UI automation proved unreliable
          for verifying this logic (ADR-0011). -->
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">

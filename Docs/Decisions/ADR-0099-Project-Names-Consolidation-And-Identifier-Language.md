@@ -64,3 +64,6 @@
 ## 確認
 - 各段で全体のビルドと全試験を流し、まとめる前の結果と試験の名前を突き合わせ、消えた試験が無いことを確かめた。
 - NAME001 は、試験 13 件と、実際のビルドで public の日本語の型が止まり internal が通ることで確かめた。
+- 名前を変えた後に作り直した SDK パッケージ(lib は Contracts・Engine・Numerics・Windows の 4 つ)から、`verify-template-package`(4 テンプレート)と `verify-plugin-package` が合格した。WARP の値は変える前と同じ(ThirdPerson 15.700 m、FirstPerson 16.000 m、TopDown 9.606 m・ナビあり (6.80, 6.83)・長押し 17.414 m、Vehicle 62.614 m・25.4°)。リポジトリの中のテンプレートの `verify-thirdperson-character` も同じ値。
+- 名前を変える前にビルドした出力フォルダには、古い名前の DLL(`CSharpGameEngine.Core.dll` など)が残る。SDK の梱包は出力フォルダを写すので、残ったままだと古い DLL が混ざる。名前を変えた後に初めてビルドする時は、出力フォルダ(`bin`)を消してからビルドする。
+- `verify-destruction` は、名前を変える前の版でも同じ値で落ちる(爆発の後に壊れない物が 1 つ残り、破片が床を抜ける)。今回の変更とは関わりが無い。
