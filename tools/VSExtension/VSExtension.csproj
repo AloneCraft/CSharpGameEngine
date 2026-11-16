@@ -61,7 +61,6 @@
   <ItemGroup>
     <ProjectCapability Include="CreateVsixContainer" />
     <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
-    <ProjectReference Include="..\..\src\ShaderGraph\ShaderGraph.csproj" />
   </ItemGroup>
 
   <ItemGroup>

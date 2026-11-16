@@ -14,6 +14,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ShaderGraph\ShaderGraph.csproj" />
+    <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
   </ItemGroup>
 </Project>

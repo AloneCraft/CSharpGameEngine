@@ -7,7 +7,7 @@
     <RootNamespace>CSharpGameEngine.Vsix.Automation</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ShaderGraph\ShaderGraph.csproj" />
+    <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
     <PackageReference Include="System.Text.Json" Version="10.0.1" />
   </ItemGroup>
   <ItemGroup>

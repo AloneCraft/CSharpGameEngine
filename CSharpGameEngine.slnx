@@ -170,11 +170,9 @@
     <Project Path="src/Numerics/Numerics.csproj" />
     <Project Path="src/Rendering/Rendering.csproj" />
     <Project Path="src/Import/Import.csproj" />
-    <Project Path="src/SceneModel/SceneModel.csproj" />
     <Project Path="src/Windows/Windows.csproj">
       <Platform Project="x64" />
     </Project>
-    <Project Path="src/ShaderGraph/ShaderGraph.csproj" />
     <Project Path="src/Runtime/Runtime.shproj" />
     <File Path="src/Runtime/Runtime.projitems" />
   </Folder>

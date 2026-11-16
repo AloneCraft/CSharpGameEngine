@@ -24,11 +24,10 @@ public sealed class SceneJsonUpgradeBoundaryTests {
         Assert.True(File.Exists(Path.Combine(RepositoryRoot,"tools","SceneJson.Cli","SceneJsonAngleUpgrade.cs")));
         Assert.False(File.Exists(Path.Combine(RepositoryRoot,"src","SceneModel","Json","SceneJsonAngleUpgrade.cs")));
     }
-    /// <summary>旧版の読み方を有効にする記号を定義してよいのは、変換ツールと SceneModel（とその試験）だけ。生成器・VSIX・ゲームは定義しない。</summary>
+    /// <summary>旧版の読み方を有効にする記号を定義してよいのは、変換ツールと SceneModel の試験だけ（SceneModel は共有ソースで、自分のプロジェクトを持たない。ADR-0099）。生成器・VSIX・ゲームは定義しない。</summary>
     [Fact]
-    public void OnlyTheUpgradeToolAndSceneModelDefineTheUpgradeSymbol(){
+    public void OnlyTheUpgradeToolAndSceneModelTestsDefineTheUpgradeSymbol(){
         string[]AllowedProjects=[
-            "src/SceneModel/SceneModel.csproj",
             "tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj",
             "tools/SceneJson.Cli/SceneJson.Cli.csproj",
         ];
