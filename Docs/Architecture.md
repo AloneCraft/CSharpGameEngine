@@ -56,23 +56,28 @@ The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lig
 - `.cs` ファイルとオリジナルのバイナリアセットが正規のソース(Source)である。
 - アーティファクトとキャッシュは生成物であり、再生成可能な出力である。
 
-## プロジェクト構成(ADR-0034)
+## プロジェクト構成(ADR-0034、ADR-0099)
 
-プロジェクトは分野で切ったのではなく、**ビルド形状の実際の違い**で切る(ADR-0034)。一覧の正本は
-`CSharpGameEngine.slnx`で、2026-10-01時点の`src/`は14のcsprojと6の共有プロジェクト(shproj)からなる。
-ADR-0034で決めた中核の5つは次のとおり。
+プロジェクトは分野で切ったのではなく、**ビルド形状の実際の違い**で切る(ADR-0034)。分ける理由(対象の環境、別のプロセスで
+動く必要、ソースのまま取り込む、配布物の単位)が無いものはまとめる(ADR-0099)。一覧の正本は`CSharpGameEngine.slnx`。
+フォルダ名・プロジェクト名・DLL名には`CSharpGameEngine.`を付けず、名前空間は`CSharpGameEngine.*`のまま(ADR-0099)。
+`src/`は次のとおり。
 
 | プロジェクト | TFM | 境界の理由 |
 |---|---|---|
-| `CSharpGameEngine.CodeAnalysis` | netstandard2.0 | Roslyn Analyzer。`analyzers/dotnet/cs`としてpackされる |
-| `CSharpGameEngine.Entities` | net10.0 | **共有ソース**。`partial struct World`を消費側コンパイル内でSGが完成させる |
-| `CSharpGameEngine.Core` | net10.0 | **外部パッケージ依存がゼロ** |
-| `CSharpGameEngine.Import` | net10.0 | サードパーティのアセットSDK(SharpGLTF / AssimpNet)を抱える |
-| `CSharpGameEngine.Windows` | net10.0-windows10.0.19041.0 / x64 | windows TFM・x64・unsafe・TerraFX/DXCのネイティブ依存 |
+| `Contracts`(Contracts・ShaderArtifacts・ShaderGraphのフォルダ) | netstandard2.0 | VS拡張(net472)と生成器が読む契約 |
+| `CodeAnalysis` | netstandard2.0 | Roslyn Analyzer。`analyzers/dotnet/cs`としてpackされる。他のDLLに頼れない |
+| `Engine`(Core・Content・Renderingのフォルダ) | net10.0 | ゲームが読む実行時の部品。**外部パッケージ依存がゼロ**、unsafe無し |
+| `Numerics`(World のフォルダを含む) | net10.0 | 数値の精度ごとにゲームの側で作り直す |
+| `Entities` | net10.0 | **共有ソース**。`partial struct World`を消費側コンパイル内でSGが完成させる |
+| `Cooking` | net10.0 | Cookの契約。Cook.Cliと部品(Importやプラグインの焼き込み)が共有する唯一のDLL |
+| `Import` | net10.0 | サードパーティのアセットSDK(SharpGLTF / AssimpNet)を抱え、Cook.Cliが部品として分けて読み込む |
+| `Windows` | net10.0-windows10.0.19041.0 / x64 | windows TFM・x64・unsafe・TerraFX/DXCのネイティブ依存 |
+| `Runtime`(共有プロジェクト) | — | ゲームのコンパイルへソースとして入る(Animation・Character・Lighting・Physics・Simulation・Windows) |
+| `SceneModel`(プロジェクト無し) | — | シーン解析の共有ソース。CodeAnalysis・VS拡張・SceneJson.Cliへソースのまま取り込む |
 
-その後に加わったもの: `Audio`、`Content`、`Contracts`、`Numerics`、`Rendering`、`SceneModel`(シーン解析の共有ソース、
-netstandard2.0)、`ShaderArtifacts`、`ShaderGraph`、`World`の各csprojと、ゲームのコンパイルへソースとして入る共有プロジェクト
-`Runtime.Animation`/`Runtime.Character`/`Runtime.Lighting`/`Runtime.Physics`/`Runtime.Simulation`/`Runtime.Windows`。
+`Engine`の中の層(Core・ContentはRenderingを名指ししない、など)は、フォルダーが名指しする名前空間を調べる試験
+(`EngineLayerSpec.EngineFoldersKeepTheirLayers`)で守る。
 層の境界(M0096 G、`EngineLayerSpec`で検証):
 - `Runtime.Physics`/`Runtime.Character`はWindows専用の型を名指ししない。ホストの物理ドメインは`IPhysicsHost`
   (`PhysicsDomainRegistry`)として受け取り、`EngineHost`がそれを実装する。`StaticMesh`/`MeshMobility`と、World変換の解決
@@ -84,7 +89,7 @@ netstandard2.0)、`ShaderArtifacts`、`ShaderGraph`、`World`の各csprojと、�
 
 **アセンブリ名と名前空間は一致しない**。これは意図的である(ADR-0034決定事項2)。
 `Engine.dll`は`CSharpGameEngine.Core`/`.Spatial.Abstractions`/`.Spatial.Unity`/
-`.Spatial.Unreal`/`.Spatial.Blender`/`.Spatial.Gltf`/`.Spatial.Fbx`/`.Geometry`を含み、
+`.Spatial.Unreal`/`.Spatial.Blender`/`.Spatial.Gltf`/`.Spatial.Fbx`/`.Geometry`/`.Audio`/`.Content`/`.Rendering`などを含み(ADR-0099)、
 `Windows.dll`は`.Graphics.D3D12`/`.Platform.Windows`/`.Compiler.Hlsl`を、
 `Import.dll`は`.Import.Gltf`/`.Import.Fbx`を含む。
 **コード上の名前空間は統合前と完全に同一**なので、`using`は統合の前後で変わっていない。
