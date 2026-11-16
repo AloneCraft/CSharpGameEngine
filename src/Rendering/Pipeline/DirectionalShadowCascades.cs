@@ -27,6 +27,13 @@ public static class DirectionalShadowCascades {
         return Near+(Far-Near)*Fraction;
     }
     public static DirectionalShadowCascade[]Build(Matrix4x4 ViewProjection,Vector3 CameraPosition,Vector3 DirectionTowardLight,float MaxDistanceMeters=DefaultMaxDistanceMeters){
+        var Result=new DirectionalShadowCascade[Count];
+        BuildInto(ViewProjection,CameraPosition,DirectionTowardLight,Result,MaxDistanceMeters);
+        return Result;
+    }
+    /// <summary><see cref="Build"/> と同じカスケードを、呼び出し側の入れ物（長さ <see cref="Count"/> 以上）へ書く。毎フレームの割り当てをしない。</summary>
+    public static void BuildInto(Matrix4x4 ViewProjection,Vector3 CameraPosition,Vector3 DirectionTowardLight,Span<DirectionalShadowCascade>Result,float MaxDistanceMeters=DefaultMaxDistanceMeters){
+        if(Result.Length<Count){ throw new ArgumentException("The destination must hold every cascade.",nameof(Result)); }
         if(!Matrix4x4.Invert(ViewProjection,out var Inverse)){
             Inverse=Matrix4x4.Identity;
         }
@@ -47,7 +54,6 @@ public static class DirectionalShadowCascades {
         var Up=MathF.Abs(Toward.Y)>0.99f?Vector3.UnitZ:Vector3.UnitY;
         var LightRotation=Matrix4x4.CreateLookAt(Vector3.Zero,-Toward,Up);
         Matrix4x4.Invert(LightRotation,out var InverseLightRotation);
-        var Result=new DirectionalShadowCascade[Count];
         var SliceNear=Near;
         Span<Vector3>SliceCorners=stackalloc Vector3[8];
         for(var Cascade=0;Cascade<Count;Cascade++){
@@ -80,7 +86,6 @@ public static class DirectionalShadowCascades {
             Result[Cascade]=new DirectionalShadowCascade(View*Projection,SnappedCenter,Radius,DepthRange,TileFor(Cascade),SliceNear,SliceFar);
             SliceNear=SliceFar;
         }
-        return Result;
     }
     private static Vector3 Unproject(Matrix4x4 Inverse,float X,float Y,float Z){
         var Point=Vector4.Transform(new Vector4(X,Y,Z,1f),Inverse);
