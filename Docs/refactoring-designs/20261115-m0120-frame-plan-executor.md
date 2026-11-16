@@ -283,3 +283,12 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 
 ## 完了状態
 - 2026-11-15: 単位 1〜6 を終えた。残りは、毎フレームの計画の割り当て 0(目的 3)と、F-L4-007 の扱いの決定。デバイスの復旧の作り直しは合意どおり行っていない。
+
+### 追加: 毎フレームの計画の割り当て 0(2026-11-16)
+- 作業は、元の作業ツリーに別作業の途中の変更(プロジェクトの組み替え)が残っていたため、所有者の選択で別の作業ツリー(`F:\w\cge-alloc`、枝 `m0120-zero-alloc`、`refactor/project-names` の `b88ab1b7` から)で行った。
+- `StageLightSubmissions` が毎フレーム作っていた入れ物(方向光と局所光の並べ替えの配列、影の候補の一覧、提出順から局所光への対応、アトラスの割り当て、カスケード)を使い回すようにした。並べ替えの配列は数が増えたフレームだけ倍の大きさで作り直す。
+- L4 に、割り当てをしない版を 3 つ足した。`DirectionalShadowCascades.BuildInto`(`Build` は内部でこれを呼ぶ)、`PhysicalShadowAtlasPlan.SelectAllocationsInto`(`Select` の `Allocations` と同じ順・同じ選び方)、`PhysicalLightBudget.SelectDirectionalShadowIndex(候補, 入れ物)`(元の版と同じ選び方)。元の版は残した。選び方は、影の優先度 → 寄与 → 提出順で、提出順が異なれば全順序なので、並べてから先頭を取る元の版と、1 回見て回って最良を選ぶ新しい版の結果は一致する。
+- 試験: `StagePlanningAllocationTests` 6 件。アトラスの割り当てと方向光の影の選び方は、それぞれ 500 通りの乱数の候補(同点を多くした)で元の版と一致。カスケードは `Build` と一致。同じ提出を 6 フレーム計画し、3 フレーム目以降の `Plan` とフレームの計画の取得で割り当てが 0 バイト。Rendering.Tests 234 件合格。
+- 画素と全体: 別の作業ツリーでソリューション全体をビルドし全試験を実行。固定 7 画像は書き換え前と生の画素が一致。Windows.Tests の失敗 2 件はどちらもこの変更と無関係と確かめた。
+  - `LumenGpuIntegrationTests.Lumen_ColourBleedsFromTheSunlitRedWallOntoTheFloor`: WARP のデバイス喪失(`0x887A0005`)。単独の 3 回はすべて合格。WARP で Lumen が時々デバイスを失う既知の不安定さと同じ症状。
+  - `D3D12ComputeReadbackTests.ComputeBackend_RejectsWrongArtifactBeforeDeviceCreation`: 試験が読む `Triangle.cgeshaderartifact` はもう作られていない。元の作業ツリーでは 2026-08-29 の古いファイルが出力先に残っていたので合格していた。試験の意図(計算用でない成果物を拒む)は変えず、今も作られる `Stage.cgeshaderartifact` を渡すよう直した(別のコミット)。

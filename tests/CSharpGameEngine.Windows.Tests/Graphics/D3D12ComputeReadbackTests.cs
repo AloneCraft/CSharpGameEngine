@@ -26,7 +26,7 @@ public sealed class D3D12ComputeReadbackTests {
     [Fact]
     public void ComputeBackend_RejectsWrongArtifactBeforeDeviceCreation(){
         string Artifact=Path.Combine(
-            AppContext.BaseDirectory,"Shaders","Triangle.cgeshaderartifact");
+            AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 
         InvalidDataException Exception=Assert.Throws<InvalidDataException>(
             ()=>D3D12ComputeReadback.Execute([1f],Artifact,UseWarp:true));

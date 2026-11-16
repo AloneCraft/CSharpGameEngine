@@ -1,6 +1,6 @@
 # M0120 — 描画の L4 化と Forward / Forward+(URP 方式)
 - 日付: 2026-10-25
-- 状態: Implementing(2026-11-15 に段階 1 を終えた。L0 は L4 の計画を実行するだけになり、`EngineLayerSpec.NativeBackendDoesNotPlanFrames` で固定した。毎フレームの計画の割り当て 0 は未完。2026-11-15 の ADR-0098 で、Forward / Forward+ の作り直し(段階 2〜4)は段階 D)
+- 状態: Implementing(2026-11-15 に段階 1 を終えた。L0 は L4 の計画を実行するだけになり、`EngineLayerSpec.NativeBackendDoesNotPlanFrames` で固定した。2026-11-16 に毎フレームの計画の割り当てを 0 にした。2026-11-15 の ADR-0098 で、Forward / Forward+ の作り直し(段階 2〜4)は段階 D)
 - 決定: [ADR-0085](../Decisions/ADR-0085-Urp-Render-Paths.md)、[ADR-0087](../Decisions/ADR-0087-Rendering-And-Physics-Layers.md) §1
 - ABI: `stage-v15`
 
@@ -167,4 +167,4 @@ F-L0-011、F-L4-022、F-L0-002、F-L4-002、F-L4-004、F-L4-007
 - 残っていた「L0 の CPU の計画の呼び出し・カメラの互換入口と初期化・フレームの順と描画の状態」を、6 つの単位で画素を変えずに移した。設計・合意・各単位の記録・検証は [設計書](../refactoring-designs/20261115-m0120-frame-plan-executor.md)。
 - 単位 1: PSO を L4 の `StagePipelineDesc`(14 通り)から作る。単位 2・3: 光源の順位付けとタイル、局所光の影の投影を L4 の `StageLightPlanner`・`StageShadowPlanner` へ。単位 4: L0 のカメラの互換入口を消し、起動のビューを L4 の既定値に。単位 5a: パスの列を L4 の `StagePipelinePlanner` が作り、L0 は `Execute` で記録する。単位 5b: 光源の提出・持続の規則・計画(カスケードを含む)を L4 の `StageLightSubmissions` にまとめ、RenderServer が持つ。単位 6: GI のプローブの撮影の深度を値にし、層の試験を足した。
 - 各単位で固定 7 画像の生の画素が書き換え前と一致し、Windows.Tests の描画の試験に失敗は無い(全体実行の負荷のときだけ起きる既知の不安定な 1 件を除く。設計書の記録を参照)。
-- 残り: 毎フレームの計画の割り当て 0(設計の目的 3)。デバイスの復旧を「計画をもう一度実行するだけ」にする作り直し(ADR-0087 §1-6)は、所有者の合意で記録の再生のまま。
+- 毎フレームの計画の割り当て 0(設計の目的 3)は 2026-11-16 に済ませた。デバイスの復旧を「計画をもう一度実行するだけ」にする作り直し(ADR-0087 §1-6)は、所有者の合意で記録の再生のまま。

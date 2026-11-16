@@ -2,7 +2,7 @@
 
 ## M0120 stage 1 — Frame plan executor (2026-11-15)
 
-- Result: **Matches** for the L0/L4 boundary (L0 executes an L4 plan and calls no planning function); **Partial** for zero-allocation per-frame planning.
+- Result: **Matches** for the L0/L4 boundary (L0 executes an L4 plan and calls no planning function) and, since 2026-11-16, for zero-allocation per-frame planning of the same submissions (`StagePlanningAllocationTests`).
 - Intended: ADR-0087 §1 and §3; design `Docs/refactoring-designs/20261115-m0120-frame-plan-executor.md` (agreed 2026-11-15; recovery keeps record replay by owner decision).
 - Observed: pipeline states come from `StagePipelineDesc`; `StagePipelinePlanner` owns the pass order and main pipeline; `RenderServer` owns `StageLightSubmissions` (submissions, persistence, light/cascade/tile/atlas planning) and calls `Execute(plan, lights)`; L0 has no camera entry points or light submissions.
 - Verification: after every unit the seven pinned logarithmic frames were byte-identical to the pre-change dump and Windows.Tests reported no deterministic failure; `EngineLayerSpec.NativeBackendDoesNotPlanFrames` fails when a planning call is reintroduced (checked). Final full-solution results are recorded in the design document.

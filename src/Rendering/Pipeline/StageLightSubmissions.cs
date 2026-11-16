@@ -87,6 +87,14 @@ public sealed class StageLightSubmissions {
     private readonly List<StageTileRange?>SelectedLocalTilesStorage=[];
     private readonly List<StageLocalShadowAllocation>ShadowAllocationsStorage=[];
     private readonly Matrix4x4[]PointFaceViewProjectionsStorage=new Matrix4x4[MaxPointShadowProjections];
+    // 毎フレームの計画で使い回す入れ物（M0120 の割り当て 0）。中身はそのフレームの計画の中だけで意味を持つ。
+    private StageLightRank[]DirectionalRanks=[];
+    private StageLightRank[]LocalRanks=[];
+    private readonly List<PhysicalLightCandidate>ShadowCasters=[];
+    private readonly Dictionary<int,int>LocalIndexByStableOrder=[];
+    private readonly List<ShadowAtlasAllocation>AtlasAllocations=[];
+    private readonly HashSet<int>AtlasOrderScratch=[];
+    private readonly DirectionalShadowCascade[]CascadeStorage=new DirectionalShadowCascade[DirectionalShadowCascades.Count];
     /// <summary>このフレームで使う方向光の数。単一設定のときはフレームをまたいで残る。</summary>
     public int DirectionalLightCount { get;private set; }
     /// <summary>カスケード影を落とす方向光の、使う方向光の並びでの位置。無ければ -1。</summary>
@@ -110,7 +118,8 @@ public sealed class StageLightSubmissions {
     public void Plan(in StageLightPlanInputs Inputs){
         this.PlanDirectional();
         if(this.CascadeDirectionTowardLight is Vector3 Direction){
-            this.Cascades=DirectionalShadowCascades.Build(Inputs.InvertibleViewProjection,Inputs.CameraPosition,Direction);
+            DirectionalShadowCascades.BuildInto(Inputs.InvertibleViewProjection,Inputs.CameraPosition,Direction,this.CascadeStorage);
+            this.Cascades=this.CascadeStorage;
         }
         this.PlanLocal(Inputs.ViewProjection,Inputs.Width,Inputs.Height,Inputs.TileCountX,Inputs.TileCountY,Inputs.TileSizePixels);
         this.PlanLocalShadows(Inputs.ViewProjection);
@@ -248,7 +257,7 @@ public sealed class StageLightSubmissions {
             return;
         }
         this.DirectionalsPlanned=true;
-        var Ranked=new StageLightRank[this.Directionals.Count];
+        var Ranked=Rent(ref this.DirectionalRanks,this.Directionals.Count);
         for(var Position=0;Position<Ranked.Length;Position++){
             var Submitted=this.Directionals[Position];
             Ranked[Position]=new StageLightRank(Position,0,StageLightPlanner.DirectionalScreenContribution(Submitted.ColorTimesIntensity),Submitted.StableSubmissionOrder);
@@ -268,7 +277,7 @@ public sealed class StageLightSubmissions {
             this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
                 Submission.ShadowPriority,Ranked[Index].ScreenContribution,Submission.CastsShadows));
         }
-        int SelectedStableOrder=PhysicalLightBudget.SelectDirectionalShadowIndex(this.DirectionalShadowCandidates);
+        int SelectedStableOrder=PhysicalLightBudget.SelectDirectionalShadowIndex(this.DirectionalShadowCandidates,this.AtlasOrderScratch);
         if(SelectedStableOrder>=0){
             for(int Index=0;Index<this.DirectionalShadowCandidates.Count;Index++){
                 if(this.DirectionalShadowCandidates[Index].StableSubmissionOrder!=SelectedStableOrder){
@@ -288,7 +297,7 @@ public sealed class StageLightSubmissions {
         this.SpotShadowProjectionCount=0;
         this.PointShadowProjectionCount=0;
         this.AreaShadowProjectionCount=0;
-        var Ranked=new StageLightRank[this.Locals.Count];
+        var Ranked=Rent(ref this.LocalRanks,this.Locals.Count);
         for(var Position=0;Position<Ranked.Length;Position++){
             var Submitted=this.Locals[Position];
             Ranked[Position]=new StageLightRank(Position,Submitted.SelectionPriority,
@@ -312,8 +321,10 @@ public sealed class StageLightSubmissions {
         this.PointShadowProjectionCount=0;
         this.SpotShadowProjectionCount=0;
         this.AreaShadowProjectionCount=0;
-        List<PhysicalLightCandidate>Casters=[];
-        Dictionary<int,int>LocalIndexByStableOrder=[];
+        var Casters=this.ShadowCasters;
+        var LocalIndexByStableOrder=this.LocalIndexByStableOrder;
+        Casters.Clear();
+        LocalIndexByStableOrder.Clear();
         if(this.DirectionalShadowIndex>=0){
             // 方向光の元の提出順に関係なく、アトラスには方向光のタイルが 1 つある。最初の 4 灯を超えて選ばれた提出が、
             // 下の局所光の番号と重ならないよう、番号を 0 にそろえる。
@@ -340,8 +351,8 @@ public sealed class StageLightSubmissions {
         if(Casters.Count==0){
             return;
         }
-        PhysicalShadowAtlasPlan Plan=PhysicalShadowAtlasPlan.Select(Casters);
-        foreach(ShadowAtlasAllocation Allocation in Plan.Allocations){
+        PhysicalShadowAtlasPlan.SelectAllocationsInto(Casters,this.AtlasAllocations,this.AtlasOrderScratch);
+        foreach(ShadowAtlasAllocation Allocation in this.AtlasAllocations){
             if(!LocalIndexByStableOrder.TryGetValue(Allocation.Candidate.StableSubmissionOrder,out int LocalIndex)){
                 continue;
             }
@@ -411,6 +422,13 @@ public sealed class StageLightSubmissions {
             return false;
         }
         return StageShadowPlanner.TryBuildAreaViewProjection(Submission.Position,Submission.Direction,Submission.Up,Submission.Range,Submission.HalfWidth,Submission.HalfHeight,out ShadowViewProjection);
+    }
+    /// <summary>使い回す入れ物から、長さ <paramref name="Count"/> の並びを取り出す。足りなければ倍にして作り直す（数が増えたフレームだけ割り当てる）。</summary>
+    private static Span<StageLightRank>Rent(ref StageLightRank[]Storage,int Count){
+        if(Storage.Length<Count){
+            Storage=new StageLightRank[Math.Max(Count,Storage.Length*2)];
+        }
+        return Storage.AsSpan(0,Count);
     }
     private static bool IsFinite(Vector3 Value)=>float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z);
     private static bool TryNormalize(Vector3 Value,out Vector3 Normalized){

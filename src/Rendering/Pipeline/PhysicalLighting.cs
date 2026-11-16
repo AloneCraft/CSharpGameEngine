@@ -184,6 +184,38 @@ public static class PhysicalLightBudget {
             .ThenBy(static Candidate=>Candidate.StableSubmissionOrder)
             .Take(Limit)
             .ToArray();
+    /// <summary>
+    /// <see cref="SelectDirectionalShadowIndex(IEnumerable{PhysicalLightCandidate})"/> と同じ選び方（影を落とす方向光のうち、影の優先度の高い順 → 寄与の大きい順 → 提出順の先頭。
+    /// 無ければ -1）を、一覧を写さずに 1 回見て回って行う。毎フレームの計画で割り当てをしないための版。
+    /// <paramref name="OrderScratch"/> は提出順の重複を調べるための入れ物で、呼び出し側で使い回してよい。
+    /// </summary>
+    public static int SelectDirectionalShadowIndex(IReadOnlyList<PhysicalLightCandidate>Candidates,HashSet<int>OrderScratch){
+        ArgumentNullException.ThrowIfNull(Candidates);
+        ArgumentNullException.ThrowIfNull(OrderScratch);
+        OrderScratch.Clear();
+        var Best=-1;
+        for(var Index=0;Index<Candidates.Count;Index++){
+            var Candidate=Candidates[Index];
+            if(!float.IsFinite(Candidate.ScreenContribution)||Candidate.ScreenContribution<0f){
+                throw new ArgumentOutOfRangeException(nameof(Candidates),"Screen contribution must be finite and non-negative.");
+            }
+            if(!OrderScratch.Add(Candidate.StableSubmissionOrder)){
+                throw new ArgumentException("Stable submission orders must be unique so light selection is deterministic.",nameof(Candidates));
+            }
+            if(Candidate.Kind!=PhysicalLightKind.Directional||!Candidate.CastsShadows){
+                continue;
+            }
+            if(Best<0||ShadowRanksBefore(Candidate,Candidates[Best])){
+                Best=Index;
+            }
+        }
+        return Best<0?-1:Candidates[Best].StableSubmissionOrder;
+    }
+    private static bool ShadowRanksBefore(in PhysicalLightCandidate Left,in PhysicalLightCandidate Right){
+        if(Left.ShadowPriority!=Right.ShadowPriority){ return Left.ShadowPriority>Right.ShadowPriority; }
+        if(Left.ScreenContribution!=Right.ScreenContribution){ return Left.ScreenContribution>Right.ScreenContribution; }
+        return Left.StableSubmissionOrder<Right.StableSubmissionOrder;
+    }
     private static PhysicalLightCandidate[]ValidateAndMaterialize(
         IEnumerable<PhysicalLightCandidate> Candidates){
         ArgumentNullException.ThrowIfNull(Candidates);
@@ -344,6 +376,71 @@ public sealed class PhysicalShadowAtlasPlan(
         int AllocatedTiles=Selected.Sum(static Allocation=>Allocation.TileCount);
         return new PhysicalShadowAtlasPlan(All,Selected,Unallocated,new ShadowAtlasDiagnostics(
             Casters.Length,Selected.Length,Unallocated.Length,AllocatedTiles,TileCount-AllocatedTiles));
+    }
+    /// <summary>
+    /// <see cref="Select"/> と同じ割り当て（<see cref="Allocations"/> と同じ順）を、使い回せる入れ物へ書く。毎フレームの計画で割り当てをしないための版。
+    /// 種類ごとに、影の優先度の高い順 → 画面上の寄与の大きい順 → 提出順で予算の数だけ選ぶ。提出順が異なれば全順序なので、選び方は <see cref="Select"/> と一致する。
+    /// <paramref name="OrderScratch"/> は提出順の重複を調べるための入れ物で、中身は呼び出し側で使い回してよい。
+    /// </summary>
+    public static void SelectAllocationsInto(IReadOnlyList<PhysicalLightCandidate>Candidates,List<ShadowAtlasAllocation>Allocations,HashSet<int>OrderScratch){
+        ArgumentNullException.ThrowIfNull(Candidates);
+        ArgumentNullException.ThrowIfNull(Allocations);
+        ArgumentNullException.ThrowIfNull(OrderScratch);
+        OrderScratch.Clear();
+        for(var Index=0;Index<Candidates.Count;Index++){
+            var Candidate=Candidates[Index];
+            if(!float.IsFinite(Candidate.ScreenContribution)||Candidate.ScreenContribution<0f){
+                throw new ArgumentOutOfRangeException(nameof(Candidates),"Screen contribution must be finite and non-negative.");
+            }
+            if(!OrderScratch.Add(Candidate.StableSubmissionOrder)){
+                throw new ArgumentException("Stable submission orders must be unique so shadow selection is deterministic.",nameof(Candidates));
+            }
+        }
+        Allocations.Clear();
+        int NextTile=0;
+        NextTile=AllocateInto(Candidates,static Kind=>Kind==PhysicalLightKind.Directional,DirectionalTileBudget,1,NextTile,Allocations);
+        NextTile=AllocateInto(Candidates,static Kind=>Kind==PhysicalLightKind.Point,PointLightBudget,PointTilesPerLight,NextTile,Allocations);
+        NextTile=AllocateInto(Candidates,static Kind=>Kind==PhysicalLightKind.Spot,SpotTileBudget,1,NextTile,Allocations);
+        NextTile=AllocateInto(Candidates,static Kind=>Kind==PhysicalLightKind.Area||Kind==PhysicalLightKind.Emissive,AreaAndEmissiveTileBudget,1,NextTile,Allocations);
+        if(NextTile>TileCount){
+            throw new InvalidOperationException("The configured shadow-atlas budgets exceed its tile capacity.");
+        }
+    }
+    private static int AllocateInto(IReadOnlyList<PhysicalLightCandidate>Candidates,Func<PhysicalLightKind,bool>IsKind,int LightBudget,int TilesPerLight,int NextTile,List<ShadowAtlasAllocation>Allocations){
+        var GroupStart=Allocations.Count;
+        for(var Chosen=0;Chosen<LightBudget;Chosen++){
+            var Best=-1;
+            for(var Index=0;Index<Candidates.Count;Index++){
+                var Candidate=Candidates[Index];
+                if(!Candidate.CastsShadows||!IsKind(Candidate.Kind)||IsAllocated(Allocations,GroupStart,Candidate.StableSubmissionOrder)){
+                    continue;
+                }
+                if(Best<0||RanksBefore(Candidate,Candidates[Best])){
+                    Best=Index;
+                }
+            }
+            if(Best<0){
+                break;
+            }
+            if(NextTile+TilesPerLight>TileCount){
+                throw new InvalidOperationException("A shadow allocation would exceed the atlas capacity.");
+            }
+            Allocations.Add(new ShadowAtlasAllocation(Candidates[Best],NextTile,TilesPerLight));
+            NextTile+=TilesPerLight;
+        }
+        return NextTile;
+    }
+    private static bool IsAllocated(List<ShadowAtlasAllocation>Allocations,int GroupStart,int StableSubmissionOrder){
+        for(var Index=GroupStart;Index<Allocations.Count;Index++){
+            if(Allocations[Index].Candidate.StableSubmissionOrder==StableSubmissionOrder){ return true; }
+        }
+        return false;
+    }
+    /// <summary><see cref="Rank"/> の順で <paramref name="Left"/> が先か。影の優先度の高い順 → 寄与の大きい順 → 提出順。</summary>
+    private static bool RanksBefore(in PhysicalLightCandidate Left,in PhysicalLightCandidate Right){
+        if(Left.ShadowPriority!=Right.ShadowPriority){ return Left.ShadowPriority>Right.ShadowPriority; }
+        if(Left.ScreenContribution!=Right.ScreenContribution){ return Left.ScreenContribution>Right.ScreenContribution; }
+        return Left.StableSubmissionOrder<Right.StableSubmissionOrder;
     }
     private static int Allocate(
         IEnumerable<PhysicalLightCandidate> Candidates,
