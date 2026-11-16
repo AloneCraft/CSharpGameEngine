@@ -59,7 +59,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - 固定する前に全場面の画像を書き出して確かめた。テストのメッシュの接線を全頂点 (1,0,0) にしていたため ±X 面で TBN が壊れて斑点が出ていた（テスト側の誤り）ので、法線に直交する接線を作るよう直した。2 回続けて実行して一致した。
 
 ## Phase 2. CPU 側の数式
-- `src/Rendering/RadialDepth.cs`（float だけ。ADR-0063）:
+- `src/Engine/Rendering/RadialDepth.cs`（float だけ。ADR-0063）:
   - `RenderDepthMapping`（Standard / Radial / RadialObserver）。
   - `RadialDepthCurve`: `G(r) = log2(1 + r/T)`（Kahan の log1p で `1 + x` の丸めを補正）、観察者の `Map = T·G`。
   - `RadialDepthProjection`: 錐台の角の距離、`InverseMaximumG`、`EncodeDepth`（0.99999994 で頭打ち）、補助の near/far と投影、観察者の世界半径。

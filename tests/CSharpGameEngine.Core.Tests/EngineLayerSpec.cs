@@ -34,7 +34,7 @@ public sealed class EngineLayerSpec {
     [Fact]
     public void PortableRenderingDoesNotNameNativeBinding(){
         var Forbidden=new Regex(@"TerraFX|CSharpGameEngine\.Graphics\.D3D12|CSharpGameEngine\.Platform\.Windows|\bWin32\b|\bDXGI_|\bD3D12_|\bID3D12|\bIDXGI|\bHWND\b",RegexOptions.CultureInvariant);
-        var Violations=Directory.EnumerateFiles(Path.Combine(RepositoryRoot,"src","Rendering"),"*.cs",SearchOption.AllDirectories)
+        var Violations=Directory.EnumerateFiles(Path.Combine(RepositoryRoot,"src","Engine","Rendering"),"*.cs",SearchOption.AllDirectories)
             .Where(File=>!File.Split(Path.DirectorySeparatorChar).Any(Part=>Part is "bin" or "obj"))
             .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
             .Where(Entry=>Forbidden.IsMatch(Entry.Line))
@@ -43,19 +43,38 @@ public sealed class EngineLayerSpec {
     }
     [Fact]
     public void PortableRenderingReferencesOnlyPortableProjects(){
-        var Project=XDocument.Load(Path.Combine(RepositoryRoot,"src","Rendering","Rendering.csproj"));
+        // 移植できる描画（Rendering/）は Core と Content と同じ Engine.dll に入る（ADR-0099）。Engine は Contracts だけを参照する。
+        var Project=XDocument.Load(Path.Combine(RepositoryRoot,"src","Engine","Engine.csproj"));
         Assert.Equal("net10.0",Assert.Single(Project.Descendants("TargetFramework")).Value);
         Assert.Empty(Project.Descendants("PackageReference"));
         Assert.DoesNotContain(Project.Descendants("AllowUnsafeBlocks"),Element=>string.Equals(Element.Value,"true",StringComparison.OrdinalIgnoreCase));
         foreach(var Reference in Project.Descendants("ProjectReference")){
             var Name=Path.GetFileNameWithoutExtension(Reference.Attribute("Include")!.Value);
-            Assert.Contains(Name,new[]{"Contracts","Content","Core"});
+            Assert.Equal("Contracts",Name);
         }
         Assert.DoesNotContain(Project.Descendants("AssemblyAttribute"),Element=>Element.Elements().Any(Child=>Child.Value=="Windows"));
     }
+    /// <summary>
+    /// ADR-0099：Core・Content・Rendering は 1 つの Engine.dll にまとめたので、層の決まりはプロジェクトの参照ではなく、
+    /// フォルダーが名指しする名前空間で守る。Core と Content は互いと Rendering を名指ししない。Rendering は両方を使ってよい。
+    /// 名前空間 CSharpGameEngine.Core は Contracts（StableId など）にもあるので、Content からの名指しは数えない。
+    /// </summary>
+    [Theory]
+    [InlineData("Core",@"CSharpGameEngine\.(Content|Rendering)\b")]
+    [InlineData("Content",@"CSharpGameEngine\.(Rendering|Audio|Authoring|Geometry|Input|Spatial|Runtime)\b")]
+    public void EngineFoldersKeepTheirLayers(string Folder,string ForbiddenNamespaces){
+        var Forbidden=new Regex(ForbiddenNamespaces,RegexOptions.CultureInvariant);
+        var Root=Path.Combine(RepositoryRoot,"src","Engine",Folder);
+        var Violations=Directory.EnumerateFiles(Root,"*.cs",SearchOption.AllDirectories)
+            .Where(File=>!Path.GetRelativePath(Root,File).Split(Path.DirectorySeparatorChar).Any(Part=>Part is "bin" or "obj"))
+            .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))
+            .Where(Entry=>!Entry.Line.TrimStart().StartsWith("//",StringComparison.Ordinal)&&Forbidden.IsMatch(Entry.Line))
+            .Select(Entry=>$"{Entry.File}:{Entry.Number}: {Entry.Line.Trim()}").ToArray();
+        Assert.True(Violations.Length==0,string.Join(Environment.NewLine,Violations));
+    }
     [Fact]
     public void RenderingL4DoesNotNameL5View(){
-        var Root=Path.Combine(RepositoryRoot,"src","Rendering");
+        var Root=Path.Combine(RepositoryRoot,"src","Engine","Rendering");
         var Forbidden=new Regex(@"CSharpGameEngine\.Rendering\.View|\bRenderCamera\b",RegexOptions.CultureInvariant);
         var Violations=Directory.EnumerateFiles(Root,"*.cs",SearchOption.AllDirectories)
             .Where(File=>!Path.GetRelativePath(Root,File).Split(Path.DirectorySeparatorChar).Any(Part=>Part is "View" or "bin" or "obj"))

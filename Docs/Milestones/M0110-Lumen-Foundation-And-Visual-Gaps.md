@@ -38,7 +38,7 @@ ADR-0078 §2「Lumen 相当の動的 GI と反射、ボリュメトリック雲�
 ## 作ったもの
 | 層 | 中身 |
 |---|---|
-| L1 描画の型 | `RenderTextureMipChain`・`RenderTextureColorSpace`(`src/Rendering/RenderTextureMipChain.cs`)、`MeshDistanceField`・`MeshDistanceFieldBuilder`・`MeshDistanceFieldCodec`(`MeshDistanceField.cs`) |
+| L1 描画の型 | `RenderTextureMipChain`・`RenderTextureColorSpace`(`src/Engine/Rendering/RenderTextureMipChain.cs`)、`MeshDistanceField`・`MeshDistanceFieldBuilder`・`MeshDistanceFieldCodec`(`MeshDistanceField.cs`) |
 | L0 描画 | `StageRenderer`(材質テクスチャの全ミップ、異方性 8、`MaterialMipLevelLimitForTesting`、距離場の受け取りと更新、試験用の読み戻し)、`StageAtmosphere`(雲のノイズとパノラマ、空の球、定数 512 バイト、ルートシグネチャに t5-t6 と u2 と s1)、`StageGlobalDistanceField`(新規)、`EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`、`GlobalDistanceFieldSettings`、`LongVector3`)、`RenderServer`(距離場を写す、数の公開) |
 | シェーダー | `assets/Shaders/Atmosphere.hlsl`(パス 5・6、空の合成の雲と空の球、空の光の雲)、`assets/Shaders/GlobalDistanceField.hlsl`(新規。ブリックの更新とトレース) |
 | L5 ランタイム | `VolumetricCloud`・`SkySphere`・`GlobalDistanceField`(`Runtime.Lighting`、アイコン 3 つ)、`EnvironmentCollection`(変換、`EnvironmentClock`、`WorldVoxelGrid`)、`EnvironmentCollect`、`EngineHost`(雲の時間、カメラの位置、距離場の原点)、`StageSceneDataBuilder.LoadDistanceFields`、自動実行のレポートの `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds` |

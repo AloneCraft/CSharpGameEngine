@@ -54,13 +54,13 @@
   合成できない**。コンパイル済みDLLを`<ProjectReference>`する方式は原理的に成立しない
   ([[ADR-0033-Static-Archetype-Ecs-Migration]]決定事項1)。
 
-`Core`はディレクトリを**再利用**した(`src/Core/`のまま)。README/
+`Core`はディレクトリを**再利用**した(`src/Engine/Core/`のまま)。README/
 [[ADR-0003-Windows-D3D12-Vertical-Slice]]の「Coreはwindows/D3D/DXCに一切依存しない」という
 記述はそのまま真であり続ける。
 
 ### 2. 名前空間は一切変更しない(本ADRで最も重要な判断)
 
-**アセンブリだけ統合し、名前空間は現状維持**した。`Core.dll`が
+**アセンブリだけ統合し、名前空間は現状維持**した。`Engine.dll`が
 `CSharpGameEngine.Core` / `.Spatial.Abstractions` / `.Spatial.Unity` / … / `.Geometry`を含み、
 `Windows.dll`が`.Graphics.D3D12` / `.Platform.Windows` / `.Compiler.Hlsl`を含む。
 .NETではアセンブリ名≠名前空間は普通のことで、実害はない。
@@ -89,7 +89,7 @@
 配置は「名前空間の末尾がアセンブリ名と一致するものは根、それ以外は名前空間名のサブフォルダ」:
 
 ```
-src/Core/          {既存5ファイル} + Spatial/ + Spatial/Conventions/ + Geometry/
+src/Engine/Core/          {既存5ファイル} + Spatial/ + Spatial/Conventions/ + Geometry/
 src/Import/        Gltf/ + Fbx/
 src/Windows/       Graphics/ + Platform/ + Hlsl/
 ```

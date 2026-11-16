@@ -12,7 +12,7 @@
     <!-- AngleAttribute (ADR-0074) marks the Euler constructor's parameter as an angle. -->
     <ProjectReference Include="..\Contracts\Contracts.csproj" />
     <!-- World/ (旧 World プロジェクト。2026-11-16 にまとめた) はセルの成果物を Content の形で読む。 -->
-    <ProjectReference Include="..\Content\Content.csproj" />
+    <ProjectReference Include="..\Engine\Engine.csproj" />
   </ItemGroup>
 
   <ItemGroup>

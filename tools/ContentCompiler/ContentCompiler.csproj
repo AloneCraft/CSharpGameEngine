@@ -5,7 +5,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Content/Content.csproj" />
+    <ProjectReference Include="../../src/Engine/Engine.csproj" />
     <ProjectReference Include="../../src/Contracts/Contracts.csproj" />
     <ProjectReference Include="../../src/Cooking/Cooking.csproj" />
   </ItemGroup>

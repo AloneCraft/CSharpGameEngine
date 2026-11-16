@@ -15,7 +15,7 @@ PackageReference)を`UserEcsProject`から直接呼ぶ設計を検討した。�
 
 調査の結果、`CSharpGameEngine.Spatial.Abstractions`(RUF)が既にこの要求を満たす実例だった:
 
-- `ICoordinateConvention`(`src/Core/Spatial/ICoordinateConvention.cs`)は全メンバーが
+- `ICoordinateConvention`(`src/Engine/Core/Spatial/ICoordinateConvention.cs`)は全メンバーが
   `static abstract`(C# 11 static abstract interface members)。
 - `Spatial<TConvention>`(`Spatial.cs`)は`where TConvention : struct, ICoordinateConvention`という
   ジェネリック制約付き`static class`で、内部呼び出しは`TConvention.ToXyz(Value)`という型引数への
@@ -179,7 +179,7 @@ internal static class GameAudio
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/Core/Core.csproj -c Debug
+dotnet build src/Engine/Engine.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.Core.Tests/... -c Debug

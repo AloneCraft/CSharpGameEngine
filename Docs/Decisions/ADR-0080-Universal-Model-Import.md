@@ -46,7 +46,7 @@ Provisional IDs and milestone scope are listed in section 11 below; availability
 | C7 envelope 依存数、診断数、フレーム上限 | 採用 | §10.6 に追記した。診断は同一コードを集約して 256 件以内にする。サブアセット一覧は件数で切り詰め、全体は一時ファイル経由にする。依存数 65,535 を超える Model は中間 Model に分ける。 |
 | C8 `.gitignore` の否定パターン | 採用 | `.gitignore:59` が `**/Assets/Fab/` というディレクトリ除外であることを確認した。この形では `.meta` を再包含できない。`**/Assets/Fab/**`、`!**/Assets/Fab/**/`、`!**/Assets/Fab/**/*.meta` の 3 行に置き換える。 |
 | C9 `ToolRequired` モードは存在しない | 採用 | `FeatureStageMode` は `Headless` と `Visual` の 2 値だけで、`FeatureStageRunStatus.Blocked` は既にある。モードは `Headless` のままにし、Stage 属性 `RequiredTools` で判定して、ツールが無ければ `Blocked` を返す。 |
-| C10 `StableId.FromName` の署名 | 一部採用 | 引用された `src/Core/StableId.cs` はその場所に見つからず、署名は未検証。ただし第 1 引数が `StableId` なら文字列では呼べないので、名前空間用の定数 `StableId` を 1 つ定義する形に直す。実際のファイルと署名は実装時に確認する。 |
+| C10 `StableId.FromName` の署名 | 一部採用 | 引用された `src/Engine/Core/StableId.cs` はその場所に見つからず、署名は未検証。ただし第 1 引数が `StableId` なら文字列では呼べないので、名前空間用の定数 `StableId` を 1 つ定義する形に直す。実際のファイルと署名は実装時に確認する。 |
 | C11 AssimpNetter の CVE 修正の断定 | 採用 | 断定を外す。ネイティブの assimp の版を実行時に取得し、6.0.2 以上であることを契約テストで確かめる。 |
 | C12 bpy スクリプトの GPL とスナップショット | 採用 | `cge_blender_export.py` は GPL-2.0-or-later のヘッダーを付けた別ファイルとし、DLL には埋め込まずデータとして同梱する。THIRD_PARTY_NOTICES に記載する。`NoRawRedistribution`、UE-Only、不明のスナップショットは、doctor でコミットを拒否する。50 MB 超はテクスチャを分けるか、コミットしない運用にする。 |
 | F01 1 ファイル複数スキン(blocker) | 採用 | 既定は P07 で「スキン統合」を行う。各メッシュの JOINTS を骨格の和集合の番号に付け替え、IBM が 1e-4 以内で一致することを検証する。不一致は IMP エラーで、`skin.merge=error\|keep` で選ばせる。`keep` のときは、スキンごとにパレットを持つ実行時の拡張(`SkeletalMeshRuntime.Palettes[]`、`SkinOfMesh[]`)を M0116 で入れる。ChiralityRig に 2 スキンと VRoid 形式を足す。 |
@@ -170,11 +170,11 @@ Game.exe / EditorPreview.Host ─► RuntimeAssetStore + RuntimeAssetCodec<T>(Co
 |---|---|---|---|---|---|
 | `SubAssetIdentity`、`AssetSelector`、`HumanoidBone`、`IImporterCatalog`、VSIX の DTO | `src/Contracts` | L2 | netstandard2.0 | 全て | 追加 |
 | `AssetAuthoringService`(カタログ注入) | `src/Content` | L6 | net10 | ContentCompiler serve | 変更(固定 switch を削除) |
-| `ConventionConversion<TS,TT>` | `src/Core/Spatial` | L1 | net10 | 全て | 追加。`GltfAxisConversion`/`FbxAxisConversion` は削除 |
+| `ConventionConversion<TS,TT>` | `src/Engine/Core/Spatial` | L1 | net10 | 全て | 追加。`GltfAxisConversion`/`FbxAxisConversion` は削除 |
 | IR、codec、検証器、契約、`ImportDiagnostic`、エンジンのパス、`PluginModuleLoadContext` | `src/Cooking` | L7 | net10 | ワーカー、オーケストレーター(codec と検証器のみ) | 変更 |
 | 組み込み reader と processor(glTF/VRM 土台、FBX/ufbx、OBJ/STL/PLY/BVH/3MF、Unity YAML、Godot `.tres`、Assimp 予備、TextureCook/Repack、MeshOptimize) | `src/Import`(Cook モジュール化) | L7 | net10 | ワーカー ALC | 変更 |
 | ネイティブ shim(ufbx を倍精度で、meshopt、Draco、basisu、必要なら libwebp) | `native/CSharpGameEngine.Import.Native`(CMake) | L7 | win-x64 | ワーカー | 追加 |
-| payload codec(Mesh/Model/Skeleton/AnimationClip/License)、kind 8〜12 | `src/Content/Models`、`ContentArtifact.cs` | L6 | net10 | ゲーム、Preview、オーケストレーター | 追加 |
+| payload codec(Mesh/Model/Skeleton/AnimationClip/License)、kind 8〜12 | `src/Engine/Content/Models`、`ContentArtifact.cs` | L6 | net10 | ゲーム、Preview、オーケストレーター | 追加 |
 | Material v2 | `Rendering/MaterialArtifacts.cs` | L4 | net10 | 同上 | 変更 |
 | ワーカー | `tools/Cook.Cli` | L7 | net10 | 別プロセス | 変更 |
 | オーケストレーター | `tools/ContentCompiler` | L7 | net10 | MSBuild、VSIX 常駐 | 変更。Import.Gltf.Cli、Import.Fbx.Cli、Import.AssetAuthoring.Cli を置換して削除 |
@@ -861,8 +861,8 @@ public static class ConventionConversion<TSource,TTarget> where TSource:struct,I
 - G:\GitHub\CSharpGameEngine\src\Cooking\AssetCooker.cs
 - G:\GitHub\CSharpGameEngine\tools\Cook.Cli\CookerHost.cs
 - G:\GitHub\CSharpGameEngine\tools\ContentCompiler\IncrementalContentCompiler.cs
-- G:\GitHub\CSharpGameEngine\src\Content\ContentArtifact.cs
-- G:\GitHub\CSharpGameEngine\src\Content\AssetAuthoringService.cs
+- G:\GitHub\CSharpGameEngine\src\Engine\Content\ContentArtifact.cs
+- G:\GitHub\CSharpGameEngine\src\Engine\Content\AssetAuthoringService.cs
 - G:\GitHub\CSharpGameEngine\plugins\Navigation\Navigation.plugin.items
 - G:\GitHub\CSharpGameEngine\packaging\Sdk\Sdk.csproj
 - G:\GitHub\CSharpGameEngine\src\Runtime\Windows\StageSceneDataBuilder.cs

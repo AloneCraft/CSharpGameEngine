@@ -14,7 +14,7 @@
   <ItemGroup>
     <Compile Include="..\..\src\Entities\*.cs" Exclude="..\..\src\Entities\FixedTransform.cs;..\..\src\Entities\SpatialPartitioning.cs;..\..\src\Entities\SpatialWorld.cs;..\..\src\Entities\SpatialDebug.cs" Link="Entities\%(Filename)%(Extension)" />
     <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
-    <ProjectReference Include="..\..\src\Core\Core.csproj" />
+    <ProjectReference Include="..\..\src\Engine\Engine.csproj" />
     <ProjectReference Include="..\..\src\Numerics\Numerics.csproj" />
     <ProjectReference Include="..\..\src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

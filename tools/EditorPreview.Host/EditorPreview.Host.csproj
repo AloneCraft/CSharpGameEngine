@@ -13,7 +13,7 @@
     <ProjectReference Include="../../src/Windows/Windows.csproj" />
     <ProjectReference Include="../Bridge.Hosting/Bridge.Hosting.csproj" />
     <!-- ADR-0097: decoding source models belongs to the production worker. -->
-    <ProjectReference Include="../../src/Content/Content.csproj" />
+    <ProjectReference Include="../../src/Engine/Engine.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CSharpGameEngine.Windows.Tests" />

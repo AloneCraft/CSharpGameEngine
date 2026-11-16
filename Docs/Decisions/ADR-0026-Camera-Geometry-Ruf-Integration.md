@@ -100,9 +100,9 @@ dotnet build CSharpGameEngine.slnx -c Debug/Release                → 成功、
 
 | 本ADRでの呼称 | 統合後のアセンブリ / パス | 名前空間 |
 |---|---|---|
-| `CSharpGameEngine.Spatial.Abstractions` | `CSharpGameEngine.Core`(`src/Core/Spatial/`) | 無変更 |
-| `CSharpGameEngine.Spatial.Unity` | `CSharpGameEngine.Core`(`src/Core/Spatial/Conventions/`) | 無変更 |
-| `CSharpGameEngine.Geometry` | `CSharpGameEngine.Core`(`src/Core/Geometry/`) | 無変更 |
+| `CSharpGameEngine.Spatial.Abstractions` | `CSharpGameEngine.Core`(`src/Engine/Core/Spatial/`) | 無変更 |
+| `CSharpGameEngine.Spatial.Unity` | `CSharpGameEngine.Core`(`src/Engine/Core/Spatial/Conventions/`) | 無変更 |
+| `CSharpGameEngine.Geometry` | `CSharpGameEngine.Core`(`src/Engine/Core/Geometry/`) | 無変更 |
 | `CSharpGameEngine.Graphics.D3D12` | `CSharpGameEngine.Windows`(`src/Windows/Graphics/`) | 無変更 |
 
 本ADR決定事項が記していた「`Geometry`・`Graphics.D3D12`・`UserGameProject`はいずれも

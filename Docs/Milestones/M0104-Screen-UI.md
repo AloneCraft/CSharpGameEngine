@@ -17,8 +17,8 @@ ADR-0078 の「画面 UI は作る」(UE の `UI_Vehicle` の HUD など)。文�
 ## 作ったもの
 | 層 | 中身 |
 |---|---|
-| L1 描画の契約 | `RenderScreenVertex`、`RenderScreenBatch`、`RenderScreenShading`、`RenderScreenLayer.Validate`(`src/Rendering/RenderScreenLayer.cs`) |
-| L1 フォント | `FontAtlas`(読み書きと検査)、`ScreenTextLayout`(測る・並べる)(`src/Rendering/Fonts/`) |
+| L1 描画の契約 | `RenderScreenVertex`、`RenderScreenBatch`、`RenderScreenShading`、`RenderScreenLayer.Validate`(`src/Engine/Rendering/RenderScreenLayer.cs`) |
+| L1 フォント | `FontAtlas`(読み書きと検査)、`ScreenTextLayout`(測る・並べる)(`src/Engine/Rendering/Fonts/`) |
 | L0 描画 | `StageRenderer.ScreenLayer.cs`(`SetScreenLayer`、常駐テクスチャ)、画面用のルートシグネチャとパイプライン、`RenderServer` と `RenderFrameState` の経路 |
 | L7 ツール | `tools/FontBaker`: GDI+ の輪郭 → 高解像度のマスク → 厳密な EDT → 平均した符号つき距離 → 8 ビット。4 倍の超標本化、サイズ 64 で広がり 8 画素 |
 | L5 ランタイム | `ScreenText`・`ScreenImage`(Component)、`ScreenUi`(サービス)、`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`(Presentation の System。`Present` は `ScreenUiSubmit` の後) |

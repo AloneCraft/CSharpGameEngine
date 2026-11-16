@@ -161,14 +161,12 @@
     <File Path="assets/TestFixtures/Fbx/NOTICE.md" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Content/Content.csproj" />
+    <Project Path="src/Engine/Engine.csproj" />
     <Project Path="src/Contracts/Contracts.csproj" />
     <Project Path="src/Cooking/Cooking.csproj" />
-    <Project Path="src/Core/Core.csproj" />
     <Project Path="src/CodeAnalysis/CodeAnalysis.csproj" />
     <Project Path="src/Entities/Entities.csproj" />
     <Project Path="src/Numerics/Numerics.csproj" />
-    <Project Path="src/Rendering/Rendering.csproj" />
     <Project Path="src/Import/Import.csproj" />
     <Project Path="src/Windows/Windows.csproj">
       <Platform Project="x64" />

@@ -28,14 +28,12 @@
   </ItemGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Numerics'">
     <Compile Include="$(CgeEngineRoot)src\Numerics\**\*.cs" />
-    <Reference Include="Content" HintPath="$(_CgeSdkLib)Content.dll" />
+    <Reference Include="Engine" HintPath="$(_CgeSdkLib)Engine.dll" />
   </ItemGroup>
   <ItemGroup Condition="'$(_CgeSdkCook)' == 'true'">
     <Reference Include="Cooking" HintPath="$(CgeEngineRoot)tools\Cook\Cooking.dll" />
     <Reference Include="Import" HintPath="$(CgeEngineRoot)tools\ModelImport\Import.dll" />
-    <Reference Include="Core" HintPath="$(_CgeSdkLib)Core.dll" />
-    <Reference Include="Content" HintPath="$(_CgeSdkLib)Content.dll" />
-    <Reference Include="Rendering" HintPath="$(_CgeSdkLib)Rendering.dll" />
+    <Reference Include="Engine" HintPath="$(_CgeSdkLib)Engine.dll" />
     <ProjectReference Include="..\Numerics\Numerics.csproj" />
     <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
     <PackageReference Include="StbImageSharp" Version="2.30.16" />

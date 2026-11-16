@@ -30,7 +30,7 @@ VSIX同梱の`SceneFile.Load`と既存の`FindRepoRoot()`を使い約20行)。�
 
 ### CP-B: `CSharpGameEngine.Core`統合
 
-被参照数が最大なので最初に安定させた。ディレクトリは`src/Core/`を**再利用**。
+被参照数が最大なので最初に安定させた。ディレクトリは`src/Engine/Core/`を**再利用**。
 
 - 22ファイルを`git mv`: `Spatial/`(15) + `Spatial/Conventions/`(5) + `Geometry/`(2)。既存5ファイルは根に据置。
 - 7つのcsprojを削除(`Spatial.Abstractions`/`.Unity`/`.Unreal`/`.Blender`/`.Gltf`/`.Fbx`/`Geometry`)。

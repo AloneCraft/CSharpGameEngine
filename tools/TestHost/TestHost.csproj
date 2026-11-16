@@ -5,7 +5,7 @@
          Platform.Windows are now both inside CSharpGameEngine.Windows, which itself references Core,
          so Core is only listed for the types this project uses directly. -->
     <ProjectReference Include="..\..\src\Windows\Windows.csproj" />
-    <ProjectReference Include="..\..\src\Core\Core.csproj" />
+    <ProjectReference Include="..\..\src\Engine\Engine.csproj" />
   </ItemGroup>
 
   <ItemGroup>

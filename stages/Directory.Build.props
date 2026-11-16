@@ -32,7 +32,7 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Contracts\Contracts.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Numerics\Numerics.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Core/Core.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Engine/Engine.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Windows\Windows.csproj" />
     <!-- The window's shader artifact, published to Shaders\ next to the pack as in TestHost. -->
     <CgeShaderGraph Include="$(MSBuildThisFileDirectory)..\assets\Shaders\Stage.cgeshadergraph" />

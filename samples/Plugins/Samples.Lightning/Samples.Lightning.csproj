@@ -24,6 +24,6 @@
   </ItemGroup>
   <ItemGroup>
     <!-- For [assembly: PluginLibrary]; the game gets CSharpGameEngine.Core from the engine SDK, so it is not a package dependency. -->
-    <ProjectReference Include="..\..\..\src\Core\Core.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\..\src\Engine\Engine.csproj" PrivateAssets="all" />
   </ItemGroup>
 </Project>

@@ -27,7 +27,7 @@
 
 ### 3. 選択の型・欄・プロトコルを消す
 - 削除: `RenderDepthMapping.Standard`(列挙そのもの)、`CameraDepthMapping`(シーン Component の `DepthMapping`)、`RenderPreviewDepthMapping`、描画カメラの `DepthMapping`、`StandardModeGoldenFrameTests`。
-- 追加(L4、`src/Rendering/RadialDepth.cs`): `RenderDepthEncoding : byte { Linear=0, Logarithmic=1, Observer=2 }` と、FrameCB のパケット `RenderViewDepth`(`ForPerspective`/`ForOrthographic`/`ForObserver`)。深度の符号化と検証は L4、どのビューにどれを使うかの方針は L5(`RenderViewPolicy`、ADR-0087)。値を暗黙の 0・1・2 にせず明示する。
+- 追加(L4、`src/Engine/Rendering/RadialDepth.cs`): `RenderDepthEncoding : byte { Linear=0, Logarithmic=1, Observer=2 }` と、FrameCB のパケット `RenderViewDepth`(`ForPerspective`/`ForOrthographic`/`ForObserver`)。深度の符号化と検証は L4、どのビューにどれを使うかの方針は L5(`RenderViewPolicy`、ADR-0087)。値を暗黙の 0・1・2 にせず明示する。
 - プレビューのプロトコルは 9 にする。VSIX・プレビューホスト・パッケージした TestAssets・`Editor-VSIX.md` を同じ変更で直す。
 - シーン JSON の Camera から `DepthMapping` を消す。リポジトリのシーンに書いたものは無い(schema にあるだけ)ので、`Templates/*/.cge/scene.schema.json` と `UserEcsProject` を作り直す。`new Camera{}` の既定値は今 Standard(列挙の 0)なので、ファクトリーを通さない呼び出し元を洗い出し、すべて対数になることを `CameraTests` で固定する。
 - 旧来の `ModelRenderer`/`TriangleRenderer` は標準深度で描く最後のカメラ描画で、どこからも生成されていない(`RenderServer.Create` が Stage を使う)。同じ変更で消す。`model-v1`/`triangle-v1` の ABI の読み手がいなくなるので、生産者・VSIX のテンプレート・`FeatureStageCatalog`・`RenderingReleaseEvidence` も同じ変更で扱う(Rendering.md:116-118「置き換えた公開 API を同じ変更で消す」)。

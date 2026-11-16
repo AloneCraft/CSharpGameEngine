@@ -126,7 +126,8 @@ internal static class GameSystemGeneratorTestHelper {
             (null,SystemOrderAttributeSource),
             (null,SimulationSystemsSource),
             (null,ExecuteInEditorAttributeSource),
-            (null,FixedTickSchedulerSource),
+            // FixedTickScheduler は参照する Engine.dll（Core・Content・Rendering をまとめたもの。ADR-0099）から使う。
+            // ゲームの組み立てと同じく、ソースからは入れない（入れると同じ型が 2 つになる）。
             .. SceneRuntimeSources.Select(static Source=>((string?)null,Source)),
             .. ExtraSources,
         ];

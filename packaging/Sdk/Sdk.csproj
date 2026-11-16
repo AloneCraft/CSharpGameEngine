@@ -35,10 +35,8 @@
   <ItemGroup>
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Contracts\Contracts.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Windows\Windows.csproj" />
-    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Core\Core.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Engine\Engine.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Numerics\Numerics.csproj" />
-    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Content\Content.csproj" />
-    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Rendering\Rendering.csproj" />
     <!-- ADR-0079: build the Cook contract for the tool host; it is excluded from runtime lib below. -->
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\Cooking\Cooking.csproj" />
     <None Include="build\CSharpGameEngine.Sdk.props;build\CSharpGameEngine.Sdk.targets" Pack="true" PackagePath="build\" />

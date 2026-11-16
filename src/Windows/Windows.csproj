@@ -10,9 +10,8 @@
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../Core/Core.csproj" />
+    <ProjectReference Include="../Engine/Engine.csproj" />
     <ProjectReference Include="../Contracts/Contracts.csproj" />
-    <ProjectReference Include="../Rendering/Rendering.csproj" />
     <Compile Include="../Entities/SceneComponentIconAttribute.cs" Link="Entities/SceneComponentIconAttribute.cs" />
     <Compile Include="../Entities/SceneComponentOrderAttribute.cs" Link="Entities/SceneComponentOrderAttribute.cs" />
   </ItemGroup>

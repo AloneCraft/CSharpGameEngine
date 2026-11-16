@@ -1078,7 +1078,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/Core/Spatial/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
+  - src/Engine/Core/Spatial/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
     CoordinateBasisValidator.cs、UnitConversion.cs、Spatial.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、CoordinateBasisValidatorTests.cs、
     UnitConversionTests.cs、ImportAxisConversionTests.cs、DeterminismTests.cs
@@ -1099,7 +1099,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/Core/Spatial/RufQuaternion.cs、ITransformConvention.cs、
+  - src/Engine/Core/Spatial/RufQuaternion.cs、ITransformConvention.cs、
     StandardTransformConvention.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs、TransformConventionTests.cs
 - Observed behavior:
@@ -1117,9 +1117,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/Core/Spatial/Conventions/UnityCoordinateConvention.cs、
-    src/Core/Spatial/Conventions/UnrealCoordinateConvention.cs、
-    src/Core/Spatial/Conventions/BlenderWorldConvention.cs
+  - src/Engine/Core/Spatial/Conventions/UnityCoordinateConvention.cs、
+    src/Engine/Core/Spatial/Conventions/UnrealCoordinateConvention.cs、
+    src/Engine/Core/Spatial/Conventions/BlenderWorldConvention.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
   - samples/SpatialPresetDemoの実行結果(Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md参照)
 - Observed behavior:
@@ -1159,7 +1159,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/Core/Spatial/CameraBasis.cs、DirectionalLightBasis.cs、
+  - src/Engine/Core/Spatial/CameraBasis.cs、DirectionalLightBasis.cs、
     SpotLightBasis.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs、LightBasisTests.cs
 - Observed behavior:
@@ -1190,7 +1190,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/Core/Geometry/ProceduralMeshFactory.cs
+  - src/Engine/Core/Geometry/ProceduralMeshFactory.cs
   - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs(既存30件、無改修)
 - Observed behavior:
   - 全8プリミティブの頂点/法線計算が`RufVector`ベースになり、出力直前の
@@ -1216,8 +1216,8 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/Core/Spatial/Conventions/GltfCoordinateConvention.cs、
-    src/Core/Spatial/Conventions/FbxCoordinateConvention.cs
+  - src/Engine/Core/Spatial/Conventions/GltfCoordinateConvention.cs、
+    src/Engine/Core/Spatial/Conventions/FbxCoordinateConvention.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
 - Observed behavior:
   - 両方ともR=+X,U=+Y,F=-Z,RightHanded(数値的に同一定義だが独立した型)。Golden Value・

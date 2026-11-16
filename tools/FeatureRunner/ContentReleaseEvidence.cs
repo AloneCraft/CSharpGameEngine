@@ -40,12 +40,12 @@ public static class ContentReleaseEvidence {
     private static readonly StableId FixtureNamespace=StableId.Parse(
         "438b6d83-0b1d-5ff4-aa88-759836b4f858");
     private static readonly InputDefinition[]InputDefinitions=[
-        new("schema.asset-metadata","src/Content/AssetIdentity.cs"),
-        new("schema.artifact-envelope","src/Content/ContentArtifact.cs"),
-        new("schema.shipping-manifest","src/Content/ShippingContentManifest.cs"),
-        new("package.publisher","src/Content/ShippingContentPackage.cs"),
+        new("schema.asset-metadata","src/Engine/Content/AssetIdentity.cs"),
+        new("schema.artifact-envelope","src/Engine/Content/ContentArtifact.cs"),
+        new("schema.shipping-manifest","src/Engine/Content/ShippingContentManifest.cs"),
+        new("package.publisher","src/Engine/Content/ShippingContentPackage.cs"),
         new("sbom.project","src/Contracts/Contracts.csproj"),
-        new("sbom.project","src/Content/Content.csproj"),
+        new("sbom.project","src/Engine/Engine.csproj"),
         new("sbom.project","src/Import/Import.csproj"),
         new("sbom.project","tools/ContentCompiler/ContentCompiler.csproj"),
         new("sbom.project","tools/Import.AssetAuthoring.Cli/Import.AssetAuthoring.Cli.csproj"),

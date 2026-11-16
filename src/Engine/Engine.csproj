@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <!--
+    The runtime half of the engine that a game reads (ADR-0099). It holds three folders that were
+    separate libraries, with every namespace left unchanged:
+    - Core/: CSharpGameEngine.Core, .Spatial.*, .Geometry, .Audio, .Authoring, .Input (ADR-0034).
+    - Content/: CSharpGameEngine.Content and .Content.Models.
+    - Rendering/: the portable renderer, CSharpGameEngine.Rendering.* (ADR-0087).
+    It has no reference to Windows/D3D/DXC (ADR-0003) and no PackageReference of any kind.
+    The layers inside are kept by EngineLayerSpec, which checks the namespaces each folder names:
+    Core and Content do not name each other or Rendering; Rendering may name both.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Windows.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

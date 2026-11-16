@@ -37,7 +37,7 @@
     <None Include="..\..\src\Entities\SystemOrderAttribute.cs" Link="TestAssets\Entities\SystemOrderAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\SimulationSystems.cs" Link="TestAssets\Entities\SimulationSystems.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\ExecuteInEditorAttribute.cs" Link="TestAssets\Entities\ExecuteInEditorAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Core\FixedTickScheduler.cs" Link="TestAssets\Simulation\FixedTickScheduler.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Engine\Core\FixedTickScheduler.cs" Link="TestAssets\Simulation\FixedTickScheduler.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\Events.cs" Link="TestAssets\Entities\Events.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
@@ -51,11 +51,11 @@
     <None Include="..\..\src\Entities\SceneInstance.cs" Link="TestAssets\Entities\SceneInstance.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\SceneInstanceTable.cs" Link="TestAssets\Entities\SceneInstanceTable.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Entities\ISceneDefinition.cs" Link="TestAssets\Entities\ISceneDefinition.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Core\InputActionDeclarations.cs" Link="TestAssets\Core\InputActionDeclarations.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Core\Authoring\EngineServiceAttribute.cs" Link="TestAssets\Core\EngineServiceAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Core\Authoring\DataAssetAttribute.cs" Link="TestAssets\Core\DataAssetAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Engine\Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Engine\Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Engine\Core\InputActionDeclarations.cs" Link="TestAssets\Core\InputActionDeclarations.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Engine\Core\Authoring\EngineServiceAttribute.cs" Link="TestAssets\Core\EngineServiceAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Engine\Core\Authoring\DataAssetAttribute.cs" Link="TestAssets\Core\DataAssetAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

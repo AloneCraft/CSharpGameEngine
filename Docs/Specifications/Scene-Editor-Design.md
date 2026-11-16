@@ -83,7 +83,7 @@ M0020                           … 実装フェーズ計画と完了条件
 
 ## 3. カメラ数学(§仕様4)
 
-数学はnet10.0の`src/Rendering/View/RenderCamera.cs`(型は
+数学はnet10.0の`src/Engine/Rendering/View/RenderCamera.cs`(型は
 `CSharpGameEngine.Rendering.View.RenderCamera`。Scene DSLのComponent `Runtime.Windows.Camera`とは別物)の
 **式**をnet472側へ書き写した`SceneViewCamera`(仮称)に置く。行列規約は**現行`SceneRenderer`と同一**
 (System.Numericsの行ベクトル規約、`Matrix4x4.CreateLookAt`/`CreatePerspectiveFieldOfView`、

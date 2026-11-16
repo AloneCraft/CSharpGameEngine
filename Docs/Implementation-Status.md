@@ -40,7 +40,7 @@
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 6
-- Implementation evidence: `src/Core/Spatial/ConventionConversion.cs`
+- Implementation evidence: `src/Engine/Core/Spatial/ConventionConversion.cs`
 - Tests: `tests/CSharpGameEngine.Core.Tests/ConventionConversionTests.cs` (Core suite: 156 passed)
 - Reverse-engineered behavior: Signed axis permutations preserve scale signs; row-vector matrices use transpose-basis conjugation. Tangents/rotations follow mirror parity and Unreal transforms round-trip.
 - Conformance: Matches for the additive conversion API. Existing import adapters have not been replaced.
@@ -67,7 +67,7 @@
 - Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 M0114 の表現の残り（詰めた骨の重みなど）は段階 D。
 - Verification: TestVerified
 - Intended specification: ADR-0080 section 5
-- Implementation evidence: `src/Content/Models`, `ContentArtifact.cs`
+- Implementation evidence: `src/Engine/Content/Models`, `ContentArtifact.cs`
 - Tests: `tests/CSharpGameEngine.Content.Tests/ModelArtifactTests.cs` (Content suite: 71 passed with JSON reflection disabled; c2ca910138fd4f9abd5614d655f61c3d)
 - Reverse-engineered behavior: Typed binary model/mesh/skeleton/clip/license codecs validate hierarchy, references and streams; new artifact kinds 8–12 are recognized. ModelArtifactReader checks indexed kind, hash, provenance and size; ModelAssetBundle reuses ShippingContentManifestBuilder and RuntimeAssetStore with closed codecs, and validates payload references against the declared closure. The assembly has no Cooking/Import dependency.
 - Conformance: Partial. Actual GLB production and source-free bundle loading are tested, including substituted hashes and missing dependencies. Game, preview, collision, navigation and distance-field consumers now use prepared models in source; Source/SDK builds and related CPU/WARP tests pass in Debug. Generated JSON contracts and a closed binary schema remove runtime member discovery; the revised self-contained Double shipping runtime passes legacy-model loading, cross-profile separate-process restore and 110-frame WARP execution; 148 final Windows Release cases pass; SDK 0.1.42 shipping/all-template execution passes; actual model preview, source addition/registration and inline rename are observed; final-candidate IDE execution/reopen remains pending. Float influence weights remain a prototype; packed representation is outstanding.
@@ -368,7 +368,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(一人称モード追加)、
   Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md(RUF内部実装統合)
 - Implementation evidence:
-  - src/Rendering/View/RenderCamera.cs
+  - src/Engine/Rendering/View/RenderCamera.cs
 - Tests:
   - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs
 - Reverse-engineered behavior:
@@ -409,7 +409,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(テクスチャ・PBR・ライティング拡張)
 - Implementation evidence:
   - src/Windows/Graphics/StageRenderer.cs
-  - src/Rendering/StageRenderInputs.cs
+  - src/Engine/Rendering/StageRenderInputs.cs
   - assets/Shaders/Stage.hlsl
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs
@@ -494,7 +494,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
 - Implementation evidence:
-  - src/Core/Geometry/ProceduralMeshFactory.cs
+  - src/Engine/Core/Geometry/ProceduralMeshFactory.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs
 - Reverse-engineered behavior:
@@ -980,8 +980,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md、
   Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md(RUF内部実装統合)
 - Implementation evidence:
-  - src/Core/Geometry/ProceduralMeshData.cs
-  - src/Core/Geometry/ProceduralMeshFactory.cs
+  - src/Engine/Core/Geometry/ProceduralMeshData.cs
+  - src/Engine/Core/Geometry/ProceduralMeshFactory.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs
 - Reverse-engineered behavior:
@@ -1404,15 +1404,15 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md、
   Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md、Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/Core/Spatial/RufVector.cs
-  - src/Core/Spatial/XyzVector.cs
-  - src/Core/Spatial/ICoordinateConvention.cs
-  - src/Core/Spatial/CoordinateHandedness.cs
-  - src/Core/Spatial/PhysicalAxis.cs
-  - src/Core/Spatial/UnitConversion.cs
-  - src/Core/Spatial/CoordinateBasisValidator.cs
-  - src/Core/Spatial/SpatialConfigurationException.cs
-  - src/Core/Spatial/Spatial.cs
+  - src/Engine/Core/Spatial/RufVector.cs
+  - src/Engine/Core/Spatial/XyzVector.cs
+  - src/Engine/Core/Spatial/ICoordinateConvention.cs
+  - src/Engine/Core/Spatial/CoordinateHandedness.cs
+  - src/Engine/Core/Spatial/PhysicalAxis.cs
+  - src/Engine/Core/Spatial/UnitConversion.cs
+  - src/Engine/Core/Spatial/CoordinateBasisValidator.cs
+  - src/Engine/Core/Spatial/SpatialConfigurationException.cs
+  - src/Engine/Core/Spatial/Spatial.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
@@ -1449,9 +1449,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md、
   Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/Core/Spatial/RufQuaternion.cs
-  - src/Core/Spatial/ITransformConvention.cs
-  - src/Core/Spatial/StandardTransformConvention.cs
+  - src/Engine/Core/Spatial/RufQuaternion.cs
+  - src/Engine/Core/Spatial/ITransformConvention.cs
+  - src/Engine/Core/Spatial/StandardTransformConvention.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/TransformConventionTests.cs
@@ -1484,9 +1484,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   「Golden Values」、Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md、
   Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/Core/Spatial/Conventions/UnityCoordinateConvention.cs
-  - src/Core/Spatial/Conventions/UnrealCoordinateConvention.cs
-  - src/Core/Spatial/Conventions/BlenderWorldConvention.cs
+  - src/Engine/Core/Spatial/Conventions/UnityCoordinateConvention.cs
+  - src/Engine/Core/Spatial/Conventions/UnrealCoordinateConvention.cs
+  - src/Engine/Core/Spatial/Conventions/BlenderWorldConvention.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
@@ -1561,9 +1561,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md「Object Basis」、
   Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/Core/Spatial/CameraBasis.cs
-  - src/Core/Spatial/DirectionalLightBasis.cs
-  - src/Core/Spatial/SpotLightBasis.cs
+  - src/Engine/Core/Spatial/CameraBasis.cs
+  - src/Engine/Core/Spatial/DirectionalLightBasis.cs
+  - src/Engine/Core/Spatial/SpotLightBasis.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs
   - tests/CSharpGameEngine.Core.Tests/Spatial/LightBasisTests.cs
@@ -1591,7 +1591,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md
 - Implementation evidence:
-  - src/Rendering/View/RenderCamera.cs(`BuildViewMatrix`静的メソッド)
+  - src/Engine/Rendering/View/RenderCamera.cs(`BuildViewMatrix`静的メソッド)
 - Tests:
   - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs(`GetView`経由の間接カバレッジ)
 - Reverse-engineered behavior:
@@ -1609,7 +1609,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md
 - Implementation evidence:
-  - src/Core/Spatial/Conventions/GltfCoordinateConvention.cs
+  - src/Engine/Core/Spatial/Conventions/GltfCoordinateConvention.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs(`Gltf_MatchesGoldenValues`)
   - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
@@ -1925,7 +1925,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md
 - Implementation evidence:
-  - src/Core/Spatial/Conventions/FbxCoordinateConvention.cs
+  - src/Engine/Core/Spatial/Conventions/FbxCoordinateConvention.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs(`Fbx_MatchesGoldenValues`)
   - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
@@ -2512,9 +2512,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0039-Audio-Backend-Abstraction.md
 - Implementation evidence:
-  - src/Core/Audio/IAudioBackend.cs
-  - src/Core/Audio/AudioBackend.cs
-  - src/Core/Audio/ProceduralAudioClip.cs
+  - src/Engine/Core/Audio/IAudioBackend.cs
+  - src/Engine/Core/Audio/AudioBackend.cs
+  - src/Engine/Core/Audio/ProceduralAudioClip.cs
 - Tests:
   - tests/CSharpGameEngine.Core.Tests/Audio/ProceduralAudioClipTests.cs(サンプル数・振幅範囲・
     引数検証)
@@ -2591,8 +2591,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/Runtime/Windows/PrimitiveType.cs
   - src/Runtime/Windows/PrimitiveMesh.cs
-  - src/Rendering/Server/RenderServer.cs
-  - src/Rendering/StageMeshGeometry.cs(共通の接線生成)、src/Runtime/Windows/PrimitiveRoster.cs(形状組立)
+  - src/Engine/Rendering/Server/RenderServer.cs
+  - src/Engine/Rendering/StageMeshGeometry.cs(共通の接線生成)、src/Runtime/Windows/PrimitiveRoster.cs(形状組立)
   - src/Runtime/Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
     アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
   - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
@@ -3706,7 +3706,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-014, F-L0-009
 - Milestone: `Docs/Milestones/M0119-Logarithmic-Native-Depth.md` (Verified; original foundation M0099)
-- Implementation evidence: `src/Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, `ObjectCB.ConservativeRasterDepth`, `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
+- Implementation evidence: `src/Engine/Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, `ObjectCB.ConservativeRasterDepth`, `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
 - Reverse-engineered behavior: main views, Lumen surface views and DDGI captures write native logarithmic depth. Main view geometry remains physical and camera relative; only observer insets warp positions. SceneDistance supplies physical distance to AO and sky; DDGI uses CaptureDistance. Preview PSOs preserve the main distance target. Shadow maps retain light-space projection. Retired standard PSO families, wrapper entries, standalone Model/Triangle renderers and their artifact/graph producers are removed; retired serialized target values are rejected.
 - Tests: `RenderViewDepthTests`, `LogarithmicDepthOracleTests`, `StageGoldenFrameTests`, `RadialDepthGpuIntegrationTests`, `SceneDistanceGpuIntegrationTests`, `LumenSurfaceDepthTests`, shader ABI/compiler/artifact tests and hot reload/recovery coverage. Latest solution at 5f4d647 (SDK 0.1.29): 22 projects, 3548 pass, 0 fail, 2 opt-in measurements skipped and measured separately on RTX with the unchanged Stage shader. Eight template cases from M0119 (a8c6df8) report an actually active debug layer and zero errors; nine M0111 metrics, complete camera trajectories and final images match. Evidence paths and per-step provenance are in M0119.
 - Conformance: Matches for native depth (ADR-0084). RTX centre error is at most about 2.56 ulp over 4e-6 to 5e18 m. The seven golden images remain fixed after the documented AO rounding update. Release visibility/batching of 100000 objects meets the 6ms median / 8.33ms p95 / zero allocation-p95 budget (4.10015ms / 4.34760ms / 0byte). GPU main-pass measurements are not a whole-game frame budget.
@@ -3811,7 +3811,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.render-graph` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-022
 - Current delta: none for the L4 graph compile contract. Existing D3D12 renderers still require migration to the graph executor under later rendering features.
-- Evidence: `src/Rendering/RenderGraph.cs`, `tests/CSharpGameEngine.Rendering.Tests/RenderGraphTests.cs`.
+- Evidence: `src/Engine/Rendering/RenderGraph.cs`, `tests/CSharpGameEngine.Rendering.Tests/RenderGraphTests.cs`.
 - Conformance: Matches. Typed handles, stable topological order, RAW/WAR/WAW dependencies, resource transitions, cross-queue ownership, cycle/invalid-use rejection, and non-overlapping transient aliases are compiled without native types.
 - Next action: make the L0 D3D12 backend consume compiled transitions while implementing snapshot visibility in F-L4-006.
 
@@ -3890,7 +3890,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
 - Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-007, F-L0-008
-- Implementation evidence: `src/Rendering/EnvironmentLighting.cs`, `src/Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v16`), `src/Runtime/Lighting/EnvironmentComponents.cs`, `src/Runtime/Windows/EnvironmentCollection.cs`
+- Implementation evidence: `src/Engine/Rendering/EnvironmentLighting.cs`, `src/Engine/Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v16`), `src/Runtime/Lighting/EnvironmentComponents.cs`, `src/Runtime/Windows/EnvironmentCollection.cs`
 - Current delta: reflection probes are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated. Volumetric clouds, the sky sphere and texture mipmaps were added by M0110 (F-L4-016, F-L4-017); the DDGI probes become M0111's fallback tier (ADR-0069 追記).
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 - Next action: done by M0111 (F-L4-019, Lumen-like GI and reflections); the DDGI probe volume of this item is now the Medium-and-below fallback tier.
@@ -3940,7 +3940,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `vsix.rendering-preview` (`Executable`, Visual / VSIX, 1800s)
 - Depends on: F-L0-009, F-L8-022
 - Current delta: None in the automated shared-preview contract. Asset Preview and Scene View are clients of one out-of-process Windows x64 Preview Host that owns common recovered `RenderServer` sessions. The provider-neutral protocol carries bounded scene/frame state, selection weights, Lit/BaseColor/Normal/Wireframe mode, transparent overlay geometry, up to three camera previews, stable correlation, monotonic sequences, current device generation/fence diagnostics, and opt-in capture. A WPF container retains its HWND while a failed process generation is replaced together with its DXGI child surface, after which source-derived state is replayed once.
-- Implementation evidence: `src/Contracts/RenderPreviewHostContracts.cs`; `src/Rendering/Server/RenderServer.cs`; `tools/EditorPreview.Host/`; `tools/VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `VSExtension.csproj`.
+- Implementation evidence: `src/Contracts/RenderPreviewHostContracts.cs`; `src/Engine/Rendering/Server/RenderServer.cs`; `tools/EditorPreview.Host/`; `tools/VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `VSExtension.csproj`.
 - Tests: `RenderPreviewHostProtocolTests`; `RenderPreviewRenderSessionTests`; `RenderPreviewHostProcessTests`; `RenderPreviewHostPipeTests`; `RenderPreviewHostSessionTableTests`; `RenderPreviewHostClientTests`; `RenderPreviewSceneBuilderTests`; `RenderSurfaceHostWindowTests`; `PackagedRenderPreviewHostTests`; `VsixManifestTests`; `RenderServerTests`.
 - Conformance: Matches for the automated F-L8-018 contract. The built VSIX contains the same-configuration framework-dependent apphost closure and offline Stage shader artifact, its apphost renders a real WARP frame with the D3D12 debug layer, and package/source tests reject `SceneRenderer`, `VorticeRenderer`, `NativeEvent`, Vortice, and SharpGen. Debug and Release VSIX suites pass 1,017 tests; focused common Render Server/Preview Host suites pass 13 in each configuration. Experimental Instance Scene Designer observation remains Pending, so this Feature is not `Verified` or `RuntimeVerified`.
 - Next action: F-L7-024 consumes the completed rendering performance reports in the scoped release closure. F-L8-023 owns executable transform/WARP/rebase/Undo conformance without reintroducing a renderer; the separate Experimental Instance `scene-designer` row remains Pending manual evidence.
@@ -4762,7 +4762,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `src/CodeAnalysis/GameSystemAnalyzer.cs`（末尾の `ref State` を任意にする。`in` の非 nullable struct を読み取りの Component にする）
   - `src/CodeAnalysis/GameSystemDiagnostics.cs`（SYSGEN013 を削除）
-  - `src/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`（`[InputActions]`。INPUT001〜004、SYSGEN038）
+  - `src/Engine/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`（`[InputActions]`。INPUT001〜004、SYSGEN038）
   - `src/Entities/Parent.cs`（`Parent<T>`）、`GameSystemIndexAssigner.cs`、`GameSystemLoopEmitter.cs`（`in Parent<T>` の解決。SYSGEN036/037）
 - Tests:
   - `tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs`（`UpdateWithoutTrailingState_IsAccepted`、`InStruct_IsAReadOnlyComponentAndDoesNotReportAContext`、`InAndRefOfTheSameComponent_ReportsSysgen011`）
@@ -4802,7 +4802,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `build/CSharpGameEngine.Game.targets`、`build/CSharpGameEngine.Version.props`、`plugins/Vehicles/`、`samples/Plugins/`
   - `src/CodeAnalysis/PluginManifest.cs`、`PluginManifestAnalyzer.cs`、`ComponentMask.cs`、`AssetCatalogEmitter.cs`、`GameSystemAnalyzer.cs`（`[EngineService]`）、`GameSystemLoopEmitter.cs`
   - `src/SceneModel/Json/SceneFiles.cs`（`PluginRoot`、`GeneratorPath`）、`SceneJsonSceneAnalyzer.cs`（`AnalyzeDataAsset`）、`SceneJsonSchemaBuilder.cs`
-  - `src/Core/Authoring/EngineServiceAttribute.cs`、`DataAssetAttribute.cs`、`PluginLibraryAttribute.cs`
+  - `src/Engine/Core/Authoring/EngineServiceAttribute.cs`、`DataAssetAttribute.cs`、`PluginLibraryAttribute.cs`
   - `src/Cooking/`、`tools/Cook.Cli/`
   - `tools/FeatureRunner/PluginPackageVerification.cs`、`TemplatePackageVerification.cs`（`--template`）
 - Tests: `GameSystemEngineServiceTests`、`PluginManifestAnalyzerTests`、`PluginSceneTests`、`DataAssetTests`、`AssetCatalogTests`、`SceneArchetypeIntegrationTests`（129/200/512）、`GameSystemGeneratorDiagnosticsTests`（名前の重なり）、`SceneFilesTests`、`SceneComponentCatalogTests`、`GameProjectGeneratorTests`、`CookerHostTests`、`PluginPackageVerificationTests`
@@ -4818,7 +4818,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified + 実走(WARP。`VehicleDriveVerification`、`verify-template-package --template Vehicle`)
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Specifications/Rendering.md#screen-layer`、`Docs/Milestones/M0104-Screen-UI.md`
 - Implementation evidence:
-  - `src/Rendering/RenderScreenLayer.cs`、`Fonts/FontAtlas.cs`、`Fonts/ScreenTextLayout.cs`
+  - `src/Engine/Rendering/RenderScreenLayer.cs`、`Fonts/FontAtlas.cs`、`Fonts/ScreenTextLayout.cs`
   - `src/Windows/Graphics/StageRenderer.ScreenLayer.cs`、`StageRenderer.cs`(画面用のルートシグネチャとパイプライン)、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`
   - `src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`(`stage-v11`)
   - `src/Runtime/Windows/ScreenUi.cs`、`RuntimeSystems.cs`(`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`)、`EngineHost.cs`、`RuntimeAutomation.cs`(`screenLayerFingerprints`)
@@ -4893,7 +4893,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified + 実走(WARP。`verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown(短押し 2 種と長押し)・Vehicle(キーとアナログ 2 種))、`verify-template-package`(ThirdPerson・TopDown・Vehicle。SDK 0.1.19))。全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクトで失敗 0(Windows.Tests 740、VSExtension.Tests 1197、FeatureRunner.Tests 222、CodeAnalysis.Tests 338、Core.Tests 154、Navigation.Tests 57)
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0077-Gameplay-Code-Simplification.md`、`Docs/Specifications/Audio-Input-Platform.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Milestones/M0108-Input-Extensions.md`
 - Implementation evidence:
-  - `src/Core/InputActionDeclarations.cs`(`Axis`、`Button.HeldSeconds`・`ReleasedBefore`、`Pad` の末尾への追加、`StickAxis`、`MouseAxis.DeltaX/DeltaY`、`NegativeKeysAttribute`、`GamepadAttribute`)
+  - `src/Engine/Core/InputActionDeclarations.cs`(`Axis`、`Button.HeldSeconds`・`ReleasedBefore`、`Pad` の末尾への追加、`StickAxis`、`MouseAxis.DeltaX/DeltaY`、`NegativeKeysAttribute`、`GamepadAttribute`)
   - `src/Windows/Input/InputServer.cs`(`TrackHold`・`FrameNumber`・`InputMaskModifier`)、`src/Windows/Platform/Win32InputEventAdapter.cs`(`Gamepad_LeftX/LeftY/RightX/RightY`、`InjectGamepad`)、`Win32Window.cs`(`InjectGamepad`・`InjectMouseDelta`)
   - `src/CodeAnalysis/InputActionsEmitter.cs`(`Axis`、`NegativeKeys`、片方の軸、INPUT005)、`AnalyzerReleases.Unshipped.md`
   - `src/Runtime/Windows/RuntimeAutomation.cs`(`コード=値@開始-終了`、`MouseDeltaX/Y`、`Gamepad*`)
@@ -4915,7 +4915,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `plugins/Vehicles/Runtime/`(`VehicleSetup.cs`、`VehicleChaos.cs`、`VehicleComponents.cs`、`VehicleMotor.cs`、`VehicleSystems.cs`)、`Vehicles.cgeplugin`(0.2.0)
   - `src/Runtime/Physics/`(`PhysicsContracts.cs`、`DeterministicPhysicsWorld.cs`、`PhysicsComponents.cs`、`PhysicsNarrowPhase.cs`、`StaticMeshCollision.cs`)、`src/Numerics/LogicalMath.cs`
   - `src/Runtime/Lighting/LightComponents.cs`(`LightVisibility`)、`src/Runtime/Windows/`(`FirstPersonView.cs` の `MeshEmissive`、`RuntimeSystems.cs`、`RenderRoster.cs`、`RuntimeComponents.cs`)、`src/Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`、`Platform/Win32InputEventAdapter.cs`)
-  - `src/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`
+  - `src/Engine/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`
   - `Templates/Vehicle/`(`Gameplay/VehicleControls.cs`・`VehicleCameras.cs`・`VehicleLights.cs`・`PlayerActions.cs`、`Scenes/SportsCar.json`・`Lvl_VehicleBasic.json`、`Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`・`SM_SportsCar.glb`)、`build/CSharpGameEngine.Version.props`(0.1.20)
   - `tools/UnrealExport/`(`probe_vehicle_physics.py`、`probe_vehicle_brake_lights.py`、`probe_vehicle_emissive.py`、`add_brake_light_emission.py`)、`tools/FeatureRunner/VehicleDriveVerification.cs`(曲がりの窓 30〜34)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Character/ChaosVehicleTests`・`ChaosVehicleTrack`、`Physics/PhysicsForceCommandTests`、`Runtime/TypedLightFrameTests`、`Runtime/PersistentComponentSnapshotTests`)、`tests/CSharpGameEngine.Numerics.Tests/LogicalMathAtan2Tests.cs`。旧 `Character/VehicleMotorTests` は削除
@@ -4933,7 +4933,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(試験を足した)、`rendering.materials`
 - Depends on: F-L4-005、F-L4-014
 - Implementation evidence:
-  - `src/Rendering/RenderTextureMipChain.cs`(面積加重の箱フィルター、整数の重み、sRGB は 16 ビットの線形の表で平均、表は定数)
+  - `src/Engine/Rendering/RenderTextureMipChain.cs`(面積加重の箱フィルター、整数の重み、sRGB は 16 ビットの線形の表で平均、表は定数)
   - `src/Windows/Graphics/StageRenderer.cs`(全ミップのアップロード、色空間ごとの常駐、異方性 8 の s0、`MaterialMipLevelLimitForTesting`)、`src/Contracts/ShaderArtifacts/ShaderArtifactAbi.cs`(`stage-v12`: `s0-anisotropic-wrap`)
 - Tests: `tests/CSharpGameEngine.Rendering.Tests/RenderTextureMipChainTests.cs`(18)、`tests/CSharpGameEngine.Windows.Tests/Graphics/MaterialMipmapGpuIntegrationTests.cs`(2、WARP)、`StageGpuIntegrationTests`(常駐数 4 → 5)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
 - Current delta: ミップは読み込み時に作る(成果物の形式は変えない)。画面レイヤーは 1 段のまま。WARP の 256 × 144 の市松の床で、遠景(地平線の下 10 行)の分散 1267.5 → 0.0、カメラを 0.37 m 動かした 2 フレームの差 9.50 → 0.00、近景の分散 4256.6 → 3953.4(保たれる)。
@@ -4950,7 +4950,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(試験を足した)
 - Depends on: F-L4-014
 - Implementation evidence:
-  - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/Windows/Graphics/StageAtmosphere.cs`、`src/Rendering/EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
+  - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/Windows/Graphics/StageAtmosphere.cs`、`src/Engine/Rendering/EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
   - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
   - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/Unreal.SceneImporter/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
@@ -4968,7 +4968,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(試験を足した)
 - Depends on: F-L7-053
 - Implementation evidence:
-  - `src/Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/Rendering/Server/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
+  - `src/Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/Engine/Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/Engine/Rendering/Server/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
   - `src/Runtime/Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
 - Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
@@ -4984,7 +4984,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md`(メッシュの距離場)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
 - Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
 - Depends on: F-L7-049
-- Implementation evidence: `src/Rendering/MeshDistanceField.cs`、`tools/ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime/Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Rendering/Server/RenderServer.cs`(基本形状は実行時)
+- Implementation evidence: `src/Engine/Rendering/MeshDistanceField.cs`、`tools/ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime/Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Engine/Rendering/Server/RenderServer.cs`(基本形状は実行時)
 - Tests: `tests/CSharpGameEngine.Rendering.Tests/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)
@@ -5000,7 +5000,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(Lumen の試験を足した)
 - Depends on: F-L4-018、F-L4-014
 - Implementation evidence:
-  - `assets/Shaders/Lumen.hlsl`、`src/Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/Rendering/Server/RenderServer.cs`
+  - `assets/Shaders/Lumen.hlsl`、`src/Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/Engine/Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/Engine/Rendering/Server/RenderServer.cs`
   - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v16`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
@@ -5066,7 +5066,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified (CPU planning and WARP Standard/Radial shadows and geometric normals); RuntimeVerified (hardware comparison and TopDown before/after)
 - Intended specification: `Docs/Specifications/Rendering.md#virtual-directional-shadows`, `Docs/Decisions/ADR-0082-Virtual-Directional-Shadows.md`
 - Stage: `rendering.virtual-shadows` (Visual / Rendering)
-- Implementation evidence: `src/Rendering/VirtualDirectionalShadows.cs`, `src/Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
+- Implementation evidence: `src/Engine/Rendering/VirtualDirectionalShadows.cs`, `src/Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
 - Tests: `VirtualDirectionalShadowTests`, `VirtualShadowGpuTests`
 - Reverse-engineered behavior: Four 4096-texel clipmaps map world-grid 128-texel pages to a 4096-square D32 atlas. Conservative bounds drive requests and invalidation. Missing pages sample cascades. The hardware comparison rendered 524 resident pages, reused 521, redrew 3 for the moving caster, with zero missing requests and D3D12 errors.
 - Conformance: MatchesWithDocumentedExtension. CPU and WARP oracles, recovery, Debug/Release regression and matched hardware/WARP captures are recorded in M0115.

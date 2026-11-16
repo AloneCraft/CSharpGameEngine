@@ -13,8 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Contracts/Contracts.csproj" />
     <!-- ADR-0078/M0110: build-distance-fields reads glTF meshes with the engine's importer and writes their distance fields. -->
-    <ProjectReference Include="../../src/Content/Content.csproj" />
-    <ProjectReference Include="../../src/Rendering/Rendering.csproj" />
+    <ProjectReference Include="../../src/Engine/Engine.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(PkgMicrosoft_Direct3D_DXC)/build/native/bin/x64/dxcompiler.dll" Link="dxcompiler.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />

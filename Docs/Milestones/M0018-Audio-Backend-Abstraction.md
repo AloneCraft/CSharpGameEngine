@@ -17,7 +17,7 @@
 
 ## 実装したこと
 
-### `src/Core/Audio/`(プラットフォーム非依存、L1 Core Kernel)
+### `src/Engine/Core/Audio/`(プラットフォーム非依存、L1 Core Kernel)
 - `IAudioBackend.cs`: 全メンバーが`static abstract`のバックエンド契約。
 - `AudioBackend.cs`: `Spatial<TConvention>`と同型のジェネリックFacade。
 - `ProceduralAudioClip.cs`: サイン波PCM生成(ファイルI/O・アセットパイプライン不要)。
@@ -59,7 +59,7 @@ Audio関連L1エントリ)・F-L4-001(このプロジェクト初のL4 Domain Se
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet build src/Core/Core.csproj -c Debug
+dotnet build src/Engine/Engine.csproj -c Debug
   → 成功、警告0/エラー0
 
 dotnet test tests/CSharpGameEngine.Core.Tests/... -c Debug

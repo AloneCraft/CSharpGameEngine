@@ -65,7 +65,7 @@
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">
     <ProjectReference Include="$(CgeEngineSourceRoot)Contracts\Contracts.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)Windows\Windows.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)Core\Core.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)Engine\Engine.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)Numerics\Numerics.csproj" />
   </ItemGroup>
 

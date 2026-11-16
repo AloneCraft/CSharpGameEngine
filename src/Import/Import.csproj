@@ -40,9 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Content\Content.csproj" />
-    <ProjectReference Include="..\Rendering\Rendering.csproj" />
-    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\Engine\Engine.csproj" />
     <ProjectReference Include="..\Cooking\Cooking.csproj" />
   </ItemGroup>
 

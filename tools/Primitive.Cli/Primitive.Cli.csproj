@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Core\Core.csproj" />
+    <ProjectReference Include="..\..\src\Engine\Engine.csproj" />
     <!-- ADR-0023: resident-server mode ("serve" launch argument), shared with the other 2 bridges. -->
     <ProjectReference Include="..\Bridge.Hosting\Bridge.Hosting.csproj" />
   </ItemGroup>

@@ -60,7 +60,7 @@
   - `DirectionalShadowCascades.Build`(`:3175`)
   - 局所光の順位付けと Forward+ のタイル範囲は、L4 の関数ではなく L0 の中の自前の処理(`:3230` からの `PrepareForwardPlusLocalLights`)。
 - PSO は 11 個のフィールド(`StageRenderer.cs:295-345`)で、`StagePipelineDesc` は無い。
-- `IStageRenderBackend`(`src/Rendering/Backend/IStageRenderBackend.cs`)は setter 群と `RenderFrame(bool)` で、要約コメントにも「次の抽出段階で、明示的なフレーム計画の実行に置き換える」とある。
+- `IStageRenderBackend`(`src/Engine/Rendering/Backend/IStageRenderBackend.cs`)は setter 群と `RenderFrame(bool)` で、要約コメントにも「次の抽出段階で、明示的なフレーム計画の実行に置き換える」とある。
 - `RenderServer.RenderFrame`(`Server/RenderServer.cs:359`)は、デバイス喪失から復旧するとき `RenderFrameState.Replay` で setter を再生してからバックエンドの `RenderFrame` を呼ぶ。
 - `RenderServer.DeclaredQualityPlan` は `RenderQualityProfile` の宣言だけのグラフで、実際のパス(Lumen、GDF、AO、大気、プレビュー、画面レイヤー)と一致しない(ADR-0085 の調査)。
 - 層の試験 `NativeBackendDoesNotPlanFrames` はまだ無い(ADR-0087 §3 は計画抽出の後に足すとしている)。
@@ -68,7 +68,7 @@
 
 ## 過去設計から引き継ぐ仕様
 
-- ADR-0087 §1: L0 の責務の範囲、`Rendering.dll` は `Windows.dll` を参照しない、PSO のキーは値で比べる `StagePipelineDesc`、`DeclaredQualityPlan` は実際に実行する計画で置き換えて消す、深度の方針は L5 の `RenderViewPolicy` だけが決める。
+- ADR-0087 §1: L0 の責務の範囲、`Engine.dll` は `Windows.dll` を参照しない、PSO のキーは値で比べる `StagePipelineDesc`、`DeclaredQualityPlan` は実際に実行する計画で置き換えて消す、深度の方針は L5 の `RenderViewPolicy` だけが決める。
 - ADR-0087 §1-9: `AreaLightLtc`、`LumenSurfaceCacheLayout`、画素検証器は触らない。
 - ADR-0087 §1-10: Lumen の履歴と露出の状態は Import の資源。資源の別名による共有はしない。
 - M0120 段階 1 の進め方: 移行単位ごとに、計算を移す前後で式が同じこと(空白・名前空間以外の一致)を記録し、固定 7 画像と Stage 成果物の SHA を書き換えない。単位の検証と、全ソリューションの検証を混同しない。
@@ -157,7 +157,7 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 ## 影響範囲
 
 - `src/Windows/Graphics/StageRenderer*.cs`、`D3D12RenderServer.cs`、`StagePhysicalLightApi.cs`、`TypedLightBackend.cs`
-- `src/Rendering/Backend/IStageRenderBackend.cs`、`Server/RenderServer.cs`、`Server/RenderFrameState.cs`、`RenderQualityProfile.cs`、新しい `Pipeline/StagePipelinePlanner.cs`・`StagePipelinePlan.cs`・`StagePipelineDesc.cs`・`StageFrameData.cs`・`StageLightPlanner.cs`・`StageShadowPlanner.cs`
+- `src/Engine/Rendering/Backend/IStageRenderBackend.cs`、`Server/RenderServer.cs`、`Server/RenderFrameState.cs`、`RenderQualityProfile.cs`、新しい `Pipeline/StagePipelinePlanner.cs`・`StagePipelinePlan.cs`・`StagePipelineDesc.cs`・`StageFrameData.cs`・`StageLightPlanner.cs`・`StageShadowPlanner.cs`
 - `src/CodeAnalysis/GeneratedEditorPreviewBridgeEmitter.cs`(バックエンドの型名を出している)
 - `tools/TestHost`(`frame-plan`)、`tools/FeatureRunner/FeatureStageCatalog.cs`(InputPaths)
 - 試験: `tests/CSharpGameEngine.Rendering.Tests`、`tests/CSharpGameEngine.Windows.Tests/Graphics`、`tests/CSharpGameEngine.Core.Tests` の `EngineLayerSpec`
