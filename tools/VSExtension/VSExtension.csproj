@@ -229,7 +229,7 @@
          (FabDownloadWatcher, KnownFolders) directly, since live VS UI automation proved unreliable
          for verifying this logic (ADR-0011). -->
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>CSharpGameEngine.VSExtension.Tests</_Parameter1>
+      <_Parameter1>VS拡張のテスト</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
   <!--

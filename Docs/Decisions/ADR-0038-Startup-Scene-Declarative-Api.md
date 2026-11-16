@@ -212,7 +212,7 @@ dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
 dotnet build src/Entities/Entities.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/... -c Debug
+dotnet test tests/エンジンのテスト/CodeAnalysis/... -c Debug
   → 99/99 成功(既存73件 + 新規26件: Diagnostics 17件・Emission 8件・EndToEnd 4件、
     うち「StartupSceneOutputArchetype_DoesNotDisturbExistingSystemDerivedOrder」が
     Archetype0〜2の出現順が変わらないことを生成コードで直接検証)

@@ -127,7 +127,7 @@ Write→Read依存エッジは並列実行の有効化には使わず、単一�
 
 ```
 dotnet build src/CodeAnalysis/... -c Debug     → 成功、警告0/エラー0
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...       → 成功、121件(旧削除前)→36件(旧削除後)+新規テスト
+dotnet test tests/エンジンのテスト/CodeAnalysis/...       → 成功、121件(旧削除前)→36件(旧削除後)+新規テスト
 dotnet run --project samples/SoaSystemsDemo                     → "OK"
 dotnet build UserGameProject/UserGameProject.csproj -c Debug    → 成功、警告0/エラー0
 dotnet run --project UserGameProject                            → 実機描画確認(スクリーンショット、M0009参照)

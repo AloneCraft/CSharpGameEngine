@@ -83,7 +83,7 @@ dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
 dotnet build src/Entities/Entities.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/... -c Debug
+dotnet test tests/エンジンのテスト/CodeAnalysis/... -c Debug
   → 99/99 成功(既存73件 + 新規26件、回帰なし)
 
 dotnet build UserEcsProject/UserEcsProject.csproj -c Debug

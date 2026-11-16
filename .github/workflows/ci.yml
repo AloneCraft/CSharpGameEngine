@@ -74,7 +74,7 @@ jobs:
         run: dotnet test CSharpGameEngine.slnx -c "${{ matrix.configuration }}" --arch x64 --no-restore
       - name: Test Windows target framework
         if: matrix.workload == 'windows-tfm'
-        run: dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --arch x64 --no-restore
+        run: dotnet test tests/Windowsのテスト/Windowsのテスト.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --arch x64 --no-restore
       - name: Build net472 VSIX
         if: matrix.workload == 'vsix'
         run: dotnet build tools/VSExtension/VSExtension.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --no-restore

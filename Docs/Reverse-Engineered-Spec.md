@@ -248,7 +248,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-L7-021 addendum — Catalog v2 non-physics registration
 
 - Confidence: High
-- Evidence: `tools/FeatureRunner/FeatureStageContracts.cs`, `FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `tests/CSharpGameEngine.FeatureRunner.Tests/`.
+- Evidence: `tools/FeatureRunner/FeatureStageContracts.cs`, `FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `tests/エンジンのテスト/FeatureRunner/`.
 - Observed behavior: The catalog now contains `Specified`, a track enum, dependency Levels, and dependency Feature IDs. It validates unknown/self/cyclic/Level-inverted dependencies and requires an executable Stage for implemented states and a `NotImplemented` Stage for specified/deferred states. `ecs.baseline` and `ecs.fixed-tick` are executable.
 - Observed behavior: `list --json` emits catalog schema v2 metadata. Run-result artifacts remain schema v1. Explicit future `run`/`run-feature` execution returns `NotImplemented` and nonzero; normal suites continue to select executable stages only.
 - Observed behavior: Sixty-seven non-physics Roadmap Feature IDs are registered. Implemented target stages include ECS/fixed-tick, Shader Graph/artifacts, VSIX Experimental evidence, deterministic input, and the visible Showcase; remaining future target stages retain explicit NotImplemented or deferred handling.
@@ -294,7 +294,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-L7-021 — Autonomous Feature Runner
 
 - Confidence: High.
-- Evidence: `tools/FeatureRunner/`, `tests/CSharpGameEngine.FeatureRunner.Tests/`, `stages/`, Debug/Release test and Pack runs, `list --json`, `stage-packs.contract`, and explicit `run-feature F-L5-004` execution.
+- Evidence: `tools/FeatureRunner/`, `tests/エンジンのテスト/FeatureRunner/`, `stages/`, Debug/Release test and Pack runs, `list --json`, `stage-packs.contract`, and explicit `run-feature F-L5-004` execution.
 - Observed behavior: startup validation rejects catalog inconsistencies. Existing stages launch child processes without a shell, capture stdout/stderr, enforce per-Stage timeout, append WARP arguments where declared, and hash captured evidence. `changed` uses Git porcelain paths; other suites select only executable stages by profile. A result document is always versioned and saved for an executed selection. `resume` selects prior non-passing Stage IDs. Deferred stages do not start a process and produce `NotImplemented`. Ten isolated Pack projects compile handwritten C# `IScene` definitions and generated ECS glue, then verify entity ownership and unload in separate processes.
 - Result: Matches ADR-0051 for F-L7-021 and F-L9-008 infrastructure. Future solver behavior remains explicitly deferred.
 
@@ -600,7 +600,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 
 ## RE-M0120 — Portable L5 camera mathematics
 - Confidence: High for the math relocation; frame/view policy extraction remains incomplete.
-- Evidence: `src/Engine/Rendering/View/RenderCamera.cs`, Core project reference, `tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs`, EngineLayerSpec, `.artifacts/M0120/camera-preservation.json` and `portable-camera-*.log`.
+- Evidence: `src/Engine/Rendering/View/RenderCamera.cs`, Core project reference, `tests/エンジンのテスト/Rendering/CameraTests.cs`, EngineLayerSpec, `.artifacts/M0120/camera-preservation.json` and `portable-camera-*.log`.
 - Observed: the orbit/first-person/bounds-fit math and defaults pass the same 21 CPU tests in net10.0. The full struct body matches the pre-move implementation after the type-name change. Rendering has no native dependency and L4 source does not reference the L5 View folder/types. Native Stage still calls the camera during initialization/submission; those calls are not yet an executor-only boundary.
 - Result: Matches for relocation (Rendering157, native camera/recovery43, layer6, catalog/selection31 passed). Seven pinned images and the Stage binary are unchanged. Scene component type identity is preserved; the legacy public graphics-camera type has moved to View.RenderCamera.
 

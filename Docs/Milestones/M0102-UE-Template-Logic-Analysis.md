@@ -37,7 +37,7 @@
 - 結果は、テンプレートごとに「イベント → 処理 → 値 → 状態 → 担当のマイルストーン」の表にした(UE-Template-Behavior)。
 
 ## 自動化された証拠
-- `tests/CSharpGameEngine.Import.Tests/Unreal/BlueprintLogicWriterTests.cs`(4 つのテスト、7 件):
+- `tests/エンジンのテスト/Import/Unreal/BlueprintLogicWriterTests.cs`(4 つのテスト、7 件):
   - T3D の読み取り(オブジェクト、属性、ピン、接続)
   - 実行の流れ(純粋な式の展開と knot の透過)
   - 名前の切り方(`/` を含む名前)

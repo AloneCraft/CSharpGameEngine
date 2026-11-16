@@ -16,8 +16,8 @@
 - Commands/results are stored in `.artifacts/asset-scope/`: `asset-scope-before.trx`, `asset-scope-focused-debug.trx`, `asset-scope-full-debug.trx`, `asset-scope-full-release.trx`, `focused-debug.log`, `full-debug.log`, `full-release.log` and `verification-summary.json`. The full-suite commands were:
 
 ```powershell
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Debug -m:1 -p:UseSharedCompilation=false --logger "trx;LogFileName=asset-scope-full-debug.trx" --results-directory .artifacts/asset-scope
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Release -m:1 -p:UseSharedCompilation=false --logger "trx;LogFileName=asset-scope-full-release.trx" --results-directory .artifacts/asset-scope
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj -c Debug -m:1 -p:UseSharedCompilation=false --logger "trx;LogFileName=asset-scope-full-debug.trx" --results-directory .artifacts/asset-scope
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj -c Release -m:1 -p:UseSharedCompilation=false --logger "trx;LogFileName=asset-scope-full-release.trx" --results-directory .artifacts/asset-scope
 ```
 
 - Conformance: Matches for the automated root-navigation contract. F-L8-035 and M0123 overall remain Partial because the existing broader acceptance gates remain open.
@@ -61,13 +61,13 @@ No importer/renderer was added to the VSIX. Existing physics/destruction/renderi
 Run with normal process/file-replacement permissions; the restricted sandbox cannot perform all Windows replace/move/process tests.
 
 ```powershell
-dotnet test tests/CSharpGameEngine.Content.Tests/CSharpGameEngine.Content.Tests.csproj -c Debug -m:1 -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.Content.Tests/CSharpGameEngine.Content.Tests.csproj -c Release -m:1 -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj -c Debug -m:1 -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj -c Release -m:1 -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Debug -m:1 -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Release -m:1 -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.FeatureRunner.Tests/CSharpGameEngine.FeatureRunner.Tests.csproj -c Debug -m:1 -p:UseSharedCompilation=false
+dotnet test tests/コンテンツのテスト/コンテンツのテスト.csproj -c Debug -m:1 -p:UseSharedCompilation=false
+dotnet test tests/コンテンツのテスト/コンテンツのテスト.csproj -c Release -m:1 -p:UseSharedCompilation=false
+dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c Debug -m:1 -p:UseSharedCompilation=false
+dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c Release -m:1 -p:UseSharedCompilation=false
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj -c Debug -m:1 -p:UseSharedCompilation=false
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj -c Release -m:1 -p:UseSharedCompilation=false
+dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c Debug -m:1 -p:UseSharedCompilation=false
 dotnet test CSharpGameEngine.slnx -c Debug -m:1 -p:UseSharedCompilation=false
 ```
 

@@ -22,7 +22,7 @@ Scene Authoring Phase A(M0010)で完成した`[SceneDefinition]`クラスを、�
 - `GizmoMeshFactory`: 固定サイズの立方体`SimpleMesh`をその場でメモリ生成(`ProceduralMeshFactory.CreateBox`と同じ頂点/法線構成だがRUF非依存、プレーンな`Vector3`で実装 — RUF抽象化はnet10.0専用でVSIXから参照できないため)。
 - `SceneHwndHost.LoadIntoSurface`拡張: `MeshAssetPath is not null`フィルタを、メッシュ有り→`MeshLoader.Load`/メッシュ無し→`GizmoMeshFactory.Create()`の分岐へ変更し、両方とも描画対象に含める(既存`.scene`プレビューにも同じ恩恵、メッシュ0件でも即エラーにならなくなった)。
 - `.vsct`: 新規Group(`IDM_VS_CTXT_CODEWIN`親)+Button(`DynamicVisibility`フラグ)。既存の「Toolsメニュー+ツールバー両方配置」規約とは意図的に外し、コンテキストメニューのみに配置。
-- `tests/CSharpGameEngine.VSExtension.Tests/`: 新規17件(`GizmoMeshFactoryTests`6件、`ScenePreviewSceneFileAdapterTests`6件、`ProjectOutputAssemblyResolverTests`4件、`ExternalScenePreviewLoaderTests`1件 — 実ブリッジサブプロセスを`samples/SceneAuthoringDemo`向けに起動するVS非依存の統合テスト)。
+- `tests/VS拡張のテスト/`: 新規17件(`GizmoMeshFactoryTests`6件、`ScenePreviewSceneFileAdapterTests`6件、`ProjectOutputAssemblyResolverTests`4件、`ExternalScenePreviewLoaderTests`1件 — 実ブリッジサブプロセスを`samples/SceneAuthoringDemo`向けに起動するVS非依存の統合テスト)。
 
 ### テストフィクスチャ `UserGameProject/Scene1.cs`(新規)
 `[SceneDefinition]`、Root→MainCamera(Position/Rotation/Scale/CameraRig)/Player(Position/Rotation/Scale/PlayerTag/Health)/Lighting(Position、Sun/Ambientのグルーピングアンカー)、Lighting→Sun(Position/DirectionalLightData)/Ambient(Position/AmbientLightData)という3階層6ノード。`UserGameProject/Components.cs`の既存型のみ使用(新規Component型は追加していない)。`Program.cs`の実際のゲームループには組み込まない(`samples/SceneAuthoringDemo/MainScene.cs`と同じ、単独のプレビュー確認用フィクスチャという位置づけ)。
@@ -42,7 +42,7 @@ Scene Authoring Phase A(M0010)で完成した`[SceneDefinition]`クラスを、�
 ## 実行したコマンドと結果
 
 ```
-dotnet test tests/CSharpGameEngine.Entities.Tests/...csproj -c Debug
+dotnet test tests/ECSのテスト/...csproj -c Debug
   → 成功、61件(InternalsVisibleTo追加のみ、無回帰)
 
 dotnet build tools/CSharpGameEngine.SceneAuthoring.Cli/...csproj -c Debug
@@ -59,7 +59,7 @@ dotnet run --project tools/CSharpGameEngine.SceneAuthoring.Cli -- <request.json>
 
 dotnet build tools/VSExtension/...csproj -c Debug
   → 成功、警告0/エラー0(.vsctコンパイル含む、IDM_VS_CTXT_CODEWIN・DynamicVisibilityとも初回で正常解決)
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/...csproj -c Debug
+dotnet test tests/VS拡張のテスト/...csproj -c Debug
   → 成功、39件(既存22件+新規17件)
 
 dotnet build UserGameProject/UserGameProject.csproj -c Debug

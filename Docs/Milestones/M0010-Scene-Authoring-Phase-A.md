@@ -23,7 +23,7 @@ WindowがRoslynで同じコードを解析・編集する(Phase B以降)、と�
 - `SceneNodeTag`(0フィールドのタグComponent) — `Set`呼び出しを持たない空ノードを
   `World.CreateArchetype`(0型引数オーバーロード無し)で成立させるために、実装中に必要性が判明し
   追加。
-- `tests/CSharpGameEngine.Entities.Tests/SceneAuthoringSpec.cs`: 9件。
+- `tests/ECSのテスト/SceneAuthoringSpec.cs`: 9件。
 
 ### `SceneDefinitionGenerator`(`src/CodeAnalysis/`)
 - `SceneDefinitionDiagnostics`: `SCENE001`〜`009`(見本のSCENE001〜006・008・009を踏襲、
@@ -46,7 +46,7 @@ WindowがRoslynで同じコードを解析・編集する(Phase B以降)、と�
   空ノードには`SceneNodeTag`を自動付与する。`Set`引数式は構文木からテキストとしてそのまま生成コード
   へ貼り付け、元ファイルのusingディレクティブも生成ファイル先頭へ複製することで
   `Vector3.One`のような非完全修飾参照も解決できるようにしている。
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/`: `SceneDefinitionGeneratorTestHelper.cs`、
+- `tests/エンジンのテスト/CodeAnalysis/`: `SceneDefinitionGeneratorTestHelper.cs`、
   `SceneDefinitionGeneratorDiagnosticsTests.cs`(SCENE001〜009各1件+正常系1件、計11件)、
   `SceneDefinitionGeneratorEmissionTests.cs`(3件、テキスト形状+決定性)、
   `SceneDefinitionGeneratorEndToEndTests.cs`(2件、`CompileAndLoad`で実`World`上に構築・検証)。
@@ -84,13 +84,13 @@ Rootが`SceneNodeTag`のみで`Parent`を持たないこと、MainCamera/Player�
 ```
 dotnet build src/Entities/Entities.csproj -c Debug
   → 成功、警告0/エラー0
-dotnet test tests/CSharpGameEngine.Entities.Tests/...csproj -c Debug
+dotnet test tests/ECSのテスト/...csproj -c Debug
   → 成功、61件(SceneAuthoringSpec.cs 9件新規)
 
 dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0(SceneDefinitionDiagnostics追加直後はAnalyzerReleases.Unshipped.md未更新で
     RS2000が9件発生、追記して解消)
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj -c Debug
+dotnet test tests/エンジンのテスト/CodeAnalysis/...csproj -c Debug
   → 成功、52件(SceneDefinitionGenerator関連16件新規、既存GameSystemGenerator関連36件は無影響)
 
 dotnet run --project samples/SceneAuthoringDemo

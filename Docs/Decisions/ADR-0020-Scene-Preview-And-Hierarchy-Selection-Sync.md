@@ -63,7 +63,7 @@ SceneFile.cs`に、同じ`*.scene.json`スキーマを読む**独立した**`Sce
 解決、`BuildTree`とは独立に循環参照をガードする「訪問中」集合を持つ - レンダリング経路は
 `BuildTree`を経由するとは限らないため)を持つ。
 
-`tests/CSharpGameEngine.VSExtension.Tests/SceneFileTests.cs`は`CSharpGameEngine.Scene.Tests`と
+`tests/VS拡張のテスト/SceneFileTests.cs`は`CSharpGameEngine.Scene.Tests`と
 **同一のサンプルJSON文字列**を使い、2つの独立実装が同じ入力に対して食い違わないことを確認する。
 
 ### 3. ダブルクリックプレビューは`GlbFbxPreviewEditorFactory`と同型の`IVsEditorFactory`

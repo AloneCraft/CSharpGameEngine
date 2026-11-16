@@ -157,7 +157,7 @@ CSharpGameEngine.Runtime.Windows;`と、ファイル自身の名前空間(`UserE
 
 ## 新規テスト
 
-`SceneJsonAnalyzerTests.cs`(新規11件、`tests/CSharpGameEngine.CodeAnalysis.Tests/`):
+`SceneJsonAnalyzerTests.cs`(新規11件、`tests/エンジンのテスト/CodeAnalysis/`):
 リテラル値の宣言型別解決・enumメンバー名解決・複数子ノードの再帰的走査とパスベースLocalName・
 不正なJSON構文(SCENE200×3パターン)・未知のComponent型(SCENE107)・未知のメンバー(SCENE201×2、
 readonlyフィールド含む)・値の型不一致(SCENE202)・未知のenumメンバー(SCENE203)。

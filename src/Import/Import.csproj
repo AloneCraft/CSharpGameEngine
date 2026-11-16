@@ -48,7 +48,7 @@
     <!-- FbxAxisConversion is `internal static` (ADR-0027) and unit-tested directly by
          FbxAxisConversionTests, which now lives in the merged CSharpGameEngine.Import.Tests. -->
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>CSharpGameEngine.Import.Tests</_Parameter1>
+      <_Parameter1>エンジンのテスト</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

@@ -22,8 +22,8 @@ Grid/BVH, parallel readers or writers, multiple proxies per index, persistence, 
 
 ## Verification
 
-- `dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c Debug --no-restore`
-- `dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj -c Debug --no-restore`
+- `dotnet test tests/Windowsのテスト/Windowsのテスト.csproj -c Debug --no-restore`
+- `dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c Debug --no-restore`
 
 ## Observed behavior and conformance
 

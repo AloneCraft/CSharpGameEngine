@@ -29,7 +29,7 @@
 - `tests/CSharpGameEngine.Ecs.Tests/`に`EntityAllocatorSpec`(5件)、`AosEntityStoreSpec`
   (8件)、`ArchetypeChunkSpec`(4件、正規化済み集合が同じ異なる`IEcsArchetype<T>`型が
   同一Chunkを共有することの検証を含む)を追加(計17件)。
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/`に`GenerateEntityGeneratorTestHelper`
+- `tests/エンジンのテスト/CodeAnalysis/`に`GenerateEntityGeneratorTestHelper`
   (`CreateCompilation`/`RunGenerator`/`CompileAndLoad`、`EcsArchetypeGeneratorTestHelper`と
   同型)と、以下の新規テストファイルを追加(計59件):
   - `GenerateEntityGeneratorEmissionTests`(11件): 生成コードの0エラー・決定的Hint Name・
@@ -94,7 +94,7 @@ dotnet build src/CSharpGameEngine.Ecs/...csproj -c Debug                        
 dotnet build src/CodeAnalysis/...csproj -c Debug                 → 成功、警告0/エラー0
 dotnet build samples/AosSoaGeneratedExpansion/...csproj -c Debug                  → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Ecs.Tests/...csproj                            → 39件成功(既存22+新規17)
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj                   → 79件成功(既存20+新規59)
+dotnet test tests/エンジンのテスト/CodeAnalysis/...csproj                   → 79件成功(既存20+新規59)
 dotnet build UserGameProject/UserGameProject.csproj -c Debug                      → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Debug                                       → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Release                                     → 成功、警告0/エラー0

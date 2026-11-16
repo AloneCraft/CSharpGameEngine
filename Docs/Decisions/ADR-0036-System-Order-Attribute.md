@@ -153,7 +153,7 @@ SYSGEN024はユーザーへ確認の上で「ビルドエラーにする」を�
 dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...
+dotnet test tests/エンジンのテスト/CodeAnalysis/...
   → 73/73 成功(新規9件: 逆順E2E1件、後方互換回帰1件、System直接指定の優先1件、
     SYSGEN022〜025各1件、System単体の重複が許容されることの回帰1件、暗黙0の非衝突1件)
 

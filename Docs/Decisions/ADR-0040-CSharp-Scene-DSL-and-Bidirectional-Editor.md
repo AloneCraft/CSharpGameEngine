@@ -80,7 +80,7 @@ SceneEditOperation
 `SceneDeclarationAnalyzer`は純粋なsyntax+semantic解析であり、コードを実行もビルドもしない。
 タイピング中の不完全な構文で毎キーストローク呼ばれるため**絶対に例外を投げない**契約とし、
 `SceneValueKind`は9種の許可式形式だけを通すホワイトリスト(default-deny、対象外は`Unsupported`)
-とする。SGとVSIXの解析同値性は`tests/CSharpGameEngine.VSExtension.Tests/SceneAnalysisParityTests.cs`
+とする。SGとVSIXの解析同値性は`tests/VS拡張のテスト/SceneAnalysisParityTests.cs`
 で固定する。
 
 ### 3. 識別モデルは3層(`NodePath` / `EditorNodeId` / `SceneKey`)

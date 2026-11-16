@@ -65,7 +65,7 @@ Position/Rotation/Scaleという型の単純名一致で変換規則を適用す
 ## 検証結果(実際に実行して確認)
 
 ```
-dotnet test tests/CSharpGameEngine.Entities.Tests/...           → 成功、61件(無変更、回帰確認のみ)
+dotnet test tests/ECSのテスト/...           → 成功、61件(無変更、回帰確認のみ)
 dotnet build tools/CSharpGameEngine.SceneAuthoring.Cli/...      → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.SceneAuthoring.Cli.Tests/... → 成功、12件
 dotnet run --project tools/CSharpGameEngine.SceneAuthoring.Cli -- <request> <response>
@@ -73,7 +73,7 @@ dotnet run --project tools/CSharpGameEngine.SceneAuthoring.Cli -- <request> <res
   → UserGameProject/Scene1.cs向け: 終了コード0、JSON応答が6ノード全て(Root→MainCamera/Player/Lighting、
     Lighting→Sun/Ambient)期待どおりの階層・値で一致
 dotnet build tools/VSExtension/...              → 成功、警告0/エラー0(.vsctコンパイル含む)
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/...         → 成功、39件(新規17件: GizmoMeshFactory6、
+dotnet test tests/VS拡張のテスト/...         → 成功、39件(新規17件: GizmoMeshFactory6、
   ScenePreviewSceneFileAdapter6、ProjectOutputAssemblyResolver4、実ブリッジサブプロセスを起動する
   ExternalScenePreviewLoader統合テスト1)
 dotnet build UserGameProject/...                                  → 成功、警告0/エラー0

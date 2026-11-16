@@ -94,7 +94,7 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 | `FX_Cursor_Success` | Niagara の `SimpleSpriteBurst`: Spawn Burst Instantaneous で Spawn Count 1・Spawn Time 0、Loop Duration 0.7 s、Loop Count 1。粒子の Lifetime 0.7 s、色 (1,1,1,1)、位置のずれ・速度・回転の力は 0。描画はメッシュ `SM_CursorMesh`(材質 `M_Cursor`: BLEND_Masked、基本色 = `Color` × 矢印のテクスチャ、粗さ 1、`TexCoordY` ← `NormalizedLoopAge`) | 実装済み(`ParticleBurst` の Count 1・Lifetime 0.7、`SM_CursorMesh` の矢印をアルファの切り抜きから形状にした glb。短押しの離した瞬間に出す。M0105。`SpawnSystemAtLocation(FXCursor, 位置)` は `Spawner.Spawn<CursorMarker>`)。**作らない**: 材質 `M_Cursor` の `TexCoordY ← NormalizedLoopAge`(矢印が帯に沿って流れる動き)。描画契約に UV の動きが無く(材質はテクスチャの定数)、契約を変えるほどの差ではない。縮み 1→0.25 で 0.7 秒の寿命を表す | M0105 済。短押しで出す条件は M0108 済 |
 
 ## Vehicle(既定の Pawn は `BP_VehicleAdvSportsCar`、親は `BP_VehicleAdvPawnBase`)
-M0109 で Chaos 相当に作り直した(Vehicles プラグイン。[M0109](../Milestones/M0109-Chaos-Vehicle.md))。式は UE 5.7 の ChaosVehiclesCore と ChaosVehicles プラグインのソース(`C:\Program Files\Epic Games\UE_5.7\Engine\...`)から、値は T3D・コンポーネントの書き出しと `tools/UnrealExport/probe_vehicle_physics.py`・`probe_vehicle_brake_lights.py`(UE を起動して読んだ値)から取った。試験は `tests/CSharpGameEngine.Windows.Tests/Character/ChaosVehicleTests.cs`(以下 `ChaosVehicleTests.`)と `Physics/PhysicsForceCommandTests.cs`。
+M0109 で Chaos 相当に作り直した(Vehicles プラグイン。[M0109](../Milestones/M0109-Chaos-Vehicle.md))。式は UE 5.7 の ChaosVehiclesCore と ChaosVehicles プラグインのソース(`C:\Program Files\Epic Games\UE_5.7\Engine\...`)から、値は T3D・コンポーネントの書き出しと `tools/UnrealExport/probe_vehicle_physics.py`・`probe_vehicle_brake_lights.py`(UE を起動して読んだ値)から取った。試験は `tests/Windowsのテスト/Windows/Character/ChaosVehicleTests.cs`(以下 `ChaosVehicleTests.`)と `Physics/PhysicsForceCommandTests.cs`。
 
 ### 入力(`IMC_Vehicle_Default`、`IMC_Vehicle_MouseLook`)
 | アクション(型) | キー | 処理 | 状態 | 担当 |

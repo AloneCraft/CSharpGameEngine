@@ -33,7 +33,7 @@ Shader Graph の正本を maintenance の編集スクリプトで更新し、外
 実行したテストコマンドの構成は次のとおり (Config は Debug / Release、OutDir は各設定の `tests-debug/` / `tests-release/` の絶対パス)。結果は前掲の TRX と log に保存する。
 
 ```powershell
-dotnet test tests/CSharpGameEngine.Rendering.Tests/CSharpGameEngine.Rendering.Tests.csproj -c $Config --no-restore -m:1 -nr:false -p:OutDir=$OutDir --filter 'FullyQualifiedName~VirtualDirectionalShadowTests|FullyQualifiedName~RenderQualityProfileTests'
-dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c $Config --no-restore -m:1 -nr:false -p:OutDir=$OutDir --filter 'FullyQualifiedName~VirtualShadowGpuTests|FullyQualifiedName~DirectionalShadowGpuTests|FullyQualifiedName~DirectionalShadowCascadesTests|FullyQualifiedName~AreaEmissiveShadowGpuIntegrationTests|FullyQualifiedName~StandardModeGoldenFrameTests|FullyQualifiedName~LumenGpuIntegrationTests|FullyQualifiedName~EnvironmentComponentTests|FullyQualifiedName~RadialViewProjection_SurvivesDeviceRecovery'
-dotnet test tests/CSharpGameEngine.ShaderGraph.Cli.Tests/CSharpGameEngine.ShaderGraph.Cli.Tests.csproj -c $Config --no-restore -m:1 -nr:false -p:OutDir=$OutDir --filter FullyQualifiedName~ShaderGraphCompilerTests
+dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c $Config --no-restore -m:1 -nr:false -p:OutDir=$OutDir --filter 'FullyQualifiedName~VirtualDirectionalShadowTests|FullyQualifiedName~RenderQualityProfileTests'
+dotnet test tests/Windowsのテスト/Windowsのテスト.csproj -c $Config --no-restore -m:1 -nr:false -p:OutDir=$OutDir --filter 'FullyQualifiedName~VirtualShadowGpuTests|FullyQualifiedName~DirectionalShadowGpuTests|FullyQualifiedName~DirectionalShadowCascadesTests|FullyQualifiedName~AreaEmissiveShadowGpuIntegrationTests|FullyQualifiedName~StandardModeGoldenFrameTests|FullyQualifiedName~LumenGpuIntegrationTests|FullyQualifiedName~EnvironmentComponentTests|FullyQualifiedName~RadialViewProjection_SurvivesDeviceRecovery'
+dotnet test tests/Windowsのテスト/Windowsのテスト.csproj -c $Config --no-restore -m:1 -nr:false -p:OutDir=$OutDir --filter FullyQualifiedName~ShaderGraphCompilerTests
 ```

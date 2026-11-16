@@ -16,7 +16,7 @@ Incremental Generator・Diagnostic Analyzer・Code Fixを安全に追加でき�
 - `CSharpGameEngineBootstrapGenerator`: 唯一の最小Incremental Generator。`RegisterPostInitialization
   Output`で、コンパイル内容によらず常に同一の`CSharpGameEngineBootstrap.g.cs`(`CodeAnalysisBootstrap.
   GeneratorName`定数)を出力する。
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/`: `Microsoft.CodeAnalysis.CSharp`を直接参照し、生の
+- `tests/エンジンのテスト/CodeAnalysis/`: `Microsoft.CodeAnalysis.CSharp`を直接参照し、生の
   `CSharpCompilation`+`CSharpGeneratorDriver`で(a)生成テキストの厳密一致、(b)再パースでの構文診断
   0件、(c)独立2回実行での出力完全一致(決定性)、の3点を検証する単体テスト3件。
 - `CSharpGameEngine.slnx`に新規2プロジェクト・ADR-0014・本Milestone文書・`Implementation-Status.md`

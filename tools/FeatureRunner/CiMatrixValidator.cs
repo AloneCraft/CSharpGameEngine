@@ -63,7 +63,7 @@ public static class CiMatrixValidator {
         RequireToken(Workflow,"dotnet run --project tools/FeatureRunner/FeatureRunner.csproj -- verify-ci-matrix","matrix self-validation",Errors);
         RequireToken(Workflow,"dotnet test CSharpGameEngine.slnx","solution test workload",Errors);
         RequireToken(Workflow,"--arch x64","solution x64 architecture",Errors);
-        RequireToken(Workflow,"tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj","Windows TFM workload",Errors);
+        RequireToken(Workflow,"tests/Windowsのテスト/Windowsのテスト.csproj","Windows TFM workload",Errors);
         RequireToken(Workflow,"tools/VSExtension/VSExtension.csproj","net472 VSIX workload",Errors);
         RequireToken(Workflow,"suite visual","visual certification suite",Errors);
         RequireToken(Workflow,"--adapter warp","mandatory WARP adapter",Errors);

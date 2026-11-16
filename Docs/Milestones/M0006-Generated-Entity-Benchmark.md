@@ -41,7 +41,7 @@
 - `.vscode/launch.json`: `UserGameProject: benchmark`構成を追加。
 
 ### テスト
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityCombinedKindTests.cs`(新規9件):
+- `tests/エンジンのテスト/CodeAnalysis/GenerateEntityCombinedKindTests.cs`(新規9件):
   1宣言→3ファイル生成、0エラー、両Store共存、Facadeが1回だけAoS束縛で出力、
   SoAの`Create`が`Entity`を返す、両Storeの`Get*Ref`がpublicかつref返し、
   生成コードにRuntime分岐なし、**単一指定時は従来の型名のまま**。
@@ -64,7 +64,7 @@
 
 ## 実行したコマンドと結果
 ```
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj    → 88件成功(既存79+新規9)
+dotnet test tests/エンジンのテスト/CodeAnalysis/...csproj    → 88件成功(既存79+新規9)
 dotnet build UserGameProject/UserGameProject.csproj -c Debug       → 成功、警告0/エラー0
 dotnet build UserGameProject/UserGameProject.csproj -c Release      → 成功、警告0/エラー0
 dotnet test tests/UserGameProject.Tests/...csproj                   → 41件成功(既存21+新規20)

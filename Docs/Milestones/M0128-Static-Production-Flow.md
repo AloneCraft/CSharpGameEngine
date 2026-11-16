@@ -164,8 +164,8 @@ TopDown Floatの新パッケージでの調理は `ff556df301d54c9aa8a2dc7d5acab
 ログは `D:/CodexBackgroundOps/tasks/<task-id>/stdout.log` と `result.json`。CodeAnalysis/Entities/実ゲームの最終実行は2026-11-02 JST。各テストの失敗・スキップは0。`git diff --check` は成功。テストは下記のコマンドで構成を切り替え、BackgroundOpsでworkspace共有、build-dir・CPU排他、メモリ監視への作業通知を有効にして直列実行した。GUI入力や既存Editorの停止は行っていない。
 
 ```powershell
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj -c Debug --no-restore -m:1 -nr:false -p:UseSharedCompilation=false
-dotnet test tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj -c Debug --no-restore -m:1 -nr:false -p:UseSharedCompilation=false
+dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c Debug --no-restore -m:1 -nr:false -p:UseSharedCompilation=false
+dotnet test tests/ECSのテスト/ECSのテスト.csproj -c Debug --no-restore -m:1 -nr:false -p:UseSharedCompilation=false
 dotnet build UserEcsProject/UserEcsProject.csproj -c Debug --no-restore -m:1 -nr:false -p:UseSharedCompilation=false
 ```
 

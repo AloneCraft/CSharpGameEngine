@@ -83,7 +83,7 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 
 ## 検証
 ### 単体テスト(決定的な物理の世界で、外から見える振る舞い)
-`tests/CSharpGameEngine.Windows.Tests/Character/ChaosVehicleTests.cs`(25 件。場は `ChaosVehicleTrack.cs`)の主な値:
+`tests/Windowsのテスト/Windows/Character/ChaosVehicleTests.cs`(25 件。場は `ChaosVehicleTrack.cs`)の主な値:
 | 振る舞い | 値 |
 |---|---|
 | 0〜100 km/h | 3.42 秒。1 → 2 速は約 5962 rpm(ChangeUpRpm 6000)、変速中の空走 12 tick |
@@ -96,7 +96,7 @@ M0101 段階 9 の簡易の車両モデル(運動学で動く車)を、UE の Ch
 | ハンドブレーキ | 後輪が滑り、横滑りの角が大きくなる |
 | 決定性 | 同じ入力の 2 回の走りが Q64.64 のビットまで一致 |
 そのほか、スナップショット(走りの状態は往復で同じ、設定は入らない)、静止と眠り、重い車は沈む、落下と着地、後退、エンジンブレーキ、入力の速さ、壁で止まる、手動のリセット、設定の無い車、車輪の見た目の姿勢、テンプレートのアセットの値。
-物理: `Physics/PhysicsForceCommandTests.cs`(9 件。点の力・トルク・速度・眠り・減衰の決定性と、箱が三角形の床に 4 隅で静止)。数値: `tests/CSharpGameEngine.Numerics.Tests/LogicalMathAtan2Tests.cs`(14 件。4 象限と軸の上で `Math.Atan2` と小数 6 桁まで一致、45° は π/4 と 2^-64 の 1000 単位以内、(0, 0) は 0、同じ入力は同じビット)。
+物理: `Physics/PhysicsForceCommandTests.cs`(9 件。点の力・トルク・速度・眠り・減衰の決定性と、箱が三角形の床に 4 隅で静止)。数値: `tests/エンジンのテスト/Numerics/LogicalMathAtan2Tests.cs`(14 件。4 象限と軸の上で `Math.Atan2` と小数 6 桁まで一致、45° は π/4 と 2^-64 の 1000 単位以内、(0, 0) は 0、同じ入力は同じビット)。
 
 ### 実走(WARP、`CGE_GRAPHICS_ADAPTER=WARP`、D3D12 のエラーはすべて 0)
 | 走り | 値 |

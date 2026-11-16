@@ -26,6 +26,6 @@
     <ProjectReference Include="..\..\..\src\Engine\Engine.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Navigation.Tests</_Parameter1></AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>エンジンのテスト</_Parameter1></AssemblyAttribute>
   </ItemGroup>
 </Project>

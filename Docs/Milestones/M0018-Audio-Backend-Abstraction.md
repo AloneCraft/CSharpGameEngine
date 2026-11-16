@@ -43,12 +43,12 @@
   Loop=true)。これが「ユーザーコードへオーディオを配置する」の本体。
 
 ### テスト
-- `tests/CSharpGameEngine.Core.Tests/Audio/ProceduralAudioClipTests.cs`(6件): サンプル数・振幅範囲・
+- `tests/エンジンのテスト/Core/Audio/ProceduralAudioClipTests.cs`(6件): サンプル数・振幅範囲・
   引数検証。
-- `tests/CSharpGameEngine.Core.Tests/Audio/AudioBackendFacadeTests.cs`(2件): ハードウェア非依存の
+- `tests/エンジンのテスト/Core/Audio/AudioBackendFacadeTests.cs`(2件): ハードウェア非依存の
   フェイクバックエンド(`struct FakeBackend : IAudioBackend<int,int>`)で、ジェネリックFacadeが全
   メンバーを実際に転送することを検証(抽象化が実際に機能する証明)。
-- `tests/CSharpGameEngine.Windows.Tests/Audio/XAudio2BackendTests.cs`(2件): 実オーディオデバイスに
+- `tests/Windowsのテスト/Windows/Audio/XAudio2BackendTests.cs`(2件): 実オーディオデバイスに
   対するCreateEngine→CreateVoice→SubmitBuffer→Start→Stop→DestroyVoice→DestroyEngineのスモークテスト
   (`[WindowsOnlyFact]`、既存GPUテストと同じ規約)。
 
@@ -62,13 +62,13 @@ Audio関連L1エントリ)・F-L4-001(このプロジェクト初のL4 Domain Se
 dotnet build src/Engine/Engine.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.Core.Tests/... -c Debug
+dotnet test tests/エンジンのテスト/Core/... -c Debug
   → 119/119 成功(既存111件 + 新規8件)
 
 dotnet build src/Windows/Windows.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.Windows.Tests/... -c Debug
+dotnet test tests/Windowsのテスト/Windows/... -c Debug
   → 69/69 成功(既存67件 + 新規2件、実XAudio2デバイスでのスモークテストが実機で成功)
 
 dotnet build UserEcsProject/UserEcsProject.csproj -c Debug

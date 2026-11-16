@@ -284,7 +284,7 @@ dotnet test CSharpGameEngine.slnx -c Debug
   → 全8テストプロジェクト808件成功・失敗0
     (Phase 3前784 + 新規24。VSExtension.Testsは316件)
 
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj \
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj \
   -c Debug --filter "FullyQualifiedName~SceneTransformMathTests|FullyQualifiedName~TransformGizmoTests|FullyQualifiedName~EditTransactionControllerTests|FullyQualifiedName~SceneSourceEditorTests|FullyQualifiedName~SceneInputStateMachineTests|FullyQualifiedName~SceneTextChangePlannerTests"
   → 54件成功・失敗0
 ```
@@ -356,7 +356,7 @@ dotnet build CSharpGameEngine.slnx -c Debug
 dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
   → 全8テストプロジェクト838件成功・失敗0
     (Phase 4前824 + 新規14。VSExtension.Testsは346件)
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj \
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj \
   --filter "FullyQualifiedName~TransformGizmoTests|FullyQualifiedName~EditTransactionControllerTests|FullyQualifiedName~SceneSourceEditorTests|FullyQualifiedName~SceneTransformMathTests" --no-restore
   → 39件成功・失敗0
 ```
@@ -394,7 +394,7 @@ HWND/D3D12/WPF/Visual Studio UndoのObservedは次表の実機確認まで**Unkn
 
     dotnet build CSharpGameEngine.slnx -c Debug --no-restore
       → 成功、警告0/エラー0
-    dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore
+    dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj --no-restore
       → 362件成功・失敗0
     dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
       → 全8テストプロジェクト854件成功・失敗0
@@ -433,7 +433,7 @@ HWND/D3D12/WPF/live buffer/Visual Studio UndoのObservedは次表の実機確認
 
     dotnet build CSharpGameEngine.slnx -c Debug --no-restore
       → 成功、警告0/エラー0
-    dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore
+    dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj --no-restore
       → 381件成功・失敗0
     dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
       → 全8テストプロジェクト873件成功・失敗0
@@ -473,7 +473,7 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
 
     dotnet build CSharpGameEngine.slnx -c Debug --no-restore
       → 成功、警告0/エラー0
-    dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore
+    dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj --no-restore
       → 389件成功・失敗0
     dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
       → 全8テストプロジェクト881件成功・失敗0

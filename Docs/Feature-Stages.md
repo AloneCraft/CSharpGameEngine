@@ -164,7 +164,7 @@ dotnet run --project stages/CSharpGameEngine.FeatureStages.<Pack> -- show <scene
 - 描くのはSceneの`StageVisual`だけである。値は生成されたSystem（`StageVisualCollectSystem`）が編集用の1フレームで集める。物理・流体・破壊などのsolverは動かさない。シーンの配置を見るための表示であり、`run`の合否（Oracle）を置き換えない。
 - `Primitive`の形は表示用の取り決めで、シーンの部品名から決めた。0=カメラの目印、1=箱、2=球、3=三角形、4=板（布・波の格子）、5=棒（ロープ・軸）。0・1・4・5はどれも箱で、薄さや細さはシーンの`ScaleX/Y/Z`のまま描く（布は3×0.1×3、ロープは0.15×5×0.15）。色は`Color`のARGB。カメラは全体が収まる位置へ自動で置く。光は環境光（0.4）と、カメラ側の上から斜めに当てる方向光（3ルクス、進む向き(0.4,−0.8,0.5)、影なし）で、面の向きが陰影で分かる。
 - 描画のため、Packは`net10.0-windows10.0.19041.0`を対象にし、`CSharpGameEngine.Windows`を参照して`Stage.cgeshaderartifact`を出力先の`Shaders\`へ置く。`run`と`list`の出力は変わらない。
-- 自動テストは`tests/CSharpGameEngine.FeatureRunner.Tests/StagePackShowTests.cs`。Packの実行ファイルをWARPの隠し窓で動かし、保存したPNGに三角形と細い軸が写ることと、D3D12エラーが0であることを確かめる。
+- 自動テストは`tests/エンジンのテスト/FeatureRunner/StagePackShowTests.cs`。Packの実行ファイルをWARPの隠し窓で動かし、保存したPNGに三角形と細い軸が写ることと、D3D12エラーが0であることを確かめる。
 
 
 ## M0060 executable shader stages

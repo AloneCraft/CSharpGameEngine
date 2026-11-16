@@ -74,7 +74,7 @@ Phase 0で保留していた`TransformMath.TryCalculateLocal`相当の共有方�
 rg -n "CoordinateHandedness" src tests tools Docs
   → 実装上の分岐はSpatial<TConvention>.RightFromUpForward。Camera/Renderer/SceneViewCameraからの参照0件。
 
-dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj \
+dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj \
   -c Debug --filter "FullyQualifiedName~SceneViewCameraTests|FullyQualifiedName~TransformGizmoTests"
   → 成功(実際の最終全体テスト件数はM0020 Phase 3検証節を参照)
 

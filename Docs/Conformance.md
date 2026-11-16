@@ -999,7 +999,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/CodeAnalysis/GenerateEntityGenerator.cs、GenerateEntityAnalyzer.cs、
     GenerateEntityCommonEmitter.cs、GenerateEntityAosEmitter.cs、GenerateEntitySoaEmitter.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorEmissionTests.cs、
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityGeneratorEmissionTests.cs、
     GenerateEntityGeneratorConstSwitchTests.cs、GenerateEntityAosRuntimeTests.cs、
     GenerateEntitySoaRuntimeTests.cs、GenerateEntityConformanceTests.cs
 - Observed behavior:
@@ -1025,7 +1025,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   - src/CSharpGameEngine.Generation.Abstractions/EntityStorageKind.cs
   - src/CodeAnalysis/GenerateEntityEmitterSupport.cs、GenerateEntityGenerator.cs、
     GenerateEntitySoaEmitter.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityCombinedKindTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityCombinedKindTests.cs
 - Observed behavior:
   - 両フラグ指定時、1つの宣言から`{Type}.Common.g.cs`/`{Type}.Aos.g.cs`/`{Type}.Soa.g.cs`の
     3ファイルが出力される。Commonは1回だけで、Facadeは`{Type}AosStore`に束縛される。
@@ -1064,7 +1064,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/CodeAnalysis/GenerateEntityDiagnostics.cs、
     GenerateEntityAnalyzer.cs、AnalyzerReleases.Unshipped.md
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityGeneratorDiagnosticsTests.cs
 - Observed behavior:
   - `ENTGEN001`〜`015`(15件)がそれぞれ対象コードで報告され、`ValidCharacterSource_
     ProducesZeroDiagnostics`(正しいCharacter宣言)ではいずれも報告されないことを確認した。
@@ -1080,7 +1080,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/Engine/Core/Spatial/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
     CoordinateBasisValidator.cs、UnitConversion.cs、Spatial.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、CoordinateBasisValidatorTests.cs、
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs、CoordinateBasisValidatorTests.cs、
     UnitConversionTests.cs、ImportAxisConversionTests.cs、DeterminismTests.cs
 - Observed behavior:
   - `RufVector`/`XyzVector`はblittable・unmanagedで、`XyzVector`→`Vector3`は`explicit`演算子のみ。
@@ -1101,7 +1101,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/Engine/Core/Spatial/RufQuaternion.cs、ITransformConvention.cs、
     StandardTransformConvention.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs、TransformConventionTests.cs
+  - tests/エンジンのテスト/Core/Spatial/RufQuaternionTests.cs、TransformConventionTests.cs
 - Observed behavior:
   - `StandardTransformConvention.Compose`はScale→Rotation→Translationの順(row-vector規約)。
     `Combine`は`local*parentWorld`(child-then-parent)。`TransformNormal`は逆転置行列を使う
@@ -1120,7 +1120,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   - src/Engine/Core/Spatial/Conventions/UnityCoordinateConvention.cs、
     src/Engine/Core/Spatial/Conventions/UnrealCoordinateConvention.cs、
     src/Engine/Core/Spatial/Conventions/BlenderWorldConvention.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
   - samples/SpatialPresetDemoの実行結果(Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md参照)
 - Observed behavior:
   - 3実装とも成分の固定並べ替えのみ。Preset別に`samples/SpatialPresetDemo`を実行し、Forward軸の
@@ -1161,7 +1161,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/Engine/Core/Spatial/CameraBasis.cs、DirectionalLightBasis.cs、
     SpotLightBasis.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs、LightBasisTests.cs
+  - tests/エンジンのテスト/Core/Spatial/CameraBasisTests.cs、LightBasisTests.cs
 - Observed behavior:
   - `CameraBasis`のコンストラクタは`Forward`のみ正規化し`Up`はそのまま保持する。
   - `DirectionalLightBasis`/`SpotLightBasis`の`DirectionToLight`は常に`-Forward`。
@@ -1175,7 +1175,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/Windows/Graphics/Camera.cs
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(既存60件、シャドウテスト2件含む)
+  - tests/Windowsのテスト/Windows/Graphics/CameraTests.cs(既存60件、シャドウテスト2件含む)
 - Observed behavior:
   - `GetFlatRight()`は`Spatial<UnityCoordinateConvention>.RightFromUpForward`経由になり、
     旧`Cross(Vector3.UnitY,flatForward)`式とビット単位で一致することを実測確認した。
@@ -1191,7 +1191,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/Engine/Core/Geometry/ProceduralMeshFactory.cs
-  - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs(既存30件、無改修)
+  - tests/エンジンのテスト/Core/Geometry/ProceduralMeshFactoryTests.cs(既存30件、無改修)
 - Observed behavior:
   - 全8プリミティブの頂点/法線計算が`RufVector`ベースになり、出力直前の
     `Spatial<UnityCoordinateConvention>.ToXyz`(恒等写像)により既存30件のテスト
@@ -1218,7 +1218,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/Engine/Core/Spatial/Conventions/GltfCoordinateConvention.cs、
     src/Engine/Core/Spatial/Conventions/FbxCoordinateConvention.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
 - Observed behavior:
   - 両方ともR=+X,U=+Y,F=-Z,RightHanded(数値的に同一定義だが独立した型)。Golden Value・
     RoundTrip・Handedness(`Cross(Right,Up)==Backward`)をいずれも実測確認した。
@@ -1232,7 +1232,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - src/Import/Gltf/GltfAxisConversion.cs、GltfImporter.cs、
     ImportedLightDirection.cs
-  - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs(既存18件+Z非ゼロ新規2件)
+  - tests/エンジンのテスト/Import/Gltf/GltfImporterSceneTests.cs(既存18件+Z非ゼロ新規2件)
 - Observed behavior:
   - Translation/Rotation(ミラー行列共役変換)/メッシュローカル頂点/Tangent/Windingが変換され、
     `ImportScene`の公開API出力は全てエンジン(`UnityCoordinateConvention`)空間になる。
@@ -1279,7 +1279,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/Entities/ComponentType.cs、World.cs、Archetype.cs
-  - tests/CSharpGameEngine.Entities.Tests/ComponentTypeRegistrySpec.cs、ArchetypeSpec.cs、
+  - tests/ECSのテスト/ComponentTypeRegistrySpec.cs、ArchetypeSpec.cs、
     WorldSpec.cs
 - Observed behavior:
   - Archetypeは`World.GetOrCreateArchetype`が実行時のComponent集合から動的生成し、
@@ -1297,7 +1297,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/Entities/World.cs、Archetype.cs
-  - tests/CSharpGameEngine.Entities.Tests/StructuralChangeSpec.cs
+  - tests/ECSのテスト/StructuralChangeSpec.cs
 - Observed behavior:
   - Component追加・削除の即時APIは`internal`であり、外部(`[Update]`メソッド)からは
     `EntityCommandBuffer`経由でしか到達できない。Add/Removeエッジキャッシュの
@@ -1329,7 +1329,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   - src/Entities/EntityCommandBuffer.cs
   - src/CodeAnalysis/GameSystemLoopEmitter.cs(`world.Commands.Playback(world)`
     をループ末尾に生成)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEndToEndTests.cs
     (`Commands_StructuralChangesApplyOnlyAfterPlaybackAtEndOfGeneratedLoop`)
 - Observed behavior:
   - 行ループ中に`commands.Add<T>`を積んでも、`GeneratedGameLoop.Update`が最後に
@@ -1343,7 +1343,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/CodeAnalysis/GameSystemAnalyzer.cs、GameSystemExecutorEmitter.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs、
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEmissionTests.cs、
     GameSystemGeneratorEndToEndTests.cs
 - Observed behavior:
   - `ref X`→Write、`in X`→Read、フィールド0のタグ型はQuery条件のみで列を持たない、という
@@ -1361,7 +1361,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/CodeAnalysis/GameSystemScheduler.cs、GameSystemLoopEmitter.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs、
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEmissionTests.cs、
     GameSystemGeneratorDiagnosticsTests.cs
 - Observed behavior:
   - Write側メソッドが宣言順・クラス名Ordinal順では後であっても、Read側より先に実行される
@@ -1378,7 +1378,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/CodeAnalysis/GameSystemDiagnostics.cs、AnalyzerReleases.Unshipped.md
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorDiagnosticsTests.cs
 - Observed behavior:
   - `SYSGEN001`〜`020`の20件それぞれが対象コードで報告され、正しい`[GameSystem]`クラスでは
     いずれも報告されないことを確認した。診断が1件でもあるクラスは、そのクラス分のExecutor
@@ -1413,7 +1413,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/Entities/Parent.cs、SceneNodeTag.cs、SceneNodeId.cs
-  - tests/CSharpGameEngine.Entities.Tests/SceneAuthoringSpec.cs
+  - tests/ECSのテスト/SceneAuthoringSpec.cs
 - Observed behavior:
   - `Parent`/`SceneNodeTag`は他Componentと同じ`World.CreateArchetype<T1..T8>`+`GetRef<T>`経路で
     問題なく扱えることを単体テストで確認した。`SceneNodeId`/`SceneNodeSymbol`は値ベースの
@@ -1427,7 +1427,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/CodeAnalysis/SceneDefinitionAnalyzer.cs、SceneRuntimeEmitter.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorEndToEndTests.cs、
+  - tests/エンジンのテスト/CodeAnalysis/SceneDefinitionGeneratorEndToEndTests.cs、
     SceneDefinitionGeneratorEmissionTests.cs
 - Observed behavior:
   - `CompileAndLoad`で実際にコンパイル・実行し、`CreateRuntime`が構築した`World`上でRoot→
@@ -1443,7 +1443,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Confidence: High
 - Evidence:
   - src/CodeAnalysis/SceneDefinitionDiagnostics.cs、AnalyzerReleases.Unshipped.md
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDefinitionGeneratorDiagnosticsTests.cs
 - Observed behavior:
   - `SCENE001`〜`009`の9件それぞれが対象コードで報告され、正しい`[SceneDefinition]`クラスでは
     いずれも報告されないことを確認した。診断が1件でもあるクラスは、そのクラス分の
@@ -1495,7 +1495,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence:
   - tools/VSExtension/PreviewSceneDefinitionCommand.cs、SceneHwndHost.cs、
     GizmoMeshFactory.cs
-  - tests/CSharpGameEngine.VSExtension.Tests/GizmoMeshFactoryTests.cs、
+  - tests/VS拡張のテスト/GizmoMeshFactoryTests.cs、
     ExternalScenePreviewLoaderTests.cs
 - Observed behavior:
   - `ExternalScenePreviewLoaderTests`が実際にブリッジサブプロセスを起動し、
@@ -1531,7 +1531,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - `StageRenderer` now has a real directional shadow pass and an HDR offscreen target. Imported
   emissive factors feed the same HDR path; the fullscreen post-process performs a thresholded
   spatial 3x3 bloom blur followed by ACES tone mapping.
-- Evidence: `dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c Debug
+- Evidence: `dotnet test tests/Windowsのテスト/Windowsのテスト.csproj -c Debug
   --filter FullyQualifiedName~StageGpuIntegrationTests` (4/4), the post-process shader compile test,
   and the UserGame/Core test suites listed in `Docs/Implementation-Status.md`.
 - The old `UserEcsProject` audio sample remains intentionally unchanged and still has its historical
@@ -2505,14 +2505,14 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - **Matches(非フォーカス・マーク寿命)**: Hierarchy起点だけが、既に開いている対象C# bufferへ`SceneNode.Location.Span`全体を背景マークする。親子重複は併合し、複数の独立範囲は併記する。通常クリックは文書を開かず、フォーカスもキャレットも変更しない。選択解除、Scene切替、解析失敗、再解析でマーカーを消去または再計算する。
 - **Matches(明示移動)**: ダブルクリックまたはEnterだけがprimaryの`Span.Start`へ移動を要求する。RDTで既に開いた文書を確認できない場合、または再解析でNode/TextViewを得られない場合は何もしない。
 - **Matches(実機Observed)**: VS Experimental Instanceで、連続Ctrl/Shift複数選択、複数マーク、親子Span、Enter/double-click移動、および未表示文書を開かないことを確認した。
-- Evidence: `HierarchySourceSyncTests`を含む`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`はDebug/Releaseとも425件成功・失敗0。
+- Evidence: `HierarchySourceSyncTests`を含む`dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj --no-restore`はDebug/Releaseとも425件成功・失敗0。
 
 
 ## 2026-08-16 M0020 follow-up: 未表示ソースからの Scene Designer 起動
 
 - **Matches**: ソリューションエクスプローラーで右クリックした`.cs`のSceneは、対象文書を開かずに即時解析・Pinする。SceneSelectorはPinの`ProjectId`を優先してカタログを取得するため、アクティブなコード文書が無い状態でも3D表示を維持する。
 - **Matches**: カタログ取得失敗はSelectorを無効化する補助UIの失敗であり、Pin済みSnapshotや`SceneHwndHost`を破棄しない。Scene自体の解析失敗・消失だけが空状態へ遷移する。
-- Evidence: `SceneCatalogTargetPolicyTests`を追加。`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`はDebug/Releaseとも399件成功・失敗0。
+- Evidence: `SceneCatalogTargetPolicyTests`を追加。`dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj --no-restore`はDebug/Releaseとも399件成功・失敗0。
 
 ## 2026-08-16 M0020 follow-up: VS テーマ Hierarchy、Component icon、標準 source marker
 

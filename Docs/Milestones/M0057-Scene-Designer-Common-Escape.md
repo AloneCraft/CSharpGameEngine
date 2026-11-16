@@ -22,7 +22,7 @@ Scene View、Hierarchy、Inspector、Component Paletteのいずれにフォー�
 
 ## Verification
 
-- `dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj -c Debug --no-restore`
+- `dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj -c Debug --no-restore`
 - Result: VSIX 969 passed, 0 failed per configuration; full solution 1,575 passed, 0 failed per configuration.
 - Experimental Instanceでの「選択解除後も別タブがアクティブ化しない」実機確認は未実施。
 

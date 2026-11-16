@@ -33,7 +33,7 @@ Source Generatorを、既存の本番ECS(`CSharpGameEngine.Entities`+`GameSystem
   (`MoveArchetype`/`Detach`/`PlaybackMoveArchetypes`/`ApplyMoveArchetypeNN`)、
   `GeneratedGameLoop.RunFrame`/`Run`を出力。
 - `StaticArchetypeDiagnostics.cs`: `SARCH001`〜`SARCH015`(`AnalyzerReleases.Unshipped.md`に登録済み)。
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/`: `StaticArchetypeGeneratorTestHelper.cs`(`Runtime.cs`/
+- `tests/エンジンのテスト/CodeAnalysis/`: `StaticArchetypeGeneratorTestHelper.cs`(`Runtime.cs`/
   `Components.cs`/`Systems.cs`をファイルからリンクして読み込み、テストとサンプル実体のドリフトを
   防ぐ)、`StaticArchetypeGeneratorDiagnosticsTests.cs`(15件)、`StaticArchetypeGeneratorEmissionTests.cs`
   (出力順序・System1のループ包含・決定性・宣言順序非依存性を含む6件)、

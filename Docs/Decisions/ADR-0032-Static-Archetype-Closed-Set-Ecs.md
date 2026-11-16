@@ -186,7 +186,7 @@ dotnet run --project samples/StaticArchetypeSystemsDemo -c Debug
   → frame 0〜4: "0=0 1=0 2=1 01=3" (frame 0でArchetype0/Archetype1の各1体がArchetype01へ移動、
     Archetype2は不変、以降定常状態)
 
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj -c Debug
+dotnet test tests/エンジンのテスト/エンジンのテスト.csproj -c Debug
   → 成功、76件(既存52件+新規24件: 診断15件・Emission6件・EndToEnd3件)、失敗0・回帰0
 
 dotnet build UserGameProject/UserGameProject.csproj -c Debug

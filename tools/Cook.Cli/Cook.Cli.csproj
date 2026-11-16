@@ -12,7 +12,7 @@
     <ProjectReference Include="..\..\src\Cooking\Cooking.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Cook.Tests</_Parameter1></AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>焼き込みのテスト</_Parameter1></AssemblyAttribute>
   </ItemGroup>
   <ItemGroup><Compile Include="../Shared/ThumbnailPng.cs" Link="ThumbnailPng.cs" /></ItemGroup>
   <ItemGroup><PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" /></ItemGroup>

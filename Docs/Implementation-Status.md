@@ -27,7 +27,7 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Specifications/Numeric-Persistence.md`, ADR-0091
 - Implementation evidence: `src/Numerics/NumericValueCodec.cs`, `LogicalScalar.cs`
-- Tests: `tests/CSharpGameEngine.Numerics.Tests/NumericValueCodecTests.cs`; current Numerics Debug/Release 80 each includes arithmetic and Single/Double conversion regression. ECS evidence: M0128.
+- Tests: `tests/エンジンのテスト/Numerics/NumericValueCodecTests.cs`; current Numerics Debug/Release 80 each includes arithmetic and Single/Double conversion regression. ECS evidence: M0128.
 - Reverse-engineered behavior: Shared canonical finite-value binary supports signed 64/128/192-bit fixed input, float/double input, cross-format nearest-even restoration and exact decimal output. Failed fixed reads leave the destination unchanged. LogicalScalar exposes canonical-value methods; raw scalar formats retain the selected width. WorldCell and generated Snapshot readers and writers use only version 2 with common numeric values; version 1 is rejected (ADR-0098 §5, 2026-11-15).
 - Conformance: Matches the implemented numeric codec boundary; Partial for the approved end-to-end plan.
 - Known deviations: Actual project-page selection/save and authoring edits are observed. Final-candidate IDE execution/reopen remains pending. Artifact-only consumer cutover and source-free SDK 0.1.42 distribution are verified in M0128, including Float snapshot restoration in a separate Double process. Identity CPU/GPU contracts are implemented under ADR-0096. Static World snapshot generation for supported value graphs is implemented under F-L6-007.
@@ -41,7 +41,7 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 6
 - Implementation evidence: `src/Engine/Core/Spatial/ConventionConversion.cs`
-- Tests: `tests/CSharpGameEngine.Core.Tests/ConventionConversionTests.cs` (Core suite: 156 passed)
+- Tests: `tests/エンジンのテスト/Core/ConventionConversionTests.cs` (Core suite: 156 passed)
 - Reverse-engineered behavior: Signed axis permutations preserve scale signs; row-vector matrices use transpose-basis conjugation. Tangents/rotations follow mirror parity and Unreal transforms round-trip.
 - Conformance: Matches for the additive conversion API. Existing import adapters have not been replaced.
 - Next action: Use this conversion from the S4 built-in worker adapters.
@@ -54,7 +54,7 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` sections 3–4
 - Implementation evidence: `src/Contracts/{ModelIdentity,HumanoidBone,ImporterCatalog}.cs`
-- Tests: `tests/CSharpGameEngine.Contracts.Tests/ModelIdentityTests.cs` (Contracts suite: 26 passed)
+- Tests: `tests/エンジンのテスト/Contracts/ModelIdentityTests.cs` (Contracts suite: 26 passed)
 - Reverse-engineered behavior: Subasset hashes use version/kind/NFC name independently of payload; selectors preserve source paths and escape names. There are 55 humanoid roles and 15 read-only required roles. Catalog DTOs expose no provider SDK types.
 - Conformance: Matches for the identity contracts; registry/catalog implementation and generator diagnostics are separate S3/S4 work.
 - Next action: Connect catalog injection, metadata and content-index.
@@ -68,7 +68,7 @@
 - Verification: TestVerified
 - Intended specification: ADR-0080 section 5
 - Implementation evidence: `src/Engine/Content/Models`, `ContentArtifact.cs`
-- Tests: `tests/CSharpGameEngine.Content.Tests/ModelArtifactTests.cs` (Content suite: 71 passed with JSON reflection disabled; c2ca910138fd4f9abd5614d655f61c3d)
+- Tests: `tests/コンテンツのテスト/ModelArtifactTests.cs` (Content suite: 71 passed with JSON reflection disabled; c2ca910138fd4f9abd5614d655f61c3d)
 - Reverse-engineered behavior: Typed binary model/mesh/skeleton/clip/license codecs validate hierarchy, references and streams; new artifact kinds 8–12 are recognized. ModelArtifactReader checks indexed kind, hash, provenance and size; ModelAssetBundle reuses ShippingContentManifestBuilder and RuntimeAssetStore with closed codecs, and validates payload references against the declared closure. The assembly has no Cooking/Import dependency.
 - Conformance: Partial. Actual GLB production and source-free bundle loading are tested, including substituted hashes and missing dependencies. Game, preview, collision, navigation and distance-field consumers now use prepared models in source; Source/SDK builds and related CPU/WARP tests pass in Debug. Generated JSON contracts and a closed binary schema remove runtime member discovery; the revised self-contained Double shipping runtime passes legacy-model loading, cross-profile separate-process restore and 110-frame WARP execution; 148 final Windows Release cases pass; SDK 0.1.42 shipping/all-template execution passes; actual model preview, source addition/registration and inline rename are observed; final-candidate IDE execution/reopen remains pending. Float influence weights remain a prototype; packed representation is outstanding.
 - Next action: Complete actual Visual Studio production/settings acceptance in M0128; preserve the separate remaining M0114 representation work.
@@ -96,7 +96,7 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 3
 - Implementation evidence: `src/Cooking/Interchange/{InterchangeDocument,InterchangeCodec,InterchangeValidator}.cs`
-- Tests: `tests/CSharpGameEngine.Cook.Tests/InterchangeTests.cs`
+- Tests: `tests/焼き込みのテスト/InterchangeTests.cs`
 - Reverse-engineered behavior: CGEX wire v2 has a bounded little-endian header, SHA-256 and binary scalar payload with ordered UTF-8 dictionary keys; corruption/truncation and forged lengths are rejected. IR records contain engine/BCL/Contracts values only.
 - Conformance: Partial. A provider-free type-graph test exists; full rig extensions and exhaustive resource/adversarial validation remain unresolved. Prepared production and RuntimeAssetStore consumption are connected by ModelArtifactPreparationTests; the active game model-loading path still requires cutover.
 - Next action: Complete S2 coverage before S3 worker/orchestrator integration.
@@ -110,7 +110,7 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` section 4
 - Implementation evidence: `src/Cooking/{AssetImporter,PluginModuleLoadContext}.cs`, `tools/Cook.Cli/CookerHost.cs`
-- Tests: `tests/CSharpGameEngine.Cook.Tests/{InterchangeTests,CookerHostTests,ImportWorkerTests}.cs` (Cook suite: 29 passed)
+- Tests: `tests/焼き込みのテスト/{InterchangeTests,CookerHostTests,ImportWorkerTests}.cs` (Cook suite: 29 passed)
 - Reverse-engineered behavior: Cooking, Contracts and Core resolve from the default host context; module code loads into a distinct collectible context. Existing cookers retain their selection/verification behavior.
 - Conformance: Partial. `describe` and `import-worker` run in Cook.Cli; separate-worker equivalence and failure/read-set tests pass. Parent registry selection and cooperative/forced cancellation exist. Tools/nested import and full lifetime/resource policy remain.
 - Next action: Complete S3 orchestration and resource policy. The user-authorized five-line assertion gate is resolved.
@@ -124,7 +124,7 @@
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0080-Universal-Model-Import.md` sections 6 and 10
 - Implementation evidence: `src/Cooking/Interchange/ModelImportPipeline.cs`, `assets/TestFixtures/Import/M0114-Source-Parity.json`
-- Tests: `tests/CSharpGameEngine.Cook.Tests/InterchangeTests.cs`, `tests/CSharpGameEngine.Import.Tests/ModelImportParityTests.cs`
+- Tests: `tests/焼き込みのテスト/InterchangeTests.cs`, `tests/エンジンのテスト/Import/ModelImportParityTests.cs`
 - Reverse-engineered behavior: Source-space normalization is idempotent, preserves signed scale, converts UV origin/units, validates closure/bind poses and merges compatible skins. The old-reader oracle covers 97 source files/60 clips; bin/obj are excluded.
 - Conformance: Partial. Full custom/morph-in-between processing and adapter parity/standard-frame equivalence remain. Original source readers stay active until S4.
 - Next action: Complete normalization cases, then compare the new adapters with the frozen oracle.
@@ -174,7 +174,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/CodeAnalysis/CodeAnalysis.csproj
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj
+  - tests/エンジンのテスト/エンジンのテスト.csproj
 - Reverse-engineered behavior:
   - netstandard2.0・`LangVersion=14`・`IsRoslynComponent=true`・`EnforceExtendedAnalyzerRules=true`で
     ビルドされ、`Microsoft.CodeAnalysis.CSharp`/`Microsoft.CodeAnalysis.Analyzers` 4.14.0を
@@ -198,7 +198,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/CodeAnalysis/CSharpGameEngineBootstrapGenerator.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/BootstrapGeneratorTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/BootstrapGeneratorTests.cs
 - Reverse-engineered behavior:
   - `IIncrementalGenerator`実装で、`Initialize`は`RegisterPostInitializationOutput`の1呼び出しのみ
     (`CompilationProvider`/`AnalyzerConfigOptionsProvider`は消費しない)。
@@ -280,7 +280,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.Ecs/EcsReadOnlyAttribute.cs
 - Tests:
   - tests/CSharpGameEngine.Ecs.Tests/FakeArchetypes.cs(Fake実装によるランタイム単体検証)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/EcsArchetypeGeneratorEndToEndTests.cs
     (Generatorが実際に生成する実装での検証)
 - Reverse-engineered behavior:
   - `static abstract`インターフェースメンバー(`ComponentTypes`/`CreateColumns`/`CreateView`)による
@@ -306,8 +306,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/EcsArchetypeModel.cs
   - 削除済みの旧L9アプリケーション`Components.cs`/`Archetypes.cs`(履歴は`40286e0`以前)
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/EcsArchetypeGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/EcsArchetypeGeneratorEndToEndTests.cs
 - Reverse-engineered behavior:
   - `ForAttributeWithMetadataName("CSharpGameEngine.Ecs.EcsArchetypeAttribute", ...)`でアーキタイプ
     構造体を検出し、コンポーネントプロパティを完全修飾名のOrdinal文字列でソートして正規化する。
@@ -341,7 +341,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/AnalyzerReleases.Shipped.md
   - src/CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/EcsArchetypeGeneratorDiagnosticsTests.cs
 - Reverse-engineered behavior:
   - `ECSGEN001`(非partial)、`ECSGEN002`(ジェネリック禁止)、`ECSGEN003`(ネスト禁止)、
     `ECSGEN004`(コンポーネント0件禁止)、`ECSGEN005`(ref/ref readonly必須)、
@@ -370,7 +370,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/Engine/Rendering/View/RenderCamera.cs
 - Tests:
-  - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs
+  - tests/エンジンのテスト/Rendering/CameraTests.cs
 - Reverse-engineered behavior:
   - Yaw/Pitch/Distance/Targetからview/projection行列を計算するUE5風スプリングアームカメラ。
     `System.Numerics`とCoreのSceneFactory/RUFに依存するポータブルな計算で、GPU無しで単体テストできる。
@@ -412,7 +412,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Rendering/StageRenderInputs.cs
   - assets/Shaders/Stage.hlsl
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs
+  - tests/Windowsのテスト/Windows/Graphics/StageGpuIntegrationTests.cs
 - Reverse-engineered behavior:
   - Stageが三角形・インポートモデル・シーンを共通で描画する。メッシュ/マテリアル/
     オブジェクトを分離するAPI(`StageMeshCreateInfo`/`StageMaterialCreateInfo`/
@@ -450,8 +450,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `UserEcsProject/Scenes/*.json`(シーン JSON、ADR-0070)で、読み込みはエンジンの
   `src/Runtime/Windows/RuntimeSystems.cs`(`LevelLoad`)が行う。旧機能のうち手書きの階層同期・移動・距離減衰付き
   複数音源は同等移植されていないため、旧FeatureをImplementedとは扱わない。
-- Tests: 現行後継は`tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`と
-  `tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs`で検証する。
+- Tests: 現行後継は`tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEndToEndTests.cs`と
+  `tests/Windowsのテスト/Windows/Runtime/RenderServerTests.cs`で検証する。
 - Conformance: NotApplicable(旧実装は存在しない)
 - Known deviations: 旧機能と現行Scene DSLランタイムの機能集合は一致しない。
 - Next action: 必要なゲームプレイ機能は現行`IScene`/`ISystem`契約上で別Featureとして再設計する。
@@ -465,8 +465,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Windows/Graphics/StageRenderer.cs (`RenderShadowPass`, HDR target, fullscreen post-process pass, resize/dispose paths)
   - assets/Shaders/Stage.cgeshadergraph with Shadow.cgesubgraph and Aces.cgesubgraph (the Stage shader moved from `Stage.hlsl` into the Shader Graph; `ShaderArtifactAbi` names its entries)
 - Tests:
-  - tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs (the Stage graph compiles every entry, post-process included)
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs (6/6, including shadow/light output, resize,
+  - tests/Windowsのテスト/ShaderGraph.Cli/ShaderGraphCompilerTests.cs (the Stage graph compiles every entry, post-process included)
+  - tests/Windowsのテスト/Windows/Graphics/StageGpuIntegrationTests.cs (6/6, including shadow/light output, resize,
     per-frame-slot stability, and shadow-casting)
 - Result: Scene lighting is rendered into `R16G16B16A16_FLOAT`; imported PBR base color, normal,
   metallic/roughness, and emissive factors reach the shader. A thresholded 3x3 HDR spatial blur is
@@ -496,7 +496,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/Engine/Core/Geometry/ProceduralMeshFactory.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs
+  - tests/エンジンのテスト/Core/Geometry/ProceduralMeshFactoryTests.cs
 - Reverse-engineered behavior:
   - `CreatePlane`はY=0固定・法線+Yの矩形、`CreateBox`は24頂点(面ごとに法線分離)の
     軸整列ボックスを生成する。このリポジトリで初めての手続き的メッシュ生成コード
@@ -625,7 +625,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Import/Gltf/GltfAxisConversion.cs(ADR-0027で新規)
   - src/Import/Gltf/GltfSceneImportResult.cs
 - Tests:
-  - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs
+  - tests/エンジンのテスト/Import/Gltf/GltfImporterSceneTests.cs
 - Reverse-engineered behavior:
   - 既存の`Import(string)`(先頭プリミティブのみ)とは独立した追加APIで、`Import`自体は
     無改修。`Scene.VisualChildren`/`Node.VisualChildren`を再帰的に歩き、メッシュまたは
@@ -828,7 +828,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/VSExtension/BridgeDocument.cs
   - tools/VSExtension/MeshLoader.cs
 - Tests:
-  - tests/CSharpGameEngine.VSExtension.Tests/BridgeExecutableLocatorTests.cs(`BridgeExecutableLocator`
+  - tests/VS拡張のテスト/BridgeExecutableLocatorTests.cs(`BridgeExecutableLocator`
     の候補探索・Debug/Release/RIDサブフォルダの優先順位を一時フォルダで検証、実プロセス起動なし)
   - ブリッジCLI自体・`MeshLoader`のキャッシュ挙動は引き続き専用ユニットテスト無し(`Process.Start`
     薄いラッパー/実際のブリッジ起動を伴うため。`dotnet run`実行での実地確認に留める)。
@@ -886,7 +886,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - ~~旧L9アプリケーションの`Assets/DefaultScene/Box.glb`~~(`40286e0`で削除)
 - Tests: 8件のうち7件は削除対象そのもののテストなのでカバレッジ損失なし。残る1件
   (出荷されていた旧`DefaultScene.scene`を読む唯一のテスト)も`40286e0`で削除済み:
-  - ~~tests/CSharpGameEngine.VSExtension.Tests/DefaultSceneFileTests.cs~~
+  - ~~tests/VS拡張のテスト/DefaultSceneFileTests.cs~~
 - Reverse-engineered behavior(削除時点の記録として保持):
   - EditorSpec §3のJSONスキーマ(`schemaVersion`/`nodes[].{id,name,parentId,transform,
     meshAssetPath,components}`)と完全一致する往復シリアライズを、`StableId`/`Vector3`/
@@ -983,7 +983,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Core/Geometry/ProceduralMeshData.cs
   - src/Engine/Core/Geometry/ProceduralMeshFactory.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs
+  - tests/エンジンのテスト/Core/Geometry/ProceduralMeshFactoryTests.cs
 - Reverse-engineered behavior:
   - `src/CSharpGameEngine.Graphics.D3D12/ProceduralMeshFactory.cs`(`CreatePlane`/`CreateBox`のみ)
     から移設。移設前の時点で`Graphics.D3D12`本体のどこからも参照されておらず(唯一の呼び出し元は
@@ -993,7 +993,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - (ADR-0034追記)上記の**テスト専用エッジは解消した**。`Geometry`が
     `CSharpGameEngine.Core`に統合され、`Graphics.D3D12`が属する`CSharpGameEngine.Windows`は
     もともと`Core`を参照しているため、`StageGpuIntegrationTests.cs`(現
-    `tests/CSharpGameEngine.Windows.Tests/Graphics/`)は追加の参照なしに
+    `tests/Windowsのテスト/Windows/Graphics/`)は追加の参照なしに
     `ProceduralMeshFactory`へ到達できる。名前空間`CSharpGameEngine.Geometry`は無変更。
   - `CreateSphere`は極を単一頂点にしてファンする方式(素朴なUV球のように極の列を複製して
     quad化する方式ではない)で実装しており、これにより退化三角形が構造的に発生しない。
@@ -1172,14 +1172,14 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/VSExtension/ResidentBridgeClient.cs
   - tools/VSExtension/ExternalBridgeProcess.cs(3段フォールバックの調停役)
 - Tests:
-  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeWireMessageTests.cs(`MemoryStream`相手の
+  - tests/エンジンのテスト/Bridge.Hosting/BridgeWireMessageTests.cs(`MemoryStream`相手の
     フレーミング往復)
-  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeServerHostTests.cs(実際のNamed Pipe、
+  - tests/エンジンのテスト/Bridge.Hosting/BridgeServerHostTests.cs(実際のNamed Pipe、
     同一プロセス内・子プロセス起動なし: 単発往復・8件並行リクエストの無混線・ハンドラ例外後の
     継続動作・アイドルタイムアウトでのループ終了)
-  - tests/CSharpGameEngine.VSExtension.Tests/ResidentBridgeClientTests.cs(`ComputePipeName`の
+  - tests/VS拡張のテスト/ResidentBridgeClientTests.cs(`ComputePipeName`の
     決定性・repoRoot/ブリッジ/所有者違いでの別名、`--parent-process-id`付きの起動引数)
-  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeServerHostTests.cs(2026-10-01: 所有者の
+  - tests/エンジンのテスト/Bridge.Hosting/BridgeServerHostTests.cs(2026-10-01: 所有者の
     終了・最初から存在しない所有者で、アイドルタイムアウトを待たずに終了する。`--serve`の引数解釈)
 - Reverse-engineered behavior:
   - 1リクエスト=1接続(パイプの多重化なし)。`BridgeServerHost`は接続ごとに独立した`Task`へ
@@ -1276,7 +1276,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.Generation.Abstractions/EntityStorageKind.cs
   - src/CSharpGameEngine.Generation.Abstractions/GenerateEntityAttribute.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorTestHelper.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityGeneratorTestHelper.cs
     (このアセンブリを参照するテストコンパイルを通じて間接的に検証)
 - Reverse-engineered behavior:
   - net10.0、PackageReferenceなし、Roslynにも`CSharpGameEngine.Ecs`にも依存しない
@@ -1310,11 +1310,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     (`CSharpGameEngine.Generation.Abstractions`への通常参照を追加、`[GenerateEntity]`の
     実利用は未追加)
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorConstSwitchTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityAosRuntimeTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntitySoaRuntimeTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityConformanceTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityGeneratorConstSwitchTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityAosRuntimeTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntitySoaRuntimeTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityConformanceTests.cs
 - Reverse-engineered behavior:
   - `ForAttributeWithMetadataName("CSharpGameEngine.Generation.GenerateEntityAttribute", ...)`で
     対象構造体を検出する。属性引数の`EntityStorageKind`は`AttributeData.ConstructorArguments`
@@ -1383,7 +1383,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/GenerateEntityDiagnostics.cs
   - src/CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GenerateEntityGeneratorDiagnosticsTests.cs
 - Reverse-engineered behavior:
   - `ENTGEN001`〜`015`(カテゴリ`CSharpGameEngine.EntityGeneration.CodeGen`、すべて`Error`)。
     診断が1件でもある型はソース生成を完全にスキップする(`EcsArchetypeEmitter`と同じ規約)。
@@ -1414,13 +1414,13 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Core/Spatial/SpatialConfigurationException.cs
   - src/Engine/Core/Spatial/Spatial.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/CoordinateBasisValidatorTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/UnitConversionTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/ImportAxisConversionTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/DeterminismTests.cs
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs
+  - tests/エンジンのテスト/Core/Spatial/RoundTripTests.cs
+  - tests/エンジンのテスト/Core/Spatial/HandednessTests.cs
+  - tests/エンジンのテスト/Core/Spatial/CoordinateBasisValidatorTests.cs
+  - tests/エンジンのテスト/Core/Spatial/UnitConversionTests.cs
+  - tests/エンジンのテスト/Core/Spatial/ImportAxisConversionTests.cs
+  - tests/エンジンのテスト/Core/Spatial/DeterminismTests.cs
 - Reverse-engineered behavior:
   - `RufVector`(R/U/F)と`XyzVector`(X/Y/Z)は共にblittable・unmanaged・heap割当なしの
     `readonly struct`。`XyzVector`から`System.Numerics.Vector3`への変換は`explicit`演算子のみ
@@ -1453,8 +1453,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Core/Spatial/ITransformConvention.cs
   - src/Engine/Core/Spatial/StandardTransformConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/TransformConventionTests.cs
+  - tests/エンジンのテスト/Core/Spatial/RufQuaternionTests.cs
+  - tests/エンジンのテスト/Core/Spatial/TransformConventionTests.cs
 - Reverse-engineered behavior:
   - `ITransformConvention`は`ICoordinateConvention`と独立した契約で、`StandardTransformConvention`は
     Scale→Rotation→Translationの順で合成し(row-vector規約、`scale*rotation*translation`)、
@@ -1488,10 +1488,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Core/Spatial/Conventions/UnrealCoordinateConvention.cs
   - src/Engine/Core/Spatial/Conventions/BlenderWorldConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/ImportAxisConversionTests.cs
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs
+  - tests/エンジンのテスト/Core/Spatial/RoundTripTests.cs
+  - tests/エンジンのテスト/Core/Spatial/HandednessTests.cs
+  - tests/エンジンのテスト/Core/Spatial/ImportAxisConversionTests.cs
 - Reverse-engineered behavior:
   - 3実装とも`ToXyz`/`FromXyz`は成分の固定並べ替えのみ(heap割当・分岐なし)。
   - `samples/SpatialPresetDemo`をPreset別に実行し、`RufVector.Forward`が物理XYZへ変換された値が
@@ -1565,8 +1565,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Core/Spatial/DirectionalLightBasis.cs
   - src/Engine/Core/Spatial/SpotLightBasis.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/LightBasisTests.cs
+  - tests/エンジンのテスト/Core/Spatial/CameraBasisTests.cs
+  - tests/エンジンのテスト/Core/Spatial/LightBasisTests.cs
 - Reverse-engineered behavior:
   - `CameraBasis`のコンストラクタは`Forward`を正規化するが`Up`はそのまま保持する(`Up`は
     正規化せず呼び出し元の値を保つ設計、`CameraBasisTests`で確認)。
@@ -1593,7 +1593,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/Engine/Rendering/View/RenderCamera.cs(`BuildViewMatrix`静的メソッド)
 - Tests:
-  - tests/CSharpGameEngine.Rendering.Tests/CameraTests.cs(`GetView`経由の間接カバレッジ)
+  - tests/エンジンのテスト/Rendering/CameraTests.cs(`GetView`経由の間接カバレッジ)
 - Reverse-engineered behavior:
   - `Matrix4x4.CreateLookAt`への薄い委譲で、Camera.GetViewが共有のRUFビューを構築する。
     旧単体モデルレンダラーの独立したカメラ実装はM0119で削除した。
@@ -1611,10 +1611,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/Engine/Core/Spatial/Conventions/GltfCoordinateConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs(`Gltf_MatchesGoldenValues`)
-  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
-  - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs(実利用側)
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs(`Gltf_MatchesGoldenValues`)
+  - tests/エンジンのテスト/Core/Spatial/RoundTripTests.cs
+  - tests/エンジンのテスト/Core/Spatial/HandednessTests.cs
+  - tests/エンジンのテスト/Import/Gltf/GltfImporterSceneTests.cs(実利用側)
 - Reverse-engineered behavior:
   - R=+X,U=+Y,F=-Z,RightHanded(glTF仕様: 右手系・Y-up、カメラ/`KHR_lights_punctual`ライトは
     既定でローカル-Z方向)。既存Unity/Unreal/Blender Conventionと同型・同パターンだが、
@@ -1644,10 +1644,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/World.cs(`CreateArchetype<T1..T8>`/`CreateEntity`/`Destroy`/
     `IsAlive`/`Has<T>`/`GetRef<T>`)
 - Tests:
-  - tests/CSharpGameEngine.Entities.Tests/ComponentTypeRegistrySpec.cs
-  - tests/CSharpGameEngine.Entities.Tests/ComponentMaskSpec.cs
-  - tests/CSharpGameEngine.Entities.Tests/ArchetypeSpec.cs
-  - tests/CSharpGameEngine.Entities.Tests/WorldSpec.cs
+  - tests/ECSのテスト/ComponentTypeRegistrySpec.cs
+  - tests/ECSのテスト/ComponentMaskSpec.cs
+  - tests/ECSのテスト/ArchetypeSpec.cs
+  - tests/ECSのテスト/WorldSpec.cs
 - Reverse-engineered behavior:
   - Archetypeはコンパイル時に型として宣言せず、実行時の実際のComponent集合から
     `World.GetOrCreateArchetype`が動的に生成する(`Dictionary<ComponentTypeSet, Archetype>`で
@@ -1683,7 +1683,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/Archetype.cs(`TryGetAddEdge`/`SetAddEdge`/
     `TryGetRemoveEdge`/`SetRemoveEdge`)
 - Historical tests(削除済み):
-  - tests/CSharpGameEngine.Entities.Tests/StructuralChangeSpec.cs
+  - tests/ECSのテスト/StructuralChangeSpec.cs
 - Historical behavior:
   - 旧`CSharpGameEngine.Ecs`(ADR-0015、F-L3-001、削除済み)には実行時のComponent追加・削除は
     無かった(ADR-0015で明示的に非目標と記録されていた)。この機能は新規追加。
@@ -1715,8 +1715,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/EntityQuery.cs
   - src/Entities/QueryMatches.cs
 - Historical tests(専用テストは削除済み):
-  - tests/CSharpGameEngine.Entities.Tests/EntityQuerySpec.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
+  - tests/ECSのテスト/EntityQuerySpec.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEndToEndTests.cs
     (`Move_ProcessesEntitiesAcrossMultipleArchetypes_UsingSoaSpans`ほか、生成されたExecutor経由の
     実行時検証)
 - Historical behavior:
@@ -1748,8 +1748,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/ComponentValueStore.cs
   - src/Entities/Entity.cs(`Temporary`/`IsTemporary`/`TemporaryIndex`)
 - Historical tests(専用テストは削除済み):
-  - tests/CSharpGameEngine.Entities.Tests/EntityCommandBufferSpec.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
+  - tests/ECSのテスト/EntityCommandBufferSpec.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEndToEndTests.cs
     (`Commands_StructuralChangesApplyOnlyAfterPlaybackAtEndOfGeneratedLoop`)
 - Historical behavior:
   - `Add<T>(Entity)`/`Add<T>(Entity, in T)`/`Remove<T>`/`Destroy`/`CreateEntity`をFIFOの
@@ -1786,9 +1786,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/GameSystemAttribute.cs、UpdateAttribute.cs、
     ContextAttribute.cs、CurrentEntityAttribute.cs、CommandsAttribute.cs、WithoutAttribute.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorTestHelper.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorTestHelper.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEndToEndTests.cs
 - Reverse-engineered behavior:
   - 推論規則: `ref X`→Query必須+Write、`in X`→Query必須+Read、`in X`(インスタンスフィールド0の
     タグ型)→Query必須のみ・列解決対象外(`X x = default;`をループ外にホイスト)、
@@ -1827,11 +1827,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/GameSystemScheduler.cs
   - src/CodeAnalysis/GameSystemLoopEmitter.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEmissionTests.cs
     (`GeneratedGameLoop_CallsWriterBeforeReader_EvenWhenReaderIsDeclaredFirst`、
     `GeneratedGameLoop_CallsExecutorsInWriteBeforeReadOrder`、
     `GeneratorIsDeterministic_AcrossTwoIndependentRuns`)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorDiagnosticsTests.cs
     (`MutualWriteReadDependency_ReportsSysgen019_ButStillEmitsGeneratedGameLoop`)
 - Reverse-engineered behavior:
   - エッジ規則: AがComponent CをWrite・BがCをRead(A≠B)ならA→B(生産者が先、唯一の意味的に
@@ -1870,7 +1870,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/GameSystemDiagnostics.cs
   - src/CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorDiagnosticsTests.cs
     (SYSGEN001〜020すべてに1件ずつのテストケース)
 - Reverse-engineered behavior:
   - `SYSGEN001`〜`020`(カテゴリ`CSharpGameEngine.Entities.CodeGen`、すべて`Error`)。
@@ -1927,10 +1927,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - src/Engine/Core/Spatial/Conventions/FbxCoordinateConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs(`Fbx_MatchesGoldenValues`)
-  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
-  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
-  - tests/CSharpGameEngine.Import.Tests/Fbx/FbxAxisConversionTests.cs(変換関数の単体テスト)
+  - tests/エンジンのテスト/Core/Spatial/BasisTests.cs(`Fbx_MatchesGoldenValues`)
+  - tests/エンジンのテスト/Core/Spatial/RoundTripTests.cs
+  - tests/エンジンのテスト/Core/Spatial/HandednessTests.cs
+  - tests/エンジンのテスト/Import/Fbx/FbxAxisConversionTests.cs(変換関数の単体テスト)
 - Reverse-engineered behavior:
   - `GltfCoordinateConvention`と数値的に同一の定義(R=+X,U=+Y,F=-Z,RightHanded)だが、
     AssimpNet公式ドキュメント(`PostProcessSteps.MakeLeftHanded`のXMLコメント: 「既定出力は
@@ -1959,9 +1959,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/SceneInstance.cs
   - src/Entities/SceneInstanceTable.cs
 - Tests:
-  - tests/CSharpGameEngine.Entities.Tests/SceneDslTypeSpec.cs
-  - tests/CSharpGameEngine.Entities.Tests/SceneInstanceSpec.cs
-  - tests/CSharpGameEngine.Entities.Tests/SceneInstanceStressSpec.cs
+  - tests/ECSのテスト/SceneDslTypeSpec.cs
+  - tests/ECSのテスト/SceneInstanceSpec.cs
+  - tests/ECSのテスト/SceneInstanceStressSpec.cs
 - Reverse-engineered behavior:
   - `Parent`はUnity DOTSの`Unity.Transforms.Parent`と同じ形の汎用Component(`Entity Value`のみ)。
     現行では`Node.Children`の入れ子からSource Generatorが自動付与する。
@@ -1993,10 +1993,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/SceneInstantiateEmitter.cs
   - src/CodeAnalysis/GameSystemGenerator.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslAnalyzerTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneArchetypeIntegrationTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslAnalyzerTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneArchetypeIntegrationTests.cs
 - Reverse-engineered behavior:
   - `IScene.Root => new Node { ... }`の構文を実行せず解析し、Node名、Component初期化子、Childrenを
     `SceneEmitModel`へ変換する。`SceneInstantiateEmitter`は閉集合Archetypeの直接`Create`呼び出しを生成し、
@@ -2027,7 +2027,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/SceneEmitModel.cs
   - src/CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslAnalyzerTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslAnalyzerTests.cs
 - Reverse-engineered behavior:
   - `SCENE100`〜`118`は`IScene`実装、Root式、Node/Component/Children構文、禁止されたRuntime参照、
     `[StartupScene]`適用先とOrder重複を検証する。カテゴリは`CSharpGameEngine.Entities.CodeGen`で全てError。
@@ -2132,7 +2132,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - `.vsct`のコマンド/グループも退役: `0x0108`(PreviewSceneDefinitionCommandId)、
     `0x1023`(SceneDefinitionContextMenuGroup。宣言は2026-08に削除、IDは再利用しない)
   - **存続している部分**: `tools/VSExtension/GizmoMeshFactory.cs` と
-    `tests/CSharpGameEngine.VSExtension.Tests/GizmoMeshFactoryTests.cs` は削除されておらず、
+    `tests/VS拡張のテスト/GizmoMeshFactoryTests.cs` は削除されておらず、
     現在は`SceneModelRenderObjectBuilder`(ライブRoslynの`SceneModel`描画経路、F-L8-010)が
     メッシュ解決に失敗したときのフォールバックとして使っている。**本エントリを`Removed`にしても
     このファイルは生きている**ため、掃除対象と誤認しないこと。
@@ -2211,9 +2211,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/SystemOrderAttribute.cs
   - src/Entities/Entities.csproj
 - Tests:
-  - tests/CSharpGameEngine.Entities.Tests/WorldSpec.cs(生成された`Create`/`MoveArchetype`/
+  - tests/ECSのテスト/WorldSpec.cs(生成された`Create`/`MoveArchetype`/
     `PlaybackMoveArchetypes`/swap-back位置表修復)
-  - tests/CSharpGameEngine.Entities.Tests/ChunkListSpec.cs(チャンク跨ぎの伸長、`ref`返しの indexer、
+  - tests/ECSのテスト/ChunkListSpec.cs(チャンク跨ぎの伸長、`ref`返しの indexer、
     `RemoveAtSwapBack`の「詰め替えが起きたか」の戻り値)
 - Reverse-engineered behavior:
   - `ISystem`/`IArchetype`は空のマーカーinterface。`Entity`は`record struct Entity(int Id)`で
@@ -2261,19 +2261,19 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/SceneComponentSetCollector.cs
   - src/CodeAnalysis/SceneInstantiateEmitter.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemEntryPointTests.cs(出力条件4種、SYSGEN021、
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemEntryPointTests.cs(出力条件4種、SYSGEN021、
     Bootstrap Archetypeの注入が生成時のみであること、生成された`Main`の実行)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemOrderTests.cs(ファイル名に逆らう
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemOrderTests.cs(ファイル名に逆らう
     `[SystemOrder]`順で生成`Main`を実行、System直接指定がファイル既定値より優先されること、
     既存タイブレークの後方互換回帰、SYSGEN022〜025)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs(出現順の連番命名、
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEmissionTests.cs(出現順の連番命名、
     `Create`の戻り値、`World.Create`オーバーロード、記述順ディスパッチ、部分集合一致、Spawn除外、
     Contextのスレッディング、WorldSnapshot、決定性)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs(部分集合ディスパッチの
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEndToEndTests.cs(部分集合ディスパッチの
     発火回数、フレーム末尾のMoveArchetype適用、Context到達、Spawn宣言Archetypeの生成、WorldSnapshot)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneArchetypeIntegrationTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneArchetypeIntegrationTests.cs
 - Reverse-engineered behavior:
   - 属性を一切使わない構造的推論: 先頭値渡し`Entity`=Entityスロット、末尾`ref State`=Stateスロット、
     それ以外の`ref`=Component、それ以外(ref以外)=Context。ref-kindだけで曖昧性なく判別できる。
@@ -2311,10 +2311,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/GameSystemDiagnostics.cs
   - src/CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs(SYSGEN001〜020の
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorDiagnosticsTests.cs(SYSGEN001〜020の
     各1件+正常系1件。SYSGEN009は欠番であることを、`out`引数がSYSGEN018として報告されるテストで記録)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemEntryPointTests.cs(SYSGEN021)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemOrderTests.cs(SYSGEN022〜025)
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemEntryPointTests.cs(SYSGEN021)
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemOrderTests.cs(SYSGEN022〜025)
 - Reverse-engineered behavior:
   - 属性ベースだった旧SYSGEN001〜020とM0012のSARCH001〜015をいずれも破棄し、構造的推論ベースの規則へ
     全面的に振り直した(`AnalyzerReleases.Shipped.md`が空のため「Removed Rules」管理は不要だった)。
@@ -2348,8 +2348,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Entities/StartupSceneAttribute.cs
   - src/Entities/IScene.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslAnalyzerTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslAnalyzerTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEndToEndTests.cs
 - Reverse-engineered behavior:
   - `StartupSceneAttribute`は`AttributeTargets.Class`、`Order`は`int`の`init`プロパティ(コンストラクタ
     引数ではなく名前付き引数`[StartupScene(Order = 0)]`で渡す設計、`SystemOrderAttribute`の
@@ -2380,8 +2380,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CodeAnalysis/GameSystemGenerator.cs(合成`GameSystemResult`のマージと
     `SystemOrderByFqn`への追加登録)
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs(複数Startup Sceneの
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEmissionTests.cs
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEndToEndTests.cs(複数Startup Sceneの
     独立instantiate、2フレーム目の非重複、生成`RunFrame`連鎖)
 - Reverse-engineered behavior:
   - Roslynの1つのGeneratorは自分自身が生成した構文木を同じ実行内で再検出できないため、
@@ -2412,7 +2412,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   共有`Bootstrap.Done`ではなく各Systemインスタンス
   固有のprivate instance field(`Done`)を1回きりの判定に使うよう修正(System構造体インスタンスは
   `Run()`内で1つだけ生成され全フレームを通して同一インスタンスがrefで渡され続けることを利用)。
-  `tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`に、2つの
+  `tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEndToEndTests.cs`に、2つの
   `[StartupScene]`が生成された実際の`RunFrame`連鎖を通してどちらも独立にインスタンス化されることを
   固定する回帰テストを追加。
 - **(2026-08、M0049)** `SceneStartupSystemEmitter`自体は無改造で流用しているが、入力の
@@ -2467,9 +2467,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - UserEcsProject/Scenes/MainScene.json、FirstPersonStageScene.json、
     PrimitiveShowcaseBoxScene.json、PrimitiveShowcaseSphereScene.json
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneJsonAnalyzerTests.cs(新規11件。リテラル値の
+  - tests/エンジンのテスト/CodeAnalysis/SceneJsonAnalyzerTests.cs(新規11件。リテラル値の
     宣言型別解決、enumメンバー名解決、複数子ノードの再帰的走査、SCENE200/201/202/203の各診断)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs、
+  - tests/エンジンのテスト/CodeAnalysis/SceneDslGeneratorEmissionTests.cs、
     SceneDslGeneratorEndToEndTests.cs、SceneArchetypeIntegrationTests.cs、
     GameSystemGeneratorEndToEndTests.cs(JSON入力へ書き換えて存続。`InMemoryAdditionalText`/
     `GameSystemGeneratorTestHelper.RunGeneratorWithSceneJson`/`CompileAndLoadWithSceneJson`を新設)
@@ -2516,9 +2516,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Engine/Core/Audio/AudioBackend.cs
   - src/Engine/Core/Audio/ProceduralAudioClip.cs
 - Tests:
-  - tests/CSharpGameEngine.Core.Tests/Audio/ProceduralAudioClipTests.cs(サンプル数・振幅範囲・
+  - tests/エンジンのテスト/Core/Audio/ProceduralAudioClipTests.cs(サンプル数・振幅範囲・
     引数検証)
-  - tests/CSharpGameEngine.Core.Tests/Audio/AudioBackendFacadeTests.cs(ハードウェア非依存のフェイク
+  - tests/エンジンのテスト/Core/Audio/AudioBackendFacadeTests.cs(ハードウェア非依存のフェイク
     バックエンドで、ジェネリックFacadeが全メンバーを実際に転送することを検証)
 - Reverse-engineered behavior:
   - `IAudioBackend<TEngine, TVoice>`は`CSharpGameEngine.Spatial.Abstractions.ICoordinateConvention`
@@ -2552,7 +2552,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Windows/Audio/AudioDiagnostics.cs
   - src/Runtime/Windows/EngineHost.cs(Audio Serverの所有。ADR-0048以降はWindows Runtimeがバックエンドを選び、`UserEcsProject/AudioBackend.cs`の`GameAudio`Facadeは無くなった)
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Audio/XAudio2BackendTests.cs(実オーディオデバイスに対する
+  - tests/Windowsのテスト/Windows/Audio/XAudio2BackendTests.cs(実オーディオデバイスに対する
     CreateEngine→CreateVoice→SubmitBuffer→Start→Stop→DestroyVoice→DestroyEngineのスモークテスト、
     `[WindowsOnlyFact]`)
 - Reverse-engineered behavior:
@@ -2597,9 +2597,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
   - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
 - Tests:
-  - tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs(デデュープ、全`PrimitiveType`の
+  - tests/Windowsのテスト/Windows/Runtime/RenderServerTests.cs(デデュープ、全`PrimitiveType`の
     妥当性、実WARP GPUパイプラインでのBox描画)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs(宣言順アキュムレータの
+  - tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorEndToEndTests.cs(宣言順アキュムレータの
     核心契約、およびScene DSLのChildren由来Archetypeが実System由来の全Archetypeより後に処理される
     ことの固定回帰テスト)
 - Reverse-engineered behavior:
@@ -2662,10 +2662,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     タブで開く処理を削除、Scene デザイナー ツールウィンドウのドッキングに置き換え)
   - 削除: SceneFileEditorFactory.cs、SceneWindowPane.cs、SceneWindowControl.xaml(.cs)
 - Tests:
-  - tests/CSharpGameEngine.VSExtension.Tests/SceneModelRenderObjectBuilderTests.cs(新規、Transform/
+  - tests/VS拡張のテスト/SceneModelRenderObjectBuilderTests.cs(新規、Transform/
     PrimitiveMesh値抽出・回転未指定時のIdentityフォールバック・Gizmoフォールバック・NodePath同一性の
     7件、実解析済み`SceneModel`に対して検証)
-  - tests/CSharpGameEngine.VSExtension.Tests/SceneDesignerPresentationContractsTests.cs
+  - tests/VS拡張のテスト/SceneDesignerPresentationContractsTests.cs
 - Reverse-engineered behavior:
   - **トリガー方式の決定**: 当初案(`.cs`ファイル用の2つ目の`IVsEditorFactory`+`LOGVIEWID_Designer`)は
     実機での「開く方法」挙動が未検証のまま採用するリスクがあったため、このリポジトリに実績のある
@@ -3027,11 +3027,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     SceneEditConflictMerger.cs(開始値差分を最新値へ合成)、SceneEditorSessionService.cs(commit配線)、
     SceneInputStateMachineTests.cs(Esc全7状態終端)。
 - Tests(Phase 0〜7+後続Task C):
-  - tests/CSharpGameEngine.VSExtension.Tests/SceneComponentBindingTests.cs(5件。実FQNの認識、
+  - tests/VS拡張のテスト/SceneComponentBindingTests.cs(5件。実FQNの認識、
     退役FQNを認識しないこと、Role照合、`Enum.GetValues`による「消費者のないRole宣言」の機械的検出)
-  - tests/CSharpGameEngine.VSExtension.Tests/SceneCameraFramingTests.cs(9件。境界球計算4件、
+  - tests/VS拡張のテスト/SceneCameraFramingTests.cs(9件。境界球計算4件、
     FOV導出距離、旧3.0*R比で5%以内、視点方向、境界球がFOVに収まることのNDC投影検証、退化入力)
-  - tests/CSharpGameEngine.VSExtension.Tests/SceneModelRenderObjectBuilderTests.cs(+7件。親子/孫の
+  - tests/VS拡張のテスト/SceneModelRenderObjectBuilderTests.cs(+7件。親子/孫の
     合成、Transform無しの子の継承、回転した親の下での子配置=乗算順の固定、pre-order順序、
     SkySphereのフレーミング除外、Root無しで空リスト)。フィクスチャの名前空間を
     `UserEcsProject`→`CSharpGameEngine.Runtime.Windows`へ移した(これを忘れると2件が落ちる)
@@ -3055,7 +3055,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     SceneDiff増分/rebuild、mesh再利用と全階層world、frame slot fence、Transform/Property競合差分、
     Esc全状態を固定した。最終全体は881件成功・失敗0(VSExtension.Tests 389件)。
 - Follow-up(2026-08-16): `HierarchySourceSync.cs`がCtrl/Shift範囲選択・primary・アンカー、選択Nodeの`SceneNode.Location.Span`併合、明示移動要求を純粋層で扱う。`SceneSourceMarkerService.cs`はRDTで既に開いたC# bufferだけを取得し、`TextMarkerTag`で非選択マークする。通常クリックは非フォーカス、double-click/Enterだけがprimaryの`Span.Start`へ移動する。Viewport/Inspector起点はHierarchy表示だけを更新し、ソース同期を起動しない。
-- Follow-up tests: `HierarchySourceSyncTests.cs`(5件)と`SceneNodeViewModelTests.cs`のXAML公開プロパティ回帰を追加。`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`は395件成功・失敗0。
+- Follow-up tests: `HierarchySourceSyncTests.cs`(5件)と`SceneNodeViewModelTests.cs`のXAML公開プロパティ回帰を追加。`dotnet test tests/VS拡張のテスト/VS拡張のテスト.csproj --no-restore`は395件成功・失敗0。
 - Follow-up(2026-08-16): ソリューションエクスプローラー起点の起動では、Pin済み`SceneKey.ProjectId`からSceneSelectorカタログを解決する。アクティブなコード文書が無くても対象Sceneを表示し、カタログ未取得・失敗は既存`SceneHwndHost`を空状態へ戻さない。
 - Reverse-engineered behavior:
   - 階層合成・preview・source write-backはVSIX純粋層`SceneTransformMath`のrow-vector式へ統一した。
@@ -3428,7 +3428,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Spatial-Partitioning.md
 - Implementation evidence: src/Entities/SpatialPartitioning.cs
-- Tests: tests/CSharpGameEngine.Windows.Tests/Runtime/SpatialPartitioningTests.cs
+- Tests: tests/Windowsのテスト/Windows/Runtime/SpatialPartitioningTests.cs
 - Conformance: Matches
 
 ## F-L3-016 - World global spatial snapshot
@@ -3438,7 +3438,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Spatial-Partitioning.md
 - Implementation evidence: src/Entities/SpatialWorld.cs; src/CodeAnalysis/SpatialWorldEmitter.cs
-- Tests: tests/CSharpGameEngine.CodeAnalysis.Tests/SpatialWorldGeneratorEmissionTests.cs
+- Tests: tests/エンジンのテスト/CodeAnalysis/SpatialWorldGeneratorEmissionTests.cs
 - Conformance: Matches
 
 ## F-L3-017 - Scene View render modes and global octree overlay
@@ -3447,7 +3447,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified (automated); UserEcs smoke pending
 - Implementation evidence: tools/VSExtension/SceneHwndHost.cs; RenderPreviewHostClient.cs (the render modes, drawn by the shared Preview Host since F-L8-018 deleted `SceneRenderer.cs`); SpatialDebugClient.cs; SpatialDebugOverlay.cs; src/Entities/SpatialDebug.cs
-- Tests: tests/CSharpGameEngine.VSExtension.Tests/SpatialDebugOverlayTests.cs
+- Tests: tests/VS拡張のテスト/SpatialDebugOverlayTests.cs
 
 ## F-L5-001 — Shared Windows ECS Runtime
 
@@ -3489,7 +3489,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L5 — Runtime Feature Modules
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for LogicalScalar domain-local simulation, rotated analytic primitive contacts, support-mapped GJK/EPA, cooked static-mesh BVH, four-point manifolds, 8/3 sequential impulses, warm start, sleep/wake, trigger/event lifecycle, angular integration, ContinuousStatic CCD, overflow fault isolation, deterministic insertion order, and zero managed allocation in warmed contact ticks.
-- Evidence: `src/Runtime/Physics/`, `tests/CSharpGameEngine.Windows.Tests/Physics/`.
+- Evidence: `src/Runtime/Physics/`, `tests/Windowsのテスト/Windows/Physics/`.
 - Conformance: Matches the required local rigid-body scope. Dynamic-dynamic CCD, joints, deformables, and GPU/parallel solvers remain separate Deferred features. Prefractured runtime destruction (convex-polyhedron and compound contacts, sleeping contacts held without a narrow phase, wake on support removal, `BondBroken` events) was added by M0113 (F-L5-049); M0124 gave box, polyhedron and compound contacts with a static triangle mesh one patch per face orientation (at most 3 × 4 points) including the mesh's ridges that enter a face of the shape, with per-point normals in the solver; runtime Boolean/voxel destruction stays Deferred (F-L5-021/022).
 
 ## F-L6-002 — Physics Cooking and Simulation Cache artifacts
@@ -3555,7 +3555,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified (Debug/Release: 11 tests per configuration; parallel full solution: 1,587 tests per configuration)
 - Intended specification: `Docs/Feature-Stages.md`, `Docs/Decisions/ADR-0051-Autonomous-Feature-Runner-And-Stage-Packs.md`
 - Implementation evidence: `tools/FeatureRunner/FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `FeatureStageExecutor.cs`, `FeatureRunResultStore.cs`, `RepositoryInspection.cs`
-- Tests: `tests/CSharpGameEngine.FeatureRunner.Tests/`
+- Tests: `tests/エンジンのテスト/FeatureRunner/`
 - Reverse-engineered behavior: Feature/Stage IDs are validated at startup; CLI supports list/run/run-feature/suite/resume; process results include Git provenance, seed/ticks, hashes, assertions and typed status in a versioned JSON artifact. Explicitly selected deferred features return `NotImplemented` and a non-success code.
 - Conformance: Matches ADR-0051 for the runner foundation.
 - Known deviations: domain solver bodies remain deferred and are tracked by their F-L5 Feature IDs.
@@ -3572,7 +3572,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Tests: `FeatureStageCatalogTests.EveryExistingFeatureHasAnExecutableAutomatedStage`, `EveryDeferredSimulationFeatureHasAnExplicitNotImplementedStage`, `EveryVisualStageRequiresWarpAndAllowsOptionalHardware`, `EveryVisualStageHasACompiledSceneDefinition`, and `stage-packs.contract`
 - Reverse-engineered behavior: existing 48 features are covered by executable grouped stages. The 10 independent Pack processes compile C# `IScene` definitions, instantiate generated ECS entities, verify entity count/root ownership/unload, and emit stable state hashes. Future solver features retain explicit deterministic Oracles and return `NotImplemented`.
 - Conformance: Matches the Stage Pack infrastructure contract. Domain solver correctness remains owned by each deferred F-L5 Feature and is not inferred from the Pack-host pass.
-- 画面表示 `show`（2026-11-16）: 各Packは `show <scene-id>` でSceneの `StageVisual` を D3D12 の窓に描く（`stages/CSharpGameEngine.FeatureStages.Shared/StagePackViewer.cs`、値は生成System `StageVisualCollectSystem` が編集用の1フレームで集める）。仕様は `Docs/Feature-Stages.md#画面表示モード-show`。確認: 10Pack・47Sceneすべてで `run` が合格し、`show --hidden --warp --capture` が3フレーム描いて D3D12 エラー0。布・ロープ・軸の画像で、板と棒がシーンの大きさどおりに出ることを目で確かめた。環境光0.4と方向光3ルクスで、球と箱の面の向きが陰影で分かる（光を足した後も47Sceneが同じ条件で合格）。実GPU（RTX 4060 Ti、隠し窓）でも D3D12 エラー0で、WARP の画像との差は各色最大1/255。自動テスト: `tests/CSharpGameEngine.FeatureRunner.Tests/StagePackShowTests.cs`（2件。実行ファイルを WARP の隠し窓で動かし、三角形と細い軸がPNGに写ることを確かめる。棒を縮める以前の処理に戻すと軸が12ピクセルしか写らず失敗することを確認済み）。隠さない窓（`show rigid.joints`）は、利用者が手動で開き、表示・大きさの変更・閉じて終わることを確認した（2026-11-16）。solverは動かさない配置確認用の表示で、`run` の合否を置き換えない。
+- 画面表示 `show`（2026-11-16）: 各Packは `show <scene-id>` でSceneの `StageVisual` を D3D12 の窓に描く（`stages/CSharpGameEngine.FeatureStages.Shared/StagePackViewer.cs`、値は生成System `StageVisualCollectSystem` が編集用の1フレームで集める）。仕様は `Docs/Feature-Stages.md#画面表示モード-show`。確認: 10Pack・47Sceneすべてで `run` が合格し、`show --hidden --warp --capture` が3フレーム描いて D3D12 エラー0。布・ロープ・軸の画像で、板と棒がシーンの大きさどおりに出ることを目で確かめた。環境光0.4と方向光3ルクスで、球と箱の面の向きが陰影で分かる（光を足した後も47Sceneが同じ条件で合格）。実GPU（RTX 4060 Ti、隠し窓）でも D3D12 エラー0で、WARP の画像との差は各色最大1/255。自動テスト: `tests/エンジンのテスト/FeatureRunner/StagePackShowTests.cs`（2件。実行ファイルを WARP の隠し窓で動かし、三角形と細い軸がPNGに写ることを確かめる。棒を縮める以前の処理に戻すと軸が12ピクセルしか写らず失敗することを確認済み）。隠さない窓（`show rigid.joints`）は、利用者が手動で開き、表示・大きさの変更・閉じて終わることを確認した（2026-11-16）。solverは動かさない配置確認用の表示で、`run` の合否を置き換えない。
 - Next action: replace representative Pack scenes with solver-specific execution as each Feature is implemented.
 
 ## F-L3-020 — Extended static ECS component mask
@@ -3811,7 +3811,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.render-graph` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-022
 - Current delta: none for the L4 graph compile contract. Existing D3D12 renderers still require migration to the graph executor under later rendering features.
-- Evidence: `src/Engine/Rendering/RenderGraph.cs`, `tests/CSharpGameEngine.Rendering.Tests/RenderGraphTests.cs`.
+- Evidence: `src/Engine/Rendering/RenderGraph.cs`, `tests/エンジンのテスト/Rendering/RenderGraphTests.cs`.
 - Conformance: Matches. Typed handles, stable topological order, RAW/WAR/WAW dependencies, resource transitions, cross-queue ownership, cycle/invalid-use rejection, and non-overlapping transient aliases are compiled without native types.
 - Next action: make the L0 D3D12 backend consume compiled transitions while implementing snapshot visibility in F-L4-006.
 
@@ -4259,7 +4259,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `vsix.release` (`Executable`, Headless / VSIX, 7200s)
 - Depends on: F-L8-028
 - Current delta: The canonical exact-package report, strict observation binding, and isolated CgeRelease lifecycle are implemented. The required 1033 host observation cannot pass until the en-US Visual Studio language pack is installed with elevation; six manual rows are still Pending and the Stage therefore fails closed.
-- Evidence: `tools/FeatureRunner/VsixReleaseEvidence.cs`, `tools/VSExtension/Capture-CgeVsixReleaseLifecycle.ps1`, `tests/CSharpGameEngine.FeatureRunner.Tests/VsixReleaseEvidenceTests.cs`; current exact-package 1041 evidence under `.artifacts/VsixExperimental/20260901-163257-d99bdf74/1041/` and zero-residue lifecycle under `.artifacts/VsixReleaseLifecycle/20260901T163427704Z-e484c31087294d19ad8e6074794d30c0/` share package SHA-256 `1e89e9f29011d83c7c337259b501aa024c57622c8ef8bfe4887e93539429fe00`.
+- Evidence: `tools/FeatureRunner/VsixReleaseEvidence.cs`, `tools/VSExtension/Capture-CgeVsixReleaseLifecycle.ps1`, `tests/エンジンのテスト/FeatureRunner/VsixReleaseEvidenceTests.cs`; current exact-package 1041 evidence under `.artifacts/VsixExperimental/20260901-163257-d99bdf74/1041/` and zero-residue lifecycle under `.artifacts/VsixReleaseLifecycle/20260901T163427704Z-e484c31087294d19ad8e6074794d30c0/` share package SHA-256 `1e89e9f29011d83c7c337259b501aa024c57622c8ef8bfe4887e93539429fe00`.
 - Conformance: Partial. Source/package/install/uninstall ownership now Matches; launch/localization/manual release closure remains incomplete and cannot produce a passing report.
 - Next action: install the en-US Visual Studio language pack with user-approved elevation, capture 1033 against the unchanged package, record the six current-package manual observations, then run Debug/Release outer `vsix.release` evidence without rebuilding the VSIX.
 
@@ -4273,7 +4273,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `ecs.baseline` (`Executable`, Headless / Foundation, 900s)
 - Depends on: None
 - Current delta: none for the closed-set Archetype, Scene generation/lifecycle, system-major ordering, and delayed structural-change baseline.
-- Evidence: `src/Entities/`, `src/CodeAnalysis/`, `tests/CSharpGameEngine.Entities.Tests/`, `tests/CSharpGameEngine.CodeAnalysis.Tests/`
+- Evidence: `src/Entities/`, `src/CodeAnalysis/`, `tests/ECSのテスト/`, `tests/エンジンのテスト/CodeAnalysis/`
 - Conformance: Matches for the implemented baseline contract; unified command replay and other future ECS features remain separately specified.
 - Next action: preserve the executable oracle while implementing the next ECS roadmap feature.
 
@@ -4765,13 +4765,13 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Engine/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`（`[InputActions]`。INPUT001〜004、SYSGEN038）
   - `src/Entities/Parent.cs`（`Parent<T>`）、`GameSystemIndexAssigner.cs`、`GameSystemLoopEmitter.cs`（`in Parent<T>` の解決。SYSGEN036/037）
 - Tests:
-  - `tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs`（`UpdateWithoutTrailingState_IsAccepted`、`InStruct_IsAReadOnlyComponentAndDoesNotReportAContext`、`InAndRefOfTheSameComponent_ReportsSysgen011`）
-  - `tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemParentRelationTests.cs`
-  - `tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`
-  - `tests/CSharpGameEngine.Windows.Tests/Runtime/PickingTests.cs`、`Character/CharacterMotorTests.cs`（`MoveTo`）
-  - `tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`、`VehicleDriveVerificationTests.cs`
+  - `tests/エンジンのテスト/CodeAnalysis/GameSystemGeneratorDiagnosticsTests.cs`（`UpdateWithoutTrailingState_IsAccepted`、`InStruct_IsAReadOnlyComponentAndDoesNotReportAContext`、`InAndRefOfTheSameComponent_ReportsSysgen011`）
+  - `tests/エンジンのテスト/CodeAnalysis/GameSystemParentRelationTests.cs`
+  - `tests/エンジンのテスト/CodeAnalysis/InputActionsGeneratorTests.cs`
+  - `tests/Windowsのテスト/Windows/Runtime/PickingTests.cs`、`Character/CharacterMotorTests.cs`（`MoveTo`）
+  - `tests/エンジンのテスト/FeatureRunner/ClickToMoveVerificationTests.cs`、`VehicleDriveVerificationTests.cs`
   - `Physics/PhysicsMeshRaycastTests.cs`(車両の `VehicleMotorTests` は M0109 で `ChaosVehicleTests` に置き換えた。F-L5-045)
-  - `tests/CSharpGameEngine.VSExtension.Tests/GameProjectGeneratorTests.cs`、`VsixManifestTests.cs`（4 テンプレート）
+  - `tests/VS拡張のテスト/GameProjectGeneratorTests.cs`、`VsixManifestTests.cs`（4 テンプレート）
 - Current delta: 段階 1〜9（M0101）。Vehicle テンプレートを移植（簡易の車両モデル `Vehicle`/`VehicleMotor`、速度とギアをタイトルバーに出す `Hud`）。物理の `Raycast` が静的三角形メッシュの三角形そのものに当たるようになった。4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）を VS の新規プロジェクトに登録した。FirstPerson・TopDown テンプレートを移植（`Pointer`、`Picking`、`MoveIntent.MoveTo`、自動検証の `CGE_AUTOMATION_CURSOR`/`MouseLeft`。`Touch`・`Spawner` は未着手）。型付きアセット `Assets.*`（SCENE208）を追加。音（`Audio` サービス、WAV、XAudio2 のワンショット）とイベント（`EventWriter<T>`、`in T`。`Jumped`/`Landed`/`Footstep`）を追加。`[InputActions]`（入力を構造体で宣言。ID と入力マップは生成、入力を読む System は FrameInput で `Window` の後）を追加。`in Parent<T>`（親の Component を型で読む。親が死んでいる・`T` を持たない子はスキップ）を追加。引数の役割表を `ref`=書く、`in`=読む、参照型=Context とし、キャラクター・カメラ・アニメーションの UE 由来の型名とフィールド名を清算した（`CharacterMotion`、`MoveIntent`、`ViewAngles`、`OrbitCamera`、`Locomotion` ほか）。`GameWindow` の統合、フェーズの推論は未実装（ADR-0077 §2）。
 - Conformance: Matches（段階 1 の範囲）
 - Next action: M0101 段階 10（フェーズの推論、`GameWindow` の統合）。Vehicle の車輪の動きは M0109(F-L5-045)で実装した。エンジン音は未実装。
@@ -4786,7 +4786,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `tools/UnrealExport/dump_blueprint_logic.py`、`run_dump_blueprint_logic.cmd`（T3D、生成クラス、既定オブジェクト、コンポーネントの全属性）
   - `tools/Unreal.SceneImporter/T3dDocument.cs`、`BlueprintLogicWriter.cs`、`Program.cs`（`logic` コマンド）
-- Tests: `tests/CSharpGameEngine.Import.Tests/Unreal/BlueprintLogicWriterTests.cs`
+- Tests: `tests/エンジンのテスト/Import/Unreal/BlueprintLogicWriterTests.cs`
 - Current delta: 4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）の全 Blueprint を書き出し、疑似コードにして、挙動仕様の表にした。実装は M0103 以降（ADR-0078 §4）。
 - Conformance: Matches
 - Next action: M0103（プラグインとアセットの仕組み、ADR-0079）。
@@ -4862,7 +4862,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `tools/VSExtension/NavigationCookService.cs`、`SceneDesignerToolWindowControl.xaml(.cs)`、`VsixStrings*.resx`
   - `tools/FeatureRunner/ClickToMoveVerification.cs`、`TemplatePackageVerification.cs`(TopDown)
   - `Templates/TopDown/`(`Scenes/TopDownNavigation.json`、`TopDownCharacter.json` の `NavAgent`、csproj の `CgePlugins`)
-- Tests: `tests/CSharpGameEngine.Navigation.Tests/`(`NavMeshFormatTests`、`NavMeshBuilderTests`、`NavMeshRouteTests`、`SceneGeometryTests`、`NavMeshCookerTests`、`TopDownLevelTests`)、`tests/CSharpGameEngine.Windows.Tests/Character/NavigationSteeringTests.cs`・`CharacterMotorTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/NavigationCookServiceTests.cs`、`GameProjectGeneratorTests`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
+- Tests: `tests/エンジンのテスト/Navigation/`(`NavMeshFormatTests`、`NavMeshBuilderTests`、`NavMeshRouteTests`、`SceneGeometryTests`、`NavMeshCookerTests`、`TopDownLevelTests`)、`tests/Windowsのテスト/Windows/Character/NavigationSteeringTests.cs`・`CharacterMotorTests.cs`、`tests/VS拡張のテスト/NavigationCookServiceTests.cs`、`GameProjectGeneratorTests`、`tests/エンジンのテスト/FeatureRunner/ClickToMoveVerificationTests.cs`
 - Current delta: シーンの `NavMeshBounds` と静的な衝突形状から、ビルドが `Assets/Navigation/<Id>.cgenav` を決定的に焼く(UE5.8 TopDown の RecastNavMesh の値)。`NavAgent` を持つキャラクターは、`MoveIntent.MoveTo` の目的地への経路(A* と funnel、整数だけで解く)に沿って歩く。ナビメッシュが無いときは直線、着けないときは行ける一番近い点まで。TopDown が使い、台のスロープを下り、壁の端を回って着く。
 - Conformance: MatchesWithDocumentedExtension(Recast の輪郭の単純化と斜めの辺、タイル、動的な再生成は無い。長方形の多角形)
 - Next action: (TopDown の短押しと長押しの区別は M0108 で実装した、F-L5-044。)既存の `Physics.Cli bake` の Cook への載せ直しは未着手。(キャラクターとアニメーションは M0107 で実装した、F-L5-043。)
@@ -4880,7 +4880,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Runtime/Windows/`(`FirstPersonView.cs`、`RuntimeSystems.cs`、`RenderRoster.cs`、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`focusPositions`))、`src/Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`)
   - `Templates/`: 3 つの Character シーン、`FirstPersonAnimation.cs`・`TopDownAnimation.cs`・`ThirdPersonAnimation.cs`・`RespawnPlayer.cs`・`RespawnVehicle.cs`、`Assets/Characters/Mannequins/Anims/`、FirstPerson の `SKM_Manny_Simple.glb`、`build/CSharpGameEngine.Version.props`(0.1.18)
   - `tools/UnrealExport/`(`export_mannequin_animations.py`、`probe_character_animation.py`)、`tools/FeatureRunner/ClickToMoveVerification.cs`・`FeatureStageCatalog.cs`
-- Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Animation/LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`AnimationRuntimeTests`・`Graphics/SkinningGpuIntegrationTests`、`Character/LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`、`Runtime/TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`)、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
+- Tests: `tests/Windowsのテスト/Windows/`(`Animation/LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`AnimationRuntimeTests`・`Graphics/SkinningGpuIntegrationTests`、`Character/LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`、`Runtime/TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`)、`tests/エンジンのテスト/FeatureRunner/ClickToMoveVerificationTests.cs`
 - Current delta: ABP_Unarmed の状態機械と 8 方向のブレンドスペース(UE の遷移の時間と Cubic)、足の IK、FirstPerson の腕(ポーズのコピーと背骨・肩の補正、一人称の FOV 70 と縮尺 0.6)と体(カメラに見えず影を落とす)、TopDown のカメラの遅れ追従(速さ 3)と平面への拘束(UE と同じく法線 0)、`KillZ` と PlayerStart でのリスポーン、後から作る `SkeletalMesh` の描画。描画の契約(`stage-v*`)は変えていない。
 - Conformance: MatchesWithDocumentedExtension(足の IK は解析的な 2 ボーン IK と光線、一人称のカメラは頭のボーンに付けない、FABRIK の重みの解釈、実機の GPU は未検証。詳しくは M0107 の文書)
 - Next action: (入力の拡張と TopDown の短押しと長押しは M0108 で実装した、F-L5-044。)次は M0109(Chaos 相当の車両)。
@@ -4899,7 +4899,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Runtime/Windows/RuntimeAutomation.cs`(`コード=値@開始-終了`、`MouseDeltaX/Y`、`Gamepad*`)
   - `Templates/TopDown/`(`Gameplay/ClickToMove.cs`、`Scenes/TopDownCharacter.json` の `ClickDestination`)、`Templates/Vehicle/Gameplay/`(`PlayerActions.cs`・`VehicleControls.cs`)、`build/CSharpGameEngine.Version.props`(0.1.19)
   - `tools/FeatureRunner/ClickToMoveVerification.cs`(目印のフレーム、長押し)・`VehicleDriveVerification.cs`(アナログ)
-- Tests: `tests/CSharpGameEngine.Core.Tests/InputActionValueTypesTests.cs`、`tests/CSharpGameEngine.Windows.Tests/Input/InputActionBindingTests.cs`・`Win32InputEventAdapterTests.cs`・`Runtime/RuntimeAutomationTests.cs`、`tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`・`VehicleDriveVerificationTests.cs`
+- Tests: `tests/エンジンのテスト/Core/InputActionValueTypesTests.cs`、`tests/Windowsのテスト/Windows/Input/InputActionBindingTests.cs`・`Win32InputEventAdapterTests.cs`・`Runtime/RuntimeAutomationTests.cs`、`tests/エンジンのテスト/CodeAnalysis/InputActionsGeneratorTests.cs`、`tests/エンジンのテスト/FeatureRunner/ClickToMoveVerificationTests.cs`・`VehicleDriveVerificationTests.cs`
 - Current delta: `[InputActions]` が 1 軸のアナログ値 `Axis`(キー ±1、トリガー、スティックの片方の軸、ボタン。不感帯・倍率・反転。複数の割り当ては足して -1〜1)、`Button.HeldSeconds`(押した瞬間 0、離した瞬間に押していた時間。`ReleasedBefore` が短押し)、マウスと右スティックの片方の軸だけの `Look` を持つ。自動実行の入力はゲームパッドの軸・トリガー・ボタンとマウスの移動量を再現できる。TopDown は UE のとおり、押している間はカーソルへ直接歩き、0.5 秒未満で離した瞬間に `MoveTo` と目印を出す(長押しは離して止まるだけ)。Vehicle はアナログのアクセル・ブレーキ・ハンドル。
 - Conformance: MatchesWithDocumentedExtension(経過時間は各フレームの時間(0.1 秒で頭打ち)の足し算、離したフレームの値はそのフレームの時間を含む。Vehicle の `LookAround` は入力の宣言だけで、後ろの腕を回す処理と、`Drive = Throttle - Brake` の合成は Chaos の車両(M0109)まで。`Touch` は未実装。詳しくは M0108 の文書)
 - Next action: (Chaos 相当の車両と `IA_Brake`・`IA_Handbrake`・`IA_LookAround`・`IA_Reset`・`IA_ToggleCamera`・ヘッドライトは M0109 で実装した、F-L5-045。)
@@ -4918,7 +4918,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Engine/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`
   - `Templates/Vehicle/`(`Gameplay/VehicleControls.cs`・`VehicleCameras.cs`・`VehicleLights.cs`・`PlayerActions.cs`、`Scenes/SportsCar.json`・`Lvl_VehicleBasic.json`、`Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`・`SM_SportsCar.glb`)、`build/CSharpGameEngine.Version.props`(0.1.20)
   - `tools/UnrealExport/`(`probe_vehicle_physics.py`、`probe_vehicle_brake_lights.py`、`probe_vehicle_emissive.py`、`add_brake_light_emission.py`)、`tools/FeatureRunner/VehicleDriveVerification.cs`(曲がりの窓 30〜34)
-- Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Character/ChaosVehicleTests`・`ChaosVehicleTrack`、`Physics/PhysicsForceCommandTests`、`Runtime/TypedLightFrameTests`、`Runtime/PersistentComponentSnapshotTests`)、`tests/CSharpGameEngine.Numerics.Tests/LogicalMathAtan2Tests.cs`。旧 `Character/VehicleMotorTests` は削除
+- Tests: `tests/Windowsのテスト/Windows/`(`Character/ChaosVehicleTests`・`ChaosVehicleTrack`、`Physics/PhysicsForceCommandTests`、`Runtime/TypedLightFrameTests`、`Runtime/PersistentComponentSnapshotTests`)、`tests/エンジンのテスト/Numerics/LogicalMathAtan2Tests.cs`。旧 `Character/VehicleMotorTests` は削除
 - Current delta: 車体は動的剛体(1500 kg、角速度の減衰 3)、車輪ごとの光線の力のサスペンションとロールバー、UE のタイヤ(横滑りの角 × コーナリング剛性、荷重 × 路面の摩擦 × 倍率で頭打ち)、21 点のトルク曲線・アイドル・エンジンブレーキ、5 速の自動変速(6000/2000 rpm、変速中はニュートラル、ブレーキで後退)、アッカーマンと速さの曲線(マイル毎時)、空気抵抗とダウンフォース、入力の速さ、眠り、転倒(3 秒ごと 2 回)とリセット。テンプレートはブレーキランプ(`MeshEmissive` 200/4)、左のヘッドライト(L)、前後のカメラ(Tab)、見回し、リセット(BackSpace)。描画契約(`stage-v11`)とシェーダーは変えていない。WARP: 52.014 m・30.5°。 追補(2026-10-24、実機の不具合の修正): 車輪の休みの向き(左 −0.25・右 +0.25 回転)、箱と三角形メッシュの投機的な接触の点・反発の決め方・衝突の力積の持ち越しをやめる(壁への高速の衝突で車体が回って倒れていた)。WARP: 57.150 m・30.5°、SDK 0.1.22。
 - Conformance: MatchesWithDocumentedExtension(力のサスペンション(UE の既定は制約)、慣性は箱、ブレーキランプは UE と違って光る(UE の発光 1 を 100 nits とするのは推測)、エンジン音なし、UE と同じ入力での数値の比較はしていない。詳しくは M0109 の文書)
 - Next action: M0110〜M0111(Lumen 相当。ADR-0078 §4)。UE の制約のサスペンションとエンジン音(ループと音程の変わる音)は未着手。
@@ -4935,7 +4935,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `src/Engine/Rendering/RenderTextureMipChain.cs`(面積加重の箱フィルター、整数の重み、sRGB は 16 ビットの線形の表で平均、表は定数)
   - `src/Windows/Graphics/StageRenderer.cs`(全ミップのアップロード、色空間ごとの常駐、異方性 8 の s0、`MaterialMipLevelLimitForTesting`)、`src/Contracts/ShaderArtifacts/ShaderArtifactAbi.cs`(`stage-v12`: `s0-anisotropic-wrap`)
-- Tests: `tests/CSharpGameEngine.Rendering.Tests/RenderTextureMipChainTests.cs`(18)、`tests/CSharpGameEngine.Windows.Tests/Graphics/MaterialMipmapGpuIntegrationTests.cs`(2、WARP)、`StageGpuIntegrationTests`(常駐数 4 → 5)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
+- Tests: `tests/エンジンのテスト/Rendering/RenderTextureMipChainTests.cs`(18)、`tests/Windowsのテスト/Windows/Graphics/MaterialMipmapGpuIntegrationTests.cs`(2、WARP)、`StageGpuIntegrationTests`(常駐数 4 → 5)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
 - Current delta: ミップは読み込み時に作る(成果物の形式は変えない)。画面レイヤーは 1 段のまま。WARP の 256 × 144 の市松の床で、遠景(地平線の下 10 行)の分散 1267.5 → 0.0、カメラを 0.37 m 動かした 2 フレームの差 9.50 → 0.00、近景の分散 4256.6 → 3953.4(保たれる)。
 - Conformance: Matches(UE は取り込み時にミップを作り、既定の異方性は 8。こちらは読み込み時)
 - Next action: なし(Kaiser のフィルターや BC 圧縮は必要になったとき)
@@ -4953,7 +4953,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/Windows/Graphics/StageAtmosphere.cs`、`src/Engine/Rendering/EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
   - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
   - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/Unreal.SceneImporter/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
-- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
+- Tests: `tests/Windowsのテスト/Windows/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
 - Current delta: 雲は上半球のパノラマ(WARP 1024 × 256・24 サンプル)。形はエンジンのノイズ。風は 10 m/s・45°(エンジンの選択)。空の球は合成の判定で、新しいメッシュの描画は無い。
 - Conformance: MatchesWithDocumentedExtension(値は UE、形と描き方はエンジン。M0110 の文書の表)
 - Next action: 雲の影と UE の雲のテクスチャは必要になったとき(GI と反射は M0111、F-L4-019 で実装)。
@@ -4970,7 +4970,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `src/Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/Engine/Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/Engine/Rendering/Server/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
   - `src/Runtime/Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
-- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
+- Tests: `tests/Windowsのテスト/Windows/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
 - Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
 - Conformance: MatchesWithDocumentedExtension(UE の Lumen のグローバル距離場より粗い。M0110 の文書)
 - Next action: なし(M0111 の F-L4-019 がトレースに使う)
@@ -4985,7 +4985,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
 - Depends on: F-L7-049
 - Implementation evidence: `src/Engine/Rendering/MeshDistanceField.cs`、`tools/ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime/Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Engine/Rendering/Server/RenderServer.cs`(基本形状は実行時)
-- Tests: `tests/CSharpGameEngine.Rendering.Tests/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
+- Tests: `tests/エンジンのテスト/Rendering/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)
 - Next action: なし
@@ -5003,7 +5003,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `assets/Shaders/Lumen.hlsl`、`src/Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/Engine/Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/Engine/Rendering/Server/RenderServer.cs`
   - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v16`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
   - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
-- Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
+- Tests: `tests/Windowsのテスト/Windows/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/Windowsのテスト/ShaderGraph.Cli/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
 - Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。stage-v14(14 エントリー・960 バイト。通信と行列/サムネイルはネイティブ深度。旧Model/Triangleも削除済み。最終統合検証は継続中)。
 - Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
 - Conformance: MatchesWithDocumentedExtension(M0111 の文書の UE との差)
@@ -5019,7 +5019,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `Templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/Landscape_Terrain.glb`・`Track_Road.glb`・`Track_Curbs.glb`、`Scenes/Lvl_VehicleBasic.json`(`Landscape`・`Track`・`TrackCurbs`)
   - `tools/UnrealExport/probe_vehicle_landscape_heights.py`・`probe_vehicle_surfaces.py`・`probe_vehicle_ground_materials.py`・`probe_vehicle_ground_t3d.py`・`capture_vehicle_ground_color.py`・`build_vehicle_ground.py`(各 `run_*.cmd`)、`tools/UnrealExport/README.md`
-- Tests: `tests/CSharpGameEngine.Windows.Tests/Character/VehicleLevelTests.cs`(24。M0124 で縁石を越える・縁石の上を走る 3 件)、`ChaosVehicleTrack.AddGltf`、`tests/CSharpGameEngine.Windows.Tests/Physics/PhysicsMeshMultiFaceContactTests.cs`(M0124)
+- Tests: `tests/Windowsのテスト/Windows/Character/VehicleLevelTests.cs`(24。M0124 で縁石を越える・縁石の上を走る 3 件)、`ChaosVehicleTrack.AddGltf`、`tests/Windowsのテスト/Windows/Physics/PhysicsMeshMultiFaceContactTests.cs`(M0124)
 - Current delta: 地形は 1 m 格子の高さの三角形メッシュ(UE の対角線)で、色は照明なしの基本色の撮影。縁石は M0124 から路面と同じ材質で衝突する(物理の接触が複数の面の向きとメッシュの稜線を扱うようになった。Vehicle の実走の基準値は 62.614 m・25.4°)。層の重みと RVT は撮影に焼いたので、Landscape の層は編集できない。UE のアーチ(`SM_Tunnel`)・コーン・壁は M0102 から取り込み済みで、丘の上に載るようになった。
 - Conformance: MatchesWithDocumentedExtension(UE の参照画像と構図が同じ。陰の明るさは差が残る。M0112 の文書)
 - Next action: 実機の GPU。(縁石の衝突は M0124 で済み)
@@ -5051,7 +5051,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Runtime/Windows/FragmentMesh.cs`・`RenderRoster.cs`、`src/Entities/Runtime.cs`(`TakeSceneOrdinal`)・`ISpawnableScene.cs`(`SceneStableIds`)、`src/CodeAnalysis/SceneInstantiateEmitter.cs`・`GeneratedSceneBakeHostEmitter.cs`(`TryReplay`)
   - `tools/Physics.Cli/`(`Program.cs`・`PhysicsBridgeWorker.cs`・`GameBake.cs`)、`tools/VSExtension/PrefractureDebugService.cs`・`PhysicsDebugOverlay.cs`、`tools/FeatureRunner/DestructionSampleVerification.cs`
   - `samples/Samples.Destruction/`、`UserEcsProject/Scenes/Destruction*.json`、`packaging/Sdk/Sdk.csproj`(Cook モジュールを `plugins/Destruction/Cook/lib/` へ)
-- Tests: `tests/CSharpGameEngine.Destruction.Tests/`(57。M0124 の `ClusterLevelCookTests` を含む)、`tests/CSharpGameEngine.Windows.Tests/Physics/DestructionTests.cs`・`FractureSolverTests.cs`・`PhysicsFractureInternalStrainTests.cs`・`FragmentContactTests.cs`・`PhysicsCacheBondBreakTests.cs`・`PhysicsCacheBondStrainTests.cs`・`PhysicsMeshMultiFaceContactTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/PrefractureDebugServiceTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/DestructionSampleVerificationTests.cs`
+- Tests: `tests/エンジンのテスト/Destruction/`(57。M0124 の `ClusterLevelCookTests` を含む)、`tests/Windowsのテスト/Windows/Physics/DestructionTests.cs`・`FractureSolverTests.cs`・`PhysicsFractureInternalStrainTests.cs`・`FragmentContactTests.cs`・`PhysicsCacheBondBreakTests.cs`・`PhysicsCacheBondStrainTests.cs`・`PhysicsMeshMultiFaceContactTests.cs`、`tests/VS拡張のテスト/PrefractureDebugServiceTests.cs`、`tests/エンジンのテスト/FeatureRunner/DestructionSampleVerificationTests.cs`
 - Reverse-engineered behavior: `Docs/Reverse-Engineered-Spec.md` の RE-M0113 と RE-M0124
 - Current delta: M0124 で内部ひずみ(衝撃が溜まり、既定 0.5/s で減衰。置かれた荷重は溜まらない)と多段クラスター(`ClusterLevels` 1〜4、結合の強さは共有する段の数だけ `ClusterStrengthScale` 倍)を実装した。「接触の始まり = 衝撃」は UE の損傷の作り方と同じではない。再生から実時間への引き継ぎでは接触の記憶がキャッシュに無いので、置かれた物体の荷重がその tick に衝撃として溜まる。凹んだソースは拒否。Field は球の線形の減衰だけ。破片の描画は平らな陰影の 2 色。複合形状と凸の相手の接触は 1 つの面の向き。`verify-destruction` の基準(M0124): 壊れた数 2/6/6/6(歩く間に木箱が 4 つとも壊れる)、結合 204、破片 65、終わりの最低の重心 0.079 m、キャッシュ 637,630 バイト。
 - Conformance: MatchesWithDocumentedExtension(M0113 と M0124 の「範囲外」の表)

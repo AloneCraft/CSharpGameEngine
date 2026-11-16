@@ -14,7 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>CSharpGameEngine.FeatureRunner.Tests</_Parameter1>
+      <_Parameter1>エンジンのテスト</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
   <Target Name="VerifyRepositoryFeatureContracts" AfterTargets="Build" Condition="'$(DesignTimeBuild)'!='true' And '$(IsCrossTargetingBuild)'!='true'">

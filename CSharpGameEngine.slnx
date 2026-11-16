@@ -189,36 +189,16 @@
     <Project Path="stages/CSharpGameEngine.FeatureStages.Vsix/CSharpGameEngine.FeatureStages.Vsix.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/CSharpGameEngine.Audio.Tests/CSharpGameEngine.Audio.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Content.Tests/CSharpGameEngine.Content.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.ContentCompiler.Tests/CSharpGameEngine.ContentCompiler.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.World.Tests/CSharpGameEngine.World.Tests.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
-    <Project Path="tests/CSharpGameEngine.Contracts.Tests/CSharpGameEngine.Contracts.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Numerics.Tests/CSharpGameEngine.Numerics.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Rendering.Tests/CSharpGameEngine.Rendering.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.FontBaker.Tests/CSharpGameEngine.FontBaker.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
-    <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Cook.Tests/CSharpGameEngine.Cook.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Navigation.Tests/CSharpGameEngine.Navigation.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Destruction.Tests/CSharpGameEngine.Destruction.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.FeatureRunner.Tests/CSharpGameEngine.FeatureRunner.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj">
+    <Project Path="tests/エンジンのテスト/エンジンのテスト.csproj" />
+    <Project Path="tests/コンテンツのテスト/コンテンツのテスト.csproj" />
+    <Project Path="tests/焼き込みのテスト/焼き込みのテスト.csproj" />
+    <Project Path="tests/ECSのテスト/ECSのテスト.csproj" />
+    <Project Path="tests/シーンモデルのテスト/シーンモデルのテスト.csproj" />
+    <Project Path="tests/Windowsのテスト/Windowsのテスト.csproj">
       <Platform Project="x64" />
     </Project>
-    <Project Path="tests/CSharpGameEngine.ShaderGraph.Tests/CSharpGameEngine.ShaderGraph.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.ShaderArtifacts.Tests/CSharpGameEngine.ShaderArtifacts.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.ShaderGraph.Cli.Tests/CSharpGameEngine.ShaderGraph.Cli.Tests.csproj">
-      <Platform Project="x64" />
+    <Project Path="tests/VS拡張のテスト/VS拡張のテスト.csproj">
+      <Platform Project="AnyCPU" />
     </Project>
   </Folder>
   <Folder Name="/plugins/Vehicles/">

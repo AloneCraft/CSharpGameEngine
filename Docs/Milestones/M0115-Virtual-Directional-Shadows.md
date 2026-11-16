@@ -57,6 +57,6 @@
 - 最終ソースの `topdown-final.png/json` も同じ 32 フレーム・同じカメラで確認した。左の坂 94.42、右 117.96、床 127.38、D3D12 エラー 0。撮影フレーム自身の GPU 時間読み取りを加えた後の Release 再確認も `capture-timing-release.trx` の 7/7 が通過。
 
 ## 並行作業との境界
-最後の Debug 再ビルド時、別作業で追加された `tests/CSharpGameEngine.Windows.Tests/Physics/MeshMultiFaceContactTests.cs` の private な `Shape` が public な TheoryData/テスト引数に使われ、CS0051/CS0053 でテストプロジェクト全体のコンパイルが止まった。対象ソースは変更していない。最後の機能確認だけは `.artifacts/virtual-shadows/ExcludeUnrelatedTest.targets` を `CustomBeforeMicrosoftCommonTargets` で読み、当該 1 ファイルを Compile から外して隔離する。これは通常ビルドの修正ではない。前掲の Debug 47/Release 48 はこの並行追加前の完了した実行結果である。
+最後の Debug 再ビルド時、別作業で追加された `tests/Windowsのテスト/Windows/Physics/MeshMultiFaceContactTests.cs` の private な `Shape` が public な TheoryData/テスト引数に使われ、CS0051/CS0053 でテストプロジェクト全体のコンパイルが止まった。対象ソースは変更していない。最後の機能確認だけは `.artifacts/virtual-shadows/ExcludeUnrelatedTest.targets` を `CustomBeforeMicrosoftCommonTargets` で読み、当該 1 ファイルを Compile から外して隔離する。これは通常ビルドの修正ではない。前掲の Debug 47/Release 48 はこの並行追加前の完了した実行結果である。
 
 隔離した最終 Debug 検証は `results/capture-timing-debug.trx` の 7/7 が通過した。撮影フレーム自身の時刻読み取りを含む最終変更は、Debug / Release の両方で仮想シャドウと Radial のデバイス復旧を再確認済み。

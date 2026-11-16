@@ -158,7 +158,7 @@ Archetype2のループ、すなわち描画同期(Archetype3)より前でPresent
 dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...  → 64/64 成功(新規8件を含む)
+dotnet test tests/エンジンのテスト/CodeAnalysis/...  → 64/64 成功(新規8件を含む)
 
 dotnet build src/Entities/Entities.csproj -c Debug
   → 成功(System 0件・Library なのでエントリポイントは生成されない)

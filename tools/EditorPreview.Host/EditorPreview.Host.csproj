@@ -16,7 +16,7 @@
     <ProjectReference Include="../../src/Engine/Engine.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="CSharpGameEngine.Windows.Tests" />
+    <InternalsVisibleTo Include="Windowsのテスト" />
   </ItemGroup>
   <ItemGroup>
     <!-- ADR-0070 B1: the runtime view reads the editor's scene JSON with the generator's own reader. -->

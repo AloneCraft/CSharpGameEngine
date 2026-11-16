@@ -146,9 +146,9 @@ MainCamera/Player構成を実際に動くコードとして再現し、`dotnet r
 
 ```
 dotnet build src/Entities/...csproj -c Debug        → 成功、警告0/エラー0
-dotnet test tests/CSharpGameEngine.Entities.Tests/...                → 成功、61件(9件新規)
+dotnet test tests/ECSのテスト/...                → 成功、61件(9件新規)
 dotnet build src/CodeAnalysis/...csproj -c Debug    → 成功、警告0/エラー0
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...            → 成功、52件(16件新規)
+dotnet test tests/エンジンのテスト/CodeAnalysis/...            → 成功、52件(16件新規)
 dotnet run --project samples/SceneAuthoringDemo                      → "OK"
 dotnet build CSharpGameEngine.slnx -c Debug / -c Release             → 成功、警告0/エラー0
 dotnet test CSharpGameEngine.slnx                                     → 成功、13プロジェクト・380件全成功
@@ -171,4 +171,4 @@ dotnet test CSharpGameEngine.slnx                                     → 成功
 VSIXが`*.scene`ファイルを読むためのパーサ
 (`tools/VSExtension/SceneFile.cs`)はVSIX内にそのまま残っており、影響はない。
 出荷される`UserGameProject/DefaultScene.scene`を実際に読む唯一のテストだった
-`DefaultSceneFileTests`は、削除に先立って`tests/CSharpGameEngine.VSExtension.Tests/`へ移植した。
+`DefaultSceneFileTests`は、削除に先立って`tests/VS拡張のテスト/`へ移植した。

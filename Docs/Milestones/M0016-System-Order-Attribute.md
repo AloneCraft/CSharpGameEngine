@@ -73,7 +73,7 @@
 dotnet build src/CodeAnalysis/CodeAnalysis.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...
+dotnet test tests/エンジンのテスト/CodeAnalysis/...
   → 73/73 成功(既存64件 + 新規9件)
 
 dotnet build UserEcsProject/UserEcsProject.csproj -c Debug

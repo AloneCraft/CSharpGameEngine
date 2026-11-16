@@ -1,0 +1,115 @@
+using Xunit;
+using CSharpGameEngine.Numerics;
+using CSharpGameEngine.Rendering.View;
+using CSharpGameEngine.Rendering.Server;
+using Camera=CSharpGameEngine.Rendering.View.RenderCamera;
+using CSharpGameEngine.Lighting;
+using System.Numerics;
+using CSharpGameEngine.Import.Gltf;
+using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Windows;
+
+namespace CSharpGameEngine.Graphics.D3D12.Tests;
+
+/// <summary>
+/// 実際のglTFインポート、Windows、D3D12モデルビューアーの垂直スライスを端から端まで実行する。
+/// WARPソフトウェアアダプターを使うため、物理GPUなしでもCIで決定的に実行できる。
+/// ドライバー／GPUの停止でテスト実行全体が固まらないよう、明示的なタイムアウトを設ける
+///（<see cref="TriangleGpuIntegrationTests"/>と同じ理由。xunit独自のTimeoutでは停止したCoreCLRスレッドを中断できない）。
+/// </summary>
+[Collection(D3D12GpuCollection.Name)]
+public class ModelGpuIntegrationTests {
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
+    private static readonly string BoxPath=Path.Combine(AppContext.BaseDirectory,"Fixtures","Box.glb");
+    private static readonly string BoxTexturedPath=Path.Combine(AppContext.BaseDirectory,"Fixtures","BoxTextured.glb");
+
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void Model_Warp_DebugLayer_Verify_RendersAndPasses(){
+        // Box.glbにはテクスチャがなく、赤いbaseColorFactor (0.8,0,0,1)だけがある。テクスチャ対応の変更後も、
+        // 白色フォールバックテクスチャのx係数経路で適切に描画できることを回帰確認する。
+        RunWithTimeout(()=>RunModelGpuScenario(BoxPath,UseWarp:true),TimeSpan.FromSeconds(60));
+    }
+
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void Model_BoxTextured_Warp_DebugLayer_Verify_RendersAndPasses(){
+        RunWithTimeout(()=>RunModelGpuScenario(BoxTexturedPath,UseWarp:true),TimeSpan.FromSeconds(60));
+    }
+
+    private static void RunWithTimeout(Action Action,TimeSpan Timeout){
+        Task Task=Task.Run(Action);
+        if(!Task.Wait(Timeout)){
+            throw new TimeoutException($"GPU test did not complete within {Timeout}.");
+        }
+    }
+
+    private static void RunModelGpuScenario(string ModelPath,bool UseWarp){
+        var ImportResult=GltfImporter.Import(ModelPath);
+        Assert.True(ImportResult.Success,string.Join(Environment.NewLine,ImportResult.Diagnostics));
+        var Mesh=ImportResult.Mesh!;
+        RenderTextureResource?BaseColorTexture=
+            RenderTextureArtifactAdapter.DecodeOptional(Mesh.BaseColorTextureBytes??[]);
+
+        using Win32Window Window=new(new Win32WindowOptions {
+            Title="CSharpGameEngine Model GPU Test",
+            Width=256,
+            Height=256,
+            Visible=false,
+        });
+
+        GraphicsDeviceOptions DeviceOptions=new(){
+            UseWarp=UseWarp,
+            EnableDebugLayer=true,
+        };
+
+        StageMaterialCreateInfo Material=new(){
+            BaseColorFactor=Mesh.BaseColorFactor,
+            RoughnessFactor=1f,
+            MetallicFactor=0f,
+            BaseColorTexture=BaseColorTexture,
+        };
+        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+            StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
+            Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Material);
+        using var Renderer=D3D12RenderServer.Create(
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
+            ShaderArtifactPath,Meshes,Materials,Objects);
+        Vector3 Extent=new(Mesh.Bounds.BoundingSphereRadius);
+        Renderer.SetCamera(Camera.CreateBoundsFit(
+            Mesh.Bounds.Center-Extent,Mesh.Bounds.Center+Extent));
+        Renderer.SetAmbientLight(new Vector3(0.35f));
+        Renderer.SetDirectionalLight(new DirectionalLightSubmission(
+            Vector3.Normalize(new Vector3(1f,-1f,1f)),new LinearLightColor(1f,1f,1f),new Illuminance(50_000f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
+
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
+        Assert.Equal(UseWarp,Renderer.IsWarp);
+        Assert.True(Renderer.DebugLayerEnabled);
+
+        const int TotalFrames=3;
+        for(var Frame=0;Frame<TotalFrames;Frame++){
+            Window.PumpEvents();
+            Renderer.RenderFrame(CaptureForVerification:Frame==TotalFrames-1);
+        }
+
+        Assert.Equal((uint)TotalFrames,Renderer.FramesRendered);
+        Assert.NotNull(Renderer.LastCapturedFrame);
+
+        var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,RenderServer.ClearColor);
+        Assert.True(Verification.Success,Verification.Details);
+
+        Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
+
+        // Stage深度バッファ再作成後も、インポートしたテクスチャ付きジオメトリが見える。
+        Renderer.Resize(128,128);
+        Renderer.RenderFrame(CaptureForVerification:true);
+
+        Assert.NotNull(Renderer.LastCapturedFrame);
+        Assert.Equal(128,Renderer.LastCapturedFrame!.Width);
+        var ResizedVerification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,RenderServer.ClearColor);
+        Assert.True(ResizedVerification.Success,ResizedVerification.Details);
+
+        Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
+    }
+}

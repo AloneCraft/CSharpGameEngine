@@ -25,7 +25,7 @@
   ID再利用/容量拡張、`ComponentColumn<T>`、そしてユーザー要件の核心である
   「正規化後に同一構成となる2つのアーキタイプが同一`ArchetypeStorage`を共有する」ことを検証する
   `ArchetypeStorageSharingSpec`を含む17件。
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/`に`EcsArchetypeGenerator`用テスト17件を追加:
+- `tests/エンジンのテスト/CodeAnalysis/`に`EcsArchetypeGenerator`用テスト17件を追加:
   正規化順の一致(emission)、`ECSGEN001`〜`ECSGEN009`各診断の発生確認(diagnostics)、そして
   実際にコンパイル・`Emit`・`Assembly.Load`・リフレクション実行して実行時の値を検証する
   end-to-endテスト2件(`Player`サンプル、名前付き引数版`Bullet`+正規化後に同一形状となる
@@ -63,7 +63,7 @@
 dotnet build src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj -c Debug        → 成功、警告0/エラー0
 dotnet test tests/CSharpGameEngine.Ecs.Tests/...csproj                            → 17件成功
 dotnet build src/CodeAnalysis/...csproj -c Debug                 → 成功、警告0/エラー0
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...csproj                   → 20件成功(既存3+新規17)
+dotnet test tests/エンジンのテスト/CodeAnalysis/...csproj                   → 20件成功(既存3+新規17)
 dotnet build UserGameProject/UserGameProject.csproj -c Debug                      → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Debug                                       → 成功、警告0/エラー0
 dotnet build CSharpGameEngine.slnx -c Release                                     → 成功、警告0/エラー0

@@ -20,7 +20,7 @@ Query・Read/Writeアクセス・SoAループ・依存順序・ゲームルー�
 - `EntityCommandBuffer`/`ComponentValueStore<T>`: FIFO記録+`Playback`、一時Entityハンドル
   (`Entity.Temporary`)。
 - `[GameSystem]`/`[Update]`/`[Context]`/`[CurrentEntity]`/`[Commands]`/`[Without]`属性。
-- `tests/CSharpGameEngine.Entities.Tests/`: 51件。
+- `tests/ECSのテスト/`: 51件。
 
 ### `GameSystemGenerator`(`src/CodeAnalysis/`)
 - `GameSystemAnalyzer`/`GameSystemModel`/`GameSystemExecutorEmitter`: 引数からのQuery/
@@ -29,7 +29,7 @@ Query・Read/Writeアクセス・SoAループ・依存順序・ゲームルー�
   ソート、`.Collect()`ベースの単一`GeneratedGameLoop`生成(このリポジトリ初の結合出力
   パターン)。
 - `GameSystemDiagnostics`: SYSGEN001〜020。
-- `tests/CSharpGameEngine.CodeAnalysis.Tests/`: `GameSystemGeneratorDiagnosticsTests.cs`
+- `tests/エンジンのテスト/CodeAnalysis/`: `GameSystemGeneratorDiagnosticsTests.cs`
   (20診断)、`GameSystemGeneratorEmissionTests.cs`(7件、テキスト形状+コンパイル可能性+
   決定性+依存順序)、`GameSystemGeneratorEndToEndTests.cs`(4件、実World/Entity実行)。
 
@@ -94,7 +94,7 @@ Queryキャッシュの差分更新を同時に検証し、"OK"を返す。
 
 ```
 dotnet build src/CodeAnalysis/...csproj -c Debug  → 成功、警告0/エラー0
-dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests/...          → 成功、121件
+dotnet test tests/エンジンのテスト/CodeAnalysis/...          → 成功、121件
   (Step7時点、GameSystemGenerator関連33件新規+既存88件)
 dotnet run --project samples/SoaSystemsDemo                        → "OK"
 dotnet build UserGameProject/UserGameProject.csproj -c Debug       → 成功、警告0/エラー0

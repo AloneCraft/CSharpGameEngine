@@ -53,7 +53,7 @@ VSIX同梱の`SceneFile.Load`と既存の`FindRepoRoot()`を使い約20行)。�
   (`FbxAxisConversion`は`internal`で`FbxAxisConversionTests`が直接呼ぶ)。
 - 消費者6箇所を張り替え: `Extension`, `Import.Gltf.Cli`, `Import.Fbx.Cli`, `Graphics.D3D12.Tests`,
   `UserGameProject`, `.slnx`。
-- テストを`tests/CSharpGameEngine.Import.Tests/{Gltf,Fbx}/`へ集約。`RuntimeIdentifier=win-x64`(assimpの
+- テストを`tests/エンジンのテスト/Import/{Gltf,Fbx}/`へ集約。`RuntimeIdentifier=win-x64`(assimpの
   ネイティブDLL用)・`SharpGLTF.Toolkit`・フィクスチャ6件を和集合にした。
 
 → **368件 / 10プロジェクト**、`Import.Tests` = **30件**(20 + 10)。

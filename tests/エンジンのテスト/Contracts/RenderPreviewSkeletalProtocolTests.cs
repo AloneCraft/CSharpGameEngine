@@ -1,0 +1,120 @@
+using Xunit;
+using System.Numerics;
+using CSharpGameEngine.Contracts;
+namespace CSharpGameEngine.Contracts.Tests;
+/// <summary>生成済みモデルの参照とアニメーションフレームの検証（ADR-0097）。</summary>
+public sealed class RenderPreviewSkeletalProtocolTests {
+    private static RenderPreviewCamera Camera(){
+        var Matrix=Matrix4x4.CreateLookAt(new(0f,1f,-4f),Vector3.Zero,Vector3.UnitY)*Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.1f,300f);
+        return new RenderPreviewCamera {
+            ViewProjection=new RenderPreviewMatrix4x4 { Values=[
+                Matrix.M11,Matrix.M12,Matrix.M13,Matrix.M14,Matrix.M21,Matrix.M22,Matrix.M23,Matrix.M24,
+                Matrix.M31,Matrix.M32,Matrix.M33,Matrix.M34,Matrix.M41,Matrix.M42,Matrix.M43,Matrix.M44] },
+            FovYRadians=0.8f,NearZ=0.1f,FarZ=300f,
+        };
+    }
+    private static RenderPreviewModelSource Prepared(string Path)=>new(){SourcePath=Path,ContentDirectory=@"C:\Game\obj\Models",SourceUri="Assets/Model.glb",ModelHash=new string('1',64)};
+    private static RenderPreviewHostRequest Open(RenderPreviewAssetSource?Asset){
+        if(Asset is not null){ Asset.MeshModel=Prepared(Asset.MeshPath);if(!string.IsNullOrEmpty(Asset.AnimationPath)){ Asset.AnimationModel=Prepared(Asset.AnimationPath); } }
+        return new(){
+        RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=1,Command=RenderPreviewHostCommand.Open,
+        SurfaceHandle=1,Width=64,Height=64,ShaderArtifactPath="Stage.cgeshaderartifact",
+        Scene=new RenderPreviewScene { Camera=Camera(),Asset=Asset },
+        };
+    }
+    private static RenderPreviewHostRequest FrameRequest(Action<RenderPreviewFrame>Edit){
+        var Frame=new RenderPreviewFrame { Camera=Camera() };
+        Edit(Frame);
+        return new RenderPreviewHostRequest {
+            RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=2,Command=RenderPreviewHostCommand.UpdateFrame,Frame=Frame,
+        };
+    }
+    [Fact]
+    public void ThePreviousHostProtocolIsRejectedBeforeLoadingAnAsset(){
+        var Request=Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" });
+        Request.ProtocolVersion=RenderPreviewHostProtocol.CurrentVersion-1;
+        Assert.Contains("Unsupported",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)));
+    }
+    [Fact]
+    public void AnAssetOnlySceneWithoutExplicitObjectsIsValid(){
+        Assert.Null(RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" })));
+        Assert.Null(RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb",AnimationPath=@"C:\Game\Assets\Anims\Run.GLTF" })));
+        Assert.Null(RenderPreviewHostProtocol.Validate(Open(null)));
+    }
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("hash")]
+    [InlineData("directory")]
+    [InlineData("identity")]
+    [InlineData("escape")]
+    [InlineData("empty-part")]
+    [InlineData("control")]
+    public void InvalidPreparedModelsAreRejectedBeforeOpeningAHost(string Failure){
+        var Request=Open(new RenderPreviewAssetSource {MeshPath=@"C:\Game\Assets\Hero.glb"});var Asset=Request.Scene!.Asset!;
+        switch(Failure){
+            case "missing":Asset.MeshModel=null;break;
+            case "hash":Asset.MeshModel!.ModelHash=new string('0',64);break;
+            case "directory":Asset.MeshModel!.ContentDirectory="relative";break;
+            case "identity":Asset.MeshModel!.SourcePath=@"C:\Game\Assets\Other.glb";break;
+            case "escape":Asset.MeshModel!.SourceUri="../Other.glb";break;
+            case "empty-part":Asset.MeshModel!.SourceUri="Assets//Hero.glb";break;
+            case "control":Asset.MeshModel!.SourceUri="Assets/Hero\0.glb";break;
+            default:throw new InvalidOperationException(Failure);
+        }
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+    }
+    [Fact]
+    public void StaticAssetPathsAreValidatedAndCannotBeCombinedWithASkeletalAsset(){
+        var Request=Open(null);
+        var Scene=Request.Scene!;
+        Scene.StaticAssetPath=@"C:\Game\Assets\Box.glb";
+        Scene.StaticModel=Prepared(Scene.StaticAssetPath);
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
+        Scene.Asset=new RenderPreviewAssetSource { MeshPath=@"C:\Game\Assets\Hero.glb" };
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+        Scene.Asset=null;
+        Scene.StaticAssetPath=@"Assets\Box.glb";
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+        Scene.StaticAssetPath=@"C:\Game\Assets\Box.fbx";
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Request));
+    }
+    [Theory]
+    [InlineData("")]
+    [InlineData(@"Assets\Hero.glb")]
+    [InlineData(@"C:\Game\Hero.fbx")]
+    [InlineData(@"C:\Game\Hero")]
+    [InlineData("C:\\Game\\Hero\0.glb")]
+    public void AnInvalidMeshPathIsRejected(string Path){
+        var Error=RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=Path }));
+        Assert.Contains("Asset mesh path",Assert.IsType<string>(Error));
+    }
+    [Fact]
+    public void AnInvalidAnimationPathIsRejectedAndAnOverlongOneToo(){
+        var Error=RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=@"C:\Game\Hero.glb",AnimationPath=@"C:\Game\Run.fbx" }));
+        Assert.Contains("Asset animation path",Assert.IsType<string>(Error));
+        var Long=@"C:\"+new string('a',RenderPreviewAssetSource.MaximumPathLength)+".glb";
+        Assert.NotNull(RenderPreviewHostProtocol.Validate(Open(new RenderPreviewAssetSource { MeshPath=Long })));
+    }
+    [Fact]
+    public void AFrameWithoutAnimationOrWithAValidOneIsAccepted(){
+        Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(static _=>{ })));
+        Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(static F=>{ F.Animation=new(){ ClipIndex=-1 };F.ShowSkeleton=true;F.SelectedJoint=3; })));
+        Assert.Null(RenderPreviewHostProtocol.Validate(FrameRequest(static F=>F.Animation=new(){ ClipIndex=2,TimeSeconds=12.5f,Loop=false })));
+    }
+    public static IEnumerable<object[]>InvalidFrames(){
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.Animation=new(){ TimeSeconds=float.NaN }),"time"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.Animation=new(){ TimeSeconds=float.PositiveInfinity }),"time"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.Animation=new(){ TimeSeconds=-0.5f }),"time"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.Animation=new(){ TimeSeconds=RenderPreviewSkeletalValidation.MaximumTimeSeconds*2f }),"time"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.Animation=new(){ ClipIndex=-2 }),"clip"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.Animation=new(){ ClipIndex=100_000 }),"clip"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.SelectedJoint=-2),"joint"];
+        yield return [(Action<RenderPreviewFrame>)(static F=>F.SelectedJoint=int.MaxValue),"joint"];
+    }
+    [Theory]
+    [MemberData(nameof(InvalidFrames))]
+    public void AnInvalidAnimationFrameIsRejectedWithItsReason(Action<RenderPreviewFrame>Edit,string Fragment){
+        var Error=RenderPreviewHostProtocol.Validate(FrameRequest(Edit));
+        Assert.Contains(Fragment,Assert.IsType<string>(Error),StringComparison.OrdinalIgnoreCase);
+    }
+}

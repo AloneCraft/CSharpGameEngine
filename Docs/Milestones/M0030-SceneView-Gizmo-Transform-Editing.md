@@ -42,7 +42,7 @@ Phase 3〜7で実装済み**であることが判明した(commit `61b35fd` / `2
 無い状態だったため、失敗経路に絞ってテストを追加した(成功経路は`ScenePhase7Tests`が既に持つので
 重複させていない)。
 
-- `tests/CSharpGameEngine.VSExtension.Tests/SceneEditConflictMergerTests.cs`(新規、6件)
+- `tests/VS拡張のテスト/SceneEditConflictMergerTests.cs`(新規、6件)
   - `Merge_NodeRemovedFromLatestScene_Fails` — §9-6 対象ノード消失
   - `Merge_TransformMemberBecameNonLiteralExpression_Fails` — 外部編集で式化したメンバーを上書きしない
   - `Merge_MismatchedSceneKey_Fails`

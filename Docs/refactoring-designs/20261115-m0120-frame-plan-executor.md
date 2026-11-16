@@ -64,7 +64,7 @@
 - `RenderServer.RenderFrame`(`Server/RenderServer.cs:359`)は、デバイス喪失から復旧するとき `RenderFrameState.Replay` で setter を再生してからバックエンドの `RenderFrame` を呼ぶ。
 - `RenderServer.DeclaredQualityPlan` は `RenderQualityProfile` の宣言だけのグラフで、実際のパス(Lumen、GDF、AO、大気、プレビュー、画面レイヤー)と一致しない(ADR-0085 の調査)。
 - 層の試験 `NativeBackendDoesNotPlanFrames` はまだ無い(ADR-0087 §3 は計画抽出の後に足すとしている)。
-- 画素の基準は `tests/CSharpGameEngine.Windows.Tests/Graphics/StageGoldenFrameTests.cs` の対数 7 SHA と、Stage 成果物の生 SHA-256 `E485F055…B6A5`(M0120 の記録)。`GoldenFrameDump` が差分の画素数と最大差を出せる。
+- 画素の基準は `tests/Windowsのテスト/Windows/Graphics/StageGoldenFrameTests.cs` の対数 7 SHA と、Stage 成果物の生 SHA-256 `E485F055…B6A5`(M0120 の記録)。`GoldenFrameDump` が差分の画素数と最大差を出せる。
 
 ## 過去設計から引き継ぐ仕様
 
@@ -160,7 +160,7 @@ PSO は `StagePipelineDesc` を値で比べるキャッシュから作る。今�
 - `src/Engine/Rendering/Backend/IStageRenderBackend.cs`、`Server/RenderServer.cs`、`Server/RenderFrameState.cs`、`RenderQualityProfile.cs`、新しい `Pipeline/StagePipelinePlanner.cs`・`StagePipelinePlan.cs`・`StagePipelineDesc.cs`・`StageFrameData.cs`・`StageLightPlanner.cs`・`StageShadowPlanner.cs`
 - `src/CodeAnalysis/GeneratedEditorPreviewBridgeEmitter.cs`(バックエンドの型名を出している)
 - `tools/TestHost`(`frame-plan`)、`tools/FeatureRunner/FeatureStageCatalog.cs`(InputPaths)
-- 試験: `tests/CSharpGameEngine.Rendering.Tests`、`tests/CSharpGameEngine.Windows.Tests/Graphics`、`tests/CSharpGameEngine.Core.Tests` の `EngineLayerSpec`
+- 試験: `tests/CSharpGameEngine.Rendering.Tests`、`tests/Windowsのテスト/Windows/Graphics`、`tests/CSharpGameEngine.Core.Tests` の `EngineLayerSpec`
 - 文書: M0120、Rendering.md、Architecture.md、Implementation-Status(F-L0-011)、Conformance
 - 公開 API の破壊: `IStageRenderBackend.RenderFrame`、`RenderServer.DeclaredQualityPlan`、L0 のカメラ互換入口。ADR-0098 §5 で許す。SDK の版は `0.1.0-dev.N` の N を上げる。
 

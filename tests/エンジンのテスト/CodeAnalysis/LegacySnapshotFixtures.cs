@@ -1,0 +1,7 @@
+using Xunit;
+namespace CSharpGameEngine.CodeAnalysis.Tests;
+internal static class LegacySnapshotFixtures {
+    // Captured with the version-1 codec before migration; one Sample.FixedPosition.X = 1.25, tick 7.
+    internal const string FixedPosition="Q0dFQ1NOUDEBAAAADgEAAIRgvfhq1d8y3cVSMduLSSRDAlCabiwr+N9hthjBbkd2Iod7Qf0851Jrap4OpRLjNXqQt03Pbqw7ZF4FvIGicXAHAAAAAAAAAMoXwUeGY3UmxrVNyy4oZ3OcieeudGQ+EhY/btiMdrbjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAJAAzMDAwMDAwMC0wMDAwLTUwMDAtODAwMC0wMDAwMDAwMDAwMDEBAAAAJAAzMDAwMDAwMC0wMDAwLTUwMDAtODAwMC0wMDAwMDAwMDAwMDEkADQwMDAwMDAwLTAwMDAtNTAwMC04MDAwLTAwMDAwMDAwMDAwMcZuyTQ9LZH1Q0qWgl6LZnR9nTxyeid/7XHiutd6J5eWAQEAAAAUAFNhbXBsZS5GaXhlZFBvc2l0aW9uAQwAAAB7IlgiOiIxLjI1In0=";
+    internal const string FixedPositionSchema="8460bdf86ad5df32ddc55231db8b49244302509a6e2c2bf8df61b618c16e4776";
+}

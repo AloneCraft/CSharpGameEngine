@@ -1,0 +1,57 @@
+using Xunit;
+using System.Globalization;
+using CSharpGameEngine.Spatial.Abstractions;
+using CSharpGameEngine.Spatial.Unity;
+
+namespace CSharpGameEngine.Spatial.Tests;
+
+/// <summary>Docs/RUF-Semantic-Coordinate-Specification-Prompt.md の「Determinism Tests」。</summary>
+public class DeterminismTests {
+    [Fact]
+    public void ToString_IsCultureInvariant(){
+        var Original=CultureInfo.CurrentCulture;
+
+        try {
+            RufVector Vector=new(1.5f,2.5f,3.5f);
+
+            CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("de-DE");
+            var CommaCultureText=Vector.ToString();
+
+            CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
+            var InvariantCultureText=Vector.ToString();
+
+            // Ruf(...) はカルチャーにかかわらず、固定のタプル区切りとして ", " を使う。不変性を
+            // このテストで検証するのは、各成分内部の小数点（ドイツ語の "," ではない）。
+            Assert.Equal(InvariantCultureText,CommaCultureText);
+            Assert.DoesNotContain("1,5",CommaCultureText,StringComparison.Ordinal);
+        } finally {
+            CultureInfo.CurrentCulture=Original;
+        }
+    }
+
+    [Fact]
+    public void ConventionConversion_IsCultureIndependent(){
+        var Original=CultureInfo.CurrentCulture;
+
+        try {
+            RufVector Input=new(1.25f,-2.5f,3.75f);
+
+            CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("de-DE");
+            var UnderGermanCulture=UnityCoordinateConvention.ToXyz(Input);
+
+            CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
+            var UnderInvariantCulture=UnityCoordinateConvention.ToXyz(Input);
+
+            Assert.Equal(UnderInvariantCulture,UnderGermanCulture);
+        } finally {
+            CultureInfo.CurrentCulture=Original;
+        }
+    }
+
+    [Fact]
+    public void RepeatedEvaluation_OfConventionBasis_IsIdentical(){
+        Assert.Equal(UnityCoordinateConvention.RightXyz,UnityCoordinateConvention.RightXyz);
+        Assert.Equal(UnityCoordinateConvention.UpXyz,UnityCoordinateConvention.UpXyz);
+        Assert.Equal(UnityCoordinateConvention.ForwardXyz,UnityCoordinateConvention.ForwardXyz);
+    }
+}

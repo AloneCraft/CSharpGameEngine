@@ -29,6 +29,6 @@
     <ProjectReference Include="..\..\..\src\Import\Import.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>CSharpGameEngine.Destruction.Tests</_Parameter1></AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>エンジンのテスト</_Parameter1></AssemblyAttribute>
   </ItemGroup>
 </Project>

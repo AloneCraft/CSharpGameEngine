@@ -182,13 +182,13 @@ internal static class GameAudio
 dotnet build src/Engine/Engine.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.Core.Tests/... -c Debug
+dotnet test tests/エンジンのテスト/Core/... -c Debug
   → 119/119 成功(既存111件 + 新規8件: ProceduralAudioClipTests 6件、AudioBackendFacadeTests 2件)
 
 dotnet build src/Windows/Windows.csproj -c Debug
   → 成功、警告0/エラー0
 
-dotnet test tests/CSharpGameEngine.Windows.Tests/... -c Debug
+dotnet test tests/Windowsのテスト/Windows/... -c Debug
   → 69/69 成功(既存67件 + 新規2件: XAudio2BackendTests、実デバイスでのCreateEngine/CreateVoice/
     SubmitBuffer/Start/Stop/DestroyVoice/DestroyEngineが例外を投げないことを実機で確認)
 
