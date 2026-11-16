@@ -69,4 +69,7 @@ This raw compiler data is separate from the artifact entry's existing JSON refle
 
 M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つようになった。ピクセル出力は `StagePixelOutput`(色と `SV_DepthGreaterEqual`)、単一の `VertexOutput` が VS と PS の契約。`CompleteStageSurface` が表示用を含む最終深度を共有する。旧 `Radial*` のラッパーエントリーは削除した。観察ビューだけが `ObserverVSMain` を使い、色・深度の PS は共有する。複製した古い Stage グラフは、新しい構造体・ヘルパーを含むグラフへ更新してから成果物を再生成する必要がある。
 
+## 表面と照明の分割(M0129、ADR-0100 決定 2)
+主パスの `PSMain` は、`EvaluateSurface`(材質を読んで `SurfaceData` を作る)と `EvaluateSurfaceLighting`(`SurfaceData` と画素の位置から色を作る)を呼ぶだけである。材質(物体ごとの定数と、基本色・法線・metallic/roughness・発光の 4 枚のテクスチャ)を読むのは `EvaluateSurface` だけで、`EvaluateSurfaceLighting` は材質を読まない。`SurfaceData` は位置・基本色・metallic・粗さ・法線・頂点法線・発光を持つ(ADR-0085 決定 §2 と同じ形)。契約(`stage-v16`)、エントリー、画素は変わらない。照明側の細かい分割(方向光・局所光・間接光・霧)は、描画パスを実装するとき(ADR-0085)に行う。後置ソース(`StagePresentationShaderSource`)の表示用・Lumen 用のエントリーは、まだ材質を直接読む。
+
 The restored integration workspace combines the native logarithmic Stage contract and virtual/soft shadows as `stage-v16`: fourteen native entries, SceneDistance MRT, FrameCB 1248 bytes and ObjectCB 192 bytes. StageGpuLayouts owns the appended virtual matrices/parameters and Lumen uses the same buffer layout. The clean integration commit before restoring workspace work retains stage-v14; its earlier hashes are historical evidence, not hashes of the combined workspace.

@@ -36,6 +36,8 @@ public sealed unsafe class GraphicsDevice:IDisposable {
     public bool GpuBasedValidationEnabled { get;private set;}
 
     public string AdapterDescription { get;private set;}=string.Empty;
+    /// <summary>D3D12 のリソース束縛の段（1〜3）。材質のテクスチャを 1 本の配列に並べて番号で引くには 2 以上が要る。問い合わせに失敗したら 0。</summary>
+    public int ResourceBindingTier { get;private set;}
 
     public IReadOnlyList<D3D12DebugMessage>CollectedMessages=> this.CollectedMessagesValue;
     public IReadOnlyList<RenderDeviceMessage>RenderMessages=>this.RenderMessagesValue;
@@ -95,6 +97,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
                 D3D12CreateDevice((IUnknown*)Result.Adapter,RequiredFeatureLevel,__uuidof<ID3D12Device>(),(void**)&Device),
                 "D3D12CreateDevice","creating the D3D12 device",Result.AdapterDescription);
             Result.DeviceHandle=Device;
+            Result.ResourceBindingTier=QueryResourceBindingTier(Device);
 
             if(Options.EnableDebugLayer){
                 Result.TryCreateInfoQueue();
@@ -159,6 +162,10 @@ public sealed unsafe class GraphicsDevice:IDisposable {
         this.InfoQueue->ClearStoredMessages();
     }
 
+    private static int QueryResourceBindingTier(ID3D12Device*Device){
+        D3D12_FEATURE_DATA_D3D12_OPTIONS Options=default;
+        return Device->CheckFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS,&Options,(uint)sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS)).SUCCEEDED?(int)Options.ResourceBindingTier:0;
+    }
     private void EnableDebugLayer(bool EnableGpuBasedValidation){
         ID3D12Debug1*DebugController;
         HRESULT Hr=D3D12GetDebugInterface(__uuidof<ID3D12Debug1>(),(void**)&DebugController);

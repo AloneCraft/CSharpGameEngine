@@ -38,7 +38,7 @@ SUBGRAPHS = {
 
 
 def run(*arguments):
-    result = subprocess.run([CLI, *arguments], capture_output=True, text=True)
+    result = subprocess.run([CLI, "shader-graph", *arguments], capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"{' '.join(arguments)} failed:\n{result.stdout}\n{result.stderr}")
     return result.stdout
