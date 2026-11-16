@@ -91,12 +91,15 @@ public struct StageMaterialData {
     public Vector4 WorldSubGridColor;
     /// <summary>xyz は格子の原点のずれ。w が 1 なら、ずれの代わりに物体の位置を原点にする。</summary>
     public Vector4 WorldGridAnchor;
+    /// <summary>材質のテクスチャの配列（Stage シェーダーの <c>MaterialTextures</c>、t0 space1）での番号。x 基本色、y 法線、z metallic と粗さ、w 発光。</summary>
+    public StageUInt4 Textures;
     /// <summary>材質の値から表の 1 件を作る。格子が無い材質は、格子の欄がすべて 0 になる。</summary>
-    public static StageMaterialData Create(Vector4 BaseColorFactor,float RoughnessFactor,float MetallicFactor,Vector3 EmissiveNits,StageWorldGrid?WorldGrid,Vector3 WorldGridAnchor){
+    public static StageMaterialData Create(Vector4 BaseColorFactor,float RoughnessFactor,float MetallicFactor,Vector3 EmissiveNits,StageWorldGrid?WorldGrid,Vector3 WorldGridAnchor,StageUInt4 Textures){
         StageMaterialData Data=new(){
             BaseColorFactor=BaseColorFactor,
             MaterialParams=new(RoughnessFactor,MetallicFactor,0f,0f),
             EmissiveNits=new(EmissiveNits,0f),
+            Textures=Textures,
         };
         if(WorldGrid is{ }Grid){
             Data.WorldGridParams=new(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,0f);

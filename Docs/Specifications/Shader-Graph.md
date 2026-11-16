@@ -13,7 +13,7 @@ Canonical serialization orders identities and argument names; it leaves out null
 
 The fixed root target is Stage (serialized value 0); removed values 1 and 2 are rejected as UnknownTarget. Stage has 14 entries: VSMain, PSMain, VSShadowMain, FullscreenVS, PostProcessPS, PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain, ScreenVSMain, ScreenPSMain, ObserverVSMain, SurfacePrepassPSMain and LumenCardPSMain. The graph owns native colour, physical distance and conservative logarithmic depth. The engine-owned suffix supplies presentation, observer, surface and card entries; the old radial wrapper entries are removed. The stage-v14 contract keeps FrameCB at 960 bytes, repurposing the unused shadow matrix and atlas fields for InverseViewProjection and ViewportSize. DepthEncoding0/1 carry validated L4 RenderViewDepth packets; each object carries its ConservativeRasterDepth (in ObjectCB until stage-v16, in the instance table since stage-v17). Material sampler s0 is anisotropic 8/wrap, t16/t17 carry Lumen diffuse/reflections, and LumenParams selects them. The unused Model/Triangle renderers, ABI producers and root templates have been removed in M0119.
 
-The current Stage ABI is `stage-v17` (M0129, see the GPU scene section below). `stage-v16` (M0115/M0125) appended four virtual directional clipmap matrices, page-table parameters and `DirectionalSoftShadowParams` to FrameCB, with t18 for the physical D32 pages and t19 for the per-frame uint page table. The last float4 holds tan(half sun diameter), maximum soft radius in metres, enabled and reserved. CSM and Virtual share PCSS sampling, receiver-plane correction and world-space bias when enabled. VSMain applies inverse-transpose normals under non-uniform scale; all presentation and Lumen surface entries share it. Optional virtual sampling falls back to the existing cascades. Runtime still consumes only offline artifacts. The reproducible edit is `tools/ShaderGraphMaintenance/edits/directional_soft_shadows_2026_10_26.py` via `edit_stage_graph.py`.
+The current Stage ABI is `stage-v18` (M0129, see the GPU scene section below). `stage-v16` (M0115/M0125) appended four virtual directional clipmap matrices, page-table parameters and `DirectionalSoftShadowParams` to FrameCB, with t18 for the physical D32 pages and t19 for the per-frame uint page table. The last float4 holds tan(half sun diameter), maximum soft radius in metres, enabled and reserved. CSM and Virtual share PCSS sampling, receiver-plane correction and world-space bias when enabled. VSMain applies inverse-transpose normals under non-uniform scale; all presentation and Lumen surface entries share it. Optional virtual sampling falls back to the existing cascades. Runtime still consumes only offline artifacts. The reproducible edit is `tools/ShaderGraphMaintenance/edits/directional_soft_shadows_2026_10_26.py` via `edit_stage_graph.py`.
 
 Dependencies resolve relative to their owning document and may be recursive. Resolution validates document identity and rejects missing files, recursion, node collisions, and top-level declaration-slot collisions. Production Stage owns Depth, PBR, Shadow, PCSS, and ACES as external typed-syntax Subgraphs whose original declaration slots are preserved during composition.
 
@@ -73,20 +73,24 @@ M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つよう�
 主パスの `PSMain` は、`EvaluateSurface`(材質を読んで `SurfaceData` を作る)と `EvaluateSurfaceLighting`(`SurfaceData` と画素の位置から色を作る)を呼ぶだけである。材質(物体と材質の表と、基本色・法線・metallic/roughness・発光の 4 枚のテクスチャ)を読むのは `EvaluateSurface` だけで、`EvaluateSurfaceLighting` は材質を読まない。`SurfaceData` は位置・基本色・metallic・粗さ・法線・頂点法線・発光を持つ(ADR-0085 決定 §2 と同じ形)。この分割ではエントリーも画素も変わらない。照明側の細かい分割(方向光・局所光・間接光・霧)は、描画パスを実装するとき(ADR-0085)に行う。後置ソース(`StagePresentationShaderSource`)の表示用・Lumen 用のエントリーは、`EvaluateSurface` を通らずに同じ表とテクスチャを読む。
 
 ## GPU シーン(M0129、ADR-0100 決定 2)
-現在の契約は `stage-v17`。物体ごとの定数バッファ(ObjectCB)は無い。代わりに次の 3 つがある。
+現在の契約は `stage-v18`(`stage-v17` は単位 3 の物体と材質の表まで、`stage-v18` は単位 4 の番号引き)。物体ごとの定数バッファ(ObjectCB)と、材質ごとのテクスチャの束(t0〜t3)は無い。代わりに次の 4 つがある。
 
 | 名前 | レジスター | 中身 | 読むシェーダー |
 |---|---|---|---|
 | `DrawCB` | b1(ルート定数 3 個) | `DrawInstance`(描く物体の番号)、`DrawPresentationMode`(表示モード)、`DrawFlags`(描画の印) | 頂点、表示用の画素 |
 | `Instances` | t20(構造化バッファ、1 件 84 バイト) | `World`、`ConservativeRasterDepth`、`EmissiveScale`、`SelectionWeight`、`Material` | 頂点、画素 |
-| `Materials` | t21(構造化バッファ、1 件 112 バイト) | `BaseColorFactor`、`MaterialParams`(x 粗さ、y metallic)、`EmissiveNits`、世界格子の 4 つ | 画素 |
+| `Materials` | t21(構造化バッファ、1 件 128 バイト) | `BaseColorFactor`、`MaterialParams`(x 粗さ、y metallic)、`EmissiveNits`、世界格子の 4 つ、`Textures`(4 枚のテクスチャの番号) | 画素 |
+| `MaterialTextures[]` | t0 space1(上限の無い配列) | 材質のテクスチャ。`Textures` の x 基本色、y 法線、z metallic と粗さ、w 発光 | 画素 |
 
 - `VSMain` は `Instances[DrawInstance]` を読み、番号を `VertexOutput.Instance`(補間なし)で画素シェーダーへ渡す。画素シェーダーは `DrawInstance` ではなく `input.Instance` を使う。
 - `DrawFlags` の `DrawFlagMeshSpace`(1)が立つと、`VSMain` は `World` の代わりに単位行列を使う(Lumen のカード撮影)。
 - 発光は `Materials` の `EmissiveNits` に `Instances` の `EmissiveScale` を掛ける。カード撮影(`LumenCardPSMain`)は倍率を掛けない。
 - 世界格子の原点は、`WorldGridAnchor.w` が 1 なら物体の位置(`World` の平行移動の符号を反転)、0 なら `WorldGridAnchor.xyz`。
 - 影の頂点シェーダー `VSShadowMain` は `DrawCB` と `Instances` だけを読む。
+- テクスチャは `MaterialTextures[NonUniformResourceIndex(...)]` で引く。1 回の描画が 1 つの材質を描く今も `NonUniformResourceIndex` を付けるのは、後の段階の間接描画が 1 回の描画で複数の材質を描くため。基本色と発光の番号は sRGB の見え方を指し、法線と metallic・粗さの番号はそのままの値の見え方を指す。
+- 影の画像(t4)はレジスターを変えず、描画器が環境の表(t12〜t19 と同じ束)の末尾に置く。
+- 描画器は D3D12 のリソース束縛の段が 2 以上であることを求める。満たさない GPU では、描画器を作るときにアダプターの名前を添えて止める。
 - 管理コード側の配置の正本は L4 の `StageInstanceData`・`StageMaterialData`・`StageDrawConstants`(`StageGpuLayouts.cs`)。シェーダー側との一致は、DXC の反射を読む試験(`StageConstantLayoutReflectionTests`)が、エントリーごとに確かめる。
-- 再現できる編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py`。FrameCB(1248 バイト)、エントリー 14 個、t0〜t19 は `stage-v16` と同じ。
+- 再現できる編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`。FrameCB(1248 バイト)、エントリー 14 個、t4〜t19 は `stage-v16` と同じ。
 
 The restored integration workspace combines the native logarithmic Stage contract and virtual/soft shadows as `stage-v16`: fourteen native entries, SceneDistance MRT, FrameCB 1248 bytes and ObjectCB 192 bytes (ObjectCB was replaced by the GPU scene in stage-v17). StageGpuLayouts owns the appended virtual matrices/parameters and Lumen uses the same buffer layout. The clean integration commit before restoring workspace work retains stage-v14; its earlier hashes are historical evidence, not hashes of the combined workspace.

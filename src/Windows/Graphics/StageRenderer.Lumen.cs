@@ -104,7 +104,6 @@ public sealed unsafe partial class StageRenderer {
                 this.CommandList->SetGraphicsRootConstantBufferView(0,Lumen.CaptureFrameAddress(this.FrameIndex,Index));
                 // メッシュを自身の空間で描く。カードのシェーダーは世界格子を使わず、材質本来の発光を書く（実行時の物体の倍率はカード照明が掛ける）。
                 this.SetDrawConstants(Capture.ObjectIndex,StageDrawFlags.MeshSpace);
-                this.CommandList->SetGraphicsRootDescriptorTable(2,this.GetMaterialDescriptorTable(this.ObjectMaterialIndices[Capture.ObjectIndex]));
                 var MeshIndex=this.ObjectMeshIndices[Capture.ObjectIndex];
                 fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
                 fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&this.IndexBufferViews[MeshIndex]){

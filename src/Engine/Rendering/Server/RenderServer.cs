@@ -147,7 +147,7 @@ public sealed class RenderServer:IDisposable {
         return Index;
     }
 
-    /// <summary>マテリアルを1つ追加し（M0105）、そのインデックスを返す。<see cref="FreeMaterialSlots"/> が0の場合は -1 を返す。テクスチャのアップロード時に GPU を一度待機させる。</summary>
+    /// <summary>マテリアルを1つ追加し（M0105）、そのインデックスを返す。描画器が受け付けなければ -1（D3D12 の描画器は M0129 単位 4 から上限なし）。テクスチャのアップロード時に GPU を一度待機させる。</summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         var Index=this.Backend.AddMaterial(Material);
         if(Index<0){ return -1; }

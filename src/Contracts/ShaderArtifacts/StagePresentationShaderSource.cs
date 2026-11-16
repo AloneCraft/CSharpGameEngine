@@ -25,10 +25,11 @@ static const float3 PreviewSelectionTint = float3(0.6, 0.35, 0.05);
 
 float4 PreviewSurfacePSMain(VertexOutput input)
 {
+    MaterialData material = Materials[Instances[input.Instance].Material];
     float renderMode = float(DrawPresentationMode);
     if (renderMode > 0.5 && renderMode < 1.5)
     {
-        float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * Materials[Instances[input.Instance].Material].BaseColorFactor.rgb;
+        float3 baseColor = MaterialTextures[NonUniformResourceIndex(material.Textures.x)].Sample(LinearSampler, input.Uv).rgb * material.BaseColorFactor.rgb;
         return float4(saturate(baseColor), 1.0);
     }
     if (renderMode >= 1.5 && renderMode < 2.5)
@@ -37,7 +38,7 @@ float4 PreviewSurfacePSMain(VertexOutput input)
         float3 tangent = normalize(input.Tangent.xyz - vertexNormal * dot(vertexNormal, input.Tangent.xyz));
         float3 bitangent = cross(vertexNormal, tangent) * input.Tangent.w;
         float3x3 tbn = float3x3(tangent, bitangent, vertexNormal);
-        float3 normalSampleTs = normalize(NormalTexture.Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
+        float3 normalSampleTs = normalize(MaterialTextures[NonUniformResourceIndex(material.Textures.y)].Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
         float3 normalWs = normalize(mul(normalSampleTs, tbn));
         return float4(saturate(normalWs * 0.5 + 0.5), 1.0);
     }
@@ -140,11 +141,12 @@ float4 ScreenPSMain(ScreenVertexOutput input) : SV_Target
 // ADR-0078/M0111: the Lumen-like lighting's entries. Both draw with VSMain and the Stage root signature.
 float3 LumenShadingNormal(VertexOutput input)
 {
+    MaterialData material = Materials[Instances[input.Instance].Material];
     float3 vertexNormal = normalize(input.Normal);
     float3 tangent = normalize(input.Tangent.xyz - vertexNormal * dot(vertexNormal, input.Tangent.xyz));
     float3 bitangent = cross(vertexNormal, tangent) * input.Tangent.w;
     float3x3 tbn = float3x3(tangent, bitangent, vertexNormal);
-    float3 normalSampleTs = normalize(NormalTexture.Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
+    float3 normalSampleTs = normalize(MaterialTextures[NonUniformResourceIndex(material.Textures.y)].Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
     return normalize(mul(normalSampleTs, tbn));
 }
 
@@ -163,7 +165,8 @@ SurfacePrepassOutput SurfacePrepassPSMain(VertexOutput input)
     {
         discard;
     }
-    float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * Materials[Instances[input.Instance].Material].MaterialParams.x), 0.045);
+    MaterialData material = Materials[Instances[input.Instance].Material];
+    float roughness = max(saturate(MaterialTextures[NonUniformResourceIndex(material.Textures.z)].Sample(LinearSampler, input.Uv).g * material.MaterialParams.x), 0.045);
     SurfacePrepassOutput output;
     output.NormalRoughness = float4(LumenShadingNormal(input), roughness);
     output.Distance = RadialSafeLength(input.WorldPosition - CameraPositionWS.xyz);
@@ -184,12 +187,12 @@ struct LumenCardOutput
 LumenCardOutput LumenCardPSMain(VertexOutput input)
 {
     MaterialData material = Materials[Instances[input.Instance].Material];
-    float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * material.BaseColorFactor.rgb;
-    float metallic = saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).b * material.MaterialParams.y);
+    float3 baseColor = MaterialTextures[NonUniformResourceIndex(material.Textures.x)].Sample(LinearSampler, input.Uv).rgb * material.BaseColorFactor.rgb;
+    float metallic = saturate(MaterialTextures[NonUniformResourceIndex(material.Textures.z)].Sample(LinearSampler, input.Uv).b * material.MaterialParams.y);
     LumenCardOutput output;
     output.Albedo = float4(baseColor * (1.0 - metallic), 1.0);
     output.Normal = float4(LumenShadingNormal(input) * 0.5 + 0.5, 1.0);
-    output.Emissive = float4(EmissiveTexture.Sample(LinearSampler, input.Uv).rgb * material.EmissiveNits.xyz, 1.0);
+    output.Emissive = float4(MaterialTextures[NonUniformResourceIndex(material.Textures.w)].Sample(LinearSampler, input.Uv).rgb * material.EmissiveNits.xyz, 1.0);
     return output;
 }
 """;

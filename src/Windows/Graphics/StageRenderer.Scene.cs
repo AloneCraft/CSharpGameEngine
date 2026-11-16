@@ -73,7 +73,7 @@ public sealed unsafe partial class StageRenderer {
         for(var MaterialIndex=0;MaterialIndex<this.MaterialCount;MaterialIndex++){
             Materials[MaterialIndex]=StageMaterialData.Create(
                 this.MaterialBaseColorFactors[MaterialIndex],this.MaterialRoughnessFactors[MaterialIndex],this.MaterialMetallicFactors[MaterialIndex],
-                this.MaterialEmissiveNits[MaterialIndex],this.MaterialWorldGrids[MaterialIndex],this.MaterialWorldGridAnchors[MaterialIndex]);
+                this.MaterialEmissiveNits[MaterialIndex],this.MaterialWorldGrids[MaterialIndex],this.MaterialWorldGridAnchors[MaterialIndex],this.MaterialTextureIndices[MaterialIndex]);
         }
     }
     /// <summary>主パスのルートシグネチャへ、このフレームの物体の表と材質の表を束縛する。</summary>

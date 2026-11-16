@@ -296,14 +296,13 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private D3D12_INDEX_BUFFER_VIEW[]IndexBufferViews=[];
     private uint[]IndexCounts=[];
 
-    // マテリアル単位（materialIndexでインデックス化）。4つのマテリアルテクスチャと共有シャドウSRVを持つ。
+    // マテリアル単位（materialIndexでインデックス化）。4つのテクスチャは番号引きの配列の番号で持つ（StageRenderer.MaterialTextures.cs）。
     private int MaterialCount;
     /// <summary>
-    /// ディスクリプタヒープが収容できるマテリアル数。作成済みのものに<see cref="DynamicMaterialHeadroom"/>を加えた容量で、後から
-    /// <see cref="AddMaterial"/>で追加できる（M0105）。
+    /// 材質の配列と材質の表が今置ける材質の数。作成時は作成済みのものに<see cref="DynamicMaterialHeadroom"/>を加えた数で、
+    /// <see cref="AddMaterial"/>が足りなくなると倍に広げる（M0129 単位 4）。
     /// </summary>
     private int MaterialCapacity;
-    private ID3D12Resource*[]MaterialTextures=[];
     private readonly List<nint>OwnedMaterialTextures=[];
     /// <summary>コンテンツと色空間ごとのマテリアルテクスチャ（M0110：同じテクセルでもsRGBとリニアではミップの平均が異なる）。</summary>
     private readonly Dictionary<(Hash256 Hash,RenderTextureColorSpace ColorSpace),nint>ResidentTextures=[];
@@ -454,10 +453,11 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Count;
     /// <summary>レンダラー作成時の数を超えて<see cref="AddObject"/>で追加できるオブジェクト数（M0105）。</summary>
     public const int DynamicObjectHeadroom=StageRenderLimits.DynamicObjectHeadroom;
-    /// <summary>レンダラー作成時の数を超えて<see cref="AddMaterial"/>で追加できるマテリアル数（M0105）。</summary>
+    /// <summary>レンダラー作成時に、作成時の数に加えて用意しておく材質の枠（M0105）。使い切っても <see cref="AddMaterial"/> が広げる（M0129 単位 4）。</summary>
     public const int DynamicMaterialHeadroom=StageRenderLimits.DynamicMaterialHeadroom;
     /// <summary><see cref="AddMaterial"/>が追加で受け付けるマテリアル数。</summary>
-    public int FreeMaterialSlots=>this.MaterialCapacity-this.MaterialCount;
+    /// <summary>材質の数に上限は無い（M0129 単位 4）。足りなければ <see cref="AddMaterial"/> が材質の表と記述子の置き場を広げる。</summary>
+    public int FreeMaterialSlots=>int.MaxValue-this.MaterialCount;
     /// <summary>現在描画中のオブジェクト数。</summary>
     public int ActiveObjectCount=>this.ObjectCount-this.FreeObjectSlots.Count;
     /// <summary>距離場を持つメッシュ数（ADR-0078/M0110）。</summary>
@@ -638,6 +638,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         IReadOnlyList<StageObjectCreateInfo>Objects,
         ShaderArtifactPackage?ValidatedShaderPackage=null){
         this.Device=GraphicsDevice.Create(DeviceOptions);
+        RequireResourceBindingTier(this.Device.ResourceBindingTier,this.Device.AdapterDescription);
 
         this.CreateSwapChain(Hwnd,Width,Height);
         this.CreateRtvHeap();
@@ -968,10 +969,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         MaterialTableParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=21,RegisterSpace=0 };
 
+        // 材質のテクスチャの配列（t0 space1、上限なし）。シェーダーは材質の表に書いた番号で引く（ADR-0100 決定 2）。
         D3D12_DESCRIPTOR_RANGE SrvRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=5,
+            NumDescriptors=uint.MaxValue,
             BaseShaderRegister=0,
+            RegisterSpace=1,
         };
 
         D3D12_ROOT_PARAMETER TextureParam=new(){
@@ -1047,17 +1050,26 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         SkyIrradianceParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=11,RegisterSpace=0 };
 
-        D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
+        // 環境の表: t12〜t19 と、その後ろに影の画像（t4）。
+        D3D12_DESCRIPTOR_RANGE*GlobalIlluminationRanges=stackalloc D3D12_DESCRIPTOR_RANGE[2];
+        GlobalIlluminationRanges[0]=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
             NumDescriptors=EnvironmentDescriptorCount,
             BaseShaderRegister=12,
+            OffsetInDescriptorsFromTableStart=0,
+        };
+        GlobalIlluminationRanges[1]=new(){
+            RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+            NumDescriptors=1,
+            BaseShaderRegister=4,
+            OffsetInDescriptorsFromTableStart=ShadowAtlasEnvironmentSlot,
         };
 
         D3D12_ROOT_PARAMETER GlobalIlluminationParam=new(){
             ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
-        GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&GlobalIlluminationRange };
+        GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=2,pDescriptorRanges=GlobalIlluminationRanges };
 
         D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[13];
         RootParams[0]=FrameParam;
@@ -1377,33 +1389,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo>Materials){
         this.MaterialCount=Materials.Count;
-        this.MaterialCapacity=this.MaterialCount+DynamicMaterialHeadroom;
-        this.MaterialTextures=new ID3D12Resource*[this.MaterialCapacity*4];
-        this.MaterialBaseColorFactors=new Vector4[this.MaterialCapacity];
-        this.MaterialRoughnessFactors=new float[this.MaterialCapacity];
-        this.MaterialMetallicFactors=new float[this.MaterialCapacity];
-        this.MaterialEmissiveNits=new Vector3[this.MaterialCapacity];
-        this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCapacity];
-        this.MaterialWorldGridAnchors=new Vector3[this.MaterialCapacity];
-
-        D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
-            Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCapacity*5+EnvironmentDescriptorCount),
-            Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-        };
-        ID3D12DescriptorHeap*SrvHeap;
-        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
-            "ID3D12Device::CreateDescriptorHeap","creating the material SRV descriptor heap");
-        this.SrvHeap=SrvHeap;
-        this.SrvDescriptorSize= this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
+        this.CreateMaterialStorage(this.MaterialCount+DynamicMaterialHeadroom);
         try {
             for(var I=0;I< this.MaterialCount;I++){
                 this.SetUpMaterial(I,Materials[I]);
             }
         } catch {
             this.ReleaseOwnedMaterialTextures();
-            Array.Clear(this.MaterialTextures);
             throw;
         }
         this.WriteEnvironmentDescriptors();
@@ -1412,15 +1404,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// <summary>
     /// 作成後にマテリアルを1つ追加する（M0105）。そのテクスチャを今アップロードするため、一度GPUの完了を待つ。
     /// そのゲームでまだ描画していないアセットを初めて生成すると、1フレーム分のコストがかかる。
-    /// 新しいマテリアルインデックスを返す。<see cref="DynamicMaterialHeadroom"/>を使い切った場合は-1。
+    /// 新しいマテリアルインデックスを返す。材質の数に上限は無く、足りなければ材質の表と記述子の置き場を広げる（M0129 単位 4）。
     /// </summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         this.ThrowIfDisposed();
-        if(this.MaterialCount>=this.MaterialCapacity){ return -1; }
         // テクスチャのアップロードでは最初のコマンドアロケーターをリセットするが、処理中のフレームが使用中の可能性がある。
+        // 材質の表と記述子の置き場を広げるときも、GPU が古いものを読み終えている必要がある。
         this.WaitForGpuIdle();
         var Index=this.MaterialCount;
+        this.EnsureMaterialCapacity(Index+1);
         var OwnedBefore=this.OwnedMaterialTextures.Count;
+        var ViewsBefore=this.MaterialTextureViews.Count;
         try {
             this.SetUpMaterial(Index,Material);
         } catch {
@@ -1431,6 +1425,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 _=((ID3D12Resource*)Pointer)->Release();
                 this.OwnedMaterialTextures.RemoveAt(I);
             }
+            this.TruncateMaterialTextureViews(ViewsBefore);
             throw;
         }
         this.MaterialCount=Index+1;
@@ -1439,7 +1434,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private readonly Dictionary<nint,(Hash256 Hash,RenderTextureColorSpace ColorSpace)>OwnedTextureHashes=[];
 
-    /// <summary>マテリアル1つ分のマテリアル単位状態を埋め、常駐テクスチャを共有してアップロードし、5つのディスクリプターを書き込む。</summary>
+    /// <summary>マテリアル1つ分のマテリアル単位状態を埋め、常駐テクスチャを共有してアップロードし、4つのテクスチャの番号を決める。</summary>
     private void SetUpMaterial(int I,StageMaterialCreateInfo Material){
         this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
         this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
@@ -1452,38 +1447,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         // スロット0（ベースカラー）と3（発光）はsRGB色。1（法線）と2（metallic-roughness）はリニアデータ。
         // ミップの平均方法も色空間で決まる（M0110）。
-        this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
-            Material.BaseColorTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
-        this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
-            Material.NormalTexture??RenderMaterialDefaults.FlatNormal,RenderTextureColorSpace.Linear);
-        this.MaterialTextures[(I*4)+2]=GetOrCreateTexture(
-            Material.MetallicRoughnessTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Linear);
-        this.MaterialTextures[(I*4)+3]=GetOrCreateTexture(
-            Material.EmissiveTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
-
-        D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
-        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
-            Format=MaterialTextureFormat,
-            ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
-            Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        // 見え方は材質のどの欄で使うかで決まる。基本色と発光は sRGB、法線と metallic・粗さはそのままの値。
+        this.MaterialTextureIndices[I]=new StageUInt4 {
+            X=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.BaseColorTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb),Srgb:true),
+            Y=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.NormalTexture??RenderMaterialDefaults.FlatNormal,RenderTextureColorSpace.Linear),Srgb:false),
+            Z=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.MetallicRoughnessTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Linear),Srgb:false),
+            W=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.EmissiveTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb),Srgb:true),
         };
-        // テクスチャの全ミップ（M0110）。-1はD3D12で「最も詳細なレベルからすべて」を意味する。
-        SrvDesc.Texture2D.MipLevels=uint.MaxValue;
-        for(var Slot=0;Slot<4;Slot++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+Slot, this.SrvDescriptorSize);
-            // スロット0（ベースカラー）と3（発光）は色データ。1（法線）と2は
-            //（metallic-roughness）リニアデータ。
-            SrvDesc.Format=Slot is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
-            this.Device!.Device->CreateShaderResourceView(this.MaterialTextures[(I*4)+Slot],&SrvDesc,Handle);
-        }
-        D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
-            Format=ShadowAtlasSrvFormat,
-            ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
-            Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
-        };
-        ShadowSrvDesc.Texture2D.MipLevels=1;
-        D3D12_CPU_DESCRIPTOR_HANDLE ShadowHandle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
-        this.Device!.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,ShadowHandle);
 
         ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
             ColorSpace=Texture.PreparedColorSpace??ColorSpace;
@@ -1513,6 +1483,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.OwnedMaterialTextures.Clear();
         this.OwnedTextureHashes.Clear();
         this.ResidentTextures.Clear();
+        this.MaterialTextureViews.Clear();
+        this.MaterialTextureViewIndices.Clear();
     }
 
     /// <summary>検証済みの正規RGBA8テクスチャ1枚を、単一レベルでアップロードする（スクリーンレイヤー用）。デコード／フォールバック方針はL0より上位で扱う。</summary>
@@ -2154,26 +2126,27 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// マテリアルビューの後に、Stageのt12～t17ビュー（GI照度、GI距離、アンビエントオクルージョン、露出状態、およびM0111のLumen拡散照度と反射）を書き込む。
+    /// 記述子の置き場の先頭に、Stageのt12～t19ビュー（GI照度、GI距離、アンビエントオクルージョン、露出状態、M0111のLumen拡散照度と反射、仮想影）と、その後ろに影の画像（t4）を書き込む。
     /// </summary>
     private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         this.GlobalIllumination!.WriteShadingDescriptors(
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5,this.SrvDescriptorSize),
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+1,this.SrvDescriptorSize));
-        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+2,this.SrvDescriptorSize));
-        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+3,this.SrvDescriptorSize));
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,0,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,1,this.SrvDescriptorSize));
+        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,2,this.SrvDescriptorSize));
+        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,3,this.SrvDescriptorSize));
         this.Lumen!.WriteShadingDescriptors(
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+4,this.SrvDescriptorSize),
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+5,this.SrvDescriptorSize));
-        this.WriteVirtualShadowDescriptors(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+6,this.SrvDescriptorSize),new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+7,this.SrvDescriptorSize));
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,4,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,5,this.SrvDescriptorSize));
+        this.WriteVirtualShadowDescriptors(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,6,this.SrvDescriptorSize),new D3D12_CPU_DESCRIPTOR_HANDLE(Start,7,this.SrvDescriptorSize));
+        this.WriteShadowAtlasEnvironmentDescriptor();
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
         this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
         this.LumenDescriptorGeneration=this.Lumen.Generation;
     }
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
-        new(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),this.MaterialCapacity*5,this.SrvDescriptorSize);
+        this.SrvHeap->GetGPUDescriptorHandleForHeapStart();
 
     private void BindMainPassState(ID3D12PipelineState*ActivePipelineState,ulong FrameConstantsAddress=0){
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
@@ -2182,6 +2155,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
         this.CommandList->SetGraphicsRootConstantBufferView(0,FrameConstantsAddress!=0?FrameConstantsAddress:this.GetFrameConstantsAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootDescriptorTable(10,this.GetGlobalIlluminationDescriptorTable());
+        this.CommandList->SetGraphicsRootDescriptorTable(2,this.GetMaterialTextureTable());
         this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
@@ -2817,9 +2791,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return this.ShadowConstantsBuffer->GetGPUVirtualAddress()+(LinearSlot*ConstantAlignment);
     }
 
-    private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int MaterialIndex){
-        return new D3D12_GPU_DESCRIPTOR_HANDLE(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*5, this.SrvDescriptorSize);
-    }
 
     private void UpdateViewportAndScissor(int Width,int Height){
         this.Viewport=new D3D12_VIEWPORT {
@@ -3105,9 +3076,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]||this.ObjectHiddenFromView[ObjectIndex]){ continue; }
             int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
             this.SetDrawConstants(ObjectIndex);
-            this.CommandList->SetGraphicsRootDescriptorTable(
-                2,this.GetMaterialDescriptorTable(
-                    this.ObjectMaterialIndices[ObjectIndex]));
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=
                 &this.VertexBufferViews[MeshIndex])
             fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=
@@ -3686,7 +3654,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
 
         this.ReleaseOwnedMaterialTextures();
-        this.MaterialTextures=[];
 
         for(var I=0;I< this.IndexBuffers.Length;I++){
             if(this.IndexBuffers[I]!=null){
