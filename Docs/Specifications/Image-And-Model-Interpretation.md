@@ -24,7 +24,7 @@ L6 payloads use bounded RGBA8 texture mip levels and separately bounded encoded 
 
 ## Standalone commands
 
-Use `CSharpGameEngine.Import.AssetAuthoring.Cli` with the same service used by VSIX:
+Use `Cge asset-authoring` (tools/Cge) with the same service used by VSIX:
 
 ```text
 image inspect <project-root> <source>

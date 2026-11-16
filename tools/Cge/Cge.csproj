@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The engine's command-line tools in one executable: "Cge <command> <arguments>" (Docs/refactoring-designs/20261117-command-tools-consolidation.md).
+    Each folder is one command and keeps its namespace. SceneJson.Cli, Physics.Cli and Cook.Cli stay separate (see the design).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net10.0 (not net10.0-windows) so the net10.0 tests and FeatureRunner can reference it. Nothing here needs the Windows target:
+         TerraFX and System.Drawing.Common build for net10.0. No RuntimeIdentifier: the native DLLs are copied next to the tool below. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Cooking\Cooking.csproj" />
+    <ProjectReference Include="..\..\src\Engine\Engine.csproj" />
+    <ProjectReference Include="..\..\src\Import\Import.csproj" />
+    <!-- ADR-0023: the bridges' resident-server mode (the serve option after the command name). -->
+    <ProjectReference Include="..\Bridge.Hosting\Bridge.Hosting.csproj" />
+    <!-- asset-authoring prepares models with Cook.Cli in a process of its own (copied to Cook/ below), never in this one. -->
+    <ProjectReference Include="..\Cook.Cli\Cook.Cli.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="Platform;RuntimeIdentifier;SelfContained" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- shader-graph -->
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+    <PackageReference Include="Microsoft.Direct3D.DXC" Version="1.9.2607.13" GeneratePathProperty="true" ExcludeAssets="build" />
+    <PackageReference Include="UnityShaderParser" Version="0.10.0" />
+    <!-- font -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <!-- primitive: builds a GLB in memory. -->
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)/build/native/bin/x64/dxcompiler.dll" Link="dxcompiler.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)/build/native/bin/x64/dxil.dll" Link="dxil.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <!-- fbx and asset-authoring load AssimpNet's native assimp.dll (ADR-0009/0010); only those commands' processes load it. -->
+    <Content Include="$(NuGetPackageRoot)assimpnet\4.1.0\runtimes\win-x64\native\assimp.dll" Link="assimp.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>エンジンのテスト</_Parameter1></AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>Windowsのテスト</_Parameter1></AssemblyAttribute>
+  </ItemGroup>
+  <Target Name="CgeCopyModelProductionWorker" AfterTargets="Build">
+    <MSBuild Projects="..\Cook.Cli\Cook.Cli.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)" RemoveProperties="Platform;RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeModelProductionWorker" />
+    </MSBuild>
+    <PropertyGroup><_CgeModelProductionWorkerDirectory>@(_CgeModelProductionWorker->'%(RootDir)%(Directory)')</_CgeModelProductionWorkerDirectory></PropertyGroup>
+    <ItemGroup><_CgeModelProductionWorkerFile Include="$(_CgeModelProductionWorkerDirectory)*" Exclude="$(_CgeModelProductionWorkerDirectory)*.pdb" /></ItemGroup>
+    <Copy SourceFiles="@(_CgeModelProductionWorkerFile)" DestinationFolder="$(TargetDir)Cook/" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CgePublishModelProductionWorker" AfterTargets="Publish" DependsOnTargets="CgeCopyModelProductionWorker">
+    <Error Condition="!Exists('$(TargetDir)Cook/Cook.Cli.dll')" Text="Model production worker is missing from the Cge build." />
+    <ItemGroup><_CgePublishedModelWorker Include="$(TargetDir)Cook/**/*" /></ItemGroup>
+    <Copy SourceFiles="@(_CgePublishedModelWorker)" DestinationFiles="@(_CgePublishedModelWorker->'$(PublishDir)Cook/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

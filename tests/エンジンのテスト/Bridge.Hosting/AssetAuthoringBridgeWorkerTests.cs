@@ -16,12 +16,12 @@ public class AssetAuthoringBridgeWorkerTests {
 #else
         const string Configuration="Release";
 #endif
-        var Worker=Path.Combine(Repository.FullName,"tools","Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","Import.AssetAuthoring.Cli.dll");
+        var Worker=Path.Combine(Repository.FullName,"tools","Cge","bin",Configuration,"net10.0","Cge.dll");
         var Source=Path.Combine(Directory.Path,"Assets","Box.glb");System.IO.Directory.CreateDirectory(Path.GetDirectoryName(Source)!);File.Copy(Path.Combine(Repository.FullName,"assets","TestFixtures","Gltf","BoxTextured.glb"),Source);
         var RequestPath=Path.Combine(Directory.Path,"request.json");var ResultPath=Path.Combine(Directory.Path,"result.json");
         var Request=new AssetModelRequest {ModelCommand=4,RequestId=Guid.NewGuid(),Root=Directory.Path,SourcePath=Source,PreviewSourcePaths=[Source]};File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request));
         async Task<AssetModelResult>Run(){
-            var Start=new System.Diagnostics.ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};Start.ArgumentList.Add(Worker);Start.ArgumentList.Add(RequestPath);Start.ArgumentList.Add(ResultPath);
+            var Start=new System.Diagnostics.ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};Start.ArgumentList.Add(Worker);Start.ArgumentList.Add("asset-authoring");Start.ArgumentList.Add(RequestPath);Start.ArgumentList.Add(ResultPath);
             using var Process=System.Diagnostics.Process.Start(Start)!;var Output=Process.StandardOutput.ReadToEndAsync();var Error=Process.StandardError.ReadToEndAsync();await Process.WaitForExitAsync();Assert.True(Process.ExitCode==0,await Error+await Output);
             return JsonSerializer.Deserialize<AssetModelResult>(await File.ReadAllTextAsync(ResultPath))!;
         }

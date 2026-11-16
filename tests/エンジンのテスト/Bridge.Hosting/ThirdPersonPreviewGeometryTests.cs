@@ -24,10 +24,10 @@ public sealed class ThirdPersonPreviewGeometryTests {
 #else
         const string Configuration="Release";
 #endif
-        var Worker=Path.Combine(Repository.FullName,"tools","Import.AssetAuthoring.Cli","bin",Configuration,"net10.0","Import.AssetAuthoring.Cli.dll");
+        var Worker=Path.Combine(Repository.FullName,"tools","Cge","bin",Configuration,"net10.0","Cge.dll");
         var Input=Path.Combine(Directory.Path,"request.json");var Output=Path.Combine(Directory.Path,"result.json");
         File.WriteAllText(Input,JsonSerializer.Serialize(new AssetModelRequest{ModelCommand=4,RequestId=Guid.NewGuid(),Root=Directory.Path,SourcePath=Sources[0],PreviewSourcePaths=Sources}));
-        var Start=new System.Diagnostics.ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};Start.ArgumentList.Add(Worker);Start.ArgumentList.Add(Input);Start.ArgumentList.Add(Output);
+        var Start=new System.Diagnostics.ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};Start.ArgumentList.Add(Worker);Start.ArgumentList.Add("asset-authoring");Start.ArgumentList.Add(Input);Start.ArgumentList.Add(Output);
         using(var Process=System.Diagnostics.Process.Start(Start)!){ var Standard=Process.StandardOutput.ReadToEndAsync();var Error=Process.StandardError.ReadToEndAsync();await Process.WaitForExitAsync();Assert.True(Process.ExitCode==0,await Error+await Standard); }
         var Ready=JsonSerializer.Deserialize<AssetModelResult>(File.ReadAllText(Output))!;Assert.True(Ready.Success,Ready.Diagnostic);
         var Prepared=new Dictionary<string,RenderPreviewScene>();var Original=new Dictionary<string,RenderPreviewScene>();

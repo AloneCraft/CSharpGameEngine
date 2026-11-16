@@ -53,7 +53,7 @@ public sealed class BakeIntegrationArchitectureTests {
         Assert.DoesNotContain("AssetAuthoringHostClient",Mesh,StringComparison.Ordinal);
         Assert.DoesNotContain("AssetMetadata.TryParse",Mesh,StringComparison.Ordinal);
         Assert.Contains("AssetAuthoringProtocol.Validate(Request,Result",Client,StringComparison.Ordinal);
-        Assert.Contains("Import.AssetAuthoring.Cli",Client,StringComparison.Ordinal);
+        Assert.Contains("BridgeTool.AssetAuthoring",Client,StringComparison.Ordinal);
         Assert.DoesNotContain("AssetMetadata.TryParse",Client,StringComparison.Ordinal);
         Assert.DoesNotContain("File.WriteAllBytes",Client,StringComparison.Ordinal);
     }

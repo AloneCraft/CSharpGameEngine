@@ -8,7 +8,7 @@
     - analyzers/: the ECS source generator and analyzers;
     - src/: the shared runtime sources the generator completes inside each game (ADR-0033);
     - assets/Shaders/: the default Stage shader graph and compute shaders;
-    - tools/ShaderGraph/: the offline shader compiler the build invokes;
+    - tools/Cge/: the shader compiler, scene schema writer and model compiler the build invokes (Cge shader-graph, scene-schema, content);
     - plugins/: the engine plugins (ADR-0079), enabled per game with CgePlugins.
     External libraries are NuGet dependencies of this package.
   -->
@@ -63,20 +63,15 @@
     <MSBuild Projects="$(CgeRepositoryRoot)src\CodeAnalysis\CodeAnalysis.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeAnalyzerAssembly" />
     </MSBuild>
-    <MSBuild Projects="$(CgeRepositoryRoot)tools\ShaderGraph.Cli\ShaderGraph.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64">
-      <Output TaskParameter="TargetOutputs" ItemName="_CgeShaderCli" />
-    </MSBuild>
-    <MSBuild Projects="$(CgeRepositoryRoot)tools\SceneSchema.Cli\SceneSchema.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
-      <Output TaskParameter="TargetOutputs" ItemName="_CgeSceneSchemaCli" />
-    </MSBuild>
     <MSBuild Projects="$(CgeRepositoryRoot)tools\Cook.Cli\Cook.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeCookCli" />
     </MSBuild>
-    <MSBuild Projects="$(CgeRepositoryRoot)tools\ContentCompiler\ContentCompiler.csproj;$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Restore" BuildInParallel="false"
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\Cge\Cge.csproj;$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Restore" BuildInParallel="false"
       Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" />
-    <MSBuild Projects="$(CgeRepositoryRoot)tools\ContentCompiler\ContentCompiler.csproj" Targets="Build"
+    <!-- tools\Cge: the shader-graph, scene-schema and content commands the game build runs (Sdk.props, ModelContent.targets). -->
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\Cge\Cge.csproj" Targets="Build"
       Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
-      <Output TaskParameter="TargetOutputs" ItemName="_CgeContentCompiler" />
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeTool" />
     </MSBuild>
     <MSBuild Projects="$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Build"
       Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
@@ -95,24 +90,21 @@
     <PropertyGroup>
       <_CgeNavigationCookDirectory>@(_CgeNavigationCookModule->'%(RootDir)%(Directory)')</_CgeNavigationCookDirectory>
       <_CgeDestructionCookDirectory>@(_CgeDestructionCookModule->'%(RootDir)%(Directory)')</_CgeDestructionCookDirectory>
-      <_CgeShaderCliDirectory>@(_CgeShaderCli->'%(RootDir)%(Directory)')</_CgeShaderCliDirectory>
-      <_CgeSceneSchemaCliDirectory>@(_CgeSceneSchemaCli->'%(RootDir)%(Directory)')</_CgeSceneSchemaCliDirectory>
       <_CgeCookCliDirectory>@(_CgeCookCli->'%(RootDir)%(Directory)')</_CgeCookCliDirectory>
-      <_CgeContentCompilerDirectory>@(_CgeContentCompiler->'%(RootDir)%(Directory)')</_CgeContentCompilerDirectory>
+      <_CgeToolDirectory>@(_CgeTool->'%(RootDir)%(Directory)')</_CgeToolDirectory>
       <_CgeModelImportDirectory>@(_CgeModelImport->'%(RootDir)%(Directory)')</_CgeModelImportDirectory>
     </PropertyGroup>
     <ItemGroup>
       <None Include="@(_CgeEngineAssembly)" Condition="'%(_CgeEngineAssembly.Filename)' != 'Cooking'" Pack="true" PackagePath="lib\$(TargetFramework)\" />
       <None Include="@(_CgeAnalyzerAssembly)" Pack="true" PackagePath="analyzers\dotnet\cs\" />
-      <None Include="$(_CgeShaderCliDirectory)**\*" Exclude="$(_CgeShaderCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\ShaderGraph\" />
-      <!-- Top level only: the CLI has no dependencies, and an x64 test run of the solution leaves a win-x64\ copy below it that would be packed twice. -->
-      <None Include="$(_CgeSceneSchemaCliDirectory)*" Exclude="$(_CgeSceneSchemaCliDirectory)*.pdb" Pack="true" PackagePath="tools\SceneSchema\" />
+      <!-- With its runtimes\ folder (AssimpNet's native asset is listed in Cge.deps.json). Not Cook\ (packed as tools\Cook below) and not a
+           win-x64\ copy an x64 test run of the solution can leave below the output folder. -->
+      <None Include="$(_CgeToolDirectory)**\*" Exclude="$(_CgeToolDirectory)**\*.pdb;$(_CgeToolDirectory)Cook\**;$(_CgeToolDirectory)win-x64\**" Pack="true" PackagePath="tools\Cge\" />
       <!-- The Cook module with its dependencies (the host shares CSharpGameEngine.Cooking with it, so that one is left out). -->
       <None Include="$(_CgeNavigationCookDirectory)*" Exclude="$(_CgeNavigationCookDirectory)*.pdb;$(_CgeNavigationCookDirectory)Cooking.dll" Pack="true" PackagePath="plugins\Navigation\Cook\lib\" />
       <None Include="$(_CgeDestructionCookDirectory)*" Exclude="$(_CgeDestructionCookDirectory)*.pdb;$(_CgeDestructionCookDirectory)Cooking.dll" Pack="true" PackagePath="plugins\Destruction\Cook\lib\" />
       <!-- ADR-0079: runs a plugin's Cook module in its own process (top level only, for the same reason as above). -->
       <None Include="$(_CgeCookCliDirectory)*" Exclude="$(_CgeCookCliDirectory)*.pdb" Pack="true" PackagePath="tools\Cook\" />
-      <None Include="$(_CgeContentCompilerDirectory)*" Exclude="$(_CgeContentCompilerDirectory)*.pdb" Pack="true" PackagePath="tools\ContentCompiler\" />
       <None Include="$(_CgeModelImportDirectory)*" Exclude="$(_CgeModelImportDirectory)*.pdb" Pack="true" PackagePath="tools\ModelImport\" />
       <None Include="$(_CgeModelImportDirectory)runtimes\**\*" Exclude="$(_CgeModelImportDirectory)runtimes\**\*.pdb" Pack="true" PackagePath="tools\ModelImport\runtimes\" />
     </ItemGroup>

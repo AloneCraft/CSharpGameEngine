@@ -40,8 +40,8 @@ public sealed class PackagedAssetAuthoringTests {
         }
     }
     private static async Task RunAsync(string PackageRoot,string Input,string Output){
-        var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","Import.AssetAuthoring.Cli","Import.AssetAuthoring.Cli.exe")){
-            Arguments="\""+Input+"\" \""+Output+"\"",WorkingDirectory=Path.GetDirectoryName(Input),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
+        var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","Cge","Cge.exe")){
+            Arguments="asset-authoring \""+Input+"\" \""+Output+"\"",WorkingDirectory=Path.GetDirectoryName(Input),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
         };
         using var Process=System.Diagnostics.Process.Start(Start)??throw new InvalidOperationException("Packaged bridge did not start.");
         try {

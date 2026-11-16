@@ -18,7 +18,8 @@
     <ProjectReference Include="..\..\tools\Showcase.Automation\Showcase.Automation.csproj" />
     <ProjectReference Include="../../tools/EditorPreview.Host/EditorPreview.Host.csproj" Aliases="PreviewHost" />
     <ProjectReference Include="..\..\src\Import\Import.csproj" />
-    <ProjectReference Include="../../tools/ContentCompiler/ContentCompiler.csproj" />
+    <!-- tools/Cge: the content, font and shader-graph commands are tested here (InternalsVisibleTo). -->
+    <ProjectReference Include="../../tools/Cge/Cge.csproj" />
     <ProjectReference Include="../../tools/Cook.Cli/Cook.Cli.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="Platform;RuntimeIdentifier;SelfContained" />
   </ItemGroup>
   <ItemGroup>
@@ -44,13 +45,11 @@
     <Compile Include="../Shared/ModelArtifactTestContent.cs" Link="Testing/ModelArtifactTestContent.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\FontBaker\FontBaker.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../tools/ShaderGraph.Cli/ShaderGraph.Cli.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Engine/Engine.csproj" />

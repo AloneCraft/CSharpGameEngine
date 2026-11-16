@@ -13,7 +13,6 @@ internal static class SceneModelRenderObjectBuilder {
     internal static bool IsGameMode(SceneModel Model)=>Model.IsStartupScene&&Model.Root?.Components.Any(Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Windows.AppHost")==true;
     internal static bool IsCharacterScene(SceneModel Model)=>Model.EnumerateNodes().Any(Node=>SkeletalMesh(Node) is not null)
         &&!Model.EnumerateNodes().Any(Node=>ExtractStaticMeshAssetPath(Node) is not null);
-    private const string PrimitiveBridgeProjectRelativePath=@"tools\Primitive.Cli";
     private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
 
     internal static IReadOnlyList<SceneRenderObject>Build(
@@ -91,7 +90,7 @@ internal static class SceneModelRenderObjectBuilder {
         Directory.CreateDirectory(DirectoryPath);
         var GlbPath=Path.Combine(DirectoryPath,$"{BridgeKind}.glb");
         if(!File.Exists(GlbPath)){
-            ExternalBridgeProcess.RunProducingFile(PrimitiveBridgeProjectRelativePath,BridgeKind,GlbPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            ExternalBridgeProcess.RunProducingFile(BridgeTool.Primitive,BridgeKind,GlbPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
         }
         return MeshLoader.Load(GlbPath,Context.WorkspaceRoot);
     }

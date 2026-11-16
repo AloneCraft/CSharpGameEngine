@@ -1,7 +1,12 @@
 <Project>
   <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
     <CgeCompileModels Condition="'$(CgeCompileModels)' == ''">true</CgeCompileModels>
-    <CgeModelCompiler Condition="'$(CgeEngineMode)' == 'Package' and '$(CgeModelCompiler)' == ''">$(CgeEngineRoot)tools\ContentCompiler\ContentCompiler.dll</CgeModelCompiler>
+    <!-- The model compiler is the content command of tools/Cge (Docs/refactoring-designs/20261117-command-tools-consolidation.md). -->
+    <CgeModelCompiler Condition="'$(CgeEngineMode)' == 'Package' and '$(CgeModelCompiler)' == ''">$(CgeEngineRoot)tools\Cge\Cge.dll</CgeModelCompiler>
+    <!-- The game build makes tools/Cge from three places (shader graphs, scene schema, model content). They pass the same properties,
+         so MSBuild builds it once per game build and reuses the result. Keep these the same in all three files. -->
+    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64</CgeToolBuildProperties>
+    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath</CgeToolRemoveProperties>
     <CgeModelCookCli Condition="'$(CgeEngineMode)' == 'Package' and '$(CgeModelCookCli)' == ''">$(CgeEngineRoot)tools\Cook\Cook.Cli.dll</CgeModelCookCli>
     <CgeModelImportModule Condition="'$(CgeEngineMode)' == 'Package' and '$(CgeModelImportModule)' == ''">$(CgeEngineRoot)tools\ModelImport\Import.dll</CgeModelImportModule>
   </PropertyGroup>
@@ -13,18 +18,18 @@
   </ItemGroup>
   <Target Name="_CgeBuildModelTools" Condition="'$(CgeEngineMode)' == 'Source' and '$(DesignTimeBuild)' != 'true' and '$(CgeCompileModels)' == 'true'">
     <ItemGroup>
-      <_CgeModelToolProject Include="$(CgeEngineRoot)tools\ContentCompiler\ContentCompiler.csproj;$(CgeEngineRoot)tools\Cook.Cli\Cook.Cli.csproj;$(CgeEngineRoot)src\Import\Import.csproj" />
+      <_CgeModelToolProject Include="$(CgeEngineRoot)tools\Cge\Cge.csproj;$(CgeEngineRoot)tools\Cook.Cli\Cook.Cli.csproj;$(CgeEngineRoot)src\Import\Import.csproj" />
     </ItemGroup>
     <MSBuild Projects="@(_CgeModelToolProject)" Targets="Restore" BuildInParallel="false"
-      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
-      RemoveProperties="CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath" />
+      Properties="$(CgeToolBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+      RemoveProperties="$(CgeToolRemoveProperties)" />
     <MSBuild Projects="@(_CgeModelToolProject)" Targets="Build" BuildInParallel="false"
-      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64"
-      RemoveProperties="CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath">
+      Properties="$(CgeToolBuildProperties)"
+      RemoveProperties="$(CgeToolRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeModelToolAssembly" />
     </MSBuild>
     <PropertyGroup>
-      <CgeModelCompiler>@(_CgeModelToolAssembly->WithMetadataValue('Filename','ContentCompiler')->'%(FullPath)')</CgeModelCompiler>
+      <CgeModelCompiler>@(_CgeModelToolAssembly->WithMetadataValue('Filename','Cge')->'%(FullPath)')</CgeModelCompiler>
       <CgeModelCookCli>@(_CgeModelToolAssembly->WithMetadataValue('Filename','Cook.Cli')->'%(FullPath)')</CgeModelCookCli>
       <CgeModelImportModule>@(_CgeModelToolAssembly->WithMetadataValue('Filename','Import')->'%(FullPath)')</CgeModelImportModule>
     </PropertyGroup>
@@ -40,7 +45,7 @@
     <Error Condition="!Exists('$(CgeModelCompiler)') or !Exists('$(CgeModelCookCli)') or !Exists('$(CgeModelImportModule)')" Text="CGE model production tools are missing from the selected engine installation." />
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(CgeModelInputList)'))" />
     <WriteLinesToFile File="$(CgeModelInputList)" Lines="@(CgeModelSource->'%(FullPath)')" Encoding="UTF-8" Overwrite="true" WriteOnlyWhenDifferent="true" />
-    <Exec Command="dotnet &quot;$(CgeModelCompiler)&quot; compile-project --project &quot;$(MSBuildProjectDirectory)&quot; --cook &quot;$(CgeModelCookCli)&quot; --module &quot;$(CgeModelImportModule)&quot; --resources-module &quot;$(CgeModelImportModule)&quot; --inputs &quot;$(CgeModelInputList)&quot; --out &quot;$(CgeModelCookDirectory)&quot; --copy-to &quot;$(CgeModelRuntimeDirectory)&quot; --file-list &quot;$(CgeModelRuntimeFileList)&quot;" StandardOutputImportance="Low" />
+    <Exec Command="dotnet &quot;$(CgeModelCompiler)&quot; content compile-project --project &quot;$(MSBuildProjectDirectory)&quot; --cook &quot;$(CgeModelCookCli)&quot; --module &quot;$(CgeModelImportModule)&quot; --resources-module &quot;$(CgeModelImportModule)&quot; --inputs &quot;$(CgeModelInputList)&quot; --out &quot;$(CgeModelCookDirectory)&quot; --copy-to &quot;$(CgeModelRuntimeDirectory)&quot; --file-list &quot;$(CgeModelRuntimeFileList)&quot;" StandardOutputImportance="Low" />
     <ReadLinesFromFile File="$(CgeModelRuntimeFileList)"><Output TaskParameter="Lines" ItemName="CgeModelRuntimeFile" /></ReadLinesFromFile>
     <ItemGroup>
       <Content Include="@(CgeModelRuntimeFile)">

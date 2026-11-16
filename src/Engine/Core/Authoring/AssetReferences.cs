@@ -27,7 +27,7 @@ public readonly struct ImageAsset(string Path) {
     public readonly string Path=Path;
     public override string ToString()=>this.Path;
 }
-/// <summary>焼いたフォント(<c>.cgefont</c>。<c>tools/FontBaker</c> が TrueType から作る)。<c>ScreenText.Font</c> に渡すパスになる(ADR-0078/M0104)。</summary>
+/// <summary>焼いたフォント(<c>.cgefont</c>。<c>Cge font</c> が TrueType から作る)。<c>ScreenText.Font</c> に渡すパスになる(ADR-0078/M0104)。</summary>
 public readonly struct FontAsset(string Path) {
     public readonly string Path=Path;
     public static implicit operator string(FontAsset Asset)=>Asset.Path;

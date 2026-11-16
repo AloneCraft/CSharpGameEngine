@@ -24,29 +24,29 @@ internal static class ResidentBridgeClient {
     /// <summary>
     /// リポジトリ、bridge、所有者ごとに決まる pipe 名。所有者は Visual Studio プロセスです。bridge はその Visual Studio 自身の extension install から起動され、その終了時に終了するため、別の Visual Studio（別 install、場合によっては別バージョン）は接続しません。<see cref="object.GetHashCode"/>/<see cref="string.GetHashCode()"/> は modern .NET でプロセスごとに値がランダム化されるため、使用してはいけません。
     /// </summary>
-    internal static string ComputePipeName(string RepoRoot,string BridgeProjectRelativePath,int OwnerProcessId){
-        var Seed= $"{Path.GetFullPath(RepoRoot)}|{BridgeProjectRelativePath}|{OwnerProcessId}";
+    internal static string ComputePipeName(string RepoRoot,string BridgeIdentity,int OwnerProcessId){
+        var Seed= $"{Path.GetFullPath(RepoRoot)}|{BridgeIdentity}|{OwnerProcessId}";
         using var Sha256=SHA256.Create();
         var Hash=Sha256.ComputeHash(Encoding.UTF8.GetBytes(Seed));
         var Hex=BitConverter.ToString(Hash).Replace("-","");
         return $"CSharpGameEngine.Bridge.{Hex}";
     }
 
-    internal static ResidentBridgeAttemptStatus TryRun(string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string FirstArg,string OutputPath,TimeSpan RequestTimeout,out int ExitCode,out string Output){
-        return TryRun(ExecutablePath,RepoRoot,BridgeProjectRelativePath,[FirstArg,OutputPath],RequestTimeout,out ExitCode,out Output);
+    internal static ResidentBridgeAttemptStatus TryRun(string ExecutablePath,string RepoRoot,BridgeTool Tool,string FirstArg,string OutputPath,TimeSpan RequestTimeout,out int ExitCode,out string Output){
+        return TryRun(ExecutablePath,RepoRoot,Tool,[FirstArg,OutputPath],RequestTimeout,out ExitCode,out Output);
     }
 
-    internal static ResidentBridgeAttemptStatus TryRun(string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string[]Arguments,TimeSpan RequestTimeout,out int ExitCode,out string Output){
+    internal static ResidentBridgeAttemptStatus TryRun(string ExecutablePath,string RepoRoot,BridgeTool Tool,string[]Arguments,TimeSpan RequestTimeout,out int ExitCode,out string Output){
         return TryRun(
-            ExecutablePath,RepoRoot,BridgeProjectRelativePath,Arguments,RequestTimeout,
+            ExecutablePath,RepoRoot,Tool,Arguments,RequestTimeout,
             CancellationToken.None,out ExitCode,out Output);
     }
 
     internal static ResidentBridgeAttemptStatus TryRun(
-        string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string[]Arguments,
+        string ExecutablePath,string RepoRoot,BridgeTool Tool,string[]Arguments,
         TimeSpan RequestTimeout,CancellationToken CancellationToken,out int ExitCode,out string Output){
         ResidentBridgeAttemptStatus Status=TryRunDetailed(
-            ExecutablePath,RepoRoot,BridgeProjectRelativePath,Arguments,RequestTimeout,
+            ExecutablePath,RepoRoot,Tool,Arguments,RequestTimeout,
             CancellationToken,out AuthoringHostResult?Result);
         ExitCode=Result is null
             ?0
@@ -58,15 +58,16 @@ internal static class ResidentBridgeClient {
     }
 
     internal static ResidentBridgeAttemptStatus TryRunDetailed(
-        string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string[]Arguments,
+        string ExecutablePath,string RepoRoot,BridgeTool Tool,string[]Arguments,
         TimeSpan RequestTimeout,CancellationToken CancellationToken,
         out AuthoringHostResult?Result){
+        if(Tool is null){ throw new ArgumentNullException(nameof(Tool)); }
         if(Arguments is null){ throw new ArgumentNullException(nameof(Arguments)); }
         CancellationToken.ThrowIfCancellationRequested();
-        var PipeName=ComputePipeName(RepoRoot,BridgeProjectRelativePath,OwnerProcessId);
+        var PipeName=ComputePipeName(RepoRoot,Tool.Identity,OwnerProcessId);
         var Request=new AuthoringHostRequest {
             RequestId=Guid.NewGuid(),
-            Operation=ClassifyOperation(BridgeProjectRelativePath),
+            Operation=ClassifyOperation(Tool),
             TimeoutMilliseconds=Math.Min(900_000,Math.Max(1,GetTimeoutMilliseconds(RequestTimeout))),
             Arguments=Arguments,
         };
@@ -77,7 +78,7 @@ internal static class ResidentBridgeClient {
             return Status;
         }
 
-        if(!TrySpawnServer(ExecutablePath,RepoRoot,PipeName)){
+        if(!TrySpawnServer(ExecutablePath,RepoRoot,Tool,PipeName)){
             return ResidentBridgeAttemptStatus.Unavailable;
         }
 
@@ -98,14 +99,21 @@ internal static class ResidentBridgeClient {
         return ResidentBridgeAttemptStatus.Unavailable;
     }
 
-    internal static AuthoringHostOperation ClassifyOperation(string BridgeProjectRelativePath){
-        // ブリッジのフォルダ名（tools\Import.Gltf.Cli など）で見分ける。名前に CSharpGameEngine. の接頭辞は付かない（ADR-0099）。
-        var BridgeName=System.IO.Path.GetFileName(BridgeProjectRelativePath.TrimEnd('\\','/'));
+    internal static AuthoringHostOperation ClassifyOperation(BridgeTool Tool){
+        if(Tool is null){ throw new ArgumentNullException(nameof(Tool)); }
+        // Cge の下位コマンドは名前で見分ける。下位コマンドのない道具は、ブリッジのフォルダ名（tools\Physics.Cli など）で見分ける。
+        if(Tool.Command is "gltf" or "fbx" or "asset-authoring"){
+            return AuthoringHostOperation.Import;
+        }
+        if(Tool.Command is not null){
+            return AuthoringHostOperation.Preview;
+        }
+        var BridgeName=System.IO.Path.GetFileName(Tool.ProjectRelativePath.TrimEnd('\\','/'));
         if(BridgeName.StartsWith("Import.",StringComparison.OrdinalIgnoreCase)){
             return AuthoringHostOperation.Import;
         }
-        if(BridgeProjectRelativePath.IndexOf("Bake",StringComparison.OrdinalIgnoreCase)>=0||
-            BridgeProjectRelativePath.IndexOf("Physics.Cli",StringComparison.OrdinalIgnoreCase)>=0){
+        if(Tool.ProjectRelativePath.IndexOf("Bake",StringComparison.OrdinalIgnoreCase)>=0||
+            Tool.ProjectRelativePath.IndexOf("Physics.Cli",StringComparison.OrdinalIgnoreCase)>=0){
             return AuthoringHostOperation.Bake;
         }
         return AuthoringHostOperation.Preview;
@@ -170,6 +178,10 @@ internal static class ResidentBridgeClient {
     internal static string ServeArguments(string PipeName,int OwnerProcessId)=>
         $"--serve \"{PipeName}\" --parent-process-id {OwnerProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
+    /// <summary><paramref name="Tool"/> を常駐させるコマンドライン。Cge の下位コマンドは <c>--serve</c> の前に置く。</summary>
+    internal static string ServeArguments(BridgeTool Tool,string PipeName,int OwnerProcessId)=>
+        Tool.Command is null?ServeArguments(PipeName,OwnerProcessId):Tool.Command+" "+ServeArguments(PipeName,OwnerProcessId);
+
     private static bool TryConnectOnly(string PipeName,TimeSpan ConnectTimeout){
         try {
             using NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.None);
@@ -183,7 +195,7 @@ internal static class ResidentBridgeClient {
     /// <summary>
     /// <see cref="BridgeExecutableLocator"/> がすでに特定した同じビルド済み exe である <paramref name="ExecutablePath"/> を、<c>--serve</c> mode で起動します。「server が起動していない」と同時に判定する N 個の呼び出し元（例：SceneHwndHost が複数の異なる mesh を並列に準備する場合）が N 個のプロセスを起動しないよう、<see cref="Mutex"/> で制御します。競合に負けた呼び出し元は勝者を待ち、個別に起動してから余分なインスタンスを片付けることはありません。
     /// </summary>
-    private static bool TrySpawnServer(string ExecutablePath,string RepoRoot,string PipeName){
+    private static bool TrySpawnServer(string ExecutablePath,string RepoRoot,BridgeTool Tool,string PipeName){
         using Mutex Mutex=new(initiallyOwned:false, $@"Global\{PipeName}.SpawnMutex");
 
         bool Acquired;
@@ -207,7 +219,7 @@ internal static class ResidentBridgeClient {
                 return true;
             }
 
-            ProcessStartInfo StartInfo=new(ExecutablePath,ServeArguments(PipeName,OwnerProcessId)){
+            ProcessStartInfo StartInfo=new(ExecutablePath,ServeArguments(Tool,PipeName,OwnerProcessId)){
                 WorkingDirectory=RepoRoot,
                 UseShellExecute=false,
                 CreateNoWindow=true,

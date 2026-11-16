@@ -4,7 +4,7 @@ ADR-0078 / M0102。UE5.7 の Blueprint 版テンプレートを UE5.8 で開き�
 
 - 出典の作り方:
   - `tools/UnrealExport/run_dump_blueprint_logic.cmd`(T3D、生成クラス、CDO、コンポーネントの全属性)で書き出す。
-  - それを `CSharpGameEngine.Unreal.SceneImporter logic <dir>`(疑似コードの `.logic.txt`)にかける。
+  - それを `Cge unreal logic <dir>`(疑似コードの `.logic.txt`)にかける。
   - 出力は `.artifacts/UnrealExport/logic/<Template>/`。
 - 単位: UE の値は cm・cm/s・度のまま書く(エンジンは m・turns)。
 - 「状態」の列: **済** = 実装済み、**一部**(M0112 の時点で「陰の明るさ」の 1 行だけ。ほかの行は実装済みか作らないに決めた)、**未**(M0112 の時点で 0 行)、**作らない** = 調べたうえで作らないと決めたもの(理由つき。ADR-0078 §2 の「作らない」と同じ扱い)、**対象外** = ADR-0078 §2 で最初から作らないもの。「担当」は実装したマイルストーン。M0112 で、「一部」と「未」の行をすべて「実装済み」か「作らない」に決めた。

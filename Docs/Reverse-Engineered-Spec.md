@@ -239,7 +239,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-L2-005 / RE-L7-049 / RE-L6-004 / RE-L8-031 — Visual Shader Graph pipeline
 
 - Confidence: High.
-- Evidence: CSharpGameEngine.ShaderGraph, CSharpGameEngine.ShaderArtifacts, CSharpGameEngine.ShaderGraph.Cli, ShaderArtifactRuntime, the three D3D12 renderers, MSBuild target, VSIX ShaderGraphEditor files, production Graph JSON, and their test projects.
+- Evidence: CSharpGameEngine.ShaderGraph, CSharpGameEngine.ShaderArtifacts, the shader-graph command of tools/Cge, ShaderArtifactRuntime, the three D3D12 renderers, MSBuild target, VSIX ShaderGraphEditor files, production Graph JSON, and their test projects.
 - Observed behavior: Production graph files contain stable GUID syntax nodes and typed child edges rather than raw HLSL payloads. Canonical layout exclusion gives stable semantic hashes. The compiler regenerates byte-identical HLSL and fixed-entry artifacts for identical input.
 - Observed behavior: Runtime validates target, ABI, entries, profiles, reflection, and checksum before PSO creation. Debug watches artifacts and preserves the old PSO on load or creation failure; Release excludes watch behavior.
 - Observed behavior: VSIX registers both file extensions and packages localized templates. Source save is independent from successful artifact publication; diagnostics route to the Error List.
@@ -533,7 +533,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0110 — Lumen 相当の土台(ミップ、雲、空の球、メッシュの距離場、グローバル距離場)
 
 - Confidence: High(単体テストと WARP の GPU 試験、テンプレートの実走と画像で確認)。UE の雲との見た目の一致は Medium(参照画像を目で比べた。形はエンジンのノイズ)。実機の GPU は Low(未確認)。
-- Evidence: `src/Engine/Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`src/Engine/Rendering/EnvironmentLighting.cs`、`src/Engine/Rendering/Server/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/ShaderGraph.Cli/Program.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
+- Evidence: `src/Engine/Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`src/Engine/Rendering/EnvironmentLighting.cs`、`src/Engine/Rendering/Server/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/Cge/ShaderGraph/ShaderGraphCli.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
 - Observed behavior:
   - 材質テクスチャ: 4 つの欄のテクスチャは、(内容のハッシュ、色空間)ごとに 1 つ常駐する。基本色と発光は sRGB、法線と金属・粗さは線形。段の数は floor(log2(max(幅, 高さ))) + 1、各段は前の段の半分(切り捨て、最小 1)で、目標の画素は覆う元の画素の重なりの長さを重みにした整数の平均(半分は切り上げ)。sRGB の RGB は定数の表で 16 ビットの線形へ戻して平均し、最も近い 8 ビットのコードへ(同点は上)。段から段へは 16 ビット。s0 は異方性 8・wrap、全段を見る。画面レイヤーのテクスチャは 1 段。
   - 雲: `VolumetricCloud` があり大気があるフレームで、最初(または雲・大気・太陽が変わったとき)にパノラマ(WARP 1024 × 256)の全画素を、以降は 4 × 4 の区画の Bayer の順の 1 画素ずつを描く。各画素は、その方向の視線が雲の殻(半径 R + 5 km から R + 15 km)に入る点から最大 50 km を 24 サンプル(画素ごとに固定の乱数のずれ)で積分し、透過率が 0.005 を下回ったら止める。空の合成は、遠平面の画素(と空の球の外の画素)の空と太陽の円盤の輝度に、パノラマの「残る割合」を掛け、雲の輝度を足し、そのあと高さの霧と露出をかける。空の光の SH は、雲があるとき雲を含み、一巡ごとに作り直す。雲の時間はフレームの経過時間の和(自動実行では 8/60 秒ずつ)、風は 10 m/s で +F から 45°。

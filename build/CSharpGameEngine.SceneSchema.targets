@@ -6,21 +6,26 @@
     (CgeGameProject) run it.
   -->
   <PropertyGroup>
-    <CgeSceneSchemaCliProject>$(MSBuildThisFileDirectory)..\tools\SceneSchema.Cli\SceneSchema.Cli.csproj</CgeSceneSchemaCliProject>
-    <!-- PackageMode (ADR-0065) predefines the CLI shipped in the SDK package; SourceMode builds it from the repository
+    <!-- The schema is written by the scene-schema command of tools/Cge (Docs/refactoring-designs/20261117-command-tools-consolidation.md). -->
+    <CgeSceneSchemaCliProject>$(MSBuildThisFileDirectory)..\tools\Cge\Cge.csproj</CgeSceneSchemaCliProject>
+    <!-- PackageMode (ADR-0065) predefines the Cge assembly shipped in the SDK package; SourceMode builds it from the repository
          and BuildCgeSceneSchemaCli replaces this with the path the build produced (an artifacts path moves it). -->
-    <CgeSceneSchemaCli Condition="'$(CgeSceneSchemaCli)' == ''">$(MSBuildThisFileDirectory)..\tools\SceneSchema.Cli\bin\$(Configuration)\net10.0\SceneSchema.Cli.dll</CgeSceneSchemaCli>
+    <CgeSceneSchemaCli Condition="'$(CgeSceneSchemaCli)' == ''">$(MSBuildThisFileDirectory)..\tools\Cge\bin\$(Configuration)\net10.0\Cge.dll</CgeSceneSchemaCli>
+    <!-- The game build makes tools/Cge from three places (shader graphs, scene schema, model content). They pass the same properties,
+         so MSBuild builds it once per game build and reuses the result. Keep these the same in all three files. -->
+    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64</CgeToolBuildProperties>
+    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath</CgeToolRemoveProperties>
     <CgeSceneSchemaPath Condition="'$(CgeSceneSchemaPath)' == ''">$(MSBuildProjectDirectory)\.cge\scene.schema.json</CgeSceneSchemaPath>
   </PropertyGroup>
   <Target Name="BuildCgeSceneSchemaCli" BeforeTargets="WriteCgeSceneSchema" Condition="'$(CgeGameProject)' == 'true' and '$(CgeEngineMode)' != 'Package'">
     <!-- A game built on its own does not restore this tool; restore in a separate evaluation first. -->
     <MSBuild Projects="$(CgeSceneSchemaCliProject)" Targets="Restore"
-             Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform"
+             Properties="$(CgeToolBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="$(CgeToolRemoveProperties)"
              BuildInParallel="false" />
     <MSBuild Projects="$(CgeSceneSchemaCliProject)" Targets="Build"
-             Properties="Configuration=$(Configuration)"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform"
+             Properties="$(CgeToolBuildProperties)"
+             RemoveProperties="$(CgeToolRemoveProperties)"
              BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeSceneSchemaCliAssembly" />
     </MSBuild>
@@ -29,6 +34,6 @@
     </PropertyGroup>
   </Target>
   <Target Name="WriteCgeSceneSchema" AfterTargets="Build" Condition="'$(CgeGameProject)' == 'true'">
-    <Exec Command="dotnet &quot;$(CgeSceneSchemaCli)&quot; &quot;$(TargetPath)&quot; &quot;$(CgeSceneSchemaPath)&quot;" StandardOutputImportance="low" />
+    <Exec Command="dotnet &quot;$(CgeSceneSchemaCli)&quot; scene-schema &quot;$(TargetPath)&quot; &quot;$(CgeSceneSchemaPath)&quot;" StandardOutputImportance="low" />
   </Target>
 </Project>

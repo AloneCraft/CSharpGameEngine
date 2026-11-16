@@ -1,7 +1,7 @@
 """Exports the Mannequin locomotion animations of a UE template project as skinned glTF files (ADR-0078/M0107).
 
 Run through run_export_mannequin_animations.cmd, then compact the files with
-`CSharpGameEngine.Unreal.SceneImporter compact-animations <directory>` (each file holds the preview mesh until then; the compact file has the joints and the clip only,
+`Cge unreal compact-animations <directory>` (each file holds the preview mesh until then; the compact file has the joints and the clip only,
 as the first six clips of the templates do). CGE_ANIM_OUT is the output directory; every animation under
 /Game/Characters/Mannequins/Anims/Unarmed/Walk and /Jog (the eight directions of BS_Idle_Walk_Run) is written there as <name>.glb. The
 rest of the graph's clips (Idle, Jump, Fall Loop, Land) are written too when CGE_ANIM_ALL=1. Nothing is saved back to Unreal.

@@ -19,9 +19,9 @@ internal static class ShaderGraphEditorBuildService {
         var Context=CgeProjectContext.Resolve(GraphPath);
         var RepoRoot=Context?.WorkspaceRoot??Path.GetDirectoryName(Path.GetFullPath(GraphPath))!;
         var CliPath=FindCli(Context?.EngineRoot);
-        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not available. Reinstall the extension or build ShaderGraph.Cli.",null); }
+        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not available. Reinstall the extension or build tools/Cge.",null); }
         if(GetOperation(GraphPath)==ShaderGraphEditorBuildOperation.ValidateSubgraph) {
-            var Validation=Run(CliPath,"validate "+Quote(GraphPath),RepoRoot);
+            var Validation=Run(CliPath,"shader-graph validate "+Quote(GraphPath),RepoRoot);
             return Validation.ExitCode==0
                 ?new ShaderGraphEditorBuildResult(true,"Shader Subgraph validated.",null)
                 :new ShaderGraphEditorBuildResult(false,Validation.Output,null);
@@ -31,11 +31,11 @@ internal static class ShaderGraphEditorBuildService {
         Directory.CreateDirectory(OutputDirectory);
         var ArtifactPath=Path.Combine(OutputDirectory,Name+".cgeshaderartifact");
         var HlslPath=Path.Combine(OutputDirectory,Name+".generated.hlsl");
-        var Build=Run(CliPath,"build "+Quote(GraphPath)+" "+Quote(ArtifactPath)+" "+Quote(HlslPath)+" Debug",RepoRoot);
+        var Build=Run(CliPath,"shader-graph build "+Quote(GraphPath)+" "+Quote(ArtifactPath)+" "+Quote(HlslPath)+" Debug",RepoRoot);
         if(Build.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Build.Output,HlslPath); }
         var Published=0;
         foreach(var Existing in FindExistingRuntimeArtifacts(Context,Name+".cgeshaderartifact")) {
-            var Publish=Run(CliPath,"publish "+Quote(ArtifactPath)+" "+Quote(Existing),RepoRoot);
+            var Publish=Run(CliPath,"shader-graph publish "+Quote(ArtifactPath)+" "+Quote(Existing),RepoRoot);
             if(Publish.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Publish.Output,HlslPath); }
             Published++;
         }
@@ -43,19 +43,11 @@ internal static class ShaderGraphEditorBuildService {
     }
     /// <summary>拡張機能に同梱されたコンパイラー。なければリポジトリのビルド (SourceMode の開発時)。</summary>
     private static string?FindCli(string?EngineRoot) {
-        var Bundled=Path.Combine(BridgeExecutableLocator.ExtensionDirectory,"Bridges","ShaderGraph.Cli","ShaderGraph.Cli.exe");
+        // コンパイラーは Cge の shader-graph 下位コマンド。同梱の Bridges/Cge/Cge.exe か、エンジンのリポジトリの tools/Cge のビルド。
+        var Bundled=Path.Combine(BridgeExecutableLocator.ExtensionDirectory,"Bridges","Cge","Cge.exe");
         if(File.Exists(Bundled)) { return Bundled; }
         if(EngineRoot is null) { return null; }
-        var RepoRoot=EngineRoot;
-        foreach(var Configuration in new[]{"Debug","Release"}) {
-            foreach(var Architecture in new[]{"x64",string.Empty}) {
-                var Candidate=string.IsNullOrEmpty(Architecture)
-                    ?Path.Combine(RepoRoot,"tools","ShaderGraph.Cli","bin",Configuration,"net10.0-windows10.0.19041.0","ShaderGraph.Cli.exe")
-                    :Path.Combine(RepoRoot,"tools","ShaderGraph.Cli","bin",Architecture,Configuration,"net10.0-windows10.0.19041.0","ShaderGraph.Cli.exe");
-                if(File.Exists(Candidate)) { return Candidate; }
-            }
-        }
-        return null;
+        return BridgeExecutableLocator.FindExecutable(EngineRoot,BridgeTool.ShaderGraph.ProjectRelativePath);
     }
     /// <summary>ゲームプロジェクトの出力先に公開されたコピーと、SourceMode ではエンジンリポジトリのテストおよびツール。</summary>
     private static IEnumerable<string>FindExistingRuntimeArtifacts(CgeProjectContext?Context,string FileName) {

@@ -23,39 +23,39 @@ internal sealed class AuthoringHostOperationException:InvalidOperationException 
 /// <list type="number">
 /// <item>常駐名前付きパイプサーバー (<see cref="ResidentBridgeClient"/>、ADR-0023)：呼び出しごとに OS プロセスを作成して .NET ランタイムを起動するコストをかけず、すでに実行中のブリッジプロセスを再利用する。<c>useResidentServer</c> が <see langword="true"/> で、ビルド済み exe が見つかった場合のみ試す。</item>
 /// <item>ブリッジプロジェクトのビルド済み apphost <c>.exe</c> を直接起動する (<see cref="BridgeExecutableLocator"/>)。</item>
-/// <item><c>dotnet run --project &lt;bridgeProjectRelativePath&gt; -- &lt;firstArg&gt; &lt;secondArg&gt;</c>：ビルド済み実行ファイルがまだない場合（新規 clone など）に限る。`dotnet run` は最初の 1 回だけでなく、実質的に呼び出しごとに MSBuild 評価コストがかかるため重要である。ADR-0010 では、既知の先送りコスト（「体感速度の最適化...は今回のスコープ外とした」）として挙げられ、シーンタブがメッシュを複数（メッシュごとにブリッジプロセス 1 つ）読み込むようになると、読み込みごとの支配的なコストになった。</item>
+/// <item><c>dotnet run --project &lt;project&gt; -- [&lt;command&gt;] &lt;firstArg&gt; &lt;secondArg&gt;</c>：ビルド済み実行ファイルがまだない場合（新規 clone など）に限る。`dotnet run` は最初の 1 回だけでなく、実質的に呼び出しごとに MSBuild 評価コストがかかるため重要である。ADR-0010 では、既知の先送りコスト（「体感速度の最適化...は今回のスコープ外とした」）として挙げられ、シーンタブがメッシュを複数（メッシュごとにブリッジプロセス 1 つ）読み込むようになると、読み込みごとの支配的なコストになった。</item>
 /// </list>
 /// <see cref="ExternalFbxLoader"/>/<see cref="ExternalGltfLoader"/> からは第 2 引数を JSON パスとして使い、呼び出し元が <see cref="RunAndReadJson"/> で読み戻す。また <see cref="SceneModelRenderObjectBuilder.ResolveViaBridge"/> からは、第 2 引数を <c>.glb</c> パスとして渡し、呼び出し元は後からファイルが存在することだけを <see cref="RunProducingFile"/> で確認する。モデル/メッシュデータを <c>devenv.exe</c> 内のプロセスで生成する必要はない。
 /// </summary>
 internal static class ExternalBridgeProcess {
-    public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
-        return RunAndReadJson(BridgeProjectRelativePath,InputPath,OutputJsonPath,RepoRoot,Timeout,UseResidentServer,CancellationToken.None);
+    public static string RunAndReadJson(BridgeTool Tool,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+        return RunAndReadJson(Tool,InputPath,OutputJsonPath,RepoRoot,Timeout,UseResidentServer,CancellationToken.None);
     }
-    public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer,CancellationToken CancellationToken){
-        var ExecutablePath=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
-        RunProcess(BridgeProjectRelativePath,[InputPath,OutputJsonPath],RepoRoot,Timeout,UseResidentServer,ExecutablePath,CancellationToken);
+    public static string RunAndReadJson(BridgeTool Tool,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer,CancellationToken CancellationToken){
+        var ExecutablePath=BridgeExecutableLocator.FindExecutable(RepoRoot,Tool.ProjectRelativePath);
+        RunProcess(Tool,[InputPath,OutputJsonPath],RepoRoot,Timeout,UseResidentServer,ExecutablePath,CancellationToken);
 
         if(!File.Exists(OutputJsonPath)){
-            throw new InvalidOperationException(VsixText.Format("Bridge_OutputNotGenerated",BridgeProjectRelativePath));
+            throw new InvalidOperationException(VsixText.Format("Bridge_OutputNotGenerated",Tool.Identity));
         }
 
         return File.ReadAllText(OutputJsonPath);
     }
 
     /// <summary><see cref="RunAndReadJson"/> と同様ですが、バイナリファイル（例：<c>.glb</c>）を書き込む bridge 用です。呼び出し側が別途読み込むため、ここではテキストとして読み戻しません。</summary>
-    public static void RunProducingFile(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
-        RunProcess(BridgeProjectRelativePath,[FirstArg,OutputPath],RepoRoot,Timeout,UseResidentServer);
+    public static void RunProducingFile(BridgeTool Tool,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+        RunProcess(Tool,[FirstArg,OutputPath],RepoRoot,Timeout,UseResidentServer);
 
         if(!File.Exists(OutputPath)){
-            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",BridgeProjectRelativePath));
+            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",Tool.Identity));
         }
     }
 
-    public static void RunCommandProducingFile(string BridgeProjectRelativePath,string[]Arguments,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+    public static void RunCommandProducingFile(BridgeTool Tool,string[]Arguments,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
         if(Arguments is null){ throw new ArgumentNullException(nameof(Arguments)); }
-        RunProcess(BridgeProjectRelativePath,Arguments,RepoRoot,Timeout,UseResidentServer);
+        RunProcess(Tool,Arguments,RepoRoot,Timeout,UseResidentServer);
         if(!File.Exists(OutputPath)){
-            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",BridgeProjectRelativePath));
+            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",Tool.Identity));
         }
     }
 
@@ -70,41 +70,51 @@ internal static class ExternalBridgeProcess {
     public static void RunExecutableCommandProducingFile(
         string ExecutablePath,string BridgeIdentity,string[]Arguments,string OutputPath,
         string RepoRoot,TimeSpan Timeout,bool UseResidentServer,CancellationToken CancellationToken){
+        RunExecutableCommandProducingFile(
+            ExecutablePath,new BridgeTool(BridgeIdentity,null),Arguments,OutputPath,RepoRoot,Timeout,
+            UseResidentServer,CancellationToken);
+    }
+
+    /// <summary>呼び出し元が見つけた実行ファイルで <paramref name="Tool"/> を動かす。下位コマンドがあれば引数の前に付ける。</summary>
+    public static void RunExecutableCommandProducingFile(
+        string ExecutablePath,BridgeTool Tool,string[]Arguments,string OutputPath,
+        string RepoRoot,TimeSpan Timeout,bool UseResidentServer,CancellationToken CancellationToken){
         if(string.IsNullOrWhiteSpace(ExecutablePath)){ throw new ArgumentException(nameof(ExecutablePath)); }
+        if(Tool is null){ throw new ArgumentNullException(nameof(Tool)); }
         if(Arguments is null){ throw new ArgumentNullException(nameof(Arguments)); }
         RunProcess(
-            BridgeIdentity,Arguments,RepoRoot,Timeout,UseResidentServer,ExecutablePath,
+            Tool,Arguments,RepoRoot,Timeout,UseResidentServer,ExecutablePath,
             CancellationToken);
         if(!File.Exists(OutputPath)){
-            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",BridgeIdentity));
+            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",Tool.Identity));
         }
     }
 
-    private static void RunProcess(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
-        RunProcess(BridgeProjectRelativePath,[FirstArg,OutputPath],RepoRoot,Timeout,UseResidentServer);
+    private static void RunProcess(BridgeTool Tool,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+        RunProcess(Tool,[FirstArg,OutputPath],RepoRoot,Timeout,UseResidentServer);
     }
 
-    private static void RunProcess(string BridgeProjectRelativePath,string[]Arguments,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
-        var ExecutablePath=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
-        RunProcess(BridgeProjectRelativePath,Arguments,RepoRoot,Timeout,UseResidentServer,ExecutablePath);
+    private static void RunProcess(BridgeTool Tool,string[]Arguments,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+        var ExecutablePath=BridgeExecutableLocator.FindExecutable(RepoRoot,Tool.ProjectRelativePath);
+        RunProcess(Tool,Arguments,RepoRoot,Timeout,UseResidentServer,ExecutablePath);
     }
 
     private static void RunProcess(
-        string BridgeProjectRelativePath,string[]Arguments,string RepoRoot,TimeSpan Timeout,
+        BridgeTool Tool,string[]Arguments,string RepoRoot,TimeSpan Timeout,
         bool UseResidentServer,string?ExecutablePath){
         RunProcess(
-            BridgeProjectRelativePath,Arguments,RepoRoot,Timeout,UseResidentServer,
+            Tool,Arguments,RepoRoot,Timeout,UseResidentServer,
             ExecutablePath,CancellationToken.None);
     }
 
     private static void RunProcess(
-        string BridgeProjectRelativePath,string[]Arguments,string RepoRoot,TimeSpan Timeout,
+        BridgeTool Tool,string[]Arguments,string RepoRoot,TimeSpan Timeout,
         bool UseResidentServer,string?ExecutablePath,CancellationToken CancellationToken){
 
         CancellationToken.ThrowIfCancellationRequested();
         if(ExecutablePath is not null&&UseResidentServer){
             var Attempt=ResidentBridgeClient.TryRunDetailed(
-                ExecutablePath,RepoRoot,BridgeProjectRelativePath,Arguments,Timeout,
+                ExecutablePath,RepoRoot,Tool,Arguments,Timeout,
                 CancellationToken,out AuthoringHostResult?ResidentResult);
             if(Attempt==ResidentBridgeAttemptStatus.Completed){
                 if(ResidentResult is null){
@@ -113,26 +123,26 @@ internal static class ExternalBridgeProcess {
                 }
                 if(!IsSuccessfulResult(ResidentResult)){
                     throw new AuthoringHostOperationException(
-                        BridgeProjectRelativePath,ResidentResult);
+                        Tool.Identity,ResidentResult);
                 }
                 return;
             }
             if(Attempt==ResidentBridgeAttemptStatus.TimedOut){
                 var TimeoutSeconds=Timeout.Ticks/(float)TimeSpan.TicksPerSecond;
-                throw new TimeoutException(VsixText.Format("Bridge_TimedOut",BridgeProjectRelativePath,TimeoutSeconds.ToString(CultureInfo.InvariantCulture)));
+                throw new TimeoutException(VsixText.Format("Bridge_TimedOut",Tool.Identity,TimeoutSeconds.ToString(CultureInfo.InvariantCulture)));
             }
             if(Attempt is ResidentBridgeAttemptStatus.HostCrashed or ResidentBridgeAttemptStatus.ProtocolMismatch){
                 if(ResidentResult is not null){
                     throw new AuthoringHostOperationException(
-                        BridgeProjectRelativePath,ResidentResult);
+                        Tool.Identity,ResidentResult);
                 }
                 throw new InvalidOperationException(
-                    VsixText.Format("Bridge_ExitedWithError",BridgeProjectRelativePath,"1",string.Empty));
+                    VsixText.Format("Bridge_ExitedWithError",Tool.Identity,"1",string.Empty));
             }
         }
 
         RunOneShotProcess(
-            BridgeProjectRelativePath,Arguments,RepoRoot,Timeout,ExecutablePath,
+            Tool,Arguments,RepoRoot,Timeout,ExecutablePath,
             CancellationToken);
     }
 
@@ -150,14 +160,14 @@ internal static class ExternalBridgeProcess {
     }
 
     private static void RunOneShotProcess(
-        string BridgeProjectRelativePath,string[]Arguments,string RepoRoot,TimeSpan Timeout,
+        BridgeTool Tool,string[]Arguments,string RepoRoot,TimeSpan Timeout,
         string?ExecutablePath,CancellationToken CancellationToken){
-        string CommandArguments=string.Join(" ",Array.ConvertAll(Arguments,QuoteArgument));
+        string CommandArguments=string.Join(" ",Array.ConvertAll(Tool.CommandLine(Arguments),QuoteArgument));
         var StartInfo=ExecutablePath is not null
                           ?new ProcessStartInfo(ExecutablePath,CommandArguments)
                           :new ProcessStartInfo(
                                                 "dotnet",
-                                                $"run --project \"{BridgeProjectRelativePath}\" -- {CommandArguments}");
+                                                $"run --project \"{Tool.ProjectRelativePath}\" -- {CommandArguments}");
 
         StartInfo.WorkingDirectory=RepoRoot;
         StartInfo.UseShellExecute=false;
@@ -192,12 +202,12 @@ internal static class ExternalBridgeProcess {
         if(!Exited){
             try { Process.Kill();} catch(InvalidOperationException){ }
             var TimeoutSeconds=Timeout.Ticks/(float)TimeSpan.TicksPerSecond;
-            throw new TimeoutException(VsixText.Format("Bridge_TimedOut",BridgeProjectRelativePath,TimeoutSeconds.ToString(CultureInfo.InvariantCulture)));
+            throw new TimeoutException(VsixText.Format("Bridge_TimedOut",Tool.Identity,TimeoutSeconds.ToString(CultureInfo.InvariantCulture)));
         }
 
         if(Process.ExitCode!=0){
             throw new InvalidOperationException(
-                VsixText.Format("Bridge_ExitedWithError",BridgeProjectRelativePath,Process.ExitCode.ToString(CultureInfo.InvariantCulture),Stdout+Environment.NewLine+Stderr));
+                VsixText.Format("Bridge_ExitedWithError",Tool.Identity,Process.ExitCode.ToString(CultureInfo.InvariantCulture),Stdout+Environment.NewLine+Stderr));
         }
     }
 

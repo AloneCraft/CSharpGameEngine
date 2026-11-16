@@ -12,7 +12,7 @@ changes that are easier to express as HLSL than as visual nodes:
    any declarations the edit inserted;
 5. the original document IDs are restored and the result is validated.
 
-Run from the repository root after building tools/ShaderGraph.Cli (x64 Debug).
+Run from the repository root after building tools/Cge (Debug); the compiler is its shader-graph command.
 """
 
 import hashlib
@@ -27,8 +27,7 @@ import tempfile
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SHADERS = os.path.join(REPO, "assets", "Shaders")
-CLI = os.path.join(REPO, "tools", "ShaderGraph.Cli", "bin", "x64", "Debug",
-                   "net10.0-windows10.0.19041.0", "ShaderGraph.Cli.exe")
+CLI = os.path.join(REPO, "tools", "Cge", "bin", "Debug", "net10.0", "Cge.exe")
 SUBGRAPHS = {
     "Pbr": ("PBR", ["PI", "DistributionGgx", "VisibilitySmithGgxCorrelated", "FresnelSchlick", "EvaluateLitSurface", "DistanceAttenuation"]),
     "Shadow": ("Shadow", ["ComputeAtlasShadowProjected;", "ComputeAtlasShadowProjected", "ComputeSpotShadow", "SelectPointShadowFace", "ComputePointShadow"]),

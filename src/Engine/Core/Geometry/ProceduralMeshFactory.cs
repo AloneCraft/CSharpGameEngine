@@ -11,7 +11,7 @@ namespace CSharpGameEngine.Geometry;
 /// シェイプパレット機能の基本形状（<see cref="CreateSphere"/>／<see cref="CreateCylinder"/>／<see cref="CreateCapsule"/>／
 /// <see cref="CreateCone"/>／<see cref="CreateTorus"/>／<see cref="CreateDisk"/>）を、グラフィックス非依存の単一プロジェクトにまとめた。
 /// 純粋な<see cref="System.Numerics"/>だけを使用し、D3D12／TerraFX型には依存しない。このため、
-/// <c>CSharpGameEngine.Graphics.D3D12</c>とプロセス外の<c>tools/Primitive.Cli</c>ブリッジの両方から参照できる。
+/// <c>CSharpGameEngine.Graphics.D3D12</c>とプロセス外の<c>Cge primitive</c>ブリッジの両方から参照できる。
 /// net472のVSIX側で生成計算を重複させる必要もない（「常にプロセス外ブリッジ経由とし、プロセス内で実行しない」というADR-0019の原則）。
 /// 頂点の巻き順は一貫性のために選ぶが、現在は可視性に影響しない。すべての利用側で裏面カリングを無効にしている。
 ///

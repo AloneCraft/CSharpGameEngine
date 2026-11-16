@@ -81,7 +81,7 @@
 - Phase (ADR-0098, 2026-11-15): 段階 A に残す。残りは実際の VS での受け入れ（ADR-0098 段階 A の出口条件の制作の一巡）だけで、受け入れが通れば Implemented にする。 meta/serve の全体の調停と資源の強制は、制作の一巡に使わないので段階 D。
 - Verification: TestVerified
 - Intended specification: ADR-0080 S3
-- Implementation evidence: `tools/ContentCompiler`, `src/Import/{Gltf/BuiltInGltfImporter.cs,Models}`, `build/CSharpGameEngine.ModelContent.targets`
+- Implementation evidence: `tools/Cge/Content`, `src/Import/{Gltf/BuiltInGltfImporter.cs,Models}`, `build/CSharpGameEngine.ModelContent.targets`
 - Tests: ContentCompiler Debug suite: 33 passed in `405ea4d698ee43db9de03b7b8def0af0` before the following worker-package build failed; metadata authoring/migration: 5 passed in `a85bfa0b431a4539881731ea0f708c2d`. The resource-worker metadata race failed before the fix in `f3309bcae63547d5824c91ba7ab6e8be`. Material artifact tests: 9 passed in `6a64b4d14de84ca19dc8309743c7dd09`.
 - Reverse-engineered behavior: Discovery and source SDK decoding remain outside the parent. Module/engine/options/read-set fingerprints identify canonical IR caches. cge.gltf reads tracked resources in the import worker; ModelResourcesCooker produces images, textures and PBR materials through IAssetCooker. compile-project processes the complete input set and preserves verified last-known-good source closures in both indexes. Successful export selects exact current root closures, copies canonical CAS objects, and returns the current runtime file list; failed source preparation leaves the runtime copy unchanged.
 - Conformance: Partial. Real Manny/clip/textured/floor models, external-only changes, source-free loading, failure/recovery/removal/empty projects and runtime-copy retention are tested. New metadata uses cge.gltf; legacy SharpGLTF metadata migrates through AssetAuthoringService while preserving identity and options. Resource-worker metadata mutation is rejected before publication. Source/SDK five-profile/four-template builds and consumer cutover tests pass in Debug; updated self-contained static-contract shipping execution passes; full meta/serve orchestration and complete resource enforcement remain separate M0114 work.
@@ -820,9 +820,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   Docs/Decisions/ADR-0010-VSIX-Fbx-OutOfProcess-Bridge.md(追記: ブリッジ起動の事前ビルド済みexe
   直接化)、Docs/Decisions/ADR-0023-Bridge-Process-Residency.md(常駐サーバー化、F-L8-008参照)
 - Implementation evidence:
-  - tools/Import.Gltf.Cli/Program.cs
-  - tools/Import.Gltf.Cli/GltfBridgeDocument.cs
-  - tools/Import.Gltf.Cli/GltfBridgeWorker.cs(ADR-0023で`Program.cs`から抽出)
+  - tools/Cge/Gltf/GltfCommand.cs
+  - tools/Cge/Gltf/GltfBridgeDocument.cs
+  - tools/Cge/Gltf/GltfBridgeWorker.cs(ADR-0023で`Program.cs`から抽出)
   - tools/VSExtension/ExternalBridgeProcess.cs(`BridgeExecutableLocator`含む)
   - tools/VSExtension/ExternalGltfLoader.cs
   - tools/VSExtension/BridgeDocument.cs
@@ -842,7 +842,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     (`ToSimpleMesh()`変換込み)1つに統合した。
   - `SimpleGltfLoader.cs`は削除、`VSExtension.csproj`から`SharpGLTF.Core`
     パッケージ参照も除去した(このプロジェクトはもうAssimpNetもSharpGLTF.Coreも直接参照しない)。
-  - `dotnet run --project tools/Import.Gltf.Cli -- assets/TestFixtures/Gltf/Box.glb <tmp>.json`
+  - `dotnet run --project tools/Cge -- gltf assets/TestFixtures/Gltf/Box.glb <tmp>.json`
     を実際に実行し、終了コード0・24頂点/36インデックスの正しいJSONが生成されることを確認した。
   - **(ADR-0010追記)** シーンタブが体感で重いというユーザー報告を受け、`ExternalBridgeProcess.
     RunProcess`が`BridgeExecutableLocator.FindExecutable`でブリッジの事前ビルド済みapphost
@@ -1069,12 +1069,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `SceneModel`へ移った時点で`SceneEditorHub.ActiveScene`の発行元が消滅した。以後このパレットは
   押しても「シーンファイル(.scene)を開いてください」という案内ダイアログを出すだけのUIであり、
   ユーザー決定によりPhase 10を待たず全面削除した。**プリミティブ生成そのものは
-  `tools/Primitive.Cli`として存続**し、Scene デザイナーの`PrimitiveMesh`描画
+  `Cge primitive`(tools/Cge)として存続**し、Scene デザイナーの`PrimitiveMesh`描画
   (`SceneModelRenderObjectBuilder.ResolveViaBridge`)が利用している。
 - Superseded by: 宣言の直接編集(`SceneEditOperation`、M0020 Phase 3以降)+ ヒエラルキー編集
   マイルストーン。
 - Implementation evidence(削除済み。履歴はgitの`313c328`以前を参照):
-  - tools/Primitive.Cli/Program.cs(**存続** — 描画側が利用)
+  - tools/Cge/Primitive/PrimitiveCommand.cs(**存続** — 描画側が利用)
   - ~~tools/VSExtension/ShapePaletteToolWindowPane.cs~~
   - ~~tools/VSExtension/ShapePaletteControl.xaml(.cs)~~
   - ~~tools/VSExtension/ShowShapePaletteToolWindowCommand.cs~~
@@ -1097,7 +1097,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     (対話的ギズモ操作が前提でEditorSpec §6のスコープ外。EditorSpec.mdは2026-08に削除され、
     ギズモ操作は[[ADR-0041-Scene-Editor-Interaction-Architecture]] / M0020のスコープになった)。
   - `PrimitiveSpawner.SpawnAsync`: `UserEcsProject/Assets/Primitives/<Name>.glb`が無ければ
-    `tools/Primitive.Cli`をアウトオブプロセスで起動して生成(2回目以降は
+    `Cge primitive`(tools/Cge)をアウトオブプロセスで起動して生成(2回目以降は
     キャッシュされたファイルを再利用)、`SceneEditorHub.ActiveScene`が無ければ案内メッセージを
     出して終了、新規ノードを`SceneFile.AddNode`+`Save`で書き戻し、
     `SceneEditorHub.RequestReload`で「シーン」タブとヒエラルキーの再描画をトリガーする。
@@ -1165,10 +1165,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence:
   - tools/Bridge.Hosting/BridgeServerHost.cs
   - tools/Bridge.Hosting/BridgeWireMessage.cs
-  - tools/Import.Gltf.Cli/Program.cs、GltfBridgeWorker.cs
-  - tools/Import.Fbx.Cli/Program.cs、FbxBridgeWorker.cs(AssimpNetの`LogStream`の
+  - tools/Cge/Gltf/GltfCommand.cs、GltfBridgeWorker.cs
+  - tools/Cge/Fbx/FbxCommand.cs、FbxBridgeWorker.cs(AssimpNetの`LogStream`の
     排他は`FbxImporter`自身が持つ)
-  - tools/Primitive.Cli/Program.cs、PrimitiveBridgeWorker.cs
+  - tools/Cge/Primitive/PrimitiveCommand.cs、PrimitiveBridgeWorker.cs
   - tools/VSExtension/ResidentBridgeClient.cs
   - tools/VSExtension/ExternalBridgeProcess.cs(3段フォールバックの調停役)
 - Tests:
@@ -1208,7 +1208,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: Matches
 - Known deviations: None
 - Next action: VS実機でシーンタブ・シェイプパレットの体感速度を確認してもらう
-  (Next actionはF-L8-002と共通)。`Import.Fbx.Cli`の常駐化除外は「一行で切り替え可能」な形の
+  (Next actionはF-L8-002と共通)。`Cge fbx`の常駐化除外は「一行で切り替え可能」な形の
   まま保留してあり、実運用でクラッシュ頻度が問題になった場合に改めて検討する。
 
 ## F-L3-005 — `AosEntityStore<TRow>` / `EntityAllocator`(削除済み)
@@ -2687,7 +2687,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `SceneValue.ReferencedSymbol`(`EnumMember`用)から行う — `SceneValue`には`float`/enum用の
     型付きアクセサが無いため、値抽出ロジックはこのタスクで新規に書いた。
   - プリミティブ形状の実メッシュ生成は、VSIXがnet10.0の`ProceduralMeshFactory`を直接参照できない
-    (ADR-0008)ため、既存の`tools/Primitive.Cli`ブリッジ(Shape Paletteと共有)を
+    (ADR-0008)ため、既存の`Cge primitive`(tools/Cge)ブリッジ(Shape Paletteと共有)を
     そのまま再利用し、`UserEcsProject/Assets/Primitives/`の既存キャッシュも共有する
     (シェイプパレットはM0020 Phase 0で削除されたが、ブリッジとキャッシュは描画側が引き続き使う)。
     `PrimitiveType.Plane`はブリッジ側の命名(`"Rectangle"`)と異なるため変換マップを持つ。
@@ -4785,7 +4785,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Milestones/M0102-UE-Template-Logic-Analysis.md`、`Docs/Specifications/UE-Template-Behavior.md`
 - Implementation evidence:
   - `tools/UnrealExport/dump_blueprint_logic.py`、`run_dump_blueprint_logic.cmd`（T3D、生成クラス、既定オブジェクト、コンポーネントの全属性）
-  - `tools/Unreal.SceneImporter/T3dDocument.cs`、`BlueprintLogicWriter.cs`、`Program.cs`（`logic` コマンド）
+  - `tools/Cge/Unreal/T3dDocument.cs`、`BlueprintLogicWriter.cs`、`UnrealCommand.cs`（`logic` コマンド）
 - Tests: `tests/エンジンのテスト/Import/Unreal/BlueprintLogicWriterTests.cs`
 - Current delta: 4 テンプレート（ThirdPerson、FirstPerson、TopDown、Vehicle）の全 Blueprint を書き出し、疑似コードにして、挙動仕様の表にした。実装は M0103 以降（ADR-0078 §4）。
 - Conformance: Matches
@@ -4822,7 +4822,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Windows/Graphics/StageRenderer.ScreenLayer.cs`、`StageRenderer.cs`(画面用のルートシグネチャとパイプライン)、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`
   - `src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`(`stage-v11`)
   - `src/Runtime/Windows/ScreenUi.cs`、`RuntimeSystems.cs`(`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`)、`EngineHost.cs`、`RuntimeAutomation.cs`(`screenLayerFingerprints`)
-  - `tools/FontBaker/`、`assets/Fonts/`、`build/CSharpGameEngine.Game.props`(`CgeIncludeDefaultFonts`)、`AssetCatalogEmitter.cs`(`FontAsset`)
+  - `tools/Cge/FontBaker/`、`assets/Fonts/`、`build/CSharpGameEngine.Game.props`(`CgeIncludeDefaultFonts`)、`AssetCatalogEmitter.cs`(`FontAsset`)
   - `Templates/Vehicle/Gameplay/Speedometer.cs`、`Scenes/SportsCar.json`
 - Tests: `FontAtlasTests`、`FontBakerTests`、`ScreenUiTests`、`ScreenLayerTests`、`AssetCatalogTests`、`ShaderGraphCompilerTests`、`VehicleDriveVerificationTests`
 - Current delta: 文字(SDF のフォント)と画像・矩形を、描き終えたフレームの上に UMG のアンカーとピボットで置ける。Vehicle の HUD は画面の文字になった。
@@ -4952,7 +4952,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/Windows/Graphics/StageAtmosphere.cs`、`src/Engine/Rendering/EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
   - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
-  - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/Unreal.SceneImporter/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
+  - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/Cge/Unreal/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
 - Tests: `tests/Windowsのテスト/Windows/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
 - Current delta: 雲は上半球のパノラマ(WARP 1024 × 256・24 サンプル)。形はエンジンのノイズ。風は 10 m/s・45°(エンジンの選択)。空の球は合成の判定で、新しいメッシュの描画は無い。
 - Conformance: MatchesWithDocumentedExtension(値は UE、形と描き方はエンジン。M0110 の文書の表)
@@ -4977,14 +4977,14 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L7-053 — メッシュの距離場(ビルド時の生成)
 
-- Layer: L1 — `CSharpGameEngine.Rendering`(`MeshDistanceField`、`MeshDistanceFieldBuilder`、`MeshDistanceFieldCodec`)、L7 — ビルド(`ShaderGraph.Cli build-distance-fields`、`ShaderGraph.targets`、`Game.props`)
+- Layer: L1 — `CSharpGameEngine.Rendering`(`MeshDistanceField`、`MeshDistanceFieldBuilder`、`MeshDistanceFieldCodec`)、L7 — ビルド(`Cge shader-graph build-distance-fields`、`ShaderGraph.targets`、`Game.props`)
 - Parent capability: Static Compiler / Bake(ジオメトリの前処理。ライティングは焼かない)
 - Status: Implemented
 - Verification: TestVerified + RuntimeVerified(テンプレートのビルドが glb ごとに `.glb.cgesdf` を作り、ランタイムが読む)
 - Intended specification: `Docs/Specifications/Rendering.md`(メッシュの距離場)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
 - Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
 - Depends on: F-L7-049
-- Implementation evidence: `src/Engine/Rendering/MeshDistanceField.cs`、`tools/ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime/Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Engine/Rendering/Server/RenderServer.cs`(基本形状は実行時)
+- Implementation evidence: `src/Engine/Rendering/MeshDistanceField.cs`、`tools/Cge/ShaderGraph/ShaderGraphCli.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime/Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Engine/Rendering/Server/RenderServer.cs`(基本形状は実行時)
 - Tests: `tests/エンジンのテスト/Rendering/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)

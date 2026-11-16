@@ -35,7 +35,7 @@ if not exist "%MANIFEST%" (
 
 rem The importer writes the scenes as C# classes; the converter turns them into scene JSON (ADR-0070).
 for %%S in (Lvl_ThirdPerson ThirdPersonCharacter) do if exist "%TEMPLATE_DIR%\Scenes\%%S.json" del /q "%TEMPLATE_DIR%\Scenes\%%S.json"
-dotnet run --project "%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj" -- ^
+dotnet run --project "%SCRIPT_DIR%..\Cge\Cge.csproj" -- unreal ^
   thirdperson "%MANIFEST%" "%TEMPLATE_DIR%"
 if errorlevel 1 exit /b %errorlevel%
 dotnet run --project "%SCRIPT_DIR%..\SceneJson.Cli\SceneJson.Cli.csproj" -- ^
@@ -43,7 +43,7 @@ dotnet run --project "%SCRIPT_DIR%..\SceneJson.Cli\SceneJson.Cli.csproj" -- ^
 if errorlevel 1 exit /b %errorlevel%
 
 rem The prototype grid materials are drawn procedurally in world space, not from the baked textures (ADR-0075).
-dotnet run --project "%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj" -- ^
+dotnet run --project "%SCRIPT_DIR%..\Cge\Cge.csproj" -- unreal ^
   worldgrid "%MANIFEST%" "%TEMPLATE_DIR%"
 if errorlevel 1 exit /b %errorlevel%
 

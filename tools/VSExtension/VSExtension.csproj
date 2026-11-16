@@ -89,7 +89,7 @@
     <PackageReference Include="Microsoft.VisualStudio.CommandBars" Version="17.14.40260" ExcludeAssets="runtime" />
 
     <!-- ADR-0010/ADR-0019: deserializes the JSON produced by both out-of-process import bridges
-         (Import.Fbx.Cli and Import.Gltf.Cli). Neither AssimpNet
+         (the fbx and gltf commands of tools/Cge). Neither AssimpNet
          nor SharpGLTF.Core is referenced directly by this project anymore - see
          ExternalFbxLoader.cs/ExternalGltfLoader.cs. 10.0.1 was the version originally forced by a
          since-removed transitive SharpGLTF.Core dependency; kept pinned since it's already proven
@@ -339,12 +339,9 @@
        so the editor works for game projects outside the engine repository. Each is published
        framework-dependent into an owned staging directory, like the Preview Host. -->
   <ItemGroup>
-    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../Import.Gltf.Cli/Import.Gltf.Cli.csproj" Platform="AnyCPU" />
-    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../Import.Fbx.Cli/Import.Fbx.Cli.csproj" Platform="AnyCPU" />
-    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../Import.AssetAuthoring.Cli/Import.AssetAuthoring.Cli.csproj" Platform="AnyCPU" />
-    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../Primitive.Cli/Primitive.Cli.csproj" Platform="AnyCPU" />
+    <!-- Cge carries the gltf, fbx, asset-authoring and primitive bridges and the shader-graph compiler as commands (BridgeTool). -->
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../Cge/Cge.csproj" Platform="AnyCPU" />
     <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../Cook.Cli/Cook.Cli.csproj" Platform="AnyCPU" />
-    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../ShaderGraph.Cli/ShaderGraph.Cli.csproj" Platform="x64" />
   </ItemGroup>
   <!-- ADR-0068: each project template (ThirdPerson, FirstPerson, TopDown, Vehicle) needs its source project and the engine SDK package it restores from. -->
   <PropertyGroup>

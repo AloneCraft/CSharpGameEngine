@@ -6,7 +6,7 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../ContentCompiler/ContentCompiler.csproj" />
+    <ProjectReference Include="../Cge/Cge.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The same project generator the Visual Studio template wizard uses (ADR-0068). -->

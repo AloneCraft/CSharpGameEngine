@@ -47,8 +47,7 @@ public static class ContentReleaseEvidence {
         new("sbom.project","src/Contracts/Contracts.csproj"),
         new("sbom.project","src/Engine/Engine.csproj"),
         new("sbom.project","src/Import/Import.csproj"),
-        new("sbom.project","tools/ContentCompiler/ContentCompiler.csproj"),
-        new("sbom.project","tools/Import.AssetAuthoring.Cli/Import.AssetAuthoring.Cli.csproj"),
+        new("sbom.project","tools/Cge/Cge.csproj"),
         new("sbom.toolchain","global.json"),
     ];
     private static readonly string[]RequiredPerformanceIds=[

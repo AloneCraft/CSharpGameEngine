@@ -16,8 +16,8 @@ public sealed class AssetGraphBundleTests {
             Directory.CreateDirectory(Output);
             foreach(var Entry in Files){ File.WriteAllText(Entry.Key,Entry.Value); }
             var Artifact=Path.Combine(Output,"MyStage.cgeshaderartifact");
-            var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","ShaderGraph.Cli","ShaderGraph.Cli.exe")){
-                Arguments="build \""+GraphPath+"\" \""+Artifact+"\"",WorkingDirectory=Output,
+            var Start=new ProcessStartInfo(Path.Combine(PackageRoot,"Bridges","Cge","Cge.exe")){
+                Arguments="shader-graph build \""+GraphPath+"\" \""+Artifact+"\"",WorkingDirectory=Output,
                 UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
             };
             using var Process=System.Diagnostics.Process.Start(Start)??throw new InvalidOperationException("Packaged compiler did not start.");

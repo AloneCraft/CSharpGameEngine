@@ -74,7 +74,7 @@ tools\UnrealExport\run_export_thirdperson.cmd --force
 UEの`M_PrototypeGrid`(`MI_PrototypeGrid_Gray`など)は、ワールド座標へ投影した線テクスチャで床と壁にグリッドを描く。glTF書き出しの焼き付けでは再現できないため、エンジンはワールド空間で描き直す。
 
 - 書き出し(`export_lvl_*.py`)がマニフェストの`materialGrids`へ材質のパラメーターを記録する。対応するのはGrid=真・ObjectAligned=偽・TopSurfaceColor=偽の構成だけで、それ以外は書き出しが失敗する。
-- 取り込み後に`CSharpGameEngine.Unreal.SceneImporter worldgrid <manifest.json> <project-directory>`が、対象のglbを書き換える(両方の`run_export*.cmd`が自動で実行する)。焼き付けテクスチャを外し、`baseColorFactor`をSurfaceColorへ戻し、グリッドの値を`material.extras.CGE_world_grid`へ置く。書き換え済みのglbに再実行しても結果は同じ。
+- 取り込み後に`Cge unreal worldgrid <manifest.json> <project-directory>`が、対象のglbを書き換える(両方の`run_export*.cmd`が自動で実行する)。焼き付けテクスチャを外し、`baseColorFactor`をSurfaceColorへ戻し、グリッドの値を`material.extras.CGE_world_grid`へ置く。書き換え済みのglbに再実行しても結果は同じ。
 - UEを再実行せずに既存のglbへ適用するには、マニフェストへ`materialGrids`を追記してから`worldgrid`を実行する。
 
 ```cmd
@@ -119,7 +119,7 @@ FirstPerson / TopDown / Vehicle の理想コード(`Templates/`)と、将来の�
 
 ```cmd
 tools\UnrealExport\run_dump_blueprint_logic.cmd G:\UE\5.8\Vehicle .artifacts\UnrealExport\logic\Vehicle /Game/VehicleTemplate/Blueprints/SportsCar/BP_VehicleAdvSportsCar /Game/VehicleTemplate/Blueprints/BP_VehicleAdvPlayerController
-dotnet run --project tools\Unreal.SceneImporter -- logic .artifacts\UnrealExport\logic\Vehicle
+dotnet run --project tools\Cge -- unreal logic .artifacts\UnrealExport\logic\Vehicle
 ```
 
 - `run_dump_blueprint_logic.cmd <プロジェクト> <出力先> <資産のパス...>` は、描画なしのエディターで資産ごとに次を書く(何も保存しない)。

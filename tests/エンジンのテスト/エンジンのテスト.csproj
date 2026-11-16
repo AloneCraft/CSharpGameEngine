@@ -18,7 +18,8 @@
     <ProjectReference Include="..\..\src\CodeAnalysis\CodeAnalysis.csproj" />
     <ProjectReference Include="..\..\src\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\src\Entities\Entities.csproj" />
-    <ProjectReference Include="..\..\tools\SceneSchema.Cli\SceneSchema.Cli.csproj" />
+    <!-- tools/Cge: the scene-schema, asset-authoring, content and unreal commands are tested here (InternalsVisibleTo). -->
+    <ProjectReference Include="..\..\tools\Cge\Cge.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../src/Entities/Snapshot.cs" Link="TestAssets/Entities/Snapshot.cs" CopyToOutputDirectory="PreserveNewest" />
@@ -52,10 +53,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\tools\Bridge.Hosting\Bridge.Hosting.csproj" />
-    <ProjectReference Include="..\..\tools\Import.AssetAuthoring.Cli\Import.AssetAuthoring.Cli.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../tools/ContentCompiler/ContentCompiler.csproj" />
     <ProjectReference Include="../../src/Import/Import.csproj" />
     <ProjectReference Include="../../tools/Cook.Cli/Cook.Cli.csproj" />
   </ItemGroup>
@@ -71,7 +70,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- The FBX import tests need AssimpNet's native assimp.dll next to the tests. Copy it the way
-         Import.AssetAuthoring.Cli does, instead of setting a RuntimeIdentifier: a RID would move this
+         tools/Cge does, instead of setting a RuntimeIdentifier: a RID would move this
          project's output folder, and the cook tests find the tools by the folder layout (ADR-0099). -->
     <Content Include="$(NuGetPackageRoot)assimpnet\4.1.0\runtimes\win-x64\native\assimp.dll" Link="assimp.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
@@ -79,7 +78,6 @@
     <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\tools\Unreal.SceneImporter\Unreal.SceneImporter.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../src/Runtime/Animation/Skeleton.cs" Link="Parity/Skeleton.cs" />

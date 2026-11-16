@@ -243,8 +243,8 @@ internal static class AssetThumbnailService {
             Directory.CreateDirectory(DirectoryPath);
             var Output=Path.Combine(DirectoryPath,Kind+".glb");
             if(!File.Exists(Output)){
-                var Tool=BridgeExecutableLocator.FindExecutable(Context.WorkspaceRoot,@"tools\Primitive.Cli")??throw new FileNotFoundException("The packaged primitive producer is unavailable.");
-                ExternalBridgeProcess.RunExecutableCommandProducingFile(Tool,"Primitive.Cli",[Kind,Output],Output,Context.WorkspaceRoot,TimeSpan.FromSeconds(30),true,Cancellation);
+                var Tool=BridgeExecutableLocator.FindExecutable(Context.WorkspaceRoot,BridgeTool.Primitive.ProjectRelativePath)??throw new FileNotFoundException("The packaged primitive producer is unavailable.");
+                ExternalBridgeProcess.RunExecutableCommandProducingFile(Tool,BridgeTool.Primitive,[Kind,Output],Output,Context.WorkspaceRoot,TimeSpan.FromSeconds(30),true,Cancellation);
             }
             var Mesh=ExternalGltfLoader.Load(Output,Context.WorkspaceRoot);
             Primitives.Add(Key,Mesh);

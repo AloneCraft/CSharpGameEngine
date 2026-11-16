@@ -341,6 +341,7 @@ public sealed class ModelImportClientTests:IDisposable {
     private static async Task<(int Exit,string Output,string Error)>RunCompilerAsync(string[]Arguments){
         var Start=new System.Diagnostics.ProcessStartInfo("dotnet") { UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true };
         Start.ArgumentList.Add(typeof(ModelImportClient).Assembly.Location);
+        Start.ArgumentList.Add("content");
         foreach(var Argument in Arguments){ Start.ArgumentList.Add(Argument); }
         using var Process=System.Diagnostics.Process.Start(Start)!;
         var Output=Process.StandardOutput.ReadToEndAsync();

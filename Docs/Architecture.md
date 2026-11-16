@@ -24,7 +24,7 @@ L4 の `CSharpGameEngine.Rendering` がフレームの計画を作り、L0 の `
 
 ## Model import migration (M0114, in progress)
 
-[ADR-0080](Decisions/ADR-0080-Universal-Model-Import.md) preserves the proposed design. Additive foundations are L2 subasset/catalog/humanoid contracts, L1 `ConventionConversion`, L6 standalone model payload records/codecs, and L7 binary interchange/normalization/importer contracts. Cooking shares Contracts/Core with its collectible module host. Cook.Cli offers `describe` and `import-worker`; ContentCompiler discovers modules through subprocesses, caches dependency-addressed IR, and offers `import-ir`/`inspect`/`explain`. Runtime and the game renderer consume prepared model artifacts after the M0128 cutover; the old glTF source reader has been removed. ModelArtifactPreparation/ModelContentCompiler provide incremental DAG/CAS compilation, content-index publication and RuntimeAssetStore loading. ContentCompiler also exposes compile. Broader orchestration and adapter/rig coverage remain tracked by M0114. [M0114](Milestones/M0114-Universal-Model-Import.md) records actual stage evidence and remaining gates.
+[ADR-0080](Decisions/ADR-0080-Universal-Model-Import.md) preserves the proposed design. Additive foundations are L2 subasset/catalog/humanoid contracts, L1 `ConventionConversion`, L6 standalone model payload records/codecs, and L7 binary interchange/normalization/importer contracts. Cooking shares Contracts/Core with its collectible module host. Cook.Cli offers `describe` and `import-worker`; ContentCompiler (the `content` command of `tools/Cge`) discovers modules through subprocesses, caches dependency-addressed IR, and offers `import-ir`/`inspect`/`explain`. Runtime and the game renderer consume prepared model artifacts after the M0128 cutover; the old glTF source reader has been removed. ModelArtifactPreparation/ModelContentCompiler provide incremental DAG/CAS compilation, content-index publication and RuntimeAssetStore loading. ContentCompiler also exposes compile. Broader orchestration and adapter/rig coverage remain tracked by M0114. [M0114](Milestones/M0114-Universal-Model-Import.md) records actual stage evidence and remaining gates.
 
 ## Typed lighting boundary (ADR-0064, M0088)
 The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lighting.md). Contracts owns validated physical quantities; portable Runtime.Lighting shared source owns Directional/Point/Spot/RectArea and optional LightShadow; Runtime.Windows owns fixed-transform extraction; Rendering owns applicable-only submissions; RenderServer owns ordered typed frame replay. Scene JSON (ADR-0070) and the editor's native text Undo are the only authoring/history truth. Earlier light vocabulary below is historical where it conflicts with ADR-0064.
@@ -76,6 +76,12 @@ The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lig
 | `Runtime`(共有プロジェクト) | — | ゲームのコンパイルへソースとして入る(Animation・Character・Lighting・Physics・Simulation・Windows) |
 | `SceneModel`(プロジェクト無し) | — | シーン解析の共有ソース。CodeAnalysis・VS拡張・SceneJson.Cliへソースのまま取り込む |
 
+`tools/`のコマンドの道具は`tools/Cge`の1つの実行ファイルにまとめ、最初の引数で下位コマンドを選ぶ
+(`Cge gltf`・`fbx`・`asset-authoring`・`primitive`・`shader-graph`・`scene-schema`・`content`・`font`・`unreal`)。
+各下位コマンドは元の道具の名前空間と引数のまま。`SceneJson.Cli`(古い版のシーンを読む唯一の道具で、MSBuildを読み込む)、
+`Physics.Cli`(数値の精度ごとに作り直す)、`Cook.Cli`(プラグインのDLLを分けて読み込む)は別の実行ファイルのまま
+([設計](refactoring-designs/20261117-command-tools-consolidation.md))。
+
 `Engine`の中の層(Core・ContentはRenderingを名指ししない、など)は、フォルダーが名指しする名前空間を調べる試験
 (`EngineLayerSpec.EngineFoldersKeepTheirLayers`)で守る。
 層の境界(M0096 G、`EngineLayerSpec`で検証):
@@ -110,9 +116,9 @@ Roslynにロードされない。
   `Extension` は glTF/FBX モデルをインポートして固定カメラで表示するヘッドレスビューアを実行する。
   いずれも `--verify` でピクセル検証まで行うため、CI/スモークのレンダリング経路検証に使う。
   Visual Studio 拡張の本体は別プロジェクト `tools/VSExtension`(net472、
-  実際に`.vsix`を生成する)であり、重い処理は`Import.Gltf.Cli`/`Import.Fbx.Cli`/
-  `Import.AssetAuthoring.Cli`/`Primitive.Cli`/`Physics.Cli`/`ShaderGraph.Cli`への別プロセスブリッジへ
-  逃がしている(ADR-0010/0019/0023)。
+  実際に`.vsix`を生成する)であり、重い処理は`Cge`の下位コマンド(`gltf`/`fbx`/`asset-authoring`/
+  `primitive`/`shader-graph`)と`Physics.Cli`・`Cook.Cli`への別プロセスブリッジへ逃がしている
+  (ADR-0010/0019/0023)。ブリッジは「プロジェクトのフォルダー + 下位コマンド」(`BridgeTool`)で表す。
 - `UserEcsProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**で、ECS と
   シーン JSON の実証場所である。新規プロジェクトの雛形は`Templates/ThirdPerson`。
 - L3の唯一のECSランタイムは `src/Entities`(SoA専業、**閉集合(静的)Archetype**)

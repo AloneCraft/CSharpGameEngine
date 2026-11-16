@@ -111,12 +111,13 @@ public sealed class VsixManifestTests {
         Assert.Contains("PreviewHost/EditorPreview.Host.runtimeconfig.json",Entries);
         Assert.Contains("PreviewHost/Shaders/Stage.cgeshaderartifact",Entries);
         // ADR-0065/0068：ブリッジ、エンジン SDK パッケージ、ThirdPerson テンプレートがあるため、VSIX はリポジトリ外でも動作する。
-        foreach(var Bridge in new[]{"Import.Gltf.Cli","Import.Fbx.Cli","Import.AssetAuthoring.Cli","Primitive.Cli","ShaderGraph.Cli"}){
+        // Cge は取り込み・プレビューのブリッジとシェーダーのコンパイラーを下位コマンドとして持つ。Cook.Cli は別のプロセスのまま。
+        foreach(var Bridge in new[]{"Cge","Cook.Cli"}){
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.exe",Entries);
             Assert.Contains($"Bridges/{Bridge}/{Bridge}.runtimeconfig.json",Entries);
         }
         foreach(var File in new[]{"Cook.Cli.dll","Cook.Cli.deps.json","Cook.Cli.runtimeconfig.json"}){
-            Assert.Contains("Bridges/Import.AssetAuthoring.Cli/Cook/"+File,Entries);
+            Assert.Contains("Bridges/Cge/Cook/"+File,Entries);
         }
         var SdkPath=Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
         using(var Input=Archive.GetEntry(SdkPath)!.Open()){
@@ -126,6 +127,11 @@ public sealed class VsixManifestTests {
             Assert.DoesNotContain(SdkEntries,static Entry=>Entry.StartsWith("lib/",StringComparison.Ordinal)&&
                 (Path.GetFileName(Entry).StartsWith("Cook",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("Import",StringComparison.Ordinal)||Path.GetFileName(Entry).StartsWith("Microsoft.CodeAnalysis",StringComparison.Ordinal)));
             Assert.Contains("tools/Cook/Cooking.dll",SdkEntries);Assert.Contains("tools/ModelImport/Import.dll",SdkEntries);
+            // ゲームの組み立てが呼ぶ shader-graph・scene-schema・content は、SDK の tools/Cge の 1 つの道具にある(Sdk.props)。
+            foreach(var File in new[]{"Cge.exe","Cge.dll","Cge.runtimeconfig.json","dxcompiler.dll","dxil.dll"}){
+                Assert.Contains("tools/Cge/"+File,SdkEntries);
+            }
+            Assert.DoesNotContain(SdkEntries,static Entry=>Entry.StartsWith("tools/ShaderGraph/",StringComparison.Ordinal)||Entry.StartsWith("tools/SceneSchema/",StringComparison.Ordinal)||Entry.StartsWith("tools/ContentCompiler/",StringComparison.Ordinal)||Entry.StartsWith("tools/Cge/Cook/",StringComparison.Ordinal));
         }
         foreach(var Template in new[]{"ThirdPerson","FirstPerson","TopDown","Vehicle"}){
             Assert.Contains($"ProjectTemplates/CSharp/GameEngine/1033/{Template}/{Template}.vstemplate",Entries);

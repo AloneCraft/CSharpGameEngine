@@ -16,12 +16,12 @@ public sealed class ShaderGraphCompilerTests {
             var Source=Path.Combine(Folder,"Box.glb");var Output=Path.Combine(Folder,"Box.cgesdf");File.Copy(Path.Combine(Repository.FullName,"assets","TestFixtures","Gltf","Box.glb"),Source);
             using var Content=new ModelArtifactTestContent([Source],Folder);var Model=Content.Source(Source);File.Delete(Source);
             string[]Arguments=["build-distance-fields",Content.ContentDirectory,Model.SourceUri,Output];
-            Assert.Equal(0,global::ShaderGraphCli.Run(Arguments));var Bytes=File.ReadAllBytes(Output);
+            Assert.Equal(0,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(Arguments));var Bytes=File.ReadAllBytes(Output);
             Assert.True(MeshDistanceFieldCodec.TryRead(Bytes,out var Entries,out var Error),Error);Assert.NotNull(Assert.Single(Entries).Field);
             File.SetAttributes(Output,FileAttributes.ReadOnly);
-            try { Assert.Equal(0,global::ShaderGraphCli.Run(Arguments)); }finally{ File.SetAttributes(Output,FileAttributes.Normal); }
+            try { Assert.Equal(0,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(Arguments)); }finally{ File.SetAttributes(Output,FileAttributes.Normal); }
             Assert.Equal(Bytes,File.ReadAllBytes(Output));File.WriteAllText(Path.Combine(Content.ContentDirectory,"content-index.json"),"{ damaged");
-            Assert.Equal(1,global::ShaderGraphCli.Run(Arguments));Assert.Equal(Bytes,File.ReadAllBytes(Output));
+            Assert.Equal(1,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(Arguments));Assert.Equal(Bytes,File.ReadAllBytes(Output));
         }finally{ Directory.Delete(Folder,true); }
     }
     public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,14 } };
@@ -46,12 +46,12 @@ public sealed class ShaderGraphCompilerTests {
         try {
             var ArtifactPath=Path.Combine(DirectoryPath,Name+".cgeshaderartifact");
             var HlslPath=Path.Combine(DirectoryPath,Name+".generated.hlsl");
-            Assert.Equal(0,global::ShaderGraphCli.Run(["build",GraphPath(Name),ArtifactPath,HlslPath,"Release"]));
+            Assert.Equal(0,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(["build",GraphPath(Name),ArtifactPath,HlslPath,"Release"]));
             var First=File.ReadAllBytes(ArtifactPath);
-            Assert.True(global::ShaderGraphCli.CanReuseArtifact(ArtifactPath,Target,ShaderGraphDependencyComposition.Resolve(GraphPath(Name)).SemanticHash,ShaderGraphDependencyComposition.Resolve(GraphPath(Name)).DependencyHash,"1.1.0-Release"));
+            Assert.True(global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.CanReuseArtifact(ArtifactPath,Target,ShaderGraphDependencyComposition.Resolve(GraphPath(Name)).SemanticHash,ShaderGraphDependencyComposition.Resolve(GraphPath(Name)).DependencyHash,"1.1.0-Release"));
             File.SetAttributes(ArtifactPath,FileAttributes.ReadOnly);
             try {
-                Assert.Equal(0,global::ShaderGraphCli.Run(["build",GraphPath(Name),ArtifactPath,HlslPath,"Release"]));
+                Assert.Equal(0,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(["build",GraphPath(Name),ArtifactPath,HlslPath,"Release"]));
             } finally { File.SetAttributes(ArtifactPath,FileAttributes.Normal); }
             Assert.Equal(First,File.ReadAllBytes(ArtifactPath));
             Assert.True(File.Exists(HlslPath+".map.json"));
@@ -198,12 +198,12 @@ public sealed class ShaderGraphCompilerTests {
             var GraphPath=Path.Combine(DirectoryPath,"Reusable.cgesubgraph");
             var ArtifactPath=Path.Combine(DirectoryPath,"Reusable.cgeshaderartifact");
             File.WriteAllText(GraphPath,ShaderGraphCanonicalization.ToCanonicalJson(CreateSubgraph()));
-            Assert.Equal(0,global::ShaderGraphCli.Run(["validate",GraphPath]));
+            Assert.Equal(0,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(["validate",GraphPath]));
             var OriginalError=Console.Error;
             using var Error=new StringWriter();
             try {
                 Console.SetError(Error);
-                Assert.Equal(1,global::ShaderGraphCli.Run(["build",GraphPath,ArtifactPath]));
+                Assert.Equal(1,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(["build",GraphPath,ArtifactPath]));
             } finally { Console.SetError(OriginalError); }
             Assert.Contains("Subgraph",Error.ToString(),StringComparison.OrdinalIgnoreCase);
             Assert.False(File.Exists(ArtifactPath));
@@ -228,7 +228,7 @@ public sealed class ShaderGraphCompilerTests {
                 using var Error=new StringWriter();
                 try {
                     Console.SetError(Error);
-                    Assert.Equal(1,global::ShaderGraphCli.Run(["validate",GraphPath]));
+                    Assert.Equal(1,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(["validate",GraphPath]));
                 } finally { Console.SetError(OriginalError); }
                 var Lines=Error.ToString().Split(new[]{Environment.NewLine},StringSplitOptions.RemoveEmptyEntries);
                 Assert.Contains(Lines,Line=>Line.StartsWith(GraphPath+Expected,StringComparison.Ordinal));

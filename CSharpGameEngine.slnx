@@ -251,28 +251,16 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="tools/Bridge.Hosting/Bridge.Hosting.csproj" />
-    <Project Path="tools/ContentCompiler/ContentCompiler.csproj" />
+    <Project Path="tools/Cge/Cge.csproj" />
     <Project Path="tools/FeatureRunner/FeatureRunner.csproj">
       <Platform Project="x64" />
     </Project>
-    <Project Path="tools/Import.Fbx.Cli/Import.Fbx.Cli.csproj" />
-    <Project Path="tools/Import.AssetAuthoring.Cli/Import.AssetAuthoring.Cli.csproj" />
-    <Project Path="tools/Import.Gltf.Cli/Import.Gltf.Cli.csproj" />
-    <Project Path="tools/Primitive.Cli/Primitive.Cli.csproj" />
     <Project Path="tools/Physics.Cli/Physics.Cli.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="tools/SceneJson.Cli/SceneJson.Cli.csproj" />
     <Project Path="tools/Cook.Cli/Cook.Cli.csproj" />
-    <Project Path="tools/SceneSchema.Cli/SceneSchema.Cli.csproj" />
-    <Project Path="tools/ShaderGraph.Cli/ShaderGraph.Cli.csproj">
-      <Platform Project="x64" />
-    </Project>
-    <Project Path="tools/Unreal.SceneImporter/Unreal.SceneImporter.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
     <Project Path="tools/Ecs.Benchmarks/Ecs.Benchmarks.csproj" />
-    <Project Path="tools/FontBaker/FontBaker.csproj" />
     <Project Path="tools/EditorPreview.Host/EditorPreview.Host.csproj">
       <Platform Project="x64" />
     </Project>

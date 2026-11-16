@@ -1,7 +1,7 @@
 @echo off
 setlocal
 rem -nullrhi on purpose: an animation file needs the clip only. With a render device the exporter bakes the preview mesh's materials into it (10 MB a file).
-rem The files still hold the preview mesh (3.7 MB each); compact them with: CSharpGameEngine.Unreal.SceneImporter compact-animations <directory>
+rem The files still hold the preview mesh (3.7 MB each); compact them with: Cge unreal compact-animations <directory>
 rem Usage: run_export_mannequin_animations.cmd <ProjectName> <OutputDirectory> [all]
 rem Example: run_export_mannequin_animations.cmd TopDown .artifacts\m0107\anims all
 rem Opens G:\UE\5.8\<ProjectName> and writes the Walk and Jog animations (and with "all" Idle, Jump, Fall Loop and Land) as skinned glb files.

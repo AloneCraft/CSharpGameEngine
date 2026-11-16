@@ -10,7 +10,7 @@ The C# Game Engine project bundles this content unchanged, at its owner's decisi
 
 ## Fonts
 
-`assets/Fonts/Roboto-Regular.cgefont` and `Roboto-Light.cgefont` (shipped in the CSharpGameEngine.Sdk package and copied into every game's `Fonts/`) are the Roboto Regular and Light typefaces baked to signed distance field atlases by `tools/FontBaker`, from the font files that Unreal Engine 5.8 ships (`Engine/Content/Slate/Fonts`). Roboto is © Google and is licensed under the Apache License, Version 2.0; the license text is `assets/Fonts/ROBOTO_LICENSE.txt` and travels with the SDK package.
+`assets/Fonts/Roboto-Regular.cgefont` and `Roboto-Light.cgefont` (shipped in the CSharpGameEngine.Sdk package and copied into every game's `Fonts/`) are the Roboto Regular and Light typefaces baked to signed distance field atlases by `Cge font` (tools/Cge), from the font files that Unreal Engine 5.8 ships (`Engine/Content/Slate/Fonts`). Roboto is © Google and is licensed under the Apache License, Version 2.0; the license text is `assets/Fonts/ROBOTO_LICENSE.txt` and travels with the SDK package.
 
 ## Engine package dependencies
 

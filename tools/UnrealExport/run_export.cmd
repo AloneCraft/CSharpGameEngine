@@ -24,7 +24,7 @@ if not exist "%MANIFEST%" (
 
 rem The importer writes the scene as a C# class; the converter turns it into the scene JSON (ADR-0070).
 if exist "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.json" del /q "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.json"
-dotnet run --project "%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj" -- ^
+dotnet run --project "%SCRIPT_DIR%..\Cge\Cge.csproj" -- unreal ^
   "%MANIFEST%" ^
   "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.cs" ^
   "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageAssets.cs"
@@ -34,7 +34,7 @@ dotnet run --project "%SCRIPT_DIR%..\SceneJson.Cli\SceneJson.Cli.csproj" -- ^
 if errorlevel 1 exit /b %errorlevel%
 
 rem The prototype grid materials are drawn procedurally in world space, not from the baked textures (ADR-0075).
-dotnet run --project "%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj" -- ^
+dotnet run --project "%SCRIPT_DIR%..\Cge\Cge.csproj" -- unreal ^
   worldgrid "%MANIFEST%" "%REPO_ROOT%\UserEcsProject"
 if errorlevel 1 exit /b %errorlevel%
 

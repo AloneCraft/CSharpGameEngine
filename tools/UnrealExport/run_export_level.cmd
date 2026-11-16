@@ -26,7 +26,7 @@ set "CSGE_REPO_ROOT=%REPO_ROOT%"
 set "CSGE_LEVEL_TEMPLATE=%TEMPLATE%"
 set "MANIFEST=%REPO_ROOT%\.artifacts\UnrealExport\%LEVEL%\manifest.json"
 set "TEMPLATE_DIR=%REPO_ROOT%\Templates\%TEMPLATE%"
-set "IMPORTER=%SCRIPT_DIR%..\Unreal.SceneImporter\Unreal.SceneImporter.csproj"
+set "IMPORTER=%SCRIPT_DIR%..\Cge\Cge.csproj"
 
 if /I "%~2"=="--force" set "CSGE_UNREAL_EXPORT_FORCE=1"
 if exist "%MANIFEST%" del /q "%MANIFEST%"
@@ -43,7 +43,7 @@ if not exist "%MANIFEST%" (
 
 rem The importer writes the level as a C# class; the converter turns it into the scene JSON (ADR-0070).
 if exist "%TEMPLATE_DIR%\Scenes\%LEVEL%.json" del /q "%TEMPLATE_DIR%\Scenes\%LEVEL%.json"
-dotnet run --project "%IMPORTER%" -- level "%MANIFEST%" "%TEMPLATE_DIR%" %TEMPLATE% %LEVEL%
+dotnet run --project "%IMPORTER%" -- unreal level "%MANIFEST%" "%TEMPLATE_DIR%" %TEMPLATE% %LEVEL%
 if errorlevel 1 exit /b %errorlevel%
 dotnet run --project "%SCRIPT_DIR%..\SceneJson.Cli\SceneJson.Cli.csproj" -- ^
   convert "%TEMPLATE_DIR%\%TEMPLATE%.csproj" --write --delete-source
@@ -55,7 +55,7 @@ if exist "%TEMPLATE_DIR%\Scenes\%TEMPLATE%Assets.cs" del /q "%TEMPLATE_DIR%\Scen
 rem The prototype grid materials are drawn procedurally in world space, not from the baked textures (ADR-0075).
 rem The Vehicle arena uses no prototype grid material (its manifest has no materialGrids), so there is nothing to convert.
 if /I "%TEMPLATE%"=="Vehicle" goto :done
-dotnet run --project "%IMPORTER%" -- worldgrid "%MANIFEST%" "%TEMPLATE_DIR%"
+dotnet run --project "%IMPORTER%" -- unreal worldgrid "%MANIFEST%" "%TEMPLATE_DIR%"
 if errorlevel 1 exit /b %errorlevel%
 
 :done

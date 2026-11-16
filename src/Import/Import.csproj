@@ -35,7 +35,7 @@
          ADR-0034 note: because Gltf/ and Fbx/ now share one assembly, consumers that only want the
          glTF importer also resolve AssimpNet's MANAGED assembly. The native assimp.dll is only
          copied when the consumer sets a RuntimeIdentifier and is only loaded when FbxImporter
-         actually runs, so tools/Import.Gltf.Cli deliberately still sets none. -->
+         actually runs, so tools/Cge deliberately still sets none. -->
     <PackageReference Include="AssimpNet" Version="4.1.0" />
   </ItemGroup>
 

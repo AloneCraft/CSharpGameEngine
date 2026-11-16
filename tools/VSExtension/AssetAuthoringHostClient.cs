@@ -9,7 +9,7 @@ namespace CSharpGameEngine.VSExtension;
 /// Content が所有するアセット作成ホスト用の薄い net472 クライアント。VSIX は型付き DTO だけを転送し、正規メタデータを解析したり書き込んだりしない。
 /// </summary>
 internal static class AssetAuthoringHostClient {
-    private const string BridgeProjectRelativePath=@"tools\Import.AssetAuthoring.Cli";
+    private static readonly BridgeTool Bridge=BridgeTool.AssetAuthoring;
     private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
     private static readonly JsonSerializerOptions JsonOptions=new(){ PropertyNameCaseInsensitive=false };
 
@@ -20,7 +20,7 @@ internal static class AssetAuthoringHostClient {
             BindRequest(Request,Context);
             var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");
             File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
-            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(Bridge,RequestPath,ResultPath,Context.WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
             var Result=JsonSerializer.Deserialize<AssetImageResult>(Json,JsonOptions)??throw new InvalidDataException("Image result missing.");
             if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Image response identity mismatch."); }return Result;
         }finally { if(File.Exists(Path.Combine(Root,"request.json"))){ File.Delete(Path.Combine(Root,"request.json")); }if(File.Exists(Path.Combine(Root,"result.json"))){ File.Delete(Path.Combine(Root,"result.json")); }Directory.Delete(Root); }
@@ -31,7 +31,7 @@ internal static class AssetAuthoringHostClient {
             var Context=CgeProjectContext.Resolve(Request.SourcePath)??throw new InvalidOperationException("Game project unavailable.");
             BindRequest(Request,Context);
             var RequestPath=Path.Combine(Root,"request.json");var ResultPath=Path.Combine(Root,"result.json");File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
-            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,Context.WorkspaceRoot,Request.ModelCommand==4?TimeSpan.FromMinutes(10):BridgeTimeout,UseResidentServer:true,CancellationToken);
+            var Json=ExternalBridgeProcess.RunAndReadJson(Bridge,RequestPath,ResultPath,Context.WorkspaceRoot,Request.ModelCommand==4?TimeSpan.FromMinutes(10):BridgeTimeout,UseResidentServer:true,CancellationToken);
             var Result=JsonSerializer.Deserialize<AssetModelResult>(Json,JsonOptions)??throw new InvalidDataException("Model result missing.");
             if(Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Model response mismatch."); }return Result;
         }finally { foreach(var FileName in new[]{"request.json","result.json"}){ var PathValue=Path.Combine(Root,FileName);if(File.Exists(PathValue)){ File.Delete(PathValue); } }Directory.Delete(Root); }
@@ -42,7 +42,7 @@ internal static class AssetAuthoringHostClient {
         try {
             var Input=Path.Combine(Root,"request.json");var Output=Path.Combine(Root,"result.json");
             File.WriteAllText(Input,JsonSerializer.Serialize(new{ModelGeometry=Source},JsonOptions));
-            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,Input,Output,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(Bridge,Input,Output,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
             return SimpleMesh.FromPreparedScene(JsonSerializer.Deserialize<RenderPreviewScene>(Json,JsonOptions)??throw new InvalidDataException("Prepared model geometry missing."));
         }finally { foreach(var Name in new[]{"request.json","result.json"}){ var PathValue=Path.Combine(Root,Name);if(File.Exists(PathValue)){ File.Delete(PathValue); } }Directory.Delete(Root); }
     }
@@ -65,7 +65,7 @@ internal static class AssetAuthoringHostClient {
             var RequestPath=Path.Combine(Root,"request.json");
             var ResultPath=Path.Combine(Root,"result.json");
             File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
-            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestPath,ResultPath,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(Bridge,RequestPath,ResultPath,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
             var Result=JsonSerializer.Deserialize<AssetWorkspaceResult>(Json,JsonOptions);
             if(Result is null||Result.ProtocolVersion!=1||Result.RequestId!=Request.RequestId||Result.Items is null||Result.Items.Length>100_000){ throw new InvalidDataException("Invalid asset inventory response."); }
             if(!Result.Success){ throw new InvalidDataException(Result.Diagnostic); }
@@ -86,7 +86,7 @@ internal static class AssetAuthoringHostClient {
         try {
             var Input=Path.Combine(Root,"request.json");var Output=Path.Combine(Root,"result.json");
             File.WriteAllText(Input,JsonSerializer.Serialize(Request,JsonOptions));
-            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,Input,Output,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(Bridge,Input,Output,WorkspaceRoot,BridgeTimeout,UseResidentServer:true);
             var Result=JsonSerializer.Deserialize<AssetFileMutationResult>(Json,JsonOptions);
             if(Result is null||Result.ProtocolVersion!=1||Result.RequestId!=Request.RequestId){ throw new InvalidDataException("Invalid asset mutation response."); }
             if(!Result.Success){ throw new InvalidOperationException(Result.Diagnostic); }
@@ -123,7 +123,7 @@ internal static class AssetAuthoringHostClient {
         try {
             File.WriteAllText(RequestPath,JsonSerializer.Serialize(Request,JsonOptions));
             string Json=ExternalBridgeProcess.RunAndReadJson(
-                BridgeProjectRelativePath,RequestPath,ResultPath,Request.RepositoryRoot,
+                Bridge,RequestPath,ResultPath,Request.RepositoryRoot,
                 BridgeTimeout,UseResidentServer:true);
             return DeserializeValidatedResult(Request,Json);
         } finally {

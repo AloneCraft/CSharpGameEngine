@@ -36,7 +36,7 @@ Assetsの「作成 > Graph」は、同梱されたStageテンプレートを依�
 | Animation Sequence | アニメーションを持つ `.glb` `.gltf` | クリップの選択、再生・一時停止（Space）、スクラブ、ループ、速度（0.25〜2 倍）、時刻の表示。スキンを持たないアニメーションだけのファイルは、プロジェクト内のスキン付きメッシュから「プレビューするメッシュ」を選ぶ（選択はセッション内だけで、ソースには書かない） |
 | Texture Editor | `.png` `.jpg` `.jpeg`（`.dds` `.tga` `.hdr` `.exr` はデコーダー未対応と表示） | 拡大縮小（全体／100%／ホイール）とパン、RGBA/RGB/R/G/B/A のチャンネル表示、アルファの市松模様、寸法とファイルサイズ、Details。デコードは L7 Cook ワーカーが作る派生 PNG（最大 2048 px）だけで行う |
 | Sound Wave Editor | `.wav`（`.ogg` `.mp3` `.flac` は再生のみで「ゲームでは読めない形式」と表示） | 波形（ピーク）と再生位置（クリックでシーク）、再生・停止・ループ、サンプルレート・チャンネル・ビット深度・長さ。形式と波形はアセット作成ブリッジがゲームと同じ `WavReader` で読んだ要約 |
-| Font Editor | `.cgefont` `.ttf` `.otf` | `.cgefont` は焼いた SDF アトラスの表示と寸法・グリフ数。`.ttf`/`.otf` は見本文字。焼き込み設定は Details。編集は FontBaker の範囲で、確認のみ |
+| Font Editor | `.cgefont` `.ttf` `.otf` | `.cgefont` は焼いた SDF アトラスの表示と寸法・グリフ数。`.ttf`/`.otf` は見本文字。焼き込み設定は Details。編集は `Cge font` の範囲で、確認のみ |
 | Data Asset Editor | `.cgeasset` | 型に従った値編集（Details、ライブバッファ）、「JSON で開く」。保存・dirty・Undo は VS のテキストバッファーが持つ |
 | Material Editor | `.cgeshadergraph` `.cgesubgraph` | 既存のシェーダーグラフエディターを既定フローティングで開く |
 
@@ -83,7 +83,7 @@ Assetsの「作成 > Graph」は、同梱されたStageテンプレートを依�
 - マテリアル単体アセット（ソース形式がない）、Niagara、Physics Asset（Ragdoll）、入力アクションのエディター
 - ナビメッシュ・破砕・物理キャッシュなどのベイク生成物のエディター
 - 複数のスキンを持つ glTF の表示、ブレンドスペース・IK・ステートマシンなどの再生（ランタイムの Animator の範囲で、ビューアは単一クリップの再生のみ）
-- 波形の編集・加工、フォントの焼き直し（外部ツールまたは FontBaker の範囲）
+- 波形の編集・加工、フォントの焼き直し（外部ツールまたは `Cge font` の範囲）
 
 ## 受け入れ条件
 
