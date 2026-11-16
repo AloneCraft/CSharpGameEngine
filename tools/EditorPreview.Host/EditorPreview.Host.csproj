@@ -30,8 +30,8 @@
   <ItemGroup><Compile Include="../Shared/ThumbnailPng.cs" Link="ThumbnailPng.cs" /></ItemGroup>
   <ItemGroup>
     <!-- ADR-0090: the same skeleton/clip evaluation and glTF-to-stage conversion the game runs (ECS-free sources of the shared projects). -->
-    <Compile Include="../../src/Runtime.Animation/Skeleton.cs" Link="SharedRuntime/Skeleton.cs" />
-    <Compile Include="../../src/Runtime.Animation/AnimationClip.cs" Link="SharedRuntime/AnimationClip.cs" />
-    <Compile Include="../../src/Runtime.Windows/StageModelAssets.cs" Link="SharedRuntime/StageModelAssets.cs" />
+    <Compile Include="../../src/Runtime/Animation/Skeleton.cs" Link="SharedRuntime/Skeleton.cs" />
+    <Compile Include="../../src/Runtime/Animation/AnimationClip.cs" Link="SharedRuntime/AnimationClip.cs" />
+    <Compile Include="../../src/Runtime/Windows/StageModelAssets.cs" Link="SharedRuntime/StageModelAssets.cs" />
   </ItemGroup>
 </Project>

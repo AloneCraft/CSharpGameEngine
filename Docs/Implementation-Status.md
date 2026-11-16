@@ -448,7 +448,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `40286e0`で削除済み。
 - Successor: 現行のアプリケーション側構成は`UserEcsProject/GameplayComponents.cs`と
   `UserEcsProject/Scenes/*.json`(シーン JSON、ADR-0070)で、読み込みはエンジンの
-  `src/Runtime.Windows/RuntimeSystems.cs`(`LevelLoad`)が行う。旧機能のうち手書きの階層同期・移動・距離減衰付き
+  `src/Runtime/Windows/RuntimeSystems.cs`(`LevelLoad`)が行う。旧機能のうち手書きの階層同期・移動・距離減衰付き
   複数音源は同等移植されていないため、旧FeatureをImplementedとは扱わない。
 - Tests: 現行後継は`tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`と
   `tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs`で検証する。
@@ -719,7 +719,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Removal evidence: 旧L9アプリケーションの`SceneDocument.cs`、`SceneLoader.cs`、`Program.cs`と
   専用テストは`40286e0`で削除済み。
 - Successor: `UserEcsProject/Scenes/FirstPersonStageScene.json`のシーン JSON を
-  `SceneInstantiateEmitter`がECS生成コードへ変換し、`src/Runtime.Windows/RuntimeSystems.cs`の
+  `SceneInstantiateEmitter`がECS生成コードへ変換し、`src/Runtime/Windows/RuntimeSystems.cs`の
   `LevelLoad`が`StaticMesh`部品と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
 - Historical behavior:
   - `GltfImporter.ImportScene`の結果と`scene_meta.json`を合成し、`StageRenderer`入力
@@ -2550,7 +2550,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/Windows/Audio/XAudio2VoiceHandle.cs
   - src/Windows/Audio/AudioException.cs
   - src/Windows/Audio/AudioDiagnostics.cs
-  - src/Runtime.Windows/EngineHost.cs(Audio Serverの所有。ADR-0048以降はWindows Runtimeがバックエンドを選び、`UserEcsProject/AudioBackend.cs`の`GameAudio`Facadeは無くなった)
+  - src/Runtime/Windows/EngineHost.cs(Audio Serverの所有。ADR-0048以降はWindows Runtimeがバックエンドを選び、`UserEcsProject/AudioBackend.cs`の`GameAudio`Facadeは無くなった)
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Audio/XAudio2BackendTests.cs(実オーディオデバイスに対する
     CreateEngine→CreateVoice→SubmitBuffer→Start→Stop→DestroyVoice→DestroyEngineのスモークテスト、
@@ -2589,11 +2589,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   コミット。ADR-0040自体の文書化はPhase 11で行う → 2026-08に完了、
   [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]改稿・[[M0019-CSharp-Scene-DSL]]参照)
 - Implementation evidence:
-  - src/Runtime.Windows/PrimitiveType.cs
-  - src/Runtime.Windows/PrimitiveMesh.cs
+  - src/Runtime/Windows/PrimitiveType.cs
+  - src/Runtime/Windows/PrimitiveMesh.cs
   - src/Rendering/Server/RenderServer.cs
-  - src/Rendering/StageMeshGeometry.cs(共通の接線生成)、src/Runtime.Windows/PrimitiveRoster.cs(形状組立)
-  - src/Runtime.Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
+  - src/Rendering/StageMeshGeometry.cs(共通の接線生成)、src/Runtime/Windows/PrimitiveRoster.cs(形状組立)
+  - src/Runtime/Windows/RuntimeSystems.cs(`LevelLoad`の`{Transform,PrimitiveMesh}`用の宣言順
     アキュムレータ。当初は`UserEcsProject/Systems/RuntimeSystem.cs`に追加した)
   - デモの`UserEcsProject/Scenes/PrimitiveShowcaseScene.cs`はシーン JSON への移行(ADR-0070)で無くなった
 - Tests:
@@ -3459,7 +3459,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified (Debug/Release solution build and test, UserEcsProject build, Windows light contract, VSIX binding, analyzer migration)
 - Intended specification: Docs/Decisions/ADR-0048-Shared-Windows-Ecs-Runtime.md
-- Implementation evidence: `src/Runtime.Windows/Runtime.Windows.shproj`, `src/Runtime.Windows/Runtime.Windows.projitems`
+- Implementation evidence: `src/Runtime/Runtime.shproj`, `src/Runtime/Runtime.projitems`(2026-11-16 に 6 個の共有プロジェクトを 1 個にまとめた。Windows の部品は `src/Runtime/Windows/`)
 - Contract: shared source owns Windows ECS components/systems, XAudio2 facade, fixed hierarchy resolution, and stage data; UserEcsProject retains scenes/gameplay/precision selection.
 - Known deviations: none for the shared Runtime migration.
 
@@ -3481,7 +3481,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L5 — Runtime Feature Modules
 - Status: Implemented
 - Verification: TestVerified
-- Evidence: `src/Runtime.Simulation/`, fixed tick and message tests.
+- Evidence: `src/Runtime/Simulation/`, fixed tick and message tests.
 - Conformance: Matches for integer tick, deterministic envelopes, cache identity, and next-tick bridge.
 
 ## F-L5-003 — Deterministic local rigid-body Physics Runtime
@@ -3489,7 +3489,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L5 — Runtime Feature Modules
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for LogicalScalar domain-local simulation, rotated analytic primitive contacts, support-mapped GJK/EPA, cooked static-mesh BVH, four-point manifolds, 8/3 sequential impulses, warm start, sleep/wake, trigger/event lifecycle, angular integration, ContinuousStatic CCD, overflow fault isolation, deterministic insertion order, and zero managed allocation in warmed contact ticks.
-- Evidence: `src/Runtime.Physics/`, `tests/CSharpGameEngine.Windows.Tests/Physics/`.
+- Evidence: `src/Runtime/Physics/`, `tests/CSharpGameEngine.Windows.Tests/Physics/`.
 - Conformance: Matches the required local rigid-body scope. Dynamic-dynamic CCD, joints, deformables, and GPU/parallel solvers remain separate Deferred features. Prefractured runtime destruction (convex-polyhedron and compound contacts, sleeping contacts held without a narrow phase, wake on support removal, `BondBroken` events) was added by M0113 (F-L5-049); M0124 gave box, polyhedron and compound contacts with a static triangle mesh one patch per face orientation (at most 3 × 4 points) including the mesh's ridges that enter a face of the shape, with per-point normals in the solver; runtime Boolean/voxel destruction stays Deferred (F-L5-021/022).
 
 ## F-L6-002 — Physics Cooking and Simulation Cache artifacts
@@ -3737,7 +3737,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Intended specification: `Docs/Decisions/ADR-0067-Kinematic-Character-Movement-And-Spring-Arm-Camera.md`
 - Stage: `rigid.character-controller` (`Executable`, Visual / Rigid, 1800s)
 - Depends on: F-L5-003, F-L4-010, F-L3-018
-- Implementation evidence: `src/Runtime.Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/Runtime.Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `Templates/ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/FeatureRunner/ThirdPersonCharacterVerification.cs`
+- Implementation evidence: `src/Runtime/Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/Runtime/Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `Templates/ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/FeatureRunner/ThirdPersonCharacterVerification.cs`
 - Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is Unreal's Quinn, animated by F-L4-015 (ADR-0066).
 - Conformance: CharacterMotorTests, OrbitCameraTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
 - Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMotionState` (ADR-0066).
@@ -3890,7 +3890,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
 - Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-007, F-L0-008
-- Implementation evidence: `src/Rendering/EnvironmentLighting.cs`, `src/Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v16`), `src/Runtime.Lighting/EnvironmentComponents.cs`, `src/Runtime.Windows/EnvironmentCollection.cs`
+- Implementation evidence: `src/Rendering/EnvironmentLighting.cs`, `src/Rendering/Pipeline/DirectionalShadowCascades.cs`, `src/Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v16`), `src/Runtime/Lighting/EnvironmentComponents.cs`, `src/Runtime/Windows/EnvironmentCollection.cs`
 - Current delta: reflection probes are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated. Volumetric clouds, the sky sphere and texture mipmaps were added by M0110 (F-L4-016, F-L4-017); the DDGI probes become M0111's fallback tier (ADR-0069 追記).
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 - Next action: done by M0111 (F-L4-019, Lumen-like GI and reflections); the DDGI probe volume of this item is now the Medium-and-below fallback tier.
@@ -3907,8 +3907,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `src/Import/Gltf/{ImportedSkin,ImportedAnimationClip,GltfImporter}.cs`
   - `src/Windows/Graphics/StageSkinning.cs` and `assets/Shaders/Skinning.hlsl`
-  - `src/Runtime.Animation/`
-  - `src/Runtime.Windows/StageSceneDataBuilder.cs`
+  - `src/Runtime/Animation/`
+  - `src/Runtime/Windows/StageSceneDataBuilder.cs`
   - the ThirdPerson template's `Mesh` node
 - Current delta:
   - Only linear blend skinning.
@@ -4821,7 +4821,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Rendering/RenderScreenLayer.cs`、`Fonts/FontAtlas.cs`、`Fonts/ScreenTextLayout.cs`
   - `src/Windows/Graphics/StageRenderer.ScreenLayer.cs`、`StageRenderer.cs`(画面用のルートシグネチャとパイプライン)、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`
   - `src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`(`stage-v11`)
-  - `src/Runtime.Windows/ScreenUi.cs`、`RuntimeSystems.cs`(`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`)、`EngineHost.cs`、`RuntimeAutomation.cs`(`screenLayerFingerprints`)
+  - `src/Runtime/Windows/ScreenUi.cs`、`RuntimeSystems.cs`(`ScreenTextCollect`・`ScreenImageCollect`・`ScreenUiSubmit`)、`EngineHost.cs`、`RuntimeAutomation.cs`(`screenLayerFingerprints`)
   - `tools/FontBaker/`、`assets/Fonts/`、`build/CSharpGameEngine.Game.props`(`CgeIncludeDefaultFonts`)、`AssetCatalogEmitter.cs`(`FontAsset`)
   - `Templates/Vehicle/Gameplay/Speedometer.cs`、`Scenes/SportsCar.json`
 - Tests: `FontAtlasTests`、`FontBakerTests`、`ScreenUiTests`、`ScreenLayerTests`、`AssetCatalogTests`、`ShaderGraphCompilerTests`、`VehicleDriveVerificationTests`
@@ -4838,8 +4838,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Specifications/Rendering.md#dynamic-objects`、`Docs/Milestones/M0105-Runtime-Spawn-And-Effects.md`
 - Implementation evidence:
   - `src/Windows/Graphics/StageRenderer.cs`(`AddObject`・`RemoveObject`・`AddMesh`・`AddMaterial`、余裕、有効フラグ)、`StageRenderInputs.cs`(`Removed`)、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`
-  - `src/Runtime.Windows/RenderRoster.cs`、`RuntimeSystems.cs`(`StaticMeshBind`・`PrimitiveMeshBind`・`SkeletalMeshBindNotice`、`TransformSync` の外し)、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`renderObjectCounts`)
-  - `src/Runtime.Windows/Spawner.cs`、`Lifetime.cs`、`ParticleBurst.cs`
+  - `src/Runtime/Windows/RenderRoster.cs`、`RuntimeSystems.cs`(`StaticMeshBind`・`PrimitiveMeshBind`・`SkeletalMeshBindNotice`、`TransformSync` の外し)、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`renderObjectCounts`)
+  - `src/Runtime/Windows/Spawner.cs`、`Lifetime.cs`、`ParticleBurst.cs`
   - `src/Entities/FixedTransform.cs`、`SpatialWorld.cs`、`ISpawnableScene.cs`
   - `src/CodeAnalysis/SceneInstantiateEmitter.cs`、`GenerationGate.cs`、`GameSystemLoopEmitter.cs`、`SpatialWorldEmitter.cs`
   - `Templates/TopDown/Scenes/CursorMarker.json`、`Assets/Cursor/SM_CursorMesh.glb`、`Gameplay/ClickToMove.cs`、`tools/UnrealExport/cut_masked_mesh.py`
@@ -4857,7 +4857,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Milestones/M0106-Navmesh-Bake-And-Path-Following.md`
 - Implementation evidence:
   - `plugins/Navigation/`(`Navigation.cgeplugin`、`.plugin.props`、`.plugin.items`(ビルドのターゲット `CgeCookNavigation`)、`Runtime/*`、`Cook/*`)
-  - `src/Runtime.Character/CharacterComponents.cs`(`MoveIntent.Waypoint`・`HasWaypoint`・`WaypointIsEnd`、`Steer`)
+  - `src/Runtime/Character/CharacterComponents.cs`(`MoveIntent.Waypoint`・`HasWaypoint`・`WaypointIsEnd`、`Steer`)
   - `tools/Cook.Cli/`(`CookFailedException`、メッセージの出力)、`packaging/Sdk/Sdk.csproj`(Cook モジュールを `plugins/…/Cook/lib/` へ)、`build/CSharpGameEngine.Version.props`(0.1.17)
   - `tools/VSExtension/NavigationCookService.cs`、`SceneDesignerToolWindowControl.xaml(.cs)`、`VsixStrings*.resx`
   - `tools/FeatureRunner/ClickToMoveVerification.cs`、`TemplatePackageVerification.cs`(TopDown)
@@ -4875,9 +4875,9 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified + 実走(WARP。`verify-thirdperson-character`(ThirdPerson・FirstPerson・TopDown)、`verify-template-package`(ThirdPerson・TopDown・Vehicle。SDK 0.1.18))。全テスト `dotnet test CSharpGameEngine.slnx -c Debug`: 22 プロジェクト、失敗 0(Windows.Tests 700、VSExtension.Tests 1197、FeatureRunner.Tests 201)
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0066-Skeletal-Meshes-And-Animation.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Milestones/M0107-Characters-And-Animation.md`
 - Implementation evidence:
-  - `src/Runtime.Animation/`(`BlendSpace2D.cs`、`PoseBlending.cs`、`LocomotionStateMachine.cs`、`TwoBoneIk.cs`、`FootIk.cs`、`FirstPersonRig.cs`、`AnimationComponents.cs`、`AnimationSystems.cs`、`Skeleton.cs`)
-  - `src/Runtime.Character/`(`LocomotionObserver.cs`、`FootIkSystems.cs`、`Respawn.cs`、`CharacterComponents.cs`、`CharacterMotor.cs`、`CharacterSystems.cs`、`PlayerCamera.cs`、`PlayerCameraComponents.cs`)
-  - `src/Runtime.Windows/`(`FirstPersonView.cs`、`RuntimeSystems.cs`、`RenderRoster.cs`、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`focusPositions`))、`src/Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`)
+  - `src/Runtime/Animation/`(`BlendSpace2D.cs`、`PoseBlending.cs`、`LocomotionStateMachine.cs`、`TwoBoneIk.cs`、`FootIk.cs`、`FirstPersonRig.cs`、`AnimationComponents.cs`、`AnimationSystems.cs`、`Skeleton.cs`)
+  - `src/Runtime/Character/`(`LocomotionObserver.cs`、`FootIkSystems.cs`、`Respawn.cs`、`CharacterComponents.cs`、`CharacterMotor.cs`、`CharacterSystems.cs`、`PlayerCamera.cs`、`PlayerCameraComponents.cs`)
+  - `src/Runtime/Windows/`(`FirstPersonView.cs`、`RuntimeSystems.cs`、`RenderRoster.cs`、`StageSceneDataBuilder.cs`、`EngineHost.cs`、`RuntimeAutomation.cs`(`focusPositions`))、`src/Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`)
   - `Templates/`: 3 つの Character シーン、`FirstPersonAnimation.cs`・`TopDownAnimation.cs`・`ThirdPersonAnimation.cs`・`RespawnPlayer.cs`・`RespawnVehicle.cs`、`Assets/Characters/Mannequins/Anims/`、FirstPerson の `SKM_Manny_Simple.glb`、`build/CSharpGameEngine.Version.props`(0.1.18)
   - `tools/UnrealExport/`(`export_mannequin_animations.py`、`probe_character_animation.py`)、`tools/FeatureRunner/ClickToMoveVerification.cs`・`FeatureStageCatalog.cs`
 - Tests: `tests/CSharpGameEngine.Windows.Tests/`(`Animation/LocomotionGraphTests`・`FootIkTests`・`MannequinAssetTests`・`FirstPersonViewWarpTests`・`AnimationRuntimeTests`・`Graphics/SkinningGpuIntegrationTests`、`Character/LocomotionObserverTests`・`CameraLagTests`・`CharacterPlaneConstraintTests`・`RespawnTests`、`Runtime/TemplateCharacterSceneTests`・`RenderServerVisibilityTests`・`RenderRosterTests`)、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`
@@ -4896,7 +4896,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
   - `src/Core/InputActionDeclarations.cs`(`Axis`、`Button.HeldSeconds`・`ReleasedBefore`、`Pad` の末尾への追加、`StickAxis`、`MouseAxis.DeltaX/DeltaY`、`NegativeKeysAttribute`、`GamepadAttribute`)
   - `src/Windows/Input/InputServer.cs`(`TrackHold`・`FrameNumber`・`InputMaskModifier`)、`src/Windows/Platform/Win32InputEventAdapter.cs`(`Gamepad_LeftX/LeftY/RightX/RightY`、`InjectGamepad`)、`Win32Window.cs`(`InjectGamepad`・`InjectMouseDelta`)
   - `src/CodeAnalysis/InputActionsEmitter.cs`(`Axis`、`NegativeKeys`、片方の軸、INPUT005)、`AnalyzerReleases.Unshipped.md`
-  - `src/Runtime.Windows/RuntimeAutomation.cs`(`コード=値@開始-終了`、`MouseDeltaX/Y`、`Gamepad*`)
+  - `src/Runtime/Windows/RuntimeAutomation.cs`(`コード=値@開始-終了`、`MouseDeltaX/Y`、`Gamepad*`)
   - `Templates/TopDown/`(`Gameplay/ClickToMove.cs`、`Scenes/TopDownCharacter.json` の `ClickDestination`)、`Templates/Vehicle/Gameplay/`(`PlayerActions.cs`・`VehicleControls.cs`)、`build/CSharpGameEngine.Version.props`(0.1.19)
   - `tools/FeatureRunner/ClickToMoveVerification.cs`(目印のフレーム、長押し)・`VehicleDriveVerification.cs`(アナログ)
 - Tests: `tests/CSharpGameEngine.Core.Tests/InputActionValueTypesTests.cs`、`tests/CSharpGameEngine.Windows.Tests/Input/InputActionBindingTests.cs`・`Win32InputEventAdapterTests.cs`・`Runtime/RuntimeAutomationTests.cs`、`tests/CSharpGameEngine.CodeAnalysis.Tests/InputActionsGeneratorTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/ClickToMoveVerificationTests.cs`・`VehicleDriveVerificationTests.cs`
@@ -4913,8 +4913,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Decisions/ADR-0078-UE-Template-Full-Parity.md`、`Docs/Decisions/ADR-0079-Plugins-And-Assets.md`、`Docs/Specifications/UE-Template-Behavior.md`、`Docs/Specifications/Physics.md`、`Docs/Specifications/Plugins-And-Assets.md`、`Docs/Specifications/Typed-Lighting.md`、`Docs/Milestones/M0109-Chaos-Vehicle.md`
 - Implementation evidence:
   - `plugins/Vehicles/Runtime/`(`VehicleSetup.cs`、`VehicleChaos.cs`、`VehicleComponents.cs`、`VehicleMotor.cs`、`VehicleSystems.cs`)、`Vehicles.cgeplugin`(0.2.0)
-  - `src/Runtime.Physics/`(`PhysicsContracts.cs`、`DeterministicPhysicsWorld.cs`、`PhysicsComponents.cs`、`PhysicsNarrowPhase.cs`、`StaticMeshCollision.cs`)、`src/Numerics/LogicalMath.cs`
-  - `src/Runtime.Lighting/LightComponents.cs`(`LightVisibility`)、`src/Runtime.Windows/`(`FirstPersonView.cs` の `MeshEmissive`、`RuntimeSystems.cs`、`RenderRoster.cs`、`RuntimeComponents.cs`)、`src/Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`、`Platform/Win32InputEventAdapter.cs`)
+  - `src/Runtime/Physics/`(`PhysicsContracts.cs`、`DeterministicPhysicsWorld.cs`、`PhysicsComponents.cs`、`PhysicsNarrowPhase.cs`、`StaticMeshCollision.cs`)、`src/Numerics/LogicalMath.cs`
+  - `src/Runtime/Lighting/LightComponents.cs`(`LightVisibility`)、`src/Runtime/Windows/`(`FirstPersonView.cs` の `MeshEmissive`、`RuntimeSystems.cs`、`RenderRoster.cs`、`RuntimeComponents.cs`)、`src/Windows/`(`Graphics/StageRenderer.cs`、`Runtime/RenderServer.cs`、`Runtime/RenderFrameState.cs`、`Platform/Win32InputEventAdapter.cs`)
   - `src/Core/InputActionDeclarations.cs`、`src/CodeAnalysis/InputActionsEmitter.cs`
   - `Templates/Vehicle/`(`Gameplay/VehicleControls.cs`・`VehicleCameras.cs`・`VehicleLights.cs`・`PlayerActions.cs`、`Scenes/SportsCar.json`・`Lvl_VehicleBasic.json`、`Assets/Vehicles/SportsCar/SportsCarSetup.cgeasset`・`SM_SportsCar.glb`)、`build/CSharpGameEngine.Version.props`(0.1.20)
   - `tools/UnrealExport/`(`probe_vehicle_physics.py`、`probe_vehicle_brake_lights.py`、`probe_vehicle_emissive.py`、`add_brake_light_emission.py`)、`tools/FeatureRunner/VehicleDriveVerification.cs`(曲がりの窓 30〜34)
@@ -4951,7 +4951,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L4-014
 - Implementation evidence:
   - `assets/Shaders/Atmosphere.hlsl`(パス 5 = 雲のノイズ、6 = 雲のパノラマ、空の合成の雲と空の球、空の光の雲)、`src/Windows/Graphics/StageAtmosphere.cs`、`src/Rendering/EnvironmentLighting.cs`(`VolumetricCloudSettings`、`SkySphereSettings`)、`StageRenderer.cs`(`ReadCloudPanoramaForTesting`)
-  - `src/Runtime.Lighting/EnvironmentComponents.cs`、`src/Runtime.Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
+  - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/`(`EnvironmentCollection.cs` の `ToCloudSettings`・`EnvironmentClock`、`RuntimeSystems.cs`、`EngineHost.cs`)
   - `tools/UnrealExport/probe_sky_and_clouds.py`・`run_probe_sky_and_clouds.cmd`、`tools/Unreal.SceneImporter/ThirdPersonTemplateImporter.cs`・`LevelTemplateImporter.cs`、4 テンプレートの `Scenes/Lvl_*.json`
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/VolumetricCloudGpuIntegrationTests.cs`(6、WARP)、`Runtime/EnvironmentComponentTests.cs`(+6)
 - Current delta: 雲は上半球のパノラマ(WARP 1024 × 256・24 サンプル)。形はエンジンのノイズ。風は 10 m/s・45°(エンジンの選択)。空の球は合成の判定で、新しいメッシュの描画は無い。
@@ -4969,7 +4969,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L7-053
 - Implementation evidence:
   - `src/Windows/Graphics/StageGlobalDistanceField.cs`、`assets/Shaders/GlobalDistanceField.hlsl`、`StageRenderer.cs`(`UpdateGlobalDistanceField`、試験用の読み戻しとトレース)、`src/Rendering/EnvironmentLighting.cs`(`GlobalDistanceFieldSettings`、`LongVector3`)、`src/Rendering/Server/RenderServer.cs`(メッシュの複製で距離場を保つ、`DistanceFieldMeshCount`・`DistanceFieldObjectCount`)
-  - `src/Runtime.Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
+  - `src/Runtime/Windows/`(`EnvironmentCollection.cs`、`EngineHost.cs`、`RuntimeAutomation.cs` の `distanceFieldMeshes`・`distanceFieldObjects`・`frameMilliseconds`)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/GlobalDistanceFieldGpuIntegrationTests.cs`(8、WARP)
 - Current delta: 既定 4 段 × 64³、最も細かい段 0.5 m、4 ボクセルで打ち切り、R16F。骨格メッシュは入らない。
 - Conformance: MatchesWithDocumentedExtension(UE の Lumen のグローバル距離場より粗い。M0110 の文書)
@@ -4984,7 +4984,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md`(メッシュの距離場)、`Docs/Milestones/M0110-Lumen-Foundation-And-Visual-Gaps.md`
 - Stage: `rendering.environment-lighting`(`MeshDistanceFieldTests` を足した)
 - Depends on: F-L7-049
-- Implementation evidence: `src/Rendering/MeshDistanceField.cs`、`tools/ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime.Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Rendering/Server/RenderServer.cs`(基本形状は実行時)
+- Implementation evidence: `src/Rendering/MeshDistanceField.cs`、`tools/ShaderGraph.Cli/Program.cs`(`build-distance-fields`)と csproj(Import・Rendering の参照)、`build/CSharpGameEngine.ShaderGraph.targets`(`CompileCgeMeshDistanceFields`・`CollectCgeMeshDistanceFields`)、`build/CSharpGameEngine.Game.props`(`CgeGenerateMeshDistanceFields`)、`src/Runtime/Windows/StageSceneDataBuilder.cs`(`LoadDistanceFields`)、`src/Rendering/Server/RenderServer.cs`(基本形状は実行時)
 - Tests: `tests/CSharpGameEngine.Rendering.Tests/MeshDistanceFieldTests.cs`(8)、`GlobalDistanceFieldGpuIntegrationTests.RenderServer_KeepsEachMeshsDistanceFieldForTheRendererAndAddedMeshes`
 - Current delta: 最長辺 44 + 余白 4 ボクセル(1 軸最大 48)、正確な距離(BVH)、3 軸の奇偶の多数決の符号、ボクセル単位の半精度。骨格メッシュは無し。
 - Conformance: Matches(決定的。UE の解像度より粗い)
@@ -5002,7 +5002,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Implementation evidence:
   - `assets/Shaders/Lumen.hlsl`、`src/Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`StageRenderer.cs`・`StageAtmosphere.cs`(空の放射輝度マップ)・`src/Rendering/EnvironmentLighting.cs`(`LumenSettings`、`RenderScalability`、`RenderScalabilityResolver`)、`src/Rendering/Server/RenderServer.cs`
   - `assets/Shaders/Stage.cgeshadergraph` ほか、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`・`ShaderArtifactAbi.cs`(`stage-v16`)、`tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py`
-  - `src/Runtime.Lighting/EnvironmentComponents.cs`、`src/Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
+  - `src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`RuntimeAutomation.cs`(`lumenActive`・`lumenFrames`)、`tools/UnrealExport/probe_lumen.py`・`run_probe_lumen.cmd`、`build/CSharpGameEngine.Game.props`、`build/CSharpGameEngine.Version.props`(0.1.23)
 - Tests: `tests/CSharpGameEngine.Windows.Tests/Graphics/LumenGpuIntegrationTests.cs`(9、WARP)、`Graphics/LumenSurfaceCacheLayoutTests.cs`(7)、`Runtime/EnvironmentComponentTests.cs`(+2)、`tests/CSharpGameEngine.ShaderGraph.Cli.Tests/ShaderGraphCompilerTests.cs`(Stage の項目 14、ハッシュの更新)、StageGoldenFrameTests(現在の固定画像。標準との移行前比較は M0119 に保存)
 - Reverse-engineered behavior: M0119 で Lumen 表面前パスの深度をカメラの符号化に合わせた。`LumenSurfaceDepthTests` は、通常の距離と、far 1e18 m で約 1e7 m の面が最近面として残ること(描画順を反転する場合を含む)を物理距離で検証する。stage-v14(14 エントリー・960 バイト。通信と行列/サムネイルはネイティブ深度。旧Model/Triangleも削除済み。最終統合検証は継続中)。
 - Current delta: 既定の段は実機 High・WARP Medium(DDGI)。Epic は `CGE_SCALABILITY_GI=epic`。カードは箱の 6 面。放射輝度キャッシュは全域の密な格子。半透明・多重の反射は無い。
@@ -5031,7 +5031,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Status: Implemented
 - Verification: TestVerified + RuntimeVerified(WARP。`verify-thirdperson-character`(4 テンプレート)、`verify-template-package`(4 テンプレート。SDK 0.1.24))
 - Intended specification: `Docs/Specifications/UE-Template-Behavior.md`(「一部」「未」の行を 0 にした)、`Docs/Milestones/M0112-Template-Finishing.md`
-- Implementation evidence: `src/Runtime.Character/CharacterComponents.cs`、`Templates/TopDown/Scenes/TopDownCharacter.json`、`tools/FeatureRunner/TemplatePackageVerification.cs`・`FeatureRunnerApplication.cs`・`FeatureStageCatalog.cs`、`tools/VSExtension/ProjectTemplates/CSharp/GameEngine/Vehicle/ReadMe.md`、`Templates/README.md`・`Templates/Vehicle/README.md`、`build/CSharpGameEngine.Version.props`(0.1.24)
+- Implementation evidence: `src/Runtime/Character/CharacterComponents.cs`、`Templates/TopDown/Scenes/TopDownCharacter.json`、`tools/FeatureRunner/TemplatePackageVerification.cs`・`FeatureRunnerApplication.cs`・`FeatureStageCatalog.cs`、`tools/VSExtension/ProjectTemplates/CSharp/GameEngine/Vehicle/ReadMe.md`、`Templates/README.md`・`Templates/Vehicle/README.md`、`build/CSharpGameEngine.Version.props`(0.1.24)
 - Tests: `CharacterMotorTests.AnEndWaypoint_BrakesOverTheFixedPathBrakingDistanceWhenTheSettingsHaveOne`、`TemplateCharacterSceneTests.TheTopDownCharacterBrakesOverUesFixedPathBrakingDistanceOfTwoMetres`、`TemplateLightingSceneTests`(4)
 - Current delta: 作らないと決めた行(エンジン音、制約のサスペンション、左の車輪の鏡映、`M_Cursor` の UV の流れ、`CtrlRig_SportsCar`、Recast のタイルなど)は理由つきで文書に書いた。陰の明るさは UE との差が残る(M0112)。
 - Conformance: MatchesWithDocumentedExtension
@@ -5046,9 +5046,9 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `destruction.prefracture`
 - Intended specification: `Docs/Specifications/Physics.md`(破壊、接触、眠り、Artifact)、`Docs/Specifications/Plugins-And-Assets.md`(実例: 破砕)、`Docs/Milestones/M0113-Chaos-Destruction.md`、`Docs/Milestones/M0124-Mesh-Contact-Orientations-And-Destruction-Strain.md`(内部ひずみ、多段クラスター)
 - Implementation evidence:
-  - `src/Runtime.Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsCooking.cs`・`PhysicsShapeAssets.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`・`PhysicsWorldIntegration.cs`
+  - `src/Runtime/Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsCooking.cs`・`PhysicsShapeAssets.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`・`PhysicsWorldIntegration.cs`
   - `plugins/Destruction/`(`Runtime/Destruction.cs`・`DestructionComponents.cs`・`DestructionSystems.cs`・`DestructionDefaults.cs`、`Cook/FractureCooker.cs`、`Destruction.plugin.items`)
-  - `src/Runtime.Windows/FragmentMesh.cs`・`RenderRoster.cs`、`src/Entities/Runtime.cs`(`TakeSceneOrdinal`)・`ISpawnableScene.cs`(`SceneStableIds`)、`src/CodeAnalysis/SceneInstantiateEmitter.cs`・`GeneratedSceneBakeHostEmitter.cs`(`TryReplay`)
+  - `src/Runtime/Windows/FragmentMesh.cs`・`RenderRoster.cs`、`src/Entities/Runtime.cs`(`TakeSceneOrdinal`)・`ISpawnableScene.cs`(`SceneStableIds`)、`src/CodeAnalysis/SceneInstantiateEmitter.cs`・`GeneratedSceneBakeHostEmitter.cs`(`TryReplay`)
   - `tools/Physics.Cli/`(`Program.cs`・`PhysicsBridgeWorker.cs`・`GameBake.cs`)、`tools/VSExtension/PrefractureDebugService.cs`・`PhysicsDebugOverlay.cs`、`tools/FeatureRunner/DestructionSampleVerification.cs`
   - `samples/Samples.Destruction/`、`UserEcsProject/Scenes/Destruction*.json`、`packaging/Sdk/Sdk.csproj`(Cook モジュールを `plugins/Destruction/Cook/lib/` へ)
 - Tests: `tests/CSharpGameEngine.Destruction.Tests/`(57。M0124 の `ClusterLevelCookTests` を含む)、`tests/CSharpGameEngine.Windows.Tests/Physics/DestructionTests.cs`・`FractureSolverTests.cs`・`PhysicsFractureInternalStrainTests.cs`・`FragmentContactTests.cs`・`PhysicsCacheBondBreakTests.cs`・`PhysicsCacheBondStrainTests.cs`・`PhysicsMeshMultiFaceContactTests.cs`、`tests/CSharpGameEngine.VSExtension.Tests/PrefractureDebugServiceTests.cs`、`tests/CSharpGameEngine.FeatureRunner.Tests/DestructionSampleVerificationTests.cs`

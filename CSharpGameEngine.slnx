@@ -168,9 +168,6 @@
     <Project Path="src/CodeAnalysis/CodeAnalysis.csproj" />
     <Project Path="src/Entities/Entities.csproj" />
     <Project Path="src/Numerics/Numerics.csproj" />
-    <Project Path="src/World/World.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
     <Project Path="src/Rendering/Rendering.csproj" />
     <Project Path="src/Import/Import.csproj" />
     <Project Path="src/SceneModel/SceneModel.csproj" />
@@ -178,18 +175,8 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/ShaderGraph/ShaderGraph.csproj" />
-    <Project Path="src/Runtime.Simulation/Runtime.Simulation.shproj" />
-    <File Path="src/Runtime.Simulation/Runtime.Simulation.projitems" />
-    <Project Path="src/Runtime.Physics/Runtime.Physics.shproj" />
-    <File Path="src/Runtime.Physics/Runtime.Physics.projitems" />
-    <Project Path="src/Runtime.Windows/Runtime.Windows.shproj" />
-    <Project Path="src/Runtime.Lighting/Runtime.Lighting.shproj" />
-    <File Path="src/Runtime.Lighting/Runtime.Lighting.projitems" />
-    <Project Path="src/Runtime.Animation/Runtime.Animation.shproj" />
-    <File Path="src/Runtime.Animation/Runtime.Animation.projitems" />
-    <Project Path="src/Runtime.Character/Runtime.Character.shproj" />
-    <File Path="src/Runtime.Character/Runtime.Character.projitems" />
-    <File Path="src/Runtime.Windows/Runtime.Windows.projitems" />
+    <Project Path="src/Runtime/Runtime.shproj" />
+    <File Path="src/Runtime/Runtime.projitems" />
   </Folder>
   <Folder Name="/stages/">
     <Project Path="stages/CSharpGameEngine.FeatureStages.Celestial/CSharpGameEngine.FeatureStages.Celestial.csproj" />

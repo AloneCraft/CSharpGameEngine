@@ -11,8 +11,8 @@ public sealed class EngineLayerSpec {
         @"\bEngineHost\b|CSharpGameEngine\.Platform\.Windows|CSharpGameEngine\.Graphics\.D3D12|CSharpGameEngine\.Audio\.XAudio2|\bWin32\b",
         RegexOptions.CultureInvariant);
     [Theory]
-    [InlineData("src/Runtime.Physics")]
-    [InlineData("src/Runtime.Character")]
+    [InlineData("src/Runtime/Physics")]
+    [InlineData("src/Runtime/Character")]
     public void PortableRuntimeDoesNotNameTheWindowsHost(string Directory){
         var Violations=System.IO.Directory.EnumerateFiles(Path.Combine(RepositoryRoot,Directory),"*.cs",SearchOption.TopDirectoryOnly)
             .SelectMany(File=>System.IO.File.ReadLines(File).Select((Line,Index)=>(File,Line,Number:Index+1)))

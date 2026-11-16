@@ -10,7 +10,11 @@
     <!-- ADR-0070: write .cge/scene.schema.json after the build, the target of the stage scenes' "$schema". -->
     <CgeGameProject>true</CgeGameProject>
   </PropertyGroup>
-  <Import Project="$(MSBuildThisFileDirectory)..\src\Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
+  <PropertyGroup>
+    <!-- 実行時の部品のうち Simulation だけを使う。 -->
+    <CgeRuntimeSimulationOnly>true</CgeRuntimeSimulationOnly>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\src\Runtime\Runtime.projitems" Label="Shared" />
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
     <!-- ADR-0070: stage scenes are the *.json files under Scenes (SceneFiles), compiled by GameSystemGenerator. -->

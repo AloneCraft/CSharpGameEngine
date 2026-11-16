@@ -13,10 +13,10 @@
     sources here; Bake loads the game build named on its command line and runs the game's own generated Bake host.
   -->
   <ItemGroup>
-    <Compile Include="..\..\src\Runtime.Physics\PhysicsShapeAssets.cs" Link="Physics\PhysicsShapeAssets.cs" />
-    <Compile Include="..\..\src\Runtime.Physics\PhysicsCooking.cs" Link="Physics\PhysicsCooking.cs" />
-    <Compile Include="..\..\src\Runtime.Physics\PrefractureCooking.cs" Link="Physics\PrefractureCooking.cs" />
-    <Compile Include="..\..\src\Runtime.Physics\PhysicsAabb.cs" Link="Physics\PhysicsAabb.cs" />
+    <Compile Include="..\..\src\Runtime\Physics\PhysicsShapeAssets.cs" Link="Physics\PhysicsShapeAssets.cs" />
+    <Compile Include="..\..\src\Runtime\Physics\PhysicsCooking.cs" Link="Physics\PhysicsCooking.cs" />
+    <Compile Include="..\..\src\Runtime\Physics\PrefractureCooking.cs" Link="Physics\PrefractureCooking.cs" />
+    <Compile Include="..\..\src\Runtime\Physics\PhysicsAabb.cs" Link="Physics\PhysicsAabb.cs" />
     <Using Include="CSharpGameEngine.Numerics" />
   </ItemGroup>
   <ItemGroup>

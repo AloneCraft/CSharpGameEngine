@@ -22,5 +22,9 @@
           Condition="'$(EcsComponentCount)'!='1' And '$(EcsComponentCount)'!='64' And '$(EcsComponentCount)'!='65' And '$(EcsComponentCount)'!='128'">
     <Error Text="EcsComponentCount must be 1, 64, 65, or 128." />
   </Target>
-  <Import Project="..\..\src\Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
+  <PropertyGroup>
+    <!-- 実行時の部品のうち Simulation だけを使う。 -->
+    <CgeRuntimeSimulationOnly>true</CgeRuntimeSimulationOnly>
+  </PropertyGroup>
+  <Import Project="..\..\src\Runtime\Runtime.projitems" Label="Shared" />
 </Project>

@@ -13,7 +13,7 @@ public sealed class NumericProfileOutputTests {
             var Project=Path.Combine(DirectoryPath,"Game.proj");
             var NumericProps=Path.Combine(Root!.FullName,"build","CSharpGameEngine.NumericProfile.props");
             var SdkTargets=Path.Combine(Root.FullName,"packaging","Sdk","build","CSharpGameEngine.Sdk.NumericProfiles.targets");
-            File.WriteAllText(Project,$"<Project><PropertyGroup><Configuration>Debug</Configuration><CgeNumericProfileLateImport>true</CgeNumericProfileLateImport><BaseIntermediateOutputPath>obj\\</BaseIntermediateOutputPath><IntermediateOutputPath>obj\\Debug\\net10.0-windows10.0.19041.0\\win-x64\\$(CgeNumericMode)\\$(CgeDepthMapping)\\</IntermediateOutputPath></PropertyGroup><Import Project=\"{NumericProps}\"/><Import Project=\"{SdkTargets}\"/><ItemGroup><Reference Include=\"Numerics\" HintPath=\"default-numerics.dll\"/><Reference Include=\"World\" HintPath=\"default-world.dll\"/><Reference Include=\"OtherLibrary\" HintPath=\"other.dll\"/></ItemGroup><Target Name=\"ResolveAssemblyReferences\"/></Project>");
+            File.WriteAllText(Project,$"<Project><PropertyGroup><Configuration>Debug</Configuration><CgeNumericProfileLateImport>true</CgeNumericProfileLateImport><BaseIntermediateOutputPath>obj\\</BaseIntermediateOutputPath><IntermediateOutputPath>obj\\Debug\\net10.0-windows10.0.19041.0\\win-x64\\$(CgeNumericMode)\\$(CgeDepthMapping)\\</IntermediateOutputPath></PropertyGroup><Import Project=\"{NumericProps}\"/><Import Project=\"{SdkTargets}\"/><ItemGroup><Reference Include=\"Numerics\" HintPath=\"default-numerics.dll\"/><Reference Include=\"OtherLibrary\" HintPath=\"other.dll\"/></ItemGroup><Target Name=\"ResolveAssemblyReferences\"/></Project>");
             var Paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach(var Mode in new[]{"Float","Double"}){
                 string? Previous=null;
@@ -32,7 +32,7 @@ public sealed class NumericProfileOutputTests {
                     if(Previous is null){ Assert.True(Paths.Add(Value)); }else{ Assert.Equal(Previous,Value); }
                     Previous=Value;
                 }
-                var Expected=new[]{"Numerics","World"}.ToDictionary(Name=>Name,Name=>Path.Combine(Previous!,Name,"bin","Debug",Mode=="Float"?"float32":"float64","net10.0",Name+".dll"));
+                var Expected=new[]{"Numerics"}.ToDictionary(Name=>Name,Name=>Path.Combine(Previous!,Name,"bin","Debug",Mode=="Float"?"float32":"float64","net10.0",Name+".dll"));
                 foreach(var PathValue in Expected.Values){ Directory.CreateDirectory(Path.GetDirectoryName(PathValue)!);File.WriteAllText(PathValue,"reference selection fixture"); }
                 var DesignStart=new ProcessStartInfo("dotnet"){RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false,CreateNoWindow=true};
                 foreach(var Argument in new[]{"msbuild",Project,"-nologo","-t:ResolveAssemblyReferences","-getItem:Reference","-p:DesignTimeBuild=true","-p:CgeNumericMode="+Mode}){ DesignStart.ArgumentList.Add(Argument); }
@@ -49,7 +49,7 @@ public sealed class NumericProfileOutputTests {
         }finally{ Directory.Delete(DirectoryPath,true); }
     }
     [Theory]
-    [InlineData("src/World/World.csproj",false)]
+    [InlineData("src/Numerics/Numerics.csproj",false)]
     [InlineData("UserEcsProject/UserEcsProject.csproj",true)]
     public async Task SelectedProfilesKeepFinalAssembliesReferencesAndIntermediateFilesSeparate(string Project,bool IncludeDepthMapping){
         var Root=new DirectoryInfo(AppContext.BaseDirectory);

@@ -37,11 +37,7 @@
   </PropertyGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Version.props" />
-  <Import Project="$(CgeEngineSourceRoot)Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)Runtime.Physics\Runtime.Physics.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)Runtime.Animation\Runtime.Animation.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)Runtime.Character\Runtime.Character.projitems" Label="Shared" />
-  <Import Project="$(CgeEngineSourceRoot)Runtime.Windows\Runtime.Windows.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)Runtime\Runtime.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- World/Stateはpartial structで、GameSystemGeneratorが同じコンパイル内で完成させる(ADR-0033)。 -->
@@ -71,7 +67,6 @@
     <ProjectReference Include="$(CgeEngineSourceRoot)Windows\Windows.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)Core\Core.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)Numerics\Numerics.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)World\World.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeIncludeDefaultStageShaders)' == 'true'">

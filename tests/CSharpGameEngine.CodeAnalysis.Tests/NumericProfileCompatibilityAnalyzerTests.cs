@@ -6,9 +6,9 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 public sealed class NumericProfileCompatibilityAnalyzerTests {
     [Theory]
     [InlineData("Numerics","float32","float32",false)]
-    [InlineData("World","fixed-128-64","float32",true)]
+    [InlineData("Numerics","fixed-128-64","float32",true)]
     [InlineData("Numerics",null,"float32",true)]
-    [InlineData("World",null,"float64",true)]
+    [InlineData("World",null,"float64",false)]
     [InlineData("Entities",null,"float64",true)]
     [InlineData("IndependentLibrary",null,"float64",false)]
     [InlineData("SharedRuntime","fixed-64-32","fixed-64-31",true)]

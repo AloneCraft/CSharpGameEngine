@@ -10,8 +10,8 @@
 |---|---|---|
 | シーン JSON v1・v2 | `src/SceneModel/Json/SceneJsonSceneAnalyzer.cs:157`(`AngleReading(DocumentVersion>=TurnsSchemaVersion)`)、`SceneJsonAngles.cs`、`SceneJsonAngleUpgrade.cs` | 共有ソースの解析器が v1〜v3 を読む。SceneModel は生成器・VSIX・CLI の全部に入るので、ビルドとエディターも旧版を読める。`SceneJson.Cli upgrade` はこの解析器で旧版を読み、書き換え、読み直して同じ意味かを確かめる |
 | Snapshot v1 | `src/Entities/Snapshot.cs:69-85,250-283`、`src/CodeAnalysis/GameSystemSnapshotEmitter.cs:43-90` | `TryRead` が版 1 と旧スキーマ指紋を受け付け、生成コードが旧構造の記述子(`SnapshotLegacy*`、`SnapshotDefaultLegacy*`)で読む |
-| WorldCell v1 | `src/World/WorldCellArtifact.cs:86,177` | 版 1 の 16 バイト固定の座標を読む |
-| `.cgephyscache` スキーマ 2・3 | `src/Runtime.Physics/PhysicsCache.cs:39,58-62,175-209,304,362-387` | 読み手が 2〜4、書き手も 2〜4 を扱う |
+| WorldCell v1 | `src/Numerics/World/WorldCellArtifact.cs:86,177` | 版 1 の 16 バイト固定の座標を読む |
+| `.cgephyscache` スキーマ 2・3 | `src/Runtime/Physics/PhysicsCache.cs:39,58-62,175-209,304,362-387` | 読み手が 2〜4、書き手も 2〜4 を扱う |
 | glTF の旧メタデータ | `tools/ContentCompiler/ModelImportCommands.cs:72`(IMP008) | 読むときに黙って移行する。詳細は未調査 |
 
 すでに規則に合っているもの(変えない):

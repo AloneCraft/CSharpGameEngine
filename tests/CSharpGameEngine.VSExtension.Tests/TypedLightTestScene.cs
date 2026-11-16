@@ -13,7 +13,7 @@ internal static class TypedLightTestScene {
     internal static (SceneModel Model,CSharpCompilation Compilation,string Source)AnalyzeSource(string Source){
         var Root=VsixBuildIdentity.RepoRoot;
         var Files=new[]{
-            File.ReadAllText(Path.Combine(Root,"src/Runtime.Lighting/LightComponents.cs")),
+            File.ReadAllText(Path.Combine(Root,"src/Runtime/Lighting/LightComponents.cs")),
             File.ReadAllText(Path.Combine(Root,"src/Entities/SceneComponentOrderAttribute.cs")),
             File.ReadAllText(Path.Combine(Root,"src/Entities/SceneComponentIconAttribute.cs")),
             "namespace CSharpGameEngine.Entities { [SceneComponentOrder(SceneComponentCategory.Spatial,0)] public struct Transform {} }",

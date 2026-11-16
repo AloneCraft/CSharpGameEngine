@@ -74,7 +74,7 @@ public static class StagePackHost {
         return [.. StageVisualSink.Items];
     }
     private static StageSceneRunResult RunScene<TScene>()where TScene:ISceneDefinition{
-        var World=new World();
+        var World=new Entities.World();
         var Instance=World.InstantiateScene<TScene>();
         var Slot=World.SceneInstances.Resolve(Instance);
         var Root=World.GetSceneRoot(Instance);

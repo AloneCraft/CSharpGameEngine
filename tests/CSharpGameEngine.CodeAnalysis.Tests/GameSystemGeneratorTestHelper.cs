@@ -102,6 +102,7 @@ internal static class GameSystemGeneratorTestHelper {
             .Select(static Assembly=>MetadataReference.CreateFromFile(Assembly.Location)),
         MetadataReference.CreateFromFile(typeof(CSharpGameEngine.Contracts.WorldCellId).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(CSharpGameEngine.Numerics.LogicalScalar).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(CSharpGameEngine.Content.ContentArtifact).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
     ];

@@ -32,7 +32,7 @@ public static class PlatformReleaseEvidence {
         new("audio.mixer","src/Core/Audio/AudioMixer.cs"),
         new("audio.spatial","src/Core/Audio/AudioSpatializer.cs"),
         new("audio.device","src/Windows/Audio/AudioDeviceServer.cs"),
-        new("runtime.host","src/Runtime.Windows/EngineHost.cs"),
+        new("runtime.host","src/Runtime/Windows/EngineHost.cs"),
         new("compatibility.validator","tools/FeatureRunner/PlatformCompatibilityMatrixValidator.cs"),
         new("release.evidence","tools/FeatureRunner/PlatformReleaseEvidence.cs"),
         new("stage.catalog","tools/FeatureRunner/FeatureStageCatalog.cs"),

@@ -19,7 +19,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\src\Runtime.Physics\PhysicsShapeAssets.cs;..\..\..\src\Runtime.Physics\PhysicsCooking.cs;..\..\..\src\Runtime.Physics\PrefractureCooking.cs;..\..\..\src\Runtime.Physics\PhysicsAabb.cs" Link="Physics\%(Filename)%(Extension)" />
+    <Compile Include="..\..\..\src\Runtime\Physics\PhysicsShapeAssets.cs;..\..\..\src\Runtime\Physics\PhysicsCooking.cs;..\..\..\src\Runtime\Physics\PrefractureCooking.cs;..\..\..\src\Runtime\Physics\PhysicsAabb.cs" Link="Physics\%(Filename)%(Extension)" />
     <Compile Include="..\Runtime\DestructionDefaults.cs" Link="Runtime\DestructionDefaults.cs" />
     <Using Include="CSharpGameEngine.Numerics" />
   </ItemGroup>

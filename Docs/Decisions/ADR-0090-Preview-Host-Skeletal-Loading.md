@@ -22,8 +22,8 @@ Skeletal Mesh / Skeleton / Animation Sequence のビューアには、スキン�
 
 1. **ホストは `Import`（L7）へのプロジェクト参照を持つ。** マネージドのみで、RuntimeIdentifier は設定しない（AssimpNet のネイティブ DLL はコピーされず、glTF の経路では読み込まれない。`Import.Gltf.Cli` と同じ扱い）。
 2. **ホストは必要なソースファイルだけをリンクして同じ実装を使う。** 先例は `SceneJson` のリンク（ホスト）と `Skeleton.cs` / `AnimationClip.cs` のリンク（`Import.Tests`）。
-   - `Runtime.Animation/Skeleton.cs`、`AnimationClip.cs`（そのまま）。
-   - 新規の `Runtime.Windows/StageGltfAssets.cs`: `StageSceneDataBuilder` から ECS に依存しない部分（`BakeMaterial`、`BakeTexture`、キー生成、スキン付きメッシュの組み立て）を切り出した内部クラス。
+   - `Runtime/Animation/Skeleton.cs`、`AnimationClip.cs`（そのまま）。
+   - 新規の `Runtime/Windows/StageGltfAssets.cs`: `StageSceneDataBuilder` から ECS に依存しない部分（`BakeMaterial`、`BakeTexture`、キー生成、スキン付きメッシュの組み立て）を切り出した内部クラス。
    - ゲーム側の `StageSceneDataBuilder` は切り出した実装を呼ぶ。変換は 1 か所だけにし、動作を変えない。
 3. **共有プロジェクト自体は参照しない。** `SkeletalAssetCache`（ECS の `ContentRoot`）と ECS 系のシステムはホストに入れない。ホストは絶対パスで直接読む。
 4. **VSIX は glTF を読まない。** スキンやアニメーションの有無は glb/gltf の JSON を読む軽い確認（`GltfSkeletalProbe`）で決め、実際の読み込み・評価はホストだけが行う。

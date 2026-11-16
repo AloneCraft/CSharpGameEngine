@@ -865,5 +865,5 @@ public static class ConventionConversion<TSource,TTarget> where TSource:struct,I
 - G:\GitHub\CSharpGameEngine\src\Content\AssetAuthoringService.cs
 - G:\GitHub\CSharpGameEngine\plugins\Navigation\Navigation.plugin.items
 - G:\GitHub\CSharpGameEngine\packaging\Sdk\Sdk.csproj
-- G:\GitHub\CSharpGameEngine\src\Runtime.Windows\StageSceneDataBuilder.cs
-- G:\GitHub\CSharpGameEngine\src\Runtime.Animation\SkeletalAssetCache.cs
+- G:\GitHub\CSharpGameEngine\src\Runtime\Windows\StageSceneDataBuilder.cs
+- G:\GitHub\CSharpGameEngine\src\Runtime\Animation\SkeletalAssetCache.cs

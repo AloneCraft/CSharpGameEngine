@@ -29,6 +29,10 @@
     <ProjectReference Include="..\..\src\Numerics\Numerics.csproj" />
     <ProjectReference Include="..\..\src\CodeAnalysis\CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
-  <Import Project="..\..\src\Runtime.Simulation\Runtime.Simulation.projitems" Label="Shared" />
+  <PropertyGroup>
+    <!-- 実行時の部品のうち Simulation だけを使う。 -->
+    <CgeRuntimeSimulationOnly>true</CgeRuntimeSimulationOnly>
+  </PropertyGroup>
+  <Import Project="..\..\src\Runtime\Runtime.projitems" Label="Shared" />
 
 </Project>

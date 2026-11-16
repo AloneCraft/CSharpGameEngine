@@ -29,8 +29,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../../src/Runtime.Animation/Skeleton.cs" Link="Parity/Skeleton.cs" />
-    <Compile Include="../../src/Runtime.Animation/AnimationClip.cs" Link="Parity/AnimationClip.cs" />
+    <Compile Include="../../src/Runtime/Animation/Skeleton.cs" Link="Parity/Skeleton.cs" />
+    <Compile Include="../../src/Runtime/Animation/AnimationClip.cs" Link="Parity/AnimationClip.cs" />
     <ProjectReference Include="..\..\src\Import\Import.csproj" />
   </ItemGroup>
 

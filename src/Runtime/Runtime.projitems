@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <Shared37707867-1453-44b9-bd3d-bf54cd7ffcae>{37707867-1453-44b9-bd3d-bf54cd7ffcae}</Shared37707867-1453-44b9-bd3d-bf54cd7ffcae>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>CSharpGameEngine.Runtime</Import_RootNamespace>
+  </PropertyGroup>
+  <!-- ゲームにソースのまま取り込む実行時の部品。ファイルは部品ごとのフォルダーに置き、名前空間は CSharpGameEngine.Runtime.<部品> のまま。 -->
+  <!-- Simulation は、確かめ用の場面(stages)、Entities の試験、速さの計測からも単独で使う。 -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Simulation\SimulationMessages.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Simulation\SimulationCache.cs" />
+  </ItemGroup>
+  <!-- 残りは物理・アニメーション・キャラクター・光・Windows の画面と音。CgeRuntimeSimulationOnly が true のプロジェクトには入れない。 -->
+  <ItemGroup Condition="'$(CgeRuntimeSimulationOnly)' != 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsContracts.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsAabb.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsShapeAssets.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsNarrowPhase.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsWorldIntegration.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsDomainRegistry.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\StaticMeshCollision.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\DeterministicAabbTree.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\DeterministicPhysicsWorld.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsCache.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsCooking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PrefractureCooking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\FractureSolver.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Physics\PhysicsDebug.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\AnimationClip.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\BlendSpace2D.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\FirstPersonRig.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\FootIk.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\PoseBlending.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\TwoBoneIk.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\AnimationComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\AnimationSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\LocomotionStateMachine.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\SkeletalAssetCache.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Animation\Skeleton.cs" />
+    <Using Include="CSharpGameEngine.Runtime.Animation" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\CharacterComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\CharacterEvents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\CharacterMotor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\CharacterSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\FootIkSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\LocomotionObserver.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\PlayerCamera.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\PlayerCameraComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Character\Respawn.cs" />
+    <Using Include="CSharpGameEngine.Runtime.Character" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\DirectionalLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\PointLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\SpotLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\RectAreaLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\LightShadow.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\SkyAtmosphere.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\SkyLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\PostProcessVolume.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\ExponentialHeightFog.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\GlobalIlluminationVolume.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\VolumetricCloud.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\SkySphere.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Lighting\Assets\Editor\ComponentIcons\GlobalDistanceField.svg" />
+    <Compile Include="$(MSBuildThisFileDirectory)Lighting\LightComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Lighting\EnvironmentComponents.cs" />
+    <Using Include="CSharpGameEngine.Runtime.Lighting" />
+    <Using Include="CSharpGameEngine.Lighting" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\EngineHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Camera.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\PrimitiveMesh.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\PrimitiveType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\PrimitiveRoster.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Audio.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Picking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Hud.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\ScreenUi.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\RuntimeComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\FirstPersonView.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\StageSceneDataBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\StageModelAssets.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\RenderRoster.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\FragmentMesh.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Spawner.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Lifetime.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\ParticleBurst.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\RuntimeWorldTransform.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\RuntimeSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\RuntimeAutomation.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\EnvironmentCollection.cs" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\AmbientLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\Camera.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\PrimitiveMesh.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\AppHost.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\AudioListener.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\AudioSource.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\HeightFog.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\Level.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\PlayerStart.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\Renderable.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\ScreenImage.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\ScreenText.svg" />
+  </ItemGroup>
+</Project>

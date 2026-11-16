@@ -51,7 +51,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 
 ## RE-M0088 — Typed lighting and shadow ownership
 - Confidence: High for automated code, static editing and WARP behavior; no interactive Visual Studio session is claimed.
-- Evidence: LightValues/LightPhotometry, Runtime.Lighting/LightComponents, RuntimeSystems, LightSubmissions, RenderFrameState, ImportedLight, LightValueContract and LightConversionPlanner.
+- Evidence: LightValues/LightPhotometry, Runtime/Lighting/LightComponents, RuntimeSystems, LightSubmissions, RenderFrameState, ImportedLight, LightValueContract and LightConversionPlanner.
 - Observed: physical values are validated readonly floats; only applicable fields exist on four ECS structs; optional LightShadow owns shadow requests; invalid extraction records an Entity-local companion property.
 - Observed authoring: exact Roslyn constructor matching reads named/target-typed literal values without executing code. Constructor and field initializers supply palette defaults. 12 conversions preserve local flux, require explicit directional quantities, retain Node/shadow ownership, reject expression/default-contract conflicts and pass canonical source verification.
 - Observed rendering: typed reusable buffers retain mixed submission order (including directional replacement) and separate emissive records. Rectangle forward/up retains roll without multiplying dimensions by Scale. WARP pixels match after two device recoveries. Warm recording of 10000 batches allocates zero bytes.
@@ -373,7 +373,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0101b — キャラクター・カメラ・アニメーションの Component 名
 
 - Confidence: High（型定義、生成コード、テンプレートの JSON、WARP での実行で確認）
-- Evidence: `src/Runtime.Character/CharacterComponents.cs`、`PlayerCameraComponents.cs`、`src/Runtime.Animation/AnimationComponents.cs`、`Templates/ThirdPerson/Scenes/ThirdPersonCharacter.json`、`ThirdPersonCharacterVerification`
+- Evidence: `src/Runtime/Character/CharacterComponents.cs`、`PlayerCameraComponents.cs`、`src/Runtime/Animation/AnimationComponents.cs`、`Templates/ThirdPerson/Scenes/ThirdPersonCharacter.json`、`ThirdPersonCharacterVerification`
 - Observed behavior: ゲームが使う Component は `CharacterMotion`（設定）、`CharacterMotionState`（速度・モード・向きと `OnGround`/`Falling`）、`MoveIntent`（`Direction`、`JumpRequested`、`Jump()`）、`ViewAngles`（`YawDegrees`/`PitchDegrees` と上下の制限）、`OrbitCamera`（`Pivot`、`Distance`、`Radius`、`Collide`）、`Locomotion`（6 つのクリップと速度）。シーン JSON のキーは、`[Angle]` の項目で単位の語を除く（`MaxSlope`、`TurnRate`、`Yaw`）。動作は改名前と同じ。
 - Result: Matches ADR-0077（M2 の改名の範囲）。
 
@@ -394,7 +394,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0101e — `Audio` サービスとイベント
 
 - Confidence: High（生成コード、コンパイルして実行するテスト、WARP と実機の XAudio2 での実行で確認）
-- Evidence: `Runtime.Windows/Audio.cs`、`EngineHost.Sound`、`AudioDeviceServer.PlayOneShot`、`WavReader`、`GameSystemEventWiring`、`GameSystemLoopEmitter`、`GameSystemEventTests`、`verify-thirdperson-character`
+- Evidence: `Runtime/Windows/Audio.cs`、`EngineHost.Sound`、`AudioDeviceServer.PlayOneShot`、`WavReader`、`GameSystemEventWiring`、`GameSystemLoopEmitter`、`GameSystemEventTests`、`verify-thirdperson-character`
 - Observed behavior: `Audio.Play`/`PlayLocal` は要求を貯め、`Present` の直前の `Flush` でクリップ（`WavReader` が `PcmClip` にする。キャッシュあり）を読み、`Source` の距離の減衰と左右の定位を掛けて、`AudioDeviceServer.PlayOneShot` に渡す。XAudio2 では source voice ごとに再生し、終わったものを毎フレーム破棄する。イベントは `GeneratedSystemSet` のキューに積まれ、受け手は読み取り位置から 1 件ずつ呼ばれる。キューと位置はフレームの頭で空になる。`[SystemPhase]` のない受け手は、送り手の最も遅いフェーズに入り、同じフェーズの送り手の後に並ぶ。
 - Result: Matches ADR-0077 §2（M5・M6）。
 
@@ -408,7 +408,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0101g — `Pointer` と `Picking`（クリック移動）
 
 - Confidence: High（生成コード、光線の単体テスト、WARP での実行で確認）。実機のマウスのカーソルは Medium（自動実行の `CGE_AUTOMATION_CURSOR` で代用）。
-- Evidence: `Core/InputActionDeclarations.cs`、`InputActionsEmitter`、`EngineHost.Cursor`、`Runtime.Windows/Picking.cs`、`MoveIntent`、`CharacterMotionUpdate`、`PickingTests`、`CharacterMotorTests`、`ClickToMoveVerification`
+- Evidence: `Core/InputActionDeclarations.cs`、`InputActionsEmitter`、`EngineHost.Cursor`、`Runtime/Windows/Picking.cs`、`MoveIntent`、`CharacterMotionUpdate`、`PickingTests`、`CharacterMotorTests`、`ClickToMoveVerification`
 - Observed behavior: `[Pointer] Pointer` のメンバーは、`Read` の第 3 引数 `EngineHost.Cursor`（クライアント領域の左上を 0、右下を 1 とした割合と `Inside`）で毎フレーム埋まる。`CGE_AUTOMATION_CURSOR=x,y` があればそれを使う。`Picking.TryPick(Pointer, out PickHit)` は、カメラの姿勢・縦の視野角・ウィンドウの縦横比から光線（最大 2000 m）を作り、物理の静的コリジョンに当てて最も近い点を返す。カメラが物理と別の参照フレームにある、ポインターが領域の外、何にも当たらないときは false。`MoveIntent.MoveTo(Point)` は目的地を持ち、`CharacterMotionUpdate` が毎 tick `Steer` で `Direction` を水平の単位ベクトルに書く。目的地までの水平距離が制動距離（歩行速度² ÷ 2 ÷ 制動）より近いと、長さを距離に比例して縮め（下限 0.25）、0.15 m 以内で `Stop()` して `HasDestination` を false に戻す。
 - Result: Matches ADR-0077 §2（TopDown の入力）。
 
@@ -486,7 +486,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0107 — キャラクターとアニメーション
 
 - Confidence: High(単体テスト、実際の Mannequin の資産、WARP の実走、SDK パッケージから作ったゲームの実行で確認)。実機の GPU と VS の実機は未確認。足の IK の見た目と UE の比較、FABRIK の `Weight` の解釈は推測を含む
-- Evidence: `Runtime.Animation/`(`BlendSpace2D.cs`・`PoseBlending.cs`・`LocomotionStateMachine.cs`・`TwoBoneIk.cs`・`FootIk.cs`・`FirstPersonRig.cs`)、`Runtime.Character/`(`LocomotionObserver.cs`・`FootIkSystems.cs`・`Respawn.cs`・`PlayerCamera.cs`・`CharacterMotor.cs`)、`Runtime.Windows/`(`FirstPersonView.cs`・`RenderRoster.cs`・`RuntimeSystems.cs`)、`StageRenderer.SetObjectVisibility`
+- Evidence: `Runtime/Animation/`(`BlendSpace2D.cs`・`PoseBlending.cs`・`LocomotionStateMachine.cs`・`TwoBoneIk.cs`・`FootIk.cs`・`FirstPersonRig.cs`)、`Runtime/Character/`(`LocomotionObserver.cs`・`FootIkSystems.cs`・`Respawn.cs`・`PlayerCamera.cs`・`CharacterMotor.cs`)、`Runtime/Windows/`(`FirstPersonView.cs`・`RenderRoster.cs`・`RuntimeSystems.cs`)、`StageRenderer.SetObjectVisibility`
 - Observed behavior:
   - 動きの入力(`LocomotionObserver.Observe`): `Speed` は水平速度の長さ。`Direction`(度、−180〜180)は水平速度と体の前向きの符号つきの角度で、前を向いたときの +R 側が正(右のクリップが進む側)。`FaceMovement` なら ±45° に制限する。`ShouldMove` は `Speed > 0.0001 m/s` かつ `MoveIntent.Direction` が 0 でないとき。`Falling` は移動の状態、`VerticalSpeed` は上向きの速度(m/s)。
   - 状態機械(`LocomotionStateMachine`): Locomotion(入れ子の Idle / Move)、Jump、Fall Loop、Land。落下を始めると、`VerticalSpeed > 1` なら Jump(0.15 s)、でなければ Fall Loop(0.4 s)。Jump はクリップの残りが 0.3 s で Fall Loop(0.3 s)。落下が終わると Land(0.1 s)。Land は残り 0.4 s で Locomotion(0.4 s)、`ShouldMove` なら Locomotion(0.5 s)。Idle → Move は 0.2 s、Move → Idle は 0.3 s。すべて Cubic(3t² − 2t³)で、遷移の途中の別の遷移は画面にあったポーズから始める。
@@ -502,7 +502,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0108 — 入力の拡張
 
 - Confidence: High(単体テスト、生成されたコードの文字列、WARP の実走、SDK パッケージから作ったゲームの実行で確認)。実機のゲームパッド・マウスは未確認(自動実行は実機の入力を読まない)。UE の `ElapsedSeconds` との 1 フレームの差は推測(UE のソースは読んでいない)
-- Evidence: `Core/InputActionDeclarations.cs`、`Windows/Input/InputServer.cs`、`Windows/Platform/Win32InputEventAdapter.cs`・`Win32Window.cs`、`CodeAnalysis/InputActionsEmitter.cs`、`Runtime.Windows/RuntimeAutomation.cs`、`Templates/TopDown/Gameplay/ClickToMove.cs`、`Templates/Vehicle/Gameplay/`
+- Evidence: `Core/InputActionDeclarations.cs`、`Windows/Input/InputServer.cs`、`Windows/Platform/Win32InputEventAdapter.cs`・`Win32Window.cs`、`CodeAnalysis/InputActionsEmitter.cs`、`Runtime/Windows/RuntimeAutomation.cs`、`Templates/TopDown/Gameplay/ClickToMove.cs`、`Templates/Vehicle/Gameplay/`
 - Observed behavior:
   - `Axis`(`Value` は -1〜1): `[Keys]` の各キーが +1、`[NegativeKeys]` の各キーが -1、トリガーは 0〜1、スティックの片方の軸(`Gamepad_LeftX/LeftY/RightX/RightY` の 1D の制御。Y は上が正)は -1〜1、ボタンは押している間 +1。割り当ての合計を `Axis.FromSum` が -1〜1 に丸め、NaN と無限大は 0。`[Gamepad]` の値は不感帯(既定: スティック 0.2、トリガー 0.1。以下は 0、それより上は残りの幅へ引き伸ばす)、倍率、反転の順に整える。ボタンには書けず、不感帯が 0 以上 1 未満でない・倍率が有限で 0 より大きくないものは INPUT005。
   - `Button.HeldSeconds`: `InputServer.TrackHold` が操作ごとの時計を持つ。押したフレームは 0、押している間は各フレームの経過時間(`Read` に渡す値は 0.1 秒で頭打ち)を足した値、離したフレームはそれまでの合計(そのフレームの経過時間を含む)、それ以外は 0。同じフレームで押して離すと 0、離したフレームに押し直すと離した値を返して新しい時計を 0 から始める。同じ `FrameNumber`(`ProcessEvents` の回数)の読み直しは進まない。負・NaN・無限大の経過時間は 0。`ReleasedBefore(秒)` は離したフレームで `HeldSeconds < 秒`(ちょうど同じ長さは偽)。
@@ -515,7 +515,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0109 — Chaos 相当の車両と物理の命令
 
 - Confidence: High(単体テスト `ChaosVehicleTests` 25 件と `PhysicsForceCommandTests` 9 件、`LogicalMathAtan2Tests`、WARP の実走と画像で確認)。UE の Chaos との数値の一致は Medium(式は UE 5.7 のソースを移したが、UE を同じ入力で走らせて比べてはいない)。実機の入力と運転感覚は Low(自動実行の入力のみ)。
-- Evidence: `plugins/Vehicles/Runtime/`(`VehicleSetup.cs`・`VehicleChaos.cs`・`VehicleComponents.cs`・`VehicleMotor.cs`・`VehicleSystems.cs`)、`Runtime.Physics/PhysicsContracts.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsNarrowPhase.cs`・`PhysicsComponents.cs`・`StaticMeshCollision.cs`、`Runtime.Windows/FirstPersonView.cs`(`MeshEmissive`)・`RuntimeSystems.cs`・`RenderRoster.cs`、`Windows/Graphics/StageRenderer.cs`、`Numerics/LogicalMath.cs`、テンプレートの `Gameplay/` と `Scenes/SportsCar.json`
+- Evidence: `plugins/Vehicles/Runtime/`(`VehicleSetup.cs`・`VehicleChaos.cs`・`VehicleComponents.cs`・`VehicleMotor.cs`・`VehicleSystems.cs`)、`Runtime/Physics/PhysicsContracts.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsNarrowPhase.cs`・`PhysicsComponents.cs`・`StaticMeshCollision.cs`、`Runtime/Windows/FirstPersonView.cs`(`MeshEmissive`)・`RuntimeSystems.cs`・`RenderRoster.cs`、`Windows/Graphics/StageRenderer.cs`、`Numerics/LogicalMath.cs`、テンプレートの `Gameplay/` と `Scenes/SportsCar.json`
 - Observed behavior:
   - 物理の命令はそのtickの最初に(tick、送り手、番号)の順で適用される。`ForceAtPoint` は線速度に F/m·Δt、角速度に I⁻¹(r × F)·Δt を足す(r は点 − 物体の位置)。`Torque` は角速度だけ、`SetVelocity` は両方を置き換えて起こし、`Sleep` は速度を 0 にして眠らせる(同じ tick の眠りの更新が `Sleep` イベントを出す)。`LinearDamping`・`AngularDamping` は重力の後に速度へ max(0, 1 − 減衰·Δt) を掛ける。
   - 箱と三角形メッシュの接触: 触れた三角形の面より下で面への射影が三角形の中にある箱の角を、面の向き(箱の中心の側)ごとに集め、一番深い角の面に近い面の角から最大 4 点。角が入らなければ GJK/EPA の 1 点。
@@ -533,7 +533,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0110 — Lumen 相当の土台(ミップ、雲、空の球、メッシュの距離場、グローバル距離場)
 
 - Confidence: High(単体テストと WARP の GPU 試験、テンプレートの実走と画像で確認)。UE の雲との見た目の一致は Medium(参照画像を目で比べた。形はエンジンのノイズ)。実機の GPU は Low(未確認)。
-- Evidence: `src/Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`src/Rendering/EnvironmentLighting.cs`、`src/Rendering/Server/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/Runtime.Lighting/EnvironmentComponents.cs`、`src/Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/ShaderGraph.Cli/Program.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
+- Evidence: `src/Rendering/RenderTextureMipChain.cs`・`MeshDistanceField.cs`、`src/Windows/Graphics/StageRenderer.cs`・`StageAtmosphere.cs`・`StageGlobalDistanceField.cs`・`src/Rendering/EnvironmentLighting.cs`、`src/Rendering/Server/RenderServer.cs`、`assets/Shaders/Atmosphere.hlsl`・`GlobalDistanceField.hlsl`、`src/Runtime/Lighting/EnvironmentComponents.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`・`StageSceneDataBuilder.cs`・`RuntimeAutomation.cs`、`tools/ShaderGraph.Cli/Program.cs`、`build/CSharpGameEngine.ShaderGraph.targets`・`Game.props`
 - Observed behavior:
   - 材質テクスチャ: 4 つの欄のテクスチャは、(内容のハッシュ、色空間)ごとに 1 つ常駐する。基本色と発光は sRGB、法線と金属・粗さは線形。段の数は floor(log2(max(幅, 高さ))) + 1、各段は前の段の半分(切り捨て、最小 1)で、目標の画素は覆う元の画素の重なりの長さを重みにした整数の平均(半分は切り上げ)。sRGB の RGB は定数の表で 16 ビットの線形へ戻して平均し、最も近い 8 ビットのコードへ(同点は上)。段から段へは 16 ビット。s0 は異方性 8・wrap、全段を見る。画面レイヤーのテクスチャは 1 段。
   - 雲: `VolumetricCloud` があり大気があるフレームで、最初(または雲・大気・太陽が変わったとき)にパノラマ(WARP 1024 × 256)の全画素を、以降は 4 × 4 の区画の Bayer の順の 1 画素ずつを描く。各画素は、その方向の視線が雲の殻(半径 R + 5 km から R + 15 km)に入る点から最大 50 km を 24 サンプル(画素ごとに固定の乱数のずれ)で積分し、透過率が 0.005 を下回ったら止める。空の合成は、遠平面の画素(と空の球の外の画素)の空と太陽の円盤の輝度に、パノラマの「残る割合」を掛け、雲の輝度を足し、そのあと高さの霧と露出をかける。空の光の SH は、雲があるとき雲を含み、一巡ごとに作り直す。雲の時間はフレームの経過時間の和(自動実行では 8/60 秒ずつ)、風は 10 m/s で +F から 45°。
@@ -546,7 +546,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0111 — Lumen 相当の動的 GI と反射
 
 - Confidence: High(WARP の GPU 試験 9 件と単体試験、テンプレートの実走で確認)。UE の Lumen との見た目の一致は Medium(参照画像を目で比べた)。実機の GPU と Epic 段は Low(未確認、WARP では不安定)。
-- Evidence: `assets/Shaders/Lumen.hlsl`、`src/Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`src/Rendering/EnvironmentLighting.cs`、`src/Runtime.Windows/EnvironmentCollection.cs`・`EngineHost.cs`
+- Evidence: `assets/Shaders/Lumen.hlsl`、`src/Windows/Graphics/StageLumen.cs`・`LumenSurfaceCacheLayout.cs`・`StageRenderer.Lumen.cs`・`src/Rendering/EnvironmentLighting.cs`、`src/Runtime/Windows/EnvironmentCollection.cs`・`EngineHost.cs`
 - Observed behavior:
   - 有効になる条件: `RenderScalability.GlobalIllumination` が High 以上、`EnvironmentLightingSettings.Lumen` があり(`PostProcessVolume.GlobalIlluminationMethod` が Lumen で値が範囲内)、グローバル距離場がある。どれかが欠けたフレームは DDGI と空の光のフレーム(M0110 と同じ)で、Lumen の履歴は捨てる。反射は、さらに `Reflections` が High 以上で `ReflectionMethod` が Lumen のとき。
   - 段: 実機 High・WARP Medium が既定。`CGE_SCALABILITY_GI`・`CGE_SCALABILITY_REFLECTIONS` が low/medium/high/epic か 0〜3 で置き換え、反射を省くと GI に従う。不正な値は起動時に `InvalidOperationException`。
@@ -559,7 +559,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0112 — Vehicle のレベルの地面と、テンプレートの仕上げ
 
 - Confidence: High(単体試験 `VehicleLevelTests`・`CharacterMotorTests`・`TemplateLightingSceneTests`・`TemplateCharacterSceneTests` と、WARP の実走で確認)。UE の見た目との一致は Medium(参照画像を目と領域の平均輝度で比べた。陰の明るさは差が残る)。実機の GPU は Low(未確認)。
-- Evidence: `Templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/*.glb`・`Scenes/Lvl_VehicleBasic.json`、`tools/UnrealExport/build_vehicle_ground.py`、`src/Runtime.Character/CharacterComponents.cs`(`MoveIntent.Steer`)、`src/Runtime.Physics/PhysicsNarrowPhase.cs`(`TryBoxMeshManifold`)
+- Evidence: `Templates/Vehicle/Assets/Stage/Lvl_VehicleBasic/Meshes/*.glb`・`Scenes/Lvl_VehicleBasic.json`、`tools/UnrealExport/build_vehicle_ground.py`、`src/Runtime/Character/CharacterComponents.cs`(`MoveIntent.Steer`)、`src/Runtime/Physics/PhysicsNarrowPhase.cs`(`TryBoxMeshManifold`)
 - Observed behavior:
   - Vehicle のレベルの地面は 3 つの `StaticMesh`: `Landscape`(三角形メッシュ。`StaticMeshCollider`、摩擦 1・反発 0.4)、`Track`(曲げた路面。`StaticMeshCollider`、摩擦 1・反発 0)、`TrackCurbs`(縁石。M0112 では衝突なし、M0124 から `StaticMeshCollider` 摩擦 1・反発 0)。原点に単位の Transform で置く。メッシュの頂点は UE のエクスポーターの glTF 空間((X, Z, Y) m)で、インポーターが R = X、U = Z、F = −Y に写す。
   - 地形の高さは 127 × 127 点の 1 m 格子(UE の衝突のライン トレース)。各格子を (x, y)-(x+1, y+1) の対角線で 2 枚の三角形に分け、7 m 四方がすべて高さ 0 なら 2 枚の三角形にまとめる(5,959 頂点・11,496 三角形)。法線は高さの中心差分。UV は真上からの撮影の範囲(画像の右が UE の +Y、上が +X)。
@@ -572,7 +572,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 ## RE-M0113 — Chaos 相当の破壊(Destruction プラグイン)
 
 - Confidence: High(単体試験 `FractureSolverTests`・`DestructionTests`・`FragmentContactTests`・`PhysicsCacheBondBreakTests`・`PrefractureCookerTests`・`FractureCookerTests`・`PrefractureDebugServiceTests` と、WARP の実走 `verify-destruction`)。VS の実機のプレビューの操作は Low(未実行。net472 の単体試験だけ)。
-- Evidence: `src/Runtime.Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`、`plugins/Destruction/`、`src/Runtime.Windows/FragmentMesh.cs`、`tools/VSExtension/PrefractureDebugService.cs`、`samples/Samples.Destruction/`、`.artifacts/feature-evidence/destruction.sample/warp/`。
+- Evidence: `src/Runtime/Physics/FractureSolver.cs`・`PrefractureCooking.cs`・`PhysicsNarrowPhase.cs`・`DeterministicPhysicsWorld.cs`・`PhysicsCache.cs`、`plugins/Destruction/`、`src/Runtime/Windows/FragmentMesh.cs`、`tools/VSExtension/PrefractureDebugService.cs`、`samples/Samples.Destruction/`、`.artifacts/feature-evidence/destruction.sample/warp/`。
 - Observed behavior:
   - 調理: 箱か閉じた凸のメッシュを、シードとソースの指紋から決まるボロノイのサイトで切る。同じ設定は同じバイト列(`.cgefracture` 版 2)。破片は閉じて外向きで、三角形ごとに外側(0)か断面(1)。結合は共有面の面積(両側の差 0.1% 以内、1 mm² 以下は捨てる)× 面積あたりの強さ。クラスターは 1 段でつながっている。開いた・凹んだ・退化したメッシュと破片数 2〜256 以外は FRACTURE001〜007、ビルドでは DST001〜011。
   - 実行時: ひずみ(力積 N·s)は 1 tick で集め、ひずみ ≥ 強さの結合を番号順に切り(等号で切れる)、残りのひずみは捨てる。力積は当たった破片の結合に全部、1 環ごとに `DamagePropagation` 倍(最大 4 環)。同じクラスターの中は `ClusterStrengthScale` 倍強い。つながりが切れた塊は新しい物体(1 破片は凸多面体、複数は複合形状)になり、割れる前の物体のその点の速度を引き継ぐ。最下面のアンカーを含む塊は静的。動く塊は `FragmentBudget` を超えると古い順に、`FragmentLifetime` を過ぎると除かれる。
@@ -657,7 +657,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
 - Limit: native planners, compatibility initialization and frame ordering/state remain; current submission port is not yet the final frame-plan executor. Four paths and physics milestones remain incomplete. The older full22/3570 SDK0.1.32 measurement is historical provenance.
 
 ## RE-M0124 — メッシュ接触の複数の面の向き、縁石の衝突、破壊の内部ひずみと多段クラスター
-- Evidence: `src/Runtime.Physics/PhysicsNarrowPhase.cs`(`TryCreateContacts`・`TryPolytopeMeshContacts`・`TryCompoundContacts`・`SpreadPoints`)、`DeterministicPhysicsWorld.cs`(`AddContact`、`CachedPoint.Normal`、`BondStrains`)、`FractureSolver.cs`、`PhysicsCooking.cs`、`PrefractureCooking.cs`、`PhysicsCache.cs`、`plugins/Destruction/Runtime/Destruction.cs`・`DestructionSystems.cs`、`Templates/Vehicle/Scenes/Lvl_VehicleBasic.json`
+- Evidence: `src/Runtime/Physics/PhysicsNarrowPhase.cs`(`TryCreateContacts`・`TryPolytopeMeshContacts`・`TryCompoundContacts`・`SpreadPoints`)、`DeterministicPhysicsWorld.cs`(`AddContact`、`CachedPoint.Normal`、`BondStrains`)、`FractureSolver.cs`、`PhysicsCooking.cs`、`PrefractureCooking.cs`、`PhysicsCache.cs`、`plugins/Destruction/Runtime/Destruction.cs`・`DestructionSystems.cs`、`Templates/Vehicle/Scenes/Lvl_VehicleBasic.json`
 - Observed behavior:
   - 箱・凸多面体とメッシュの接触は、三角形ごとに「角が面の下に入る深さ」と「三角形が形の面から入る深さ(稜線)」の小さいほうを採る。形の面とほぼ平行(内積 0.95 以上)な三角形は角だけ。形の面で離れている三角形と、角から面の法線の向きに進んだ点が形の外に出る三角形からは、入った角を採らない。点は法線の向き(内積 0.95)ごとに深い順で最大 3 つのパッチ、各 4 点(箱は深い 4 点を角の順、凸多面体は入った点を先に広がりで)、前のパッチの点から 1 mm 以内は除く。複合形状は子の接触をメッシュの相手なら同じ規則で向きごとにまとめ、凸の相手なら 1 つの向き。
   - ワールドは 1 組の接触にパッチを並べ、点ごとに法線を持ち、warm start はパッチの特徴と法線(約 18°)が合うものから点を順に引き継ぐ。イベントは 1 組に 1 つ。1 つの向きの接触は M0109 と同じ値。

@@ -38,7 +38,7 @@
 4. **`Entities` はゲームの組み立てにソースのまま取り込まれる。** 静的な ECS を作るため、生成器が同じコンパイルの中で見る必要がある(`Game.props`)。DLL にも入れると型がぶつかる。
 5. **画面の装置を直接操作する部品(`Windows`)は `net10.0-windows` 専用。**
 6. **素材を取り込む部品(`Import`)と作る部品(`Cooking`)は、制作のときだけ使う。** 配布物に入れない決まり(M0128 で確かめた)なので、ゲームが読む実行時の部品とは分ける。
-7. **実行時の共有プロジェクト 6 個(`Runtime.*`)は、どれもゲームの組み立てにまとめて取り込まれる。** 分けておく理由は無い。
+7. **実行時の共有プロジェクト 6 個(`Runtime.*`)は、どれもゲームの組み立てにまとめて取り込まれる。** 分けておく理由は無い。ただし `Runtime.Simulation` だけは、確かめ用の場面(`stages`)、`Entities` の試験、速さの計測からも単独で取り込まれている(2 段目の準備で見つけた)。
 
 試験が分かれている理由のうち、変えられないもの: 対象の環境が 3 種類ある(`net10.0`、`net10.0-windows`、`net472`)。1 つの試験プロジェクトは 1 種類しか持てない(複数指定すると全試験が各環境で動き、Windows 専用のものが動かない)。
 
@@ -109,6 +109,9 @@
 
 1. 途中の変更(`Audio`→`Core`、`ShaderArtifacts`→`Contracts`)を仕上げて保存する。
 2. 共有プロジェクト `Runtime.*` 6 個を 1 個にまとめる。`World` を `Numerics` へまとめる。
+   - ファイルは `src/Runtime/<部品>/` に移し、名前空間は変えない。一覧は `src/Runtime/Runtime.projitems` 1 つ。
+   - 一覧の中を 2 組に分ける。Simulation の 2 ファイルは常に入る。残りは、プロジェクトが `CgeRuntimeSimulationOnly` を `true` にしたときだけ入らない。Simulation だけを使う 3 か所はこれを `true` にする。Visual Studio には全部が見える(条件の値が空で読まれるため)。
+   - `World` のファイルは `src/Numerics/World/` に移す。`Numerics` は `Content` を参照するようになる(`Content` は `Contracts` だけを参照するので、輪にならない)。SDK が精度ごとに作り直す部品も `Numerics` 1 つになる。
 3. `netstandard2.0` の部品(`SceneModel`、`ShaderGraph`)を `Contracts` へまとめる。
 4. `Content`・`Rendering` を `Core` へまとめ、名前を `Engine` にする。層の試験をフォルダーと名前空間で見る形に直す。
 5. `Cooking`・`Import` を `Authoring` にまとめる。配布物に制作専用の部品が入らないことを確かめる。

@@ -6,7 +6,7 @@
   </PropertyGroup>
   <Target Name="CgeBuildSdkNumericProfile" BeforeTargets="_CgeRunNavigationCook;_CgeRunDestructionCook" Condition="'$(_CgeNumericVariant)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <ItemGroup>
-      <_CgeSdkProfileName Include="Numerics;World" />
+      <_CgeSdkProfileName Include="Numerics" />
       <_CgeSdkProfileName Include="Navigation.Cook" Condition="'$(CgeNavigationCookModule)' != ''" />
       <_CgeSdkProfileName Include="Destruction.Cook" Condition="'$(CgeDestructionCookModule)' != ''" />
       <_CgeSdkProfileProject Include="@(_CgeSdkProfileName->'$(CgeSdkProfileDirectory)%(Identity)\%(Identity).csproj')" />
@@ -28,17 +28,15 @@
   </Target>
   <Target Name="CgeResolveSdkNumericProfile" BeforeTargets="ResolveAssemblyReferences" DependsOnTargets="CgeBuildSdkNumericProfile" Condition="'$(_CgeNumericVariant)' == 'true'">
     <ItemGroup Condition="'$(DesignTimeBuild)' == 'true'">
-      <_CgeSdkProfileAssembly Include="$(CgeSdkProfileDirectory)Numerics\bin\$(Configuration)\$(CgeNumericProfileId)\net10.0\Numerics.dll;$(CgeSdkProfileDirectory)World\bin\$(Configuration)\$(CgeNumericProfileId)\net10.0\World.dll" />
+      <_CgeSdkProfileAssembly Include="$(CgeSdkProfileDirectory)Numerics\bin\$(Configuration)\$(CgeNumericProfileId)\net10.0\Numerics.dll" />
     </ItemGroup>
     <ItemGroup>
       <_CgeSdkNumerics Include="@(_CgeSdkProfileAssembly)" Condition="'%(Filename)' == 'Numerics'" />
-      <_CgeSdkWorld Include="@(_CgeSdkProfileAssembly)" Condition="'%(Filename)' == 'World'" />
-      <Reference Remove="@(Reference)" Condition="'%(Reference.Identity)' == 'Numerics' or '%(Reference.Identity)' == 'World' or '%(Reference.Filename)' == 'Numerics' or '%(Reference.Filename)' == 'World'" />
+      <Reference Remove="@(Reference)" Condition="'%(Reference.Identity)' == 'Numerics' or '%(Reference.Filename)' == 'Numerics'" />
       <Reference Include="Numerics" HintPath="@(_CgeSdkNumerics)" Private="true" />
-      <Reference Include="World" HintPath="@(_CgeSdkWorld)" Private="true" />
-      <RuntimeCopyLocalItems Remove="@(RuntimeCopyLocalItems)" Condition="'%(RuntimeCopyLocalItems.Filename)' == 'Numerics' or '%(RuntimeCopyLocalItems.Filename)' == 'World'" />
+      <RuntimeCopyLocalItems Remove="@(RuntimeCopyLocalItems)" Condition="'%(RuntimeCopyLocalItems.Filename)' == 'Numerics'" />
     </ItemGroup>
-    <Error Condition="'@(_CgeSdkNumerics)' == '' or '@(_CgeSdkWorld)' == ''" Text="Selected numeric-profile libraries were not produced; default numeric DLLs cannot be substituted." />
-    <Error Condition="!Exists('@(_CgeSdkNumerics)') or !Exists('@(_CgeSdkWorld)')" Text="Selected numeric-profile libraries are unavailable. Build the game once after changing its numeric settings; the editor cannot substitute the default numeric DLLs." />
+    <Error Condition="'@(_CgeSdkNumerics)' == ''" Text="Selected numeric-profile libraries were not produced; default numeric DLLs cannot be substituted." />
+    <Error Condition="!Exists('@(_CgeSdkNumerics)')" Text="Selected numeric-profile libraries are unavailable. Build the game once after changing its numeric settings; the editor cannot substitute the default numeric DLLs." />
   </Target>
 </Project>

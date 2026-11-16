@@ -163,7 +163,7 @@ internal struct HotSystem:ISystem {
 }
 
 internal static class BenchmarkWorldFactory {
-    public static Entity Create(World World,int InitialValue){
+    public static Entity Create(Entities.World World,int InitialValue){
 #if ECS_COMPONENT_COUNT_1
         return World.Create(new C0 { Value=InitialValue });
 #elif ECS_COMPONENT_COUNT_64
@@ -175,7 +175,7 @@ internal static class BenchmarkWorldFactory {
 #endif
     }
 
-    public static int ReadHot(World World,Entity Entity){
+    public static int ReadHot(Entities.World World,Entity Entity){
 #if ECS_COMPONENT_COUNT_1
         return World.TryGetComponent(Entity,out C0 Value)?Value.Value:int.MinValue;
 #elif ECS_COMPONENT_COUNT_64
