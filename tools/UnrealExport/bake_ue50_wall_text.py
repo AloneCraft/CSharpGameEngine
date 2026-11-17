@@ -63,7 +63,7 @@ def bake(font_path, output_path):
     tint = 109 / 255
     model = {
         'asset': {'version': '2.0', 'generator': 'CGE UE 5.0 wall label bake'},
-        'scene': 0, 'scenes': [{'nodes': [0]}], 'nodes': [{'mesh': 0}],
+        'scene': 0, 'scenes': [{'nodes': [0]}], 'nodes': [{'name': text, 'mesh': 0}],
         'meshes': [{'name': text, 'primitives': [{'attributes': {'POSITION': position, 'NORMAL': normal},
                     'indices': index, 'material': 0}]}],
         'materials': [{'name': 'Wall lettering', 'pbrMetallicRoughness': {

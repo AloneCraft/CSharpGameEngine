@@ -16,7 +16,11 @@ internal sealed class ModelArtifactTestContent:IDisposable {
         while(Repository is not null&&!File.Exists(Path.Combine(Repository.FullName,"CSharpGameEngine.slnx"))){ Repository=Repository.Parent; }
         if(Repository is null){ throw new InvalidOperationException("Repository root was not found."); }
         var RepositoryPrefix=Repository.FullName.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar)+Path.DirectorySeparatorChar;
-        var Project=ProjectRoot is not null?Path.GetFullPath(ProjectRoot):Selected.All(Value=>Value.StartsWith(RepositoryPrefix,StringComparison.OrdinalIgnoreCase))?Repository.FullName:Path.GetDirectoryName(Selected[0])!;
+        // Like a game build: the source URIs are relative to the project that holds the models, which is what their .meta files name.
+        var Owner=Selected.Length==0?null:OwningProject(Selected[0],Repository.FullName);
+        var Project=ProjectRoot is not null?Path.GetFullPath(ProjectRoot)
+            :Owner is not null&&Selected.All(Value=>Value.StartsWith(Owner+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))?Owner
+            :Selected.All(Value=>Value.StartsWith(RepositoryPrefix,StringComparison.OrdinalIgnoreCase))?Repository.FullName:Path.GetDirectoryName(Selected[0])!;
         this.ProjectDirectory=Project;
 #if DEBUG
         const string Configuration="Debug";
@@ -32,6 +36,13 @@ internal sealed class ModelArtifactTestContent:IDisposable {
                 this.Sources.Add(PathValue,new(){SourcePath=PathValue,ContentDirectory=this.Root,SourceUri=Uri,ModelHash=Reference.ContentHash.ToString()});
             }
         }catch{ this.Dispose();throw; }
+    }
+    /// <summary>The nearest folder above <paramref name="PathValue"/> with a project file, below the repository root; null when there is none.</summary>
+    private static string?OwningProject(string PathValue,string Repository){
+        for(var Directory=new DirectoryInfo(Path.GetDirectoryName(PathValue)!);Directory is not null&&Directory.FullName.Length>Repository.TrimEnd(Path.DirectorySeparatorChar).Length;Directory=Directory.Parent){
+            if(Directory.EnumerateFiles("*.csproj").Any()){ return Directory.FullName; }
+        }
+        return null;
     }
     internal RenderPreviewModelSource Source(string PathValue)=>this.Sources[Path.GetFullPath(PathValue)];
     internal void Prepare(RenderPreviewScene Scene){

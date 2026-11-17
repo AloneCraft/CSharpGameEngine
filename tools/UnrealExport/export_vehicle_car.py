@@ -11,6 +11,7 @@ import unreal
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from unreal_export_common import gltf_options, log, log_error, log_warning  # noqa: E402 - UE runs this file as a script
+from name_gltf_nodes import name_glb  # noqa: E402
 
 MESHES = (
     "/Game/Vehicles/SportsCar/SM_SportsCar",
@@ -34,6 +35,8 @@ def main() -> None:
             log_error(str(error))
         if len(messages.errors) > 0:
             raise RuntimeError(f"GLTFExporter reported {len(messages.errors)} error(s) for '{path}'")
+        for change in name_glb(target):
+            log(f"named {change}")
         log(f"Exported {target}")
 
 

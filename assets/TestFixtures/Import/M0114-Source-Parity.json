@@ -405,7 +405,7 @@
     },
     {
       "Path": "templates/FirstPerson/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",
-      "SourceHash": "738bcb7b740df0b51697cba6f00322de2bc2b92c40e89bcfba048217ce089407",
+      "SourceHash": "53a542a661aca041a6d3d2f5718fdcccb37633608f019b9c27b61f8931635fe5",
       "Meshes": [
         {
           "VertexCount": 20101,
@@ -474,7 +474,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "SKM_Manny_Simple",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -529,7 +529,7 @@
           "SkinIndex": 0
         },
         {
-          "Name": "",
+          "Name": "SKM_Manny_Simple",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -1835,7 +1835,7 @@
     },
     {
       "Path": "templates/ThirdPerson/Assets/Characters/Mannequins/SKM_Quinn_Simple.glb",
-      "SourceHash": "e7c2e77a09d5ec2c234267afb874574e4f7ab3b1e3f8867b0d3994da38d94558",
+      "SourceHash": "4c07162f7fb2896bd2870ebda5173273d59e9ca3e1cedc973117a63fc9e626e7",
       "Meshes": [
         {
           "VertexCount": 18640,
@@ -1904,7 +1904,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "SKM_Quinn_Simple",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -1959,7 +1959,7 @@
           "SkinIndex": 0
         },
         {
-          "Name": "",
+          "Name": "SKM_Quinn_Simple",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -2123,7 +2123,7 @@
     },
     {
       "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Cube_aa1b9ba22d.glb",
-      "SourceHash": "917b518323bc7857a735b8aa1852b962f7768d0f3c585272b02ca162cf4eb400",
+      "SourceHash": "1e7871432b1580a1423f1c264d09bbd011eef91191291da3ad5c9e0de063977d",
       "Meshes": [
         {
           "VertexCount": 24,
@@ -2447,7 +2447,7 @@
     },
     {
       "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_QuarterCylinder_431a6eca8d.glb",
-      "SourceHash": "b9fac4ae01474c51d05ad54d47729d873add491cf9e847593fd17882eb2d9d18",
+      "SourceHash": "18546f6dd9f697235660b85c3a0d212d115850a226e171d48b87a926d1609844",
       "Meshes": [
         {
           "VertexCount": 46,
@@ -2659,7 +2659,7 @@
     },
     {
       "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/SM_Ramp_87f3deca16.glb",
-      "SourceHash": "614a9baff8c7dbf50a0d6dde2c1a9e55ed58aa81fadf39b3ca23df8a2e197bf3",
+      "SourceHash": "95d33004d3c88a7850938a15b3579ea400cafb87a81e0ecad9baa4eda148d035",
       "Meshes": [
         {
           "VertexCount": 18,
@@ -2871,7 +2871,7 @@
     },
     {
       "Path": "templates/ThirdPerson/Assets/Stage/LegacyThirdPerson/Meshes/ThirdPersonWallText.glb",
-      "SourceHash": "c46b8fc5c90ec52bf594136058c1556e03b9a73957dbbaddcf708a10a28ae66a",
+      "SourceHash": "aaa4d47d990a91ab4981eee08462d9475d2e124e0072a3f9bed45397bad12151",
       "Meshes": [
         {
           "VertexCount": 1472,
@@ -2909,7 +2909,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "Third Person Template",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -4209,7 +4209,7 @@
     },
     {
       "Path": "templates/TopDown/Assets/Characters/Mannequins/SKM_Manny_Simple.glb",
-      "SourceHash": "738bcb7b740df0b51697cba6f00322de2bc2b92c40e89bcfba048217ce089407",
+      "SourceHash": "53a542a661aca041a6d3d2f5718fdcccb37633608f019b9c27b61f8931635fe5",
       "Meshes": [
         {
           "VertexCount": 20101,
@@ -4278,7 +4278,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "SKM_Manny_Simple",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -4333,7 +4333,7 @@
           "SkinIndex": 0
         },
         {
-          "Name": "",
+          "Name": "SKM_Manny_Simple",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -5925,7 +5925,7 @@
     },
     {
       "Path": "templates/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar.glb",
-      "SourceHash": "1e6d4310f22e49d3538c3bcbbd66f383e43537e6e9f12b6d19e7fd2639b9e439",
+      "SourceHash": "20baf3fbca1eca8ae1f40ce05c1f0521c660c82e9ddb127f47e76909252834ed",
       "Meshes": [
         {
           "VertexCount": 4987,
@@ -5994,7 +5994,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "SM_SportsCar",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -6049,7 +6049,7 @@
           "SkinIndex": null
         },
         {
-          "Name": "",
+          "Name": "SM_SportsCar",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -6109,7 +6109,7 @@
     },
     {
       "Path": "templates/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar_Glass.glb",
-      "SourceHash": "7f2e5384813e281f8ac747baa0871fb2d643d58c8d15562b51e3978e0803c683",
+      "SourceHash": "86a64025df3e71453690099c57bc4406bc677d39393ff07e44bbc7415db362c9",
       "Meshes": [
         {
           "VertexCount": 531,
@@ -6147,7 +6147,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "SM_SportsCar_Glass",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -6207,7 +6207,7 @@
     },
     {
       "Path": "templates/Vehicle/Assets/Vehicles/SportsCar/SM_SportsCar_Wheel.glb",
-      "SourceHash": "5ab6f2128ed29c8bb1d244fe4711bcae2ef0cb14098eadc41b98290486353474",
+      "SourceHash": "a2159c730280caff129b7d35863a2e41675b1412dec4a27af880aa7783d211cc",
       "Meshes": [
         {
           "VertexCount": 1042,
@@ -6276,7 +6276,7 @@
       ],
       "Nodes": [
         {
-          "Name": "",
+          "Name": "SM_SportsCar_Wheel",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {
@@ -6331,7 +6331,7 @@
           "SkinIndex": null
         },
         {
-          "Name": "",
+          "Name": "SM_SportsCar_Wheel",
           "WorldTransform": {
             "IsIdentity": true,
             "Translation": {

@@ -603,7 +603,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - M0098: `materials[].extras.CGE_world_grid` is read into `ImportedPbrMaterial.WorldGrid` (invalid values are reported and dropped), and a texture bound to a UV set other than TEXCOORD_0 is reported and left out instead of being sampled through TEXCOORD_0 (the engine has one UV set per vertex). GltfWorldGridImportTests.
 
-- M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; a differing channel is reported; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests.
+- M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests. Since 2026-11-17 the model content path (`cge.gltf`) keeps a differing channel's mapping relative to UV0 and resource preparation resamples that texture (`TextureMappingBake`); only a mapping that cannot be expressed that way (rotation in UV0's, or a rotated or mirrored normal map) is reported as IMP141. TextureMappingBakeTests.
 
 - M0088: ImportedLight is color-only with directional lux and point/spot cd variants, nullable range and lossless half-radian cones. GltfImporterSceneTests and UnrealLightSceneEmitterTests verify typed output; zero-inner imported cones need explicit authored resolution.
 

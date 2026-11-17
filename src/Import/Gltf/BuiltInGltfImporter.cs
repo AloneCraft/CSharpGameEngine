@@ -42,7 +42,7 @@ public sealed partial class BuiltInGltfImporter:IAssetImporter {
                 var Normals=Primitive.GetVertexAccessor("NORMAL")?.AsVector3Array().ToImmutableArray()??[];
                 var Tangents=Primitive.GetVertexAccessor("TANGENT")?.AsVector4Array().ToImmutableArray()??[];
                 var Uv=Primitive.GetVertexAccessor("TEXCOORD_0")?.AsVector2Array().ToImmutableArray()??[];
-                if(ReadUvTransform(Primitive.Material,Context,Request.SourceUri) is{}Transform){
+                if(UvTransformOf(Primitive.Material) is{}Transform){
                     Uv=[..Uv.Select(Transform.Apply)];
                     if(!Transform.PreservesTangentFrame){ Tangents=[]; }
                 }
@@ -87,17 +87,36 @@ public sealed partial class BuiltInGltfImporter:IAssetImporter {
             Textures=[..Model.LogicalTextures.Select(static Texture=>new InterchangeTexture(Texture.Name??string.Empty,Texture.PrimaryImage.LogicalIndex,new(10497,10497,9987,9729)))]
         }));
     }
-    private static GltfUvTransform?ReadUvTransform(Material?Material,IImportContext Context,string Source){
+    /// <summary>The channels the runtime material samples (occlusion comes from the metallic-roughness texture).</summary>
+    private static readonly string[]MappedChannels=["BaseColor","Normal","MetallicRoughness","Emissive"];
+    private static GltfUvTransform?TransformOf(MaterialChannel Channel)=>Channel.TextureTransform is{}Value?new(Value.Offset,Value.Scale,Value.Rotation):null;
+    /// <summary>
+    /// The KHR_texture_transform baked into UV0: the first mapped channel's. The other channels keep the rest of their own mapping as
+    /// <see cref="RelativeTransform"/>, which resource preparation bakes into their pixels.
+    /// </summary>
+    private static GltfUvTransform?UvTransformOf(Material?Material){
         if(Material is null){ return null; }
-        MaterialChannel[]Channels=[..new[]{"BaseColor","Normal","MetallicRoughness","Emissive","Occlusion"}.Select(Material.FindChannel)
-            .Where(static Channel=>Channel?.Texture is not null&&Channel.Value.TextureCoordinate==0).Select(static Channel=>Channel!.Value)];
-        if(Channels.Length==0){ return null; }
-        static GltfUvTransform?Transform(MaterialChannel Channel)=>Channel.TextureTransform is{}Value?new(Value.Offset,Value.Scale,Value.Rotation):null;
-        var Chosen=Transform(Channels[0]);
-        if(Channels.Skip(1).Any(Channel=>Transform(Channel)!=Chosen)){
-            Context.Report(new(ImportSeverity.Warning,"IMP141",Identity,ImportPhase.Read,$"Material '{Material.Name}' uses different texture transforms; the existing single-UV mapping uses '{Channels[0].Key}'.",new(Source)));
+        foreach(var Name in MappedChannels){
+            if(Material.FindChannel(Name) is{Texture:not null,TextureCoordinate:0}Channel){ return TransformOf(Channel); }
         }
-        return Chosen;
+        return null;
+    }
+    /// <summary>
+    /// The mapping R with Own(uv) = R(Chosen(uv)), in the same form as a KHR_texture_transform: R(v) = Offset + Rot(Scale * v).
+    /// It exists when the chosen mapping has no rotation: R = Own with its scale divided by the chosen scale, and its offset moved by the chosen offset.
+    /// A normal map keeps its tangent frame only without rotation or mirroring. Null when R does not exist; identity when the two are the same.
+    /// </summary>
+    internal static GltfUvTransform?RelativeTransform(GltfUvTransform?Chosen,GltfUvTransform?Own,bool IsNormal){
+        var C=Chosen??new(Vector2.Zero,Vector2.One,0f);
+        var T=Own??new(Vector2.Zero,Vector2.One,0f);
+        if(C==T){ return new(Vector2.Zero,Vector2.One,0f); }
+        if(C.Rotation!=0f||C.Scale.X==0f||C.Scale.Y==0f){ return null; }
+        var Scale=T.Scale/C.Scale;
+        if(IsNormal&&(T.Rotation!=0f||Scale.X<=0f||Scale.Y<=0f)){ return null; }
+        var Moved=Scale*C.Offset;
+        var (Sin,Cos)=MathF.SinCos(T.Rotation);
+        var Offset=T.Offset-new Vector2(Cos*Moved.X+Sin*Moved.Y,-Sin*Moved.X+Cos*Moved.Y);
+        return new(Offset,Scale,T.Rotation);
     }
     private static ImmutableArray<InterchangeMaterial>ReadMaterials(ModelRoot Model,IImportContext Context,string Source){
         var Result=ImmutableArray.CreateBuilder<InterchangeMaterial>();
@@ -109,19 +128,27 @@ public sealed partial class BuiltInGltfImporter:IAssetImporter {
             var Factor=new Vector3(Color.X,Color.Y,Color.Z);
             var Strength=Emissive?.GetFactor("EmissiveStrength")??1f;
             var Grid=ModelWorldGridBlock.FromGltf(Material,Context,Source);
+            var Chosen=UvTransformOf(Material);
+            var Unmapped=new List<string>();
             InterchangeTextureRef?Texture(MaterialChannel?Channel){
                 if(Channel?.Texture is not{}Value){ return null; }
                 if(Channel.Value.TextureCoordinate!=0){
                     Context.Report(new(ImportSeverity.Warning,"IMP142",Identity,ImportPhase.Read,$"Material '{Material.Name}' channel '{Channel.Value.Key}' uses an unsupported UV set and is excluded, preserving the existing renderer contract.",new(Source)));
                     return null;
                 }
-                return new(Value.LogicalIndex,0,new(Vector2.Zero,Vector2.One,0f),1f);
+                var Relative=RelativeTransform(Chosen,TransformOf(Channel.Value),Channel.Value.Key=="Normal");
+                if(Relative is null){ Unmapped.Add(Channel.Value.Key); }
+                var Mapping=Relative??new(Vector2.Zero,Vector2.One,0f);
+                return new(Value.LogicalIndex,0,new(Mapping.Offset,Mapping.Scale,Mapping.Rotation),1f);
             }
             Result.Add(new(){ Name=Material.Name??string.Empty,BaseColorFactor=Base?.Color??Vector4.One,
                 MetallicFactor=Metallic?.GetFactor("MetallicFactor")??1f,RoughnessFactor=Metallic?.GetFactor("RoughnessFactor")??1f,
                 EmissiveFactor=Factor,EmissiveStrength=Strength,EmissiveNits=Factor*Strength*100f,
                 EmissiveTextureLuminanceScale=EmissiveTextureLuminance.CalculateOrIdentity(Emissive?.Texture?.PrimaryImage?.Content.Content.ToArray()),
                 BaseColor=Texture(Base),Normal=Texture(Material.FindChannel("Normal")),MetallicRoughness=Texture(Metallic),Emissive=Texture(Emissive),Blocks=Grid is null?[]:[Grid] });
+            if(Unmapped.Count>0){
+                Context.Report(new(ImportSeverity.Warning,"IMP141",Identity,ImportPhase.Read,$"Material '{Material.Name}' maps {string.Join(", ",Unmapped)} with a texture transform that cannot be baked relative to UV0; those textures use UV0's mapping.",new(Source)));
+            }
         }
         if(Model.LogicalMeshes.SelectMany(static Mesh=>Mesh.Primitives).Any(static Primitive=>Primitive.Material is null)){ Result.Add(new(){Name="default"}); }
         return Result.ToImmutable();

@@ -152,7 +152,8 @@ python tools\UnrealExport\cut_masked_mesh.py .artifacts\UnrealExport\cursor\SM_C
 - `run_probe_vehicle_physics.cmd <出力のファイル>`(`probe_vehicle_physics.py`): 物理マテリアル(Slippery・NonSlippery・既定)、Lvl_VehicleBasic の Landscape と層の情報、置かれたメッシュの物理マテリアル、SportsCar を一時的に置いて読む車輪の骨の位置・重心・腕とカメラとヘッドライトの値。何も保存しない。
 - `run_probe_vehicle_brake_lights.cmd <出力のファイル>`(`probe_vehicle_brake_lights.py`): BrakeLights が値を書く `VehicleMesh` が見えるか、各メッシュのマテリアルの連鎖とパラメーター、発光の入力の式。結果: `VehicleMesh` は 4 頂点の見えないメッシュで、マテリアル 0 番は `WorldGridMaterial`。見える車体の発光は 0(UE ではブレーキランプは光らない)。
 - `run_probe_vehicle_emissive.cmd <出力のファイル>`(`probe_vehicle_emissive.py`): `M_SportsCarBase` の発光の式をたどり、`T_SportsCar_Lights_M` などのテクスチャを出力のファイルの隣に PNG で書き出す。マテリアルの T3D は `run_dump_blueprint_logic.cmd G:\UE\5.8\Vehicle <出力> /Game/Vehicles/SportsCar/Materials/M_SportsCarBase` で読める(発光の Named Reroute は宣言の無い使用で、値は 0)。
-- `add_brake_light_emission.py <glb> <png> <マテリアル> <係数>`: glb のマテリアルに発光のテクスチャを足す。テンプレートの `SM_SportsCar.glb` は、`T_SportsCar_Lights_M` の赤のチャンネルだけを赤にした PNG(テールランプ。シャシーの UV 0)を、マテリアル 0(`M_SportsCarChasis`)に係数 1(100 nits)で足した。export_vehicle_car.py の書き出しのあとに 1 回だけ実行する。
+- `add_brake_light_emission.py <glb> <png> <マテリアル> <係数>`: glb のマテリアルに発光のテクスチャを足す。テンプレートの `SM_SportsCar.glb` は、`T_SportsCar_Lights_M` の赤のチャンネルだけを赤にした PNG(テールランプ。シャシーの UV 0)を、マテリアル 0(`M_SportsCarChasis`)に係数 1(100 nits)で足した。export_vehicle_car.py の書き出しのあとに 1 回だけ実行する。追加するテクスチャには画像と同じ名前(`T_SportsCar_BrakeLights_E`)を付ける。
+- `name_gltf_nodes.py <glb>...`: 名前の無いノードにメッシュの名前を、名前の無いテクスチャに画像の名前を付ける(JSON の部分だけを書き換える)。UE の glTF の書き出しはメッシュを持つノードに名前を付けず、エンジンの取り込みが仮の名前を付けて IMP150 の警告を出すため。`unreal_export_common.export_gltf` と `export_vehicle_car.py` が書き出しのたびに呼ぶ。
 
 ## Vehicle のレベルの地面: Landscape と Spline のトラック(ADR-0078、M0112)
 UE の glTF エクスポーターは Landscape と、Landscape Spline の `SplineMeshComponent` を書き出せない(エンジンにも地形のコンポーネントが無い)。Vehicle のレベルの床は、UE を 3 回起動して値を読み、Python で静的なメッシュに組み立てる。
