@@ -13,10 +13,15 @@
 // (2×2 だと粗い段の画素が範囲の外の空まで含み、壁の後ろの塊を見えるとしやすかった)。見えた印を書き直し、1 パス目で描かなかった見える塊を 2 パス目の一覧に詰める。
 // 隠れていると捨てた塊は、描いても手前の物に負けるので、遮蔽を切った絵と同じ絵になる。画面の外の塊も捨てる(写らない)。
 //
+// 読み込み(M0131 単位 4): ページ(まとまりが作った塊の組)は、要るものだけが置き場にある。まとまりの準備済みの印(t4)が 0 なら、
+// 細かくできない(入力のページが無いか、上のまとまりが準備済みでない)ので「十分」とみなす。印は描画器が上から求めるので、十分さは親から子へ受け継がれ、
+// 描く塊は割れ目なく、必ず置き場にある。選ぶとき、描いた塊のまとまり(=ページ)に使った印を、細かくしたいのに準備済みでないまとまりに
+// 画面の誤差の画素数を要求として書く(u4)。描画器が数フレーム後に読み戻して、ページを置く。
+//
 // 引数の InstanceCount(4 バイト目)は、描画器が 0 にしてからこのシェーダーを動かす。
-// ルート署名(描画器が持つ): b0 = ルート定数 SelectionCB、b1 = ルート定数 OcclusionCB、t0 = 塊、t1 = まとまり、t2 = 塊の包む球、
+// ルート署名(描画器が持つ): b0 = ルート定数 SelectionCB、b1 = OcclusionCB(定数バッファ)、t0 = 塊、t1 = まとまり、t2 = 塊の包む球、
 // u0 = 描く塊の番号、u1 = 間接描画の引数、u2 = 遮蔽の一覧(見えた印、1 パス目、2 パス目が塊の数ずつ並ぶ)、u3 = 1 パス目と 2 パス目の引数、
-// t3 = Hi-Z(段の重なり、記述子の表)。
+// t3 = Hi-Z(段の重なり、記述子の表)、t4 = まとまりの準備済みの印、u4 = 知らせ(使ったページの印と要求が、塊の数ずつ並ぶ)。
 cbuffer SelectionCB : register(b0)
 {
     row_major float4x4 World;
@@ -53,10 +58,12 @@ StructuredBuffer<ClusterData> Clusters : register(t0);
 StructuredBuffer<GroupData> Groups : register(t1);
 StructuredBuffer<float4> ClusterBounds : register(t2);
 Texture2D<float> HiZ : register(t3);
+StructuredBuffer<uint> Ready : register(t4);
 RWStructuredBuffer<uint> VisibleClusters : register(u0);
 RWByteAddressBuffer DrawArguments : register(u1);
 RWStructuredBuffer<uint> Occlusion : register(u2);
 RWByteAddressBuffer PassArguments : register(u3);
+RWStructuredBuffer<uint> Feedback : register(u4);
 static const uint FlagOcclusion = 1u;
 static const uint FlagTest = 2u;
 // ---- ScreenSizeMetric.Hlsl の写し(計算シェーダーは取り込みを使えない)。文字列が完全に同じことを ScreenSizeMetricGpuTests が確かめる。----
@@ -70,28 +77,45 @@ float ScreenSizeSphereProjectedPixels(float3 centreRelativeToCamera, float radiu
 }
 // ---- 写しの終わり ----
 // まとまりが十分か。誤差と三角形の大きさを画面の画素数にする。距離は包む球のいちばん近い所まで(誤差を小さく見積もらない)。
-bool GroupIsEnough(uint index)
+// errorPixels に誤差の画素数を返す(要求の優先度)。
+bool GroupIsEnough(uint index, out float errorPixels)
 {
     GroupData group = Groups[index];
     float3 centre = mul(float4(group.BoundsCentre, 1.0), World).xyz - CameraAndScale.xyz;
     float radius = group.BoundsRadius * CameraAndScale.w;
     float distance = max(length(centre) - radius, Metric.z);
-    if (ScreenSizeProjectedPixels(group.Error * CameraAndScale.w, distance, Metric) <= ThresholdPixels)
+    errorPixels = ScreenSizeProjectedPixels(group.Error * CameraAndScale.w, distance, Metric);
+    if (errorPixels <= ThresholdPixels)
     {
         return true;
     }
     return TriangleFloorPixels > 0.0 && ScreenSizeProjectedPixels(group.TriangleSize * CameraAndScale.w, distance, Metric) <= TriangleFloorPixels;
 }
+// 細かくしない(十分か、準備済みでない)。
+bool GroupStops(uint index, out float errorPixels, out bool enough)
+{
+    enough = GroupIsEnough(index, errorPixels);
+    return enough || Ready[index] == 0;
+}
 void Select(uint index)
 {
     ClusterData cluster = Clusters[index];
-    if (!GroupIsEnough(cluster.Group))
+    float ownPixels;
+    bool ownEnough;
+    if (!GroupStops(cluster.Group, ownPixels, ownEnough))
     {
         return;
     }
-    if (cluster.ParentGroup >= 0 && GroupIsEnough((uint)cluster.ParentGroup))
+    float parentPixels;
+    bool parentEnough;
+    if (cluster.ParentGroup >= 0 && GroupStops((uint)cluster.ParentGroup, parentPixels, parentEnough))
     {
         return;
+    }
+    Feedback[cluster.Group] = 1u;
+    if (!ownEnough)
+    {
+        InterlockedMax(Feedback[ClusterCount + cluster.Group], asuint(max(ownPixels, 1.0e-30)));
     }
     uint slot;
     DrawArguments.InterlockedAdd(4, 1, slot);

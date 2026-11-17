@@ -26,6 +26,9 @@ public sealed unsafe partial class StageRenderer {
     private StageHiZ?HiZ;
     /// <summary>主パスで仮想ジオメトリの遮蔽判定を使うか。既定は使う。</summary>
     internal bool VirtualGeometryOcclusion { get;set; }=true;
+    /// <summary>遮蔽の定数（フレームの枠ごとに 256 バイト、CPU から書ける）。</summary>
+    private ID3D12Resource*VirtualGeometryOcclusionConstants;
+    private byte*MappedVirtualGeometryOcclusionConstants;
     /// <summary>このフレームの選択で、1 パス目の一覧を作った（主パスを 2 パスで描く）。</summary>
     private bool VirtualGeometryOcclusionThisFrame;
     /// <summary>試験用: 主パスの最後に Hi-Z を作る（仮想ジオメトリの遮蔽を使わないフレームでも）。</summary>
@@ -60,7 +63,11 @@ public sealed unsafe partial class StageRenderer {
             HiZHeight=(uint)HiZHeight,
             HiZLevelCount=(uint)HiZ.LevelCount,
         };
-        this.CommandList->SetComputeRoot32BitConstants(1,VirtualGeometryOcclusionConstantCount,&Occlusion,0);
+        if(this.VirtualGeometryOcclusionConstants==null){
+            this.CreateUploadBuffer(256*FrameCount,out this.VirtualGeometryOcclusionConstants,out this.MappedVirtualGeometryOcclusionConstants,"creating the virtual geometry occlusion constants");
+        }
+        *(StageVirtualGeometryOcclusion*)(this.MappedVirtualGeometryOcclusionConstants+256*this.FrameIndex)=Occlusion;
+        this.CommandList->SetComputeRootConstantBufferView(1,this.VirtualGeometryOcclusionConstants->GetGPUVirtualAddress()+256ul*this.FrameIndex);
         for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
             if(!this.DrawsWithVirtualGeometry(ObjectIndex)){ continue; }
             this.DispatchVirtualGeometry(ObjectIndex,StageVirtualGeometrySelectionFlags.Test);

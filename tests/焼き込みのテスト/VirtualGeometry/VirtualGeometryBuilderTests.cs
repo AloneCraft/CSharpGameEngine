@@ -122,7 +122,7 @@ public sealed class VirtualGeometryBuilderTests {
         Assert.Throws<ArgumentException>(()=>VirtualGeometryBuilder.Build(Bad,Indices));
     }
     /// <summary>位置で見て、どの辺もちょうど 2 枚の三角形が使う(閉じた入力の形が、選んだ塊でも閉じている)。</summary>
-    private static void AssertWatertight(VirtualGeometryMesh Mesh,VirtualGeometryCluster[]Selected,string Case){
+    internal static void AssertWatertight(VirtualGeometryMesh Mesh,VirtualGeometryCluster[]Selected,string Case){
         var Ids=new Dictionary<Vector3,int>();
         int Id(uint Vertex){
             var Position=Mesh.Vertices[Vertex].Position;

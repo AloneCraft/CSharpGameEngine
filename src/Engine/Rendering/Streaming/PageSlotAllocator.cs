@@ -30,6 +30,8 @@ public sealed class StreamingReport {
         this.Allocated++;
         if(Evicted){ this.Evicted++; }
     }
+    /// <summary>置き場を空けるためにページを追い出した（割り当てと別のフレームになる使い手のため。M0131 単位 4）。</summary>
+    internal void CountEvicted()=>this.Evicted++;
     internal void CountDeniedByBudget()=>this.DeniedByBudget++;
     internal void CountDeniedFull()=>this.DeniedFull++;
 }
