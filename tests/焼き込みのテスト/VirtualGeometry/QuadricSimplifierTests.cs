@@ -90,8 +90,9 @@ public sealed class QuadricSimplifierTests {
         for(var Ring=0;Ring<=Rings;Ring++){
             var Theta=MathF.PI*Ring/Rings;
             for(var Segment=0;Segment<=Segments;Segment++){
-                var Phi=2f*MathF.PI*Segment/Segments;
-                var Normal=new Vector3(MathF.Sin(Theta)*MathF.Cos(Phi),MathF.Cos(Theta),MathF.Sin(Theta)*MathF.Sin(Phi));
+                // 継ぎ目(最後の経度)は最初の経度と、極は 1 点と、まったく同じ値にする(三角関数の丸めで最後の桁がずれると、位置がつながらない)。
+                var Phi=2f*MathF.PI*(Segment%Segments)/Segments;
+                var Normal=Ring==0?Vector3.UnitY:Ring==Rings?-Vector3.UnitY:new Vector3(MathF.Sin(Theta)*MathF.Cos(Phi),MathF.Cos(Theta),MathF.Sin(Theta)*MathF.Sin(Phi));
                 Vertices.Add(new(Normal,Normal,new Vector2((float)Segment/Segments,(float)Ring/Rings)));
             }
         }
