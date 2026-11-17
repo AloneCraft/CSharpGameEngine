@@ -8,6 +8,7 @@
 
 | マイルストーン | 機能 | 内容 |
 |---|---|---|
+| [M0129](Milestones/M0129-Gpu-Scene-Foundation.md) | F-L4-023 | 仮想化描画の共通の下回り: GPU シーン(物体と材質の表)、材質テクスチャの番号引き、GPU を待たないアップロードと読み戻しの輪、画面上の大きさの式と空き枠の割り当て。段階 D の前倒し([ADR-0100](Decisions/ADR-0100-Virtualized-Rendering.md))。次は M0130〜M0135 |
 | [M0128](Milestones/M0128-Static-Production-Flow.md) | F-L1-011、F-L1-012、F-L6-007、F-L6-008、F-L8-035、F-L8-036 | 数値設定別のビルド、深度方式の選択、静的な保存、制作から配布までの流れ。段階 A で実 VS の受け入れを行う |
 | [M0127](Milestones/M0127-Asset-Editor-Windows.md) | F-L8-036 | アセットエディターのウィンドウとプレビューレベル（[Asset Editors](Specifications/Asset-Editors.md)） |
 | M0119〜M0123 | F-L0-011、F-L4-021、F-L4-022、F-L5-047、F-L5-038 | 対数ネイティブ深度、URP の描画パス、全スケール物理、描画と物理の層（ADR-0084〜0087）。時期は ADR-0098 で変更: M0120 はフレーム計画の移行までを段階 A、M0122 は段階 B、Forward 系の作り直し・M0121・M0123 は段階 D |

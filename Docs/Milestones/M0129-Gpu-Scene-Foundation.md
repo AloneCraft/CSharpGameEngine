@@ -1,6 +1,6 @@
 # M0129 — 仮想化描画の共通の下回り(GPU シーン、間接描画、番号引き)
 - 日付: 2026-11-17
-- 状態: Implementing(単位 0〜6 を終えた。締めが残る)
+- 状態: Implemented(単位 0〜6 と締めを終えた。2026-11-17)
 - 段階: ADR-0098 の段階 D の前倒し(ユーザーの判断。`Docs/目標、ロードマップ、戦略.md` は変えない)
 - 決定: [ADR-0100](../Decisions/ADR-0100-Virtualized-Rendering.md) 決定 1〜3
 - ABI: `stage-v18`(単位 3 で `stage-v17`、単位 4 で `stage-v18` に上げた)
@@ -135,3 +135,8 @@ F-L4-023(GPU シーン)。単位 3 で機能台帳(`Docs/Implementation-Status.m
 - **FeatureRunner**: 機能 F-L4-023 と Stage `rendering.gpu-scene` を登録した(`tools/FeatureRunner/FeatureStageCatalog.cs`、`stages/FeatureStages/Program.cs`、`Docs/Feature-Stages.md`)。道筋の機能の数を固定した試験を 74 から 75 にした。カタログと台帳の試験 23 件が合格。
 - **SDK の版**: `0.1.0-dev.51`。変更履歴に、以前に複製した Stage のシェーダーグラフは使えないこと、束縛の段 2 が要ること、材質の上限が無くなったことを書いた。
 - **VS 拡張(CgeFixed)**: 単位 3 の途中で配置された拡張は、古い描画層と新しいシェーダーが混ざっていてプレビューが出ない。作り直し(CgeFixed の VS を閉じてから F5)は利用者の操作。描画層にも取り決めの版の確認を持たせる案は、まだ入れていない。
+- **ソリューション全体の試験**: 修正後の写し(`f5796570` に締めの変更を当てたもの)で `dotnet test CSharpGameEngine.slnx -c Debug` を流した(`.artifacts/M0129/close-solution.log`)。4,708 件のうち、合格 4,704、対象外 3、失敗 1。内訳: シーンモデル 72、コンテンツ 85、焼き込み 35、エンジン 225、ECS 1,649、VS 拡張 1,620 はすべて合格。Windows は 1,022 件のうち合格 1,018、対象外 3、失敗 1。
+  - **失敗した 1 件**: `StageGoldenFrameTests.LogarithmicFrames_MatchTheirPinnedHashes` の environment の 1 枚だけ(ハッシュ `536D8BAC…`、固定値は `C2BB4D74…`)。
+  - **再現しなかった**: 同じ写しで単独に流す(x64 用と AnyCPU 用、2 回)、3 つ同時に流して負荷をかける(修正前と修正後で 9 回ずつ)、x64 用の Windows の試験 1,022 件を全体で流し直す(合格 1,019、対象外 3、失敗 0、`.artifacts/M0129/close-windows-x64-rerun.log`)の計 21 回、すべて合格した。
+  - **未解決**: 全体の試験だけで違ったのは、ほかの試験プロジェクトが同時に動いていたこと。似た失敗(environment の 1 枚だけが合わない)は M0127 でも作業前の版で記録されている。M0129 と関係がないとは言い切れない。固定値は変えていない。
+- **適合**: M0129 は Implemented。F-L4-023 は Implemented。未確認・未解決として残るのは、全体の試験での environment の 1 回の不一致、WARP の FirstPerson の 22 画素の原因、実機は 1 台だけ、VS 拡張の作り直しの後の実画面。
