@@ -5184,6 +5184,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Partial
 - Next action: M0131(遮蔽判定と読み込み)
 
+## F-L4-025 — 仮想ジオメトリの遮蔽判定と読み込み
+
+- Layer: L4 — 段の決まり(`src/Engine/Rendering/Streaming/HiZPyramid.cs`)、L0 — Hi-Z の実行(`src/Windows/Graphics/StageHiZ.cs`、`StageRenderer.Occlusion.cs`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・3)
+- Status: Partial(2026-11-17。M0131 単位 1。主パスの距離の画像から Hi-Z を作れる。まだ遮蔽判定には使っていない)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(WARP)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Milestones/M0131-Virtual-Geometry-Occlusion-And-Streaming.md`
+- Stage: なし(M0131 の締めで足す)
+- Depends on: F-L4-024
+- Implementation evidence: 計算シェーダー `assets/Shaders/HiZ.hlsl`(2×2 のいちばん遠い値で 1 段ずつ縮める。空は無限に遠い、画面の外は 0)。段 0 は画面の半分を 2 のべき乗へ切り上げた大きさで、その後はちょうど半分(D3D12 のミップと同じ)
+- Tests: エンジンのテスト `HiZPyramidTests`。Windowsのテスト `HiZGpuTests`(GPU の全段が CPU と同じ)
+- Current delta: 2 パスの遮蔽(単位 2)、ページの置き場と読み込み(単位 3・4)は無い
+- Conformance: Partial
+- Next action: M0131 単位 2(主パスの 2 パスの遮蔽)
+
 ## F-L4-021 — Entity を使わない物理の契約
 
 - Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`
