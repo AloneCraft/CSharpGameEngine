@@ -86,6 +86,7 @@
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Skinning.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)VirtualGeometry.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)HiZ.hlsl" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)VirtualShadowRequest.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)GlobalDistanceField.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Lumen.hlsl" />
   </ItemGroup>

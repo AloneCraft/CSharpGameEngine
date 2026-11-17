@@ -55,6 +55,49 @@ public sealed class VirtualShadowMapPlanner {
     private (long X,long Y,long Z)Cell;
     private bool Started;
     private ulong Frame;
+    /// <summary>1 画素あたりのテクセルの数。段は 2 倍刻みなので、1 だと最悪でちょうど 1 画素の階段になる（Omni の値）。</summary>
+    public const float TexelsPerPixel=1.33f;
+    /// <summary>
+    /// 画素の足跡（光の向きの平面での大きさ、メートル）から選ぶ段（M0132 単位 2）。1 テクセルが足跡 ÷ <see cref="TexelsPerPixel"/> 以下になる段のうち、最も粗い段。
+    /// 段の窓の外なら、呼び出し側がさらに粗い段へ進む。GPU 側の同じ式は <see cref="Hlsl"/>。
+    /// </summary>
+    public static int LevelForFootprint(float FootprintMeters){
+        var Texels=FootprintMeters/(TexelsPerPixel*LevelWidthMeters(0)/VirtualTexels);
+        if(!(Texels>1f)){ return 0; }
+        return Math.Min((int)MathF.Floor(MathF.Log2(Texels)),LevelCount-1);
+    }
+    /// <summary>
+    /// 画素の足跡（メートル）。<paramref name="AlongX"/> と <paramref name="AlongY"/> は隣の画素との位置の差を光の向きの平面に写した長さ（求められなければ無限大）。
+    /// 短い方を使い、細長さは 2 倍までで打ち切り、<paramref name="LowerBound"/>（距離 × 1 画素の角度 ÷ 2）を下限にする（Omni が逆光と低い太陽で見つけた対策）。
+    /// </summary>
+    public static float Footprint(float AlongX,float AlongY,float LowerBound){
+        var Short=MathF.Min(AlongX,AlongY);
+        var Long=MathF.Max(AlongX,AlongY);
+        var Footprint=float.IsFinite(Long)?MathF.Max(Short,Long*0.5f):Short;
+        return float.IsFinite(Footprint)?MathF.Max(Footprint,LowerBound):LowerBound;
+    }
+    /// <summary>
+    /// <see cref="Footprint"/> と <see cref="LevelForFootprint"/> のシェーダー側の写し。計算シェーダーは取り込みを使えないので、使うシェーダーはこの文字列を
+    /// 印のコメントの間に写して持ち、写しが文字まで同じことを試験で固定する。
+    /// </summary>
+    public const string Hlsl="""
+float VirtualShadowFootprint(float alongX, float alongY, float lowerBound)
+{
+    float shortSide = min(alongX, alongY);
+    float longSide = max(alongX, alongY);
+    float footprint = isfinite(longSide) ? max(shortSide, longSide * 0.5) : shortSide;
+    return isfinite(footprint) ? max(footprint, lowerBound) : lowerBound;
+}
+int VirtualShadowLevelForFootprint(float footprintMeters)
+{
+    float texels = footprintMeters / (1.33 * 8.0 / 16384.0);
+    if (!(texels > 1.0))
+    {
+        return 0;
+    }
+    return min((int)floor(log2(texels)), 15);
+}
+""";
     /// <summary>段 L の幅（メートル）。</summary>
     public static float LevelWidthMeters(int Level)=>8f*MathF.ScaleB(1f,Level);
     /// <summary>段 L の 1 ページの幅（メートル）。</summary>
@@ -89,6 +132,8 @@ public sealed class VirtualShadowMapPlanner {
         var Width=PageWidthMeters(Level);
         return new(Level,(int)MathF.Floor(Light.X/Width),(int)MathF.Floor(Light.Y/Width));
     }
+    /// <summary>段 <paramref name="Level"/> の窓の左下のページの番号（窓の中の位置 (x, y) は、番号 (MinimumX + x, MinimumY + 127 - y)）。</summary>
+    public (int X,int Y)WindowOrigin(int Level)=>(this.MinimumX[Level],this.MinimumY[Level]);
     /// <summary>ページ表で、ページ <paramref name="Key"/> の場所（窓の外なら -1）。</summary>
     public int TableIndex(VirtualShadowPageKey Key){
         var X=Key.X-this.MinimumX[Key.Level];

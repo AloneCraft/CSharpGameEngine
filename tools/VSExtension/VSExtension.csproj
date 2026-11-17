@@ -217,6 +217,7 @@
     <CgeComputeShader Include="../../assets/Shaders/Skinning.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/VirtualGeometry.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/HiZ.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/VirtualShadowRequest.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/GlobalDistanceField.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/Lumen.hlsl" />
   </ItemGroup>

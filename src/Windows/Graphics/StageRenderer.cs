@@ -681,6 +681,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.GlobalIllumination=new StageGlobalIllumination(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
         this.AmbientOcclusion=new StageAmbientOcclusion(this.Device,this.ShaderArtifactPath,FrameCount);
         this.HiZ=new StageHiZ(this.Device,this.ShaderArtifactPath);
+        this.ShadowRequests=new StageVirtualShadowRequests(this.Device,this.ShaderArtifactPath,FrameCount);
         this.AutoExposureStage=new StageAutoExposure(this.Device,this.ShaderArtifactPath,FrameCount);
         this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
         this.Skinning=new StageSkinning(this.Device,this.ShaderArtifactPath,FrameCount);
@@ -3390,7 +3391,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.MainPassTimestampReadback.MarkWritten(this.FrameIndex);
             this.LastTimedFrameIndex=this.FrameIndex;
         }
-        if(!ShadowComparison){ this.RecordHiZAfterMainPass(ref Recording); }
+        if(!ShadowComparison){
+            this.RecordHiZAfterMainPass(ref Recording);
+            this.RecordVirtualShadowRequests(ref Recording);
+        }
     }
     private void RecordSkyComposite(ref FrameRecording Recording){
         if(this.EnvironmentSettings.Atmosphere is not null){
@@ -3583,6 +3587,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.AmbientOcclusion=null;
         this.HiZ?.Dispose();
         this.HiZ=null;
+        this.ShadowRequests?.Dispose();
+        this.ShadowRequests=null;
         this.AutoExposureStage?.Dispose();
         this.AutoExposureStage=null;
         this.Skinning?.Dispose();
