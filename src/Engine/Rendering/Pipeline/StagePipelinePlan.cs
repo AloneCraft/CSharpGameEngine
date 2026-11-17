@@ -26,7 +26,7 @@ public enum StagePass {
     Lumen,
     /// <summary>アンビエントオクルージョン。</summary>
     AmbientOcclusion,
-    /// <summary>仮想ジオメトリの塊を、物体ごとに計算シェーダーで選ぶ(ADR-0100 決定 3、M0130)。主パスより前。</summary>
+    /// <summary>仮想ジオメトリの塊を、主ビューから見て物体ごとに計算シェーダーで選ぶ(ADR-0100 決定 3、M0130)。影・Lumen・主パス・カメラプレビューがこの選択で描くので、影より前。</summary>
     VirtualGeometrySelection,
     /// <summary>主パス（HDR の色と距離と深度を消して、物体を描く）。</summary>
     MainPass,
@@ -106,6 +106,7 @@ public static class StagePipelinePlanner {
         List<StagePass>Passes=[
             StagePass.Skinning,
             StagePass.SceneUpload,
+            StagePass.VirtualGeometrySelection,
             StagePass.FramePreparation,
             StagePass.ShadowAtlas,
             StagePass.VirtualShadows,
@@ -115,7 +116,6 @@ public static class StagePipelinePlanner {
             StagePass.GlobalIllumination,
             StagePass.Lumen,
             StagePass.AmbientOcclusion,
-            StagePass.VirtualGeometrySelection,
             Inputs.ShadowComparison?StagePass.ShadowComparison:StagePass.MainPass,
         ];
         if(Inputs.Atmosphere){ Passes.Add(StagePass.SkyComposite); }

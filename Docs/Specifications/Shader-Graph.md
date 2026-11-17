@@ -73,7 +73,7 @@ M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つよう�
 主パスの `PSMain` は、`EvaluateSurface`(材質を読んで `SurfaceData` を作る)と `EvaluateSurfaceLighting`(`SurfaceData` と画素の位置から色を作る)を呼ぶだけである。材質(物体と材質の表と、基本色・法線・metallic/roughness・発光の 4 枚のテクスチャ)を読むのは `EvaluateSurface` だけで、`EvaluateSurfaceLighting` は材質を読まない。`SurfaceData` は位置・基本色・metallic・粗さ・法線・頂点法線・発光を持つ(ADR-0085 決定 §2 と同じ形)。この分割ではエントリーも画素も変わらない。照明側の細かい分割(方向光・局所光・間接光・霧)は、描画パスを実装するとき(ADR-0085)に行う。後置ソース(`StagePresentationShaderSource`)の表示用・Lumen 用のエントリーは、`EvaluateSurface` を通らずに同じ表とテクスチャを読む。
 
 ## GPU シーン(M0129、ADR-0100 決定 2)
-現在の契約は `stage-v19`(`stage-v17` は単位 3 の物体と材質の表まで、`stage-v18` は単位 4 の番号引き、`stage-v19` は M0130 の仮想ジオメトリの頂点シェーダー。下の「仮想ジオメトリ」)。物体ごとの定数バッファ(ObjectCB)と、材質ごとのテクスチャの束(t0〜t3)は無い。代わりに次の 4 つがある。
+現在の契約は `stage-v19`(`stage-v17` は単位 3 の物体と材質の表まで、`stage-v18` は単位 4 の番号引き、`stage-v19` は M0130 の仮想ジオメトリの頂点シェーダー、`stage-v20` はその影の版。下の「仮想ジオメトリ」)。物体ごとの定数バッファ(ObjectCB)と、材質ごとのテクスチャの束(t0〜t3)は無い。代わりに次の 4 つがある。
 
 | 名前 | レジスター | 中身 | 読むシェーダー |
 |---|---|---|---|
@@ -91,7 +91,7 @@ M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つよう�
 - 影の画像(t4)はレジスターを変えず、描画器が環境の表(t12〜t19 と同じ束)の末尾に置く。
 - 描画器は D3D12 のリソース束縛の段が 2 以上であることを求める。満たさない GPU では、描画器を作るときにアダプターの名前を添えて止める。
 - 管理コード側の配置の正本は L4 の `StageInstanceData`・`StageMaterialData`・`StageDrawConstants`(`StageGpuLayouts.cs`)。シェーダー側との一致は、DXC の反射を読む試験(`StageConstantLayoutReflectionTests`)が、エントリーごとに確かめる。
-- 再現できる編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`。FrameCB(1248 バイト)、t4〜t19 は `stage-v16` と同じ。エントリーは `stage-v18` まで 14 個、`stage-v19` で 15 個。
+- 再現できる編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`。FrameCB(1248 バイト)、t4〜t19 は `stage-v16` と同じ。エントリーは `stage-v18` まで 14 個、`stage-v19` で 15 個、`stage-v20` で 16 個。
 
 ## 仮想ジオメトリ(M0130、ADR-0100 決定 3)
 後置ソースのエントリー `VirtualGeometryVSMain`(vs_6_0)は、頂点の入力を使わず、次の 4 つから頂点を作る。1 インスタンスが塊 1 つで、頂点の番号が塊の中の三角形の角(1 塊 384 頂点)。塊の三角形が 128 枚より少ないときは、余った頂点を塊の最後の頂点に重ねるので、余りの三角形は面積が無く描かれない。頂点を作った後は `VSMain` と同じ(物体は `DrawInstance`、画素シェーダーは今のまま)。
@@ -103,7 +103,8 @@ M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つよう�
 | `VirtualGeometryClusters` | t24(1 件 16 バイト) | 最初の番号、番号の数、自分を作ったまとまり、親のまとまり(根なら -1) |
 | `VirtualGeometryVisibleClusters` | t25 | 描く塊の番号(インスタンスの番号で引く) |
 
-- 描く塊は、主パスの前に計算シェーダー `assets/Shaders/VirtualGeometry.hlsl` が物体ごとに選ぶ。選び方は「自分を作ったまとまりの誤差の画素数がしきい値以下で、親のまとまりの誤差の画素数がしきい値より大きい」(しきい値は 1 画素)。距離は包む球のいちばん近い所まで測る。
+- 影の版 `VirtualGeometryShadowVSMain` は、同じ 4 つから頂点を作って `VSShadowMain` を呼ぶ。影のルート署名でも t22〜t25 は同じレジスター。
+- 描く塊は、影より前に計算シェーダー `assets/Shaders/VirtualGeometry.hlsl` が主ビューから見て物体ごとに選ぶ。影・Lumen の画面の下書き・主パス・カメラプレビューは同じ選択を描く。Lumen のカード撮影と光のプローブの撮影は、根の段の塊(代理メッシュ)を描く。選び方は「自分を作ったまとまりの誤差の画素数がしきい値以下で、親のまとまりの誤差の画素数がしきい値より大きい」(しきい値は 1 画素)。距離は包む球のいちばん近い所まで測る。
 - 計算シェーダーは取り込み(`#include`)を使えないので、`VirtualGeometry.hlsl` は画面上の大きさの式(`ScreenSizeMetric.Hlsl`)を写して持つ。写しが文字まで同じことを `VirtualGeometryGpuTests` が確かめる。
 - 描く数は間接描画の引数の 2 つ目(`InstanceCount`)に計算シェーダーが足す。描画器は毎フレーム、選ぶ前に引数を「384 頂点、0 インスタンス」に戻す。
 - 管理コード側の配置の正本は L4 の `StageVirtualGeometryVertex`・`StageVirtualGeometryCluster`・`StageVirtualGeometryGroup`・`StageVirtualGeometrySelection`。

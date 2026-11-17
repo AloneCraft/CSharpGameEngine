@@ -16,8 +16,9 @@ using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 /// <summary>
 /// 仮想ジオメトリの描画（ADR-0100 決定 3、M0130 単位 4）。メッシュの塊の階層を GPU に置き、主パスの前に計算シェーダー（VirtualGeometry.hlsl）が
-/// 物体ごとに描く塊を選んで、描く数を間接描画の引数へ書く。主パスは選ばれた塊を 1 塊 1 インスタンスの間接描画で描く。
-/// 影・Lumen・AO の前処理・カメラプレビューは、今は従来のメッシュ（同じ形の元の三角形）で描く（単位 5 で同じ選択へ移す）。
+/// 物体ごとに描く塊を選んで、描く数を間接描画の引数へ書く。選んだ塊は 1 塊 1 インスタンスの間接描画で描く。
+/// 影（カスケードの置き場・局所光の置き場・仮想シャドウ）、Lumen の画面の下書き、主パス、カメラプレビューは、主ビューで選んだ同じ塊を描く（M0130 単位 5）。
+/// Lumen のカード撮影は、メッシュの空間で根の段の塊（代理メッシュ）を描く。観察者の表示には仮想ジオメトリの版が無いので、元のメッシュで描く。
 /// 計算のルートシグネチャ（ここが持つ）: 0 = ルート定数 b0（<see cref="StageVirtualGeometrySelection"/>）、1 = t0 塊、2 = t1 まとまり、3 = u0 描く塊の番号、4 = u1 間接描画の引数。
 /// </summary>
 public sealed unsafe partial class StageRenderer {
@@ -25,6 +26,8 @@ public sealed unsafe partial class StageRenderer {
     /// <summary>主パスのルートシグネチャで、仮想ジオメトリの頂点（t22）を置く引数の番号。t23 索引、t24 塊、t25 描く塊の番号が続く。</summary>
     private const uint VirtualGeometryVerticesRootParameter=13;
     private const uint VirtualGeometryRootParameterCount=4;
+    /// <summary>影のルートシグネチャで、仮想ジオメトリの頂点（t22）を置く引数の番号。t23〜t25 が続く。</summary>
+    private const uint ShadowVirtualGeometryVerticesRootParameter=3;
     /// <summary>まとまりの誤差が画面でこの画素数以下になる、いちばん粗い塊を描く。</summary>
     internal const float VirtualGeometryThresholdPixels=1f;
     /// <summary>これより近い距離は、この距離として画素数を求める（カメラの中に入った塊の画素数を無限大にしない）。</summary>
@@ -35,6 +38,10 @@ public sealed unsafe partial class StageRenderer {
         public ID3D12Resource*Indices;
         public ID3D12Resource*Clusters;
         public ID3D12Resource*Groups;
+        /// <summary>代理メッシュ（根の段の塊）の番号の一覧。</summary>
+        public ID3D12Resource*ProxyClusters;
+        /// <summary>代理メッシュを描く間接描画の引数（中身は変わらない）。</summary>
+        public ID3D12Resource*ProxyArguments;
         public uint ClusterCount;
     }
     private struct VirtualGeometryObjectBuffers {
@@ -80,6 +87,14 @@ public sealed unsafe partial class StageRenderer {
             Groups=this.CreateFilledUploadBuffer<StageVirtualGeometryGroup>(Info.Groups,"creating virtual geometry groups"),
             ClusterCount=(uint)Info.Clusters.Length,
         };
+        List<uint>Proxy=[];
+        for(var Index=0;Index<Info.Clusters.Length;Index++){
+            if(Info.Clusters[Index].ParentGroup<0){ Proxy.Add((uint)Index); }
+        }
+        if(Proxy.Count==0){ throw new ArgumentException("A virtual geometry mesh needs at least one root cluster.",nameof(Info)); }
+        D3D12_DRAW_ARGUMENTS ProxyArguments=new(){ VertexCountPerInstance=StageVirtualGeometryCreateInfo.MaxTrianglesPerCluster*3,InstanceCount=(uint)Proxy.Count };
+        this.VirtualGeometryMeshes[MeshIndex].ProxyClusters=this.CreateFilledUploadBuffer<uint>(Proxy.ToArray(),"creating virtual geometry proxy clusters");
+        this.VirtualGeometryMeshes[MeshIndex].ProxyArguments=this.CreateFilledUploadBuffer<D3D12_DRAW_ARGUMENTS>(new ReadOnlySpan<D3D12_DRAW_ARGUMENTS>(&ProxyArguments,1),"creating virtual geometry proxy arguments");
     }
     private bool MeshHasVirtualGeometry(int MeshIndex)=>(uint)MeshIndex<(uint)this.VirtualGeometryMeshes.Length&&this.VirtualGeometryMeshes[MeshIndex].Clusters!=null;
     private ID3D12Resource*CreateFilledUploadBuffer<T>(ReadOnlySpan<T>Values,string Context)where T:unmanaged{
@@ -97,16 +112,18 @@ public sealed unsafe partial class StageRenderer {
             "ID3D12Device::CreateCommittedResource",Context);
         return Resource;
     }
-    /// <summary>主パスで仮想ジオメトリを使う PSO。この表示モードに仮想ジオメトリの版が無ければ null（その物体は従来のメッシュで描く）。</summary>
-    private ID3D12PipelineState*VirtualGeometryPipelineFor(in StagePipelineDesc MainPipeline)=>
-        this.VirtualGeometrySelectionPipeline==null?null:this.ResolvePipelineState(StagePipelines.VirtualGeometry(MainPipeline));
+    /// <summary><paramref name="Desc"/> の仮想ジオメトリの版の PSO。版が無い（観察者の表示など）か、選択をまだ作っていなければ null（その描画は元のメッシュで描く）。</summary>
+    private ID3D12PipelineState*VirtualGeometryPipelineFor(in StagePipelineDesc Desc){
+        if(this.VirtualGeometrySelectionPipeline==null){ return null; }
+        return StagePipelines.VirtualGeometry(Desc) is{ }Variant?this.ResolvePipelineState(Variant):null;
+    }
     /// <summary>
     /// 主ビューから見て描く塊を、仮想ジオメトリを持つ物体ごとに選ぶ（<see cref="StagePass.VirtualGeometrySelection"/>）。
     /// 引数の描く数を 0 にしてから計算シェーダーを動かし、主パスが読める状態にして終わる。
     /// </summary>
     private void RecordVirtualGeometrySelection(ref FrameRecording Recording){
         this.VirtualGeometryObjectsDrawnLastFrameForTesting=0;
-        if(this.VirtualGeometryMeshes.Length==0||this.ResolvePipelineState(StagePipelines.VirtualGeometry(Recording.MainPipelineDesc))==null){
+        if(this.VirtualGeometryMeshes.Length==0||StagePipelines.VirtualGeometry(Recording.MainPipelineDesc) is not{ }Variant||this.ResolvePipelineState(Variant)==null){
             this.ClearVirtualGeometrySelection();
             return;
         }
@@ -196,26 +213,54 @@ public sealed unsafe partial class StageRenderer {
     }
     /// <summary>物体 <paramref name="ObjectIndex"/> をこのフレームの主パスで間接描画するか（塊を選んだか）。</summary>
     private bool DrawsWithVirtualGeometry(int ObjectIndex)=>(uint)ObjectIndex<(uint)this.VirtualGeometryObjects.Length&&this.VirtualGeometryObjects[ObjectIndex].Selected;
-    /// <summary>主パスで、塊を選んだ物体を間接描画で描く。主パスの PSO を戻して終わる。</summary>
-    private void DrawVirtualGeometryObjects(ref FrameRecording Recording){
-        var Pipeline=this.VirtualGeometryPipelineFor(Recording.MainPipelineDesc);
-        if(Pipeline==null){ return; }
+    /// <summary>
+    /// 普通の描画で、この物体を飛ばすか。塊を選んだ物体で、<paramref name="VariantAvailable"/>（今の描画の設定に仮想ジオメトリの版がある）なら、
+    /// <see cref="DrawSelectedVirtualGeometry"/> が描くので飛ばす。
+    /// </summary>
+    private bool SkipsNormalDraw(int ObjectIndex,bool VariantAvailable)=>VariantAvailable&&this.DrawsWithVirtualGeometry(ObjectIndex);
+    /// <summary>
+    /// 塊を選んだ物体のうち <paramref name="Include"/> を満たすものを、<paramref name="Desc"/> の仮想ジオメトリの版で間接描画する。
+    /// 1 つでも描いたら <paramref name="Desc"/> の PSO に戻して終わる。描いた物体の数を返す。ルートシグネチャ・描画先・視点は呼び出し側が設定済みであること。
+    /// </summary>
+    private int DrawSelectedVirtualGeometry(in StagePipelineDesc Desc,uint RootParameter,Func<int,bool>?Include,StageDrawFlags Flags=StageDrawFlags.None){
+        var Pipeline=this.VirtualGeometryPipelineFor(Desc);
+        if(Pipeline==null){ return 0; }
         var Drawn=0;
         for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            if(!this.DrawsWithVirtualGeometry(ObjectIndex)){ continue; }
+            if(!this.DrawsWithVirtualGeometry(ObjectIndex)||Include is not null&&!Include(ObjectIndex)){ continue; }
             if(Drawn==0){ this.CommandList->SetPipelineState(Pipeline); }
             ref var Object=ref this.VirtualGeometryObjects[ObjectIndex];
             ref var Mesh=ref this.VirtualGeometryMeshes[Object.MeshIndex];
-            this.SetDrawConstants(ObjectIndex);
-            this.CommandList->SetGraphicsRootShaderResourceView(VirtualGeometryVerticesRootParameter,Mesh.Vertices->GetGPUVirtualAddress());
-            this.CommandList->SetGraphicsRootShaderResourceView(VirtualGeometryVerticesRootParameter+1,Mesh.Indices->GetGPUVirtualAddress());
-            this.CommandList->SetGraphicsRootShaderResourceView(VirtualGeometryVerticesRootParameter+2,Mesh.Clusters->GetGPUVirtualAddress());
-            this.CommandList->SetGraphicsRootShaderResourceView(VirtualGeometryVerticesRootParameter+3,Object.VisibleClusters->GetGPUVirtualAddress());
+            this.SetDrawConstants(ObjectIndex,Flags);
+            this.BindVirtualGeometry(RootParameter,Mesh,Object.VisibleClusters);
             this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Object.DrawArguments,0,null,0);
             Drawn++;
         }
-        if(Drawn>0){ this.CommandList->SetPipelineState(Recording.MainPipeline); }
-        this.VirtualGeometryObjectsDrawnLastFrameForTesting=Drawn;
+        if(Drawn>0){ this.CommandList->SetPipelineState(this.ResolvePipelineState(Desc)); }
+        return Drawn;
+    }
+    /// <summary>
+    /// 物体 <paramref name="ObjectIndex"/> の代理メッシュ（根の段の塊）を描く。メッシュに仮想ジオメトリが無いか、<paramref name="Desc"/> に版が無ければ描かずに false。
+    /// 描いたら <paramref name="Desc"/> の PSO に戻す。
+    /// </summary>
+    private bool DrawVirtualGeometryProxy(int ObjectIndex,in StagePipelineDesc Desc,uint RootParameter,StageDrawFlags Flags){
+        var MeshIndex=this.ObjectMeshIndices[ObjectIndex];
+        if(!this.MeshHasVirtualGeometry(MeshIndex)){ return false; }
+        var Pipeline=this.VirtualGeometryPipelineFor(Desc);
+        if(Pipeline==null){ return false; }
+        ref var Mesh=ref this.VirtualGeometryMeshes[MeshIndex];
+        this.CommandList->SetPipelineState(Pipeline);
+        this.SetDrawConstants(ObjectIndex,Flags);
+        this.BindVirtualGeometry(RootParameter,Mesh,Mesh.ProxyClusters);
+        this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Mesh.ProxyArguments,0,null,0);
+        this.CommandList->SetPipelineState(this.ResolvePipelineState(Desc));
+        return true;
+    }
+    private void BindVirtualGeometry(uint RootParameter,in VirtualGeometryMeshBuffers Mesh,ID3D12Resource*Clusters){
+        this.CommandList->SetGraphicsRootShaderResourceView(RootParameter,Mesh.Vertices->GetGPUVirtualAddress());
+        this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+1,Mesh.Indices->GetGPUVirtualAddress());
+        this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+2,Mesh.Clusters->GetGPUVirtualAddress());
+        this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+3,Clusters->GetGPUVirtualAddress());
     }
     /// <summary>
     /// ビュー投影から、画面上の大きさの式を作る。投影の W（深さ）が位置で変わらなければ正射影。透視では、縦の 1 メートルが深さ 1 メートルで何画素かを
@@ -312,6 +357,8 @@ public sealed unsafe partial class StageRenderer {
             Release(ref Mesh.Indices);
             Release(ref Mesh.Clusters);
             Release(ref Mesh.Groups);
+            Release(ref Mesh.ProxyClusters);
+            Release(ref Mesh.ProxyArguments);
         }
         foreach(ref var Object in this.VirtualGeometryObjects.AsSpan()){
             Release(ref Object.VisibleClusters);

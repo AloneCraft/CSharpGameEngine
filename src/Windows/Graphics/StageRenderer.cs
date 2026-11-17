@@ -884,6 +884,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.LumenSurfacePixelShaderBytecode=Package.GetBytecode("SurfacePrepassPSMain");
         this.LumenCardPixelShaderBytecode=Package.GetBytecode("LumenCardPSMain");
         this.VirtualGeometryVertexShaderBytecode=Package.GetBytecode(StagePipelines.VirtualGeometryVertexEntry);
+        this.VirtualGeometryShadowVertexShaderBytecode=Package.GetBytecode(StagePipelines.VirtualGeometryShadowVertexEntry);
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
         this.LastKnownGoodShaderPackage=Package;
@@ -914,6 +915,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
         var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
         var OldVirtualGeometryVertexShader=this.VirtualGeometryVertexShaderBytecode;
+        var OldVirtualGeometryShadowVertexShader=this.VirtualGeometryShadowVertexShaderBytecode;
         try{
             this.ApplyShaderArtifact(Package);
             var Created=this.BuildPipelineStates();
@@ -941,11 +943,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
             this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
             this.VirtualGeometryVertexShaderBytecode=OldVirtualGeometryVertexShader;
+            this.VirtualGeometryShadowVertexShaderBytecode=OldVirtualGeometryShadowVertexShader;
             this.ShaderArtifactDiagnostics=[Exception.Message];
         }
     }
     private byte[]VertexShaderBytecode=[];
     private byte[]VirtualGeometryVertexShaderBytecode=[];
+    private byte[]VirtualGeometryShadowVertexShaderBytecode=[];
     private byte[]PixelShaderBytecode=[];
 
     private void CreateRootSignature(){
@@ -1140,11 +1144,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         DrawParam.Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=1,RegisterSpace=0,Num32BitValues=DrawConstantCount };
         D3D12_ROOT_PARAMETER InstanceTableParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
         InstanceTableParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=20,RegisterSpace=0 };
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[3];
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[(int)(ShadowVirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount)];
         RootParams[0]=FrameParam;
         RootParams[DrawConstantsRootParameter]=DrawParam;
         RootParams[ShadowInstanceTableRootParameter]=InstanceTableParam;
-        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){ NumParameters=3,pParameters=RootParams,Flags=D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT };
+        // 仮想ジオメトリの頂点・索引・塊・描く塊の番号(t22〜t25、主パスと同じレジスター。M0130 単位 5)。
+        for(var Index=0u;Index<VirtualGeometryRootParameterCount;Index++){
+            RootParams[ShadowVirtualGeometryVerticesRootParameter+Index]=new D3D12_ROOT_PARAMETER{ ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+            RootParams[ShadowVirtualGeometryVerticesRootParameter+Index].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=22+Index,RegisterSpace=0 };
+        }
+        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){ NumParameters=ShadowVirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount,pParameters=RootParams,Flags=D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT };
         ID3DBlob*SignatureBlob=null;
         ID3DBlob*ErrorBlob=null;
         try {
@@ -1966,7 +1975,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->RSSetViewports(1,&Viewport);
         this.CommandList->RSSetScissorRects(1,&Scissor);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        this.DrawObjects(ExcludedObjectIndex:-1);
+        this.DrawObjects(ExcludedObjectIndex:-1,StagePipelines.LumenSurface);
         var ToReadable=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         this.CommandList->ResourceBarrier(1,&ToReadable);
     }
@@ -2109,7 +2118,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.CommandList->ClearRenderTargetView(Rtv,(float*)&ClearColor,0,null);
                 this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
                 this.CommandList->SetGraphicsRootConstantBufferView(0,GlobalIllumination.CaptureFrameAddress(this.FrameIndex,Capture));
-                this.DrawObjects(ExcludedObjectIndex:-1);
+                this.DrawObjects(ExcludedObjectIndex:-1,StagePipelines.Lit,Proxy:true);
             }
         }
         GlobalIllumination.RecordConvolution(this.CommandList,this.FrameIndex,Settings,this.Atmosphere!.ShBufferAddress,
@@ -2911,8 +2920,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         this.CommandList->RSSetViewports(1,&ShadowViewport);
         this.CommandList->RSSetScissorRects(1,&ShadowScissor);
+        var VariantAvailable=this.VirtualGeometryPipelineFor(StagePipelines.Shadow)!=null;
         for(var I=0;I< this.ObjectCount;I++){
-            if(!this.ObjectActive[I]||this.ObjectNoShadow[I]){ continue; }
+            if(!this.ObjectActive[I]||this.ObjectNoShadow[I]||this.SkipsNormalDraw(I,VariantAvailable)){ continue; }
             var MeshIndex= this.ObjectMeshIndices[I];
             this.SetDrawConstants(I);
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
@@ -2922,6 +2932,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.CommandList->DrawIndexedInstanced(this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
+        // 仮想ジオメトリの物体は、主ビューで選んだ塊で影を落とす（M0130 単位 5）。
+        _=this.DrawSelectedVirtualGeometry(StagePipelines.Shadow,ShadowVirtualGeometryVerticesRootParameter,Index=>!this.ObjectNoShadow[Index]);
     }
 
     private void RenderOverlay(){
@@ -3062,11 +3074,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    /// <param name="SkipVirtualGeometry">主パスでは、塊を選んだ物体を飛ばす（<see cref="DrawVirtualGeometryObjects"/> が間接描画で描く）。</param>
-    private void DrawObjects(int ExcludedObjectIndex,bool SkipVirtualGeometry=false){
+    /// <summary>
+    /// 見える物体を描く。今の PSO は <paramref name="Desc"/> のものであること。塊を選んだ物体は、<paramref name="Desc"/> に仮想ジオメトリの版があれば、
+    /// 普通の物体の後でその版の間接描画で描く（M0130）。
+    /// </summary>
+    /// <param name="CountForTesting">主パスでは、間接描画で描いた物体の数を試験用に残す。</param>
+    /// <param name="Proxy">主ビューと関係の無い視点（光のプローブの撮影）では、仮想ジオメトリのメッシュを代理メッシュ（根の段の塊）で描く。</param>
+    private void DrawObjects(int ExcludedObjectIndex,in StagePipelineDesc Desc,bool CountForTesting=false,bool Proxy=false){
+        var VariantAvailable=this.VirtualGeometryPipelineFor(Desc)!=null;
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
             if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]||this.ObjectHiddenFromView[ObjectIndex]){ continue; }
-            if(SkipVirtualGeometry&&this.DrawsWithVirtualGeometry(ObjectIndex)){ continue; }
+            if(Proxy){
+                if(this.DrawVirtualGeometryProxy(ObjectIndex,Desc,VirtualGeometryVerticesRootParameter,StageDrawFlags.None)){ continue; }
+            } else if(this.SkipsNormalDraw(ObjectIndex,VariantAvailable)){ continue; }
             int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
             this.SetDrawConstants(ObjectIndex);
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=
@@ -3079,6 +3099,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
+        if(Proxy){ return; }
+        var Drawn=this.DrawSelectedVirtualGeometry(Desc,VirtualGeometryVerticesRootParameter,ExcludedObjectIndex<0?null:Index=>Index!=ExcludedObjectIndex);
+        if(CountForTesting){ this.VirtualGeometryObjectsDrawnLastFrameForTesting=Drawn; }
     }
 
     private void RenderCameraPreviews(
@@ -3089,9 +3112,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector4 ClearColor=this.BackgroundClearVector;
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
-            ID3D12PipelineState*Pipeline=Preview.Depth.Encoding==RenderDepthEncoding.Observer
-                ?Wireframe?this.ObserverWireframePipelineState:this.ObserverPipelineState
-                :Wireframe?this.CameraPreviewWireframePipelineState:this.CameraPreviewPipelineState;
+            var PipelineDesc=Preview.Depth.Encoding==RenderDepthEncoding.Observer
+                ?Wireframe?StagePipelines.ObserverWireframe:StagePipelines.Observer
+                :Wireframe?StagePipelines.CameraPreviewWireframe:StagePipelines.CameraPreview;
+            ID3D12PipelineState*Pipeline=this.ResolvePipelineState(PipelineDesc);
             RECT Rect=new(){
                 left=Preview.X,top=Preview.Y,
                 right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height,
@@ -3112,7 +3136,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     this.FrameIndex,PreviewIndex+1));
             this.CommandList->RSSetViewports(1,&Viewport);
             this.CommandList->RSSetScissorRects(1,&Rect);
-            this.DrawObjects(Preview.ExcludedObjectIndex);
+            this.DrawObjects(Preview.ExcludedObjectIndex,PipelineDesc);
         }
     }
 
@@ -3353,11 +3377,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
         }
-        if(ShadowComparison){ this.DrawShadowComparison(); }
-        else {
-            this.DrawObjects(ExcludedObjectIndex:-1,SkipVirtualGeometry:true);
-            this.DrawVirtualGeometryObjects(ref Recording);
-        }
+        if(ShadowComparison){ this.DrawShadowComparison(Recording.MainPipelineDesc); }
+        else { this.DrawObjects(ExcludedObjectIndex:-1,Recording.MainPipelineDesc,CountForTesting:true); }
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
             this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,

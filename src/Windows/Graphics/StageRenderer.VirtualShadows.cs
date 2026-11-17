@@ -2,6 +2,7 @@ using System.Numerics;
 using static CSharpGameEngine.Rendering.Pipeline.StageGpuLayouts;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.Windows.Windows;
@@ -120,6 +121,7 @@ public sealed unsafe partial class StageRenderer {
         this.BindShadowInstanceTable();
         this.CommandList->SetPipelineState(this.ShadowPipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        var VariantAvailable=this.VirtualGeometryPipelineFor(StagePipelines.Shadow)!=null;
         var Index=0;
         foreach(var Page in this.VirtualShadowCache.PagesToRender){
             var Offset=(this.FrameIndex*VirtualPages+(uint)Index++)*ConstantAlignment;
@@ -130,14 +132,23 @@ public sealed unsafe partial class StageRenderer {
             this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,1,&Rect);
             var Viewport=new D3D12_VIEWPORT { TopLeftX=X,TopLeftY=Y,Width=128,Height=128,MaxDepth=1f };
             this.CommandList->RSSetViewports(1,&Viewport);this.CommandList->RSSetScissorRects(1,&Rect);
+            this.VirtualGeometryShadowCasters.Clear();
             foreach(var Object in this.VirtualShadowObjects){
                 if(!Object.CastsShadow||!IntersectsProjection(Object,Projection)){ continue; }
+                if(this.SkipsNormalDraw(Object.Id,VariantAvailable)){
+                    this.VirtualGeometryShadowCasters.Add(Object.Id);
+                    continue;
+                }
                 var ObjectIndex=Object.Id;var Mesh=this.ObjectMeshIndices[ObjectIndex];
                 this.SetDrawConstants(ObjectIndex);
                 fixed(D3D12_VERTEX_BUFFER_VIEW*Vertex=&this.VertexBufferViews[Mesh])
                 fixed(D3D12_INDEX_BUFFER_VIEW*Indices=&this.IndexBufferViews[Mesh]){
                     this.CommandList->IASetVertexBuffers(0,1,Vertex);this.CommandList->IASetIndexBuffer(Indices);this.CommandList->DrawIndexedInstanced(this.IndexCounts[Mesh],1,0,0,0);
                 }
+            }
+            // 仮想ジオメトリの物体は、主ビューで選んだ塊で影を落とす（M0130 単位 5）。
+            if(this.VirtualGeometryShadowCasters.Count>0){
+                _=this.DrawSelectedVirtualGeometry(StagePipelines.Shadow,ShadowVirtualGeometryVerticesRootParameter,this.VirtualGeometryShadowCasters.Contains);
             }
         }
         Barrier=D3D12_RESOURCE_BARRIER.InitTransition(this.VirtualShadowAtlas,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -160,7 +171,9 @@ public sealed unsafe partial class StageRenderer {
         this.ShadowTimestampReadback?.Dispose();
         this.ShadowTimestampReadback=null;
     }
-    private void DrawShadowComparison(){
+    /// <summary>仮想シャドウの置き場の 1 ページで、仮想ジオメトリで影を落とす物体（毎ページ使い直す）。</summary>
+    private readonly List<int>VirtualGeometryShadowCasters=[];
+    private void DrawShadowComparison(in StagePipelineDesc MainPipeline){
         var Source=this.FrameSlot(this.FrameIndex);
         var Left=this.FrameSlot(this.FrameIndex,1);
         var Right=this.FrameSlot(this.FrameIndex,2);
@@ -174,7 +187,7 @@ public sealed unsafe partial class StageRenderer {
             var Rect=new RECT { left=X,top=0,right=X+Half,bottom=this.Height };
             this.CommandList->RSSetViewports(1,&Viewport);this.CommandList->RSSetScissorRects(1,&Rect);
             this.CommandList->SetGraphicsRootConstantBufferView(0,this.GetFrameConstantsAddress(this.FrameIndex,Side+1));
-            this.DrawObjects(-1);
+            this.DrawObjects(-1,MainPipeline);
         }
         this.CommandList->SetGraphicsRootConstantBufferView(0,this.GetFrameConstantsAddress(this.FrameIndex));
     }

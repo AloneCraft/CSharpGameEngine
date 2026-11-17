@@ -75,7 +75,7 @@ public sealed unsafe partial class StageRenderer {
             this.CommandList->RSSetScissorRects(1,PScissorRect);
         }
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        this.DrawObjects(ExcludedObjectIndex:-1);
+        this.DrawObjects(ExcludedObjectIndex:-1,StagePipelines.LumenSurface);
         Lumen.EndSurface(this.CommandList);
         // カード撮影：新しい各カードについて、メッシュだけをメッシュ自身の空間に描画し、カードの正射影を使う。
         if(Lumen.CaptureCount>0){
@@ -103,6 +103,8 @@ public sealed unsafe partial class StageRenderer {
                 this.CommandList->RSSetScissorRects(1,&Scissor);
                 this.CommandList->SetGraphicsRootConstantBufferView(0,Lumen.CaptureFrameAddress(this.FrameIndex,Index));
                 // メッシュを自身の空間で描く。カードのシェーダーは世界格子を使わず、材質本来の発光を書く（実行時の物体の倍率はカード照明が掛ける）。
+                // 仮想ジオメトリのメッシュは、代理メッシュ（根の段の塊）を撮る。カードは粗い照明に使うので細かさは要らない（M0130 単位 5）。
+                if(this.DrawVirtualGeometryProxy(Capture.ObjectIndex,StagePipelines.LumenCard,VirtualGeometryVerticesRootParameter,StageDrawFlags.MeshSpace)){ continue; }
                 this.SetDrawConstants(Capture.ObjectIndex,StageDrawFlags.MeshSpace);
                 var MeshIndex=this.ObjectMeshIndices[Capture.ObjectIndex];
                 fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])

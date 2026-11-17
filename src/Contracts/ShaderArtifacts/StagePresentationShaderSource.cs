@@ -86,7 +86,7 @@ StructuredBuffer<uint> VirtualGeometryIndices : register(t23);
 StructuredBuffer<VirtualGeometryClusterData> VirtualGeometryClusters : register(t24);
 StructuredBuffer<uint> VirtualGeometryVisibleClusters : register(t25);
 
-VertexOutput VirtualGeometryVSMain(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
+VertexInput VirtualGeometryVertexInput(uint vertexId, uint instanceId)
 {
     VirtualGeometryClusterData cluster = VirtualGeometryClusters[VirtualGeometryVisibleClusters[instanceId]];
     uint corner = min(vertexId, cluster.IndexCount - 1u);
@@ -96,7 +96,18 @@ VertexOutput VirtualGeometryVSMain(uint vertexId : SV_VertexID, uint instanceId 
     input.Normal = vertex.Normal;
     input.Tangent = vertex.Tangent;
     input.Uv = vertex.Uv;
-    return VSMain(input);
+    return input;
+}
+
+VertexOutput VirtualGeometryVSMain(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
+{
+    return VSMain(VirtualGeometryVertexInput(vertexId, instanceId));
+}
+
+// 影の深さだけを描く版(M0130 単位 5)。影のルート署名でも t22〜t25 は同じレジスター。
+float4 VirtualGeometryShadowVSMain(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID) : SV_Position
+{
+    return VSShadowMain(VirtualGeometryVertexInput(vertexId, instanceId));
 }
 
 VertexOutput ObserverVSMain(VertexInput input)

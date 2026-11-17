@@ -1,7 +1,8 @@
 # Changelog
 
 - 仮想ジオメトリ(M0130、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 3)。取り込みの設定 `virtualGeometry.enabled` を `true` にしたモデルは、メッシュを塊の階層にして持ち、主パスで画面に合った細かさの塊だけを GPU が選んで描く。**利用側の変更**:
-  - Stage のシェーダーの取り決めは `stage-v19`(エントリー `VirtualGeometryVSMain` と t22〜t25 を足した)。シェーダーグラフの中身は変わらない。
+  - Stage のシェーダーの取り決めは `stage-v20`(エントリー `VirtualGeometryVSMain`・`VirtualGeometryShadowVSMain` と、主パスと影の t22〜t25 を足した)。シェーダーグラフの中身は変わらない。
+  - 影・Lumen・カメラプレビューも主ビューで選んだ塊を描く。Lumen のカードと光のプローブは根の段の塊(代理メッシュ)を描く。
   - エンジン共通の取り込みの設定に `virtualGeometry.enabled`(既定 `false`)を足したので、モデルは次の組み立てで一度作り直される。
 
 - 仮想化描画の共通の下回り(M0129、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md)、SDK 0.1.0-dev.51)。画面の見た目は変わらない(固定 7 画像のハッシュが同じ)。**利用側の変更**:

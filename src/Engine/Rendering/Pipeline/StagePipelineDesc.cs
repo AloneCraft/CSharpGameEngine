@@ -126,17 +126,36 @@ public static class StagePipelines {
     public static StagePipelineDesc Screen{get;}=new("ScreenVSMain","ScreenPSMain",StageRootSignature.Screen,StageInputLayout.Screen,StageFillMode.Solid,StagePrimitiveTopology.Triangle,StageRenderTargets.BackBuffer,WriteSceneDistance:true,DepthClip:true,StageDepthTarget.None,DepthTest:false,StageBlend.AlphaOverKeepingFrameAlpha);
     /// <summary>仮想ジオメトリの頂点シェーダーのエントリー名(ADR-0100 決定 3、M0130)。</summary>
     public const string VirtualGeometryVertexEntry="VirtualGeometryVSMain";
+    /// <summary>仮想ジオメトリの、影の深さだけを描く頂点シェーダーのエントリー名(M0130 単位 5)。</summary>
+    public const string VirtualGeometryShadowVertexEntry="VirtualGeometryShadowVSMain";
     /// <summary>
-    /// 仮想ジオメトリで描く変種。頂点シェーダーだけを差し替え、頂点の入力を使わない(頂点は塊の番号と頂点の番号から構造化バッファで引く)。
-    /// 画素シェーダーと描き込む先は元の設定のまま。
+    /// 仮想ジオメトリで描く変種。頂点シェーダーだけを差し替え(<c>VSMain</c> → <see cref="VirtualGeometryVertexEntry"/>、<c>VSShadowMain</c> →
+    /// <see cref="VirtualGeometryShadowVertexEntry"/>)、頂点の入力を使わない(頂点は塊の番号と頂点の番号から構造化バッファで引く)。
+    /// 画素シェーダーと描き込む先は元の設定のまま。ほかの頂点シェーダー(観察者の表示など)には変種が無いので null。
     /// </summary>
-    public static StagePipelineDesc VirtualGeometry(in StagePipelineDesc Desc)=>Desc with{ VertexEntry=VirtualGeometryVertexEntry,InputLayout=StageInputLayout.None };
+    public static StagePipelineDesc?VirtualGeometry(in StagePipelineDesc Desc)=>Desc.VertexEntry switch{
+        "VSMain"=>Desc with{ VertexEntry=VirtualGeometryVertexEntry,InputLayout=StageInputLayout.None },
+        "VSShadowMain"=>Desc with{ VertexEntry=VirtualGeometryShadowVertexEntry,InputLayout=StageInputLayout.None },
+        _=>null,
+    };
+    private static StagePipelineDesc VirtualGeometryOf(in StagePipelineDesc Desc)=>VirtualGeometry(Desc)??throw new InvalidOperationException("The pipeline has no virtual geometry variant.");
     /// <summary>照明済みの通常の描画の、仮想ジオメトリの変種。</summary>
-    public static StagePipelineDesc VirtualGeometryLit{get;}=VirtualGeometry(Lit);
+    public static StagePipelineDesc VirtualGeometryLit{get;}=VirtualGeometryOf(Lit);
     /// <summary>表示モードの、仮想ジオメトリの変種。</summary>
-    public static StagePipelineDesc VirtualGeometryPresentation{get;}=VirtualGeometry(Presentation);
+    public static StagePipelineDesc VirtualGeometryPresentation{get;}=VirtualGeometryOf(Presentation);
     /// <summary>ワイヤーフレームの、仮想ジオメトリの変種。</summary>
-    public static StagePipelineDesc VirtualGeometryWireframe{get;}=VirtualGeometry(Wireframe);
+    public static StagePipelineDesc VirtualGeometryWireframe{get;}=VirtualGeometryOf(Wireframe);
+    /// <summary>カメラプレビューの、仮想ジオメトリの変種(主ビューで選んだ塊を描く)。</summary>
+    public static StagePipelineDesc VirtualGeometryCameraPreview{get;}=VirtualGeometryOf(CameraPreview);
+    /// <summary>カメラプレビューのワイヤーフレームの、仮想ジオメトリの変種。</summary>
+    public static StagePipelineDesc VirtualGeometryCameraPreviewWireframe{get;}=VirtualGeometryOf(CameraPreviewWireframe);
+    /// <summary>Lumen の画面の下書きの、仮想ジオメトリの変種。</summary>
+    public static StagePipelineDesc VirtualGeometryLumenSurface{get;}=VirtualGeometryOf(LumenSurface);
+    /// <summary>Lumen のカード撮影の、仮想ジオメトリの変種(代理メッシュ = 根の段の塊を描く)。</summary>
+    public static StagePipelineDesc VirtualGeometryLumenCard{get;}=VirtualGeometryOf(LumenCard);
+    /// <summary>影の、仮想ジオメトリの変種(主ビューで選んだ塊を描く)。</summary>
+    public static StagePipelineDesc VirtualGeometryShadow{get;}=VirtualGeometryOf(Shadow);
     /// <summary>作る PSO のすべて。重複は無い。</summary>
-    public static IReadOnlyList<StagePipelineDesc>All{get;}=[Lit,Presentation,Wireframe,CameraPreview,CameraPreviewWireframe,Observer,ObserverWireframe,LumenSurface,LumenCard,OverlayTriangles,OverlayLines,Shadow,PostProcess,Screen,VirtualGeometryLit,VirtualGeometryPresentation,VirtualGeometryWireframe];
+    public static IReadOnlyList<StagePipelineDesc>All{get;}=[Lit,Presentation,Wireframe,CameraPreview,CameraPreviewWireframe,Observer,ObserverWireframe,LumenSurface,LumenCard,OverlayTriangles,OverlayLines,Shadow,PostProcess,Screen,VirtualGeometryLit,VirtualGeometryPresentation,VirtualGeometryWireframe,
+        VirtualGeometryCameraPreview,VirtualGeometryCameraPreviewWireframe,VirtualGeometryLumenSurface,VirtualGeometryLumenCard,VirtualGeometryShadow];
 }

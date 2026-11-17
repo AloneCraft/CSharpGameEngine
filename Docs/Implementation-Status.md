@@ -5170,19 +5170,19 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L4-024 — 仮想ジオメトリの描画
 
-- Layer: L4 — GPU の表の形と描画の設定(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs` の `StageVirtualGeometry*`、`StagePipelineDesc.cs` の `StagePipelines.VirtualGeometry*`、`StagePipelinePlan.cs` の `StagePass.VirtualGeometrySelection`)、L0 — 選択と間接描画(`src/Windows/Graphics/StageRenderer.VirtualGeometry.cs`)、L5 — モデルの追加データから描画への受け渡し(`src/Runtime/Windows/StageModelAssets.cs`)、L6 — Stage の ABI(`stage-v19`)
+- Layer: L4 — GPU の表の形と描画の設定(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs` の `StageVirtualGeometry*`、`StagePipelineDesc.cs` の `StagePipelines.VirtualGeometry*`、`StagePipelinePlan.cs` の `StagePass.VirtualGeometrySelection`)、L0 — 選択と間接描画(`src/Windows/Graphics/StageRenderer.VirtualGeometry.cs`)、L5 — モデルの追加データから描画への受け渡し(`src/Runtime/Windows/StageModelAssets.cs`)、L6 — Stage の ABI(`stage-v20`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 3)
-- Status: Partial(2026-11-17。M0130 単位 4。主パスは GPU で選んだ塊を間接描画で描く。影・AO・Lumen の前処理・カメラプレビューは、まだ同じ形の元のメッシュで描く)
+- Status: Partial(2026-11-17。M0130 単位 4〜5。主パス・影・Lumen の画面の下書き・カメラプレビューは、GPU が主ビューから選んだ塊を間接描画で描く。Lumen のカードと光のプローブは代理メッシュ(根の段の塊)を描く)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified、RuntimeVerified(WARP)。実機の GPU では未確認
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Specifications/Shader-Graph.md`(仮想ジオメトリ)、`Docs/Milestones/M0130-Virtual-Geometry-Build-And-Draw.md`
 - Stage: なし(M0130 の締めで足す)
 - Depends on: F-L4-023、F-L7-059
-- Implementation evidence: 選択の計算シェーダー `assets/Shaders/VirtualGeometry.hlsl`(物体ごと、1 塊 1 スレッド、「自分のまとまりの誤差の画素数 ≤ 1 画素 < 親のまとまりの誤差の画素数」で描く)。頂点シェーダー `VirtualGeometryVSMain`(`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、t22〜t25)。描画器は物体ごとに描く塊の番号の一覧と間接描画の引数を持ち、引数の描く数を 0 に戻してから選び、1 塊 1 インスタンス(384 頂点)で描く
-- Tests: Windowsのテスト `VirtualGeometryGpuTests`(元のメッシュとの画像の差、近づくと塊が増える、ビュー投影から作る画面上の大きさの式、選択のシェーダーの式が共通の式の写しのまま、デバッグ層のエラー 0)、`ShaderGraphCompilerTests`(エントリー 15 個)、エンジンのテスト `StagePipelinePlannerTests`(パスの順)、固定 7 画像
-- Current delta: 遮蔽判定と読み込みは無い(M0131)。影・AO・Lumen は単位 5。三角形の下限と法線マップは単位 6
+- Implementation evidence: 選択の計算シェーダー `assets/Shaders/VirtualGeometry.hlsl`(物体ごと、1 塊 1 スレッド、「自分のまとまりの誤差の画素数 ≤ 1 画素 < 親のまとまりの誤差の画素数」で描く)。頂点シェーダー `VirtualGeometryVSMain` と影の版 `VirtualGeometryShadowVSMain`(`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、t22〜t25)。描画器は物体ごとに描く塊の番号の一覧と間接描画の引数を持ち、引数の描く数を 0 に戻してから選び、1 塊 1 インスタンス(384 頂点)で描く
+- Tests: Windowsのテスト `VirtualGeometryGpuTests`(元のメッシュとの画像の差、カスケード影と仮想シャドウで同じ影が落ちる、Lumen と光のプローブで代理メッシュを描ける、近づくと塊が増える、ビュー投影から作る画面上の大きさの式、選択のシェーダーの式が共通の式の写しのまま、デバッグ層のエラー 0)、`ShaderGraphCompilerTests`(エントリー 16 個)、エンジンのテスト `StagePipelinePlannerTests`(パスの順)、固定 7 画像
+- Current delta: 遮蔽判定と読み込みは無い(M0131)。影は主ビューで選んだ塊を描く(光から見た細かさでは選ばない。仮想シャドウの作り直しは M0132)。カメラプレビューもプレビューのカメラではなく主ビューの選択を描く。観察者の表示は元のメッシュ。三角形の下限と法線マップは単位 6
 - Conformance: Partial
-- Next action: M0130 単位 5(影・AO・Lumen の前処理を同じ選択で描く、代理メッシュ)
+- Next action: M0130 単位 6(三角形の下限と法線マップの計測)
 
 ## F-L4-021 — Entity を使わない物理の契約
 
