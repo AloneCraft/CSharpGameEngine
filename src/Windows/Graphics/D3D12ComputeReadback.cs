@@ -30,7 +30,14 @@ internal static unsafe class D3D12ComputeReadback {
             out ShaderArtifactPackage?Package,out string Error)||Package is null){
             throw new InvalidDataException($"Compute shader artifact is invalid: {Error}");
         }
-        byte[]Bytecode=Package.GetBytecode("CSMain");
+        return Execute(Input,Package.GetBytecode("CSMain"),UseWarp);
+    }
+    /// <summary>コンパイル済みの計算シェーダー（t0 の入力、u0 の出力、どちらも float で同じ数）を 1 回動かして、出力を読み戻す。</summary>
+    internal static D3D12ComputeReadbackResult Execute(ReadOnlySpan<float>Input,byte[]Bytecode,bool UseWarp){
+        if(Input.IsEmpty||Input.Length>MaximumElementCount){
+            throw new ArgumentOutOfRangeException(nameof(Input));
+        }
+        ArgumentNullException.ThrowIfNull(Bytecode);
         using GraphicsDevice Device=GraphicsDevice.Create(new GraphicsDeviceOptions {
             UseWarp=UseWarp,
             EnableDebugLayer=true,
