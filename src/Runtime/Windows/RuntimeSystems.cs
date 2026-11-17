@@ -365,7 +365,7 @@ internal struct LevelLoad:ISystem {
             StageMaterialCreateInfo Material=Scene.Materials[
                 Scene.Objects[ObjectIndex].MaterialIndex];
             var Emission=RenderRoster.EmissionOf(Material);
-            if(RenderRoster.IsEmissive(Emission.Nits)&&RenderRoster.LightsTheScene(Scene.SourceEntities[ObjectIndex],State.World)){
+            if(RenderRoster.IsEmissive(Emission.Nits)&&RenderRoster.HasLightPatchShape(Scene.Meshes[Scene.Objects[ObjectIndex].MeshIndex])&&RenderRoster.LightsTheScene(Scene.SourceEntities[ObjectIndex],State.World)){
                 State.World.CreateDeferred(
                     Scene.ObjectTransforms[ObjectIndex],
                     RenderRoster.NewEmissiveLighting(

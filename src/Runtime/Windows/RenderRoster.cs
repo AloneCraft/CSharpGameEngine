@@ -60,6 +60,12 @@ internal sealed class RenderRoster {
     /// 発光の強さを変更するもの）は表面だけが光る。その発光はフレームごとに変化し、大きなメッシュの一部に過ぎないためである。
     /// </summary>
     internal static bool LightsTheScene(Entity Source,CSharpGameEngine.Entities.World World)=>!World.TryGetComponent(Source,out MeshEmissive _);
+    /// <summary>
+    /// メッシュの形からライトパッチを作れるかどうか。スキンのあるメッシュ（キャラクター）は作らず、表面だけが光る。
+    /// パッチはバインド姿勢の頂点から作るので、骨で動く体の形とずれ、そのうえ動くたびに全三角形から作り直すことになるためである
+    /// （FirstPerson の Manny 2 体で 1 フレームが約 4 倍に延びた）。
+    /// </summary>
+    internal static bool HasLightPatchShape(in StageMeshCreateInfo Mesh)=>Mesh.Skin is null;
     /// <summary>Entityがまだ描画対象を持つかどうか。生存しており、メッシュコンポーネントがある。</summary>
     internal static bool IsDrawnSource(Entity Source,CSharpGameEngine.Entities.World World)=>
         World.IsAlive(Source)
@@ -112,7 +118,7 @@ internal sealed class RenderRoster {
         this.BindObjects(Source,in Transform,Objects,Renderer,Host,ref State);
     }
     private void NoteEmissiveMesh(int MeshIndex,int MaterialIndex,StageMeshCreateInfo Mesh){
-        if(IsEmissive(this.MaterialEmission[MaterialIndex].Nits)){
+        if(IsEmissive(this.MaterialEmission[MaterialIndex].Nits)&&HasLightPatchShape(Mesh)){
             this.EmissiveMeshes.TryAdd(MeshIndex,Mesh);
         }
     }

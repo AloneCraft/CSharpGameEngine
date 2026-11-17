@@ -525,7 +525,7 @@ The implemented CLI imports actual glTF through cge.gltf in a dedicated worker, 
   - SportsCar の値で: 静止の重心の高さ 0.583 m、前輪の荷重 3375 N・後輪 3963 N、車輪は休みの位置より前 4.3 cm・後 6.8 cm 上。0〜100 km/h 3.42 秒、1 速から 2 速へ 5962 rpm 付近で上げて 12 tick ニュートラル、最高速 約 269 km/h(5 速、空気抵抗と釣り合う)、100 km/h からの全ブレーキで 18.0 m・1.28 秒、5 m/s 付近の全舵で半径 4.2 m(左 30.8°・右 37.4°)、坂(3 m)から 68 tick 浮いて着地、壁の手前 2.25 m で止まる。
   - System: FixedSimulation の `VehicleBodySetup`(最初の tick に剛体の向き、毎 tick 質量)、PhysicsSimulation の `VehicleMotionUpdate`(静的メッシュの同期の後、物理の tick の前)と `VehicleBodyWriteback`(物理の向きを Transform へ)、PostPhysics の `VehicleWheelPose`(子の車輪を休みの姿勢 + 上下・舵・回転)、Presentation の `VehicleChaseView`(腕の Yaw = 車の Yaw + 見回し、見回しは FInterpTo で 0 へ。`OrbitCameraUpdate` の前)。
   - スナップショット: `Vehicle`(データアセットの参照と車輪の配列を持つ設定)は `[EcsSnapshotTransient]` で入らず、復元では読み直したシーンの値のまま。`VehicleState`・`VehicleIntent`・`VehicleWheelVisual`・`VehicleCameraLook` は入る。
-  - 描画: `MeshEmissive` を持つメッシュの物体は、毎フレーム発光の倍率が物体の定数に入る(既定 1、外すと 1 に戻る)。そのメッシュは発光で周りを照らさない。`LightVisibility.Visible` が偽のノードの光(4 種のどれでも)は出さない。表示中のカメラが無効になり有効な別のカメラがあれば、その次のフレームから描画のカメラが替わる。
+  - 描画: `MeshEmissive` を持つメッシュの物体は、毎フレーム発光の倍率が物体の定数に入る(既定 1、外すと 1 に戻る)。そのメッシュは発光で周りを照らさない。スキンのあるメッシュ(キャラクター)も、発光は表面だけで周りを照らさない(光の板はバインド姿勢の形からしか作れず、動く体と合わないため)。`LightVisibility.Visible` が偽のノードの光(4 種のどれでも)は出さない。表示中のカメラが無効になり有効な別のカメラがあれば、その次のフレームから描画のカメラが替わる。
   - テンプレート: Tab で前と後ろのカメラ、L で左のヘッドライト、BackSpace でリセット、マウスの横・右スティックで見回し(離すと戻る)、ブレーキ(0 からの踏み込みで点き 0 で消える)とハンドブレーキ(押している間)でテールランプが 200 倍(通常 4 倍)に光る。
 - Intended behavior: `Docs/Specifications/UE-Template-Behavior.md` の Vehicle(UE のテンプレートの挙動)。
 - Result: MatchesWithDocumentedExtension(差は M0109 の文書: 力のサスペンション(UE の既定は制約)、ブレーキランプを光らせる(UE では光らない)、慣性は箱、エンジン音なし)。
