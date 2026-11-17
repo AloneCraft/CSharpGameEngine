@@ -3,6 +3,8 @@
 UE5.8 の基本テンプレートと同じ名前のテンプレート群。`ThirdPerson` / `FirstPerson` / `TopDown` / `Vehicle`。
 これらは「新規プロジェクトのテンプレート」(VSIX のプロジェクトテンプレートの原本)であり、同時に既定のサンプルでもある。どれもビルドできる。
 
+このフォルダの `Template.slnx` は、4 つのテンプレートだけを載せた補助のソリューション。VSIX を入れた実験用の Visual Studio で開き、テンプレートとして適切なコードかを確かめ、実行し、編集するために使う(`.\tools\Start-CSharpGameEngine-Vsix.ps1 -Solution Template` で開ける)。エンジン本体はソリューションに載せず、`build/CSharpGameEngine.Game.props` のプロジェクト参照でビルドされる。
+
 以前はここに、ビルドできない「理想コード」の下書き(`Templates/ThirdPerson` など)を、本物(`CSharpGameEngine.Templates.ThirdPerson`)と並べて置いていた。2026-11-16 に本物をこの名前のフォルダへ移し、下書きは消した(ADR-0099。下書きは Git の履歴から戻せる)。下の「方針」と「仕組み」の表は、下書きが示した書き方の案と、その実装状況の記録として残す。
 
 ## 方針

@@ -176,7 +176,9 @@ Roslynにロードされない。
 - `CSharpGameEngine.slnx` がこのリポジトリの正規のソリューションファイルで、全プロジェクトを登録する。
   Visual Studio によってレガシーな `CSharpGameEngine.sln` 形式から移行済みで、
   そのファイルはもう存在しない。`UserEcsProject.slnx` は `UserEcsProject` だけを含む補助のソリューションで、
-  VSIX の実験用インスタンスでゲームを開くため（README の手順）にある。
+  VSIX の実験用インスタンスでゲームを開くため（README の手順）にある。`Templates/Template.slnx` も同じ種類の補助のソリューションで、
+  4 つのテンプレート（ThirdPerson / FirstPerson / TopDown / Vehicle）だけを含み、VSIX の実験用インスタンスでテンプレートを確かめ・実行し・編集するためにある。
+  どちらもプロジェクトの登録の正本ではない（登録の正本は `CSharpGameEngine.slnx`）。
 - リポジトリ直下と全サブフォルダにある `bin`、`obj`、`.git`、`.vs`、`.gitignore` で除外された
   ローカル `VSIXProject1` 以外の全 `.csproj` と
   `.shproj` は、配置場所に関係なく `CSharpGameEngine.slnx` に登録すること。登録漏れがあっても

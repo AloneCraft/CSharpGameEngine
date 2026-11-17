@@ -59,7 +59,9 @@ public sealed class TemplateExportMaterialTests {
     [Fact]
     public void EveryTemplateGlbWithMeshesKeepsItsMaterials(){
         var Root=RepositoryRoot();
+        // A template is a folder with a project; Templates/ also holds Template.slnx and the .vs folder Visual Studio makes beside it.
         var Files=Directory.EnumerateDirectories(System.IO.Path.Combine(Root,"Templates"),"*")
+            .Where(static Template=>Directory.EnumerateFiles(Template,"*.csproj").Any())
             .SelectMany(static Template=>Directory.EnumerateFiles(System.IO.Path.Combine(Template,"Assets"),"*.glb",SearchOption.AllDirectories))
             .ToArray();
         Assert.NotEmpty(Files);

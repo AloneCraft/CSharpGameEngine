@@ -1,9 +1,12 @@
 ﻿[CmdletBinding()]
-param()
+param(
+    # 開くソリューション。Template は Templates\Template.slnx(4 つのテンプレートだけ)を開く。
+    [ValidateSet('UserEcsProject','Template')][string]$Solution='UserEcsProject'
+)
 $ErrorActionPreference='Stop'
 $RepositoryRoot=Split-Path -Parent $PSScriptRoot
 $ProjectPath=Join-Path $RepositoryRoot 'tools\VSExtension\VSExtension.csproj'
-$SolutionPath=Join-Path $RepositoryRoot 'UserEcsProject.slnx'
+$SolutionPath=if($Solution -eq 'Template'){Join-Path $RepositoryRoot 'Templates\Template.slnx'}else{Join-Path $RepositoryRoot 'UserEcsProject.slnx'}
 $VsWherePath=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if(!(Test-Path -LiteralPath $VsWherePath)){
     throw "Visual Studio の検出ツールが見つかりません: $VsWherePath"
