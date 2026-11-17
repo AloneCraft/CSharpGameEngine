@@ -69,9 +69,10 @@ internal static class StageModelAssets {
             Clusters[Index]=new(){ FirstIndex=checked((uint)Cluster.FirstIndex),IndexCount=checked((uint)Cluster.IndexCount),Group=checked((uint)Cluster.Group),ParentGroup=Cluster.ParentGroup };
         }
         var Groups=new StageVirtualGeometryGroup[Mesh.Groups.Length];
+        var TriangleSizes=Mesh.GroupTriangleSizes();
         for(var Index=0;Index<Groups.Length;Index++){
             var Group=Mesh.Groups[Index];
-            Groups[Index]=new(){ BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error };
+            Groups[Index]=new(){ BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error,TriangleSize=TriangleSizes[Index] };
         }
         return new(){ Vertices=Vertices,Indices=Mesh.Indices,Clusters=Clusters,Groups=Groups };
     }

@@ -61,6 +61,37 @@ public sealed class VirtualGeometryBuilderTests {
             }
         }
     }
+    /// <summary>
+    /// 三角形の下限（M0130 単位 6）を足しても閉じている。まとまりの三角形の大きさは親で子以上なので、「誤差が小さいか、三角形が下限より小さい」も親で成り立てば子でも成り立つ。
+    /// 下限を大きくするほど、描く三角形は減る。
+    /// </summary>
+    [Fact]
+    public void ATriangleFloorKeepsTheSelectionWatertightAndDrawsFewerTriangles(){
+        var (Vertices,Indices)=Sphere(40,80);
+        var Mesh=VirtualGeometryBuilder.Build(Vertices,Indices);
+        var Sizes=Mesh.GroupTriangleSizes();
+        foreach(var Cluster in Mesh.Clusters){
+            if(Cluster.ParentGroup>=0){ Assert.True(Sizes[Cluster.ParentGroup]>=Sizes[Cluster.Group],"a parent group has smaller triangles than its child"); }
+        }
+        var Metric=ScreenSizeMetric.Perspective(1f,1080,0.01f);
+        var Camera=new Vector3(0f,0f,6f);
+        var Previous=int.MaxValue;
+        var WithoutFloor=0;
+        foreach(var Floor in new[]{ 0f,4f,16f,64f }){
+            bool Enough(int Group){
+                var G=Mesh.Groups[Group];
+                var Distance=MathF.Max((G.BoundsCentre-Camera).Length()-G.BoundsRadius,Metric.MinimumDistanceMeters);
+                return Metric.ProjectedPixels(G.Error,Distance)<=0.25f||Floor>0f&&Metric.ProjectedPixels(Sizes[Group],Distance)<=Floor;
+            }
+            var Selected=Mesh.Clusters.Where(Cluster=>Enough(Cluster.Group)&&(Cluster.ParentGroup<0||!Enough(Cluster.ParentGroup))).ToArray();
+            AssertWatertight(Mesh,Selected,$"floor {Floor} px");
+            var Triangles=Selected.Sum(static Cluster=>Cluster.IndexCount/3);
+            Assert.True(Triangles<=Previous,$"floor {Floor} px draws {Triangles} triangles, more than {Previous}");
+            if(Floor==0f){ WithoutFloor=Triangles; }
+            Previous=Triangles;
+        }
+        Assert.True(Previous*2<WithoutFloor,$"a 64 px floor draws {Previous} triangles, not under half of {WithoutFloor} without a floor");
+    }
     [Fact]
     public void TheSameInputGivesTheSameResult(){
         var (Vertices,Indices)=Sphere(32,64);

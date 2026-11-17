@@ -26,4 +26,31 @@ public sealed record VirtualGeometryMesh(VirtualGeometryVertex[]Vertices,uint[]I
         }
         return [..Result];
     }
+    /// <summary>
+    /// まとまりごとの三角形の大きさ（メートル）。自分の塊の三角形の辺の長さの平均と、自分の入力を作った子のまとまりの値の大きいほう。
+    /// 親へ行くほど大きくなる（減らない）ので、「三角形が下限より小さければ十分」という選び方も、誤差と同じく割れ目を作らない（ADR-0100、M0130 単位 6）。
+    /// 成果物には書かず、読み込むときに塊から求める。
+    /// </summary>
+    public float[]GroupTriangleSizes(){
+        var Sums=new float[this.Groups.Length];
+        var Counts=new int[this.Groups.Length];
+        foreach(var Cluster in this.Clusters){
+            for(var Corner=0;Corner<Cluster.IndexCount;Corner+=3){
+                var A=this.Vertices[this.Indices[Cluster.FirstIndex+Corner]].Position;
+                var B=this.Vertices[this.Indices[Cluster.FirstIndex+Corner+1]].Position;
+                var C=this.Vertices[this.Indices[Cluster.FirstIndex+Corner+2]].Position;
+                Sums[Cluster.Group]+=Vector3.Distance(A,B)+Vector3.Distance(B,C)+Vector3.Distance(C,A);
+                Counts[Cluster.Group]+=3;
+            }
+        }
+        var Sizes=new float[this.Groups.Length];
+        for(var Group=0;Group<Sizes.Length;Group++){ Sizes[Group]=Counts[Group]==0?0f:Sums[Group]/Counts[Group]; }
+        // 段の低い順に、子の値を親へ渡す（親の段は子より必ず高い）。
+        foreach(var Group in Enumerable.Range(0,this.Groups.Length).OrderBy(Group=>this.Groups[Group].Level)){
+            foreach(var Cluster in this.Clusters){
+                if(Cluster.Group==Group&&Cluster.ParentGroup>=0){ Sizes[Cluster.ParentGroup]=MathF.Max(Sizes[Cluster.ParentGroup],Sizes[Group]); }
+            }
+        }
+        return Sizes;
+    }
 }

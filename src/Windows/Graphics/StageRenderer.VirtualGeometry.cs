@@ -30,6 +30,11 @@ public sealed unsafe partial class StageRenderer {
     private const uint ShadowVirtualGeometryVerticesRootParameter=3;
     /// <summary>まとまりの誤差が画面でこの画素数以下になる、いちばん粗い塊を描く。</summary>
     internal const float VirtualGeometryThresholdPixels=1f;
+    /// <summary>
+    /// 三角形の下限（画素、M0130 単位 6）。三角形の大きさが画面でこれ以下になったまとまりは、誤差が大きくても細かくしない。0 なら使わない。
+    /// 既定は計測で決める（M0130 の記録）。
+    /// </summary>
+    internal float VirtualGeometryTriangleFloorPixels { get;set; }
     /// <summary>これより近い距離は、この距離として画素数を求める（カメラの中に入った塊の画素数を無限大にしない）。</summary>
     private const float VirtualGeometryMinimumDistanceMeters=0.01f;
     private const uint VirtualGeometryThreadGroupSize=64;
@@ -186,6 +191,7 @@ public sealed unsafe partial class StageRenderer {
                 Metric=Metric.ShaderParameters,
                 ClusterCount=Mesh.ClusterCount,
                 ThresholdPixels=VirtualGeometryThresholdPixels,
+                TriangleFloorPixels=this.VirtualGeometryTriangleFloorPixels,
             };
             this.CommandList->SetComputeRoot32BitConstants(0,VirtualGeometrySelectionConstantCount,&Selection,0);
             this.CommandList->SetComputeRootShaderResourceView(1,Mesh.Clusters->GetGPUVirtualAddress());
@@ -346,6 +352,16 @@ public sealed unsafe partial class StageRenderer {
             var Bytes=GpuBufferReadback.Read(this.Device!,this.VirtualGeometryObjects[ObjectIndex].DrawArguments,(ulong)sizeof(D3D12_DRAW_ARGUMENTS),D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
             Result[ObjectIndex]=BitConverter.ToInt32(Bytes,4);
         }
+        return Result;
+    }
+    /// <summary>試験用: 物体 <paramref name="ObjectIndex"/> で最後のフレームに選んだ塊の番号。GPU の完了を待って読む。</summary>
+    internal int[]ReadVirtualGeometryVisibleClustersForTesting(int ObjectIndex){
+        var Count=this.ReadVirtualGeometryClusterCountsForTesting()[ObjectIndex];
+        if(Count<=0){ return []; }
+        var Object=this.VirtualGeometryObjects[ObjectIndex];
+        var Bytes=GpuBufferReadback.Read(this.Device!,Object.VisibleClusters,(ulong)Object.Capacity*sizeof(uint),D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        var Result=new int[Count];
+        for(var Index=0;Index<Count;Index++){ Result[Index]=BitConverter.ToInt32(Bytes,Index*4); }
         return Result;
     }
     private void ReleaseVirtualGeometry(){

@@ -204,11 +204,12 @@ public sealed class VirtualGeometryGpuTests {
         var Tangents=Enumerable.Repeat(new Vector4(1f,0f,0f,1f),Positions.Count).ToArray();
         var Source=new StageMeshCreateInfo { Positions=[..Positions],Normals=[..Normals],Tangents=Tangents,Uvs=[..Uvs],Indices=[..Indices] };
         var Built=VirtualGeometryBuilder.Build([..Positions.Select((Position,Index)=>new VirtualGeometryVertex(Position,Normals[Index],Tangents[Index],Uvs[Index]))],[..Indices]);
+        var Sizes=Built.GroupTriangleSizes();
         return (Source,new StageVirtualGeometryCreateInfo{
             Vertices=[..Built.Vertices.Select(static Vertex=>new StageVirtualGeometryVertex { Position=Vertex.Position,Normal=Vertex.Normal,Tangent=Vertex.Tangent,Uv=Vertex.Uv })],
             Indices=Built.Indices,
             Clusters=[..Built.Clusters.Select(static Cluster=>new StageVirtualGeometryCluster { FirstIndex=(uint)Cluster.FirstIndex,IndexCount=(uint)Cluster.IndexCount,Group=(uint)Cluster.Group,ParentGroup=Cluster.ParentGroup })],
-            Groups=[..Built.Groups.Select(static Group=>new StageVirtualGeometryGroup { BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error })],
+            Groups=[..Built.Groups.Select((Group,Index)=>new StageVirtualGeometryGroup { BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error,TriangleSize=Sizes[Index] })],
         });
     }
     private static string RepositoryRoot(){

@@ -149,7 +149,8 @@ public struct StageVirtualGeometryGroup {
     public Vector3 BoundsCentre;
     public float BoundsRadius;
     public float Error;
-    public float Reserved0;
+    /// <summary>三角形の辺の長さの平均（メートル。親へ行くほど大きい）。三角形の下限で使う。</summary>
+    public float TriangleSize;
     public float Reserved1;
     public float Reserved2;
 }
@@ -168,7 +169,8 @@ public struct StageVirtualGeometrySelection {
     public uint ClusterCount;
     /// <summary>誤差の画素数のしきい値。これ以下なら細かくしない。</summary>
     public float ThresholdPixels;
-    public uint Reserved0;
+    /// <summary>三角形の下限（画素）。三角形の大きさの画素数がこれ以下なら、誤差が大きくても細かくしない。0 なら使わない。</summary>
+    public float TriangleFloorPixels;
     public uint Reserved1;
 }
 /// <summary>描画器へ渡す仮想ジオメトリ 1 つ(GPU の表の形のまま)。</summary>

@@ -5180,9 +5180,9 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L4-023、F-L7-059
 - Implementation evidence: 選択の計算シェーダー `assets/Shaders/VirtualGeometry.hlsl`(物体ごと、1 塊 1 スレッド、「自分のまとまりの誤差の画素数 ≤ 1 画素 < 親のまとまりの誤差の画素数」で描く)。頂点シェーダー `VirtualGeometryVSMain` と影の版 `VirtualGeometryShadowVSMain`(`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、t22〜t25)。描画器は物体ごとに描く塊の番号の一覧と間接描画の引数を持ち、引数の描く数を 0 に戻してから選び、1 塊 1 インスタンス(384 頂点)で描く
 - Tests: Windowsのテスト `VirtualGeometryGpuTests`(元のメッシュとの画像の差、カスケード影と仮想シャドウで同じ影が落ちる、Lumen と光のプローブで代理メッシュを描ける、近づくと塊が増える、ビュー投影から作る画面上の大きさの式、選択のシェーダーの式が共通の式の写しのまま、デバッグ層のエラー 0)、`ShaderGraphCompilerTests`(エントリー 16 個)、エンジンのテスト `StagePipelinePlannerTests`(パスの順)、固定 7 画像
-- Current delta: 遮蔽判定と読み込みは無い(M0131)。影は主ビューで選んだ塊を描く(光から見た細かさでは選ばない。仮想シャドウの作り直しは M0132)。カメラプレビューもプレビューのカメラではなく主ビューの選択を描く。観察者の表示は元のメッシュ。三角形の下限と法線マップは単位 6
+- Current delta: 遮蔽判定と読み込みは無い(M0131)。影は主ビューで選んだ塊を描く(光から見た細かさでは選ばない。仮想シャドウの作り直しは M0132)。カメラプレビューもプレビューのカメラではなく主ビューの選択を描く。観察者の表示は元のメッシュ。三角形の下限は作ったが既定で使わない(計測で凹凸の陰影が消えたため。法線マップは未)
 - Conformance: Partial
-- Next action: M0130 単位 6(三角形の下限と法線マップの計測)
+- Next action: M0130 単位 6 の続き(法線マップを焼いて、下限ありの陰影を比べる)
 
 ## F-L4-021 — Entity を使わない物理の契約
 
@@ -5255,4 +5255,4 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: 焼き込みのテスト `QuadricSimplifierTests`、`VirtualGeometryBuilderTests`(どのしきい値・どのカメラで選んでも割れ目が無い)、`VirtualGeometryCodecTests`。エンジンのテスト `ModelArtifactPreparationTests.VirtualGeometryIsBuiltOnlyWhenTheImportOptionAsksForIt`
 - Current delta: 小さな部品を取り除く処理(Omni の pruning)は無い。入力の開いた辺の知らせは無い。読み込みを分ける形(ページ)は M0131
 - Conformance: Partial
-- Next action: M0130 単位 6(三角形の下限と法線マップの計測)
+- Next action: M0130 単位 6 の続き(法線マップを焼いて、下限ありの陰影を比べる)
