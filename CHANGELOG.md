@@ -1,5 +1,12 @@
 # Changelog
 
+- 仮想化描画の共通の下回り(M0129、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md)、SDK 0.1.0-dev.51)。画面の見た目は変わらない(固定 7 画像のハッシュが同じ)。**利用側の変更**:
+  - Stage のシェーダーの取り決めは `stage-v18`。物体ごとの定数(ObjectCB)と材質のテクスチャ t0〜t3 は無くなり、物体の表(t20)、材質の表(t21)、描画ごとのルート定数(b1)、材質のテクスチャの配列(t0 space1)になった。**以前に VS のテンプレートで自分のプロジェクトへ複製した Stage のシェーダーグラフは使えない**(描画の設定を作るときに失敗する)。新しいテンプレートから作り直す。
+  - 描画器は D3D12 のリソース束縛の段 2 以上の GPU を求める。満たさない GPU では、アダプターの名前を添えて描画器を作るときに止まる。
+  - 材質の数に上限は無くなった。`AddMaterial` は -1 を返さず、`FreeMaterialSlots` は上限なしを表す大きな値を返す。材質と画面レイヤーのテクスチャを足しても GPU の完了を待たない(テクスチャは次のフレームの最初に送る)。
+  - 新しい L4 の部品 `CSharpGameEngine.Rendering.Streaming`(`ScreenSizeMetric`、`PageSlotAllocator`、`StreamingReport`)。後の段階の仮想ジオメトリ・仮想シャドウ・仮想テクスチャが使う。
+  - FeatureRunner に `rendering.gpu-scene`(F-L4-023)を足した。
+
 - 描画のフレーム計画を L4 へ移した(M0120 段階 1、[設計と記録](Docs/refactoring-designs/20261115-m0120-frame-plan-executor.md))。**利用側の変更**:
   - `StageRenderer` の `RenderFrame`、`SetCamera`、`SetViewProjection`、光源の入口(`SetDirectionalLight`、`Add*Light`、`StagePhysicalLightApi`・`EmissivePatchSubmission` の拡張)を削除した。描画は `RenderServer`(`D3D12RenderServer.Create`)を通す。
   - `IStageRenderBackend` は光源の提出を持たず、`Execute(StagePipelinePlan, StageLightSubmissions)` で計画を実行する。`RenderServer.DeclaredQualityPlan` は実行した計画 `CurrentPipeline` に置き換えた。

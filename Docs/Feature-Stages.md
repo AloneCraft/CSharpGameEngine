@@ -226,6 +226,9 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 
 `release.manifest` / F-L7-048 is executable Release-only Headless/Foundation evidence. It binds a passing RC Stage/report, validated Rendering/Content/ECS/Platform/VSIX reports, and the exact package archive, signing inputs, inner package manifest, and SPDX hashes. Publication is an atomic SHA-256 content-addressed FormalRelease directory with non-expiring retention and rollback identity. Same-identity publication preserves the original bytes and timestamp; invalid existing or partial output is never overwritten into success.
 
+### GPU scene and streaming foundation (M0129)
+`rendering.gpu-scene` (F-L4-023, Rendering / Visual, WARP required) runs `StageSceneLayoutsTests`, `StagePipelinePlannerTests`, `ScreenSizeMetricTests` and `PageSlotAllocatorTests`, then `StageConstantLayoutReflectionTests`, `MaterialTextureArrayGpuTests`, `StageFeedbackReadbackTests`, `StageFrameSlotPersistenceTests`, `ScreenSizeMetricGpuTests`, `GpuDrivenDrawGateTests` and `StageGoldenFrameTests`, plus the Rendering Stage Pack scene lifecycle. It checks the instance and material tables against DXC reflection (stage-v18), the seven pinned frames, materials beyond the initial capacity without a GPU wait, the readback ring, the CPU/shader screen-size metric and the page slot allocator's budget, pinning and determinism. The hardware run of the indirect-draw gate needs `CGE_PERFORMANCE_EVIDENCE=1`.
+
 ### Virtual directional shadows (M0115)
 `rendering.virtual-shadows` (F-L4-020, Rendering / Visual, WARP required) runs `VirtualDirectionalShadowTests` and `VirtualShadowGpuTests` plus the Rendering Stage Pack scene lifecycle. It checks page reuse/invalidation/exhaustion, scaled geometric normals, Standard/Radial shadows and comparison/recovery. Interactive sample instructions: `UserEcsProject/VirtualShadows.md`.
 
