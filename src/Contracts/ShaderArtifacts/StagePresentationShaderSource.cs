@@ -65,6 +65,40 @@ StagePixelOutput PreviewCleanPSMain(VertexOutput input)
     return CompleteStageSurface(input, PreviewSurfacePSMain(input));
 }
 
+// 仮想ジオメトリ(ADR-0100 決定 3、M0130)。1 インスタンスが塊 1 つ、頂点の番号が塊の中の三角形の角。塊の三角形が 128 枚より少ないとき、余った頂点は塊の最後の頂点に
+// 重ねるので、余りの三角形は面積が無く描かれない。頂点の取り出しの後は VSMain と同じ(物体は DrawInstance、画素シェーダーは今のまま)。
+struct VirtualGeometryVertexData
+{
+    float3 Position;
+    float3 Normal;
+    float4 Tangent;
+    float2 Uv;
+};
+struct VirtualGeometryClusterData
+{
+    uint FirstIndex;
+    uint IndexCount;
+    uint Group;
+    int ParentGroup;
+};
+StructuredBuffer<VirtualGeometryVertexData> VirtualGeometryVertices : register(t22);
+StructuredBuffer<uint> VirtualGeometryIndices : register(t23);
+StructuredBuffer<VirtualGeometryClusterData> VirtualGeometryClusters : register(t24);
+StructuredBuffer<uint> VirtualGeometryVisibleClusters : register(t25);
+
+VertexOutput VirtualGeometryVSMain(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
+{
+    VirtualGeometryClusterData cluster = VirtualGeometryClusters[VirtualGeometryVisibleClusters[instanceId]];
+    uint corner = min(vertexId, cluster.IndexCount - 1u);
+    VirtualGeometryVertexData vertex = VirtualGeometryVertices[VirtualGeometryIndices[cluster.FirstIndex + corner]];
+    VertexInput input;
+    input.Position = vertex.Position;
+    input.Normal = vertex.Normal;
+    input.Tangent = vertex.Tangent;
+    input.Uv = vertex.Uv;
+    return VSMain(input);
+}
+
 VertexOutput ObserverVSMain(VertexInput input)
 {
     VertexOutput output = VSMain(input);

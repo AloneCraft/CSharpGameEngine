@@ -883,6 +883,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObserverVertexShaderBytecode=Package.GetBytecode("ObserverVSMain");
         this.LumenSurfacePixelShaderBytecode=Package.GetBytecode("SurfacePrepassPSMain");
         this.LumenCardPixelShaderBytecode=Package.GetBytecode("LumenCardPSMain");
+        this.VirtualGeometryVertexShaderBytecode=Package.GetBytecode(StagePipelines.VirtualGeometryVertexEntry);
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
         this.LastKnownGoodShaderPackage=Package;
@@ -912,6 +913,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldScreenPixelShader=this.ScreenPixelShaderBytecode;
         var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
         var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
+        var OldVirtualGeometryVertexShader=this.VirtualGeometryVertexShaderBytecode;
         try{
             this.ApplyShaderArtifact(Package);
             var Created=this.BuildPipelineStates();
@@ -938,10 +940,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ScreenPixelShaderBytecode=OldScreenPixelShader;
             this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
             this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
+            this.VirtualGeometryVertexShaderBytecode=OldVirtualGeometryVertexShader;
             this.ShaderArtifactDiagnostics=[Exception.Message];
         }
     }
     private byte[]VertexShaderBytecode=[];
+    private byte[]VirtualGeometryVertexShaderBytecode=[];
     private byte[]PixelShaderBytecode=[];
 
     private void CreateRootSignature(){
@@ -1071,7 +1075,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=2,pDescriptorRanges=GlobalIlluminationRanges };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[13];
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[(int)(VirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount)];
         RootParams[0]=FrameParam;
         RootParams[DrawConstantsRootParameter]=DrawParam;
         RootParams[2]=TextureParam;
@@ -1086,12 +1090,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         RootParams[10]=GlobalIlluminationParam;
         RootParams[InstanceTableRootParameter]=InstanceTableParam;
         RootParams[MaterialTableRootParameter]=MaterialTableParam;
+        // 仮想ジオメトリの頂点・索引・塊・描く塊の番号（t22〜t25、頂点シェーダーだけが読む。ADR-0100 決定 3）。
+        for(var Index=0u;Index<VirtualGeometryRootParameterCount;Index++){
+            RootParams[VirtualGeometryVerticesRootParameter+Index]=new D3D12_ROOT_PARAMETER{ ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+            RootParams[VirtualGeometryVerticesRootParameter+Index].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=22+Index,RegisterSpace=0 };
+        }
         D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
         StaticSamplers[0]=StaticSampler;
         StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=13,
+            NumParameters=VirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount,
             pParameters=RootParams,
             NumStaticSamplers=2,
             pStaticSamplers=StaticSamplers,
@@ -1236,6 +1245,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         (this.MeshBoundsMinimums[Index],this.MeshBoundsMaximums[Index])=Bounds(Mesh.Positions);
         this.CreateVertexBuffer(Index,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
         this.CreateIndexBuffer(Index,Mesh.Indices);
+        this.SetVirtualGeometryMesh(Index,Mesh.VirtualGeometry);
         if(Mesh.Skin is{ }Skin){
             // すべてのパスでスキニング済みコピーを描画する。アップロードヒープのバッファには、スキニング元のレスト姿勢を保持する。
             this.VertexBufferViews[Index]=this.Skinning!.AddMesh(Index,this.VertexBuffers[Index],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
@@ -1294,6 +1304,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             (this.MeshBoundsMinimums[I],this.MeshBoundsMaximums[I])=Bounds(Mesh.Positions);
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
+            this.SetVirtualGeometryMesh(I,Mesh.VirtualGeometry);
             if(Mesh.Skin is{ }Skin){
                 // すべてのパスでスキニング済みコピーを描画する。アップロードヒープのバッファには、スキニング元のレスト姿勢を保持する。
                 this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
@@ -3051,9 +3062,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    private void DrawObjects(int ExcludedObjectIndex){
+    /// <param name="SkipVirtualGeometry">主パスでは、塊を選んだ物体を飛ばす（<see cref="DrawVirtualGeometryObjects"/> が間接描画で描く）。</param>
+    private void DrawObjects(int ExcludedObjectIndex,bool SkipVirtualGeometry=false){
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
             if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]||this.ObjectHiddenFromView[ObjectIndex]){ continue; }
+            if(SkipVirtualGeometry&&this.DrawsWithVirtualGeometry(ObjectIndex)){ continue; }
             int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
             this.SetDrawConstants(ObjectIndex);
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=
@@ -3183,6 +3196,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// <summary>1 フレームの記録の途中で、パスの間で受け渡す値。</summary>
     private struct FrameRecording {
         public ID3D12PipelineState*MainPipeline;
+        public StagePipelineDesc MainPipelineDesc;
         public float AutoExposureDeltaSeconds;
         public bool RanComputeAfterMainPass;
     }
@@ -3203,7 +3217,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         this.Lights=Lights;
         var CaptureForVerification=Plan.Key.Capture;
-        FrameRecording Recording=new(){ MainPipeline=this.ResolvePipelineState(Plan.MainPipeline) };
+        FrameRecording Recording=new(){ MainPipeline=this.ResolvePipelineState(Plan.MainPipeline),MainPipelineDesc=Plan.MainPipeline };
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,Recording.MainPipeline),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
@@ -3220,6 +3234,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 case StagePass.GlobalIllumination:this.RenderGlobalIlluminationProbes();break;
                 case StagePass.Lumen:this.RenderLumen();break;
                 case StagePass.AmbientOcclusion:this.RenderAmbientOcclusion();break;
+                case StagePass.VirtualGeometrySelection:this.RecordVirtualGeometrySelection(ref Recording);break;
                 case StagePass.MainPass:this.RecordMainPass(ref Recording,ShadowComparison:false);break;
                 case StagePass.ShadowComparison:this.RecordMainPass(ref Recording,ShadowComparison:true);break;
                 case StagePass.SkyComposite:this.RecordSkyComposite(ref Recording);break;
@@ -3339,7 +3354,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
         }
         if(ShadowComparison){ this.DrawShadowComparison(); }
-        else { this.DrawObjects(ExcludedObjectIndex:-1); }
+        else {
+            this.DrawObjects(ExcludedObjectIndex:-1,SkipVirtualGeometry:true);
+            this.DrawVirtualGeometryObjects(ref Recording);
+        }
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
             this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
@@ -3590,6 +3608,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
 
         this.ReleaseSceneTables();
+        this.ReleaseVirtualGeometry();
         this.ReleaseScreenResources();
         if(this.OverlayVertexBuffer!=null){
             this.OverlayVertexBuffer->Unmap(0,null);

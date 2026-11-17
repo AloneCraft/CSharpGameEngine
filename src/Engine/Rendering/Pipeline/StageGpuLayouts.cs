@@ -127,6 +127,59 @@ public struct StageDrawConstants {
     /// <summary><see cref="StageDrawFlags"/> の値。</summary>
     public uint Flags;
 }
+/// <summary>仮想ジオメトリの頂点 1 つ(Stage シェーダーの <c>VirtualGeometryVertices</c>、t22、48 バイト)。</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageVirtualGeometryVertex {
+    public Vector3 Position;
+    public Vector3 Normal;
+    public Vector4 Tangent;
+    public Vector2 Uv;
+}
+/// <summary>仮想ジオメトリの塊 1 つ(<c>VirtualGeometryClusters</c>、t24、16 バイト)。<see cref="ParentGroup"/> が -1 なら根の段。</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageVirtualGeometryCluster {
+    public uint FirstIndex;
+    public uint IndexCount;
+    public uint Group;
+    public int ParentGroup;
+}
+/// <summary>仮想ジオメトリのまとまり 1 つ(選択の計算シェーダーだけが読む、32 バイト)。誤差と、誤差を画素に直すための包む球(メッシュの中の座標)。</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageVirtualGeometryGroup {
+    public Vector3 BoundsCentre;
+    public float BoundsRadius;
+    public float Error;
+    public float Reserved0;
+    public float Reserved1;
+    public float Reserved2;
+}
+/// <summary>
+/// 仮想ジオメトリの塊の選択の定数(選択の計算シェーダーの b0、ルート定数)。物体 1 つ分。位置はすべて描画空間(カメラが原点のことが多い)。
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageVirtualGeometrySelection {
+    /// <summary>メッシュの座標から描画空間への変換(行ベクトル)。</summary>
+    public Matrix4x4 World;
+    /// <summary>xyz はカメラの位置(描画空間)、w は <see cref="World"/> の最大の拡大率(球の半径と誤差に掛ける)。</summary>
+    public Vector4 CameraAndScale;
+    /// <summary><c>ScreenSizeMetric.ShaderParameters</c>。</summary>
+    public Vector4 Metric;
+    /// <summary>塊の数。</summary>
+    public uint ClusterCount;
+    /// <summary>誤差の画素数のしきい値。これ以下なら細かくしない。</summary>
+    public float ThresholdPixels;
+    public uint Reserved0;
+    public uint Reserved1;
+}
+/// <summary>描画器へ渡す仮想ジオメトリ 1 つ(GPU の表の形のまま)。</summary>
+public sealed class StageVirtualGeometryCreateInfo {
+    public required StageVirtualGeometryVertex[]Vertices { get;init; }
+    public required uint[]Indices { get;init; }
+    public required StageVirtualGeometryCluster[]Clusters { get;init; }
+    public required StageVirtualGeometryGroup[]Groups { get;init; }
+    /// <summary>塊の三角形の上限(頂点シェーダーが塊 1 つに描く頂点の数は、この 3 倍)。</summary>
+    public const int MaxTrianglesPerCluster=128;
+}
 /// <summary>Stage シェーダー ABI の管理コード側におけるレイアウトの正本。オフセットは転送する構造体から取得する。</summary>
 public static class StageGpuLayouts {
     public static readonly uint FrameConstantsSize=checked((uint)Marshal.SizeOf<StageFrameConstants>());
@@ -134,6 +187,11 @@ public static class StageGpuLayouts {
     public static readonly uint MaterialDataSize=checked((uint)Marshal.SizeOf<StageMaterialData>());
     /// <summary>描画ごとのルート定数の、32 ビット値の個数。</summary>
     public static readonly uint DrawConstantCount=checked((uint)Marshal.SizeOf<StageDrawConstants>())/sizeof(uint);
+    public static readonly uint VirtualGeometryVertexSize=checked((uint)Marshal.SizeOf<StageVirtualGeometryVertex>());
+    public static readonly uint VirtualGeometryClusterSize=checked((uint)Marshal.SizeOf<StageVirtualGeometryCluster>());
+    public static readonly uint VirtualGeometryGroupSize=checked((uint)Marshal.SizeOf<StageVirtualGeometryGroup>());
+    /// <summary>選択のルート定数の、32 ビット値の個数。</summary>
+    public static readonly uint VirtualGeometrySelectionConstantCount=checked((uint)Marshal.SizeOf<StageVirtualGeometrySelection>())/sizeof(uint);
     public static readonly uint FrameViewProjectionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.ViewProjection));
     public static readonly uint FrameCameraPositionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.CameraPositionWS));
     public static readonly uint FrameDirectionalLightsOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DirectionalLights));

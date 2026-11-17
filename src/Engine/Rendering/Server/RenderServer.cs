@@ -504,6 +504,8 @@ public sealed class RenderServer:IDisposable {
                 Skin=Mesh.Skin is{ }Skin?new StageSkinCreateInfo { JointCount=Skin.JointCount,JointIndices=[.. Skin.JointIndices],Weights=[.. Skin.Weights] }:null,
                 // ADR-0078/M0110：距離場は不変なのでコピー後も共有する（デバイス回復時は、この距離場からグローバル距離場を再構築する）。
                 DistanceField=Mesh.DistanceField,
+                // M0130：仮想ジオメトリも作った後は変えないので、コピー後も共有する。
+                VirtualGeometry=Mesh.VirtualGeometry,
             };
         }
         return Result;
@@ -583,6 +585,17 @@ public sealed class RenderServer:IDisposable {
             Writer.Write(Field.BoundsMin.X); Writer.Write(Field.BoundsMin.Y); Writer.Write(Field.BoundsMin.Z);
             Writer.Write(Field.VoxelSize);
             foreach(Half Value in Field.Distances){ Writer.Write(Value); }
+        }
+        // M0130：仮想ジオメトリも描画器に渡すデータの一部。無いメッシュは以前の識別情報を保つ。
+        if(Mesh.VirtualGeometry is{ }Geometry){
+            Writer.Write(Geometry.Vertices.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Vertices.AsSpan()));
+            Writer.Write(Geometry.Indices.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Indices.AsSpan()));
+            Writer.Write(Geometry.Clusters.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Clusters.AsSpan()));
+            Writer.Write(Geometry.Groups.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Groups.AsSpan()));
         }
     }
 

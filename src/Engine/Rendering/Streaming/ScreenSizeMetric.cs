@@ -49,8 +49,8 @@ public readonly record struct ScreenSizeMetric {
     /// <summary>シェーダーへ渡す 4 つの値（x 画素の係数、y 正射影なら 1、z 最小の距離、w 0）。<see cref="Hlsl"/> の <c>metric</c> 引数。</summary>
     public Vector4 ShaderParameters=>new(this.PixelsPerMeter,this.IsOrthographic?1f:0f,this.MinimumDistanceMeters,0f);
     /// <summary>
-    /// シェーダー側の同じ式。計算シェーダーは取り込み（#include）を使えないので、使うシェーダーはこの文字列を先頭に付けて組み立てる
-    ///（付け方は M0130 で決める。今は試験だけが使う）。<see cref="ProjectedPixels"/> と <see cref="SphereProjectedPixels"/> と同じ順で計算する。
+    /// シェーダー側の同じ式。計算シェーダーは取り込み（#include）を使えないので、使うシェーダー（VirtualGeometry.hlsl）はこの文字列を写して持ち、
+    /// 写しが文字まで同じことを試験で固定する（M0130）。<see cref="ProjectedPixels"/> と <see cref="SphereProjectedPixels"/> と同じ順で計算する。
     /// </summary>
     public const string Hlsl="""
 float ScreenSizeProjectedPixels(float sizeMeters, float distanceMeters, float4 metric)

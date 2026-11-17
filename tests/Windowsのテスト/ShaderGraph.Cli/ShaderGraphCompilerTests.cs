@@ -24,7 +24,7 @@ public sealed class ShaderGraphCompilerTests {
             Assert.Equal(1,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(Arguments));Assert.Equal(Bytes,File.ReadAllBytes(Output));
         }finally{ Directory.Delete(Folder,true); }
     }
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,14 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,15 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -85,7 +85,7 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.DoesNotContain("ToVertexOutput(",BuiltSource,StringComparison.Ordinal);
                 Assert.Equal(new[]{
                     "VSMain","PSMain","VSShadowMain","FullscreenVS","PostProcessPS","PreviewPSMain","PreviewCleanPSMain",
-                    "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain",
+                    "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain","VirtualGeometryVSMain",
                 }.OrderBy(Name=>Name,StringComparer.Ordinal),Artifact.Entries.Select(Entry=>Entry.LogicalName).OrderBy(Name=>Name,StringComparer.Ordinal));
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ObserverVSMain");
                 // M0111：Lumen のサーフェス事前パスは法線、粗さ、距離を書き込み、カードキャプチャーは 3 つのターゲットを書き込む。

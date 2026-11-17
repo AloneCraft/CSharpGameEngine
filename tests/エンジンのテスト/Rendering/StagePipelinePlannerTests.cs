@@ -10,7 +10,7 @@ public sealed class StagePipelinePlannerTests {
         Assert.Equal([
             StagePass.Skinning,StagePass.SceneUpload,StagePass.FramePreparation,StagePass.ShadowAtlas,StagePass.VirtualShadows,StagePass.FrameConstants,
             StagePass.AutoExposureInitialize,StagePass.GlobalDistanceField,StagePass.GlobalIllumination,StagePass.Lumen,StagePass.AmbientOcclusion,
-            StagePass.MainPass,StagePass.LumenSceneCopy,StagePass.RestoreMainBindings,StagePass.CameraPreviews,StagePass.PostProcess,
+            StagePass.VirtualGeometrySelection,StagePass.MainPass,StagePass.LumenSceneCopy,StagePass.RestoreMainBindings,StagePass.CameraPreviews,StagePass.PostProcess,
             StagePass.Overlay,StagePass.ScreenLayer,StagePass.PresentTransition,
         ],Plan.Passes);
         Assert.Equal(StagePipelines.Lit,Plan.MainPipeline);

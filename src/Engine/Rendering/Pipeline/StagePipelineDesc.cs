@@ -124,6 +124,19 @@ public static class StagePipelines {
     public static StagePipelineDesc PostProcess{get;}=new("FullscreenVS","PostProcessPS",StageRootSignature.PostProcess,StageInputLayout.None,StageFillMode.Solid,StagePrimitiveTopology.Triangle,StageRenderTargets.BackBuffer,WriteSceneDistance:true,DepthClip:true,StageDepthTarget.None,DepthTest:false,StageBlend.Opaque);
     /// <summary>画面レイヤー（文字と画像）。</summary>
     public static StagePipelineDesc Screen{get;}=new("ScreenVSMain","ScreenPSMain",StageRootSignature.Screen,StageInputLayout.Screen,StageFillMode.Solid,StagePrimitiveTopology.Triangle,StageRenderTargets.BackBuffer,WriteSceneDistance:true,DepthClip:true,StageDepthTarget.None,DepthTest:false,StageBlend.AlphaOverKeepingFrameAlpha);
+    /// <summary>仮想ジオメトリの頂点シェーダーのエントリー名(ADR-0100 決定 3、M0130)。</summary>
+    public const string VirtualGeometryVertexEntry="VirtualGeometryVSMain";
+    /// <summary>
+    /// 仮想ジオメトリで描く変種。頂点シェーダーだけを差し替え、頂点の入力を使わない(頂点は塊の番号と頂点の番号から構造化バッファで引く)。
+    /// 画素シェーダーと描き込む先は元の設定のまま。
+    /// </summary>
+    public static StagePipelineDesc VirtualGeometry(in StagePipelineDesc Desc)=>Desc with{ VertexEntry=VirtualGeometryVertexEntry,InputLayout=StageInputLayout.None };
+    /// <summary>照明済みの通常の描画の、仮想ジオメトリの変種。</summary>
+    public static StagePipelineDesc VirtualGeometryLit{get;}=VirtualGeometry(Lit);
+    /// <summary>表示モードの、仮想ジオメトリの変種。</summary>
+    public static StagePipelineDesc VirtualGeometryPresentation{get;}=VirtualGeometry(Presentation);
+    /// <summary>ワイヤーフレームの、仮想ジオメトリの変種。</summary>
+    public static StagePipelineDesc VirtualGeometryWireframe{get;}=VirtualGeometry(Wireframe);
     /// <summary>作る PSO のすべて。重複は無い。</summary>
-    public static IReadOnlyList<StagePipelineDesc>All{get;}=[Lit,Presentation,Wireframe,CameraPreview,CameraPreviewWireframe,Observer,ObserverWireframe,LumenSurface,LumenCard,OverlayTriangles,OverlayLines,Shadow,PostProcess,Screen];
+    public static IReadOnlyList<StagePipelineDesc>All{get;}=[Lit,Presentation,Wireframe,CameraPreview,CameraPreviewWireframe,Observer,ObserverWireframe,LumenSurface,LumenCard,OverlayTriangles,OverlayLines,Shadow,PostProcess,Screen,VirtualGeometryLit,VirtualGeometryPresentation,VirtualGeometryWireframe];
 }
