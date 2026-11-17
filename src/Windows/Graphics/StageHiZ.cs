@@ -18,7 +18,7 @@ namespace CSharpGameEngine.Graphics.D3D12;
 /// 遮蔽判定に使う Hi-Z（ADR-0100 決定 3、M0131 単位 1）。主パスが書いた物理距離の画像から、<see cref="Record"/> が HiZ.hlsl を段ごとに 1 回ずつ動かして、
 /// 2×2 のいちばん遠い値で半分ずつ縮めた段を作る。段の大きさは <see cref="HiZPyramid.LevelSizes"/>。結果は計算シェーダーから読める状態で残る。
 /// 計算のルートシグネチャ（ここが持つ）: 0 = ルート定数 b0（HiZCB）、1 = SRV テーブル t0（元の画像）、2 = UAV テーブル u0（書く段）。
-/// 記述子の置き場: 0 = 距離の画像、1〜段の数 = 段ごとの SRV、その後ろに段ごとの UAV。
+/// 記述子の置き場: 0 = 距離の画像、1〜段の数 = 段ごとの SRV、その後ろに段ごとの UAV、最後に全段の SRV（遮蔽を調べる計算シェーダーが読む）。
 /// </summary>
 internal sealed unsafe class StageHiZ:IDisposable {
     internal const string ArtifactFileName="HiZ.cgeshaderartifact";
@@ -44,6 +44,12 @@ internal sealed unsafe class StageHiZ:IDisposable {
     internal int LevelCount=>this.Sizes.Length;
     /// <summary>段の重なり（全段、計算シェーダーから読める状態）。まだ作っていなければ null。</summary>
     internal ID3D12Resource*Result=>this.Pyramid;
+    /// <summary>段 0 の大きさ。</summary>
+    internal (int Width,int Height)BaseSize=>this.Sizes.Length==0?(0,0):this.Sizes[0];
+    /// <summary>全段の SRV を持つ記述子の置き場。<see cref="AllLevelsTable"/> を使う前に計算のコマンドへ設定する。</summary>
+    internal ID3D12DescriptorHeap*Heap=>this.DescriptorHeap;
+    /// <summary>全段の SRV（記述子の表 1 つ分）。</summary>
+    internal D3D12_GPU_DESCRIPTOR_HANDLE AllLevelsTable=>new(this.DescriptorHeap->GetGPUDescriptorHandleForHeapStart(),1+this.Sizes.Length*2,this.DescriptorSize);
     /// <summary>
     /// 画面の大きさ <paramref name="ScreenWidth"/>×<paramref name="ScreenHeight"/> の距離の画像 <paramref name="SceneDistance"/>（描画先の状態）から全段を作る。
     /// 終わると距離の画像は描画先の状態に戻る。計算のルートシグネチャ・PSO・記述子の置き場を置き換えるので、呼び出し側は後で描画の束縛を戻すこと。
@@ -110,8 +116,9 @@ internal sealed unsafe class StageHiZ:IDisposable {
         D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&HeapProperties,D3D12_HEAP_FLAG_NONE,&Desc,ReadableState,null,__uuidof<ID3D12Resource>(),(void**)&Resource),
             "ID3D12Device::CreateCommittedResource","creating the Hi-Z pyramid");
         this.Pyramid=Resource;
-        this.EnsureHeap((uint)(1+this.Sizes.Length*2));
+        this.EnsureHeap((uint)(2+this.Sizes.Length*2));
         this.WriteSrv(SceneDistance,0,0);
+        this.WriteSrv(this.Pyramid,(uint)(1+this.Sizes.Length*2),0,(uint)this.Sizes.Length);
         for(var Level=0;Level<this.Sizes.Length;Level++){
             this.WriteSrv(this.Pyramid,(uint)(1+Level),(uint)Level);
             D3D12_UNORDERED_ACCESS_VIEW_DESC Uav=new(){ Format=Format,ViewDimension=D3D12_UAV_DIMENSION.D3D12_UAV_DIMENSION_TEXTURE2D };
@@ -129,14 +136,14 @@ internal sealed unsafe class StageHiZ:IDisposable {
         this.DescriptorHeap=Heap;
         this.DescriptorSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     }
-    private void WriteSrv(ID3D12Resource*Resource,uint Slot,uint Mip){
+    private void WriteSrv(ID3D12Resource*Resource,uint Slot,uint Mip,uint MipLevels=1){
         D3D12_SHADER_RESOURCE_VIEW_DESC Srv=new(){
             Format=Format,
             ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         Srv.Texture2D.MostDetailedMip=Mip;
-        Srv.Texture2D.MipLevels=1;
+        Srv.Texture2D.MipLevels=MipLevels;
         this.Device.Device->CreateShaderResourceView(Resource,&Srv,this.CpuHandle(Slot));
     }
     private D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(uint Slot)=>new(this.DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),(int)Slot,this.DescriptorSize);

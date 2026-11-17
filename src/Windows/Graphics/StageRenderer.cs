@@ -3084,7 +3084,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// </summary>
     /// <param name="CountForTesting">主パスでは、間接描画で描いた物体の数を試験用に残す。</param>
     /// <param name="Proxy">主ビューと関係の無い視点（光のプローブの撮影）では、仮想ジオメトリのメッシュを代理メッシュ（根の段の塊）で描く。</param>
-    private void DrawObjects(int ExcludedObjectIndex,in StagePipelineDesc Desc,bool CountForTesting=false,bool Proxy=false){
+    private void DrawObjects(int ExcludedObjectIndex,in StagePipelineDesc Desc,bool CountForTesting=false,bool Proxy=false,VirtualGeometryList List=VirtualGeometryList.Selected){
         var VariantAvailable=this.VirtualGeometryPipelineFor(Desc)!=null;
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
             if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]||this.ObjectHiddenFromView[ObjectIndex]){ continue; }
@@ -3104,7 +3104,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             }
         }
         if(Proxy){ return; }
-        var Drawn=this.DrawSelectedVirtualGeometry(Desc,VirtualGeometryVerticesRootParameter,ExcludedObjectIndex<0?null:Index=>Index!=ExcludedObjectIndex);
+        var Drawn=this.DrawSelectedVirtualGeometry(Desc,VirtualGeometryVerticesRootParameter,ExcludedObjectIndex<0?null:Index=>Index!=ExcludedObjectIndex,List:List);
         if(CountForTesting){ this.VirtualGeometryObjectsDrawnLastFrameForTesting=Drawn; }
     }
 
@@ -3382,7 +3382,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
         }
         if(ShadowComparison){ this.DrawShadowComparison(Recording.MainPipelineDesc); }
-        else { this.DrawObjects(ExcludedObjectIndex:-1,Recording.MainPipelineDesc,CountForTesting:true); }
+        else { this.DrawMainPassObjects(ref Recording); }
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
             this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,

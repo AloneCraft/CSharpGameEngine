@@ -5186,19 +5186,19 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L4-025 — 仮想ジオメトリの遮蔽判定と読み込み
 
-- Layer: L4 — 段の決まり(`src/Engine/Rendering/Streaming/HiZPyramid.cs`)、L0 — Hi-Z の実行(`src/Windows/Graphics/StageHiZ.cs`、`StageRenderer.Occlusion.cs`)
+- Layer: L4 — 段の決まり(`src/Engine/Rendering/Streaming/HiZPyramid.cs`)、選択の印と遮蔽の定数(`StageGpuLayouts.cs` の `StageVirtualGeometrySelectionFlags`・`StageVirtualGeometryOcclusion`)、L0 — Hi-Z の実行(`src/Windows/Graphics/StageHiZ.cs`)と主パスの 2 パスの遮蔽(`StageRenderer.Occlusion.cs`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・3)
-- Status: Partial(2026-11-17。M0131 単位 1。主パスの距離の画像から Hi-Z を作れる。まだ遮蔽判定には使っていない)
+- Status: Partial(2026-11-17。M0131 単位 1〜2。主パスは、前のフレームで見えた塊を先に描き、その距離から作った Hi-Z で残りを調べて、隠れていない塊だけを描く。影・Lumen・カメラプレビューは遮蔽を掛けない)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified、RuntimeVerified(WARP)
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Milestones/M0131-Virtual-Geometry-Occlusion-And-Streaming.md`
 - Stage: なし(M0131 の締めで足す)
 - Depends on: F-L4-024
-- Implementation evidence: 計算シェーダー `assets/Shaders/HiZ.hlsl`(2×2 のいちばん遠い値で 1 段ずつ縮める。空は無限に遠い、画面の外は 0)。段 0 は画面の半分を 2 のべき乗へ切り上げた大きさで、その後はちょうど半分(D3D12 のミップと同じ)
-- Tests: エンジンのテスト `HiZPyramidTests`。Windowsのテスト `HiZGpuTests`(GPU の全段が CPU と同じ)
-- Current delta: 2 パスの遮蔽(単位 2)、ページの置き場と読み込み(単位 3・4)は無い
+- Implementation evidence: 計算シェーダー `assets/Shaders/HiZ.hlsl`(2×2 のいちばん遠い値で 1 段ずつ縮める。空は無限に遠い、画面の外は 0)。段 0 は画面の半分を 2 のべき乗へ切り上げた大きさで、その後はちょうど半分(D3D12 のミップと同じ)。選択の計算シェーダー `VirtualGeometry.hlsl` の調べる働き(包む球を箱の 8 隅で写し、4×4 画素に収まる段で判定)
+- Tests: エンジンのテスト `HiZPyramidTests`。Windowsのテスト `HiZGpuTests`(GPU の全段が CPU と同じ)、`VirtualGeometryOcclusionGpuTests`(遮蔽ありとなしで毎フレームの画素が同じ、隠れた球の塊の 9 割以上を描かない、カメラを回して入ってきた球を 2 パス目が描く)
+- Current delta: 判定は球なので、遮る物に近い塊や大きな塊は見えるとされやすい。ページの置き場と読み込み(単位 3・4)は無い
 - Conformance: Partial
-- Next action: M0131 単位 2(主パスの 2 パスの遮蔽)
+- Next action: M0131 単位 3(ページの置き場)
 
 ## F-L4-021 — Entity を使わない物理の契約
 

@@ -175,7 +175,7 @@ public sealed class VirtualGeometryGpuTests {
         return (Different,Maximum);
     }
     /// <summary>半径 1 の UV 球（細かい: 64 段 × 128 列）と、その仮想ジオメトリ。継ぎ目と極は同じ値になるよう、角度を正確に置く。</summary>
-    private static (StageMeshCreateInfo Source,StageVirtualGeometryCreateInfo Geometry)SphereMeshes(){
+    internal static (StageMeshCreateInfo Source,StageVirtualGeometryCreateInfo Geometry)SphereMeshes(){
         const int Rings=64;
         const int Segments=128;
         var Positions=new List<Vector3>();

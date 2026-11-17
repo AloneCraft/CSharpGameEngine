@@ -20,7 +20,10 @@ namespace CSharpGameEngine.Graphics.D3D12;
 /// 物体ごとに描く塊を選んで、描く数を間接描画の引数へ書く。選んだ塊は 1 塊 1 インスタンスの間接描画で描く。
 /// 影（カスケードの置き場・局所光の置き場・仮想シャドウ）、Lumen の画面の下書き、主パス、カメラプレビューは、主ビューで選んだ同じ塊を描く（M0130 単位 5）。
 /// Lumen のカード撮影は、メッシュの空間で根の段の塊（代理メッシュ）を描く。観察者の表示には仮想ジオメトリの版が無いので、元のメッシュで描く。
-/// 計算のルートシグネチャ（ここが持つ）: 0 = ルート定数 b0（<see cref="StageVirtualGeometrySelection"/>）、1 = t0 塊、2 = t1 まとまり、3 = u0 描く塊の番号、4 = u1 間接描画の引数。
+/// 計算のルートシグネチャ（ここが持つ、ちょうど 64 個の 32 ビット値）: 0 = ルート定数 b0（<see cref="StageVirtualGeometrySelection"/>）、
+/// 1 = ルート定数 b1（<see cref="StageVirtualGeometryOcclusion"/>）、2 = t0 塊、3 = t1 まとまり、4 = t2 塊の包む球、5 = u0 描く塊の番号、6 = u1 間接描画の引数、
+/// 7 = u2 遮蔽の一覧、8 = u3 1 パス目と 2 パス目の引数、9 = 記述子の表 t3（Hi-Z）。
+/// 主パスの遮蔽（M0131 単位 2）は StageRenderer.Occlusion.cs。
 /// </summary>
 public sealed unsafe partial class StageRenderer {
     internal const string VirtualGeometryArtifactFileName="VirtualGeometry.cgeshaderartifact";
@@ -46,6 +49,8 @@ public sealed unsafe partial class StageRenderer {
         public ID3D12Resource*Indices;
         public ID3D12Resource*Clusters;
         public ID3D12Resource*Groups;
+        /// <summary>塊ごとの包む球（メッシュの座標、xyz が中心、w が半径）。遮蔽を調べる計算シェーダーが読む。</summary>
+        public ID3D12Resource*ClusterBounds;
         /// <summary>代理メッシュ（根の段の塊）の番号の一覧。</summary>
         public ID3D12Resource*ProxyClusters;
         /// <summary>代理メッシュを描く間接描画の引数（中身は変わらない）。</summary>
@@ -59,6 +64,10 @@ public sealed unsafe partial class StageRenderer {
     private struct VirtualGeometryObjectBuffers {
         public ID3D12Resource*VisibleClusters;
         public ID3D12Resource*DrawArguments;
+        /// <summary>遮蔽の一覧: 塊の数ずつ、見えた印（前のフレームで主パスに写った塊が 1）、1 パス目の番号、2 パス目の番号。</summary>
+        public ID3D12Resource*Occlusion;
+        /// <summary>1 パス目（0 バイト目）と 2 パス目（16 バイト目）の間接描画の引数。</summary>
+        public ID3D12Resource*PassArguments;
         public int MeshIndex;
         public uint Capacity;
         /// <summary>作ったばかりで、まだ共通の状態（COMMON）にある。</summary>
@@ -97,6 +106,7 @@ public sealed unsafe partial class StageRenderer {
             Indices=this.CreateFilledUploadBuffer<uint>(Info.Indices,"creating virtual geometry indices"),
             Clusters=this.CreateFilledUploadBuffer<StageVirtualGeometryCluster>(Info.Clusters,"creating virtual geometry clusters"),
             Groups=this.CreateFilledUploadBuffer<StageVirtualGeometryGroup>(Info.Groups,"creating virtual geometry groups"),
+            ClusterBounds=this.CreateFilledUploadBuffer<Vector4>(ClusterBoundingSpheres(Info),"creating virtual geometry cluster bounds"),
             ClusterCount=(uint)Info.Clusters.Length,
         };
         List<uint>Proxy=[];
@@ -122,6 +132,28 @@ public sealed unsafe partial class StageRenderer {
             this.VirtualGeometryMeshes[MeshIndex].ObjectNormalMap=View+1;
         }
         this.PendingVirtualGeometryNormalMaps.Clear();
+    }
+    /// <summary>塊ごとの包む球（範囲の箱の中心と、そこから最も遠い頂点までの距離）。</summary>
+    private static Vector4[]ClusterBoundingSpheres(StageVirtualGeometryCreateInfo Info){
+        var Result=new Vector4[Info.Clusters.Length];
+        for(var Index=0;Index<Result.Length;Index++){
+            var Cluster=Info.Clusters[Index];
+            var Low=new Vector3(float.MaxValue);
+            var High=new Vector3(float.MinValue);
+            for(var Corner=Cluster.FirstIndex;Corner<Cluster.FirstIndex+Cluster.IndexCount;Corner++){
+                var Position=Info.Vertices[Info.Indices[Corner]].Position;
+                Low=Vector3.Min(Low,Position);
+                High=Vector3.Max(High,Position);
+            }
+            var Centre=(Low+High)*0.5f;
+            var Radius=0f;
+            for(var Corner=Cluster.FirstIndex;Corner<Cluster.FirstIndex+Cluster.IndexCount;Corner++){
+                Radius=MathF.Max(Radius,Vector3.Distance(Centre,Info.Vertices[Info.Indices[Corner]].Position));
+            }
+            // 頂点の位置の丸めで球の外へ出ないよう、わずかに広げる。
+            Result[Index]=new Vector4(Centre,Radius*1.0001f+1e-6f);
+        }
+        return Result;
     }
     private bool MeshHasVirtualGeometry(int MeshIndex)=>(uint)MeshIndex<(uint)this.VirtualGeometryMeshes.Length&&this.VirtualGeometryMeshes[MeshIndex].Clusters!=null;
     private ID3D12Resource*CreateFilledUploadBuffer<T>(ReadOnlySpan<T>Values,string Context)where T:unmanaged{
@@ -168,9 +200,14 @@ public sealed unsafe partial class StageRenderer {
             if(Object.VisibleClusters==null||Object.MeshIndex!=MeshIndex||Object.Capacity<Clusters){
                 this.Retire(Object.VisibleClusters);
                 this.Retire(Object.DrawArguments);
+                this.Retire(Object.Occlusion);
+                this.Retire(Object.PassArguments);
+                // 遮蔽の一覧は作ったときに 0（D3D12 の委託の資源は 0 で始まる）なので、最初のフレームは全部を 2 パス目で調べる。
                 Object=new(){
                     VisibleClusters=this.CreateVirtualGeometryDefaultBuffer((ulong)Clusters*sizeof(uint),"creating a virtual geometry visible-cluster list"),
                     DrawArguments=this.CreateVirtualGeometryDefaultBuffer((ulong)sizeof(D3D12_DRAW_ARGUMENTS),"creating virtual geometry draw arguments"),
+                    Occlusion=this.CreateVirtualGeometryDefaultBuffer((ulong)Clusters*3*sizeof(uint),"creating a virtual geometry occlusion list"),
+                    PassArguments=this.CreateVirtualGeometryDefaultBuffer((ulong)sizeof(D3D12_DRAW_ARGUMENTS)*2,"creating virtual geometry pass arguments"),
                     MeshIndex=MeshIndex,
                     Capacity=Clusters,
                     Fresh=true,
@@ -180,13 +217,16 @@ public sealed unsafe partial class StageRenderer {
             Count++;
         }
         if(Count==0){ return; }
-        var Barriers=new D3D12_RESOURCE_BARRIER[Count*2];
+        this.VirtualGeometryOcclusionThisFrame=this.VirtualGeometryOcclusion;
+        var Barriers=new D3D12_RESOURCE_BARRIER[Count*4];
         // 1. 引数を写し先に、番号の一覧を書き込み先にする。
         var Written=0;
         foreach(ref var Object in this.VirtualGeometryObjects.AsSpan(0,this.ObjectCount)){
             if(!Object.Selected){ continue; }
             Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.DrawArguments,Object.Fresh?D3D12_RESOURCE_STATE_COMMON:D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,D3D12_RESOURCE_STATE_COPY_DEST);
             Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.VisibleClusters,Object.Fresh?D3D12_RESOURCE_STATE_COMMON:D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.PassArguments,Object.Fresh?D3D12_RESOURCE_STATE_COMMON:D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,D3D12_RESOURCE_STATE_COPY_DEST);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.Occlusion,Object.Fresh?D3D12_RESOURCE_STATE_COMMON:D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             Object.Fresh=false;
         }
         this.ResourceBarriers(Barriers,Written);
@@ -195,45 +235,70 @@ public sealed unsafe partial class StageRenderer {
         foreach(ref var Object in this.VirtualGeometryObjects.AsSpan(0,this.ObjectCount)){
             if(!Object.Selected){ continue; }
             this.CommandList->CopyBufferRegion(Object.DrawArguments,0,this.VirtualGeometryArgumentTemplate,0,(ulong)sizeof(D3D12_DRAW_ARGUMENTS));
+            this.CommandList->CopyBufferRegion(Object.PassArguments,0,this.VirtualGeometryArgumentTemplate,0,(ulong)sizeof(D3D12_DRAW_ARGUMENTS));
+            this.CommandList->CopyBufferRegion(Object.PassArguments,(ulong)sizeof(D3D12_DRAW_ARGUMENTS),this.VirtualGeometryArgumentTemplate,0,(ulong)sizeof(D3D12_DRAW_ARGUMENTS));
             Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.DrawArguments,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.PassArguments,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
         this.ResourceBarriers(Barriers,Written);
         // 3. 物体ごとに塊を選ぶ。
         this.CommandList->SetComputeRootSignature(this.VirtualGeometrySelectionRootSignature);
         this.CommandList->SetPipelineState(this.VirtualGeometrySelectionPipeline);
-        var Metric=VirtualGeometryMetric(this.CurrentViewProjection,this.Height);
+        var Flags=this.VirtualGeometryOcclusionThisFrame?StageVirtualGeometrySelectionFlags.Occlusion:StageVirtualGeometrySelectionFlags.None;
         for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            ref var Object=ref this.VirtualGeometryObjects[ObjectIndex];
-            if(!Object.Selected){ continue; }
-            ref var Mesh=ref this.VirtualGeometryMeshes[Object.MeshIndex];
-            var World=this.ObjectTransforms[ObjectIndex];
-            StageVirtualGeometrySelection Selection=new(){
-                World=World,
-                CameraAndScale=new Vector4(this.CurrentCameraPosition,MaximumAxisScale(World)),
-                Metric=Metric.ShaderParameters,
-                ClusterCount=Mesh.ClusterCount,
-                ThresholdPixels=VirtualGeometryThresholdPixels,
-                TriangleFloorPixels=Mesh.ObjectNormalMap!=0||this.VirtualGeometryTriangleFloorWithoutNormalMapForTesting?this.VirtualGeometryTriangleFloorPixels:0f,
-            };
-            this.CommandList->SetComputeRoot32BitConstants(0,VirtualGeometrySelectionConstantCount,&Selection,0);
-            this.CommandList->SetComputeRootShaderResourceView(1,Mesh.Clusters->GetGPUVirtualAddress());
-            this.CommandList->SetComputeRootShaderResourceView(2,Mesh.Groups->GetGPUVirtualAddress());
-            this.CommandList->SetComputeRootUnorderedAccessView(3,Object.VisibleClusters->GetGPUVirtualAddress());
-            this.CommandList->SetComputeRootUnorderedAccessView(4,Object.DrawArguments->GetGPUVirtualAddress());
-            this.CommandList->Dispatch((Mesh.ClusterCount+VirtualGeometryThreadGroupSize-1)/VirtualGeometryThreadGroupSize,1,1);
+            if(!this.VirtualGeometryObjects[ObjectIndex].Selected){ continue; }
+            this.DispatchVirtualGeometry(ObjectIndex,Flags);
         }
         // 4. 主パスの頂点シェーダーと間接描画が読める状態にする。
-        Written=0;
-        foreach(ref var Object in this.VirtualGeometryObjects.AsSpan(0,this.ObjectCount)){
+        this.TransitionVirtualGeometryBuffers(D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        this.CommandList->SetPipelineState(Recording.MainPipeline);
+    }
+    /// <summary>
+    /// 物体 <paramref name="ObjectIndex"/> の塊について選択の計算シェーダーを動かす。ルートシグネチャと PSO は設定済みであること。
+    /// 調べる働き（<see cref="StageVirtualGeometrySelectionFlags.Test"/>）では、b1 と Hi-Z の表も設定済みであること。
+    /// </summary>
+    private void DispatchVirtualGeometry(int ObjectIndex,StageVirtualGeometrySelectionFlags Flags){
+        ref var Object=ref this.VirtualGeometryObjects[ObjectIndex];
+        ref var Mesh=ref this.VirtualGeometryMeshes[Object.MeshIndex];
+        var World=this.ObjectTransforms[ObjectIndex];
+        StageVirtualGeometrySelection Selection=new(){
+            World=World,
+            CameraAndScale=new Vector4(this.CurrentCameraPosition,MaximumAxisScale(World)),
+            Metric=VirtualGeometryMetric(this.CurrentViewProjection,this.Height).ShaderParameters,
+            ClusterCount=Mesh.ClusterCount,
+            ThresholdPixels=VirtualGeometryThresholdPixels,
+            TriangleFloorPixels=Mesh.ObjectNormalMap!=0||this.VirtualGeometryTriangleFloorWithoutNormalMapForTesting?this.VirtualGeometryTriangleFloorPixels:0f,
+            Flags=(uint)Flags,
+        };
+        this.CommandList->SetComputeRoot32BitConstants(0,VirtualGeometrySelectionConstantCount,&Selection,0);
+        this.CommandList->SetComputeRootShaderResourceView(2,Mesh.Clusters->GetGPUVirtualAddress());
+        this.CommandList->SetComputeRootShaderResourceView(3,Mesh.Groups->GetGPUVirtualAddress());
+        this.CommandList->SetComputeRootShaderResourceView(4,Mesh.ClusterBounds->GetGPUVirtualAddress());
+        this.CommandList->SetComputeRootUnorderedAccessView(5,Object.VisibleClusters->GetGPUVirtualAddress());
+        this.CommandList->SetComputeRootUnorderedAccessView(6,Object.DrawArguments->GetGPUVirtualAddress());
+        this.CommandList->SetComputeRootUnorderedAccessView(7,Object.Occlusion->GetGPUVirtualAddress());
+        this.CommandList->SetComputeRootUnorderedAccessView(8,Object.PassArguments->GetGPUVirtualAddress());
+        this.CommandList->Dispatch((Mesh.ClusterCount+VirtualGeometryThreadGroupSize-1)/VirtualGeometryThreadGroupSize,1,1);
+    }
+    /// <summary>
+    /// 選んだ物体ごとに、描く塊の番号の一覧と遮蔽の一覧を <paramref name="ListsBefore"/> から <paramref name="ListsAfter"/> へ、
+    /// 引数（全体と 1・2 パス目）を <paramref name="ArgumentsBefore"/> から <paramref name="ArgumentsAfter"/> へ移す。
+    /// </summary>
+    private void TransitionVirtualGeometryBuffers(D3D12_RESOURCE_STATES ArgumentsBefore,D3D12_RESOURCE_STATES ListsBefore,D3D12_RESOURCE_STATES ArgumentsAfter,D3D12_RESOURCE_STATES ListsAfter){
+        var Barriers=new D3D12_RESOURCE_BARRIER[this.ObjectCount*4];
+        var Written=0;
+        foreach(ref var Object in this.VirtualGeometryObjects.AsSpan(0,Math.Min(this.ObjectCount,this.VirtualGeometryObjects.Length))){
             if(!Object.Selected){ continue; }
-            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.DrawArguments,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
-            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.VisibleClusters,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.DrawArguments,ArgumentsBefore,ArgumentsAfter);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.PassArguments,ArgumentsBefore,ArgumentsAfter);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.VisibleClusters,ListsBefore,ListsAfter);
+            Barriers[Written++]=D3D12_RESOURCE_BARRIER.InitTransition(Object.Occlusion,ListsBefore,ListsAfter);
         }
         this.ResourceBarriers(Barriers,Written);
-        this.CommandList->SetPipelineState(Recording.MainPipeline);
     }
     private void ClearVirtualGeometrySelection(){
         foreach(ref var Object in this.VirtualGeometryObjects.AsSpan()){ Object.Selected=false; }
+        this.VirtualGeometryOcclusionThisFrame=false;
     }
     private void ResourceBarriers(D3D12_RESOURCE_BARRIER[]Barriers,int Count){
         if(Count==0){ return; }
@@ -250,7 +315,7 @@ public sealed unsafe partial class StageRenderer {
     /// 塊を選んだ物体のうち <paramref name="Include"/> を満たすものを、<paramref name="Desc"/> の仮想ジオメトリの版で間接描画する。
     /// 1 つでも描いたら <paramref name="Desc"/> の PSO に戻して終わる。描いた物体の数を返す。ルートシグネチャ・描画先・視点は呼び出し側が設定済みであること。
     /// </summary>
-    private int DrawSelectedVirtualGeometry(in StagePipelineDesc Desc,uint RootParameter,Func<int,bool>?Include,StageDrawFlags Flags=StageDrawFlags.None){
+    private int DrawSelectedVirtualGeometry(in StagePipelineDesc Desc,uint RootParameter,Func<int,bool>?Include,StageDrawFlags Flags=StageDrawFlags.None,VirtualGeometryList List=VirtualGeometryList.Selected){
         var Pipeline=this.VirtualGeometryPipelineFor(Desc);
         if(Pipeline==null){ return 0; }
         var Drawn=0;
@@ -260,8 +325,15 @@ public sealed unsafe partial class StageRenderer {
             ref var Object=ref this.VirtualGeometryObjects[ObjectIndex];
             ref var Mesh=ref this.VirtualGeometryMeshes[Object.MeshIndex];
             this.SetDrawConstants(ObjectIndex,Flags,Mesh.ObjectNormalMap);
-            this.BindVirtualGeometry(RootParameter,Mesh,Object.VisibleClusters);
-            this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Object.DrawArguments,0,null,0);
+            // 1 パス目と 2 パス目の番号は遮蔽の一覧の 2 つ目と 3 つ目の区画、引数は 1 つの置き場の 0 バイト目と 16 バイト目。
+            var Arguments=List==VirtualGeometryList.Selected?Object.DrawArguments:Object.PassArguments;
+            var Clusters=List switch{
+                VirtualGeometryList.FirstPass=>Object.Occlusion->GetGPUVirtualAddress()+(ulong)Object.Capacity*sizeof(uint),
+                VirtualGeometryList.SecondPass=>Object.Occlusion->GetGPUVirtualAddress()+(ulong)Object.Capacity*2*sizeof(uint),
+                _=>Object.VisibleClusters->GetGPUVirtualAddress(),
+            };
+            this.BindVirtualGeometry(RootParameter,Mesh,Clusters);
+            this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Arguments,List==VirtualGeometryList.SecondPass?(ulong)sizeof(D3D12_DRAW_ARGUMENTS):0ul,null,0);
             Drawn++;
         }
         if(Drawn>0){ this.CommandList->SetPipelineState(this.ResolvePipelineState(Desc)); }
@@ -279,16 +351,16 @@ public sealed unsafe partial class StageRenderer {
         ref var Mesh=ref this.VirtualGeometryMeshes[MeshIndex];
         this.CommandList->SetPipelineState(Pipeline);
         this.SetDrawConstants(ObjectIndex,Flags,Mesh.ObjectNormalMap);
-        this.BindVirtualGeometry(RootParameter,Mesh,Mesh.ProxyClusters);
+        this.BindVirtualGeometry(RootParameter,Mesh,Mesh.ProxyClusters->GetGPUVirtualAddress());
         this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Mesh.ProxyArguments,0,null,0);
         this.CommandList->SetPipelineState(this.ResolvePipelineState(Desc));
         return true;
     }
-    private void BindVirtualGeometry(uint RootParameter,in VirtualGeometryMeshBuffers Mesh,ID3D12Resource*Clusters){
+    private void BindVirtualGeometry(uint RootParameter,in VirtualGeometryMeshBuffers Mesh,ulong Clusters){
         this.CommandList->SetGraphicsRootShaderResourceView(RootParameter,Mesh.Vertices->GetGPUVirtualAddress());
         this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+1,Mesh.Indices->GetGPUVirtualAddress());
         this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+2,Mesh.Clusters->GetGPUVirtualAddress());
-        this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+3,Clusters->GetGPUVirtualAddress());
+        this.CommandList->SetGraphicsRootShaderResourceView(RootParameter+3,Clusters);
     }
     /// <summary>
     /// ビュー投影から、画面上の大きさの式を作る。投影の W（深さ）が位置で変わらなければ正射影。透視では、縦の 1 メートルが深さ 1 メートルで何画素かを
@@ -335,18 +407,23 @@ public sealed unsafe partial class StageRenderer {
         this.VirtualGeometryArgumentTemplate=this.CreateFilledUploadBuffer<D3D12_DRAW_ARGUMENTS>(new ReadOnlySpan<D3D12_DRAW_ARGUMENTS>(&Template,1),"creating the virtual geometry argument template");
     }
     private ID3D12RootSignature*CreateVirtualGeometrySelectionRootSignature(){
-        D3D12_ROOT_PARAMETER*Parameters=stackalloc D3D12_ROOT_PARAMETER[5];
+        D3D12_ROOT_PARAMETER*Parameters=stackalloc D3D12_ROOT_PARAMETER[10];
         Parameters[0]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
         Parameters[0].Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=0,Num32BitValues=VirtualGeometrySelectionConstantCount };
-        Parameters[1]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
-        Parameters[1].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=0 };
-        Parameters[2]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
-        Parameters[2].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=1 };
-        Parameters[3]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_UAV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
-        Parameters[3].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=0 };
-        Parameters[4]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_UAV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
-        Parameters[4].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=1 };
-        D3D12_ROOT_SIGNATURE_DESC Desc=new(){ NumParameters=5,pParameters=Parameters };
+        Parameters[1]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
+        Parameters[1].Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=1,Num32BitValues=VirtualGeometryOcclusionConstantCount };
+        for(var Register=0u;Register<3;Register++){
+            Parameters[2+Register]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
+            Parameters[2+Register].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=Register };
+        }
+        for(var Register=0u;Register<4;Register++){
+            Parameters[5+Register]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_UAV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
+            Parameters[5+Register].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=Register };
+        }
+        D3D12_DESCRIPTOR_RANGE HiZRange=new(){ RangeType=D3D12_DESCRIPTOR_RANGE_TYPE.D3D12_DESCRIPTOR_RANGE_TYPE_SRV,NumDescriptors=1,BaseShaderRegister=3 };
+        Parameters[9]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
+        Parameters[9].DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&HiZRange };
+        D3D12_ROOT_SIGNATURE_DESC Desc=new(){ NumParameters=10,pParameters=Parameters };
         ID3DBlob*Signature=null;
         ID3DBlob*Error=null;
         try {
@@ -395,12 +472,15 @@ public sealed unsafe partial class StageRenderer {
             Release(ref Mesh.Indices);
             Release(ref Mesh.Clusters);
             Release(ref Mesh.Groups);
+            Release(ref Mesh.ClusterBounds);
             Release(ref Mesh.ProxyClusters);
             Release(ref Mesh.ProxyArguments);
         }
         foreach(ref var Object in this.VirtualGeometryObjects.AsSpan()){
             Release(ref Object.VisibleClusters);
             Release(ref Object.DrawArguments);
+            Release(ref Object.Occlusion);
+            Release(ref Object.PassArguments);
         }
         Release(ref this.VirtualGeometryArgumentTemplate);
         if(this.VirtualGeometryCommandSignature!=null){ _=this.VirtualGeometryCommandSignature->Release();this.VirtualGeometryCommandSignature=null; }

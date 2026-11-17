@@ -176,7 +176,29 @@ public struct StageVirtualGeometrySelection {
     public float ThresholdPixels;
     /// <summary>三角形の下限（画素）。三角形の大きさの画素数がこれ以下なら、誤差が大きくても細かくしない。0 なら使わない。</summary>
     public float TriangleFloorPixels;
-    public uint Reserved1;
+    /// <summary><see cref="StageVirtualGeometrySelectionFlags"/>。</summary>
+    public uint Flags;
+}
+/// <summary>選択の計算シェーダーの働きの印（M0131 単位 2）。</summary>
+[Flags]
+public enum StageVirtualGeometrySelectionFlags:uint {
+    None=0,
+    /// <summary>選ぶとき、前のフレームで見えた印のある塊を 1 パス目の一覧にも詰める。</summary>
+    Occlusion=1,
+    /// <summary>選ばずに、選んだ一覧の塊を Hi-Z で調べ、見えた印を書き直して 2 パス目の一覧を作る。</summary>
+    Test=2,
+}
+/// <summary>遮蔽を調べるときの定数（選択の計算シェーダーの b1、M0131 単位 2）。</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct StageVirtualGeometryOcclusion {
+    /// <summary>主ビューのビュー投影（行ベクトル）。</summary>
+    public Matrix4x4 ViewProjection;
+    public uint ScreenWidth;
+    public uint ScreenHeight;
+    /// <summary>Hi-Z の段 0 の大きさ。</summary>
+    public uint HiZWidth;
+    public uint HiZHeight;
+    public uint HiZLevelCount;
 }
 /// <summary>描画器へ渡す仮想ジオメトリ 1 つ(GPU の表の形のまま)。</summary>
 public sealed record StageVirtualGeometryCreateInfo {
@@ -201,6 +223,7 @@ public static class StageGpuLayouts {
     public static readonly uint VirtualGeometryGroupSize=checked((uint)Marshal.SizeOf<StageVirtualGeometryGroup>());
     /// <summary>選択のルート定数の、32 ビット値の個数。</summary>
     public static readonly uint VirtualGeometrySelectionConstantCount=checked((uint)Marshal.SizeOf<StageVirtualGeometrySelection>())/sizeof(uint);
+    public static readonly uint VirtualGeometryOcclusionConstantCount=checked((uint)Marshal.SizeOf<StageVirtualGeometryOcclusion>())/sizeof(uint);
     public static readonly uint FrameViewProjectionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.ViewProjection));
     public static readonly uint FrameCameraPositionOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.CameraPositionWS));
     public static readonly uint FrameDirectionalLightsOffset=Offset<StageFrameConstants>(nameof(StageFrameConstants.DirectionalLights));
