@@ -81,7 +81,7 @@ public sealed class ModelProjectCompiler(string ProjectDirectory,string CookTool
                 if(!await ModelSourceMetadata.UnchangedAsync(MetadataPath,CapturedHash,Token)){
                     throw new InvalidDataException("IMP901: model metadata changed during preparation.");
                 }
-                return ModelArtifactPreparation.Prepare(CapturedAsset,Imported.Document,Imported.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Resources);
+                return ModelArtifactPreparation.Prepare(CapturedAsset,Imported.Document,Imported.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Resources,Resolved.TryGetValue(Cooking.ImportOptions.VirtualGeometryEnabled,out var VirtualGeometry)&&VirtualGeometry=="true");
             }));
         }
         var Result=await new ModelContentCompiler(new ContentAddressedStore(this.ContentDirectory),Path.Combine(Cache,"model-state-"+OutputIdentity+".json"),IndexPath).CompileAsync(Inputs,CancellationToken);

@@ -14,4 +14,16 @@ public readonly record struct VirtualGeometryCluster(int FirstIndex,int IndexCou
 /// </summary>
 public readonly record struct VirtualGeometryGroup(Vector3 BoundsCentre,float BoundsRadius,float Error,int Level,int FirstCluster,int ClusterCount);
 /// <summary>メッシュ 1 つの仮想ジオメトリ。<see cref="RootGroup"/> は最も粗い段のまとまり。</summary>
-public sealed record VirtualGeometryMesh(VirtualGeometryVertex[]Vertices,uint[]Indices,VirtualGeometryCluster[]Clusters,VirtualGeometryGroup[]Groups,int RootGroup,int LevelCount);
+public sealed record VirtualGeometryMesh(VirtualGeometryVertex[]Vertices,uint[]Indices,VirtualGeometryCluster[]Clusters,VirtualGeometryGroup[]Groups,int RootGroup,int LevelCount) {
+    /// <summary>
+    /// 代理メッシュ: 最も粗い段(根のまとまり)の塊の三角形(<see cref="Vertices"/> の番号)。細かさの要らない処理(Lumen のカード、DDGI、距離場、ピッキング)に渡す。
+    /// </summary>
+    public uint[]ProxyIndices(){
+        List<uint>Result=[];
+        foreach(var Cluster in this.Clusters){
+            if(Cluster.ParentGroup>=0){ continue; }
+            for(var Index=0;Index<Cluster.IndexCount;Index++){ Result.Add(this.Indices[Cluster.FirstIndex+Index]); }
+        }
+        return [..Result];
+    }
+}

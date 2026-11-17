@@ -6,6 +6,8 @@ public static class ImportOptions {
     public const string LicenseCredit="license.credit";
     public const string LicenseSourceUrl="license.sourceUrl";
     public const string LicenseRestrictions="license.restrictions";
+    /// <summary>"true" なら、骨とモーフの無いメッシュに仮想ジオメトリ(塊の階層)を作る(ADR-0100 決定 3、M0130)。</summary>
+    public const string VirtualGeometryEnabled="virtualGeometry.enabled";
     /// <summary>
     /// どのインポーターでも <c>.meta</c> に書けるエンジンの option（ADR-0080 §9 のライセンスの申告）。<see cref="LicenseKind"/> が既定の "Unknown" のままなら、
     /// インポーターが読み取った権利（VRM の meta など）をそのまま使う。制限はカンマ区切り（UE-Only、UnityCompanion、ModificationProhibited など）。
@@ -16,6 +18,7 @@ public static class ImportOptions {
         new(LicenseCredit,string.Empty,"The credit the licence asks for.",[]),
         new(LicenseSourceUrl,string.Empty,"Where the licence or the listing is.",[]),
         new(LicenseRestrictions,string.Empty,"Comma-separated restrictions, such as UE-Only or ModificationProhibited.",[]),
+        new(VirtualGeometryEnabled,"false","Build virtual geometry (a cluster hierarchy drawn at the detail the screen needs) for meshes without skins or morph targets.",["false","true"]),
     ];
     public static IReadOnlyDictionary<string,string>Resolve(ImporterDescriptor Importer,IEnumerable<ModelProcessorDescriptor>Processors,IReadOnlyDictionary<string,string>Values){
         var Declared=new Dictionary<string,ImportOptionDescriptor>(StringComparer.Ordinal);

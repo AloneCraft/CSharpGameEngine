@@ -91,7 +91,7 @@ internal static class ModelImportCommands {
                 var OptionsHash=Hash256.Compute(JsonSerializer.SerializeToUtf8Bytes(Resolved));
                 var Resources=await new ModelResourceClient(Cook,ResourcesModule??Registration.ModulePath,Project,Cache).PrepareAsync(AssetId,Result.Document,Result.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Verify,CancellationToken);
                 if(!await ModelSourceMetadata.UnchangedAsync(MetadataPath,MetadataHash,CancellationToken)){ throw new InvalidDataException("IMP901: metadata changed during material preparation; output was not published."); }
-                var Prepared=ModelArtifactPreparation.Prepare(AssetId,Result.Document,Result.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Resources);
+                var Prepared=ModelArtifactPreparation.Prepare(AssetId,Result.Document,Result.SourceHash,OptionsHash,ModelArtifactPreparation.CurrentToolVersion,Resources,Resolved.TryGetValue(Cooking.ImportOptions.VirtualGeometryEnabled,out var VirtualGeometry)&&VirtualGeometry=="true");
                 var Compiled=await new ModelContentCompiler(new ContentAddressedStore(ContentRoot),Path.Combine(Cache,"model-state.json"),Path.Combine(ContentRoot,"content-index.json")).CompileAsync([new(AssetId,SourceUri,_=>Task.FromResult(Prepared))],CancellationToken);
                 foreach(var Diagnostic in Compiled.Diagnostics){ Console.Error.WriteLine(Diagnostic); }
                 Console.WriteLine(JsonSerializer.Serialize(new { Schema="cge-model-compile/1",Compiled.Succeeded,Entries=Compiled.Index.Entries.Length,Rebuilt=Compiled.Compilation?.Rebuilt.Length,Reused=Compiled.Compilation?.Reused.Length }));
