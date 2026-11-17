@@ -56,6 +56,8 @@ public sealed unsafe partial class StageRenderer {
         /// <summary>代理メッシュを描く間接描画の引数（中身は変わらない）。</summary>
         public ID3D12Resource*ProxyArguments;
         public uint ClusterCount;
+        /// <summary>塊を置き場へ置く形（M0131 単位 3）。今は全部を置く: 塊 c の索引は枠 c、頂点の区画は塊の順に詰める。</summary>
+        public VirtualGeometrySlotLayout Layout;
         /// <summary>物体の向きの法線マップの、材質のテクスチャの配列での番号 + 1（0 なら無い）。材質の置き場ができてから決める。</summary>
         public uint ObjectNormalMap;
     }
@@ -95,19 +97,32 @@ public sealed unsafe partial class StageRenderer {
                 throw new ArgumentException("A virtual geometry cluster refers outside its mesh.",nameof(Info));
             }
         }
-        foreach(var Index in Info.Indices){
-            if(Index>=(uint)Info.Vertices.Length){ throw new ArgumentException("A virtual geometry index refers outside the vertices.",nameof(Info)); }
+        // 塊ごとに頂点と索引を持つ置き場の形にする（索引が頂点の外を指せば、ここで断る）。今は全部を GPU に持つ。
+        var Layout=VirtualGeometrySlotLayout.Create(Info);
+        var PoolVertices=new StageVirtualGeometryVertex[checked(Layout.TotalBlockCount*VirtualGeometrySlotLayout.VerticesPerBlock)];
+        var PoolIndices=new uint[checked(Layout.ClusterCount*VirtualGeometrySlotLayout.IndicesPerSlot)];
+        var PoolClusters=new StageVirtualGeometryCluster[Layout.ClusterCount];
+        var NextBlock=0;
+        for(var Cluster=0;Cluster<Layout.ClusterCount;Cluster++){
+            var Blocks=new int[Layout.BlockCount(Cluster)];
+            for(var Block=0;Block<Blocks.Length;Block++){
+                Blocks[Block]=NextBlock++;
+                Layout.WriteBlock(Cluster,Block,PoolVertices.AsSpan(Blocks[Block]*VirtualGeometrySlotLayout.VerticesPerBlock,VirtualGeometrySlotLayout.VerticesPerBlock));
+            }
+            Layout.WriteIndices(Cluster,Blocks,PoolIndices.AsSpan(Cluster*VirtualGeometrySlotLayout.IndicesPerSlot,VirtualGeometrySlotLayout.IndicesPerSlot));
+            PoolClusters[Cluster]=Layout.SlotCluster(Cluster,Cluster);
         }
         if(this.VirtualGeometryMeshes.Length<=MeshIndex){
             Array.Resize(ref this.VirtualGeometryMeshes,Math.Max(MeshIndex+1,Math.Max(16,this.VirtualGeometryMeshes.Length*2)));
         }
         this.VirtualGeometryMeshes[MeshIndex]=new(){
-            Vertices=this.CreateFilledUploadBuffer<StageVirtualGeometryVertex>(Info.Vertices,"creating virtual geometry vertices"),
-            Indices=this.CreateFilledUploadBuffer<uint>(Info.Indices,"creating virtual geometry indices"),
-            Clusters=this.CreateFilledUploadBuffer<StageVirtualGeometryCluster>(Info.Clusters,"creating virtual geometry clusters"),
+            Vertices=this.CreateFilledUploadBuffer<StageVirtualGeometryVertex>(PoolVertices,"creating virtual geometry vertices"),
+            Indices=this.CreateFilledUploadBuffer<uint>(PoolIndices,"creating virtual geometry indices"),
+            Clusters=this.CreateFilledUploadBuffer<StageVirtualGeometryCluster>(PoolClusters,"creating virtual geometry clusters"),
             Groups=this.CreateFilledUploadBuffer<StageVirtualGeometryGroup>(Info.Groups,"creating virtual geometry groups"),
             ClusterBounds=this.CreateFilledUploadBuffer<Vector4>(ClusterBoundingSpheres(Info),"creating virtual geometry cluster bounds"),
             ClusterCount=(uint)Info.Clusters.Length,
+            Layout=Layout,
         };
         List<uint>Proxy=[];
         for(var Index=0;Index<Info.Clusters.Length;Index++){
