@@ -5172,17 +5172,17 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L4 — GPU の表の形と描画の設定(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs` の `StageVirtualGeometry*`、`StagePipelineDesc.cs` の `StagePipelines.VirtualGeometry*`、`StagePipelinePlan.cs` の `StagePass.VirtualGeometrySelection`)、L0 — 選択と間接描画(`src/Windows/Graphics/StageRenderer.VirtualGeometry.cs`)、L5 — モデルの追加データから描画への受け渡し(`src/Runtime/Windows/StageModelAssets.cs`)、L6 — Stage の ABI(`stage-v21`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 3)
-- Status: Partial(2026-11-17。M0130 単位 4〜6。法線マップのあるメッシュは三角形の下限 16 画素で描く。主パス・影・Lumen の画面の下書き・カメラプレビューは、GPU が主ビューから選んだ塊を間接描画で描く。Lumen のカードと光のプローブは代理メッシュ(根の段の塊)を描く)
+- Status: Implemented(2026-11-17。M0130。法線マップのあるメッシュは三角形の下限 16 画素で描く。主パス・影・Lumen の画面の下書き・カメラプレビューは、GPU が主ビューから選んだ塊を間接描画で描く。Lumen のカードと光のプローブは代理メッシュ(根の段の塊)を描く)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified、RuntimeVerified(WARP)。実機の GPU では未確認
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Specifications/Shader-Graph.md`(仮想ジオメトリ)、`Docs/Milestones/M0130-Virtual-Geometry-Build-And-Draw.md`
-- Stage: なし(M0130 の締めで足す)
+- Stage: `rendering.virtual-geometry`
 - Depends on: F-L4-023、F-L7-059
 - Implementation evidence: 選択の計算シェーダー `assets/Shaders/VirtualGeometry.hlsl`(物体ごと、1 塊 1 スレッド、「自分のまとまりの誤差の画素数 ≤ 1 画素 < 親のまとまりの誤差の画素数」で描く)。頂点シェーダー `VirtualGeometryVSMain` と影の版 `VirtualGeometryShadowVSMain`(`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、t22〜t25)。描画器は物体ごとに描く塊の番号の一覧と間接描画の引数を持ち、引数の描く数を 0 に戻してから選び、1 塊 1 インスタンス(384 頂点)で描く
 - Tests: Windowsのテスト `VirtualGeometryGpuTests`(元のメッシュとの画像の差、カスケード影と仮想シャドウで同じ影が落ちる、Lumen と光のプローブで代理メッシュを描ける、近づくと塊が増える、ビュー投影から作る画面上の大きさの式、選択のシェーダーの式が共通の式の写しのまま、デバッグ層のエラー 0)、`ShaderGraphCompilerTests`(エントリー 16 個)、エンジンのテスト `StagePipelinePlannerTests`(パスの順)、固定 7 画像
 - Current delta: 遮蔽判定と読み込みは無い(M0131)。影は主ビューで選んだ塊を描く(光から見た細かさでは選ばない。仮想シャドウの作り直しは M0132)。カメラプレビューもプレビューのカメラではなく主ビューの選択を描く。観察者の表示は元のメッシュ。法線マップは Lumen のカードと画面の下書き、観察者の表示では使わない。下限は品質設定ごとに分けていない
 - Conformance: Partial
-- Next action: M0130 の締め(Stage の登録、SDK の版)、M0131(遮蔽判定と読み込み)
+- Next action: M0131(遮蔽判定と読み込み)
 
 ## F-L4-021 — Entity を使わない物理の契約
 
@@ -5245,14 +5245,14 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L7 — 前処理(`src/Cooking/VirtualGeometry/QuadricSimplifier.cs`、`VirtualGeometryBuilder.cs`、`tools/Cge/Content/ModelArtifactPreparation.cs`)、L6 — 成果物の形(`src/Engine/Content/VirtualGeometry/VirtualGeometryData.cs`、`VirtualGeometryCodec.cs`、モデルの追加データ `cge.virtual-geometry/1`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 3)
-- Status: Implemented(2026-11-17。M0130 単位 1〜3。取り込みの設定 `virtualGeometry.enabled` が `true` のとき、骨とモーフの無いメッシュを塊の階層にしてモデルへ書く)
+- Status: Implemented(2026-11-17。M0130。取り込みの設定 `virtualGeometry.enabled` が `true` のとき、骨とモーフの無いメッシュを塊の階層にしてモデルへ書く)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Milestones/M0130-Virtual-Geometry-Build-And-Draw.md`
-- Stage: なし(M0130 の締めで足す)
-- Depends on: F-L7-058
+- Stage: `rendering.virtual-geometry`
+- Depends on: F-L7-026
 - Implementation evidence: 自前の QEM による辺の縮約(外周の固定、継ぎ目の対応、裏返りとリンク条件の検査)。ビルドは Omni と同じ数値(塊 128 三角形以下、まとまり 8 塊以下、1 段で半分、親の誤差は子の 1.25 倍以上、92% で打ち切り、位置は 16 ビットの格子)。読み書きは固定長のリトルエンディアンで、同じ入力から同じバイト列
 - Tests: 焼き込みのテスト `QuadricSimplifierTests`、`VirtualGeometryBuilderTests`(どのしきい値・どのカメラで選んでも割れ目が無い)、`VirtualGeometryCodecTests`。エンジンのテスト `ModelArtifactPreparationTests.VirtualGeometryIsBuiltOnlyWhenTheImportOptionAsksForIt`
 - Current delta: 小さな部品を取り除く処理(Omni の pruning)は無い。入力の開いた辺の知らせは無い。読み込みを分ける形(ページ)は M0131
 - Conformance: Partial
-- Next action: M0130 の締め(Stage の登録、SDK の版)、M0131(遮蔽判定と読み込み)
+- Next action: M0131(遮蔽判定と読み込み)

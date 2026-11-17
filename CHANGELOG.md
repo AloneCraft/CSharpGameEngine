@@ -1,11 +1,12 @@
 # Changelog
 
-- 仮想ジオメトリ(M0130、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 3)。取り込みの設定 `virtualGeometry.enabled` を `true` にしたモデルは、メッシュを塊の階層にして持ち、主パスで画面に合った細かさの塊だけを GPU が選んで描く。**利用側の変更**:
+- 仮想ジオメトリ(M0130、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 3、SDK 0.1.0-dev.52)。取り込みの設定 `virtualGeometry.enabled` を `true` にしたモデルは、メッシュを塊の階層にして持ち、主パスで画面に合った細かさの塊だけを GPU が選んで描く。**利用側の変更**:
   - 後置ソースにエントリー `VirtualGeometryVSMain`・`VirtualGeometryShadowVSMain` を、主パスと影のルート署名に t22〜t25 を足した。
   - 影・Lumen・カメラプレビューも主ビューで選んだ塊を描く。Lumen のカードと光のプローブは根の段の塊(代理メッシュ)を描く。
   - 取り込みで、元の細かい形から物体の向きの法線マップを焼く(UV が重なるメッシュには焼かない)。法線マップのあるメッシュは、三角形が画面で 16 画素より小さくなる手前で細かくするのを止める(計測で、三角形 85% 減・主パスの時間 50% 減、違う画素 0.08%)。
   - Stage のシェーダーの取り決めは `stage-v21`(描画ごとの定数 b1 に `DrawObjectNormalMap` を足した。**以前に複製した Stage のシェーダーグラフは使えない**ので、新しいテンプレートから作り直す)。仮想ジオメトリの追加データは版 2(版 1 も読める)。
   - エンジン共通の取り込みの設定に `virtualGeometry.enabled`(既定 `false`)を足したので、モデルは次の組み立てで一度作り直される。
+  - FeatureRunner に `rendering.virtual-geometry`(F-L7-059、F-L4-024)を足した。
 
 - 仮想化描画の共通の下回り(M0129、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md)、SDK 0.1.0-dev.51)。画面の見た目は変わらない(固定 7 画像のハッシュが同じ)。**利用側の変更**:
   - Stage のシェーダーの取り決めは `stage-v18`。物体ごとの定数(ObjectCB)と材質のテクスチャ t0〜t3 は無くなり、物体の表(t20)、材質の表(t21)、描画ごとのルート定数(b1)、材質のテクスチャの配列(t0 space1)になった。**以前に VS のテンプレートで自分のプロジェクトへ複製した Stage のシェーダーグラフは使えない**(描画の設定を作るときに失敗する)。新しいテンプレートから作り直す。

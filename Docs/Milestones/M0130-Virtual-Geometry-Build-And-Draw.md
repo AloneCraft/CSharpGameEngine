@@ -1,6 +1,6 @@
 # M0130 — 仮想ジオメトリのビルドと描画
 - 日付: 2026-11-17
-- 状態: Implementing
+- 状態: Implemented
 - 段階: ADR-0098 の段階 D の前倒し(ユーザーの判断。`Docs/目標、ロードマップ、戦略.md` は変えない)
 - 決定: [ADR-0100](../Decisions/ADR-0100-Virtualized-Rendering.md) 決定 3・4・8
 - 前の段階: [M0129](M0129-Gpu-Scene-Foundation.md)(GPU シーン、番号引き、アップロードと読み戻しの輪、画面上の大きさの式)
@@ -164,3 +164,9 @@
   - UV が重なるメッシュ、UV の無いメッシュには焼かず、下限も掛けない(元のとおり細かく描く)。
   - Lumen のカードと画面の下書き、観察者の表示の画素シェーダーは、法線マップを読まない(頂点の法線のまま)。
   - 品質設定(Low〜Epic)ごとの下限の値は決めていない(どれも 16 画素)。
+
+## 締め(2026-11-17)
+- 機能 F-L7-059(仮想ジオメトリのビルド)と F-L4-024(仮想ジオメトリの描画)を Implemented にし、カタログ・`stages/FeatureStages`・`Docs/Feature-Stages.md` に Stage `rendering.virtual-geometry` を足した。道筋の機能の数の試験は 75 から 77 に。
+- `RenderingReleaseEvidence` の入力に `assets/Shaders/VirtualGeometry.hlsl` を足した。SDK の版は 0.1.0-dev.52。
+- 確認: カタログと台帳の試験 24 件が合格(組み立てのときの台帳との突き合わせも通った)。`dotnet run --project tools/FeatureRunner -c Debug -- run rendering.virtual-geometry --adapter warp` が合格(焼き込み・エンジン・Windows の試験の 3 つと、Rendering の場面の実行の計 4 命令)。
+- 残る作業: 遮蔽判定と読み込み(M0131)、光から見た細かさで選ぶ影(M0132)、プレビューのカメラでの選択、法線マップを Lumen のカードと画面の下書き・観察者の表示でも使うこと、品質設定ごとの下限の値。
