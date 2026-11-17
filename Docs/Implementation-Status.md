@@ -5200,6 +5200,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Partial
 - Next action: M0132(仮想シャドウの作り直し)
 
+## F-L4-026 — 仮想シャドウの作り直し
+
+- Layer: L4 — 計画(`src/Engine/Rendering/VirtualShadowMaps.cs` の `VirtualShadowAnchor`・`VirtualShadowMapPlanner`)、置き場の割り当て(`Streaming/PageSlotAllocator.cs`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・5)。M0115 の F-L4-020 を置き換える
+- Status: Partial(2026-11-18。M0132 単位 1。L4 の計画だけ。描画器はまだ M0115 の経路)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 5、`Docs/Milestones/M0132-Virtual-Shadow-Maps.md`
+- Stage: なし(M0132 の締めで足す)
+- Depends on: F-L4-023
+- Implementation evidence: 段 16、1 段 128×128 ページ × 128×128 テクセル、置き場 4,096 ページ。格子は区画(1,024 m)の角から光の向きの回転で写した座標に固定する。物を包む箱は区画の角から測って 1 mm を超えて動いたらページを古くする
+- Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)
+- Current delta: 画面からの要求、ページの描画、影を引くシェーダー、L5 からの区画、古い経路の削除が無い(単位 2〜5)
+- Conformance: Partial
+- Next action: M0132 単位 2(画面からのページの要求)
+
 ## F-L4-021 — Entity を使わない物理の契約
 
 - Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`

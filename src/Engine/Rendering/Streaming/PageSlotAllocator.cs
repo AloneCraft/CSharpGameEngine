@@ -67,6 +67,8 @@ public sealed class PageSlotAllocator {
     /// <summary>今置いているページの数。</summary>
     public int ResidentCount=>this.Slots.Count;
     public bool TryGetSlot(ulong Key,out int Slot)=>this.Slots.TryGetValue(Key,out Slot);
+    /// <summary>置いているページのキーと置き場（M0132 単位 1。使い手がページを古くするために見る）。</summary>
+    public IReadOnlyDictionary<ulong,int>Resident=>this.Slots;
     public bool IsPinned(ulong Key)=>this.Pinned.Contains(Key);
     /// <summary>置いているページを固定する（追い出さない）。粗い段のページなど、いつも要るものに使う。</summary>
     public void Pin(ulong Key){
