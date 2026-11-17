@@ -84,6 +84,8 @@ public sealed class ModelArtifactPreparationTests:IDisposable {
         Assert.Equal((0,0),(Entry.MeshIndex,Entry.SubmeshIndex));
         Assert.Equal(3,Entry.Mesh.Indices.Length);
         Assert.Equal(3,Entry.Mesh.ProxyIndices().Length);
+        // UV の無いメッシュには法線マップを焼かない（そのメッシュは三角形の下限を使わない）。
+        Assert.Null(Entry.Mesh.NormalMap);
     }
     [Fact]
     public void InvalidSourceAndMissingMaterial_FailBeforeAnyNodesAreReturned(){

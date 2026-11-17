@@ -126,6 +126,11 @@ public struct StageDrawConstants {
     public uint PresentationMode;
     /// <summary><see cref="StageDrawFlags"/> の値。</summary>
     public uint Flags;
+    /// <summary>
+    /// 物体の向きの法線マップ（仮想ジオメトリ、M0130 単位 6）の、材質のテクスチャの配列での番号に 1 を足した値。0 なら無い。
+    /// あれば、画素シェーダーは頂点の法線の代わりにこの向きを使い、材質の法線マップをその上に重ねる。
+    /// </summary>
+    public uint ObjectNormalMap;
 }
 /// <summary>仮想ジオメトリの頂点 1 つ(Stage シェーダーの <c>VirtualGeometryVertices</c>、t22、48 バイト)。</summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -174,11 +179,13 @@ public struct StageVirtualGeometrySelection {
     public uint Reserved1;
 }
 /// <summary>描画器へ渡す仮想ジオメトリ 1 つ(GPU の表の形のまま)。</summary>
-public sealed class StageVirtualGeometryCreateInfo {
+public sealed record StageVirtualGeometryCreateInfo {
     public required StageVirtualGeometryVertex[]Vertices { get;init; }
     public required uint[]Indices { get;init; }
     public required StageVirtualGeometryCluster[]Clusters { get;init; }
     public required StageVirtualGeometryGroup[]Groups { get;init; }
+    /// <summary>元の細かい形から焼いた、物体の向きの法線マップ(UV で引く。無ければ頂点の法線を使う)。</summary>
+    public RenderTextureResource?ObjectNormalMap { get;init; }
     /// <summary>塊の三角形の上限(頂点シェーダーが塊 1 つに描く頂点の数は、この 3 倍)。</summary>
     public const int MaxTrianglesPerCluster=128;
 }

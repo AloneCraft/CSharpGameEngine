@@ -700,6 +700,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateMeshBuffers(Meshes);
         this.CreateMaterialResources(Materials);
+        this.PlaceVirtualGeometryNormalMaps();
         this.CreateObjectMappings(Objects);
         this.CreateConstantBuffers();
         this.CreateForwardPlusTileBuffer(Width,Height);
@@ -1474,20 +1475,22 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             W=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.EmissiveTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb),Srgb:true),
         };
 
-        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
-            ColorSpace=Texture.PreparedColorSpace??ColorSpace;
-            var Key=(Texture.ContentHash,ColorSpace);
-            if(this.ResidentTextures.TryGetValue(Key,out nint Existing)){
-                return(ID3D12Resource*)Existing;
-            }
-            var Chain=Texture.PreparedMipChain??RenderTextureMipChain.Build(Texture,ColorSpace);
-            var LevelCount=MaterialMipLevelLimitForTesting>0?Math.Min(MaterialMipLevelLimitForTesting,Chain.Levels.Count):Chain.Levels.Count;
-            ID3D12Resource*Created=this.CreateTextureResource(Chain.Levels,LevelCount);
-            this.ResidentTextures.Add(Key,(nint)Created);
-            this.OwnedMaterialTextures.Add((nint)Created);
-            this.OwnedTextureHashes[(nint)Created]=Key;
-            return Created;
+        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace)=>this.GetOrCreateMaterialTexture(Texture,ColorSpace);
+    }
+    /// <summary>常駐のテクスチャを中身のハッシュと色空間で共有して返す。無ければミップを作って送る（次のフレームの最初）。</summary>
+    private ID3D12Resource*GetOrCreateMaterialTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
+        ColorSpace=Texture.PreparedColorSpace??ColorSpace;
+        var Key=(Texture.ContentHash,ColorSpace);
+        if(this.ResidentTextures.TryGetValue(Key,out nint Existing)){
+            return(ID3D12Resource*)Existing;
         }
+        var Chain=Texture.PreparedMipChain??RenderTextureMipChain.Build(Texture,ColorSpace);
+        var LevelCount=MaterialMipLevelLimitForTesting>0?Math.Min(MaterialMipLevelLimitForTesting,Chain.Levels.Count):Chain.Levels.Count;
+        ID3D12Resource*Created=this.CreateTextureResource(Chain.Levels,LevelCount);
+        this.ResidentTextures.Add(Key,(nint)Created);
+        this.OwnedMaterialTextures.Add((nint)Created);
+        this.OwnedTextureHashes[(nint)Created]=Key;
+        return Created;
     }
 
     /// <summary>

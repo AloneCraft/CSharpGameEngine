@@ -129,9 +129,11 @@ public sealed class ShaderGraphCompilerTests {
         // EvaluateSurfaceLighting に分けること、edits/surface_split_2026_11_17.py。式は一字も変えず、固定 7 画像は同じ）、
         // M0129 単位 3（ObjectCB をやめ、物体の表 t20・材質の表 t21・描画ごとの定数 b1 にすること、
         // edits/gpu_scene_2026_11_17.py。stage-v17。固定 7 画像は同じ）、M0129 単位 4（材質のテクスチャを 1 本の配列 t0 space1 にし、
-        // 材質の表の番号で引くこと、edits/bindless_textures_2026_11_17.py。stage-v18。固定 7 画像は同じ）は、
+        // 材質の表の番号で引くこと、edits/bindless_textures_2026_11_17.py。stage-v18。固定 7 画像は同じ）、M0130 単位 6（描画ごとの定数に
+        // 物体の向きの法線マップの番号を足し、EvaluateSurface が頂点の法線の代わりに使うこと、edits/object_normal_map_2026_11_17.py。
+        // stage-v21。番号が 0 の描画は前と同じなので、固定 7 画像は同じ）は、
         // Stage プログラムを意図的に変更した。これらの編集前に、migrate/extract の往復でバイト単位の一致を確認済み。
-        Assert.True(Hash=="7DF321CAB6523289157B4A34E54889B3FCCC0EC65A55FDA8D1116701FDCBE1A5",Hash);
+        Assert.True(Hash=="CADE90C3BBD80DDC5EEBF158C4F14D37FF751E8F521B56C7231188BD61E02F84",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {

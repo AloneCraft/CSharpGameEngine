@@ -39,7 +39,11 @@ public static class ModelArtifactPreparation {
                     }
                     Indices[Corner]=Target;
                 }
-                Entries.Add(new(MeshIndex,SubmeshIndex,VirtualGeometryBuilder.Build([..Vertices],Indices)));
+                var Built=VirtualGeometryBuilder.Build([..Vertices],Indices);
+                // 元の細かい形から物体の向きの法線マップを焼く（M0130 単位 6）。UV が重なっていれば焼かない（そのメッシュは三角形の下限を使わない）。
+                var NormalMapSize=ObjectNormalMapBaker.SizeFor(Indices.Length/3);
+                if(ObjectNormalMapBaker.Bake([..Vertices],Indices,NormalMapSize) is{ }NormalMap){ Built=Built with{ NormalMapSize=NormalMapSize,NormalMap=NormalMap }; }
+                Entries.Add(new(MeshIndex,SubmeshIndex,Built));
             }
         }
         return Entries;

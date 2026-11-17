@@ -8,12 +8,13 @@ public sealed record VirtualGeometryEntry(int MeshIndex,int SubmeshIndex,Virtual
 /// <summary>
 /// 仮想ジオメトリをモデルの追加データ(<see cref="ModelRuntimeBlock"/>、種類 <see cref="Schema"/>)として読み書きする(ADR-0100 決定 3、M0130 単位 3)。
 /// 形式はリトルエンディアンの固定長の並び。書くときは -0 を 0 にし、NaN と無限大を断る。読むときは、番号の範囲、塊の三角形の数、親子の関係、余りのバイトまで確かめる。
-/// 同じ入力から同じバイト列を書く。
+/// 同じ入力から同じバイト列を書く。版 2 は、メッシュごとに法線マップ（大きさ、RGBA8）を後ろに持つ（M0130 単位 6）。版 1 は法線マップの無いものとして読む。
 /// </summary>
 public static class VirtualGeometryCodec {
     public const string Schema="cge.virtual-geometry/1";
     private const uint Magic=0x47564743u;
-    private const ushort Version=1;
+    private const ushort Version=2;
+    private const int MaximumNormalMapSize=8192;
     private const int MaximumTrianglesPerCluster=128;
     public static ModelRuntimeBlock CreateBlock(IReadOnlyList<VirtualGeometryEntry>Entries)=>new(Schema,[..Write(Entries)]);
     /// <summary>モデルの仮想ジオメトリ。追加データが無ければ空。2 つ以上あれば断る。</summary>
@@ -68,12 +69,16 @@ public static class VirtualGeometryCodec {
                 Writer.Int(Group.FirstCluster);
                 Writer.Int(Group.ClusterCount);
             }
+            Writer.Int(Mesh.NormalMap is null?0:Mesh.NormalMapSize);
+            if(Mesh.NormalMap is{ }NormalMap){ Writer.Raw(NormalMap); }
         }
         return Writer.ToArray();
     }
     public static ImmutableArray<VirtualGeometryEntry>Read(ReadOnlySpan<byte>Bytes){
         var Reader=new Reader(Bytes.ToArray());
-        if(Reader.UInt()!=Magic||Reader.UShort()!=Version){ throw new InvalidDataException("This is not a version 1 virtual geometry block."); }
+        if(Reader.UInt()!=Magic){ throw new InvalidDataException("This is not a virtual geometry block."); }
+        var BlockVersion=Reader.UShort();
+        if(BlockVersion is not (1 or 2)){ throw new InvalidDataException($"Virtual geometry block version {BlockVersion} is not supported."); }
         var Count=Reader.Count(Bytes.Length);
         var Entries=ImmutableArray.CreateBuilder<VirtualGeometryEntry>(Count);
         for(var Entry=0;Entry<Count;Entry++){
@@ -91,7 +96,13 @@ public static class VirtualGeometryCodec {
             for(var Index=0;Index<ClusterCount;Index++){ Clusters[Index]=new(Reader.Int(),Reader.Int(),Reader.Vector(),Reader.Float(),Reader.Int(),Reader.Int()); }
             var Groups=new VirtualGeometryGroup[GroupCount];
             for(var Index=0;Index<GroupCount;Index++){ Groups[Index]=new(Reader.Vector(),Reader.Float(),Reader.Float(),Reader.Int(),Reader.Int(),Reader.Int()); }
-            var Item=new VirtualGeometryEntry(MeshIndex,SubmeshIndex,new VirtualGeometryMesh(Vertices,Indices,Clusters,Groups,Root,Levels));
+            var NormalMapSize=BlockVersion>=2?Reader.Count(MaximumNormalMapSize):0;
+            byte[]?NormalMap=null;
+            if(NormalMapSize>0){
+                Reader.Require((long)NormalMapSize*NormalMapSize*4);
+                NormalMap=Reader.Raw(NormalMapSize*NormalMapSize*4);
+            }
+            var Item=new VirtualGeometryEntry(MeshIndex,SubmeshIndex,new VirtualGeometryMesh(Vertices,Indices,Clusters,Groups,Root,Levels,NormalMapSize,NormalMap));
             Validate(Item);
             if(Entries.Count>0){
                 var Previous=Entries[^1];
@@ -128,6 +139,8 @@ public static class VirtualGeometryCodec {
             Require(Group.Level>=0&&Group.Level<Mesh.LevelCount,"A group's level is out of range.");
             Require(Group.ClusterCount>=1&&Group.FirstCluster>=0&&(long)Group.FirstCluster+Group.ClusterCount<=Mesh.Clusters.Length,"A group's clusters are out of range.");
         }
+        Require(Mesh.NormalMap is null?Mesh.NormalMapSize==0:Mesh.NormalMapSize>=1&&Mesh.NormalMapSize<=MaximumNormalMapSize&&Mesh.NormalMap.Length==(long)Mesh.NormalMapSize*Mesh.NormalMapSize*4,
+            "A virtual geometry normal map does not match its size.");
     }
     private static bool Finite(Vector3 Value)=>float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z);
     private static void Require(bool Condition,string Message){ if(!Condition){ throw new InvalidDataException(Message); } }
@@ -144,6 +157,7 @@ public static class VirtualGeometryCodec {
             this.Bytes.AddRange(this.Scratch);
         }
         public void Vector(Vector3 Value){ this.Float(Value.X);this.Float(Value.Y);this.Float(Value.Z); }
+        public void Raw(byte[]Values)=>this.Bytes.AddRange(Values);
         public byte[]ToArray()=>[..this.Bytes];
     }
     private sealed class Reader(byte[]Bytes) {
@@ -161,6 +175,12 @@ public static class VirtualGeometryCodec {
             return Value;
         }
         public Vector3 Vector()=>new(this.Float(),this.Float(),this.Float());
+        public byte[]Raw(int Length){
+            this.Require(Length);
+            var Value=Bytes.AsSpan(this.Offset,Length).ToArray();
+            this.Offset+=Length;
+            return Value;
+        }
         /// <summary>個数。負の値と、残りのバイトより明らかに大きい値を断る。</summary>
         public int Count(int Limit){
             var Value=this.Int();

@@ -15,7 +15,7 @@ public sealed class StageConstantLayoutReflectionTests {
     /// </summary>
     [Theory]
     [InlineData("VSMain","vs_6_0",true,true,false)]
-    [InlineData("PSMain","ps_6_0",true,false,true)]
+    [InlineData("PSMain","ps_6_0",true,true,true)]
     [InlineData("ObserverVSMain","vs_6_0",true,true,false)]
     [InlineData("PreviewPSMain","ps_6_0",true,true,true)]
     [InlineData("SurfacePrepassPSMain","ps_6_0",true,false,true)]

@@ -11,7 +11,7 @@ public sealed class StageSceneLayoutsTests {
     public void TheTablesHaveTheSizesTheShaderContractNames(){
         Assert.Equal(84u,StageGpuLayouts.InstanceDataSize);
         Assert.Equal(128u,StageGpuLayouts.MaterialDataSize);
-        Assert.Equal(3u,StageGpuLayouts.DrawConstantCount);
+        Assert.Equal(4u,StageGpuLayouts.DrawConstantCount);
     }
     [Fact]
     public void AMaterialWithoutAGridLeavesEveryGridFieldZero(){

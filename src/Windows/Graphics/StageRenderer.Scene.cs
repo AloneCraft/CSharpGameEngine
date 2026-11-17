@@ -89,8 +89,8 @@ public sealed unsafe partial class StageRenderer {
         this.CommandList->SetGraphicsRootShaderResourceView(ShadowInstanceTableRootParameter,this.InstanceTableBuffer->GetGPUVirtualAddress()+this.InstanceTableOffset(this.FrameIndex));
     }
     /// <summary>次の描画が描く物体を渡す。主パスと影のどちらのルートシグネチャでも、同じ番号の引数に同じ形で置く。</summary>
-    private void SetDrawConstants(int ObjectIndex,StageDrawFlags Flags=StageDrawFlags.None){
-        StageDrawConstants Draw=new(){ Instance=(uint)ObjectIndex,PresentationMode=(uint)this.PresentationMode,Flags=(uint)Flags };
+    private void SetDrawConstants(int ObjectIndex,StageDrawFlags Flags=StageDrawFlags.None,uint ObjectNormalMap=0){
+        StageDrawConstants Draw=new(){ Instance=(uint)ObjectIndex,PresentationMode=(uint)this.PresentationMode,Flags=(uint)Flags,ObjectNormalMap=ObjectNormalMap };
         this.CommandList->SetGraphicsRoot32BitConstants(DrawConstantsRootParameter,DrawConstantCount,&Draw,0);
     }
 }

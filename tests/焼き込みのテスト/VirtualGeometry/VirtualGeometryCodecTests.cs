@@ -50,5 +50,23 @@ public sealed class VirtualGeometryCodecTests {
         Assert.True(Proxy.Length>0&&Proxy.Length%3==0);
         Assert.True(Proxy.Length*8<32*64*2*3,$"the proxy keeps {Proxy.Length/3} triangles");
     }
+    /// <summary>版 2 は法線マップを書いて読む。版 1 のバイト列（法線マップの欄が無い）も、法線マップの無いものとして読める。</summary>
+    [Fact]
+    public void NormalMapsRoundTripAndVersionOneBlocksStillRead(){
+        var Mesh=Build(VirtualGeometryBuilderTests.Box(4));
+        var Pixels=Enumerable.Range(0,4*4*4).Select(static Index=>(byte)(Index*7)).ToArray();
+        var WithMap=Mesh with{ NormalMapSize=4,NormalMap=Pixels };
+        var Read=VirtualGeometryCodec.Read(VirtualGeometryCodec.Write([new(0,0,WithMap)]));
+        Assert.Equal(4,Read[0].Mesh.NormalMapSize);
+        Assert.Equal(Pixels,Read[0].Mesh.NormalMap);
+        Assert.Throws<InvalidDataException>(()=>VirtualGeometryCodec.Write([new(0,0,Mesh with{ NormalMapSize=5,NormalMap=Pixels })]));
+        // 版 1 は、版 2 から法線マップの大きさの欄(最後の 4 バイト)を除き、版の番号を 1 にしたもの。
+        var VersionTwo=VirtualGeometryCodec.Write([new(0,0,Mesh)]);
+        var VersionOne=VersionTwo.AsSpan(0,VersionTwo.Length-4).ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(VersionOne.AsSpan(4),1);
+        var Old=VirtualGeometryCodec.Read(VersionOne);
+        Assert.Null(Old[0].Mesh.NormalMap);
+        Assert.Equal(Mesh.Clusters,Old[0].Mesh.Clusters);
+    }
     private static VirtualGeometryMesh Build((Content.VirtualGeometry.VirtualGeometryVertex[]Vertices,uint[]Indices)Source)=>VirtualGeometryBuilder.Build(Source.Vertices,Source.Indices);
 }

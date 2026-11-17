@@ -73,11 +73,11 @@ M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つよう�
 主パスの `PSMain` は、`EvaluateSurface`(材質を読んで `SurfaceData` を作る)と `EvaluateSurfaceLighting`(`SurfaceData` と画素の位置から色を作る)を呼ぶだけである。材質(物体と材質の表と、基本色・法線・metallic/roughness・発光の 4 枚のテクスチャ)を読むのは `EvaluateSurface` だけで、`EvaluateSurfaceLighting` は材質を読まない。`SurfaceData` は位置・基本色・metallic・粗さ・法線・頂点法線・発光を持つ(ADR-0085 決定 §2 と同じ形)。この分割ではエントリーも画素も変わらない。照明側の細かい分割(方向光・局所光・間接光・霧)は、描画パスを実装するとき(ADR-0085)に行う。後置ソース(`StagePresentationShaderSource`)の表示用・Lumen 用のエントリーは、`EvaluateSurface` を通らずに同じ表とテクスチャを読む。
 
 ## GPU シーン(M0129、ADR-0100 決定 2)
-現在の契約は `stage-v19`(`stage-v17` は単位 3 の物体と材質の表まで、`stage-v18` は単位 4 の番号引き、`stage-v19` は M0130 の仮想ジオメトリの頂点シェーダー、`stage-v20` はその影の版。下の「仮想ジオメトリ」)。物体ごとの定数バッファ(ObjectCB)と、材質ごとのテクスチャの束(t0〜t3)は無い。代わりに次の 4 つがある。
+現在の契約は `stage-v19`(`stage-v17` は単位 3 の物体と材質の表まで、`stage-v18` は単位 4 の番号引き、`stage-v19` は M0130 の仮想ジオメトリの頂点シェーダー、`stage-v20` はその影の版、`stage-v21` は物体の向きの法線マップ。下の「仮想ジオメトリ」)。物体ごとの定数バッファ(ObjectCB)と、材質ごとのテクスチャの束(t0〜t3)は無い。代わりに次の 4 つがある。
 
 | 名前 | レジスター | 中身 | 読むシェーダー |
 |---|---|---|---|
-| `DrawCB` | b1(ルート定数 3 個) | `DrawInstance`(描く物体の番号)、`DrawPresentationMode`(表示モード)、`DrawFlags`(描画の印) | 頂点、表示用の画素 |
+| `DrawCB` | b1(ルート定数 4 個) | `DrawInstance`(描く物体の番号)、`DrawPresentationMode`(表示モード)、`DrawFlags`(描画の印)、`DrawObjectNormalMap`(物体の向きの法線マップの番号 + 1、0 なら無い) | 頂点、画素 |
 | `Instances` | t20(構造化バッファ、1 件 84 バイト) | `World`、`ConservativeRasterDepth`、`EmissiveScale`、`SelectionWeight`、`Material` | 頂点、画素 |
 | `Materials` | t21(構造化バッファ、1 件 128 バイト) | `BaseColorFactor`、`MaterialParams`(x 粗さ、y metallic)、`EmissiveNits`、世界格子の 4 つ、`Textures`(4 枚のテクスチャの番号) | 画素 |
 | `MaterialTextures[]` | t0 space1(上限の無い配列) | 材質のテクスチャ。`Textures` の x 基本色、y 法線、z metallic と粗さ、w 発光 | 画素 |
@@ -107,6 +107,7 @@ M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つよう�
 - 描く塊は、影より前に計算シェーダー `assets/Shaders/VirtualGeometry.hlsl` が主ビューから見て物体ごとに選ぶ。影・Lumen の画面の下書き・主パス・カメラプレビューは同じ選択を描く。Lumen のカード撮影と光のプローブの撮影は、根の段の塊(代理メッシュ)を描く。選び方は「自分を作ったまとまりの誤差の画素数がしきい値以下で、親のまとまりの誤差の画素数がしきい値より大きい」(しきい値は 1 画素)。距離は包む球のいちばん近い所まで測る。
 - 計算シェーダーは取り込み(`#include`)を使えないので、`VirtualGeometry.hlsl` は画面上の大きさの式(`ScreenSizeMetric.Hlsl`)を写して持つ。写しが文字まで同じことを `VirtualGeometryGpuTests` が確かめる。
 - 描く数は間接描画の引数の 2 つ目(`InstanceCount`)に計算シェーダーが足す。描画器は毎フレーム、選ぶ前に引数を「384 頂点、0 インスタンス」に戻す。
+- 物体の向きの法線マップ(M0130 単位 6): 取り込みで元の細かい形から焼いた画像を、描画器が材質のテクスチャの配列に置き、仮想ジオメトリの描画で `DrawObjectNormalMap` に番号 + 1 を入れる。`EvaluateSurface` は、それが 0 でなければ、頂点の法線の代わりに画像の向き(UV で引く)を頂点シェーダーと同じ逆転置で世界の向きにして使い、材質の法線マップをその上に重ねる。粗い塊でも陰影が元の細かさのまま残るので、法線マップのあるメッシュにだけ三角形の下限(既定 16 画素)を掛ける。編集は `tools/ShaderGraphMaintenance/edits/object_normal_map_2026_11_17.py`。
 - 管理コード側の配置の正本は L4 の `StageVirtualGeometryVertex`・`StageVirtualGeometryCluster`・`StageVirtualGeometryGroup`・`StageVirtualGeometrySelection`。
 
 The restored integration workspace combines the native logarithmic Stage contract and virtual/soft shadows as `stage-v16`: fourteen native entries, SceneDistance MRT, FrameCB 1248 bytes and ObjectCB 192 bytes (ObjectCB was replaced by the GPU scene in stage-v17). StageGpuLayouts owns the appended virtual matrices/parameters and Lumen uses the same buffer layout. The clean integration commit before restoring workspace work retains stage-v14; its earlier hashes are historical evidence, not hashes of the combined workspace.

@@ -74,7 +74,8 @@ internal static class StageModelAssets {
             var Group=Mesh.Groups[Index];
             Groups[Index]=new(){ BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error,TriangleSize=TriangleSizes[Index] };
         }
-        return new(){ Vertices=Vertices,Indices=Mesh.Indices,Clusters=Clusters,Groups=Groups };
+        return new(){ Vertices=Vertices,Indices=Mesh.Indices,Clusters=Clusters,Groups=Groups,
+            ObjectNormalMap=Mesh.NormalMap is{ }NormalMap?RenderArtifactCodec.CreateProceduralTexture(Mesh.NormalMapSize,Mesh.NormalMapSize,NormalMap):null };
     }
     private static void AppendMaterials(ModelAssetBundle Bundle,List<StageMaterialCreateInfo>Materials){
         var Catalog=new RenderMaterialCatalog();

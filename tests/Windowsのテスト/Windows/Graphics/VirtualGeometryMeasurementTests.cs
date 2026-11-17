@@ -18,29 +18,37 @@ public sealed class VirtualGeometryMeasurementTests {
     private const int Width=1280;
     private const int Height=720;
     private static readonly float[]Floors=[0f,4f,8f,16f,32f];
+    private const int NormalMapSize=1024;
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void TheTriangleFloorTradesTrianglesForASmallImageDifference(){
         var Hardware=System.Environment.GetEnvironmentVariable("CGE_VIRTUAL_GEOMETRY_HARDWARE")=="1";
-        var (Source,Geometry,Built)=BumpySphere(128,256);
+        var (Source,Geometry,Built,SourceVertices)=BumpySphere(128,256);
+        var NormalMapTexture=RenderArtifactCodec.CreateProceduralTexture(NormalMapSize,NormalMapSize,ObjectNormalMapBaker.Bake(SourceVertices,[..Source.Indices],NormalMapSize)!);
         List<string>Lines=[$"{(Hardware?"hardware":"WARP")} {Width}x{Height}, source {Source.Indices.Count/3} triangles, {Built.Clusters.Length} clusters, {Built.LevelCount} levels"];
         foreach(var Distance in new[]{ 2.2f,6f }){
             var Plain=Render(Source,Distance,0f,Hardware,out _,out var PlainMilliseconds);
+            var MeanWithoutNormalMap=new Dictionary<float,float>();
             Lines.Add($"distance {Distance} m: source {Source.Indices.Count/3} triangles, {PlainMilliseconds:F3} ms");
             var Previous=int.MaxValue;
             var WithoutFloor=0;
-            foreach(var Floor in Floors){
-                var Image=Render(Source with{ VirtualGeometry=Geometry },Distance,Floor,Hardware,out var Visible,out var Milliseconds);
+            foreach(var (Floor,NormalMap) in Floors.Select(static Floor=>(Floor,false)).Concat(Floors.Where(static Floor=>Floor>0f).Select(static Floor=>(Floor,true)))){
+                if(NormalMap&&Floor==Floors[1]){ Previous=int.MaxValue; }
+                var Image=Render(Source with{ VirtualGeometry=NormalMap?Geometry with{ ObjectNormalMap=NormalMapTexture }:Geometry },Distance,Floor,Hardware,out var Visible,out var Milliseconds);
                 var Triangles=Visible.Sum(Cluster=>Built.Clusters[Cluster].IndexCount/3);
                 var (Different,Mean)=Compare(Plain,Image);
                 if(System.Environment.GetEnvironmentVariable("CGE_VIRTUAL_GEOMETRY_MEASURE") is{ Length:>0 }ImageFolder&&!Hardware&&Floor is 0f or 16f){
+                    var Suffix=NormalMap?"-normalmap":"";
                     Directory.CreateDirectory(ImageFolder);
                     File.WriteAllBytes(Path.Combine(ImageFolder,$"distance{Distance}-source.rgba"),Plain);
-                    File.WriteAllBytes(Path.Combine(ImageFolder,$"distance{Distance}-floor{Floor}.rgba"),Image);
+                    File.WriteAllBytes(Path.Combine(ImageFolder,$"distance{Distance}-floor{Floor}{Suffix}.rgba"),Image);
                 }
-                Lines.Add($"  floor {Floor} px: {Triangles} triangles ({Visible.Length} clusters), {Different} pixels differ by more than 8, mean difference {Mean:F3}, {Milliseconds:F3} ms");
+                Lines.Add($"  floor {Floor} px{(NormalMap?" + normal map":"")}: {Triangles} triangles ({Visible.Length} clusters), {Different} pixels differ by more than 8, mean difference {Mean:F3}, {Milliseconds:F3} ms");
                 Assert.True(Triangles<=Previous,$"distance {Distance}: floor {Floor} px draws {Triangles} triangles, more than {Previous}");
                 if(Floor==0f){ WithoutFloor=Triangles; }
+                // 法線マップは、下限で凹凸の陰影が消えた所（平均の差が 0.2 を超える所）を元へ戻す。全部細かく描く所では、8 ビットと画素の丸めの分だけ少し差が増えてよい。
+                if(NormalMap&&MeanWithoutNormalMap[Floor]>0.2f){ Assert.True(Mean<MeanWithoutNormalMap[Floor],$"distance {Distance}: the normal map did not improve floor {Floor} px ({Mean} against {MeanWithoutNormalMap[Floor]})"); }
+                else { MeanWithoutNormalMap[Floor]=Mean; }
                 Previous=Triangles;
             }
             Assert.True(Previous<WithoutFloor,$"distance {Distance}: the floor did not reduce the triangles ({Previous} of {WithoutFloor})");
@@ -58,6 +66,7 @@ public sealed class VirtualGeometryMeasurementTests {
             [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(System.Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Renderer.VirtualGeometryTriangleFloorPixels=Floor;
+        Renderer.VirtualGeometryTriangleFloorWithoutNormalMapForTesting=true;
         if(Hardware){ Renderer.EnableMainPassTimingForTesting(); }
         var View=Camera.CreateFirstPerson(new Vector3(0f,0f,-Distance));
         List<float>Times=[];
@@ -96,7 +105,7 @@ public sealed class VirtualGeometryMeasurementTests {
         return (Different,Sum/(3f*Width*Height));
     }
     /// <summary>半径 1 の球に、緯度と経度で 24 回ずつ波打つ 2 センチの凹凸を付けたもの。法線は面の向きの平均。</summary>
-    private static (StageMeshCreateInfo Source,StageVirtualGeometryCreateInfo Geometry,VirtualGeometryMesh Built)BumpySphere(int Rings,int Segments){
+    private static (StageMeshCreateInfo Source,StageVirtualGeometryCreateInfo Geometry,VirtualGeometryMesh Built,VirtualGeometryVertex[]SourceVertices)BumpySphere(int Rings,int Segments){
         var Positions=new List<Vector3>();
         var Uvs=new List<Vector2>();
         for(var Ring=0;Ring<=Rings;Ring++){
@@ -133,7 +142,8 @@ public sealed class VirtualGeometryMeasurementTests {
         }).ToArray();
         var Tangents=Enumerable.Repeat(new Vector4(1f,0f,0f,1f),Positions.Count).ToArray();
         var Source=new StageMeshCreateInfo { Positions=[..Positions],Normals=Normals,Tangents=Tangents,Uvs=[..Uvs],Indices=[..Indices] };
-        var Built=VirtualGeometryBuilder.Build([..Positions.Select((Position,Index)=>new VirtualGeometryVertex(Position,Normals[Index],Tangents[Index],Uvs[Index]))],[..Indices]);
+        VirtualGeometryVertex[]SourceVertices=[..Positions.Select((Position,Index)=>new VirtualGeometryVertex(Position,Normals[Index],Tangents[Index],Uvs[Index]))];
+        var Built=VirtualGeometryBuilder.Build(SourceVertices,[..Indices]);
         var Sizes=Built.GroupTriangleSizes();
         var Geometry=new StageVirtualGeometryCreateInfo{
             Vertices=[..Built.Vertices.Select(static Vertex=>new StageVirtualGeometryVertex { Position=Vertex.Position,Normal=Vertex.Normal,Tangent=Vertex.Tangent,Uv=Vertex.Uv })],
@@ -141,6 +151,6 @@ public sealed class VirtualGeometryMeasurementTests {
             Clusters=[..Built.Clusters.Select(static Cluster=>new StageVirtualGeometryCluster { FirstIndex=(uint)Cluster.FirstIndex,IndexCount=(uint)Cluster.IndexCount,Group=(uint)Cluster.Group,ParentGroup=Cluster.ParentGroup })],
             Groups=[..Built.Groups.Select((Group,Index)=>new StageVirtualGeometryGroup { BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error,TriangleSize=Sizes[Index] })],
         };
-        return (Source,Geometry,Built);
+        return (Source,Geometry,Built,SourceVertices);
     }
 }

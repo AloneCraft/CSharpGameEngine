@@ -13,8 +13,13 @@ public readonly record struct VirtualGeometryCluster(int FirstIndex,int IndexCou
 /// 親のまとまりの球は、自分の入力を作ったまとまりの球を包み、誤差は入力の誤差の 1.25 倍以上(独立判定の穴と重なりを防ぐ)。
 /// </summary>
 public readonly record struct VirtualGeometryGroup(Vector3 BoundsCentre,float BoundsRadius,float Error,int Level,int FirstCluster,int ClusterCount);
-/// <summary>メッシュ 1 つの仮想ジオメトリ。<see cref="RootGroup"/> は最も粗い段のまとまり。</summary>
-public sealed record VirtualGeometryMesh(VirtualGeometryVertex[]Vertices,uint[]Indices,VirtualGeometryCluster[]Clusters,VirtualGeometryGroup[]Groups,int RootGroup,int LevelCount) {
+/// <summary>
+/// メッシュ 1 つの仮想ジオメトリ。<see cref="RootGroup"/> は最も粗い段のまとまり。
+/// <see cref="NormalMap"/> は元の細かい形から焼いた物体の向きの法線マップ（<see cref="NormalMapSize"/> 四方の RGBA8、UV で引く。M0130 単位 6）。
+/// UV が重なるメッシュには無い。あるメッシュだけが三角形の下限を使う。
+/// </summary>
+public sealed record VirtualGeometryMesh(VirtualGeometryVertex[]Vertices,uint[]Indices,VirtualGeometryCluster[]Clusters,VirtualGeometryGroup[]Groups,int RootGroup,int LevelCount,
+    int NormalMapSize=0,byte[]?NormalMap=null) {
     /// <summary>
     /// 代理メッシュ: 最も粗い段(根のまとまり)の塊の三角形(<see cref="Vertices"/> の番号)。細かさの要らない処理(Lumen のカード、DDGI、距離場、ピッキング)に渡す。
     /// </summary>

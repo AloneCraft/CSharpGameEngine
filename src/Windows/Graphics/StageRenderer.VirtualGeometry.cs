@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.Pipeline;
 using CSharpGameEngine.Rendering.Streaming;
 using CSharpGameEngine.ShaderArtifacts;
@@ -32,9 +33,11 @@ public sealed unsafe partial class StageRenderer {
     internal const float VirtualGeometryThresholdPixels=1f;
     /// <summary>
     /// 三角形の下限（画素、M0130 単位 6）。三角形の大きさが画面でこれ以下になったまとまりは、誤差が大きくても細かくしない。0 なら使わない。
-    /// 既定は計測で決める（M0130 の記録）。
+    /// 物体の向きの法線マップを持つメッシュにだけ掛ける（細かい陰影は法線マップが持つ）。既定の 16 画素は計測で決めた（M0130 の記録）。
     /// </summary>
-    internal float VirtualGeometryTriangleFloorPixels { get;set; }
+    internal float VirtualGeometryTriangleFloorPixels { get;set; }=16f;
+    /// <summary>試験用: 法線マップの無いメッシュにも下限を掛ける（下限だけの劣化を測るため）。</summary>
+    internal bool VirtualGeometryTriangleFloorWithoutNormalMapForTesting { get;set; }
     /// <summary>これより近い距離は、この距離として画素数を求める（カメラの中に入った塊の画素数を無限大にしない）。</summary>
     private const float VirtualGeometryMinimumDistanceMeters=0.01f;
     private const uint VirtualGeometryThreadGroupSize=64;
@@ -48,7 +51,11 @@ public sealed unsafe partial class StageRenderer {
         /// <summary>代理メッシュを描く間接描画の引数（中身は変わらない）。</summary>
         public ID3D12Resource*ProxyArguments;
         public uint ClusterCount;
+        /// <summary>物体の向きの法線マップの、材質のテクスチャの配列での番号 + 1（0 なら無い）。材質の置き場ができてから決める。</summary>
+        public uint ObjectNormalMap;
     }
+    /// <summary>まだ材質のテクスチャの配列へ置いていない、物体の向きの法線マップ（メッシュの番号ごと）。</summary>
+    private readonly Dictionary<int,RenderTextureResource>PendingVirtualGeometryNormalMaps=[];
     private struct VirtualGeometryObjectBuffers {
         public ID3D12Resource*VisibleClusters;
         public ID3D12Resource*DrawArguments;
@@ -100,6 +107,21 @@ public sealed unsafe partial class StageRenderer {
         D3D12_DRAW_ARGUMENTS ProxyArguments=new(){ VertexCountPerInstance=StageVirtualGeometryCreateInfo.MaxTrianglesPerCluster*3,InstanceCount=(uint)Proxy.Count };
         this.VirtualGeometryMeshes[MeshIndex].ProxyClusters=this.CreateFilledUploadBuffer<uint>(Proxy.ToArray(),"creating virtual geometry proxy clusters");
         this.VirtualGeometryMeshes[MeshIndex].ProxyArguments=this.CreateFilledUploadBuffer<D3D12_DRAW_ARGUMENTS>(new ReadOnlySpan<D3D12_DRAW_ARGUMENTS>(&ProxyArguments,1),"creating virtual geometry proxy arguments");
+        if(Info.ObjectNormalMap is{ }NormalMap){
+            this.PendingVirtualGeometryNormalMaps[MeshIndex]=NormalMap;
+            if(this.SrvHeap!=null){ this.PlaceVirtualGeometryNormalMaps(); }
+        }
+    }
+    /// <summary>
+    /// 物体の向きの法線マップを、材質のテクスチャと同じ配列へ置く。材質の置き場ができてから呼ぶ（作るときは材質の後、作った後のメッシュはすぐ）。
+    /// テクスチャは次のフレームの最初に送られる。
+    /// </summary>
+    private void PlaceVirtualGeometryNormalMaps(){
+        foreach(var (MeshIndex,NormalMap) in this.PendingVirtualGeometryNormalMaps){
+            var View=this.GetOrAddMaterialTextureView((nint)this.GetOrCreateMaterialTexture(NormalMap,RenderTextureColorSpace.Linear),Srgb:false);
+            this.VirtualGeometryMeshes[MeshIndex].ObjectNormalMap=View+1;
+        }
+        this.PendingVirtualGeometryNormalMaps.Clear();
     }
     private bool MeshHasVirtualGeometry(int MeshIndex)=>(uint)MeshIndex<(uint)this.VirtualGeometryMeshes.Length&&this.VirtualGeometryMeshes[MeshIndex].Clusters!=null;
     private ID3D12Resource*CreateFilledUploadBuffer<T>(ReadOnlySpan<T>Values,string Context)where T:unmanaged{
@@ -191,7 +213,7 @@ public sealed unsafe partial class StageRenderer {
                 Metric=Metric.ShaderParameters,
                 ClusterCount=Mesh.ClusterCount,
                 ThresholdPixels=VirtualGeometryThresholdPixels,
-                TriangleFloorPixels=this.VirtualGeometryTriangleFloorPixels,
+                TriangleFloorPixels=Mesh.ObjectNormalMap!=0||this.VirtualGeometryTriangleFloorWithoutNormalMapForTesting?this.VirtualGeometryTriangleFloorPixels:0f,
             };
             this.CommandList->SetComputeRoot32BitConstants(0,VirtualGeometrySelectionConstantCount,&Selection,0);
             this.CommandList->SetComputeRootShaderResourceView(1,Mesh.Clusters->GetGPUVirtualAddress());
@@ -237,7 +259,7 @@ public sealed unsafe partial class StageRenderer {
             if(Drawn==0){ this.CommandList->SetPipelineState(Pipeline); }
             ref var Object=ref this.VirtualGeometryObjects[ObjectIndex];
             ref var Mesh=ref this.VirtualGeometryMeshes[Object.MeshIndex];
-            this.SetDrawConstants(ObjectIndex,Flags);
+            this.SetDrawConstants(ObjectIndex,Flags,Mesh.ObjectNormalMap);
             this.BindVirtualGeometry(RootParameter,Mesh,Object.VisibleClusters);
             this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Object.DrawArguments,0,null,0);
             Drawn++;
@@ -256,7 +278,7 @@ public sealed unsafe partial class StageRenderer {
         if(Pipeline==null){ return false; }
         ref var Mesh=ref this.VirtualGeometryMeshes[MeshIndex];
         this.CommandList->SetPipelineState(Pipeline);
-        this.SetDrawConstants(ObjectIndex,Flags);
+        this.SetDrawConstants(ObjectIndex,Flags,Mesh.ObjectNormalMap);
         this.BindVirtualGeometry(RootParameter,Mesh,Mesh.ProxyClusters);
         this.CommandList->ExecuteIndirect(this.VirtualGeometryCommandSignature,1,Mesh.ProxyArguments,0,null,0);
         this.CommandList->SetPipelineState(this.ResolvePipelineState(Desc));
