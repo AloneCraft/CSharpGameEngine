@@ -269,7 +269,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private bool HasCameraBasis;
     /// <summary>メインパスの描画前後で取得するテスト専用GPUタイムスタンプ（性能の証拠）。有効化されていなければnull。</summary>
     private ID3D12QueryHeap*MainPassTimestampHeap;
-    private ID3D12Resource*MainPassTimestampReadback;
+    private StageFeedbackReadback?MainPassTimestampReadback;
     private ulong MainPassTimestampFrequency;
     private uint LastTimedFrameIndex=uint.MaxValue;
     private Vector3 CurrentCameraForward;
@@ -1402,22 +1402,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// 作成後にマテリアルを1つ追加する（M0105）。そのテクスチャを今アップロードするため、一度GPUの完了を待つ。
-    /// そのゲームでまだ描画していないアセットを初めて生成すると、1フレーム分のコストがかかる。
+    /// 作成後にマテリアルを1つ追加する（M0105）。GPU は待たない。テクスチャは次のフレームの最初に送る（M0129 単位 5）。
     /// 新しいマテリアルインデックスを返す。材質の数に上限は無く、足りなければ材質の表と記述子の置き場を広げる（M0129 単位 4）。
+    /// 広げる前のものは、それを使ったかもしれないフレームが済んでから放す。
     /// </summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         this.ThrowIfDisposed();
-        // テクスチャのアップロードでは最初のコマンドアロケーターをリセットするが、処理中のフレームが使用中の可能性がある。
-        // 材質の表と記述子の置き場を広げるときも、GPU が古いものを読み終えている必要がある。
-        this.WaitForGpuIdle();
         var Index=this.MaterialCount;
         this.EnsureMaterialCapacity(Index+1);
         var OwnedBefore=this.OwnedMaterialTextures.Count;
         var ViewsBefore=this.MaterialTextureViews.Count;
+        var UploadsBefore=this.PendingTextureUploads.Count;
         try {
             this.SetUpMaterial(Index,Material);
         } catch {
+            this.CancelPendingTextureUploads(UploadsBefore);
             for(var I=this.OwnedMaterialTextures.Count-1;I>=OwnedBefore;I--){
                 var Pointer=this.OwnedMaterialTextures[I];
                 this.ResidentTextures.Remove(this.OwnedTextureHashes[Pointer]);
@@ -1491,7 +1490,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
         return this.CreateTextureResource(RenderTextureMipChain.TopLevelOnly(Texture).Levels,1);
     }
-    /// <summary>テクスチャの先頭<paramref name="LevelCount"/>レベルを1回のコピーでアップロードする（M0110：マテリアルテクスチャの全ミップチェーンなど）。</summary>
+    /// <summary>
+    /// テクスチャの先頭<paramref name="LevelCount"/>レベルを一時の置き場へ書き、次のフレームの最初に1回のコピーで送る（M0110、M0129 単位 5）。
+    /// GPU は待たない。テクスチャは送り終えるまで写し先の状態で、送るのはどの描画よりも前。
+    /// </summary>
     private ID3D12Resource*CreateTextureResource(IReadOnlyList<RenderTextureMipLevel>Levels,int LevelCount){
         var Base=Levels[0];
         D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
@@ -1533,34 +1535,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 }
             }
             Staging->Unmap(0,null);
-
-            D3D12Diagnostics.EnsureSuccess(this.CommandAllocators[0]->Reset(),"ID3D12CommandAllocator::Reset","resetting the allocator for a material texture upload");
-            D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(this.CommandAllocators[0],null),"ID3D12GraphicsCommandList::Reset","resetting the command list for a material texture upload");
-
-            for(var Level=0;Level<LevelCount;Level++){
-                D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=GpuTexture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-                Dst.SubresourceIndex=(uint)Level;
-                D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=Staging,Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-                Src.PlacedFootprint=Footprints[Level];
-                this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
-            }
-
-            D3D12_RESOURCE_BARRIER ToShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(GpuTexture,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            this.CommandList->ResourceBarrier(1,&ToShaderResource);
-
-            D3D12Diagnostics.EnsureSuccess(this.CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing a material texture upload command list");
-
-            ID3D12CommandList*CommandListBase=(ID3D12CommandList*)this.CommandList;
-            this.Device.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
-
-            this.WaitForGpuIdle();
+            this.PendingTextureUploads.Add(new PendingTextureUpload((nint)GpuTexture,(nint)Staging,Footprints));
         } catch {
+            if(Staging!=null){ _=Staging->Release(); }
             _=GpuTexture->Release();
             throw;
-        } finally {
-            if(Staging!=null){ _=Staging->Release(); }
         }
-
         return GpuTexture;
     }
 
@@ -3140,11 +3120,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12QueryHeap*Heap;
         D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateQueryHeap(&Desc,__uuidof<ID3D12QueryHeap>(),(void**)&Heap),
             "ID3D12Device::CreateQueryHeap","creating the main-pass timestamp heap");
-        D3D12_HEAP_PROPERTIES ReadbackHeap=new(D3D12_HEAP_TYPE_READBACK);
-        var BufferDesc=D3D12_RESOURCE_DESC.Buffer(FrameCount*2*sizeof(ulong));
-        ID3D12Resource*Readback;
-        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&ReadbackHeap,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,null,__uuidof<ID3D12Resource>(),(void**)&Readback),
-            "ID3D12Device::CreateCommittedResource","creating the main-pass timestamp readback");
+        var Readback=new StageFeedbackReadback(this.Device,FrameCount,2*sizeof(ulong),"main-pass timestamp");
         ulong Frequency;
         D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->GetTimestampFrequency(&Frequency),"ID3D12CommandQueue::GetTimestampFrequency","reading the timestamp frequency");
         this.MainPassTimestampHeap=Heap;
@@ -3159,17 +3135,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new InvalidOperationException("Main-pass timing is not enabled or no frame has been timed yet.");
         }
         this.WaitForGpuIdle();
-        ulong*Mapped;
-        D3D12_RANGE Range=new(){ Begin=(nuint)(this.LastTimedFrameIndex*2*sizeof(ulong)),End=(nuint)((this.LastTimedFrameIndex*2+2)*sizeof(ulong)) };
-        D3D12Diagnostics.EnsureSuccess(this.MainPassTimestampReadback->Map(0,&Range,(void**)&Mapped),"ID3D12Resource::Map","reading the main-pass timestamps");
-        try {
-            var Start=Mapped[this.LastTimedFrameIndex*2];
-            var End=Mapped[this.LastTimedFrameIndex*2+1];
-            return End>=Start?(End-Start)*1000f/this.MainPassTimestampFrequency:0f;
-        } finally {
-            D3D12_RANGE NoWrite=new();
-            this.MainPassTimestampReadback->Unmap(0,&NoWrite);
-        }
+        Span<ulong>Stamps=stackalloc ulong[2];
+        if(!this.MainPassTimestampReadback.TryRead(this.LastTimedFrameIndex,Stamps)){ return 0f; }
+        return Stamps[1]>=Stamps[0]?(Stamps[1]-Stamps[0])*1000f/this.MainPassTimestampFrequency:0f;
     }
 
     /// <summary>テスト専用のメイン深度バッファのコピー。GPU完了後に読み取る（行優先、width x height）。</summary>
@@ -3322,8 +3290,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ShadowTimestamp(2);
         this.PrepareVirtualShadows();
         this.ShadowTimestamp(3);
-        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback,(ulong)this.FrameIndex*4*sizeof(ulong));
-        this.ShadowTimestampsValid[this.FrameIndex]=true;
+        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback!.Resource,this.ShadowTimestampReadback.SlotOffset(this.FrameIndex));
+        this.ShadowTimestampReadback.MarkWritten(this.FrameIndex);
     }
     private void RecordFrameConstants(ref FrameRecording Recording){
         this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
@@ -3375,7 +3343,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
             this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
-                this.FrameIndex*2,2,this.MainPassTimestampReadback,(ulong)this.FrameIndex*2*sizeof(ulong));
+                this.FrameIndex*2,2,this.MainPassTimestampReadback!.Resource,this.MainPassTimestampReadback.SlotOffset(this.FrameIndex));
+            this.MainPassTimestampReadback.MarkWritten(this.FrameIndex);
             this.LastTimedFrameIndex=this.FrameIndex;
         }
     }
@@ -3520,6 +3489,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void MoveToNextFrame(){
         var CurrentFenceValue= this.FenceValues[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(this.Device!.CommandQueue->Signal(this.Fence,CurrentFenceValue),"ID3D12CommandQueue::Signal","signaling the frame fence");
+        this.SealRetirements(CurrentFenceValue);
 
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
 
@@ -3535,6 +3505,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.Device==null|| this.Fence==null){
             return;
         }
+        this.GpuIdleWaitCountForTesting++;
 
         D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->Signal(this.Fence, this.FenceValues[this.FrameIndex]),"ID3D12CommandQueue::Signal","signaling the GPU-idle fence");
         D3D12Diagnostics.EnsureSuccess(this.Fence->SetEventOnCompletion(this.FenceValues[this.FrameIndex], this.FenceEvent),"ID3D12Fence::SetEventOnCompletion","waiting for the GPU to go idle");
@@ -3557,7 +3528,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // 削除／リセットされたデバイスはフェンスを通知できない。Render Serverが次の世代を作成できるよう、
             // ネイティブオブジェクトを解放する必要がある。
         }
-
+        this.ReleaseUploadRing();
         this.ReleaseReadbackBuffer();
         this.ReleaseForwardPlusTileBuffer();
         this.Atmosphere?.Dispose();
@@ -3675,7 +3646,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.MainPassTimestampHeap=null;
         }
         if(this.MainPassTimestampReadback!=null){
-            _=this.MainPassTimestampReadback->Release();
+            this.MainPassTimestampReadback.Dispose();
             this.MainPassTimestampReadback=null;
         }
 

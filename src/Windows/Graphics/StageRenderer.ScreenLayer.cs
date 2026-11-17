@@ -125,8 +125,7 @@ public sealed unsafe partial class StageRenderer {
         if(this.ScreenTextures.Count>=MaxResidentScreenTextures){
             throw new InvalidOperationException($"More than {MaxResidentScreenTextures} distinct screen textures are in use.");
         }
-        // アップロードはフレームのコマンドリストと初回のアロケーターを共有するためGPUアイドルが必要。テクスチャが初めて現れた時に実行する。
-        this.WaitForGpuIdle();
+        // テクスチャは次のフレームの最初に、スクリーンレイヤーを描くより前に送る（M0129 単位 5）。GPU は待たない。
         ID3D12Resource*Created=this.CreateTextureResource(Texture);
         this.ScreenTextures.Add(Texture.ContentHash,(nint)Created);
         return Created;

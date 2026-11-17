@@ -27,9 +27,8 @@ public sealed unsafe partial class StageRenderer {
     private byte*VirtualProjectionMapped;
     private float VirtualOriginStamp;
     private ID3D12QueryHeap*ShadowTimestampHeap;
-    private ID3D12Resource*ShadowTimestampReadback;
+    private StageFeedbackReadback?ShadowTimestampReadback;
     private ulong ShadowTimestampFrequency;
-    private readonly bool[]ShadowTimestampsValid=new bool[FrameCount];
     public float CascadedShadowGpuMilliseconds{get;private set;}
     public float VirtualShadowGpuMilliseconds{get;private set;}
     public VirtualShadowStatistics VirtualShadowStatistics=>this.VirtualShadowCache.Statistics;
@@ -57,11 +56,7 @@ public sealed unsafe partial class StageRenderer {
         ID3D12QueryHeap*Query;
         D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateQueryHeap(&QueryDesc,__uuidof<ID3D12QueryHeap>(),(void**)&Query),nameof(this.CreateVirtualShadows),"shadow timestamps");
         this.ShadowTimestampHeap=Query;
-        var ReadbackHeap=new D3D12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK);
-        var BufferDesc=D3D12_RESOURCE_DESC.Buffer(FrameCount*4*sizeof(ulong));
-        ID3D12Resource*Readback;
-        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&ReadbackHeap,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,null,__uuidof<ID3D12Resource>(),(void**)&Readback),nameof(this.CreateVirtualShadows),"shadow timing readback");
-        this.ShadowTimestampReadback=Readback;
+        this.ShadowTimestampReadback=new StageFeedbackReadback(this.Device,FrameCount,4*sizeof(ulong),"shadow timestamp");
         ulong Frequency;D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->GetTimestampFrequency(&Frequency),nameof(this.CreateVirtualShadows),"shadow timestamp frequency");this.ShadowTimestampFrequency=Frequency;
     }
     private void WriteVirtualShadowDescriptors(D3D12_CPU_DESCRIPTOR_HANDLE AtlasHandle,D3D12_CPU_DESCRIPTOR_HANDLE TableHandle){
@@ -162,7 +157,8 @@ public sealed unsafe partial class StageRenderer {
         if(this.VirtualPageTableBuffer!=null){ _=this.VirtualPageTableBuffer->Release();this.VirtualPageTableBuffer=null; }
         if(this.VirtualProjectionBuffer!=null){ _=this.VirtualProjectionBuffer->Release();this.VirtualProjectionBuffer=null; }
         if(this.ShadowTimestampHeap!=null){ _=this.ShadowTimestampHeap->Release();this.ShadowTimestampHeap=null; }
-        if(this.ShadowTimestampReadback!=null){ _=this.ShadowTimestampReadback->Release();this.ShadowTimestampReadback=null; }
+        this.ShadowTimestampReadback?.Dispose();
+        this.ShadowTimestampReadback=null;
     }
     private void DrawShadowComparison(){
         var Source=this.FrameSlot(this.FrameIndex);
@@ -184,14 +180,11 @@ public sealed unsafe partial class StageRenderer {
     }
     private void ReadShadowTimings(uint?CompletedSlot=null){
         var Slot=CompletedSlot??this.FrameIndex;
-        if(!this.ShadowTimestampsValid[Slot]){ return; }
         // MoveToNextFrameは、このスロットが再度書き込み可能になる前に対応するフェンスの完了を待機する。
-        var Range=new D3D12_RANGE { Begin=(nuint)(Slot*4*sizeof(ulong)),End=(nuint)((Slot+1)*4*sizeof(ulong)) };
-        ulong*Data;D3D12Diagnostics.EnsureSuccess(this.ShadowTimestampReadback->Map(0,&Range,(void**)&Data),nameof(this.ReadShadowTimings),"completed shadow timestamps");
-        var Start=Slot*4;
-        this.CascadedShadowGpuMilliseconds=(Data[Start+1]-Data[Start])*1000f/this.ShadowTimestampFrequency;
-        this.VirtualShadowGpuMilliseconds=(Data[Start+3]-Data[Start+2])*1000f/this.ShadowTimestampFrequency;
-        var NoWrite=new D3D12_RANGE();this.ShadowTimestampReadback->Unmap(0,&NoWrite);
+        Span<ulong>Data=stackalloc ulong[4];
+        if(this.ShadowTimestampReadback is null||!this.ShadowTimestampReadback.TryRead(Slot,Data)){ return; }
+        this.CascadedShadowGpuMilliseconds=(Data[1]-Data[0])*1000f/this.ShadowTimestampFrequency;
+        this.VirtualShadowGpuMilliseconds=(Data[3]-Data[2])*1000f/this.ShadowTimestampFrequency;
     }
     private void ShadowTimestamp(uint Index)=>this.CommandList->EndQuery(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4+Index);
 }

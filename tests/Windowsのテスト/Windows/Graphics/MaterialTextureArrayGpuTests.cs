@@ -45,6 +45,40 @@ public sealed class MaterialTextureArrayGpuTests {
         Assert.Equal(Seen.Count,Seen.Distinct().Count());
         Assert.DoesNotContain(Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
     }
+    /// <summary>
+    /// 材質を足しても GPU を待たない（M0129 単位 5）。描画の合間に、枠を越えて材質を足し（材質の表と記述子の置き場が広がる）、その間に GPU の完了を待った回数が
+    /// 増えないことを確かめる。積んだテクスチャは次のフレームで送られ、広げる前の表と置き場は、使ったかもしれないフレームが済んだ後に放される。
+    /// </summary>
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void AddingMaterialsBetweenFrames_Warp_DoesNotWaitForTheGpu(){
+        using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Material Upload Ring",Width=Size,Height=Size,Visible=false });
+        using var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
+            [Plane()],[Material(-1)],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
+        var Before=Centre(Renderer);
+        var Waits=Renderer.GpuIdleWaitCountForTesting;
+        var Count=StageRenderer.DynamicMaterialHeadroom*2+8;
+        for(var Index=0;Index<Count;Index++){
+            Assert.Equal(Index+1,Renderer.AddMaterial(Material(Index)));
+        }
+        Assert.Equal(Waits,Renderer.GpuIdleWaitCountForTesting);
+        var Pending=Renderer.UploadRingForTesting;
+        Assert.True(Pending.PendingUploads>=Count*2,$"{Pending.PendingUploads} textures wait for the next frame");
+        Assert.True(Pending.Retired>0,"the material table and the descriptor heap that were grown wait to be released");
+        // 次のフレームで送る。描画は表示の確認をしないので、GPU の完了も待たない。
+        _=Renderer.AddObject(0,Count);
+        Renderer.SetObjectVisibility(0,VisibleInView:false,CastsShadow:false);
+        Renderer.RenderFrame(CaptureForVerification:false);
+        Assert.Equal(Waits,Renderer.GpuIdleWaitCountForTesting);
+        Assert.Equal(0,Renderer.UploadRingForTesting.PendingUploads);
+        // フレームの枠を一回りすれば、放し待ちの資源は無くなる。
+        for(var Frame=0;Frame<4;Frame++){ Renderer.RenderFrame(CaptureForVerification:false); }
+        Assert.Equal(0,Renderer.UploadRingForTesting.Retired);
+        var After=Centre(Renderer);
+        Assert.Equal(RenderAlone(Material(Count-1)),After);
+        Assert.NotEqual(Before,After);
+        Assert.DoesNotContain(Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
+    }
     [Fact]
     public void ADeviceBelowResourceBindingTierTwo_IsRefusedWithItsName(){
         var Error=Assert.Throws<NotSupportedException>(()=>StageRenderer.RequireResourceBindingTier(1,"Test Adapter"));

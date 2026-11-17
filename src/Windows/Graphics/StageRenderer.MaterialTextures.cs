@@ -48,7 +48,7 @@ public sealed unsafe partial class StageRenderer {
         this.CreateMaterialDescriptorHeap(MaterialCapacity*4);
     }
     /// <summary>
-    /// 材質をもう 1 つ置けるようにする。足りなければ倍に広げ、材質の表も作り直す。GPU が古い表を読んでいないこと（呼び出し側が完了を待ったこと）が前提。
+    /// 材質をもう 1 つ置けるようにする。足りなければ倍に広げ、材質の表も作り直す。古い表は、それを読んだかもしれないフレームが済んでから放す（M0129 単位 5）。
     /// </summary>
     private void EnsureMaterialCapacity(int Count){
         if(Count<=this.MaterialCapacity){ return; }
@@ -64,14 +64,14 @@ public sealed unsafe partial class StageRenderer {
         if(this.MaterialTableBuffer!=null){
             this.MaterialTableBuffer->Unmap(0,null);
             this.MaterialTableMapped=null;
-            _=this.MaterialTableBuffer->Release();
+            this.Retire(this.MaterialTableBuffer);
             this.MaterialTableBuffer=null;
             this.CreateUploadBuffer(checked(MaterialDataSize*(uint)this.MaterialCapacity*FrameCount),out this.MaterialTableBuffer,out this.MaterialTableMapped,"growing the material table");
         }
     }
     /// <summary>
-    /// 記述子の置き場を作る（広げるときは作り直す）。すべての材質のテクスチャと環境の表を書き直す。広げるのは材質を足すときだけで、
-    /// そのとき呼び出し側は GPU の完了を待っているので、古い置き場はすぐ放してよい。
+    /// 記述子の置き場を作る（広げるときは作り直す）。すべての材質のテクスチャと環境の表を書き直す。古い置き場は、それを使ったかもしれない
+    /// フレームが済んでから放す（M0129 単位 5）。
     /// </summary>
     private void CreateMaterialDescriptorHeap(int TextureViewCapacity){
         D3D12_DESCRIPTOR_HEAP_DESC Desc=new(){
@@ -82,7 +82,7 @@ public sealed unsafe partial class StageRenderer {
         ID3D12DescriptorHeap*Heap;
         D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateDescriptorHeap(&Desc,__uuidof<ID3D12DescriptorHeap>(),(void**)&Heap),
             "ID3D12Device::CreateDescriptorHeap","creating the material SRV descriptor heap");
-        if(this.SrvHeap!=null){ _=this.SrvHeap->Release(); }
+        this.Retire(this.SrvHeap);
         this.SrvHeap=Heap;
         this.MaterialTextureViewCapacity=TextureViewCapacity;
         for(var Index=0;Index<this.MaterialTextureViews.Count;Index++){ this.WriteMaterialTextureView(Index); }

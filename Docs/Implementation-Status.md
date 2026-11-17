@@ -5156,17 +5156,17 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L4 — 表の形とフレーム計画(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs`、`StagePipelinePlan.cs`)、L0 — 表の書き込みと束縛(`src/Windows/Graphics/StageRenderer.Scene.cs`)、L6 — Stage の ABI(`stage-v18`)
 - Parent capability: Rendering Roadmap / 仮想化描画の共通の下回り(ADR-0100 決定 2)
-- Status: PartiallyImplemented(2026-11-17。M0129 の単位 4 まで。従来のメッシュは全部この経路で描き、材質のテクスチャは番号で引く)
+- Status: PartiallyImplemented(2026-11-17。M0129 の単位 5 まで。従来のメッシュは全部この経路で描き、材質のテクスチャは番号で引く。材質を足しても GPU を待たない)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified(表の形の CPU の試験、DXC の反射との配置の照合)、RuntimeVerified(WARP の描画の試験と固定 7 画像の一致)。実機の GPU では未確認
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 2、`Docs/Specifications/Shader-Graph.md`(GPU シーン)、`Docs/Milestones/M0129-Gpu-Scene-Foundation.md`
 - Stage: 未登録(M0129 の締めで FeatureRunner のカタログに登録する)
 - Depends on: F-L0-011
-- Implementation evidence: L4 `StageInstanceData`・`StageMaterialData`(`Create`)・`StageDrawConstants`・`StageDrawFlags`、`StagePass.SceneUpload`。L0 `StageRenderer.Scene.cs`(`RecordSceneUpload`、`BindSceneTables`、`BindShadowInstanceTable`、`SetDrawConstants`)、`StageRenderer.MaterialTextures.cs`(テクスチャの見え方の番号、記述子の置き場と材質の表を広げる、束縛の段の確認)、主パスと影のルートシグネチャ(`StageRenderer.cs`)、Lumen のカード撮影(`StageRenderer.Lumen.cs`)。シェーダー `assets/Shaders/Stage.cgeshadergraph`(`DrawCB`・`Instances`・`Materials`・`MaterialTextures[]`、編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`)、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`
-- Tests: エンジンのテスト `StageSceneLayoutsTests`、`StagePipelinePlannerTests`。Windowsのテスト `StageConstantLayoutReflectionTests`(エントリーごとの配置と、使わないバッファが無いこと)、`StageFrameSlotPersistenceTests.ObjectValuesSetOnce_Warp_RenderIdenticallyInEveryFrameSlot`、`MaterialTextureArrayGpuTests`(初めの枠と記述子の置き場を越えて足した材質が、それぞれ自分のテクスチャを引く。束縛の段が 1 の GPU を断る)、`StageGoldenFrameTests`(固定 7 画像)、既存の描画の試験(影、Lumen、世界格子、カメラプレビュー)
-- Current delta: 表はアップロード用のバッファへ毎フレーム全部書く(輪にするのは単位 5)。材質とテクスチャを足すたびに GPU の完了を待つ(単位 5 で直す)。描画は物体ごとに 1 回で、GPU 側の選択と間接描画は M0130 以降
-- Conformance: Partial(M0129 の単位 5〜6 が残る)
-- Next action: M0129 単位 5(アップロードの輪と読み戻しの輪)
+- Implementation evidence: L4 `StageInstanceData`・`StageMaterialData`(`Create`)・`StageDrawConstants`・`StageDrawFlags`、`StagePass.SceneUpload`。L0 `StageRenderer.Scene.cs`(`RecordSceneUpload`、`BindSceneTables`、`BindShadowInstanceTable`、`SetDrawConstants`)、`StageRenderer.MaterialTextures.cs`(テクスチャの見え方の番号、記述子の置き場と材質の表を広げる、束縛の段の確認)、`StageRenderer.Uploads.cs`(アップロードの輪、捨てるのを遅らせる仕組み)、`StageFeedbackReadback.cs`(読み戻しの輪)、主パスと影のルートシグネチャ(`StageRenderer.cs`)、Lumen のカード撮影(`StageRenderer.Lumen.cs`)。シェーダー `assets/Shaders/Stage.cgeshadergraph`(`DrawCB`・`Instances`・`Materials`・`MaterialTextures[]`、編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`)、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`
+- Tests: エンジンのテスト `StageSceneLayoutsTests`、`StagePipelinePlannerTests`。Windowsのテスト `StageConstantLayoutReflectionTests`(エントリーごとの配置と、使わないバッファが無いこと)、`StageFrameSlotPersistenceTests.ObjectValuesSetOnce_Warp_RenderIdenticallyInEveryFrameSlot`、`MaterialTextureArrayGpuTests`(初めの枠と記述子の置き場を越えて足した材質が、それぞれ自分のテクスチャを引く。材質を足しても GPU を待たず、送りと放し待ちが数フレームで片付く。束縛の段が 1 の GPU を断る)、`StageFeedbackReadbackTests`(読み戻しの輪)、`StageGoldenFrameTests`(固定 7 画像)、既存の描画の試験(影、Lumen、世界格子、カメラプレビュー)
+- Current delta: 表はアップロード用のバッファへ毎フレーム全部書く(変わった所だけ送るのは、表が大きくなる段階で考える)。骨のあるメッシュを足すときと、仮想影の置き場を初めて作るときは、まだ GPU の完了を待つ(範囲外)。描画は物体ごとに 1 回で、GPU 側の選択と間接描画は M0130 以降
+- Conformance: Partial(M0129 の単位 6 が残る)
+- Next action: M0129 単位 6(L4 の共通部品: 画面上の大きさの式、空き枠の割り当て、報告)
 
 ## F-L4-021 — Entity を使わない物理の契約
 

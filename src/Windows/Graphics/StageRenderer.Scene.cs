@@ -48,6 +48,9 @@ public sealed unsafe partial class StageRenderer {
     /// メッシュの境界の中心でのビューの深さ（ビュー投影の W）で接するので、隠れた破片をどの距離でも早く捨てられる。
     /// </summary>
     private void RecordSceneUpload(){
+        // 済んだフレームが使っていた資源を放し、積んであったテクスチャを、どの描画よりも前に送る（M0129 単位 5）。
+        this.ReleaseCompletedRetirements();
+        this.RecordPendingTextureUploads();
         var Instances=(StageInstanceData*)(this.InstanceTableMapped+this.InstanceTableOffset(this.FrameIndex));
         var Logarithmic=this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic;
         var ViewProjection=this.CurrentViewProjection;
