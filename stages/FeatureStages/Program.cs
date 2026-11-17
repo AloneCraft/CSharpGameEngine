@@ -44,6 +44,7 @@ return StagePackHost.Run(args,[
     StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.virtual-shadows"),
     StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.gpu-scene"),
     StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.virtual-geometry"),
+    StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.virtual-geometry-streaming"),
     StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.environment-lighting"),
     StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.skeletal-animation"),
     StagePackHost.Scene<RenderingReferenceScene>("Rendering","rendering.radial-depth"),

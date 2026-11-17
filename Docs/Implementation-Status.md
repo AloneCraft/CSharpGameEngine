@@ -5182,23 +5182,23 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: Windowsのテスト `VirtualGeometryGpuTests`(元のメッシュとの画像の差、カスケード影と仮想シャドウで同じ影が落ちる、Lumen と光のプローブで代理メッシュを描ける、近づくと塊が増える、ビュー投影から作る画面上の大きさの式、選択のシェーダーの式が共通の式の写しのまま、デバッグ層のエラー 0)、`ShaderGraphCompilerTests`(エントリー 16 個)、エンジンのテスト `StagePipelinePlannerTests`(パスの順)、固定 7 画像
 - Current delta: 遮蔽判定と読み込みは無い(M0131)。影は主ビューで選んだ塊を描く(光から見た細かさでは選ばない。仮想シャドウの作り直しは M0132)。カメラプレビューもプレビューのカメラではなく主ビューの選択を描く。観察者の表示は元のメッシュ。法線マップは Lumen のカードと画面の下書き、観察者の表示では使わない。下限は品質設定ごとに分けていない
 - Conformance: Partial
-- Next action: M0131(遮蔽判定と読み込み)
+- Next action: M0132(仮想シャドウの作り直し)。読み込みと遮蔽は M0131 で済み
 
 ## F-L4-025 — 仮想ジオメトリの遮蔽判定と読み込み
 
 - Layer: L4 — 段の決まり(`src/Engine/Rendering/Streaming/HiZPyramid.cs`)、置き場の形(`VirtualGeometrySlotLayout.cs`)、ページの出し入れ(`VirtualGeometryResidency.cs`)、選択の印と遮蔽の定数(`StageGpuLayouts.cs` の `StageVirtualGeometrySelectionFlags`・`StageVirtualGeometryOcclusion`)、L0 — Hi-Z の実行(`src/Windows/Graphics/StageHiZ.cs`)と主パスの 2 パスの遮蔽(`StageRenderer.Occlusion.cs`)、置き場と知らせ(`StageRenderer.VirtualGeometryStreaming.cs`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・3)
-- Status: Partial(2026-11-18。M0131 単位 1〜4。塊は、索引の枠と頂点の区画でできた置き場の形で GPU に置き、選択の知らせを読み戻して、要るページだけを予算の中で置く。準備済みでないまとまりは細かくしない。主パスは、前のフレームで見えた塊を先に描き、その距離から作った Hi-Z で残りを調べて、隠れていない塊だけを描く。影・Lumen・カメラプレビューは遮蔽を掛けない)
+- Status: Implemented(2026-11-18。M0131。塊は、索引の枠と頂点の区画でできた置き場の形で GPU に置き、選択の知らせを読み戻して、要るページだけを予算の中で置く。準備済みでないまとまりは細かくしない。主パスは、前のフレームで見えた塊を先に描き、その距離から作った Hi-Z で残りを調べて、隠れていない塊だけを描く。影・Lumen・カメラプレビューは遮蔽を掛けない)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
-- Verification: TestVerified、RuntimeVerified(WARP)
+- Verification: TestVerified、RuntimeVerified(WARP)、実機(RTX 4060 Ti)で主パスの時間を計測
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Milestones/M0131-Virtual-Geometry-Occlusion-And-Streaming.md`
-- Stage: なし(M0131 の締めで足す)
+- Stage: `rendering.virtual-geometry-streaming`
 - Depends on: F-L4-024
 - Implementation evidence: 計算シェーダー `assets/Shaders/HiZ.hlsl`(2×2 のいちばん遠い値で 1 段ずつ縮める。空は無限に遠い、画面の外は 0)。段 0 は画面の半分を 2 のべき乗へ切り上げた大きさで、その後はちょうど半分(D3D12 のミップと同じ)。選択の計算シェーダー `VirtualGeometry.hlsl` の調べる働き(包む球を箱の 8 隅で写し、4×4 画素に収まる段で判定)
-- Tests: エンジンのテスト `HiZPyramidTests`。Windowsのテスト `HiZGpuTests`(GPU の全段が CPU と同じ)、`VirtualGeometryOcclusionGpuTests`(遮蔽ありとなしで毎フレームの画素が同じ、隠れた球の塊の 9 割以上を描かない、カメラを回して入ってきた球を 2 パス目が描く)。エンジンのテスト `VirtualGeometrySlotLayoutTests`(枠と区画をとびとびに置いても同じ三角形)、焼き込みのテスト `VirtualGeometrySlotMemoryTests`(全部を置いた量が共有する形の 2.5 倍以内、実測 2.11 倍)、`VirtualGeometryResidencyTests`(出し入れのどのフレームも割れ目が無く、選んだ塊は置き場にある、追いつく、追い出した枠を早く使い直さない)。Windowsのテスト `VirtualGeometryStreamingGpuTests`(根だけから 17 フレームで全部を置いた絵と同じ、途中に穴が無い、小さい予算で粗く描き満杯を報告)
-- Current delta: 判定は球なので、遮る物に近い塊や大きな塊は見えるとされやすい。全部を置くと、共有する形の約 2.1 倍の GPU の量を使う。予算はメッシュごと(融通しない)、成果物は CPU に全部持つ(ファイルの一部だけを読むのは後)、置き場はアップロード用のメモリ。選択は視錐台と裏向きで塊を捨てない
+- Tests: エンジンのテスト `HiZPyramidTests`。Windowsのテスト `HiZGpuTests`(GPU の全段が CPU と同じ)、`VirtualGeometryOcclusionGpuTests`(遮蔽ありとなしで毎フレームの画素が同じ、隠れた球の塊の 9 割以上を描かない、カメラを回して入ってきた球を 2 パス目が描く)。エンジンのテスト `VirtualGeometrySlotLayoutTests`(枠と区画をとびとびに置いても同じ三角形)、焼き込みのテスト `VirtualGeometrySlotMemoryTests`(全部を置いた量が共有する形の 2.5 倍以内、実測 2.11 倍)、`VirtualGeometryResidencyTests`(出し入れのどのフレームも割れ目が無く、選んだ塊は置き場にある、追いつく、追い出した枠を早く使い直さない)。Windowsのテスト `VirtualGeometryStreamingGpuTests`(根だけから 17 フレームで全部を置いた絵と同じ、途中に穴が無い、小さい予算で粗く描き満杯を報告)、`VirtualGeometryOcclusionMeasurementTests`(壁の後ろの 36 個の球: 1920×1080 の実機で主パスの塊 1,952 → 164、時間 1.13〜1.17 → 1.02 ms。画素は遮蔽なしと同じ)
+- Current delta: 判定は球なので、遮る物に近い塊や大きな塊は見えるとされやすい。全部を置くと、共有する形の約 2.1 倍の GPU の量を使う。予算はメッシュごと(融通しない)、成果物は CPU に全部持つ(ファイルの一部だけを読むのは後)、置き場はアップロード用のメモリ。選択は視錐台と裏向きで塊を捨てない。軽い場面(640×360、隠れる物が少ない)では、Hi-Z と調べる分だけ主パスが約 0.02 ms 長くなる
 - Conformance: Partial
-- Next action: M0131 単位 5(計測と締め)
+- Next action: M0132(仮想シャドウの作り直し)
 
 ## F-L4-021 — Entity を使わない物理の契約
 
@@ -5271,4 +5271,4 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: 焼き込みのテスト `QuadricSimplifierTests`、`VirtualGeometryBuilderTests`(どのしきい値・どのカメラで選んでも割れ目が無い)、`VirtualGeometryCodecTests`。エンジンのテスト `ModelArtifactPreparationTests.VirtualGeometryIsBuiltOnlyWhenTheImportOptionAsksForIt`
 - Current delta: 小さな部品を取り除く処理(Omni の pruning)は無い。入力の開いた辺の知らせは無い。読み込みを分ける形(ページ)は M0131
 - Conformance: Partial
-- Next action: M0131(遮蔽判定と読み込み)
+- Next action: M0132(仮想シャドウの作り直し)。読み込みと遮蔽は M0131 で済み

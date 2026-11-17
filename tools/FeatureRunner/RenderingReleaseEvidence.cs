@@ -56,6 +56,7 @@ public static class RenderingReleaseEvidence {
         new("shader.pcss","assets/Shaders/Pcss.cgesubgraph"),
         new("shader.aces","assets/Shaders/Aces.cgesubgraph"),
         new("shader.virtual-geometry","assets/Shaders/VirtualGeometry.hlsl"),
+        new("shader.hi-z","assets/Shaders/HiZ.hlsl"),
         new("shader.presentation","src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs"),
         new("shader.build-target","build/CSharpGameEngine.ShaderGraph.targets"),
         new("shader.abi","src/Contracts/ShaderArtifacts/ShaderArtifactAbi.cs"),
