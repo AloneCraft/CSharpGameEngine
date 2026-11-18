@@ -28,8 +28,10 @@ public partial class AssetsToolWindowControl {
 internal static class ImageOutputDrop {
     internal static string Member(string Key)=>string.Concat(Key.Split(new[]{'_'},StringSplitOptions.RemoveEmptyEntries).Select(P=>char.ToUpperInvariant(P[0])+P.Substring(1)));
     internal static bool Accepts(SceneInspectorMember Member,AssetWorkspaceItem Asset,ImageOutputDrag?Explicit){
-        if(Asset.Source.ReadOnly&&Asset.ImageSettings is null||!ImageImportSettings.Supports(Asset.Source.SourcePath)
-            ||Asset.Source.ProjectPath!=CgeProjectContext.Resolve(SceneEditorHub.ActiveSceneModel?.FilePath)?.ProjectFilePath){ return false; }
+        // Windows のパスは大文字小文字を区別しないので、シーンを開いたパスの綴りの違いで同じプロジェクトを別物にしない。
+        var Context=CgeProjectContext.Resolve(SceneEditorHub.ActiveSceneModel?.FilePath);
+        if(Context is null||Asset.Source.ReadOnly&&Asset.ImageSettings is null||!ImageImportSettings.Supports(Asset.Source.SourcePath)
+            ||!string.Equals(Asset.Source.ProjectPath,Context.ProjectFilePath,StringComparison.OrdinalIgnoreCase)){ return false; }
         var Kind=Explicit?.Output.Kind??(Asset.Kind==AssetWorkspaceKind.Image?ImageOutputKind.Image:ImageOutputKind.Texture);
         return Member.AssetTypeName switch{
             "CSharpGameEngine.Authoring.TextureAsset"=>Kind==ImageOutputKind.Texture&&(Explicit is null||Member.TextureUsage is null||Explicit.Output.Usage==Member.TextureUsage),
