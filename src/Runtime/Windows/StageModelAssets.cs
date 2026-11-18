@@ -1,8 +1,10 @@
 using System.Numerics;
 using CSharpGameEngine.Content;
 using CSharpGameEngine.Content.Models;
+using CSharpGameEngine.Content.VirtualGeometry;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Rendering.Pipeline;
 namespace CSharpGameEngine.Runtime.Windows;
 internal static class StageModelAssets {
     internal readonly record struct Placement(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);
@@ -16,6 +18,8 @@ internal static class StageModelAssets {
         AppendMaterials(Bundle,Materials);
         var World=new Matrix4x4[Model.Nodes.Length];
         var Geometry=new Dictionary<(int Mesh,int Submesh,int Skin),int>();
+        // 取り込みで作った仮想ジオメトリ（M0130）。スキニングするメッシュには作らないので、静的なモデルだけが持つ。
+        Dictionary<(int Mesh,int Submesh),VirtualGeometryMesh>VirtualGeometry=Skeletal?new():VirtualGeometryCodec.Read(Model).ToDictionary(static Entry=>(Entry.MeshIndex,Entry.SubmeshIndex),static Entry=>Entry.Mesh);
         var Placements=new List<Placement>();var Skinned=new List<int>();
         for(var NodeIndex=0;NodeIndex<Model.Nodes.Length;NodeIndex++){
             var Node=Model.Nodes[NodeIndex];
@@ -43,13 +47,35 @@ internal static class StageModelAssets {
                     }
                     MeshIndex=Meshes.Count;Geometry.Add(Key,MeshIndex);
                     Meshes.Add(new(){Positions=Mesh.Positions,Normals=Mesh.Normals,Tangents=Mesh.Tangents,Uvs=Mesh.TextureCoordinates[0],
-                        Indices=Mesh.Indices.AsSpan(Submesh.FirstIndex,Submesh.IndexCount).ToArray(),Skin=Skin,DistanceField=Fields?[Node.MeshIndex]});
+                        Indices=Mesh.Indices.AsSpan(Submesh.FirstIndex,Submesh.IndexCount).ToArray(),Skin=Skin,DistanceField=Fields?[Node.MeshIndex],
+                        VirtualGeometry=SkinIndex<0&&VirtualGeometry.TryGetValue((Node.MeshIndex,SubmeshIndex),out var Built)?ToStage(Built):null});
                     if(Skin is not null){ Skinned.Add(MeshIndex); }
                 }
                 Placements.Add(new(MeshIndex,MaterialOffset+Slots[Submesh.MaterialSlot],SkinIndex>=0?Matrix4x4.Identity:World[NodeIndex]));
             }
         }
         return ([..Placements],[..Skinned]);
+    }
+    /// <summary>仮想ジオメトリを、描画器の GPU の表の形へ写す。</summary>
+    internal static StageVirtualGeometryCreateInfo ToStage(VirtualGeometryMesh Mesh){
+        var Vertices=new StageVirtualGeometryVertex[Mesh.Vertices.Length];
+        for(var Index=0;Index<Vertices.Length;Index++){
+            var Vertex=Mesh.Vertices[Index];
+            Vertices[Index]=new(){ Position=Vertex.Position,Normal=Vertex.Normal,Tangent=Vertex.Tangent,Uv=Vertex.Uv };
+        }
+        var Clusters=new StageVirtualGeometryCluster[Mesh.Clusters.Length];
+        for(var Index=0;Index<Clusters.Length;Index++){
+            var Cluster=Mesh.Clusters[Index];
+            Clusters[Index]=new(){ FirstIndex=checked((uint)Cluster.FirstIndex),IndexCount=checked((uint)Cluster.IndexCount),Group=checked((uint)Cluster.Group),ParentGroup=Cluster.ParentGroup };
+        }
+        var Groups=new StageVirtualGeometryGroup[Mesh.Groups.Length];
+        var TriangleSizes=Mesh.GroupTriangleSizes();
+        for(var Index=0;Index<Groups.Length;Index++){
+            var Group=Mesh.Groups[Index];
+            Groups[Index]=new(){ BoundsCentre=Group.BoundsCentre,BoundsRadius=Group.BoundsRadius,Error=Group.Error,TriangleSize=TriangleSizes[Index] };
+        }
+        return new(){ Vertices=Vertices,Indices=Mesh.Indices,Clusters=Clusters,Groups=Groups,
+            ObjectNormalMap=Mesh.NormalMap is{ }NormalMap?RenderArtifactCodec.CreateProceduralTexture(Mesh.NormalMapSize,Mesh.NormalMapSize,NormalMap):null };
     }
     private static void AppendMaterials(ModelAssetBundle Bundle,List<StageMaterialCreateInfo>Materials){
         var Catalog=new RenderMaterialCatalog();

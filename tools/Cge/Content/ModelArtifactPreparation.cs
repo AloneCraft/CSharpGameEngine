@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Numerics;
 using CSharpGameEngine.Content;
 using CSharpGameEngine.Content.Models;
+using CSharpGameEngine.Content.VirtualGeometry;
+using CSharpGameEngine.Cooking.VirtualGeometry;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Cooking;
 using CSharpGameEngine.Interchange;
@@ -11,7 +13,42 @@ public sealed record PreparedModelSource(AssetId AssetId,string SourceUri,Immuta
 /// <summary>コンパイルノードを公開する前に、すべての変換とエンベロープ検証を完了する。</summary>
 public static class ModelArtifactPreparation {
     public const string CurrentToolVersion="cge.model@2";
-    public static PreparedModelSource Prepare(AssetId AssetId,InterchangeDocument Document,Hash256 SourceHash,Hash256 OptionsHash,string ToolVersion,IEnumerable<PreparedModelArtifact>?Resources=null){
+    /// <summary>
+    /// 骨とモーフの無いメッシュの、サブメッシュごとの仮想ジオメトリ(ADR-0100 決定 3、M0130 単位 3)。サブメッシュが使う頂点だけに詰めてからビルドする。
+    /// 骨やモーフのあるメッシュは、頂点が動くので作らない(範囲外)。
+    /// </summary>
+    internal static List<VirtualGeometryEntry>BuildVirtualGeometryEntries(InterchangeDocument Document){
+        List<VirtualGeometryEntry>Entries=[];
+        for(var MeshIndex=0;MeshIndex<Document.Meshes.Length;MeshIndex++){
+            var Mesh=Document.Meshes[MeshIndex];
+            if(Mesh.Vertices.Influences is not null||Mesh.MorphTargets.Length!=0){ continue; }
+            var V=Mesh.Vertices;
+            var Uvs=V.TexCoords.Length>0?V.TexCoords[0]:default;
+            for(var SubmeshIndex=0;SubmeshIndex<Mesh.Submeshes.Length;SubmeshIndex++){
+                var Submesh=Mesh.Submeshes[SubmeshIndex];
+                if(Submesh.IndexCount<3){ continue; }
+                var Remap=new Dictionary<uint,uint>();
+                List<VirtualGeometryVertex>Vertices=[];
+                var Indices=new uint[Submesh.IndexCount-Submesh.IndexCount%3];
+                for(var Corner=0;Corner<Indices.Length;Corner++){
+                    var Source=Mesh.Indices[Submesh.FirstIndex+Corner];
+                    if(!Remap.TryGetValue(Source,out var Target)){
+                        Target=(uint)Vertices.Count;
+                        Remap.Add(Source,Target);
+                        Vertices.Add(new(V.Positions[(int)Source],V.Normals[(int)Source],V.Tangents[(int)Source],Uvs.IsDefaultOrEmpty?Vector2.Zero:Uvs[(int)Source]));
+                    }
+                    Indices[Corner]=Target;
+                }
+                var Built=VirtualGeometryBuilder.Build([..Vertices],Indices);
+                // 元の細かい形から物体の向きの法線マップを焼く（M0130 単位 6）。UV が重なっていれば焼かない（そのメッシュは三角形の下限を使わない）。
+                var NormalMapSize=ObjectNormalMapBaker.SizeFor(Indices.Length/3);
+                if(ObjectNormalMapBaker.Bake([..Vertices],Indices,NormalMapSize) is{ }NormalMap){ Built=Built with{ NormalMapSize=NormalMapSize,NormalMap=NormalMap }; }
+                Entries.Add(new(MeshIndex,SubmeshIndex,Built));
+            }
+        }
+        return Entries;
+    }
+    public static PreparedModelSource Prepare(AssetId AssetId,InterchangeDocument Document,Hash256 SourceHash,Hash256 OptionsHash,string ToolVersion,IEnumerable<PreparedModelArtifact>?Resources=null,bool BuildVirtualGeometry=false){
         ArgumentNullException.ThrowIfNull(Document);
         var Errors=ModelImportPipeline.ValidateEngine(Document).Where(D=>D.Severity==ImportSeverity.Error).ToArray();
         if(Errors.Length!=0){ throw new InvalidDataException(string.Join(Environment.NewLine,Errors.Select(D=>D.ToString()))); }
@@ -61,8 +98,10 @@ public static class ModelArtifactPreparation {
             Materials.Add(ModelReference.From(Prepared.Reference));
         }
         if(Document.RuntimeBlocks.Any(static Block=>Block.Schema==ModelClipOrder.Schema)){ throw new InvalidDataException("IMP902: animation order is owned by model preparation."); }
+        if(Document.RuntimeBlocks.Any(static Block=>Block.Schema==VirtualGeometryCodec.Schema)){ throw new InvalidDataException("IMP902: virtual geometry is owned by model preparation."); }
         var RuntimeBlocks=Document.RuntimeBlocks.Select(static Block=>new ModelRuntimeBlock(Block.Schema,Block.Payload)).ToList();
         if(Document.Clips.Length!=0){ RuntimeBlocks.Add(ModelClipOrder.Create(Document.Clips.Select(static Clip=>Clip.Name))); }
+        if(BuildVirtualGeometry&&BuildVirtualGeometryEntries(Document) is{ Count:>0 }Entries){ RuntimeBlocks.Add(VirtualGeometryCodec.CreateBlock(Entries)); }
         var Model=new ModelData(Path.GetFileNameWithoutExtension(Document.Provenance.SourceUri),
             [..Document.Nodes.Select(N=>new ModelNodeData(N.Name,N.ParentIndex,Pose(N.Local),N.MeshIndex,N.MaterialSlots,N.SkinIndex,(uint)N.Flags))],
             [..Meshes],[..Materials],[..Skeletons],

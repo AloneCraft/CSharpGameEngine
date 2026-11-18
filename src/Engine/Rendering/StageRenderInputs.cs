@@ -15,6 +15,11 @@ public readonly struct StageMeshCreateInfo {
     public StageSkinCreateInfo?Skin { get; init;}
     /// <summary>事前生成したメッシュの符号付き距離場（ADR-0078/M0110）。距離場のあるメッシュを使うオブジェクトは、グローバル距離場に含まれる。</summary>
     public MeshDistanceField?DistanceField { get; init;}
+    /// <summary>
+    /// 仮想ジオメトリ(ADR-0100 決定 3、M0130)。あれば、主パス・影・Lumen・カメラプレビューはこの塊の階層から主ビューに要る細かさの塊を選んで描く。
+    /// 上の通常の頂点と三角形は、観察者の表示、距離場、仮想ジオメトリの版の無い描画で使う。
+    /// </summary>
+    public Pipeline.StageVirtualGeometryCreateInfo?VirtualGeometry { get; init;}
 }
 /// <summary><see cref="JointCount"/> 個の行列パレットを参照する、頂点ごとの関節インデックスと重み（8組）。</summary>
 public sealed class StageSkinCreateInfo {

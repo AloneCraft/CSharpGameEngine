@@ -30,8 +30,9 @@ def convert(path, parameters, top_dark):
     if len(document['meshes']) != 1 or len(document['meshes'][0]['primitives']) != 1:
         raise ValueError(f'Expected one primitive: {path}')
 
-    def material(color):
-        return {'name': 'CGE_UE50_grid', 'pbrMetallicRoughness': {
+    # The top faces get a material of their own name: two materials of one name are disambiguated by the importer (IMP151).
+    def material(color, name='CGE_UE50_grid'):
+        return {'name': name, 'pbrMetallicRoughness': {
             'baseColorFactor': [*color, 1], 'metallicFactor': 0, 'roughnessFactor': parameters['Roughness']},
             'extras': {'CGE_world_grid': {'gridSizeMeters': parameters['Grid Size'] / 100,
                 'subGridDivisions': int(parameters['Sub Grid Number']), 'wireHalfWidth': 5 / 512,
@@ -59,7 +60,7 @@ def convert(path, parameters, top_dark):
             (top if sum(normals[v][1] for v in triangle) / 3 >= 0.7 else sides).extend(triangle)
         if not top or not sides:
             raise ValueError(f'Expected top and side faces: {path}')
-        document['materials'].append(material(parameters['TopSurfaceColor']))
+        document['materials'].append(material(parameters['TopSurfaceColor'], 'CGE_UE50_grid_top'))
         primitives = []
         for values, material_index in ((sides, 0), (top, 1)):
             while len(binary) % 4:

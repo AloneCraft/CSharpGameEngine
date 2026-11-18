@@ -58,7 +58,7 @@ def main():
     binary += image_bytes
     document.setdefault("bufferViews", []).append(view)
     document.setdefault("images", []).append({"name": "T_SportsCar_BrakeLights_E", "mimeType": "image/png", "bufferView": len(document["bufferViews"]) - 1})
-    texture = {"source": len(document["images"]) - 1}
+    texture = {"name": "T_SportsCar_BrakeLights_E", "source": len(document["images"]) - 1}
     if document.get("samplers"):
         texture["sampler"] = 0
     document.setdefault("textures", []).append(texture)

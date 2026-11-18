@@ -1,0 +1,82 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "TerrainSampleScene",
+  "root": {
+    "id": "b3e9d7a2-4c18-5f60-8e2b-7a1c0d9f4e36",
+    "name": "Terrain",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": {
+            "R": 0,
+            "U": 0,
+            "F": 0
+          },
+          "Rotation": {
+            "EulerRuf": {
+              "R": 0,
+              "U": 0,
+              "F": 0
+            }
+          },
+          "Scale": {
+            "R": 1,
+            "U": 1,
+            "F": 1
+          }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Terrain",
+        "members": {
+          "Shape": "Planar",
+          "SizeMeters": 2048,
+          "GridQuads": 16,
+          "MaximumDepth": 8,
+          "HeightRangeMeters": 50,
+          "PixelThreshold": 8
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "5d2f8a17-c64b-5e93-a0d8-31b7e4c92f05",
+        "name": "Marker",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": {
+                "R": 0,
+                "U": 1,
+                "F": 0
+              },
+              "Rotation": {
+                "EulerRuf": {
+                  "R": 0,
+                  "U": 0,
+                  "F": 0
+                }
+              },
+              "Scale": {
+                "R": 1,
+                "U": 1,
+                "F": 1
+              }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

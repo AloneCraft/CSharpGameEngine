@@ -603,7 +603,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - M0098: `materials[].extras.CGE_world_grid` is read into `ImportedPbrMaterial.WorldGrid` (invalid values are reported and dropped), and a texture bound to a UV set other than TEXCOORD_0 is reported and left out instead of being sampled through TEXCOORD_0 (the engine has one UV set per vertex). GltfWorldGridImportTests.
 
-- M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; a differing channel is reported; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests.
+- M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests. Since 2026-11-17 the model content path (`cge.gltf`) keeps a differing channel's mapping relative to UV0 and resource preparation resamples that texture (`TextureMappingBake`); only a mapping that cannot be expressed that way (rotation in UV0's, or a rotated or mirrored normal map) is reported as IMP141. TextureMappingBakeTests.
 
 - M0088: ImportedLight is color-only with directional lux and point/spot cd variants, nullable range and lossless half-radian cones. GltfImporterSceneTests and UnrealLightSceneEmitterTests verify typed output; zero-inner imported cones need explicit authored resolution.
 
@@ -3706,7 +3706,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Stage: `rendering.radial-depth` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-014, F-L0-009
 - Milestone: `Docs/Milestones/M0119-Logarithmic-Native-Depth.md` (Verified; original foundation M0099)
-- Implementation evidence: `src/Engine/Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, `ObjectCB.ConservativeRasterDepth`, `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
+- Implementation evidence: `src/Engine/Rendering/RadialDepth.cs` and `RenderViewDepth.cs`; native `VSMain`/`PSMain`, `ObserverVSMain`, `SurfacePrepassPSMain` in the fourteen-entry `stage-v14`; `FrameCB.DepthEncoding0/1`, the per-object `ConservativeRasterDepth` (ObjectCB then, the instance table since stage-v17), `StageRenderer.WriteViewDepth`, `RenderCameraPreview.Depth`. FrameCB remains 960 bytes. Scene cameras and directly constructed render cameras use T=1 by default; no camera or protocol depth-mode selector remains. Stage initialization also applies the complete default camera state before filling all slots; the three-frame GPU test covers rendering before the first SetCamera submission. Matrix/thumbnail submissions require validated depth packets. Protocol 9 requires the physical perspective FOV/near/far/T; orthographic previews remain linear.
 - Reverse-engineered behavior: main views, Lumen surface views and DDGI captures write native logarithmic depth. Main view geometry remains physical and camera relative; only observer insets warp positions. SceneDistance supplies physical distance to AO and sky; DDGI uses CaptureDistance. Preview PSOs preserve the main distance target. Shadow maps retain light-space projection. Retired standard PSO families, wrapper entries, standalone Model/Triangle renderers and their artifact/graph producers are removed; retired serialized target values are rejected.
 - Tests: `RenderViewDepthTests`, `LogarithmicDepthOracleTests`, `StageGoldenFrameTests`, `RadialDepthGpuIntegrationTests`, `SceneDistanceGpuIntegrationTests`, `LumenSurfaceDepthTests`, shader ABI/compiler/artifact tests and hot reload/recovery coverage. Latest solution at 5f4d647 (SDK 0.1.29): 22 projects, 3548 pass, 0 fail, 2 opt-in measurements skipped and measured separately on RTX with the unchanged Stage shader. Eight template cases from M0119 (a8c6df8) report an actually active debug layer and zero errors; nine M0111 metrics, complete camera trajectories and final images match. Evidence paths and per-step provenance are in M0119.
 - Conformance: Matches for native depth (ADR-0084). RTX centre error is at most about 2.56 ulp over 4e-6 to 5e18 m. The seven golden images remain fixed after the documented AO rounding update. Release visibility/batching of 100000 objects meets the 6ms median / 8.33ms p95 / zero allocation-p95 budget (4.10015ms / 4.34760ms / 0byte). GPU main-pass measurements are not a whole-game frame budget.
@@ -5062,12 +5062,12 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Layer: L4 — Domain Servers (Rendering policy), L0 — D3D12 execution, L5 — environment component, L9 — comparison scene
 - Parent capability: Directional shadow rendering
 - Depends on: F-L4-014
-- Status: Implemented
+- Status: Implemented — superseded by F-L4-026 (M0132 unit 4, 2026-11-18): the M0115 planner `VirtualDirectionalShadowCache`, its 4096-square atlas and `VirtualDirectionalShadowTests` were removed. The policy, scene component, comparison mode, soft shadows and the `VirtualShadowGpuTests` promises remain under F-L4-026.
 - Verification: TestVerified (CPU planning and WARP Standard/Radial shadows and geometric normals); RuntimeVerified (hardware comparison and TopDown before/after)
 - Intended specification: `Docs/Specifications/Rendering.md#virtual-directional-shadows`, `Docs/Decisions/ADR-0082-Virtual-Directional-Shadows.md`
 - Stage: `rendering.virtual-shadows` (Visual / Rendering)
-- Implementation evidence: `src/Engine/Rendering/VirtualDirectionalShadows.cs`, `src/Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
-- Tests: `VirtualDirectionalShadowTests`, `VirtualShadowGpuTests`
+- Implementation evidence (M0115, historical): `src/Engine/Rendering/VirtualDirectionalShadows.cs`, `src/Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
+- Tests: `VirtualShadowGpuTests` (M0115's `VirtualDirectionalShadowTests` were removed with its planner)
 - Reverse-engineered behavior: Four 4096-texel clipmaps map world-grid 128-texel pages to a 4096-square D32 atlas. Conservative bounds drive requests and invalidation. Missing pages sample cascades. The hardware comparison rendered 524 resident pages, reused 521, redrew 3 for the moving caster, with zero missing requests and D3D12 errors.
 - Conformance: MatchesWithDocumentedExtension. CPU and WARP oracles, recovery, Debug/Release regression and matched hardware/WARP captures are recorded in M0115.
 - Known deviations: CPU requests rather than GPU feedback; virtual mode includes the cost of fallback cascades. The comparison demonstration uses directional/ambient light and fixed exposure; screen-space lighting and camera thumbnails are not supported in comparison mode.
@@ -5152,6 +5152,131 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Unknown
 - Next action: M0120(Forward+ を URP 方式に、Forward を足す)、M0121(Deferred・Deferred+)。
 
+## F-L4-023 — GPU シーン(物体の表と材質の表)
+
+- Layer: L4 — 表の形とフレーム計画(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs`、`StagePipelinePlan.cs`)、L0 — 表の書き込みと束縛(`src/Windows/Graphics/StageRenderer.Scene.cs`)、L6 — Stage の ABI(`stage-v18`)
+- Parent capability: Rendering Roadmap / 仮想化描画の共通の下回り(ADR-0100 決定 2)
+- Status: Implemented(2026-11-17。M0129 を終えた。従来のメッシュは全部この経路で描き、材質のテクスチャは番号で引く。材質を足しても GPU を待たない。L4 の共通部品(画面上の大きさの式、空き枠の割り当て、報告)がある)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified(表の形の CPU の試験、DXC の反射との配置の照合)、RuntimeVerified(WARP の描画の試験と固定 7 画像の一致)。実機の GPU では未確認
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 2、`Docs/Specifications/Shader-Graph.md`(GPU シーン)、`Docs/Milestones/M0129-Gpu-Scene-Foundation.md`
+- Stage: `rendering.gpu-scene`(M0129 の締めで追加)
+- Depends on: F-L4-005、F-L4-014
+- Implementation evidence: L4 `StageInstanceData`・`StageMaterialData`(`Create`)・`StageDrawConstants`・`StageDrawFlags`、`StagePass.SceneUpload`、`Streaming/ScreenSizeMetric`・`PageSlotAllocator`・`StreamingReport`。L0 `StageRenderer.Scene.cs`(`RecordSceneUpload`、`BindSceneTables`、`BindShadowInstanceTable`、`SetDrawConstants`)、`StageRenderer.MaterialTextures.cs`(テクスチャの見え方の番号、記述子の置き場と材質の表を広げる、束縛の段の確認)、`StageRenderer.Uploads.cs`(アップロードの輪、捨てるのを遅らせる仕組み)、`StageFeedbackReadback.cs`(読み戻しの輪)、主パスと影のルートシグネチャ(`StageRenderer.cs`)、Lumen のカード撮影(`StageRenderer.Lumen.cs`)。シェーダー `assets/Shaders/Stage.cgeshadergraph`(`DrawCB`・`Instances`・`Materials`・`MaterialTextures[]`、編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`)、`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、`ShaderArtifactAbi.cs`
+- Tests: エンジンのテスト `StageSceneLayoutsTests`、`StagePipelinePlannerTests`、`ScreenSizeMetricTests`、`PageSlotAllocatorTests`(予算と置き場の数、固定、追い出す順、決まった乱数の長い列で同じ結果)。Windowsのテスト `ScreenSizeMetricGpuTests`(CPU とシェーダーの式が 260 件で一致)。Windowsのテスト `StageConstantLayoutReflectionTests`(エントリーごとの配置と、使わないバッファが無いこと)、`StageFrameSlotPersistenceTests.ObjectValuesSetOnce_Warp_RenderIdenticallyInEveryFrameSlot`、`MaterialTextureArrayGpuTests`(初めの枠と記述子の置き場を越えて足した材質が、それぞれ自分のテクスチャを引く。材質を足しても GPU を待たず、送りと放し待ちが数フレームで片付く。束縛の段が 1 の GPU を断る)、`StageFeedbackReadbackTests`(読み戻しの輪)、`StageGoldenFrameTests`(固定 7 画像)、既存の描画の試験(影、Lumen、世界格子、カメラプレビュー)
+- Current delta: 表はアップロード用のバッファへ毎フレーム全部書く(変わった所だけ送るのは、表が大きくなる段階で考える)。骨のあるメッシュを足すときと、仮想影の置き場を初めて作るときは、まだ GPU の完了を待つ(範囲外)。描画は物体ごとに 1 回で、GPU 側の選択と間接描画は M0130 以降
+- Conformance: Matches。4 つのテンプレートの画像は WARP で ThirdPerson・TopDown・Vehicle が完全に同じ、FirstPerson が 22 画素だけ 1 段違う(原因は未特定)。ソリューション全体の試験の 1 回だけ、基準画像の environment の 1 枚が合わなかった(21 回の再実行で再現せず、原因は未特定)。実機は開発機の 1 台だけ。
+- Next action: M0130(仮想ジオメトリのビルドと描画)
+
+## F-L4-024 — 仮想ジオメトリの描画
+
+- Layer: L4 — GPU の表の形と描画の設定(`src/Engine/Rendering/Pipeline/StageGpuLayouts.cs` の `StageVirtualGeometry*`、`StagePipelineDesc.cs` の `StagePipelines.VirtualGeometry*`、`StagePipelinePlan.cs` の `StagePass.VirtualGeometrySelection`)、L0 — 選択と間接描画(`src/Windows/Graphics/StageRenderer.VirtualGeometry.cs`)、L5 — モデルの追加データから描画への受け渡し(`src/Runtime/Windows/StageModelAssets.cs`)、L6 — Stage の ABI(`stage-v21`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 3)
+- Status: Implemented(2026-11-17。M0130。法線マップのあるメッシュは三角形の下限 16 画素で描く。主パス・影・Lumen の画面の下書き・カメラプレビューは、GPU が主ビューから選んだ塊を間接描画で描く。Lumen のカードと光のプローブは代理メッシュ(根の段の塊)を描く)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(WARP)。実機の GPU では未確認
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Specifications/Shader-Graph.md`(仮想ジオメトリ)、`Docs/Milestones/M0130-Virtual-Geometry-Build-And-Draw.md`
+- Stage: `rendering.virtual-geometry`
+- Depends on: F-L4-023、F-L7-059
+- Implementation evidence: 選択の計算シェーダー `assets/Shaders/VirtualGeometry.hlsl`(物体ごと、1 塊 1 スレッド、「自分のまとまりの誤差の画素数 ≤ 1 画素 < 親のまとまりの誤差の画素数」で描く)。頂点シェーダー `VirtualGeometryVSMain` と影の版 `VirtualGeometryShadowVSMain`(`src/Contracts/ShaderArtifacts/StagePresentationShaderSource.cs`、t22〜t25)。描画器は物体ごとに描く塊の番号の一覧と間接描画の引数を持ち、引数の描く数を 0 に戻してから選び、1 塊 1 インスタンス(384 頂点)で描く
+- Tests: Windowsのテスト `VirtualGeometryGpuTests`(元のメッシュとの画像の差、カスケード影と仮想シャドウで同じ影が落ちる、Lumen と光のプローブで代理メッシュを描ける、近づくと塊が増える、ビュー投影から作る画面上の大きさの式、選択のシェーダーの式が共通の式の写しのまま、デバッグ層のエラー 0)、`ShaderGraphCompilerTests`(エントリー 16 個)、エンジンのテスト `StagePipelinePlannerTests`(パスの順)、固定 7 画像
+- Current delta: 遮蔽判定と読み込みは無い(M0131)。影は主ビューで選んだ塊を描く(光から見た細かさでは選ばない。仮想シャドウの作り直しは M0132)。カメラプレビューもプレビューのカメラではなく主ビューの選択を描く。観察者の表示は元のメッシュ。法線マップは Lumen のカードと画面の下書き、観察者の表示では使わない。下限は品質設定ごとに分けていない
+- Conformance: Partial
+- Next action: M0132(仮想シャドウの作り直し)。読み込みと遮蔽は M0131 で済み
+
+## F-L4-025 — 仮想ジオメトリの遮蔽判定と読み込み
+
+- Layer: L4 — 段の決まり(`src/Engine/Rendering/Streaming/HiZPyramid.cs`)、置き場の形(`VirtualGeometrySlotLayout.cs`)、ページの出し入れ(`VirtualGeometryResidency.cs`)、選択の印と遮蔽の定数(`StageGpuLayouts.cs` の `StageVirtualGeometrySelectionFlags`・`StageVirtualGeometryOcclusion`)、L0 — Hi-Z の実行(`src/Windows/Graphics/StageHiZ.cs`)と主パスの 2 パスの遮蔽(`StageRenderer.Occlusion.cs`)、置き場と知らせ(`StageRenderer.VirtualGeometryStreaming.cs`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・3)
+- Status: Implemented(2026-11-18。M0131。塊は、索引の枠と頂点の区画でできた置き場の形で GPU に置き、選択の知らせを読み戻して、要るページだけを予算の中で置く。準備済みでないまとまりは細かくしない。主パスは、前のフレームで見えた塊を先に描き、その距離から作った Hi-Z で残りを調べて、隠れていない塊だけを描く。影・Lumen・カメラプレビューは遮蔽を掛けない)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(WARP)、実機(RTX 4060 Ti)で主パスの時間を計測
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Milestones/M0131-Virtual-Geometry-Occlusion-And-Streaming.md`
+- Stage: `rendering.virtual-geometry-streaming`
+- Depends on: F-L4-024
+- Implementation evidence: 計算シェーダー `assets/Shaders/HiZ.hlsl`(2×2 のいちばん遠い値で 1 段ずつ縮める。空は無限に遠い、画面の外は 0)。段 0 は画面の半分を 2 のべき乗へ切り上げた大きさで、その後はちょうど半分(D3D12 のミップと同じ)。選択の計算シェーダー `VirtualGeometry.hlsl` の調べる働き(包む球を箱の 8 隅で写し、4×4 画素に収まる段で判定)
+- Tests: エンジンのテスト `HiZPyramidTests`。Windowsのテスト `HiZGpuTests`(GPU の全段が CPU と同じ)、`VirtualGeometryOcclusionGpuTests`(遮蔽ありとなしで毎フレームの画素が同じ、隠れた球の塊の 9 割以上を描かない、カメラを回して入ってきた球を 2 パス目が描く)。エンジンのテスト `VirtualGeometrySlotLayoutTests`(枠と区画をとびとびに置いても同じ三角形)、焼き込みのテスト `VirtualGeometrySlotMemoryTests`(全部を置いた量が共有する形の 2.5 倍以内、実測 2.11 倍)、`VirtualGeometryResidencyTests`(出し入れのどのフレームも割れ目が無く、選んだ塊は置き場にある、追いつく、追い出した枠を早く使い直さない)。Windowsのテスト `VirtualGeometryStreamingGpuTests`(根だけから 17 フレームで全部を置いた絵と同じ、途中に穴が無い、小さい予算で粗く描き満杯を報告)、`VirtualGeometryOcclusionMeasurementTests`(壁の後ろの 36 個の球: 1920×1080 の実機で主パスの塊 1,952 → 164、時間 1.13〜1.17 → 1.02 ms。画素は遮蔽なしと同じ)
+- Current delta: 判定は球なので、遮る物に近い塊や大きな塊は見えるとされやすい。全部を置くと、共有する形の約 2.1 倍の GPU の量を使う。予算はメッシュごと(融通しない)、成果物は CPU に全部持つ(ファイルの一部だけを読むのは後)、置き場はアップロード用のメモリ。選択は視錐台と裏向きで塊を捨てない。軽い場面(640×360、隠れる物が少ない)では、Hi-Z と調べる分だけ主パスが約 0.02 ms 長くなる
+- Conformance: Partial
+- Next action: M0132(仮想シャドウの作り直し)
+
+## F-L4-026 — 仮想シャドウの作り直し
+
+- Layer: L4 — 計画(`src/Engine/Rendering/VirtualShadowMaps.cs` の `VirtualShadowAnchor`・`VirtualShadowMapPlanner`)、置き場の割り当て(`Streaming/PageSlotAllocator.cs`)、L0 — ページの要求とページの描画(`assets/Shaders/VirtualShadowRequest.hlsl`、`src/Windows/Graphics/StageVirtualShadowRequests.cs`、`StageRenderer.VirtualShadowMaps.cs`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・5)。M0115 の F-L4-020 を置き換える
+- Status: Implemented(2026-11-18。M0132。仮想シャドウの方式は、画面の要求・L4 の計画・置き場・16 段の影を引くシェーダーで描く。L5 がカメラの世界の位置から区画を渡す。M0115 の計画と置き場は削除。Stage の取り決めは stage-v22)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 5、`Docs/Milestones/M0132-Virtual-Shadow-Maps.md`
+- Stage: `rendering.virtual-shadows`(Visual / Rendering、F-L4-020 と共有)
+- Depends on: F-L4-023
+- Implementation evidence: 段 16、1 段 128×128 ページ × 128×128 テクセル、置き場 4,096 ページ。格子は区画(1,024 m)の角から光の向きの回転で写した座標に固定する。物を包む箱は区画の角から測って 1 mm を超えて動いたらページを古くする。L5 の `EngineHost` がカメラの Q64.64 の位置から区画と区画の中の位置を求め、`RenderServer.SetVirtualShadowAnchor` で渡す(完了したフレームの再生にも入る)。実機 RTX 4060 Ti の 1920×1080 で、カメラ相対で歩く 60 フレームの間に古くなったページは 0。秒速 3 m では仮想シャドウのページの GPU の時間の中央値 0.054 ms、作れていないページ 0、秒速 30 m では 0.162 ms、作れていない細かいページの中央値 186(粗い段で代わりに描く)。置き場は既定 1,024 ページで 64 MiB
+- Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)。Windowsのテスト `VirtualShadowRequestGpuTests`(GPU の要求が CPU の同じ規則と一致、シェーダーの式は L4 の写し)、`VirtualShadowMapPageGpuTests`(置き場のページの深度が、同じ範囲をまとめて描いた深度と一致、止まったカメラでは作り直し 0、区画を渡すとカメラ相対で動いても古くなるページ 0)、`VirtualShadowGpuTests`(M0115 の約束)、`VirtualShadowMeasurementTests`(歩くカメラ、計測)、`RenderFrameStatePersistenceTests`(区画の記録と再生)
+- Known deviations: 計画(L4 の `VirtualShadowMapPlanner`)は、M0131 の仮想ジオメトリの出し入れ(`VirtualGeometryResidency`)と同じく、読み戻しを持つ描画器(L0)が呼ぶ。読み戻しの結果を描画サーバーへ上げて計画を描画器の外で呼ぶ形は、二つの出し入れでまとめて決める(片方だけ変えない)。カスケード影は仮想シャドウのときも毎フレーム描く(代わりに使うため)。
+- Conformance: MatchesWithDocumentedExtension
+- Next action: なし(M0133 へ)
+
+
+## F-L5-050 — VirtualObject(画面の大きさで描き方の段を切り替える)
+
+- Layer: L4 — 段の選び方(`src/Engine/Rendering/VirtualObjects.cs` の `VirtualObjectSelector`)、L5 — 部品・サービス・System(`src/Runtime/Windows/VirtualObject.cs`)と描画の同期(`RuntimeSystems.cs` の `TransformSync`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 6)
+- Status: Implemented(2026-11-18、M0133)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 6、`Docs/Milestones/M0133-Virtual-Object.md`
+- Stage: `rendering.virtual-object`(Headless / Rendering)
+- Depends on: F-L4-023
+- Implementation evidence: 親の `VirtualObject`(半径、段 1〜4 の閾値、ヒステリシス)が、カメラから見た球の直径の画素(`ScreenSizeMetric`、位置の差は固定小数点で引いた後)で段を選ぶ。段の子の `VirtualObjectLevel` は準備をサービス `VirtualObjectReadiness` で親へ知らせ、`Parent<VirtualObjectRuntime>` で親の段を読み、選ばれた段の子孫だけが描かれる(影も)。見本 `UserEcsProject/Scenes/VirtualObjectSampleScene.json`
+- Tests: エンジンのテスト `VirtualObjectSelectorTests`(6 件、Omni の受入基準)、Windowsのテスト `VirtualObjectTests`(WARP の描画器を持つエンジンで、距離と段、選ばれた子だけ描く印、準備、不正な設定)
+- Conformance: Matches
+- Next action: なし(M0134 へ)
+
+## F-L7-060 — 大きな画像のタイルの前処理
+
+- Layer: L7 — 読み手と前処理(`src/Import/Images/RasterSources.cs`、`TilePyramidCompiler.cs`、`tools/Cge/Content/TileCommands.cs`、`build/CSharpGameEngine.TileContent.targets`)、L6 — 形式と読み手(`src/Engine/Content/Tiles/TilePyramid.cs`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 7)
+- Status: Implemented(2026-11-18、M0134)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(月の実データ)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 7、`Docs/Milestones/M0134-Tile-Pyramids-And-Terrain.md`
+- Stage: `content.tile-pyramids`(Headless / Foundation)
+- Depends on: なし
+- Implementation evidence: TIFF・BigTIFF(帯とタイル、圧縮なし・LZW・Deflate、予測)と PDS の IMG を行の帯ごとに読み、索引 1 つ(`*.cgetiles`)とまとめファイル 1 つ(`*.cgetilepack`)のタイルの階層にする。LOLA の LDEM_64 を 59 秒で 5,460 タイルにした
+- Tests: エンジンのテスト `TilePyramidTests`
+- Conformance: Matches
+- Next action: なし
+
+## F-L5-051 — 地形(平面と球、四分木のマス)
+
+- Layer: L5(Numerics) — マスの選び方と形(`src/Numerics/World/Terrain/TerrainCells.cs`、`TerrainCellMesh.cs`)、L5 — 部品・サービス・System(`src/Runtime/Windows/Terrain.cs`)、L4/L0 — メッシュの差し替え(`RenderServer.ReplaceMesh`、`StageRenderer.ReplaceMesh`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 7)
+- Status: Implemented(2026-11-18、M0134)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(月の実データ)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 7、`Docs/Milestones/M0134-Tile-Pyramids-And-Terrain.md`
+- Stage: `world.terrain`(Headless / Rendering)
+- Depends on: F-L7-060、F-L4-023
+- Implementation evidence: 平面は 1 本、球は立方体の 6 面の四分木。頂点の間隔の画素で分け、隣との深さの差を 1 までにし、粗い隣の辺の上へ途中の頂点を置く。頂点は整数の格子の点(球は立方体の点を Q64.64 で正規化)で、面をまたいでも共有する頂点が同じ位置。マスは GPU シーンの普通のメッシュとして描き、枠を使い回して中身を差し替える(GPU を待たない)
+- Tests: エンジンのテスト `TerrainCellsTests`、Windowsのテスト `TerrainTests`
+- Known deviations: ADR-0100 決定 7 の「マスの格子を VG の形として流す」は採らず、GPU シーンの普通のメッシュとして描く(マスの選択がすでに細かさを決めるため)。高さのタイルの段は地形ごとに 1 つ。地形だけのレベルは読み込めない(描画器が物 1 つ以上を要る)
+- Conformance: MatchesWithDocumentedExtension
+- Next action: なし
+
+## F-L5-052 — 地形の仮想テクスチャ(RVT)
+
+- Layer: L5(Numerics) — ページの作り手と層(`src/Numerics/World/Terrain/TerrainVirtualTexture.cs`)、L4 — 書き換えられる画像(`RenderTextureResource.CreateDynamic`、`RenderServer.UpdateTextureRegion`)、L0 — 一部の送り(`StageRenderer.UpdateTextureRegion`)、L5 — `Terrain.VirtualTexture`
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 7)
+- Status: Implemented(2026-11-18、M0135)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(月の実データ)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 7、`Docs/Milestones/M0135-Runtime-Virtual-Texture.md`
+- Stage: `rendering.terrain-virtual-texture`(Headless / Rendering)
+- Depends on: F-L5-051
+- Implementation evidence: マスごとのページ(縁つき)を層(色のタイル、傾き、高さ)から作り、4096² の置き場の画像の一部を GPU を待たずに書き換えて貼る。原本の色との差は 255 のうち平均 0.18〜0.22。LROC の色で月を描いた
+- Tests: エンジンのテスト `TerrainVirtualTextureTests`、Windowsのテスト `TerrainTests.TheVirtualTextureColorsTheTerrainFromItsLayers`
+- Conformance: Matches
+- Next action: なし
 ## F-L4-021 — Entity を使わない物理の契約
 
 - Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`
@@ -5208,3 +5333,19 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 
 追記: 実VS16の失敗は実行用プレビューでの素材読み込みと周期更新の待機を独立再現した。VSIX17は周期更新を積み残さず、同じSDK46で通常GPU/WARPの描画が成功。梱包関連23件、Release全1597件、既存Windowsプレビュー9件が成功。17の配置と実画面確認は保存済みVSの終了・再起動の明示確認待ち。Current integration remains PartiallyImplemented / Partial; see M0128 and 20261104-runtime-preview-ticks.md.
+
+## F-L7-059 — 仮想ジオメトリのビルド
+
+- Layer: L7 — 前処理(`src/Cooking/VirtualGeometry/QuadricSimplifier.cs`、`VirtualGeometryBuilder.cs`、`tools/Cge/Content/ModelArtifactPreparation.cs`)、L6 — 成果物の形(`src/Engine/Content/VirtualGeometry/VirtualGeometryData.cs`、`VirtualGeometryCodec.cs`、モデルの追加データ `cge.virtual-geometry/1`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 3)
+- Status: Implemented(2026-11-17。M0130。取り込みの設定 `virtualGeometry.enabled` が `true` のとき、骨とモーフの無いメッシュを塊の階層にしてモデルへ書く)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 3、`Docs/Milestones/M0130-Virtual-Geometry-Build-And-Draw.md`
+- Stage: `rendering.virtual-geometry`
+- Depends on: F-L7-026
+- Implementation evidence: 自前の QEM による辺の縮約(外周の固定、継ぎ目の対応、裏返りとリンク条件の検査)。ビルドは Omni と同じ数値(塊 128 三角形以下、まとまり 8 塊以下、1 段で半分、親の誤差は子の 1.25 倍以上、92% で打ち切り、位置は 16 ビットの格子)。読み書きは固定長のリトルエンディアンで、同じ入力から同じバイト列
+- Tests: 焼き込みのテスト `QuadricSimplifierTests`、`VirtualGeometryBuilderTests`(どのしきい値・どのカメラで選んでも割れ目が無い)、`VirtualGeometryCodecTests`。エンジンのテスト `ModelArtifactPreparationTests.VirtualGeometryIsBuiltOnlyWhenTheImportOptionAsksForIt`
+- Current delta: 小さな部品を取り除く処理(Omni の pruning)は無い。入力の開いた辺の知らせは無い。読み込みを分ける形(ページ)は M0131
+- Conformance: Partial
+- Next action: M0132(仮想シャドウの作り直し)。読み込みと遮蔽は M0131 で済み

@@ -1,0 +1,45 @@
+<Project InitialTargets="CgeRedirectBuildToolRuntimeFiles">
+  <!--
+    Tools that game builds run while other builds may rebuild them (tools/Cge, tools/Cook.Cli).
+
+    The SDK rewrites <Name>.runtimeconfig.json and <Name>.deps.json in the output folder whenever project.assets.json is newer.
+    Visual Studio's NuGet and the dotnet CLI's NuGet hash the same restore inputs differently, so each restore by the other one
+    rewrites project.assets.json with the same content, and the next build rewrites both files. The SDK truncates and refills them,
+    and a build that starts the tool in that moment fails: the host cannot read the runtime config (0x80008093) or the deps file.
+    So the SDK writes them under obj\ and this copies them next to the tool only when their content changes.
+
+    The paths change in an initial target, not in a property group: the SDK decides at evaluation whether to make the default
+    apphost (<Name>.exe) from whether ProjectDepsFilePath is still empty, and every later use of the two paths is inside a target.
+  -->
+  <Target Name="CgeRedirectBuildToolRuntimeFiles">
+    <PropertyGroup>
+      <_CgeBuildToolRuntimeFileDirectory>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)runtime-files\</_CgeBuildToolRuntimeFileDirectory>
+      <ProjectRuntimeConfigFilePath>$(_CgeBuildToolRuntimeFileDirectory)$(ProjectRuntimeConfigFileName)</ProjectRuntimeConfigFilePath>
+      <ProjectDepsFilePath>$(_CgeBuildToolRuntimeFileDirectory)$(ProjectDepsFileName)</ProjectDepsFilePath>
+    </PropertyGroup>
+  </Target>
+  <Target Name="CgeMakeBuildToolRuntimeFileDirectory" BeforeTargets="GenerateBuildRuntimeConfigurationFiles;GenerateBuildDependencyFile">
+    <MakeDir Directories="$(_CgeBuildToolRuntimeFileDirectory)" />
+  </Target>
+  <!-- DependsOnTargets, not AfterTargets: this file is imported before the SDK's targets, so among the targets that run before
+       CopyFilesToOutputDirectory this one would otherwise run first, before the two files exist. -->
+  <Target Name="CgeCopyChangedBuildToolRuntimeFiles"
+          DependsOnTargets="GenerateBuildRuntimeConfigurationFiles;GenerateBuildDependencyFile"
+          BeforeTargets="CopyFilesToOutputDirectory">
+    <PropertyGroup>
+      <_CgeOutputRuntimeConfig>$(TargetDir)$(ProjectRuntimeConfigFileName)</_CgeOutputRuntimeConfig>
+      <_CgeOutputDeps>$(TargetDir)$(ProjectDepsFileName)</_CgeOutputDeps>
+      <_CgeCopyRuntimeConfig>false</_CgeCopyRuntimeConfig>
+      <_CgeCopyRuntimeConfig Condition="Exists('$(ProjectRuntimeConfigFilePath)') and !Exists('$(_CgeOutputRuntimeConfig)')">true</_CgeCopyRuntimeConfig>
+      <_CgeCopyRuntimeConfig Condition="Exists('$(ProjectRuntimeConfigFilePath)') and Exists('$(_CgeOutputRuntimeConfig)') and '$([System.IO.File]::ReadAllText($(ProjectRuntimeConfigFilePath)))' != '$([System.IO.File]::ReadAllText($(_CgeOutputRuntimeConfig)))'">true</_CgeCopyRuntimeConfig>
+      <_CgeCopyDeps>false</_CgeCopyDeps>
+      <_CgeCopyDeps Condition="Exists('$(ProjectDepsFilePath)') and !Exists('$(_CgeOutputDeps)')">true</_CgeCopyDeps>
+      <_CgeCopyDeps Condition="Exists('$(ProjectDepsFilePath)') and Exists('$(_CgeOutputDeps)') and '$([System.IO.File]::ReadAllText($(ProjectDepsFilePath)))' != '$([System.IO.File]::ReadAllText($(_CgeOutputDeps)))'">true</_CgeCopyDeps>
+    </PropertyGroup>
+    <Copy SourceFiles="$(ProjectRuntimeConfigFilePath)" DestinationFiles="$(_CgeOutputRuntimeConfig)" Condition="$(_CgeCopyRuntimeConfig)" />
+    <Copy SourceFiles="$(ProjectDepsFilePath)" DestinationFiles="$(_CgeOutputDeps)" Condition="$(_CgeCopyDeps)" />
+    <ItemGroup>
+      <FileWrites Include="$(_CgeOutputRuntimeConfig);$(_CgeOutputDeps)" />
+    </ItemGroup>
+  </Target>
+</Project>

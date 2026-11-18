@@ -269,7 +269,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private bool HasCameraBasis;
     /// <summary>メインパスの描画前後で取得するテスト専用GPUタイムスタンプ（性能の証拠）。有効化されていなければnull。</summary>
     private ID3D12QueryHeap*MainPassTimestampHeap;
-    private ID3D12Resource*MainPassTimestampReadback;
+    private StageFeedbackReadback?MainPassTimestampReadback;
     private ulong MainPassTimestampFrequency;
     private uint LastTimedFrameIndex=uint.MaxValue;
     private Vector3 CurrentCameraForward;
@@ -296,14 +296,13 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private D3D12_INDEX_BUFFER_VIEW[]IndexBufferViews=[];
     private uint[]IndexCounts=[];
 
-    // マテリアル単位（materialIndexでインデックス化）。4つのマテリアルテクスチャと共有シャドウSRVを持つ。
+    // マテリアル単位（materialIndexでインデックス化）。4つのテクスチャは番号引きの配列の番号で持つ（StageRenderer.MaterialTextures.cs）。
     private int MaterialCount;
     /// <summary>
-    /// ディスクリプタヒープが収容できるマテリアル数。作成済みのものに<see cref="DynamicMaterialHeadroom"/>を加えた容量で、後から
-    /// <see cref="AddMaterial"/>で追加できる（M0105）。
+    /// 材質の配列と材質の表が今置ける材質の数。作成時は作成済みのものに<see cref="DynamicMaterialHeadroom"/>を加えた数で、
+    /// <see cref="AddMaterial"/>が足りなくなると倍に広げる（M0129 単位 4）。
     /// </summary>
     private int MaterialCapacity;
-    private ID3D12Resource*[]MaterialTextures=[];
     private readonly List<nint>OwnedMaterialTextures=[];
     /// <summary>コンテンツと色空間ごとのマテリアルテクスチャ（M0110：同じテクセルでもsRGBとリニアではミップの平均が異なる）。</summary>
     private readonly Dictionary<(Hash256 Hash,RenderTextureColorSpace ColorSpace),nint>ResidentTextures=[];
@@ -357,8 +356,6 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     private uint ForwardPlusTileFrameSize;
     private int ForwardPlusTileCountX;
     private int ForwardPlusTileCountY;
-    private ID3D12Resource*ObjectConstantsBuffer;
-    private byte*ObjectConstantsMapped;
     private ID3D12Resource*OverlayVertexBuffer;
     private byte*OverlayVertexMapped;
     private int OverlayTriangleVertexCount;
@@ -456,10 +453,11 @@ public sealed unsafe partial class StageRenderer:IDisposable {
     public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Count;
     /// <summary>レンダラー作成時の数を超えて<see cref="AddObject"/>で追加できるオブジェクト数（M0105）。</summary>
     public const int DynamicObjectHeadroom=StageRenderLimits.DynamicObjectHeadroom;
-    /// <summary>レンダラー作成時の数を超えて<see cref="AddMaterial"/>で追加できるマテリアル数（M0105）。</summary>
+    /// <summary>レンダラー作成時に、作成時の数に加えて用意しておく材質の枠（M0105）。使い切っても <see cref="AddMaterial"/> が広げる（M0129 単位 4）。</summary>
     public const int DynamicMaterialHeadroom=StageRenderLimits.DynamicMaterialHeadroom;
     /// <summary><see cref="AddMaterial"/>が追加で受け付けるマテリアル数。</summary>
-    public int FreeMaterialSlots=>this.MaterialCapacity-this.MaterialCount;
+    /// <summary>材質の数に上限は無い（M0129 単位 4）。足りなければ <see cref="AddMaterial"/> が材質の表と記述子の置き場を広げる。</summary>
+    public int FreeMaterialSlots=>int.MaxValue-this.MaterialCount;
     /// <summary>現在描画中のオブジェクト数。</summary>
     public int ActiveObjectCount=>this.ObjectCount-this.FreeObjectSlots.Count;
     /// <summary>距離場を持つメッシュ数（ADR-0078/M0110）。</summary>
@@ -640,6 +638,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         IReadOnlyList<StageObjectCreateInfo>Objects,
         ShaderArtifactPackage?ValidatedShaderPackage=null){
         this.Device=GraphicsDevice.Create(DeviceOptions);
+        RequireResourceBindingTier(this.Device.ResourceBindingTier,this.Device.AdapterDescription);
 
         this.CreateSwapChain(Hwnd,Width,Height);
         this.CreateRtvHeap();
@@ -681,11 +680,13 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.Atmosphere=new StageAtmosphere(this.Device,this.ShaderArtifactPath,FrameCount);
         this.GlobalIllumination=new StageGlobalIllumination(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
         this.AmbientOcclusion=new StageAmbientOcclusion(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.HiZ=new StageHiZ(this.Device,this.ShaderArtifactPath);
+        this.ShadowRequests=new StageVirtualShadowRequests(this.Device,this.ShaderArtifactPath,FrameCount);
         this.AutoExposureStage=new StageAutoExposure(this.Device,this.ShaderArtifactPath,FrameCount);
         this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
         this.Skinning=new StageSkinning(this.Device,this.ShaderArtifactPath,FrameCount);
         this.GlobalDistanceField=new StageGlobalDistanceField(this.Device,this.ShaderArtifactPath,FrameCount);
-        this.Lumen=new StageLumen(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride,ConstantAlignment);
+        this.Lumen=new StageLumen(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
         this.Scalability=RenderScalability.DefaultFor(this.Device.IsWarp);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
@@ -701,6 +702,7 @@ public sealed unsafe partial class StageRenderer:IDisposable {
         this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateMeshBuffers(Meshes);
         this.CreateMaterialResources(Materials);
+        this.PlaceVirtualGeometryNormalMaps();
         this.CreateObjectMappings(Objects);
         this.CreateConstantBuffers();
         this.CreateForwardPlusTileBuffer(Width,Height);
@@ -884,6 +886,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObserverVertexShaderBytecode=Package.GetBytecode("ObserverVSMain");
         this.LumenSurfacePixelShaderBytecode=Package.GetBytecode("SurfacePrepassPSMain");
         this.LumenCardPixelShaderBytecode=Package.GetBytecode("LumenCardPSMain");
+        this.VirtualGeometryVertexShaderBytecode=Package.GetBytecode(StagePipelines.VirtualGeometryVertexEntry);
+        this.VirtualGeometryShadowVertexShaderBytecode=Package.GetBytecode(StagePipelines.VirtualGeometryShadowVertexEntry);
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
         this.LastKnownGoodShaderPackage=Package;
@@ -913,6 +917,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldScreenPixelShader=this.ScreenPixelShaderBytecode;
         var OldLumenSurfacePixelShader=this.LumenSurfacePixelShaderBytecode;
         var OldLumenCardPixelShader=this.LumenCardPixelShaderBytecode;
+        var OldVirtualGeometryVertexShader=this.VirtualGeometryVertexShaderBytecode;
+        var OldVirtualGeometryShadowVertexShader=this.VirtualGeometryShadowVertexShaderBytecode;
         try{
             this.ApplyShaderArtifact(Package);
             var Created=this.BuildPipelineStates();
@@ -939,10 +945,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.ScreenPixelShaderBytecode=OldScreenPixelShader;
             this.LumenSurfacePixelShaderBytecode=OldLumenSurfacePixelShader;
             this.LumenCardPixelShaderBytecode=OldLumenCardPixelShader;
+            this.VirtualGeometryVertexShaderBytecode=OldVirtualGeometryVertexShader;
+            this.VirtualGeometryShadowVertexShaderBytecode=OldVirtualGeometryShadowVertexShader;
             this.ShaderArtifactDiagnostics=[Exception.Message];
         }
     }
     private byte[]VertexShaderBytecode=[];
+    private byte[]VirtualGeometryVertexShaderBytecode=[];
+    private byte[]VirtualGeometryShadowVertexShaderBytecode=[];
     private byte[]PixelShaderBytecode=[];
 
     private void CreateRootSignature(){
@@ -952,16 +962,30 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         FrameParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=0,RegisterSpace=0 };
 
-        D3D12_ROOT_PARAMETER ObjectParam=new(){
-            ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV,
+        // 描画ごとの定数（b1）。描く物体の番号、表示モード、描画の印（ADR-0100 決定 2）。
+        D3D12_ROOT_PARAMETER DrawParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
             ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL,
         };
-        ObjectParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=1,RegisterSpace=0 };
+        DrawParam.Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=1,RegisterSpace=0,Num32BitValues=DrawConstantCount };
+        // 物体の表（t20）は頂点とピクセルの両方が読む。材質の表（t21）はピクセルだけが読む。
+        D3D12_ROOT_PARAMETER InstanceTableParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL,
+        };
+        InstanceTableParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=20,RegisterSpace=0 };
+        D3D12_ROOT_PARAMETER MaterialTableParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        MaterialTableParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=21,RegisterSpace=0 };
 
+        // 材質のテクスチャの配列（t0 space1、上限なし）。シェーダーは材質の表に書いた番号で引く（ADR-0100 決定 2）。
         D3D12_DESCRIPTOR_RANGE SrvRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=5,
+            NumDescriptors=uint.MaxValue,
             BaseShaderRegister=0,
+            RegisterSpace=1,
         };
 
         D3D12_ROOT_PARAMETER TextureParam=new(){
@@ -1037,21 +1061,30 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         SkyIrradianceParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=11,RegisterSpace=0 };
 
-        D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
+        // 環境の表: t12〜t19 と、その後ろに影の画像（t4）。
+        D3D12_DESCRIPTOR_RANGE*GlobalIlluminationRanges=stackalloc D3D12_DESCRIPTOR_RANGE[2];
+        GlobalIlluminationRanges[0]=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
             NumDescriptors=EnvironmentDescriptorCount,
             BaseShaderRegister=12,
+            OffsetInDescriptorsFromTableStart=0,
+        };
+        GlobalIlluminationRanges[1]=new(){
+            RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+            NumDescriptors=1,
+            BaseShaderRegister=4,
+            OffsetInDescriptorsFromTableStart=ShadowAtlasEnvironmentSlot,
         };
 
         D3D12_ROOT_PARAMETER GlobalIlluminationParam=new(){
             ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
-        GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&GlobalIlluminationRange };
+        GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=2,pDescriptorRanges=GlobalIlluminationRanges };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[11];
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[(int)(VirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount)];
         RootParams[0]=FrameParam;
-        RootParams[1]=ObjectParam;
+        RootParams[DrawConstantsRootParameter]=DrawParam;
         RootParams[2]=TextureParam;
         RootParams[2].DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&SrvRange };
         RootParams[3]=LocalLightsParam;
@@ -1062,12 +1095,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         RootParams[8]=AreaShadowProjectionsParam;
         RootParams[9]=SkyIrradianceParam;
         RootParams[10]=GlobalIlluminationParam;
+        RootParams[InstanceTableRootParameter]=InstanceTableParam;
+        RootParams[MaterialTableRootParameter]=MaterialTableParam;
+        // 仮想ジオメトリの頂点・索引・塊・描く塊の番号（t22〜t25、頂点シェーダーだけが読む。ADR-0100 決定 3）。
+        for(var Index=0u;Index<VirtualGeometryRootParameterCount;Index++){
+            RootParams[VirtualGeometryVerticesRootParameter+Index]=new D3D12_ROOT_PARAMETER{ ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+            RootParams[VirtualGeometryVerticesRootParameter+Index].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=22+Index,RegisterSpace=0 };
+        }
         D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
         StaticSamplers[0]=StaticSampler;
         StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=11,
+            NumParameters=VirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount,
             pParameters=RootParams,
             NumStaticSamplers=2,
             pStaticSamplers=StaticSamplers,
@@ -1103,12 +1143,20 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void CreateShadowRootSignature(){
         D3D12_ROOT_PARAMETER FrameParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
         FrameParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=0,RegisterSpace=0 };
-        D3D12_ROOT_PARAMETER ObjectParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
-        ObjectParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=1,RegisterSpace=0 };
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[2];
+        D3D12_ROOT_PARAMETER DrawParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+        DrawParam.Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=1,RegisterSpace=0,Num32BitValues=DrawConstantCount };
+        D3D12_ROOT_PARAMETER InstanceTableParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+        InstanceTableParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=20,RegisterSpace=0 };
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[(int)(ShadowVirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount)];
         RootParams[0]=FrameParam;
-        RootParams[1]=ObjectParam;
-        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){ NumParameters=2,pParameters=RootParams,Flags=D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT };
+        RootParams[DrawConstantsRootParameter]=DrawParam;
+        RootParams[ShadowInstanceTableRootParameter]=InstanceTableParam;
+        // 仮想ジオメトリの頂点・索引・塊・描く塊の番号(t22〜t25、主パスと同じレジスター。M0130 単位 5)。
+        for(var Index=0u;Index<VirtualGeometryRootParameterCount;Index++){
+            RootParams[ShadowVirtualGeometryVerticesRootParameter+Index]=new D3D12_ROOT_PARAMETER{ ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+            RootParams[ShadowVirtualGeometryVerticesRootParameter+Index].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=22+Index,RegisterSpace=0 };
+        }
+        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){ NumParameters=ShadowVirtualGeometryVerticesRootParameter+VirtualGeometryRootParameterCount,pParameters=RootParams,Flags=D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT };
         ID3DBlob*SignatureBlob=null;
         ID3DBlob*ErrorBlob=null;
         try {
@@ -1209,6 +1257,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         (this.MeshBoundsMinimums[Index],this.MeshBoundsMaximums[Index])=Bounds(Mesh.Positions);
         this.CreateVertexBuffer(Index,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
         this.CreateIndexBuffer(Index,Mesh.Indices);
+        this.SetVirtualGeometryMesh(Index,Mesh.VirtualGeometry);
         if(Mesh.Skin is{ }Skin){
             // すべてのパスでスキニング済みコピーを描画する。アップロードヒープのバッファには、スキニング元のレスト姿勢を保持する。
             this.VertexBufferViews[Index]=this.Skinning!.AddMesh(Index,this.VertexBuffers[Index],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
@@ -1217,6 +1266,33 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalDistanceField!.SetMesh(Index,Mesh.Skin is null?Mesh.DistanceField:null);
         this.MeshCount=Index+1;
         return Index;
+    }
+
+    /// <summary>
+    /// メッシュ <paramref name="MeshIndex"/> の頂点と索引を差し替える（M0134、地形のマスの入れ替え）。GPU を待たない: 新しいバッファを作り、古いバッファは
+    /// それを使ったかもしれないフレームが終わってから解放する。スキニング・仮想ジオメトリのメッシュは差し替えられない。距離場は外す。
+    /// </summary>
+    public void ReplaceMesh(int MeshIndex,StageMeshCreateInfo Mesh){
+        this.ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(MeshIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MeshIndex,this.MeshCount);
+        if(Mesh.Positions.Count==0||Mesh.Positions.Count!=Mesh.Normals.Count
+            ||Mesh.Positions.Count!=Mesh.Tangents.Count||Mesh.Positions.Count!=Mesh.Uvs.Count
+            ||Mesh.Indices.Count==0){
+            throw new ArgumentException("A mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.",nameof(Mesh));
+        }
+        if(Mesh.Skin is not null||Mesh.VirtualGeometry is not null||this.Skinning!.IsSkinned(MeshIndex)||this.MeshHasVirtualGeometry(MeshIndex)){
+            throw new InvalidOperationException("Skinned and virtual geometry meshes cannot be replaced.");
+        }
+        var OldVertices=this.VertexBuffers[MeshIndex];
+        var OldIndices=this.IndexBuffers[MeshIndex];
+        this.MeshBoundsCentres[MeshIndex]=BoundsCentre(Mesh.Positions);
+        (this.MeshBoundsMinimums[MeshIndex],this.MeshBoundsMaximums[MeshIndex])=Bounds(Mesh.Positions);
+        this.CreateVertexBuffer(MeshIndex,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
+        this.CreateIndexBuffer(MeshIndex,Mesh.Indices);
+        this.Retire(OldVertices);
+        this.Retire(OldIndices);
+        this.GlobalDistanceField!.SetMesh(MeshIndex,null);
     }
 
     private void GrowMeshArrays(int Required){
@@ -1267,6 +1343,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             (this.MeshBoundsMinimums[I],this.MeshBoundsMaximums[I])=Bounds(Mesh.Positions);
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
+            this.SetVirtualGeometryMesh(I,Mesh.VirtualGeometry);
             if(Mesh.Skin is{ }Skin){
                 // すべてのパスでスキニング済みコピーを描画する。アップロードヒープのバッファには、スキニング元のレスト姿勢を保持する。
                 this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
@@ -1362,53 +1439,34 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo>Materials){
         this.MaterialCount=Materials.Count;
-        this.MaterialCapacity=this.MaterialCount+DynamicMaterialHeadroom;
-        this.MaterialTextures=new ID3D12Resource*[this.MaterialCapacity*4];
-        this.MaterialBaseColorFactors=new Vector4[this.MaterialCapacity];
-        this.MaterialRoughnessFactors=new float[this.MaterialCapacity];
-        this.MaterialMetallicFactors=new float[this.MaterialCapacity];
-        this.MaterialEmissiveNits=new Vector3[this.MaterialCapacity];
-        this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCapacity];
-        this.MaterialWorldGridAnchors=new Vector3[this.MaterialCapacity];
-
-        D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
-            Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCapacity*5+EnvironmentDescriptorCount),
-            Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-        };
-        ID3D12DescriptorHeap*SrvHeap;
-        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
-            "ID3D12Device::CreateDescriptorHeap","creating the material SRV descriptor heap");
-        this.SrvHeap=SrvHeap;
-        this.SrvDescriptorSize= this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
+        this.CreateMaterialStorage(this.MaterialCount+DynamicMaterialHeadroom);
         try {
             for(var I=0;I< this.MaterialCount;I++){
                 this.SetUpMaterial(I,Materials[I]);
             }
         } catch {
             this.ReleaseOwnedMaterialTextures();
-            Array.Clear(this.MaterialTextures);
             throw;
         }
         this.WriteEnvironmentDescriptors();
     }
 
     /// <summary>
-    /// 作成後にマテリアルを1つ追加する（M0105）。そのテクスチャを今アップロードするため、一度GPUの完了を待つ。
-    /// そのゲームでまだ描画していないアセットを初めて生成すると、1フレーム分のコストがかかる。
-    /// 新しいマテリアルインデックスを返す。<see cref="DynamicMaterialHeadroom"/>を使い切った場合は-1。
+    /// 作成後にマテリアルを1つ追加する（M0105）。GPU は待たない。テクスチャは次のフレームの最初に送る（M0129 単位 5）。
+    /// 新しいマテリアルインデックスを返す。材質の数に上限は無く、足りなければ材質の表と記述子の置き場を広げる（M0129 単位 4）。
+    /// 広げる前のものは、それを使ったかもしれないフレームが済んでから放す。
     /// </summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         this.ThrowIfDisposed();
-        if(this.MaterialCount>=this.MaterialCapacity){ return -1; }
-        // テクスチャのアップロードでは最初のコマンドアロケーターをリセットするが、処理中のフレームが使用中の可能性がある。
-        this.WaitForGpuIdle();
         var Index=this.MaterialCount;
+        this.EnsureMaterialCapacity(Index+1);
         var OwnedBefore=this.OwnedMaterialTextures.Count;
+        var ViewsBefore=this.MaterialTextureViews.Count;
+        var UploadsBefore=this.PendingTextureUploads.Count;
         try {
             this.SetUpMaterial(Index,Material);
         } catch {
+            this.CancelPendingTextureUploads(UploadsBefore);
             for(var I=this.OwnedMaterialTextures.Count-1;I>=OwnedBefore;I--){
                 var Pointer=this.OwnedMaterialTextures[I];
                 this.ResidentTextures.Remove(this.OwnedTextureHashes[Pointer]);
@@ -1416,6 +1474,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 _=((ID3D12Resource*)Pointer)->Release();
                 this.OwnedMaterialTextures.RemoveAt(I);
             }
+            this.TruncateMaterialTextureViews(ViewsBefore);
             throw;
         }
         this.MaterialCount=Index+1;
@@ -1424,7 +1483,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     private readonly Dictionary<nint,(Hash256 Hash,RenderTextureColorSpace ColorSpace)>OwnedTextureHashes=[];
 
-    /// <summary>マテリアル1つ分のマテリアル単位状態を埋め、常駐テクスチャを共有してアップロードし、5つのディスクリプターを書き込む。</summary>
+    /// <summary>マテリアル1つ分のマテリアル単位状態を埋め、常駐テクスチャを共有してアップロードし、4つのテクスチャの番号を決める。</summary>
     private void SetUpMaterial(int I,StageMaterialCreateInfo Material){
         this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
         this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
@@ -1437,53 +1496,30 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         // スロット0（ベースカラー）と3（発光）はsRGB色。1（法線）と2（metallic-roughness）はリニアデータ。
         // ミップの平均方法も色空間で決まる（M0110）。
-        this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
-            Material.BaseColorTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
-        this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
-            Material.NormalTexture??RenderMaterialDefaults.FlatNormal,RenderTextureColorSpace.Linear);
-        this.MaterialTextures[(I*4)+2]=GetOrCreateTexture(
-            Material.MetallicRoughnessTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Linear);
-        this.MaterialTextures[(I*4)+3]=GetOrCreateTexture(
-            Material.EmissiveTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb);
-
-        D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
-        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
-            Format=MaterialTextureFormat,
-            ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
-            Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        // 見え方は材質のどの欄で使うかで決まる。基本色と発光は sRGB、法線と metallic・粗さはそのままの値。
+        this.MaterialTextureIndices[I]=new StageUInt4 {
+            X=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.BaseColorTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb),Srgb:true),
+            Y=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.NormalTexture??RenderMaterialDefaults.FlatNormal,RenderTextureColorSpace.Linear),Srgb:false),
+            Z=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.MetallicRoughnessTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Linear),Srgb:false),
+            W=this.GetOrAddMaterialTextureView((nint)GetOrCreateTexture(Material.EmissiveTexture??RenderMaterialDefaults.White,RenderTextureColorSpace.Srgb),Srgb:true),
         };
-        // テクスチャの全ミップ（M0110）。-1はD3D12で「最も詳細なレベルからすべて」を意味する。
-        SrvDesc.Texture2D.MipLevels=uint.MaxValue;
-        for(var Slot=0;Slot<4;Slot++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+Slot, this.SrvDescriptorSize);
-            // スロット0（ベースカラー）と3（発光）は色データ。1（法線）と2は
-            //（metallic-roughness）リニアデータ。
-            SrvDesc.Format=Slot is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
-            this.Device!.Device->CreateShaderResourceView(this.MaterialTextures[(I*4)+Slot],&SrvDesc,Handle);
-        }
-        D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
-            Format=ShadowAtlasSrvFormat,
-            ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
-            Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
-        };
-        ShadowSrvDesc.Texture2D.MipLevels=1;
-        D3D12_CPU_DESCRIPTOR_HANDLE ShadowHandle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
-        this.Device!.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,ShadowHandle);
 
-        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
-            ColorSpace=Texture.PreparedColorSpace??ColorSpace;
-            var Key=(Texture.ContentHash,ColorSpace);
-            if(this.ResidentTextures.TryGetValue(Key,out nint Existing)){
-                return(ID3D12Resource*)Existing;
-            }
-            var Chain=Texture.PreparedMipChain??RenderTextureMipChain.Build(Texture,ColorSpace);
-            var LevelCount=MaterialMipLevelLimitForTesting>0?Math.Min(MaterialMipLevelLimitForTesting,Chain.Levels.Count):Chain.Levels.Count;
-            ID3D12Resource*Created=this.CreateTextureResource(Chain.Levels,LevelCount);
-            this.ResidentTextures.Add(Key,(nint)Created);
-            this.OwnedMaterialTextures.Add((nint)Created);
-            this.OwnedTextureHashes[(nint)Created]=Key;
-            return Created;
+        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace)=>this.GetOrCreateMaterialTexture(Texture,ColorSpace);
+    }
+    /// <summary>常駐のテクスチャを中身のハッシュと色空間で共有して返す。無ければミップを作って送る（次のフレームの最初）。</summary>
+    private ID3D12Resource*GetOrCreateMaterialTexture(RenderTextureResource Texture,RenderTextureColorSpace ColorSpace){
+        ColorSpace=Texture.PreparedColorSpace??ColorSpace;
+        var Key=(Texture.ContentHash,ColorSpace);
+        if(this.ResidentTextures.TryGetValue(Key,out nint Existing)){
+            return(ID3D12Resource*)Existing;
         }
+        var Chain=Texture.PreparedMipChain??RenderTextureMipChain.Build(Texture,ColorSpace);
+        var LevelCount=MaterialMipLevelLimitForTesting>0?Math.Min(MaterialMipLevelLimitForTesting,Chain.Levels.Count):Chain.Levels.Count;
+        ID3D12Resource*Created=this.CreateTextureResource(Chain.Levels,LevelCount);
+        this.ResidentTextures.Add(Key,(nint)Created);
+        this.OwnedMaterialTextures.Add((nint)Created);
+        this.OwnedTextureHashes[(nint)Created]=Key;
+        return Created;
     }
 
     /// <summary>
@@ -1498,13 +1534,18 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.OwnedMaterialTextures.Clear();
         this.OwnedTextureHashes.Clear();
         this.ResidentTextures.Clear();
+        this.MaterialTextureViews.Clear();
+        this.MaterialTextureViewIndices.Clear();
     }
 
     /// <summary>検証済みの正規RGBA8テクスチャ1枚を、単一レベルでアップロードする（スクリーンレイヤー用）。デコード／フォールバック方針はL0より上位で扱う。</summary>
     private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
         return this.CreateTextureResource(RenderTextureMipChain.TopLevelOnly(Texture).Levels,1);
     }
-    /// <summary>テクスチャの先頭<paramref name="LevelCount"/>レベルを1回のコピーでアップロードする（M0110：マテリアルテクスチャの全ミップチェーンなど）。</summary>
+    /// <summary>
+    /// テクスチャの先頭<paramref name="LevelCount"/>レベルを一時の置き場へ書き、次のフレームの最初に1回のコピーで送る（M0110、M0129 単位 5）。
+    /// GPU は待たない。テクスチャは送り終えるまで写し先の状態で、送るのはどの描画よりも前。
+    /// </summary>
     private ID3D12Resource*CreateTextureResource(IReadOnlyList<RenderTextureMipLevel>Levels,int LevelCount){
         var Base=Levels[0];
         D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
@@ -1546,34 +1587,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 }
             }
             Staging->Unmap(0,null);
-
-            D3D12Diagnostics.EnsureSuccess(this.CommandAllocators[0]->Reset(),"ID3D12CommandAllocator::Reset","resetting the allocator for a material texture upload");
-            D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(this.CommandAllocators[0],null),"ID3D12GraphicsCommandList::Reset","resetting the command list for a material texture upload");
-
-            for(var Level=0;Level<LevelCount;Level++){
-                D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=GpuTexture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-                Dst.SubresourceIndex=(uint)Level;
-                D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=Staging,Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-                Src.PlacedFootprint=Footprints[Level];
-                this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
-            }
-
-            D3D12_RESOURCE_BARRIER ToShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(GpuTexture,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            this.CommandList->ResourceBarrier(1,&ToShaderResource);
-
-            D3D12Diagnostics.EnsureSuccess(this.CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing a material texture upload command list");
-
-            ID3D12CommandList*CommandListBase=(ID3D12CommandList*)this.CommandList;
-            this.Device.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
-
-            this.WaitForGpuIdle();
+            this.PendingTextureUploads.Add(new PendingTextureUpload((nint)GpuTexture,(nint)Staging,Footprints));
         } catch {
+            if(Staging!=null){ _=Staging->Release(); }
             _=GpuTexture->Release();
             throw;
-        } finally {
-            if(Staging!=null){ _=Staging->Release(); }
         }
-
         return GpuTexture;
     }
 
@@ -1629,7 +1648,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObjectNoShadow[Index]=false;
         this.ObjectEmissiveScales[Index]=1f;
         this.CameraPreviewDiagnosticsDirty=true;
-        this.WriteObjectConstants(this.FrameIndex,Index);
         return Index;
     }
 
@@ -1650,7 +1668,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
     /// <summary>
     /// オブジェクトのマテリアル発光（シェーダーが発光テクスチャと乗算する発光ニト）に<paramref name="Scale"/>を掛ける
-    ///（ADR-0078/M0109）。オブジェクト既存の発光定数に書き込むため、Stageシェーダーの契約は変わらない。
+    ///（ADR-0078/M0109）。物体の表の倍率として渡し、シェーダーが材質の発光に掛ける（ADR-0100 決定 2）。
     /// 1ならマテリアル本来の発光。変更されるまで値を維持する。
     /// </summary>
     public void SetObjectEmissiveScale(int ObjectIndex,float Scale){
@@ -1663,7 +1681,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         if(this.ObjectEmissiveScales[ObjectIndex]==Scale){ return; }
         this.ObjectEmissiveScales[ObjectIndex]=Scale;
-        this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
     }
 
     /// <summary>オブジェクト1つの描画を停止する（M0105）。後続の<see cref="AddObject"/>でそのスロットを再利用する。削除済みのものを再度削除しても何もしない。</summary>
@@ -1704,8 +1721,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateUploadBuffer(AreaShadowProjectionBufferSize,out this.AreaShadowProjectionBuffer,
             out this.AreaShadowProjectionMapped,"creating the area shadow-projection StructuredBuffer");
 
-        var ObjectBufferSize=ConstantAlignment*(uint)this.ObjectCapacity*FrameCount;
-        this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
+        this.CreateSceneTables();
 
         uint OverlayBufferSize=checked(
             (uint)(Unsafe.SizeOf<OverlayVertexGpu>()*OverlayFrameVertexCapacity*FrameCount));
@@ -1761,7 +1777,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// すべての処理中フレームスロットに、単位ワールド行列（各オブジェクトのマテリアル係数を含む）、既定カメラ、既定ライト／アンビエント／フォグ値を書き込む。
+    /// すべての処理中フレームスロットに、既定カメラ、既定ライト／アンビエント／フォグ値を書き込む。物体と材質の表は、フレームごとに書く（<see cref="RecordSceneUpload"/>）。
     /// これにより、コンストラクターから戻った後に呼び出し側が初めてSetCamera／SetObjectTransform／SetDirectionalLightなどを呼ぶ場合でも、
     /// 最初のPresentが完全に初期化されたデータを読み取る。
     /// </summary>
@@ -1779,10 +1795,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteDirectionalCascades(Frame,StageRenderDefaults.InitialDirectionalCascades((float)this.Width/this.Height,DefaultLightDirectionTowardLight));
             this.WriteLightCounts(Frame); // D3D12はアップロードヒープメモリがゼロ初期化される保証がない。これをしないと最初のフレームでPointLights／SpotLightsの未初期化値を走査する可能性がある。
             this.WriteAreaShadowDefaults(Frame);
-
-            for(var ObjectIndex=0;ObjectIndex< this.ObjectCount;ObjectIndex++){
-                if(this.ObjectActive[ObjectIndex]){ this.WriteObjectConstants(Frame,ObjectIndex); }
-            }
         }
     }
 
@@ -1841,23 +1853,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FrameViewportSizeOffset,&ViewportSize,(uint)sizeof(Vector4));
     }
 
-    /// <summary>
-    /// M0100：オブジェクトごとの保守的な放射状ラスター深度。メッシュ境界中心におけるビュー深度（ビュー投影行列のW）で接線を求める。
-    /// これにより、特定の距離付近だけでなく、すべての距離で隠れた破片を早期に除外できる。
-    /// </summary>
-    private void WriteRadialRasterDepths(uint FrameIndex){
-        var ViewProjection=this.CurrentViewProjection;
-        for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            if(!this.ObjectActive[ObjectIndex]){ continue; }
-            var Centre=Vector3.Transform(this.MeshBoundsCentres[this.ObjectMeshIndices[ObjectIndex]],this.ObjectTransforms[ObjectIndex]);
-            var ViewDepth=Centre.X*ViewProjection.M14+Centre.Y*ViewProjection.M24+Centre.Z*ViewProjection.M34+ViewProjection.M44;
-            var Depth=this.CurrentViewDepth.Projection.ConservativeDepthAt(ViewDepth);
-            Vector4 Packet=new(Depth.Limit,Depth.Slope,0f,0f);
-            var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
-            Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectConservativeRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
-        }
-    }
-
 
 
 
@@ -1901,7 +1896,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new ArgumentException("Shadow comparison requires directional/ambient lighting with fixed exposure; screen-space and sky environment passes need independent view execution.",nameof(Settings));
         }
         var ComparisonChanged=this.ShadowSettings.Compare!=(Settings.DirectionalShadows?.Compare??false);
-        if(Settings.DirectionalShadows is { }ShadowPolicy&&(ShadowPolicy.Compare||ShadowPolicy.Mode==DirectionalShadowMode.Virtual)){ this.EnsureVirtualShadowAtlas(); }
+        if(Settings.DirectionalShadows is { }ShadowPolicy&&(ShadowPolicy.Compare||ShadowPolicy.Mode==DirectionalShadowMode.Virtual)){ this.EnsureShadowPageResources(ShadowPolicy.PageBudget); }
         this.EnvironmentSettings=Settings;
         if(ComparisonChanged&&this.RetainedViewSource.HasValue){ this.SetViewSource(this.RetainedViewSource); }
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
@@ -2012,7 +2007,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->RSSetViewports(1,&Viewport);
         this.CommandList->RSSetScissorRects(1,&Scissor);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        this.DrawObjects(ExcludedObjectIndex:-1);
+        this.DrawObjects(ExcludedObjectIndex:-1,StagePipelines.LumenSurface);
         var ToReadable=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         this.CommandList->ResourceBarrier(1,&ToReadable);
     }
@@ -2155,7 +2150,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.CommandList->ClearRenderTargetView(Rtv,(float*)&ClearColor,0,null);
                 this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
                 this.CommandList->SetGraphicsRootConstantBufferView(0,GlobalIllumination.CaptureFrameAddress(this.FrameIndex,Capture));
-                this.DrawObjects(ExcludedObjectIndex:-1);
+                this.DrawObjects(ExcludedObjectIndex:-1,StagePipelines.Lit,Proxy:true);
             }
         }
         GlobalIllumination.RecordConvolution(this.CommandList,this.FrameIndex,Settings,this.Atmosphere!.ShBufferAddress,
@@ -2163,26 +2158,27 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
-    /// マテリアルビューの後に、Stageのt12～t17ビュー（GI照度、GI距離、アンビエントオクルージョン、露出状態、およびM0111のLumen拡散照度と反射）を書き込む。
+    /// 記述子の置き場の先頭に、Stageのt12～t19ビュー（GI照度、GI距離、アンビエントオクルージョン、露出状態、M0111のLumen拡散照度と反射、仮想影）と、その後ろに影の画像（t4）を書き込む。
     /// </summary>
     private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         this.GlobalIllumination!.WriteShadingDescriptors(
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5,this.SrvDescriptorSize),
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+1,this.SrvDescriptorSize));
-        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+2,this.SrvDescriptorSize));
-        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+3,this.SrvDescriptorSize));
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,0,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,1,this.SrvDescriptorSize));
+        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,2,this.SrvDescriptorSize));
+        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,3,this.SrvDescriptorSize));
         this.Lumen!.WriteShadingDescriptors(
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+4,this.SrvDescriptorSize),
-            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+5,this.SrvDescriptorSize));
-        this.WriteVirtualShadowDescriptors(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+6,this.SrvDescriptorSize),new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCapacity*5+7,this.SrvDescriptorSize));
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,4,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,5,this.SrvDescriptorSize));
+        this.WriteVirtualShadowDescriptors(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,6,this.SrvDescriptorSize),new D3D12_CPU_DESCRIPTOR_HANDLE(Start,7,this.SrvDescriptorSize));
+        this.WriteShadowAtlasEnvironmentDescriptor();
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
         this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
         this.LumenDescriptorGeneration=this.Lumen.Generation;
     }
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
-        new(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),this.MaterialCapacity*5,this.SrvDescriptorSize);
+        this.SrvHeap->GetGPUDescriptorHandleForHeapStart();
 
     private void BindMainPassState(ID3D12PipelineState*ActivePipelineState,ulong FrameConstantsAddress=0){
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
@@ -2191,6 +2187,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
         this.CommandList->SetGraphicsRootConstantBufferView(0,FrameConstantsAddress!=0?FrameConstantsAddress:this.GetFrameConstantsAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootDescriptorTable(10,this.GetGlobalIlluminationDescriptorTable());
+        this.CommandList->SetGraphicsRootDescriptorTable(2,this.GetMaterialTextureTable());
         this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
@@ -2198,6 +2195,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->SetGraphicsRootShaderResourceView(7,this.GetAreaShadowMetadataAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(8,this.GetAreaShadowProjectionAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(9,this.Atmosphere!.ShBufferAddress);
+        this.BindSceneTables();
     }
 
     /// <summary>
@@ -2233,16 +2231,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.ObjectTransforms[ObjectIndex]=World;
         this.CameraPreviewDiagnosticsDirty=true;
-        this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
     }
 
     public void SetPresentationMode(RenderPresentationMode Mode){
         this.ThrowIfDisposed();
         if(!Enum.IsDefined(Mode)){ throw new ArgumentOutOfRangeException(nameof(Mode)); }
         this.PresentationMode=Mode;
-        for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
-            if(this.ObjectActive[ObjectIndex]){ this.WriteObjectConstants(this.FrameIndex,ObjectIndex); }
-        }
     }
 
     public void SetObjectSelectionWeight(int ObjectIndex,float Weight){
@@ -2259,7 +2253,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(Previous<=0f&&Weight>0f){ this.SelectedObjectCount++; }
         if(Previous>0f&&Weight<=0f){ this.SelectedObjectCount--; }
         this.ObjectSelectionWeights[ObjectIndex]=Weight;
-        this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
     }
 
     public void SetOverlay(
@@ -2796,41 +2789,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightCountsOffset,Counts,16);
     }
 
-    private void WriteObjectConstants(uint FrameIndex,int ObjectIndex){
-        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
-        var Destination= this.ObjectConstantsMapped+(Slot*ConstantAlignment);
-
-        Matrix4x4 World= this.ObjectTransforms[ObjectIndex];
-        Unsafe.CopyBlock(Destination+ObjectWorldOffset,&World,(uint)sizeof(Matrix4x4));
-
-        var MaterialIndex= this.ObjectMaterialIndices[ObjectIndex];
-        Vector4 BaseColorFactor= this.MaterialBaseColorFactors[MaterialIndex];
-        Unsafe.CopyBlock(Destination+ObjectBaseColorFactorOffset,&BaseColorFactor,(uint)sizeof(Vector4));
-
-        Vector4 MaterialParams=new(
-            this.MaterialRoughnessFactors[MaterialIndex],
-            this.MaterialMetallicFactors[MaterialIndex],
-            (float)this.PresentationMode,0f);
-        Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
-
-        Vector4 EmissiveNits=new(
-            this.MaterialEmissiveNits[MaterialIndex]*this.ObjectEmissiveScales[ObjectIndex],
-            this.ObjectSelectionWeights[ObjectIndex]);
-        Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
-
-        // グリッドサイズが0なら「グリッドなし」。シェーダーは通常のベースカラーを使う。
-        var WorldGrid=this.MaterialWorldGrids[MaterialIndex];
-        Vector4 WorldGridParams=WorldGrid is{ }Grid?new Vector4(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,0f):Vector4.Zero;
-        Vector4 WorldGridColor=WorldGrid is{ }MainGrid?new Vector4(MainGrid.GridColor,0f):Vector4.Zero;
-        Vector4 WorldSubGridColor=WorldGrid is{ }SubGrid?new Vector4(SubGrid.SubGridColor,0f):Vector4.Zero;
-        Unsafe.CopyBlock(Destination+ObjectWorldGridParamsOffset,&WorldGridParams,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&WorldGridColor,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&WorldSubGridColor,(uint)sizeof(Vector4));
-        // Object-origin grids share the world axes. Quarter turns preserve the cubic grid.
-        Vector4 WorldGridAnchor=new(WorldGrid is{AnchorToObject:true}?-World.Translation:this.MaterialWorldGridAnchors[MaterialIndex],0f);
-        Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&WorldGridAnchor,(uint)sizeof(Vector4));
-    }
-
     private ulong GetFrameConstantsAddress(uint FrameIndex,int PassIndex=0){
         uint LinearSlot=checked((FrameIndex*(uint)CameraPassCount)+(uint)PassIndex);
         return this.FrameConstantsBuffer->GetGPUVirtualAddress()
@@ -2857,11 +2815,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private ulong GetForwardPlusTileListAddress(uint FrameIndex)=>
         this.ForwardPlusTileListBuffer->GetGPUVirtualAddress()+(FrameIndex*this.ForwardPlusTileFrameSize);
 
-    private ulong GetObjectConstantsAddress(uint FrameIndex,int ObjectIndex){
-        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCapacity)+(ulong)ObjectIndex;
-        return this.ObjectConstantsBuffer->GetGPUVirtualAddress()+(Slot*ConstantAlignment);
-    }
-
     private ulong GetShadowConstantsAddress(uint FrameIndex,int Slot){
         if((uint)Slot>=(uint)ShadowAtlasProjectionConstantSlotCount){
             throw new ArgumentOutOfRangeException(nameof(Slot));
@@ -2870,9 +2823,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return this.ShadowConstantsBuffer->GetGPUVirtualAddress()+(LinearSlot*ConstantAlignment);
     }
 
-    private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int MaterialIndex){
-        return new D3D12_GPU_DESCRIPTOR_HANDLE(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*5, this.SrvDescriptorSize);
-    }
 
     private void UpdateViewportAndScissor(int Width,int Height){
         this.Viewport=new D3D12_VIEWPORT {
@@ -2968,6 +2918,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),1, this.DsvDescriptorSize);
         this.CommandList->OMSetRenderTargets(0,null,FALSE,&ShadowDsv);
         this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
+        this.BindShadowInstanceTable();
         this.CommandList->SetPipelineState(this.ShadowPipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         if(this.DirectionalShadowIndex>=0){
@@ -3001,10 +2952,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         this.CommandList->RSSetViewports(1,&ShadowViewport);
         this.CommandList->RSSetScissorRects(1,&ShadowScissor);
+        var VariantAvailable=this.VirtualGeometryPipelineFor(StagePipelines.Shadow)!=null;
         for(var I=0;I< this.ObjectCount;I++){
-            if(!this.ObjectActive[I]||this.ObjectNoShadow[I]){ continue; }
+            if(!this.ObjectActive[I]||this.ObjectNoShadow[I]||this.SkipsNormalDraw(I,VariantAvailable)){ continue; }
             var MeshIndex= this.ObjectMeshIndices[I];
-            this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
+            this.SetDrawConstants(I);
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
             fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&this.IndexBufferViews[MeshIndex]){
                 this.CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
@@ -3012,6 +2964,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.CommandList->DrawIndexedInstanced(this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
+        // 仮想ジオメトリの物体は、主ビューで選んだ塊で影を落とす（M0130 単位 5）。
+        _=this.DrawSelectedVirtualGeometry(StagePipelines.Shadow,ShadowVirtualGeometryVerticesRootParameter,Index=>!this.ObjectNoShadow[Index]);
     }
 
     private void RenderOverlay(){
@@ -3152,15 +3106,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    private void DrawObjects(int ExcludedObjectIndex){
+    /// <summary>
+    /// 見える物体を描く。今の PSO は <paramref name="Desc"/> のものであること。塊を選んだ物体は、<paramref name="Desc"/> に仮想ジオメトリの版があれば、
+    /// 普通の物体の後でその版の間接描画で描く（M0130）。
+    /// </summary>
+    /// <param name="CountForTesting">主パスでは、間接描画で描いた物体の数を試験用に残す。</param>
+    /// <param name="Proxy">主ビューと関係の無い視点（光のプローブの撮影）では、仮想ジオメトリのメッシュを代理メッシュ（根の段の塊）で描く。</param>
+    private void DrawObjects(int ExcludedObjectIndex,in StagePipelineDesc Desc,bool CountForTesting=false,bool Proxy=false,VirtualGeometryList List=VirtualGeometryList.Selected){
+        var VariantAvailable=this.VirtualGeometryPipelineFor(Desc)!=null;
         for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
             if(ObjectIndex==ExcludedObjectIndex||!this.ObjectActive[ObjectIndex]||this.ObjectHiddenFromView[ObjectIndex]){ continue; }
+            if(Proxy){
+                if(this.DrawVirtualGeometryProxy(ObjectIndex,Desc,VirtualGeometryVerticesRootParameter,StageDrawFlags.None)){ continue; }
+            } else if(this.SkipsNormalDraw(ObjectIndex,VariantAvailable)){ continue; }
             int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
-            this.CommandList->SetGraphicsRootConstantBufferView(
-                1,this.GetObjectConstantsAddress(this.FrameIndex,ObjectIndex));
-            this.CommandList->SetGraphicsRootDescriptorTable(
-                2,this.GetMaterialDescriptorTable(
-                    this.ObjectMaterialIndices[ObjectIndex]));
+            this.SetDrawConstants(ObjectIndex);
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=
                 &this.VertexBufferViews[MeshIndex])
             fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=
@@ -3171,6 +3131,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
+        if(Proxy){ return; }
+        var Drawn=this.DrawSelectedVirtualGeometry(Desc,VirtualGeometryVerticesRootParameter,ExcludedObjectIndex<0?null:Index=>Index!=ExcludedObjectIndex,List:List);
+        if(CountForTesting){ this.VirtualGeometryObjectsDrawnLastFrameForTesting=Drawn; }
     }
 
     private void RenderCameraPreviews(
@@ -3181,9 +3144,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector4 ClearColor=this.BackgroundClearVector;
         for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
             RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
-            ID3D12PipelineState*Pipeline=Preview.Depth.Encoding==RenderDepthEncoding.Observer
-                ?Wireframe?this.ObserverWireframePipelineState:this.ObserverPipelineState
-                :Wireframe?this.CameraPreviewWireframePipelineState:this.CameraPreviewPipelineState;
+            var PipelineDesc=Preview.Depth.Encoding==RenderDepthEncoding.Observer
+                ?Wireframe?StagePipelines.ObserverWireframe:StagePipelines.Observer
+                :Wireframe?StagePipelines.CameraPreviewWireframe:StagePipelines.CameraPreview;
+            ID3D12PipelineState*Pipeline=this.ResolvePipelineState(PipelineDesc);
             RECT Rect=new(){
                 left=Preview.X,top=Preview.Y,
                 right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height,
@@ -3204,7 +3168,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                     this.FrameIndex,PreviewIndex+1));
             this.CommandList->RSSetViewports(1,&Viewport);
             this.CommandList->RSSetScissorRects(1,&Rect);
-            this.DrawObjects(Preview.ExcludedObjectIndex);
+            this.DrawObjects(Preview.ExcludedObjectIndex,PipelineDesc);
         }
     }
 
@@ -3225,11 +3189,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12QueryHeap*Heap;
         D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateQueryHeap(&Desc,__uuidof<ID3D12QueryHeap>(),(void**)&Heap),
             "ID3D12Device::CreateQueryHeap","creating the main-pass timestamp heap");
-        D3D12_HEAP_PROPERTIES ReadbackHeap=new(D3D12_HEAP_TYPE_READBACK);
-        var BufferDesc=D3D12_RESOURCE_DESC.Buffer(FrameCount*2*sizeof(ulong));
-        ID3D12Resource*Readback;
-        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&ReadbackHeap,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,null,__uuidof<ID3D12Resource>(),(void**)&Readback),
-            "ID3D12Device::CreateCommittedResource","creating the main-pass timestamp readback");
+        var Readback=new StageFeedbackReadback(this.Device,FrameCount,2*sizeof(ulong),"main-pass timestamp");
         ulong Frequency;
         D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->GetTimestampFrequency(&Frequency),"ID3D12CommandQueue::GetTimestampFrequency","reading the timestamp frequency");
         this.MainPassTimestampHeap=Heap;
@@ -3244,17 +3204,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new InvalidOperationException("Main-pass timing is not enabled or no frame has been timed yet.");
         }
         this.WaitForGpuIdle();
-        ulong*Mapped;
-        D3D12_RANGE Range=new(){ Begin=(nuint)(this.LastTimedFrameIndex*2*sizeof(ulong)),End=(nuint)((this.LastTimedFrameIndex*2+2)*sizeof(ulong)) };
-        D3D12Diagnostics.EnsureSuccess(this.MainPassTimestampReadback->Map(0,&Range,(void**)&Mapped),"ID3D12Resource::Map","reading the main-pass timestamps");
-        try {
-            var Start=Mapped[this.LastTimedFrameIndex*2];
-            var End=Mapped[this.LastTimedFrameIndex*2+1];
-            return End>=Start?(End-Start)*1000f/this.MainPassTimestampFrequency:0f;
-        } finally {
-            D3D12_RANGE NoWrite=new();
-            this.MainPassTimestampReadback->Unmap(0,&NoWrite);
-        }
+        Span<ulong>Stamps=stackalloc ulong[2];
+        if(!this.MainPassTimestampReadback.TryRead(this.LastTimedFrameIndex,Stamps)){ return 0f; }
+        return Stamps[1]>=Stamps[0]?(Stamps[1]-Stamps[0])*1000f/this.MainPassTimestampFrequency:0f;
     }
 
     /// <summary>テスト専用のメイン深度バッファのコピー。GPU完了後に読み取る（行優先、width x height）。</summary>
@@ -3300,6 +3252,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// <summary>1 フレームの記録の途中で、パスの間で受け渡す値。</summary>
     private struct FrameRecording {
         public ID3D12PipelineState*MainPipeline;
+        public StagePipelineDesc MainPipelineDesc;
         public float AutoExposureDeltaSeconds;
         public bool RanComputeAfterMainPass;
     }
@@ -3320,13 +3273,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         this.Lights=Lights;
         var CaptureForVerification=Plan.Key.Capture;
-        FrameRecording Recording=new(){ MainPipeline=this.ResolvePipelineState(Plan.MainPipeline) };
+        FrameRecording Recording=new(){ MainPipeline=this.ResolvePipelineState(Plan.MainPipeline),MainPipelineDesc=Plan.MainPipeline };
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,Recording.MainPipeline),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
         foreach(var Pass in Plan.Passes){
             switch(Pass){
                 case StagePass.Skinning:this.RecordSkinning(ref Recording);break;
+                case StagePass.SceneUpload:this.RecordSceneUpload();break;
                 case StagePass.FramePreparation:this.RecordFramePreparation();break;
                 case StagePass.ShadowAtlas:this.RecordShadowAtlas();break;
                 case StagePass.VirtualShadows:this.RecordVirtualShadows();break;
@@ -3336,6 +3290,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 case StagePass.GlobalIllumination:this.RenderGlobalIlluminationProbes();break;
                 case StagePass.Lumen:this.RenderLumen();break;
                 case StagePass.AmbientOcclusion:this.RenderAmbientOcclusion();break;
+                case StagePass.VirtualGeometrySelection:this.RecordVirtualGeometrySelection(ref Recording);break;
                 case StagePass.MainPass:this.RecordMainPass(ref Recording,ShadowComparison:false);break;
                 case StagePass.ShadowComparison:this.RecordMainPass(ref Recording,ShadowComparison:true);break;
                 case StagePass.SkyComposite:this.RecordSkyComposite(ref Recording);break;
@@ -3406,16 +3361,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ShadowTimestamp(2);
         this.PrepareVirtualShadows();
         this.ShadowTimestamp(3);
-        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback,(ulong)this.FrameIndex*4*sizeof(ulong));
-        this.ShadowTimestampsValid[this.FrameIndex]=true;
+        this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback!.Resource,this.ShadowTimestampReadback.SlotOffset(this.FrameIndex));
+        this.ShadowTimestampReadback.MarkWritten(this.FrameIndex);
     }
     private void RecordFrameConstants(ref FrameRecording Recording){
         this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
         this.WriteFog(this.FrameIndex,this.CurrentFog);
         this.WriteViewDepth(this.FrameIndex);
-        if(this.CurrentViewDepth.Encoding==RenderDepthEncoding.Logarithmic){
-            this.WriteRadialRasterDepths(this.FrameIndex);
-        }
         this.PrepareCameraPreviewConstants(this.FrameIndex);
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
         this.PrepareEnvironment(this.FrameIndex);
@@ -3457,14 +3409,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
         }
-        if(ShadowComparison){ this.DrawShadowComparison(); }
-        else { this.DrawObjects(ExcludedObjectIndex:-1); }
+        if(ShadowComparison){ this.DrawShadowComparison(Recording.MainPipelineDesc); }
+        else { this.DrawMainPassObjects(ref Recording); }
         if(this.MainPassTimestampHeap!=null){
             this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
             this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
-                this.FrameIndex*2,2,this.MainPassTimestampReadback,(ulong)this.FrameIndex*2*sizeof(ulong));
+                this.FrameIndex*2,2,this.MainPassTimestampReadback!.Resource,this.MainPassTimestampReadback.SlotOffset(this.FrameIndex));
+            this.MainPassTimestampReadback.MarkWritten(this.FrameIndex);
             this.LastTimedFrameIndex=this.FrameIndex;
         }
+        if(!ShadowComparison){
+            this.RecordHiZAfterMainPass(ref Recording);
+        }
+        this.RecordVirtualShadowRequests(ref Recording);
     }
     private void RecordSkyComposite(ref FrameRecording Recording){
         if(this.EnvironmentSettings.Atmosphere is not null){
@@ -3607,6 +3564,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void MoveToNextFrame(){
         var CurrentFenceValue= this.FenceValues[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(this.Device!.CommandQueue->Signal(this.Fence,CurrentFenceValue),"ID3D12CommandQueue::Signal","signaling the frame fence");
+        this.SealRetirements(CurrentFenceValue);
 
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
 
@@ -3622,6 +3580,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.Device==null|| this.Fence==null){
             return;
         }
+        this.GpuIdleWaitCountForTesting++;
 
         D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->Signal(this.Fence, this.FenceValues[this.FrameIndex]),"ID3D12CommandQueue::Signal","signaling the GPU-idle fence");
         D3D12Diagnostics.EnsureSuccess(this.Fence->SetEventOnCompletion(this.FenceValues[this.FrameIndex], this.FenceEvent),"ID3D12Fence::SetEventOnCompletion","waiting for the GPU to go idle");
@@ -3644,7 +3603,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // 削除／リセットされたデバイスはフェンスを通知できない。Render Serverが次の世代を作成できるよう、
             // ネイティブオブジェクトを解放する必要がある。
         }
-
+        this.ReleaseUploadRing();
         this.ReleaseReadbackBuffer();
         this.ReleaseForwardPlusTileBuffer();
         this.Atmosphere?.Dispose();
@@ -3653,6 +3612,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalIllumination=null;
         this.AmbientOcclusion?.Dispose();
         this.AmbientOcclusion=null;
+        this.HiZ?.Dispose();
+        this.HiZ=null;
+        this.ShadowRequests?.Dispose();
+        this.ShadowRequests=null;
         this.AutoExposureStage?.Dispose();
         this.AutoExposureStage=null;
         this.Skinning?.Dispose();
@@ -3705,12 +3668,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.AreaShadowProjectionBuffer=null;
         }
 
-        if(this.ObjectConstantsBuffer!=null){
-            this.ObjectConstantsBuffer->Unmap(0,null);
-            this.ObjectConstantsMapped=null;
-            _= this.ObjectConstantsBuffer->Release();
-            this.ObjectConstantsBuffer=null;
-        }
+        this.ReleaseSceneTables();
+        this.ReleaseVirtualGeometry();
         this.ReleaseScreenResources();
         if(this.OverlayVertexBuffer!=null){
             this.OverlayVertexBuffer->Unmap(0,null);
@@ -3746,7 +3705,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
 
         this.ReleaseOwnedMaterialTextures();
-        this.MaterialTextures=[];
 
         for(var I=0;I< this.IndexBuffers.Length;I++){
             if(this.IndexBuffers[I]!=null){
@@ -3768,7 +3726,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.MainPassTimestampHeap=null;
         }
         if(this.MainPassTimestampReadback!=null){
-            _=this.MainPassTimestampReadback->Release();
+            this.MainPassTimestampReadback.Dispose();
             this.MainPassTimestampReadback=null;
         }
 

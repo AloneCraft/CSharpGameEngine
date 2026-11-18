@@ -2,7 +2,7 @@ namespace CSharpGameEngine.ShaderArtifacts;
 
 /// <summary>
 /// DXC の前にすべての Stage 翻訳単位へ追加する、エンジン所有のプレゼンテーション用エントリー。Stage のリソースレイアウトを共有し、ハッシュ化された ABI の一部となる。実行時にこの
-/// ソースをコンパイルすることはない。MaterialParams.z は表示モード、EmissiveNits.w は選択ウェイトを保持する。出荷用 Stage エントリーでは、この2つの成分を意図的に
+/// ソースをコンパイルすることはない。表示モードは描画ごとの定数 DrawPresentationMode、選択ウェイトは物体の表の SelectionWeight にある。出荷用 Stage エントリーでは、この2つを意図的に
 /// 無視する。Stage グラフがビュー深度と、頂点／ピクセル間の単一インターフェースを所有する（ADR-0084）。Lumen エントリー（M0111）は PSMain と同じマテリアル入力を使い、
 /// サーフェス前処理とサーフェスキャッシュのカードを書き込む。
 /// </summary>
@@ -25,10 +25,11 @@ static const float3 PreviewSelectionTint = float3(0.6, 0.35, 0.05);
 
 float4 PreviewSurfacePSMain(VertexOutput input)
 {
-    float renderMode = MaterialParams.z;
+    MaterialData material = Materials[Instances[input.Instance].Material];
+    float renderMode = float(DrawPresentationMode);
     if (renderMode > 0.5 && renderMode < 1.5)
     {
-        float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
+        float3 baseColor = MaterialTextures[NonUniformResourceIndex(material.Textures.x)].Sample(LinearSampler, input.Uv).rgb * material.BaseColorFactor.rgb;
         return float4(saturate(baseColor), 1.0);
     }
     if (renderMode >= 1.5 && renderMode < 2.5)
@@ -37,7 +38,7 @@ float4 PreviewSurfacePSMain(VertexOutput input)
         float3 tangent = normalize(input.Tangent.xyz - vertexNormal * dot(vertexNormal, input.Tangent.xyz));
         float3 bitangent = cross(vertexNormal, tangent) * input.Tangent.w;
         float3x3 tbn = float3x3(tangent, bitangent, vertexNormal);
-        float3 normalSampleTs = normalize(NormalTexture.Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
+        float3 normalSampleTs = normalize(MaterialTextures[NonUniformResourceIndex(material.Textures.y)].Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
         float3 normalWs = normalize(mul(normalSampleTs, tbn));
         return float4(saturate(normalWs * 0.5 + 0.5), 1.0);
     }
@@ -51,7 +52,7 @@ StagePixelOutput PreviewPSMain(VertexOutput input)
         discard;
     }
     float4 surface = PreviewSurfacePSMain(input);
-    float selectionWeight = EmissiveNits.w;
+    float selectionWeight = Instances[input.Instance].SelectionWeight;
     return CompleteStageSurface(input, float4(saturate(surface.rgb + selectionWeight * PreviewSelectionTint), surface.a));
 }
 
@@ -62,6 +63,51 @@ StagePixelOutput PreviewCleanPSMain(VertexOutput input)
         discard;
     }
     return CompleteStageSurface(input, PreviewSurfacePSMain(input));
+}
+
+// 仮想ジオメトリ(ADR-0100 決定 3、M0130)。1 インスタンスが塊 1 つ、頂点の番号が塊の中の三角形の角。塊の三角形が 128 枚より少ないとき、余った頂点は塊の最後の頂点に
+// 重ねるので、余りの三角形は面積が無く描かれない。頂点の取り出しの後は VSMain と同じ(物体は DrawInstance、画素シェーダーは今のまま)。
+struct VirtualGeometryVertexData
+{
+    float3 Position;
+    float3 Normal;
+    float4 Tangent;
+    float2 Uv;
+};
+struct VirtualGeometryClusterData
+{
+    uint FirstIndex;
+    uint IndexCount;
+    uint Group;
+    int ParentGroup;
+};
+StructuredBuffer<VirtualGeometryVertexData> VirtualGeometryVertices : register(t22);
+StructuredBuffer<uint> VirtualGeometryIndices : register(t23);
+StructuredBuffer<VirtualGeometryClusterData> VirtualGeometryClusters : register(t24);
+StructuredBuffer<uint> VirtualGeometryVisibleClusters : register(t25);
+
+VertexInput VirtualGeometryVertexInput(uint vertexId, uint instanceId)
+{
+    VirtualGeometryClusterData cluster = VirtualGeometryClusters[VirtualGeometryVisibleClusters[instanceId]];
+    uint corner = min(vertexId, cluster.IndexCount - 1u);
+    VirtualGeometryVertexData vertex = VirtualGeometryVertices[VirtualGeometryIndices[cluster.FirstIndex + corner]];
+    VertexInput input;
+    input.Position = vertex.Position;
+    input.Normal = vertex.Normal;
+    input.Tangent = vertex.Tangent;
+    input.Uv = vertex.Uv;
+    return input;
+}
+
+VertexOutput VirtualGeometryVSMain(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
+{
+    return VSMain(VirtualGeometryVertexInput(vertexId, instanceId));
+}
+
+// 影の深さだけを描く版(M0130 単位 5)。影のルート署名でも t22〜t25 は同じレジスター。
+float4 VirtualGeometryShadowVSMain(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID) : SV_Position
+{
+    return VSShadowMain(VirtualGeometryVertexInput(vertexId, instanceId));
 }
 
 VertexOutput ObserverVSMain(VertexInput input)
@@ -140,11 +186,12 @@ float4 ScreenPSMain(ScreenVertexOutput input) : SV_Target
 // ADR-0078/M0111: the Lumen-like lighting's entries. Both draw with VSMain and the Stage root signature.
 float3 LumenShadingNormal(VertexOutput input)
 {
+    MaterialData material = Materials[Instances[input.Instance].Material];
     float3 vertexNormal = normalize(input.Normal);
     float3 tangent = normalize(input.Tangent.xyz - vertexNormal * dot(vertexNormal, input.Tangent.xyz));
     float3 bitangent = cross(vertexNormal, tangent) * input.Tangent.w;
     float3x3 tbn = float3x3(tangent, bitangent, vertexNormal);
-    float3 normalSampleTs = normalize(NormalTexture.Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
+    float3 normalSampleTs = normalize(MaterialTextures[NonUniformResourceIndex(material.Textures.y)].Sample(LinearSampler, input.Uv).rgb * 2.0 - 1.0);
     return normalize(mul(normalSampleTs, tbn));
 }
 
@@ -163,7 +210,8 @@ SurfacePrepassOutput SurfacePrepassPSMain(VertexOutput input)
     {
         discard;
     }
-    float roughness = max(saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).g * MaterialParams.x), 0.045);
+    MaterialData material = Materials[Instances[input.Instance].Material];
+    float roughness = max(saturate(MaterialTextures[NonUniformResourceIndex(material.Textures.z)].Sample(LinearSampler, input.Uv).g * material.MaterialParams.x), 0.045);
     SurfacePrepassOutput output;
     output.NormalRoughness = float4(LumenShadingNormal(input), roughness);
     output.Distance = RadialSafeLength(input.WorldPosition - CameraPositionWS.xyz);
@@ -178,17 +226,18 @@ struct LumenCardOutput
     float4 Emissive : SV_Target2;
 };
 
-// The surface cache capture: one mesh in its own space (the host gives it an identity World) through a card's orthographic projection. The
+// The surface cache capture: one mesh in its own space (the host draws it with DrawFlagMeshSpace) through a card's orthographic projection. The
 // albedo is the diffuse colour (a metal has none), the normal is in the mesh's space and the emission leaves out the object's run-time scale,
 // which the card lighting applies.
 LumenCardOutput LumenCardPSMain(VertexOutput input)
 {
-    float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
-    float metallic = saturate(MetallicRoughnessTexture.Sample(LinearSampler, input.Uv).b * MaterialParams.y);
+    MaterialData material = Materials[Instances[input.Instance].Material];
+    float3 baseColor = MaterialTextures[NonUniformResourceIndex(material.Textures.x)].Sample(LinearSampler, input.Uv).rgb * material.BaseColorFactor.rgb;
+    float metallic = saturate(MaterialTextures[NonUniformResourceIndex(material.Textures.z)].Sample(LinearSampler, input.Uv).b * material.MaterialParams.y);
     LumenCardOutput output;
     output.Albedo = float4(baseColor * (1.0 - metallic), 1.0);
     output.Normal = float4(LumenShadingNormal(input) * 0.5 + 0.5, 1.0);
-    output.Emissive = float4(EmissiveTexture.Sample(LinearSampler, input.Uv).rgb * EmissiveNits.xyz, 1.0);
+    output.Emissive = float4(MaterialTextures[NonUniformResourceIndex(material.Textures.w)].Sample(LinearSampler, input.Uv).rgb * material.EmissiveNits.xyz, 1.0);
     return output;
 }
 """;

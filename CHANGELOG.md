@@ -1,5 +1,47 @@
 # Changelog
 
+- タイルの前処理と地形、地形の仮想テクスチャ(M0134・M0135、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 7、SDK 0.1.0-dev.56)。**利用側の変更**:
+  - `Cge content compile-tiles` と、ゲームの組み立ての `CgeTileSource` 項目: TIFF(帯とタイル、圧縮なし・LZW・Deflate)と PDS の IMG を少しずつ読み、タイルの階層(`*.cgetiles` と `*.cgetilepack`)にして `Content\Tiles` へ置く。
+  - 新しい部品 `Terrain`: 平面か球の地形を、カメラから見た細かさで四分木のマスに分けて描く。高さは `HeightTiles`、色は `VirtualTexture` と `ColorTiles`(マスごとのページを層から作って貼る)。見本 `UserEcsProject/Scenes/TerrainSampleScene.json`。
+  - 描画サーバーに `ReplaceMesh`(メッシュの中身の差し替え)と `UpdateTextureRegion`(`RenderTextureResource.CreateDynamic` で作った画像の一部の書き換え)を足した。どちらも GPU を待たない。描画器の取り決め `IStageRenderBackend` にも足したので、独自の実装を持つ場合は足す必要がある。
+  - 描画器は物が 1 つ以上要るので、地形だけのレベルには小さな物を 1 つ置く。
+  - FeatureRunner に `content.tile-pyramids`(F-L7-060)、`world.terrain`(F-L5-051)、`rendering.terrain-virtual-texture`(F-L5-052)を足した。
+
+- VirtualObject(M0133、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 6、SDK 0.1.0-dev.55)。**利用側の変更**:
+  - 新しい部品 `VirtualObject`(親: 半径と段 1〜4 へ上がる画素の大きさ、ヒステリシス)と `VirtualObjectLevel`(段の子: 段の番号と準備)。親が画面の画素だけで段を選び、選ばれた段の子(と子孫)だけが描かれる(影も)。準備できていない段へは上がらない。見本 `UserEcsProject/Scenes/VirtualObjectSampleScene.json`。
+  - 描画の同期(`TransformSync`)は、VirtualObject の段の子孫を、選ばれていない段なら `MeshVisibility` より優先して隠す。VirtualObject を使わないゲームは何も変わらない。
+  - FeatureRunner に `rendering.virtual-object`(F-L5-050)を足した。
+
+- 仮想シャドウの作り直し(M0132、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 1・5、SDK 0.1.0-dev.54)。**利用側の変更**:
+  - 影の方式が仮想シャドウ(`DirectionalShadowMode.Virtual`)のとき、段は 16(段 0 の幅 8 m、段 15 は約 131 km)、1 段は 128×128 ページ × 128×128 テクセルになった。要るページは、主パスの後に計算シェーダー(新しい `VirtualShadowRequest.hlsl`)が画面の画素から決める。M0115 の 200 m の打ち切りは無くなった。
+  - ページの格子は世界に固定する。実行時はエンジンがカメラの世界の位置から区画を渡すので、カメラが動くだけなら作り直すページは 0。描画サーバーに `SetVirtualShadowAnchor` を足した。
+  - 要求は数フレーム遅れて届く。最初の数フレームとデバイスの作り直しの直後は、影をカスケード影で描く。速く動くと、まだ作れていない細かいページは粗い段で代わりに描く。
+  - `DirectionalShadowSettings.PageBudget` の上限は 4096(既定 1024 のまま、置き場は 8192×2048、64 MiB)。
+  - Stage のシェーダーの取り決めは `stage-v22`(フレームの定数の段の行列が 16 になり 2,016 バイト。**以前に複製した Stage シェーダーやフレームの定数の写しは作り直しが要る**)。M0115 の `VirtualDirectionalShadowCache` は削除した。
+  - 仮想シャドウを使うゲームは、計算シェーダーの成果物 `VirtualShadowRequest.cgeshaderartifact` も要る(エンジンの組み立ての設定に足した)。
+  - FeatureRunner の `rendering.virtual-shadows` に F-L4-026 と新しい試験を足した。
+
+- 仮想ジオメトリの遮蔽判定と読み込み(M0131、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 1・3、SDK 0.1.0-dev.53)。**利用側の変更**:
+  - 主パスは、前のフレームで見えた塊を先に描き、その距離から作った Hi-Z(新しい計算シェーダー `HiZ.hlsl`)で残りを調べて、隠れていない塊だけを描く。絵は遮蔽なしと画素が同じ。影・Lumen・カメラプレビューは遮蔽を掛けない。壁の後ろに 36 個の球を置いた場面で、1920×1080 の実機の主パスの塊が 1,952 → 164、時間が 1.13〜1.17 → 1.02 ms。
+  - 塊は、索引の枠と 32 頂点の区画でできた置き場に置く。ページ(まとまりが作った塊の組)は、選択の知らせを読み戻して、メッシュごとの予算の中で要るものだけを置く。既定の予算は上限なし(全部を置くので、絵は前と同じ)。全部を置くと、頂点を共有していた前の形の約 2.1 倍の GPU の量を使う。
+  - 仮想ジオメトリを使うゲームは、計算シェーダーの成果物 `HiZ.cgeshaderartifact` も要る(エンジンの組み立ての設定に足した)。
+  - FeatureRunner に `rendering.virtual-geometry-streaming`(F-L4-025)を足した。
+
+- 仮想ジオメトリ(M0130、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 3、SDK 0.1.0-dev.52)。取り込みの設定 `virtualGeometry.enabled` を `true` にしたモデルは、メッシュを塊の階層にして持ち、主パスで画面に合った細かさの塊だけを GPU が選んで描く。**利用側の変更**:
+  - 後置ソースにエントリー `VirtualGeometryVSMain`・`VirtualGeometryShadowVSMain` を、主パスと影のルート署名に t22〜t25 を足した。
+  - 影・Lumen・カメラプレビューも主ビューで選んだ塊を描く。Lumen のカードと光のプローブは根の段の塊(代理メッシュ)を描く。
+  - 取り込みで、元の細かい形から物体の向きの法線マップを焼く(UV が重なるメッシュには焼かない)。法線マップのあるメッシュは、三角形が画面で 16 画素より小さくなる手前で細かくするのを止める(計測で、三角形 85% 減・主パスの時間 50% 減、違う画素 0.08%)。
+  - Stage のシェーダーの取り決めは `stage-v21`(描画ごとの定数 b1 に `DrawObjectNormalMap` を足した。**以前に複製した Stage のシェーダーグラフは使えない**ので、新しいテンプレートから作り直す)。仮想ジオメトリの追加データは版 2(版 1 も読める)。
+  - エンジン共通の取り込みの設定に `virtualGeometry.enabled`(既定 `false`)を足したので、モデルは次の組み立てで一度作り直される。
+  - FeatureRunner に `rendering.virtual-geometry`(F-L7-059、F-L4-024)を足した。
+
+- 仮想化描画の共通の下回り(M0129、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md)、SDK 0.1.0-dev.51)。画面の見た目は変わらない(固定 7 画像のハッシュが同じ)。**利用側の変更**:
+  - Stage のシェーダーの取り決めは `stage-v18`。物体ごとの定数(ObjectCB)と材質のテクスチャ t0〜t3 は無くなり、物体の表(t20)、材質の表(t21)、描画ごとのルート定数(b1)、材質のテクスチャの配列(t0 space1)になった。**以前に VS のテンプレートで自分のプロジェクトへ複製した Stage のシェーダーグラフは使えない**(描画の設定を作るときに失敗する)。新しいテンプレートから作り直す。
+  - 描画器は D3D12 のリソース束縛の段 2 以上の GPU を求める。満たさない GPU では、アダプターの名前を添えて描画器を作るときに止まる。
+  - 材質の数に上限は無くなった。`AddMaterial` は -1 を返さず、`FreeMaterialSlots` は上限なしを表す大きな値を返す。材質と画面レイヤーのテクスチャを足しても GPU の完了を待たない(テクスチャは次のフレームの最初に送る)。
+  - 新しい L4 の部品 `CSharpGameEngine.Rendering.Streaming`(`ScreenSizeMetric`、`PageSlotAllocator`、`StreamingReport`)。後の段階の仮想ジオメトリ・仮想シャドウ・仮想テクスチャが使う。
+  - FeatureRunner に `rendering.gpu-scene`(F-L4-023)を足した。
+
 - 描画のフレーム計画を L4 へ移した(M0120 段階 1、[設計と記録](Docs/refactoring-designs/20261115-m0120-frame-plan-executor.md))。**利用側の変更**:
   - `StageRenderer` の `RenderFrame`、`SetCamera`、`SetViewProjection`、光源の入口(`SetDirectionalLight`、`Add*Light`、`StagePhysicalLightApi`・`EmissivePatchSubmission` の拡張)を削除した。描画は `RenderServer`(`D3D12RenderServer.Create`)を通す。
   - `IStageRenderBackend` は光源の提出を持たず、`Execute(StagePipelinePlan, StageLightSubmissions)` で計画を実行する。`RenderServer.DeclaredQualityPlan` は実行した計画 `CurrentPipeline` に置き換えた。

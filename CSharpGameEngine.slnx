@@ -235,6 +235,7 @@
   </Folder>
   <Folder Name="/Templates/">
     <File Path="Templates/README.md" />
+    <File Path="Templates/Template.slnx" />
     <Project Path="Templates/ThirdPerson/ThirdPerson.csproj" />
     <Project Path="Templates/FirstPerson/FirstPerson.csproj" />
     <Project Path="Templates/TopDown/TopDown.csproj" />

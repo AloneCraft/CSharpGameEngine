@@ -24,7 +24,7 @@ public sealed class ShaderGraphCompilerTests {
             Assert.Equal(1,global::CSharpGameEngine.ShaderGraph.Cli.ShaderGraphCli.Run(Arguments));Assert.Equal(Bytes,File.ReadAllBytes(Output));
         }finally{ Directory.Delete(Folder,true); }
     }
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,14 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Stage",ShaderArtifactTargetKind.Stage,16 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -85,7 +85,7 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.DoesNotContain("ToVertexOutput(",BuiltSource,StringComparison.Ordinal);
                 Assert.Equal(new[]{
                     "VSMain","PSMain","VSShadowMain","FullscreenVS","PostProcessPS","PreviewPSMain","PreviewCleanPSMain",
-                    "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain",
+                    "OverlayVSMain","OverlayPSMain","ScreenVSMain","ScreenPSMain","ObserverVSMain","SurfacePrepassPSMain","LumenCardPSMain","VirtualGeometryVSMain","VirtualGeometryShadowVSMain",
                 }.OrderBy(Name=>Name,StringComparer.Ordinal),Artifact.Entries.Select(Entry=>Entry.LogicalName).OrderBy(Name=>Name,StringComparer.Ordinal));
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="ObserverVSMain");
                 // M0111：Lumen のサーフェス事前パスは法線、粗さ、距離を書き込み、カードキャプチャーは 3 つのターゲットを書き込む。
@@ -125,9 +125,16 @@ public sealed class ShaderGraphCompilerTests {
         // プロシージャルグリッド）、M0099 フェーズ 0（レンダー原点のグリッドアンカーとフォグ高度）、M0099 フェーズ 3（FrameCB
         // 深度マッピングのパケット）、M0099 の保守的ラスタ行列、M0111（FrameCB.LumenParams、t16/t17、および PSMain の
         // Lumen 分岐、tools/ShaderGraphMaintenance/edits/lumen_2026_10_24.py）、M0119（対数深度関数が
-        // Depth サブグラフになること、edits/depth_subgraph_2026_10_25.py）は、Stage プログラムを意図的に変更した。
-        // これらの編集前に、migrate/extract の往復でバイト単位の一致を確認済み。
-        Assert.True(Hash=="621BCDE384820868E377B9299085E7B7EC84BB9693E8392911263712FA36349E",Hash);
+        // Depth サブグラフになること、edits/depth_subgraph_2026_10_25.py）、M0129 単位 2（PSMain を EvaluateSurface と
+        // EvaluateSurfaceLighting に分けること、edits/surface_split_2026_11_17.py。式は一字も変えず、固定 7 画像は同じ）、
+        // M0129 単位 3（ObjectCB をやめ、物体の表 t20・材質の表 t21・描画ごとの定数 b1 にすること、
+        // edits/gpu_scene_2026_11_17.py。stage-v17。固定 7 画像は同じ）、M0129 単位 4（材質のテクスチャを 1 本の配列 t0 space1 にし、
+        // 材質の表の番号で引くこと、edits/bindless_textures_2026_11_17.py。stage-v18。固定 7 画像は同じ）、M0130 単位 6（描画ごとの定数に
+        // 物体の向きの法線マップの番号を足し、EvaluateSurface が頂点の法線の代わりに使うこと、edits/object_normal_map_2026_11_17.py。
+        // stage-v21。番号が 0 の描画は前と同じなので、固定 7 画像は同じ）、M0132 単位 4（仮想シャドウを 16 段・1 段 128×128 ページの
+        // 作り直した置き場で引き、段を画素の足跡で選ぶこと、edits/virtual_shadow_maps_2026_11_18.py。stage-v22。固定 7 画像は同じ）は、
+        // Stage プログラムを意図的に変更した。これらの編集前に、migrate/extract の往復でバイト単位の一致を確認済み。
+        Assert.True(Hash=="38BAC6FA7594086E09008CC6BF68FA3E36DF35190B8019BBAFC048BE780315C9",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {

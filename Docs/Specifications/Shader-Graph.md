@@ -11,9 +11,9 @@
 
 Canonical serialization orders identities and argument names; it leaves out nulls, so a canonical file never holds one. A JSON null where the graph needs a value (the target, a list, a list item, a node type, an argument name or value, an edge port, a dependency path) is malformed JSON: loading throws a `JsonException` naming its path, as for any other malformed JSON. Semantic hashing removes node positions and region layout. Connection types must match exactly; conversions are explicit nodes. Unknown JSON node data survives load/save and validator diagnostics identify unsupported node types. A subgraph or node identity that appears twice (a node copied by hand in the JSON, a merged file) is a validation error (`DuplicateIdentity`), so generation reports it instead of failing.
 
-The fixed root target is Stage (serialized value 0); removed values 1 and 2 are rejected as UnknownTarget. Stage has 14 entries: VSMain, PSMain, VSShadowMain, FullscreenVS, PostProcessPS, PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain, ScreenVSMain, ScreenPSMain, ObserverVSMain, SurfacePrepassPSMain and LumenCardPSMain. The graph owns native colour, physical distance and conservative logarithmic depth. The engine-owned suffix supplies presentation, observer, surface and card entries; the old radial wrapper entries are removed. The stage-v14 contract keeps FrameCB at 960 bytes, repurposing the unused shadow matrix and atlas fields for InverseViewProjection and ViewportSize. DepthEncoding0/1 carry validated L4 RenderViewDepth packets; ObjectCB ends with ConservativeRasterDepth. Material sampler s0 is anisotropic 8/wrap, t16/t17 carry Lumen diffuse/reflections, and LumenParams selects them. The unused Model/Triangle renderers, ABI producers and root templates have been removed in M0119.
+The fixed root target is Stage (serialized value 0); removed values 1 and 2 are rejected as UnknownTarget. Stage has 14 entries: VSMain, PSMain, VSShadowMain, FullscreenVS, PostProcessPS, PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain, ScreenVSMain, ScreenPSMain, ObserverVSMain, SurfacePrepassPSMain and LumenCardPSMain. The graph owns native colour, physical distance and conservative logarithmic depth. The engine-owned suffix supplies presentation, observer, surface and card entries; the old radial wrapper entries are removed. The stage-v14 contract keeps FrameCB at 960 bytes, repurposing the unused shadow matrix and atlas fields for InverseViewProjection and ViewportSize. DepthEncoding0/1 carry validated L4 RenderViewDepth packets; each object carries its ConservativeRasterDepth (in ObjectCB until stage-v16, in the instance table since stage-v17). Material sampler s0 is anisotropic 8/wrap, t16/t17 carry Lumen diffuse/reflections, and LumenParams selects them. The unused Model/Triangle renderers, ABI producers and root templates have been removed in M0119.
 
-The current Stage ABI is `stage-v16` (M0115/M0125). It appends four virtual directional clipmap matrices, page-table parameters and `DirectionalSoftShadowParams` to FrameCB, with t18 for the physical D32 pages and t19 for the per-frame uint page table. The last float4 holds tan(half sun diameter), maximum soft radius in metres, enabled and reserved. CSM and Virtual share PCSS sampling, receiver-plane correction and world-space bias when enabled. VSMain applies inverse-transpose normals under non-uniform scale; all presentation and Lumen surface entries share it. Optional virtual sampling falls back to the existing cascades. Runtime still consumes only offline artifacts. The reproducible edit is `tools/ShaderGraphMaintenance/edits/directional_soft_shadows_2026_10_26.py` via `edit_stage_graph.py`.
+The current Stage ABI is `stage-v18` (M0129, see the GPU scene section below). `stage-v16` (M0115/M0125) appended four virtual directional clipmap matrices, page-table parameters and `DirectionalSoftShadowParams` to FrameCB, with t18 for the physical D32 pages and t19 for the per-frame uint page table. The last float4 holds tan(half sun diameter), maximum soft radius in metres, enabled and reserved. CSM and Virtual share PCSS sampling, receiver-plane correction and world-space bias when enabled. VSMain applies inverse-transpose normals under non-uniform scale; all presentation and Lumen surface entries share it. Optional virtual sampling falls back to the existing cascades. Runtime still consumes only offline artifacts. The reproducible edit is `tools/ShaderGraphMaintenance/edits/directional_soft_shadows_2026_10_26.py` via `edit_stage_graph.py`.
 
 Dependencies resolve relative to their owning document and may be recursive. Resolution validates document identity and rejects missing files, recursion, node collisions, and top-level declaration-slot collisions. Production Stage owns Depth, PBR, Shadow, PCSS, and ACES as external typed-syntax Subgraphs whose original declaration slots are preserved during composition.
 
@@ -61,12 +61,53 @@ Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. A n
 External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Debug/Release 1041 CgeAutomation evidence now proves the Editor Factory, stable AutomationIds, layout/Undo/Redo/save/reload/diagnostic lifecycle, package identity, and normal shutdown; That UI evidence predates the M0119 switch to a Stage-only root template; the updated Stage-based UI automation has been built but not rerun.
 
 ## GPU layout verification (M0120)
-L4 `Pipeline.StageFrameConstants` and `StageObjectConstants` own the managed CB layout; `StageGpuLayouts` derives offsets with Marshal.OffsetOf. DXC_OUT_REFLECTION is available as `HlslCompileResult.DxcReflection` from an actual compile. The L7-only `HlslShaderReflection` reads it and the compiler tests compare all CB field offsets/sizes and row-major matrices for Stage and Lumen. Lumen's StageInverseViewProjection explicitly aliases the Stage field InverseViewProjection. A card pixel entry uses ObjectCB and has no FrameCB after optimization, which is tested as such.
-This raw compiler data is separate from the artifact entry's existing JSON reflection metadata (entry/profile/stage/ABI); that serialized field and the runtime ABI have not changed. Runtime assemblies do not load DXC. FrameCB remains 960 bytes, ObjectCB 192 bytes, stage-v14 remains current, and the shader source/bytecode are unchanged by the C# layout relocation.
+L4 `Pipeline.StageFrameConstants` owns the managed FrameCB layout and, since stage-v17, `StageInstanceData`, `StageMaterialData` and `StageDrawConstants` own the instance table, the material table and the draw constants (they replaced `StageObjectConstants`); `StageGpuLayouts` derives offsets with Marshal.OffsetOf. DXC_OUT_REFLECTION is available as `HlslCompileResult.DxcReflection` from an actual compile. The L7-only `HlslShaderReflection` reads it and the compiler tests compare all CB and structured-buffer element field offsets/sizes and row-major matrices for Stage and Lumen. Lumen's StageInverseViewProjection explicitly aliases the Stage field InverseViewProjection. A card pixel entry reads the instance and material tables and has no FrameCB after optimization, which is tested as such.
+This raw compiler data is separate from the artifact entry's existing JSON reflection metadata (entry/profile/stage/ABI); that serialized field and the runtime ABI have not changed. Runtime assemblies do not load DXC. The C# layout relocation of M0120 itself left the shader source/bytecode unchanged (FrameCB 960 bytes, ObjectCB 192 bytes, stage-v14 at that time).
 
 ## 対数ネイティブの契約(M0119)
 現在の契約は`stage-v14`。Lumen の表面前パスは `SurfacePrepassPSMain` で既存の法線・粗さ・物理距離に加え `SV_Depth` を書く。対数カメラは共有の `EncodeRadialDepth` を使い、頂点は保守的な深度と明示的な近遠クリップ距離を使う。これにより、far 1e18 m・手前の面 1e7 m の場合でも、主画面と同じ面を Lumen が読む。正射影は線形のラスタ深度を返す。表面シェーダーは AO の物理距離生成にも使う。AO 用の旧シャドウ VS と専用 DSV は不要。主画面の `StagePixelOutput` は色 (`SV_Target0`)・物理距離 (`SV_Target1`)・深度を返す。距離は R32F の `SceneDistance` または DDGI の `CaptureDistance` に保存し、0 は背景。空と DDGI は双曲深度から位置を復元しない。現在のエントリー数は 14。標準経路の選択 API と旧 Model/Triangle は削除した。古いハッシュの成果物は再生成する。
 
 M0119で、Stage グラフ本体の `VSMain`/`PSMain` が深度を持つようになった。ピクセル出力は `StagePixelOutput`(色と `SV_DepthGreaterEqual`)、単一の `VertexOutput` が VS と PS の契約。`CompleteStageSurface` が表示用を含む最終深度を共有する。旧 `Radial*` のラッパーエントリーは削除した。観察ビューだけが `ObserverVSMain` を使い、色・深度の PS は共有する。複製した古い Stage グラフは、新しい構造体・ヘルパーを含むグラフへ更新してから成果物を再生成する必要がある。
 
-The restored integration workspace combines the native logarithmic Stage contract and virtual/soft shadows as `stage-v16`: fourteen native entries, SceneDistance MRT, FrameCB 1248 bytes and ObjectCB 192 bytes. StageGpuLayouts owns the appended virtual matrices/parameters and Lumen uses the same buffer layout. The clean integration commit before restoring workspace work retains stage-v14; its earlier hashes are historical evidence, not hashes of the combined workspace.
+## 表面と照明の分割(M0129、ADR-0100 決定 2)
+主パスの `PSMain` は、`EvaluateSurface`(材質を読んで `SurfaceData` を作る)と `EvaluateSurfaceLighting`(`SurfaceData` と画素の位置から色を作る)を呼ぶだけである。材質(物体と材質の表と、基本色・法線・metallic/roughness・発光の 4 枚のテクスチャ)を読むのは `EvaluateSurface` だけで、`EvaluateSurfaceLighting` は材質を読まない。`SurfaceData` は位置・基本色・metallic・粗さ・法線・頂点法線・発光を持つ(ADR-0085 決定 §2 と同じ形)。この分割ではエントリーも画素も変わらない。照明側の細かい分割(方向光・局所光・間接光・霧)は、描画パスを実装するとき(ADR-0085)に行う。後置ソース(`StagePresentationShaderSource`)の表示用・Lumen 用のエントリーは、`EvaluateSurface` を通らずに同じ表とテクスチャを読む。
+
+## GPU シーン(M0129、ADR-0100 決定 2)
+現在の契約は `stage-v19`(`stage-v17` は単位 3 の物体と材質の表まで、`stage-v18` は単位 4 の番号引き、`stage-v19` は M0130 の仮想ジオメトリの頂点シェーダー、`stage-v20` はその影の版、`stage-v21` は物体の向きの法線マップ。下の「仮想ジオメトリ」)。物体ごとの定数バッファ(ObjectCB)と、材質ごとのテクスチャの束(t0〜t3)は無い。代わりに次の 4 つがある。
+
+| 名前 | レジスター | 中身 | 読むシェーダー |
+|---|---|---|---|
+| `DrawCB` | b1(ルート定数 4 個) | `DrawInstance`(描く物体の番号)、`DrawPresentationMode`(表示モード)、`DrawFlags`(描画の印)、`DrawObjectNormalMap`(物体の向きの法線マップの番号 + 1、0 なら無い) | 頂点、画素 |
+| `Instances` | t20(構造化バッファ、1 件 84 バイト) | `World`、`ConservativeRasterDepth`、`EmissiveScale`、`SelectionWeight`、`Material` | 頂点、画素 |
+| `Materials` | t21(構造化バッファ、1 件 128 バイト) | `BaseColorFactor`、`MaterialParams`(x 粗さ、y metallic)、`EmissiveNits`、世界格子の 4 つ、`Textures`(4 枚のテクスチャの番号) | 画素 |
+| `MaterialTextures[]` | t0 space1(上限の無い配列) | 材質のテクスチャ。`Textures` の x 基本色、y 法線、z metallic と粗さ、w 発光 | 画素 |
+
+- `VSMain` は `Instances[DrawInstance]` を読み、番号を `VertexOutput.Instance`(補間なし)で画素シェーダーへ渡す。画素シェーダーは `DrawInstance` ではなく `input.Instance` を使う。
+- `DrawFlags` の `DrawFlagMeshSpace`(1)が立つと、`VSMain` は `World` の代わりに単位行列を使う(Lumen のカード撮影)。
+- 発光は `Materials` の `EmissiveNits` に `Instances` の `EmissiveScale` を掛ける。カード撮影(`LumenCardPSMain`)は倍率を掛けない。
+- 世界格子の原点は、`WorldGridAnchor.w` が 1 なら物体の位置(`World` の平行移動の符号を反転)、0 なら `WorldGridAnchor.xyz`。
+- 影の頂点シェーダー `VSShadowMain` は `DrawCB` と `Instances` だけを読む。
+- テクスチャは `MaterialTextures[NonUniformResourceIndex(...)]` で引く。1 回の描画が 1 つの材質を描く今も `NonUniformResourceIndex` を付けるのは、後の段階の間接描画が 1 回の描画で複数の材質を描くため。基本色と発光の番号は sRGB の見え方を指し、法線と metallic・粗さの番号はそのままの値の見え方を指す。
+- 影の画像(t4)はレジスターを変えず、描画器が環境の表(t12〜t19 と同じ束)の末尾に置く。
+- 描画器は D3D12 のリソース束縛の段が 2 以上であることを求める。満たさない GPU では、描画器を作るときにアダプターの名前を添えて止める。
+- 管理コード側の配置の正本は L4 の `StageInstanceData`・`StageMaterialData`・`StageDrawConstants`(`StageGpuLayouts.cs`)。シェーダー側との一致は、DXC の反射を読む試験(`StageConstantLayoutReflectionTests`)が、エントリーごとに確かめる。
+- 再現できる編集は `tools/ShaderGraphMaintenance/edits/gpu_scene_2026_11_17.py` と `bindless_textures_2026_11_17.py`。FrameCB(1248 バイト)、t4〜t19 は `stage-v16` と同じ。エントリーは `stage-v18` まで 14 個、`stage-v19` で 15 個、`stage-v20` で 16 個。
+
+## 仮想ジオメトリ(M0130、ADR-0100 決定 3)
+後置ソースのエントリー `VirtualGeometryVSMain`(vs_6_0)は、頂点の入力を使わず、次の 4 つから頂点を作る。1 インスタンスが塊 1 つで、頂点の番号が塊の中の三角形の角(1 塊 384 頂点)。塊の三角形が 128 枚より少ないときは、余った頂点を塊の最後の頂点に重ねるので、余りの三角形は面積が無く描かれない。頂点を作った後は `VSMain` と同じ(物体は `DrawInstance`、画素シェーダーは今のまま)。
+
+| 名前 | レジスター | 中身 |
+|---|---|---|
+| `VirtualGeometryVertices` | t22(1 件 48 バイト) | 位置、法線、接線、UV(メッシュの座標) |
+| `VirtualGeometryIndices` | t23 | 塊の三角形の頂点の番号 |
+| `VirtualGeometryClusters` | t24(1 件 16 バイト) | 最初の番号、番号の数、自分を作ったまとまり、親のまとまり(根なら -1) |
+| `VirtualGeometryVisibleClusters` | t25 | 描く塊の番号(インスタンスの番号で引く) |
+
+- 影の版 `VirtualGeometryShadowVSMain` は、同じ 4 つから頂点を作って `VSShadowMain` を呼ぶ。影のルート署名でも t22〜t25 は同じレジスター。
+- 描く塊は、影より前に計算シェーダー `assets/Shaders/VirtualGeometry.hlsl` が主ビューから見て物体ごとに選ぶ。影・Lumen の画面の下書き・主パス・カメラプレビューは同じ選択を描く。Lumen のカード撮影と光のプローブの撮影は、根の段の塊(代理メッシュ)を描く。選び方は「自分を作ったまとまりの誤差の画素数がしきい値以下で、親のまとまりの誤差の画素数がしきい値より大きい」(しきい値は 1 画素)。距離は包む球のいちばん近い所まで測る。
+- 計算シェーダーは取り込み(`#include`)を使えないので、`VirtualGeometry.hlsl` は画面上の大きさの式(`ScreenSizeMetric.Hlsl`)を写して持つ。写しが文字まで同じことを `VirtualGeometryGpuTests` が確かめる。
+- 描く数は間接描画の引数の 2 つ目(`InstanceCount`)に計算シェーダーが足す。描画器は毎フレーム、選ぶ前に引数を「384 頂点、0 インスタンス」に戻す。
+- 物体の向きの法線マップ(M0130 単位 6): 取り込みで元の細かい形から焼いた画像を、描画器が材質のテクスチャの配列に置き、仮想ジオメトリの描画で `DrawObjectNormalMap` に番号 + 1 を入れる。`EvaluateSurface` は、それが 0 でなければ、頂点の法線の代わりに画像の向き(UV で引く)を頂点シェーダーと同じ逆転置で世界の向きにして使い、材質の法線マップをその上に重ねる。粗い塊でも陰影が元の細かさのまま残るので、法線マップのあるメッシュにだけ三角形の下限(既定 16 画素)を掛ける。編集は `tools/ShaderGraphMaintenance/edits/object_normal_map_2026_11_17.py`。
+- 管理コード側の配置の正本は L4 の `StageVirtualGeometryVertex`・`StageVirtualGeometryCluster`・`StageVirtualGeometryGroup`・`StageVirtualGeometrySelection`。
+
+The restored integration workspace combines the native logarithmic Stage contract and virtual/soft shadows as `stage-v16`: fourteen native entries, SceneDistance MRT, FrameCB 1248 bytes and ObjectCB 192 bytes (ObjectCB was replaced by the GPU scene in stage-v17). StageGpuLayouts owns the appended virtual matrices/parameters and Lumen uses the same buffer layout. The clean integration commit before restoring workspace work retains stage-v14; its earlier hashes are historical evidence, not hashes of the combined workspace.

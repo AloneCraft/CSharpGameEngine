@@ -60,6 +60,33 @@ public sealed class ModelArtifactPreparationTests:IDisposable {
         Assert.Equal(Vector3.UnitX,Mesh.Value.Positions[1]);
         Assert.Equal(3,Mesh.Value.Indices.Length);
     }
+    /// <summary>取り込みの設定 virtualGeometry.enabled が true なら、モデルに仮想ジオメトリの追加データが付き、実行時の読み込みからも読める(M0130 単位 3)。false なら付かない。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VirtualGeometryIsBuiltOnlyWhenTheImportOptionAsksForIt(bool Enabled){
+        var Prepared=ModelArtifactPreparation.Prepare(Asset,Triangle(),Source,Options,"test@1",BuildVirtualGeometry:Enabled);
+        var Store=new ContentAddressedStore(this.Root);
+        var Compiled=await new IncrementalContentCompiler(Store,Path.Combine(this.Root,"state.json")).CompileAsync(Prepared.Nodes,[Prepared.Root]);
+        Assert.True(Compiled.Succeeded,Compiled.Error);
+        var Manifest=new ShippingContentManifest([Prepared.Artifacts.Single(A=>A.Key==Prepared.Root).Reference],Prepared.Artifacts.Select(A=>{
+            Assert.True(ContentArtifactCodec.TryRead(A.Envelope,out var Artifact,out _));
+            return new ShippingContentManifestEntry(A.Reference,A.Address,A.Kind,Artifact!.Provenance,Artifact.Dependencies,A.Envelope.Length);
+        }));
+        await using var Runtime=new RuntimeAssetStore(Store,Manifest,ModelRuntimeCodecs.Create());
+        await using var Model=await Runtime.RetainAsync<ModelData>(Prepared.Root);
+        var Entries=CSharpGameEngine.Content.VirtualGeometry.VirtualGeometryCodec.Read(Model.Value);
+        if(!Enabled){
+            Assert.Empty(Entries);
+            return;
+        }
+        var Entry=Assert.Single(Entries);
+        Assert.Equal((0,0),(Entry.MeshIndex,Entry.SubmeshIndex));
+        Assert.Equal(3,Entry.Mesh.Indices.Length);
+        Assert.Equal(3,Entry.Mesh.ProxyIndices().Length);
+        // UV の無いメッシュには法線マップを焼かない（そのメッシュは三角形の下限を使わない）。
+        Assert.Null(Entry.Mesh.NormalMap);
+    }
     [Fact]
     public void InvalidSourceAndMissingMaterial_FailBeforeAnyNodesAreReturned(){
         var Document=Triangle();

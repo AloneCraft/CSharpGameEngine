@@ -60,7 +60,7 @@ cbuffer FrameCB : register(b1)
     float4 DepthEncoding0;
     float4 DepthEncoding1;
     float4 LumenParams;
-    row_major float4x4 VirtualShadowProjection[4];
+    row_major float4x4 VirtualShadowProjection[16];
     float4 VirtualShadowParams;
     float4 DirectionalSoftShadowParams;
 };

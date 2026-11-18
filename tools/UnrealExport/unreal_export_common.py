@@ -12,6 +12,8 @@ import re
 
 import unreal
 
+from name_gltf_nodes import name_glb
+
 
 def log(message: str) -> None:
     unreal.log(f"[UnrealExport] {message}")
@@ -62,6 +64,10 @@ def export_gltf(target, path: str, selected_actors: set, skinned: bool = False) 
         log_error(str(error))
     if len(messages.errors) > 0:
         raise RuntimeError(f"GLTFExporter reported {len(messages.errors)} error(s) for '{path}'")
+    if path.lower().endswith(".glb"):
+        # The exporter leaves the mesh node unnamed; the engine would assign a structural name (IMP150).
+        for change in name_glb(path):
+            log(f"named {change}")
 
 
 def static_mesh_component(actor: unreal.StaticMeshActor):

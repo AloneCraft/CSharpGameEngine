@@ -6,6 +6,8 @@ namespace CSharpGameEngine.Rendering.Pipeline;
 public enum StagePass {
     /// <summary>スキニングの compute。</summary>
     Skinning,
+    /// <summary>物体の表と材質の表を、このフレームの値で書く（ADR-0100 決定 2）。物体を描くどのパスよりも前。</summary>
+    SceneUpload,
     /// <summary>Lumen を使うかの確定、影の時間の読み取り、光源と局所光の影の準備。</summary>
     FramePreparation,
     /// <summary>局所光の影のアトラス。</summary>
@@ -24,6 +26,8 @@ public enum StagePass {
     Lumen,
     /// <summary>アンビエントオクルージョン。</summary>
     AmbientOcclusion,
+    /// <summary>仮想ジオメトリの塊を、主ビューから見て物体ごとに計算シェーダーで選ぶ(ADR-0100 決定 3、M0130)。影・Lumen・主パス・カメラプレビューがこの選択で描くので、影より前。</summary>
+    VirtualGeometrySelection,
     /// <summary>主パス（HDR の色と距離と深度を消して、物体を描く）。</summary>
     MainPass,
     /// <summary>影の比較表示の主パス（左右で影の方式を変えて描く）。</summary>
@@ -101,6 +105,8 @@ public static class StagePipelinePlanner {
         var Inputs=Key.Inputs;
         List<StagePass>Passes=[
             StagePass.Skinning,
+            StagePass.SceneUpload,
+            StagePass.VirtualGeometrySelection,
             StagePass.FramePreparation,
             StagePass.ShadowAtlas,
             StagePass.VirtualShadows,

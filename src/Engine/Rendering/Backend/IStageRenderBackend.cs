@@ -30,6 +30,10 @@ public interface IStageRenderBackend:IDisposable {
     bool LumenActiveLastFrame { get; }
     IStageShaderArtifact LastKnownGoodShaderArtifact { get; }
     int AddMesh(StageMeshCreateInfo Mesh);
+    /// <summary>メッシュの頂点と索引を差し替える（M0134、地形のマス）。GPU を待たない。</summary>
+    void ReplaceMesh(int MeshIndex,StageMeshCreateInfo Mesh);
+    /// <summary>書き換えられる画像の一部を、次のフレームの最初に送る（M0135）。画像がまだ描画器に無ければ何もしない（作るときに今の中身を使う）。</summary>
+    void UpdateTextureRegion(RenderTextureResource Texture,int X,int Y,int Width,int Height,ReadOnlySpan<byte>Rgba8);
     int AddMaterial(StageMaterialCreateInfo Material);
     int AddObject(int MeshIndex,int MaterialIndex);
     void RemoveObject(int ObjectIndex);
@@ -40,6 +44,8 @@ public interface IStageRenderBackend:IDisposable {
     void SetCameraAltitude(float Meters);
     void SetRenderOriginAltitude(float Meters);
     void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor);
+    /// <summary>仮想シャドウの格子を世界に固定する区画と、描画空間の原点の区画の中の位置（M0132）。変更するまで値を保持する。</summary>
+    void SetVirtualShadowAnchor(VirtualShadowAnchor Anchor);
     void SetObjectTransform(int ObjectIndex,Matrix4x4 World);
     void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette);
     void SetPresentationMode(RenderPresentationMode Mode);

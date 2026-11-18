@@ -54,4 +54,6 @@
     <ItemGroup><_CgePublishedModelWorker Include="$(TargetDir)Cook/**/*" /></ItemGroup>
     <Copy SourceFiles="@(_CgePublishedModelWorker)" DestinationFiles="@(_CgePublishedModelWorker->'$(PublishDir)Cook/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
+  <!-- Game builds start this tool while other builds may rebuild it. -->
+  <Import Project="..\..\build\CSharpGameEngine.BuildTool.targets" />
 </Project>

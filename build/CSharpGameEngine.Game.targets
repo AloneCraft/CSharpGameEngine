@@ -32,4 +32,5 @@
     </PropertyGroup>
   </Target>
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.ModelContent.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.TileContent.targets" />
 </Project>

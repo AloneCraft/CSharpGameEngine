@@ -42,13 +42,13 @@ public sealed class ModelResourcesCooker:IAssetCooker {
             var White=Publish(SubAssetKind.Texture,"@cge/white",Envelope(ContentArtifactKind.Texture,ImageArtifactCodec.WriteTexture(new(false,[new(1,1,[255,255,255,255])]))));
             var Flat=Publish(SubAssetKind.Texture,"@cge/normal",Envelope(ContentArtifactKind.Texture,ImageArtifactCodec.WriteTexture(new(false,[new(1,1,[128,128,255,255])]))));
             var Decoded=new Dictionary<int,(int Width,int Height,byte[]Pixels)>();
-            var Textures=new Dictionary<(int Index,TextureUsage Usage),AssetArtifactReference>();
+            var Textures=new Dictionary<(int Index,TextureUsage Usage,InterchangeUvTransform Mapping),AssetArtifactReference>();
             AssetArtifactReference Texture(InterchangeTextureRef?Reference,TextureUsage Usage,AssetArtifactReference Fallback){
                 if(Reference is not{}Value){ return Fallback; }
-                if(Value.TexCoord!=0||Value.Transform.Offset!=System.Numerics.Vector2.Zero||Value.Transform.Scale!=System.Numerics.Vector2.One||Value.Transform.Rotation!=0f){
-                    throw new InvalidDataException("IMP143: the runtime material requires texture mapping baked into UV0 before resource preparation.");
+                if(Value.TexCoord!=0){
+                    throw new InvalidDataException("IMP143: the runtime material samples UV0 only.");
                 }
-                if(Textures.TryGetValue((Value.TextureIndex,Usage),out var Existing)){ return Existing; }
+                if(Textures.TryGetValue((Value.TextureIndex,Usage,Value.Transform),out var Existing)){ return Existing; }
                 var Source=Document.Textures[Value.TextureIndex];
                 if(!Decoded.TryGetValue(Source.ImageIndex,out var Image)){
                     var SourceImage=Document.Images[Source.ImageIndex];
@@ -58,9 +58,13 @@ public sealed class ModelResourcesCooker:IAssetCooker {
                 }
                 var Settings=ImageOutputSettings.For(Usage);
                 if(Usage==TextureUsage.Packed){ Settings.OcclusionChannel="r";Settings.RoughnessChannel="g";Settings.MetallicChannel="b"; }
-                var Payload=ImageArtifactCodec.WriteTexture(ImageOutputCompiler.BuildTexture(Image.Width,Image.Height,Image.Pixels,Settings));
-                var Result=Publish(SubAssetKind.Texture,$"{Source.Name}/{Usage}",Envelope(ContentArtifactKind.Texture,Payload));
-                Textures.Add((Value.TextureIndex,Usage),Result);
+                var Mapped=TextureMappingBake.IsIdentity(Value.Transform);
+                var Pixels=Mapped?Image.Pixels:TextureMappingBake.Resample(Image.Width,Image.Height,Image.Pixels,Value.Transform);
+                var Payload=ImageArtifactCodec.WriteTexture(ImageOutputCompiler.BuildTexture(Image.Width,Image.Height,Pixels,Settings));
+                // A texture resampled for a mapping is a sub-asset of its own; the name carries the mapping so it stays stable.
+                var Name=Mapped?$"{Source.Name}/{Usage}":FormattableString.Invariant($"{Source.Name}/{Usage}/uv({Value.Transform.Offset.X:R},{Value.Transform.Offset.Y:R},{Value.Transform.Scale.X:R},{Value.Transform.Scale.Y:R},{Value.Transform.Rotation:R})");
+                var Result=Publish(SubAssetKind.Texture,Name,Envelope(ContentArtifactKind.Texture,Payload));
+                Textures.Add((Value.TextureIndex,Usage,Value.Transform),Result);
                 return Result;
             }
             foreach(var Material in Document.Materials){

@@ -82,6 +82,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Windows\ScreenUi.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Windows\RuntimeComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Windows\FirstPersonView.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\VirtualObject.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Windows\Terrain.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Windows\StageSceneDataBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Windows\StageModelAssets.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Windows\RenderRoster.cs" />

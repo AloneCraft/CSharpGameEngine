@@ -16,4 +16,6 @@
   </ItemGroup>
   <ItemGroup><Compile Include="../Shared/ThumbnailPng.cs" Link="ThumbnailPng.cs" /></ItemGroup>
   <ItemGroup><PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" /></ItemGroup>
+  <!-- Game builds start this tool while other builds may rebuild it. -->
+  <Import Project="..\..\build\CSharpGameEngine.BuildTool.targets" />
 </Project>

@@ -5,9 +5,9 @@ using static TerraFX.Interop.DirectX.D3D12_HEAP_TYPE;
 using static TerraFX.Interop.DirectX.D3D12_RESOURCE_STATES;
 using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
-/// <summary>テスト専用の同期コピー。キューがアイドルであることと、テクスチャの現在状態を呼び出し側が保証して、2D テクスチャのサブリソースを1つ CPU へコピーする。コピー後、指定状態へ復元する。</summary>
+/// <summary>テスト専用の同期コピー。キューがアイドルであることと、テクスチャの現在状態を呼び出し側が保証して、2D テクスチャのサブリソースを1つ（既定は 0、ミップの段も選べる）CPU へコピーする。コピー後、指定状態へ復元する。</summary>
 internal static unsafe class GpuTextureReadback {
-    internal static (byte[]Data,int RowPitch,int Width,int Height) Read(GraphicsDevice Device,ID3D12Resource*Texture,D3D12_RESOURCE_STATES RestingState){
+    internal static (byte[]Data,int RowPitch,int Width,int Height) Read(GraphicsDevice Device,ID3D12Resource*Texture,D3D12_RESOURCE_STATES RestingState,uint Subresource=0){
         ID3D12CommandAllocator*Allocator=null;
         ID3D12GraphicsCommandList*List=null;
         ID3D12Resource*Readback=null;
@@ -19,16 +19,16 @@ internal static unsafe class GpuTextureReadback {
             var Desc=Texture->GetDesc();
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
             ulong TotalBytes;
-            Device.Device->GetCopyableFootprints(&Desc,0,1,0,&Footprint,null,null,&TotalBytes);
+            Device.Device->GetCopyableFootprints(&Desc,Subresource,1,0,&Footprint,null,null,&TotalBytes);
             D3D12_HEAP_PROPERTIES Heap=new(D3D12_HEAP_TYPE_READBACK);
             var BufferDesc=D3D12_RESOURCE_DESC.Buffer(TotalBytes);
             D3D12Diagnostics.EnsureSuccess(Device.Device->CreateCommittedResource(&Heap,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,null,__uuidof<ID3D12Resource>(),(void**)&Readback),"CreateCommittedResource","texture readback");
-            D3D12_RESOURCE_BARRIER ToCopy=D3D12_RESOURCE_BARRIER.InitTransition(Texture,RestingState,D3D12_RESOURCE_STATE_COPY_SOURCE);
+            D3D12_RESOURCE_BARRIER ToCopy=D3D12_RESOURCE_BARRIER.InitTransition(Texture,RestingState,D3D12_RESOURCE_STATE_COPY_SOURCE,Subresource);
             List->ResourceBarrier(1,&ToCopy);
             D3D12_TEXTURE_COPY_LOCATION Destination=new(){ pResource=Readback,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,PlacedFootprint=Footprint };
-            D3D12_TEXTURE_COPY_LOCATION Source=new(){ pResource=Texture,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+            D3D12_TEXTURE_COPY_LOCATION Source=new(){ pResource=Texture,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,SubresourceIndex=Subresource };
             List->CopyTextureRegion(&Destination,0,0,0,&Source,null);
-            D3D12_RESOURCE_BARRIER Back=D3D12_RESOURCE_BARRIER.InitTransition(Texture,D3D12_RESOURCE_STATE_COPY_SOURCE,RestingState);
+            D3D12_RESOURCE_BARRIER Back=D3D12_RESOURCE_BARRIER.InitTransition(Texture,D3D12_RESOURCE_STATE_COPY_SOURCE,RestingState,Subresource);
             List->ResourceBarrier(1,&Back);
             D3D12Diagnostics.EnsureSuccess(List->Close(),"Close","texture readback");
             ID3D12CommandList*Base=(ID3D12CommandList*)List;
@@ -50,7 +50,7 @@ internal static unsafe class GpuTextureReadback {
                 D3D12Diagnostics.EnsureSuccess(MapResult,"Map",$"texture readback (removed reason 0x{RemovedReason:X8}; {Messages})");
             }
             try {
-                return (new ReadOnlySpan<byte>(Mapped+Footprint.Offset,checked((int)(TotalBytes-Footprint.Offset))).ToArray(),(int)Footprint.Footprint.RowPitch,(int)Desc.Width,(int)Desc.Height);
+                return (new ReadOnlySpan<byte>(Mapped+Footprint.Offset,checked((int)(TotalBytes-Footprint.Offset))).ToArray(),(int)Footprint.Footprint.RowPitch,(int)Footprint.Footprint.Width,(int)Footprint.Footprint.Height);
             } finally {
                 D3D12_RANGE NoWrite=new();
                 Readback->Unmap(0,&NoWrite);

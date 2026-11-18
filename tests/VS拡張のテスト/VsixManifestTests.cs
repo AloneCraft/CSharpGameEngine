@@ -74,6 +74,21 @@ public sealed class VsixManifestTests {
         Assert.Contains("AssemblyMetadata Remove=\"CSharpGameEngineBuildUtc\"",Project);
     }
 
+    /// <summary>
+    /// VS の中で拡張を作ると、入れ子の組み立ては参照先を作り直さない(BuildingInsideVisualStudio)。同梱する別プロセスの道具は
+    /// どれも拡張の参照先ではないので、外さないと古い DLL が混ざる(2026-11-17、PreviewHost の Windows.dll だけ古く、
+    /// 新しいシェーダーの入口が無いと言ってプレビューが開けなかった)。
+    /// </summary>
+    [Fact]
+    public void VsixProject_NestedPublishesRebuildTheirReferencesInsideVisualStudio(){
+        string Project=File.ReadAllText(Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension","VSExtension.csproj"));
+        var Nested=System.Text.RegularExpressions.Regex.Matches(Project,"<MSBuild\\b[^>]*Targets=\"(?:Publish|Restore;Pack)\"[^>]*>");
+        Assert.Equal(3,Nested.Count);
+        foreach(System.Text.RegularExpressions.Match Call in Nested){
+            Assert.Contains("BuildingInsideVisualStudio=false",Call.Value);
+        }
+    }
+
     [Fact]
     public void VsixProject_UsesPreviewHostBoundaryWithoutNativeRendererPackages(){
         string ProjectRoot=VsixBuildIdentity.RepoRoot;

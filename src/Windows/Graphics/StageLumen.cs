@@ -105,7 +105,6 @@ internal sealed unsafe class StageLumen:IDisposable {
     private readonly string ArtifactPath;
     private readonly uint FrameCount;
     private readonly uint FrameConstantsStride;
-    private readonly uint ObjectConstantsStride;
     private ID3D12RootSignature*RootSignature;
     private ID3D12PipelineState*PipelineState;
     private ID3D12DescriptorHeap*DescriptorHeap;
@@ -194,11 +193,10 @@ internal sealed unsafe class StageLumen:IDisposable {
     private Vector3 PreviousOriginRemainder;
     private float PreviousExposure;
     private bool Disposed;
-    internal StageLumen(GraphicsDevice Device,string StageArtifactPath,uint FrameCount,uint FrameConstantsStride,uint ObjectConstantsStride){
+    internal StageLumen(GraphicsDevice Device,string StageArtifactPath,uint FrameCount,uint FrameConstantsStride){
         this.Device=Device;
         this.FrameCount=FrameCount;
         this.FrameConstantsStride=FrameConstantsStride;
-        this.ObjectConstantsStride=ObjectConstantsStride;
         this.ArtifactPath=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(StageArtifactPath))??string.Empty,ArtifactFileName);
         D3D12_FEATURE_DATA_D3D12_OPTIONS Options=default;
         this.IsSupported=Device.Device->CheckFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS,&Options,(uint)sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS)).SUCCEEDED
@@ -637,9 +635,7 @@ internal sealed unsafe class StageLumen:IDisposable {
     internal Capture CaptureAt(int Index)=>this.Captures[Index];
     internal byte*CaptureFrameSlot(uint FrameIndex,int Index)=>this.CaptureConstantsMapped+this.CaptureOffset(FrameIndex,Index);
     internal ulong CaptureFrameAddress(uint FrameIndex,int Index)=>this.CaptureConstants->GetGPUVirtualAddress()+this.CaptureOffset(FrameIndex,Index);
-    internal byte*CaptureObjectSlot(uint FrameIndex,int Index)=>this.CaptureConstantsMapped+this.CaptureOffset(FrameIndex,Index)+this.FrameConstantsStride;
-    internal ulong CaptureObjectAddress(uint FrameIndex,int Index)=>this.CaptureFrameAddress(FrameIndex,Index)+this.FrameConstantsStride;
-    private ulong CaptureOffset(uint FrameIndex,int Index)=>((ulong)FrameIndex*MaximumCaptures+(ulong)Index)*(this.FrameConstantsStride+this.ObjectConstantsStride);
+    private ulong CaptureOffset(uint FrameIndex,int Index)=>((ulong)FrameIndex*MaximumCaptures+(ulong)Index)*this.FrameConstantsStride;
     private const int MaximumCaptures=512;
     internal D3D12_CPU_DESCRIPTOR_HANDLE CardRtv(int Target)=>new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),RtvCardAlbedo+Target,this.RtvSize);
     internal D3D12_CPU_DESCRIPTOR_HANDLE CardDsv=>new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),DsvCard,this.DsvSize);
@@ -1025,7 +1021,7 @@ internal sealed unsafe class StageLumen:IDisposable {
         this.RtvSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         this.DsvSize=this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
         this.ConstantsBuffer=this.CreateUploadBuffer((ulong)this.FrameCount*PassCount*ConstantsStride,out this.ConstantsMapped);
-        this.CaptureConstants=this.CreateUploadBuffer((ulong)this.FrameCount*MaximumCaptures*(this.FrameConstantsStride+this.ObjectConstantsStride),out this.CaptureConstantsMapped);
+        this.CaptureConstants=this.CreateUploadBuffer((ulong)this.FrameCount*MaximumCaptures*this.FrameConstantsStride,out this.CaptureConstantsMapped);
         D3D12_HEAP_PROPERTIES DefaultHeap=new(D3D12_HEAP_TYPE_DEFAULT);
         var DummyDesc=D3D12_RESOURCE_DESC.Buffer(256);
         ID3D12Resource*Dummy;

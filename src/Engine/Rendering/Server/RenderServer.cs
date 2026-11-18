@@ -147,7 +147,32 @@ public sealed class RenderServer:IDisposable {
         return Index;
     }
 
-    /// <summary>マテリアルを1つ追加し（M0105）、そのインデックスを返す。<see cref="FreeMaterialSlots"/> が0の場合は -1 を返す。テクスチャのアップロード時に GPU を一度待機させる。</summary>
+    /// <summary>
+    /// メッシュの頂点と索引を差し替える（M0134、地形のマスの入れ替え）。GPU を待たない。デバイスを作り直したときの名簿も差し替える。
+    /// スキニング・仮想ジオメトリのメッシュは差し替えられない。
+    /// </summary>
+    public void ReplaceMesh(int MeshIndex,StageMeshCreateInfo Mesh){
+        ArgumentOutOfRangeException.ThrowIfNegative(MeshIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MeshIndex,this.Meshes.Count);
+        var Owned=CloneMeshes([Mesh])[0];
+        this.Backend.ReplaceMesh(MeshIndex,Owned);
+        var Closure=new List<AssetArtifactReference>(this.Lifecycle.RequiredArtifacts);
+        Closure[1+MeshIndex]=CreateArtifact($"mesh/{MeshIndex}",Writer=>WriteMesh(Writer,Owned));
+        this.Meshes[MeshIndex]=Owned;
+        this.Lifecycle.ReplaceRequiredArtifacts(Closure);
+    }
+
+    /// <summary>
+    /// 書き換えられる画像（<see cref="RenderTextureResource.CreateDynamic"/>）の (X, Y) から幅 × 高さを RGBA8 で書き換える（M0135、仮想テクスチャのページ）。
+    /// GPU を待たない（次のフレームの最初に送る）。画像の中身も変わるので、デバイスを作り直しても書き換えた後の画像になる。
+    /// </summary>
+    public void UpdateTextureRegion(RenderTextureResource Texture,int X,int Y,int Width,int Height,ReadOnlySpan<byte>Rgba8){
+        ArgumentNullException.ThrowIfNull(Texture);
+        Texture.WriteRegion(X,Y,Width,Height,Rgba8);
+        this.Backend.UpdateTextureRegion(Texture,X,Y,Width,Height,Rgba8);
+    }
+
+    /// <summary>マテリアルを1つ追加し（M0105）、そのインデックスを返す。描画器が受け付けなければ -1（D3D12 の描画器は M0129 単位 4 から上限なし）。テクスチャのアップロード時に GPU を一度待機させる。</summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         var Index=this.Backend.AddMaterial(Material);
         if(Index<0){ return -1; }
@@ -234,6 +259,11 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordRenderOriginAltitude(Meters);
     }
     /// <summary>レンダリング座標原点をグリッドマテリアルの区画サイズで剰余に変換した値。ワールド空間のグリッドをワールド格子に一致させる。</summary>
+    /// <summary>仮想シャドウの格子を世界に固定する区画（M0132、ADR-0100 決定 5）。カメラ相対で描く呼び出し側（L5）がフレームごとに渡す。</summary>
+    public void SetVirtualShadowAnchor(VirtualShadowAnchor Anchor){
+        this.Backend.SetVirtualShadowAnchor(Anchor);
+        this.PendingFrame.RecordVirtualShadowAnchor(Anchor);
+    }
     public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
         this.Backend.SetWorldGridAnchor(MaterialIndex,Anchor);
         this.PendingFrame.RecordWorldGridAnchor(MaterialIndex,Anchor);
@@ -504,6 +534,8 @@ public sealed class RenderServer:IDisposable {
                 Skin=Mesh.Skin is{ }Skin?new StageSkinCreateInfo { JointCount=Skin.JointCount,JointIndices=[.. Skin.JointIndices],Weights=[.. Skin.Weights] }:null,
                 // ADR-0078/M0110：距離場は不変なのでコピー後も共有する（デバイス回復時は、この距離場からグローバル距離場を再構築する）。
                 DistanceField=Mesh.DistanceField,
+                // M0130：仮想ジオメトリも作った後は変えないので、コピー後も共有する。
+                VirtualGeometry=Mesh.VirtualGeometry,
             };
         }
         return Result;
@@ -583,6 +615,17 @@ public sealed class RenderServer:IDisposable {
             Writer.Write(Field.BoundsMin.X); Writer.Write(Field.BoundsMin.Y); Writer.Write(Field.BoundsMin.Z);
             Writer.Write(Field.VoxelSize);
             foreach(Half Value in Field.Distances){ Writer.Write(Value); }
+        }
+        // M0130：仮想ジオメトリも描画器に渡すデータの一部。無いメッシュは以前の識別情報を保つ。
+        if(Mesh.VirtualGeometry is{ }Geometry){
+            Writer.Write(Geometry.Vertices.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Vertices.AsSpan()));
+            Writer.Write(Geometry.Indices.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Indices.AsSpan()));
+            Writer.Write(Geometry.Clusters.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Clusters.AsSpan()));
+            Writer.Write(Geometry.Groups.Length);
+            Writer.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(Geometry.Groups.AsSpan()));
         }
     }
 

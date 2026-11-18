@@ -254,4 +254,15 @@ public sealed class RenderRosterTests {
         for(var Index=0;Index<3;Index++){ Assert.Equal(Before.Hash,Game.Capture().Hash); }
         Assert.Equal(2,Game.Host.Roster!.Diagnostics.Count);
     }
+    /// <summary>
+    /// 光る材質のキャラクター（スキンのあるメッシュ）はライトパッチを作らない。以前は Manny の発光材質から、バインド姿勢の全三角形で毎フレーム作り直し、
+    /// FirstPerson の 1 フレームが約 4 倍に延び、TopDown では足元の床に体と合わない光が出ていた。動かないメッシュは今までどおり作る。
+    /// </summary>
+    [Fact]
+    public void OnlyMeshesWithoutASkinMakeLightPatches(){
+        CSharpGameEngine.Rendering.StageMeshCreateInfo Rigid=new(){ Positions=[],Normals=[],Tangents=[],Uvs=[],Indices=[] };
+        var Skinned=Rigid with { Skin=new CSharpGameEngine.Rendering.StageSkinCreateInfo { JointCount=1,JointIndices=[],Weights=[] } };
+        Assert.True(RenderRoster.HasLightPatchShape(Rigid));
+        Assert.False(RenderRoster.HasLightPatchShape(Skinned));
+    }
 }

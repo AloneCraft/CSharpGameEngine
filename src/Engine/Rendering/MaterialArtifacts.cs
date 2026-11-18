@@ -17,16 +17,45 @@ public sealed class RenderTextureResource {
     private readonly byte[]PixelsStorage;
 
     internal RenderTextureResource(Hash256 ContentHash,int Width,int Height,byte[]Pixels,TextureOutputData?Prepared=null){
-        this.PreparedMipChain=Prepared is null?null:RenderTextureMipChain.FromImported(Prepared);
+        this.ImportedMipChain=Prepared is null?null:RenderTextureMipChain.FromImported(Prepared);
         this.PreparedColorSpace=Prepared is null?null:Prepared.Srgb?RenderTextureColorSpace.Srgb:RenderTextureColorSpace.Linear;
         this.ContentHash=ContentHash;
         this.Width=Width;
         this.Height=Height;
         this.PixelsStorage=Pixels;
     }
-
-    public RenderTextureMipChain?PreparedMipChain { get; }
+    private RenderTextureResource(int Width,int Height,RenderTextureColorSpace ColorSpace){
+        this.ContentHash=Hash256.Compute(Guid.NewGuid().ToByteArray());
+        this.Width=Width;
+        this.Height=Height;
+        this.PixelsStorage=new byte[checked(Width*Height*4)];
+        this.PreparedColorSpace=ColorSpace;
+        this.IsDynamic=true;
+    }
+    /// <summary>
+    /// 中身を後から書き換えられる画像（M0135、仮想テクスチャの置き場）。ほかの画像と共有しないよう、作るたびに別のキーを持つ。ミップは段 0 だけ。
+    /// 書き換えは <c>RenderServer.UpdateTextureRegion</c> で行う（描画器の画像と、デバイスを作り直すときに使う中身の両方が変わる）。
+    /// </summary>
+    public static RenderTextureResource CreateDynamic(int Width,int Height,RenderTextureColorSpace ColorSpace){
+        ArgumentOutOfRangeException.ThrowIfLessThan(Width,1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(Height,1);
+        return new RenderTextureResource(Width,Height,ColorSpace);
+    }
+    private readonly RenderTextureMipChain?ImportedMipChain;
+    /// <summary>書き換えられる画像か（<see cref="CreateDynamic"/>）。</summary>
+    public bool IsDynamic { get; }
+    /// <summary>描画器が使うミップの鎖。取り込みで作った鎖か、書き換えられる画像なら今の中身の段 0 だけ。どちらでもなければ null（描画器が作る）。</summary>
+    public RenderTextureMipChain?PreparedMipChain=>this.IsDynamic?RenderTextureMipChain.TopLevelOnly(this):this.ImportedMipChain;
     public RenderTextureColorSpace?PreparedColorSpace { get; }
+    /// <summary>書き換えられる画像の、(X, Y) から幅 × 高さの RGBA8 を書く。</summary>
+    internal void WriteRegion(int X,int Y,int RegionWidth,int RegionHeight,ReadOnlySpan<byte>Rgba8){
+        if(!this.IsDynamic){ throw new InvalidOperationException("Only a dynamic texture can be written."); }
+        if(X<0||Y<0||RegionWidth<1||RegionHeight<1||X+RegionWidth>this.Width||Y+RegionHeight>this.Height){ throw new ArgumentOutOfRangeException(nameof(X),"The region must lie inside the texture."); }
+        if(Rgba8.Length!=checked(RegionWidth*RegionHeight*4)){ throw new ArgumentException("The RGBA8 byte length does not match the region.",nameof(Rgba8)); }
+        for(var Row=0;Row<RegionHeight;Row++){
+            Rgba8.Slice(Row*RegionWidth*4,RegionWidth*4).CopyTo(this.PixelsStorage.AsSpan(((Y+Row)*this.Width+X)*4));
+        }
+    }
     public Hash256 ContentHash { get; }
     public int Width { get; }
     public int Height { get; }

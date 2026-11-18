@@ -1,0 +1,99 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 3,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "VirtualObjectSampleScene",
+  "root": {
+    "id": "6a1f4c2e-58b3-5d0a-9c41-0e7d2b5a9f13",
+    "name": "VirtualObject",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": 0.5, "F": 6 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+          "Scale": { "R": 1, "U": 1, "F": 1 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.VirtualObject",
+        "members": {
+          "RadiusMeters": 0.5,
+          "Enter1": 20,
+          "Enter2": 80
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "2c7e9a41-3f6d-5b82-a1e0-94d5c3b7f208",
+        "name": "Far",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": { "Type": "Box" }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.VirtualObjectLevel",
+            "members": { "Level": 0 }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "8d3b1e6f-0a29-5c74-b6f3-2e81d9a4c5b7",
+        "name": "Middle",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": { "Type": "Sphere" }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.VirtualObjectLevel",
+            "members": { "Level": 1 }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f41a7c93-6e05-5d28-8b9c-1a3f0e6d4b72",
+        "name": "Near",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 0, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+              "Scale": { "R": 1, "U": 1, "F": 1 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": { "Type": "Capsule" }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.VirtualObjectLevel",
+            "members": { "Level": 2 }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

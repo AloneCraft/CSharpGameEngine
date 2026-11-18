@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <File Path="README.md" />
+  <Project Path="ThirdPerson/ThirdPerson.csproj" />
+  <Project Path="FirstPerson/FirstPerson.csproj" />
+  <Project Path="TopDown/TopDown.csproj" />
+  <Project Path="Vehicle/Vehicle.csproj" />
+</Solution>

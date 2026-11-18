@@ -215,6 +215,9 @@
     <CgeComputeShader Include="../../assets/Shaders/AmbientOcclusion.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/LuminanceHistogram.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/Skinning.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/VirtualGeometry.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/HiZ.hlsl" />
+    <CgeComputeShader Include="../../assets/Shaders/VirtualShadowRequest.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/GlobalDistanceField.hlsl" />
     <CgeComputeShader Include="../../assets/Shaders/Lumen.hlsl" />
   </ItemGroup>
@@ -319,9 +322,13 @@
              Targets="Restore"
              Properties="Configuration=$(Configuration);Platform=x64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
              BuildInParallel="false" />
+    <!-- BuildingInsideVisualStudio=false: inside Visual Studio, ResolveProjectReferences only asks referenced projects for
+         their paths and never builds them, because VS assumes its solution build already did. Neither the host nor its
+         x64 Windows reference is in the extension's build, so an F5 packaged a stale Windows.dll beside a new Engine.dll
+         (2026-11-17: "The Stage shader artifact has no such entry ... VirtualGeometryVSMain"). -->
     <MSBuild Projects="$(CgeEditorPreviewHostProject)"
              Targets="Publish"
-             Properties="Configuration=$(Configuration);Platform=x64;SelfContained=false;PublishDir=$(CgeEditorPreviewHostStageDirectory)"
+             Properties="Configuration=$(Configuration);Platform=x64;SelfContained=false;BuildingInsideVisualStudio=false;PublishDir=$(CgeEditorPreviewHostStageDirectory)"
              BuildInParallel="false" />
     <MakeDir Directories="$(CgeEditorPreviewHostStageDirectory)Shaders" />
     <Copy SourceFiles="$(CgeShaderGraphIntermediateDirectory)Stage.cgeshaderartifact;@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')"
@@ -354,7 +361,7 @@
       <CgeSdkPackageStageDirectory Condition="'$(CgeSdkPackageStageDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)Packages/'))</CgeSdkPackageStageDirectory>
     </PropertyGroup>
     <RemoveDir Directories="$(CgeSdkPackageStageDirectory)" />
-    <MSBuild Projects="$(CgeSdkPackageProject)" Targets="Restore;Pack" Properties="Configuration=$(Configuration);PackageOutputPath=$(CgeSdkPackageStageDirectory)" BuildInParallel="false" />
+    <MSBuild Projects="$(CgeSdkPackageProject)" Targets="Restore;Pack" Properties="Configuration=$(Configuration);BuildingInsideVisualStudio=false;PackageOutputPath=$(CgeSdkPackageStageDirectory)" BuildInParallel="false" />
     <ItemGroup>
       <_CgeSdkPackage Include="$(CgeSdkPackageStageDirectory)*.nupkg" />
       <VSIXSourceItem Include="@(_CgeSdkPackage)">
@@ -393,7 +400,7 @@
              BuildInParallel="false" />
     <MSBuild Projects="@(CgeVsixBridge)"
              Targets="Publish"
-             Properties="Configuration=$(Configuration);Platform=%(CgeVsixBridge.Platform);SelfContained=false;PublishDir=$(CgeBridgeStageDirectory)%(CgeVsixBridge.Filename)\"
+             Properties="Configuration=$(Configuration);Platform=%(CgeVsixBridge.Platform);SelfContained=false;BuildingInsideVisualStudio=false;PublishDir=$(CgeBridgeStageDirectory)%(CgeVsixBridge.Filename)\"
              BuildInParallel="false" />
     <ItemGroup>
       <_CgeBridgePayload Include="$(CgeBridgeStageDirectory)**/*" Exclude="$(CgeBridgeStageDirectory)**/*.pdb" />

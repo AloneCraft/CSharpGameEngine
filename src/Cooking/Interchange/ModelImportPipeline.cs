@@ -11,6 +11,17 @@ using CSharpGameEngine.Spatial.Unreal;
 namespace CSharpGameEngine.Interchange;
 public sealed record ModelImportPipelineResult(InterchangeDocument?Document,ImmutableArray<ImportDiagnostic>Diagnostics);
 public static class ModelImportPipeline {
+    /// <summary>
+    /// <c>.meta</c> の <c>license.*</c>（<see cref="ImportOptions.EngineOptions"/>）で申告された権利を出典情報に入れる。種類が "Unknown" のときは何もしない。
+    /// 申告はインポーターが読んだ権利より優先し、そのまま IMP701〜703 の関門と License artifact に使われる。
+    /// </summary>
+    public static InterchangeDocument ApplyDeclaredLicense(InterchangeDocument Document,IReadOnlyDictionary<string,string>Options){
+        if(!Options.TryGetValue(ImportOptions.LicenseKind,out var Kind)||string.IsNullOrWhiteSpace(Kind)||Kind=="Unknown"){ return Document; }
+        string Value(string Name)=>Options.TryGetValue(Name,out var Text)?Text:string.Empty;
+        ImmutableArray<string>Restrictions=[..Value(ImportOptions.LicenseRestrictions).Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries)];
+        var License=new InterchangeLicense(Kind,Value(ImportOptions.LicenseConfirmed)=="true",Value(ImportOptions.LicenseCredit),Value(ImportOptions.LicenseSourceUrl),Restrictions);
+        return Document with { Provenance=Document.Provenance with { License=License } };
+    }
     public static ImmutableArray<ImportDiagnostic>ValidateEngine(InterchangeDocument Document){
         var Diagnostics=InterchangeValidator.Validate(Document,true).ToBuilder();
         if(!Diagnostics.Any(D=>D.Severity==ImportSeverity.Error)){

@@ -66,6 +66,8 @@ public sealed unsafe partial class StageRenderer {
         "ObserverVSMain"=>this.ObserverVertexShaderBytecode,
         "SurfacePrepassPSMain"=>this.LumenSurfacePixelShaderBytecode,
         "LumenCardPSMain"=>this.LumenCardPixelShaderBytecode,
+        StagePipelines.VirtualGeometryVertexEntry=>this.VirtualGeometryVertexShaderBytecode,
+        StagePipelines.VirtualGeometryShadowVertexEntry=>this.VirtualGeometryShadowVertexShaderBytecode,
         "OverlayVSMain"=>this.OverlayVertexShaderBytecode,
         "OverlayPSMain"=>this.OverlayPixelShaderBytecode,
         "VSShadowMain"=>this.ShadowVertexShaderBytecode,

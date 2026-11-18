@@ -12,6 +12,7 @@ internal static class ContentCommand {
             if(ImportExit is{ }Exit){ return Exit; }
         } finally { Console.CancelKeyPress-=Cancel; }
 
+        if(TileCommands.TryRun(Arguments) is{ }TileExit){ return TileExit; }
         if(Arguments.Length==3&&string.Equals(Arguments[0],"recover",StringComparison.Ordinal)){
             var Store=new ContentAddressedStore(Arguments[1]);
             var Compiler=new IncrementalContentCompiler(Store,Arguments[2]);
@@ -19,6 +20,7 @@ internal static class ContentCommand {
             return 0;
         }
         Console.Error.WriteLine("Usage: Cge content recover <cas-root> <state-file>");
+        Console.Error.WriteLine(TileCommands.Usage);
         Console.Error.WriteLine("       inspect <file.cgex> | explain <source> --cook <Cook.Cli.dll> --module <module.dll>");
         Console.Error.WriteLine("       import-ir <source> --project <directory> --cook <Cook.Cli.dll> --module <module.dll> --out <file.cgex> [--importer <identity>] [--asset <guid>] [--option <name=value>] [--verify]");
         return 2;

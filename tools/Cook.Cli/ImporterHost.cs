@@ -46,6 +46,7 @@ internal sealed class ImporterHost:IDisposable {
         var Result=await Importer.ImportAsync(Request,Context,CancellationToken);
         if(Result.Document is not{ }Document){ return null; }
         Document=Document with { Provenance=Document.Provenance with { SourceUri=Request.SourceUri,ImporterIdentity=Identity,Provider=Importer.Descriptor.Provider } };
+        Document=ModelImportPipeline.ApplyDeclaredLicense(Document,Request.Options);
         Document=await this.ProcessAsync(Document,ModelProcessorStage.SourceSpace,Context,CancellationToken);
         var Normalized=ModelImportPipeline.Normalize(Document);
         foreach(var Diagnostic in Normalized.Diagnostics){ Context.Report(Diagnostic); }

@@ -44,6 +44,7 @@
     <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.NumericProfile.*" Pack="true" PackagePath="build\" />
     <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.RenderProfile.props" Pack="true" PackagePath="build\" />
     <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.ModelContent.targets" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.TileContent.targets" Pack="true" PackagePath="build\" />
     <None Include="$(CgeRepositoryRoot)build\PropertyPages\**\*.xaml" Pack="true" PackagePath="build\PropertyPages\" />
     <None Include="$(CgeRepositoryRoot)src\Numerics\**\*.cs" Exclude="$(CgeRepositoryRoot)src\Numerics\bin\**;$(CgeRepositoryRoot)src\Numerics\obj\**" Pack="true" PackagePath="src\Numerics\" />
     <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.Game.props;$(CgeRepositoryRoot)build\CSharpGameEngine.Game.targets;$(CgeRepositoryRoot)build\CSharpGameEngine.Version.props;$(CgeRepositoryRoot)build\CSharpGameEngine.ShaderGraph.targets;$(CgeRepositoryRoot)build\CSharpGameEngine.SceneSchema.targets" Pack="true" PackagePath="build\" />

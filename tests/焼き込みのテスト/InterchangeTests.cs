@@ -57,6 +57,34 @@ public sealed class InterchangeTests {
         Assert.Null(Denied.Document);
         Assert.Contains(Denied.Diagnostics,D=>D.Code=="IMP701"&&D.Severity==ImportSeverity.Error);
     }
+    /// <summary>ADR-0080 §9: the licence declared in .meta (license.*) reaches the gate. Undeclared sources keep the importer's licence and stay IMP703.</summary>
+    [Fact]
+    public void DeclaredLicense_ConfirmsTheSourceOrCarriesItsRestrictions(){
+        var Input=Triangle();
+        var Undeclared=ModelImportPipeline.Normalize(ModelImportPipeline.ApplyDeclaredLicense(Input,new Dictionary<string,string>()));
+        Assert.Contains(Undeclared.Diagnostics,D=>D.Code=="IMP703");
+        var Declared=new Dictionary<string,string> {
+            [ImportOptions.LicenseKind]="UnrealEngineEula",[ImportOptions.LicenseConfirmed]="true",
+            [ImportOptions.LicenseCredit]="Epic Games",[ImportOptions.LicenseSourceUrl]="https://www.unrealengine.com/eula"
+        };
+        var Confirmed=ModelImportPipeline.ApplyDeclaredLicense(Input,Declared);
+        var License=Confirmed.Provenance.License;
+        Assert.Equal(("UnrealEngineEula",true,"Epic Games","https://www.unrealengine.com/eula"),(License.Kind,License.Confirmed,License.Credit,License.SourceUrl));
+        Assert.Empty(License.Restrictions);
+        Assert.DoesNotContain(ModelImportPipeline.Normalize(Confirmed).Diagnostics,D=>D.Code.StartsWith("IMP70",StringComparison.Ordinal));
+        Assert.Contains(ModelImportPipeline.Normalize(ModelImportPipeline.ApplyDeclaredLicense(Input,new Dictionary<string,string>(Declared) { [ImportOptions.LicenseConfirmed]="false" })).Diagnostics,D=>D.Code=="IMP703");
+        var Restricted=ModelImportPipeline.Normalize(ModelImportPipeline.ApplyDeclaredLicense(Input,new Dictionary<string,string>(Declared) { [ImportOptions.LicenseRestrictions]=" NoAI , UE-Only " }));
+        Assert.Null(Restricted.Document);
+        Assert.Contains(Restricted.Diagnostics,D=>D.Code=="IMP701");
+    }
+    [Fact]
+    public void Options_AcceptTheEngineLicenseOptionsForAnyImporter(){
+        var Importer=new FixtureImporter().Descriptor;
+        var Options=ImportOptions.Resolve(Importer,[],new Dictionary<string,string> { [ImportOptions.LicenseKind]="CC-BY-4.0",[ImportOptions.LicenseConfirmed]="true" });
+        Assert.Equal("CC-BY-4.0",Options[ImportOptions.LicenseKind]);
+        Assert.Equal(string.Empty,Options[ImportOptions.LicenseRestrictions]);
+        Assert.Throws<InvalidDataException>(()=>ImportOptions.Resolve(Importer,[],new Dictionary<string,string> { [ImportOptions.LicenseConfirmed]="yes" }));
+    }
     [Fact]
     public void ModuleContext_SharesAllThreeContractAssemblies(){
         var Module=typeof(ContractProbe).Assembly.Location;

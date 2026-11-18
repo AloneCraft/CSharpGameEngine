@@ -26,7 +26,13 @@ git config core.hooksPath .githooks
 .\tools\Start-CSharpGameEngine-Vsix.ps1
 ```
 
-このスクリプトはVisual Studio付属のMSBuildでVSIXをDebug/x64構成で再ビルドし、`CgeFixed`へインストールしてから`UserEcsProject.slnx`を開きます。実行ポリシーでブロックされる場合のみ、次を使用します。
+このスクリプトはVisual Studio付属のMSBuildでVSIXをDebug/x64構成で再ビルドし、`CgeFixed`へインストールしてから`UserEcsProject.slnx`を開きます。4つのテンプレートだけを載せた`Templates/Template.slnx`を開くときは`-Solution Template`を付けます（テンプレートのコードの確認・実行・編集用）。
+
+```powershell
+.\tools\Start-CSharpGameEngine-Vsix.ps1 -Solution Template
+```
+
+実行ポリシーでブロックされる場合のみ、次を使用します。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\Start-CSharpGameEngine-Vsix.ps1
