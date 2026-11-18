@@ -248,9 +248,14 @@ int VirtualShadowLevelForFootprint(float footprintMeters)
         var Center=this.DepthCenters[Level];
         return Matrix4x4.CreateTranslation(Anchor.DrawingOriginOffset)*this.Rotation*Matrix4x4.CreateOrthographicOffCenter(X,X+Size,Y,Y+Size,-Center-Range/2f,-Center+Range/2f);
     }
-    private Matrix4x4 PageProjection(VirtualShadowAnchor Anchor,VirtualShadowPageKey Key){
-        var Width=PageWidthMeters(Key.Level);
-        return this.Projection(Anchor,Key.Level,Key.X*Width,Key.Y*Width,Width);
+    private Matrix4x4 PageProjection(VirtualShadowAnchor Anchor,VirtualShadowPageKey Key)=>this.RangeProjection(Anchor,Key.Level,Key.X,Key.Y,1);
+    /// <summary>
+    /// 段 <paramref name="Level"/> の、ページ (<paramref name="PageX"/>, <paramref name="PageY"/>) を左下とする <paramref name="Pages"/> × <paramref name="Pages"/> ページの範囲を写す行列（行ベクトル）。
+    /// <see cref="Plan"/> の後に使う（そのフレームの光と段の深度で求める）。1 ページの行列は Pages = 1。試験は範囲をまとめて描いた深度を、ページを 1 枚ずつ描いた深度と比べる。
+    /// </summary>
+    public Matrix4x4 RangeProjection(VirtualShadowAnchor Anchor,int Level,int PageX,int PageY,int Pages){
+        var Width=PageWidthMeters(Level);
+        return this.Projection(Anchor,Level,PageX*Width,PageY*Width,Width*Pages);
     }
     /// <summary>段の深度の中心が変わったので、その段の置いてあるページを全部古くする。</summary>
     private int DropLevel(int Level){

@@ -3334,6 +3334,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ShadowTimestamp(2);
         this.PrepareVirtualShadows();
         this.ShadowTimestamp(3);
+        this.RenderVirtualShadowMapPages();
         this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback!.Resource,this.ShadowTimestampReadback.SlotOffset(this.FrameIndex));
         this.ShadowTimestampReadback.MarkWritten(this.FrameIndex);
     }
@@ -3597,6 +3598,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalDistanceField=null;
         this.Lumen?.Dispose();
         this.DisposeVirtualShadows();
+        this.DisposeVirtualShadowMaps();
         this.Lumen=null;
 
         if(this.FrameConstantsBuffer!=null){

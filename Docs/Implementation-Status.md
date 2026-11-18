@@ -5202,19 +5202,19 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L4-026 — 仮想シャドウの作り直し
 
-- Layer: L4 — 計画(`src/Engine/Rendering/VirtualShadowMaps.cs` の `VirtualShadowAnchor`・`VirtualShadowMapPlanner`)、置き場の割り当て(`Streaming/PageSlotAllocator.cs`)、L0 — ページの要求(`assets/Shaders/VirtualShadowRequest.hlsl`、`src/Windows/Graphics/StageVirtualShadowRequests.cs`、`StageRenderer.VirtualShadowMaps.cs`)
+- Layer: L4 — 計画(`src/Engine/Rendering/VirtualShadowMaps.cs` の `VirtualShadowAnchor`・`VirtualShadowMapPlanner`)、置き場の割り当て(`Streaming/PageSlotAllocator.cs`)、L0 — ページの要求とページの描画(`assets/Shaders/VirtualShadowRequest.hlsl`、`src/Windows/Graphics/StageVirtualShadowRequests.cs`、`StageRenderer.VirtualShadowMaps.cs`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・5)。M0115 の F-L4-020 を置き換える
-- Status: Partial(2026-11-18。M0132 単位 1〜2。L4 の計画と、画面からのページの要求(試験の印があるときだけ)。描画器の影はまだ M0115 の経路)
+- Status: Partial(2026-11-18。M0132 単位 1〜3。L4 の計画、画面からのページの要求、要求を読み戻した計画、置き場へのページの描画とページ表(どれも試験の印があるときだけ)。描画器の影はまだ M0115 の経路)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 5、`Docs/Milestones/M0132-Virtual-Shadow-Maps.md`
 - Stage: なし(M0132 の締めで足す)
 - Depends on: F-L4-023
 - Implementation evidence: 段 16、1 段 128×128 ページ × 128×128 テクセル、置き場 4,096 ページ。格子は区画(1,024 m)の角から光の向きの回転で写した座標に固定する。物を包む箱は区画の角から測って 1 mm を超えて動いたらページを古くする
-- Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)。Windowsのテスト `VirtualShadowRequestGpuTests`(GPU の要求が CPU の同じ規則と一致、シェーダーの式は L4 の写し)
-- Current delta: ページの描画、影を引くシェーダー、L5 からの区画、古い経路の削除が無い(単位 3〜5)
+- Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)。Windowsのテスト `VirtualShadowRequestGpuTests`(GPU の要求が CPU の同じ規則と一致、シェーダーの式は L4 の写し)、`VirtualShadowMapPageGpuTests`(置き場のページの深度が、同じ範囲をまとめて描いた深度と一致、止まったカメラでは作り直し 0)
+- Current delta: 影を引くシェーダー、計画の呼び出しを描画器の外へ出すこと、L5 からの区画、古い経路の削除が無い(単位 4〜5)
 - Conformance: Partial
-- Next action: M0132 単位 3(ページを描く)
+- Next action: M0132 単位 4(影を引くシェーダー)
 
 ## F-L4-021 — Entity を使わない物理の契約
 

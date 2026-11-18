@@ -26,7 +26,7 @@ public sealed class VirtualShadowRequestGpuTests {
             [new StageMaterialCreateInfo { BaseColorFactor=new Vector4(0.7f,0.7f,0.7f,1f),RoughnessFactor=1f,MetallicFactor=0f }],
             [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }]);
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(System.Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
-        Renderer.VirtualShadowRequestsForTesting=true;
+        Renderer.VirtualShadowMapsForTesting=true;
         var View=Camera.CreateFirstPerson(new Vector3(0.3f,1.7f,-6f));
         View.Pitch=-0.12f;
         for(var Frame=0;Frame<2;Frame++){

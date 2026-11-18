@@ -132,27 +132,36 @@ public sealed unsafe partial class StageRenderer {
             this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,1,&Rect);
             var Viewport=new D3D12_VIEWPORT { TopLeftX=X,TopLeftY=Y,Width=128,Height=128,MaxDepth=1f };
             this.CommandList->RSSetViewports(1,&Viewport);this.CommandList->RSSetScissorRects(1,&Rect);
-            this.VirtualGeometryShadowCasters.Clear();
-            foreach(var Object in this.VirtualShadowObjects){
-                if(!Object.CastsShadow||!IntersectsProjection(Object,Projection)){ continue; }
-                if(this.SkipsNormalDraw(Object.Id,VariantAvailable)){
-                    this.VirtualGeometryShadowCasters.Add(Object.Id);
-                    continue;
-                }
-                var ObjectIndex=Object.Id;var Mesh=this.ObjectMeshIndices[ObjectIndex];
-                this.SetDrawConstants(ObjectIndex);
-                fixed(D3D12_VERTEX_BUFFER_VIEW*Vertex=&this.VertexBufferViews[Mesh])
-                fixed(D3D12_INDEX_BUFFER_VIEW*Indices=&this.IndexBufferViews[Mesh]){
-                    this.CommandList->IASetVertexBuffers(0,1,Vertex);this.CommandList->IASetIndexBuffer(Indices);this.CommandList->DrawIndexedInstanced(this.IndexCounts[Mesh],1,0,0,0);
-                }
-            }
-            // 仮想ジオメトリの物体は、主ビューで選んだ塊で影を落とす（M0130 単位 5）。
-            if(this.VirtualGeometryShadowCasters.Count>0){
-                _=this.DrawSelectedVirtualGeometry(StagePipelines.Shadow,ShadowVirtualGeometryVerticesRootParameter,this.VirtualGeometryShadowCasters.Contains);
-            }
+            this.DrawShadowCasters(Projection,this.VirtualShadowObjects,VariantAvailable);
         }
         Barrier=D3D12_RESOURCE_BARRIER.InitTransition(this.VirtualShadowAtlas,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         this.CommandList->ResourceBarrier(1,&Barrier);
+    }
+    /// <summary>
+    /// 影を落とす物のうち、行列 <paramref name="Projection"/> の範囲に入るものを、今の描画先とビューポートへ描く（M0115 と M0132 のページで共有）。
+    /// 影のルートシグネチャ・PSO・物体の表と、行列の定数バッファを束縛してから呼ぶ。仮想ジオメトリの物体は、主ビューで選んだ塊で影を落とす（M0130 単位 5）。
+    /// </summary>
+    private void DrawShadowCasters(Matrix4x4 Projection,List<VirtualShadowBounds>Objects,bool VariantAvailable){
+        this.VirtualGeometryShadowCasters.Clear();
+        foreach(var Object in Objects){
+            if(!Object.CastsShadow||!IntersectsProjection(Object,Projection)){ continue; }
+            if(this.SkipsNormalDraw(Object.Id,VariantAvailable)){
+                this.VirtualGeometryShadowCasters.Add(Object.Id);
+                continue;
+            }
+            var ObjectIndex=Object.Id;
+            var Mesh=this.ObjectMeshIndices[ObjectIndex];
+            this.SetDrawConstants(ObjectIndex);
+            fixed(D3D12_VERTEX_BUFFER_VIEW*Vertex=&this.VertexBufferViews[Mesh])
+            fixed(D3D12_INDEX_BUFFER_VIEW*Indices=&this.IndexBufferViews[Mesh]){
+                this.CommandList->IASetVertexBuffers(0,1,Vertex);
+                this.CommandList->IASetIndexBuffer(Indices);
+                this.CommandList->DrawIndexedInstanced(this.IndexCounts[Mesh],1,0,0,0);
+            }
+        }
+        if(this.VirtualGeometryShadowCasters.Count>0){
+            _=this.DrawSelectedVirtualGeometry(StagePipelines.Shadow,ShadowVirtualGeometryVerticesRootParameter,this.VirtualGeometryShadowCasters.Contains);
+        }
     }
     private static bool IntersectsProjection(VirtualShadowBounds Object,Matrix4x4 Projection){
         Span<int>Outside=stackalloc int[6];
