@@ -27,7 +27,19 @@ public sealed unsafe partial class StageRenderer {
     private readonly VirtualShadowMapPlanner ShadowMapPlanner=new();
     private StageVirtualShadowRequests?ShadowRequests;
     /// <summary>格子を世界に固定する位置（既定は区画 0、ずれ 0。描画空間がそのまま世界の位置のとき）。</summary>
-    internal VirtualShadowAnchor ShadowAnchor { get;set; }
+    private VirtualShadowAnchor ShadowAnchor;
+    /// <summary>
+    /// 仮想シャドウの格子を世界に固定する区画と、描画空間の原点の区画の中の位置（M0132）。カメラ相対で描く実行時は L5 がカメラの世界の位置から渡す。
+    /// 区画が変わると計画が全部のページを捨てる。描画空間がそのまま世界の位置なら既定の値のままでよい。変更するまで値を保持する。
+    /// </summary>
+    public void SetVirtualShadowAnchor(VirtualShadowAnchor Anchor){
+        this.ThrowIfDisposed();
+        var Offset=Anchor.DrawingOriginOffset;
+        if(!float.IsFinite(Offset.X)||!float.IsFinite(Offset.Y)||!float.IsFinite(Offset.Z)){
+            throw new ArgumentOutOfRangeException(nameof(Anchor),"The virtual shadow anchor offset must be finite.");
+        }
+        this.ShadowAnchor=Anchor;
+    }
     /// <summary>試験用: 影の方式がカスケード影でも、仮想シャドウの経路（要求、計画、ページの描画、ページ表）を動かす。</summary>
     internal bool VirtualShadowMapsForTesting { get;set; }
     /// <summary>
@@ -57,7 +69,6 @@ public sealed unsafe partial class StageRenderer {
     private ID3D12Resource*ShadowPageProjectionBuffer;
     private byte*ShadowPageProjectionMapped;
     private uint ShadowPageLastFrameIndex;
-    private float ShadowPageOriginStamp;
     private const int ShadowPageProjectionsPerFrame=VirtualShadowMapPlanner.MaximumPhysicalPages+1;
     /// <summary>
     /// 主パスの前: 要求を読み戻して計画し、作るページを置き場へ描き、ページ表をこのフレームの枠へ上げる。
@@ -68,11 +79,6 @@ public sealed unsafe partial class StageRenderer {
         if(!this.VirtualShadowMapsForTesting&&Settings.Mode!=DirectionalShadowMode.Virtual&&!Settings.Compare||this.DirectionalShadowIndex<0){ return; }
         var PhysicalPages=Settings.PageBudget;
         this.EnsureShadowPageResources(PhysicalPages);
-        // 描画空間の高さ（描画の原点）が変わると、同じ描画空間の位置が別の世界の位置になる。
-        if(this.ShadowPageOriginStamp!=this.RenderOriginAltitudeMeters){
-            this.ShadowMapPlanner.Reset();
-            this.ShadowPageOriginStamp=this.RenderOriginAltitudeMeters;
-        }
         // この枠へ前に写した要求（FrameCount フレーム前）。MoveToNextFrame がその枠のフェンスを待ってある。
         if(this.ShadowRequestSlotRecorded[this.FrameIndex]){
             this.ShadowRequestSlotRecorded[this.FrameIndex]=false;

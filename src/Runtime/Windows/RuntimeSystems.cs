@@ -727,7 +727,7 @@ internal struct RectAreaLightSync:ISystem {
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(RectAreaLightSync))]
 internal struct TransformSync:ISystem {
-    public void Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,VirtualObjectReadiness VirtualObjects,EngineHost Host,ref State State){
         if(Renderable.ObjectIndex<0){
             return;
         }
@@ -762,8 +762,13 @@ internal struct TransformSync:ISystem {
                 World*=FirstPersonViewWarp.Matrix(Host.RenderCamera,FirstPerson);
             }
             Renderer.SetObjectTransform(Renderable.ObjectIndex,World);
+            // M0133: VirtualObject の段の子孫は、親がその段を選んでいないフレームは描かない（影も落とさない）。
+            var HiddenLevel=VirtualObjects.HasLevels&&VirtualObjectVisibility.IsHidden(SourceEntity,State.World);
             if(State.World.TryGetComponent(SourceEntity,out MeshVisibility Visibility)){
-                Renderer.SetObjectVisibility(Renderable.ObjectIndex,Visibility.VisibleToCamera,Visibility.CastsShadow);
+                Renderer.SetObjectVisibility(Renderable.ObjectIndex,Visibility.VisibleToCamera&&!HiddenLevel,Visibility.CastsShadow&&!HiddenLevel);
+                Renderable.VisibilityApplied=true;
+            } else if(HiddenLevel){
+                Renderer.SetObjectVisibility(Renderable.ObjectIndex,false,false);
                 Renderable.VisibilityApplied=true;
             } else if(Renderable.VisibilityApplied){
                 Renderer.SetObjectVisibility(Renderable.ObjectIndex,true,true);

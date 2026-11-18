@@ -5204,18 +5204,33 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L4 — 計画(`src/Engine/Rendering/VirtualShadowMaps.cs` の `VirtualShadowAnchor`・`VirtualShadowMapPlanner`)、置き場の割り当て(`Streaming/PageSlotAllocator.cs`)、L0 — ページの要求とページの描画(`assets/Shaders/VirtualShadowRequest.hlsl`、`src/Windows/Graphics/StageVirtualShadowRequests.cs`、`StageRenderer.VirtualShadowMaps.cs`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・5)。M0115 の F-L4-020 を置き換える
-- Status: Partial(2026-11-18。M0132 単位 1〜4。仮想シャドウの方式は、画面の要求・L4 の計画・置き場・16 段の影を引くシェーダーで描く。M0115 の計画と置き場は削除。Stage の取り決めは stage-v22)
+- Status: Implemented(2026-11-18。M0132。仮想シャドウの方式は、画面の要求・L4 の計画・置き場・16 段の影を引くシェーダーで描く。L5 がカメラの世界の位置から区画を渡す。M0115 の計画と置き場は削除。Stage の取り決めは stage-v22)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 5、`Docs/Milestones/M0132-Virtual-Shadow-Maps.md`
-- Stage: なし(M0132 の締めで足す)
+- Stage: `rendering.virtual-shadows`(Visual / Rendering、F-L4-020 と共有)
 - Depends on: F-L4-023
-- Implementation evidence: 段 16、1 段 128×128 ページ × 128×128 テクセル、置き場 4,096 ページ。格子は区画(1,024 m)の角から光の向きの回転で写した座標に固定する。物を包む箱は区画の角から測って 1 mm を超えて動いたらページを古くする
-- Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)。Windowsのテスト `VirtualShadowRequestGpuTests`(GPU の要求が CPU の同じ規則と一致、シェーダーの式は L4 の写し)、`VirtualShadowMapPageGpuTests`(置き場のページの深度が、同じ範囲をまとめて描いた深度と一致、止まったカメラでは作り直し 0)
-- Current delta: 計画の呼び出しを描画器の外へ出すこと、L5 からの区画、実機の計測と締めが無い(単位 5)
-- Conformance: Partial
-- Next action: M0132 単位 5(締め)
+- Implementation evidence: 段 16、1 段 128×128 ページ × 128×128 テクセル、置き場 4,096 ページ。格子は区画(1,024 m)の角から光の向きの回転で写した座標に固定する。物を包む箱は区画の角から測って 1 mm を超えて動いたらページを古くする。L5 の `EngineHost` がカメラの Q64.64 の位置から区画と区画の中の位置を求め、`RenderServer.SetVirtualShadowAnchor` で渡す(完了したフレームの再生にも入る)。実機 RTX 4060 Ti の 1920×1080 で、カメラ相対で歩く 60 フレームの間に古くなったページは 0。秒速 3 m では仮想シャドウのページの GPU の時間の中央値 0.054 ms、作れていないページ 0、秒速 30 m では 0.162 ms、作れていない細かいページの中央値 186(粗い段で代わりに描く)。置き場は既定 1,024 ページで 64 MiB
+- Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)。Windowsのテスト `VirtualShadowRequestGpuTests`(GPU の要求が CPU の同じ規則と一致、シェーダーの式は L4 の写し)、`VirtualShadowMapPageGpuTests`(置き場のページの深度が、同じ範囲をまとめて描いた深度と一致、止まったカメラでは作り直し 0、区画を渡すとカメラ相対で動いても古くなるページ 0)、`VirtualShadowGpuTests`(M0115 の約束)、`VirtualShadowMeasurementTests`(歩くカメラ、計測)、`RenderFrameStatePersistenceTests`(区画の記録と再生)
+- Known deviations: 計画(L4 の `VirtualShadowMapPlanner`)は、M0131 の仮想ジオメトリの出し入れ(`VirtualGeometryResidency`)と同じく、読み戻しを持つ描画器(L0)が呼ぶ。読み戻しの結果を描画サーバーへ上げて計画を描画器の外で呼ぶ形は、二つの出し入れでまとめて決める(片方だけ変えない)。カスケード影は仮想シャドウのときも毎フレーム描く(代わりに使うため)。
+- Conformance: MatchesWithDocumentedExtension
+- Next action: なし(M0133 へ)
 
+
+## F-L5-050 — VirtualObject(画面の大きさで描き方の段を切り替える)
+
+- Layer: L4 — 段の選び方(`src/Engine/Rendering/VirtualObjects.cs` の `VirtualObjectSelector`)、L5 — 部品・サービス・System(`src/Runtime/Windows/VirtualObject.cs`)と描画の同期(`RuntimeSystems.cs` の `TransformSync`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 6)
+- Status: Implemented(2026-11-18、M0133)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 6、`Docs/Milestones/M0133-Virtual-Object.md`
+- Stage: `rendering.virtual-object`(Headless / Rendering)
+- Depends on: F-L4-023
+- Implementation evidence: 親の `VirtualObject`(半径、段 1〜4 の閾値、ヒステリシス)が、カメラから見た球の直径の画素(`ScreenSizeMetric`、位置の差は固定小数点で引いた後)で段を選ぶ。段の子の `VirtualObjectLevel` は準備をサービス `VirtualObjectReadiness` で親へ知らせ、`Parent<VirtualObjectRuntime>` で親の段を読み、選ばれた段の子孫だけが描かれる(影も)。見本 `UserEcsProject/Scenes/VirtualObjectSampleScene.json`
+- Tests: エンジンのテスト `VirtualObjectSelectorTests`(6 件、Omni の受入基準)、Windowsのテスト `VirtualObjectTests`(WARP の描画器を持つエンジンで、距離と段、選ばれた子だけ描く印、準備、不正な設定)
+- Conformance: Matches
+- Next action: なし(M0134 へ)
 ## F-L4-021 — Entity を使わない物理の契約
 
 - Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`

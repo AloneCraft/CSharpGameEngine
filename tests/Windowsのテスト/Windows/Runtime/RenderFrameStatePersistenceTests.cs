@@ -49,4 +49,23 @@ public sealed class RenderFrameStatePersistenceTests {
         Assert.True(Second.TryGetWorldGridAnchor(3,out var Own));
         Assert.Equal(new Vector3(0.2f),Own);
     }
+    [Fact]
+    public void VirtualShadowAnchor_IsInheritedUntilItChanges(){
+        var First=new RenderFrameState(0);
+        First.RecordVirtualShadowAnchor(new VirtualShadowAnchor(2,0,-1,new Vector3(52.3f,1.7f,1018f)));
+        var Second=new RenderFrameState(0);
+        Second.InheritPersistentSettings(First);
+        Assert.True(Second.TryGetVirtualShadowAnchor(out var Inherited));
+        Assert.Equal(new VirtualShadowAnchor(2,0,-1,new Vector3(52.3f,1.7f,1018f)),Inherited);
+        var Third=new RenderFrameState(0);
+        Third.RecordVirtualShadowAnchor(new VirtualShadowAnchor(3,0,-1,Vector3.Zero));
+        Third.InheritPersistentSettings(Second);
+        Assert.True(Third.TryGetVirtualShadowAnchor(out var Own));
+        Assert.Equal(3,Own.CellX);
+        Assert.False(new RenderFrameState(0).TryGetVirtualShadowAnchor(out _));
+        // 空に戻すと区画も消える（残ると記録が空にならず、描画サーバーが前のフレームを再生しなくなる）。
+        Third.Reset();
+        Assert.True(Third.IsEmpty);
+        Assert.False(Third.TryGetVirtualShadowAnchor(out _));
+    }
 }

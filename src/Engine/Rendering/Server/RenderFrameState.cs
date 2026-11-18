@@ -39,6 +39,8 @@ internal sealed class RenderFrameState {
     private bool HasEnvironment;
     private bool HasCameraAltitude;
     private bool HasRenderOriginAltitude;
+    private VirtualShadowAnchor ShadowAnchor;
+    private bool HasShadowAnchor;
     private RenderPresentationMode PresentationMode;
     private bool HasAmbientLight;
     private bool HasFog;
@@ -87,7 +89,7 @@ internal sealed class RenderFrameState {
 
     public bool IsEmpty=>
         !this.ViewSource.HasValue&&!this.HasAmbientLight&&!this.HasFog
-        &&!this.HasEnvironment&&!this.HasCameraAltitude&&!this.HasRenderOriginAltitude
+        &&!this.HasEnvironment&&!this.HasCameraAltitude&&!this.HasRenderOriginAltitude&&!this.HasShadowAnchor
         &&this.WorldGridAnchors.Count==0
         &&!this.HasPresentationMode
         &&!this.HasOverlay
@@ -133,6 +135,16 @@ internal sealed class RenderFrameState {
     public void RecordRenderOriginAltitude(float Meters){
         this.RenderOriginAltitude=Meters;
         this.HasRenderOriginAltitude=true;
+    }
+
+    public void RecordVirtualShadowAnchor(VirtualShadowAnchor Anchor){
+        this.ShadowAnchor=Anchor;
+        this.HasShadowAnchor=true;
+    }
+
+    internal bool TryGetVirtualShadowAnchor(out VirtualShadowAnchor Anchor){
+        Anchor=this.ShadowAnchor;
+        return this.HasShadowAnchor;
     }
 
     public void RecordWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
@@ -263,6 +275,7 @@ internal sealed class RenderFrameState {
         if(!this.HasEnvironment&&Previous.HasEnvironment){ this.RecordEnvironment(Previous.Environment); }
         if(!this.HasCameraAltitude&&Previous.HasCameraAltitude){ this.RecordCameraAltitude(Previous.CameraAltitude); }
         if(!this.HasRenderOriginAltitude&&Previous.HasRenderOriginAltitude){ this.RecordRenderOriginAltitude(Previous.RenderOriginAltitude); }
+        if(!this.HasShadowAnchor&&Previous.HasShadowAnchor){ this.RecordVirtualShadowAnchor(Previous.ShadowAnchor); }
         foreach(var (MaterialIndex,Anchor) in Previous.WorldGridAnchors){
             this.WorldGridAnchors.TryAdd(MaterialIndex,Anchor);
         }
@@ -302,6 +315,7 @@ internal sealed class RenderFrameState {
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
         if(this.HasCameraAltitude){ Renderer.SetCameraAltitude(this.CameraAltitude); }
         if(this.HasRenderOriginAltitude){ Renderer.SetRenderOriginAltitude(this.RenderOriginAltitude); }
+        if(this.HasShadowAnchor){ Renderer.SetVirtualShadowAnchor(this.ShadowAnchor); }
         foreach(var (MaterialIndex,Anchor) in this.WorldGridAnchors){
             Renderer.SetWorldGridAnchor(MaterialIndex,Anchor);
         }
@@ -360,6 +374,7 @@ internal sealed class RenderFrameState {
         this.HasEnvironment=false;
         this.HasCameraAltitude=false;
         this.HasRenderOriginAltitude=false;
+        this.HasShadowAnchor=false;
         this.WorldGridAnchors.Clear();
         this.HasPresentationMode=false;
         this.HasOverlay=false;

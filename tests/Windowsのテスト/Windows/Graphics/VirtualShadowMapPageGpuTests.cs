@@ -96,6 +96,46 @@ public sealed class VirtualShadowMapPageGpuTests {
         }
         Assert.DoesNotContain(Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
     }
+    /// <summary>
+    /// 実行時と同じくカメラを描画空間の原点にして描く（物はカメラから見た位置）。区画を渡すと、カメラだけが動く間に古くなるページは 0。
+    /// 区画を渡さないと、物の描画空間の位置がフレームごとに変わるので、ページが古くなる（試験がこの違いを見分けられること）。
+    /// </summary>
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void Warp_ACameraThatOnlyMovesMakesNoPageStaleWithTheAnchor(){
+        using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Virtual Shadow Anchor GPU Test",Width=Width,Height=Height,Visible=false });
+        static StageMeshCreateInfo Mesh(ProceduralMeshData Data)=>new(){ Positions=Data.Positions,Normals=Data.Normals,
+            Tangents=Enumerable.Repeat(new Vector4(1f,0f,0f,1f),Data.Positions.Length).ToArray(),Uvs=new Vector2[Data.Positions.Length],Indices=Data.Indices };
+        using var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
+            [Mesh(ProceduralMeshFactory.CreatePlane(Width:400f,Depth:400f)),Mesh(ProceduralMeshFactory.CreateBox(Vector3.One))],
+            [new StageMaterialCreateInfo { BaseColorFactor=new Vector4(0.7f,0.7f,0.7f,1f),RoughnessFactor=1f,MetallicFactor=0f }],
+            [new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 },new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }]);
+        Renderer.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DirectionalShadows=new(DirectionalShadowMode.Virtual) });
+        var View=Camera.CreateFirstPerson(Vector3.Zero);
+        View.Pitch=-0.12f;
+        // 世界の位置は区画 2 の中（2,048 m より先）。区画の大きさを跨がない範囲で動く。
+        var Start=new Vector3(2100.3f,1.7f,-6f);
+        (int Invalidated,int Reused)Render(Vector3 CameraWorld,bool Anchor){
+            Renderer.SetVirtualShadowAnchor(Anchor?new VirtualShadowAnchor(2,0,-1,CameraWorld-new Vector3(2048f,0f,-1024f)):default);
+            Renderer.SetAmbientLight(new Vector3(0.3f));
+            Renderer.SetCamera(View);
+            Renderer.SetDirectionalLight(Vector3.Normalize(new Vector3(0.35f,0.8f,-0.45f)),Vector3.One,3f,CastsShadows:true,ShadowBiasMeters:0.005f);
+            Renderer.SetObjectTransform(0,Matrix4x4.CreateTranslation(new Vector3(2100f,0f,0f)-CameraWorld));
+            Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(new Vector3(2100.5f,0.5f,0f)-CameraWorld));
+            Renderer.SetObjectTransform(2,Matrix4x4.CreateScale(2f,4f,2f)*Matrix4x4.CreateTranslation(new Vector3(2096f,2f,12f)-CameraWorld));
+            Renderer.RenderFrame();
+            return (Renderer.VirtualShadowStatistics.Invalidated,Renderer.VirtualShadowStatistics.Reused);
+        }
+        for(var Frame=0;Frame<StageRenderer.FrameCount+3;Frame++){ _=Render(Start,Anchor:true); }
+        var Moving=new List<(int Invalidated,int Reused)>();
+        for(var Frame=1;Frame<=10;Frame++){ Moving.Add(Render(Start+new Vector3(0.37f,0.05f,0.21f)*Frame,Anchor:true)); }
+        Assert.All(Moving,static Step=>Assert.Equal(0,Step.Invalidated));
+        Assert.True(Moving.Sum(static Step=>Step.Reused)>0,"no page was reused while the camera moved");
+        var WithoutAnchor=0;
+        for(var Frame=11;Frame<=14;Frame++){ WithoutAnchor+=Render(Start+new Vector3(0.37f,0.05f,0.21f)*Frame,Anchor:false).Invalidated; }
+        Assert.True(WithoutAnchor>0,"without the anchor the moving render space should make pages stale");
+        Assert.DoesNotContain(Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
+    }
     /// <summary>ページ表の、置いたページとその置き場の番号。</summary>
     private static List<(VirtualShadowPageKey Key,int Slot)>ResidentPages(uint[]Table,(int X,int Y)[]Origins){
         var Result=new List<(VirtualShadowPageKey Key,int Slot)>();

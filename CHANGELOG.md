@@ -1,5 +1,19 @@
 # Changelog
 
+- VirtualObject(M0133、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 6、SDK 0.1.0-dev.55)。**利用側の変更**:
+  - 新しい部品 `VirtualObject`(親: 半径と段 1〜4 へ上がる画素の大きさ、ヒステリシス)と `VirtualObjectLevel`(段の子: 段の番号と準備)。親が画面の画素だけで段を選び、選ばれた段の子(と子孫)だけが描かれる(影も)。準備できていない段へは上がらない。見本 `UserEcsProject/Scenes/VirtualObjectSampleScene.json`。
+  - 描画の同期(`TransformSync`)は、VirtualObject の段の子孫を、選ばれていない段なら `MeshVisibility` より優先して隠す。VirtualObject を使わないゲームは何も変わらない。
+  - FeatureRunner に `rendering.virtual-object`(F-L5-050)を足した。
+
+- 仮想シャドウの作り直し(M0132、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 1・5、SDK 0.1.0-dev.54)。**利用側の変更**:
+  - 影の方式が仮想シャドウ(`DirectionalShadowMode.Virtual`)のとき、段は 16(段 0 の幅 8 m、段 15 は約 131 km)、1 段は 128×128 ページ × 128×128 テクセルになった。要るページは、主パスの後に計算シェーダー(新しい `VirtualShadowRequest.hlsl`)が画面の画素から決める。M0115 の 200 m の打ち切りは無くなった。
+  - ページの格子は世界に固定する。実行時はエンジンがカメラの世界の位置から区画を渡すので、カメラが動くだけなら作り直すページは 0。描画サーバーに `SetVirtualShadowAnchor` を足した。
+  - 要求は数フレーム遅れて届く。最初の数フレームとデバイスの作り直しの直後は、影をカスケード影で描く。速く動くと、まだ作れていない細かいページは粗い段で代わりに描く。
+  - `DirectionalShadowSettings.PageBudget` の上限は 4096(既定 1024 のまま、置き場は 8192×2048、64 MiB)。
+  - Stage のシェーダーの取り決めは `stage-v22`(フレームの定数の段の行列が 16 になり 2,016 バイト。**以前に複製した Stage シェーダーやフレームの定数の写しは作り直しが要る**)。M0115 の `VirtualDirectionalShadowCache` は削除した。
+  - 仮想シャドウを使うゲームは、計算シェーダーの成果物 `VirtualShadowRequest.cgeshaderartifact` も要る(エンジンの組み立ての設定に足した)。
+  - FeatureRunner の `rendering.virtual-shadows` に F-L4-026 と新しい試験を足した。
+
 - 仮想ジオメトリの遮蔽判定と読み込み(M0131、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 1・3、SDK 0.1.0-dev.53)。**利用側の変更**:
   - 主パスは、前のフレームで見えた塊を先に描き、その距離から作った Hi-Z(新しい計算シェーダー `HiZ.hlsl`)で残りを調べて、隠れていない塊だけを描く。絵は遮蔽なしと画素が同じ。影・Lumen・カメラプレビューは遮蔽を掛けない。壁の後ろに 36 個の球を置いた場面で、1920×1080 の実機の主パスの塊が 1,952 → 164、時間が 1.13〜1.17 → 1.02 ms。
   - 塊は、索引の枠と 32 頂点の区画でできた置き場に置く。ページ(まとまりが作った塊の組)は、選択の知らせを読み戻して、メッシュごとの予算の中で要るものだけを置く。既定の予算は上限なし(全部を置くので、絵は前と同じ)。全部を置くと、頂点を共有していた前の形の約 2.1 倍の GPU の量を使う。

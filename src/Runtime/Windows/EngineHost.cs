@@ -427,6 +427,13 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
             // カメラは描画空間の原点なので、描画空間の高さもここから始まる。
             Renderer.SetRenderOriginAltitude(Altitude);
         }
+        // M0132: 仮想シャドウの格子は 1,024 m の区画の角に固定する。カメラが描画空間の原点なので、区画の中のカメラの位置が描画の原点のずれになる。
+        if(this.HasCameraPose
+            &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M41,VirtualShadowAnchor.CellSizeMeters,out var ShadowCellR,out var ShadowOffsetR)
+            &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M42,VirtualShadowAnchor.CellSizeMeters,out var ShadowCellU,out var ShadowOffsetU)
+            &&WorldVoxelGrid.TryLocate(this.CameraFrameLocalOrigin.M43,VirtualShadowAnchor.CellSizeMeters,out var ShadowCellF,out var ShadowOffsetF)){
+            Renderer.SetVirtualShadowAnchor(new VirtualShadowAnchor(ShadowCellR,ShadowCellU,ShadowCellF,new Vector3(ShadowOffsetR,ShadowOffsetU,ShadowOffsetF)));
+        }
         if(this.HasCameraPose){
             foreach(var (MaterialIndex,CellMeters) in this.WorldGridMaterials){
                 Renderer.SetWorldGridAnchor(MaterialIndex,new Vector3(

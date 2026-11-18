@@ -40,6 +40,8 @@ public interface IStageRenderBackend:IDisposable {
     void SetCameraAltitude(float Meters);
     void SetRenderOriginAltitude(float Meters);
     void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor);
+    /// <summary>仮想シャドウの格子を世界に固定する区画と、描画空間の原点の区画の中の位置（M0132）。変更するまで値を保持する。</summary>
+    void SetVirtualShadowAnchor(VirtualShadowAnchor Anchor);
     void SetObjectTransform(int ObjectIndex,Matrix4x4 World);
     void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette);
     void SetPresentationMode(RenderPresentationMode Mode);

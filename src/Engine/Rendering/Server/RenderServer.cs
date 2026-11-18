@@ -234,6 +234,11 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordRenderOriginAltitude(Meters);
     }
     /// <summary>レンダリング座標原点をグリッドマテリアルの区画サイズで剰余に変換した値。ワールド空間のグリッドをワールド格子に一致させる。</summary>
+    /// <summary>仮想シャドウの格子を世界に固定する区画（M0132、ADR-0100 決定 5）。カメラ相対で描く呼び出し側（L5）がフレームごとに渡す。</summary>
+    public void SetVirtualShadowAnchor(VirtualShadowAnchor Anchor){
+        this.Backend.SetVirtualShadowAnchor(Anchor);
+        this.PendingFrame.RecordVirtualShadowAnchor(Anchor);
+    }
     public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
         this.Backend.SetWorldGridAnchor(MaterialIndex,Anchor);
         this.PendingFrame.RecordWorldGridAnchor(MaterialIndex,Anchor);
