@@ -19,6 +19,8 @@ internal static class AssetThumbnailService {
     private const int MaximumEntries=128;
     private const int MaximumBytes=8*1024*1024;
     private static readonly object Gate=new();
+    // 順番待ちの空き。いっぱいのときは新しい依頼が空きを待つ(見えているタイルの依頼を取り消すと、タイルは頼み直さず空のまま残る)。
+    private static readonly SemaphoreSlim QueueSlots=new(MaximumPending,MaximumPending);
     private static readonly LinkedList<Work>Queue=new();
     private static readonly Dictionary<string,Work>Pending=new(StringComparer.Ordinal);
     private static readonly Dictionary<string,CacheEntry>Cache=new(StringComparer.Ordinal);
@@ -66,14 +68,30 @@ internal static class AssetThumbnailService {
         lock(Gate){
             if(Cache.TryGetValue(Key,out var Existing)){ Recency.Remove(Existing.Node);Recency.AddFirst(Existing.Node);return Task.FromResult<BitmapSource?>(Existing.Image); }
             if(Pending.TryGetValue(Key,out var ExistingWork)&&!ExistingWork.Cancellation.IsCancellationRequested){ return SubscribeAsync(ExistingWork,Cancellation); }
-            // New visible requests take priority over obsolete queued tiles. One running request is never duplicated.
-            while(Queue.Count>=MaximumPending){
-                var Old=Queue.Last!.Value;Queue.RemoveLast();if(Pending.TryGetValue(Old.Key,out var Current)&&ReferenceEquals(Current,Old)){ Pending.Remove(Old.Key); }Old.Completion.TrySetCanceled();Old.Stop.Cancel();Old.Stop.Dispose();
-            }
-            var Next=new Work(Key,Item,Project,Edge);Queue.AddFirst(Next);Pending[Key]=Next;
-            if(!Running){ Running=true;_=Task.Run(RunAsync); }
-            return SubscribeAsync(Next,Cancellation);
         }
+        return AdmitAsync(Key,Item,Project,Edge,Cancellation);
+    }
+    /// <summary>
+    /// 空きを待ってから順番待ちに入れる。待っている間に呼び手が取り消せば、その依頼だけが抜ける。
+    /// 画面から外れたタイルは自分の取り消しで抜けるので、見えている依頼を押し出す必要はない。1 つの依頼が二重に走ることもない。
+    /// </summary>
+    private static async Task<BitmapSource?>AdmitAsync(string Key,AssetWorkspaceItem Item,Project?Project,int Edge,CancellationToken Cancellation){
+        await QueueSlots.WaitAsync(Cancellation).ConfigureAwait(false);
+        var OwnsSlot=true;
+        Task<BitmapSource?>Operation;
+        try {
+            lock(Gate){
+                Cancellation.ThrowIfCancellationRequested();
+                if(Cache.TryGetValue(Key,out var Existing)){ Recency.Remove(Existing.Node);Recency.AddFirst(Existing.Node);return Existing.Image; }
+                if(Pending.TryGetValue(Key,out var ExistingWork)&&!ExistingWork.Cancellation.IsCancellationRequested){ Operation=SubscribeAsync(ExistingWork,Cancellation); }
+                else{
+                    var Next=new Work(Key,Item,Project,Edge);Queue.AddFirst(Next);Pending[Key]=Next;OwnsSlot=false;
+                    if(!Running){ Running=true;_=Task.Run(RunAsync); }
+                    Operation=SubscribeAsync(Next,Cancellation);
+                }
+            }
+        }finally { if(OwnsSlot){ QueueSlots.Release(); } }
+        return await Operation.ConfigureAwait(false);
     }
     private static async Task<BitmapSource?>SubscribeAsync(Work Work,CancellationToken Cancellation){
         lock(Gate){ Work.Subscribers++; }
@@ -95,7 +113,7 @@ internal static class AssetThumbnailService {
             Work Next;
             lock(Gate){
                 if(Queue.First is null){ Running=false;return; }
-                Next=Queue.First.Value;Queue.RemoveFirst();
+                Next=Queue.First.Value;Queue.RemoveFirst();QueueSlots.Release();
             }
             try {
                 Next.Cancellation.ThrowIfCancellationRequested();
