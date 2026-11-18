@@ -68,8 +68,10 @@ public sealed class SceneSourceTruthArchitectureTests {
 
         Assert.Contains("TryAnalyze(NewText",Source,StringComparison.Ordinal);
         Assert.Contains("CanonicalProjection",Source,StringComparison.Ordinal);
-        Assert.Contains("SceneSourceCommitPlan.Success(Request.DocumentVersion!=Latest.DocumentVersion,Canonical!,CanonicalProjection",Source,StringComparison.Ordinal);
-        Assert.DoesNotContain("Success(Request.DocumentVersion!=Latest.DocumentVersion,Predicted,",Source,StringComparison.Ordinal);
+        // WasRebased は、画像の出力の乗せ替えで依頼を差し替える前の版で判定する。
+        Assert.Contains("var WasRebased=Request.DocumentVersion!=Latest.DocumentVersion;",Source,StringComparison.Ordinal);
+        Assert.Contains("SceneSourceCommitPlan.Success(WasRebased,Canonical!,CanonicalProjection",Source,StringComparison.Ordinal);
+        Assert.DoesNotContain("Success(WasRebased,Predicted,",Source,StringComparison.Ordinal);
     }
 
     [Fact]

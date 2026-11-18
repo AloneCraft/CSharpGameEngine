@@ -63,7 +63,7 @@ internal sealed class SceneEditCommitRequest {
     internal SceneEditCommitRequest(
         SceneKey SceneKey,long DocumentVersion,string UndoDescription,IReadOnlyList<SceneTransformChange>Changes,
         SceneTransformMemberMask Members,IReadOnlyList<NodePath>?DuplicateResultPaths=null,
-        IReadOnlyList<SceneEditOperation>?DirectOperations=null){
+        IReadOnlyList<SceneEditOperation>?DirectOperations=null,SceneImageOutputPrecondition?ImageOutputPrecondition=null){
         this.SceneKey=SceneKey;
         this.DocumentVersion=DocumentVersion;
         this.UndoDescription=UndoDescription;
@@ -71,6 +71,7 @@ internal sealed class SceneEditCommitRequest {
         this.Members=Members;
         this.DuplicateResultPaths=DuplicateResultPaths??Array.Empty<NodePath>();
         this.DirectOperations=DirectOperations??Array.Empty<SceneEditOperation>();
+        this.ImageOutputPrecondition=ImageOutputPrecondition;
     }
 
     internal SceneKey SceneKey { get; }
@@ -86,6 +87,8 @@ internal sealed class SceneEditCommitRequest {
     internal IReadOnlyList<NodePath>DuplicateResultPaths { get; }
 
     internal IReadOnlyList<SceneEditOperation>DirectOperations { get; }
+    /// <summary>画像に足した出力を割り当てるとき、保存の直前に満たしているべき .meta の本文とカタログの値。</summary>
+    internal SceneImageOutputPrecondition?ImageOutputPrecondition { get; }
 
     internal bool IsDuplicate=>this.DuplicateResultPaths.Count>0;
 }

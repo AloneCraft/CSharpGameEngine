@@ -21,6 +21,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
     private readonly Dictionary<SceneKey,PendingSourceLanding>PendingSourceLandings=[];
     private long Generation;
     private bool Disposed;
+    private readonly CancellationTokenSource Lifetime=new();
 
     internal SceneEditorSessionService(SceneWorkspaceService Workspace){
         this.Workspace=Workspace??throw new ArgumentNullException(nameof(Workspace));
@@ -82,6 +83,15 @@ internal sealed class SceneEditorSessionService : IDisposable {
 
     internal Task WaitForDocumentAsync(string FilePath,CancellationToken CancellationToken)=>
         this.Workspace.WaitForDocumentAsync(FilePath,CancellationToken);
+    /// <summary>画像に足した出力がカタログに現れるまで待つ。セッションを閉じるか 30 秒で打ち切る。</summary>
+    internal async Task WaitForImageOutputAsync(SceneKey Key,SceneImageOutputPrecondition Precondition,CancellationToken CancellationToken){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
+        if(this.Disposed){ throw new OperationCanceledException(); }
+        var LifetimeToken=this.Lifetime.Token;
+        using var Bounded=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken,LifetimeToken);
+        Bounded.CancelAfter(TimeSpan.FromSeconds(30));
+        await this.Workspace.WaitForImageOutputAsync(Key,Precondition,Bounded.Token).ConfigureAwait(false);
+    }
 
     internal Task<ProjectSceneCatalog?>GetActiveProjectSceneCatalogAsync(
         CancellationToken CancellationToken)=>
@@ -189,7 +199,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             try {
                 Written=await this.Workspace.ApplyTextAsync(
                     WorkspaceContext,Plan.WriteStep.Changes,Plan.WriteStep.UndoDescription,
-                    CancellationToken).ConfigureAwait(false);
+                    CancellationToken,Request.ImageOutputPrecondition).ConfigureAwait(false);
             } catch {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(
                     CancellationToken.None);
@@ -375,6 +385,8 @@ internal sealed class SceneEditorSessionService : IDisposable {
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
+        this.Lifetime.Cancel();
+        this.Lifetime.Dispose();
         this.Workspace.AllModelsChanged-=this.OnWorkspaceModelsChanged;
         this.Snapshots.Clear();
         this.Reconcilers.Clear();

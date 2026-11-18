@@ -8,6 +8,10 @@ indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
 
+# 素材の .meta は正規の本文のまま保存する(末尾に改行を足すと、保存した本文が書いた本文と食い違う)。
+[*.meta]
+insert_final_newline = false
+
 [*.cs]
 dotnet_sort_system_directives_first = true
 csharp_style_var_for_built_in_types = true:suggestion

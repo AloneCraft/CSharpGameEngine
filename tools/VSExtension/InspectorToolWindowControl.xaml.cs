@@ -858,9 +858,11 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         if(Sender is not FrameworkElement{DataContext:InspectorMemberViewModel ViewModel}){ return; }
         var Items=AssetsToolWindowPane.Controller?.Items??[];
         var Context=CgeProjectContext.Resolve(SceneEditorHub.ActiveSceneModel?.FilePath);
-        var ProjectItems=Items.Where(Item=>Item.Source.ProjectPath==Context?.ProjectFilePath).ToArray();
+        var ProjectItems=Items.Where(Item=>string.Equals(Item.Source.ProjectPath,Context?.ProjectFilePath,StringComparison.OrdinalIgnoreCase)).ToArray();
         var Names=AssetCatalogLayout.Map(ProjectItems.Where(static Item=>AssetReferencePlanner.InCatalog(Item.Source.RelativePath)).Select(static Item=>Item.Source.RelativePath));
-        var Item=ProjectItems.FirstOrDefault(Item=>Item.Source.RelativePath==ViewModel.Member.ConstantValue as string
+        // JSON に保存した画像の値は Path("Assets/Photo.png:color")なので、その元の画像を探す。
+        var Item=ProjectItems.FirstOrDefault(Item=>Item.Source.RelativePath==ViewModel.Member.AssetSourcePath
+            ||Item.Source.RelativePath==ViewModel.Member.ConstantValue as string
             ||Names.TryGetValue(Item.Source.RelativePath,out var Name)&&Name==ViewModel.Member.SourceExpression.Replace("global::",string.Empty));
         if(Item is not null){ AssetWorkspaceSelection.Reveal(Item.Source.SourcePath); }
     }
@@ -943,10 +945,22 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
             if(!ImageOutputDrop.Accepts(ImageView.Member,ImageAsset,Args.Data.GetData(typeof(ImageOutputDrag)) as ImageOutputDrag)){ ExternalLinked?.AbortLinkedUndo();SetStatus(VsixText.Get("Assets_ImageTypeMismatch"));return; }
             if(this.Session is not { }Session||this.CurrentSnapshot is not { }ImageSnapshot){ ExternalLinked?.AbortLinkedUndo();return; }
             Microsoft.VisualStudio.TextManager.Interop.IVsLinkedUndoTransactionManager?Linked=ExternalLinked;
+            SceneImageOutputPrecondition?MetadataEdit=null;
+            SceneImageOutputObservation?SceneObservation=null;
             try {
-                var Prepared=await ImageOutputDrop.PrepareAsync(ImageView.Member,ImageAsset,Args.Data.GetData(typeof(ImageOutputDrag)) as ImageOutputDrag,Linked);Linked=Prepared.Linked;
+                // 画像の準備で待つ前に、シーンの本文と割り当て先を覚える。待っている間に変わったら、.meta を書く前と保存の直前に断る。
+                var ScenePath=ImageSnapshot.CurrentModel?.FilePath??throw new InvalidOperationException("The scene source is unavailable.");
+                SceneObservation=new(ImageSnapshot.Key,ScenePath,AssetDocumentWorkspace.Read(ScenePath),ImageView.Member);
+                var Prepared=await ImageOutputDrop.PrepareAsync(ImageView.Member,ImageAsset,Args.Data.GetData(typeof(ImageOutputDrag)) as ImageOutputDrag,Linked,PreparedMetadata=>{
+                    MetadataEdit=PreparedMetadata;
+                    if(this.Disposed||!ReferenceEquals(this.Session,Session)||SceneObservation is null
+                        ||!SceneObservation.MatchesSource(SceneObservation.ScenePath,AssetDocumentWorkspace.Read(SceneObservation.ScenePath))){ throw new InvalidOperationException(VsixText.Get("Assets_Conflict")); }
+                });Linked=Prepared.Linked;
+                var Precondition=Prepared.Precondition is { }Metadata?Metadata with {SceneObservation=SceneObservation??throw new InvalidOperationException("The original scene input was not captured.")}:null;
+                // 足した出力の名前がカタログに現れるまで待ってから保存する。
+                if(Precondition is not null){ await Session.WaitForImageOutputAsync(ImageSnapshot.Key,Precondition,CancellationToken.None); }
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                var Commit=SceneInspectorCommitPlanner.CreateCommit(ImageSnapshot.Key,ImageSnapshot.DocumentVersion,ImageView.Member,Prepared.Expression);
+                var Commit=SceneInspectorCommitPlanner.CreateCommit(ImageSnapshot.Key,ImageSnapshot.DocumentVersion,ImageView.Member,Prepared.Expression,Precondition);
                 var Result=await Session.CommitAsync(Commit,CancellationToken.None);
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();if(!Result.Succeeded){ throw new InvalidOperationException(Result.ErrorMessage); }
                 if(Linked is not null){
@@ -956,8 +970,23 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
                 }
                 if(AssetsToolWindowPane.Controller is { }Controller){ await Controller.RefreshAsync(); }this.TryRefresh(Force:true);
             }catch(Exception Error){
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();Linked?.AbortLinkedUndo();
-                if(Linked is not null){ AssetDocumentWorkspace.Save(ImageAsset.Source.SourcePath+".meta"); }SetStatus(Error.Message);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                try {
+                    if(Linked is not null){
+                        Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(Linked.AbortLinkedUndo());
+                        // 元に戻した .meta は、バッファーが書く前の本文に戻り、ディスクが自分の書いた本文か元の本文のときだけ保存する(他人の書き込みを消さない)。
+                        if(MetadataEdit is { }Metadata){
+                            if(!Metadata.CanPersistRollback(AssetDocumentWorkspace.Read(Metadata.MetadataPath),System.IO.File.ReadAllText(Metadata.MetadataPath))){ throw new InvalidOperationException("Metadata rollback conflicts with the restored buffer or current disk text."); }
+                            AssetDocumentWorkspace.Save(Metadata.MetadataPath);
+                            if(!string.Equals(System.IO.File.ReadAllText(Metadata.MetadataPath),Metadata.MetadataBefore,StringComparison.Ordinal)){ throw new InvalidOperationException("Restored image metadata was not saved."); }
+                        }
+                    }
+                }catch(Exception RollbackError){ SetStatus(new AggregateException("Image output assignment failed and rollback could not be persisted.",Error,RollbackError).Message);return; }
+                if(Error.Data["MetadataReadiness"] is string Readiness){
+                    try { ActivityLog.LogWarning(nameof(ImageOutputDrop),Readiness+"; "+Error.Data["ImageOutputReadiness"]); }
+                    catch(Exception DiagnosticError)when(DiagnosticError is System.Runtime.InteropServices.COMException or InvalidOperationException){ /* 診断の記録は失敗しても片付けを止めない。 */ }
+                }
+                SetStatus(Error.Message);
             }
             return;
         }

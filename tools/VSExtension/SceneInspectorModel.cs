@@ -68,6 +68,8 @@ internal sealed class SceneInspectorMember {
     internal string?AssetTypeName{get;}
     /// <summary>JSON に保存された画像の値の Path(<c>new TextureAsset("...")</c> の引数)。</summary>
     internal string?AssetPath{get;}
+    /// <summary>保存された画像の値が指す元の画像のパス(元のファイルを示すボタンに使う)。</summary>
+    internal string?AssetSourcePath=>ImageAssetSourcePath.Parse(this.AssetPath,this.AssetTypeName);
     internal CSharpGameEngine.Contracts.TextureUsage?TextureUsage{get;}
     internal LightValueContract?PhysicalContract{get;}
     /// <summary>
@@ -660,14 +662,15 @@ internal static class SceneInspectorValueFormat {
 /// </summary>
 internal static class SceneInspectorCommitPlanner {
     internal static SceneEditCommitRequest CreateCommit(
-        SceneKey SceneKey,long DocumentVersion,SceneInspectorMember Member,string NewValueExpression){
+        SceneKey SceneKey,long DocumentVersion,SceneInspectorMember Member,string NewValueExpression,
+        SceneImageOutputPrecondition?ImageOutputPrecondition=null){
         SetComponentMemberOperation Operation=new(
             SceneKey,Member.NodeId,DocumentVersion,Member.ComponentTypeFullyQualifiedName,
             Member.MemberName,NewValueExpression,MemberPath:[..Member.DefinitionMemberPath]);
         return new SceneEditCommitRequest(
             SceneKey,DocumentVersion,$"Edit {Member.MemberName}",
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
-            DirectOperations:[Operation]);
+            DirectOperations:[Operation],ImageOutputPrecondition:ImageOutputPrecondition);
     }
 
     internal static bool TryCreateChoiceCommit(

@@ -87,9 +87,17 @@ internal static class AssetDocumentWorkspace {
         ThreadHelper.ThrowIfNotOnUIThread();
         var Pointer=IntPtr.Zero;
         try {
-            ErrorHandler.ThrowOnFailure(Rdt.FindAndLockDocument((uint)_VSRDTFLAGS.RDT_NoLock,PathValue,out _,out _,out Pointer,out _));
+            ErrorHandler.ThrowOnFailure(Rdt.FindAndLockDocument((uint)_VSRDTFLAGS.RDT_NoLock,PathValue,out var Hierarchy,out var ItemId,out Pointer,out var Cookie));
             if(Pointer==IntPtr.Zero||Marshal.GetObjectForIUnknown(Pointer) is not IVsPersistDocData Persist){
                 throw new InvalidOperationException(VsixText.Format("AssetEditor_SaveUnavailable",PathValue));
+            }
+            if(Cookie!=0){
+                // 開いている書類の一覧(RDT)を通して保存すると、保存の知らせが流れ、Roslyn が .meta から作る生成カタログを作り直す。
+                // 書類を直接保存するとこの知らせが出ず、画像に足した出力の名前がカタログに現れない。
+                var Result=Rdt.SaveDocuments((uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_ForceSave,Hierarchy,ItemId,Cookie);
+                if(Result==VSConstants.E_ABORT){ throw new OperationCanceledException(); }
+                ErrorHandler.ThrowOnFailure(Result);
+                return;
             }
             ErrorHandler.ThrowOnFailure(Persist.SaveDocData(VSSAVEFLAGS.VSSAVE_Save,out _,out var Cancelled));
             if(Cancelled!=0){ throw new OperationCanceledException(); }

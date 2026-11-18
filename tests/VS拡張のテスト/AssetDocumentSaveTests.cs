@@ -55,14 +55,33 @@ public sealed class AssetDocumentSaveTests {
             Assert.Equal(1,Persist.SaveCount);
         });
     }
+    /// <summary>VS に登録された書類は RDT の保存を通す(保存の知らせで生成カタログが作り直される)。直接は保存しない。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RegisteredDocumentIsSavedThroughTheRunningDocumentTable(bool Abort){
+        ThreadHelper.JoinableTaskFactory.Run(async()=>{
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var Persist=new PersistedDocument(false);
+            var Table=new MissingDocumentTable { Pointer=Marshal.GetIUnknownForObject(Persist),Cookie=7,ItemId=11,SaveResult=Abort?VSConstants.E_ABORT:VSConstants.S_OK };
+            if(Abort){ Assert.Throws<OperationCanceledException>(()=>AssetDocumentWorkspace.Save(@"C:\Photo.png.meta",Table)); }
+            else { AssetDocumentWorkspace.Save(@"C:\Photo.png.meta",Table); }
+            Assert.Equal(0,Persist.SaveCount);
+            Assert.Equal(((uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_ForceSave,11u,7u),Assert.Single(Table.Saves));
+        });
+    }
     private sealed class MissingDocumentTable:IVsRunningDocumentTable {
         internal IntPtr Pointer;
+        internal uint Cookie;
+        internal uint ItemId;
+        internal int SaveResult=VSConstants.S_OK;
+        internal readonly List<(uint Flags,uint ItemId,uint Cookie)>Saves=[];
         internal int AdviseCount;
         internal int UnadviseCount;
         internal uint LastUnadvisedCookie;
         internal IVsRunningDocTableEvents?Sink;
         public int FindAndLockDocument(uint Flags,string Moniker,out IVsHierarchy Hierarchy,out uint ItemId,out IntPtr DocData,out uint Cookie){
-            Hierarchy=null!;ItemId=0;DocData=this.Pointer;Cookie=0;
+            Hierarchy=null!;ItemId=this.ItemId;DocData=this.Pointer;Cookie=this.Cookie;
             return VSConstants.S_OK;
         }
         public int RegisterAndLockDocument(uint Flags,string Moniker,IVsHierarchy Hierarchy,uint ItemId,IntPtr DocData,out uint Cookie)=>throw new NotSupportedException();
@@ -75,7 +94,7 @@ public sealed class AssetDocumentSaveTests {
         public int NotifyDocumentChanged(uint Cookie,uint Attributes)=>throw new NotSupportedException();
         public int NotifyOnAfterSave(uint Cookie)=>throw new NotSupportedException();
         public int GetRunningDocumentsEnum(out IEnumRunningDocuments Enumerator)=>throw new NotSupportedException();
-        public int SaveDocuments(uint Flags,IVsHierarchy Hierarchy,uint ItemId,uint Cookie)=>throw new NotSupportedException();
+        public int SaveDocuments(uint Flags,IVsHierarchy Hierarchy,uint ItemId,uint Cookie){ this.Saves.Add((Flags,ItemId,Cookie));return this.SaveResult; }
         public int NotifyOnBeforeSave(uint Cookie)=>throw new NotSupportedException();
         public int RegisterDocumentLockHolder(uint Flags,uint Cookie,IVsDocumentLockHolder Holder,out uint LockHolderCookie)=>throw new NotSupportedException();
         public int UnregisterDocumentLockHolder(uint LockHolderCookie)=>throw new NotSupportedException();

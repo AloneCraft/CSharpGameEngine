@@ -31,13 +31,14 @@ internal sealed record SceneTextWriteStep(
 internal sealed class SceneWorkspaceEditContext {
     internal SceneWorkspaceEditContext(
         DocumentId DocumentId,string FilePath,SceneModel Model,SyntaxNode Root,SourceText Text,
-        Compilation Compilation){
+        Compilation Compilation,Project?Project=null){
         this.DocumentId=DocumentId;
         this.FilePath=FilePath;
         this.Model=Model;
         this.Root=Root;
         this.Text=Text;
         this.Compilation=Compilation;
+        this.Project=Project;
     }
 
     internal DocumentId DocumentId { get; }
@@ -55,6 +56,8 @@ internal sealed class SceneWorkspaceEditContext {
     /// 差し替えて再解析するために使う。解決時点と同じ世代のCompilationであることが重要。
     /// </summary>
     internal Compilation Compilation { get; }
+    /// <summary><see cref="Compilation"/> と同じ世代のプロジェクト(画像の .meta の本文を確かめるのに使う)。</summary>
+    internal Project?Project { get; }
 }
 
 internal readonly struct SceneLiveBufferWriteResult {
@@ -457,7 +460,32 @@ internal sealed class SceneWorkspaceService : IDisposable {
         SourceText JsonText=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);
         return new SceneWorkspaceEditContext(
             JsonScene.Id,JsonScene.FilePath!,Resolved.Model,
-            await Resolved.Tree.GetRootAsync(CancellationToken).ConfigureAwait(false),JsonText,Resolved.Compilation);
+            await Resolved.Tree.GetRootAsync(CancellationToken).ConfigureAwait(false),JsonText,Resolved.Compilation,Project);
+    }
+    /// <summary>
+    /// 画像に足した出力が、保存した .meta の本文どおりにプロジェクトへ入り、生成カタログが同じ Path を返すようになるまで待つ。
+    /// </summary>
+    internal async Task WaitForImageOutputAsync(SceneKey Key,SceneImageOutputPrecondition Precondition,CancellationToken CancellationToken){
+        var Project=this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>string.Equals(Candidate.Id.Id.ToString("N"),Key.ProjectId,StringComparison.Ordinal))
+            ??throw new InvalidOperationException(VsixText.Get("SessionSaveSourceUnavailable"));
+        var Readiness="NotValidated";
+        try {
+            await WorkspaceMetadataReadiness.WaitAsync(this.Workspace,Project.Id,Precondition.MetadataPath,Precondition.MetadataText,async(Candidate,Token)=>{
+                Readiness="GettingCompilation";
+                var Compilation=await Candidate.GetCompilationAsync(Token).ConfigureAwait(false);
+                if(Compilation is null){ Readiness="CompilationUnavailable";return false; }
+                Readiness="FindingScene "+Key.ClassFullyQualifiedName;
+                if(await SceneJsonWorkspaceSource.FindAsync(Candidate,Key.ClassFullyQualifiedName,Token).ConfigureAwait(false)is not { }JsonScene){ Readiness="SceneUnavailable";return false; }
+                Readiness="ResolvingScene";
+                if(await ResolveJsonSceneAsync(Candidate,Compilation,JsonScene,Key.ClassFullyQualifiedName,Token).ConfigureAwait(false)is not { }Resolved){ Readiness="SceneResolveRejected";return false; }
+                Readiness="CheckingTypedCatalog";
+                var Matches=await Precondition.MatchesAsync(Candidate,Resolved.Compilation,Key.ClassFullyQualifiedName,Token).ConfigureAwait(false);
+                Readiness=Matches?"Ready":"TypedCatalogRejected";
+                return Matches;
+            },CancellationToken).ConfigureAwait(false);
+        }catch(OperationCanceledException Error){
+            Error.Data["ImageOutputReadiness"]=Readiness;throw;
+        }
     }
 
     /// <summary>
@@ -482,7 +510,14 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     internal async Task<SceneLiveBufferWriteResult>ApplyTextAsync(
         SceneWorkspaceEditContext Context,IReadOnlyList<TextChange>Changes,string UndoDescription,
-        CancellationToken CancellationToken){
+        CancellationToken CancellationToken,SceneImageOutputPrecondition?ImageOutputPrecondition=null){
+        // 画像に足した出力の割り当ては、待つ前に覚えたシーンの本文と、カタログの値がそのままのときだけ書く。
+        if(ImageOutputPrecondition?.SceneObservation is { }Observation&&!Observation.MatchesSource(Context.Model.FilePath,Context.Text.ToString())){
+            return new SceneLiveBufferWriteResult(false,VsixText.Get("Assets_Conflict"));
+        }
+        if(ImageOutputPrecondition is not null&&!await ImageOutputPrecondition.MatchesAsync(Context.Project,Context.Compilation,Context.Model.ClassFullyQualifiedName,CancellationToken).ConfigureAwait(false)){
+            return new SceneLiveBufferWriteResult(false,VsixText.Get("Assets_Conflict"));
+        }
         await this.TaskFactory.SwitchToMainThreadAsync(CancellationToken);
         if(this.EditorAdapters is null||this.TextBufferWriter is null){
             return new SceneLiveBufferWriteResult(false,VsixText.Get("WorkspaceEditorUndoServicesUnavailable"));
@@ -507,6 +542,18 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // CaptureViewPositions参照)。
         List<ViewPositionSnapshot>Restorations= this.CaptureViewPositions(Buffer,VsBuffer);
         try {
+            if(ImageOutputPrecondition is not null){
+                // 書く直前に、プロジェクトが古くなっていないこと、.meta のバッファーとディスクが保存した本文のままであることを確かめる。
+                try {
+                    if(Context.Project is null||!ReferenceEquals(Context.Project.Solution,this.Workspace.CurrentSolution)
+                        ||!string.Equals(AssetDocumentWorkspace.Read(ImageOutputPrecondition.MetadataPath),ImageOutputPrecondition.MetadataText,StringComparison.Ordinal)
+                        ||!string.Equals(System.IO.File.ReadAllText(ImageOutputPrecondition.MetadataPath),ImageOutputPrecondition.MetadataText,StringComparison.Ordinal)){
+                        return new SceneLiveBufferWriteResult(false,VsixText.Get("Assets_Conflict"));
+                    }
+                }catch(Exception Error)when(Error is System.IO.IOException or UnauthorizedAccessException or FormatException){
+                    return new SceneLiveBufferWriteResult(false,VsixText.Get("Assets_Conflict"));
+                }
+            }
             if(!this.TextBufferWriter.TryApply(Buffer,Context.Text,Changes,UndoDescription)){
                 return new SceneLiveBufferWriteResult(
                     false,VsixText.Get("WorkspaceSourceChangedDuringEdit"));

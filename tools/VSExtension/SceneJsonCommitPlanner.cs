@@ -50,6 +50,11 @@ internal static class SceneJsonCommitPlanner {
         if(Context.Model.HasErrors||Context.Model.Root is null||Latest.HasBlockingErrors||Latest.Projection is null){
             return SceneSourceCommitPlan.Failure(VsixText.Get("SessionSaveAnalysisErrors"));
         }
+        var WasRebased=Request.DocumentVersion!=Latest.DocumentVersion;
+        // 画像に足した出力はカタログを変え、シーンの版を進める。本文と割り当て先が変わっていない場合に限り、新しい版へ乗せ替える。
+        if(Request.ImageOutputPrecondition?.SceneObservation is { }Observation&&!Observation.TryRefresh(Context,Latest,Request,out Request)){
+            return SceneSourceCommitPlan.Failure(VsixText.Get("Assets_Conflict"));
+        }
         var Merged=SceneEditConflictMerger.Merge(Request,Latest);
         if(!Merged.Succeeded){
             return SceneSourceCommitPlan.Failure(Merged.ErrorMessage??VsixText.Get("SourceEditOperationFailed"));
@@ -95,7 +100,7 @@ internal static class SceneJsonCommitPlanner {
         var CanonicalProjection=Reconciler.Reconcile(Request.SceneKey,Canonical!,PredictedProjection);
         var Changes=SceneTextChangePlanner.PlanMinimal(Context.Text,NewText);
         var WriteStep=new SceneTextWriteStep(Context.Text,Changes,SceneUndoTransactionNaming.Format(Request.UndoDescription));
-        return SceneSourceCommitPlan.Success(Request.DocumentVersion!=Latest.DocumentVersion,Canonical!,CanonicalProjection,FinalRoot!,WriteStep);
+        return SceneSourceCommitPlan.Success(WasRebased,Canonical!,CanonicalProjection,FinalRoot!,WriteStep);
     }
     /// <summary>
     /// JSON シーンを designer view として読み込みます。同等の C# class を JSON パスとともに解析し、<paramref name="BaseCompilation"/> 上で解析します。テキストが有効なシーンでない場合、最初のドキュメント問題を <paramref name="Error"/> に示します。

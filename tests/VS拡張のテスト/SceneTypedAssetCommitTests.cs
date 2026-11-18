@@ -133,6 +133,87 @@ public sealed class SceneTypedAssetCommitTests {
         Assert.False(Plan.Succeeded);
         Assert.Null(Plan.WriteStep);
     }
+    /// <summary>
+    /// 画像に出力を足すとカタログが変わり、シーンの版が進む。シーンの本文と割り当て先が変わっていなければ、新しい版へ乗せ替えて保存する。
+    /// 前提を持たない普通の確定は、古い版として断られる(main で新しい出力の割り当てが失敗していた形)。
+    /// </summary>
+    [Fact]
+    public void ObservationAllowsOnlyCatalogAdvanceWithUnchangedScene(){
+        var Before=CreateSeed("TextureAsset",false,Catalog);
+        var Member=EditableMember(Before);
+        var Observation=new SceneImageOutputObservation(Key,JsonPath,Before.Context.Text.ToString(),Member);
+        var Added=Catalog.Replace("internal static class Photo {","internal static class Photo { public static readonly global::CSharpGameEngine.Authoring.TextureAsset Normal=new(\"Assets/Photo.png:normal\");");
+        var Latest=CreateSeed("TextureAsset",false,Added,Before.Context.Text.ToString());
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document-a",2,2,Latest.Context.Model,false,Before.Snapshot,Before.Reconciler);
+        var Precondition=new SceneImageOutputPrecondition(@"C:\Game\Assets\Photo.png.meta","after","CSharpGameEngine.Authoring.TextureAsset","global::Assets.Photo.Normal","Assets/Photo.png:normal",SceneObservation:Observation);
+        var Ordinary=SceneInspectorCommitPlanner.CreateCommit(Key,1,Member,Precondition.Expression);
+        var Stale=SceneSourceCommitPlanner.Plan(Latest.Context,Snapshot,Ordinary,Before.Reconciler,CancellationToken.None);
+        Assert.False(Stale.Succeeded);
+        Assert.Null(Stale.WriteStep);
+        var Request=SceneInspectorCommitPlanner.CreateCommit(Key,1,Member,Precondition.Expression,Precondition);
+        var Plan=SceneSourceCommitPlanner.Plan(Latest.Context,Snapshot,Request,Before.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        Assert.Equal(Before.Context.Text.ToString().Replace("\"Path\": \"\"","\"Path\": \"Assets/Photo.png:normal\""),Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString());
+    }
+    /// <summary>待っている間にシーンの本文・割り当て先・型・用途・書き込み可否・場所・値が変わったら保存しない。</summary>
+    [Theory]
+    [InlineData("value")]
+    [InlineData("whitespace")]
+    [InlineData("type")]
+    [InlineData("usage")]
+    [InlineData("readonly")]
+    [InlineData("missing")]
+    [InlineData("key")]
+    [InlineData("payload")]
+    public void ObservationRejectsChangedSceneOrBinding(string Change){
+        var Before=CreateSeed("TextureAsset",false,Catalog);
+        var Member=EditableMember(Before);
+        if(Change=="usage"||Change=="readonly"){
+            Member=new SceneInspectorMember(Member.NodeId,Member.ComponentTypeFullyQualifiedName,Member.MemberName,Member.SourceExpression,
+                Change!="readonly",Member.EditorKind,Member.ConstantValue,Member.NumericType,Member.Candidates,Member.DefinitionMemberPath,
+                AssetTypeName:Member.AssetTypeName,TextureUsage:Change=="usage"?CSharpGameEngine.Contracts.TextureUsage.Normal:null,AssetPath:Member.AssetPath);
+        }
+        var Observation=new SceneImageOutputObservation(Key,JsonPath,Before.Context.Text.ToString(),Member);
+        var Text=Before.Context.Text.ToString();
+        if(Change=="value"){ Text=Text.Replace("\"Gain\": 3","\"Gain\": 4"); }
+        if(Change=="whitespace"){ Text=Text.Replace("\"Gain\": 3","\"Gain\":  3"); }
+        if(Change=="missing"){ Text=Text.Replace("{ \"type\": \"Game.ImageProbe\", \"members\": { \"Value\": { \"Path\": \"\" }, \"Gain\": 3 } }",""); }
+        var Latest=CreateSeed(Change=="type"?"ImageAsset":"TextureAsset",false,Catalog,Text);
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document-a",2,2,Latest.Context.Model,false,Before.Snapshot,Before.Reconciler);
+        var Precondition=new SceneImageOutputPrecondition(@"C:\Game\Assets\Photo.png.meta","after","CSharpGameEngine.Authoring.TextureAsset","global::Assets.Photo.Color","Assets/Photo.png:color",SceneObservation:Observation);
+        var Request=SceneInspectorCommitPlanner.CreateCommit(Change=="key"?new SceneKey("other","Game.MainScene"):Key,1,Member,Change=="payload"?"global::Assets.Photo.Default":Precondition.Expression,Precondition);
+        var Plan=SceneSourceCommitPlanner.Plan(Latest.Context,Snapshot,Request,Before.Reconciler,CancellationToken.None);
+        Assert.False(Plan.Succeeded);
+        Assert.Null(Plan.WriteStep);
+    }
+    [Fact]
+    public void ObservationSourceMatchUsesWindowsPathButExactText(){
+        var Seed=CreateSeed("TextureAsset",false,Catalog);
+        var Observation=new SceneImageOutputObservation(Key,JsonPath,Seed.Context.Text.ToString(),EditableMember(Seed));
+        Assert.True(Observation.MatchesSource(JsonPath.ToLowerInvariant(),Seed.Context.Text.ToString()));
+        Assert.False(Observation.MatchesSource(@"C:\Game\Scenes\Other.json",Seed.Context.Text.ToString()));
+        Assert.False(Observation.MatchesSource(JsonPath,Seed.Context.Text.ToString()+" "));
+    }
+    [Fact]
+    public void ObservationRejectsWritableMemberThatBecomesReadOnly(){
+        var Before=CreateSeed("TextureAsset",false,Catalog);
+        var Member=EditableMember(Before);
+        Assert.True(Member.IsEditable);
+        var Observation=new SceneImageOutputObservation(Key,JsonPath,Before.Context.Text.ToString(),Member);
+        var Latest=CreateSeed("TextureAsset",false,Catalog,Before.Context.Text.ToString(),ReadOnly:true);
+        var Snapshot=SceneDocumentSnapshot.Create(Key,"document-a",2,2,Latest.Context.Model,false,Before.Snapshot,Before.Reconciler);
+        Assert.False(Latest.Context.Model.HasErrors);
+        Assert.False(Snapshot.HasBlockingErrors);
+        var Selection=new SceneSelection(Key,[Member.NodeId],Member.NodeId,null,null,SceneSelectionOrigin.Inspector,2,Guid.NewGuid());
+        Assert.False(Assert.Single(SceneInspectorModelBuilder.Build(Snapshot,Selection),Current=>Current.MemberName=="Value").IsEditable);
+        var Precondition=new SceneImageOutputPrecondition(@"C:\Game\Assets\Photo.png.meta","after","CSharpGameEngine.Authoring.TextureAsset","global::Assets.Photo.Color","Assets/Photo.png:color",SceneObservation:Observation);
+        var Request=SceneInspectorCommitPlanner.CreateCommit(Key,1,Member,Precondition.Expression,Precondition);
+        Assert.True(Assert.IsAssignableFrom<IFieldSymbol>(Latest.Context.Compilation.GetTypeByMetadataName("Game.ImageProbe")!.GetMembers("Value").Single()).IsReadOnly);
+        Assert.False(Observation.TryRefresh(Latest.Context,Snapshot,Request,out _));
+        var Plan=SceneSourceCommitPlanner.Plan(Latest.Context,Snapshot,Request,Before.Reconciler,CancellationToken.None);
+        Assert.False(Plan.Succeeded);
+        Assert.Null(Plan.WriteStep);
+    }
     private static SceneInspectorMember EditableMember(Seed Seed){
         var Node=Assert.Single(Seed.Snapshot.Projection!.Nodes).Id;
         var Selection=new SceneSelection(Key,[Node],Node,null,null,SceneSelectionOrigin.Inspector,1,Guid.NewGuid());
@@ -141,8 +222,8 @@ public sealed class SceneTypedAssetCommitTests {
         Assert.True(Member.IsEditable);
         return Member;
     }
-    private static Seed CreateSeed(string Type,bool Property,string CatalogSource,string?Json=null){
-        var Component="namespace Game { public struct ImageProbe { public global::CSharpGameEngine.Authoring."+Type+" Value"+(Property?" { get; set; }":";")+" public float Gain; public readonly global::CSharpGameEngine.Authoring.TextureAsset Locked; public global::CSharpGameEngine.Authoring.TextureAsset ReadOnlyProperty=>default; public static global::CSharpGameEngine.Authoring.TextureAsset Static; private global::CSharpGameEngine.Authoring.TextureAsset Private; } }";
+    private static Seed CreateSeed(string Type,bool Property,string CatalogSource,string?Json=null,bool ReadOnly=false){
+        var Component="namespace Game { public struct ImageProbe { public "+(ReadOnly?"readonly ":"")+"global::CSharpGameEngine.Authoring."+Type+" Value"+(Property?" { get; set; }":";")+" public float Gain; public readonly global::CSharpGameEngine.Authoring.TextureAsset Locked; public global::CSharpGameEngine.Authoring.TextureAsset ReadOnlyProperty=>default; public static global::CSharpGameEngine.Authoring.TextureAsset Static; private global::CSharpGameEngine.Authoring.TextureAsset Private; "+(ReadOnly?"public ImageProbe(global::CSharpGameEngine.Authoring."+Type+" Value){this.Value=Value;this.Gain=0;this.Locked=default;this.Private=default;}":string.Empty)+" } }";
         var Base=SceneAnalysisTestHelper.CreateCompilation(AssetTypes,Component,CatalogSource);
         var Text=Json??"{\r\n  \"schemaVersion\": 3,\r\n  \"namespace\": \"Game\",\r\n  \"className\": \"MainScene\",\r\n  \"root\": {\r\n    \"id\": \""+NodeId+"\",\r\n    \"name\": \"Probe\",\r\n    \"components\": [\r\n      { \"type\": \"Game.ImageProbe\", \"members\": { \"Value\": { \"Path\": \"\" }, \"Gain\": 3 } }\r\n    ],\r\n    \"children\": []\r\n  }\r\n}\r\n";
         Assert.True(SceneJsonCommitPlanner.TryAnalyze(Text,JsonPath,Base,"Game.MainScene",CancellationToken.None,out var Model,out var Root,out var Compilation,out var Error),Error);
