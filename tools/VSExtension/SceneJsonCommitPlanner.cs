@@ -56,7 +56,7 @@ internal static class SceneJsonCommitPlanner {
         }
         if(!SceneModelEditApplier.TryApply(
             Context.Model,Latest.Projection,Reconciler,Request.SceneKey,Merged.Operations,
-            out SceneModel Predicted,out SceneProjection PredictedProjection)){
+            out SceneModel Predicted,out SceneProjection PredictedProjection,Context.Compilation)){
             return SceneSourceCommitPlan.Failure(VsixText.Get("SourceEditOperationFailed"));
         }
         var BaseCompilation=Context.Compilation.RemoveSyntaxTrees(Context.Root.SyntaxTree);

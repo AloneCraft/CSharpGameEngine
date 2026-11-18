@@ -47,7 +47,7 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
             _=>Member.SourceExpression,
         };
         this.BooleanValue=Member.ConstantValue is bool BoolValue&&BoolValue;
-        this.SelectedChoiceName=SceneInspectorCommitPlanner.GetCurrentChoiceName(Member.SourceExpression);
+        this.SelectedChoiceName=SceneInspectorCommitPlanner.GetCurrentChoiceName(Member);
     }
 
     internal SceneInspectorMember Member { get; }

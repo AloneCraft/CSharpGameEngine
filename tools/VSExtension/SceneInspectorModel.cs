@@ -23,14 +23,17 @@ internal enum InspectorEditorKind {
 
 /// <summary>Enum候補1件。表示名と、commit時にそのままC#式として書き込める完全修飾参照を持つ。</summary>
 internal readonly struct InspectorChoiceCandidate {
-    internal InspectorChoiceCandidate(string Name,string EmitExpression){
+    internal InspectorChoiceCandidate(string Name,string EmitExpression,string?AssetPath=null){
         this.Name=Name;
         this.EmitExpression=EmitExpression;
+        this.AssetPath=AssetPath;
     }
 
     internal string Name { get; }
 
     internal string EmitExpression { get; }
+    /// <summary>画像のカタログの候補が指す Path(表示の手がかり。確定時にはカタログを改めて確かめる)。</summary>
+    internal string?AssetPath { get; }
 }
 
 /// <summary>Inspectorに表示する1つのComponent memberの行。編集不能なC#式はread-onlyとして表示する。</summary>
@@ -40,7 +43,8 @@ internal sealed class SceneInspectorMember {
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
         IReadOnlyList<InspectorChoiceCandidate>Candidates,
         IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null,SceneAngleUnit?AngleUnit=null,
-        string?DisplayName=null,string?AssetTypeName=null,CSharpGameEngine.Contracts.TextureUsage?TextureUsage=null,ITypeSymbol?FixedNumericType=null){
+        string?DisplayName=null,string?AssetTypeName=null,CSharpGameEngine.Contracts.TextureUsage?TextureUsage=null,ITypeSymbol?FixedNumericType=null,string?AssetPath=null){
+        this.AssetPath=AssetPath;
         this.FixedNumericType=FixedNumericType;
         this.AssetTypeName=AssetTypeName;this.TextureUsage=TextureUsage;
         this.PhysicalContract=PhysicalContract;
@@ -62,6 +66,8 @@ internal sealed class SceneInspectorMember {
     internal ITypeSymbol?FixedNumericType { get; }
 
     internal string?AssetTypeName{get;}
+    /// <summary>JSON に保存された画像の値の Path(<c>new TextureAsset("...")</c> の引数)。</summary>
+    internal string?AssetPath{get;}
     internal CSharpGameEngine.Contracts.TextureUsage?TextureUsage{get;}
     internal LightValueContract?PhysicalContract{get;}
     /// <summary>
@@ -329,7 +335,8 @@ internal static class SceneInspectorModelBuilder {
             [..ParentPath,Member.MemberName],
             AngleUnit:Angle,
             DisplayName:Display,AssetTypeName:DeclaredType?.ToDisplayString(),FixedNumericType:IsLogicalScalar(DeclaredType)?DeclaredType:null,
-            TextureUsage:Member.MemberSymbol?.GetAttributes().FirstOrDefault(A=>A.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Contracts.TextureUsageAttribute")?.ConstructorArguments.FirstOrDefault().Value is int Usage?(CSharpGameEngine.Contracts.TextureUsage)Usage:null));
+            TextureUsage:Member.MemberSymbol?.GetAttributes().FirstOrDefault(A=>A.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Contracts.TextureUsageAttribute")?.ConstructorArguments.FirstOrDefault().Value is int Usage?(CSharpGameEngine.Contracts.TextureUsage)Usage:null,
+            AssetPath:TypedAssetPath(Member.Value)));
     }
 
     /// <summary>
@@ -457,7 +464,9 @@ internal static class SceneInspectorModelBuilder {
     private static IReadOnlyList<InspectorChoiceCandidate>EnumerateAssetCandidates(
         SceneValue Value,ITypeSymbol?DeclaredType,IAssemblySymbol?Assembly){
         if(DeclaredType is null){ return []; }
-        var Container=Value.ReferencedSymbol?.ContainingType;
+        var TypedAsset=DeclaredType.ToDisplayString() is "CSharpGameEngine.Authoring.TextureAsset" or "CSharpGameEngine.Authoring.ImageAsset";
+        // JSON に保存した画像は new TextureAsset("...") の形なので、その型の中ではなく生成カタログ全体から候補を探す。
+        var Container=Value.Kind==SceneValueKind.ObjectCreation&&TypedAsset?null:Value.ReferencedSymbol?.ContainingType;
         var All=Container is null&&Assembly is not null;
         var Symbols=new List<ISymbol>();
         void Collect(INamedTypeSymbol Type){ Symbols.AddRange(Type.GetMembers());foreach(var Child in Type.GetTypeMembers()){ Collect(Child); } }
@@ -471,9 +480,25 @@ internal static class SceneInspectorModelBuilder {
                 _=>null,
             };
             if(CandidateType is null||!SymbolEqualityComparer.Default.Equals(CandidateType,DeclaredType)){ continue; }
-            Candidates.Add(new InspectorChoiceCandidate(All?Symbol.ToDisplayString():Symbol.Name,SceneEmitExpressionWriter.WriteSymbolReference(Symbol)));
+            Candidates.Add(new InspectorChoiceCandidate(All?Symbol.ToDisplayString():Symbol.Name,SceneEmitExpressionWriter.WriteSymbolReference(Symbol),
+                TypedAsset?CatalogLiteralPath(Symbol,new HashSet<ISymbol>(SymbolEqualityComparer.Default)):null));
         }
         return Candidates.OrderBy(static Candidate=>Candidate.Name,StringComparer.Ordinal).ToArray();
+    }
+    private static string?TypedAssetPath(SceneValue Value)=>
+        Value.Kind==SceneValueKind.ObjectCreation&&Value.Type?.ToDisplayString() is "CSharpGameEngine.Authoring.TextureAsset" or "CSharpGameEngine.Authoring.ImageAsset"
+            &&Value.Arguments.Length==1?Value.Arguments[0].ConstantValue as string:null;
+    /// <summary>生成カタログの値が書いている Path(表示の手がかり。確定時には記号と定数を改めて確かめる)。</summary>
+    private static string?CatalogLiteralPath(ISymbol Symbol,HashSet<ISymbol>Seen){
+        if(Seen.Count>=32||!Seen.Add(Symbol)){ return null; }
+        if(Symbol is IFieldSymbol{IsStatic:true,IsReadOnly:true}Field&&Field.DeclaringSyntaxReferences.Length==1
+            &&Field.DeclaringSyntaxReferences[0].GetSyntax() is VariableDeclaratorSyntax{Initializer.Value:BaseObjectCreationExpressionSyntax Creation}
+            &&Creation.Initializer is null&&Creation.ArgumentList?.Arguments.Count==1
+            &&Creation.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax Literal){ return Literal.Token.Value as string; }
+        if(Symbol is IPropertySymbol{IsStatic:true,SetMethod:null}Property&&Property.DeclaringSyntaxReferences.Length==1
+            &&Property.DeclaringSyntaxReferences[0].GetSyntax() is PropertyDeclarationSyntax{ExpressionBody.Expression:IdentifierNameSyntax Alias}
+            &&Property.ContainingType.GetMembers(Alias.Identifier.ValueText) is {Length:1}Targets){ return CatalogLiteralPath(Targets[0],Seen); }
+        return null;
     }
 }
 
@@ -660,7 +685,18 @@ internal static class SceneInspectorCommitPlanner {
     }
 
     internal static bool IsCurrentChoice(SceneInspectorMember Member,string SelectedName){
-        return string.Equals(GetCurrentChoiceName(Member.SourceExpression),SelectedName,StringComparison.Ordinal);
+        // 同じ Path を指す別名(Default など)を選び直しても書き込まない。
+        return Member.AssetPath is { }Path&&Member.Candidates.Any(Candidate=>Candidate.Name==SelectedName&&Candidate.AssetPath==Path)
+            ||string.Equals(GetCurrentChoiceName(Member),SelectedName,StringComparison.Ordinal);
+    }
+    /// <summary>今の値に当たる候補の名前。画像は保存された Path で探し、別名(Default)より本来の名前を選ぶ。</summary>
+    internal static string GetCurrentChoiceName(SceneInspectorMember Member){
+        if(Member.AssetPath is { }Path&&Member.Candidates.Where(Candidate=>Candidate.AssetPath==Path)
+            .OrderBy(static Candidate=>Candidate.EmitExpression.EndsWith(".Default",StringComparison.Ordinal)).FirstOrDefault().Name is { }Name){ return Name; }
+        foreach(var Candidate in Member.Candidates){
+            if(Candidate.EmitExpression==Member.SourceExpression.Trim()){ return Candidate.Name; }
+        }
+        return GetCurrentChoiceName(Member.SourceExpression);
     }
 
     internal static string GetCurrentChoiceName(string SourceExpression){

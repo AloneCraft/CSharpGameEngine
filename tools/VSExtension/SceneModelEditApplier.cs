@@ -31,7 +31,8 @@ namespace CSharpGameEngine.VSExtension;
 internal static class SceneModelEditApplier {
     internal static bool TryApply(
         SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler,SceneKey Key,
-        IReadOnlyList<SceneEditOperation>Operations,out SceneModel Predicted,out SceneProjection PredictedProjection){
+        IReadOnlyList<SceneEditOperation>Operations,out SceneModel Predicted,out SceneProjection PredictedProjection,
+        Microsoft.CodeAnalysis.Compilation?Compilation=null){
         Predicted=Base;
         PredictedProjection=Projection;
         if(Base.Root is not { }Root||Operations.Count==0
@@ -49,7 +50,7 @@ internal static class SceneModelEditApplier {
             }
 
             var ProjectionBeforeOp=CurrentProjection;
-            if(!TryApplyOne(CurrentRoot,CurrentProjection,TargetNode,Operation,out CurrentRoot,out var MovedToPath)){
+            if(!TryApplyOne(CurrentRoot,CurrentProjection,TargetNode,Operation,Base,Compilation,out CurrentRoot,out var MovedToPath)){
                 return false;
             }
 
@@ -121,6 +122,7 @@ internal static class SceneModelEditApplier {
 
     private static bool TryApplyOne(
         SceneNode Root,SceneProjection Projection,SceneProjectionNode TargetNode,SceneEditOperation Operation,
+        SceneModel Model,Microsoft.CodeAnalysis.Compilation?Compilation,
         out SceneNode Updated,out NodePath?MovedToPath){
         MovedToPath=null;
         var TargetPath=TargetNode.Path;
@@ -136,7 +138,7 @@ internal static class SceneModelEditApplier {
             }
             case SetComponentMemberOperation SetMember: {
                 var Live=GetAtPath(Root,TargetPath);
-                if(!TryApplySetMember(Live,SetMember,out var NewLive)){
+                if(!TryApplySetMember(Live,SetMember,Model,Compilation,out var NewLive)){
                     Updated=Root;
                     return false;
                 }
@@ -518,7 +520,8 @@ internal static class SceneModelEditApplier {
     }
 
     private static bool TryApplySetMember(
-        SceneNode Node,SetComponentMemberOperation Operation,out SceneNode Updated){
+        SceneNode Node,SetComponentMemberOperation Operation,SceneModel Model,
+        Microsoft.CodeAnalysis.Compilation?Compilation,out SceneNode Updated){
         Updated=Node;
         var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null||SceneEditValues.IsGenerated(Component.Location.FilePath)){
@@ -532,6 +535,12 @@ internal static class SceneModelEditApplier {
             return TryApplyNestedSetMember(Node,Component,Path,Operation,out Updated);
         }
         var Existing=FindMember(Component.Members,Operation.MemberName);
+        // 画像の欄に入れる生成カタログの名前は JSON の形が無いので、カタログが証明する Path の値(new TextureAsset("...") と同じ)に置き換える。
+        if(Compilation is not null&&SceneTypedAssetValue.IsTypedAsset(GetDeclaredMemberType(Component,Operation.MemberName)??Existing?.Value.Type,Compilation)){
+            if(!SceneTypedAssetValue.TryCreate(Compilation,Model,Component,Operation.MemberName,Operation.ValueExpression,out var AssetValue)){ return false; }
+            Updated=ReplaceComponent(Node,Component,WithMembers(Component,SetMember(Component.Members,Existing,Operation.MemberName,AssetValue,Component.Location)));
+            return true;
+        }
         var Symbol=Existing?.MemberSymbol??Component.TypeSymbol?.GetMembers(Operation.MemberName).FirstOrDefault();
         var Contract=LightValueContract.Find(GetDeclaredMemberType(Component,Operation.MemberName)??Existing?.Value.Type);
         if(Contract is not null&&Symbol is not null){
