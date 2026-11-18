@@ -1,0 +1,74 @@
+<Project>
+  <!--
+    Tile pyramids for terrain heights and colors (ADR-0100 decision 7, M0134). A game lists large rasters as CgeTileSource items:
+      <CgeTileSource Include="Data\LDEM_64.IMG" Name="moon-height" Raw="23040x11520:int16:le" Scale="0.5" Bounds="0,360,90,-90" />
+    Optional metadata: Name (output file name, default the source name), Raw, Scale, Offset, Bounds, Projection (equirectangular | planar),
+    Encoding (float32 | unorm16 | unorm8), Tile (tile size). Each source is compiled with `Cge content compile-tiles` only when it is newer
+    than its output, into obj\cge-content\tiles, and the index (*.cgetiles) and pack (*.cgetilepack) are copied to Content\Tiles.
+    The compiler reads the source a band of rows at a time, so the source may be larger than memory.
+  -->
+  <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
+    <CgeTileCompiler Condition="'$(CgeEngineMode)' == 'Package' and '$(CgeTileCompiler)' == ''">$(CgeEngineRoot)tools\Cge\Cge.dll</CgeTileCompiler>
+    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64</CgeToolBuildProperties>
+    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath</CgeToolRemoveProperties>
+  </PropertyGroup>
+  <Target Name="_CgeBuildTileTools" Condition="'$(CgeEngineMode)' == 'Source' and '$(DesignTimeBuild)' != 'true' and '@(CgeTileSource)' != ''">
+    <MSBuild Projects="$(CgeEngineRoot)tools\Cge\Cge.csproj" Targets="Build" BuildInParallel="false"
+      Properties="$(CgeToolBuildProperties)" RemoveProperties="$(CgeToolRemoveProperties)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeTileToolAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <CgeTileCompiler>@(_CgeTileToolAssembly->WithMetadataValue('Filename','Cge')->'%(FullPath)')</CgeTileCompiler>
+    </PropertyGroup>
+  </Target>
+  <Target Name="_CgeTileOutputs" Condition="'$(CgeGameProject)' == 'true' and '@(CgeTileSource)' != ''">
+    <PropertyGroup>
+      <CgeTileCookDirectory Condition="'$(CgeTileCookDirectory)' == ''">$(MSBuildProjectDirectory)\obj\cge-content\tiles</CgeTileCookDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CgeTileJob Include="@(CgeTileSource)">
+        <OutputName Condition="'%(CgeTileSource.Name)' != ''">%(CgeTileSource.Name)</OutputName>
+        <OutputName Condition="'%(CgeTileSource.Name)' == ''">%(CgeTileSource.Filename)</OutputName>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Index>$(CgeTileCookDirectory)\%(OutputName).cgetiles</Index>
+        <Pack>$(CgeTileCookDirectory)\%(OutputName).cgetilepack</Pack>
+        <Options Condition="'%(_CgeTileJob.Raw)' != ''">--raw %(_CgeTileJob.Raw) </Options>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Options Condition="'%(_CgeTileJob.Scale)' != ''">%(Options)--scale %(_CgeTileJob.Scale) </Options>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Options Condition="'%(_CgeTileJob.Offset)' != ''">%(Options)--offset %(_CgeTileJob.Offset) </Options>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Options Condition="'%(_CgeTileJob.Bounds)' != ''">%(Options)--bounds %(_CgeTileJob.Bounds) </Options>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Options Condition="'%(_CgeTileJob.Projection)' != ''">%(Options)--projection %(_CgeTileJob.Projection) </Options>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Options Condition="'%(_CgeTileJob.Encoding)' != ''">%(Options)--encoding %(_CgeTileJob.Encoding) </Options>
+      </_CgeTileJob>
+      <_CgeTileJob>
+        <Options Condition="'%(_CgeTileJob.Tile)' != ''">%(Options)--tile %(_CgeTileJob.Tile) </Options>
+      </_CgeTileJob>
+    </ItemGroup>
+  </Target>
+  <Target Name="CgeCompileTiles" BeforeTargets="AssignTargetPaths" DependsOnTargets="_CgeBuildTileTools;_CgeTileOutputs"
+    Condition="'$(CgeGameProject)' == 'true' and '$(DesignTimeBuild)' != 'true' and '@(CgeTileSource)' != ''"
+    Inputs="@(_CgeTileJob)" Outputs="%(_CgeTileJob.Index)">
+    <Error Condition="!Exists('$(CgeTileCompiler)')" Text="The CGE tile compiler (tools/Cge) is missing from the selected engine installation." />
+    <MakeDir Directories="$(CgeTileCookDirectory)" />
+    <Exec Command="dotnet &quot;$(CgeTileCompiler)&quot; content compile-tiles &quot;%(_CgeTileJob.FullPath)&quot; &quot;%(_CgeTileJob.Index)&quot; %(_CgeTileJob.Options)" />
+  </Target>
+  <Target Name="_CgeCopyTiles" AfterTargets="CgeCompileTiles" Condition="'$(CgeGameProject)' == 'true' and '$(DesignTimeBuild)' != 'true' and '@(CgeTileSource)' != ''">
+    <ItemGroup>
+      <Content Include="@(_CgeTileJob->'%(Index)');@(_CgeTileJob->'%(Pack)')">
+        <Link>Content\Tiles\%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
+</Project>

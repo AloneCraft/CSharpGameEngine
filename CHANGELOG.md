@@ -1,5 +1,12 @@
 # Changelog
 
+- タイルの前処理と地形、地形の仮想テクスチャ(M0134・M0135、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 7、SDK 0.1.0-dev.56)。**利用側の変更**:
+  - `Cge content compile-tiles` と、ゲームの組み立ての `CgeTileSource` 項目: TIFF(帯とタイル、圧縮なし・LZW・Deflate)と PDS の IMG を少しずつ読み、タイルの階層(`*.cgetiles` と `*.cgetilepack`)にして `Content\Tiles` へ置く。
+  - 新しい部品 `Terrain`: 平面か球の地形を、カメラから見た細かさで四分木のマスに分けて描く。高さは `HeightTiles`、色は `VirtualTexture` と `ColorTiles`(マスごとのページを層から作って貼る)。見本 `UserEcsProject/Scenes/TerrainSampleScene.json`。
+  - 描画サーバーに `ReplaceMesh`(メッシュの中身の差し替え)と `UpdateTextureRegion`(`RenderTextureResource.CreateDynamic` で作った画像の一部の書き換え)を足した。どちらも GPU を待たない。描画器の取り決め `IStageRenderBackend` にも足したので、独自の実装を持つ場合は足す必要がある。
+  - 描画器は物が 1 つ以上要るので、地形だけのレベルには小さな物を 1 つ置く。
+  - FeatureRunner に `content.tile-pyramids`(F-L7-060)、`world.terrain`(F-L5-051)、`rendering.terrain-virtual-texture`(F-L5-052)を足した。
+
 - VirtualObject(M0133、[ADR-0100](Docs/Decisions/ADR-0100-Virtualized-Rendering.md) 決定 6、SDK 0.1.0-dev.55)。**利用側の変更**:
   - 新しい部品 `VirtualObject`(親: 半径と段 1〜4 へ上がる画素の大きさ、ヒステリシス)と `VirtualObjectLevel`(段の子: 段の番号と準備)。親が画面の画素だけで段を選び、選ばれた段の子(と子孫)だけが描かれる(影も)。準備できていない段へは上がらない。見本 `UserEcsProject/Scenes/VirtualObjectSampleScene.json`。
   - 描画の同期(`TransformSync`)は、VirtualObject の段の子孫を、選ばれていない段なら `MeshVisibility` より優先して隠す。VirtualObject を使わないゲームは何も変わらない。

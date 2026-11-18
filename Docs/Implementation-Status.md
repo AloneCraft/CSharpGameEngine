@@ -5231,6 +5231,52 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Tests: エンジンのテスト `VirtualObjectSelectorTests`(6 件、Omni の受入基準)、Windowsのテスト `VirtualObjectTests`(WARP の描画器を持つエンジンで、距離と段、選ばれた子だけ描く印、準備、不正な設定)
 - Conformance: Matches
 - Next action: なし(M0134 へ)
+
+## F-L7-060 — 大きな画像のタイルの前処理
+
+- Layer: L7 — 読み手と前処理(`src/Import/Images/RasterSources.cs`、`TilePyramidCompiler.cs`、`tools/Cge/Content/TileCommands.cs`、`build/CSharpGameEngine.TileContent.targets`)、L6 — 形式と読み手(`src/Engine/Content/Tiles/TilePyramid.cs`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 7)
+- Status: Implemented(2026-11-18、M0134)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(月の実データ)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 7、`Docs/Milestones/M0134-Tile-Pyramids-And-Terrain.md`
+- Stage: `content.tile-pyramids`(Headless / Foundation)
+- Depends on: なし
+- Implementation evidence: TIFF・BigTIFF(帯とタイル、圧縮なし・LZW・Deflate、予測)と PDS の IMG を行の帯ごとに読み、索引 1 つ(`*.cgetiles`)とまとめファイル 1 つ(`*.cgetilepack`)のタイルの階層にする。LOLA の LDEM_64 を 59 秒で 5,460 タイルにした
+- Tests: エンジンのテスト `TilePyramidTests`
+- Conformance: Matches
+- Next action: なし
+
+## F-L5-051 — 地形(平面と球、四分木のマス)
+
+- Layer: L5(Numerics) — マスの選び方と形(`src/Numerics/World/Terrain/TerrainCells.cs`、`TerrainCellMesh.cs`)、L5 — 部品・サービス・System(`src/Runtime/Windows/Terrain.cs`)、L4/L0 — メッシュの差し替え(`RenderServer.ReplaceMesh`、`StageRenderer.ReplaceMesh`)
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 7)
+- Status: Implemented(2026-11-18、M0134)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(月の実データ)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 7、`Docs/Milestones/M0134-Tile-Pyramids-And-Terrain.md`
+- Stage: `world.terrain`(Headless / Rendering)
+- Depends on: F-L7-060、F-L4-023
+- Implementation evidence: 平面は 1 本、球は立方体の 6 面の四分木。頂点の間隔の画素で分け、隣との深さの差を 1 までにし、粗い隣の辺の上へ途中の頂点を置く。頂点は整数の格子の点(球は立方体の点を Q64.64 で正規化)で、面をまたいでも共有する頂点が同じ位置。マスは GPU シーンの普通のメッシュとして描き、枠を使い回して中身を差し替える(GPU を待たない)
+- Tests: エンジンのテスト `TerrainCellsTests`、Windowsのテスト `TerrainTests`
+- Known deviations: ADR-0100 決定 7 の「マスの格子を VG の形として流す」は採らず、GPU シーンの普通のメッシュとして描く(マスの選択がすでに細かさを決めるため)。高さのタイルの段は地形ごとに 1 つ。地形だけのレベルは読み込めない(描画器が物 1 つ以上を要る)
+- Conformance: MatchesWithDocumentedExtension
+- Next action: なし
+
+## F-L5-052 — 地形の仮想テクスチャ(RVT)
+
+- Layer: L5(Numerics) — ページの作り手と層(`src/Numerics/World/Terrain/TerrainVirtualTexture.cs`)、L4 — 書き換えられる画像(`RenderTextureResource.CreateDynamic`、`RenderServer.UpdateTextureRegion`)、L0 — 一部の送り(`StageRenderer.UpdateTextureRegion`)、L5 — `Terrain.VirtualTexture`
+- Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 7)
+- Status: Implemented(2026-11-18、M0135)
+- Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
+- Verification: TestVerified、RuntimeVerified(月の実データ)
+- Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 7、`Docs/Milestones/M0135-Runtime-Virtual-Texture.md`
+- Stage: `rendering.terrain-virtual-texture`(Headless / Rendering)
+- Depends on: F-L5-051
+- Implementation evidence: マスごとのページ(縁つき)を層(色のタイル、傾き、高さ)から作り、4096² の置き場の画像の一部を GPU を待たずに書き換えて貼る。原本の色との差は 255 のうち平均 0.18〜0.22。LROC の色で月を描いた
+- Tests: エンジンのテスト `TerrainVirtualTextureTests`、Windowsのテスト `TerrainTests.TheVirtualTextureColorsTheTerrainFromItsLayers`
+- Conformance: Matches
+- Next action: なし
 ## F-L4-021 — Entity を使わない物理の契約
 
 - Layer: L4 — `src/CSharpGameEngine.Physics`(契約)、L5 — `Physics.Deterministic`(ソルバー)と共有プロジェクト `Runtime.Physics`(ECS アダプター)、L6 — `Physics.Artifacts`

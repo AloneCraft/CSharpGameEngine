@@ -240,6 +240,12 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 
 `rendering.virtual-object` (F-L5-050, Rendering / Headless, WARP for the runtime test) runs `VirtualObjectSelectorTests` and `VirtualObjectTests` (M0133): levels follow screen pixels only with 1.25 hysteresis, an unready level is never chosen, a fast approach jumps to the highest ready level, invalid settings keep the current level, and only the chosen level's children are drawn. Sample: `UserEcsProject/Scenes/VirtualObjectSampleScene.json`.
 
+`content.tile-pyramids` (F-L7-060, Foundation / Headless) runs `TilePyramidTests` (M0134): PDS images and TIFFs in every supported layout, rejection of unsupported layouts, and tile pyramids whose level 0 keeps the source and whose upper levels are 2x2 means. `Cge content compile-tiles` and `CgeTileSource` items produce them.
+
+`world.terrain` (F-L5-051, Rendering / Headless, WARP for the runtime test) runs `TerrainCellsTests` and `TerrainTests` (M0134): planar and spherical quadtree cells, balance, crack-free shared vertices across cube faces, slot reuse and a converging per-frame budget. Sample: `UserEcsProject/Scenes/TerrainSampleScene.json`.
+
+`rendering.terrain-virtual-texture` (F-L5-052, Rendering / Headless, WARP for the runtime test) runs `TerrainVirtualTextureTests` and the virtual-texture test in `TerrainTests` (M0135): deterministic pages with matching borders, a small difference from the source colours, and terrain coloured through region updates of one atlas.
+
 ## Asset workspace contract stage
 
 `vsix.asset-workspace` runs Content inventory/migration/file-operation tests and net472 query/catalog/reference/data-edit tests for F-L8-035. It is an executable contract oracle for a PartiallyImplemented feature. It does not turn missing M0114 services or unverified Experimental Instance operations into a pass. See M0123 for those remaining acceptance gates.

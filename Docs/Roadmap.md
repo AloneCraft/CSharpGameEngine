@@ -13,6 +13,8 @@
 | [M0131](Milestones/M0131-Virtual-Geometry-Occlusion-And-Streaming.md) | F-L4-025 | 仮想ジオメトリの遮蔽判定と読み込み: 主パスの 2 パスの遮蔽(Hi-Z)、索引の枠と頂点の区画の置き場、選択の知らせによるページの出し入れ(予算、割れ目なし)。段階 D の前倒し([ADR-0100](Decisions/ADR-0100-Virtualized-Rendering.md))。次は M0132 |
 | [M0132](Milestones/M0132-Virtual-Shadow-Maps.md) | F-L4-026 | 仮想シャドウの作り直し: 画面の画素からのページの要求、16 段、世界に固定した格子(区画)、置き場と描く上限、粗い段への代わり。M0115 を置き換え(stage-v22)。段階 D の前倒し([ADR-0100](Decisions/ADR-0100-Virtualized-Rendering.md))。次は M0133 |
 | [M0133](Milestones/M0133-Virtual-Object.md) | F-L5-050 | VirtualObject: 画面の画素だけで描き方の段を選ぶ ECS の部品(ヒステリシス 1.25、準備できた段へだけ上がる、選ばれた段の子だけ描く)。段階 D の前倒し([ADR-0100](Decisions/ADR-0100-Virtualized-Rendering.md))。次は M0134 |
+| [M0134](Milestones/M0134-Tile-Pyramids-And-Terrain.md) | F-L7-060、F-L5-051 | タイルの前処理と地形: TIFF と PDS の IMG を少しずつ読むタイルの階層(索引とまとめファイル、`Cge content compile-tiles`)、平面と球の四分木の地形(割れ目なし、面をまたいで共有する頂点が同じ)、月の実データ。段階 D の前倒し([ADR-0100](Decisions/ADR-0100-Virtualized-Rendering.md))。次は M0135 |
+| [M0135](Milestones/M0135-Runtime-Virtual-Texture.md) | F-L5-052 | 地形の仮想テクスチャ: マスごとのページを層から作って 1 枚の置き場に貼る、書き換えられる画像の一部の送り、統合の検証(月の LOLA と LROC)。M0129〜M0135 の計画の終わり |
 | [M0128](Milestones/M0128-Static-Production-Flow.md) | F-L1-011、F-L1-012、F-L6-007、F-L6-008、F-L8-035、F-L8-036 | 数値設定別のビルド、深度方式の選択、静的な保存、制作から配布までの流れ。段階 A で実 VS の受け入れを行う |
 | [M0127](Milestones/M0127-Asset-Editor-Windows.md) | F-L8-036 | アセットエディターのウィンドウとプレビューレベル（[Asset Editors](Specifications/Asset-Editors.md)） |
 | M0119〜M0123 | F-L0-011、F-L4-021、F-L4-022、F-L5-047、F-L5-038 | 対数ネイティブ深度、URP の描画パス、全スケール物理、描画と物理の層（ADR-0084〜0087）。時期は ADR-0098 で変更: M0120 はフレーム計画の移行までを段階 A、M0122 は段階 B、Forward 系の作り直し・M0121・M0123 は段階 D |

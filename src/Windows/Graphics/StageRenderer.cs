@@ -1268,6 +1268,33 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         return Index;
     }
 
+    /// <summary>
+    /// メッシュ <paramref name="MeshIndex"/> の頂点と索引を差し替える（M0134、地形のマスの入れ替え）。GPU を待たない: 新しいバッファを作り、古いバッファは
+    /// それを使ったかもしれないフレームが終わってから解放する。スキニング・仮想ジオメトリのメッシュは差し替えられない。距離場は外す。
+    /// </summary>
+    public void ReplaceMesh(int MeshIndex,StageMeshCreateInfo Mesh){
+        this.ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(MeshIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MeshIndex,this.MeshCount);
+        if(Mesh.Positions.Count==0||Mesh.Positions.Count!=Mesh.Normals.Count
+            ||Mesh.Positions.Count!=Mesh.Tangents.Count||Mesh.Positions.Count!=Mesh.Uvs.Count
+            ||Mesh.Indices.Count==0){
+            throw new ArgumentException("A mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.",nameof(Mesh));
+        }
+        if(Mesh.Skin is not null||Mesh.VirtualGeometry is not null||this.Skinning!.IsSkinned(MeshIndex)||this.MeshHasVirtualGeometry(MeshIndex)){
+            throw new InvalidOperationException("Skinned and virtual geometry meshes cannot be replaced.");
+        }
+        var OldVertices=this.VertexBuffers[MeshIndex];
+        var OldIndices=this.IndexBuffers[MeshIndex];
+        this.MeshBoundsCentres[MeshIndex]=BoundsCentre(Mesh.Positions);
+        (this.MeshBoundsMinimums[MeshIndex],this.MeshBoundsMaximums[MeshIndex])=Bounds(Mesh.Positions);
+        this.CreateVertexBuffer(MeshIndex,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
+        this.CreateIndexBuffer(MeshIndex,Mesh.Indices);
+        this.Retire(OldVertices);
+        this.Retire(OldIndices);
+        this.GlobalDistanceField!.SetMesh(MeshIndex,null);
+    }
+
     private void GrowMeshArrays(int Required){
         if(this.VertexBuffers.Length>=Required){ return; }
         var Length=Math.Max(Required,Math.Max(16,this.VertexBuffers.Length*2));

@@ -7,6 +7,6 @@
     (ADR-0098 §5 rule 4). A plain 0.1.0 must not be used before then: early-development 0.1.0 packages remain in NuGet caches.
   -->
   <PropertyGroup>
-    <CgeEngineVersion>0.1.0-dev.55</CgeEngineVersion>
+    <CgeEngineVersion>0.1.0-dev.56</CgeEngineVersion>
   </PropertyGroup>
 </Project>

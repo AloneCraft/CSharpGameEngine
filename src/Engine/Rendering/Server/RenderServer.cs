@@ -147,6 +147,31 @@ public sealed class RenderServer:IDisposable {
         return Index;
     }
 
+    /// <summary>
+    /// メッシュの頂点と索引を差し替える（M0134、地形のマスの入れ替え）。GPU を待たない。デバイスを作り直したときの名簿も差し替える。
+    /// スキニング・仮想ジオメトリのメッシュは差し替えられない。
+    /// </summary>
+    public void ReplaceMesh(int MeshIndex,StageMeshCreateInfo Mesh){
+        ArgumentOutOfRangeException.ThrowIfNegative(MeshIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MeshIndex,this.Meshes.Count);
+        var Owned=CloneMeshes([Mesh])[0];
+        this.Backend.ReplaceMesh(MeshIndex,Owned);
+        var Closure=new List<AssetArtifactReference>(this.Lifecycle.RequiredArtifacts);
+        Closure[1+MeshIndex]=CreateArtifact($"mesh/{MeshIndex}",Writer=>WriteMesh(Writer,Owned));
+        this.Meshes[MeshIndex]=Owned;
+        this.Lifecycle.ReplaceRequiredArtifacts(Closure);
+    }
+
+    /// <summary>
+    /// 書き換えられる画像（<see cref="RenderTextureResource.CreateDynamic"/>）の (X, Y) から幅 × 高さを RGBA8 で書き換える（M0135、仮想テクスチャのページ）。
+    /// GPU を待たない（次のフレームの最初に送る）。画像の中身も変わるので、デバイスを作り直しても書き換えた後の画像になる。
+    /// </summary>
+    public void UpdateTextureRegion(RenderTextureResource Texture,int X,int Y,int Width,int Height,ReadOnlySpan<byte>Rgba8){
+        ArgumentNullException.ThrowIfNull(Texture);
+        Texture.WriteRegion(X,Y,Width,Height,Rgba8);
+        this.Backend.UpdateTextureRegion(Texture,X,Y,Width,Height,Rgba8);
+    }
+
     /// <summary>マテリアルを1つ追加し（M0105）、そのインデックスを返す。描画器が受け付けなければ -1（D3D12 の描画器は M0129 単位 4 から上限なし）。テクスチャのアップロード時に GPU を一度待機させる。</summary>
     public int AddMaterial(StageMaterialCreateInfo Material){
         var Index=this.Backend.AddMaterial(Material);
