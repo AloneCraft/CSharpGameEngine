@@ -29,6 +29,11 @@ public struct StageFloat4Array4 {
 public struct StageMatrixArray4 {
     private Matrix4x4 Element0;
 }
+/// <summary>仮想シャドウの段ごとの行列（M0132 の 16 段）。</summary>
+[InlineArray(16)]
+public struct StageMatrixArray16 {
+    private Matrix4x4 Element0;
+}
 [InlineArray(4)]
 public struct StageDirectionalLightArray4 {
     private StageDirectionalLightData Element0;
@@ -61,7 +66,7 @@ public struct StageFrameConstants {
     public Vector4 DepthEncoding0;
     public Vector4 DepthEncoding1;
     public Vector4 LumenParams;
-    public StageMatrixArray4 VirtualShadowProjection;
+    public StageMatrixArray16 VirtualShadowProjection;
     public Vector4 VirtualShadowParams;
     public Vector4 DirectionalSoftShadowParams;
 }

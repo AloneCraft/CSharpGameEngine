@@ -11,6 +11,8 @@ using CSharpGameEngine.Lighting;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 [Collection(D3D12GpuCollection.Name)]
 public sealed class VirtualShadowGpuTests {
+    /// <summary>仮想シャドウのページの要求は読み戻しの輪を 1 周してから届く（M0132）。それまでの影はカスケード影で代わりに描く。</summary>
+    private const int WarmFrames=StageRenderer.FrameCount+2;
     [WindowsOnlyTheory]
     [InlineData(DirectionalShadowMode.Cascaded,1f)]
     [InlineData(DirectionalShadowMode.Virtual,1f)]
@@ -25,8 +27,12 @@ public sealed class VirtualShadowGpuTests {
         var Camera=RenderCamera.CreateDefault(new(-3f,0f,0f));Camera.Pitch=-MathF.PI/2f+.001f;Camera.Distance=18f;Camera.FarZ=100f;Camera.RadialTransitionMeters=TransitionMeters;
         byte[]Draw(float Height,float Diameter,float Intensity,bool Shadows){
             Renderer.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DirectionalShadows=new(Mode,SoftShadows:true,SourceAngularDiameterDegrees:Diameter) });
-            Renderer.SetCamera(Camera);Renderer.SetAmbientLight(new(.05f));Renderer.SetDirectionalLight(Vector3.Normalize(new(1f,1f,0f)),Vector3.One,Intensity,CastsShadows:Shadows,ShadowBiasMeters:.002f);
-            Renderer.SetObjectTransform(0,Matrix4x4.Identity);Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,Height,0f));Renderer.RenderFrame(true);
+            // 光はそのフレームだけ有効なので、フレームごとに設定する。
+            for(var Frame=0;Frame<WarmFrames;Frame++){
+                Renderer.SetCamera(Camera);Renderer.SetAmbientLight(new(.05f));Renderer.SetDirectionalLight(Vector3.Normalize(new(1f,1f,0f)),Vector3.One,Intensity,CastsShadows:Shadows,ShadowBiasMeters:.002f);
+                Renderer.SetObjectTransform(0,Matrix4x4.Identity);Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,Height,0f));
+                Renderer.RenderFrame(Frame==WarmFrames-1);
+            }
             if(Shadows&&Mode==DirectionalShadowMode.Virtual){Assert.Equal(0,Renderer.VirtualShadowStatistics.Missing);}
             return Renderer.LastCapturedFrame!.Pixels.ToArray();
         }
@@ -69,7 +75,9 @@ public sealed class VirtualShadowGpuTests {
             Renderer.SetCamera(Camera);Renderer.SetAmbientLight(new(.05f));Renderer.SetDirectionalLight(Vector3.Normalize(new(.6f,1f,0f)),Vector3.One,3f,CastsShadows:true,ShadowBiasMeters:.005f);
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(X,2f,0f));Renderer.RenderFrame(true);
         }
-        Draw(0f);Assert.True(Renderer.VirtualShadowStatistics.Rendered>0);Assert.Equal(0,Renderer.VirtualShadowStatistics.Missing);
+        var Rendered=0;
+        for(var Frame=0;Frame<WarmFrames;Frame++){ Draw(0f);Rendered+=Renderer.VirtualShadowStatistics.Rendered; }
+        Assert.True(Rendered>0);Assert.Equal(0,Renderer.VirtualShadowStatistics.Missing);
         Draw(0f);Draw(0f);Assert.Equal(0,Renderer.VirtualShadowStatistics.Rendered);Assert.True(Renderer.VirtualShadowStatistics.Reused>0);
         var Capture=Renderer.LastCapturedFrame!;
         int Luma(int X,int Y){var I=(int)(Y*Capture.RowPitch)+X*4;return Capture.Pixels[I]+Capture.Pixels[I+1]+Capture.Pixels[I+2];}
@@ -121,19 +129,23 @@ public sealed class VirtualShadowGpuTests {
         Server.SetDirectionalLight(new DirectionalLightSubmission(-Vector3.Normalize(new(.6f,1f,0f)),new LinearLightColor(1f,1f,1f),new Illuminance(3f),new LightShadowSettings(0,new ShadowBias(.005f))));
         var Policy=new DirectionalShadowSettings(DirectionalShadowMode.Virtual,1024,true,Soft,1.5f,2f);
         Server.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DirectionalShadows=Policy });
-        for(var I=0;I<3;I++){ Server.RenderFrame(true); }
+        for(var I=0;I<WarmFrames;I++){ Server.RenderFrame(true); }
         var Before=Server.LastCapturedFrame!.Pixels.ToArray();var Differences=0;
         for(var Y=20;Y<110;Y++){for(var X=5;X<123;X++){
             var Left=(Y*256+X)*4;var Right=Left+128*4;if(Before[Left]!=Before[Right]){ Differences++; }
         }}
         Assert.True(Differences>0,$"Independent shadow edges: differences={Differences}, settings={Server.DirectionalShadows}, pages={Server.VirtualShadowStatistics}");
-        Server.RemoveDeviceForTesting();Server.RenderFrame(true);
+        // 作り直した描画器は要求を持たないので、要求が届くまでは影をカスケード影で描く。届いた後は前と同じ絵。
+        Server.RemoveDeviceForTesting();
+        for(var I=0;I<WarmFrames;I++){ Server.RenderFrame(true); }
         Assert.Equal(Policy,Server.DirectionalShadows);
         Assert.Equal(Before,Server.LastCapturedFrame!.Pixels);Assert.True(Server.DirectionalShadows.Compare);Assert.Equal(DirectionalShadowMode.Virtual,Server.DirectionalShadows.Mode);
         Server.Resize(128,128);Server.RenderFrame(true);Assert.Equal(128,Server.LastCapturedFrame!.Width);
         Server.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy);Server.RenderFrame(true);Assert.Equal(DirectionalShadowMode.Cascaded,Server.DirectionalShadows.Mode);
-        Server.RemoveObject(1);Server.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DirectionalShadows=new(DirectionalShadowMode.Virtual) });Server.RenderFrame(true);
-        Assert.True(Server.VirtualShadowStatistics.Rendered>0);Assert.Equal(0,Server.ErrorOrWorseMessageCount);
+        Server.RemoveObject(1);Server.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DirectionalShadows=new(DirectionalShadowMode.Virtual) });
+        var Rendered=0;
+        for(var I=0;I<WarmFrames;I++){ Server.RenderFrame(true);Rendered+=Server.VirtualShadowStatistics.Rendered; }
+        Assert.True(Rendered>0);Assert.Equal(0,Server.ErrorOrWorseMessageCount);
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -146,8 +158,12 @@ public sealed class VirtualShadowGpuTests {
         var Sun=Vector3.Normalize(new Vector3(.6f,1f,0f));
         byte[]Capture(DirectionalShadowMode Mode,float Intensity,bool Shadows){
             Renderer.SetEnvironmentLighting(EnvironmentLightingSettings.Legacy with { DirectionalShadows=new(Mode) });
-            Renderer.SetCamera(View);Renderer.SetAmbientLight(new(.05f));Renderer.SetDirectionalLight(Sun,Vector3.One,Intensity,CastsShadows:Shadows,ShadowBiasMeters:.002f);
-            Renderer.SetObjectTransform(0,Matrix4x4.Identity);Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,1f,0f));Renderer.RenderFrame(true);return Renderer.LastCapturedFrame!.Pixels.ToArray();
+            for(var Frame=0;Frame<WarmFrames;Frame++){
+                Renderer.SetCamera(View);Renderer.SetAmbientLight(new(.05f));Renderer.SetDirectionalLight(Sun,Vector3.One,Intensity,CastsShadows:Shadows,ShadowBiasMeters:.002f);
+                Renderer.SetObjectTransform(0,Matrix4x4.Identity);Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,1f,0f));
+                Renderer.RenderFrame(Frame==WarmFrames-1);
+            }
+            return Renderer.LastCapturedFrame!.Pixels.ToArray();
         }
         var Lit=Capture(DirectionalShadowMode.Cascaded,3f,false);var Ambient=Capture(DirectionalShadowMode.Cascaded,0f,false);
         var Csm=Capture(DirectionalShadowMode.Cascaded,3f,true);var Virtual=Capture(DirectionalShadowMode.Virtual,3f,true);
@@ -192,7 +208,8 @@ public sealed class VirtualShadowGpuTests {
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,2f,0f));Renderer.RenderFrame(true);
         }
         int Luma(int X){var Capture=Renderer.LastCapturedFrame!;var I=(int)(64*Capture.RowPitch)+X*4;return Capture.Pixels[I]+Capture.Pixels[I+1]+Capture.Pixels[I+2];}
-        Draw(0f);var X=Luma(40)<Luma(88)?40:88;var Before=Luma(X);
+        for(var Frame=0;Frame<WarmFrames;Frame++){ Draw(0f); }
+        var X=Luma(40)<Luma(88)?40:88;var Before=Luma(X);
         Draw(4f);Assert.True(Renderer.VirtualShadowStatistics.Invalidated>0);Assert.True(Luma(X)>Before*1.5,$"old shadow {Before}, moved {Luma(X)}");
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
     }

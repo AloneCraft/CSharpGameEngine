@@ -5062,12 +5062,12 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Layer: L4 — Domain Servers (Rendering policy), L0 — D3D12 execution, L5 — environment component, L9 — comparison scene
 - Parent capability: Directional shadow rendering
 - Depends on: F-L4-014
-- Status: Implemented
+- Status: Implemented — superseded by F-L4-026 (M0132 unit 4, 2026-11-18): the M0115 planner `VirtualDirectionalShadowCache`, its 4096-square atlas and `VirtualDirectionalShadowTests` were removed. The policy, scene component, comparison mode, soft shadows and the `VirtualShadowGpuTests` promises remain under F-L4-026.
 - Verification: TestVerified (CPU planning and WARP Standard/Radial shadows and geometric normals); RuntimeVerified (hardware comparison and TopDown before/after)
 - Intended specification: `Docs/Specifications/Rendering.md#virtual-directional-shadows`, `Docs/Decisions/ADR-0082-Virtual-Directional-Shadows.md`
 - Stage: `rendering.virtual-shadows` (Visual / Rendering)
-- Implementation evidence: `src/Engine/Rendering/VirtualDirectionalShadows.cs`, `src/Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
-- Tests: `VirtualDirectionalShadowTests`, `VirtualShadowGpuTests`
+- Implementation evidence (M0115, historical): `src/Engine/Rendering/VirtualDirectionalShadows.cs`, `src/Windows/Graphics/StageRenderer.VirtualShadows.cs`, `assets/Shaders/Stage.cgeshadergraph`, `UserEcsProject/Scenes/VirtualShadowComparisonScene.json`
+- Tests: `VirtualShadowGpuTests` (M0115's `VirtualDirectionalShadowTests` were removed with its planner)
 - Reverse-engineered behavior: Four 4096-texel clipmaps map world-grid 128-texel pages to a 4096-square D32 atlas. Conservative bounds drive requests and invalidation. Missing pages sample cascades. The hardware comparison rendered 524 resident pages, reused 521, redrew 3 for the moving caster, with zero missing requests and D3D12 errors.
 - Conformance: MatchesWithDocumentedExtension. CPU and WARP oracles, recovery, Debug/Release regression and matched hardware/WARP captures are recorded in M0115.
 - Known deviations: CPU requests rather than GPU feedback; virtual mode includes the cost of fallback cascades. The comparison demonstration uses directional/ambient light and fixed exposure; screen-space lighting and camera thumbnails are not supported in comparison mode.
@@ -5204,7 +5204,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 - Layer: L4 — 計画(`src/Engine/Rendering/VirtualShadowMaps.cs` の `VirtualShadowAnchor`・`VirtualShadowMapPlanner`)、置き場の割り当て(`Streaming/PageSlotAllocator.cs`)、L0 — ページの要求とページの描画(`assets/Shaders/VirtualShadowRequest.hlsl`、`src/Windows/Graphics/StageVirtualShadowRequests.cs`、`StageRenderer.VirtualShadowMaps.cs`)
 - Parent capability: Rendering Roadmap / 仮想化描画(ADR-0100 決定 1・5)。M0115 の F-L4-020 を置き換える
-- Status: Partial(2026-11-18。M0132 単位 1〜3。L4 の計画、画面からのページの要求、要求を読み戻した計画、置き場へのページの描画とページ表(どれも試験の印があるときだけ)。描画器の影はまだ M0115 の経路)
+- Status: Partial(2026-11-18。M0132 単位 1〜4。仮想シャドウの方式は、画面の要求・L4 の計画・置き場・16 段の影を引くシェーダーで描く。M0115 の計画と置き場は削除。Stage の取り決めは stage-v22)
 - Phase (ADR-0098): 段階 D の前倒し(ユーザーの判断。ADR-0100 に記録)
 - Verification: TestVerified
 - Intended specification: `Docs/Decisions/ADR-0100-Virtualized-Rendering.md` 決定 5、`Docs/Milestones/M0132-Virtual-Shadow-Maps.md`
@@ -5212,9 +5212,9 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Depends on: F-L4-023
 - Implementation evidence: 段 16、1 段 128×128 ページ × 128×128 テクセル、置き場 4,096 ページ。格子は区画(1,024 m)の角から光の向きの回転で写した座標に固定する。物を包む箱は区画の角から測って 1 mm を超えて動いたらページを古くする
 - Tests: エンジンのテスト `VirtualShadowMapPlannerTests`(カメラだけ動くと作り直し 0、動いた物の範囲だけ古くなる、上限と置き場、光と区画の変化、同じ入力で同じ計画、段の行列とページ表の一致)。Windowsのテスト `VirtualShadowRequestGpuTests`(GPU の要求が CPU の同じ規則と一致、シェーダーの式は L4 の写し)、`VirtualShadowMapPageGpuTests`(置き場のページの深度が、同じ範囲をまとめて描いた深度と一致、止まったカメラでは作り直し 0)
-- Current delta: 影を引くシェーダー、計画の呼び出しを描画器の外へ出すこと、L5 からの区画、古い経路の削除が無い(単位 4〜5)
+- Current delta: 計画の呼び出しを描画器の外へ出すこと、L5 からの区画、実機の計測と締めが無い(単位 5)
 - Conformance: Partial
-- Next action: M0132 単位 4(影を引くシェーダー)
+- Next action: M0132 単位 5(締め)
 
 ## F-L4-021 — Entity を使わない物理の契約
 

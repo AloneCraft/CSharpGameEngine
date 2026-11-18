@@ -1869,7 +1869,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new ArgumentException("Shadow comparison requires directional/ambient lighting with fixed exposure; screen-space and sky environment passes need independent view execution.",nameof(Settings));
         }
         var ComparisonChanged=this.ShadowSettings.Compare!=(Settings.DirectionalShadows?.Compare??false);
-        if(Settings.DirectionalShadows is { }ShadowPolicy&&(ShadowPolicy.Compare||ShadowPolicy.Mode==DirectionalShadowMode.Virtual)){ this.EnsureVirtualShadowAtlas(); }
+        if(Settings.DirectionalShadows is { }ShadowPolicy&&(ShadowPolicy.Compare||ShadowPolicy.Mode==DirectionalShadowMode.Virtual)){ this.EnsureShadowPageResources(ShadowPolicy.PageBudget); }
         this.EnvironmentSettings=Settings;
         if(ComparisonChanged&&this.RetainedViewSource.HasValue){ this.SetViewSource(this.RetainedViewSource); }
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
@@ -3334,7 +3334,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ShadowTimestamp(2);
         this.PrepareVirtualShadows();
         this.ShadowTimestamp(3);
-        this.RenderVirtualShadowMapPages();
         this.CommandList->ResolveQueryData(this.ShadowTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*4,4,this.ShadowTimestampReadback!.Resource,this.ShadowTimestampReadback.SlotOffset(this.FrameIndex));
         this.ShadowTimestampReadback.MarkWritten(this.FrameIndex);
     }
@@ -3394,8 +3393,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         if(!ShadowComparison){
             this.RecordHiZAfterMainPass(ref Recording);
-            this.RecordVirtualShadowRequests(ref Recording);
         }
+        this.RecordVirtualShadowRequests(ref Recording);
     }
     private void RecordSkyComposite(ref FrameRecording Recording){
         if(this.EnvironmentSettings.Atmosphere is not null){
@@ -3598,7 +3597,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalDistanceField=null;
         this.Lumen?.Dispose();
         this.DisposeVirtualShadows();
-        this.DisposeVirtualShadowMaps();
         this.Lumen=null;
 
         if(this.FrameConstantsBuffer!=null){

@@ -131,9 +131,10 @@ public sealed class ShaderGraphCompilerTests {
         // edits/gpu_scene_2026_11_17.py。stage-v17。固定 7 画像は同じ）、M0129 単位 4（材質のテクスチャを 1 本の配列 t0 space1 にし、
         // 材質の表の番号で引くこと、edits/bindless_textures_2026_11_17.py。stage-v18。固定 7 画像は同じ）、M0130 単位 6（描画ごとの定数に
         // 物体の向きの法線マップの番号を足し、EvaluateSurface が頂点の法線の代わりに使うこと、edits/object_normal_map_2026_11_17.py。
-        // stage-v21。番号が 0 の描画は前と同じなので、固定 7 画像は同じ）は、
+        // stage-v21。番号が 0 の描画は前と同じなので、固定 7 画像は同じ）、M0132 単位 4（仮想シャドウを 16 段・1 段 128×128 ページの
+        // 作り直した置き場で引き、段を画素の足跡で選ぶこと、edits/virtual_shadow_maps_2026_11_18.py。stage-v22。固定 7 画像は同じ）は、
         // Stage プログラムを意図的に変更した。これらの編集前に、migrate/extract の往復でバイト単位の一致を確認済み。
-        Assert.True(Hash=="CADE90C3BBD80DDC5EEBF158C4F14D37FF751E8F521B56C7231188BD61E02F84",Hash);
+        Assert.True(Hash=="38BAC6FA7594086E09008CC6BF68FA3E36DF35190B8019BBAFC048BE780315C9",Hash);
     }
     [Fact]
     public void ProductionStage_DepthEncodingAvoidsHardwareTranscendentals() {
