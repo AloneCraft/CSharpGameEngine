@@ -15,6 +15,7 @@ public sealed class InspectorToolWindowPane:ToolWindowPane {
     private static WeakReference<InspectorToolWindowControl>?RestoredControl;
     private readonly InspectorToolWindowControl Control;
     private readonly AssetInspectorControl AssetControl;
+    private bool ShowingAsset;
 
     public InspectorToolWindowPane():base(null){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -22,10 +23,8 @@ public sealed class InspectorToolWindowPane:ToolWindowPane {
         this.Control=new InspectorToolWindowControl();
         this.AssetControl=new AssetInspectorControl{Visibility=System.Windows.Visibility.Collapsed};
         var Root=new System.Windows.Controls.Grid();Root.Children.Add(this.Control);Root.Children.Add(this.AssetControl);
-        this.AssetControl.ShowingChanged+=Showing=>{
-            this.Control.Visibility=Showing?System.Windows.Visibility.Collapsed:System.Windows.Visibility.Visible;
-            this.AssetControl.Visibility=Showing?System.Windows.Visibility.Visible:System.Windows.Visibility.Collapsed;
-        };
+        this.AssetControl.ShowingChanged+=this.OnAssetShowingChanged;
+        AssetWorkspaceDrag.Changed+=this.OnDragChanged;
         this.Content=Root;
         this.AssetControl.RefreshSelection();
         RestoredControl=new WeakReference<InspectorToolWindowControl>(this.Control);
@@ -45,12 +44,24 @@ public sealed class InspectorToolWindowPane:ToolWindowPane {
     }
 
     internal static void ClearSessionProvider()=>SessionProvider=null;
+    private void OnAssetShowingChanged(bool Showing){ this.ShowingAsset=Showing;this.UpdatePresentation(); }
+    private void OnDragChanged()=>this.UpdatePresentation();
+    /// <summary>素材の表示は、素材が選ばれていて、かつ Assets からのドラッグ中でないときだけ。ドラッグ中は落とし先の欄を見せる。</summary>
+    private void UpdatePresentation(){
+        var ShowAsset=this.ShowingAsset&&!AssetWorkspaceDrag.Active;
+        this.Control.Visibility=ShowAsset?System.Windows.Visibility.Collapsed:System.Windows.Visibility.Visible;
+        this.AssetControl.Visibility=ShowAsset?System.Windows.Visibility.Visible:System.Windows.Visibility.Collapsed;
+    }
     protected override bool PreProcessMessage(ref System.Windows.Forms.Message Message){
         ThreadHelper.ThrowIfNotOnUIThread();
         return this.AssetControl.HandleNativeShortcut(AssetToolWindowInput.Shortcut(ref Message))||base.PreProcessMessage(ref Message);
     }
     protected override void Dispose(bool Disposing){
-        if(Disposing){ this.AssetControl.Dispose();this.Control.Dispose(); }
+        if(Disposing){
+            AssetWorkspaceDrag.Changed-=this.OnDragChanged;
+            this.AssetControl.ShowingChanged-=this.OnAssetShowingChanged;
+            this.AssetControl.Dispose();this.Control.Dispose();
+        }
         base.Dispose(Disposing);
     }
 }

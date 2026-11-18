@@ -111,6 +111,8 @@ internal static class SceneEditorHub {
     }
 
     public static void PublishHierarchySelection(HierarchyNodeSelection Selection){
+        // Hierarchy で物を選んだら、同じ物の選び直しでも物の Inspector へ戻す(選択の変化だけを見ると、選び直しでは戻らない)。
+        if(Selection.Paths.Count>0&&AssetWorkspaceSelection.Current.Count>0){ AssetWorkspaceSelection.Clear(); }
         HierarchySelection=Selection;
         PublishSelectedNodePath(Selection.PrimaryPath);
         HierarchySelectionChanged?.Invoke(Selection);

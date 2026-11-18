@@ -248,12 +248,13 @@ public partial class AssetsToolWindowControl:UserControl,IDisposable {
         return true;
     }
     private void OnDragMove(object Sender,MouseEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Args.LeftButton!=MouseButtonState.Pressed||Keyboard.FocusedElement is TextBox||this.Selected is not { }Item){ return; }
         var Point=Args.GetPosition(this);
         if(Math.Abs(Point.X-this.DragOrigin.X)<SystemParameters.MinimumHorizontalDragDistance&&Math.Abs(Point.Y-this.DragOrigin.Y)<SystemParameters.MinimumVerticalDragDistance){ return; }
         this.CancelRenameWait();
         var Data=new DataObject(typeof(AssetWorkspaceItem),Item);Data.SetData(DataFormats.FileDrop,new[]{Item.Source.SourcePath});
-        DragDrop.DoDragDrop(this,Data,DragDropEffects.Copy);
+        AssetWorkspaceDrag.Run(()=>DragDrop.DoDragDrop(this,Data,DragDropEffects.Copy));
     }
     private void OnCreate(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread(); if(this.Controller is { }Controller){ Controller.Run(()=>AssetWorkspaceCommands.ShowCreateMenuAsync(this,Controller)); } }
     private void OnRenameClick(object Sender,MouseButtonEventArgs Args){

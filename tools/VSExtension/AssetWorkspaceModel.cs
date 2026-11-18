@@ -70,3 +70,18 @@ internal static class AssetWorkspaceSelection {
     internal static void Reveal(string SourcePath)=>RevealRequested?.Invoke(SourcePath);
     internal static void Clear()=>Select(Array.Empty<AssetWorkspaceItem>());
 }
+/// <summary>
+/// Assets からのドラッグが続いている間。Inspector はこの間だけ物の表示に戻し、型の合う欄を落とし先として見せる。
+/// <c>DoDragDrop</c> は終わるまで戻らないので、入れ子と例外があっても終わりで必ず戻す。
+/// </summary>
+internal static class AssetWorkspaceDrag {
+    private static int Depth;
+    internal static event Action?Changed;
+    internal static bool Active=>Depth>0;
+    internal static void Run(Action Drag){
+        Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
+        if(Drag is null){ throw new ArgumentNullException(nameof(Drag)); }
+        Depth++;
+        try{ Changed?.Invoke();Drag(); }finally{ Depth--;Changed?.Invoke(); }
+    }
+}
