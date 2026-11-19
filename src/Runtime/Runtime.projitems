@@ -108,4 +108,9 @@
     <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\ScreenImage.svg" />
     <None Include="$(MSBuildThisFileDirectory)Windows\Assets\Editor\ComponentIcons\ScreenText.svg" />
   </ItemGroup>
+  <!-- ADR-0101 段階1：Android で生成済み Main を動かす画面。Android を対象にしたビルド(Game.props の CgePlatform)にだけ入れる。 -->
+  <ItemGroup Condition="'$(CgeRuntimeSimulationOnly)' != 'true' and '$(CgePlatform)' == 'Android'">
+    <Compile Include="$(MSBuildThisFileDirectory)Android\AndroidGameHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Android\GameActivity.cs" />
+  </ItemGroup>
 </Project>

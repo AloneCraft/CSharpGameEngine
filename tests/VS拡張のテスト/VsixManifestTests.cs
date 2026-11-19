@@ -78,14 +78,31 @@ public sealed class VsixManifestTests {
     /// VS の中で拡張を作ると、入れ子の組み立ては参照先を作り直さない(BuildingInsideVisualStudio)。同梱する別プロセスの道具は
     /// どれも拡張の参照先ではないので、外さないと古い DLL が混ざる(2026-11-17、PreviewHost の Windows.dll だけ古く、
     /// 新しいシェーダーの入口が無いと言ってプレビューが開けなかった)。
+    /// 2026-11-19 から、値を false にするのではなく外す。あわせて、ソリューションと同じ設定で Build してから、作り直さずに
+    /// (NoBuild) Publish・Pack する。PublishDir などを付けて作ると、同じプロジェクトを同じ出力先へもう一度作り、
+    /// ソリューションの組み立てとぶつかった(「別のプロセスが使用中」)。
     /// </summary>
     [Fact]
     public void VsixProject_NestedPublishesRebuildTheirReferencesInsideVisualStudio(){
         string Project=File.ReadAllText(Path.Combine(VsixBuildIdentity.RepoRoot,"tools","VSExtension","VSExtension.csproj"));
-        var Nested=System.Text.RegularExpressions.Regex.Matches(Project,"<MSBuild\\b[^>]*Targets=\"(?:Publish|Restore;Pack)\"[^>]*>");
-        Assert.Equal(3,Nested.Count);
-        foreach(System.Text.RegularExpressions.Match Call in Nested){
-            Assert.Contains("BuildingInsideVisualStudio=false",Call.Value);
+        var 外す設定=System.Text.RegularExpressions.Regex.Match(Project,"<CgeVsixPayloadRemoveProperties>([^<]*)</CgeVsixPayloadRemoveProperties>");
+        Assert.True(外す設定.Success);
+        Assert.Contains("BuildingInsideVisualStudio",外す設定.Groups[1].Value.Split(';'));
+        var 作る=System.Text.RegularExpressions.Regex.Matches(Project,"<MSBuild\\b[^>]*Targets=\"Build\"[^>]*>");
+        var 配る=System.Text.RegularExpressions.Regex.Matches(Project,"<MSBuild\\b[^>]*Targets=\"(?:Publish|Pack)\"[^>]*>");
+        Assert.Equal(3,作る.Count);
+        Assert.Equal(3,配る.Count);
+        foreach(System.Text.RegularExpressions.Match Call in 作る.Cast<System.Text.RegularExpressions.Match>().Concat(配る.Cast<System.Text.RegularExpressions.Match>())){
+            Assert.Contains("RemoveProperties=\"$(CgeVsixPayloadRemoveProperties)\"",Call.Value);
+            Assert.DoesNotContain("BuildingInsideVisualStudio=false",Call.Value);
+        }
+        foreach(System.Text.RegularExpressions.Match Call in 配る){
+            Assert.Contains("NoBuild=true",Call.Value);
+        }
+        foreach(System.Text.RegularExpressions.Match Call in 作る){
+            Assert.DoesNotContain("PublishDir",Call.Value);
+            Assert.DoesNotContain("PackageOutputPath",Call.Value);
+            Assert.DoesNotContain("SelfContained",Call.Value);
         }
     }
 

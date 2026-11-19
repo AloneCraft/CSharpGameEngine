@@ -50,7 +50,8 @@ internal static class GameSystemEntryPointEmitter {
     internal static Plan ShouldEmitPlan(
         GenerationGate Gate,
         ImmutableArray<GameSystemResult>Systems){
-        if(Gate.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication)){
+        // ADR-0101: an Android app compiles as a library, and its activity runs the generated Main through AndroidGameHost.
+        if(Gate.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication)&&!Gate.HasAndroidHost){
             return new Plan(false,null);
         }
 
@@ -100,7 +101,7 @@ internal static class GameSystemEntryPointEmitter {
         return null;
     }
 
-    internal static void Emit(SourceProductionContext Context,GameSystemRegistry Registry){
+    internal static void Emit(SourceProductionContext Context,GameSystemRegistry Registry,bool RegisterWithAndroid=false){
         var BootstrapComponentIndex=-1;
 
         foreach(var Component in Registry.ComponentsByIndex){
@@ -151,6 +152,14 @@ internal static class GameSystemEntryPointEmitter {
 
         if(SpatialWorldEmitter.ShouldEmit(Registry)) {
             Lines.Insert(Lines.Count-3,"        State.World.RefreshGlobalSpatialIndex();");
+        }
+
+        if(RegisterWithAndroid){
+            // ADR-0101: Android loads the game as a library, so nothing calls Main. Hand it to the Android host when the assembly loads;
+            // the activity runs it on the game thread. A delegate, not reflection, so trimming keeps Main.
+            int ClassIndex=Lines.IndexOf("internal static class GeneratedEntryPoint {");
+            Lines.Insert(ClassIndex+1,"    [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            Lines.Insert(ClassIndex+2,$"    internal static void RegisterWithAndroid() => global::{GenerationGate.AndroidHostMetadataName}.SetEntryPoint(Main);");
         }
 
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));

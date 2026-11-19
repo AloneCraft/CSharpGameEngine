@@ -6,8 +6,6 @@ using CSharpGameEngine.Lighting;
 using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Graphics.D3D12;
-using CSharpGameEngine.Platform.Windows;
 using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 using Camera=CSharpGameEngine.Runtime.Windows.Camera;
 using EcsWorld=CSharpGameEngine.Entities.World;
@@ -73,24 +71,8 @@ internal struct Window:ISystem {
         else if(!this.HostEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
-        if(Host.ExternalSurface is not null){
-            // ADR-0070 B1：サーフェスとその入力はエディターが所有する。
-            return;
-        }
-        if(Host.Window is null){
-            Host.EnsureWindow(App);
-            return;
-        }
-        Win32Window Window=Host.Window;
-        if(App.CaptureMouse&&Host.Automation is null&&!Window.IsMouseCaptured){
-            Window.SetMouseCaptured(true);
-        }
-        Window.PumpEvents();
-        Host.Automation?.ApplyInput(Window);
-        Host.Input.ProcessEvents(Window.DrainInputEvents());
-        if(Window.IsClosed){
+        if(!Host.PumpPlatformEvents(App)){
             State.Enabled=false;
-            return;
         }
     }
 }
@@ -267,8 +249,7 @@ internal struct LevelLoad:ISystem {
             Host.SubmitCamera(Host.RenderCamera);
             return;
         }
-        Win32Window?Window=Host.Window;
-        if(Host.ExternalSurface is null&&Window is null){
+        if(!Host.HasRenderSurface){
             // Windowが未生成のフレームで集めたロースターは次フレームと二重集計されるため破棄する。
             this.PendingStaticMeshes=null;
             this.PendingPrimitives=null;
@@ -292,17 +273,8 @@ internal struct LevelLoad:ISystem {
             this.PendingStaticMeshes??=[],
             this.PendingPrimitives??=[],
             this.PendingSkeletalMeshes??=[]);
-        var Renderer=Host.ExternalSurface is { }Surface
-            ?D3D12RenderServer.Create(
-                                  Surface.Handle,Surface.Width,Surface.Height,Surface.DeviceOptions,
-                                  ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects)
-            :D3D12RenderServer.Create(
-                                  Window!.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
-                                  ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
-        Host.OwnRenderer(Renderer);
-        if(Window is not null){
-            Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
-        }
+        var Renderer=Host.CreateLevelRenderer(
+            ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
 
         var Camera=RenderCamera.CreateFirstPerson(Vector3.Zero);
         FixedTransformResolveStatus InitialCameraResolveStatus=ResolveCamera(

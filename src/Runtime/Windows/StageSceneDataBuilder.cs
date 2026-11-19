@@ -4,7 +4,6 @@ using CSharpGameEngine.Content;
 using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Core;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Content.Models;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Animation;

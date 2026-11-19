@@ -141,3 +141,12 @@ System の引数に `Hud Hud` と書くと、生成されたループが `Engine
 - 受け手は、そのフレームに送られたイベント 1 件ごとに呼ばれる。同じフレームの後で送られたものも、読み取り位置が進むので 1 回ずつ読む。イベントはフレームの頭で破棄される。
 - `[SystemPhase]` を書かない受け手は、送り手の最も遅いフェーズに入り、同じフェーズの送り手の後に並ぶ。受け手が送り手より早いフェーズを明示すると SYSGEN041、送り手がいないと SYSGEN042(警告)。
 - キャラクターは `Jumped`、`Landed`(`Impact` は 0〜1)、`Footstep`(`CharacterMotion.StepLength` を歩くごとに 1 回)を送る。どれも `Source`(キャラクターの Entity)を持つ。
+
+## Android build target (ADR-0101 stage 1)
+
+- A game can target Android when its csproj sets `CgeTargetPlatforms` to include `Android` before importing `Game.props`; its `Platforms` then include `Android`. It builds `net10.0-android` only when `Platform` is `Android` (the `Android` solution platform in `CSharpGameEngine.slnx` maps only ThirdPerson to it; every other project keeps its usual platform and outputs) and `net10.0-windows10.0.19041.0` otherwise, so the usual `x64` builds and CI never build Android. `-f net10.0-android` also selects Android. In this repository only `Templates/ThirdPerson` targets Android.
+- On Android the game references no `Windows.csproj` and defines `CGE_PLATFORM_ANDROID`. `EngineHost` owns every platform difference: `PumpPlatformEvents` (no window or input; returns false once the app's screen is closed), `HasRenderSurface` (always false, so the level never loads), `CreateLevelRenderer` (unsupported) and `PlayOneShot`/`Audio` (silent, unconnected mixer). The game's systems run; nothing is drawn or heard.
+- `InputServer` lives in `src/Engine/Core`, and the platform-neutral control names in `CSharpGameEngine.Input.InputControls`; generated `[InputActions]` bindings name `InputControls`. `Win32InputEventAdapter` keeps its public members as forwards.
+- The Android SDK compiles an app as a library. When the compilation contains `CSharpGameEngine.Runtime.Android.AndroidGameHost`, the generator still emits `Main` and registers it with `AndroidGameHost.SetEntryPoint` from a `[ModuleInitializer]`. `GameActivity` runs it on a dedicated thread, caps the loop at about 60 frames a second and shows the state, frame count, elapsed time and any failure as text.
+- Android builds use the JIT in Debug (`UseInterpreter=false` by default): interpreted, ThirdPerson ran at about 6 frames a second on the API 36 x86_64 emulator.
+- Not in stage 1: rendering, audio, touch or key input, assets in the APK, package-mode games.

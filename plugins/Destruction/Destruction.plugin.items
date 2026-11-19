@@ -31,21 +31,23 @@
   </Target>
 
   <Target Name="_CgeBuildDestructionTools" DependsOnTargets="_CgeFindDestructionScenes" Condition="'$(DesignTimeBuild)' != 'true' and '$(CgeEngineMode)' != 'Package'">
-    <!-- A game built on its own does not restore these tools; restore in a separate evaluation first (as the shader and scene schema tools do). -->
+    <!-- A game built on its own does not restore these tools; restore in a separate evaluation first (as the shader and scene schema tools do).
+         Platform=AnyCPU and no numeric properties for the default setting, as the solution builds these tools: anything else is a
+         second build into the same outputs, which can collide with the solution's ("used by another process"). -->
     <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeEngineRoot)tools\Cook.Cli\Cook.Cli.csproj" Targets="Restore"
-             Properties="Configuration=$(Configuration);$(CgeNumericBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false" />
+             Properties="Configuration=$(Configuration);Platform=AnyCPU;$(CgeNumericBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir" BuildInParallel="false" />
     <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeEngineRoot)tools\Cook.Cli\Cook.Cli.csproj" Targets="Build"
-             Properties="Configuration=$(Configuration);$(CgeNumericBuildProperties)"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false">
+             Properties="Configuration=$(Configuration);Platform=AnyCPU;$(CgeNumericBuildProperties)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookCliAssembly" />
     </MSBuild>
     <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeDestructionCookProject)" Targets="Restore"
-             Properties="Configuration=$(Configuration);$(CgeNumericBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false" />
+             Properties="Configuration=$(Configuration);Platform=AnyCPU;$(CgeNumericBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir" BuildInParallel="false" />
     <MSBuild Condition="'@(CgeDestructionScene)' != ''" Projects="$(CgeDestructionCookProject)" Targets="Build"
-             Properties="Configuration=$(Configuration);$(CgeNumericBuildProperties)"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir;Platform" BuildInParallel="false">
+             Properties="Configuration=$(Configuration);Platform=AnyCPU;$(CgeNumericBuildProperties)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookModuleAssembly" />
     </MSBuild>
     <PropertyGroup Condition="'@(CgeDestructionScene)' != ''">

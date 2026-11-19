@@ -12,12 +12,17 @@
          and BuildCgeSceneSchemaCli replaces this with the path the build produced (an artifacts path moves it). -->
     <CgeSceneSchemaCli Condition="'$(CgeSceneSchemaCli)' == ''">$(MSBuildThisFileDirectory)..\tools\Cge\bin\$(Configuration)\net10.0\Cge.dll</CgeSceneSchemaCli>
     <!-- The game build makes tools/Cge from three places (shader graphs, scene schema, model content). They pass the same properties,
-         so MSBuild builds it once per game build and reuses the result. Keep these the same in all three files. -->
-    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64</CgeToolBuildProperties>
-    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath</CgeToolRemoveProperties>
+         so MSBuild builds it once per game build and reuses the result. Keep these the same in all four files (with ShaderGraph,
+         ModelContent and TileContent). The tool is the default numeric setting: the game's numeric properties are removed rather than
+         spelled out as Fixed 128/64, and the platform is the AnyCPU the solution builds the tool with rather than removed, so this
+         is the same build the solution makes, not a second build into the same outputs (NumericProfile.targets explains why). -->
+    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);Platform=AnyCPU</CgeToolBuildProperties>
+    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;CgeNumericMode;CgeFixedBits;CgeFractionalBits;CgeNumericProfileId</CgeToolRemoveProperties>
     <CgeSceneSchemaPath Condition="'$(CgeSceneSchemaPath)' == ''">$(MSBuildProjectDirectory)\.cge\scene.schema.json</CgeSceneSchemaPath>
   </PropertyGroup>
-  <Target Name="BuildCgeSceneSchemaCli" BeforeTargets="WriteCgeSceneSchema" Condition="'$(CgeGameProject)' == 'true' and '$(CgeEngineMode)' != 'Package'">
+  <!-- Only the Windows build writes the schema (ADR-0101): the Android assembly carries the same embedded schema, and the outer
+       build of a game that sets TargetFrameworks itself has no assembly. -->
+  <Target Name="BuildCgeSceneSchemaCli" BeforeTargets="WriteCgeSceneSchema" Condition="'$(CgeGameProject)' == 'true' and '$(CgePlatform)' == 'Windows' and '$(CgeEngineMode)' != 'Package'">
     <!-- A game built on its own does not restore this tool; restore in a separate evaluation first. -->
     <MSBuild Projects="$(CgeSceneSchemaCliProject)" Targets="Restore"
              Properties="$(CgeToolBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
@@ -33,7 +38,7 @@
       <CgeSceneSchemaCli>@(_CgeSceneSchemaCliAssembly->'%(FullPath)')</CgeSceneSchemaCli>
     </PropertyGroup>
   </Target>
-  <Target Name="WriteCgeSceneSchema" AfterTargets="Build" Condition="'$(CgeGameProject)' == 'true'">
+  <Target Name="WriteCgeSceneSchema" AfterTargets="Build" Condition="'$(CgeGameProject)' == 'true' and '$(CgePlatform)' == 'Windows'">
     <Exec Command="dotnet &quot;$(CgeSceneSchemaCli)&quot; scene-schema &quot;$(TargetPath)&quot; &quot;$(CgeSceneSchemaPath)&quot;" StandardOutputImportance="low" />
   </Target>
 </Project>

@@ -31,6 +31,19 @@
       <CgePluginRootsEncoded>$(CgePluginRoots.Replace('#','?h').Replace(';','?s'))</CgePluginRootsEncoded>
     </PropertyGroup>
   </Target>
+  <!--
+    ADR-0101: the Android SDK gives every app an XML documentation file (Xamarin.Android.Bindings.Core.targets), which makes the
+    compiler check doc comments. The Windows build writes none, so shared runtime comments that name Windows-only types (crefs to
+    Win32Window) would fail only on Android. Drop the file before compiling so both builds check the same things.
+  -->
+  <Target Name="CgeDropAndroidDocumentationFile" BeforeTargets="CoreCompile" Condition="'$(CgeGameProject)' == 'true' and '$(CgePlatform)' == 'Android'">
+    <ItemGroup>
+      <DocFileItem Remove="@(DocFileItem)" />
+    </ItemGroup>
+    <PropertyGroup>
+      <DocumentationFile></DocumentationFile>
+    </PropertyGroup>
+  </Target>
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.ModelContent.targets" />
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.TileContent.targets" />
 </Project>

@@ -5,9 +5,11 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json;
+using CSharpGameEngine.Runtime.Simulation;
+#if !CGE_PLATFORM_ANDROID
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Graphics.D3D12;
-using CSharpGameEngine.Runtime.Simulation;
+#endif
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
 /// 環境変数で有効化する実行時の自動検証フック。描画が始まってから指定フレーム数を表示した後に、
@@ -121,7 +123,7 @@ public sealed class RuntimeAutomation {
                 }
             }
             if(Code.Length==0
-                ||Code.StartsWith("Gamepad",StringComparison.Ordinal)&&!Win32InputEventAdapter.IsGamepadInjectionCode(Code)
+                ||Code.StartsWith("Gamepad",StringComparison.Ordinal)&&!IsGamepadCode(Code)
                 ||Code.StartsWith("MouseDelta",StringComparison.Ordinal)&&!IsMouseDeltaCode(Code)){
                 Error=$"'{Entry}' names an unknown control '{Code}'.";
                 return false;
@@ -131,12 +133,19 @@ public sealed class RuntimeAutomation {
         return true;
     }
     private static bool IsMouseDeltaCode(string Code)=>Code is "MouseDeltaX" or "MouseDeltaY";
-    private static bool IsAnalogCode(string Code)=>IsMouseDeltaCode(Code)||Win32InputEventAdapter.IsGamepadInjectionCode(Code);
+    private static bool IsAnalogCode(string Code)=>IsMouseDeltaCode(Code)||IsGamepadCode(Code);
+#if CGE_PLATFORM_ANDROID
+    /// <summary>ADR-0101 段階1：Android にはスクリプトの入力を差し込むウィンドウが無いので、ゲームパッドの名前も受け付けない。</summary>
+    private static bool IsGamepadCode(string Code)=>false;
+#else
+    private static bool IsGamepadCode(string Code)=>Win32InputEventAdapter.IsGamepadInjectionCode(Code);
+#endif
     /// <summary>
     /// これから表示するフレームが範囲内にある間、スケジュールされた各入力を保持する。<c>MouseLeft</c>は左マウスボタンを押し続け、
     /// <c>MouseDeltaX</c>と<c>MouseDeltaY</c>は範囲内の各フレームで指定値（カウント単位）だけマウスを移動させる。
     /// <c>Gamepad…</c>はコントローラーの軸、トリガー、ボタンを指定値にする（範囲外では0）。それ以外はキーボードキーとして扱う（M0108）。
     /// </summary>
+#if !CGE_PLATFORM_ANDROID
     internal void ApplyInput(Win32Window Window){
         var Frame=this.PresentedFrames;
         var DeltaX=0f;
@@ -152,6 +161,7 @@ public sealed class RuntimeAutomation {
         }
         if(DeltaX!=0f||DeltaY!=0f){ Window.InjectMouseDelta(DeltaX,DeltaY); }
     }
+#endif
     /// <summary>ゲームがこれまでに要求したサウンド（ADR-0077）と、デバイスが実際に開始した数。検証時にレポートから読み取る。</summary>
     private int AudioRequests;
     private int AudioStarted;

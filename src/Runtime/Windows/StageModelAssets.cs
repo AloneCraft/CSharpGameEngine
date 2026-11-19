@@ -2,7 +2,6 @@ using System.Numerics;
 using CSharpGameEngine.Content;
 using CSharpGameEngine.Content.Models;
 using CSharpGameEngine.Content.VirtualGeometry;
-using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.Pipeline;
 namespace CSharpGameEngine.Runtime.Windows;

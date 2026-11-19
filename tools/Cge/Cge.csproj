@@ -19,7 +19,9 @@
     <!-- ADR-0023: the bridges' resident-server mode (the serve option after the command name). -->
     <ProjectReference Include="..\Bridge.Hosting\Bridge.Hosting.csproj" />
     <!-- asset-authoring prepares models with Cook.Cli in a process of its own (copied to Cook/ below), never in this one. -->
-    <ProjectReference Include="..\Cook.Cli\Cook.Cli.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="Platform;RuntimeIdentifier;SelfContained" />
+    <!-- Platform=AnyCPU, the platform the solution builds Cook.Cli with, rather than no platform: a build without one is a second
+         build into the same outputs that can collide with the solution's ("used by another process"). -->
+    <ProjectReference Include="..\Cook.Cli\Cook.Cli.csproj" ReferenceOutputAssembly="false" SetPlatform="Platform=AnyCPU" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
   </ItemGroup>
   <ItemGroup>
     <!-- shader-graph -->
@@ -42,7 +44,7 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo"><_Parameter1>Windowsのテスト</_Parameter1></AssemblyAttribute>
   </ItemGroup>
   <Target Name="CgeCopyModelProductionWorker" AfterTargets="Build">
-    <MSBuild Projects="..\Cook.Cli\Cook.Cli.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)" RemoveProperties="Platform;RuntimeIdentifier;SelfContained">
+    <MSBuild Projects="..\Cook.Cli\Cook.Cli.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=AnyCPU" RemoveProperties="RuntimeIdentifier;SelfContained">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeModelProductionWorker" />
     </MSBuild>
     <PropertyGroup><_CgeModelProductionWorkerDirectory>@(_CgeModelProductionWorker->'%(RootDir)%(Directory)')</_CgeModelProductionWorkerDirectory></PropertyGroup>

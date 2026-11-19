@@ -14,19 +14,32 @@
     <CgeEngineShaderRoot Condition="'$(CgeEngineShaderRoot)' == ''">$(CgeEngineRoot)assets\Shaders\</CgeEngineShaderRoot>
     <!-- Microsoft.NET.Sdk.propsがOutputType=Library/Platforms=AnyCPUを先に既定するため、条件なしで設定する。 -->
     <OutputType>Exe</OutputType>
-    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0-windows10.0.19041.0</TargetFramework>
+    <CgeWindowsTargetFramework Condition="'$(CgeWindowsTargetFramework)' == ''">net10.0-windows10.0.19041.0</CgeWindowsTargetFramework>
+    <CgeAndroidTargetFramework Condition="'$(CgeAndroidTargetFramework)' == ''">net10.0-android</CgeAndroidTargetFramework>
+    <!-- ADR-0101: CgeTargetPlatforms (set before importing this file) names the platforms the game can build for. A game that
+         lists Android builds for Android only when the solution platform (Platform) is Android; under every other platform it
+         builds for Windows only, so the usual builds do not pay for the Android build. Under the Android platform Visual
+         Studio offers Android devices and emulators next to the F5 button. -->
+    <CgeTargetPlatforms Condition="'$(CgeTargetPlatforms)' == ''">Windows</CgeTargetPlatforms>
+    <_CgeAndroidSelected Condition="'$(Platform)' == 'Android' and $(CgeTargetPlatforms.Contains('Android'))">true</_CgeAndroidSelected>
+    <TargetFramework Condition="'$(TargetFramework)' == '' and '$(TargetFrameworks)' == '' and '$(_CgeAndroidSelected)' == 'true'">$(CgeAndroidTargetFramework)</TargetFramework>
+    <TargetFramework Condition="'$(TargetFramework)' == '' and '$(TargetFrameworks)' == ''">$(CgeWindowsTargetFramework)</TargetFramework>
+    <CgePlatform Condition="'$(TargetFramework)' != '' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">Android</CgePlatform>
+    <!-- A game that sets TargetFrameworks itself has an outer build (TargetFramework empty) with no platform: it only dispatches
+         the per-framework builds, so it must not run the shader, schema or content steps (it has no TargetPath). -->
+    <CgePlatform Condition="'$(CgePlatform)' == '' and '$(TargetFramework)' != ''">Windows</CgePlatform>
+    <_CgeWindowsDefault>false</_CgeWindowsDefault>
+    <_CgeWindowsDefault Condition="'$(CgePlatform)' == 'Windows'">true</_CgeWindowsDefault>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Platforms>AnyCPU;x64</Platforms>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
-    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+    <SelfContained Condition="'$(SelfContained)' == '' and '$(CgePlatform)' == 'Windows'">false</SelfContained>
     <IsPackable>false</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
-    <CgeIncludeDefaultStageShaders Condition="'$(CgeIncludeDefaultStageShaders)' == ''">true</CgeIncludeDefaultStageShaders>
-    <CgeCopyAssets Condition="'$(CgeCopyAssets)' == ''">true</CgeCopyAssets>
-    <CgeIncludeDefaultFonts Condition="'$(CgeIncludeDefaultFonts)' == ''">true</CgeIncludeDefaultFonts>
+    <CgeIncludeDefaultStageShaders Condition="'$(CgeIncludeDefaultStageShaders)' == ''">$(_CgeWindowsDefault)</CgeIncludeDefaultStageShaders>
+    <CgeCopyAssets Condition="'$(CgeCopyAssets)' == ''">$(_CgeWindowsDefault)</CgeCopyAssets>
+    <CgeIncludeDefaultFonts Condition="'$(CgeIncludeDefaultFonts)' == ''">$(_CgeWindowsDefault)</CgeIncludeDefaultFonts>
     <!-- ADR-0078/M0110: Unreal's "Generate Mesh Distance Fields" (on in its templates, needed by Lumen). The build makes each glTF's distance fields. -->
-    <CgeGenerateMeshDistanceFields Condition="'$(CgeGenerateMeshDistanceFields)' == ''">true</CgeGenerateMeshDistanceFields>
+    <CgeGenerateMeshDistanceFields Condition="'$(CgeGenerateMeshDistanceFields)' == ''">$(_CgeWindowsDefault)</CgeGenerateMeshDistanceFields>
     <!-- The shared engine sources need these outside the repository, where Directory.Build.props does not apply. -->
     <LangVersion Condition="'$(LangVersion)' == ''">14</LangVersion>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
@@ -36,14 +49,43 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);Plugins\**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <Platforms>AnyCPU;x64</Platforms>
+    <Platforms Condition="$(CgeTargetPlatforms.Contains('Android'))">AnyCPU;x64;Android</Platforms>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CgePlatform)' == 'Windows'">
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <!-- ADR-0101 stage 1: on Android the game's systems run without the Windows backend (no D3D12, XAudio2 or Win32 window).
+       The D3D12 shaders, the distance fields, the fonts and the loose asset copies default to off there
+       (_CgeWindowsDefault): nothing on Android reads them yet. -->
+  <PropertyGroup Condition="'$(CgePlatform)' == 'Android'">
+    <DefineConstants>$(DefineConstants);CGE_PLATFORM_ANDROID</DefineConstants>
+    <!-- "Android" names the solution platform, not a CPU; the compiler accepts only CPU names. The APK carries both
+         android-arm64 and android-x64. -->
+    <PlatformTarget Condition="'$(Platform)' == 'Android'">AnyCPU</PlatformTarget>
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">24</SupportedOSPlatformVersion>
+    <ApplicationId Condition="'$(ApplicationId)' == ''">com.csharpgameengine.$(MSBuildProjectName.ToLowerInvariant())</ApplicationId>
+    <ApplicationTitle Condition="'$(ApplicationTitle)' == ''">$(MSBuildProjectName)</ApplicationTitle>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+    <ApplicationDisplayVersion Condition="'$(ApplicationDisplayVersion)' == ''">1.0</ApplicationDisplayVersion>
+    <!-- The Android SDK interprets IL in Debug (for Hot Reload). Measured on the API 36 x86_64 emulator with ThirdPerson
+         (2026-11-19): about 6 frames a second at full CPU interpreted, about 59 (the 60 Hz cap) at 20% CPU with the JIT.
+         Breakpoints work either way; C# Hot Reload on Android needs UseInterpreter=true. -->
+    <UseInterpreter Condition="'$(UseInterpreter)' == ''">false</UseInterpreter>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Version.props" />
   <Import Project="$(CgeEngineSourceRoot)Runtime\Runtime.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- World/Stateはpartial structで、GameSystemGeneratorが同じコンパイル内で完成させる(ADR-0033)。 -->
     <Compile Include="$(CgeEngineSourceRoot)Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
-    <Compile Remove="$(CgeEngineSourceRoot)Entities\SceneComponentIconAttribute.cs" />
-    <Compile Remove="$(CgeEngineSourceRoot)Entities\SceneComponentOrderAttribute.cs" />
+    <!-- Windows.dll carries these two attributes; on Android (ADR-0101), which does not reference it, the game compiles them. -->
+    <Compile Remove="$(CgeEngineSourceRoot)Entities\SceneComponentIconAttribute.cs" Condition="'$(CgePlatform)' == 'Windows'" />
+    <Compile Remove="$(CgeEngineSourceRoot)Entities\SceneComponentOrderAttribute.cs" Condition="'$(CgePlatform)' == 'Windows'" />
     <Compile Remove="Generated\**\*.cs" />
     <!-- ADR-0070: scene documents are the *.json files under Scenes (SceneFiles), compiled to C# by
          GameSystemGenerator in the same build. The generator finds them with ProjectDir. -->
@@ -65,9 +107,15 @@
     <CompilerVisibleProperty Include="CgeEnforceEnglishApi" />
   </ItemGroup>
 
+  <!-- ADR-0101: game code names no Android types. Android.Widget.Button, from the Android SDK's implicit usings, would
+       collide with CSharpGameEngine.Input.Button. -->
+  <ItemGroup Condition="'$(CgePlatform)' == 'Android'">
+    <Using Remove="Android.App;Android.Widget;Android.OS.Bundle" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">
     <ProjectReference Include="$(CgeEngineSourceRoot)Contracts\Contracts.csproj" />
-    <ProjectReference Include="$(CgeEngineSourceRoot)Windows\Windows.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)Windows\Windows.csproj" Condition="'$(CgePlatform)' == 'Windows'" />
     <ProjectReference Include="$(CgeEngineSourceRoot)Engine\Engine.csproj" />
     <ProjectReference Include="$(CgeEngineSourceRoot)Numerics\Numerics.csproj" />
   </ItemGroup>

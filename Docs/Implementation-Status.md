@@ -1,5 +1,18 @@
 # Implementation Status (Feature Ledger)
 
+## F-L0-060 — Android build target, stage 1 (ADR-0101)
+
+- Layer: L0 — Platform / Native Backends (with L9 build integration)
+- Parent capability: Platform
+- Status: PartiallyImplemented
+- Phase: exception to ADR-0098 (Windows only until 1.0) for stage 1 only, accepted 2026-11-19 at the user's request.
+- Verification: ManuallyVerified (emulator run); Windows regression by build and tests
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md` (Android build target), ADR-0101
+- Implementation evidence: `build/CSharpGameEngine.Game.props` (`CgeTargetPlatforms`, `CgePlatform`), `build/CSharpGameEngine.Game.targets` (`CgeDropAndroidDocumentationFile`), `src/Runtime/Android/AndroidGameHost.cs`, `src/Runtime/Android/GameActivity.cs`, `src/Runtime/Windows/EngineHost.cs` (`PumpPlatformEvents`, `HasRenderSurface`, `CreateLevelRenderer`, `PlayOneShot`), `src/Engine/Core/InputServer.cs`, `src/Engine/Core/InputControls.cs`, `src/CodeAnalysis/GameSystemEntryPointEmitter.cs`, `GenerationGate.cs`, `GeneratedEditorPreviewBridgeEmitter.cs`, `Templates/ThirdPerson/ThirdPerson.csproj`, `Templates/ThirdPerson/Properties/launchSettings.json`, `CSharpGameEngine.slnx` (`Android` solution platform)
+- Observed: under the `Android` solution platform ThirdPerson builds for `net10.0-android` while the other projects keep their usual platform and outputs (switching back recompiles only ThirdPerson, whose `obj/project.assets.json` each restore rewrites for the selected framework; the solution platform `Any CPU` is spelled with a space so that it stays the default); it installs and starts on the MaterialFall_API36 (x86_64) emulator with `dotnet build -t:Run -p:Platform=Android`; the screen shows `Running` with the frame count rising at about 59 frames a second (JIT) and 20% CPU. With the Debug interpreter it was about 6 frames a second at full CPU, so Android game builds default to `UseInterpreter=false`.
+- Known deviations: no rendering, audio, touch input or assets on Android; package-mode games are not covered; the F5 debugger attach in Visual Studio has not been exercised (only the CLI deploy/run).
+- Next action: decide stage 2 (renderer backend) separately.
+
 ## F-L1-012 — Configurable numeric runtime
 
 - Layer: L1 — Core Kernel

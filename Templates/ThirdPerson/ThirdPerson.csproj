@@ -4,6 +4,11 @@
     UE5.8 ThirdPersonテンプレートの移植(ADR-0068)。このプロジェクトがVS新規プロジェクトテンプレートの原本であり、
     リポジトリ内ではSourceModeでビルド・検証する。名前空間CgeThirdPersonはテンプレート作成時にWizardが置換する。
   -->
+  <!-- ADR-0101 段階1：Android 向けにもビルドできるようにする。Game.props より前に書く。
+       ソリューションのプラットフォームを Android にしたときだけ Android 向けを作り、それ以外では Windows 向けだけを作る。 -->
+  <PropertyGroup>
+    <CgeTargetPlatforms>Windows;Android</CgeTargetPlatforms>
+  </PropertyGroup>
   <Import Project="..\..\build\CSharpGameEngine.Game.props" />
 
   <PropertyGroup>

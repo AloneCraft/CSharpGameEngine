@@ -2,7 +2,6 @@ using CSharpGameEngine.Rendering.Server;
 using CSharpGameEngine.Rendering;
 using System.Numerics;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Windows;
 /// <summary>
@@ -258,7 +257,7 @@ internal sealed class RenderRoster {
                 this.DroppedObjects++;
                 if(!this.ReportedHeadroom){
                     this.ReportedHeadroom=true;
-                    this.DiagnosticList.Add($"The renderer has no room for more than {StageRenderer.DynamicObjectHeadroom} objects added after the level loaded; the rest are not drawn.");
+                    this.DiagnosticList.Add($"The renderer has no room for more than {StageRenderLimits.DynamicObjectHeadroom} objects added after the level loaded; the rest are not drawn.");
                 }
                 continue;
             }

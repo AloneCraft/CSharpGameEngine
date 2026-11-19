@@ -27,7 +27,7 @@ public static class PlatformReleaseEvidence {
         new("toolchain","global.json"),
         new("input.contract","src/Engine/Core/InputContracts.cs"),
         new("timestamp.input-adapter","src/Windows/Platform/Win32InputEventAdapter.cs"),
-        new("input.server","src/Windows/Input/InputServer.cs"),
+        new("input.server","src/Engine/Core/InputServer.cs"),
         new("audio.contract","src/Engine/Core/AudioContracts.cs"),
         new("audio.mixer","src/Engine/Core/Audio/AudioMixer.cs"),
         new("audio.spatial","src/Engine/Core/Audio/AudioSpatializer.cs"),

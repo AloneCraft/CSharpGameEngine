@@ -53,7 +53,7 @@ public sealed class InputActionsGeneratorTests {
         Assert.Contains("KeyCode(0x57)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier() })",Source);
         Assert.Contains("KeyCode(0x53)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier(), new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
         Assert.Contains("KeyCode(0x41)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
-        Assert.Contains("Id_Move, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftStick, DeadZone: 0.2f)",Source);
+        Assert.Contains("Id_Move, global::CSharpGameEngine.Input.InputControls.GamepadLeftStick, DeadZone: 0.2f)",Source);
         // マウス移動量はY方向を反転して上へ動かすと上を見るようにする。スティックは別のアクションで、フレーム時間に応じてスケーリングする。
         Assert.Contains("\"Delta\", global::CSharpGameEngine.Core.InputControlKind.RelativeAxis2D), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier(X: false, Y: true) })",Source);
         Assert.Contains("S.X * global::CSharpGameEngine.Input.Look.StickTurnsPerSecond * DeltaSeconds",Source);
@@ -271,12 +271,12 @@ public sealed class InputActionsGeneratorTests {
         var Source=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.InputActions.Game_DriveActions.g.cs");
 
         // キーは+1、NegativeKeysは-1。トリガーとスティック軸は独立したコントロールで、既定のデッドゾーンはそれぞれ0.1、0.2。
-        Assert.Contains("Id_Throttle, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x57)))",Source);
-        Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x41)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
-        Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.KeyCode(0x25)), Modifiers:",Source);
-        Assert.Contains("Id_Throttle, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightTrigger, DeadZone: 0.1f)",Source);
-        Assert.Contains("Id_Brake, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftTrigger, DeadZone: 0.05f, Scale: 1.5f)",Source);
-        Assert.Contains("Id_Steering, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadLeftX, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
+        Assert.Contains("Id_Throttle, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Input.InputControls.KeyCode(0x57)))",Source);
+        Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Input.InputControls.KeyCode(0x41)), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
+        Assert.Contains("Id_Steering, new global::CSharpGameEngine.Core.InputControl(global::CSharpGameEngine.Core.InputDeviceKind.Keyboard, global::CSharpGameEngine.Input.InputControls.KeyCode(0x25)), Modifiers:",Source);
+        Assert.Contains("Id_Throttle, global::CSharpGameEngine.Input.InputControls.GamepadRightTrigger, DeadZone: 0.1f)",Source);
+        Assert.Contains("Id_Brake, global::CSharpGameEngine.Input.InputControls.GamepadLeftTrigger, DeadZone: 0.05f, Scale: 1.5f)",Source);
+        Assert.Contains("Id_Steering, global::CSharpGameEngine.Input.InputControls.GamepadLeftX, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputNegateModifier() })",Source);
         Assert.Contains("\"Gamepad_FaceButton_Left\"",Source);
         // 複数のバインディング値を加算し、Axis.FromSumが-1～1に制限してNaNを0に変換する。
         Assert.Contains("Result.Throttle = global::CSharpGameEngine.Input.Axis.FromSum(V.X);",Source);
@@ -292,8 +292,8 @@ public sealed class InputActionsGeneratorTests {
         Assert.Contains("\"Delta\", global::CSharpGameEngine.Core.InputControlKind.RelativeAxis2D), Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputMaskModifier(X: false, Y: true) })",Source);
         Assert.Contains("{ new global::CSharpGameEngine.Input.InputMaskModifier(X: true, Y: false), new global::CSharpGameEngine.Input.InputNegateModifier(X: false, Y: true) })",Source);
         // スティックのY軸はswizzleによって視点入力のY軸へ対応する。X軸に変換は不要。
-        Assert.Contains("Id_Around_Stick, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightX, DeadZone: 0.2f)",Source);
-        Assert.Contains("Id_Tilt_Stick, global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter.GamepadRightY, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier() })",Source);
+        Assert.Contains("Id_Around_Stick, global::CSharpGameEngine.Input.InputControls.GamepadRightX, DeadZone: 0.2f)",Source);
+        Assert.Contains("Id_Tilt_Stick, global::CSharpGameEngine.Input.InputControls.GamepadRightY, DeadZone: 0.2f, Modifiers: new global::CSharpGameEngine.Input.InputModifier[] { new global::CSharpGameEngine.Input.InputSwizzleModifier() })",Source);
     }
 
     [Fact]

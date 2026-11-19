@@ -9,9 +9,12 @@
     <CgeNumericProfileId>fixed-$(CgeFixedBits)-$(CgeFractionalBits)</CgeNumericProfileId>
     <CgeNumericProfileId Condition="'$(CgeNumericMode)' == 'Float'">float32</CgeNumericProfileId>
     <CgeNumericProfileId Condition="'$(CgeNumericMode)' == 'Double'">float64</CgeNumericProfileId>
-    <CgeNumericBuildProperties>CgeNumericMode=$(CgeNumericMode);CgeFixedBits=$(CgeFixedBits);CgeFractionalBits=$(CgeFractionalBits)</CgeNumericBuildProperties>
     <_CgeCustomFixed Condition="'$(CgeNumericMode)' == 'Fixed' and ('$(CgeFixedBits)' != '128' or '$(CgeFractionalBits)' != '64')">true</_CgeCustomFixed>
     <_CgeNumericVariant Condition="'$(_CgeCustomFixed)' == 'true' or '$(CgeNumericMode)' == 'Float' or '$(CgeNumericMode)' == 'Double'">true</_CgeNumericVariant>
+    <!-- The properties a nested build of a numeric-sensitive tool receives. Empty for the default setting: the default is a build with no
+         numeric properties, the one the solution makes, and spelling it out would make a second build into the same outputs
+         (NumericProfile.targets). -->
+    <CgeNumericBuildProperties Condition="'$(_CgeNumericVariant)' == 'true'">CgeNumericMode=$(CgeNumericMode);CgeFixedBits=$(CgeFixedBits);CgeFractionalBits=$(CgeFractionalBits)</CgeNumericBuildProperties>
   </PropertyGroup>
   <PropertyGroup Condition="'$(_CgeNumericVariant)' == 'true' and '$(CgeNumericProfileLateImport)' != 'true'">
     <IntermediateOutputPath>obj\$(Configuration)\$(CgeNumericProfileId)\</IntermediateOutputPath>

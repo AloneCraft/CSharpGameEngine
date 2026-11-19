@@ -18,7 +18,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </summary>
 internal readonly struct GenerationGate(
     bool HasRuntimeMarker,OutputKind OutputKind,bool HasUserEntryPoint,
-    bool HasWorldCellActivationContract=false,bool HasSceneBakeContract=false,bool HasSceneSpawnContract=false) : IEquatable<GenerationGate> {
+    bool HasWorldCellActivationContract=false,bool HasSceneBakeContract=false,bool HasSceneSpawnContract=false,bool HasAndroidHost=false) : IEquatable<GenerationGate> {
     /// <summary>
     /// <c>CSharpGameEngine.Entities.ISystem</c>がコンパイル内に実在するか。ADR-0014により1つの
     /// アナライザーパッケージへ複数のGeneratorが同居するため、このECSを使う意図が無いプロジェクトでも
@@ -35,6 +35,12 @@ internal readonly struct GenerationGate(
     internal readonly bool HasSceneBakeContract=HasSceneBakeContract;
     /// <summary><c>CSharpGameEngine.Entities.ISpawnableScene</c>がコンパイル内に実在するか。あるときだけ、根に Transform を持つ Scene へ位置つきの生成(M0105)を出す。</summary>
     internal readonly bool HasSceneSpawnContract=HasSceneSpawnContract;
+    /// <summary>
+    /// <c>CSharpGameEngine.Runtime.Android.AndroidGameHost</c>がコンパイル内に実在するか(ADR-0101)。Android の SDK はアプリを
+    /// ライブラリとしてコンパイルする(OutputType を Exe から Library に変える)ので、出力の種類では実行可能かを判断できない。
+    /// </summary>
+    internal readonly bool HasAndroidHost=HasAndroidHost;
+    internal const string AndroidHostMetadataName="CSharpGameEngine.Runtime.Android.AndroidGameHost";
     internal static GenerationGate FromCompilation(Compilation Compilation,CancellationToken CancellationToken){
         var RuntimeMarker=Compilation.GetTypeByMetadataName(GameSystemAnalyzer.SystemInterfaceMetadataName);
         return new GenerationGate(
@@ -45,7 +51,8 @@ internal readonly struct GenerationGate(
             Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Windows.EngineHost") is not null
                 &&Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Physics.PhysicsCacheStreamWriter") is not null
                 &&Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Simulation.SimulationCacheIdentity") is not null,
-            Compilation.GetTypeByMetadataName("CSharpGameEngine.Entities.ISpawnableScene") is not null);
+            Compilation.GetTypeByMetadataName("CSharpGameEngine.Entities.ISpawnableScene") is not null,
+            Compilation.GetTypeByMetadataName(AndroidHostMetadataName) is not null);
     }
 
     public bool Equals(GenerationGate Other){
@@ -54,7 +61,8 @@ internal readonly struct GenerationGate(
             &&this.HasUserEntryPoint==Other.HasUserEntryPoint
             &&this.HasWorldCellActivationContract==Other.HasWorldCellActivationContract
             &&this.HasSceneBakeContract==Other.HasSceneBakeContract
-            &&this.HasSceneSpawnContract==Other.HasSceneSpawnContract;
+            &&this.HasSceneSpawnContract==Other.HasSceneSpawnContract
+            &&this.HasAndroidHost==Other.HasAndroidHost;
     }
 
     public override bool Equals(object?Obj)=>Obj is GenerationGate Other&&this.Equals(Other);
@@ -68,6 +76,7 @@ internal readonly struct GenerationGate(
             Hash=(Hash*31)+(this.HasWorldCellActivationContract?1:0);
             Hash=(Hash*31)+(this.HasSceneBakeContract?1:0);
             Hash=(Hash*31)+(this.HasSceneSpawnContract?1:0);
+            Hash=(Hash*31)+(this.HasAndroidHost?1:0);
             return Hash;
         }
     }

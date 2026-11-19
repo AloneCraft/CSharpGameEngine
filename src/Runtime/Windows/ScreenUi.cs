@@ -1,8 +1,10 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Rendering;
+#if !CGE_PLATFORM_ANDROID
+using CSharpGameEngine.Graphics.D3D12;
+#endif
 
 namespace CSharpGameEngine.Runtime.Windows;
 
@@ -285,7 +287,12 @@ public sealed class ScreenUi {
         try {
             byte[]?Bytes=this.ReadFile(Path);
             if(Bytes is null){ this.ReportOnce($"The image '{Path}' was not found."); }
+#if CGE_PLATFORM_ANDROID
+            // ADR-0101 段階1：画像をほどく WIC は Windows にしか無い。
+            else { this.ReportOnce($"The image '{Path}' cannot be decoded on Android yet."); }
+#else
             else { Texture=RenderTextureArtifactAdapter.DecodeOptional(Bytes); }
+#endif
         } catch(Exception Error) when(Error is InvalidDataException or IOException or UnauthorizedAccessException){
             this.ReportOnce($"The image '{Path}' could not be read: {Error.Message}");
         }

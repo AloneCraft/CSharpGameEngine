@@ -275,7 +275,7 @@ internal static class InputActionsEmitter {
         internal IEnumerable<string>Bindings(){
             const string Core="global::CSharpGameEngine.Core";
             const string Input="global::CSharpGameEngine.Input";
-            const string Adapter="global::CSharpGameEngine.Platform.Windows.Win32InputEventAdapter";
+            const string Adapter="global::CSharpGameEngine.Input.InputControls";
             string Key(int Code)=> $"new {Core}.InputControl({Core}.InputDeviceKind.Keyboard, {Adapter}.KeyCode(0x{Code:X2}))";
             string Negate="new "+Input+".InputNegateModifier()";
             string Swizzle="new "+Input+".InputSwizzleModifier()";

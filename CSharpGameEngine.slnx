@@ -3,7 +3,8 @@
     <BuildType Name="Debug" />
     <BuildType Name="Release" />
     <Platform Name="x64" />
-    <Platform Name="AnyCPU" />
+    <Platform Name="Any CPU" />
+    <Platform Name="Android" />
   </Configurations>
   <Folder Name="/Docs/">
     <File Path="Docs/20260803-0.txt" />
@@ -236,7 +237,9 @@
   <Folder Name="/Templates/">
     <File Path="Templates/README.md" />
     <File Path="Templates/Template.slnx" />
-    <Project Path="Templates/ThirdPerson/ThirdPerson.csproj" />
+    <Project Path="Templates/ThirdPerson/ThirdPerson.csproj">
+      <Platform Solution="*|Android" Project="Android" />
+    </Project>
     <Project Path="Templates/FirstPerson/FirstPerson.csproj" />
     <Project Path="Templates/TopDown/TopDown.csproj" />
     <Project Path="Templates/Vehicle/Vehicle.csproj" />

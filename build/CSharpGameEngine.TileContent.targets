@@ -9,8 +9,8 @@
   -->
   <PropertyGroup Condition="'$(CgeGameProject)' == 'true'">
     <CgeTileCompiler Condition="'$(CgeEngineMode)' == 'Package' and '$(CgeTileCompiler)' == ''">$(CgeEngineRoot)tools\Cge\Cge.dll</CgeTileCompiler>
-    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64</CgeToolBuildProperties>
-    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath</CgeToolRemoveProperties>
+    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);Platform=AnyCPU</CgeToolBuildProperties>
+    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;CgeNumericMode;CgeFixedBits;CgeFractionalBits;CgeNumericProfileId</CgeToolRemoveProperties>
   </PropertyGroup>
   <Target Name="_CgeBuildTileTools" Condition="'$(CgeEngineMode)' == 'Source' and '$(DesignTimeBuild)' != 'true' and '@(CgeTileSource)' != ''">
     <MSBuild Projects="$(CgeEngineRoot)tools\Cge\Cge.csproj" Targets="Build" BuildInParallel="false"

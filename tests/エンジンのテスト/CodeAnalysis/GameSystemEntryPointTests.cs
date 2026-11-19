@@ -65,6 +65,45 @@ public sealed class GameSystemEntryPointTests {
         AssertNoEntryPoint(Result);
     }
 
+    /// <summary>ADR-0101：Android の SDK はアプリをライブラリとしてコンパイルする。このときの受け口だけを持つ偽物。</summary>
+    private const string FakeAndroidGameHost="""
+        namespace CSharpGameEngine.Runtime.Android;
+        public static class AndroidGameHost
+        {
+            public static System.Action? Registered;
+            public static void SetEntryPoint(System.Action main) => Registered = main;
+            public static bool RunRegistered()
+            {
+                if (Registered is null) return false;
+                Registered();
+                return true;
+            }
+        }
+        """;
+
+    [Fact]
+    public void AndroidLibrary_GetsMain_RegisteredWithTheAndroidHostWhenTheAssemblyLoads(){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,StartupAndTickSystems,FakeAndroidGameHost);
+        Assert.Empty(Result.Diagnostics);
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,EntryPointHintName);
+        Assert.Contains("private static void Main()",Text);
+        Assert.Contains("[global::System.Runtime.CompilerServices.ModuleInitializer]",Text);
+        Assert.Contains("global::CSharpGameEngine.Runtime.Android.AndroidGameHost.SetEntryPoint(Main);",Text);
+        // 読み込んだときに登録され、登録された Main がゲームのループを回して戻る(TickSystem が State を止める)。
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+                                                                  GameSystemGeneratorTestHelper.CommonComponents,StartupAndTickSystems,FakeAndroidGameHost);
+        Assert.Equal(true,GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Runtime.Android.AndroidGameHost","RunRegistered"));
+    }
+
+    [Fact]
+    public void WindowsApplication_DoesNotRegisterWithAnAndroidHost(){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+                                                               GameSystemGeneratorTestHelper.CommonComponents,StartupAndTickSystems));
+        Assert.DoesNotContain("AndroidGameHost",GameSystemGeneratorTestHelper.GeneratedText(Result,EntryPointHintName));
+    }
+
     [Fact]
     public void EntryPointIsNotGenerated_WhenTheUserWroteTheirOwnMain(){
         // 手書きProgram.csを持つ従来型プロジェクトの回帰。SGは黙る(CS0017を起こさない)。

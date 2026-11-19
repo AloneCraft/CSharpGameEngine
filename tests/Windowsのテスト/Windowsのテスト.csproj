@@ -20,7 +20,8 @@
     <ProjectReference Include="..\..\src\Import\Import.csproj" />
     <!-- tools/Cge: the content, font and shader-graph commands are tested here (InternalsVisibleTo). -->
     <ProjectReference Include="../../tools/Cge/Cge.csproj" />
-    <ProjectReference Include="../../tools/Cook.Cli/Cook.Cli.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="Platform;RuntimeIdentifier;SelfContained" />
+    <!-- Platform=AnyCPU as the solution builds Cook.Cli, not no platform: that would be a second build into the same outputs. -->
+    <ProjectReference Include="../../tools/Cook.Cli/Cook.Cli.csproj" ReferenceOutputAssembly="false" SetPlatform="Platform=AnyCPU" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
   </ItemGroup>
   <ItemGroup>
     <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />

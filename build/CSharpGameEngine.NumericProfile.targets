@@ -21,8 +21,20 @@
       <FileWrites Include="$(_CgeNumericProfileFile)" />
     </ItemGroup>
   </Target>
+  <!--
+    A nondefault numeric setting travels to the references as global properties, so each builds its own variant. The default
+    (Fixed 128/64) travels as no properties at all: MSBuild tells builds apart by their global properties, and the solution builds
+    every project without them, so passing the default spelled out made a second build of the same project (Engine, Contracts,
+    CodeAnalysis, ...) into the same output directory, and the two collided ("used by another process"). A default reference also
+    drops numeric properties it inherited, for the same reason.
+  -->
   <Target Name="CgePropagateNumericProfile" BeforeTargets="AssignProjectConfiguration;_GetAllRestoreProjectPathItems">
-    <ItemGroup>
+    <ItemGroup Condition="'$(_CgeNumericVariant)' != 'true'">
+      <ProjectReference Update="@(ProjectReference)">
+        <GlobalPropertiesToRemove>%(ProjectReference.GlobalPropertiesToRemove);CgeNumericMode;CgeFixedBits;CgeFractionalBits;CgeNumericProfileId</GlobalPropertiesToRemove>
+      </ProjectReference>
+    </ItemGroup>
+    <ItemGroup Condition="'$(_CgeNumericVariant)' == 'true'">
       <ProjectReference Update="@(ProjectReference)" Condition="'%(ProjectReference.OutputItemType)' != 'Analyzer'">
         <AdditionalProperties>%(ProjectReference.AdditionalProperties);CgeNumericMode=$(CgeNumericMode);CgeFixedBits=$(CgeFixedBits);CgeFractionalBits=$(CgeFractionalBits)</AdditionalProperties>
       </ProjectReference>

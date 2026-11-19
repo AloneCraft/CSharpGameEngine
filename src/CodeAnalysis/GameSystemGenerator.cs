@@ -249,7 +249,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             }
 
             if(EntryPointPlan.Emit){
-                GameSystemEntryPointEmitter.Emit(Spc,Registry);
+                GameSystemEntryPointEmitter.Emit(Spc,Registry,Source.Gate.HasAndroidHost);
             }
 
             foreach(var SceneDeclaration in ValidSceneDeclarations){

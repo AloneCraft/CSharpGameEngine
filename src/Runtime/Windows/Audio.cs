@@ -47,7 +47,7 @@ public sealed class Audio {
                 Gain*=Mix.Attenuation;
                 Pan=Mix.Pan;
             }
-            this.Host.EnsureAudioDevice().PlayOneShot(Clip,Gain,Pan);
+            this.Host.PlayOneShot(Clip,Gain,Pan);
         }
         this.Pending.Clear();
     }

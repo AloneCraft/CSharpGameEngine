@@ -2,12 +2,9 @@ using CSharpGameEngine.Rendering.Server;
 using System.Numerics;
 using CSharpGameEngine.Audio;
 using CSharpGameEngine.Contracts;
-using CSharpGameEngine.Audio.XAudio2;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Input;
 using CSharpGameEngine.Numerics;
-using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Rendering.View;
 using CSharpGameEngine.Runtime.Physics;
@@ -15,14 +12,21 @@ using CSharpGameEngine.Runtime.Simulation;
 using CSharpGameEngine.World;
 using RenderCamera=CSharpGameEngine.Rendering.View.RenderCamera;
 using EcsWorld=CSharpGameEngine.Entities.World;
+#if !CGE_PLATFORM_ANDROID
+using CSharpGameEngine.Audio.XAudio2;
+using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Platform.Windows;
+#endif
 
 namespace CSharpGameEngine.Runtime.Windows;
 
+#if !CGE_PLATFORM_ANDROID
 /// <summary>
 /// ADR-0070 B1：Scene Designerなど、別プロセスのビューのように、ホストが自身で作成せず描画するウィンドウ。
 /// ホストはそのウィンドウのメッセージ処理も破棄も行わない。
 /// </summary>
 internal readonly record struct ExternalRenderSurface(nint Handle,int Width,int Height,GraphicsDeviceOptions DeviceOptions);
+#endif
 
 /// <summary>
 /// ADR-0070 B1：Scene Designerのカメラ。ランタイムが適用する場所でシーンのアクティブカメラと置き換わるため、
@@ -44,7 +48,12 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     private readonly ReferenceFrameGraph FrameGraphStorage=new(ReferenceFrameId.Root);
     private readonly WorldOwner WorldStorage=new();
     private readonly List<AudioSourceSnapshot>AudioSourcesStorage=[];
+#if CGE_PLATFORM_ANDROID
+    /// <summary>ADR-0101 段階1：Android にはまだ音の出口が無い。ミキサーはどこにもつながず、鳴らす要求は捨てる。</summary>
+    private readonly AudioMixer SilentMixer=new(AudioMixFormat.Default);
+#else
     private AudioDeviceServer?AudioDevice;
+#endif
     private bool Disposed;
     private FixedAffineTransform AudioListenerFrameLocalPose;
     private ReferenceFrameId AudioListenerFrame;
@@ -59,8 +68,10 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     private int RadialObserverPreviewCount;
     private bool RadialObserverPreviewsSubmitted;
 
+#if !CGE_PLATFORM_ANDROID
     internal Win32Window?Window { get;private set; }
     internal ExternalRenderSurface?ExternalSurface { get;private set; }
+#endif
     internal EditorCameraPose?EditorCamera { get;private set; }
     internal RenderServer?Renderer { get;private set; }
     internal InputServer Input { get;private set; }=new(new InputActionMap([]));
@@ -76,14 +87,22 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     public WorldCellStreamingService?WorldStreaming { get;private set; }
     public ReferenceFrameSnapshot FrameSnapshot=>this.FrameGraphStorage.Current;
     public IReadOnlyList<AudioSourceSnapshot>AudioSources=>this.AudioSourcesStorage;
+#if CGE_PLATFORM_ANDROID
+    public AudioMixer Audio=>this.SilentMixer;
+#else
     public AudioMixer Audio=>this.EnsureAudioDevice().Mixer;
+#endif
     private Audio?SoundStorage;
     /// <summary>ゲームコードが効果音を鳴らす入口(ADR-0077)。System の引数に <c>Audio</c> と書くと、これが渡される。</summary>
     public Audio Sound=>this.SoundStorage??=new Audio(this);
     private Hud?HudStorage;
     /// <summary>画面に出す情報の入口(ADR-0077)。System の引数に <c>Hud</c> と書くと、これが渡される。</summary>
     public Hud Hud=>this.HudStorage??=new Hud(this);
+#if CGE_PLATFORM_ANDROID
+    internal void SetWindowTitle(string Title){}
+#else
     internal void SetWindowTitle(string Title)=>this.Window?.SetTitle(Title);
+#endif
     private ScreenUi?UiStorage;
     /// <summary>画面に文字と画像を出す入口(ADR-0078/M0104)。System の引数に <c>ScreenUi</c> と書くと、これが渡される。</summary>
     public ScreenUi Ui=>this.UiStorage??=new ScreenUi(this);
@@ -109,9 +128,13 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     public CSharpGameEngine.Input.Pointer Cursor{
         get{
             if(this.Automation?.ScriptedCursor is { }Scripted){ return new CSharpGameEngine.Input.Pointer(Scripted.X,Scripted.Y,true); }
+#if CGE_PLATFORM_ANDROID
+            return default;
+#else
             if(this.Window is not { }Surface||Surface.ClientWidth<=0||Surface.ClientHeight<=0||!Surface.TryGetCursorClient(out var X,out var Y)){ return default; }
             var Inside=X>=0&&Y>=0&&X<Surface.ClientWidth&&Y<Surface.ClientHeight;
             return new CSharpGameEngine.Input.Pointer(X/(float)Surface.ClientWidth,Y/(float)Surface.ClientHeight,Inside);
+#endif
         }
     }
     /// <summary>
@@ -121,9 +144,15 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     internal bool TryPointerRay(float X,float Y,out PhysicsRay Ray){
         Ray=default;
         if(!this.HasCameraPose||this.CameraFrame!=this.Physics.Frame||!(this.RenderCamera.FovYRadians>0f)){ return false; }
+#if CGE_PLATFORM_ANDROID
+        var Width=0;
+        var Height=0;
+        if(this.Renderer is { }Surface){
+#else
         var Width=this.Window?.ClientWidth??0;
         var Height=this.Window?.ClientHeight??0;
         if(this.Window is null&&this.Renderer is { }Surface){
+#endif
             Width=Surface.SurfaceWidth;
             Height=Surface.SurfaceHeight;
         }
@@ -175,16 +204,27 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     public bool TryGetPhysicsSyncFailure(Entity Entity,out PhysicsFaultType Failure)=>
         this.Physics.Active.TryGetSyncFailure(Entity,out Failure);
     internal PhysicsDomainRuntime ActivePhysicsDomain=>this.Physics.Active;
+#if CGE_PLATFORM_ANDROID
+    /// <summary>効果音を1回鳴らす。ADR-0101 段階1の Android には音の出口が無いので、何もせず false を返す。</summary>
+    internal bool PlayOneShot(PcmClip Clip,float Gain,float Pan){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        return false;
+    }
+#else
     internal AudioDeviceServer EnsureAudioDevice(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         return this.AudioDevice??=new AudioDeviceServer(AllowSilentFallback:true);
     }
+    /// <summary>効果音を1回鳴らす。音の装置はここで初めて作る。</summary>
+    internal bool PlayOneShot(PcmClip Clip,float Gain,float Pan)=>this.EnsureAudioDevice().PlayOneShot(Clip,Gain,Pan);
+#endif
 
     public void SetInput(InputServer Input){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         this.Input=Input??throw new ArgumentNullException(nameof(Input));
     }
 
+#if !CGE_PLATFORM_ANDROID
     /// <summary>
     /// ホスト自身のウィンドウではなく、<paramref name="Handle"/>へ描画する。
     /// 最初のフレームより前に呼び出すこと。以後、レベルはこのサーフェスへ読み込まれ、入力は読み取られない。
@@ -207,6 +247,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         this.ExternalSurface=Surface with { Width=Width,Height=Height };
         this.Renderer?.Resize(Width,Height);
     }
+#endif
 
     public void SetEditorCamera(in EditorCameraPose Camera){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
@@ -215,6 +256,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
 
     public void ClearEditorCamera()=>this.EditorCamera=null;
 
+#if !CGE_PLATFORM_ANDROID
     internal Win32Window EnsureWindow(in AppHost App){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         return this.Window??=new Win32Window(new Win32WindowOptions {
@@ -222,6 +264,67 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
             // 自動実行では、スクリプトで指定されたキー（CGE_AUTOMATION_INPUT）だけで操作する。
             IgnoreDeviceInput=this.Automation is not null,
         });
+    }
+#endif
+
+    /// <summary>
+    /// ウィンドウのメッセージと入力を1フレーム分処理する。最初のフレームではウィンドウを作るだけにする。
+    /// 外部描画先(ADR-0070 B1)では、描画先と入力はエディターが持つので何もしない。ゲームを終えるべきときは false。
+    /// </summary>
+    internal bool PumpPlatformEvents(in AppHost App){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+#if CGE_PLATFORM_ANDROID
+        // ADR-0101 段階1：ウィンドウも入力もまだ無い。アプリの画面が閉じられたら終える。
+        return !CSharpGameEngine.Runtime.Android.AndroidGameHost.CloseRequested;
+#else
+        if(this.ExternalSurface is not null){ return true; }
+        if(this.Window is null){
+            this.EnsureWindow(App);
+            return true;
+        }
+        var Window=this.Window;
+        if(App.CaptureMouse&&this.Automation is null&&!Window.IsMouseCaptured){
+            Window.SetMouseCaptured(true);
+        }
+        Window.PumpEvents();
+        this.Automation?.ApplyInput(Window);
+        this.Input.ProcessEvents(Window.DrainInputEvents());
+        return !Window.IsClosed;
+#endif
+    }
+
+    /// <summary>レベルを描く先(ホストのウィンドウか、エディターの外部描画先)があるか。無いうちはレベルを読み込まない。</summary>
+#if CGE_PLATFORM_ANDROID
+    internal bool HasRenderSurface=>false;
+#else
+    internal bool HasRenderSurface=>this.ExternalSurface is not null||this.Window is not null;
+#endif
+
+    /// <summary>
+    /// 描画先(<see cref="HasRenderSurface"/>)へ描くレンダラーを作り、このホストの持ち物にする。ホストのウィンドウなら、
+    /// ウィンドウの大きさが変わったときにレンダラーも合わせる。
+    /// </summary>
+    internal RenderServer CreateLevelRenderer(string ShaderArtifactPath,
+        IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,IReadOnlyList<StageObjectCreateInfo>Objects){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+#if CGE_PLATFORM_ANDROID
+        // ADR-0101 段階1：Android のレンダラーはまだ無い。HasRenderSurface が false なので、ここへは来ない。
+        throw new PlatformNotSupportedException("Android has no renderer yet (ADR-0101 stage 1).");
+#else
+        var Window=this.Window;
+        var Renderer=this.ExternalSurface is { }Surface
+            ?D3D12RenderServer.Create(Surface.Handle,Surface.Width,Surface.Height,Surface.DeviceOptions,
+                ShaderArtifactPath,Meshes,Materials,Objects)
+            :Window is not null
+                ?D3D12RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
+                    ShaderArtifactPath,Meshes,Materials,Objects)
+                :throw new InvalidOperationException("The host has no surface to render into.");
+        this.OwnRenderer(Renderer);
+        if(Window is not null&&this.ExternalSurface is null){
+            Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
+        }
+        return Renderer;
+#endif
     }
 
     internal void AttachRenderer(RenderServer Renderer,in RenderCamera Camera,
@@ -377,11 +480,16 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     /// <summary>1フレームを表示する。自動検証が規定フレーム数に達したらfalseを返し、ループ終了を要求する。</summary>
     internal bool Present(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
+#if !CGE_PLATFORM_ANDROID
         if((this.ExternalSurface is not null||this.Window is { IsMinimized:false })&&this.Renderer is { } Renderer){
             this.SubmitEnvironment(Renderer);
             Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
             this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition(),this.Sound.FlushedRequests,this.AudioDevice?.OneShotsStarted??0,this.ScreenLayerFingerprint,this.AutomationFocusPosition);
         }
+#else
+        // ADR-0101 段階1：描画が無いので、フレームを数えて約 60 回/秒に抑えるだけ。
+        CSharpGameEngine.Runtime.Android.AndroidGameHost.EndFrame();
+#endif
         return this.Automation is not { Completed:true };
     }
 
@@ -458,7 +566,9 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
 
     internal void BeginAudioFrame(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
+#if !CGE_PLATFORM_ANDROID
         this.AudioDevice?.ReapOneShots();
+#endif
         this.AudioSourcesStorage.Clear();
         this.AudioListenerFrameLocalPose=default;
         this.AudioListenerFrame=default;
@@ -512,15 +622,30 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         return true;
     }
 
+    /// <summary>ホストのウィンドウを閉じ、外部の描画先を忘れる。Android(ADR-0101 段階1)にはどちらも無い。</summary>
+    private void DisposeWindow(){
+#if !CGE_PLATFORM_ANDROID
+        try { this.Window?.Dispose(); }
+        finally {
+            this.Window=null;
+            this.ExternalSurface=null;
+        }
+#endif
+    }
+
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
         try {
             this.WorldStreaming?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+#if !CGE_PLATFORM_ANDROID
             this.AudioDevice?.Dispose();
+#endif
         } finally {
             this.WorldStreaming=null;
+#if !CGE_PLATFORM_ANDROID
             this.AudioDevice=null;
+#endif
             try {
                 this.Physics.Dispose();
             }
@@ -528,10 +653,8 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
                 try { this.Renderer?.Dispose(); }
                 finally {
                     this.Renderer=null;
-                    try { this.Window?.Dispose(); }
+                    try { this.DisposeWindow(); }
                     finally {
-                        this.Window=null;
-                        this.ExternalSurface=null;
                         this.EditorCamera=null;
                         this.HasCameraPose=false;
                         this.HasAudioListener=false;

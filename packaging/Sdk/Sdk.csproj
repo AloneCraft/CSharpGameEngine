@@ -57,35 +57,42 @@
     <None Include="$(CgeRepositoryRoot)assets\Shaders\*.cgeshadergraph;$(CgeRepositoryRoot)assets\Shaders\*.cgesubgraph;$(CgeRepositoryRoot)assets\Shaders\*.hlsl;$(CgeRepositoryRoot)assets\Shaders\*.hlsli" Pack="true" PackagePath="assets\Shaders\" />
   </ItemGroup>
   <!-- Builds the engine libraries, the analyzer and the shader compiler, then adds their outputs to the package. -->
+  <!-- These builds use the solution's own properties, so they join the solution's builds instead of making second builds into the
+       same outputs, which can collide ("used by another process"). The package carries the default numeric setting (Fixed 128/64),
+       a build with no numeric properties; PackageOutputPath and NoBuild belong to the pack of this project only (the VSIX packs it
+       with them, tools/VSExtension/VSExtension.csproj). -->
+  <PropertyGroup>
+    <CgePayloadRemoveProperties>CgeNumericMode;CgeFixedBits;CgeFractionalBits;CgeNumericProfileId;PackageOutputPath;NoBuild;BuildingInsideVisualStudio</CgePayloadRemoveProperties>
+  </PropertyGroup>
   <Target Name="CgeCollectEnginePayload" BeforeTargets="_GetPackageFiles">
-    <MSBuild Projects="@(CgeEngineLibrary)" Targets="Build" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+    <MSBuild Projects="@(CgeEngineLibrary)" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeEngineAssembly" />
     </MSBuild>
-    <MSBuild Projects="$(CgeRepositoryRoot)src\CodeAnalysis\CodeAnalysis.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+    <MSBuild Projects="$(CgeRepositoryRoot)src\CodeAnalysis\CodeAnalysis.csproj" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeAnalyzerAssembly" />
     </MSBuild>
-    <MSBuild Projects="$(CgeRepositoryRoot)tools\Cook.Cli\Cook.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\Cook.Cli\Cook.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeCookCli" />
     </MSBuild>
     <MSBuild Projects="$(CgeRepositoryRoot)tools\Cge\Cge.csproj;$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Restore" BuildInParallel="false"
-      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" />
+      Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" RemoveProperties="$(CgePayloadRemoveProperties)" />
     <!-- tools\Cge: the shader-graph, scene-schema and content commands the game build runs (Sdk.props, ModelContent.targets). -->
     <MSBuild Projects="$(CgeRepositoryRoot)tools\Cge\Cge.csproj" Targets="Build"
-      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeTool" />
     </MSBuild>
     <MSBuild Projects="$(CgeRepositoryRoot)src\Import\Import.csproj" Targets="Build"
-      Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+      Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeModelImport" />
     </MSBuild>
     <!-- ADR-0079/M0106: the Navigation plugin's Cook module, built here and carried next to the plugin's sources (Navigation.plugin.items runs it from Cook\lib). -->
-    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Navigation\Cook\Navigation.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" BuildInParallel="false" />
-    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Navigation\Cook\Navigation.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Navigation\Cook\Navigation.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" RemoveProperties="$(CgePayloadRemoveProperties)" BuildInParallel="false" />
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Navigation\Cook\Navigation.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeNavigationCookModule" />
     </MSBuild>
     <!-- ADR-0078/M0113: the Destruction plugin's Cook module (the fracture cooker), the same way. -->
-    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Destruction\Cook\Destruction.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" BuildInParallel="false" />
-    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Destruction\Cook\Destruction.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64">
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Destruction\Cook\Destruction.Cook.csproj" Targets="Restore" Properties="Configuration=$(Configuration);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" RemoveProperties="$(CgePayloadRemoveProperties)" BuildInParallel="false" />
+    <MSBuild Projects="$(CgeRepositoryRoot)plugins\Destruction\Cook\Destruction.Cook.csproj" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="$(CgePayloadRemoveProperties)">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeDestructionCookModule" />
     </MSBuild>
     <PropertyGroup>

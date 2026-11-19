@@ -7,8 +7,8 @@
     <CgeShaderGraphCliExe Condition="'$(CgeShaderGraphCliExe)' == ''">$(MSBuildThisFileDirectory)..\tools\Cge\bin\$(Configuration)\net10.0\Cge.exe</CgeShaderGraphCliExe>
     <!-- The game build makes tools/Cge from three places (shader graphs, scene schema, model content). They pass the same properties,
          so MSBuild builds it once per game build and reuses the result. Keep these the same in all three files. -->
-    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);CgeNumericMode=Fixed;CgeFixedBits=128;CgeFractionalBits=64</CgeToolBuildProperties>
-    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;Platform;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath</CgeToolRemoveProperties>
+    <CgeToolBuildProperties Condition="'$(CgeToolBuildProperties)' == ''">Configuration=$(Configuration);Platform=AnyCPU</CgeToolBuildProperties>
+    <CgeToolRemoveProperties Condition="'$(CgeToolRemoveProperties)' == ''">CgeGameProject;CgeDepthMapping;RuntimeIdentifier;SelfContained;PublishDir;TargetFramework;TargetFrameworks;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;CgeNumericMode;CgeFixedBits;CgeFractionalBits;CgeNumericProfileId</CgeToolRemoveProperties>
     <CgeShaderGraphIntermediateDirectory>$(IntermediateOutputPath)ShaderGraph\</CgeShaderGraphIntermediateDirectory>
     <CgeMeshDistanceFieldIntermediateDirectory>$(IntermediateOutputPath)DistanceFields\</CgeMeshDistanceFieldIntermediateDirectory>
   </PropertyGroup>
